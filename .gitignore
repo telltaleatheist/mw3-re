@@ -16,3 +16,7 @@ analysis-output/
 # Build
 build/
 .DS_Store
+
+# Local Python environment for the differential tests
+.venv/
+__pycache__/

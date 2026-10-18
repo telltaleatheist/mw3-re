@@ -75,20 +75,42 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Working with REA
 
-- Ghidra sessions are ephemeral: names and comments set through REA are lost
-  when the session closes. `docs/symbols.csv` is the project's map of the
-  binary (address, name, how it was established); reapply it each session with
-  `set_addresses_names`. Findings go in `docs/`.
-- Each `rea` CLI call re-imports the exe (~80 s). Until the MCP server is
-  registered, batch questions through one `rea mcp` session.
+- Ghidra sessions in REA are ephemeral: names set through REA are lost on close.
+  `docs/symbols.csv` is the project's map of the binary; findings go in `docs/`.
+- Each `rea` CLI call re-imports the exe (~80 s). `tools/analysis/readaemon.py`
+  keeps one `rea mcp` session open (queries then take under a second); see
+  `tools/analysis/README.md`. Not every CLI command takes `--snapshot`.
+- REA cannot decompile an address Ghidra never made a function: it treats the
+  address as a file offset and refuses. About 1,000 such functions are reachable
+  only through vtables and callback tables; `tools/ghidra/CreateAndDecompile.java`
+  creates them in a persistent headless project (`analysis-output/ghidra-project`).
+- `analysis-output/decomp/<addr>.c` holds Ghidra pseudocode for all ~10,950
+  functions; `func2file.json` gives each one's original source file; `mech3.asm`
+  is the full objdump disassembly. Grep these before asking REA.
+
+## Code layout and conventions
+
+- `src/gamez/<module>/` and `src/mech3/` mirror the original source tree
+  (`docs/module-map.md`); when the original file name is unknown, say so in the
+  header and name it after its neighbours.
+- Every ported function starts with `// Mech3.exe 1.2 @ 0x00xxxxxx`. Original
+  globals become struct fields with their address in a comment.
+- Port the logic as written, original quirks included (see zgameapp.cpp). Only
+  (A)/(B) problems change, marked `FIX (A)` / `FIX (B)` and listed in
+  `docs/fixes.md`.
+- Self-contained functions get a differential test (`tests/differential/`) that
+  runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
+- No GPU use while Owen is streaming; the Godot front end is not started yet.
 
 ## Next steps
 
-1. `npx rea-agents setup` (needs Owen's approval; restart Claude Code after).
-   Provider: Ghidra + JDK, or Hopper.
-2. Done: REA found the blit trick (docs/blit-trick.md). It is the software
-   renderer's span drawing, ~30 routines at 0x55c000-0x56e000.
-3. First open question: heat dissipation and heat sinks.
-4. Rebuild that one mechanic as a small C++ unit with tests.
-
-Analysis output goes in `analysis-output/` (git-ignored), never in the repo.
+1. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
+   each subsystem's entry points in `docs/symbols.csv`.
+2. Recover the main data structures (mech, weapon, the zClass node) so Ghidra's
+   output reads as fields; apply them in the headless project.
+3. Port the zReader `.zbd` reader (cross-check with mech3ax) so the rebuild can
+   load data, starting with `reader.zbd` (CD_TRACKS is one entry in it).
+4. Heat: find HeatMgmt / heat_* users and port the heat model with differential
+   tests.
+5. Start the Godot GDExtension front end (window, clock, music output) once the
+   GPU is free.
