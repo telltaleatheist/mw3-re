@@ -29,6 +29,25 @@ a byte-identical port.
 - UnMech3 (Unity) was tried and found weak (campaign barely works, last release
   Sept 2025, source not found). Not a base to build on.
 
+## Guiding rule (Owen, 2026-10-18)
+
+Stay as close to the original code as possible. Change it only to fix what makes
+it (A) unable to run on macOS and modern Windows (Win32, DirectX 6, MCI, x86-only
+tricks such as the ESP blit) or (B) break on modern Windows without helpers like
+DDrawCompat. Each such fix is noted next to the function it touches. The
+scaffold is shaped by the real decompiled code, not designed ahead of it.
+
+## Tools on this Mac
+
+- Ghidra 12.1.4 and JDK 21 from Homebrew:
+  `GHIDRA_INSTALL_DIR=/opt/homebrew/opt/ghidra/libexec`,
+  `JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`.
+- REA 6.7.0 installed globally under nvm Node 24
+  (`~/.nvm/versions/node/v24.22.0/bin/rea`); the default Node is
+  older than REA allows. The CLI works without the MCP registration:
+  `rea <command> game/mw3-1.2/Mech3.exe --provider ghidra --snapshot
+  analysis-output/mech3.snapshot.json --json`.
+
 ## Game files (git-ignored, under `game/`)
 
 - `game/mw3-1.2/` is a patched v1.2 install assembled from Owen's backups on
