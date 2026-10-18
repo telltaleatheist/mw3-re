@@ -6,15 +6,26 @@ a byte-identical port.
 
 ## Decisions so far (2026-10-18)
 
-- Target: reimplementation that runs on modern systems including macOS, no Wine.
-  Match behaviour and feel, not bytes.
-- Language: C++. Game logic in plain C++ with no engine types, so the front end
-  can change. Thin Godot (GDExtension) layer for rendering/input first; SDL is
-  the fallback if Godot is dropped.
+- Target: a rebuild that runs on modern systems including macOS from day 1, no
+  Wine. It does exactly what the original did, reusing the original's logic as
+  closely as possible, but is not byte-identical.
+- Language: C++. Game logic is a plain C++ library with no engine types, built
+  from Ghidra's decompiled C: give Ghidra the structs first, then clean each
+  function into real C++ and keep its original address in a comment
+  (`// Mech3.exe 1.2 @ 0x00412340`). A thin Godot GDExtension layer does
+  rendering, audio and input; SDL is the fallback if Godot is dropped.
+- Checking: differential tests run the original x86 function (in an emulator
+  such as Unicorn, on the Mac) and the C++ version on the same inputs.
 - Assets: never committed. A first-run importer reads the player's MW3 1.2
   install/disc and converts locally. mech3ax (TerranMechworks/mech3ax, Rust)
-  documents the .zbd formats; port its parsers to C++. Music may be CD audio
-  tracks rather than files: check the disc.
+  documents the .zbd formats; port its parsers to C++.
+- Music: wired up from the start, songs dropped in later. The original asks MCI
+  to play CD track numbers, so the rebuild keeps those numbers: the game asks
+  for "track N", and the audio layer plays `music/trackNN.ogg` (or .flac/.wav)
+  from the player's folder if it exists, else stays silent. A ripped disc maps
+  one to one. Which track plays when comes from the exe's MCI calls.
+- Reference runtime: the original runs on Windows 11 (Owen's PC) with
+  DDrawCompat. dgVoodoo does not work for MW3.
 - UnMech3 (Unity) was tried and found weak (campaign barely works, last release
   Sept 2025, source not found). Not a base to build on.
 
