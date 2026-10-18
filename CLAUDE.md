@@ -73,12 +73,21 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - MW3 uses the stack-pointer blit trick (ESP loaded with a surface pointer,
   push/pop runs). In a rewrite it is replaced by engine drawing, not ported.
 
+## Working with REA
+
+- Ghidra sessions are ephemeral: names and comments set through REA are lost
+  when the session closes. `docs/symbols.csv` is the project's map of the
+  binary (address, name, how it was established); reapply it each session with
+  `set_addresses_names`. Findings go in `docs/`.
+- Each `rea` CLI call re-imports the exe (~80 s). Until the MCP server is
+  registered, batch questions through one `rea mcp` session.
+
 ## Next steps
 
 1. `npx rea-agents setup` (needs Owen's approval; restart Claude Code after).
    Provider: Ghidra + JDK, or Hopper.
-2. Validate REA against known ground truth: find code that loads ESP from a
-   non-stack value and compare with Owen's notes.
+2. Done: REA found the blit trick (docs/blit-trick.md). It is the software
+   renderer's span drawing, ~30 routines at 0x55c000-0x56e000.
 3. First open question: heat dissipation and heat sinks.
 4. Rebuild that one mechanic as a small C++ unit with tests.
 

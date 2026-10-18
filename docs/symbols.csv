@@ -1,0 +1,9 @@
+address,name,source,notes
+0x00564080,span_fill16,rea:procedure_assembly,"solid 16-bit span fill via PUSH; ECX color, EDX count"
+0x0056cb40,span_textured16,rea:procedure_pseudo_code,"textured 16-bit span via PUSH WORD; u ECX, v EDX, count stack"
+0x0072c278,g_span_dest,rea:xrefs,"destination scanline pointer"
+0x0072c268,g_span_texture,rea:procedure_assembly,"texture base"
+0x0072c270,g_span_du,rea:procedure_assembly,"u step"
+0x0072c274,g_span_dv,rea:procedure_assembly,"v step"
+0x005efb98,g_span_vmask,rea:procedure_assembly,"v row mask"
+0x0074a338,g_saved_esp,rea:xrefs,"real ESP saved during a span"
