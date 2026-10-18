@@ -1,0 +1,18 @@
+# Never commit original game files or anything converted from them
+game/
+imported/
+*.zbd
+*.exe
+*.dll
+*.bin
+*.cue
+*.iso
+
+# Analysis output (Ghidra projects, REA evidence, dumps)
+analysis-output/
+*.gpr
+*.rep/
+
+# Build
+build/
+.DS_Store
