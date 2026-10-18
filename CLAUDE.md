@@ -18,6 +18,26 @@ a byte-identical port.
 - UnMech3 (Unity) was tried and found weak (campaign barely works, last release
   Sept 2025, source not found). Not a base to build on.
 
+## Game files (git-ignored, under `game/`)
+
+- `game/mw3-1.2/` is a patched v1.2 install assembled from Owen's backups on
+  `/Volumes/iO/backups/win98/` (`MechWarrior 3.zip` = the disc ISO, `MW3 patches
+  and cracks.zip` = the official 1.2 patch). Rebuild it from there if lost: the
+  disc's `DATA1.CAB` is InstallShield (`unshield`, in Homebrew); every component
+  merges into one folder without collisions, then the patch's `Patch Files`
+  go on top, plus the disc's `VIDEO/`.
+- `Mech3.exe` 1.2 (official, not a NoCD build): PE32 i386, sha256
+  `95bc2c114c9b2e5c5ada8e40ca78cc79470f862e45313ffad0d1e8e6d4d916bf`.
+- Music is CD audio played through MCI (`cdaudio`, `mciSendCommandA`), and the
+  backup ISO is data-only, so this copy has no music.
+- Cutscenes are Indeo 5 AVIs (`Ir50_32.dll` ships with the game).
+- The install has software-texture sets as well as hardware ones: MW3 has a
+  software renderer, the likely home of the blit trick.
+- Pirate's Moon (expansion, not being built yet; may be remade later):
+  `/Volumes/iO/backups/win98/MW3 pirates moon.zip`.
+- REA source for reading: `../rea` (a clone, not a
+  dependency).
+
 ## Known from Owen's own disassembly
 
 - MW3 uses the stack-pointer blit trick (ESP loaded with a surface pointer,
