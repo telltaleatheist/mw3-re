@@ -162,8 +162,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [ ] Mech definition: the reader 0x46ba40 ported whole, with its entry
       0x46b7a0 and cache 0x4846a0, identical to the original on all 19 files
       (`mech3/mech_reader`, `mech_skin`, `mech_config`, `mech_names`;
-      docs/mechdef-*.md). Left: the saved loadouts 0x424b70 and the dtor with
-      SaveAll 0x424f60 (`mechdef-head.md`).
+      docs/mechdef-*.md), the dtor 0x46b9b0 and the saved loadouts' loader
+      0x424b70 (`test_mechsave.py`). Left: the writer, SaveAll 0x424f60 with
+      Config::Save 0x424480 and the archive writer (`mechdef-head.md`).
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),

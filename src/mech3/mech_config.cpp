@@ -1,18 +1,27 @@
 #include "mech3/mech_config.h"
 
+#include <climits>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 
+#include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_names.h"
 
 namespace mech3 {
 
 namespace {
+// _strdup: the name is malloc'd, as the loader's read_string makes it.
 char* dup(const char* s) {
-  char* d = new char[std::strlen(s) + 1];
+  char* d = static_cast<char*>(std::malloc(std::strlen(s) + 1));
   std::strcpy(d, s);
   return d;
 }
+
+// ReadFile with the count ignored, as the exe does: a short read leaves the rest.
+void rd(std::FILE* f, void* p, size_t n) { std::fread(p, 1, n, f); }
 
 EquipmentItem* new_equipment(int32_t n, int32_t kind, int32_t tech) {
   auto* e = new EquipmentItem;
@@ -36,7 +45,7 @@ Config::Config(int32_t m, const char* n)
 
 // Mech3.exe 1.2 @ 0x00424350, with the item list's 0x00470d20
 Config::~Config() {
-  delete[] name;
+  std::free(name);
   name = nullptr;
   for (ConfigItem*& i : items) delete i, i = nullptr;
   items.clear();
@@ -121,4 +130,279 @@ ConfigList::~ConfigList() {
   configs.clear();
 }
 
+// Mech3.exe 1.2 @ 0x00472b20. The id goes through set_id. FIX (A): when the
+// file ends early the exe's id is whatever ECX held, the item's own address;
+// here it is INT32_MAX, which no table knows either.
+void ConfigItem::load(std::FILE* f) {
+  int32_t v = INT32_MAX;
+  rd(f, &count, 4);
+  rd(f, &v, 4);
+  rd(f, &part, 4);
+  rd(f, &group, 4);
+  set_id(v);
+}
+
+// Mech3.exe 1.2 @ 0x00472b90
+void WeaponItem::load(std::FILE* f) {
+  ConfigItem::load(f);
+  rd(f, &tech, 4);
+}
+
+// Mech3.exe 1.2 @ 0x00472c00. Standard armor is always tech 3.
+void EquipmentItem::load(std::FILE* f) {
+  ConfigItem::load(f);
+  rd(f, &tech, 4);
+  if (equipment == 1) tech = kAnyTech;
+}
+
+// Mech3.exe 1.2 @ 0x00472c80
+void EngineItem::load(std::FILE* f) {
+  ConfigItem::load(f);
+  rd(f, &xl, 1);
+}
+
+// Mech3.exe 1.2 @ 0x004730e0. The weights stay on the x87 stack, so the
+// products here are doubles.
+double WeaponItem::weight(int32_t n) const {
+  return static_cast<double>(weapon_weight(weapon, tech)) * (n == -1 ? count : n);
+}
+
+// Mech3.exe 1.2 @ 0x00473140
+double AmmoItem::weight(int32_t n) const { return static_cast<double>(ammo_weight(weapon)) * (n == -1 ? count : n); }
+
+// Mech3.exe 1.2 @ 0x00473110
+double EquipmentItem::weight(int32_t n) const {
+  return static_cast<double>(equip_weight(equipment, tech)) * (n == -1 ? count : n);
+}
+
+// Mech3.exe 1.2 @ 0x00473160. The index is clamped to 0..79, one past the table.
+double EngineItem::weight(int32_t n) const {
+  Engine e{engine > 79 ? 79 : engine < 0 ? 0 : engine, xl};
+  return engine_weight_x87(e) * (n == -1 ? count : n);
+}
+
+// Mech3.exe 1.2 @ 0x004731b0
+int32_t WeaponItem::slots() const { return weapon_slots(weapon, tech, false); }
+
+// Mech3.exe 1.2 @ 0x004731c0. Ferro-fibrous keeps its slot count in the group field.
+int32_t EquipmentItem::slots() const { return equipment == 2 ? group : equip_slots(equipment, tech); }
+
+// Mech3.exe 1.2 @ 0x00471540. A kind above 4 makes no item and reads nothing
+// more, so the rest of the file is read out of step. FIX (bug): the exe goes
+// on counting down a damaged count of up to 4 billion past the file's end, a
+// hang; this stops there, with the same items (docs/fixes.md).
+void Config::load_items(std::FILE* f) {
+  int32_t n = 0;
+  rd(f, &n, 4);
+  while (n != 0) {
+    --n;
+    int32_t kind = -1;
+    rd(f, &kind, 4);
+    if (std::feof(f)) break;  // a short read: no item now or after
+    ConfigItem* item = nullptr;
+    switch (kind) {
+      case 0: item = new BaseItem; break;
+      case 1: item = new WeaponItem; break;
+      case 2: item = new AmmoItem; break;
+      case 3: item = new EquipmentItem; break;
+      case 4: item = new EngineItem; break;
+      default: break;
+    }
+    if (!item) continue;
+    item->load(f);
+    items.push_back(item);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00424600. Byte counts are never checked. The engine
+// (0x00432ff0) and sinks (0x004243c0) loads are inline here.
+bool Config::load(std::FILE* f) {
+  if (!f) return false;
+  std::free(name);
+  name = nullptr;
+  zutl_zar::read_string(f, &name);
+  load_items(f);
+  rd(f, &mech, 4);
+  rd(f, &g70, 4), rd(f, &turn_rate, 4), rd(f, &g78, 4);
+  rd(f, &accel_rate, 4), rd(f, &decel_rate, 4), rd(f, &turn_accel, 4);
+  rd(f, &endo_steel, 1);
+  rd(f, &crc, 4);
+  rd(f, &b1d, 1), rd(f, &modified, 1);
+  rd(f, &armor_tons, 4), rd(f, &armor_tech, 4), rd(f, &ferro, 1), rd(f, armor, sizeof armor);
+  rd(f, &engine, 4), rd(f, &xl, 1);
+  rd(f, &sink_tech, 4), rd(f, &sinks, 4), rd(f, &double_sinks, 1);
+  player_made = 1;
+  return validate(true);
+}
+
+// Mech3.exe 1.2 @ 0x00425650. Bit fields over the config, then three words per
+// weapon, ammo or equipment item; the length (low 16 bits of word 0) counts
+// only those, the buffer every item.
+std::vector<uint32_t> Config::packed() const {
+  std::vector<uint32_t> p((static_cast<size_t>(item_count()) * 0xc + 0x34) / 4 + 1, 0);
+  p[0] = static_cast<uint32_t>(mech) << 16;
+  uint32_t w = (player_made != 0) | (endo_steel != 0) << 1 | (static_cast<uint32_t>(engine) & 0x7f) << 2 |
+               (xl != 0) << 9 | (ferro != 0) << 10;
+  w |= (static_cast<uint32_t>(crt::msvc_ftol(static_cast<double>(armor_tons) * 2)) & 0x7ffff) << 11;
+  p[1] = (w & 0x3fffffff) | static_cast<uint32_t>(armor_tech) << 30;
+  for (int i = 0; i < 11; ++i) p[2 + i] = static_cast<uint32_t>(armor[i]);
+  size_t at = 13;
+  uint32_t n = 0;
+  for (const ConfigItem* i : items) {
+    const int k = i->kind();
+    if (k < 1 || k > 3) continue;
+    uint32_t tech = 0;
+    if (k == 1) tech = static_cast<uint32_t>(static_cast<const WeaponItem*>(i)->tech);
+    if (k == 3) tech = static_cast<uint32_t>(static_cast<const EquipmentItem*>(i)->tech);
+    // ammo leaves bits 19-20 clear
+    p[at] = k | (static_cast<uint32_t>(i->id()) & 0xffff) << 3 | (tech & 3) << 19 |
+            static_cast<uint32_t>(i->count) << 21;
+    p[at + 1] = static_cast<uint32_t>(i->group);
+    p[at + 2] = static_cast<uint32_t>(i->part);
+    at += 3, ++n;
+  }
+  p[0] |= (n * 0xc + 0x34) & 0xffff;
+  return p;
+}
+
+// Mech3.exe 1.2 @ 0x004255b0. CRC-32 (0x00576c10) of the name, the packed form
+// and the six movement values.
+uint32_t Config::checksum() const {
+  const std::vector<uint32_t> p = packed();
+  uint32_t c = 0;
+  c = zutl_zar::crc32(c, name, std::strlen(name));
+  c = zutl_zar::crc32(c, p.data(), p[0] & 0xffff);
+  const uint32_t move[3] = {g70, 0, g78};
+  uint8_t m[12];
+  std::memcpy(m, move, 12);
+  std::memcpy(m + 4, &turn_rate, 4);
+  c = zutl_zar::crc32(c, m, 12);
+  c = zutl_zar::crc32(c, &accel_rate, 4);
+  c = zutl_zar::crc32(c, &decel_rate, 4);
+  return zutl_zar::crc32(c, &turn_accel, 4);
+}
+
+namespace {
+// 0x004251d0: one item's share of a weight category.
+bool in_category(const ConfigItem* i, int32_t what) {
+  const int k = i->kind();
+  switch (what) {
+    case 2: return k == 3 && i->id() == 11;  // jump jets
+    case 4: return k == 3 && (i->id() == 1 || i->id() == 2);  // armor (Weight(4) itself reads +0x2c)
+    case 5: return k == 1;
+    case 6: return k == 2;
+    case 7: {
+      if (k != 3) return false;
+      const int32_t e = i->id();
+      return e != 11 && e != 9 && e != 10 && e != 1 && e != 2;
+    }
+    default: return false;
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00425300. 0 engine, 1 heat sinks past the free 10, 2 jump
+// jets, 3 structure, 4 armor, 5 weapons, 6 ammo, 7 other equipment, 8 max
+// mass; -1 sums 0..7 with the 3 t cockpit and the engine's own shielding.
+// Running sums are stored as floats, as the exe's local is.
+double Config::weight(int32_t what) const {
+  switch (what) {
+    case -1: {
+      float sum = 0.0f;
+      for (int32_t i = 0; i < 8; ++i) sum = static_cast<float>(weight(i) + sum);
+      const Engine e{engine, xl};
+      const auto shielding = static_cast<float>(std::ceil(engine_rating(e) * static_cast<double>(0.009999f)));
+      double t = static_cast<double>(sum) + 3.0 + shielding;  // 0x005e24f0
+      if (mech == 9) t -= 0.5;  // the Mad Cat is half a ton lighter
+      return t;
+    }
+    case 0: return engine_weight_x87(Engine{engine, xl});
+    case 1: {
+      const double w = static_cast<double>(equip_weight(double_sinks ? 10 : 9, sink_tech)) * (sinks - 10);
+      return w < 0.0 ? 0.0 : w;
+    }
+    case 3: {
+      const double w = static_cast<double>(max_mass(mech)) * static_cast<double>(0.1f);
+      return endo_steel ? std::floor(w + 0.5) * 0.5 : w;
+    }
+    case 4: return armor_tons;
+    case 8: return max_mass(mech);
+    default: {
+      float sum = 0.0f;
+      for (const ConfigItem* i : items)
+        if (in_category(i, what)) sum = static_cast<float>(i->weight(-1) + sum);
+      return sum;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00424220. An item with no place that still needs slots.
+bool Config::unplaced_item() const {
+  for (const ConfigItem* i : items)
+    if (i->part == -1 && i->slots() != 0) return true;
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x00425ff0
+int32_t Config::jump_jets() const {
+  int32_t n = 0;
+  for (const ConfigItem* i : items)
+    if (i->kind() == 3 && static_cast<const EquipmentItem*>(i)->equipment == 11) ++n;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00425fb0
+int32_t Config::jump_jet_limit() const {
+  const float m = max_mass(mech);
+  if (m <= 40.0f) return 2;
+  return m > 65.0f ? 4 : 3;
+}
+
+// Mech3.exe 1.2 @ 0x004254d0. Elementals are never checked (docs/mechdef-head.md).
+bool Config::validate(bool check_crc) const {
+  if (mech == 7) return true;
+  if (check_crc && crc != checksum()) return false;
+  if (static_cast<float>(weight(-1) - 0.24f) > max_mass(mech)) return false;
+  if (unplaced_item()) return false;
+  if (jump_jets() > jump_jet_limit()) return false;
+  int32_t points = 0;
+  for (int32_t a : armor) points += a;
+  return points <= armor_points(armor_tech, ferro != 0, armor_tons);
+}
+
+// Mech3.exe 1.2 @ 0x004242a0
+Config* Config::from_file(const char* n, std::FILE* f) {
+  if (!n || !f) return nullptr;
+  auto* c = new Config(-1, n);
+  if (!c->load(f)) {
+    delete c;
+    return nullptr;
+  }
+  return c;
+}
+
+// Mech3.exe 1.2 @ 0x00424b70. Entry 0 is skipped by position whatever it is,
+// and a config is kept whichever mech it names. True when the file opened.
+bool ConfigList::load_saved() {
+  char path[128];
+  std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  if (!zutl_zar::open(a, path)) {
+    zutl_zar::destroy(a);
+    return false;
+  }
+  uint32_t version = 0, size = 4;
+  if (zutl_zar::read(a, zutl_zar::find(a, "version"), &version, &size) == 0 && version == 15) {  // 0x00423cf0
+    for (int i = 1; i < a.count; ++i) {
+      const char* entry = a.entries[i].name;
+      if (Config* c = Config::from_file(entry, zutl_zar::seek(a, i, nullptr))) configs.push_back(c);
+    }
+  }
+  zutl_zar::close(a);
+  zutl_zar::destroy(a);
+  return true;
+}
+
 }  // namespace mech3
+

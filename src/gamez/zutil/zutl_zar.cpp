@@ -145,14 +145,36 @@ uint32_t read(Archive& a, int index, void* buffer, uint32_t* size) {
 }
 
 // Mech3.exe 1.2 @ 0x00576460
+// FIX (bug): a length past the file's end (a damaged save) made the exe
+// allocate up to 4 GB and crash when that failed; the buffer here stops at the
+// file's end, which holds the same string (docs/fixes.md).
 uint32_t read_string(std::FILE* file, char** out) {
   int32_t length = 0;
   uint32_t total = read_bytes(file, &length, 4);
-  char* s = static_cast<char*>(std::malloc(static_cast<size_t>(length) + 1));
+  const long left = file_size(file) - std::ftell(file);
+  const size_t size = length < 0 ? 0 : length > left ? static_cast<size_t>(left) : static_cast<size_t>(length);
+  char* s = static_cast<char*>(std::malloc(size + 1));
   *out = s;
-  std::memset(s, 0, static_cast<size_t>(length) + 1);
-  if (0 < length) total += read_bytes(file, s, static_cast<uint32_t>(length));
+  std::memset(s, 0, size + 1);
+  if (size > 0) total += read_bytes(file, s, static_cast<uint32_t>(size));
   return total;
+}
+
+// Mech3.exe 1.2 @ 0x00576c10, table 0x00576bc0
+uint32_t crc32(uint32_t crc, const void* data, size_t n) {
+  static uint32_t table[256];
+  static bool built = false;  // 0x0072f2c0
+  if (!built) {
+    for (uint32_t i = 0; i < 256; ++i) {
+      uint32_t v = i << 24;
+      for (int b = 0; b < 8; ++b) v = (v & 0x80000000u) ? (v << 1) ^ 0x04c11db7u : v << 1;
+      table[i] = v;
+    }
+    built = true;
+  }
+  const auto* p = static_cast<const uint8_t*>(data);
+  for (size_t i = 0; i < n; ++i) crc = table[(crc >> 24) ^ p[i]] ^ (crc << 8);
+  return crc;
 }
 
 }  // namespace zutl_zar

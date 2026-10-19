@@ -1241,3 +1241,82 @@ static int dfn_configs(const char* path, long offset, int index, int localized, 
   return finish(b, out, cap);
 }
 
+
+#include <unistd.h>
+
+namespace {
+mech3::WeaponLab g_labs[37];
+uint8_t g_lab_present[37];
+
+// One loaded config as test_mechsave.py dumps it from the original.
+void put_config(std::vector<uint8_t>& b, const mech3::Config* c) {
+  put_cstr(b, c->name);
+  put_i32(b, c->mech);
+  put_bytes(b, &c->g70, 4), put_bytes(b, &c->turn_rate, 4), put_bytes(b, &c->g78, 4);
+  put_bytes(b, &c->accel_rate, 4), put_bytes(b, &c->decel_rate, 4), put_bytes(b, &c->turn_accel, 4);
+  for (uint8_t v : {c->player_made, c->b1d, c->modified, c->endo_steel, c->ferro, c->xl, c->double_sinks}) b.push_back(v);
+  put_bytes(b, &c->crc, 4), put_bytes(b, &c->armor_tons, 4), put_i32(b, c->armor_tech);
+  put_bytes(b, c->armor, sizeof c->armor);
+  put_i32(b, c->engine), put_i32(b, c->sink_tech), put_i32(b, c->sinks);
+  put_i32(b, c->item_count());
+  for (const mech3::ConfigItem* i : c->items) {
+    put_i32(b, i->kind()), put_i32(b, i->count), put_i32(b, i->group), put_i32(b, i->part), b.push_back(i->b10);
+    put_i32(b, i->id());
+    if (i->kind() == 1) put_i32(b, static_cast<const mech3::WeaponItem*>(i)->tech);
+    if (i->kind() == 3) put_i32(b, static_cast<const mech3::EquipmentItem*>(i)->tech);
+    if (i->kind() == 4) b.push_back(static_cast<const mech3::EngineItem*>(i)->xl);
+  }
+}
+}  // namespace
+
+extern "C" {
+
+// The weapons' mech-lab blocks the test hands both sides; absent ones are 0.
+void probe_set_weapon_labs(const float* table, const uint8_t* present) {
+  std::memcpy(g_labs, table, sizeof g_labs);
+  std::memcpy(g_lab_present, present, sizeof g_lab_present);
+  mech3::set_weapon_lab([](const char* name) -> const mech3::WeaponLab* {
+    for (int i = 0; i < 37; ++i)
+      if (std::strcmp(mech3::weapon_name(i), name) == 0) return g_lab_present[i] ? &g_labs[i] : nullptr;
+    return nullptr;
+  });
+}
+
+// Config(-1, name) + Load on one saved config, then the checksum, each weight,
+// and Validate's other checks (test_mechsave.py).
+int probe_config_blob(const char* name, const uint8_t* blob, int n, uint8_t* out, int cap) {
+  std::FILE* f = std::tmpfile();
+  std::fwrite(blob, 1, static_cast<size_t>(n), f);
+  std::rewind(f);
+  mech3::Config c(-1, name);
+  std::vector<uint8_t> b;
+  b.push_back(c.load(f));
+  put_i32(b, static_cast<int32_t>(std::ftell(f)));
+  std::fclose(f);
+  put_config(b, &c);
+  const uint32_t crc = c.checksum();
+  put_bytes(b, &crc, 4);
+  for (int32_t k = -1; k <= 8; ++k) {
+    const auto w = static_cast<float>(c.weight(k));
+    put_bytes(b, &w, 4);
+  }
+  b.push_back(c.unplaced_item());
+  put_i32(b, c.jump_jets()), put_i32(b, c.jump_jet_limit());
+  b.push_back(c.validate(false));
+  return finish(b, out, cap);
+}
+
+// ConfigList(mech, 0).load_saved() with the working directory at `dir`.
+int probe_load_saved(const char* dir, int mech, uint8_t* out, int cap) {
+  char was[1024];
+  if (!getcwd(was, sizeof was) || chdir(dir) != 0) return -1;
+  mech3::ConfigList list(mech, 0);
+  std::vector<uint8_t> b;
+  b.push_back(list.load_saved());
+  if (chdir(was) != 0) return -1;
+  put_i32(b, static_cast<int32_t>(list.configs.size()));
+  for (const mech3::Config* c : list.configs) put_config(b, c);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

@@ -105,4 +105,87 @@ int32_t armor_points(int32_t tech, bool ferro, float tons) {
 // Mech3.exe 1.2 @ 0x004d6dc0: a disabled check.
 bool equipment_restricted(int32_t, int32_t, int32_t) { return false; }
 
+namespace {
+// 0x005e2f50 + 8: the tons of each engine, ratings 10..400 in steps of 5.
+const float kEngineTons[79] = {
+    0.5f,  0.5f,  0.5f,  0.5f,  1.0f,  1.0f,  1.0f,  1.0f,  1.5f,  1.5f,  1.5f,  2.0f,  2.0f,  2.0f,
+    2.5f,  2.5f,  3.0f,  3.0f,  3.0f,  3.5f,  3.5f,  4.0f,  4.0f,  4.0f,  4.5f,  4.5f,  5.0f,  5.0f,
+    5.5f,  5.5f,  6.0f,  6.0f,  6.0f,  7.0f,  7.0f,  7.5f,  7.5f,  8.0f,  8.5f,  8.5f,  9.0f,  9.5f,
+    10.0f, 10.0f, 10.5f, 11.0f, 11.5f, 12.0f, 12.5f, 13.0f, 13.5f, 14.0f, 14.5f, 15.5f, 16.0f, 16.5f,
+    17.5f, 18.0f, 19.0f, 19.5f, 20.5f, 21.5f, 22.5f, 23.5f, 24.5f, 25.5f, 27.0f, 28.5f, 29.5f, 31.5f,
+    33.0f, 34.5f, 36.5f, 38.5f, 41.0f, 43.5f, 46.0f, 49.0f, 52.5f};
+// 0x005e60a0 + 0x3c * mech
+const float kMaxMass[19] = {100, 70, 50, 55, 65, 60, 100, 10, 30, 75, 75, 35, 35, 45, 40, 90, 90, 70, 60};
+WeaponLabFn g_weapon_lab = nullptr;
+
+const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab(weapon_name(weapon)) : nullptr; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00484900
+const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < 37 ? kWeapons[weapon] : "noweapon"; }
+
+// Mech3.exe 1.2 @ 0x004846e0
+float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }
+
+// Mech3.exe 1.2 @ 0x00484aa0. Kinds as in equip_kind; tech 1 is Clan.
+float equip_weight(int32_t kind, int32_t tech) {
+  const bool clan = tech == kClan;
+  switch (kind) {
+    case 0: case 1: case 2: case 11: return 0.5f;
+    case 3: case 9: case 10: case 13: case 14: return 1.0f;
+    case 4: case 8: return clan ? 1.0f : 1.5f;
+    case 5: return clan ? 0.0f : 0.5f;
+    case 6: return clan ? 0.0f : 5.0f;
+    case 7: return clan ? 0.0f : 1.0f;
+    case 12: return clan ? 2.0f : 3.0f;
+    default: return 0.0f;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00484a20
+int32_t equip_slots(int32_t kind, int32_t tech) {
+  const int32_t other = tech != kClan;
+  switch (kind) {
+    case 0: case 3: case 9: case 11: case 13: case 14: return 1;
+    case 4: case 8: return other + 1;
+    case 5: case 7: return other;
+    case 6: return other ? 5 : 0;
+    case 10: return other + 2;
+    case 12: return 3;
+    default: return 0;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00432f40. FIX (A): an index past the table read whatever
+// followed it in the exe; here it weighs 0 (docs/fixes.md).
+double engine_weight_x87(const Engine& e) {
+  if (e.index < 0 || e.index >= 79) return 0.0;
+  const float t = kEngineTons[e.index];
+  return e.xl ? std::ceil(t) * 0.5 : t;
+}
+float engine_weight(const Engine& e) { return static_cast<float>(engine_weight_x87(e)); }
+
+// Mech3.exe 1.2 @ 0x00432fa0. FIX (A) as above: 0 past the table.
+int32_t engine_rating(const Engine& e) { return e.index >= 0 && e.index < 79 ? 10 + 5 * e.index : 0; }
+
+void set_weapon_lab(WeaponLabFn fn) { g_weapon_lab = fn; }
+
+// Mech3.exe 1.2 @ 0x00484b70
+float weapon_weight(int32_t weapon, int32_t tech) {
+  const WeaponLab* w = weapon_lab(weapon);
+  return w ? w->weight[tech != kClan] : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x00484bc0
+float ammo_weight(int32_t weapon) {
+  const WeaponLab* w = weapon_lab(weapon);
+  return w ? w->ammo_weight : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x00484c00
+int32_t weapon_slots(int32_t weapon, int32_t tech, bool none) {
+  const WeaponLab* w = weapon_lab(weapon);
+  return w && !none ? w->slots[tech != kClan] : 0;
+}
+
 }  // namespace mech3

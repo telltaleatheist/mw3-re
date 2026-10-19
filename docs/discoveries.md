@@ -341,6 +341,15 @@ From the mech definitions (mechdef-head.md).
   silently drops it at load. The game also re-checks weight (0.24 t of
   slack), armor points and jump jets (at most 2 for mechs up to 40 t, 3 up to
   65 t, 4 above). **Elemental loadouts are never checked.**
+- **The Mad Cat gets half a ton for free.** The loadout weight check takes
+  0.5 t off for the Mad Cat alone (0x425387), on top of the 0.24 t of slack
+  every mech gets. Whether the mech lab's own weight display does the same is
+  not checked.
+- **Every mech's weight includes a fixed 3 t cockpit** plus engine shielding
+  of 1 t per 100 rating, rounded up (a 300 engine adds 3 t).
+- **A damaged loadout file can hang or crash the game** at load: a broken
+  item count makes it read 4 billion times past the end, a broken name length
+  makes it ask for 4 GB of memory. (Both fixed in the rebuild.)
 - Your loadouts are written when the game frees the mech data (at exit),
   not when you leave the mech lab (as far as traced).
 - **A mod with a wrong `version` in a mech file crashes the game** instead of

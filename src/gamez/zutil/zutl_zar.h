@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>
 #include <cstdio>
 
 // C:\zipper\GameZMech3\zUtil\zutl_zar.cpp: the .zbd archive. A plain
@@ -52,6 +53,11 @@ uint32_t read(Archive& a, int index, void* buffer, uint32_t* size);
 // stored as uint32 length then the bytes, read into a zeroed malloc(length + 1).
 // Returns the bytes read.
 uint32_t read_string(std::FILE* file, char** out);
+
+// 0x00576c10 (next to the archive code): CRC-32 MSB first, polynomial
+// 0x04c11db7, no final xor, its table 0x0072eec0 built on first use by
+// 0x00576bc0. The exe keeps the running value at ECX; here it is passed and returned.
+uint32_t crc32(uint32_t crc, const void* data, size_t n);
 
 // FIX (A): the original passes Windows paths ("zbd\\reader.zbd") to CreateFileA.
 // The rebuild turns '\\' into '/' before opening.

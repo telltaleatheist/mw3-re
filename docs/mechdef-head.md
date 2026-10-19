@@ -309,6 +309,37 @@ of the file is read out of step (no error).
 The other Validate caller, 0x41445e (mech setup), and a second loader at
 0x4260f0.. (ctor, Load, then its own CRC compare) are not traced.
 
+Ported (`mech3/mech_config`: `Config::load`, `load_items`, `packed`,
+`checksum`, `weight`, `validate`, `from_file`, `ConfigList::load_saved`;
+`mech_names`: the engine, equipment and weapon weight and slot tables;
+`zutl_zar::crc32`), checked by `tests/differential/test_mechsave.py`: 1,111
+configs saved by the original (built-in, changed in memory, damaged, cut short,
+with kind 0/4/5 items spliced in) load identically, and 152 whole files.
+Weapon weights and slots come from zWeapon's run-time copy of `weapons.zrd`
+(the block at +0x1f0, `weapons.md`), not ported: `set_weapon_lab` hooks it.
+
+Corrections from the port:
+
+- Kind 4 is an **engine item** (vt 0x5c3700): +0x14 the engine index, +0x18
+  XL; it weighs `count x` the engine's tons, clamped to index 0..79 (79 is one
+  past the table), and needs no slots. Kind 0 (vt 0x5bc160) weighs 0 and needs
+  no slots.
+- vt+0x14 is the item's id (equipment: its kind), vt+0x18 the slots it needs:
+  weapons from the run-time block (+0x20 Clan, +0x2c otherwise), ammo 1,
+  equipment from 0x484a20 except **ferro-fibrous, which returns the item's
+  group field**. Check 4 of Validate is "an item with part -1 that needs
+  slots".
+- The packed form, word 1: bit 0 +0x1c, bit 1 endo, bits 2-8 engine index,
+  bit 9 XL, bit 10 ferro, bits 11-29 `ftol(armor tons x 2)`, bits 30-31 armor
+  tech; words 2-12 the armor; then per weapon, ammo or equipment item: kind
+  (bits 0-2), id (3-18), tech (19-20, not ammo), count (21-31), group, part.
+  Items of kinds 0 and 4 are skipped and not counted in the length.
+- Weight(-1) = the sum of categories 0..7 (stored as a float each step) + 3 t
+  (0x5e24f0) + `ceil(rating x 0.009999)`, minus 0.5 t for the Mad Cat (mech
+  9). Category 1 is `equip_weight(dsink ? 10 : 9, sink tech) x (sinks - 10)`,
+  never below 0; category 3 is `max mass x 0.1`, with endo steel `floor(x +
+  0.5) x 0.5`.
+
 ### The writer, for the format
 
 0x424f60 `ConfigList::SaveAll()` (also from 0x44a5aa, 0x44a653, 0x44d69a: the
