@@ -21,6 +21,7 @@ struct HeatSinks {     // embedded at mech +0x658
   int32_t count;       // +0x004  10 by default
   bool doubles;        // +0x008
   float rate() const;
+  bool lose(int32_t n);  // 0x0045fbc0
 };
 
 enum : uint32_t {
@@ -66,6 +67,7 @@ struct Mech {
   float voice_time;          // +0x6a8
 
   bool is_powered_down() const;
+  void add_heat(float heat) { heat_added += heat; }  // 0x00419e40
   void power(int power_down);   // 0x0041cc30
   void finish_power_down();     // 0x0041cac0
   Foot* foot(int leg) const;

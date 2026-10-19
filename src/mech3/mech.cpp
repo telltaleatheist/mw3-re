@@ -51,6 +51,14 @@ float HeatSinks::rate() const {
   return static_cast<float>(count * 0.1 * (doubles ? 2.5f : 1.25f));  // 0x005e4ee8, 0x005e4eec
 }
 
+// Mech3.exe 1.2 @ 0x0045fbc0. Always false, so the "heat sink lost" callout
+// never plays (docs/heat.md).
+bool HeatSinks::lose(int32_t n) {
+  count -= n;
+  if (count < 0) count = 0;
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x0041cc10
 bool Mech::is_powered_down() const { return power_down_pending || powered_down; }
 
