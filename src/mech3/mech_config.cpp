@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
@@ -460,7 +459,7 @@ bool ConfigList::load_saved() {
 // Writes configs\\<mech>.mw3 from scratch: `version` 15, then each of the
 // player's own configs under its name.
 bool ConfigList::save_all() {
-  if (!std::filesystem::exists("configs")) std::filesystem::create_directory("configs");  // 0x00576080 ".\\configs", _mkdir
+  // 0x00576080 ".\\configs" and _mkdir: zutl::open makes the folder in the write dir.
   char path[128];
   std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
   zutl_zar::Archive a;

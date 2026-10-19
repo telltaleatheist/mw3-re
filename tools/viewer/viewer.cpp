@@ -1,8 +1,12 @@
 // mw3view: a development viewer for mission worlds, on SDL3's GPU API. Not
 // part of the port (see scene.h).
 //
-//   mw3view [--zbd <dir>] [--mission t1 | --mech madcat [--motion walk [--time s]]]
+//   mw3view [--assets <dir>]... [--mission t1 | --mech madcat [--motion walk [--time s]]]
 //           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
+//
+// --assets mounts a folder laid out like the install (zbd/...); give several
+// and the first that has a file wins, so a folder of replacements can sit in
+// front of the original. Default: game/mw3-1.2.
 //
 // Controls: right mouse drag to look, WASD to move, Q/E down/up, Shift fast,
 // C toggles vertex colours, B the in/out-of-bounds areas, P prints the
@@ -15,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zutil/zutl_path.h"
 #include "scene.h"
 
 namespace {
@@ -326,13 +331,15 @@ bool screenshot(App& a, const Camera& cam, float far_plane, const char* path) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string zbd = MW3_GAME_DIR "/zbd", mission = "t1", mech, motion_name, shot;
+  const std::string zbd = "zbd";  // a game path, found through the mounts
+  std::string mission = "t1", mech, motion_name, shot;
+  std::vector<std::string> assets;
   float anim_time = 0;
   bool info = false, have_pos = false, have_look = false;
   Camera cam;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
-    if (arg == "--zbd" && i + 1 < argc) zbd = argv[++i];
+    if (arg == "--assets" && i + 1 < argc) assets.emplace_back(argv[++i]);
     else if (arg == "--mission" && i + 1 < argc) mission = argv[++i];
     else if (arg == "--mech" && i + 1 < argc) mech = argv[++i];
     else if (arg == "--motion" && i + 1 < argc) motion_name = argv[++i];
@@ -347,6 +354,8 @@ int main(int argc, char** argv) {
       have_look = true;
     }
   }
+  if (assets.empty()) assets.emplace_back(MW3_GAME_DIR);
+  for (const std::string& dir : assets) zutl::mount(dir);
   viewer::Scene scene;
   viewer::Mech mech_model;
   viewer::Motion motion;

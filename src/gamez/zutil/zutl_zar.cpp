@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "crt/msvc_string.h"
+#include "gamez/zutil/zutl_path.h"
 
 // FIX (A), whole file: CreateFileA / ReadFile / SetFilePointer / GetFileSize /
 // CloseHandle become C stdio, which every platform has. The calls map one to one
@@ -52,9 +53,7 @@ void destroy(Archive& a) {
 // OPEN_EXISTING). The original formats GetLastError() on failure and frees the
 // text without using it; the rebuild skips that.
 bool open(Archive& a, const char* path) {
-  char host[512];
-  host_path(path, host, sizeof host);
-  a.file = std::fopen(host, "rb");
+  a.file = zutl::open(path, "rb");  // FIX (A): the mounts (zutl_path.h), not CreateFileA on a Windows path
   if (!a.file) return false;
   bool ok = read_table(a);
   a.path = strdup(path);
@@ -179,9 +178,7 @@ uint32_t crc32(uint32_t crc, const void* data, size_t n) {
 
 // Mech3.exe 1.2 @ 0x005765b0. On failure the exe logs GetLastError's text.
 bool create(Archive& a, const char* path) {
-  char host[512];
-  host_path(path, host, sizeof host);
-  a.file = std::fopen(host, "w+b");
+  a.file = zutl::open(path, "w+b");  // into the write dir
   if (!a.file) return false;
   a.path = strdup(path);
   return true;

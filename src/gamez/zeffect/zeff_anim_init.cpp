@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gamez/zclass/light.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
@@ -176,7 +177,7 @@ void anim_allow_loading(int32_t on) { g_anim.loading = on; }
 int anim_read_zbd() {
   AnimState& a = g_anim;
   if (!a.loading || a.path[0] == 0) return -1;
-  std::FILE* f = std::fopen(a.path, "rb");
+  std::FILE* f = zutl::open(a.path, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
   const auto fail = [f] {
     std::fclose(f);

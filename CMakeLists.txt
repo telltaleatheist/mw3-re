@@ -22,6 +22,7 @@ add_library(mw3core STATIC
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
   src/gamez/zutil/zutl_msg.cpp
+  src/gamez/zutil/zutl_path.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/cls_mechlib.cpp

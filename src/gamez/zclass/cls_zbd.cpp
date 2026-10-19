@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "gamez/zclass/camera.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/display.h"
@@ -220,7 +221,7 @@ int read_nodes(int32_t size, std::FILE* f) {
 
 // Mech3.exe 1.2 @ 0x004ff6a0. Only the signature and version are checked.
 std::FILE* open_zbd(const char* path, ZbdHeader* header) {
-  std::FILE* f = std::fopen(path, "rb");
+  std::FILE* f = zutl::open(path, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return nullptr;
   int line;
   const char* msg;

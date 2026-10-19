@@ -5,6 +5,7 @@
 #include <string>
 
 #include "crt/msvc_string.h"
+#include "gamez/zutil/zutl_path.h"
 
 namespace zimg {
 
@@ -14,10 +15,7 @@ std::vector<Library*> g_libraries;  // 0x006384f4, count 0x006384f8
 
 bool exists(const char* name) {
   if (g_state.file_exists) return g_state.file_exists(name);
-  std::string path = std::string(g_state.dir) + name;
-  std::FILE* f = std::fopen(path.c_str(), "rb");
-  if (f) std::fclose(f);
-  return f != nullptr;
+  return zutl::exists((std::string(g_state.dir) + name).c_str());
 }
 
 // 16-bit RGB565 to the RGB555 a 15-bit display wants: green loses its low bit.
@@ -79,8 +77,8 @@ bool open(Library& lib) {
   if (lib.needs_resolve) resolve_name(lib);
   if (lib.file) return true;
   if (lib.missing) return false;
-  // FIX (A): host path under State::dir instead of the zutil search path.
-  lib.file = std::fopen((std::string(g_state.dir) + lib.name).c_str(), "rb");
+  // FIX (A): State::dir plus the name, through the mounts (zutl_path.h).
+  lib.file = zutl::open((std::string(g_state.dir) + lib.name).c_str(), "rb");
   if (!lib.file) return false;
   if (lib.entries) return true;
   if (std::fread(&lib.header, 0x18, 1, lib.file) == 1 && lib.header.has_entries == 1) {
