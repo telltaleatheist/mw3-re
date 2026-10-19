@@ -21,10 +21,8 @@ inline void push32(uint8_t*& p, uint32_t v) {
 
 SpanState& span_state() { return g_span; }
 
-// FIX (A): the original points ESP at the span and fills it with PUSH. That only
-// exists on x86, and it is fragile anywhere: whatever uses the stack while ESP
-// points at the pixels (an exception, a signal, a debugger) writes into the
-// picture or crashes. Same writes, same order, through a normal pointer.
+// FIX (A): the original fills spans by pointing ESP at them and pushing
+// (docs/blit-trick.md); same writes in the same order, through a pointer.
 void span_fill16(uint32_t color, uint32_t count) {
   uint8_t* p = g_span.dest + count * 2;    // ADD ESP, ECX twice
   const uint32_t pair = (color << 16) | color;

@@ -134,7 +134,7 @@ can be checked two ways and unblocks loading data.
    (+0x684), and naming more of the mech's ~170 placeholder fields.
 3. Heat: ported (`src/mech3/mech.cpp`, `docs/heat.md`), emulator-checked.
    Open: the lava-per-frame decision, mission mode 3, the controls value.
-4. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
-   each subsystem's entry points in `docs/symbols.csv`.
+4. Init/shutdown: mapped (`docs/startup.md`), with the game states and the
+   tamper check. Open: the 0x200 pool, the options setters at 0x40cb30.
 5. Start the SDL3 front end (window, clock, music output) once the GPU is
    free.

@@ -31,12 +31,8 @@ Node* new_nodes(int32_t first_type, int32_t count) {
   return n;
 }
 
-// FIX (A): find() can return the slot one past the end of a list (see below),
-// and the typed lookups then read it. In the original that reads whatever the
-// CRT heap holds there; in C++ it is an out-of-bounds read. Every list gets one
-// spare zeroed slot after its items, type 0, which every lookup treats as "no
-// value". The original's malloc(count * 8) with a stored count of 0 also wrote
-// slot 0 past the block; the spare slot covers that too.
+// FIX (A): one spare zeroed slot after every list, so the original's reads one
+// past the end mean "no value" (docs/fixes.md, docs/zreader.md).
 Node* alloc_list(int32_t count) {
   int32_t slots = count < 1 ? 1 : count;
   Node* list = static_cast<Node*>(std::malloc(static_cast<size_t>(slots + 1) * sizeof(Node)));
@@ -92,9 +88,8 @@ int free_node(Node* node) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x00556930. Depth first: a nested list is searched before the
-// items after it, so a string *value* equal to the key matches too, and a key in
-// the last slot returns the slot one past the end. Both are original behaviour.
+// Mech3.exe 1.2 @ 0x00556930. Depth first, values match as keys, and a key in the
+// last slot returns the slot past the end: all original (docs/zreader.md).
 Node* find(Node* node, const char* key, int start) {
   if (!node || node->type != List || node->list[0].i <= start) return nullptr;
   for (int i = start; i < node->list[0].i; ++i) {

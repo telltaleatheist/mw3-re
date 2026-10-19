@@ -14,6 +14,15 @@ in the code next to the original address.
 | Archives, zutl_zar.cpp | `CreateFileA`, `ReadFile`, `SetFilePointer` on Windows paths | (A) Win32 only, `\\` separators | C stdio, same calls in the same order; `\\` becomes `/` |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
 
+Notes on the fixes:
+
+- Frame clock: in the original the product `ticks * 0.001f` stays on the x87
+  stack at 80 bits while it is stored to `now_s` and subtracted from `prev_s`,
+  so `raw_dt` is rounded once, from the unrounded product. The port computes it
+  in double, which gives the same result while ticks stay under 2^29 (six days).
+- zReader: the original's `malloc(count * 8)` for a list stored with count 0
+  also wrote slot 0 past the block; the spare slot covers that too.
+
 Noted but not yet ported:
 
 - The app constructor (0x47f7a0) quits when the DirectX version reads below 6.

@@ -13,18 +13,8 @@ State& state() { return g_state; }
 void set_clock(platform::Clock* clock) { g_clock = clock; }
 
 // Mech3.exe 1.2 @ 0x00575a00
-//
-// FIX (B): the original reads GetTickCount(), milliseconds since the machine
-// booted, and converts it to float seconds. A float holds 24 bits of precision,
-// so once uptime passes about 4.7 hours the clock moves in steps of 1 ms or more,
-// and after 10 days in steps of 64 ms: frame times quantise and the game
-// stutters. Machines that sleep instead of shutting down get there easily.
-// platform::Clock counts from game start instead; the arithmetic is unchanged.
-//
-// x87: the product ticks * 0.001f stays on the FPU stack at 80 bits while it is
-// stored to now_s as a float and subtracted from prev_s, so raw_dt is rounded
-// once, from the unrounded product. Double reproduces that exactly while ticks
-// stay under 2^29 (six days of play).
+// FIX (B): ticks since game start, not since boot (docs/fixes.md). The product
+// stays unrounded on the x87 stack, hence the double.
 void update() {
   State& s = g_state;
   const uint32_t ticks = g_clock ? g_clock->ticks_ms() : 0;

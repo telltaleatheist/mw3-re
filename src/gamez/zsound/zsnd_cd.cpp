@@ -82,10 +82,8 @@ std::string track_path(int track) {
   return "";
 }
 
-// Mech3.exe 1.2 @ 0x00572450. MCI open of "cdaudio", a media-present check, the
-// track count and the CD_TRACKS cues. FIX (A): there is no drive; the "disc" is
-// the music folder, present when it holds any track, and its track count is the
-// highest track number found. The aux-device volume probe goes to MusicOutput.
+// Mech3.exe 1.2 @ 0x00572450: open, media check, track count, CD_TRACKS cues.
+// FIX (A): the music folder is the disc; its highest track number is the count.
 bool open(std::vector<Cue> cues) {
   if (is_open()) return true;
   g_state.flags |= kOpen;
