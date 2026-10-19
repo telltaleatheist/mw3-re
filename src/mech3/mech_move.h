@@ -32,4 +32,42 @@ struct MoveCalls {
 };
 MoveCalls& move_calls();
 
+struct MechDfn;
+
+// What Mech::Update (0x00419fc0) calls. The first group are test hooks for
+// ported pieces (unset runs the port); the rest are code not ported yet,
+// which does nothing when unset.
+struct UpdateCalls {
+  int (*controls_update)(Mech&, float dt) = nullptr;  // controls vt +0x0c (player 0x00427d60, AI 0x004e96f0, net 0x0046ef60); unset: the base 0x00426960
+  void (*select_gait)(Mech&, float dt) = nullptr;
+  void (*update_action)(Mech&, float dt) = nullptr;
+  void (*turn)(Mech&, float dt) = nullptr;
+  void (*get_up)(Mech&) = nullptr;
+  void (*finish_power_down)(Mech&) = nullptr;
+  void (*update_heat)(Mech&, float dt) = nullptr;
+  bool (*collide)(Mech&) = nullptr;
+  const MechDfn* (*dfn)(Mech&) = nullptr;            // 0x0041e9a0; unset: mech_dfn(pilot->roster)
+
+  void (*stop_cockpit_sound)(int index) = nullptr;   // 0x0041e7a0(i, 0)
+  void (*add_dead)(Mech&) = nullptr;                 // 0x0041e350 on 0x00605510
+  uint32_t (*key)(int command) = nullptr;            // 0x0051d300: input state, &3 held, &4 pressed
+  void (*controls_view)(MechControls&, int mode) = nullptr;  // 0x00426780
+  void (*player_frame)(Mech&, float dt) = nullptr;   // 0x0041ce60: the player's HUD per frame
+  void (*translate)(Handle node, float x, float y, float z) = nullptr;  // 0x004fc1b0; unset: zcls::object3d_translate
+  void (*moved)(Mech&) = nullptr;                    // 0x005a85c0
+  void (*landmines)(const Vec3* position) = nullptr; // 0x00413560 on 0x00604e48
+  bool (*weapons_changed)(Mech&) = nullptr;          // 0x004b2da0 on +0xd4
+  void (*hud_weapons)(void* screen) = nullptr;       // 0x00446240 on screen +0x6520
+  void (*weapons_fire)(Mech&, uint8_t fire) = nullptr;  // 0x004b0c20 on +0xd4
+  void (*weapons_update)(Mech&, float dt) = nullptr;    // 0x004b0c30 on +0xd4
+  void (*equipment_update)(Mech&, float dt) = nullptr;  // 0x00419200
+  void (*set_volume)(Sound, float volume) = nullptr;    // 0x0056f370
+  void (*set_position)(Sound, const Vec3* at) = nullptr;  // 0x00571f30(at, 0, 0)
+  MechControls* (*unwrap)(MechControls&) = nullptr;  // controls primary vt +0x04
+  void (*x68c_update)(Handle, float dt) = nullptr;   // 0x004e6480
+  void (*net_update)(Mech&, float dt) = nullptr;     // vtable +0x158 (0x0046ef70)
+  void (*purge)(Mech&, float dt) = nullptr;          // 0x00413cb0: the list at +0x6d0
+};
+UpdateCalls& update_calls();
+
 }  // namespace mech3

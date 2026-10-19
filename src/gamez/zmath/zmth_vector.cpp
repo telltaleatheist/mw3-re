@@ -47,4 +47,55 @@ void quat_rotate(const Quat& q, const Vec3& v, Vec3& out) {
   out.z = ((v.y * q.x - v.x * q.y) * w2 + c * v.z) + d2 * q.z;
 }
 
+// Mech3.exe 1.2 @ 0x00525210. The sine and cosine of the half angle as the
+// emulator computes them (in double, then rounded).
+void quat_roll(float angle, Quat& out) {
+  const float h = angle * 0.5f;
+  out.z = static_cast<float>(std::sin(double{h}));
+  out.x = out.y = 0.0f;
+  out.w = static_cast<float>(std::cos(double{h}));
+}
+
+// Mech3.exe 1.2 @ 0x00525500. The length is the float's bits halved
+// (sqrt's exponent), not a true square root: the result is only near unit.
+void quat_normalize(const Quat& q, Quat& out) {
+  float n2 = (q.x * q.x + q.y * q.y) + q.z * q.z;
+  n2 = q.w * q.w + n2;
+  int32_t bits;
+  std::memcpy(&bits, &n2, 4);
+  bits = (bits >> 1) + 0x1fc00000;
+  float len;
+  std::memcpy(&len, &bits, 4);
+  const float inv = 1.0f / len;
+  out.w = inv * q.w;
+  out.x = q.x * inv;
+  out.y = q.y * inv;
+  out.z = q.z * inv;
+}
+
+// Mech3.exe 1.2 @ 0x005255d0
+void quat_mul(const Quat& a, const Quat& b, Quat& out) {
+  const Quat r{((a.w * b.w - a.x * b.x) - a.y * b.y) - a.z * b.z,
+               ((a.w * b.x + a.x * b.w) + a.y * b.z) - a.z * b.y,
+               ((a.w * b.y + a.y * b.w) + a.z * b.x) - a.x * b.z,
+               ((a.w * b.z + a.z * b.w) + a.x * b.y) - a.y * b.x};
+  out = r;
+}
+
+// Mech3.exe 1.2 @ 0x00525900. fsincos; the sine goes through a float
+// before the division (beyond 2^63 a separate fsin keeps it on the stack).
+void quat_exp(const Vec3& v, Quat& out) {
+  const float a = std::sqrt((v.x * v.x + v.y * v.y) + v.z * v.z);
+  if (a == 0.0f) {
+    out = {1.0f, 0.0f, 0.0f, 0.0f};
+    return;
+  }
+  const auto s = static_cast<float>(std::sin(double{a}));
+  out.w = static_cast<float>(std::cos(double{a}));
+  const float k = s / a;
+  out.x = k * v.x;
+  out.y = v.y * k;
+  out.z = v.z * k;
+}
+
 }  // namespace zmth
