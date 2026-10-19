@@ -120,7 +120,11 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   (`docs/protection.md`).
 - Self-contained functions get a differential test (`tests/differential/`) that
   runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
-- No GPU use while Owen is streaming; the SDL front end is not started yet.
+- No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
+- `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
+  viewer that draws a mission world from the ported loaders. It is not the
+  render port (zRender, `docs/drafts/render.md` until promoted); its guesses
+  (polygon fans, y up, row vectors) are to be checked against that.
 - Every quirk, bug or hidden mechanic found goes in `docs/discoveries.md`, in
   plain words for players (Owen wants to share these with the MW3 community).
 

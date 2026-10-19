@@ -76,3 +76,12 @@ target_link_libraries(mw3tests PRIVATE mw3core)
 target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
                                           MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)
+
+# Development tools on SDL3 (not part of the port): the world viewer.
+find_package(SDL3 CONFIG QUIET)
+if(SDL3_FOUND)
+  add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp)
+  target_link_libraries(mw3view PRIVATE mw3core SDL3::SDL3)
+  target_include_directories(mw3view PRIVATE tools/viewer)
+  target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+endif()
