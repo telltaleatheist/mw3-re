@@ -74,3 +74,23 @@ notification. Ported in `src/gamez/zsound/zsnd_cd.cpp` and `src/mech3/music.cpp`
 ## The software renderer
 
 zRender's span routines draw with the stack-pointer trick: docs/blit-trick.md.
+
+## Where things stand (2026-10-19)
+
+| Area | Doc | Code | Checked against the exe |
+|---|---|---|---|
+| Main loop, state stack | this file | `gamez/zgame/zgameapp` | unit tests |
+| Frame clock | this file, `fixes.md` | `gamez/zutil/ztimer` | `test_ztimer.py` |
+| CD music | this file | `gamez/zsound/zsnd_cd`, `mech3/music` | unit tests |
+| Span fill (blit trick) | `blit-trick.md` | `gamez/zrender/zrndr_span` | `test_spans.py` |
+| Archives, reader data | `zreader.md` | `gamez/zutil/zutl_zar`, `gamez/zreader` | `test_zreader.py` |
+| Textures | `textures.md` | `gamez/zimage/zimg_library` | `test_textures.py` |
+| Animations | `motion.md` | `gamez/zsiscript/si_script` | `test_motion.py` |
+| Heat, power | `heat.md` | `mech3/mech` | `test_heat.py`, `test_power.py` |
+| Structures | `structs.md`, `types.json` | Ghidra (`ApplyTypes.java`) | |
+| Startup, shutdown, game states | `startup.md` | | |
+| Game types | `gametypes.md` | | |
+| Mech controls | `controls.md` | | |
+| Network | `network.md`, `network-messages.md` | | |
+| Asset files | `assets.md` | | |
+| Player-facing findings | `discoveries.md` | | |
