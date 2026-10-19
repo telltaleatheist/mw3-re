@@ -242,6 +242,13 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       0x538640), `docs/gamez.md` porting order step 7.
 - [x] Mission scripts: mapped (`docs/interp.md`), decoder in
       `tests/differential/explore/interp_*.py`.
+- [ ] Movement: mapped (`docs/movement*.md`); ported and emulator-checked:
+      the controls' smoothing, the gait, turning, Move, jump jets, landing,
+      the action queue (falls, getting up), the ground probes on the real
+      worlds (`mech3/mech_control`, `mech_move`, `mech_skis`, `mech_anim`).
+      Left (`movement.md`, Left): Mech::Update 0x419fc0, collision, the
+      engine's ground and segment queries (cls_di.c), animation sampling,
+      the pose on the parts.
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
       (`zeffect/zeff_anim_init`). Still hooked: zSound's lookup, the effect

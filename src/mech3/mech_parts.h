@@ -48,6 +48,7 @@ class MechPart {
  public:
   Mech* mech = nullptr;          // +0x04  (looked up lazily in the exe, 0x460000)
   Handle node = nullptr;         // +0x08
+  Vec3* translation = nullptr;   // +0x18  the node's local translation (object3d data +0x54, 0x00460190)
   int32_t id = -1;               // node +0x28, -1 without a node
   float internal = 1.0f;         // +0x38
   float internal_scale = 1.0f;   // +0x3c
@@ -99,6 +100,7 @@ class Torso : public MechPart {
   float sec_armor_scale[6] = {};   // +0x188 + 4s, sections 1-5
   float side_internal[2] = {1, 1};        // +0x1a0, +0x1a4
   float side_internal_scale[2] = {1, 1};  // +0x1a8, +0x1ac
+  int32_t centring = 0;            // +0x1b0  CMD_CENTER_TORSO 1, CMD_CENTER_LEGS 2 (docs/movement-ground.md)
 
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00464720
   void apply_impact(Vec3* impulse, float force) override;  // 0x00464af0
@@ -152,7 +154,12 @@ class Hip : public MechPart {    // vtable 0x005c28a8
 // The parts below have no armor or structure: hits go to their parent.
 class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
  public:
+  float clearance = 0;           // +0x8c  height above the ground
+  int32_t ground_state = 0;      // +0x94  0 air, 1 touching, 2, 3 planted
+  Handle shadow = nullptr;       // +0x78  always 0: the constructor hides <c>_shadow and clears it
   bool in_water = false;         // +0xac
+  bool pivot = false;            // +0xc0  counter-spins while the mech turns in place
+  float pivot_rate = 0;          // +0xd4
   float water_depth = 0;         // +0xdc  water surface above the foot
   float water_surface = 0;       // +0xe0
   Handle effect = nullptr;       // +0xe4
@@ -163,6 +170,8 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   void destroy(int variant, int fly) override;              // 0x004629f0
   void set_internal(float v, int section) override;         // 0x00462890
   void stop_effect();                                       // 0x00463100
+  void set_pivot(float rate);                               // 0x00462dc0
+  void show_shadow(bool on);                                // 0x0041eca0
 };
 
 class Calf : public MechPart {   // vtable 0x005c2b18

@@ -105,6 +105,15 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   filled and the shadow texture is plain white: shadows invisible on
   hardware (emulator, render-shadows.md). When the caster module is ported,
   a FIX (bug) candidate (round properly) to show the shadows as designed.
+- Ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0): the width that
+  picks a foot's middle probe (for its ground contact and its water) is never
+  written, so it is whatever the heap held. The port keeps 0 (front or back
+  probe only) and the test pins the original to the same; the intent is
+  likely the ski half-length (`movement-ground.md`). A FIX (bug) once
+  checked in play.
+- Gait blend-in, 0x417a80: the right foot's rotation is never blended (the
+  left one's is blended twice); the pose is not ported yet (`movement.md`).
+
 - Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
   then neither queued nor drawn, so fake shadows vanish there (emulator; check
   in play).
@@ -138,6 +147,14 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   meant, so any depth gives the full x8 cooling. Fixing it makes shallow
   water cool less.
 - Water cooling checks only the left foot.
+- Movement done per frame, not per second (`movement*.md`): a fall's carried
+  momentum (x0.6 a frame), the ground probes' slope and ledge pushes and the
+  far mechs' push x3, the jump jets' climb impulse (capped at 6 a frame), the
+  gait's 20-frame blend-in, the 20 damage a frame to touched buildings. All
+  change with the frame rate, as lava heat does.
+- Deep water (gait 0x4181c0): the slowdown runs to almost a standstill as the
+  water nears the mech's height, then jumps back to 70% once deeper. A
+  continuous curve may have been meant.
 - Mad Cat damage list: two extra zeros shift every damage mask by two, so two
   textures get none and two get a mask of the wrong size (dropped). Removing
   the zeros restores the damage look; the Supernova's one extra item likewise.

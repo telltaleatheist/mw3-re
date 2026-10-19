@@ -189,7 +189,7 @@ bool Mech::start_limp(int leg, bool falls) {
       const float throttle = heat_calls().throttle ? heat_calls().throttle(*this) : 0.0f;
       knocked_down(throttle > 0.0f ? 3 : 4);
     }
-    Handle anim = nullptr;
+    MechAnim* anim = nullptr;
     if (leg == 0 && anims[0]) {
       limp = 0;
       anim = anims[0];
@@ -197,7 +197,7 @@ bool Mech::start_limp(int leg, bool falls) {
       limp = 1;
       anim = anims[1];
     }
-    if (anim) anims[11] = calls().blend_anim ? calls().blend_anim(anims[4], anim) : nullptr;
+    if (anim) anims[11] = calls().blend_anim ? static_cast<MechAnim*>(calls().blend_anim(anims[4], anim)) : nullptr;
   }
   return limp == 0 || limp == 1;
 }
@@ -211,7 +211,7 @@ bool Mech::knocked_down(int kind) {
   DamageCalls& c = calls();
   bool down = false;
   if (anim_state != 12 && anim_state != 13 && anim_state != kDead && anim_state != 11) {
-    auto ok = [&](int k) { return c.anim_ok && c.anim_ok(*this, k, 0); };
+    auto ok = [&](int k) { return c.anim_ok ? c.anim_ok(*this, k, 0) : queue_action(k, false); };
     if (kind == 3) down = ok(1) && ok(3);
     else if (kind == 4) down = ok(2) && ok(4);
     else down = static_cast<uint8_t>(kind) != 0;

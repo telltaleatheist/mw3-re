@@ -12,6 +12,11 @@ for t in \
     heat \
     power \
     damage \
+    controls \
+    gait \
+    skis \
+    jets \
+    actions \
     motion \
     clip3d \
     clip2d \

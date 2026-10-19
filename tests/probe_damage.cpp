@@ -134,8 +134,8 @@ void mech_io(Mech& m, uint8_t* b, bool store) {
   for (int k = 0; k < 15; ++k) i(0x3ac + 4 * k, m.equipment[k]);
   hd(0x3e8, m.decals);
   bo(0x410, m.damaged), bo(0x411, m.killed_by_nuke);
-  for (int k = 0; k < 13; ++k) hd(0x424 + 4 * k, m.anims[k]);
-  for (int k = 0; k < 10; ++k) hd(0x458 + 4 * k, m.action_objects[k]);
+  for (int k = 0; k < 13; ++k) hd(0x424 + 4 * k, reinterpret_cast<Handle&>(m.anims[k]));
+  for (int k = 0; k < 10; ++k) hd(0x458 + 4 * k, reinterpret_cast<Handle&>(m.action_objects[k]));
   f(0x510, m.walk_speed), f(0x518, m.max_speed), f(0x53c, m.knock), v3(0x540, m.knock_vec);
   f(0x558, m.heat_added), f(0x570, m.narc_time);
   i(0x578, m.anim_state), i(0x57c, m.prev_state);
