@@ -126,5 +126,11 @@ crit handler's "heat sink lost" voice (0x485390) never plays.
 
 ## Open
 
-- The controls value at +0x37c vtable +0x1c: likely throttle.
+- The controls value at +0x37c vtable +0x1c: likely throttle. The controls object is set through 0x491120 by whoever pilots the mech (player or AI).
 - Mission mode 3: heat always on and no death from critical heat; which mode?
+  The mode is vtable +0x2c of the object at mission +0x6c. Classes returning a
+  constant there sit in the mech_data/mech_map area: 2 (vtable 0x5bed50,
+  constructor 0x436650), 3 (0x5becf8, 0x4353a0), 4 (0x5beda8, 0x436e30); more
+  return 1, 3 and 5 (0x5bed04, 0x5bee14, 0x5bedd0). The mission is created in
+  the setup switch around 0x4836e0. Likely game types (campaign, instant
+  action, multiplayer, training); not mapped yet.
