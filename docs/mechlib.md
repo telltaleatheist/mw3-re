@@ -199,6 +199,9 @@ two tables.
 order, runs both originals on every material and model, and compares
 everything read and the bytes consumed: all 442 materials and 770 models are
 identical. FIX (A): models come from `new` rather than the 0x60-byte pool.
+The data never has a normal-index pointer without flag 0x200, so the test
+cannot see whether that condition is ported right; it is ported as the
+disassembly reads.
 
 ## Exe and mech3ax compared
 
