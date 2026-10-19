@@ -26,11 +26,9 @@ def rgb(c):
     return (r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2)
 
 
-def main():
-    data = Path(sys.argv[1]).read_bytes()
-    out = Path(sys.argv[2])
+def export(data, out, want='', exact=None):
+    """Writes matching textures as PNG; `exact` is a set of lower-case names."""
     out.mkdir(parents=True, exist_ok=True)
-    want = sys.argv[3].lower() if len(sys.argv) > 3 else ''
     _, has, npal, count, _, _ = struct.unpack_from('<IIiiII', data, 0)
     assert has == 1
     entries = [struct.unpack_from('<32sIi', data, 24 + 40 * i) for i in range(count)]
@@ -39,7 +37,7 @@ def main():
     written = 0
     for raw_name, off, gpal in entries:
         name = raw_name.split(b'\0')[0].decode('latin-1')
-        if want not in name.lower():
+        if want not in name.lower() or (exact is not None and name.lower() not in exact):
             continue
         flags, w, h, _, pcount, _ = struct.unpack_from('<IHHIHH', data, off)
         p = off + 16
@@ -69,7 +67,13 @@ def main():
             rows.append(bytes(row))
         png(out / f'{name}.png', w, h, rows, alpha is not None)
         written += 1
-    print(f'{written} textures written to {out}')
+    return written
+
+
+def main():
+    out = Path(sys.argv[2])
+    n = export(Path(sys.argv[1]).read_bytes(), out, sys.argv[3].lower() if len(sys.argv) > 3 else '')
+    print(f'{n} textures written to {out}')
 
 
 if __name__ == '__main__':
