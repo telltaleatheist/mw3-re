@@ -58,6 +58,8 @@ NodePool& nodes();
 struct Frames {
   uint32_t frame = 0;              // 0x0072f338
   uint32_t expiry = 0;             // 0x0073f3a8
+  uint32_t update_frame = 1;       // 0x005e9e2c
+  int32_t frozen = 0;              // 0x0060b94c
 };
 Frames& frames();
 
@@ -74,6 +76,10 @@ void set_expiry(Node* node);       // 0x004ed990
 int node_set_tree_valid(Node* node, int on);  // 0x004ed8f0, 1 for a null node
 Node* node_root(Node* node);       // 0x004ed8b0, 0 at a node with several parents
 int node_link(Node* parent, Node* child);       // 0x004eba90
+int node_set_active(Node* node, int on);        // 0x004eb170
+int node_set_name(Node* node, const char* name);  // 0x004eb300
+void node_touch_frame();                        // 0x004ed960
+Node* node_find_in_tree(Node* node, const char* name);  // 0x004f9d60
 int node_add_child(Node* parent, Node* child);  // 0x004eb9b0
 
 // The null and class checks every class setter starts with: 0, or the

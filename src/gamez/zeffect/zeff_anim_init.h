@@ -60,22 +60,12 @@ struct AnimState {
 };
 AnimState& anim();
 
-// What the loader calls on the scene graph. Each is an engine function not
-// ported yet; the front end or a test sets them.
+// The calls into engine parts not ported yet; the front end or a test sets them.
 struct AnimHooks {
-  Node* (*next_by_name)(const char* name, int list);       // 0x004f8bd0
-  Node* (*node_root)(Node* node);                          // 0x004ed8b0
-  Node* (*copy_tree)(Node* node);                          // 0x004f9b50 (dead)
-  Node* (*find_node)(AnimDef* def, const char* name);      // 0x00509640
-  Node* (*create_light)();                                 // 0x004fa720
-  void (*set_name)(void* node, const char* name);          // 0x004eb300
-  void* (*create_puffer)();                                // 0x0054a710
-  Node* (*create_sound_node)();                            // 0x004fd280
-  void (*set_sound)(Node* node, const char* name);         // 0x004fd480
-  void* (*find_sound)(const char* name);                   // 0x0056f6f0
-  int32_t (*effect_index)(const char* name);               // 0x0050d9e0
-  Node* (*find_in_tree)(Node* node, const char* name);     // 0x004f9d60
-  int32_t (*message_result)(AnimMessage* msg);             // 0x00575f90
+  Node* (*copy_tree)(Node* node);                          // 0x004f9b50 (dead: copy_trees is never set)
+  void* (*create_puffer)();                                // 0x0054a710, gmod_puff
+  void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
+  int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect
 };
 AnimHooks& anim_hooks();
 
@@ -83,5 +73,9 @@ void anim_set_world(void* world);         // 0x005090e0
 void anim_set_zbd_path(const char* path); // 0x005090f0
 void anim_allow_loading(int32_t on);      // 0x00509150
 int anim_read_zbd();                      // 0x0050a0e0
+Node* anim_find_in_tree(Node* node, const char* name);    // 0x005096d0
+int32_t anim_light_index(AnimDef* def, const char* name); // 0x005091e0
+int32_t anim_sound_index(AnimDef* def, const char* name); // 0x00509160
+Node* anim_find_node(AnimDef* def, const char* name);     // 0x00509640
 
 }  // namespace zeff

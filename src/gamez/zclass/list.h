@@ -40,5 +40,17 @@ void reset_lists();                // 0x004f89a0
 int list_count(int list);          // 0x004f7f80
 int push_front(int list, Node* node);  // 0x004f8080
 int push_back(int list, Node* node);   // 0x004f8140
+ListItem* list_head(int list);         // 0x004f8040
+Node* list_find_by_name(int list, const char* name);  // 0x004f7fe0
+
+// A walk over one list that hands out the nodes a test accepts: start it with
+// a key and a list, then call it with no key for each next match (0 at the end).
+struct ListWalk {
+  ListItem* cursor = nullptr;      // 0x0060be40
+  const void* key = nullptr;       // 0x0060be44
+};
+ListWalk& list_walk();
+Node* list_walk_next(const void* key, int list, bool (*test)(Node* node));  // 0x004f8b20
+Node* list_walk_by_name(const char* name, int list);                       // 0x004f8bd0
 
 }  // namespace zcls

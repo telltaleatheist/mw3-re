@@ -1,13 +1,18 @@
 # Mission animations (`anim.zbd`)
 
 Mech3.exe 1.2, 2026-10-19. Ported: `zeff::anim_read_zbd` 0x50a0e0 with
-0x5090e0, 0x5090f0, 0x509150 (`src/gamez/zeffect/zeff_anim_init.*`). The
-scene calls of the fixup pass are not ported yet; they go through
-`zeff::AnimHooks`. `tests/differential/test_anim.py` runs the original on all
-six files with those calls recorded and answering fake ids: the call trace
-(72,580 calls) and every def, list, blob and sequence are identical, and so
-are 280 runs where one call answers "not found", truncated files and a bad
-version. `zbd/<db>/anim.zbd`
+0x5090e0, 0x5090f0, 0x509150 and the lookups 0x509640, 0x5096d0, 0x5091e0,
+0x509160 (`src/gamez/zeffect/zeff_anim_init.*`), on the ported zClass: the
+list walk 0x4f8b20/0x4f8bd0, 0x4f7fe0, 0x4f9d60, the light and sound
+creators 0x4fa720 / 0x4fd280 / 0x4fd480, 0x4eb300, 0x4eb170. Still hooked
+(`zeff::AnimHooks`): puffers 0x54a710, zSound's lookup 0x56f6f0, the effect
+table 0x50d9e0, the dead tree copy 0x4f9b50. `test_anim.py` reads each
+mission's world with 0x4ff520 in both, then its anim.zbd: the hooked calls,
+every def, list, blob and sequence (nodes as pool slots) and the whole node
+pool and lists after are identical on all six; so are anim files read
+against the wrong world (lookups fail for real) and runs where one hooked
+call fails. The data never tells apart child order in 0x4f9d60 or light
+entry 0 in 0x509640 (deliberate breaks there pass). `zbd/<db>/anim.zbd`
 (c1, c2, c3, c4, c4b, t1) is the compiled form of the mission's animation
 definitions (`.zrd` text in the authoring build). It is not a zArchive. It is
 a header, a list of the source files it was compiled from, a 0x44-byte global

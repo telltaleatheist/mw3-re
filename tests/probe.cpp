@@ -793,6 +793,7 @@ int probe_read_zbd(const char* path, int size, uint8_t* out, int cap) {
 
 }  // extern "C"
 
+#include "gamez/zclass/sound.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 
 namespace {
@@ -816,32 +817,20 @@ int32_t def_index(const zeff::AnimDef* d) { return d ? static_cast<int32_t>(d - 
 
 void install_anim_hooks() {
   zeff::AnimHooks& h = zeff::anim_hooks();
-  h.next_by_name = [](const char* name, int list) {
-    trace_u32(1), trace_str(name), trace_u32(list);
-    return fake<zcls::Node>(next_fake());
-  };
-  h.node_root = [](zcls::Node* n) { trace_u32(2), trace_u32(id(n)); return fake<zcls::Node>(next_fake()); };
-  h.copy_tree = [](zcls::Node* n) { trace_u32(3), trace_u32(id(n)); return fake<zcls::Node>(next_fake()); };
-  h.find_node = [](zeff::AnimDef* d, const char* name) {
-    trace_u32(4), trace_u32(def_index(d)), trace_str(name);
-    return fake<zcls::Node>(next_fake());
-  };
-  h.create_light = [] { trace_u32(5); return fake<zcls::Node>(next_fake()); };
-  h.set_name = [](void* n, const char* name) { trace_u32(6), trace_u32(id(n)), trace_str(name); next_fake(); };
+  h.copy_tree = [](zcls::Node* n) { trace_u32(3), trace_u32(node_index(n)); return fake<zcls::Node>(next_fake()); };
   h.create_puffer = [] { trace_u32(7); return fake<void>(next_fake()); };
-  h.create_sound_node = [] { trace_u32(8); return fake<zcls::Node>(next_fake()); };
-  h.set_sound = [](zcls::Node* n, const char* name) { trace_u32(9), trace_u32(id(n)), trace_str(name); next_fake(); };
   h.find_sound = [](const char* name) { trace_u32(10), trace_str(name); return fake<void>(next_fake()); };
   h.effect_index = [](const char* name) {
     trace_u32(11), trace_str(name);
     const uint32_t v = next_fake();
     return v ? static_cast<int32_t>(v) : -1;
   };
-  h.find_in_tree = [](zcls::Node* n, const char* name) {
-    trace_u32(12), trace_u32(id(n)), trace_str(name);
-    return fake<zcls::Node>(next_fake());
-  };
-  h.message_result = [](zeff::AnimMessage*) { trace_u32(13); return static_cast<int32_t>(next_fake()); };
+  zcls::set_find_sound(h.find_sound);
+}
+
+// A node as its pool slot, anything else (a puffer, a sound) as its fake id.
+uint32_t ref_id(const void* p, bool is_node) {
+  return is_node ? static_cast<uint32_t>(node_index(static_cast<const zcls::Node*>(p))) : id(p);
 }
 
 template <typename R>
@@ -857,18 +846,18 @@ void dump_anim(std::vector<uint8_t>& b) {
     const bool fixed = i != 0 && d.raw[0x98] != 5;
     put_raw(b, d.raw, sizeof d.raw, {0x40, 0x64, 0xc4, 0x100, 0x114, 0x118, 0x11c, 0x120, 0x124, 0x128,
                                      0x12c, 0x130, 0x134});
-    put_i32(b, fixed ? id(d.node) : 0), put_i32(b, fixed ? id(d.root) : 0);
-    const auto refs = [&](const auto* list, int count_off, auto field) {
+    put_i32(b, fixed ? node_index(d.node) : 0), put_i32(b, fixed ? node_index(d.root) : 0);
+    const auto refs = [&](const auto* list, int count_off, auto field, bool nodes) {
       for (int k = 0; k < d.count(count_off); ++k) {
         put_rec(b, list[k], {0x24});
-        put_i32(b, fixed && k > 0 ? id(field(list[k])) : 0);
+        put_i32(b, fixed && k > 0 ? ref_id(field(list[k]), nodes) : 0);
       }
     };
-    refs(d.objects, 0x109, [](const auto& r) { return r.node; });
-    refs(d.nodes, 0x10a, [](const auto& r) { return r.node; });
-    refs(d.lights, 0x10b, [](const auto& r) { return r.made; });
-    refs(d.puffers, 0x10c, [](const auto& r) { return r.made; });
-    refs(d.sounds, 0x10d, [](const auto& r) { return r.made; });
+    refs(d.objects, 0x109, [](const auto& r) { return r.node; }, true);
+    refs(d.nodes, 0x10a, [](const auto& r) { return r.node; }, true);
+    refs(d.lights, 0x10b, [](const auto& r) { return r.made; }, true);
+    refs(d.puffers, 0x10c, [](const auto& r) { return r.made; }, false);
+    refs(d.sounds, 0x10d, [](const auto& r) { return r.made; }, true);
     for (int k = 0; k < d.count(0x10e); ++k) {
       put_rec(b, d.static_sounds[k], {0x20});
       put_i32(b, fixed && k > 0 ? id(d.static_sounds[k].sound) : 0);
@@ -879,7 +868,7 @@ void dump_anim(std::vector<uint8_t>& b) {
       put_rec(b, p, {0x28, 0x2c});
       if (!fixed) continue;
       if (p.raw[4] == 1) put_i32(b, def_index(p.def));
-      if (p.raw[4] == 2 || p.raw[4] == 3) put_i32(b, id(p.node));
+      if (p.raw[4] == 2 || p.raw[4] == 3) put_i32(b, node_index(p.node));
     }
     for (int k = 0; k < d.count(0x112); ++k) put_bytes(b, d.anim_refs[k].raw, 0x48);
     if (d.get<int32_t>(0x104) > 0) put_bytes(b, d.reset_events, d.get<int32_t>(0x104));
@@ -894,16 +883,25 @@ void dump_anim(std::vector<uint8_t>& b) {
 
 extern "C" {
 
-// 0x50a0e0 on one anim.zbd with every scene call recorded (test_anim.py).
-// `full` adds the read structures to the result and the call trace.
-int probe_anim(const char* path, int fail_at, int full, uint8_t* out, int cap) {
+// 0x50a0e0 on one anim.zbd against a world read by read_zbd (test_anim.py),
+// with the calls into unported parts recorded. `full` adds the read
+// structures and the node pool after.
+int probe_anim(const char* world, const char* path, int fail_at, int full, uint8_t* out, int cap) {
+  zimg::textures().count = 0;
+  zimg::textures().group = 3;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zvid::set_pixel_format(5, 6, 5);
+  reset_world_state(-1);
+  zcls::frames() = zcls::Frames{};
+  zcls::list_walk() = zcls::ListWalk{};
+  if (zcls::read_zbd(world) != 0) return -2;
+  g_reports.clear();
   zeff::anim() = zeff::AnimState{};
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();
   g_trace.clear(), g_calls = 0, g_fail_at = fail_at;
-  g_reports.clear();
-  zerr::set_sink(record_report);
   const int32_t r = zeff::anim_read_zbd();
   zerr::set_sink(nullptr);
   std::vector<uint8_t> b;
@@ -911,7 +909,10 @@ int probe_anim(const char* path, int fail_at, int full, uint8_t* out, int cap) {
   put_i32(b, static_cast<int32_t>(g_reports.size() / 2));
   for (int32_t v : g_reports) put_i32(b, v);
   put_bytes(b, g_trace.data(), g_trace.size());
-  if (full && r == 0) dump_anim(b);
+  if (full && r == 0) {
+    dump_anim(b);
+    dump_world(b, zcls::nodes().capacity);
+  }
   return finish(b, out, cap);
 }
 

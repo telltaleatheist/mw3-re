@@ -3,8 +3,11 @@
 #include <cstring>
 #include <vector>
 
+#include "gamez/zclass/light.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zutil/zutl_msg.h"
 
 namespace zeff {
 
@@ -71,40 +74,41 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
   const char* node_name = reinterpret_cast<const char*>(d.raw + 0x20);
   // A run of defs with one node name takes that name's nodes in turn.
   d.node = nullptr;
-  if (*prev_name && std::strcmp(*prev_name, node_name) == 0) d.node = h.next_by_name(nullptr, 0);
+  if (*prev_name && std::strcmp(*prev_name, node_name) == 0) d.node = zcls::list_walk_by_name(nullptr, 0);
   if (!d.node) {
     *prev_name = node_name;
-    h.next_by_name(node_name, zcls::kAllNodes);
-    d.node = h.next_by_name(nullptr, 0);
+    zcls::list_walk_by_name(node_name, zcls::kAllNodes);
+    d.node = zcls::list_walk_by_name(nullptr, 0);
   }
   if (!d.node) return false;
-  Node* root = h.node_root(d.node);
+  Node* root = zcls::node_root(d.node);
   if (g_anim.copy_trees && root && root->cls() != 2 && root->cls() != 1) {
     if (!(d.node = h.copy_tree(d.node))) return false;
     d.put<uint32_t>(0x94, d.get<uint32_t>(0x94) | 0x20000);
   }
   d.root = nullptr;
-  if (!(d.root = h.find_node(&d, reinterpret_cast<const char*>(d.raw + 0x44)))) return false;
+  if (!(d.root = anim_find_node(&d, reinterpret_cast<const char*>(d.raw + 0x44)))) return false;
   const auto name = [](const auto& rec) { return reinterpret_cast<const char*>(rec.raw); };
   d.raw[0x10b] = lights;
   for (int k = 1; k < d.count(0x10b); ++k) {
-    if (!(d.lights[k].made = h.create_light())) return false;
-    h.set_name(d.lights[k].made, name(d.lights[k]));
+    Node* n = zcls::light_create();
+    if (!(d.lights[k].made = n)) return false;
+    zcls::node_set_name(n, name(d.lights[k]));
   }
   d.raw[0x10c] = puffers;
   for (int k = 1; k < d.count(0x10c); ++k)
     if (!(d.puffers[k].made = h.create_puffer())) return false;
   d.raw[0x10d] = sounds;
   for (int k = 1; k < d.count(0x10d); ++k) {
-    Node* n = h.create_sound_node();
+    Node* n = zcls::sound_create();
     if (!(d.sounds[k].made = n)) return false;
-    h.set_name(n, name(d.sounds[k]));
-    h.set_sound(n, name(d.sounds[k]));
+    zcls::node_set_name(n, name(d.sounds[k]));
+    zcls::sound_set_name(n, name(d.sounds[k]));
   }
   for (int k = 1; k < d.count(0x109); ++k)
-    if (!(d.objects[k].node = h.find_node(&d, name(d.objects[k])))) return false;
+    if (!(d.objects[k].node = anim_find_node(&d, name(d.objects[k])))) return false;
   for (int k = 1; k < d.count(0x10a); ++k)
-    if (!(d.nodes[k].node = h.find_node(&d, name(d.nodes[k])))) return false;
+    if (!(d.nodes[k].node = anim_find_node(&d, name(d.nodes[k])))) return false;
   for (int k = 1; k < d.count(0x10e); ++k) d.static_sounds[k].sound = h.find_sound(name(d.static_sounds[k]));
   for (int k = 1; k < d.count(0x10f); ++k) {
     const int32_t e = h.effect_index(name(d.effects[k]));
@@ -128,7 +132,7 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
       }
     } else if (type == 2 || type == 3) {
       const char* want = reinterpret_cast<const char*>(p.raw + 0xc);
-      Node* n = last ? h.find_in_tree(last, want) : h.find_node(&d, want);
+      Node* n = last ? zcls::node_find_in_tree(last, want) : anim_find_node(&d, want);
       if (!n) {
         char msg[200];
         std::snprintf(msg, sizeof msg,
@@ -196,10 +200,54 @@ int anim_read_zbd() {
     bool ok;
     a.messages = read_records<AnimMessage>(f, n, &ok);
     if (!ok) return fail();
-    for (int32_t i = 0; i < n; ++i) a.messages[i].put(0x20, g_hooks.message_result(&a.messages[i]));
+    for (int32_t i = 0; i < n; ++i)
+      a.messages[i].put(0x20, zutl::msg_id(reinterpret_cast<const char*>(a.messages[i].raw)));
   }
   std::fclose(f);
   return 0;
+}
+
+// Mech3.exe 1.2 @ 0x005096d0. The node or a descendant by name, children first to last.
+Node* anim_find_in_tree(Node* node, const char* name) {
+  if (!node) return nullptr;
+  if (std::strcmp(node->name(), name) == 0) return node;
+  for (int32_t i = 0; i < node->child_count(); ++i)
+    if (Node* hit = anim_find_in_tree(node->children[i], name)) return hit;
+  return nullptr;
+}
+
+namespace {
+int32_t created_index(const CreatedRef* refs, uint8_t count, const char* name) {
+  for (int32_t k = 0; k < count; ++k) {
+    const auto* n = static_cast<const Node*>(refs[k].made);
+    if (n && std::strcmp(n->name(), name) == 0) return k;
+  }
+  return -1;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005091e0. By the created light node's name.
+int32_t anim_light_index(AnimDef* def, const char* name) {
+  return def->count(0x10b) ? created_index(def->lights, def->count(0x10b), name) : -1;
+}
+
+// Mech3.exe 1.2 @ 0x00509160
+int32_t anim_sound_index(AnimDef* def, const char* name) {
+  return def->count(0x10d) ? created_index(def->sounds, def->count(0x10d), name) : -1;
+}
+
+// Mech3.exe 1.2 @ 0x00509640. Under the def's root, under its node, its own
+// lights and sounds (entry 0 never matches), then, unless flag 0x80000 keeps
+// it local, any node in the world.
+Node* anim_find_node(AnimDef* def, const char* name) {
+  Node* hit = anim_find_in_tree(def->root, name);
+  if (!hit) hit = anim_find_in_tree(def->node, name);
+  if (hit) return hit;
+  if (const int32_t i = anim_light_index(def, name); i > 0) hit = static_cast<Node*>(def->lights[i].made);
+  if (hit) return hit;
+  if (const int32_t i = anim_sound_index(def, name); i > 0) hit = static_cast<Node*>(def->sounds[i].made);
+  if (!hit && (def->get<uint32_t>(0x94) & 0x80000) == 0) hit = zcls::list_find_by_name(zcls::kAllNodes, name);
+  return hit;
 }
 
 }  // namespace zeff

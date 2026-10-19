@@ -29,8 +29,10 @@ add_library(mw3core STATIC
   src/gamez/zclass/cls_world.cpp
   src/gamez/zclass/cls_zbd.cpp
   src/gamez/zclass/display.cpp
+  src/gamez/zclass/light.cpp
   src/gamez/zclass/list.cpp
   src/gamez/zclass/object3d.cpp
+  src/gamez/zclass/sound.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp

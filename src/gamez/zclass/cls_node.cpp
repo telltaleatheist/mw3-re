@@ -2,10 +2,13 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <new>
 
+#include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
 #include "platform/platform.h"
 
@@ -183,6 +186,66 @@ int node_add_child(Node* parent, Node* child) {
       gamez_abort(msg);
     }
   }
+}
+
+// Mech3.exe 1.2 @ 0x004ed960
+void node_touch_frame() {
+  if (g_frames.frozen == 0) g_frames.update_frame = g_frames.frame + 1;
+}
+
+// Mech3.exe 1.2 @ 0x004eb170. Flag 4 is "active"; on is 1 or 0, anything
+// else leaves it.
+int node_set_active(Node* node, int on) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x48e, "Null node pointer."), 5;
+  switch (node->cls()) {
+    case 1: case 2: case 5: case 6:
+      break;
+    case 9: {
+      auto* light = static_cast<Light*>(node->data);
+      if (light->get<uint32_t>(0xb0) & 0x100) {
+        const uint32_t f = on ? ~node->flags() : node->flags();
+        if ((f >> 2) & 1) node_touch_frame();
+      }
+      break;
+    }
+    case 10:
+      sound_set_active(node, on);
+      return 0;
+    default: {
+      char msg[120];
+      std::snprintf(msg, sizeof msg, "gwNodeSetActive(): Unrecognized node class type:  node = %s class_type = %d\n",
+                    node->name(), node->cls());
+      zerr::report(0x400, kClassFile, 0x4aa, msg);
+      return 3;
+    }
+  }
+  if (on == 1) node->set_flags(node->flags() | 4);
+  else if (on == 0) node->set_flags(node->flags() & ~4u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb300. A name over 35 characters keeps its first 34;
+// the byte after them is left as it was.
+int node_set_name(Node* node, const char* name) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x4e5, "Null node pointer."), 5;
+  char* dst = reinterpret_cast<char*>(node->raw);
+  if (std::strlen(name) > 0x23) {
+    std::strncpy(dst, name, 0x22);
+    dst[0x23] = 0;
+  } else {
+    std::strcpy(dst, name);
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f9d60. The node or a descendant by name, children
+// last to first. Original file unknown (zClass).
+Node* node_find_in_tree(Node* node, const char* name) {
+  if (!node) return nullptr;
+  if (std::strcmp(name, node->name()) == 0) return node;
+  for (int32_t i = node->child_count(); i > 0;)
+    if (Node* hit = node_find_in_tree(node->children[--i], name)) return hit;
+  return nullptr;
 }
 
 // The message's arguments are swapped: "Wanted" shows the class found.

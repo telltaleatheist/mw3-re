@@ -1,11 +1,16 @@
 #include "gamez/zclass/list.h"
 
+#include <cstring>
 #include <new>
 
 namespace zcls {
 
 namespace {
 Lists g_lists;
+ListWalk g_walk;
+
+// 0x004f8be0
+bool name_matches(Node* node) { return std::strcmp(node->name(), static_cast<const char*>(g_walk.key)) == 0; }
 
 // List 7: the node is marked as on it, and its unlisted ancestors (up to a
 // world) are appended after it.
@@ -104,5 +109,35 @@ int push_back(int list, Node* node) {
   if (list == kChanged) mark_changed(node, item);
   return 0;
 }
+
+ListWalk& list_walk() { return g_walk; }
+
+// Mech3.exe 1.2 @ 0x004f8040
+ListItem* list_head(int list) { return g_lists.list[list].head; }
+
+// Mech3.exe 1.2 @ 0x004f7fe0. The first node by name; removed items (no node) are skipped.
+Node* list_find_by_name(int list, const char* name) {
+  for (ListItem* i = g_lists.list[list].head; i; i = i->next)
+    if (i->node && std::strcmp(i->node->name(), name) == 0) return i->node;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004f8b20
+Node* list_walk_next(const void* key, int list, bool (*test)(Node* node)) {
+  if (key) {
+    g_walk.key = key;
+    g_walk.cursor = list_head(list);
+    return nullptr;
+  }
+  while (g_walk.cursor) {
+    Node* node = g_walk.cursor->node;
+    g_walk.cursor = g_walk.cursor->next;
+    if (node && test(node)) return node;
+  }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004f8bd0
+Node* list_walk_by_name(const char* name, int list) { return list_walk_next(name, list, name_matches); }
 
 }  // namespace zcls

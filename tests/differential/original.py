@@ -89,7 +89,7 @@ class Original:
     def u32(self, addr, value):
         self.uc.mem_write(addr, struct.pack('<I', value & 0xffffffff))
 
-    def call(self, addr, ecx=0, edx=0, stack_args=()):
+    def call(self, addr, ecx=0, edx=0, stack_args=(), count=50_000_000):
         """Call a __fastcall/__stdcall function; returns when it returns."""
         esp = STACK_TOP - 0x1000
         for arg in reversed(stack_args):
@@ -100,7 +100,9 @@ class Original:
         self.uc.reg_write(UC_X86_REG_ESP, esp)
         self.uc.reg_write(UC_X86_REG_ECX, ecx & 0xffffffff)
         self.uc.reg_write(UC_X86_REG_EDX, edx & 0xffffffff)
-        self.uc.emu_start(addr, RETURN, count=50_000_000)
+        self.uc.emu_start(addr, RETURN, count=count)
+        if self.uc.reg_read(UC_X86_REG_EIP) != RETURN:
+            raise RuntimeError(f'{addr:#x} did not return within {count} instructions')
 
     def arg(self, n):
         """Stack argument n (0-based) of the function being entered."""
