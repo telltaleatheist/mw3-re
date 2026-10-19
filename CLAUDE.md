@@ -84,8 +84,14 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   bytes and structure, then by call graph), port only what changed, and run
   the existing differential tests against the PM exe too (`original.py`
   checks one exe's SHA-256 today: make the exe a parameter). mech3ax reads PM
-  formats, as a cross-check. Keep the port open to it meanwhile: game data
-  through the asset mounts, no MW3-only constants where the exe reads data.
+  formats, as a cross-check. Both games in one program (Owen): a small
+  launcher (our addition, not original code) picks MW3 or Pirate's Moon,
+  then that game's own startup runs; shared code once, the functions the
+  diff shows differ kept in both versions and chosen by the selected game,
+  each game's data mounted and its saves in its own write dir. Keep the port
+  open to it meanwhile: game data through the asset mounts, no MW3-only
+  constants where the exe reads data, game-specific choices made at run
+  time rather than compiled in.
 - REA source for reading: `../rea` (a clone, not a
   dependency).
 - mech3ax source for checking formats: `../mech3ax`
