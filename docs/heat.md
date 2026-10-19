@@ -19,7 +19,7 @@ Mech offsets (`docs/structs.md` has the rest of the object):
 | +0x068 | height, from the model's bounding box (12 if none) |
 | +0x0d4 | weapons and ammo bins |
 | +0x0dc / +0x0dd / +0x0de | power-down pending / heat shutdown in progress / powered down |
-| +0x37c | controls (a virtual-base object; vtable +0x1c gives a value in -1..1, likely throttle) |
+| +0x37c | controls (`controls.md`); vtable +0x1c is GetThrottle, -1..1 |
 | +0x38c, +0x390 | left and right leg; leg +0x78 is the foot |
 | +0x554 | heat, 0 to 2 |
 | +0x558 | heat added this frame (weapons add to it); cleared at the end |
@@ -43,7 +43,7 @@ Foot: +0xac in water, +0xdc water depth, +0xe8 soil under it. Soils (0x47f380):
 rate = 1                      x3 while powered down
 if left foot in water:        f = max(depth / height, 1); rate *= min((3f + 1)^2, 8)
 dissipation = rate * 0.05
-full model only:              dissipation *= (1.6 - |controls|) when that is below 1
+full model only:              dissipation *= (1.6 - |throttle|) when that is below 1
                               added += dt * 0.05 while jump jets fire, and again while MASC is on
 added += 0.05                 while either foot is on lava (per frame)
 dissipation *= sinks * 0.1 * (doubles ? 2.5 : 1.25)
@@ -51,8 +51,9 @@ if heat is on:                heat = clamp(heat - dt * dissipation, 0, 2), then 
 else:                         heat = 0
 ```
 
-"Heat is on" is bit 3 of the options word at `[0x5f4d04]` or mission mode 3
-(`[0x60861c] +0x6c`, vtable +0x2c). With ten single heat sinks the sink factor is
+"Heat is on" is bit 3 of the options word at `[0x5f4d04]` or game type 3,
+multiplayer (the pilot `[0x60861c]`'s current game at +0x6c, vtable +0x2c;
+`gametypes.md`). With ten single heat sinks the sink factor is
 1.25, so a mech standing still sheds 0.0625 heat per second.
 
 Quirk, kept: `f` is the larger of the ratio and 1, so `(3f + 1)^2` is at least 16
@@ -89,7 +90,7 @@ powered down, stop the sounds and force state 2.
 | 1 | 0.9 or below: cancel, clear the override, back to 0; else once the timer passes, timer = now + 3, go to 2 and run again |
 | 2 | "shutting down" (sound 0x15), power down (0x41cc30(1)), heat shutdown on, go to 3 (with the override and no 1.5 forcing, it moves to 3 without powering down) |
 | 3 | 0.9 or below: cancel; else when the timer passes, timer = now + 0.1..3.0 at random, start the alarm (sound 6), go to 4 |
-| 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not mission mode 3) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
+| 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not multiplayer) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
 
 States 3 and 4 as above only run while the mech is still powered up: with the
 override on, or at critical (which clears bit 25). While powered down (bit 25)
@@ -126,11 +127,5 @@ crit handler's "heat sink lost" voice (0x485390) never plays.
 
 ## Open
 
-- The controls value at +0x37c vtable +0x1c: likely throttle. The controls object is set through 0x491120 by whoever pilots the mech (player or AI).
-- Mission mode 3: heat always on and no death from critical heat; which mode?
-  The mode is vtable +0x2c of the object at mission +0x6c. Classes returning a
-  constant there sit in the mech_data/mech_map area: 2 (vtable 0x5bed50,
-  constructor 0x436650), 3 (0x5becf8, 0x4353a0), 4 (0x5beda8, 0x436e30); more
-  return 1, 3 and 5 (0x5bed04, 0x5bee14, 0x5bedd0). The mission is created in
-  the setup switch around 0x4836e0. Likely game types (campaign, instant
-  action, multiplayer, training); not mapped yet.
+- Game types are mapped in `gametypes.md`: 0 Mech Lab/dev levels, 1 campaign,
+  2 instant action, 3 multiplayer, 4 training.

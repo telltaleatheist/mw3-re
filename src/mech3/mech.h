@@ -70,8 +70,8 @@ World& world();
 // Calls into code that is not ported yet. Unset ones do nothing and return 0.
 struct HeatCalls {
   bool (*heat_option)() = nullptr;                          // 0x0040cfc0
-  int (*mission_mode)() = nullptr;                          // 0x0060861c +0x6c, vtable +0x2c
-  float (*controls_value)(Mech&) = nullptr;                 // +0x37c, vtable +0x1c
+  int (*game_type)() = nullptr;                             // pilot 0x0060861c +0x6c, vtable +0x2c; 3 = multiplayer
+  float (*throttle)(Mech&) = nullptr;                       // +0x37c GetThrottle (docs/controls.md)
   void* (*screen)(Mech&) = nullptr;                         // 0x00430aa0 on +0x684
   void (*heat_haze)(void* screen, float amount, int kind, float dt) = nullptr;  // 0x0043c1f0
   Sound (*play_sound)(Mech&, int id) = nullptr;             // 0x00432990 on +0x684

@@ -72,7 +72,7 @@ constructors name them:
 
 ## Shutdown (0x4808a0)
 
-The mission object (`[0x60861c]`, 0x4785f0) goes first, then the game-side
+The pilot object (`[0x60861c]`, 0x4785f0; `gametypes.md`) goes first, then the game-side
 modules (0x414000 mechs, 0x4844b0, 0x4584e0, the object at `[0x608620]`), then
 GameZ in roughly the reverse of startup: weapons and network (0x586c20), decal
 client (0x502020), geometry (0x516f00), weapon module (0x583870), effects

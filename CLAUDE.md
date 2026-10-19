@@ -147,12 +147,10 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Textures: traced and ported (`docs/textures.md`), identical on all
       10,612 textures.
 - [ ] Textures: a PNG dump tool, to look at them.
-- [ ] Game types: which game type is "mission mode 3" (setup switch near
-      0x4836e0; classes in `docs/heat.md` Open).
+- [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [ ] Network: read the game-side receive handlers; list the message types;
       confirm state sync vs lockstep (`docs/network.md`).
-- [ ] Controls: what +0x37c vtable +0x1c returns (likely throttle); who
-      creates the controls object (0x491120).
+- [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [ ] Power: port Mech::Power (0x41cc30) and FinishPowerDown (0x41cac0).
 - [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
       an emulator check over every `dfn_*.zrd`.

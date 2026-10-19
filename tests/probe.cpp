@@ -245,8 +245,8 @@ void probe_heat_reset(uint32_t seed) {
   crt::msvc_srand(seed);
   mech3::HeatCalls& c = mech3::heat_calls();
   c.heat_option = [] { return g_script.option != 0; };
-  c.mission_mode = [] { return g_script.mission; };
-  c.controls_value = [](mech3::Mech&) { return g_script.controls; };
+  c.game_type = [] { return g_script.mission; };
+  c.throttle = [](mech3::Mech&) { return g_script.controls; };
   c.screen = [](mech3::Mech&) -> void* { return g_script.screen ? &g_script : nullptr; };
   c.heat_haze = [](void*, float a, int k, float dt) { log3(1, fbits(a), k), log3(1, fbits(dt), 0); };
   c.play_sound = [](mech3::Mech&, int id) {

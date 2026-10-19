@@ -67,7 +67,7 @@
       ["0xdc", "bool", "power_down_pending"],
       ["0xdd", "bool", "heat_shutdown"],
       ["0xde", "bool", "powered_down", "cooling x3"],
-      ["0x37c", "undefined4*", "controls", "virtual base; vtable +0x1c likely throttle"],
+      ["0x37c", "undefined4*", "controls", "MechControls (docs/controls.md); IControls vtable +0x1c GetThrottle"],
       ["0x38c", "Leg*[2]", "legs"],
       ["0x394", "MechPart*[2]", "arms"],
       ["0x39c", "MechPart*", "torso"],

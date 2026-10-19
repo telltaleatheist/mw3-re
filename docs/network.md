@@ -16,7 +16,7 @@ Mech3.exe 1.2, 2026-10-19. Not ported; this is enough to plan the LAN work.
   `mech_reader.cpp`) and in `mission.cpp`: each is `uint16 type, uint16 size,
   payload`. Seen so far: 0x1f text (a chat line), 0x1a an event that copies a
   block of state, 0x18 built by an object's vtable +0x58, a score/team update
-  (0x470170, `[0x60861c]` mission data), and a 7-dword record with a position
+  (0x470170, `[0x60861c]` pilot data), and a 7-dword record with a position
   and a flag bit 0x80 (0x46fde0).
 
 ## Sync model

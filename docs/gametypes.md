@@ -1,6 +1,6 @@
 # Game types (the "mission mode" in heat.md)
 
-Draft, 2026-10-19. Answers the heat.md open question "mission mode 3: which mode?".
+Mech3.exe 1.2, 2026-10-19 (researched by a subagent, spot-checked: 0x48a7b0, 0x48b170, 0x49cc3f). Answers the heat.md question "mission mode 3: which mode?".
 
 ## Summary
 

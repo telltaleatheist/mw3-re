@@ -20,6 +20,7 @@ constexpr float kBeepOff = 0.7f;        // 0x005e1ff0
 constexpr float kRecover = 0.4f;        // 0x005e1ff4
 constexpr float kHazeStart = 0.8f;      // 0x005bcd90
 constexpr int kLava = 8;
+constexpr int kMultiplayer = 3;  // docs/gametypes.md
 
 constexpr int kSoundBeep = 5, kSoundAlarm = 6, kSoundShutdownWarning = 0x14, kSoundShutdown = 0x15;
 constexpr int kMechSoundAmmo = 15, kMechSoundCritical = 26;
@@ -35,7 +36,7 @@ void stop(Sound& s) {
 }
 
 Sound play(Mech& m, int id) { return g_calls.play_sound ? g_calls.play_sound(m, id) : nullptr; }
-int mission_mode() { return g_calls.mission_mode ? g_calls.mission_mode() : 0; }
+int game_type() { return g_calls.game_type ? g_calls.game_type() : 0; }
 
 uint32_t beep_state(uint32_t s) { return s & 7; }
 uint32_t next_beep(uint32_t s) { return (s & ~7u) | ((s + 1) & 7); }
@@ -76,7 +77,7 @@ void update_heat(Mech& m, float dt) {
   m.heat_dissipation = rate * 0.05f;  // 0x005e5d40
 
   if (full) {
-    const float t = 1.6f - std::fabs(g_calls.controls_value ? g_calls.controls_value(m) : 0.0f);
+    const float t = 1.6f - std::fabs(g_calls.throttle ? g_calls.throttle(m) : 0.0f);
     if (t < 1.0f) m.heat_dissipation *= t;
     if (m.jump_jets_firing) m.heat_added += dt * 0.05f;
     if (m.masc_time != 0.0f) m.heat_added += dt * 0.05f;
@@ -85,7 +86,7 @@ void update_heat(Mech& m, float dt) {
   if (m.foot(0)->soil == kLava || m.foot(1)->soil == kLava) m.heat_added += 0.05f;
   m.heat_dissipation *= m.heat_sinks.rate();
 
-  if ((g_calls.heat_option && g_calls.heat_option()) || mission_mode() == 3) {
+  if ((g_calls.heat_option && g_calls.heat_option()) || game_type() == kMultiplayer) {
     m.heat -= dt * m.heat_dissipation;
     if (!(m.heat <= kHeatMax)) m.heat = kHeatMax;
     else if (m.heat < 0.0f) m.heat = 0.0f;
@@ -102,7 +103,7 @@ void update_heat(Mech& m, float dt) {
     g_calls.heat_haze(screen, (m.heat - kHazeStart) * 5.0f, 5, w.dt);
 
   if (!full) {
-    if (m.heat >= kCritical && mission_mode() != 3 && g_calls.torso_hit) g_calls.torso_hit(m, 1);
+    if (m.heat >= kCritical && game_type() != kMultiplayer && g_calls.torso_hit) g_calls.torso_hit(m, 1);
     m.heat_added = 0.0f;
     return;
   }
@@ -238,7 +239,7 @@ void update_heat(Mech& m, float dt) {
         }
         m.heat_shutdown = false;
         if (!m.heat_death_disabled) {
-          if (critical && mission_mode() != 3) {
+          if (critical && game_type() != kMultiplayer) {
             if (g_calls.torso_hit) g_calls.torso_hit(m, 1);
           } else if (g_calls.torso_hit) {
             g_calls.torso_hit(m, 0);  // 0x0041cfa0(1)

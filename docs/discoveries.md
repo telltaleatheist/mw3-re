@@ -34,8 +34,8 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   always reports failure. The sink is gone, silently. Losing a whole part takes
   its sinks with it (0x4617f0).
 - **Jump jets and MASC each add 0.05 heat a second** while running, on top of
-  weapons. Running flat out also cools you slower: the cooling rate drops once
-  the controls value passes 0.6 (likely the throttle).
+  weapons. Running hard also cools you slower: past 60% throttle (either
+  direction), cooling drops, to 60% of normal at full throttle.
 - **Shutdown has stages.** Above 0.95 you get the "shutdown imminent" warning,
   and about 4 seconds later the mech powers down unless you've dropped to 0.9.
   Hitting 1.5 skips the warning and shuts you down at once. Once shut down, the
@@ -68,8 +68,10 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   calls; not traced from the key yet. The in-game help says the startup key
   "can also restart your 'Mech after an automatic shutdown", which this code
   does not allow.)
-- **One mission mode never kills from heat.** In "mission mode 3" (not
-  identified yet) heat is always on, but reaching critical only resets it.
+- **Heat can't kill you in multiplayer.** In multiplayer, heat is always on,
+  but reaching critical heat never destroys your torso: it only shuts you down
+  and resets your heat. In campaign, instant action and training, critical heat
+  is fatal (gametypes.md).
 
 ## Startup
 
