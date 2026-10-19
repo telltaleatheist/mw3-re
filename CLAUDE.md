@@ -19,6 +19,14 @@ a byte-identical port.
   closest to the original and most portable). Godot (GDExtension) is the
   escape hatch if SDL gives too much trouble; the game library does not change
   either way.
+- Later, after the port is complete (Owen, 2026-10-20, back burner): a
+  high-res version with new models (Blender etc.) as an optional replacement
+  layer in the same port, not a fork. Keep this possible now: the renderer
+  stays separate from the game library; models, parts, firepoints and props
+  stay looked up by name; a replacement mech keeps the original part tree,
+  pivots and firepoints so the motions work; gameplay keeps the original
+  geometry (collision, terrain, AI bounds). Original art stays player-supplied;
+  a public pack would need fully original art.
 - Checking: differential tests run the original x86 function (in an emulator
   such as Unicorn, on the Mac) and the C++ version on the same inputs.
 - Assets: never committed. A first-run importer reads the player's MW3 1.2
