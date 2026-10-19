@@ -158,6 +158,10 @@ From the network code (network-messages.md).
   ... down to the plain `rmechtex.zbd`) and uses the first one present. On a
   15-bit display every texture's colours are converted as they load, and green
   loses a bit of precision.
+- **`lab.flt` in `mechlib.zbd` is likely never loaded.** Every model name the
+  game builds starts with `mech_` (0x484760, 0x4847e0), so the one model
+  without that prefix sits unused (mechlib.md).
+- **All mechs share one set of 442 materials**, read once from `mechlib.zbd`.
 - **In GameZ, an animation is a "script".** Every mech animation in
   `motion.zbd` is loaded as a `CZSIScript`, with keyframes for each body part.
   A loose `<name>.zan` file would replace one, a developer hook like the loose

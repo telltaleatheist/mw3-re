@@ -156,5 +156,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
       an emulator check over every `dfn_*.zrd`.
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
-- [ ] Assets: trace the remaining formats in `docs/assets.md` (mechlib models, interp scripts, gamez.zbd, anim.zbd), one per sitting,
+- [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
+- [ ] Mechlib: port materials and models (steps 1-3 of `docs/mechlib.md`)
+      with emulator checks over all 442 materials and 770 models.
+- [ ] Assets: trace the remaining formats in `docs/assets.md` ( interp scripts, gamez.zbd, anim.zbd), one per sitting,
       cross-checked against mech3ax.
