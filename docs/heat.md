@@ -104,6 +104,14 @@ fps but 3/s at 60. Everything else scales with dt. Kept as the original for now;
 if the rebuild runs above the original's frame rate this is a candidate FIX (B)
 (`dt * 1.5`). Decision for Owen.
 
+## Losing heat sinks
+
+`HeatSinks::Lose(n)` (0x45fbc0) takes n off the count (not below 0) and always
+returns false. The loadout sets the starting count (0x414735 copies it from
+the configuration); critical hit type 0 on a part removes one (0x460d50), and a
+destroyed part removes its own (0x4617f0). Because Lose returns false, the
+crit handler's "heat sink lost" voice (0x485390) never plays.
+
 ## Open
 
 - The controls value at +0x37c vtable +0x1c: likely throttle.

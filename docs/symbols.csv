@@ -135,3 +135,6 @@ address,name,source,notes
 0x00556210,zrdr_shutdown,asm,"close_archives(1)"
 0x005e6078,g_mech_roster,asm,"0x474 bytes, checksummed"
 0x005e6998,g_internal_structure,asm,"0x17c bytes: tonnage, head, CT, ST, arm, leg"
+0x0045fbc0,HeatSinks::Lose,asm,"(n) count -= n, min 0; always returns false"
+0x00460d50,MechPart::Critical,decomp,"(type) 0 heat sink, 1 weapon, 2 ammo?, 3-4 ..."
+0x00485390,play_pilot_callout,asm,"voice from table 0x608fc0"

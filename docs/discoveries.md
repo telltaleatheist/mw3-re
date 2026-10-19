@@ -27,6 +27,12 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   every frame, not every second. Everything else in the heat code scales with
   time. So the faster the game ran, the faster lava cooked you: about 1.5 heat a
   second at 30 fps, 3 at 60 fps.
+- **Critical hits can destroy heat sinks, but your pilot never says so.** One
+  kind of critical hit on a part (0x460d50, type 0) knocks out a heat sink, and
+  cooling drops 10% for each one lost. It is meant to play a voice callout, but
+  only when the heat sink routine (0x45fbc0) reports success, and that routine
+  always reports failure. The sink is gone, silently. Losing a whole part takes
+  its sinks with it (0x4617f0).
 - **Jump jets and MASC each add 0.05 heat a second** while running, on top of
   weapons. Running flat out also cools you slower: the cooling rate drops once
   the controls value passes 0.6 (likely the throttle).
