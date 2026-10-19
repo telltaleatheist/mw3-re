@@ -9,6 +9,25 @@ pseudocode or asm only, without an emulator run or a cross-check.
 Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
 (euler, multiply, view matrix, projection; all match the formulas below).
 
+## Ported so far
+
+- Camera-space near/far clippers (0x5275e0 .. 0x529120): `zmodel/gmod_clip3d`,
+  `render-clip3d.md`. Corrections: 0x527a30 is the untextured *lit* path and
+  0x5286e0 the per-vertex *lit* textured one; the plane mask is read from
+  [0x7402f8], EDX is the count pointer; the point light is copied, not
+  interpolated, at a near cut.
+- Screen-space side clippers (0x529ce0 .. 0x52fab0): `zmodel/gmod_clip2d`,
+  `render-clip2d.md`. The clip struct is the address 0x7402f8 itself; each
+  clipper recomputes its outcodes; order left, right, top, bottom, right and
+  bottom exclusive; crossing points are perspective-correct for every
+  attribute.
+- Fog maths (0x555640, 0x555a70) and the transparent queue, sort and flush
+  (0x57dec0, 0x57e110): `zmodel/gmod_fogcalc`, `zvideo/zvid_ddd3d`,
+  `render-fogsort.md`. The model-level fog test is a conservative bound over
+  the sphere; the flush always sends ALPHAOP MODULATE and forces Gouraud.
+- All match the original in Unicorn with the FPU at 24-bit precision, as the
+  game runs (CLAUDE.md).
+
 ## 0. Conventions in one place (for the viewer)
 
 - **Units and axes.** World +Y is up (gravity -9.8 in anim.zbd, `anim.md`;

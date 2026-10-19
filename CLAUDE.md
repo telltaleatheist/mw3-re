@@ -128,7 +128,15 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   traps are removed (Owen, 2026-10-20), marked `FIX (trap)`
   (`docs/protection.md`).
 - Self-contained functions get a differential test (`tests/differential/`) that
-  runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
+  runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`
+  (or a `tests/probe_<topic>.cpp`).
+- FPU precision: in play the x87 runs at 24-bit (single) precision, because
+  Direct3D 6 sets it and the game does not pass DDSCL_FPUPRESERVE
+  (SetCooperativeLevel flags 0x13 at 0x577c4b). Tests of code that runs while
+  the game is up set the emulator's FPU to 24 bits; ports use float with
+  `#pragma STDC FP_CONTRACT OFF` (clang fuses multiply-adds otherwise). Then
+  the clippers match bit for bit (`render-clip2d.md`). Tests written before
+  this (heat, power, motion, timer) ran at 64 bits: recheck them at 24.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
