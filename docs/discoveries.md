@@ -298,6 +298,14 @@ From the render path (render.md).
 - **The same trick may turn surfaces black next to coloured lights** in
   hardware mode (textured surfaces lit by a coloured point light). Also
   emulator-only so far.
+- **Copies of the same object share one lighting bake.** The game caches each
+  model's sunlight per vertex, but the cache lives on the shared model, not on
+  each placed copy, so every copy is lit as if facing the way the last-baked
+  copy faces, until a light changes (c1: 678 models used more than once, one
+  58 times). Found in the code; not yet seen in play.
+- **Four effect textures are missing from every world** (`sizzle`,
+  `laspulstrc`, `gaustrac`, `gaustrac2`): the hardware texture files lack
+  them, so the game uses an 8x8 red and green placeholder.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
 

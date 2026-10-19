@@ -39,6 +39,7 @@ add_library(mw3core STATIC
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmath/zmth_matrix.cpp
+  src/gamez/zmodel/gmod_bake.cpp
   src/gamez/zmodel/gmod_clip2d.cpp
   src/gamez/zmodel/gmod_clip3d.cpp
   src/gamez/zmodel/gmod_const.cpp
@@ -62,10 +63,15 @@ add_library(mw3core STATIC
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
+# The x87 never fuses a multiply and an add; clang does by default on arm64,
+# which rounds differently from the original (CLAUDE.md, FPU precision).
+if(NOT MSVC)
+  target_compile_options(mw3core PRIVATE -ffp-contract=off)
+endif()
 
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
-add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp)
+add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp)
 target_link_libraries(mw3probe PRIVATE mw3core)
 
 enable_testing()

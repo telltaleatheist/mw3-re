@@ -3,6 +3,9 @@
 #include <cstring>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 namespace zimg {
 
@@ -43,6 +46,188 @@ int read_texture_directory(int count, std::FILE* f) {
   }
   g_table.count = count;
   return count;
+}
+
+}  // namespace zimg
+
+// ---------------------------------------------------------------- loading
+
+namespace zimg {
+
+namespace {
+TextureHooks g_hooks;
+TextureLoad g_load;
+
+// 0x005ecb40: the default image's texels, columns of two alternating per row.
+uint16_t g_default_pixels[64] = {
+    0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0,
+    0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800,
+    0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0,
+    0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800,
+    0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0,
+    0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800,
+    0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0,
+    0x03e0, 0x03e0, 0xf800, 0xf800, 0x03e0, 0x03e0, 0xf800, 0xf800,
+};
+Texture g_default = [] {
+  Texture t{};
+  t.pixel_count = 64, t.width = 8, t.height = 8;
+  t.flags = kTwoBytes | kNoAlpha;  // not owned: never freed
+  t.pixels = g_default_pixels;
+  return t;
+}();
+
+// 0x00519150 with no new extension: cut the name at its first '.' after the
+// first '\' or '/'.
+void cut_extension(char* s) {
+  char* p = std::strchr(s, '\\');
+  if (!p) p = std::strchr(s, '/');
+  if (!p) p = s;
+  if (char* dot = std::strchr(p, '.')) *dot = '\0';
+}
+}  // namespace
+
+TextureHooks& texture_hooks() { return g_hooks; }
+TextureLoad& texture_load() { return g_load; }
+Texture& default_image() { return g_default; }
+
+// Mech3.exe 1.2 @ 0x00518220. Plain strcmp, unlike the libraries' _stricmp.
+TextureEntry* find_texture(const char* name) {
+  for (int32_t i = 0; i < g_table.count; ++i) {
+    TextureEntry& e = g_table.entries[i];
+    if (e.state != 0 && std::strcmp(e.name, name) == 0) return &e;
+  }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00519210. No bound on dst (the entry's 20 bytes).
+void set_entry_name(const char* path, char* dst) {
+  const char* base = std::strrchr(path, '\\');
+  if (!base) base = std::strrchr(path, '/');
+  if (!base) base = path;
+  std::strcpy(dst, base);
+  cut_extension(dst);
+}
+
+// Mech3.exe 1.2 @ 0x00518e50. Palettised textures are left alone.
+void clear_transparent(Texture& t) {
+  if (t.palette_count != 0) return;
+  const int bpp = bytes_per_pixel(t);
+  for (int32_t i = 0; i < t.pixel_count; ++i) {
+    if (t.alpha[i] != 0) continue;
+    if (bpp == 1) static_cast<uint8_t*>(t.pixels)[i] = 0;
+    else if (bpp == 2) static_cast<uint16_t*>(t.pixels)[i] = 0;
+    else if (bpp == 4) static_cast<uint32_t*>(t.pixels)[i] = 0;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00518ee0. The list switch sticks even when neither has it.
+Texture* fetch_image(const char* name) {
+  Texture* t = find_in_list(g_load.list, name);
+  if (!t) {
+    g_load.list = (g_load.list + 1) % 2;
+    t = find_in_list(g_load.list, name);
+  }
+  if (t && (t->flags & kAlpha) && t->alpha) clear_transparent(*t);
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x00557ed0
+void software_prepare(Texture& t) {
+  t.log2_width = 0, t.log2_height = 0;
+  for (int32_t w = t.width; w > 1; w >>= 1) ++t.log2_width;
+  for (int32_t h = t.height; h > 1; h >>= 1) ++t.log2_height;
+  t.mip_scale = 1.0f;
+  t.span_shift = 20 - t.log2_width;
+  t.span_mask_u = (1 << t.log2_width) - 1;
+  t.span_mask_v = ((1 << t.log2_height) << 20) - 0x100000;
+}
+
+// Mech3.exe 1.2 @ 0x00519270. Only a name ending in "_1" (the first "_1" in
+// it) has mips: its last digit counts up while the libraries have the name.
+// A new name takes the next table slot (no bound check), keeping the slot's
+// old group and record. Each mip's scale is the base image's width over its own.
+void link_mips(TextureEntry& entry) {
+  char name[0x40];
+  std::strcpy(name, entry.name);
+  char* m = std::strstr(name, "_1");
+  if (!m || m[2] != '\0') return;
+  TextureEntry* prev = &entry;
+  Texture* img = nullptr;  // [esp+0x14]
+  for (;;) {
+    ++m[1];
+    TextureEntry* e = find_texture(name);
+    if (!e || e->state == 2) {
+      img = fetch_image(name);
+      if (!img) return;
+      if (!e) {
+        e = &g_table.entries[g_table.count++];
+        set_entry_name(name, e->name);
+      }
+      e->state = 1;
+      e->image = img;
+      software_prepare(*img);
+    } else if (!img) {
+      // The original reads an unset stack slot here (a mip already loaded
+      // before its base); the port takes that mip's own image. Not reached
+      // with the shipped files (docs/drafts/bake-textures.md).
+      img = static_cast<Texture*>(e->image);
+    }
+    prev->mip = e;
+    prev = e;
+    img->mip_scale = static_cast<float>(static_cast<Texture*>(entry.image)->width / img->width);
+    e->mip = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00518f70. A name no library has gets the default image
+// (and, on Direct3D, a record of its own made from it).
+void load_texture(TextureEntry* entry, int32_t free_pixels) {
+  if (!entry || (entry->state != 2 && entry->state != 3)) return;
+  entry->image = fetch_image(entry->name);
+  entry->mip = nullptr;
+  if (!entry->image) {
+    if (g_hooks.fallback) entry->image = g_hooks.fallback(entry->name);
+    if (!entry->image) entry->image = &g_default;
+  }
+  link_mips(*entry);
+  Texture& img = *static_cast<Texture*>(entry->image);
+  const int32_t device = zrndr::device_fog().active;  // 0x0072f348
+  if (!device || (g_hooks.projected && g_hooks.projected(entry))) {
+    software_prepare(img);
+    entry->state = 1;
+    return;
+  }
+  if (entry->state == 3) {
+    if (g_hooks.reload) g_hooks.reload(entry->surface, &img);
+    entry->state = 1;
+    return;
+  }
+  if (!entry->surface) {
+    // [0x0072f364] = 0x0057b130 (zvid_ddd3d).
+    entry->surface = zvid::create_texture(entry->name, img, img.flags & kAlpha, img.stretch & 1,
+                                          (img.stretch >> 1) & 1);
+    if (free_pixels && device != 2) release_buffers(img);
+    g_load.memory += 2 * img.pixel_count;
+  }
+  entry->state = 1;
+}
+
+// Mech3.exe 1.2 @ 0x00519080. Opens list 0's files around the walk; the
+// count is read again each step, so mips appended on the way are visited.
+void load_group(int32_t group) {
+  open_all(0);
+  for (int32_t i = 0; i < g_table.count; ++i) {
+    TextureEntry& e = g_table.entries[i];
+    if (group == -1 || group == e.group) load_texture(&e, 1);
+  }
+  close_all(0);
+}
+
+// Mech3.exe 1.2 @ 0x005190d0
+int32_t load_group_0() {
+  load_group(0);
+  return 0;
 }
 
 }  // namespace zimg

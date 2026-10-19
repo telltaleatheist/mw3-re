@@ -9,6 +9,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zmodel/gmod_clip2d.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -677,4 +678,27 @@ D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t
   return t;
 }
 
+// Mech3.exe 1.2 @ 0x00579f50, the Direct3D entries the model draw calls
+// ([0x72f3b0]..[0x72f3c8]). The shadowed and point entries are not ported yet.
+void install_model_draw_table() {
+  zmod::DrawTable& t = zmod::draw_table();
+  t.ctx = nullptr;
+  t.flat = [](void*, uint32_t color, int32_t alpha, int32_t count, int32_t priority, int32_t overlay) {
+    draw_flat(color, alpha, count, priority, overlay);
+  };
+  t.lit = [](void*, uint32_t color, const float* rgb, uint32_t fogged, int32_t alpha, int32_t count, int32_t priority,
+             int32_t overlay) { draw_lit(color, rgb, fogged, alpha, count, priority, overlay); };
+  t.textured = [](void*, int32_t count, void* texture, float opacity, int32_t overlay) {
+    draw_textured(count, static_cast<const D3DTexture*>(texture), opacity, overlay);
+  };
+  t.textured_lit = [](void*, uint32_t fogged, int32_t count, void* texture, int32_t priority, float opacity,
+                      int32_t overlay) {
+    draw_textured_lit(fogged, count, static_cast<const D3DTexture*>(texture), priority, opacity, overlay);
+  };
+  t.textured_vertex = [](void*, uint32_t fogged, int32_t count, void* texture, float opacity, int32_t overlay) {
+    draw_textured_vertex_lit(fogged, count, static_cast<const D3DTexture*>(texture), opacity, overlay);
+  };
+}
+
 }  // namespace zvid
+

@@ -140,6 +140,10 @@ void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture,
 void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture, float opacity,
                               int32_t overlay);                                         // 0x0057d690
 
+// 0x00579f50's table fill (0x579fe9..0x57a165), the part the model draw uses:
+// points zmod::draw_table() at the draw functions above.
+void install_model_draw_table();
+
 // The block every transparent draw inlines (0x0057bf80, 0x0057c2f0, 0x0057caa0,
 // 0x0057ce20, 0x0057d160, 0x0057d690, 0x0057dba0): reserves a polygon and its
 // vertices, or reports the overflow and returns null. The caller fills them.

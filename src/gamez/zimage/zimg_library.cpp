@@ -11,7 +11,7 @@ namespace zimg {
 
 namespace {
 State g_state;
-std::vector<Library*> g_libraries;  // 0x006384f4, count 0x006384f8
+std::vector<Library*> g_libraries[2];  // 0x006384f0 (head 0x006384f4, count 0x006384f8), 0x00638500
 
 bool exists(const char* name) {
   if (g_state.file_exists) return g_state.file_exists(name);
@@ -34,15 +34,60 @@ int32_t read_size(const Texture& t, int bytes) {  // 0x00517f70
 
 State& state() { return g_state; }
 
-// Mech3.exe 1.2 @ 0x005182a0
-Library* new_library(const char* name, int32_t variant, bool r_prefix) {
+std::vector<Library*>& library_list(int list) { return g_libraries[list]; }
+
+namespace {
+Library* make_library(const char* name, int32_t variant, bool r_prefix) {
   auto* lib = new Library{};
   lib->variant = variant;
   lib->r_prefix = r_prefix;
   std::snprintf(lib->name, sizeof lib->name, "%s", name);
   lib->needs_resolve = true;
-  g_libraries.push_back(lib);
   return lib;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005182a0. Appended to list 0.
+Library* new_library(const char* name, int32_t variant, bool r_prefix) {
+  Library* lib = make_library(name, variant, r_prefix);
+  g_libraries[0].push_back(lib);
+  return lib;
+}
+
+// Mech3.exe 1.2 @ 0x005183b0. The same, appended to list 1.
+Library* new_image_library(const char* name, int32_t variant, bool r_prefix) {
+  Library* lib = make_library(name, variant, r_prefix);
+  g_libraries[1].push_back(lib);
+  return lib;
+}
+
+// Mech3.exe 1.2 @ 0x005184c0
+int32_t register_image_library(int32_t on) {
+  if (on) new_image_library("image", 0, true);
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00518670
+void open_all(int list) {
+  for (Library* lib : g_libraries[list]) open(*lib);
+}
+
+// Mech3.exe 1.2 @ 0x00518630
+void close_all(int list) {
+  for (Library* lib : g_libraries[list]) close(*lib);
+}
+
+// Mech3.exe 1.2 @ 0x00518600
+void close(Library& lib) {
+  if (lib.file) std::fclose(lib.file);
+  lib.file = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00518d60
+Texture* find_in_list(int list, const char* name) {
+  for (Library* lib : g_libraries[list])
+    if (Texture* t = load(*lib, name)) return t;
+  return nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x00518a30. Tries <name>.zbd for variant 0, else
@@ -197,13 +242,31 @@ Texture* read_texture(std::FILE* f) {
   return t;
 }
 
+// Mech3.exe 1.2 @ 0x00517d00. Frees what the texture owns and clears the
+// pointers and the owned bits; a global palette is never freed.
+void release_buffers(Texture& t) {
+  if (t.pixels && (t.flags & kPixelsOwned)) {
+    std::free(t.pixels);
+    t.pixels = nullptr;
+    t.flags &= ~kPixelsOwned;
+  }
+  if (t.alpha && (t.flags & kAlphaOwned)) {
+    std::free(t.alpha);
+    t.alpha = nullptr;
+    t.flags &= ~kAlphaOwned;
+  }
+  if (t.palette && (t.flags & kPaletteOwned) && !(t.flags & kGlobalPalette)) {
+    std::free(t.palette);
+    t.palette = nullptr;
+    t.flags &= ~kPaletteOwned;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00517cc0 (with 0x00517d00). The device texture at +0x30 is
 // the renderer's and is not ported.
 void free_texture(Texture* t) {
   if (!t) return;
-  if (t->pixels && (t->flags & kPixelsOwned)) std::free(t->pixels);
-  if (t->alpha && (t->flags & kAlphaOwned)) std::free(t->alpha);
-  if (t->palette && (t->flags & kPaletteOwned) && !(t->flags & kGlobalPalette)) std::free(t->palette);
+  release_buffers(*t);
   std::free(t);
 }
 

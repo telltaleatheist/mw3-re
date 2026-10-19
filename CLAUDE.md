@@ -133,8 +133,9 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - FPU precision: in play the x87 runs at 24-bit (single) precision, because
   Direct3D 6 sets it and the game does not pass DDSCL_FPUPRESERVE
   (SetCooperativeLevel flags 0x13 at 0x577c4b). Tests of code that runs while
-  the game is up set the emulator's FPU to 24 bits; ports use float with
-  `#pragma STDC FP_CONTRACT OFF` (clang fuses multiply-adds otherwise). Then
+  the game is up set the emulator's FPU to 24 bits; ports use float, and
+  mw3core builds with `-ffp-contract=off` (clang fuses multiply-adds
+  otherwise; the per-file `#pragma STDC FP_CONTRACT OFF` lines say the same). Then
   the clippers match bit for bit (`render-clip2d.md`). Tests written before
   this (heat, power, motion, timer) ran at 64 bits: recheck them at 24.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).

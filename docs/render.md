@@ -48,6 +48,11 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   and the draw-table calls: `zmodel/gmod_draw`, `render-modeldraw.md`.
   Identical on all six worlds (18,000 draws). Still hooked: the light bake,
   projected lights, shadow casters, lens flares.
+- The baked static light (0x544ed0) and the world texture loading (texture
+  groups 0x519080, entries 0x518f70, image fetch, mip links) into the draw
+  table's records: `zmodel/gmod_bake`, `zimage/zimg_texture`,
+  `render-bake-textures.md`. The model draw's table is filled by
+  `zvid::install_model_draw_table` (0x579f50's part).
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
