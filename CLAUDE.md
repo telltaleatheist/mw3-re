@@ -149,8 +149,13 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   the game is up set the emulator's FPU to 24 bits; ports use float, and
   mw3core builds with `-ffp-contract=off` (clang fuses multiply-adds
   otherwise; the per-file `#pragma STDC FP_CONTRACT OFF` lines say the same). Then
-  the clippers match bit for bit (`render-clip2d.md`). Tests written before
-  this (heat, power, motion, timer) ran at 64 bits: recheck them at 24.
+  the clippers match bit for bit (`render-clip2d.md`). Only the CRT start-up
+  sets the precision itself (0x5ac5a0: `_controlfp(_PC_53)`, before WinMain).
+  Open: whether Windows 11's DirectX runtime with DDrawCompat really leaves
+  the FPU at 24-bit. Four emulator findings depend on it (point-lit textures
+  black, frozen cloud shading, blank shadow images, black projected lights;
+  `fixes.md`); the quick check in play is whether mechs cast visible shadows
+  in hardware mode on Owen's PC.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
