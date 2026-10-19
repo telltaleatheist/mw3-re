@@ -123,6 +123,11 @@ From the network code (network-messages.md).
   15-bit display every texture's colours are converted as they load, and green
   loses a bit of precision.
 
+- **In GameZ, an animation is a "script".** Every mech animation in
+  `motion.zbd` is loaded as a `CZSIScript`, with keyframes for each body part.
+  A loose `<name>.zan` file would replace one, a developer hook like the loose
+  data files.
+
 ## Timing
 
 - **The game clock went bad on machines left on for days.** It reads Windows'

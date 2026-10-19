@@ -9,7 +9,8 @@ from pathlib import Path
 
 from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_32, Uc
 from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP,
-                                UC_X86_REG_ESP)
+                                UC_X86_REG_ESP, UC_X86_REG_FS, UC_X86_REG_GDTR,
+                                UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXE = ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe'
@@ -20,6 +21,7 @@ RETURN = 0x2fff0000   # a mapped address nothing executes; emulation stops there
 HEAP = 0x10000000
 STUBS = 0x2f000000  # one 16-byte slot per imported function we stand in for
 CODE = 0x2f001000   # x86 written here for imports that are easier as machine code
+TEB = 0x2e000000    # a thread block for fs:[0], the SEH chain MSVC code links into
 
 # MSVCRT's _ftol, instruction for instruction: FISTP with the rounding mode set
 # to chop, the 64-bit result in EDX:EAX.
@@ -57,6 +59,20 @@ class Original:
         self.stubs = {}
         self.uc.hook_add(UC_HOOK_CODE, self._stub_hit, begin=STUBS, end=STUBS + 0xfff)
         self.uc.mem_map(CODE, 0x1000)
+        self.uc.mem_map(TEB, 0x2000)
+        self.u32(TEB, 0xffffffff)
+        # A GDT with flat 32-bit data (1) and an FS segment based at TEB (2).
+        gdt = TEB + 0x1000
+
+        def seg(base, limit, access):
+            return (limit & 0xffff) | ((base & 0xffffff) << 16) | (access << 40) | \
+                (((limit >> 16) & 0xf) << 48) | (0xc << 52) | ((base >> 24) << 56)
+        self.write(gdt + 8, struct.pack('<Q', seg(0, 0xfffff, 0x92)))
+        self.write(gdt + 16, struct.pack('<Q', seg(TEB, 0x1, 0x92)))
+        self.uc.reg_write(UC_X86_REG_GDTR, (0, gdt, 0x18 - 1, 0))
+        for reg in (UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES):
+            self.uc.reg_write(reg, 1 << 3)
+        self.uc.reg_write(UC_X86_REG_FS, 2 << 3)
         self.code_next = CODE
 
     def alloc(self, size):

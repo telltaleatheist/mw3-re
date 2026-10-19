@@ -23,6 +23,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zreader/zreader.cpp
+  src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_span.cpp
