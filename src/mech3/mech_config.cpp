@@ -34,6 +34,14 @@ Config::Config(int32_t m, const char* n)
     : mech(m), name(dup(n)), armor_tech(mech_tech(m)), sink_tech(mech_tech(m)),
       turn_rate(1.25663686f), accel_rate(0.5f), decel_rate(1.3f), turn_accel(3.0f) {}
 
+// Mech3.exe 1.2 @ 0x00424350, with the item list's 0x00470d20
+Config::~Config() {
+  delete[] name;
+  name = nullptr;
+  for (ConfigItem*& i : items) delete i, i = nullptr;
+  items.clear();
+}
+
 // Mech3.exe 1.2 @ 0x004723c0. Only equipment (kind 3) comes from the reader;
 // the other kinds copy items in the mech lab and are not ported yet.
 ConfigItem* Config::add_item(ConfigItem* item, int32_t n) {
@@ -105,6 +113,12 @@ void Config::set_engine(int32_t rating) { engine = engine_index(rating); }
 // Mech3.exe 1.2 @ 0x00424a90
 ConfigList::ConfigList(int32_t m, int32_t n) : count(n), mech(m) {
   if (n > 0) configs.reserve(n);
+}
+
+// Mech3.exe 1.2 @ 0x00425110
+ConfigList::~ConfigList() {
+  for (Config*& c : configs) delete c, c = nullptr;
+  configs.clear();
 }
 
 }  // namespace mech3

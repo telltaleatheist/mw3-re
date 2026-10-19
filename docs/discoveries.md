@@ -344,7 +344,7 @@ From the mech definitions (mechdef-head.md).
 - Your loadouts are written when the game frees the mech data (at exit),
   not when you leave the mech lab (as far as traced).
 - **A mod with a wrong `version` in a mech file crashes the game** instead of
-  skipping the mech.
+  skipping the mech. (Fixed in the rebuild: the mech is skipped.)
 - Seventeen of the mech files carry a developer comment that the build tool
   kept as data: "torso limits: maxYaw minPitch maxPitch (degrees)", which is
   how we know the torso fields' names.
@@ -361,7 +361,7 @@ From the animation files (anim.md).
 - **The last animation in a mission cannot be a prerequisite.** When one
   animation waits for another, the search stops one short of the end of the
   list, so the very last animation is never found (0x50aaa3). No shipped
-  mission depends on this.
+  mission depends on this. (Fixed in the rebuild.)
 - **One missing object wipes all of an animation's prerequisites.** If an
   animation's "wait until this object is active" condition names an object
   that is not in the level, the game drops every condition of that

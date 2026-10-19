@@ -243,7 +243,7 @@ For each def i (offset `i * 0x13c`), with `prev_name` = 0 at the start:
 5. Restore the light count; lights 1..n-1 as in the table. Then puffers,
    then dynamic sounds, then objects, nodes, static sounds, effects.
 6. Prerequisites, for each entry in order, with `last` = 0:
-   - type 1: +0x28 = 0, then the first def k in **0..def_count-2** whose
+   - type 1: +0x28 = 0, then the first def k in **0..def_count-2** (the rebuild searches all, `fixes.md`) whose
      anim name (+0x00) equals +0x08. Not found leaves 0, no error.
    - type 2 or 3: `node = last ? 0x4f9d60(last, name) : 0x509640(def, name)`.
      0x4f9d60 searches `last` and its children, depth first. Not found: logs

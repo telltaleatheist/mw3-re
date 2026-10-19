@@ -28,6 +28,38 @@ SkinEntry::SkinEntry(const char* n, const char* a) {
   ++g_skins.entry_count;
 }
 
+// Mech3.exe 1.2 @ 0x00473ca0. Every list item naming this entry is dropped.
+SkinEntry::~SkinEntry() {
+  unload();
+  if (alt && alt != name) delete[] alt;
+  delete[] name;
+  name = alt = nullptr;
+  for (auto it = g_skins.entries.begin(); it != g_skins.entries.end();) {
+    if (*it == this) {
+      it = g_skins.entries.erase(it);
+      --g_skins.entry_count;
+    } else {
+      ++it;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00473e10. Only while +0x14 is set.
+void SkinEntry::unload() {
+  if (!texture || !b14) return;
+  void (*fn)(void*) = cached ? g_skins.release_cached : g_skins.release_texture;
+  if (fn) fn(texture);
+  texture = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00473c60
+bool release(SkinEntry* e) {
+  if (!e) return true;
+  if (--e->refs != 0) return false;
+  delete e;
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00473e50. No entries yet; `count` is only reserved.
 Skin::Skin(const char* n, uint32_t count) : name(dup(n)) {
   entries.reserve(count);
@@ -35,6 +67,22 @@ Skin::Skin(const char* n, uint32_t count) : name(dup(n)) {
 
 // Mech3.exe 1.2 @ 0x00474000
 void Skin::add_entry(const char* n, const char* a) { entries.push_back(new SkinEntry(n, a)); }
+
+// Mech3.exe 1.2 @ 0x004744a0. The exe passes an argument the entries ignore.
+void Skin::unload() {
+  if (entries.empty() || !loaded) return;
+  for (SkinEntry* e : entries) e->unload();
+  loaded = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00473f40
+Skin::~Skin() {
+  unload();
+  for (SkinEntry*& e : entries) release(e), e = nullptr;
+  entries.clear();
+  delete[] name;
+  name = nullptr;
+}
 
 // Mech3.exe 1.2 @ 0x00474500. Each base name plus the suffix (64-byte buffers
 // in the exe, unchecked); an alternate only where the base has its own.
@@ -63,6 +111,19 @@ SkinSet::SkinSet(int32_t count) {
       if (void* t = g_skins.fetch_texture ? g_skins.fetch_texture(h) : nullptr) g_skins.holes.push_back(t);
   }
   ++g_skins.sets_built;
+}
+
+// Mech3.exe 1.2 @ 0x004751a0. The last set gone releases the bullet holes.
+SkinSet::~SkinSet() {
+  for (Skin*& s : skins) delete s, s = nullptr;
+  skins.clear();
+  delete damage;
+  damage = nullptr;
+  if (--g_skins.sets_built == 0) {
+    for (void* t : g_skins.holes)
+      if (g_skins.release_cached) g_skins.release_cached(t);
+    g_skins.holes.clear();
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004752e0. A second "damage" skin replaces the first.

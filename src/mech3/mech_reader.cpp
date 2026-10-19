@@ -290,9 +290,28 @@ bool read_configurations(MechDfn& dfn, const HeadValues& head) {
 
 namespace {
 LoadSaved g_load_saved = nullptr;
+SaveAll g_save_all = nullptr;
 }  // namespace
 
 void set_load_saved(LoadSaved fn) { g_load_saved = fn; }
+void set_save_all(SaveAll fn) { g_save_all = fn; }
+
+// Mech3.exe 1.2 @ 0x0046b9b0. Every cached definition is destroyed at shutdown,
+// which is when the player's loadouts are written. FIX (bug): the exe saves
+// without checking for loadouts and crashes when a bad `version` stopped the
+// read before they were made; skipped here (docs/fixes.md).
+MechDfn::~MechDfn() {
+  if (configs && g_save_all) g_save_all(configs);
+  delete skins;
+  delete configs;
+  if (firepoints) {
+    for (Firepoint*& f : *firepoints) delete f, f = nullptr;
+    delete firepoints;
+  }
+  skins = nullptr, configs = nullptr, firepoints = nullptr;
+  zrdr::free_node(reader);
+  reader = nullptr;
+}
 
 // Mech3.exe 1.2 @ 0x0046ba40
 bool read_dfn(MechDfn& dfn) {
@@ -308,17 +327,17 @@ bool read_dfn(MechDfn& dfn) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0046b7a0. On a failed read the exe destroys the
-// definition, and its dtor crashes on a bad version (it saves loadouts that
-// were never made, docs/mechdef-head.md). The dtor is not ported yet: this
-// returns 0 and keeps the tree.
+// Mech3.exe 1.2 @ 0x0046b7a0
 MechDfn* load_dfn(int32_t mech) {
   char name[64];
   std::snprintf(name, sizeof name, "dfn_%s.zrd", mech_name(mech));
   zrdr::Node* tree = zrdr::load(name);  // the exe also passes ..\data\common\zrdr\mechs
   if (!tree) return nullptr;
   auto* dfn = new MechDfn(mech, tree);
-  if (!read_dfn(*dfn)) return nullptr;
+  if (!read_dfn(*dfn)) {
+    delete dfn;
+    return nullptr;
+  }
   return dfn;
 }
 

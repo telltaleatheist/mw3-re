@@ -115,8 +115,9 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
     d.effects[k].put(0x20, e);
     if (e == -1) return false;
   }
-  // Prerequisites: type 1 names a def (never the last one: the search stops
-  // one short); types 2/3 name a node, 3 under the node found before it.
+  // Prerequisites: type 1 names a def; types 2/3 name a node, 3 under the
+  // node found before it. FIX (bug): the exe's def search stops one short and
+  // never finds the last def; this searches them all (docs/fixes.md).
   Node* last = nullptr;
   for (int k = 0; k < d.count(0x110); ++k) {
     Prerequisite& p = d.prereqs[k];
@@ -124,9 +125,9 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
     if (type == 1) {
       p.def = nullptr;
       const char* want = reinterpret_cast<const char*>(p.raw + 8);
-      for (int32_t j = 1; j < g_anim.def_count(); ++j) {
-        if (std::strcmp(g_anim.defs[j - 1].name(), want) == 0) {
-          p.def = &g_anim.defs[j - 1];
+      for (int32_t j = 0; j < g_anim.def_count(); ++j) {
+        if (std::strcmp(g_anim.defs[j].name(), want) == 0) {
+          p.def = &g_anim.defs[j];
           break;
         }
       }

@@ -61,6 +61,7 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   float decel_rate;                // +0x80
   float turn_accel;                // +0x84
   Config(int32_t mech, const char* name);                       // 0x00423d00
+  ~Config();                                                    // 0x00424350
   ConfigItem* add_item(ConfigItem* item, int32_t n);            // 0x004723c0
   EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // 0x00471fb0
   int32_t sink_items() const;                                   // 0x00425f30
@@ -73,6 +74,7 @@ struct ConfigList {                // 0x18 bytes
   int32_t mech;                    // +0x04
   std::vector<Config*> configs;    // +0x0c
   ConfigList(int32_t mech, int32_t count);  // 0x00424a90
+  ~ConfigList();                            // 0x00425110
 };
 
 }  // namespace mech3

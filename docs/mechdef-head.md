@@ -216,6 +216,11 @@ needed for shipped data; keep the behaviour or log and fail.
 The dtor is also called for every cached dfn at shutdown (0x4844b0 walks the
 19 entries), so **player loadouts are written when the mech data is freed**.
 
+Ported (`MechDfn::~MechDfn`, with the skin, loadout and firepoint dtors
+0x4751a0, 0x473f40, 0x473ca0, 0x473c60, 0x473e10, 0x4744a0, 0x425110,
+0x424350); the crash is fixed by skipping the save without loadouts
+(`fixes.md`).
+
 ## 0x424b70 `ConfigList::LoadSaved()`
 
 `__thiscall`, ECX = the ConfigList (`MechDfn` +0x20), returns `al`: 1 when the

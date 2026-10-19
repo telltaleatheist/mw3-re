@@ -108,10 +108,14 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   questions go in `docs/`. No comments that restate the code, no long blocks.
 - The target is play-accurate, not byte- or bit-identical (Owen, 2026-10-19).
   Differential tests compare floats within a tolerance; no chasing x87 precision.
-  A real bug that breaks play can be fixed, documented in `docs/fixes.md`.
-- Port the logic as written, original quirks included (see zgameapp.cpp). Only
-  (A)/(B) problems change, marked `FIX (A)` / `FIX (B)` and listed in
-  `docs/fixes.md`.
+- Goal (Owen, 2026-10-20): the game working as intended where the original
+  has bugs, and running well on modern systems. Port the logic as written,
+  quirks that are design included (see zgameapp.cpp); change it for (A)/(B)
+  problems and for bugs whose intent is clear (crashes, typos, misplaced
+  data), marked `FIX (A)` / `FIX (B)` / `FIX (bug)` and listed in
+  `docs/fixes.md`. The differential test checks the original path and says
+  where the fix departs. Where the intent is a guess (balance), list it in
+  `fixes.md` as a candidate for Owen.
 - Self-contained functions get a differential test (`tests/differential/`) that
   runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
 - No GPU use while Owen is streaming; the SDL front end is not started yet.

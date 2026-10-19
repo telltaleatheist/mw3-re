@@ -1033,6 +1033,12 @@ int probe_node_ops(const int32_t* ops, int count, int block_size, int chunk_size
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 
+// The probes' MechDfn borrows g_probe_root, which its dtor must not free.
+struct KeepTree {
+  mech3::MechDfn& d;
+  ~KeepTree() { d.reader = nullptr; }
+};
+
 extern "C" {
 
 // The MechDfn constructor, then the firepoints and part-slot blocks of the
@@ -1040,6 +1046,7 @@ extern "C" {
 int probe_firepoints(const char* path, long offset, uint8_t* out, int cap) {
   if (probe_zrdr_load(path, offset) < 0) return -1;
   mech3::MechDfn d(7, &g_probe_root);
+  KeepTree keep{d};
   mech3::read_firepoints(d);
   mech3::read_part_slots(d);
   uint8_t image[0x1a8];
@@ -1132,6 +1139,7 @@ extern "C" {
 int probe_dfn_head(const char* path, long offset, int index, uint8_t* out, int cap) {
   if (probe_zrdr_load(path, offset) < 0) return -1;
   mech3::MechDfn d(index, &g_probe_root);
+  KeepTree keep{d};
   mech3::HeadValues h;
   const bool ok = mech3::read_head(d, &h);
   std::vector<uint8_t> b;
@@ -1176,6 +1184,7 @@ static int dfn_configs(const char* path, long offset, int index, int localized, 
   g_reports.clear();
   zerr::set_sink(record_report);
   mech3::MechDfn d(index, &g_probe_root);
+  KeepTree keep{d};
   mech3::HeadValues h;
   std::vector<uint8_t> b;
   if (whole) {

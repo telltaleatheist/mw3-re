@@ -63,6 +63,7 @@ enable_testing()
 add_executable(mw3tests
   tests/main.cpp
   tests/test_mech.cpp
+  tests/test_mech_reader.cpp
   tests/test_msvc_rand.cpp
   tests/test_ztimer.cpp
   tests/test_zgameapp.cpp

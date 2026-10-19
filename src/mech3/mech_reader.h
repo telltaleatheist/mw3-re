@@ -40,6 +40,9 @@ struct MechDfn {                   // 0x1a8 bytes
   std::vector<Firepoint*>* firepoints = nullptr;  // +0x24
   PartSlot parts[18];              // +0x28  by part id
   MechDfn(int32_t index, zrdr::Node* reader);    // 0x0046b890
+  ~MechDfn();                                    // 0x0046b9b0, saves the player's loadouts
+  MechDfn(const MechDfn&) = delete;
+  MechDfn& operator=(const MechDfn&) = delete;
   template <typename T> T get(int off) const {
     T v;
     std::memcpy(&v, raw + off, sizeof v);
@@ -67,9 +70,11 @@ bool read_dfn(MechDfn& dfn);                 // 0x0046ba40, the blocks in order
 MechDfn* load_dfn(int32_t mech);             // 0x0046b7a0, 0 when missing or bad
 MechDfn* mech_dfn(int32_t mech);             // 0x004846a0, loaded once per mech
 
-// 0x00424b70, the player's saved loadouts (docs/mechdef-head.md), not ported
-// yet: called after the file's own loadouts when set.
+// 0x00424b70 and 0x00424f60, the player's saved loadouts (docs/mechdef-head.md),
+// not ported yet: called after the file's own loadouts and from the dtor when set.
 using LoadSaved = void (*)(ConfigList* configs);
 void set_load_saved(LoadSaved fn);
+using SaveAll = void (*)(ConfigList* configs);
+void set_save_all(SaveAll fn);
 
 }  // namespace mech3

@@ -18,7 +18,10 @@ struct SkinEntry {                 // 0x1c bytes
   uint8_t b14 = 0;                 // +0x14
   int32_t refs = 1;                // +0x18
   SkinEntry(const char* name, const char* alt);  // 0x00473a30
+  ~SkinEntry();                    // 0x00473ca0
+  void unload();                   // 0x00473e10
 };
+bool release(SkinEntry* entry);    // 0x00473c60, true when it was the last reference
 
 struct Skin {                      // 0x18 bytes
   char* name = nullptr;            // +0x00
@@ -27,6 +30,8 @@ struct Skin {                      // 0x18 bytes
   Skin(const char* name, uint32_t count);              // 0x00473e50
   void add_entry(const char* name, const char* alt);   // 0x00474000
   Skin* derive(const char* name, const char* suffix);  // 0x00474500
+  void unload();                   // 0x004744a0
+  ~Skin();                         // 0x00473f40
 };
 
 struct SkinSet {                   // 0x14 bytes
@@ -34,6 +39,7 @@ struct SkinSet {                   // 0x14 bytes
   Skin* damage = nullptr;          // +0x10
   explicit SkinSet(int32_t count); // 0x00474f60
   bool add(Skin* skin);            // 0x004752e0
+  ~SkinSet();                      // 0x004751a0
 };
 
 struct SkinGlobals {
@@ -43,6 +49,8 @@ struct SkinGlobals {
   int32_t sets_built = 0;          // 0x006061c8
   uint8_t damage_mode = 0;         // 0x006061cc  set at mission load
   void* (*fetch_texture)(const char* name) = nullptr;  // 0x005179d0, zImage's cache (not ported)
+  void (*release_cached)(void* texture) = nullptr;     // 0x00517b10, zImage's cache (not ported)
+  void (*release_texture)(void* texture) = nullptr;    // 0x00518b30 (not ported)
 };
 SkinGlobals& skin_globals();
 
