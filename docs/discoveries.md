@@ -10,7 +10,8 @@ From the heat update at 0x4192f0 (details: `heat.md`).
 
 - **Heat runs from 0 to 2.0, and the warnings sit at fixed points.** The beep
   starts above 0.7. "Shutdown imminent" plays above 0.95. Dropping back to 0.9
-  cancels the shutdown. At 2.0, critical, the mech dies.
+  cancels the shutdown. At 2.0, critical, the mech dies (except in
+  multiplayer, below).
 - **A mech standing still with ten standard heat sinks sheds 0.0625 heat a
   second**, about 30 seconds from the 2.0 maximum down to zero. Double heat sinks
   cool exactly twice as fast. Each extra sink adds 10%.
@@ -26,7 +27,9 @@ From the heat update at 0x4192f0 (details: `heat.md`).
 - **Lava ignores the frame rate.** Standing on lava (either foot) adds 0.05 heat
   every frame, not every second. Everything else in the heat code scales with
   time. So the faster the game ran, the faster lava cooked you: about 1.5 heat a
-  second at 30 fps, 3 at 60 fps.
+  second at 30 fps, 3 at 60 fps. The game waits for the monitor's refresh, so
+  in 1999 that topped out around 60-85 fps; at 144 fps today it would be over
+  7 a second.
 - **Critical hits can destroy heat sinks, but your pilot never says so.** One
   kind of critical hit on a part (0x460d50, type 0) knocks out a heat sink, and
   cooling drops 10% for each one lost. It is meant to play a voice callout, but
@@ -127,13 +130,11 @@ From the network code (network-messages.md).
   "pushes" colours onto it, two bytes at a time, backwards. It is quick on a
   Pentium, but anything else that uses the stack meanwhile writes straight into
   the picture. It is also why some modern wrappers (dgVoodoo) choke on the game.
-
 - **The game picks the best texture set it can find.** For each texture
   library it looks for a numbered file first (`rmechtex16.zbd`, then 15, 14,
   ... down to the plain `rmechtex.zbd`) and uses the first one present. On a
   15-bit display every texture's colours are converted as they load, and green
   loses a bit of precision.
-
 - **In GameZ, an animation is a "script".** Every mech animation in
   `motion.zbd` is loaded as a `CZSIScript`, with keyframes for each body part.
   A loose `<name>.zan` file would replace one, a developer hook like the loose
