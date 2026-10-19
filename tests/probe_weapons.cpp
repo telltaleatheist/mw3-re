@@ -206,8 +206,8 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
   put_crater(def + 0x19c, d.crater_span);
   for (int k = 0; k < 6; ++k) put(def, 0x1c8 + 4 * k, d.target_heat[k]);
   put(def, 0x1e0, d.apex);
-  put(def, 0x1e4, d.x1e4[0]);
-  put(def, 0x1e8, d.x1e4[1]);
+  put(def, 0x1e4, d.x1e4);
+  put(def, 0x1e8, d.terrain_height);
   put(def, 0x1ec, callback_addr(d.callback));
   std::memset(impacts, 0, 6 * 0x5c);
   if (d.impacts)

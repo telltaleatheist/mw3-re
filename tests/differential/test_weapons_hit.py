@@ -34,7 +34,8 @@ for name, args in (('probe_hit_world', [ctypes.c_void_p, ctypes.c_int, ctypes.c_
                    ('probe_hit_state', [ctypes.c_void_p]),
                    ('probe_hit_op', [ctypes.c_int, ctypes.c_int32, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p,
                                      ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32]),
-                   ('probe_hit_clock', [ctypes.c_float]), ('probe_hit_poke', [ctypes.c_int, ctypes.c_int, ctypes.c_int32])):
+                   ('probe_hit_clock', [ctypes.c_float]),
+                   ('probe_hit_step', [ctypes.c_int32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]), ('probe_hit_poke', [ctypes.c_int, ctypes.c_int, ctypes.c_int32])):
     getattr(probe, name).argtypes = args
 probe.probe_hit_op.restype = ctypes.c_int32
 
@@ -126,6 +127,12 @@ class Emulated(zr.Emulated):
                 cpu.u32(dp + 0x6c, v)
             elif which in (1, 2):
                 cpu.u32(dp + 0x20 + 4 * which, v)
+            elif which == 4:
+                cpu.u32(dp + 0x1e8, v)
+            elif which == 5:
+                cpu.u32(dp + 0x44, v)
+            elif which == 6:
+                cpu.u32(dp + 0x38, v)
             else:
                 imp = self.u32(dp + 0x13c)
                 for s_ in range(6):
@@ -139,6 +146,11 @@ class Emulated(zr.Emulated):
         poke('SRM2', 1, f2i(90.0))
         poke('SRM2', 2, 0)
         poke('AC20', 3, 0x77)                                    # an impact EFFECT
+        poke('StreakSRM2', 0, flags('StreakSRM2') | 0x200000)   # TETHER_GUIDED
+        poke('StreakSRM2', 4, f2i(12.0))                         # its terrain height
+        poke('LRM10', 5, f2i(36.0))                              # DETONATION_DISTANCE 6
+        poke('SRM4', 0, flags('SRM4') & ~0x80)                   # a homing shot without EXPIRES
+        poke('AC5', 6, f2i(300.0))                               # ACCELERATION
         self.reached = set()
         self.cover = {
             0x58304a: 'beam falloff', 0x58307f: 'falloff floor', 0x583090: 'timed beam', 0x583032: 'beam dealt',
@@ -151,6 +163,11 @@ class Emulated(zr.Emulated):
             0x5829f8: 'mine full splash', 0x5829fd: 'splash falloff', 0x5863d3: 'min-range dud',  # noqa: E501
             0x586402: 'min-range scale', 0x586426: 'destroy anim at min range', 0x58647b: 'hit splash',
             0x582388: 'air burst splash', 0x582add: 'splash exclude',
+            0x585cf1: 'speeding up', 0x585d17: 'at full speed', 0x585d86: 'velocity rebuilt', 0x585df8: 'drift',
+            0x585e9f: 'drift turned', 0x585f20: 'drift held +x', 0x585f3d: 'drift held -x', 0x585f68: 'drift held +y',
+            0x585f89: 'drift held -y', 0x585fb4: 'drift held +z', 0x585fd5: 'drift held -z',
+            0x585dcf: 'drift near target', 0x586094: 'tether ceiling', 0x5860d8: 'mine half distance',
+            0x58613b: 'burst in the air', 0x586144: 'gone at range', 0x586129: 'proximity fuse',
         }
 
         def hit(uc, address, size, user):
@@ -222,11 +239,36 @@ def rec_values(rng, emu, nodes, mats, mine=False):
     return [f2i(x) for x in n] + [f2i(x) for x in p] + [0, f2i(d2), mat, node]
 
 
+def flight(rng, cpu, P, target):
+    """The flight fields of a projectile, written to P; the same values for the probe."""
+    def v3(lo, hi):
+        return [f2i(f32(rng.uniform(lo, hi))) for _ in range(3)]
+    base, vel, tgt = v3(-20, 20), v3(-500, 500), v3(-300, 300)
+    has_t = int(rng.random() < 0.6)
+    speed = f2i(f32(rng.choice([0.0001, 100.0, 400.0, 899.0, 900.0])))
+    mx = f2i(f32(rng.choice([400.0, 900.0, 0.0])))
+    dev = v3(-3, 3) if rng.random() < 0.7 else [0, 0, 0]
+    drift = v3(-1.5, 1.5) if rng.random() < 0.7 else [0, 0, 0]
+    trav = f2i(f32(rng.choice([0.0, rng.uniform(0, 1000), rng.uniform(0, 3000)])))
+    ceil_ = f2i(f32(rng.choice([30.0, 5.0])))
+    cpu.write(P + 0x30, struct.pack('<3I', *base))
+    cpu.write(P + 0x60, struct.pack('<3I', *vel))
+    cpu.write(target, struct.pack('<3I', *tgt))
+    cpu.u32(P + 0x70, target if has_t else 0)
+    cpu.u32(P + 0x58c, speed)
+    cpu.u32(P + 0x590, mx)
+    cpu.write(P + 0x598, struct.pack('<3I', *dev))
+    cpu.write(P + 0x5a4, struct.pack('<3I', *drift))
+    cpu.u32(P + 0x5b0, trav)
+    cpu.u32(0x9a17a0, ceil_)
+    return base + vel + tgt + [has_t, speed, mx] + dev + drift + [trav, ceil_]
+
+
 def main():
     emu = Emulated()
     cpu = emu.cpu
     rng = random.Random(406)
-    runs = int(os.environ.get('WEAPON_HITS', '6000'))
+    runs = int(os.environ.get('WEAPON_HITS', '20000'))
     calls = 0
     defs = list(range(emu.ndefs))
     clock = 10.0
@@ -287,7 +329,7 @@ def main():
         cpu.write(0x72c530, struct.pack('<f', clock))
         probe.probe_hit_clock(clock)
         # the operation
-        op = rng.choice([0, 1, 2, 2, 3, 3, 3, 4, 5])
+        op = rng.choice([0, 1, 2, 2, 3, 3, 3, 4, 5, 6, 6, 6, 6])
         d = rng.choice(defs)
         if op == 5:  # splash runs only with IMPACT_PROXIMITY (0/0 is a NaN whose sign differs by CPU)
             d = rng.choice([k for k in defs if emu.u32(emu.defs_base + 0x1f4 * k + 0x40)])
@@ -343,6 +385,12 @@ def main():
         elif op == 4:
             cpu.call(OPS[4], ecx=defp, edx=P)
             res = 0
+        elif op == 6:
+            target = emu.zalloc(12)
+            fl = flight(rng, cpu, P, target)
+            mv = emu.zalloc(12)
+            cpu.call(0x585cc0, ecx=defp, edx=P, stack_args=(mv,))
+            res = 0
         else:
             cpu.write(emu.list, bytes(4))
             cpu.write(emu.list, bytes([len(recs)]))
@@ -352,10 +400,18 @@ def main():
             res = cpu.uc.reg_read(UC_X86_REG_EAX)
         a_ev = emu.events
         flat_r = [x for r in recs for x in r]
-        b_res = probe.probe_hit_op(op, d, (ctypes.c_int32 * len(flat_r))(*[s32(x) for x in flat_r]), len(recs),
+        b_res = probe.probe_hit_op(op if op != 6 else 7, d, (ctypes.c_int32 * len(flat_r))(*[s32(x) for x in flat_r]), len(recs),
                                    (ctypes.c_int32 * 13)(*[s32(x) for x in proj]),
                                    (ctypes.c_int32 * 7)(*[s32(x) for x in extra]),
                                    (ctypes.c_int32 * 4)(*[s32(x) for x in beam]), seed)
+        if op == 6:
+            fout = (ctypes.c_int32 * 15)()
+            probe.probe_hit_step(d, (ctypes.c_int32 * 20)(*[s32(x) for x in fl]), seed, fout)
+            fa = [s32(emu.u32(P + o)) for o in (0x20, 0x60, 0x64, 0x68, 0x58c, 0x598, 0x59c, 0x5a0, 0x5a4, 0x5a8,
+                                                0x5ac, 0x5b0)] + [s32(emu.u32(mv + 4 * i)) for i in range(3)]
+            if fa != list(fout):
+                i = next(i for i, (x, y) in enumerate(zip(fa, fout)) if x != y)
+                raise SystemExit(f'run {k} step def {d}: flight item {i}: {fa[i]:#x} vs {fout[i]:#x}\n  {fa}\n  {list(fout)}')
         buf = (ctypes.c_int32 * 50000)()
         nlog = probe.probe_hit_log(buf, 50000)
         b_ev = zr.port_events(buf, nlog)

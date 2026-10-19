@@ -258,6 +258,7 @@ int32_t probe_hit_op(int op, int32_t def, const int32_t* recs, int nrec, const i
     case 2: r = static_cast<int32_t>(zwep::impact(d, &g_recs[0], &g_proj, h(static_cast<uint32_t>(extra[0])))); break;
     case 3: zwep::hit(d, &g_proj, &g_recs[0]); break;
     case 4: zwep::air_burst(d, &g_proj); break;
+    case 7: break;  // the flight step: probe_hit_step does it after this setup
     case 5: {
       g_list = zwep::HitList{};
       g_list.count = static_cast<uint8_t>(nrec);
@@ -301,6 +302,34 @@ int probe_hit_dump(int32_t* out, int cap) {
 
 void probe_hit_clock(float clock) { mech3::weapon_world().clock = clock; }
 
+// One frame of flight (0x00585cc0). f: base3, vel3, target3, has target,
+// speed, max speed, deviation3, drift3, travelled, ceiling; the projectile's
+// other fields come from the last probe_hit_op setup (owner, node, pos, ...).
+// out: state, velocity3, speed, deviation3, drift3, travelled, move3.
+void probe_hit_step(int32_t def, const int32_t* f, uint32_t seed, int32_t* out) {
+  static zwep::Vec3f3 target;
+  g_log.clear();
+  crt::msvc_srand(seed);
+  zwep::WeaponDef* d = &zwep::state().defs[static_cast<size_t>(def)];
+  g_proj.base_velocity = {bf(f[0]), bf(f[1]), bf(f[2])};
+  g_proj.velocity = {bf(f[3]), bf(f[4]), bf(f[5])};
+  target = {bf(f[6]), bf(f[7]), bf(f[8])};
+  g_proj.target_at = f[9] ? &target : nullptr;
+  g_proj.speed = bf(f[10]);
+  g_proj.max_speed = bf(f[11]);
+  g_proj.deviation = {bf(f[12]), bf(f[13]), bf(f[14])};
+  g_proj.drift = {bf(f[15]), bf(f[16]), bf(f[17])};
+  g_proj.travelled = bf(f[18]);
+  zwep::hit_state().tether_ceiling = bf(f[19]);
+  zwep::Vec3f3 move{};
+  zwep::step(d, &g_proj, &move);
+  const zwep::Projectile& q = g_proj;
+  const int32_t v[] = {q.state, fb(q.velocity.x), fb(q.velocity.y), fb(q.velocity.z), fb(q.speed),
+                       fb(q.deviation.x), fb(q.deviation.y), fb(q.deviation.z), fb(q.drift.x), fb(q.drift.y),
+                       fb(q.drift.z), fb(q.travelled), fb(move.x), fb(move.y), fb(move.z)};
+  std::memcpy(out, v, sizeof v);
+}
+
 // Data no shipped weapon has, put into a def on both sides: 0 its flags, 1 and
 // 2 RANGE_MINIMUM's values, 3 an EFFECT for every impact kind.
 void probe_hit_poke(int def, int which, int32_t v) {
@@ -310,6 +339,9 @@ void probe_hit_poke(int def, int which, int32_t v) {
   if (which == 2) d.range_min[1] = bf(v);
   if (which == 3)
     for (int k = 0; k < zwep::kSoilCount; ++k) d.impacts[k].effect = v;
+  if (which == 4) d.terrain_height = bf(v);
+  if (which == 5) d.detonation_distance_sq = bf(v);
+  if (which == 6) d.acceleration = bf(v);
 }
 
 }  // extern "C"

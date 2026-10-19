@@ -113,7 +113,8 @@ struct WeaponDef {             // 0x1f4
   Crater crater_span;                  // +0x19c  the defaults again, then max - min of each
   float target_heat[6] = {};           // +0x1c8  IMPACT HEAT, FREEZE or DESIGNATE
   float apex = 0;                      // +0x1e0  velocity^2 / (2 gravity), weapons with gravity
-  uint32_t x1e4[2] = {};               // +0x1e4
+  uint32_t x1e4 = 0;                   // +0x1e4
+  float terrain_height = 0;            // +0x1e8  height over the ground the homing last saw (shared by all shots)
   DefCallback callback = nullptr;      // +0x1ec
   mech3::WeaponType* type = nullptr;   // +0x1f0  the MW3 side
 };
@@ -140,10 +141,20 @@ struct Projectile {
   Handle owner = nullptr;      // +0x004  the shooter's node
   Handle node = nullptr;       // +0x00c  its scene node
   int32_t state = 0;           // +0x020  1 flying, 0 to remove, 2 a dormant mine
+  Vec3f3 base_velocity{};      // +0x030  the shooter's, kept for a locked shot
   Vec3f3 direction{};          // +0x03c  unit
   Vec3f3 position{};           // +0x048
+  Vec3f3 velocity{};           // +0x060
+  Handle lock_entity = nullptr;           // +0x06c
+  const Vec3f3* target_at = nullptr;      // +0x070  the lock's position
+  const Vec3f3* target_velocity = nullptr;  // +0x074
+  float homing_time = 0;       // +0x588
   float speed = 0;             // +0x58c
+  float max_speed = 0;         // +0x590
+  Vec3f3 deviation{};          // +0x598  RANDOM_DEVIATION's drift
+  Vec3f3 drift{};              // +0x5a4  the drift so far, held within +-1 (y +-0.75)
   float travelled = 0;         // +0x5b0
+  float age = 0;               // +0x5b4
   float health = -1;           // +0x5b8  FLYOUT_HEALTH, -1 none
   float damage_scale = 1;      // +0x5bc  FireState::damage_scale at the shot
 };

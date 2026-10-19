@@ -3,6 +3,8 @@
 #include <cmath>
 
 #include "crt/msvc_math.h"
+#include "crt/msvc_rand.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -45,6 +47,85 @@ float beam_damage(WeaponDef* def, Beam* b) {
   if (timed) return v * g_hit.dt * b->damage_scale;
   b->flags |= 2;
   return v * b->damage_scale;
+}
+
+// Mech3.exe 1.2 @ 0x00585cc0: one frame of flight into `move`: speed up to
+// the maximum, gravity, RANDOM_DEVIATION's drift, the distance travelled,
+// and what happens at RANGE or at the lock's DETONATION_DISTANCE.
+void step(WeaponDef* def, Projectile* p, Vec3f3* move) {
+  const float dt = g_hit.dt;
+  p->state = 1;
+  bool rebuild = false;
+  if (!(def->flags & kMine) && p->speed < p->max_speed) {
+    p->speed = def->acceleration * dt + p->speed;
+    if (p->max_speed < p->speed) p->speed = p->max_speed;
+    if (!(def->flags & kLockOn) || !p->target_at || (def->flags & kTetherGuided)) rebuild = true;
+  }
+  auto rebuild_velocity = [p] {  // 0x0051e0e0: base + direction x speed
+    p->velocity = {p->speed * p->direction.x + p->base_velocity.x, p->direction.y * p->speed + p->base_velocity.y,
+                   p->direction.z * p->speed + p->base_velocity.z};
+  };
+  if (def->gravity != 0.0f) {
+    p->velocity.y = p->velocity.y - dt * def->gravity;
+    // FIX (bug): here the original passes ECX = 1 as the base velocity (a
+    // crash); no shipped weapon has gravity. The base is used (docs/fixes.md).
+    if (rebuild) rebuild_velocity();
+  } else if (rebuild) {
+    rebuild_velocity();
+  }
+  *move = {p->velocity.x * dt, p->velocity.y * dt, p->velocity.z * dt};
+  if (def->flags & kRandomDeviation) {
+    bool drift = true;
+    if ((def->flags & kLockOn) && p->target_at) {
+      const zmth::Vec3 a{p->position.x, p->position.y, p->position.z};
+      const zmth::Vec3 b{p->target_at->x, p->target_at->y, p->target_at->z};
+      const float d2 = zmth::distance_sq(a, b);
+      if (d2 < def->detonation_distance_sq * 4.0f || d2 < 400.0f) drift = false;  // steady near the target
+    }
+    if (drift) {
+      const float r = dt * 5.0f;
+      auto rnd = [r] {
+        float v = static_cast<float>(crt::msvc_rand()) * 0x1.0002p-15f;  // 1 / 32767
+        return (v + v - 1.0f) * r;
+      };
+      Vec3f3 step_dev;
+      step_dev.x = rnd();
+      step_dev.y = rnd();
+      step_dev.z = rnd();
+      const Vec3f3& dv = p->deviation;
+      if ((dv.x * step_dev.x + dv.y * step_dev.y) + dv.z * step_dev.z < 0.0f) step_dev = {-step_dev.x, -step_dev.y, -step_dev.z};
+      p->deviation = {dv.x + step_dev.x, dv.y + step_dev.y, dv.z + step_dev.z};
+      // The drift so far is held within +-1 (y +-0.75) by pushing back.
+      const Vec3f3& lim = p->drift;
+      if (lim.x > 1.0f) p->deviation.x = p->deviation.x - dt * 10.0f;
+      else if (lim.x < -1.0f) p->deviation.x = p->deviation.x - dt * -10.0f;
+      if (lim.y > 0.75f) p->deviation.y = p->deviation.y - dt * 10.0f;
+      else if (lim.y < -0.75f) p->deviation.y = p->deviation.y - dt * -10.0f;
+      if (lim.z > 1.0f) p->deviation.z = p->deviation.z - dt * 10.0f;
+      else if (lim.z < -1.0f) p->deviation.z = p->deviation.z - dt * -10.0f;
+      const Vec3f3 d{p->deviation.x * dt, p->deviation.y * dt, p->deviation.z * dt};
+      p->drift = {p->drift.x + d.x, p->drift.y + d.y, p->drift.z + d.z};
+      *move = {move->x + d.x, move->y + d.y, move->z + d.z};
+    }
+  }
+  if ((def->flags & kTetherGuided) && def->terrain_height + move->y > g_hit.tether_ceiling)
+    move->y = g_hit.tether_ceiling - def->terrain_height;
+  const float len = std::sqrt((move->x * move->x + move->y * move->y) + move->z * move->z);
+  p->travelled = len + p->travelled;
+  if (def->flags & kMine) p->travelled = p->travelled * 0.5f;
+  bool burst = false, gone = false;
+  if (!(p->travelled < def->range)) {
+    // At RANGE: a homing shot without EXPIRES bursts, so does DETONATE_AT_RANGE;
+    // the rest vanish (every shipped missile has EXPIRES).
+    if (((def->flags & kLockOn) && !(def->flags & kExpires)) || (def->flags & kDetonateAtRange)) burst = true;
+    gone = true;
+  } else if ((def->flags & kLockOn) && p->target_at && def->detonation_distance_sq != 0.0f) {
+    const zmth::Vec3 a{p->position.x, p->position.y, p->position.z};
+    const zmth::Vec3 b{p->target_at->x, p->target_at->y, p->target_at->z};
+    if (!(zmth::distance_sq(a, b) > def->detonation_distance_sq)) burst = gone = true;
+  }
+  if (burst) air_burst(def, p);
+  if (gone) p->state = 0;
 }
 
 // Mech3.exe 1.2 @ 0x00583710

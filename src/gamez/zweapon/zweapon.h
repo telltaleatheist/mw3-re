@@ -37,6 +37,7 @@ struct HitState {
   int32_t hits = 0;                    // 0x009a17c0  hits by `counted` (network "WeaponData")
   Handle counted = nullptr;            // 0x009a17c4
   float dt = 0;                        // 0x0072c52c  the frame's, set by the game loop
+  float tether_ceiling = 30;           // 0x009a17a0  a tethered shot's height limit
 };
 HitState& hit_state();
 
@@ -86,6 +87,7 @@ int32_t splash(WeaponDef* def, Projectile* p, HitList* list, uintptr_t exclude);
 void hit(WeaponDef* def, Projectile* p, HitRecord* rec);                           // 0x00586350
 void air_burst(WeaponDef* def, Projectile* p);                                     // 0x00582320
 void note_kill(Handle killed, HitRecord* at);                                      // 0x00583710
+void step(WeaponDef* def, Projectile* p, Vec3f3* move);                            // 0x00585cc0
 inline void set_health_after(float h) { hit_state().health_after = h; }           // 0x00583730
 
 void set_lock(int32_t* flag, Handle* target);                       // 0x00581f60
