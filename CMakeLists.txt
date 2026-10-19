@@ -40,6 +40,8 @@ add_library(mw3core STATIC
   src/gamez/zclass/window.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zimage/zimg_library.cpp
+  src/gamez/zinterp/zinterp.cpp
+  src/gamez/zinterp/zinterp_parse.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmath/zmth_matrix.cpp
   src/gamez/zmodel/gmod_bake.cpp
@@ -60,6 +62,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
+  src/mech3/mech3_interp.cpp
   src/mech3/mech_config.cpp
   src/mech3/mech_damage.cpp
   src/mech3/mech_names.cpp
@@ -92,6 +95,7 @@ add_library(mw3probe SHARED
   tests/probe_texload.cpp
   tests/probe_scenewalk.cpp
   tests/probe_damage.cpp
+  tests/probe_interp.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

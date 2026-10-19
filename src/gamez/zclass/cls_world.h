@@ -15,6 +15,9 @@ int world_set_fog_color(Node* world, float r, float g, float b);       // 0x004f
 int world_set_fog_altitude(Node* world, float at_2c, float at_28);     // 0x004f2420
 int world_set_fog_range(Node* world, float near_range, float far_range);  // 0x004f2440
 int world_set_fog_density(Node* world, float density);                 // 0x004f2460
+void world_get_fog_color(Node* world, float* r, float* g, float* b);   // 0x004f24a0
+void world_get_fog_range(Node* world, float* near_range, float* far_range);  // 0x004f24c0
+void world_get_fog_altitude(Node* world, float* at_2c, float* at_28);  // 0x004f24e0
 int world_push_fog(Node* world);                                       // 0x004f1df0
 
 // The partition grid (docs/drafts/scenewalk.md). Cells past the grid on

@@ -311,6 +311,35 @@ From the world files (gamez.md).
 - **Modding catch:** if any loose script next to the exe has a different file
   time from the one stored in `interp.zbd`, the game rejects the whole archive,
   so a modder has to extract all 44 scripts.
+- **A mission script could change gravity.** MW3 added one command of its own
+  to the GameZ scripts, `WorldSetGravity` (0x4107e0), and registers `gravity`
+  as a script variable (`var gravity = 10` works too). The mech physics reads
+  that value (0x417492 and others). No shipped script uses either, so a modded
+  mission script could make a low-gravity map (likely; the physics is not
+  ported yet).
+- **`PerspectiveTexture on` does nothing.** Every mission's common script turns
+  it on, but the setting it writes (0x74a3cc) is overwritten by every model
+  draw and read nowhere. `Verbose` is the same: written, never read.
+- **Turning a texture scroll off from a script crashes the game.**
+  `Object3DSetScroll off` (or `...ScrollAlways off`) makes the engine write
+  through a null pointer (0x596370). No shipped script does it; modders, leave
+  scrolls on.
+- **Every script word starting with "I" is accepted.** The interpreter has no
+  command beginning with I and waves any such word through silently; anything
+  starting with `SEQ` too. Most command names also match longer words:
+  `CameraSetFOVwide 90 70` works as `CameraSetFOV`.
+- **The scripts are otherwise clean.** On all six worlds every one of the 235
+  `FindNode` lookups finds its object; the only words the game does not know in
+  the live part of the scripts are `SetModelDirectory` and c1's typo above.
+- **Most scrolling textures tick from one hidden object.** 170 script lines
+  use `Object3DSetScrollAlways`, which lists the object under a node the
+  interpreter makes called `ScrollAlways`; that node's action moves all of
+  them together. The other 54 (`Object3DSetScroll`) scroll through each
+  object's own action (likely only while that object is processed).
+- **Two `%macros%` in one command share one buffer.** Each expanded argument is
+  built in the same place, so a command keeping two expanded words as text
+  gets the second one twice (`SEQAddChild %A% %N% ...` looks up the node named
+  by `%N%`). Numbers are safe; the shipped scripts never hit it.
 
 ## Drawing the world
 

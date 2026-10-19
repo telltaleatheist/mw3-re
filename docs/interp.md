@@ -1,6 +1,8 @@
 # zInterp and `interp.zbd` (Mech3.exe 1.2 (researched by a subagent, spot-checked: the header, `Object3DSetScrllAlways` once in the scripts and never in the exe, `LoadGameGen`/`GameGenSetWorld`/`SetModelDirectory` absent from the exe))
 
-Mech3.exe 1.2, 2026-10-19. Research draft, nothing ported. Source files:
+Mech3.exe 1.2, 2026-10-19. **Ported** (section 6): the archive, reader, macros,
+preprocessor, dispatcher and every command's arguments, emulator-checked on
+every shipped script. Source files:
 `gamezmech3\zinterp\zinterp_parse.cpp` (the big dispatcher 0x591300, named by
 the assert path at 0x5f3ce8) and its unnamed neighbours 0x594dc0..0x596c00
 (reader, macros, `source`, console); MW3's subclass sits in
@@ -33,8 +35,9 @@ end of the file (99,662 bytes).
   - 0x48fd83 runs `support\<mission>size.gw` (sprintf 0x5e741c). The result is
     ignored. These scripts set the node, model and material array sizes.
   - 0x48fde9 runs `<mission>.gs` (0x5e7404). If it returns 0 (the script could
-    not be opened at all), the game stops with the fatal error "Failed to
-    Interpret: %s -- Mission Load Aborted" (0x49bfd0, mission.cpp line 0x261).
+    not be opened at all), the load reports "Failed to Interpret: %s -- Mission
+    Load Aborted" (0x49bfd0, mission.cpp line 0x261; zerr is empty, so nothing
+    shows), cleans up (0x491780) and returns 0: the mission does not start.
   - 0x491150 (mission.cpp), cockpit setup: for each of the nodes `cpit_ania`,
     `cpit_anib` and `cpit_anic` found under the cockpit (0x4f9d60), it sets the
     current node (`+0xb8`) and runs `support\cpit_cycleA/B/C.gw`. Those
@@ -54,6 +57,7 @@ end of the file (99,662 bytes).
 
   It returns 1 if the file was opened, otherwise 0. Errors inside the script
   do not change the result.
+- **[0x5f4244]** is already 1 in the exe's data; 0x48fb69 only sets it again.
 - **0x596620 `open_archive`** (thiscall, arg = archive name, +0x78). It returns
   at once if +0x80 (archive FILE) is already set. Otherwise it builds the
   search-path object +0x7c from +0x74 (0x576100) and opens the file with
@@ -127,14 +131,17 @@ checked, which handles a final line with no newline.
 6. If the error flag is set, calls vtable[2] "on error". MW3: **0x410770**.
 7. Frees the line; returns `!quit`.
 
-Each layer that does not recognise the command adds one to +0x14 (0x596090).
+Each layer that does not recognise the command adds one to +0x14 (0x596090),
+and the base post hook (0x5912f0, both of the base's first two slots) adds one
+**always**. So a known command ends with 1 miss, an unknown one with 2, and
+only an unknown word that MW3's pre hook also counts reaches 3 and is logged as
+`BadCommand`: without the console, an unknown word starting with `W`; with the
+console, any unknown word (its check 0x4d6dc0 is a folded `return false`).
 Logging goes through **0x4108f0 `log(this, fmt, ...)`** and errors through
 **0x5952d0 `error(this, fmt, ...)`**, which also sets +0x10. Both call the
 callback at +0x70, and nothing sets that callback unless the debug console
 exists (below). In the shipped game, therefore, **every interpreter message,
-BadCommand included, goes nowhere**. The MW3 pre-hook counts a miss only when
-byte +4 is set, which is again only when the console is open, so without the
-console the count never reaches 3.
+BadCommand included, goes nowhere**.
 
 ### Preprocessor (0x590e80, before the dispatcher)
 
@@ -143,7 +150,7 @@ skipped.
 
 | Word (match) | Effect |
 |---|---|
-| `endif` (strncmp 5) | depth-- if depth > 0, else falls through to the dispatcher (where it is unknown) |
+| `endif` (strncmp 5) | depth-- if depth > 0; at depth 0 it is consumed silently (emulator-checked; an earlier reading had it reach the dispatcher) |
 | `ifdef` (5) | if depth == 0 and the condition is false: depth++ |
 | `ifndef` (6) | if depth == 0 and the condition is true: depth++ |
 | `mkdir` (5) | `_mkdir(arg)`; an error other than EEXIST is reported |
@@ -221,13 +228,13 @@ with another command shows no call. Uses = lines in interp.zbd.
 | Command | Args | Handler(s) | Name check | Uses |
 |---|---|---|---|---|
 | `AddChild` | s | 0x4f7fe0, 0x4eb9b0 | 0x59134e | 40 |
-| `AddClutterTemplates` | s | 0x596db0 | 0x5913df |  |
+| `AddClutterTemplates` | s | 0x596db0 | 0x5913df |  (exactly one argument, else ignored without a miss; the name list it fills, 0x73188c, is never read) |
 | `AddEnhancerImage` | s | 0x518c60 | 0x591426 |  |
 | `AnimSetZBDFile` | s | 0x5090f0 | 0x591462 | 1 |
 | `AnimSetDebugFrame` | - | 0x507dd0 | 0x59149e |  |
 | `CameraSetRotate` | fff | 0x4f36b0 | 0x5914db |  |
 | `CameraGetTranslate` | - | 0x4f39d0 | 0x59154a |  |
-| `CameraSetActive` | b | 0x4f3420 | 0x5915f0 | 1 |
+| `CameraSetActive` | b | 0x4f3420 (a jmp to node SetActive 0x4eb170) | 0x5915f0 | 1 |
 | `CameraSetDynamicLOD` | f | 0x4f32a0 | 0x59163c |  |
 | `CameraSetFOV` | ff | 0x4f3d90 | 0x591688 | 1 |
 | `CameraSetHorizonXZ` | s | 0x4f7fe0, 0x4f4100 | 0x5916f7 |  |
@@ -262,7 +269,7 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `Echo` | - | 0x595d50 | 0x5921b8 |  |
 | `FindNode` | s | 0x4f7fe0 | 0x5921fb | 321 |
 | `FindSubNode` | s | 0x4f9d60 | 0x59225b |  |
-| `FogLargeObjects` | b | 0x5ac5c0 | 0x5922bc |  |
+| `FogLargeObjects` | b | 0x5ac5c0 (an empty function) | 0x5922bc |  |
 | `FreeNode` | s | 0x4f7fe0, 0x4f3390, 0x4f1c60 | 0x5922fe |  |
 | `GameZReadZBDFile` | s | 0x4ff520 | 0x5923a4 | 9 |
 | `GameZWriteZBDFile` | s | 0x4f7f70, 0x4f7bd0, 0x4fe8e0 | 0x5923fa | 1 |
@@ -272,8 +279,8 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `GlobalWindRandomAngVel` | f | 0x54b670 | 0x592520 |  |
 | `GlobalWindStaticVelocity` | fff | 0x54b630 | 0x59256a |  |
 | `LensFlareTexture` | is | 0x518c60, 0x5676d0 | 0x5925d9 | 32 |
-| `LightNew` | - | 0x4fa720 | 0x592628 | 7 |
-| `LightSetActive` | - | inline / shared tail | 0x592654 |  |
+| `LightNew` | s | 0x4fa720, then 0x593ef0: current = it, 0x4eb300 name | 0x592628 | 7 |
+| `LightSetActive` | b | 0x4eb170 (Object3DSetActive's code) | 0x592654 |  |
 | `LightSetAmbient` | f | 0x4fa940 | 0x59267c | 7 |
 | `LightSetColor` | fff | 0x4fb510 | 0x5926c6 | 7 |
 | `LightSetDiffuse` | f | 0x4fa9b0 | 0x592732 | 7 |
@@ -287,7 +294,7 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `LightSetSubdivide` | b | 0x4fac70 | 0x5929f9 |  |
 | `LightSetTranslate` | fff | 0x4faf80 | 0x592a64 |  |
 | `LoadSoils` | s | 0x537cb0 | 0x592ad0 | 1 |
-| `LODAddChild` | s | 0x4f7fe0, 0x4fe0a0 | 0x592b0c |  |
+| `LODAddChild` | s | 0x4f7fe0, 0x4fe0a0 (a jmp to 0x4eba90, node link) | 0x592b0c |  |
 | `LODSetRange` | ff | inline / shared tail | 0x592b5a |  |
 | `MakeShadows` | - | 0x5487d0 | 0x592bd0 |  |
 | `MatlFaceColor` | fff | 0x5793c0 | 0x592c2d |  |
@@ -300,16 +307,16 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `ModelPolygonEnd` | - | 0x536ad0, 0x53cc40, 0x53c6c0 | 0x592eae |  |
 | `ModelPolygonUV` | ff | inline / shared tail | 0x592f5a |  |
 | `ModelPolygonVertex` | fff | inline / shared tail | 0x592fd1 |  |
-| `NewCamera` | - | 0x4f32e0 | 0x593061 | 1 |
-| `NewDisplay` | - | 0x4fa4c0 | 0x59308f | 2 |
-| `NewLOD` | - | 0x4fe030 | 0x5930bd |  |
-| `NewNode` | - | 0x4eacd0 | 0x5930eb |  |
-| `NewObject3D` | - | 0x4fb740 | 0x593119 | 1 |
+| `NewCamera` | s | 0x4f32e0, 0x4eb300 | 0x593061 | 1 |
+| `NewDisplay` | s | 0x4fa4c0, 0x4eb300 | 0x59308f | 2 |
+| `NewLOD` | s | 0x4fe030, 0x4eb300 | 0x5930bd |  |
+| `NewNode` | s | 0x4eacd0, 0x4eb300 | 0x5930eb |  |
+| `NewObject3D` | s | 0x4fb740, 0x4eb300 | 0x593119 | 1 |
 | `NewSEQ` | s | 0x4fdc70, 0x4eb300 | 0x593147 |  |
-| `NewWindow` | - | 0x4f9e90 | 0x593196 | 1 |
-| `NewWorld` | - | 0x4f1bd0 | 0x5931c4 | 1 |
+| `NewWindow` | s | 0x4f9e90, 0x4eb300 | 0x593196 | 1 |
+| `NewWorld` | s | 0x4f1bd0, 0x4eb300 | 0x5931c4 | 1 |
 | `NodeDump` | - | 0x5951e0 | 0x5931f0 |  |
-| `NodeSetActive` | - | inline / shared tail | 0x593250 |  |
+| `NodeSetActive` | b | 0x4eb170 (Object3DSetActive's code) | 0x593250 |  |
 | `NodeSetDescription` | s | 0x4eb300 | 0x593278 |  |
 | `NodeSetCanModify` | b | 0x4eb260 | 0x5932bc |  |
 | `NodeSetLighting` | b | 0x4f9e50 | 0x593308 |  |
@@ -334,7 +341,7 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `Object3DSetTextureWorldTexturesPerMeter` | ff | 0x526aa0 | 0x593b2c |  |
 | `Object3DSetMorphVertex` | f | 0x4eb420, 0x53b960 | 0x593b85 |  |
 | `Object3DTranslate` | fff | 0x4fc0b0 | 0x593bfd | 16 |
-| `PerspectiveTexture` | b | inline / shared tail | 0x593c76 | 1 |
+| `PerspectiveTexture` | b | writes 0x74a3cc, which every model draw overwrites and nothing reads | 0x593c76 | 1 |
 | `PrintNodeCount` | s | 0x4f8b80 | 0x593cb9 |  |
 | `PrintTree` | - | 0x591290 | 0x593d29 |  |
 | `PrintUsedNodes` | - | 0x4f7fa0 | 0x593da3 |  |
@@ -351,8 +358,8 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `SetBFETolerance` | f | 0x53cef0 | 0x594020 | 1 |
 | `SetCoplanarTolerance` | f | 0x538070 | 0x594067 | 1 |
 | `SetColinearTolerance` | f | 0x538080 | 0x59409b | 1 |
-| `SetGameZNodeArraySize` | i | 0x5ac5c0 | 0x5940cf | 9 |
-| `SetMaterialArraySize` | i | 0x536a60 | 0x5940fc | 9 |
+| `SetGameZNodeArraySize` | i | 0x5ac5c0 (empty) | 0x5940cf | 9 |
+| `SetMaterialArraySize` | i | 0x536a60 (empty) | 0x5940fc | 9 |
 | `SetModel3DArraySize` | i | 0x5269a0 | 0x594129 | 9 |
 | `SetIntersectBBOX` | b | 0x4eb750 | 0x594156 |  |
 | `SetIntersectSurface` | b | 0x4eb6d0 | 0x59418e | 219 |
@@ -369,7 +376,7 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `SetTextureDirectory` | s | 0x516f50 | 0x5943dd | 6 |
 | `SetVertexShading` | b | 0x526a00 | 0x594409 | 7 |
 | `TextureAdd` | s | 0x518c60 | 0x594440 |  |
-| `Verbose` | b | inline / shared tail | 0x594470 |  |
+| `Verbose` | b | writes 0x73f764, read nowhere | 0x594470 |  |
 | `VideoSetDither` | b | 0x579240 | 0x59449e | 1 |
 | `VideoSetWireFrame` | b | 0x579230 | 0x5944cf |  |
 | `WindowAddClearPolygonVertex` | fff | 0x4fa2c0 | 0x594506 |  |
@@ -398,19 +405,98 @@ with another command shows no call. Uses = lines in interp.zbd.
 | `WriteTextureSetType` | i | 0x5426a0 | 0x594cb3 |  |
 | `WriteTextureSetMap` | s | 0x518c60, 0x5426b0 | 0x594ce0 |  |
 
-Prefix matches (strncmp shorter than the name): `CameraSetRot`,
-`CameraSetTransl`, `CountCameraNod`,
+Name matching (emulator-checked command by command). Most names are compared
+with `strncmp` over the name's own length without its NUL, so **any longer
+word starting with the name matches it**: `CameraSetFOVwide 90 70` is a
+`CameraSetFOV`, `AddChildren` an `AddChild`. A few are compared shorter than
+the name: `CameraSetRot`, `CameraSetTransl`, `CountCameraNod`,
 `Object3DSetTextureWorldTexturesPerMet`, `SetPerspectiveInvers`, and **`SEQ`
-(3)**. Anything starting with `SEQ` enters the SEQ sub-table and returns
-"handled" even if no `SEQ*` name matches, so it never counts as a miss.
-Longer names are always tested before their shorter prefixes
+(3)**: anything starting with `SEQ` enters the SEQ sub-table and is "handled"
+even if no `SEQ*` name matches, so it never counts as a miss. The rest are
+exact: the `strcmp` ones (`CameraGetTranslate`, `CameraSetNearClip`,
+`CameraSetFarClip`, `DirectedLightFluctuate*`, `MakeShadows`, `NodeDump`,
+`Object3DGetTranslate`, `PrintTree`) and 0x595270 (`VideoSetDither`,
+`VideoSetWireFrame`, `WorldGetFogColor`, `WorldSetFogRange*`,
+`WorldGetFogRange`), plus `WindowBuffer` and `SEQSetPause`, whose length
+covers the NUL. Longer names are always tested before their shorter prefixes
 (`CameraSetHorizonXZ` before `CameraSetHorizon`, `Object3DSetScrollAlways`
 before `Object3DSetScroll`, `WorldPartitionInclusionTolerance` before
-`WorldPartition`, ...), so none of these prefixes misroutes a real command.
-`WorldSetFogState` takes `linear`, `exponential` or `off` (0x594b9e..,
-0x4f23e0). `CycleTextureSetOn` is fatal if there is no current node
-(0x49bfd0, "No current node to enable cycle textures. Take note of
-preceding "FindNode" Error").
+`WorldPartition`, ...), so no prefix misroutes a real command.
+
+More from the emulator check:
+
+- **Letters.** `I` has no commands and jumps straight to the end without a
+  miss, so any word starting with `I` is silently accepted. `m` shares `M`'s
+  list; `e` has only `echo`, `E` only `Echo` (both print the raw tokens,
+  argv[0] included, with printf).
+- **Exact argument counts.** `DirectedLightFluctuate`, `...Period`,
+  `...Wavelength`, `...Heading` and `GlobalWindRandom*` need argc 2,
+  `...BaseAndAmp` 3, `GlobalWindStaticVelocity` 4, `ModelDoShadows` 2; with
+  another count the word falls through the rest of the list and counts as
+  unknown. `AddClutterTemplates` needs 2 and otherwise ends without a miss.
+- **0x5962d0 `check_args(count, class, node)`** guards `SetBFETolerance`
+  (1, no node), `Window*ClearPolygonVertex` (3, class 3), `WindowBuffer`
+  (1, 3), `WorldSetFogAltitude`, `WorldSetFogRange` (2, 2), `...RangeNear`,
+  `...RangeFar`, `WorldSetFogState` (1, 2) and the two getters (0, 2). It logs
+  "Interp: keyword [%s] has NULL node ...", "... of class=%d, expected=%d" or
+  "... requires (%d) args, found (%d) args" and sets the error flag; the command
+  then ends without a miss.
+- **New nodes take a name.** `NewCamera`, `NewDisplay`, `NewLOD`, `NewNode`,
+  `NewObject3D`, `NewWindow`, `NewWorld` and `LightNew` share `NewSEQ`'s tail
+  (0x593ef0): the new node becomes current and is named by the next argument
+  (the table above had them without one).
+- **Degrees to radians** (0.01745329251994 at 0x5cf668): `CameraSetFOV`
+  rounds its first angle to a float first and multiplies the second as atof's
+  double; `LightSetOrientation` and `Object3DRotate` round the first two and
+  not the third; `DirectedLightFluctuateHeading` and `GlobalWindRandomAngVel`
+  use the double. At the game's 24-bit x87 each product is rounded once to a
+  float, which the port reproduces (`crt::x87_mul_f24`); the two ways differ
+  for many inputs (0.3, 0.9, 1.3, ...).
+- **Odd calling details.** `CameraSetDynamicLOD` passes ECX = 1 (a constant)
+  with the distance; `CameraSetObjectHSETest` takes only the flag;
+  `LODSetRange` squares both values into the current node's LOD data (+4,
+  +0xc) inline; `MatlFaceColor` stores the three floats at the build block's
+  +4 and packs them (0x5793c0) into +2; `ModelNew` makes an Object3D, names it,
+  makes a model (0x538fe0), attaches it (0x4eb370) and sets mode 1 if the second
+  word starts `Facade`, else 0 (0x539cc0 writes it to the model's +0).
+  `Object3DSetMorphVertex` passes an uninitialised stack slot.
+- **zerr is empty**, so `CycleTextureSetOn` is not fatal: with no current node
+  it reports and stops; with a node without a model it reports and calls the
+  cycle setter with a null model anyway. `DeleteChild`, `DeleteTree` and
+  `Object3DAddChild` with a missing node only report.
+- **Crashes in the original** (no shipped line reaches them): `FreeNode`
+  of a name not found (reads its class), `Object3DSetScroll`/`...ScrollAlways`
+  off on any real node (0x596370 asks 0x4eb420 for the model with a null out
+  pointer), `ModelNew` without a second word and `var NAME` without an
+  operator (strncmp on null), `Object3DRegisterTexturesToWorld` and
+  `Object3DSetMorphVertex` on a node without a model, `LODSetRange` without a
+  node.
+- **Messages.** `LightSetSaturated/Static/Subdivide` without a node log "%s
+  Failed: no current node" with no argument for the %s. `FreeNode`'s failure
+  is printf'd as "   Error freeing node %s" (three spaces). The
+  `Object3DSetScrollAlways` failure report is "...on: FAILED  (node=0x%08x)
+  (gfx=0x%08x)", raw pointers.
+- **Write-only globals.** `PerspectiveTexture` writes 0x74a3cc, which every
+  model draw rewrites (it is "a type-0 model is drawing" there, gmod_draw.h)
+  and nothing reads; `Verbose` writes 0x73f764, read nowhere; MW3's
+  `WorldSetGravity` writes 1/g to 0x5e5d38, read nowhere (gravity itself,
+  0x5e5d34, is read by the physics).
+- **The ScrollAlways list** is a static `std::list<Node*>` at 0x731430 (ctor
+  0x5962a0, clear 0x5964c0, dtor 0x596570). 0x5963f0 `scroll_on(node, u, v,
+  always)` returns 0 for a null node or one without a model (+0x3c), else sets
+  the model's scroll (0x526ae0: flag bit 0x10 at +8, u, v at +0x28, +0x2c).
+  Always: the first call makes an Object3D named `ScrollAlways` whose action
+  (0x5963a0) ticks every listed node each time it runs, and the node is
+  appended. Otherwise the node's own action becomes 0x596380 (get the model,
+  0x541ad0). Clear(1) at mission end empties the list and frees the holder;
+  clear(0) at 0x490fe4 zeroes each listed model's +0x30.
+- **After a `source`** the error flag is always clear (the sourced file's
+  terminating line, or its empty last read, clears it), so the error hook never
+  runs for a `source` line; the one exception is a loose file whose unterminated
+  last line fails, where the hook reads argv[0] of that freed line.
+- **The static expansion buffer** only bites string arguments: a number is
+  converted as soon as it is fetched. `SEQAddChild %A% %N% %N%` looks up the
+  node named by `%N%`, and `set %X% %Y%` defines Y's value under that value.
 
 ## 4. Discoveries
 
@@ -479,57 +565,79 @@ preceding "FindNode" Error").
   - A `source` frees the current line (+0x1c) before recursing, which leaves
     the parent's argv dangling (it is not read again).
 
-## 5. Porting order and checking
+## 5. The port
 
-Leaves first. Everything except the dispatcher is plain C and
-self-contained.
+- `src/gamez/zinterp/zinterp_parse.cpp`: conditions 0x590d80, the preprocessor
+  0x590e80, PrintTree 0x591290 and the dispatcher 0x591300, as one function per
+  letter in the exe's test order with each name's own compare length.
+- `src/gamez/zinterp/zinterp.cpp` (name unknown; the functions after the
+  dispatcher): the dumps 0x594dc0..0x5951e0, the interpreter object
+  0x5952f0/0x5953d0/0x595440, run 0x5954a0, exec_line 0x595510, read_line
+  0x5955e0, expansion 0x5956e0, the tokenizer 0x595850, source 0x595990,
+  macros 0x595a90..0x595c60, echo 0x595d50, the include stack, the argument
+  getters 0x595e70..0x595f10, variables 0x595f30..0x596020, check_args
+  0x5962d0, the ScrollAlways list 0x5962a0..0x596570, the archive 0x596620 and
+  0x596810, AddClutterTemplates 0x596db0, the log 0x4108f0 and error 0x5952d0.
+- `src/mech3/mech3_interp.cpp`: MW3's interpreter 0x410700 (vtable 0x5bccc8,
+  `DamageScale`), the pre hook 0x4107e0 (`WorldSetGravity`), the error hook
+  0x410770, set-mech 0x4108a0, and the app's `gravity`/`ceiling` variables
+  (0x47f2e0's part; the caller passes `environment().jet_ceiling`).
+- **Engine calls.** Every function the commands call outside zInterp goes
+  through `zint::engine()`, a table of function pointers in the original's
+  argument order (ECX, EDX, stack). It starts with the ported functions (list
+  find/walk, node alloc/name/SetActive/AddChild/link, find-in-tree, world read,
+  camera clip, display clear colour, light and Object3D create, Object3D
+  AddChild, the world fog setters and getters (moved into cls_world), the
+  texture find, colour packing, the cloud setters, the anim path); the others
+  are null until their module is ported, and a null call does nothing and
+  returns 0. A test can replace any entry. `zint::observer()` is a test seam
+  (not in the exe) told of each line, dispatch and line end.
+- **Files** (FIX (A)): loose scripts, the archive's search path (0x5763b0 over
+  `.;zbd`), `_stat` for the staleness checks, `_mkdir` and `DeleteFileA` all go
+  through the mounts (zutl_path.h). Loose files are read binary with MSVCRT's
+  text-mode rules done by hand (CR LF to LF, Ctrl-Z ends the file).
+- **Fixes**, all where the exe would overrun or crash (docs/fixes.md): the
+  1 KB line buffer grows; the expansion and macro-name buffers are bounded;
+  past 16 tokens are dropped; an archive line's argc is capped at 16 and its
+  size at 1 MB, a short read ends the script; the freed line the error hook
+  can read after a `source` is kept until the outermost line ends; the
+  crashes listed in section 3 are skipped (the null out pointer of a scroll
+  turned off is passed on, since node_get_model is not ported); a string
+  variable is printed as its string.
 
-1. **Archive directory**: 0x596620 open/validate and 0x596810 find. Port as
-   `interp_archive` over a byte buffer, with `stat` behind a callback (the
-   rebuild's importer will usually have no loose files).
-2. **Line reader** 0x5955e0 (binary and text branches) and **tokenizer**
-   0x595850.
-3. **Macros**: 0x595a90, 0x595c60, 0x595bb0, 0x595bd0, 0x595bf0, expansion
-   0x5956e0, arg getters 0x595e70, 0x595ef0, 0x595f10, 0x595ea0. **Variables**:
-   0x595f30, 0x595fa0, 0x596020.
-4. **Preprocessor** 0x590e80 and conditions 0x590d80.
-5. **exec/run/source**: 0x595510, 0x5954a0, 0x595990, stack 0x595da0 and
-   0x595e20; ctor/dtor 0x5952f0, 0x5953d0, 0x595440; log/error 0x4108f0 and
-   0x5952d0.
-6. **Dispatcher 0x591300** as a table {name, match length, handler}, in the
-   original test order, with the first-letter switch kept (it decides
-   prefix behaviour). Handlers are thin and call zClass functions (world
-   0x4f1bd0.., camera 0x4f32e0.., light 0x4fa720.., window 0x4f9e90.., display
-   0x4fa4c0.., object3d 0x4fb740.., cycle textures 0x53bc30..). Port each
-   with its module (see gamez.md and zclass-world.md); start with those the
-   live scripts use (the "Uses" column, without the dead-branch ones).
-7. **MW3 subclass** 0x410700, hooks 0x4107e0 and 0x410770, and 0x4108a0;
-   mission calls at 0x48fb58..0x48fde9 and 0x491150. Optionally the console
-   0x5960a0 as a dev feature (FIX-free, but it needs a front-end text window).
+**Check: `tests/differential/test_interp.py`** (probe `tests/probe_interp.cpp`).
+Both sides get the same command list (mounts, macros, settings, `source`
+calls, single lines, scroll-list ticks and clears). The original runs from its
+real MW3 interpreter object in Unicorn at 24-bit x87, with the C runtime served
+from Python over the same mounts; every engine function is stubbed in both and
+recorded with decoded arguments (fake nodes, models and textures; out-pointers
+filled with known values), with each line's tokens, each dispatch, each line's
+end (misses, error, quit, skip depth, current node), the log, printf and zerr
+text, and the state after (macros, variables, globals, the build block, the
+ScrollAlways and clutter lists, every fake node and model). Runs: every shipped
+`.gs` as the mission load runs it (size script first, hardware on and off,
+`GameZReadZBDFile` failing), every `.gw` alone with and without the mission
+macros, the cockpit scripts with a current node; then the six missions and the
+cockpit scripts again on their real worlds (read by the original 0x4ff520 and
+the port's read_zbd) with the ported functions run for real in both (235
+FindNode lookups over the six, the ScrollAlways holder made in the pool);
+then crafted scripts: every command with its arguments and failures, macros,
+the preprocessor and tokenizer edge cases, Ctrl-Z/CR/NUL, no final newline,
+nested and failing `source`, the archive accepted, rejected by a stale loose
+copy (older and newer) and overridden by a newer copy once open, damaged
+archives, the console's single lines, mkdir errors, set-mech and the scroll
+list. 146 runs, 22,855 lines and 23,176 engine calls identical; all 162 engine
+functions are reached. All six missions' FindNode lookups succeed on their
+worlds; the only unknown words in the live paths are `SetModelDirectory` and
+c1's `Object3DSetScrllAlways`.
 
-**Differential tests** (pattern: `tests/differential/test_motion.py`):
+Breaks caught (each made in the port, then reverted): nested `ifdef` counted
+while skipping (macros.gs), a fresh buffer per expansion (macros.gs), comma
+not a separator (macros.gs), `CameraSetRotate` compared exactly (commands.gs),
+the staleness check ignored (the stale-copy run), no post-hook miss (c1.gs),
+`LightSetOrientation`'s third angle rounded to a float first (commands.gs),
+the archive lookup case-sensitive (c1size.gw), and Object3D create bound to
+plain node alloc (the c1 world run).
 
-- *Reader*: run 0x596620 with `this` in emulated memory and +0x7c pre-set to a
-  dummy search-path object. Stub 0x5763b0 (return a fake FILE), `fread`
-  (0x5bb594), `realloc` (0x5bb610), `_stat` (0x5bb588, return -1 = no loose
-  files) and `fclose`. Then call 0x596810 for each of the 44 names (stubs
-  `_stricmp` 0x5bb580, `fseek` 0x5bb59c, `difftime` 0x5bb540). Compare the
-  directory and offsets with the port. Run it again with `_stat` returning a
-  matching or a different mtime to cover the rejection and live-edit branches.
-- *Lines*: call 0x5955e0 repeatedly on each script (binary branch, `malloc`
-  0x5bb664) and compare argc and every token with the port; it must end on
-  the zero size exactly at the next entry's offset.
-- *Tokenizer and expansion*: 0x595850 and 0x5956e0 on synthetic lines
-  (comments, commas, tabs, `%A%%B%`, unknown macros, two macro arguments for
-  the static-buffer bug), with `strchr`, `strpbrk`, `iswspace`, `strncat`,
-  `strncpy` and `_strdup` served from Python (or by running the MSVCRT
-  routines as real code if `original.py` can).
-- *Whole-script trace* (the strongest check): emulate 0x595990 on each `.gs`
-  with the I/O stubs above and macros preset (`USEZBD`, `HARDWARE` on and
-  off). Patch the dispatcher entry 0x591300 to a hook that records
-  `(argv0, args...)` and returns 1, and point vtable[0] at a stub returning 1.
-  Run it a second time with the hook setting the error flag on
-  `GameZReadZBDFile` (exercises 0x410770 and the dead branch). The port's
-  trace of dispatched commands must be identical, which covers
-  ifdef/ifndef/`||`, `set`, nested `source`, `Quit` and the include stack in
-  one go.
+Not ported: the debug console 0x5960a0 (needs a text window), the mission
+load around it (0x48faf0), and the engine functions still null in the table.
