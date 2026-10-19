@@ -25,6 +25,7 @@ add_library(mw3core STATIC
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_span.cpp
+  src/mech3/mech.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)

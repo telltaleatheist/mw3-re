@@ -63,3 +63,12 @@ ported either; the game never builds archives at run time.
   Ghidra's pseudocode shows a cast on both, which is wrong for floats.
 - `reset` (0x5766d0) does nothing when the archive has no table, so a failed open
   leaves the path for `destroy` to free.
+- `get_bool_int` (0x556da0) rejects floats, and a list whose only slot is its
+  count; `get_bool` (0x557150) is true only for exactly 1.
+
+## MSVCRT pieces the reader needs
+
+`crt::msvc_ftol` stands in for `_ftol`, the compiler's float-to-int conversion:
+it truncates into 64 bits and the caller keeps the low 32, so 3e9 becomes
+-1294967296; NaN and 64-bit overflow give 0x8000000000000000 (low bits 0).
+`crt::msvc_stricmp` folds ASCII only, as MSVCRT does in the C locale.

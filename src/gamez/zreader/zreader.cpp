@@ -195,13 +195,10 @@ void get_byte_if(Node* node, const char* key, uint8_t* out) {
 }
 
 namespace {
-// The per-item step the list getters share: a float is copied, an int converted,
-// anything else leaves the slot alone.
 void float_item(const Node& c, float* out) {
   if (c.type == Float) std::memcpy(out, &c.f, 4);
   else if (c.type == Int) *out = static_cast<float>(c.i);
 }
-// The integer lists convert floats with _ftol (truncation), as an (int) cast does.
 void int_item(const Node& c, int32_t* out) {
   if (c.type == Float) *out = crt::msvc_ftol(c.f);
   else if (c.type == Int) *out = c.i;
@@ -239,8 +236,7 @@ bool get_ivec3(Node* list_node, int32_t out[3]) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00556da0. A float, or a list whose only slot is its count,
-// is not a boolean.
+// Mech3.exe 1.2 @ 0x00556da0
 bool get_bool_int(Node* node, int32_t* out) {
   int32_t scratch;
   if (!out) out = &scratch;
@@ -273,7 +269,7 @@ bool get_ivec2(Node* node, const char* key, int32_t out[2]) { return get_ivec2(f
 // Mech3.exe 1.2 @ 0x00557130
 bool get_bool_int(Node* node, const char* key, int32_t* out) { return get_bool_int(find(node, key), out); }
 
-// Mech3.exe 1.2 @ 0x00557150: true only for exactly 1, which get_bool_int gives.
+// Mech3.exe 1.2 @ 0x00557150
 bool get_bool(Node* node, const char* key, bool* out) {
   int32_t v;
   if (!get_bool_int(node, key, &v)) return false;

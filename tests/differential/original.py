@@ -102,6 +102,19 @@ class Original:
         self.stubs[addr] = (fn, pop_bytes)
         self.u32(iat_slot, addr)
 
+    def stub_function(self, addr, fn, pop_bytes=0):
+        """Stand in for one of the exe's own functions: runs `fn(self)` on entry
+        and returns EAX from it, popping `pop_bytes` of arguments."""
+        self.stubs[addr] = (fn, pop_bytes)
+        self.uc.hook_add(UC_HOOK_CODE, self._stub_hit, begin=addr, end=addr)
+
+    def code(self, code):
+        """Write a little x86 routine; returns its address."""
+        addr = self.code_next
+        self.write(addr, code)
+        self.code_next += (len(code) + 0xf) & ~0xf
+        return addr
+
     def import_code(self, iat_slot, code):
         """Stand in for an import with x86 machine code, such as FTOL."""
         self.write(self.code_next, code)

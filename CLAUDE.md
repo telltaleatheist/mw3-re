@@ -102,6 +102,13 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   header and name it after its neighbours.
 - Every ported function starts with `// Mech3.exe 1.2 @ 0x00xxxxxx`. Original
   globals become struct fields with their address in a comment.
+- Comments (Owen, 2026-10-19): short ones where decompiled logic is not obvious
+  (a quirk, a magic number, why a branch exists), one or two lines, pointing to
+  `docs/<topic>.md` for more. How a system works, the evidence and open
+  questions go in `docs/`. No comments that restate the code, no long blocks.
+- The target is play-accurate, not byte- or bit-identical (Owen, 2026-10-19).
+  Differential tests compare floats within a tolerance; no chasing x87 precision.
+  A real bug that breaks play can be fixed, documented in `docs/fixes.md`.
 - Port the logic as written, original quirks included (see zgameapp.cpp). Only
   (A)/(B) problems change, marked `FIX (A)` / `FIX (B)` and listed in
   `docs/fixes.md`.

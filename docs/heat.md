@@ -1,74 +1,111 @@
 # Heat
 
-Mech3.exe 1.2, found with REA + Ghidra (2026-10-18). Not ported yet: the update
-reads mech components, sounds and the HUD that are still unmapped.
+Mech3.exe 1.2 @ 0x004192f0, called each frame from the mech update (0x419fc0,
+vtable 0x5bcef8 +0x34) with the frame step. Ported to `src/mech3/mech.cpp`
+(`mech3::update_heat`), checked against the original in Unicorn
+(`tests/differential/test_heat.py`: 300 random scenarios x 400 frames, every
+shutdown state and every outgoing call, floats within 1e-4).
 
-## Where
+Traced from the raw disassembly; Ghidra's pseudocode of this function drops the
+ECX of most calls (the sound object, the sound index) and shows the negative
+timer constants as `time - -2.0`.
 
-`0x004192f0`, a mech method called each frame with the frame step (`dt`,
-0x0072c52c). It sits in the unnamed files between `mech_anim.cpp` and
-`mech_data.cpp`. Found by following the `mech_heat_critical` sound: its handle is
-stored in the mech sound table at 0x00605600 (entry 26 from 0x00605598), and
-`0x0041e770` plays entry 26 from here.
+## Fields
 
-## The model
+Mech offsets (`docs/structs.md` has the rest of the object):
 
-Mech fields (offsets in the mech object):
-
-| Offset | Meaning |
+| Offset | Field |
 |---|---|
-| `+0x554` | heat level, 0 to 2.0 |
-| `+0x558` | heat added this frame (weapons and so on); cleared at the end of the update |
-| `+0x55c` | dissipation rate this frame |
-| `+0x69c` | flags: bits 0-2 warning-beep state, bits 3-5 shutdown state, bit 24/25 overheat flags |
-| `+0xdd` | shutdown in progress |
-| `+0xde` | boosted cooling (rate ×3), likely standing in water |
+| +0x068 | height, from the model's bounding box (12 if none) |
+| +0x0d4 | weapons and ammo bins |
+| +0x0dc / +0x0dd / +0x0de | power-down pending / heat shutdown in progress / powered down |
+| +0x37c | controls (a virtual-base object; vtable +0x1c gives a value in -1..1, likely throttle) |
+| +0x38c, +0x390 | left and right leg; leg +0x78 is the foot |
+| +0x554 | heat, 0 to 2 |
+| +0x558 | heat added this frame (weapons add to it); cleared at the end |
+| +0x55c | dissipation rate this frame |
+| +0x574 | MASC on (time; non-zero while on) |
+| +0x580 | jump jets firing |
+| +0x5cc, +0x5d0, +0x608, +0x60c | sounds: warning beep, shutdown alarm, "shutdown imminent", "shutting down" |
+| +0x630 | "Heat Death disabled" (a cheat or debug switch) |
+| +0x658 | heat sinks: +4 count (10 by default), +8 doubles |
+| +0x684 | the pilot/HUD side: sounds and the screen effect go through it |
+| +0x69c | state: bits 0-2 beep, bits 3-5 shutdown, bit 24 overheated, bit 25 powered down |
+| +0x6a0, +0x6a4, +0x6a8 | shutdown, beep and voice timers (game time, seconds) |
 
-Each frame:
+Foot: +0xac in water, +0xdc water depth, +0xe8 soil under it. Soils (0x47f380):
+1 water, 2 grass, 3 dirt, 4 mud, 5 concrete, 6 snow, 7 mech, 8 lava, 9 silt,
+10 noslip.
+
+## Each frame
 
 ```
-rate  = 1.0                                  0x005e1fd4
-if (+0xde) rate *= 3
-if (component0 flag +0xac):                  component0 = (mech+0x38c)[0] -> +0x78
-    f = max(component0[+0xdc] / mech[+0x68], 1.0)
-    rate *= min((3f + 1)^2, 8)               always 8: see below
-rate *= 0.05                                 0x005e5d40
-player only: rate *= (1.6 - |x|) when that is below 1; x from a vtable +0x1c call
-             added += dt * 0.05 while +0x580 is set, and again while +0x574 != 0
-added += 0.05 per frame while either of two components is in state 8
-rate *= environment factor (0x0045fb90)
-heat = clamp(heat - dt * rate, 0, 2.0)
-heat = clamp(heat + added, 0, 2.0)
+rate = 1                      x3 while powered down
+if left foot in water:        f = max(depth / height, 1); rate *= min((3f + 1)^2, 8)
+dissipation = rate * 0.05
+full model only:              dissipation *= (1.6 - |controls|) when that is below 1
+                              added += dt * 0.05 while jump jets fire, and again while MASC is on
+added += 0.05                 while either foot is on lava (per frame)
+dissipation *= sinks * 0.1 * (doubles ? 2.5 : 1.25)
+if heat is on:                heat = clamp(heat - dt * dissipation, 0, 2), then clamp(heat + added, 0, 2)
+else:                         heat = 0
 ```
 
-Original quirk, kept in the rebuild: `f` is the larger of the ratio and 1.0, so
-`(3f + 1)^2` is at least 16 and the cap always applies; when the component flag
-is set, dissipation is simply ×8. `min` would have given a 1-16 range, which may
-have been the intent.
+"Heat is on" is bit 3 of the options word at `[0x5f4d04]` or mission mode 3
+(`[0x60861c] +0x6c`, vtable +0x2c). With ten single heat sinks the sink factor is
+1.25, so a mech standing still sheds 0.0625 heat per second.
 
-## Thresholds
+Quirk, kept: `f` is the larger of the ratio and 1, so `(3f + 1)^2` is at least 16
+and the cap always applies: wading is a flat x8 whatever the depth. With `min`
+the factor would have run from 1 (dry) up to the cap, which may have been the
+intent.
 
-| Heat | Effect |
+## Who runs the full model
+
+The byte at 0x5e1fd0 starts at 1 and nothing writes it, so every mech, AI
+included, runs the full model with the two state machines. Being the player only
+adds the beeps, voices and the heat haze. The other branch, "at 2.0, destroy the
+torso", is never taken in the shipped game.
+
+The vtable +0x5c check at the start ("if set, clear heat and return") is the
+mech's 0x40bae0, which returns 0; the port leaves it out.
+
+## The warning beep (bits 0-2)
+
+0 idle: above 0.7 and past the beep timer, play sound 5 and go to 1 at once.
+1: timer = now + 2, go to 2. 2: wait for the timer, go to 3. 3: below 0.7, stop
+the beep, timer = now + 2, back to 0. Any of bits 25-30 force state 4+, which
+cancels the beep.
+
+## Shutdown (bits 3-5)
+
+Checked first each pass: at 2.0 (critical) stop the sounds, play mech sound 26,
+force state 4 and clear the shutdown timer. Otherwise, at 1.5 or more while not
+powered down, stop the sounds and force state 2.
+
+| State | What happens |
 |---|---|
-| 0.7 | warning beep starts (sound 5); stops again below 0.7 (0x005e1fec, 0x005e1ff0) |
-| 0.8 | player's screen effect, strength (heat - 0.8) × 5 (0x0043c1f0) |
-| 0.95 | shutdown warning (sound 0x14), then shutdown voice (0x15) and power-down (0x0041cc30) |
-| 0.9 | dropping below cancels a pending shutdown |
-| 1.5 | overheated flag |
-| 2.0 | critical: sound 26, forced shutdown path |
-| 0.4 | below: recover from shutdown, clear flags |
+| 0 | above 0.95 and past the voice timer: "shutdown imminent" (sound 0x14), timers = now + 4, go to 1 |
+| 1 | 0.9 or below: cancel, clear the overheated bit, back to 0; else once the timer passes, timer = now + 3, go to 2 and run again |
+| 2 | "shutting down" (sound 0x15), power down (0x41cc30(1)), heat shutdown on, go to 3 (with the overheated bit and no 1.5 forcing, it only moves to 3) |
+| 3 | 0.9 or below: cancel; else when the timer passes, timer = now + 0.1..3.0 at random, start the alarm (sound 6), go to 4 |
+| 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not mission mode 3) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
 
-The shutdown state machine draws `rand()` (MSVCRT; `crt::msvc_rand` in the
-rebuild): at each check, a value under 0.8 of the range lets the mech ride it
-out. When the byte at `+0x630` is set (likely a difficulty or realism option),
-overheating instead deals damage (`0x0040fe70(2.0, 0x20c)`).
+While powered down (bit 25) states 1 and 4 just reset to 0, state 2 resets and
+re-runs state 0, and state 3 waits for heat at or below 0.4 and the timer, then
+powers back up (0x41cc30(0)).
 
-## To port
+The random draws are MSVCRT `rand()` (`crt::msvc_rand`), scaled by 1/32767.
 
-1. Name the mech fields above in the headless Ghidra project and re-decompile.
-2. Identify component0 (`+0x38c` table), the vtable +0x1c value (throttle or
-   speed), `0x0045fb90` (likely the map's temperature) and the two state-8
-   components.
-3. Port 0x004192f0 with its state machines; differential-test it in Unicorn by
-   stubbing the calls it makes, as tests/differential/test_ztimer.py stubs
-   GetTickCount.
+## Frame rate
+
+The lava heat is added per frame, not per second: 0.05 a frame is 1.5/s at 30
+fps but 3/s at 60. Everything else scales with dt. Kept as the original for now;
+if the rebuild runs above the original's frame rate this is a candidate FIX (B)
+(`dt * 1.5`). Decision for Owen.
+
+## Open
+
+- The controls value at +0x37c vtable +0x1c: likely throttle.
+- Mission mode 3: heat always on and no death from critical heat; which mode?
+- Who sets the overheated bit (0x1000000): 0x419190 touches +0x69c.
