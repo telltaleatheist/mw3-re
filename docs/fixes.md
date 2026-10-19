@@ -84,6 +84,16 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   then neither queued nor drawn, so fake shadows vanish there (emulator; check
   in play).
 
+- Cloud shading, 0x543ac0: the table index uses the same 1.5 x 2^52 rounding,
+  so at 24-bit it is always 0 and the moving cloud pattern on the sun is a
+  constant (c1: a flat 70%) on Direct3D (emulator, render-lighting.md). If
+  confirmed in play, the hardware renderer never showed moving cloud
+  shadows; restoring them would be a FIX (bug).
+- Point lights just inside their near range, 0x545720: below near squared the
+  squared distance is compared as a distance, so a vertex can go dark
+  (near 32 / far 64: 0.875 at 6, 0 from 10 to 31, 1 at 32). How often shipped
+  lights show it is not checked.
+
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:

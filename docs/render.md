@@ -35,6 +35,13 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   the state cache, texture records (0x57b130), frame calls and the overlay
   flush, onto platform::Render3D: `zvideo/zvid_ddd3d`, `render-drawtable.md`
   (corrections to section 4's overlay types there).
+- Lighting: the light list (0x543b60), lights reaching a model (0x543d90),
+  the model needs (0x53daa0), polygon shading (0x545720), the cloud pattern
+  setters and sampler, light directions (0x4fb310, 0x4fb0c0):
+  `zmodel/gmod_light`, `render-lighting.md`. Correction to section 5: model
+  flag 0x20 also drops the sun's diffuse term (the sun gives min(1, ambient)).
+  Not ported: 0x544ed0, the baked static light (the sun reaches cached models
+  only through it), and the software lighting 0x544060.
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 

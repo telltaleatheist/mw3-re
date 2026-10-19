@@ -290,6 +290,14 @@ From the render path (render.md).
 - **The fog is always the colour of the sky band**, in every world.
 - **The sun only darkens.** Lighting can make a surface darker than its
   texture, never brighter.
+- **Hardware mode may never have shown the moving cloud shadows.** The code
+  for the sun's drifting cloud pattern rounds with a trick that only works at
+  full FPU precision, and Direct3D 6 puts the FPU in single precision, so the
+  pattern freezes to one value (in c1, a constant 70% sun). Software mode
+  should show it. Found in the emulator; still to be confirmed in play.
+- **The same trick may turn surfaces black next to coloured lights** in
+  hardware mode (textured surfaces lit by a coloured point light). Also
+  emulator-only so far.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
 
