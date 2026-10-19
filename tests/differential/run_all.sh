@@ -47,6 +47,9 @@ for t in \
     weapons_zrd \
     weapons_run \
     weapons_hit \
+    twod \
+    twod_blit \
+    twod_msgbox \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

@@ -73,6 +73,15 @@ add_library(mw3core STATIC
   src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
+  src/gamez/zrender/zrndr_blit.cpp
+  src/gamez/ztwod/twod_control.cpp
+  src/gamez/ztwod/twod_dialog.cpp
+  src/gamez/ztwod/twod_host.cpp
+  src/gamez/ztwod/twod_list.cpp
+  src/gamez/ztwod/twod_msgbox.cpp
+  src/gamez/ztwod/twod_object.cpp
+  src/gamez/ztwod/twod_textbox.cpp
+  src/gamez/ztwod/twod_wintext.cpp
   src/mech3/mech.cpp
   src/mech3/mech3_interp.cpp
   src/mech3/mech_config.cpp
@@ -130,6 +139,7 @@ add_library(mw3probe SHARED
   tests/probe_weapons.cpp
   tests/probe_weapons_run.cpp
   tests/probe_weapons_hit.cpp
+  tests/probe_twod.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

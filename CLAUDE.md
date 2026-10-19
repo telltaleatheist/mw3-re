@@ -262,6 +262,13 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       Left (`movement.md`, Left): Mech::Update 0x419fc0, collision, the
       engine's ground and segment queries (cls_di.c), animation sampling,
       the pose on the parts.
+- [ ] 2D front end (zTwoD): mapped (`docs/twod.md`); objects, layers, the
+      mouse routing, images, push and check buttons, text (GDI through
+      `ztwod::Host`), the cursor, sliders, list boxes, text boxes, the
+      message box, dialogs from their .zrd and the software blit ported,
+      emulator-checked on every shipped dialog (`test_twod.py`,
+      `test_twod_msgbox.py`, `test_twod_blit.py`). Left: the HUD
+      primitives, an SDL3 Host and the game's screens (twod.md 9).
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
       (`zeffect/zeff_anim_init`). Still hooked: the effect table (puffers
