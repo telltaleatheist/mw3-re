@@ -5,6 +5,6 @@ set -e
 cd "$(dirname "$0")/../.."
 cmake --build build
 ./build/mw3tests | tail -1
-for t in spans ztimer zreader heat power motion mechlib gamez anim textures; do
+for t in spans ztimer zreader heat power motion mechlib mechdef gamez anim textures; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

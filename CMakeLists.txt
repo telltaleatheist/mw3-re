@@ -21,6 +21,7 @@ add_library(mw3core STATIC
   src/gamez/zerror/zerr.cpp
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
+  src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/cls_mechlib.cpp
@@ -42,6 +43,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
+  src/mech3/mech_skin.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)

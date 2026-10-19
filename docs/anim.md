@@ -105,7 +105,8 @@ every ref list), 0x73f72c, 0x73f734.
 7. Fixup pass, below (defs 1..n-1).
 8. Messages: if 0x73f730 (global +0x10) > 0: `malloc(count * 0x24)` ->
    0x73f734, `fread(…, 0x24, count)`, then for each `+0x20 = 0x575f90(msg)`
-   (calls the hook in 0x72c670 if set, else 0). Shipped count is 0.
+   (calls the hook in 0x72c670 if set, else 0): the message-id lookup
+   `zutl::msg_id`, also used for the camo names. Shipped count is 0.
 9. `fclose`, 0.
 
 The event blobs are never looked into at load. The runtime walks them in

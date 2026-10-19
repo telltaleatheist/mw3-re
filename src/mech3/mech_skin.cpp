@@ -1,0 +1,109 @@
+#include "mech3/mech_skin.h"
+
+#include <cstring>
+#include <string>
+
+#include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zutl_msg.h"
+
+namespace mech3 {
+
+namespace {
+SkinGlobals g_skins;
+
+char* dup(const char* s) {
+  char* d = new char[std::strlen(s) + 1];
+  std::strcpy(d, s);
+  return d;
+}
+}  // namespace
+
+SkinGlobals& skin_globals() { return g_skins; }
+
+// Mech3.exe 1.2 @ 0x00473a30. With no alternate the two names share one copy.
+SkinEntry::SkinEntry(const char* n, const char* a) {
+  if (n) name = dup(n);
+  alt = a ? dup(a) : name;
+  g_skins.entries.push_back(this);
+  ++g_skins.entry_count;
+}
+
+// Mech3.exe 1.2 @ 0x00473e50. No entries yet; `count` is only reserved.
+Skin::Skin(const char* n, uint32_t count) : name(dup(n)) {
+  entries.reserve(count);
+}
+
+// Mech3.exe 1.2 @ 0x00474000
+void Skin::add_entry(const char* n, const char* a) { entries.push_back(new SkinEntry(n, a)); }
+
+// Mech3.exe 1.2 @ 0x00474500. Each base name plus the suffix (64-byte buffers
+// in the exe, unchecked); an alternate only where the base has its own.
+Skin* Skin::derive(const char* n, const char* suffix) {
+  if (entries.empty()) return nullptr;
+  Skin* s = new Skin(n, static_cast<uint32_t>(entries.size()));
+  for (const SkinEntry* e : entries) {
+    const std::string main = std::string(e->name) + suffix;
+    if (e->alt != e->name) {
+      s->add_entry(main.c_str(), (std::string(e->alt) + suffix).c_str());
+    } else {
+      s->add_entry(main.c_str(), nullptr);
+    }
+  }
+  return s;
+}
+
+// Mech3.exe 1.2 @ 0x00474f60. The first set built in damage mode fetches the
+// bullet-hole textures.
+SkinSet::SkinSet(int32_t count) {
+  if (count != 0) skins.reserve(count > 0 ? count : 0);
+  if (g_skins.damage_mode && g_skins.holes.empty()) {
+    static const char* const kHoles[] = {"hole_8x8",   "hole_8x8a",   "hole_8x8b",   "hole_8x8c",
+                                         "hole_16x16", "hole_16x16a", "hole_16x16b", "hole_16x16c"};
+    for (const char* h : kHoles)
+      if (void* t = g_skins.fetch_texture ? g_skins.fetch_texture(h) : nullptr) g_skins.holes.push_back(t);
+  }
+  ++g_skins.sets_built;
+}
+
+// Mech3.exe 1.2 @ 0x004752e0. A second "damage" skin replaces the first.
+bool SkinSet::add(Skin* skin) {
+  if (!skin || !skin->name) return false;
+  if (std::strcmp(skin->name, "damage") == 0) {
+    damage = skin;
+    return true;
+  }
+  skins.push_back(skin);
+  return true;
+}
+
+// The first pair is the full skin whatever its name; every later one except
+// "damage" is the first skin plus its suffix. Values are not type-checked.
+SkinSet* read_skins(zrdr::Node* dfn) {
+  zrdr::Node* found = zrdr::find(dfn, "skins");
+  if (!found) return nullptr;
+  zrdr::Node* list = found->list;
+  const int32_t pairs = (list[0].i - 1) / 2;
+  auto* set = new SkinSet(pairs);
+  for (int32_t i = 0; i < pairs; ++i) {
+    const char* name = zutl::localize(list[1 + 2 * i].s);
+    zrdr::Node* items = list[2 + 2 * i].list;
+    if (i == 0 || std::strcmp(name, "damage") == 0) {
+      const int32_t n = items[0].i - 1;
+      Skin* skin = new Skin(name, static_cast<uint32_t>(n));
+      set->add(skin);
+      for (int32_t k = 1; k <= n; ++k) {
+        const zrdr::Node& item = items[k];
+        if (item.type == zrdr::Int) skin->add_entry(nullptr, nullptr);
+        else if (item.type == zrdr::String) skin->add_entry(item.s, nullptr);
+        else if (item.type == zrdr::List) skin->add_entry(item.list[1].s, item.list[2].s);
+      }
+    } else {
+      // The exe calls derive on a null base when the set is empty (never in the data).
+      Skin* base = set->skins.empty() ? nullptr : set->skins[0];
+      if (Skin* skin = base ? base->derive(name, items[1].s) : nullptr) set->add(skin);
+    }
+  }
+  return set;
+}
+
+}  // namespace mech3

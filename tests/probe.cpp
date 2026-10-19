@@ -916,3 +916,75 @@ int probe_anim(const char* path, int fail_at, int full, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+#include "gamez/zutil/zutl_msg.h"
+#include "mech3/mech_skin.h"
+
+namespace {
+const char* const kSkinKeys[] = {"MSG_SKIN_PRIMARY",  "MSG_SKIN_VARIANTB", "MSG_SKIN_VARIANTC",
+                                 "MSG_SKIN_VARIANTD", "MSG_SKIN_VARIANTE", "MSG_SKIN_VARIANTF",
+                                 "MSG_SKIN_VARIANTG", "MSG_SKIN_VARIANTH"};
+const char* const kSkinNames[] = {"GUNMETAL", "SUNFIRE", "DESERT", "WASP", "SLATE", "JUNGLE", "ARCTIC", "SPECTRE"};
+int32_t g_fetches = 0;
+
+void put_cstr(std::vector<uint8_t>& b, const char* s) {
+  if (!s) return b.push_back(0xff);
+  put_bytes(b, s, std::strlen(s) + 1);
+}
+
+void put_skin(std::vector<uint8_t>& b, const mech3::Skin* s) {
+  b.push_back(s != nullptr);
+  if (!s) return;
+  put_cstr(b, s->name), b.push_back(s->loaded);
+  put_i32(b, static_cast<int32_t>(s->entries.size()));
+  for (const mech3::SkinEntry* e : s->entries) {
+    put_cstr(b, e->name);
+    b.push_back(e->alt == e->name);
+    if (e->alt != e->name) put_cstr(b, e->alt);
+    b.push_back(e->cached), b.push_back(e->damage == nullptr), b.push_back(e->b14);
+    put_i32(b, e->refs), b.push_back(e->texture == nullptr);
+  }
+}
+}  // namespace
+
+extern "C" {
+
+// The skins block of the mech reader on one dfn file (test_mechdef.py).
+// `localized` installs the eight MSG_SKIN_* names; `damage_mode` sets
+// 0x6061cc, with a texture fetch that fails for hole_8x8b.
+int probe_skins(const char* path, long offset, int localized, int damage_mode, uint8_t* out, int cap) {
+  if (probe_zrdr_load(path, offset) < 0) return -1;
+  mech3::skin_globals() = mech3::SkinGlobals{};
+  mech3::skin_globals().damage_mode = static_cast<uint8_t>(damage_mode);
+  g_fetches = 0;
+  mech3::skin_globals().fetch_texture = [](const char* name) -> void* {
+    const int32_t k = g_fetches++;
+    return std::strcmp(name, "hole_8x8b") == 0 ? nullptr : fake<void>(0x60000000u + 0x10u * k);
+  };
+  zutl::messages() = zutl::Messages{};
+  if (localized) {
+    zutl::messages().get_id = [](const char* name) -> int32_t {
+      for (int i = 0; i < 8; ++i)
+        if (std::strcmp(name, kSkinKeys[i]) == 0) return 0xf10 + i;
+      return 0;
+    };
+    zutl::messages().get_text = [](int32_t id) { return kSkinNames[id - 0xf10]; };
+  }
+  const mech3::SkinSet* set = mech3::read_skins(&g_probe_root);
+  if (damage_mode) set = mech3::read_skins(&g_probe_root);
+  std::vector<uint8_t> b;
+  b.push_back(set != nullptr);
+  if (set) {
+    put_i32(b, static_cast<int32_t>(set->skins.size()));
+    for (const mech3::Skin* s : set->skins) put_skin(b, s);
+    put_skin(b, set->damage);
+  }
+  const mech3::SkinGlobals& g = mech3::skin_globals();
+  put_i32(b, g.entry_count), put_i32(b, g.sets_built), put_i32(b, static_cast<int32_t>(g.entries.size()));
+  for (const mech3::SkinEntry* e : g.entries) put_cstr(b, e->name);
+  put_i32(b, static_cast<int32_t>(g.holes.size()));
+  for (void* h : g.holes) put_i32(b, static_cast<int32_t>(id(h)));
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

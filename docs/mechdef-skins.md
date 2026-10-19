@@ -1,7 +1,12 @@
 # Mech definition: skins
 
-Mech3.exe 1.2, 2026-10-19. Mapped from the asm, nothing ported or run in
-the emulator yet. The mech
+Mech3.exe 1.2, 2026-10-19. Ported: `src/mech3/mech_skin.*` (the five
+functions and the reader's skins block as `read_skins`) and the localizer
+0x575f90 / 0x575fb0 (`src/gamez/zutil/zutl_msg.*`, the DLL calls as FIX (A)
+hooks). `tests/differential/test_mechdef.py` runs the original block on all
+19 `dfn_*.zrd`, with and without the camo names and the damage mode: every
+skin, entry, the global entry list and the hole textures match. Not ported:
+the texture loading and damage linking (Next layer, below). The mech
 definition reader 0x46ba40 (`mech3\mech_reader.cpp`) reads the `skins` list of
 each `dfn_<mech>.zrd` into a `SkinSet` at `MechDfn` +0x1c. The skin code lives
 between `mech_salvage.cpp` and `mech_waynet.cpp`, around the one function
