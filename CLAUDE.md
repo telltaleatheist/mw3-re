@@ -150,6 +150,6 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [x] Network: message types mapped (`docs/network-messages.md`); state sync.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
-- [ ] Power: port Mech::Power (0x41cc30) and FinishPowerDown (0x41cac0).
+- [x] Power: ported and emulator-checked (`docs/heat.md`).
 - [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
       an emulator check over every `dfn_*.zrd`.

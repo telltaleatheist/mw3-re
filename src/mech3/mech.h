@@ -28,7 +28,12 @@ enum : uint32_t {
   kPoweredDown = 0x2000000,
 };
 
+struct Vec3 {
+  float x, y, z;
+};
+
 struct Mech {
+  Vec3 vec_3c;               // +0x03c  zeroed on power-down (ZEntity3d)
   float height;              // +0x068  from the model's bounding box, 12 if none
   void* ammo;                // +0x0d4  weapons and ammo bins
   bool power_down_pending;   // +0x0dc
@@ -40,20 +45,29 @@ struct Mech {
   float heat_added;          // +0x558  this frame
   float heat_dissipation;    // +0x55c  this frame
   float masc_time;           // +0x574  non-zero while MASC is on
+  int32_t anim_state;        // +0x578  1, 12, 13 let a power-down finish; 10 cancels it
+  bool no_power_down;        // +0x584  likely airborne
   int32_t jump_jets_firing;  // +0x580
+  uint8_t hud_saved;         // +0x587  the screen state kept while powered down
+  Sound loops[3];            // +0x5b8  stopped on power-down
   Sound heat_beep;           // +0x5cc
   Sound heat_alarm;          // +0x5d0
   Sound shutdown_warning;    // +0x608
+  Sound power_up_sound;      // +0x5d4
+  Sound power_down_sound;    // +0x5d8
   Sound shutdown_voice;      // +0x60c
   bool heat_death_disabled;  // +0x630
   HeatSinks heat_sinks;      // +0x658
   void* owner;               // +0x684  pilot / HUD side
+  uint32_t sound_flags;      // +0x688  bit 0: power sounds
   uint32_t heat_state;       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24 override, 25 powered down
   float shutdown_time;       // +0x6a0
   float beep_time;           // +0x6a4
   float voice_time;          // +0x6a8
 
   bool is_powered_down() const;
+  void power(int power_down);   // 0x0041cc30
+  void finish_power_down();     // 0x0041cac0
   Foot* foot(int leg) const;
 };
 
@@ -77,10 +91,14 @@ struct HeatCalls {
   Sound (*play_sound)(Mech&, int id) = nullptr;             // 0x00432990 on +0x684
   void (*stop_sound)(Sound) = nullptr;                      // 0x0056e9f0
   void (*play_mech_sound)(int index) = nullptr;             // 0x0041e770
-  void (*power)(Mech&, int on) = nullptr;                   // 0x0041cc30
+  void (*power)(Mech&, int on) = nullptr;                   // test hook; unset calls Mech::power
   void (*torso_hit)(Mech&, int explode) = nullptr;          // torso vtable +0x20 (explode, 1)
   bool (*ammo_explosion)(Mech&) = nullptr;                  // 0x004b0de0 on +0x0d4
   void (*hud_message)(float seconds, int message) = nullptr;  // 0x0040fe70
+  void (*stop_controls)(Mech&, int arg) = nullptr;          // +0x37c vtable +0x4c (Stop)
+  uint8_t (*screen_power_down)(void* screen) = nullptr;     // 0x0043bb20
+  void (*screen_power_up)(void* screen, uint8_t saved) = nullptr;  // 0x0043bb50
+  Sound (*play_sound_at)(Mech&, int id) = nullptr;          // 0x00432990 at the mech's position
 };
 HeatCalls& heat_calls();
 

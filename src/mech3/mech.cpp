@@ -54,6 +54,42 @@ float HeatSinks::rate() const {
 // Mech3.exe 1.2 @ 0x0041cc10
 bool Mech::is_powered_down() const { return power_down_pending || powered_down; }
 
+// Mech3.exe 1.2 @ 0x0041cc30. Ignored during a heat shutdown; a power-down
+// only asks, and finish_power_down completes it when the mech can stop.
+void Mech::power(int power_down) {
+  if (heat_shutdown) return;
+  if (power_down) {
+    if (no_power_down) return;
+    power_down_pending = true;
+    if (g_calls.stop_controls) g_calls.stop_controls(*this, power_down);
+    return;
+  }
+  if (!is_powered_down()) return;
+  if (g_calls.stop_controls) g_calls.stop_controls(*this, 0);
+  void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
+  if (screen && g_calls.screen_power_up) g_calls.screen_power_up(screen, hud_saved);
+  if ((sound_flags & 1) && g_calls.play_sound_at) power_up_sound = g_calls.play_sound_at(*this, 7);
+  powered_down = false;
+  power_down_pending = false;
+}
+
+// Mech3.exe 1.2 @ 0x0041cac0
+void Mech::finish_power_down() {
+  if (!power_down_pending) return;
+  const bool can_stop = anim_state == 1 || anim_state == 12 || anim_state == 13;
+  if (!can_stop || no_power_down) {
+    if (anim_state == 10) power_down_pending = false;
+    return;
+  }
+  powered_down = true;
+  power_down_pending = false;
+  vec_3c = {0, 0, 0};  // 0x0063d870
+  void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
+  if (screen && g_calls.screen_power_down) hud_saved = g_calls.screen_power_down(screen);
+  for (Sound& s : loops) stop(s);
+  if ((sound_flags & 1) && g_calls.play_sound_at) power_down_sound = g_calls.play_sound_at(*this, 8);
+}
+
 // Mech3.exe 1.2 @ 0x0041d4f0
 Foot* Mech::foot(int leg) const { return legs[leg] ? legs[leg]->foot : nullptr; }
 
@@ -210,7 +246,7 @@ void update_heat(Mech& m, float dt) {
       case 2:
         m.voice_time = w.time + 4.0f;
         if (player) m.shutdown_voice = play(m, kSoundShutdown);
-        if (g_calls.power) g_calls.power(m, 1);
+        g_calls.power ? g_calls.power(m, 1) : m.power(1);
         m.heat_shutdown = true;
         s = next_shutdown(s, 1);
         break;
@@ -270,7 +306,7 @@ void update_heat(Mech& m, float dt) {
       case kPoweredDown | kOverride | 3:
         if (m.heat <= kRecover && w.time > m.shutdown_time) {
           m.heat_shutdown = false;
-          if (g_calls.power) g_calls.power(m, 0);
+          g_calls.power ? g_calls.power(m, 0) : m.power(0);
           s &= ~0x38u;
         }
         break;

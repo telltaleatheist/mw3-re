@@ -107,6 +107,22 @@ fps but 3/s at 60. Everything else scales with dt. Kept as the original for now;
 if the rebuild runs above the original's frame rate this is a candidate FIX (B)
 (`dt * 1.5`). Decision for Owen.
 
+## Powering down and up
+
+Ported (`Mech::power`, `Mech::finish_power_down`), checked by
+`tests/differential/test_power.py` over every combination of the flags read.
+
+`Mech::Power` (0x41cc30): ignored while a heat shutdown is in progress (+0xdd).
+Power-down only sets "pending" (+0xdc) and stops the controls (+0x37c vtable
++0x4c), and not at all while +0x584 is set (likely airborne). Power-up, if
+powered down, restarts the controls, restores the HUD (0x43bb50 with the byte
+saved at +0x587), plays sound 7 when +0x688 bit 0 is set, and clears both flags.
+
+0x41cac0 finishes a pending power-down once the mech's animation state (+0x578)
+is 1, 12 or 13 and +0x584 is clear: powered down, the vector at +0x3c zeroed,
+the HUD state saved (0x43bb20), the three looping sounds at +0x5b8 stopped and
+sound 8 played. Animation state 10 cancels the request instead.
+
 ## The shutdown override (bit 24)
 
 Command 0x40 in the mech's command handler (0x41be80) calls 0x419190(1): for

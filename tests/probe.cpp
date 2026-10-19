@@ -314,3 +314,47 @@ int probe_tex_load(const char* name, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+extern "C" {
+
+// Power on/off: fields in, call log out. f: [vec x,y,z]; i: pending, heat_shutdown,
+// powered_down, anim_state, no_power_down, hud_saved, loops[3], up, down,
+// sound_flags, player, screen, screen_byte. op 0/1 = power(op), 2 = finish.
+int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
+  mech3::Mech& m = g_mech;
+  m = mech3::Mech{};
+  m.vec_3c = {f[0], f[1], f[2]};
+  m.power_down_pending = i[0], m.heat_shutdown = i[1], m.powered_down = i[2];
+  m.anim_state = i[3], m.no_power_down = i[4], m.hud_saved = static_cast<uint8_t>(i[5]);
+  for (int k = 0; k < 3; ++k) m.loops[k] = snd(i[6 + k]);
+  m.power_up_sound = snd(i[9]), m.power_down_sound = snd(i[10]);
+  m.sound_flags = static_cast<uint32_t>(i[11]);
+  mech3::world().player = i[12] ? &m : nullptr;
+  g_script.screen = i[13];
+  static int32_t screen_byte;
+  screen_byte = i[14];
+  g_script.next_sound = 100;
+  g_log.clear();
+  mech3::HeatCalls& c = mech3::heat_calls();
+  c.stop_sound = [](mech3::Sound s) { log3(3, snd(s), 0); };
+  c.screen = [](mech3::Mech&) -> void* { return g_script.screen ? &g_script : nullptr; };
+  c.stop_controls = [](mech3::Mech&, int a) { log3(9, a, 0); };
+  c.screen_power_down = [](void*) { log3(10, screen_byte, 0); return static_cast<uint8_t>(screen_byte); };
+  c.screen_power_up = [](void*, uint8_t b) { log3(11, b, 0); };
+  c.play_sound_at = [](mech3::Mech&, int id) {
+    log3(2, id, static_cast<int32_t>(g_script.next_sound));
+    return snd(static_cast<int32_t>(g_script.next_sound++));
+  };
+  if (op == 2) m.finish_power_down();
+  else m.power(op);
+  f[0] = m.vec_3c.x, f[1] = m.vec_3c.y, f[2] = m.vec_3c.z;
+  i[0] = m.power_down_pending, i[1] = m.heat_shutdown, i[2] = m.powered_down;
+  i[3] = m.anim_state, i[4] = m.no_power_down, i[5] = m.hud_saved;
+  for (int k = 0; k < 3; ++k) i[6 + k] = snd(m.loops[k]);
+  i[9] = snd(m.power_up_sound), i[10] = snd(m.power_down_sound);
+  const int n = static_cast<int>(g_log.size());
+  for (int k = 0; k < n && k < cap; ++k) log[k] = g_log[k];
+  return n;
+}
+
+}  // extern "C"
