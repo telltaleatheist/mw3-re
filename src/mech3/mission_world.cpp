@@ -21,26 +21,9 @@ WorldHooks g_hooks{};
 
 bool hardware() { return zrndr::device_fog().active != 0; }  // 0x0072f348
 
-zcls::World* world_data(Node* world) { return static_cast<zcls::World*>(world->data); }
-
-// zClass\cls_world.c getters, not in cls_world.cpp yet: they copy the world's
-// fog back out, in the setters' layout.
-// Mech3.exe 1.2 @ 0x004f24c0
-void world_get_fog_range(Node* world, float* near_range, float* far_range) {
-  *near_range = world_data(world)->get<float>(0x20);
-  *far_range = world_data(world)->get<float>(0x24);
-}
-// Mech3.exe 1.2 @ 0x004f24a0
-void world_get_fog_color(Node* world, float* r, float* g, float* b) {
-  *r = world_data(world)->get<float>(0x14);
-  *g = world_data(world)->get<float>(0x18);
-  *b = world_data(world)->get<float>(0x1c);
-}
-// Mech3.exe 1.2 @ 0x004f24e0
-void world_get_fog_altitude(Node* world, float* at_2c, float* at_28) {
-  *at_28 = world_data(world)->get<float>(0x28);
-  *at_2c = world_data(world)->get<float>(0x2c);
-}
+using zcls::world_get_fog_altitude;
+using zcls::world_get_fog_color;
+using zcls::world_get_fog_range;
 }  // namespace
 
 Environment& environment() { return g_env; }

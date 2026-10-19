@@ -209,8 +209,12 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       (`zeffect/zeff_anim_init`). Still hooked: puffers, zSound's lookup,
       the effect table. Next the post-load pass 0x50ae60, mapped with a
       porting order in `docs/anim-postload.md`.
-- [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
-      dispatcher table (order in `docs/interp.md`), checked by a command trace.
+- [x] Mission scripts: the archive, reader, macros, preprocessor, dispatcher
+      and every command's arguments ported (`gamez/zinterp`,
+      `mech3/mech3_interp`), identical on every shipped script and on the six
+      worlds (`docs/interp.md` section 5). Engine calls go through
+      `zint::engine()`; the unported ones are null until their modules land.
+      Open: the debug console 0x5960a0, the mission load 0x48faf0.
 - [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,
       `gamez.md`, `anim.md`); trace what remains in `docs/assets.md`, one per sitting,
       cross-checked against mech3ax.

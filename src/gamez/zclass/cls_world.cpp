@@ -56,6 +56,24 @@ int world_set_fog_density(Node* world, float density) {
   return 0;
 }
 
+// The getters copy the fog back out, in the setters' layout.
+// Mech3.exe 1.2 @ 0x004f24a0
+void world_get_fog_color(Node* world, float* r, float* g, float* b) {
+  *r = world_of(world)->get<float>(0x14);
+  *g = world_of(world)->get<float>(0x18);
+  *b = world_of(world)->get<float>(0x1c);
+}
+// Mech3.exe 1.2 @ 0x004f24c0
+void world_get_fog_range(Node* world, float* near_range, float* far_range) {
+  *near_range = world_of(world)->get<float>(0x20);
+  *far_range = world_of(world)->get<float>(0x24);
+}
+// Mech3.exe 1.2 @ 0x004f24e0
+void world_get_fog_altitude(Node* world, float* at_2c, float* at_28) {
+  *at_28 = world_of(world)->get<float>(0x28);
+  *at_2c = world_of(world)->get<float>(0x2c);
+}
+
 // Mech3.exe 1.2 @ 0x004f1df0. With more than one world every setting is
 // pushed. Fog type 0 is off, 1 linear, anything else on but not linear.
 int world_push_fog(Node* world) {

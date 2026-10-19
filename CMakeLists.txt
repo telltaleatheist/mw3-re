@@ -37,6 +37,8 @@ add_library(mw3core STATIC
   src/gamez/zclass/sound.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zimage/zimg_library.cpp
+  src/gamez/zinterp/zinterp.cpp
+  src/gamez/zinterp/zinterp_parse.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmath/zmth_matrix.cpp
   src/gamez/zmodel/gmod_bake.cpp
@@ -55,6 +57,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
+  src/mech3/mech3_interp.cpp
   src/mech3/mech_config.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_reader.cpp
@@ -71,7 +74,7 @@ endif()
 
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
-add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp)
+add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp tests/probe_interp.cpp)
 target_link_libraries(mw3probe PRIVATE mw3core)
 
 enable_testing()
