@@ -4,11 +4,13 @@
 // into unported code is logged as (code, args...) on both sides.
 #include <cstdint>
 #include <cstring>
+#include <new>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 
@@ -381,7 +383,8 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
   int32_t r = 0;
   switch (op) {
     case 0: {
-      g->type = WeaponType{};
+      g->type.~WeaponType();
+      new (&g->type) WeaponType();
       g->type.id = a[6];
       std::memcpy(&g->type.heat_2, &a[1], 4);
       std::memcpy(&g->type.zaps_hud, &a[2], 4);
@@ -390,7 +393,7 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
       g->type.is_narc = a[5] != 0;
       g->def = WeaponDef{};
       g->def.flags = static_cast<uint32_t>(a[0]);
-      g->def.military_name = a[7] ? "NUKE" : "LRM20";
+      g->def.desc = a[7] ? "NUKE" : "LRM20";
       g->def.type = &g->type;
       g->coll.x20 = h(static_cast<uint32_t>(a[8]));
       g->coll.node = h(static_cast<uint32_t>(a[9]));

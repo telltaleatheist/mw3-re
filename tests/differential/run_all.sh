@@ -46,6 +46,9 @@ for t in \
     shadows \
     puffers \
     sound \
+    weapons_zrd \
+    weapons_run \
+    weapons_hit \
     ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1

@@ -1,471 +1,474 @@
-# Weapons at run time (draft)
+# Weapons at run time
 
-Research notes, not yet checked in an emulator. Every claim gives the address it
-comes from; "likely" marks an inference. Read with `docs/structs.md` (Weapons),
-`docs/heat.md` and `docs/types.json` (ZWeaponDef, WeaponType).
+Mech3.exe 1.2, 2026-10-21. Two halves, like the source tree: zWeapon in the
+engine (`gamez/zweapon`, 0x581230..0x586b70 and `zwep_init.c` 0x583880) and
+the game's `mech3\weapon.cpp` (0x4af5a0..0x4b5000). Read with
+`docs/structs.md` (Weapons), `docs/heat.md` and `docs/damage.md`
+(TakeDamage, the receiving end). Every claim gives its address; "likely"
+marks an inference.
+
+## Status
+
+Ported and emulator-checked (24-bit x87, floats bit for bit, every call out
+logged on both sides):
+
+| Piece | Port | Test |
+|---|---|---|
+| weapons.zrd into the definitions: 0x583880, effect blocks 0x584bb0, find 0x581ed0, shutdown 0x584930; the MW3 half WeaponType 0x4af5a0 / 0x4b0020 / 0x4afb10; the mech lab's weights 0x484b70..0x484c00 | `gamez/zweapon/zwep_init`, `mech3/weapon` | `test_weapons_zrd.py`: the real file (49 defs) and 300 variants, every def, impact block and WeaponType byte for byte, 41 paths |
+| The manager, groups, bins, projectile and beam weapons (0x4b00d0..0x4b4f00 but the AI planner), the def callbacks (salvo marks 0x4afc00, airstrike 0x4afed0, LB-X burst 0x4b44d0), the AI's LRM wait, the mech lab's rounds | `mech3/weapon` | `test_weapons_run.py`: 600 managers, 44,000 operations, 125,000 calls, 60 paths |
+| zWeapon's fire state setters (0x581f60..0x581fd0), the damage path (beam damage 0x583020, hand-off 0x583480, impact 0x5826b0, splash 0x582920 / 0x5829b0, hit 0x586350, air burst 0x582320) and the flight step 0x585cc0 | `gamez/zweapon/zweapon` | `test_weapons_hit.py`: 20,000 operations on the real defs, 48 paths |
+| Vector and quaternion helpers 0x51dfa0, 0x51e3d0, 0x51e740, 0x525490, 0x525840 | `gamez/zmath/zmth_vector` | through the two tests above |
+
+Left: see the last section.
 
 ## Three layers
 
 | Layer | Made by | Size | What it is |
 |---|---|---|---|
-| ZWeaponDef | 0x583880 (zwep_init.c) | 0x1f4 | one per `BALLISTICS` entry in `weapons.zrd` |
+| WeaponDef | 0x583880 (zwep_init.c) | 0x1f4 | one per `BALLISTICS` entry in `weapons.zrd`, a table at 0x9a0eac (count 0x9a0ea8) |
 | WeaponType | 0x4af5a0 | 0xc8 | the MW3 half of each def, at def +0x1f0 |
 | MechWeaponTable | data at 0x5e64f0 | 37 x 0x18 | the weapons the mech lab knows: name, message id, family, index, availability, uses ammo |
 | WeaponManager | ctor 0x4b00d0, dtor 0x4b01d0 | 0x94 | one per vehicle, at Vehicle +0xd4 |
 | WeaponGroup | ctor 0x4b1d80 | 0x54 | five per manager |
 | Weapon (projectile) | ctor 0x4b2530, vtable 0x5c9088 | 0x98 | one per mounted weapon |
-| BeamWeapon | ctor 0x4b3c10, vtable 0x5c90c0 | 0xa4 | subclass for defs with BEAM (def flag bit 1) |
-| AmmoBin | built inline in 0x4b2530 / 0x4b3c10 | 0x18 | ammo pool, or a beam's charge |
+| BeamWeapon | ctor 0x4b3c10, vtable 0x5c90c0 | 0xa4 | for defs with BEAM (def flag bit 1) |
+| AmmoBin | in the weapon ctors | 0x18 | ammo pool, or a beam's charge |
+| Projectile | pool at 0x9a0eb4 | 0x5d8 | a shot in flight (zWeapon) |
+| Beam | 0x584a70 | 0x150 | a beam in the air (zWeapon) |
 
-### FIRE_RATE is stored inverted
+## Definitions: weapons.zrd (0x583880)
 
-The zwep reader stores `def+0x14 = 1 / FIRE_RATE` (0x583e84: `fld 1.0; fdiv value`).
-So def +0x14 is the **period, seconds per shot**. MGUN `FIRE_RATE 4` fires every
-0.25 s, AC 0.5 every 2 s, Ultra AC 1.0 every 1 s, LRM/PPC 0.25 every 4 s, SRM 0.2
-every 5 s, Gauss 0.4 every 2.5 s. Beams have `FIRE_RATE 0.0001`, so def +0x14 =
-10000: for beams it is "charge units per second", not a period (see Beams).
-`types.json` calls +0x14 `fire_rate`; `period` would be truer.
+Called at mission load (0x490173) with ECX the world, EDX `weapons.zrd`, a
+zero argument kept at 0x9a0ec0 and the callback 0x4b0020 that makes each
+WeaponType. Top level: `VERSION` must be 2 (else error 0x400 and -1);
+`LOCK_ON_WARNING`, `NO_AMMO_WARNING`, `TRIGGER_INACTIVE`, `WEAPON_INACTIVE`
+are sounds (0x9a177c, 0x9a1794, 0x9a1798, 0x9a179c, none in the file);
+`MAX_CRATER_RADIUS` (0x9a1784, 30 by the startup 0x583750); `BALLISTICS` is
+`name (keys...)` pairs.
 
-### The mech-lab weapon table (0x5e64f0)
+Each def starts as: ammo limit 50, range 500, velocity 120, damage 0.1, turn
+and pitch rate 0.16, flag DETONATE_ON_WATER, index = (short) its position,
+six zeroed impact blocks. Then, in this order (field offsets in
+`zwep_init.h`):
 
-37 entries, index 0..0x24, 6 dwords each: name, message id, family, index,
-availability (1/2/3, likely clan/sphere/both), uses-ammo byte (+0x14).
-`0x4848a0` maps a name to its index (stricmp), `0x484900` index to name ("noweapon"
-if out of range), `0x484960` reads uses-ammo. The table has AC2..AC20, the ER, plain
-and pulse lasers, ERPPC, Flamer, Gauss, LB2..20X, LRM5..20, MGUN, NARC, SRM2..6,
-Streak SRM2..6, TAG (index 0x20) and the four Ultra ACs.
+- `NAME` (+4, else the key), `DESC` and `MILITARY_NAME` through the message
+  table, strdup'd (+8, +0xc, else the key). Damage's "killed by a nuke" test
+  compares +8 (`docs/damage.md`).
+- `ACCELERATION` +0x38, `AMMO_LIMIT` +0x18.
+- `BEAM`: flags BEAM and TIMED_DAMAGE, velocity 10000, energy 1, damage at max
+  range 0.25, pulse (1, 0.5, 0.75); inside, `BOUNCES`, `TIMED_DAMAGE`,
+  `ENERGY`, `TIME_TO_MAX_RANGE` (velocity = 1 / it, 10000 when <= 0),
+  `DAMAGE_AT_MAX_RANGE`, `PULSE` (three values: 1 / the first, 0.125 when
+  <= 0, then the other two). The file writes `BOUNCE`: never read.
+- `CATCHES_FIRE`; `CRATER` (flag, the crater module's defaults twice from
+  0x60bfc0, then `points`, `radius`, `depth` as (min max): minimums at
+  +0x174.., spans at +0x19c..); `DAMAGE` +0x48; `DETONATION_DISTANCE`
+  (squared, +0x44); `DETONATE_AT_RANGE`, `DETONATE_ON_WATER`;
+  `DESTROY_ANIMATION` +0x168; `RANDOM_DEVIATION`; `EXPIRES`; `FIRE_RATE`
+  (+0x14 = 1 / it: the period, seconds per shot); `FIXED_ROTATE`; `GRAVITY`
+  +0x4c (behind a LOCK_ON test that is dead: LOCK_ON is read later);
+  `HIT_OWNER`; `IMPACT_PROXIMITY` (+0x3c and squared +0x40); `IMPACT_TYPE`;
+  `INSTANT`; `LOCK_ON` (+0x50 and the flag); `LOCK_ON_LEAD` (+0x70..+0x78);
+  `MINE`; `MULTI_TARGET`; `QUICKSAND` (flag; a crater block if CRATER did not
+  give one); `RANGE` (+0x1c, squared +0x20); `RANGE_MINIMUM` (flag, +0x24,
+  +0x28); `RELATIVE_SPEED`, `REMOTE_DETONATE`, `TETHER_GUIDED`; `TURN_RATE`,
+  `TURN_SUSPEND_TIME`, `PITCH_RATE`; `VELOCITY` (not for beams); `RELOAD`.
+- The WeaponType callback, then the `FIRE` (+0x84) and `FLYOUT` (+0xe0)
+  effect blocks, `FLYOUT_HEALTH` (+0x80 as a float, else -1),
+  `SHOW_ON_RADAR`.
+- `IMPACT`: `default`, then one block per soil kind in 0x5edbc0's order:
+  water, seafloor, quicksand, lava, fire. A kind not listed copies default; a
+  listed one without `ANIMATION_MIN_RANGE` takes default's. Then
+  `ANIMATION_ALWAYS`, `FREEZE` / `HEAT` / `DESIGNATE` (six values into
+  +0x1c8; DESIGNATE also sets +0x44 from its sixth, drops the heat flags and
+  sets bit 12), `KILL_ANIMATION` +0x16c, `DAMAGE_ANIMATION` (count 1, health
+  1.0), and on Direct3D only (0x72f348) `DAMAGE_ANIM_ON_HEALTH`, (health anim)
+  pairs from +0x148.
+- After each def: with gravity, +0x1e0 = v^2 / 2g and the velocity is replaced
+  by sqrt(2 g range) through the bit trick (none shipped: every GRAVITY is 0);
+  a FLYOUT model is set active and bit 9 records whether no node in its tree
+  is unlit-data (0x4f9e00 with 0x4f9de0); a projectile def adds
+  1 + ftol(range / velocity / period) slots to the pool.
 
-### WeaponType fields (0x4af5a0), adding to types.json
+The effect block (0x5c, 0x584bb0): +0 flags (bit 0 `RANDOM_ROTATE`, bit 1
+`ANIMATION`'s second value: the fire animation follows the firepoint),
++4 `ANIMATION`, +0xc `ANIMATION_ATTACHED`, +0x10 `MODEL_ANIMATION`, +0x14
+`SURFACE_ANIMATION`, +0x18 `ANIMATION_MIN_RANGE`, +0x1c `EFFECT` (else
+`MODEL` +0x20, a node of list 6), +0x24 `SOUND` count and four sounds,
++0x38 `BOUNCE_SOUND` count and four, +0x4c / +0x50 the next shot's sound and
+animation choice (0x581f70 / 0x581f90), +0x54 / +0x58 the node and offset it
+is attached to (0x581fd0), cleared by the reader.
+
+The pool: 164 projectiles on the shipped file for the whole mission, a free
+list through +0 (0x9a0eb8). An empty pool drops the shot (0x585053) after the
+weapon has spent its ammo and heat.
+
+### WeaponType (0x4af5a0)
 
 | Offset | Key | Notes |
 |---|---|---|
-| +0x00 | — | mech-lab index (0x4848a0 on the def name), -1 if not a mech weapon |
-| +0x08, +0x0c | HEAT | first value is the firing heat |
-| +0x10 | SHOW_ON_RADAR | |
-| +0x14, +0x18 | ZAPS_HUD | two numbers (int or float) |
-| +0x1c, +0x20, +0x24 | MASS `clan` (tons, slots), present flag | slots via ftol |
-| +0x28, +0x2c, +0x30 | MASS `sphere` (tons, slots), present flag | |
-| +0x34 | — | tons per round = 1 / +0x38 (0x484bc0 returns it to the mech lab) |
-| +0x38 | MASS `ammo` | rounds per ton, **multiplied by SALVO truecount** when SALVO exists: LRM20 6 x 20 = 120, MGUN 50 x 4 = 200, matching the dfn files |
-| +0x3c | SALVO count | 1 if SALVO exists without count; 0 without SALVO |
-| +0x40 | SALVO delta | 0.1 default; not used in weapon.cpp (likely GameZ) |
-| +0x44 | SALVO truecount | defaults to count |
+| +0x00 | — | mech-lab index (0x4848a0 on the def's NAME), -1 if none |
+| +0x08, +0x0c | HEAT | firing heat, then heat added to the target (0 in every weapon) |
+| +0x10 | SHOW_ON_RADAR | an int list item only |
+| +0x14, +0x18 | ZAPS_HUD | int or float; the second slot reads the **first** value again (0x4af71b): ERPPC's `(0.5 2.0)` gives 0.5, 0.5 |
+| +0x1c..+0x30 | MASS `clan`, `sphere` | tons, slots (ftol), present |
+| +0x34 | — | tons per round, 1 / +0x38 |
+| +0x38 | MASS `ammo` | rounds per ton x SALVO truecount when SALVO exists |
+| +0x3c, +0x40, +0x44 | SALVO count, delta, truecount | count 1, delta 0.1, truecount = count by default |
 | +0x48 | IMPACT_FORCE | |
 | +0x4c | ISNARC | |
-| +0x50, +0x54, +0x58 | BURST radius, count, `wep` (a ZWeaponDef*) | BURST also adds the burst weapon's range to +0x70 and sets def flag bit 25 (DETONATE_AT_RANGE) |
-| +0x5c, +0x60 | U_LOOPED, U_RECHARGE_SND | sounds |
-| +0x64..+0x6c | NAMESOUND | three sounds |
-| +0x70..+0x7c | range, range², range/2, (range/2)² | the half range is used by beams under water (see below) |
-| +0x80 | — | constructor argument (byte) |
-| +0x8c, +0x90 | SALVO radius (squared), delay | when both > 0 a GameZ callback is registered (0x584de0) |
-| +0x94 | RECOIL | applied to the firing part |
-| +0x98 | U_RECHARGE_TIME | **stored converted**: `period * U_FIRE_TIME / U_RECHARGE_TIME` (0x4af9be) = charge units regained per second |
+| +0x50, +0x54, +0x58 | BURST radius, count, `wep` | with a known `wep`: +0x70 += its range, def flag DETONATE_AT_RANGE, callback 0x4b44d0 |
+| +0x5c, +0x60 | U_LOOPED, U_RECHARGE_SND | MGUN alone has a loop |
+| +0x64..+0x6c | NAMESOUND | name, `mech_part_damage`, `mech_part_destroy` |
+| +0x70..+0x7c | — | range, range^2, range / 2, (range / 2)^2 (the halves not raised by BURST) |
+| +0x80 | — | the low byte of the ctor's first argument, the reader node's address: meaningless |
+| +0x84, +0x88 | — | the salvo marks list (0x4afc00) |
+| +0x8c, +0x90 | SALVO radius (squared), delay | both > 0: callback 0x4afe70 |
+| +0x94 | RECOIL | |
+| +0x98 | U_RECHARGE_TIME | stored as period x fire time / recharge time |
 | +0x9c | U_FIRE_TIME | 0.5 default |
-| +0xa0 | U_DESIGNATE_AIRSTRIKE | a ZWeaponDef* (TAG calls in `TAG_MISSILE`) |
-| +0xc0 | — | LRM5..20 only (index 0x11..0x14): `range * 0.7 / clamp(velocity, 100, 5000)` = flight time to 70% of range; use not traced (likely arming or RANGE_MINIMUM) |
+| +0xa0 | U_DESIGNATE_AIRSTRIKE | the strike's def (TAG: TAG_MISSILE); callback 0x4afea0 |
+| +0xa4..+0xbc | — | the airstrike's lock: point, flag 1, no entity, a pointer to the point, no velocity |
+| +0xc0 | — | LRMs (index 0x11..0x14): range x 0.7 / clamp(velocity, 100, 5000) |
+| +0xc4 | — | the AI fires this type again from this game time (0x4b4c70, set by the AI through 0x4b4c90 to now + +0xc0; 0x4b4bd0 resets them) |
+
+The mech lab reads the weights and slots through 0x581ed0 then +0x1f0
+(`mech3::weapon_weight`, `ammo_weight`, `weapon_slots`); 0x4b4900 gives the
+lab's rounds for a weapon: min(rounds per ton, n), or 100 / 20 / 1 without a
+def.
 
 ## The manager (Vehicle +0xd4)
 
-Made in the mech constructor (0x414daf, `new 0x94`, `0x4b00d0(this)`) and, for other
-vehicles, by 0x4b4660 (weapon.cpp, reads the vehicle's `weapons` list).
+Made in the mech constructor (0x414daf) and, for other vehicles, by 0x4b4660
+(not ported, reads the vehicle's `weapons` list).
 
 | Offset | Field |
 |---|---|
 | +0x00 | trigger down now (0x4b0c20 copies it to +0x01 first) |
 | +0x01 | trigger down last frame |
-| +0x04 | trigger state this frame: 1 pressed, 2 held, 3 released (0x4b0c30) |
-| +0x08 | alpha-strike end time (game time), 0 when none |
-| +0x0c..+0x14 | aim point (vec3) |
-| +0x18 | aim point valid (0x4b0bc0) |
-| +0x1c | fire mode: 0 chain, 1 single, 2 group (likely names; see Firing) |
+| +0x04 | 1 pressed, 2 held, 3 released, 0 neither (0x4b0c30) |
+| +0x08 | alpha-strike end, clock time ([0x72c530]); 0 none |
+| +0x0c..+0x18 | aim point, valid (0x4b0bc0) |
+| +0x1c | fire mode: 0 chain, 1 single, 2 group |
+| +0x20 | weapons destroyed (0x4b1040, 0x4b1110) |
 | +0x24 | weapon count |
-| +0x28 | selected group, -1 none |
+| +0x28 | selected group: **0 at start** (the ctor writes 0, not -1) |
 | +0x2c..+0x3c | WeaponGroup*[5] |
 | +0x40..+0x7c | Weapon*[16] |
-| +0x80 | the owner as a mech/entity (owner vt+0x2c, then +0x50); compared with the player `[0x5f4c8c]+0x64`. +0x80 +0x3ec is the mech's configuration |
-| +0x84 | the owner vehicle (constructor argument) |
-| +0x88 | byte, gates 0x4b3330 (likely "has a target") |
-| +0x89 | weapons online (1 at start; 0x4b0bf0(0) releases the trigger and clears the aim) |
-| +0x8c | sum over bins of `ammo * damage` (AmmoBin::SetAmount keeps it) |
-| +0x90 | 1 / the largest that sum has been (likely a HUD "ammo left" ratio) |
+| +0x80 | the mech (vehicle vt+0x2c, vt+0x50), 0 for other vehicles |
+| +0x84 | the vehicle |
+| +0x88 | has a target: lock-on is tried only with it (0x4b3330) |
+| +0x89 | weapons online |
+| +0x8c | sum over bins of ammo x damage |
+| +0x90 | 1 / the largest that sum has been (0x4b4d10) |
 
-Main methods: 0x4b0400 add weapon from a config entry, 0x4b0460 add weapon by
-index, 0x4b03c0 find weapon by mech-lab index, 0x4b0c30 per-frame update,
-0x4b04f0 / 0x4b0610 next / previous group, 0x4b0730 select group, 0x4b0790 /
-0x4b07e0 next / previous weapon in group, 0x4b0a70 alpha strike, 0x4b0ae0
-jettison, 0x4b0de0 crit / cook-off, 0x4b0220 unlimited ammo, 0x4b2da0 per-frame
-arm restriction.
+Methods: 0x4b0400 add a loadout item, 0x4b0460 add by index on a node,
+0x4b03c0 find by index, 0x4b0c30 update, 0x4b04f0 / 0x4b0610 next / previous
+group, 0x4b0730 select, 0x4b0790 / 0x4b07e0 next / previous weapon, 0x4b0830
+mode sound (0x16 chain, 0x14 single, 0x15 group), 0x4b0880 release, 0x4b08c0
+network fire, 0x4b0a70 alpha strike, 0x4b0ae0 jettison, 0x4b0bf0 online,
+0x4b0de0 critical, 0x4b1040 part lost, 0x4b1110 destroy all, 0x4b0220
+unlimited ammo, 0x4b0370 forget a target, 0x4b2da0 arm restriction.
 
 ### WeaponGroup (0x54)
 
-+0x00 manager, +0x04 index 0..4, +0x08 count, +0x0c current index (-1),
-+0x10 current Weapon*, +0x14 Weapon*[16]. Add 0x4b1eb0 (max 16), remove 0x4b1ef0,
-find 0x4b1db0, select 0x4b1de0. Next / previous (0x4b1f40 / 0x4b2000) skip weapons
-with no ammo (vt+0x14 == 0) and destroyed ones. A weapon's group is Weapon +0x60;
-`Weapon::SetGroup` (0x4b1e10) moves it between groups.
++0 manager, +4 index, +8 count, +0xc current (-1), +0x10 current weapon,
++0x14 Weapon*[16]. Add 0x4b1eb0 (up to 16, then selects weapons[0]), remove
+0x4b1ef0 (shifts down, selects weapons[0]: after the last one goes, current
+keeps pointing at it), find 0x4b1db0, select 0x4b1de0. Next / previous
+(0x4b1f40 / 0x4b2000) skip weapons with no ammo and destroyed ones; `current`
+is compared unsigned, and a group of more than one weapon with current -1
+would loop four billion times (never happens: add selects). Trigger 0x4b2100,
+held 0x4b21f0, release 0x4b20b0: mode 2 the whole group, else the current
+weapon.
 
 ### AmmoBin (0x18)
 
-| Offset | Field |
-|---|---|
-| +0x00 | reference count |
-| +0x04 | amount now |
-| +0x08 | amount max (grows when ammo is added past it) |
-| +0x0c | infinite: amount and max read back as -1 (0x4b4cf0, 0x4b4d00) |
-| +0x0d | "out of ammo" sound already played |
-| +0x10 | manager (set on first use, 0x4b4cc0) |
-| +0x14 | the def's DAMAGE, for the manager's +0x8c sum |
++0 references, +4 amount, +8 max (grows when more is put in), +0xc
+infinite (amount and max read -1), +0xd "out of ammo" played, +0x10 manager
+and +0x14 damage (from the first weapon, 0x4b4cc0). SetAmount 0x4b4d10 keeps
+the manager's +0x8c / +0x90; Add 0x4b4dc0. A weapon of a type already on
+the manager takes that bin, adding a reference **for every** weapon of the
+type it finds, so three LRM20s count 1 + 1 + 2. A beam's bin is its own and
+has no manager.
 
-`AmmoBin::SetAmount(n)` 0x4b4d10, `Add(n)` 0x4b4dc0.
+## From the loadout to weapons
 
-**One bin per weapon type per mech.** The weapon constructor (0x4b2530, loop at
-the end) looks for another weapon on the same manager with the same ZWeaponDef and
-shares its bin (refcount + 1). So both LRM20 launchers on a Mad Cat draw from one
-pool of 240 missiles, whatever torso the ammo was listed in.
+`dfn_<mech>.zrd` → configurations → `weapons` (`docs/mechdef-configs.md`).
+When the mech takes a configuration (0x414501..0x414732, mech code, not
+ported here):
 
-Weapons that do not use ammo by the mech-lab table (lasers, PPCs, Flamer, TAG)
-get an infinite bin (0x4b2230: uses-ammo false → bin +0x0c = 1). A beam gets its
-own unshared bin holding its charge (0x4b3c10).
+1. The manager is reset (0x4b0290: weapons and groups remade; group and
+   destroyed count stay).
+2. Every weapon item → 0x4b0400 → 0x4b2230: the group clamped to 0..4, a
+   BeamWeapon (0x4b3c10) or Weapon (0x4b2530); a weapon that uses no ammo by
+   the mech-lab table gets an infinite bin; SALVO count to +0x64.
+3. Every ammo item → the first weapon of its index → its bin `Add(N)`.
+4. Equipment counts; TAG mounts weapon 0x20 into group 5 through 0x4b0460
+   (no 16-weapon check); AMS at 0x4146f9.
 
-## From the dfn to weapon instances
-
-`dfn_<mech>.zrd` `configurations` → each configuration's `weapons` list, read in
-0x46ba40 at 0x46c6bc..0x46cb22:
-
-```
-weapons ( (NAME FIREPOINT "group" (G ...) ["ammo" (N "part" (PART) ["extra" (N2 [N3 [N4]])])]) ... )
-```
-
-- More than 16 entries: error "Too Many Weapons (%d>%d)" (0x5e51f4) and only 16
-  are read (0x46c6e0).
-- NAME → mech-lab index (0x4848a0); unknown names are skipped with "Unrecognized
-  Weapon (%s)" (0x5e51d8).
-- FIREPOINT is looked up in the mech's `firepoints` list (records of 0x20: +0 name,
-  +4 `radius`, +8 `share`, +0xc part index, read at 0x46c065..0x46c0f2;
-  `docs/mechdef-parts.md`). An unknown name makes a new record with radius 0,
-  share -1 and part -1 (0x46c828).
-- `group`: the first number only (0x556ae0 reads one int), minus 1, clamped to
-  0..4 (0x46c91f); no `group` gives 0 (the player's group 1).
-- Each weapon becomes a config item, vtable 0x5c0fc0, 0x1c bytes: +4 = 1 (count),
-  +8 group, +0xc the firepoint's **index** in `MechDfn` +0x24 (an unknown one is
-  appended first), +0x14 index, +0x18 the mech's tech; item kind (vt+0xc) is 1
-  (`docs/mechdef-configs.md`).
-- `ammo (N "part" (P))` makes an ammo item, vtable 0x5bd150, 0x18 bytes: +4 = N,
-  +0xc = part, +0x14 = weapon index, kind 2. Each `extra` number **inside the
-  `ammo` list** makes one more ammo item in the **same part** (0x46ca55..0x46cb08,
-  up to three; zeros and floats skipped). An `ammo` of 0 drops its extras too.
-- `equipment` items are kind 3 (armor too: kind 1 / 2 with count = half tons)
-  with +0x18 = equipment kind (table at 0x5e6868, 5
-  dwords each): 0 ams, 1 armor, 2 armorff, 3 fcs, 4 bap, 5 case, 6 c3, 7 c3slave,
-  8 ecm, 9 sink, 10 dsink, 11 jjets, 12 masc, 13 tag, 14 tc.
-
-When the mech takes a configuration (0x414501..0x414732, in the mech's
-configuration setup):
-
-1. The manager is reset (0x4b0290).
-2. Every weapon item → `WeaponManager::AddWeapon` 0x4b0400 → 0x4b2230 picks the
-   class from def flag bit 1 (BEAM): BeamWeapon (0x4b3c10) or Weapon (0x4b2530),
-   copies SALVO count to Weapon +0x64, and the weapon joins its group.
-3. Every ammo item whose weapon uses ammo → the first weapon of that index
-   (0x4b03c0) → its bin `Add(N)` (0x41461b).
-4. Equipment: kind 11 (jump jets) calls 0x417300(1); every other kind adds 1 to
-   the count at mech +0x3ac + 4·kind (+0x3b8 fcs, +0x3c0 case, +0x3cc ecm, +0x3d8
-   jump jets, +0x3dc masc, ...). Kind 13 (TAG) also mounts weapon 0x20 (TAG) through
-   0x4b0460 into group 5 (0x4146b9). Kind 0 (AMS) is handled at 0x4146f9.
-
-The mech is at +0x3ec of the configuration list afterwards (0x414594).
-
-Vehicles that are not mechs (0x4b4660) list `(NAME [ammo] ["firepoint" NAME])`;
-every weapon goes to group 1, and an ammo weapon given no ammo gets an infinite
-bin (0x4b4787..0x4b47cd).
-
-### Weapon fields (0x98, projectile; BeamWeapon adds +0x98..+0xa0)
+### Weapon (0x98; BeamWeapon adds +0x98..+0xa0)
 
 | Offset | Field |
 |---|---|
-| +0x08..+0x10 | lock target, time, its id (0x4b3370) |
-| +0x14 | locked target for the projectile |
-| +0x18 | rating: damage per second, `damage / period` (beams `damage / (fire + recharge time)`); BURST weapons use `burst count * burst damage` |
-| +0x1c | from the config item +0x24 |
-| +0x20, +0x24 | the firing part's node, the part (0x41d510 on the firepoint's part) |
+| +0x04..+0x10 | lock: flag, target (target vt+0x24), its id (0x5a8630), target vt+0xc |
+| +0x14 | the target handed to the missile (with [0x605fb4] set) |
+| +0x18 | rating: shots a second x damage (BURST: pellets x pellet damage); salvos not counted (set before +0x64) |
+| +0x1c | its slot on the manager |
+| +0x20, +0x24 | the firing part's node, the part (0x41d510 on the firepoint's model part, every update) |
 | +0x28 | mech-lab index |
-| +0x2c | ZWeaponDef* |
-| +0x30 | reload timer (s); `CanFire` needs <= 0 |
-| +0x34..+0x54 | aim: target point, muzzle position and direction (0x4b36e0) |
+| +0x2c | WeaponDef* |
+| +0x30 | reload timer |
+| +0x34..+0x54 | aim point, muzzle, direction (0x4b36e0) |
 | +0x58 | AmmoBin* |
-| +0x5c | locked (result of 0x4b3370) |
-| +0x5d | the firing part carries FCS |
+| +0x5c | locked this shot |
+| +0x5d | FCS in the firing part |
 | +0x60 | group |
-| +0x64 | SALVO count (0 = not a salvo weapon) |
-| +0x68 | salvo shots still to fire |
-| +0x70 | damage 0..1; 1 = destroyed (0x4b2d50 adds, 0x4b3020 handles destruction) |
-| +0x74 | enabled (arm restriction and water, 0x4b2f90) |
-| +0x78, +0x7c | looped fire sound, recharge sound |
-| +0x80 | firepoint record |
-| +0x84..+0x8c | random muzzle offset, up to the firepoint's `share` |
-| +0x90 | config item |
+| +0x64, +0x68 | SALVO count, shots still to fire |
+| +0x70 | damage 0..1, 1 destroyed |
+| +0x74 | enabled (arms and water, 0x4b2f90) |
+| +0x78, +0x7c | loop sound, recharge sound |
+| +0x80 | firepoint |
+| +0x84..+0x8c | offset from a weapon sharing the firepoint (share x (rand - 16383.5) / 16383.5 in x and y, unless the weapon has a SALVO truecount) |
+| +0x90 | loadout item |
 | +0x94 | manager |
-| beam +0x98 | firing now |
-| beam +0x9c | target point |
-| beam +0xa0 | the GameZ beam object (0x584a70) |
+| beam +0x98, +0x9c, +0xa0 | firing, the aim point's address, the zWeapon beam |
 
-Firepoint sharing: a weapon without SALVO truecount that shares a firepoint with a
-weapon already on the manager gets a random muzzle offset of up to the
-firepoint's `share` (+8) in x and y (0x4b2530, `rand()` scaled by
-1/16383.5 - 1). The firepoint's `radius` (+4) scales the scatter of salvo
-shots instead (0x4b36e0).
-
-### Vtable (projectile 0x5c9088 / beam 0x5c90c0)
-
-| Slot | Projectile | Beam | Meaning |
-|---|---|---|---|
-| +0x00 | 0x4b28b0 | 0x4b3d50 | destructor |
-| +0x04 | 0x4b3450 | same | Fire one shot |
-| +0x08 | 0x4e42d0 (false) | 0x4b3d30 (true) | IsBeam |
-| +0x0c | 0x4e42d0 (false) | 0x4b3d40 | IsFiring (beam +0x98) |
-| +0x10 | 0x4b4de0 | 0x4b4e50 | damage per second, with salvo (AI rating, likely) |
-| +0x14 | 0x4b2830 | 0x4a5260 (-1) | ammo left (-1 infinite) |
-| +0x18 | 0x4b2c20 | 0x4b4230 | Update(dt) |
-| +0x1c | 0x4b3370 | same | lock on |
-| +0x24 | 0x4b3660 | 0x4b3f40 | aim and fire if CanFire |
-| +0x28 | 0x4b3190 | 0x4b3fc0 | trigger pressed |
-| +0x2c | 0x4b3260 | 0x4b4180 | trigger released |
-| +0x30 | 0x4b3280 | 0x4b41b0 | trigger held |
-| +0x34 | 0x4b2840 | 0x4b4470 | ready fraction for the HUD, 0..1 |
+Vtables: projectile 0x5c9088 / beam 0x5c90c0: +0 dtor, +4 fire, +8 is beam,
++0xc firing, +0x10 damage a second with salvo (beam: per fire-and-recharge
+cycle), +0x14 ammo (beam -1), +0x18 update, +0x1c lock on, +0x20 try lock
+(on the entity's target record, only with manager +0x88), +0x24 aim and fire,
++0x28 trigger, +0x2c release, +0x30 held, +0x34 ready 0..1.
 
 ## Firing
 
 ### Trigger and modes
 
-The pilot's commands (handler 0x41be80, ids from the binding table 0x411150):
+Commands (handler 0x41be80): CMD_TRIGGER1 0x3d sets manager +0;
+CMD_WEP_NEXT / PREV; CMD_FIREMODE (mode + 1) % 3 with its sound;
+CMD_WEPGRP_NEXT / PREV; CMD_WEPGRP_1..5; CMD_MOVETOWG_1..5;
+CMD_ALPHASTRIKE 0x4b0a70(0.2); CMD_JETTISON_AMMO.
 
-| Command | id | Code |
-|---|---|---|
-| CMD_TRIGGER1 | 0x3d | sets manager +0 (0x4b0c20) |
-| CMD_WEP_NEXT / PREV | 0x25 / 0x26 | 0x4b0790 / 0x4b07e0 |
-| CMD_NEXT_WEAPON | 0x27 | selects the HUD's highlighted weapon and its group (0x41c370) |
-| CMD_FIREMODE | 0x28 | mode = (mode + 1) % 3, then a mode sound (0x4b0830) |
-| CMD_WEPGRP_NEXT / PREV | 0x2a / 0x2b | 0x4b04f0 / 0x4b0610: skip groups with no beam and no ammo |
-| CMD_WEPGRP_1..5 | 0x2c..0x30 | select group (0x4b0730; refused if empty) |
-| CMD_MOVETOWG_1..5 | 0x31..0x35 | move the current weapon into group n and select it (0x41c481) |
-| CMD_ALPHASTRIKE | 0x39 | 0x4b0a70(0.2), refused while powering down or down (mech vt+0xa0 = 0x41cc10) |
-| CMD_JETTISON_AMMO | 0x3b | 0x4b0ae0, then mech sound 0x10 |
+`Update(dt)` (0x4b0c30, from the mech update at 0x41a814): every weapon's
+update, then without an alpha strike: pressed → the group's trigger (if
+nothing fired the press is dropped); held → held; released → release, and in
+chain mode the group steps to its next weapon. During an alpha strike the
+state is 2 until the clock passes its end, then everything is released.
 
-Per frame, `WeaponManager::Update(dt)` (0x4b0c30, called from the mech update at
-0x41a814) runs every weapon's Update, then:
-
-- **Pressed** (down now, not last frame): state 1, `WeaponGroup::Trigger`
-  (0x4b2100). Mode 2 fires every weapon in the selected group (vt+0x28); modes 0
-  and 1 fire only the group's current weapon. If nothing fired, the press is
-  dropped (+0 cleared).
-- **Held**: state 2, `WeaponGroup::Held` (0x4b21f0, vt+0x30) on the same weapons.
-- **Released**: state 3, vt+0x2c on them; in mode 0 the group then steps to its
-  next weapon with ammo (0x4b1f40). So mode 0 is chain fire, 1 stays on one
-  weapon, 2 fires the group (names likely). The manager starts in mode 0
-  (0x4b00d0).
-- Alpha strike: every weapon on the mech gets vt+0x28 at once, +8 = now + 0.2;
-  after 0.2 s every weapon is released (0x4b0ab0).
-
-In group mode, when more than one beam is ready, every ready beam except the one
-with the highest +0x18 clears `[0x9a17cc]` before firing (0x4b2100) — likely so
-only one beam plays its effect or sound.
+In group mode with more than one beam, every beam but the best rated clears
+[0x9a17cc] before firing: zWeapon then plays no ground impact for it (only
+the animation, not damage).
 
 ### CanFire (0x4b3a20)
 
-All of: def present, weapon enabled (+0x74), weapons online (manager +0x89), reload
-timer <= 0, ammo >= 1 or infinite, damage < 1.0.
+Def present, enabled, weapons online, reload <= 0, ammo > 0 or infinite,
+damage < 1.
 
 ### Projectile weapons
 
-- Trigger (0x4b3190): aim at the manager's aim point and fire if CanFire
-  (vt+0x24 with force 0). If it fired and the weapon has SALVO, +0x68 = count - 1.
-  If it did not fire, the bin is empty and the owner is the player, play the
-  "out of ammo" sound once (bin +0x0d).
-- Held (0x4b3280): a SALVO weapon whose reload is done triggers again (a new
-  salvo); others try vt+0x24. So holding the trigger refires each weapon as soon
-  as it reloads.
-- Update (0x4b2c20): reload timer -= dt; the recharge sound plays for the player's
-  own mech while reloading (WeaponType +0x60). While +0x68 > 0, **one more salvo
-  projectile is fired per frame**, re-aimed at the aim point, and +0x68 drops.
-- Fire (0x4b3450), once per projectile:
-  - lock-on (0x4b3370) when def flag bit 15 is set (likely LOCK_ON). When the
-    mech has FCS (mech +0x3b8 >= 1) **in the firing part** (0x460c10(3, part)) and
-    the target has no ECM (target +0x3cc, ECM count, is 0), it writes 2.0, 2.0 and
-    1 to `[0x9a17d8]`, `[0x9a17dc]`, `[0x9a17e0]` — likely doubled missile
-    tracking. This is the only FCS effect found.
-  - spawns the projectile (0x4b4a40) with a friendly-fire mask (owner +200 &
-    player side +0xc0).
-  - reload timer = period (def +0x14), so the reload starts after the last salvo
-    projectile.
-  - ammo: only on the first projectile of a salvo (+0x68 == 0). It takes 1, or
-    SALVO truecount when the weapon has SALVO, capped at what is left, and lowers
-    manager +0x8c.
-  - heat and recoil: `MechPart::WeaponFired` (0x461670) on the firing part.
-  - for the player and when `[0x608620]` is set, 0x433630(index) (likely shot
-    statistics).
-
-So a SALVO weapon fires `count` projectiles (one per frame), each doing DAMAGE and
-each adding HEAT and RECOIL, for `truecount` rounds of ammo. LRM20: 5 projectiles of
-5.0, 20 missiles of ammo, 5 x 0.06 = 0.30 heat a volley. AC20: 5 shells of 6.5 for
-one round, 0.238 heat. (That the damage is per projectile is likely; the damage
-itself is applied by GameZ, not traced.)
+- Trigger (0x4b3190): aim and fire; on a shot, a SALVO weapon queues
+  count - 1 more and a looped sound (MGUN) starts at the muzzle. A refused
+  trigger on an empty bin plays "out of ammo" (mech sound 0xe) once for the
+  player.
+- Held (0x4b3280): a SALVO weapon that has reloaded triggers again; others
+  try to fire. The out-of-ammo note here keys on "triggered again", not on a
+  shot.
+- Update (0x4b2c20): reload -= dt; the recharge sound for the mission's
+  player while reloading; one more salvo projectile a frame, with the fire
+  sound and animation muted (0x581f70 / 0x581f90 with -1), re-aimed.
+- Fire (0x4b3450): FCS in the firing part; the lock (if the owner's vt+0x58
+  is 0); the fire effect attached to the firepoint when its flag says so;
+  spawn (0x4b4a40 → 0x585010; the friend flag decides the radar colour only);
+  stats, the network event 0x16; reload = period; ammo on the salvo's first
+  shot only (truecount, capped at what is left); the HUD; the firing heat and
+  recoil (0x461670).
+- Aim (0x4b36e0): the muzzle is the firepoint (salvo shots scattered by its
+  `radius`, others moved by their offset) in the part node's frame
+  (0x4ed650). Off the centre torso (node id 1), the direction keeps within
+  acos(0.89), about 27 degrees, of the part's facing; centre-torso weapons
+  aim anywhere.
 
 ### Beams
 
-A beam's bin is its charge, in units where def +0x14 = 1 / FIRE_RATE = 10000 a
-second for every shipped beam:
+A beam's bin is its charge: full = ftol(U_FIRE_TIME x 10000).
 
-- full charge = ftol(U_FIRE_TIME x 10000) (0x4b3ce7): 1250 for the plain and ER
-  lasers (0.125 s), 20000 for pulse lasers (2.0 s), 10000 for TAG (1.0 s).
-- Trigger (0x4b3fc0): when U_RECHARGE_TIME is set, **only from a full charge**.
-  Takes one unit, starts the GameZ beam (0x581230), sets firing, adds the heat
-  once (0x461670), updates the HUD. Under water (part +0x49, likely) it writes 0.5
-  to `[0x9a17d4]` (likely half beam damage or width).
-- Update (0x4b4230), n = ftol(max(10000 x dt, 1)):
-  - firing: charge -= n; at 0 the beam stops (0x4b4140). TIMED_DAMAGE beams add
-    `heat x n / full` to the mech every frame. So a beam burns for U_FIRE_TIME.
-  - not firing and not full: charge += ftol(WeaponType +0x98 x f x dt), capped at
-    full, where +0x98 = 10000 x fire / recharge time, so empty to full takes
-    U_RECHARGE_TIME. **f is the heat factor**: 1 up to heat 0.5, then 0.5 / heat,
-    never below 0.5 (0x4b43bf: mech vt+0x9c = 0x41ec90 returns heat +0x554). At
-    heat 1.0 and above lasers recharge at half speed.
-- Released (0x4b4180): a beam with U_FIRE_TIME over 0.5 s (the pulse lasers)
-  stops at once; short beams always finish.
-- Held (0x4b41b0): not firing → trigger again (fires as soon as full); firing →
-  keep steering the beam at the aim point.
+- Trigger (0x4b3fc0): with a recharge time only from a full charge; aims,
+  makes the zWeapon beam once (0x584a70), takes one unit, starts it
+  (0x581230), half range under water ([0x9a17d4] = 0.5), heat once.
+- Update (0x4b4230): n = ftol(max(10000 dt, 1)); firing drains n (timed
+  beams heat in proportion) and stops at 0; not firing refills
+  ftol(+0x98 x f x dt), f = 1 to heat 0.5, then 0.5 / heat, floored at 0.5.
+- Release: only beams with a fire time over 0.5 s (pulse lasers) stop; held:
+  fire again when ready, or keep steering.
 
-Ready fraction for the HUD: projectile `(period - timer) / period` (0x4b2840),
-beam `charge / full` (0x4b4470).
+### Heat (0x461670)
 
-### Heat (0x461670, `MechPart::WeaponFired`)
+Projectiles: heat, then recoil on the part. Beams: heat once, or heat x dt
+for TIMED_DAMAGE. AddHeat 0x419e40 (`docs/heat.md`).
 
-ECX is the firing part (Weapon +0x24); the mech comes from the part (0x460000).
-Non-beam: `AddHeat(WeaponType.heat)` then part vt+0x24(WeaponType.recoil). Beam:
-`AddHeat(heat)`, or `heat x [0x72c52c]` (likely the frame dt) for TIMED_DAMAGE;
-beams have no recoil. `AddHeat` (0x419e40) adds to mech +0x558, applied by the heat
-model at the end of the frame (`docs/heat.md`).
+### Arm restriction (0x4b2da0) and water (0x4b2f90)
 
-Correction for `docs/heat.md` / `symbols.csv`: 0x4b4230 is `BeamWeapon::Update`;
-"scaled by the share of ammo used" is the beam's charge drained this frame.
+For the player: the left and right side views keep only the matching arm
+(firepoint part 2 / 3). In free look (controls +0xc == 1) with the torso's
+two frames (0x465940 and the torso's +0xa4) more than 35 degrees apart, the
+side comes from the sign of their cross product's y. Separately, a weapon
+that is not a beam in a part with +0x49 (under water) is disabled.
 
-### What limits the rate of fire
+## Crits, cook-off and jettison (0x4b0de0)
 
-- Projectiles: the reload timer = 1 / FIRE_RATE, restarted by every projectile.
-- Salvo spacing: one frame (no timer; SALVO `delta` is not read by weapon.cpp).
-- Beams: full charge needed; recharge time = U_RECHARGE_TIME, slowed by heat.
-- Everyone: CanFire's ammo, damage, weapons-online and arm/water checks.
+The candidate with the smallest value wins (from +inf). Weapon crit: weapons
+on the part not destroyed, value the rating for plain beams, |ammo x rating|
+otherwise; the winner is destroyed (0x4b3020: its sounds, HUD reselection).
+Ammo: the configuration's ammo items in the part (any part for -1), value
+|ammo x rating| of the first weapon of the index; the winner's bin is
+emptied. Nothing here applies damage; CASE is checked by the caller
+(`docs/damage.md`). Jettison empties the current weapon's bin, or the whole
+group's in group mode (unlimited bins too).
 
-### Arm restriction and water (0x4b2da0 → 0x4b2f90, every frame)
+## zWeapon run time
 
-For the player: when the camera's view (`[0x5f4c8c]+0x58` vt+0x1c, +0x40) is 0 or
-1, or in the control mode `controls+0xc == 1` with the torso turned more than 35°
-(`cos([0x5e8690])`) from the view, only weapons whose firepoint is on part 2 (left
-arm) or 3 (right arm), the side chosen by the cross product, stay enabled. Likely
-the look-left / look-right views and free look. Separately, a **non-beam weapon in
-a part with +0x49 set is disabled**, and a beam there uses half range (0x4b39a0,
-WeaponType +0x78). Part +0x49 is likely "under water".
+The rest of 0x581230..0x586b70 (0x580550 is DirectDraw's error strings; from
+0x586ba0 it is the network session).
 
-Part indices (0x484e40): 1 torso, 2 larm, 3 rarm, 4 lleg/lthigh, 5 rleg/rthigh,
-6 head, 7 ltorso, 8 rtorso, 9 lhand, 10 rhand, 11 lcalf, 12 rcalf, 13 lfoot, 14
-rfoot, 15 hip.
+### Projectile (0x5d8)
 
-## Crits, cook-off and jettison: 0x4b0de0(part, flag)
+| Offset | Field |
+|---|---|
+| +0x00 | next (free list, then the def's active list at def +0x7c) |
+| +0x04 | the shooter's node |
+| +0x08 | the vehicle's +0x64 (likely the collision mask) |
+| +0x0c | scene node |
+| +0x10..+0x1c | flyout effects, pooled model |
+| +0x20 | state: 1 flying, 0 remove, 2 dormant mine |
+| +0x24 | spawn position |
+| +0x30 | base velocity (the shooter's) |
+| +0x3c, +0x48, +0x54, +0x60 | direction, position, next position, velocity |
+| +0x6c..+0x74 | lock: entity, the target's position and velocity pointers |
+| +0x78..+0x584 | precomputed static hits (0x28-byte records sorted by distance) |
+| +0x588 | homing time |
+| +0x58c, +0x590 | speed, maximum speed |
+| +0x598 | RANDOM_DEVIATION's drift velocity |
+| +0x5a4 | the drift so far: each frame += drift x dt, and held within +-1 (y +-0.75) by pushing the drift back at 10 a second (0x585f07) |
+| +0x5b0, +0x5b4 | distance travelled, age |
+| +0x5b8 | flyout health, -1 none |
+| +0x5bc | damage scale ([0x9a17d0]) |
+| +0x5c0, +0x5c4, +0x5c8 | copies of [0x9a17d8], [0x9a17dc] (unread), [0x9a17e0] (terrain following) |
+| +0x5cc | spawn's p5 (likely a network id) |
+| +0x5d0, +0x5d4 | per-tick callback (radar), its argument |
 
-ECX is the manager. It picks the candidate with the **smallest** value, starting
-from HUGE_VAL (0x4b0deb).
+### Spawn (0x585010)
 
-**flag 0 — weapon destroyed** (crit type 1, 0x460fc2). Candidates: weapons on the
-manager whose part id (Weapon +0x24 +8 +0x28) is `part`, not already destroyed.
-Value: `|ammo x rating|` (+0x18); for pure beams (flag bit 1 and not bit 2) just the
-rating. The winner takes 0x4b2d50(1.0) → destroyed (0x4b3020: stops it, the
-player's HUD and "weapon destroyed" voice 0x4853d0, reselection), then 0x4b0880.
+ECX def, EDX the shooter's node, then x64 pointer, muzzle, direction,
+velocity, p5, p6 (`ret 0x18`; the friend flag stays in 0x4b4a40). A network
+gate ([0x9a0ec0] and [0x72fcac]); a pool slot or nothing; positions and
+direction; the fire globals copied and reset to 1, 1, 1, 0 (so the doubled
+FCS tracking a lock writes is always reset before any homing reads it).
+Without ACCELERATION and not INSTANT the speed is the def's velocity and the
+velocity = shooter's + direction x speed (RELATIVE_SPEED is never tested);
+without gravity or lock the static hits along the whole range are cast once.
+With ACCELERATION the shot starts at 0.0001 plus the shooter's speed. A lock
+copies the weapon's three lock dwords.
 
-**flag 1 — ammo explosion** (crit type 2 at 0x460e30, and the heat cook-off at
-0x419b5a with part -1). Candidates: the ammo items in the mech's configuration
-(manager +0x80 → +0x3ec) in `part` (any part for -1). For each, the first weapon of
-that index (0x4b03c0, not checked for destruction) and its bin; skipped when the
-bin is empty. Value: `|bin amount x rating|`. The winner's bin is set to 0
-(`AmmoBin::SetAmount(0)`, 0x4b0f2c), then 0x4b0880.
+### Flight (0x585cc0, ported)
 
-Then the callers only play sounds: mech sound 15 (0x41e770, ECX 0xf) at
-0x419b78 and 0x460e97, and the player's HUD note 0x446520. **Nothing in
-0x4b0de0, SetAmount or these callers applies damage**: in this code an ammo
-explosion empties the ammo and plays a sound. (The crit dispatcher's own caller
-is in damage territory and was not checked for a follow-up.)
+Each frame: speed += ACCELERATION x dt up to the maximum (rebuilding the
+velocity from base + direction x speed unless locked and not tethered);
+gravity; the move = velocity x dt; RANDOM_DEVIATION adds a random drift of up
+to 5 dt per axis, turned to agree with the drift so far, except within 20 m
+(or 2 x DETONATION_DISTANCE) of the target; a tethered shot is held under
+[0x9a17a0] (30) above the ground height; the distance travelled grows by the
+move's length (mines count half). At RANGE: a homing shot without EXPIRES, or
+DETONATE_AT_RANGE, bursts in the air (0x582320); every shot ends. Short of
+it, a locked shot inside DETONATION_DISTANCE bursts.
 
-CASE: crit type 2 first asks 0x460cc0(5) whether the hit part carries CASE
-(equipment kind 5, via 0x460c10 on the configuration). With CASE the crit does
-nothing at all (0x460e3b jumps out). The heat cook-off does not check CASE.
-Inside 0x4b0de0 a second CASE test (kind 3 item with +0x18 == 5) calls vt+8 and
-ignores the result (0x4b0ee9): dead code.
+### Homing (0x585900, not ported)
 
-**Jettison** (0x4b0ae0): every non-beam weapon in the current group (mode 2) or
-the current weapon gets `SetAmount(0)` on its bin.
+Steers toward the target's position (LOCK_ON_LEAD blends an intercept,
+0x524247, between lead min and max of age). The turn per frame is TURN_RATE x
+[0x9a17d8] x factor x dt, factor 0 until TURN_SUSPEND_TIME, then
+(t - suspend) / LOCK_ON, held at 1 after LOCK_ON. Tethered shots and FCS
+shots (+0x5c8) follow the terrain (a ground query, 0x4eda10): under 10 m
+they climb; with no ground under them they expire. Each turn slows the shot:
+speed x= 0.8 + 0.2 cos(turn). Until LOCK_ON the shooter's velocity fades out.
+
+### Hits (ported)
+
+- Hit 0x586350: the shot line to 0x9a0ec4..0x9a0ed8 (what TakeDamage reads);
+  inside RANGE_MINIMUM with a zero second value the shot is a dud, else the
+  damage scale x= that value (LRMs 90 m, 0.25: a quarter of the damage and of
+  the splash radius) with the min-range animation; then the impact and, with
+  IMPACT_PROXIMITY, splash on everyone but the direct target.
+- Impact 0x5826b0: the def callback (salvo marks 0x4afe70: a later shot of a
+  salvo within its radius of an earlier one, before its delay, skips sound,
+  craters and animation; LB-X burst 0x4b44d0; airstrike 0x4afea0), the damage
+  DAMAGE x scale through 0x583480, craters / quicksand (also where a kill
+  fell), the impact sound, animation, surface animation (oriented to the
+  hit's normal), and effect.
+- Hand-off 0x583480: the hit node's +0xbc: 0 nothing; 1 a projectile with
+  FLYOUT_HEALTH (any damage wears it down, LRM_BG only); else {object,
+  function}, called as function(object, def, record, damage). For a mech that
+  is 0x4161a0 → **Mech::TakeDamage(def, record, damage)**. The attacker goes
+  to 0x9a0edc; the handler reports a kill (0x583710) and the health left
+  (0x583730), which pick the kill animation, the damage animation by health,
+  or a beam's ground animation.
+- Splash 0x5829b0: damage x (1 - d^2 / IMPACT_PROXIMITY^2) x scale (MINE:
+  full) to each record of the query (0x4f0ac0, radius IMPACT_PROXIMITY x
+  scale), skipping the excluded handler. A queue for more than 31 hits
+  (0x9a0ef4) is dead: nothing puts the count there.
+- Air burst 0x582320: an impact on the shot's own node at its position, then
+  splash on everyone (the shooter included, likely).
+- Beam damage 0x583020: factor = max(0.5 (1 + cos(pi d / (RANGE x range
+  scale))), DAMAGE_AT_MAX_RANGE), d the beam's length; DAMAGE x factor x the
+  beam's scale, once a shot (the beam's flag 2), or x dt for TIMED_DAMAGE.
+  Under water the range scale is 0.5: the falloff runs over half the range.
+
+### Beams (0x581230 start, 0x5814b0 update; not ported)
+
+The beam object (0x150): +0x20 / +0x24 origin and direction pointers, +0x28
+length, +0x2c designate timer, +0x30 age, +0x34 damage scale, +0x38 range
+scale, +0x3c segments (up to 8, 1 for DESIGNATE), +0x14c flags. The update
+grows the length toward RANGE x scale at 1 / TIME_TO_MAX_RANGE, casts a ray
+(0x583130 picks the hit, 0x582b10 classifies it: handler, bounce, surface),
+and applies 0x583020 to the first object. TAG (DESIGNATE) held on an object
+calls the airstrike once a second (the sixth DESIGNATE value, 1.0).
+
+### Specific weapons
+
+- LB-X: DAMAGE 0, RANGE 30, BURST sets DETONATE_AT_RANGE; each shell bursts at
+  30 m (or on impact) into 3 pellets (0x4b44d0): the shell's velocity plus up
+  to `radius` sideways at a random angle (a cone of about 1 degree); spawn
+  then adds the pellet's own 400 (likely about 800 m/s).
+- NARC: a homing missile of DAMAGE 0; TakeDamage marks with ISNARC.
+- TAG: the strike (0x4afed0) is 4 TAG_MISSILEs from 1500 back along the beam
+  and 400 up, 50 apart, homing on the point.
+- AMS is not in zWeapon (mech code at 0x4146f9).
 
 ## Discoveries
 
-- **Ammo is pooled per weapon type.** All launchers of one type share one bin
-  (0x4b2530). Ammo listed in the left torso feeds the right-torso launcher, and
-  where ammo sits only decides which crit can reach it.
-- **An ammo explosion costs ammo, not armour**: the bin is emptied and a sound
-  plays (0x4b0de0, 0x419b5a, 0x460e30); no damage call was found. And because the
-  bin is shared, one crit empties that weapon type's ammo across the whole mech.
-- **CASE stops ammo crits completely** in its part (0x460e30), but **not heat
-  cook-offs**, which pick any part (0x419b56 passes -1).
-- **The cook-off and the weapon crit choose the least valuable target**: the bin
-  or weapon with the smallest ammo x damage per second. An empty weapon (value 0)
-  is the first one a weapon crit destroys.
-- **Lasers recharge at half speed when hot**: from heat 0.5 the recharge is scaled
-  by 0.5 / heat, floored at 0.5 (0x4b43bf).
-- **Small laser recharges slower than medium and large**: U_RECHARGE_TIME 4.0 s
-  against 3.0 (weapons.zrd).
-- **Ultra ACs never jam**: they just have FIRE_RATE 1.0 against 0.5 for the AC;
-  nothing random in Fire (0x4b3450).
-- **Salvo weapons heat per projectile**: an LRM20 volley adds 5 x HEAT; ammo is
-  taken once for the whole salvo (`truecount` rounds).
-- **Only the first group number counts**: `group (2 5)` puts the weapon in group 2
-  only (0x556ae0 reads one int). 59 weapon entries in 11 shipped dfns list a
-  second group (Vulture 10, Cauldron 9, Mad Cat 9, Owens 6, Daishi 5, ...),
-  presumably meant as an "all weapons" group, and it is ignored.
-- **Weapons can be regrouped in the cockpit** (CMD_MOVETOWG_1..5).
-- **Pulse lasers stop when you let go**; other lasers always finish their 0.125 s.
-- **FCS only matters in the firing part** and is cancelled by target ECM
-  (0x4b3450, 0x4b3370).
-- **Under water** (likely part +0x49): ballistic and missile weapons cannot fire;
-  beams get half range.
-- **Unlimited ammo** is bit 2 of the options word `[0x5f4d04]` (0x40cf30), which
-  also sets `[0x609994]` = 1 (likely a "cheated" flag); missions can give single
-  mechs unlimited ammo (0x46dc11, from mission data +0x8d).
-- **Weapons on the same firepoint spread out** by a random offset up to the
-  firepoint's `share` value (0x4b2530); `radius` spreads salvo shots
-  (0x4b36e0).
-- **`PPC` is defined in weapons.zrd but missing from the mech-lab table**
-  (0x5e64f0 has ERPPC only), so no mech can mount it.
-- **Data typo, harmless**: weapons.zrd writes `BOUNCE (0)`, the reader asks for
-  `BOUNCES` (0x583b9c).
-- **Rating quirk**: the rating at Weapon +0x18 is computed before the salvo count
-  is set (0x4b2530 reads +0x64 while it is still 0), so it ignores salvos; the
-  vt+0x10 version (0x4b4de0) includes them. The TIMED_DAMAGE beam rating squares
-  the damage (`damage x fire time x damage`, 0x4b3c10); no shipped beam is timed.
-- **Latent overflow**: the weapon array holds 16 and only the dfn reader limits it.
-  The TAG equipment adds a weapon through 0x4b0460 without a check, so a 16-weapon
-  loadout plus TAG would write the 17th into manager +0x80 (likely never happens
-  in shipped data).
+See `docs/discoveries.md`, Weapons.
 
-## Frame-rate dependence (FIX (B) candidates)
+## Frame-rate dependence
 
-- Salvo projectiles leave one per frame: an LRM20 volley spans 5 frames, 0.17 s at
-  30 fps, 0.08 s at 60.
-- Beam recharge adds ftol(416.7 x dt) units a frame for a plain laser: 13 at 30 fps
-  (3.2 s to full), 6 at 60 fps (3.5 s), 0 at 420 fps and above: **lasers would
-  never recharge**. The drain uses max(1, ...), so firing still ends. A port at
-  a high frame rate must accumulate the fraction.
+- Salvos leave one shot a frame.
+- Beam recharge adds ftol(rate x dt) a frame: at 420 fps and above a plain
+  laser never recharges. A port at a high frame rate must carry the fraction.
+- Homing slows a turning shot per frame (0.8 + 0.2 cos(turn)), so the loss
+  depends on the frame rate (likely less at a high one).
 
-## Open
+## Left to port
 
-- Damage application, DAMAGE_AT_MAX_RANGE falloff, IMPACT_FORCE, burst pellets and
-  lock-on tracking live in GameZ (zweapon, 0x581xxx..0x585xxx), not traced.
-- SALVO `delta`, WeaponType +0xc0, `[0x9a17cc]`,
-  `[0x9a17d4]`, `[0x9a17d8..e0]` are unexplained.
-- The network path (0x4b08c0 from 0x46e887) fires a weapon by index with an action
-  0..3 (release, trigger, held, stop) and a target id.
+- zWeapon: spawn 0x585010 (with the pool 0x584df0 / 0x584e60 / 0x584f40 and
+  the static-hit cast), the tick 0x5823c0 with update 0x585710 and commit
+  0x5858b0 / 0x5864c0 / 0x586600, homing 0x585900 (needs the intercept
+  0x524247, 0x51e460, acos / asin and the ground query), collision 0x5861f0
+  and hit pick 0x583130 / 0x582b10, mines 0x586670 / 0x586740, beams
+  (0x584a70 make, 0x584b40 free, 0x581230 start, 0x581400 stop, 0x5814b0
+  update, MULTI_TARGET 0x582c10 / 0x582de0), craters 0x5824b0 / 0x5825b0,
+  sounds 0x582f60 / 0x582fc0, the node handler slots 0x583220..0x583440, the
+  second hand-off 0x5836b0, the light pool 0x586970.., the aim helper
+  0x581ff0, the startup 0x583750's network registration.
+- weapon.cpp: the vehicle builder 0x4b4660 (a vehicle's `weapons` list), the
+  AI's weapon planner 0x4b1170..0x4b1d7f, the TAG strike tracker
+  0x4b3ab0..0x4b3c05, the HUD ammo gauge 0x4b0d80, the radar list
+  0x4b49c0..0x4b4b96.
+- The mech's configuration step (0x414501..0x414732), in mech code.

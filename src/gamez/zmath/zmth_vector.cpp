@@ -47,4 +47,41 @@ void quat_rotate(const Quat& q, const Vec3& v, Vec3& out) {
   out.z = ((v.y * q.x - v.x * q.y) * w2 + c * v.z) + d2 * q.z;
 }
 
+// Mech3.exe 1.2 @ 0x0051dfa0
+float distance_sq(const Vec3& a, const Vec3& b) {
+  const float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+  return (dx * dx + dy * dy) + dz * dz;
+}
+
+// Mech3.exe 1.2 @ 0x0051e740: a unit vector at right angles to v in the xy
+// plane; the length comes from the bit-trick square root.
+void perpendicular(const Vec3& v, Vec3* out) {
+  out->z = 0.0f;
+  if (v.x == 0.0f) {
+    out->x = 1.0f;
+    out->y = 0.0f;
+    return;
+  }
+  const float sq = v.y * v.y + v.x * v.x;
+  int32_t bits;
+  std::memcpy(&bits, &sq, 4);
+  bits = (bits >> 1) + 0x1fc00000;
+  float len;
+  std::memcpy(&len, &bits, 4);
+  const float inv = 1.0f / len;
+  out->x = inv * v.y;
+  out->y = -(inv * v.x);
+}
+
+// Mech3.exe 1.2 @ 0x00525490. Angles beyond 9.22e18 take the other branch
+// (fsin and fcos apart); nothing passes such angles.
+void quat_axis_angle(const Vec3& axis, float angle, Quat* q) {
+  const float h = angle * 0.5f;
+  q->w = static_cast<float>(std::cos(static_cast<double>(h)));
+  const float s = static_cast<float>(std::sin(static_cast<double>(h)));
+  q->x = s * axis.x;
+  q->y = axis.y * s;
+  q->z = axis.z * s;
+}
+
 }  // namespace zmth

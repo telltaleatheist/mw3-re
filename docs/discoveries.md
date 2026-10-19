@@ -255,6 +255,62 @@ From the weapon code (weapons.md).
   checks for it.
 - **"Fire rate" in the data is really a period.** The weapon reader stores
   1 / `FIRE_RATE` (0x583e87), the time between shots.
+- **Ultra ACs never jam**: they simply fire twice as often as the standard AC
+  (`FIRE_RATE` 1.0 against 0.5); nothing random in the firing code.
+- **Missile volleys heat per missile**: an LRM20 volley is 5 shots, each adding
+  the weapon's HEAT (5 x 0.06), while ammo is taken once for all 20 missiles.
+- **Pulse lasers stop when you let go**; the other lasers always finish their
+  0.125 s shot.
+- **Under water** a part's ballistic and missile weapons cannot fire at all
+  (0x4b2f90); its lasers can.
+- **Weapons can be moved between groups in the cockpit** (CMD_MOVETOWG_1..5).
+- **Two weapons on one firepoint** are moved apart by a random offset up to
+  the firepoint's `share` (0x4b2530); a salvo's shots scatter up to its
+  `radius` instead.
+- **Group fire with several lasers** plays the ground impact of the best one
+  only (0x4b2100); every laser still does its damage.
+- **Pock marks never appear.** The ballistic weapons' data asks for bullet
+  marks on `dirt`, `mud` and `snow`, but the impact code only knows default,
+  water, seafloor, quicksand, lava and fire, so those blocks are never read.
+- **Lasers lose up to a quarter of their damage with distance**, on a cosine
+  curve: full damage up close, 75% at maximum range (`DAMAGE_AT_MAX_RANGE`
+  0.75, 0x583020). A short laser shot deals its damage once, to the first
+  thing it touches.
+- **Under water a laser's reach halves**, and so does the distance its damage
+  falls off over; it is not simply half damage.
+- **LRMs inside 90 m do a quarter of the damage**, and their splash radius
+  shrinks to a quarter too (`RANGE_MINIMUM (90 0.25)`, 0x586402).
+- **Missile splash hits everyone near the impact except the target hit**,
+  with damage falling off with the square of the distance: half damage at
+  about 70% of the 30 m radius (0x5829b0). A missile that bursts in the air
+  spares no one.
+- **Missiles that miss just vanish** at their maximum range; they do not
+  explode (every missile has `EXPIRES`).
+- **A salvo's missiles all do full damage.** When several land within 10 m of
+  each other within half a second, only the first plays its explosion sound,
+  crater and animation (0x4afc00); the damage is not reduced.
+- **The FCS "double tracking" does nothing.** Locking with FCS in the firing
+  arm doubles a missile turn-rate setting, but the shot resets it before any
+  missile reads it (0x58518a).
+- **SRM wobble is held within about a metre** of the line: the random drift
+  is pushed back once it strays past 1 m sideways (0.75 m up and down).
+- **LB-X shells burst at 30 m** into three pellets each, in a cone of about one
+  degree around the shell's path.
+- **TAG calls four missiles**, from 1500 m behind along the beam and 400 m up,
+  spread 50 m apart.
+- **Arm weapons can only aim about 27 degrees off the arm's facing**; centre
+  torso weapons aim anywhere (0x4b38b6).
+- **The AI waits for its LRMs**: it fires a launcher type again only after the
+  last volley has flown 70% of its range (0x4b4c70).
+- **The whole mission shares 164 shots in the air** (the projectile pool,
+  sized at load); in a very big fight a new shot can silently fail to appear,
+  its ammo and heat already spent.
+- **Three LRM20 launchers on one mech share one pool of missiles**, and the
+  pool counts its users oddly (the third launcher adds two references, four in
+  all): harmless.
+- **What FCS does for missiles is terrain following**: with FCS in the firing
+  part (and no ECM on the target), missiles flying under 10 m with ground in
+  the way climb (0x5859fb, likely).
 
 ## Sound
 

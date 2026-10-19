@@ -51,6 +51,13 @@ Each change is also marked `FIX` in the code next to the original address.
 | Sound output format, 0x5702a0 | The primary buffer set to the PLAYBACK_FORMAT, with 1 channel whatever the data says | (A) a modern mixer has no primary buffer | The request is made as the original's (and tested), but the SDL output mixes stereo, as DirectSound does since Vista (discoveries: mono on Windows 9x) |
 | Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
 | Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
+| Weapon effect blocks, 0x584bb0 | `SOUND` and `BOUNCE_SOUND` lists are copied into four slots each with no bound | (bug) a fifth sound writes over the next fields | At most four are kept (no shipped weapon has more); the test keeps its variants within four |
+| Damage animations, 0x58459c | `DAMAGE_ANIM_ON_HEALTH` pairs are copied into room for four with no bound | (bug) more overwrite the destroy and kill animations | At most four are kept (no shipped weapon has any) |
+| Projectile pool size, 0x58468e | A def's shots in the air are counted from a local only `RANGE` sets | (bug) a def without RANGE uses the previous def's range, the first one stack garbage | The def's own range (500 by default); every shipped weapon has RANGE, so the pool is the same 164. The test patches the original the same way |
+| LOCK_ON_LEAD, 0x583fb9 | The second value is read when the first value's bits exceed 3, not when the list has two values | (bug) a typo: `[eax+0xc]` for `[eax+4]` | The count decides; no shipped weapon has LOCK_ON_LEAD. The test patches the original the same way |
+| Weapon manager with no group, 0x4b0c30 / 0x4b0790 / 0x4b07e0 / 0x4b08c0 | Trigger, next and previous weapon and the network release call through the selected group without checking it | (bug) group -1 is a null call (crash); the manager starts at group 0, so only a weapon moved to group -1 gets there | Nothing happens without a group. The test never reaches it on either side |
+| Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
+| Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 
 Notes on the fixes:
 
@@ -167,6 +174,17 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   in the level clears all of the animation's prerequisites, so it fires
   without waiting. Dropping only the broken one, or never firing, are both
   plausible intents. Whether any shipped mission hits it is not yet checked.
+- ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
+  the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
+  is the evident intent, but what the second number does on the HUD
+  (0x43be70) is not traced; the port keeps the original.
+- Pock marks: `weapons.zrd` gives the autocannons, Gauss, missiles and MGUN a
+  `SURFACE_ANIMATION` on `dirt`, `mud` and `snow`, kinds the impact table
+  (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
+  so they never show. Mapping those names to the soils that exist would
+  restore them; which soil each should be is a guess.
+- Missiles that miss vanish at RANGE without exploding (every shipped missile
+  has EXPIRES, 0x5860fb); keep, or let them burst.
 - The plain PPC is defined but missing from the mech lab's table; every mech
   maximum engine is forced to 400; only a weapon's first group counts. These
   look deliberate and stay unless Owen says otherwise.

@@ -69,6 +69,8 @@ add_library(mw3core STATIC
   src/gamez/zsound/zsnd_init.cpp
   src/gamez/zsound/zsnd_parm.cpp
   src/gamez/zsound/zsnd_play.cpp
+  src/gamez/zweapon/zweapon.cpp
+  src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
@@ -85,6 +87,7 @@ add_library(mw3core STATIC
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
+  src/mech3/weapon.cpp
   src/mech3/app.cpp
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
@@ -124,6 +127,9 @@ add_library(mw3probe SHARED
   tests/probe_jets.cpp
   tests/probe_actions.cpp
   tests/probe_sound.cpp
+  tests/probe_weapons.cpp
+  tests/probe_weapons_run.cpp
+  tests/probe_weapons_hit.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 
