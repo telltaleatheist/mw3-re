@@ -1,8 +1,10 @@
 #include "mech3/mech_skis.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech.h"
@@ -11,6 +13,15 @@
 #pragma STDC FP_CONTRACT OFF
 
 namespace mech3 {
+
+// The skis keep the engine's records as they are (0x006061d0).
+static_assert(sizeof(GroundHits) == sizeof(zcls::GroundHits) && sizeof(GroundHit) == sizeof(zcls::GroundHit) &&
+                  offsetof(GroundHit, height) == offsetof(zcls::GroundHit, height) &&
+                  offsetof(GroundHit, zone) == offsetof(zcls::GroundHit, zone) &&
+                  offsetof(GroundHit, material) == offsetof(zcls::GroundHit, material) &&
+                  offsetof(GroundHit, node) == offsetof(zcls::GroundHit, node) &&
+                  offsetof(GroundHits, hit) == offsetof(zcls::GroundHits, hit),
+              "the skis read the ground query's records");
 
 namespace {
 SkisCalls g_calls;
@@ -198,7 +209,12 @@ bool Skis::update(float dt) {
 
   static GroundHits hits[7];  // 0x006061d0
   for (GroundHits& h : hits) h = GroundHits{};
-  if (g_calls.query) g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
+  if (g_calls.query) {
+    g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
+  } else if (Node* w = world_hooks().world) {
+    zcls::ground_query(w, &world[start].x, count, matrix[10] - kQueryTop,
+                       reinterpret_cast<zcls::GroundHits*>(&hits[start]));
+  }
 
   float g = environment().gravity;
   const bool both = down[0] && down[1];

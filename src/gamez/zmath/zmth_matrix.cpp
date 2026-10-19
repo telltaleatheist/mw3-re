@@ -447,6 +447,20 @@ Vec3 transform(const Vec3& v, const float* t) {
 }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x00522d60. The shared products and their sums in the
+// x87 code's order.
+void box_corners_xz(const float* m, const float b[6], float out[8][2]) {
+  const float r = m[0] * b[0], t = m[0] * b[3], p = m[3] * b[4], u = m[3] * b[1];
+  const float s = m[2] * b[0], w = m[2] * b[3], q = m[5] * b[4], v = m[5] * b[1];
+  const float a_lo = b[2] * m[6] + m[9], c_lo = m[8] * b[2] + m[11];
+  const float a_hi = m[6] * b[5] + m[9], c_hi = m[8] * b[5] + m[11];
+  const float ur = u + r, ut = u + t, pr = p + r, pt = p + t;
+  const float vs = v + s, vw = v + w, qs = q + s, qw = q + w;
+  const float x[8] = {a_hi + ur, a_hi + ut, a_lo + ut, a_lo + ur, pr + a_hi, pt + a_hi, pt + a_lo, pr + a_lo};
+  const float z[8] = {c_hi + vs, c_hi + vw, c_lo + vw, c_lo + vs, qs + c_hi, qw + c_hi, qw + c_lo, qs + c_lo};
+  for (int i = 0; i < 8; ++i) out[i][0] = x[i], out[i][1] = z[i];
+}
+
 // Mech3.exe 1.2 @ 0x005225b0. Nothing to do when the top is the identity.
 void rotate_points(Vec3* v, uint32_t count) {
   if (g_stack.is_identity()) return;

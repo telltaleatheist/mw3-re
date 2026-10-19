@@ -47,6 +47,24 @@ void quat_rotate(const Quat& q, const Vec3& v, Vec3& out) {
   out.z = ((v.y * q.x - v.x * q.y) * w2 + c * v.z) + d2 * q.z;
 }
 
+// Mech3.exe 1.2 @ 0x00524020 (zMath): the unit normal (b - a) x (c - a), ECX a,
+// EDX b, stack c. A zero-length normal is stored as (y, z, x), as the x87
+// stack leaves it (all zero anyway).
+void poly_normal(const float a[3], const float b[3], const float c[3], float out[3]) {
+  const float px = c[0] - a[0], py = c[1] - a[1], pz = c[2] - a[2];
+  const float qx = b[0] - a[0], qy = b[1] - a[1], qz = b[2] - a[2];
+  const float x = qy * pz - py * qz;
+  const float y = qz * px - pz * qx;
+  const float z = qx * py - qy * px;
+  const float len = std::sqrt(x * x + y * y + z * z);
+  if (len == 0.0f) {
+    out[0] = y, out[1] = z, out[2] = x;
+    return;
+  }
+  const float inv = 1.0f / len;
+  out[0] = x * inv, out[1] = y * inv, out[2] = z * inv;
+}
+
 // Mech3.exe 1.2 @ 0x00525210. The sine and cosine of the half angle as the
 // emulator computes them (in double, then rounded).
 void quat_roll(float angle, Quat& out) {

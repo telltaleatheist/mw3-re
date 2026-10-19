@@ -27,6 +27,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
+  src/gamez/zclass/cls_di.cpp
   src/gamez/zclass/cls_mechlib.cpp
   src/gamez/zclass/cls_node.cpp
   src/gamez/zclass/cls_util.cpp
@@ -55,6 +56,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_draw.cpp
   src/gamez/zmodel/gmod_fogcalc.cpp
   src/gamez/zmodel/gmod_fog.cpp
+  src/gamez/zmodel/gmod_hit.cpp
   src/gamez/zmodel/gmod_init.cpp
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
@@ -121,6 +123,7 @@ add_library(mw3probe SHARED
   tests/probe_jets.cpp
   tests/probe_actions.cpp
   tests/probe_update.cpp
+  tests/probe_di.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

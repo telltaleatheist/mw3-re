@@ -105,5 +105,8 @@ void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // 0x005226e
 void transform_points(Vec3* v, uint32_t count);               // 0x005227a0  in place
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count);  // 0x00522910
 void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // inlined in 0x0053f2e0
+// The (x, z) of a box's (min xyz, max xyz) eight corners through m, in the
+// order of zcls::node_box_xz; reads m's x and z columns only.
+void box_corners_xz(const float* m, const float box[6], float out[8][2]);  // 0x00522d60
 
 }  // namespace zmth
