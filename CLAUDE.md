@@ -12,8 +12,13 @@ a byte-identical port.
 - Language: C++. Game logic is a plain C++ library with no engine types, built
   from Ghidra's decompiled C: give Ghidra the structs first, then clean each
   function into real C++ and keep its original address in a comment
-  (`// Mech3.exe 1.2 @ 0x00412340`). A thin Godot GDExtension layer does
-  rendering, audio and input; SDL is the fallback if Godot is dropped.
+  (`// Mech3.exe 1.2 @ 0x00412340`). A thin SDL3 layer does
+  the window, rendering (SDL's GPU API: Metal, D3D12, Vulkan), audio and input,
+  standing in for the DirectX, MCI and Win32 calls one to one, and the
+  original's own main loop stays as written (decided with Owen 2026-10-19:
+  closest to the original and most portable). Godot (GDExtension) is the
+  escape hatch if SDL gives too much trouble; the game library does not change
+  either way.
 - Checking: differential tests run the original x86 function (in an emulator
   such as Unicorn, on the Mac) and the C++ version on the same inputs.
 - Assets: never committed. A first-run importer reads the player's MW3 1.2
@@ -102,7 +107,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   `docs/fixes.md`.
 - Self-contained functions get a differential test (`tests/differential/`) that
   runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
-- No GPU use while Owen is streaming; the Godot front end is not started yet.
+- No GPU use while Owen is streaming; the SDL front end is not started yet.
 
 ## Next steps
 
@@ -120,5 +125,5 @@ can be checked two ways and unblocks loading data.
    component layout from step 2; port it then, with differential tests.
 4. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
    each subsystem's entry points in `docs/symbols.csv`.
-5. Start the Godot GDExtension front end (window, clock, music output) once the
-   GPU is free.
+5. Start the SDL3 front end (window, clock, music output) once the GPU is
+   free.

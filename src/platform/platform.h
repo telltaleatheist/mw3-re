@@ -3,7 +3,7 @@
 #include <string>
 
 // What the rebuilt code needs from the machine it runs on. These replace the Win32,
-// DirectX, MCI and WinMM calls the original makes; each front end (Godot, SDL,
+// DirectX, MCI and WinMM calls the original makes; each front end (SDL, Godot,
 // tests) supplies an implementation. Keep this small: add a call only when ported
 // code needs it, and name the original API it stands in for.
 namespace platform {

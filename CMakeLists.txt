@@ -13,7 +13,7 @@ else()
 endif()
 
 # The rebuilt game and engine. No platform or engine types in here: the front end
-# (Godot first, SDL as a fallback) talks to it through src/platform.
+# (SDL3, with Godot as the fallback) talks to it through src/platform.
 add_library(mw3core STATIC
   src/crt/msvc_rand.cpp
   src/crt/msvc_string.cpp
