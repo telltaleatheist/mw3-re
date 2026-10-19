@@ -26,10 +26,17 @@ Each change is also marked `FIX` in the code next to the original address.
 | Disc check, 0x482f90 / 0x575d40 | Startup loop until `video\c1.avi` is on a CD-ROM drive | (trap) and (A): no CD drives | Not ported; the importer copies the movies |
 | Exe self-check, 0x4854c0 | CRC of the mech roster and structure tables, else exit after the intro | (trap) | Not ported |
 | Multiplayer rules check, 0x46fc08 | Host ends the game when its locked rules block changes | (trap) | To be left out when the network code is ported |
+| Matrix multiply mode 2, 0x51fee0 | Mode 2 (3x3 only, reached through 0x4ed280 from 0x5047f5 and 0x504979) copies leftover stack bytes into the translation | (bug) undefined values in a node's matrix | Translation 0 (`zmth::multiply`, render-matrix.md) |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
 
 Notes on the fixes:
 
+- Frame clock at 24-bit: in play the x87 runs at single precision (CLAUDE.md),
+  so the original rounds `ticks * 0.001` to a float before the subtraction:
+  frame times jitter by about 0.06 ms once the game has run some minutes, and
+  a zero-millisecond frame comes out as about 1.6e-6 s. The port keeps double
+  (as the 64-bit reading below), part of the frame clock fix; ztimer's test
+  passes at 64 bits and shows the difference at 24 (`MW3_X87=24`).
 - Frame clock: in the original the product `ticks * 0.001f` stays on the x87
   stack at 80 bits while it is stored to `now_s` and subtracted from `prev_s`,
   so `raw_dt` is rounded once, from the unrounded product. The port computes it

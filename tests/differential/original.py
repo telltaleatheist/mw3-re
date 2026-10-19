@@ -4,6 +4,7 @@ Only self-contained code works here: anything that calls Windows or DirectX has
 no emulated system to call into. That covers the logic the rebuild ports.
 """
 import hashlib
+import os
 import struct
 from pathlib import Path
 
@@ -74,6 +75,17 @@ class Original:
             self.uc.reg_write(reg, 1 << 3)
         self.uc.reg_write(UC_X86_REG_FS, 2 << 3)
         self.code_next = CODE
+        # In play the x87 runs at 24-bit precision (Direct3D 6, no
+        # DDSCL_FPUPRESERVE; CLAUDE.md). MW3_X87=24 starts every run there;
+        # the default is the power-on 64-bit (0x037f).
+        if os.environ.get('MW3_X87') == '24':
+            self.fpu_control(0x007f)
+
+    def fpu_control(self, cw):
+        """Loads the x87 control word (0x037f power-on, 0x007f single precision)."""
+        slot = self.alloc(4)
+        self.u32(slot, cw)
+        self.call(self.code(b'\xd9\x2d' + struct.pack('<I', slot) + b'\xc3'))
 
     def alloc(self, size):
         addr = self.heap_next

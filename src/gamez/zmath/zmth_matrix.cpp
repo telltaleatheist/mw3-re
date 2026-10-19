@@ -1,0 +1,454 @@
+#include "gamez/zmath/zmth_matrix.h"
+
+#include <cassert>
+#include <cmath>
+#include <cstring>
+
+#include "gamez/zrender/zrndr_fog.h"
+
+namespace zmth {
+
+namespace {
+MatrixStack g_stack;
+View g_view;
+Projection g_proj;
+
+// r = l * t for 3x4 row-vector matrices (l applied first). The x87 sums run
+// (l0*t0 + l1*t3) + l2*t6, kept here.
+void mul34(const float* l, const float* t, float* r, bool translation) {
+  for (int row = 0; row < 3; ++row) {
+    const float* a = l + 3 * row;
+    for (int j = 0; j < 3; ++j) r[3 * row + j] = a[0] * t[j] + a[1] * t[3 + j] + a[2] * t[6 + j];
+  }
+  if (!translation) return;
+  for (int j = 0; j < 3; ++j) r[9 + j] = l[9] * t[j] + l[10] * t[3 + j] + l[11] * t[6 + j] + t[9 + j];
+}
+
+// x87 compares: an unordered (NaN) result sets C3 like "equal", so the
+// original's "!= c" branches skip NaN too.
+bool differs(double x, double c) { return x < c || x > c; }
+}  // namespace
+
+MatrixStack& matrix_stack() { return g_stack; }
+View& view() { return g_view; }
+Projection& projection() { return g_proj; }
+
+// Mech3.exe 1.2 @ 0x0051e8b0
+void reset_stack() { g_stack.top = 0; }
+
+// Mech3.exe 1.2 @ 0x0051e9d0
+void push(Mat34* buffer) {
+  assert(g_stack.top + 1 < kStackDepth);
+  ++g_stack.top;
+  g_stack.slot[g_stack.top] = buffer;
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051e930
+void push_copy(Mat34* buffer) {
+  assert(g_stack.top + 1 < kStackDepth);
+  ++g_stack.top;
+  g_stack.identity[g_stack.top] = g_stack.identity[g_stack.top - 1];
+  g_stack.slot[g_stack.top] = buffer;
+  *buffer = *g_stack.slot[g_stack.top - 1];
+}
+
+// Mech3.exe 1.2 @ 0x0051ea00
+void pop() { --g_stack.top; }
+
+// Mech3.exe 1.2 @ 0x0051fd40
+void load(const Mat34& m) {
+  g_stack.matrix() = m;
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051fd70
+void load_rotation(const Mat34& m) {
+  std::memcpy(g_stack.matrix().m, m.m, 9 * sizeof(float));
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051fde0
+void load_identity() {
+  g_stack.matrix() = Mat34{{1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}};
+  g_stack.is_identity() = 1;
+}
+
+// Mech3.exe 1.2 @ 0x0051ea30
+void load_view() {
+  g_stack.matrix() = g_view.view;
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051ea60
+void load_camera() {
+  g_stack.matrix() = g_view.camera;
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051fb30. Model-view: the slot below (the node's world
+// matrix) times the view. The identity test after the load is dead (the flag
+// was just cleared), so the below slot's own flag is never consulted.
+void load_model_view() {
+  load_view();
+  float r[12];
+  mul34(g_stack.slot[g_stack.top - 1]->m, g_stack.matrix().m, r, true);
+  std::memcpy(g_stack.matrix().m, r, sizeof r);
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0051fee0. EDX mode 2 multiplies the 3x3 only; the identity
+// shortcut copies all of local in every mode.
+void multiply(const Mat34& local, int mode) {
+  Mat34& top = g_stack.matrix();
+  if (g_stack.is_identity()) {
+    top = local;
+    g_stack.is_identity() = 0;
+    return;
+  }
+  // FIX (bug): mode 2 copied the stack temp's unwritten row 3 (leftover stack
+  // bytes) into the top's translation; zero here (docs/drafts/matrix.md).
+  float r[12] = {};
+  mul34(local.m, top.m, r, mode != 2);
+  std::memcpy(top.m, r, sizeof r);
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00520330. The identity shortcut writes the diagonal only.
+void scale(float x, float y, float z) {
+  float* t = g_stack.matrix().m;
+  if (g_stack.is_identity()) {
+    t[0] = x, t[4] = y, t[8] = z;
+  } else {
+    for (int j = 0; j < 3; ++j) t[j] *= x, t[3 + j] *= y, t[6 + j] *= z;
+  }
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00520480
+void translate(float x, float y, float z) {
+  float* t = g_stack.matrix().m;
+  if (g_stack.is_identity()) {
+    t[9] = x, t[10] = y, t[11] = z;
+  } else {
+    for (int j = 0; j < 3; ++j) t[9 + j] = t[j] * x + t[6 + j] * z + t[3 + j] * y + t[9 + j];
+  }
+  g_stack.is_identity() = 0;
+}
+
+namespace {
+// Rows i, k of the top become (c*ri + s*rk, c*rk - s*ri): the three axis
+// rotations of 0x520610.. share this shape.
+void rotate_rows(int i, int k, float c, float s) {
+  float* t = g_stack.matrix().m;
+  for (int j = 0; j < 3; ++j) {
+    const float a = t[3 * i + j], b = t[3 * k + j];
+    t[3 * i + j] = c * a + s * b;
+    t[3 * k + j] = c * b - s * a;
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00520610. Rx = [[1,0,0],[0,c,s],[0,-s,c]].
+void rotate_x(float a) {
+  const float c = std::cos(a), s = std::sin(a);
+  float* t = g_stack.matrix().m;
+  if (g_stack.is_identity()) {
+    t[4] = c, t[5] = s, t[7] = -s, t[8] = c;
+  } else {
+    rotate_rows(1, 2, c, s);
+  }
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x005207b0. Ry = [[c,0,-s],[0,1,0],[s,0,c]].
+void rotate_y(float a) {
+  const float c = std::cos(a), s = std::sin(a);
+  float* t = g_stack.matrix().m;
+  if (g_stack.is_identity()) {
+    t[0] = c, t[2] = -s, t[6] = s, t[8] = c;
+  } else {
+    rotate_rows(0, 2, c, -s);
+  }
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00520960. Rz = [[c,s,0],[-s,c,0],[0,0,1]].
+void rotate_z(float a) {
+  const float c = std::cos(a), s = std::sin(a);
+  float* t = g_stack.matrix().m;
+  if (g_stack.is_identity()) {
+    t[0] = c, t[1] = s, t[3] = -s, t[4] = c;
+  } else {
+    rotate_rows(0, 1, c, s);
+  }
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00521670. M = S * Rz(c) * Rx(a) * Ry(b), translation pos,
+// then multiplied onto the top (docs/render.md section 0). Translation parts
+// equal to 0 and scales equal to 1 are skipped, which only shows with NaN.
+void euler(const float rot[3], const float pos[3], const float scl[3]) {
+  const float sa = std::sin(rot[0]), ca = std::cos(rot[0]);
+  const float sb = std::sin(rot[1]), cb = std::cos(rot[1]);
+  const float sc = std::sin(rot[2]), cc = std::cos(rot[2]);
+  const float cc_cb = cc * cb, sb_sa = sb * sa, sc_cb = sc * cb;
+  float l[12] = {
+      sb_sa * sc + cc_cb, sc * ca,  sc_cb * sa - cc * sb,
+      sb_sa * cc - sc_cb, cc * ca,  cc_cb * sa + sc * sb,
+      sb * ca,            -sa,      cb * ca,
+      0, 0, 0};
+  for (int i = 0; i < 3; ++i)
+    if (differs(pos[i], 0.0)) l[9 + i] = pos[i];
+  for (int i = 0; i < 3; ++i)
+    if (differs(scl[i], 1.0))
+      for (int j = 0; j < 3; ++j) l[3 * i + j] *= scl[i];
+  Mat34& top = g_stack.matrix();
+  if (g_stack.is_identity()) {
+    std::memcpy(top.m, l, sizeof l);
+  } else {
+    float r[12];
+    mul34(l, top.m, r, true);
+    std::memcpy(top.m, r, sizeof r);
+  }
+  g_stack.is_identity() = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00523bc0. The inverse of euler's rotation for unit scale.
+// At |m[7]| >= 1 (pitch +-90 degrees) roll is 0 and yaw takes it all; the
+// constant is the exe's pi/2, a few ulps over (0x3ff921fb54442eea).
+void matrix_to_euler(const Mat34& mat, float out[3]) {
+  const float* m = mat.m;
+  if (!(std::fabs(m[7]) >= 1.0)) {  // NaN takes this branch, as on the x87
+    out[0] = static_cast<float>(std::asin(-double{m[7]}));
+    out[1] = static_cast<float>(std::atan2(double{m[6]}, double{m[8]}));
+    out[2] = static_cast<float>(std::atan2(double{m[1]}, double{m[4]}));
+  } else {
+    out[0] = static_cast<float>(-std::copysign(1.570796326795, double{m[7]}));
+    out[2] = 0.0f;
+    out[1] = static_cast<float>(std::atan2(-double{m[2]}, double{m[0]}));
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00523c50. General 3x3 inverse by cofactors; with
+// `translation`, row 3 becomes -t * inverse. A determinant of exactly 0 (or
+// NaN) returns false and leaves out alone. The x87 keeps products, c2, det,
+// 1/det and c unrounded; double does too, which decides "exactly 0".
+bool invert(const Mat34& mat, Mat34& out, bool translation) {
+  const float* m = mat.m;
+  float* o = out.m;
+  const auto c0 = static_cast<float>(double{m[8]} * m[4] - double{m[5]} * m[7]);
+  const auto c1 = static_cast<float>(double{m[6]} * m[5] - double{m[3]} * m[8]);
+  const double c2 = double{m[3]} * m[7] - double{m[6]} * m[4];
+  const double det = double{c1} * m[1] + c2 * m[2] + double{m[0]} * c0;
+  if (!differs(det, 0.0)) return false;
+  const double inv = 1.0 / det;
+  const float a = static_cast<float>(m[0] * inv), b = static_cast<float>(inv * m[1]);
+  const double c = inv * m[2];
+  o[0] = static_cast<float>(inv * c0);
+  o[1] = static_cast<float>(c * m[7] - b * m[8]);
+  o[2] = static_cast<float>(b * m[5] - c * m[4]);
+  o[3] = static_cast<float>(inv * c1);
+  o[4] = static_cast<float>(a * m[8] - c * m[6]);
+  o[5] = static_cast<float>(c * m[3] - a * m[5]);
+  o[6] = static_cast<float>(inv * c2);
+  o[7] = b * m[6] - a * m[7];
+  o[8] = a * m[4] - b * m[3];
+  if (translation) {
+    const float t0 = -m[9], t1 = -m[10], t2 = -m[11];
+    for (int j = 0; j < 3; ++j) o[9 + j] = t0 * o[j] + t1 * o[3 + j] + t2 * o[6 + j];
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00520b00. camera = the camera's world matrix with rows y
+// and z negated (camera space looks down +z, y down); view = its rigid inverse.
+void set_view(const Mat34& w) {
+  float* c = g_view.camera.m;
+  float* v = g_view.view.m;
+  std::memcpy(c, w.m, sizeof w.m);
+  for (int j = 3; j < 9; ++j) c[j] = -c[j];
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j) v[3 * i + j] = c[3 * j + i];
+  const float t0 = -c[9], t1 = -c[10], t2 = -c[11];
+  for (int j = 0; j < 3; ++j) v[9 + j] = t0 * v[j] + t1 * v[3 + j] + t2 * v[6 + j];
+}
+
+// Mech3.exe 1.2 @ 0x00521c10. The effective fov (camera +0xe8/+0xec); its
+// getter 0x521c30 has no callers.
+void set_fov(float h, float v) {
+  g_proj.fov_h = h;
+  g_proj.fov_v = v;
+}
+
+// Mech3.exe 1.2 @ 0x00521c60, from 0x526e10: window origin, half its size,
+// cot(fov/2) from camera +0x1d4/+0x1d8, near and far. Reads the Direct3D flag
+// 0x72f348: there the projection's x/y factors carry 1/near (see project_d3d).
+void set_projection(float x, float y, float half_w, float half_h, float cot_h, float cot_v,
+                    float near_z, float far_z) {
+  Projection& p = g_proj;
+  p.fx = cot_h * half_w;
+  p.fy = cot_v * half_h;
+  p.cot_h = cot_h, p.cot_v = cot_v;
+  p.inv_cot_h = 1.0f / cot_h, p.inv_cot_v = 1.0f / cot_v;
+  p.inv_fx = 1.0f / p.fx, p.inv_fy = 1.0f / p.fy;
+  p.half_w = half_w, p.half_h = half_h;
+  p.origin_x = x, p.origin_y = y;
+  p.cx = half_w + x, p.cy = half_h + y;
+  p.near_z = near_z, p.far_z = far_z;
+  if (zrndr::device_fog().active) {
+    p.inv_near = 1.0f / near_z;
+    p.fx_near = p.inv_near * p.fx;
+    p.fy_near = p.inv_near * p.fy;
+  } else {
+    p.inv_near = 1.0f;
+    p.fx_near = p.fx;
+    p.fy_near = p.fy;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0051e8d0. Returned in EAX:EDX.
+void focal(float out[2]) {
+  out[0] = g_proj.fx;
+  out[1] = g_proj.fy;
+}
+
+// Mech3.exe 1.2 @ 0x00521db0
+void scale_by_cot(Vec3* v, uint32_t count) {
+  for (; count != 0; --count, ++v) v->x *= g_proj.cot_h, v->y = g_proj.cot_v * v->y;
+}
+
+// Mech3.exe 1.2 @ 0x00521de0
+void scale_by_tan(Vec3* v, uint32_t count) {
+  for (; count != 0; --count, ++v) v->x *= g_proj.inv_cot_h, v->y = g_proj.inv_cot_v * v->y;
+}
+
+// Mech3.exe 1.2 @ 0x005234f0. Count is a do-while: 0 would run 2^32 times
+// (every caller passes 1 or more). cam and screen may be the same array.
+void project(const Vec3* cam, Vec3* screen, uint32_t count) {
+  do {
+    const float rz = 1.0f / cam->z;
+    screen->z = rz;
+    screen->x = cam->x * g_proj.fx * rz + g_proj.cx;
+    screen->y = cam->y * g_proj.fy * screen->z + g_proj.cy;
+    ++cam, ++screen;
+  } while (--count != 0);
+}
+
+// Mech3.exe 1.2 @ 0x00523540. Same screen x/y as project; z' = near/z (the
+// rhw Direct3D gets, 1 at the near plane). Do-while like project.
+void project_d3d(const Vec3* cam, Vec3* screen, uint32_t count) {
+  do {
+    const float rz = g_proj.near_z / cam->z;
+    screen->z = rz;
+    screen->x = cam->x * g_proj.fx_near * rz + g_proj.cx;
+    screen->y = cam->y * g_proj.fy_near * screen->z + g_proj.cy;
+    ++cam, ++screen;
+  } while (--count != 0);
+}
+
+// Mech3.exe 1.2 @ 0x00523590. The inverse of project_d3d for software factors:
+// z = near / z', x = (sx - cx) / fx * z.
+void unproject_d3d(const Vec3* screen, Vec3* cam, int32_t count) {
+  for (; count > 0; --count, ++screen, ++cam) {
+    const float z = g_proj.near_z / screen->z;
+    cam->z = z;
+    cam->x = (screen->x - g_proj.cx) * g_proj.inv_fx * z;
+    cam->y = (screen->y - g_proj.cy) * g_proj.inv_fy * cam->z;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x005235f0. The inverse of project.
+void unproject(const Vec3* screen, Vec3* cam, int32_t count) {
+  for (; count > 0; --count, ++screen, ++cam) {
+    const float z = 1.0f / screen->z;
+    cam->z = z;
+    cam->x = (screen->x - g_proj.cx) * g_proj.inv_fx * z;
+    cam->y = (screen->y - g_proj.cy) * g_proj.inv_fy * cam->z;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x005220e0. dst = base + delta * f (LoD morph; the model draw
+// passes its morph count +0x1c and factor +0x24).
+void morph(Vec3* dst, const Vec3* base, const Vec3* delta, uint32_t count, float f) {
+  for (; count != 0; --count, ++dst, ++base, ++delta) {
+    const float dx = delta->x * f, dy = delta->y * f, dz = delta->z * f;
+    dst->x = base->x + dx;
+    dst->y = base->y + dy;
+    dst->z = base->z + dz;
+  }
+}
+
+namespace {
+Vec3 rotate(const Vec3& v, const float* t) {
+  return {v.x * t[0] + v.y * t[3] + v.z * t[6], v.x * t[1] + v.y * t[4] + v.z * t[7],
+          v.x * t[2] + v.y * t[5] + v.z * t[8]};
+}
+Vec3 transform(const Vec3& v, const float* t) {
+  const Vec3 r = rotate(v, t);
+  return {r.x + t[9], r.y + t[10], r.z + t[11]};
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005225b0. Nothing to do when the top is the identity.
+void rotate_points(Vec3* v, uint32_t count) {
+  if (g_stack.is_identity()) return;
+  for (; count != 0; --count, ++v) *v = rotate(*v, g_stack.matrix().m);
+}
+
+// Mech3.exe 1.2 @ 0x00522640. v' = (row0.v, row1.v, row2.v): the inverse
+// rotation when the 3x3 is orthonormal.
+void rotate_points_transposed(Vec3* v, int32_t count) {
+  if (g_stack.is_identity() || count <= 0) return;
+  for (; count != 0; --count, ++v) {
+    const float* t = g_stack.matrix().m;
+    const Vec3 p = *v;
+    *v = {t[0] * p.x + t[1] * p.y + t[2] * p.z, t[3] * p.x + t[4] * p.y + t[5] * p.z,
+          t[6] * p.x + t[7] * p.y + t[8] * p.z};
+  }
+}
+
+// Mech3.exe 1.2 @ 0x005226e0. The model draw's normals into camera space.
+void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
+  if (g_stack.is_identity()) {
+    std::memcpy(dst, src, count * sizeof(Vec3));
+    return;
+  }
+  for (; count != 0; --count, ++src, ++dst) *dst = rotate(*src, g_stack.matrix().m);
+}
+
+// Mech3.exe 1.2 @ 0x005227a0
+void transform_points(Vec3* v, uint32_t count) {
+  if (g_stack.is_identity()) return;
+  for (; count != 0; --count, ++v) *v = transform(*v, g_stack.matrix().m);
+}
+
+// Mech3.exe 1.2 @ 0x00522910. v' = (v - t) * transpose(R): the inverse of a
+// rigid top.
+void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count) {
+  if (g_stack.is_identity()) {
+    std::memcpy(dst, src, static_cast<uint32_t>(count) * sizeof(Vec3));
+    return;
+  }
+  for (; count > 0; --count, ++src, ++dst) {
+    const float* t = g_stack.matrix().m;
+    const float x = src->x - t[9], y = src->y - t[10], z = src->z - t[11];
+    *dst = {t[2] * z + t[1] * y + x * t[0], t[4] * y + t[5] * z + t[3] * x,
+            t[6] * x + t[7] * y + t[8] * z};
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0053f2e0 (inlined at 0x53f3a9 and 0x53f8fb): the model's
+// vertices into camera space, buffer [0x74639c]. A do-while: the point-model
+// path (0x53f37d) does not check for 0 vertices first.
+void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
+  if (g_stack.is_identity()) {
+    std::memcpy(dst, src, count * sizeof(Vec3));
+    return;
+  }
+  do {
+    *dst++ = transform(*src++, g_stack.matrix().m);
+  } while (--count != 0);
+}
+
+}  // namespace zmth

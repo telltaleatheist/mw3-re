@@ -25,8 +25,14 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   (0x57dec0, 0x57e110): `zmodel/gmod_fogcalc`, `zvideo/zvid_ddd3d`,
   `render-fogsort.md`. The model-level fog test is a conservative bound over
   the sphere; the flush always sends ALPHAOP MODULATE and forces Gouraud.
-- All match the original in Unicorn with the FPU at 24-bit precision, as the
-  game runs (CLAUDE.md).
+- The maths module (matrix stack, euler, view, projection, project and
+  unproject, morphs, normals, the model draw's vertex transform):
+  `zmath/zmth_matrix`, `render-matrix.md`. Section 3 step 2: the top of the
+  stack is the model-view matrix built by 0x51fb30, so vertices go straight
+  into camera space. Matches at 64 bits within 1e-6; at 24 bits 0.6% of cases
+  drift beyond that (rounding only).
+- The clippers, fog and sort match the original in Unicorn with the FPU at
+  24-bit precision, as the game runs (CLAUDE.md).
 
 ## 0. Conventions in one place (for the viewer)
 

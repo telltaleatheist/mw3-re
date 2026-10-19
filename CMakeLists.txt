@@ -38,6 +38,7 @@ add_library(mw3core STATIC
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
+  src/gamez/zmath/zmth_matrix.cpp
   src/gamez/zmodel/gmod_clip2d.cpp
   src/gamez/zmodel/gmod_clip3d.cpp
   src/gamez/zmodel/gmod_const.cpp
@@ -61,7 +62,7 @@ target_include_directories(mw3core PUBLIC src)
 
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
-add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp)
+add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_matrix.cpp)
 target_link_libraries(mw3probe PRIVATE mw3core)
 
 enable_testing()
