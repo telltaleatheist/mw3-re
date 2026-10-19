@@ -192,10 +192,15 @@ def port_segments(segs, first_hit, exclude, uv_on):
     return [v & 0xffffffff for v in out[:k]], after
 
 
-def segment_set(rng, cx, y, cz):
-    kind = rng.choice(['mech', 'mech', 'mech', 'shot', 'shots', 'odd', 'over', 'down', 'down'])
+def segment_set(rng, cx, y, cz, x0=None):
+    kind = rng.choice(['mech', 'mech', 'mech', 'shot', 'shots', 'odd', 'over', 'down', 'down', 'first out'])
     segs = []
-    if kind == 'down':  # through the ground, as a falling or landing probe would
+    if kind == 'first out':  # segment 0 off the world, the rest on it (the bounds test reads segment 0's box)
+        segs += [x0 - 30, y, cz, x0 - 27, y, cz]
+        for _ in range(rng.randrange(1, 12)):
+            x, z = cx + rng.uniform(-15, 15), cz + rng.uniform(-15, 15)
+            segs += [x, y + rng.uniform(0.1, 8), z, x, y - rng.uniform(0.1, 8), z]
+    elif kind == 'down':  # through the ground, as a falling or landing probe would
         for _ in range(rng.randrange(1, 13)):
             x, z = cx + rng.uniform(-15, 15), cz + rng.uniform(-15, 15)
             top, bottom = y + rng.uniform(0.1, 8), y - rng.uniform(0.1, 8)
@@ -228,7 +233,7 @@ def port_state(nmodels, nflags):
 
 def probe_set(rng, area):
     x0, z0, w, d = area
-    kind = rng.choice(['mech', 'mech', 'mech', 'one', 'spread', 'off', 'many', 'over'])
+    kind = rng.choice(['mech', 'mech', 'mech', 'one', 'spread', 'off', 'many', 'over', 'grid', 'grid'])
     if kind == 'off':
         cx = x0 + rng.choice([-0.3, 1.3, rng.uniform(-1, 2)]) * w
         cz = z0 + rng.choice([-0.3, 1.3, rng.uniform(-1, 2)]) * d
@@ -239,6 +244,11 @@ def probe_set(rng, area):
         pts = [(cx + dx, y, cz + dz) for dx in (-2.5, 2.5) for dz in (-6.0, 0.0, 6.0)] + [(cx, y, cz)]
     elif kind == 'one':
         pts = [(cx, y, cz)]
+    elif kind == 'grid':  # on round coordinates, where polygons' edges and corners lie
+        step = rng.choice([1.0, 4.0, 8.0, 16.0])
+        pts = [(round((cx + rng.uniform(-20, 20)) / step) * step + rng.choice([0.0, 0.0, 1e-4, -1e-4, 5e-4]), y,
+                round((cz + rng.uniform(-20, 20)) / step) * step + rng.choice([0.0, 0.0, 1e-4, -5e-4]))
+               for _ in range(rng.randrange(1, 8))]
     elif kind == 'spread':
         pts = [(x0 + rng.uniform(0, 1) * w, y, z0 + rng.uniform(0, 1) * d) for _ in range(rng.randrange(2, 9))]
     elif kind == 'many':
@@ -287,7 +297,7 @@ def main():
             # Segments around the same spot, at the height the ground query found.
             hs = [struct.unpack('<f', struct.pack('<I', want[1 + 4]))[0]] if want and want[0] else []
             y = hs[0] if hs and abs(hs[0]) < 1e4 else probes[1]
-            segs, skind = segment_set(rng, probes[0], y, probes[2])
+            segs, skind = segment_set(rng, probes[0], y, probes[2], emu.area[0])
             first = int(rng.random() < 0.2)
             exclude = rng.choice([0, 0, 0, 0x20000, 0x1000000, 0x80000, 0x40])
             uv_on = int(rng.random() < 0.3)
@@ -328,7 +338,7 @@ def main():
                     raise SystemExit(f'{where}: node {i} flags {flags[i]:#x} vs {pf[i]:#x}')
         print(f'{name}: {queries} ground and segment queries identical, the second half with {strips} polygons '
               f'made strips and {boxed} nodes boxes')
-    if len(kinds) < 6 or len(skinds) < 6 or not wrapped or not hits or not shits:
+    if len(kinds) < 7 or len(skinds) < 7 or not wrapped or not hits or not shits:
         raise SystemExit(f'coverage: {sorted(kinds)} {sorted(skinds)}, {wrapped} wrapped off-grid sets')
     print(f'ok: {total} ground and {total} segment queries on the {len(WORLDS)} worlds identical; {hits} ground hits, '
           f'{shits} crossings, {wrapped} wrapped off-grid sets')

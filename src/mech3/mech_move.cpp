@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_config.h"
 #include "mech3/mission_world.h"
@@ -97,8 +98,10 @@ void Mech::move(float dt, MechAnim* anim, float speed) {
     return;
   }
   float blend = 1.0f;
-  if (anim_state >= 4 && gait_frames < kBlendFrames && jets == 0) {
-    blend = static_cast<float>(gait_frames) / static_cast<float>(kBlendFrames);
+  // 20 frames of blend-in. FIX (B): 20/30 s, counted in 1/30 s steps.
+  const float done = zfix::options().per_second ? gait_steps : static_cast<float>(gait_frames);
+  if (anim_state >= 4 && done < static_cast<float>(kBlendFrames) && jets == 0) {
+    blend = done / static_cast<float>(kBlendFrames);
     blend = blend > 1.0f ? 1.0f : blend < 0.15f ? 0.15f : blend;  // 0x005e1fb0
     vec_3c = {(vec_3c.x - saved.x) * blend + saved.x, (vec_3c.y - saved.y) * blend + saved.y,
               (vec_3c.z - saved.z) * blend + saved.z};
@@ -173,7 +176,9 @@ int Mech::jump_jets(float dt) {
       else if (vec_3c.x < -kJetStrafeMax) vec_3c.x = -kJetStrafeMax;
     }
   }
-  if (impulse.y > kJetImpulseMax) impulse.y = kJetImpulseMax;
+  // A cap of 6 a frame. FIX (B): 6 per 1/30 s.
+  const float cap = kJetImpulseMax * zfix::frame_steps(dt);
+  if (impulse.y > cap) impulse.y = cap;
   else if (impulse.y < 0.0f) impulse.y = 0.0f;
   if (firing) jet_fuel = jet_fuel - jet_burn * dt;
   else if (!airborne() && jet_fuel < 1.0f) jet_fuel = jet_fuel - jet_burn * dt * -0.5f;  // 0x005bcdd8
@@ -316,7 +321,16 @@ void Mech::select_gait(float dt) {
   const float h = height;
   const bool ff = this == world().mission_player && world().stats;
   if (d > h * kWadeStart) {
-    speed_target = d < h ? (h - d) * kWade / h * speed_target : kWade * speed_target;
+    if (zfix::options().deep_water) {
+      // FIX (bug): from full speed at a tenth of the height down to 70% at
+      // full depth, where the exe fell to a standstill and then jumped back
+      // to 70% (movement.md, Speed and gait; fixes.md).
+      float frac = (d - h * kWadeStart) / (h - h * kWadeStart);
+      frac = frac > 1.0f ? 1.0f : frac;
+      speed_target = (1.0f - (1.0f - kWade) * frac) * speed_target;
+    } else {
+      speed_target = d < h ? (h - d) * kWade / h * speed_target : kWade * speed_target;
+    }
     if (ff && !wading) {
       if (g_calls.wading_effect) g_calls.wading_effect(1);
       wading = true;
@@ -400,7 +414,7 @@ void Mech::select_gait(float dt) {
   if (stop) {
     enter(kStand, 1);
     play_gait(*this, dt, anims[kStand], thr);
-    gait_frames = 0;
+    gait_frames = 0, gait_steps = 0;
     return;
   }
   if (spd < gait[kWalk][kLo] && !asks_walk) {
@@ -408,13 +422,13 @@ void Mech::select_gait(float dt) {
     else follow(kStep);
     enter(kStep, 3);
     play_gait(*this, dt, anims[kStep], (kStepSpeed + thr2) * kStepScale);
-    gait_frames = 0;
+    gait_frames = 0, gait_steps = 0;
     return;
   }
   if (spd < gait[kStep][kHi] && !asks_walk) {
     if (anim_index == kStep) {
       anims[kStepWalk]->seek(footfall);
-      gait_frames = 0;
+      gait_frames = 0, gait_steps = 0;
     } else {
       follow(kStepWalk);
     }
@@ -449,6 +463,7 @@ void Mech::select_gait(float dt) {
   }
   play_gait(*this, dt, anims[slot], thr);
   ++gait_frames;
+  gait_steps = gait_steps + zfix::frame_steps(dt);
 }
 
 
@@ -607,7 +622,9 @@ void Mech::update_action(float dt) {
     act->root(&action_root, q);
     momentum = vec_3c;
   }
-  momentum = {momentum.x * 0.6f, momentum.y * 0.6f, momentum.z * 0.6f};  // per frame (0x005bcd50)
+  // x0.6 a frame (0x005bcd50). FIX (B): 0.6 per 1/30 s (fixes.md, Frame rate).
+  const float carry = zfix::options().per_second ? std::pow(0.6f, zfix::frame_steps(dt)) : 0.6f;
+  momentum = {momentum.x * carry, momentum.y * carry, momentum.z * carry};
   vec_3c.y = momentum.y;
   ground_step(dt);
   act->advance(dt);

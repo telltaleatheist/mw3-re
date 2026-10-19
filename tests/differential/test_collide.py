@@ -478,6 +478,8 @@ def scenario(rng):
                          'dist': f32(d), 'dir': [f32(math.cos(a)), 0.0, f32(math.sin(a))]})
     flags = sum(b << i for i, b in enumerate([rng.random() < 0.4, rng.random() < 0.4, rng.random() < 0.5,
                                                rng.random() < 0.3]))
+    if rng.random() < 0.3:
+        flags |= 8
     frame = rng.randrange(100, 1000)
     net = bytearray(0x40)
     struct.pack_into('<II', net, 0, rng.choice([frame, frame - 1]), rng.choice([frame - 1, frame - 3, frame - 6, frame]))
@@ -486,6 +488,31 @@ def scenario(rng):
     a = rng.uniform(-math.pi, math.pi)
     struct.pack_into('<3f', net, 0x24, f32(math.cos(a)), 0.0, f32(math.sin(a)))
     struct.pack_into('<3f', net, 0x30, pos[0] + 2, pos[1], pos[2] + 2)
+    if rng.random() < 0.3:   # flush with the wall: N.D is exactly 0 (the reflect's -v case)
+        struct.pack_into('<3f', net, 0x24, 1.0, 0.0, 0.0)
+        struct.pack_into('<3f', net, 0x30, pos[0], pos[1], pos[2] + 2)
+    if rng.random() < 0.15:  # only a ceiling over the top probe (the last segment)
+        vz, yawr = struct.unpack_from('<f', mech, 0x44)[0], struct.unpack_from('<f', mech, 0x5c)[0]
+        use = [False] * 11
+        if abs(vz) < abs(f32(yawr * f32(3.3))):
+            use[0] = use[2] = use[3] = use[5] = True
+        v = struct.unpack_from('<3f', mech, 0x3c)
+        p = struct.unpack_from('<3f', mech, 0x5a0)
+        if sum(x * x for x in v) + sum(x * x for x in p) > 0:
+            pl = flags & 2
+            if vz < 0:
+                use[0] = use[1] = use[2] = True
+                if pl:
+                    use[6] = use[7] = True
+            else:
+                use[3] = use[4] = use[5] = True
+                if pl:
+                    use[8] = use[9] = True
+        use[10] = True
+        last = sum(use) - 1
+        recs[0] = [[] for _ in range(12)]
+        recs[0][last] = [(rng.choice(list(range(MECH_NODE)) + [-1]), [0.0, -1.0, 0.0],
+                          [pos[0], f32(pos[1] + 14), pos[2]])]
     return {'op': 0 if rng.random() < 0.95 else 1, 'mech': bytes(mech), 'transform': transform, 'pos': pos,
             'roster': rng.randrange(19), 'half': half, 'skis_vy': [f32(rng.uniform(-5, 5)) for _ in range(7)],
             'foot': foot, 'box': box, 'nodes': nodes, 'recs': recs, 'veh': veh, 'contacts': contacts,

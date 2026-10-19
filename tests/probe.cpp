@@ -30,7 +30,7 @@ void probe_span_textured16(uint16_t* dest, const uint16_t* texture, uint32_t du,
 
 namespace {
 // The whole probe library tests the original path: the frame-rate fixes off.
-const bool g_fixes_off = (zfix::options().per_second = false, true);
+const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().deep_water = false, true);
 struct ProbeClock : platform::Clock {
   uint32_t now = 0;
   uint32_t ticks_ms() override { return now; }

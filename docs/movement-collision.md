@@ -2,8 +2,20 @@
 
 Mech3.exe 1.2, 2026-10-20. Static map from the asm (Ghidra gets the bool of
 0x4225c0, the push decay in 0x419fc0 and the arguments of 0x423a20, 0x4237c0
-and 0x5836b0 wrong). Part of `movement.md`. Not ported yet; the porting order
-is at the end.
+and 0x5836b0 wrong). Part of `movement.md`. Ported (`mech3/mech_collide`, the queries in
+`zclass/cls_di`) and checked in `test_collide.py` and `test_di.py`; the
+corrections below came out of that.
+
+Corrections: probes 0-2 sit at -z, so ahead of the mech (forward is -z), and
+moving forward (local vz < 0) sweeps them, reversing sweeps 3-5. A ceiling
+alone does not count as resolved: Collide re-queries only when a vehicle,
+mech, bump, touch or wall resolved (+0x374, +0x375, +0x377), and a ceiling
+hit with nothing else goes on to the network record. The mech's own node is
+cleared of INTERSECT for the query and set again afterwards, whatever it was.
+The segment query keeps or drops every segment by the first one's box: its
+bounds test reads fixed addresses (0x60b990..), segment 0's (quirk; only the
+first matters when the world does not wrap). The bump also moves the probes
+by the push times the frame time, and its own sound is slot 13 (+0x5ec).
 
 The code sits between `mech_anim.cpp` and `mech_data.cpp` (likely its own
 file; `mech_collide` would fit the alphabetical link order). Everything works

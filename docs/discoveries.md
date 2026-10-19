@@ -233,6 +233,37 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   when it hits a wall; yours drops to 10%. Only your mech has the low probes at
   its feet, so AI mechs walk over low things you would bump into.
 
+- **A mech wading into water about its own height grinds to a halt.** The
+  slowdown for wading is computed from how much of the mech is still above
+  the water, so it reaches zero just before the water covers the mech; once
+  the water is deeper the mech walks at 70% again. In a river of your mech's
+  height you stand still. (The rebuild fixes this to a smooth slowdown down to
+  70%.)
+- **Many movement steps happen once per frame**, so they depend on the frame
+  rate: how long a fall keeps its momentum, how hard slopes and ledges shove
+  you, how quickly the walk blends in from a standstill (20 frames), and the
+  20 damage a frame you deal to a building you lean on. At 144 fps a building
+  takes 2,880 damage a second instead of 600. (The rebuild makes them per
+  second, as at 30 fps.)
+- **Pushing into another mech hurts both of you, by weight.** Each frame of
+  contact deals damage from your speed (squared, against your top speed), and
+  the heavier mech takes the smaller share; the other mech is also shoved a
+  little along your direction. Allies are spared the damage.
+- **Ramming a vehicle damages it with 20 x (speed / top speed)^2 a frame**; if
+  that kills it you drive straight through, otherwise it is shoved.
+- **Hitting your head on a ceiling while jumping bounces you down** at two
+  thirds of your climb and costs a sliver of head armour; walking into
+  something low crushes your head and torso by the volume of what you hit, and
+  your mech ducks.
+- **Bumping into a mech that stands within 9 m** pushes you apart, swings you
+  round at almost twice your turn rate and cuts your throttle to a tenth.
+- **Your mech leans into turns** (by its `lean_angle`), but only half as much
+  in the cockpit view.
+- **The "last part hit" resets to the torso one second after a hit**, and
+  keeps being refreshed every frame after that.
+- **A mech lying on the ground that is powered down still turns its torso
+  and moves its parts**; one that is powered up holds still until it gets up.
+
 ## Weapons
 
 From the weapon code (weapons.md).

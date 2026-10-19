@@ -113,6 +113,7 @@ struct Mech {
   bool crouched = false;     // +0x586
   bool wading = false;       // +0x588  the wading force-feedback effect is on
   uint32_t gait_frames = 0;  // +0x58c  frames at walk or faster since stand or step
+  float gait_steps = 0;      // (port) the same in 1/30 s steps, for the per-second blend-in (zfix)
   int32_t limp = -1;         // +0x5ac  the limping leg, -1 none
   bool collides = true;      // +0x5b0  0 for network-remote mechs: no collision
   Sound sounds[25] = {};     // +0x5b8  all stopped on death; [0] walk, [1] wade, [2] limp, [3] the jump jets

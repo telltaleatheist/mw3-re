@@ -74,6 +74,9 @@ vt +0x1c 0x41fbe0) and solved by the leg IK (0x463e40 / 0x463c90, not mapped).
 
 ## The terrain query (0x4ee2f0, `zclass\cls_di.c`)
 
+Ported (`zclass/cls_di`, the polygon test in `zmodel/gmod_hit`) and checked
+on the six worlds in `test_di.py`; the skis use it by default.
+
 Not a ray: per probe a flat x/z point-in-polygon test over the probe's grid
 cell (`floor((x - W+0x34) * W+0x74)`, same for z; off-grid probes wrap through
 0x4f1f10). Nodes with ACTIVE and ALTITUDE_SURFACE, then the cell's 0x44-byte
