@@ -40,12 +40,15 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   and about 4 seconds later the mech powers down unless you've dropped to 0.9.
   Hitting 1.5 skips the warning and shuts you down at once. Once shut down, the
   mech restarts when heat falls to 0.4.
-- **Staying hot while shut down is a dice roll.** Every few seconds (3 seconds
-  plus a random 0.1 to 3) the game rolls. 80% of the time you ride it out, but
-  each of those rolls may also cook off an ammo bin, the one with the least
-  ammo x damage left, with an explosion sound. The other 20%, the torso's damage
-  routine runs and heat resets to zero (exactly what that does to the mech isn't
-  traced yet). At 2.0 there is no roll: the torso is destroyed.
+- **Overriding a shutdown is a dice roll.** If you override the automatic
+  shutdown and stay hot (above 0.9), the alarm starts and, every few seconds
+  (a random 0.1 to 3, then 3 more), the game rolls. 80% of the time you get
+  away with it, but each of those rolls may also cook off an ammo bin, the one
+  with the least ammo x damage left, with an explosion sound. The other 20%,
+  the torso's damage routine runs and heat resets to zero (exactly what that
+  does to the mech isn't traced yet). At 2.0 there is no roll: the torso is
+  destroyed. A mech that does shut down skips all of this and just waits to
+  cool to 0.4.
 - **AI mechs play by the same heat rules as you.** There is a separate, simpler
   rule in the code ("non-player mechs explode at 2.0") behind a switch that is
   always on, so it never runs. AI mechs warn, shut down, cook off ammo and die

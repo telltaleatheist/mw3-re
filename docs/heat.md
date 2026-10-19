@@ -91,7 +91,9 @@ powered down, stop the sounds and force state 2.
 | 3 | 0.9 or below: cancel; else when the timer passes, timer = now + 0.1..3.0 at random, start the alarm (sound 6), go to 4 |
 | 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not mission mode 3) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
 
-While powered down (bit 25) states 1 and 4 just reset to 0, state 2 resets and
+States 3 and 4 as above only run while the mech is still powered up: with the
+override on, or at critical (which clears bit 25). While powered down (bit 25)
+states 1 and 4 just reset to 0, state 2 resets and
 re-runs state 0, and state 3 waits for heat at or below 0.4 and the timer, then
 powers back up (0x41cc30(0)).
 
