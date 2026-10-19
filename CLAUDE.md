@@ -104,13 +104,18 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Next steps
 
-1. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
-   each subsystem's entry points in `docs/symbols.csv`.
+Order agreed with Owen on 2026-10-18: zReader first, because it stands alone,
+can be checked two ways and unblocks loading data.
+
+1. Port the zReader `.zbd` reader (cross-check with mech3ax) so the rebuild can
+   load data, starting with `reader.zbd`. CD_TRACKS is one entry in it; today
+   only the tests hard-code that table (`mw3_cues()` in
+   `tests/test_zsnd_cd.cpp`).
 2. Recover the main data structures (mech, weapon, the zClass node) so Ghidra's
    output reads as fields; apply them in the headless project.
-3. Port the zReader `.zbd` reader (cross-check with mech3ax) so the rebuild can
-   load data, starting with `reader.zbd` (CD_TRACKS is one entry in it).
-4. Heat: find HeatMgmt / heat_* users and port the heat model with differential
-   tests.
+3. Heat: the model at 0x4192f0 is traced (`docs/heat.md`) but needs the mech
+   component layout from step 2; port it then, with differential tests.
+4. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
+   each subsystem's entry points in `docs/symbols.csv`.
 5. Start the Godot GDExtension front end (window, clock, music output) once the
    GPU is free.
