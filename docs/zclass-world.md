@@ -357,12 +357,15 @@ or item index), not raw pointers.
 
 ## Porting order (leaves first)
 
-1. Node pool: 0x4f8c80, 0x4eacd0 (with the failure path as a call into the
-   platform layer, FIX (A) for MessageBox/ExitProcess), 0x4f8de0, 0x4f8ec0,
-   0x4eacb0/0x4eacc0, reset 0x4f8fb0's pool part. Keep the 0xd4-byte slots and
+1. Node pool: **ported** (`src/gamez/zclass/cls_node.*`): 0x4f8c80,
+   0x4eacd0 (the abort 0x4eada0 through `platform::Alert`, FIX (A)),
+   0x4f8de0, 0x4f8ec0, 0x4eacb0/0x4eacc0; `test_zclass.py` runs random
+   alloc/free sequences with tiny blocks against the original. Still open:
+   reset 0x4f8fb0's pool part. Keep the 0xd4-byte slots and
    index links: gamez.zbd stores raw slots (0x4ff200 `fread`s them).
-2. List items and lists: 0x4f77d0, 0x4f78e0, 0x4f7920, 0x4f89a0, then
-   0x4f8080, 0x4f8140 (mutually recursive with step 3's 0x4ed990 only through
+2. List items and lists: **ported** (`zclass/list.*`, checked through
+   gamez.zbd and test_zclass.py) except 0x4f7920: 0x4f77d0, 0x4f78e0,
+   0x4f89a0, 0x4f8080, 0x4f8140 (mutually recursive with step 3's 0x4ed990 only through
    0x4f8080).
 3. 0x4ed990, 0x4ed8f0, 0x4ed8b0, 0x4fb600.
 4. 0x4fb650, 0x4fb740.

@@ -35,4 +35,12 @@ class Files {
   virtual bool exists(const std::string& path) = 0;
 };
 
+// Stands in for the MessageBoxA the engine shows before ExitProcess when it
+// must abort (0x004eada0): tell the player, the caller then quits.
+class Alert {
+ public:
+  virtual ~Alert() = default;
+  virtual void abort_message(const std::string& message) = 0;
+};
+
 }  // namespace platform

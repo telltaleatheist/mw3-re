@@ -988,3 +988,43 @@ int probe_skins(const char* path, long offset, int localized, int damage_mode, u
 }
 
 }  // extern "C"
+
+extern "C" {
+
+// zClass node allocation: ops[i] = -1 allocates, k >= 0 frees slot k
+// (test_zclass.py). Block and item chunk sizes are set small to grow often.
+int probe_node_ops(const int32_t* ops, int count, int block_size, int chunk_size, int32_t* results,
+                   uint8_t* out, int cap) {
+  zcls::nodes() = zcls::NodePool{};
+  zcls::nodes().block_size = block_size;
+  zcls::lists() = zcls::Lists{};
+  zcls::lists().chunk_size = chunk_size;
+  for (int i = 0; i < count; ++i) {
+    if (ops[i] < 0) {
+      results[i] = node_index(zcls::node_alloc());
+    } else {
+      zcls::node_slot_free(zcls::node_at(ops[i]));
+      results[i] = zcls::nodes().free_head;
+    }
+  }
+  const zcls::NodePool& p = zcls::nodes();
+  std::vector<uint8_t> b;
+  put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
+  put_i32(b, static_cast<int32_t>(p.blocks.size()));
+  for (int32_t i = 0; i < p.capacity; ++i) {
+    const zcls::Node* n = zcls::node_at(i);
+    put_bytes(b, n->raw, 0xd0), put_bytes(b, &n->link, 4);
+  }
+  const zcls::List& all = zcls::lists().list[zcls::kAllNodes];
+  int32_t c = 0;
+  for (zcls::ListItem* i = all.head; i; i = i->next) ++c;
+  put_i32(b, c);
+  for (zcls::ListItem* i = all.head; i; i = i->next) put_i32(b, node_index(i->node)), put_item(b, i);
+  put_item(b, all.tail);
+  int32_t free_count = 0;
+  for (zcls::ListItem* i = zcls::lists().free; i; i = i->next) ++free_count;
+  put_i32(b, free_count), put_item(b, zcls::lists().free);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

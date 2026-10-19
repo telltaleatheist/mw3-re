@@ -8,6 +8,7 @@
 // original file is unknown: these functions sit between class.c, cls_util.c
 // and cls_zbd.c, so the file is named for the struct.
 namespace zmod { struct Model; }
+namespace platform { class Alert; }
 
 namespace zcls {
 
@@ -57,6 +58,13 @@ struct Frames {
 };
 Frames& frames();
 
+Node* node_alloc();                // 0x004eacd0
+int node_pool_grow();              // 0x004f8c80, 0 ok, 1 out of memory
+void node_slot_free(Node* node);   // 0x004f8de0
+int32_t node_total();              // 0x004eacb0
+int32_t node_live();               // 0x004eacc0
+[[noreturn]] void gamez_abort(const char* message);  // 0x004eada0
+void set_alert(platform::Alert* alert);
 Node* node_at(int32_t index);      // 0x004fe1d0
 void free_node(int32_t index);     // 0x004f8ec0
 void set_expiry(Node* node);       // 0x004ed990
