@@ -55,6 +55,20 @@ From the heat update at 0x4192f0 (details: `heat.md`).
 - **One mission mode never kills from heat.** In "mission mode 3" (not
   identified yet) heat is always on, but reaching critical only resets it.
 
+## Startup
+
+- **The exe checks itself for stat hacks.** The very first thing the game does
+  is a CRC-32 over two tables built into `Mech3.exe`: the mech roster (each
+  mech's name, tonnage and class) and the BattleTech internal-structure table
+  (structure points by tonnage for head, torsos, arms and legs). If the result
+  isn't 0x00efd77d, someone has hex-edited the stats, and the game picks its
+  "Exit State" as the first screen: it just closes, with no error. Likely aimed
+  at multiplayer cheats (startup.md).
+- **Only one copy runs at a time.** Started a second time, the game finds the
+  first window and brings it to the front instead. Launched from a multiplayer
+  lobby, it closes the old copy instead.
+- **The default mech is the Bushwacker**, set in the app defaults at startup.
+
 ## Graphics
 
 - **The software renderer draws with the stack pointer** (`blit-trick.md`). To
