@@ -128,10 +128,12 @@ can be checked two ways and unblocks loading data.
    CD_TRACKS from it. Still open: the loose-text tokenizer and the archive
    writer (neither is used by the shipped game), and the other `.zbd` kinds
    (motion, sounds, textures, mechlib), which have their own formats.
-2. Recover the main data structures (mech, weapon, the zClass node) so Ghidra's
-   output reads as fields; apply them in the headless project.
-3. Heat: the model at 0x4192f0 is traced (`docs/heat.md`) but needs the mech
-   component layout from step 2; port it then, with differential tests.
+2. Data structures: the mech hierarchy, its parts, the mech definition and the
+   scene node are in `docs/types.json` and applied to the headless project
+   (`docs/structs.md`). Still open: weapons and ammo, the pilot/HUD object
+   (+0x684), and naming more of the mech's ~170 placeholder fields.
+3. Heat: ported (`src/mech3/mech.cpp`, `docs/heat.md`), emulator-checked.
+   Open: the lava-per-frame decision, mission mode 3, the controls value.
 4. Map the init/shutdown sequences (`calls.py 0x480000`, `0x4808a0`) to name
    each subsystem's entry points in `docs/symbols.csv`.
 5. Start the SDL3 front end (window, clock, music output) once the GPU is

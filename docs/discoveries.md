@@ -48,6 +48,10 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   hitting critical heat prints "Heat Death disabled" on the HUD instead of
   killing you. Likely a cheat or a developer toggle; how it is turned on is not
   traced yet.
+- **You can't restart early from a heat shutdown.** The power on/off routine
+  (0x41cc30) does nothing while a heat shutdown is in progress; the game powers
+  you back up itself once heat is down to 0.4. (Likely what the power button
+  calls; not traced from the key yet.)
 - **One mission mode never kills from heat.** In "mission mode 3" (not
   identified yet) heat is always on, but reaching critical only resets it.
 

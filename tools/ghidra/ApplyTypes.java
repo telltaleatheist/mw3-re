@@ -1,6 +1,6 @@
 // Applies docs/types.json and docs/symbols.csv to the headless project, then
 // decompiles the listed functions with the types in place.
-// Usage (headless): -postScript ApplyTypes.java <types.json> <symbols.csv> <outdir>
+// Usage (headless): -postScript ApplyTypes.java <types.json> <symbols.csv> <outdir> [fpconsts.txt]
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -121,12 +121,57 @@ public class ApplyTypes extends GhidraScript {
         }
         println("bound " + methods + " methods");
 
+        if (root.has("signatures")) {
+            ghidra.app.util.parser.FunctionSignatureParser parser =
+                new ghidra.app.util.parser.FunctionSignatureParser(dtm, null);
+            for (Map.Entry<String, JsonElement> e : root.getAsJsonObject("signatures").entrySet()) {
+                Function f = getFunctionAt(toAddr(Long.decode(e.getKey())));
+                if (f == null) continue;
+                String sig = e.getValue().getAsString().replace("(", " " + f.getName() + "(");
+                FunctionDefinitionDataType def = parser.parse(f.getSignature(), sig);
+                def.setCallingConvention(f.getCallingConventionName());
+                new ghidra.app.cmd.function.ApplyFunctionSignatureCmd(f.getEntryPoint(), def,
+                    SourceType.USER_DEFINED).applyTo(currentProgram, monitor);
+            }
+        }
+
+        ghidra.program.model.mem.MemoryBlock rdata = currentProgram.getMemory().getBlock(".rdata");
+        if (rdata != null) rdata.setWrite(false);
+
+        if (args.length > 3) {
+            int defined = 0;
+            for (String line : Files.readAllLines(new File(args[3]).toPath())) {
+                String[] p = line.trim().split(" ");
+                if (p.length != 2) continue;
+                Address a = toAddr(Long.decode(p[0]));
+                DataType t = p[1].equals("double") ? DoubleDataType.dataType : FloatDataType.dataType;
+                if (getDataAt(a) != null && getDataAt(a).isDefined()) continue;
+                try {
+                    clearListing(a, a.add(t.getLength() - 1));
+                    createData(a, t);
+                    defined++;
+                } catch (Exception ex) {
+                    // overlaps code or other data: leave it
+                }
+            }
+            println("defined " + defined + " float constants");
+        }
+
         File outDir = new File(args[2]);
         outDir.mkdirs();
         DecompInterface dec = new DecompInterface();
+        ghidra.app.decompiler.DecompileOptions opts = new ghidra.app.decompiler.DecompileOptions();
+        opts.grabFromProgram(currentProgram);
+        opts.setRespectReadOnly(true);
+        dec.setOptions(opts);
         dec.openProgram(currentProgram);
+        java.util.TreeSet<String> todo = new java.util.TreeSet<>();
+        for (JsonElement a : root.getAsJsonArray("decompile")) todo.add(a.getAsString());
+        for (Map.Entry<String, JsonElement> e : classes.entrySet())
+            for (JsonElement a : e.getValue().getAsJsonArray()) todo.add(a.getAsString());
         int written = 0;
-        for (JsonElement a : root.getAsJsonArray("decompile")) {
+        for (String name : todo) {
+            JsonElement a = new com.google.gson.JsonPrimitive(name);
             Address addr = toAddr(Long.decode(a.getAsString()));
             Function f = getFunctionAt(addr);
             if (f == null) continue;
