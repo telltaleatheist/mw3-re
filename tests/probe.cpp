@@ -1113,3 +1113,13 @@ int probe_mechlib_tree(const char* path, long offset, int frame, uint8_t* out, i
 }
 
 }  // extern "C"
+
+extern "C" {
+int probe_mech_tech(int i) { return mech3::mech_tech(i); }
+const char* probe_mech_name(int i) { return mech3::mech_name(i); }
+int probe_tech_id(const char* s) { return mech3::tech_id(s); }
+int probe_equip_kind(const char* s) { return mech3::equip_kind(s); }
+int probe_weapon_index(const char* s) { return mech3::weapon_index(s); }
+int probe_engine_index(int r) { return mech3::engine_index(r); }
+int probe_armor_points(int tech, int ferro, float tons) { return mech3::armor_points(tech, ferro != 0, tons); }
+}  // extern "C"

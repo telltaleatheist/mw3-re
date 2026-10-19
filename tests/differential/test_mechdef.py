@@ -155,6 +155,65 @@ class Emulated(ReaderEmu):
             out += bytes([cached, dmg == 0, b14]) + struct.pack('<i', refs) + bytes([tex == 0])
 
 
+# MSVCRT floor(double) in st0: round toward -inf through the control word.
+FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
+IAT_FLOOR = 0x5bb66c
+HELPERS = {'mech_tech': 0x484720, 'mech_name': 0x484650, 'tech_id': 0x4852b0, 'equip_kind': 0x4849a0,
+           'weapon_index': 0x4848a0, 'engine_index': 0x432e30, 'armor_points': 0x424760}
+
+
+def check_helpers(emu):
+    """The table helpers over every index, name (with case variants and junk),
+    rating and armor tonnage."""
+    from original import FTOL, IAT_FTOL
+    cpu = emu.cpu
+    cpu.import_code(IAT_FTOL, FTOL)
+    cpu.import_code(IAT_FLOOR, FLOOR)
+    eax = lambda: struct.unpack('<i', struct.pack('<I', cpu.uc.reg_read(UC_X86_REG_EAX)))[0]
+    for fn in ('mech_tech', 'tech_id', 'equip_kind', 'weapon_index', 'engine_index', 'armor_points'):
+        getattr(probe, f'probe_{fn}').restype = ctypes.c_int
+    probe.probe_mech_name.restype = ctypes.c_char_p
+    probe.probe_armor_points.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
+    checks = 0
+
+    def same(what, want, got):
+        nonlocal checks
+        checks += 1
+        if want != got:
+            raise SystemExit(f'{what}: original {want!r}, port {got!r}')
+
+    for i in range(-3, 25):
+        cpu.call(HELPERS['mech_tech'], ecx=i & 0xffffffff)
+        same(f'mech_tech({i})', eax(), probe.probe_mech_tech(i))
+        cpu.call(HELPERS['mech_name'], ecx=i & 0xffffffff)
+        same(f'mech_name({i})', emu.cstr(cpu.uc.reg_read(UC_X86_REG_EAX)), probe.probe_mech_name(i))
+    names = ['clan', 'sphere', 'Clan', 'any', '', 'ams', 'armor', 'armorff', 'fcs', 'bap', 'case', 'c3',
+             'c3slave', 'ecm', 'sink', 'dsink', 'jjets', 'masc', 'tag', 'tc', 'TAG', 'Sink', 'jjet', 'x']
+    names += ['AC2', 'ac2', 'Ac20', 'ERLaser_Small', 'erlaser_small', 'PPC', 'ERPPC', 'LB10XAC', 'lrm20',
+              'MGUN', 'NARC', 'StreakSRM6', 'UltraAC20', 'UltraAC', 'Gauss', 'GaussRifle', 'Flamer']
+    p = cpu.alloc(64)
+    for n in names:
+        cpu.write(p, n.encode() + b'\0')
+        for fn in ('tech_id', 'equip_kind', 'weapon_index'):
+            cpu.call(HELPERS[fn], ecx=p)
+            same(f'{fn}({n!r})', eax(), getattr(probe, f'probe_{fn}')(n.encode()))
+    cpu.call(HELPERS['tech_id'], ecx=0)
+    same('tech_id(null)', eax(), probe.probe_tech_id(None))
+    cpu.call(HELPERS['weapon_index'], ecx=0)
+    same('weapon_index(null)', eax(), probe.probe_weapon_index(None))
+    for r in range(-10, 520):
+        cpu.call(HELPERS['engine_index'], ecx=r & 0xffffffff)
+        same(f'engine_index({r})', eax(), probe.probe_engine_index(r))
+    for tech in (1, 2, 3):
+        for ferro in (0, 1):
+            for k in range(0, 201):
+                tons = k * 0.5
+                bits = struct.unpack('<I', struct.pack('<f', tons))[0]
+                cpu.call(HELPERS['armor_points'], ecx=tech, edx=ferro, stack_args=(bits,))
+                same(f'armor_points({tech}, {ferro}, {tons})', eax(), probe.probe_armor_points(tech, ferro, tons))
+    return checks
+
+
 def main():
     data = READER.read_bytes()
     emu = Emulated(data)
@@ -191,8 +250,9 @@ def main():
         want = emu.cstr(emu.cpu.uc.reg_read(UC_X86_REG_EAX))
         if probe.probe_part_name(i) != want:
             raise SystemExit(f'part_name({i}): original {want}')
+    checks = check_helpers(emu)
     print(f'ok: skins of {files} mech definitions identical four ways each; firepoints, part slots and '
-          f'the MechDfn defaults identical; part ids and names agree')
+          f'the MechDfn defaults identical; part ids and names agree; {checks} table helper calls agree')
 
 
 if __name__ == '__main__':

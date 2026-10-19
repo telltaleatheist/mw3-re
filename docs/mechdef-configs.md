@@ -1,7 +1,9 @@
 # Mech definition: configurations (loadouts)
 
 Mech3.exe 1.2, 2026-10-19. Mapped from the asm, checked by running the original
-block in the emulator on all 19 files; nothing ported yet. From the asm
+block in the emulator on all 19 files. Ported so far: the porting order's
+step 1, the table helpers (`src/mech3/mech_names.*`), checked over every
+index, name, rating and armor tonnage in `test_mechdef.py`. From the asm
 (`analysis-output/mech3.asm`); Ghidra's pseudocode drops ECX/EDX on every
 callee below and the return value of the constructors. Follows
 `docs/mechdef-skins.md` and `docs/mechdef-parts.md`: the mech definition
