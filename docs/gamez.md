@@ -88,6 +88,9 @@ below is silent. The only result anyone sees is the return value.
 
 ## 1. Texture directory: 0x518160 (`zimg_texture.cpp`)
 
+Ported: `zimg::read_texture_directory` (`src/gamez/zimage/zimg_texture.*`),
+identical on all six worlds (`tests/differential/test_gamez.py`).
+
 `(count ecx, file edx)`, returns the count or -1:
 
 - `count == 0`: returns 0 at once. It does **not** clear the table count

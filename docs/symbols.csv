@@ -168,3 +168,6 @@ address,name,source,notes
 0x00461300,MechPart::ApplyDamage,asm,""
 0x0041b0d0,Mech::Die,asm,"state +0x578 = 10"
 0x0040cef0,set_player_invincible,asm,"mech +0x630"
+0x00518160,zimg_read_texture_directory,asm,"ported; (ECX count, EDX FILE*)"
+0x00518080,zimg_texture_at,asm,"index -> &table[i], -1 -> 0"
+0x00610484,g_textures,asm,"0x1000 x 0x28; count 0x610480; group 0x6384d4"

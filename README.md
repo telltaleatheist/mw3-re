@@ -29,6 +29,7 @@ tests/differential/run_all.sh   # all of the below
 .venv/bin/python tests/differential/test_power.py
 .venv/bin/python tests/differential/test_motion.py
 .venv/bin/python tests/differential/test_mechlib.py
+.venv/bin/python tests/differential/test_gamez.py
 .venv/bin/python tests/differential/test_textures.py  # needs the zbd texture files; ~4 min
 ```
 

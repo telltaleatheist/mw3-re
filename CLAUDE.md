@@ -170,7 +170,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       `tests/differential/explore/`.
 - [x] Mission worlds: mapped (`docs/gamez.md`), walk scripts in
       `tests/differential/explore/gamez_*.py`.
-- [ ] Mission worlds: port leaves first (texture directory, materials, models,
+- [ ] Mission worlds: texture directory ported (`zimg_texture`, all 2,973
+      entries identical); next materials, models,
       node data per class, node pool, top-level reader), as `docs/gamez.md`.
 - [x] Mission scripts: mapped (`docs/interp.md`), decoder in
       `tests/differential/explore/interp_*.py`.

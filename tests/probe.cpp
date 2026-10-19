@@ -465,3 +465,30 @@ int probe_mechlib_material(const char* path, long offset, uint8_t* out, int cap)
 }
 
 }  // extern "C"
+
+#include "gamez/zimage/zimg_texture.h"
+
+extern "C" {
+
+// Reads a world's texture directory: count at offset, group set first. Output:
+// result, table count, then per entry name[20], state, group, mip index.
+int probe_texture_directory(const char* path, long offset, int count, int group, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  std::fseek(f, offset, SEEK_SET);
+  zimg::TextureTable& t = zimg::textures();
+  t.count = -7;
+  t.group = group;
+  const int32_t r = zimg::read_texture_directory(count, f);
+  std::fclose(f);
+  std::vector<uint8_t> b;
+  put_bytes(b, &r, 4), put_bytes(b, &t.count, 4);
+  for (int i = 0; i < (r > 0 ? r : 0); ++i) {
+    const zimg::TextureEntry& e = t.entries[i];
+    const int32_t mip = e.mip ? static_cast<int32_t>(e.mip - t.entries) : -1;
+    put_bytes(b, e.name, 20), put_bytes(b, &e.state, 4), put_bytes(b, &e.group, 4), put_bytes(b, &mip, 4);
+  }
+  return finish(b, out, cap);
+}
+
+}  // extern "C"
