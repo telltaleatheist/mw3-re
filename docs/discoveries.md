@@ -61,9 +61,9 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   is a CRC-32 over two tables built into `Mech3.exe`: the mech roster (each
   mech's name, tonnage and class) and the BattleTech internal-structure table
   (structure points by tonnage for head, torsos, arms and legs). If the result
-  isn't 0x00efd77d, someone has hex-edited the stats, and the game picks its
-  "Exit State" as the first screen: it just closes, with no error. Likely aimed
-  at multiplayer cheats (startup.md).
+  isn't 0x00efd77d, someone has hex-edited the stats: the intro movies still
+  play, but instead of the main menu the game goes to its "Exit State" and
+  closes, with no error. Likely aimed at multiplayer cheats (startup.md).
 - **Only one copy runs at a time.** Started a second time, the game finds the
   first window and brings it to the front instead. Launched from a multiplayer
   lobby, it closes the old copy instead.

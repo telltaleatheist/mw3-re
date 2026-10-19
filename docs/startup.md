@@ -15,8 +15,8 @@ and what the function touches.
    table at 0x5e6998 (0x17c bytes: per tonnage, the structure points of head,
    centre torso, side torso, arm, leg). The result must equal 0x00efd77d
    (0x5e6b14), which it does for the shipped exe. If not, the flag at 0x608f70
-   is set and the first game state becomes the Exit state (state 4), so an
-   edited exe simply closes.
+   is set and the state after the intro (app +0x1dc) becomes the Exit state
+   (state 4) instead of Main: the splash movies play, then the game closes.
 2. **Network lobby.** 0x5899b0 asks a DirectPlay lobby for a connection. Without one,
    0x480340 looks for a running copy (window class `Mech3Class`) and brings it
    to the front instead of starting a second one. With one, 0x4803a0 closes the
@@ -49,23 +49,26 @@ and what the function touches.
 
 ## Game states
 
-The app's first state is the pointer at app +0x1dc, picked from the static state
-objects by 0x482970(n). Their constructors name them:
+The app constructor (0x47f7a0) sets the first state, app +0xc4, to Intro, and
+the state after it, app +0x1dc, to Main. The Intro state's update (0x482170)
+plays the `SPLASH` movies from `fmv.zrd`, then moves on to 0x482970(12), which
+returns +0x1dc. The states are static objects picked by 0x482970(n); their
+constructors name them:
 
 | n | Object | Name |
 |---|---|---|
 | 0 | 0x608e90 | Attract State |
 | 1 | 0x608f58 | Intro State |
-| 2 | 0x608f00 | Main State (the normal start) |
+| 2 | 0x608f00 | Main State (after the intro) |
 | 3 | 0x608f48 | Pause State |
-| 4 | 0x608ef8 | Exit State (the tamper check's start) |
+| 4 | 0x608ef8 | Exit State (after the intro when the tamper check fails) |
 | 5 | 0x608ec0 | Core State |
 | 6 | 0x608f18 | Load State |
 | 7 | 0x608f38 | Pre Lab State |
 | 8 | 0x608ee8 | Salvage State |
 | 9 | 0x608e70 | Win State |
 | 10 | 0x608ea0 | (unnamed) |
-| 12 | app +0x1dc | the current choice |
+| 12 | app +0x1dc | the state after the intro |
 
 ## Shutdown (0x4808a0)
 
