@@ -258,14 +258,61 @@ From the weapon code (weapons.md).
 
 ## Sound
 
-- **The "medium" sound playback format is never read.** `sounds.zrd` lists
-  playback formats as `HIGH`, `MEDIUM` and `LOW`, but the sound setup asks for
-  `"MED"` (0x570ccf), an exact match that never hits, so the medium format slot
-  (0x72c2e0) stays empty. What the medium sound quality setting falls back to
-  isn't traced yet.
+- **Medium sound quality is low quality.** The detail setting picks
+  `soundsH.zbd`, `soundsM.zbd` or `soundsL.zbd`, but no medium archive ever
+  shipped, so the game moves on to the next one: medium loads the 11 kHz
+  low set. The "medium" playback format is never read either: the setup
+  asks `sounds.zrd` for `"MED"` (0x570ccf) where the file says `MEDIUM`
+  (sound.md).
+- **The game asks the sound card for mono.** The playback formats in
+  `sounds.zrd` say stereo for high quality, but the setup stores 1 channel
+  whatever the file says, so on the Windows 9x DirectSound of the time the
+  whole mix was mono and the left/right panning of 3D sounds was lost. Since
+  Vista Windows ignores that request, so players today hear it in stereo.
+- **60 sounds were never shipped.** `sounds.zrd` names 1058 sounds, but 60
+  WAVs are in neither archive: Dom's four ejection lines, Alan's fourth
+  "disregard", the wingmen's acknowledgements ("sure sir", "affirmative",
+  "right away sir", "consider it done", "I'm on it", "no problem") and
+  taunts ("you'll pay", "yeah right", "don't take", "not gonna", "can't do",
+  "goodbye", "returning"), the "occupied" calls, the mech's eject voice, and
+  36 lines of mission dialogue and one ambient loop. They simply stay silent.
+- **Wingmen never say they are low or out of ammo.** The game looks up
+  `dom_low_ammo`, `alan_out_of_ammo` and so on (0x4e7dc0, "%s_%s"), but in
+  `sounds.zrd` those six groups list `"PLAY_COUNT" 2` after their name, and
+  PLAY_COUNT is not a group keyword: the reader takes it as the group's
+  name, so all six are called "PLAY_COUNT" and the lookups find nothing.
+- **Radio chatter queues newest first.** Lines marked QUEUE wait their turn,
+  half a second apart, but the queue is a stack: the most recent line plays
+  next, and a line that waited more than 5 seconds is dropped unheard.
+- **Halving a sound's volume takes 10 dB off, not 6.** The game converts
+  volume to decibels as 1000 x log2, so quiet settings fall off faster than
+  the slider suggests.
+- **Distant sounds fade by 6 dB per "near" distance.** A 3D sound is full
+  volume to its RANGE's first value, then loses 6 dB for each further such
+  distance, and cuts off past the second (a chopper: 350 and 900, so -9 dB at
+  the cut-off). The distance is an approximation that can be 6% off, and
+  panning reaches at most 16 dB, so sounds never come from one ear only.
+- **No sound changes pitch.** Doppler and the weapons' pitch changes call
+  DirectSound's SetFrequency, which only works on buffers made with
+  frequency control, and no sound in `sounds.zrd` asks for it (`FREQUENCY`),
+  so every such call fails silently. Had it worked, the doppler would have
+  compounded: it scales the current pitch each update and never restores it.
+- **Eight copies of a sound at most.** A ninth play of a sound already
+  sounding eight times restarts the first one.
+- **Volume fades rarely finish.** A fade moves 25 dB a second and ends only
+  when it lands exactly on its target, which happens only at full volume or
+  silence; a fade to anything in between keeps nudging the volume up and
+  down one step around the target for as long as the sound plays.
+- **Unpausing replays sounds.** Leaving the pause menu does not resume what
+  was playing: for every sound that was playing it starts all its copies
+  again (any that had already finished included, from the start), and twice
+  for a sound that had two copies playing.
+
 - **Sounds are plain WAV files** packed in `soundsL.zbd` (11 kHz, 8-bit) and
   `soundsH.zbd` (22 kHz), 999 of them, named in `sounds.zrd` by set: menus,
-  briefings, mech voices, weapons.
+  briefings, mech voices, weapons. The briefing voices carry cue points
+  (50 sounds have them); the briefing screen is called at each one (0x405e10
+  sets the callback).
 
 ## Startup
 

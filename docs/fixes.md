@@ -47,6 +47,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Particle fade-in, 0x5489a0 | The fade-in ramp subtracts the fade-out start (+0x3c) where the fade-in start (+0x34) belongs | (bug) a typo: inside a puffer's fade-in band the alpha is negative and the particle is not drawn, instead of fading in | The fade-in start. No shipped puffer sets a fade-in, so play is unchanged; the test runs the original with the same one-byte change (`puffers.md`) |
 | Puffer event key counts, 0x5035b0 | Reads as many colour and growth keys as the event's counts say, past the six slots | (bug) a damaged anim.zbd reads the following data as keys | At most six; shipped counts are 1..5, so identical |
 | Puffer sprite, 0x567720 | The texture entry's record is passed on unchecked | (A) the default texture's record is made at startup by 0x5184e0, not ported | No record, no sprite (the front end sets `zimg::default_entry()->surface`) |
+| Sound, zSound (zsnd_*.cpp, sound.md) | DirectSound: DirectSoundCreate, IDirectSound, IDirectSoundBuffer (and Aureal A3D, never selected) | (A) DirectSound does not exist on macOS and is legacy on Windows | `platform::SoundOutput`, one method per DirectSound call with its HRESULTs and units; the SDL3 front end mixes in software (`sdl_sound`). A3D is not ported. Emulator-verified call for call (`test_sound.py`) |
+| Sound output format, 0x5702a0 | The primary buffer set to the PLAYBACK_FORMAT, with 1 channel whatever the data says | (A) a modern mixer has no primary buffer | The request is made as the original's (and tested), but the SDL output mixes stereo, as DirectSound does since Vista (discoveries: mono on Windows 9x) |
+| Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
+| Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
 
 Notes on the fixes:
 
@@ -167,3 +171,18 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   maximum engine is forced to 400; only a weapon's first group counts. These
   look deliberate and stay unless Owen says otherwise.
 
+- Sound groups `dom_low_ammo`, `alan_low_ammo`, `epona_low_ammo`,
+  `dom_out_of_ammo`, `alan_out_of_ammo`, `epona_out_of_ammo`: `PLAY_COUNT 2`
+  at group level is not a keyword, so the reader renames them all
+  "PLAY_COUNT" and the wingmen's ammo calls never play (sound.md). Fixing the
+  data (drop the two words, or move them into the entries) restores lines
+  players never heard.
+- Sound fades (0x571940) end only on an exact landing, so fades to a partial
+  volume never end and jitter one step around the target; snapping to the
+  target when the step passes it is the likely intent.
+- Unpause (0x56f130) replays every copy of each sound that was playing
+  (finished ones from the start, twice for two copies) instead of resuming
+  the ones that were; resuming only the recorded voices is the likely intent.
+- Radio chatter (QUEUE) plays newest first; first-in first-out may have been
+  meant, but newest-first keeps chatter current, so it may be design.
+- 3D panning: the game asks for mono output (above); the port plays stereo.

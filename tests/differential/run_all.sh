@@ -42,8 +42,10 @@ for t in \
     app_loop \
     app_options \
     app_states \
+for t in \
     shadows \
     puffers \
+    sound \
     ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
