@@ -395,3 +395,73 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+#include "gamez/zclass/cls_mechlib.h"
+
+namespace {
+void put_bytes(std::vector<uint8_t>& b, const void* p, size_t n) {
+  const auto* c = static_cast<const uint8_t*>(p);
+  b.insert(b.end(), c, c + n);
+}
+int finish(const std::vector<uint8_t>& b, uint8_t* out, int cap) {
+  if (static_cast<int>(b.size()) > cap) return -1;
+  std::memcpy(out, b.data(), b.size());
+  return static_cast<int>(b.size());
+}
+}  // namespace
+
+extern "C" {
+
+// One model at <offset>: the header (pointer fields as present/absent), the
+// arrays, then each polygon's fields and arrays. Same layout as test_mechlib.py.
+int probe_mechlib_model(const char* path, long offset, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  std::fseek(f, offset, SEEK_SET);
+  zcls::Model* m = zcls::read_model(f);
+  const long end = std::ftell(f);
+  std::fclose(f);
+  std::vector<uint8_t> b;
+  const int32_t used = static_cast<int32_t>(end - offset);
+  put_bytes(b, &used, 4);
+  put_bytes(b, m->header, 0x34);
+  put_bytes(b, m->header + 0x48, 0x5c - 0x48);
+  if (m->vertices) put_bytes(b, m->vertices, m->vertex_count * 12);
+  if (m->normals) put_bytes(b, m->normals, m->normal_count * 12);
+  if (m->morphs) put_bytes(b, m->morphs, m->morph_count * 12);
+  for (uint32_t i = 0; i < m->polygon_count; ++i) {
+    const zcls::Polygon& p = m->polygons[i];
+    const uint32_t k = p.flags & 0xff;
+    put_bytes(b, &p.flags, 4), put_bytes(b, &p.priority, 4);
+    put_bytes(b, &p.material, 4), put_bytes(b, &p.zone_set, 4);
+    const uint8_t has[4] = {p.vertex_indices != nullptr, p.normal_indices != nullptr,
+                            p.uvs != nullptr, p.colors != nullptr};
+    put_bytes(b, has, 4);
+    if (p.vertex_indices) put_bytes(b, p.vertex_indices, k * 4);
+    if (p.normal_indices) put_bytes(b, p.normal_indices, k * 4);
+    if (p.uvs) put_bytes(b, p.uvs, k * 8);
+    if (p.colors) put_bytes(b, p.colors, k * 12);
+  }
+  zcls::free_model(m);
+  return finish(b, out, cap);
+}
+
+// One material at <offset>: the 0x28 bytes, then the texture name.
+int probe_mechlib_material(const char* path, long offset, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  std::fseek(f, offset, SEEK_SET);
+  zcls::Material m{};
+  zcls::read_material(f, m);
+  const int32_t used = static_cast<int32_t>(std::ftell(f) - offset);
+  std::fclose(f);
+  std::vector<uint8_t> b;
+  put_bytes(b, &used, 4);
+  put_bytes(b, m.raw, 0x28);
+  if (m.texture) put_bytes(b, m.texture, std::strlen(m.texture) + 1);
+  std::free(m.raw);
+  std::free(m.texture);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

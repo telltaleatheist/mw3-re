@@ -158,3 +158,8 @@ address,name,source,notes
 0x005aa500,CZSIScriptPart::CZSIScriptPart,asm,"0x4c bytes"
 0x005aa5a0,CZSIScriptPart::Attach,asm,"(script, share)"
 0x005aa6d0,CZSIScriptPart::Read,asm,"name, flags, keys"
+0x004fc570,Material::Read,asm,"ported: zcls::read_material"
+0x004fcf20,mechlib_read_model,asm,"ported: zcls::read_model; (handle, node) ret 8"
+0x004fcdc0,mechlib_read_tree,asm,"docs/mechlib.md"
+0x004fce50,mechlib_read_node,asm,"docs/mechlib.md"
+0x004fc6d0,mechlib_open,asm,"version 27, format 1"

@@ -157,7 +157,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       an emulator check over every `dfn_*.zrd`.
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
-- [ ] Mechlib: port materials and models (steps 1-3 of `docs/mechlib.md`)
-      with emulator checks over all 442 materials and 770 models.
+- [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
+      identical on all 442 materials and 770 models.
+- [ ] Mechlib: the node tree (read_tree/read_node, steps 4-5), which needs the
+      zClass node pool and add-child.
 - [ ] Assets: trace the remaining formats in `docs/assets.md` ( interp scripts, gamez.zbd, anim.zbd), one per sitting,
       cross-checked against mech3ax.

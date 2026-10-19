@@ -192,6 +192,14 @@ two tables.
 - **0x484540**: frees the list sentinel and vector storage, zar `destroy`
   0x576500.
 
+## Ported
+
+`src/gamez/zclass/cls_mechlib.*`: `read_material` (0x4fc570) and `read_model`
+(0x4fcf20). `tests/differential/test_mechlib.py` walks the file in the exe's
+order, runs both originals on every material and model, and compares
+everything read and the bytes consumed: all 442 materials and 770 models are
+identical. FIX (A): models come from `new` rather than the 0x60-byte pool.
+
 ## Exe and mech3ax compared
 
 Same bytes in the same order; on the shipped file both agree. Where they
