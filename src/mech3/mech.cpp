@@ -107,9 +107,9 @@ void update_heat(Mech& m, float dt) {
     return;
   }
 
-  if (m.is_powered_down()) m.heat_state = (m.heat_state & ~kOverheated) | kPoweredDown;
+  if (m.is_powered_down()) m.heat_state = (m.heat_state & ~kOverride) | kPoweredDown;
   else m.heat_state &= ~kPoweredDown;
-  if (m.heat < kRecover) m.heat_state &= ~kOverheated;
+  if (m.heat < kRecover) m.heat_state &= ~kOverride;
 
   // The warning beep: 0 idle, 1 just started, 2 waiting, 3 sounding; 4-7 cancel.
   for (bool again = true; again;) {
@@ -185,14 +185,14 @@ void update_heat(Mech& m, float dt) {
     };
     switch (key) {
       case 0:
-      case kOverheated:
+      case kOverride:
         warn();
         break;
       case 1:
-      case kOverheated | 1:
+      case kOverride | 1:
         if (m.heat <= kShutdownSafe) {
           m.heat_shutdown = false;
-          s &= ~kOverheated;
+          s &= ~kOverride;
           s &= ~0x38u;
         } else if (w.time > m.shutdown_time) {
           m.shutdown_time = w.time + 3.0f;
@@ -200,7 +200,7 @@ void update_heat(Mech& m, float dt) {
           s = next_shutdown(s, 1);
         }
         break;
-      case kOverheated | 2:
+      case kOverride | 2:
         if (!over) {
           s = next_shutdown(s, 1);
           break;
@@ -214,7 +214,7 @@ void update_heat(Mech& m, float dt) {
         s = next_shutdown(s, 1);
         break;
       case 3:
-      case kOverheated | 3:
+      case kOverride | 3:
         if (m.heat <= kShutdownSafe) {
           m.heat_shutdown = false;
           s &= ~kPoweredDown;
@@ -226,7 +226,7 @@ void update_heat(Mech& m, float dt) {
         }
         break;
       case 4:
-      case kOverheated | 4:
+      case kOverride | 4:
         if (!(w.time > m.shutdown_time)) break;
         if (!critical && rand_unit() < 0.8f) {
           // Ride it out: maybe an ammo bin cooks off, then back to state 3.
@@ -257,16 +257,16 @@ void update_heat(Mech& m, float dt) {
         }
         break;
       case kPoweredDown | 1:
-      case kPoweredDown | kOverheated | 1:
+      case kPoweredDown | kOverride | 1:
         s &= ~0x38u;
         break;
       case kPoweredDown | 2:
-      case kPoweredDown | kOverheated | 2:
+      case kPoweredDown | kOverride | 2:
         s &= ~0x38u;
         warn();
         break;
       case kPoweredDown | 3:
-      case kPoweredDown | kOverheated | 3:
+      case kPoweredDown | kOverride | 3:
         if (m.heat <= kRecover && w.time > m.shutdown_time) {
           m.heat_shutdown = false;
           if (g_calls.power) g_calls.power(m, 0);
@@ -274,7 +274,7 @@ void update_heat(Mech& m, float dt) {
         }
         break;
       case kPoweredDown | 4:
-      case kPoweredDown | kOverheated | 4:
+      case kPoweredDown | kOverride | 4:
         m.heat_shutdown = false;
         reset();
         break;

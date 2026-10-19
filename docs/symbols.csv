@@ -138,3 +138,5 @@ address,name,source,notes
 0x0045fbc0,HeatSinks::Lose,asm,"(n) count -= n, min 0; always returns false"
 0x00460d50,MechPart::Critical,decomp,"(type) 0 heat sink, 1 weapon, 2 ammo?, 3-4 ..."
 0x00485390,play_pilot_callout,asm,"voice from table 0x608fc0"
+0x00419190,Mech::SetShutdownOverride,asm,"(on) player only, while the beep is active; bit 24 of +0x69c, sound 0x16"
+0x0041be80,Mech::Command,asm,"command switch (id - 6) via 0x41c8d4 / 0x41c7d0; 0x40 = override"

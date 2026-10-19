@@ -30,7 +30,7 @@ Mech offsets (`docs/structs.md` has the rest of the object):
 | +0x630 | "Heat Death disabled" (a cheat or debug switch) |
 | +0x658 | heat sinks: +4 count (10 by default), +8 doubles |
 | +0x684 | the pilot/HUD side: sounds and the screen effect go through it |
-| +0x69c | state: bits 0-2 beep, bits 3-5 shutdown, bit 24 overheated, bit 25 powered down |
+| +0x69c | state: bits 0-2 beep, bits 3-5 shutdown, bit 24 shutdown override, bit 25 powered down |
 | +0x6a0, +0x6a4, +0x6a8 | shutdown, beep and voice timers (game time, seconds) |
 
 Foot: +0xac in water, +0xdc water depth, +0xe8 soil under it. Soils (0x47f380):
@@ -86,8 +86,8 @@ powered down, stop the sounds and force state 2.
 | State | What happens |
 |---|---|
 | 0 | above 0.95 and past the voice timer: "shutdown imminent" (sound 0x14), timers = now + 4, go to 1 |
-| 1 | 0.9 or below: cancel, clear the overheated bit, back to 0; else once the timer passes, timer = now + 3, go to 2 and run again |
-| 2 | "shutting down" (sound 0x15), power down (0x41cc30(1)), heat shutdown on, go to 3 (with the overheated bit and no 1.5 forcing, it only moves to 3) |
+| 1 | 0.9 or below: cancel, clear the override, back to 0; else once the timer passes, timer = now + 3, go to 2 and run again |
+| 2 | "shutting down" (sound 0x15), power down (0x41cc30(1)), heat shutdown on, go to 3 (with the override and no 1.5 forcing, it moves to 3 without powering down) |
 | 3 | 0.9 or below: cancel; else when the timer passes, timer = now + 0.1..3.0 at random, start the alarm (sound 6), go to 4 |
 | 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not mission mode 3) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
 
@@ -104,6 +104,16 @@ fps but 3/s at 60. Everything else scales with dt. Kept as the original for now;
 if the rebuild runs above the original's frame rate this is a candidate FIX (B)
 (`dt * 1.5`). Decision for Owen.
 
+## The shutdown override (bit 24)
+
+Command 0x40 in the mech's command handler (0x41be80) calls 0x419190(1): for
+the player only, and only while the beep is active (state bits 0-1 non-zero), it
+plays sound 0x16 and sets bit 24. Mech3Msg.dll calls it "Override Thermal
+Shutdown" (0x87b): "Disables the current automatic shutdown until the 'Mech
+cools then reaches a critical level of heat" (0x97b). In the state machine the
+bit makes state 2 skip the power-down; 1.5 heat still forces it, and the bit
+clears below 0.4. 0x419190(0) clears it.
+
 ## Losing heat sinks
 
 `HeatSinks::Lose(n)` (0x45fbc0) takes n off the count (not below 0) and always
@@ -116,4 +126,3 @@ crit handler's "heat sink lost" voice (0x485390) never plays.
 
 - The controls value at +0x37c vtable +0x1c: likely throttle.
 - Mission mode 3: heat always on and no death from critical heat; which mode?
-- Who sets the overheated bit (0x1000000): 0x419190 touches +0x69c.

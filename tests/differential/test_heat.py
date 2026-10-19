@@ -278,7 +278,7 @@ def main():
                     v = s[name]
                     want[i] = f2i(float(v)) if kind == 'f' else int(v)
             if rng.random() < 0.01:
-                # The overheated flag is set elsewhere in the game (0x419190).
+                # The shutdown override, set by the player's command (0x419190).
                 want[NAMES.index('heat_state')] |= 0x1000000
             emu.set(want)
             port_set(want)

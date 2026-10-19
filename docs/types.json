@@ -87,7 +87,7 @@
       ["0x630", "bool", "heat_death_disabled"],
       ["0x658", "HeatSinks", "heat_sinks"],
       ["0x684", "undefined4*", "owner", "pilot / HUD side; sounds play through it"],
-      ["0x69c", "uint", "heat_state", "bits 0-2 beep, 3-5 shutdown, 24 overheated, 25 powered down"],
+      ["0x69c", "uint", "heat_state", "bits 0-2 beep, 3-5 shutdown, 24 shutdown override, 25 powered down"],
       ["0x6a0", "float", "shutdown_time"],
       ["0x6a4", "float", "beep_time"],
       ["0x6a8", "float", "voice_time"]

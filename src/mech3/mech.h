@@ -24,7 +24,7 @@ struct HeatSinks {     // embedded at mech +0x658
 };
 
 enum : uint32_t {
-  kOverheated = 0x1000000,
+  kOverride = 0x1000000,
   kPoweredDown = 0x2000000,
 };
 
@@ -48,7 +48,7 @@ struct Mech {
   bool heat_death_disabled;  // +0x630
   HeatSinks heat_sinks;      // +0x658
   void* owner;               // +0x684  pilot / HUD side
-  uint32_t heat_state;       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24-30 flags
+  uint32_t heat_state;       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24 override, 25 powered down
   float shutdown_time;       // +0x6a0
   float beep_time;           // +0x6a4
   float voice_time;          // +0x6a8

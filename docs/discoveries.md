@@ -54,10 +54,17 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   hitting critical heat prints "Heat Death disabled" on the HUD instead of
   killing you. Likely a cheat or a developer toggle; how it is turned on is not
   traced yet.
+- **The shutdown override only works while the alarm is beeping.** "Override
+  Thermal Shutdown" (0x419190) does nothing unless the heat warning is already
+  sounding. Once on, it cancels the automatic power-down, but not at 1.5 heat,
+  which still shuts you down, and it switches itself off when you cool below
+  0.4.
 - **You can't restart early from a heat shutdown.** The power on/off routine
   (0x41cc30) does nothing while a heat shutdown is in progress; the game powers
   you back up itself once heat is down to 0.4. (Likely what the power button
-  calls; not traced from the key yet.)
+  calls; not traced from the key yet. The in-game help says the startup key
+  "can also restart your 'Mech after an automatic shutdown", which this code
+  does not allow.)
 - **One mission mode never kills from heat.** In "mission mode 3" (not
   identified yet) heat is always on, but reaching critical only resets it.
 
