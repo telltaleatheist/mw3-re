@@ -21,3 +21,4 @@ build/
 .venv/
 __pycache__/
 .cache/
+docs/drafts/
