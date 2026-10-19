@@ -41,6 +41,7 @@ for t in \
     puffers \
     twod \
     twod_blit \
+    twod_msgbox \
     ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1

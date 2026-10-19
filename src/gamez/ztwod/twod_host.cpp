@@ -1,6 +1,9 @@
 // The default Host: every call reports itself as unported (docs/twod.md, Hooks).
 #include "gamez/ztwod/twod_host.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_blit.h"
 
@@ -56,6 +59,32 @@ void Host::blit(zimg::Texture* image, int32_t x, int32_t y, int32_t flags, const
 }
 Handle Host::image_dc(zimg::Texture* image) { return unported("[0x0072f394]", {ptr(image)}); }
 void Host::image_dc_release(zimg::Texture* image, Handle dc) { unported("[0x0072f398]", {ptr(image), dc}); }
+int32_t Host::video_mode() { return static_cast<int32_t>(unported("peek32", {0x72f348})); }
+void Host::video_double() { unported("[0x0072f358]", {0, 0}); }
+uint32_t Host::show_cursor(uint32_t on) { return unported("0x00579840", {on}); }
+Rect Host::screen_rect() {
+  unported("0x00579880", {});
+  return Rect{};
+}
+Handle Host::render_target(int32_t* w, int32_t* h, int32_t* depth, int32_t* pitch) {
+  *w = *h = *depth = *pitch = 0;
+  return unported("0x00558080", {});
+}
+void Host::render_set_target(Handle base, const Rect* r, Handle depth, Handle pitch) {
+  unported("0x00557f90", {base, r->left, r->top, r->right, r->bottom, depth, pitch});
+}
+Handle Host::video_get(uint32_t addr) {
+  char key[16];
+  std::snprintf(key, sizeof key, "0x%08x", addr);
+  return unported(key, {});
+}
+void Host::input_poll(uint8_t a) { unported("0x0051b360", {a}); }
+void Host::timer_update() { unported("0x00575a00", {}); }
+float Host::frame_dt() { return zgame::from_bits(unported("peek32", {0x72c52c})); }
+void Host::video_flip(const Rect* a, const Rect* b, int32_t c, int32_t d) {
+  unported("0x00576ea0", {a->left, a->top, a->right, a->bottom, b->left, b->top, b->right, b->bottom, c, d});
+}
+void Host::crt_free(void* p) { std::free(p); }
 int32_t Host::sound_find(const char* name) { return static_cast<int32_t>(unported("0x0056f6f0", {name})); }
 int32_t Host::sound_play(int32_t sound, float volume) {
   return static_cast<int32_t>(unported("0x0056e3d0", {sound, zgame::bits(volume)}));

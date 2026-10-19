@@ -566,6 +566,22 @@ def synthetic_dialog(seed):
             if r.random() < 0.6:
                 b += ['DISABLE_SEL', ['BITMAP', ['ds%d' % i], 'TEXT', label()]]
         buttons += ['B%d' % i, b]
+    if r.random() < 0.7:  # a slider
+        buttons += ['SLIDE', ['POSITION', [r.randrange(500), r.randrange(400)], 'BITMAP', ['bar_empty'],
+                              'FILLBITMAP', ['bar_full'] + ([r.randrange(-5, 20), r.randrange(-5, 20)]
+                                                            if r.random() < 0.6 else [])]]
+    if r.random() < 0.8:  # a list box ("above" below the count: the original overruns its array otherwise)
+        n = r.randrange(1, 7)
+        lb = ['POSITION', [r.randrange(500), r.randrange(400)], 'BITMAP', ['lb'],
+              'SELECTED_FONT', r.randrange(3) if r.random() < 0.4 else [r.choice(['small', 'main_red'])],
+              'LIST_FONT', ['small'], 'SPACING', r.choice([12, 15, 18]),
+              'LIST_OFFSET', [[r.randrange(-10, 10), r.randrange(-10, 10)], [r.randrange(-10, 10), r.randrange(30)]],
+              'LISTSIZE', ([n, r.randrange(0, n)] if r.random() < 0.6 else [n])]
+        if r.random() < 0.5:
+            lb += ['ACTIVE_RECT', [0, 0, r.randrange(50, 200), r.randrange(10, 80)]]
+        if r.random() < 0.5:
+            lb += ['LISTWIDTH', r.randrange(20, 120)]
+        buttons += ['LIST', lb]
     prims = []
     for i in range(r.randrange(1, 4)):
         if r.random() < 0.5:

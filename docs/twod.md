@@ -63,8 +63,9 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Image | 0x0059b970 (0x0059b830, 0x0059b8e0) | 0x005cf8c8 | 0xbc | Object2D | yes |
 | Control | 0x0059bbe0 | 0x005cf948 | 0x14c | Image | yes |
 | CheckButton | 0x0059d870 | 0x005cfaa8 | 0x164 | Control | yes |
-| Slider | 0x0059e0f0 | 0x005cfb38 | >= 0x188 | Control | no |
-| ListBox | 0x0059e430 | 0x005be308 (+0x164: 0x005cfbc8) | >= 0x650 | CheckButton + FontText | no |
+| Slider | 0x0059e0f0 | 0x005cfb38 | 0x188 | Control | yes |
+| ListBox | 0x0059e430 | 0x005be308 | 0x650 | CheckButton | yes |
+| ListItem | 0x0059e9a0 | 0x005cfbc8 | 0x4b8 | FontText | yes |
 | TextBase | 0x005a2da0 | 0x005cfed8 | 0x248 | Object2D | yes (the zFont calls hooked) |
 | FontText | 0x005a00c0 | 0x005cfd28 | 0x4b0 | TextBase | yes, but not the copies 0x005a0200 / 0x005a03f0 |
 | Text | 0x005a15a0 | 0x005cf9d8 | 0x4cc | FontText | yes |
@@ -72,7 +73,8 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Cursor | 0x005a7750 | 0x005d0da0 | 0xd0 | Image | yes |
 | Movie2D | 0x005a7a90 | 0x005d0e28 | 0x144 | Object2D | constructor and destructor; open, colour key, start hooked |
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
-| MessageBox | 0x005a6e60 | 0x005d08f0 | >= 0x12494 | Dialog | no |
+| MessageBox | 0x005a6e60 | 0x005d08f0 | 0x12494 | Dialog | yes |
+| MbButton (8 vtables) | 0x0059bbe0 | 0x005d0d10..0x005d0920 | 0x14c | Control | yes |
 | PolyLine | 0x005a3830 | 0x005cfff0 | >= 0xec | Object2D | no |
 | Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | | PolyLine | no |
 | Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | | Object2D | no |
@@ -268,7 +270,29 @@ its own buffer (+0xbc) and makes that its background, so erase restores it;
 draw and erase clamp a negative position to 0. CAPTURE 0 turns the saving
 off. The dialog's cursor is drawn last by Window::update.
 
-### The message box (0x005a6e60, not ported)
+### Sliders and list boxes
+
+A Slider (0x0059e0f0) is a button with FILLBITMAP ("name" [x y]) over its
+own image: its value 0..1 (+0x14c) cuts the fill at that share of its width
+and the button's image shows the rest (0x0059e350; as tall as the fill
+image). The FILLBITMAP's x y move the button. The zTwoD class stores a
+value raw (+0x8c 0x0059fad0); the game's subclasses take it from a click
+(0x0059e2f0: the mouse's distance from the left edge over the width) and
+clamp it.
+
+A ListBox (0x0059e430, the options' key lists) is a check button with the
+chosen string shown at its POSITION (a ListItem at +0x164) and LISTSIZE (n
+[above]) entries around it: `above` stacked upward by SPACING from LIST_OFFSET's
+first pair, the rest downward from its second (0x0059e7d0). The game fills
+its strings (a vector of CString pointers at +0x628, freed by the box);
+select(i) (+0x90, 0x0059ea30) shows string i and the ones around it, hiding
+entries past either end; clicking an entry selects it. SELECTED_FONT is a
+dialog font number or a fonts.zrd name, LIST_FONT a name, LISTWIDTH the
+entries' width cut, ACTIVE_RECT the box's bounds. SPACING is read as the
+node's raw value: a bare number in the shipped files; a list there would
+give a pointer as the spacing.
+
+### The message box (0x005a6e60)
 
 A Dialog (dlgMessage.zrd MESSAGEBOX) with a TITLE and MESSAGE FontText and
 eight buttons MB_OK, MB_CANCEL, MB_YES, MB_NO, MB_ABORT, MB_RETRY, MB_IGNORE,
@@ -278,6 +302,17 @@ cursor and the render target, shows the buttons for the style (low 4 bits:
 OK; OK/Cancel; Abort/Retry/Ignore; Yes/No/Cancel; Yes/No; Retry/Cancel),
 then runs its own frames (input poll, clock, lock, update with the frame
 time, unlock, flip) for up to 100,000 frames until a button answers.
+
+The shipped dlgMessage.zrd defines only MB_OK, MB_CANCEL and MB_USERBTN; the
+other five buttons bind nothing (no image, no label), so they cannot be
+clicked. Every message box the game opens is OK or OK/Cancel (style 0, 0x30
+with the exclamation icon, or 1), except the briefing's waypoint editor
+(0x00404a46, "Teleport: Delete Location %1?", MB_YESNO): its box shows no
+button that can be pressed, and after 100,000 frames it answers 0, not Yes.
+
+The game opens a box through 0x004ac150 (style, caption id, format id, ...):
+the text formatted by FormatMessage (0x00575ff0) into 0x0060a8e8, the box
+built and run, FastMenu set around it (0x0040ce90), destroyed.
 
 ## 6. The port
 
@@ -297,6 +332,12 @@ time, unlock, flip) for up to 100,000 frames until a button answers.
   (0x005a15a0, 0x005a1690..0x005a1790).
 - `twod_dialog.cpp`: Dialog (0x0059ec40..0x0059fa40), name_and_offset
   0x0059cd90, read_flash 0x0059ca90, read_labels 0x0059cb30.
+- `twod_list.cpp`: Slider (0x0059e0f0..0x0059e350, 0x0059fad0), ListBox
+  (0x0059e430..0x0059ea30, its destructor 0x0042f480), ListItem
+  (0x0059e9a0, 0x0059faf0, 0x0048e540, 0x0059ec20).
+- `twod_msgbox.cpp`: MessageBox (0x005a6e60, 0x005a7150, the loop
+  0x005a7280, the answers 0x005a7560..0x005a7640) and its buttons
+  (0x005a7650..0x005a7730).
 - `twod_host.h/.cpp`: `ztwod::Host`, every call outside: zImage's image cache
   (0x005179d0 / 0x00517b10, a refcounted list over `zimg::fetch_image`) and
   path, fonts.zrd fonts (0x00517680, 0x005172e0, 0x00517300), zFont
@@ -309,7 +350,11 @@ time, unlock, flip) for up to 100,000 frames until a button answers.
   report as unported until a front end implements them.
 
 `src/gamez/zrender/zrndr_blit.*`: the 16-bit software blit 0x0055b3c0 and
-its target.
+its target. The message box's loop adds Host calls for zVideo and zRender
+(the video mode, the double-size switch [0x0072f358], the cursor 0x00579840,
+the screen rectangle 0x00579880, the render target 0x00558080 / 0x00557f90
+and the buffers behind it, input poll 0x0051b360, the clock 0x00575a00, the
+frame time, the flip 0x00576ea0).
 
 Objects keep the original fields and offsets (in comments) as native C++
 members and the vtables as virtual methods in slot order, so the game's
@@ -344,13 +389,25 @@ background, images, sounds, bounds, labels by index, text, render state,
 image size and a hash of its pixels, flash). Result: 96/96 runs identical
 (66 shipped, 30 synthetic; 122,468 calls).
 
+The plans bind LISTSIZE entries as list boxes and FILLBITMAP entries as
+sliders (CTL_CFG_DIALOG's five key lists among them, synthetic ones with
+every key) and drive them: values set and taken from clicks, strings added,
+selections.
+
+`test_twod_msgbox.py`: 90 message boxes, half the shipped one (the styles it
+can answer) and half a synthetic one with all eight buttons (every style),
+in both renderers, with and without the backdrop grab, the mouse wandering
+then releasing over a shown button: construction, the loop and the
+destructor identical in calls, answers (all seven), the page-flip state and
+the frame count after (50,186 calls).
+
 `test_twod_blit.py`: 3,000 random blits (direct and palettised; alpha in 565
 and 555, keyed, opaque, whole-width; off screen, past every edge; whole or by
 a rectangle; odd target widths, padded pitches): every target identical, the
 two FIX (bug)s apart (the original wrote its extra row in 136 of them; 43
 zero-width palettised blits, which run away in the original, draw nothing).
 
-Breaking the port showed the tests catch it, 22 of 23: hover never entered,
+Breaking the port showed the tests catch it, 34 of 37: hover never entered,
 centring rounded up, centred label bounds by the full width, a label's
 number offset ignored, the shadow's sign, the gradient blend from the
 middle, CENTER read as RIGHT, the check button's second rollover sound
@@ -360,8 +417,14 @@ background not relative, the disabled look keeping the normal image, flash
 colour channels swapped; in the blit: the 565 green sign bit, 555's
 thresholds, the whole-width copy keeping the odd pixel, the palette key
 compared to the colour, the right clip, a rectangle's top ignored, 555's
-blue. Missed: drawing the blink mode's off half, which no code can reach
-(mode 1 is never set).
+blue; sliders cut by the height, the fill offset ignored, the empty part's
+height; list boxes' entries below off by one, the offset pairs swapped, the
+upward spacing, LISTWIDTH, an entry keeping its old index; the message box's
+No answering Yes, no backdrop, the Direct3D target from the software
+buffers, the page flipping restored on. Missed, and unobservable: drawing
+the blink mode's off half (nothing sets mode 1), the Yes/No/Cancel buttons
+shown in another order (showing has no outside effect), and the box's loop
+counting one frame less (it differs only at the 100,000-frame timeout).
 
 ## 8. Quirks kept
 
@@ -390,15 +453,10 @@ blue. Missed: drawing the blink mode's off half, which no code can reach
 
 Mapped, not ported:
 
-- Slider 0x0059e0f0..0x0059e350 (FILLBITMAP, value 0..1 at +0x14c, its draw
-  clips the fill image to the value), ListBox 0x0059e430..0x0059ec20
-  (SELECTED_FONT, LIST_FONT, SPACING, LIST_OFFSET, LISTSIZE, LISTWIDTH,
-  ACTIVE_RECT; reader 0x0059e4e0), TextBox 0x005a18f0..0x005a2a70, the
-  FontText and Text copies 0x005a0200, 0x005a03f0, 0x005a2ae0, 0x005a2e30,
+- TextBox 0x005a18f0..0x005a2a70, the FontText and Text copies 0x005a0200, 0x005a03f0, 0x005a2ae0, 0x005a2e30,
   0x005a2ed0, the LOGFONT and message-id setters 0x005961d0, 0x00409bd0,
   0x00409bf0, 0x00409c40, the plain DrawTextA measure 0x005a0e20.
-- MessageBox 0x005a6e60, 0x005a7150, the modal loop 0x005a7288 and the
-  button handlers 0x005a7560..0x005a7730.
+- The game's message box call 0x004ac150 / 0x004ac050 (mech3).
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
   0x005a7d10 (zFMV is not ported).

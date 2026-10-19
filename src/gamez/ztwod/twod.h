@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdarg>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "gamez/ztwod/twod_host.h"
@@ -221,6 +222,28 @@ class CheckButton : public Control {
   virtual int32_t set_checked(int32_t on);  // +0x8c  0x0059dbc0: returns the old state
 };
 
+// A bar filled to a value (vtable 0x005cfb38), 0x188 bytes: FILLBITMAP over
+// the button's image, cut at the value. The game's subclasses take the value
+// from a click (set_from_mouse) and set it with set_value.
+class Slider : public Control {
+ public:
+  float value = 0.0f;                // +0x14c  0..1 (0x0059fad0 stores it raw)
+  zimg::Texture* fill = nullptr;     // +0x150
+  Rect fill_src;                     // +0x154
+  int32_t fill_dx = 0, fill_dy = 0;  // +0x164
+  zimg::Texture* empty = nullptr;    // +0x16c  the button's own image
+  Rect empty_src;                    // +0x170
+  int32_t empty_dx = 0, empty_dy = 0;  // +0x180
+
+  Slider();                          // 0x0059e0f0
+  ~Slider() override;                // 0x0059e170
+  void draw() override;              // +0x04  0x0059e1c0
+  bool read_control(zrdr::Node* node, Dialog* dialog) override;  // +0x84  0x0059e260
+  virtual void set_raw(float v);     // +0x8c  0x0059fad0
+  void set_from_mouse();             // 0x0059e2f0 (a subclass's +0x30)
+  void set_value(float v);           // 0x0059e350 (a subclass's +0x8c)
+};
+
 // Text drawn with the HUD's bitmap fonts (vtable 0x005cfed8), 0x248 bytes.
 class TextBase : public Object2D {
  public:
@@ -313,6 +336,41 @@ class Text : public FontText {
   void stop_flash();                 // 0x005a1720
 };
 
+// An entry of a ListBox (vtable 0x005cfbc8), 0x4b8 bytes; also the box's
+// shown choice.
+class ListItem : public FontText {
+ public:
+  int32_t index = 0;                 // +0x4b0  (not set by the constructor)
+  class ListBox* box = nullptr;      // +0x4b4  (likewise)
+
+  ListItem();                        // 0x0059e9a0
+  void draw() override;              // +0x04  0x0059faf0: and its box from the text
+  Rect* get_rect() override { return &fixed_rect; }  // +0x2c  0x0048e540
+  void on_left_up() override;        // +0x30  0x0059ec20: its box selects it
+};
+
+// A list of choices (vtable 0x005be308), 0x650 bytes: a check button with
+// the chosen entry shown (+0x164) and `count` entries around it, `before` of
+// them above it. The game fills `strings` (CString pointers).
+class ListBox : public CheckButton {
+ public:
+  ListItem shown;                    // +0x164
+  int32_t count = 0;                 // +0x61c
+  int32_t before = 0;                // +0x620
+  ListItem* items = nullptr;         // +0x624  new[count]
+  std::vector<std::string> strings;  // +0x628  the CStrings, owned (deleted by the destructor)
+  int32_t spacing = 15;              // +0x638
+  int32_t first = -1;                // +0x63c  the selected index
+  float before_x = 0.0f, before_y = 0.0f;  // +0x640  LIST_OFFSET's first pair
+  float after_x = 0.0f, after_y = 0.0f;    // +0x648  and its second
+
+  ListBox();                         // 0x0059e430
+  ~ListBox() override;
+  bool read_control(zrdr::Node* node, Dialog* dialog) override;  // +0x84  0x0059e4e0
+  virtual void select(int32_t index);  // +0x90  0x0059ea20 -> 0x0059ea30
+  void set_size(int32_t n, int32_t above);  // 0x0059e7d0
+};
+
 // The software cursor (vtable 0x005d0da0), 0xd0 bytes: saves what is under it.
 class Cursor : public Image {
  public:
@@ -403,6 +461,46 @@ class Dialog : public Window {
   bool bind_primitive(Object2D* o, const char* name);  // 0x0059f8d0
   void unload();                     // 0x0059fa10
   void restore_behind();             // 0x0059fa40
+};
+
+// A button of the message box (vtables 0x005d0d10..0x005d0920): its left-up
+// answers through the box's slot (+0x10..+0x2c), then acts as a Control.
+class MessageBox;
+class MbButton : public Control {
+ public:
+  int32_t slot = 0;                  // which answer: 0 OK .. 7 USERBTN (the vtable in the original)
+  void on_left_up() override;        // +0x30  0x005a7650..0x005a7730
+};
+
+// The modal question box (vtable 0x005d08f0), 0x12494 bytes: dlgMessage.zrd's
+// MESSAGEBOX with a TITLE and MESSAGE text and the MB_* buttons; run() keeps
+// drawing frames until a button answers (docs/twod.md, The message box).
+class MessageBox : public Dialog {
+ public:
+  Rect screen;                       // +0x10fec  zVideo's screen (0x00579880)
+  int32_t result = 0;                // +0x10ffc  IDOK 1, IDCANCEL 2, IDABORT 3, IDRETRY 4, IDIGNORE 5, IDYES 6, IDNO 7
+  int32_t frames = 0;                // +0x11000  frames left
+  zimg::Texture* grab = nullptr;     // +0x1100c  the screen behind, as the backdrop
+  uint32_t u11010 = 0, u11014 = 0;   // +0x11010
+  FontText message{nullptr, 0, 0};   // +0x11018
+  FontText title{nullptr, 0, 0};     // +0x114c8
+  MbButton buttons[8];               // +0x11978  OK, CANCEL, YES, NO, ABORT, RETRY, IGNORE, USERBTN
+  Image backdrop{0};                 // +0x123d8
+
+  MessageBox(const char* file, const char* name, bool no_draw);  // 0x005a6e60
+  ~MessageBox() override;            // 0x005a7150
+  // 0x005a7280: the text is the message's printf format (as written); style's
+  // low 4 bits are MB_OK .. MB_RETRYCANCEL. Returns the answer, 0 for none.
+  int32_t run(const char* text, const char* caption, uint32_t style);
+  // +0x10..+0x2c (0x005a7560..0x005a7640)
+  virtual void answer_ok() { result = 1; frames = 0; }
+  virtual void answer_cancel() { result = 2; frames = 0; }
+  virtual void answer_yes() { result = 6; frames = 0; }
+  virtual void answer_no() { result = 7; frames = 0; }
+  virtual void answer_abort() { result = 3; frames = 0; }
+  virtual void answer_retry() { result = 4; frames = 0; }
+  virtual void answer_ignore() { result = 5; frames = 0; }
+  virtual void answer_user() { frames = 1; }
 };
 
 // 0x0059f810: ECX dialog, EDX its node.

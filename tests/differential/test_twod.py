@@ -38,7 +38,8 @@ FILES = ['dialog.zrd', 'briefing.zrd', 'dlgPause.zrd', 'dlgWeapon.zrd', 'dlgMech
 DIALOG_CTOR, LOAD_FROM, BIND_BUTTON, BIND_PRIMITIVE = 0x59ec40, 0x59f050, 0x59f8b0, 0x59f8d0
 CLASSES = {'C': (0x59bbe0, 0x14c, ()), 'K': (0x59d870, 0x164, ()), 'I': (0x59b970, 0xbc, (0,)),
            'T': (0x5a15a0, 0x4cc, ())}
-VT_KIND = {0x5cf8c8: 'I', 0x5cf948: 'C', 0x5cfaa8: 'K', 0x5cf9d8: 'T', 0x5cfc88: 'U', 0x5d0da0: 'U'}
+VT_KIND = {0x5cf8c8: 'I', 0x5cf948: 'C', 0x5cfaa8: 'K', 0x5cf9d8: 'T', 0x5cfc88: 'U', 0x5d0da0: 'U',
+           0x5cfb38: 'L', 0x5be308: 'X', 0x5cfbc8: 'Y'}
 TEXTURE_ARGS = {'0x0055b1f0': (0,), '0x00517b10': (0,), '0x00517cc0': (0,), '[0x0072f394]': (0,),
                 '[0x0072f398]': (0,), '0x00579660': (5,)}
 
@@ -53,7 +54,12 @@ def make_plan(seed, dialog, buttons, prims):
     r = random.Random(f'{seed}:{dialog}')
     lines, bound = [], []
     for n, entry in buttons:
-        k = 'K' if find(entry, 'CHECKED') is not None else 'C'
+        if find(entry, 'LISTSIZE') is not None:
+            k = 'X'
+        elif find(entry, 'FILLBITMAP') is not None:
+            k = 'L'
+        else:
+            k = 'K' if find(entry, 'CHECKED') is not None else 'C'
         lines.append(f'B {n} {k}')
         bound.append((k, entry))
     for n, entry in prims:
@@ -90,6 +96,17 @@ def make_plan(seed, dialog, buttons, prims):
                 lines.append(f'R {r.choice(ks)}')
         elif roll < 0.28:
             lines.append(f'A {r.randrange(2)}')
+        elif roll < 0.40 and any(b[0] in 'LX' for b in bound):
+            i = r.choice([i for i, b in enumerate(bound) if b[0] in 'LX'])
+            if bound[i][0] == 'L':
+                if r.random() < 0.5:
+                    lines.append(f'V {i} {fbits(r.choice([-0.5, 0.0, 0.25, 0.5, 0.99, 1.0, 1.7, r.random()])):x}')
+                else:
+                    lines.append(f'W {i}')
+            elif r.random() < 0.6:
+                lines.append(f'G {i} item{r.randrange(1000)}')
+            else:
+                lines.append(f'J {i} {r.randrange(-3, 12)}')
         elif roll < 0.36:
             ts = [i for i, b in enumerate(bound) if b[0] == 'T']
             if ts:
@@ -147,7 +164,8 @@ class Original:
             op = p[0]
             if op in 'BP':
                 ctor, size, args = {'C': (0x59bbe0, 0x14c, ()), 'K': (0x59d870, 0x164, ()),
-                                    'I': (0x59b970, 0xbc, (0,)), 'T': (0x5a15a0, 0x4cc, ())}[p[2]]
+                                    'I': (0x59b970, 0xbc, (0,)), 'T': (0x5a15a0, 0x4cc, ()),
+                                    'L': (0x59e0f0, 0x188, ()), 'X': (0x59e430, 0x650, ())}[p[2]]
                 o = e.alloc(size)
                 e.call(ctor, ecx=o, stack=args)
                 self.bound.append(o)
@@ -180,6 +198,14 @@ class Original:
                 e.call(0x5a16e0, ecx=self.bound[int(p[1])], stack=(int(p[2], 16), int(p[3], 16)))
             elif op == 'Z':
                 e.call(0x5a1720, ecx=self.bound[int(p[1])])
+            elif op == 'V':
+                e.call(0x59e350, ecx=self.bound[int(p[1])], stack=(int(p[2], 16),))
+            elif op == 'W':
+                e.call(0x59e2f0, ecx=self.bound[int(p[1])])
+            elif op == 'G':
+                self.push_string(self.bound[int(p[1])], p[2])
+            elif op == 'J':
+                self.vcall(self.bound[int(p[1])], 0x90, (int(p[2]) & 0xffffffff,))
             elif op == 'R':
                 r = self.vcall(self.bound[int(p[1])], 0x2c)
                 if r:
@@ -187,6 +213,20 @@ class Original:
                 else:
                     t.handle('rect', ())
         return self.dump()
+
+    def push_string(self, box, text):
+        """Appends a CString (a pointer to the characters) to the box's vector at +0x628."""
+        e = self.e
+        cs = e.alloc(4)
+        e.w32(cs, e.world_string(text))
+        first, last = e.r32(box + 0x62c), e.r32(box + 0x630)
+        old = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        new = e.alloc(4 * (len(old) + 1))
+        for i, v in enumerate(old + [cs]):
+            e.w32(new + 4 * i, v)
+        e.w32(box + 0x62c, new)
+        e.w32(box + 0x630, new + 4 * (len(old) + 1))
+        e.w32(box + 0x634, new + 4 * (len(old) + 1))
 
     # The dump probe_twod.cpp writes, from the emulator's memory.
     def dump(self):
@@ -297,6 +337,47 @@ class Original:
             labels('LA', o + 0x12c)
             labels('LD', o + 0x13c)
 
+        def slider(o):
+            control(o)
+            kv('value', e.r32(o + 0x14c))
+            tx('fill', e.r32(o + 0x150))
+            rc('fsrc', o + 0x154)
+            kv('fdx', e.r32(o + 0x164))
+            kv('fdy', e.r32(o + 0x168))
+            tx('empty', e.r32(o + 0x16c))
+            rc('esrc', o + 0x170)
+            kv('edx', e.r32(o + 0x180))
+            kv('edy', e.r32(o + 0x184))
+
+        def fonttext(o):
+            base(o)
+            s('text', o + 0x34)
+            kv('align', e.r32(o + 0x244))
+            tx('timg', e.r32(o + 0x248))
+            for k, off in (('top', 0x24c), ('bottom', 0x250), ('hfont', 0x258)):
+                kv(k, e.r32(o + off))
+            s('rendered', o + 0x260)
+            for k, off in (('w', 0x460), ('h', 0x464), ('shadow', 0x468), ('bk', 0x46c), ('nr', 0x474)):
+                kv(k, e.r32(o + off))
+            rc('tr', o + 0x490)
+            kv('maxw', e.r32(o + 0x4a8))
+            kv('named', e.r32(o + 0x4ac))
+
+        def item(o):
+            fonttext(o)
+            kv('index', e.r32(o + 0x4b0))
+            line.append(f'box={1 if e.r32(o + 0x4b4) else 0}')
+
+        def listbox(o):
+            check(o)
+            for k, off in (('count', 0x61c), ('before', 0x620), ('spacing', 0x638), ('first', 0x63c)):
+                kv(k, e.r32(o + off))
+            first, last = e.r32(o + 0x62c), e.r32(o + 0x630)
+            kv('nstr', (last - first) // 4 if first else 0)
+            for k, off in (('bx0', 0x640), ('by0', 0x644), ('bx1', 0x648), ('by1', 0x64c)):
+                kv(k, e.r32(o + off))
+            ref('shown', o + 0x164)
+
         def check(o):
             control(o)
             ref('ctext', e.r32(o + 0x14c))
@@ -334,7 +415,7 @@ class Original:
         flush('cursorobj')
         for i, o in enumerate(objs):
             k = 'U' if o == c else VT_KIND.get(e.r32(o), '?')
-            {'T': text, 'C': control, 'K': check}.get(k, image)(o)
+            {'T': text, 'C': control, 'K': check, 'L': slider, 'X': listbox, 'Y': item}.get(k, image)(o)
             flush(f'o{i} {k}')
         return '\n'.join(out) + '\n'
 

@@ -75,6 +75,19 @@ class Host : public zgame::Unported {
   // [0x0072f394] / [0x0072f398]: a DC on the text image's pixels.
   virtual Handle image_dc(zimg::Texture* image);
   virtual void image_dc_release(zimg::Texture* image, Handle dc);
+  // zVideo and zRender for the message box's own loop (0x005a7280).
+  virtual int32_t video_mode();                                       // [0x0072f348]: 0 software, 1 Direct3D
+  virtual void video_double();                                        // [0x0072f358](0, 0)
+  virtual uint32_t show_cursor(uint32_t on);                          // 0x00579840: ECX; returns the old state
+  virtual Rect screen_rect();                                         // 0x00579880
+  virtual Handle render_target(int32_t* w, int32_t* h, int32_t* depth, int32_t* pitch);  // 0x00558080
+  virtual void render_set_target(Handle base, const Rect* r, Handle depth, Handle pitch);  // 0x00557f90
+  virtual Handle video_get(uint32_t addr);                            // 0x00576db0 / c70 / d80 / cd0 / ca0
+  virtual void input_poll(uint8_t a);                                 // 0x0051b360
+  virtual void timer_update();                                        // 0x00575a00
+  virtual float frame_dt();                                           // [0x0072c52c]
+  virtual void video_flip(const Rect* a, const Rect* b, int32_t c, int32_t d);  // 0x00576ea0
+  virtual void crt_free(void* p);                                     // MSVCRT free
   // zSound.
   virtual int32_t sound_find(const char* name);                       // 0x0056f6f0: ECX name
   virtual int32_t sound_play(int32_t sound, float volume);            // 0x0056e3d0: ECX sound
