@@ -77,8 +77,15 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - Cutscenes are Indeo 5 AVIs (`Ir50_32.dll` ships with the game).
 - The install has software-texture sets as well as hardware ones: MW3 has a
   software renderer, the likely home of the blit trick.
-- Pirate's Moon (expansion, not being built yet; may be remade later):
-  `/Volumes/iO/backups/win98/MW3 pirates moon.zip`.
+- Pirate's Moon (expansion): after MW3 is complete, the same process (Owen,
+  2026-10-20). Backup: `/Volumes/iO/backups/win98/MW3 pirates moon.zip` (the
+  disc image inside). Same studio, same GameZ engine and MW3 code base, so
+  the plan is to diff its exe against MW3 1.2 function by function (match by
+  bytes and structure, then by call graph), port only what changed, and run
+  the existing differential tests against the PM exe too (`original.py`
+  checks one exe's SHA-256 today: make the exe a parameter). mech3ax reads PM
+  formats, as a cross-check. Keep the port open to it meanwhile: game data
+  through the asset mounts, no MW3-only constants where the exe reads data.
 - REA source for reading: `../rea` (a clone, not a
   dependency).
 - mech3ax source for checking formats: `../mech3ax`
