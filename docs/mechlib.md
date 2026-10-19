@@ -192,6 +192,15 @@ two tables.
 - **0x484540**: frees the list sentinel and vector storage, zar `destroy`
   0x576500.
 
+## Correction from running the original
+
+The original `read_tree` (0x4fcdc0) was run on all 57 trees in the emulator
+(`zclass-world.md`, script in `tests/differential/explore/`): 1,400 nodes match
+the file bytes except flags +0x24 (file | 3), +0x2c (file | 2 on the 471 nodes
+with children), the pointers +0x38 (object3d data), +0x3c (model), +0x58
+(parents), +0x60 (children) and +0xcc (list item). +0x54 ends equal to the file.
+`read_tree` is a thiscall: ECX is the library, whose +0x3c counts the depth.
+
 ## Ported
 
 `src/gamez/zclass/cls_mechlib.*`: `read_material` (0x4fc570) and `read_model`

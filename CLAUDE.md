@@ -164,7 +164,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
       identical on all 442 materials and 770 models.
-- [ ] Mechlib: the node tree (read_tree/read_node, steps 4-5), which needs the
-      zClass node pool and add-child.
+- [ ] Mechlib: the node tree (read_tree/read_node). The zClass core it needs
+      is mapped and emulator-checked (`docs/zclass-world.md`): port pool, lists,
+      tree helpers, object3d, links, then the readers; start from
+      `tests/differential/explore/`.
 - [ ] Assets: trace the remaining formats in `docs/assets.md` ( interp scripts, gamez.zbd, anim.zbd), one per sitting,
       cross-checked against mech3ax.
