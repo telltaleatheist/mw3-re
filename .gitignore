@@ -22,3 +22,6 @@ build/
 __pycache__/
 .cache/
 docs/drafts/
+
+# Agent worktrees (Claude Code)
+.claude/

@@ -26,8 +26,10 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_path.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
+  src/gamez/zclass/class.cpp
   src/gamez/zclass/cls_mechlib.cpp
   src/gamez/zclass/cls_node.cpp
+  src/gamez/zclass/cls_util.cpp
   src/gamez/zclass/cls_world.cpp
   src/gamez/zclass/cls_zbd.cpp
   src/gamez/zclass/display.cpp
@@ -35,6 +37,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/list.cpp
   src/gamez/zclass/object3d.cpp
   src/gamez/zclass/sound.cpp
+  src/gamez/zclass/window.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
@@ -43,10 +46,12 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_clip2d.cpp
   src/gamez/zmodel/gmod_clip3d.cpp
   src/gamez/zmodel/gmod_const.cpp
+  src/gamez/zmodel/gmod_cull.cpp
   src/gamez/zmodel/gmod_draw.cpp
   src/gamez/zmodel/gmod_fogcalc.cpp
-  src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_fog.cpp
+  src/gamez/zmodel/gmod_init.cpp
+  src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
@@ -71,7 +76,7 @@ endif()
 
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
-add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp)
+add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp tests/probe_scenewalk.cpp)
 target_link_libraries(mw3probe PRIVATE mw3core)
 
 enable_testing()

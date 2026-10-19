@@ -61,4 +61,36 @@ int object3d_add_child(Node* parent, Node* child) {
   return node_link(parent, child);
 }
 
+// Mech3.exe 1.2 @ 0x004fc020
+int object3d_get_translation(Node* node, float* x, float* y, float* z) {
+  if (int r = check_class(node, 5, kFile, 0x461)) return r;
+  const auto* d = static_cast<const Object3d*>(node->data);
+  *x = d->get<float>(0x54), *y = d->get<float>(0x58), *z = d->get<float>(0x5c);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fc0b0. No class check. A non-zero translation drops
+// the identity flag (8); the node is marked changed like object3d_init's tail.
+int object3d_set_translation(Node* node, float x, float y, float z) {
+  if (!node) return zerr::report(0x400, kFile, 0x488, "Null node pointer."), 5;
+  auto* d = static_cast<Object3d*>(node->data);
+  if (!d) return zerr::report(0x400, kFile, 0x489, "Null class data pointer"), 5;
+  d->put(0x54, x), d->put(0x58, y), d->put(0x5c, z);
+  uint32_t f = d->get<uint32_t>(0);
+  auto nz = [](float v) { return v < 0.0f || v > 0.0f; };  // x87: NaN compares equal
+  if ((f & 8) && (nz(x) || nz(y) || nz(z))) f &= ~8u;
+  d->put<uint32_t>(0, f | 1);
+  node_mark_unk25(node);
+  if ((node->flags() & 1) == 0) {
+    push_front(kChanged, node);
+    node->set_flags(node->flags() | 1);
+  } else if (node->get<uint32_t>(0xc4) <= frames().frame) {
+    frames().expiry = frames().frame + 0xa0;
+    set_expiry(node);
+  }
+  node->set_flags(node->flags() | 2);
+  if (node->changed) node->changed->removable = 0;
+  return 0;
+}
+
 }  // namespace zcls

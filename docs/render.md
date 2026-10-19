@@ -53,6 +53,13 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   table's records: `zmodel/gmod_bake`, `zimage/zimg_texture`,
   `render-bake-textures.md`. The model draw's table is filled by
   `zvid::install_model_draw_table` (0x579f50's part).
+- The scene walk: world render 0x4f7030, the horizon follow, the walk and
+  per-node function 0x4f5910 with all eight class renderers, partition
+  pickers and the hull, LoD, camera matrices and setters, cull and zones:
+  `zclass/camera`, `class`, `cls_util`, `window`, `zmodel/gmod_cull`,
+  `gmod_init`, `render-scenewalk.md`. Corrections: EDX of 0x4f5910 is the
+  caller's child count, not a mode (only-children are never culled alone);
+  a cell's plane mask is its cull result, not 0x3f.
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 

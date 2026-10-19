@@ -306,6 +306,13 @@ From the render path (render.md).
 - **Four effect textures are missing from every world** (`sizzle`,
   `laspulstrc`, `gaustrac`, `gaustrac2`): the hardware texture files lack
   them, so the game uses an 8x8 red and green placeholder.
+- **Past the edge of the map the ground goes on.** The world's grid of cells
+  wraps around: look out beyond the edge and the game draws the terrain
+  pieces again (only the terrain, none of the buildings) as if the map
+  repeated (render-scenewalk.md).
+- **Objects with nothing next to them are never culled on their own**: the
+  visibility test only runs for objects that have siblings in the scene
+  tree, so lone objects are always sent on to be drawn.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
 

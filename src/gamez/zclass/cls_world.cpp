@@ -1,5 +1,9 @@
 #include "gamez/zclass/cls_world.h"
 
+#include <cmath>
+
+#pragma STDC FP_CONTRACT OFF
+
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zmodel/gmod_fog.h"
@@ -103,6 +107,68 @@ int world_push_fog(Node* world) {
     } while (n > 0);
   }
   w->put<uint32_t>(0, 0);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f1f10. Left of the grid the cell counts back from the
+// block's right edge (the block start +0x5c is not added there); right of
+// it, forward from the start. Rows the same with +0x58 / +0x8c / +0x60.
+int world_wrap_cell(Node* world, int32_t x, int32_t z, int32_t* out_x, int32_t* out_z,
+                    int32_t* inside) {
+  const World* w = world_of(world);
+  *inside = 1;
+  if (x < 0) {
+    *inside = 0;
+    *out_x = w->get<int32_t>(0x54) - (-1 - x) % w->get<int32_t>(0x54) - 1;
+  } else if (x >= w->get<int32_t>(0x88)) {
+    *inside = 0;
+    *out_x = (x - w->get<int32_t>(0x88)) % w->get<int32_t>(0x54) + w->get<int32_t>(0x5c);
+  } else {
+    *out_x = x;
+  }
+  if (z < 0) {
+    *inside = 0;
+    *out_z = w->get<int32_t>(0x58) - (-1 - z) % w->get<int32_t>(0x58) - 1;
+  } else if (z >= w->get<int32_t>(0x8c)) {
+    *inside = 0;
+    *out_z = (z - w->get<int32_t>(0x8c)) % w->get<int32_t>(0x58) + w->get<int32_t>(0x60);
+  } else {
+    *out_z = z;
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f1fe0. Grid origin +0x34 / +0x38, inverse cell size
+// +0x74 / +0x78 (z runs negative).
+int world_cell_wrapped(Node* world, int32_t* cell_x, float x, float z, int32_t* cell_z,
+                       int32_t* out_x, int32_t* out_z, int32_t* inside) {
+  const World* w = world_of(world);
+  const float dz = z - w->get<float>(0x38);
+  const float fx = (x - w->get<float>(0x34)) * w->get<float>(0x74);
+  *cell_x = static_cast<int32_t>(std::floor(static_cast<double>(fx)));
+  const float fz = w->get<float>(0x78) * dz;
+  *cell_z = static_cast<int32_t>(std::floor(static_cast<double>(fz)));
+  return world_wrap_cell(world, *cell_x, *cell_z, out_x, out_z, inside);
+}
+
+// Mech3.exe 1.2 @ 0x004f2060. x is kept 0.1 inside [+0x34, +0x44], z inside
+// [+0x48, +0x38]; z at or below +0x48 + 0.1 takes the edge.
+int world_cell_clamped(Node* world, int32_t* cell_x, float x, float z, int32_t* cell_z) {
+  const World* w = world_of(world);
+  float cx;
+  if (!(static_cast<float>(w->get<float>(0x34) - -0.1) <= x)) {  // 0x005cdb18, a double
+    cx = w->get<float>(0x34) - -0.1f;
+  } else {
+    cx = w->get<float>(0x44) - 0.1f;
+    if (x < cx) cx = x;
+  }
+  float cz = w->get<float>(0x38) - 0.1f;
+  if (!(z > cz)) {
+    cz = w->get<float>(0x48) - -0.1f;
+    if (!(z <= cz)) cz = z;
+  }
+  *cell_x = static_cast<int32_t>((cx - w->get<float>(0x34)) * w->get<float>(0x74));
+  *cell_z = static_cast<int32_t>(w->get<float>(0x78) * (cz - w->get<float>(0x38)));
   return 0;
 }
 

@@ -17,6 +17,20 @@ int world_set_fog_range(Node* world, float near_range, float far_range);  // 0x0
 int world_set_fog_density(Node* world, float density);                 // 0x004f2460
 int world_push_fog(Node* world);                                       // 0x004f1df0
 
+// The partition grid (docs/drafts/scenewalk.md). Cells past the grid on
+// either side wrap into the virtual block (world +0x54..+0x60).
+// ECX world node, EDX cell x, stack cell z: the cell actually stored and
+// whether the given one is inside the grid.
+int world_wrap_cell(Node* world, int32_t x, int32_t z, int32_t* out_x, int32_t* out_z,
+                    int32_t* inside);                                 // 0x004f1f10
+// ECX world node, EDX &cell x: the cell under a world (x, z), floor-divided,
+// then wrapped.
+int world_cell_wrapped(Node* world, int32_t* cell_x, float x, float z, int32_t* cell_z,
+                       int32_t* out_x, int32_t* out_z, int32_t* inside);  // 0x004f1fe0
+// ECX world node, EDX &cell x: the cell under (x, z) clamped to just inside
+// the grid, truncated.
+int world_cell_clamped(Node* world, int32_t* cell_x, float x, float z, int32_t* cell_z);  // 0x004f2060
+
 struct World;
 // 0x004f18a0, called for each pending area entry; not ported yet.
 using AreaUpdate = void (*)(World* world, uint32_t* entry);

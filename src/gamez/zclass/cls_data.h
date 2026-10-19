@@ -27,6 +27,7 @@ struct Camera : Raw<0x1e8> {
 
 struct Partition : Raw<0x48> {
   Node** nodes = nullptr;          // +0x3c  count i16 at +0x3a
+  uint8_t* fades = nullptr;        // +0x44  0x44-byte entries, count +0x40 (run time only)
 };
 
 struct World : Raw<0xbc> {
