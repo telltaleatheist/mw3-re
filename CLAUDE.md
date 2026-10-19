@@ -115,6 +115,8 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - Self-contained functions get a differential test (`tests/differential/`) that
   runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
 - No GPU use while Owen is streaming; the SDL front end is not started yet.
+- Every quirk, bug or hidden mechanic found goes in `docs/discoveries.md`, in
+  plain words for players (Owen wants to share these with the MW3 community).
 
 ## Next steps
 
