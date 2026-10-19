@@ -18,6 +18,11 @@ float direction(const Vec3& from, const Vec3& to, Vec3& out);  // 0x0051e3d0, no
 void flat_normalize(const Vec3& v, Vec3& out);           // 0x0051e210: x and z to unit length; out.y untouched
 void quat_rotate(const Quat& q, const Vec3& v, Vec3& out);     // 0x00525840, q v q*
 void poly_normal(const float a[3], const float b[3], const float c[3], float out[3]);  // 0x00524020: unit (b - a) x (c - a)
+// The gradient of a value t over a triangle in a plane: t - t0 = ga (a - a0) +
+// gb (b - b0) through (a0, b0, t0), (a1, b1, t1), (a2, b2, t2); both 0 for
+// a degenerate triangle.
+void plane_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float t0, float t1, float t2,
+                    float* ga, float* gb);  // 0x005240d7
 void quat_roll(float angle, Quat& out);                  // 0x00525210: about z
 void quat_normalize(const Quat& q, Quat& out);           // 0x00525500: bit-trick square root
 void quat_mul(const Quat& a, const Quat& b, Quat& out);  // 0x005255d0: a b

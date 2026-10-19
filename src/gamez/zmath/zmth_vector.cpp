@@ -65,6 +65,22 @@ void poly_normal(const float a[3], const float b[3], const float c[3], float out
   out[0] = x * inv, out[1] = y * inv, out[2] = z * inv;
 }
 
+// Mech3.exe 1.2 @ 0x005240d7. ECX ga, EDX gb; differences taken from vertex 1.
+void plane_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float t0, float t1, float t2,
+                    float* ga, float* gb) {
+  const float p = a2 - a1, q = b2 - b1, r = a0 - a1, s = b0 - b1;
+  const float d = q * r - p * s;
+  if (d == 0.0f) {
+    *ga = 0.0f;
+    *gb = 0.0f;
+    return;
+  }
+  const float inv = 1.0f / d;
+  const float b = t2 - t1, a = t0 - t1;
+  *ga = -((b * s - q * a) * inv);
+  *gb = -((p * a - b * r) * inv);
+}
+
 // Mech3.exe 1.2 @ 0x00525210. The sine and cosine of the half angle as the
 // emulator computes them (in double, then rounded).
 void quat_roll(float angle, Quat& out) {

@@ -15,13 +15,20 @@ Projection g_proj;
 
 // r = l * t for 3x4 row-vector matrices (l applied first). The x87 sums run
 // (l0*t0 + l1*t3) + l2*t6, kept here.
+// The sums in the x87 code's order (0x0051fee0, 0x0051fb30 and 0x00521670
+// share it): the z column adds its terms from the last, and the z
+// translation adds the first term to t[11] before the others.
 void mul34(const float* l, const float* t, float* r, bool translation) {
   for (int row = 0; row < 3; ++row) {
     const float* a = l + 3 * row;
-    for (int j = 0; j < 3; ++j) r[3 * row + j] = a[0] * t[j] + a[1] * t[3 + j] + a[2] * t[6 + j];
+    r[3 * row] = a[0] * t[0] + a[1] * t[3] + a[2] * t[6];
+    r[3 * row + 1] = a[0] * t[1] + a[1] * t[4] + a[2] * t[7];
+    r[3 * row + 2] = (a[2] * t[8] + a[1] * t[5]) + a[0] * t[2];
   }
   if (!translation) return;
-  for (int j = 0; j < 3; ++j) r[9 + j] = l[9] * t[j] + l[10] * t[3 + j] + l[11] * t[6 + j] + t[9 + j];
+  r[9] = l[9] * t[0] + l[10] * t[3] + l[11] * t[6] + t[9];
+  r[10] = l[9] * t[1] + l[10] * t[4] + l[11] * t[7] + t[10];
+  r[11] = (l[11] * t[8] + l[10] * t[5]) + (l[9] * t[2] + t[11]);
 }
 
 // x87 compares: an unordered (NaN) result sets C3 like "equal", so the

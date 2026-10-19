@@ -1,5 +1,6 @@
 #include "gamez/zmodel/gmod_hit.h"
 
+#include <cmath>
 #include <cstring>
 #include <vector>
 
@@ -87,6 +88,209 @@ int32_t test_polygon(zcls::Node* node, Polygon& p, const float* world, const flo
   return r;
 }
 }  // namespace
+
+namespace {
+UvCapture g_uv;
+
+// The x87 branch tests: `less` is C0 (also set when unordered), `at_most`
+// C0 or C3.
+bool less(float a, float b) { return !(a >= b); }
+bool at_most(float a, float b) { return !(a > b); }
+
+bool same_sign(float a, float b) {
+  uint32_t x, y;
+  std::memcpy(&x, &a, 4);
+  std::memcpy(&y, &b, 4);
+  return ((x ^ y) & 0x80000000u) == 0;
+}
+
+float dot_from(const float* p, const float* v0, const float* n) {
+  const float dx = p[0] - v0[0], dy = p[1] - v0[1], dz = p[2] - v0[2];
+  return (dx * n[0] + dy * n[1]) + dz * n[2];
+}
+
+// 0x0054e2b0 and 0x0054ea30: the same test; the textured one differs in
+// the one-side case and records texture coordinates.
+int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
+                      int32_t count, const float* v, const Polygon& poly, int32_t* all, bool textured,
+                      const float* uvs, float* uv_out) {
+  *all = 1;
+  int32_t in[24];
+  for (int32_t k = count - 1; k >= 0; --k) in[k] = mask[k];
+  float n[3];
+  zmth::poly_normal(v, v + 3, v + 6, n);
+  int32_t crossed = 0;
+  for (int32_t k = 0; k < count; ++k) {
+    const float* from = segs + 6 * k;
+    const float* to = from + 3;
+    if (!in[k]) {
+      *all = 0;
+      continue;
+    }
+    const float e1 = dot_from(to, v, n);
+    if (!(poly.flags & 0x100) && !less(e1, 0.0f)) {
+      in[k] = 0;
+      *all = 0;
+      continue;
+    }
+    const float e0 = dot_from(from, v, n);
+    if (same_sign(e0, e1)) {
+      in[k] = 0;
+      if (textured) *all = 0;
+      continue;
+    }
+    crossed = 1;
+    const float t = e0 / (e0 - e1);
+    const float dx = t * (to[0] - from[0]), dy = t * (to[1] - from[1]), dz = t * (to[2] - from[2]);
+    zcls::SegmentHit& h = out[k].hit[out[k].count];
+    h.point[0] = from[0] + dx;
+    h.point[1] = from[1] + dy;
+    h.point[2] = from[2] + dz;
+  }
+  if (!crossed) return 0;
+  // The polygon is projected on the plane its normal points most along.
+  int axis = 0;
+  float m = std::fabs(n[0]);
+  if (!at_most(std::fabs(n[1]), m)) m = std::fabs(n[1]), axis = 1;
+  if (!at_most(std::fabs(n[2]), m)) axis = 2;
+  int32_t any = 1;
+  int32_t j = 0;
+  for (int32_t i = static_cast<int32_t>(poly.flags & 0xff) - 1; i >= 0; j = i, --i) {
+    if (!any) return 0;
+    const float* c = v + 3 * i;
+    const float* a = v + 3 * j;
+    float p, q;
+    int u0, u1;  // the two coordinates tested
+    if (axis == 2) {
+      if (!at_most(n[2], 0.0f)) p = c[1] - a[1], q = a[0] - c[0];
+      else p = a[1] - c[1], q = c[0] - a[0];
+      u0 = 0, u1 = 1;
+    } else if (axis == 1) {
+      if (!at_most(n[1], 0.0f)) q = c[0] - a[0], p = a[2] - c[2];
+      else q = a[0] - c[0], p = c[2] - a[2];
+      u0 = 0, u1 = 2;
+    } else {
+      if (less(n[0], 0.0f)) q = c[1] - a[1], p = a[2] - c[2];
+      else q = a[1] - c[1], p = c[2] - a[2];
+      u0 = 1, u1 = 2;
+    }
+    any = 0;
+    for (int32_t k = 0; k < count; ++k) {
+      if (!in[k]) continue;
+      const float* h = out[k].hit[out[k].count].point;
+      const float s = (h[u0] - c[u0]) * p + (h[u1] - c[u1]) * q;
+      in[k] = s > -0.0001;  // 0x005ce518
+      any |= in[k];
+      *all &= in[k];
+    }
+  }
+  if (!any || count <= 0) return any;
+  const int a0 = axis == 0 ? 1 : 0, a1 = axis == 2 ? 1 : 2;
+  float gu[2] = {}, gv[2] = {};
+  if (textured && g_uv.on) {
+    zmth::plane_gradient(v[a0], v[a1], v[3 + a0], v[3 + a1], v[6 + a0], v[6 + a1], uvs[0], uvs[2], uvs[4], &gu[0],
+                         &gu[1]);
+    zmth::plane_gradient(v[a0], v[a1], v[3 + a0], v[3 + a1], v[6 + a0], v[6 + a1], uvs[1], uvs[3], uvs[5], &gv[0],
+                         &gv[1]);
+  }
+  for (int32_t k = 0; k < count; ++k) {
+    if (!in[k] || out[k].count >= 0x20) continue;
+    zcls::SegmentHit& h = out[k].hit[out[k].count];
+    if (textured && g_uv.on) {
+      uv_out[0] = (h.point[a0] - v[a0]) * gu[0] + (h.point[a1] - v[a1]) * gu[1] + uvs[0];
+      uv_out[1] = (h.point[a0] - v[a0]) * gv[0] + (h.point[a1] - v[a1]) * gv[1] + uvs[1];
+      g_uv.uv[0] = uv_out[0];
+      g_uv.uv[1] = uv_out[1];
+    }
+    std::memcpy(h.normal, n, 12);
+    h.node = node;
+    h.material = poly.material;
+    ++out[k].count;
+  }
+  return any;
+}
+}  // namespace
+
+UvCapture& uv_capture() { return g_uv; }
+
+// Mech3.exe 1.2 @ 0x0054e2b0
+int32_t polygon_segments(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
+                         int32_t count, const float* verts, const Polygon& poly, int32_t* all) {
+  return segments_core(node, out, segs, mask, count, verts, poly, all, false, nullptr, nullptr);
+}
+
+// Mech3.exe 1.2 @ 0x0054ea30
+void polygon_segments_uv(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
+                         int32_t count, const float* verts, const float* uvs, float uv_out[2], const Polygon& poly,
+                         int32_t* all) {
+  segments_core(node, out, segs, mask, count, verts, poly, all, true, uvs, uv_out);
+}
+
+// Mech3.exe 1.2 @ 0x0054fa10. The faces in the exe's order; the quad's
+// flags keep only the 4 (one-sided, not a strip) and its material is 0.
+int32_t box_segments(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
+                     int32_t count, const float c[8][3]) {
+  static const int kFaces[6][4] = {{0, 4, 7, 3}, {0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {0, 3, 2, 1}, {4, 5, 6, 7}};
+  Polygon quad{};
+  quad.flags = 4;
+  quad.material = nullptr;
+  int32_t any = 0;
+  for (const auto& f : kFaces) {
+    for (int i = 0; i < 4; ++i) std::memcpy(g_s.poly + 3 * i, c[f[i]], 12);
+    int32_t all = 0;
+    if (polygon_segments(node, out, segs, mask, count, g_s.poly, quad, &all)) {
+      if (all) return 1;
+      any = 1;
+    }
+  }
+  return any;
+}
+
+// Mech3.exe 1.2 @ 0x0054f450. A strip's triangles carry their own corners'
+// texture coordinates. A strip of two vertices or fewer at the cached index
+// reads an unset stack slot as its result in the exe; 0 here.
+void model_segments(zcls::Node* node, Model* model, const float* segs, const int32_t* mask, int32_t count,
+                    zcls::SegmentHits* out) {
+  if (!model || hdr(*model, 0x10) == 0) return;
+  const float* world = place_vertices(*model);
+  float uv_out[2];
+  auto test = [&](Polygon& p) {
+    int32_t all = 0;
+    const uint32_t flags = p.flags;
+    const uint32_t n = flags & 0xff;
+    const bool textured = p.material && (p.material->flags & 1);
+    if (!(flags & 0x400)) {
+      for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[i]);
+      if (textured) polygon_segments_uv(node, out, segs, mask, count, g_s.poly, p.uvs, uv_out, p, &all);
+      else polygon_segments(node, out, segs, mask, count, g_s.poly, p, &all);
+      return all;
+    }
+    p.flags = (flags & ~0xffu) | 3;
+    if (static_cast<int32_t>(n) - 2 > 0) {
+      for (uint32_t s = 2; static_cast<int32_t>(s - 2) < static_cast<int32_t>(n) - 2; ++s) {
+        const uint32_t k[3] = {s - 2, (s - 1) | 1, s & ~1u};
+        for (int i = 0; i < 3; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[k[i]]);
+        if (textured) {
+          float uv[6];
+          for (int i = 0; i < 3; ++i) uv[2 * i] = p.uvs[2 * k[i]], uv[2 * i + 1] = p.uvs[2 * k[i] + 1];
+          polygon_segments_uv(node, out, segs, mask, count, g_s.poly, uv, uv_out, p, &all);
+        } else {
+          polygon_segments(node, out, segs, mask, count, g_s.poly, p, &all);
+        }
+        if (all) break;
+      }
+    }
+    p.flags = (p.flags & ~0xffu) | n;
+    return all;
+  };
+  if (test(model->polygons[hdr(*model, 0x58)])) return;
+  int32_t r = 0;
+  for (uint32_t i = 0; i < hdr(*model, 0x10) && !r; ++i) {
+    if (i == hdr(*model, 0x58)) continue;
+    r = test(model->polygons[i]);
+    if (r) std::memcpy(model->header + 0x58, &i, 4);
+  }
+}
 
 // Mech3.exe 1.2 @ 0x0054c330. Inside means on the inner side of every edge,
 // walked backwards, within 0.0001; the height is the polygon's plane at the
