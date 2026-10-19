@@ -160,7 +160,9 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Working with agents (2026-10-20)
 
-- Up to about five at once (Owen), each on a piece with clean boundaries:
+- Standing rule (Owen, 2026-10-20): **never more than 5 agents at a time,
+  and agents never start agents of their own** (every agent prompt says so).
+- Each agent takes a piece with clean boundaries:
   leaf functions, or systems that meet others through a hooks struct the
   test stubs identically on both sides.
 - Each agent works in its own git worktree (Agent `isolation: worktree`),
