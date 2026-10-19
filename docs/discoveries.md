@@ -158,6 +158,15 @@ From the network code (network-messages.md).
   first matching string anywhere in a file, even if that string is someone's
   value. And when the match is the last item of a list, the game reads whatever
   happens to be next in memory.
+- **The code knows two cameras no mech uses.** Each mech's data can set up
+  six camera kinds (0x430e70): `tether`, `attach` (the cockpit), `area`,
+  `mcbtether` (likely the mobile field base), `zippercam`, named after Zipper
+  Interactive, and `godseye`. No data file in the game defines the last two.
+- **Some keys never match the data.** Comparing every key the exe looks up
+  with every string in the 55 reader files finds 118 keys the data never
+  sets. Most are optional settings, but some are spelling mismatches: the
+  weapon code reads `BOUNCES` while `weapons.zrd` says `BOUNCE` (always 0, so
+  harmless), and the sound code's `MED` (above).
 - **Loose text files override the archive.** The game first looks for a
   developer text version of each file in `data\common\zrdr` and only falls back
   to `reader.zbd` when there is none. None ship with the game, but the hook is
