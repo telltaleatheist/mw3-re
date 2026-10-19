@@ -145,13 +145,17 @@ weapons ( (NAME FIREPOINT "group" (G ...) ["ammo" (N "part" (PART) ["extra" (N2 
   `docs/mechdef-parts.md`). An unknown name makes a new record with radius 0,
   share -1 and part -1 (0x46c828).
 - `group`: the first number only (0x556ae0 reads one int), minus 1, clamped to
-  0..4 (0x46c91f).
+  0..4 (0x46c91f); no `group` gives 0 (the player's group 1).
 - Each weapon becomes a config item, vtable 0x5c0fc0, 0x1c bytes: +4 = 1 (count),
-  +8 group, +0xc firepoint, +0x14 index; item kind (vt+0xc) is 1.
+  +8 group, +0xc the firepoint's **index** in `MechDfn` +0x24 (an unknown one is
+  appended first), +0x14 index, +0x18 the mech's tech; item kind (vt+0xc) is 1
+  (`docs/mechdef-configs.md`).
 - `ammo (N "part" (P))` makes an ammo item, vtable 0x5bd150, 0x18 bytes: +4 = N,
-  +0xc = part, +0x14 = weapon index, kind 2. Each `extra` number makes one more
-  ammo item in the **same part** (0x46ca55..0x46cb08, up to three).
-- `equipment` items are kind 3 with +0x18 = equipment kind (table at 0x5e6868, 5
+  +0xc = part, +0x14 = weapon index, kind 2. Each `extra` number **inside the
+  `ammo` list** makes one more ammo item in the **same part** (0x46ca55..0x46cb08,
+  up to three; zeros and floats skipped). An `ammo` of 0 drops its extras too.
+- `equipment` items are kind 3 (armor too: kind 1 / 2 with count = half tons)
+  with +0x18 = equipment kind (table at 0x5e6868, 5
   dwords each): 0 ams, 1 armor, 2 armorff, 3 fcs, 4 bap, 5 case, 6 c3, 7 c3slave,
   8 ecm, 9 sink, 10 dsink, 11 jjets, 12 masc, 13 tag, 14 tc.
 

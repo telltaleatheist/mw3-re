@@ -297,6 +297,33 @@ From the mech definitions (mechdef-parts.md).
   firepoint's name (0x46cb80), not from the `part` written in the file; the
   file's part is only reached through the config item (0x473220).
 
+## Mechs: loadouts
+
+From the mech definitions (mechdef-configs.md).
+
+- **The Bushwacker has four hidden training loadouts**, `training1`..`training4`
+  (one with no weapons and three jump jets, one with only two machine guns,
+  one with 2 tons of armor). Their names start with `train`, which sets a
+  flag on the loadout (+0x1e). What the flag does (likely: the training
+  missions use them and the mech lab hides them) is not traced.
+- **The Sunder's Alternate B loses 240 LRM missiles to a typo**: its file puts
+  `extra (120 120)` beside the LRM20's `ammo` instead of inside it, so only
+  the first 120 are loaded (checked in the emulator).
+- **The Elemental's armor does not add up**: 1 ton of standard armor is worth
+  16 points and the file hands out 11. The game checks and writes an
+  "ARMOR ALLOCATION ERROR", but error output is compiled out, so nobody ever
+  saw it. Every other loadout adds up exactly.
+- **Armor points per ton**: 16 standard, 19.2 Clan ferro-fibrous, 17.92 Inner
+  Sphere ferro-fibrous; armor tonnage is rounded to the nearest half ton.
+- **Heat sinks**: every loadout gets 10 free, plus one per listed sink. Single
+  or double is decided by the last sink in the list, so a mix would count as
+  all one kind (no shipped loadout mixes them).
+- **The `max_speed` in every loadout's engine block is ignored**: nothing in
+  the game reads it from a mech file.
+- **Turning comes from the mech, not the loadout**: every loadout gets half of
+  the file's `max_turn_rate` and the mech's acceleration values; the per-engine
+  override the code allows is never used.
+
 ## Mission animations
 
 From the animation files (anim.md).
