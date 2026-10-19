@@ -117,7 +117,7 @@ sentinel linked to itself, +0xc = 0, +0x10 = (arg != 0), vtable 0x5c36e0).
 | +0x10 | u8 | 0 | base flag (meaning unknown) |
 | +0x14 | int | mech index | |
 | +0x18 | char* | `_strdup(name)` | the localized name |
-| +0x1c, +0x1d | u8 | 0 | not touched. Unknown |
+| +0x1c, +0x1d | u8 | 0 | not touched; +0x1c is the "player-made" flag (only those are saved), +0x1d is saved (`mechdef-head.md`) |
 | +0x1e | u8 | 0 | 1 when the name starts with `train` (`strncmp`, 5) |
 | +0x1f | u8 | **not set** | "modified": 1 after any AddItem/AddEquipment (always, since every config has armor) |
 | +0x20 | u8 | 0 | 1 when `internal` is `endosteel` (`_stricmp`) |
@@ -135,7 +135,7 @@ sentinel linked to itself, +0xc = 0, +0x10 = (arg != 0), vtable 0x5c36e0).
 | +0x7c | float | 0.5 | top-level `accel_rate` |
 | +0x80 | float | 1.3 | top-level `decel_rate` |
 | +0x84 | float | 3.0 | top-level `turn_accel_factor` (default 1.5 in the head) |
-| +0x88..+0xd7 | | not written | garbage in the emulator (heap reuse). Used later, not traced |
+| +0x88..+0xd7 | | not written | +0x88 is the saved loadout's CRC-32 checksum (`mechdef-head.md`); the rest not traced |
 
 Armor points, from the reader's stores: +0x38 `torso`[0] (centre front),
 +0x44 `torso`[1] (centre rear), +0x3c and +0x40 both `torsolr`[0], +0x48 and

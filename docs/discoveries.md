@@ -324,6 +324,31 @@ From the mech definitions (mechdef-configs.md).
   the file's `max_turn_rate` and the mech's acceleration values; the per-engine
   override the code allows is never used.
 
+## Mechs: the definition file and saved loadouts
+
+From the mech definitions (mechdef-head.md).
+
+- **The Strider has no recoil slide because of a typo**: its file says
+  `recoil_slide ("1.5.0")`, which is text, not a number, so the game keeps 0.
+  Its neighbours (Cauldron, Bushwacker, Champion) have 1.5.
+- **Every mech's maximum engine is set to 400** right after it is read; the
+  per-mech maximums in the files (315 for the Bushwacker, 290 for the light
+  mechs) are thrown away. Whether the mech lab uses this limit is not traced.
+- **The Elemental has no crouch height or engine range** in its file, so it
+  gets the defaults (1.0, 10..400).
+- **Saved loadouts are tamper-checked.** The mech lab's loadouts go to
+  `configs\<mech>.mw3`, with a CRC-32 checksum. Edit one by hand and the game
+  silently drops it at load. The game also re-checks weight (0.24 t of
+  slack), armor points and jump jets (at most 2 for mechs up to 40 t, 3 up to
+  65 t, 4 above). **Elemental loadouts are never checked.**
+- Your loadouts are written when the game frees the mech data (at exit),
+  not when you leave the mech lab (as far as traced).
+- **A mod with a wrong `version` in a mech file crashes the game** instead of
+  skipping the mech.
+- Seventeen of the mech files carry a developer comment that the build tool
+  kept as data: "torso limits: maxYaw minPitch maxPitch (degrees)", which is
+  how we know the torso fields' names.
+
 ## Mission animations
 
 From the animation files (anim.md).
