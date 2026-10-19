@@ -12,7 +12,7 @@ container in `zreader.md` (files back to back, table at the end), ported in
 | `soundsH.zbd` | zArchive | the same 999 sounds at 22,050 Hz | container ported; WAV is standard |
 | `motion.zbd` | zArchive | 258 mech animations (`<mech>_<move>`) | ported (`motion.md`) |
 | `mechlib.zbd` | zArchive | `version` 27, `format` 1, `materials`, 57 `.flt` model trees (770 models) | materials and models ported; node tree next (`mechlib.md`) |
-| `interp.zbd` | own header (magic 0x08971119) | mission scripts (mech3ax `interp`) | not traced |
+| `interp.zbd` | own header (magic 0x08971119, version 7) | 44 world-build scripts, run once at mission load | mapped (`interp.md`), not ported |
 | `c1`..`c4`, `c4b`, `t1`: `gamez.zbd` | own (signature 0x02971222, version 27) | the mission world: texture directory, materials, models, nodes, dumped as in-memory pools | mapped (`gamez.md`), not ported |
 | `c*/anim.zbd` | own | mission animations (mech3ax `anim`) | not traced |
 

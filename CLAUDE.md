@@ -172,5 +172,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       `tests/differential/explore/gamez_*.py`.
 - [ ] Mission worlds: port leaves first (texture directory, materials, models,
       node data per class, node pool, top-level reader), as `docs/gamez.md`.
+- [x] Mission scripts: mapped (`docs/interp.md`), decoder in
+      `tests/differential/explore/interp_*.py`.
+- [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
+      dispatcher table (order in `docs/interp.md`), checked by a command trace.
 - [ ] Assets: trace the remaining formats in `docs/assets.md` ( interp scripts, gamez.zbd, anim.zbd), one per sitting,
       cross-checked against mech3ax.

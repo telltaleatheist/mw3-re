@@ -218,6 +218,20 @@ From the world files (gamez.md).
   `GameZWriteZBDFile` survives inside a disabled `ifdef COMPILE` block, a
   leftover from the tool that built the files.
 
+- **A typo in mission 1's world script.** The c1 build script says
+  `Object3DSetScrllAlways` after finding the node `ocean52`; the command is
+  `Object3DSetScrollAlways`, so that water surface never scrolls (interp.md).
+- **The world compiler's commands are still in the scripts.** 385 lines call
+  `LoadGameGen`, a command the shipped exe doesn't have; they sit in a branch
+  that only runs if `gamez.zbd` fails to load, so the fallback could never
+  have worked. `SetModelDirectory` runs every mission and is silently ignored.
+- **There is a hidden "GameZ Interpreter" console** (0x5960a0) where you could
+  type commands like `var DamageScale = 0` or `PrintTree`, but in 1.2 it is
+  likely unreachable (interp.md).
+- **Modding catch:** if any loose script next to the exe has a different file
+  time from the one stored in `interp.zbd`, the game rejects the whole archive,
+  so a modder has to extract all 44 scripts.
+
 ## Data files
 
 - **Every setting lives in `reader.zbd`**, 178 small files of nested lists
