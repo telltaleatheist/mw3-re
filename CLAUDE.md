@@ -155,8 +155,11 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       missiles in the engine's weapon code 0x581xxx-0x585xxx.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
-- [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
-      an emulator check over every `dfn_*.zrd`.
+- [ ] Mech definition (0x46ba40): too big for one sitting; it calls ~30
+      functions. Pieces, each with an emulator check over every `dfn_*.zrd`:
+      skins (0x474f60, 0x473e50, 0x4752e0, 0x474000, 0x474500), firepoints and
+      parts, configurations and loadout (0x424b70, 0x484e40, 0x49ced0, 0x49da10;
+      `docs/weapons.md` maps the loadout), then the reader itself.
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
