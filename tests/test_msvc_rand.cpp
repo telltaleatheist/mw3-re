@@ -11,3 +11,18 @@ TEST(msvc_rand_default_seed_sequence) {
   EXPECT(crt::msvc_rand() == 26500);
   EXPECT(crt::msvc_rand() == 19169);
 }
+
+#include <cmath>
+
+#include "crt/msvc_math.h"
+
+// _ftol keeps the low 32 bits of a 64-bit truncation; the x87 "indefinite" value
+// for NaN and overflow has zero low bits.
+TEST(msvc_ftol_truncates_and_wraps) {
+  EXPECT(crt::msvc_ftol(2.9) == 2);
+  EXPECT(crt::msvc_ftol(-2.9) == -2);
+  EXPECT(crt::msvc_ftol(3e9) == -1294967296);
+  EXPECT(crt::msvc_ftol(1e20) == 0);
+  EXPECT(crt::msvc_ftol(std::nan("")) == 0);
+  EXPECT(crt::msvc_ftol64(-1e20) == INT64_MIN);
+}

@@ -15,6 +15,7 @@ endif()
 # The rebuilt game and engine. No platform or engine types in here: the front end
 # (SDL3, with Godot as the fallback) talks to it through src/platform.
 add_library(mw3core STATIC
+  src/crt/msvc_math.cpp
   src/crt/msvc_rand.cpp
   src/crt/msvc_string.cpp
   src/gamez/zerror/zerr.cpp

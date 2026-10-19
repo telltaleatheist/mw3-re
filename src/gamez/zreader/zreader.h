@@ -52,7 +52,24 @@ bool get_float(Node* node, const char* key, float* out);             // 0x00556a
 bool get_int(Node* node, const char* key, int32_t* out);             // 0x00556ae0
 void get_int_if(Node* node, const char* key, int32_t* out);          // 0x00556b30
 void get_byte_if(Node* node, const char* key, uint8_t* out);         // 0x00556b50
+
+// Fixed-size lists of numbers: (x y z), (x y). An item of the wrong type leaves
+// that slot as it was; the result is false only when the list is too short.
 bool get_vec3(Node* list_node, float out[3]);                        // 0x00556b70
+bool get_vec2(Node* list_node, float out[2]);                        // 0x00556c00
+bool get_ivec2(Node* list_node, int32_t out[2]);                     // 0x00556c70
+bool get_ivec3(Node* list_node, int32_t out[3]);                     // 0x00556cf0
+// An int (non-zero is true) or "true"/"on"/"false"/"off", in any case; also the
+// first item of a list. `out` may be null.
+bool get_bool_int(Node* node, int32_t* out);                         // 0x00556da0
+
+// The same, looked up by key: find(node, key) first.
+bool get_vec3(Node* node, const char* key, float out[3]);            // 0x005570b0
+bool get_vec2(Node* node, const char* key, float out[2]);            // 0x005570d0
+bool get_ivec3(Node* node, const char* key, int32_t out[3]);         // 0x005570f0
+bool get_ivec2(Node* node, const char* key, int32_t out[2]);         // 0x00557110
+bool get_bool_int(Node* node, const char* key, int32_t* out);        // 0x00557130
+bool get_bool(Node* node, const char* key, bool* out);               // 0x00557150
 
 // The open archives, searched in the order they were opened.
 struct State {

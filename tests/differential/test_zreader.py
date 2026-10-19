@@ -6,7 +6,9 @@ For each of the 178 files in the archive, the original zRdrReadNode (0x557180)
 runs in the emulator with ReadFile and malloc served from Python, and the C++
 read_node runs on the same bytes. The trees must be identical. Then, for every
 string in the tree used as a key, the original find (0x5569e0), get_float
-(0x556a60) and get_int (0x556ae0) must agree with the port.
+(0x556a60), get_int (0x556ae0) and the keyed list and boolean getters
+(0x5570b0-0x557150) must agree with the port. MSVCRT's _ftol, which the integer
+lists call, runs as the same x86 code (original.FTOL).
 """
 import ctypes
 import struct
@@ -14,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from original import ROOT, Original  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
@@ -23,10 +25,14 @@ probe.probe_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_long]
 probe.probe_zrdr_find.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
                                   ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
                                   ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int32)]
+probe.probe_zrdr_lists.argtypes = [ctypes.c_char_p, ctypes.c_uint32] + [ctypes.c_void_p] * 7
 READER = ROOT / 'game' / 'mw3-1.2' / 'zbd' / 'reader.zbd'
 
 READ_NODE, FIND, GET_FLOAT, GET_INT = 0x557180, 0x5569e0, 0x556a60, 0x556ae0
-IAT_READFILE, IAT_MALLOC = 0x5bb0c4, 0x5bb664
+IAT_READFILE, IAT_MALLOC, IAT_STRICMP = 0x5bb0c4, 0x5bb664, 0x5bb580
+# Keyed getters with their output size in 4-byte slots (get_bool writes a byte).
+LISTS = ((0x5570b0, 3), (0x5570d0, 2), (0x5570f0, 3), (0x557110, 2), (0x557130, 1), (0x557150, 1))
+FILL = 0x7fa5a5a5  # a NaN no getter writes, so a slot left alone shows
 HANDLE = 0x1234
 
 
@@ -38,7 +44,14 @@ class Emulated:
         self.cpu = Original()
         self.cpu.stub_import(IAT_READFILE, self.read_file, pop_bytes=20)
         self.cpu.stub_import(IAT_MALLOC, lambda c: c.alloc(max(c.arg(0), 1)))
+        self.cpu.import_code(IAT_FTOL, FTOL)
+        self.cpu.stub_import(IAT_STRICMP, self.stricmp)
         self.base_heap = self.cpu.heap_next
+
+    def stricmp(self, cpu):
+        # MSVCRT _stricmp in the C locale: ASCII letters folded to lower case.
+        a, b = self.cstr(cpu.arg(0)).lower(), self.cstr(cpu.arg(1)).lower()
+        return (a > b) - (a < b)
 
     def read_file(self, cpu):
         handle, buf, n, out = cpu.arg(0), cpu.arg(1), cpu.arg(2), cpu.arg(3)
@@ -108,6 +121,31 @@ class Emulated:
         gi, ival = cpu.uc.reg_read(UC_X86_REG_EAX), self.u32(outp)
         return hit, gf, fbits, gi, ival
 
+    def lists(self, key):
+        cpu = self.cpu
+        k = cpu.alloc(len(key) + 1)
+        cpu.write(k, key + b'\0')
+        out = []
+        for addr, slots in LISTS:
+            p = cpu.alloc(12)
+            cpu.write(p, struct.pack('<III', FILL, FILL, FILL))
+            cpu.call(addr, ecx=self.root, edx=k, stack_args=(p,))
+            ok = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+            vals = struct.unpack(f'<{slots}I', cpu.read(p, 4 * slots))
+            if addr == 0x557150:
+                vals = (vals[0] & 0xff,)
+            out.append((ok != 0, vals))
+        return out
+
+
+def port_lists(key):
+    v3, v2 = (ctypes.c_uint32 * 3)(), (ctypes.c_uint32 * 2)()
+    iv3, iv2 = (ctypes.c_uint32 * 3)(), (ctypes.c_uint32 * 2)()
+    bi, b, ok = ctypes.c_uint32(), ctypes.c_uint8(), (ctypes.c_int * 6)()
+    probe.probe_zrdr_lists(key, FILL, v3, v2, iv3, iv2, ctypes.byref(bi), ctypes.byref(b), ok)
+    vals = (tuple(v3), tuple(v2), tuple(iv3), tuple(iv2), (bi.value,), (b.value,))
+    return [(ok[i] != 0, vals[i]) for i in range(6)]
+
 
 def entries(data):
     version, count = struct.unpack_from('<II', data, len(data) - 8)
@@ -125,7 +163,7 @@ def main():
     data = READER.read_bytes()
     emu = Emulated(data)
     buf = ctypes.create_string_buffer(8 << 20)
-    files = keys = past = 0
+    files = keys = past = lists = 0
     for name, start, length in entries(data):
         got = emu.load(start)
         want_n = probe.probe_zrdr_load(str(READER).encode(), start)
@@ -157,10 +195,16 @@ def main():
                 past += 1
             if want != mine:
                 raise SystemExit(f'{name}: key {key!r}: original {want} port {mine}')
+            if not (hit in past_end or empty_list):
+                got_l, want_l = emu.lists(key), port_lists(key)
+                if got_l != want_l:
+                    raise SystemExit(f'{name}: key {key!r}: lists original {got_l} port {want_l}')
+                lists += 1
             keys += 1
         files += 1
     print(f'ok: {files} files, identical trees; {keys} key lookups agree '
-          f'({past} past-the-end reads compared on find only)')
+          f'({past} past-the-end reads compared on find only); '
+          f'list and boolean getters agree on {lists} keys')
 
 
 if __name__ == '__main__':

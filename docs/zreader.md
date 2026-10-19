@@ -28,6 +28,13 @@ and guesses this; the exe confirms it).
 Objects are flat lists of key/value pairs: `("CD_TRACKS" (("menu" 2) ...) ...)`.
 `find` (0x5569e0) returns the node after the first string equal to the key.
 
+The typed getters take that node: a string, a float (an int is converted), an
+int, fixed lists of two or three floats or ints (0x556b70-0x556cf0; the integer
+lists truncate floats with MSVCRT `_ftol`), and a boolean that is an int or one
+of `true`/`on`/`false`/`off` in any case (0x556da0). Each has a keyed wrapper that
+calls `find` first (0x5570b0-0x557150). A list item of the wrong type leaves that
+output as it was.
+
 ## Loading
 
 At startup (0x480000) the game points the reader at `..\data\common\zrdr` and

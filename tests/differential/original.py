@@ -19,6 +19,13 @@ STACK_TOP = 0x30000000
 RETURN = 0x2fff0000   # a mapped address nothing executes; emulation stops there
 HEAP = 0x10000000
 STUBS = 0x2f000000  # one 16-byte slot per imported function we stand in for
+CODE = 0x2f001000   # x86 written here for imports that are easier as machine code
+
+# MSVCRT's _ftol, instruction for instruction: FISTP with the rounding mode set
+# to chop, the 64-bit result in EDX:EAX.
+FTOL = bytes.fromhex('55 8bec 83ec0c d97dfe 668b45fe 80cc0c 668945fc d96dfc df7df4 d96dfe'
+                     '8b45f4 8b55f8 c9 c3')
+IAT_FTOL = 0x5bb644
 
 
 class Original:
@@ -49,6 +56,8 @@ class Original:
         self.uc.mem_write(STUBS, b'\xc3' * 0x1000)
         self.stubs = {}
         self.uc.hook_add(UC_HOOK_CODE, self._stub_hit, begin=STUBS, end=STUBS + 0xfff)
+        self.uc.mem_map(CODE, 0x1000)
+        self.code_next = CODE
 
     def alloc(self, size):
         addr = self.heap_next
@@ -92,6 +101,12 @@ class Original:
         addr = STUBS + 16 * len(self.stubs)
         self.stubs[addr] = (fn, pop_bytes)
         self.u32(iat_slot, addr)
+
+    def import_code(self, iat_slot, code):
+        """Stand in for an import with x86 machine code, such as FTOL."""
+        self.write(self.code_next, code)
+        self.u32(iat_slot, self.code_next)
+        self.code_next += (len(code) + 0xf) & ~0xf
 
     def _stub_hit(self, uc, address, size, user_data):
         fn, pop_bytes = self.stubs[address]

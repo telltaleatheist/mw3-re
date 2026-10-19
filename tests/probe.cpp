@@ -141,4 +141,22 @@ int probe_zrdr_find(const char* key, char* buf, int size, int* got_float, float*
   return copy_out(p, buf, size);
 }
 
+// The list and boolean getters by key, each into outputs prefilled with `fill`
+// so a slot left alone shows. ok[] gets the six results in header order.
+void probe_zrdr_lists(const char* key, uint32_t fill, float* v3, float* v2, int32_t* iv3,
+                      int32_t* iv2, int32_t* bi, uint8_t* b, int* ok) {
+  for (int k = 0; k < 3; ++k) std::memcpy(&v3[k], &fill, 4), std::memcpy(&iv3[k], &fill, 4);
+  for (int k = 0; k < 2; ++k) std::memcpy(&v2[k], &fill, 4), std::memcpy(&iv2[k], &fill, 4);
+  std::memcpy(bi, &fill, 4);
+  *b = static_cast<uint8_t>(fill);
+  ok[0] = zrdr::get_vec3(&g_probe_root, key, v3);
+  ok[1] = zrdr::get_vec2(&g_probe_root, key, v2);
+  ok[2] = zrdr::get_ivec3(&g_probe_root, key, iv3);
+  ok[3] = zrdr::get_ivec2(&g_probe_root, key, iv2);
+  ok[4] = zrdr::get_bool_int(&g_probe_root, key, bi);
+  bool bb = *b != 0;
+  ok[5] = zrdr::get_bool(&g_probe_root, key, &bb);
+  if (ok[5]) *b = bb;
+}
+
 }  // extern "C"

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -193,15 +194,90 @@ void get_byte_if(Node* node, const char* key, uint8_t* out) {
   if (get_int(node, key, &v)) *out = static_cast<uint8_t>(v & 0xff);
 }
 
+namespace {
+// The per-item step the list getters share: a float is copied, an int converted,
+// anything else leaves the slot alone.
+void float_item(const Node& c, float* out) {
+  if (c.type == Float) std::memcpy(out, &c.f, 4);
+  else if (c.type == Int) *out = static_cast<float>(c.i);
+}
+// The integer lists convert floats with _ftol (truncation), as an (int) cast does.
+void int_item(const Node& c, int32_t* out) {
+  if (c.type == Float) *out = crt::msvc_ftol(c.f);
+  else if (c.type == Int) *out = c.i;
+}
+bool short_list(const Node* n, int32_t slots) { return !n || n->type != List || n->list[0].i < slots; }
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00556b70: a list of at least three numbers. A component that
 // is neither Int nor Float keeps its old value.
 bool get_vec3(Node* list_node, float out[3]) {
   if (!list_node || list_node->type != List || list_node->list[0].i < 4) return false;
-  for (int k = 0; k < 3; ++k) {
-    const Node& c = list_node->list[1 + k];
-    if (c.type == Float) std::memcpy(&out[k], &c.f, 4);
-    else if (c.type == Int) out[k] = static_cast<float>(c.i);
+  for (int k = 0; k < 3; ++k) float_item(list_node->list[1 + k], &out[k]);
+  return true;
+}
+
+
+// Mech3.exe 1.2 @ 0x00556c00
+bool get_vec2(Node* list_node, float out[2]) {
+  if (short_list(list_node, 3)) return false;
+  for (int k = 0; k < 2; ++k) float_item(list_node->list[1 + k], &out[k]);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00556c70
+bool get_ivec2(Node* list_node, int32_t out[2]) {
+  if (short_list(list_node, 3)) return false;
+  for (int k = 0; k < 2; ++k) int_item(list_node->list[1 + k], &out[k]);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00556cf0
+bool get_ivec3(Node* list_node, int32_t out[3]) {
+  if (short_list(list_node, 4)) return false;
+  for (int k = 0; k < 3; ++k) int_item(list_node->list[1 + k], &out[k]);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00556da0. A float, or a list whose only slot is its count,
+// is not a boolean.
+bool get_bool_int(Node* node, int32_t* out) {
+  int32_t scratch;
+  if (!out) out = &scratch;
+  if (!node) return false;
+  if (node->type == List && node->list[0].i > 1) node = &node->list[1];
+  if (node->type == Int) {
+    *out = node->i != 0;
+    return true;
   }
+  if (node->type != String) return false;
+  if (crt::msvc_stricmp(node->s, "true") == 0 || crt::msvc_stricmp(node->s, "on") == 0) {
+    *out = 1;
+    return true;
+  }
+  if (crt::msvc_stricmp(node->s, "false") == 0 || crt::msvc_stricmp(node->s, "off") == 0) {
+    *out = 0;
+    return true;
+  }
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x005570b0
+bool get_vec3(Node* node, const char* key, float out[3]) { return get_vec3(find(node, key), out); }
+// Mech3.exe 1.2 @ 0x005570d0
+bool get_vec2(Node* node, const char* key, float out[2]) { return get_vec2(find(node, key), out); }
+// Mech3.exe 1.2 @ 0x005570f0
+bool get_ivec3(Node* node, const char* key, int32_t out[3]) { return get_ivec3(find(node, key), out); }
+// Mech3.exe 1.2 @ 0x00557110
+bool get_ivec2(Node* node, const char* key, int32_t out[2]) { return get_ivec2(find(node, key), out); }
+// Mech3.exe 1.2 @ 0x00557130
+bool get_bool_int(Node* node, const char* key, int32_t* out) { return get_bool_int(find(node, key), out); }
+
+// Mech3.exe 1.2 @ 0x00557150: true only for exactly 1, which get_bool_int gives.
+bool get_bool(Node* node, const char* key, bool* out) {
+  int32_t v;
+  if (!get_bool_int(node, key, &v)) return false;
+  *out = v == 1;
   return true;
 }
 
