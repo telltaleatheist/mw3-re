@@ -200,6 +200,24 @@ From the network code (network-messages.md).
   time each frame took, capped at 1/8 second a frame. The exceptions found so
   far are per-frame, like the lava heat above.
 
+## Mission worlds
+
+From the world files (gamez.md).
+
+- **Each mission world is a memory dump.** `gamez.zbd` is the engine's
+  in-memory pools of textures, materials, models and scene nodes written out as
+  they were, free slots and stale pointers included.
+- **Deleted objects are still in the files.** Free node slots keep the names of
+  objects the level designers deleted without clearing; mission 1's world holds
+  1,393 of them.
+- **The engine's error messages go nowhere.** The GameZ error reporter
+  (0x49bfd0) is an empty stub in the shipped game, so every engine error is
+  silent; a broken node is just marked dead and loading carries on.
+- **Worlds are loaded by a script.** Mission load runs a script whose
+  `GameZReadZBDFile` command reads the world; the matching
+  `GameZWriteZBDFile` survives inside a disabled `ifdef COMPILE` block, a
+  leftover from the tool that built the files.
+
 ## Data files
 
 - **Every setting lives in `reader.zbd`**, 178 small files of nested lists

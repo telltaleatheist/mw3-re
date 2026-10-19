@@ -94,6 +94,7 @@ zRender's span routines draw with the stack-pointer trick: docs/blit-trick.md.
 | Network | `network.md`, `network-messages.md` | | |
 | Weapons, damage | `weapons.md`, `damage.md` | | |
 | zClass node core | `zclass-world.md` | | explore scripts |
+| Mission worlds | `gamez.md` | | explore scripts |
 | Mech models | `mechlib.md` | `gamez/zclass/cls_mechlib` (materials, models) | `test_mechlib.py` |
 | Asset files | `assets.md` | | |
 | Player-facing findings | `discoveries.md` | | |
