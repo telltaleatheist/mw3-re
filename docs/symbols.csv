@@ -174,3 +174,6 @@ address,name,source,notes
 0x005363d0,zmod_read_materials,asm,"ported; (ECX FILE*)"
 0x005792c0,zvid_set_pixel_format,asm,"ported; (ECX r bits, EDX g bits, b bits, 3 more) ret 0x10"
 0x005793c0,zvid_pack_rgb,asm,"ported; float rgb[3] -> 16-bit, rounded"
+0x00579370,zvid_pack_bytes,asm,"ported; (r, g, b bytes) -> 16-bit display colour"
+0x00538e30,zmod_read_models,asm,"ported; (ECX FILE*) world model pool"
+0x00538a70,zmod_read_model_data,asm,"ported; one model's arrays, lights, polygons"

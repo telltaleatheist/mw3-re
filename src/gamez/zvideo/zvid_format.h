@@ -16,5 +16,6 @@ PixelFormat& pixel_format();
 
 void set_pixel_format(int r_bits, int g_bits, int b_bits);  // 0x005792c0
 uint16_t pack_rgb(const float rgb[3]);                      // 0x005793c0
+uint16_t pack_bytes(uint8_t r, uint8_t g, uint8_t b);       // 0x00579370
 
 }  // namespace zvid

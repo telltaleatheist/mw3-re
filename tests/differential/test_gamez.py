@@ -1,7 +1,7 @@
 """The ported world-file readers against the original x86, on every mission's
-gamez.zbd (docs/gamez.md). So far: the texture directory (0x518160) and the
+gamez.zbd (docs/gamez.md). So far: the texture directory (0x518160), the
 materials (0x5363d0, with the display's colour packing 0x5792c0/0x5793c0 set
-to 5-6-5 and 5-5-5).
+to 5-6-5 and 5-5-5) and the models (0x538e30, 0x538a70).
 
     cmake --build build && .venv/bin/python tests/differential/test_gamez.py
 """
@@ -20,6 +20,8 @@ probe.probe_materials.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, 
                                   ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.probe_pack_rgb.argtypes = [ctypes.c_int] * 3 + [ctypes.c_float] * 3
 PACK_RGB = 0x5793c0
+probe.probe_models.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ctypes.c_void_p, ctypes.c_int]
+MODELS, POOL, POOL_SIZE, POOL_COUNT, POOL_FREE = 0x538e30, 0x7402e4, 0x7402e0, 0x7402e8, 0x7402ec
 probe.probe_texture_directory.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int,
                                           ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 ZBD = ROOT / 'game' / 'mw3-1.2' / 'zbd'
@@ -127,6 +129,58 @@ class Emulated:
             out += e[8:28] + e[0x1c:0x24] + struct.pack('<i', idx)
         return out
 
+    def models(self, data, moff, off):
+        cpu, r, i32 = self.cpu, self.cpu.read, self.i32
+        self.materials(data, moff, 5, 6, 5)
+        for a in (POOL, POOL_SIZE, POOL_COUNT):
+            cpu.u32(a, 0)
+        self.data, self.pos = data, off
+        cpu.call(MODELS, ecx=HANDLE)
+        res = struct.unpack('<i', struct.pack('<I', cpu.uc.reg_read(UC_X86_REG_EAX)))[0]
+        out = [struct.pack('<iii', res, i32(POOL_COUNT), i32(POOL_FREE))]
+        blocks = i32(BLOCKS)
+        mat_base = [i32(blocks + 4 * b) for b in range(64) if i32(blocks + 4 * b)]
+
+        def mat_index(ptr):
+            if ptr == 0:
+                return -1
+            for b, base in enumerate(mat_base):
+                if base <= ptr < base + 1000 * 0x2c:
+                    return b * 1000 + (ptr - base) // 0x2c
+            return -2
+        pool = i32(POOL)
+        for i in range(max(res, 0)):
+            m = pool + 0x60 * i
+            h = r(m, 0x60)
+            out.append(h[:0x34] + h[0x48:0x5c] + h[0x5c:0x60])
+            polys, verts, norms, morphs, lights = struct.unpack_from('<5i', h, 0x10)
+            for cnt, o in ((verts, 0x38), (norms, 0x3c), (morphs, 0x44)):
+                if cnt > 0:
+                    out.append(r(i32(m + o) & 0xffffffff, cnt * 12))
+            la = i32(m + 0x40) & 0xffffffff
+            for k in range(max(lights, 0)):
+                l = r(la + 0x4c * k, 0x4c)
+                out.append(l[:0x28] + l[0x28:0x2a] + l[0x30:0x4c])
+                vc = struct.unpack_from('<i', l, 0x0c)[0]
+                if vc > 0:
+                    out.append(r(struct.unpack_from('<I', l, 0x2c)[0], vc * 12))
+            pa = i32(m + 0x34) & 0xffffffff
+            for k in range(max(polys, 0)):
+                q = r(pa + 0x24 * k, 0x24)
+                flags, prio, vi, ni, uv, col, _, mat, zone = struct.unpack('<IiIIIIIII', q)
+                c = flags & 0xff
+                out.append(struct.pack('<IiiI', flags, prio, mat_index(mat), zone))
+                if c and vi:
+                    out.append(r(vi, c * 4))
+                if c and flags & 0x200 and ni:
+                    out.append(r(ni, c * 4))
+                textured = mat and r(mat + 1, 1)[0] & 1
+                if textured and uv:
+                    out.append(r(uv, c * 8))
+                if col:
+                    out.append(r(col, c * 12))
+        return b''.join(out)
+
 
 def check_pack_rgb(emu):
     import random
@@ -150,8 +204,8 @@ def check_pack_rgb(emu):
 def main():
     emu = Emulated()
     check_pack_rgb(emu)
-    buf = ctypes.create_string_buffer(1 << 20)
-    total = mtotal = 0
+    buf = ctypes.create_string_buffer(64 << 20)
+    total = mtotal = mdltotal = 0
     for w in WORLDS:
         path = ZBD / w / 'gamez.zbd'
         data = path.read_bytes()
@@ -166,13 +220,24 @@ def main():
         for fmt in ((5, 6, 5), (5, 5, 5)):
             want = emu.materials(data, moff, *fmt)
             n = probe.probe_materials(str(path).encode(), moff, *fmt, buf, len(buf))
-            if n < 0 or buf.raw[:n] != want:
-                at = next((i for i in range(min(n, len(want))) if buf.raw[i] != want[i]), None)
+            got = buf.raw[:max(n, 0)]
+            if n < 0 or got != want:
+                at = next((i for i in range(min(n, len(want))) if got[i] != want[i]), None)
                 raise SystemExit(f'{w} materials {fmt}: {len(want)} vs {n} bytes, first difference at {at}')
         mats = struct.unpack_from('<i', data, moff + 4)[0]
+        mdl_off, = struct.unpack_from('<i', data, 0x14)
+        want = emu.models(data, moff, mdl_off)
+        n = probe.probe_models(str(path).encode(), moff, mdl_off, buf, len(buf))
+        got = buf.raw[:max(n, 0)]
+        if n < 0 or got != want:
+            at = next((i for i in range(min(n, len(want))) if got[i] != want[i]), None)
+            raise SystemExit(f'{w} models: {len(want)} vs {n} bytes, first difference at {at}')
+        mdls = struct.unpack_from('<i', data, mdl_off + 4)[0]
+        mdltotal += mdls
         mtotal += mats
-        print(f'{w}: {count} textures and {mats} materials identical')
-    print(f'ok: {total} texture directory entries and {mtotal} materials across {len(WORLDS)} worlds')
+        print(f'{w}: {count} textures, {mats} materials and {mdls} models identical')
+    print(f'ok: {total} texture directory entries, {mtotal} materials and {mdltotal} models '
+          f'across {len(WORLDS)} worlds')
 
 
 if __name__ == '__main__':

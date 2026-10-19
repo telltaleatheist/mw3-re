@@ -43,5 +43,6 @@ struct MaterialTable {
 MaterialTable& materials();
 
 int read_materials(std::FILE* f);  // 0x005363d0
+Material* take_material(int32_t index);  // 0x00536070, marks it referenced
 
 }  // namespace zmod

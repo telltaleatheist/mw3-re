@@ -549,3 +549,54 @@ int probe_pack_rgb(int rb, int gb, int bb, float r, float g, float b) {
 }
 
 }  // extern "C"
+
+#include "gamez/zmodel/gmod_const.h"
+
+extern "C" {
+
+// Reads materials at moff then models at off (display 5-6-5). Output: result,
+// count, free head, then per slot the header (pointer fields skipped), link,
+// arrays, lights and polygons; materials as indices.
+int probe_models(const char* path, long moff, long off, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  zvid::set_pixel_format(5, 6, 5);
+  zmod::materials() = zmod::MaterialTable{};
+  std::fseek(f, moff, SEEK_SET);
+  zmod::read_materials(f);
+  zmod::models() = zmod::ModelPool{};
+  std::fseek(f, off, SEEK_SET);
+  const int32_t r = zmod::read_models(f);
+  std::fclose(f);
+  const zmod::ModelPool& p = zmod::models();
+  std::vector<uint8_t> b;
+  put_bytes(b, &r, 4), put_bytes(b, &p.count, 4), put_bytes(b, &p.free_head, 4);
+  for (int i = 0; i < r; ++i) {
+    const zmod::Model& m = p.slots[i];
+    put_bytes(b, m.header, 0x34), put_bytes(b, m.header + 0x48, 0x14), put_bytes(b, &m.link, 4);
+    const auto n = [&](int o) { return static_cast<int32_t>(m.count(o)); };
+    if (n(0x14) > 0) put_bytes(b, m.vertices, n(0x14) * 12);
+    if (n(0x18) > 0) put_bytes(b, m.normals, n(0x18) * 12);
+    if (n(0x1c) > 0) put_bytes(b, m.morphs, n(0x1c) * 12);
+    for (int k = 0; k < n(0x20); ++k) {
+      const zmod::Light& l = m.lights[k];
+      put_bytes(b, l.raw, 0x28), put_bytes(b, &l.color, 2), put_bytes(b, l.raw + 0x30, 0x1c);
+      int32_t vc;
+      std::memcpy(&vc, l.raw + 0x0c, 4);
+      if (vc > 0) put_bytes(b, l.vertices, vc * 12);
+    }
+    for (int k = 0; k < n(0x10); ++k) {
+      const zmod::Polygon& q = m.polygons[k];
+      const uint32_t c = q.flags & 0xff;
+      const int32_t mat = q.material ? static_cast<int32_t>(q.material - zmod::materials().slots.data()) : -1;
+      put_bytes(b, &q.flags, 4), put_bytes(b, &q.priority, 4), put_bytes(b, &mat, 4), put_bytes(b, &q.zone_set, 4);
+      if (q.vertex_indices) put_bytes(b, q.vertex_indices, c * 4);
+      if (q.normal_indices) put_bytes(b, q.normal_indices, c * 4);
+      if (q.uvs) put_bytes(b, q.uvs, c * 8);
+      if (q.colors) put_bytes(b, q.colors, c * 12);
+    }
+  }
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

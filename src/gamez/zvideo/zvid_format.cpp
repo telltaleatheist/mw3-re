@@ -35,4 +35,13 @@ uint16_t pack_rgb(const float rgb[3]) {
   return static_cast<uint16_t>(v);
 }
 
+// Mech3.exe 1.2 @ 0x00579370
+uint16_t pack_bytes(uint8_t r, uint8_t g, uint8_t b) {
+  const PixelFormat& f = g_format;
+  uint32_t v = (r & f.r_mask) << f.r_shift;
+  v |= (g & f.g_mask) << f.g_shift;
+  v |= static_cast<uint8_t>(b >> f.b_shift_right);
+  return static_cast<uint16_t>(v);
+}
+
 }  // namespace zvid

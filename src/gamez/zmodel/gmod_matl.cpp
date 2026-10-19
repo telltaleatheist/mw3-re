@@ -25,6 +25,14 @@ T at(const uint8_t* p, int off) {
 
 MaterialTable& materials() { return g_table; }
 
+// Mech3.exe 1.2 @ 0x00536070. No upper bound check.
+Material* take_material(int32_t index) {
+  if (index < 0) return nullptr;
+  Material& m = g_table.slots[index];
+  m.flags |= 0x10;
+  return &m;
+}
+
 // Mech3.exe 1.2 @ 0x005363d0. FIX (A): one vector instead of 0x2c-byte slots
 // in malloc'd blocks; capacity is still rounded up to whole blocks.
 int read_materials(std::FILE* f) {

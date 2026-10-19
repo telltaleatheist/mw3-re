@@ -204,6 +204,10 @@ into indices, then cycles in the same used-list order).
 
 ## 3. Models: 0x538e30 (`gmod_const.c`)
 
+Ported: `zmod::read_models` / `read_model_data` (`src/gamez/zmodel/
+gmod_const.*`) with `zvid::pack_bytes` (0x579370); identical on all 13,941
+models of the six worlds, lights included.
+
 The model pool: 0x7402e4 (array of 0x60-byte slots), size 0x7402e0, used
 count 0x7402e8, free head 0x7402ec, free link at slot +0x5c. It is the same
 pool mechlib models are taken from (0x538fe0).
@@ -233,9 +237,9 @@ follows in slot order), but the single-model re-read 0x538640 does (below).
 2. normals `+0x18 x 12` -> +0x3c;
 3. morphs `+0x1c x 12` -> +0x44;
 4. lights `+0x20 x 0x4c` -> +0x40; for each light, +0x28 (u16) = 0x579370
-   of its colour floats at +0x1c/+0x20/+0x24 (each `ftol(x - 0.5)`, 0.5 at
-   0x5ce178), and when light +0x0c > 0, `+0x0c x 12` vertices -> light
-   +0x2c (`Error reading GameZ Model3D point light data.`);
+   of its colour floats at +0x1c/+0x20/+0x24 (each `ftol(x - c)`, c = -0.5
+   at 0x5ce178, so rounded to nearest), and when light +0x0c > 0,
+   `+0x0c x 12` vertices -> light +0x2c (`Error reading GameZ Model3D point light data.`);
 5. polygons `+0x10 x 0x24` -> +0x34. Every polygon's material index (+0x1c)
    becomes a material pointer (0x536070: index < 0 -> 0, no upper bound;
    sets the material's flag 0x10). Then for each polygon, `k = flags & 0xff`:

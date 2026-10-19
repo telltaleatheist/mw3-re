@@ -25,6 +25,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/cls_mechlib.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
+  src/gamez/zmodel/gmod_const.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
