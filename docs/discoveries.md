@@ -43,7 +43,7 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   cooling drops 10% for each one lost. It is meant to play a voice callout, but
   only when the heat sink routine (0x45fbc0) reports success, and that routine
   always reports failure. The sink is gone, silently. Losing a whole part takes
-  its sinks with it (0x4617f0).
+  its sinks with it (0x4617f0). The rebuild plays the callout (fixes.md).
 - **Jump jets and MASC each add 0.05 heat a second** while running, on top of
   weapons. Running hard also cools you slower: past 60% throttle (either
   direction), cooling drops, to 60% of normal at full throttle.
@@ -108,7 +108,49 @@ From the damage code (damage.md).
 - **A part can't be destroyed while it has armor.** Structure damage can never
   take the internal value below the remaining armor fraction.
 - **Difficulty only scales damage you take**: x0.7, x1.0 or x1.3, and not in
-  multiplayer.
+  multiplayer. Your allies' mechs likely get the same scaling (a team-mask
+  test); enemies always take full damage.
+
+From the port of the damage code, checked in an emulator against the original
+(damage.md, section 4):
+
+- **Rear armor is only hit from behind.** The torso decides front or rear by
+  which face of its footprint the shot enters through. Shots through the sides
+  always hit the side torso's front armor; a shot through the middle of the
+  back only counts as rear within about 45 to 60 degrees of straight behind
+  (0x460350).
+- **Grazing shots count as centre-front.** A shot whose line misses the
+  torso's box (it clipped the outline) hits the centre torso's front armor.
+- **Side torsos are hollow** (from the code, not yet seen in play). Losing a
+  side torso takes its arm, but the side torso itself is never treated as a
+  lost part: weapons mounted in it keep firing, and heat sinks, jump jets and
+  other equipment listed there keep working. Criticals on torso hits only look
+  at what is listed in the centre torso, so ammo and equipment in the side
+  torsos can never be hit by a critical (only the overheat cook-off reaches
+  side-torso ammo).
+- **CASE in a side torso does nothing.** Since side-torso ammo can't be hit by
+  a critical anyway and the CASE check on torso hits only looks at the centre
+  torso, CASE is only useful in the centre torso or an arm. The stock Mad Cat
+  carries its two CASE in its side torsos.
+- **ECM makes you immune to NARC.** A NARC hit sets a 30-second beacon, unless
+  the target carries ECM (0x41ac10).
+- **Equipment criticals favour bulky gear.** The item destroyed is chosen with
+  odds proportional to its critical slots (0x460d50).
+- **A crippled engine slows you each time.** The torso's "location special"
+  critical cuts your top speed by 15%, again on every such hit, with the
+  engine callout.
+- **Knockback builds up.** Every hit with impact force pushes along the shot
+  and adds to a running total; when it passes a threshold set by your tonnage
+  (light mechs about 3.8, assault mechs about 15) you stagger. A fall clears it.
+  Such hits on the torso, arms, head or hip also rock the torso, twisting it
+  away from the hit, harder for heavier weapons (0x464af0); leg hits do not.
+- **Area damage skips the head** and spreads a seventh of the damage over the
+  other seven locations, a fifth of that to each rear torso. Unlike direct hits
+  it is scaled by difficulty even in multiplayer.
+- **The hip has no armor of its own** and hip hits go straight to the torso,
+  without the screen static that torso, arm and head hits give you.
+- **XL engines have no damage rule.** The `xl` setting changes only the
+  engine's weight in the mech lab; nothing in combat reads it.
 
 ## Weapons
 

@@ -176,8 +176,10 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Textures: `tools/analysis/tex2png.py` exports any library as PNG.
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [x] Network: message types mapped (`docs/network-messages.md`); state sync.
-- [x] Damage: mapped (`docs/damage.md`). Open: the front/rear edge order
-      (check in the emulator), torso ApplyImpact 0x464af0, the `xl` flag.
+- [x] Damage: ported and emulator-checked from TakeDamage to Die
+      (`mech3/mech_parts`, `mech_damage`, `docs/damage.md` section 4).
+      Left: the weapons' side 0x4b0de0 / 0x4b1040, the kill credit
+      0x41b420, the death animations and the torso jolt's decay.
 - [x] Weapons at run time: mapped (`docs/weapons.md`). Open: damage, falloff,
       missiles in the engine's weapon code 0x581xxx-0x585xxx.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.

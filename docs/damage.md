@@ -1,10 +1,14 @@
-# Damage (Mech3.exe 1.2 (researched by a subagent from the disassembly, spot-checked: the critical thresholds at 0x460afd-0x460b70 and the 0.15 armor gate, the +0x630 invincibility reads at 0x41ad48 and 0x461386))
+# Damage
 
-Mech3.exe 1.2, 2026-10-19. Research draft: how a mech takes damage, from a
-weapon's impact to armor, internal structure, criticals, part loss and death.
-Addresses are the 1.2 exe. "Likely" marks a reading not confirmed by a second
-source. Ghidra drops ECX/EDX arguments; the asm was checked for every value
-quoted here.
+Mech3.exe 1.2, 2026-10-19. How a mech takes damage, from a weapon's impact to
+armor, internal structure, criticals, part loss and death. Addresses are the
+1.2 exe. "Likely" marks a reading not confirmed by a second source.
+
+The mech's side of it is **ported and emulator-checked** (section 4): every
+function from `Mech::TakeDamage` down to `Mech::Die` runs as the original on
+1,500 random mechs and 33,000 operations, state and calls out identical bit
+for bit at the game's 24-bit x87 precision. Sections 1-3 were first read from
+the disassembly; the port corrected them where noted.
 
 ## 1. Where armor and internal structure live
 
@@ -123,24 +127,38 @@ splash:      0x5829b0 (linear falloff, see below)             -> 0x583480
 
 1. Ignored if the mech is dead (state +0x578 == 10) or inactive (+0x08 == 0).
 2. Records the attacker at +0x664 (killer for the kill credit and the network
-   death message) and tells the controls/AI (+0x37c, vtable +0x94).
+   death message; from the shot's owner `[0x9a0edc]`, 0x40e920) and tells the
+   controls/AI (+0x37c, vtable +0x94).
 3. `HEAT` second value (WeaponType +0xc, x frame time for beams) is added to the
-   target's heat at the end (0x419e40). It is 0 in every shipped weapon.
+   target's heat at the end (0x419e40). It is 0 in every shipped weapon. A hit
+   that does nothing (below) adds none.
 4. NARC (WeaponType +0x4c): marks the mech (0x41ac10(1)) and returns. NARC
-   hits do no damage.
+   hits do no damage. 0x41ac10 sets the NARC timer +0x570 to 30 s, **unless the
+   mech carries ECM** (equipment count +0x3cc > 0), which keeps it at 0.
 5. Knockback: `IMPACT_FORCE` (WeaponType +0x48; 0 when invincible) along the
    shot's horizontal direction is added to the vector at +0x540 and its length
    kept at +0x53c (only in movement states 1-9). Each frame 0x417a80 compares
    that length with `+0x6c4 + +0x6c8 x (tonnage - 10) / 90` (3.76 + 11.28 x ...,
    so 3.76 for 10 t up to 15.04 for 100 t, set at 0x414c71) and, when reached,
    staggers the mech (0x41b7f0, sound 1 for the player) and clears it.
-6. +0x411 = "hit by a weapon whose name is message 0x305, NUKE".
-7. If the hit node is a part: part `TakeHit`. Otherwise (a hit on the mech that
-   is not on a part node, likely area damage) and the attacker is not the mech
-   itself: `d = damage x 0.143 x 0.0062` (x difficulty for the player), and
-   `ApplyDamage` is called on all 7 non-head locations: CT, LT, RT front with
-   d, their rear sections with 0.2 d, both legs and both arms with d. 0.143 is
-   about 1/7. The head never takes this damage, and it never rolls criticals.
+   The knockback vector is also the impulse handed to the part (`ApplyImpact`,
+   below). Its direction is `shot[0] - shot[1]` flattened (0x51e210); a zero
+   length leaves it 0.
+6. With a collision record +0x20, a roster entry +0x1c (0x414370) and decals
+   (+0x3e8), 0x474d90 marks the hit on the mech's damage textures.
+7. +0x411 = the weapon's military name (def +8) is message 0x305, `NUKE`; the
+   torso's `Destroy(1)` sets it too. It picks the explosion death and, for the
+   player, zeroes every armor value in `Die`.
+8. If the hit node is a part (node +0x28 low byte, +0x40 the part): part
+   `TakeHit`. Otherwise, if the node belongs to a mech (flags 0xf000, +0x40;
+   any mech, not checked to be this one) and the attacker is not the mech
+   itself: `d = damage x 0.143 x 0.0062` (x difficulty when this is the
+   player, **also in multiplayer**), and `ApplyDamage` is called on all 7
+   non-head locations: CT, LT, RT front with d, their rear sections with
+   0.2 d, both legs and both arms with d. 0.143 is about 1/7. The head never
+   takes this damage, and it never rolls criticals. A node that is neither
+   does nothing at all.
+9. Last, 0x41d170 notes the time and the torso at +0xe0/+0xe4.
 
 ### MechPart::TakeHit (0x460970, vtable +0x18)
 
@@ -148,30 +166,55 @@ Arguments: weapon def, collision, damage, impulse.
 
 1. `d = damage x 0.0062` (0x5e1f68). Legs multiply by 1.0 first (0x463b40,
    0x5e1f74), so there are no per-location multipliers.
-2. Difficulty: except in multiplayer (game type 3), damage to the player's mech,
-   and to mechs that pass a team-mask test against the player's
+2. Difficulty: except in multiplayer (game type 3), damage to the player's mech
+   (`[0x60861c] +0x14`, the mission's player), and to mechs that pass a
+   team-mask test against the player's
    (`player +0xc4 & target +0xc0`, likely allies), is multiplied by
    0x608e5c. 0x40cc20 sets it from the difficulty table: low 0.7, medium 1.0,
    high 1.3 (the third float of each row; the others go to 0x608e54/58).
-3. `ApplyImpact` (vtable +0x1c) with `IMPACT_FORCE`.
+3. `ApplyImpact` (vtable +0x1c) with `IMPACT_FORCE`, when there was knockback.
 4. The torso picks its section from the shot (0x460350, below).
 5. Critical roll (section 3). If one is rolled, `Critical` runs and **the hit
    deals no armor or internal damage at all**.
 6. Otherwise `ApplyDamage(d, section)`.
-7. Head hits on the player trigger a HUD effect (0x508da0).
+7. Head hits on the player trigger a HUD effect (0x508da0) when the pilot's
+   +0x228 block, its [1] and +0x200 are set.
+
+Calves, feet and hands pass the whole call to their thigh or arm (through the
+vtable, so a foot hit is a thigh hit, limp roll included). The hip calls the
+torso's plain `TakeHit` 0x4647b0 directly: no `ZAPS_HUD` static for hip hits.
+
+### ApplyImpact: the torso's jolt (0x464af0)
+
+Only the torso does anything; arms, head, hip and hands forward to it
+(0x466c30), legs, calves and feet ignore the impulse (0x40baf0). With impulse
+`i` (the knockback vector) and `IMPACT_FORCE` f, unless `i.x` and `i.z` are both
+0 (then the spin +0xd8 is cleared and nothing else changes):
+
+```
+spin  (+0xd8)  = R^T (i.z, 0, -i.x) x 15 deg x f x -0.5    (0x5c2738 = 0.2618)
+shove (+0x100) = R^T (k0 i.z x -0.5, k1 i.x x 0.5, k2 i.x x 0.5)
+```
+
+R is the torso node's world rotation (0x461cf0, after the node update
+0x4ed530) and k0..k2 the torso's +0x14c..+0x154. The spin axis is horizontal and
+across the shot, so the torso rocks away from the hit, harder for heavier
+weapons; the shove moves it. Its per-frame decay (likely 0x464ce0) is not ported.
 
 Torso, arm and head wrappers (0x464720, 0x466ba0, 0x467200) also play the
 weapon's `ZAPS_HUD` static (WeaponType +0x14) on the player's HUD (0x43be70,
 kind 4 torso and head, 3 arms).
 
-### Front or rear: 0x460350
+### Front or rear: 0x460350 (emulator-checked)
 
 The torso builds 8 edges of its footprint in its own space, transforms them to
 the world, and tests them in a fixed order against the shot line in the
 horizontal plane (2D segment test 0x460780). The box is +-w wide (+0x7c) and
-+-d deep (+0x80); the centre strip is +-0.2 w (0x5e4ef0). The shot line is the
++-d deep (+0x80), half the size of the node `torso_polys`' bounding box
+(0x46439d); the centre strip is +-0.2 w (0x5e4ef0). The shot line is the
 collision segment stretched 10 times both ways (0x5e4ef4), so it crosses the
-whole torso:
+whole torso. The mech faces -z in its own frame and +x is its right
+(right-handed; the Mad Cat's cockpit and toes face -z in `mechlib.zbd`):
 
 | Order | Edge | Section |
 |---|---|---|
@@ -184,9 +227,35 @@ whole torso:
 | 6 | left side, x = -w | 1 LT front |
 | 7 | right side, x = +w | 2 RT front |
 
-The first edge crossed wins; none crossed means section 0. If the chosen side
-torso is destroyed (internal 0), the hit moves to the centre torso, front or
-rear to match (`(s < 3) - 1 & 3`).
+**The test is one-sided** (0x460780's first half): an edge counts only when
+the stretched shot crosses it going in, from outside the box to inside. `shot`
+is `[0x9a0ec4]`, two points set by 0x583480: [0] the projectile's position
+(+0x48, likely where it was before the step that hit) and [1] the collision
+point, so [0] is the shooter's side (likely; the reverse would put every frontal
+shot on the rear armor). A convex box is entered through one face, so the order
+only matters at corners. The first edge crossed wins; none crossed (the line
+misses the box) means section 0, CT front. If the chosen side torso is
+destroyed (internal 0), the hit moves to the centre torso, front or rear to
+match (`(s <= 2) - 1 & 3`).
+
+The side planes (edges 6, 7) give **front** sections: a hit through the side
+of the torso always strikes the side torso's front armor. Emulator sweep
+(`tests/differential/explore/damage_sections.py`: half sizes 2 x 1.5, shots
+from 30 units at each bearing, aimed through the centre or offset sideways):
+
+| Shot from | Through the centre | Aimed 0.8 off centre, toward the mech's left / right |
+|---|---|---|
+| ahead (0) | CT front | LT front / RT front |
+| front-right (45) | RT front | CT front / RT front |
+| right (90) | RT front | RT front (either way along the side) |
+| rear-right (135) | RT rear | CT rear / RT front |
+| behind (180) | CT rear | LT rear / RT rear |
+| rear-left (225) | LT rear | LT front / CT rear |
+| left (270) | LT front | LT front (either way along the side) |
+
+So the rear armor is only hit from behind, within about 45 to 60 degrees of
+straight back for a hit through the middle; anything from the side is front
+armor.
 
 ### ApplyDamage (0x461300, vtable +0x38)
 
@@ -212,24 +281,34 @@ below the weaker of front and rear armor). See Discoveries.
 
 ### Part destruction
 
-`SetInternal` base (0x461510, section 0 only): stores the value, sends network
-event 0x15 (Mech vtable +0x168, "section damaged", `network-messages.md`) and
-sets Mech +0x410. At 0 or below: internal = 0 and `Destroy(v, 1)` with v = 0
-when `rand/32767 > 0.4` (60 %) else 1 (40 %); v picks one of two destruction
-effects from the owner's table (+0x1a4 + 0xc x id + 4v); 0x586ce0 returning true
-forces v = 0. Torso `SetInternal` (0x464830): centre torso at 0 →
-`Destroy(0, 1)` on the torso; left torso at 0 → left arm `SetInternal(0, 0)`;
-right torso → right arm.
+`SetInternal` base (0x461510, section 0 only): a destroyed part takes 0; an
+unchanged value only sets Mech +0x410. Otherwise it stores the value, sends
+network event 0x15 with the part id (Mech vtable +0x168, "section damaged",
+`network-messages.md`) and sets Mech +0x410. At 0 or below: internal = 0 and
+`Destroy(v, 1)` with v = 0 when `rand/32767 > 0.4` (60 %) else 1 (40 %); v picks
+one of two destruction effects from the pilot's table (+0x1a4 + 0xc x id + 4v);
+0x586ce0 returning true forces v = 0. Torso `SetInternal` (0x464830): the
+section's internal value (front and rear share it), event 0x15 with 1, 7 or 8
+**after** the consequence: centre torso at 0 → `Destroy(0, 1)` on the torso;
+left torso at 0 → left arm `SetInternal(0, 0)`; right torso → right arm. The
+side torso itself keeps no destroyed flag: `SetArmor` (0x464950) just pins its
+armor at 0. Feet, calves and hands forward `SetInternal` to their thigh or arm.
 
-`Destroy` base (0x461a30) and 0x4617f0:
+`Destroy` base (0x461a30, `(variant, fly)`) and 0x4617f0:
 - every weapon mounted on the part is destroyed (0x4b1040 → 0x4b3020);
-- arms and thighs fly off as a separate object with an effect (vtable +0x60),
-  except on the Elemental (roster index 7), where the effect plays at the mech;
+- arms and thighs fly off as a separate object (vtable +0x60, which returns the
+  new node and fills a start point and a velocity), except on the Elemental
+  (roster index 7); the pilot's destruction effect `variant` (+0x1a4 + 0xc x
+  id + 4 x variant) plays on that node (0x508aa0), or on the part's own node at
+  the mech's +0x30 velocity when it does not fly; a flying part with `fly` set
+  also gets the trail effect (+0x1ac + 0xc x id). Both register an end callback
+  (0x508f00 with 0x461c90) that clears the handle (+0x6c, +0x70);
 - 0x4617f0: destroyed flag (+0x48), armor and internal = 0, and for each
-  equipment item in that part with a count: heat sinks (types 9, 10) are lost
-  (`HeatSinks::Lose(count)`), any other type decrements the mech's per-type
-  counter at Mech +0x3ac + 4 x type by one (jump jets +0x3d8 = type 11, MASC
-  +0x3dc = type 12);
+  intact (+8 = 0) equipment item in that part that takes critical slots: heat
+  sinks (types 9, 10) are lost (`HeatSinks::Lose(count)`), any other type
+  decrements the mech's per-type counter at Mech +0x3ac + 4 x type by one (jump
+  jets +0x3d8 = type 11, MASC +0x3dc = type 12). An item already wrecked by an
+  equipment critical is not counted twice;
 - 0x41b5f0: weapons on the part again; on the Elemental, any part loss calls
   torso `Destroy(1, 1)` (death).
 
@@ -237,18 +316,24 @@ Per part:
 
 | Part | Destroy | Effect |
 |---|---|---|
-| Arm 0x466c50 | base, then the hand (+0x74) is removed from the mech's list (+0x384) and deleted | weapons and equipment in the arm lost |
+| Arm 0x466c50 | internal 0, base, then the hand (+0x74) goes: 0x41b5f0 on it, removed from the mech's part list (+0x384) and deleted | weapons and equipment in the arm lost |
 | Side torso | (section of the torso) | its armor locks at 0, its arm is destroyed, later hits go to the CT |
-| Thigh 0x463f70 | base, then calf (+0x74) and foot (+0x78) lose their equipment and hide | the mech falls (0x41b640) and **dies** (Mech vtable +0x70) |
-| Head 0x4671e0 | marks itself destroyed, then torso `Destroy(0, 1)` | **death** |
-| Centre torso 0x465f40 | death animation and effect, 0x4617f0, Mech vtable +0x70 | **death** |
+| Thigh 0x463f70 | the foot's effect stops (0x45fb50) and its node is hidden (0x4eb170), base, then calf (+0x74) and foot (+0x78) lose their equipment and their nodes (vtable +0xc with 0) | the mech falls (0x41b640) and **dies** (Mech vtable +0x70) |
+| Head 0x4671e0 | marks itself destroyed, then torso `Destroy(0, 1)`; its own equipment is not counted off | **death** |
+| Hip 0x462490 | torso `Destroy(0, 0)` (only reachable through `Mech::DestroyPart(15)`) | **death** |
+| Centre torso 0x465f40 | death animation and effect, the mech node renamed `deadmech` (0x4eb300), 0x4617f0, Mech vtable +0x70 | **death** |
 
-`Mech::Die` (0x41b0d0, Mech vtable +0x70): state +0x578 = 10 (previous kept at
-+0x57c), movement zeroed, killer (+0x664) told through its vtable +0x80, network
-death message 0x13 with the killer for the player, mission-failure hook
-(0x40ae70(2)) for the player, looping sounds stopped, controls stopped
-(+0x37c vtable +0xa8). If the player was killed by the NUKE every armor value is
-zeroed for the display.
+`Mech::Die` (0x41b0d0, Mech vtable +0x70): killer (+0x664) told through its
+vtable +0x80 (a mech's is 0x41b420, the kill credit); for the mission's player
+the statistics (0x433530, 0x433900(1), 0x4338d0(1)) and, when networked
+(0x479480), death message 0x13 with the killer; state +0x578 = 10 (previous kept
+at +0x57c), +0x410 set, the three vectors +0x30, +0x3c, +0x58 zeroed, the
+weapons stopped (0x4b1110), mission-failure hook (0x40ae70(2)) for the player
+in view mode 1, all 25 sounds at +0x5b8 stopped, controls stopped (+0x37c
+vtable +0xa8), both feet's effects stopped (0x463100), the player's cockpit HUD
+shut off (0x41b263..0x41b30c), an action of kind 5 or 6 at the head of the list
++0x480 stopped (0x421060 on +0x458 + 4 x kind), then for the mission's player
+0x48f9e0 and, after a NUKE kill, every armor value zeroed for the display.
 
 Centre-torso death animation (0x465f40): a NUKE kill or an Elemental explodes in
 place (effect 1); otherwise, if airborne (Mech vtable +0x144) or moving
@@ -259,9 +344,11 @@ faster, animation 2 / effect 3 (likely a forward crash).
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);
 a mission script's `Mech::DestroyPart` (0x41cfa0, called from zrdrvalve.cpp
-0x4e34e1 and the heat code 0x419bde). Arm or side-torso loss is never fatal,
-and no XL-engine rule was found in this path (the `xl` key is stored at config
-+0x28, 0x46c4eb; its readers are not traced).
+0x4e34e1 and the heat code 0x419bde). Arm or side-torso loss is never fatal.
+**No XL-engine rule exists**: the `xl` key (config +0x28, 0x46c4eb) is read
+only by the engine weight and rating (0x432f40, 0x432fa0), whose callers are
+the loadout weight (0x425xxx), the mech lab (0x44bxxx, 0x44dxxx) and the items
+(0x4731xx); nothing in the mech's run-time code or the parts reads it.
 
 ## 3. Critical hits
 
@@ -303,11 +390,15 @@ player and has a HUD (0x430aa0).
   the lowest non-zero |rounds x damage| is set to 0 rounds (0x4b4d10(0)).
   There is no explosion damage: the bin is just emptied. Mech sound 15. The
   heat cook-off uses the same call with part -1 (any bin; 0x419b5a).
-- **3 Equipment.** Among the part's equipment (item kind 3) that is intact,
-  is not a heat sink (types 9, 10) and has a count, one is picked at random
-  weighted by count, marked destroyed (+0x08 = 1) and the mech's counter for
-  its type (+0x3ac + 4 x type) decremented. Voice for the type (0x485390 →
-  0x5e6870 + 0x14 x type → 0x608fc0).
+- **3 Equipment.** Among the part's equipment (item kind 3) that is intact
+  (+0x08 = 0) and not a heat sink (types 9, 10), one is picked at random
+  **weighted by its critical slots** (item vtable +0x18, 0x4731c0; items with
+  none never are), marked destroyed (+0x08 = 1) and the mech's counter for its
+  type (+0x3ac + 4 x type) decremented. Voice for the type (0x485390 →
+  0x5e6870 + 0x14 x type → 0x608fc0). With one candidate no `rand()` is
+  drawn. The candidates live in two 12-entry stack arrays with no bound check
+  (a part with more than 12 such items would overrun them; likely never in
+  the shipped loadouts).
 - **4 Location special**, by part id:
   - torso (1): voice 6 `snd_equip_engine`, max speed x 0.85 (0x4143c0 sets
     +0x518 = v and +0x510 = 0.6 v and rescales the gait animations): an engine
@@ -361,13 +452,25 @@ internal, and always below 30 %.
   rear also removes the front's floor.
 - **Armor is worth 0.3844 points per point of damage.** A weapon's `DAMAGE` is
   scaled by 0.0062 and then by 0.62 against armor x 100 / armor points.
-- **Front or rear is decided by a fixed edge order, not by where the shot came
-  from (likely).** The shot is stretched into a line through the whole torso,
-  and the centre-front edge is tested first, so a straight shot into the back
-  of the centre torso counts as front armor. Rear sections are hit when the
-  line misses the corresponding front edge, which needs an oblique angle; such
-  angled shots from the front can also land on the rear. Not yet checked in the
-  emulator or in game.
+- **Rear armor is only hit from behind; side hits strike front armor**
+  (emulator). Each edge of the torso's footprint counts only for a shot
+  entering through it, and the two side faces give the side torsos' front
+  sections. A shot through the middle from more than about 45 to 60 degrees
+  off straight behind lands on front armor. (Corrects an earlier reading here
+  that a fixed edge order sent straight rear shots to the front.)
+- **A shot that only clips the torso's outline counts as centre-front.** When
+  the stretched shot line misses the torso's footprint box, the section stays
+  0.
+- **Side torsos are hollow** (from the code). Losing a side torso takes its
+  arm and pins the side's armor at 0, but nothing calls the part-loss code for
+  the side itself: weapons mounted there belong to the torso object (0x41d510
+  maps ids 7 and 8 to it) and keep firing, and heat sinks, jump jets and other
+  equipment listed in `ltorso`/`rtorso` stay counted. For the same reason
+  criticals on any torso hit only look at items listed in the centre `torso`:
+  side-torso ammo and equipment can never be hit by a critical, and **CASE in
+  a side torso never does anything** (the Mad Cat's two CASE are in its side
+  torsos). Weapon criticals pick among all torso-mounted weapons, sides
+  included.
 - **Criticals check only the centre-front armor for the whole torso.** The
   roll reads the part's +0x40, which for the torso is the CT front. Side and
   rear torso hits can crit once the CT front is stripped, and never before.
@@ -378,6 +481,10 @@ internal, and always below 30 %.
   part (no damage). CASE in that part prevents it, and a CASE destroyed by an
   equipment critical still protects (0x460c10 does not check the destroyed
   flag). The heat cook-off bypasses CASE.
+- **Equipment criticals favour bulky equipment**: the pick is weighted by
+  critical slots, not item count.
+- **ECM makes you immune to NARC** (0x41ac10: the NARC timer stays 0 while the
+  mech carries ECM).
 - **Weapon criticals take your least useful weapon first** (likely): lowest
   remaining ammo x damage, so an empty launcher is lost before a loaded one.
 - **The heat sink critical ignores location.** It removes one sink from the
@@ -419,62 +526,78 @@ internal, and always below 30 %.
 - 0x4b0de0's ammo mode walks CASE items in the part and discards the result
   (dead code, possibly meant to let CASE stop heat cook-offs).
 - Edge case: in the equipment critical, if `rand()` lands above the last
-  cumulative weight (float rounding when r ~ 1.0), the code uses the random
-  float's bits as the item pointer (0x461211). Very rare; likely a crash.
+  cumulative weight (r is 1.0 when `rand()` returns 32767, and the summed
+  weights can round below 1), the code uses the random float's bits as the item
+  pointer (0x461211). Very rare; a crash. The port takes the last candidate
+  (`FIX (bug)`, `fixes.md`).
+- **Hip hits never fizz the HUD**: the hip goes straight to the torso's plain
+  hit (0x462560), skipping the `ZAPS_HUD` static the torso, arms and head play.
 
-## Proposed names (for `symbols.csv`, not applied)
+## Names
+
+The ported functions are in `symbols.csv`. Others proposed:
 
 | Address | Name | Note |
 |---|---|---|
-| 0x41ac60 | Mech::TakeDamage | Mech vtable +0x164 |
 | 0x4161a0 | mech_damage_callback | node +0xbc handler → +0x164 |
-| 0x41b0d0 | Mech::Die | Mech vtable +0x70 |
-| 0x41cfa0 | Mech::DestroyPart | (part id) part vtable +0x20 (0, 1); replaces `Mech::HitPart` |
-| 0x41b5f0 | Mech::OnPartDestroyed | |
-| 0x416770 | Mech::Tonnage | roster tonnage |
-| 0x4143c0 | Mech::SetMaxSpeed | +0x518, +0x510 = 0.6 x |
-| 0x417a10 | Mech::ScaleKnockdownThreshold | +0x6b8..+0x6c8 |
-| 0x41d5f0 | Mech::StartLimp | (leg, fall) |
-| 0x41b640 | Mech::Fall | 0x41b660(3 or 4) |
 | 0x45fe00 | MechPart::Init | armor and IS from config and table |
-| 0x460970 | MechPart::TakeHit | vtable +0x18 |
-| 0x461300 | MechPart::ApplyDamage | vtable +0x38 |
-| 0x461510 | MechPart::SetInternal | vtable +0x3c |
-| 0x461640 | MechPart::SetArmor | vtable +0x40 |
-| 0x461a30 | MechPart::Destroy | vtable +0x20 |
-| 0x4617f0 | MechPart::LoseContents | |
-| 0x460350 | Torso::HitSection | |
-| 0x460780 | segments_cross_xz | |
-| 0x460cc0 | MechPart::HasEquipment | (type) |
 | 0x4644b0 | Torso::Init | |
-| 0x464830 | Torso::SetInternal | |
-| 0x464950 | Torso::SetArmor | |
-| 0x465f40 | Torso::Destroy | |
-| 0x463b40 | Leg::TakeHit | limp roll |
-| 0x463f70 | Leg::Destroy | |
-| 0x463ef0 | Leg::Critical | type 4 = start limp |
-| 0x4671e0 | Head::Destroy | |
-| 0x466c50 | Arm::Destroy | |
 | 0x583020 | zWeapon_BeamDamage | |
-| 0x583480 | zWeapon_DealDamage | |
+| 0x583480 | zWeapon_DealDamage | sets the shot `[0x9a0ec4]` |
 | 0x5826b0 | zWeapon_ProjectileHit | |
 | 0x5829b0 | zWeapon_Splash | |
-| 0x4b0de0 | Weapons::CriticalLoss | (part, 0 weapon / 1 ammo); fix the `AmmoExplosion` note |
 | 0x4b4d10 | AmmoBin::SetRounds | |
 | 0x4b2d50 | Weapon::AddDamage | +0x70, 1.0 = destroyed |
 | 0x485400/30/60/90 | is_ct / is_side / is_arm / is_leg | IS table lookups |
-| 0x424760 | max_armor_points | |
+| 0x41b420 | Mech::OnKill | Mech vtable +0x80: the killer's score |
+| 0x464ce0 | Torso::UpdateJolt | likely; the spin and shove decay |
 
-Type changes: Mech +0x630 → `invincible`; +0x578 state (10 dead); +0x5ac limp
-leg (-1 none); +0x664 last attacker; +0x411 killed by nuke; +0x518 max speed;
-+0x3ac int[15] equipment counts by type; +0x3ec equipment list; Mech vtable
-+0x168 network event.
+## 4. The port
+
+`src/mech3/mech_parts.{h,cpp}` (mech_parts.cpp: the base part and the torso,
+leg, arm, head, hip, foot, calf and hand classes with the vtable methods
+above) and `src/mech3/mech_damage.cpp` (the Mech's side: `take_damage`,
+`die`, `on_part_destroyed`, `destroy_part`, `start_limp`, `fall`,
+`knocked_down`, `set_max_speed`, `scale_knockdown`, `mark_narc`,
+`note_hit`). The Mech struct grew the fields these use (`mech.h`); the
+pilot side (+0x684) is `Pilot`. Calls into unported code (nodes, effects,
+weapons, HUD, sounds, statistics, network, animation) go through
+`DamageCalls`; the heat code's torso destruction now calls the port when no
+hook is set.
+
+Checked by `tests/differential/test_damage.py` (probe `tests/probe_damage.cpp`):
+a whole mech in emulator memory with the real Mech vtable (two entries
+stubbed), the 13 parts with their real vtables and nodes, the pilot, the
+loadout's item list and the part list. 1,500 random mechs (armor and
+structure fractions, sections, stripped armor, Elemental, invincible, ECM,
+items in every part) take random hits on every part node and on the body
+(knockback, NARC, nuke, beams, zero damage), plus direct criticals of every
+kind on every part, `DestroyPart` for every id, limps, falls and the torso's
+section choice; after each of 33,000 operations the mech, its parts, the
+items' destroyed flags, the part list and the 41 kinds of call out must match
+exactly. Code hooks on the original confirm the run reaches every critical
+roll, CASE, difficulty and multiplayer, the armor floors, structure at 0,
+area damage, limps and each kind of death. Breaking the port (old armor in
+the structure formula, `<` for the critical gate, front and rear swapped,
+CASE ignored, one sink lost per part, difficulty for every mech, the AI limp
+chance, the torso floor, area damage to the rear, knockback when dead) fails
+each time.
+
+Fixes: the heat-sink critical's callout plays when a sink is lost, and the
+equipment critical's out-of-range pick takes the last candidate (`fixes.md`).
+The test runs the original with 0x45fbc0 reporting a lost sink, the fix's
+behaviour.
 
 ## Open
 
-- Confirm the front/rear edge order in the emulator (0x460350 with a
-  synthetic torso and shots from behind).
-- What the torso `ApplyImpact` (0x464af0) and arm 0x466c30 do with the impulse.
 - Whether `+0x38`/`+0x40` names should be "internal"/"armor" in the HUD's terms
   (the network sends three 0-255 values per section).
-- Who reads the `xl` engine flag.
+- Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
+  0x5829b0); for projectiles it is [0] (likely, above).
+- The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
+- Unported here: `Weapons::CriticalPick` 0x4b0de0, the part destruction's
+  weapon side 0x4b1040, `Mech::OnKill` 0x41b420, the death animations
+  (0x41d070, 0x41b760) and the effects they start.
+
+Resolved by the port: the front/rear choice (emulator, above), what
+`ApplyImpact` does (the torso's jolt), and the `xl` flag (no damage rule).
