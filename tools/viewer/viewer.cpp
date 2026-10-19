@@ -306,11 +306,10 @@ int main(int argc, char** argv) {
   float size = 0;
   for (int k = 0; k < 3; ++k) size = std::fmax(size, scene.max[k] - scene.min[k]);
   const float far_plane = std::fmax(size * 1.5f, 1000.0f);
-  if (!have_pos) {
-    cam.eye[0] = (scene.min[0] + scene.max[0]) / 2, cam.eye[2] = scene.min[2];
-    cam.eye[1] = scene.max[1] + size * 0.1f;
-  }
-  if (!have_look) cam.pitch = -0.4f;
+  // Start inside the sky dome (centred on the origin in every world), a little
+  // above the ground, as a pilot would see it.
+  if (!have_pos) cam.eye[0] = 0, cam.eye[1] = 60, cam.eye[2] = 0;
+  if (!have_look) cam.pitch = -0.05f;
 
   if (!SDL_Init(SDL_INIT_VIDEO)) return fail("SDL_Init"), 1;
   App a;
