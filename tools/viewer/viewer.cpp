@@ -29,7 +29,7 @@ vertex Out vs(In in [[stage_in]], constant U& u [[buffer(0)]]) {
   Out o;
   o.pos = u.mvp * float4(in.pos, 1.0);
   o.uv = in.uv;
-  o.color = u.opts.x > 0.5 ? in.color : float4(1.0);
+  o.color = u.opts.x > 0.5 ? in.color : float4(1.0, 1.0, 1.0, in.color.a);
   o.fog = clamp(o.pos.w / u.opts.y, 0.0, 1.0);
   return o;
 }
@@ -37,11 +37,10 @@ struct F { float4 opts; float4 fog; };
 fragment float4 fs_tex(Out in [[stage_in]], texture2d<float> t [[texture(0)]], sampler s [[sampler(0)]],
                        constant F& f [[buffer(0)]]) {
   float4 c = t.sample(s, in.uv) * in.color;
-  if (c.a < 0.5) discard_fragment();
-  return float4(mix(c.rgb, f.fog.rgb, in.fog * f.opts.x), 1.0);
+  return float4(mix(c.rgb, f.fog.rgb, in.fog * f.opts.x), c.a);
 }
 fragment float4 fs_flat(Out in [[stage_in]], constant F& f [[buffer(0)]]) {
-  return float4(mix(in.color.rgb, f.fog.rgb, in.fog * f.opts.x), 1.0);
+  return float4(mix(in.color.rgb, f.fog.rgb, in.fog * f.opts.x), in.color.a);
 }
 )";
 
@@ -93,13 +92,14 @@ struct GpuBatch {
   uint32_t count = 0;
   int image = -1;
   bool marker = false;
+  bool blend = false, two_sided = false, sky = false;
 };
 
 struct App {
   SDL_Window* window = nullptr;
   SDL_GPUDevice* dev = nullptr;
-  SDL_GPUGraphicsPipeline* tex_pipe = nullptr;
-  SDL_GPUGraphicsPipeline* flat_pipe = nullptr;
+  SDL_GPUGraphicsPipeline* tex_pipe[3] = {};   // by Pass
+  SDL_GPUGraphicsPipeline* flat_pipe[3] = {};
   SDL_GPUSampler* sampler = nullptr;
   std::vector<SDL_GPUTexture*> textures;
   std::vector<GpuBatch> batches;
@@ -125,7 +125,11 @@ SDL_GPUShader* shader(App& a, const char* entry, SDL_GPUShaderStage stage, int s
   return SDL_CreateGPUShader(a.dev, &info);
 }
 
-SDL_GPUGraphicsPipeline* pipeline(App& a, SDL_GPUShader* vs, SDL_GPUShader* fs) {
+enum class Pass { kOpaque, kTwoSided, kBlend };
+
+// Front faces are counter-clockwise in file order (render.md, section 3); the
+// blended pass is two-sided and writes no depth, as the original's queue.
+SDL_GPUGraphicsPipeline* pipeline(App& a, SDL_GPUShader* vs, SDL_GPUShader* fs, Pass pass) {
   SDL_GPUVertexBufferDescription vb{};
   vb.slot = 0, vb.pitch = sizeof(viewer::Vertex), vb.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
   SDL_GPUVertexAttribute attrs[3] = {
@@ -134,6 +138,15 @@ SDL_GPUGraphicsPipeline* pipeline(App& a, SDL_GPUShader* vs, SDL_GPUShader* fs) 
       {2, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, offsetof(viewer::Vertex, color)}};
   SDL_GPUColorTargetDescription ct{};
   ct.format = a.color_format;
+  if (pass == Pass::kBlend) {
+    ct.blend_state.enable_blend = true;
+    ct.blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+    ct.blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    ct.blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    ct.blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    ct.blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    ct.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+  }
   SDL_GPUGraphicsPipelineCreateInfo info{};
   info.vertex_shader = vs, info.fragment_shader = fs;
   info.vertex_input_state.vertex_buffer_descriptions = &vb;
@@ -141,9 +154,10 @@ SDL_GPUGraphicsPipeline* pipeline(App& a, SDL_GPUShader* vs, SDL_GPUShader* fs) 
   info.vertex_input_state.vertex_attributes = attrs;
   info.vertex_input_state.num_vertex_attributes = 3;
   info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
-  info.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;  // winding not mapped yet
+  info.rasterizer_state.cull_mode = pass == Pass::kOpaque ? SDL_GPU_CULLMODE_BACK : SDL_GPU_CULLMODE_NONE;
+  info.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
   info.depth_stencil_state.enable_depth_test = true;
-  info.depth_stencil_state.enable_depth_write = true;
+  info.depth_stencil_state.enable_depth_write = pass != Pass::kBlend;
   info.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS;
   info.target_info.color_target_descriptions = &ct;
   info.target_info.num_color_targets = 1;
@@ -180,7 +194,8 @@ bool upload(App& a, const viewer::Scene& s) {
     if (b.vertices.empty()) continue;
     const auto size = static_cast<uint32_t>(b.vertices.size() * sizeof(viewer::Vertex));
     SDL_GPUBufferCreateInfo bi{SDL_GPU_BUFFERUSAGE_VERTEX, size, 0};
-    GpuBatch g{SDL_CreateGPUBuffer(a.dev, &bi), static_cast<uint32_t>(b.vertices.size()), b.image, b.marker};
+    GpuBatch g{SDL_CreateGPUBuffer(a.dev, &bi), static_cast<uint32_t>(b.vertices.size()), b.image, b.marker,
+               b.blend, b.two_sided, b.sky};
     SDL_GPUTransferBufferLocation src{stage(b.vertices.data(), size), 0};
     SDL_GPUBufferRegion dst{g.buffer, 0, size};
     SDL_UploadToGPUBuffer(copy, &src, &dst, false);
@@ -250,15 +265,23 @@ void draw(App& a, SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target, uint32_t w,
   SDL_GPUDepthStencilTargetInfo dt{};
   dt.texture = a.depth, dt.clear_depth = 1, dt.load_op = SDL_GPU_LOADOP_CLEAR, dt.store_op = SDL_GPU_STOREOP_DONT_CARE;
   SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &ct, 1, &dt);
-  struct { Mat4 mvp; float opts[4]; } vu{};
-  vu.mvp = mul(projection(1.0f, static_cast<float>(w) / h, 1.0f, far_plane), view_matrix(cam.eye, cam.yaw, cam.pitch));
-  vu.opts[0] = cam.colors ? 1.0f : 0.0f, vu.opts[1] = far_plane;
+  struct { Mat4 mvp; float opts[4]; } vu{}, sky{};
+  const Mat4 vp = mul(projection(1.0f, static_cast<float>(w) / h, 1.0f, far_plane), view_matrix(cam.eye, cam.yaw, cam.pitch));
+  vu.mvp = vp;
+  Mat4 at_eye{{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, cam.eye[0], cam.eye[1], cam.eye[2], 1}};
+  sky.mvp = mul(vp, at_eye);  // the horizon follows the camera's position
+  vu.opts[0] = sky.opts[0] = cam.colors ? 1.0f : 0.0f;
+  vu.opts[1] = sky.opts[1] = far_plane;
   const float fu[8] = {0.6f, 0, 0, 0, 0.35f, 0.45f, 0.55f, 1};
+  for (int order = 0; order < 2; ++order)  // opaque first, then blended
   for (const GpuBatch& b : a.batches) {
     if (b.marker && !cam.markers) continue;
+    if (b.blend != (order == 1)) continue;
     const bool tex = b.image >= 0;
-    SDL_BindGPUGraphicsPipeline(pass, tex ? a.tex_pipe : a.flat_pipe);
-    SDL_PushGPUVertexUniformData(cmd, 0, &vu, sizeof vu);
+    const int p = b.blend ? 2 : b.two_sided ? 1 : 0;
+    SDL_BindGPUGraphicsPipeline(pass, tex ? a.tex_pipe[p] : a.flat_pipe[p]);
+    if (b.sky) SDL_PushGPUVertexUniformData(cmd, 0, &sky, sizeof sky);
+    else SDL_PushGPUVertexUniformData(cmd, 0, &vu, sizeof vu);
     SDL_PushGPUFragmentUniformData(cmd, 0, fu, sizeof fu);
     SDL_GPUBufferBinding vb{b.buffer, 0};
     SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
@@ -387,9 +410,11 @@ int main(int argc, char** argv) {
   SDL_GPUShader* fs_tex = shader(a, "fs_tex", SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
   SDL_GPUShader* fs_flat = shader(a, "fs_flat", SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 1);
   if (!vs || !fs_tex || !fs_flat) return fail("shaders"), 1;
-  a.tex_pipe = pipeline(a, vs, fs_tex);
-  a.flat_pipe = pipeline(a, vs, fs_flat);
-  if (!a.tex_pipe || !a.flat_pipe) return fail("pipeline"), 1;
+  for (int p = 0; p < 3; ++p) {
+    a.tex_pipe[p] = pipeline(a, vs, fs_tex, static_cast<Pass>(p));
+    a.flat_pipe[p] = pipeline(a, vs, fs_flat, static_cast<Pass>(p));
+    if (!a.tex_pipe[p] || !a.flat_pipe[p]) return fail("pipeline"), 1;
+  }
   upload(a, scene);
 
   if (!shot.empty()) {

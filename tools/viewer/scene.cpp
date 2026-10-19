@@ -51,12 +51,19 @@ void apply(const Xform& x, const float* p, float* out) {
   for (int j = 0; j < 3; ++j) out[j] = p[0] * x.m[j] + p[1] * x.m[3 + j] + p[2] * x.m[6 + j] + x.t[j];
 }
 
-// The in/out-of-bounds areas (`inout*`, plain red) are drawn by nothing in the
-// game as far as seen; how it hides them is not mapped yet.
+// The in/out-of-bounds areas (`inout*`): the AI reads them at mission load and
+// deletes the subtree before the first frame (0x4c3930, render.md section 6).
 bool under_marker(const zcls::Node* n) {
   for (int d = 0; n && d < 64; ++d, n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr)
     if (std::strncmp(n->name(), "inout", 5) == 0) return true;
   return false;
+}
+
+// The sky: the `horizon` node follows the camera's position every frame.
+const zcls::Node* horizon_of(const zcls::Node* n) {
+  for (int d = 0; n && d < 64; ++d, n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr)
+    if (std::strcmp(n->name(), "horizon") == 0) return n;
+  return nullptr;
 }
 
 Xform world_xform(const zcls::Node* n, const Pose* pose = nullptr, int depth = 0) {
@@ -83,9 +90,7 @@ bool decode(const zimg::Texture& t, Image& img) {
     uint8_t* o = &img.rgba[static_cast<size_t>(i) * 4];
     o[0] = static_cast<uint8_t>(c565(c, 11, 5) * 255), o[1] = static_cast<uint8_t>(c565(c, 5, 6) * 255);
     o[2] = static_cast<uint8_t>(c565(c, 0, 5) * 255);
-    uint8_t a = 255;
-    if (t.alpha) a = t.alpha[i];
-    else if ((t.flags & zimg::kAlpha) && c == 0) a = 0;  // colour key, a guess (docs/textures.md)
+    const uint8_t a = t.alpha ? t.alpha[i] : 255;  // no colour key anywhere (render.md, section 3)
     o[3] = a;
     if (a < 255) img.alpha = true;
   }
@@ -117,32 +122,55 @@ class Builder {
     return idx;
   }
 
-  // One polygon: k vertex indices into `verts`, per-vertex UVs (textured only)
-  // and colours 0..255; untextured ones are tinted by the material's rgb.
-  void polygon(const Xform& x, uint32_t k, const uint32_t* index, const float* verts, uint32_t vcount, const float* uvs,
-               const float* colors, int img, const float* rgb, bool marker) {
-    if (k < 3 || !index) return;
+  // One polygon, as the original colours it (render.md, section 3): textured
+  // ones take the vertex colours (0..255) times the texture and ignore the
+  // material; untextured ones take the material colour and alpha and ignore
+  // the vertex colours. Alpha 0 draws nothing; below 255, or a texture with an
+  // alpha plane, goes to the blended pass. Flag 0x100 is two-sided. Lighting
+  // and fog are not done here.
+  struct Poly {
+    uint32_t flags;
+    const uint32_t* index;
+    const float* uvs;
+    const float* colors;
+    int img;
+    const float* rgb;
+    uint8_t alpha;
+  };
+  void polygon(const Xform& x, const float* verts, uint32_t vcount, const Poly& p, bool marker, const float* origin) {
+    const uint32_t k = p.flags & 0xff;
+    if (k < 3 || !p.index) return;
+    if (p.img < 0 && p.alpha == 0) return;
     ++out_.polygons;
-    const int key = marker ? -1000000 + img : img;  // markers batch apart from everything else
+    const bool blend = p.img >= 0 ? out_.images[p.img].alpha : p.alpha < 255;
+    const bool two_sided = (p.flags & 0x100) != 0;
+    const bool sky = origin != nullptr;
+    const int key = ((p.img + 2) << 4) | marker | blend << 1 | two_sided << 2 | sky << 3;
     auto [it, added] = batch_of_.try_emplace(key, static_cast<int>(out_.batches.size()));
-    if (added) out_.batches.push_back(Batch{img, {}, marker});
+    if (added) out_.batches.push_back(Batch{p.img, {}, marker, blend, two_sided, sky});
     Batch& b = out_.batches[it->second];
     auto vertex = [&](uint32_t j) {
       Vertex v{};
-      if (index[j] < vcount) apply(x, verts + 3 * index[j], v.pos);
-      if (img >= 0 && uvs) v.uv[0] = uvs[2 * j], v.uv[1] = uvs[2 * j + 1];
-      float c[3] = {1, 1, 1};
-      if (colors) c[0] = colors[3 * j] / 255, c[1] = colors[3 * j + 1] / 255, c[2] = colors[3 * j + 2] / 255;
-      if (img < 0 && rgb) c[0] *= rgb[0] / 255, c[1] *= rgb[1] / 255, c[2] *= rgb[2] / 255;
-      v.color[0] = c[0], v.color[1] = c[1], v.color[2] = c[2], v.color[3] = 1;
-      for (int a = 0; a < 3; ++a) {
-        out_.min[a] = first_ ? v.pos[a] : std::min(out_.min[a], v.pos[a]);
-        out_.max[a] = first_ ? v.pos[a] : std::max(out_.max[a], v.pos[a]);
+      if (p.index[j] < vcount) apply(x, verts + 3 * p.index[j], v.pos);
+      if (sky)
+        for (int a = 0; a < 3; ++a) v.pos[a] -= origin[a];  // drawn around the camera
+      if (p.img >= 0 && p.uvs) v.uv[0] = p.uvs[2 * j], v.uv[1] = p.uvs[2 * j + 1];
+      float c[4] = {1, 1, 1, 1};
+      if (p.img >= 0) {
+        if (p.colors) c[0] = p.colors[3 * j] / 255, c[1] = p.colors[3 * j + 1] / 255, c[2] = p.colors[3 * j + 2] / 255;
+      } else {
+        c[0] = p.rgb[0] / 255, c[1] = p.rgb[1] / 255, c[2] = p.rgb[2] / 255, c[3] = p.alpha / 255.0f;
       }
-      first_ = false;
+      std::copy(c, c + 4, v.color);
+      if (!sky)
+        for (int a = 0; a < 3; ++a) {
+          out_.min[a] = first_ ? v.pos[a] : std::min(out_.min[a], v.pos[a]);
+          out_.max[a] = first_ ? v.pos[a] : std::max(out_.max[a], v.pos[a]);
+        }
+      if (!sky) first_ = false;
       b.vertices.push_back(v);
     };
-    for (uint32_t j = 1; j + 1 < k; ++j) {  // a fan, a guess until the render path is mapped
+    for (uint32_t j = 1; j + 1 < k; ++j) {  // a fan, as the original (no world polygon is a strip)
       vertex(0), vertex(j), vertex(j + 1);
       ++out_.triangles;
     }
@@ -193,14 +221,18 @@ std::string load_world(const std::string& zbd_dir, const std::string& mission, S
     if (marker) ++out.markers;
     const zmod::Model& m = *n->model;
     const Xform x = world_xform(n);
+    const zcls::Node* horizon = horizon_of(n);
+    const Xform hx = horizon ? world_xform(horizon) : Xform{};
     for (uint32_t p = 0; p < m.count(0x10) && m.polygons; ++p) {
       const zmod::Polygon& poly = m.polygons[p];
       const zmod::Material* mat = poly.material;
       const bool textured = mat && (mat->flags & 1) && poly.uvs;
       const int img = textured && mat->texture ? build.image(mat->texture->name) : -1;
       const float rgb[3] = {mat ? mat->r : 255, mat ? mat->g : 255, mat ? mat->b : 255};
-      build.polygon(x, poly.flags & 0xff, poly.vertex_indices, m.vertices, m.count(0x14), poly.uvs, poly.colors, img,
-                    rgb, marker);
+      build.polygon(x, m.vertices, m.count(0x14),
+                    {poly.flags, poly.vertex_indices, poly.uvs, poly.colors, img, rgb,
+                     static_cast<uint8_t>(mat ? mat->alpha : 255)},
+                    marker, horizon ? hx.t : nullptr);
     }
   }
   return {};
@@ -261,12 +293,14 @@ void Mech::build(Scene& out, const Pose* pose) const {
       const zcls::Material* mat = poly.material < d_->mats.size() ? &d_->mats[poly.material] : nullptr;
       float rgb[3] = {255, 255, 255};
       int img = -1;
+      uint8_t alpha = 255;
       if (mat && mat->raw) {
         std::memcpy(rgb, mat->raw + 4, 12);
+        alpha = mat->raw[0];
         if ((mat->raw[1] & 1) && poly.uvs) img = build.image(mat->texture);
       }
-      build.polygon(x, poly.flags & 0xff, poly.vertex_indices, m.vertices, m.vertex_count, poly.uvs, poly.colors, img,
-                    rgb, false);
+      build.polygon(x, m.vertices, m.vertex_count, {poly.flags, poly.vertex_indices, poly.uvs, poly.colors, img, rgb, alpha},
+                    false, nullptr);
     }
   }
 }

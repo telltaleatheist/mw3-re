@@ -262,6 +262,29 @@ From the world files (gamez.md).
   time from the one stored in `interp.zbd`, the game rejects the whole archive,
   so a modder has to extract all 44 scripts.
 
+## Drawing the world
+
+From the render path (render.md).
+
+- **Every map has invisible mission boundaries.** Flat red and yellow models
+  under `inout` mark each mission variant's in/out-of-bounds area. At
+  mission load the AI reads the one it needs, then the whole set is deleted
+  before the first frame, so nobody ever sees them.
+- **Trees, docks and bridges carry invisible helpers**: loudly coloured
+  (magenta, pink, white) shapes with zero opacity, at the trunk, canopy height
+  or deck. Likely collision or targeting helpers the artists coloured to see
+  them in the editor.
+- **The fake shadows are see-through black polygons** under crates, tanks and
+  buildings, not computed shadows.
+- **Fog starts at the cockpit in hardware mode.** The missions ask for fog from
+  500 to 750 m in the software renderer but from 32 m in hardware, and it is
+  ground fog: thick below 80 m altitude, gone above 100.
+- **The fog is always the colour of the sky band**, in every world.
+- **The sun only darkens.** Lighting can make a surface darker than its
+  texture, never brighter.
+- **The sky is a dome that follows you** (position only), drawn past the far
+  plane so it never gets cut off.
+
 ## Mechs: camos
 
 From the mech definitions (mechdef-skins.md). The camo names are GUNMETAL,

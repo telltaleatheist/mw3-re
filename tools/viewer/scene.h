@@ -28,6 +28,9 @@ struct Batch {
   int image = -1;                // index into Scene::images, -1 untextured
   std::vector<Vertex> vertices;  // triangle list
   bool marker = false;           // under an in/out-of-bounds node, hidden by default
+  bool blend = false;            // alpha below 255: drawn after the opaque ones
+  bool two_sided = false;        // polygon flag 0x100: no backface culling
+  bool sky = false;              // under `horizon`: positions relative to it, drawn around the camera
 };
 
 struct Scene {

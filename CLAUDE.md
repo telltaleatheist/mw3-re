@@ -123,9 +123,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
-  render port (zRender, `docs/drafts/render.md` until promoted); its guess of
-  polygon fans is to be checked against that (y up, right-handed and row
-  vectors are confirmed there).
+  render port (zRender, mapped in `docs/render.md` with a porting order).
 - Every quirk, bug or hidden mechanic found goes in `docs/discoveries.md`, in
   plain words for players (Owen wants to share these with the MW3 community).
 
