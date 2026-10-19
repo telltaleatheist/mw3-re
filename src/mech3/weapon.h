@@ -222,7 +222,7 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   int32_t mode = 0;                    // +0x1c  0 chain, 1 single, 2 group
   int32_t destroyed = 0;               // +0x20
   uint32_t count = 0;                  // +0x24
-  int32_t group = -1;                  // +0x28
+  int32_t group = 0;                   // +0x28  -1 none
   WeaponGroup* groups[5] = {};         // +0x2c
   Weapon* weapons[16] = {};            // +0x40
   Handle owner = nullptr;              // +0x80  the vehicle's mech, 0 for others
@@ -283,13 +283,6 @@ struct WeaponWorld {
   bool lock_targets = false;           // [0x00605fb4]  missiles are given the locked target
   float clock = 0;                     // [0x0072c530]
   float dt = 0;                        // [0x0072c52c]
-  // zWeapon's globals that this code writes before a shot (docs/weapons.md).
-  int32_t* lock_flag = nullptr;        // [0x009a0ee0]
-  Handle* lock_target = nullptr;       // [0x009a0ee4]
-  int32_t beam_ground_fx = 1;          // [0x009a17cc]
-  float beam_range_scale = 1;          // [0x009a17d4]
-  float track_scale[2] = {1, 1};       // [0x009a17d8], [0x009a17dc]
-  int32_t terrain_follow = 0;          // [0x009a17e0]
   float cos_35 = 0;                    // [0x0060b264], made on first use
   bool cos_35_made = false;            // [0x0060b21c] bit 0
 };
@@ -336,16 +329,13 @@ struct WeaponCalls {
   const Vec3f* (*node_axis)(Handle node) = nullptr;           // node +0x38 +0x78: the facing
   float (*normalize)(Vec3f* v, Vec3f* out) = nullptr;         // 0x0051e3d0, returns |v|
   Handle (*spawn)(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) = nullptr;  // 0x00585010
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) = nullptr;  // 0x00585010 (friendly is not passed)
   void (*radar_track)(Handle projectile, bool friendly) = nullptr;  // +0x5d0 = 0x004b4a30 / 0x004b4a20
   Handle (*beam_create)(WeaponDef* def, Handle owner_node, Handle node, const Vec3f* muzzle,
                         const Vec3f* dir) = nullptr;           // 0x00584a70(0, node, muzzle, dir, 1)
   void (*beam_start)(Handle beam) = nullptr;                  // 0x00581230
   void (*beam_stop)(Handle beam) = nullptr;                   // 0x00581400
   Handle (*beam_free)(Handle beam) = nullptr;                 // 0x00584b40
-  void (*set_fire_sound)(WeaponDef* def, int32_t choice) = nullptr;  // 0x00581f70: -1 mutes later salvo shots
-  void (*set_fire_anim)(WeaponDef* def, int32_t choice) = nullptr;   // 0x00581f90
-  void (*attach_fire)(WeaponDef* def, Handle node, const float* offset) = nullptr;  // 0x00581fd0
   void (*mech_sound)(int32_t index) = nullptr;                // 0x0041e770 (1.0, -1.0)
   Handle (*play_loop)(Handle sound) = nullptr;                // 0x0056e3d0 (1.0)
   Handle (*play_at)(Handle sound, const Vec3f* pos) = nullptr;  // 0x0056e7e0 (1.0, 0)

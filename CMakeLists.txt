@@ -59,6 +59,7 @@ add_library(mw3core STATIC
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
+  src/gamez/zweapon/zweapon.cpp
   src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
@@ -106,6 +107,7 @@ add_library(mw3probe SHARED
   tests/probe_options.cpp
   tests/probe_states.cpp
   tests/probe_weapons.cpp
+  tests/probe_weapons_run.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

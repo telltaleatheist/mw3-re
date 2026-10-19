@@ -6,6 +6,7 @@
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
 #include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_names.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -139,7 +140,7 @@ bool is_player(Handle owner) { return owner && owner == g_world.player; }
 
 // rand() - 16383.5 scaled to about -1..1 (0x005e4008, 0x005e4004).
 float rand_unit() {
-  return (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 6.1037e-05f;
+  return (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 6.10370189e-05f;  // 0x38800100, 1 / 16383.5
 }
 
 Handle part_of(Handle owner, const Firepoint* fp) {
@@ -153,10 +154,7 @@ void halt(Handle& s) {
 void net_event(Handle owner, Weapon* w) {
   if (g_calls.net_event) g_calls.net_event(owner, 0x16, w);
 }
-void set_lock_globals(int32_t* flag, Handle* target) {  // 0x00581f60
-  g_world.lock_flag = flag;
-  g_world.lock_target = target;
-}
+void set_lock_globals(int32_t* flag, Handle* target) { zwep::set_lock(flag, target); }
 void mech_sound(int32_t i) {
   if (g_calls.mech_sound) g_calls.mech_sound(i);
 }
@@ -336,7 +334,7 @@ bool WeaponGroup::trigger() {
       }
     }
     for (uint32_t i = 0; i < count; ++i) {
-      if (beams > 1 && weapons[i]->is_beam() && best != static_cast<int32_t>(i)) g_world.beam_ground_fx = 0;
+      if (beams > 1 && weapons[i]->is_beam() && best != static_cast<int32_t>(i)) zwep::fire_state().beam_ground_fx = 0;
       if (weapons[i]->trigger()) fired = true;
     }
   } else if (current_weapon) {
@@ -1018,8 +1016,8 @@ void Weapon::update(float dt) {
   // The rest of a salvo: one projectile a frame, without the fire sound and
   // animation, re-aimed at the aim point.
   if (salvo_left != 0) {
-    if (g_calls.set_fire_sound) g_calls.set_fire_sound(def, -1);
-    if (g_calls.set_fire_anim) g_calls.set_fire_anim(def, -1);
+    zwep::set_fire_sound(def, -1);
+    zwep::set_fire_animation(def, -1);
     const Vec3f* vel = g_calls.vehicle_velocity ? g_calls.vehicle_velocity(manager->vehicle) : nullptr;
     target = manager->aim;
     if (aim(&target, &muzzle, &direction, vel)) fire(vel);
@@ -1053,9 +1051,9 @@ bool Weapon::lock_on(Handle tgt, bool* f) {
   lock_flag = 1;
   set_lock_globals(&lock_flag, &lock_target);
   if (!ecm && *f) {
-    g_world.track_scale[0] = 2.0f;
-    g_world.track_scale[1] = 2.0f;
-    g_world.terrain_follow = 1;
+    zwep::fire_state().track_scale[0] = 2.0f;
+    zwep::fire_state().track_scale[1] = 2.0f;
+    zwep::fire_state().terrain_follow = 1;
   }
   return true;
 }
@@ -1078,7 +1076,7 @@ bool Weapon::fire(const Vec3f* velocity) {
       projectile_target = t && g_calls.target_projectile ? g_calls.target_projectile(t) : nullptr;
     }
   }
-  if ((def->fire.flags & 2) && firepoint && g_calls.attach_fire) g_calls.attach_fire(def, node, firepoint->position);
+  if ((def->fire.flags & 2) && firepoint) zwep::attach_fire(def, node, firepoint->position);
   const uint32_t team = g_calls.player_team ? g_calls.player_team() : 0;
   const uint32_t allies = g_calls.entity_allies ? g_calls.entity_allies(e) : 0;
   spawn_projectile(def, g_calls.entity_node ? g_calls.entity_node(e) : nullptr,
@@ -1267,7 +1265,7 @@ bool BeamWeapon::trigger() {
   }
   if (!firing && ok && aim_and_fire(&manager->aim, false) && beam) {
     fired = true;
-    if (in_water(part)) g_world.beam_range_scale = 0.5f;
+    if (in_water(part)) zwep::fire_state().beam_range_scale = 0.5f;
     const int32_t used = bin->amount > 1 ? 1 : bin->amount;
     bin->amount -= used;
     if (bin->manager) bin->manager->ammo_value = bin->manager->ammo_value - static_cast<float>(used) * bin->damage;
