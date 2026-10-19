@@ -47,7 +47,17 @@ struct MechDfn {                   // 0x1a8 bytes
   template <typename T> void put(int off, T v) { std::memcpy(raw + off, &v, sizeof v); }
 };
 
+// What the head leaves on the stack for the loadout block.
+struct HeadValues {
+  float half_turn_rate = 0;        // +0x44  max_turn_rate / 2
+  int32_t tech = 0;                // +0x54  the mech's
+  float accel_rate = 0;            // +0x58
+  float decel_rate = 0;            // +0x5c
+  float turn_accel_factor = 0;     // +0x60
+};
+
 // Blocks of 0x0046ba40, in its order.
+bool read_head(MechDfn& dfn, HeadValues* out);   // 0x0046ba95..0x0046be07, false on a bad version
 void read_firepoints(MechDfn& dfn);   // 0x0046bfd8..0x0046c13a
 void read_part_slots(MechDfn& dfn);   // 0x0046c13a..0x0046c1f0
 

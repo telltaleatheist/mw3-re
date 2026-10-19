@@ -269,3 +269,4 @@ address,name,source,notes
 0x004eb170,zcls_node_set_active,asm,"ported; flag 4"
 0x004eb300,zcls_node_set_name,asm,"ported; > 35 chars keeps 34"
 0x004ed960,zcls_node_touch_frame,asm,"ported; 0x5e9e2c = frame + 1"
+0x0046ba40,mech_dfn_read,asm,"ported a block at a time: head, skins, firepoints, part slots (mech_reader.cpp)"

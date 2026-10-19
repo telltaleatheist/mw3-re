@@ -1124,3 +1124,24 @@ int probe_weapon_index(const char* s) { return mech3::weapon_index(s); }
 int probe_engine_index(int r) { return mech3::engine_index(r); }
 int probe_armor_points(int tech, int ferro, float tons) { return mech3::armor_points(tech, ferro != 0, tons); }
 }  // extern "C"
+
+extern "C" {
+
+// The MechDfn constructor and the head of the mech reader on one dfn file:
+// the definition image, the result and the five values left for the loadouts.
+int probe_dfn_head(const char* path, long offset, int index, uint8_t* out, int cap) {
+  if (probe_zrdr_load(path, offset) < 0) return -1;
+  mech3::MechDfn d(index, &g_probe_root);
+  mech3::HeadValues h;
+  const bool ok = mech3::read_head(d, &h);
+  std::vector<uint8_t> b;
+  b.push_back(ok);
+  put_bytes(b, d.raw + 0xc, 0x10), put_bytes(b, d.raw + 0x148, 0x1a8 - 0x148);
+  if (ok) {
+    put_bytes(b, &h.half_turn_rate, 4), put_i32(b, h.tech), put_bytes(b, &h.accel_rate, 4);
+    put_bytes(b, &h.decel_rate, 4), put_bytes(b, &h.turn_accel_factor, 4);
+  }
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

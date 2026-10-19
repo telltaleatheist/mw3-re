@@ -1,7 +1,10 @@
 # Mech definition: the head, the entry, and the saved loadouts
 
 Mech3.exe 1.2, 2026-10-19. Mapped from the asm
-(`analysis-output/mech3.asm`), checked in the emulator, nothing ported.
+(`analysis-output/mech3.asm`), checked in the emulator. Ported: the head
+(`mech3::read_head`, `src/mech3/mech_reader.*`), identical on all 19 files in
+`test_mechdef.py` (the image and the five values it leaves on the stack).
+Not ported yet: the entry 0x4846a0 / 0x46b7a0, 0x424b70 and the dtor.
 Completes 0x46ba40 (`mech3\mech_reader.cpp`) after `mechdef-skins.md`,
 `mechdef-parts.md` and `mechdef-configs.md`, and maps 0x424b70 (saved
 loadouts, `configs\<mech>.mw3`) with the Config file I/O it uses.

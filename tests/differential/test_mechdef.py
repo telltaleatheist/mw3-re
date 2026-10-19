@@ -19,7 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from original import STACK_TOP  # noqa: E402
 from test_zreader import READER, Emulated as ReaderEmu, entries, probe  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ESP  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
 probe.probe_firepoints.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_void_p, ctypes.c_int]
 probe.probe_part_id.argtypes = [ctypes.c_char_p]
@@ -27,6 +28,11 @@ probe.probe_part_name.restype = ctypes.c_char_p
 DFN_CTOR, FIREPOINTS_BLOCK, FIREPOINTS_END, PART_ID, PART_NAME = 0x46b890, 0x46bfd8, 0x46c1f0, 0x484e40, 0x484cc0
 PART_NAMES = ['hip', 'torso', 'larm', 'rarm', 'lhand', 'rhand', 'lthigh', 'rthigh', 'lleg', 'rleg', 'lcalf',
               'rcalf', 'lfoot', 'rfoot', 'head', 'ltorso', 'rtorso', 'none', 'Torso', 'lar', '']
+probe.probe_dfn_head.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+HEAD_BLOCK, HEAD_END, HEAD_FAIL = 0x46ba95, 0x46be07, 0x46cb60
+MECHS = ['annihilator', 'avatar', 'blackhawk', 'bushwacker', 'cauldron', 'champion', 'daishi', 'elemental',
+         'firefly', 'madcat', 'orion', 'owens', 'puma', 'shadowcat', 'strider', 'sunder', 'supernova', 'thor',
+         'vulture']
 probe.probe_skins.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
                               ctypes.c_void_p, ctypes.c_int]
 SKINS_BLOCK, SKINS_END = 0x46be07, 0x46bfd8
@@ -85,7 +91,7 @@ class Emulated(ReaderEmu):
             cpu.u32(dfn + 8, self.root)
             cpu.uc.reg_write(UC_X86_REG_EBP, dfn)
             cpu.uc.reg_write(UC_X86_REG_ESP, STACK_TOP - 0x2000)
-            cpu.uc.emu_start(SKINS_BLOCK, SKINS_END, count=50_000_000)
+            self.run_range(SKINS_BLOCK, SKINS_END)
         out = bytearray()
         s = u(dfn + 0x1c)
         out.append(s != 0)
@@ -115,7 +121,7 @@ class Emulated(ReaderEmu):
         cpu.call(DFN_CTOR, ecx=dfn, stack_args=(7, self.root))
         cpu.uc.reg_write(UC_X86_REG_EBP, dfn)
         cpu.uc.reg_write(UC_X86_REG_ESP, STACK_TOP - 0x2000)
-        cpu.uc.emu_start(FIREPOINTS_BLOCK, FIREPOINTS_END, count=50_000_000)
+        self.run_range(FIREPOINTS_BLOCK, FIREPOINTS_END)
         image = bytearray(cpu.read(dfn, 0x1a8))
         names = []
         for o in [8, 0x1c, 0x20, 0x24] + [0x28 + 0x10 * i for i in range(18)]:
@@ -129,6 +135,40 @@ class Emulated(ReaderEmu):
         for k in range((last - first) // 4):
             f = u(first + 4 * k)
             out += self.name(u(f)) + cpu.read(f + 4, 12)
+        return out
+
+    def run_range(self, begin, *ends):
+        """Run a code range of the reader until any of `ends`. Stop hooks, not
+        emu_start's end address: Unicorn misses that inside a block translated
+        by an earlier run (each block starts where the one before ends)."""
+        if not hasattr(self, 'ends'):
+            def stop(uc, address, size, user):
+                if address in self.ends:
+                    uc.emu_stop()
+            self.cpu.uc.hook_add(UC_HOOK_CODE, stop, begin=0x46ba40, end=0x46cb80)
+        self.ends = set(ends)
+        self.cpu.uc.emu_start(begin, 0, count=100_000_000)
+        self.ends = set()
+
+    def head(self, offset, index):
+        """The MechDfn ctor, then the head 0x46ba95..0x46be07 (stops early at
+        0x46cb60 on a bad version)."""
+        cpu = self.cpu
+        self.load(offset)
+        dfn = cpu.alloc(0x1a8)
+        cpu.write(dfn, bytes(0x1a8))
+        cpu.call(DFN_CTOR, ecx=dfn, stack_args=(index, self.root))
+        esp = STACK_TOP - 0x2000
+        cpu.write(esp, bytes(0xc0))
+        cpu.u32(esp + 0x3c, dfn)
+        cpu.uc.reg_write(UC_X86_REG_EBP, dfn)
+        cpu.uc.reg_write(UC_X86_REG_ESP, esp)
+        self.run_range(HEAD_BLOCK, HEAD_END, HEAD_FAIL)
+        ok = cpu.uc.reg_read(UC_X86_REG_EIP) == HEAD_END
+        image = cpu.read(dfn, 0x1a8)
+        out = bytes([ok]) + image[0xc:0x1c] + image[0x148:0x1a8]
+        if ok:
+            out += cpu.read(esp + 0x44, 4) + cpu.read(esp + 0x54, 4) + cpu.read(esp + 0x58, 12)
         return out
 
     def i32(self, a):
@@ -250,9 +290,19 @@ def main():
         want = emu.cstr(emu.cpu.uc.reg_read(UC_X86_REG_EAX))
         if probe.probe_part_name(i) != want:
             raise SystemExit(f'part_name({i}): original {want}')
+    for name, start, _ in entries(data):
+        if name.startswith('dfn_'):
+            idx = MECHS.index(name[4:-4])
+            for index in (idx, -1):  # -1: an out-of-range mech index (tech 3)
+                want = emu.head(start, index)
+                n = probe.probe_dfn_head(str(READER).encode(), start, index, buf, len(buf))
+                if buf.raw[:max(n, 0)] != want:
+                    at = next((i for i in range(min(n, len(want))) if buf.raw[i] != want[i]), None)
+                    raise SystemExit(f'{name} head (index {index}): original {len(want)} bytes, port {n}, '
+                                     f'first difference at {at}')
     checks = check_helpers(emu)
     print(f'ok: skins of {files} mech definitions identical four ways each; firepoints, part slots and '
-          f'the MechDfn defaults identical; part ids and names agree; {checks} table helper calls agree')
+          f'the MechDfn defaults and the head identical; part ids and names agree; {checks} table helper calls agree')
 
 
 if __name__ == '__main__':
