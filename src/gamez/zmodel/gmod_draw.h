@@ -69,6 +69,9 @@ struct DrawTable {
               int32_t count, int32_t priority, int32_t overlay) = nullptr;
   // [0x72f3c0] 0x57ce20: textured, plain.
   void (*textured)(void* ctx, int32_t count, void* texture, float opacity, int32_t overlay) = nullptr;
+  // [0x72f3bc] 0x57caa0: textured, white vertices (gmod_puff, weather).
+  void (*textured_white)(void* ctx, int32_t count, void* texture, int32_t priority, float opacity,
+                         int32_t overlay) = nullptr;
   // [0x72f3c4] 0x57d160: textured, light/fog the same for all vertices.
   void (*textured_lit)(void* ctx, uint32_t fogged, int32_t count, void* texture, int32_t priority,
                        float opacity, int32_t overlay) = nullptr;

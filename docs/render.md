@@ -175,8 +175,8 @@ if [0x74a264]: 0x543720, 0x543760   (projected shadows: collect casters, their
 zones: [0x5ea1d0] zone mode, camera +0x1e0/+0x1e4 -> [0x74a328] (0x4eda10, 0x53cc40)
 0x579af0  BeginScene (0x57a740)
 0x4f6c50(ECX world, EDX camera node, camera data) = 0x4f6720 + 0x4f6c00   scene walk
-0x5496c0  per-frame list at [0x72be14] drawn with 0x5489a0 (gmod_light..puff region)
-          [unverified: likely puffers/particles]
+0x5496c0  the puffers' particles (list [0x72be14]) as sprites, 0x5489a0 /
+          0x567720 (gmod_puff, ported: puffers.md)
 0x51ea00  pop
 [0x72f3e4] 0x57e110  sorted transparent polygons
 (EDX != 0: 0x5a67c0)
@@ -468,6 +468,7 @@ come from the asm, Ghidra drops the fastcall registers.
 | [0x72f3c4] | 0x57d160 | textured, lit/fogged, same for all vertices | flags, count, texture record, priority, opacity, overlay |
 | [0x72f3c8] | 0x57d690 | textured, per-vertex light/fog | flags, count, texture record, opacity, overlay |
 | [0x72f3d0] / [0x72f3d4] / [0x72f3d8] | 0x57eeb0 / 0x57f2a0 / 0x57f860 | textured with projected shadows (multi-pass) | count, texture / flags, count, texture |
+| [0x72f3bc] | 0x57caa0 | textured, white vertices: puffers without colours (0x567720), weather (0x5a5a03); ported | count, texture record, priority (unused), opacity, overlay |
 | [0x72f3cc] / [0x72f3dc] | 0x57ea20 / 0x57fe20 | one projected-light triangle from 0x547740 (correction: not puffers; render-shadows.md) | light, flags, count, texture, priority, opacity, overlay / light, flags, count, texture |
 
 `alpha` = `ftol(material alpha * opacity [0x74a26c])`; `opacity` = the
@@ -893,8 +894,8 @@ Shaped by the code above; each step is checkable on its own.
 8. Then: projected shadows (0x543720/0x543760 + multipass; done but the
    caster images, render-shadows.md), the cloud
    pattern (`fluctuate`), facades and points, morphs, model lights
-   (0x541df0), the overlay list and the full-screen quad, puffers
-   (0x5496c0 list).
+   (0x541df0), the overlay list and the full-screen quad. Puffers (0x5496c0) are ported
+   (puffers.md).
 9. The software renderer (0x481290 strategy, 0x53e050, span code) is a
    separate decision for Owen: the target always has a GPU, so it may never
    need porting **[open]**.

@@ -230,6 +230,63 @@ void matrix_to_euler(const Mat34& mat, float out[3]) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00525340. Half angles; x's and y's sine and cosine are
+// stored as floats, z's stay on the x87 stack. Taken as floats here too, as
+// the emulator computes them (the x87's 64-bit fsin can differ in the last
+// bit of a product).
+void euler_to_quat(float x, float y, float z, float q[4]) {
+  const float hx = x * 0.5f, hy = y * 0.5f, hz = z * 0.5f;
+  const auto sa = static_cast<float>(std::sin(double{hx})), ca = static_cast<float>(std::cos(double{hx}));
+  const auto sb = static_cast<float>(std::sin(double{hy})), cb = static_cast<float>(std::cos(double{hy}));
+  const float a = cb * ca, b = sb * ca, c = cb * sa, d = sb * sa;
+  const auto sc = static_cast<float>(std::sin(double{hz})), cc = static_cast<float>(std::cos(double{hz}));
+  q[0] = a * cc + d * sc;
+  q[1] = b * cc + c * sc;
+  q[2] = c * cc - b * sc;
+  q[3] = a * sc - d * cc;
+}
+
+// Mech3.exe 1.2 @ 0x00525740. ECX quaternion (w, x, y, z), EDX the 3x3.
+void quat_matrix(const float q[4], float r[9]) {
+  const float w = q[0], x = q[1], y = q[2], z = q[3];
+  const float sx = x + x, sy = y + y, sz = z + z;
+  const float a = sx * x, b = sy * y, c = sz * z;
+  const float d = sy * x, e = sz * y, f = sx * z;
+  const float g = sx * w, h = sy * w, i = sz * w;
+  float t = 1.0f - b;
+  r[0] = t - c;
+  r[1] = i + d;
+  r[2] = f - h;
+  r[3] = d - i;
+  t = 1.0f - c;
+  r[4] = t - a;
+  r[5] = g + e;
+  r[6] = h + f;
+  r[7] = e - g;
+  t = 1.0f - a;
+  r[8] = t - b;
+}
+
+// Mech3.exe 1.2 @ 0x00523f70. The table (0x0063d340, built once: flag
+// 0x005eda94) holds e^(-i * 0.019607844) as the x87 makes it at 24-bit
+// precision: t = -(i * c) * log2(e) rounded to float, then 2^frac(t) scaled.
+float exp_neg(float x) {
+  static float table[256];
+  static bool built = false;
+  if (!built) {
+    for (int i = 0; i < 256; ++i) {
+      const float t = static_cast<float>(-(static_cast<float>(i) * 0.019607844f) * 1.4426950408889634);
+      const float n = std::nearbyint(t);
+      const double frac = std::exp2(double{t - n}) - 1.0;  // f2xm1
+      table[i] = std::ldexp(static_cast<float>(1.0 + frac), static_cast<int>(n));
+    }
+    built = true;
+  }
+  if (x > 5.0f) return 0.0f;
+  if (!(x >= 0.0f)) return 1.0f;
+  return table[static_cast<int32_t>(51.0f * x)];
+}
+
 // Mech3.exe 1.2 @ 0x00523c50. General 3x3 inverse by cofactors; with
 // `translation`, row 3 becomes -t * inverse. A determinant of exactly 0 (or
 // NaN) returns false and leaves out alone. The x87 keeps products, c2, det,

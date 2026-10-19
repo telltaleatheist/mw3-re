@@ -139,6 +139,9 @@ void draw_flat(uint32_t color, int32_t alpha, int32_t count, int32_t priority, i
 void draw_lit(uint32_t color, const float rgb[3], uint32_t flags, int32_t alpha, int32_t count,
               int32_t priority, int32_t overlay);                                       // 0x0057c700
 void draw_textured(int32_t count, const D3DTexture* texture, float opacity, int32_t overlay);  // 0x0057ce20
+// Textured with white vertices (puffers without colours, weather); priority unused.
+void draw_textured_white(int32_t count, const D3DTexture* texture, int32_t priority, float opacity,
+                         int32_t overlay);                                              // 0x0057caa0
 void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture, int32_t priority,
                        float opacity, int32_t overlay);                                 // 0x0057d160
 void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture, float opacity,
@@ -161,8 +164,8 @@ void draw_projected_shadowed(const float* light, uint32_t flags, int32_t count,
 // The interleaved vertices the shadowed draws hand DrawPrimitive (0x008008e0).
 const uint32_t* multi_buffer();
 
-// 0x00579f50's table fill (0x579fe9..0x57a165), the part the model draw uses:
-// points zmod::draw_table() at the draw functions above.
+// 0x00579f50's table fill (0x579fe9..0x57a165), the part the model draw and
+// the puffers use: points zmod::draw_table() at the draw functions above.
 void install_model_draw_table();
 
 // The block every transparent draw inlines (0x0057bf80, 0x0057c2f0, 0x0057caa0,

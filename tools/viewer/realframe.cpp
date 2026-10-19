@@ -12,6 +12,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
@@ -23,6 +24,7 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zutl_path.h"
@@ -44,7 +46,8 @@ zvid::D3DTexture g_fallback{};  // the default record (0x0080931c) for textures 
 
 // The mission's world.zrd block through the ported reader (0x491de0), the
 // way mission load calls it: hardware, a campaign game, the sun option on.
-// Wind and weather (rain, snow) are not ported: their hooks do nothing.
+// The wind and the puffer tick go to gmod_puff; weather (rain, snow) is not
+// ported: its hooks do nothing.
 std::string read_world_params(const std::string& mission, const std::string& variant) {
   zrdr::close_archives(true);
   zrdr::init();
@@ -68,11 +71,12 @@ std::string read_world_params(const std::string& mission, const std::string& var
   h.hw_card_flag = [] { return 1; };
   h.world = zcls::camera_world(camera_node());
   h.camera = camera_node();
-  h.puffer_tick_reset = [] {};
-  h.wind_velocity = [](const float*) {};
-  h.wind_max_speed = [](float) {};
-  h.wind_random_accel = [](float) {};
-  h.wind_random_angvel = [](float) {};
+  zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };
+  h.puffer_tick_reset = zmod::puff_tick_reset;
+  h.wind_velocity = zmod::wind_set_velocity;
+  h.wind_max_speed = zmod::wind_set_max_speed;
+  h.wind_random_accel = zmod::wind_set_random_accel;
+  h.wind_random_angvel = zmod::wind_set_random_angvel;
   h.light_get_orientation = [](zcls::Node* l, float* x, float* y, float* z) { zcls::light_get_orientation(l, x, y, z); };
   h.light_set_orientation = [](zcls::Node* l, float x, float y, float z) { zcls::light_set_orientation(l, x, y, z); };
   h.light_set_ambient = [](zcls::Node* l, float v) { zcls::light_set_ambient(l, v); };
@@ -164,6 +168,8 @@ std::string real_load(const std::string& mission, const std::string& variant, pl
   h.end_scene = [](void*) { zvid::end_scene(); };
   h.flush_transparent = [](void*) { zvid::flush_transparent(); };
   h.flush_overlay = [](void*) { zvid::flush_overlay(); };
+  h.puffers = [](void*) { zmod::puff_draw(); };  // none yet: the animations make them (anim run, not ported)
+  zimg::default_entry()->surface = &g_fallback;
   zmth::reset_stack();
   return read_world_params(mission, variant);
 }

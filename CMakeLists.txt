@@ -39,6 +39,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/sound.cpp
   src/gamez/zclass/window.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
+  src/gamez/zeffect/zeff_anim_puffer.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zinterp/zinterp.cpp
   src/gamez/zinterp/zinterp_parse.cpp
@@ -55,10 +56,12 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_init.cpp
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
+  src/gamez/zmodel/gmod_puff.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
+  src/gamez/zrender/zrndr_draw.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
@@ -104,6 +107,7 @@ add_library(mw3probe SHARED
   tests/probe_options.cpp
   tests/probe_states.cpp
   tests/probe_shadows.cpp
+  tests/probe_puffers.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

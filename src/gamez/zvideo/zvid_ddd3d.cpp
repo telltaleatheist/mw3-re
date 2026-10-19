@@ -433,6 +433,40 @@ void draw_textured(int32_t count, const D3DTexture* texture, float opacity, int3
   textured_tail(count, texture, opacity, overlay, 4, 0x88c, 0x856, false);
 }
 
+// Mech3.exe 1.2 @ 0x0057caa0. Textured, white vertices, the opacity as alpha
+// ([0x72f3bc]: puffers without colours, weather). Unlike 0x0057ce20 the TL
+// vertices are only written once a queue or overlay slot is free, and opaque
+// polygons draw flat. FIX (A): the device calls go to Render3D.
+void draw_textured_white(int32_t count, const D3DTexture* texture, int32_t, float opacity, int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  DeviceState& s = g_state;
+  const auto fill = [&](uint32_t diffuse) {
+    for (int32_t i = count - 1; i >= 0; --i) tl[i].rhw = tl[i].sz, tl[i].specular = 0xff000000u, tl[i].diffuse = diffuse;
+  };
+  if (texture->type == 4 || !(opacity >= 1.0f)) {
+    TLVertex* dst = nullptr;
+    if (overlay == 0) {
+      dst = queue_transparent(s.primitive, count, texture);
+    } else if (OverlayPoly* p = overlay_slot(0, count, texture, 0x7e7)) {
+      dst = p->verts;
+    }
+    if (!dst) return;
+    fill(static_cast<uint32_t>(ftol(opacity * 255.0f)) << 24 | 0xffffffu);
+    std::memcpy(dst, tl, sizeof(TLVertex) * count);
+    return;
+  }
+  fill(0xffffffffu);
+  if (overlay != 0) {
+    if (OverlayPoly* p = overlay_slot(4, count, texture, 0x7b7)) std::memcpy(p->verts, tl, sizeof(TLVertex) * count);
+    return;
+  }
+  set_shade(1);
+  if (s.alpha_op != 2) s.alpha_op = 2, set_texture_stage_state(4, 2);  // SELECTARG1
+  set_texture(texture);
+  set_address(texture);
+  draw_primitive(s.primitive, tl, count);
+}
+
 // Mech3.exe 1.2 @ 0x0057d160. Textured, lit or fogged, the first vertex's
 // darkness for all: vertex colour * (1 - darkness), plus the point light per
 // vertex (flag 4). FIX (A): the device calls go to Render3D.
@@ -816,6 +850,9 @@ void install_model_draw_table() {
              int32_t overlay) { draw_lit(color, rgb, fogged, alpha, count, priority, overlay); };
   t.textured = [](void*, int32_t count, void* texture, float opacity, int32_t overlay) {
     draw_textured(count, static_cast<const D3DTexture*>(texture), opacity, overlay);
+  };
+  t.textured_white = [](void*, int32_t count, void* texture, int32_t priority, float opacity, int32_t overlay) {
+    draw_textured_white(count, static_cast<const D3DTexture*>(texture), priority, opacity, overlay);
   };
   t.textured_lit = [](void*, uint32_t fogged, int32_t count, void* texture, int32_t priority, float opacity,
                       int32_t overlay) {

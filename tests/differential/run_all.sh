@@ -38,6 +38,7 @@ for t in \
     app_options \
     app_states \
     shadows \
+    puffers \
     ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1

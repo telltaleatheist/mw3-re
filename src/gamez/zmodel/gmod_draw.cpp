@@ -716,27 +716,6 @@ void quat_between(const float u[3], const float d[3], float q[4]) {
   q[1] = c0, q[2] = c1, q[3] = c2;
 }
 
-// Mech3.exe 1.2 @ 0x00525740. ECX quaternion (w, x, y, z), EDX the 3x3.
-void quat_matrix(const float q[4], float r[9]) {
-  const float w = q[0], x = q[1], y = q[2], z = q[3];
-  const float sx = x + x, sy = y + y, sz = z + z;
-  const float a = sx * x, b = sy * y, c = sz * z;
-  const float d = sy * x, e = sz * y, f = sx * z;
-  const float g = sx * w, h = sy * w, i = sz * w;
-  float t = 1.0f - b;
-  r[0] = t - c;
-  r[1] = i + d;
-  r[2] = f - h;
-  r[3] = d - i;
-  t = 1.0f - c;
-  r[4] = t - a;
-  r[5] = g + e;
-  r[6] = h + f;
-  r[7] = e - g;
-  t = 1.0f - a;
-  r[8] = t - b;
-}
-
 // Mech3.exe 1.2 @ 0x0051efb0. Facade mode 1, turning to face the camera: the
 // model-view's rotation turned so its y axis points along the view direction
 // to the model.
@@ -752,7 +731,7 @@ void billboard_sphere() {
   if (zero(normalize(u))) u[0] = 1.0f;
   float q[4], r[9];
   quat_between(u, d, q);
-  quat_matrix(q, r);
+  zmth::quat_matrix(q, r);
   for (int row = 0; row < 3; ++row) {
     float* v = m + 3 * row;
     const float a = v[0], b = v[1], c = v[2];

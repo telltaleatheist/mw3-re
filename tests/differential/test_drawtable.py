@@ -12,7 +12,7 @@ exactly after every call: the draws, the TL buffer the draw functions write in
 place, the state caches, the transparent queue and the overlay list (records
 and vertex bytes, stale bytes included), error reports.
 
-Draws: 0x57bf80, 0x57c700, 0x57ce20, 0x57d160, 0x57d690 on random work
+Draws: 0x57bf80, 0x57c700, 0x57ce20, 0x57caa0, 0x57d160, 0x57d690 on random work
 records, TL vertices, materials, opacities, priorities, overlay flags, texture
 types, point lights, display formats and cache states, in long sequences with
 the transparent flush 0x57e110 and the overlay flush 0x57e4c0 between them,
@@ -260,6 +260,8 @@ class Emu:
                 self.log.append(('clear', 1, v >> 16 & 0xff, v >> 8 & 0xff, v & 0xff))
             else:
                 self.log.append(('clear', 0, 0, 0, 0))
+        elif fn == 13:
+            cpu.call(0x57caa0, ecx=a[0], edx=self.tex(a[1]), stack_args=(a[2], a[3], a[4]))
         elif fn == 12:
             cpu.u32(PRIMARY, self.primary if a[0] else 0)
             cpu.call(0x57a850, ecx=self.rect, edx=self.rect, stack_args=(1, 0))
@@ -439,7 +441,7 @@ def opacity(rng):
 
 
 def random_call(rng):
-    fn = rng.choices([0, 1, 2, 3, 4, 5, 6], [5, 5, 5, 5, 5, 1, 1])[0]
+    fn = rng.choices([0, 1, 2, 3, 4, 5, 6, 13], [5, 5, 5, 5, 5, 1, 1, 5])[0]
     count = rng.choice([1, 2, 3, 3, 4, 4, 5, 6, 8, rng.randint(1, 64), 64])
     ov = 1 if rng.random() < 0.25 else 0
     alpha = rng.choice([255, 255, 254, 0, 128, rng.randint(0, 255), 256, 300, -1])
@@ -456,6 +458,8 @@ def random_call(rng):
         return fn, [flags, count, tex, pri, opacity(rng), ov]
     if fn == 4:
         return fn, [flags, count, tex, opacity(rng), ov]
+    if fn == 13:
+        return fn, [count, tex, pri, opacity(rng), ov]
     return fn, []
 
 
@@ -497,7 +501,8 @@ def check(what, want, got):
 
 def test_draws(rng, emu, port, sessions=300, calls=40):
     stats = {'calls': 0, 'draws': 0, 'queued': 0, 'overlay': 0, 'errors': 0, 'flushed': 0}
-    names = ['flat', 'lit', 'textured', 'textured lit', 'vertex lit', 'flush', 'overlay flush']
+    names = {0: 'flat', 1: 'lit', 2: 'textured', 3: 'textured lit', 4: 'vertex lit', 5: 'flush',
+             6: 'overlay flush', 13: 'textured white'}
     for s in range(sessions):
         textures = [(0x1000 + i, rng.choice([1, 4, 5]), rng.choice([1, 3]), rng.choice([1, 3])) for i in range(16)]
         emu.setup(textures)

@@ -52,6 +52,7 @@ struct TextureLoad {
 TextureLoad& texture_load();
 
 Texture& default_image();    // 0x005ecbc0: 8x8 red/green checks, 565
+TextureEntry* default_entry();  // 0x00518210: the entry naming default_image()
 
 TextureEntry* find_texture(const char* name);  // 0x00518220: case-sensitive, in-use entries
 void set_entry_name(const char* path, char* dst);  // 0x00519210: base name, extension cut (0x00519150)
