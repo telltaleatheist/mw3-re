@@ -39,6 +39,8 @@ for t in \
     app_states \
     shadows \
     puffers \
+    twod \
+    twod_blit \
     ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1

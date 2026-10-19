@@ -646,3 +646,32 @@ are all "puffers": emitters that drop little textured squares.
   "pops" leave it resuming the bottom screen, and too many "pushes" overwrite
   the top one. Pushing onto an empty stack would crash; the game always starts
   with a "replace", so it never happens.
+
+## Menus
+
+From the 2D front end, zTwoD (details: `twod.md`).
+
+- **Menus only redraw what changes.** Nothing clears the screen between menu
+  frames: each button repaints its own rectangle when it changes, first
+  painting back a snapshot of the empty menu taken when it opened. Text is
+  the exception and repaints every frame.
+- **Check boxes play their hover sound twice.** Moving onto an unticked
+  toggle button starts its rollover sound, then the ordinary button code
+  starts it again at the same moment (0x59db00, then 0x59c650).
+- **Every menu could have had movies, music and text in its background.** The
+  menu loader reads background movies (with a transparent colour), looping
+  sounds or CD tracks, and fixed texts for any menu, but no shipped menu uses
+  them: the menus' movies and music come from the game's own code.
+- **A blinking-text mode exists but nothing uses it.** Flashing labels only
+  ever swap colours; the code for text that blinks on and off is there, with
+  no way to switch it on.
+- **An unanswered question box closes itself.** The yes/no and OK/Cancel boxes
+  run their own loop for at most 100,000 frames, about 28 minutes at 60
+  frames a second, then close with no answer: the main menu's "quit?" then
+  counts as "no" and you stay (0x5a7288).
+- **Menu text is real Windows fonts, and could have been two-tone.** Labels
+  are drawn by Windows with TrueType fonts (Lucida Console for nearly all of
+  them, Arial for a few, Impact once; the game ships the three .ttf files)
+  into a picture, usually with a drop shadow. The code can also draw text
+  with a gradient, white first and then recoloured row by row from a top
+  colour to a bottom one, but no shipped font asks for two colours.
