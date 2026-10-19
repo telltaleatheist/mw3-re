@@ -5,7 +5,8 @@
 //           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
 //
 // --real draws the mission through the ported render path itself
-// (realframe.h): walk, cull, model draw, lighting, fog, clips, draw table.
+// (realframe.h): walk, cull, model draw, lighting, fog, clips, draw table;
+// --variant picks the mission's world.zrd block (fog, sky, sun).
 // --tl draws through the ported Direct3D stand-in (platform::Render3D on SDL3)
 // with the original's camera-space projection done on the CPU (render.md
 // section 0), instead of the GPU transform.
@@ -389,7 +390,7 @@ void draw_tl(sdlfe::SdlRender3D& r, const viewer::Scene& s, const std::vector<in
 
 int main(int argc, char** argv) {
   const std::string zbd = "zbd";  // a game path, found through the mounts
-  std::string mission = "t1", mech, motion_name, shot;
+  std::string mission = "t1", mech, motion_name, shot, variant;
   std::vector<std::string> assets;
   float anim_time = 0;
   bool info = false, have_pos = false, have_look = false, tl = false, real = false;
@@ -404,6 +405,7 @@ int main(int argc, char** argv) {
     else if (arg == "--info") info = true;
     else if (arg == "--tl") tl = true;
     else if (arg == "--real") tl = real = true;
+    else if (arg == "--variant" && i + 1 < argc) variant = argv[++i];
     else if (arg == "--shot" && i + 1 < argc) shot = argv[++i];
     else if (arg == "--pos" && i + 3 < argc) {
       for (float& v : cam.eye) v = std::stof(argv[++i]);
@@ -493,7 +495,7 @@ int main(int argc, char** argv) {
       handles.push_back(r3d->create_texture(img.width, img.height, img.rgba.data(), img.alpha ? 4 : 1));
   }
   if (real) {
-    const std::string e = viewer::real_load(mission, r3d.get());
+    const std::string e = viewer::real_load(mission, variant, r3d.get());
     if (!e.empty()) {
       std::fprintf(stderr, "%s\n", e.c_str());
       return 1;

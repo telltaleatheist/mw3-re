@@ -13,8 +13,10 @@ namespace platform { class Render3D; }
 // frame update, sounds) are left out through their null hooks.
 namespace viewer {
 
-// Reads zbd/<mission>/gamez.zbd and the textures through the mounts.
-std::string real_load(const std::string& mission, platform::Render3D* render);
+// Reads zbd/<mission>/gamez.zbd and the textures through the mounts, then the
+// mission's world.zrd block `variant` (its fog, sky, sun, clouds; "" = the
+// first block) from zbd/<mission>/reader.zbd.
+std::string real_load(const std::string& mission, const std::string& variant, platform::Render3D* render);
 
 // One frame from a viewer camera (position, yaw and pitch in radians,
 // yaw 0 looking along +z as the viewer's own camera).

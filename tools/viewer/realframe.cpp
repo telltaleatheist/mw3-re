@@ -1,11 +1,13 @@
 #include "realframe.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/light.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_zbd.h"
@@ -21,11 +23,13 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "mech3/mission_world.h"
 #include "platform/render3d.h"
 
 namespace viewer {
@@ -38,9 +42,67 @@ zcls::Node* camera_node() {
 
 zvid::D3DTexture g_fallback{};  // the default record (0x0080931c) for textures that fail
 
+// The mission's world.zrd block through the ported reader (0x491de0), the
+// way mission load calls it: hardware, a campaign game, the sun option on.
+// Wind and weather (rain, snow) are not ported: their hooks do nothing.
+std::string read_world_params(const std::string& mission, const std::string& variant) {
+  zrdr::close_archives(true);
+  zrdr::init();
+  const std::string reader = "zbd\\" + mission + "\\reader.zbd";
+  if (!zrdr::open_archive(reader.c_str(), true)) return "could not open " + reader;
+  std::string key = variant;
+  if (key.empty()) {
+    // ((name block name block ...)): the first block's name.
+    zrdr::Node* top = zrdr::load("world.zrd");
+    zrdr::Node* blocks = top && top->type == zrdr::List && zrdr::list_count(top) >= 2 ? &top->list[1] : nullptr;
+    if (!blocks || blocks->type != zrdr::List || zrdr::list_count(blocks) < 2 || blocks->list[1].type != zrdr::String)
+      return "no world.zrd blocks in " + reader;
+    key = blocks->list[1].s;
+    for (int32_t i = 1; i < blocks->list[0].i; i += 2)  // the campaign's first mission when there is one
+      if (blocks->list[i].type == zrdr::String && std::strcmp(blocks->list[i].s, "m1") == 0) key = "m1";
+  }
+  mech3::WorldHooks& h = mech3::world_hooks();
+  h = mech3::WorldHooks{};
+  h.game_type = [] { return 1; };
+  h.mission_number = [] { return 1; };
+  h.hw_card_flag = [] { return 1; };
+  h.world = zcls::camera_world(camera_node());
+  h.camera = camera_node();
+  h.puffer_tick_reset = [] {};
+  h.wind_velocity = [](const float*) {};
+  h.wind_max_speed = [](float) {};
+  h.wind_random_accel = [](float) {};
+  h.wind_random_angvel = [](float) {};
+  h.light_get_orientation = [](zcls::Node* l, float* x, float* y, float* z) { zcls::light_get_orientation(l, x, y, z); };
+  h.light_set_orientation = [](zcls::Node* l, float x, float y, float z) { zcls::light_set_orientation(l, x, y, z); };
+  h.light_set_ambient = [](zcls::Node* l, float v) { zcls::light_set_ambient(l, v); };
+  h.light_set_diffuse = [](zcls::Node* l, float v) { zcls::light_set_diffuse(l, v); };
+  h.create_snow = [](int32_t) -> mech3::Weather* { return nullptr; };
+  h.create_rain = [](int32_t) -> mech3::Weather* { return nullptr; };
+  h.weather_add = [](mech3::Weather*) {};
+  h.weather_remove = [](mech3::Weather*) {};
+  h.weather_destroy = [](mech3::Weather*) {};
+  h.weather_start = [](mech3::Weather*, float) {};
+  h.weather_stop = [](mech3::Weather*) {};
+  h.fluctuate_on = zmod::clouds_set_on;
+  h.fluctuate_period = zmod::clouds_set_period;
+  h.fluctuate_wavelength = zmod::clouds_set_wavelength;
+  h.fluctuate_base_amp = zmod::clouds_set_level;
+  h.fluctuate_heading = zmod::clouds_set_heading;
+  h.software_color = [](const float*) {};
+  static mech3::MissionWorld m;
+  m = mech3::MissionWorld{};
+  mech3::world_init(m);
+  if (!mech3::world_read_params(m, "world.zrd", key.c_str())) return "no block " + key + " in world.zrd";
+  std::fprintf(stderr, "world.zrd %s: fog %s, range %g..%g, altitude %g..%g, sky %s\n", key.c_str(),
+               m.fog ? "on" : "off", m.fog_range[0], m.fog_range[1], m.fog_altitude[0], m.fog_altitude[1],
+               m.sky ? m.sky->name() : "-");
+  return {};
+}
+
 }  // namespace
 
-std::string real_load(const std::string& mission, platform::Render3D* render) {
+std::string real_load(const std::string& mission, const std::string& variant, platform::Render3D* render) {
   // Fresh pools, as a mission load starts (0x4ff520's callers).
   zimg::TextureTable& t = zimg::textures();
   std::memset(t.entries, 0, sizeof t.entries);
@@ -103,7 +165,7 @@ std::string real_load(const std::string& mission, platform::Render3D* render) {
   h.flush_transparent = [](void*) { zvid::flush_transparent(); };
   h.flush_overlay = [](void*) { zvid::flush_overlay(); };
   zmth::reset_stack();
-  return {};
+  return read_world_params(mission, variant);
 }
 
 void real_frame(const float eye[3], float yaw, float pitch, platform::Render3D* render) {

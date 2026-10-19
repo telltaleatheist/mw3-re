@@ -264,3 +264,34 @@ float probe_clouds(int32_t op, float a, float b, float* state) {
 }
 
 }  // extern "C"
+
+#include "gamez/zclass/light.h"
+
+extern "C" {
+
+// test_light_setters.py: one setter on a light node whose data is `data`
+// (0xd0 bytes); which 0 orientation, 1 ambient, 2 diffuse, 3 get orientation.
+// Writes the data back, then the frame stamp and the result (and the read
+// values for 3) to out.
+int probe_light_setter(int which, uint8_t* data, int null_data, float a, float b, float c, uint32_t frame,
+                       uint8_t* out) {
+  static zcls::Node node;
+  static zcls::Light light;
+  std::memcpy(light.raw, data, sizeof light.raw);
+  node.data = null_data ? nullptr : &light;
+  zcls::frames().frame = frame;
+  zcls::frames().update_frame = 0;
+  float r[3] = {0, 0, 0};
+  int res = 0;
+  if (which == 0) res = zcls::light_set_orientation(&node, a, b, c);
+  if (which == 1) res = zcls::light_set_ambient(&node, a);
+  if (which == 2) res = zcls::light_set_diffuse(&node, a);
+  if (which == 3) res = zcls::light_get_orientation(&node, &r[0], &r[1], &r[2]);
+  std::memcpy(data, light.raw, sizeof light.raw);
+  std::memcpy(out, &zcls::frames().update_frame, 4);
+  std::memcpy(out + 4, &res, 4);
+  std::memcpy(out + 8, r, 12);
+  return 0;
+}
+
+}  // extern "C"

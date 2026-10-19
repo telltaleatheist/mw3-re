@@ -35,4 +35,45 @@ Node* light_create() {
   return node;
 }
 
+namespace {
+// The shared shape of the three setters: null checks with their lines, the
+// write, the changed bit, the frame stamp for static lights.
+template <typename Write>
+int set(Node* node, int line, Write write) {
+  if (!node) return zerr::report(0x400, kFile, line, "Null node pointer."), 5;
+  auto* l = static_cast<Light*>(node->data);
+  if (!l) return zerr::report(0x400, kFile, line + 1, "Null class data pointer."), 5;
+  const uint32_t flags = l->get<uint32_t>(0xb0);
+  write(*l);
+  l->put<uint32_t>(0xb0, flags | 1);
+  if (flags & 0x100) node_touch_frame();
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004faff0
+int light_set_orientation(Node* node, float x, float y, float z) {
+  return set(node, 0x350, [&](Light& l) { l.put(0x0, x), l.put(0x4, y), l.put(0x8, z); });
+}
+
+// Mech3.exe 1.2 @ 0x004fb060
+int light_get_orientation(Node* node, float* x, float* y, float* z) {
+  if (!node) return zerr::report(0x400, kFile, 0x3a1, "Null node pointer."), 5;
+  auto* l = static_cast<Light*>(node->data);
+  if (!l) return zerr::report(0x400, kFile, 0x3a2, "Null class data pointer."), 5;
+  *x = l->get<float>(0x0), *y = l->get<float>(0x4), *z = l->get<float>(0x8);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fa940
+int light_set_ambient(Node* node, float v) {
+  return set(node, 0x18b, [&](Light& l) { l.put(0xa0, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004fa9b0
+int light_set_diffuse(Node* node, float v) {
+  return set(node, 0x1ab, [&](Light& l) { l.put(0x9c, v); });
+}
+
 }  // namespace zcls
+

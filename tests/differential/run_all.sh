@@ -25,6 +25,7 @@ for t in \
     anim \
     matrix \
     lighting \
+    light_setters \
     bake \
     modeldraw \
     world_params \
