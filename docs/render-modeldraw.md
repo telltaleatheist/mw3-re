@@ -19,9 +19,11 @@ Mech3.exe 1.2, 2026-10-19. Draft for `docs/render.md` section 3. Port:
 | 0x53daa0, 0x545720 | `gmod_light` (`model_needs`, `shade_polygon`) | called, not duplicated |
 
 Not ported, behind `draw_hooks()`: 0x544ed0 + 0x4ed980 (static light bake,
-`refresh_static`), 0x547540 / 0x547740 (projected-light textures), the
-projected-shadow receiver block (0x540552.., 0x540ef6..: `collect_shadows`),
-0x541df0 (model lights / lens flares, `model_light`). Facade modes 2 and 3
+`refresh_static`), 0x541df0 (model lights / lens flares, `model_light`).
+Ported since and the hooks' defaults: 0x547540 / 0x547740 (projected
+lights, `projected_strip` / `projected_draw`) and the projected-shadow
+receiver block (0x540552.., 0x540ef6..: `collect_shadows`),
+render-shadows.md. Facade modes 2 and 3
 (0x51f390, 0x51f750) are used by no shipped world and draw as default models.
 The draw table is `draw_table()` (function pointers with the original's
 arguments, FIX (A)); wiring it to `zvid::draw_flat` etc. is left to the

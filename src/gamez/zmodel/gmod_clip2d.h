@@ -41,11 +41,11 @@ struct ShadowUV {
 constexpr int kShadowSets = 7;    // the shadowed clippers keep 7 set pointers on the stack
 constexpr int kShadowVerts = 64;  // 0x200 bytes per set
 
-// Projected-shadow texture coordinates, one set per shadow (docs/render.md
-// section 5). Owned by the shadow code; here until that is ported.
+// Projected-shadow texture coordinates, one set per shadow over the polygon
+// (docs/render-shadows.md), filled by the model draw's receiver test.
 struct ShadowSets {
   int32_t count;                              // 0x007489a8
-  uint32_t unknown[7];                        // 0x007489ac
+  void* texture[kShadowSets];                 // 0x007489ac  each caster's zvid::D3DTexture
   ShadowUV uv[kShadowSets][kShadowVerts];     // 0x007489c8
 };
 

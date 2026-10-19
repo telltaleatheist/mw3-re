@@ -92,6 +92,7 @@ add_library(mw3probe SHARED
   tests/probe_texload.cpp
   tests/probe_scenewalk.cpp
   tests/probe_damage.cpp
+  tests/probe_shadows.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

@@ -5,9 +5,11 @@
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -55,16 +57,6 @@ float dot(const float a[3], const float b[3]) { return a[0] * b[0] + a[1] * b[1]
 
 // x87 "!=" with NaN counted as equal (C3 set when unordered).
 bool differs(float a, float b) { return a < b || a > b; }
-
-// Mech3.exe 1.2 @ 0x004020d0. Normalises v in place unless its length is 0;
-// returns the length.
-float normalize(float v[3]) {
-  const float len = std::sqrt(v[0] * v[0] + v[2] * v[2] + v[1] * v[1]);
-  if (len == 0.0f) return len;
-  const float inv = 1.0f / len;
-  v[0] = inv * v[0], v[1] = inv * v[1], v[2] = inv * v[2];
-  return len;
-}
 
 // Mech3.exe 1.2 @ 0x0051e110. dst = src / len, a copy when len is 0.
 void scale_inverse(const float src[3], float dst[3], float len) {
@@ -675,6 +667,355 @@ void clouds_advance(const float dir[2], float dt) {
 float clouds_at(float x, float z) {
   if (!g_clouds.on) return 1.0f;
   return cloud_value(x * g_clouds.scale + g_clouds.u, z * g_clouds.scale + g_clouds.v);
+}
+
+// --- Projected lights (docs/render-shadows.md) ---
+
+namespace {
+ProjectedLights g_proj;
+
+// Mech3.exe 1.2 @ 0x0051dfa0 (ECX a, EDX b): |a - b|^2, the x87's order.
+float dist2(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+  const float xx = dx * dx, yy = dy * dy, zz = dz * dz;
+  const float s = xx + yy;
+  return s + zz;
+}
+
+// x87 "below" (fcomp; test ah, 1): also taken on NaN.
+bool below(float a, float b) { return !(a >= b); }
+
+// The lights with flags 0x10 and 0x40 among those reaching this model.
+int32_t list_projected() {
+  ProjectedLights& p = g_proj;
+  p.light_count = 0;
+  for (int32_t i = 0; i < g_list.count; ++i) {
+    const LightEntry& e = g_list.list[i];
+    if (!e.reach) continue;
+    const uint32_t f = lflags(e.data);
+    if ((f & kHasPos) && (f & kNoShadowed)) p.lights[p.light_count++] = e.data;
+  }
+  return p.light_count;
+}
+
+// Every vertex unprojected from the TL buffer (0x00523590), the centre at
+// [count] and the radius around it (the approximate square root).
+float polygon_sphere(int32_t count) {
+  ProjectedLights& p = g_proj;
+  p.vertex_count = count;
+  const TLVertex* tl = clip2d().tl;
+  for (int32_t i = 0; i < count; ++i) {
+    const zmth::Vec3 s{tl[i].sx, tl[i].sy, tl[i].sz};
+    zmth::unproject_d3d(&s, reinterpret_cast<zmth::Vec3*>(p.vertices[i].pos), 1);
+  }
+  float* c = p.vertices[count].pos;
+  for (int k = 0; k < 3; ++k) c[k] = p.vertices[0].pos[k] + p.vertices[1].pos[k];
+  for (int32_t i = 2; i < count; ++i)
+    for (int k = 0; k < 3; ++k) c[k] = c[k] + p.vertices[i].pos[k];
+  const float r = 1.0f / static_cast<float>(count);
+  for (int k = 0; k < 3; ++k) c[k] = r * c[k];
+  float most = 0.0f;
+  for (int32_t i = 0; i < count; ++i) {
+    const float d = dist2(p.vertices[i].pos, c);
+    if (d > most) most = d;
+  }
+  return approx_sqrt(most);
+}
+
+// x87 "d2 < r * r" with the product rounded to float; unordered counts as below.
+bool within(float d2, float r) {
+  const float rr = r * r;
+  return below(d2, rr);
+}
+}  // namespace
+
+ProjectedLights& projected_lights() { return g_proj; }
+
+// Mech3.exe 1.2 @ 0x00547540
+int32_t projected_reach(int32_t count) {
+  if (list_projected() == 0) return 0;
+  const float radius = polygon_sphere(count);
+  const float* c = g_proj.vertices[count].pos;
+  for (int32_t i = 0; i < g_proj.light_count; ++i) {
+    zcls::Light* l = g_proj.lights[i];
+    if (within(dist2(lvec(l, kCamPos), c), lf(l, kFar) + radius)) return 1;
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00547060. lit[] = light[] plus each projected light's
+// colour by (diffuse + ambient), with a squared falloff from near to far.
+void projected_light_vertex(int32_t k) {
+  ProjVertex& v = g_proj.vertices[k];
+  std::memcpy(v.lit, v.light, 12);
+  for (int32_t i = 0; i < g_proj.light_count; ++i) {
+    zcls::Light* l = g_proj.lights[i];
+    const float d2 = dist2(lvec(l, kCamPos), v.pos);
+    if (!below(d2, lf(l, kFarSq))) continue;
+    float w = lf(l, kDiffuse) + lf(l, kAmbient);
+    if (d2 > lf(l, kNearSq)) {
+      const float d = lf(l, kFar) - approx_sqrt(d2);
+      const float f = d * lf(l, kInvRange);
+      const float ff = f * f;
+      w = ff * w;
+    }
+    const float* col = lvec(l, kColor);
+    for (int c = 0; c < 3; ++c) {
+      const float a = col[c] * w;
+      v.lit[c] = a + v.lit[c];
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00547160 (ECX t, EDX edge). A new vertex at the middle of
+// edge v[edge]..v[edge + 1]: t keeps the half before it, a new triangle the
+// rest, and the triangle across the edge is split the same way.
+void projected_split(int32_t t, int32_t edge) {
+  ProjectedLights& p = g_proj;
+  ProjTriangle* tri = p.triangles;
+  const int32_t next = edge == 2 ? 0 : edge + 1;
+  const int32_t prev = edge == 0 ? 2 : edge - 1;
+  ProjTriangle& T = tri[t];
+  const int32_t n = p.vertex_count;
+  ProjVertex& m = p.vertices[n];
+  const ProjVertex& a = p.vertices[T.v[next]];
+  const ProjVertex& b = p.vertices[T.v[edge]];
+  auto mid = [](float x, float y) {
+    const float s = x + y;
+    return s * 0.5f;  // 0x005ce4b0
+  };
+  for (int k = 0; k < 3; ++k) m.pos[k] = mid(b.pos[k], a.pos[k]);
+  for (int32_t s = 0; s <= clip2d().shadow.count; ++s)
+    for (int k = 0; k < 2; ++k) m.uv[s][k] = mid(a.uv[s][k], b.uv[s][k]);
+  m.fog = mid(a.fog, b.fog);
+  for (int k = 0; k < 3; ++k) m.light[k] = mid(a.light[k], b.light[k]);
+  for (int k = 0; k < 3; ++k) m.color[k] = mid(a.color[k], b.color[k]);
+  m.outline = 0;
+  projected_light_vertex(n);
+  // A neighbour's first link to `from` becomes `to`.
+  auto relink = [&](int32_t nb, int32_t from, int32_t to) {
+    if (nb < 0) return;
+    for (int32_t j = 0; j < 3; ++j)
+      if (tri[nb].across[j] == from) {
+        tri[nb].across[j] = to;
+        return;
+      }
+  };
+  const int32_t k = p.triangle_count++;
+  ProjTriangle& N = tri[k];
+  N.v[0] = n, N.v[1] = T.v[next], N.v[2] = T.v[prev];
+  T.v[next] = n;
+  N.across[1] = T.across[next];
+  relink(N.across[1], t, k);
+  N.across[2] = t;
+  T.across[next] = k;
+  N.active = 1;
+  const int32_t o = T.across[edge];
+  if (o < 0) {
+    N.across[0] = -1;
+    m.outline = 1;
+    ++p.vertex_count;
+    return;
+  }
+  ProjTriangle& O = tri[o];
+  int32_t j = 0;
+  while (j < 3 && O.v[j] != N.v[1]) ++j;
+  // The edge is always shared, so j < 3; the original would index past v[]
+  // otherwise. FIX (bug): stop there.
+  if (j == 3) {
+    N.across[0] = -1;
+    ++p.vertex_count;
+    return;
+  }
+  const int32_t jn = j == 2 ? 0 : j + 1;
+  const int32_t jp = j == 0 ? 2 : j - 1;
+  const int32_t k2 = p.triangle_count++;
+  ProjTriangle& P = tri[k2];
+  P.v[0] = n, P.v[1] = O.v[jn], P.v[2] = O.v[jp];
+  O.v[jn] = n;
+  P.across[1] = O.across[jn];
+  relink(P.across[1], o, k2);
+  P.across[2] = o;
+  O.across[jn] = k2;
+  P.active = O.active;
+  T.across[edge] = k2;
+  N.across[0] = o;
+  P.across[0] = t;
+  O.across[j] = k;
+  ++p.vertex_count;
+}
+
+// Mech3.exe 1.2 @ 0x00547740 (ECX count, EDX per_vertex; stack flags,
+// material, priority). Returns 1 when it drew the polygon.
+int32_t draw_projected(int32_t count, uint32_t per_vertex, uint32_t flags, const Material* material,
+                       int32_t priority) {
+  ProjectedLights& p = g_proj;
+  if (list_projected() == 0) return 0;
+  const float radius = polygon_sphere(count);
+  ProjVertex& centre = p.vertices[count];
+  // Lights out of reach leave the list, the last one taking their place.
+  for (int32_t i = 0; i < p.light_count; ++i) {
+    zcls::Light* l = p.lights[i];
+    if (within(dist2(lvec(l, kCamPos), centre.pos), lf(l, kFar) + radius)) continue;
+    --p.light_count;
+    if (i == p.light_count) continue;
+    p.lights[i] = p.lights[p.light_count];
+    --i;
+  }
+  if (p.light_count == 0) return 0;
+  Clip2D& d = clip2d();
+  const int32_t sets = d.shadow.count;
+  const float* point = zvid::point_light().color;  // 0x0072f40c
+  for (int32_t i = 0; i < count; ++i) {
+    ProjVertex& v = p.vertices[i];
+    v.screen[0] = d.tl[i].sx, v.screen[1] = d.tl[i].sy, v.screen[2] = d.tl[i].sz;
+    v.uv[0][0] = d.tl[i].tu, v.uv[0][1] = d.tl[i].tv;
+    for (int32_t s = 0; s < sets; ++s) v.uv[1 + s][0] = d.shadow.uv[s][i].u, v.uv[1 + s][1] = d.shadow.uv[s][i].v;
+    v.fog = d.work[i].light[2];
+    const float lit = 1.0f - (per_vertex ? d.work[i].light[0] : d.work[0].light[0]);
+    v.light[0] = v.light[1] = v.light[2] = lit;
+    if (flags & 4) {
+      const float s = d.work[i].light[1] * 0.003921569f;  // 0x005ce4b4
+      for (int c = 0; c < 3; ++c) {
+        const float a = s * point[c];
+        v.light[c] = a + v.light[c];
+      }
+    }
+    std::memcpy(v.color, d.work[i].color, 12);
+    for (int c = 0; c < 3; ++c)
+      if (below(v.light[c], 0.0f)) v.light[c] = 0.0f;
+    projected_light_vertex(i);
+  }
+  // The centre takes the mean of the corners' attributes.
+  for (int32_t s = 0; s <= sets; ++s) centre.uv[s][0] = p.vertices[0].uv[s][0], centre.uv[s][1] = p.vertices[0].uv[s][1];
+  centre.fog = p.vertices[0].fog;
+  std::memcpy(centre.light, p.vertices[0].light, 12);
+  std::memcpy(centre.color, p.vertices[0].color, 12);
+  for (int32_t i = 1; i < count; ++i) {
+    const ProjVertex& v = p.vertices[i];
+    for (int32_t s = 0; s <= sets; ++s)
+      for (int k = 0; k < 2; ++k) centre.uv[s][k] = v.uv[s][k] + centre.uv[s][k];
+    centre.fog = v.fog + centre.fog;
+    for (int k = 0; k < 3; ++k) centre.light[k] = v.light[k] + centre.light[k];
+    for (int k = 0; k < 3; ++k) centre.color[k] = v.color[k] + centre.color[k];
+  }
+  const float r = 1.0f / static_cast<float>(count);
+  for (int32_t s = 0; s <= sets; ++s)
+    for (int k = 0; k < 2; ++k) centre.uv[s][k] = r * centre.uv[s][k];
+  centre.outline = 0;
+  centre.fog = r * centre.fog;
+  for (int k = 0; k < 3; ++k) centre.light[k] = r * centre.light[k];
+  for (int k = 0; k < 3; ++k) centre.color[k] = r * centre.color[k];
+  projected_light_vertex(count);
+  // A fan around the centre: triangle i is (i, i + 1, centre), its outer edge open.
+  p.triangle_count = count;
+  for (int32_t i = 0; i < count; ++i) {
+    const int32_t nx = i + 1 == count ? 0 : i + 1;
+    ProjTriangle& t = p.triangles[i];
+    t.v[0] = i, t.v[1] = nx, t.v[2] = count;
+    t.across[0] = -1, t.across[1] = nx, t.across[2] = i == 0 ? count - 1 : i - 1;
+    t.active = 1;
+  }
+  p.vertex_count = count + 1;
+  // Six passes: a triangle wider than sqrt(10) that some light's falloff
+  // (between its near and far) crosses is split along its longest edge.
+  for (int32_t pass = 0; pass < 6; ++pass) {
+    const int32_t n = p.triangle_count;
+    for (int32_t t = 0; t < n; ++t) {
+      ProjTriangle& T = p.triangles[t];
+      if (!T.active) continue;
+      const float* a = p.vertices[T.v[0]].pos;
+      const float* b = p.vertices[T.v[1]].pos;
+      const float* c = p.vertices[T.v[2]].pos;
+      float mid[3];
+      for (int k = 0; k < 3; ++k) mid[k] = a[k] + b[k];
+      for (int k = 0; k < 3; ++k) mid[k] = mid[k] + c[k];
+      for (int k = 0; k < 3; ++k) mid[k] = mid[k] * 0.3333333f;  // 0x005ce4b8
+      float most = dist2(mid, a);
+      float e = dist2(mid, b);
+      if (e > most) most = e;
+      e = dist2(mid, c);
+      if (e > most) most = e;
+      if (below(most, 10.0f)) {  // 0x005ce4bc
+        T.active = 0;
+        continue;
+      }
+      const float tr = approx_sqrt(most);
+      int32_t li = 0;
+      for (; li < p.light_count; ++li) {
+        zcls::Light* l = p.lights[li];
+        const float d2 = dist2(lvec(l, kCamPos), mid);
+        if (!within(d2, lf(l, kFar) + tr)) continue;
+        const float inner = lf(l, kNear) - tr;
+        if (below(inner, 0.0f)) break;
+        const float ii = inner * inner;
+        if (d2 > ii) break;
+      }
+      if (li >= p.light_count) {
+        T.active = 0;
+        continue;
+      }
+      const float e01 = dist2(a, b);
+      const float e12 = dist2(b, c);
+      float longest = e01;
+      int32_t edge = 0;
+      if (below(e01, e12)) longest = e12, edge = 1;
+      if (dist2(c, a) > longest) edge = 2;
+      // FIX (bug): the original has room for 2048 triangles and 6144 vertices
+      // and no check (a large polygon overruns them into the light count and
+      // the vertices); a split that would not fit is not made.
+      const int32_t adds = T.across[edge] < 0 ? 1 : 2;
+      if (p.triangle_count + adds > ProjectedLights::kMaxTriangles ||
+          p.vertex_count + 1 > ProjectedLights::kMaxVertices) {
+        T.active = 0;
+        continue;
+      }
+      projected_split(t, edge);
+    }
+  }
+  // The new vertices are projected; the corners keep their screen positions.
+  for (int32_t k = count; k < p.vertex_count; ++k)
+    zmth::project_d3d(reinterpret_cast<const zmth::Vec3*>(p.vertices[k].pos),
+                      reinterpret_cast<zmth::Vec3*>(p.vertices[k].screen), 1);
+  const float bias = static_cast<float>(priority) * draw_state().priority_scale;
+  const float scale = bias - -1.0f;
+  for (int32_t k = 0; k < p.vertex_count; ++k) p.vertices[k].screen[2] = scale * p.vertices[k].screen[2];
+  void* texture = material->texture ? material->texture->surface : nullptr;
+  // Midpoints on the outline move a pixel away from the centre (on screen).
+  for (int32_t k = count + 1; k < p.vertex_count; ++k) {
+    ProjVertex& v = p.vertices[k];
+    if (!v.outline) continue;
+    const float dx = v.screen[0] - centre.screen[0];
+    const float dy = v.screen[1] - centre.screen[1];
+    const float xx = dx * dx, yy = dy * dy;
+    const float len2 = xx + yy;
+    if (!differs(len2, 0.0f)) continue;
+    const float inv = 1.0f / approx_sqrt(len2);
+    const float mx = inv * dx;
+    v.screen[0] = mx + v.screen[0];
+    const float my = inv * dy;
+    v.screen[1] = my + v.screen[1];
+  }
+  const DrawTable& table = draw_table();
+  const DrawState& ds = draw_state();
+  for (int32_t t = 0; t < p.triangle_count; ++t) {
+    float light[3][3];
+    for (int32_t j = 0; j < 3; ++j) {
+      const ProjVertex& v = p.vertices[p.triangles[t].v[j]];
+      d.tl[j].sx = v.screen[0], d.tl[j].sy = v.screen[1], d.tl[j].sz = v.screen[2];
+      d.tl[j].tu = v.uv[0][0], d.tl[j].tv = v.uv[0][1];
+      for (int32_t s = 0; s < sets; ++s) d.shadow.uv[s][j].u = v.uv[1 + s][0], d.shadow.uv[s][j].v = v.uv[1 + s][1];
+      d.work[j].light[2] = v.fog;
+      std::memcpy(d.work[j].color, v.color, 12);
+      std::memcpy(light[j], v.lit, 12);
+    }
+    if (sets) {
+      if (table.projected_shadowed) table.projected_shadowed(table.ctx, light[0], flags, 3, texture);
+    } else if (table.projected) {
+      table.projected(table.ctx, light[0], flags, 3, texture, priority, ds.opacity, ds.overlay);
+    }
+  }
+  return 1;
 }
 
 }  // namespace zmod

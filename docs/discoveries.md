@@ -357,6 +357,28 @@ From the render path (render.md).
   tree, so lone objects are always sent on to be drawn.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
+- **Mechs cast real shadows, but hardware mode probably never showed
+  them** (render-shadows.md). Every mech within 100 m of you, and your own,
+  gets a small picture of its silhouette, blurred, laid on the ground along
+  the sun's direction and multiplied over whatever it falls on (up to seven
+  shadows overlapping on one surface). The code that paints the silhouette
+  rounds with a trick that needs full FPU precision; under Direct3D the
+  picture comes out plain white, so the shadow passes run every frame and
+  change nothing. Found in the emulator; still to be confirmed in play.
+- **Weapon lights were meant to light up the ground around them.** The PPC,
+  autocannon, LBX, Gauss, pulse laser, flamer and AMS lights, a flickering
+  light and the cave lights of the training mission are flagged to cut the
+  nearby ground into small triangles lit by the light's falloff. At the
+  same reduced precision the colour of those triangles rounds to black.
+  Also emulator-only so far.
+- **Hardware fog is switched on by the shadow code.** Nothing else in the
+  game turns Direct3D's fog on: it comes on once the first shadow has been
+  drawn (normally your own mech's, on the first frame). On a video card
+  without the blend the shadows need, shadows stay off, and so would the
+  fog.
+- **Mechs never shadow themselves**, and shadows only land on lit, solid,
+  textured surfaces: not on foliage with see-through textures, not on the
+  fake black shadow polygons.
 
 ## Mechs: camos
 

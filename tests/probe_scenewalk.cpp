@@ -78,22 +78,28 @@ int32_t zone_probe(void*, zcls::Node*, const float*, uint32_t*) {
   u32(4);
   return 0;
 }
-void collect(void*) {
-  zmod::ShadowCasters& c = zmod::shadow_casters();
-  c.all_count = 0;
-  for (zmod::ShadowCaster& s : g_casters) c.all[c.all_count++] = &s;
-  u32(5);
+// The caster lists run for real (gmod_cull); each logs what it left, as the
+// test logs the original's at their returns.
+int32_t caster_id(const zmod::ShadowCaster* c) { return static_cast<int32_t>(c - g_casters.data()); }
+void log_list(uint32_t kind, zmod::ShadowCaster* const* list, int32_t n) {
+  u32(kind), u32(static_cast<uint32_t>(n));
+  for (int32_t i = 0; i < n; ++i) u32(static_cast<uint32_t>(caster_id(list[i])));
 }
-void directions(void*) { u32(6); }
-// The casters over a cell: those whose node index has the parity of the
-// cell rect's first value (floored), so lists differ from cell to cell.
+void collect(void*) {
+  zmod::collect_casters();
+  const zmod::ShadowCasters& c = zmod::shadow_casters();
+  log_list(5, c.all, c.all_count);
+}
+void directions(void*) {
+  zmod::caster_directions();
+  const zmod::ShadowCasters& c = zmod::shadow_casters();
+  u32(6), u32(static_cast<uint32_t>(c.all_count));
+  for (int32_t i = 0; i < c.all_count; ++i) u32(static_cast<uint32_t>(caster_id(c.all[i]))), put(c.all[i]->slope_cam, 12);
+}
 void cell_casters(void*, const float* rect) {
-  zmod::ShadowCasters& c = zmod::shadow_casters();
-  const int32_t k = static_cast<int32_t>(std::floor(rect[0] / 100.0f));
-  c.cell_count = 0;
-  for (zmod::ShadowCaster& s : g_casters)
-    if (((index_of(s.node) + k) & 1) == g_cell_filter) c.cell[c.cell_count++] = &s;
-  u32(7);
+  zmod::cell_casters(rect);
+  const zmod::ShadowCasters& c = zmod::shadow_casters();
+  log_list(7, c.cell, c.cell_count);
 }
 
 zcls::Node* camera_node() { return zcls::list_head(zcls::kCameras)->node; }
@@ -172,9 +178,24 @@ void sw_globals(uint32_t frame, float dt, int hse_on, int lod_dynamic, int shado
   static_cast<zcls::World*>(world->data)->put<int32_t>(0x50, virtual_cells);
 }
 
-void sw_casters(const int* nodes, int n) {
-  g_casters.clear();
-  for (int i = 0; i < n; ++i) g_casters.push_back(zmod::ShadowCaster{zcls::node_at(nodes[i])});
+// Caster records linked in the given order: node, enabled, then per caster
+// slope x/z, box min, box max, position, ground y (12 floats).
+void sw_casters(const int* nodes, const int* enabled, const float* f, int n) {
+  g_casters.assign(static_cast<size_t>(n), zmod::ShadowCaster{});
+  for (int i = 0; i < n; ++i) {
+    zmod::ShadowCaster& c = g_casters[i];
+    const float* v = f + 12 * i;
+    c.node = zcls::node_at(nodes[i]);
+    c.enabled = enabled[i];
+    c.slope[0] = v[0], c.slope[1] = v[1];
+    std::memcpy(c.box_min, v + 2, 12);
+    std::memcpy(c.box_max, v + 5, 12);
+    std::memcpy(c.position, v + 8, 12);
+    c.ground_y = v[11];
+    c.prev = i ? &g_casters[i - 1] : nullptr;
+    c.next = i + 1 < n ? &g_casters[i + 1] : nullptr;
+  }
+  zmod::caster_list() = n ? g_casters.data() : nullptr;
 }
 
 // One frame: the trace of draws and hooks, then the camera's data and the

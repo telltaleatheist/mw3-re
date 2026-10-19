@@ -31,6 +31,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | Heat-sink critical, 0x460d50 | The callout waits for 0x45fbc0 to report success, which it never does | (bug) losing a sink is silent (`heat.md`, `damage.md`) | Success is a sink actually lost: the "heat sink" callout and the critical sound play. The damage test runs the original with 0x45fbc0 reporting it the same way |
 | Equipment critical, 0x461211 | When `rand()` lands above the summed weights (r = 1.0 and rounding), the item pointer is the random float's bits | (bug) a crash | The last candidate is taken |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
+| Projected shadows and lights, zvid_ddd3d.c (0x57eeb0, 0x57f2a0, 0x57f860, 0x57ea20, 0x57fe20) | DrawPrimitive with FVF `0xc4 \| (n + 1) << 8`: one interleaved buffer with a UV pair per shadow, drawn again per shadow with SRCBLEND ZERO / DESTBLEND SRCCOLOR, COLOROP SELECTARG1 and TEXCOORDINDEX k | (A) Direct3D 6 | `Render3D::draw_multi` (default: the selected UV set as a TLVertex, white diffuse under `color_select`); `DrawState` gains `color_select` and `texcoord`, `multiply` follows the blend factors. Emulator-verified identical (`test_shadows.py`, render-shadows.md) |
+| Projected-light subdivision, 0x547160 (from 0x547740) | Splits into fixed arrays of 2,048 triangles and 6,144 vertices with no check | (bug) a large polygon in a light's falloff band overruns them into the light count and the vertex records | A split that would not fit is not made (the triangle stays whole); the test applies the same to the original at that point. The unbounded search for the shared vertex across the edge stops at 3 (it always finds it) |
+| Shadowed draws, 0x57eeb0.. | Read the base texture's address modes through the pointer, null or not | (bug) a crash on a textured polygon whose material lost its texture | The address modes are skipped for a null texture |
 | Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
 
 Notes on the fixes:
@@ -81,6 +84,15 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   light come out black (emulator; render-drawtable.md). Check in play
   (explosions or muzzle flashes near textured surfaces); then likely a
   FIX (bug): round properly.
+- Projected-light triangles, 0x57ea20 / 0x57fe20: the same rounding, so the
+  ground the weapon lights subdivide is drawn black at 24-bit (emulator,
+  render-shadows.md). Same check in play and the same likely FIX (bug); the
+  port keeps the 24-bit result for now, as for the point-lit vertices.
+- Mech shadow images, 0x55d010 (from 0x542e70, not ported yet): every edge
+  goes to 16.16 fixed point with the same trick, so at 24-bit nothing is
+  filled and the shadow texture is plain white: shadows invisible on
+  hardware (emulator, render-shadows.md). When the caster module is ported,
+  a FIX (bug) candidate (round properly) to show the shadows as designed.
 - Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
   then neither queued nor drawn, so fake shadows vanish there (emulator; check
   in play).

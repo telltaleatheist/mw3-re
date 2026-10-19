@@ -7,7 +7,10 @@
 extern "C" {
 
 int32_t probe_clip2d_slots() { return zmod::kClipVerts; }
-int32_t probe_clip2d_shadow_size() { return sizeof(zmod::ShadowSets); }
+// The sets as at 0x7489a8: count, 7 texture words, then the UV pairs (the
+// port's ShadowSets holds pointers, so it is copied field by field).
+constexpr int32_t kShadowBytes = 4 + 4 * zmod::kShadowSets + sizeof(zmod::ShadowSets::uv);
+int32_t probe_clip2d_shadow_size() { return kShadowBytes; }
 
 // Loads the buffers (kClipVerts * 0x20 bytes each; the shadow sets as at
 // 0x7489a8, 0xe20 bytes, and their partner 0xe00), runs clipper `which` (0 flat
@@ -22,7 +25,14 @@ int32_t probe_clip2d(int32_t which, const void* rect, void* tl, void* work, void
   std::memcpy(b.work, work, sizeof b.work);
   std::memcpy(b.tl_tmp, tl_tmp, sizeof b.tl_tmp);
   std::memcpy(b.work_tmp, work_tmp, sizeof b.work_tmp);
-  std::memcpy(&b.shadow, shadow, sizeof b.shadow);
+  auto* sh = static_cast<uint8_t*>(shadow);
+  std::memcpy(&b.shadow.count, sh, 4);
+  for (int k = 0; k < zmod::kShadowSets; ++k) {
+    uint32_t w;
+    std::memcpy(&w, sh + 4 + 4 * k, 4);
+    b.shadow.texture[k] = reinterpret_cast<void*>(static_cast<uintptr_t>(w));
+  }
+  std::memcpy(b.shadow.uv, sh + 4 + 4 * zmod::kShadowSets, sizeof b.shadow.uv);
   std::memcpy(b.shadow_tmp, shadow_tmp, sizeof b.shadow_tmp);
   int32_t ret = 0;
   switch (which) {
@@ -37,7 +47,12 @@ int32_t probe_clip2d(int32_t which, const void* rect, void* tl, void* work, void
   std::memcpy(work, b.work, sizeof b.work);
   std::memcpy(tl_tmp, b.tl_tmp, sizeof b.tl_tmp);
   std::memcpy(work_tmp, b.work_tmp, sizeof b.work_tmp);
-  std::memcpy(shadow, &b.shadow, sizeof b.shadow);
+  std::memcpy(sh, &b.shadow.count, 4);
+  for (int k = 0; k < zmod::kShadowSets; ++k) {
+    const auto w = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b.shadow.texture[k]));
+    std::memcpy(sh + 4 + 4 * k, &w, 4);
+  }
+  std::memcpy(sh + 4 + 4 * zmod::kShadowSets, b.shadow.uv, sizeof b.shadow.uv);
   std::memcpy(shadow_tmp, b.shadow_tmp, sizeof b.shadow_tmp);
   return ret;
 }

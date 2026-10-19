@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 // What the rebuilt Direct3D layer (zvid_ddd3d.c, docs/render.md section 4)
 // needs from the machine: stands in for IDirect3DDevice3 and the DirectDraw
@@ -35,6 +37,8 @@ struct DrawState {
   bool fog = false;                // FOGENABLE
   bool flat = false;               // SHADEMODE FLAT
   bool wireframe = false;          // FILLMODE WIREFRAME (a debug mode)
+  bool color_select = false;       // COLOROP SELECTARG1: the texture's colour alone (shadow passes)
+  uint8_t texcoord = 0;            // TEXCOORDINDEX: which UV set of a draw_multi vertex
 };
 
 class Render3D {
@@ -51,6 +55,23 @@ class Render3D {
   virtual void end_scene() = 0;    // EndScene (vt+0x28)
   // DrawPrimitive (vt+0x70) with flags 0x18.
   virtual void draw(Primitive type, const TLVertex* vertices, int count, const DrawState& state) = 0;
+  // DrawPrimitive with FVF 0x0c4 | uv_sets << 8 (the projected-shadow draws,
+  // docs/render-shadows.md): per vertex sx, sy, sz, rhw, diffuse, specular,
+  // then uv_sets (u, v) pairs, 6 + 2 * uv_sets dwords. The default draws the
+  // set state.texcoord as a TLVertex, white in place of diffuse when
+  // color_select, so a backend needs nothing more.
+  virtual void draw_multi(Primitive type, const uint32_t* vertices, int uv_sets, int count, const DrawState& state) {
+    std::vector<TLVertex> v(static_cast<size_t>(count > 0 ? count : 0));
+    const int stride = 6 + 2 * uv_sets;
+    const int set = state.texcoord < uv_sets ? state.texcoord : 0;
+    for (int i = 0; i < count; ++i) {
+      const uint32_t* s = vertices + stride * i;
+      std::memcpy(&v[i], s, 24);
+      std::memcpy(&v[i].tu, s + 6 + 2 * set, 8);
+      if (state.color_select) v[i].diffuse |= 0x00ffffffu;
+    }
+    draw(type, v.data(), count, state);
+  }
   virtual void set_fog_color(uint8_t r, uint8_t g, uint8_t b) = 0;  // FOGCOLOR (0x0057bcf0)
   virtual void present() = 0;      // Flip, or the windowed Blt (0x0057a850 / 0x00577130)
 };

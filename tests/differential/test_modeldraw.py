@@ -69,7 +69,8 @@ FACADE_TOLERANCE = 1e-3
 # once a screen clip interpolates them.
 FOG_TOLERANCE = 1e-3
 TABLE = {0x72f3b0: 0, 0x72f3b8: 1, 0x72f3c0: 2, 0x72f3c4: 3, 0x72f3c8: 4, 0x72f3d0: 5, 0x72f3d4: 6,
-         0x72f3d8: 7, 0x72f3e0: 8}
+         0x72f3d8: 7, 0x72f3e0: 8, 0x72f3cc: 11, 0x72f3dc: 12}
+POPS = {0: 12, 1: 20, 2: 8, 3: 16, 4: 12, 5: 0, 6: 4, 7: 4, 8: 4, 11: 20, 12: 8}
 TL, WORK, PRIM, CAM3D = 0x72f41c, 0x7481a8, 0x72f418, 0x7476a4
 STACK_SLOT, STACK_FLAG, STACK_TOP_P, STACK_FLAG_P = 0x63d760, 0x63d7e8, 0x5eda90, 0x5eda8c
 TEX_TABLE, TEX_COUNT = 0x610484, 0x610480
@@ -113,8 +114,7 @@ class Original:
         self.fake_lights = 0
         for addr, which in TABLE.items():
             stub = cpu.code(b'\xc3')
-            pops = {0: 12, 1: 20, 2: 8, 3: 16, 4: 12, 5: 0, 6: 4, 7: 4, 8: 4}[which]
-            self.hook(stub, lambda c, w=which: self.table(w), pops)
+            self.hook(stub, lambda c, w=which: self.table(w), POPS[which])
             cpu.u32(addr, stub)
         fog_send = cpu.code(b'\xc3')
         self.hook(fog_send, lambda c: self.put(struct.pack('<I', 10) + c.read(0x72f400, 12)), 0)
@@ -128,8 +128,7 @@ class Original:
         self.hook(ZERR, lambda c: self.put(struct.pack('<II', 14, c.arg(2))), 0)
         if not REAL_MODEL_VIEW:
             self.hook(MODEL_VIEW, self.model_view, 0)
-        for a in (0x547540, 0x547740, 0x567420):
-            self.hook(a, lambda c, a=a: self.fail(a), 0)
+        self.hook(0x567420, lambda c: self.fail(0x567420), 0)
         cpu.u32(0x74639c, 0x74039c)
         cpu.u32(0x7463a0, 0x74339c)
         cpu.u32(0x72f348, 1)
@@ -201,6 +200,14 @@ class Original:
         r = self.cpu.read
         return b''.join(r(TL + 0x20 * i, 0x20) + r(WORK + 0x20 * i, 0x18) for i in range(count))
 
+    def sets(self, count):
+        """The projected-shadow sets (0x7489a8): count, textures, each set's UVs."""
+        count = max(0, min(count, 64))
+        n = self.i32(0x7489a8)
+        r = self.cpu.read
+        return (struct.pack('<i', n) + r(0x7489ac, 4 * n) +
+                b''.join(r(0x7489c8 + 0x200 * k, 8 * count) for k in range(max(n, 0))))
+
     def table(self, which):
         c = self.cpu
         ecx, edx, a = c.ecx, c.edx, c.arg
@@ -217,9 +224,17 @@ class Original:
         elif which == 4:
             self.put(struct.pack('<6I', 4, ecx, edx, a(0), a(1), a(2)) + prim + self.verts(edx))
         elif which == 5:
-            self.put(struct.pack('<3I', 5, ecx, edx) + prim + self.verts(ecx))
+            self.put(struct.pack('<3I', 5, ecx, edx) + prim + self.verts(ecx) + self.sets(ecx))
         elif which in (6, 7):
-            self.put(struct.pack('<4I', which, ecx, edx, a(0)) + prim + self.verts(edx))
+            self.put(struct.pack('<4I', which, ecx, edx, a(0)) + prim + self.verts(edx) + self.sets(edx))
+        elif which == 11:
+            n = max(0, min(a(0), 64))
+            self.put(struct.pack('<7I', 11, edx, a(0), a(1), a(2), a(3), a(4)) + prim + c.read(ecx, 12 * n)
+                     + self.verts(n))
+        elif which == 12:
+            n = max(0, min(a(0), 64))
+            self.put(struct.pack('<4I', 12, edx, a(0), a(1)) + prim + c.read(ecx, 12 * n) + self.verts(n)
+                     + self.sets(n))
         elif which == 8:
             self.put(struct.pack('<I', 8) + c.read(ecx, 12) + struct.pack('<II', edx, a(0)))
 
@@ -363,34 +378,57 @@ class Original:
 
 
 # --- The event stream: parse both sides' bytes the same way. ---
-# u: exact u32, f: float, V: vertices (count from the field marked c)
+# u: exact u32, f: float, c: the vertex count (exact). Kinds 0-7, 11 and 12
+# carry vertices (TL + work record, 14 dwords each), 11 and 12 first three
+# light floats per vertex, 5-7 and 12 then the projected-shadow sets.
 FORMATS = {0: 'uuc' 'uuu', 1: 'ufffuucuuu', 2: 'cufuu', 3: 'ucuufuu', 4: 'ucufuu', 5: 'cuu', 6: 'ucuu',
-           7: 'ucuu', 8: 'fffuu', 9: 'fffu', 10: 'fff', 13: '', 14: 'u', 15: 'fff', 16: '', 17: 'fff'}
+           7: 'ucuu', 8: 'fffuu', 9: 'fffu', 10: 'fff', 11: 'ucuufuu', 12: 'ucuu', 13: '', 14: 'u', 15: 'fff',
+           16: '', 17: 'fff'}
 VERTEX = 'ffffuuff' 'ffffff'
+WITH_VERTS = (0, 1, 2, 3, 4, 5, 6, 7, 11, 12)
+WITH_LIGHT = (11, 12)
+WITH_SETS = (5, 6, 7, 12)
 
 
 def parse(b):
+    """Each event: [kind, fields...], a float as ('f', value, label)."""
     ev, p = [], 0
     while p < len(b):
         kind, = struct.unpack_from('<I', b, p)
         p += 4
         fields, count = [kind], 0
-        for ch in FORMATS[kind]:
+
+        def f(label):
+            nonlocal p
+            v = ('f', struct.unpack_from('<f', b, p)[0], label)
+            p += 4
+            return v
+
+        def u():
+            nonlocal p
+            v, = struct.unpack_from('<I', b, p)
+            p += 4
+            return v
+        for j, ch in enumerate(FORMATS[kind]):
             if ch == 'f':
-                fields.append(('f', struct.unpack_from('<f', b, p)[0]))
+                fields.append(f(j))
             else:
-                v, = struct.unpack_from('<I', b, p)
+                v = u()
                 fields.append(v)
                 if ch == 'c':
                     count = v
-            p += 4
-        if kind in (0, 1, 2, 3, 4, 5, 6, 7):
-            n = max(0, min(count, 64))
+        n = max(0, min(count, 64))
+        if kind in WITH_LIGHT:
+            fields += [f('light') for _ in range(3 * n)]
+        if kind in WITH_VERTS:
             for _ in range(n):
-                for ch in VERTEX:
-                    fields.append(('f', struct.unpack_from('<f', b, p)[0]) if ch == 'f'
-                                  else struct.unpack_from('<I', b, p)[0])
-                    p += 4
+                for k, ch in enumerate(VERTEX):
+                    fields.append(f('v%d' % k) if ch == 'f' else u())
+        if kind in WITH_SETS:
+            sets = u()
+            fields.append(sets)
+            fields += [u() for _ in range(sets)]
+            fields += [f('uv') for _ in range(2 * n * sets)]
         ev.append(fields)
     return ev
 
@@ -425,9 +463,9 @@ def compare(want, got, stats, tol=TOLERANCE, pixels=0.0):
             return f'event {k}: original {x[:8]} port {y[:8]}'
         for j, (u, v) in enumerate(zip(x, y)):
             if isinstance(u, tuple):
-                at = (x[0], j if j < 6 or x[0] > 7 else 'v%d' % ((j - len(FORMATS[x[0]]) - 1) % 14))
-                t = max(tol, FOG_TOLERANCE) if at[1] == 'v10' else tol
-                px = pixels if at[1] in ('v0', 'v1') else 0.0
+                at = (x[0], u[2])
+                t = max(tol, FOG_TOLERANCE) if u[2] == 'v10' else tol
+                px = pixels if u[2] in ('v0', 'v1') else 0.0
                 if not isinstance(v, tuple) or not same_float(u[1], v[1], stats, t, at, px):
                     return f'event {k} (kind {x[0]}) field {j}: original {u} port {v}'
             elif u != v:
