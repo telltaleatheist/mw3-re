@@ -367,11 +367,16 @@ or item index), not raw pointers.
    gamez.zbd and test_zclass.py) except 0x4f7920: 0x4f77d0, 0x4f78e0,
    0x4f89a0, 0x4f8080, 0x4f8140 (mutually recursive with step 3's 0x4ed990 only through
    0x4f8080).
-3. 0x4ed990, 0x4ed8f0, 0x4ed8b0, 0x4fb600.
-4. 0x4fb650, 0x4fb740.
-5. 0x4eba90, 0x4fb7a0, 0x4eb9b0 (other types stubbed to the zerr fatal until
-   their classes are ported).
-6. read_node / read_tree port, diffed against the original as in section 5.
+3. **Ported**: 0x4ed990, 0x4ed8f0, 0x4ed8b0 (`cls_node`), 0x4fb600
+   (`object3d`).
+4. **Ported**: 0x4fb650, 0x4fb740 (`object3d`).
+5. **Ported**: 0x4eba90, 0x4fb7a0, 0x4eb9b0 (classes 3/4/5/9/10; the others
+   stop the game with "not ported yet" until their classes are ported).
+6. **Ported**: read_node 0x4fce50 / read_tree 0x4fcdc0 (`cls_mechlib`):
+   `test_mechlib.py` reads all 57 trees with the original and the port and
+   compares every node, its object3d data, links, and lists 6 and 7 with
+   their items, at frames 0 and 300. The multi-parent paths of 0x4ed8f0 and
+   0x4ed8b0 and the list-7 branch of 0x4eba90 are not reached by mechlib.
 7. Removal: 0x4f8220, 0x4f7980, 0x4f7bd0, 0x4f81e0, 0x4f8050, 0x4f8390,
    0x4ebc30, 0x4fb7f0, 0x4ebb40, 0x4eaf90, 0x4eb050, 0x4f84b0 (needs gmod's
    model release), 0x4f8ab0.

@@ -3,6 +3,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zutil/zutl_zar.h"
 
 namespace zcls {
@@ -82,6 +85,41 @@ void free_model(Model* m) {
   delete[] m->polygons;
   std::free(m->vertices), std::free(m->normals), std::free(m->morphs);
   delete m;
+}
+
+// Mech3.exe 1.2 @ 0x004fce50. The file's 0xd0 bytes replace the new node
+// except its data, flag bits 0-1, list-7 item and parents. Only object3d
+// nodes are made: the exe dereferences null for any other class.
+Node* read_node(std::FILE* f, Node* parent) {
+  uint8_t file_node[0xd0];
+  std::fread(file_node, sizeof file_node, 1, f);
+  int32_t cls;
+  std::memcpy(&cls, file_node + 0x34, 4);
+  if (cls != 5) return nullptr;
+  Node* node = object3d_create();
+  std::fread(static_cast<Object3d*>(node->data)->raw, 0x90, 1, f);
+  const uint32_t flags = node->flags();
+  std::memcpy(node->raw, file_node, sizeof file_node);
+  node->set_flags((node->flags() & ~3u) | (flags & 3));
+  node->put<int32_t>(0x54, 0), node->put<int32_t>(0x58, 0);
+  node->parents = nullptr;
+  if (parent) node_add_child(parent, node);
+  return node;
+}
+
+// Mech3.exe 1.2 @ 0x004fcdc0. Each node, its model, then its children, which
+// add themselves back as they are read.
+Node* read_tree(TreeReader& lib, std::FILE* f, Node* parent) {
+  if (!f) return nullptr;
+  ++lib.depth;
+  Node* node = read_node(f, parent);
+  if (node->get<int32_t>(0x3c) != 0) node->lib_model = read_model(f);
+  const int32_t children = node->child_count();
+  node->put<int32_t>(0x5c, 0), node->put<int32_t>(0x60, 0);
+  node->children = nullptr;
+  for (int32_t i = 0; i < children; ++i) read_tree(lib, f, node);
+  --lib.depth;
+  return node;
 }
 
 }  // namespace zcls

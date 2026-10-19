@@ -34,7 +34,15 @@ struct Material {                // 0xc bytes
   char* texture;                 // +0x08
 };
 
+struct Node;
+
+struct TreeReader {
+  int32_t depth = 0;             // +0x3c of the library object
+};
+
 bool read_material(std::FILE* f, Material& m);   // 0x004fc570
+Node* read_node(std::FILE* f, Node* parent);     // 0x004fce50
+Node* read_tree(TreeReader& lib, std::FILE* f, Node* parent);  // 0x004fcdc0
 Model* read_model(std::FILE* f);                 // 0x004fcf20, when node +0x3c != 0
 void free_model(Model* m);
 

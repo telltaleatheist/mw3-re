@@ -164,11 +164,10 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
       identical on all 442 materials and 770 models.
-- [ ] Mechlib: the node tree (read_tree/read_node). The zClass core it needs
-      is mapped and emulator-checked (`docs/zclass-world.md`); the lists and
-      the node pool are ported (`zclass/list`, `cls_node`). Next the tree
-      helpers, object3d, links, then the readers;
-      start from `tests/differential/explore/`.
+- [x] Mechlib: the node tree ported (`cls_mechlib` read_tree, `object3d`,
+      `cls_node`), identical on all 57 trees. Debt: mechlib models are their
+      own `zcls::Model` (Node::lib_model), apart from the world's `zmod::Model`;
+      merge the two model ports. Open: zClass removal and destroy (step 7).
 - [x] Mission worlds: mapped (`docs/gamez.md`), walk scripts in
       `tests/differential/explore/gamez_*.py`.
 - [x] Mission worlds: `gamez.zbd` ported end to end (`zclass/cls_zbd`

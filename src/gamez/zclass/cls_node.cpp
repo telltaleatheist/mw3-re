@@ -5,6 +5,7 @@
 #include <new>
 
 #include "gamez/zclass/list.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zerror/zerr.h"
 #include "platform/platform.h"
 
@@ -106,6 +107,82 @@ void set_expiry(Node* node) {
   node->put<uint32_t>(0xc0, 0);
   node->put<uint32_t>(0xc4, g_frames.expiry);
   for (int32_t i = node->child_count() - 1; i >= 0; --i) set_expiry(node->children[i]);
+}
+
+namespace {
+const char kClassFile[] = "C:\\zipper\\GameZMech3\\zClass\\Class.c";
+
+template <typename T>
+T* append(T* array, int32_t count, T value) {
+  T* grown = new T[count + 1];
+  for (int32_t i = 0; i < count; ++i) grown[i] = array[i];
+  grown[count] = value;
+  delete[] array;
+  return grown;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ed8f0. TREE_VALID (0x80000): one path to the root.
+// Setting it stops at a node with several parents; clearing goes all the way.
+int node_set_tree_valid(Node* node, int on) {
+  if (!node) return 1;
+  if (on) {
+    if (node->parent_count() > 1) return 0;
+    node->set_flags(node->flags() | 0x80000);
+  } else {
+    node->set_flags(node->flags() & ~0x80000u);
+  }
+  for (int32_t i = 0; i < node->child_count(); ++i) node_set_tree_valid(node->children[i], on);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ed8b0
+Node* node_root(Node* node) {
+  while (node) {
+    if (node->parent_count() == 0) return node;
+    if (node->parent_count() != 1) {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "Error getting root node; Multiple parents found.\n  Node: %s\n", node->name());
+      zerr::report(0x200, kClassFile, 0x10b4, msg);
+      return nullptr;
+    }
+    node = node->parents[0];
+  }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004eba90. No duplicate check. FIX (A): new arrays for realloc.
+int node_link(Node* parent, Node* child) {
+  parent->children = append(parent->children, parent->child_count(), child);
+  parent->put<int32_t>(0x5c, parent->child_count() + 1);
+  child->parents = append(child->parents, child->parent_count(), parent);
+  child->put<int32_t>(0x54, child->parent_count() + 1);
+  if (child->parent_count() > 1) node_set_tree_valid(child, 0);
+  parent->put<uint32_t>(0x2c, parent->get<uint32_t>(0x2c) | 2);
+  if ((parent->flags() & 1) == 0) {
+    push_front(kChanged, parent);
+    parent->set_flags(parent->flags() | 1);
+  }
+  parent->set_flags(parent->flags() | 2);
+  if (parent->changed) parent->changed->removable = 0;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb9b0. By the parent's class; the classes whose own
+// add-child is not ported yet stop the game rather than guess.
+int node_add_child(Node* parent, Node* child) {
+  if (!child) return zerr::report(0x400, kClassFile, 0x78f, "Null node pointer."), 5;
+  if (!parent) return zerr::report(0x400, kClassFile, 0x790, "Null node pointer."), 5;
+  if (parent == child) return 1;
+  switch (parent->cls()) {
+    case 3: case 4: case 9: case 10: return node_link(parent, child);
+    case 5: return object3d_add_child(parent, child);
+    default: {
+      char msg[80];
+      std::snprintf(msg, sizeof msg, "node_add_child: class %d is not ported yet", parent->cls());
+      gamez_abort(msg);
+    }
+  }
 }
 
 // The message's arguments are swapped: "Wanted" shows the class found.

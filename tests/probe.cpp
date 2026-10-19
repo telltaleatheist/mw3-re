@@ -1063,3 +1063,53 @@ int probe_part_id(const char* name) { return mech3::part_id(name); }
 const char* probe_part_name(int id) { return mech3::part_name(id); }
 
 }  // extern "C"
+
+namespace {
+void put_node_graph(std::vector<uint8_t>& b) {
+  const zcls::NodePool& p = zcls::nodes();
+  put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
+  for (int32_t i = 0; i < p.capacity; ++i) {
+    const zcls::Node* n = zcls::node_at(i);
+    if (n->cls() == 0 && n->flags() == 0) continue;
+    put_i32(b, i);
+    put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x58, 0x60, 0xcc});
+    put_bytes(b, &n->link, 4);
+    b.push_back(n->lib_model != nullptr);
+    for (int32_t k = 0; k < n->parent_count(); ++k) put_i32(b, node_index(n->parents[k]));
+    for (int32_t k = 0; k < n->child_count(); ++k) put_i32(b, node_index(n->children[k]));
+    put_item(b, n->changed);
+    if (n->cls() == 5 && n->data) put_bytes(b, static_cast<zcls::Object3d*>(n->data)->raw, 0x90);
+  }
+  for (int list : {zcls::kAllNodes, zcls::kChanged}) {
+    const zcls::List& l = zcls::lists().list[list];
+    int32_t c = 0;
+    for (zcls::ListItem* i = l.head; i; i = i->next) ++c;
+    put_i32(b, c);
+    for (zcls::ListItem* i = l.head; i; i = i->next) put_i32(b, node_index(i->node)), put_item(b, i), put_i32(b, i->removable);
+    put_item(b, l.tail);
+  }
+}
+}  // namespace
+
+extern "C" {
+
+// mechlib read_tree on one .flt entry at `offset` (test_mechlib.py).
+int probe_mechlib_tree(const char* path, long offset, int frame, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  std::fseek(f, offset, SEEK_SET);
+  zcls::nodes() = zcls::NodePool{};
+  zcls::lists() = zcls::Lists{};
+  zcls::frames() = zcls::Frames{static_cast<uint32_t>(frame), 0};
+  zcls::TreeReader lib;
+  zcls::Node* root = zcls::read_tree(lib, f, nullptr);
+  const long end = std::ftell(f);
+  std::fclose(f);
+  std::vector<uint8_t> b;
+  put_i32(b, static_cast<int32_t>(end - offset)), put_i32(b, node_index(root)), put_i32(b, lib.depth);
+  put_i32(b, static_cast<int32_t>(zcls::frames().expiry));
+  put_node_graph(b);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

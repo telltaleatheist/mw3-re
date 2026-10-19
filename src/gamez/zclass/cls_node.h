@@ -8,6 +8,7 @@
 // original file is unknown: these functions sit between class.c, cls_util.c
 // and cls_zbd.c, so the file is named for the struct.
 namespace zmod { struct Model; }
+namespace zcls { struct Model; }
 namespace platform { class Alert; }
 
 namespace zcls {
@@ -19,6 +20,8 @@ struct Node {                      // 0xd4-byte pool slot
   uint32_t link;                   // +0xd0  bits 0-23 free link, bit 24 live
   void* data = nullptr;            // +0x38  class data
   zmod::Model* model = nullptr;    // +0x3c  an index in the file
+  Model* lib_model = nullptr;      // +0x3c  for mechlib nodes: their models are a
+                                   // separate port for now (cls_mechlib.h)
   void* action = nullptr;          // +0x48  callback
   Node** parents = nullptr;        // +0x58
   Node** children = nullptr;       // +0x60
@@ -68,6 +71,10 @@ void set_alert(platform::Alert* alert);
 Node* node_at(int32_t index);      // 0x004fe1d0
 void free_node(int32_t index);     // 0x004f8ec0
 void set_expiry(Node* node);       // 0x004ed990
+int node_set_tree_valid(Node* node, int on);  // 0x004ed8f0, 1 for a null node
+Node* node_root(Node* node);       // 0x004ed8b0, 0 at a node with several parents
+int node_link(Node* parent, Node* child);       // 0x004eba90
+int node_add_child(Node* parent, Node* child);  // 0x004eb9b0
 
 // The null and class checks every class setter starts with: 0, or the
 // setter's return code (5 null node or data, 3 wrong class).
