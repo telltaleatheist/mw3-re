@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +14,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zsiscript/si_script.h"
 #include "gamez/zutil/zutl_zar.h"
 
 namespace viewer {
@@ -57,10 +59,14 @@ bool under_marker(const zcls::Node* n) {
   return false;
 }
 
-Xform world_xform(const zcls::Node* n, int depth = 0) {
+Xform world_xform(const zcls::Node* n, const Pose* pose = nullptr, int depth = 0) {
   Xform x = local_xform(n);
+  if (pose) {
+    auto it = pose->find(n->name());
+    if (it != pose->end()) std::memcpy(x.m, it->second.data(), 36), std::memcpy(x.t, it->second.data() + 9, 12);
+  }
   if (depth < 64 && n->parent_count() > 0 && n->parents && n->parents[0])
-    return combine(x, world_xform(n->parents[0], depth + 1));
+    return combine(x, world_xform(n->parents[0], pose, depth + 1));
   return x;
 }
 
@@ -200,18 +206,27 @@ std::string load_world(const std::string& zbd_dir, const std::string& mission, S
   return {};
 }
 
-std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scene& out) {
+struct Mech::Data {
+  zutl_zar::Archive archive{};
+  std::vector<zcls::Material> mats;
+  zcls::Node* root = nullptr;
+  std::vector<zimg::Library*> libs;
+};
+
+Mech::Mech() : d_(new Data) {}
+Mech::~Mech() = default;
+
+std::string Mech::load(const std::string& zbd_dir, const std::string& entry) {
   const std::string& dir = dir_slash(zbd_dir);
-  zutl_zar::Archive a;
+  zutl_zar::Archive& a = d_->archive;
   zutl_zar::init(a);
   if (!zutl_zar::open(a, (dir + "mechlib.zbd").c_str())) return "could not open " + dir + "mechlib.zbd";
   // The shared materials (0x4fc9e0), then the tree (0x4fcdc0).
-  std::vector<zcls::Material> mats;
   if (std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, "materials"), nullptr)) {
     uint32_t count = 0;
     std::fread(&count, 4, 1, f);
-    mats.resize(count);
-    for (zcls::Material& m : mats) zcls::read_material(f, m);
+    d_->mats.resize(count);
+    for (zcls::Material& m : d_->mats) zcls::read_material(f, m);
   }
   std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, entry.c_str()), nullptr);
   if (!f) {
@@ -222,27 +237,28 @@ std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scen
   }
   zcls::nodes() = zcls::NodePool{};
   zcls::TreeReader reader;
-  const long at = std::ftell(f);
-  zcls::Node* root = zcls::read_tree(reader, f, nullptr);
-  if (std::getenv("MW3VIEW_STATS"))
-    std::fprintf(stderr, "tree at %ld: root %p, read %ld bytes, %d nodes\n", at, static_cast<void*>(root),
-                 std::ftell(f) - at, zcls::node_total());
-  if (!root) return "could not read " + entry;
-  std::vector<zimg::Library*> libs = open_libraries({"rmechtex", "rmechtex16", "rimage"});
-  Builder build(out, libs);
-  std::vector<zcls::Node*> todo{root};
+  d_->root = zcls::read_tree(reader, f, nullptr);
+  if (!d_->root) return "could not read " + entry;
+  d_->libs = open_libraries({"rmechtex", "rmechtex16", "rimage"});
+  return {};
+}
+
+void Mech::build(Scene& out, const Pose* pose) const {
+  out = Scene{};
+  Builder build(out, d_->libs);
+  std::vector<zcls::Node*> todo{d_->root};
   while (!todo.empty()) {
     zcls::Node* n = todo.back();
     todo.pop_back();
     ++out.nodes;
-    for (int c = 0; c < n->child_count() && n->children; ++c) todo.push_back(n->children[c]);
+    for (int c = n->child_count() - 1; c >= 0 && n->children; --c) todo.push_back(n->children[c]);
     if (n->cls() != kObject3d || !n->lib_model) continue;
     ++out.objects;
     const zcls::Model& m = *n->lib_model;
-    const Xform x = world_xform(n);
+    const Xform x = world_xform(n, pose);
     for (uint32_t p = 0; p < m.polygon_count && m.polygons; ++p) {
       const zcls::Polygon& poly = m.polygons[p];
-      const zcls::Material* mat = poly.material < mats.size() ? &mats[poly.material] : nullptr;
+      const zcls::Material* mat = poly.material < d_->mats.size() ? &d_->mats[poly.material] : nullptr;
       float rgb[3] = {255, 255, 255};
       int img = -1;
       if (mat && mat->raw) {
@@ -253,9 +269,74 @@ std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scen
                     rgb, false);
     }
   }
+}
+
+struct Motion::Data {
+  zsis::Script script;
+};
+
+Motion::Motion() : d_(new Data) {}
+Motion::~Motion() = default;
+Motion::Motion(Motion&&) noexcept = default;
+Motion& Motion::operator=(Motion&&) noexcept = default;
+
+std::string Motion::load(const std::string& zbd_dir, const std::string& name) {
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  const std::string path = zbd_dir + "/motion.zbd";
+  if (!zutl_zar::open(a, path.c_str())) return "could not open " + path;
+  std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, name.c_str()), nullptr);
+  const bool ok = f && d_->script.read(f);
   zutl_zar::close(a);
   zutl_zar::destroy(a);
-  return {};
+  return ok ? std::string{} : "no motion " + name + " in " + path;
+}
+
+float Motion::loop_time() const { return d_->script.loop_time; }
+
+void Motion::pose(float t, Pose& out) const {
+  const zsis::Script& s = d_->script;
+  if (s.frame_count == 0 || s.loop_time <= 0) return;
+  float f = std::fmod(t, s.loop_time) / s.loop_time * static_cast<float>(s.frame_count);
+  if (f < 0) f += static_cast<float>(s.frame_count);
+  const auto i = static_cast<uint32_t>(f);
+  const float u = f - static_cast<float>(i);
+  for (uint32_t p = 0; p < s.part_count; ++p) {
+    const zsis::Part& part = *s.parts[p];
+    std::array<float, 12> m{1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+    if (part.rotations) {
+      const float* a = part.rotations + 4 * i;
+      const float* b = part.rotations + 4 * (i + 1);
+      const float dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+      const float sb = dot < 0 ? -u : u;
+      float q[4];
+      for (int k = 0; k < 4; ++k) q[k] = a[k] * (1 - u) + b[k] * sb;
+      const float len = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+      for (float& v : q) v /= len;
+      const float w = q[0], x = q[1], y = q[2], z = q[3];
+      // Rows are the rotated axes (row vectors): the transpose of the column form.
+      const float r[9] = {1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y),
+                          2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x),
+                          2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)};
+      std::copy(r, r + 9, m.begin());
+    }
+    if (part.translations)
+      for (int k = 0; k < 3; ++k)
+        m[9 + k] = part.translations[3 * i + k] * (1 - u) + part.translations[3 * (i + 1) + k] * u;
+    out[part.name ? part.name : ""] = m;
+  }
+}
+
+std::vector<std::string> motions(const std::string& zbd_dir, const std::string& prefix) {
+  std::vector<std::string> names;
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  if (zutl_zar::open(a, (zbd_dir + "/motion.zbd").c_str()))
+    for (int i = 0; i < a.count; ++i)
+      if (std::strncmp(a.entries[i].name, prefix.c_str(), prefix.size()) == 0) names.emplace_back(a.entries[i].name);
+  zutl_zar::close(a);
+  zutl_zar::destroy(a);
+  return names;
 }
 
 }  // namespace viewer

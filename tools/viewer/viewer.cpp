@@ -1,12 +1,12 @@
 // mw3view: a development viewer for mission worlds, on SDL3's GPU API. Not
 // part of the port (see scene.h).
 //
-//   mw3view [--zbd <dir>] [--mission t1 | --mech madcat] [--info] [--shot out.bmp]
-//           [--pos x y z] [--look yaw pitch]
+//   mw3view [--zbd <dir>] [--mission t1 | --mech madcat [--motion walk [--time s]]]
+//           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
 //
 // Controls: right mouse drag to look, WASD to move, Q/E down/up, Shift fast,
 // C toggles vertex colours, B the in/out-of-bounds areas, P prints the
-// camera, Esc quits.
+// camera, Esc quits. With a mech: M cycles its motions, Space pauses.
 #include <SDL3/SDL.h>
 
 #include <cmath>
@@ -197,6 +197,31 @@ bool upload(App& a, const viewer::Scene& s) {
   return true;
 }
 
+// Writes a rebuilt (posed) scene's vertices into the existing buffers.
+void reupload(App& a, const viewer::Scene& s) {
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(a.dev);
+  SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+  std::vector<SDL_GPUTransferBuffer*> staging;
+  size_t k = 0;
+  for (const viewer::Batch& b : s.batches) {
+    if (b.vertices.empty()) continue;
+    if (k >= a.batches.size() || a.batches[k].count != b.vertices.size()) break;
+    const auto size = static_cast<uint32_t>(b.vertices.size() * sizeof(viewer::Vertex));
+    SDL_GPUTransferBufferCreateInfo ti{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size, 0};
+    SDL_GPUTransferBuffer* tb = SDL_CreateGPUTransferBuffer(a.dev, &ti);
+    std::memcpy(SDL_MapGPUTransferBuffer(a.dev, tb, false), b.vertices.data(), size);
+    SDL_UnmapGPUTransferBuffer(a.dev, tb);
+    SDL_GPUTransferBufferLocation src{tb, 0};
+    SDL_GPUBufferRegion dst{a.batches[k].buffer, 0, size};
+    SDL_UploadToGPUBuffer(copy, &src, &dst, false);
+    staging.push_back(tb);
+    ++k;
+  }
+  SDL_EndGPUCopyPass(copy);
+  SDL_SubmitGPUCommandBuffer(cmd);
+  for (SDL_GPUTransferBuffer* tb : staging) SDL_ReleaseGPUTransferBuffer(a.dev, tb);
+}
+
 struct Camera {
   float eye[3] = {0, 0, 0};
   float yaw = 0, pitch = 0;
@@ -278,7 +303,8 @@ bool screenshot(App& a, const Camera& cam, float far_plane, const char* path) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string zbd = MW3_GAME_DIR "/zbd", mission = "t1", mech, shot;
+  std::string zbd = MW3_GAME_DIR "/zbd", mission = "t1", mech, motion_name, shot;
+  float anim_time = 0;
   bool info = false, have_pos = false, have_look = false;
   Camera cam;
   for (int i = 1; i < argc; ++i) {
@@ -286,6 +312,8 @@ int main(int argc, char** argv) {
     if (arg == "--zbd" && i + 1 < argc) zbd = argv[++i];
     else if (arg == "--mission" && i + 1 < argc) mission = argv[++i];
     else if (arg == "--mech" && i + 1 < argc) mech = argv[++i];
+    else if (arg == "--motion" && i + 1 < argc) motion_name = argv[++i];
+    else if (arg == "--time" && i + 1 < argc) anim_time = std::stof(argv[++i]);
     else if (arg == "--info") info = true;
     else if (arg == "--shot" && i + 1 < argc) shot = argv[++i];
     else if (arg == "--pos" && i + 3 < argc) {
@@ -297,9 +325,29 @@ int main(int argc, char** argv) {
     }
   }
   viewer::Scene scene;
-  if (!mech.empty() && mech.find(".flt") == std::string::npos) mech = "mech_" + mech + ".flt";
-  const std::string err = mech.empty() ? viewer::load_world(zbd, mission, scene) : viewer::load_mech(zbd, mech, scene);
-  if (!mech.empty()) mission = mech;
+  viewer::Mech mech_model;
+  viewer::Motion motion;
+  viewer::Pose pose;
+  std::vector<std::string> motion_list;
+  size_t motion_at = 0;
+  std::string err;
+  if (mech.empty()) {
+    err = viewer::load_world(zbd, mission, scene);
+  } else {
+    const std::string base = mech;
+    if (mech.find(".flt") == std::string::npos) mech = "mech_" + mech + ".flt";
+    err = mech_model.load(zbd, mech);
+    motion_list = viewer::motions(zbd, base + "_");
+    if (err.empty() && !motion_name.empty()) {
+      if (motion_name.find('_') == std::string::npos) motion_name = base + "_" + motion_name;
+      err = motion.load(zbd, motion_name);
+      for (size_t i = 0; i < motion_list.size(); ++i)
+        if (motion_list[i] == motion_name) motion_at = i;
+      if (err.empty()) motion.pose(anim_time, pose);
+    }
+    if (err.empty()) mech_model.build(scene, motion_name.empty() ? nullptr : &pose);
+    mission = motion_name.empty() ? mech : motion_name;
+  }
   if (!err.empty()) {
     std::fprintf(stderr, "%s\n", err.c_str());
     return 1;
@@ -350,7 +398,7 @@ int main(int argc, char** argv) {
     return ok ? 0 : 1;
   }
 
-  bool running = true, looking = false;
+  bool running = true, looking = false, paused = false;
   Uint64 last = SDL_GetTicks();
   while (running) {
     SDL_Event e;
@@ -359,6 +407,18 @@ int main(int argc, char** argv) {
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE) running = false;
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_C) cam.colors = !cam.colors;
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_B) cam.markers = !cam.markers;
+      if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_SPACE) paused = !paused;
+      if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_M && !motion_list.empty()) {
+        motion_at = motion_name.empty() ? 0 : (motion_at + 1) % motion_list.size();
+        motion_name = motion_list[motion_at];
+        motion = viewer::Motion{};
+        if (motion.load(zbd, motion_name).empty()) {
+          anim_time = 0;
+          SDL_SetWindowTitle(a.window, ("mw3view: " + motion_name).c_str());
+        } else {
+          motion_name.clear();
+        }
+      }
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_P)
         std::printf("--pos %.1f %.1f %.1f --look %.1f %.1f\n", cam.eye[0], cam.eye[1], cam.eye[2],
                     cam.yaw / 0.0174533f, cam.pitch / 0.0174533f);
@@ -375,7 +435,7 @@ int main(int argc, char** argv) {
     const float dt = (now - last) / 1000.0f;
     last = now;
     const bool* k = SDL_GetKeyboardState(nullptr);
-    const float speed = (k[SDL_SCANCODE_LSHIFT] ? 2000.0f : 300.0f) * dt;
+    const float speed = (k[SDL_SCANCODE_LSHIFT] ? 2000.0f : 300.0f) * dt * (mech.empty() ? 1.0f : 0.05f);
     const float fwd[3] = {std::cos(cam.pitch) * std::sin(cam.yaw), std::sin(cam.pitch),
                           std::cos(cam.pitch) * std::cos(cam.yaw)};
     const float right[3] = {-std::cos(cam.yaw), 0, std::sin(cam.yaw)};
@@ -384,6 +444,13 @@ int main(int argc, char** argv) {
       cam.eye[i] += (k[SDL_SCANCODE_D] - k[SDL_SCANCODE_A]) * right[i] * speed;
     }
     cam.eye[1] += (k[SDL_SCANCODE_E] - k[SDL_SCANCODE_Q]) * speed;
+    if (!motion_name.empty()) {
+      if (!paused) anim_time += dt;
+      pose.clear();
+      motion.pose(anim_time, pose);
+      mech_model.build(scene, &pose);
+      reupload(a, scene);
+    }
 
     SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(a.dev);
     SDL_GPUTexture* swap = nullptr;

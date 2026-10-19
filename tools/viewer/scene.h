@@ -1,5 +1,8 @@
 #pragma once
+#include <array>
 #include <cstdint>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -38,8 +41,44 @@ struct Scene {
 // rtexture.zbd, rmechtex.zbd and rimage.zbd. Empty error string on success.
 std::string load_world(const std::string& zbd_dir, const std::string& mission, Scene& out);
 
-// Reads one model tree from <zbd_dir>/mechlib.zbd (e.g. "mech_madcat.flt")
-// with the shared materials, textures from rmechtex*.zbd.
-std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scene& out);
+// Local transforms by part name (3x3 rows then translation), replacing the
+// model's own for the parts a motion moves.
+using Pose = std::map<std::string, std::array<float, 12>>;
+
+// One model tree from <zbd_dir>/mechlib.zbd (e.g. "mech_madcat.flt") with the
+// shared materials, textures from rmechtex*.zbd. build() can run again with a
+// new pose; the batches keep their order and sizes.
+class Mech {
+ public:
+  Mech();
+  ~Mech();
+  std::string load(const std::string& zbd_dir, const std::string& entry);
+  void build(Scene& out, const Pose* pose) const;
+
+ private:
+  struct Data;
+  std::unique_ptr<Data> d_;
+};
+
+// One animation from <zbd_dir>/motion.zbd (e.g. "madcat_walk"), read by the
+// ported zSIScript reader. The game's own playback is not ported; this samples
+// the keys linearly (rotations normalised).
+class Motion {
+ public:
+  Motion();
+  ~Motion();
+  Motion(Motion&&) noexcept;
+  Motion& operator=(Motion&&) noexcept;
+  std::string load(const std::string& zbd_dir, const std::string& name);
+  float loop_time() const;
+  void pose(float t, Pose& out) const;
+
+ private:
+  struct Data;
+  std::unique_ptr<Data> d_;
+};
+
+// The motion names in <zbd_dir>/motion.zbd that start with `prefix`.
+std::vector<std::string> motions(const std::string& zbd_dir, const std::string& prefix);
 
 }  // namespace viewer
