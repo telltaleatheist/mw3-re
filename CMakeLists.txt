@@ -70,6 +70,10 @@ add_library(mw3core STATIC
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
+  src/mech3/options.cpp
+  src/mech3/app.cpp
+  src/mech3/app_hooks.cpp
+  src/mech3/app_states.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -96,6 +100,9 @@ add_library(mw3probe SHARED
   tests/probe_scenewalk.cpp
   tests/probe_damage.cpp
   tests/probe_interp.cpp
+  tests/probe_app.cpp
+  tests/probe_options.cpp
+  tests/probe_states.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 
@@ -107,6 +114,7 @@ add_executable(mw3tests
   tests/test_msvc_rand.cpp
   tests/test_ztimer.cpp
   tests/test_zgameapp.cpp
+  tests/test_app.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
   tests/test_zreader.cpp

@@ -204,9 +204,19 @@ From the weapon code (weapons.md).
   the disc check, it stops a startup crash on fast PCs (a CPU speed test that
   divides by zero) and keeps a software-mode line from drawing outside the
   screen. Likely why some found it "more stable" than the original.
-- **Hidden launch switches**: `-nofmv` skips the movies, `-cdN` forces CD
-  music track N in missions, `-seasick` sets an otherwise menu-controlled
-  option (meaning not yet known).
+- **Hidden launch switches**: `-nofmv` skips the intro, attract and
+  campaign-opening movies (not the MicroProse/Zipper logos), `-cdN` forces CD
+  music track N in missions (N must be below the disc's track count), and
+  `-seasick` turns on the hidden "FastMenu" option, which the menu screens
+  read to turn off their motion (likely: named for players who got seasick).
+  The switches only need to start right: `-nofmvx` counts as `-nofmv`
+  (game-loop.md, startup.md).
+- **Leave the main menu alone for a minute** and the attract movie plays.
+- **The random mission music can pick the data track.** Without `-cdN`, on a
+  disc with more than five tracks a mission plays a random track from 1 up,
+  and track 1 of a game CD is data: that mission is silent (on a disc of 2-5
+  tracks the mission number picks instead). In the rebuild there is no
+  track01 file, so the same silence.
 - **Turn a cheat on once and the campaign mission doesn't count.**
   Invincibility, unlimited ammo or heat off, even switched off again, mean
   "Replay Mission" instead of "Next Mission" and no score added, until you
@@ -560,6 +570,14 @@ From the animation files (anim.md).
 
 ## Game states
 
+- **Escape doesn't pause a multiplayer mission**: a message box asks instead
+  and the mission runs on. In single player, Escape pushes the pause menu.
+- **During a network game the game turns off Alt-Tab** (Windows 9x's "screen
+  saver running" trick, also blocking Ctrl-Alt-Del) for the missions, and the
+  cheat options no longer touch your mech.
+- **The release build's error messages are switched off.** Every internal
+  check ("Stack Depth Underflow" and the like) calls a function that is a
+  single `ret` in 1.2, so problems were never reported, only lived with.
 - **The menu/state stack has no real guard rails** (`zgameapp.cpp`). Too many
   "pops" leave it resuming the bottom screen, and too many "pushes" overwrite
   the top one. Pushing onto an empty stack would crash; the game always starts

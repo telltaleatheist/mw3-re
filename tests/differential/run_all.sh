@@ -33,6 +33,9 @@ for t in \
     texload \
     scenewalk \
     interp \
+    app_loop \
+    app_options \
+    app_states \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

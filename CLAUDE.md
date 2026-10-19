@@ -175,24 +175,25 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Next steps
 
-Order agreed with Owen on 2026-10-18: zReader first, because it stands alone,
-can be checked two ways and unblocks loading data.
+Where things stand (2026-10-20): every data format loads; the render path is
+ported end to end (docs/render.md, `mw3view --real`); the main loop, game
+states, options, damage, heat, power, the mission script interpreter and the
+world parameters are ported. Next, in parallel where the pieces meet only
+through hooks:
 
-1. zReader: done for the archive and binary data (`docs/zreader.md`),
-   emulator-checked on all of `reader.zbd`; `zsnd_cd::read_cues` reads
-   CD_TRACKS from it. Still open: the loose-text tokenizer and the archive
-   writer (neither is used by the shipped game), and the other `.zbd` kinds
-   (motion, sounds, textures, mechlib), which have their own formats.
-2. Data structures: the mech hierarchy, its parts, the mech definition and the
-   scene node are in `docs/types.json` and applied to the headless project
-   (`docs/structs.md`). Still open: weapons and ammo, the pilot/HUD object
-   (+0x684), and naming more of the mech's ~170 placeholder fields.
-3. Heat: ported (`src/mech3/mech.cpp`, `docs/heat.md`), emulator-checked.
-   Open: the lava-per-frame decision, mission mode 3, the controls value.
-4. Init/shutdown: mapped (`docs/startup.md`), with the game states and the
-   tamper check. Open: the 0x200 pool, the options setters at 0x40cb30.
-5. Start the SDL3 front end (window, clock, music output) once the GPU is
-   free. Present with vsync, as the original did (`docs/heat.md`, Frame rate).
+1. The game half's systems: mech movement and physics (terrain, collision,
+   jumping), weapons at run time, the AI, sound (zSound) and music.
+2. The 2D front end (zTwoD) and its menus, the mech lab, the HUD; then the
+   movies (Indeo 5).
+3. Projected shadows and puffers (in progress), then the remaining render
+   pieces (lens flares, the cockpit pass, the software path stays undecided).
+4. The SDL3 program itself: platform implementations (window and message
+   pump, clock, input, audio, Render3D) and the hooks wired to the ports, so
+   the port starts like the game; a debug start straight into a mission for
+   testing while the menus are not ported.
+5. Open from earlier: the lava-per-frame decision (Owen), mission mode 3 and
+   the controls value in heat, the loose-text .zrd tokenizer, weapons/ammo
+   and pilot structures, the detail.zrd loader and registry settings.
 
 ## Work queue (small pieces, 2026-10-19 night)
 
