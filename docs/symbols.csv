@@ -231,3 +231,7 @@ address,name,source,notes
 0x004eacb0,zcls_node_total,asm,"ported"
 0x004eacc0,zcls_node_live,asm,"ported"
 0x004eada0,zcls_gamez_abort,asm,"ported; (ECX msg) MessageBox + ExitProcess, FIX (A)"
+0x0046b890,mech_dfn_ctor,asm,"ported; MechDfn(index, tree) thiscall ret 8, the defaults"
+0x0046ba20,mech_part_slot_set,asm,"ported; (id, node) ret 8, node unused"
+0x00484e40,mech_part_id,asm,"ported; (ECX name) -> id, lleg/rleg alias the thighs"
+0x00484cc0,mech_part_name,asm,"ported; (ECX id) -> name, else none"

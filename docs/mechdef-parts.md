@@ -1,7 +1,12 @@
 # Mech definition: firepoints and part slots
 
-Mech3.exe 1.2, 2026-10-19. Mapped from the asm (radius/share checked
-again in 0x46c0c9 and 0x4b2530); nothing ported or run yet. Follows
+Mech3.exe 1.2, 2026-10-19. Ported: `src/mech3/mech_reader.*` (the MechDfn
+constructor 0x46b890, 0x46ba20, `read_firepoints`, `read_part_slots`) and
+`mech_names.*` (0x484e40, 0x484cc0). `test_mechdef.py` runs the original
+blocks after the original constructor on all 19 files: the MechDfn image,
+part slots and firepoints match, and the part id/name helpers agree on every
+name and id tried. Only the Elemental tells radius from share (every other
+mech has 0.5 for both), and it caught a deliberate swap. Follows
 `docs/mechdef-skins.md`: the mech definition reader 0x46ba40
 (`mech3\mech_reader.cpp`) after the skins block. Everything is from the asm
 (`analysis-output/mech3.asm`); Ghidra's pseudocode drops ECX/EDX on all the

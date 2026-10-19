@@ -1028,3 +1028,38 @@ int probe_node_ops(const int32_t* ops, int count, int block_size, int chunk_size
 }
 
 }  // extern "C"
+
+#include "mech3/mech_names.h"
+#include "mech3/mech_reader.h"
+
+extern "C" {
+
+// The MechDfn constructor, then the firepoints and part-slot blocks of the
+// mech reader on one dfn file (test_mechdef.py).
+int probe_firepoints(const char* path, long offset, uint8_t* out, int cap) {
+  if (probe_zrdr_load(path, offset) < 0) return -1;
+  mech3::MechDfn d(7, &g_probe_root);
+  mech3::read_firepoints(d);
+  mech3::read_part_slots(d);
+  uint8_t image[0x1a8];
+  std::memcpy(image, d.raw, sizeof image);
+  std::memcpy(image, &d.index, 4), image[4] = d.loaded;
+  for (int i = 0; i < 18; ++i) {
+    const mech3::PartSlot& s = d.parts[i];
+    uint8_t* p = image + 0x28 + 0x10 * i;
+    std::memset(p, 0, 4), std::memcpy(p + 4, &s.f4, 4), std::memcpy(p + 8, &s.i8, 4), std::memcpy(p + 12, &s.id, 4);
+  }
+  std::vector<uint8_t> b;
+  put_bytes(b, image, sizeof image);
+  for (const mech3::PartSlot& s : d.parts) put_cstr(b, s.name);
+  put_i32(b, static_cast<int32_t>(d.firepoints->size()));
+  for (const mech3::Firepoint* f : *d.firepoints) {
+    put_cstr(b, f->name), put_bytes(b, &f->radius, 4), put_bytes(b, &f->share, 4), put_i32(b, f->part);
+  }
+  return finish(b, out, cap);
+}
+
+int probe_part_id(const char* name) { return mech3::part_id(name); }
+const char* probe_part_name(int id) { return mech3::part_name(id); }
+
+}  // extern "C"
