@@ -42,6 +42,12 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   flag 0x20 also drops the sun's diffuse term (the sun gives min(1, ambient)).
   Not ported: 0x544ed0, the baked static light (the sun reaches cached models
   only through it), and the software lighting 0x544060.
+- The Direct3D model draw 0x53f2e0: default models, points, facades (modes
+  0 and 1), morphs, per-polygon reversal, backface test, strips, material
+  cycles, both clips, projection with the priority bias, the second pass,
+  and the draw-table calls: `zmodel/gmod_draw`, `render-modeldraw.md`.
+  Identical on all six worlds (18,000 draws). Still hooked: the light bake,
+  projected lights, shadow casters, lens flares.
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
