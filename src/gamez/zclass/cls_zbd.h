@@ -4,11 +4,22 @@
 
 #include "gamez/zclass/cls_node.h"
 
-// zClass\cls_zbd.c: the node part of gamez.zbd (docs/gamez.md, section 4).
+// zClass\cls_zbd.c: reading gamez.zbd and its node part (docs/gamez.md).
 namespace zcls {
 
 int read_node_list(Node** out, int32_t count, std::FILE* f);  // 0x004fea80
 int read_node(Node* node, std::FILE* f);                      // 0x004feaf0
 int read_nodes(int32_t size, std::FILE* f);                   // 0x004ff200
+
+struct ZbdHeader {                 // 0x24 bytes
+  uint32_t signature;              // 0x02971222
+  uint32_t version;                // 27
+  int32_t texture_count;
+  int32_t textures_offset, materials_offset, models_offset;
+  int32_t node_array_size, node_last_free, nodes_offset;
+};
+std::FILE* open_zbd(const char* path, ZbdHeader* header);     // 0x004ff6a0
+char* zbd_path();                                             // 0x0060bf50, 0x30 bytes
+int read_zbd(const char* path);                               // 0x004ff520
 
 }  // namespace zcls

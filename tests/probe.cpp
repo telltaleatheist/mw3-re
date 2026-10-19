@@ -694,22 +694,8 @@ void put_item(std::vector<uint8_t>& b, const zcls::ListItem* item) {
   }
   put_i32(b, chunk), put_i32(b, slot);
 }
-}  // namespace
 
-extern "C" {
-
-// The node pool after reading one world's textures-to-nodes (test_gamez.py).
-int probe_nodes(const char* path, long moff, long mdl_off, long node_off, int size, int free_head,
-                uint8_t* out, int cap) {
-  std::FILE* f = std::fopen(path, "rb");
-  if (!f) return -1;
-  zvid::set_pixel_format(5, 6, 5);
-  zmod::materials() = zmod::MaterialTable{};
-  std::fseek(f, moff, SEEK_SET);
-  zmod::read_materials(f);
-  zmod::models() = zmod::ModelPool{};
-  std::fseek(f, mdl_off, SEEK_SET);
-  zmod::read_models(f);
+void reset_world_state(int free_head) {
   zcls::nodes() = zcls::NodePool{};
   zcls::nodes().free_head = free_head;
   zcls::lists() = zcls::Lists{};
@@ -719,14 +705,11 @@ int probe_nodes(const char* path, long moff, long mdl_off, long node_off, int si
   zvid::clear_color() = 0;
   g_reports.clear();
   zerr::set_sink(record_report);
-  std::fseek(f, node_off, SEEK_SET);
-  const int32_t r = zcls::read_nodes(size, f);
-  std::fclose(f);
-  zerr::set_sink(nullptr);
+}
 
+void dump_world(std::vector<uint8_t>& b, int size) {
   const zcls::NodePool& p = zcls::nodes();
-  std::vector<uint8_t> b;
-  put_i32(b, r), put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
+  put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
   put_i32(b, static_cast<int32_t>(p.blocks.size()));
   for (int32_t i = 0; i < p.capacity; ++i) {
     zcls::Node* n = zcls::node_at(i);
@@ -760,6 +743,51 @@ int probe_nodes(const char* path, long moff, long mdl_off, long node_off, int si
   put_bytes(b, &zvid::clear_color(), 4);
   put_i32(b, static_cast<int32_t>(g_reports.size() / 2));
   for (int32_t v : g_reports) put_i32(b, v);
+}
+}  // namespace
+
+extern "C" {
+
+// The node pool after reading one world's textures-to-nodes (test_gamez.py).
+int probe_nodes(const char* path, long moff, long mdl_off, long node_off, int size, int free_head,
+                uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  zvid::set_pixel_format(5, 6, 5);
+  zmod::materials() = zmod::MaterialTable{};
+  std::fseek(f, moff, SEEK_SET);
+  zmod::read_materials(f);
+  zmod::models() = zmod::ModelPool{};
+  std::fseek(f, mdl_off, SEEK_SET);
+  zmod::read_models(f);
+  reset_world_state(free_head);
+  std::fseek(f, node_off, SEEK_SET);
+  const int32_t r = zcls::read_nodes(size, f);
+  std::fclose(f);
+  zerr::set_sink(nullptr);
+  std::vector<uint8_t> b;
+  put_i32(b, r);
+  dump_world(b, size);
+  return finish(b, out, cap);
+}
+
+// The whole of 0x4ff520 on one file: result, reports, then the world when read.
+int probe_read_zbd(const char* path, int size, uint8_t* out, int cap) {
+  zimg::textures().count = 0;
+  zimg::textures().group = 3;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zvid::set_pixel_format(5, 6, 5);
+  reset_world_state(-1);
+  const int32_t r = zcls::read_zbd(path);
+  zerr::set_sink(nullptr);
+  std::vector<uint8_t> b;
+  put_i32(b, r);
+  put_i32(b, static_cast<int32_t>(g_reports.size() / 2));
+  for (int32_t v : g_reports) put_i32(b, v);
+  put_i32(b, zimg::textures().count), put_i32(b, zmod::materials().count);
+  put_i32(b, zmod::models().count);
+  if (r == 0) dump_world(b, size);
   return finish(b, out, cap);
 }
 

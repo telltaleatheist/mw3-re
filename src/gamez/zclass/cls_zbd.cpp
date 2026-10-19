@@ -8,7 +8,9 @@
 #include "gamez/zclass/display.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 
 namespace zcls {
 
@@ -214,6 +216,70 @@ int read_nodes(int32_t size, std::FILE* f) {
     for (int32_t i = 0; i < w->get<int32_t>(0xac); ++i) w->sound_data[i] = w->sounds[i]->data;
   }
   return p.capacity;
+}
+
+// Mech3.exe 1.2 @ 0x004ff6a0. Only the signature and version are checked.
+std::FILE* open_zbd(const char* path, ZbdHeader* header) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return nullptr;
+  int line;
+  const char* msg;
+  if (std::fread(header, sizeof *header, 1, f) != 1) {
+    line = 0x584, msg = "Error reading GameZ header data.";
+  } else if (header->signature != 0x02971222) {
+    line = 0x58d, msg = "Error reading GameZ header data; incompatible file type";
+  } else if (header->version != 27) {
+    line = 0x596, msg = "Error reading GameZ header data; incompatible file version";
+  } else {
+    return f;
+  }
+  zerr::report(0x200, kFile, line, msg);
+  std::fclose(f);
+  return nullptr;
+}
+
+char* zbd_path() {
+  static char path[0x30];
+  return path;
+}
+
+// Mech3.exe 1.2 @ 0x004ff520. A path too long to remember is still read; the
+// old remembered path stays.
+int read_zbd(const char* path) {
+  const size_t len = std::strlen(path);
+  if (len == 0) return -1;
+  if (len < 0x2f) {
+    std::memcpy(zbd_path(), path, len + 1);
+  } else {
+    char msg[80];
+    std::snprintf(msg, sizeof msg, "zbd_filename length %d exceeds storage string size %d.",
+                  static_cast<int>(len), 0x30);
+    zerr::report(0x200, kFile, 0x5c0, msg);
+  }
+  ZbdHeader h;
+  std::FILE* f = open_zbd(path, &h);
+  if (!f) return -1;
+  int line = 0;
+  const char* msg = nullptr;
+  std::fseek(f, h.textures_offset, SEEK_SET);
+  if (zimg::read_texture_directory(h.texture_count, f) < 0) {
+    line = 0x5d1, msg = "Error reading GameZ texture data.";
+  } else if (std::fseek(f, h.materials_offset, SEEK_SET), zmod::read_materials(f) < 0) {
+    line = 0x5dd, msg = "Error reading GameZ material data.";
+  } else if (std::fseek(f, h.models_offset, SEEK_SET), zmod::read_models(f) < 0) {
+    line = 0x5e9, msg = "Error reading GameZ model3d data.";
+  } else {
+    nodes().free_head = h.node_last_free;
+    std::fseek(f, h.nodes_offset, SEEK_SET);
+    if (read_nodes(h.node_array_size, f) >= 0) {
+      std::fclose(f);
+      return 0;
+    }
+    line = 0x5f6, msg = "Error reading GameZ node data.";
+  }
+  zerr::report(0x200, kFile, line, msg);
+  std::fclose(f);
+  return -1;
 }
 
 }  // namespace zcls

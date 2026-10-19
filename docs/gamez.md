@@ -48,6 +48,13 @@ below is silent. The only result anyone sees is the return value.
 
 ## 0x4ff520 `gClsReadZBD(path)` (ecx, returns 0 or -1)
 
+Ported: `zcls::read_zbd` / `open_zbd` (`src/gamez/zclass/cls_zbd.*`).
+Identical in the emulator on all six worlds (long absolute paths, so the
+too-long branch) plus a short relative path, and on a bad signature, a bad
+version, a short header, a header-only file, a missing file and an empty
+path. The whole of `gamez.zbd` is now read by ported code; only the re-read
+path (below) is left.
+
 1. An empty path returns -1. A path shorter than 0x2f characters is copied to
    0x60bf50 (the remembered file, used again by 0x4ff730). A longer one only
    logs `zbd_filename length %d exceeds storage string size %d.` and goes on

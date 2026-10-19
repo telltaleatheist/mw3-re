@@ -171,10 +171,10 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       start from `tests/differential/explore/`.
 - [x] Mission worlds: mapped (`docs/gamez.md`), walk scripts in
       `tests/differential/explore/gamez_*.py`.
-- [ ] Mission worlds: texture directory, materials, models and nodes ported
-      (`zimg_texture`, `zmodel/gmod_*`, `zclass/cls_zbd` and its helpers;
-      all identical on the six worlds); next the top-level reader
-      (0x4ff6a0, 0x4ff520) with bad-header cases, as `docs/gamez.md`.
+- [x] Mission worlds: `gamez.zbd` ported end to end (`zclass/cls_zbd`
+      0x4ff520 and the section readers), identical on the six worlds and on
+      broken files. Left for later: the re-read path (0x4ff730, 0x4ff7a0,
+      0x538640), `docs/gamez.md` porting order step 7.
 - [x] Mission scripts: mapped (`docs/interp.md`), decoder in
       `tests/differential/explore/interp_*.py`.
 - [ ] Mission animations: port the anim.zbd read phase (`docs/anim.md`,

@@ -26,7 +26,9 @@ probe.probe_models.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ct
 MODELS, POOL, POOL_SIZE, POOL_COUNT, POOL_FREE = 0x538e30, 0x7402e4, 0x7402e0, 0x7402e8, 0x7402ec
 probe.probe_nodes.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ctypes.c_long, ctypes.c_int,
                               ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
-NODES, ZERR = 0x4ff200, 0x49bfd0
+NODES, ZERR, READ_ZBD = 0x4ff200, 0x49bfd0, 0x4ff520
+IAT_FOPEN, IAT_FSEEK, IAT_FCLOSE = 0x5bb628, 0x5bb59c, 0x5bb630
+probe.probe_read_zbd.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 NODE_BLOCKS, NODE_NBLOCKS, NODE_CAP, NODE_LIVE, NODE_FREE = 0x60bf38, 0x60bf30, 0x60bf34, 0x60bf3c, 0x5ea834
 LIST_HEADS, LIST_TAILS, ITEM_CHUNKS, ITEM_NCHUNKS, ITEM_FREE = 0x5ea6d0, 0x5ea710, 0x60bf18, 0x60bf14, 0x60bf0c
 FOG, FOG_COLOR, CLEAR_COLOR, SOFT_FORMAT = 0x74a22c, 0x800548, 0x802794, 0x74a740
@@ -190,9 +192,8 @@ class Emulated:
                     out.append(r(col, c * 12))
         return b''.join(out)
 
-    def nodes(self, data, moff, mdl_off, node_off, size, free_head):
-        cpu, r, i32 = self.cpu, self.cpu.read, self.i32
-        self.models(data, moff, mdl_off)
+    def reset_world(self, free_head):
+        cpu = self.cpu
         for a in (NODE_BLOCKS, NODE_NBLOCKS, NODE_CAP, NODE_LIVE, CLEAR_COLOR):
             cpu.u32(a, 0)
         cpu.u32(NODE_FREE, free_head & 0xffffffff)
@@ -200,14 +201,53 @@ class Emulated:
         cpu.write(FOG, bytes(0x38))
         cpu.write(FOG_COLOR, bytes(0xa0))
         cpu.write(SOFT_FORMAT, struct.pack('<IIIiii', 0xf800, 0x07e0, 0, 8, 3, 3))
-        reports = []
         if not getattr(self, 'zerr_stubbed', False):
             cpu.stub_function(ZERR, lambda c: self.reports.append((c.arg(0), c.arg(2))))
             self.zerr_stubbed = True
-        self.reports = reports
+        self.reports = []
+
+    def report_bytes(self):
+        return struct.pack('<i', len(self.reports)) + b''.join(struct.pack('<ii', *x) for x in self.reports)
+
+    def nodes(self, data, moff, mdl_off, node_off, size, free_head):
+        self.models(data, moff, mdl_off)
+        self.reset_world(free_head)
         self.data, self.pos = data, node_off
-        cpu.call(NODES, ecx=size, edx=HANDLE)
+        self.cpu.call(NODES, ecx=size, edx=HANDLE)
+        res = struct.unpack('<i', struct.pack('<I', self.cpu.uc.reg_read(UC_X86_REG_EAX)))[0]
+        return struct.pack('<i', res) + self.dump_world(size)
+
+    def read_zbd(self, data, path, exists=True):
+        """0x4ff520 on `data` as the file at `path` (bytes)."""
+        cpu = self.cpu
+        if not getattr(self, 'files_stubbed', False):
+            cpu.stub_import(IAT_FOPEN, lambda c: HANDLE if self.open_ok else 0)
+            cpu.stub_import(IAT_FSEEK, self.fseek)
+            cpu.stub_import(IAT_FCLOSE, lambda c: 0)
+            self.files_stubbed = True
+        self.next, self.data, self.pos, self.open_ok = BIG, data, 0, exists
+        for a in (BLOCKS, 0x63fbc0, CAPACITY, COUNT_M, POOL, POOL_SIZE, POOL_COUNT, COUNT):
+            cpu.u32(a, 0)
+        cpu.u32(GROUP, 3)
+        cpu.call(SET_FORMAT, ecx=5, edx=6, stack_args=(5, 0, 0, 0))
+        self.reset_world(-1)
+        p = self.alloc(len(path) + 1)
+        cpu.write(p, path + b'\0')
+        cpu.call(READ_ZBD, ecx=p)
         res = struct.unpack('<i', struct.pack('<I', cpu.uc.reg_read(UC_X86_REG_EAX)))[0]
+        out = struct.pack('<i', res) + self.report_bytes()
+        out += struct.pack('<3i', self.i32(COUNT), self.i32(COUNT_M), self.i32(POOL_COUNT))
+        if res == 0:
+            out += self.dump_world(struct.unpack_from('<i', data, 0x18)[0])
+        return out
+
+    def fseek(self, c):
+        assert c.arg(0) == HANDLE and c.arg(2) == 0
+        self.pos = c.arg(1)
+        return 0
+
+    def dump_world(self, size):
+        cpu, r, i32 = self.cpu, self.cpu.read, self.i32
         bs, nblocks, cap = i32(0x5ea830), i32(NODE_NBLOCKS), i32(NODE_CAP)
         blocks = [i32(i32(NODE_BLOCKS) + 4 * b) & 0xffffffff for b in range(nblocks)]
         pool = i32(POOL) & 0xffffffff
@@ -223,7 +263,7 @@ class Emulated:
         def slot(i):
             return blocks[i // bs] + (i % bs) * 0xd4
 
-        out = [struct.pack('<5i', res, cap, i32(NODE_LIVE), i32(NODE_FREE), nblocks)]
+        out = [struct.pack('<4i', cap, i32(NODE_LIVE), i32(NODE_FREE), nblocks)]
 
         def raw(addr, n, ptrs):
             b = bytearray(r(addr, n))
@@ -308,7 +348,7 @@ class Emulated:
         fc = r(FOG_COLOR, 0xa0)
         out.append(fc[:0x1a] + fc[0x1c:0xa0])
         out.append(r(CLEAR_COLOR, 4))
-        out.append(struct.pack('<i', len(reports)) + b''.join(struct.pack('<ii', *x) for x in reports))
+        out.append(self.report_bytes())
         return b''.join(out)
 
 
@@ -329,6 +369,38 @@ def check_pack_rgb(emu):
             if want != got:
                 raise SystemExit(f'pack_rgb {fmt} {rgb}: original {want:#06x} port {got:#06x}')
     print('pack_rgb: 9000 colours identical in three display formats')
+
+
+def check_read_zbd(emu, buf):
+    """0x4ff520 on each whole world (long path), one short relative path, and
+    broken files: bad signature, bad version, short header, header only,
+    missing file, empty path."""
+    import os
+    tmp = ROOT / 'build' / 'test-gamez'
+    tmp.mkdir(exist_ok=True)
+    good = (ZBD / 't1' / 'gamez.zbd').read_bytes()
+    cases = [(str(ZBD / w / 'gamez.zbd'), (ZBD / w / 'gamez.zbd').read_bytes(), True) for w in WORLDS]
+    for name, data in (('signature', b'\0' + good[1:]), ('version', good[:4] + b'\x1a' + good[5:]),
+                       ('short', good[:0x10]), ('header', good[:0x24])):
+        (tmp / name).write_bytes(data)
+        cases.append((str(tmp / name), data, True))
+    cases += [(str(tmp / 'missing'), b'', False), ('', b'', False)]
+    cwd = os.getcwd()
+    os.chdir(ZBD.parent)
+    cases.append(('zbd/c4b/gamez.zbd', (ZBD / 'c4b' / 'gamez.zbd').read_bytes(), True))
+    try:
+        for path, data, exists in cases:
+            emu.open_ok = exists
+            want = emu.read_zbd(data, path.encode(), exists)
+            size = struct.unpack_from('<i', data, 0x18)[0] if len(data) >= 0x1c else 0
+            n = probe.probe_read_zbd(path.encode(), size, buf, len(buf))
+            got = buf.raw[:max(n, 0)]
+            if got != want:
+                at = next((i for i in range(min(n, len(want))) if got[i] != want[i]), None)
+                raise SystemExit(f'read_zbd {path!r}: {len(want)} vs {n} bytes, first difference at {at}')
+    finally:
+        os.chdir(cwd)
+    return f'read_zbd: {len(cases)} whole-file reads identical, failures included'
 
 
 def main():
@@ -377,6 +449,7 @@ def main():
         live = struct.unpack_from('<i', want, 8)[0]
         ntotal += live
         print(f'{w}: {count} textures, {mats} materials, {mdls} models and {live} live nodes identical')
+    print(check_read_zbd(emu, buf))
     print(f'ok: {total} texture directory entries, {mtotal} materials, {mdltotal} models and '
           f'{ntotal} live nodes (lists and fog included) across {len(WORLDS)} worlds')
 
