@@ -23,8 +23,11 @@ Each change is also marked `FIX` in the code next to the original address.
 | Saved loadouts, item load 0x472b20 | An id cut off by the file's end is whatever ECX held: the item's own address | (A) a heap address | INT32_MAX, which, like the address, no weapon, equipment or engine table knows (the test pins the original's to the same value) |
 | Engine table, 0x432f40 / 0x432fa0 | An index past the 79 entries reads whatever follows the table (a corrupted save, or the kind-4 item's clamp to 79) | (A) memory past the table | Weight and rating 0 (the test zeroes the original's out-of-range entry the same way) |
 | Saved loadouts, Load 0x424600 | Validate(true): a loadout whose CRC does not match is silently dropped | (trap) anti-tamper, `protection.md` | Validate(false): edited loadouts load if they follow the rules (weight, slots, jump jets, armor); the CRC is still computed and written, so files stay loadable by the original game |
-| Disc check, 0x482f90 / 0x575d40 | Startup loop until `video\c1.avi` is on a CD-ROM drive | (trap) and (A): no CD drives | Not ported; the importer copies the movies |
-| Exe self-check, 0x4854c0 | CRC of the mech roster and structure tables, else exit after the intro | (trap) | Not ported |
+| Disc check, 0x482f90 / 0x575d40 | Startup loop until `video\c1.avi` is on a CD-ROM drive | (trap) and (A): no CD drives | Left out of the main window (0x482d10, `mech3/app`); the importer copies the movies |
+| Exe self-check, 0x4854c0 | CRC of the mech roster and structure tables, else exit after the intro | (trap) | Left out of InitInstance and 0x47fed0 (`mech3/app`); the Exit-after-intro flag 0x608f70 is never set |
+| Main loop, 0x58fd70 | `PeekMessageA`, `PumpMessage`, `MsgWaitForMultipleObjects`, `PostQuitMessage`, `SetThreadPriority(HIGHEST)` | (A) Win32 | The same loop, as written, over `platform::MessagePump`; emulator-verified identical (`test_app_loop.py`, game-loop.md) |
+| App start and window, 0x47f7a0 / 0x480000 / 0x480570 / 0x482d10 | Mech3Msg.dll, the DirectX 6 check, RunDir, the window class, `CreateEx` clamped to the work area, the debug menu, `UpdateWindow`, `MessageBoxA` + `ExitProcess` on failures | (A) Win32 / DirectX | The same calls in the same order through `mech3::Engine` hooks for the front end (`test_app_states.py`) |
+| Missions, 0x480c70 / 0x481fc0 | `SystemParametersInfoA(SPI_SETSCREENSAVERRUNNING)` around a network mission (Windows 9x: no Alt-Tab, Ctrl-Alt-Del) | (A) | A hook (`lock_system_keys`) |
 | Multiplayer rules check, 0x46fc08 | Host ends the game when its locked rules block changes | (trap) | To be left out when the network code is ported |
 | Matrix multiply mode 2, 0x51fee0 | Mode 2 (3x3 only, reached through 0x4ed280 from 0x5047f5 and 0x504979) copies leftover stack bytes into the translation | (bug) undefined values in a node's matrix | Translation 0 (`zmth::multiply`, render-matrix.md) |
 | Model draw, 0x53f2e0 | Polygons are copied into 64-vertex work buffers unchecked | (bug) a longer polygon overruns the buffers; only the inout areas (up to 159) have them, and those are deleted at mission load | Polygons over 64 vertices are skipped (render-modeldraw.md) |
@@ -49,8 +52,8 @@ Notes on the fixes:
 Noted but not yet ported:
 
 - The app constructor (0x47f7a0) quits when the DirectX version reads below 6.
-  Whether modern Windows reports this correctly is unchecked; the rebuild has
-  no DirectX to check.
+  Whether modern Windows reports this correctly is unchecked; the rebuild asks
+  its `directx_version` hook and ignores the answer.
 
 ## Original bugs still to fix
 

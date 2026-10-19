@@ -60,6 +60,10 @@ add_library(mw3core STATIC
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
+  src/mech3/options.cpp
+  src/mech3/app.cpp
+  src/mech3/app_hooks.cpp
+  src/mech3/app_states.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -71,7 +75,7 @@ endif()
 
 # A C interface over a few ported functions, for the differential tests that run
 # the original x86 code in an emulator and compare (tests/differential).
-add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp)
+add_library(mw3probe SHARED tests/probe.cpp tests/probe_clip3d.cpp tests/probe_clip2d.cpp tests/probe_fogsort.cpp tests/probe_lighting.cpp tests/probe_drawtable.cpp tests/probe_matrix.cpp tests/probe_world.cpp tests/probe_modeldraw.cpp tests/probe_bake.cpp tests/probe_texload.cpp tests/probe_app.cpp tests/probe_options.cpp tests/probe_states.cpp)
 target_link_libraries(mw3probe PRIVATE mw3core)
 
 enable_testing()
@@ -82,6 +86,7 @@ add_executable(mw3tests
   tests/test_msvc_rand.cpp
   tests/test_ztimer.cpp
   tests/test_zgameapp.cpp
+  tests/test_app.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
   tests/test_zreader.cpp
