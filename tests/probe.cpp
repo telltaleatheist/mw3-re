@@ -270,3 +270,47 @@ int probe_heat_step(int32_t* log, int cap) {
 }
 
 }  // extern "C"
+
+#include "gamez/zimage/zimg_library.h"
+
+namespace {
+zimg::Library* g_tex_lib = nullptr;
+std::string g_tex_dir;
+}  // namespace
+
+extern "C" {
+
+// Opens <dir>/<file> as a texture library (the name already resolved).
+int probe_tex_open(const char* dir, const char* file, int display_format) {
+  g_tex_dir = dir;
+  zimg::state() = zimg::State{};
+  zimg::state().dir = g_tex_dir.c_str();
+  zimg::state().display_format = display_format;
+  g_tex_lib = zimg::new_library(file, 0, false);
+  g_tex_lib->needs_resolve = false;
+  return zimg::open(*g_tex_lib) ? g_tex_lib->header.texture_count : -1;
+}
+
+// Loads one texture and serialises it: the 0x38-byte fields that matter, then
+// pixels, alpha and palette. Returns the length, or -1.
+int probe_tex_load(const char* name, uint8_t* out, int cap) {
+  zimg::Texture* t = zimg::load(*g_tex_lib, name);
+  if (!t) return -1;
+  std::vector<uint8_t> b;
+  auto put = [&](const void* p, size_t n) {
+    const auto* c = static_cast<const uint8_t*>(p);
+    b.insert(b.end(), c, c + n);
+  };
+  put(&t->pixel_count, 4), put(&t->width, 2), put(&t->height, 2), put(&t->unk_08, 1);
+  put(&t->flags, 1), put(&t->stretch, 2), put(&t->palette_count, 2), put(&t->width_again, 4);
+  const int bytes = zimg::bytes_per_pixel(*t);
+  if (t->pixels) put(t->pixels, t->palette_count ? t->pixel_count : bytes * t->pixel_count);
+  if (t->alpha) put(t->alpha, t->pixel_count);
+  if (t->palette) put(t->palette, (t->flags & zimg::kGlobalPalette) ? 0x200 : 2 * t->palette_count);
+  zimg::free_texture(t);
+  if (static_cast<int>(b.size()) > cap) return -1;
+  std::memcpy(out, b.data(), b.size());
+  return static_cast<int>(b.size());
+}
+
+}  // extern "C"

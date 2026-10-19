@@ -93,6 +93,12 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   Pentium, but anything else that uses the stack meanwhile writes straight into
   the picture. It is also why some modern wrappers (dgVoodoo) choke on the game.
 
+- **The game picks the best texture set it can find.** For each texture
+  library it looks for a numbered file first (`rmechtex16.zbd`, then 15, 14,
+  ... down to the plain `rmechtex.zbd`) and uses the first one present. On a
+  15-bit display every texture's colours are converted as they load, and green
+  loses a bit of precision.
+
 ## Timing
 
 - **The game clock went bad on machines left on for days.** It reads Windows'

@@ -144,11 +144,9 @@ can be checked two ways and unblocks loading data.
 Each item is one sitting; findings go in `docs/`, quirks also in
 `docs/discoveries.md`.
 
-- [ ] Textures: trace the texture library loader (0x518db0, 0x517f80,
-      zimg_library.cpp) for `rimage.zbd` / `rmechtex*.zbd`; write
-      `docs/textures.md`.
-- [ ] Textures: port the reader to `src/gamez/zimage/`, check it against the
-      original in Unicorn on every texture, dump PNGs to look at.
+- [x] Textures: traced and ported (`docs/textures.md`), identical on all
+      10,612 textures.
+- [ ] Textures: a PNG dump tool, to look at them.
 - [ ] Game types: which game type is "mission mode 3" (setup switch near
       0x4836e0; classes in `docs/heat.md` Open).
 - [ ] Network: read the game-side receive handlers; list the message types;

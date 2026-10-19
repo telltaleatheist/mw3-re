@@ -25,6 +25,7 @@ python3 -m venv .venv && .venv/bin/pip install unicorn
 .venv/bin/python tests/differential/test_ztimer.py
 .venv/bin/python tests/differential/test_zreader.py   # needs game/mw3-1.2/zbd/reader.zbd
 .venv/bin/python tests/differential/test_heat.py
+.venv/bin/python tests/differential/test_textures.py  # needs the zbd texture files; ~4 min
 ```
 
 ## Layout

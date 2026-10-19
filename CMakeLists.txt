@@ -21,6 +21,7 @@ add_library(mw3core STATIC
   src/gamez/zerror/zerr.cpp
   src/gamez/zutil/ztimer.cpp
   src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zimage/zimg_library.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp

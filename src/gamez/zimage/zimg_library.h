@@ -1,0 +1,82 @@
+#pragma once
+#include <cstdint>
+#include <cstdio>
+#include <vector>
+
+// Texture libraries: rimage.zbd, rmechtex*.zbd (docs/textures.md). Original
+// file unknown: these sit between zimg_library.cpp and zimg_texture.cpp.
+namespace zimg {
+
+enum TexFlags : uint8_t {
+  kTwoBytes = 0x01,
+  kAlpha = 0x02,
+  kNoAlpha = 0x04,
+  kFullAlpha = 0x08,
+  kGlobalPalette = 0x10,
+  kPixelsOwned = 0x20,
+  kAlphaOwned = 0x40,
+  kPaletteOwned = 0x80,
+};
+
+struct Texture {             // 0x38 bytes, calloc'd
+  int32_t pixel_count;       // +0x00
+  int16_t width;             // +0x04
+  int16_t height;            // +0x06
+  uint8_t unk_08;            // +0x08  byte 8 of the file's info
+  uint8_t flags;             // +0x09  low byte of the file's flags
+  int16_t stretch;           // +0x0c
+  int16_t palette_count;     // +0x0e
+  void* pixels;              // +0x10  16-bit colours, or 8-bit indices when palette_count
+  uint8_t* alpha;            // +0x14
+  uint16_t* palette;         // +0x18
+  int32_t width_again;       // +0x34
+};
+
+struct Header {              // 0x18 bytes at the start of the file
+  uint32_t zero00;
+  uint32_t has_entries;      // must be 1
+  int32_t palette_count;     // global palettes after the entries
+  int32_t texture_count;
+  uint32_t zero10, zero14;
+};
+
+struct Entry {               // 0x28 bytes
+  char name[32];
+  uint32_t offset;
+  int32_t palette;           // global palette index, -1 for none
+};
+static_assert(sizeof(Entry) == 0x28);
+
+struct Library {             // 0xac bytes
+  char name[0x80];           // +0x00  base name, then the resolved file name
+  std::FILE* file;           // +0x80
+  Header header;             // +0x84
+  Entry* entries;            // +0x9c
+  int32_t palette_base;      // +0xa0  first global palette in State::palettes
+  int32_t variant;           // +0xa4  highest numbered file to try, 0 for none
+  bool needs_resolve;        // +0xa8
+  bool r_prefix;             // +0xa9
+  bool missing;              // +0xaa
+};
+
+struct State {
+  bool enabled = true;                        // 0x005ecc20
+  std::vector<uint16_t*> palettes;            // 0x00638510, count 0x0063850c
+  int32_t display_format = 6;                 // 0x00802728  5 = RGB555
+  bool (*file_exists)(const char*) = nullptr; // 0x005762b0 search path; FIX (A)
+  const char* dir = "";                       // FIX (A): where the zbd files are
+};
+State& state();
+
+Library* new_library(const char* name, int32_t variant, bool r_prefix);  // 0x005182a0
+void resolve_name(Library& lib);                                        // 0x00518a30
+bool open(Library& lib);                                                // 0x005187c0
+Texture* load(Library& lib, const char* name);                          // 0x00518db0
+
+Texture* read_texture(std::FILE* f);                    // 0x00517f80
+int read_info(std::FILE* f, Texture& t);                // 0x00517d80
+int read_data(std::FILE* f, Texture& t, int bytes);     // 0x00517df0
+int bytes_per_pixel(const Texture& t);                  // 0x00517c20
+void free_texture(Texture* t);                          // 0x00517cc0
+
+}  // namespace zimg
