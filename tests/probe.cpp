@@ -539,3 +539,13 @@ int probe_materials(const char* path, long offset, int rb, int gb, int bb, uint8
 }
 
 }  // extern "C"
+
+extern "C" {
+
+int probe_pack_rgb(int rb, int gb, int bb, float r, float g, float b) {
+  zvid::set_pixel_format(rb, gb, bb);
+  const float rgb[3] = {r, g, b};
+  return zvid::pack_rgb(rgb);
+}
+
+}  // extern "C"

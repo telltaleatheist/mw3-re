@@ -18,6 +18,8 @@ LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 probe.probe_materials.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
                                   ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+probe.probe_pack_rgb.argtypes = [ctypes.c_int] * 3 + [ctypes.c_float] * 3
+PACK_RGB = 0x5793c0
 probe.probe_texture_directory.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int,
                                           ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 ZBD = ROOT / 'game' / 'mw3-1.2' / 'zbd'
@@ -126,8 +128,28 @@ class Emulated:
         return out
 
 
+def check_pack_rgb(emu):
+    import random
+    rng = random.Random(7)
+    cpu = emu.cpu
+    p = emu.alloc(12)
+    for fmt in ((5, 6, 5), (5, 5, 5), (4, 4, 4)):
+        cpu.call(SET_FORMAT, ecx=fmt[0], edx=fmt[1], stack_args=(fmt[2], 0, 0, 0))
+        for _ in range(3000):
+            rgb = [rng.choice([rng.uniform(0, 255), float(rng.randrange(256)), rng.randrange(256) + 0.5])
+                   for _ in range(3)]
+            cpu.write(p, struct.pack('<3f', *rgb))
+            cpu.call(PACK_RGB, ecx=p)
+            want = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xffff
+            got = probe.probe_pack_rgb(*fmt, *rgb) & 0xffff
+            if want != got:
+                raise SystemExit(f'pack_rgb {fmt} {rgb}: original {want:#06x} port {got:#06x}')
+    print('pack_rgb: 9000 colours identical in three display formats')
+
+
 def main():
     emu = Emulated()
+    check_pack_rgb(emu)
     buf = ctypes.create_string_buffer(1 << 20)
     total = mtotal = 0
     for w in WORLDS:
