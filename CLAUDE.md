@@ -138,3 +138,23 @@ can be checked two ways and unblocks loading data.
    tamper check. Open: the 0x200 pool, the options setters at 0x40cb30.
 5. Start the SDL3 front end (window, clock, music output) once the GPU is
    free.
+
+## Work queue (small pieces, 2026-10-19 night)
+
+Each item is one sitting; findings go in `docs/`, quirks also in
+`docs/discoveries.md`.
+
+- [ ] Textures: trace the texture library loader (0x518db0, 0x517f80,
+      zimg_library.cpp) for `rimage.zbd` / `rmechtex*.zbd`; write
+      `docs/textures.md`.
+- [ ] Textures: port the reader to `src/gamez/zimage/`, check it against the
+      original in Unicorn on every texture, dump PNGs to look at.
+- [ ] Game types: which game type is "mission mode 3" (setup switch near
+      0x4836e0; classes in `docs/heat.md` Open).
+- [ ] Network: read the game-side receive handlers; list the message types;
+      confirm state sync vs lockstep (`docs/network.md`).
+- [ ] Controls: what +0x37c vtable +0x1c returns (likely throttle); who
+      creates the controls object (0x491120).
+- [ ] Power: port Mech::Power (0x41cc30) and FinishPowerDown (0x41cac0).
+- [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
+      an emulator check over every `dfn_*.zrd`.
