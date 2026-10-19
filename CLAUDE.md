@@ -145,6 +145,21 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - Every quirk, bug or hidden mechanic found goes in `docs/discoveries.md`, in
   plain words for players (Owen wants to share these with the MW3 community).
 
+## Working with agents (2026-10-20)
+
+- Up to about five at once (Owen), each on a piece with clean boundaries:
+  leaf functions, or systems that meet others through a hooks struct the
+  test stubs identically on both sides.
+- Each agent works in its own git worktree (Agent `isolation: worktree`),
+  links the ignored `game/` and `analysis-output/` in, builds its own
+  `build/`, and commits on its own branch. The lead reviews, runs the tests
+  and merges; nothing reaches main unreviewed. (Agents in the shared tree
+  broke each other's builds through half-finished CMake edits.)
+- Each piece arrives with a differential test, break tests that show the
+  test catches errors, its doc, and player-facing finds for
+  `docs/discoveries.md`. Quality over speed (Owen: "do it right even if it
+  takes longer").
+
 ## Next steps
 
 Order agreed with Owen on 2026-10-18: zReader first, because it stands alone,
