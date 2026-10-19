@@ -1,6 +1,13 @@
 # Mission animations (`anim.zbd`)
 
-Mech3.exe 1.2, 2026-10-19. Traced, nothing ported yet. `zbd/<db>/anim.zbd`
+Mech3.exe 1.2, 2026-10-19. Ported: `zeff::anim_read_zbd` 0x50a0e0 with
+0x5090e0, 0x5090f0, 0x509150 (`src/gamez/zeffect/zeff_anim_init.*`). The
+scene calls of the fixup pass are not ported yet; they go through
+`zeff::AnimHooks`. `tests/differential/test_anim.py` runs the original on all
+six files with those calls recorded and answering fake ids: the call trace
+(72,580 calls) and every def, list, blob and sequence are identical, and so
+are 280 runs where one call answers "not found", truncated files and a bad
+version. `zbd/<db>/anim.zbd`
 (c1, c2, c3, c4, c4b, t1) is the compiled form of the mission's animation
 definitions (`.zrd` text in the authoring build). It is not a zArchive. It is
 a header, a list of the source files it was compiled from, a 0x44-byte global

@@ -213,3 +213,7 @@ address,name,source,notes
 0x00579250,zvid_set_clear_color,asm,"ported; -> 0x802794"
 0x004ff520,zcls_read_zbd,asm,"ported; gClsReadZBD (ECX path) the whole of gamez.zbd"
 0x004ff6a0,zcls_open_zbd,asm,"ported; (ECX path, EDX header) checks signature and version"
+0x0050a0e0,zeff_anim_read_zbd,asm,"ported; anim.zbd reader and fixup (scene calls hooked)"
+0x005090e0,zeff_anim_set_world,asm,"ported; (ECX node) -> 0x73f738"
+0x005090f0,zeff_anim_set_zbd_path,asm,"ported; (ECX path) -> 0x60c570, < 0x80 chars"
+0x00509150,zeff_anim_allow_loading,asm,"ported; (ECX on) -> 0x5ebcbc"

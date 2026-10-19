@@ -107,6 +107,14 @@ class Original:
         esp = self.uc.reg_read(UC_X86_REG_ESP)
         return struct.unpack('<I', self.read(esp + 4 + 4 * n, 4))[0]
 
+    @property
+    def ecx(self):
+        return self.uc.reg_read(UC_X86_REG_ECX)
+
+    @property
+    def edx(self):
+        return self.uc.reg_read(UC_X86_REG_EDX)
+
     def stub_import(self, iat_slot, fn, pop_bytes=0):
         """Stand in for an imported Windows or C runtime function.
 

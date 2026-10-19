@@ -177,8 +177,10 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       0x538640), `docs/gamez.md` porting order step 7.
 - [x] Mission scripts: mapped (`docs/interp.md`), decoder in
       `tests/differential/explore/interp_*.py`.
-- [ ] Mission animations: port the anim.zbd read phase (`docs/anim.md`,
-      porting order step 1), checked with `explore/anim_walk.py --emu`.
+- [ ] Mission animations: the reader 0x50a0e0 ported and emulator-checked
+      (`zeffect/zeff_anim_init`), its scene calls hooked. Next the lookups
+      0x509640 and friends on the ported node pool, then the creators
+      (`docs/anim.md`, porting order steps 2-3).
 - [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
       dispatcher table (order in `docs/interp.md`), checked by a command trace.
 - [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,
