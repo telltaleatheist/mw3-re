@@ -70,7 +70,8 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   does not allow.)
 - **Powering down waits for your legs.** Pressing power-down only asks; the
   mech actually shuts off once its animation reaches a stop pose (states 1, 12
-  or 13), and a power-down asked for mid-air is ignored.
+  or 13), and a power-down asked for while a flag at +0x584 is set (likely
+  mid-air) is ignored.
 - **Heat can't kill you in multiplayer.** In multiplayer, heat is always on,
   but reaching critical heat never destroys your torso: it only shuts you down
   and resets your heat. In campaign, instant action and training, critical heat
