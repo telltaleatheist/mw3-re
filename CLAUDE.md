@@ -146,7 +146,7 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 
 - [x] Textures: traced and ported (`docs/textures.md`), identical on all
       10,612 textures.
-- [ ] Textures: a PNG dump tool, to look at them.
+- [x] Textures: `tools/analysis/tex2png.py` exports any library as PNG.
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [x] Network: message types mapped (`docs/network-messages.md`); state sync.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.

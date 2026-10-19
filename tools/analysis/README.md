@@ -21,6 +21,7 @@ CLAUDE.md; Ghidra headless needs `JAVA_HOME` as noted there.
 | `msgtable.py [id ...]` | The message table in `Mech3Msg.dll`, the strings the game formats by id. |
 | `typesfull.py`, `fpconsts.py` | Inputs for `../ghidra/ApplyTypes.java`: `docs/types.json` with placeholder fields, and the float constants in `.rdata` (`docs/structs.md`). |
 | `../ghidra/ApplyTypes.java` | Ghidra headless post-script: applies the structs, names, methods and signatures, then writes typed decompilations to `decomp-typed/`. |
+| `tex2png.py <library.zbd> <outdir> [filter]` | Exports textures from `rimage.zbd` / `rmechtex*.zbd` as PNG (`docs/textures.md`). |
 | `isols.py`, `isoget.py` | List or extract an ISO 9660 image (the disc), without mounting it. |
 | `peimports.py <exe>` | Lists a PE's imported DLLs and functions. |
 
