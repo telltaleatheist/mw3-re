@@ -124,6 +124,7 @@ add_library(mw3probe SHARED
   tests/probe_actions.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
+  tests/probe_collide.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

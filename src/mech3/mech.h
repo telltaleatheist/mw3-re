@@ -3,6 +3,7 @@
 #include <list>
 
 #include "mech3/mech_anim.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_skis.h"
@@ -51,11 +52,13 @@ struct Mech {
   uint32_t team = 0;         // +0x0c0  AiTarget masks
   uint32_t allies = 0;       // +0x0c4
   void* ammo;                // +0x0d4  weapons and ammo bins
+  NetCollision* net_collision = nullptr;  // +0x0d8  the network's collision record
   bool power_down_pending;   // +0x0dc
   bool heat_shutdown;        // +0x0dd
   bool powered_down;         // +0x0de
   float last_hit_time = 0;   // +0x0e0
   MechPart* last_hit_part = nullptr;  // +0x0e4
+  Collider collider;         // +0x0fc..+0x33b (mech_collide.h)
   MechControls* controls = nullptr;  // +0x37c  (docs/controls.md)
   bool blocked[4] = {};      // +0x374  collider (+0xfc) resolved: vehicle, mech/bump, ceiling, wall/touch
   std::list<MechPart*> parts;  // +0x384, count +0x388
@@ -166,6 +169,16 @@ struct Mech {
   void hit_timeout();                 // vtable +0x14c, 0x0041d190
   void movement_sounds();             // 0x0041a843..0x0041aa61, in Update
   bool collide();                     // 0x004225c0 (mech_collide.cpp), true when blocked
+  void setup_collider();              // 0x00422360 (on the collider, the mech as argument)
+  void collide_segments();            // 0x00422d20
+  int32_t collide_query(const float* list, int32_t points);  // 0x00422ef0, 1 when nothing was crossed
+  void sort_hits(const zcls::SegmentHits& rec, const Vec3& from, const Vec3& to, int32_t probe);  // 0x00423010
+  void wall_response(const CollisionHit& h);    // 0x004231c0
+  void ceiling_response(const CollisionHit& h); // 0x00423600
+  void vehicle_response();                      // 0x004237c0
+  void mech_response();                         // 0x00423a20
+  bool touch_response();                        // 0x00423c90
+  float turn_rate_now() const;                  // 0x00418f70
 
   // Damage (mech_damage.cpp).
   int take_damage(WeaponDef* def, Collision* coll, float damage);  // vtable +0x164, 0x0041ac60

@@ -44,6 +44,8 @@ for t in \
     shadows \
     puffers \
     update \
+    di \
+    collide \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done
