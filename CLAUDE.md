@@ -25,8 +25,9 @@ a byte-identical port.
   stays separate from the game library; models, parts, firepoints and props
   stay looked up by name; a replacement mech keeps the original part tree,
   pivots and firepoints so the motions work; gameplay keeps the original
-  geometry (collision, terrain, AI bounds). Original art stays player-supplied;
-  a public pack would need fully original art.
+  geometry (collision, terrain, AI bounds). This is a personal learning
+  project, not a product (Owen): nothing is sold; game files stay out of the
+  repo as usual.
 - Checking: differential tests run the original x86 function (in an emulator
   such as Unicorn, on the Mac) and the C++ version on the same inputs.
 - Assets: never committed. A first-run importer reads the player's MW3 1.2
