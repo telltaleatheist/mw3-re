@@ -6,12 +6,14 @@
 #include <cstdlib>
 #include <map>
 
+#include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zutil/zutl_zar.h"
 
 namespace viewer {
 namespace {
@@ -84,48 +86,96 @@ bool decode(const zimg::Texture& t, Image& img) {
   return true;
 }
 
-}  // namespace
+// Turns polygons into batches, one per texture (markers apart).
+class Builder {
+ public:
+  Builder(Scene& out, std::vector<zimg::Library*> libs) : out_(out), libs_(std::move(libs)) {}
 
-std::string load_world(const std::string& zbd_dir, const std::string& mission, Scene& out) {
-  static std::string dir;
-  dir = zbd_dir + "/";
-  const std::string path = dir + mission + "/gamez.zbd";
-  if (zcls::read_zbd(path.c_str()) != 0) return "could not read " + path;
+  int image(const char* name) {
+    if (!name || !*name) return -1;
+    auto it = image_of_.find(name);
+    if (it != image_of_.end()) return it->second;
+    int idx = -1;
+    for (zimg::Library* lib : libs_) {
+      zimg::Texture* t = zimg::load(*lib, name);
+      if (!t) continue;
+      Image img;
+      if (decode(*t, img)) {
+        idx = static_cast<int>(out_.images.size());
+        out_.images.push_back(std::move(img));
+      }
+      break;
+    }
+    if (idx < 0 && out_.missing_textures++ < 5) std::fprintf(stderr, "texture %s: not loaded\n", name);
+    image_of_[name] = idx;
+    return idx;
+  }
 
-  // The world's own textures, then the mech skins and the 2D images.
-  zimg::state().dir = dir.c_str();
+  // One polygon: k vertex indices into `verts`, per-vertex UVs (textured only)
+  // and colours 0..255; untextured ones are tinted by the material's rgb.
+  void polygon(const Xform& x, uint32_t k, const uint32_t* index, const float* verts, uint32_t vcount, const float* uvs,
+               const float* colors, int img, const float* rgb, bool marker) {
+    if (k < 3 || !index) return;
+    ++out_.polygons;
+    const int key = marker ? -1000000 + img : img;  // markers batch apart from everything else
+    auto [it, added] = batch_of_.try_emplace(key, static_cast<int>(out_.batches.size()));
+    if (added) out_.batches.push_back(Batch{img, {}, marker});
+    Batch& b = out_.batches[it->second];
+    auto vertex = [&](uint32_t j) {
+      Vertex v{};
+      if (index[j] < vcount) apply(x, verts + 3 * index[j], v.pos);
+      if (img >= 0 && uvs) v.uv[0] = uvs[2 * j], v.uv[1] = uvs[2 * j + 1];
+      float c[3] = {1, 1, 1};
+      if (colors) c[0] = colors[3 * j] / 255, c[1] = colors[3 * j + 1] / 255, c[2] = colors[3 * j + 2] / 255;
+      if (img < 0 && rgb) c[0] *= rgb[0] / 255, c[1] *= rgb[1] / 255, c[2] *= rgb[2] / 255;
+      v.color[0] = c[0], v.color[1] = c[1], v.color[2] = c[2], v.color[3] = 1;
+      for (int a = 0; a < 3; ++a) {
+        out_.min[a] = first_ ? v.pos[a] : std::min(out_.min[a], v.pos[a]);
+        out_.max[a] = first_ ? v.pos[a] : std::max(out_.max[a], v.pos[a]);
+      }
+      first_ = false;
+      b.vertices.push_back(v);
+    };
+    for (uint32_t j = 1; j + 1 < k; ++j) {  // a fan, a guess until the render path is mapped
+      vertex(0), vertex(j), vertex(j + 1);
+      ++out_.triangles;
+    }
+  }
+
+ private:
+  Scene& out_;
+  std::vector<zimg::Library*> libs_;
+  std::map<std::string, int> image_of_;
+  std::map<int, int> batch_of_;
+  bool first_ = true;
+};
+
+std::vector<zimg::Library*> open_libraries(const std::vector<std::string>& names) {
   std::vector<zimg::Library*> libs;
-  for (const std::string& name : {mission + "/rtexture", std::string("rmechtex"), std::string("rimage")}) {
+  for (const std::string& name : names) {
     zimg::Library* lib = zimg::new_library(name.c_str(), 0, false);
     if (zimg::open(*lib)) libs.push_back(lib);
   }
+  return libs;
+}
+
+std::string& dir_slash(const std::string& zbd_dir) {
+  static std::string dir;
+  dir = zbd_dir + "/";
+  zimg::state().dir = dir.c_str();
+  return dir;
+}
+
+}  // namespace
+
+std::string load_world(const std::string& zbd_dir, const std::string& mission, Scene& out) {
+  const std::string& dir = dir_slash(zbd_dir);
+  const std::string path = dir + mission + "/gamez.zbd";
+  if (zcls::read_zbd(path.c_str()) != 0) return "could not read " + path;
+  // The world's own textures, then the mech skins and the 2D images.
+  std::vector<zimg::Library*> libs = open_libraries({mission + "/rtexture", "rmechtex", "rimage"});
   if (libs.empty()) return "no texture library under " + dir;
-  auto load = [&](const char* name) -> zimg::Texture* {
-    for (zimg::Library* lib : libs)
-      if (zimg::Texture* t = zimg::load(*lib, name)) return t;
-    return nullptr;
-  };
-
-  std::map<const zimg::TextureEntry*, int> image_of;
-  std::map<int, int> batch_of;
-  auto image_index = [&](const zimg::TextureEntry* e) -> int {
-    if (!e) return -1;
-    auto it = image_of.find(e);
-    if (it != image_of.end()) return it->second;
-    int idx = -1;
-    if (zimg::Texture* t = load(e->name)) {
-      Image img;
-      if (decode(*t, img)) {
-        idx = static_cast<int>(out.images.size());
-        out.images.push_back(std::move(img));
-      }
-    }
-    if (idx < 0 && out.missing_textures++ < 5) std::fprintf(stderr, "texture %s: not loaded\n", e->name);
-    image_of[e] = idx;
-    return idx;
-  };
-
-  bool first = true;
+  Builder build(out, libs);
   const int total = zcls::node_total();
   for (int i = 0; i < total; ++i) {
     zcls::Node* n = zcls::node_at(i);
@@ -137,58 +187,74 @@ std::string load_world(const std::string& zbd_dir, const std::string& mission, S
     if (marker) ++out.markers;
     const zmod::Model& m = *n->model;
     const Xform x = world_xform(n);
-    const uint32_t vcount = m.count(0x14), pcount = m.count(0x10);
-    for (uint32_t p = 0; p < pcount && m.polygons; ++p) {
+    for (uint32_t p = 0; p < m.count(0x10) && m.polygons; ++p) {
       const zmod::Polygon& poly = m.polygons[p];
-      const uint32_t k = poly.flags & 0xff;
-      if (k < 3 || !poly.vertex_indices) continue;
-      ++out.polygons;
       const zmod::Material* mat = poly.material;
       const bool textured = mat && (mat->flags & 1) && poly.uvs;
-      const int img = textured ? image_index(mat->texture) : -1;
-      const int key = marker ? -1000000 + img : img;  // markers batch apart from everything else
-      auto [it, added] = batch_of.try_emplace(key, static_cast<int>(out.batches.size()));
-      if (added) out.batches.push_back(Batch{img, {}, marker});
-      Batch& b = out.batches[it->second];
-      auto vertex = [&](uint32_t j) {
-        Vertex v{};
-        const uint32_t vi = poly.vertex_indices[j];
-        if (vi < vcount) apply(x, m.vertices + 3 * vi, v.pos);
-        if (textured) v.uv[0] = poly.uvs[2 * j], v.uv[1] = poly.uvs[2 * j + 1];
-        // Vertex colours are 0..255; untextured polygons take the material's colour too.
-        float r = 1, g = 1, bl = 1;
-        if (poly.colors) r = poly.colors[3 * j] / 255, g = poly.colors[3 * j + 1] / 255, bl = poly.colors[3 * j + 2] / 255;
-        if (!textured && mat) r *= mat->r / 255, g *= mat->g / 255, bl *= mat->b / 255;
-        v.color[0] = r, v.color[1] = g, v.color[2] = bl, v.color[3] = 1;
-        for (int a = 0; a < 3; ++a) {
-          out.min[a] = first ? v.pos[a] : std::min(out.min[a], v.pos[a]);
-          out.max[a] = first ? v.pos[a] : std::max(out.max[a], v.pos[a]);
-        }
-        first = false;
-        b.vertices.push_back(v);
-      };
-      for (uint32_t j = 1; j + 1 < k; ++j) {  // a fan, a guess until the render path is mapped
-        vertex(0), vertex(j), vertex(j + 1);
-        ++out.triangles;
-      }
+      const int img = textured && mat->texture ? build.image(mat->texture->name) : -1;
+      const float rgb[3] = {mat ? mat->r : 255, mat ? mat->g : 255, mat ? mat->b : 255};
+      build.polygon(x, poly.flags & 0xff, poly.vertex_indices, m.vertices, m.count(0x14), poly.uvs, poly.colors, img,
+                    rgb, marker);
     }
   }
-  if (std::getenv("MW3VIEW_STATS")) {
-    float cmin = 1e9f, cmax = -1e9f, umin = 1e9f, umax = -1e9f;
-    size_t textured = 0, flat = 0;
-    for (const Batch& b : out.batches)
-      for (const Vertex& v : b.vertices) {
-        for (int i = 0; i < 3; ++i) cmin = std::min(cmin, v.color[i]), cmax = std::max(cmax, v.color[i]);
-        if (b.image >= 0) {
-          ++textured;
-          for (float u : v.uv) umin = std::min(umin, u), umax = std::max(umax, u);
-        } else {
-          ++flat;
-        }
-      }
-    std::fprintf(stderr, "colours %g..%g, uvs %g..%g, %zu textured and %zu flat vertices\n", cmin, cmax, umin, umax,
-                 textured, flat);
+  return {};
+}
+
+std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scene& out) {
+  const std::string& dir = dir_slash(zbd_dir);
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  if (!zutl_zar::open(a, (dir + "mechlib.zbd").c_str())) return "could not open " + dir + "mechlib.zbd";
+  // The shared materials (0x4fc9e0), then the tree (0x4fcdc0).
+  std::vector<zcls::Material> mats;
+  if (std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, "materials"), nullptr)) {
+    uint32_t count = 0;
+    std::fread(&count, 4, 1, f);
+    mats.resize(count);
+    for (zcls::Material& m : mats) zcls::read_material(f, m);
   }
+  std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, entry.c_str()), nullptr);
+  if (!f) {
+    std::string names;
+    for (int i = 0; i < a.count; ++i)
+      if (std::strstr(a.entries[i].name, ".flt")) names += std::string(" ") + a.entries[i].name;
+    return "no " + entry + " in mechlib.zbd; entries:" + names;
+  }
+  zcls::nodes() = zcls::NodePool{};
+  zcls::TreeReader reader;
+  const long at = std::ftell(f);
+  zcls::Node* root = zcls::read_tree(reader, f, nullptr);
+  if (std::getenv("MW3VIEW_STATS"))
+    std::fprintf(stderr, "tree at %ld: root %p, read %ld bytes, %d nodes\n", at, static_cast<void*>(root),
+                 std::ftell(f) - at, zcls::node_total());
+  if (!root) return "could not read " + entry;
+  std::vector<zimg::Library*> libs = open_libraries({"rmechtex", "rmechtex16", "rimage"});
+  Builder build(out, libs);
+  std::vector<zcls::Node*> todo{root};
+  while (!todo.empty()) {
+    zcls::Node* n = todo.back();
+    todo.pop_back();
+    ++out.nodes;
+    for (int c = 0; c < n->child_count() && n->children; ++c) todo.push_back(n->children[c]);
+    if (n->cls() != kObject3d || !n->lib_model) continue;
+    ++out.objects;
+    const zcls::Model& m = *n->lib_model;
+    const Xform x = world_xform(n);
+    for (uint32_t p = 0; p < m.polygon_count && m.polygons; ++p) {
+      const zcls::Polygon& poly = m.polygons[p];
+      const zcls::Material* mat = poly.material < mats.size() ? &mats[poly.material] : nullptr;
+      float rgb[3] = {255, 255, 255};
+      int img = -1;
+      if (mat && mat->raw) {
+        std::memcpy(rgb, mat->raw + 4, 12);
+        if ((mat->raw[1] & 1) && poly.uvs) img = build.image(mat->texture);
+      }
+      build.polygon(x, poly.flags & 0xff, poly.vertex_indices, m.vertices, m.vertex_count, poly.uvs, poly.colors, img,
+                    rgb, false);
+    }
+  }
+  zutl_zar::close(a);
+  zutl_zar::destroy(a);
   return {};
 }
 

@@ -1,7 +1,7 @@
 // mw3view: a development viewer for mission worlds, on SDL3's GPU API. Not
 // part of the port (see scene.h).
 //
-//   mw3view [--zbd <dir>] [--mission t1] [--info] [--shot out.bmp]
+//   mw3view [--zbd <dir>] [--mission t1 | --mech madcat] [--info] [--shot out.bmp]
 //           [--pos x y z] [--look yaw pitch]
 //
 // Controls: right mouse drag to look, WASD to move, Q/E down/up, Shift fast,
@@ -278,13 +278,14 @@ bool screenshot(App& a, const Camera& cam, float far_plane, const char* path) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string zbd = MW3_GAME_DIR "/zbd", mission = "t1", shot;
+  std::string zbd = MW3_GAME_DIR "/zbd", mission = "t1", mech, shot;
   bool info = false, have_pos = false, have_look = false;
   Camera cam;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--zbd" && i + 1 < argc) zbd = argv[++i];
     else if (arg == "--mission" && i + 1 < argc) mission = argv[++i];
+    else if (arg == "--mech" && i + 1 < argc) mech = argv[++i];
     else if (arg == "--info") info = true;
     else if (arg == "--shot" && i + 1 < argc) shot = argv[++i];
     else if (arg == "--pos" && i + 3 < argc) {
@@ -296,7 +297,9 @@ int main(int argc, char** argv) {
     }
   }
   viewer::Scene scene;
-  const std::string err = viewer::load_world(zbd, mission, scene);
+  if (!mech.empty() && mech.find(".flt") == std::string::npos) mech = "mech_" + mech + ".flt";
+  const std::string err = mech.empty() ? viewer::load_world(zbd, mission, scene) : viewer::load_mech(zbd, mech, scene);
+  if (!mech.empty()) mission = mech;
   if (!err.empty()) {
     std::fprintf(stderr, "%s\n", err.c_str());
     return 1;
@@ -314,6 +317,16 @@ int main(int argc, char** argv) {
   // above the ground, as a pilot would see it.
   if (!have_pos) cam.eye[0] = 0, cam.eye[1] = 60, cam.eye[2] = 0;
   if (!have_look) cam.pitch = -0.05f;
+  if (!mech.empty()) {  // a mech: stand back from its bounds, looking at its middle
+    const float c[3] = {(scene.min[0] + scene.max[0]) / 2, (scene.min[1] + scene.max[1]) / 2,
+                        (scene.min[2] + scene.max[2]) / 2};
+    if (!have_pos) cam.eye[0] = c[0] + size * 0.9f, cam.eye[1] = c[1] + size * 0.3f, cam.eye[2] = c[2] + size * 0.9f;
+    if (!have_look) {
+      const float d[3] = {c[0] - cam.eye[0], c[1] - cam.eye[1], c[2] - cam.eye[2]};
+      cam.yaw = std::atan2(d[0], d[2]);
+      cam.pitch = std::atan2(d[1], std::sqrt(d[0] * d[0] + d[2] * d[2]));
+    }
+  }
 
   if (!SDL_Init(SDL_INIT_VIDEO)) return fail("SDL_Init"), 1;
   App a;

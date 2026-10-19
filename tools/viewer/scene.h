@@ -34,8 +34,12 @@ struct Scene {
   int nodes = 0, objects = 0, markers = 0, polygons = 0, triangles = 0, missing_textures = 0;
 };
 
-// Reads <zbd_dir>/<mission>/gamez.zbd and the world textures from
-// <zbd_dir>/rimage.zbd. Empty error string on success.
+// Reads <zbd_dir>/<mission>/gamez.zbd, textures from the mission's
+// rtexture.zbd, rmechtex.zbd and rimage.zbd. Empty error string on success.
 std::string load_world(const std::string& zbd_dir, const std::string& mission, Scene& out);
+
+// Reads one model tree from <zbd_dir>/mechlib.zbd (e.g. "mech_madcat.flt")
+// with the shared materials, textures from rmechtex*.zbd.
+std::string load_mech(const std::string& zbd_dir, const std::string& entry, Scene& out);
 
 }  // namespace viewer
