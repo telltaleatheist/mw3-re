@@ -129,8 +129,19 @@ struct Display {
   uint32_t max_height = 4096;      // [0x0080c278] +0x14c
   uint32_t caps = 0;               // 0x00809448  2 power of two only, 0x20 square only
   int32_t alpha_4444 = 1;          // [0x00809644] +0xb04  ARGB4444 textures
+  // What 0x00579b70 tests, read as the D3D6 triangle caps (dpcTriCaps at
+  // 0x008093c4) [unverified]: 0x40 of its misc caps, src blend ZERO, dest
+  // blend SRCCOLOR (the shadow multiply), texture address CLAMP.
+  bool device = true;              // [0x00809644] != 0
+  uint32_t tri_misc_caps = 0x40;   // 0x008093c8
+  uint32_t src_blend_caps = 1;     // 0x00809438
+  uint32_t dest_blend_caps = 4;    // 0x0080943c
+  uint32_t address_caps = 4;       // 0x00809454
 };
 Display& display();
+// ECX which: bit 1 the multiply blend, bit 2 clamped addressing. 1 when the
+// display is not fullscreen.
+int32_t has_caps(int32_t which);  // 0x00579b70
 
 // The draw table. ECX, EDX and the stack arguments as the model draw passes
 // them (docs/render.md section 3); counts are 1..64, the TL vertices in
@@ -191,6 +202,13 @@ int32_t present(bool wait);                    // 0x0057a850
 D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t alpha,
                            int32_t clamp_u, int32_t clamp_v);
 D3DTexture*& default_texture();                // 0x0080931c
+// [0x0072f374] = 0x0057baa0 (ECX record, EDX unused, stack image): the image
+// copied into the record's texture again (the image's alpha flag chooses the
+// conversion; the record keeps its type and address modes).
+void reload_texture(D3DTexture* record, const zimg::Texture* image);
+// [0x0072f378] = 0x0057bb00: frees the record and its texture; the default
+// record is kept.
+void release_texture(D3DTexture* record);
 
 // What 0x0057b130 uploads, as RGBA8 (the surface format's precision kept).
 void texture_rgba(const zimg::Texture& image, int32_t alpha, uint8_t* rgba);

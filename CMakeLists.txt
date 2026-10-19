@@ -130,6 +130,7 @@ add_library(mw3probe SHARED
   tests/probe_options.cpp
   tests/probe_states.cpp
   tests/probe_shadows.cpp
+  tests/probe_shadow_image.cpp
   tests/probe_puffers.cpp
   tests/probe_move.cpp
   tests/probe_skis.cpp

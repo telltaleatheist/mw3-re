@@ -1,5 +1,7 @@
 #include "mech3/app_states.h"
 
+#include "crt/msvc_math.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "mech3/app.h"
 
 namespace mech3 {
@@ -432,6 +434,77 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   return false;
 }
 
+// Mech3.exe 1.2 @ 0x004814e0. For each object in the list at 0x0073655c: the
+// player's mech, or one within 100 m of it, keeps a caster (mech +0xcc; 64x64
+// for the player's, 32x32 others), redrawn every frame along the sun
+// ([0x006098d4] +4, its light +0x84) onto the mech's ground. Its grey is the
+// share of the light that is ambient where the clouds put it, faded to white
+// from 50 to 100 m. Further away the caster is freed.
+void update_shadows(Engine& en) {
+  if (!en.model_global_light()) return;  // 0x00526a80, shadows on
+  const Handle sun = en.peek32(0x6098d4);
+  if (!sun || !en.field32(sun, 4)) return;
+  const Handle light = en.field32(en.field32(sun, 4), 0x38);
+  auto f = [&en](Handle a) { return zgame::from_bits(en.peek32(a)); };
+  for (Handle it = en.peek32(0x73655c); it != en.peek32(0x736560); it += 4) {
+    const Handle mech = en.vcall(en.peek32(it), 0x2c, {});
+    const Handle pos = en.entity_position(mech);
+    const Handle player = en.field32(en.pilot(), 0x14);
+    float fade;
+    if (player == en.vcall(mech, 0x50, {})) {
+      fade = 1.0f;
+    } else {
+      // 0x0051dfa0: the squared distance, summed (x + y) + z.
+      const Handle p = en.entity_position(en.field32(en.pilot(), 0x14));
+      const float dx = f(p) - f(pos), dy = f(p + 4) - f(pos + 4), dz = f(p + 8) - f(pos + 8);
+      const float xx = dx * dx, yy = dy * dy, zz = dz * dz;
+      const float xy = xx + yy;
+      const float d2 = xy + zz;
+      if (d2 >= 10000.0f) fade = 0.0f;  // x87 "below": NaN goes on
+      else if (!(d2 > 2500.0f)) fade = 1.0f;
+      else fade = (10000.0f - d2) * (1.0f / (10000.0f - 2500.0f));
+    }
+    Handle caster = en.field32(mech, 0xcc);
+    if (!(fade > 0.0f)) {
+      if (caster) {
+        en.shadow_release_texture(caster);
+        en.shadow_delete(caster);
+        en.set_field32(mech, 0xcc, 0);
+      }
+      continue;
+    }
+    if (!caster) {
+      const Handle pl = en.field32(en.pilot(), 0x14);
+      const int32_t size = en.vcall(mech, 0x50, {}) != pl ? 32 : 64;
+      caster = en.shadow_new();
+      en.set_field32(mech, 0xcc, caster);
+      en.shadow_set_size(caster, size, size);
+      en.shadow_set_node(caster, en.field32(mech, 4));
+      en.shadow_enable(caster, 1);
+    }
+    const float clouds = en.clouds_at(f(pos), f(pos + 8));
+    const float ambient = f(light + 0xa0) * clouds, diffuse = f(light + 0x9c) * clouds;
+    float t;  // the ambient share
+    if (!(ambient < 0.0f || ambient > 0.0f)) {
+      t = 0.0f;
+    } else {
+      const float lit = ambient - f(light + 0x88) * diffuse;  // direction y: below 0 from above
+      t = !(lit < 0.0f || lit > 0.0f) ? ambient : ambient / lit;
+    }
+    int32_t grey = crt::msvc_ftol(255.5f - (1.0f - t) * fade * 255.0f);
+    if (grey > 255) grey = 255;
+    else if (grey < 0) grey = 0;
+    const auto g = static_cast<uint8_t>(grey);
+    en.shadow_set_color(caster, zvid::pack_bytes(g, g, g));
+    // The ground: the mech's +0x50 object's +0x41c +0x13c, else its own height.
+    const Handle owner = en.vcall(mech, 0x50, {});
+    const float ground = owner ? f(en.field32(en.vcall(mech, 0x50, {}), 0x41c) + 0x13c) : f(pos + 4);
+    en.shadow_set_position(caster, en.entity_position(mech));
+    en.shadow_draw(caster, light + 0x84, ground);
+    en.shadow_upload(caster);
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00481790: the Direct3D path.
 bool CoreState::draw_hardware(Handle veh, bool flag) {
   Engine& en = e();
@@ -439,7 +512,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   en.display_rect();
   const Handle window = en.window_rect();
   en.video_clear_b(window);
-  en.hw_frame_effects();
+  en.update_shadows();
   const Handle a = en.video_back_buffer();
   const Handle b = en.display_depth();
   en.render_set_target(en.video_target(), render, b, a);

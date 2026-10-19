@@ -160,6 +160,17 @@ int32_t SdlRender3D::create_texture(int width, int height, const uint8_t* rgba, 
   ti.width = width, ti.height = height, ti.layer_count_or_depth = 1, ti.num_levels = 1;
   SDL_GPUTexture* t = SDL_CreateGPUTexture(dev_, &ti);
   if (!t) return -1;
+  upload(t, width, height, rgba);
+  textures_.push_back(t);
+  return static_cast<int32_t>(textures_.size() - 1);
+}
+
+void SdlRender3D::update_texture(int32_t h, int width, int height, const uint8_t* rgba) {
+  if (h < 0 || h >= static_cast<int32_t>(textures_.size()) || !textures_[h]) return;
+  upload(textures_[h], width, height, rgba);
+}
+
+void SdlRender3D::upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba) {
   const auto size = static_cast<uint32_t>(width * height * 4);
   SDL_GPUTransferBufferCreateInfo tbi{SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size, 0};
   SDL_GPUTransferBuffer* tb = SDL_CreateGPUTransferBuffer(dev_, &tbi);
@@ -174,8 +185,6 @@ int32_t SdlRender3D::create_texture(int width, int height, const uint8_t* rgba, 
   SDL_EndGPUCopyPass(copy);
   SDL_SubmitGPUCommandBuffer(cmd);
   SDL_ReleaseGPUTransferBuffer(dev_, tb);
-  textures_.push_back(t);
-  return static_cast<int32_t>(textures_.size() - 1);
 }
 
 void SdlRender3D::release_texture(int32_t h) {

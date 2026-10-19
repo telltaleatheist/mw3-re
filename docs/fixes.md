@@ -37,6 +37,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Projected shadows and lights, zvid_ddd3d.c (0x57eeb0, 0x57f2a0, 0x57f860, 0x57ea20, 0x57fe20) | DrawPrimitive with FVF `0xc4 \| (n + 1) << 8`: one interleaved buffer with a UV pair per shadow, drawn again per shadow with SRCBLEND ZERO / DESTBLEND SRCCOLOR, COLOROP SELECTARG1 and TEXCOORDINDEX k | (A) Direct3D 6 | `Render3D::draw_multi` (default: the selected UV set as a TLVertex, white diffuse under `color_select`); `DrawState` gains `color_select` and `texcoord`, `multiply` follows the blend factors. Emulator-verified identical (`test_shadows.py`, render-shadows.md) |
 | Projected-light subdivision, 0x547160 (from 0x547740) | Splits into fixed arrays of 2,048 triangles and 6,144 vertices with no check | (bug) a large polygon in a light's falloff band overruns them into the light count and the vertex records | A split that would not fit is not made (the triangle stays whole); the test applies the same to the original at that point. The unbounded search for the shared vertex across the edge stops at 3 (it always finds it) |
 | Shadowed draws, 0x57eeb0.. | Read the base texture's address modes through the pointer, null or not | (bug) a crash on a textured polygon whose material lost its texture | The address modes are skipped for a null texture |
+| Shadow image size, 0x542d30 | Resizing an image clears the caster's image pointer, then frees through it (reads address 0x10) | (bug) a crash; unreached in 1.2 (only a new caster gets a size) | The old image is freed (render-shadows.md) |
+| Polygon filler, 0x55d010 | A level edge just at or above a row centre is listed without x or slope (stack garbage, used for that row); with no vertices the second edge walk never ends | (bug) uninitialised memory; a hang | The edge's end x and no slope (the test makes the original do the same); a polygon without vertices is not filled. Its 16.16 rounding runs at 53 bits by default: in play on Windows 11 + DDrawCompat the shadows are visible (Owen, 2026-10-20), so the FPU is not truncated there; `shadow_state().precision = k24` keeps the blank 24-bit images (whether Windows 98's DirectX 6 hid them is unconfirmed) |
+| Shadow textures, 0x57baa0 / 0x57bb00 ([0x72f374] / [0x72f378]) | The image copied into the system surface (0x57b6c0) and Loaded into the video texture; the surfaces and texture Released | (A) Direct3D 6 | `Render3D::update_texture` (new) and `release_texture`; the RGBA as 0x57b130's (test_shadow_image.py) |
+| Device caps, 0x579b70 | D3D6 triangle and address caps (blend ZERO / SRCCOLOR, CLAMP) | (A) Direct3D 6 | `zvid::Display` holds them, all set for a modern GPU |
 | Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57caa0, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
 | 2D blit, 0x55b1f0 (zTwoD's every draw) | DirectDraw `Blt` (0x576f90) when the image has a surface and the target is the locked buffer, else the software blit | (A) DirectDraw | Images carry no surface: always the software blit `zrndr::blit16` (0x55b3c0) into the 16-bit buffer the platform presents (twod.md section 5) |
 | 2D blit, 0x55b3c0 | The bottom clip keeps a last row equal to the height (`jbe`) | (bug) an image whose bottom lands exactly one row past the buffer writes that row beyond it | Clipped at the last row; everything else pixel-identical on 3,000 random blits (`test_twod_blit.py`) |
@@ -125,11 +129,17 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   ground the weapon lights subdivide is drawn black at 24-bit (emulator,
   render-shadows.md). Same check in play and the same likely FIX (bug); the
   port keeps the 24-bit result for now, as for the point-lit vertices.
-- Mech shadow images, 0x55d010 (from 0x542e70, not ported yet): every edge
-  goes to 16.16 fixed point with the same trick, so at 24-bit nothing is
-  filled and the shadow texture is plain white: shadows invisible on
-  hardware (emulator, render-shadows.md). When the caster module is ported,
-  a FIX (bug) candidate (round properly) to show the shadows as designed.
+- Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
+  fixed point with the same trick, so at 24-bit nothing is filled and the
+  shadow texture is plain white: shadows invisible on hardware (emulator,
+  render-shadows.md). In play on Windows 11 + DDrawCompat the shadows are
+  visible (Owen, 2026-10-20): the reference runtime leaves the FPU at 53
+  bits at least there (whether 1999 DirectX 6 on Windows 98 hid them stays
+  unconfirmed). Ported with a switch, `zmod::shadow_state().precision`:
+  `k53`, the default, runs the filler at double precision as seen in play
+  (the original's own images, bit for bit: test_shadow_image.py); `k24`
+  keeps the blank images of a 24-bit FPU. Not a FIX: the original's
+  behaviour on the reference runtime.
 - Ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0): the width that
   picks a foot's middle probe (for its ground contact and its water) is never
   written, so it is whatever the heap held. The port keeps 0 (front or back

@@ -257,9 +257,9 @@ Escape always pausing, the shell redrawing on any resume: 13 of 13 caught.
 
 - The key list's screen (0x00482570) and the screens' constructors are the
   2D front end's; KeyListState::enter is one hook.
-- 0x004814e0, the Direct3D path's first call, is hooked: likely a pass over
-  the objects at 0x0073655c giving each a light by its distance to the
-  player's mech (0x00542c20.., 0x00579370).
+- 0x004814e0, the Direct3D path's first call, is the mechs' projected
+  shadows (ported: `mech3::update_shadows`, render-shadows.md); its entity
+  calls (0x005a85e0, the node handles) wait for the entities' port.
 - What 0x00477f50("mechlab") does (likely reloads or saves the pilots).
 - 0x004810d0 toggles the debug overlay at 0x00608f74 (called from 0x00480b20,
   itself not called); not ported.

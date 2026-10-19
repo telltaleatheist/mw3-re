@@ -105,5 +105,8 @@ void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // 0x005226e
 void transform_points(Vec3* v, uint32_t count);               // 0x005227a0  in place
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count);  // 0x00522910
 void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // inlined in 0x0053f2e0
+// ECX m (12 floats), EDX box (min x, y, z, max x, y, z), stack out: the
+// eight corners through m, in the order of zcls::node_box_corners.
+void box_corners(const float* m, const float box[6], float out[8][3]);  // 0x00522ab0
 
 }  // namespace zmth

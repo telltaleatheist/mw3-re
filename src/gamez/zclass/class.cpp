@@ -36,20 +36,7 @@ void product(const float* l, const float* t, float* r) {
   }
 }
 
-// 0x00522ab0 (zmth, not ported there): the box's corners through m, in the
-// order of the identity case below; each is (x r0 + y r1) + (z r2 + t).
-void box_through(const float* m, const float* box, float out[8][3]) {
-  static const int kPick[8][3] = {{0, 1, 5}, {3, 1, 5}, {3, 1, 2}, {0, 1, 2},
-                                  {0, 4, 5}, {3, 4, 5}, {3, 4, 2}, {0, 4, 2}};
-  for (int i = 0; i < 8; ++i) {
-    const float x = box[kPick[i][0]], y = box[kPick[i][1]], z = box[kPick[i][2]];
-    for (int c = 0; c < 3; ++c) {
-      const float xy = x * m[c] + y * m[3 + c];
-      const float zt = z * m[6 + c] + m[9 + c];
-      out[i][c] = xy + zt;
-    }
-  }
-}
+void box_through(const float* m, const float* box, float out[8][3]) { zmth::box_corners(m, box, out); }
 }  // namespace
 
 UpdateHooks& update_hooks() { return g_hooks; }

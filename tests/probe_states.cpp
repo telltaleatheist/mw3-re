@@ -59,6 +59,8 @@ struct Recording : mech3::Engine {
   void set_use_joystick(int32_t v) override { call("0x0040d070", {v}); }
   void set_fast_menu(int32_t v) override { call("0x0040ce90", {v}); }
   void options_apply_all() override { call("0x0040cb30", {}); }
+  void light_init() override { call("0x00542bb0", {}); }
+  void update_shadows() override { call("0x004814e0", {}); }
   void exit_process(uint32_t code) override {
     call("ExitProcess", {code});
     throw Exit();

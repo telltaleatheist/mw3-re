@@ -3,6 +3,8 @@
 
 #include "gamez/zgame/zgameapp.h"
 
+namespace zcls { struct Node; }
+
 // What the game's app and states call in code not ported yet (docs/game-loop.md).
 // One method per original function, its address in the key; by default each
 // reports to unported() and does nothing. Ported functions default to the port.
@@ -164,7 +166,7 @@ class Engine : public zgame::AppHooks {
   virtual void sound_set_mode(int32_t v) { unported("0x0056f4b0", {v}); }
   virtual void models_load(const char* flags_name, int32_t flags) { unported("0x00526750", {flags_name, flags}); }
   virtual void render_load(const char* flags_name, int32_t flags) { unported("0x00557ae0", {flags_name, flags}); }
-  virtual void light_init() { unported("0x00542bb0", {}); }
+  virtual void light_init();                           // 0x00542bb0, ported: zmod::shadows_init
   virtual void fonts_init(const char* name, int32_t a) { unported("0x00516e90", {name, a}); }
   virtual void sound_load(uint32_t window, const char* name, uint32_t callback, uint32_t a) {
     unported("0x005705e0", {window, name, callback, a});
@@ -361,7 +363,27 @@ class Engine : public zgame::AppHooks {
   virtual void scene_set_scale_b(float v) { unported("0x00567530", {zgame::bits(v)}); }
   virtual void scene_present() { unported("0x00567dc0", {}); }
   virtual void scene_reset() { unported("0x00566f10", {}); }
-  virtual void hw_frame_effects() { unported("0x004814e0", {}); }
+  virtual void update_shadows();                       // 0x004814e0, ported: app_states
+  // The projected-shadow casters (zmod, ported; docs/render-shadows.md). A
+  // caster is a handle the defaults map to the port's records; the node,
+  // position and light are the original's objects (node_of, peek).
+  virtual Handle shadow_new();                                  // 0x00542c20
+  virtual void shadow_set_size(Handle c, int32_t w, int32_t h); // 0x00542d30
+  virtual void shadow_set_node(Handle c, Handle node);          // 0x00542dd0
+  virtual void shadow_enable(Handle c, int32_t on);             // 0x00542e60
+  virtual void shadow_set_color(Handle c, uint32_t color);      // 0x00542e00
+  virtual void shadow_set_position(Handle c, Handle pos);       // 0x00542de0, 3 floats at pos
+  virtual int32_t shadow_draw(Handle c, Handle light_dir, float ground);  // 0x00542e70
+  virtual void shadow_upload(Handle c);                         // 0x00542e10
+  virtual void shadow_release_texture(Handle c);                // 0x00542e40
+  virtual void shadow_delete(Handle c);                         // 0x00542ca0
+  virtual float clouds_at(float x, float z);                    // 0x00543ac0, ported: gmod_light
+  virtual Handle entity_position(Handle entity) { return unported("0x005a85e0", {entity}); }  // 3 floats
+  // A node handle as the port's node: none until the entities are ported.
+  virtual zcls::Node* node_of(Handle node) {
+    unported("node_of", {node});
+    return nullptr;
+  }
   virtual void hud_update() { unported("0x0040fac0", {}); }
   virtual void hud_draw() { unported("0x0040e4b0", {}); }
   virtual void shadows_reset() { unported("0x004e6900", {}); }

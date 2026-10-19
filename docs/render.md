@@ -70,8 +70,18 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   `Render3D::draw_multi` (FIX (A)). Corrections there: [0x72f3cc] /
   [0x72f3dc] are the projected-light draws, not puffers; the casters are
   the mechs near the player (0x4814e0); at 24 bits the caster images are
-  blank and projected-light triangles black (emulator). Not ported: the
-  caster images themselves (0x542bb0..0x543330, 0x55d010, 0x4814e0).
+  blank and projected-light triangles black (emulator).
+- The casters and their images: records, the image builder 0x542e70 with
+  its node walk (0x5432d0, 0x4f7670, 0x4f7750), 0x543330, the polygon filler
+  0x55d010 and the blur; uploads through 0x57b130 / 0x57baa0 / 0x57bb00 into
+  `Render3D` (`update_texture` new); the per-mech upkeep 0x4814e0 (mech3):
+  `zmodel/gmod_cull`, `zclass/camera`, `zrender/zrndr_span`,
+  `zvideo/zvid_ddd3d`, `mech3/app_states`, render-shadows.md. Identical to
+  the original at 24 bits (blank images, the default) and with the filler at
+  53 bits (`shadow_state().precision`; k53 the default: in play the shadows
+  show, Owen 2026-10-20). Correction:
+  0x51fee0 sums column 2 and the translation's z in another order
+  (`zmth::multiply` now bit-exact).
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
@@ -138,9 +148,8 @@ zGameApp::Run 0x58fd70                      main loop, state stack (architecture
 
 0x481790 (Direct3D frame):
 
-1. viewport/rect setup (0x40d6a0, 0x40d750, 0x40d7b0, 0x576cf0, 0x4814e0
-   **[unverified: 0x4814e0 adjusts per-mech light/fade for the radar? not mapped]**,
-   0x557f90 2D target).
+1. viewport/rect setup (0x40d6a0, 0x40d750, 0x40d7b0, 0x576cf0), 0x4814e0
+   (the mechs' shadow images, render-shadows.md), 0x557f90 2D target.
 2. `[0x5f4c8c]->vt+4` = 0x4b52c0: the player view object (ctor 0x40aca0 /
    0x4b5060: +4 camera node, +8 window wrapper, +0xc world wrapper,
    +0x14 = [0x72f348] hardware flag). Hardware: `0x4f7030(ECX camera, EDX 0)`;
@@ -710,8 +719,9 @@ overlapping the caster's ground box): up to 7 hits, each a UV set and the
 caster's texture, drawn by the multipass functions (0x57eeb0..: the base
 pass, then one multiply-blend pass per shadow). The caster's own node turns
 shadows off while it is drawn (0x526a70 around 0x4f4ab0's model draw). At
-the game's 24-bit FPU precision the images come out blank (white), so the
-passes change nothing **[emulator; unverified in play]**. Details,
+a 24-bit FPU the images come out blank (white); in play (Windows 11 +
+DDrawCompat) the shadows show, so the FPU is at 53 bits there (Owen,
+2026-10-20). Details,
 projected lights (flag 0x40) included: `render-shadows.md`. Separately,
 many objects carry **fake shadow polygons**: untextured black with material
 alpha 51..153 (`shdw`, `shad`, `dk_shad`, crate `shdw`), blended like any

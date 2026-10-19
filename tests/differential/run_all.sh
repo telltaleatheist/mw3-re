@@ -42,6 +42,7 @@ for t in \
     app_options \
     app_states \
     shadows \
+    shadow_image \
     puffers \
     sound \
     weapons_zrd \
