@@ -103,6 +103,7 @@ add_library(mw3probe SHARED
   tests/probe_app.cpp
   tests/probe_options.cpp
   tests/probe_states.cpp
+  tests/probe_shadows.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

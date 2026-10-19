@@ -9,6 +9,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -245,6 +246,84 @@ void second_pass(const Material& mat, int32_t priority, int32_t count) {
   }
   if (g_table.flat) g_table.flat(g_table.ctx, mat.rgb, alpha_of(mat), count, priority, s.overlay);
 }
+
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00540552..0x005408d8 (and the copy at 0x00540ef6..):
+// the receiver test inlined in 0x0053f2e0. The polygon (camera space,
+// reversed) goes to world space; each caster in the walk's list, last first,
+// whose top it does not clear, whose light it faces and whose box it meets
+// once its low or near-side vertices slide down the light onto the caster's
+// ground, gives one UV set and texture. Seven at most. docs/render-shadows.md.
+void collect_shadows(int32_t count, const float n[3]) {
+  ShadowSets& out = clip2d().shadow;
+  const ShadowCasters& casters = shadow_casters();
+  if (casters.count == 0) return;
+  const float(*cam)[3] = clip3d_buffers().cam;
+  const float* m = zmth::view().camera.m;  // 0x0073fc00
+  const float* off = lighting().camera_offset;  // 0x0073fbb0
+  float world[kClipVerts][3];
+  float lowest = 3.4028235e+38f;
+  for (int32_t i = count - 1; i >= 0; --i) {
+    transform_point(cam[i], m, world[i]);
+    if (lowest > world[i][1]) lowest = world[i][1];
+  }
+  float ground[kClipVerts][2];
+  for (int32_t c = casters.count - 1; c >= 0; --c) {
+    const ShadowCaster& s = *casters.list[c];
+    if (lowest > s.box_max[1]) continue;  // the whole polygon above the caster's top
+    const float f0 = n[0] * s.slope_cam[0], f1 = n[1] * s.slope_cam[1], f2 = n[2] * s.slope_cam[2];
+    const float f01 = f0 + f1;
+    const float facing = f01 + f2;
+    if (!(facing > 0.0f)) continue;
+    // Vertices on the light's side of a line through the caster (2 slope
+    // lengths beyond it) are all slid down, not just those below its ground.
+    const float px = s.position[0] + off[0], pz = s.position[2] + off[2];
+    const float lx = px * s.slope[0], lz = pz * s.slope[1];
+    const float l = lx + lz;
+    const float r2 = s.slope_len * -2.0f;
+    const float limit = l - r2;
+    bool slide_all = false;
+    for (int32_t i = count - 1; i >= 0; --i) {
+      const float a = world[i][2] * s.slope[1], b = world[i][0] * s.slope[0];
+      if (!(a + b > limit)) {
+        slide_all = true;
+        break;
+      }
+    }
+    float max_x = -3.4028235e+38f, min_x = 3.4028235e+38f, min_z = 3.4028235e+38f, max_z = -3.4028235e+38f;
+    for (int32_t i = count - 1; i >= 0; --i) {
+      ground[i][0] = world[i][0];
+      ground[i][1] = world[i][2];
+      if (slide_all || below(world[i][1], s.ground_y)) {
+        const float t = s.ground_y - world[i][1];
+        const float dx = t * s.slope[0];
+        ground[i][0] = dx + ground[i][0];
+        const float dz = t * s.slope[1];
+        ground[i][1] = dz + ground[i][1];
+      }
+      if (min_x > ground[i][0]) min_x = ground[i][0];
+      if (below(max_x, ground[i][0])) max_x = ground[i][0];
+      if (min_z > ground[i][1]) min_z = ground[i][1];
+      if (below(max_z, ground[i][1])) max_z = ground[i][1];
+    }
+    const float x0 = s.box_min[0] + off[0], z0 = s.box_min[2] + off[2];
+    if (!(max_x > x0) || !(max_z > z0)) continue;
+    const float x1 = s.box_max[0] + off[0], z1 = s.box_max[2] + off[2];
+    if (!(x1 > min_x) || !(z1 > min_z)) continue;
+    ShadowUV* uv = out.uv[out.count];
+    for (int32_t i = 0; i < count; ++i) {
+      const float u = ground[i][0] - x0;
+      uv[i].u = u * s.scale[0];
+      const float v = ground[i][1] - z0;
+      uv[i].v = v * s.scale[1];
+    }
+    out.texture[out.count] = s.texture;
+    if (++out.count >= kShadowSets) return;
+  }
+}
+
+namespace {
 
 // 0x545720 (gmod_light) on this polygon's buffers.
 int32_t shade(uint32_t* baked, float n[3], int32_t count, uint32_t* fogged, uint32_t* per_vertex, int32_t spot,

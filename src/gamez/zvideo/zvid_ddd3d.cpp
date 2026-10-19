@@ -30,7 +30,11 @@ DeviceState g_state;
 platform::Render3D* g_render = nullptr;
 platform::DrawState g_draw;
 DrawBuffers g_buffers{reinterpret_cast<TLVertex*>(zmod::clip2d().tl),
-                      reinterpret_cast<const WorkRecord*>(zmod::clip2d().work)};
+                      reinterpret_cast<const WorkRecord*>(zmod::clip2d().work), &zmod::clip2d().shadow};
+// 0x008008e0: up to 64 vertices of 6 + 2 * 8 dwords (the shadowed draws' FVF).
+constexpr int kMultiStride = 6 + 2 * (1 + zmod::kShadowSets);
+uint32_t g_multi[64 * kMultiStride];
+int32_t g_src_blend = 5, g_dest_blend = 6;  // SRCBLEND / DESTBLEND as 0x0057a900 leaves them
 PointLight g_light;
 ChannelMasks g_masks;
 Display g_display;
@@ -54,6 +58,11 @@ void set_render_state(int32_t state, int32_t value) {
     case 8: d.wireframe = value == 2; break;      // FILLMODE: 2 wireframe, 3 solid
     case 9: d.flat = value == 1; break;           // SHADEMODE: 1 flat, 2 Gouraud
     case 14: d.depth_write = value != 0; break;   // ZWRITEENABLE
+    case 19:                                      // SRCBLEND: 5 SRCALPHA, 1 ZERO
+    case 20:                                      // DESTBLEND: 6 INVSRCALPHA, 3 SRCCOLOR
+      (state == 19 ? g_src_blend : g_dest_blend) = value;
+      d.multiply = g_src_blend == 1 && g_dest_blend == 3;
+      break;
     case 23: d.depth_always = value == 8; break;  // ZFUNC: 8 ALWAYS, 7 GREATEREQUAL
     case 27: d.blend = value != 0; break;         // ALPHABLENDENABLE
     case 28: d.fog = value != 0; break;           // FOGENABLE
@@ -69,10 +78,12 @@ void set_render_state(int32_t state, int32_t value) {
 void set_texture_stage_state(int32_t type, int32_t value) {
   platform::DrawState& d = g_draw;
   switch (type) {
+    case 1: d.color_select = value == 2; break;    // COLOROP: 2 SELECTARG1, 4 MODULATE
     case 4: d.alpha_modulate = value == 4; break;  // ALPHAOP: 4 MODULATE, 2 SELECTARG1
+    case 11: d.texcoord = static_cast<uint8_t>(value); break;  // TEXCOORDINDEX
     case 13: d.address_u = static_cast<uint8_t>(value); break;
     case 14: d.address_v = static_cast<uint8_t>(value); break;
-    default: break;
+    default: break;  // MAGFILTER / MINFILTER (16 / 17): LINEAR, as 0x0057a900 sets them
   }
 }
 
@@ -137,6 +148,87 @@ void fog_and_rhw(bool fog, int32_t count) {
     tl[i].specular = fog ? static_cast<uint32_t>(ftol(255.5f - w[i].fog * 255.0f)) << 24 : 0xff000000u;
     tl[i].rhw = tl[i].sz;
   }
+}
+
+// The textured lit colour of one vertex (0x0057d160 and its kin): the colour
+// times `dark`, plus the coloured point light (flag 4) rounded the magic way.
+uint32_t lit_rgb(const WorkRecord& w, float dark, uint32_t flags) {
+  const float* c = w.color;
+  if ((flags & 4) && w.point > kInv255) {
+    const PointLight& l = g_light;
+    const float s = w.point * kInv255;
+    const int32_t r = clamp_byte(magic_round((s * l.color[0] + dark) * c[0] - -0.5f));
+    const int32_t g = clamp_byte(magic_round((s * l.color[1] + dark) * c[1] - -0.5f));
+    const int32_t b = clamp_byte(magic_round((s * l.color[2] + dark) * c[2] - -0.5f));
+    return rgb_bits(r, g, b);
+  }
+  return rgb_bits(round_byte(dark * c[0]), round_byte(c[1] * dark), round_byte(c[2] * dark));
+}
+
+// The projected-light draws' colour: vertex colour times its light, or the
+// colour alone without one.
+uint32_t light_rgb(const WorkRecord& w, const float* light) {
+  const float* c = w.color;
+  if (!light) return rgb_bits(round_byte(c[0]), round_byte(c[1]), round_byte(c[2]));
+  int32_t v[3];
+  for (int k = 0; k < 3; ++k) v[k] = clamp_byte(magic_round(c[k] * light[k] - -0.5f));
+  return rgb_bits(v[0], v[1], v[2]);
+}
+
+uint32_t fog_alpha(uint32_t flags, const WorkRecord& w) {
+  return (flags & 1) ? static_cast<uint32_t>(ftol(255.5f - w.fog * 255.0f)) << 24 : 0xff000000u;
+}
+
+// Vertex i of the shadowed draws' buffer: position and rhw = sz, colours,
+// the texture's UVs and one pair per shadow set.
+void multi_vertex(int32_t i, uint32_t diffuse, uint32_t specular) {
+  const TLVertex& t = g_buffers.tl[i];
+  const zmod::ShadowSets& s = *g_buffers.shadow;
+  uint32_t* v = g_multi + (8 + 2 * s.count) * i;
+  std::memcpy(v, &t.sx, 12);
+  std::memcpy(v + 3, &t.sz, 4);
+  v[4] = diffuse, v[5] = specular;
+  std::memcpy(v + 6, &t.tu, 8);
+  for (int32_t k = 0; k < s.count; ++k) std::memcpy(v + 8 + 2 * k, &s.uv[k][i], 8);
+}
+
+// The shadowed draws' device calls: the polygon with its texture, then each
+// shadow's texture multiplied over it (SRCBLEND ZERO, DESTBLEND SRCCOLOR,
+// colour = texture alone, clamped, fog off), then the defaults back and
+// FOGENABLE on. ALPHABLENDENABLE goes around the state cache.
+void shadow_passes(int32_t count, const D3DTexture* texture) {
+  DeviceState& st = g_state;
+  const zmod::ShadowSets& s = *g_buffers.shadow;
+  const int32_t sets = s.count + 1;
+  set_shade(2);
+  set_texture(texture);
+  // FIX (bug): a null texture would be read through here; it is skipped.
+  if (texture) set_address(texture);
+  if (st.alpha_op != 2) st.alpha_op = 2, set_texture_stage_state(4, 2);
+  set_texture_stage_state(16, 2);  // MAGFILTER LINEAR
+  set_texture_stage_state(17, 2);  // MINFILTER LINEAR
+  auto draw = [&] {
+    if (g_render) g_render->draw_multi(static_cast<platform::Primitive>(st.primitive), g_multi, sets, count, g_draw);
+  };
+  draw();
+  set_render_state(19, 1);
+  set_render_state(20, 3);
+  set_render_state(27, 1);
+  if (st.address_u != 3) set_texture_stage_state(13, 3), st.address_u = 3;
+  if (st.address_v != 3) set_texture_stage_state(14, 3), st.address_v = 3;
+  set_texture_stage_state(1, 2);  // COLOROP SELECTARG1
+  set_render_state(28, 0);
+  for (int32_t k = 1; k <= s.count; ++k) {
+    set_texture(static_cast<const D3DTexture*>(s.texture[k - 1]));
+    set_texture_stage_state(11, k);
+    draw();
+  }
+  set_render_state(19, 5);
+  set_render_state(20, 6);
+  set_render_state(27, 0);
+  set_texture_stage_state(11, 0);
+  set_texture_stage_state(1, 4);   // COLOROP MODULATE
+  set_render_state(28, 1);         // FOGENABLE: the only place the game turns fog on
 }
 
 // A slot in the overlay list, or the report (each site has its own line;
@@ -351,19 +443,7 @@ void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture,
   const float dark = 1.0f - w[0].darkness;
   fog_and_rhw(flags & 1, count);
   const uint32_t a = opacity_alpha(opacity);
-  const PointLight& l = g_light;
-  for (int32_t i = count - 1; i >= 0; --i) {
-    const float* c = w[i].color;
-    if ((flags & 4) && w[i].point > kInv255) {
-      const float s = w[i].point * kInv255;
-      const int32_t r = clamp_byte(magic_round((s * l.color[0] + dark) * c[0] - -0.5f));
-      const int32_t g = clamp_byte(magic_round((s * l.color[1] + dark) * c[1] - -0.5f));
-      const int32_t b = clamp_byte(magic_round((s * l.color[2] + dark) * c[2] - -0.5f));
-      tl[i].diffuse = rgb_bits(r, g, b) | a;
-    } else {
-      tl[i].diffuse = rgb_bits(round_byte(dark * c[0]), round_byte(c[1] * dark), round_byte(c[2] * dark)) | a;
-    }
-  }
+  for (int32_t i = count - 1; i >= 0; --i) tl[i].diffuse = lit_rgb(w[i], dark, flags) | a;
   textured_tail(count, texture, opacity, overlay, 5, 0x953, 0x925, true);
 }
 
@@ -375,22 +455,68 @@ void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* t
   const WorkRecord* w = g_buffers.work;
   fog_and_rhw(flags & 1, count);
   const uint32_t a = opacity_alpha(opacity);
-  const PointLight& l = g_light;
-  for (int32_t i = count - 1; i >= 0; --i) {
-    const float* c = w[i].color;
-    const float dark = 1.0f - w[i].darkness;
-    if ((flags & 4) && w[i].point > kInv255) {
-      const float s = w[i].point * kInv255;
-      const int32_t r = clamp_byte(magic_round((s * l.color[0] + dark) * c[0] - -0.5f));
-      const int32_t g = clamp_byte(magic_round((s * l.color[1] + dark) * c[1] - -0.5f));
-      const int32_t b = clamp_byte(magic_round((s * l.color[2] + dark) * c[2] - -0.5f));
-      tl[i].diffuse = rgb_bits(r, g, b) | a;
-    } else {
-      tl[i].diffuse = rgb_bits(round_byte(c[0] * dark), round_byte(c[1] * dark), round_byte(c[2] * dark)) | a;
-    }
-  }
+  for (int32_t i = count - 1; i >= 0; --i) tl[i].diffuse = lit_rgb(w[i], 1.0f - w[i].darkness, flags) | a;
   textured_tail(count, texture, opacity, overlay, 6, 0xa23, 0x9f2, true);
 }
+
+// Mech3.exe 1.2 @ 0x0057eeb0 (ECX count, EDX texture). FIX (A): the
+// multi-texture DrawPrimitives go to Render3D::draw_multi.
+void draw_shadowed(int32_t count, const D3DTexture* texture) {
+  const WorkRecord* w = g_buffers.work;
+  for (int32_t i = 0; i < count; ++i)
+    multi_vertex(i, rgb_bits(round_byte(w[i].color[0]), round_byte(w[i].color[1]), round_byte(w[i].color[2])) |
+                        0xff000000u,
+                 0xff000000u);
+  shadow_passes(count, texture);
+}
+
+// Mech3.exe 1.2 @ 0x0057f2a0 (ECX flags, EDX count, stack texture): the
+// first vertex's darkness for all, as 0x0057d160.
+void draw_shadowed_lit(uint32_t flags, int32_t count, const D3DTexture* texture) {
+  const WorkRecord* w = g_buffers.work;
+  const float dark = 1.0f - w[0].darkness;
+  for (int32_t i = 0; i < count; ++i) multi_vertex(i, lit_rgb(w[i], dark, flags) | 0xff000000u, fog_alpha(flags, w[i]));
+  shadow_passes(count, texture);
+}
+
+// Mech3.exe 1.2 @ 0x0057f860: each vertex's own darkness, as 0x0057d690.
+void draw_shadowed_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture) {
+  const WorkRecord* w = g_buffers.work;
+  for (int32_t i = 0; i < count; ++i)
+    multi_vertex(i, lit_rgb(w[i], 1.0f - w[i].darkness, flags) | 0xff000000u, fog_alpha(flags, w[i]));
+  shadow_passes(count, texture);
+}
+
+// Mech3.exe 1.2 @ 0x0057ea20 (ECX light, EDX flags; stack count, texture,
+// priority (unused), opacity, overlay). Lit vertices round with the
+// 1.5 * 2^52 trick, so at the game's 24-bit precision they come out black
+// (docs/render-shadows.md). Transparent and overlay as 0x0057d690.
+// FIX (A): the device calls go to Render3D.
+void draw_projected(const float* light, uint32_t flags, int32_t count, const D3DTexture* texture, int32_t,
+                    float opacity, int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  fog_and_rhw(flags & 1, count);
+  // Rounded here (0.5 - opacity * -255), truncated in the other draws.
+  uint32_t a = 0xff000000u;
+  if (!(opacity >= 1.0f)) {
+    const float s = opacity * -255.0f;
+    a = static_cast<uint32_t>(ftol(0.5f - s)) << 24;
+  }
+  for (int32_t i = count - 1; i >= 0; --i) tl[i].diffuse = light_rgb(w[i], light ? light + 3 * i : nullptr) | a;
+  textured_tail(count, texture, opacity, overlay, 6, 0xce1, 0xcb3, true);
+}
+
+// Mech3.exe 1.2 @ 0x0057fe20 (ECX light, EDX flags; stack count, texture).
+// FIX (A): the multi-texture DrawPrimitives go to Render3D::draw_multi.
+void draw_projected_shadowed(const float* light, uint32_t flags, int32_t count, const D3DTexture* texture) {
+  const WorkRecord* w = g_buffers.work;
+  for (int32_t i = 0; i < count; ++i)
+    multi_vertex(i, light_rgb(w[i], light ? light + 3 * i : nullptr) | 0xff000000u, fog_alpha(flags, w[i]));
+  shadow_passes(count, texture);
+}
+
+const uint32_t* multi_buffer() { return g_multi; }
 
 // Mech3.exe 1.2 @ 0x0057dec0. Quicksort down to runs of 9, median of three
 // (lo, mid, hi), then one insertion sort over the whole list; not stable.
@@ -697,6 +823,22 @@ void install_model_draw_table() {
   };
   t.textured_vertex = [](void*, uint32_t fogged, int32_t count, void* texture, float opacity, int32_t overlay) {
     draw_textured_vertex_lit(fogged, count, static_cast<const D3DTexture*>(texture), opacity, overlay);
+  };
+  t.shadowed = [](void*, int32_t count, void* texture) {
+    draw_shadowed(count, static_cast<const D3DTexture*>(texture));
+  };
+  t.shadowed_lit = [](void*, uint32_t fogged, int32_t count, void* texture) {
+    draw_shadowed_lit(fogged, count, static_cast<const D3DTexture*>(texture));
+  };
+  t.shadowed_vertex = [](void*, uint32_t fogged, int32_t count, void* texture) {
+    draw_shadowed_vertex_lit(fogged, count, static_cast<const D3DTexture*>(texture));
+  };
+  t.projected = [](void*, const float* light, uint32_t fogged, int32_t count, void* texture, int32_t priority,
+                   float opacity, int32_t overlay) {
+    draw_projected(light, fogged, count, static_cast<const D3DTexture*>(texture), priority, opacity, overlay);
+  };
+  t.projected_shadowed = [](void*, const float* light, uint32_t fogged, int32_t count, void* texture) {
+    draw_projected_shadowed(light, fogged, count, static_cast<const D3DTexture*>(texture));
   };
 }
 

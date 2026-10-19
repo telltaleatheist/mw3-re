@@ -6,6 +6,9 @@
 namespace zimg {
 struct Texture;
 }
+namespace zmod {
+struct ShadowSets;
+}
 
 // The Direct3D 6 draw backend (zvid_ddd3d.c): the draw table the model draw
 // calls ([0x0072f3b0].., filled by 0x00579f50), the render-state cache, the
@@ -94,6 +97,7 @@ struct WorkRecord {                // 0x20 bytes (= zmod::VertexWork)
 struct DrawBuffers {
   TLVertex* tl;                    // 0x0072f41c
   const WorkRecord* work;          // 0x007481a8
+  const zmod::ShadowSets* shadow;  // 0x007489a8  the projected-shadow UV sets and textures
 };
 DrawBuffers& draw_buffers();
 
@@ -139,6 +143,23 @@ void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture,
                        float opacity, int32_t overlay);                                 // 0x0057d160
 void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture, float opacity,
                               int32_t overlay);                                         // 0x0057d690
+
+// The projected-shadow draws (docs/render-shadows.md): the polygon once with
+// its texture, then once per shadow multiplied by the shadow's texture
+// (draw_buffers().shadow), each UV set its own texture coordinate; fog off
+// for those passes and ON afterwards (the only FOGENABLE in the game). Never
+// transparent, never in the overlay list; opaque white alpha.
+void draw_shadowed(int32_t count, const D3DTexture* texture);                       // 0x0057eeb0
+void draw_shadowed_lit(uint32_t flags, int32_t count, const D3DTexture* texture);   // 0x0057f2a0
+void draw_shadowed_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture);  // 0x0057f860
+// One triangle of a polygon under projected lights (0x00547740): the vertex
+// colour times light (3 per vertex, rgb multipliers; null: the colour alone).
+void draw_projected(const float* light, uint32_t flags, int32_t count, const D3DTexture* texture,
+                    int32_t priority, float opacity, int32_t overlay);              // 0x0057ea20
+void draw_projected_shadowed(const float* light, uint32_t flags, int32_t count,
+                             const D3DTexture* texture);                           // 0x0057fe20
+// The interleaved vertices the shadowed draws hand DrawPrimitive (0x008008e0).
+const uint32_t* multi_buffer();
 
 // 0x00579f50's table fill (0x579fe9..0x57a165), the part the model draw uses:
 // points zmod::draw_table() at the draw functions above.

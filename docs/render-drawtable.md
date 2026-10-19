@@ -231,5 +231,7 @@ vertex darkness in 0x57d690, brightest-channel ties, the 1555 green bit, type
 5 for a plane on a 1555 surface, the flush sending ALPHAOP by type.
 
 Not ported here: the other table entries (0x57c2f0, 0x57caa0, 0x57dba0, the
-shadow passes 0x57eeb0.., puffers 0x57ea20 / 0x57fe20, the 2D quad 0x57bd50,
-the tint quad 0x57e380), texture release, the square resize.
+2D quad 0x57bd50, the tint quad 0x57e380), texture release, the square
+resize. The shadow passes 0x57eeb0 / 0x57f2a0 / 0x57f860 and the
+projected-light draws 0x57ea20 / 0x57fe20 (not puffers) are in
+render-shadows.md.

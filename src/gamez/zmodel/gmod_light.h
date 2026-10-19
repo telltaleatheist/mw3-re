@@ -123,6 +123,51 @@ uint32_t model_needs(uint32_t model_flags, const float centre[3], float radius);
 int32_t shade_polygon(const float* baked, float normal[3], int32_t count, uint32_t* draw_flags,
                       uint32_t* vary_flags, int32_t shadowed, uint32_t needs);  // 0x00545720
 
+// --- Projected lights (lights with flags 0x10 and 0x40, docs/render-shadows.md) ---
+// 0x00547060..0x00547740 sit after gmod_light.c, before gmod_puff.cpp. A
+// textured polygon near one is cut into a fan around its centre, then split
+// along its longest edges where the light's falloff crosses it, and each
+// triangle is lit per vertex and drawn on its own.
+struct ProjVertex {                // 0x84 bytes at 0x0065ddf8
+  float pos[3];                    // +0x00  camera space (unprojected from the screen)
+  float screen[3];                 // +0x0c  sx, sy, sz
+  float uv[8][2];                  // +0x18  the texture's, then one per shadow set
+  float fog;                       // +0x58
+  float light[3];                  // +0x5c  1 - darkness, plus the coloured point light
+  float color[3];                  // +0x68  vertex colour, 0..255
+  float lit[3];                    // +0x74  light[] plus the projected lights
+  int32_t outline;                 // +0x80  on the polygon's outline: pushed out a pixel
+};
+static_assert(sizeof(ProjVertex) == 0x84, "ProjVertex is 0x84 bytes");
+struct ProjTriangle {              // 0x1c bytes at 0x0064fdf0
+  int32_t v[3];                    // +0x00
+  int32_t across[3];               // +0x0c  the triangle across edge i (v[i]..v[i+1]), -1 none
+  int32_t active;                  // +0x18  may still be split
+};
+struct ProjectedLights {
+  static constexpr int kMaxLights = 128, kMaxTriangles = 2048, kMaxVertices = 6144;
+  zcls::Light* lights[kMaxLights] = {};       // 0x0064fbf0
+  int32_t light_count = 0;                    // 0x0065ddf0
+  int32_t vertex_count = 0;                   // 0x0064fbe8
+  int32_t triangle_count = 0;                 // 0x0064fbec
+  ProjTriangle triangles[kMaxTriangles] = {}; // 0x0064fdf0
+  ProjVertex vertices[kMaxVertices] = {};     // 0x0065ddf8
+};
+ProjectedLights& projected_lights();
+
+struct Material;
+// ECX count: the polygon in the draw's TL buffer. 1 when a projected light's
+// range reaches its bounding sphere (the model draw asks before splitting a strip).
+int32_t projected_reach(int32_t count);  // 0x00547540
+// ECX count, EDX per_vertex (each vertex's own darkness), stack flags (the
+// draw's fog/point bits), material, priority. Draws the polygon as lit
+// triangles through the draw table's projected entries; 0 when no projected
+// light is near (the caller then draws it as usual).
+int32_t draw_projected(int32_t count, uint32_t per_vertex, uint32_t flags, const Material* material,
+                       int32_t priority);  // 0x00547740
+void projected_light_vertex(int32_t k);   // 0x00547060  vertex k's lit[]
+void projected_split(int32_t t, int32_t edge);  // 0x00547160  triangle t across edge
+
 // --- Clouds ---
 void clouds_set_on(int32_t on);                  // 0x00543910
 void clouds_set_period(float period);            // 0x00543920

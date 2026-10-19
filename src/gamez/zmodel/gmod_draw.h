@@ -4,6 +4,7 @@
 #include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zmodel/gmod_clip3d.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_light.h"
 
 // The Direct3D model draw ([0x74a2e0] = 0x53f2e0) and what it needs from the
 // model (0x53daa0): camera-space transform, backface test, clip, projection
@@ -78,29 +79,42 @@ struct DrawTable {
   void (*shadowed)(void* ctx, int32_t count, void* texture) = nullptr;
   void (*shadowed_lit)(void* ctx, uint32_t fogged, int32_t count, void* texture) = nullptr;
   void (*shadowed_vertex)(void* ctx, uint32_t fogged, int32_t count, void* texture) = nullptr;
+  // [0x72f3cc] 0x57ea20 / [0x72f3dc] 0x57fe20: one triangle of a polygon under
+  // projected lights (0x547740), light = 3 rgb multipliers per vertex (or null).
+  void (*projected)(void* ctx, const float* light, uint32_t fogged, int32_t count, void* texture,
+                    int32_t priority, float opacity, int32_t overlay) = nullptr;
+  void (*projected_shadowed)(void* ctx, const float* light, uint32_t fogged, int32_t count,
+                             void* texture) = nullptr;
   // [0x72f3e0]: one point (model type 2), screen x, y, rhw.
   void (*point)(void* ctx, const float screen[3], uint32_t color, int32_t alpha) = nullptr;
 };
 DrawTable& draw_table();
 
-// The calls into code not ported yet (static light bake, projected lights and
-// shadows, lens flares). The lighting itself is gmod_light. Null hooks do
-// nothing and return 0.
+// The receiver test inlined twice in 0x53f2e0 (docs/render-shadows.md): the
+// casters over this polygon into clip2d().shadow (its count is 0 before).
+void collect_shadows(int32_t count, const float normal[3]);  // 0x00540552..0x005408d8
+
+// The calls the model draw makes into other code (static light bake,
+// projected lights and shadows, lens flares). The lighting itself is
+// gmod_light. Null hooks do nothing and return 0; the projected lights and
+// the shadow receivers default to their ports (tests swap them).
 struct DrawHooks {
   void* ctx = nullptr;
   // 0x544ed0(model) then 0x4ed980(node): the static light cache is due.
   void (*refresh_static)(void* ctx, Model* model, zcls::Node* node) = nullptr;
   // 0x547540(ECX count): a strip's projected-light set.
-  int32_t (*projected_strip)(void* ctx, int32_t count) = nullptr;
+  int32_t (*projected_strip)(void* ctx, int32_t count) = [](void*, int32_t n) { return projected_reach(n); };
   // 0x547740(ECX count, EDX per_vertex, fogged, material, priority): draws a
   // polygon under projected lights; non-zero when it did.
   int32_t (*projected_draw)(void* ctx, int32_t count, uint32_t per_vertex, uint32_t fogged,
-                            Material* material, int32_t priority) = nullptr;
+                            Material* material, int32_t priority) =
+      [](void*, int32_t n, uint32_t pv, uint32_t f, Material* m, int32_t p) { return draw_projected(n, pv, f, m, p); };
   // 0x541df0(ECX vertex, EDX colour, light): one model light (lens flare).
   void (*model_light)(void* ctx, const float* vertex, uint32_t color, Light* light) = nullptr;
   // 0x540552..0x5408d8 / 0x540ef6..0x541260: the projected-shadow casters
   // over this polygon into clip2d().shadow (count reset to 0 before).
-  void (*collect_shadows)(void* ctx, int32_t count, const float normal[3]) = nullptr;
+  void (*collect_shadows)(void* ctx, int32_t count, const float normal[3]) =
+      [](void*, int32_t n, const float* nrm) { zmod::collect_shadows(n, nrm); };
 };
 DrawHooks& draw_hooks();
 

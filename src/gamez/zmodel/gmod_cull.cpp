@@ -3,8 +3,10 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_init.h"
+#include "gamez/zmodel/gmod_light.h"
 
 namespace zmod {
 
@@ -12,6 +14,7 @@ namespace {
 Zones g_zones;
 ViewPolygon g_poly;
 ShadowCasters g_casters;
+ShadowCaster* g_caster_list = nullptr;
 CullHooks g_hooks;
 
 float dot_from(const float* c, const float* p, const float* n) {
@@ -115,6 +118,52 @@ void use_all_casters() {
 void use_cell_casters() {
   g_casters.list = g_casters.cell;
   g_casters.count = g_casters.cell_count;
+}
+
+ShadowCaster*& caster_list() { return g_caster_list; }
+
+// Mech3.exe 1.2 @ 0x00543720
+void collect_casters() {
+  ShadowCasters& c = g_casters;
+  c.all_count = 0;
+  for (ShadowCaster* s = g_caster_list; s; s = s->next) {
+    if (!s->enabled) continue;
+    c.all[c.all_count++] = s;
+    if (c.all_count >= 200) return;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00543760. (slope x, 1, slope z) turned by the view's
+// 3x3, last caster first.
+void caster_directions() {
+  const float* v = zmth::view().view.m;  // 0x0073fbc0
+  for (int32_t i = g_casters.all_count - 1; i >= 0; --i) {
+    ShadowCaster& s = *g_casters.all[i];
+    const float x = s.slope[0], y = 1.0f, z = s.slope[1];
+    for (int j = 0; j < 3; ++j) {
+      const float a = x * v[j], b = y * v[3 + j], c = z * v[6 + j];
+      const float ab = a + b;
+      s.slope_cam[j] = ab + c;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00543810. ECX = min x, y, z, max x, y, z of the
+// partition, shifted back by a wrapped cell's camera offset (0x0073fbb0).
+void cell_casters(const float* box) {
+  const float* off = lighting().camera_offset;
+  const float x0 = box[0] - off[0], z0 = box[2] - off[2];
+  const float x1 = box[3] - off[0], z1 = box[5] - off[2];
+  ShadowCasters& c = g_casters;
+  c.cell_count = 0;
+  for (int32_t i = 0; i < c.all_count; ++i) {
+    ShadowCaster* s = c.all[i];
+    // x87 compares: "above" fails on NaN, "below" holds on it.
+    if (!(s->box_max[0] > x0) || !(s->box_max[2] > z0)) continue;
+    if (s->box_min[0] >= x1 || s->box_min[2] >= z1) continue;
+    c.cell[c.cell_count++] = s;
+    if (c.cell_count >= 200) return;
+  }
 }
 
 int32_t hidden_surface(const float centre[3], float radius) {

@@ -9,9 +9,11 @@ The model draw [0x74a2e0] is a recorder on both sides: each call logs the node,
 the plane mask, the top of the matrix stack and the render state. The draw-time
 calls that are not ported are stand-ins that log themselves: the
 hidden-surface test 0x53d750 (hidden on a coarse grid, the same rule both
-sides), the frame update 0x4f7f70, the zone probe 0x4eda10, the shadow caster
-collectors 0x543720 / 0x543760 / 0x543810; BeginScene, EndScene, the flushes
-and the puffers do nothing. Lights (0x4f2f30, 0x4f2f60) run for real.
+sides), the frame update 0x4f7f70, the zone probe 0x4eda10; BeginScene,
+EndScene, the flushes and the puffers do nothing. Lights (0x4f2f30, 0x4f2f60)
+and the shadow caster lists (0x543720 / 0x543760 / 0x543810, on caster
+records over drawn nodes, docs/render-shadows.md) run for real; each list
+call logs its result (the casters taken, their camera-space slopes).
 
     cmake --build build && .venv/bin/python tests/differential/test_scenewalk.py [cameras per world]
 """
@@ -37,7 +39,8 @@ probe.sw_set_fov.argtypes = [ctypes.c_float] * 2
 probe.sw_set_clip.argtypes = [ctypes.c_float] * 2
 probe.sw_camera_put.argtypes = [ctypes.c_int, ctypes.c_uint32]
 probe.sw_globals.argtypes = [ctypes.c_uint32, ctypes.c_float] + [ctypes.c_int] * 6
-probe.sw_casters.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+probe.sw_casters.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+                             ctypes.POINTER(ctypes.c_float), ctypes.c_int]
 probe.sw_render.argtypes = [ctypes.c_void_p, ctypes.c_int]
 probe.sw_hull.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_int]
 probe.sw_set_lod_scale.argtypes = [ctypes.c_float]
@@ -87,9 +90,12 @@ class Walk(Emulated):
         cpu.stub_function(0x53d750, self.hse, 4)
         cpu.stub_function(0x4f7f70, lambda c: self.events.append((3,)))
         cpu.stub_function(0x4eda10, self.zone_probe, 4)
-        cpu.stub_function(0x543720, self.collect)
-        cpu.stub_function(0x543760, lambda c: self.events.append((6,)))
-        cpu.stub_function(0x543810, self.cell_casters)
+        from unicorn import UC_HOOK_CODE
+        cpu.uc.hook_add(UC_HOOK_CODE, lambda uc, a, n, u: self.list_event(5, 0x73fc60, 0x7402c0), begin=0x543758,
+                        end=0x543758)
+        cpu.uc.hook_add(UC_HOOK_CODE, lambda uc, a, n, u: self.slopes_event(), begin=0x543801, end=0x543801)
+        cpu.uc.hook_add(UC_HOOK_CODE, lambda uc, a, n, u: self.list_event(7, 0x73ffa0, 0x73ff80), begin=0x5438cf,
+                        end=0x5438cf)
         self.events = []
         self.casters = []
         self.cell_filter = 0
@@ -136,23 +142,19 @@ class Walk(Emulated):
         c.write(c.arg(0), b'\0')
         return 0
 
-    def collect(self, c):
-        for i, rec in enumerate(self.caster_records):
-            self.cpu.u32(0x73fc60 + 4 * i, rec)
-        self.cpu.u32(0x7402c0, len(self.caster_records))
-        self.events.append((5,))
-        return 0
+    # The caster lists at the return of 0x543720 / 0x543810, the slopes at 0x543760's.
+    def list_event(self, kind, base, count_at):
+        n = self.u32(count_at)
+        ids = [self.caster_records.index(self.u32(base + 4 * i)) for i in range(n)]
+        self.events.append((kind, tuple(ids)))
 
-    def cell_casters(self, c):
-        k = math.floor(self.f32(c.ecx) / 100.0)
-        n = 0
-        for idx, rec in zip(self.casters, self.caster_records):
-            if ((idx + k) & 1) == self.cell_filter:
-                self.cpu.u32(0x73ffa0 + 4 * n, rec)
-                n += 1
-        self.cpu.u32(0x73ff80, n)
-        self.events.append((7,))
-        return 0
+    def slopes_event(self):
+        n = self.u32(0x7402c0)
+        out = []
+        for i in range(n):
+            rec = self.u32(0x73fc60 + 4 * i)
+            out.append((self.caster_records.index(rec),) + struct.unpack('<3f', self.cpu.read(rec + 0x4c, 12)))
+        self.events.append((6, tuple(out)))
 
     def fseek(self, c):
         self.pos = c.arg(1)
@@ -199,14 +201,25 @@ class Walk(Emulated):
     def camera_world(self):
         return self.u32(self.u32(self.camera + 0x38))
 
-    def set_casters(self, nodes):
-        self.casters = list(nodes)
+    def set_casters(self, casters):
+        """Caster records (0x8c bytes) linked from 0x64fbe0 in the given
+        order: node, enabled, slope x/z, box min/max, position, ground y."""
         self.caster_records = []
-        for i in nodes:
+        for node, on, slope, bmin, bmax, pos, ground in casters:
             rec = self.alloc(0x90)
-            self.cpu.write(rec, bytes(0x90))
-            self.cpu.u32(rec, self.node_ptr(i))
+            body = bytearray(0x8c)
+            struct.pack_into('<I3f', body, 0, self.node_ptr(node), *pos)
+            struct.pack_into('<f2f', body, 0x1c, ground, *slope)
+            struct.pack_into('<6f', body, 0x2c, *bmin, *bmax)
+            struct.pack_into('<I', body, 0x58, on)
+            self.cpu.write(rec, bytes(body))
             self.caster_records.append(rec)
+        for i, rec in enumerate(self.caster_records):
+            prev = self.caster_records[i - 1] if i else 0
+            nxt = self.caster_records[i + 1] if i + 1 < len(self.caster_records) else 0
+            self.cpu.u32(rec + 0x84, prev)
+            self.cpu.u32(rec + 0x88, nxt)
+        self.cpu.u32(0x64fbe0, self.caster_records[0] if self.caster_records else 0)
 
     def render(self):
         self.events = []
@@ -239,6 +252,14 @@ def parse_port(raw):
             gx, gz, r, v = struct.unpack_from('<iifI', raw, i)
             ev.append((2, gx, gz, r, v))
             i += 16
+        elif kind in (5, 7):
+            n, = struct.unpack_from('<I', raw, i)
+            ev.append((kind, struct.unpack_from(f'<{n}i', raw, i + 4)))
+            i += 4 + 4 * n
+        elif kind == 6:
+            n, = struct.unpack_from('<I', raw, i)
+            ev.append((6, tuple(struct.unpack_from('<i3f', raw, i + 4 + 16 * k) for k in range(n))))
+            i += 4 + 16 * n
         else:
             ev.append((kind,))
     cam = raw[i:i + 0x1e8]
@@ -280,6 +301,13 @@ def compare(what, want, got):
         elif a[0] == 2:
             if a[1:3] != b[1:3] or a[4] != b[4] or not close(a[3], b[3]):
                 return f'{what}: hidden-surface call {k}: original {a[1:]} port {b[1:]}'
+        elif a[0] in (5, 7):
+            if a != b:
+                return f'{what}: caster list {k} (kind {a[0]}): original {a[1]} port {b[1]}'
+        elif a[0] == 6:
+            if len(a[1]) != len(b[1]) or any(x[0] != y[0] or not all(close(p, q) for p, q in zip(x[1:], y[1:]))
+                                             for x, y in zip(a[1], b[1])):
+                return f'{what}: caster slopes {k}: original {a[1]} port {b[1]}'
     if len(ev_w) != len(ev_g):
         return f'{what}: {len(ev_w)} events in the original, {len(ev_g)} in the port'
     for off in range(0x10, 0x1e8, 4):
@@ -296,6 +324,21 @@ def compare(what, want, got):
         r = next(r for r in range(50) if rings_w[r] != rings_g[r])
         return f'{what}: ring {r}: original {rings_w[r]} port {rings_g[r]}'
     return None
+
+
+def random_caster(emu, rng, node, lo_x, hi_x, lo_z, hi_z):
+    """A caster record over node: a box around its sphere (+0x64, +0x70) or,
+    without one yet, somewhere on the map; a light from above."""
+    p = emu.node_ptr(node)
+    cx, cy, cz, r = struct.unpack('<4f', emu.cpu.read(p + 0x64, 16))
+    if not (abs(cx) < 1e5 and abs(cz) < 1e5 and 0 < r < 1e4):
+        cx, cy, cz, r = rng.uniform(lo_x, hi_x), rng.uniform(0, 50), rng.uniform(lo_z, hi_z), rng.uniform(2, 40)
+    sx, sz = rng.uniform(-1.5, 1.5), rng.uniform(-1.5, 1.5)
+    grow = r * rng.uniform(0.5, 3.0)
+    bmin = [cx - grow + sx * r, cy - r, cz - grow + sz * r]
+    bmax = [cx + grow + sx * r, cy + r + 2.0, cz + grow + sz * r]
+    f = [u2f(f2u(v)) for v in (sx, sz, *bmin, *bmax, cx, cy, cz, cy - r)]
+    return node, int(rng.random() < 0.85), f[0:2], f[2:5], f[5:8], f[8:11], f[11]
 
 
 def check_box_sphere(emu, rng, count=400):
@@ -364,9 +407,10 @@ def main():
     per_world = int(sys.argv[1]) if len(sys.argv) > 1 else 40
     emu = Walk()
     rng = random.Random(1234)
+    crng = random.Random(4321)
     buf = ctypes.create_string_buffer(64 << 20)
     total_frames = total_draws = total_hse = 0
-    cover = dict(wrapped=0, cells=0, casters=0, far_kept=0, near=0, sides=0, zone_frames=0, clamped=0,
+    cover = dict(wrapped=0, cells=0, casters=0, cell_casters=0, full_lists=0, far_kept=0, near=0, sides=0, zone_frames=0, clamped=0,
                  hidden=0, faded=0, overlay=0)
     boxes = 0
     for wname in WORLDS:
@@ -450,11 +494,21 @@ def main():
                 for off, v in ((0x1e0, 0), (0x1e4, 0)):
                     emu.cpu.u32(cdata + off, v)
                     probe.sw_camera_put(off, v)
-            # Casters: some of the last frame's drawn nodes, some at random.
+            # Casters: some of the last frame's drawn nodes, some at random,
+            # boxes around their spheres; now and then more than the 200 the
+            # lists hold.
+            # The records come from their own random stream, so the cameras
+            # stay those of the runs before the caster lists were real.
             drawn = sorted({e[1] for e in last if e[0] == 1})
-            casters = (rng.sample(drawn, min(8, len(drawn))) + rng.sample(objs, 4)) if shadows else []
+            nodes = (rng.sample(drawn, min(8, len(drawn))) + rng.sample(objs, 4)) if shadows else []
+            if shadows and k % 12 == 11:
+                nodes = [crng.choice(objs) for _ in range(crng.choice([199, 236, 240, 300]))]
+            casters = [random_caster(emu, crng, i, lo_x, hi_x, lo_z, hi_z) for i in nodes]
             emu.set_casters(casters)
-            probe.sw_casters((ctypes.c_int * max(1, len(casters)))(*casters), len(casters))
+            flat = [x for c in casters for x in (*c[2], *c[3], *c[4], *c[5], c[6])]
+            probe.sw_casters((ctypes.c_int * max(1, len(casters)))(*[c[0] for c in casters]),
+                             (ctypes.c_int * max(1, len(casters)))(*[c[1] for c in casters]),
+                             (ctypes.c_float * max(1, len(flat)))(*flat), len(casters))
             emu.globals(frame, dt, hse, lod_dyn, shadows, zone_mode, virtual, cell_filter)
             probe.sw_globals(frame, dt, hse, lod_dyn, shadows, zone_mode, virtual, cell_filter)
             emu.cpu.call(SET_ROT, ecx=emu.camera, stack_args=tuple(f2u(v) for v in rot))
@@ -482,6 +536,10 @@ def main():
                     cover['sides'] += int(bool(e[2] & 0xf))
                     cover['faded'] += int(e[4] != 1.0)
                     cover['overlay'] += int(e[5] != 0)
+                elif e[0] == 7:
+                    cover['cell_casters'] += len(e[1])
+                elif e[0] == 5:
+                    cover['full_lists'] += int(len(e[1]) == 200)
                 elif e[0] == 2:
                     cover['hidden'] += int(e[4] == 0)
             cover['clamped'] += int(virtual == 0)

@@ -65,12 +65,32 @@ void textured_lit(void*, uint32_t fogged, int32_t count, void* tex, int32_t prio
 void textured_vertex(void*, uint32_t fogged, int32_t count, void* tex, float opacity, int32_t overlay) {
   u32(4), u32(fogged), u32(count), u32(ptr32(tex)), f32(opacity), u32(overlay), prim(), verts(count);
 }
-void shadowed(void*, int32_t count, void* tex) { u32(5), u32(count), u32(ptr32(tex)), prim(), verts(count); }
+// The projected-shadow sets the shadowed draws read: count, the textures,
+// then each set's UVs for the polygon's vertices.
+void sets(int32_t count) {
+  if (count < 0) count = 0;
+  if (count > zmod::kShadowVerts) count = zmod::kShadowVerts;
+  const zmod::ShadowSets& s = zmod::clip2d().shadow;
+  u32(static_cast<uint32_t>(s.count));
+  for (int32_t k = 0; k < s.count; ++k) u32(ptr32(s.texture[k]));
+  for (int32_t k = 0; k < s.count; ++k) put(s.uv[k], 8 * count);
+}
+void shadowed(void*, int32_t count, void* tex) {
+  u32(5), u32(count), u32(ptr32(tex)), prim(), verts(count), sets(count);
+}
 void shadowed_lit(void*, uint32_t fogged, int32_t count, void* tex) {
-  u32(6), u32(fogged), u32(count), u32(ptr32(tex)), prim(), verts(count);
+  u32(6), u32(fogged), u32(count), u32(ptr32(tex)), prim(), verts(count), sets(count);
 }
 void shadowed_vertex(void*, uint32_t fogged, int32_t count, void* tex) {
-  u32(7), u32(fogged), u32(count), u32(ptr32(tex)), prim(), verts(count);
+  u32(7), u32(fogged), u32(count), u32(ptr32(tex)), prim(), verts(count), sets(count);
+}
+void projected(void*, const float* light, uint32_t fogged, int32_t count, void* tex, int32_t priority,
+               float opacity, int32_t overlay) {
+  u32(11), u32(fogged), u32(count), u32(ptr32(tex)), u32(priority), f32(opacity), u32(overlay), prim();
+  put(light, 12 * count), verts(count);
+}
+void projected_shadowed(void*, const float* light, uint32_t fogged, int32_t count, void* tex) {
+  u32(12), u32(fogged), u32(count), u32(ptr32(tex)), prim(), put(light, 12 * count), verts(count), sets(count);
 }
 void point(void*, const float s[3], uint32_t color, int32_t alpha) {
   u32(8), put(s, 12), u32(color), u32(alpha);
@@ -91,6 +111,7 @@ void install() {
   t.flat = flat, t.lit = lit, t.textured = textured, t.textured_lit = textured_lit;
   t.textured_vertex = textured_vertex, t.shadowed = shadowed, t.shadowed_lit = shadowed_lit;
   t.shadowed_vertex = shadowed_vertex, t.point = point;
+  t.projected = projected, t.projected_shadowed = projected_shadowed;
   zmod::DrawHooks& h = zmod::draw_hooks();
   h.refresh_static = refresh_static, h.model_light = model_light;
   zmod::LightHooks& lh = zmod::light_hooks();

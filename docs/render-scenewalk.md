@@ -31,8 +31,9 @@ EndScene 0x579af0 / 0x579b10, the flushes [0x72f3e4] / [0x72f3e8], puffers
 down through the world), dirty rects 0x576ce0, the sound listener 0x571e50 /
 0x572360; `zcls::update_hooks()` the changed-node update 0x4f7e00 and the
 frame update 0x4f7f70; `zmod::cull_hooks()` the hidden-surface test
-0x53d750 (software span buffer) and the shadow casters 0x543720 / 0x543760 /
-0x543810. Software path 0x4f6dc0 and the cockpit pass 0x4f73f0 are not
+0x53d750 (software span buffer). The shadow casters 0x543720 / 0x543760 /
+0x543810 are the cull hooks' defaults now (render-shadows.md); the test
+runs them for real on both sides and logs their lists. Software path 0x4f6dc0 and the cockpit pass 0x4f73f0 are not
 ported (same pieces, other calls).
 
 ## How the walk works (corrections to render.md section 1)
@@ -118,8 +119,10 @@ with the original's setters (0x4f36b0, 0x4f3870, horizon 0x4f4090, sometimes
 0x4f3b90 / 0x4f3a70 / 0x4f3ff0) and the port's; then 0x4f7030 on both. The
 model draw is a recorder (node, mask, stack top, opacity, overlay, shadows,
 tint, morph); the hidden-surface test hides on a coarse grid of the centre
-(same rule both sides); shadow casters are filled by stubs from chosen
-nodes. Variations: HSE on/off, dynamic LoD, LoD scale 0.6, shadows with
+(same rule both sides); caster records over chosen nodes go through the
+real caster lists (0x543720 / 0x543760 / 0x543810) on both sides, which log
+what they leave (up to 300 casters, so the 200 cap is reached). Variations:
+HSE on/off, dynamic LoD, LoD scale 0.6, shadows with
 casters (and per-cell lists), zone lists, zoom and clip changes, the
 non-virtual picker, cameras up to 400 units outside the map (wrapped cells),
 pitch and roll beyond 10 degrees. Compared: every event in order, the

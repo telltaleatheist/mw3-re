@@ -47,7 +47,7 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   cycles, both clips, projection with the priority bias, the second pass,
   and the draw-table calls: `zmodel/gmod_draw`, `render-modeldraw.md`.
   Identical on all six worlds (18,000 draws). Still hooked: the light bake,
-  projected lights, shadow casters, lens flares.
+  lens flares (projected lights and shadows: render-shadows.md).
 - The baked static light (0x544ed0) and the world texture loading (texture
   groups 0x519080, entries 0x518f70, image fetch, mip links) into the draw
   table's records: `zmodel/gmod_bake`, `zimage/zimg_texture`,
@@ -60,6 +60,18 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   `gmod_init`, `render-scenewalk.md`. Corrections: EDX of 0x4f5910 is the
   caller's child count, not a mode (only-children are never culled alone);
   a cell's plane mask is its cull result, not 0x3f.
+- Projected shadows and projected lights on the Direct3D path: the caster
+  lists (0x543720, 0x543760, 0x543810), the model draw's receiver test
+  (0x540552..), the shadowed draws (0x57eeb0, 0x57f2a0, 0x57f860), the
+  projected lights' subdivision (0x547540, 0x547740, 0x547060, 0x547160)
+  and their draws (0x57ea20, 0x57fe20), as the `CullHooks` / `DrawHooks`
+  defaults and table entries: `zmodel/gmod_cull`, `gmod_draw`, `gmod_light`,
+  `zvideo/zvid_ddd3d`, `render-shadows.md`. Multi-texture draws go to
+  `Render3D::draw_multi` (FIX (A)). Corrections there: [0x72f3cc] /
+  [0x72f3dc] are the projected-light draws, not puffers; the casters are
+  the mechs near the player (0x4814e0); at 24 bits the caster images are
+  blank and projected-light triangles black (emulator). Not ported: the
+  caster images themselves (0x542bb0..0x543330, 0x55d010, 0x4814e0).
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
@@ -387,8 +399,8 @@ come from the asm, Ghidra drops the fastcall registers.
    (0x541df0; type 0 blink, type 1 cycle) **[unverified: what they draw;
    all have a single vertex, likely lens flares/light points]**.
 5. Shadow receivers ([0x74a264] on, model flag 1, opacity 1): `local_68`;
-   spot/projected light textures (light flags 0x10 and 0x40, camera
-   `+0xbc < 2`): `local_98`. See section 5.
+   spot/projected light textures (light flags 0x10 and 0x40, node
+   `+0xbc < 2`): `local_98`. See section 5 and render-shadows.md.
 
 ### Per polygon (0x24 bytes, model +0x34, count +0x10)
 
@@ -455,8 +467,8 @@ come from the asm, Ghidra drops the fastcall registers.
 | [0x72f3c0] | 0x57ce20 | textured, plain | count, texture record, opacity, overlay |
 | [0x72f3c4] | 0x57d160 | textured, lit/fogged, same for all vertices | flags, count, texture record, priority, opacity, overlay |
 | [0x72f3c8] | 0x57d690 | textured, per-vertex light/fog | flags, count, texture record, opacity, overlay |
-| [0x72f3d0] / [0x72f3d4] / [0x72f3d8] | 0x57eeb0 / 0x57f2a0 / 0x57f860 | textured with projected shadows (multi-pass) | |
-| [0x72f3cc] / [0x72f3dc] | 0x57ea20 / 0x57fe20 | puffers/particles (from 0x5481eb) **[unverified]** | |
+| [0x72f3d0] / [0x72f3d4] / [0x72f3d8] | 0x57eeb0 / 0x57f2a0 / 0x57f860 | textured with projected shadows (multi-pass) | count, texture / flags, count, texture |
+| [0x72f3cc] / [0x72f3dc] | 0x57ea20 / 0x57fe20 | one projected-light triangle from 0x547740 (correction: not puffers; render-shadows.md) | light, flags, count, texture, priority, opacity, overlay / light, flags, count, texture |
 
 `alpha` = `ftol(material alpha * opacity [0x74a26c])`; `opacity` = the
 pushed node opacity as a float; `overlay` = [0x74a268] (node flag
@@ -687,21 +699,22 @@ polygons go to the overlay list, drawn last with ZFUNC ALWAYS.
 
 ### Projected shadows
 
-0x543720 collects up to 200 shadow casters from the list at 0x64fbe0
-(those with +0x58 set) and 0x543760 turns each one's ground direction
-(+0x20, +0x24, y = 1) into camera space (+0x4c..). A receiving polygon
-(model flag 1, opacity 1, shadows on [0x74a264]) is tested against the
-casters in [0x73fc4c] (count [0x7402c4]): facing the direction, below the
-caster's top (+0x3c), overlapping its XZ box after projecting along the
-direction; up to 7 hits, each giving UVs `(xz - origin) * scale` and a
-texture (+0x60). The polygon is then drawn by the multipass functions
-(0x57eeb0..): base pass, then one multiply-blend pass per shadow (dest *=
-shadow texture). The caster's own node turns shadows off while it is
-drawn (0x526a70 around 0x4f4ab0's model draw). **[unverified: who fills
-0x64fbe0; likely mechs and vehicles]**. Separately, many objects carry
-**fake shadow polygons**: untextured black with material alpha 51..153
-(`shdw`, `shad`, `dk_shad`, crate `shdw`), blended like any transparent
-polygon, often with priority 1.
+The mechs near the player (and the player's own) carry a caster record with
+a small shadow image of themselves (0x4814e0, 0x542e70; list at 0x64fbe0).
+Each frame 0x543720 / 0x543760 list the enabled ones and turn their light
+slope into camera space, 0x543810 narrows the list per partition cell, and
+the model draw tests each lit, opaque, textured polygon against them
+(facing the light, not above the caster, its footprint slid down the light
+overlapping the caster's ground box): up to 7 hits, each a UV set and the
+caster's texture, drawn by the multipass functions (0x57eeb0..: the base
+pass, then one multiply-blend pass per shadow). The caster's own node turns
+shadows off while it is drawn (0x526a70 around 0x4f4ab0's model draw). At
+the game's 24-bit FPU precision the images come out blank (white), so the
+passes change nothing **[emulator; unverified in play]**. Details,
+projected lights (flag 0x40) included: `render-shadows.md`. Separately,
+many objects carry **fake shadow polygons**: untextured black with material
+alpha 51..153 (`shdw`, `shad`, `dk_shad`, crate `shdw`), blended like any
+transparent polygon, often with priority 1.
 
 ### The sky
 
@@ -810,8 +823,9 @@ skip 0, blend the rest.
   light colour).
 - **Hardware fog is switched on by the shadow code**: no function sets
   D3D FOGENABLE except the shadow/multipass draws (0x57eeb0, 0x57f2a0,
-  0x57f860, 0x57fe20), which turn it off for their passes and **on**
-  afterwards. Until the first such draw the device default (off, in D3D6)
+  0x57f860 for shadows, 0x57fe20 for shadowed projected-light triangles),
+  which turn it off for their passes and **on** afterwards (ported as is,
+  render-shadows.md). Until the first such draw the device default (off, in D3D6)
   applies. The table's own fog setters (0x57bb70.., [0x72f39c]..) are
   never called. **[unverified: on the real device; a DDrawCompat run with
   no shadows on screen would show it]**.
@@ -876,7 +890,8 @@ Shaped by the code above; each step is checkable on its own.
 7. **Horizon follow** 0x4f6d40 / 0x4fc0b0 and the player view's horizon
    hookup (0x40ad6a..), **inout removal** 0x4c3930 (with the AI boundary
    reader 0x4c3b50 later, when the AI comes).
-8. Then: projected shadows (0x543720/0x543760 + multipass), the cloud
+8. Then: projected shadows (0x543720/0x543760 + multipass; done but the
+   caster images, render-shadows.md), the cloud
    pattern (`fluctuate`), facades and points, morphs, model lights
    (0x541df0), the overlay list and the full-screen quad, puffers
    (0x5496c0 list).
