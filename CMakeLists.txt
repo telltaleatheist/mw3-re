@@ -144,6 +144,7 @@ add_executable(mw3tests
   tests/test_app.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
+  tests/test_fixes.cpp
   tests/test_zreader.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)

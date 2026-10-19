@@ -107,9 +107,12 @@ fps but 3/s at 60. Everything else scales with dt. The original presents with
 `Flip(NULL, DDFLIP_WAIT)` (0x57a8b5) and no no-vsync flag, so in fullscreen it
 was capped at the monitor's refresh, 60-85 Hz on the CRTs of the day, and often
 ran slower. On a 144 Hz display the same code would cook a mech on lava 2-5
-times faster than in 1999. Kept as the original for now; a candidate FIX (B)
-is to scale it as 0.05 per 1/60 s, or to run the simulation at 60 Hz. Decision
-for Owen.
+times faster than in 1999. FIX (B), decided with Owen 2026-10-20: the port
+adds 0.05 per 1/30 s (`dt * 1.5`), so lava heats 1.5 a second at any frame
+rate, as at 30 fps in the original. 1999 machines rarely held more than 30 in
+battle. `zfix::options().per_second` switches back to per frame (the probes do,
+so the differential test checks the exe's path; `tests/test_fixes.cpp` checks
+the fix at 30 and 144 fps).
 
 ## Powering down and up
 

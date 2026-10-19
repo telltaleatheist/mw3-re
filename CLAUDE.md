@@ -151,11 +151,13 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   otherwise; the per-file `#pragma STDC FP_CONTRACT OFF` lines say the same). Then
   the clippers match bit for bit (`render-clip2d.md`). Only the CRT start-up
   sets the precision itself (0x5ac5a0: `_controlfp(_PC_53)`, before WinMain).
-  Open: whether Windows 11's DirectX runtime with DDrawCompat really leaves
-  the FPU at 24-bit. Four emulator findings depend on it (point-lit textures
-  black, frozen cloud shading, blank shadow images, black projected lights;
-  `fixes.md`); the quick check in play is whether mechs cast visible shadows
-  in hardware mode on Owen's PC.
+  Checked in play (Owen, 2026-10-20): mechs cast visible shadows in hardware
+  mode on Windows 11 with DDrawCompat, so the reference runtime does not
+  truncate there, and the four emulator findings that need 24-bit (point-lit
+  textures black, frozen cloud shading, blank shadow images, black projected
+  lights; `fixes.md`) do not happen in play. The port gives those four the
+  full-precision result by default, with the 24-bit one behind a switch for
+  the tests. Whether Win98 with real DirectX 6 hid them stays unknown.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the

@@ -12,6 +12,7 @@
 #include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zrender/zrndr_draw.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 
 // The original rounds every step to float (the x87 at 24 bits in play).
@@ -278,7 +279,9 @@ void puff_tick() {
     w.angle = w.angle - -kTwoPi;
   else if (w.angle >= kTwoPi)
     w.angle = w.angle - kTwoPi;
-  w.speed = (rand_unit() * 2.0f - 1.0f) * w.accel + w.speed;
+  // FIX (B): the exe steps the speed by up to accel a frame; per 1/30 s here (puffers.md).
+  const float step = zfix::options().per_second ? w.accel * dt * zfix::kReferenceFps : w.accel;
+  w.speed = (rand_unit() * 2.0f - 1.0f) * step + w.speed;
   if (!(w.speed >= 0.0f)) {
     w.angle = w.angle - -kPi;  // turned round, not wrapped again
     w.speed = -w.speed;
@@ -298,7 +301,11 @@ void puff_tick() {
     for (int c = 0; c < 3; ++c) q.pos[c] = dt * q.vel[c] + q.pos[c];
     for (int c = 0; c < 3; ++c) q.vel[c] = q.accel[c] * dt + q.vel[c];
     if (q.friction < 0.0f || q.friction > 0.0f) {
-      const float f = zmth::exp_neg(ztimer::state().dt * q.friction);
+      // FIX (B): the exe's table truncates to steps of 1/51, so no drag at all
+      // above ~51 fps for friction 1; e^-x computed here (puffers.md).
+      const float x = ztimer::state().dt * q.friction;
+      const float f = zfix::options().per_second ? (x > 5.0f ? 0.0f : x < 0.0f ? 1.0f : std::exp(-x))
+                                                 : zmth::exp_neg(x);
       for (int c = 0; c < 3; ++c) {
         const float target = w.current[c] * q.wind_factor;
         q.vel[c] = (q.vel[c] - target) * f + target;

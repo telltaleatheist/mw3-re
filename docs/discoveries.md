@@ -37,7 +37,7 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   time. So the faster the game ran, the faster lava cooked you: about 1.5 heat a
   second at 30 fps, 3 at 60 fps. The game waits for the monitor's refresh, so
   in 1999 that topped out around 60-85 fps; at 144 fps today it would be over
-  7 a second.
+  7 a second. The rebuild fixes it at 1.5 a second, what lava did at 30 fps.
 - **Critical hits can destroy heat sinks, but your pilot never says so.** One
   kind of critical hit on a part (0x460d50, type 0) knocks out a heat sink, and
   cooling drops 10% for each one lost. It is meant to play a voice callout, but
@@ -785,7 +785,8 @@ are all "puffers": emitters that drop little textured squares.
   trails to "no slowing at all", so they ignore the wind and keep their
   launch speed; at 30 fps they slow and drift. Above about 90 fps no smoke
   drifts. The wind's gusts also change per frame, so they change faster the
-  faster the game runs.
+  faster the game runs. The rebuild makes both work per second (as at 30
+  fps), so the smoke drifts the same at any frame rate.
 - **There is no limit on smoke.** Every puff of every effect is kept in one
   list until it dies; a busy battle simply makes it longer.
 - **Unused features.** The engine can colour and tint smoke over its life,
