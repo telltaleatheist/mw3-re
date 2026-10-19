@@ -41,6 +41,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Freed line, exec_line 0x595510 / `source` 0x590e80 | After a `source` whose loose file ends in an unterminated failing line, the error hook (0x410770) reads argv[0] of that line, already freed | (bug) use after free | Lines are freed when the outermost line ends; the hook sees the text the freed block still held in the emulator |
 | Script commands, 0x591300 | Crashes on: `FreeNode` of a missing node, `ModelNew` without a second word, `var NAME` without an operator, `LODSetRange` without a node or data, `Object3DRegisterTexturesToWorld` / `Object3DSetMorphVertex` on a node without a model; `LightSet{Saturated,Static,Subdivide}` log a `%s` with no argument; a polygon of more than 35 vertices or 38 UVs writes past the 0x1d8-byte build block (from 11 on they already run into the next fields, as kept) | (bug) none reached by the shipped scripts | The command does nothing (or the word counts as no match); argv[0] is passed for the `%s`; writes past the block are dropped (the model pointer at +0x1d4 is a typed field, so a UV landing there leaves it). The scroll-off null out pointer (0x596370) is passed on unchanged until node_get_model is ported |
 | String variables, 0x596020 | Prints the first character where the format wants the string | (bug) none is registered | The string is printed |
+| Sound, zSound (zsnd_*.cpp, sound.md) | DirectSound: DirectSoundCreate, IDirectSound, IDirectSoundBuffer (and Aureal A3D, never selected) | (A) DirectSound does not exist on macOS and is legacy on Windows | `platform::SoundOutput`, one method per DirectSound call with its HRESULTs and units; the SDL3 front end mixes in software (`sdl_sound`). A3D is not ported. Emulator-verified call for call (`test_sound.py`) |
+| Sound output format, 0x5702a0 | The primary buffer set to the PLAYBACK_FORMAT, with 1 channel whatever the data says | (A) a modern mixer has no primary buffer | The request is made as the original's (and tested), but the SDL output mixes stereo, as DirectSound does since Vista (discoveries: mono on Windows 9x) |
+| Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
+| Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
 
 Notes on the fixes:
 
@@ -127,3 +131,18 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   maximum engine is forced to 400; only a weapon's first group counts. These
   look deliberate and stay unless Owen says otherwise.
 
+- Sound groups `dom_low_ammo`, `alan_low_ammo`, `epona_low_ammo`,
+  `dom_out_of_ammo`, `alan_out_of_ammo`, `epona_out_of_ammo`: `PLAY_COUNT 2`
+  at group level is not a keyword, so the reader renames them all
+  "PLAY_COUNT" and the wingmen's ammo calls never play (sound.md). Fixing the
+  data (drop the two words, or move them into the entries) restores lines
+  players never heard.
+- Sound fades (0x571940) end only on an exact landing, so fades to a partial
+  volume never end and jitter one step around the target; snapping to the
+  target when the step passes it is the likely intent.
+- Unpause (0x56f130) replays every copy of each sound that was playing
+  (finished ones from the start, twice for two copies) instead of resuming
+  the ones that were; resuming only the recorded voices is the likely intent.
+- Radio chatter (QUEUE) plays newest first; first-in first-out may have been
+  meant, but newest-first keeps chatter current, so it may be design.
+- 3D panning: the game asks for mono output (above); the port plays stereo.

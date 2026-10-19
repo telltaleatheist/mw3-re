@@ -50,6 +50,7 @@ struct Light : Raw<0xd0> {
 
 struct Sound : Raw<0x94> {
   void* sound = nullptr;           // +0x00  zSound's sound, from the name at +0x08
+  void* voice = nullptr;           // +0x04  zSound's voice while it plays
   Node** nodes = nullptr;          // +0x90  count +0x8c
 };
 
