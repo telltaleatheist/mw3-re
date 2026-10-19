@@ -155,11 +155,11 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       missiles in the engine's weapon code 0x581xxx-0x585xxx.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
-- [ ] Mech definition (0x46ba40): every block ported and emulator-checked on
-      all 19 files (`mech3/mech_reader`, `mech_skin`, `mech_config`,
-      `mech_names`; docs/mechdef-*.md). Left: the entry 0x4846a0 / 0x46b7a0
-      that opens the file, the saved loadouts 0x424b70 (`mechdef-head.md`),
-      the dtor and SaveAll, and one function that runs the blocks in order.
+- [ ] Mech definition: the reader 0x46ba40 ported whole, with its entry
+      0x46b7a0 and cache 0x4846a0, identical to the original on all 19 files
+      (`mech3/mech_reader`, `mech_skin`, `mech_config`, `mech_names`;
+      docs/mechdef-*.md). Left: the saved loadouts 0x424b70 and the dtor with
+      SaveAll 0x424f60 (`mechdef-head.md`).
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),

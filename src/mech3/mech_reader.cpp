@@ -9,6 +9,7 @@
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_skin.h"
 
 namespace mech3 {
 
@@ -285,6 +286,49 @@ bool read_configurations(MechDfn& dfn, const HeadValues& head) {
     read_weapons(dfn, *c, body, head);
   }
   return true;
+}
+
+namespace {
+LoadSaved g_load_saved = nullptr;
+}  // namespace
+
+void set_load_saved(LoadSaved fn) { g_load_saved = fn; }
+
+// Mech3.exe 1.2 @ 0x0046ba40
+bool read_dfn(MechDfn& dfn) {
+  if (!dfn.reader) return false;
+  if (dfn.loaded) return true;
+  HeadValues head;
+  if (!read_head(dfn, &head)) return false;
+  dfn.skins = read_skins(dfn.reader);
+  read_firepoints(dfn);
+  read_part_slots(dfn);
+  if (read_configurations(dfn, head) && g_load_saved) g_load_saved(dfn.configs);
+  dfn.loaded = 1;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0046b7a0. On a failed read the exe destroys the
+// definition, and its dtor crashes on a bad version (it saves loadouts that
+// were never made, docs/mechdef-head.md). The dtor is not ported yet: this
+// returns 0 and keeps the tree.
+MechDfn* load_dfn(int32_t mech) {
+  char name[64];
+  std::snprintf(name, sizeof name, "dfn_%s.zrd", mech_name(mech));
+  zrdr::Node* tree = zrdr::load(name);  // the exe also passes ..\data\common\zrdr\mechs
+  if (!tree) return nullptr;
+  auto* dfn = new MechDfn(mech, tree);
+  if (!read_dfn(*dfn)) return nullptr;
+  return dfn;
+}
+
+// Mech3.exe 1.2 @ 0x004846a0. Cached in the mech table (0x005e60b0 + 0x3c * i);
+// a failed load is tried again next time.
+MechDfn* mech_dfn(int32_t mech) {
+  static MechDfn* cache[19] = {};
+  if (mech < 0 || mech >= 19) return nullptr;
+  if (!cache[mech]) cache[mech] = load_dfn(mech);
+  return cache[mech];
 }
 
 }  // namespace mech3

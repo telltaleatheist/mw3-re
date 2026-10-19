@@ -27,6 +27,11 @@ Notes on the fixes:
 
 Noted but not yet ported:
 
+- A mech file with a bad `version` crashes the original in the definition's
+  dtor (0x46b9b0 saves loadouts that were never made). The port's `load_dfn`
+  returns no definition instead, since the dtor is not ported yet; when it is,
+  decide whether to keep the crash or guard it as a FIX (B).
+
 - The app constructor (0x47f7a0) quits when the DirectX version reads below 6.
   Whether modern Windows reports this correctly is unchecked; the rebuild has
   no DirectX to check.

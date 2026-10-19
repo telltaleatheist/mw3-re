@@ -35,7 +35,8 @@ MECHS = ['annihilator', 'avatar', 'blackhawk', 'bushwacker', 'cauldron', 'champi
          'vulture']
 probe.probe_dfn_configs.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
                                     ctypes.c_int]
-CONFIGS_END, NO_CONFIGS = 0x46cb3c, 0x46cb44
+CONFIGS_END, NO_CONFIGS, READ_DFN, LOAD_SAVED = 0x46cb3c, 0x46cb44, 0x46ba40, 0x424b70
+probe.probe_dfn_read.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 IAT_STRNCMP, ZERR = 0x5bb654, 0x49bfd0
 VT_KIND = {0x5c0fc0: 1, 0x5bd150: 2, 0x5bd180: 3}
 probe.probe_skins.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
@@ -183,7 +184,27 @@ class Emulated(ReaderEmu):
         cpu.uc.reg_write(UC_X86_REG_ESP, esp)
         self.run_range(HEAD_BLOCK, CONFIGS_END, NO_CONFIGS, HEAD_FAIL)
         eip = cpu.uc.reg_read(UC_X86_REG_EIP)
-        out = bytearray([{CONFIGS_END: 1, NO_CONFIGS: 0, HEAD_FAIL: 0xff}[eip]])
+        return bytes([{CONFIGS_END: 1, NO_CONFIGS: 0, HEAD_FAIL: 0xff}[eip]]) + self.dump_dfn(dfn)
+
+    def read_whole(self, offset, index):
+        """The ctor, then the whole reader 0x46ba40 (saved loadouts stubbed out)."""
+        cpu = self.cpu
+        self.configs(offset, index, 0)  # the same stubs and globals
+        if not getattr(self, 'saved_stub', False):
+            cpu.stub_function(LOAD_SAVED, lambda c: 0)
+            self.saved_stub = True
+        self.load(offset)
+        self.reports = []
+        cpu.call(LIST_INIT)
+        dfn = cpu.alloc(0x1a8)
+        cpu.write(dfn, bytes(0x1a8))
+        cpu.call(DFN_CTOR, ecx=dfn, stack_args=(index, self.root))
+        cpu.call(READ_DFN, ecx=dfn)
+        return bytes([cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff, cpu.read(dfn + 4, 1)[0]]) + self.dump_dfn(dfn)
+
+    def dump_dfn(self, dfn):
+        cpu, u, i32 = self.cpu, self.u32, self.i32
+        out = bytearray()
         cl = u(dfn + 0x20)
         if cl:
             first, last = u(cl + 0xc), u(cl + 0x10)
@@ -387,9 +408,14 @@ def main():
                     raise SystemExit(f'{name} configurations (localized {localized}): original {len(want)} bytes, '
                                      f'port {n}, first difference at {at}')
             configs += struct.unpack_from('<i', want, 9)[0]
+            want = emu.read_whole(start, MECHS.index(name[4:-4]))
+            n = probe.probe_dfn_read(str(READER).encode(), start, MECHS.index(name[4:-4]), buf, len(buf))
+            if buf.raw[:max(n, 0)] != want:
+                at = next((i for i in range(min(n, len(want))) if buf.raw[i] != want[i]), None)
+                raise SystemExit(f'{name} whole reader: original {len(want)} bytes, port {n}, first difference at {at}')
     checks = check_helpers(emu)
     print(f'ok: skins of {files} mech definitions identical four ways each; firepoints, part slots and '
-          f'the MechDfn defaults, the head and {configs} loadouts identical; part ids and names agree; '
+          f'the MechDfn defaults, the head and {configs} loadouts identical, block by block and through the whole reader; part ids and names agree; '
           f'{checks} table helper calls agree')
 
 

@@ -1152,7 +1152,16 @@ extern "C" {
 
 // The mech reader from the head through the loadouts on one dfn file
 // (test_mechdef.py): every Config and item, the firepoints, the reports.
+static int dfn_configs(const char* path, long offset, int index, int localized, bool whole, uint8_t* out, int cap);
 int probe_dfn_configs(const char* path, long offset, int index, int localized, uint8_t* out, int cap) {
+  return dfn_configs(path, offset, index, localized, false, out, cap);
+}
+int probe_dfn_read(const char* path, long offset, int index, uint8_t* out, int cap) {
+  return dfn_configs(path, offset, index, 0, true, out, cap);
+}
+}  // extern "C"
+
+static int dfn_configs(const char* path, long offset, int index, int localized, bool whole, uint8_t* out, int cap) {
   if (probe_zrdr_load(path, offset) < 0) return -1;
   zutl::messages() = zutl::Messages{};
   if (localized) {
@@ -1169,8 +1178,13 @@ int probe_dfn_configs(const char* path, long offset, int index, int localized, u
   mech3::MechDfn d(index, &g_probe_root);
   mech3::HeadValues h;
   std::vector<uint8_t> b;
-  const bool ok = mech3::read_head(d, &h);
-  if (ok) {
+  if (whole) {
+    b.push_back(mech3::read_dfn(d) ? 1 : 0);
+    b.push_back(d.loaded);
+  }
+  const bool ok = whole || mech3::read_head(d, &h);
+  if (whole) {
+  } else if (ok) {
     d.skins = mech3::read_skins(d.reader);
     mech3::read_firepoints(d);
     mech3::read_part_slots(d);
@@ -1218,4 +1232,3 @@ int probe_dfn_configs(const char* path, long offset, int index, int localized, u
   return finish(b, out, cap);
 }
 
-}  // extern "C"
