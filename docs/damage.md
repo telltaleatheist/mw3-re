@@ -337,9 +337,10 @@ shut off (0x41b263..0x41b30c), an action of kind 5 or 6 at the head of the list
 
 Centre-torso death animation (0x465f40): a NUKE kill or an Elemental explodes in
 place (effect 1); otherwise, if airborne (Mech vtable +0x144) or moving
-backwards faster than 13.89 m/s (50 km/h), animation 1 / effect 2; at up to
-50 km/h forwards, animation 7 or 8, alternating through the global 0x605cc0;
-faster, animation 2 / effect 3 (likely a forward crash).
+forwards faster than 13.89 m/s (50 km/h; forward is -z, `movement-jump.md`),
+animation 1 (fallf) / effect 2; below 50 km/h either way, animation 7 or 8
+(collapsel/collapser), alternating through the global 0x605cc0; backwards
+faster than that, animation 2 (fallb) / effect 3.
 
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);

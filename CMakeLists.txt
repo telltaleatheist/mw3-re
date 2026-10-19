@@ -44,6 +44,7 @@ add_library(mw3core STATIC
   src/gamez/zinterp/zinterp_parse.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmath/zmth_matrix.cpp
+  src/gamez/zmath/zmth_vector.cpp
   src/gamez/zmodel/gmod_bake.cpp
   src/gamez/zmodel/gmod_clip2d.cpp
   src/gamez/zmodel/gmod_clip3d.cpp
@@ -64,9 +65,13 @@ add_library(mw3core STATIC
   src/mech3/mech.cpp
   src/mech3/mech3_interp.cpp
   src/mech3/mech_config.cpp
+  src/mech3/mech_control.cpp
   src/mech3/mech_damage.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
+  src/mech3/mech_move.cpp
+  src/mech3/mech_skis.cpp
+  src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
@@ -103,6 +108,10 @@ add_library(mw3probe SHARED
   tests/probe_app.cpp
   tests/probe_options.cpp
   tests/probe_states.cpp
+  tests/probe_move.cpp
+  tests/probe_skis.cpp
+  tests/probe_jets.cpp
+  tests/probe_actions.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

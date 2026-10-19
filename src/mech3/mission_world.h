@@ -44,6 +44,7 @@ struct MissionWorld {
 
 // Globals the reader sets (heat.md, interp.md `ceiling`).
 struct Environment {
+  float gravity = 30.0f;              // 0x005e5d34  WorldSetGravity, the console's "gravity"
   float ambient_temperature = 20.0f;  // 0x005e5d3c
   float inv_temperature = 0.05f;      // 0x005e5d40  the heat code's dissipation factor
   float jet_ceiling = 150.0f;         // 0x005e5d44

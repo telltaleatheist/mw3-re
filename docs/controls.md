@@ -100,8 +100,9 @@ defaults to calling +0x1c, and +0x30 to calling +0x24.
   accel/decel). Both are copied from a mech data block at +0x7c/+0x80 (0x4144a5).
 - Turn: `cur(+0x14) += (target(+0x48) - cur) * owner[+0x538] * (flags&4 ? 2 : 1) * dt`,
   snapping to target within 0.05. +0x538 is the turn rate, from data +0x84.
-- Jump: `cur(+0x20) += (target(+0x4c) - cur) * (target==0 ? [0x5e2598]=7.0 : [0x5e259c]=9.0) * dt`,
-  snapping within 0.05.
+- Jump: `cur(+0x20) += (target(+0x4c) - cur) * (target==0 ? [0x5e259c]=9.0 : [0x5e2598]=7.0) * dt`,
+  snapping within 0.05. Ported with the throttle and turn (`mech3/mech_control`,
+  `movement.md`).
 
 ## PlayerControls::Update(dt) @ 0x427d60
 

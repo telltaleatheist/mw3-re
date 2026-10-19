@@ -2,7 +2,10 @@
 #include <cstdint>
 #include <list>
 
+#include "mech3/mech_anim.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_parts.h"
+#include "mech3/mech_skis.h"
 
 // The mech object and the parts of it ported so far. Layout: docs/structs.md.
 // Original file: mech3\mech.cpp (these functions sit between it and
@@ -38,8 +41,11 @@ struct Pilot {
 struct Mech {
   Handle node = nullptr;     // +0x004  the world node
   bool active = true;        // +0x008
+  float* transform = nullptr;  // +0x00c  the node's world 3x4 (object3d data +0x30)
+  Vec3 forward{};            // +0x024  flat forward, (-row 2.x, 0, -row 2.z) normalised (0x5a86e0)
   Vec3 velocity{};           // +0x030
-  Vec3 vec_3c{};             // +0x03c  zeroed on power-down (ZEntity3d); z is the forward speed
+  Vec3 vec_3c{};             // +0x03c  local velocity, zeroed on power-down (ZEntity3d); forward is -z
+  float orientation[4] = {1, 0, 0, 0};  // +0x048  quaternion w, x, y, z (yaw only)
   Vec3 vec_58{};             // +0x058
   float height;              // +0x068  from the model's bounding box, 12 if none
   uint32_t team = 0;         // +0x0c0  AiTarget masks
@@ -50,28 +56,45 @@ struct Mech {
   bool powered_down;         // +0x0de
   float last_hit_time = 0;   // +0x0e0
   MechPart* last_hit_part = nullptr;  // +0x0e4
-  void* controls;            // +0x37c
+  MechControls* controls = nullptr;  // +0x37c  (docs/controls.md)
+  bool blocked[4] = {};      // +0x374  collider (+0xfc) resolved: vehicle, mech/bump, ceiling, wall/touch
   std::list<MechPart*> parts;  // +0x384, count +0x388
   Leg* legs[2];              // +0x38c, +0x390
   Arm* arms[2] = {};         // +0x394, +0x398
   Torso* torso = nullptr;    // +0x39c
   Hip* hip = nullptr;        // +0x3a0
   Head* head = nullptr;      // +0x3a4
-  int32_t equipment[15] = {};  // +0x3ac  installed count per equipment kind (docs/weapons.md)
+  Handle jet_node = nullptr;   // +0x3a8  where the jump jets' flame hangs
+  int32_t equipment[15] = {};  // +0x3ac  installed count per equipment kind (docs/weapons.md); [11] jump jets, [12] MASC
   Handle decals = nullptr;   // +0x3e8
   Config* config = nullptr;  // +0x3ec
   bool damaged = false;      // +0x410
   bool killed_by_nuke = false;  // +0x411
-  Handle anims[13] = {};     // +0x424  [0], [1] limping legs, [4] the base, [11] the blend
-  Handle action_objects[10] = {};  // +0x458
+  Skis* skis = nullptr;      // +0x41c  the ground probes (mech_skis.h)
+  float blend_weight = 0;    // +0x418  the current blend slot's weight
+  int32_t anim_index = 2;    // +0x420  the gait's current slot in anims
+  MechAnim* anims[13] = {};  // +0x424  docs/movement.md: 0/1 limp, 2 stand, 3 step, 4 walk, 5 trot, 6 run, 7..11 blends, 12 jump pose
+  MechAction* action_objects[10] = {};  // +0x458  by kind, 1 fallf .. 8 collapser (docs/movement-jump.md)
   std::list<int32_t> actions;  // +0x480, count +0x484
+  Vec3 momentum{};           // +0x488  carried into an action, x0.6 a frame
+  Vec3 action_root{};        // +0x494  the action's last root position
+  float gait[13][2] = {};    // +0x4a0  (lo, hi) throttle bounds per gait; [3] step, [4] walk, [5] trot, [6] run
   float walk_speed = 0;      // +0x510
   float max_speed = 0;       // +0x518
+  float turn_rate = 0;       // +0x520  def max_turn_rate / 2
+  float speed_factor = 1;    // +0x528  heat, water, limp and reverse, smoothed
+  float speed_target = 1;    // +0x52c
+  float throttle_up = 0;     // +0x530  controls' throttle rate toward a larger |target| (docs/movement.md)
+  float throttle_down = 0;   // +0x534  and toward a smaller one
+  float turn_accel = 0;      // +0x538  controls' turn smoothing rate
   float knock = 0;           // +0x53c  length of knock_vec
   Vec3 knock_vec{};          // +0x540
   float heat;                // +0x554  0..2
   float heat_added;          // +0x558  this frame
   float heat_dissipation;    // +0x55c  this frame
+  float jet_burn = 0;        // +0x560  fuel per second firing: tonnage / (100 * jets)
+  float jet_fuel = 1;        // +0x564  0..1
+  bool infinite_fuel = false;  // +0x568  nothing sets it
   float narc_time = 0;       // +0x570
   float masc_time;           // +0x574  non-zero while MASC is on
   int32_t anim_state;        // +0x578  1, 12, 13 let a power-down finish; 10 dead
@@ -79,17 +102,27 @@ struct Mech {
   bool no_power_down;        // +0x584  airborne (vtable +0x144, 0x41ec70)
   int32_t jump_jets_firing;  // +0x580
   uint8_t hud_saved;         // +0x587  the screen state kept while powered down
+  Vec3 impulse{};            // +0x594  this frame's; y is the jump jets' climb (+0x598)
+  Vec3 push{};               // +0x5a0  outside push: slopes, walls, ledges; decays
+  float lie_time = 0;        // +0x590  how long a fallen mech stays down before it gets up
+  bool crouched = false;     // +0x586
+  bool wading = false;       // +0x588  the wading force-feedback effect is on
+  uint32_t gait_frames = 0;  // +0x58c  frames at walk or faster since stand or step
   int32_t limp = -1;         // +0x5ac  the limping leg, -1 none
-  Sound sounds[25] = {};     // +0x5b8  all stopped on death
+  Sound sounds[25] = {};     // +0x5b8  all stopped on death; [3] the jump jets
+  Handle jet_effect = nullptr;  // +0x620  the jump jets' flame
+  int32_t hud_fall = 1;      // +0x638  0x0041ca30: the player's mech 0 while falling, others 1
+  bool remote = false;       // vtable +0x5c: the network class's mechs (0x004d2a70), 0x0040bae0 here
   bool invincible;           // +0x630  the Invincible cheat (docs/damage.md)
   HeatSinks heat_sinks;      // +0x658
   Handle attacker = nullptr;  // +0x664  the last to hit it
   Pilot* pilot = nullptr;    // +0x684
-  uint32_t sound_flags;      // +0x688  bit 0: power sounds
+  uint32_t detail;           // +0x688  level-of-detail bits by distance (docs/movement.md): 0 sounds, 1 toes, 2 turn pivot, 3 landing effects, 4 full gait, 5 lean
   uint32_t heat_state;       // +0x69c  bits 0-2 beep, 3-5 shutdown, 24 override, 25 powered down
   float shutdown_time;       // +0x6a0
   float beep_time;           // +0x6a4
   float voice_time;          // +0x6a8
+  float frame_dt = 0;        // +0x6b0  dt accumulated until a full update
   float knockdown[5] = {};   // +0x6b8  base, x 0.8, x 80, threshold, slope (0x414c71, 0x417a10)
 
   Sound* loops() { return sounds; }                 // +0x5b8, three: stopped on power-down
@@ -107,6 +140,24 @@ struct Mech {
   void finish_power_down();     // 0x0041cac0
   Foot* foot(int leg) const;    // 0x0041d4f0
   Calf* calf(int leg) const;    // 0x0041d4d0
+
+  // Movement (mech_move.cpp).
+  int jump_jets(float dt);            // 0x004173b0, returns +0x580
+  void add_jump_jet(bool add);        // 0x00417300
+  void ground_step(float dt);         // 0x004162c0: the skis, then a landing
+  float altitude() const;             // 0x0041e9c0: above the centre probe's ground
+  bool queue_action(int kind, bool force);  // 0x00416780
+  int state_for_action(int kind) const;     // 0x00416660
+  static int sound_for_action(int kind);    // 0x00416720
+  bool death_fall(int kind);                // 0x0041b760
+  void stagger(const Vec3& knock);          // 0x0041b7f0
+  void get_up();                            // 0x0041b840
+  void update_action(float dt);             // 0x00416860
+  bool vital_part_lost() const;             // inlined in 0x00416660 and 0x00416860
+  void select_gait(float dt);         // 0x004181c0
+  void move(float dt, MechAnim* anim, float speed);  // 0x00417a80
+  void turn(float dt);                // vtable +0x170, 0x00418fc0
+  Leg* pivot_leg() const;             // 0x00418e00
 
   // Damage (mech_damage.cpp).
   int take_damage(WeaponDef* def, Collision* coll, float damage);  // vtable +0x164, 0x0041ac60
@@ -134,6 +185,7 @@ struct World {
   bool full_heat_all_mechs = true;  // 0x005e1fd0
   bool no_heat_haze = false;        // 0x00608e4d
   float time = 0.0f;                // 0x0060991c  game time, seconds
+  int32_t last_action = 0;          // 0x0060550c  the kind of the last action finished
   float dt = 0.0f;                  // 0x0072c52c
 };
 World& world();
@@ -201,7 +253,7 @@ struct DamageCalls {
   void (*free_part)(MechPart*) = nullptr;                     // vtable +0 (1); unset deletes
   const float* (*node_matrix)(MechPart&) = nullptr;          // node +0x38 +0x60, 3x3 + translation
   void (*node_update)(MechPart&) = nullptr;                   // 0x004ed530
-  bool (*anim_ok)(Mech&, int kind, int arg) = nullptr;        // 0x00416780
+  bool (*anim_ok)(Mech&, int kind, int arg) = nullptr;        // 0x00416780; test hook, unset runs Mech::queue_action
   void (*hip_reset)(MechPart& hip, const Vec3* v) = nullptr;  // 0x004621f0
   void (*death_prep)(Mech&) = nullptr;                        // 0x0041d070
   void (*death_anim)(Mech&, int anim) = nullptr;              // 0x0041b760

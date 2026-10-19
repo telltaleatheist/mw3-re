@@ -152,6 +152,87 @@ From the port of the damage code, checked in an emulator against the original
 - **XL engines have no damage rule.** The `xl` setting changes only the
   engine's weight in the mech lab; nothing in combat reads it.
 
+## Movement
+
+From the gait, the controls, the ground probes, the jump jets and the falls
+(details: `movement.md` and the `movement-*.md` files). The ones marked
+"code reading" have not been run in the emulator yet.
+
+- **Your throttle is not a speed, it picks a gait.** Each mech's file lists
+  where its walk, trot and run start, as fractions of full throttle; the
+  animation of that gait then carries the mech: its legs' stride is its
+  speed. Stand and step move nothing at all.
+- **Throttle up and down at different rates.** Opening the throttle eases in at
+  the mech's `accel_rate`, closing it at `decel_rate` (each file sets its own,
+  from 0.4 for the assault mechs to 1.5 for the Elemental). Every shipped mech
+  closes its throttle exactly twice as fast as it opens it. The throttle closes
+  in on what you ask exponentially, so the last few percent take longest. The turn eases in at
+  `turn_accel_factor`. Jump-jet thrust builds at 7 a second and dies at 9.
+- **The file's stand and step speeds are ignored.** Whatever a mech file says,
+  the game forces stand to end at 0.01, step to run from 0 to 0.05 and walk to
+  start at 0.02 of full throttle.
+- **Turning in place makes a standing mech creep forward**, at just under walking
+  speed; the throttle is pushed up for you while you turn. Turning is slower
+  the faster you go: at full throttle a mech turns at 20% of its turn rate.
+- **Heat slows you down.** Above 0.6 heat the mech is slowed, down to 60% of
+  its speed at a heat of 1.0 and above.
+- **Deep water almost stops a mech, and deeper water lets it go.** Wading
+  slows you once the water is a tenth of your height deep, to 70% shrinking
+  towards nothing as the water nears the top of the mech. But once the water
+  is deeper than the mech is tall the slowdown snaps back to a flat 70%. The
+  shallower foot decides.
+- **Limping and reversing each cost 40%** of your speed, and they stack.
+- **Walking blends in.** For the first 20 frames after starting to walk the
+  speed is blended up from where it was, so how fast it builds depends on the
+  frame rate. Between stepping and walking it stays stuck at 15% a frame.
+- **Mechs far away walk, always.** Past 800 m (unless it is your target) a mech
+  plays its walk animation whatever its speed, and uses one ground probe
+  instead of seven.
+- **The ground is found by seven probes, not by the legs.** Three along each
+  side and one in the middle; the body rises and sinks with their
+  average. The body never tilts on slopes; the legs bend to the ground instead.
+- **Gravity is four times stronger on the ground** (120 against 30 in the air),
+  which keeps the mech glued to the terrain over bumps.
+- **Steep slopes slide you.** On a slope steeper than about 32 degrees (unless
+  its material is "noslip") the mech is pushed downhill. Past 35 degrees the
+  push grows, and a step of more than 3 m in front of the feet shoves the mech
+  back.
+- **Water is not ground.** The probes ignore water polygons and stand on the
+  bottom; the water only tells the game how deep you are.
+- **Jump jets climb at 8 m/s per second at full thrust** against gravity, and a
+  full tank burns in `100 x jets / tonnage` seconds (a 50-ton mech with 4 jets:
+  8 s), refilling at half that rate on the ground. Jets need a quarter tank to
+  light from the ground. Losing jets later does not change the burn rate.
+- **Your jets push you along your throttle; AI jets steer.** The player's jets
+  push the mech forward (or back, in reverse) with no speed limit once it is
+  half its height off the ground. With the MW2 jump-jet option, and for AI
+  mechs, the jets steer forward/back and sideways instead, capped at your top
+  speed and 40 m/s sideways.
+- **The jump ceiling is a speed limit.** Rising speed is capped so the mech
+  closes on the ceiling over about 4 seconds and never reaches it; above it, it
+  is pushed down.
+- **Hard landings rarely trip you.** A landing faster than 80 m/s, or with more
+  than 20 m/s of sideways speed, has a 20% (40% sideways) chance to knock you
+  down; landing faster than 56 m/s hurts both legs a little. Landing sets your
+  throttle to your landing speed.
+- **A fall costs both legs `tonnage / 10000`** of their structure when the mech
+  hits the ground, then it lies there 5 seconds before getting up.
+- **Remote mechs in multiplayer** take no landing falls, no knockdowns and no
+  fall damage locally; their falls come from the network.
+- **Momentum in a fall fades per frame**, not per second (60% kept each frame),
+  so how far a falling mech slides depends on the frame rate.
+- **Ramming hurts both mechs** (code reading): damage grows with the square of
+  your speed against your top speed, split by tonnage so the heavier mech takes
+  less. Allies take none. Vehicles take 20 times more and are shoved, or
+  crushed if that kills them.
+- **Buildings break under you frame by frame** (code reading): touching a
+  building or animated object does 20 damage to it every frame, so it falls
+  faster at a higher frame rate. Walking under an overhang hurts your head and
+  torso and makes the mech crouch.
+- **AI mechs bounce off walls** (code reading): an AI's throttle flips to reverse
+  when it hits a wall; yours drops to 10%. Only your mech has the low probes at
+  its feet, so AI mechs walk over low things you would bump into.
+
 ## Weapons
 
 From the weapon code (weapons.md).

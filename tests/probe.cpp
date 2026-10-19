@@ -319,7 +319,7 @@ extern "C" {
 
 // Power on/off: fields in, call log out. f: [vec x,y,z]; i: pending, heat_shutdown,
 // powered_down, anim_state, no_power_down, hud_saved, loops[3], up, down,
-// sound_flags, player, screen, screen_byte. op 0/1 = power(op), 2 = finish.
+// detail, player, screen, screen_byte. op 0/1 = power(op), 2 = finish.
 int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
   mech3::Mech& m = g_mech;
   m = mech3::Mech{};
@@ -328,7 +328,7 @@ int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
   m.anim_state = i[3], m.no_power_down = i[4], m.hud_saved = static_cast<uint8_t>(i[5]);
   for (int k = 0; k < 3; ++k) m.loops()[k] = snd(i[6 + k]);
   m.power_up_sound() = snd(i[9]), m.power_down_sound() = snd(i[10]);
-  m.sound_flags = static_cast<uint32_t>(i[11]);
+  m.detail = static_cast<uint32_t>(i[11]);
   mech3::world().player = i[12] ? &m : nullptr;
   g_script.screen = i[13];
   static int32_t screen_byte;

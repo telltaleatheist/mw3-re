@@ -84,7 +84,7 @@ void Mech::power(int power_down) {
   if (g_calls.stop_controls) g_calls.stop_controls(*this, 0);
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_up) g_calls.screen_power_up(screen, hud_saved);
-  if ((sound_flags & 1) && g_calls.play_sound_at) power_up_sound() = g_calls.play_sound_at(*this, 7);
+  if ((detail & 1) && g_calls.play_sound_at) power_up_sound() = g_calls.play_sound_at(*this, 7);
   powered_down = false;
   power_down_pending = false;
 }
@@ -103,7 +103,7 @@ void Mech::finish_power_down() {
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_down) hud_saved = g_calls.screen_power_down(screen);
   for (int i = 0; i < 3; ++i) stop(loops()[i]);
-  if ((sound_flags & 1) && g_calls.play_sound_at) power_down_sound() = g_calls.play_sound_at(*this, 8);
+  if ((detail & 1) && g_calls.play_sound_at) power_down_sound() = g_calls.play_sound_at(*this, 8);
 }
 
 // Mech3.exe 1.2 @ 0x0041d4f0

@@ -39,4 +39,9 @@ override, as with the reader's loose `.zrd` files.
 The reader calls `SetLoopTime` (0x5aa3b0) with the loop time, which computes the
 per-frame time and its inverses, but only when byte +0x10 of the script is set,
 and the constructor (0x5a9920) clears it. So at load those derived values stay
-0; they must be set again once the script is activated (not traced yet).
+0; they must be set again once the script is activated. The mech's
+animation classes (MechAnim 0x5bd1f0 and its blends and one-shots,
+mech_anim.cpp) set the byte in their constructors (0x5a9990, 0x5a9970,
+0x5a99f0) and force the loop time to frames / 30 (frames / 15 for the leg
+one-shots) after loading; playback then samples `frac(rate * t / loop)`
+(`movement.md`, The animation objects).
