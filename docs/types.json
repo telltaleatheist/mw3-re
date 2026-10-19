@@ -84,7 +84,7 @@
       ["0x5d0", "undefined4*", "snd_heat_alarm"],
       ["0x608", "undefined4*", "snd_shutdown_warning"],
       ["0x60c", "undefined4*", "snd_shutdown_voice"],
-      ["0x630", "bool", "heat_death_disabled"],
+      ["0x630", "bool", "invincible"],
       ["0x658", "HeatSinks", "heat_sinks"],
       ["0x684", "undefined4*", "owner", "pilot / HUD side; sounds play through it"],
       ["0x69c", "uint", "heat_state", "bits 0-2 beep, 3-5 shutdown, 24 shutdown override, 25 powered down"],

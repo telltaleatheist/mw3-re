@@ -56,10 +56,10 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   rule in the code ("non-player mechs explode at 2.0") behind a switch that is
   always on, so it never runs. AI mechs warn, shut down, cook off ammo and die
   exactly like the player; they just don't hear the beeps.
-- **There is a hidden "Heat Death disabled" switch** (mech +0x630). With it set,
-  hitting critical heat prints "Heat Death disabled" on the HUD instead of
-  killing you. Likely a cheat or a developer toggle; how it is turned on is not
-  traced yet.
+- **"Heat Death disabled" is the invincibility cheat talking.** The debug
+  menu's "Invincible" item (or an option bit) sets a flag on your mech (+0x630)
+  that blocks damage and criticals; when heat would have killed you, the game
+  prints "Heat Death disabled" instead (damage.md).
 - **The shutdown override only works while the alarm is beeping.** "Override
   Thermal Shutdown" (0x419190) does nothing unless the heat warning is already
   sounding. Once on, it cancels the automatic power-down, but not at 1.5 heat,
@@ -79,6 +79,28 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   but reaching critical heat never destroys your torso: it only shuts you down
   and resets your heat. In campaign, instant action and training, critical heat
   is fatal (gametypes.md).
+
+## Damage
+
+From the damage code (damage.md).
+
+- **Criticals only happen through thin armor.** A hit can roll a critical only
+  when the part's armor is at 15% or less, and then one roll decides: 0.8%
+  heat sink, 0.5% ammo, 0.3% equipment, 0.3% weapon, 0.1% "location special"
+  (engine hit in the torso, instant death in the head, a limp in a leg).
+- **Lasers never cause criticals.** Every laser is a beam weapon, and beams are
+  excluded from the critical roll; PPCs, autocannons, missiles and Gauss can.
+- **A critical replaces the hit's damage.** When a critical is rolled, that
+  hit's armor and structure damage is skipped, even if the critical has nothing
+  to destroy.
+- **Ammo criticals don't explode.** An ammo critical empties the smallest bin;
+  no damage follows. CASE in the part blocks it.
+- **Losing one leg kills the mech**; losing an arm or a side torso never does
+  (a lost side torso takes its arm with it).
+- **A part can't be destroyed while it has armor.** Structure damage can never
+  take the internal value below the remaining armor fraction.
+- **Difficulty only scales damage you take**: x0.7, x1.0 or x1.3, and not in
+  multiplayer.
 
 ## Weapons
 

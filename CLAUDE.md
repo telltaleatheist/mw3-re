@@ -149,6 +149,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Textures: `tools/analysis/tex2png.py` exports any library as PNG.
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [x] Network: message types mapped (`docs/network-messages.md`); state sync.
+- [x] Damage: mapped (`docs/damage.md`). Open: the front/rear edge order
+      (check in the emulator), torso ApplyImpact 0x464af0, the `xl` flag.
 - [x] Weapons at run time: mapped (`docs/weapons.md`). Open: damage, falloff,
       missiles in the engine's weapon code 0x581xxx-0x585xxx.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.

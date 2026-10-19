@@ -57,7 +57,7 @@ struct Mech {
   Sound power_up_sound;      // +0x5d4
   Sound power_down_sound;    // +0x5d8
   Sound shutdown_voice;      // +0x60c
-  bool heat_death_disabled;  // +0x630
+  bool invincible;          // +0x630  the Invincible cheat (docs/damage.md)
   HeatSinks heat_sinks;      // +0x658
   void* owner;               // +0x684  pilot / HUD side
   uint32_t sound_flags;      // +0x688  bit 0: power sounds

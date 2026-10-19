@@ -32,7 +32,7 @@ FIELDS = [
     ('depth1', 'f', (1, 0xdc)), ('time', 'f', 'g60991c'), ('dt', 'f', 'g72c52c'),
     ('controls', 'f', 'script'),
     ('power_down_pending', 'b', 0xdc), ('heat_shutdown', 'b', 0xdd), ('powered_down', 'b', 0xde),
-    ('heat_death_disabled', 'b', 0x630), ('doubles', 'b', 0x660), ('in_water0', 'b', (0, 0xac)),
+    ('invincible', 'b', 0x630), ('doubles', 'b', 0x660), ('in_water0', 'b', (0, 0xac)),
     ('in_water1', 'b', (1, 0xac)), ('full_all', 'b', 'g5e1fd0'), ('no_haze', 'b', 'g608e4d'),
     ('jump_jets', 'i', 0x580), ('sinks', 'i', 0x65c), ('heat_state', 'i', 0x69c),
     ('soil0', 'i', (0, 0xe8)), ('soil1', 'i', (1, 0xe8)), ('beep', 'i', 0x5cc),
@@ -43,7 +43,7 @@ FIELDS = [
 NAMES = [f[0] for f in FIELDS]
 INPUTS = {'controls', 'mission', 'option', 'screen', 'ammo', 'player', 'full_all', 'no_haze',
           'time', 'dt', 'height', 'depth0', 'depth1', 'in_water0', 'in_water1', 'soil0', 'soil1',
-          'jump_jets', 'masc_time', 'sinks', 'doubles', 'heat_death_disabled', 'powered_down',
+          'jump_jets', 'masc_time', 'sinks', 'doubles', 'invincible', 'powered_down',
           'power_down_pending', 'heat_added'}
 
 
@@ -232,7 +232,7 @@ def scenario(rng):
     s.update(height=rng.choice([8.0, 12.0, 15.5]), sinks=rng.choice([10, 14, 22]),
              doubles=rng.random() < 0.4, player=rng.random() < 0.6, full_all=rng.random() < 0.85,
              option=rng.random() < 0.9, mission=rng.choice([0, 0, 0, 3]),
-             heat_death_disabled=rng.random() < 0.15, dt=rng.choice([1 / 30, 1 / 60, 0.1]))
+             invincible=rng.random() < 0.15, dt=rng.choice([1 / 30, 1 / 60, 0.1]))
     return s
 
 

@@ -282,7 +282,7 @@ void update_heat(Mech& m, float dt) {
           break;
         }
         m.heat_shutdown = false;
-        if (!m.heat_death_disabled) {
+        if (!m.invincible) {
           if (critical && game_type() != kMultiplayer) {
             if (g_calls.torso_hit) g_calls.torso_hit(m, 1);
           } else if (g_calls.torso_hit) {

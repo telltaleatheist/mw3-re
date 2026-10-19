@@ -27,7 +27,7 @@ Mech offsets (`docs/structs.md` has the rest of the object):
 | +0x574 | MASC on (time; non-zero while on) |
 | +0x580 | jump jets firing |
 | +0x5cc, +0x5d0, +0x608, +0x60c | sounds: warning beep, shutdown alarm, "shutdown imminent", "shutting down" |
-| +0x630 | "Heat Death disabled" (a cheat or debug switch) |
+| +0x630 | invincible: the debug menu's Invincible item or an option bit (`damage.md`); at critical heat it shows "Heat Death disabled" |
 | +0x658 | heat sinks: +4 count (10 by default), +8 doubles |
 | +0x684 | the pilot/HUD side: sounds and the screen effect go through it |
 | +0x69c | state: bits 0-2 beep, bits 3-5 shutdown, bit 24 shutdown override, bit 25 powered down |
@@ -90,7 +90,7 @@ powered down, stop the sounds and force state 2.
 | 1 | 0.9 or below: cancel, clear the override, back to 0; else once the timer passes, timer = now + 3, go to 2 and run again |
 | 2 | "shutting down" (sound 0x15), power down (0x41cc30(1)), heat shutdown on, go to 3 (with the override and no 1.5 forcing, it moves to 3 without powering down) |
 | 3 | 0.9 or below: cancel; else when the timer passes, timer = now + 0.1..3.0 at random, start the alarm (sound 6), go to 4 |
-| 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not multiplayer) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. With Heat Death disabled: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
+| 4 | when the timer passes: unless critical, an 80% roll rides it out: maybe an ammo bin cooks off (0x4b0de0, mech sound 15), timer = now + 3, back to 3. Otherwise, or at critical: the torso is destroyed (critical, not multiplayer) or hit (vtable +0x20 (0,1)), heat = 0, back to 3. When the mech is invincible: message 0x20c "Heat Death disabled" for 2 s instead, voice timer = now + 8, back to 0 |
 
 States 3 and 4 as above only run while the mech is still powered up: with the
 override on, or at critical (which clears bit 25). While powered down (bit 25)

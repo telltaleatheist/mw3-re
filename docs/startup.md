@@ -12,8 +12,8 @@ and what the function touches.
    0x04c11db7, start 0; 0x576c10, table built at 0x576bc0) over two tables
    built into the exe: the mech roster at 0x5e6078 (0x474 bytes: name, message
    id, tonnage, class for each mech) and the BattleTech internal-structure
-   table at 0x5e6998 (0x17c bytes: per tonnage, the structure points of head,
-   centre torso, side torso, arm, leg). The result must equal 0x00efd77d
+   table at 0x5e6998 (0x17c bytes: per tonnage, the structure points of the
+   centre torso, side torso, arm and leg; the head is a fixed 3, `damage.md`). The result must equal 0x00efd77d
    (0x5e6b14), which it does for the shipped exe. If not, the flag at 0x608f70
    is set and the state after the intro (app +0x1dc) becomes the Exit state
    (state 4) instead of Main: the splash movies play, then the game closes.

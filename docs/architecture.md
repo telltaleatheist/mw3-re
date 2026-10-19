@@ -92,5 +92,7 @@ zRender's span routines draw with the stack-pointer trick: docs/blit-trick.md.
 | Game types | `gametypes.md` | | |
 | Mech controls | `controls.md` | | |
 | Network | `network.md`, `network-messages.md` | | |
+| Weapons, damage | `weapons.md`, `damage.md` | | |
+| Mech models | `mechlib.md` | `gamez/zclass/cls_mechlib` (materials, models) | `test_mechlib.py` |
 | Asset files | `assets.md` | | |
 | Player-facing findings | `discoveries.md` | | |

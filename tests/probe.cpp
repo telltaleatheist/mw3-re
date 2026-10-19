@@ -208,7 +208,7 @@ void probe_heat_io(int32_t* v, int write) {
       {&m.shutdown_time}, {&m.beep_time}, {&m.voice_time}, {&g_feet[0].water_depth},
       {&g_feet[1].water_depth}, {&w.time}, {&w.dt}, {&g_script.controls},
       {nullptr, nullptr, &m.power_down_pending}, {nullptr, nullptr, &m.heat_shutdown},
-      {nullptr, nullptr, &m.powered_down}, {nullptr, nullptr, &m.heat_death_disabled},
+      {nullptr, nullptr, &m.powered_down}, {nullptr, nullptr, &m.invincible},
       {nullptr, nullptr, &m.heat_sinks.doubles}, {nullptr, nullptr, &g_feet[0].in_water},
       {nullptr, nullptr, &g_feet[1].in_water}, {nullptr, nullptr, &w.full_heat_all_mechs},
       {nullptr, nullptr, &w.no_heat_haze},
