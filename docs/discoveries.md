@@ -272,6 +272,31 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
   `blkhwk16`, `cauldron01`, `cauldron08`, `owens13` (not in `rmechtex*.zbd` or
   `rimage.zbd`). Probably unused by the models; not checked.
 
+## Mechs: firepoints
+
+From the mech definitions (mechdef-parts.md).
+
+- **Firepoint `radius` and `share` do different jobs.** `radius` is how far
+  each missile of a salvo scatters from its firepoint; `share` is the
+  sideways offset, random but chosen once when it is mounted, given to a
+  second weapon on the same firepoint, so
+  the two do not fire from exactly the same spot. Almost every mech has
+  0.5 for both, so it rarely shows.
+- **Elemental weapons do not spread.** The Elemental's arm firepoints have no
+  radius or share at all (0), and its torso ones only a radius of 0.2.
+- **TAG always fires from the first firepoint** in the mech's list
+  (`firepoint01`, a right-arm point on every shipped mech), whatever the
+  loadout.
+- **A leftover `parts` lookup.** The reader asks every mech file for a
+  `parts` entry that no file has, then ignores whatever it would have found:
+  the same 13 part names are set for every mech. The left and right side
+  torsos are not among them (their slots stay unnamed); whether anything
+  reads these slots is not known yet.
+- **Firepoints in the dfn name a part, but the game aims from the model.**
+  The weapons find their firing part from the 3D model node with the
+  firepoint's name (0x46cb80), not from the `part` written in the file; the
+  file's part is only reached through the config item (0x473220).
+
 ## Mission animations
 
 From the animation files (anim.md).

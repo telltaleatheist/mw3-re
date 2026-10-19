@@ -141,8 +141,9 @@ weapons ( (NAME FIREPOINT "group" (G ...) ["ammo" (N "part" (PART) ["extra" (N2 
 - NAME → mech-lab index (0x4848a0); unknown names are skipped with "Unrecognized
   Weapon (%s)" (0x5e51d8).
 - FIREPOINT is looked up in the mech's `firepoints` list (records of 0x20: +0 name,
-  +4 `share`, +8 `radius`, +0xc part index, read at 0x46c065..0x46c0f2). An unknown
-  name makes a new record with radius -1 and part -1 (0x46c828).
+  +4 `radius`, +8 `share`, +0xc part index, read at 0x46c065..0x46c0f2;
+  `docs/mechdef-parts.md`). An unknown name makes a new record with radius 0,
+  share -1 and part -1 (0x46c828).
 - `group`: the first number only (0x556ae0 reads one int), minus 1, clamped to
   0..4 (0x46c91f).
 - Each weapon becomes a config item, vtable 0x5c0fc0, 0x1c bytes: +4 = 1 (count),
@@ -197,7 +198,7 @@ bin (0x4b4787..0x4b47cd).
 | +0x74 | enabled (arm restriction and water, 0x4b2f90) |
 | +0x78, +0x7c | looped fire sound, recharge sound |
 | +0x80 | firepoint record |
-| +0x84..+0x8c | random offset inside the firepoint radius |
+| +0x84..+0x8c | random muzzle offset, up to the firepoint's `share` |
 | +0x90 | config item |
 | +0x94 | manager |
 | beam +0x98 | firing now |
@@ -205,8 +206,10 @@ bin (0x4b4787..0x4b47cd).
 | beam +0xa0 | the GameZ beam object (0x584a70) |
 
 Firepoint sharing: a weapon without SALVO truecount that shares a firepoint with a
-weapon already on the manager gets a random muzzle offset of up to `radius` in x
-and y (0x4b2530, `rand()` scaled by 1/16383.5 - 1).
+weapon already on the manager gets a random muzzle offset of up to the
+firepoint's `share` (+8) in x and y (0x4b2530, `rand()` scaled by
+1/16383.5 - 1). The firepoint's `radius` (+4) scales the scatter of salvo
+shots instead (0x4b36e0).
 
 ### Vtable (projectile 0x5c9088 / beam 0x5c90c0)
 
@@ -429,8 +432,9 @@ the current weapon gets `SetAmount(0)` on its bin.
 - **Unlimited ammo** is bit 2 of the options word `[0x5f4d04]` (0x40cf30), which
   also sets `[0x609994]` = 1 (likely a "cheated" flag); missions can give single
   mechs unlimited ammo (0x46dc11, from mission data +0x8d).
-- **Weapons on the same firepoint spread out** by a random offset within the
-  firepoint radius (0x4b2530).
+- **Weapons on the same firepoint spread out** by a random offset up to the
+  firepoint's `share` value (0x4b2530); `radius` spreads salvo shots
+  (0x4b36e0).
 - **`PPC` is defined in weapons.zrd but missing from the mech-lab table**
   (0x5e64f0 has ERPPC only), so no mech can mount it.
 - **Data typo, harmless**: weapons.zrd writes `BOUNCE (0)`, the reader asks for
@@ -457,7 +461,7 @@ the current weapon gets `SetAmount(0)` on its bin.
 
 - Damage application, DAMAGE_AT_MAX_RANGE falloff, IMPACT_FORCE, burst pellets and
   lock-on tracking live in GameZ (zweapon, 0x581xxx..0x585xxx), not traced.
-- `share` in firepoints, SALVO `delta`, WeaponType +0xc0, `[0x9a17cc]`,
+- SALVO `delta`, WeaponType +0xc0, `[0x9a17cc]`,
   `[0x9a17d4]`, `[0x9a17d8..e0]` are unexplained.
 - The network path (0x4b08c0 from 0x46e887) fires a weapon by index with an action
   0..3 (release, trigger, held, stop) and a target id.
