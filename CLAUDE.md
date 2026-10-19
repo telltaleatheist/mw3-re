@@ -157,7 +157,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
 - [ ] Mech definition (0x46ba40): too big for one sitting; it calls ~30
       functions. Pieces, each with an emulator check over every `dfn_*.zrd`:
-      skins (0x474f60, 0x473e50, 0x4752e0, 0x474000, 0x474500), firepoints and
+      skins (0x474f60, 0x473e50, 0x4752e0, 0x474000, 0x474500; mapped in
+      `docs/mechdef-skins.md`, with a porting order), firepoints and
       parts, configurations and loadout (0x424b70, 0x484e40, 0x49ced0, 0x49da10;
       `docs/weapons.md` maps the loadout), then the reader itself.
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).

@@ -243,6 +243,35 @@ From the world files (gamez.md).
   time from the one stored in `interp.zbd`, the game rejects the whole archive,
   so a modder has to extract all 44 scripts.
 
+## Mechs: camos
+
+From the mech definitions (mechdef-skins.md). The camo names are GUNMETAL,
+SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
+
+- **The Firefly has two WASP camos and no SLATE.** Its fifth skin is
+  labelled `MSG_SKIN_VARIANTD` instead of `VARIANTE`, so both the fourth and
+  fifth skins are named WASP; the second one uses the `_e` (Slate) textures.
+  The data is certain; that the skin picker shows the name twice is not checked
+  in game.
+- **The Mad Cat's damage list is shifted by two.** Damage textures pair with
+  skin textures by position, and the Mad Cat's damage list has two extra zeros
+  before its six damage masks. So `mcat_d01`/`mcat_d02` get none, and
+  `mcat_d03`/`mcat_d04` (64x64) get a 128x128 mask, which the size check
+  0x474740 rejects (sizes from `rmechtex.zbd`, by the primary name). The
+  Supernova has one extra damage item too; `supern_d03` (128x128) is paired
+  with a 128x64 mask, which fits only its alternate `supernova18`. Whether the game logs and drops these at run time is
+  unverified (it depends on which name the entry loads, +8 or +0xc).
+- **Variant camos are only suffixes.** Every camo after the first is the
+  primary list with `_b`, `_c` ... appended to each texture name; the files
+  never list variant textures one by one.
+- **Elementals never show bullet holes**: their damage list is all zeros.
+- **A dead special case**: the texture loader treats an entry named
+  `vult_d03_c` specially, but no file makes that name (the Vulture's is
+  `vultur_d03_c`), and no texture library has it.
+- **Five primary textures are missing from every library**: `bushwacker14`,
+  `blkhwk16`, `cauldron01`, `cauldron08`, `owens13` (not in `rmechtex*.zbd` or
+  `rimage.zbd`). Probably unused by the models; not checked.
+
 ## Mission animations
 
 From the animation files (anim.md).
