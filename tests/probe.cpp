@@ -200,8 +200,8 @@ void probe_heat_io(int32_t* v, int write) {
   mech3::World& w = mech3::world();
   struct F { float* f = nullptr; int32_t* i = nullptr; bool* b = nullptr; };
   int32_t mission = g_script.mission, option = g_script.option, screen = g_script.screen,
-          ammo = g_script.ammo, beep = snd(m.heat_beep), alarm = snd(m.heat_alarm),
-          warn = snd(m.shutdown_warning), voice = snd(m.shutdown_voice);
+          ammo = g_script.ammo, beep = snd(m.heat_beep()), alarm = snd(m.heat_alarm()),
+          warn = snd(m.shutdown_warning()), voice = snd(m.shutdown_voice());
   int32_t player = w.player == &m;
   const F fields[] = {
       {&m.height}, {&m.heat}, {&m.heat_added}, {&m.heat_dissipation}, {&m.masc_time},
@@ -230,8 +230,8 @@ void probe_heat_io(int32_t* v, int write) {
     ++k;
   }
   if (write) {
-    m.heat_beep = snd(beep), m.heat_alarm = snd(alarm);
-    m.shutdown_warning = snd(warn), m.shutdown_voice = snd(voice);
+    m.heat_beep() = snd(beep), m.heat_alarm() = snd(alarm);
+    m.shutdown_warning() = snd(warn), m.shutdown_voice() = snd(voice);
     w.player = player ? &m : nullptr;
     g_script.mission = mission, g_script.option = option;
     g_script.screen = screen, g_script.ammo = ammo;
@@ -326,8 +326,8 @@ int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
   m.vec_3c = {f[0], f[1], f[2]};
   m.power_down_pending = i[0], m.heat_shutdown = i[1], m.powered_down = i[2];
   m.anim_state = i[3], m.no_power_down = i[4], m.hud_saved = static_cast<uint8_t>(i[5]);
-  for (int k = 0; k < 3; ++k) m.loops[k] = snd(i[6 + k]);
-  m.power_up_sound = snd(i[9]), m.power_down_sound = snd(i[10]);
+  for (int k = 0; k < 3; ++k) m.loops()[k] = snd(i[6 + k]);
+  m.power_up_sound() = snd(i[9]), m.power_down_sound() = snd(i[10]);
   m.sound_flags = static_cast<uint32_t>(i[11]);
   mech3::world().player = i[12] ? &m : nullptr;
   g_script.screen = i[13];
@@ -350,8 +350,8 @@ int probe_power(int op, float* f, int32_t* i, int32_t* log, int cap) {
   f[0] = m.vec_3c.x, f[1] = m.vec_3c.y, f[2] = m.vec_3c.z;
   i[0] = m.power_down_pending, i[1] = m.heat_shutdown, i[2] = m.powered_down;
   i[3] = m.anim_state, i[4] = m.no_power_down, i[5] = m.hud_saved;
-  for (int k = 0; k < 3; ++k) i[6 + k] = snd(m.loops[k]);
-  i[9] = snd(m.power_up_sound), i[10] = snd(m.power_down_sound);
+  for (int k = 0; k < 3; ++k) i[6 + k] = snd(m.loops()[k]);
+  i[9] = snd(m.power_up_sound()), i[10] = snd(m.power_down_sound());
   const int n = static_cast<int>(g_log.size());
   for (int k = 0; k < n && k < cap; ++k) log[k] = g_log[k];
   return n;

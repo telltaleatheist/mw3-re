@@ -39,6 +39,13 @@ void stop(Sound& s) {
 Sound play(Mech& m, int id) { return g_calls.play_sound ? g_calls.play_sound(m, id) : nullptr; }
 int game_type() { return g_calls.game_type ? g_calls.game_type() : 0; }
 
+// Torso vtable +0x20 (explode, 1); 0x0041cfa0(1) is the same with explode 0.
+void torso_hit(Mech& m, int explode) {
+  if (g_calls.torso_hit) g_calls.torso_hit(m, explode);
+  else if (explode) m.torso->destroy(1, 1);
+  else m.destroy_part(kTorso);
+}
+
 uint32_t beep_state(uint32_t s) { return s & 7; }
 uint32_t next_beep(uint32_t s) { return (s & ~7u) | ((s + 1) & 7); }
 uint32_t next_shutdown(uint32_t s, int step) { return (s & ~0x38u) | ((s + 8 * step) & 0x38); }
@@ -77,7 +84,7 @@ void Mech::power(int power_down) {
   if (g_calls.stop_controls) g_calls.stop_controls(*this, 0);
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_up) g_calls.screen_power_up(screen, hud_saved);
-  if ((sound_flags & 1) && g_calls.play_sound_at) power_up_sound = g_calls.play_sound_at(*this, 7);
+  if ((sound_flags & 1) && g_calls.play_sound_at) power_up_sound() = g_calls.play_sound_at(*this, 7);
   powered_down = false;
   power_down_pending = false;
 }
@@ -95,12 +102,15 @@ void Mech::finish_power_down() {
   vec_3c = {0, 0, 0};  // 0x0063d870
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_down) hud_saved = g_calls.screen_power_down(screen);
-  for (Sound& s : loops) stop(s);
-  if ((sound_flags & 1) && g_calls.play_sound_at) power_down_sound = g_calls.play_sound_at(*this, 8);
+  for (int i = 0; i < 3; ++i) stop(loops()[i]);
+  if ((sound_flags & 1) && g_calls.play_sound_at) power_down_sound() = g_calls.play_sound_at(*this, 8);
 }
 
 // Mech3.exe 1.2 @ 0x0041d4f0
 Foot* Mech::foot(int leg) const { return legs[leg] ? legs[leg]->foot : nullptr; }
+
+// Mech3.exe 1.2 @ 0x0041d4d0
+Calf* Mech::calf(int leg) const { return legs[leg] ? legs[leg]->calf : nullptr; }
 
 // Mech3.exe 1.2 @ 0x004192f0. Walkthrough and thresholds: docs/heat.md.
 void update_heat(Mech& m, float dt) {
@@ -148,7 +158,7 @@ void update_heat(Mech& m, float dt) {
     g_calls.heat_haze(screen, (m.heat - kHazeStart) * 5.0f, 5, w.dt);
 
   if (!full) {
-    if (m.heat >= kCritical && game_type() != kMultiplayer && g_calls.torso_hit) g_calls.torso_hit(m, 1);
+    if (m.heat >= kCritical && game_type() != kMultiplayer) torso_hit(m, 1);
     m.heat_added = 0.0f;
     return;
   }
@@ -165,7 +175,7 @@ void update_heat(Mech& m, float dt) {
     switch (beep_state(s)) {
       case 0:
         if (m.heat > kBeepOn && w.time > m.beep_time) {
-          if (player) m.heat_beep = play(m, kSoundBeep);
+          if (player) m.heat_beep() = play(m, kSoundBeep);
           again = true;
           s = next_beep(s);
         }
@@ -180,7 +190,7 @@ void update_heat(Mech& m, float dt) {
       case 3:
         if (m.heat < kBeepOff) {
           m.beep_time = w.time + 2.0f;
-          if (player) stop(m.heat_beep);
+          if (player) stop(m.heat_beep());
           s &= ~7u;
         }
         break;
@@ -189,7 +199,7 @@ void update_heat(Mech& m, float dt) {
         break;
       default:
         m.beep_time = w.time + 2.0f;
-        stop(m.heat_beep);
+        stop(m.heat_beep());
         s &= ~7u;
         break;
     }
@@ -202,16 +212,16 @@ void update_heat(Mech& m, float dt) {
     bool critical = false, over = false;
     uint32_t& s = m.heat_state;
     if (!(m.heat < kCritical)) {
-      stop(m.heat_beep);
-      stop(m.heat_alarm);
+      stop(m.heat_beep());
+      stop(m.heat_alarm());
       if (player && g_calls.play_mech_sound) g_calls.play_mech_sound(kMechSoundCritical);
       m.shutdown_time = 0.0f;
       s &= ~kPoweredDown;
       s = (s & ~0x18u) | 0x20;
       critical = true;
     } else if (!m.is_powered_down() && !(m.heat < kOverheat)) {
-      stop(m.heat_beep);
-      stop(m.heat_alarm);
+      stop(m.heat_beep());
+      stop(m.heat_alarm());
       over = true;
       s = (s & ~0x28u) | 0x10;
     }
@@ -221,12 +231,12 @@ void update_heat(Mech& m, float dt) {
       if (m.heat > kShutdownWarn && w.time > m.voice_time) {
         m.voice_time = w.time + 4.0f;
         m.shutdown_time = w.time + 4.0f;
-        if (player) m.shutdown_warning = play(m, kSoundShutdownWarning);
+        if (player) m.shutdown_warning() = play(m, kSoundShutdownWarning);
         s = next_shutdown(s, 1);
       }
     };
     auto reset = [&] {
-      stop(m.heat_alarm);
+      stop(m.heat_alarm());
       s &= ~0x38u;
     };
     switch (key) {
@@ -254,7 +264,7 @@ void update_heat(Mech& m, float dt) {
         [[fallthrough]];
       case 2:
         m.voice_time = w.time + 4.0f;
-        if (player) m.shutdown_voice = play(m, kSoundShutdown);
+        if (player) m.shutdown_voice() = play(m, kSoundShutdown);
         g_calls.power ? g_calls.power(m, 1) : m.power(1);
         m.heat_shutdown = true;
         s = next_shutdown(s, 1);
@@ -267,7 +277,7 @@ void update_heat(Mech& m, float dt) {
           reset();
         } else if (w.time > m.shutdown_time) {
           m.shutdown_time = w.time + (0.1f + rand_unit() * 2.9f);
-          if (player && !m.heat_alarm) m.heat_alarm = play(m, kSoundAlarm);
+          if (player && !m.heat_alarm()) m.heat_alarm() = play(m, kSoundAlarm);
           s = next_shutdown(s, 1);
         }
         break;
@@ -284,18 +294,15 @@ void update_heat(Mech& m, float dt) {
         }
         m.heat_shutdown = false;
         if (!m.invincible) {
-          if (critical && game_type() != kMultiplayer) {
-            if (g_calls.torso_hit) g_calls.torso_hit(m, 1);
-          } else if (g_calls.torso_hit) {
-            g_calls.torso_hit(m, 0);  // 0x0041cfa0(1)
-          }
+          if (critical && game_type() != kMultiplayer) torso_hit(m, 1);
+          else torso_hit(m, 0);  // 0x0041cfa0(1)
           m.heat = 0.0f;
           s = next_shutdown(s, -1);
         } else {
           if (g_calls.hud_message) g_calls.hud_message(2.0f, kMessageHeatDeathDisabled);
           m.voice_time = w.time + 8.0f;
           if (player) {
-            stop(m.heat_beep);
+            stop(m.heat_beep());
             reset();
           } else {
             s &= ~0x38u;
