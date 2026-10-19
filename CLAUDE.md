@@ -251,9 +251,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       the pose on the parts.
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
-      (`zeffect/zeff_anim_init`). Still hooked: zSound's lookup, the effect
-      table (puffers: ported, below). Next the post-load pass 0x50ae60, mapped with a
-      porting order in `docs/anim-postload.md`.
+      (`zeffect/zeff_anim_init`). Still hooked: the effect table (puffers
+      and zSound's lookup are ported). Next the post-load pass 0x50ae60,
+      mapped with a porting order in `docs/anim-postload.md`.
 - [x] Mission scripts: the archive, reader, macros, preprocessor, dispatcher
       and every command's arguments ported (`gamez/zinterp`,
       `mech3/mech3_interp`), identical on every shipped script and on the six
