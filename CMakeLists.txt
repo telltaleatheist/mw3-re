@@ -59,6 +59,7 @@ add_library(mw3core STATIC
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
+  src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
@@ -71,6 +72,7 @@ add_library(mw3core STATIC
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
+  src/mech3/weapon.cpp
   src/mech3/app.cpp
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
@@ -103,6 +105,7 @@ add_library(mw3probe SHARED
   tests/probe_app.cpp
   tests/probe_options.cpp
   tests/probe_states.cpp
+  tests/probe_weapons.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 
