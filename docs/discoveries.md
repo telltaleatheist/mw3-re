@@ -80,6 +80,29 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   and resets your heat. In campaign, instant action and training, critical heat
   is fatal (gametypes.md).
 
+## Weapons
+
+From the weapon code (weapons.md).
+
+- **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the
+  MechLab's weapon table (0x5e64f0) only lists the ER PPC, so no mech can
+  carry the plain one.
+- **Hot lasers recharge slower.** Above heat 0.5, a beam weapon's recharge is
+  multiplied by 0.5 / heat (0x4b43bf): at heat 1.0 lasers refill at half speed.
+- **Small lasers are the slowest to recharge**: 4 seconds, against 3 for medium
+  and large (`weapons.zrd`).
+- **Only a weapon's first group counts.** A loadout can list a weapon in two
+  groups, like `group (1 2)`, and 59 entries across 11 stock mechs do, but the
+  game reads only the first number.
+- **One ammo bin per weapon type.** All launchers of the same weapon share one
+  bin, whatever part the ammo is listed in; the part only decides which
+  critical hit can reach it.
+- **CASE stops ammo crits but not heat cook-offs.** CASE in a hit part cancels
+  an ammo critical there (0x460e30), but the overheating cook-off roll never
+  checks for it.
+- **"Fire rate" in the data is really a period.** The weapon reader stores
+  1 / `FIRE_RATE` (0x583e87), the time between shots.
+
 ## Sound
 
 - **The "medium" sound playback format is never read.** `sounds.zrd` lists

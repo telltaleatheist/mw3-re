@@ -109,11 +109,12 @@ Weapon flags at def +0x6c, from the booleans in the file:
 `IMPACT HEAT` and `FREEZE` fill the same six floats (+0x1c8), so a weapon with
 both keeps the last one read, HEAT. The firing heat (`HEAT`, the first of two
 values) goes to the mech through `Mech::AddHeat` (0x419e40): beams add it once
-per shot, or every frame x dt when TIMED_DAMAGE is set (0x461670); timed ammo
-weapons scale it by the share of ammo used (0x4b4230).
+per shot, or every frame x dt when TIMED_DAMAGE is set (0x461670); a beam's
+per-frame update (0x4b4230) adds it in proportion to the charge drained that
+frame. The run-time side (the weapons manager at Vehicle +0xd4, weapon and ammo
+objects, firing, recharge) is in `weapons.md`.
 
 ## Not done yet
 
-- The weapon instance on a mech, and the ammo bins at Vehicle +0xd4.
 - The pilot/HUD object at Mech +0x684 and the controls object at +0x37c.
 - Most of the mech: about 170 offsets have only placeholder names.

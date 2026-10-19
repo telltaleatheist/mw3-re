@@ -149,6 +149,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Textures: `tools/analysis/tex2png.py` exports any library as PNG.
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
 - [x] Network: message types mapped (`docs/network-messages.md`); state sync.
+- [x] Weapons at run time: mapped (`docs/weapons.md`). Open: damage, falloff,
+      missiles in the engine's weapon code 0x581xxx-0x585xxx.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
 - [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with
