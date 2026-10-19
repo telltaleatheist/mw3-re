@@ -41,6 +41,13 @@ Each change is also marked `FIX` in the code next to the original address.
 | Freed line, exec_line 0x595510 / `source` 0x590e80 | After a `source` whose loose file ends in an unterminated failing line, the error hook (0x410770) reads argv[0] of that line, already freed | (bug) use after free | Lines are freed when the outermost line ends; the hook sees the text the freed block still held in the emulator |
 | Script commands, 0x591300 | Crashes on: `FreeNode` of a missing node, `ModelNew` without a second word, `var NAME` without an operator, `LODSetRange` without a node or data, `Object3DRegisterTexturesToWorld` / `Object3DSetMorphVertex` on a node without a model; `LightSet{Saturated,Static,Subdivide}` log a `%s` with no argument; a polygon of more than 35 vertices or 38 UVs writes past the 0x1d8-byte build block (from 11 on they already run into the next fields, as kept) | (bug) none reached by the shipped scripts | The command does nothing (or the word counts as no match); argv[0] is passed for the `%s`; writes past the block are dropped (the model pointer at +0x1d4 is a typed field, so a UV landing there leaves it). The scroll-off null out pointer (0x596370) is passed on unchanged until node_get_model is ported |
 | String variables, 0x596020 | Prints the first character where the format wants the string | (bug) none is registered | The string is printed |
+| Weapon effect blocks, 0x584bb0 | `SOUND` and `BOUNCE_SOUND` lists are copied into four slots each with no bound | (bug) a fifth sound writes over the next fields | At most four are kept (no shipped weapon has more); the test keeps its variants within four |
+| Damage animations, 0x58459c | `DAMAGE_ANIM_ON_HEALTH` pairs are copied into room for four with no bound | (bug) more overwrite the destroy and kill animations | At most four are kept (no shipped weapon has any) |
+| Projectile pool size, 0x58468e | A def's shots in the air are counted from a local only `RANGE` sets | (bug) a def without RANGE uses the previous def's range, the first one stack garbage | The def's own range (500 by default); every shipped weapon has RANGE, so the pool is the same 164. The test patches the original the same way |
+| LOCK_ON_LEAD, 0x583fb9 | The second value is read when the first value's bits exceed 3, not when the list has two values | (bug) a typo: `[eax+0xc]` for `[eax+4]` | The count decides; no shipped weapon has LOCK_ON_LEAD. The test patches the original the same way |
+| Weapon manager with no group, 0x4b0c30 / 0x4b0790 / 0x4b07e0 / 0x4b08c0 | Trigger, next and previous weapon and the network release call through the selected group without checking it | (bug) group -1 is a null call (crash); the manager starts at group 0, so only a weapon moved to group -1 gets there | Nothing happens without a group. The test never reaches it on either side |
+| Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
+| Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 
 Notes on the fixes:
 
@@ -123,6 +130,17 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   in the level clears all of the animation's prerequisites, so it fires
   without waiting. Dropping only the broken one, or never firing, are both
   plausible intents. Whether any shipped mission hits it is not yet checked.
+- ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
+  the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
+  is the evident intent, but what the second number does on the HUD
+  (0x43be70) is not traced; the port keeps the original.
+- Pock marks: `weapons.zrd` gives the autocannons, Gauss, missiles and MGUN a
+  `SURFACE_ANIMATION` on `dirt`, `mud` and `snow`, kinds the impact table
+  (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
+  so they never show. Mapping those names to the soils that exist would
+  restore them; which soil each should be is a guess.
+- Missiles that miss vanish at RANGE without exploding (every shipped missile
+  has EXPIRES, 0x5860fb); keep, or let them burst.
 - The plain PPC is defined but missing from the mech lab's table; every mech
   maximum engine is forced to 400; only a weapon's first group counts. These
   look deliberate and stay unless Owen says otherwise.

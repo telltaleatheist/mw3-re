@@ -182,7 +182,8 @@ world parameters are ported. Next, in parallel where the pieces meet only
 through hooks:
 
 1. The game half's systems: mech movement and physics (terrain, collision,
-   jumping), weapons at run time, the AI, sound (zSound) and music.
+   jumping), the rest of zWeapon (spawn, tick, homing, beams; `weapons.md`),
+   the AI, sound (zSound) and music.
 2. The 2D front end (zTwoD) and its menus, the mech lab, the HUD; then the
    movies (Indeo 5).
 3. Projected shadows and puffers (in progress), then the remaining render
@@ -209,8 +210,13 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       (`mech3/mech_parts`, `mech_damage`, `docs/damage.md` section 4).
       Left: the weapons' side 0x4b0de0 / 0x4b1040, the kill credit
       0x41b420, the death animations and the torso jolt's decay.
-- [x] Weapons at run time: mapped (`docs/weapons.md`). Open: damage, falloff,
-      missiles in the engine's weapon code 0x581xxx-0x585xxx.
+- [ ] Weapons at run time: weapons.zrd into the definitions, the whole
+      weapon manager (groups, bins, projectile and beam weapons, crits, arm
+      restriction, def callbacks), and zWeapon's damage path and flight step
+      ported and emulator-checked (`gamez/zweapon`, `mech3/weapon`,
+      `test_weapons_zrd/run/hit.py`). Left: spawn, the tick, homing,
+      collision, beams and mines in zWeapon, the vehicle builder 0x4b4660 and
+      the AI planner (`docs/weapons.md`, Left to port).
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
 - [ ] Mech definition: the reader 0x46ba40 ported whole, with its entry
