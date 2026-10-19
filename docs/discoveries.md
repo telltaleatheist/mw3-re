@@ -87,6 +87,24 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   lobby, it closes the old copy instead.
 - **The default mech is the Bushwacker**, set in the app defaults at startup.
 
+## Multiplayer
+
+From the network code (network-messages.md).
+
+- **Your own PC decides whether your mech dies.** Each player's machine runs its
+  own mech's damage and death and tells the others. A hacked client could likely
+  shrug off hits.
+- **The host re-checks the rules every 51 seconds** with a CRC-32 of the game
+  settings block, and ends the game if it changed. Right after the check it may
+  set bits in that same block, which looks like a deliberate way to end the game
+  at the next check (likely).
+- **If the host leaves, the game carries on**: a new host is picked instead of
+  ending the match.
+- **Fewer players, smoother play.** Each mech's position goes out about 7 times
+  a second with 2-4 players, down to 3 with 8; the tables stop at 8 players.
+- **Craters are shared.** The host checks each crater and sends it to everyone,
+  so the terrain damage matches on every screen.
+
 ## Graphics
 
 - **The software renderer draws with the stack pointer** (`blit-trick.md`). To

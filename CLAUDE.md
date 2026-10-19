@@ -148,8 +148,7 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       10,612 textures.
 - [ ] Textures: a PNG dump tool, to look at them.
 - [x] Game types: mapped (`docs/gametypes.md`); 3 is multiplayer.
-- [ ] Network: read the game-side receive handlers; list the message types;
-      confirm state sync vs lockstep (`docs/network.md`).
+- [x] Network: message types mapped (`docs/network-messages.md`); state sync.
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [ ] Power: port Mech::Power (0x41cc30) and FinishPowerDown (0x41cac0).
 - [ ] Mech definition: port the scalar part of the dfn reader (0x46ba40) with

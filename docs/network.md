@@ -1,4 +1,4 @@
-# Network (first look)
+# Network
 
 Mech3.exe 1.2, 2026-10-19. Not ported; this is enough to plan the LAN work.
 
@@ -21,11 +21,14 @@ Mech3.exe 1.2, 2026-10-19. Not ported; this is enough to plan the LAN work.
 
 ## Sync model
 
-The messages carry state and events (positions, scores, chat), not per-frame
-input, and the receive side polls once per frame without waiting for other
-players. That points to state/event sync rather than lockstep, so small float
-differences between machines should not desync a game. Not proven yet: the
-game-side receive handlers are still to be read.
+State/event sync, not lockstep (`network-messages.md` has every message type).
+No message carries a frame number or input; the poll never waits. Each mech's
+state (type 0xf) goes out unreliable on a timer, 2-10 times a second depending
+on the player count and a lobby setting, with the full damage state every 26th
+time; receivers extrapolate using a latency measured with pings (type 0x10).
+Each peer owns its own mech's movement, firing, damage and death; the host owns
+the clock and game over, scores, lobby settings and craters. Messages go to
+every player directly, not through the host.
 
 ## For the rebuild
 
