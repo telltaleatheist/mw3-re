@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "crt/msvc_rand.h"
+#include "mech3/mission_world.h"
 
 namespace mech3 {
 
@@ -118,7 +119,7 @@ void update_heat(Mech& m, float dt) {
     if (!(f <= 8.0f)) f = 8.0f;
     rate *= f;
   }
-  m.heat_dissipation = rate * 0.05f;  // 0x005e5d40
+  m.heat_dissipation = rate * environment().inv_temperature;  // 0x005e5d40: 1 / the mission's ambient temperature
 
   if (full) {
     const float t = 1.6f - std::fabs(g_calls.throttle ? g_calls.throttle(m) : 0.0f);

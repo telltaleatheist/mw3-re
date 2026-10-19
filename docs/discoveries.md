@@ -22,6 +22,14 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   capped at 8. Ankle-deep water cools as well as being neck-deep.
 - **Only the left foot counts.** The water check reads the left foot alone. Wade
   in with just your right foot and you get no cooling.
+- **Hot missions cool you slower.** Every mission sets an ambient temperature
+  (`world.zrd`), and heat sinks shed heat in proportion to 1 / temperature.
+  At the default 20 degrees that is the usual rate; the 40-degree missions
+  (c1, c4b mission 5) cool at half speed, t1 and c4 (about 31) about 1.5 times
+  slower, and the cold c4b missions much faster: 10 degrees twice as fast,
+  2 degrees ten times.
+- **Each mission caps how high jump jets take you**: 150 by default, far lower
+  in the underground and lava missions (c2 m2, c4b m5) (mission_world).
 - **Powering down triples your cooling.** While shut down (heat shutdown or the
   power button), dissipation is x3.
 - **Lava ignores the frame rate.** Standing on lava (either foot) adds 0.05 heat

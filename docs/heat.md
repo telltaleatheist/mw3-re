@@ -42,7 +42,7 @@ Foot: +0xac in water, +0xdc water depth, +0xe8 soil under it. Soils (0x47f380):
 ```
 rate = 1                      x3 while powered down
 if left foot in water:        f = max(depth / height, 1); rate *= min((3f + 1)^2, 8)
-dissipation = rate * 0.05
+dissipation = rate * [0x5e5d40]   (1 / the mission's ambient_temperature, 0.05 at the default 20; mission_world)
 full model only:              dissipation *= (1.6 - |throttle|) when that is below 1
                               added += dt * 0.05 while jump jets fire, and again while MASC is on
 added += 0.05                 while either foot is on lava (per frame)
