@@ -125,7 +125,7 @@ struct Vec3f3 {
 // What a shot hit, 0x28 bytes (docs/weapons.md, "Hits"); the Collision that
 // Mech::TakeDamage reads.
 struct HitRecord {
-  uint32_t x00[3] = {};
+  Vec3f3 normal{};             // +0x00  the surface's
   Vec3f3 point{};              // +0x0c
   uint32_t x18 = 0;
   float distance_sq = 0;       // +0x1c
@@ -138,9 +138,14 @@ struct HitRecord {
 struct Projectile {
   Projectile* next = nullptr;  // +0x000  the free list, then the weapon's active list
   Handle owner = nullptr;      // +0x004  the shooter's node
+  Handle node = nullptr;       // +0x00c  its scene node
+  int32_t state = 0;           // +0x020  1 flying, 0 to remove, 2 a dormant mine
   Vec3f3 direction{};          // +0x03c  unit
   Vec3f3 position{};           // +0x048
   float speed = 0;             // +0x58c
+  float travelled = 0;         // +0x5b0
+  float health = -1;           // +0x5b8  FLYOUT_HEALTH, -1 none
+  float damage_scale = 1;      // +0x5bc  FireState::damage_scale at the shot
 };
 
 // The zWeapon globals the reader fills.

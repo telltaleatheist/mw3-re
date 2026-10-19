@@ -109,6 +109,7 @@ add_library(mw3probe SHARED
   tests/probe_states.cpp
   tests/probe_weapons.cpp
   tests/probe_weapons_run.cpp
+  tests/probe_weapons_hit.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 
