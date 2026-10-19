@@ -396,14 +396,28 @@ From the render path (render.md).
   tree, so lone objects are always sent on to be drawn.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
-- **Mechs cast real shadows, but hardware mode probably never showed
-  them** (render-shadows.md). Every mech within 100 m of you, and your own,
+- **Mechs cast real shadows** (render-shadows.md). Every mech within 100 m of you, and your own,
   gets a small picture of its silhouette, blurred, laid on the ground along
   the sun's direction and multiplied over whatever it falls on (up to seven
   shadows overlapping on one surface). The code that paints the silhouette
-  rounds with a trick that needs full FPU precision; under Direct3D the
-  picture comes out plain white, so the shadow passes run every frame and
-  change nothing. Found in the emulator; still to be confirmed in play.
+  rounds with a trick that needs full FPU precision; with the FPU cut to
+  24 bits (as DirectX 6 can leave it) the picture comes out plain white and
+  the shadows vanish. On Windows 11 with DDrawCompat they show (checked in
+  play, 2026-10-20); whether they showed on 1999 Windows 98 machines is not
+  known. The game's own code draws every mech's
+  shadow: a 64x64 picture for yours, 32x32 for the others, covering a
+  quarter to half of it in the mechs' standing pose (more for a low sun, as
+  on the second campaign's maps and the training map).
+- **How dark a mech's shadow is depends on the sun, the clouds and the
+  distance.** The shade is the share of the sunlight that is direct (a map
+  with strong ambient light gets pale shadows), lighter where the cloud
+  pattern dims the sun, and from 50 m to 100 m away from you a mech's shadow
+  fades to nothing; beyond 100 m it is dropped. The shadow's size never
+  changes with distance, only its darkness.
+- **A shadow only covers the mech's standing box.** The picture spans the
+  mech's bounding box slid along the sunlight; any part that sticks out of
+  it (an arm swung far out) makes that whole part vanish from the shadow
+  rather than being cut off at the edge.
 - **Weapon lights were meant to light up the ground around them.** The PPC,
   autocannon, LBX, Gauss, pulse laser, flamer and AMS lights, a flickering
   light and the cave lights of the training mission are flagged to cut the

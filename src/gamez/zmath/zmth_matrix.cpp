@@ -108,8 +108,29 @@ void multiply(const Mat34& local, int mode) {
   }
   // FIX (bug): mode 2 copied the stack temp's unwritten row 3 (leftover stack
   // bytes) into the top's translation; zero here (docs/drafts/matrix.md).
+  // The x87's order: columns 0 and 1 sum left to right, column 2 as
+  // a0 t2 + (a1 t5 + a2 t8); the translation's z as (l9 t2 + t11) + (l10 t5
+  // + l11 t8) (docs/render-shadows.md, the shadow box checks it bit for bit).
   float r[12] = {};
-  mul34(local.m, top.m, r, mode != 2);
+  const float* l = local.m;
+  const float* t = top.m;
+  for (int row = 0; row < 3; ++row) {
+    const float* a = l + 3 * row;
+    const float x0 = a[0] * t[0], x1 = a[1] * t[3], x2 = a[2] * t[6];
+    r[3 * row] = (x0 + x1) + x2;
+    const float y0 = a[0] * t[1], y1 = a[1] * t[4], y2 = a[2] * t[7];
+    r[3 * row + 1] = (y0 + y1) + y2;
+    const float z0 = a[0] * t[2], z1 = a[1] * t[5], z2 = a[2] * t[8];
+    r[3 * row + 2] = z0 + (z1 + z2);
+  }
+  if (mode != 2) {
+    const float x0 = l[9] * t[0], x1 = l[10] * t[3], x2 = l[11] * t[6];
+    r[9] = ((x0 + x1) + x2) + t[9];
+    const float y0 = l[9] * t[1], y1 = l[10] * t[4], y2 = l[11] * t[7];
+    r[10] = ((y0 + y1) + y2) + t[10];
+    const float z0 = l[9] * t[2], z1 = l[10] * t[5], z2 = l[11] * t[8];
+    r[11] = (z0 + t[11]) + (z1 + z2);
+  }
   std::memcpy(top.m, r, sizeof r);
   g_stack.is_identity() = 0;
 }
@@ -506,6 +527,20 @@ void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
   do {
     *dst++ = transform(*src++, g_stack.matrix().m);
   } while (--count != 0);
+}
+
+// Mech3.exe 1.2 @ 0x00522ab0. Each corner is (x r0 + y r1) + (z r2 + t).
+void box_corners(const float* m, const float box[6], float out[8][3]) {
+  static const int kPick[8][3] = {{0, 1, 5}, {3, 1, 5}, {3, 1, 2}, {0, 1, 2},
+                                  {0, 4, 5}, {3, 4, 5}, {3, 4, 2}, {0, 4, 2}};
+  for (int i = 0; i < 8; ++i) {
+    const float x = box[kPick[i][0]], y = box[kPick[i][1]], z = box[kPick[i][2]];
+    for (int c = 0; c < 3; ++c) {
+      const float xy = x * m[c] + y * m[3 + c];
+      const float zt = z * m[6 + c] + m[9 + c];
+      out[i][c] = xy + zt;
+    }
+  }
 }
 
 }  // namespace zmth

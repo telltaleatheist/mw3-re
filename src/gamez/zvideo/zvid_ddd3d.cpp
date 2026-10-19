@@ -838,6 +838,38 @@ D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t
   return t;
 }
 
+// Mech3.exe 1.2 @ 0x0057baa0. FIX (A): the copy into the system surface
+// (0x0057b6c0) and the video texture's Load become one update of the handle.
+void reload_texture(D3DTexture* record, const zimg::Texture* image) {
+  if (!record || !image || record->handle < 0) return;
+  const int32_t w = image->width, h = image->height;
+  std::vector<uint8_t> rgba(static_cast<size_t>(w) * h * 4);
+  texture_rgba(*image, image->flags & 2, rgba.data());
+  if (g_render) g_render->update_texture(record->handle, w, h, rgba.data());
+}
+
+// Mech3.exe 1.2 @ 0x0057bb00. The exe releases the default records only while
+// 0x005788b0 sets [0x00802710] (the device's shutdown), which has no port.
+void release_texture(D3DTexture* record) {
+  if (record == g_default) return;
+  if (g_render && record->handle >= 0) g_render->release_texture(record->handle);
+  delete record;
+}
+
+// Mech3.exe 1.2 @ 0x00579b70
+int32_t has_caps(int32_t which) {
+  const Display& d = g_display;
+  if (!d.fullscreen) return 1;
+  if (!d.device) return 0;
+  if (which & 1) {
+    if (!(d.tri_misc_caps & 0x40) || !(d.src_blend_caps & 1) || !(d.dest_blend_caps & 4)) return 0;
+  }
+  if (which & 2) {
+    if (!(d.tri_misc_caps & 0x40) || !(d.address_caps & 4)) return 0;
+  }
+  return 1;
+}
+
 // Mech3.exe 1.2 @ 0x00579f50, the Direct3D entries the model draw calls
 // ([0x72f3b0]..[0x72f3c8]). The shadowed and point entries are not ported yet.
 void install_model_draw_table() {

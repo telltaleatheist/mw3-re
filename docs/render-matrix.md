@@ -140,6 +140,11 @@ own top first (0x51ea90..0x51f750, not ported).
   multiply order, view matrix, projection). Additions: 0x73fc00 keeps W'
   (camera -> world with y, z negated) after 0x520b00; 0x73fb94 is the far
   plane; on Direct3D 0x73fc30 / 0x73fb98 hold fx/near, fy/near.
+- 0x51fee0's sums (2026-10-20, render-shadows.md): columns 0 and 1 and the
+  translation's x, y left to right, but column 2 as `a0 t2 + (a1 t5 + a2
+  t8)` and the translation's z as `(l9 t2 + t11) + (l10 t5 + l11 t8)`;
+  `zmth::multiply` now follows them and matches bit for bit at 24 bits
+  (test_shadow_image.py compares the cached world matrices exactly).
 - Section 2, mode 2: confirmed, and the caller list (0x4ed280 mode 2 from
   0x5047f5 / 0x504979) is above.
 - Section 3, step 2 ("top-of-stack * v"): the top is the model-view matrix

@@ -48,6 +48,8 @@ class Render3D {
   // record's 1 opaque, 4 alpha plane, 5 one-bit alpha; returns a handle.
   virtual int32_t create_texture(int width, int height, const uint8_t* rgba, uint8_t type) = 0;
   virtual void release_texture(int32_t handle) = 0;
+  // 0x0057baa0's reload: new pixels for a texture create_texture made, same size.
+  virtual void update_texture(int32_t handle, int width, int height, const uint8_t* rgba) = 0;
   virtual void set_viewport(int x, int y, int width, int height) = 0;  // Viewport3::SetViewport2
   // The frame clear (0x005777f0): colour when asked, depth always to 0 (reversed).
   virtual void clear(bool color, uint8_t r, uint8_t g, uint8_t b) = 0;

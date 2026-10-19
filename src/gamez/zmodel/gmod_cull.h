@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "gamez/zrender/zrndr_span.h"
+
 // What the scene walk asks the model renderer before drawing a node: the
 // sphere-against-frustum cull (0x00541760), the zone test (0x0053cdc0), the
 // hidden-surface test (0x0053d750, not ported), the view polygon the
@@ -79,6 +81,37 @@ void use_cell_casters();           // 0x005438f0
 void collect_casters();            // 0x00543720  the enabled casters into all[] (200 at most)
 void caster_directions();          // 0x00543760  slope_cam of each, by the view
 void cell_casters(const float* box);  // 0x00543810  ECX the partition's box (+0x10): those over it
+
+// --- The casters and their images (0x00542bb0..0x00543330, docs/render-shadows.md) ---
+struct ShadowState {
+  uint32_t black = 0;              // 0x0064fbd8  pack(0, 0, 0): a new caster's colour
+  uint32_t white = 0;              // 0x0064fbdc  pack(255, 255, 255), never read
+  ShadowCaster* current = nullptr; // 0x0073ff84  the caster whose image is being drawn
+  // Not in the original: the x87 precision the image's polygon filler
+  // (0x0055d010) runs at. In play on Windows 11 + DDrawCompat the shadows
+  // show (Owen, 2026-10-20), so the FPU is at 53 bits there: k53, the
+  // default. k24 is what a Direct3D 6 that truncates the FPU gives: every
+  // image blank (render-shadows.md).
+  zrndr::X87 precision = zrndr::X87::k53;
+};
+ShadowState& shadow_state();
+
+void shadows_init();                                       // 0x00542bb0  shadows on with the caps
+ShadowCaster* shadow_new();                                // 0x00542c20  at the list's head
+void shadow_delete(ShadowCaster* c);                       // 0x00542ca0  ECX
+void shadow_set_size(ShadowCaster* c, int32_t w, int32_t h);  // 0x00542d30  ECX, EDX w, stack h
+void shadow_set_node(ShadowCaster* c, zcls::Node* node);   // 0x00542dd0
+void shadow_set_position(ShadowCaster* c, const float p[3]);  // 0x00542de0
+void shadow_set_color(ShadowCaster* c, uint32_t color);    // 0x00542e00
+void shadow_upload(ShadowCaster* c);                       // 0x00542e10  the texture "gModShadow"
+void shadow_release_texture(ShadowCaster* c);              // 0x00542e40
+void shadow_enable(ShadowCaster* c, int32_t on);           // 0x00542e60
+// ECX caster, EDX the light's world direction, stack the ground height: the
+// node's silhouette slid down the light onto the ground, blurred into the
+// image. 1 (nothing drawn) unless the light points down; 0 when drawn.
+int32_t shadow_draw(ShadowCaster* c, const float light[3], float ground);  // 0x00542e70
+void shadow_node(zcls::Node* node);   // 0x005432d0  by class (inlined in 0x00542e70)
+void shadow_model(zcls::Node* node);  // 0x00543330  the node's model into the current image
 
 // The model renderer's calls the walk makes. Null hooks do nothing; the
 // hidden-surface test then passes everything. The caster hooks default to

@@ -22,6 +22,7 @@ class SdlRender3D : public platform::Render3D {
 
   int32_t create_texture(int width, int height, const uint8_t* rgba, uint8_t type) override;
   void release_texture(int32_t handle) override;
+  void update_texture(int32_t handle, int width, int height, const uint8_t* rgba) override;
   void set_viewport(int x, int y, int width, int height) override;
   void clear(bool color, uint8_t r, uint8_t g, uint8_t b) override;
   void begin_scene() override;
@@ -35,6 +36,7 @@ class SdlRender3D : public platform::Render3D {
   void capture_next(const char* bmp_path) { capture_path_ = bmp_path; }
 
  private:
+  void upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba);
   struct Run {
     platform::DrawState state;
     uint32_t first, count;

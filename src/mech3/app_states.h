@@ -205,4 +205,8 @@ struct States {
 States& states();
 void reset_states();
 
+// Mech3.exe 1.2 @ 0x004814e0: the Direct3D frame's first call, the mechs'
+// projected shadows (docs/render-shadows.md).
+void update_shadows(Engine& en);
+
 }  // namespace mech3
