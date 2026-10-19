@@ -204,6 +204,12 @@ int32_t FontText::text_height() {
   return height - leading;
 }
 
+// Mech3.exe 1.2 @ 0x005a10b0
+const char* FontText::rendered_text() {
+  if (needs_render) render();
+  return rendered;
+}
+
 // Mech3.exe 1.2 @ 0x005a13b0
 void FontText::rect_at(Rect* out) {
   Object2D::rect_at(out);

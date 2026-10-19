@@ -309,6 +309,17 @@ class TwodWorld:
             for i, x in enumerate((13, 11, 2, 2, 1)):  # height, ascent, descent, internal, external
                 emu.w32(out + 4 * i, x)
             emu._ret(v, 8)
+        def get_object(emu, key, a, pop):  # GetObjectA(font, size, &logfont): the font marks the copy
+            h, size, out = a
+            v = t.handle(key, (h,))
+            emu.w32(out, h)
+            emu._ret(v, 12)
+
+        def create_indirect(emu, key, a, pop):  # CreateFontIndirectA(&logfont)
+            emu._ret(t.handle(key, (emu.r32(a[0]),)), 4)
+        e.import_stub(IAT['GetObjectA'], 'GetObjectA', 's0,s1,s2', 12, get_object)
+        e.import_stub(IAT['CreateFontIndirectA'], 'CreateFontIndirectA', 's0', 4, create_indirect)
+        self.answers['CreateFontIndirectA'] = counter('font', 0xf0000000)
         e.import_stub(IAT['GetTextExtentPoint32A'], 'GetTextExtentPoint32A', 's0,s1,s2,s3', 16, extent)
         e.import_stub(IAT['DrawTextA'], 'DrawTextA', 's0,s1,s2,s3,s4', 20, draw_text)
         e.import_stub(IAT['GetTextMetricsA'], 'GetTextMetricsA', 's0,s1', 8, metrics)

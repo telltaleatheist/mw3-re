@@ -39,7 +39,7 @@ DIALOG_CTOR, LOAD_FROM, BIND_BUTTON, BIND_PRIMITIVE = 0x59ec40, 0x59f050, 0x59f8
 CLASSES = {'C': (0x59bbe0, 0x14c, ()), 'K': (0x59d870, 0x164, ()), 'I': (0x59b970, 0xbc, (0,)),
            'T': (0x5a15a0, 0x4cc, ())}
 VT_KIND = {0x5cf8c8: 'I', 0x5cf948: 'C', 0x5cfaa8: 'K', 0x5cf9d8: 'T', 0x5cfc88: 'U', 0x5d0da0: 'U',
-           0x5cfb38: 'L', 0x5be308: 'X', 0x5cfbc8: 'Y'}
+           0x5cfb38: 'L', 0x5be308: 'X', 0x5cfbc8: 'Y', 0x5cfe00: 'Z'}
 TEXTURE_ARGS = {'0x0055b1f0': (0,), '0x00517b10': (0,), '0x00517cc0': (0,), '[0x0072f394]': (0,),
                 '[0x0072f398]': (0,), '0x00579660': (5,)}
 
@@ -64,10 +64,38 @@ def make_plan(seed, dialog, buttons, prims):
         bound.append((k, entry))
     for n, entry in prims:
         k = 'T' if find(entry, 'TEXT') is not None else 'I'
+        if k == 'T' and r.random() < 0.4:
+            lines.append(f'P {n} Z {r.randrange(1, 7)}')  # a text box of that many lines
+            bound.append(('Z', entry))
+            continue
         lines.append(f'P {n} {k}')
         bound.append((k, entry))
     lines.append('A 1')
     lines += [f'R {i}' for i, b in enumerate(bound) if b[0] in 'CK']  # every button's bounds (get_rect)
+    boxes = {}
+    for line in lines:
+        if line.startswith('P ') and line.split()[2] == 'Z':
+            boxes[len(boxes)] = int(line.split()[3])
+    zi = [i for i, b in enumerate(bound) if b[0] == 'Z']
+    box_lines = {i: boxes[k] for k, i in enumerate(zi)}
+    for i, b in enumerate(bound):  # each text box filled past its lines, grown, turned bottom-up
+        if b[0] != 'Z':
+            continue
+        for _ in range(r.randrange(4, 16)):
+            op = r.choice('NNNNNOYYDUa')
+            if op in 'NO':
+                lines.append(f'{op} {i} {r.randrange(-5, 99999)}')
+            elif op == 'Y':
+                # grown only: a shrink leaves the current line past the end (FIX (bug))
+                box_lines[i] = r.randrange(box_lines[i], box_lines[i] + 3)
+                lines.append(f'Y {i} {box_lines[i]}')
+            elif op == 'D':
+                lines.append(f'D {i} {r.randrange(2)}')
+            elif op == 'a':
+                lines.append(f'a {i} more{r.randrange(100)}')
+            else:
+                lines.append(f'U {i}')
+        lines.append(f'T {i}')
     spots = []
     for k, entry in bound:
         p = find(entry, 'POSITION')
@@ -96,7 +124,7 @@ def make_plan(seed, dialog, buttons, prims):
                 lines.append(f'R {r.choice(ks)}')
         elif roll < 0.28:
             lines.append(f'A {r.randrange(2)}')
-        elif roll < 0.40 and any(b[0] in 'LX' for b in bound):
+        elif 0.34 <= roll < 0.42 and any(b[0] in 'LX' for b in bound):
             i = r.choice([i for i, b in enumerate(bound) if b[0] in 'LX'])
             if bound[i][0] == 'L':
                 if r.random() < 0.5:
@@ -107,7 +135,23 @@ def make_plan(seed, dialog, buttons, prims):
                 lines.append(f'G {i} item{r.randrange(1000)}')
             else:
                 lines.append(f'J {i} {r.randrange(-3, 12)}')
-        elif roll < 0.36:
+        elif 0.28 <= roll < 0.34 and any(b[0] == 'Z' for b in bound):
+            i = r.choice([i for i, b in enumerate(bound) if b[0] == 'Z'])
+            op = r.choice('NNNNOUCKYDaT')
+            if op in 'NO':
+                lines.append(f'{op} {i} {r.randrange(-5, 99999)}')
+            elif op == 'C':
+                lines.append(f'C {i} {r.randrange(1 << 24):x}')
+            elif op == 'Y':
+                box_lines[i] = r.randrange(box_lines[i], box_lines[i] + 3)
+                lines.append(f'Y {i} {box_lines[i]}')
+            elif op == 'D':
+                lines.append(f'D {i} {r.randrange(2)}')
+            elif op == 'a':
+                lines.append(f'a {i} more{r.randrange(100)}')
+            else:
+                lines.append(f'{op} {i}')
+        elif 0.42 <= roll < 0.48:
             ts = [i for i, b in enumerate(bound) if b[0] == 'T']
             if ts:
                 i = r.choice(ts)
@@ -165,7 +209,10 @@ class Original:
             if op in 'BP':
                 ctor, size, args = {'C': (0x59bbe0, 0x14c, ()), 'K': (0x59d870, 0x164, ()),
                                     'I': (0x59b970, 0xbc, (0,)), 'T': (0x5a15a0, 0x4cc, ()),
-                                    'L': (0x59e0f0, 0x188, ()), 'X': (0x59e430, 0x650, ())}[p[2]]
+                                    'L': (0x59e0f0, 0x188, ()), 'X': (0x59e430, 0x650, ()),
+                                    'Z': (0x5a18f0, 0x4c8, None)}[p[2]]
+                if args is None:
+                    args = (int(p[3]),)
                 o = e.alloc(size)
                 e.call(ctor, ecx=o, stack=args)
                 self.bound.append(o)
@@ -206,6 +253,29 @@ class Original:
                 self.push_string(self.bound[int(p[1])], p[2])
             elif op == 'J':
                 self.vcall(self.bound[int(p[1])], 0x90, (int(p[2]) & 0xffffffff,))
+            elif op == 'N':
+                o = self.bound[int(p[1])]
+                e.call(e.r32(e.r32(o) + 0x7c), stack=(o, e.world_string('L%d'), int(p[2]) & 0xffffffff))
+            elif op == 'O':
+                o = self.bound[int(p[1])]
+                e.call(e.r32(e.r32(o) + 0xb0), stack=(o, e.world_string('T%d'), int(p[2]) & 0xffffffff))
+            elif op == 'U':
+                e.call(0x5a22a0, ecx=self.bound[int(p[1])])
+            elif op == 'C':
+                e.call(0x5a21e0, ecx=self.bound[int(p[1])], stack=(int(p[2], 16),))
+            elif op == 'K':
+                e.call(0x5a24e0, ecx=self.bound[int(p[1])])
+            elif op == 'Y':
+                e.call(0x5a2320, ecx=self.bound[int(p[1])], stack=(int(p[2]),))
+            elif op == 'D':
+                e.w8(self.bound[int(p[1])] + 0x4b4, int(p[2]))
+            elif op == 'a':
+                e.call(0x5a22f0, ecx=self.bound[int(p[1])], stack=(e.world_string(p[2]),))
+            elif op == 'T':
+                o = self.bound[int(p[1])]
+                th = e.call(0x5a25f0, ecx=o)
+                mw = e.call(0x5a2640, ecx=o)
+                t.handle('tb', (th, mw))
             elif op == 'R':
                 r = self.vcall(self.bound[int(p[1])], 0x2c)
                 if r:
@@ -313,7 +383,8 @@ class Original:
             s('rendered', o + 0x260)
             for k, off in (('w', 0x460), ('h', 0x464), ('shadow', 0x468), ('bk', 0x46c), ('bkc', 0x470),
                            ('nr', 0x474), ('lead', 0x478), ('fixed', 0x47c)):
-                kv(k, e.r32(o + off))
+                if k != 'bkc' or e.r32(o + 0x46c) == 2:  # unset unless opaque
+                    kv(k, e.r32(o + off))
             rc('fr', o + 0x480)
             rc('tr', o + 0x490)
             for k, off in (('sdx', 0x4a0), ('sdy', 0x4a4), ('maxw', 0x4a8), ('named', 0x4ac), ('ft', 0x4b0),
@@ -368,6 +439,18 @@ class Original:
             kv('index', e.r32(o + 0x4b0))
             line.append(f'box={1 if e.r32(o + 0x4b4) else 0}')
 
+        def textbox(o):
+            fonttext(o)
+            kv('current', e.r32(o + 0x4b0))
+            kv('bup', e.r32(o + 0x4b4) & 0xff)
+            kv('repos', e.r32(o + 0x4b5) & 0xff)
+            first, last = e.r32(o + 0x4bc), e.r32(o + 0x4c0)
+            n = (last - first) // 0x4cc if first else 0
+            kv('nlines', n)
+            for i in range(n):
+                line.append(f'\n  line{i}')
+                text(first + 0x4cc * i)
+
         def listbox(o):
             check(o)
             for k, off in (('count', 0x61c), ('before', 0x620), ('spacing', 0x638), ('first', 0x63c)):
@@ -415,7 +498,8 @@ class Original:
         flush('cursorobj')
         for i, o in enumerate(objs):
             k = 'U' if o == c else VT_KIND.get(e.r32(o), '?')
-            {'T': text, 'C': control, 'K': check, 'L': slider, 'X': listbox, 'Y': item}.get(k, image)(o)
+            {'T': text, 'C': control, 'K': check, 'L': slider, 'X': listbox, 'Y': item,
+             'Z': textbox}.get(k, image)(o)
             flush(f'o{i} {k}')
         return '\n'.join(out) + '\n'
 
@@ -440,7 +524,7 @@ def canonical(trace, dump, stubbed):
 
     def sub(m):
         return f'T{name(int(m.group(1), 16)):x}'
-    return out, re.sub(r'T([0-9a-f]+)', sub, dump)
+    return out, re.sub(r'(?<==)T([0-9a-f]+)', sub, dump)
 
 
 def run_case(seed, data, offset, dialog, plan, no_draw, verbose, path=READER):

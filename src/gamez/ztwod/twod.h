@@ -254,6 +254,8 @@ class TextBase : public Object2D {
   int32_t align = 0;                 // +0x244  0 left, 1 centre, 2 right
 
   TextBase(const char* format, int32_t px, int32_t py, Handle font);  // 0x005a2da0
+  TextBase(const TextBase& o);       // 0x005a2e30
+  void assign(const TextBase& o);    // 0x005a2ed0 (the list links cleared)
   ~TextBase() override;              // 0x005a01f0
   void draw() override;              // +0x04  0x005a3080: zFont's text draw
   void set_background(zimg::Texture* image, const Rect* r) override;  // +0x18  0x005a2f90
@@ -290,6 +292,8 @@ class FontText : public TextBase {
   Handle named = 0;                  // +0x4ac  a fonts.zrd font, referenced
 
   FontText(const char* format, int32_t px, int32_t py);  // 0x005a00c0
+  FontText(const FontText& o);       // 0x005a0200: the font copied (GetObjectA + CreateFontIndirectA)
+  void assign(const FontText& o);    // 0x005a03f0: likewise; the old image and font are dropped, not freed
   ~FontText() override;              // 0x005a05a0
   void draw() override;              // +0x04  0x005a10d0
   void set_pos(int32_t px, int32_t py) override { x = px; y = py; }  // +0x0c  0x00409b10
@@ -313,6 +317,7 @@ class FontText : public TextBase {
 
   void delete_font();                // 0x005a0610
   int32_t text_height();             // 0x005a1380: height - leading
+  const char* rendered_text();       // 0x005a10b0: the text the image holds, rendered first
  protected:
   void changed_text();               // the common tail of the set_text family
 };
@@ -329,11 +334,70 @@ class Text : public FontText {
   int32_t phase = 1;                 // +0x4c8  1 or -1
 
   Text();                            // 0x005a15a0
+  Text(const Text& o);               // 0x005a2ae0
+  void assign(const Text& o);        // 0x005a2a70
   ~Text() override;                  // 0x00409ef0
   void update(float dt) override;    // +0x24  0x005a1790
   void set_flash_rate(float period); // 0x005a1690: half of it, when > 0
   void set_flash(uint32_t color, float period);  // 0x005a16e0
   void stop_flash();                 // 0x005a1720
+};
+
+// The exe's std::vector<Text> (HP STL, by value): its growth and its copy
+// order kept, since every Text copy copies a GDI font (0x005a2700).
+class TextVector {
+ public:
+  TextVector() = default;
+  TextVector(const TextVector&) = delete;
+  TextVector& operator=(const TextVector&) = delete;
+  ~TextVector();
+  size_t size() const { return static_cast<size_t>(last_ - first_); }
+  Text& operator[](size_t i) { return first_[i]; }
+  Text* begin() { return first_; }
+  Text* end() { return last_; }
+  void insert(Text* pos, size_t n, const Text& x);  // 0x005a2700
+  void erase_to_end(Text* from);     // the inline erase(from, end)
+ private:
+  Text* first_ = nullptr;            // +0x04
+  Text* last_ = nullptr;             // +0x08
+  Text* end_ = nullptr;              // +0x0c
+};
+
+// Lines of text, each a Text, that scroll as lines are added (vtable
+// 0x005cfe00), 0x4c8 bytes: the briefing's and the mech lab's text panels, the
+// interp console. Its own text holds the font, colour and line height.
+class TextBox : public FontText {
+ public:
+  int32_t current = 0;               // +0x4b0  the line written next
+  uint8_t bottom_up = 0;             // +0x4b4  lines placed upward from the last
+  uint8_t reposition = 0;            // +0x4b5  re-place the lines on the next update
+  TextVector lines;                  // +0x4b8
+
+  explicit TextBox(uint32_t count);  // 0x005a18f0
+  ~TextBox() override;               // 0x005a1ac0
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x005a1ba0
+  void update(float dt) override;    // +0x24  0x005a1ae0
+  void create_font(const char* face, int32_t height, int32_t weight, int32_t width, uint32_t italic,
+                   uint32_t charset, uint32_t pitch) override;  // +0x88  0x005a20a0
+  void set_font(Handle f) override;  // +0x90  0x005a2160
+  void set_text(const char* format, ...) override;           // +0x7c  0x005a1d70
+  void set_text_v(const char* format, va_list args) override;  // +0xa0  0x005a1d90: a new line
+  // +0x98 / +0x9c (0x005a1cd0, 0x005a1cf0: by a message id): not ported.
+  virtual void set_text_top(const char* format, ...);        // +0xb0  0x005a1e10
+  virtual void set_text_top_v(const char* format, va_list args);  // +0xb4  0x005a1e30
+  virtual void advance();            // +0xb8  0x005a1e80
+  virtual void advance_down();       // +0xbc  0x005a1f90
+  virtual void after_write(int32_t) {}  // +0xc0  0x004a5bc0
+
+  void set_line_count(uint32_t n);   // 0x005a2320
+  void clear();                      // 0x005a24e0
+  void clear_lines(int32_t from, int32_t to);  // 0x005a2520
+  void set_color(uint32_t c);        // 0x005a21e0
+  Text& line();                      // 0x005a2280
+  void new_line();                   // 0x005a22a0
+  void append(const char* s);        // 0x005a22f0
+  int32_t total_height();            // 0x005a25f0
+  int32_t max_width();               // 0x005a2640
 };
 
 // An entry of a ListBox (vtable 0x005cfbc8), 0x4b8 bytes; also the box's

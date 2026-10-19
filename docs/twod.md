@@ -67,9 +67,9 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | ListBox | 0x0059e430 | 0x005be308 | 0x650 | CheckButton | yes |
 | ListItem | 0x0059e9a0 | 0x005cfbc8 | 0x4b8 | FontText | yes |
 | TextBase | 0x005a2da0 | 0x005cfed8 | 0x248 | Object2D | yes (the zFont calls hooked) |
-| FontText | 0x005a00c0 | 0x005cfd28 | 0x4b0 | TextBase | yes, but not the copies 0x005a0200 / 0x005a03f0 |
+| FontText | 0x005a00c0 | 0x005cfd28 | 0x4b0 | TextBase | yes |
 | Text | 0x005a15a0 | 0x005cf9d8 | 0x4cc | FontText | yes |
-| TextBox | 0x005a18f0 | 0x005cfe00 | | Text | no |
+| TextBox | 0x005a18f0 | 0x005cfe00 | 0x4c8 | FontText | yes |
 | Cursor | 0x005a7750 | 0x005d0da0 | 0xd0 | Image | yes |
 | Movie2D | 0x005a7a90 | 0x005d0e28 | 0x144 | Object2D | constructor and destructor; open, colour key, start hooked |
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
@@ -227,6 +227,17 @@ Three layers:
 - **Text** (0x005a15a0): a FontText with a flash (+0x4b0..+0x4c8): mode 2
   swaps the colours with the flash colour every half period (set by FLASH,
   0x005a16e0); mode 1 would blink, but nothing in the exe sets it.
+- **TextBox** (0x005a18f0): lines of Text (an HP STL vector by value at
+  +0x4b8) under a FontText of its own whose text is "W", to measure the line
+  height; the briefing's and the mech lab's text panels and the interp
+  console. Each write (+0x7c, 0x005a1d90) goes to the next line; past the
+  last, every line takes the text of the one below (0x005a1e80). Lines sit
+  one height apart, downward, or upward from the current one when +0x4b4 is
+  set. Copying a Text copies its Windows font (`GetObjectA` +
+  `CreateFontIndirectA`, 0x005a0200), so the vector's growth (0x005a2700:
+  size + max(size, n)) shows in the GDI calls and is kept as written; the
+  assignment (0x005a03f0) drops the target's image and font without freeing
+  them.
 
 FIX (A): the GDI calls (fonts, DCs, `DrawTextA`, `GetTextExtentPoint32A`,
 `GetTextMetricsA`, colours, modes) go through `ztwod::Host` one for one; a
@@ -335,6 +346,9 @@ built and run, FastMenu set around it (0x0040ce90), destroyed.
 - `twod_list.cpp`: Slider (0x0059e0f0..0x0059e350, 0x0059fad0), ListBox
   (0x0059e430..0x0059ea30, its destructor 0x0042f480), ListItem
   (0x0059e9a0, 0x0059faf0, 0x0048e540, 0x0059ec20).
+- `twod_textbox.cpp`: the text copies (0x005a0200, 0x005a03f0, 0x005a2a70,
+  0x005a2ae0, 0x005a2e30, 0x005a2ed0), the vector (0x005a2700, 0x004097e0)
+  and TextBox (0x005a18f0..0x005a2640, 0x00406020).
 - `twod_msgbox.cpp`: MessageBox (0x005a6e60, 0x005a7150, the loop
   0x005a7280, the answers 0x005a7560..0x005a7640) and its buttons
   (0x005a7650..0x005a7730).
@@ -389,8 +403,9 @@ background, images, sounds, bounds, labels by index, text, render state,
 image size and a hash of its pixels, flash). Result: 96/96 runs identical
 (66 shipped, 30 synthetic; 122,468 calls).
 
-The plans bind LISTSIZE entries as list boxes and FILLBITMAP entries as
-sliders (CTL_CFG_DIALOG's five key lists among them, synthetic ones with
+The plans bind LISTSIZE entries as list boxes, FILLBITMAP entries as
+sliders and some TEXT primitives as text boxes of 1 to 6 lines (written past
+their end, scrolled, grown, turned bottom-up, measured), (CTL_CFG_DIALOG's five key lists among them, synthetic ones with
 every key) and drive them: values set and taken from clicks, strings added,
 selections.
 
@@ -407,7 +422,7 @@ a rectangle; odd target widths, padded pitches): every target identical, the
 two FIX (bug)s apart (the original wrote its extra row in 136 of them; 43
 zero-width palettised blits, which run away in the original, draw nothing).
 
-Breaking the port showed the tests catch it, 34 of 37: hover never entered,
+Breaking the port showed the tests catch it, 41 of 45: hover never entered,
 centring rounded up, centred label bounds by the full width, a label's
 number offset ignored, the shadow's sign, the gradient blend from the
 middle, CENTER read as RIGHT, the check button's second rollover sound
@@ -421,7 +436,12 @@ blue; sliders cut by the height, the fill offset ignored, the empty part's
 height; list boxes' entries below off by one, the offset pairs swapped, the
 upward spacing, LISTWIDTH, an entry keeping its old index; the message box's
 No answering Yes, no backdrop, the Direct3D target from the software
-buffers, the page flipping restored on. Missed, and unobservable: drawing
+buffers, the page flipping restored on; the text box measuring an empty
+text, its lines shifting the wrong way, clearing that keeps the current
+line, bottom-up lines placed downward, copies sharing the source's font, the
+vector growing by n only, scrolling down past a hidden line. Missed, and
+unobservable: the text assignment keeping needs_render (zTwoD only ever
+inserts at the end, so it never assigns), drawing
 the blink mode's off half (nothing sets mode 1), the Yes/No/Cancel buttons
 shown in another order (showing has no outside effect), and the box's loop
 counting one frame less (it differs only at the 100,000-frame timeout).
@@ -447,15 +467,20 @@ counting one frame less (it differs only at the 100,000-frame timeout).
 - A Text's timer hides it, then the same update still draws it once.
 - BACKGROUND_TEXT's font number is read whether or not the entry has one.
 - Messages are printf formats: a `%` in a message would be read as one.
+- Shrinking a text box's line count (0x005a2320) leaves its current line one
+  past the last (FIX (bug) in the port: such a line counts as hidden); the
+  copies of a Text leave the fields their constructor never set (the
+  background colour of a transparent text) as the stack held them.
 - Dialog's constructor looks up "VMode" (0x00597d10) and drops the result.
 
 ## 9. What is left
 
 Mapped, not ported:
 
-- TextBox 0x005a18f0..0x005a2a70, the FontText and Text copies 0x005a0200, 0x005a03f0, 0x005a2ae0, 0x005a2e30,
-  0x005a2ed0, the LOGFONT and message-id setters 0x005961d0, 0x00409bd0,
-  0x00409bf0, 0x00409c40, the plain DrawTextA measure 0x005a0e20.
+- The LOGFONT and message-id setters 0x005961d0, 0x00409bd0,
+  0x00409bf0, 0x00409c40 and the text box's 0x005a1cd0 / 0x005a1cf0 (the
+  message table's FormatMessage, 0x00575ff0), the box's text thunk
+  0x005a22c0, the plain DrawTextA measure 0x005a0e20.
 - The game's message box call 0x004ac150 / 0x004ac050 (mech3).
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start

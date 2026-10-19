@@ -258,7 +258,7 @@ struct Dump {
     kv("h", p->height);
     kv("shadow", p->shadow);
     kv("bk", p->bk_mode);
-    kv("bkc", p->bk_color);
+    if (p->bk_mode == 2) kv("bkc", p->bk_color);  // else unset (stack leftovers in a text box's lines)
     kv("nr", p->needs_render);
     kv("lead", p->leading);
     kv("fixed", p->fixed);
@@ -331,6 +331,17 @@ struct Dump {
     fonttext(p);
     kv("index", p->index);
     o << "box=" << (p->box ? 1 : 0) << ' ';
+  }
+  void textbox(ztwod::TextBox* p) {
+    fonttext(p);
+    kv("current", p->current);
+    kv("bup", p->bottom_up);
+    kv("repos", p->reposition);
+    kv("nlines", static_cast<int64_t>(p->lines.size()));
+    for (size_t i = 0; i < p->lines.size(); ++i) {
+      o << "\n  line" << i << ' ';
+      text(&p->lines[i]);
+    }
   }
   void listbox(ztwod::ListBox* p) {
     check(p);
@@ -423,6 +434,7 @@ void dump_dialog(ztwod::Dialog& d, Dump& out) {
       case 'L': out.slider(static_cast<ztwod::Slider*>(p)); break;
       case 'X': out.listbox(static_cast<ztwod::ListBox*>(p)); break;
       case 'Y': out.item(static_cast<ztwod::ListItem*>(p)); break;
+      case 'Z': out.textbox(static_cast<ztwod::TextBox*>(p)); break;
       default: out.image(static_cast<ztwod::Image*>(p)); break;
     }
     out.o << '\n';
@@ -474,6 +486,11 @@ int probe_twod_run(const char* path, long offset, const char* name, int no_draw,
       if (kind == 'K') o = new ztwod::CheckButton();
       else if (kind == 'L') o = new ztwod::Slider();
       else if (kind == 'X') o = new ztwod::ListBox();
+      else if (kind == 'Z') {
+        uint32_t lines;
+        ls >> lines;
+        o = new ztwod::TextBox(lines);
+      }
       else if (kind == 'C') o = new ztwod::Control();
       else if (kind == 'T') o = new ztwod::Text();
       else o = new ztwod::Image(0);
@@ -561,6 +578,48 @@ int probe_twod_run(const char* path, long offset, const char* name, int no_draw,
       int v;
       ls >> i >> v;
       static_cast<ztwod::ListBox*>(g_bound[i])->select(v);
+    } else if (op == 'N' || op == 'O') {
+      size_t i;
+      int v;
+      ls >> i >> v;
+      auto* tb = static_cast<ztwod::TextBox*>(g_bound[i]);
+      if (op == 'N') tb->set_text("L%d", v);
+      else tb->set_text_top("T%d", v);
+    } else if (op == 'U') {
+      size_t i;
+      ls >> i;
+      static_cast<ztwod::TextBox*>(g_bound[i])->new_line();
+    } else if (op == 'C') {
+      size_t i;
+      uint32_t c;
+      ls >> i >> std::hex >> c;
+      static_cast<ztwod::TextBox*>(g_bound[i])->set_color(c);
+    } else if (op == 'K') {
+      size_t i;
+      ls >> i;
+      static_cast<ztwod::TextBox*>(g_bound[i])->clear();
+    } else if (op == 'Y') {
+      size_t i;
+      uint32_t n;
+      ls >> i >> n;
+      static_cast<ztwod::TextBox*>(g_bound[i])->set_line_count(n);
+    } else if (op == 'D') {
+      size_t i;
+      int v;
+      ls >> i >> v;
+      static_cast<ztwod::TextBox*>(g_bound[i])->bottom_up = static_cast<uint8_t>(v);
+    } else if (op == 'a') {
+      size_t i;
+      std::string str;
+      ls >> i >> str;
+      static_cast<ztwod::TextBox*>(g_bound[i])->append(keep(str));
+    } else if (op == 'T') {
+      size_t i;
+      ls >> i;
+      auto* tb = static_cast<ztwod::TextBox*>(g_bound[i]);
+      const int32_t th = tb->total_height();
+      const int32_t mw = tb->max_width();
+      call("tb", {th, mw});
     } else if (op == 'R') {  // a bound object's get_rect, recorded
       size_t i;
       ls >> i;

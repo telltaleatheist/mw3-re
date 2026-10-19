@@ -71,6 +71,7 @@ add_library(mw3core STATIC
   src/gamez/ztwod/twod_list.cpp
   src/gamez/ztwod/twod_msgbox.cpp
   src/gamez/ztwod/twod_object.cpp
+  src/gamez/ztwod/twod_textbox.cpp
   src/gamez/ztwod/twod_wintext.cpp
   src/mech3/mech.cpp
   src/mech3/mech3_interp.cpp
