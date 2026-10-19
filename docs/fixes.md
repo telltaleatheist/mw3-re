@@ -31,7 +31,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Heat-sink critical, 0x460d50 | The callout waits for 0x45fbc0 to report success, which it never does | (bug) losing a sink is silent (`heat.md`, `damage.md`) | Success is a sink actually lost: the "heat sink" callout and the critical sound play. The damage test runs the original with 0x45fbc0 reporting it the same way |
 | Equipment critical, 0x461211 | When `rand()` lands above the summed weights (r = 1.0 and rounding), the item pointer is the random float's bits | (bug) a crash | The last candidate is taken |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
-| Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
+| Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57caa0, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
+| Particle fade-in, 0x5489a0 | The fade-in ramp subtracts the fade-out start (+0x3c) where the fade-in start (+0x34) belongs | (bug) a typo: inside a puffer's fade-in band the alpha is negative and the particle is not drawn, instead of fading in | The fade-in start. No shipped puffer sets a fade-in, so play is unchanged; the test runs the original with the same one-byte change (`puffers.md`) |
+| Puffer event key counts, 0x5035b0 | Reads as many colour and growth keys as the event's counts say, past the six slots | (bug) a damaged anim.zbd reads the following data as keys | At most six; shipped counts are 1..5, so identical |
+| Puffer sprite, 0x567720 | The texture entry's record is passed on unchecked | (A) the default texture's record is made at startup by 0x5184e0, not ported | No record, no sprite (the front end sets `zimg::default_entry()->surface`) |
 
 Notes on the fixes:
 
@@ -102,6 +105,14 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
 - Lava heat, 0.05 per frame (`heat.md`): frame-rate dependent, so faster
   machines cook faster. Options: a fixed per-second rate matching some
   reference frame rate (1.5/s at 30 fps, 3/s at 60 fps), or keep per frame.
+- Particle drag, 0x5490e0 / 0x523f70 (`puffers.md`): the drag factor comes
+  from a table of e^-(i/51) with the step truncated, so `dt * friction` below
+  1/51 gives no drag at all: smoke with friction 1 (muzzle smoke, missile
+  trails) ignores friction and wind at 60 fps and above, all shipped smoke
+  above 89 fps; at 30 fps it slows and drifts. The wind's speed also takes
+  its random step per frame, not per second. A FIX (B) candidate: e^-x
+  computed (or the table interpolated), and the speed step scaled to a
+  reference frame rate. Kept as the original for now.
 - Wading (`heat.md`): the depth ratio is clamped with max where min was likely
   meant, so any depth gives the full x8 cooling. Fixing it makes shallow
   water cool less.

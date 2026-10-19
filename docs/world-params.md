@@ -59,6 +59,7 @@ All lookups are zReader `find` (depth first) inside the block.
 4. `global_wind`: `max_speed` -> 0x54b650 (0x72be4c), `random_accel` ->
    0x54b660 (0x72be54), `random_angvel` degrees -> radians -> 0x54b670
    (0x72be50), `velocity` vec3 -> 0x54b630 (0x72be38). Each only if present.
+   (The wind and the tick reset are ported in gmod_puff: puffers.md.)
 5. `sun`, only when the sunlight handle exists: the light's current Euler
    rotation (0x4fb060) and its diffuse (+0x9c) / ambient (+0xa0) are the
    defaults; `orientation` degrees (all three times 0.01745329251994, the

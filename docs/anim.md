@@ -211,7 +211,7 @@ placeholder; the fixups start at index 1.
 | object | 0x60 | name[0x20], +0x20 0, +0x24 node, +0x28 flags, +0x2c flags merged, +0x30 affine 3x4 f32 | `0x509640(def, name)` -> +0x24; 0 = fail |
 | node | 0x28 | name[0x20], +0x20 0, +0x24 node | same |
 | light | 0x2c | name[0x20], +0x20 flags, +0x24 node, +0x28 in world | **new** light 0x4fa720 -> +0x24 (0 = fail), named `0x4eb300(light, name)` |
-| puffer | 0x2c | same as light | **new** puffer object 0x54a710 (0xe4 bytes, put on the puffer list 0x72be04; not named here) -> +0x24 |
+| puffer | 0x2c | same as light | **new** puffer object 0x54a710 (0xe4 bytes, put on the puffer list 0x72be04; puffers.md) -> +0x24 |
 | dynamic sound | 0x2c | same as light | **new** sound node 0x4fd280 -> +0x24 (0 = fail), named 0x4eb300, then `0x4fd480(node, name)` sets its sound (copies the name, `zsnd_find`) |
 | static sound | 0x24 | name[0x20], +0x20 handle | `zsnd_find(name)` 0x56f6f0 -> +0x20; 0 is accepted |
 | effect | 0x24 | name[0x20], +0x20 index | `0x50d9e0(name)`: index in the effect table (0x73f3d4, stride 0x4c, count 0x73f3c8) -> +0x20; -1 = fail |

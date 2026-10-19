@@ -91,6 +91,14 @@ TextureHooks& texture_hooks() { return g_hooks; }
 TextureLoad& texture_load() { return g_load; }
 Texture& default_image() { return g_default; }
 
+// Mech3.exe 1.2 @ 0x00518210. The entry at 0x005ecbf8: the default image; its
+// record (+0x04) is made on Direct3D by 0x005184e0 (not ported: set by the
+// front end, e.g. to zvid::default_texture()).
+TextureEntry* default_entry() {
+  static TextureEntry e{&g_default, nullptr, "DEFAULT_TEXTURE", 1, 0, nullptr};
+  return &e;
+}
+
 // Mech3.exe 1.2 @ 0x00518220. Plain strcmp, unlike the libraries' _stricmp.
 TextureEntry* find_texture(const char* name) {
   for (int32_t i = 0; i < g_table.count; ++i) {

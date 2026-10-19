@@ -23,5 +23,10 @@ int node_to_world(Node* node, int mode);   // 0x004ed280
 // ECX node, EDX out: its box (+0x74..+0x88) corners through its local matrix
 // and the top of the stack. 0 ok, 1 no box (flag 0x100), 3 bad class, 5 null.
 int node_box_corners(Node* node, float out[8][3]);  // 0x004ebdb0
+// ECX node, EDX out: the node's world rotation as euler angles (0x00523bc0)
+// and its world position, from an object3d's cached world matrix (+0x60) when
+// it is valid, else through node_to_world. 0 ok, 1 null node.
+int node_world_euler(Node* node, float out[3]);     // 0x004ed5d0
+int node_world_position(Node* node, float out[3]);  // 0x004ed530
 
 }  // namespace zcls

@@ -223,9 +223,13 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       `tests/differential/explore/interp_*.py`.
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
-      (`zeffect/zeff_anim_init`). Still hooked: puffers, zSound's lookup,
-      the effect table. Next the post-load pass 0x50ae60, mapped with a
+      (`zeffect/zeff_anim_init`). Still hooked: zSound's lookup, the effect
+      table (puffers: ported, below). Next the post-load pass 0x50ae60, mapped with a
       porting order in `docs/anim-postload.md`.
+- [x] Puffers (smoke, fire, trails): ported and emulator-checked bit for bit
+      (`zmodel/gmod_puff`, `zrender/zrndr_draw`, `zeffect/zeff_anim_puffer`,
+      0x57caa0; `docs/puffers.md`). The anim event 42 is ported, waiting for
+      the anim run to call it.
 - [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
       dispatcher table (order in `docs/interp.md`), checked by a command trace.
 - [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,

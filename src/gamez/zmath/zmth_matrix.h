@@ -77,6 +77,12 @@ void euler(const float rot[3], const float pos[3], const float scale[3]);  // 0x
 // --- Matrices ---
 void matrix_to_euler(const Mat34& m, float out[3]);  // 0x00523bc0
 bool invert(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50, false if singular
+void euler_to_quat(float x, float y, float z, float q[4]);  // 0x00525340  q = (w, x, y, z)
+void quat_matrix(const float q[4], float r[9]);           // 0x00525740  unit quaternion to 3x3
+
+// e^-x from a 256-entry table in steps of 1/51 (x truncated to a step): 0 above
+// 5, 1 below 0 or NaN. Built on the first call (docs/puffers.md, drag).
+float exp_neg(float x);                                   // 0x00523f70
 
 // --- Camera and projection ---
 void set_view(const Mat34& camera_world);  // 0x00520b00

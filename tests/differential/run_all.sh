@@ -32,6 +32,7 @@ for t in \
     textures \
     texload \
     scenewalk \
+    puffers \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

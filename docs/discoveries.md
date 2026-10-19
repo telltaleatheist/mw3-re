@@ -507,6 +507,48 @@ From the animation files (anim.md).
   the names and dates of the text files it was built from; the game reads
   past them without looking.
 
+## Smoke and fire
+
+From the puffer system, `gmod_puff.cpp` (puffers.md). Missile trails, muzzle
+smoke, jump-jet plumes, burning helicopters, steam and the smoke of wrecks
+are all "puffers": emitters that drop little textured squares.
+
+- **Every puff is a flat square that always faces you.** It never turns or
+  tilts; it grows (in every shipped effect it doubles in size over its life)
+  and fades out evenly from birth to death.
+- **Trails are measured in distance, not time.** A missile or vehicle trail
+  drops a puff every 0.75 to 12 metres it moves, so a fast missile leaves as
+  dense a trail as a slow one, and a parked one leaves none. Muzzle smoke
+  comes out five times a second. A jump of more than 200 metres in one frame
+  (a teleport) leaves no line of smoke behind.
+- **Puffs between frames are aged to match.** When several puffs come out in
+  one frame along a path, each starts as old as it would be had it left at
+  its own point on the path, so trails stay smooth at low frame rates.
+- **Smoke fades with distance** (most effects between 400 and 600 metres,
+  some from 80) and a puff less than about two pixels across is not drawn at
+  all.
+- **There is a wind, and it wanders.** Every mission has the same random
+  wind: no steady direction, a speed that wanders between 0 and 13 m/s and
+  a direction that drifts about 10 degrees a second; when the speed would
+  drop below zero it turns round instead. Only smoke with "friction" feels
+  it (muzzle smoke, missile trails, black smoke, boilers, sparks); fire and
+  jet plumes fly straight. The wind is never reset between missions: a new
+  mission starts with the old one's gusts.
+- **At high frame rates the smoke stops drifting.** The game slows smoke
+  toward the wind with a lookup table that rounds the frame's share down to
+  steps of 1/51. At 60 frames a second that rounds muzzle smoke and missile
+  trails to "no slowing at all", so they ignore the wind and keep their
+  launch speed; at 30 fps they slow and drift. Above about 90 fps no smoke
+  drifts. The wind's gusts also change per frame, so they change faster the
+  faster the game runs.
+- **There is no limit on smoke.** Every puff of every effect is kept in one
+  list until it dies; a busy battle simply makes it longer.
+- **Unused features.** The engine can colour and tint smoke over its life,
+  animate its texture over time, release several puffs at once and fade
+  smoke in as it moves away from the camera, but no mission uses any of
+  them. The fade-in has a typo that would make the smoke vanish up close
+  instead (fixed in the rebuild).
+
 ## Data files
 
 - **Every setting lives in `reader.zbd`**, 178 small files of nested lists

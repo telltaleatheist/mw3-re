@@ -147,7 +147,7 @@ void probe_dt_get(int32_t* cache, int32_t* draw, float* light, int32_t* brightes
 // fn: 0 flat, 1 lit, 2 textured, 3 textured lit, 4 per-vertex lit (args as
 // test_drawtable.py packs them), 5 flush transparent, 6 flush overlay,
 // 7 begin scene, 8 end scene, 9 point light colour (rgb), 10 fog colour
-// (rgb = the sent colour). tl/work: 64 vertices in, tl out.
+// (rgb = the sent colour), 13 textured white. tl/work: 64 vertices in, tl out.
 void probe_dt_call(int32_t fn, const int32_t* a, uint8_t* tl, const float* work, const float* rgb) {
   std::memcpy(g_tl, tl, sizeof g_tl);
   std::memcpy(g_work, work, sizeof g_work);
@@ -157,6 +157,7 @@ void probe_dt_call(int32_t fn, const int32_t* a, uint8_t* tl, const float* work,
     case 2: zvid::draw_textured(a[0], texture_at(a[1]), as_float(a[2]), a[3]); break;
     case 3: zvid::draw_textured_lit(static_cast<uint32_t>(a[0]), a[1], texture_at(a[2]), a[3], as_float(a[4]), a[5]); break;
     case 4: zvid::draw_textured_vertex_lit(static_cast<uint32_t>(a[0]), a[1], texture_at(a[2]), as_float(a[3]), a[4]); break;
+    case 13: zvid::draw_textured_white(a[0], texture_at(a[1]), a[2], as_float(a[3]), a[4]); break;
     case 5: zvid::flush_transparent(); break;
     case 6: zvid::flush_overlay(); break;
     case 7: {

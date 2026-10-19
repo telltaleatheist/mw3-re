@@ -154,6 +154,44 @@ int node_to_world(Node* node, int mode) {
   return 0;
 }
 
+namespace {
+// The cached world matrix of an object3d in the world tree, when still valid.
+const zmth::Mat34* cached_world(Node* node) {
+  if (node->cls() != 5 || !(node->flags() & 0x80000)) return nullptr;
+  auto* d = static_cast<Object3d*>(node->data);
+  return d->get<uint32_t>(0) & 0x20 ? nullptr : mat(d->floats(0x60));
+}
+
+// node_to_world into a matrix of its own, from the identity.
+void world_matrix(Node* node, zmth::Mat34* m) {
+  zmth::push(m);
+  zmth::load_identity();
+  node_to_world(node, 1);
+  zmth::pop();
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ed5d0
+int node_world_euler(Node* node, float out[3]) {
+  if (!node) return 1;
+  if (const zmth::Mat34* c = cached_world(node)) return zmth::matrix_to_euler(*c, out), 0;
+  zmth::Mat34 m;
+  world_matrix(node, &m);
+  zmth::matrix_to_euler(m, out);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ed530
+int node_world_position(Node* node, float out[3]) {
+  if (!node) return 1;
+  if (const zmth::Mat34* c = cached_world(node)) return std::memcpy(out, c->m + 9, 12), 0;
+  out[0] = out[1] = out[2] = 0.0f;
+  zmth::Mat34 m;
+  world_matrix(node, &m);
+  std::memcpy(out, m.m + 9, 12);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004ebdb0. Box min at +0x74, max at +0x80. The local
 // matrix: camera +0x80, object3d +0x30 (none with data flag 8), animate +8
 // when active; worlds, lods, sequences, lights and sounds have none.
