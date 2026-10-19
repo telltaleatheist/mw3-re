@@ -11,6 +11,7 @@ constexpr float kReferenceFps = 30.0f;
 
 struct Options {
   bool per_second = true;  // FIX (B): per-frame steps scaled by dt (fixes.md, Frame rate)
+  bool bugs = true;        // FIX (bug): the play-changing bug fixes decided with Owen (CHANGES.md)
 };
 
 inline Options& options() {

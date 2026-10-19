@@ -137,7 +137,12 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   data), marked `FIX (A)` / `FIX (B)` / `FIX (bug)` and listed in
   `docs/fixes.md`. The differential test checks the original path and says
   where the fix departs. Where the intent is a guess (balance), list it in
-  `fixes.md` as a candidate for Owen. The copy-protection and anti-tamper
+  `fixes.md` as a candidate for Owen. Every change from the original also
+  gets a plain-words line in `CHANGES.md` at the repo root (Owen,
+  2026-10-20: the list of what the rebuild changes). Play-changing fixes
+  sit behind `zfix::options()` (`per_second`, `bugs`; per-frame steps are
+  scaled to a 30 fps frame), which the probe library turns off so the
+  differential tests check the original path. The copy-protection and anti-tamper
   traps are removed (Owen, 2026-10-20), marked `FIX (trap)`
   (`docs/protection.md`).
 - Self-contained functions get a differential test (`tests/differential/`) that

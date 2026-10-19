@@ -311,7 +311,7 @@ void WeaponType::hold_for_flight() { ready_at = lrm_flight + g_world.time; }
 
 // Mech3.exe 1.2 @ 0x004b4bd0
 void reset_ready_times() {
-  for (int32_t i = -1; i < 37; ++i)
+  for (int32_t i = -1; i < weapon_count(); ++i)
     if (WeaponType* t = const_cast<WeaponType*>(weapon_type(weapon_name(i)))) t->set_ready_at(0.0f);
 }
 

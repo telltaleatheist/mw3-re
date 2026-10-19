@@ -60,6 +60,13 @@ Each change is also marked `FIX` in the code next to the original address.
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 | Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
 | Smoke drag and wind, 0x5490e0 / 0x523f70 | Drag from a table of e^-(i/51) with the step truncated; the wind's speed steps by up to `random_accel` a frame | (B) at 60 fps and above muzzle smoke and trails get no drag at all, and gusts change faster the faster the game runs | e^-(dt * friction) computed, and the speed step scaled as per 1/30 s (Owen 2026-10-20); `zfix` switch as above. At 30 fps the drag is now a little stronger than the table's (it rounded 0.033 down to 0.0196) |
+| Sound fades, 0x571940 | A fade ends only when a 25 dB/s step lands exactly on the target, which happens only at full volume or silence | (bug) fades to a partial volume never end: the voice wobbles a step around the target and the fade stays in the list for good | A step that reaches or passes the target ends the fade on it (Owen 2026-10-20); `zfix::options().bugs` |
+| Unpause, 0x56f130 | Every voice of each sound kept at pause plays again, finished ones from the start, once per record (a sound with two copies playing replays both twice) | (bug) sounds that had ended start over and doubles pile up after a pause | Only the voices that were playing resume, each once, from where they stopped (Owen 2026-10-20) |
+| Wingmen's ammo calls, group reader 0x573560 | `dom/alan/epona_low/out_of_ammo` list `"PLAY_COUNT" 2` at group level; the reader takes any unknown word as the group's name, so all six are named "PLAY_COUNT" | (bug) the low-ammo and out-of-ammo lines never play | PLAY_COUNT at group level applies to each line of the group (each plays at most twice); the groups keep their names (Owen 2026-10-20: a cue to repair at the MFB) |
+| Stereo, the PLAYBACK_FORMAT reader (zsnd_init `read_playback`) | The channel count in `sounds.zrd` (HIGH: 2) is not read; 1 is stored | (bug) on Windows 9x the mix was mono, so the 3D sounds' left/right pan was lost | The data's channel count is read (Owen 2026-10-20). The SDL output mixes stereo either way |
+| Medium sound format, 0x570ccf and the per-sound formats | Looks up `"MED"` where `sounds.zrd` says `MEDIUM` | (bug) a typo: the medium playback format is never read | `MEDIUM` |
+| Mad Cat and Supernova damage textures, skin reader (`mech3::read_skins`) | `damage` lists two (Mad Cat) and one (Supernova) slots longer than the primary skin, so every damage mask lands on the wrong texture; the size check then drops some | (bug) misplaced data: those mechs show the wrong or no battle damage | Leading empty slots are dropped until the damage list is as long as the primary (Owen 2026-10-20); `tests/test_fixes.cpp` checks both on the real files |
+| Plain PPC, weapon table 0x5e64f0 | 37 weapons; `weapons.zrd` defines a `PPC` and Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc; the old slot 0x2ee between NARC and the pulse lasers is empty) but the table has no row | (bug) the mech lab cannot offer a weapon the data defines | A 38th row, `PPC` (message 0x2fd, family 3 as ERPPC, Inner Sphere tech 2 as the plain lasers, no ammo); `mech3::weapon_count()` (Owen 2026-10-20) |
 
 Notes on the fixes:
 
@@ -141,14 +148,25 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   (near 32 / far 64: 0.875 at 6, 0 from 10 to 31, 1 at 32). How often shipped
   lights show it is not checked.
 
+## Decided to keep (Owen, 2026-10-20)
+
+- Wading: the depth ratio is clamped with max where min was likely meant, so
+  any depth gives the full x8 cooling. Players plan around it; kept.
+- Water cooling checks only the left foot; kept.
+- Elemental armor: 1 point in every location (11), where the 1 ton the file
+  gives is worth 16. The only effect of the mismatch is a log line at load,
+  and one point a location is evidently the design (an Elemental dies to a
+  single hit); kept.
+- Missiles that miss vanish at RANGE without exploding; kept.
+- Radio chatter (QUEUE) plays newest first; kept as design (chatter stays
+  current).
+- Every mech's maximum engine forced to 400 and only a weapon's first group
+  counting look deliberate; kept.
+
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- Wading (`heat.md`): the depth ratio is clamped with max where min was likely
-  meant, so any depth gives the full x8 cooling. Fixing it makes shallow
-  water cool less.
-- Water cooling checks only the left foot.
 - Movement done per frame, not per second (`movement*.md`): a fall's carried
   momentum (x0.6 a frame), the ground probes' slope and ledge pushes and the
   far mechs' push x3, the jump jets' climb impulse (capped at 6 a frame), the
@@ -158,10 +176,6 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
 - Deep water (gait 0x4181c0): the slowdown runs to almost a standstill as the
   water nears the mech's height, then jumps back to 70% once deeper. A
   continuous curve may have been meant.
-- Mad Cat damage list: two extra zeros shift every damage mask by two, so two
-  textures get none and two get a mask of the wrong size (dropped). Removing
-  the zeros restores the damage look; the Supernova's one extra item likewise.
-- Elemental armor: the file hands out 11 points for a ton worth 16.
 - Missing animation object, 0x50a0e0: one prerequisite naming an object not
   in the level clears all of the animation's prerequisites, so it fires
   without waiting. Dropping only the broken one, or never firing, are both
@@ -175,24 +189,3 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
   so they never show. Mapping those names to the soils that exist would
   restore them; which soil each should be is a guess.
-- Missiles that miss vanish at RANGE without exploding (every shipped missile
-  has EXPIRES, 0x5860fb); keep, or let them burst.
-- The plain PPC is defined but missing from the mech lab's table; every mech
-  maximum engine is forced to 400; only a weapon's first group counts. These
-  look deliberate and stay unless Owen says otherwise.
-
-- Sound groups `dom_low_ammo`, `alan_low_ammo`, `epona_low_ammo`,
-  `dom_out_of_ammo`, `alan_out_of_ammo`, `epona_out_of_ammo`: `PLAY_COUNT 2`
-  at group level is not a keyword, so the reader renames them all
-  "PLAY_COUNT" and the wingmen's ammo calls never play (sound.md). Fixing the
-  data (drop the two words, or move them into the entries) restores lines
-  players never heard.
-- Sound fades (0x571940) end only on an exact landing, so fades to a partial
-  volume never end and jitter one step around the target; snapping to the
-  target when the step passes it is the likely intent.
-- Unpause (0x56f130) replays every copy of each sound that was playing
-  (finished ones from the start, twice for two copies) instead of resuming
-  the ones that were; resuming only the recorded voices is the likely intent.
-- Radio chatter (QUEUE) plays newest first; first-in first-out may have been
-  meant, but newest-first keeps chatter current, so it may be design.
-- 3D panning: the game asks for mono output (above); the port plays stereo.

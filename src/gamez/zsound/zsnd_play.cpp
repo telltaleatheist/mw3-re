@@ -1,13 +1,16 @@
 // C:\zipper\GameZMech3\zSound\zsnd_play.cpp: playing, stopping, the voice
 // queue, cue points and pause (docs/sound.md section 3). The file starts at
 // 0x0056dfb0, right after zRender's span fillers.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 
 namespace zsnd {
@@ -324,8 +327,19 @@ int32_t stop_snapshot(Snapshot* l) {
 // Mech3.exe 1.2 @ 0x0056f130: back from pause. Each kept voice's sound plays
 // all its voices again (docs/sound.md, pause), with the master volume's
 // change since added to each.
+// FIX (bug): only the voices that were playing resume, each once and from where
+// it stopped (the exe replays every voice of the sound, finished ones from the start).
 int32_t resume_snapshot(Snapshot* l) {
   const float delta = *state().volume - l->front().master;
+  if (zfix::options().bugs) {
+    std::vector<Voice*> done;
+    for (auto it = std::next(l->begin()); it != l->end(); ++it) {
+      if (!it->voice || std::find(done.begin(), done.end(), it->voice) != done.end()) continue;
+      done.push_back(it->voice);
+      resume_voice(it->sound, it->voice, 0, static_cast<int32_t>(delta * 10000.0f));
+    }
+    return 1;
+  }
   for (auto it = std::next(l->begin()); it != l->end(); ++it) resume_sound(it->sound, 0, delta);
   return 1;
 }

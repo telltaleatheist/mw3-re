@@ -37,19 +37,16 @@ for t in \
     textures \
     texload \
     scenewalk \
-for t in \
     interp \
     app_loop \
     app_options \
     app_states \
-for t in \
     shadows \
     puffers \
     sound \
     weapons_zrd \
     weapons_run \
     weapons_hit \
-    ; do
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

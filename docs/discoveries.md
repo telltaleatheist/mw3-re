@@ -239,7 +239,10 @@ From the weapon code (weapons.md).
 
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the
   MechLab's weapon table (0x5e64f0) only lists the ER PPC, so no mech can
-  carry the plain one.
+  carry the plain one. Its name is in the game's text (message 0x2fd, right
+  after the last weapon's) and the slot it once had between NARC and the
+  pulse lasers is empty: it was moved to the end of the list and its row was
+  never added. The rebuild adds it, so the mech lab offers the PPC.
 - **Hot lasers recharge slower.** Above heat 0.5, a beam weapon's recharge is
   multiplied by 0.5 / heat (0x4b43bf): at heat 1.0 lasers refill at half speed.
 - **Small lasers are the slowest to recharge**: 4 seconds, against 3 for medium
@@ -319,12 +322,13 @@ From the weapon code (weapons.md).
   shipped, so the game moves on to the next one: medium loads the 11 kHz
   low set. The "medium" playback format is never read either: the setup
   asks `sounds.zrd` for `"MED"` (0x570ccf) where the file says `MEDIUM`
-  (sound.md).
+  (sound.md). The rebuild reads `MEDIUM`.
 - **The game asks the sound card for mono.** The playback formats in
   `sounds.zrd` say stereo for high quality, but the setup stores 1 channel
   whatever the file says, so on the Windows 9x DirectSound of the time the
   whole mix was mono and the left/right panning of 3D sounds was lost. Since
   Vista Windows ignores that request, so players today hear it in stereo.
+  The rebuild reads the file's channel count, so it asks for stereo too.
 - **60 sounds were never shipped.** `sounds.zrd` names 1058 sounds, but 60
   WAVs are in neither archive: Dom's four ejection lines, Alan's fourth
   "disregard", the wingmen's acknowledgements ("sure sir", "affirmative",
@@ -337,6 +341,8 @@ From the weapon code (weapons.md).
   `sounds.zrd` those six groups list `"PLAY_COUNT" 2` after their name, and
   PLAY_COUNT is not a group keyword: the reader takes it as the group's
   name, so all six are called "PLAY_COUNT" and the lookups find nothing.
+  The rebuild restores them: Dom, Alan and Epona now call out low and empty
+  ammo, each line at most twice a mission (a hint to rearm at the MFB).
 - **Radio chatter queues newest first.** Lines marked QUEUE wait their turn,
   half a second apart, but the queue is a stack: the most recent line plays
   next, and a line that waited more than 5 seconds is dropped unheard.
@@ -358,11 +364,13 @@ From the weapon code (weapons.md).
 - **Volume fades rarely finish.** A fade moves 25 dB a second and ends only
   when it lands exactly on its target, which happens only at full volume or
   silence; a fade to anything in between keeps nudging the volume up and
-  down one step around the target for as long as the sound plays.
+  down one step around the target for as long as the sound plays. Fixed in
+  the rebuild.
 - **Unpausing replays sounds.** Leaving the pause menu does not resume what
   was playing: for every sound that was playing it starts all its copies
   again (any that had already finished included, from the start), and twice
-  for a sound that had two copies playing.
+  for a sound that had two copies playing. Fixed in the rebuild: only what
+  was playing resumes, from where it stopped.
 
 - **Sounds are plain WAV files** packed in `soundsL.zbd` (11 kHz, 8-bit) and
   `soundsH.zbd` (22 kHz), 999 of them, named in `sounds.zrd` by set: menus,
@@ -620,7 +628,8 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
   0x474740 rejects (sizes from `rmechtex.zbd`, by the primary name). The
   Supernova has one extra damage item too; `supern_d03` (128x128) is paired
   with a 128x64 mask, which fits only its alternate `supernova18`. Whether the game logs and drops these at run time is
-  unverified (it depends on which name the entry loads, +8 or +0xc).
+  unverified (it depends on which name the entry loads, +8 or +0xc). The
+  rebuild drops the extra slots, so both show their battle damage as drawn.
 - **Variant camos are only suffixes.** Every camo after the first is the
   primary list with `_b`, `_c` ... appended to each texture name; the files
   never list variant textures one by one.

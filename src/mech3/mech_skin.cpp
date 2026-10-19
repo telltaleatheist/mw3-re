@@ -4,6 +4,7 @@
 #include <string>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
 
 namespace mech3 {
@@ -149,10 +150,18 @@ SkinSet* read_skins(zrdr::Node* dfn) {
     const char* name = zutl::localize(list[1 + 2 * i].s);
     zrdr::Node* items = list[2 + 2 * i].list;
     if (i == 0 || std::strcmp(name, "damage") == 0) {
-      const int32_t n = items[0].i - 1;
+      int32_t n = items[0].i - 1;
+      int32_t first = 1;
+      // FIX (bug): the Mad Cat's damage list has two zeros too many and the
+      // Supernova's one, shifting every mask off its texture; leading empty
+      // slots are dropped until the list is as long as the first skin's.
+      if (zfix::options().bugs && i != 0 && !set->skins.empty()) {
+        const auto want = static_cast<int32_t>(set->skins[0]->entries.size());
+        while (n > want && items[first].type == zrdr::Int) ++first, --n;
+      }
       Skin* skin = new Skin(name, static_cast<uint32_t>(n));
       set->add(skin);
-      for (int32_t k = 1; k <= n; ++k) {
+      for (int32_t k = first; k < first + n; ++k) {
         const zrdr::Node& item = items[k];
         if (item.type == zrdr::Int) skin->add_entry(nullptr, nullptr);
         else if (item.type == zrdr::String) skin->add_entry(item.s, nullptr);
