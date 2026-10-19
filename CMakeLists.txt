@@ -19,11 +19,13 @@ add_library(mw3core STATIC
   src/crt/msvc_rand.cpp
   src/crt/msvc_string.cpp
   src/gamez/zerror/zerr.cpp
+  src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/cls_mechlib.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
+  src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp

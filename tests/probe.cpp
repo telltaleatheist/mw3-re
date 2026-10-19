@@ -492,3 +492,50 @@ int probe_texture_directory(const char* path, long offset, int count, int group,
 }
 
 }  // extern "C"
+
+#include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zvideo/zvid_format.h"
+
+extern "C" {
+
+// Reads a world's materials at offset with the display set to r/g/b bits.
+// Output: result, count, free head, used head, then every slot (texture as an
+// index), then each used cycled material's cycle, in used-list order.
+int probe_materials(const char* path, long offset, int rb, int gb, int bb, uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  std::fseek(f, offset, SEEK_SET);
+  zvid::set_pixel_format(rb, gb, bb);
+  zmod::MaterialTable& t = zmod::materials();
+  t = zmod::MaterialTable{};
+  const int32_t r = zmod::read_materials(f);
+  std::fclose(f);
+  std::vector<uint8_t> b;
+  put_bytes(b, &r, 4), put_bytes(b, &t.count, 4), put_bytes(b, &t.free_head, 4), put_bytes(b, &t.used_head, 4);
+  std::vector<bool> used(t.slots.size());
+  for (int i = t.used_head; i != -1; i = t.slots[i].next) used[i] = true;
+  for (int i = 0; i < r; ++i) {
+    const zmod::Material& m = t.slots[i];
+    put_bytes(b, &m.alpha, 1), put_bytes(b, &m.flags, 1), put_bytes(b, &m.rgb, 2);
+    put_bytes(b, &m.r, 4), put_bytes(b, &m.g, 4), put_bytes(b, &m.b, 4);
+    const int32_t tex = (used[i] && (m.flags & 1))
+                            ? (m.texture ? static_cast<int32_t>(m.texture - zimg::textures().entries) : -1)
+                            : static_cast<int32_t>(m.texture_index);
+    put_bytes(b, &tex, 4), put_bytes(b, m.unk_14, 12), put_bytes(b, &m.soil, 4);
+    put_bytes(b, &m.prev, 2), put_bytes(b, &m.next, 2);
+  }
+  for (int i = t.used_head; i != -1; i = t.slots[i].next) {
+    const zmod::Material& m = t.slots[i];
+    if (!(m.flags & 4)) continue;
+    const zmod::Cycle* c = m.cycle;
+    put_bytes(b, &c->looping, 4), put_bytes(b, &c->frame, 4), put_bytes(b, &c->index, 4);
+    put_bytes(b, &c->speed, 4), put_bytes(b, &c->texture_count, 4), put_bytes(b, &c->unk_14, 4);
+    for (uint32_t k = 0; k < c->texture_count; ++k) {
+      const int32_t idx = c->textures[k] ? static_cast<int32_t>(c->textures[k] - zimg::textures().entries) : -1;
+      put_bytes(b, &idx, 4);
+    }
+  }
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

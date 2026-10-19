@@ -122,6 +122,12 @@ Writer: 0x5180a0 copies the table, turns +0x24 back into indices
 
 ## 2. Materials: 0x5363d0 (`gmod_matl.c`)
 
+Ported: `zmod::read_materials` (`src/gamez/zmodel/gmod_matl.*`) with the
+colour packing `zvid::set_pixel_format` / `pack_rgb` (`src/gamez/zvideo/
+zvid_format.*`); identical on all six worlds with 5-6-5 and 5-5-5 displays,
+cycles included. The partial-last-block free list is ported but no file
+exercises it.
+
 The world material table is a block array: block size 1000 (0x5edd50),
 block pointers at 0x63fbc8, block count 0x63fbc0, entries 0x2c bytes. The
 mechlib `Material::resolve` (0x536ad0) allocates into this same table later.
