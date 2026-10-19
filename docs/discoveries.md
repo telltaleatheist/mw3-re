@@ -77,6 +77,17 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   and resets your heat. In campaign, instant action and training, critical heat
   is fatal (gametypes.md).
 
+## Sound
+
+- **The "medium" sound playback format is never read.** `sounds.zrd` lists
+  playback formats as `HIGH`, `MEDIUM` and `LOW`, but the sound setup asks for
+  `"MED"` (0x570ccf), an exact match that never hits, so the medium format slot
+  (0x72c2e0) stays empty. What the medium sound quality setting falls back to
+  isn't traced yet.
+- **Sounds are plain WAV files** packed in `soundsL.zbd` (11 kHz, 8-bit) and
+  `soundsH.zbd` (22 kHz), 999 of them, named in `sounds.zrd` by set: menus,
+  briefings, mech voices, weapons.
+
 ## Startup
 
 - **The exe checks itself for stat hacks.** The very first thing the game does
