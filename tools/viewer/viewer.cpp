@@ -1,8 +1,12 @@
 // mw3view: a development viewer for mission worlds, on SDL3's GPU API. Not
 // part of the port (see scene.h).
 //
-//   mw3view [--assets <dir>]... [--mission t1 | --mech madcat [--motion walk [--time s]]]
+//   mw3view [--assets <dir>]... [--mission t1 | --mech madcat [--motion walk [--time s]]] [--tl]
 //           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
+//
+// --tl draws through the ported Direct3D stand-in (platform::Render3D on SDL3)
+// with the original's camera-space projection done on the CPU (render.md
+// section 0), instead of the GPU transform.
 //
 // --assets mounts a folder laid out like the install (zbd/...); give several
 // and the first that has a file wins, so a folder of replacements can sit in
@@ -14,11 +18,13 @@
 #include <SDL3/SDL.h>
 
 #include <cmath>
+#include <memory>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
 
+#include "frontend/sdl/sdl_render3d.h"
 #include "gamez/zutil/zutl_path.h"
 #include "scene.h"
 
@@ -328,6 +334,54 @@ bool screenshot(App& a, const Camera& cam, float far_plane, const char* path) {
   return ok;
 }
 
+// The original's projection (render.md section 0): camera space x right, y
+// down, z forward; sx = cx + x fx / z, sy = cy + y fy / z, sz = rhw = near / z.
+// Triangles with a vertex in front of the near plane are dropped (the real
+// clippers are being ported).
+void draw_tl(sdlfe::SdlRender3D& r, const viewer::Scene& s, const std::vector<int32_t>& handles, const Camera& cam,
+             int w, int h) {
+  const float f[3] = {std::cos(cam.pitch) * std::sin(cam.yaw), std::sin(cam.pitch), std::cos(cam.pitch) * std::cos(cam.yaw)};
+  float rt[3] = {-f[2], 0, f[0]};
+  const float rl = std::sqrt(rt[0] * rt[0] + rt[2] * rt[2]);
+  rt[0] /= rl, rt[2] /= rl;
+  const float up[3] = {rt[1] * f[2] - rt[2] * f[1], rt[2] * f[0] - rt[0] * f[2], rt[0] * f[1] - rt[1] * f[0]};
+  const float near_z = 1.0f, fx = w / 2 / std::tan(0.5f * 1.0f * w / h), fy = h / 2 / std::tan(0.5f);
+  r.set_viewport(0, 0, w, h);
+  r.clear(true, 89, 115, 140);
+  r.begin_scene();
+  std::vector<platform::TLVertex> tri(3);
+  for (int order = 0; order < 2; ++order)
+    for (const viewer::Batch& b : s.batches) {
+      if (b.marker && !cam.markers) continue;
+      if (b.blend != (order == 1)) continue;
+      platform::DrawState st;
+      st.texture = b.image >= 0 ? handles[b.image] : -1;
+      st.blend = b.blend, st.depth_write = !b.blend, st.alpha_modulate = b.blend;
+      for (size_t i = 0; i + 2 < b.vertices.size(); i += 3) {
+        bool keep = true;
+        for (int k = 0; k < 3 && keep; ++k) {
+          const viewer::Vertex& v = b.vertices[i + k];
+          float d[3];
+          for (int a = 0; a < 3; ++a) d[a] = v.pos[a] - (b.sky ? 0 : cam.eye[a]);
+          const float x = d[0] * rt[0] + d[1] * rt[1] + d[2] * rt[2];
+          const float y = -(d[0] * up[0] + d[1] * up[1] + d[2] * up[2]);
+          const float z = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
+          if (z < near_z) keep = false;
+          platform::TLVertex& t = tri[k];
+          t.sx = w / 2.0f + x * fx / z, t.sy = h / 2.0f + y * fy / z;
+          t.sz = t.rhw = near_z / z;
+          auto c8 = [](float c) { return static_cast<uint32_t>(std::fmin(std::fmax(c, 0.0f), 1.0f) * 255 + 0.5f); };
+          t.diffuse = c8(v.color[3]) << 24 | c8(v.color[0]) << 16 | c8(v.color[1]) << 8 | c8(v.color[2]);
+          t.specular = 0xff000000u;
+          t.tu = v.uv[0], t.tv = v.uv[1];
+        }
+        if (keep) r.draw(platform::Primitive::kFan, tri.data(), 3, st);
+      }
+    }
+  r.end_scene();
+  r.present();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -335,7 +389,7 @@ int main(int argc, char** argv) {
   std::string mission = "t1", mech, motion_name, shot;
   std::vector<std::string> assets;
   float anim_time = 0;
-  bool info = false, have_pos = false, have_look = false;
+  bool info = false, have_pos = false, have_look = false, tl = false;
   Camera cam;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -345,6 +399,7 @@ int main(int argc, char** argv) {
     else if (arg == "--motion" && i + 1 < argc) motion_name = argv[++i];
     else if (arg == "--time" && i + 1 < argc) anim_time = std::stof(argv[++i]);
     else if (arg == "--info") info = true;
+    else if (arg == "--tl") tl = true;
     else if (arg == "--shot" && i + 1 < argc) shot = argv[++i];
     else if (arg == "--pos" && i + 3 < argc) {
       for (float& v : cam.eye) v = std::stof(argv[++i]);
@@ -425,7 +480,21 @@ int main(int argc, char** argv) {
     if (!a.tex_pipe[p] || !a.flat_pipe[p]) return fail("pipeline"), 1;
   }
   upload(a, scene);
+  std::unique_ptr<sdlfe::SdlRender3D> r3d;
+  std::vector<int32_t> handles;
+  if (tl) {
+    r3d = std::make_unique<sdlfe::SdlRender3D>(a.dev, a.window);
+    if (!r3d->ok()) return 1;
+    for (const viewer::Image& img : scene.images)
+      handles.push_back(r3d->create_texture(img.width, img.height, img.rgba.data(), img.alpha ? 4 : 1));
+  }
 
+  if (!shot.empty() && r3d) {
+    r3d->capture_next(shot.c_str());
+    draw_tl(*r3d, scene, handles, cam, 1280, 720);
+    std::printf("wrote %s\n", shot.c_str());
+    return 0;
+  }
   if (!shot.empty()) {
     const bool ok = screenshot(a, cam, far_plane, shot.c_str());
     std::printf("%s %s\n", ok ? "wrote" : "failed", shot.c_str());
@@ -486,6 +555,12 @@ int main(int argc, char** argv) {
       reupload(a, scene);
     }
 
+    if (r3d) {
+      int ww = 0, wh = 0;
+      SDL_GetWindowSizeInPixels(a.window, &ww, &wh);
+      draw_tl(*r3d, scene, handles, cam, ww, wh);
+      continue;
+    }
     SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(a.dev);
     SDL_GPUTexture* swap = nullptr;
     Uint32 w = 0, h = 0;
