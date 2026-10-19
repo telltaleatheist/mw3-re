@@ -4,6 +4,7 @@
 
 #include "crt/msvc_rand.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zreader/zreader.h"
 #include "platform/platform.h"
 
 namespace zsnd_cd {
@@ -42,6 +43,26 @@ bool start(int track) {
 }  // namespace
 
 State& state() { return g_state; }
+
+// Mech3.exe 1.2 @ 0x00572450 (the loop after the MCI setup). The original builds
+// each cue with operator new/_strdup and appends it to the list at 0x0072c4fc.
+std::vector<Cue> read_cues(const zrdr::Node* cd_tracks) {
+  std::vector<Cue> cues;
+  if (!cd_tracks) return cues;
+  const zrdr::Node* items = cd_tracks->list;
+  for (int32_t i = 1; i < items[0].i; ++i) {
+    const zrdr::Node* item = items[i].list;  // ("name" value)
+    const zrdr::Node& value = item[2];
+    if (value.type == zrdr::Int) {
+      cues.push_back({item[1].s, {value.i}});
+    } else if (value.type == zrdr::List) {
+      Cue cue{item[1].s, {}};
+      for (int32_t k = 1; k < value.list[0].i; ++k) cue.tracks.push_back(value.list[k].i);
+      cues.push_back(std::move(cue));
+    }
+  }
+  return cues;
+}
 
 void set_backend(platform::Files* files, platform::MusicOutput* output, std::string music_dir) {
   g_files = files;

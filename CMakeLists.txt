@@ -16,8 +16,11 @@ endif()
 # (Godot first, SDL as a fallback) talks to it through src/platform.
 add_library(mw3core STATIC
   src/crt/msvc_rand.cpp
+  src/crt/msvc_string.cpp
   src/gamez/zerror/zerr.cpp
   src/gamez/zutil/ztimer.cpp
+  src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zreader/zreader.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_span.cpp
@@ -38,6 +41,10 @@ add_executable(mw3tests
   tests/test_zgameapp.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
+  tests/test_zreader.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
+# Tests that read the player's install skip themselves when it is not there.
+target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
+                                          MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)

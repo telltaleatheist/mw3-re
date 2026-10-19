@@ -4,6 +4,7 @@
 #include <vector>
 
 namespace platform { class Files; class MusicOutput; }
+namespace zrdr { struct Node; }
 
 // C:\zipper\GameZMech3\zSound\zsnd_cd.cpp: CD audio. The original drives the
 // drive through MCI "cdaudio" and addresses music by CD track number. The rebuild
@@ -23,6 +24,11 @@ struct Cue {
   std::string name;
   std::vector<int> tracks;
 };
+
+// The CD_TRACKS half of 0x00572450: the node after "CD_TRACKS" in the reader
+// data, a list of ("name" track) or ("name" (track track ...)) items, in order.
+// Like the original it trusts the shape: every item must be such a list.
+std::vector<Cue> read_cues(const zrdr::Node* cd_tracks);
 
 struct State {
   uint32_t flags = 0;          // 0x0072c358  bit 1: open

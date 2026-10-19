@@ -10,7 +10,7 @@ virtual addresses in the exe. The original file of each function is in
   engine, as about 20 libraries: zClass (scene graph: worlds, cameras, lights,
   objects), zRender (software rasterizer), zVideo (DirectDraw/Direct3D), zSound
   (DirectSound, CD audio), zInput, zNetwork (DirectPlay), zModel, zGeometry,
-  zImage, zEffect, zFMV, zTwoD, zInterp, zReader (the `.zbd` data reader),
+  zImage, zEffect, zFMV, zTwoD, zInterp, zReader (the `.zbd` data reader, see `zreader.md`),
   zEntity, zSIScript, zWeapon, zDEClient, zUtil, zError, zGame.
 - **Mech3** (`C:\zipper\Mech3\`, 0x401000-0x4eada0): the game: mechs, weapons,
   missions, the player, AI nets, MechLab, salvage, briefings.

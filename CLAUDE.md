@@ -67,6 +67,8 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   `/Volumes/iO/backups/win98/MW3 pirates moon.zip`.
 - REA source for reading: `../rea` (a clone, not a
   dependency).
+- mech3ax source for checking formats: `../mech3ax`
+  (a clone, EUPL-1.2). Ports come from the exe; mech3ax is the cross-check.
 
 ## Known from Owen's own disassembly
 
@@ -107,10 +109,11 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 Order agreed with Owen on 2026-10-18: zReader first, because it stands alone,
 can be checked two ways and unblocks loading data.
 
-1. Port the zReader `.zbd` reader (cross-check with mech3ax) so the rebuild can
-   load data, starting with `reader.zbd`. CD_TRACKS is one entry in it; today
-   only the tests hard-code that table (`mw3_cues()` in
-   `tests/test_zsnd_cd.cpp`).
+1. zReader: done for the archive and binary data (`docs/zreader.md`),
+   emulator-checked on all of `reader.zbd`; `zsnd_cd::read_cues` reads
+   CD_TRACKS from it. Still open: the loose-text tokenizer and the archive
+   writer (neither is used by the shipped game), and the other `.zbd` kinds
+   (motion, sounds, textures, mechlib), which have their own formats.
 2. Recover the main data structures (mech, weapon, the zClass node) so Ghidra's
    output reads as fields; apply them in the headless project.
 3. Heat: the model at 0x4192f0 is traced (`docs/heat.md`) but needs the mech

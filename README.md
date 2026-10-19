@@ -23,6 +23,7 @@ files in `game/mw3-1.2/` (see CLAUDE.md) and Unicorn:
 python3 -m venv .venv && .venv/bin/pip install unicorn
 .venv/bin/python tests/differential/test_spans.py
 .venv/bin/python tests/differential/test_ztimer.py
+.venv/bin/python tests/differential/test_zreader.py   # needs game/mw3-1.2/zbd/reader.zbd
 ```
 
 ## Layout
