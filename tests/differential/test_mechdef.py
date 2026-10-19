@@ -33,6 +33,11 @@ HEAD_BLOCK, HEAD_END, HEAD_FAIL = 0x46ba95, 0x46be07, 0x46cb60
 MECHS = ['annihilator', 'avatar', 'blackhawk', 'bushwacker', 'cauldron', 'champion', 'daishi', 'elemental',
          'firefly', 'madcat', 'orion', 'owens', 'puma', 'shadowcat', 'strider', 'sunder', 'supernova', 'thor',
          'vulture']
+probe.probe_dfn_configs.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
+                                    ctypes.c_int]
+CONFIGS_END, NO_CONFIGS = 0x46cb3c, 0x46cb44
+IAT_STRNCMP, ZERR = 0x5bb654, 0x49bfd0
+VT_KIND = {0x5c0fc0: 1, 0x5bd150: 2, 0x5bd180: 3}
 probe.probe_skins.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
                               ctypes.c_void_p, ctypes.c_int]
 SKINS_BLOCK, SKINS_END = 0x46be07, 0x46bfd8
@@ -149,6 +154,76 @@ class Emulated(ReaderEmu):
         self.ends = set(ends)
         self.cpu.uc.emu_start(begin, 0, count=100_000_000)
         self.ends = set()
+
+    def configs(self, offset, index, localized):
+        """The ctor, then 0x46ba95 through the loadouts (0x46cb3c)."""
+        from original import FTOL, IAT_FTOL
+        cpu, u, i32 = self.cpu, self.u32, self.i32
+        if not getattr(self, 'config_stubs', False):
+            cpu.import_code(IAT_FTOL, FTOL)
+            cpu.import_code(IAT_FLOOR, FLOOR)
+            cpu.stub_import(IAT_STRNCMP, self.strncmp)
+            cpu.stub_function(ZERR, lambda c: self.reports.append((c.arg(0), c.arg(2))))
+            self.config_stubs = True
+        self.load(offset)
+        self.reports = []
+        self.fetches = 0
+        for a in (ENTRY_COUNT, SETS, HOLES, HOLES + 4, HOLES + 8, HOLES + 12):
+            cpu.u32(a, 0)
+        cpu.write(DAMAGE_MODE, b'\0')
+        cpu.u32(MSG_HOOK, self.msg_hook if localized else 0)
+        cpu.call(LIST_INIT)
+        dfn = cpu.alloc(0x1a8)
+        cpu.write(dfn, bytes(0x1a8))
+        cpu.call(DFN_CTOR, ecx=dfn, stack_args=(index, self.root))
+        esp = STACK_TOP - 0x2000
+        cpu.write(esp, bytes(0xc0))
+        cpu.u32(esp + 0x3c, dfn)
+        cpu.uc.reg_write(UC_X86_REG_EBP, dfn)
+        cpu.uc.reg_write(UC_X86_REG_ESP, esp)
+        self.run_range(HEAD_BLOCK, CONFIGS_END, NO_CONFIGS, HEAD_FAIL)
+        eip = cpu.uc.reg_read(UC_X86_REG_EIP)
+        out = bytearray([{CONFIGS_END: 1, NO_CONFIGS: 0, HEAD_FAIL: 0xff}[eip]])
+        cl = u(dfn + 0x20)
+        if cl:
+            first, last = u(cl + 0xc), u(cl + 0x10)
+            out += struct.pack('<iii', i32(cl), i32(cl + 4), (last - first) // 4)
+            for k in range((last - first) // 4):
+                c = u(first + 4 * k)
+                raw = cpu.read(c, 0xd8)
+                out += self.name(u(c + 0x18))
+                out += bytes(raw[o] for o in (0x10, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x28, 0x34, 0x6c))
+                out += raw[0x14:0x18] + raw[0x24:0x28] + raw[0x2c:0x34] + raw[0x38:0x64] + raw[0x64:0x6c]
+                out += raw[0x74:0x78] + raw[0x7c:0x88]
+                sentinel = u(c + 8)
+                items, node = [], u(sentinel)
+                while node != sentinel:
+                    items.append(u(node + 8))
+                    node = u(node)
+                out += struct.pack('<i', i32(c + 0xc))
+                assert i32(c + 0xc) == len(items)
+                for it in items:
+                    kind = VT_KIND[u(it)]
+                    out += struct.pack('<iiii', kind, i32(it + 4), i32(it + 8), i32(it + 0xc)) + cpu.read(it + 0x10, 1)
+                    out += cpu.read(it + 0x14, 8) if kind == 1 else cpu.read(it + 0x14, 4) if kind == 2 else cpu.read(it + 0x18, 8)
+        else:
+            out += struct.pack('<i', -1)
+        vec = u(dfn + 0x24)
+        if vec:
+            first, last = u(vec + 4), u(vec + 8)
+            out += struct.pack('<i', (last - first) // 4)
+            for k in range((last - first) // 4):
+                f = u(first + 4 * k)
+                out += self.name(u(f)) + cpu.read(f + 4, 12)
+        else:
+            out += struct.pack('<i', -1)
+        out += struct.pack('<i', len(self.reports)) + b''.join(struct.pack('<ii', *r) for r in self.reports)
+        return bytes(out)
+
+    def strncmp(self, c):
+        n = c.arg(2)
+        a, b = self.cstr(c.arg(0))[:n], self.cstr(c.arg(1))[:n]
+        return (a > b) - (a < b)
 
     def head(self, offset, index):
         """The MechDfn ctor, then the head 0x46ba95..0x46be07 (stops early at
@@ -300,9 +375,22 @@ def main():
                     at = next((i for i in range(min(n, len(want))) if buf.raw[i] != want[i]), None)
                     raise SystemExit(f'{name} head (index {index}): original {len(want)} bytes, port {n}, '
                                      f'first difference at {at}')
+    configs = 0
+    for name, start, _ in entries(data):
+        if name.startswith('dfn_'):
+            for localized in (0, 1):
+                want = emu.configs(start, MECHS.index(name[4:-4]), localized)
+                n = probe.probe_dfn_configs(str(READER).encode(), start, MECHS.index(name[4:-4]), localized, buf,
+                                            len(buf))
+                if buf.raw[:max(n, 0)] != want:
+                    at = next((i for i in range(min(n, len(want))) if buf.raw[i] != want[i]), None)
+                    raise SystemExit(f'{name} configurations (localized {localized}): original {len(want)} bytes, '
+                                     f'port {n}, first difference at {at}')
+            configs += struct.unpack_from('<i', want, 9)[0]
     checks = check_helpers(emu)
     print(f'ok: skins of {files} mech definitions identical four ways each; firepoints, part slots and '
-          f'the MechDfn defaults and the head identical; part ids and names agree; {checks} table helper calls agree')
+          f'the MechDfn defaults, the head and {configs} loadouts identical; part ids and names agree; '
+          f'{checks} table helper calls agree')
 
 
 if __name__ == '__main__':

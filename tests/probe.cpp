@@ -1145,3 +1145,77 @@ int probe_dfn_head(const char* path, long offset, int index, uint8_t* out, int c
 }
 
 }  // extern "C"
+
+#include "mech3/mech_config.h"
+
+extern "C" {
+
+// The mech reader from the head through the loadouts on one dfn file
+// (test_mechdef.py): every Config and item, the firepoints, the reports.
+int probe_dfn_configs(const char* path, long offset, int index, int localized, uint8_t* out, int cap) {
+  if (probe_zrdr_load(path, offset) < 0) return -1;
+  zutl::messages() = zutl::Messages{};
+  if (localized) {
+    zutl::messages().get_id = [](const char* name) -> int32_t {
+      for (int i = 0; i < 8; ++i)
+        if (std::strcmp(name, kSkinKeys[i]) == 0) return 0xf10 + i;
+      return 0;
+    };
+    zutl::messages().get_text = [](int32_t id) { return kSkinNames[id - 0xf10]; };
+  }
+  mech3::skin_globals() = mech3::SkinGlobals{};
+  g_reports.clear();
+  zerr::set_sink(record_report);
+  mech3::MechDfn d(index, &g_probe_root);
+  mech3::HeadValues h;
+  std::vector<uint8_t> b;
+  const bool ok = mech3::read_head(d, &h);
+  if (ok) {
+    d.skins = mech3::read_skins(d.reader);
+    mech3::read_firepoints(d);
+    mech3::read_part_slots(d);
+    b.push_back(mech3::read_configurations(d, h));
+  } else {
+    b.push_back(0xff);
+  }
+  zerr::set_sink(nullptr);
+  if (d.configs) {
+    put_i32(b, d.configs->count), put_i32(b, d.configs->mech);
+    put_i32(b, static_cast<int32_t>(d.configs->configs.size()));
+    for (const mech3::Config* c : d.configs->configs) {
+      put_cstr(b, c->name);
+      for (uint8_t v : {c->base_flag, c->player_made, c->b1d, c->training, c->modified, c->endo_steel, c->xl,
+                        c->ferro, c->double_sinks})
+        b.push_back(v);
+      put_i32(b, c->mech), put_i32(b, c->engine), put_bytes(b, &c->armor_tons, 4), put_i32(b, c->armor_tech);
+      put_bytes(b, c->armor, sizeof c->armor);
+      put_i32(b, c->sink_tech), put_i32(b, c->sinks);
+      put_bytes(b, &c->turn_rate, 4), put_bytes(b, &c->accel_rate, 4), put_bytes(b, &c->decel_rate, 4);
+      put_bytes(b, &c->turn_accel, 4);
+      put_i32(b, c->item_count());
+      for (const mech3::ConfigItem* i : c->items) {
+        put_i32(b, i->kind()), put_i32(b, i->count), put_i32(b, i->group), put_i32(b, i->part), b.push_back(i->b10);
+        if (i->kind() == 1) {
+          const auto* w = static_cast<const mech3::WeaponItem*>(i);
+          put_i32(b, w->weapon), put_i32(b, w->tech);
+        } else if (i->kind() == 2) {
+          put_i32(b, static_cast<const mech3::AmmoItem*>(i)->weapon);
+        } else {
+          const auto* e = static_cast<const mech3::EquipmentItem*>(i);
+          put_i32(b, e->equipment), put_i32(b, e->tech);
+        }
+      }
+    }
+  } else {
+    put_i32(b, -1);
+  }
+  put_i32(b, d.firepoints ? static_cast<int32_t>(d.firepoints->size()) : -1);
+  if (d.firepoints)
+    for (const mech3::Firepoint* f : *d.firepoints)
+      put_cstr(b, f->name), put_bytes(b, &f->radius, 4), put_bytes(b, &f->share, 4), put_i32(b, f->part);
+  put_i32(b, static_cast<int32_t>(g_reports.size() / 2));
+  for (int32_t v : g_reports) put_i32(b, v);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

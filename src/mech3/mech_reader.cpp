@@ -2,7 +2,12 @@
 
 #include <cmath>
 
+#include "crt/msvc_math.h"
+#include "crt/msvc_string.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zutl_msg.h"
+#include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
 
 namespace mech3 {
@@ -125,6 +130,161 @@ void read_firepoints(MechDfn& dfn) {
 void read_part_slots(MechDfn& dfn) {
   zrdr::Node* node = zrdr::find(dfn.reader, "parts");
   for (int32_t id : {15, 1, 2, 3, 9, 10, 4, 5, 11, 12, 13, 14, 6}) dfn.parts[id].set(id, node);
+}
+
+namespace {
+const char kFile[] = "C:\\zipper\\Mech3\\mech_reader.cpp";
+
+int32_t int_key(zrdr::Node* node, const char* key) {
+  int32_t v = 0;
+  zrdr::get_int(node, key, &v);
+  return v;
+}
+
+void read_equipment(Config& c, zrdr::Node* body, const HeadValues& head) {
+  zrdr::Node* eq = zrdr::find(body, "equipment");
+  if (!eq) return;
+  int32_t tech = 0;  // not reset per item: a tech given once sticks
+  for (int32_t k = 1; k < eq->list[0].i; ++k) {
+    const zrdr::Node& e = eq->list[k];
+    const char* kname = nullptr;
+    int32_t part = -1;
+    if (e.type == zrdr::String) {
+      kname = e.s;
+    } else if (e.type == zrdr::List) {
+      kname = e.list[1].s;
+      part = part_id(e.list[2].s);
+      if (e.list[0].i > 3) tech = tech_id(e.list[3].s);
+    }
+    const int32_t kind = equip_kind(kname);
+    if (tech == 0) tech = head.tech;
+    if (kind != -1 && !equipment_restricted(c.mech, kind, tech)) {
+      EquipmentItem tmp;
+      tmp.count = 1, tmp.equipment = kind, tmp.tech = tech;
+      // The exe calls SetPart on a null result (n <= 0 sinks); never with n = 1.
+      if (ConfigItem* added = c.add_item(&tmp, 1)) added->set_part(part);
+    }
+  }
+}
+
+void read_armor(Config& c, zrdr::Node* body, const HeadValues& head) {
+  zrdr::Node* a = zrdr::find(body, "armor");
+  if (!a) return;
+  bool ff = false;
+  float mass = 0;
+  zrdr::get_bool(a, "ferro-fibrous", &ff);
+  zrdr::get_float(a, "mass", &mass);
+  c.add_equipment(ff ? 2 : 1, head.tech, crt::msvc_ftol(std::floor(2.0 * mass + 0.5)));
+  const int32_t legs = int_key(a, "legs"), arms = int_key(a, "arms"), headp = int_key(a, "head");
+  int32_t torso[2] = {}, lr[2] = {};
+  zrdr::get_ivec2(a, "torso", torso);
+  zrdr::get_ivec2(a, "torsolr", lr);
+  int32_t* p = c.armor;  // +0x38
+  p[10] = p[9] = legs, p[8] = p[7] = arms, p[6] = headp;
+  p[0] = torso[0], p[3] = torso[1], p[2] = p[1] = lr[0], p[5] = p[4] = lr[1];
+  const int32_t computed = armor_points(c.armor_tech, c.ferro != 0, c.armor_tons);
+  int32_t assigned = 0;
+  for (int32_t v : c.armor) assigned += v;
+  if (!(mass > 0) || computed != assigned) {
+    char msg[600];
+    std::snprintf(msg, sizeof msg,
+                  "***ARMOR ALLOCATION ERROR***\n  Armor Allocation Error (%s: %s configuration)\n"
+                  "  Mass %.2f tons of %s armor\n  Computed Factor (%d), Assigned Factor (%d)\n"
+                  "    Head               :  %d\n    Center Torso       :  %d\n"
+                  "    Center Torso (rear):  %d\n    R/L Torso          :  %d\n"
+                  "    R/L Torso (rear)   :  %d\n    R/L Arm            :  %d\n    R/L Leg            :  %d",
+                  mech_name(c.mech), c.name, mass, ff ? "ferro-fibrous" : "standard", computed, assigned,
+                  headp, torso[0], torso[1], lr[0], lr[1], arms, legs);
+    zerr::report(0x400, kFile, 362, msg);
+  }
+}
+
+void read_weapons(MechDfn& dfn, Config& c, zrdr::Node* body, const HeadValues& head) {
+  zrdr::Node* w = zrdr::find(body, "weapons");
+  if (!w) return;
+  int32_t n = w->list[0].i - 1;
+  if (n > 16) {
+    char msg[120];
+    std::snprintf(msg, sizeof msg, "Too Many Weapons (%d>%d) in (%s:%s)", n, 16, mech_name(c.mech), c.name);
+    zerr::report(0x400, kFile, 392, msg);
+    n = 16;
+  }
+  for (int32_t k = 1; k <= n; ++k) {
+    zrdr::Node* e = &w->list[k];
+    const char* wname = e->list[1].s;
+    const int32_t idx = weapon_index(wname);
+    if (idx == -1) {
+      char msg[120];
+      std::snprintf(msg, sizeof msg, "Unrecognized Weapon (%s)", wname);
+      zerr::report(0x200, kFile, 400, msg);
+      continue;
+    }
+    if (equipment_restricted(c.mech, idx, mech_tech(c.mech))) continue;
+    const char* fpname = e->list[2].s;
+    std::vector<Firepoint*>& fps = *dfn.firepoints;
+    int32_t fp = 0;
+    while (fp < static_cast<int32_t>(fps.size()) && std::strcmp(fps[fp]->name, fpname) != 0) ++fp;
+    if (fp == static_cast<int32_t>(fps.size())) fps.push_back(new Firepoint{fpname, 0.0f, -1.0f, -1});
+    int32_t rounds = 0, apart = -1, extra[3] = {};
+    if (zrdr::Node* am = zrdr::find(e, "ammo")) {
+      rounds = am->list[1].i;
+      apart = part_id(zrdr::get_string(am, "part"));
+      if (zrdr::Node* x = zrdr::find(am, "extra")) {
+        const int32_t nx = x->list[0].i - 1 < 3 ? x->list[0].i - 1 : 3;
+        for (int32_t j = 0; j < nx; ++j)
+          if (x->list[1 + j].type == zrdr::Int) extra[j] = x->list[1 + j].i;
+      }
+    }
+    int32_t g = 0;
+    zrdr::get_int(e, "group", &g);
+    g = g - 1 < 0 ? 0 : g - 1 > 4 ? 4 : g - 1;
+    auto* wi = new WeaponItem;
+    wi->count = 1, wi->group = g, wi->part = fp, wi->weapon = idx, wi->tech = head.tech;
+    c.items.push_back(wi);
+    if (rounds == 0) continue;  // the extras go with it
+    for (int32_t r : {rounds, extra[0], extra[1], extra[2]}) {
+      if (r == 0) continue;
+      auto* ai = new AmmoItem;
+      ai->count = r, ai->weapon = idx;
+      c.items.push_back(ai);
+      ai->set_part(apart);
+    }
+  }
+}
+}  // namespace
+
+// Each loadout: its equipment, internal structure, engine, armor and weapons.
+bool read_configurations(MechDfn& dfn, const HeadValues& head) {
+  zrdr::Node* found = zrdr::find(dfn.reader, "configurations");
+  if (!found) return false;
+  zrdr::Node* list = found->list;
+  const int32_t pairs = (list[0].i - 1) / 2;
+  dfn.configs = new ConfigList(dfn.index, pairs);
+  for (int32_t i = 0; i < pairs; ++i) {
+    const char* name = zutl::localize(list[1 + 2 * i].s);
+    zrdr::Node* body = &list[2 + 2 * i];
+    auto* c = new Config(dfn.index, name);
+    dfn.configs->configs.push_back(c);
+    c->accel_rate = head.accel_rate, c->decel_rate = head.decel_rate;
+    c->turn_rate = head.half_turn_rate, c->turn_accel = head.turn_accel_factor;
+    if (std::strncmp(name, "train", 5) == 0) c->training = 1;
+    read_equipment(*c, body, head);
+    zrdr::Node* internal = zrdr::find(body, "internal");
+    if (internal && internal->list[1].type == zrdr::String && crt::msvc_stricmp(internal->list[1].s, "endosteel") == 0)
+      c->endo_steel = 1;
+    int32_t rating = 200;
+    bool xl = false;
+    if (zrdr::Node* e = zrdr::find(body, "engine")) {
+      zrdr::get_int(e, "rating", &rating);
+      zrdr::get_bool(e, "xl", &xl);
+      zrdr::get_float(e, "max_turn_rate", &c->turn_rate);  // not halved, unlike the mech's
+    }
+    c->set_engine(rating);
+    c->xl = xl;
+    read_armor(*c, body, head);
+    read_weapons(dfn, *c, body, head);
+  }
+  return true;
 }
 
 }  // namespace mech3

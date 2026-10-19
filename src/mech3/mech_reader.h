@@ -11,6 +11,7 @@ namespace zrdr { struct Node; }
 namespace mech3 {
 
 struct SkinSet;
+struct ConfigList;
 
 struct Firepoint {                 // 0x20 bytes
   const char* name;                // +0x00  borrowed from the reader tree
@@ -35,7 +36,7 @@ struct MechDfn {                   // 0x1a8 bytes
   uint8_t loaded = 0;              // +0x04
   zrdr::Node* reader = nullptr;    // +0x08
   SkinSet* skins = nullptr;        // +0x1c
-  void* configurations = nullptr;  // +0x20
+  ConfigList* configs = nullptr;   // +0x20
   std::vector<Firepoint*>* firepoints = nullptr;  // +0x24
   PartSlot parts[18];              // +0x28  by part id
   MechDfn(int32_t index, zrdr::Node* reader);    // 0x0046b890
@@ -60,5 +61,6 @@ struct HeadValues {
 bool read_head(MechDfn& dfn, HeadValues* out);   // 0x0046ba95..0x0046be07, false on a bad version
 void read_firepoints(MechDfn& dfn);   // 0x0046bfd8..0x0046c13a
 void read_part_slots(MechDfn& dfn);   // 0x0046c13a..0x0046c1f0
+bool read_configurations(MechDfn& dfn, const HeadValues& head);  // 0x0046c1f0..0x0046cb3c, false without any
 
 }  // namespace mech3

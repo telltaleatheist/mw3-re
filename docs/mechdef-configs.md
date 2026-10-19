@@ -1,9 +1,15 @@
 # Mech definition: configurations (loadouts)
 
 Mech3.exe 1.2, 2026-10-19. Mapped from the asm, checked by running the original
-block in the emulator on all 19 files. Ported so far: the porting order's
-step 1, the table helpers (`src/mech3/mech_names.*`), checked over every
-index, name, rating and armor tonnage in `test_mechdef.py`. From the asm
+block in the emulator on all 19 files. Ported: the table helpers
+(`src/mech3/mech_names.*`), Config, its items and ConfigList
+(`mech_config.*`, the reader's paths only: AddItem's mech-lab copies stop the
+game as not ported) and the block (`read_configurations`, `mech_reader.*`).
+`test_mechdef.py` runs the original from the head through 0x46cb3c on all 19
+files, with and without the localized names: all 62 loadouts, their items in
+order, the firepoint list (unknown firepoints appended) and the error reports
+match. The data never sets an equipment tech or pairs extras with zero ammo,
+so those two rules pass deliberate breaks unseen. From the asm
 (`analysis-output/mech3.asm`); Ghidra's pseudocode drops ECX/EDX on every
 callee below and the return value of the constructors. Follows
 `docs/mechdef-skins.md` and `docs/mechdef-parts.md`: the mech definition

@@ -46,6 +46,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
+  src/mech3/mech_config.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
