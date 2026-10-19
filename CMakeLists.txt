@@ -103,7 +103,7 @@ if(SDL3_FOUND)
   # The SDL3 front end: platform implementations on SDL (render3d so far).
   add_library(mw3sdl STATIC src/frontend/sdl/sdl_render3d.cpp)
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
-  add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp)
+  add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp tools/viewer/realframe.cpp)
   target_link_libraries(mw3view PRIVATE mw3core mw3sdl SDL3::SDL3)
   target_include_directories(mw3view PRIVATE tools/viewer)
   target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")

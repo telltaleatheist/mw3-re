@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace sdlfe {
@@ -245,6 +246,9 @@ void SdlRender3D::ensure_buffer(uint32_t bytes) {
 }
 
 void SdlRender3D::end_scene() {
+  if (std::getenv("MW3_R3D_STATS"))
+    std::fprintf(stderr, "Render3D scene: %zu triangles in %zu runs, %zu textures, viewport %d %d %d %d\n",
+                 vertices_.size() / 3, runs_.size(), textures_.size(), vx_, vy_, vw_, vh_);
   cmd_ = SDL_AcquireGPUCommandBuffer(dev_);
   const auto bytes = static_cast<uint32_t>(vertices_.size() * sizeof(platform::TLVertex));
   SDL_GPUTransferBuffer* tb = nullptr;
@@ -264,7 +268,7 @@ void SdlRender3D::end_scene() {
   Uint32 w = 0, h = 0;
   SDL_GPUTexture* offscreen = nullptr;
   if (capture_path_) {
-    w = static_cast<Uint32>(vx_ + vw_), h = static_cast<Uint32>(vy_ + vh_);
+    w = 1280, h = static_cast<Uint32>(1280.0f * vh_ / (vw_ > 0 ? vw_ : 1));
     SDL_GPUTextureCreateInfo ti{};
     ti.type = SDL_GPU_TEXTURETYPE_2D, ti.format = color_format_, ti.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
     ti.width = w, ti.height = h, ti.layer_count_or_depth = 1, ti.num_levels = 1;
@@ -283,8 +287,9 @@ void SdlRender3D::end_scene() {
   dt.texture = depth_, dt.clear_depth = 0, dt.load_op = SDL_GPU_LOADOP_CLEAR;  // DEPTHFILL 0 (0x005777f0)
   dt.store_op = SDL_GPU_STOREOP_DONT_CARE;
   SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd_, &ct, 1, &dt);
-  SDL_GPUViewport vp{static_cast<float>(vx_), static_cast<float>(vy_), static_cast<float>(vw_),
-                     static_cast<float>(vh_), 0, 1};
+  // The game's viewport (its window, e.g. 640x480) is stretched over the
+  // whole target: the shader maps game pixels to NDC by the game's rect.
+  SDL_GPUViewport vp{0, 0, static_cast<float>(w), static_cast<float>(h), 0, 1};
   SDL_SetGPUViewport(pass, &vp);
   const float vu[4] = {static_cast<float>(vx_), static_cast<float>(vy_), static_cast<float>(vw_), static_cast<float>(vh_)};
   for (const Run& r : runs_) {

@@ -1,9 +1,11 @@
 // mw3view: a development viewer for mission worlds, on SDL3's GPU API. Not
 // part of the port (see scene.h).
 //
-//   mw3view [--assets <dir>]... [--mission t1 | --mech madcat [--motion walk [--time s]]] [--tl]
+//   mw3view [--assets <dir>]... [--mission t1 | --mech madcat [--motion walk [--time s]]] [--tl | --real]
 //           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
 //
+// --real draws the mission through the ported render path itself
+// (realframe.h): walk, cull, model draw, lighting, fog, clips, draw table.
 // --tl draws through the ported Direct3D stand-in (platform::Render3D on SDL3)
 // with the original's camera-space projection done on the CPU (render.md
 // section 0), instead of the GPU transform.
@@ -26,6 +28,7 @@
 
 #include "frontend/sdl/sdl_render3d.h"
 #include "gamez/zutil/zutl_path.h"
+#include "realframe.h"
 #include "scene.h"
 
 namespace {
@@ -389,7 +392,7 @@ int main(int argc, char** argv) {
   std::string mission = "t1", mech, motion_name, shot;
   std::vector<std::string> assets;
   float anim_time = 0;
-  bool info = false, have_pos = false, have_look = false, tl = false;
+  bool info = false, have_pos = false, have_look = false, tl = false, real = false;
   Camera cam;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -400,6 +403,7 @@ int main(int argc, char** argv) {
     else if (arg == "--time" && i + 1 < argc) anim_time = std::stof(argv[++i]);
     else if (arg == "--info") info = true;
     else if (arg == "--tl") tl = true;
+    else if (arg == "--real") tl = real = true;
     else if (arg == "--shot" && i + 1 < argc) shot = argv[++i];
     else if (arg == "--pos" && i + 3 < argc) {
       for (float& v : cam.eye) v = std::stof(argv[++i]);
@@ -488,10 +492,18 @@ int main(int argc, char** argv) {
     for (const viewer::Image& img : scene.images)
       handles.push_back(r3d->create_texture(img.width, img.height, img.rgba.data(), img.alpha ? 4 : 1));
   }
+  if (real) {
+    const std::string e = viewer::real_load(mission, r3d.get());
+    if (!e.empty()) {
+      std::fprintf(stderr, "%s\n", e.c_str());
+      return 1;
+    }
+  }
 
   if (!shot.empty() && r3d) {
     r3d->capture_next(shot.c_str());
-    draw_tl(*r3d, scene, handles, cam, 1280, 720);
+    if (real) viewer::real_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
+    else draw_tl(*r3d, scene, handles, cam, 1280, 720);
     std::printf("wrote %s\n", shot.c_str());
     return 0;
   }
@@ -558,7 +570,8 @@ int main(int argc, char** argv) {
     if (r3d) {
       int ww = 0, wh = 0;
       SDL_GetWindowSizeInPixels(a.window, &ww, &wh);
-      draw_tl(*r3d, scene, handles, cam, ww, wh);
+      if (real) viewer::real_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
+      else draw_tl(*r3d, scene, handles, cam, ww, wh);
       continue;
     }
     SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(a.dev);

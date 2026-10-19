@@ -9,7 +9,8 @@
 // platform::Render3D on SDL3's GPU API (docs/render.md section 4): the
 // original's D3DTLVERTEX draws collected over a scene, fans and strips turned
 // into triangle lists, then drawn in order in one render pass with reversed
-// depth (cleared to 0, GREATER_OR_EQUAL). Shaders are MSL for now (Metal);
+// depth (cleared to 0, GREATER_OR_EQUAL). The game's viewport rect is stretched
+// over the whole window. Shaders are MSL for now (Metal);
 // SPIR-V and DXIL come with the Windows build.
 namespace sdlfe {
 
