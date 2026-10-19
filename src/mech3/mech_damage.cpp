@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "crt/msvc_rand.h"
+#include "mech3/weapon.h"
 #include "mech3/mech.h"
 #include "mech3/mech_names.h"
 
@@ -69,7 +70,7 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
   if (this == w.player) screen(*this);  // result unused in the exe
   MechPart* part = c.node_part ? c.node_part(coll->node) : nullptr;
   const char* nuke = c.message ? c.message(kMessageNuke) : "";
-  killed_by_nuke = std::strcmp(def->military_name, nuke) == 0;
+  killed_by_nuke = std::strcmp(def->desc, nuke) == 0;
   if (part) {
     result = part->take_hit(def, coll, damage, pushed);
   } else {

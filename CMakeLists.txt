@@ -66,6 +66,14 @@ add_library(mw3core STATIC
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_draw.cpp
+  src/gamez/zsound/zsnd_3d.cpp
+  src/gamez/zsound/zsnd_create.cpp
+  src/gamez/zsound/zsnd_grp.cpp
+  src/gamez/zsound/zsnd_init.cpp
+  src/gamez/zsound/zsnd_parm.cpp
+  src/gamez/zsound/zsnd_play.cpp
+  src/gamez/zweapon/zweapon.cpp
+  src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
@@ -84,6 +92,7 @@ add_library(mw3core STATIC
   src/mech3/mech_skin.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
+  src/mech3/weapon.cpp
   src/mech3/app.cpp
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
@@ -122,6 +131,10 @@ add_library(mw3probe SHARED
   tests/probe_skis.cpp
   tests/probe_jets.cpp
   tests/probe_actions.cpp
+  tests/probe_sound.cpp
+  tests/probe_weapons.cpp
+  tests/probe_weapons_run.cpp
+  tests/probe_weapons_hit.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_collide.cpp
@@ -139,6 +152,7 @@ add_executable(mw3tests
   tests/test_app.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
+  tests/test_fixes.cpp
   tests/test_zreader.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
@@ -150,11 +164,15 @@ add_test(NAME mw3tests COMMAND mw3tests)
 # Development tools on SDL3 (not part of the port): the world viewer.
 find_package(SDL3 CONFIG QUIET)
 if(SDL3_FOUND)
-  # The SDL3 front end: platform implementations on SDL (render3d so far).
-  add_library(mw3sdl STATIC src/frontend/sdl/sdl_render3d.cpp)
+  # The SDL3 front end: platform implementations on SDL (render3d, sound).
+  add_library(mw3sdl STATIC src/frontend/sdl/sdl_render3d.cpp src/frontend/sdl/sdl_sound.cpp)
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
   add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp tools/viewer/realframe.cpp)
   target_link_libraries(mw3view PRIVATE mw3core mw3sdl SDL3::SDL3)
   target_include_directories(mw3view PRIVATE tools/viewer)
   target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+  # Plays one game sound through zSound and SDL audio (docs/sound.md).
+  add_executable(mw3soundcheck tools/soundcheck/soundcheck.cpp)
+  target_link_libraries(mw3soundcheck PRIVATE mw3core mw3sdl SDL3::SDL3)
+  target_compile_definitions(mw3soundcheck PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
 endif()

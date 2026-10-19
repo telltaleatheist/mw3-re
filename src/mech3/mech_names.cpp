@@ -5,6 +5,7 @@
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
+#include "mech3/weapon.h"
 
 namespace mech3 {
 
@@ -121,6 +122,13 @@ WeaponLabFn g_weapon_lab = nullptr;
 const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab(weapon_name(weapon)) : nullptr; }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x00484960: autocannons, Gauss, LB-X, missiles, MGUN and NARC.
+bool weapon_uses_ammo(int32_t weapon) {
+  static const uint8_t kUses[37] = {1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+                                    1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
+  return weapon >= 0 && weapon < 37 && kUses[weapon];
+}
+
 // Mech3.exe 1.2 @ 0x00484900
 const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < 37 ? kWeapons[weapon] : "noweapon"; }
 
@@ -172,20 +180,32 @@ void set_weapon_lab(WeaponLabFn fn) { g_weapon_lab = fn; }
 
 // Mech3.exe 1.2 @ 0x00484b70
 float weapon_weight(int32_t weapon, int32_t tech) {
-  const WeaponLab* w = weapon_lab(weapon);
-  return w ? w->weight[tech != kClan] : 0.0f;
+  if (g_weapon_lab) {
+    const WeaponLab* w = weapon_lab(weapon);
+    return w ? w->weight[tech != kClan] : 0.0f;
+  }
+  const WeaponType* t = weapon_type(weapon_name(weapon));
+  return t ? t->lab[tech != kClan].tons : 0.0f;
 }
 
 // Mech3.exe 1.2 @ 0x00484bc0
 float ammo_weight(int32_t weapon) {
-  const WeaponLab* w = weapon_lab(weapon);
-  return w ? w->ammo_weight : 0.0f;
+  if (g_weapon_lab) {
+    const WeaponLab* w = weapon_lab(weapon);
+    return w ? w->ammo_weight : 0.0f;
+  }
+  const WeaponType* t = weapon_type(weapon_name(weapon));
+  return t ? t->tons_per_round : 0.0f;
 }
 
 // Mech3.exe 1.2 @ 0x00484c00
 int32_t weapon_slots(int32_t weapon, int32_t tech, bool none) {
-  const WeaponLab* w = weapon_lab(weapon);
-  return w && !none ? w->slots[tech != kClan] : 0;
+  if (g_weapon_lab) {
+    const WeaponLab* w = weapon_lab(weapon);
+    return w && !none ? w->slots[tech != kClan] : 0;
+  }
+  const WeaponType* t = weapon_type(weapon_name(weapon));
+  return t && !none ? t->lab[tech != kClan].slots : 0;
 }
 
 }  // namespace mech3

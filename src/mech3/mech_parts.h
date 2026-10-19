@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "gamez/zweapon/zwep_init.h"
+
 // A mech's parts and how they take damage (docs/damage.md). Original file:
 // mech3\mech_parts.cpp (the base class sits just before its string, the
 // subclasses just after).
@@ -14,21 +16,10 @@ struct Vec3 {
 
 using Handle = void*;  // an object of a system not ported yet (node, effect, entity)
 
-// The fields a hit reads from a weapon (docs/types.json ZWeaponDef, WeaponType).
-struct WeaponType {
-  int32_t id = -1;            // +0x00  mech-lab index
-  float heat_2 = 0;           // +0x0c  HEAT's second value, added to the target
-  float zaps_hud = 0;         // +0x14  ZAPS_HUD: static on the target's HUD
-  float zaps_hud_2 = 0;       // +0x18
-  float impact_force = 0;     // +0x48
-  bool is_narc = false;       // +0x4c
-};
-
-struct WeaponDef {
-  const char* military_name = "";  // +0x08
-  uint32_t flags = 0;              // +0x6c  bit 1: BEAM
-  WeaponType* type = nullptr;      // +0x1f0
-};
+// The weapon a hit comes from: the zWeapon definition and its MW3 half
+// (mech3/weapon.h, docs/weapons.md).
+struct WeaponType;
+using WeaponDef = zwep::WeaponDef;
 
 struct Collision {
   Handle x20 = nullptr;   // +0x20

@@ -19,6 +19,7 @@ int32_t engine_index(int32_t rating);      // 0x00432e30
 int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
 bool equipment_restricted(int32_t mech, int32_t kind, int32_t tech);  // 0x004d6dc0
 const char* weapon_name(int32_t weapon);   // 0x00484900, "noweapon" when out of range
+bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x005e6504
 float max_mass(int32_t mech);              // 0x004846e0, 10 when out of range
 float equip_weight(int32_t kind, int32_t tech);  // 0x00484aa0
 int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
@@ -33,8 +34,8 @@ float engine_weight(const Engine& e);      // 0x00432f40, XL: half the tons roun
 double engine_weight_x87(const Engine& e); // the same, as left on the x87 stack
 int32_t engine_rating(const Engine& e);    // 0x00432fa0
 
-// A weapon's mech-lab block (+0x1f0 of the weapon zWeapon keeps, from
-// weapons.zrd), not ported yet: the front end or a test sets the lookup.
+// A weapon's mech-lab block: by default read from the loaded weapon
+// definitions (WeaponType, mech3/weapon.h); a test can set its own lookup.
 struct WeaponLab {
   float weight[2];                 // +0x1c Clan, +0x28 otherwise
   int32_t slots[2];                // +0x20, +0x2c

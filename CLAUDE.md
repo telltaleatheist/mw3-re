@@ -151,11 +151,13 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   otherwise; the per-file `#pragma STDC FP_CONTRACT OFF` lines say the same). Then
   the clippers match bit for bit (`render-clip2d.md`). Only the CRT start-up
   sets the precision itself (0x5ac5a0: `_controlfp(_PC_53)`, before WinMain).
-  Open: whether Windows 11's DirectX runtime with DDrawCompat really leaves
-  the FPU at 24-bit. Four emulator findings depend on it (point-lit textures
-  black, frozen cloud shading, blank shadow images, black projected lights;
-  `fixes.md`); the quick check in play is whether mechs cast visible shadows
-  in hardware mode on Owen's PC.
+  Checked in play (Owen, 2026-10-20): mechs cast visible shadows in hardware
+  mode on Windows 11 with DDrawCompat, so the reference runtime does not
+  truncate there, and the four emulator findings that need 24-bit (point-lit
+  textures black, frozen cloud shading, blank shadow images, black projected
+  lights; `fixes.md`) do not happen in play. The port gives those four the
+  full-precision result by default, with the 24-bit one behind a switch for
+  the tests. Whether Win98 with real DirectX 6 hid them stays unknown.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
@@ -189,7 +191,8 @@ world parameters are ported. Next, in parallel where the pieces meet only
 through hooks:
 
 1. The game half's systems: mech movement and physics (terrain, collision,
-   jumping), weapons at run time, the AI, sound (zSound) and music.
+   jumping), the rest of zWeapon (spawn, tick, homing, beams; `weapons.md`),
+   the AI, sound (zSound) and music.
 2. The 2D front end (zTwoD) and its menus, the mech lab, the HUD; then the
    movies (Indeo 5).
 3. Projected shadows and puffers (in progress), then the remaining render
@@ -216,8 +219,13 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       (`mech3/mech_parts`, `mech_damage`, `docs/damage.md` section 4).
       Left: the weapons' side 0x4b0de0 / 0x4b1040, the kill credit
       0x41b420, the death animations and the torso jolt's decay.
-- [x] Weapons at run time: mapped (`docs/weapons.md`). Open: damage, falloff,
-      missiles in the engine's weapon code 0x581xxx-0x585xxx.
+- [ ] Weapons at run time: weapons.zrd into the definitions, the whole
+      weapon manager (groups, bins, projectile and beam weapons, crits, arm
+      restriction, def callbacks), and zWeapon's damage path and flight step
+      ported and emulator-checked (`gamez/zweapon`, `mech3/weapon`,
+      `test_weapons_zrd/run/hit.py`). Left: spawn, the tick, homing,
+      collision, beams and mines in zWeapon, the vehicle builder 0x4b4660 and
+      the AI planner (`docs/weapons.md`, Left to port).
 - [x] Controls: mapped (`docs/controls.md`); +0x1c is GetThrottle.
 - [x] Power: ported and emulator-checked (`docs/heat.md`).
 - [ ] Mech definition: the reader 0x46ba40 ported whole, with its entry
@@ -251,9 +259,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       the pose on the parts.
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
-      (`zeffect/zeff_anim_init`). Still hooked: zSound's lookup, the effect
-      table (puffers: ported, below). Next the post-load pass 0x50ae60, mapped with a
-      porting order in `docs/anim-postload.md`.
+      (`zeffect/zeff_anim_init`). Still hooked: the effect table (puffers
+      and zSound's lookup are ported). Next the post-load pass 0x50ae60,
+      mapped with a porting order in `docs/anim-postload.md`.
 - [x] Mission scripts: the archive, reader, macros, preprocessor, dispatcher
       and every command's arguments ported (`gamez/zinterp`,
       `mech3/mech3_interp`), identical on every shipped script and on the six

@@ -5,6 +5,7 @@
 #include "crt/msvc_rand.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
+#include "mech3/weapon.h"
 
 namespace mech3 {
 

@@ -47,6 +47,19 @@ Each change is also marked `FIX` in the code next to the original address.
 | Particle fade-in, 0x5489a0 | The fade-in ramp subtracts the fade-out start (+0x3c) where the fade-in start (+0x34) belongs | (bug) a typo: inside a puffer's fade-in band the alpha is negative and the particle is not drawn, instead of fading in | The fade-in start. No shipped puffer sets a fade-in, so play is unchanged; the test runs the original with the same one-byte change (`puffers.md`) |
 | Puffer event key counts, 0x5035b0 | Reads as many colour and growth keys as the event's counts say, past the six slots | (bug) a damaged anim.zbd reads the following data as keys | At most six; shipped counts are 1..5, so identical |
 | Puffer sprite, 0x567720 | The texture entry's record is passed on unchecked | (A) the default texture's record is made at startup by 0x5184e0, not ported | No record, no sprite (the front end sets `zimg::default_entry()->surface`) |
+| Sound, zSound (zsnd_*.cpp, sound.md) | DirectSound: DirectSoundCreate, IDirectSound, IDirectSoundBuffer (and Aureal A3D, never selected) | (A) DirectSound does not exist on macOS and is legacy on Windows | `platform::SoundOutput`, one method per DirectSound call with its HRESULTs and units; the SDL3 front end mixes in software (`sdl_sound`). A3D is not ported. Emulator-verified call for call (`test_sound.py`) |
+| Sound output format, 0x5702a0 | The primary buffer set to the PLAYBACK_FORMAT, with 1 channel whatever the data says | (A) a modern mixer has no primary buffer | The request is made as the original's (and tested), but the SDL output mixes stereo, as DirectSound does since Vista (discoveries: mono on Windows 9x) |
+| Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
+| Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
+| Weapon effect blocks, 0x584bb0 | `SOUND` and `BOUNCE_SOUND` lists are copied into four slots each with no bound | (bug) a fifth sound writes over the next fields | At most four are kept (no shipped weapon has more); the test keeps its variants within four |
+| Damage animations, 0x58459c | `DAMAGE_ANIM_ON_HEALTH` pairs are copied into room for four with no bound | (bug) more overwrite the destroy and kill animations | At most four are kept (no shipped weapon has any) |
+| Projectile pool size, 0x58468e | A def's shots in the air are counted from a local only `RANGE` sets | (bug) a def without RANGE uses the previous def's range, the first one stack garbage | The def's own range (500 by default); every shipped weapon has RANGE, so the pool is the same 164. The test patches the original the same way |
+| LOCK_ON_LEAD, 0x583fb9 | The second value is read when the first value's bits exceed 3, not when the list has two values | (bug) a typo: `[eax+0xc]` for `[eax+4]` | The count decides; no shipped weapon has LOCK_ON_LEAD. The test patches the original the same way |
+| Weapon manager with no group, 0x4b0c30 / 0x4b0790 / 0x4b07e0 / 0x4b08c0 | Trigger, next and previous weapon and the network release call through the selected group without checking it | (bug) group -1 is a null call (crash); the manager starts at group 0, so only a weapon moved to group -1 gets there | Nothing happens without a group. The test never reaches it on either side |
+| Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
+| Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
+| Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
+| Smoke drag and wind, 0x5490e0 / 0x523f70 | Drag from a table of e^-(i/51) with the step truncated; the wind's speed steps by up to `random_accel` a frame | (B) at 60 fps and above muzzle smoke and trails get no drag at all, and gusts change faster the faster the game runs | e^-(dt * friction) computed, and the speed step scaled as per 1/30 s (Owen 2026-10-20); `zfix` switch as above. At 30 fps the drag is now a little stronger than the table's (it rounded 0.033 down to 0.0196) |
 
 Notes on the fixes:
 
@@ -132,17 +145,6 @@ Bugs whose intent is clear, fixed as the port reaches the code:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- Lava heat, 0.05 per frame (`heat.md`): frame-rate dependent, so faster
-  machines cook faster. Options: a fixed per-second rate matching some
-  reference frame rate (1.5/s at 30 fps, 3/s at 60 fps), or keep per frame.
-- Particle drag, 0x5490e0 / 0x523f70 (`puffers.md`): the drag factor comes
-  from a table of e^-(i/51) with the step truncated, so `dt * friction` below
-  1/51 gives no drag at all: smoke with friction 1 (muzzle smoke, missile
-  trails) ignores friction and wind at 60 fps and above, all shipped smoke
-  above 89 fps; at 30 fps it slows and drifts. The wind's speed also takes
-  its random step per frame, not per second. A FIX (B) candidate: e^-x
-  computed (or the table interpolated), and the speed step scaled to a
-  reference frame rate. Kept as the original for now.
 - Wading (`heat.md`): the depth ratio is clamped with max where min was likely
   meant, so any depth gives the full x8 cooling. Fixing it makes shallow
   water cool less.
@@ -151,7 +153,8 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   momentum (x0.6 a frame), the ground probes' slope and ledge pushes and the
   far mechs' push x3, the jump jets' climb impulse (capped at 6 a frame), the
   gait's 20-frame blend-in, the 20 damage a frame to touched buildings. All
-  change with the frame rate, as lava heat does.
+  change with the frame rate, as lava heat did (now scaled, above); candidates
+  for the same `zfix::per_second` switch at the 30 fps reference.
 - Deep water (gait 0x4181c0): the slowdown runs to almost a standstill as the
   water nears the mech's height, then jumps back to 70% once deeper. A
   continuous curve may have been meant.
@@ -163,7 +166,33 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   in the level clears all of the animation's prerequisites, so it fires
   without waiting. Dropping only the broken one, or never firing, are both
   plausible intents. Whether any shipped mission hits it is not yet checked.
+- ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
+  the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
+  is the evident intent, but what the second number does on the HUD
+  (0x43be70) is not traced; the port keeps the original.
+- Pock marks: `weapons.zrd` gives the autocannons, Gauss, missiles and MGUN a
+  `SURFACE_ANIMATION` on `dirt`, `mud` and `snow`, kinds the impact table
+  (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
+  so they never show. Mapping those names to the soils that exist would
+  restore them; which soil each should be is a guess.
+- Missiles that miss vanish at RANGE without exploding (every shipped missile
+  has EXPIRES, 0x5860fb); keep, or let them burst.
 - The plain PPC is defined but missing from the mech lab's table; every mech
   maximum engine is forced to 400; only a weapon's first group counts. These
   look deliberate and stay unless Owen says otherwise.
 
+- Sound groups `dom_low_ammo`, `alan_low_ammo`, `epona_low_ammo`,
+  `dom_out_of_ammo`, `alan_out_of_ammo`, `epona_out_of_ammo`: `PLAY_COUNT 2`
+  at group level is not a keyword, so the reader renames them all
+  "PLAY_COUNT" and the wingmen's ammo calls never play (sound.md). Fixing the
+  data (drop the two words, or move them into the entries) restores lines
+  players never heard.
+- Sound fades (0x571940) end only on an exact landing, so fades to a partial
+  volume never end and jitter one step around the target; snapping to the
+  target when the step passes it is the likely intent.
+- Unpause (0x56f130) replays every copy of each sound that was playing
+  (finished ones from the start, twice for two copies) instead of resuming
+  the ones that were; resuming only the recorded voices is the likely intent.
+- Radio chatter (QUEUE) plays newest first; first-in first-out may have been
+  meant, but newest-first keeps chatter current, so it may be design.
+- 3D panning: the game asks for mono output (above); the port plays stereo.

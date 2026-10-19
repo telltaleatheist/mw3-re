@@ -43,6 +43,10 @@ for t in \
     app_states \
     shadows \
     puffers \
+    sound \
+    weapons_zrd \
+    weapons_run \
+    weapons_hit \
     update \
     di \
     collide \

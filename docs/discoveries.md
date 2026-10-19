@@ -37,7 +37,7 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   time. So the faster the game ran, the faster lava cooked you: about 1.5 heat a
   second at 30 fps, 3 at 60 fps. The game waits for the monitor's refresh, so
   in 1999 that topped out around 60-85 fps; at 144 fps today it would be over
-  7 a second.
+  7 a second. The rebuild fixes it at 1.5 a second, what lava did at 30 fps.
 - **Critical hits can destroy heat sinks, but your pilot never says so.** One
   kind of critical hit on a part (0x460d50, type 0) knocks out a heat sink, and
   cooling drops 10% for each one lost. It is meant to play a voice callout, but
@@ -255,17 +255,120 @@ From the weapon code (weapons.md).
   checks for it.
 - **"Fire rate" in the data is really a period.** The weapon reader stores
   1 / `FIRE_RATE` (0x583e87), the time between shots.
+- **Ultra ACs never jam**: they simply fire twice as often as the standard AC
+  (`FIRE_RATE` 1.0 against 0.5); nothing random in the firing code.
+- **Missile volleys heat per missile**: an LRM20 volley is 5 shots, each adding
+  the weapon's HEAT (5 x 0.06), while ammo is taken once for all 20 missiles.
+- **Pulse lasers stop when you let go**; the other lasers always finish their
+  0.125 s shot.
+- **Under water** a part's ballistic and missile weapons cannot fire at all
+  (0x4b2f90); its lasers can.
+- **Weapons can be moved between groups in the cockpit** (CMD_MOVETOWG_1..5).
+- **Two weapons on one firepoint** are moved apart by a random offset up to
+  the firepoint's `share` (0x4b2530); a salvo's shots scatter up to its
+  `radius` instead.
+- **Group fire with several lasers** plays the ground impact of the best one
+  only (0x4b2100); every laser still does its damage.
+- **Pock marks never appear.** The ballistic weapons' data asks for bullet
+  marks on `dirt`, `mud` and `snow`, but the impact code only knows default,
+  water, seafloor, quicksand, lava and fire, so those blocks are never read.
+- **Lasers lose up to a quarter of their damage with distance**, on a cosine
+  curve: full damage up close, 75% at maximum range (`DAMAGE_AT_MAX_RANGE`
+  0.75, 0x583020). A short laser shot deals its damage once, to the first
+  thing it touches.
+- **Under water a laser's reach halves**, and so does the distance its damage
+  falls off over; it is not simply half damage.
+- **LRMs inside 90 m do a quarter of the damage**, and their splash radius
+  shrinks to a quarter too (`RANGE_MINIMUM (90 0.25)`, 0x586402).
+- **Missile splash hits everyone near the impact except the target hit**,
+  with damage falling off with the square of the distance: half damage at
+  about 70% of the 30 m radius (0x5829b0). A missile that bursts in the air
+  spares no one.
+- **Missiles that miss just vanish** at their maximum range; they do not
+  explode (every missile has `EXPIRES`).
+- **A salvo's missiles all do full damage.** When several land within 10 m of
+  each other within half a second, only the first plays its explosion sound,
+  crater and animation (0x4afc00); the damage is not reduced.
+- **The FCS "double tracking" does nothing.** Locking with FCS in the firing
+  arm doubles a missile turn-rate setting, but the shot resets it before any
+  missile reads it (0x58518a).
+- **SRM wobble is held within about a metre** of the line: the random drift
+  is pushed back once it strays past 1 m sideways (0.75 m up and down).
+- **LB-X shells burst at 30 m** into three pellets each, in a cone of about one
+  degree around the shell's path.
+- **TAG calls four missiles**, from 1500 m behind along the beam and 400 m up,
+  spread 50 m apart.
+- **Arm weapons can only aim about 27 degrees off the arm's facing**; centre
+  torso weapons aim anywhere (0x4b38b6).
+- **The AI waits for its LRMs**: it fires a launcher type again only after the
+  last volley has flown 70% of its range (0x4b4c70).
+- **The whole mission shares 164 shots in the air** (the projectile pool,
+  sized at load); in a very big fight a new shot can silently fail to appear,
+  its ammo and heat already spent.
+- **Three LRM20 launchers on one mech share one pool of missiles**, and the
+  pool counts its users oddly (the third launcher adds two references, four in
+  all): harmless.
+- **What FCS does for missiles is terrain following**: with FCS in the firing
+  part (and no ECM on the target), missiles flying under 10 m with ground in
+  the way climb (0x5859fb, likely).
 
 ## Sound
 
-- **The "medium" sound playback format is never read.** `sounds.zrd` lists
-  playback formats as `HIGH`, `MEDIUM` and `LOW`, but the sound setup asks for
-  `"MED"` (0x570ccf), an exact match that never hits, so the medium format slot
-  (0x72c2e0) stays empty. What the medium sound quality setting falls back to
-  isn't traced yet.
+- **Medium sound quality is low quality.** The detail setting picks
+  `soundsH.zbd`, `soundsM.zbd` or `soundsL.zbd`, but no medium archive ever
+  shipped, so the game moves on to the next one: medium loads the 11 kHz
+  low set. The "medium" playback format is never read either: the setup
+  asks `sounds.zrd` for `"MED"` (0x570ccf) where the file says `MEDIUM`
+  (sound.md).
+- **The game asks the sound card for mono.** The playback formats in
+  `sounds.zrd` say stereo for high quality, but the setup stores 1 channel
+  whatever the file says, so on the Windows 9x DirectSound of the time the
+  whole mix was mono and the left/right panning of 3D sounds was lost. Since
+  Vista Windows ignores that request, so players today hear it in stereo.
+- **60 sounds were never shipped.** `sounds.zrd` names 1058 sounds, but 60
+  WAVs are in neither archive: Dom's four ejection lines, Alan's fourth
+  "disregard", the wingmen's acknowledgements ("sure sir", "affirmative",
+  "right away sir", "consider it done", "I'm on it", "no problem") and
+  taunts ("you'll pay", "yeah right", "don't take", "not gonna", "can't do",
+  "goodbye", "returning"), the "occupied" calls, the mech's eject voice, and
+  36 lines of mission dialogue and one ambient loop. They simply stay silent.
+- **Wingmen never say they are low or out of ammo.** The game looks up
+  `dom_low_ammo`, `alan_out_of_ammo` and so on (0x4e7dc0, "%s_%s"), but in
+  `sounds.zrd` those six groups list `"PLAY_COUNT" 2` after their name, and
+  PLAY_COUNT is not a group keyword: the reader takes it as the group's
+  name, so all six are called "PLAY_COUNT" and the lookups find nothing.
+- **Radio chatter queues newest first.** Lines marked QUEUE wait their turn,
+  half a second apart, but the queue is a stack: the most recent line plays
+  next, and a line that waited more than 5 seconds is dropped unheard.
+- **Halving a sound's volume takes 10 dB off, not 6.** The game converts
+  volume to decibels as 1000 x log2, so quiet settings fall off faster than
+  the slider suggests.
+- **Distant sounds fade by 6 dB per "near" distance.** A 3D sound is full
+  volume to its RANGE's first value, then loses 6 dB for each further such
+  distance, and cuts off past the second (a chopper: 350 and 900, so -9 dB at
+  the cut-off). The distance is an approximation that can be 6% off, and
+  panning reaches at most 16 dB, so sounds never come from one ear only.
+- **No sound changes pitch.** Doppler and the weapons' pitch changes call
+  DirectSound's SetFrequency, which only works on buffers made with
+  frequency control, and no sound in `sounds.zrd` asks for it (`FREQUENCY`),
+  so every such call fails silently. Had it worked, the doppler would have
+  compounded: it scales the current pitch each update and never restores it.
+- **Eight copies of a sound at most.** A ninth play of a sound already
+  sounding eight times restarts the first one.
+- **Volume fades rarely finish.** A fade moves 25 dB a second and ends only
+  when it lands exactly on its target, which happens only at full volume or
+  silence; a fade to anything in between keeps nudging the volume up and
+  down one step around the target for as long as the sound plays.
+- **Unpausing replays sounds.** Leaving the pause menu does not resume what
+  was playing: for every sound that was playing it starts all its copies
+  again (any that had already finished included, from the start), and twice
+  for a sound that had two copies playing.
+
 - **Sounds are plain WAV files** packed in `soundsL.zbd` (11 kHz, 8-bit) and
   `soundsH.zbd` (22 kHz), 999 of them, named in `sounds.zrd` by set: menus,
-  briefings, mech voices, weapons.
+  briefings, mech voices, weapons. The briefing voices carry cue points
+  (50 sounds have them); the briefing screen is called at each one (0x405e10
+  sets the callback).
 
 ## Startup
 
@@ -682,7 +785,8 @@ are all "puffers": emitters that drop little textured squares.
   trails to "no slowing at all", so they ignore the wind and keep their
   launch speed; at 30 fps they slow and drift. Above about 90 fps no smoke
   drifts. The wind's gusts also change per frame, so they change faster the
-  faster the game runs.
+  faster the game runs. The rebuild makes both work per second (as at 30
+  fps), so the smoke drifts the same at any frame rate.
 - **There is no limit on smoke.** Every puff of every effect is kept in one
   list until it dies; a busy battle simply makes it longer.
 - **Unused features.** The engine can colour and tint smoke over its life,

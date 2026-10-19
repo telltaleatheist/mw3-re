@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/mission_world.h"
 
 namespace mech3 {
@@ -137,8 +138,9 @@ void update_heat(Mech& m, float dt) {
     if (m.jump_jets_firing) m.heat_added += dt * 0.05f;
     if (m.masc_time != 0.0f) m.heat_added += dt * 0.05f;
   }
-  // Per frame, not per second: lava heats faster at higher frame rates.
-  if (m.foot(0)->soil == kLava || m.foot(1)->soil == kLava) m.heat_added += 0.05f;
+  // The exe adds 0.05 a frame. FIX (B): 0.05 per 1/30 s (docs/heat.md, Frame rate).
+  if (m.foot(0)->soil == kLava || m.foot(1)->soil == kLava)
+    m.heat_added += zfix::options().per_second ? dt * (0.05f * zfix::kReferenceFps) : 0.05f;
   m.heat_dissipation *= m.heat_sinks.rate();
 
   if ((g_calls.heat_option && g_calls.heat_option()) || game_type() == kMultiplayer) {
