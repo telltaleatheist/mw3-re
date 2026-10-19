@@ -115,7 +115,9 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   data), marked `FIX (A)` / `FIX (B)` / `FIX (bug)` and listed in
   `docs/fixes.md`. The differential test checks the original path and says
   where the fix departs. Where the intent is a guess (balance), list it in
-  `fixes.md` as a candidate for Owen.
+  `fixes.md` as a candidate for Owen. The copy-protection and anti-tamper
+  traps are removed (Owen, 2026-10-20), marked `FIX (trap)`
+  (`docs/protection.md`).
 - Self-contained functions get a differential test (`tests/differential/`) that
   runs the original x86 in Unicorn against the C++ through `tests/probe.cpp`.
 - No GPU use while Owen is streaming; the SDL front end is not started yet.
@@ -163,8 +165,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       0x46b7a0 and cache 0x4846a0, identical to the original on all 19 files
       (`mech3/mech_reader`, `mech_skin`, `mech_config`, `mech_names`;
       docs/mechdef-*.md), the dtor 0x46b9b0 and the saved loadouts' loader
-      0x424b70 (`test_mechsave.py`). Left: the writer, SaveAll 0x424f60 with
-      Config::Save 0x424480 and the archive writer (`mechdef-head.md`).
+      0x424b70 and writer 0x424f60 (`test_mechsave.py`). Left: the second
+      loader 0x4260c0 and the mech lab's callers (`mechdef-head.md`).
 - [x] Motion: ported and emulator-checked (`docs/motion.md`).
 - [x] Mechlib: mapped (`docs/mechlib.md`), with a porting order.
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
@@ -184,7 +186,8 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [ ] Mission animations: the reader, its lookups and the light/sound node
       creators ported and checked against each mission's world
       (`zeffect/zeff_anim_init`). Still hooked: puffers, zSound's lookup,
-      the effect table. Next the post-load pass 0x50ae60 (`docs/anim.md`).
+      the effect table. Next the post-load pass 0x50ae60, mapped with a
+      porting order in `docs/anim-postload.md`.
 - [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
       dispatcher table (order in `docs/interp.md`), checked by a command trace.
 - [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,

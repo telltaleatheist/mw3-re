@@ -289,8 +289,8 @@ bool read_configurations(MechDfn& dfn, const HeadValues& head) {
 }
 
 namespace {
-LoadSaved g_load_saved = nullptr;
-SaveAll g_save_all = nullptr;
+LoadSaved g_load_saved = [](ConfigList* c) { c->load_saved(); };
+SaveAll g_save_all = [](ConfigList* c) { c->save_all(); };
 }  // namespace
 
 void set_load_saved(LoadSaved fn) { g_load_saved = fn; }

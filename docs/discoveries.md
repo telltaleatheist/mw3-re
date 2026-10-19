@@ -145,6 +145,25 @@ From the weapon code (weapons.md).
   isn't 0x00efd77d, someone has hex-edited the stats: the intro movies still
   play, but instead of the main menu the game goes to its "Exit State" and
   closes, with no error. Likely aimed at multiplayer cheats (startup.md).
+  (Removed in the rebuild, with the other traps: protection.md.)
+- **The CD check only looks for the first intro movie**, `video\c1.avi`, on
+  any drive Windows calls a CD-ROM. Any disc or mounted image with that file
+  passes; no label or key is checked. Without it: "Please insert the
+  MechWarrior 3 CD!", OK looks again, Cancel quits.
+- **The well-known 1.2 NoCD exe is also a bug fix.** Besides four jumps in
+  the disc check, it stops a startup crash on fast PCs (a CPU speed test that
+  divides by zero) and keeps a software-mode line from drawing outside the
+  screen. Likely why some found it "more stable" than the original.
+- **Hidden launch switches**: `-nofmv` skips the movies, `-cdN` forces CD
+  music track N in missions, `-seasick` sets an otherwise menu-controlled
+  option (meaning not yet known).
+- **Turn a cheat on once and the campaign mission doesn't count.**
+  Invincibility, unlimited ammo or heat off, even switched off again, mean
+  "Replay Mission" instead of "Next Mission" and no score added, until you
+  restart the game.
+- **In multiplayer the host re-checks the locked rules every 51 seconds**;
+  changing them in memory (say, unlimited ammo after the lock) ends the game
+  a minute or two later as if the clock ran out.
 - **Only one copy runs at a time.** Started a second time, the game finds the
   first window and brings it to the front instead. Launched from a multiplayer
   lobby, it closes the old copy instead.
@@ -340,7 +359,8 @@ From the mech definitions (mechdef-head.md).
   `configs\<mech>.mw3`, with a CRC-32 checksum. Edit one by hand and the game
   silently drops it at load. The game also re-checks weight (0.24 t of
   slack), armor points and jump jets (at most 2 for mechs up to 40 t, 3 up to
-  65 t, 4 above). **Elemental loadouts are never checked.**
+  65 t, 4 above). **Elemental loadouts are never checked.** (The rebuild
+  drops the checksum: hand-edited loadouts load if they are legal.)
 - **The Mad Cat gets half a ton for free.** The loadout weight check takes
   0.5 t off for the Mad Cat alone (0x425387), on top of the 0.24 t of slack
   every mech gets. Whether the mech lab's own weight display does the same is
@@ -376,6 +396,13 @@ From the animation files (anim.md).
   that is not in the level, the game drops every condition of that
   animation, not just the broken one, and the animation can then fire
   without waiting.
+- **Every animation's reset script runs once while the mission loads**, and
+  what it leaves is the starting state of the level (anim-postload.md).
+- **Lights, sounds and smoke tied to animations start switched off**: in the
+  first training mission that is 63 lights, 17 sounds and 58 smoke puffers,
+  waiting for their animation.
+- **94 "when shot" animations have 0 health**, so any hit sets them off, even
+  one doing no damage.
 - **The file remembers where the developers' PC kept things in memory.**
   Every anim.zbd still holds the memory addresses from the machine that
   built it (mech3ax uses them to tell the versions apart). The game throws

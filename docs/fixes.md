@@ -3,8 +3,9 @@
 The rebuild stays as close to the original code as possible and changes it only
 to fix what (A) cannot run on macOS or modern Windows, or (B) breaks on modern
 Windows without helpers such as DDrawCompat, plus real bugs that break play
-(Owen, 2026-10-19), marked `FIX (bug)`. Each change is also marked `FIX` in the
-code next to the original address.
+(Owen, 2026-10-19), marked `FIX (bug)`, and the copy-protection and
+anti-tamper traps (Owen, 2026-10-20, `protection.md`), marked `FIX (trap)`.
+Each change is also marked `FIX` in the code next to the original address.
 
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
@@ -21,6 +22,10 @@ code next to the original address.
 | Length-prefixed strings, 0x576460 | `malloc(length + 1)` for whatever length the file holds | (bug) a damaged length makes it allocate up to 4 GB and crash when that fails | The buffer stops at the file's end, which holds the same string |
 | Saved loadouts, item load 0x472b20 | An id cut off by the file's end is whatever ECX held: the item's own address | (A) a heap address | INT32_MAX, which, like the address, no weapon, equipment or engine table knows (the test pins the original's to the same value) |
 | Engine table, 0x432f40 / 0x432fa0 | An index past the 79 entries reads whatever follows the table (a corrupted save, or the kind-4 item's clamp to 79) | (A) memory past the table | Weight and rating 0 (the test zeroes the original's out-of-range entry the same way) |
+| Saved loadouts, Load 0x424600 | Validate(true): a loadout whose CRC does not match is silently dropped | (trap) anti-tamper, `protection.md` | Validate(false): edited loadouts load if they follow the rules (weight, slots, jump jets, armor); the CRC is still computed and written, so files stay loadable by the original game |
+| Disc check, 0x482f90 / 0x575d40 | Startup loop until `video\c1.avi` is on a CD-ROM drive | (trap) and (A): no CD drives | Not ported; the importer copies the movies |
+| Exe self-check, 0x4854c0 | CRC of the mech roster and structure tables, else exit after the intro | (trap) | Not ported |
+| Multiplayer rules check, 0x46fc08 | Host ends the game when its locked rules block changes | (trap) | To be left out when the network code is ported |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
 
 Notes on the fixes:
@@ -54,6 +59,12 @@ Bugs whose intent is clear, fixed as the port reaches the code:
     Cauldron, Bushwacker and Champion.
   - Mission c1's script calls `Object3DSetScrllAlways` on `ocean52`; should be
     `Object3DSetScrollAlways`, so the water scrolls.
+
+- CPU speed, 0x5988c0 (Intel's `cpuspeed`): divides by zero on PCs whose
+  performance counter runs at CPU speed, a startup crash; the 1.2 NoCD exe
+  NOPs the divides (`protection.md`). FIX (B): do not port the measurement.
+- Software 16-bit line, 0x563b80: no clipping; the NoCD exe clamps to
+  1024x768. FIX (B): clip to the real surface.
 
 ## Candidates for Owen
 

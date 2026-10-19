@@ -8,9 +8,8 @@
 //
 //   file data ... | Entry[count] | uint32 version (1) | uint32 count
 //
-// Only the reading side is ported. The writer (0x005765b0 create, 0x00576890 and
-// 0x00576990 add, 0x00576720 write the table) builds archives, which the game
-// never does at run time.
+// The writer (0x005765b0 create, 0x00576890 and 0x00576990 add, 0x00576720
+// write the table) is used at run time only for the saved loadouts.
 namespace zutl_zar {
 
 // One table entry, 0x94 bytes, read straight from the file.
@@ -39,7 +38,15 @@ void destroy(Archive& a);                      // 0x00576500
 bool open(Archive& a, const char* path);       // 0x00576520
 bool read_table(Archive& a);                   // 0x005767b0
 void reserve(Archive& a, int count);           // 0x00576690
-bool close(Archive& a);                        // 0x00576650
+bool close(Archive& a);                        // 0x00576650, writes the table when dirty
+bool create(Archive& a, const char* path);     // 0x005765b0, truncates
+// 0x00576990: appends the bytes and a table entry. The exe's entry also holds
+// whatever its stack had in the flags, comment and file time; here they are 0.
+void add(Archive& a, const char* name, const void* data, uint32_t size);
+// 0x00576890: the same, the bytes written by `write` at the file's end; the
+// entry's length is what `write` returns.
+void add_written(Archive& a, const char* name, uint32_t (*write)(std::FILE* f, void* user), void* user);
+bool write_table(Archive& a);                  // 0x00576720
 void reset(Archive& a);                        // 0x005766d0
 int find(const Archive& a, const char* name);  // 0x00576a80, -1 if absent
 // 0x00576ae0: positions the file at entry `index` and returns it (the original
@@ -48,6 +55,9 @@ std::FILE* seek(Archive& a, int index, uint32_t* length);
 // 0x00576b30: copies entry `index` into `buffer`. *size is the buffer size in and
 // the entry length out. 0 on success, 0x10001 no such entry, 0x10002 too small.
 uint32_t read(Archive& a, int index, void* buffer, uint32_t* size);
+
+// 0x005763f0: the writing side of read_string; returns the bytes written.
+uint32_t write_string(std::FILE* file, const char* s);
 
 // 0x00576460, next to the archive code (its source file is not named): a string
 // stored as uint32 length then the bytes, read into a zeroed malloc(length + 1).

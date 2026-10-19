@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
@@ -22,6 +23,9 @@ char* dup(const char* s) {
 
 // ReadFile with the count ignored, as the exe does: a short read leaves the rest.
 void rd(std::FILE* f, void* p, size_t n) { std::fread(p, 1, n, f); }
+
+// WriteFile; the exe's counts are what WriteFile reports.
+uint32_t wr(std::FILE* f, const void* p, size_t n) { return static_cast<uint32_t>(std::fwrite(p, 1, n, f)); }
 
 EquipmentItem* new_equipment(int32_t n, int32_t kind, int32_t tech) {
   auto* e = new EquipmentItem;
@@ -142,6 +146,21 @@ void ConfigItem::load(std::FILE* f) {
   set_id(v);
 }
 
+// Mech3.exe 1.2 @ 0x00472a80. The kind and id come from vt+0x0c and vt+0x14.
+uint32_t ConfigItem::save(std::FILE* f) const {
+  const int32_t k = kind(), v = id();
+  return wr(f, &k, 4) + wr(f, &count, 4) + wr(f, &v, 4) + wr(f, &part, 4) + wr(f, &group, 4);
+}
+
+// Mech3.exe 1.2 @ 0x00472bc0
+uint32_t WeaponItem::save(std::FILE* f) const { return ConfigItem::save(f) + wr(f, &tech, 4); }
+
+// Mech3.exe 1.2 @ 0x00472c40
+uint32_t EquipmentItem::save(std::FILE* f) const { return ConfigItem::save(f) + wr(f, &tech, 4); }
+
+// Mech3.exe 1.2 @ 0x00472cb0
+uint32_t EngineItem::save(std::FILE* f) const { return ConfigItem::save(f) + wr(f, &xl, 1); }
+
 // Mech3.exe 1.2 @ 0x00472b90
 void WeaponItem::load(std::FILE* f) {
   ConfigItem::load(f);
@@ -232,7 +251,39 @@ bool Config::load(std::FILE* f) {
   rd(f, &engine, 4), rd(f, &xl, 1);
   rd(f, &sink_tech, 4), rd(f, &sinks, 4), rd(f, &double_sinks, 1);
   player_made = 1;
-  return validate(true);
+  return validate(false);  // FIX (trap): the exe passes true, dropping hand-edited loadouts (docs/protection.md)
+}
+
+// Mech3.exe 1.2 @ 0x004717a0. The base flag (+0x10) saves an empty list.
+uint32_t Config::save_items(std::FILE* f) const {
+  const uint32_t n = base_flag ? 0 : static_cast<uint32_t>(item_count());
+  uint32_t total = wr(f, &n, 4);
+  if (n)
+    for (const ConfigItem* i : items) total += i->save(f);
+  return total;
+}
+
+// Mech3.exe 1.2 @ 0x00424480, with the checksum 0x004255a0 and the engine
+// (0x00432fb0) and sinks (0x00424420) saves inline. The count it returns
+// leaves out the name and armor tons, tech and ferro byte (one variable
+// reused for several writes), 22 to 35 bytes short; the archive stores it as
+// the entry's length, harmless since loading reads on from the entry's start.
+uint32_t Config::save(std::FILE* f) {
+  if (!f) return 0;
+  crc = checksum();
+  zutl_zar::write_string(f, name);
+  uint32_t n = save_items(f);
+  n += wr(f, &mech, 4);
+  uint8_t move[12];  // +0x70..+0x7b, one write
+  std::memcpy(move, &g70, 4), std::memcpy(move + 4, &turn_rate, 4), std::memcpy(move + 8, &g78, 4);
+  n += wr(f, move, 12);
+  n += wr(f, &accel_rate, 4) + wr(f, &decel_rate, 4) + wr(f, &turn_accel, 4);
+  n += wr(f, &endo_steel, 1) + wr(f, &crc, 4) + wr(f, &b1d, 1) + wr(f, &modified, 1);
+  wr(f, &armor_tons, 4), wr(f, &armor_tech, 4), wr(f, &ferro, 1);
+  n += wr(f, armor, sizeof armor);
+  n += wr(f, &engine, 4) + wr(f, &xl, 1);
+  n += wr(f, &sink_tech, 4) + wr(f, &sinks, 4) + wr(f, &double_sinks, 1);
+  return n;
 }
 
 // Mech3.exe 1.2 @ 0x00425650. Bit fields over the config, then three words per
@@ -359,6 +410,7 @@ int32_t Config::jump_jet_limit() const {
 }
 
 // Mech3.exe 1.2 @ 0x004254d0. Elementals are never checked (docs/mechdef-head.md).
+// The checksum test stays for callers that ask; load no longer does.
 bool Config::validate(bool check_crc) const {
   if (mech == 7) return true;
   if (check_crc && crc != checksum()) return false;
@@ -399,6 +451,29 @@ bool ConfigList::load_saved() {
       if (Config* c = Config::from_file(entry, zutl_zar::seek(a, i, nullptr))) configs.push_back(c);
     }
   }
+  zutl_zar::close(a);
+  zutl_zar::destroy(a);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00424f60, with 0x00424f30 and the callback 0x00426590.
+// Writes configs\\<mech>.mw3 from scratch: `version` 15, then each of the
+// player's own configs under its name.
+bool ConfigList::save_all() {
+  if (!std::filesystem::exists("configs")) std::filesystem::create_directory("configs");  // 0x00576080 ".\\configs", _mkdir
+  char path[128];
+  std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
+  zutl_zar::Archive a;
+  zutl_zar::init(a);
+  if (!zutl_zar::create(a, path)) {
+    zutl_zar::destroy(a);
+    return false;
+  }
+  const uint32_t version = 15;  // 0x00423cf0
+  zutl_zar::add(a, "version", &version, 4);
+  for (Config* c : configs)
+    if (c->player_made)
+      zutl_zar::add_written(a, c->name, [](std::FILE* f, void* c) { return static_cast<Config*>(c)->save(f); }, c);
   zutl_zar::close(a);
   zutl_zar::destroy(a);
   return true;

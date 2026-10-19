@@ -54,5 +54,5 @@ TEST(mech_dfn_bad_version_does_not_save) {
   g_saved.clear();
   delete d;
   EXPECT(g_saved.size() == 1 && g_saved[0] == want);
-  mech3::set_save_all(nullptr);
+  mech3::set_save_all([](mech3::ConfigList* c) { c->save_all(); });
 }

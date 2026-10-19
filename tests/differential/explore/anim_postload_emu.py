@@ -17,7 +17,9 @@ FUNCS = {int(p.stem, 16) for p in (ROOT / 'analysis-output' / 'decomp').glob('0x
 CALLS = {0x4f9e00: 'facade_walk', 0x509750: 'copy_tree_8000', 0x5832f0: 'damage_cb_register',
          0x508310: 'anim_reset', 0x507fc0: 'save_object_states', 0x508ae0: 'anim_start',
          0x5079b0: 'run_events', 0x508170: 'reset_finish', 0x4eb500: 'set_action_cb',
-         0x4eb790: 'node_flag_40', 0x508760: 'start_inner'}
+         0x4eb790: 'node_flag_40', 0x508760: 'start_inner', 0x4eb170: 'node_set_active',
+         0x5044d0: 'ev_object_active', 0x5069b0: 'lights_off', 0x506a20: 'puffers_off',
+         0x506a70: 'dynsounds_off', 0x54ab40: 'puffer_state'}
 RETS_5832F0 = (0x583339, 0x58336d, 0x5833a5)
 
 
@@ -43,7 +45,7 @@ def run(m):
     head13 = emu.u(emu.u(0x5ea6d0 + 4 * 13))   # list 13 (worlds): first item
     world_node = emu.u(head13) if head13 else 0
     cpu.u32(0x73f738, world_node)            # 0x5090e0's node; the world is assumed
-    st_world = (emu.index(world_node), emu.i32(0x5ea6d0))
+    st_world = (emu.index(world_node),)
     cpu.stub_function(0x549410, lambda c: 0)
     cpu.stub_function(0x50a0e0, lambda c: 0)
     st = collections.Counter()
@@ -64,11 +66,9 @@ def run(m):
                 d = cpu.ecx
                 regs.append([(d - defs) // 0x13c, emu.index(cpu.edx), cpu.arg(0), cpu.arg(1),
                              emu.u(cpu.edx + 0xbc) if cpu.edx else None])
-        elif addr == 0x583370:   # node's record is inherited from a parent: a new one
-            old = emu.u(cpu.edx + 0xbc) if False else None
+        elif addr == 0x583370:   # the node's record is inherited from a parent: a new one
             st['register_new_record_over_inherited'] += 1
         elif addr == 0x58333c:   # the node already has a record
-            rec, slot = emu.u(cpu.edx + 0xbc) if False else 0, 0
             st['register_node_has_record'] += 1
         elif addr in RETS_5832F0:
             regs[-1].append(cpu.uc.reg_read(UC_X86_REG_EAX))
@@ -106,8 +106,8 @@ def run(m):
     print(m, result, 'world node slot', st_world[0])
     for k, v in sorted(st.items(), key=lambda kv: str(kv[0])):
         print(f'  {k}: {v}')
-    top = sorted(reached)
-    print('  functions reached:', ' '.join(f'{a:#x}' for a in top))
+    # block-hook view: a lower bound (0x4eb170 is called but not listed here)
+    print('  functions reached:', ' '.join(f'{a:#x}' for a in sorted(reached)))
     return regs
 
 

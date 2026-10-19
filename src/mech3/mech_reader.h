@@ -70,8 +70,9 @@ bool read_dfn(MechDfn& dfn);                 // 0x0046ba40, the blocks in order
 MechDfn* load_dfn(int32_t mech);             // 0x0046b7a0, 0 when missing or bad
 MechDfn* mech_dfn(int32_t mech);             // 0x004846a0, loaded once per mech
 
-// 0x00424b70 and 0x00424f60, the player's saved loadouts (docs/mechdef-head.md),
-// not ported yet: called after the file's own loadouts and from the dtor when set.
+// 0x00424b70 and 0x00424f60, the player's saved loadouts (docs/mechdef-head.md):
+// loaded after the file's own loadouts, written by the dtor. A test can
+// replace them (nullptr skips the call).
 using LoadSaved = void (*)(ConfigList* configs);
 void set_load_saved(LoadSaved fn);
 using SaveAll = void (*)(ConfigList* configs);

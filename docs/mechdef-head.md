@@ -340,7 +340,17 @@ Corrections from the port:
   never below 0; category 3 is `max mass x 0.1`, with endo steel `floor(x +
   0.5) x 0.5`.
 
-### The writer, for the format
+### The writer
+
+Ported too (`Config::save`, `save_items`, the item saves, `ConfigList::save_all`;
+`zutl_zar::create`, `add`, `add_written`, `write_table`, `write_string`):
+test_mechsave.py loads each test file on both sides, saves it back and gets
+the same bytes, short entry lengths included. The table entries' flags,
+comment and file time are the exe's stack leftovers; the port writes 0.
+
+The checksum trap is removed (`protection.md`): Load passes false to
+Validate, so a hand-edited loadout loads if it follows the rules; Save still
+writes the checksum.
 
 0x424f60 `ConfigList::SaveAll()` (also from 0x44a5aa, 0x44a653, 0x44d69a: the
 mech lab, not traced): if `.\configs` does not exist (0x576080), `_mkdir

@@ -89,9 +89,9 @@ void reserve(Archive& a, int count) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00576650. The original writes the table first when dirty
-// (0x00576720); only the unported writer sets dirty.
+// Mech3.exe 1.2 @ 0x00576650
 bool close(Archive& a) {
+  if (a.dirty) write_table(a);
   if (a.file) std::fclose(a.file);
   a.file = nullptr;
   reset(a);
@@ -177,4 +177,66 @@ uint32_t crc32(uint32_t crc, const void* data, size_t n) {
   return crc;
 }
 
+// Mech3.exe 1.2 @ 0x005765b0. On failure the exe logs GetLastError's text.
+bool create(Archive& a, const char* path) {
+  char host[512];
+  host_path(path, host, sizeof host);
+  a.file = std::fopen(host, "w+b");
+  if (!a.file) return false;
+  a.path = strdup(path);
+  return true;
+}
+
+namespace {
+Entry* new_entry(Archive& a, const char* name, uint32_t* start) {
+  reserve(a, a.count + 1);
+  std::fseek(a.file, 0, SEEK_END);
+  *start = static_cast<uint32_t>(std::ftell(a.file));
+  Entry* e = &a.entries[a.count];
+  std::memset(e, 0, sizeof *e);
+  e->start = *start;
+  std::strncpy(e->name, name, sizeof e->name);
+  return e;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00576990 (the comment and file time arguments are not used here)
+void add(Archive& a, const char* name, const void* data, uint32_t size) {
+  uint32_t start;
+  Entry* e = new_entry(a, name, &start);
+  e->length = size;
+  std::fwrite(data, 1, size, a.file);
+  ++a.count;
+  a.dirty = true;
+}
+
+// Mech3.exe 1.2 @ 0x00576890
+void add_written(Archive& a, const char* name, uint32_t (*write)(std::FILE* f, void* user), void* user) {
+  uint32_t start;
+  new_entry(a, name, &start);
+  const uint32_t length = write(a.file, user);
+  a.entries[a.count].length = length;
+  ++a.count;
+  a.dirty = true;
+}
+
+// Mech3.exe 1.2 @ 0x00576720
+bool write_table(Archive& a) {
+  std::fseek(a.file, 0, SEEK_END);
+  std::fwrite(a.entries, sizeof(Entry), static_cast<size_t>(a.count), a.file);
+  const uint32_t tail[2] = {1, static_cast<uint32_t>(a.count)};
+  std::fwrite(tail, 4, 2, a.file);
+  a.dirty = false;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x005763f0. A null string is written as length 0.
+uint32_t write_string(std::FILE* file, const char* s) {
+  const uint32_t n = s ? static_cast<uint32_t>(std::strlen(s)) : 0;
+  uint32_t total = static_cast<uint32_t>(std::fwrite(&n, 1, 4, file));
+  if (n) total += static_cast<uint32_t>(std::fwrite(s, 1, n, file));
+  return total;
+}
+
 }  // namespace zutl_zar
+

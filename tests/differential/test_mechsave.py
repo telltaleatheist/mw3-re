@@ -1,6 +1,9 @@
 """The ported saved loadouts (docs/mechdef-head.md) against the original x86:
 Config::Load 0x424600 with its checksum, weight and Validate, and
-ConfigList::LoadSaved 0x424b70 on whole configs\\<mech>.mw3 archives.
+ConfigList::LoadSaved 0x424b70 on whole configs\\<mech>.mw3 archives. The
+port drops the checksum trap (Load no longer rejects edited files), so the
+original runs with the same change: Load's `push 1` into Validate becomes
+`push 0`. The checksum itself is still compared on every config.
 
     cmake --build build && .venv/bin/python tests/differential/test_mechsave.py
 
@@ -30,7 +33,9 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC
 SAVE, LOAD, CHECKSUM, WEIGHT, UNPLACED, JJ, JJ_LIMIT, VALIDATE = (0x424480, 0x424600, 0x4255b0, 0x425300, 0x424220,
                                                                    0x425ff0, 0x425fb0, 0x4254d0)
 LIST_CTOR, LOAD_SAVED, CONFIG_CTOR, FIND_WEAPON = 0x424a90, 0x424b70, 0x423d00, 0x581ed0
+SAVE_ALL, DIR_EXISTS, WARCH = 0x424f60, 0x576080, 0x9abc
 ENGINE_WEIGHT, ENGINE_RATING, ENGINE_TABLE = 0x432f40, 0x432fa0, 0x5e2f50
+LOAD_VALIDATE = 0x424744  # Load's `push 1` into Validate
 ITEMS_KIND_READ = 0x4715af  # 0x471540 has just read an item's kind
 ITEM_LOAD_ID = 0x472b21  # just after 0x472b20 pushes ECX as the id's slot
 IAT = {'strncmp': 0x5bb654, 'free': 0x5bb65c, 'ceil': 0x5bb61c, 'writefile': 0x5bb17c, 'sprintf': 0x5bb658,
@@ -50,6 +55,7 @@ WEAPON_NAMES = [b'AC2', b'AC5', b'AC10', b'AC20', b'ERLaser_Small', b'ERLaser_Me
 probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 probe.probe_config_blob.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.probe_load_saved.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+probe.probe_load_and_save.argtypes = [ctypes.c_char_p, ctypes.c_int]
 
 
 def weapon_labs(data):
@@ -103,12 +109,15 @@ class Emulated(DfnEmu):
         cpu.stub_import(IAT['getlasterror'], lambda c: 2)
         cpu.stub_import(IAT['formatmessage'], lambda c: 0, pop_bytes=28)
         cpu.stub_import(IAT['localfree'], lambda c: 0, pop_bytes=4)
-        cpu.stub_import(IAT['getfilesize'], lambda c: len(self.arch), pop_bytes=8)
+        cpu.stub_import(IAT['getfilesize'], lambda c: len(self.wbuf if c.arg(0) == WARCH else self.arch), pop_bytes=8)
+        cpu.stub_function(DIR_EXISTS, lambda c: 1)
+        cpu.stub_import(0x5bb648, self.strncpy)
         cpu.stub_import(IAT['setfilepointer'], self.set_file_pointer, pop_bytes=16)
         cpu.stub_import(IAT['closehandle'], lambda c: 1, pop_bytes=4)
         cpu.stub_import(IAT['realloc'], self.realloc)
         cpu.stub_function(FIND_WEAPON, self.find_weapon)
         cpu.uc.hook_add(UC_HOOK_CODE, self.item_id, begin=ITEM_LOAD_ID, end=ITEM_LOAD_ID)
+        cpu.write(LOAD_VALIDATE, b'\x6a\x00')  # push 0: the port drops the checksum trap (FIX (trap))
         cpu.uc.hook_add(UC_HOOK_CODE, self.items_end, begin=ITEMS_KIND_READ, end=ITEMS_KIND_READ)
         self.patched = {}
         for fn in (ENGINE_WEIGHT, ENGINE_RATING):
@@ -129,6 +138,7 @@ class Emulated(DfnEmu):
             self.weapons[name] = obj
         self.sizes = {}
         self.out, self.arch, self.apos, self.opened, self.short = bytearray(), b'', 0, None, False
+        self.wbuf, self.wpos = bytearray(), 0
         self.wslot = cpu.alloc(12)
         code = b'\x8b\x0d' + struct.pack('<I', self.wslot) + b'\xff\x35' + struct.pack('<I', self.wslot + 4)
         code += b'\xb8' + struct.pack('<I', WEIGHT) + b'\xff\xd0' + b'\xd9\x1d' + struct.pack('<I', self.wslot + 8)
@@ -174,6 +184,11 @@ class Emulated(DfnEmu):
         c.write(a, bytes(max(c.arg(0), 1)))
         return a
 
+    def strncpy(self, c):
+        dst, src, n = c.arg(0), self.cstr(c.arg(1)), c.arg(2)
+        c.write(dst, (src + bytes(n))[:n])
+        return dst
+
     def find_weapon(self, c):
         return self.weapons.get(self.cstr(c.ecx), 0)
 
@@ -200,12 +215,21 @@ class Emulated(DfnEmu):
         return len(out)
 
     def write_file(self, c):
+        if c.arg(0) == WARCH:
+            data = self.cpu.read(c.arg(1), c.arg(2))
+            self.wbuf[self.wpos:self.wpos + len(data)] = data
+            self.wpos += len(data)
+            self.cpu.u32(c.arg(3), c.arg(2))
+            return 1
         self.out += self.cpu.read(c.arg(1), c.arg(2))
         self.cpu.u32(c.arg(3), c.arg(2))
         return 1
 
     def create_file(self, c):
         self.opened = self.cstr(c.arg(0))
+        if c.arg(1) & 0x40000000:  # GENERIC_WRITE: SaveAll's CREATE_ALWAYS
+            self.wbuf, self.wpos = bytearray(), 0
+            return WARCH
         if self.arch is None:
             return 0xffffffff
         self.apos = 0
@@ -213,6 +237,9 @@ class Emulated(DfnEmu):
 
     def set_file_pointer(self, c):
         handle, dist, how = c.arg(0), struct.unpack('<i', struct.pack('<I', c.arg(1)))[0], c.arg(3)
+        if handle == WARCH:
+            self.wpos = {0: 0, 1: self.wpos, 2: len(self.wbuf)}[how] + dist
+            return self.wpos
         assert handle == ARCH and c.arg(2) == 0
         self.apos = {0: 0, 1: self.apos, 2: len(self.arch)}[how] + dist
         return self.apos
@@ -324,6 +351,20 @@ class Emulated(DfnEmu):
         cpu.heap_next = mark
         return bytes(out)
 
+    def load_and_save(self, mech, arch):
+        """LoadSaved on the file, then SaveAll: the file it writes."""
+        cpu = self.cpu
+        mark = cpu.heap_next
+        self.arch = arch
+        lst = cpu.alloc(0x18)
+        cpu.call(LIST_CTOR, ecx=lst, stack_args=(mech, 0))
+        cpu.call(LOAD_SAVED, ecx=lst)
+        cpu.call(SAVE_ALL, ecx=lst)
+        ok = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+        self.unpatch()
+        cpu.heap_next = mark
+        return ok, mask_table(bytes(self.wbuf))
+
     def load_saved(self, mech, arch):
         cpu = self.cpu
         mark = cpu.heap_next
@@ -340,6 +381,20 @@ class Emulated(DfnEmu):
         self.unpatch()
         cpu.heap_next = mark
         return bytes(out)
+
+
+def mask_table(data):
+    """An archive with each entry's flags, comment and file time zeroed: the
+    exe fills them from its stack (FIX (A): zero in the port)."""
+    if len(data) < 8:
+        return data
+    count = struct.unpack_from('<I', data, len(data) - 4)[0]
+    out = bytearray(data)
+    table = len(data) - 8 - 0x94 * count
+    for i in range(count):
+        e = table + 0x94 * i
+        out[e + 0x48:e + 0x94] = bytes(0x4c)
+    return bytes(out)
 
 
 def archive(files):
@@ -422,7 +477,7 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     rng = random.Random(7)
     (DIR / 'configs').mkdir(parents=True, exist_ok=True)
-    blobs = valid = files = 0
+    blobs = valid = files = saves = 0
     stats = {}
     dfns = [(n, s) for n, s, _ in entries(data) if n.startswith('dfn_')]
     for name, start in dfns:
@@ -486,6 +541,15 @@ def main():
             compare(f'{name} file ({label})', want, probe.probe_load_saved(str(DIR).encode(), mech, buf, len(buf)),
                     buf)
             files += 1
+            ok, want = emu.load_and_save(mech, arch)
+            (DIR / 'configs' / f'{MECHS[mech]}.mw3').write_bytes(arch)
+            got_ok = probe.probe_load_and_save(str(DIR).encode(), mech)
+            got = (DIR / 'configs' / f'{MECHS[mech]}.mw3').read_bytes()
+            if (ok, want) != (got_ok, got):
+                at = next((i for i in range(min(len(got), len(want))) if got[i] != want[i]), None)
+                raise SystemExit(f'{name} saved again ({label}): original {ok} {len(want)} bytes, port {got_ok} '
+                                 f'{len(got)}, first difference at {at}')
+            saves += 1
         (DIR / 'configs' / f'{MECHS[mech]}.mw3').unlink()
         want = emu.load_saved(mech, None)
         compare(f'{name} no file', want, probe.probe_load_saved(str(DIR).encode(), mech, buf, len(buf)), buf)
@@ -493,7 +557,8 @@ def main():
     for k, v in stats.items():
         print(k, v)
     print(f'ok: {blobs} saved loadouts load identically ({valid} accepted: checksum, weights, slots, jump jets '
-          f'and armor agree); {files} configs\\<mech>.mw3 files identical')
+          f'and armor agree); {files} configs\\<mech>.mw3 files identical; '
+          f'{saves} written back identically')
 
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@
 // and Config base methods between mech_reader.cpp and mech_salvage.cpp.
 namespace mech3 {
 
-// Items as the vtables have them; vt+0x24 and the save (vt+0x28) are not ported yet.
+// Items as the vtables have them; vt+0x24 (same_as) only for equipment.
 struct ConfigItem {                // the shared head of every item
   int32_t count = 0;               // +0x04
   int32_t group = 0;               // +0x08
@@ -22,6 +22,7 @@ struct ConfigItem {                // the shared head of every item
   virtual void set_id(int32_t id) = 0;         // vt+0x10
   virtual int32_t id() const = 0;              // vt+0x14
   virtual int32_t slots() const = 0;           // vt+0x18, critical slots it needs
+  virtual uint32_t save(std::FILE* f) const;   // vt+0x28, 0x00472a80: kind, count, id, part, group
   virtual void load(std::FILE* f);             // vt+0x2c, 0x00472b20
 };
 
@@ -42,6 +43,7 @@ struct WeaponItem : ConfigItem {   // vtable 0x005c0fc0, 0x1c bytes
   void set_id(int32_t v) override { weapon = v; }
   int32_t id() const override { return weapon; }
   int32_t slots() const override;          // 0x004731b0
+  uint32_t save(std::FILE* f) const override;  // 0x00472bc0
   void load(std::FILE* f) override;        // 0x00472b90
 };
 
@@ -62,6 +64,7 @@ struct EquipmentItem : ConfigItem {  // vtable 0x005bd180, 0x20 bytes
   void set_id(int32_t v) override { equipment = v; }  // 0x0041ec40
   int32_t id() const override { return equipment; }   // 0x0040a890
   int32_t slots() const override;          // 0x004731c0
+  uint32_t save(std::FILE* f) const override;  // 0x00472c40
   void load(std::FILE* f) override;        // 0x00472c00
   bool same_as(const ConfigItem& other) const;  // vt+0x24, 0x00473480
 };
@@ -74,6 +77,7 @@ struct EngineItem : ConfigItem {   // vtable 0x005c3700, 0x1c bytes; kind 4, nev
   void set_id(int32_t v) override { engine = v; }
   int32_t id() const override { return engine; }
   int32_t slots() const override { return 0; }  // 0x004d72a0
+  uint32_t save(std::FILE* f) const override;  // 0x00472cb0
   void load(std::FILE* f) override;        // 0x00472c80
 };
 
@@ -114,6 +118,8 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
 
   // The saved-loadout side (docs/mechdef-head.md).
   bool load(std::FILE* f);                 // 0x00424600, false when invalid
+  uint32_t save(std::FILE* f);             // 0x00424480, sets the checksum; returns a short count
+  uint32_t save_items(std::FILE* f) const; // 0x004717a0
   void load_items(std::FILE* f);           // 0x00471540
   std::vector<uint32_t> packed() const;    // 0x00425650
   uint32_t checksum() const;               // 0x004255b0
@@ -132,6 +138,7 @@ struct ConfigList {                // 0x18 bytes
   ConfigList(int32_t mech, int32_t count);  // 0x00424a90
   ~ConfigList();                            // 0x00425110
   bool load_saved();                        // 0x00424b70, configs\<mech>.mw3
+  bool save_all();                          // 0x00424f60, the player's own (+0x1c) only
 };
 
 }  // namespace mech3

@@ -1033,6 +1033,9 @@ int probe_node_ops(const int32_t* ops, int count, int block_size, int chunk_size
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 
+// The probes' MechDfn never touches configs\<mech>.mw3: the emulator stubs those out.
+const bool g_no_saved_loadouts = (mech3::set_load_saved(nullptr), mech3::set_save_all(nullptr), true);
+
 // The probes' MechDfn borrows g_probe_root, which its dtor must not free.
 struct KeepTree {
   mech3::MechDfn& d;
@@ -1317,6 +1320,17 @@ int probe_load_saved(const char* dir, int mech, uint8_t* out, int cap) {
   put_i32(b, static_cast<int32_t>(list.configs.size()));
   for (const mech3::Config* c : list.configs) put_config(b, c);
   return finish(b, out, cap);
+}
+
+// ConfigList(mech, 0): load_saved(), then save_all() over the same file.
+int probe_load_and_save(const char* dir, int mech) {
+  char was[1024];
+  if (!getcwd(was, sizeof was) || chdir(dir) != 0) return -1;
+  mech3::ConfigList list(mech, 0);
+  list.load_saved();
+  const bool ok = list.save_all();
+  if (chdir(was) != 0) return -1;
+  return ok;
 }
 
 }  // extern "C"
