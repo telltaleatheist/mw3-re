@@ -80,9 +80,40 @@ of. The layout is mech3ax's (`crates/nodes/src/mw/node.rs`, as read from the
 `child_count` (+0x5c) and `children` (+0x60) comparing names (+0), and reads the
 node's bounding box at +0x74.
 
+## Weapons
+
+Two layers, like the source tree:
+
+- **ZWeaponDef** (GameZ `zweapon/zwep_init.c`, 0x583880): one 0x1f4-byte entry
+  per weapon in `weapons.zrd`'s `BALLISTICS`, in a table at 0x9a0eac (count
+  0x9a0ea8). Movement, damage, range, flyout and impact effects. Before reading,
+  each entry gets defaults: range 500, velocity 120, damage 0.1, turn and pitch
+  rate 0.16, DETONATE_ON_WATER on.
+- **WeaponType** (MW3, 0x4af5a0, 0xc8 bytes): made for each def through the
+  callback 0x4b0020 and linked at def +0x1f0. The game's side: firing heat,
+  salvo, burst, ammo, NARC, recoil, recharge and fire times.
+
+Weapon flags at def +0x6c, from the booleans in the file:
+
+| Bit | Key | Bit | Key |
+|---|---|---|---|
+| 1, 2 | BEAM present (sets both) | 17 | MULTI_TARGET |
+| 2 | TIMED_DAMAGE | 22 | FREEZE or IMPACT HEAT present |
+| 6 | IMPACT HEAT | 10 | FREEZE |
+| 7 | EXPIRES | 23 | ANIMATION_ALWAYS |
+| 8 | FIXED_ROTATE | 25 | DETONATE_AT_RANGE |
+| 11 | INSTANT | 26 | HIT_OWNER |
+| 13 | CATCHES_FIRE | 27 | RANDOM_DEVIATION |
+| 14 | MINE | 30 | DETONATE_ON_WATER |
+
+`IMPACT HEAT` and `FREEZE` fill the same six floats (+0x1c8), so a weapon with
+both keeps the last one read, HEAT. The firing heat (`HEAT`, the first of two
+values) goes to the mech through `Mech::AddHeat` (0x419e40): beams add it once
+per shot, or every frame x dt when TIMED_DAMAGE is set (0x461670); timed ammo
+weapons scale it by the share of ammo used (0x4b4230).
+
 ## Not done yet
 
-- Weapons: `weapons.zrd` is read in `zweapon/zwep_init.c` (45 keys,
-  `rdrkeys.py zwep_init`); the weapon object and the ammo bins at Vehicle +0xd4.
+- The weapon instance on a mech, and the ammo bins at Vehicle +0xd4.
 - The pilot/HUD object at Mech +0x684 and the controls object at +0x37c.
 - Most of the mech: about 170 offsets have only placeholder names.
