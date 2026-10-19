@@ -103,9 +103,13 @@ The random draws are MSVCRT `rand()` (`crt::msvc_rand`), scaled by 1/32767.
 ## Frame rate
 
 The lava heat is added per frame, not per second: 0.05 a frame is 1.5/s at 30
-fps but 3/s at 60. Everything else scales with dt. Kept as the original for now;
-if the rebuild runs above the original's frame rate this is a candidate FIX (B)
-(`dt * 1.5`). Decision for Owen.
+fps but 3/s at 60. Everything else scales with dt. The original presents with
+`Flip(NULL, DDFLIP_WAIT)` (0x57a8b5) and no no-vsync flag, so in fullscreen it
+was capped at the monitor's refresh, 60-85 Hz on the CRTs of the day, and often
+ran slower. On a 144 Hz display the same code would cook a mech on lava 2-5
+times faster than in 1999. Kept as the original for now; a candidate FIX (B)
+is to scale it as 0.05 per 1/60 s, or to run the simulation at 60 Hz. Decision
+for Owen.
 
 ## Powering down and up
 

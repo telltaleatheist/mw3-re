@@ -137,7 +137,7 @@ can be checked two ways and unblocks loading data.
 4. Init/shutdown: mapped (`docs/startup.md`), with the game states and the
    tamper check. Open: the 0x200 pool, the options setters at 0x40cb30.
 5. Start the SDL3 front end (window, clock, music output) once the GPU is
-   free.
+   free. Present with vsync, as the original did (`docs/heat.md`, Frame rate).
 
 ## Work queue (small pieces, 2026-10-19 night)
 
