@@ -1,23 +1,27 @@
 #pragma once
 #include <cstdint>
 
-// The Direct3D 6 draw backend's transparent queue: polygons with alpha are
-// copied out during the scene, sorted far to near and drawn blended at the end
-// (docs/render.md section 3, docs/drafts/fogsort.md). Original: zvid_ddd3d.c.
+#include "platform/render3d.h"
+
+namespace zimg {
+struct Texture;
+}
+
+// The Direct3D 6 draw backend (zvid_ddd3d.c): the draw table the model draw
+// calls ([0x0072f3b0].., filled by 0x00579f50), the render-state cache, the
+// transparent queue and the overlay list, texture records and the frame calls
+// (docs/render.md sections 3 and 4, docs/drafts/drawtable.md,
+// docs/render-fogsort.md). FIX (A): every IDirect3DDevice3 call becomes the
+// platform::Render3D state or call it stands for (set_render3d).
 namespace zvid {
 
-struct TLVertex {                  // D3DTLVERTEX, FVF 0x1c4
-  float sx, sy, sz, rhw;
-  uint32_t color, specular;
-  float tu, tv;
-};
-static_assert(sizeof(TLVertex) == 0x20, "D3DTLVERTEX is 0x20 bytes");
+using TLVertex = platform::TLVertex;  // D3DTLVERTEX, FVF 0x1c4
 
 // The texture record 0x0057b130 makes (0x18 bytes in the original).
+// FIX (A): the system and video surfaces (+0x00, +0x04) and the
+// IDirect3DTexture2 (+0x08) become one Render3D handle.
 struct D3DTexture {
-  void* system = nullptr;          // +0x00 system-memory surface
-  void* video = nullptr;           // +0x04 video-memory surface
-  void* d3d = nullptr;             // +0x08 IDirect3DTexture2, what SetTexture gets
+  int32_t handle = -1;             // +0x08 what SetTexture gets
   int32_t type = 1;                // +0x0c 1 opaque 565, 5 ARGB1555, 4 ARGB4444
   int32_t address_u = 1;           // +0x10 D3DTADDRESS (1 wrap, 3 clamp)
   int32_t address_v = 1;           // +0x14
@@ -41,7 +45,26 @@ struct TransparentQueue {
 };
 TransparentQueue& transparent_queue();
 
-// The device's cached render states (the D3D calls go through Device).
+// Node flag 0x800000 polygons, drawn last with no depth test (0x0057e4c0).
+struct OverlayPoly {               // 0x008dfc9c, 0x80c bytes each
+  int32_t type;                    // +0x00 how 0x0057e4c0 draws it: 0 blended, 1 flat,
+                                   //       3 untextured Gouraud, 4/5/6 textured
+  int32_t count;                   // +0x04
+  const D3DTexture* texture;       // +0x08 null when untextured
+  TLVertex verts[64];              // +0x0c
+};
+struct OverlayList {
+  static constexpr int32_t kMax = 0x180;  // ZVID_MAX_OVERWRITE_POLYS
+  int32_t count = 0;               // 0x00809318
+  OverlayPoly polys[kMax] = {};    // 0x008dfc9c
+};
+OverlayList& overlay_list();
+
+// The vertices 0x0057bf80 builds for an opaque flat polygon (64 slots).
+TLVertex* flat_buffer();           // 0x0080c59c
+
+// The device's cached render states. They decide when a state is sent; the
+// state the device holds is draw_state().
 struct DeviceState {
   int32_t primitive = 6;           // 0x0072f418  current D3DPRIMITIVETYPE
   int32_t alpha_blend = 0;         // 0x00809388  ALPHABLENDENABLE (27)
@@ -53,18 +76,69 @@ struct DeviceState {
 };
 DeviceState& device_state();
 
-// FIX (A): the IDirect3DDevice3 methods the queue calls ([0x00809374] vtable,
-// this = [0x00809370]), set by the front end; a recorder in the tests.
-struct Device {
-  void* ctx = nullptr;
-  void (*set_render_state)(void* ctx, int32_t state, int32_t value) = nullptr;           // +0x58
-  void (*set_texture_stage_state)(void* ctx, int32_t stage, int32_t type, int32_t value) = nullptr;  // +0xa0
-  void (*set_texture)(void* ctx, int32_t stage, void* texture) = nullptr;                // +0x98
-  int32_t (*draw_primitive)(void* ctx, int32_t primitive, uint32_t fvf, const TLVertex* verts,
-                            int32_t count, uint32_t flags) = nullptr;                    // +0x70
-  void (*report)(void* ctx, int32_t hresult, int32_t line) = nullptr;                    // 0x00580550
+// FIX (A): the device the calls go to, and the state it holds (what the
+// original's SetRenderState / SetTextureStageState / SetTexture calls left).
+void set_render3d(platform::Render3D* render);
+platform::Render3D* render3d();
+platform::DrawState& draw_state();
+
+// The per-polygon buffers the model draw fills and the draw functions read
+// (docs/render.md section 3). Default: zmod::clip2d()'s tl and work.
+struct WorkRecord {                // 0x20 bytes (= zmod::VertexWork)
+  float darkness;                  // +0x00 1 - directed light
+  float point;                     // +0x04 point-light intensity
+  float fog;                       // +0x08
+  float color[3];                  // +0x0c vertex colour, 0..255
+  float unused[2];
 };
-Device& device();
+struct DrawBuffers {
+  TLVertex* tl;                    // 0x0072f41c
+  const WorkRecord* work;          // 0x007481a8
+};
+DrawBuffers& draw_buffers();
+
+struct PointLight {                // set by 0x005798a0
+  float color[3] = {};             // 0x0072f40c  0..255
+  int32_t brightest = 0;           // 0x00802704  index of the largest channel
+};
+PointLight& point_light();
+
+// The display's 16-bit channel masks, args 2-4 of 0x005792c0 (zvid_format
+// keeps the rest of that call).
+struct ChannelMasks {
+  uint32_t r = 0xf800, g = 0x07e0, b = 0x001f;  // 0x0080272c, 0x00802730, 0x00802734
+};
+ChannelMasks& channel_masks();
+
+// Display and device flags the frame calls and texture records read.
+struct Display {
+  int32_t fullscreen = 1;          // 0x008026e0
+  int32_t clear_on = 1;            // 0x008026f0  the frame clear fills the colour too
+  uint32_t dirty = 0;              // 0x008026f8  1 fill mode, 2 dither changed
+  int32_t fill_mode = 0;           // 0x008026fc  0 solid, 1 wireframe
+  int32_t dither = 0;              // 0x00802700
+  int32_t bits_per_pixel = 16;     // 0x00802718
+  bool zbuffer = true;             // [0x00809378] != 0
+  bool primary = true;             // [0x0080280c] != 0
+  // Device caps (FIX (A): a modern GPU has none of these limits).
+  uint32_t max_width = 4096;       // [0x0080c278] +0x148
+  uint32_t max_height = 4096;      // [0x0080c278] +0x14c
+  uint32_t caps = 0;               // 0x00809448  2 power of two only, 0x20 square only
+  int32_t alpha_4444 = 1;          // [0x00809644] +0xb04  ARGB4444 textures
+};
+Display& display();
+
+// The draw table. ECX, EDX and the stack arguments as the model draw passes
+// them (docs/render.md section 3); counts are 1..64, the TL vertices in
+// draw_buffers().tl, already projected.
+void draw_flat(uint32_t color, int32_t alpha, int32_t count, int32_t priority, int32_t overlay);  // 0x0057bf80
+void draw_lit(uint32_t color, const float rgb[3], uint32_t flags, int32_t alpha, int32_t count,
+              int32_t priority, int32_t overlay);                                       // 0x0057c700
+void draw_textured(int32_t count, const D3DTexture* texture, float opacity, int32_t overlay);  // 0x0057ce20
+void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture, int32_t priority,
+                       float opacity, int32_t overlay);                                 // 0x0057d160
+void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture, float opacity,
+                              int32_t overlay);                                         // 0x0057d690
 
 // The block every transparent draw inlines (0x0057bf80, 0x0057c2f0, 0x0057caa0,
 // 0x0057ce20, 0x0057d160, 0x0057d690, 0x0057dba0): reserves a polygon and its
@@ -73,5 +147,24 @@ TLVertex* queue_transparent(int32_t primitive, int32_t count, const D3DTexture* 
 
 void sort_transparent();   // 0x0057dec0
 void flush_transparent();  // 0x0057e110
+void flush_overlay();      // 0x0057e4c0
+
+void set_point_light_color(const float rgb[3]);  // 0x005798a0, rgb 0..1
+void send_fog_color();     // 0x0057bcf0: zrndr::device_fog().sent to FOGCOLOR
+
+int32_t begin_scene();     // 0x0057a740
+int32_t end_scene();       // 0x0057a7e0
+int32_t frame_clear(bool back_buffer);         // 0x005777f0
+int32_t present(bool wait);                    // 0x0057a850
+
+// 0x0057b130: a texture record for an image (16-bit pixels in the display
+// format, optional alpha plane), or default_texture() when the device cannot
+// take it. alpha: make an alpha format; clamp_u/v: address modes.
+D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t alpha,
+                           int32_t clamp_u, int32_t clamp_v);
+D3DTexture*& default_texture();                // 0x0080931c
+
+// What 0x0057b130 uploads, as RGBA8 (the surface format's precision kept).
+void texture_rgba(const zimg::Texture& image, int32_t alpha, uint8_t* rgba);
 
 }  // namespace zvid

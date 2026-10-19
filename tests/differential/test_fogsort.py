@@ -11,7 +11,7 @@ everything else exactly.
 Sort: 0x57dec0 on random key arrays of many sizes and shapes; the resulting
 order must be identical (the sort is not stable, so duplicates test it).
 Queue: the inlined reserve block through 0x57dba0 and 0x57bf80, overflow
-reports included. Flush: 0x57e110 with the Direct3D device calls logged.
+reports included. The flush 0x57e110 is checked by test_drawtable.py.
 """
 import ctypes
 import math
@@ -32,10 +32,8 @@ probe.probe_fog_sphere.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_vo
 FOG, MATRIX, VERTS_PTR, FACTOR = 0x74a22c, 0x73fc00, 0x74639c, 0x7463a4
 DEV_COLOR, DEV_SENT, DEV_SEND = 0x72f3f4, 0x72f400, 0x72f3f0
 COUNT, VCOUNT, ORDER, POLYS, POOL = 0x803550, 0x803554, 0x803558, 0x80cd9c, 0x82449c
-PRIM, SRC_VERTS = 0x72f418, 0x72f41c
-THIS, VTABLE = 0x809370, 0x809374
-STATE = [PRIM, 0x809388, 0x80938c, 0x809390, 0x809394, 0x809398, 0x8093a8]  # = DeviceState
-ZERR, D3DERR = 0x49bfd0, 0x580550
+PRIM = 0x72f418
+ZERR = 0x49bfd0
 TOL = 1e-6
 VISIBLE = 0.003921569
 
@@ -390,104 +388,12 @@ def test_queue(rng):
     return f'{runs} queue reservations identical (with both overflow reports)'
 
 
-# ---------------------------------------------------------------- flush
-
-class FlushEmu:
-    def __init__(self):
-        cpu = self.cpu = Original()
-        self.log = []
-        self.draw_result = 0
-        vt = cpu.alloc(0x100)
-        cpu.u32(THIS, 0xdeadbeef)
-        cpu.u32(VTABLE, vt)
-
-        def method(off, fn, pop):
-            addr = cpu.code(b'\xc3')
-            cpu.u32(vt + off, addr)
-            cpu.stub_function(addr, fn, pop)
-        method(0x58, lambda c: self.log.append((1, c.arg(1), c.arg(2))), 12)
-        method(0xa0, lambda c: self.log.append((2, c.arg(1), c.arg(2), c.arg(3))), 16)
-        method(0x98, lambda c: self.log.append((3, c.arg(1), c.arg(2))), 12)
-
-        def draw(c):
-            self.log.append((4, c.arg(1), c.arg(2), (c.arg(3) - POOL) // 32, c.arg(4), c.arg(5)))
-            return self.draw_result
-        method(0x70, draw, 24)
-        cpu.stub_function(D3DERR, lambda c: self.log.append((5, c.ecx, c.arg(0))), 4)
-        self.textures = cpu.alloc(16 * 0x18)
-
-    def flush(self, polys, textures, pool, state, draw_result):
-        cpu = self.cpu
-        self.log = []
-        self.draw_result = draw_result
-        for i, (d3d, typ, au, av) in enumerate(textures):
-            cpu.write(self.textures + 0x18 * i, struct.pack('<6I', 0, 0, d3d, typ, au, av))
-        cpu.write(POOL, pool)
-        cpu.write(POLYS, b''.join(struct.pack('<4I', p, c, self.textures + 0x18 * t if t else 0, POOL + 32 * o)
-                                  for p, c, t, o in polys))
-        cpu.write(COUNT, struct.pack('<II', len(polys), len(pool) // 32))
-        for addr, v in zip(STATE, state):
-            cpu.u32(addr, v)
-        cpu.call(0x57e110)
-        st = [struct.unpack('<i', cpu.read(a, 4))[0] for a in STATE]
-        order = list(struct.unpack(f'<{len(polys)}i', cpu.read(ORDER, 4 * len(polys))))
-        return [tuple(e) + (0,) * (6 - len(e)) for e in self.log], st, order + list(struct.unpack('<II', cpu.read(COUNT, 8)))
-
-
-def rebuilt_flush(polys, textures, pool, state, draw_result):
-    n = len(polys)
-    pb = (ctypes.c_int32 * max(1, 4 * n))(*[x for p in polys for x in p])
-    tb = (ctypes.c_int32 * 64)(*[x for t in textures for x in t])
-    sb = (ctypes.c_int32 * 7)(*state)
-    cap = 8 * n + 16
-    lb = (ctypes.c_int32 * (6 * cap))()
-    ob = (ctypes.c_int32 * (n + 2))()
-    k = probe.probe_flush(pb, n, tb, pool, len(pool) // 32, sb, draw_result, lb, cap, ob)
-    return [tuple(lb[6 * i:6 * i + 6]) for i in range(min(k, cap))], list(sb), list(ob)
-
-
-def test_flush(rng):
-    emu = FlushEmu()
-    runs = draws = 0
-    for case in range(400):
-        textures = [(0, 0, 0, 0)] + [(0x1000 + i, rng.choice([1, 4, 5, 2]), rng.choice([1, 3]), rng.choice([1, 3]))
-                                     for i in range(1, 16)]
-        n = rng.choice([0, 1, 2, 5, 20, 100, rng.randint(1, 600)])
-        polys, verts = [], []
-        for _ in range(n):
-            c = rng.randint(1, 6)
-            tex = rng.choice([0, 0] + list(range(1, rng.choice([2, 4, 16]))))
-            polys.append((rng.choice([1, 5, 6]), c, tex, len(verts)))
-            sz = rng.choice([rng.random(), 0.5, 0.25])
-            for _ in range(c):
-                color = rng.choice([0xff000000, 0xffffffff, 0x80ffffff, 0xff000001, rng.getrandbits(32)])
-                verts.append((rng.uniform(0, 640), rng.uniform(0, 480), sz, rng.random(), color,
-                              rng.getrandbits(32), rng.random(), rng.random()))
-        pool = b''.join(struct.pack('<4f2I2f', *v) for v in verts)
-        state = [rng.choice([5, 6]), rng.randint(0, 1), rng.choice([1, 2]), rng.choice([1, 2, 4, 5]),
-                 rng.choice([1, 3]), rng.choice([1, 3]), rng.randint(0, 1)]
-        draw_result = rng.choice([0, 0, 0, -2005532292])
-        want = emu.flush(polys, textures, pool, state, draw_result)
-        got = rebuilt_flush(polys, textures, pool, state, draw_result)
-        want_log = [tuple(x - 2**32 if x >= 2**31 else x for x in e) for e in want[0]]
-        got_log = got[0]
-        if want_log != got_log or want[1] != got[1] or want[2] != got[2]:
-            at = next((i for i, (a, b) in enumerate(zip(want_log, got_log)) if a != b), None)
-            raise SystemExit(f'flush case {case} n={n}: log {len(want_log)}/{len(got_log)} first diff {at}: '
-                             f'{want_log[at] if at is not None else ""} vs {got_log[at] if at is not None else ""}; '
-                             f'state {want[1]} vs {got[1]}; order same {want[2] == got[2]}')
-        runs += 1
-        draws += n
-    return f'{runs} flushes ({draws} polygons) with identical device calls, order and state'
-
-
 def main():
     rng = random.Random(3)
     print(test_fog(rng))
     print(test_sort(rng))
     print(test_queue(rng))
-    print(test_flush(rng))
-    print('ok: fog sphere and vertices, transparent sort, queue and flush identical to the original')
+    print('ok: fog sphere and vertices, transparent sort and queue identical to the original')
 
 
 if __name__ == '__main__':

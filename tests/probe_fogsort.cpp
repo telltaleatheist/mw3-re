@@ -35,22 +35,11 @@ struct Log {
   }
 };
 Log g_log;
-int32_t g_draw_result = 0;  // DrawPrimitive's HRESULT: 0, or this for every draw
 
 int32_t vertex_index(const zvid::TLVertex* v) {
   return static_cast<int32_t>(v - zvid::transparent_queue().verts);
 }
 
-void rs(void*, int32_t state, int32_t value) { g_log.add(1, state, value); }
-void tss(void*, int32_t stage, int32_t type, int32_t value) { g_log.add(2, stage, type, value); }
-void tex(void*, int32_t stage, void* t) {
-  g_log.add(3, stage, static_cast<int32_t>(reinterpret_cast<intptr_t>(t)));
-}
-int32_t draw(void*, int32_t prim, uint32_t fvf, const zvid::TLVertex* v, int32_t count, uint32_t flags) {
-  g_log.add(4, prim, static_cast<int32_t>(fvf), vertex_index(v), count, static_cast<int32_t>(flags));
-  return g_draw_result;
-}
-void report(void*, int32_t hr, int32_t line) { g_log.add(5, hr, line); }
 void zerr_sink(int level, const char*, int line, const char*) { g_log.add(6, level, line); }
 
 zvid::D3DTexture g_textures[16];
@@ -113,43 +102,6 @@ int32_t probe_queue(int32_t prim, int32_t count, int32_t texture, int32_t* line)
   zerr::set_sink(nullptr);
   *line = g_log.n ? entry[2] : 0;
   return v ? vertex_index(v) : -1;
-}
-
-// polys: n records {prim, count, texture slot (0 none), vertex offset};
-// textures: 16 records {d3d id, type, address_u, address_v}; verts: the
-// vertex pool (n_verts * 8 dwords); state: the 7 DeviceState ints in and out.
-// Returns the number of log entries (6 ints each) written to log.
-int32_t probe_flush(const int32_t* polys, int32_t n, const int32_t* textures, const uint8_t* verts,
-                    int32_t n_verts, int32_t* state, int32_t draw_result, int32_t* log, int32_t cap,
-                    int32_t* order) {
-  zvid::TransparentQueue& q = zvid::transparent_queue();
-  for (int i = 1; i < 16; ++i) {
-    g_textures[i].d3d = reinterpret_cast<void*>(static_cast<intptr_t>(textures[i * 4]));
-    g_textures[i].type = textures[i * 4 + 1];
-    g_textures[i].address_u = textures[i * 4 + 2];
-    g_textures[i].address_v = textures[i * 4 + 3];
-  }
-  std::memcpy(q.verts, verts, sizeof(zvid::TLVertex) * n_verts);
-  q.count = static_cast<uint32_t>(n);
-  q.vertex_count = static_cast<uint32_t>(n_verts);
-  for (int32_t i = 0; i < n; ++i) {
-    const int32_t* r = polys + i * 4;
-    q.polys[i] = {r[0], r[1], r[2] ? &g_textures[r[2]] : nullptr, &q.verts[r[3]]};
-  }
-  zvid::DeviceState& s = zvid::device_state();
-  s = {state[0], state[1], state[2], state[3], state[4], state[5], state[6]};
-  zvid::Device& d = zvid::device();
-  d = {nullptr, rs, tss, tex, draw, report};
-  g_log = Log{log, cap, 0};
-  g_draw_result = draw_result;
-  zvid::flush_transparent();
-  d = zvid::Device{};
-  int32_t out[7] = {s.primitive, s.alpha_blend, s.shade_mode, s.alpha_op, s.address_u, s.address_v, s.z_write};
-  std::memcpy(state, out, sizeof out);
-  std::memcpy(order, q.order, sizeof(int32_t) * n);
-  order[n] = static_cast<int32_t>(q.count);
-  order[n + 1] = static_cast<int32_t>(q.vertex_count);
-  return g_log.n;
 }
 
 }  // extern "C"

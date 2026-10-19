@@ -3,17 +3,40 @@
 #include <cstdio>
 #include <cstring>
 #include <utility>
+#include <vector>
 
+#include "crt/msvc_math.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zmodel/gmod_clip2d.h"
+#include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_format.h"
+
+// The original rounds every step to float (Direct3D runs the FPU at 24 bits);
+// no fused multiply-adds, so the steps stay the same.
+#pragma STDC FP_CONTRACT OFF
 
 namespace zvid {
 
+static_assert(sizeof(WorkRecord) == sizeof(zmod::VertexWork), "the work record is 0x20 bytes");
+static_assert(sizeof(zmod::TLVertex) == sizeof(TLVertex), "both are D3DTLVERTEX");
+
 namespace {
 TransparentQueue g_queue;
+OverlayList g_overlay;
+TLVertex g_flat[64];
 DeviceState g_state;
-Device g_device;
+platform::Render3D* g_render = nullptr;
+platform::DrawState g_draw;
+DrawBuffers g_buffers{reinterpret_cast<TLVertex*>(zmod::clip2d().tl),
+                      reinterpret_cast<const WorkRecord*>(zmod::clip2d().work)};
+PointLight g_light;
+ChannelMasks g_masks;
+Display g_display;
+D3DTexture* g_default = nullptr;
 
 constexpr const char* kFile = "C:\\zipper\\GameZMech3\\zVideo\\zvid_ddd3d.c";
+constexpr float kInv255 = 0.003921569f;  // 0x005ceb78
 
 // The sort key: the first vertex's sz bits as a signed int (negative floats
 // order backwards among themselves; sz is never negative in play).
@@ -23,18 +46,177 @@ int32_t key(int32_t index) {
   return k;
 }
 
+// FIX (A): IDirect3DDevice3::SetRenderState (vt+0x58), kept as the state it sets.
 void set_render_state(int32_t state, int32_t value) {
-  if (g_device.set_render_state) g_device.set_render_state(g_device.ctx, state, value);
+  platform::DrawState& d = g_draw;
+  switch (state) {
+    case 8: d.wireframe = value == 2; break;      // FILLMODE: 2 wireframe, 3 solid
+    case 9: d.flat = value == 1; break;           // SHADEMODE: 1 flat, 2 Gouraud
+    case 14: d.depth_write = value != 0; break;   // ZWRITEENABLE
+    case 23: d.depth_always = value == 8; break;  // ZFUNC: 8 ALWAYS, 7 GREATEREQUAL
+    case 27: d.blend = value != 0; break;         // ALPHABLENDENABLE
+    case 28: d.fog = value != 0; break;           // FOGENABLE
+    case 34:                                      // FOGCOLOR
+      if (g_render) g_render->set_fog_color(static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 8),
+                                            static_cast<uint8_t>(value));
+      break;
+    default: break;                               // DITHERENABLE (26): not reproduced
+  }
 }
 
+// FIX (A): SetTextureStageState (vt+0xa0), stage 0.
 void set_texture_stage_state(int32_t type, int32_t value) {
-  if (g_device.set_texture_stage_state) g_device.set_texture_stage_state(g_device.ctx, 0, type, value);
+  platform::DrawState& d = g_draw;
+  switch (type) {
+    case 4: d.alpha_modulate = value == 4; break;  // ALPHAOP: 4 MODULATE, 2 SELECTARG1
+    case 13: d.address_u = static_cast<uint8_t>(value); break;
+    case 14: d.address_v = static_cast<uint8_t>(value); break;
+    default: break;
+  }
+}
+
+// FIX (A): SetTexture(0, ...) (vt+0x98).
+void set_texture(const D3DTexture* t) { g_draw.texture = t ? t->handle : -1; }
+
+// FIX (A): DrawPrimitive (vt+0x70), FVF 0x1c4, flags 0x18. Render3D::draw has
+// no HRESULT, so the original's failure reports (0x00580550) go.
+void draw_primitive(int32_t primitive, const TLVertex* verts, int32_t count) {
+  if (g_render) g_render->draw(static_cast<platform::Primitive>(primitive), verts, count, g_draw);
+}
+
+// The textured draws' cached stage-0 states, then the texture.
+void set_address(const D3DTexture* t) {
+  DeviceState& s = g_state;
+  if (s.address_u != t->address_u) set_texture_stage_state(13, t->address_u), s.address_u = t->address_u;
+  if (s.address_v != t->address_v) set_texture_stage_state(14, t->address_v), s.address_v = t->address_v;
+}
+
+void set_shade(int32_t mode) {
+  if (g_state.shade_mode != mode) set_render_state(9, mode), g_state.shade_mode = mode;
+}
+
+int32_t ftol(float x) { return crt::msvc_ftol(x); }
+
+// `x - -0.5` then _ftol: rounds the 0..255 colours.
+uint32_t round_byte(float x) { return static_cast<uint32_t>(ftol(x - -0.5f)); }
+
+// x - -1.5 * 2^52 stored as a double, its low dword taken: x rounded to an
+// integer at 64-bit precision, but 0 for every colour at the 24 bits the
+// game runs at (docs/drafts/drawtable.md, the point-light quirk).
+int32_t magic_round(float x) {
+  const float t = x - -6755399441055744.0f;
+  const double d = t;
+  uint64_t bits;
+  std::memcpy(&bits, &d, 8);
+  return static_cast<int32_t>(static_cast<uint32_t>(bits));
+}
+
+int32_t clamp_byte(int32_t v) { return v > 0xff ? 0xff : v < 0 ? 0 : v; }
+
+uint32_t rgb_bits(uint32_t r, uint32_t g, uint32_t b) { return ((r << 8 | g) << 8) | b; }
+
+// A display-packed colour to ARGB, the way 0x0057bf80 unpacks it.
+uint32_t unpack(uint32_t c, int32_t alpha) {
+  const ChannelMasks& m = g_masks;
+  const PixelFormat& f = pixel_format();
+  uint32_t v = ((c & m.r) >> (f.r_shift & 31)) | static_cast<uint32_t>(alpha) << 8;
+  v = v << 8 | (c & m.g) >> (f.g_shift & 31);
+  return v << 8 | (c & m.b) << (f.b_shift_right & 31);
+}
+
+uint32_t opacity_alpha(float opacity) {
+  return !(opacity >= 1.0f) ? static_cast<uint32_t>(ftol(opacity * 255.0f)) << 24 : 0xff000000u;
+}
+
+// Specular alpha = fog (255 none), rhw = sz: the first loop of every draw.
+void fog_and_rhw(bool fog, int32_t count) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  for (int32_t i = count - 1; i >= 0; --i) {
+    tl[i].specular = fog ? static_cast<uint32_t>(ftol(255.5f - w[i].fog * 255.0f)) << 24 : 0xff000000u;
+    tl[i].rhw = tl[i].sz;
+  }
+}
+
+// A slot in the overlay list, or the report (each site has its own line;
+// the value printed is the list's count, not count + 1).
+OverlayPoly* overlay_slot(int32_t type, int32_t count, const D3DTexture* texture, int line,
+                          const char* need = "need") {
+  OverlayList& o = g_overlay;
+  if (o.count >= OverlayList::kMax) {
+    char msg[64];
+    std::snprintf(msg, sizeof msg, "Not enough ZVID_MAX_OVERWRITE_POLYS: %s %d", need, static_cast<int>(o.count));
+    zerr::report(0x400, kFile, line, msg);
+    return nullptr;
+  }
+  OverlayPoly& p = o.polys[o.count++];
+  p.type = type;
+  p.count = count;
+  p.texture = texture;
+  return &p;
+}
+
+// The textured draws' tail: queue, overlay or draw. Lines: the overlay
+// reports for a transparent and an opaque polygon.
+void textured_tail(int32_t count, const D3DTexture* texture, float opacity, int32_t overlay, int32_t type,
+                   int line_transparent, int line_opaque, bool texture_first) {
+  TLVertex* tl = g_buffers.tl;
+  DeviceState& s = g_state;
+  if (texture->type == 4 || !(opacity >= 1.0f)) {
+    TLVertex* dst = nullptr;
+    if (overlay == 0) {
+      dst = queue_transparent(s.primitive, count, texture);
+    } else if (OverlayPoly* p = overlay_slot(0, count, texture, line_transparent)) {
+      dst = p->verts;
+    }
+    if (dst) std::memcpy(dst, tl, sizeof(TLVertex) * count);
+    return;
+  }
+  if (overlay != 0) {
+    if (OverlayPoly* p = overlay_slot(type, count, texture, line_opaque)) std::memcpy(p->verts, tl, sizeof(TLVertex) * count);
+    return;
+  }
+  set_shade(2);
+  if (texture_first) set_texture(texture);
+  if (s.alpha_op != 2) s.alpha_op = 2, set_texture_stage_state(4, 2);  // SELECTARG1
+  if (!texture_first) set_texture(texture);
+  set_address(texture);
+  draw_primitive(s.primitive, tl, count);
+}
+
+// Bit replication of an n-bit channel to 8 bits.
+uint8_t expand(uint32_t p, uint32_t mask) {
+  if (mask == 0) return 0;
+  int shift = 0, bits = 0;
+  while (!(mask >> shift & 1)) ++shift;
+  while (mask >> (shift + bits) & 1) ++bits;
+  const uint32_t v = (p & mask) >> shift;
+  uint32_t r = 0;
+  int filled = 0;
+  while (filled < 8) r = r << bits | v, filled += bits;
+  return static_cast<uint8_t>(r >> (filled - 8));
+}
+
+bool is_pow2(int32_t n) {  // 0x0057e9e0: starts at 2, so 1 is not a power of two
+  int32_t p = 1;
+  do p *= 2;
+  while (p < n);
+  return p - n == 0;
 }
 }  // namespace
 
 TransparentQueue& transparent_queue() { return g_queue; }
+OverlayList& overlay_list() { return g_overlay; }
+TLVertex* flat_buffer() { return g_flat; }
 DeviceState& device_state() { return g_state; }
-Device& device() { return g_device; }
+void set_render3d(platform::Render3D* render) { g_render = render; }
+platform::Render3D* render3d() { return g_render; }
+platform::DrawState& draw_state() { return g_draw; }
+DrawBuffers& draw_buffers() { return g_buffers; }
+PointLight& point_light() { return g_light; }
+ChannelMasks& channel_masks() { return g_masks; }
+Display& display() { return g_display; }
+D3DTexture*& default_texture() { return g_default; }
 
 // Inlined at each transparent draw (lines 0x591 and 0x599 of zvid_ddd3d.c).
 TLVertex* queue_transparent(int32_t primitive, int32_t count, const D3DTexture* texture) {
@@ -58,6 +240,155 @@ TLVertex* queue_transparent(int32_t primitive, int32_t count, const D3DTexture* 
   p.verts = &q.verts[q.vertex_count];
   q.vertex_count = need;
   return p.verts;
+}
+
+// Mech3.exe 1.2 @ 0x0057bf80. Untextured, unlit: the material's packed colour
+// on every vertex, flat. Opaque polygons are built in their own buffer.
+// FIX (A): the device calls go to Render3D.
+void draw_flat(uint32_t color, int32_t alpha, int32_t count, int32_t, int32_t overlay) {
+  const uint32_t c = unpack(color, alpha);
+  const TLVertex* tl = g_buffers.tl;
+  TLVertex* dst = g_flat;
+  if (alpha < 0xff) {
+    if (overlay == 0) {
+      dst = queue_transparent(g_state.primitive, count, nullptr);
+    } else {
+      OverlayPoly* p = overlay_slot(0, count, nullptr, 0x5f9);
+      dst = p ? p->verts : nullptr;
+    }
+    if (!dst) return;
+  }
+  for (int32_t i = count - 1; i >= 0; --i) {  // tu, tv are left as they were
+    dst[i].sx = tl[i].sx;
+    dst[i].sy = tl[i].sy;
+    dst[i].sz = tl[i].sz;
+    dst[i].rhw = tl[i].sz;
+    dst[i].diffuse = c;
+    dst[i].specular = 0xff000000u;
+  }
+  if (alpha < 0xff) return;
+  if (overlay == 0) {
+    set_texture(nullptr);
+    set_shade(1);
+    draw_primitive(g_state.primitive, g_flat, count);
+  } else if (OverlayPoly* p = overlay_slot(1, count, nullptr, 0x5d0, "needs")) {
+    std::memcpy(p->verts, g_flat, sizeof(TLVertex) * count);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0057c700. Untextured, lit or fogged: the material rgb
+// times the FIRST vertex's darkness for every vertex, plus the point light
+// per vertex (flag 4); fog (flag 1) in the specular alpha. A polygon with
+// alpha below 255 is coloured and then dropped: nothing queues it.
+// FIX (A): the device calls go to Render3D.
+void draw_lit(uint32_t, const float rgb[3], uint32_t flags, int32_t alpha, int32_t count, int32_t,
+              int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  const float dark = 1.0f - w[0].darkness;
+  const uint32_t a = alpha < 0xff ? static_cast<uint32_t>(alpha) << 24 : 0xff000000u;
+  fog_and_rhw(flags & 1, count);
+  if (flags & 4) {
+    const PointLight& l = g_light;
+    for (int32_t i = count - 1; i >= 0; --i) {
+      uint32_t v;
+      if (w[i].point > kInv255) {
+        const float p = w[i].point;
+        float c[3] = {l.color[0] * p + dark * rgb[0], l.color[1] * p + rgb[1] * dark,
+                      l.color[2] * p + rgb[2] * dark};
+        float r = c[0];
+        // Scaled down by the light's brightest channel only, truncated, not rounded.
+        if (c[l.brightest] > 255.0f) {
+          const float s = 255.0f / c[l.brightest];
+          r = r * s;
+          c[1] = s * c[1];
+          c[2] = s * c[2];
+        }
+        v = rgb_bits(static_cast<uint32_t>(ftol(r)), static_cast<uint32_t>(ftol(c[1])),
+                     static_cast<uint32_t>(ftol(c[2])));
+      } else {
+        v = rgb_bits(round_byte(dark * rgb[0]), round_byte(rgb[1] * dark), round_byte(rgb[2] * dark));
+      }
+      tl[i].diffuse = v | a;
+    }
+  } else {
+    const uint32_t v = rgb_bits(round_byte(dark * rgb[0]), round_byte(rgb[1] * dark), round_byte(rgb[2] * dark)) | a;
+    for (int32_t i = count - 1; i >= 0; --i) tl[i].diffuse = v;
+  }
+  if (alpha < 0xff) return;
+  if (overlay != 0) {
+    if (OverlayPoly* p = overlay_slot(3, count, nullptr, 0x760)) std::memcpy(p->verts, tl, sizeof(TLVertex) * count);
+    return;
+  }
+  set_texture(nullptr);
+  set_shade(2);
+  draw_primitive(g_state.primitive, tl, count);
+}
+
+// Mech3.exe 1.2 @ 0x0057ce20. Textured, unlit: the vertex colours, rounded,
+// with the node opacity as alpha. Transparent when the texture is type 4 or
+// the opacity is below 1. FIX (A): the device calls go to Render3D.
+void draw_textured(int32_t count, const D3DTexture* texture, float opacity, int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  const uint32_t a = opacity_alpha(opacity);
+  for (int32_t i = count - 1; i >= 0; --i) {
+    tl[i].specular = 0xff000000u;
+    tl[i].diffuse = rgb_bits(round_byte(w[i].color[0]), round_byte(w[i].color[1]), round_byte(w[i].color[2])) | a;
+    tl[i].rhw = tl[i].sz;
+  }
+  textured_tail(count, texture, opacity, overlay, 4, 0x88c, 0x856, false);
+}
+
+// Mech3.exe 1.2 @ 0x0057d160. Textured, lit or fogged, the first vertex's
+// darkness for all: vertex colour * (1 - darkness), plus the point light per
+// vertex (flag 4). FIX (A): the device calls go to Render3D.
+void draw_textured_lit(uint32_t flags, int32_t count, const D3DTexture* texture, int32_t, float opacity,
+                       int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  const float dark = 1.0f - w[0].darkness;
+  fog_and_rhw(flags & 1, count);
+  const uint32_t a = opacity_alpha(opacity);
+  const PointLight& l = g_light;
+  for (int32_t i = count - 1; i >= 0; --i) {
+    const float* c = w[i].color;
+    if ((flags & 4) && w[i].point > kInv255) {
+      const float s = w[i].point * kInv255;
+      const int32_t r = clamp_byte(magic_round((s * l.color[0] + dark) * c[0] - -0.5f));
+      const int32_t g = clamp_byte(magic_round((s * l.color[1] + dark) * c[1] - -0.5f));
+      const int32_t b = clamp_byte(magic_round((s * l.color[2] + dark) * c[2] - -0.5f));
+      tl[i].diffuse = rgb_bits(r, g, b) | a;
+    } else {
+      tl[i].diffuse = rgb_bits(round_byte(dark * c[0]), round_byte(c[1] * dark), round_byte(c[2] * dark)) | a;
+    }
+  }
+  textured_tail(count, texture, opacity, overlay, 5, 0x953, 0x925, true);
+}
+
+// Mech3.exe 1.2 @ 0x0057d690. As 0x0057d160 with each vertex's own darkness.
+// FIX (A): the device calls go to Render3D.
+void draw_textured_vertex_lit(uint32_t flags, int32_t count, const D3DTexture* texture, float opacity,
+                              int32_t overlay) {
+  TLVertex* tl = g_buffers.tl;
+  const WorkRecord* w = g_buffers.work;
+  fog_and_rhw(flags & 1, count);
+  const uint32_t a = opacity_alpha(opacity);
+  const PointLight& l = g_light;
+  for (int32_t i = count - 1; i >= 0; --i) {
+    const float* c = w[i].color;
+    const float dark = 1.0f - w[i].darkness;
+    if ((flags & 4) && w[i].point > kInv255) {
+      const float s = w[i].point * kInv255;
+      const int32_t r = clamp_byte(magic_round((s * l.color[0] + dark) * c[0] - -0.5f));
+      const int32_t g = clamp_byte(magic_round((s * l.color[1] + dark) * c[1] - -0.5f));
+      const int32_t b = clamp_byte(magic_round((s * l.color[2] + dark) * c[2] - -0.5f));
+      tl[i].diffuse = rgb_bits(r, g, b) | a;
+    } else {
+      tl[i].diffuse = rgb_bits(round_byte(c[0] * dark), round_byte(c[1] * dark), round_byte(c[2] * dark)) | a;
+    }
+  }
+  textured_tail(count, texture, opacity, overlay, 6, 0xa23, 0x9f2, true);
 }
 
 // Mech3.exe 1.2 @ 0x0057dec0. Quicksort down to runs of 9, median of three
@@ -112,47 +443,238 @@ void sort_transparent() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0057e110. FIX (A): the D3D calls go through device().
+// Mech3.exe 1.2 @ 0x0057e110. FIX (A): the device calls go to Render3D.
 void flush_transparent() {
   TransparentQueue& q = g_queue;
   DeviceState& s = g_state;
   if (q.count == 0) return;
-  if (s.shade_mode != 2) set_render_state(9, 2), s.shade_mode = 2;     // Gouraud
+  set_shade(2);
   if (s.alpha_blend != 1) set_render_state(27, 1), s.alpha_blend = 1;
   if (s.z_write != 0) set_render_state(14, 0), s.z_write = 0;
   for (uint32_t i = 0; i < q.count; ++i) q.order[i] = static_cast<int32_t>(q.count - 1 - i);
   sort_transparent();
   for (uint32_t n = 0; n < q.count; ++n) {
     const TransparentPoly& p = q.polys[q.order[n]];
-    void* texture = nullptr;
     if (p.texture) {
-      texture = p.texture->d3d;
       // Compares a texture type with the cached ALPHAOP: anything but 2
       // (never a type) sends MODULATE, so ALPHAOP is always MODULATE here.
-      const int32_t type = p.verts[0].color > 0xff000000u ? 4 : p.texture->type;
+      const int32_t type = p.verts[0].diffuse > 0xff000000u ? 4 : p.texture->type;
       if (s.alpha_op != type) {
         s.alpha_op = type;
         set_texture_stage_state(4, type == 2 ? type : 4);
       }
-      if (s.address_u != p.texture->address_u) {
-        set_texture_stage_state(13, p.texture->address_u);
-        s.address_u = p.texture->address_u;
-      }
-      if (s.address_v != p.texture->address_v) {
-        set_texture_stage_state(14, p.texture->address_v);
-        s.address_v = p.texture->address_v;
-      }
+      set_address(p.texture);
     }
-    if (g_device.set_texture) g_device.set_texture(g_device.ctx, 0, texture);
-    if (g_device.draw_primitive) {
-      const int32_t hr = g_device.draw_primitive(g_device.ctx, p.primitive, 0x1c4, p.verts, p.count, 0x18);
-      if (hr != 0 && g_device.report) g_device.report(g_device.ctx, hr, 0xb6f);
-    }
+    set_texture(p.texture);
+    draw_primitive(p.primitive, p.verts, p.count);
   }
   if (s.alpha_blend != 0) set_render_state(27, 0), s.alpha_blend = 0;
   if (s.z_write != 1) set_render_state(14, 1), s.z_write = 1;
   q.count = 0;
   q.vertex_count = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0057e4c0. Every entry is drawn with the CURRENT primitive
+// [0x0072f418], not the one it was queued with; types 3 and 4 lose their
+// Gouraud shading (flat). FIX (A): the device calls go to Render3D.
+void flush_overlay() {
+  OverlayList& o = g_overlay;
+  DeviceState& s = g_state;
+  if (o.count == 0) return;
+  set_render_state(23, 8);  // ZFUNC ALWAYS
+  for (int32_t n = 0; n < o.count; ++n) {
+    const OverlayPoly& p = o.polys[n];
+    const D3DTexture* t = p.texture;
+    switch (p.type) {
+      case 0:
+        set_shade(2);
+        if (s.alpha_blend != 1) set_render_state(27, 1), s.alpha_blend = 1;
+        if (s.z_write != 0) set_render_state(14, 0), s.z_write = 0;
+        set_texture(t);
+        if (t) {
+          if (t->type == 4 || (p.verts[0].diffuse & 0xff000000u) == 0xff000000u) {
+            if (s.alpha_op != t->type) {
+              s.alpha_op = t->type;
+              set_texture_stage_state(4, t->type == 2 ? 2 : 4);
+            }
+          } else if (s.alpha_op != 4) {
+            s.alpha_op = 4;
+            set_texture_stage_state(4, 4);
+          }
+          set_address(t);
+        }
+        draw_primitive(s.primitive, p.verts, p.count);
+        if (s.alpha_blend != 0) set_render_state(27, 0), s.alpha_blend = 0;
+        if (s.z_write != 1) set_render_state(14, 1), s.z_write = 1;
+        break;
+      case 1:
+      case 2:
+      case 3:
+        set_texture(nullptr);
+        set_shade(1);
+        draw_primitive(s.primitive, p.verts, p.count);
+        break;
+      case 4:
+        set_shade(1);
+        set_texture(t);
+        if (s.alpha_op != t->type) {
+          s.alpha_op = t->type;
+          set_texture_stage_state(4, t->type == 2 ? 2 : 4);
+        }
+        set_address(t);
+        draw_primitive(s.primitive, p.verts, p.count);
+        break;
+      case 5:
+      case 6:
+        set_shade(2);
+        set_texture(t);
+        if (s.alpha_op != 2) s.alpha_op = 2, set_texture_stage_state(4, 2);
+        set_address(t);
+        draw_primitive(s.primitive, p.verts, p.count);
+        break;
+      default:
+        break;
+    }
+  }
+  set_render_state(23, 7);  // ZFUNC GREATEREQUAL
+  o.count = 0;
+}
+
+// Mech3.exe 1.2 @ 0x005798a0. The brightest channel is picked only when
+// [0x008026e0] is set; on ties the lower index wins.
+void set_point_light_color(const float rgb[3]) {
+  PointLight& l = g_light;
+  l.color[0] = rgb[0] * 255.0f;
+  l.color[1] = rgb[1] * 255.0f;
+  l.color[2] = rgb[2] * 255.0f;
+  if (g_display.fullscreen == 0) return;
+  auto below = [](float a, float b) { return !(a >= b); };  // x87 C0: a < b or unordered
+  if (below(l.color[0], l.color[1])) {
+    l.brightest = below(l.color[1], l.color[2]) ? (below(l.color[0], l.color[2]) ? 2 : 0) : 1;
+  } else {
+    l.brightest = below(l.color[0], l.color[2]) ? 2 : 0;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0057bcf0. FIX (A): FOGCOLOR goes to Render3D.
+void send_fog_color() {
+  const float* c = zrndr::device_fog().sent;
+  set_render_state(34, static_cast<int32_t>(rgb_bits(round_byte(c[0]), round_byte(c[1]), round_byte(c[2]))));
+}
+
+// Mech3.exe 1.2 @ 0x0057a740. FIX (A): BeginScene and the HRESULT report go.
+int32_t begin_scene() {
+  if (g_render) g_render->begin_scene();
+  Display& d = g_display;
+  if (d.dirty & 1) {
+    if (d.fill_mode == 0) set_render_state(8, 3);
+    else if (d.fill_mode == 1) set_render_state(8, 2);
+    d.dirty &= ~1u;
+  }
+  if (d.dirty & 2) {
+    set_render_state(26, d.dither);
+    d.dirty &= ~2u;
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0057a7e0. FIX (A): no lost surfaces to restore.
+int32_t end_scene() {
+  if (g_render) g_render->end_scene();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x005777f0 (ECX the rect, EDX the surface record). Colour
+// fill with the packed clear colour when on, depth fill 0 (reversed depth) on
+// the back buffer when there is a Z buffer. FIX (A): one Render3D::clear;
+// only the back buffer exists there.
+int32_t frame_clear(bool back_buffer) {
+  const Display& d = g_display;
+  if (!back_buffer || !g_render || !(d.clear_on || d.zbuffer)) return 0;
+  const uint32_t c = unpack(clear_color(), 0);
+  g_render->clear(d.clear_on != 0, static_cast<uint8_t>(c >> 16), static_cast<uint8_t>(c >> 8),
+                  static_cast<uint8_t>(c));
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0057a850. The original optionally blits [0x008027e8]
+// into the back buffer first, then flips, waiting when asked. FIX (A):
+// Render3D::present; the blit is not ported (docs/drafts/drawtable.md).
+int32_t present(bool) {
+  if (!g_display.primary) return 0x400;
+  if (g_render) g_render->present();
+  return 0;
+}
+
+// The surface 0x0057b130 fills (0x0057b6c0, 0x0057b7b0), decoded to RGBA8.
+void texture_rgba(const zimg::Texture& image, int32_t alpha, uint8_t* rgba) {
+  const ChannelMasks& m = g_masks;
+  const auto* px = static_cast<const uint16_t*>(image.pixels);
+  const uint8_t* plane = image.alpha;
+  const int32_t n = image.width * image.height;
+  for (int32_t i = 0; i < n; ++i) {
+    const uint32_t p = px[i];
+    uint8_t* o = rgba + 4 * i;
+    if (alpha == 0) {  // the display format, copied
+      o[0] = expand(p, m.r), o[1] = expand(p, m.g), o[2] = expand(p, m.b), o[3] = 0xff;
+      continue;
+    }
+    uint32_t q;
+    uint32_t ra, ga, ba, aa;
+    if (!plane || g_display.alpha_4444 == 0) {
+      // ARGB1555: green's low bit lands in blue's top bit (a quirk of the >> 1).
+      q = (p & m.b) | ((p & (m.r | m.g)) >> 1) | (plane ? (plane[i] & 0x80u) << 8 : p != 0 ? 0x8000u : 0);
+      ra = 0x7c00, ga = 0x3e0, ba = 0x1f, aa = 0x8000;
+    } else {
+      const bool g6 = pixel_format().g_bits == 6;
+      const uint32_t rm = g6 ? 0xf000 : 0x7800, gm = g6 ? 0x780 : 0x3c0;
+      q = ((p & m.b) >> 1) | ((gm & p) >> (g6 ? 3 : 2)) | ((rm & p) >> (g6 ? 4 : 3)) | (plane[i] & 0xf0u) << 8;
+      ra = 0xf00, ga = 0xf0, ba = 0xf, aa = 0xf000;
+    }
+    q &= 0xffff;
+    o[0] = expand(q, ra), o[1] = expand(q, ga), o[2] = expand(q, ba), o[3] = expand(q, aa);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0057b130 (ECX name, EDX image, stack alpha, clamp u, v).
+// The device checks stay, with a modern device's caps by default. The type
+// is 4 whenever the image has an alpha plane, also when the surface had to be
+// ARGB1555 (no 4444 support). FIX (A): one RGBA8 Render3D texture instead
+// of the system and video surfaces, the Load and the pixel format globals
+// (0x00579430).
+D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t alpha, int32_t clamp_u,
+                           int32_t clamp_v) {
+  const Display& d = g_display;
+  const int32_t w = image.width, h = image.height;
+  char msg[160];
+  auto fail = [&](int line, const char* format) {
+    std::snprintf(msg, sizeof msg, format, name, static_cast<int>(w), static_cast<int>(h));
+    zerr::report(0x200, kFile, line, msg);
+    return g_default;
+  };
+  if (static_cast<uint32_t>(w) > d.max_width || static_cast<uint32_t>(h) > d.max_height)
+    return fail(0x257, "Texture [%s] dimensions [%d x %d] are too large.  Using default texture.");
+  const bool non_square = w != h;
+  if ((d.caps & 2) && (!is_pow2(w) || (non_square && !is_pow2(h))))
+    return fail(0x269, "Texture [%s] dimensions [%d x %d] are not power of 2.Using default texture.");
+  if (non_square && (w > 8 * h || h > 8 * w))
+    return fail(0x278, "Texture [%s] dimensions [%d x %d] have bad aspect ratio.Using default texture.");
+  // caps 0x20 (square only) would resize the image here (0x00519820); no
+  // modern device asks for it, so that path is not ported.
+  if (image.palette) {
+    std::snprintf(msg, sizeof msg, "Texture [%s] Palettes not supported  Using default texture.", name);
+    zerr::report(0x200, kFile, 0x28e, msg);
+    return g_default;
+  }
+  const int32_t type = alpha == 0 ? 1 : image.alpha ? 4 : 5;
+  std::vector<uint8_t> rgba(static_cast<size_t>(w) * h * 4);
+  texture_rgba(image, alpha, rgba.data());
+  auto* t = new D3DTexture;
+  t->handle = g_render ? g_render->create_texture(w, h, rgba.data(), static_cast<uint8_t>(type)) : -1;
+  t->type = type;
+  t->address_u = clamp_u ? 3 : 1;
+  t->address_v = clamp_v ? 3 : 1;
+  return t;
 }
 
 }  // namespace zvid

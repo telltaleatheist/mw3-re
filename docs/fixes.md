@@ -28,6 +28,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Multiplayer rules check, 0x46fc08 | Host ends the game when its locked rules block changes | (trap) | To be left out when the network code is ported |
 | Matrix multiply mode 2, 0x51fee0 | Mode 2 (3x3 only, reached through 0x4ed280 from 0x5047f5 and 0x504979) copies leftover stack bytes into the translation | (bug) undefined values in a node's matrix | Translation 0 (`zmth::multiply`, render-matrix.md) |
 | `rand()` | MSVCRT's | (A) every C library's `rand()` differs | `crt::msvc_rand`, MSVCRT's exact sequence |
+| Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
 
 Notes on the fixes:
 
@@ -72,6 +73,16 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   NOPs the divides (`protection.md`). FIX (B): do not port the measurement.
 - Software 16-bit line, 0x563b80: no clipping; the NoCD exe clamps to
   1024x768. FIX (B): clip to the real surface.
+
+- Point-lit textured vertices, 0x57d160 / 0x57d690: the colour rounding adds
+  and subtracts 1.5 x 2^52 (a double trick), which yields 0 at the 24-bit
+  precision the game runs at, so textured vertices lit by a coloured point
+  light come out black (emulator; render-drawtable.md). Check in play
+  (explosions or muzzle flashes near textured surfaces); then likely a
+  FIX (bug): round properly.
+- Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
+  then neither queued nor drawn, so fake shadows vanish there (emulator; check
+  in play).
 
 ## Candidates for Owen
 

@@ -31,6 +31,10 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   stack is the model-view matrix built by 0x51fb30, so vertices go straight
   into camera space. Matches at 64 bits within 1e-6; at 24 bits 0.6% of cases
   drift beyond that (rounding only).
+- The Direct3D draw table (0x57bf80, 0x57c700, 0x57ce20, 0x57d160, 0x57d690),
+  the state cache, texture records (0x57b130), frame calls and the overlay
+  flush, onto platform::Render3D: `zvideo/zvid_ddd3d`, `render-drawtable.md`
+  (corrections to section 4's overlay types there).
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
