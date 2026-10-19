@@ -213,6 +213,17 @@ From the world files (gamez.md).
 - **The engine's error messages go nowhere.** The GameZ error reporter
   (0x49bfd0) is an empty stub in the shipped game, so every engine error is
   silent; a broken node is just marked dead and loading carries on.
+- **Field of view is capped at 80 degrees.** The camera setter clamps each
+  view angle to 1.396 radians (0x4f3b90), whatever the data asks for.
+- **Sound in the world files was never finished.** Reading a sound node logs
+  `Reading sound node data: Must complete software.`, and none of the six
+  worlds has one; the animation loader creates the sound nodes at mission
+  load instead (anim.md).
+- **Fog colour changes under 1% are ignored.** The renderer keeps its fog
+  colour unless some channel moves by at least 0.01 (0x567eb0), and clamps
+  each to 0..1 first, writing the clamp back into the world.
+- **Each world file has exactly one light node.** The other lights are made
+  by the animation loader at mission load (anim.md).
 - **Worlds are loaded by a script.** Mission load runs a script whose
   `GameZReadZBDFile` command reads the world; the matching
   `GameZWriteZBDFile` survives inside a disabled `ifdef COMPILE` block, a
@@ -231,6 +242,32 @@ From the world files (gamez.md).
 - **Modding catch:** if any loose script next to the exe has a different file
   time from the one stored in `interp.zbd`, the game rejects the whole archive,
   so a modder has to extract all 44 scripts.
+
+## Mission animations
+
+From the animation files (anim.md).
+
+- **Copies of the same effect find their own object in order.** When several
+  animations in a row are meant for objects with the same name (up to 58 in
+  a row on c1), the game hooks the first to the first such object, the
+  second to the second, and so on. If there are more animations than
+  objects, it wraps round to the first.
+- **The last animation in a mission cannot be a prerequisite.** When one
+  animation waits for another, the search stops one short of the end of the
+  list, so the very last animation is never found (0x50aaa3). No shipped
+  mission depends on this.
+- **One missing object wipes all of an animation's prerequisites.** If an
+  animation's "wait until this object is active" condition names an object
+  that is not in the level, the game drops every condition of that
+  animation, not just the broken one, and the animation can then fire
+  without waiting.
+- **The file remembers where the developers' PC kept things in memory.**
+  Every anim.zbd still holds the memory addresses from the machine that
+  built it (mech3ax uses them to tell the versions apart). The game throws
+  them away and looks every object up again by name.
+- **The list of source files is read and ignored.** Each anim.zbd starts with
+  the names and dates of the text files it was built from; the game reads
+  past them without looking.
 
 ## Data files
 

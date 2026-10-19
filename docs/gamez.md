@@ -261,6 +261,23 @@ The model header (0x5c) is mech3ax `ModelMwC`, as in `mechlib.md`.
 
 ## 4. Nodes: 0x4ff200 (`cls_zbd.c`)
 
+Ported: `zcls::read_nodes` / `read_node` / `read_node_list`
+(`src/gamez/zclass/cls_zbd.*`) on the node pool (`cls_node`), the class lists
+(`list`), the camera, display and world setters (`camera`, `display`,
+`cls_world`) and the fog they push (`zmodel/gmod_fog`, `zrender/zrndr_fog`,
+down to the software renderer's fog ramp 0x56c170). Identical on all six
+worlds: every slot (pointers as indices), every class's data, all 16 lists
+with each item's place in the item pool, the fog globals, the clear colour
+and the error reports; 34,068 live nodes. The worlds hold only classes 0-6
+and 9 (one camera, world, window and light each; t1 two displays), so the
+sound-node path and the unknown-class error are ported but never run. Not
+ported: 0x4f18a0 (the world's pending area entries; always none when read,
+a hook for now) and the Direct3D device's fog call (a hook, FIX (A)).
+
+Port differences: a free (class 0) node's data pointer is null in the port;
+the exe leaves the file's stale value there and never reads it. 0x5380c0 has
+no bound check; the port returns null past the model pool.
+
 The node pool: 0xd4-byte slots (the 0xd0 `Node` of `structs.md` plus a u32
 at +0xd0) in blocks of 2500 (0x5ea830). Block pointers 0x60bf38, block count
 0x60bf30, capacity 0x60bf34, live count 0x60bf3c, free head 0x5ea834. Slot

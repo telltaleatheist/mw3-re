@@ -1,7 +1,9 @@
 """The ported world-file readers against the original x86, on every mission's
-gamez.zbd (docs/gamez.md). So far: the texture directory (0x518160), the
+gamez.zbd (docs/gamez.md): the texture directory (0x518160), the
 materials (0x5363d0, with the display's colour packing 0x5792c0/0x5793c0 set
-to 5-6-5 and 5-5-5) and the models (0x538e30, 0x538a70).
+to 5-6-5 and 5-5-5), the models (0x538e30, 0x538a70) and the node pool
+(0x4ff200, with the class lists and the fog the world node pushes).
+A path as the first argument saves a node mismatch's two dumps there.
 
     cmake --build build && .venv/bin/python tests/differential/test_gamez.py
 """
@@ -22,6 +24,12 @@ probe.probe_pack_rgb.argtypes = [ctypes.c_int] * 3 + [ctypes.c_float] * 3
 PACK_RGB = 0x5793c0
 probe.probe_models.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ctypes.c_void_p, ctypes.c_int]
 MODELS, POOL, POOL_SIZE, POOL_COUNT, POOL_FREE = 0x538e30, 0x7402e4, 0x7402e0, 0x7402e8, 0x7402ec
+probe.probe_nodes.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ctypes.c_long, ctypes.c_int,
+                              ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+NODES, ZERR = 0x4ff200, 0x49bfd0
+NODE_BLOCKS, NODE_NBLOCKS, NODE_CAP, NODE_LIVE, NODE_FREE = 0x60bf38, 0x60bf30, 0x60bf34, 0x60bf3c, 0x5ea834
+LIST_HEADS, LIST_TAILS, ITEM_CHUNKS, ITEM_NCHUNKS, ITEM_FREE = 0x5ea6d0, 0x5ea710, 0x60bf18, 0x60bf14, 0x60bf0c
+FOG, FOG_COLOR, CLEAR_COLOR, SOFT_FORMAT = 0x74a22c, 0x800548, 0x802794, 0x74a740
 probe.probe_texture_directory.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_int,
                                           ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 ZBD = ROOT / 'game' / 'mw3-1.2' / 'zbd'
@@ -33,6 +41,7 @@ IAT = {'malloc': 0x5bb664, 'calloc': 0x5bb60c, 'realloc': 0x5bb610, 'free': 0x5b
 BIG = 0x40000000
 BLOCKS, CAPACITY, COUNT_M, FREE_HEAD, USED_HEAD = 0x63fbc8, 0x63fbc4, 0x63fbcc, 0x5edd54, 0x5edd58
 HANDLE = 0x44
+SCRATCH = Path(sys.argv[1]) if len(sys.argv) > 1 else None  # where to dump a mismatch
 
 
 class Emulated:
@@ -181,6 +190,127 @@ class Emulated:
                     out.append(r(col, c * 12))
         return b''.join(out)
 
+    def nodes(self, data, moff, mdl_off, node_off, size, free_head):
+        cpu, r, i32 = self.cpu, self.cpu.read, self.i32
+        self.models(data, moff, mdl_off)
+        for a in (NODE_BLOCKS, NODE_NBLOCKS, NODE_CAP, NODE_LIVE, CLEAR_COLOR):
+            cpu.u32(a, 0)
+        cpu.u32(NODE_FREE, free_head & 0xffffffff)
+        cpu.write(0x60be4c, bytes(0x60bf1c - 0x60be4c))
+        cpu.write(FOG, bytes(0x38))
+        cpu.write(FOG_COLOR, bytes(0xa0))
+        cpu.write(SOFT_FORMAT, struct.pack('<IIIiii', 0xf800, 0x07e0, 0, 8, 3, 3))
+        reports = []
+        if not getattr(self, 'zerr_stubbed', False):
+            cpu.stub_function(ZERR, lambda c: self.reports.append((c.arg(0), c.arg(2))))
+            self.zerr_stubbed = True
+        self.reports = reports
+        self.data, self.pos = data, node_off
+        cpu.call(NODES, ecx=size, edx=HANDLE)
+        res = struct.unpack('<i', struct.pack('<I', cpu.uc.reg_read(UC_X86_REG_EAX)))[0]
+        bs, nblocks, cap = i32(0x5ea830), i32(NODE_NBLOCKS), i32(NODE_CAP)
+        blocks = [i32(i32(NODE_BLOCKS) + 4 * b) & 0xffffffff for b in range(nblocks)]
+        pool = i32(POOL) & 0xffffffff
+
+        def index(ptr):
+            if ptr == 0:
+                return -1
+            for b, base in enumerate(blocks):
+                if base <= ptr < base + bs * 0xd4:
+                    return b * bs + (ptr - base) // 0xd4
+            return -2
+
+        def slot(i):
+            return blocks[i // bs] + (i % bs) * 0xd4
+
+        out = [struct.pack('<5i', res, cap, i32(NODE_LIVE), i32(NODE_FREE), nblocks)]
+
+        def raw(addr, n, ptrs):
+            b = bytearray(r(addr, n))
+            for o in ptrs:
+                b[o:o + 4] = bytes(4)
+            out.append(bytes(b))
+
+        def nodes(ptr, count):
+            out.append(struct.pack('<i', ptr != 0))
+            if ptr:
+                out.append(b''.join(struct.pack('<i', index(v)) for v in struct.unpack(f'<{count}I', r(ptr, 4 * count))))
+
+        for i in range(cap):
+            a = slot(i)
+            h = r(a, 0xd4)
+            raw(a, 0xd0, (0x38, 0x3c, 0x48, 0x58, 0x60))
+            out.append(h[0xd0:0xd4])
+            model, action = struct.unpack_from('<II', h, 0x3c)[0], struct.unpack_from('<I', h, 0x48)[0]
+            out.append(struct.pack('<ii', -1 if model == 0 else (model - pool) // 0x60, action != 0))
+            if i >= size:
+                continue
+            cls, d, np, pp, nc, cp = struct.unpack_from('<iIiIiI', h, 0x34)[0:2] + struct.unpack_from('<iIiI', h, 0x54)
+            nodes(pp, np)
+            nodes(cp, nc)
+            if cls == 0 or not d:
+                continue
+            if cls == 1:
+                raw(d, 0x1e8, (0, 4, 8, 0xc))
+                nodes(d, 4)
+            elif cls == 2:
+                raw(d, 0xbc, (0x90, 0xa4, 0xa8, 0xb0, 0xb4))
+                for cnt, lp, dp in ((0xa0, 0xa4, 0xa8), (0xac, 0xb0, 0xb4)):
+                    n, lst, dat = i32(d + cnt), i32(d + lp) & 0xffffffff, i32(d + dp) & 0xffffffff
+                    nodes(lst, n)
+                    for k in range(n if lst else 0):
+                        node = i32(lst + 4 * k) & 0xffffffff
+                        out.append(struct.pack('<i', i32(dat + 4 * k) == i32(node + 0x38)))
+                rows, cols, rp = i32(d + 0x8c), i32(d + 0x88), i32(d + 0x90) & 0xffffffff
+                for z in range(rows):
+                    row = i32(rp + 4 * z) & 0xffffffff
+                    for x in range(cols):
+                        pa = row + 0x48 * x
+                        raw(pa, 0x48, (0x3c,))
+                        cnt = struct.unpack('<h', r(pa + 0x3a, 2))[0]
+                        nodes(i32(pa + 0x3c) & 0xffffffff, cnt)
+            elif cls in (3, 4, 5, 6):
+                out.append(r(d, {3: 0xf8, 4: 0x1c, 5: 0x90, 6: 0x50}[cls]))
+            elif cls == 9:
+                raw(d, 0xd0, (0xcc,))
+                nodes(i32(d + 0xcc) & 0xffffffff, i32(d + 0xc8))
+            elif cls == 10:
+                raw(d, 0x94, (0x90,))
+                nodes(i32(d + 0x90) & 0xffffffff, i32(d + 0x8c))
+        chunk_cnt, chunks_arr = i32(ITEM_NCHUNKS), i32(ITEM_CHUNKS) & 0xffffffff
+        chunks = [i32(chunks_arr + 4 * c) & 0xffffffff for c in range(chunk_cnt)]
+        cs = i32(0x5ea750)
+
+        def item(ptr):
+            for c, base in enumerate(chunks):
+                if ptr and base <= ptr < base + cs * 0x10:
+                    return struct.pack('<ii', c, (ptr - base) // 0x10)
+            return struct.pack('<ii', -1, -1)
+
+        for li in range(16):
+            head = i32(LIST_HEADS + 4 * li) & 0xffffffff
+            tail = i32(LIST_TAILS + 4 * li) & 0xffffffff
+            items, p = [], i32(head) & 0xffffffff
+            while p:
+                items.append(p)
+                p = i32(p + 8) & 0xffffffff
+            out.append(struct.pack('<i', len(items)))
+            for p in items:
+                node, prev, _, rem = struct.unpack('<IIIi', r(p, 16))
+                out.append(struct.pack('<i', index(node)) + item(p) + struct.pack('<i', rem) + item(prev))
+            out.append(item(i32(tail) & 0xffffffff) + struct.pack('<i', i32(head + 8)))
+        free, p = 0, i32(ITEM_FREE) & 0xffffffff
+        while p:
+            free += 1
+            p = i32(p + 8) & 0xffffffff
+        out.append(struct.pack('<i', free) + item(i32(ITEM_FREE) & 0xffffffff) + struct.pack('<i', chunk_cnt))
+        out.append(r(FOG, 0x38))
+        fc = r(FOG_COLOR, 0xa0)
+        out.append(fc[:0x1a] + fc[0x1c:0xa0])
+        out.append(r(CLEAR_COLOR, 4))
+        out.append(struct.pack('<i', len(reports)) + b''.join(struct.pack('<ii', *x) for x in reports))
+        return b''.join(out)
+
 
 def check_pack_rgb(emu):
     import random
@@ -205,7 +335,7 @@ def main():
     emu = Emulated()
     check_pack_rgb(emu)
     buf = ctypes.create_string_buffer(64 << 20)
-    total = mtotal = mdltotal = 0
+    total = mtotal = mdltotal = ntotal = 0
     for w in WORLDS:
         path = ZBD / w / 'gamez.zbd'
         data = path.read_bytes()
@@ -233,11 +363,22 @@ def main():
             at = next((i for i in range(min(n, len(want))) if got[i] != want[i]), None)
             raise SystemExit(f'{w} models: {len(want)} vs {n} bytes, first difference at {at}')
         mdls = struct.unpack_from('<i', data, mdl_off + 4)[0]
+        size, free_head, node_off = struct.unpack_from('<iii', data, 0x18)
+        want = emu.nodes(data, moff, mdl_off, node_off, size, free_head)
+        n = probe.probe_nodes(str(path).encode(), moff, mdl_off, node_off, size, free_head, buf, len(buf))
+        got = buf.raw[:max(n, 0)]
+        if n < 0 or got != want:
+            at = next((i for i in range(min(n, len(want))) if got[i] != want[i]), None)
+            open(SCRATCH / f'{w}_nodes_want.bin', 'wb').write(want) if SCRATCH else None
+            open(SCRATCH / f'{w}_nodes_got.bin', 'wb').write(got) if SCRATCH else None
+            raise SystemExit(f'{w} nodes: {len(want)} vs {n} bytes, first difference at {at}')
         mdltotal += mdls
         mtotal += mats
-        print(f'{w}: {count} textures, {mats} materials and {mdls} models identical')
-    print(f'ok: {total} texture directory entries, {mtotal} materials and {mdltotal} models '
-          f'across {len(WORLDS)} worlds')
+        live = struct.unpack_from('<i', want, 8)[0]
+        ntotal += live
+        print(f'{w}: {count} textures, {mats} materials, {mdls} models and {live} live nodes identical')
+    print(f'ok: {total} texture directory entries, {mtotal} materials, {mdltotal} models and '
+          f'{ntotal} live nodes (lists and fog included) across {len(WORLDS)} worlds')
 
 
 if __name__ == '__main__':

@@ -600,3 +600,167 @@ int probe_models(const char* path, long moff, long off, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+#include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_zbd.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zmodel/gmod_fog.h"
+#include "gamez/zrender/zrndr_fog.h"
+
+namespace {
+std::vector<int32_t> g_reports;
+
+void record_report(int level, const char*, int line, const char*) {
+  g_reports.push_back(level), g_reports.push_back(line);
+}
+
+int32_t node_index(const zcls::Node* n) {
+  if (!n) return -1;
+  const zcls::NodePool& p = zcls::nodes();
+  for (size_t b = 0; b < p.blocks.size(); ++b) {
+    const zcls::Node* base = p.blocks[b].get();
+    if (n >= base && n < base + p.block_size) return static_cast<int32_t>(b * p.block_size + (n - base));
+  }
+  return -2;
+}
+
+void put_i32(std::vector<uint8_t>& b, int32_t v) { put_bytes(b, &v, 4); }
+
+void put_nodes(std::vector<uint8_t>& b, zcls::Node* const* list, int32_t count) {
+  put_i32(b, list != nullptr);
+  if (list)
+    for (int32_t i = 0; i < count; ++i) put_i32(b, node_index(list[i]));
+}
+
+// Bytes as read with the given 4-byte pointer fields zeroed.
+void put_raw(std::vector<uint8_t>& b, const uint8_t* raw, size_t n, std::initializer_list<int> ptrs) {
+  std::vector<uint8_t> copy(raw, raw + n);
+  for (int off : ptrs) std::memset(copy.data() + off, 0, 4);
+  put_bytes(b, copy.data(), n);
+}
+
+void put_class_data(std::vector<uint8_t>& b, zcls::Node* n) {
+  using namespace zcls;
+  switch (n->cls()) {
+    case 1: {
+      auto* c = static_cast<Camera*>(n->data);
+      put_raw(b, c->raw, sizeof c->raw, {0, 4, 8, 0xc});
+      put_nodes(b, c->nodes, 4);
+      break;
+    }
+    case 2: {
+      auto* w = static_cast<World*>(n->data);
+      put_raw(b, w->raw, sizeof w->raw, {0x90, 0xa4, 0xa8, 0xb0, 0xb4});
+      const int32_t lights = w->get<int32_t>(0xa0), sounds = w->get<int32_t>(0xac);
+      put_nodes(b, w->lights, lights);
+      for (int32_t i = 0; w->lights && i < lights; ++i) put_i32(b, w->light_data[i] == w->lights[i]->data);
+      put_nodes(b, w->sounds, sounds);
+      for (int32_t i = 0; w->sounds && i < sounds; ++i) put_i32(b, w->sound_data[i] == w->sounds[i]->data);
+      for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z)
+        for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+          const Partition& p = w->rows[z][x];
+          put_raw(b, p.raw, sizeof p.raw, {0x3c});
+          put_nodes(b, p.nodes, p.get<int16_t>(0x3a));
+        }
+      break;
+    }
+    case 3: put_bytes(b, static_cast<Window*>(n->data)->raw, 0xf8); break;
+    case 4: put_bytes(b, static_cast<Display*>(n->data)->raw, 0x1c); break;
+    case 5: put_bytes(b, static_cast<Object3d*>(n->data)->raw, 0x90); break;
+    case 6: put_bytes(b, static_cast<Lod*>(n->data)->raw, 0x50); break;
+    case 9: {
+      auto* l = static_cast<Light*>(n->data);
+      put_raw(b, l->raw, sizeof l->raw, {0xcc});
+      put_nodes(b, l->nodes, l->get<int32_t>(0xc8));
+      break;
+    }
+    case 10: {
+      auto* s = static_cast<Sound*>(n->data);
+      put_raw(b, s->raw, sizeof s->raw, {0x90});
+      put_nodes(b, s->nodes, s->get<int32_t>(0x8c));
+      break;
+    }
+    default: break;
+  }
+}
+
+void put_item(std::vector<uint8_t>& b, const zcls::ListItem* item) {
+  const zcls::Lists& l = zcls::lists();
+  int32_t chunk = -1, slot = -1;
+  for (size_t c = 0; item && c < l.chunks.size(); ++c) {
+    const zcls::ListItem* base = l.chunks[c].get();
+    if (item >= base && item < base + l.chunk_size) chunk = static_cast<int32_t>(c), slot = static_cast<int32_t>(item - base);
+  }
+  put_i32(b, chunk), put_i32(b, slot);
+}
+}  // namespace
+
+extern "C" {
+
+// The node pool after reading one world's textures-to-nodes (test_gamez.py).
+int probe_nodes(const char* path, long moff, long mdl_off, long node_off, int size, int free_head,
+                uint8_t* out, int cap) {
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  zvid::set_pixel_format(5, 6, 5);
+  zmod::materials() = zmod::MaterialTable{};
+  std::fseek(f, moff, SEEK_SET);
+  zmod::read_materials(f);
+  zmod::models() = zmod::ModelPool{};
+  std::fseek(f, mdl_off, SEEK_SET);
+  zmod::read_models(f);
+  zcls::nodes() = zcls::NodePool{};
+  zcls::nodes().free_head = free_head;
+  zcls::lists() = zcls::Lists{};
+  zmod::fog() = zmod::Fog{};
+  zrndr::fog_color() = zrndr::FogColor{};
+  zrndr::software_format() = zrndr::SoftwareFormat{0xf800, 0x07e0, 8, 3, 3};
+  zvid::clear_color() = 0;
+  g_reports.clear();
+  zerr::set_sink(record_report);
+  std::fseek(f, node_off, SEEK_SET);
+  const int32_t r = zcls::read_nodes(size, f);
+  std::fclose(f);
+  zerr::set_sink(nullptr);
+
+  const zcls::NodePool& p = zcls::nodes();
+  std::vector<uint8_t> b;
+  put_i32(b, r), put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
+  put_i32(b, static_cast<int32_t>(p.blocks.size()));
+  for (int32_t i = 0; i < p.capacity; ++i) {
+    zcls::Node* n = zcls::node_at(i);
+    put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x48, 0x58, 0x60});
+    put_bytes(b, &n->link, 4);
+    put_i32(b, n->model ? static_cast<int32_t>(n->model - zmod::models().slots.data()) : -1);
+    put_i32(b, n->action != nullptr);
+    if (i >= size) continue;
+    put_nodes(b, n->parents, n->parent_count());
+    put_nodes(b, n->children, n->child_count());
+    if (n->data) put_class_data(b, n);
+  }
+  const zcls::Lists& l = zcls::lists();
+  for (const zcls::List& list : l.list) {
+    int32_t count = 0;
+    for (zcls::ListItem* i = list.head; i; i = i->next) ++count;
+    put_i32(b, count);
+    for (zcls::ListItem* i = list.head; i; i = i->next) {
+      put_i32(b, node_index(i->node)), put_item(b, i), put_i32(b, i->removable);
+      put_item(b, i->prev);
+    }
+    put_item(b, list.tail), put_i32(b, list.needs_purge);
+  }
+  int32_t free_count = 0;
+  for (zcls::ListItem* i = l.free; i; i = i->next) ++free_count;
+  put_i32(b, free_count), put_item(b, l.free), put_i32(b, static_cast<int32_t>(l.chunks.size()));
+  put_bytes(b, &zmod::fog(), sizeof(zmod::Fog));
+  const zrndr::FogColor& fc = zrndr::fog_color();
+  put_bytes(b, fc.rgb, 12), put_bytes(b, &fc.r, 4), put_bytes(b, &fc.g, 4), put_bytes(b, &fc.b, 4);
+  put_bytes(b, &fc.packed, 2), put_bytes(b, &fc.doubled, 4), put_bytes(b, fc.ramp, 128);
+  put_bytes(b, &zvid::clear_color(), 4);
+  put_i32(b, static_cast<int32_t>(g_reports.size() / 2));
+  for (int32_t v : g_reports) put_i32(b, v);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"

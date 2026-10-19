@@ -18,4 +18,8 @@ void set_pixel_format(int r_bits, int g_bits, int b_bits);  // 0x005792c0
 uint16_t pack_rgb(const float rgb[3]);                      // 0x005793c0
 uint16_t pack_bytes(uint8_t r, uint8_t g, uint8_t b);       // 0x00579370
 
+// Between zvid_dd.c and zvid_init.c.
+uint32_t& clear_color();                                    // 0x00802794
+void set_clear_color(uint32_t color);                       // 0x00579250
+
 }  // namespace zvid

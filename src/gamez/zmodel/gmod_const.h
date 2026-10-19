@@ -45,6 +45,7 @@ struct ModelPool {
 };
 ModelPool& models();
 
+Model* model_at(int32_t index);               // 0x005380c0
 int read_models(std::FILE* f);                // 0x00538e30
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 

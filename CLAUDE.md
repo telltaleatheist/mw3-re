@@ -165,18 +165,22 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
       identical on all 442 materials and 770 models.
 - [ ] Mechlib: the node tree (read_tree/read_node). The zClass core it needs
-      is mapped and emulator-checked (`docs/zclass-world.md`): port pool, lists,
-      tree helpers, object3d, links, then the readers; start from
-      `tests/differential/explore/`.
+      is mapped and emulator-checked (`docs/zclass-world.md`); the lists and
+      the pool's index helpers are ported (`zclass/list`, `cls_node`). Next
+      the pool's alloc/grow, tree helpers, object3d, links, then the readers;
+      start from `tests/differential/explore/`.
 - [x] Mission worlds: mapped (`docs/gamez.md`), walk scripts in
       `tests/differential/explore/gamez_*.py`.
-- [ ] Mission worlds: texture directory, materials and models ported
-      (`zimg_texture`, `zmodel/gmod_matl`, `zmodel/gmod_const`,
-      `zvideo/zvid_format`; all identical); next node data per class, node
-      pool, top-level reader, as `docs/gamez.md`.
+- [ ] Mission worlds: texture directory, materials, models and nodes ported
+      (`zimg_texture`, `zmodel/gmod_*`, `zclass/cls_zbd` and its helpers;
+      all identical on the six worlds); next the top-level reader
+      (0x4ff6a0, 0x4ff520) with bad-header cases, as `docs/gamez.md`.
 - [x] Mission scripts: mapped (`docs/interp.md`), decoder in
       `tests/differential/explore/interp_*.py`.
+- [ ] Mission animations: port the anim.zbd read phase (`docs/anim.md`,
+      porting order step 1), checked with `explore/anim_walk.py --emu`.
 - [ ] Mission scripts: port the archive, line reader, macros, preprocessor and
       dispatcher table (order in `docs/interp.md`), checked by a command trace.
-- [ ] Assets: trace the remaining formats in `docs/assets.md` ( interp scripts, gamez.zbd, anim.zbd), one per sitting,
+- [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,
+      `gamez.md`, `anim.md`); trace what remains in `docs/assets.md`, one per sitting,
       cross-checked against mech3ax.

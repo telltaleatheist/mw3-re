@@ -14,7 +14,7 @@ container in `zreader.md` (files back to back, table at the end), ported in
 | `mechlib.zbd` | zArchive | `version` 27, `format` 1, `materials`, 57 `.flt` model trees (770 models) | materials and models ported; node tree next (`mechlib.md`) |
 | `interp.zbd` | own header (magic 0x08971119, version 7) | 44 world-build scripts, run once at mission load | mapped (`interp.md`), not ported |
 | `c1`..`c4`, `c4b`, `t1`: `gamez.zbd` | own (signature 0x02971222, version 27) | the mission world: texture directory, materials, models, nodes, dumped as in-memory pools | mapped (`gamez.md`), not ported |
-| `c*/anim.zbd` | own | mission animations (mech3ax `anim`) | not traced |
+| `c*/anim.zbd` | own | mission animations (mech3ax `anim`) | traced (`anim.md`) |
 
 The loose `.wav` files in `zbd/` (`mech_engine_np.wav`, soil footsteps) are
 plain RIFF WAV too.

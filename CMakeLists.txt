@@ -22,15 +22,23 @@ add_library(mw3core STATIC
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
   src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zclass/camera.cpp
   src/gamez/zclass/cls_mechlib.cpp
+  src/gamez/zclass/cls_node.cpp
+  src/gamez/zclass/cls_world.cpp
+  src/gamez/zclass/cls_zbd.cpp
+  src/gamez/zclass/display.cpp
+  src/gamez/zclass/list.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmodel/gmod_const.cpp
+  src/gamez/zmodel/gmod_fog.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
+  src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/mech3/mech.cpp
   src/mech3/music.cpp

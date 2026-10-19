@@ -29,6 +29,12 @@ uint32_t Model::count(int off) const {
   return v;
 }
 
+// Mech3.exe 1.2 @ 0x005380c0. The exe has no upper bound; past the pool is null here.
+Model* model_at(int32_t index) {
+  if (index < 0 || index >= static_cast<int32_t>(g_pool.slots.size())) return nullptr;
+  return &g_pool.slots[index];
+}
+
 // Mech3.exe 1.2 @ 0x00538a70. Every read error returns -1, which the caller
 // ignores.
 int read_model_data(std::FILE* f, Model& m) {

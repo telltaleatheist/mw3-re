@@ -44,4 +44,12 @@ uint16_t pack_bytes(uint8_t r, uint8_t g, uint8_t b) {
   return static_cast<uint16_t>(v);
 }
 
+uint32_t& clear_color() {
+  static uint32_t color = 0;
+  return color;
+}
+
+// Mech3.exe 1.2 @ 0x00579250
+void set_clear_color(uint32_t color) { clear_color() = color; }
+
 }  // namespace zvid
