@@ -24,13 +24,14 @@ struct Image {
 struct Batch {
   int image = -1;                // index into Scene::images, -1 untextured
   std::vector<Vertex> vertices;  // triangle list
+  bool marker = false;           // under an in/out-of-bounds node, hidden by default
 };
 
 struct Scene {
   std::vector<Image> images;
   std::vector<Batch> batches;
   float min[3] = {0, 0, 0}, max[3] = {0, 0, 0};
-  int nodes = 0, objects = 0, polygons = 0, triangles = 0, missing_textures = 0;
+  int nodes = 0, objects = 0, markers = 0, polygons = 0, triangles = 0, missing_textures = 0;
 };
 
 // Reads <zbd_dir>/<mission>/gamez.zbd and the world textures from

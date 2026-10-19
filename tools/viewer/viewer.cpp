@@ -5,7 +5,8 @@
 //           [--pos x y z] [--look yaw pitch]
 //
 // Controls: right mouse drag to look, WASD to move, Q/E down/up, Shift fast,
-// C toggles vertex colours, P prints the camera, Esc quits.
+// C toggles vertex colours, B the in/out-of-bounds areas, P prints the
+// camera, Esc quits.
 #include <SDL3/SDL.h>
 
 #include <cmath>
@@ -91,6 +92,7 @@ struct GpuBatch {
   SDL_GPUBuffer* buffer = nullptr;
   uint32_t count = 0;
   int image = -1;
+  bool marker = false;
 };
 
 struct App {
@@ -178,7 +180,7 @@ bool upload(App& a, const viewer::Scene& s) {
     if (b.vertices.empty()) continue;
     const auto size = static_cast<uint32_t>(b.vertices.size() * sizeof(viewer::Vertex));
     SDL_GPUBufferCreateInfo bi{SDL_GPU_BUFFERUSAGE_VERTEX, size, 0};
-    GpuBatch g{SDL_CreateGPUBuffer(a.dev, &bi), static_cast<uint32_t>(b.vertices.size()), b.image};
+    GpuBatch g{SDL_CreateGPUBuffer(a.dev, &bi), static_cast<uint32_t>(b.vertices.size()), b.image, b.marker};
     SDL_GPUTransferBufferLocation src{stage(b.vertices.data(), size), 0};
     SDL_GPUBufferRegion dst{g.buffer, 0, size};
     SDL_UploadToGPUBuffer(copy, &src, &dst, false);
@@ -199,6 +201,7 @@ struct Camera {
   float eye[3] = {0, 0, 0};
   float yaw = 0, pitch = 0;
   bool colors = true;
+  bool markers = false;
 };
 
 void ensure_depth(App& a, uint32_t w, uint32_t h) {
@@ -227,6 +230,7 @@ void draw(App& a, SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target, uint32_t w,
   vu.opts[0] = cam.colors ? 1.0f : 0.0f, vu.opts[1] = far_plane;
   const float fu[8] = {0.6f, 0, 0, 0, 0.35f, 0.45f, 0.55f, 1};
   for (const GpuBatch& b : a.batches) {
+    if (b.marker && !cam.markers) continue;
     const bool tex = b.image >= 0;
     SDL_BindGPUGraphicsPipeline(pass, tex ? a.tex_pipe : a.flat_pipe);
     SDL_PushGPUVertexUniformData(cmd, 0, &vu, sizeof vu);
@@ -297,9 +301,9 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "%s\n", err.c_str());
     return 1;
   }
-  std::printf("%s: %d live nodes, %d objects with models, %d polygons, %d triangles, %zu textures (%d missing)\n",
-              mission.c_str(), scene.nodes, scene.objects, scene.polygons, scene.triangles, scene.images.size(),
-              scene.missing_textures);
+  std::printf("%s: %d live nodes, %d objects with models (%d bounds markers), %d polygons, %d triangles, %zu textures "
+              "(%d missing)\n", mission.c_str(), scene.nodes, scene.objects, scene.markers, scene.polygons,
+              scene.triangles, scene.images.size(), scene.missing_textures);
   std::printf("bounds (%.0f %.0f %.0f) .. (%.0f %.0f %.0f)\n", scene.min[0], scene.min[1], scene.min[2],
               scene.max[0], scene.max[1], scene.max[2]);
   if (info) return 0;
@@ -341,6 +345,7 @@ int main(int argc, char** argv) {
       if (e.type == SDL_EVENT_QUIT) running = false;
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE) running = false;
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_C) cam.colors = !cam.colors;
+      if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_B) cam.markers = !cam.markers;
       if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_P)
         std::printf("--pos %.1f %.1f %.1f --look %.1f %.1f\n", cam.eye[0], cam.eye[1], cam.eye[2],
                     cam.yaw / 0.0174533f, cam.pitch / 0.0174533f);

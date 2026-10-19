@@ -47,6 +47,14 @@ void apply(const Xform& x, const float* p, float* out) {
   for (int j = 0; j < 3; ++j) out[j] = p[0] * x.m[j] + p[1] * x.m[3 + j] + p[2] * x.m[6 + j] + x.t[j];
 }
 
+// The in/out-of-bounds areas (`inout*`, plain red) are drawn by nothing in the
+// game as far as seen; how it hides them is not mapped yet.
+bool under_marker(const zcls::Node* n) {
+  for (int d = 0; n && d < 64; ++d, n = n->parent_count() > 0 && n->parents ? n->parents[0] : nullptr)
+    if (std::strncmp(n->name(), "inout", 5) == 0) return true;
+  return false;
+}
+
 Xform world_xform(const zcls::Node* n, int depth = 0) {
   Xform x = local_xform(n);
   if (depth < 64 && n->parent_count() > 0 && n->parents && n->parents[0])
@@ -125,6 +133,8 @@ std::string load_world(const std::string& zbd_dir, const std::string& mission, S
     ++out.nodes;
     if (n->cls() != kObject3d || !n->model) continue;
     ++out.objects;
+    const bool marker = under_marker(n);
+    if (marker) ++out.markers;
     const zmod::Model& m = *n->model;
     const Xform x = world_xform(n);
     const uint32_t vcount = m.count(0x14), pcount = m.count(0x10);
@@ -136,18 +146,19 @@ std::string load_world(const std::string& zbd_dir, const std::string& mission, S
       const zmod::Material* mat = poly.material;
       const bool textured = mat && (mat->flags & 1) && poly.uvs;
       const int img = textured ? image_index(mat->texture) : -1;
-      auto [it, added] = batch_of.try_emplace(img, static_cast<int>(out.batches.size()));
-      if (added) out.batches.push_back(Batch{img, {}});
+      const int key = marker ? -1000000 + img : img;  // markers batch apart from everything else
+      auto [it, added] = batch_of.try_emplace(key, static_cast<int>(out.batches.size()));
+      if (added) out.batches.push_back(Batch{img, {}, marker});
       Batch& b = out.batches[it->second];
       auto vertex = [&](uint32_t j) {
         Vertex v{};
         const uint32_t vi = poly.vertex_indices[j];
         if (vi < vcount) apply(x, m.vertices + 3 * vi, v.pos);
         if (textured) v.uv[0] = poly.uvs[2 * j], v.uv[1] = poly.uvs[2 * j + 1];
-        // Vertex colours are 0..255; untextured polygons' already carry the material's.
+        // Vertex colours are 0..255; untextured polygons take the material's colour too.
         float r = 1, g = 1, bl = 1;
         if (poly.colors) r = poly.colors[3 * j] / 255, g = poly.colors[3 * j + 1] / 255, bl = poly.colors[3 * j + 2] / 255;
-        else if (mat) r = mat->r / 255, g = mat->g / 255, bl = mat->b / 255;
+        if (!textured && mat) r *= mat->r / 255, g *= mat->g / 255, bl *= mat->b / 255;
         v.color[0] = r, v.color[1] = g, v.color[2] = bl, v.color[3] = 1;
         for (int a = 0; a < 3; ++a) {
           out.min[a] = first ? v.pos[a] : std::min(out.min[a], v.pos[a]);
