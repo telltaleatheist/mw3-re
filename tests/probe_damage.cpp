@@ -4,6 +4,7 @@
 // into unported code is logged as (code, args...) on both sides.
 #include <cstdint>
 #include <cstring>
+#include <new>
 #include <memory>
 #include <string>
 #include <vector>
@@ -382,7 +383,8 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
   int32_t r = 0;
   switch (op) {
     case 0: {
-      g->type = WeaponType{};
+      g->type.~WeaponType();
+      new (&g->type) WeaponType();
       g->type.id = a[6];
       std::memcpy(&g->type.heat_2, &a[1], 4);
       std::memcpy(&g->type.zaps_hud, &a[2], 4);

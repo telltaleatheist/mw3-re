@@ -245,19 +245,19 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
     put(type, 0x74, t->range_sq);
     put(type, 0x78, t->half_range);
     put(type, 0x7c, t->half_range_sq);
-    put(type, 0x84, static_cast<uint32_t>(t->x84.empty()));  // the emulator side writes "head is empty"
-    put(type, 0x88, static_cast<uint32_t>(t->x84.size()));
+    put(type, 0x84, static_cast<uint32_t>(t->salvo_marks.empty()));  // the emulator side writes "head is empty"
+    put(type, 0x88, static_cast<uint32_t>(t->salvo_marks.size()));
     put(type, 0x8c, t->salvo_radius_sq);
     put(type, 0x90, t->salvo_delay);
     put(type, 0x94, t->recoil);
     put(type, 0x98, t->recharge_rate);
     put(type, 0x9c, t->fire_time);
-    put(type, 0xa0, def_token(t->airstrike));
-    put(type, 0xb0, t->xb0);
-    put(type, 0xb8, static_cast<uint32_t>(t->xb8 == t->xa4));
-    put(type, 0xbc, t->xbc);
+    put(type, 0xa0, def_token(t->strike_weapon));
+    put(type, 0xb0, t->strike_flag);
+    put(type, 0xb8, static_cast<uint32_t>(t->strike_at == &t->strike_point));
+    put(type, 0xbc, u(t->strike_velocity));
     put(type, 0xc0, t->lrm_flight);
-    put(type, 0xc4, t->xc4);
+    put(type, 0xc4, t->ready_at);
   }
   std::string s;
   for (const char* p : {d.key, d.name, d.desc, d.military_name}) {

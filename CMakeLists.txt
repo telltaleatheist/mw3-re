@@ -44,6 +44,7 @@ add_library(mw3core STATIC
   src/gamez/zinterp/zinterp_parse.cpp
   src/gamez/zimage/zimg_texture.cpp
   src/gamez/zmath/zmth_matrix.cpp
+  src/gamez/zmath/zmth_vector.cpp
   src/gamez/zmodel/gmod_bake.cpp
   src/gamez/zmodel/gmod_clip2d.cpp
   src/gamez/zmodel/gmod_clip3d.cpp

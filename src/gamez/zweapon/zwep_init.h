@@ -52,9 +52,12 @@ enum : uint32_t {
 
 struct WeaponDef;
 struct Projectile;
-// def +0x1ec: run for a projectile of this weapon at its event (burst, salvo
-// spread, airstrike); set by the MW3 side (0x00584de0). ECX def, EDX, one stack arg.
-using DefCallback = void (*)(WeaponDef* def, intptr_t edx, Projectile* p);
+struct HitRecord;
+// def +0x1ec: run by the impact (0x005826b0) for a shot of this weapon, set by
+// the MW3 side (0x00584de0): the salvo spread, the LB-X burst, the airstrike.
+// ECX def, EDX the hit, the projectile on the stack. The result's bits skip
+// the impact's sound (1), craters (2) and animation (4).
+using DefCallback = uint32_t (*)(WeaponDef* def, const HitRecord* hit, Projectile* p);
 
 struct Crater {                // 10 dwords, from the crater module's defaults (0x004ff920)
   uint32_t x00 = 0;
@@ -115,10 +118,29 @@ struct WeaponDef {             // 0x1f4
   mech3::WeaponType* type = nullptr;   // +0x1f0  the MW3 side
 };
 
+struct Vec3f3 {
+  float x, y, z;
+};
+
+// What a shot hit, 0x28 bytes (docs/weapons.md, "Hits"); the Collision that
+// Mech::TakeDamage reads.
+struct HitRecord {
+  uint32_t x00[3] = {};
+  Vec3f3 point{};              // +0x0c
+  uint32_t x18 = 0;
+  float distance_sq = 0;       // +0x1c
+  Handle material = nullptr;   // +0x20  its +0x20 is the soil kind (1 water)
+  Handle node = nullptr;       // +0x24  the node hit
+};
+
 // A shot in flight, 0x5d8 bytes (zwep run time, not ported yet): the pool is
-// sized at load and kept on a free list.
+// sized at load and kept on a free list. The fields the game half reads.
 struct Projectile {
-  Projectile* next = nullptr;  // +0x000  the free list
+  Projectile* next = nullptr;  // +0x000  the free list, then the weapon's active list
+  Handle owner = nullptr;      // +0x004  the shooter's node
+  Vec3f3 direction{};          // +0x03c  unit
+  Vec3f3 position{};           // +0x048
+  float speed = 0;             // +0x58c
 };
 
 // The zWeapon globals the reader fills.

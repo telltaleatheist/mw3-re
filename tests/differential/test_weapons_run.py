@@ -52,15 +52,15 @@ NAMES = {1: 'part_by_id', 2: 'node_part', 3: 'equipment_in_part', 4: 'heat', 5: 
          13: 'radar_track', 14: 'beam_create', 15: 'beam_start', 16: 'beam_stop', 17: 'beam_free',
          18: 'mech_sound', 19: 'play_loop', 20: 'play_at', 21: 'stop_sound', 22: 'destroyed_sounds',
          23: 'voice_destroyed', 24: 'hud_groups', 25: 'hud_weapons', 26: 'hud_fire', 27: 'torso_aim',
-         28: 'rotate', 30: 'query'}
+         30: 'query', 31: 'type_ready', 32: 'lab_rounds'}
 # World slots (probe_weapons_run.cpp, enum W)
 W = ['part_mech', 'player', 'mission_player', 'stats', 'lock_targets', 'vehicle', 'entity', 'mech', 'vehicle_node',
      'entity_node', 'x64', 'record', 'target', 'target_mech', 'tm_ecm', 'entity_id', 'target_x10', 'target_key',
      'target_proj', 'allies', 'team', 'owner_x58', 'fcs', 'control', 'heat', 'screen', 'highlight', 'view',
-     'view_kind', 'torso_aim', 'torso_look', 'rot_a', 'rot_a1', 'rot_a2', 'rot_b', 'rot_b1', 'rot_b2', 'clock', 'dt',
-     'vel', 'vel1', 'vel2', 'spawn', 'beam', 'net_id', 'net_id1', 'net_id2', 'net_t', 'net_t1', 'net_t2']
+     'view_kind', 'torso_aim', 'torso_look', 'rot_a', 'rot_a1', 'rot_a2', 'rot_a3', 'rot_b', 'rot_b1', 'rot_b2',
+     'rot_b3', 'clock', 'dt',
+     'vel', 'vel1', 'vel2', 'spawn', 'beam', 'net_id', 'net_id1', 'net_id2', 'net_t', 'net_t1', 'net_t2', 'time']
 WI = {k: i for i, k in enumerate(W)}
-FLOATS = {'heat', 'rot_a', 'rot_a1', 'rot_a2', 'rot_b', 'rot_b1', 'rot_b2', 'clock', 'dt', 'vel', 'vel1', 'vel2'}
 MECH_WEAPONS = list(range(37))
 BEAMS = {4, 5, 6, 10, 11, 12, 23, 24, 25, 32}
 
@@ -113,6 +113,8 @@ class Emulated(zr.Emulated):
             d = self.defs_base + 0x1f4 * k
             cpu.u32(d + 0x84, self.u32(d + 0x84) | 2)
             probe.probe_wm_fire_flag(k, self.u32(d + 0x84))
+        self.def_names = {self.cstr(self.u32(self.defs_base + 0x1f4 * k)).decode(): k for k in range(self.ndefs)}
+        self.last_hit = self.last_pos = None
         self.events = []
         cpu.stub_import(IAT_NEW, self.new)
         cpu.stub_import(IAT_DELETE, lambda c: 0)
@@ -133,6 +135,8 @@ class Emulated(zr.Emulated):
         self.NET = [a(0x700) for _ in range(2)]
         self.netlist = a(0x40)
         self.stats_obj = a(0x10)
+        self.hit, self.proj = a(0x40), a(0x600)
+        self.QA = a(0x10)
         self.cfg = a(0x40)
         self.parts = [a(0x60) for _ in range(16)]
         self.nodes = [a(0x40) for _ in range(16)]
@@ -240,7 +244,6 @@ class Emulated(zr.Emulated):
             0x446520: (lambda c: self.log(25, int(c.ecx == self.S + 0x6520)), 0),
             0x4464c0: (lambda c: self.log(26, int(c.ecx == self.S + 0x6520)), 0),
             0x465940: (lambda c: self.check(c.ecx == self.TO) or self.log(27) or self.ks['torso_aim'], 0),
-            0x525840: (self.rotate, 4),
             0x5ac5c0: (lambda c: 0, 0),
         }
         for addr, (fn, pop) in stubs.items():
@@ -268,6 +271,10 @@ class Emulated(zr.Emulated):
             0x4b30f7: 'destroyed: HUD weapon', 0x4b3158: 'destroyed: next weapon', 0x4b4d4a: 'ammo record',
             0x4b2b18: 'vehicle bin', 0x4b2a28: 'vehicle firepoint', 0x4b1fba: 'next found', 0x4b2077: 'prev found',
             0x4b05cb: 'group changed', 0x4b06e4: 'prev group changed', 0x4b4bc0: 'never',
+            0x4b4639: 'burst pellet', 0x51e75c: 'burst straight along x', 0x4afff5: 'airstrike missile',
+            0x4afdfe: 'salvo mark near', 0x4afe32: 'salvo mark expired', 0x4afd6d: 'salvo mark added',
+            0x4b493e: 'lab rounds 100', 0x4b494d: 'lab rounds 20', 0x4b492a: 'lab rounds capped',
+            0x4b4c83: 'type ready',
         }
         del self.cover[0x4b4bc0]
 
@@ -391,13 +398,6 @@ class Emulated(zr.Emulated):
         self.sound_n += 1
         return 0x7a000000 + 0x10 * self.sound_n
 
-    def rotate(self, c):
-        m, v, out = c.ecx, c.edx, c.arg(0)
-        self.log(28, m, *self.vec(v))
-        base = 'rot_b' if m == self.ks['torso_look'] else 'rot_a'
-        self.cpu.write(out, struct.pack('<3I', *(self.ks[base + s] for s in ('', '1', '2'))))
-        return 0
-
     def log(self, *e):
         self.events.append(tuple(s32(v) for v in e))
         return 0
@@ -473,12 +473,13 @@ class World:
         v['screen'] = int(rng.random() < 0.8)
         v['view'] = e.VO if rng.random() < 0.8 else 0
         v['view_kind'] = rng.choice([0, 1, 2, 2, 2, 5])
-        v['torso_aim'] = 0x6800
+        v['torso_aim'] = e.QA
         v['torso_look'] = e.TO + 0xa4 if rng.random() < 0.8 else 0
         for k in ('rot_a', 'rot_b'):
-            vals = [f32(rng.uniform(-1, 1)) for _ in range(3)]
-            for s, x in zip(('', '1', '2'), vals):
-                v[k + s] = f2i(x)
+            q = [rng.uniform(-1, 1) for _ in range(4)]
+            n = sum(x * x for x in q) ** 0.5 or 1
+            for s, x in zip(('', '1', '2', '3'), q):
+                v[k + s] = f2i(f32(x / n))
         has_t = rng.random() < 0.7
         v['record'] = e.R if rng.random() < 0.9 else 0
         v['target'] = e.T if has_t else 0
@@ -490,6 +491,7 @@ class World:
         v['target_proj'] = rng.choice([0, 0x6a00])
         v['heat'] = f2i(f32(rng.choice([0.0, 0.3, 0.6, 1.0, 1.4, 2.0, f32(rng.uniform(0, 2))])))
         v['clock'] = f2i(f32(i2f(v['clock']) + rng.choice([0.0, 0.05, 0.1, 0.3, 1.0])))
+        v['time'] = f2i(f32(i2f(v['time']) + rng.choice([0.0, 0.05, 0.5, 1.0, 3.0])))
         v['dt'] = f2i(f32(rng.choice([1 / 30, 1 / 60, 0.1, 0.05, 0.0005, 0.25])))
         for p in self.parts:
             if rng.random() < 0.05:
@@ -504,8 +506,8 @@ class World:
         for name in ('entity', 'mech', 'part_mech', 'owner_x58', 'target_key', 'target_x10', 'target_mech', 'target_proj', 'view',
                      'entity_id', 'screen', 'torso_aim', 'torso_look', 'spawn', 'beam', 'mp_id'):
             e.setk(name, v[name])
-        for name in ('rot_a', 'rot_a1', 'rot_a2', 'rot_b', 'rot_b1', 'rot_b2'):
-            e.ks[name] = v[name]
+        cpu.write(e.QA, struct.pack('<4I', *(v['rot_a' + s] for s in ('', '1', '2', '3'))))
+        cpu.write(e.TO + 0xa4, struct.pack('<4I', *(v['rot_b' + s] for s in ('', '1', '2', '3'))))
         e.setk('heat', v['heat'])
         e.setk('TT', e.TT)
         e.setk('Y', e.Y)
@@ -516,6 +518,7 @@ class World:
         cpu.write(0x605fb4, bytes([v['lock_targets']]))
         cpu.u32(0x72c530, v['clock'])
         cpu.u32(0x72c52c, v['dt'])
+        cpu.u32(0x60991c, v['time'])
         cpu.u32(e.V + 4, v['vehicle_node'])
         cpu.write(e.V + 0x30, struct.pack('<3I', v['vel'], v['vel1'], v['vel2']))
         cpu.u32(e.E + 4, v['entity_node'])
@@ -693,6 +696,17 @@ def read_state(emu, world):
         p = u(d + 0xdc)
         tok = -1 if p == 0 else next((0x100 + i for i, fp in enumerate(fps) if p == fp + 0x14), -2)
         o += [s32(u(d + 0xd0)), s32(u(d + 0xd4)), s32(u(d + 0xd8)), tok]
+    for k in range(emu.ndefs):
+        t = u(emu.defs_base + 0x1f4 * k + 0x1f0)
+        if not t:
+            continue
+        head = u(t + 0x84)
+        marks, nd = [], u(head)
+        while nd != head:
+            r = u(nd + 8)
+            marks += [u(r), u(r + 4), u(r + 8), u(r + 0xc)]
+            nd = u(nd)
+        o += [u(t + 0x88)] + marks + [u(t + 0xa4), u(t + 0xa8), u(t + 0xac), u(t + 0xc4)]
     return [s32(x) for x in o]
 
 
@@ -793,7 +807,7 @@ class Run:
         if a_ev != b_ev or sa != sb or a_res != b_res:
             first = next((i for i, (x, y) in enumerate(zip(a_ev, b_ev)) if x != y), min(len(a_ev), len(b_ev)))
             raise SystemExit(f'{label}: result {a_res} vs {b_res}; state {describe(sa, sb) if sa != sb else "same"}'
-                             f'\n  calls differ at {first}:\n  original:\n    {show(a_ev[first:first + 6])}'
+                             f"\n  calls differ at {first} ({len(a_ev)} vs {len(b_ev)}):\n  original:\n    {show(a_ev[first:first + 6])}"
                              f'\n  port:\n    {show(b_ev[first:first + 6])}')
         emu.events, emu.spawned = [], []
         return len(a_ev)
@@ -884,7 +898,29 @@ class Run:
         elif op == 25:
             if args[0] < u(m + 0x24):
                 res = self.query(u(m + 0x40 + 4 * args[0]))
-        b_res = probe.probe_wm_op(op, (ctypes.c_int32 * 8)(*[s32(x) for x in list(args) + [0] * (8 - len(args))]))
+        elif op in (26, 27, 28):
+            d = emu.defs_base + 0x1f4 * args[0]
+            hit, p = emu.hit, emu.proj
+            cpu.write(hit + 0xc, struct.pack('<3I', *args[1:4]))
+            cpu.u32(p + 4, args[4])
+            cpu.write(p + 0x3c, struct.pack('<6I', *args[5:11]))
+            cpu.u32(p + 0x58c, args[11])
+            fn = {26: 0x4afe70, 27: 0x4afea0, 28: 0x4b44d0}[op]
+            cpu.call(fn, ecx=d, edx=hit, stack_args=(p,))
+            res = eax()
+        elif op == 29:
+            if args[0] < u(m + 0x24):
+                w = u(m + 0x40 + 4 * args[0])
+                cpu.call(0x4b4ba0, ecx=w)
+                emu.log(31, al())
+                t = u(u(w + 0x2c) + 0x1f0) if u(w + 0x2c) else 0
+                if args[1] and t:
+                    cpu.call(0x4b4c90, ecx=t)
+            if args[2]:
+                cpu.call(0x4b4bd0)
+            cpu.call(0x4b4900, ecx=args[3], edx=args[4])
+            emu.log(32, eax())
+        b_res = probe.probe_wm_op(op, (ctypes.c_int32 * 16)(*[s32(x) for x in list(args) + [0] * (16 - len(args))]))
         if op in (3, 4, 5, 10, 13, 17, 18, 19):
             b_res &= 0xff
         if op == 25:
@@ -910,6 +946,30 @@ class Run:
             out.append(emu.f(emu.fslot))
         emu.log(30, *out)
         return 0
+
+    def callback_op(self):
+        """A def callback as zWeapon's impact runs it: the salvo spread on a
+        missile def, TAG's airstrike, an LB-X burst."""
+        rng, emu = self.rng, self.emu
+        kind = rng.choice([26, 26, 27, 28, 28])
+        names = {26: ['LRM20', 'LRM10', 'SRM6', 'StreakSRM4', 'LRM5'], 27: ['TAG'],
+                 28: ['LB2XAC', 'LB5XAC', 'LB10XAC', 'LB20XAC']}[kind]
+        d = emu.def_names[rng.choice(names)]
+        hit = [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
+        if kind == 26 and emu.last_hit and rng.random() < 0.6:
+            hit = [f2i(f32(i2f(x) + rng.uniform(-5, 5))) for x in emu.last_hit]
+        emu.last_hit = hit
+        dv = [rng.uniform(-1, 1) for _ in range(3)]
+        n = sum(x * x for x in dv) ** 0.5 or 1
+        dv = [f2i(f32(x / n)) for x in dv]
+        if rng.random() < 0.1:
+            dv[0] = 0
+        pos = [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
+        if kind == 26 and emu.last_pos and rng.random() < 0.6:  # the salvo marks key on the shot's position
+            pos = [f2i(f32(i2f(x) + rng.uniform(-6, 6))) for x in emu.last_pos]
+        emu.last_pos = pos
+        speed = f2i(f32(rng.choice([400.0, 0.0, rng.uniform(50, 900)])))
+        return kind, (d, *hit, 0x6300, *dv, *pos, speed)
 
     def random_op(self):
         rng, emu = self.rng, self.emu
@@ -964,6 +1024,8 @@ class Run:
             return 21, (rng.randrange(n), f2i(f32(rng.choice([0.2, 0.5, 1.0, -0.3]))))
         if r < 0.912:
             return 22, ()
+        if r < 0.925:
+            return self.callback_op()
         if r < 0.94:
             return 23, (int(rng.random() < 0.7),)
         if r < 0.95 and n < 15 and not self.world.v['mech']:
@@ -971,8 +1033,11 @@ class Run:
             node = self.world.parts[pid][1] or self.emu.nodes[pid]
             # beams on a vehicle without a mech crash both (no part, no heat), 0x4b4067
             return 24, (rng.choice([i for i in MECH_WEAPONS if i not in BEAMS] + [-1]), node, rng.randrange(5))
-        if n:
+        if n and rng.random() < 0.5:
             return 25, (rng.randrange(n),)
+        if rng.random() < 0.5:
+            return 29, (rng.randrange(max(n, 1)), int(rng.random() < 0.5), int(rng.random() < 0.1),
+                        rng.randrange(-1, 38), rng.choice([0, 5, 21, 100, 151, 300]))
         return 2, (0, f2i(f32(1 / 30)))
 
 

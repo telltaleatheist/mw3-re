@@ -5,6 +5,7 @@
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_names.h"
@@ -89,7 +90,7 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (zrdr::get_float(node, "U_RECHARGE_TIME", &recharge_rate))
     recharge_rate = def->period * fire_time / recharge_rate;
   if (const char* name = zrdr::get_string(node, "U_DESIGNATE_AIRSTRIKE")) {
-    airstrike = zwep::find_def(name);
+    strike_weapon = zwep::find_def(name);
     zwep::set_callback(def, mech3::airstrike);
   }
   zwep::InitHooks& h = zwep::init_hooks();
@@ -105,7 +106,13 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (v < 100.0f) v = 100.0f;
   else if (v > 5000.0f) v = 5000.0f;
   if (id >= 0x11 && id <= 0x14) lrm_flight = crt::x87_mul_f24(range, 0.7) / v;  // LRM5..LRM20
-  xb8 = xa4;
+  strike_at = &strike_point;
+}
+
+// Mech3.exe 1.2 @ 0x004afb10
+WeaponType::~WeaponType() {
+  for (SalvoMark* m : salvo_marks) delete m;
+  salvo_marks.clear();
 }
 
 // Mech3.exe 1.2 @ 0x004b0020
@@ -122,10 +129,6 @@ const WeaponType* weapon_type(const char* name) {
   return d ? d->type : nullptr;
 }
 
-// Not ported yet: they run in the zWeapon run time (docs/weapons.md).
-void salvo_spread(WeaponDef*, intptr_t, zwep::Projectile*) {}
-void airstrike(WeaponDef*, intptr_t, zwep::Projectile*) {}
-void burst(WeaponDef*, intptr_t, zwep::Projectile*) {}
 
 // ---------------------------------------------------------------------------
 // Run time.
@@ -140,7 +143,7 @@ bool is_player(Handle owner) { return owner && owner == g_world.player; }
 
 // rand() - 16383.5 scaled to about -1..1 (0x005e4008, 0x005e4004).
 float rand_unit() {
-  return (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 6.10370189e-05f;  // 0x38800100, 1 / 16383.5
+  return (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 0x1.0002p-14f;  // 0x38800100, 1 / 16383.5
 }
 
 Handle part_of(Handle owner, const Firepoint* fp) {
@@ -211,6 +214,122 @@ float direction_to(const Vec3f& a, const Vec3f& b, Vec3f* out) {
 
 WeaponWorld& weapon_world() { return g_world; }
 WeaponCalls& weapon_calls() { return g_calls; }
+
+namespace {
+zmth::Vec3 v3(const zwep::Vec3f3& v) { return {v.x, v.y, v.z}; }
+const Vec3f* vf(const zmth::Vec3* v) { return reinterpret_cast<const Vec3f*>(v); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004afc00: a salvo's later shots that land within its
+// radius of an earlier one, before its delay is up, skip the sound, craters
+// and animation (7). Expired marks go first. Damage is not affected.
+uint32_t WeaponType::salvo_mark(const zwep::Vec3f3& at) {
+  const float now = g_world.clock;
+  const zmth::Vec3 p = v3(at);
+  SalvoMark* near = nullptr;
+  for (auto it = salvo_marks.begin(); it != salvo_marks.end();) {
+    SalvoMark* m = *it;
+    if (m->until < now) {
+      delete m;
+      it = salvo_marks.erase(it);
+      continue;
+    }
+    if (!near && zmth::distance_sq(v3(m->at), p) < salvo_radius_sq) near = m;
+    ++it;
+  }
+  if (near) return 7;
+  salvo_marks.push_back(new SalvoMark{at, salvo_delay + g_world.clock});
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004afe70
+uint32_t salvo_spread(WeaponDef* def, const zwep::HitRecord*, zwep::Projectile* p) {
+  return def->type->salvo_mark(p->position);
+}
+
+// Mech3.exe 1.2 @ 0x004afed0: TAG's strike, four missiles from 1500 back along
+// the beam and 400 up, 50 apart, homing on the point.
+void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at) {
+  strike_point = at;
+  zmth::Vec3 start{dir.x * -1500.0f, dir.y * -1500.0f, dir.z * -1500.0f};
+  start = {at.x + start.x, at.y + start.y, at.z + start.z};
+  start.y = start.y - -400.0f;
+  zmth::Vec3 d;
+  zmth::direction_to(start, v3(at), &d);
+  const zmth::Vec3 still{0, 0, 0};
+  for (int i = 0; i < 4; ++i) {
+    zmth::Vec3 from;
+    from.x = rand_unit() * 50.0f + start.x;
+    from.y = rand_unit() * 50.0f + start.y;
+    from.z = start.z;
+    zwep::set_lock(&strike_flag, &strike_target);
+    spawn_projectile(strike_weapon, owner_node, nullptr, vf(&from), vf(&d), vf(&still), 0, 0, false);
+  }
+  zwep::set_lock(nullptr, nullptr);
+}
+
+// Mech3.exe 1.2 @ 0x004afea0
+uint32_t airstrike(WeaponDef* def, const zwep::HitRecord* hit, zwep::Projectile* p) {
+  def->type->strike(p->owner, p->direction, hit->point);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004b44d0: an LB-X shell bursts into BURST count pellets
+// in a cone: each gets the shell's velocity plus up to `radius` at a random
+// angle around its path.
+uint32_t burst(WeaponDef* def, const zwep::HitRecord*, zwep::Projectile* p) {
+  WeaponType* t = def ? def->type : nullptr;
+  if (!t || !p || !t->burst) return 0;
+  const zmth::Vec3 pos = v3(p->position);
+  const float s = p->speed;
+  const zmth::Vec3 dir = v3(p->direction);
+  const zmth::Vec3 vel{s * dir.x, s * dir.y, s * dir.z};
+  zmth::Vec3 side;
+  zmth::perpendicular(dir, &side);
+  for (int32_t n = t->burst_count; n != 0; --n) {
+    const float angle = static_cast<float>(crt::msvc_rand()) * 0x1.0002p-15f * 0x1.921fb6p+2f;  // 1 / 32767.5, 2 pi
+    zmth::Quat q;
+    zmth::quat_axis_angle(dir, angle, &q);
+    zmth::Vec3 off;
+    zmth::quat_rotate(q, side, &off);
+    const float k = static_cast<float>(crt::msvc_rand()) * 0x1.0002p-15f * t->burst_radius;
+    off = {k * off.x, k * off.y, k * off.z};
+    const zmth::Vec3 v{vel.x + off.x, vel.y + off.y, vel.z + off.z};
+    float d[3] = {v.x, v.y, v.z};
+    zmod::normalize(d);
+    const zmth::Vec3 dn{d[0], d[1], d[2]};
+    if (g_calls.spawn) g_calls.spawn(t->burst, p->owner, nullptr, vf(&pos), vf(&dn), vf(&v), 0, 0, false);
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004b4c70
+bool WeaponType::ready() const { return !(g_world.time < ready_at); }
+
+// Mech3.exe 1.2 @ 0x004b4c90
+void WeaponType::hold_for_flight() { ready_at = lrm_flight + g_world.time; }
+
+// Mech3.exe 1.2 @ 0x004b4bd0
+void reset_ready_times() {
+  for (int32_t i = -1; i < 37; ++i)
+    if (WeaponType* t = const_cast<WeaponType*>(weapon_type(weapon_name(i)))) t->set_ready_at(0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x004b4900. Without the weapon's definition: 100 over 150,
+// 20 over 20, else 1.
+int32_t lab_rounds(int32_t weapon, int32_t n) {
+  if (const WeaponDef* d = zwep::find_def(weapon_name(weapon))) {
+    const WeaponType* t = d->type;
+    if (!t) return 1;
+    return t->rounds_per_ton < n ? t->rounds_per_ton : n;
+  }
+  if (n > 150) return 100;
+  if (n > 20) return 20;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x004b4ba0
+bool Weapon::type_ready() const { return def && def->type && def->type->ready(); }
 
 // Mech3.exe 1.2 @ 0x004b4cc0. The first weapon on a bin gives it its manager
 // and damage.
@@ -746,19 +865,17 @@ bool WeaponManager::arm_restriction() {
       else if (k == 1) side = 3;
     }
     if (side == -1 && g_calls.control_mode && g_calls.control_mode(owner) == 1) {
-      const void* body = g_calls.torso_aim ? g_calls.torso_aim(owner) : nullptr;
-      if (const void* look = g_calls.torso_look ? g_calls.torso_look(owner) : nullptr) {
+      const zmth::Quat* body = g_calls.torso_aim ? g_calls.torso_aim(owner) : nullptr;
+      if (const zmth::Quat* look = g_calls.torso_look ? g_calls.torso_look(owner) : nullptr) {
         if (!g_world.cos_35_made) {
           g_world.cos_35 = static_cast<float>(std::cos(static_cast<double>(crt::x87_mul_f24(35.0, 0.017453292519943295))));
           g_world.cos_35_made = true;
         }
-        const Vec3f ahead{0.0f, 0.0f, -1.0f};  // 0x005eda80 with z = -1
-        Vec3f a{}, b{};
-        if (g_calls.rotate) {
-          g_calls.rotate(body, &ahead, &a);
-          g_calls.rotate(look, &ahead, &b);
-        }
-        if (dot(a, b) < g_world.cos_35) {
+        const zmth::Vec3 ahead{0.0f, 0.0f, -1.0f};  // 0x005eda80 with z = -1
+        zmth::Vec3 a{}, b{};
+        zmth::quat_rotate(*body, ahead, &a);
+        zmth::quat_rotate(*look, ahead, &b);
+        if ((a.x * b.x + a.y * b.y) + a.z * b.z < g_world.cos_35) {
           const float cross_y = a.z * b.x - a.x * b.z;
           side = cross_y > 0.0f ? 2 : 3;
         }

@@ -48,8 +48,8 @@ enum W {
   kPartMech, kPlayer, kMissionPlayer, kStats, kLockTargets, kVehicle, kEntity, kMech, kVehicleNode, kEntityNode, kX64,
   kRecord, kTarget, kTargetMech, kTmEcm, kEntityId, kTargetX10, kTargetKey, kTargetProj, kAllies, kTeam,
   kOwnerX58, kFcs, kControl, kHeat, kScreen, kHighlight, kView, kViewKind, kTorsoAim, kTorsoLook,
-  kRotA, kRotB = kRotA + 3, kClock = kRotB + 3, kDt, kVel, kSpawn = kVel + 3, kBeam, kNetIds, kNetTargets = kNetIds + 3,
-  kWorldEnd = kNetTargets + 3,
+  kRotA, kRotB = kRotA + 4, kClock = kRotB + 4, kDt, kVel, kSpawn = kVel + 3, kBeam, kNetIds, kNetTargets = kNetIds + 3,
+  kTime = kNetTargets + 3, kWorldEnd,
 };
 int32_t g_w[kWorldEnd];
 
@@ -218,16 +218,18 @@ void set_calls() {
   c.view = [] { return h(g_w[kView]); };
   c.view_kind = [](Handle) { return g_w[kViewKind]; };
   c.control_mode = [](Handle) { return g_w[kControl]; };
-  c.torso_aim = [](Handle) -> const void* {
+  c.torso_aim = [](Handle) -> const zmth::Quat* {
+    static zmth::Quat q;
     log({27});
-    return h(g_w[kTorsoAim]);
+    q = {bf(g_w[kRotA]), bf(g_w[kRotA + 1]), bf(g_w[kRotA + 2]), bf(g_w[kRotA + 3])};
+    return &q;
   };
-  c.torso_look = [](Handle) -> const void* { return h(g_w[kTorsoLook]); };
-  c.rotate = [](const void* m, const Vec3f* v, Vec3f* out) {
-    log({28, static_cast<int32_t>(u(m)), fb(v->x), fb(v->y), fb(v->z)});
-    const int base = u(m) == static_cast<uint32_t>(g_w[kTorsoLook]) ? kRotB : kRotA;
-    *out = {bf(g_w[base]), bf(g_w[base + 1]), bf(g_w[base + 2])};
+  c.torso_look = [](Handle) -> const zmth::Quat* {
+    static zmth::Quat q;
+    q = {bf(g_w[kRotB]), bf(g_w[kRotB + 1]), bf(g_w[kRotB + 2]), bf(g_w[kRotB + 3])};
+    return g_w[kTorsoLook] ? &q : nullptr;
   };
+
 }
 
 void sync_world() {
@@ -238,6 +240,7 @@ void sync_world() {
   w.lock_targets = g_w[kLockTargets] != 0;
   w.clock = bf(g_w[kClock]);
   w.dt = bf(g_w[kDt]);
+  w.time = bf(g_w[kTime]);
 }
 
 int32_t slot_of(const mech3::Weapon* w) {
@@ -422,6 +425,29 @@ int32_t probe_wm_op(int op, const int32_t* a) {
       r = slot_of(w);
       break;
     }
+    case 26: case 27: case 28: {  // a def callback: (def, hit point, owner, dir, pos, speed)
+      zwep::WeaponDef& d = zwep::state().defs[static_cast<size_t>(a[0])];
+      zwep::HitRecord hit;
+      hit.point = {bf(a[1]), bf(a[2]), bf(a[3])};
+      zwep::Projectile p;
+      p.owner = h(static_cast<uint32_t>(a[4]));
+      p.direction = {bf(a[5]), bf(a[6]), bf(a[7])};
+      p.position = {bf(a[8]), bf(a[9]), bf(a[10])};
+      p.speed = bf(a[11]);
+      auto fn = op == 26 ? mech3::salvo_spread : op == 27 ? mech3::airstrike : mech3::burst;
+      r = static_cast<int32_t>(fn(&d, &hit, &p));
+      break;
+    }
+    case 29: {  // the AI's wait and the mech lab's rounds
+      if (static_cast<uint32_t>(a[0]) < m.count) {
+        mech3::Weapon* w = m.weapons[a[0]];
+        log({31, w->type_ready()});
+        if (a[1] && w->def && w->def->type) w->def->type->hold_for_flight();
+      }
+      if (a[2]) mech3::reset_ready_times();
+      log({32, mech3::lab_rounds(a[3], a[4])});
+      break;
+    }
     case 25: {  // vt calls a test can make directly: dps, ready, ammo, can_fire, ranges
       if (static_cast<uint32_t>(a[0]) < m.count) {
         mech3::Weapon* w = m.weapons[a[0]];
@@ -463,6 +489,13 @@ int probe_wm_state(int32_t* out, int cap) {
   for (const zwep::WeaponDef& d : zwep::state().defs)
     o.insert(o.end(), {d.fire.sound_choice, d.fire.animation_choice, static_cast<int32_t>(u(d.fire.attach_node)),
                        fp_token(d.fire.attach_offset)});
+  for (const zwep::WeaponDef& d : zwep::state().defs) {
+    const mech3::WeaponType* t = d.type;
+    if (!t) continue;
+    o.push_back(static_cast<int32_t>(t->salvo_marks.size()));
+    for (const auto* mk : t->salvo_marks) o.insert(o.end(), {fb(mk->at.x), fb(mk->at.y), fb(mk->at.z), fb(mk->until)});
+    o.insert(o.end(), {fb(t->strike_point.x), fb(t->strike_point.y), fb(t->strike_point.z), fb(t->ready_at)});
+  }
   if (static_cast<int>(o.size()) > cap) return -1;
   std::memcpy(out, o.data(), o.size() * 4);
   return static_cast<int>(o.size());

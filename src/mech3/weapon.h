@@ -3,6 +3,7 @@
 #include <list>
 #include <vector>
 
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_reader.h"
@@ -50,32 +51,48 @@ struct WeaponType {
   float half_range = 0;              // +0x78  beams under water
   float half_range_sq = 0;           // +0x7c
   uint8_t x80 = 0;                   // +0x80  the low byte of the ctor's first argument (the reader node)
-  std::list<void*> x84;              // +0x84  head, size +0x88: never filled here
+  struct SalvoMark {                 // 0x10 bytes
+    zwep::Vec3f3 at;                 // where a salvo's shot hit
+    float until;                     // +0x0c  game time it is forgotten
+  };
+  std::list<SalvoMark*> salvo_marks; // +0x84  head, size +0x88 (0x004afc00)
   float salvo_radius_sq = 0;         // +0x8c
   float salvo_delay = 0;             // +0x90
   float recoil = 0;                  // +0x94
   float recharge_rate = 0;           // +0x98  period x U_FIRE_TIME / U_RECHARGE_TIME
   float fire_time = 0.5f;            // +0x9c  U_FIRE_TIME
-  WeaponDef* airstrike = nullptr;    // +0xa0  U_DESIGNATE_AIRSTRIKE
-  uint32_t xa4[3] = {};              // +0xa4  a small inline store: +0xb8 points at it,
-  int32_t xb0 = 1;                   // +0xb0  capacity 1,
-  uint32_t xb4 = 0;
-  void* xb8 = nullptr;               // +0xb8
-  uint32_t xbc = 0;                  // +0xbc  count 0
+  WeaponDef* strike_weapon = nullptr;  // +0xa0  U_DESIGNATE_AIRSTRIKE
+  // The airstrike's lock (0x004afed0): the missiles home on strike_point.
+  zwep::Vec3f3 strike_point{};       // +0xa4
+  int32_t strike_flag = 1;           // +0xb0  zWeapon's lock flag
+  zwep::Handle strike_target = nullptr;     // +0xb4  the lock: no entity,
+  zwep::Vec3f3* strike_at = nullptr;        // +0xb8  this point,
+  zwep::Vec3f3* strike_velocity = nullptr;  // +0xbc  standing still
   float lrm_flight = 0;              // +0xc0  LRMs: time to fly 70% of the range
-  uint32_t xc4 = 0;                  // +0xc4
+  float ready_at = 0;                // +0xc4  the AI fires this type again from then (0x004b4c70)
 
   WeaponType() = default;
   WeaponType(zrdr::Node* node, WeaponDef* def);  // 0x004af5a0
+  ~WeaponType();                                 // 0x004afb10
+  WeaponType(const WeaponType&) = delete;
+  WeaponType& operator=(const WeaponType&) = delete;
+
+  uint32_t salvo_mark(const zwep::Vec3f3& at);   // 0x004afc00
+  void strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at);  // 0x004afed0
+  bool ready() const;                            // 0x004b4c70: game time has reached ready_at
+  void hold_for_flight();                        // 0x004b4c90: ready_at = now + lrm_flight
+  void set_ready_at(float t) { ready_at = t; }   // 0x004b4cb0
 };
 
 void make_weapon_type(zrdr::Node* node, WeaponDef* def);  // 0x004b0020, the zwep::init callback
 void free_weapon_type(WeaponDef* def);                    // 0x004b0090, the zwep::shutdown callback
 
-// The def's callbacks (def +0x1ec) this code sets; ported with the run time.
-void salvo_spread(WeaponDef* def, intptr_t edx, zwep::Projectile* p);    // 0x004afe70
-void airstrike(WeaponDef* def, intptr_t edx, zwep::Projectile* p);       // 0x004afea0
-void burst(WeaponDef* def, intptr_t edx, zwep::Projectile* p);           // 0x004b44d0
+// The def callbacks (def +0x1ec) this code sets.
+uint32_t salvo_spread(WeaponDef* def, const zwep::HitRecord* hit, zwep::Projectile* p);  // 0x004afe70
+uint32_t airstrike(WeaponDef* def, const zwep::HitRecord* hit, zwep::Projectile* p);     // 0x004afea0
+uint32_t burst(WeaponDef* def, const zwep::HitRecord* hit, zwep::Projectile* p);         // 0x004b44d0
+void reset_ready_times();                       // 0x004b4bd0, every mech-lab weapon type
+int32_t lab_rounds(int32_t weapon, int32_t n);  // 0x004b4900: the mech lab's rounds for n
 
 // The WeaponType of a weapon by its def name: 0x00581ed0 then +0x1f0.
 const WeaponType* weapon_type(const char* name);
@@ -175,6 +192,7 @@ struct Weapon {
   virtual float ready() const;                             // +0x34, 0x004b2840
 
   bool aim(Vec3f* at, Vec3f* muzzle, Vec3f* dir, const Vec3f* velocity);  // 0x004b36e0
+  bool type_ready() const;                                 // 0x004b4ba0, the AI's LRM wait
   bool can_fire() const;                                   // 0x004b3a20
   float min_range_sq() const;                              // 0x004b3990
   float max_range() const;                                 // 0x004b39a0
@@ -282,6 +300,7 @@ struct WeaponWorld {
   bool stats = false;                  // [0x00608620]
   bool lock_targets = false;           // [0x00605fb4]  missiles are given the locked target
   float clock = 0;                     // [0x0072c530]
+  float time = 0;                      // [0x0060991c]  game time
   float dt = 0;                        // [0x0072c52c]
   float cos_35 = 0;                    // [0x0060b264], made on first use
   bool cos_35_made = false;            // [0x0060b21c] bit 0
@@ -351,9 +370,8 @@ struct WeaponCalls {
   Handle (*view)() = nullptr;                                 // [0x005f4c8c]+0x58 vt+0x1c
   int32_t (*view_kind)(Handle view) = nullptr;                // view +0x40
   int32_t (*control_mode)(Handle owner) = nullptr;            // +0x37c +0xc
-  const void* (*torso_aim)(Handle owner) = nullptr;           // 0x00465940 on the torso (+0x39c)
-  const void* (*torso_look)(Handle owner) = nullptr;          // the torso's +0xa4 when +0xa2, else 0
-  void (*rotate)(const void* m, const Vec3f* v, Vec3f* out) = nullptr;  // 0x00525840 (ECX m, EDX v)
+  const zmth::Quat* (*torso_aim)(Handle owner) = nullptr;    // 0x00465940 on the torso (+0x39c)
+  const zmth::Quat* (*torso_look)(Handle owner) = nullptr;   // the torso's +0xa4 when +0xa2, else 0
 };
 WeaponCalls& weapon_calls();
 
