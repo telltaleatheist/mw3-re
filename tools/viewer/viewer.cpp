@@ -59,16 +59,16 @@ Mat4 mul(const Mat4& a, const Mat4& b) {
   return r;
 }
 
-// Right-handed look, y up; the world's own axes are checked by eye (see
-// docs/drafts/render.md once mapped).
+// The world is right-handed with y up (docs/drafts/render.md): right = forward
+// x up. View space here is x right, y up, z forward, for the projection below.
 Mat4 view_matrix(const float* eye, float yaw, float pitch) {
   const float f[3] = {std::cos(pitch) * std::sin(yaw), std::sin(pitch), std::cos(pitch) * std::cos(yaw)};
-  float r[3] = {f[2], 0, -f[0]};
+  float r[3] = {-f[2], 0, f[0]};
   const float rl = std::sqrt(r[0] * r[0] + r[2] * r[2]);
   r[0] /= rl, r[2] /= rl;
-  const float u[3] = {f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]};
+  const float u[3] = {r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]};
   Mat4 v{};
-  // rows: r, u, f (left-handed view: +z forward)
+  // rows: r, u, f
   v.m[0] = r[0], v.m[4] = r[1], v.m[8] = r[2];
   v.m[1] = u[0], v.m[5] = u[1], v.m[9] = u[2];
   v.m[2] = f[0], v.m[6] = f[1], v.m[10] = f[2];
@@ -360,7 +360,7 @@ int main(int argc, char** argv) {
     const float speed = (k[SDL_SCANCODE_LSHIFT] ? 2000.0f : 300.0f) * dt;
     const float fwd[3] = {std::cos(cam.pitch) * std::sin(cam.yaw), std::sin(cam.pitch),
                           std::cos(cam.pitch) * std::cos(cam.yaw)};
-    const float right[3] = {std::cos(cam.yaw), 0, -std::sin(cam.yaw)};
+    const float right[3] = {-std::cos(cam.yaw), 0, std::sin(cam.yaw)};
     for (int i = 0; i < 3; ++i) {
       cam.eye[i] += (k[SDL_SCANCODE_W] - k[SDL_SCANCODE_S]) * fwd[i] * speed;
       cam.eye[i] += (k[SDL_SCANCODE_D] - k[SDL_SCANCODE_A]) * right[i] * speed;
