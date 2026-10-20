@@ -256,6 +256,7 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   Weapon* find(int32_t index, uint32_t from) const;        // 0x004b03c0
   Weapon* add(WeaponItem* item);                           // 0x004b0400
   Weapon* add(int32_t index, Handle node, int32_t group);  // 0x004b0460 with no vehicle lookup
+  Weapon* add(int32_t index, Handle node, const char* name, int32_t group);  // 0x004b0460: the node named under `node`
   Weapon* current() const;                                 // 0x004b04c0
   WeaponGroup* group_ptr() const { return group == -1 ? nullptr : groups[group]; }
   bool next_group();                                       // 0x004b04f0
@@ -278,12 +279,25 @@ struct WeaponManager {                 // 0x94 bytes, Vehicle +0xd4
   void destroy_all();                                      // 0x004b1110
   bool arm_restriction();                                  // 0x004b2da0
   void refresh_hud() const;   // the "owner is the player: redraw the groups" tail many methods share
+  void ammo_gauge() const;                                 // 0x004b0d80 (its argument is unused)
 
  private:
   void make_groups();
 };
 
 Weapon* make_weapon(WeaponItem* item, WeaponManager* m);   // 0x004b2230
+// The weapon half of a mech taking a configuration (0x00414501..0x00414732,
+// inside its configuration step): the manager remade, every weapon item
+// mounted, the configuration kept (mech +0x3ec), then each ammo item into its
+// weapon's bin, equipment counted (+0x3ac; jump jets through add_jump_jet),
+// the AMS given 100 rounds per AMS (+0x3f0), TAG mounted on the first
+// firepoint in group 5.
+struct Ams;
+void configure_weapons(Handle mech, WeaponManager* m, Config* cfg, Config** kept, int32_t equipment[15], Ams* ams,
+                       Handle node);
+// 0x004b4660: a vehicle's weapons from its definition's `weapons` list, a
+// new manager for it (the old one deleted); nullptr without the list.
+WeaponManager* build_vehicle_weapons(Handle vehicle, WeaponManager* old, zrdr::Node* def);
 Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m);  // 0x004b23f0
 // 0x004b4a40: spawns the shot; with SHOW_ON_RADAR the projectile goes on the radar.
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
@@ -305,6 +319,23 @@ void radar_friend(zwep::Projectile* p);                    // 0x004b4a30
 void radar_clear();                                        // 0x004b4b10 (action 0x004b49b0)
 void radar_objects_create();                               // 0x004b4ab0
 void radar_objects_destroy();                              // 0x004b4ae0
+
+// The anti-missile system (0x1c bytes, made by the mech at 0x41609c with
+// range 150, period 0.6 and 100 rounds; the configuration step gives it 100
+// rounds per AMS, 0x4146f9). It picks the nearest shot on the radar list and
+// shoots it down by setting its health to 0.
+struct Ams {
+  bool on = false;                     // +0x00
+  float range = 0;                     // +0x04  in |dx| + |dz|, height ignored
+  float next = 0;                      // +0x08  clock time it can fire again
+  float period = 0;                    // +0x0c
+  zwep::Projectile* target = nullptr;  // +0x14
+  int32_t rounds = 0;                  // +0x18
+  Ams(float range, float period, int32_t rounds);           // 0x004b3ab0
+  bool find(int32_t side, const zwep::Vec3f3* at);          // 0x004b3ae0 (a first argument unused)
+  const zwep::Vec3f3* target_at() const;                     // 0x004b3ba0
+  void fire(int32_t count);                                  // 0x004b3bb0
+};
 
 // The world the weapons read (globals of other modules).
 struct WeaponWorld {
@@ -385,6 +416,17 @@ struct WeaponCalls {
   int32_t (*control_mode)(Handle owner) = nullptr;            // +0x37c +0xc
   const zmth::Quat* (*torso_aim)(Handle owner) = nullptr;    // 0x00465940 on the torso (+0x39c)
   const zmth::Quat* (*torso_look)(Handle owner) = nullptr;   // the torso's +0xa4 when +0xa2, else 0
+  // The HUD ammo gauge (0x004b0d80): the screen, its gauge (+0x144c) vt+0x6c
+  // and vt+0x68, 0x00440a30 on +0x410c with those two, 0x00443d20 on the gauge.
+  Handle (*hud_screen)(Handle owner) = nullptr;               // 0x00430aa0 on +0x684
+  int32_t (*gauge_6c)(Handle screen) = nullptr;
+  int32_t (*gauge_68)(Handle screen) = nullptr;
+  int32_t (*hud_440a30)(Handle screen, int32_t a, int32_t b) = nullptr;
+  void (*hud_443d20)(Handle screen, int32_t v) = nullptr;
+  void (*add_jump_jet)(Handle mech) = nullptr;                       // 0x00417300(mech, 1)
+  // The vehicle builder (0x004b4660).
+  Handle (*node_find)(Handle node, const char* name) = nullptr;      // 0x004eb0d0
+  Handle (*node_by_name)(Handle node, const char* name) = nullptr;   // 0x004abb60
   // The radar list's object (0x004b4ab0).
   Handle (*object3d_create)() = nullptr;                      // 0x004fb740
   void (*set_action_priority)(Handle node, int32_t p) = nullptr;  // 0x004eb5b0

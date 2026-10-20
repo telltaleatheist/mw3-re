@@ -82,6 +82,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Medium sound format, 0x570ccf and the per-sound formats | Looks up `"MED"` where `sounds.zrd` says `MEDIUM` | (bug) a typo: the medium playback format is never read | `MEDIUM` |
 | Mad Cat and Supernova damage textures, skin reader (`mech3::read_skins`) | `damage` lists two (Mad Cat) and one (Supernova) slots longer than the primary skin, so every damage mask lands on the wrong texture; the size check then drops some | (bug) misplaced data: those mechs show the wrong or no battle damage | Leading empty slots are dropped until the damage list is as long as the primary (Owen 2026-10-20); `tests/test_fixes.cpp` checks both on the real files |
 | Plain PPC, weapon table 0x5e64f0 | 37 weapons; `weapons.zrd` defines a `PPC` and Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc; the old slot 0x2ee between NARC and the pulse lasers is empty) but the table has no row | (bug) the mech lab cannot offer a weapon the data defines | A 38th row, `PPC` (message 0x2fd, family 3 as ERPPC, Inner Sphere tech 2 as the plain lasers, no ammo); `mech3::weapon_count()` (Owen 2026-10-20) |
+| ZAPS_HUD, WeaponType reader 0x4af71b | The second value is read from the first value's slot again | (bug) the HUD static (0x43be70 adds the first value to a channel's level and keeps the largest second value as a hold time; 0x43d07a counts the hold down before the level fades) held 0.5 s after an ERPPC hit, not the 2 s the data gives; only the ERPPC has ZAPS_HUD | The second value is read (Owen 2026-10-21: traced, the hold is its only use); `zfix::options().bugs`, off in the probes, so `test_weapons_zrd.py` checks the exe's (0.5, 0.5); `tests/test_fixes.cpp` the (0.5, 2.0) |
+| zWeapon kill_all, 0x584fe0 | Runs every def's list through the projectile kill 0x584f40, BEAM defs too | (A) a firing beam (0x150 bytes) is taken for a projectile (0x5d8): the kill writes its speed past the beam's end and stops the beam's zone pointer and loop sound as animations; the exe gets away with heap slack, C++ would corrupt memory | BEAM defs are skipped (their beams are stopped by their weapons). Reached when the pool's scene nodes are freed with a beam still firing (`test_weapons_fly.py` never kills with one firing) |
+| Mine bounce length, 0x586740 | A pass that does not bounce (a record at the mine's own position) reuses the bounce length left from the last pass, uninitialised on the first | (A) stack garbage | The last length, 0 on the first pass (unreachable in the shipped game: no weapon is a MINE) |
+| Projectile pool and beams, zwep_init 0x583880, 0x584a70, 0x5832f0 | `calloc`'d pool of 0x5d8-byte slots; beams and node handler tables `calloc`'d | (A) 32-bit layouts holding pointers | Typed structs: a `std::vector` of slots zeroed as calloc's (same free-list order), `new` beams and tables |
 | The program, `mw3` (program.md) | The exe on Win32: `WinMain`, MFC's `CWinApp`, the `Mech3Class` frame | (A) Win32 / MFC | The app constructor, InitInstance, the engine start, `zGameApp::Run` and the states run as ported, from `mw3_main.cpp` on SDL3; `mech3::GameEngine` wires their hooks to the ports and to `src/frontend/sdl` |
 | Main window, 0x482d10 (`CWnd::CreateEx`, `SetWindowTextA`, `UpdateWindow`, `GetFocus`) | A 640x480 frame clamped to the work area, the debug menu (MENU 0x93) | (A) Win32 | An SDL window (1280x960 by default, the game's 640x480 scaled over it), titled from message 7; no debug menu |
 | Message queue, 0x58fd70 / OnActivate 0x590c00 / MM_MCINOTIFY 0x590740 | `PeekMessageA`, `PumpMessage`, `MsgWaitForMultipleObjects`, `WM_ACTIVATE`, the MCI notify message | (A) Win32 | `SdlPump`: SDL's event queue; focus gained / lost is the frame's OnActivate; a music file's end is posted as the notify; the window's close posts the quit |
@@ -204,22 +208,29 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   gives is worth 16. The only effect of the mismatch is a log line at load,
   and one point a location is evidently the design (an Elemental dies to a
   single hit); kept.
-- Missiles that miss vanish at RANGE without exploding; kept.
+- Missiles that miss vanish at RANGE without exploding; kept (Owen
+  2026-10-21: no change).
 - Radio chatter (QUEUE) plays newest first; kept as design (chatter stays
   current).
 - Every mech's maximum engine forced to 400 and only a weapon's first group
   counting look deliberate; kept.
 
+Resolved (2026-10-21):
+
+- ZAPS_HUD: traced and fixed, see the table (the second value is the HUD
+  static's hold time).
+- Pock marks: not a bug in the exe. The impact table is the engine's soil
+  list (0x5edbc0, count 0x5edbb8) at the time weapons.zrd is read, and the
+  mission script's `LoadSoils soils.zrd` (0x537cb0, run before the weapons at
+  0x490173) has added dirt, mud, grass, concrete, snow, mech, silt and noslip
+  by then: fourteen kinds, a material's +0x20 indexing them. So the dirt, mud
+  and snow blocks are read and the marks show (28 weapons). The port had a
+  fixed six-kind table; it now keeps the engine's soil list
+  (`zmod::soil_names`, `load_soils`) and sizes the table by it, as the exe
+  does (`test_weapons_zrd.py`: LoadSoils on 41 files and the fourteen-kind read
+  against the original). No FIX.
+
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
-  the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
-  is the evident intent, but what the second number does on the HUD
-  (0x43be70) is not traced; the port keeps the original.
-- Pock marks: `weapons.zrd` gives the autocannons, Gauss, missiles and MGUN a
-  `SURFACE_ANIMATION` on `dirt`, `mud` and `snow`, kinds the impact table
-  (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
-  so they never show. Mapping those names to the soils that exist would
-  restore them; which soil each should be is a guess.

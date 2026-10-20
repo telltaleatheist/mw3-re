@@ -29,12 +29,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from original import STACK_TOP  # noqa: E402,F401
 import test_weapons_zrd as zr  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_ESI, UC_X86_REG_ESP  # noqa: E402
 
 probe = zr.probe
 probe.probe_wm_world.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
 probe.probe_wm_new.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_uint32]
 probe.probe_wm_op.argtypes = [ctypes.c_int, ctypes.c_void_p]
+probe.probe_wm_vehicle_fp.argtypes = [ctypes.c_int32, ctypes.c_int32]
 probe.probe_wm_op.restype = ctypes.c_int32
 
 IAT_RAND, IAT_NEW, IAT_DELETE = 0x5bb668, 0x5bb4bc, 0x5bb4c8
@@ -118,6 +119,7 @@ class Emulated(zr.Emulated):
         self.events = []
         cpu.stub_import(IAT_NEW, self.new)
         cpu.stub_import(IAT_DELETE, lambda c: 0)
+        cpu.stub_import(0x5bb454, lambda c: 0)  # the std::list lock (0x5abdb0) the configuration step takes
         cpu.stub_import(IAT_RAND, lambda c: self.rand())
         self.rand = MsvcRand(1)
         huge = self.zalloc(8)  # MSVCRT's _HUGE, a data import: +inf
@@ -130,6 +132,12 @@ class Emulated(zr.Emulated):
         self.V, self.E, self.M, self.MP, self.X, self.Y = a(0x100), a(0x100), a(0x700), a(0x700), a(0x40), a(0x100)
         self.P, self.D, self.VEC, self.CT, self.TO = a(0x20), a(0x40), a(0x10), a(0x20), a(0x100)
         self.S = a(0x18000)
+        gvt = a(0x80)  # the HUD ammo gauge at screen +0x144c: its vt+0x68 and +0x6c
+        cpu.u32(self.S + 0x144c, gvt)
+        for off, val in ((0x68, 0x6868), (0x6c, 0x6c6c)):
+            fn = cpu.code(b'\xc3')
+            cpu.stub_function(fn, lambda c, o=off, v=val: self.check(c.ecx == self.S + 0x144c) or self.log(35, o) or v, 0)
+            cpu.u32(gvt + off, fn)
         self.PL, self.CAM, self.VO, self.MS = a(0x80), a(0x10), a(0x80), a(0x40)
         self.T, self.TT, self.TM, self.R = a(0x10), a(0x10), a(0x400), a(0x10)
         self.NET = [a(0x700) for _ in range(2)]
@@ -241,6 +249,11 @@ class Emulated(zr.Emulated):
             0x4853d0: (lambda c: self.log(23, c.ecx), 0),
             0x430aa0: (lambda c: self.check(c.ecx == self.P) or (self.S if self.ks['screen'] else 0), 0),
             0x446240: (lambda c: self.log(24, int(c.ecx == self.S + 0x6520)), 0),
+            0x417300: (lambda c: self.check(c.ecx == self.M and c.arg(0) == 1) or self.log(39), 4),
+            0x4eb0d0: (lambda c: self.log(37, zr.fnv(self.cstr(c.edx))) or self.vehicle_fp(c.edx), 0),
+            0x4abb60: (lambda c: self.log(38, zr.fnv(self.cstr(c.edx))) or self.vehicle_fp(c.edx), 0),
+            0x440a30: (lambda c: self.check(c.ecx == self.S + 0x410c) or self.log(33, c.arg(0), c.arg(1)) or 0x4444, 8),
+            0x443d20: (lambda c: self.check(c.ecx == self.S + 0x144c) or self.log(34, c.arg(0)), 4),
             0x446520: (lambda c: self.log(25, int(c.ecx == self.S + 0x6520)), 0),
             0x4464c0: (lambda c: self.log(26, int(c.ecx == self.S + 0x6520)), 0),
             0x465940: (lambda c: self.check(c.ecx == self.TO) or self.log(27) or self.ks['torso_aim'], 0),
@@ -256,6 +269,11 @@ class Emulated(zr.Emulated):
         self.reached = set()
         reg = cpu.uc.reg_read
         self.cover = {
+            0x4b0dba: "ammo gauge", 0x414556: "config: weapon refused", 0x414618: "config: ammo",
+            0x414648: "config: jump jet", 0x4146ee: "config: TAG", 0x4146c2: "config: TAG refused",
+            0x4146f9: "config: AMS rounds", 0x4b47c1: "vehicle: endless bin", 0x4b47ca: "vehicle: ammo",
+            0x4b47d8: "vehicle: no def", 0x4b47fe: "vehicle: no lab index", 0x4b4827: "vehicle: no firepoint",
+            0x4b473e: "vehicle: firepoint named",
             0x4b0c9b: 'press', 0x4b0d38: 'held', 0x4b0cd5: 'release', 0x4b0cfd: 'chain step', 0x4b0d54: 'alpha end',
             0x4b218a: 'beam ground fx off', 0x4b2ce4: 'salvo continues', 0x4b3410: 'FCS tracking',
             0x4b3436: 'lock without target', 0x4b3506: 'missile target', 0x4b3520: 'fire attached',
@@ -397,6 +415,10 @@ class Emulated(zr.Emulated):
         self.log(20, c.ecx, *self.vec(c.edx))
         self.sound_n += 1
         return 0x7a000000 + 0x10 * self.sound_n
+
+    def vehicle_fp(self, name):
+        """The nodes the vehicle builder's firepoint names find."""
+        return {b'firepoint01': self.vfp[0], b'firepoint': self.vfp[1], b'fp': self.vfp[0]}.get(self.cstr(name), 0)
 
     def log(self, *e):
         self.events.append(tuple(s32(v) for v in e))
@@ -771,12 +793,18 @@ class Run:
         for _ in range(rng.randrange(0, 14)):
             kind = rng.choice([2, 2, 2, 3, 1])
             part = rng.choice([1, 2, 3, 6, 7, 8, -1, 4])
+            if kind == 1 and rng.random() < 0.5:  # a firepoint index the configuration step can mount
+                part = rng.randrange(max(1, len(w.fps)))
             if kind == 3:
-                items.append((3, 1, 0, part, 0, rng.choice([5, 5, 3, 0, 11])))
+                items.append((3, 1, 0, part, 0, rng.choice([5, 5, 3, 0, 11, 13, 0])))
             else:
-                items.append((kind, rng.choice([1, 20, 40]), 0, part, rng.randrange(37), 1))
+                wpn = 37 if kind == 1 and rng.random() < 0.05 else rng.randrange(37)  # 37: no such weapon
+                items.append((kind, rng.choice([1, 20, 40]), 0, part, wpn, 1))
         w.items = items
         build_config(emu, items)
+        # the vehicle builder's two firepoints: part nodes of this world
+        emu.vfp = [(w.parts[1][1] or emu.nodes[1]) if rng.random() < 0.7 else 0, w.parts[2][1] or emu.nodes[2]]
+        probe.probe_wm_vehicle_fp(s32(emu.vfp[0]), s32(emu.vfp[1]))
         for k in range(emu.ndefs):  # a fire effect left attached to the last manager's firepoints
             cpu.write(emu.defs_base + 0x1f4 * k + 0xd8, bytes(8))
         emu.mgr = emu.zalloc(0x94)
@@ -908,6 +936,36 @@ class Run:
             fn = {26: 0x4afe70, 27: 0x4afea0, 28: 0x4b44d0}[op]
             cpu.call(fn, ecx=d, edx=hit, stack_args=(p,))
             res = eax()
+        elif op == 30:
+            cpu.call(0x4b0d80, ecx=m, stack_args=(0x77,))
+        elif op == 31:
+            res = self.vehicle_op(args)
+        elif op == 32:
+            # the mech's configuration step, run in place: ESI the mech, EBP the configuration
+            ams = emu.zalloc(0x1c)
+            cpu.call(0x4b3ab0, ecx=ams, stack_args=(f2i(150.0), f2i(0.6), 100))
+            cpu.u32(emu.M + 0xd4, m)
+            cpu.write(emu.M + 0x3ac, bytes(60))
+            cpu.u32(emu.M + 0x3f0, ams)
+            cpu.u32(emu.M + 4, args[0])
+            cpu.u32(emu.M + 0x3ec, 0)
+            uc = cpu.uc
+            esp = STACK_TOP - 0x3000
+            uc.reg_write(UC_X86_REG_ESP, esp)
+            uc.reg_write(UC_X86_REG_ESI, emu.M)
+            uc.reg_write(UC_X86_REG_EBP, emu.cfg)
+            uc.reg_write(UC_X86_REG_ECX, m)
+            try:
+                uc.emu_start(0x414501, 0x414732, count=50_000_000)
+            except Exception:
+                from unicorn.x86_const import UC_X86_REG_EIP
+                print("EIP", hex(uc.reg_read(UC_X86_REG_EIP)))
+                raise
+            emu.log(40, *[s32(u(emu.M + 0x3ac + 4 * i)) for i in range(15)], s32(u(ams + 0x18)),
+                    int(u(emu.M + 0x3ec) == emu.cfg))
+            cpu.u32(emu.M + 0x3ec, emu.cfg)
+            if any(it[0] == 3 and it[5] == 13 for it in self.world.items):
+                self.world.tag_mounted = True
         elif op == 29:
             if args[0] < u(m + 0x24):
                 w = u(m + 0x40 + 4 * args[0])
@@ -926,6 +984,47 @@ class Run:
         if op == 25:
             b_res = 0
         return self.compare(f'op {op} {args}', res, b_res)
+
+    def vehicle_op(self, args):
+        """The vehicle builder 0x4b4660 on a `weapons` list made from args (see
+        probe_wm_op 31); the new manager replaces the test's."""
+        emu, cpu = self.emu, self.emu.cpu
+        n = args[0]
+        fpn = ['firepoint01', 'fpX', 'firepoint', 'firepoint02']
+
+        def string(t):
+            p = emu.zalloc(len(t) + 1)
+            cpu.write(p, t.encode() + b'\0')
+            return p
+
+        def lst(vals):
+            p = emu.zalloc(8 * (len(vals) + 1))
+            cpu.write(p, struct.pack('<iI', 1, len(vals) + 1))
+            for i, (t, v) in enumerate(vals):
+                cpu.write(p + 8 * (i + 1), struct.pack('<iI', t, v & 0xffffffff))
+            return p
+        items = []
+        for i in range(n):
+            w, ammo, has_fp, fp = args[1 + 4 * i:5 + 4 * i]
+            name = string(cpu_weapon_name(emu, w) if w >= 0 else {-1: 'BOGUS', -2: 'TAG_MISSILE'}[w])
+            vals = [(3, name), (1, 1), (1, 1), (1, ammo), (2, f2i(5.0)), (2, f2i(25.0)), (2, f2i(100000.0)), (1, 0)]
+            if has_fp:
+                vals += [(3, string('firepoint')), (4, lst([(3, string(fpn[fp])), (3, string('firepoint02'))]))]
+            items.append((4, lst(vals)))
+        root = lst([(3, string('weapons')), (4, lst(items))])
+        top = emu.zalloc(8)
+        cpu.write(top, struct.pack('<iI', 4, root))
+        cpu.u32(emu.V + 0xd4, emu.mgr)
+        cpu.call(0x4b4660, ecx=emu.V, stack_args=(top,))
+        nm = emu.u32(emu.V + 0xd4)
+        if nm != emu.mgr:
+            if nm:
+                emu.mgr = nm
+                return 1
+            emu.mgr = emu.zalloc(0x94)  # no list: the test keeps a manager, as the probe does
+            cpu.call(F['manager_ctor'], ecx=emu.mgr, stack_args=(emu.V,))
+            return 0
+        return 0
 
     def query(self, w):
         """vt+0x10 dps, +0x34 ready, +0x14 ammo, can fire, the range getters."""
@@ -1012,7 +1111,8 @@ class Run:
             return 15, ()
         if r < 0.78:
             return 16, (int(rng.random() < 0.5),)
-        if r < 0.82:
+        if r < 0.82 and not getattr(self.world, 'tag_mounted', False):
+            # a TAG the configuration step mounted has no firepoint: the arm check reads through it (0x4b2fbe)
             return 17, ()
         if r < 0.85 and n and not no_group:
             return 18, (rng.randrange(n + 1), rng.choice([0, 0x5501, 0x5502, 0x5509]), rng.randrange(5))
@@ -1033,12 +1133,31 @@ class Run:
             node = self.world.parts[pid][1] or self.emu.nodes[pid]
             # beams on a vehicle without a mech crash both (no part, no heat), 0x4b4067
             return 24, (rng.choice([i for i in MECH_WEAPONS if i not in BEAMS] + [-1]), node, rng.randrange(5))
+        if rng.random() < 0.05:
+            return 30, ()
+        fps_ok = all(0 <= it[3] < len(self.world.fps) for it in self.world.items if it[0] == 1)  # else both crash
+        if rng.random() < 0.03 and self.world.v['mech'] and fps_ok:
+            return 32, (rng.choice([self.emu.nodes[3], 0x6100]),)
+        if rng.random() < 0.15 and not self.world.v['mech']:  # vehicle weapons have no firepoint for the mech code
+            pool = [i for i in MECH_WEAPONS if i not in BEAMS]  # beams need a mech (0x4b4067)
+            k = rng.choice([0, 1, 2, 3])  # probe_wm_op takes 16 ints
+            a = [k]
+            for _ in range(k):
+                w = rng.choice(pool) if rng.random() < 0.8 else rng.choice([-1, -2])  # -1 unknown, -2 no lab row
+                a += [w, rng.choice([0, 0, 20, 400, 5000]), int(rng.random() < 0.8),
+                      rng.choice([0, 0, 1, 2, 3])]
+            return 31, tuple(a)
         if n and rng.random() < 0.5:
             return 25, (rng.randrange(n),)
         if rng.random() < 0.5:
             return 29, (rng.randrange(max(n, 1)), int(rng.random() < 0.5), int(rng.random() < 0.1),
                         rng.randrange(-1, 38), rng.choice([0, 5, 21, 100, 151, 300]))
         return 2, (0, f2i(f32(1 / 30)))
+
+
+def cpu_weapon_name(emu, w):
+    """The mech-lab table's name for weapon w (0x5e64f0, 0x18 a row)."""
+    return emu.cstr(emu.u32(0x5e64f0 + 0x18 * w)).decode()
 
 
 def main():

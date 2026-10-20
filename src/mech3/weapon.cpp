@@ -1,11 +1,13 @@
 #include "mech3/weapon.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <list>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zutil/zfix.h"
@@ -564,6 +566,16 @@ Weapon* WeaponManager::add(int32_t index, Handle node, int32_t g) {
   return w;
 }
 
+// Mech3.exe 1.2 @ 0x004b0460, the named form: the node is looked up by name
+// under `node` first (0x004abb60); none found, no weapon.
+Weapon* WeaponManager::add(int32_t index, Handle node, const char* name, int32_t g) {
+  if (name) {
+    node = g_calls.node_by_name ? g_calls.node_by_name(node, name) : nullptr;
+    if (!node) return nullptr;
+  }
+  return add(index, node, g);
+}
+
 // Mech3.exe 1.2 @ 0x004b04c0
 Weapon* WeaponManager::current() const {
   WeaponGroup* g = group_ptr();
@@ -1069,6 +1081,154 @@ void radar_objects_destroy() {
   if (g_calls.set_action) g_calls.set_action(g_radar_node, nullptr);
   if (g_calls.node_destroy) g_calls.node_destroy(g_radar_node);
   g_radar_node = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00414501..0x00414732 (mech.cpp)
+void configure_weapons(Handle mech, WeaponManager* m, Config* cfg, Config** kept, int32_t equipment[15], Ams* ams,
+                       Handle node) {
+  m->reset();
+  for (ConfigItem* it : cfg->items) {
+    if (it->kind() != 1) continue;
+    auto* w = static_cast<WeaponItem*>(it);
+    if (!m->add(w)) {
+      char msg[256];
+      std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%d)", weapon_name(w->weapon), w->part);
+      zerr::report(0x400, "C:\\zipper\\Mech3\\mech.cpp", 0x1b1, msg);
+    }
+  }
+  *kept = cfg;
+  for (ConfigItem* it : cfg->items) {
+    if (it->kind() == 2) {
+      auto* a = static_cast<AmmoItem*>(it);
+      if (!weapon_uses_ammo(a->weapon)) continue;
+      Weapon* w = m->find(a->weapon, 0);
+      if (w && a->count && w->bin) w->bin->add(a->count);
+    } else if (it->kind() == 3) {
+      const int32_t e = static_cast<EquipmentItem*>(it)->equipment;
+      if (e == 11) {
+        if (g_calls.add_jump_jet) g_calls.add_jump_jet(mech);
+      } else {
+        ++equipment[e];
+      }
+      if (e == 0) {
+        ams->rounds = equipment[0] * 100;
+      } else if (e == 13) {
+        const std::vector<Firepoint*>* fps = g_calls.firepoints ? g_calls.firepoints(mech) : nullptr;
+        const Firepoint* fp = fps && !fps->empty() ? (*fps)[0] : nullptr;
+        if (!fp) continue;
+        if (Weapon* t = m->add(0x20, node, fp->name, 4)) {
+          t->set_group(4);
+        } else {
+          char msg[256];
+          std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%s)", weapon_name(0x20), fp->name);
+          zerr::report(0x400, "C:\\zipper\\Mech3\\mech.cpp", 0x1e0, msg);
+        }
+      }
+    }
+  }
+}
+
+namespace {
+void vehicle_error(int line, const char* fmt, const char* a, const char* b, const char* c) {
+  char msg[512];
+  std::snprintf(msg, sizeof msg, fmt, a, b, c);
+  zerr::report(0x200, "C:\\zipper\\Mech3\\weapon.cpp", line, msg);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004b4660: each item of `weapons` is (name n n ammo ...
+// "firepoint" (names)). The firepoint is looked up in the whole list, not the
+// item, so every weapon takes the first item's first firepoint (a quirk:
+// docs/weapons.md). Ammo 0 is an endless bin, for all but beams; group 4,
+// then 0.
+WeaponManager* build_vehicle_weapons(Handle vehicle, WeaponManager* old, zrdr::Node* def) {
+  delete old;
+  zrdr::Node* list = zrdr::find(def, "weapons");
+  if (!list) return nullptr;
+  auto* m = new WeaponManager(vehicle);
+  Handle vnode = g_calls.vehicle_node ? g_calls.vehicle_node(vehicle) : nullptr;
+  const char* vname = g_calls.node_name ? g_calls.node_name(vnode) : "";
+  const char* fp = "firepoint";
+  const int32_t n = zrdr::list_count(list) - 1;
+  for (int32_t i = 1; i <= n; ++i) {
+    const zrdr::Node* item = list->list[i].list;
+    const char* name = item[1].s;
+    const int32_t ammo = item[4].i;  // read as an int whatever its type
+    if (const char* f = zrdr::get_string(list, "firepoint")) fp = f;
+    WeaponDef* d = zwep::find_def(name);
+    Handle fpn = g_calls.node_find ? g_calls.node_find(vnode, fp) : nullptr;
+    const int32_t idx = weapon_index(name);
+    if (d && idx != -1 && fpn) {
+      if (Weapon* w = m->add(idx, vnode, fp, 4)) {
+        w->set_group(0);
+        if (AmmoBin* b = w->bin) {
+          if (ammo == 0) {
+            if (!w->is_beam()) b->infinite = true;
+          } else {
+            b->add(ammo);
+          }
+        }
+      }
+      continue;
+    }
+    if (!d) vehicle_error(0xd94, "vehicle %s: weapon %s: no ZWEP_ID", vname, name, nullptr);
+    if (idx == -1) vehicle_error(0xd97, "vehicle %s: weapon %s: no MECH_WEAPON", vname, name, nullptr);
+    if (!fpn) vehicle_error(0xd9a, "vehicle %s: weapon %s: no firepoint node named %s", vname, name, fp);
+  }
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x004b0d80: the player's HUD ammo gauge redrawn (the HUD
+// code is not ported; these are its calls). The original reads the screen of
+// a null owner when there is no player; here nothing happens.
+void WeaponManager::ammo_gauge() const {
+  if (!owner || owner != g_world.player) return;
+  Handle screen = g_calls.hud_screen ? g_calls.hud_screen(owner) : nullptr;
+  if (!screen) return;
+  const int32_t a = g_calls.gauge_6c ? g_calls.gauge_6c(screen) : 0;
+  const int32_t b = g_calls.gauge_68 ? g_calls.gauge_68(screen) : 0;
+  const int32_t v = g_calls.hud_440a30 ? g_calls.hud_440a30(screen, b, a) : 0;
+  if (g_calls.hud_443d20) g_calls.hud_443d20(screen, v);
+}
+
+// Mech3.exe 1.2 @ 0x004b3ab0
+Ams::Ams(float r, float p, int32_t n) : on(true), range(r), next(0), period(p), target(nullptr), rounds(n) {}
+
+// Mech3.exe 1.2 @ 0x004b3ae0: the radar's nearest shot within range, by
+// |dx| + |dz|: side 0 foes' shots only (the player's AMS), 1 friends' only
+// (the enemy's), else all.
+bool Ams::find(int32_t side, const zwep::Vec3f3* at) {
+  if (rounds <= 0) return false;
+  float best = range;
+  for (RadarBlip* b : g_blips) {
+    if (side == 0 && b->friendly) continue;
+    if (side == 1 && !b->friendly) continue;
+    const zwep::Projectile* p = b->shot;
+    const float dz = std::fabs(p->position.z - at->z);
+    const float dx = std::fabs(p->position.x - at->x);
+    const float d = dz + dx;
+    if (d < best) {
+      best = d;
+      target = b->shot;
+    }
+  }
+  return target != nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004b3ba0
+const zwep::Vec3f3* Ams::target_at() const { return target ? &target->position : nullptr; }
+
+// Mech3.exe 1.2 @ 0x004b3bb0: once the period (shared out over `count` AMS)
+// has passed, the target is shot down and a round spent; the target is
+// forgotten either way.
+void Ams::fire(int32_t count) {
+  if (rounds != 0 && !(g_world.clock < next)) {
+    const float f = count == 1 ? 1.0f : 1.0f / static_cast<float>(count);
+    target->health = 0;
+    --rounds;
+    next = period * f + g_world.clock;
+  }
+  target = nullptr;
 }
 
 // 0x00585010 through the hook a test sets, else the port.

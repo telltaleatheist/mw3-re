@@ -3,6 +3,7 @@
 // loaded. Every hook goes to one Python callback, which keeps the port's side
 // of the fake scene, answers the queries the same way it answers the
 // emulator's, and logs the calls; handles are the emulator's addresses.
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -109,6 +110,20 @@ void read_list(const int32_t* a, HitList* out) {
 
 void tick_cb(Projectile* p) { call(51, {ptok(p)}); }
 
+// The handler tables the port made (to dump them), and two touch handlers.
+std::vector<zwep::NodeHandlers*> g_tables;
+HitRecord g_touch_rec;
+void touch_a(Handle obj, float dmg) { call(83, {1, u(obj), fb(dmg)}); }
+void touch_b(Handle obj, float dmg) { call(83, {2, u(obj), fb(dmg)}); }
+uint32_t damage_a(Handle, zwep::WeaponDef*, HitRecord*, float) { return 0; }
+int32_t fn_tok(void (*f)()) {
+  if (!f) return 0;
+  if (f == reinterpret_cast<void (*)()>(touch_a)) return 1;
+  if (f == reinterpret_cast<void (*)()>(touch_b)) return 2;
+  if (f == reinterpret_cast<void (*)()>(damage_a)) return 3;
+  return -2;
+}
+
 int32_t net_gate(zwep::WeaponDef* d, int32_t* id) {
     int32_t out[2];
     const int32_t r = call(41, {dtok(d), *id}, out);
@@ -140,6 +155,47 @@ void set_hooks() {
   k.set_shootable = [](Handle n, Projectile* p) { call(66, {u(n), ptok(p)}); };
   k.clear_handler = [](Handle n) { call(67, {u(n)}); };
   k.node_frame = [](Handle n) { return call(68, {u(n)}); };
+  k.node_flags = [](Handle n) { return static_cast<uint32_t>(call(74, {u(n)})); };
+  k.parent = [](Handle n, int32_t i) { return h(call(80, {u(n), i})); };
+  k.child = [](Handle n, int32_t i) { return h(call(81, {u(n), i})); };
+  k.handler = [](Handle n) -> uintptr_t {
+    const uint32_t v = static_cast<uint32_t>(call(69, {u(n)}));
+    for (zwep::NodeHandlers* t : g_tables)
+      if (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t)) == v) return reinterpret_cast<uintptr_t>(t);
+    return v;
+  };
+  k.set_handler = [](Handle n, uintptr_t v) {
+    auto* t = reinterpret_cast<zwep::NodeHandlers*>(v);
+    if (v > 1 && std::find(g_tables.begin(), g_tables.end(), t) == g_tables.end()) g_tables.push_back(t);
+    call(82, {u(n), static_cast<int32_t>(static_cast<uint32_t>(v))});
+  };
+  k.set_flag_4eb790 = [](Handle n, int32_t on) { call(79, {u(n), on}); };
+  k.crater_defaults = [](zwep::CraterOrder* c) {
+    int32_t o[11];
+    call(75, {}, o);
+    std::memcpy(&c->x00, &o[0], 4), std::memcpy(&c->points, &o[1], 4), c->material = h(o[2]);
+    std::memcpy(&c->x0c, &o[3], 4), c->depth = bf(o[4]), c->radius = bf(o[5]);
+    c->at = {bf(o[6]), bf(o[7]), bf(o[8])};
+    c->owner = h(o[9]);
+  };
+  k.crater_make = [](const zwep::CraterOrder* c) {
+    return call(76, {static_cast<int32_t>(c->x00), c->points, u(c->material), static_cast<int32_t>(c->x0c), fb(c->depth),
+                     fb(c->radius), fb(c->at.x), fb(c->at.y), fb(c->at.z), u(c->owner)});
+  };
+  k.quicksand_defaults = [](zwep::QuicksandOrder* q) {
+    int32_t o[11];
+    call(77, {}, o);
+    std::memcpy(&q->x00, &o[0], 4), std::memcpy(&q->points, &o[1], 4);
+    for (int i = 0; i < 3; ++i) std::memcpy(&q->x08[i], &o[2 + i], 4);
+    q->depth = bf(o[5]), q->radius = bf(o[6]);
+    q->at = {bf(o[7]), bf(o[8]), bf(o[9])};
+    q->owner = h(o[10]);
+  };
+  k.quicksand_make = [](const zwep::QuicksandOrder* q) {
+    call(78, {static_cast<int32_t>(q->x00), q->points, static_cast<int32_t>(q->x08[0]), static_cast<int32_t>(q->x08[1]),
+              static_cast<int32_t>(q->x08[2]), fb(q->depth), fb(q->radius), fb(q->at.x), fb(q->at.y), fb(q->at.z),
+              u(q->owner)});
+  };
   k.set_active = [](Handle n, int32_t on) { call(52, {u(n), on}); };
   k.set_name = [](Handle n, const char* s) {
     uint32_t x = 2166136261u;
@@ -232,20 +288,6 @@ void set_hooks() {
   t.effect = [](Handle a, const float* x) {
     call(31, {u(a), fb(x[0]), fb(x[1]), fb(x[2]), fb(x[3]), fb(x[4]), fb(x[5]), fb(x[6]), fb(x[7]), fb(x[8])});
   };
-  t.crater = [](zwep::WeaponDef* d, HitRecord* r, int32_t soil, Projectile*) {
-    std::vector<int32_t> v{dtok(d)};
-    const auto ra = rec_args(r);
-    v.insert(v.end(), ra.begin(), ra.end());
-    v.push_back(soil);
-    return callv(46, v);
-  };
-  t.quicksand = [](zwep::WeaponDef* d, HitRecord* r, int32_t soil, Projectile*) {
-    std::vector<int32_t> v{dtok(d)};
-    const auto ra = rec_args(r);
-    v.insert(v.end(), ra.begin(), ra.end());
-    v.push_back(soil);
-    return callv(47, v);
-  };
   t.impact_effect = [](int32_t e, const Vec3f3* at) { call(32, {e, fb(at->x), fb(at->y), fb(at->z)}); };
   t.surface_angles = [](const Vec3f3* n, float out[3]) {
     int32_t o[3];
@@ -283,6 +325,7 @@ void probe_fly_setup(PyFn py) {
   zwep::fire_state() = zwep::FireState{};
   mech3::radar_clear();
   for (auto& b : g_beams) b = nullptr;
+  g_tables.clear();
 }
 
 // The globals an op starts from: dt, frame, net clock, zone, init arg, the
@@ -366,10 +409,10 @@ int32_t probe_fly_op(int op, const int32_t* a, uint32_t seed, int32_t* out) {
       out[0] = s.size, out[1] = s.free, out[2] = s.flying, out[3] = s.x0c;
       return 0;
     }
-    case 8: {
+    case 8: {  // a shot's tick: 0 the test's, 1 the radar's friend, 2 foe
       Projectile* p = pfrom(a[0]);
-      p->tick = tick_cb;
-      p->tick_arg = static_cast<uintptr_t>(static_cast<uint32_t>(a[0]));
+      p->tick = a[1] == 1 ? mech3::radar_friend : a[1] == 2 ? mech3::radar_foe : tick_cb;
+      p->tick_arg = reinterpret_cast<uintptr_t>(p);
       return 0;
     }
     case 9: {
@@ -442,6 +485,8 @@ void probe_fly_poke(int i, int which, int32_t v) {
     case 14: d.range = bf(v); break;
     case 15: d.impact_proximity = bf(v), d.impact_proximity_sq = bf(v) * bf(v); break;
     case 16: d.acceleration = bf(v); break;
+    case 19: d.fire.flags = static_cast<uint32_t>(v); break;
+    case 20: d.velocity = bf(v); break;
     case 17:
       for (int k = 0; k < zwep::kSoilCount; ++k) {
         d.impacts[k].bounce_sound_count = 2;
@@ -524,11 +569,70 @@ int probe_fly_radar(int32_t* o) {
   return n;
 }
 
+// The handler ops: 0 damage handler (obj, node, fn 1/2/3, flag), 1 touch
+// handler (obj, node, fn), 2 remove (node), 3 owns (node), 4 touch (from3,
+// rec point3, rec node, damage).
+int32_t probe_fly_handler(int op, const int32_t* a) {
+  auto fn = [](int32_t t) -> void (*)() {
+    return t == 1 ? reinterpret_cast<void (*)()>(touch_a) : t == 2 ? reinterpret_cast<void (*)()>(touch_b)
+                                                                   : reinterpret_cast<void (*)()>(damage_a);
+  };
+  switch (op) {
+    case 0: return zwep::set_damage_handler(h(a[0]), h(a[1]), reinterpret_cast<zwep::DamageFn>(fn(a[2])), a[3]);
+    case 1: return zwep::set_touch_handler(h(a[0]), h(a[1]), reinterpret_cast<zwep::TouchFn>(fn(a[2])));
+    case 2: return zwep::remove_handlers(h(a[0]));
+    case 3: return zwep::own_handler(h(a[0])) ? 1 : 0;
+    case 4: {
+      HitRecord& r = g_touch_rec;
+      r = HitRecord{};
+      const Vec3f3 from{bf(a[0]), bf(a[1]), bf(a[2])};
+      r.point = {bf(a[3]), bf(a[4]), bf(a[5])};
+      r.node = h(a[6]);
+      zwep::touch(&from, &r, bf(a[7]));
+      return 0;
+    }
+    default: return -1;
+  }
+}
+
+// The AMS: 0 make (range, period, rounds), 1 find (side, at3), 2 fire (count).
+// out: on, range, next, period, target token, rounds, target position token.
+int32_t probe_fly_ams(int op, const int32_t* a, int32_t* out) {
+  static mech3::Ams* ams = nullptr;
+  int32_t r = 0;
+  if (op == 0) {
+    delete ams;
+    ams = new mech3::Ams(bf(a[0]), bf(a[1]), a[2]);
+  } else if (op == 1) {
+    const Vec3f3 at{bf(a[1]), bf(a[2]), bf(a[3])};
+    r = ams->find(a[0], &at) ? 1 : 0;
+  } else if (op == 2) {
+    ams->fire(a[0]);
+  }
+  const Vec3f3* t = ams->target_at();
+  const int32_t v[] = {ams->on ? 1 : 0, fb(ams->range), fb(ams->next), fb(ams->period), ptok(ams->target), ams->rounds,
+                       t ? ptok(ams->target) : 0};
+  std::memcpy(out, v, sizeof v);
+  return r;
+}
+
+// A table the port made, by its low 32 bits: obj, fn token for both slots; -1 unknown.
+int probe_fly_table(int32_t v, int32_t* o) {
+  for (const zwep::NodeHandlers* t : g_tables) {
+    if (static_cast<int32_t>(reinterpret_cast<uintptr_t>(t)) != v) continue;
+    for (int i = 0; i < 2; ++i) o[2 * i] = u(t->slot[i].object), o[2 * i + 1] = fn_tok(t->slot[i].fn);
+    return 4;
+  }
+  return -1;
+}
+
 // The network callbacks [0x0072fcac] and [0x0072fcb4] on or off.
 void probe_fly_net(int gate, int det) {
   zwep::run_hooks().net_gate = gate ? net_gate : nullptr;
   zwep::run_hooks().net_detonated = det ? net_detonated : nullptr;
 }
+
+void probe_fly_seed(uint32_t seed) { crt::msvc_srand(seed); }
 
 void probe_fly_choice(int i, int32_t sound, int32_t flyout) {
   zwep::WeaponDef& d = zwep::state().defs[static_cast<size_t>(i)];
@@ -585,8 +689,8 @@ int probe_fly_slot(int i, int32_t* o) {
   put(fb(p.track_scale[1]));
   put(p.terrain_follow);
   put(p.net_id);
-  put(p.tick ? 1 : 0);
-  put(static_cast<int32_t>(p.tick_arg));
+  put(p.tick == tick_cb ? 1 : p.tick == mech3::radar_friend ? 2 : p.tick == mech3::radar_foe ? 3 : p.tick ? -2 : 0);
+  put(ptok(reinterpret_cast<const Projectile*>(p.tick_arg)));
   return n;
 }
 

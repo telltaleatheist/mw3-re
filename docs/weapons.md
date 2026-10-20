@@ -18,8 +18,15 @@ logged on both sides):
 | The manager, groups, bins, projectile and beam weapons (0x4b00d0..0x4b4f00 but the AI planner), the def callbacks (salvo marks 0x4afc00, airstrike 0x4afed0, LB-X burst 0x4b44d0), the AI's LRM wait, the mech lab's rounds | `mech3/weapon` | `test_weapons_run.py`: 600 managers, 44,000 operations, 125,000 calls, 60 paths |
 | zWeapon's fire state setters (0x581f60..0x581fd0), the damage path (beam damage 0x583020, hand-off 0x583480, impact 0x5826b0, splash 0x582920 / 0x5829b0, hit 0x586350, air burst 0x582320) and the flight step 0x585cc0 | `gamez/zweapon/zweapon` | `test_weapons_hit.py`: 20,000 operations on the real defs, 48 paths |
 | Vector and quaternion helpers 0x51dfa0, 0x51e3d0, 0x51e740, 0x525490, 0x525840 | `gamez/zmath/zmth_vector` | through the two tests above |
+| zWeapon's projectiles: the pool 0x584df0 / 0x584e60 / 0x584f40 / 0x584fb0 / 0x584fe0 and its nodes 0x5847c0, the FLYOUT model pool 0x5830b0 / 0x5830e0 / 0x583120, spawn 0x585010 with the static cast, the tick 0x5823c0, update 0x585710, homing 0x585900, collision 0x5861f0 (0x586160 / 0x5861c0), the pick 0x583130, classify 0x582b10, commit 0x5858b0 / 0x5864c0 / 0x586600, mines 0x586670 / 0x586740, bursts 0x5821c0 / 0x5820c0 / 0x5822c0, the aim slope 0x581ff0, the counts 0x581e50, sounds 0x582f60 / 0x582fc0, craters 0x5825b0 / 0x5824b0, the node handler slots 0x583220..0x583440 and touch 0x5836b0, the light pool 0x586970 / 0x5869f0 / 0x586b20 / 0x586b70; the maths 0x51e0e0, 0x51e000, 0x51e280, 0x51e460, 0x524247 | `gamez/zweapon/zwep_shot`, `zweapon`, `zmth_vector` | `test_weapons_fly.py`: 120 sessions of 40 operations (spawns, frames, bursts, beams, handler tables, the AMS) on the real defs with unshipped features poked in, every call out, every pool slot, beam and scene node compared; trig-fed floats within 3e-5, 128 paths |
+| The beams: make 0x584a70 (0x584db0), free 0x584b40, start 0x581230, stop 0x581400, the frame 0x5814b0 with DESIGNATE and BOUNCES, MULTI_TARGET 0x582c10 / 0x582de0, draw 0x582f00 | `gamez/zweapon/zwep_beam` | `test_weapons_fly.py` |
+| weapon.cpp: the radar list 0x4b49c0..0x4b4b96, the AMS 0x4b3ab0..0x4b3c05, the HUD ammo gauge 0x4b0d80, the vehicle builder 0x4b4660 with the named add 0x4b0460, the mech's configuration step 0x414501..0x414732 | `mech3/weapon` | radar and AMS in `test_weapons_fly.py`; the rest in `test_weapons_run.py` (600 managers, 73 paths) |
+| The engine's soil names and LoadSoils 0x535f20 / 0x537cb0 / 0x537270, read by the impact table | `gamez/zmodel/gmod_matl` | `test_weapons_zrd.py`: LoadSoils on soils.zrd and 40 variants; weapons.zrd read with the mission's 14 soils |
 
-Left: see the last section.
+The engine calls (scene graph, object3d, animations, sounds, the crater
+module, cls_di.c's segment, ground and sphere queries) go through
+`zwep::RunHooks` / `HitHooks`; the queries are ported separately in cls_di.c
+by another piece of work and are hooked here. Left: see the last section.
 
 ## Three layers
 
@@ -103,6 +110,16 @@ The pool: 164 projectiles on the shipped file for the whole mission, a free
 list through +0 (0x9a0eb8). An empty pool drops the shot (0x585053) after the
 weapon has spent its ammo and heat.
 
+The IMPACT table has one block per soil name the engine knows when the file is
+read (0x5edbb8, names 0x5edbc0): six built in (default, water, seafloor,
+quicksand, lava, fire), then whatever the mission script's `LoadSoils
+soils.zrd` (0x537cb0) added before the weapons are read at 0x490173: dirt,
+mud, grass, concrete, snow, mech, silt, noslip (6..13). A material's +0x20 is
+an index in that list, so a hit on dirt plays the `dirt` block: the pock
+marks of the autocannons, Gauss, missiles and MGUN show (28 weapons have a
+dirt, mud or snow SURFACE_ANIMATION). The game's own soil table 0x608c00
+(grass 2, dirt 3, ...) maps those engine indices for the feet.
+
 ### WeaponType (0x4af5a0)
 
 | Offset | Key | Notes |
@@ -140,7 +157,7 @@ def.
 ## The manager (Vehicle +0xd4)
 
 Made in the mech constructor (0x414daf) and, for other vehicles, by 0x4b4660
-(not ported, reads the vehicle's `weapons` list).
+(`build_vehicle_weapons`, from the vehicle's `weapons` list: "Vehicles" below).
 
 | Offset | Field |
 |---|---|
@@ -195,8 +212,8 @@ has no manager.
 ## From the loadout to weapons
 
 `dfn_<mech>.zrd` → configurations → `weapons` (`docs/mechdef-configs.md`).
-When the mech takes a configuration (0x414501..0x414732, mech code, not
-ported here):
+When the mech takes a configuration (0x414501..0x414732, mech code, ported as
+`mech3::configure_weapons`):
 
 1. The manager is reset (0x4b0290: weapons and groups remade; group and
    destroyed count stay).
@@ -205,7 +222,7 @@ ported here):
    the mech-lab table gets an infinite bin; SALVO count to +0x64.
 3. Every ammo item → the first weapon of its index → its bin `Add(N)`.
 4. Equipment counts; TAG mounts weapon 0x20 into group 5 through 0x4b0460
-   (no 16-weapon check); AMS at 0x4146f9.
+   (no 16-weapon check); the AMS gets 100 rounds per AMS (0x4146f9).
 
 ### Weapon (0x98; BeamWeapon adds +0x98..+0xa0)
 
@@ -330,44 +347,95 @@ group's in group mode (unlimited bins too).
 The rest of 0x581230..0x586b70 (0x580550 is DirectDraw's error strings; from
 0x586ba0 it is the network session).
 
-### Projectile (0x5d8)
+### Projectile (0x5d8, `zwep::Projectile`)
 
 | Offset | Field |
 |---|---|
 | +0x00 | next (free list, then the def's active list at def +0x7c) |
 | +0x04 | the shooter's node |
-| +0x08 | the vehicle's +0x64 (likely the collision mask) |
-| +0x0c | scene node |
-| +0x10..+0x1c | flyout effects, pooled model |
-| +0x20 | state: 1 flying, 0 remove, 2 dormant mine |
+| +0x08 | the shooter's zone set ([vehicle +0x64]); with no zone only the low byte is set, to 4: "use the tick's" |
+| +0x0c | scene node ("Projectile_%d", made by 0x5847c0) |
+| +0x10, +0x14, +0x18, +0x1c | FLYOUT animation (following the node), attached animation, the model animation, the pooled copy of the FLYOUT model |
+| +0x20 | state: 1 flying, 0 remove, 2 a mine lying in wait |
 | +0x24 | spawn position |
-| +0x30 | base velocity (the shooter's) |
-| +0x3c, +0x48, +0x54, +0x60 | direction, position, next position, velocity |
-| +0x6c..+0x74 | lock: entity, the target's position and velocity pointers |
-| +0x78..+0x584 | precomputed static hits (0x28-byte records sorted by distance) |
-| +0x588 | homing time |
+| +0x30 | base velocity: the shooter's, for a locked shot only |
+| +0x3c, +0x48, +0x54, +0x60 | direction, position, the move's end this frame, velocity |
+| +0x6c..+0x74 | lock: entity, the target's position and velocity pointers (a `LockRef`) |
+| +0x78, +0x7c | static hits cast at the spawn, the frame of the cast ([0x72f338]) |
+| +0x80 | the static hits (a 0x504-byte list: count, then 0x28-byte records) |
+| +0x584 | the next static record to reach |
+| +0x588 | homing time; for a mine in a network game, its expiry |
 | +0x58c, +0x590 | speed, maximum speed |
 | +0x598 | RANDOM_DEVIATION's drift velocity |
-| +0x5a4 | the drift so far: each frame += drift x dt, and held within +-1 (y +-0.75) by pushing the drift back at 10 a second (0x585f07) |
+| +0x5a4 | the drift so far, held within +-1 (y +-0.75) by pushing back at 10 a second (0x585f07) |
 | +0x5b0, +0x5b4 | distance travelled, age |
-| +0x5b8 | flyout health, -1 none |
+| +0x5b8 | flyout health, -1 none; 0 means shot down |
 | +0x5bc | damage scale ([0x9a17d0]) |
-| +0x5c0, +0x5c4, +0x5c8 | copies of [0x9a17d8], [0x9a17dc] (unread), [0x9a17e0] (terrain following) |
-| +0x5cc | spawn's p5 (likely a network id) |
-| +0x5d0, +0x5d4 | per-tick callback (radar), its argument |
+| +0x5c0, +0x5c4, +0x5c8 | copies of [0x9a17d8], [0x9a17dc] (both unread) and [0x9a17e0] (terrain following) |
+| +0x5cc | spawn's fifth argument (likely a network id; the network gate may change it) |
+| +0x5d0, +0x5d4 | per-frame callback (the radar's 0x4b4a30 / 0x4b4a20), its argument (the shot) |
+
+Query answers (`HitList`, 0x504 bytes): the segment query 0x4eed90 and the
+sphere query 0x4f0ac0 write the count in byte 0; the nearest-hit query
+0x4eece0 moves it to byte 1 and puts the nearest index in byte 0, which is
+what the pick reads.
 
 ### Spawn (0x585010)
 
-ECX def, EDX the shooter's node, then x64 pointer, muzzle, direction,
-velocity, p5, p6 (`ret 0x18`; the friend flag stays in 0x4b4a40). A network
-gate ([0x9a0ec0] and [0x72fcac]); a pool slot or nothing; positions and
-direction; the fire globals copied and reset to 1, 1, 1, 0 (so the doubled
-FCS tracking a lock writes is always reset before any homing reads it).
-Without ACCELERATION and not INSTANT the speed is the def's velocity and the
-velocity = shooter's + direction x speed (RELATIVE_SPEED is never tested);
-without gravity or lock the static hits along the whole range are cast once.
-With ACCELERATION the shot starts at 0.0001 plus the shooter's speed. A lock
-copies the weapon's three lock dwords.
+ECX def, EDX the shooter's node, then the zone pointer, muzzle, direction,
+velocity, p5, a slot to reuse (`ret 0x18`). With the network flag ([0x9a0ec0])
+the gate [0x72fcac] can refuse it; a pool slot (0x584df0: the FLYOUT model
+put under the node, a pooled copy when the model is animated) or nothing.
+Positions and direction; the fire globals copied and reset to 1, 1, 1, 0.
+Without ACCELERATION and not INSTANT: speed = VELOCITY, velocity = shooter's +
+direction x speed (RELATIVE_SPEED is never tested), and, without gravity or
+lock, the **static cast**: the segment query over the whole RANGE, with the
+shooter (and a shootable shot's own node) out of it and only nodes that have
+not moved since the frame (0x4ed9d0); the records' distances, then a sort
+that compares the shifted record with the one before it instead of the one
+being placed, so it is one bubble pass: only the farthest is sure to be last.
+With ACCELERATION (or INSTANT) the shot starts at 0.0001 plus the shooter's
+speed, the maximum raised by it, and the velocity the shooter's less its
+speed along the direction. Then the FIRE sound at the muzzle, the FIRE effect,
+or the FIRE animation (the choice from 0x581f90; RANDOM_ROTATE rolls it; on the
+firepoint when attached); the node turned to the direction for animated
+flyouts; the FLYOUT animations started; a lock's three dwords copied
+(LOCK_ON, with the lock flag above 0) and the shooter's velocity kept as the
+base; FLYOUT_HEALTH makes the node shootable (+0x24 bit 27, +0xbc = 1, +0x40 =
+the shot). The fire and flyout choices are set back to 0.
+
+### The frame (tick 0x5823c0)
+
+The tick saves the zone ([0x74a328]), runs every def's update (beams:
+0x5814b0), then every projectile def's commit, and puts the zone back.
+
+Update (0x585710), per shot: state 1; its callback; the zone set to the
+shot's (or the tick's); then **shot down** (health exactly 0: the
+DESTROY_ANIMATION, or an air burst without one), a **mine** at rest
+(0x586670), or flying: homing if locked, then the step (INSTANT: the whole
+RANGE at once). A flying shot's move is cast (0x5861f0) and what it meets is
+hit (0x586350) or, for a mine, landed on (0x586740). A stopped shot that is
+not a mine would move by the last shot's move (the original's local; no
+shipped weapon stops). INSTANT shots end after one frame.
+
+Collision (0x5861f0): without a static cast, the segment query from the
+position to the move's end and the pick. With one, the next static record
+whose node has not moved since the cast, once the distance travelled reaches
+it (one record a frame), against a query of only what moved since (0x4ed9e0);
+the nearer wins.
+
+The pick (0x583130): the query's nearest record, but water stops only
+DETONATE_ON_WATER shots: the others play the water animation and take the
+nearest record that is not water (none when the list has one record; the
+static list's byte 1 is never written, so a static water hit is dropped).
+
+Commit (0x5858b0): dead shots leave the list (0x586600: animations stopped,
+the node out of the world, back to the pool; a TETHER_GUIDED shot is not
+returned to the pool, its slot is lost), the others move (0x5864c0): gravity
+shots face their velocity (not FIXED_ROTATE), a mine spins 200 degrees a
+second and grows from 1 to 5 over its first second, the node is put where the
+shot was at the frame's start ([0x5cec0c] is the constant 1 that picks it),
+then the position takes the move's end.
 
 ### Flight (0x585cc0, ported)
 
@@ -381,15 +449,67 @@ move's length (mines count half). At RANGE: a homing shot without EXPIRES, or
 DETONATE_AT_RANGE, bursts in the air (0x582320); every shot ends. Short of
 it, a locked shot inside DETONATION_DISTANCE bursts.
 
-### Homing (0x585900, not ported)
+### Homing (0x585900)
 
-Steers toward the target's position (LOCK_ON_LEAD blends an intercept,
-0x524247, between lead min and max of age). The turn per frame is TURN_RATE x
-[0x9a17d8] x factor x dt, factor 0 until TURN_SUSPEND_TIME, then
-(t - suspend) / LOCK_ON, held at 1 after LOCK_ON. Tethered shots and FCS
-shots (+0x5c8) follow the terrain (a ground query, 0x4eda10): under 10 m
-they climb; with no ground under them they expire. Each turn slows the shot:
-speed x= 0.8 + 0.2 cos(turn). Until LOCK_ON the shooter's velocity fades out.
+The wanted direction is to the target; LOCK_ON_LEAD (no shipped weapon)
+blends in the intercept (0x524247) from lead min to lead max of age (slerp
+0x51e460), then uses it. The turn allowed this frame is TURN_RATE x
+[0x9a17d8] (the global, which spawn has reset to 1: the FCS doubling never
+applies) x factor x dt, the factor 0 until TURN_SUSPEND_TIME, then
+(t - suspend) / LOCK_ON, or 1 when there is no suspend time; t is the homing
+time, which stops one frame past LOCK_ON, so with a suspend time the factor
+never reaches 1 (LRMs about 0.93 at 30 fps). Tethered shots and FCS shots
+(+0x5c8) probe the ground (0x4eda10): a tethered shot within 5 m of its
+ceiling stops climbing; an FCS shot under 10 m climbs (pitch rate x 0.64)
+when the line to the target is blocked by something without a damage
+handler; with no ground under it the shot expires. The angle is acos of the
+dot clamped to 0..1 (beyond 90 degrees counts as 90); the direction turns by
+at most the allowed turn (slerp, normalised), and the speed is multiplied by
+0.8 + 0.2 cos(turn). Until LOCK_ON the shooter's velocity fades out of the
+velocity; the node faces the direction.
+
+### Mines (0x586670, 0x586740; no shipped weapon)
+
+A mine lands on the first thing it meets: something with a damage handler
+sets it off (the impact); BOUNCES reflects it (0x582b10) at a quarter of its
+speed with the bounce sound, over half the bounce's length, until it is under
+0.2: it lies down (state 2, scale 5, in a network game expiring after 120 s).
+Lying, it goes off when the splash query finds anyone but its layer within
+IMPACT_PROXIMITY (REMOTE_DETONATE ones only by 0x5820c0), or when its time is
+up: the splash, then a ground burst without splash. A pass without a bounce
+reuses the last bounce length (the original's stack; 0 at first here).
+
+### Bursts (0x5821c0, 0x5820c0, 0x5822c0)
+
+A ground burst casts from 1 m above the shot down to a tenth of
+IMPACT_PROXIMITY below it, impacts what it finds, then splashes from 1 m above
+(the shot keeps the raised position). REMOTE_DETONATE (0x5820c0) bursts every
+stopped shot of the weapon (of one owner, or all) or one at a point, and
+tells the network ([0x72fcb4]); 0x5822c0 bursts at a point for no one.
+
+### Craters and quicksand (0x5825b0, 0x5824b0)
+
+On a node with +0x24 bit 0x10000: the crater module's defaults, then points,
+radius and depth each the minimum plus rand / 32767 x the span, the material,
+the point and the shooter; 0x4ffaa0 makes it (1 when made). Quicksand only on
+the default soil, through 0x5020f0 / 0x502110 the same way.
+
+### Node handler slots (0x583220..0x583440, 0x5836b0)
+
+Node +0xbc is a 16-byte table of two {object, function} slots, 0 damage, 1
+touch, shared by a subtree: 0x5832f0 sets a slot of the node's own table, or
+makes a table (a new node, or splitting from the parent's, the other slot left
+empty) and hands it down to every child that had the old one (0x5832a0).
+0x5833b0 (flag, then fn) sets the damage slot and with the flag sets a node
+flag (0x4eb790); 0x5833f0 the touch slot; 0x583400 frees the node's own table
+off its subtree. The touch (0x5836b0): slot 1 with the damage, the shot line
+set to the contact (collision's 20 per frame against buildings).
+
+### The impact light pool (0x586970..)
+
+Eight "Thermal glow" lights at load, range 0.1..0.2, a list through node
++0x40; DESIGNATE beams take one (coloured with DESIGNATE's 4th..6th values:
+TAG's is green 0.51, 1.0, 0.03), put it on what they touch and give it back.
 
 ### Hits (ported)
 
@@ -422,15 +542,42 @@ speed x= 0.8 + 0.2 cos(turn). Until LOCK_ON the shooter's velocity fades out.
   beam's scale, once a shot (the beam's flag 2), or x dt for TIMED_DAMAGE.
   Under water the range scale is 0.5: the falloff runs over half the range.
 
-### Beams (0x581230 start, 0x5814b0 update; not ported)
+### Beams (`zwep::Beam`, 0x150)
 
-The beam object (0x150): +0x20 / +0x24 origin and direction pointers, +0x28
-length, +0x2c designate timer, +0x30 age, +0x34 damage scale, +0x38 range
-scale, +0x3c segments (up to 8, 1 for DESIGNATE), +0x14c flags. The update
-grows the length toward RANGE x scale at 1 / TIME_TO_MAX_RANGE, casts a ray
-(0x583130 picks the hit, 0x582b10 classifies it: handler, bounce, surface),
-and applies 0x583020 to the first object. TAG (DESIGNATE) held on an object
-calls the airstrike once a second (the sixth DESIGNATE value, 1.0).
++0 next, +4 prev on the def's list (+0x7c), +8 def, +0xc the owner's node,
++0x10 zone, +0x14 the looping FLYOUT sound, +0x1c light, +0x20 / +0x24 the
+weapon's muzzle and direction (followed every frame), +0x28 length, +0x2c the
+designate timer, +0x30 age, +0x34 damage scale, +0x38 range scale, +0x3c
+segments made (up to 8, 1 for DESIGNATE; the game asks for 1), +0x40 shown,
++0x44 segments (node, point, direction, length), +0x144 / +0x148 the lock
+(MULTI_TARGET: a count and an array), +0x14c flags (bit 0 ground effect, bit
+1 damage dealt).
+
+- Make 0x584a70: "BeamReflect_%d" nodes with the FLYOUT model, in the world,
+  hidden. Free 0x584b40.
+- Start 0x581230: the FIRE sound, the FLYOUT sound looping (silent for
+  DESIGNATE), the FIRE effect or animation (kept in the fire block's +0x08
+  while it fires), the fire state taken (damage and range scale, the ground
+  flag, the lock), DESIGNATE's light; onto the list. Stop 0x581400: the loop
+  stopped, the FIRE sound again, the animation freed, off the list, the light
+  back, the segments hidden.
+- The frame 0x5814b0: the length grows toward RANGE x range scale by
+  (reach - length) x VELOCITY (1 / TIME_TO_MAX_RANGE) x dt, snapping within
+  0.1; each segment is placed, scaled by the PULSE wave ((sin(age x rate x
+  2 pi) + 1) / 2 between PULSE's two values) and cast (the owner out of the
+  first). What it meets plays the impact sound (every frame) and: with a
+  damage handler, takes the damage (0x583020, the beam stopping there), or
+  for DESIGNATE adds to the timer and, once past the sixth DESIGNATE value
+  (TAG: 1 s), impacts it with a stand-in shot (the airstrike); without one,
+  the ground animation (if the beam's ground flag) and, for DESIGNATE, the
+  timer counts down and sets the loop's volume. BOUNCES reflects into the next
+  segment. Nothing met: DESIGNATE goes silent, its timer and light off.
+- MULTI_TARGET (no shipped weapon): with 2..4 locks the targets are sorted
+  along the direction to the farthest (0x582c10, on the weapon's own array),
+  the chain kinked at random between points 40% of the way to each, with a
+  branch to each target (0x582de0 casts each segment, damaging what has a
+  handler); one lock kinks once at half way; none is a straight full-reach
+  ray.
 
 ### Specific weapons
 
@@ -441,7 +588,15 @@ calls the airstrike once a second (the sixth DESIGNATE value, 1.0).
 - NARC: a homing missile of DAMAGE 0; TakeDamage marks with ISNARC.
 - TAG: the strike (0x4afed0) is 4 TAG_MISSILEs from 1500 back along the beam
   and 400 up, 50 apart, homing on the point.
-- AMS is not in zWeapon (mech code at 0x4146f9).
+- AMS (0x4b3ab0..0x4b3c05, weapon.cpp; the mech makes it with range 150,
+  period 0.6, 100 rounds, and the configuration step sets 100 rounds per
+  AMS): it takes the nearest shot on the radar list within 150 by |dx| + |dz|
+  (the player's foes' shots; an enemy's AMS the player side's) and shoots it
+  down (health 0) once the period, shared over the AMS count, has passed.
+  Only shots on the radar (SHOW_ON_RADAR: the missiles) can be shot down.
+- The radar list (0x4b49c0..0x4b4b96): a std::list of {shot, friendly}; every
+  frame each radar shot's tick puts itself on it, and the radar object's
+  action (priority 2) empties it.
 
 ## Discoveries
 
@@ -450,25 +605,43 @@ See `docs/discoveries.md`, Weapons.
 ## Frame-rate dependence
 
 - Salvos leave one shot a frame.
+- A beam grows by (reach - length) x VELOCITY x dt toward its reach: with the
+  shipped 10000 it reaches it in one frame at any rate.
+- The homing clock stops one frame past LOCK_ON, so the top turn factor of a
+  missile with a suspend time depends on that frame's length.
 - Beam recharge adds ftol(rate x dt) a frame: at 420 fps and above a plain
   laser never recharges. A port at a high frame rate must carry the fraction.
 - Homing slows a turning shot per frame (0.8 + 0.2 cos(turn)), so the loss
   depends on the frame rate (likely less at a high one).
 
+## Vehicles and the configuration step
+
+- The vehicle builder 0x4b4660: a vehicle's `weapons` items are (name 1 1
+  ammo aim... "firepoint" (names)). The firepoint name is looked up in the
+  whole list (0x5569f0 searches nested lists), not the item, so every weapon
+  takes the first item's first firepoint name; the node is found by name
+  (0x4eb0d0, then again in 0x4b0460 by 0x4abb60). Ammo 0 is an endless bin
+  (beams keep theirs); weapons go in group 4, then 0. Errors at lines
+  0xd94 / 0xd97 / 0xd9a.
+- The mech's configuration step 0x414501..0x414732: the manager reset, each
+  weapon item mounted (an error at 0x1b1 when refused), the configuration kept
+  at +0x3ec, then each ammo item into the first weapon of its index (weapons
+  that use ammo), equipment counted at +0x3ac (jump jets, kind 11, through
+  0x417300), the AMS given 100 rounds per AMS, and TAG (kind 13) mounted as
+  weapon 0x20 on the first firepoint's node by name, in group 5 (index 4).
+  A TAG mounted this way has no firepoint (the vehicle constructor), and the
+  arm check 0x4b2f90 reads through it for a side view (likely a crash the
+  game never reaches; the test keeps clear of it).
+
 ## Left to port
 
-- zWeapon: spawn 0x585010 (with the pool 0x584df0 / 0x584e60 / 0x584f40 and
-  the static-hit cast), the tick 0x5823c0 with update 0x585710 and commit
-  0x5858b0 / 0x5864c0 / 0x586600, homing 0x585900 (needs the intercept
-  0x524247, 0x51e460, acos / asin and the ground query), collision 0x5861f0
-  and hit pick 0x583130 / 0x582b10, mines 0x586670 / 0x586740, beams
-  (0x584a70 make, 0x584b40 free, 0x581230 start, 0x581400 stop, 0x5814b0
-  update, MULTI_TARGET 0x582c10 / 0x582de0), craters 0x5824b0 / 0x5825b0,
-  sounds 0x582f60 / 0x582fc0, the node handler slots 0x583220..0x583440, the
-  second hand-off 0x5836b0, the light pool 0x586970.., the aim helper
-  0x581ff0, the startup 0x583750's network registration.
-- weapon.cpp: the vehicle builder 0x4b4660 (a vehicle's `weapons` list), the
-  AI's weapon planner 0x4b1170..0x4b1d7f, the TAG strike tracker
-  0x4b3ab0..0x4b3c05, the HUD ammo gauge 0x4b0d80, the radar list
-  0x4b49c0..0x4b4b96.
-- The mech's configuration step (0x414501..0x414732), in mech code.
+- The AI's weapon planner 0x4b1170..0x4b1d7f (with 0x4b1bd0 / 0x4b1c70, which
+  the HUD gauge's 0x443d20 also calls).
+- The glow objects 0x5869d0 / 0x586a30 / 0x586af0 (the game's freeze and heat
+  effects, called from 0x4accb7..0x4ad4b5), and the startup 0x583750's network
+  registration.
+- The engine pieces zWeapon calls, hooked here: cls_di.c's queries (ported
+  separately), the crater module (0x4ff920 / 0x4ffaa0 / 0x5020f0 / 0x502110),
+  object3d and the animations.
+- Wiring: the mech's own setup still has to call `configure_weapons`, build
+  the AMS and run the tick; `zwep::tick` is the weapon_tick action.

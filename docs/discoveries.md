@@ -326,9 +326,13 @@ From the weapon code (weapons.md).
   `radius` instead.
 - **Group fire with several lasers** plays the ground impact of the best one
   only (0x4b2100); every laser still does its damage.
-- **Pock marks never appear.** The ballistic weapons' data asks for bullet
-  marks on `dirt`, `mud` and `snow`, but the impact code only knows default,
-  water, seafloor, quicksand, lava and fire, so those blocks are never read.
+- **Bullet pock marks do appear, on dirt, mud and snow.** The impact table
+  looks like it only knows default, water, seafloor, quicksand, lava and fire,
+  but each mission's script loads `soils.zrd` first, which adds dirt, mud,
+  grass, concrete, snow, mech, silt and noslip, and the weapons are read after
+  that. So the autocannons', Gauss rifle's, missiles' and machine gun's
+  surface marks for those three ground types are read and shown (28 weapons
+  have one).
 - **Lasers lose up to a quarter of their damage with distance**, on a cosine
   curve: full damage up close, 75% at maximum range (`DAMAGE_AT_MAX_RANGE`
   0.75, 0x583020). A short laser shot deals its damage once, to the first
@@ -365,6 +369,48 @@ From the weapon code (weapons.md).
 - **Three LRM20 launchers on one mech share one pool of missiles**, and the
   pool counts its users oddly (the third launcher adds two references, four in
   all): harmless.
+- **LRMs never reach their full turn rate.** A missile turns at TURN_RATE
+  times a factor that is 0 for its TURN_SUSPEND_TIME, then (time - suspend) /
+  LOCK_ON, and its clock stops one frame past LOCK_ON (0x585900): at 30 fps
+  LRMs top out at about 93% of their 0.25 rad/s, TAG's strike missiles at
+  about 80%, SRMs and Streaks at about 100% (the last frame's length decides
+  the exact figure). Targets more than 90 degrees off the nose count as 90.
+- **Every turn costs a homing missile speed**: it keeps 0.8 + 0.2 cos(turn) of
+  its speed each frame it turns, and over its first LOCK_ON seconds the
+  shooter's own speed fades out of it.
+- **Long straight shots can pass through the nearest wall.** A cannon shot
+  looks up every building along its whole range once, when it is fired, and
+  then meets them in that list's order. The list is not fully sorted (the
+  sort does one pass: only the farthest is sure to be last), so with three or
+  more buildings in the line, listed in the wrong order, the shot can fly
+  through a nearer one to hit one behind it (0x585010, likely rare: it depends
+  on the order the world lists them).
+- **A shot is drawn a frame behind where it is**: its model is moved to where
+  the shot was at the start of the frame, not where it ends up (0x5864c0).
+- **Lasers play their impact sound every frame** they touch something, and a
+  laser plays its firing sound twice: when it starts and when it stops
+  (0x581230, 0x581400).
+- **TAG needs a full second on a target**: the beam counts up while it touches
+  something that can be hurt and calls the airstrike after 1 s (DESIGNATE's
+  last value); looking away counts the time back down rather than resetting
+  it. Its spot light is green (0.51, 1.0, 0.03).
+- **The ERPPC's HUD static lasts 2 seconds** in the data, but the original
+  read the first number twice and held it 0.5 s; the rebuild uses the 2 s.
+- **Unused weapon features**: zWeapon supports mines that bounce, lie in wait
+  and go off when something comes near (in multiplayer they expire after two
+  minutes), wire-guided missiles that hug the ground, missiles that lead their
+  target, bouncing lasers and lasers that chain between up to four locked
+  targets, but no shipped weapon uses any of them. The landmines in missions
+  are not mines in this sense: they fire the LANDMINE weapon at whoever walks
+  close. A wire-guided missile would also lose its slot in the shared pool for
+  the rest of the mission (0x586600).
+- **AMS measures range on the map, not in the air**: it shoots down the
+  nearest missile within 150 m counted as east-west plus north-south distance
+  (|dx| + |dz|), ignoring height, one every 0.6 s (two AMS: every 0.3 s), 100
+  rounds per AMS. Only missiles that show on the radar can be shot down.
+- **Vehicles fire every weapon from one spot**: each weapon in a vehicle's
+  file names two firepoints, but the game looks the name up in the whole list
+  and always finds the first weapon's first one (0x4b4660).
 - **What FCS does for missiles is terrain following**: with FCS in the firing
   part (and no ECM on the target), missiles flying under 10 m with ground in
   the way climb (0x5859fb, likely).

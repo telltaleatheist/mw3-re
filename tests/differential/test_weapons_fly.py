@@ -66,11 +66,12 @@ NAMES = {1: 'add_child', 2: 'remove_child', 3: 'obj_add_child', 4: 'obj_remove_c
          35: 'query_static', 36: 'query_since', 37: 'query_mask', 38: 'segment_list', 39: 'segment',
          40: 'ground', 41: 'net_gate', 42: 'net_detonated', 43: 'splash_query', 44: 'handler',
          45: 'surface_mark', 46: 'crater', 47: 'quicksand', 49: 'surface_angles', 51: 'tick_cb', 52: 'set_active',
-         53: 'flag4fbb90', 54: 'uniform_scale', 55: 'sound_stop', 56: 'sound_volume', 57: 'anim_free'}
+         53: 'flag4fbb90', 54: 'uniform_scale', 55: 'sound_stop', 56: 'sound_volume', 57: 'anim_free',
+         79: 'flag4eb790', 83: 'touch_fn', 75: 'crater_defaults', 76: 'crater_make', 77: 'quicksand_defaults', 78: 'quicksand_make'}
 FLOATS = {9: (1, 2, 3), 10: (1, 2, 3), 11: (1, 2, 3), 12: (1, 2, 3), 21: (1, 2, 3), 22: (1, 2), 23: (1, 2, 3),
           31: tuple(range(1, 10)), 32: (1, 2, 3), 33: (1, 2, 3, 4), 38: tuple(range(6)), 39: tuple(range(6)),
           40: (0, 1, 2), 42: (2, 3, 4), 43: (1, 2, 3, 4), 44: (2, 3, 4, 6), 45: (0, 1, 2), 46: (1, 2, 3),
-          47: (1, 2, 3), 49: (0, 1, 2), 54: (1,), 56: (1,)}
+          47: (1, 2, 3), 49: (0, 1, 2), 54: (1,), 56: (1,), 76: (4, 5, 6, 7, 8), 78: (5, 6, 7, 8, 9), 83: (2,)}
 COVER = {
     0x584e1a: 'pooled flyout model', 0x5830cb: 'model cloned', 0x5830ba: 'model from the pool',
     0x584ebd: 'model returned', 0x584eb6: 'model detached', 0x585063: 'pool empty', 0x58503c: 'network gate refuses',
@@ -97,6 +98,13 @@ COVER = {
     0x51e483: 'slerp t 0', 0x51e4af: 'slerp t 1', 0x582f85: 'impact sound', 0x582fe5: 'bounce sound pick',
     0x582064: 'aim slope gravity', 0x582095: 'aim slope mine', 0x5869f0: 'lights freed', 0x586b2f: 'light taken',
     0x586b70: 'light returned', 0x5847de: 'pool objects freed',
+    0x58330e: 'handler: new table', 0x583359: 'handler: own slot', 0x58339f: 'handler: slot taken',
+    0x583381: 'handler: split from the parent', 0x5833ce: 'handler: flag', 0x583420: 'handler: removed',
+    0x5832d7: 'handler: handed down', 0x5836c5: 'touch: line recorded',
+    0x4b3b5c: 'AMS: nearer shot', 0x4b3b21: 'AMS: foes only', 0x4b3b2d: 'AMS: friends only',
+    0x4b3bd0: 'AMS: one system', 0x4b3bd8: 'AMS: several share the period', 0x4b3ae8: 'AMS: out of rounds',
+    0x5825cb: 'crater', 0x582602: 'crater points', 0x58263a: 'crater radius', 0x58266d: 'crater depth',
+    0x5824d5: 'quicksand', 0x582505: 'quicksand points',
     0x584ab3: 'beam: 8 segments at most', 0x584ac2: 'beam: designate one', 0x584b11: 'beam: segment flag',
     0x58126f: 'beam: designate silent', 0x581281: 'beam: fire effect', 0x5812aa: 'beam: random roll',
     0x581312: 'beam: fire animation', 0x581390: 'beam: lock', 0x5813b5: 'beam: designate light',
@@ -216,6 +224,7 @@ class Fly(zr.Emulated):
         self.gate_fn = cpu.code(b'\xc3')
         self.det_fn = cpu.code(b'\xc2\x04\x00')
         self.tick_fn = cpu.code(b'\xc3')
+        self.touch_fns = [cpu.code(b'\xc2\x04\x00'), cpu.code(b'\xc2\x04\x00'), cpu.code(b'\xc2\x10\x00')]
         self.reached = set()
 
         def hit(uc, address, size, user):
@@ -284,11 +293,19 @@ class Fly(zr.Emulated):
                 self.rows[hd] = (rng.choice([0, 0, 1, 2]), rng.choice([0, 0, 0, 0x6600 + i]),
                                  f2i(f32(rng.choice([1.0, 0.6, 0.3, 0.1, 0.0]))), self.u32(hd + 4) != 0)
             frame = rng.choice([0, 0, 0, 50, 10 ** 6])
+            if rng.random() < 0.6:  # takes craters
+                cpu.u32(nd + 0x24, 0x10000)
+                self.scene['port'].get(nd).flags = 0x10000
             cpu.u32(nd + 0xbc, hd)
             cpu.u32(nd + 0xc4, frame)
             pn = self.scene['port'].get(nd)
             pn.handler, pn.frame = hd, frame
             self.world_nodes.append(nd)
+        # a little tree for the handler slots: 0 > 1, 2; 1 > 3, 4; 2 > 4, 5 (4 has two parents)
+        self.tree = [self.fresh.pop() for _ in range(6)]
+        for pa, ch in ((0, 1), (0, 2), (1, 3), (1, 4), (2, 4), (2, 5)):
+            for side in ('orig', 'port'):
+                self.scene[side].add(self.tree[pa], self.tree[ch])
         self.mats = []
         for i in range(6):
             m = self.zalloc(0x40)
@@ -297,12 +314,15 @@ class Fly(zr.Emulated):
             self.mats.append((m, soil))
         self.soils = dict(self.mats)
         self.pool_live = int(rng.random() < 0.9)
+        self.crater_tpl = [rng.randrange(1 << 16) for _ in range(4)] + [f2i(f32(rng.uniform(0, 3))) for _ in range(5)] + \
+            [rng.randrange(1 << 16) for _ in range(2)]
         self.lock = [self.zalloc(4), self.zalloc(12 * 8), [self.zalloc(12) for _ in range(8)],
                      [self.zalloc(12) for _ in range(8)]]  # flag, the LockRef array, positions, velocities
         self.beams = {}     # slot -> the emulator's beam
         self.beam_at = [(self.zalloc(12), self.zalloc(12), self.zalloc(4)) for _ in range(16)]
         self.taken_lights = []
         self.beams, self.beam_state = {}, {}
+        self.ams = 0
         self.ahead = [0.0, 0.0, -400.0]
         # the radar list's head (the ctor at 0x4b4970)
         cpu.call(0x4b4970)
@@ -356,12 +376,15 @@ class Fly(zr.Emulated):
             0x4eda10: (self.orig_ground, 4),
             0x4f0ac0: (self.orig_splash_query, 0x14),
             0x542060: (lambda c: self.ev('orig', 45, *self.rec_args(c.ecx)), 0),
-            0x5825b0: (lambda c: self.ev('orig', 46, self.def_index(c.ecx), *self.rec_args(c.edx), s32(c.arg(0))) or
-                       self.crater_answer('orig'), 8),
-            0x5824b0: (lambda c: self.ev('orig', 47, self.def_index(c.ecx), *self.rec_args(c.edx), s32(c.arg(0))), 8),
+            0x4ff920: (lambda c: self.ev('orig', 75) or self.cpu.write(c.ecx, struct.pack('<10I', *self.crater_tpl[:10])), 0),
+            0x4ffaa0: (lambda c: self.ev('orig', 76, *struct.unpack('<10I', self.cpu.read(c.ecx, 40))) or
+                       self.crater_answer('orig'), 0),
+            0x5020f0: (lambda c: self.ev('orig', 77) or self.cpu.write(c.ecx, struct.pack('<11I', *self.crater_tpl)), 0),
+            0x502110: (lambda c: self.ev('orig', 78, *struct.unpack('<11I', self.cpu.read(c.ecx, 44))), 0),
             0x525a50: (lambda c: self.ev('orig', 49, *self.vec(c.edx)), 4),
             0x525f80: (lambda c: self.cpu.write(c.edx, struct.pack('<3I', *self.angles)), 0),
             0x4fbb90: (lambda c: self.ev('orig', 53, c.ecx, c.edx), 0),
+            0x4eb790: (lambda c: self.ev('orig', 79, c.ecx, c.edx), 0),
             0x4fba20: (lambda c: self.ev('orig', 54, c.ecx, c.arg(0)), 4),
             0x56e9f0: (lambda c: self.ev('orig', 55, c.ecx), 0),
             0x56f280: (lambda c: self.ev('orig', 56, c.ecx, c.arg(0)), 4),
@@ -373,6 +396,8 @@ class Fly(zr.Emulated):
         cpu.stub_function(self.gate_fn, self.orig_gate, 0)
         cpu.stub_function(self.det_fn, lambda c: self.det_event('orig', c), 4)
         cpu.stub_function(self.tick_fn, lambda c: self.ev('orig', 51, self.ptok(c.ecx)), 0)
+        cpu.stub_function(self.touch_fns[0], lambda c: self.ev('orig', 83, 1, c.ecx, c.arg(0)), 4)
+        cpu.stub_function(self.touch_fns[1], lambda c: self.ev('orig', 83, 2, c.ecx, c.arg(0)), 4)
         cpu.passthrough = {0x5847c0, 0x586970}
 
     def check(self, ok):
@@ -465,7 +490,7 @@ class Fly(zr.Emulated):
 
     def make_list(self, rng, frm, to, kind):
         """A query's answer: records along from-to; (result, count byte, total byte, records)."""
-        if rng.random() < (0.35 if kind == 38 else 0.7):  # moving shots mostly fly on
+        if rng.random() < (0.35 if kind == 38 else self.miss_rate):  # moving shots mostly fly on
             return 1, 0, 0, []
         k = rng.choice([1, 1, 2, 3, 4])
         a, b = [i2f(x) for x in frm], [i2f(x) for x in to]
@@ -588,7 +613,7 @@ class Fly(zr.Emulated):
     def port_call(self, kind, args, n, out):
         a = [args[i] for i in range(n)]
         sc = self.scene['port']
-        if kind >= 60:
+        if 60 <= kind <= 73:
             if kind == 60:
                 return len(sc.get(a[0]).parents)
             if kind == 61:
@@ -674,8 +699,22 @@ class Fly(zr.Emulated):
             r, nid = self.gate_answer(self.answer_rng('port', 41), a[1])
             out[0] = s32(nid)
             return r
-        if kind == 46:
-            self.ev('port', 46, *a)
+        if kind == 74:
+            return s32(sc.get(u[0]).flags)
+        if kind == 80:
+            return s32(sc.get(u[0]).parents[a[1]])
+        if kind == 81:
+            return s32(sc.get(u[0]).children[a[1]])
+        if kind == 82:
+            sc.get(u[0]).handler = u[1]
+            return 0
+        if kind in (75, 77):
+            self.ev('port', kind)
+            for i in range(11):
+                out[i] = s32(self.crater_tpl[i])
+            return 0
+        if kind == 76:
+            self.ev('port', 76, *a)
             return self.crater_answer('port')
         if kind == 49:
             self.ev('port', 49, *a)
@@ -734,8 +773,9 @@ class Fly(zr.Emulated):
             put(u(b + off), True)
         put(u(b + 0x5c8))
         put(u(b + 0x5cc))
-        put(int(u(b + 0x5d0) != 0))
-        put(u(b + 0x5d4))
+        t = u(b + 0x5d0)
+        put({0: 0, self.tick_fn: 1, 0x4b4a30: 2, 0x4b4a20: 3}.get(t, -2))
+        put(self.ptok(u(b + 0x5d4)) if u(b + 0x5d4) else 0)
         return o, fl
 
     def world_fields(self):
@@ -777,8 +817,30 @@ class Fly(zr.Emulated):
             put(u(a))
         return o, fl
 
+    def table_token(self, side, v, seen):
+        if v in (0, 1) or v in self.rows:
+            return v
+        if v not in seen:
+            seen[v] = 0x60000 + len(seen)
+            if side == 'orig':
+                cont = [s32(self.u32(v + 4 * i)) for i in range(4)]
+                cont[1] = self.fn_tok(cont[1])
+                cont[3] = self.fn_tok(cont[3])
+            else:
+                buf = (ctypes.c_int32 * 4)()
+                probe.probe_fly_table(s32(v), buf)
+                cont = list(buf)
+            seen[('c', v)] = cont
+        return (seen[v], tuple(seen[('c', v)]))
+
+    def fn_tok(self, f):
+        f &= 0xffffffff
+        return 0 if f == 0 else 1 if f == self.touch_fns[0] else 2 if f == self.touch_fns[1] else \
+            3 if f == self.touch_fns[2] else -2
+
     def scene_fields(self, side):
         sc, o = self.scene[side], []
+        seen = {}
         for n in sorted(self.mem_nodes):
             nd = sc.get(n)
             if side == 'orig':
@@ -787,7 +849,8 @@ class Fly(zr.Emulated):
                     user = ('p', self.ptok(user))
             else:
                 flags, user, handler = nd.flags, nd.user, nd.handler
-            o.append((n, tuple(nd.parents), tuple(nd.children), flags & 0x8000010, handler, user))
+            o.append((n, tuple(nd.parents), tuple(nd.children), flags & 0x8000010, self.table_token(side, handler, seen),
+                      user))
         return o
 
     def radar(self):
@@ -843,7 +906,7 @@ def poke(emu, name, which, v):
     k = emu.names[name]
     dp = emu.defs_base + 0x1f4 * k
     off = {0: 0x6c, 1: 0x70, 2: 0x74, 3: 0x78, 4: 0x4c, 5: 0x100, 6: 0xf0, 7: 0xe4, 8: 0xec, 9: 0x168, 10: 0xa0,
-           11: 0xd4, 12: 0xd8, 13: 0x80, 14: 0x1c, 16: 0x38, 18: 0x54}
+           11: 0xd4, 12: 0xd8, 13: 0x80, 14: 0x1c, 16: 0x38, 18: 0x54, 19: 0x84, 20: 0x2c}
     if which == 17:
         imp = emu.u32(dp + 0x13c)
         for k_ in range(6):
@@ -889,6 +952,7 @@ def pokes(emu, rng):
     poke(emu, 'SRM2', 0, fl('SRM2') | 0x8)  # FLYOUT_HEALTH
     poke(emu, 'SRM2', 13, f2i(rng.choice([1.0, 0.0])))
     poke(emu, 'TAG_MISSILE', 14, f2i(40.0))
+    poke(emu, 'NUKE', 0, (fl('NUKE') & ~0x10) | 0x40000)  # QUICKSAND
     poke(emu, 'LANDMINE', 4, f2i(9.8))      # a thrown mine
     poke(emu, 'LANDMINE', 17, 0x0c000010)   # bounce sounds
     poke(emu, 'GASTANK', 17, 0x0c000020)
@@ -899,6 +963,9 @@ def pokes(emu, rng):
     poke(emu, 'Laser_Small', 0, fl('Laser_Small') | 0x20000 | 0x8000)  # MULTI_TARGET with LOCK_ON
     poke(emu, 'ERLaser_Small', 0, fl('ERLaser_Small') | 0x20000)       # MULTI_TARGET, no lock: a straight ray
     poke(emu, 'Laser_Medium', 0, fl('Laser_Medium') | BOUNCES)
+    poke(emu, 'PulseLaser_Small', 10, 0x0b000007)       # a fire EFFECT on a beam
+    poke(emu, 'PulseLaser_Medium', 19, 1)               # RANDOM_ROTATE on a beam's fire animation
+    poke(emu, 'Laser_Large', 20, f2i(2.0))              # a slow beam: it grows, then snaps to its reach
     poke(emu, 'ERLaser_Medium', 0, fl('ERLaser_Medium') | BOUNCES | 0x8000)
 
 
@@ -938,6 +1005,7 @@ def main():
             emu.events = {'orig': [], 'port': []}
             emu.calls = {}
             emu.op_seed = rng.randrange(1 << 30)
+            emu.miss_rate = rng.choice([0.7, 0.7, 0.1])  # some frames hit nearly everything (TAG's second on a target)
             emu.angles = [f2i(f32(rng.uniform(-3, 3))) for _ in range(3)]
             frame += 1
             netclock += rng.choice([0.0, 30.0, 0.5])
@@ -957,7 +1025,7 @@ def main():
                       *[f2i(f32(rng.uniform(-30, 30))) for _ in range(3)]]
             g += [f2i(f32(rng.choice([1.0, 1.0, 0.5]))), rng.choice([1, 1, 0])]
             if g[9] and rng.random() < 0.5:
-                g[10] = rng.choice([0, 1, 2, 3, 4, 5, 8, 9])
+                g[10] = rng.choice([0, 1, 2, 3, 4, 5, 6, 8, 9])
             # the beams' muzzles move
             for slot in emu.beams:
                 at, dp, _ = emu.beam_at[slot]
@@ -992,7 +1060,7 @@ def main():
                 op, args = 5, [1]
             else:
                 op = rng.choice([0] * 9 + [1] * 12 + [2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16] + [17, 18, 18, 19, 20] +
-                                [4, 5] * (k % 17 == 0))
+                                [4, 5] * (k % 17 == 0) + [21, 21, 22, 22, 23, 24, 25, 26, 27, 27, 28])
                 args = []
             seed = rng.randrange(1 << 31)
             emu.rand = MsvcRand(seed)
@@ -1084,10 +1152,10 @@ def main():
                 flying = [emu.ptok(emu.u32(emu.defs_base + 0x1f4 * dk + 0x7c)) for dk in range(emu.ndefs)]
                 flying = [t - 0x10000 for t in flying if 0x10000 <= t < 0x20000]
                 slot = rng.choice(flying) if flying and rng.random() < 0.8 else rng.randrange(emu.npool)
-                args = [0x10000 + slot]
+                args = [0x10000 + slot, rng.choice([0, 1, 1, 2, 2])]
                 b = emu.pool_base + 0x5d8 * slot
-                cpu.u32(b + 0x5d0, emu.tick_fn)
-                cpu.u32(b + 0x5d4, args[0])
+                cpu.u32(b + 0x5d0, [emu.tick_fn, 0x4b4a30, 0x4b4a20][args[1]])
+                cpu.u32(b + 0x5d4, b)
             elif op == 9:
                 at = [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
                 args = at
@@ -1160,6 +1228,61 @@ def main():
                         del emu.beam_state[slot]
                     else:
                         emu.beam_state[slot] = 1 if op == 18 else 0
+            elif op in (26, 27, 28):
+                if op != 26 and not emu.ams:
+                    continue
+                if op == 26:
+                    emu.ams = emu.zalloc(0x1c)
+                    args = [f2i(f32(rng.choice([150.0, 400.0]))), f2i(f32(rng.choice([0.6, 0.05]))), rng.choice([100, 2, 0])]
+                    cpu.call(0x4b3ab0, ecx=emu.ams, stack_args=tuple(args))
+                elif op == 27:
+                    args = [rng.choice([0, 1, 2])] + [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
+                    ap = emu.zalloc(12)
+                    cpu.write(ap, struct.pack('<3I', *args[1:]))
+                    cpu.call(0x4b3ae0, ecx=emu.ams, stack_args=(0x77, args[0], ap))
+                    res_a = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+                else:
+                    if not emu.u32(emu.ams + 0x14):
+                        continue  # fire wants a target (it writes its health)
+                    args = [rng.choice([1, 2, 3])]
+                    cpu.call(0x4b3bb0, ecx=emu.ams, stack_args=(args[0],))
+                cpu.call(0x4b3ba0, ecx=emu.ams)
+                tp = cpu.uc.reg_read(UC_X86_REG_EAX)
+                u = emu.u32
+                out_a = [emu.cpu.read(emu.ams, 1)[0], s32(u(emu.ams + 4)), s32(u(emu.ams + 8)), s32(u(emu.ams + 0xc)),
+                         emu.ptok(u(emu.ams + 0x14)), s32(u(emu.ams + 0x18)),
+                         emu.ptok(tp - 0x48) if tp else 0]
+            elif op in (21, 22, 23, 24, 25):
+                node = rng.choice(emu.tree)
+                obj = rng.randrange(1, 1 << 20)
+                if op == 21:
+                    fnt = rng.choice([1, 2, 3])
+                    args = [obj, node, fnt, rng.choice([0, 1])]
+                    cpu.call(0x5833b0, ecx=obj, edx=node, stack_args=(args[3], emu.touch_fns[fnt - 1]))  # flag, fn
+                elif op == 22:
+                    fnt = rng.choice([1, 2])
+                    args = [obj, node, fnt]
+                    cpu.call(0x5833f0, ecx=obj, edx=node, stack_args=(emu.touch_fns[fnt - 1],))
+                elif op in (23, 24):
+                    args = [node]
+                    cpu.call(0x583400 if op == 23 else 0x583250, ecx=node)
+                else:
+                    t = emu.u32(node + 0xbc)
+                    if t in (0, 1) or emu.fn_tok(emu.u32(t + 0xc)) not in (1, 2):
+                        continue  # no touch handler: both would call a null function
+                    fr = [f2i(f32(rng.uniform(-50, 50))) for _ in range(3)]
+                    pt = [f2i(f32(rng.uniform(-50, 50))) for _ in range(3)]
+                    dmg = f2i(f32(rng.choice([20.0, 0.5])))
+                    args = fr + pt + [node, dmg]
+                    fp, rp = emu.zalloc(12), emu.zalloc(0x28)
+                    cpu.write(fp, struct.pack('<3I', *fr))
+                    cpu.write(rp + 0xc, struct.pack('<3I', *pt))
+                    cpu.u32(rp + 0x24, node)
+                    emu.touch_rec = rp
+                    cpu.call(0x5836b0, ecx=fp, edx=rp, stack_args=(dmg,))
+                res_a = s32(cpu.uc.reg_read(UC_X86_REG_EAX)) if op != 25 else 0
+                if op == 24:
+                    res_a &= 0xff
             elif op in (15, 16):
                 vs = lambda n_, lo, hi: [f2i(f32(rng.uniform(lo, hi))) for _ in range(n_)]  # noqa: E731
                 if op == 15:
@@ -1196,7 +1319,14 @@ def main():
                 out_a = [s32(x) for x in struct.unpack('<3I', cpu.read(o_, 12))]
             # the port
             emu.rand = MsvcRand(seed)
-            if op >= 17:
+            probe.probe_fly_seed(seed)
+            if op >= 26:
+                res_b = probe.probe_fly_ams(op - 26, (ctypes.c_int32 * len(args))(*[s32(x) for x in args]), out)
+                if out_a != list(out[:7]):
+                    raise SystemExit(f'session {sess} op {k} AMS ({op}): {out_a} vs {list(out[:7])}')
+            elif op >= 21:
+                res_b = probe.probe_fly_handler(op - 21, (ctypes.c_int32 * len(args))(*[s32(x) for x in args]))
+            elif op >= 17:
                 res_b = probe.probe_fly_beam(op - 17, (ctypes.c_int32 * len(args))(*[s32(x) for x in args]))
             else:
                 res_b = probe.probe_fly_op(op, (ctypes.c_int32 * max(1, len(args)))(*[s32(x) for x in args]), seed,
@@ -1279,6 +1409,12 @@ probe.probe_fly_beam_at.argtypes = [ctypes.c_int, ctypes.c_void_p]
 probe.probe_fly_beam_dump.argtypes = [ctypes.c_int, ctypes.c_void_p]
 probe.probe_fly_locks.argtypes = [ctypes.c_void_p]
 probe.probe_fly_radar.argtypes = [ctypes.c_void_p]
+probe.probe_fly_handler.argtypes = [ctypes.c_int, ctypes.c_void_p]
+probe.probe_fly_handler.restype = ctypes.c_int32
+probe.probe_fly_table.argtypes = [ctypes.c_int32, ctypes.c_void_p]
+probe.probe_fly_ams.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+probe.probe_fly_ams.restype = ctypes.c_int32
+probe.probe_fly_seed.argtypes = [ctypes.c_uint32]
 probe.probe_fly_trim.argtypes = [ctypes.c_int]
 probe.probe_fly_net.argtypes = [ctypes.c_int, ctypes.c_int]
 probe.probe_fly_choice.argtypes = [ctypes.c_int, ctypes.c_int32, ctypes.c_int32]

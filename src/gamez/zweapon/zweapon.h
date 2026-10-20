@@ -9,6 +9,44 @@
 // hits, zwep_shot.cpp the projectiles, zwep_beam.cpp the beams.
 namespace zwep {
 
+// A node's damage and touch handlers, 0x10 bytes at node +0xbc (1 there
+// means a shootable shot instead), shared by the node's subtree: 0x00583270
+// hands a new table down to every child that had the old one.
+struct NodeHandlers {
+  struct Slot {
+    Handle object = nullptr;   // ECX of the call
+    void (*fn)() = nullptr;    // slot 0 DamageFn, slot 1 TouchFn
+  } slot[2];                   // 0 damage (0x005833b0), 1 touch (0x005833f0)
+};
+using DamageFn = uint32_t (*)(Handle object, WeaponDef* def, HitRecord* hit, float damage);
+// EDX is left holding the hit's point.z when the shot line is recorded, else
+// the record (0x005836b0): not an argument.
+using TouchFn = void (*)(Handle object, float damage);
+
+// What a crater or a quicksand pit is made from (the crater module's
+// 0x004ffaa0 and 0x00502110 take them): the module's defaults (0x004ff920
+// copies 0x0060bfc0's ten dwords; 0x005020f0 its own), then the weapon's
+// numbers. Craters: 0x28 bytes; quicksand: 0x2c.
+struct CraterOrder {
+  uint32_t x00 = 0;
+  int32_t points = 0;          // +0x04
+  Handle material = nullptr;   // +0x08  the surface's
+  uint32_t x0c = 0;
+  float depth = 0;             // +0x10
+  float radius = 0;            // +0x14
+  Vec3f3 at{};                 // +0x18
+  Handle owner = nullptr;      // +0x24  the shooter's node
+};
+struct QuicksandOrder {
+  uint32_t x00 = 0;
+  int32_t points = 0;          // +0x04
+  uint32_t x08[3] = {};
+  float depth = 0;             // +0x14
+  float radius = 0;            // +0x18
+  Vec3f3 at{};                 // +0x1c
+  Handle owner = nullptr;      // +0x28
+};
+
 // What the game half hands the next shot or beam (globals 0x009a0ee0..,
 // 0x009a17cc..; reset to these values by the startup 0x00583750 and by every
 // spawn, docs/weapons.md "Fire modifiers").
@@ -107,6 +145,19 @@ void hit(WeaponDef* def, Projectile* p, HitRecord* rec);                        
 void air_burst(WeaponDef* def, Projectile* p);                                     // 0x00582320
 void note_kill(Handle killed, HitRecord* at);                                      // 0x00583710
 void step(WeaponDef* def, Projectile* p, Vec3f3* move);                            // 0x00585cc0
+int32_t crater(WeaponDef* def, HitRecord* hit, Projectile* p);                       // 0x005825b0
+// The node handler slots (0x00583220..0x00583440) and the touch 0x005836b0.
+bool handler_owned(Handle node, uintptr_t h);                                       // 0x00583220
+bool own_handler(Handle node);                                                       // 0x00583250
+void handler_set_slot(NodeHandlers* t, uintptr_t old, Handle object, Handle node, void (*fn)(), int32_t slot);  // 0x00583270
+void handler_hand_down(Handle node, NodeHandlers* t, uintptr_t old);                 // 0x005832a0
+int32_t set_handler(Handle object, Handle node, void (*fn)(), int32_t slot);         // 0x005832f0
+int32_t set_damage_handler(Handle object, Handle node, DamageFn fn, int32_t flag);   // 0x005833b0 (flag, then fn on the stack)
+int32_t set_touch_handler(Handle object, Handle node, TouchFn fn);                   // 0x005833f0
+int32_t remove_handlers(Handle node);                                                // 0x00583400
+void handler_clear(Handle node, uintptr_t h);                                        // 0x00583440
+void touch(const Vec3f3* from, HitRecord* hit, float damage);                        // 0x005836b0
+void quicksand(WeaponDef* def, HitRecord* hit, int32_t soil, Projectile* p);         // 0x005824b0
 inline void set_health_after(float h) { hit_state().health_after = h; }           // 0x00583730
 
 // The engine the projectiles drive (class.c, object3d.c, the animations,
@@ -129,6 +180,16 @@ struct RunHooks {
   void (*set_shootable)(Handle node, Projectile* p) = nullptr;
   void (*clear_handler)(Handle node) = nullptr;                    // node +0xbc = 0
   int32_t (*node_frame)(Handle node) = nullptr;                    // node +0xc4, the frame it last moved (likely)
+  uint32_t (*node_flags)(Handle node) = nullptr;                   // node +0x24 (0x10000: takes craters)
+  Handle (*parent)(Handle node, int32_t i) = nullptr;              // +0x58[i]
+  Handle (*child)(Handle node, int32_t i) = nullptr;               // +0x60[i]
+  uintptr_t (*handler)(Handle node) = nullptr;                     // +0xbc
+  void (*set_handler)(Handle node, uintptr_t h) = nullptr;
+  // The crater module (zcrater, not ported).
+  void (*crater_defaults)(CraterOrder* out) = nullptr;             // 0x004ff920
+  int32_t (*crater_make)(const CraterOrder* c) = nullptr;          // 0x004ffaa0, 0 made
+  void (*quicksand_defaults)(QuicksandOrder* out) = nullptr;       // 0x005020f0
+  void (*quicksand_make)(const QuicksandOrder* q) = nullptr;       // 0x00502110
   void (*set_active)(Handle node, int32_t on) = nullptr;           // 0x004eb170
   void (*set_name)(Handle node, const char* name) = nullptr;       // 0x004eb300
   void (*set_flag_4eb620)(Handle node, int32_t on) = nullptr;      // 0x004eb620
