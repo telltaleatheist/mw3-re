@@ -1593,7 +1593,8 @@ From the entity manager's frame, 0x5a8850 (details: `ai.md` section 16):
   one vehicle further on, so in a big battle the turns rotate. The player's
   own mech is updated separately and never waits.
 - **Powering up is instant.** A mech asked to power up is up on the spot;
-  only powering down waits for the mech to be standing (or crouched).
+  only powering down waits, until the mech is standing still or in one of
+  two other poses that allow it.
 
 ## Menus
 
