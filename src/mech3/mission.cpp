@@ -567,6 +567,41 @@ void Missions::end_screen() {
   h.fn_40f0b0(0);
 }
 
+void MissionHooks::unload() { missions().unload(); }
+
+// Mech3.exe 1.2 @ 0x00490480 (ECX the missions). Everything the world's load
+// brought, in this order, then no world (+0x60). The voice set it unloads is
+// named by the app's +0x14c, which nothing writes (an empty name: no set).
+bool Missions::unload() {
+  MissionHooks& h = *g_hooks;
+  if (const Handle view = h.view()) h.camera_flag_off(h.field32(view, 4));
+  h.ai_lists_free();
+  h.fn_414000();
+  h.mech_types_clear();
+  h.mech_defs_clear();
+  h.interp_5964c0(1);
+  if (const Handle s = h.stealth()) h.delete_object(s);
+  h.set_stealth(0);
+  h.sound_set_unload_608dd4();
+  h.effects_free();
+  h.anims_free();
+  h.decals_free();
+  h.weapons_free();
+  h.set_render_target(0);
+  h.set_display_target(0);
+  h.set_camera(0);
+  h.view_free(h.view());  // its window (+0x08), then itself
+  h.set_view(0);
+  if (const Handle o = h.get_608c84()) h.delete_608c84(o);
+  h.set_608c84(0);
+  h.classes_free();
+  h.models_free();
+  h.textures_free();
+  for (int i = 0; i < 25; ++i) h.hud_line_clear(i);  // vt+0x7c(line, 0x005f4c90)
+  current = -1;
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00491780: the mission's end. `unload` also drops the
 // world (0x00490480); without it 0x005394c0(1, 1). Nothing when no mission
 // is up. The two calls to the empty 0x005ac5c0 are left out.

@@ -116,6 +116,8 @@ class GameEngine : public Engine {
   void video_clear_b(Handle rect) override;
   void lists_update() override;  // 0x004f7d80: zcls::run_action_lists
   void classes_shutdown() override;   // 0x004f8f40: zcls::classes_reset
+  int32_t effects_init() override;    // 0x0050d270: zEffect's table and animations started
+  void effects_shutdown() override;   // 0x0050d2b0: freed
   void missions_shutdown() override;  // 0x004844b0: mech3::close_mechlib
   std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
   bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene

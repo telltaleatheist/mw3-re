@@ -270,4 +270,15 @@ void free_texture(Texture* t) {
   std::free(t);
 }
 
+// Mech3.exe 1.2 @ 0x005186b0 (ECX the list)
+void free_all(int list) {
+  close_all(list);
+  for (Library* lib : library_list(list)) {
+    std::free(lib->entries);  // 0x00518760
+    lib->entries = nullptr;
+    delete lib;
+  }
+  library_list(list).clear();
+}
+
 }  // namespace zimg

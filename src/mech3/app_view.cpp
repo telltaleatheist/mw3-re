@@ -194,6 +194,8 @@ void program_view_make(void* camera) {
   sync();
 }
 
+void program_view_free() { g_view.reset(); }
+
 // Mech3.exe 1.2 @ 0x0041ce30: the view onto the mech in its data's current
 // camera, then the HUD's set-up for it (0x00430aa0, 0x0043bb80).
 void program_view_attach(Mech& m) {

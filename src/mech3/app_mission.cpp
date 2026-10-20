@@ -4,6 +4,7 @@
 // the Core state draws through. Not original code: it stands where the exe's
 // other modules will be. What has no port is logged once by address.
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -78,6 +79,7 @@ namespace mech3 {
 // clash with app_hooks.h's.
 int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
+void free_weapon_type(zwep::WeaponDef* def);                     // 0x004b0090
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 const char* mech_name(int32_t mech);                         // 0x00484650
 
@@ -558,6 +560,33 @@ struct WiredMissionHooks : MissionHooks {
   Handle stealth() override { return e->peek32(0x609a2c); }
   uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
   void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }
+  // The mission unload (Missions::unload, 0x00490480) on the ports.
+  void camera_flag_off(Handle camera) override {  // 0x004f3430(camera, 0): the camera's +0x10 bit 0
+    zcls::Node* n = mission_node(*e, camera);
+    if (n && n->data && n->cls() == 1) {
+      auto* c = static_cast<zcls::Camera*>(n->data);
+      c->put<uint32_t>(0x10, c->get<uint32_t>(0x10) & ~1u);
+    }
+  }
+  void mech_types_clear() override { mech3::mech_types_forget(); }  // 0x004318e0
+  void mech_defs_clear() override { mech3::mech_types_close(); }    // 0x004844b0: mechlib and the definitions
+  void sound_set_unload_608dd4() override {}  // the app's +0x14c is never written: no set by that name
+  void effects_free() override { zeff::effects_free(); }   // 0x0050d570
+  void anims_free() override { zeff::anim_free_all(); }    // 0x0050b380
+  void weapons_free() override { zwep::shutdown(mech3::free_weapon_type); }  // 0x00584a60(0x004b0090)
+  void view_free(Handle view) override {  // its window (+0x08), then itself: the port's view
+    program_view_free();
+    if (view) e->set_mission_view(0, 0);
+  }
+  void delete_608c84(Handle) override {}  // [0x00608c84] (0x0047f2b0) is a block the program keeps nothing in
+  void classes_free() override { zcls::classes_reset(); }  // 0x004f8fb0
+  void models_free() override {  // 0x00526920 with the materials' 0x005372c0
+    zmod::ModelPool& p = zmod::models();
+    for (int32_t i = 0; i < p.count; ++i) zmod::model_release(&p.slots[i]);  // 0x00539150
+    zmod::models() = zmod::ModelPool{};
+    zmod::materials() = zmod::MaterialTable{};
+  }
+  void textures_free() override { zimg::textures_free(); }  // 0x00516f30: 0x00518b70
   void set_field8(Handle h, uint32_t off, uint8_t v) override { e->poke8(h + off, v); }
   Handle alloc(uint32_t size) override { return e->alloc_block(size); }
   void interp_define(const char* name) override {
@@ -598,13 +627,23 @@ struct WiredMissionHooks : MissionHooks {
     t.count = 0, t.group = 0;
     zimg::state() = zimg::State{};
     zimg::state().display_format = 6;
+    // The mission's directory searched before the common one (the Load
+    // state's "zbd;zbd\\<dir>"); the last mission's mounts taken out first.
+    static std::vector<std::string> s_added;
+    std::vector<std::string>& read = zutl::mounts().read;
+    for (const std::string& m : s_added) {
+      const auto it = std::find(read.begin(), read.end(), m);
+      if (it != read.end()) read.erase(it);
+    }
+    s_added.clear();
     const std::string dir = mission_dir(e->launch().index);
-    const std::vector<std::string> roots = zutl::mounts().read;
-    for (const std::string& r : roots) zutl::mount(r + "/zbd/" + dir);
-    for (const std::string& r : roots) zutl::mount(r + "/zbd");
-    for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+    const std::vector<std::string> roots = read;
+    for (const std::string& r : roots) s_added.push_back(r + "/zbd/" + dir);
+    for (const std::string& r : roots) s_added.push_back(r + "/zbd");
+    for (const std::string& m : s_added) zutl::mount(m);
     zimg::texture_load() = zimg::TextureLoad{};
     zimg::texture_hooks() = zimg::TextureHooks{};
+    zimg::texture_hooks().release = [](void* s) { zvid::release_texture(static_cast<zvid::D3DTexture*>(s)); };  // 0x0057bb00
     zvid::set_pixel_format(5, 6, 5);
     zvid::channel_masks() = {0xf800, 0x07e0, 0x001f};
     zvid::set_render3d(e->platform_parts().render);
@@ -954,6 +993,7 @@ void GameEngine::missions_reset(uint32_t list) {
 void GameEngine::set_launch(const Launch& l) {
   launch_ = l;
   launch_.active = true;
+  slot_ = 0;  // made again for this launch's mech: a mission unload frees the last one's types
   pilot_ = alloc_block(0x100);
   game_ = alloc_block(0x100);
   poke32(0x60861c, pilot_);

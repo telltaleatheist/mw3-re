@@ -42,6 +42,10 @@ struct TextureHooks {
   bool (*projected)(const TextureEntry* entry) = nullptr;
   // [0x0072f374] = 0x0057baa0: copy a new image into an existing record (state 3).
   void (*reload)(void* surface, Texture* image) = nullptr;
+  // [0x0072f378] (ECX the record): a Direct3D texture record let go.
+  void (*release)(void* surface) = nullptr;
+  // [0x0072f37c]: the device's textures let go, at the textures' free.
+  void (*release_all)() = nullptr;
 };
 TextureHooks& texture_hooks();
 
@@ -52,6 +56,10 @@ struct TextureLoad {
 TextureLoad& texture_load();
 
 Texture& default_image();    // 0x005ecbc0: 8x8 red/green checks, 565
+// Mech3.exe 1.2 @ 0x00518b70, at the mission unload: every entry let go
+// (0x00518b30), the table emptied, the palettes freed, the world's
+// libraries freed (0x005186b0) and the image library's files closed.
+int32_t textures_free();
 TextureEntry* default_entry();  // 0x00518210: the entry naming default_image()
 
 TextureEntry* find_texture(const char* name);  // 0x00518220: case-sensitive, in-use entries
