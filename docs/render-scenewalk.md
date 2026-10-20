@@ -148,8 +148,8 @@ software viewport branch.
 
 ## For fixes.md / integration
 
-- The probe stubs the frame update; in the game `update_hooks()` must point
-  at the list-7 update once 0x4f7e00 / 0x4f7f70 / 0x4eca00 are ported.
+- The probe stubs the frame update; the node update runs for real on both
+  sides. In the game `update_hooks()` is the port (`action-lists.md`).
 - `zmth_matrix.cpp` has no `FP_CONTRACT OFF`: on arm64 its sums are fused,
   the cause of the 0.5% of matrices that are not bit-exact (and of any
   cull flip at a plane, none seen).

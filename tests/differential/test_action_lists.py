@@ -18,7 +18,7 @@ read by the original's 0x4ff520 and by the port's loaders, then:
    0x4fda20 / 0x4fdab0, then gwNodeUpdate's class 8) made by hand, as no
    shipped file has them: random headers and keys, frames of random steps.
 
-After every call both sides' state is compared: every live node (flags,
+After every call both sides' state is compared: every node (list 6; flags,
 +0x2c, class, priority, cell, action set, parents and children, the boxes
 +0x64..+0xbb, +0xc0/+0xc4, its list-7 item), its class data (camera,
 object3d, sequence, animate; a world's header and every cell with its
@@ -50,6 +50,7 @@ probe.al_set_action.argtypes = [ctypes.c_int32] * 3
 probe.al_set_priority.argtypes = [ctypes.c_int32] * 2
 probe.al_set_flags.argtypes = [ctypes.c_int32, ctypes.c_uint32]
 probe.al_or.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_uint32]
+probe.al_set_matrix.argtypes = [ctypes.c_int32, ctypes.c_void_p]
 probe.al_script.argtypes = [ctypes.c_int32, ctypes.c_void_p, ctypes.c_int32]
 probe.al_seq.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int32]
 probe.al_animate.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int32, ctypes.c_uint32]
@@ -64,8 +65,10 @@ NODE_BLOCKS, NODE_NBLOCKS, NODE_BLOCK_SIZE = 0x60bf38, 0x60bf30, 0x5ea830
 LIST_HEADS, LISTS_ENABLED = 0x5ea6d0, 0x5ea6b0
 FRAME, EXPIRY, DT = 0x72f338, 0x73f3a8, 0x72c52c
 IAT_SPRINTF = 0x5bb658
+WORLD_POSITION, SET_MATRIX = 0x4ed530, 0x4fc300
 ACT = 0x2e200000          # the actions' entries, slots, log stubs, then their scripts' code
 KACTIONS = 8
+FLAG_LOG, POS_OUT, MATRIX_IN = ACT + 0xa00, ACT + 0xb00, ACT + 0xb40
 END = 0xffffffff
 COVERAGE = {0x4eca00: 'gwNodeUpdate', 0x4ed220: 'model box', 0x53b680: 'model extent', 0x4ecf70: 'children box',
             0x4ecc00: 'bounds', 0x4f2c30: 'cell left', 0x4f28c0: 'cell joined', 0x4f2360: 'cell touched',
@@ -87,6 +90,7 @@ class Emu(Emulated):
         cpu.stub_import(IAT_FCLOSE, lambda c: 0)
         self.files_stubbed = True
         self.trace = []
+        self.actions = 0
         cpu.stub_function(ZERR, lambda c: self.trace.extend([100, c.arg(0), c.arg(2)]))
         self.zerr_stubbed = True
         cpu.stub_import(IAT_SPRINTF, self.sprintf)
@@ -99,13 +103,27 @@ class Emu(Emulated):
         for k in range(KACTIONS):
             cpu.write(self.action_addr(k), b'\xff\x25' + struct.pack('<I', ACT + 0x100 + 4 * k))
             cpu.u32(ACT + 0x100 + 4 * k, ACT + 0xc00)  # a ret until scripted
-            cpu.stub_function(self.log_addr(k), lambda c, k=k: self.trace.extend([1, k, self.index(c.ecx)]))
+            cpu.stub_function(self.log_addr(k), lambda c, k=k: self.log_action(k, c.ecx))
+        # Each gwNodeUpdate in order, as the port's observer gives it.
+        from unicorn import UC_HOOK_CODE
+        cpu.uc.hook_add(UC_HOOK_CODE, lambda uc, a, n, u: self.trace.extend([3, self.index(self.cpu.ecx)]),
+                        begin=0x4eca00, end=0x4eca00)
+        cpu.stub_function(FLAG_LOG, self.flag_log)
         # What the runs reached in the original (printed at the end).
         from unicorn import UC_HOOK_CODE
         self.reached = dict.fromkeys(COVERAGE, 0)
         for a in COVERAGE:
             cpu.uc.hook_add(UC_HOOK_CODE, lambda uc, addr, n, u: self.reached.__setitem__(addr, self.reached[addr] + 1),
                             begin=a, end=a)
+
+    def log_action(self, k, node):
+        self.trace.extend([1, k, self.index(node)])
+        self.actions += 1
+
+    def flag_log(self, c):  # an action's op 9: what a node's flags say now
+        n = c.ecx
+        self.trace.extend([2, self.index(n)] + list(struct.unpack('<ii', c.read(n + 0x24, 4) + c.read(n + 0x2c, 4))))
+        return 0
 
     def cstr(self, a):
         s = b''
@@ -211,6 +229,10 @@ class Emu(Emulated):
                 call(SETTERS[1] if op == 5 else SETTERS[2])
             elif op == 6:
                 imm(0xb9, a), imm(0xba, self.ptr(b)), call(LIST_REMOVE)
+            elif op == 8:
+                imm(0xb9, self.ptr(a)), imm(0xba, POS_OUT), call(WORLD_POSITION)
+            elif op == 9:
+                imm(0xb9, self.ptr(a)), call(FLAG_LOG)
         code.extend(b'\xc3')
         assert len(code) <= 0x1000
         self.cpu.write(base, bytes(code))
@@ -223,15 +245,15 @@ class Emu(Emulated):
 
         def w(v):
             out.extend(struct.pack('<I', v & 0xffffffff))
-        bs = u32(NODE_BLOCK_SIZE)
-        blocks = self.blocks()
-        for i in range(len(blocks) * bs):
-            n = blocks[i // bs] + (i % bs) * 0xd4
+        item = u32(u32(LIST_HEADS + 4 * 6))  # every node is on list 6
+        while item:
+            n = u32(item)
+            item = u32(item + 8)
+            if not n:
+                continue
             raw = cpu.read(n, 0xd4)
             g = lambda o: struct.unpack_from('<I', raw, o)[0]  # noqa: E731
-            if not g(0xd0) & 0x1000000:
-                continue
-            w(i), w(g(0x24)), w(g(0x2c)), w(g(0x34)), w(g(0x44)), w(g(0x4c)), w(g(0x50)), w(1 if g(0x48) else 0)
+            w(self.index(n)), w(g(0x24)), w(g(0x2c)), w(g(0x34)), w(g(0x44)), w(g(0x4c)), w(g(0x50)), w(1 if g(0x48) else 0)
             w(g(0x54))
             for k in range(g(0x54)):
                 w(self.index(u32(g(0x58) + 4 * k)))
@@ -411,6 +433,13 @@ def part_frames(run, rng, objs, camera, rounds):
             if what == 6:
                 v = [rng.uniform(-50, 50) for _ in range(3)]
             both_set(emu, i, what, v)
+            if rng.random() < 0.05:  # its own matrix from now on (USE_MATRIX)
+                m = [rng.uniform(-1, 1) for _ in range(9)] + [p + rng.uniform(-30, 30) for p in pos]
+                emu.cpu.write(MATRIX_IN, struct.pack('<12f', *m))
+                re = emu.call(SET_MATRIX, ecx=emu.ptr(i), edx=MATRIX_IN)
+                rp = probe.al_set_matrix(i, (ctypes.c_float * 12)(*m))
+                if re != rp:
+                    raise SystemExit(f'set_matrix on {i}: original {re} port {rp}')
             if rng.random() < 0.3:  # its model box (and children's box) due again, as a model change marks it
                 bits = rng.choice((4, 2, 6))
                 emu.cpu.u32(emu.ptr(i) + 0x2c, emu.u32(emu.ptr(i) + 0x2c) | bits)
@@ -424,8 +453,11 @@ def part_frames(run, rng, objs, camera, rounds):
 def random_script(rng, actors, objs):
     ops = []
     for _ in range(rng.randint(0, 4)):
-        op = rng.choice((1, 1, 2, 3, 3, 4, 5, 6, 7))
+        op = rng.choice((1, 1, 2, 3, 3, 4, 5, 6, 7, 8, 9, 9))
         a = rng.choice(actors) if op != 6 else rng.choice((0, 1, 2, 3, 4, 5, 7))
+        if op in (8, 9):
+            ops.append((op, rng.choice(objs) if rng.random() < 0.7 else a, 0, 0, 0, 0))
+            continue
         if op in (1, 2):
             ops.append((op, a, rng.choice(list(range(KACTIONS)) + [-1, -1]), 0, 0, 0))
         elif op == 3:
@@ -491,21 +523,20 @@ def part_actions(run, rng, objs, frames):
         emu.call(RUN_LISTS)
         probe.al_run_lists()
         try:
-            n = run.compare(f'frame {f}: the action lists')
+            run.compare(f'frame {f}: the action lists')
         except SystemExit:
             if os.environ.get('MW3_DUMP') == '1':
                 for k, ops in scripts.items():
                     print('script', k, ops)
             raise
-        run.actions_run += n // 3
 
 
 def part_timed(run, rng, frames):
     emu = run.emu
     cpu = emu.cpu
-    for _ in range(4):
+    for _ in range(6):
         count = rng.randint(1, 5)
-        times = [rng.choice((0.0, rng.uniform(0.01, 0.4))) for _ in range(count)]
+        times = [rng.choice((0.0, rng.uniform(0.02, 0.3), rng.uniform(0.02, 0.3))) for _ in range(count)]
         if all(t == 0.0 for t in times):
             times[0] = 0.1
         header = struct.pack('<iiiiiifi', rng.random() < 0.8, rng.random() < 0.5, rng.random() < 0.5,
@@ -524,18 +555,18 @@ def part_timed(run, rng, frames):
         ts = (ctypes.c_float * count)(*times)
         ip = probe.al_seq(header, nodes, ts, count)
         assert ip == emu.index(n), ('seq node', ip, emu.index(n))
-    for _ in range(4):
+    for _ in range(6):
         nk = rng.randint(2, 6)
         keys = [rng.uniform(-3, 3) for _ in range(9 * (nk + 1))]
         dur = rng.uniform(0.2, 2.0)
         raw = bytearray(rng.getrandbits(8) for _ in range(0xd4))
-        struct.pack_into('<II', raw, 0, rng.choice((0, 1, 2, 3)), rng.choice((0, 4, 4, 5)))
+        struct.pack_into('<II', raw, 0, rng.choice((0, 1, 2, 3)), rng.choice((0, 4, 4, 4, 5)))
         struct.pack_into('<9f', raw, 0x94, *[rng.choice((1.0, rng.uniform(-2, 2))) for _ in range(9)])
         loop = rng.choice((-1, 0))
         struct.pack_into('<fIfff', raw, 0xb8, dur, 0, rng.uniform(0, dur * 0.8), rng.uniform(0, 0.2),
                          rng.uniform(dur * 0.5, dur))
         struct.pack_into('<hhhh', raw, 0xcc, rng.choice((0, 1, 1, 2)), 0, nk, loop)
-        flags = rng.choice((0, 4, 4))
+        flags = rng.choice((0, 4, 4, 4))
         n = emu.call(NODE_ALLOC) & 0xffffffff
         cpu.u32(n + 0x34, 8)
         cpu.u32(n + 0x24, flags)
@@ -550,8 +581,8 @@ def part_timed(run, rng, frames):
         ip = probe.al_animate(bytes(raw), ka, nk + 1, flags)
         assert ip == emu.index(n), ('animate node', ip, emu.index(n))
     run.compare('the sequences and animates')
-    for f in range(frames):
-        both_globals(emu, 200 + f, rng.choice((0.0, 1 / 30, 1 / 60, 0.1)))
+    for f in range(3 * frames):
+        both_globals(emu, 200 + f, rng.choice((0.0, 1 / 30, 0.1, 0.25)))
         emu.call(FRAME_UPDATE)
         probe.al_frame_update()
         run.compare(f'timed frame {f}')
@@ -573,7 +604,6 @@ def main():
         port_trace()
         both_globals(emu, 1, 1 / 30)
         run = Run(emu)
-        run.actions_run = 0
         run.compare(f'{w}: loaded')
         emu.call(FRAME_UPDATE)
         probe.al_frame_update()
@@ -582,14 +612,14 @@ def main():
         cams = [i for i in range(len(emu.blocks()) * emu.u32(NODE_BLOCK_SIZE))
                 if emu.u32(emu.ptr(i) + 0xd0) & 0x1000000 and emu.u32(emu.ptr(i) + 0x34) == 1]
         part_frames(run, rng, objs, cams[0] if cams else None, rounds)
+        part_timed(run, rng, rounds)  # its sequences and animates stay for the action lists' frames
         part_actions(run, rng, objs, rounds)
-        part_timed(run, rng, rounds)
         print(f'{w}: {len(objs)} objects, {run.checks} states identical ({run.inexact} words within 1e-5), '
-              f'{run.actions_run} actions run')
+              f'{emu.actions} actions run')
         print('   reached: ' + ', '.join(f'{COVERAGE[a]} {n}' for a, n in emu.reached.items()))
         total_checks += run.checks
         total_inexact += run.inexact
-        total_actions += run.actions_run
+        total_actions += emu.actions
     print(f'all identical: {total_checks} states over {len(worlds)} worlds, {total_actions} actions run, '
           f'{total_inexact} float words within 1e-5 (largest relative difference {MAX_REL[0]:.2g})')
 

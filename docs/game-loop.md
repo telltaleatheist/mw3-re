@@ -168,7 +168,10 @@ The drawing path (0x00480bf0), re-picked whenever VMode changes: Direct3D
 1. +0x14 += dt.
 2. Unless paused (+0x18): input poll; the cursor follows the mouse when not
    full screen and the input mode says so.
-3. zClass lists (0x004f7d80), sound (0x0056dfb0(0, 1)).
+3. zClass's action lists (0x004f7d80: lists 0..5, each followed by the frame
+   update 0x004f7f70; `action-lists.md`): the scripts' scrolling textures
+   (1), the player's tick and the radar (2), weapon_tick (3), the
+   animations (4), the puffers (5). Then sound (0x0056dfb0(0, 1)).
 4. The vehicle: the view's target (+0x64) vt+0x50; the cockpit flag when the
    view's camera (+0x58) is kind 1.
 5. The drawing path (software, below). It returns true when command 1

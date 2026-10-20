@@ -139,8 +139,10 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   zClass to the ports; the controllers, mechs and vehicles are not ported,
   so their constructors are logged and give none. The weapons load
   0x00583880 now runs the ported `zwep::init` with `make_weapon_type`, which
-  makes the weapon_tick object (priority 3, action `zwep::tick`). Neither
-  tick runs yet: the Core state's action lists (0x004f7d80) are a hook.
+  makes the weapon_tick object (priority 3, action `zwep::tick`). Both run
+  each Core frame from the ported action lists (0x004f7d80,
+  `action-lists.md`); `mw3tests` `mission_c1m1_frames_run_the_ticks_in_order_headless`
+  checks the order frame by frame.
 - `mw3tests` `mission_start_reads_c1m1_vehicles_headless`: the debug launch
   of c1 mission 1 without a window: gravity 40 / 9 / 3, the tick object at
   priority 2, weapons.zrd's definitions and the weapon_tick object, one AI
@@ -247,4 +249,3 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   0x0049f660, the ground placement 0x004161c0, the skin swap 0x004757f0.
 - The nets' passes 0x004d52b0 / 0x004d5300 (base AiNet vt+0x2c 0x004d5350
   and the link pass; the compiled nets and regions do nothing there).
-- Running the ticks: the Core state's action lists (0x004f7d80).

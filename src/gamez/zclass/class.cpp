@@ -484,8 +484,14 @@ int node_bound_box(Node* node) {
   return 0;
 }
 
+NodeObserver& node_update_observer() {
+  static NodeObserver observer = nullptr;
+  return observer;
+}
+
 // Mech3.exe 1.2 @ 0x004eca00 (gwNodeUpdate)
 int node_update(Node* node) {
+  if (NodeObserver o = node_update_observer()) o(node);
   int status = 0;
   bool bounds = false;
   if (node->get<uint32_t>(0x2c) & 4) node_model_box(node), bounds = true;

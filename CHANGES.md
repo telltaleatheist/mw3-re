@@ -95,6 +95,8 @@ None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
 - A mech file with a bad version no longer crashes the game when it unloads.
+- A scripted sequence with no frames in it no longer reads past its data (no
+  shipped mission makes one).
 - The game starts without a mouse (the original crashed), and pressing a
   newer key such as Power, Sleep or a web key while holding Ctrl, Alt and
   Shift no longer corrupts the game's input memory.
@@ -150,6 +152,10 @@ Details: [`docs/protection.md`](docs/protection.md).
 ## Running on modern machines
 
 These change how the game talks to the computer, not how it plays.
+
+- A developer's leftover debug message ("haha", whenever an object named
+  blackhawk_01 has its bounds rebuilt) is not printed. The 1999 game had no
+  console to show it in; the rebuild would print it to the terminal.
 
 - The main menu's crawling background, sliding MECH3 logo and the ripples
   around its buttons move at the same speed at any frame rate (the 30 fps

@@ -1219,6 +1219,16 @@ are all "puffers": emitters that drop little textured squares.
   "pops" leave it resuming the bottom screen, and too many "pushes" overwrite
   the top one. Pushing onto an empty stack would crash; the game always starts
   with a "replace", so it never happens.
+- **Every frame runs in five bands, in a fixed order** (0x4f7d80,
+  `action-lists.md`): the scripts' scrolling textures, then your mech and
+  the other vehicles (and the radar), then every shot and beam, then the
+  mission's animations, then smoke and fire. After each band the world
+  catches up: moved objects get their new bounds and map square. So a shot
+  always leaves from where your mech is this frame, and the animations see
+  where the shots ended up.
+- **A developer's "haha" is still in the game.** Each time an object named
+  `blackhawk_01` has its bounds rebuilt, the game prints "haha" (0x4ecc00),
+  to a console a Windows game does not have, so nobody ever saw it.
 
 ## Keyboard, mouse and joystick
 

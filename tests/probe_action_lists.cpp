@@ -71,6 +71,17 @@ void run_ops(int k) {
       case 5: zcls::object3d_set_translation(node(o.a), f(o.b), f(o.c), f(o.d)); break;
       case 6: zcls::list_remove(o.a, node(o.b)); break;
       case 7: zcls::object3d_set_rotation(node(o.a), f(o.b), f(o.c), f(o.d)); break;
+      case 8: {  // its world position: brings a changed chain up to date mid-run
+        float p[3];
+        zcls::node_world_position(node(o.a), p);
+        break;
+      }
+      case 9: {  // what the node's flags say now
+        Node* n = node(o.a);
+        g_trace.push_back(2), g_trace.push_back(index_of(n));
+        g_trace.push_back(static_cast<int32_t>(n->flags())), g_trace.push_back(n->get<int32_t>(0x2c));
+        break;
+      }
     }
   }
 }
@@ -105,6 +116,7 @@ int al_load(const char* path) {
   zmth::reset_stack();
   zcls::update_hooks() = zcls::UpdateHooks{};
   zcls::set_area_update(nullptr);
+  zcls::node_update_observer() = [](Node* n) { g_trace.push_back(3), g_trace.push_back(index_of(n)); };
   for (auto& s : g_script) s.clear();
   g_keys.clear();
   g_trace.clear();
@@ -133,6 +145,9 @@ int al_set(int32_t i, int32_t what, float x, float y, float z) {
   }
   return -1;
 }
+
+// object3d_set_matrix (0x4fc300): its own matrix from then on (USE_MATRIX).
+int al_set_matrix(int32_t i, const float* m) { return zcls::object3d_set_matrix(node(i), m); }
 
 int al_object3d() { return index_of(zcls::object3d_create()); }
 int al_set_action(int32_t i, int32_t k, int back) {
@@ -177,16 +192,15 @@ int al_animate(const uint8_t* raw, const float* keys, int32_t nkeys, uint32_t fl
   return index_of(n);
 }
 
-// The state both sides compare: every live node, its class data and its
+// The state both sides compare: every node, its class data and its
 // world's cells, the model boxes, the lists.
 int al_dump(uint8_t* out, int32_t cap) {
   g_out.clear();
-  const zcls::NodePool& p = zcls::nodes();
-  const int32_t total = static_cast<int32_t>(p.blocks.size()) * p.block_size;
-  for (int32_t i = 0; i < total; ++i) {
-    Node* n = zcls::node_at(i);
-    if (!(n->link & zcls::kNodeLive)) continue;
-    u32(i), u32(n->flags()), u32(n->get<uint32_t>(0x2c)), u32(n->get<uint32_t>(0x34)), u32(n->get<uint32_t>(0x44));
+  // Every node is on list 6 (the file's and those made at run time alike).
+  for (zcls::ListItem* item = zcls::lists().list[zcls::kAllNodes].head; item; item = item->next) {
+    Node* n = item->node;
+    if (!n) continue;
+    u32(static_cast<uint32_t>(index_of(n))), u32(n->flags()), u32(n->get<uint32_t>(0x2c)), u32(n->get<uint32_t>(0x34)), u32(n->get<uint32_t>(0x44));
     u32(n->get<uint32_t>(0x4c)), u32(n->get<uint32_t>(0x50));
     u32(n->action ? 1 : 0);
     u32(static_cast<uint32_t>(n->parent_count()));

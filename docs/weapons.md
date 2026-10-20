@@ -759,6 +759,6 @@ See `docs/discoveries.md`, Weapons.
   object3d and the animations.
 - Wiring: the mission load runs `zwep::init` (app_mission.cpp, 2026-10-20),
   which registers `zwep::tick` as the weapon_tick object's action (priority
-  3); the Core state's action lists do not run yet (mission-start.md). The
+  3); the Core state's action lists run it each frame (`action-lists.md`). The
   mech's own setup (its constructor and 0x414430, at launch: mission-start.md
   section 10) still has to call `configure_weapons` and build the AMS.
