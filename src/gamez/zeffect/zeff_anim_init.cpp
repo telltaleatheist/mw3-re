@@ -548,4 +548,16 @@ Node* anim_find_node(AnimDef* def, const char* name) {
   return hit;
 }
 
+// Mech3.exe 1.2 @ 0x0050b450: a def by its name, not the first one (index 0)
+// and none whose status (+0x98) is 5. Weapons and others find their
+// animations this way.
+AnimDef* anim_find(const char* name) {
+  if (!name) return nullptr;
+  for (int32_t j = 1; j < g_anim.def_count(); ++j) {
+    AnimDef& d = g_anim.defs[j];
+    if (d.raw[0x98] != 5 && std::strcmp(d.name(), name) == 0) return &d;
+  }
+  return nullptr;
+}
+
 }  // namespace zeff

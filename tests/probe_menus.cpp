@@ -85,8 +85,8 @@ struct MenuEngine : mech3::Engine {
   void settings_write() override { call("0x00597a60", {}); }
   float cd_volume() override { return f32("0x0040dae0"); }
   void set_cd_volume(float v) override { call("0x0040dab0", {zgame::bits(v)}); }
-  float sound_volume() override { return f32("0x0040daa0"); }
-  void set_sound_volume(float v) override { call("0x0040da80", {zgame::bits(v)}); }
+  float sound_frequency() override { return f32("0x0040daa0"); }
+  void set_sound_frequency(float v) override { call("0x0040da80", {zgame::bits(v)}); }
   int32_t texture_memory() override { return i32("0x0040d410"); }
   void set_texture_memory(int32_t v) override { call("0x0040d3f0", {v}); }
   int32_t sound_lod() override { return i32("0x0040d3e0"); }

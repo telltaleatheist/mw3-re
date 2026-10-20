@@ -66,7 +66,7 @@ NAMES = {1: 'add_child', 2: 'remove_child', 3: 'obj_add_child', 4: 'obj_remove_c
          35: 'query_static', 36: 'query_since', 37: 'query_mask', 38: 'segment_list', 39: 'segment',
          40: 'ground', 41: 'net_gate', 42: 'net_detonated', 43: 'splash_query', 44: 'handler',
          45: 'surface_mark', 46: 'crater', 47: 'quicksand', 49: 'surface_angles', 51: 'tick_cb', 52: 'set_active',
-         53: 'flag4fbb90', 54: 'uniform_scale', 55: 'sound_stop', 56: 'sound_volume', 57: 'anim_free',
+         53: 'flag4fbb90', 54: 'uniform_scale', 55: 'sound_stop', 56: 'sound_frequency', 57: 'anim_free',
          79: 'flag4eb790', 83: 'touch_fn', 75: 'crater_defaults', 76: 'crater_make', 77: 'quicksand_defaults', 78: 'quicksand_make'}
 FLOATS = {9: (1, 2, 3), 10: (1, 2, 3), 11: (1, 2, 3), 12: (1, 2, 3), 21: (1, 2, 3), 22: (1, 2), 23: (1, 2, 3),
           31: tuple(range(1, 10)), 32: (1, 2, 3), 33: (1, 2, 3, 4), 38: tuple(range(6)), 39: tuple(range(6)),

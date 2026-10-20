@@ -97,8 +97,8 @@ class Engine : public zgame::AppHooks {
   // The graphics and audio screen's, ported.
   virtual float cd_volume();                           // 0x0040dae0
   virtual void set_cd_volume(float v);                 // 0x0040dab0
-  virtual float sound_volume();                        // 0x0040daa0
-  virtual void set_sound_volume(float v);              // 0x0040da80
+  virtual float sound_frequency();                        // 0x0040daa0
+  virtual void set_sound_frequency(float v);              // 0x0040da80
   virtual int32_t texture_memory();                    // 0x0040d410
   virtual void set_texture_memory(int32_t v);          // 0x0040d3f0
   virtual int32_t sound_lod();                         // 0x0040d3e0

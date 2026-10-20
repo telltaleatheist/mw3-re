@@ -162,6 +162,44 @@ int32_t pl_point(float x, float y, float z, int32_t zone_mode, int32_t* out) {
   return r;
 }
 
+// 0x004eda10 on the same point: the hit kept.
+void pl_below(float x, float y, float z, int32_t zone_mode, int32_t* out) {
+  zmod::zones().mode = zone_mode;
+  const float at[3] = {x, y, z};
+  zcls::ground_below(world_node(), at, &g_point);
+  zmod::zones().mode = 1;
+  put_record(out, g_point);
+}
+
+// 0x004eda10's choice on a made-up list: the exe's bytes (count, then 0x28
+// a record, the material and node as numbers), in and out.
+void pl_keep_below(uint8_t* raw, float y) {
+  static zcls::GroundHits g;
+  std::memset(&g, 0, sizeof g);
+  g.count = raw[0];
+  for (int i = 0; i < 32; ++i) {
+    const uint8_t* r = raw + 4 + 0x28 * i;
+    zcls::GroundHit& h = g.hit[i];
+    std::memcpy(h.normal, r, 12), std::memcpy(&h.x, r + 12, 4), std::memcpy(&h.height, r + 16, 4);
+    std::memcpy(&h.z, r + 20, 4), std::memcpy(h.zone, r + 24, 8);
+    uint32_t m, n;
+    std::memcpy(&m, r + 32, 4), std::memcpy(&n, r + 36, 4);
+    h.material = reinterpret_cast<zmod::Material*>(static_cast<uintptr_t>(m));
+    h.node = reinterpret_cast<zcls::Node*>(static_cast<uintptr_t>(n));
+  }
+  zcls::ground_keep_below(&g, y);
+  raw[0] = g.count;
+  for (int i = 0; i < 32; ++i) {
+    uint8_t* r = raw + 4 + 0x28 * i;
+    const zcls::GroundHit& h = g.hit[i];
+    std::memcpy(r, h.normal, 12), std::memcpy(r + 12, &h.x, 4), std::memcpy(r + 16, &h.height, 4);
+    std::memcpy(r + 20, &h.z, 4), std::memcpy(r + 24, h.zone, 8);
+    const uint32_t m = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h.material));
+    const uint32_t n = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h.node));
+    std::memcpy(r + 32, &m, 4), std::memcpy(r + 36, &n, 4);
+  }
+}
+
 void pl_reset() { std::memset(&g_point, 0, sizeof g_point); }
 
 // Adds nodes (by pool index) to the world's children, as the test does to

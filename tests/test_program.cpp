@@ -1,3 +1,4 @@
+#include <set>
 // The program's pieces that run without a window (docs/program.md): the
 // message DLL, the mounts and write dir, the music lookup, and the start-up
 // through InitInstance and the original main loop to the main menu's state.
@@ -29,6 +30,8 @@
 #include "gamez/zutil/zutl_reg.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_init.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app.h"
@@ -99,6 +102,17 @@ struct SavedMounts {
 };
 
 }  // namespace
+
+// A new process starts with no animations, an empty effect table and zSound
+// not yet initialised. One mission after another in the same process would
+// keep the first one's animations (the unload 0x00490480 with 0x0050b380 is
+// not ported: weapon-effects.md), and zSound's shutdown leaves it marked
+// initialised, so the next engine's init is refused with no queue.
+void reset_effects() {
+  zeff::anim() = zeff::AnimState{};
+  zeff::effects_reset();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+}
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
   if (!have_game()) return;
@@ -203,6 +217,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("program_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -289,6 +304,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -309,6 +325,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_start_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -447,6 +464,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -465,6 +483,7 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mech_build_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -506,6 +525,7 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -546,6 +566,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_frames_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -612,6 +633,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -638,6 +660,7 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_timers_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -707,6 +730,7 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -787,6 +811,7 @@ TEST(mission_c1m1_camera_follows_the_cockpit_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_view_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};
   mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
@@ -877,6 +902,7 @@ TEST(mission_c1m1_camera_follows_the_cockpit_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -887,6 +913,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_sensors_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -1001,6 +1028,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -1046,7 +1074,7 @@ TEST(settings_file_reads_an_export_and_keeps_what_the_game_saved) {
   EXPECT(mech3::load_options(nullptr) == 1);
   EXPECT(mech3::options().in_game_vmode == 10);
   EXPECT(mech3::options().mouse_accel[0] == 2.0f);
-  mech3::options().sound_volume = 0.25f;
+  mech3::options().sound_frequency = 0.25f;
   EXPECT(zreg::write_all() == 1);
 
   platform::RegFile again(path);
@@ -1071,6 +1099,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_drive_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -1171,6 +1200,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -1187,6 +1217,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_fire_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -1284,6 +1315,13 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
     EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
     EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
+    // What the shots showed and played (docs/weapon-effects.md): the machine
+    // guns' muzzle flash and looping fire sound, their ricochet and the hit
+    // on a mech, the laser's muzzle and impact.
+    const std::set<std::string> fx(mech3::weapon_fx_log().begin(), mech3::weapon_fx_log().end());
+    EXPECT(fx.count("anim mac_muz.flt") && fx.count("sound wep_mgun_fire"));     // on fire
+    EXPECT(fx.count("anim impact_mgun_mech") && fx.count("sound wep_ricochet"));  // on the hit
+    EXPECT(fx.count("anim laser_blue_muz.flt") && fx.count("anim laser_impact_blue.flt"));
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1291,6 +1329,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -1471,6 +1510,7 @@ TEST(mission_c1m1_player_commands_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_commands_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
@@ -1568,6 +1608,7 @@ TEST(mission_c1m1_player_commands_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -1582,6 +1623,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_ai_frames_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
@@ -1684,6 +1726,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }
 
@@ -1697,6 +1740,7 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_fire_write"));
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
@@ -1825,5 +1869,6 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  reset_effects();  // zEffect's anims and effect table, as a new process has none
   mech3::options() = mech3::Options{};
 }

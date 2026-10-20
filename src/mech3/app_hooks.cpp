@@ -188,8 +188,8 @@ void Engine::set_mouse_accel_y(float v) { options().mouse_accel[1] = v; }
 void Engine::settings_write() { zreg::write_all(); }
 float Engine::cd_volume() { return mech3::cd_volume(); }
 void Engine::set_cd_volume(float v) { mech3::set_cd_volume(v); }
-float Engine::sound_volume() { return mech3::sound_volume(); }
-void Engine::set_sound_volume(float v) { mech3::set_sound_volume(v); }
+float Engine::sound_frequency() { return mech3::sound_frequency(); }
+void Engine::set_sound_frequency(float v) { mech3::set_sound_frequency(v); }
 int32_t Engine::texture_memory() { return mech3::texture_memory(); }
 void Engine::set_texture_memory(int32_t v) { mech3::set_texture_memory(v); }
 int32_t Engine::sound_lod() { return mech3::sound_lod(); }

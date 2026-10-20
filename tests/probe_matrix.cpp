@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zrender/zrndr_fog.h"
 
 namespace {
@@ -78,6 +79,15 @@ void probe_matrix_put_view(const float* v, const float* c) {
 }
 
 void probe_matrix_to_euler(const float* m, float* out) { zmth::matrix_to_euler(mat(m), out); }
+
+// An impact's turn to its surface (0x005828a3..): 0x00525a50 from (0, 1, 0)
+// to the normal, then 0x00525f80.
+void probe_surface_angles(const float* n, float* out) {
+  const float up[3] = {0.0f, 1.0f, 0.0f};
+  float q[4];
+  zmth::quat_between(up, n, q);
+  zmth::quat_angles(q, out);
+}
 
 int32_t probe_matrix_invert(const float* m, float* out, int translation) {
   zmth::Mat34 o;

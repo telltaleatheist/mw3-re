@@ -1596,6 +1596,22 @@ From the entity manager's frame, 0x5a8850 (details: `ai.md` section 16):
   only powering down waits, until the mech is standing still or in one of
   two other poses that allow it.
 
+From the weapons' effects (details: `weapon-effects.md`):
+
+- **Machine-gun tracers are single dots.** The tracer model has no shape at
+  all, only one coloured light point, drawn as a single pixel that fades out
+  with distance. At 640x480 it is one dot per bullet.
+- **Weapons can name sprite "effects" that never show.** 53 entries in
+  weapons.zrd have an `EFFECT`, but the game's effect list (effects.zrd) is
+  empty in both MechWarrior 3 and Pirate's Moon, so none of them appear.
+- **Impacts turn to the surface they hit:** the surface animations (the pock
+  marks on the ground, the splashes) are rotated to lie on the slope.
+- **Only eight impact lights exist at once;** a ninth impact while they
+  are all lit gets no flash of light.
+- **The machine gun's rattle comes from the mission's "common" sound set,**
+  loaded with the mission, not with the weapon: the weapons' own looping
+  sounds are found by name there.
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).

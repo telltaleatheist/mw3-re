@@ -375,6 +375,23 @@ void draw_flat(uint32_t color, int32_t alpha, int32_t count, int32_t, int32_t ov
   }
 }
 
+// Mech3.exe 1.2 @ 0x0057dba0 ([0x0072f3e0]): one point, screen x, y and z
+// (rhw = z), flat and untextured; under full alpha it waits in the
+// transparent queue (D3DPT_POINTLIST, 1).
+void draw_point(const float screen[3], uint32_t color, int32_t alpha) {
+  TLVertex v{};
+  v.sx = screen[0], v.sy = screen[1], v.sz = screen[2], v.rhw = screen[2];
+  v.specular = 0xff000000u;
+  v.diffuse = unpack(color, alpha);
+  if (alpha < 0xff) {
+    if (TLVertex* dst = queue_transparent(1, 1, nullptr)) *dst = v;
+    return;
+  }
+  set_texture(nullptr);
+  set_shade(1);
+  draw_primitive(1, &v, 1);
+}
+
 // Mech3.exe 1.2 @ 0x0057c700. Untextured, lit or fogged: the material rgb
 // times the FIRST vertex's darkness for every vertex, plus the point light
 // per vertex (flag 4); fog (flag 1) in the specular alpha. A polygon with
@@ -930,6 +947,7 @@ void install_model_draw_table() {
   t.flat = [](void*, uint32_t color, int32_t alpha, int32_t count, int32_t priority, int32_t overlay) {
     draw_flat(color, alpha, count, priority, overlay);
   };
+  t.point = [](void*, const float screen[3], uint32_t color, int32_t alpha) { draw_point(screen, color, alpha); };
   t.lit = [](void*, uint32_t color, const float* rgb, uint32_t fogged, int32_t alpha, int32_t count, int32_t priority,
              int32_t overlay) { draw_lit(color, rgb, fogged, alpha, count, priority, overlay); };
   t.textured = [](void*, int32_t count, void* texture, float opacity, int32_t overlay) {

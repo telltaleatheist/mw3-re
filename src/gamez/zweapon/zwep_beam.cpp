@@ -59,8 +59,8 @@ void set_rotation_to(Handle n, const Vec3f3& d) {
 void set_scale(Handle n, float x, float y, float z) {
   if (rh().set_scale) rh().set_scale(n, x, y, z);
 }
-void sound_volume(Handle s, float v) {
-  if (rh().sound_volume) rh().sound_volume(s, v);
+void sound_frequency(Handle s, float v) {
+  if (rh().sound_frequency) rh().sound_frequency(s, v);
 }
 Handle sound_at(Handle s, const Vec3f3* at) { return rh().sound_at ? rh().sound_at(s, at, 1.0f) : nullptr; }
 void play_at(Handle anim, const Vec3f3& p) {  // 0x00508aa0 at a point, unturned
@@ -141,7 +141,7 @@ int32_t beam_start(Beam* b) {
   FireState& f = fire_state();
   sound_at(def->fire.sounds[0], b->origin);
   b->sound = sound_at(def->flyout.sounds[0], b->origin);
-  if (def->flags & kDesignate) sound_volume(b->sound, 0.0f);
+  if (def->flags & kDesignate) sound_frequency(b->sound, 0.0f);
   if (def->fire.effect) {
     if (hit_hooks().impact_effect) hit_hooks().impact_effect(def->fire.effect, b->origin);
   } else if (Handle a = def->fire.animation) {
@@ -354,7 +354,7 @@ void beam_update(WeaponDef* def) {
               const float t = b->timer - dt;
               b->timer = t;
               if (!(t > 0.0f)) b->timer = 0;
-              else sound_volume(b->sound, t / def->detonation_distance_sq);
+              else sound_frequency(b->sound, t / def->detonation_distance_sq);
             } else {
               if ((b->flags & 1) && def->impacts[soil].animation) play_at(def->impacts[soil].animation, rec->point);
               b->timer = dt + b->timer;
@@ -367,7 +367,7 @@ void beam_update(WeaponDef* def) {
             bounced = true;
           }
         } else if (def->flags & kDesignate) {
-          sound_volume(b->sound, 0.0f);
+          sound_frequency(b->sound, 0.0f);
           b->timer = 0;
           set_active(b->light, 0);
         }

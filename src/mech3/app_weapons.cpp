@@ -5,8 +5,16 @@
 // craters, marks) and sounds stay unset: the shots fly and hit without them.
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zeffect/zeff_init.h"
+#include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
+#include "gamez/zsound/zsnd.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_util.h"
@@ -42,6 +50,25 @@ void to_hits(const zcls::LineHits& in, zwep::HitList* out) {
 static_assert(sizeof(zwep::HitRecord) == sizeof(zcls::LineHit), "the 0x28-byte slot");
 
 zcls::Node* qworld() { return world_hooks().world; }
+uint32_t (*g_unported)(const char*) = nullptr;
+void unported(const char* key) {
+  if (g_unported) g_unported(key);
+}
+zeff::AnimDef* anim_of(zwep::Handle a) { return static_cast<zeff::AnimDef*>(a); }
+
+// What the weapons start, for the tests (ours): "anim <name>", "sound <name>".
+std::vector<std::string> g_fx;
+void note(const char* kind, const char* name) {
+  if (g_fx.size() < 4096) g_fx.push_back(std::string(kind) + " " + (name ? name : "?"));
+}
+void note_anim(zwep::Handle a) {
+  if (a) note("anim", anim_of(a)->name());
+}
+void note_sound(zwep::Handle s) {
+  const auto* o = static_cast<const zsnd::Object*>(s);
+  if (!o) return;
+  note("sound", o->kind == 0 ? static_cast<const zsnd::Sound*>(o)->name : static_cast<const zsnd::Group*>(o)->name);
+}
 
 int32_t segment_list(const zwep::Vec3f3* a, const zwep::Vec3f3* b, zwep::HitList* out) {
   static zcls::LineHits r;
@@ -107,8 +134,26 @@ void* node_owner(void* n) {
   return nullptr;
 }
 
-void wire_weapons() {
+std::vector<std::string>& weapon_fx_log() { return g_fx; }
+
+void wire_weapons(uint32_t (*log)(const char* key)) {
+  g_unported = log;
+  g_fx.clear();
   WeaponCalls& c = weapon_calls();
+  // The weapons' own sounds (U_LOOPED, U_RECHARGE_SND ..) through zSound; the
+  // cockpit's (0x0041e770's table) and Betty's voice are not ported.
+  c.play_loop = [](Handle s) -> Handle {                                                   // 0x0056e3d0 (1.0)
+    note_sound(s);
+    return s ? zsnd::play(static_cast<zsnd::Object*>(s), 1.0f) : nullptr;
+  };
+  c.play_at = [](Handle s, const Vec3f* p) -> Handle {                                     // 0x0056e7e0 (1.0, 0)
+    note_sound(s);
+    return s ? zsnd::play_at(static_cast<zsnd::Object*>(s), &p->x, 1.0f, nullptr) : nullptr;
+  };
+  c.stop_sound = [](Handle v) { if (v) zsnd::stop(static_cast<zsnd::VoiceBase*>(v)); };  // 0x0056e9f0
+  c.mech_sound = [](int32_t) { unported("0x0041e770"); };
+  c.destroyed_sounds = [](Handle, Handle) { unported("0x004e6dc0"); };
+  c.voice_destroyed = [](int32_t) { unported("0x004853d0"); };
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
   c.vehicle_velocity = [](Handle v) { return reinterpret_cast<const Vec3f*>(&mech_of(v)->velocity); };
   c.entity_node = [](Handle e) { return mech_of(e)->node; };                              // +0x04
@@ -186,7 +231,58 @@ void wire_weapons() {
   r.world_remove_light = [](zwep::Handle l) {
     if (qworld()) zcls::world_remove_light(qworld(), zn(l));
   };
-  // impact_type (0x005426a0: [0x0074a2b0], read by nothing ported) stays unset.
+  // The decal module's impact type (0x005426a0: [0x0074a2b0]) is read only
+  // by the surface marks (0x00542060), not ported; craters (zdeclient) the same.
+  r.impact_type = [](int32_t) { unported("0x005426a0"); };
+  r.crater_defaults = [](zwep::CraterOrder*) { unported("0x004ff920"); };
+  r.crater_make = [](const zwep::CraterOrder*) { return unported("0x004ffaa0"), 1; };
+  r.quicksand_defaults = [](zwep::QuicksandOrder*) { unported("0x005020f0"); };
+  r.quicksand_make = [](const zwep::QuicksandOrder*) { unported("0x00502110"); };
+  r.pool_live = []() { return !zcls::nodes().blocks.empty(); };                            // 0x004f8f50: [0x0060bf48]
+  // The animations (zeffect): started at a node, following one, on a model.
+  r.anim_attached = [](zwep::Handle a, zwep::Handle n, const void* off) -> zwep::Handle {  // 0x00508da0
+    note_anim(a);
+    return a ? zeff::anim_start_connector(anim_of(a), nullptr, zn(n), static_cast<const float*>(off), nullptr)
+             : nullptr;
+  };
+  r.anim_follow = [](zwep::Handle a, zwep::Handle n) -> zwep::Handle {                    // 0x00508ee0
+    note_anim(a);
+    return a ? zeff::anim_start_connector_at(anim_of(a), nullptr, zn(n), nullptr, zn(n), nullptr) : nullptr;
+  };
+  r.anim_model = [](zwep::Handle a, zwep::Handle m) -> zwep::Handle {                     // 0x00508c10
+    note_anim(a);
+    return a ? zeff::anim_start(anim_of(a), zn(m), 0.0f, 0.0f, 0.0f) : nullptr;
+  };
+  r.anim_on_done = [](zwep::Handle a, zwep::Projectile* p) {                              // 0x00508f00 with 0x00583120
+    if (a)
+      zeff::anim_set_callback(
+          anim_of(a), [](zeff::AnimDef*, void* arg, int32_t) { zwep::model_anim_done(static_cast<zwep::Projectile*>(arg)); },
+          p);
+  };
+  r.anim_stop = [](zwep::Handle a) { zeff::anim_restart(anim_of(a)); };                   // 0x00508460: to stopping
+  r.anim_free = [](zwep::Handle a) { zeff::anim_stop(anim_of(a)); };                      // 0x00506ca0
+  r.effect_handle = [](zwep::Handle a, const float v[9]) -> zwep::Handle {                // 0x00508aa0
+    note_anim(a);
+    return a ? zeff::anim_start_at(anim_of(a), nullptr, v, v + 3, v + 6) : nullptr;
+  };
+  // zSound.
+  r.sound_at = [](zwep::Handle s, const zwep::Vec3f3* at, float volume) -> zwep::Handle {  // 0x0056e7e0
+    note_sound(s);
+    return s ? zsnd::play_at(static_cast<zsnd::Object*>(s), &at->x, volume, nullptr) : nullptr;
+  };
+  r.sound_stop = [](zwep::Handle v) { if (v) zsnd::stop(static_cast<zsnd::VoiceBase*>(v)); };  // 0x0056e9f0
+  r.sound_frequency = [](zwep::Handle v, float t) {                                         // 0x0056f280
+    if (v) zsnd::set_frequency(static_cast<zsnd::VoiceBase*>(v), t);
+  };
+  // 0x004eda10 on the world: the ground below a guided shot (one record kept).
+  r.ground = [](const zwep::Vec3f3* at, zwep::HitList* out) {
+    static zcls::GroundHits g;
+    out->count = 0;
+    if (!qworld()) return;
+    zcls::ground_below(qworld(), &at->x, &g);
+    out->count = g.count;
+    if (g.count) std::memcpy(&out->rec[0], &g.hit[0], sizeof g.hit[0]);
+  };
   r.query_static = [](int32_t on) { zcls::segment_options().static_only = on; };           // 0x004ed9d0
   r.query_since = [](int32_t on, uint32_t frame) {                                         // 0x004ed9e0
     zcls::segment_options().since = on ? static_cast<int32_t>(frame) : -1;
@@ -203,6 +299,27 @@ void wire_weapons() {
     const auto& s = reinterpret_cast<zwep::NodeHandlers*>(t)->slot[0];
     return reinterpret_cast<zwep::DamageFn>(s.fn)(s.object, def, hit, damage);
   };
+  // The impact's sound, animation turned to the surface, craters; zEffect's
+  // table (empty in both games' effects.zrd); the surface marks not ported.
+  h.sound = zwep::sound;                                                                    // 0x00582f60
+  h.effect = [](zwep::Handle a, const float v[9]) {                                         // 0x00508aa0
+    note_anim(a);
+    if (a) zeff::anim_start_at(anim_of(a), nullptr, v, v + 3, v + 6);
+  };
+  h.surface_angles = [](const zwep::Vec3f3* n, float out[3]) {
+    const float up[3] = {0.0f, 1.0f, 0.0f};  // 0x005eda70
+    float q[4];
+    zmth::quat_between(up, &n->x, q);  // 0x00525a50
+    zmth::quat_angles(q, out);         // 0x00525f80
+  };
+  h.crater = [](zwep::WeaponDef* d, zwep::HitRecord* hit, int32_t, zwep::Projectile* p) {  // 0x005825b0
+    return zwep::crater(d, hit, p);
+  };
+  h.quicksand = [](zwep::WeaponDef* d, zwep::HitRecord* hit, int32_t soil, zwep::Projectile* p) {  // 0x005824b0
+    return zwep::quicksand(d, hit, soil, p), 0;
+  };
+  h.impact_effect = [](int32_t e, const zwep::Vec3f3*) { zeff::effect_spawn(e); };        // 0x0050d650
+  h.surface_mark = [](zwep::HitRecord*) { unported("0x00542060"); };
   h.soil = [](zwep::Handle m) { return m ? static_cast<int32_t>(static_cast<zmod::Material*>(m)->soil) : 0; };
   h.node_intersect = [](zwep::Handle n) { return (zn(n)->flags() & 0x10) != 0; };
   h.set_intersect = [](zwep::Handle n, int32_t on) { zcls::node_set_intersect(zn(n), on); };
@@ -266,6 +383,17 @@ bool mech_group_reloading(void* mech, int32_t g) {
 
 // What F1..F5 select (CMD_WEPGRP_1..5 through the mech's command handler,
 // not ported): the first group holding a weapon that heats its mech; -1 none.
+std::string mech_group_names(void* mech, int32_t g) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  std::string s;
+  for (uint32_t i = 0; wm && g >= 0 && g < 5 && wm->groups[g] && i < wm->groups[g]->count; ++i)
+    if (const Weapon* w = wm->groups[g]->weapons[i]) s += std::string(s.empty() ? "" : " ") + (w->def ? w->def->name : "?");
+  return s;
+}
+bool mech_select_group(void* mech, int32_t g) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  return wm && wm->select_group(g);
+}
 int32_t mech_select_hot_group(void* mech) {
   auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
   if (!wm) return -1;

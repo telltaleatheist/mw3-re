@@ -423,12 +423,12 @@ void set_vmode(int32_t mode) {
 int32_t vmode() { return g_options.vmode; }
 
 // Mech3.exe 1.2 @ 0x0040da80
-void set_sound_volume(float v) {
-  g_options.sound_volume = v;
+void set_sound_frequency(float v) {
+  g_options.sound_frequency = v;
   g_hooks->sound_set_volume(v);
 }
 // Mech3.exe 1.2 @ 0x0040daa0
-float sound_volume() { return g_options.sound_volume; }
+float sound_frequency() { return g_options.sound_frequency; }
 
 // Mech3.exe 1.2 @ 0x0040dab0: 0..1 to the 16-bit volume of both channels.
 void set_cd_volume(float v) {
@@ -454,7 +454,7 @@ void apply_all() {
   set_use_joystick(use_joystick());
   set_game_intensity(game_intensity());
   set_shadow(shadow());
-  set_sound_volume(sound_volume());
+  set_sound_frequency(sound_frequency());
   set_cd_volume(cd_volume());
 }
 
@@ -613,7 +613,7 @@ int32_t load_options(const char* path) {
   if (make("JoyAccelY", kBinary4, &o.joy_accel[1])) o.joy_accel[1] = 1.3f;
   if (make("GameIntensity", kDword, &o.game_intensity)) set_game_intensity(1);
   if (make("MouseMode", kDword, &o.mouse_mode)) o.mouse_mode = 2;
-  if (make("SoundVolume", kBinary4, &o.sound_volume)) set_sound_volume(0.5f);
+  if (make("SoundVolume", kBinary4, &o.sound_frequency)) set_sound_frequency(0.5f);
   if (make("CDVolume", kBinary4, &o.cd_volume)) set_cd_volume(0.5f);
   // Not saved (scope 2): the stride, the camera and the three rectangles, VMode.
   if (make("VStride", kDword, &o.vstride, 0, zreg::kNotSaved)) o.vstride = 1;

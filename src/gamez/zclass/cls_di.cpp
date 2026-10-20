@@ -756,6 +756,33 @@ int ground_point(Node* world, float x, float y, float z, GroundHits* out) {
   return out->count == 0;
 }
 
+// Mech3.exe 1.2 @ 0x004eda10. Of the hits, the highest whose height is at or
+// below at[1]; on a tie the later one unless the kept one's zone byte is set.
+int ground_below(Node* world, const float at[3], GroundHits* out) {
+  if (ground_point(world, at[0], at[1], at[2], out) != 0) {
+    out->count = 0;
+    out->hit[0].zone[0] = 0xffffff00u;  // 0x0053cc40 on it: no zone
+    return 0;
+  }
+  ground_keep_below(out, at[1]);
+  return 0;
+}
+
+// 0x004eda10's choice, as its x87 compares go: a NaN height counts as below
+// the point and as equal to the kept one.
+void ground_keep_below(GroundHits* out, float y) {
+  int best = 0;
+  for (int i = 1; i < out->count; ++i) {
+    const GroundHit& n = out->hit[i];
+    const GroundHit& b = out->hit[best];
+    if (n.height > y) continue;
+    const bool equal = !(n.height < b.height) && !(n.height > b.height);
+    if (b.height > y || n.height > b.height || (equal && (b.zone[0] & 0xff) == 0)) best = i;
+  }
+  out->hit[0] = out->hit[best];
+  out->count = 1;
+}
+
 // Mech3.exe 1.2 @ 0x004ee2f0
 int ground_query(Node* world, float* probes, int32_t count, float top, GroundHits* out) {
   if (count > kMaxProbes) {

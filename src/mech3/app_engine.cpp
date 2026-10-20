@@ -59,7 +59,7 @@ WiredOptionsHooks g_options_hooks;
 // zSound's engine variables (0x00597d10): the options that hold them.
 void* find_var(const char* name) {
   if (std::strcmp(name, "SoundLOD") == 0) return &options().sound_lod;
-  if (std::strcmp(name, "SoundVolume") == 0) return &options().sound_volume;
+  if (std::strcmp(name, "SoundVolume") == 0) return &options().sound_frequency;
   return nullptr;  // MuteSound is not an option of MW3's
 }
 

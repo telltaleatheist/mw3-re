@@ -89,7 +89,7 @@ AnimState& anim();
 
 // The calls into engine parts not ported yet; the front end or a test sets them.
 struct AnimHooks {
-  Node* (*copy_tree)(Node* node);                          // 0x004f9b50 (dead: copy_trees is never set)
+  Node* (*copy_tree)(Node* node);                          // 0x004f9b50(node, 1, 1): a running def's instance (the post-load copy is dead)
   void* (*create_puffer)();                                // 0x0054a710, gmod_puff
   void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
   int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect
@@ -104,5 +104,6 @@ Node* anim_find_in_tree(Node* node, const char* name);    // 0x005096d0
 int32_t anim_light_index(AnimDef* def, const char* name); // 0x005091e0
 int32_t anim_sound_index(AnimDef* def, const char* name); // 0x00509160
 Node* anim_find_node(AnimDef* def, const char* name);     // 0x00509640
+AnimDef* anim_find(const char* name);                     // 0x0050b450
 
 }  // namespace zeff

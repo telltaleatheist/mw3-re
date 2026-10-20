@@ -124,7 +124,7 @@ ztwod::Rect* VolumeSlider::get_rect() { return reading ? nullptr : Control::get_
 void VolumeSlider::on_left_up() {
   set_from_mouse();
   if (music_) e_.set_cd_volume(value);
-  else e_.set_sound_volume(value);
+  else e_.set_sound_frequency(value);
 }
 
 // Mech3.exe 1.2 @ 0x0043a6c0
@@ -287,7 +287,7 @@ void GfxAudioScreen::apply(int32_t to_options) {
   Engine& e = engine();
   if (!to_options) {
     music.set_raw(e.cd_volume());
-    sfx.set_raw(e.sound_volume());
+    sfx.set_raw(e.sound_frequency());
     resolution.select_each_value(e.in_game_vmode());
     device.select_each_value(e.hw_card_dev());
     textures.select_each_value(e.texture_memory());
@@ -315,7 +315,7 @@ void GfxAudioScreen::apply(int32_t to_options) {
   int32_t flags = e.gfx_flags();
   e.set_cd_volume(music.value);
   e.set_texture_memory(textures.selected_value());
-  e.set_sound_volume(sfx.value);
+  e.set_sound_frequency(sfx.value);
   e.set_sound_lod(sound.selected_value());
   e.set_object_lod(level_of(detail.selected_value()));
   e.set_effects_level(level_of(effects.value_at(effects.index)));

@@ -10,6 +10,7 @@ order and the budget after (the updating flag, resume, current, left,
 per_frame) must match the port's (tests/probe_entities.cpp).
 """
 import ctypes
+import os
 import random
 import struct
 import sys
@@ -122,4 +123,19 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # Leave without Unicorn's teardown (it can hang at exit): the status
+    # SystemExit carries, 1 for any other fault.
+    code = 0
+    try:
+        main()
+    except SystemExit as ex:
+        if ex.code not in (None, 0):
+            print(ex.code if isinstance(ex.code, str) else '', flush=True)
+        code = 0 if ex.code in (None, 0) else 1
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        code = 1
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
