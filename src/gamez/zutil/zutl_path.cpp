@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <filesystem>
 
 namespace zutl {
@@ -38,6 +39,54 @@ bool match(const char* p, const char* s) {
   }
   return !*s;
 }
+
+// Windows-1252's 0x80..0x9f (the rest of its upper half is Latin-1).
+constexpr uint16_t kCp1252[32] = {0x20ac, 0x81,   0x201a, 0x192,  0x201e, 0x2026, 0x2020, 0x2021,
+                                  0x2c6,  0x2030, 0x160,  0x2039, 0x152,  0x8d,   0x17d,  0x8f,
+                                  0x90,   0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
+                                  0x2dc,  0x2122, 0x161,  0x203a, 0x153,  0x9d,   0x17e,  0x178};
+
+void put_utf8(std::string& out, uint32_t u) {
+  if (u < 0x80) {
+    out += static_cast<char>(u);
+  } else if (u < 0x800) {
+    out += static_cast<char>(0xc0 | u >> 6);
+    out += static_cast<char>(0x80 | (u & 0x3f));
+  } else {
+    out += static_cast<char>(0xe0 | u >> 12);
+    out += static_cast<char>(0x80 | ((u >> 6) & 0x3f));
+    out += static_cast<char>(0x80 | (u & 0x3f));
+  }
+}
+
+// A host name (UTF-8) in the game's code page; false for a character it lacks.
+bool to_game(const std::string& s, std::string* out) {
+  out->clear();
+  for (size_t i = 0; i < s.size();) {
+    const auto c = static_cast<unsigned char>(s[i]);
+    uint32_t u = c;
+    size_t n = 1;
+    if (c >= 0xe0 && c < 0xf0 && i + 2 < s.size()) {
+      u = (c & 0x0fu) << 12 | (static_cast<unsigned char>(s[i + 1]) & 0x3fu) << 6 |
+          (static_cast<unsigned char>(s[i + 2]) & 0x3fu);
+      n = 3;
+    } else if (c >= 0xc0 && c < 0xe0 && i + 1 < s.size()) {
+      u = (c & 0x1fu) << 6 | (static_cast<unsigned char>(s[i + 1]) & 0x3fu);
+      n = 2;
+    } else if (c >= 0x80) {
+      return false;
+    }
+    i += n;
+    if (u < 0x80 || (u >= 0xa0 && u < 0x100)) {
+      *out += static_cast<char>(u);
+      continue;
+    }
+    const uint16_t* hit = std::find(kCp1252, kCp1252 + 32, static_cast<uint16_t>(u));
+    if (hit == kCp1252 + 32) return false;
+    *out += static_cast<char>(0x80 + (hit - kCp1252));
+  }
+  return true;
+}
 }  // namespace
 
 Mounts& mounts() { return g_mounts; }
@@ -50,7 +99,13 @@ std::string host(const char* path) {
   std::string s = path ? path : "";
   for (char& c : s)
     if (c == '\\') c = '/';
-  return s;
+  if (s.empty() || s[0] == '/') return s;  // already the host's
+  std::string out;
+  for (char c : s) {
+    const auto b = static_cast<unsigned char>(c);
+    put_utf8(out, b >= 0x80 && b < 0xa0 ? kCp1252[b - 0x80] : b);
+  }
+  return out;
 }
 
 std::string find(const char* path) {
@@ -100,7 +155,8 @@ std::vector<std::string> list(const char* pattern) {
     std::error_code ec;
     for (std::filesystem::directory_iterator it(join(r, dir), ec), end; !ec && it != end; it.increment(ec)) {
       if (!it->is_regular_file(ec)) continue;
-      const std::string name = it->path().filename().string();
+      std::string name;
+      if (!to_game(it->path().filename().string(), &name)) continue;  // no name the game could open
       if (!match(pat.c_str(), name.c_str())) continue;
       const std::string u = upper(name);
       if (std::none_of(out.begin(), out.end(), [&](const std::string& o) { return upper(o) == u; }))

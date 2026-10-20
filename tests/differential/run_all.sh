@@ -61,6 +61,8 @@ for t in \
     menus \
     ctlscreen \
     loadsave \
+    pilot \
+    pilotscreen \
     update \
     di \
     collide \

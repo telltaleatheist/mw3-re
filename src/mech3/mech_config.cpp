@@ -209,7 +209,7 @@ int32_t EquipmentItem::slots() const { return equipment == 2 ? group : equip_slo
 // more, so the rest of the file is read out of step. FIX (bug): the exe goes
 // on counting down a damaged count of up to 4 billion past the file's end, a
 // hang; this stops there, with the same items (docs/fixes.md).
-void Config::load_items(std::FILE* f) {
+void load_item_list(std::list<ConfigItem*>& items, std::FILE* f) {
   int32_t n = 0;
   rd(f, &n, 4);
   while (n != 0) {
@@ -231,6 +231,7 @@ void Config::load_items(std::FILE* f) {
     items.push_back(item);
   }
 }
+void Config::load_items(std::FILE* f) { load_item_list(items, f); }
 
 // Mech3.exe 1.2 @ 0x00424600. Byte counts are never checked. The engine
 // (0x00432ff0) and sinks (0x004243c0) loads are inline here.
@@ -254,13 +255,14 @@ bool Config::load(std::FILE* f) {
 }
 
 // Mech3.exe 1.2 @ 0x004717a0. The base flag (+0x10) saves an empty list.
-uint32_t Config::save_items(std::FILE* f) const {
-  const uint32_t n = base_flag ? 0 : static_cast<uint32_t>(item_count());
+uint32_t save_item_list(const std::list<ConfigItem*>& items, uint8_t base_flag, std::FILE* f) {
+  const uint32_t n = base_flag ? 0 : static_cast<uint32_t>(items.size());
   uint32_t total = wr(f, &n, 4);
   if (n)
     for (const ConfigItem* i : items) total += i->save(f);
   return total;
 }
+uint32_t Config::save_items(std::FILE* f) const { return save_item_list(items, base_flag, f); }
 
 // Mech3.exe 1.2 @ 0x00424480, with the checksum 0x004255a0 and the engine
 // (0x00432fb0) and sinks (0x00424420) saves inline. The count it returns

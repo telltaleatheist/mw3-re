@@ -7,6 +7,7 @@
 
 namespace zcls { struct Node; }
 namespace zimg { struct Texture; }
+namespace zrdr { struct Node; }
 
 // What the game's app and states call in code not ported yet (docs/game-loop.md).
 // One method per original function, its address in the key; by default each
@@ -22,6 +23,7 @@ using zgame::Arg;
 using zgame::Handle;
 
 class MenuScreen;
+class Pilot;
 
 class Engine : public zgame::AppHooks {
  public:
@@ -456,7 +458,37 @@ class Engine : public zgame::AppHooks {
   virtual void pilot_record_mission(Handle p, int32_t a) { unported("0x00478f10", {p, a}); }
   virtual Handle pilot_campaign(Handle p) { return unported("0x00479440", {p}); }
   virtual uint32_t pilot_campaign_number(Handle p) { return unported("0x00479420", {p}); }
-  virtual void pilot_save_all(const char* name) { unported("0x00477f50", {name}); }
+  // 0x00477f50: the pilot of that name and its files deleted (the main menu's
+  // "mechlab", a pilot the mech lab leaves). Ported: mech3::delete_pilot.
+  virtual void pilot_delete(const char* name) { unported("0x00477f50", {name}); }
+  // The pilot screen (docs/menus.md, The pilot screen) and the game states.
+  // Ours: [0x0060861c] set by the ported pilot screen, for the parts that
+  // still reach the pilot through this memory.
+  virtual void pilot_chosen(Pilot* p) { (void)p; }
+  // 0x00488ad0 on the Pilot State at that address: the game it is for.
+  virtual void pilot_state_set_mode(Handle state, int32_t mode) { unported("0x00488ad0", {state, mode}); }
+  virtual zrdr::Node* main_menu_definition();          // [0x00609854] +0x12600, the main menu's dialog.zrd tree
+  virtual Handle lobby_session() { return unported("0x00586d10", {}); }
+  virtual const char* lobby_player_name(Handle session) {  // 0x00588a60
+    unported("0x00588a60", {session});
+    return "";
+  }
+  virtual void action_open() { unported("0x0048aac0", {}); }  // the Instant Action setup after the pilot
+  virtual void network_set(int32_t on) { unported("0x0047fc40", {on}); }  // the app's network on or off
+  virtual void multiplayer_switch(Handle state) { unported("0x0049cb20", {state}); }
+  // 0x00494920 on the first multiplayer screen with the pilot, then the
+  // second's +0x15058 (the pilot) and +0x116ec (its multiplayer game).
+  virtual void multiplayer_take_pilot(Handle first, Handle second) {
+    (void)second;
+    unported("0x00494920", {first});
+  }
+  virtual void multiplayer_resume(Handle screen) { unported("0x0049b660", {screen}); }
+  // 0x004ac150 with one string for the message's %1 (the pilot's delete question).
+  virtual uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) {
+    return unported("0x004ac150", {a, caption, text, s});
+  }
+  // 0x00575fd0 with numbers for the message's %1!d! ...: the text.
+  virtual std::string message_format_ints(int32_t id, std::initializer_list<int32_t> args);
   virtual void lab_start(Handle cfg, int32_t a) { unported("0x005a2ba0", {cfg, a}); }
   virtual void mech_apply_config(Handle mech, uint32_t cfg) { unported("0x00414430", {mech, cfg}); }
   virtual void mech_set_mode_a(Handle mech, int32_t a) { unported("0x0041ca30", {mech, a}); }

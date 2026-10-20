@@ -156,6 +156,13 @@ Each change is also marked `FIX` in the code next to the original address.
 | File list layout, 0x48cda0 | With no row shown (no items, or `top` at the end) the rectangle's bottom is a stack slot never written; the shipped popup's list has no image, so this rectangle is its hit area | (bug) the empty list's hit area is garbage: a click anywhere below could count as on the list | The bottom is the top: an empty list has an empty area. `test_loadsave.py` writes the same into the original's slot (a code hook) |
 | File list rows, 0x48cda0 | Each row's text is set with the item's name as the printf format | (bug) a `%` in a file name reads arguments that are not there (garbage, or a crash on `%s`) | The name shown as it is; identical for every other name |
 | File list row font, 0x48d1c0 | The row is indexed by the item's index | (bug) an item below the shown rows indexes past the rows (no caller in the ported screens) | Only an existing row changes |
+| Pilot files, 0x478ce0 / 0x478560 / 0x4781e0 / 0x477fe0 (pilot.md) | `CreateFileA` OPEN_EXISTING then OPEN_ALWAYS (never truncating), `ReadFile` / `WriteFile` / `SetFilePointer`, `DeleteFileA`, `MoveFileA`, `_access`, `_mkdir` on `pilots\` in the game folder; `FindFirstFileA` / `FindNextFileA` over `pilots\*.mw3`, closed with `CloseHandle` | (A) Win32; the files are in the write dir | C stdio in the write dir, the same reads and writes in the same order, never truncating; a pilot only in a read mount (an imported install) is copied to the write dir when first opened; `MoveFileA`'s refusal of a taken name kept (a change of case moves); the listing is `zutl::list` (`test_pilot.py` compares every file's bytes) |
+| Game paths, `zutl::host` / `zutl::list` | Names in the ANSI code page (Windows-1252): what the edit bars type | (A) the host's names are UTF-8 | A relative game path is converted to UTF-8 for the host, a listed name back (a name with a character Windows-1252 lacks is not listed) |
+| Pilot campaigns and lancemates, 0x4790d0 / 0x434040 | A damaged count reads on past the file's end, making a campaign or a slot each time | (bug) a corrupted pilot file hangs the game for up to 4 billion reads | Stops at the end of the file (`test_pilot.py` makes the original stop there too, 0x479366, 0x434244) |
+| Pilot name, 0x477b20 / 0x478560 | `strcpy` of the name into 64 bytes | (bug) a pilots\ file name of 64 characters or more overruns the record into the games' vector: a crash at the pilot screen | Such files are not listed; a name is cut to 63 characters |
+| Current pilot, 0x477f50 | Deleting a pilot leaves [0x0060861c] pointing at it when it is the current one | (bug) a dangling pointer (the pilot screen's DELETE on the pilot chosen before; a lobby launch then took it for a pilot) | Cleared (the test clears the original's the same way, 0x477f56) |
+| Pilot screen DELETE, 0x487e30 | With no pilot chosen the question formats the name at address 0x18 | (bug) a crash: DELETE pressed before any pilot exists | Nothing happens |
+| Pilot list item, 0x488770 | The item's value is the pilot's address (read by nothing) | (A) a 64-bit pointer | 0 |
 
 Notes on the fixes:
 
@@ -356,3 +363,10 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   registry is lost on any visit to the screen. Keeping the magnitude and
   flipping only the sign would be the evident intent; it changes the feel
   for players who tuned it.
+- Pilot names are compared with case (0x478be0, strncmp) but the file names
+  are not: making "BOB" when "bob" exists opens bob's file, writes a new
+  pilot over it and lists both; whichever is destroyed last (at the main
+  menu's leave, the game's exit) decides what bob.mw3 holds. Renaming a
+  pilot to another one's name does the same (nothing checks the name is
+  free). Comparing without case, and refusing a taken name, would be the
+  evident intent (pilot.md, discoveries.md).

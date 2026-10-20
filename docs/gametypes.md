@@ -25,7 +25,7 @@ heat is always on in multiplayer and critical heat does not destroy the torso th
 ### The pilot object
 
 - 0x478a40 (fastcall: ECX = campaign, EDX = mission) looks up a pilot named
-  `"Default Player"` (0x5e596c) through 0x478be0. If none exists it allocates
+  `"DefaultPlayer"` (0x5e596c; "Default Player" is the startup's, 0x5e5efc) through 0x478be0. If none exists it allocates
   0x84 bytes and runs the constructor 0x477b20, writes the pilot file
   (`WriteFile` of +0x4, +0x8, +0xc), and adds it to the pilot list at
   `[0x60860c]` (count at `[0x608610]`). Then it calls 0x478250(1) and writes the
@@ -138,7 +138,7 @@ a scan of mech3.asm):
   +0x60 campaigns vector, +0x70 instant_action, +0x74 multiplayer,
   +0x78 training, +0x7c lab_game.
 - 0x477b20 Pilot::Pilot(name); 0x478250 Pilot::SelectGame(type);
-  0x478a40 debug StartCampaignMission(campaign, mission) on "Default Player".
+  0x478a40 debug StartCampaignMission(campaign, mission) on "DefaultPlayer" (pilot.md).
 - vtable +0x2c Game::GetType(); enum GameType { None=-1, MechLab=0,
   Campaign=1, InstantAction=2, Multiplayer=3, Training=4 }.
 - 0x4345a0 CampaignGame, 0x436650 InstantActionGame, 0x4353a0 MultiplayerGame,

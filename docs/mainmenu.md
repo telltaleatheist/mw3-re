@@ -215,11 +215,12 @@ never negative).
 
 ## 6. Left
 
-- The menus the buttons open: the Action, Campaign, Training and
-  Multiplayer states (gametypes.md) and the Pilot State 0x00488910, each a
-  hook until ported. The options and the credits are ported (menus.md),
-  but for the controls screen 0x0042a590. They share MenuScreen,
-  ShellButton, SlideButton, ScrollImage and the cycle button.
+- The menus the buttons open are ported (menus.md): the options, the
+  credits, the controls screen, and the Action, Campaign, Training and
+  Multiplayer states with the pilot screen they open first (menus.md
+  section 10); what follows a pilot (the Action screen, the multiplayer
+  screens) is still a hook. They share MenuScreen, ShellButton,
+  SlideButton, ScrollImage, the cycle button, the file list and the edit bar.
 - The ripple's drawing (zRender 0x00558dd0) and the render overlay layer
   (0x005a4590..) a Ripple can also live in (its +0x04, 0x005a5360).
 - The Main state itself still goes through `construct` / `vcall` (its test,

@@ -1624,3 +1624,55 @@ From the box Export, Import and "save changes?" open, 0x0042e890 (details:
   seven rows a second.
 - **Each opening of the box leaves a Windows file search open** (the game
   never closes it, FindClose is not even imported): harmless, a handle a time.
+
+### Pilots and the pilot screen
+
+The screen INSTANT ACTION, NEW CAMPAIGN, TRAINING and MULTIPLAYER open
+first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
+`menus.md` section 10).
+
+- **Pilot names are 15 characters at most** and cannot hold
+  `: | \ < > / ? " *` or a tab. Accented letters are fine (typed in
+  Windows' character set; the rebuild stores them as ordinary file names).
+- **Delete removes the chosen pilot, Ctrl+R renames it,** besides the DELETE
+  and RENAME buttons (both keys are ignored while a name is being typed).
+  The question is "Ok to delete pilot: <name>?"; deleting also deletes every
+  saved campaign game of that pilot.
+- **Each pilot is one file, `pilots\<name>.mw3`,** holding everything: the
+  campaign's saves (each also a file in `pilots\games`, named after the
+  pilot, the operation and the mission, `Bob0102.mw3`), the Instant Action
+  record, the multiplayer score, the training missions passed and the mech
+  lab's line-up. A saved campaign whose `pilots\games` file is gone is
+  dropped from the pilot when it is read.
+- **Hidden statistics.** The pilot screen shows, for Instant Action, player
+  kills, lancemate kills, enemy kills, attack and defend wins and losses and
+  "Progression Waves"; for multiplayer, kills and deaths. Each pilot file
+  also carries the Instant Action screen's settings, which are not the
+  pilot's own: the pilot read last decides them (at the pilot screen, the
+  last in the folder's order), and every pilot saved takes the current ones.
+- **Every new pilot's campaign starts with the same store:** two Bushwackers
+  with their "Primary" loadout, of which the code takes one Bushwacker back
+  straight away, plus 750 rounds of LRM-5 ammunition, 4000 of machine gun
+  and 1000 of AC/10.
+- **Salvage is merged when a saved game is loaded,** not when the mission
+  ends: two of the campaign's five stores (what the last mission left) are
+  added to the main store on reading, and a third is emptied.
+- **The newest save is the one you play.** The pilot screen's campaign list
+  shows every save as "Op N, Mission M" with the newest chosen; choosing
+  another row plays that one. The fresh start (Op 1, Mission 1) is always
+  the first row and is never saved itself.
+- **Training remembers which missions you passed** (PASS / INCOMPLETE) and
+  opens on the first one not passed.
+- **Names that differ only in capitals share one file.** "Bob" and "BOB" are
+  two pilots to the game but one file to Windows: making "BOB" when "bob"
+  exists writes a new pilot over bob's file and lists both, and whichever is
+  saved last (when you leave the main menu or quit) decides what the file
+  holds. Renaming a pilot to another pilot's name does the same. The rebuild
+  keeps this for now (`fixes.md`, Candidates).
+- **A pilot file of another version is not refused:** its header is simply
+  rewritten and the rest read as if it were this version's.
+- **The game crashes** if you press DELETE before any pilot exists (the
+  rebuild does nothing), and on a `pilots\` file whose name is 64 characters
+  or longer (the rebuild skips it).
+- **The debug menu's campaign jumps use a pilot named "DefaultPlayer"**, the
+  debug Mech Lab start one named "Default Player".

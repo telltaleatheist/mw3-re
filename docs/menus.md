@@ -1,16 +1,18 @@
-# The menus the main menu opens: Options and Credits (ported)
+# The menus the main menu opens: Options, Credits and the pilot screen (ported)
 
-Mech3.exe 1.2, 2026-10-20. The main menu's OPTIONS and CREDITS buttons
-(mainmenu.md) push *menu objects*: shell states (game-loop.md) made on the
-heap, each with a zTwoD screen (twod.md). Ported: the four menu objects of
-the options and the credits, the credits screen, the game options and the
-graphics and audio options, the cycle button they share, and the controls
-screen (0x0042a590) with its axis popup and its load/save popup (section 6),
-and the file list and edit bar the remaining screens share (section 2).
+Mech3.exe 1.2, 2026-10-20. The main menu's buttons (mainmenu.md) push *menu
+objects*: shell states (game-loop.md) made on the heap, each with a zTwoD
+screen (twod.md). Ported: the four menu objects of the options and the
+credits, the credits screen, the game options and the graphics and audio
+options, the cycle button they share, the controls screen (0x0042a590) with
+its axis popup and its load/save popup (section 6), the file list and edit
+bar the remaining screens share (section 2), and the pilot screen with its
+state and the four states INSTANT ACTION, NEW CAMPAIGN, TRAINING and
+MULTIPLAYER push (section 10; the pilot itself is pilot.md).
 Code: `src/mech3/menu_states`, `credits`, `options_menu`, `controls_menu`,
-and the shared pieces in `menu_widgets`; checked by
-`tests/differential/test_menus.py`, `test_ctlscreen.py`, `test_loadsave.py`
-and `test_app_states.py`.
+`pilot_menu`, and the shared pieces in `menu_widgets`; checked by
+`tests/differential/test_menus.py`, `test_ctlscreen.py`, `test_loadsave.py`,
+`test_pilotscreen.py` and `test_app_states.py`.
 
 ## 1. The menu objects
 
@@ -27,7 +29,11 @@ screen.
 | [0x0060986c] | Gfx and Audio Options State | 0x0043a640 | 0x005c0040 | 0x00438f60 (0x13f9c) | with the state |
 | [0x00609870] | Controls Configure State | 0x0042d9d0 | 0x005be3d8 | 0x0042a590 (0x16c94) | with the state |
 | [0x00609878] | Credits State | 0x004295e0 | 0x005bd938 | 0x004289a0 (0x11ae0) | on entering |
-| [0x00609858] | Pilot State | 0x00488910 | 0x005c54e8 | 0x00486f40 (0x13184) | with the state; not a main menu button's (the campaign's and Instant Action's), not ported |
+| [0x00609858] | Pilot State | 0x00488910 | 0x005c54e8 | 0x00486f40 (0x13184) | with the state; pushed by the next four (section 10) |
+| [0x0060985c] | Action State | 0x0048a6c0 | 0x005c5b10 | 0x00488bc0 (0x17730) | with the state (not ported) |
+| [0x00609864] | Campaign State | 0x0048aef0 | 0x005c5b40 | none | |
+| [0x00609874] | Training State | 0x0048b120 | 0x005c5b70 | none | |
+| [0x00609860] | Multiplayer State | 0x0049c900 | 0x005c7fe8 | three: 0x00493260, 0x00495f90, 0x0049bd80 (not ported) | with the state |
 
 The option states' enter (0x00438c90 for the game options, 0x0042da50 for
 the other two) is the shell's (0x0048ebf0) then the screen's +0x10 with 0:
@@ -386,6 +392,13 @@ hit area the rows' text extent in pixels (the fake GDI's in the tests);
 the edit bar's caret is as tall as the label's DT_CALCRECT box and drawn
 with zRender's 2D line into the 16-bit buffer, pixel for pixel.
 
+The pilot screen (section 10) is PILOTDIALOG's 640x480 places too: the
+pilots' rows 56 pixels apart from (81, 129), the games' 14 apart from GAMELIST
+at (384, 39) and its arrows' places from it, the rename bar moved to the
+chosen row's pixel place (so it follows any scale the rows get), and the main
+menu's 1280x960 background drawn the same way as the other menus'. It grabs
+nothing of the screen, so only the one scale (or a centred frame) is needed.
+
 ## 8. The port
 
 The states are `mech3::OptionsState` and `CreditsState` (menu_states.h);
@@ -556,20 +569,181 @@ the edges drawing only their pixels on the target (break tests: the error
 step at >=, the right clip one past: both caught). `mw3tests` checks the
 listing (`controls_file_listing`) and the line's clip.
 
-## 10. Left
+## 10. The pilot screen (0x00486f40, vtable 0x005c5060)
 
-- The Pilot State (0x00488910, [0x00609858]) and its screen (0x00486f40,
-  vtable 0x005c54e8 for the state, 0x13184 bytes): PILOTDIALOG with
-  PILOTLIST (a FileList subclass whose deleting destructor 0x00487890 is
-  the popup's list's; the pilots' fonts by +0x6cc through 0x0048ccf0),
-  EDITBAR and RENAMEBAR (ShellEditBars, vtable 0x005c5310: +0x30
-  0x00487dc0, +0x90 0x00487cf0, +0x94 0x00487d40; refused characters
-  `:|\<>/?"*` and tab, 16 bytes), ACCEPT, CANCEL, DELETE, RENAME and LINES1..3,
-  over 0x00487430..0x00488bc0. It needs the pilot structure and its files
-  (the pilot record at [0x0060861c], not ported), so it is the next piece
-  after them. The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its
-  lists (0x0044b215..0x0044bc5c) use the same widgets.
-- The Action, Campaign, Training and Multiplayer states (gametypes.md).
+The main menu's INSTANT ACTION, NEW CAMPAIGN, TRAINING and MULTIPLAYER push
+their states (section 1); each one's enter (0x0048a750, 0x0048afd0,
+0x0048b140, 0x0049cab0) is the shell's, then the Pilot State's game set
+(0x00488ad0 on [0x00609858]: 2, 1, 4, 3), then the Pilot State pushed. The
+screen ends with a pop: 2 a pilot accepted, 3 cancelled, and the state below
+goes on in its resume (+0x20):
+
+| State | 2 (a pilot) | 3 (cancelled) |
+|---|---|---|
+| Action (0x0048a7b0) | the pilot's Instant Action selected, the shell's resume (1), the Action screen (0x0048aac0, not ported) | resume (0), pop (1) to the main menu; 4: resume (1) |
+| Campaign (0x0048b000) | when movies are on and the newest save is operation 1, mission 1: the "campaign" movie (fmv.zrd); the shell's resume (1). Its next frame (0x0048af20), the movie done, pops itself (0) and replaces the main menu with the briefing (the Load State, state 6) | pop (1) |
+| Training (0x0048b170) | resume (1), pop (0), the pilot's training selected, the briefing replaces the menu | resume (0), pop (1) |
+| Multiplayer (0x0049cbb0) | resume (1), the network on (0x0047fc40), a lobby pilot made when there is none, its multiplayer game selected, the screens told (0x00494920; not ported) | resume (0), the network off, pop (1); 4: resume (1), 0x0049b660 |
+
+The Action state skips the pilot screen when coming back from a game
+([0x00608e47], the app's +0x1bf: the same pilot's Instant Action at once).
+The campaign's leave (0x0048afa0) only frees its movie (not the shell's
+leave) and its Escape does nothing (0x005ac5c0); the multiplayer's Escape
+does nothing either (0x0049bfd0).
+
+**The state** (0x00488910, "Pilot State", vtable 0x005c54e8), 0x14 bytes:
+the screen made with it, +0x10 the game (-1 at first). Enter (0x004889a0):
+from a DirectPlay lobby (0x00586ce0) the lobby's player becomes the pilot
+(0x004788b0 with 0x00588a60's name, when there is no pilot) and the state
+pops at once (2); else the screen's game is set, GAMELIST shown (hidden for
+training), the training cycles shown only for training with a pilot chosen,
+the games listed (0x004882b0), the screen reset (0x00487b30: the chosen pilot
+is [0x0060861c], the list filled again), then the shell's enter. Escape
+(+0x28, 0x00488990) is the screen's cancel. 0x00488ad0 sets the game and
+does the same showing and listing.
+
+**The screen**, 0x13184 bytes, PILOTDIALOG of the main menu's dialog.zrd
+tree ([0x00609854] +0x12600: not loaded again, not unloaded), with the main
+menu's BACKGROUND image read unchecked (still at the origin when the main
+menu's is still), LINES and LINES2; FastMenu bakes the background, the lines,
+CANCEL and ACCEPT. Then PILOTLIST, GAMELIST, EDITBAR, RENAMEBAR, DELETE,
+RENAME, SCENARIO_LIST, SCENARIO_DESC and SCENARIO_COMPLETE; RENAMEBAR is
+hidden, the screen made active, every pilots\ file listed (0x00478560) and
+the list filled (0x00488770). Its parts:
+
+| Offset | Name | Class (vtable) | |
+|---|---|---|---|
+| +0x111ec | CANCEL | slide (0x005c5448), id 0x17 | the edits finished, then cancel: no pilot ([0x0060861c] = 0), pop (3) |
+| +0x113d8 | ACCEPT | slide (0x005c53a8), id 0x18 | the edits finished; with a pilot chosen [0x0060861c] = it, pop (2) |
+| +0x115c4 | DELETE | ShellButton, id 0x19 | the edits finished, then "Ok to delete pilot: %1?" (Warning, 0x1e0, 0xf26): yes deletes it and its files |
+| +0x1171c | RENAME | ShellButton, id 0x1a | unless editing, the rename starts |
+| +0x11874 | RENAMEBAR | the game's edit bar (0x005c5278) | Enter (0x00487de0, not with no name) renames, Escape (0x00487e10) cancels, then zInput reset |
+| +0x11c04 | EDITBAR | the game's edit bar (0x005c5310) | Enter (0x00487cf0): a pilot of that name made (or the one listed) and chosen; Escape (0x00487d40): with no pilots and no name the screen cancels, else the name is cleared; then zInput reset |
+| +0x11f94 | PILOTLIST | file list (0x005c51d0), +0x200 a byte | a row (0x00487e80): the edits finished first, then that name's pilot chosen (none for no row) |
+| +0x121a0, +0x1225c | LINES, LINES2 | Image | |
+| +0x12318 | GAMELIST | file list (0x005c5128) | a click (0x00488040) is ignored for Instant Action; a row (0x00487f90) chooses a save, for a campaign only |
+| +0x12518 | SCENARIO_LIST | cycle (0x005c5080) | the training missions; a choice (0x00487440) shows the same row in the other two and sets the pilot's training mission (its value, within 1..4) |
+| +0x1293c, +0x12d60 | SCENARIO_DESC, SCENARIO_COMPLETE | cycles | the mission's text, INCOMPLETE / PASS |
+| +0x12198 | | the game (1 campaign, 2 Instant Action, 3 multiplayer, 4 training) | |
+| +0x1219c | | the pilot chosen | |
+
+Both bars refuse `: | \ < > / ? " *` and tab and hold 15 characters (16
+bytes); a click gives one the focus unless a rename is open (0x00487dc0).
+Every press tells the screen (+0x14, 0x004880a0), which acts on the four
+buttons' ids and draws everything again (dirty-all) whatever the id. "The
+edits finished" (0x00487b90) is an open rename ended (renamed) or a typed
+name made (Enter); the buttons act after it.
+
+Each frame (+0x00, 0x00488170), unless a bar is open: Delete (DIK 0xd3)
+deletes the chosen pilot as DELETE does, Ctrl+R (0x213) starts the rename.
+A rename (0x00487bd0) hides the chosen row, puts RENAMEBAR at the row's place
+with its text and gives it the focus; ending it renames the pilot (unless
+cancelled or the new-name bar is open), shows the row and lists the pilots
+again. A pilot chosen (0x004881e0) has the screen's game selected and the
+games listed (0x004882b0), and the new-name bar emptied:
+
+| Game | GAMELIST's label | Lines |
+|---|---|---|
+| Campaign | "S A V E D  G A M E S" (0x27c) | each campaign's "Op N, Mission M" (0x21d), its index as the value; the newest chosen (so the pilot plays it) |
+| Instant Action | "I N S T A N T  A C T I O N" (0x279) | Player, Lancemate, Enemy kills (0x184..0x186), a blank, Attack wins and losses, Defend wins and losses (0x187..0x18a), a blank, Progression Waves (0xdb7) |
+| Multiplayer | "M U L T I P L A Y E R" (0x27d) | Kills/Deaths (0x27e) |
+| Training | (GAMELIST hidden) | the cycles: Training 1..4's names (0x21e, 0x222, 0x224, 0x226), texts (0x21f, 0x223, 0x225, 0x227) and INCOMPLETE / PASS (0x280, 0x281); the first not passed shown (the first when all are) |
+
+The list (0x00488770) holds every pilot by name, the item's value the
+pilot's address (read by nothing; 0 in the port, FIX (A)); the pilot asked
+for (or the one chosen) is selected, else the first row; for training the
+cycles are shown again and filled. With no pilots at all the new-name bar
+takes the focus (when the caller asks: not on the screen's construction).
+
+The screen's destructor (0x004878b0) deletes every pilot but the current
+one (0x004785f0), so saves them.
+
+Found: the GAMELIST, PILOTLIST, both bars and SCENARIO_LIST reach the screen
+through their owner unchecked, so a PILOTDIALOG without one of them crashes
+(the shipped one has them all). DELETE with no pilot chosen (before any
+exists, the new-name bar open) formats the name at address 0x18 and crashes:
+FIX (bug), nothing happens. Deleting the pilot accepted before leaves
+[0x0060861c] dangling (pilot.md: cleared in the port).
+
+**640x480.** The dialog's places are 640x480 pixels, as the main menu's
+(section 7): the lists' rows SPACING apart (56 for the pilots, 14 for the
+games), the rename bar placed at the chosen row's pixel place, the
+background the main menu's 1280x960 image. At any size the screen needs the
+same one scale (or a centred 640x480 frame) as the other menus.
+
+**The port.** `mech3::PilotState`, `PilotScreen` and its parts
+(pilot_menu.h); the state makes its screen and hands it to the engine
+(`adopt_screen`), as the controls' popups. The four game states are
+`mech3::GameMenuState`; the program's engine makes them and the Pilot State
+for the main menu's `construct` calls (app_menus.cpp), so the buttons open
+the pilot screen. What is not ported is an Engine hook (the Action screen
+0x0048aac0, the network 0x0047fc40, the multiplayer screens, the lobby's
+session and name). The screen sets [0x0060861c] (`mech3::current_pilot()`)
+and tells the engine (`pilot_chosen`), which keeps a handle of the pilot at
+the original's address for the parts that read it there. The message box
+asks through `message_box1`, the records' lines through
+`message_format_ints`.
+
+**Testing.** `test_pilotscreen.py` (60 runs: 60/60 identical, about 415,000
+calls): pilots made, given saved campaigns (with or without their file),
+records and passed training missions, saved and destroyed in the emulator
+(the pilot module real, over test_pilot.py's fake file system), then the
+Pilot State 0x00488910 and its screen on `twod_world.py`'s world with a fake
+main menu holding the dialog.zrd tree; the port runs the same on a real
+folder. The plan: the game set, the state's enter before the shell's (the
+lobby's path one run in four), 40 to 120 frames of mouse input over the
+rows, arrows, bars and buttons, presses of every bound part, characters
+typed into the bars (the refused ones, the editing keys, Enter, Escape),
+Enter and Escape on both bars, the lists' and the cycle's choices, renames
+started and ended, the bars' text, the state's Escape, the screen's reset
+and list, dirty-all and restore; Delete and Ctrl+R answered by the script;
+one of the four game states made (its unported screens stubs), entered
+(pushing the pilot screen, or with the Instant Action flag going straight
+on), told 2, 3 or 4, its frames, leave and Escape (the shell's halves stubs
+on both sides, the app's replace compared as its queue, the movies and the
+network as calls);
+then a dump, the state's destructor and a dump of the pilots. Compared: every
+call (the message box, pops, messages, formatted lines, the pilot module's
+store fill and starting mechs, the lobby), a dump of the dialog and its
+objects, both lists (items, rows, the selected row), the bars, the cycles,
+the screen's game and pilot, [0x0060861c], every pilot's current game,
+campaign and training mission, and every file. Even runs use the shipped
+dialog, odd runs a synthetic one (the lists moved, resized, respaced,
+without labels; the bars and cycles moved; buttons missing or moved). The
+FIX (bug) of the empty list's rectangle (section 9) and the two above are
+applied to the original by hooks so the rest compares.
+
+Breaking the port showed the test catches it, 28 of 30 (24 runs
+each): ACCEPT popping 3, CANCEL keeping the pilot, the Delete or Ctrl+R key
+codes, Enter not making the typed pilot, the row shown while renaming, the
+bar at (y, x), no list after a rename, the cursor not erased before the
+question, the name kept on a choice, the Instant Action lines' order, the
+first save chosen, the first passed mission shown, the mission clamped to 3,
+no row selected by default, no focus with no pilots, Escape without the
+input reset, tab allowed, 17-byte bars, clicks on the Instant Action list,
+the game set without listing, the lobby's pop, the other pilots kept,
+renaming to no name, a choice while editing, the cycles shown without a
+pilot, the score's numbers swapped, the training label not hidden, no
+dirty-all (rename to no name was caught in one series of runs and missed
+in two). Missed, and unobservable: RENAME acting while editing (the rename
+itself refuses then). The game states, 5 of 7 (32 runs): training entered
+as Instant Action (a real slip the test found while it was written: the
+state's own enum shadowed the game type), the briefing's state, the
+multiplayer page, the network left on, the campaign's pop; missed, as rare
+in the plan: the opening movie on another mission, the Instant Action flag
+kept.
+
+## 11. Left
+
+- The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists
+  (0x0044b215..0x0044bc5c), on the same widgets; the file list's layout with
+  a font for the rows it may not light (0x0048ccf0, +0x6cc: a list of the
+  mech lab's; the pilot screen's lists use the plain 0x0048cda0).
+- What follows the pilot screen: the Action screen (0x00488bc0, its state's
+  0x0048aac0), the multiplayer screens and their network (0x0047fc40,
+  0x00494920, 0x0049cb20, 0x0049b660); the campaign and training go on to the
+  briefing (the Load State, ported), which reaches the pilot's game through
+  the module-memory handle at [0x0060861c] (not yet bridged, pilot.md).
 - The pause screen (0x00492750) and its Options press (0x00492d70), which
   make and push the option objects from a mission.
 - The menu objects' constructors and destructors run in the program but are
