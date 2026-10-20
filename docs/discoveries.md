@@ -1870,4 +1870,19 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   can aim at things under or beyond the water instead of the water itself.
 - **In the cockpit view the reticle stays centred;** only the free-look
   mouse mode moves it around the screen.
+- **The zoom window opens in about a fifth of a second and closes faster:**
+  it grows at 4.8 times its size a second and shrinks at 7, and its light
+  only comes on once it is full size.
+- **A weapon's recharge bar is its own name:** each line of the weapon list
+  holds the weapon's name twice, in two fonts, and the second copy fills
+  over the first as the bar's value rises.
+- **TARGET shows only the 3D view for targets that are not mechs:** its
+  damage and nav modes fall back to the view, and with no live target it
+  shows nothing.
+- **The equipment list stops at the first hidden line:** lines after a
+  hidden one are not drawn even if they are shown.
+- **A hidden debug readout:** the HUD fills five debug texts every frame
+  (the mech's gait, speeds and more) while a debug text is shown; a debug
+  switch toggles it, and which key or option reaches that switch is not
+  traced yet.
 

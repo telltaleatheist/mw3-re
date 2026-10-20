@@ -18,6 +18,18 @@ struct Target2D {
 };
 Target2D& target2d();
 
+// FIX (A): the program's 16-bit layer over the Direct3D frame (app_engine)
+// starts as `key`, not the frame the original's locked back buffer held, so
+// an alpha blend there would mix with the key colour. While `alpha` is set
+// (the layer's lock), a blend records each pixel's coverage and the colour it
+// wrote, and the overlay draws that pixel with that alpha (docs/render-frame.md).
+struct LayerCover {
+  uint8_t* alpha = nullptr;        // per pixel, as the target; 0: none recorded
+  uint16_t* colour = nullptr;      // the colour the blend wrote
+  uint16_t key = 0;                // the layer's untouched colour
+};
+LayerCover& layer_cover();
+
 // A source rectangle, as a Win32 RECT.
 struct BlitRect {
   int32_t left, top, right, bottom;

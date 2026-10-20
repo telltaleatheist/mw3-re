@@ -32,6 +32,8 @@ compaction by reading it.
     processes can hang at exit on this Mac, in a state nothing can kill.
     Run long tests in the background with their output going to a file in
     `scratch/`, then read the file, so a hang never blocks the session.
+- Never kill processes by name (`pkill -f mw3tests` and the like): the
+  other sessions run the same programs. Kill only a pid you started.
 - Every item comes with a differential test with break tests, its docs,
   `fixes.md` and `CHANGES.md` lines for any change from the original, and
   player-facing finds in `discoveries.md`.

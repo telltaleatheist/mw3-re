@@ -41,6 +41,7 @@ class HudCompass : public ztwod::Object2D {
  public:
   HudCompass();
   void set_heading(float radians);   // 0x0043f590
+  void update(float dt) override;    // +0x24  0x0043f620
   float scale = 206.90143f;          // +0x34  pixels a radian
   int32_t half = 0;                  // +0x38  half the frame's width
   int32_t centre = 0xb8;             // +0x3c  the tape's x at north
@@ -71,6 +72,8 @@ class HudPanel : public ztwod::Image {
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0043a8f0
   void set_color(uint16_t c);        // 0x0043aaa0
   void set_alpha(uint8_t a);         // 0x0043a9d0: 0xfe and up opaque
+  void update(float dt) override;    // +0x24  0x0043ad00: here only when opaque or in software
+  // +0x28 0x0043ad20: Direct3D's see-through quad (not ported yet, hud.md).
   void set_opacity(float f);         // 0x0043aa60
   void set_size(int32_t w, int32_t h);  // 0x0043ab10: its image made or resized
   ztwod::Rect rect{};                // +0xbc
@@ -87,6 +90,7 @@ class HudObjectives : public ztwod::TextBox {
  public:
   HudObjectives();                   // 0x00446700
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x00446870: the scores 260 to the right
+  void update(float dt) override;    // +0x24  0x00447410
   void show_for(float seconds) override;  // +0x60  0x00446820 (part: 0x00446ad0 not ported)
   void hide() override;              // +0x64  0x00446850
   HudPanel panel;                    // +0x4c8
@@ -115,6 +119,7 @@ class HudEquipLine : public ztwod::Text {
   HudEquipLine();                    // 0x00447c40
   void place(int32_t px, int32_t py, int32_t column);  // 0x00447fe0
   void reset();                      // 0x00447e10
+  void update(float dt) override;    // +0x24  0x00448030
   HudText value;                     // +0x4cc
   ztwod::Image light;                // +0x97c
   int32_t state = 0;                 // +0xa38
@@ -126,6 +131,7 @@ class HudEquipment : public ztwod::Object2D {
  public:
   HudEquipment();                    // 0x00448070
   void place(int32_t px, int32_t py, int32_t dy);  // 0x00448140
+  void update(float dt) override;    // +0x24  0x00448450: the lines up to the first hidden
   void read_layout(Hud* hud);        // 0x00448200 (EQUIPMENT)
   void* hud = nullptr;               // +0x34 the HUD it shows
   HudEquipLine lines[16];            // +0x38
@@ -154,6 +160,7 @@ class HudWeaponLine : public ztwod::Slider {
   void reset();                      // 0x00445a30
   bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
   void set_weapon(void* w);          // 0x00445d10 (part: with a weapon, not ported yet)
+  void update(float dt) override;    // +0x24  0x00445c10: the bar's images from the texts when changed
   HudText name;                      // +0x188
   HudText text2;                     // +0x638
   HudText count_text;                // +0xae8 "%3d", right-aligned at the column
@@ -172,6 +179,7 @@ class HudWeapons : public ztwod::Object2D {
  public:
   HudWeapons();                      // 0x00445f80
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x004460c0: the lines 10 apart
+  void update(float dt) override;    // +0x24  0x00446680
   void show_for(float seconds) override;  // +0x60  0x00446200 (part: 0x00446520 not ported)
   void hide() override;              // +0x64  0x00446220
   void read_layout(Hud* hud);        // 0x00446120 (WEAPONS)
@@ -192,7 +200,6 @@ class HudWeapons : public ztwod::Object2D {
 class HudBar : public ztwod::Polygon {
  public:
   void set_box(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00448550: w + 1 wide
-  uint32_t color = 0;                // +0x134 a pixel (not set by the constructor)
   int32_t height = 0;                // +0x138
   int32_t width = 0;                 // +0x13c
 };
@@ -202,6 +209,7 @@ class HudBar : public ztwod::Polygon {
 class HudGauges : public ztwod::Object2D {
  public:
   HudGauges();                       // 0x00444760
+  void update(float dt) override;    // +0x24  0x004452c0
   ztwod::FontText coolant_text;      // +0x38   message 0x1d5
   ztwod::FontText heat_text;         // +0x4e8  message 0x1d6 (hud.zrd heat_text)
   HudText speed_text;                // +0x998
@@ -232,7 +240,9 @@ class HudLight : public ztwod::Image {
   int32_t count;                     // +0xc0
   zimg::Texture** images;            // +0xbc calloc'd
   int32_t current = -1;              // +0xc4
-  uint32_t xc8 = 0, xcc = 0;         // +0xc8, +0xcc
+  float interval = 0.0f;             // +0xc8 seconds an image, 0: the current one stays
+  float time = 0.0f;                 // +0xcc
+  void update(float dt) override;    // +0x24  0x004486e0
 };
 
 // The radar (vtable 0x005c01e0, 0xdc0 bytes): a filled box, the view cone's
@@ -250,6 +260,7 @@ class HudRadar : public ztwod::FilledBox {
   void select_sound();               // 0x0043da00 (part: 0x00458590 not ported)
   void set_fov(float radians);       // 0x0043f0c0
   void set_dir(const float* v);      // 0x0043f130: the cone's edges from the view direction
+  void update(float dt) override;    // +0x24  0x0043dd00: hooked (radar_update)
   uint16_t x58 = 0;                  // +0x58
   uint16_t zoomed = 0;               // +0x5a
   uint8_t active = 0;                // +0x5c
@@ -316,17 +327,14 @@ class HudMfdView : public HudZoomView {
  public:
   HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442620
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004427b0
+  void update(float dt) override;    // +0x24  0x00442880: the box (the 3D view draws in the scene)
   ztwod::PolyLine box;               // +0x16c (vtable 0x005c0580)
 };
 
 // One part's damage image in a damage view (vtable 0x005c09e0, 0xdc bytes).
-class HudDamagePart : public ztwod::Image {
+class HudDamagePart : public ztwod::FlashImage {
  public:
   HudDamagePart(DamageImages* images, int32_t px, int32_t py);  // 0x00447460
-  float xbc = 0.35f;                 // +0xbc
-  uint32_t xc0 = 0, xc4 = 0, xc8 = 0;  // +0xc0
-  uint32_t xcc = 1;                  // +0xcc
-  uint32_t xd0 = 0, xd4 = 0;         // +0xd0
   DamageImages* images = nullptr;    // +0xd8
 };
 
@@ -337,6 +345,7 @@ class HudDamageView : public ztwod::Object2D {
  public:
   // 0x00447680 (own; a third argument unused) and 0x00447820 (target).
   HudDamageView(int32_t px, int32_t py, bool target);
+  void update(float dt) override;    // +0x24  0x00447b50
   ztwod::Image bg;                   // +0x34
   HudDamagePart parts[8];            // +0xf0
   void* mech = nullptr;              // +0x7d0 (not set by the constructor)
@@ -354,6 +363,9 @@ class HudMfd : public ztwod::Object2D {
   HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool target);  // 0x00442060 / 0x00441da0
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442230 (MFD in hud.zrd)
   void attach(void* hud);            // 0x004423c0
+  void update(float dt) override;    // +0x24  0x00442540: by the mode, then the title
+  virtual int32_t shown_mode() { return mode; }  // +0x80  0x004487d0: 1 the 3D view, 2 the damage, 3 the nav list
+  void update_mode(float dt);        // the shared middle of 0x00442540 and 0x00441490
   void* hud = nullptr;               // +0x34
   int32_t mode = 0;                  // +0x38
   HudDamageView damage;              // +0x3c
@@ -375,6 +387,8 @@ class HudTarget : public HudMfd {
   void update_texts(bool clear);     // 0x00441660 (part, as set_target)
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00440110 (TARGET in hud.zrd)
   void attach(void* hud);            // 0x00441760
+  void update(float dt) override;    // +0x24  0x00441490
+  int32_t shown_mode() override;     // +0x80  0x004413a0: none without a live target
   ztwod::Shape shape1;               // +0xcd8
   ztwod::Line2D lines[3];            // +0xdfc (0x004400e0: all zero)
   ztwod::Shape shape2;               // +0xee0
@@ -395,6 +409,7 @@ class HudZoomWindow : public HudZoomView {
   HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442ac0
   // +0x60 show_for 0x004438d0: not ported yet.
   void hide() override;              // +0x64  0x00443880
+  void update(float dt) override;    // +0x24  0x00442e30: the scale grows (shown) or shrinks
   void set_rect(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004438f0: scaled by the zoom, kept on screen
   void set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h);  // 0x0043fa40: 2 pixels inside the display
   void follow(int32_t px, int32_t py);  // 0x00443660: centred on the reticle, when shown or scaled
@@ -417,6 +432,7 @@ class HudReticle : public ztwod::Image {
   void hide() override;              // +0x64  0x00443d00: the zoom window too
   void attach(void* hud);            // 0x00444250
   void reset();                      // 0x00443cc0
+  void update(float dt) override;    // +0x24  0x004441a0: the zoom, then itself while the zoom is away
   // 0x004445f0: at the display's centre plus (fx, fy) of its half size, the
   // aim worked out, the zoom window following.
   void place(float fx, float fy);
@@ -524,6 +540,14 @@ class HudHooks : public zgame::Unported {
   }
   virtual void* mech_target_slot(Mech*) { return nullptr; }  // wired with the mech (item 10)
   virtual bool target_valid(void* t) { return t && unported("peek32", {id(t)}) != 0; }
+  // A target slot's object (0x004e6fe0 on what the slot holds: its +4's
+  // vt+0x2c), that object's vt+0xa8 (true: TARGET shows nothing) and its
+  // mech (vt+0x50, ai.md).
+  virtual void* target_object(void* t) {
+    return reinterpret_cast<void*>(uintptr_t(unported("0x004e6fe0", {unported("peek32", {id(t)})})));
+  }
+  virtual bool object_a8(void* o) { return (unported("obj.vt+0xa8", {id(o)}) & 0xff) != 0; }
+  virtual bool object_mech(void* o) { return unported("obj.vt+0x50", {id(o)}) != 0; }
   // The HUD's sound channels (0x0041e7a0: a channel's sound stopped; with
   // `fade`, faded instead).
   virtual void hud_sound_stop(int32_t channel, int32_t fade) { unported("0x0041e7a0", {channel, fade}); }
@@ -532,6 +556,32 @@ class HudHooks : public zgame::Unported {
   virtual void nav_list_place(uint32_t nav, int32_t x, int32_t y, int32_t h, int32_t a, int32_t b) {
     unported("0x0047eb60", {nav, x, y, h, a, b});
   }
+  // The HUD frame's pieces not ported yet: the debug overlays (0x0043c820's
+  // first part: the mech's numbers into five debug texts, while the debug
+  // text 0x005fc378 shows, toggled by 0x0040dc34 and [0x005f4d6c]; its flags
+  // are [0x005fc384]), the radar's update
+  // (0x0043dd00), whether the reticle's point is over TARGET's shape or
+  // circle while a live target is in range (0x00440a30), the reticle's aim
+  // state from it (0x00443d20: ranges, lock sounds, its image), the weapon
+  // lines' looks (0x00446540), the nav list's update (its vt+0x24), the
+  // network's (0x00479ed0 while [0x00609980]).
+  virtual void hud_debug(void* hud) {
+    if (!(unported("peek32", {0x5fc384}) >> 4 & 1)) unported("0x0043c820.debug", {id(hud)});
+  }
+  virtual void radar_update(void* radar, float dt) { unported("0x0043dd00", {id(radar), zgame::bits(dt)}); }
+  virtual bool reticle_over_target(void* target, int32_t x, int32_t y) {
+    return (unported("0x00440a30", {id(target), uint32_t(x), uint32_t(y)}) & 0xff) != 0;
+  }
+  virtual void reticle_aim_state(void* reticle, bool over) { unported("0x00443d20", {id(reticle), over ? 1u : 0u}); }
+  virtual void weapons_looks(void* weapons) { unported("0x00446540", {id(weapons)}); }
+  virtual void nav_list_update(uint32_t nav, float dt) { unported("nav.vt+0x24", {nav, zgame::bits(dt)}); }
+  virtual void network_hud() {
+    if (unported("peek32", {0x609980})) unported("0x00479ed0", {});
+  }
+  // Whether the MFD's title shows: [0x00609994] alone, [0x00605f88] clear in a
+  // multiplayer game.
+  virtual bool title_flag() { return (unported("peek8", {0x609994}) & 0xff) != 0; }
+  virtual bool title_mp_off() { return unported("peek32", {0x605f88}) != 0; }
   // The weapon list's lines from the mech's weapons (0x00446520).
   virtual void weapons_refresh(void* weapons) { unported("0x00446520", {id(weapons)}); }
 };
@@ -551,6 +601,7 @@ class Hud : public ztwod::Layer {
   explicit Hud(Mech* mech);          // 0x0043b190
   void setup(Mech* m);               // 0x0043bb80: hud.zrd's layout for the video mode, the mech given out
   void set_active(int32_t on) override;  // +0x04  0x0043baf0: the radar shown or hidden
+  void update(float dt) override;    // +0x00  0x0043c820: the HUD's frame
   void reset();                      // 0x0043be10
   Mech* mech = nullptr;              // +0x10
   HudRadar radar{60.0f};             // +0x14

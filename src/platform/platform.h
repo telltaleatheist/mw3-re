@@ -72,9 +72,12 @@ class Screen2D {
   virtual void present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) = 0;
   // FIX (A): the back buffer locked over a Direct3D frame (0x00576d00 /
   // 0x00576d60): what the 2D code drew into the 16-bit layer goes over the
-  // 3D frame, pixels still `key` (untouched) left out. Not presented.
-  virtual void overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key) {
-    (void)pixels, (void)width, (void)height, (void)pitch, (void)rgb565, (void)key;
+  // 3D frame, pixels still `key` (untouched) left out. Not presented. With
+  // `alpha`, a pixel whose alpha is set and whose value is still `colour`'s
+  // goes over with that alpha (zrndr::LayerCover).
+  virtual void overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key,
+                          const uint8_t* alpha = nullptr, const uint16_t* colour = nullptr) {
+    (void)pixels, (void)width, (void)height, (void)pitch, (void)rgb565, (void)key, (void)alpha, (void)colour;
   }
 };
 

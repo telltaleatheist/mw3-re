@@ -78,14 +78,14 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
 | MessageBox | 0x005a6e60 | 0x005d08f0 | 0x12494 | Dialog | yes |
 | MbButton (8 vtables) | 0x0059bbe0 | 0x005d0d10..0x005d0920 | 0x14c | Control | yes |
-| Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | 0x124 | PolyLine | partial: built and set (0x005a34c0..0x005a3530); points and draw not |
+| Shape (a moved and turned polyline) | 0x005a3170 | 0x005cff58 | 0x124 | PolyLine | partial: built and set (0x005a34c0..0x005a3530), drawn as a PolyLine; its update 0x005a3550 (the points from the translation and turn, 0x005a3270 / 0x005a3440) not |
 | PolyLine | 0x005a3830 | 0x005cfff0 | 0xec | Object2D | the plain path (the draw list and transformed paths are the HUD's) |
 | LineEditor | 0x005a46a0 | 0x005d0330 | 0x114 | | yes |
 | Caret | 0x005a4b10 | 0x005d0360 | 0x10c | PolyLine | yes |
 | EditBar (its line: vtable 0x005d0478) | 0x005a4ec0 | 0x005d03e0 | 0x380 | Control | yes |
-| Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | 0x54 / 0x58 | Object2D | partial: built; draws not |
-| Line2D / ClipLine2D (HUD lines) | 0x005a67e0 / 0x005a6ae0 | 0x005d06e0 / 0x005d0760 | 0x4c / 0x50 | Object2D | partial: built and placed (0x005a6880); draws not |
-| Polygon (HUD bars) | 0x005a6bd0 | 0x005d0860 | 0x134 | Object2D | partial: built and set (0x005a6c30); draw 0x005a6ca0 not |
+| Frame / FilledBox (circles: plain, and with static) | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | 0x54 / 0x58 | Object2D | yes (draws 0x005a3b00 / 0x005a3bc0) |
+| Line2D / ClipLine2D (HUD lines: clipped, dashed; with static) | 0x005a67e0 / 0x005a6ae0 | 0x005d06e0 / 0x005d0760 | 0x4c / 0x50 | Object2D | yes (draws 0x005a68b0 / 0x005a6b30, the float clip 0x0059b2f0..0x0059b780) |
+| Polygon (HUD bars) | 0x005a6bd0 | 0x005d0860 | 0x138 | Object2D | yes (draw 0x005a6ca0: the winding, zRender's fill 0x0055d010) |
 | Render overlay | 0x005a4590 | 0x005d0288 (+0x28: 0x005d0290) | | Layer | no |
 | Ripple | 0x005a53e0 | 0x005d04a8 | 0x4c | Object2D | yes (its zRender draw 0x00558dd0 hooked; mainmenu.md) |
 | SnowFX, Snow, Rain | 0x005a5470, 0x005a5ad0, 0x005a60a0 | 0x005d0528, 0x005d05e0, 0x005d0660 | | Object2D | no |
@@ -376,6 +376,44 @@ The game opens a box through 0x004ac150 (style, caption id, format id, ...):
 the text formatted by FormatMessage (0x00575ff0) into 0x0060a8e8, the box
 built and run, FastMenu set around it (0x0040ce90), destroyed.
 
+### The HUD's primitives
+
+zRender's 2D side draws them into the locked 16-bit target (the 3D lock's
+layer in Direct3D), through `Host` and `zrndr_prim2d`:
+
+- Line2D: from its place to its end; with `clipped` (+0x40) the line is
+  clipped in floats to the box its rect (+0x44) makes (0x0059b2f0 sets the
+  box at [0x005f4800], 0x0059b4d0 / 0x0059b640 clip by x then y, an end
+  moved along the line, both ends past one side rejected), the ends
+  truncated, and the box put back to the render's clip volume after
+  (0x0053ce20 saved it). Dashed (0x00562c80) when +0x48 is over 1: on and off
+  every (length + 1) / dash pixels.
+- ClipLine2D: with static (+0x4c) the noisy line 0x00562970: each pixel thrown
+  up to the line's length x static x 0.1 either way (the length by a
+  bit-trick square root), on MSVCRT's rand; plain at 0.
+- Frame: the midpoint circle 0x005630c0 of radius +0x34 around its place, in
+  the rect at +0x44 when +0x40. FilledBox: with static (+0x54) the same
+  circle's points thrown up to radius x static x 0.1 (0x00563440).
+- Polygon: filled by the span fill 0x0055d010 with the winding [0x0074a3c8]
+  from its first three points' cross product.
+- FlashImage (0x005a6d10; its fields set by the HUD's damage parts'
+  constructor 0x00447460): while on, a timer counts down a half period (+0xbc,
+  0.35 s); mode 1 blinks (drawn on phase 1), mode 2 swaps the image with
+  +0xd4 each half period.
+- PolyLine: with a clip rect (+0xe4) each segment clipped by 0x00563db0 (both
+  ends' outcodes, the moved end truncated; it can overshoot the rect by a
+  pixel); with `round` (+0xe8) each segment cut to the circle across the rect
+  (0x005a3580: centre in the middle, radius half the width; an outside end
+  moved to the first crossing in (0, 1)); else the plain lines.
+
+Tests: `test_prim2d.py` (the zRender routines on random targets, the same
+rand seed: 3000/3000) and `test_twod_prims.py` (each object's draw from its
+own constructor and random fields, zRender's calls logged: 3000/3000).
+Breaking them: 15 of 17 caught; the misses: the round clip's end test written
+c + 2B (the same float as c - B x -2), and the noisy line's square-root guess
+off by one bit (a 1e-7 change in the throw, which almost never moves a
+truncated pixel).
+
 ## 6. The port
 
 `src/gamez/ztwod/`:
@@ -536,6 +574,9 @@ caret's place, colour and lines (0x00562940 recorded), set_text's cuts.
   copies of a Text leave the fields their constructor never set (the
   background colour of a transparent text) as the stack held them.
 - Dialog's constructor looks up "VMode" (0x00597d10) and drops the result.
+- A flashing image's mode 0 (0x005a6d10) runs on into mode 1's blink (a
+  missing `break`): drawn, then drawn again on phase 1 (the HUD's damage
+  silhouette parts, hud.md section 11).
 
 ## 9. What is left
 
@@ -550,15 +591,11 @@ Mapped, not ported:
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
   0x005a7d10 (zFMV is not ported).
-- The HUD side's drawing (`twod_shapes.cpp` builds Frame, FilledBox, Shape,
-  the HUD lines and the polygon, hud.md): zRender's 2D line list 0x00562cb0,
-  Shape's transformed points 0x005a3580, boxes 0x005630c0 / 0x00563440, the
-  line clip helpers 0x0059b2f0..0x0059b7e0, the HUD lines' draws
-  0x005a68b0..0x005a6b30, the polygon's 0x005a6ca0, the
-  render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in it)
-  and zRender's ripple 0x00558dd0 (Host::ripple), the text console
+- The render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in
+  it) and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
-  key-list screen pieces 0x005a6bd0..0x005a6d10.
+  key-list screen's other pieces (0x00482570). Shape's hit test 0x005a3440
+  and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD).
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10
   (a std::list of {strdup name, image, count}; release frees images it does

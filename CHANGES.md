@@ -302,3 +302,4 @@ Known quirks the rebuild deliberately keeps:
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
 - Every mech's engine tops out at 400.
+- In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.

@@ -23,13 +23,14 @@ from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
 from twod_world import IAT, READER, ROOT, TwodWorld, entries, parse_node, write_node  # noqa: E402
 from test_twod_msgbox import archive  # noqa: E402
 import random  # noqa: E402
-from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
+from ai_world import FLOOR, FTOL, IAT_FLOOR, IAT_FTOL  # noqa: E402
 import test_twod  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float),
-                                  ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+                                  ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int,
+                                  ctypes.c_char_p, ctypes.c_int]
 ZRDR_LOAD = 0x556740
 SHIPPED = READER.read_bytes()
 HUD_START = next(s for n, s, _ in entries(SHIPPED) if n.lower() == 'hud.zrd')
@@ -84,6 +85,45 @@ def synthetic(seed):
                         if f[q] == 'size':
                             f[q + 1] = list(size)
     return tree
+
+
+# The test's changes between frames (probe_hud.cpp applies the same): 0 a
+# frame (dt), 1 the HUD's set_active, 2 the zoom window shown or hidden, 3 the
+# reticle's state, 4 the zoom light's interval, 5 an MFD damage part's flash
+# (part | on << 8 | mode << 16), 6 the MFD's mode, 7 a piece shown or hidden
+# (its offset), 8 the zoom window round, 9 TARGET's slot (none, live, empty),
+# 10 TARGET's mode, 11 a child's flags XORed (CHILDREN index | bits << 16),
+# 12 a weapon line's count (line | count << 8) and changed, 13 every child
+# dirty (kDirty), 14 every child and piece shown, 15 a text set (FTEXTS
+# index), 16 an image set (IMAGES index | shared light << 8: the weapon
+# list's three, then the equipment's).
+OPS = range(1, 17)
+FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
+          + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
+          + [0x6520 + 0x130 + 0x1120 * i + 0xae8 for i in range(4)]
+          + [0x3434 + 0x828] + [0x410c + 0x1144 + 0x4b0 * k for k in range(4)] + [0x1508 + 0x180])
+IMAGES = ([0x188c0 + 0x38 + 0xa40 * i + 0x97c for i in range(4)]
+          + [0x6520 + 0x130 + 0x1120 * i + o for i in range(4) for o in (0xf98, 0x1054)] + [0x410c + 0x1088])
+# The pieces' children by offset in the HUD ('view': the MFD's 3D view, new'd);
+# probe_hud.cpp's child() lists the same, in the same order.
+CHILDREN = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998, 0xe48, 0xf88, 0x10c8, 0x1208, 0x12c4, 0x1380, 0x1450, 0x1510,
+                                  0x15cc)]
+            + [0xdd4 + 0x50, 0xdd4 + 0x10c, 0x17964 + 0x4c8, 0x17964 + 0x5d4, 0x188c0 + 0xa438]
+            + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(16) for o in (0, 0x4cc, 0x97c)]
+            + [0x6520 + 0x11330, 0x6520 + 0x3c]
+            + [0x6520 + 0x130 + 0x1120 * i + o for i in range(16) for o in (0, 0xae8, 0xf98, 0x1054)]
+            + [0x3434 + 0x828, 0x3434 + 0x3c, 0x3434 + 0x3c + 0x34]
+            + [0x3434 + 0x3c + 0xf0 + 0xdc * i for i in range(8)]
+            + [0x410c + o for o in (0xdfc, 0xe48, 0xe94, 0x1144, 0x15f4, 0x1aa4, 0x1f54, 0x1088, 0x1004)]
+            + [0x1508 + o for o in (0x180, 0x630, 0x700, 0x754)] + ['view'])
+FOCUS = [CHILDREN.index('view'), CHILDREN.index(0x17964 + 0x5d4)] + [CHILDREN.index(0x188c0 + 0x38 + 0xa40 * i)
+                                                                    for i in range(4)]
+TOGGLED = [0xdd4, 0x1da8, 0x3434, 0x410c, 0x6520, 0x17964, 0x188c0, 0x144c]
+CLIP = (0.0, 0.0, 0.5, 640.0, 480.0, 1000.0)  # zRender's clip volume, both sides
+
+
+def f32(v):
+    return struct.unpack('<I', struct.pack('<f', v))[0]
 
 
 HUD_SIZE = 0x22e40
@@ -207,10 +247,12 @@ class Original:
             return len(t)
         w.answers['0x00575ff0'] = message
         e.cpu.import_code(IAT_FLOOR, FLOOR)
+        e.cpu.import_code(IAT_FTOL, FTOL)
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
         self.mech = self.fake_mech(r) if r.random() < 0.8 else 0
         self.aim_world(r)
+        self.frame_world(rnd(self.seed, 'frame world'))
         self.snapshot = e.snapshot()
         e.call(0x43b190, ecx=self.hud, stack=(self.mech,))
         # The reticle placed where the player looks (0x004445f0), a few times.
@@ -220,7 +262,171 @@ class Original:
                 e.call(0x4445f0, ecx=self.hud + 0x144c, stack=(struct.unpack('<I', struct.pack('<f', fx))[0],
                                                              struct.unpack('<I', struct.pack('<f', fy))[0]))
                 self.aim_lines.append(self.aim_dump())
+        self.run_frames()
         return self.dump()
+
+    def frame_world(self, r):
+        """The HUD frame's outside (0x0043c820): the unported pieces stubbed, the
+        flags it reads, zRender's 2D draws stubbed and logged."""
+        e, w, t = self.e, self.w, self.t
+        e.w32(0x5fc384, 0x10)  # the debug text hidden: its overlays not run
+        e.w32(0x609980, r.choice([0, 0, 1]))
+        e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
+        e.w32(0x605f88, r.choice([0, 1]))
+        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x446540, 'c'), (0x479ed0, '')):
+            e.stub(a, spec=spec)
+        w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1])
+
+        def aim_state(emu, key, a, pop):  # sets the reticle's state 0..3 as in play (the probe from the answer)
+            ret, over = a
+            emu.w32(ret + 0x908, t.handle(key, (ret, over)))
+            emu._ret(0, pop)
+        w.answers['0x00443d20'] = lambda rr, n, a: rr.choice([0, 1, 2, 3])
+        e.stub(0x443d20, '0x00443d20', 'c,s0', None, aim_state)
+
+        def rect(p):
+            return [e.r32(p + 4 * i) for i in range(4)]
+
+        def plain(emu, key, a, pop):
+            t.handle(key, tuple(a))
+            emu._ret(0, pop)
+
+        def lst(emu, key, a, pop):
+            pts, n, rp, px = a
+            t.handle(key, (n, *rect(rp), px))
+            for i in range(n + 1):
+                t.handle(key + '.pt', (emu.r32(pts + 8 * i), emu.r32(pts + 8 * i + 4)))
+            emu._ret(0, pop)
+
+        def clipped(emu, key, a, pop):
+            t.handle(key, tuple(a[:-1]) + tuple(rect(a[-1]) if a[-1] else ()))
+            emu._ret(0, pop)
+
+        def polygon(emu, key, a, pop):
+            v, n, color = a
+            t.handle(key, (n, color, emu.r32(0x74a3c8)))
+            for i in range(n):
+                t.handle(key + '.v', (emu.r32(v + 12 * i), emu.r32(v + 12 * i + 4)))
+            emu._ret(0, pop)
+
+        def render_clip(emu, key, a, pop):
+            t.handle(key, ())
+            emu.cpu.write(a[0], struct.pack('<3f', *CLIP[:3]))
+            emu.cpu.write(a[1], struct.pack('<3f', *CLIP[3:]))
+            emu._ret(0, pop)
+        for a, spec, fn in ((0x562940, 'c,d,s0,s1,s2', plain), (0x562c80, 'c,d,s0,s1,s2,s3', plain),
+                            (0x562cb0, 'c,d,s0,s1', lst),
+                            (0x5630c0, 'c,d,s0,s1,s2', clipped), (0x563440, 'c,d,s0,s1,s2,s3', clipped),
+                            (0x562970, 'c,d,s0,s1,s2,s3,s4', clipped), (0x55d010, 'c,d,s0', polygon),
+                            (0x53ce20, 'c,d', render_clip)):
+            e.stub(a, f'{a:#010x}', spec, None, fn)
+        # TARGET's slots: one with an object (0x004e6fe0 answers it; its
+        # vt+0xa8 and vt+0x50 answer at random), one empty.
+        self.slots = [e.world_alloc(8), e.world_alloc(8)]
+        e.w32(self.slots[0], e.world_alloc(8))
+        obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0)})
+        e.stub(0x4e6fe0, spec='c')
+        w.answers['0x004e6fe0'] = lambda rr, n, a: obj if rr.random() < 0.8 else 0
+        w.answers['obj.vt+0xa8'] = lambda rr, n, a: rr.choice([0, 0, 1])
+        w.answers['obj.vt+0x50'] = lambda rr, n, a: rr.choice([0, 0x2c000000])
+        self.text = e.world_string('88 TXT')
+        self.ops = []
+        if not self.mech:
+            return
+        fr = rnd(self.seed, 'frames')
+        if fr.random() < 0.5:  # TARGET shown with a target
+            self.ops += [(7, 0x410c), (9, self.slots[0])]
+        for _ in range(fr.randrange(1, 20)):
+            for _ in range(fr.randrange(0, 6)):
+                k = fr.choice(list(OPS))
+                if k == 1:
+                    v = fr.choice([0, 1, 1, 1])
+                elif k == 3:
+                    v = fr.choice([0, 1, 2, 3, 5])
+                elif k == 4:
+                    v = f32(fr.choice([0.0, 0.0, 0.1, 0.25, 1.0]))
+                elif k == 5:
+                    v = fr.randrange(8) | fr.choice([0, 1]) << 8 | fr.choice([0, 1, 2]) << 16
+                elif k == 6:
+                    v = fr.choice([0, 1, 2, 3])
+                elif k == 7:
+                    v = fr.choice(TOGGLED)
+                elif k == 9:
+                    v = fr.choice([0, self.slots[0], self.slots[0], self.slots[1]])
+                elif k == 10:
+                    v = fr.choice([0, 1, 2, 3])
+                elif k == 11:
+                    # half the time the MFD's view, an equipment line or the scores
+                    i = fr.randrange(len(CHILDREN)) if fr.random() < 0.5 else fr.choice(FOCUS)
+                    v = i | fr.choice([0x10, 0x4, 0x4, 0x2, 0x6]) << 16
+                elif k == 15:
+                    v = fr.randrange(len(FTEXTS))
+                elif k == 16:
+                    v = fr.randrange(len(IMAGES)) | fr.randrange(6) << 8
+                elif k == 12:
+                    v = fr.randrange(16) | (fr.choice([-1, 0, 3, 12]) & 0xff) << 8
+                else:
+                    v = fr.choice([0, 1])
+                self.ops.append((k, v))
+            self.ops.append((0, f32(fr.choice([0.0, 0.016, 0.033, 0.1, 0.35, 1.0, 2.5]))))
+
+    def run_frames(self):
+        """The ops (OPS) and frames, in the original."""
+        e, h = self.e, self.hud
+        if self.ops:
+            vt = e.world_alloc(0x40)
+            e.w32(vt + 0x24, e.new_stub('nav.vt+0x24', 'c,s0', 4))
+            for m in (h + 0x3434, h + 0x410c):
+                if e.r32(m + 0x820):
+                    e.w32(e.r32(m + 0x820), vt)
+        zoom = h + 0x144c + 0xbc
+        for k, v in self.ops:
+            if k == 0:
+                e.call(0x43c820, ecx=h, stack=(v,))
+            elif k == 1:
+                e.call(0x43baf0, ecx=h, stack=(v,))
+            elif k == 2:
+                e.w32(zoom + 0xc, e.r32(zoom + 0xc) ^ 0x10)
+            elif k == 3:
+                e.w32(h + 0x1d54, v)
+            elif k == 4:
+                e.w32(zoom + 0x630 + 0xc8, v)
+            elif k == 5:
+                part = h + 0x3434 + 0x3c + 0xf0 + 0xdc * (v & 0xff)
+                e.w32(part + 0xc4, v >> 8 & 0xff)
+                e.w32(part + 0xc8, v >> 16)
+            elif k == 6:
+                e.w32(h + 0x3434 + 0x38, v)
+            elif k == 7:
+                e.w32(h + v + 0xc, e.r32(h + v + 0xc) ^ 0x10)
+            elif k == 8:
+                e.cpu.write(zoom + 0x16c, bytes([v]))
+            elif k == 9:
+                e.w32(h + 0x410c + 0x2404, v)
+            elif k == 10:
+                e.w32(h + 0x410c + 0x38, v)
+            elif k == 11:
+                c = CHILDREN[v & 0xffff]
+                a = e.r32(h + 0x3434 + 0x824) if c == 'view' else h + c
+                e.w32(a + 0xc, e.r32(a + 0xc) ^ v >> 16)
+            elif k in (13, 14):
+                for c in CHILDREN:
+                    a = e.r32(h + 0x3434 + 0x824) if c == 'view' else h + c
+                    f = e.r32(a + 0xc)
+                    e.w32(a + 0xc, f | 4 if k == 13 else f & ~0x10)
+                if k == 14:
+                    for c in TOGGLED:
+                        e.w32(h + c + 0xc, e.r32(h + c + 0xc) & ~0x10)
+            elif k == 15:
+                e.call(0x5a12f0, ecx=h + FTEXTS[v], stack=(self.text,))
+            elif k == 16:
+                j = v >> 8
+                img = e.r32((0x6059b0 if j < 3 else 0x6059d0 - 12) + 4 * j)
+                e.call(0x59bb50, ecx=h + IMAGES[v & 0xff], stack=(img,))
+            elif k == 12:
+                line = h + 0x6520 + 0x130 + 0x1120 * (v & 0xff)
+                e.w32(line + 0x1110, struct.unpack('<b', bytes([v >> 8 & 0xff]))[0] & 0xffffffff)
+                e.cpu.write(line + 0x111a, b'\x01')
 
     def aim_world(self, r):
         """The aim ray's answers, made before the snapshot so the probe can read
@@ -751,8 +957,9 @@ def run_case(seed, verbose=False):
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     buf = ctypes.create_string_buffer(1 << 20)
     places = (ctypes.c_float * (2 * len(orig.places) + 1))(*[v for p in orig.places for v in p])
-    n = probe.probe_hud_build(orig.hud, orig.mech, orig.path, places, len(orig.places), orig.utab, orig.stab, buf,
-                              len(buf))
+    ops = (ctypes.c_uint32 * (2 * len(orig.ops) + 1))(*[x for op in orig.ops for x in op])
+    n = probe.probe_hud_build(orig.hud, orig.mech, orig.path, places, len(orig.places), orig.utab, orig.stab, ops,
+                              len(orig.ops), buf, len(buf))
     assert n >= 0, 'probe failed'
     dump_r = buf.value.decode('latin1')
     stubbed = orig.w.stub_textures

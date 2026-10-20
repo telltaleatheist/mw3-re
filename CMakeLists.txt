@@ -96,6 +96,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/gamez/zrender/zrndr_tint.cpp
+  src/gamez/zrender/zrndr_prim2d.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp

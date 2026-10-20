@@ -32,9 +32,37 @@ uint16_t blend555(uint16_t d16, uint16_t s16, uint32_t a) {
   const int32_t b = (((s & 0x1f) - (d & 0x1f)) * ia) >> 8;
   return static_cast<uint16_t>(static_cast<uint32_t>(b) + g + dr);
 }
+LayerCover g_cover;
+
+// An alpha blend's pixel, through the layer's cover when one is set (FIX (A),
+// zrndr_blit.h): over an untouched pixel the source with its alpha; over a
+// partly covered one the two combined; over an opaque one the plain blend.
+uint16_t cover_blend(uint16_t* dst, uint16_t s, uint32_t al, bool rgb565) {
+  auto blend = [&](uint16_t d, uint32_t a) { return rgb565 ? blend565(d, s, a) : blend555(d, s, a); };
+  if (!g_cover.alpha) return blend(*dst, al);
+  const size_t i = static_cast<size_t>(dst - reinterpret_cast<uint16_t*>(g_target.base));
+  const uint16_t d = *dst;
+  const uint32_t da = g_cover.alpha[i] && g_cover.colour[i] == d ? g_cover.alpha[i] : (d == g_cover.key ? 0u : 255u);
+  if (da == 0) {
+    g_cover.alpha[i] = static_cast<uint8_t>(al);
+    return g_cover.colour[i] = s;
+  }
+  if (da >= 255) {
+    g_cover.alpha[i] = 0;
+    return blend(d, al);
+  }
+  const uint32_t out = al + da * (255 - al) / 255;
+  const uint16_t r = blend(d, al * 255 / out);
+  g_cover.alpha[i] = static_cast<uint8_t>(out);
+  return g_cover.colour[i] = r;
+}
+void cover_opaque(uint16_t* dst) {
+  if (g_cover.alpha) g_cover.alpha[dst - reinterpret_cast<uint16_t*>(g_target.base)] = 0;
+}
 }  // namespace
 
 Target2D& target2d() { return g_target; }
+LayerCover& layer_cover() { return g_cover; }
 
 // Mech3.exe 1.2 @ 0x0055b3c0
 void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const BlitRect* src) {
@@ -103,8 +131,8 @@ void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const 
         for (int32_t c = 0; c < width; ++c) {
           const uint32_t al = a[c];
           if (al <= static_cast<uint32_t>(lo)) continue;
-          if (al >= 0xfc) dst[c] = s[c];
-          else dst[c] = t.format == 6 ? blend565(dst[c], s[c], al) : blend555(dst[c], s[c], al);
+          if (al >= 0xfc) dst[c] = s[c], cover_opaque(dst + c);
+          else dst[c] = cover_blend(dst + c, s[c], al, t.format == 6);
         }
       }
       return;
@@ -135,8 +163,8 @@ void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const 
       for (int32_t c = 0; c < width; ++c) {
         const uint32_t al = a[c];
         if (al <= static_cast<uint32_t>(lo)) continue;
-        if (al >= 0xfc) dst[c] = pal[s[c]];
-        else dst[c] = t.format == 6 ? blend565(dst[c], pal[s[c]], al) : blend555(dst[c], pal[s[c]], al);
+        if (al >= 0xfc) dst[c] = pal[s[c]], cover_opaque(dst + c);
+        else dst[c] = cover_blend(dst + c, pal[s[c]], al, t.format == 6);
       }
     }
     return;

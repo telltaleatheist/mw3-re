@@ -1,12 +1,18 @@
 // The default Host: every call reports itself as unported (docs/twod.md, Hooks).
 #include "gamez/ztwod/twod_host.h"
 
+#include <cstring>
+
 #include <cstdio>
 #include <cstdlib>
 
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zrender/zrndr_prim2d.h"
+#include "gamez/zrender/zrndr_span.h"
+#include "gamez/zmodel/gmod_clip3d.h"
+#include "gamez/zmodel/gmod_draw.h"
 
 namespace ztwod {
 
@@ -116,6 +122,39 @@ void Host::input_reset() { unported("0x0051b1c0", {}); }
 void Host::set_char_callback(void (*cb)(int32_t, int32_t, uintptr_t), uintptr_t ctx) { zin::set_char_callback(cb, ctx); }
 void Host::line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel) {
   zrndr::line16(x0, y0, x1, y1, static_cast<uint16_t>(pixel));
+}
+namespace {
+const int32_t* ints(const Rect* r) { return r ? &r->left : nullptr; }
+}  // namespace
+void Host::line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, int32_t dash) {
+  zrndr::line16_dashed(x0, y0, x1, y1, static_cast<uint16_t>(pixel), dash);
+}
+void Host::line_list(const int32_t* points, int32_t count, const Rect* clip, uint32_t pixel) {
+  zrndr::line16_list(points, count, ints(clip), static_cast<uint16_t>(pixel));
+}
+void Host::circle(int32_t cx, int32_t cy, int32_t r, uint32_t pixel, const Rect* clip) {
+  zrndr::circle16(cx, cy, r, static_cast<uint16_t>(pixel), ints(clip));
+}
+void Host::circle_noisy(int32_t cx, int32_t cy, int32_t r, uint32_t pixel, float noise, const Rect* clip) {
+  zrndr::circle16_noisy(cx, cy, r, static_cast<uint16_t>(pixel), noise, ints(clip));
+}
+void Host::line_noisy(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, float noise, const Rect* clip) {
+  zrndr::line16_noisy(x0, y0, x1, y1, static_cast<uint16_t>(pixel), noise, ints(clip));
+}
+void Host::render_clip(float mn[3], float mx[3]) {
+  const zmod::ClipPlanes& c = zmod::draw_state().clip;
+  auto f = [](uint32_t v) {
+    float r;
+    std::memcpy(&r, &v, 4);
+    return r;
+  };
+  mn[0] = f(c.side_04), mn[1] = f(c.side_08), mn[2] = c.near_z;
+  mx[0] = f(c.unknown_10), mx[1] = f(c.unknown_14), mx[2] = c.far_z;
+}
+// The fill at full precision, as in play (CLAUDE.md, FPU precision).
+void Host::polygon(const float* vertices, int32_t count, uint32_t color, int32_t winding) {
+  zrndr::soft_target().winding = winding;
+  zrndr::fill_polygon(vertices, count, color, zrndr::X87::k53);
 }
 
 Handle Host::GetStockObject(int32_t which) { return unported("GetStockObject", {which}); }

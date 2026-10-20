@@ -96,6 +96,17 @@ Callers of 0x00558540: the fade state's step (0x0048f0b0), 0x00599b66 and
 - Not reproduced: a lock that reads the 3D picture back (the layer starts
   as the key, so 2D code that reads the screen sees the key; nothing ported
   reads it: a readback each lock would stall the GPU every frame).
+- The alpha blends into it (blit16's alpha images, 0x0055b3c0: the HUD's
+  compass, reticle and gauges) would mix with the key instead of the
+  picture. FIX (A): while the layer is locked, `zrndr::layer_cover()` holds
+  a per-pixel alpha and colour; a blend over an untouched pixel writes the
+  source and records its alpha, over a partly covered one combines the two,
+  over a drawn one blends as written and marks it opaque. The overlay draws
+  a pixel still holding its recorded colour with the recorded alpha. In
+  Direct3D the original's HUD images take this same software blit onto the
+  locked back buffer (their DirectDraw surface path, 0x00576f90 keyed on
+  black, only serves images made by [0x0072f360] = 0x005773e0).
+  mw3tests `fix_layer_blend_keeps_its_alpha`.
 - The screen grab 0x00579500 (the fade's still, game-loop.md) does read it
   back, FIX (A): `Render3D::read_back` downloads the back-buffer texture
   (SDL GPU, waited on a fence), and `GameEngine::video_grab` scales it to the

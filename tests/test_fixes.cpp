@@ -7,7 +7,9 @@
 #include <string>
 
 #include "check.h"
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/zmodel/gmod_puff.h"
+#include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
@@ -568,3 +570,33 @@ TEST(fix_hud_block_cleared) {
   ::operator delete(storage);
 }
 
+
+// FIX (A): an alpha blend into the program's keyed layer records its coverage
+// instead of mixing with the key; over a drawn pixel it is the plain blend.
+TEST(fix_layer_blend_keeps_its_alpha) {
+  const uint16_t key = 0xf81f, grey = 0x8410, red = 0xf800;
+  uint16_t layer[4] = {key, key, red, key};
+  uint8_t cover_a[4] = {};
+  uint16_t cover_c[4] = {};
+  zrndr::Target2D& t = zrndr::target2d();
+  const zrndr::Target2D saved = t;
+  t.base = reinterpret_cast<uint8_t*>(layer), t.width = 4, t.height = 1, t.pitch = 8, t.format = 6;
+  uint16_t px[4] = {grey, grey, grey, grey};
+  uint8_t al[4] = {0x80, 0x80, 0x80, 0x02};
+  zimg::Texture img{};
+  img.width = 4, img.height = 1, img.pixels = px, img.alpha = al;
+  zrndr::layer_cover() = {cover_a, cover_c, key};
+  zrndr::blit16(&img, 0, 0, 0, nullptr);
+  EXPECT(layer[0] == grey && cover_a[0] == 0x80 && cover_c[0] == grey);  // the grey, half see-through
+  EXPECT(layer[2] != red && layer[2] != grey && cover_a[2] == 0);         // blended over the red: opaque
+  EXPECT(layer[3] == key && cover_a[3] == 0);                            // below the threshold: untouched
+  zrndr::blit16(&img, 0, 0, 0, nullptr);                                  // again over the half-covered pixel
+  EXPECT(cover_a[0] == 0x80 + 0x80 * 0x7f / 255 && cover_c[0] == layer[0]);
+  zrndr::layer_cover() = {};
+  uint16_t plain[1] = {key};
+  t.base = reinterpret_cast<uint8_t*>(plain), t.width = 1, t.pitch = 2;
+  img.width = 1;
+  zrndr::blit16(&img, 0, 0, 0, nullptr);
+  EXPECT(plain[0] != grey && plain[0] != key);  // the original path: mixed with the key
+  t = saved;
+}

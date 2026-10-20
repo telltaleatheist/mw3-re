@@ -411,13 +411,21 @@ void GameEngine::video_draw_3d() { zvid::draw_tint_quad(); }
 void GameEngine::video_end_scene() { zvid::scene_end(); }
 void GameEngine::render_finish() { zrndr::finish(); }
 
+// The layer's alpha blends are recorded while it is locked, so they go over
+// the frame see-through instead of mixed with the key (zrndr::LayerCover).
 int32_t GameEngine::lock_back(zvid::Surface* s) {
   std::fill(buffer_.begin(), buffer_.end(), kLayerKey);
+  cover_alpha_.assign(buffer_.size(), 0);
+  cover_colour_.resize(buffer_.size());
+  zrndr::layer_cover() = {cover_alpha_.data(), cover_colour_.data(), kLayerKey};
   s->width = width_, s->height = height_, s->pitch = width_ * 2, s->pixels = buffer_.data();
   return 0;
 }
 int32_t GameEngine::unlock_back(zvid::Surface*) {
-  if (p_.screen) p_.screen->overlay_16(buffer_.data(), width_, height_, width_ * 2, true, kLayerKey);
+  zrndr::layer_cover() = {};
+  if (p_.screen)
+    p_.screen->overlay_16(buffer_.data(), width_, height_, width_ * 2, true, kLayerKey, cover_alpha_.data(),
+                          cover_colour_.data());
   layer_drawn_ = true;
   return 0;
 }
