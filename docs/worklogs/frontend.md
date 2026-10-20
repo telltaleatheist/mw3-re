@@ -154,3 +154,43 @@ pixel while GameEngine's layer is locked) and `Screen2D::overlay_16` taking
 it. mw3tests fix_layer_blend_keeps_its_alpha; GPU shot of c1m1 clean.
 Remember: the cover is set only between lock_back and unlock_back; with it
 unset blit16 is the original exactly (test_twod_blit.py).
+
+## 2026-10-20 (b) The HUD's Direct3D pass 0x0043c6b0: where it stands (before a reboot)
+
+Not started in code; (a) is committed (15d64b0). Read so far:
+- 0x0041cd90 (the mech, for the view's target with a HUD from 0x00430aa0)
+  calls 0x0043c6b0(dt) on the HUD. With a mech, in Direct3D ([0x0072f348]):
+  the MFD's and TARGET's modes (vt+0x80); when the HUD is active, TARGET in
+  mode 1: 0x004425d0 then 0x00576ce0; MFD in mode 1: 0x00576ce0; then
+  0x00579af0; the see-through panels by 0x0043ad70 (TARGET's and the MFD's
+  in mode 1, the weapons' while shown, the equipment's while it and the
+  weapons are shown); 0x0040fb30; the objectives' panel while shown;
+  [0x0072f3e4](); 0x00579b10. Then, active, TARGET's and the MFD's +0x28
+  (0x00441410: mode 1 the target's object vt+0x68(1), 0x004428b0 on its +4,
+  vt+0x68(0); mode 2 the damage view's +0x28 / 0x00442500: mode 1 the view's
+  +0x28 0x00442870 = its zView's +4, mode 2 the damage view's +0x28).
+- The panel's +0x28 0x0043ad20 is the same draw for one panel, guarded by
+  shown, Direct3D and alpha != 0xff: 0x00576ce0, 0x00579af0, 0x0043ad70,
+  [0x0072f3e4](), 0x00579b10.
+Next: read 0x0043ad70 (the quad from the panel's corners +0xcc, colour
++0xfc, alpha +0xfe), 0x00576ce0 / 0x00579af0 / 0x00579b10 / [0x0072f3e4]
+(scene and state calls; check render-frame.md / zvid ports for names),
+0x0040fb30, 0x004425d0, 0x004428b0; port the pass and the panel's +0x28 with
+the zView parts hooked (render work), a differential test in test_hud.py
+(the pass after frames, render calls stubbed and logged), then wire it at
+the program's 0x0041cd90 point in the Core frame (where the 3D scene is open).
+
+## 2026-10-20 (b) The HUD's Direct3D pass (branch mac3/hud-key, main merged in)
+
+hud.md section 11. Ported: Hud::draw3d 0x0043c6b0, HudPanel::draw3d
+0x0043ad20 and draw_quad 0x0043ad70, HudMfd::shown_rect 0x004425d0 (asks the
+mode again: a target can drop between the two asks), the MFD's and TARGET's
++0x28 (0x00442500, 0x00441410), the MFD view's 0x00442870 (hooked zView
+render). Object2D +0x28 is `draw3d(float)` now (was `frame()`, unused; the
+original's takes dt). The program runs it at the view target's vt+0xe4
+(GameEngine::vcall → program_hud_draw3d, 0x0041cd90) with scene, quad
+(TL buffer + zvid::draw_flat) and flush on the zVideo ports. Hooked: dirty
+rects 0x00576ce0, the message panel 0x0040fb30, the 3D views' rendering
+0x004428b0 / 0x00442870 (render work), the nav list's rect.
+test_hud.py op 17 runs the pass; the new'd views are named 1/2 on both
+sides (view_call / view_name).

@@ -10,6 +10,8 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zvideo/zvid_dd.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech.h"
@@ -76,6 +78,16 @@ struct ProgramHudHooks : HudHooks {
     for (int i = 0; i < r.count && i < 31; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));
     return res;
   }
+  // The Direct3D pass (0x0043c6b0) on the zVideo ports; the dirty rects, the
+  // message panel and the 3D views are not wired yet (hud.md section 11).
+  void scene_begin() override { zvid::scene_begin(); }
+  void scene_end() override { zvid::scene_end(); }
+  void flat_quad(const float v[4][3], int16_t colour, uint8_t alpha) override {
+    zvid::TLVertex* tl = zvid::draw_buffers().tl;
+    for (int i = 0; i < 4; ++i) tl[i].sx = v[i][0], tl[i].sy = v[i][1], tl[i].sz = v[i][2];
+    zvid::draw_flat(static_cast<uint32_t>(static_cast<int32_t>(colour)), alpha, 4, 0, 0);
+  }
+  void flush_transparent() override { zvid::flush_transparent(); }
   uint32_t material_soil(zwep::Handle m) override {
     return m ? game_soil(static_cast<zmod::Material*>(m)->soil) : 0;
   }
@@ -97,6 +109,12 @@ void unwire_hud() {
 
 void program_hud_update(float dt) {
   if (Mech* m = static_cast<Mech*>(program_view_target())) hud_handoff(*m, dt);
+}
+
+// Mech3.exe 1.2 @ 0x0041cd90: the view target's HUD, its Direct3D pass.
+void program_hud_draw3d(float dt) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  if (Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr) h->draw3d(dt);
 }
 
 bool program_hud_aim(int32_t reticle[2], float point[3], bool* hit) {

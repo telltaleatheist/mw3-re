@@ -89,6 +89,10 @@ struct Hooks : mech3::HudHooks {
     const uint32_t soil = call("peek32", {id(m) + 0x20});
     return call("peek32", {0x608c00 + 4 * soil});
   }
+  // The views by name, as test_hud.py's view_call: 1 the MFD's, 2 TARGET's.
+  uint32_t view_name(void* v) { return v == g_hud->mfd.view ? 1 : v == g_hud->target.view ? 2 : id(v); }
+  void zview_render(void* v, float dt) override { call("0x00442870", {view_name(v), zgame::bits(dt)}); }
+  void view_draw_node(void* v, uint32_t node) override { call("0x004428b0", {view_name(v), node}); }
   void reticle_aim_state(void* r, bool over) override {
     static_cast<mech3::HudReticle*>(r)->state = static_cast<int32_t>(call("0x00443d20", {id(r), over ? 1u : 0u}));
   }
@@ -226,6 +230,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
           o->flags &= ~0x10u;
       break;
     case 15: ftext(h, v)->set_text_plain("88 TXT"); break;
+    case 17: h.draw3d(zgame::from_bits(v)); break;
     case 16: {
       const uint32_t j = v >> 8;
       image(h, v & 0xff)->set_image(j < 3 ? mech3::weapon_set().light[j] : mech3::equipment_set().light[j - 3]);

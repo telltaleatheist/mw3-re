@@ -419,15 +419,38 @@ A flashing image (zTwoD's update 0x005a6d10): mode 1 blinks
 period (+0xbc, 0.35 s). Mode 0 falls through into mode 1's code (a missing
 `break`): it draws, then draws again on phase 1. Ported as written.
 
-**The 3D pass** (0x0043c6b0, from the mech's 0x0041cd90 for the view's
-target): in Direct3D the see-through panels (0x0043ad70 each: the MFD's and
-TARGET's when their mode is 1, the weapons' and equipment's, the
-objectives') and the MFD's and TARGET's 3D views (+0x28: 0x00442500,
-0x00441410). Not ported yet: in Direct3D the panels do not show until it
-is, the texts and images over them do.
+**The Direct3D pass** (0x0043c6b0, the HUD's own, from the mech's vt+0xe4
+0x0041cd90 for the view's target, in the Core frame before the 2D layer's
+lock), with a mech and in Direct3D:
+
+1. With the HUD on: TARGET's and the MFD's 3D view rects (in mode 1; for
+   TARGET through 0x004425d0) given to the dirty rects (0x00576ce0).
+2. One scene (0x00579af0 / 0x00579b10) of see-through quads (0x0043ad70: the
+   panel's four corners into the TL buffer from the last one back, then the
+   flat transparent draw 0x0057bf80 with the panel's colour and alpha; an
+   opaque panel draws its image instead): with the HUD on, TARGET's and the
+   MFD's view panels in mode 1, the weapons' while shown, the equipment's
+   while it and the weapons show; always the message panel (0x0040fb30 on
+   [0x00603d7c]) and the objectives' while shown; then the transparent
+   flush ([0x0072f3e4]).
+3. With the HUD on, TARGET's and the MFD's +0x28: in mode 1 the 3D view
+   (TARGET: the target's vt+0x68(1), 0x004428b0 on its view and the
+   target's node, vt+0x68(0); the MFD: its view's zView +4, 0x00442870);
+   in mode 2 the damage view's +0x28, which is empty.
+
+A panel's own +0x28 (0x0043ad20) is the same quad in a scene of its own;
+nothing in the HUD calls it. Ported (`Hud::draw3d`, `HudPanel::draw3d` and
+`draw_quad`, the MFD's and TARGET's `draw3d`); the program runs it at the
+view target's vt+0xe4 with the scene, the quad and the flush on the zVideo
+ports. Hooked: the dirty rects, the message panel and the 3D views'
+rendering (0x004428b0, 0x00442870: the render work). Test: test_hud.py's op
+17 runs the pass between frames with the render calls logged (100/100).
+Breaking it: 9 of 10 caught; the miss (the quad's opaque test at 0xfe) is
+equivalent, set_alpha (0x0043a9d0) making 0xfe and up opaque.
 
 In the program, `hud_handoff` runs the frame (`Hud::update`) inside the Core
-frame's 2D layer; the hooks the program does not implement answer 0 (no
+frame's 2D layer, and the Direct3D pass (`Hud::draw3d`) at the view
+target's vt+0xe4; the hooks the program does not implement answer 0 (no
 debug overlay, no radar, the aim state left alone, no nav list).
 
 Test: `test_hud.py` runs, after the build and the aim, a random sequence of

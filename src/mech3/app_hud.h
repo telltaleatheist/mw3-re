@@ -12,6 +12,7 @@ void unwire_hud();
 void program_hud_update(float dt);  // 0x0040fac0's first call: the view target's 0x0041cd40
 // For the tests: the view target's reticle (x, y), its world point and
 // whether the ray hit something; false without a HUD.
+void program_hud_draw3d(float dt);  // the view target's vt+0xe4, 0x0041cd90: the HUD's Direct3D pass
 bool program_hud_aim(int32_t reticle[2], float point[3], bool* hit);
 // For the tests: the player's controls' look (-1..1 of the display's half
 // size; PlayerControls +0x140), as the mouse would set it.

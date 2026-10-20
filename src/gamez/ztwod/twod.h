@@ -62,7 +62,7 @@ class Object2D {
   virtual void set_bg_rect(const Rect* r);  // +0x1c  0x0059ff80
   virtual void dirty();              // +0x20  0x0059ff00
   virtual void update(float dt);     // +0x24  0x0059ffb0
-  virtual void frame() {}            // +0x28  0x004a5bc0
+  virtual void draw3d(float) {}      // +0x28  0x004a5bc0: the Direct3D pass's draw (the HUD's, hud.md)
   virtual Rect* get_rect() { return nullptr; }  // +0x2c  0x0040bae0
   // Mouse events from Window::update (0x005a2bb0); the release build's are empty.
   virtual void on_left_up() {}       // +0x30

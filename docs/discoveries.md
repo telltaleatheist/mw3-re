@@ -1865,6 +1865,10 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   shows nothing.
 - **The equipment list stops at the first hidden line:** lines after a
   hidden one are not drawn even if they are shown.
+- **In Direct3D the equipment list's green panel needs the weapon list:**
+  the see-through panel behind the equipment list is only drawn while the
+  weapon list is shown too, so an equipment list shown on its own would have
+  no panel behind it (whether play ever does that is not checked).
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not
