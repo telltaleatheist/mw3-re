@@ -148,11 +148,11 @@ void set_calls() {
     log({9, static_cast<int32_t>(u(tm)), static_cast<int32_t>(u(v)), d->index});
   };
   c.ecm_count = [](Handle) { return g_w[kTmEcm]; };
-  c.entity_id = [](Handle) {
+  c.target_position = [](Handle) -> const zwep::Vec3f3* {
     log({10});
-    return g_w[kEntityId];
+    return static_cast<const zwep::Vec3f3*>(h(g_w[kEntityId]));
   };
-  c.target_x10 = [](Handle) { return g_w[kTargetX10]; };
+  c.target_velocity = [](Handle) { return static_cast<const zwep::Vec3f3*>(h(g_w[kTargetX10])); };
   c.target_key = [](Handle) { return h(g_w[kTargetKey]); };
   c.net_target = [](Handle id) -> Handle {
     for (int i = 0; i < 3; ++i)
@@ -273,13 +273,13 @@ int32_t weapon_ptr_token(const void* p) {
   for (uint32_t i = 0; g_m && i < g_m->count; ++i) {
     const mech3::Weapon* w = g_m->weapons[i];
     if (p == &w->lock_flag) return static_cast<int32_t>(i * 0x100 + 4);
-    if (p == &w->lock_target) return static_cast<int32_t>(i * 0x100 + 8);
+    if (p == &w->lock) return static_cast<int32_t>(i * 0x100 + 8);
   }
   return -2;
 }
 
 void put_weapon(std::vector<int32_t>& o, const mech3::Weapon* w) {
-  o.insert(o.end(), {w->lock_flag, static_cast<int32_t>(u(w->lock_target)), w->lock_id, w->lock_x10,
+  o.insert(o.end(), {w->lock_flag, static_cast<int32_t>(u(w->lock.entity)), static_cast<int32_t>(u(w->lock.at)), static_cast<int32_t>(u(w->lock.velocity)),
                      static_cast<int32_t>(u(w->projectile_target)), fb(w->rating), w->slot,
                      static_cast<int32_t>(u(w->node)), static_cast<int32_t>(u(w->part)), w->index,
                      w->def ? w->def->index : -1, fb(w->reload), fb(w->target.x), fb(w->target.y), fb(w->target.z),

@@ -106,7 +106,7 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (v < 100.0f) v = 100.0f;
   else if (v > 5000.0f) v = 5000.0f;
   if (id >= 0x11 && id <= 0x14) lrm_flight = crt::x87_mul_f24(range, 0.7) / v;  // LRM5..LRM20
-  strike_at = &strike_point;
+  strike_lock.at = &strike_point;
 }
 
 // Mech3.exe 1.2 @ 0x004afb10
@@ -157,7 +157,7 @@ void halt(Handle& s) {
 void net_event(Handle owner, Weapon* w) {
   if (g_calls.net_event) g_calls.net_event(owner, 0x16, w);
 }
-void set_lock_globals(int32_t* flag, Handle* target) { zwep::set_lock(flag, target); }
+void set_lock_globals(int32_t* flag, const zwep::LockRef* target) { zwep::set_lock(flag, target); }
 void mech_sound(int32_t i) {
   if (g_calls.mech_sound) g_calls.mech_sound(i);
 }
@@ -262,7 +262,7 @@ void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const 
     from.x = rand_unit() * 50.0f + start.x;
     from.y = rand_unit() * 50.0f + start.y;
     from.z = start.z;
-    zwep::set_lock(&strike_flag, &strike_target);
+    zwep::set_lock(&strike_flag, &strike_lock);
     spawn_projectile(strike_weapon, owner_node, nullptr, vf(&from), vf(&d), vf(&still), 0, 0, false);
   }
   zwep::set_lock(nullptr, nullptr);
@@ -522,10 +522,10 @@ void WeaponManager::reset() {
 void WeaponManager::forget_target(Handle target) {
   for (uint32_t i = 0; i < count; ++i) {
     Weapon* w = weapons[i];
-    if (w->lock_flag && w->lock_target == (g_calls.target_key ? g_calls.target_key(target) : nullptr)) {
+    if (w->lock_flag && w->lock.entity == (g_calls.target_key ? g_calls.target_key(target) : nullptr)) {
       w->lock_flag = 0;
-      w->lock_x10 = 0;
-      w->lock_id = 0;
+      w->lock.velocity = nullptr;
+      w->lock.at = nullptr;
     }
   }
 }
@@ -670,10 +670,10 @@ bool WeaponManager::net_fire(uint32_t i, Handle target, int32_t action) {
   if (target) {
     if (Handle t = g_calls.net_target ? g_calls.net_target(target) : nullptr) {
       w->lock_flag = 1;
-      w->lock_target = g_calls.target_key ? g_calls.target_key(t) : nullptr;
-      w->lock_id = g_calls.entity_id ? g_calls.entity_id(t) : 0;
-      w->lock_x10 = g_calls.target_x10 ? g_calls.target_x10(t) : 0;
-      set_lock_globals(&w->lock_flag, &w->lock_target);
+      w->lock.entity = g_calls.target_key ? g_calls.target_key(t) : nullptr;
+      w->lock.at = g_calls.target_position ? g_calls.target_position(t) : nullptr;
+      w->lock.velocity = g_calls.target_velocity ? g_calls.target_velocity(t) : nullptr;
+      set_lock_globals(&w->lock_flag, &w->lock);
     }
   }
   return w->aim_and_fire(&aim, true);
@@ -1162,11 +1162,11 @@ bool Weapon::lock_on(Handle tgt, bool* f) {
     if (g_calls.lock_notice) g_calls.lock_notice(tm, manager->vehicle, def);
     if (g_calls.ecm_count && g_calls.ecm_count(tm) > 0) ecm = true;
   }
-  lock_target = tgt;
-  lock_id = g_calls.entity_id ? g_calls.entity_id(tgt) : 0;
-  lock_x10 = g_calls.target_x10 ? g_calls.target_x10(tgt) : 0;
+  lock.entity = tgt;
+  lock.at = g_calls.target_position ? g_calls.target_position(tgt) : nullptr;
+  lock.velocity = g_calls.target_velocity ? g_calls.target_velocity(tgt) : nullptr;
   lock_flag = 1;
-  set_lock_globals(&lock_flag, &lock_target);
+  set_lock_globals(&lock_flag, &lock);
   if (!ecm && *f) {
     zwep::fire_state().track_scale[0] = 2.0f;
     zwep::fire_state().track_scale[1] = 2.0f;

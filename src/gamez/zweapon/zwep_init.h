@@ -18,7 +18,7 @@ using Handle = void*;  // an object of a system not ported yet (sound, animation
 struct Effect {
   uint32_t flags = 0;                   // +0x00  bit 0 RANDOM_ROTATE, bit 1 ANIMATION's second value
   Handle animation = nullptr;           // +0x04
-  uint32_t x08 = 0;                     // +0x08
+  Handle animation2 = nullptr;          // +0x08  the second animation choice (0x00581f90): never read in
   Handle animation_attached = nullptr;  // +0x0c
   Handle model_animation = nullptr;     // +0x10
   Handle surface_animation = nullptr;   // +0x14
@@ -98,12 +98,12 @@ struct WeaponDef {             // 0x1f4
   float lock_on_lead_min = 0;          // +0x070
   float lock_on_lead_max = 0;          // +0x074
   float lock_on_lead_span = 0;         // +0x078  1 / (max - min)
-  uint32_t x7c = 0;                    // +0x07c
+  Projectile* active = nullptr;        // +0x07c  its shots in flight (beams: its Beams)
   float flyout_health = 0;             // +0x080  -1 without FLYOUT_HEALTH
   Effect fire;                         // +0x084
   Effect flyout;                       // +0x0e0
   Effect* impacts = nullptr;           // +0x13c  one per soil kind
-  uint32_t x140 = 0;                   // +0x140  a list of nodes freed by 0x005847c0
+  Handle model_pool = nullptr;         // +0x140  spare copies of the FLYOUT model, linked through node +0x40
   int32_t damage_anim_count = 0;       // +0x144
   struct { float health; Handle anim; } damage_anims[4] = {};  // +0x148
   Handle destroy_animation = nullptr;  // +0x168
@@ -123,6 +123,13 @@ struct Vec3f3 {
   float x, y, z;
 };
 
+// What a lock hands the shot: three dwords the projectile copies to +0x6c.
+struct LockRef {
+  Handle entity = nullptr;             // the target (its vt+0x24)
+  const Vec3f3* at = nullptr;          // its position (0x005a8630)
+  const Vec3f3* velocity = nullptr;    // its velocity (vt+0x0c)
+};
+
 // What a shot hit, 0x28 bytes (docs/weapons.md, "Hits"); the Collision that
 // Mech::TakeDamage reads.
 struct HitRecord {
@@ -134,29 +141,57 @@ struct HitRecord {
   Handle node = nullptr;       // +0x24  the node hit
 };
 
-// A shot in flight, 0x5d8 bytes (zwep run time, not ported yet): the pool is
-// sized at load and kept on a free list. The fields the game half reads.
+// What a query found: the exe's 0x504-byte buffer, a count byte then
+// 0x28-byte records (31 fit). The segment query 0x004eed90 and the sphere
+// query 0x004f0ac0 write the count in byte 0; the nearest-hit query 0x004eece0
+// moves it to byte 1 and puts the nearest record's index in byte 0, which is
+// what the hit pick 0x00583130 reads.
+struct HitList {
+  uint8_t count = 0;           // +0  the count, or the nearest record's index
+  uint8_t total = 0;           // +1  the count, after 0x004eece0
+  HitRecord rec[31];           // +4
+};
+
+// A shot in flight, 0x5d8 bytes (docs/weapons.md, "Projectile"): the pool is
+// sized at load and kept on a free list.
 struct Projectile {
   Projectile* next = nullptr;  // +0x000  the free list, then the weapon's active list
   Handle owner = nullptr;      // +0x004  the shooter's node
+  uint32_t zone = 0;           // +0x008  the shooter's zone set; low byte 4: none (only that byte is written)
   Handle node = nullptr;       // +0x00c  its scene node
+  Handle flyout_anim = nullptr;      // +0x010  FLYOUT ANIMATION, following the node
+  Handle flyout_attached = nullptr;  // +0x014  FLYOUT ANIMATION_ATTACHED
+  Handle model_anim = nullptr;       // +0x018  FLYOUT MODEL_ANIMATION on the pooled model
+  Handle model = nullptr;            // +0x01c  the pooled copy of the FLYOUT model
   int32_t state = 0;           // +0x020  1 flying, 0 to remove, 2 a dormant mine
+  Vec3f3 spawn_at{};           // +0x024
   Vec3f3 base_velocity{};      // +0x030  the shooter's, kept for a locked shot
   Vec3f3 direction{};          // +0x03c  unit
   Vec3f3 position{};           // +0x048
+  Vec3f3 next_position{};      // +0x054  where this frame's move ends
   Vec3f3 velocity{};           // +0x060
   Handle lock_entity = nullptr;           // +0x06c
   const Vec3f3* target_at = nullptr;      // +0x070  the lock's position
   const Vec3f3* target_velocity = nullptr;  // +0x074
+  int32_t static_hits = 0;     // +0x078  1: the static world on its path was cast at the spawn
+  uint32_t static_frame = 0;   // +0x07c  the frame of that cast ([0x0072f338])
+  HitList statics;             // +0x080  what it found, nearest first (mostly: docs/weapons.md)
+  int32_t static_next = 0;     // +0x584  the next static record to reach
   float homing_time = 0;       // +0x588
   float speed = 0;             // +0x58c
   float max_speed = 0;         // +0x590
+  uint32_t x594 = 0;           // +0x594
   Vec3f3 deviation{};          // +0x598  RANDOM_DEVIATION's drift
   Vec3f3 drift{};              // +0x5a4  the drift so far, held within +-1 (y +-0.75)
   float travelled = 0;         // +0x5b0
   float age = 0;               // +0x5b4
   float health = -1;           // +0x5b8  FLYOUT_HEALTH, -1 none
   float damage_scale = 1;      // +0x5bc  FireState::damage_scale at the shot
+  float track_scale[2] = {1, 1};  // +0x5c0  FireState::track_scale ([1] read by nothing)
+  int32_t terrain_follow = 0;  // +0x5c8  FireState::terrain_follow (FCS)
+  int32_t net_id = 0;          // +0x5cc  spawn's fifth argument
+  void (*tick)(Projectile* p) = nullptr;  // +0x5d0  run each frame (the radar's), ECX the shot
+  uintptr_t tick_arg = 0;      // +0x5d4
 };
 
 // The zWeapon globals the reader fills.

@@ -65,9 +65,7 @@ struct WeaponType {
   // The airstrike's lock (0x004afed0): the missiles home on strike_point.
   zwep::Vec3f3 strike_point{};       // +0xa4
   int32_t strike_flag = 1;           // +0xb0  zWeapon's lock flag
-  zwep::Handle strike_target = nullptr;     // +0xb4  the lock: no entity,
-  zwep::Vec3f3* strike_at = nullptr;        // +0xb8  this point,
-  zwep::Vec3f3* strike_velocity = nullptr;  // +0xbc  standing still
+  zwep::LockRef strike_lock;         // +0xb4  the lock: no entity, strike_point, standing still
   float lrm_flight = 0;              // +0xc0  LRMs: time to fly 70% of the range
   float ready_at = 0;                // +0xc4  the AI fires this type again from then (0x004b4c70)
 
@@ -144,9 +142,7 @@ struct WeaponGroup {                   // 0x54 bytes, ctor 0x004b1d80
 // A mounted weapon (vtable 0x005c9088): projectiles. BeamWeapon overrides.
 struct Weapon {
   int32_t lock_flag = 0;               // +0x04  1 once locked (its address goes to zWeapon)
-  Handle lock_target = nullptr;        // +0x08
-  int32_t lock_id = 0;                 // +0x0c
-  int32_t lock_x10 = 0;                // +0x10
+  zwep::LockRef lock;                  // +0x08  target (vt+0x24), its position (0x005a8630) and velocity (vt+0x0c)
   Handle projectile_target = nullptr;  // +0x14
   float rating = 0;                    // +0x18  damage a second, salvos not counted (docs/weapons.md)
   int32_t slot = 0;                    // +0x1c  its index on the manager
@@ -340,10 +336,10 @@ struct WeaponCalls {
   Handle (*target_mech)(Handle target) = nullptr;             // vt+0x2c then vt+0x50
   void (*lock_notice)(Handle mech, Handle vehicle, WeaponDef* def) = nullptr;  // 0x0041abd0
   int32_t (*ecm_count)(Handle mech) = nullptr;                // +0x3cc
-  int32_t (*entity_id)(Handle target) = nullptr;              // 0x005a8630
+  const zwep::Vec3f3* (*target_position)(Handle target) = nullptr;  // 0x005a8630
   Handle (*target_key)(Handle target) = nullptr;              // vt+0x24: what a lock remembers
   Handle (*net_target)(Handle id) = nullptr;                  // the mission player, or the list at 0x00605f84 by +0x6fc
-  int32_t (*target_x10)(Handle target) = nullptr;             // vt+0x0c
+  const zwep::Vec3f3* (*target_velocity)(Handle target) = nullptr;  // vt+0x0c
   int32_t (*node_position)(Handle node, Vec3f* out) = nullptr;  // 0x004ed650: nonzero = no position
   const Vec3f* (*node_axis)(Handle node) = nullptr;           // node +0x38 +0x78: the facing
   float (*normalize)(Vec3f* v, Vec3f* out) = nullptr;         // 0x0051e3d0, returns |v|

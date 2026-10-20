@@ -204,7 +204,10 @@ uint32_t impact(WeaponDef* def, HitRecord* rec, Projectile* p, Handle anim) {
     if (g_hh.quicksand) g_hh.quicksand(def, g_hit.killed_at, soil_of(g_hit.killed_at->material), p);
     return r;
   }
-  if (!(flags & 1) && g_hh.sound) g_hh.sound(def, rec, soil, 1.0f);
+  if (!(flags & 1)) {
+    if (g_hh.sound) g_hh.sound(def, rec, soil, 1.0f);
+    else sound(def, rec, soil, 1.0f);  // 0x00582f60 (zwep_shot.cpp)
+  }
   if (!skip) {
     if (!(flags & 4) && r == 0) {
       if (Handle a = def->impacts[soil].animation) play_at(anim ? anim : a, rec->point);
@@ -233,7 +236,7 @@ int32_t splash_query(WeaponDef* def, Projectile* p, int32_t flag, HitList* out) 
     toggled = true;
     if (g_hh.set_intersect) g_hh.set_intersect(node, 0);
   }
-  int32_t n = g_hh.query ? g_hh.query(node, &p->position, def->impact_proximity * p->damage_scale, out) : 1;
+  int32_t n = g_hh.query ? g_hh.query(state().world, &p->position, def->impact_proximity * p->damage_scale, out) : 1;
   if (toggled && g_hh.set_intersect) g_hh.set_intersect(node, 1);
   // Only the shooter in range: no splash (both callers pass flag 1, so dead).
   if (flag == 0 && out->count == 1 && out->rec[0].node == p->owner) n = 1;
@@ -312,7 +315,7 @@ void air_burst(WeaponDef* def, Projectile* p) {
 }
 
 // Mech3.exe 1.2 @ 0x00581f60
-void set_lock(int32_t* flag, Handle* target) {
+void set_lock(int32_t* flag, const LockRef* target) {
   g_fire.lock_flag = flag;
   g_fire.lock_target = target;
 }

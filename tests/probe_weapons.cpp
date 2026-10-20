@@ -76,7 +76,7 @@ void put(uint8_t* b, int off, T v) { std::memcpy(b + off, &v, sizeof v); }
 void put_effect(uint8_t* b, const zwep::Effect& e) {
   put(b, 0x00, e.flags);
   put(b, 0x04, u(e.animation));
-  put(b, 0x08, e.x08);
+  put(b, 0x08, u(e.animation2));
   put(b, 0x0c, u(e.animation_attached));
   put(b, 0x10, u(e.model_animation));
   put(b, 0x14, u(e.surface_animation));
@@ -189,11 +189,11 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
   put(def, 0x070, d.lock_on_lead_min);
   put(def, 0x074, d.lock_on_lead_max);
   put(def, 0x078, d.lock_on_lead_span);
-  put(def, 0x07c, d.x7c);
+  put(def, 0x07c, u(d.active));
   put(def, 0x080, d.flyout_health);
   put_effect(def + 0x84, d.fire);
   put_effect(def + 0xe0, d.flyout);
-  put(def, 0x140, d.x140);
+  put(def, 0x140, u(d.model_pool));
   put(def, 0x144, d.damage_anim_count);
   for (int k = 0; k < 4; ++k) {
     put(def, 0x148 + 8 * k, d.damage_anims[k].health);
@@ -254,8 +254,8 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
     put(type, 0x9c, t->fire_time);
     put(type, 0xa0, def_token(t->strike_weapon));
     put(type, 0xb0, t->strike_flag);
-    put(type, 0xb8, static_cast<uint32_t>(t->strike_at == &t->strike_point));
-    put(type, 0xbc, u(t->strike_velocity));
+    put(type, 0xb8, static_cast<uint32_t>(t->strike_lock.at == &t->strike_point));
+    put(type, 0xbc, u(t->strike_lock.velocity));
     put(type, 0xc0, t->lrm_flight);
     put(type, 0xc4, t->ready_at);
   }

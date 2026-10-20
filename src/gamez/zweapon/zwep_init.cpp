@@ -323,7 +323,10 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
       if (!(d->flags & kBeam)) pool_count += 1 + crt::msvc_ftol(d->range / d->velocity / d->period);
     }
   }
-  s.pool.assign(static_cast<size_t>(pool_count), Projectile{});
+  Projectile blank;  // calloc'd in the original: every field 0
+  blank.health = blank.damage_scale = 0;
+  blank.track_scale[0] = blank.track_scale[1] = 0;
+  s.pool.assign(static_cast<size_t>(pool_count), blank);
   s.free_list = nullptr;
   for (Projectile& p : s.pool) {
     p.next = s.free_list;
