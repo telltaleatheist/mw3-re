@@ -2,9 +2,10 @@
 
 Mech3.exe 1.2, 2026-10-20. The map of the AI code in the game half
 (0x4b4880..0x4eada0), the data files it reads, how one AI tick runs, and a
-porting order. The data side and the nets at run time are ported and
-emulator-checked (sections 5, 8); the brain, the behaviours, targeting and
-the valves' actions are not.
+porting order. The data side, the nets at run time, the AI controls
+with the brain's data and the valves at run time are ported and
+emulator-checked (sections 5, 8, 12, 13); the brain's decisions, the
+behaviours and targeting are not.
 
 Names are ours unless an assert string gives them (`CZAiNetEdit`,
 `CFileDialogNet`, the five source paths). "Likely" marks a reading of what the
@@ -204,11 +205,13 @@ ported lookup (section 8) on both sides.
 | net files | 0x4da570, 0x4da8e0, 0x4da840, 0x4da060, 0x4da0d0, 0x4da900, 0x4dac70, 0x4db850, 0x4dae40, 0x4db140, 0x4daee0, 0x4db1b0, 0x4de730, 0x4dc690, 0x4de830, 0x4de010, 0x4de090, 0x4d5280; header 0x4bcb50, 0x4bca20, 0x4bca40, 0x4bca90 | `mech3/zrdrainet` |
 | net record | 0x4c5fb0, 0x4c6050, 0x4c63a0, 0x4c62d0, 0x4c6bd0, 0x4d44b0, 0x4d45c0 | `mech3/zainet_node` |
 | valves registry | 0x4d3b20, 0x4d3b80, 0x4d3c40, 0x4d3e50, 0x4e4460 | `mech3/zai_valve` |
+| valves at run time (section 13) | 0x4d3c00, 0x4d3bf0, 0x4d3d20, 0x4d3d30, 0x4d3ef0, 0x4d3fa0, 0x4d3fd0, 0x4d4080, 0x4d41a0, 0x4d41e0, 0x4d4310, 0x4d4320, 0x4d4480; valves.zrd 0x4e1cb0, 0x4e5290, 0x4e5e30, 0x4e2190, 0x4e1d70, 0x4e2330, 0x4e2120, 0x4e1d00, 0x4e20d0, 0x4e1f10, 0x4e2fb0, 0x4e44b0; the actions 0x4e2ff0, 0x4e3040, 0x4e3070, 0x4e30b0, 0x4e30f0, 0x4e3120, 0x4e3150, 0x4e3180, 0x4e3230, 0x4e31c0, 0x4e3200, 0x4e3350, 0x4e3310, 0x4e3330, 0x4e3500, 0x4e33c0, 0x4e34b0, 0x4e36a0, 0x4e3560, 0x4e3650, 0x4e3870, 0x4e3700, 0x4e37f0, 0x4e3a30, 0x4e38d0, 0x4e39c0, 0x4e3cc0, 0x4e3a90, 0x4e3ba0, 0x4e3da0, 0x4e3d20, 0x4e3e00, 0x4e3d70, 0x4e3d90, 0x4e4020, 0x4e3f50, 0x4e3fb0, 0x4e3e60, 0x4e3f10; the conditions 0x4e40e0, 0x4e4d20, 0x4e4df0, 0x4e4ec0, 0x4e4f90, 0x4e4360, 0x4e43b0, 0x4e4400, 0x4e4430, 0x4e4080, 0x4e5080; the brain's switches 0x4d9c20..0x4d9ca0 | `mech3/zai_valve`, `mech3/zrdrvalve` |
 | AiParams | 0x4d98c0, 0x4d99e0, 0x4d9a50, 0x4d9ac0, 0x4d9b20, 0x4d9b70, 0x4d8d30, 0x4d8e20, 0x4d8e40, 0x4d5af0, 0x4d5b10 | `mech3/zai_params` |
 | aiv.zrd | 0x4df620, 0x4ded70, 0x4df5f0, 0x4def10, 0x4e0490, 0x4e04f0, 0x4e0600, 0x4e0680, 0x4df730 | `mech3/zrdraiv` |
 | targets / traps | 0x4e0720, 0x4e0820, 0x4e0740, 0x4e07d0, 0x4e07e0, 0x4e08c0, 0x4e0890 | `mech3/zrdraiv` |
 | reader getters | 0x556fe0, 0x557030, 0x556e90 | `gamez/zreader` |
 | mech by name | 0x4845f0 | `mech3/mech_names` mech_index |
+| AI controls and the brain's data (section 12) | 0x49fe90, 0x49ff10 (player.cpp), 0x4d8750, 0x4d8670, 0x4265a0, 0x4e71c0, 0x4e7090, 0x4ac750, 0x4ac740, 0x4a4af0, 0x4a4a70, 0x4a4000, 0x4a3fc0, 0x4cf330, 0x4d9bf0, 0x4d9940, 0x4d8fe0, 0x4b6570, 0x4b6390, 0x4b7060, 0x4b6660, 0x4e82a0, 0x4e8180, 0x4e8070, 0x4e8030, 0x4e7f80, 0x4ce200, 0x4e8090, 0x4cd770, 0x4c9d00, 0x4ce620, 0x4e9380, 0x4e9d80, 0x4e9d90, 0x4c0070, 0x4c0010, 0x4c0520, 0x4c0540, 0x4bffe0, 0x4cbe30, 0x4cbe50, 0x4c8660, 0x4e7e20, 0x4e7c40, 0x4e7dc0; the destructors 0x4d8bf0, 0x4d8c00, 0x4d8c40, 0x4e7820, 0x4e7830, 0x4e7870, 0x4cf630, 0x4e7df0, 0x4e7ff0, 0x4b65f0 | `mech3/mech_control` AiControls, `mech3/zai_brain` |
 
 Hooks (`RdrHooks`): the loose-file search (0x556240; none, FIX (A)),
 localize, zSound's lookup. The region lookup 0x4c5c00 is the port's
@@ -245,17 +248,19 @@ Clean boundaries for later work, each a piece with its own test:
    (0x604008, the seven-behaviour net 0x4c0090) and the 105/107 versions.
 3. **Net queries**: done (section 10), the nearest step and the way
    finder. What the steps do when a pilot reaches them is step 6.
-4. **Valves** at run time (ZRdrValve.cpp 0x4e2330 reader and the action and
-   condition classes): the registry is ported; actions call into sound,
-   animation, mission end and entities through a hooks struct.
+4. **Valves** at run time: done (section 13), the reader, the conditions,
+   every action, the timers. Left: the missions' update that ticks the
+   timers (0x48f470) and the cleanup that ends them (0x491780), both in
+   mission.cpp.
 5. **Targeting**: AiTarget (0x4d56e0) masks and height, the contact list
    (0x4ceb50, +0xac vector), the pick 0x4d6b90, CZAiTarget 0x4d2960 from the
    ported TargetRec. Meets the vehicles through their AiTarget fields only.
 6. **The behaviours** (0x4c8600 family, ~40 classes with factories): one
    class per sitting, each against the net queries and a vehicle hooks struct.
-7. **The brain** 0x4e9710 and the AI controls 0x4e96f0 / 0x4d8750, then the
+7. **The brain** 0x4e9710 and the AI controls' update 0x4e96f0, then the
    firing state machine 0x4b5b80 (meets weapon.cpp through the manager, which
-   another agent owns), the lancemate radio 0x4e7c40 and orders 0x4ea000...
+   another agent owns), the lancemate radio's lines and orders 0x4ea000...
+   The controls' constructors and the brain's data are done (section 12).
 
 ## 7. Tests and breaks
 
@@ -581,6 +586,273 @@ segment from the vehicle to the destination with the lines (0x4c1410,
 the boundary. It reads the world's nodes and models (zModel polygons with
 their material colours, the node matrix 0x4c3520), so it belongs with the
 world's port; the next piece to take for the AI's movement.
+
+## 12. The AI controls and the brain's data
+
+Ported 2026-10-20 (`mech3/mech_control` AiControls, `mech3/zai_brain`); test
+`tests/differential/test_ai_brain.py`. Only what
+the constructors set up: what the brain decides each frame (0x4e9710), the
+behaviours and the firing are not ported.
+
+**Who makes them.** player.cpp's AI mechs (0x49fa20 -> 0x49fe90:
+`new(0x320)`, 0x4d8750(owner 0, net, record, 1)), the campaign's lancemates
+at launch (0x49e5e0, the second caller 0x49e208) and the AI-driven vehicles
+(0x49f800 -> 0x49ff10: 0x4ac860(0xcd8), malloc and zeroed, 0x4e71c0). The
+net is the vehicle's compiled net (mission-start.md section 3).
+
+**The mech's** (0x320 bytes): MechControls 0x4265a0 with most-derived 0
+(view state 2, ThrottleConst off, the hat at 1, every axis 0; +0x40 and
++0x5b left as the heap had them), the brain on +0x5c (a base class, vtable
+0x5cd2c8), the IControls virtual base at +0x30c (vtable 0x5cd210, owner
++0x31c, the owner the mech's constructor sets through vt+0x08). Its
+vt+0x04 is the brain's set-net 0x4e9380, vt+0x0c the update 0x4e96f0,
+vt+0x88 the settings' assignment 0x4d99e0 (the launch gives the controls
+their record so), vt+0x90 the brain itself (player.cpp holds its +0x88 at
+1 for the power-down's update).
+
+**The vehicle's** (0xcd8): the basic vehicle controls 0x4ac750 (veh_basic.cpp:
+its +0x764 block holds at +0x28 a pointer to turret limits at +0x2c,
+0x4a4a70: the sines and cosines of -pi/2 and pi/2; the -pi and pi it is
+also given are not kept), the brain on +0xa04, +0xcb0 a zero vector,
++0xcbc 0, +0x38 2, the IControls base at +0xcc4 (owner +0xcd4). Every other
+byte stays 0 from the allocation.
+
+**The brain** (0x4cf330, 0x2ac bytes; offsets the brain's):
+
+| Off | What |
+|---|---|
+| +0x00 | the record's settings copied (AiParams, 0x4d9bf0 -> 0x4d9940: the 0xcc bytes, the orders' list copied, an empty one as none, the pilot and voice strdup'd), +0xdc FLT_MAX |
+| +0xe0 | the virtual base pointer |
+| +0xe4..+0x104 | 0, FLT_MAX, 1.0, 0, FLT_MAX, byte 0, 0, 0 (+0x100 the fire timer), byte 0 (+0x104 the order's run-again flag; section 4) |
+| +0x108 | the firing state (0x4b6570, 0x58 bytes): 11 words from 0x5e8868 (8, then zeros), +0x2c the brain (0x4b6660, which also calls the brain's IControls vt+0x10(0): nothing then), +0x34 a fire plan (0x4b6390, vtable 0x5c9458), +0x54 the aim (`new(0x24)`, 0x4b7060: zero, (1, 0, 0), 0, 0, 1.0) |
+| +0x160 | the order stack, a `std::deque` of 0x98-byte orders (blocks of 26, 0xf70 bytes); +0x190 its owner, the brain; the last order is the current one (+0x17c) |
+| +0x194 | an order of the brain's own (0x4e8180, vtable 0x5cd8e8), its owner the brain |
+| +0x22c..+0x23c | byte 2, then four words 0 (+0x238 and +0x23c objects the destructor deletes; nothing here sets them) |
+| +0x240 | a step (0x4cd770 over 0x4c9d00: vtable 0x5cc290, +0x0c the null step 0x603fa0; the base clears only bit 0 of +0x04) |
+| +0x250 | steering (0x4ce620, 0x48 bytes, likely: 0x4ce6a0 tests a distance against +0x34): zeros, +0x34 20.0, +0x38 [0x60b4a0] = cos(pi/4) (start-up 0x4ce5b0); [0x60b4b8] / [0x60b4bc], read into +0x0c, +0x10, +0x2c, +0x30, are never written (0) |
+| +0x298..+0x2a8 | a zero vector, byte 0, the radio |
+
+Then: without a net, znet's object of the record's first item (0x58b160,
+vt+0x28, vt+0x34), else **the built-in net** at 0x604008 (made at start-up
+by 0x4c0310 over the seven-behaviour net, not ported: the port has none,
+so a pilot whose net is missing gets no order; player.cpp never asks for
+one without a net). Then **the first order** (0x4e9380): the net as
+compiled (vt+0x34; not compiled: nothing more, no order at all), every order
+popped (none at first; each destroyed in place, a block freed as it empties,
+the map with the last), and one pushed (0x4e9d90: an empty deque takes a
+block and a map of two, `new(0xf70)` then `new(8)`, the order in the
+block's middle; the order is 0x4e8070's default, whose template argument
+is unused, then +0x14..+0x2f copied from the template at 0x60b898, or from
+the last order when there is one, and the brain its owner). In it the net
+builds its part at +0x30 (vt+0x5c: 0x4c0070 for a compiled net, vtable
+0x5ca748, 0x4c0520 for the built-in one, 0x5cab50; the order and the net)
+and the shared behaviour at 0x60b460 (class 0x4cbe10, made at start-up)
+its state at +0x54 (vt+0x8c, 0x4cbe30: vtable 0x5cbed0, the order);
++0x0c and +0x10 point at them.
+
+**The radio** (0x4e7e20, `new(0x40)`, 0x4e7c40): for a pilot with a voice
+(aiv.zrd `sound_tag`, set by default for the three lancemates by name),
+sixteen zSound lookups of `<voice>_<event>` (0x4e7dc0: call_help,
+last_shot, confirm_order, confirm_refit, disregard_order, disengages_order,
+ejecting, engaging, friendly_fire, low_ammo, out_of_ammo, nuke, follow,
+stop, repairs, objective), kept as handles. Only when the player's vehicle
+([0x60861c] +0x14) counts the pilot's teams (5 bits at a time, as the team
+masks) among its allies, or when there is no player's vehicle. At mission
+start there never is (the cleanup 0x491780 clears it, the launch sets it),
+so every voiced pilot made then gets a radio, enemies too; the lancemates
+made at launch (0x49e5e0) are checked against the player's mech.
+
+**Destruction** (IControls slot 0 with 1: 0x4d8bf0 / 0x4e7820): the brain's
+destructor 0x4cf630 (the objects at +0x23c and +0x238, the radio, the
+orders first to last with the block and the map, the firing state's
+0x4b65f0: +0x14 unless it is +0x30, +0x30, +0x50 and the aim, then the
+settings), for the vehicle then the basic controls' 0x4ac800 (the owner's
+vt+0xec and 0x402510 on its answer), then the block (`delete`, the
+vehicle's 0x4ac890).
+
+**Fixes** (fixes.md): the radio's names are built with `sprintf` into 32
+bytes, so a voice of 15 or more characters overruns the frame (the shipped
+are 3 to 5): cut to fit, FIX (bug). The vehicle controls' destructor reads
+through its owner, which a vehicle that failed to build never set
+(mission-start.md section 5: a crash): asked only when there is one, FIX
+(bug).
+
+**The test** (`test_ai_brain.py`, probe `tests/probe_ai_brain.cpp`): every
+aiv.zrd record of the 48 archives (768, mech and vehicle controls in turn)
+read by the ported reader, then 600 crafted (random words, first items,
+teams packed and odd, voices of 0 to 14 characters or none, pilots, order
+lists of 0 to 4 random entries or none); the vehicle's net compiled, not
+compiled or none, znet answering a compiled net, the net base or nothing;
+no pilot, a pilot without a vehicle, or a vehicle with assorted allies; an
+owner or none (the vehicle without one is not deleted). The original runs
+first (x87 at 53 bits, the start-up's cos(pi/4) and the shared behaviour
+made by their own code, the built-in net's vtable put in place), every call
+out stubbed; the port then on a Replay of its answers. Compared: the call
+traces (`new` and `delete` with their blocks, znet, the sixteen sounds, the
+owner's calls; the settings' list copies and strings apart), every block
+the original allocated as the port's object laid out byte by byte (the
+step's +0x04 as its bit), the settings' copies (the list walked, the
+strings as text), nothing written outside the blocks: 1368 of 1368, 13,595
+calls and 5478 blocks identical. Breaking the port showed the test catches
+it, 20 of 20: +0xec 0, the firing defaults moved, the steering's 20 as 10,
+a radio for every team, two radio events swapped, the map before the block,
+the built-in net's part as a compiled one's, any net taking an order, znet
+not asked, the turret limits swapped, view state 0, the vehicle's +0x38 0,
+the map freed before the block, one team per value for the radio, the
+brain's own order without its owner, the aim's (0, 1, 0), the vehicle's
+destructor not asking its owner, the order without its owner, the
+settings' copy without its orders, a radio without a voice.
+
+**In the program** (`app_mission.cpp`): player.cpp's hooks make the port's
+controllers over the vehicle's compiled net and record, and the AI mechs on
+them through the ported constructor chain (mech-build.md); the placement
+0x4161c0 is not ported (the mech stays where its constructor left it, the
+exe's always succeeds), the power-down runs `Mech::power`, the brain's +0x88
+is the brain's settings. The vehicles themselves are not ported, so their
+controllers are made and deleted. `mw3tests`
+`mission_start_reads_c1m1_vehicles_headless` checks c1 mission 1's AI mech:
+owens_01, an Owens (11 parts: its model has no hands) on team 2, powered
+down, its brain's settings, one order on net 4 with the net's part and the
+shared behaviour's state, no radio (no voice).
+
+## 13. Valves at run time
+
+Ported 2026-10-20 (`mech3/zai_valve`, `mech3/zrdrvalve`); test
+`tests/differential/test_ai_valves.py`.
+
+**A valve** (0x4d3b20) is a name, a value holder and its reactions. The
+holder (0x4e4460, vtable 0x5cd558) keeps a number: get vt+0x04, set vt+0x08,
+vt+0x0c says valves.zrd may replace it. Setting a valve (0x4d3c00) stores
+the value and fires its reactions (0x4d3bf0) only when it changes, and
+gives back the old one. The reactions sit in one slot (+0x08): the first
+alone, the second turns it into a list of both (0x4d3fd0, vtable 0x5ccd70),
+later ones join the list (0x4d4320); firing a list fires each in order
+(0x4d41a0). Every reaction's vtable: +0x00 the deleting dtor, +0x04 tick,
++0x08 fire, +0x0c the list cast.
+
+**valves.zrd** (one file object at 0x60b668, 0x4e5290 over the reader-file
+base, read at the mission setup by 0x4e2120: a reference held while every
+record is built). A record is `"valve" (tag (args) tag (args) ...)`; a
+valve may have several records (c1 mission 1's `bramp` has four), each
+adding to it. The record (0x4e2330 into the 0xc8-byte block at the file's
++0x2c, 0x4e2190) reads, all lists of raw words, names strdup'd: `value`
+(n), `sound` / `sound_once` (name n), `animation` / `animation_once`,
+`scan_aim` / `scan_hit` / `scan_time` / `canleave` (vehicle on n),
+`shutdown` (vehicle down n), `missionreset` / `missionabort` /
+`missioncomplete` (n), `destroy` (entity n), `setteam` (entity team n),
+`attack_strategy` (entity strategy n), `update` (valve), `delayupdate`
+(valve seconds), `any_nonzero` / `any_zero` / `all_nonzero` / `all_zero`
+(any value: the shipped files give the string `namelist`, so the next
+`namelist` found is the list of names), `teleport` (entity (x y z) yaw n).
+The tag lookup searches nested lists (as every reader file's), and the
+second of a pair wins (`sound_once` after `sound`).
+
+**The build** (0x4e44b0): the valve found or made (0x4d3c40); a condition
+tag needs a non-empty namelist ("Expected non empty namelist"), a namelist
+without one is reported ("Expected no namelist") and ignored; a valve that
+already holds a condition cannot take another ("Conflicting definition":
+the record is dropped). The condition replaces the holder; then `value`
+sets the holder directly (no reactions fire), then the actions are added in
+a fixed order: sound, animation, the four scans, shutdown, destroy,
+setteam, attack_strategy, teleport, missionreset (only reported: "Failed to
+create mission reset", nothing is made), missionabort, missioncomplete,
+update, delayupdate. Reports go to 0x49bfd0, empty in the release build.
+
+**The conditions** (0x14 bytes over 0x4e40e0): the namelist's valves found
+or made (a name that is no string is dropped with a report), each given an
+update reaction of the condition's valve (0x4e4080), so a change of any
+member fires the condition's reactions. The value is computed on each get:
+any nonzero, any zero, all nonzero, all zero (vtables 0x5cd568, 0x5cd578,
+0x5cd588, 0x5cd598); a set is ignored, but the set still fires the
+reactions when the computed value differs from the one asked.
+
+**The actions** (each fires when its valve's value equals its own, but the
+two updates):
+
+| Tag | Made by | Fires |
+|---|---|---|
+| sound | 0x4e2ff0: zSound's lookup of the name (0x56f6f0) | 0x4e3040: plays it (0x56e7e0, volume 1); `sound_once` (0x4e30b0) only the first time |
+| animation | 0x4e30f0: the mission's animation by name (0x50b450) | 0x4e3120: runs it (0x508c10); `_once` the first time |
+| scan_aim, scan_hit, scan_time, canleave | 0x4e3230: the named vehicle's brain (0x4d7330, vt+0x40, vt+0x140, IControls vt+0x54) found as the mission starts | 0x4e3200: the brain's switch on or off by the record's flag: +0x98, +0x9c, +0xa0 (aiv.zrd p8's 14th..16th items), canleave +0x3c (params' second item) with +0xdc FLT_MAX (0x4d9c20..0x4d9ca0, the same functions the compiled nets' scan steps name) |
+| shutdown | 0x4e3560 | 0x4e3650: a mech of that name powered down or up (0x41cc30, the record's second item) |
+| destroy | 0x4e33c0 | 0x4e34b0: a mech destroyed (0x41cfa0(1)), anything else through its vt+0x70 |
+| setteam | 0x4e3700 | 0x4e37f0: the entity's AiTarget masks from the team, as the mission start sets them |
+| attack_strategy | 0x4e38d0 | 0x4e39c0: the vehicle's brain +0x40 (aiv.zrd p2's first item) |
+| teleport | 0x4e3a90 | 0x4e3ba0: zEntity's vehicle (0x5a8210) placed at (x y z) and yaw (vt+0xdc), its controls given the brain's current order's net again (IControls vt+0x04, section 12), so it plans its way from there |
+| missionabort | 0x4e3310(0x48f730) | the missions' abort (0x48f9e0) |
+| missioncomplete | 0x4e3310(0x48f710) | 0x48f710 is empty (a report): nothing happens |
+| update | 0x4e3d20 | 0x4e3d90: the named valve's reactions fire, whatever the value |
+| delayupdate | 0x4e3f50 | 0x4e3fb0, on any change: a timer (0x4e3e60) that sets the named valve to this valve's value then, the delay after the game time [0x60991c] |
+
+**Timers** (the slot 0x60b514, one or a list): the missions' update
+(0x48f470) calls 0x4d3d30 every frame; a timer whose time is past (0x4e3f10:
+time < now) sets its valve, deletes itself and leaves the list (0x4d41e0,
+which visits a timer added meanwhile too; an emptied list deletes itself).
+A **lone timer** whose valve's reactions start another delayed update is
+turned, as it runs, into a list of itself and the new timer; 0x4d3d30 then
+clears the slot, so the new timer (and every other one the same update
+starts) is lost. FIX (bug), behind `zfix bugs`: the list stays. Two shipped
+chains can reach it: c3 mission 2's `ambush_powerup_down_a` (1 s) starts
+three 10 s timers for the radio lines `ig3214`, `ig3215`, `ig3205`, and c3
+mission 3's `m3n2go`; whether the lines are lost depends on whether another
+delayed update was waiting then. At mission end (0x4d3fa0, from the cleanup
+0x491780) the timers are deleted and every valve with them (0x4d3ef0).
+
+**In the shipped files** (46 of 48 missions have one, 1512 records): sound
+537, delayupdate 294, attack_strategy 236, sound_once 229, shutdown 185,
+any_nonzero 68 and all_nonzero 69 (all_zero 2), teleport 5, destroy 4. No
+mission uses scans, canleave, animations, setteam, update or the mission
+tags. c3 mission 3 keeps a dead record, `:m3n2go_delay` (a colon in its
+name, `:` around a shutdown of avatar_02, a mech the mission does not
+have: a second Avatar taken out, likely). Every shutdown in
+the shipped files has the power flag 0: it **wakes** a mech (the AI mechs
+that start powered down, mission-start.md section 8).
+
+**Fixes** (fixes.md): the record's tags read as lists and names as strings
+whatever they hold (a crash otherwise: FIX (bug), the six broken files of
+the test); a scan whose vehicle has no brain writes through null when it
+fires; a teleport of a pilot without an order reads before its deque; the
+lone timer above. A valve that updates itself, directly or round a loop of
+updates and conditions, recurses until the stack runs out, in the exe and
+in the port (a candidate, not fixed; no shipped file does it).
+
+**The test** (`test_ai_valves.py`, probe `tests/probe_ai_valve.cpp`, the
+emulator side over `ai_world.py`'s): every mission's valves.zrd loaded,
+then forty steps of sets (every valve to the values the records use),
+ticks forward in game time and the mission's end; then 300 made-up files
+(every tag, conditions over earlier valves, updates of later ones, scans of
+a vehicle with a brain, entities found or not) and six broken ones the
+original crashes on. The world is fake: names to objects whose vtable
+slots answer from a table, brains with one order. Compared: one stream (the
+registry, each valve's holder, value and reactions with every field, the
+timers, after the load and after every step; the brains' and targets'
+words written) and the log of every call out (zerr, the lookups, sounds,
+animations, powers, destroys, the objects' calls, places, nets): 352 of
+352, the original path (`zfix bugs` off; the lone timer's fix has its own
+`mw3tests` case). Breaking the port showed the test catches it, 22 of 22:
+sound_once replayed, any_zero as any_nonzero, all_nonzero as any_nonzero,
+a set firing unchanged, conditions not firing on a set, a timer due at
+its time (the port then loops forever: caught as a hang), delayed updates
+only on one value, the lone timer kept, a list's tick stopping at the
+first done, a scan's flag and value swapped, sound losing to sound_once's
+order, setteam's allies keeping bit 0, shutdown's flag inverted, a
+conflicting condition replaced, the initial value firing, a teleport
+reusing its first controls, missionreset made, null names kept in a
+namelist, the namelist from its second name, members without their
+update, the attack strategy one word off, canleave without +0xdc.
+
+**In the program** (`app_mission.cpp`): the mission setup's 0x4e2120 runs
+`valves_load`; the actions find the AI mechs by their records' names (the
+other vehicles are not ported, so their lookups give none), power them
+through `Mech::power`, write their brains' settings, re-plan a teleported
+pilot (its placement is logged: not ported), play sounds through zSound;
+animations, destroys and the mission's abort are logged. Left: the
+missions' per-frame update 0x48f470 that ticks the timers, and the cleanup
+0x491780 that ends them (`valves_end`), both mission.cpp's.
+
+`mw3tests` `mission_start_reads_c1m1_vehicles_headless` loads c1 mission
+1's valves.zrd through the program: `bramp` holds its four reactions, and
+setting it wakes the Owens (Mech::power) and starts its two timers.
 
 ## Open
 

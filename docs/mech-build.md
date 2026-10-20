@@ -212,9 +212,9 @@ entry's object, then the entries), 0x0040f0a0, 0x00537520: true.
   the load (standing in for the briefing's Launch): the pilot's slot is the
   Mad Cat in its first configuration (`GameEngine::Launch::mech`), and the
   log says what was built. player.cpp's `mech_create`, `mech_set_skin` and
-  `mech_dfn_of` hooks call the port (`build_ai_mech` ...), but the AI
-  mechs' controllers (0x004d8750) are not ported, so `create_ai_mech` gets
-  none and makes no mech yet.
+  `mech_dfn_of` hooks call the port (`build_ai_mech` ...) on the AI's
+  controllers (0x004d8750, ai.md section 12), so the mission's AI mechs are
+  built as it comes up (c1 mission 1: owens_01, mission-start.md section 7).
 - `mw3tests` `mech_build_launches_the_player_c1m1_headless`: c1 mission 1's
   launch without a window builds a Mad Cat with its 13 parts on their nodes,
   ten weapons, 17 heat sinks, six toes, 10.9 m tall, 22.5 m/s, its centre
@@ -309,5 +309,5 @@ the structure table one row off.
 - The mech's destructor 0x00414f40, its view attach 0x0041ce30, the AI side
   (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates
   0x0049e5e0, instant action 0x0049dc80, multiplayer 0x0046da80.
-- The AI mechs: `create_ai_mech` can call `mech3::mech_create` once the AI
-  controls (0x004d8750) are ported.
+- The AI mechs are built (ai.md section 12); their placement 0x004161c0
+  and the AI side of the mech (0x004e61e0, 0x004d6d20) are left.

@@ -44,7 +44,7 @@ bool ValueStep::passable(const Pilot* p, const Behaviour*) const {
 
 // Mech3.exe 1.2 @ 0x004ca260: only while the valve holds the step's value.
 bool ValveStep::passable(const Pilot*, const Behaviour*) const {
-  return valve && valve->value->value == value;
+  return valve && valve->get() == value;
 }
 
 // Mech3.exe 1.2 @ 0x004cd5d0: only the vehicle the gate is named for.
@@ -56,7 +56,7 @@ bool GateStep::passable(const Pilot* p, const Behaviour*) const {
 // valves holds its count.
 bool UnionStep::passable(const Pilot*, const Behaviour*) const {
   for (const ValveCount& c : valves)
-    if (c.valve && c.valve->value->value == c.count) return true;  // FIX (bug): the exe reads a null valve
+    if (c.valve && c.valve->get() == c.count) return true;  // FIX (bug): the exe reads a null valve
   return false;
 }
 

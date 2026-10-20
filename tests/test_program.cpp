@@ -25,9 +25,13 @@
 #include "mech3/app_states.h"
 #include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
+#include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
+#include "mech3/zai_brain.h"
+#include "mech3/zai_steps.h"
+#include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
@@ -226,9 +230,11 @@ TEST(program_starts_like_the_game_to_the_main_state) {
 // The debug launch of c1 mission 1 without a window (docs/mission-start.md):
 // the mission load reaches the mission start (0x0049e810), which reads
 // player.zrd's gravities and aiv.zrd's vehicles, finds each one's compiled
-// net and asks for its controller and vehicle; those are not ported, so
-// none is made (each constructor is counted once per vehicle). The weapons
-// load (0x00583880) reads weapons.zrd and makes the weapon_tick object.
+// net and makes its AI controller (docs/ai.md, The AI controls). The AI mech
+// (owens_01, an Owens on net 4) is built on its controller and powered down
+// (p12's flag); the other vehicles are not ported (each constructor counted
+// once), so their controllers are made and deleted. The weapons load
+// (0x00583880) reads weapons.zrd and makes the weapon_tick object.
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -266,11 +272,70 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(wt && wt->action && wt->get<int32_t>(0x44) == 3);
     const auto& n = engine.unported_counts();
     auto count = [&](const char* k) { return n.count(k) ? n.at(k) : 0u; };
-    EXPECT(count("0x004d8750") == 1);  // owens_01: an AI mech's controller, over net 4
+    EXPECT(count("0x004d8750") == 0);  // the AI controllers are the port's
+    EXPECT(count("0x004e71c0") == 0);
     EXPECT(count("0x004589d0") == 3);  // mobilehq_01..03, over net 2
     EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
-    EXPECT(count("0x004ac860") == 8);  // each vehicle has its net: a controller each, and the stealth entity
-    EXPECT(count("0x00414150") == 0);  // no controller, no mech
+    EXPECT(count("0x004ac860") == 1);  // the stealth entity's block (the vehicles' controllers are made)
+    EXPECT(count("0x00414150") == 0);  // the mech is the port's
+    EXPECT(count("0x004161c0") == 1);  // its placement is not ported
+    // owens_01: the AI mech, its controller and brain.
+    int32_t made = 0;
+    const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+    EXPECT(made == 1);
+    if (made == 1) {
+      EXPECT(std::string(ai[0].name) == "owens_01");
+      mech3::LaunchedMech m;
+      EXPECT(mech3::describe_mech(ai[0].mech, &m));
+      EXPECT(m.roster == 11 && m.parts == 11 && m.weapons > 0);  // an Owens (its model has no hands)
+      EXPECT(m.team == 4);                                          // team 2: mask 4
+      EXPECT(m.powering_down);                                      // p12 ("owens" 0 1)
+      const auto* c = static_cast<const mech3::AiControls*>(ai[0].controls);
+      EXPECT(c->owner == ai[0].mech);  // the mech's constructor set it
+      EXPECT(c->view == 2 && c->moves[1] && c->throttle_returns);   // 0x004265a0
+      const mech3::ai::Brain* b = c->brain.get();
+      EXPECT(b != nullptr);
+      if (b) {
+        EXPECT(b->params.kind() == 4 && b->params.team() == 2);    // the record copied
+        EXPECT(b->params.mech() == 11 && b->params.skin() == 7);
+        EXPECT(b->params.vlist && !b->params.vlist->empty());
+        EXPECT(b->params.get<float>(0x1c) == 1000.0f * 1000.0f);   // params' first, squared
+        EXPECT(b->orders.size() == 1);                              // one order, on net 4
+        if (b->orders.size() == 1) {
+          const mech3::ai::Order& o = b->orders.back();
+          EXPECT(o.owner == b && o.net == &o.net_part && o.state == &o.state_part);
+          EXPECT(o.net->net && o.net->net->get_id() == 4 && !o.net->builtin);
+          EXPECT(o.net->order == &o && o.state->order == &o);
+        }
+        EXPECT(b->order.owner == b);
+        EXPECT(b->firing.brain == b && b->firing.aim && b->firing.x00[0] == 8);
+        EXPECT(b->radio == nullptr);  // owens_01 has no sound_tag
+        EXPECT(b->step.next == mech3::ai::null_step());
+        EXPECT(b->steer.x34 == 20.0f && b->steer.x38 > 0.7071f && b->steer.x38 < 0.7072f);
+      }
+    }
+    // valves.zrd (docs/ai.md section 13): c1 mission 1's triggers; bramp's
+    // four records (wake owens_01, two delayed updates, a radio line), and
+    // setting it wakes the Owens and starts the two timers.
+    EXPECT(count("0x004e2120") == 0);
+    mech3::ai::Valve* bramp = mech3::ai::valve_find("bramp");
+    mech3::ai::Composite* c = bramp && bramp->chain ? bramp->chain->as_composite() : nullptr;
+    EXPECT(c && c->items.size() == 4);
+    if (c && c->items.size() == 4) {
+      EXPECT(static_cast<mech3::ai::ValveAction*>(c->items.front())->kind == mech3::ai::ValveAction::Shutdown);
+      EXPECT(static_cast<mech3::ai::ValveAction*>(c->items.back())->kind == mech3::ai::ValveAction::SoundOnce);
+    }
+    const mech3::ai::Valve* any = mech3::ai::valve_find("inside_c1m1");
+    EXPECT(any != nullptr);
+    if (bramp && made == 1) {
+      bramp->set(1);
+      mech3::LaunchedMech m;
+      EXPECT(mech3::describe_mech(ai[0].mech, &m) && !m.powering_down);  // the trigger woke it
+      const mech3::ai::Composite* timers =
+          mech3::ai::valve_timers() ? mech3::ai::valve_timers()->as_composite() : nullptr;
+      EXPECT(timers && timers->items.size() == 2);
+    }
+    mech3::ai::valves_end();
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

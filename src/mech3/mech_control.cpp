@@ -374,6 +374,41 @@ int PlayerControls::update(float dt) {
   return 1;
 }
 
+// Mech3.exe 1.2 @ 0x004265a0 (the base of every mech controls; its most
+// derived branch is the class's own). +0x40 and +0x5b are left as they were.
+void MechControls::init() {
+  view = 2;
+  axis_2c = axis_30 = 0;
+  jump_held = false;
+  moves[1] = true;
+  throttle_returns = true;
+  last_pov = 1;
+  throttle = turn = pitch = twist = jump = 0;
+  jj_forward = jj_strafe = 0;
+  throttle_target = turn_target = jump_target = 0;
+  flags = 0;
+  moves[0] = false;
+  x5a = false;
+  fire = 0;
+  reverse = false;
+  joy_throttle_set = false;
+  throttle_held = false;
+  wrapped = 0;
+}
+
+// Mech3.exe 1.2 @ 0x004d8750 (most derived: the IControls base 0x004aec00 at
+// +0x30c, its owner +0x31c), over 0x004d8670: the base 0x004265a0, then the
+// brain 0x004cf330 on +0x5c with the net and the record.
+AiControls::AiControls(Mech* o, ai::AiNet* net, const ai::AiParams& rec) {
+  owner = o;
+  init();
+  brain = std::make_unique<ai::Brain>(net, rec);
+}
+
+// Mech3.exe 1.2 @ 0x004d8c00 -> 0x004d8c40: the brain's destructor
+// 0x004cf630, then the base's vtables back (nothing to free).
+AiControls::~AiControls() = default;
+
 // Mech3.exe 1.2 @ 0x004e96f0: the brain's update (0x004e9710, on +0x5c), which
 // sets the targets and runs the smoothing itself (through 0x004d89f0). Until
 // the brain is ported, the smoothing alone stands in for it.
@@ -409,24 +444,7 @@ PlayerControls* player_controls(uint32_t mode) {
 // view state 2, ThrottleConst off (the throttle returns), the hat centred.
 void PlayerControls::construct(uint32_t mode) {
   owner = nullptr;  // the IControls base (0x004aec00 on +0x150; owner +0x15c)
-  // 0x004265a0
-  view = 2;
-  axis_2c = axis_30 = 0;
-  jump_held = false;
-  moves[1] = true;
-  throttle_returns = true;
-  last_pov = 1;
-  throttle = turn = pitch = twist = jump = 0;
-  jj_forward = jj_strafe = 0;
-  throttle_target = turn_target = jump_target = 0;
-  flags = 0;
-  moves[0] = false;
-  x5a = false;
-  fire = 0;
-  reverse = false;
-  joy_throttle_set = false;
-  throttle_held = false;
-  wrapped = 0;
+  init();
   mech_build_hooks().controls_brain_init(*this);
   flags = 0;
   joy_throttle = 0;

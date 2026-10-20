@@ -16,6 +16,7 @@
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
 #include "mech3/zrdraiv.h"
+#include "mech3/zrdrvalve.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
@@ -411,6 +412,28 @@ TEST(fix_deep_water_curve) {
 
 // A foot just behind its ski's middle: with the fix the middle probe is its
 // contact (and its water); the exe's unset width picks the back probe.
+// Delayed updates (fixes.md, ai.md section 13): a lone timer whose update
+// starts another keeps it with the fix; the exe loses it.
+TEST(fix_lone_delayed_update_keeps_the_next) {
+  using namespace mech3::ai;
+  for (const bool bugs : {false, true}) {
+    zfix::options().bugs = bugs;
+    valves_end();
+    Valve* a = valve_get("a");
+    Valve* b = valve_get("b");
+    Valve* c = valve_get("c");
+    a->add(new DelayUpdateAction(b, 1.0f));  // the game time is 0: due at 1
+    b->add(new DelayUpdateAction(c, 1.0f));
+    a->set(1);
+    valves_tick(2.0f);  // b set; its update starts c's timer while the lone one runs
+    valves_tick(3.0f);
+    EXPECT(b->get() == 1);
+    EXPECT(c->get() == (bugs ? 1 : 0));
+    valves_end();
+  }
+  zfix::options().bugs = true;
+}
+
 TEST(fix_foot_uses_its_middle_probe) {
   mech3::Skis s{};
   for (int i = 0; i < 6; ++i) s.local[i].z = (i % 3 - 1) * 6.0f;  // front -6, middle 0, back 6

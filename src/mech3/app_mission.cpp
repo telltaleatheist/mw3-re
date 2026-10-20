@@ -5,6 +5,8 @@
 // other modules will be. What has no port is logged once by address.
 #include <cstdio>
 #include <cstring>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -46,12 +48,15 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
+#include "mech3/zai_brain.h"
 #include "mech3/zainetedit.h"
+#include "mech3/zrdrvalve.h"
 #include "platform/render3d.h"
 
 namespace mech3 {
@@ -114,18 +119,29 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   if (!world_read_params(m, file, block)) std::fprintf(stderr, "mw3: no block %s in %s\n", block, file);
 }
 
+// The AI mechs made this mission (app_mech.h), with their records' names.
+std::vector<AiMechMade> g_ai_mechs;
+std::vector<std::string> g_ai_names;
+
 // player.cpp's hooks (docs/mission-start.md): the reader, the records, the
-// mech definitions, the nets and zClass are ported; the vehicles, mechs and
-// AI controllers are not, so their constructors are logged and give none.
+// mech definitions, the nets, zClass, the AI controllers (mech3/zai_brain)
+// and the mechs are ported; the other vehicles are not, so their
+// constructors are logged and give none (their controllers are deleted).
 struct WiredPlayerHooks : PlayerHooks {
   GameEngine* e = nullptr;
+  std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
+  std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
+  std::set<Handle> mechs;          // the AI mechs made
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
   template <class T>
   T* as(Handle h) const { return static_cast<T*>(e->object_of(h)); }
 
-  void nets_build_all() override { ai::nets_build_all(); }
+  void nets_build_all() override {
+    g_ai_mechs.clear(), g_ai_names.clear();
+    ai::nets_build_all();
+  }
   Handle object3d_create() override { return e->handle_of(zcls::object3d_create()); }
   void set_action_priority(Handle node, int32_t p) override { zcls::node_set_priority(as<zcls::Node>(node), p); }
   // The player's tick runs with the action lists (0x004f7d80, the Core
@@ -162,16 +178,75 @@ struct WiredPlayerHooks : PlayerHooks {
   Handle net_object(Handle o) override { return e->handle_of(dynamic_cast<ai::AiNet*>(as<znet::Object>(o))); }
   Handle net_compiled(Handle o) override { return e->handle_of(as<ai::AiNet>(o)->as_compiled()); }
   Handle alloc(uint32_t size) override { return e->alloc_block(size); }
-  void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }
-  uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
+  void set_field32(Handle h, uint32_t off, uint32_t v) override {
+    if (params.count(h)) return as<ai::AiParams>(h)->put<uint32_t>(static_cast<int>(off), v);
+    if (mechs.count(h) && mech_set_mask(e->object_of(h), off, v)) return;
+    e->poke32(h + off, v);
+  }
+  uint32_t field32(Handle h, uint32_t off) override {
+    if (params.count(h)) return as<ai::AiParams>(h)->get<uint32_t>(static_cast<int>(off));
+    uint32_t v = 0;
+    if (mechs.count(h) && mech_get_mask(e->object_of(h), off, &v)) return v;
+    return e->peek32(h + off);
+  }
+  // The AI controllers: the port's, over the vehicle's compiled net and its
+  // record (the blocks player.cpp allocates for them are not used).
+  Handle ai_mech_controls(Handle, Handle net, const ai::AivRecord* rec) override {
+    const Handle h = e->handle_of(new AiControls(nullptr, as<ai::AiNet>(net), *rec));
+    controls[h] = 1;
+    return h;
+  }
+  Handle alloc_4ac860(uint32_t size) override { return e->alloc_block(size); }
+  Handle ai_vehicle_controls(Handle, Handle net, const ai::AivRecord* rec) override {
+    const Handle h = e->handle_of(new ai::AiVehicleControls(nullptr, as<ai::AiNet>(net), *rec));
+    controls[h] = 2;
+    return h;
+  }
   Handle controls_interface(Handle ctl) override { return ctl; }
-  // The mech itself is the port's (mech3/mech_build); its controller would be
-  // the AI's (0x004d8750, not ported, so none is made yet and no mech either).
+  void controls_delete(Handle ictl) override {
+    auto it = controls.find(ictl);
+    if (it == controls.end()) return PlayerHooks::controls_delete(ictl);
+    if (it->second == 1) {
+      AiControls* c = as<AiControls>(ictl);
+      if (c->brain) params.erase(e->handle_of(&c->brain->params));
+      delete c;
+    } else {
+      ai::AiVehicleControls* c = as<ai::AiVehicleControls>(ictl);
+      params.erase(e->handle_of(&c->brain->params));
+      delete c;
+    }
+    controls.erase(it);
+  }
+  // vt+0x90 (0x004e8dc0): the brain, whose +0x88 player.cpp holds at 1 for
+  // the power-down's update.
+  Handle controls_vt90(Handle ictl) override {
+    auto it = controls.find(ictl);
+    if (it == controls.end()) return PlayerHooks::controls_vt90(ictl);
+    ai::Brain* b = it->second == 1 ? as<AiControls>(ictl)->brain.get() : as<ai::AiVehicleControls>(ictl)->brain.get();
+    if (!b) return 0;
+    const Handle h = e->handle_of(&b->params);
+    params.insert(h);
+    return h;
+  }
+  // The mech itself is the port's (mech3/mech_build) on the AI's controller.
   Handle mech_create(int32_t mech, Handle ctl, int32_t config, const char* name) override {
     void* c = e->object_of(ctl);
-    if (!c) return PlayerHooks::mech_create(mech, ctl, config, name);
-    return e->handle_of(build_ai_mech(mech, c, config, name));
+    if (!c || controls.count(ctl) == 0 || controls[ctl] != 1) return PlayerHooks::mech_create(mech, ctl, config, name);
+    void* m = build_ai_mech(mech, static_cast<MechControls*>(static_cast<AiControls*>(c)), config, name);
+    if (!m) return 0;
+    g_ai_names.emplace_back(name ? name : "");
+    g_ai_mechs.push_back({m, c, nullptr});
+    const Handle h = e->handle_of(m);
+    mechs.insert(h);
+    return h;
   }
+  // 0x004161c0 (mech.cpp, not ported): the mech stays where its constructor
+  // left it; the exe's always succeeds.
+  int32_t mech_place(Handle m, const ai::AivRecord* rec) override {
+    PlayerHooks::mech_place(m, rec);
+    return 1;
+  }
+  void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
   void mech_set_skin(Handle mech, Handle skin) override { set_mech_skin(e->object_of(mech), e->object_of(skin)); }
   Handle mech_dfn_of(Handle mech) override {
     return e->handle_of(const_cast<void*>(mech_definition(e->object_of(mech))));
@@ -187,6 +262,90 @@ struct WiredPlayerHooks : PlayerHooks {
   void clear_6099c0() override { e->poke32(0x6099c0, 0); }
 };
 WiredPlayerHooks g_player_hooks;
+
+// The brain's calls out (mech3/zai_brain): the player's vehicle is the
+// pilot's +0x14 (none until the launch makes it).
+struct WiredBrainHooks : ai::BrainHooks {
+  GameEngine* e = nullptr;
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  bool player_allies(uint32_t* allies) override {
+    const Handle p = e->pilot();
+    const Handle v = p ? e->field32(p, 0x14) : 0;
+    if (!v) return false;
+    *allies = mech_allies(e->object_of(v));
+    return true;
+  }
+};
+WiredBrainHooks g_brain_hooks;
+
+// valves.zrd's actions (mech3/zrdrvalve) on what the program has: the AI
+// mechs by their records' names (the other vehicles are not ported), their
+// controls and brains, Mech::power, zSound. The rest is logged.
+struct WiredValveHooks : ai::ValveHooks {
+  GameEngine* e = nullptr;
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  void report(int32_t level, int32_t line, const char* text) override {
+    if (!e->quiet) std::fprintf(stderr, "mw3: report %#x ZRdrValve.cpp:%d %s\n", level, line, text);
+  }
+  Handle sound_find(const char* name) override { return e->sound_find(name); }
+  void sound_play(Handle s) override {
+    if (auto* o = static_cast<zsnd::Object*>(e->object_of(s))) zsnd::play_at(o, nullptr, 1.0f, nullptr);
+  }
+  Handle target_find(const char* name) override {
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; name && i < n; ++i)
+      if (std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
+    return ValveHooks::target_find(name);
+  }
+  Handle entity_find(const char* name) override {
+    const Handle h = target_find(name);
+    return h ? h : ValveHooks::entity_find(name);
+  }
+  bool mech(Handle h) const {
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; i < n; ++i)
+      if (e->object_of(h) == m[i].mech) return true;
+    return false;
+  }
+  Handle as_vehicle(Handle o) override { return mech(o) ? o : ValveHooks::as_vehicle(o); }
+  Handle vehicle_of(Handle o) override { return mech(o) ? o : ValveHooks::vehicle_of(o); }
+  Handle mech_of(Handle o) override { return mech(o) ? o : ValveHooks::mech_of(o); }
+  Handle controls_of(Handle v) override {
+    return mech(v) ? e->handle_of(mech_controls_of(e->object_of(v))) : ValveHooks::controls_of(v);
+  }
+  ai::Brain* brain(Handle c) const {
+    auto* ctl = dynamic_cast<AiControls*>(static_cast<MechControls*>(e->object_of(c)));
+    return ctl ? ctl->brain.get() : nullptr;
+  }
+  Handle brain_of(Handle c) override { return e->handle_of(brain(c)); }
+  void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
+  Handle brain_order_net(Handle b) override {
+    auto* br = static_cast<ai::Brain*>(e->object_of(b));
+    return br && !br->orders.empty() ? e->handle_of(br->orders.back().net_part.net) : 0;
+  }
+  void controls_set_net(Handle c, Handle net) override {
+    if (ai::Brain* b = brain(c)) b->set_net(static_cast<ai::AiNet*>(e->object_of(net)));
+  }
+  void brain_write(Handle b, uint32_t off, uint32_t v) override {
+    auto* br = static_cast<ai::Brain*>(e->object_of(b));
+    if (!br) return;
+    if (off < ai::AiParams::kEnd) return br->params.put_raw(static_cast<int>(off), v);
+    if (off == 0xdc) std::memcpy(&br->xdc, &v, 4);
+  }
+  void target_masks(Handle o, uint32_t t, uint32_t a, uint32_t en) override {
+    void* m = e->object_of(o);
+    mech_set_mask(m, 0xc0, t), mech_set_mask(m, 0xc4, a), mech_set_mask(m, 0xc8, en);
+    player_clear_60b56c();
+  }
+  float game_time() override { return mech_game_time(); }
+};
+WiredValveHooks g_valve_hooks;
 
 struct WiredMissionHooks : MissionHooks {
   GameEngine* e = nullptr;
@@ -401,6 +560,8 @@ struct WiredMissionHooks : MissionHooks {
   }
   bool player_setup_ran = false;
   Handle sound_find(const char* name) override { return e->sound_find(name); }
+  // The mission's valves.zrd (0x004e2120, mech3/zrdrvalve).
+  void fn_4e2120() override { ai::valves_load(); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
     char text[512];
     std::snprintf(text, sizeof text, fmt, arg);
@@ -411,12 +572,22 @@ WiredMissionHooks g_mission_hooks;
 
 }  // namespace
 
+const AiMechMade* mission_ai_mechs(int32_t* count) {
+  for (size_t i = 0; i < g_ai_mechs.size(); ++i) g_ai_mechs[i].name = g_ai_names[i].c_str();
+  if (count) *count = static_cast<int32_t>(g_ai_mechs.size());
+  return g_ai_mechs.data();
+}
+
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;
   g_player_hooks.e = e;
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
   set_player_hooks(e ? &g_player_hooks : nullptr);
+  g_brain_hooks.e = e;
+  ai::set_brain_hooks(e ? &g_brain_hooks : nullptr);
+  g_valve_hooks.e = e;
+  ai::set_valve_hooks(e ? &g_valve_hooks : nullptr);
   // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
   if (!e) return wire_mech_build(nullptr);
   static MechWiring w;

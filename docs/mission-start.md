@@ -135,9 +135,12 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   `PlayerHooks` method named by address; the records are read through hooks
   too.
 - The program (`app_mission.cpp`) wires the reader, aiv.zrd, the mech
-  definitions, the nets (the compiled ones built by `nets_build_all`) and
-  zClass to the ports; the controllers, mechs and vehicles are not ported,
-  so their constructors are logged and give none. The weapons load
+  definitions, the nets (the compiled ones built by `nets_build_all`),
+  zClass, the AI controllers (0x004d8750 and 0x004e71c0 with the brain's
+  data, ai.md section 12) and the AI mechs (mech-build.md) to the ports.
+  The placement 0x004161c0 is not ported (logged; the mech keeps its
+  constructor's place and is kept, as the exe's call always succeeds), nor
+  are the other vehicles (logged, none made: their controllers are deleted). The weapons load
   0x00583880 now runs the ported `zwep::init` with `make_weapon_type`, which
   makes the weapon_tick object (priority 3, action `zwep::tick`). Both run
   each Core frame from the ported action lists (0x004f7d80,
@@ -145,9 +148,10 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   checks the order frame by frame.
 - `mw3tests` `mission_start_reads_c1m1_vehicles_headless`: the debug launch
   of c1 mission 1 without a window: gravity 40 / 9 / 3, the tick object at
-  priority 2, weapons.zrd's definitions and the weapon_tick object, one AI
-  mech controller (owens_01 over net 4), three mobile HQs and four basic
-  vehicles asked for, every one over its net.
+  priority 2, weapons.zrd's definitions and the weapon_tick object, the AI
+  mech owens_01 built (an Owens on team 2, powered down, on its controller
+  with its brain and one order over net 4), three mobile HQs and four basic
+  vehicles asked for, every one over its net, their controllers made.
 - `test_mission_start.py` (probe `tests/probe_player.cpp`): 400 cases, the
   setup and the tick each, in the emulator (x87 at 53 bits) and the port,
   every call out stubbed and answered from one script. The records are
@@ -242,8 +246,9 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   once their controls are. Left of the launch: 0x0049e5e0 (the campaign's
   lancemates from their slots, with 0x0049e540), 0x0049dc80 (instant
   action's line-up from its records, 381 lines), 0x0046da80 (multiplayer).
-- The builders' callees: the AI controls 0x004d8750 / 0x004e71c0 (the
-  brain), the vehicles 0x004589d0 / 0x004ac320, their setup 0x0049ef40 and
-  0x0049f660, the ground placement 0x004161c0, the skin swap 0x004757f0.
+- The builders' callees: the vehicles 0x004589d0 / 0x004ac320, their setup
+  0x0049ef40 and 0x0049f660, the ground placement 0x004161c0, the skin swap
+  0x004757f0. The AI controls 0x004d8750 / 0x004e71c0 are ported up to the
+  brain's decisions (ai.md section 12).
 - The nets' passes 0x004d52b0 / 0x004d5300 (base AiNet vt+0x2c 0x004d5350
   and the link pass; the compiled nets and regions do nothing there).
