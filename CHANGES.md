@@ -26,6 +26,13 @@ it is clear what the designers meant.
   slopes and ledges, the blend into a walk, jump-jet thrust and the damage
   done to buildings you push into all went by frames; they now play as they
   did at 30 fps.
+- **Alan talks in every mission.** His name is misspelt in two missions'
+  data (the first Instant Action map of the first world and operation 3's
+  mission 6), so the game did not give him his radio voice there. Both
+  spellings now get it.
+- **Two enemies follow their orders.** On the fourth world's Instant Action
+  maps, two enemies had their scripted orders written without the label that
+  marks them, so they were ignored. They are read now.
 - **Feet use the ground under their middle.** Each foot reads the ground
   at its front, middle and back, but the setting that picks the middle was
   never filled in, so the game used leftover memory: usually the front or

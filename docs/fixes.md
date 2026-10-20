@@ -69,6 +69,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 | Animation phase cache, 0x5abae0 / 0x432a80 (and every sampler inlining it) | The phase is cached by time alone; SetLoopTime 0x5aa3b0 resets the cached time to 0 but not the keys, so after the 60-frame resample (0x5aa360) a first sample at t = 0 reuses the last resample's keys | (bug) for motions longer than 60 frames those keys are past the new arrays: the exe reads the heap beyond them for that sample | Keys past the last are recomputed; in-range stale keys are kept as the exe has them. `test_mechanim.py` samples elsewhere first where the original would read out of bounds (motion.md, Playback) |
+| Alan's voice, aiv.zrd 0x4df730 | A record without a `sound_tag` gets Alan's radio voice only when named exactly `Alan_Mattila`; the c1 Instant Action map 1 and c3 mission 6 spell him `Alan_Mattilla` and `Alan_Matilla` | (bug) misplaced data: his voice lines likely do not play there | Both misspellings also give `alan`; the record names are kept, since scripts may look him up by them (Owen 2026-10-20) |
+| Loose orders, aiv.zrd 0x4df730 | `Enemy_12` (c4 readeria1) and `Enemy_06` (c4 readeria2) list their orders loose in the record, without `"vlist" ( ... )` | (bug) misplaced data: the reader skips them, so those enemies follow no scripted orders | A record with no `vlist` takes order-shaped lists (17 items or more, not after a key) as its orders (Owen 2026-10-20) |
 | Foot ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0) | The width that picks a foot's middle probe for its ground contact and its water is never written: whatever the heap held | (bug) a foot's ground and water come from the front or back probe, or from any probe by chance | The ski's half length, so the nearest probe wins (Owen 2026-10-20); `zfix bugs`, off in the probes (the test pins the original's to 0) |
 | Gait blend-in, 0x417a80 (0x417d85) | Over the first 20 frames of walking the left foot's rotation is blended twice, the second time from the right foot's last rotation, and the right foot's never | (bug) the right foot snaps to the walk's angle and the left lurches toward the right's old one for the first 2/3 s of every walk | Each foot blends from its own last rotation (Owen 2026-10-20); `zfix bugs`, off in the probes (`movement-pose.md`) |
 | Toe poses, 0x417fde.. / 0x4178a8.. / 0x417177.. | Both feet loop over the left foot's toe count; the right foot's index is checked with `ja`, so it reaches its own count | (bug) a right foot with fewer toes than the left reads and writes one quaternion and one toe node past its arrays | Stopped at the count. Shipped mechs likely have equal counts (not checked); `zfix bugs` off in the probes keeps the exe's check (`movement-pose.md`) |
@@ -231,13 +233,3 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
   so they never show. Mapping those names to the soils that exist would
   restore them; which soil each should be is a guess.
-- Lancemate voices (aiv.zrd, 0x4df730): a vehicle record without a
-  `sound_tag` gets `alan`, `dom` or `epona` only when it is named exactly
-  `Alan_Mattila`, `Dominic_Paine` or `Epona_Rhi`. Two records misspell Alan
-  (`Alan_Mattilla` in the c1 Instant Action map 1, `Alan_Matilla` in c3
-  mission 6), so likely his radio lines do not play there; the importer could
-  correct the names. Whether the tag is what picks his voice is traced only
-  as far as the `<tag>_<event>` names of 0x4e7dc0.
-- Missing `vlist` key (aiv.zrd): `Enemy_12` in c4 readeria1 and `Enemy_06` in
-  c4 readeria2 have their order lists without the `vlist` tag in front, so
-  the reader skips them and those enemies follow no scripted orders.
