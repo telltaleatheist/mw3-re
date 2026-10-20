@@ -45,6 +45,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/display.cpp
   src/gamez/zclass/light.cpp
   src/gamez/zclass/list.cpp
+  src/gamez/zclass/seq.cpp
   src/gamez/zclass/object3d.cpp
   src/gamez/zclass/sound.cpp
   src/gamez/zclass/window.cpp
@@ -188,6 +189,7 @@ add_library(mw3probe SHARED
   tests/probe_di.cpp
   tests/probe_collide.cpp
   tests/probe_anim_run.cpp
+  tests/probe_action_lists.cpp
   tests/probe_mechanim.cpp
   tests/probe_pose.cpp
   tests/probe_parts.cpp

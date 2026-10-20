@@ -83,6 +83,7 @@ class GameEngine : public Engine {
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
   void video_clear_b(Handle rect) override;
+  void lists_update() override;  // 0x004f7d80: zcls::run_action_lists
   std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
   bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene
   int frames_presented = 0;

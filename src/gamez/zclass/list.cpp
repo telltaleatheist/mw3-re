@@ -4,6 +4,7 @@
 #include <new>
 
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/seq.h"
 
 namespace zcls {
 
@@ -241,5 +242,81 @@ Node* list_walk_next(const void* key, int list, bool (*test)(Node* node)) {
 
 // Mech3.exe 1.2 @ 0x004f8bd0
 Node* list_walk_by_name(const char* name, int list) { return list_walk_next(name, list, name_matches); }
+
+namespace {
+// 0x004f7ec0 / 0x004f7f10: one class list's frame steps with purging held
+// off, then the purge.
+template <typename Step>
+int run_class_list(int list, Step step) {
+  ListItem* item = g_lists.list[list].head;
+  if (!item) return 0;
+  const int32_t enabled = g_lists.enabled;
+  g_lists.enabled = 0;
+  for (; item; item = item->next)
+    if (item->removable == 0 && item->node) step(item->node);
+  g_lists.enabled = enabled;
+  purge_lists();
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f7db0. Changed children (flag 2) first, depth first;
+// then the node's own update and its item on list 7 released.
+int update_subtree(Node* node) {
+  for (int32_t i = 0; i < node->child_count(); ++i)
+    if (node->children[i]->flags() & 2) update_subtree(node->children[i]);
+  node_update(node);
+  list_remove(kChanged, node);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7e00. The node's changed subtree, then each parent's
+// (worlds are left to the frame); the lists are purged when not held off.
+void update_node(Node* node) {
+  if (node->flags() & 2) update_subtree(node);
+  for (int32_t i = 0; i < node->parent_count(); ++i)
+    if (node->parents[i]->cls() != 2) update_node(node->parents[i]);
+  if (g_lists.enabled) purge_lists();
+}
+
+// Mech3.exe 1.2 @ 0x004f7e50. Takes list 7's first held item (removable
+// 0) until none is left: its node marked (flags 1 and 2) and brought up to
+// date with its ancestors. The head's node is marked on list 7 each pass
+// even when its item is released.
+int update_changed() {
+  ListItem* item = g_lists.list[kChanged].head;
+  while (item) {
+    if (Node* n = item->node; n && !(n->flags() & 1)) n->set_flags(n->flags() | 1);
+    if (item->removable == 0 && item->node) {
+      Node* n = item->node;
+      if (!(n->flags() & 2)) {
+        n->set_flags(n->flags() | 2);
+        if (n->changed) n->changed->removable = 0;
+      }
+      update_node(n);
+    }
+    item = g_lists.list[kChanged].head;
+    while (item && item->removable != 0) item = item->next;
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7ec0: the sequences (list 11).
+int sequences_update() { return run_class_list(11, seq_update); }
+
+// Mech3.exe 1.2 @ 0x004f7f10: the active animates (list 12).
+int animates_update() {
+  return run_class_list(12, [](Node* n) {
+    if (n->flags() & 4) animate_update(n);
+  });
+}
+
+// Mech3.exe 1.2 @ 0x004f7f70: after each action list, and where a frame
+// needs the scene current (the mission start, the camera's move).
+void frame_update() {
+  sequences_update();
+  animates_update();
+  update_changed();
+}
 
 }  // namespace zcls

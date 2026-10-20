@@ -125,8 +125,8 @@ struct WiredPlayerHooks : PlayerHooks {
   void nets_build_all() override { ai::nets_build_all(); }
   Handle object3d_create() override { return e->handle_of(zcls::object3d_create()); }
   void set_action_priority(Handle node, int32_t p) override { zcls::node_set_priority(as<zcls::Node>(node), p); }
-  // The player's tick runs with the action lists (0x004f7d80), which the
-  // Core state does not run yet (its lists_update is a hook).
+  // The player's tick runs with the action lists (0x004f7d80, the Core
+  // state's frame).
   void set_action(Handle node, uint32_t fn) override {
     if (fn == kPlayerTick) zcls::node_set_action(as<zcls::Node>(node), [](zcls::Node*) { player_tick(); });
   }
@@ -295,6 +295,7 @@ struct WiredMissionHooks : MissionHooks {
     h.listener = [](void*, const float* m, const float v[3]) { zsnd::set_listener(m, v); };  // 0x00571e50
   }
   Handle find_node(int32_t list, const char* name) override { return e->handle_of(zcls::list_find_by_name(list, name)); }
+  void lists_4f7f70() override { zcls::frame_update(); }
   void lists_4f7bd0() override { zcls::purge_lists(); }
   // The world files keep a 320x200 window; set to the screen mode's.
   void window_set_size(Handle node, int32_t w, int32_t h) override {

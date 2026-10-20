@@ -34,4 +34,11 @@ void corners_sphere(const float corners[8][3], float centre[3], float* radius) {
   *radius = approx_sqrt(sum);
 }
 
+// Mech3.exe 1.2 @ 0x004f9bc0
+void box_sphere(const float box[6], float centre[3], float* radius) {
+  const float hx = (box[3] - box[0]) * 0.5f, hy = (box[4] - box[1]) * 0.5f, hz = (box[5] - box[2]) * 0.5f;
+  centre[0] = box[0] + hx, centre[1] = hy + box[1], centre[2] = hz + box[2];
+  *radius = approx_sqrt((hx * hx + hy * hy) + hz * hz);
+}
+
 }  // namespace zcls

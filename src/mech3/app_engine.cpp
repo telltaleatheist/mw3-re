@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zinterp/zinterp.h"
@@ -295,6 +296,10 @@ void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
   ++frames_presented;
   if (on_present) on_present(frames_presented);
 }
+// 0x004f7d80: the zClass action lists, each followed by the frame update
+// (docs/action-lists.md): the player's tick (2), weapon_tick (3), the
+// mission's animations and the scripts' ticks.
+void GameEngine::lists_update() { zcls::run_action_lists(); }
 // 0x00576cf0: the 3D window cleared before the Core state draws (the sky
 // colour of the debug viewer: the window's clear colour is not traced).
 void GameEngine::video_clear_b(Handle) {

@@ -63,6 +63,10 @@ void set_node_destroy(void (*destroy)(Node* node));
 // an action are marked removable. Then every flagged list is purged.
 int run_actions(ListItem* head);           // 0x004f7d20
 void run_action_lists();                   // 0x004f7d80: lists 0..5, each followed by 0x004f7f70
+// The frame update's pieces (class.h has 0x004f7e00, 0x004f7e50, 0x004f7f70).
+int update_subtree(Node* node);            // 0x004f7db0
+int sequences_update();                    // 0x004f7ec0  list 11
+int animates_update();                     // 0x004f7f10  list 12
 
 ListWalk& list_walk();
 Node* list_walk_next(const void* key, int list, bool (*test)(Node* node));  // 0x004f8b20

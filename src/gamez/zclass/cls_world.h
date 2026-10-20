@@ -45,9 +45,18 @@ int world_remove_light(Node* world, Node* light);  // 0x004f2e00
 int world_add_sound(Node* world, Node* sound);    // 0x004f2f90
 int world_remove_sound(Node* world, Node* sound);  // 0x004f3040
 
+// The cell a box (x and z) fits, with the world's margins, else (-1, -1).
+void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z,
+              int32_t* cz);                                                    // 0x004f2110
+// Into cell (x, z)'s node list, or among the world's own children at (-1, -1).
+int world_link(Node* world, Node* node, int32_t x, int32_t z);                // 0x004f28c0
+int world_touch_cell(Node* world, int32_t x, int32_t z);                      // 0x004f2360
+void box_y_range(const float* m, const float* box, float out[2]);             // 0x004f2b70
+
 struct World;
-// 0x004f18a0, called for each pending area entry; not ported yet.
-using AreaUpdate = void (*)(World* world, uint32_t* entry);
-void set_area_update(AreaUpdate fn);
+// Called for each pending area entry by 0x004f1df0; the port of 0x004f18a0
+// (the cell's height range and sphere) unless a test sets another.
+using AreaUpdate = int (*)(World* world, uint32_t* entry);
+void set_area_update(AreaUpdate fn);  // null: the port
 
 }  // namespace zcls

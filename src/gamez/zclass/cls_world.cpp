@@ -8,6 +8,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_util.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zclass/list.h"
@@ -17,13 +18,14 @@
 namespace zcls {
 
 namespace {
-AreaUpdate g_area_update = nullptr;
+int area_update(World* w, uint32_t* entry);
+AreaUpdate g_area_update = area_update;
 
 World* world_of(Node* n) { return static_cast<World*>(n->data); }
 void mark(World* w, uint32_t bit) { w->put<uint32_t>(0, w->get<uint32_t>(0) | bit); }
 }  // namespace
 
-void set_area_update(AreaUpdate fn) { g_area_update = fn; }
+void set_area_update(AreaUpdate fn) { g_area_update = fn ? fn : area_update; }
 
 // Mech3.exe 1.2 @ 0x004f23e0
 int world_set_fog_type(Node* world, uint32_t type) {
@@ -237,8 +239,10 @@ int area_pending_push(Node* world, World* w, Partition* p) {
   return 0;
 }
 
-// 0x004f2110 (ECX world node, EDX &cell x, stack min x, max x, min z, max z,
-// &cell z): the one cell a box fits in, with the world's margins (+0x80 x,
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f2110 (ECX world node, EDX &cell x, stack min x, max x,
+// min z, max z, &cell z): the one cell a box fits in, with the world's margins (+0x80 x,
 // +0x84 z), else (-1, -1). Cells count from +0x34 / +0x38 by +0x74 / +0x78.
 void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z, int32_t* cz) {
   const World* w = world_of(world);
@@ -263,7 +267,7 @@ void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, f
   if (!fits) *cz = -1, *cx = -1;
 }
 
-// 0x004f28c0 (ECX world, EDX node, stack cell x, cell z): into the cell's
+// Mech3.exe 1.2 @ 0x004f28c0 (ECX world, EDX node, stack cell x, cell z): into the cell's
 // node list (a full one, 0x7fff, sends it to the world's own children).
 int world_link(Node* world, Node* node, int32_t x, int32_t z) {
   World* w = world_of(world);
@@ -288,7 +292,6 @@ int world_link(Node* world, Node* node, int32_t x, int32_t z) {
   if (node->parent_count() > 1) node_set_tree_valid(node, 0);
   return 0;
 }
-}  // namespace
 
 // Mech3.exe 1.2 @ 0x004f2a40. A node with a box (flag 0x100) goes in the
 // cell its world box fits; without one its box is the whole world (so no
@@ -445,5 +448,128 @@ int world_remove_sound(Node* world, Node* sound) {
   w->put<int32_t>(0xac, n), s->put<int32_t>(0x8c, back);
   return r;
 }
+
+// Mech3.exe 1.2 @ 0x004f2360 (ECX world, EDX cell x, stack cell z): the
+// cell joins the pending list unless it is on it.
+int world_touch_cell(Node* world, int32_t x, int32_t z) {
+  if (!world) return zerr::report(0x400, kWorldFile, 0x8ee, "Null node pointer."), 5;
+  World* w = world_of(world);
+  if (!w) return zerr::report(0x400, kWorldFile, 0x8ef, "Null class data pointer"), 5;
+  Partition& p = w->rows[z][x];
+  if (p.get<uint32_t>(0) & 1) return 0;
+  return area_pending_push(world, w, &p);
+}
+
+// Mech3.exe 1.2 @ 0x004f2b70 (ECX matrix, EDX box, stack out): the y range
+// of a box through a matrix.
+void box_y_range(const float* m, const float* box, float out[2]) {
+  if (!(m[1] >= 0.0f)) out[0] = box[3] * m[1], out[1] = box[0] * m[1];
+  else out[0] = box[0] * m[1], out[1] = box[3] * m[1];
+  if (!(m[4] >= 0.0f)) out[0] = box[4] * m[4] + out[0], out[1] = box[1] * m[4] + out[1];
+  else out[0] = box[1] * m[4] + out[0], out[1] = box[4] * m[4] + out[1];
+  if (!(m[7] >= 0.0f)) out[0] = box[5] * m[7] + out[0], out[1] = box[2] * m[7] + out[1];
+  else out[0] = box[2] * m[7] + out[0], out[1] = box[5] * m[7] + out[1];
+  out[0] = out[0] + m[10];
+  out[1] = out[1] + m[10];
+}
+
+namespace {
+// A node's local matrix for its box, as 0x004f2a40 picks it: none for an
+// object3d still at the identity (data flag 8) or a stopped animate.
+const float* box_matrix(Node* n) {
+  auto* d = static_cast<uint8_t*>(n->data);
+  uint32_t f0, f4;
+  std::memcpy(&f0, d, 4);
+  std::memcpy(&f4, d + 4, 4);
+  switch (n->cls()) {
+    case 5: return f0 & 8 ? nullptr : reinterpret_cast<const float*>(d + 0x30);
+    case 1: return reinterpret_cast<const float*>(d + 0x80);
+    case 8: return (n->flags() & 4) && (f4 & 4) ? reinterpret_cast<const float*>(d + 8) : nullptr;
+    default: return nullptr;
+  }
+}
+
+// A node's y range into lo/hi; a node without data leaves them as they were
+// (the exe's stack locals, stale from the last node).
+void node_y_range(Node* n, float& lo, float& hi) {
+  if (!n->data || !(n->flags() & 0x100)) return;
+  if (const float* m = box_matrix(n)) {
+    float r[2];
+    box_y_range(m, reinterpret_cast<const float*>(n->raw + 0x74), r);
+    lo = r[0], hi = r[1];
+  } else {
+    lo = n->get<float>(0x78), hi = n->get<float>(0x84);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004f18a0 (EDX the partition): the cell's height range
+// (+0x14 min y, +0x20 max y) from its nodes with boxes, else its fade
+// entries, then its sphere (+0x28 centre, +0x34 radius). Flag 0x100: the
+// range is set.
+int area_update(World*, uint32_t* entry) {
+  auto* p = reinterpret_cast<Partition*>(entry);  // the pending list holds &raw, at +0
+  uint32_t flags = p->get<uint32_t>(0) & ~0x100u;
+  p->put<uint32_t>(0, flags);
+  const int16_t n = p->get<int16_t>(0x3a);
+  const int32_t nf = p->get<int32_t>(0x40);
+  if (n == 0 && nf == 0) return 0;
+  float lo = 0.0f, hi = 0.0f;  // uninitialised in the exe
+  int32_t i = 0;
+  for (; i < p->get<int16_t>(0x3a); ++i) {
+    Node* node = p->nodes[i];
+    if (!(node->flags() & 0x100)) continue;
+    p->put<uint32_t>(0, flags | 0x100);
+    node_y_range(node, lo, hi);
+    p->put<float>(0x14, lo), p->put<float>(0x20, hi);
+    ++i;
+    break;
+  }
+  for (; i < p->get<int16_t>(0x3a); ++i) {
+    Node* node = p->nodes[i];
+    if (!(node->flags() & 0x100)) continue;
+    node_y_range(node, lo, hi);
+    if (!(lo >= p->get<float>(0x14))) p->put<float>(0x14, lo);
+    if (hi > p->get<float>(0x20)) p->put<float>(0x20, hi);
+  }
+  auto fade_node = [&](int32_t k) {
+    Node* f;
+    std::memcpy(&f, p->fades + 0x44 * k, sizeof f);  // FIX (A): a 32-bit pointer in the exe
+    return f;
+  };
+  auto fade_matrix = [&](int32_t k, float m[12]) { std::memcpy(m, p->fades + 0x44 * k + 4, 48); };
+  i = 0;
+  if (!(p->get<uint32_t>(0) & 0x100)) {
+    for (; i < nf; ++i) {
+      Node* f = fade_node(i);
+      if (!(f->flags() & 0x100)) continue;
+      p->put<uint32_t>(0, p->get<uint32_t>(0) | 0x100);
+      float m[12];
+      fade_matrix(i, m);
+      float r[2];
+      box_y_range(m, reinterpret_cast<const float*>(f->raw + 0x74), r);  // inlined there, the same sums
+      lo = r[0], hi = r[1];
+      p->put<float>(0x14, lo), p->put<float>(0x20, hi);
+      ++i;
+      break;
+    }
+  }
+  for (; i < p->get<int32_t>(0x40); ++i) {
+    Node* f = fade_node(i);
+    if (!(f->flags() & 0x100)) continue;
+    float m[12], r[2];
+    fade_matrix(i, m);
+    box_y_range(m, reinterpret_cast<const float*>(f->raw + 0x74), r);
+    if (!(r[0] >= p->get<float>(0x14))) p->put<float>(0x14, r[0]);
+    if (r[1] > p->get<float>(0x20)) p->put<float>(0x20, r[1]);
+  }
+  if (p->get<uint32_t>(0) & 0x100) {
+    float c[3], r;
+    box_sphere(p->floats(0x10), c, &r);
+    std::memcpy(p->raw + 0x28, c, 12);
+    p->put<float>(0x34, r);
+  }
+  return 0;
+}
+}  // namespace
 
 }  // namespace zcls

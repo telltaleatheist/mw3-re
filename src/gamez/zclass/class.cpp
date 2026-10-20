@@ -6,8 +6,13 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_const.h"
 
 namespace zcls {
 
@@ -329,6 +334,224 @@ int node_box_xz(Node* node, float out[8][2]) {
     m = c;
   }
   zmth::box_corners_xz(m, box, out);
+  return status;
+}
+
+namespace {
+// The local matrix a node's box goes through (the pick of 0x004f2a40,
+// inlined in 0x004ecc00 and 0x004ecf70): none for an object3d still at the
+// identity (data flag 8), a stopped animate, or a class without one.
+const float* local_matrix(Node* n) {
+  auto* d = static_cast<uint8_t*>(n->data);
+  uint32_t f0, f4;
+  std::memcpy(&f0, d, 4);
+  std::memcpy(&f4, d + 4, 4);
+  switch (n->cls()) {
+    case 5: return f0 & 8 ? nullptr : reinterpret_cast<const float*>(d + 0x30);
+    case 1: return reinterpret_cast<const float*>(d + 0x80);
+    case 8: return (n->flags() & 4) && (f4 & 4) ? reinterpret_cast<const float*>(d + 8) : nullptr;
+    default: return nullptr;
+  }
+}
+
+// The node's box (+0x74) in its parent's frame; a node without data leaves
+// `out` as it was (the exe's stack locals).
+void parent_box(Node* n, float out[6]) {
+  if (!n->data || !(n->flags() & 0x100)) return;
+  if (const float* m = local_matrix(n)) zmth::transform_box(m, reinterpret_cast<const float*>(n->raw + 0x74), out);
+  else std::memcpy(out, n->raw + 0x74, 24);
+}
+
+// A parent marked changed for its own boxes (+0x2c bit 2), held on list 7.
+void mark_parent(Node* p) {
+  p->put<uint32_t>(0x2c, p->get<uint32_t>(0x2c) | 2);
+  if (!(p->flags() & 1)) {
+    push_back(kChanged, p);
+    p->set_flags(p->flags() | 1);
+  }
+  p->set_flags(p->flags() | 2);
+  if (p->changed) p->changed->removable = 0;
+}
+
+// Euler angles, position and scale into a matrix (push, identity, 0x00521670, pop).
+void build(float* m, const float* rot, const float* pos, const float* scale) {
+  zmth::push(reinterpret_cast<zmth::Mat34*>(m));
+  zmth::load_identity();
+  zmth::euler(rot, pos, scale);
+  zmth::pop();
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ed220
+int node_model_box(Node* node) {
+  if (!node) return zerr::report(0x400, kFile, 0xebc, "Null node pointer."), 5;
+  float* box = reinterpret_cast<float*>(node->raw + 0x8c);
+  if (node->model) {
+    zmod::model_box(node->model, box);
+  } else if (node->lib_model) {
+    Model* m = node->lib_model;  // a mechlib model: no lights
+    zmod::model_box(m->header, m->vertices, nullptr, m->morphs, box);
+  } else {
+    node->set_flags(node->flags() & ~0x200u);
+    return 0;
+  }
+  node->set_flags(node->flags() | 0x200);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ecf70. The children with boxes, each through its own
+// matrix, merged; worlds keep none (their cells hold the boxes).
+int node_children_box(Node* node) {
+  if (!node) return zerr::report(0x400, kFile, 0xe5b, "Null node pointer."), 5;
+  node->set_flags(node->flags() & ~0x400u);
+  const int32_t n = node->child_count();
+  if (n == 0 || node->cls() == 2) return 0;
+  float* acc = reinterpret_cast<float*>(node->raw + 0xa4);
+  int32_t i = 0;
+  for (; i < n; ++i) {
+    Node* c = node->children[i];
+    if (!(c->flags() & 0x100)) continue;
+    parent_box(c, acc);
+    node->set_flags(node->flags() | 0x400);
+    break;
+  }
+  if (!(node->flags() & 0x400)) return 0;
+  float b[6] = {};  // stale from the last child in the exe
+  for (++i; i < node->child_count(); ++i) {
+    Node* c = node->children[i];
+    if (!(c->flags() & 0x100)) continue;
+    parent_box(c, b);
+    if (!(b[0] >= acc[0])) acc[0] = b[0];
+    if (b[3] > acc[3]) acc[3] = b[3];
+    if (!(b[1] >= acc[1])) acc[1] = b[1];
+    if (b[4] > acc[4]) acc[4] = b[4];
+    if (!(b[2] >= acc[2])) acc[2] = b[2];
+    if (b[5] > acc[5]) acc[5] = b[5];
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ecc00. The bounds from the model box and the
+// children's; then each world parent refiles the node in the cell its box
+// fits now (or flags the cell it stays in), and other parents are marked
+// changed. FIX (A): the exe printf()s "haha" for a node named
+// "blackhawk_01" here, a debug leftover with no console to show it; dropped.
+int node_bound_box(Node* node) {
+  if (!node) return zerr::report(0x400, kFile, 0xda2, "Null node pointer."), 5;
+  if (node->cls() == 2) return 0;
+  const uint32_t flags = node->flags();
+  const float* a = reinterpret_cast<const float*>(node->raw + 0x8c);
+  const float* c = reinterpret_cast<const float*>(node->raw + 0xa4);
+  float both[6];
+  const float* src;
+  if ((flags & 0x200) && (flags & 0x400)) {
+    for (int k = 0; k < 3; ++k) both[k] = !(a[k] >= c[k]) ? a[k] : c[k];
+    for (int k = 3; k < 6; ++k) both[k] = !(a[k] > c[k]) ? c[k] : a[k];
+    src = both;
+  } else if (flags & 0x200) {
+    src = a;
+  } else if (flags & 0x400) {
+    src = c;
+  } else {
+    node->set_flags(flags & ~0x100u);
+    return 0;
+  }
+  node->set_flags(flags | 0x100);
+  std::memcpy(node->raw + 0x74, src, 24);
+  node->put<uint32_t>(0x2c, node->get<uint32_t>(0x2c) | 1);
+  bool have_box = false;
+  float box[6] = {};  // stack garbage in the exe when the node has no data
+  for (int32_t i = 0; i < node->parent_count(); ++i) {
+    Node* p = node->parents[i];
+    if (p->cls() != 2) {
+      mark_parent(p);
+      continue;
+    }
+    if (!have_box) {
+      parent_box(node, box);
+      have_box = true;
+    }
+    int32_t cx = -1, cz = -1;
+    if (!(node->flags() & 0x80)) box_cell(p, &cx, box[0], box[3], box[2], box[5], &cz);
+    const int32_t ox = node->get<int32_t>(0x4c), oz = node->get<int32_t>(0x50);
+    if (cx == ox && cz == oz) {
+      if (ox >= 0 && oz >= 0) world_touch_cell(p, ox, oz);
+    } else {
+      world_remove_child(p, node);
+      world_link(p, node, cx, cz);
+    }
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eca00 (gwNodeUpdate)
+int node_update(Node* node) {
+  int status = 0;
+  bool bounds = false;
+  if (node->get<uint32_t>(0x2c) & 4) node_model_box(node), bounds = true;
+  if (node->get<uint32_t>(0x2c) & 2) node_children_box(node), bounds = true;
+  node->put<uint32_t>(0x2c, node->get<uint32_t>(0x2c) & ~6u);
+  auto* d = static_cast<uint8_t*>(node->data);
+  switch (node->cls()) {
+    case 1: {
+      auto* cam = static_cast<Camera*>(node->data);
+      const uint32_t f = cam->get<uint32_t>(0x10);
+      if (!(f & 4)) break;
+      if (!(f & 2)) build(cam->floats(0x80), cam->floats(0x20), cam->floats(0x14), kOnes);
+      node_bound_box(node);
+      bounds = false;
+      cam->put<uint32_t>(0x10, cam->get<uint32_t>(0x10) & ~4u);
+      break;
+    }
+    case 2:
+      world_push_fog(node);
+      break;
+    case 5: {
+      auto* o = static_cast<Object3d*>(node->data);
+      const uint32_t f = o->get<uint32_t>(0);
+      if (!(f & 1)) break;
+      if (!(f & 0x10)) {
+        float pos[3];
+        std::memcpy(pos, o->raw + 0x54, 12);
+        build(o->floats(0x30), o->floats(0x18), pos, o->floats(0x24));
+      }
+      node_bound_box(node);
+      bounds = false;
+      o->put<uint32_t>(0, o->get<uint32_t>(0) & ~1u);
+      break;
+    }
+    case 6:
+    case 7:
+      break;
+    case 8: {
+      uint32_t f0, f4;
+      std::memcpy(&f0, d, 4);
+      std::memcpy(&f4, d + 4, 4);
+      if (!(node->flags() & 4) || !(f4 & 4) || f0 == 0) break;
+      if (f0 & 1) {
+        auto* fl = reinterpret_cast<float*>(d);
+        build(fl + 2, fl + 0x1c, fl + 0x1f, fl + 0x22);  // +0x08 from +0x70, +0x7c, +0x88
+        node_bound_box(node);
+        bounds = false;
+      }
+      std::memset(d, 0, 4);
+      break;
+    }
+    case 10:
+      sound_update(node);
+      break;
+    default: {
+      char msg[160];
+      std::snprintf(msg, sizeof msg, "gwNodeUpdate(): Unrecognized node class type:\n  node = %s class_type = %d\n",
+                    node->name(), node->cls());
+      zerr::report(0x200, kFile, 0xd6c, msg);
+      status = 3;
+      break;
+    }
+  }
+  if (bounds) node_bound_box(node);
+  node->set_flags(node->flags() & ~2u);
+  if (node->changed) node->changed->removable = 1;
   return status;
 }
 

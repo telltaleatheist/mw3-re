@@ -54,4 +54,26 @@ struct Sound : Raw<0x94> {
   Node** nodes = nullptr;          // +0x90  count +0x8c
 };
 
+// Seq.c: a sequence (made by the scripts' NewSEQ, 0x004fdc70; none in the
+// files): +0x00 active, +0x04 repeat, +0x08 loop (0 bounces), +0x0c pause,
+// +0x10 step (1 or -1), +0x14 index, +0x18 time, +0x1c count, then the
+// entries {node, time} from +0x20.
+struct Seq : Raw<0x20> {
+  struct Entry {
+    Node* node;
+    float time;
+  };
+  Entry* entries = nullptr;        // +0x20  count +0x1c
+};
+
+// Animate.c (class 8; none in the files, nothing in MW3 makes one): +0x00
+// matrix dirty (bit 0), +0x04 bit 2 playing, +0x08 its matrix, then a
+// motion record at +0x68: +0x70 the rotation, +0x7c position, +0x88 scale
+// sampled from the keys, +0x94.. their nine multipliers, +0xb8 duration,
+// +0xc0 time, +0xc4 the restart time, +0xc8 the loop end, i16 +0xcc state
+// (2 stopped), i16 +0xd0 key count, i16 +0xd2 -1 for no loop.
+struct Animate : Raw<0xd4> {
+  float* keys = nullptr;           // +0x6c  0x24 bytes each: rotation, position, scale
+};
+
 }  // namespace zcls
