@@ -5,11 +5,13 @@
 #include <cstdio>
 
 #include "crt/msvc_math.h"
+#include "crt/msvc_rand.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "mech3/mech_hud.h"
 #include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -1715,6 +1717,283 @@ void HudMfd::draw3d(float dt) {
     case 2: damage.draw3d(dt); break;
     default: break;
   }
+}
+
+// --- TARGET's tracking (hud.md section 14) ---
+
+namespace {
+ztwod::Rect g_triangle_rect{};  // [0x005e39d8] the zoom window's or the window's rect
+}  // namespace
+ztwod::Rect& triangle_rect() { return g_triangle_rect; }
+namespace {
+constexpr int32_t kCircle = 6;  // [0x005e39ec] the lead circle's radius
+constexpr int32_t kJitter = 4;  // [0x005e39e8] ECM's throw, pixels
+
+int32_t ftol(float v) { return crt::msvc_ftol(v); }
+
+// Mech3.exe 1.2 @ 0x00440290: as zTwoD's clip_round (0x005a3580) in floats:
+// p0..p1 within the circle across `r` into o0..o1; false when none of it is.
+bool clip_round_f(const ztwod::Rect& r, const float* p0, const float* p1, float* o0, float* o1) {
+  const float X = p0[0] - static_cast<float>(r.left + r.right) * 0.5f;
+  const float rad = static_cast<float>(r.right - r.left) * 0.5f;
+  const float Y = p0[1] - static_cast<float>(r.bottom + r.top) * 0.5f;
+  const float dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+  const float c = (Y * Y + X * X) - rad * rad;
+  const float A = dy * dy + dx * dx;
+  const float B = Y * dy + X * dx;
+  float t[2] = {A, 0.0f};
+  int32_t roots = 0;
+  if (A > 0.0f) {
+    const float disc = B * B - c * A;
+    if (disc >= 0.0f) {
+      const float sq = std::sqrt(disc);
+      roots = 2;
+      t[0] = (-B - sq) / A;
+      t[1] = (sq - B) / A;
+    }
+  }
+  int32_t i = 0;
+  auto next = [&] {
+    while (i < roots && !(t[i] > 0.0f && t[i] < 1.0f)) ++i;
+    return i < roots;
+  };
+  if (c > 0.0f && !next()) return false;
+  o0[0] = p0[0], o0[1] = p0[1];
+  if (c > 0.0f) {
+    o0[0] = dx * t[i] + o0[0];
+    o0[1] = dy * t[i] + o0[1];
+    ++i;
+  }
+  if ((c - B * -2.0f) + A <= 0.0f) {
+    o1[0] = p1[0], o1[1] = p1[1];
+    return true;
+  }
+  if (!next()) return false;
+  o1[0] = dx * t[i] + p0[0];
+  o1[1] = dy * t[i] + p0[1];
+  return true;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00440510: a triangle round the target, its height the
+// target's on screen (its centre to its centre plus its size up), in the
+// team's colour (red enemy, blue ally, else green); a new target's starts
+// larger by the pulse (+0x240c x 3.33 of the screen's height) and shrinks.
+// In a round zoom window the sides are cut to its circle, else to its (or
+// the window's) rect.
+void HudTarget::triangle(int32_t team, float dt, bool zoomed) {
+  HudHooks& h = *g_hooks;
+  const uint16_t c = team == 0 ? zvid::pack_bytes(0xff, 0, 0) : team == 1 ? zvid::pack_bytes(0, 0, 0xff)
+                                                                          : zvid::pack_bytes(1, 0xa2, 0x1f);
+  for (ztwod::Line2D& l : lines) l.color = c;
+  HudZoomWindow& z = static_cast<Hud*>(hud)->reticle.zoom;
+  bool round = false;
+  if (zoomed) {
+    h.zview_prepare(&z.view);
+    g_triangle_rect = z.rect;
+    round = z.round != 0;
+  } else {
+    g_triangle_rect = h.window_rect();  // 0x0040d7b0
+  }
+  void* contact = h.slot_contact(target);
+  float size = h.contact_size(contact);
+  float centre[3];
+  h.vehicle_center(h.contact_vehicle(contact), centre);
+  float a[3];
+  h.project(centre, a);
+  if (!zoomed) render_to_screen(a);
+  float top[3] = {centre[0], size + centre[1], centre[2]};
+  h.project(top, top);
+  if (!zoomed) render_to_screen(top);
+  size = std::fabs(top[1] - a[1]);
+  if (x240c > 0.0f) {
+    const float k = x240c * 3.3333333f;  // [0x005c010c]
+    const int32_t sh = h.display_h();
+    shown = 0;
+    x240c = x240c - dt;
+    size = static_cast<float>(sh) * k + size;
+  }
+  float pos[3];
+  h.entity_position(h.contact_entity(contact), pos);
+  h.project(pos, a);
+  if (!zoomed) render_to_screen(a);
+  shape1.show_for(-1.0f);
+  shape1.set_translation(a);
+  shape1.set_scale(size * 1.1547010f);  // [0x005c0110]
+  const float A = size * 0.333333f;     // [0x005c0118]
+  const float B = size * 0.5773505f;    // [0x005c0114]
+  const float p0[2] = {a[0], a[1] - (A + A)};
+  const float p1[2] = {a[0] - B, A + a[1]};
+  const float p2[2] = {B + a[0], A + a[1]};
+  const float* ends[3][2] = {{p0, p1}, {p1, p2}, {p2, p0}};
+  if (round) {
+    for (int i = 0; i < 3; ++i) {
+      float o0[2], o1[2];
+      if (clip_round_f(g_triangle_rect, ends[i][0], ends[i][1], o0, o1)) {
+        lines[i].set(ftol(o0[0]), ftol(o0[1]), ftol(o1[0]), ftol(o1[1]));
+        lines[i].show_for(-1.0f);
+      } else {
+        lines[i].hide();
+      }
+    }
+    return;
+  }
+  for (int i = 0; i < 3; ++i)
+    lines[i].set(ftol(ends[i][0][0]), ftol(ends[i][0][1]), ftol(ends[i][1][0]), ftol(ends[i][1][1]));
+  for (ztwod::Line2D& l : lines) {
+    l.clip = &g_triangle_rect;
+    l.clipped = 1;
+  }
+  for (ztwod::Line2D& l : lines) l.show_for(-1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x00440b00: TARGET's camera behind the target and turned
+// toward it; the target projected (through the zoom window first when it
+// shows); on screen, the targeting computer's lead circle (with ECM it
+// jitters and turns yellow) and the triangle; off it, an arrow at the edge
+// in the team's colour. Then the MFD modes' tails for the target.
+void HudTarget::track(float dt) {
+  if (flags & ztwod::kHidden) return;
+  HudHooks& h = *g_hooks;
+  if (!h.target_valid(target)) return;
+  void* contact = h.slot_contact(target);
+  h.contact_distance(contact);  // 0x004e7030: works out the direction too
+  float dir[3];
+  h.contact_dir(contact, dir);
+  float tp[3], op[3];
+  h.entity_position(h.contact_entity(contact), tp);
+  Hud* hd = static_cast<Hud*>(hud);
+  h.entity_position(hd->mech, op);
+  const float k = h.contact_size(contact) * 1.2f;  // [0x005c011c]
+  float angles[3];
+  zmth::direction_angles(op, tp, angles);
+  dir[0] = k * dir[0], dir[1] = k * dir[1], dir[2] = k * dir[2];
+  const float cam[3] = {tp[0] - dir[0], tp[1] - dir[1], tp[2] - dir[2]};
+  h.camera_set_position(view->view.camera, cam);
+  h.camera_set_angles(view->view.camera, angles);
+  HudZoomWindow& z = hd->reticle.zoom;
+  bool zoomed = !(z.flags & ztwod::kHidden);
+  bool on_main = false;  // projected through the player's view
+  float sp[3], zp[3];
+  int32_t code;
+  if (zoomed) {
+    h.zview_prepare(&z.view);
+    const uint32_t oz = h.project(tp, zp);
+    render_to_screen(zp);
+    if (oz == 0) {
+      code = 0;
+      sp[0] = zp[0], sp[1] = zp[1], sp[2] = zp[2];
+    } else {
+      h.view_prepare();
+      code = static_cast<int32_t>(h.project(tp, sp));
+      render_to_screen(sp);
+      if (code != 0) {
+        on_main = true;
+      } else {
+        zoomed = false;
+        // On the screen but off the zoom window: kept only when it lies past
+        // the zoom window's own outcode side.
+        if (!((oz & 1) && sp[0] < zp[0]) && !((oz & 2) && sp[0] > zp[0]) && !((oz & 4) && sp[1] < zp[1]) &&
+            !((oz & 8) && sp[1] > zp[1]))
+          code = -1;
+      }
+    }
+  } else {
+    h.view_prepare();
+    code = static_cast<int32_t>(h.project(tp, sp));
+    render_to_screen(sp);
+    on_main = true;
+  }
+  for (ztwod::Line2D& l : lines) l.hide();
+  marker.hide();
+  frame.hide();
+  shape1.hide();
+  void* tm = h.contact_mech(contact);
+  const bool ecm = tm && h.mech_3cc(tm) > 0;
+  int32_t team = 2;
+  if (Mech* own = hd->mech) {
+    if (void* seen = h.object_seen(contact)) {
+      if (h.mech_allies(own) & h.object_team(seen)) team = 1;
+      else if (h.mech_enemies(own) & h.object_team(seen)) team = 0;
+    }
+  }
+  const zimg::Texture* mk = marker.image;
+  switch (code) {
+    case 0: {
+      float lp[3], cp[3];
+      if (h.mech_part_count(hd->mech, 14) > 0 && lead_point(hd->mech, lp) && h.project(lp, cp) == 0) {
+        render_to_screen(cp);
+        uint16_t colour;
+        if (ecm) {
+          const float u = (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 6.1037019e-05f;  // [0x005e4008], [0x005e4004]
+          cp[0] = static_cast<float>(kJitter) * u + cp[0];
+          const float v = (static_cast<float>(crt::msvc_rand()) - 16383.5f) * 6.1037019e-05f;
+          cp[1] = static_cast<float>(kJitter) * v + cp[1];
+          colour = zvid::pack_bytes(0xff, 0xe2, 4);
+        } else {
+          colour = zvid::pack_bytes(0, 0xff, 0);
+        }
+        frame.color = colour;
+        const float hx = static_cast<float>(h.display_w() - kCircle - 1), lo = static_cast<float>(kCircle + 1);
+        if (cp[0] > hx) cp[0] = hx;
+        else if (cp[0] < lo) cp[0] = lo;
+        const float hy = static_cast<float>(h.display_h() - kCircle - 1);
+        if (cp[1] > hy) cp[1] = hy;
+        else if (cp[1] < lo) cp[1] = lo;
+        frame.show_for(-1.0f);
+        frame.set_pos(ftol(cp[0]), ftol(cp[1]));
+        frame.radius = kCircle;
+        frame.radius_sq = kCircle * kCircle;
+      }
+      triangle(team, dt, zoomed);
+      if (zoomed) h.view_prepare();
+      break;
+    }
+    case 1:
+    case 2: {  // left, right: the arrow at that edge, its height kept on screen
+      if (!on_main) break;
+      const int32_t mh = mk ? mk->height : 0;
+      if (static_cast<float>(h.display_h() - mh) < sp[1]) sp[1] = static_cast<float>(h.display_h() - (mk ? mk->height : 0));
+      else if (sp[1] < 0.0f) sp[1] = 0.0f;
+      if (code == 1) {
+        const int32_t py = ftol(sp[1]);
+        marker.set_image(arrows[team * 4 + 0]);
+        marker.set_pos(0, py);
+      } else {
+        const int32_t mw = mk ? mk->width : 0;
+        const int32_t py = ftol(sp[1]);
+        const int32_t px = h.display_w() - mw;
+        marker.set_image(arrows[team * 4 + 1]);
+        marker.set_pos(px, py);
+      }
+      marker.show_for(-1.0f);
+      break;
+    }
+    case 4:
+    case 8: {  // top, bottom
+      if (!on_main) break;
+      const int32_t mw = mk ? mk->width : 0;
+      if (static_cast<float>(h.display_w() - mw) < sp[0]) sp[0] = static_cast<float>(h.display_w() - (mk ? mk->width : 0));
+      else if (sp[0] < 0.0f) sp[0] = 0.0f;
+      if (code == 4) {
+        const int32_t px = ftol(sp[0]);
+        marker.set_image(arrows[team * 4 + 2]);
+        marker.set_pos(px, 0);
+      } else {
+        const int32_t mh = mk ? mk->height : 0;
+        const int32_t py = h.display_h() - mh;
+        const int32_t px = ftol(sp[0]);
+        marker.set_image(arrows[team * 4 + 3]);
+        marker.set_pos(px, py);
+      }
+      marker.show_for(-1.0f);
+      break;
+    }
+    default: break;
+  }
+  const int32_t mode = shown_mode();
+  if (mode == 2) h.damage_view_target(&damage);
+  else if (mode == 3) h.nav_list_target(nav, h.contact_mech(h.slot_contact(target)));
 }
 
 // Mech3.exe 1.2 @ 0x00441410

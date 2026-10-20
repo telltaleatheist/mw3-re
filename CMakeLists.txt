@@ -78,6 +78,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zmodel/gmod_puff.cpp
+  src/gamez/zmodel/gmod_screen.cpp
   src/gamez/zreader/zreader.cpp
   src/gamez/zsiscript/si_script.cpp
   src/gamez/zgame/zgameapp.cpp
@@ -195,6 +196,7 @@ add_library(mw3probe SHARED
   tests/probe_lighting.cpp
   tests/probe_drawtable.cpp
   tests/probe_matrix.cpp
+  tests/probe_screen.cpp
   tests/probe_world.cpp
   tests/probe_modeldraw.cpp
   tests/probe_bake.cpp

@@ -1912,6 +1912,17 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   working. In chain fire the weapon that fires next has the select mark and
   the rest of its group the chain mark; in group fire the whole group is
   marked.
+- **The targeting computer draws a lead circle:** with a targeting computer
+  fitted, TARGET puts a small green circle where you have to aim the
+  selected weapon so its shot meets the moving target (the shot's speed and
+  the target's movement against yours taken into account; beams aim
+  straight at it).
+- **ECM scrambles the lead circle:** against a target carrying ECM the lead
+  circle turns yellow and jitters by up to 4 pixels each frame.
+- **TARGET's triangle shows the target's side:** red for an enemy, blue for
+  an ally, green for anything else; it starts large when you pick a new
+  target and shrinks onto it. Off screen, an arrow in the same colour points
+  to it from the edge.
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not

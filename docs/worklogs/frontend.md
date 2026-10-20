@@ -235,3 +235,20 @@ program_hud_lock_on / program_hud_force_over. The fake clock steps 1/60 s.
 Next (lead): TARGET's tracking 0x00440b00, set_target 0x00441800,
 0x00440a30 and the hit tests 0x005a3440 / 0x005a3270 / 0x005a3b30, ending
 with the real c1m1 lock (no force).
+
+## 2026-10-20 TARGET's tracking, parts 1-2 (branch mac3/target-track)
+
+Part 1: zmod::project_point 0x0053cf10 (zmodel/gmod_screen; FIX (bug) the
+behind-the-camera outcode's address bits) and options' render_to_screen
+0x0040da30; test_project_point.py. Part 2: HudTarget::track 0x00440b00,
+triangle 0x00440510 with clip_round_f 0x00440290, lead_point 0x0041d940 in
+mech_hud (FIX (bug): no group). Shape's 0x005a3530 is a float scale
+(set_scale). test_hud ops 18 (tracking) and 19 (lead). Remember: the
+projections are answered from a table by call index ('0x0053cf10.out');
+rand is an LCG from 1 on both sides (crt::msvc_srand(1) in the probe);
+0x004e6fe0 must answer the live contact's vehicle (the triangle reads it
+unchecked); the selected group must exist (the lead point reads it
+unchecked); TARGET's triangle rect is the original's global 0x005e39d8.
+Next: part 3 (set_target 0x00441800 / 0x00441780 / 0x00441660 with a
+target, 0x00440a30, the hit tests), then give the fake mech a target in
++0x6c and rerun part 2's six missed breaks.

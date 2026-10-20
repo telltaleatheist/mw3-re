@@ -15,6 +15,7 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 #include "mech3/hud.h"
+#include "mech3/mech_hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
@@ -599,4 +600,20 @@ TEST(fix_layer_blend_keeps_its_alpha) {
   zrndr::blit16(&img, 0, 0, 0, nullptr);
   EXPECT(plain[0] != grey && plain[0] != key);  // the original path: mixed with the key
   t = saved;
+}
+
+// FIX (bug): the lead point (0x0041d940) with no group selected reads the
+// group's weapon through a null pointer in the original; here none, false.
+TEST(fix_lead_point_without_a_group) {
+  struct NoGroup : mech3::HudHooks {
+    int32_t wm_group_index(void*) override { return -1; }
+    void* mech_weapons(mech3::Mech*) override { return this; }
+    void* mech_target_slot(mech3::Mech*) override { return nullptr; }
+    void* slot_contact(void*) override { return nullptr; }
+  } hooks;
+  mech3::set_hud_hooks(&hooks);
+  float out[3] = {1, 2, 3};
+  EXPECT(!mech3::lead_point(nullptr, out));
+  EXPECT(out[0] == 1 && out[1] == 2 && out[2] == 3);
+  mech3::set_hud_hooks(nullptr);
 }
