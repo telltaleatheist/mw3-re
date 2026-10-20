@@ -396,6 +396,10 @@ layer in Direct3D), through `Host` and `zrndr_prim2d`:
   circle's points thrown up to radius x static x 0.1 (0x00563440).
 - Polygon: filled by the span fill 0x0055d010 with the winding [0x0074a3c8]
   from its first three points' cross product.
+- FlashImage (0x005a6d10; its fields set by the HUD's damage parts'
+  constructor 0x00447460): while on, a timer counts down a half period (+0xbc,
+  0.35 s); mode 1 blinks (drawn on phase 1), mode 2 swaps the image with
+  +0xd4 each half period.
 - PolyLine: with a clip rect (+0xe4) each segment clipped by 0x00563db0 (both
   ends' outcodes, the moved end truncated; it can overshoot the rect by a
   pixel); with `round` (+0xe8) each segment cut to the circle across the rect
@@ -570,6 +574,9 @@ caret's place, colour and lines (0x00562940 recorded), set_text's cuts.
   copies of a Text leave the fields their constructor never set (the
   background colour of a transparent text) as the stack held them.
 - Dialog's constructor looks up "VMode" (0x00597d10) and drops the result.
+- A flashing image's mode 0 (0x005a6d10) runs on into mode 1's blink (a
+  missing `break`): drawn, then drawn again on phase 1 (the HUD's damage
+  silhouette parts, hud.md section 11).
 
 ## 9. What is left
 
@@ -584,15 +591,11 @@ Mapped, not ported:
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
   0x005a7d10 (zFMV is not ported).
-- The HUD side's drawing (`twod_shapes.cpp` builds Frame, FilledBox, Shape,
-  the HUD lines and the polygon, hud.md): zRender's 2D line list 0x00562cb0,
-  Shape's transformed points 0x005a3580, boxes 0x005630c0 / 0x00563440, the
-  line clip helpers 0x0059b2f0..0x0059b7e0, the HUD lines' draws
-  0x005a68b0..0x005a6b30, the polygon's 0x005a6ca0, the
-  render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in it)
-  and zRender's ripple 0x00558dd0 (Host::ripple), the text console
+- The render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in
+  it) and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
-  key-list screen pieces 0x005a6bd0..0x005a6d10.
+  key-list screen's other pieces (0x00482570). Shape's hit test 0x005a3440
+  and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD).
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10
   (a std::list of {strdup name, image, count}; release frees images it does

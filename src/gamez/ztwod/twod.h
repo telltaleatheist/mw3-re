@@ -615,6 +615,21 @@ void set_line_clip(const float* min, const float* max);  // 0x0059b2f0
 bool clip_line(float* a, float* b);
 bool clip_round(const Rect& r, const int32_t* p0, const int32_t* p1, int32_t* o0, int32_t* o1);  // 0x005a3580
 
+// An image that blinks or swaps with another (0x005a6d10 its update; the
+// HUD's damage parts, whose constructor 0x00447460 sets these inline).
+class FlashImage : public Image {
+ public:
+  explicit FlashImage(int32_t center) : Image(center) {}
+  void update(float dt) override;    // +0x24  0x005a6d10
+  float rate = 0.35f;                // +0xbc  a half period, seconds
+  float timer = 0.0f;                // +0xc0
+  int32_t on = 0;                    // +0xc4
+  int32_t mode = 0;                  // +0xc8  1 blink, 2 swap with `alt`
+  int32_t phase = 1;                 // +0xcc  1 or -1
+  uint32_t xd0 = 0;                  // +0xd0
+  zimg::Texture* alt = nullptr;      // +0xd4
+};
+
 // A filled polygon of up to 21 points (vtable 0x005d0860), 0x138 bytes: the
 // HUD's bars.
 class Polygon : public Object2D {

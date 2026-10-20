@@ -44,7 +44,7 @@ void player_frame(Mech& m) {
 void hud_handoff(Mech& m, float dt) {
   Hud* h = viewed_hud(m);
   if (!h) return;
-  if (g_calls.hud_frame) g_calls.hud_frame(*h, dt);
+  h->update(dt);  // vt+0x00, 0x0043c820
   if (m.hud_fall == 0) aim_at_point(m, h->reticle.aim_point, true);
 }
 

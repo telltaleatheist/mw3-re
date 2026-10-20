@@ -460,6 +460,19 @@ void HudLight::select(int32_t i) {
   set_image(images[i]);
 }
 
+// Mech3.exe 1.2 @ 0x004486e0
+void HudLight::update(float dt) {
+  if (interval != 0.0f) {
+    time += dt;
+    const uint32_t i = static_cast<uint32_t>(crt::msvc_ftol(std::floor(time / interval))) % static_cast<uint32_t>(count);
+    if (static_cast<uint32_t>(current) != i) {
+      current = static_cast<int32_t>(i);
+      set_image(images[i]);
+    }
+  }
+  Image::update(dt);
+}
+
 namespace {
 ztwod::ClipLine2D clip_line() { return ztwod::ClipLine2D(0, 0, 0, 0, 0); }  // 0x0043d620
 constexpr int32_t kRadarStep = 10;  // [0x005e39c0]: pixels a zoom step
@@ -649,7 +662,7 @@ HudMfdView::HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h) : HudZoomVi
 }
 
 // Mech3.exe 1.2 @ 0x00447460: at the part's place in the silhouette, blue.
-HudDamagePart::HudDamagePart(DamageImages* d, int32_t px, int32_t py) : Image(0), images(d) {
+HudDamagePart::HudDamagePart(DamageImages* d, int32_t px, int32_t py) : FlashImage(0), images(d) {
   Image::set_pos(d->x + px, d->y + py);
   set_image(d->image[0]);
 }
@@ -1303,6 +1316,187 @@ Hud::Hud(Mech* m) {
   add(&weapons);
   add(&equipment);
   timer.show_for(-1.0f);
+}
+
+}  // namespace mech3
+
+namespace mech3 {
+
+// Mech3.exe 1.2 @ 0x0043ad00: a see-through panel in Direct3D draws in the
+// 3D pass instead (+0x28).
+void HudPanel::update(float dt) {
+  if (ztwod::host().video_mode() == 0 || alpha == 0xff) Image::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00448030
+void HudEquipLine::update(float dt) {
+  Text::update(dt);
+  light.update(dt);
+  value.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00445c10: the texts are not drawn themselves; rendered,
+// they are the bar's images, the second filling over the name. (Two calls
+// of 0x005a1380 whose results go unused are left out.)
+void HudWeaponLine::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  if (changed) {
+    if (text2.needs_render) text2.render();
+    fill = text2.image;
+    dirty();
+    if (name.needs_render) name.render();
+    empty = name.image;
+    dirty();
+    set_value(value);  // vt+0x8c
+    changed = 0;
+  }
+  Object2D::update(dt);
+  if (count != -1) count_text.update(dt);
+  light.update(dt);
+  mark.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0043dd00
+void HudRadar::update(float dt) { hud_hooks().radar_update(this, dt); }
+
+// Mech3.exe 1.2 @ 0x0043f620
+void HudCompass::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  frame.update(dt);
+  tape.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00447410
+void HudObjectives::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  panel.update(dt);
+  TextBox::update(dt);
+  scores.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x004452c0
+void HudGauges::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  for (ztwod::Object2D* o : std::initializer_list<ztwod::Object2D*>{
+           &speed_text, &coolant_text, &heat_text, &speed_bar, &speed_frame, &fuel_bar, &fuel_frame,
+           &coolant_bar, &coolant_frame, &heat_bar, &heat_meter, &toggler})
+    o->update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00442880
+void HudMfdView::update(float dt) {
+  if (!(flags & ztwod::kHidden)) box.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00447b50: drawn hidden or not, each part by its own flags.
+void HudDamageView::update(float dt) {
+  bg.update(dt);
+  for (HudDamagePart& p : parts) p.update(dt);
+}
+
+void HudMfd::update_mode(float dt) {
+  switch (shown_mode()) {
+    case 1: view->update(dt); break;
+    case 2: damage.update(dt); break;
+    case 3: hud_hooks().nav_list_update(nav, dt); break;
+    default: break;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00442540: no hidden test; the title only with the
+// title flag, or in a multiplayer game while [0x00605f88] is clear.
+void HudMfd::update(float dt) {
+  update_mode(dt);
+  HudHooks& h = hud_hooks();
+  if (h.multiplayer_game() == 0 ? h.title_flag() : !h.title_mp_off()) title.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x004413a0: the mode without a target is none; a target
+// that is not a mech shows its 3D view only.
+int32_t HudTarget::shown_mode() {
+  HudHooks& h = hud_hooks();
+  void* o = h.target_valid(target) ? h.target_object(target) : nullptr;
+  if (!o || h.object_a8(o)) return 0;
+  if (h.object_mech(o)) return mode;
+  return mode != 0;
+}
+
+// Mech3.exe 1.2 @ 0x00441490: no title; the fourth text not drawn.
+void HudTarget::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  for (ztwod::Line2D& l : lines) l.update(dt);
+  update_mode(dt);
+  texts[0].update(dt);
+  texts[1].update(dt);
+  texts[2].update(dt);
+  marker.update(dt);
+  frame.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00442e30: hidden, the scale shrinks at 7 a second;
+// shown, it grows at 4.8. Full size, the light shows the reticle's state.
+void HudZoomWindow::update(float dt) {
+  const bool hidden = (flags & ztwod::kHidden) != 0;
+  zoom -= dt * (hidden ? 7.0f : -4.8f);
+  if (zoom > 1.0f) zoom = 1.0f;
+  else if (zoom < 0.0f) zoom = 0.0f;
+  if (hidden && zoom == 0.0f) return;
+  if (zoom == 1.0f) {
+    light.select(static_cast<Hud*>(source)->reticle.state);
+    light.update(dt);
+    text.update(dt);
+  }
+  if (round) frame.update(dt);
+  else box.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x004441a0: the reticle itself only while the zoom window
+// is away; nothing more once the HUD is off and its mech dead.
+void HudReticle::update(float dt) {
+  zoom.update(dt);
+  Hud* h = static_cast<Hud*>(source);
+  if (h && h->mech && hud_hooks().mech_dead(h->mech) && h->active == 0) return;
+  if (zoom.flags & ztwod::kHidden) Image::update(dt);
+  x954 -= dt;
+  if (x954 < 0.0f) x954 = 0.0f;  // [0x005c007c]
+}
+
+// Mech3.exe 1.2 @ 0x00446680
+void HudWeapons::update(float dt) {
+  if ((flags & ztwod::kHidden) || weapons == 0) return;
+  if (shown) hud_hooks().weapons_looks(this);
+  panel.update(dt);
+  for (HudWeaponLine& l : lines) l.update(dt);
+  poly.update(dt);
+  Object2D::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00448450
+void HudEquipment::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  panel.update(dt);
+  for (HudEquipLine& l : lines) {
+    if (l.flags & ztwod::kHidden) break;
+    l.update(dt);
+  }
+  Object2D::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0043c820: the debug overlays (hooked), the layer's own
+// objects, the timer, the objectives and the radar; the reticle's aim state
+// while it is 5 (none set this frame), then the reticle.
+void Hud::update(float dt) {
+  if (!mech) return;
+  HudHooks& h = hud_hooks();
+  h.hud_debug(this);
+  Layer::update(dt);
+  timer.update(dt);
+  objectives.update(dt);
+  radar.update(dt);
+  if (reticle.state == 5) h.reticle_aim_state(&reticle, h.reticle_over_target(&target, reticle.get_x(), reticle.get_y()));
+  reticle.update(dt);
+  reticle.state = 5;
+  h.network_hud();
 }
 
 }  // namespace mech3

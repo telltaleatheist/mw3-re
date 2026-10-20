@@ -232,6 +232,36 @@ bool clip_round(const Rect& r, const int32_t* p0, const int32_t* p1, int32_t* o0
   return true;
 }
 
+// Mech3.exe 1.2 @ 0x005a6d10: drawn each frame while on; a blink shows on
+// phase 1, a swap trades the images at each half period.
+void FlashImage::update(float dt) {
+  if (flags & kHidden) return;
+  if (!on) return draw();
+  timer = timer - dt;
+  auto flip = [&] {
+    phase = -phase;
+    const float t = rate + timer;
+    timer = t < 0.0f ? rate : t;
+  };
+  if (mode == 0) draw();  // then on into mode 1's blink: a missing break (twod.md)
+  if (mode <= 1) {
+    if (timer < 0.0f) {
+      flip();
+      dirty();
+    }
+    if (phase == 1) draw();
+    return;
+  }
+  if (mode == 2 && timer < 0.0f) {
+    flip();
+    zimg::Texture* t = image;
+    set_image(alt);
+    alt = t;
+    dirty();
+  }
+  draw();
+}
+
 // Mech3.exe 1.2 @ 0x005a6ca0: the winding from the first three points.
 void Polygon::draw() {
   erase();
