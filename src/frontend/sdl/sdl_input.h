@@ -49,6 +49,9 @@ class SdlInput : public platform::Input {
   // The mouse in window pixels and its buttons now (Windows' cursor, GetCursorPos).
   float mouse_x = 0, mouse_y = 0;
   uint32_t mouse_buttons = 0;  // bit 0 left, 1 right, 2 middle
+  // Window-pixel motion since the last call, whether or not zInput holds the
+  // mouse (for tools such as the free camera; the game reads mouse_state).
+  void take_motion(float* x, float* y) { *x = raw_dx_, *y = raw_dy_, raw_dx_ = raw_dy_ = 0; }
 
   static constexpr uint32_t kBufferSize = 0x80;  // DIPROP_BUFFERSIZE (0x0051a170)
 
@@ -67,6 +70,7 @@ class SdlInput : public platform::Input {
   uint32_t sequence_ = 0;
   bool held_[256] = {};
   float dx_ = 0, dy_ = 0, dz_ = 0;
+  float raw_dx_ = 0, raw_dy_ = 0;
   uint8_t buttons_[4] = {};
   SDL_Joystick* joy_ = nullptr;
 };

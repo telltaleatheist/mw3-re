@@ -245,6 +245,7 @@ void SdlInput::on_event(const SDL_Event& e) {
     }
     case SDL_EVENT_MOUSE_MOTION:
       mouse_x = e.motion.x, mouse_y = e.motion.y;
+      raw_dx_ += e.motion.xrel, raw_dy_ += e.motion.yrel;
       if (acquired_[kMouse]) dx_ += e.motion.xrel * mickey_scale, dy_ += e.motion.yrel * mickey_scale;
       break;
     case SDL_EVENT_MOUSE_WHEEL:
