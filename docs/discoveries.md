@@ -1399,6 +1399,35 @@ are all "puffers": emitters that drop little textured squares.
   layout of the AI settings (tags p3, p4, p5, p7) that no shipped mission
   uses, and complains if a file mixes it with the new one.
 
+## The cameras
+
+From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
+
+- **Every mech sits you in a different spot in its cockpit.** The cockpit
+  camera hangs at the torso plus an offset from the mech's file: the Mad Cat
+  2.45 m up and 1.3 m forward, the Vulture 3.75 m up but 1.75 m *behind*, the
+  Thor a metre to the right, the Owens 0.18 m to the right.
+- **How far you can turn your head differs by mech too:** the Annihilator,
+  Bushwacker, Firefly, Supernova and Vulture look 89 degrees to each side; the
+  Orion and Sunder only 55. Looking up ranges from 17 degrees (Sunder) to 35,
+  down from 10 (Vulture) to 18 (Daishi).
+- **There are six cameras, not three.** Besides the cockpit and the two the
+  camera key cycles to (tether behind, zippercam beside), each mech has
+  godseye (150 m up, looking straight down), mcbtether (30 m back) and area
+  (40 m off); what switches to those is not traced yet.
+- **The cockpit view bobs with the mech's motion,** and twisting or pitching
+  the torso adds to the tilt; the bob is 0.15 of the motion, behind a switch
+  that is on in 1.2 ([0x5e2448]; no menu sets it that we know of).
+- **The chase camera hangs back when you slow down:** its distance grows with
+  your speed and closes slowly when you brake (15% of the gap a second), but
+  never comes closer than 90% of its base distance.
+- **Under water the fog changes**: when the camera is below a water surface
+  that is above the ground there, the world takes the mission's water fog;
+  an outside camera that ends up below the ground is lifted half a metre
+  above it.
+- **Rain and snow stop under a roof:** each frame the game looks 100 m up
+  from the camera; anything there hides the weather.
+
 ## Game states
 
 - **Escape doesn't pause a multiplayer mission**: a message box asks instead

@@ -33,3 +33,21 @@ The blue lower half Owen saw: camera1 at the origin under the ground; the
 view 0x0040aca0 and placement 0x004161c0 own it (mac 2).
 Left: lock readback of the 3D picture (2D code that reads the screen sees
 the key), 0x00576de0's software lock as a port, the 2D front end's tint callers.
+
+## 2026-10-20 The player's view (branch mac3/view)
+
+The view 0x0040aca0 family, the four camera classes and the cameras' set-up
+0x00430e70 in mech3/player_view (docs/view.md); the program's glue in
+app_view.cpp (the view made with the mission's, attached at the launch,
+updated by the player's tick through PlayerHooks::view_tick, mode and target
+copied into the view's block by GameEngine::sync_view). app_engine.h and
+mech.h cannot share a file (two Handle types): app_view.cpp talks to the
+engine through ViewProgram callbacks.
+Remember: emulator tests run in the background into scratch/ files with
+`-P -u -X faulthandler`, print per seed, end with flush + os._exit (a native
+crash goes into UE instead of dying); probes must Mute set-up calls that run
+before the seed's callback is set (a freed ctypes callback segfaults); the
+break script leaves its last mutant built: rebuild after. Commits carry no
+Co-Authored-By / Claude-Session lines (noreply email set in the worktree).
+Left: 0x0040b310 pull-in, the world queries of the ground/water/weather
+checks, the torso's cockpit switch 0x0041ce10 and the HUD's camera calls.
