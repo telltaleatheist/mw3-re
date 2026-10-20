@@ -907,7 +907,7 @@ void MainState::leave() {
     delete_object(en, m.global);
     en.poke32(m.global, 0);
   }
-  if (save_pilots_) en.pilot_save_all("mechlab");
+  if (save_pilots_) en.pilot_delete("mechlab");
 }
 
 // Mech3.exe 1.2 @ 0x0048e400
@@ -919,7 +919,7 @@ void MainState::suspend(uint32_t arg) {
 // Mech3.exe 1.2 @ 0x00486e80: back from a game (4 or 5) the pilots are saved.
 void MainState::resume(uint32_t arg) {
   Engine& en = e();
-  if (arg >= 4 && arg <= 5) en.pilot_save_all("mechlab");
+  if (arg >= 4 && arg <= 5) en.pilot_delete("mechlab");
   if (screen_) en.screen_refresh(screen_);
   reset_idle();
   ShellState::resume(arg);

@@ -218,6 +218,10 @@ class TrainingGame : public Game {
   void save() override;              // vt+0x18  0x00436fe0
   void load() override;              // vt+0x1c  0x00437020
   int32_t type() const override { return kTraining; }  // 0x00473a20
+  // A training mission's name and description (0x00437060, 0x004370d0: the
+  // message, i within 1..4).
+  static int32_t name_id(int32_t i);
+  static int32_t text_id(int32_t i);
 
   int32_t x38 = 0;                   // +0x38
   uint8_t passed[4] = {};            // +0x3c  each training mission's PASS (mission n at +0x3b + n)

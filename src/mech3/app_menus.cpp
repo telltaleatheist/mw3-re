@@ -17,6 +17,8 @@
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
 #include "mech3/options_menu.h"
+#include "mech3/pilot.h"
+#include "mech3/pilot_menu.h"
 
 namespace mech3 {
 
@@ -90,6 +92,19 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kControls, h); });
     case 0x4295e0:
       return state([](Handle h) -> MenuState* { return new CreditsState(h); });
+    case 0x488910: {  // the Pilot State: its screen made with it (adopted)
+      const Handle h = alloc_block(0x14);
+      menu_states_[h] = new PilotState(*this, h);
+      return h;
+    }
+    case 0x48a6c0:
+      return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kAction, h); });
+    case 0x48aef0:
+      return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kCampaign, h); });
+    case 0x48b120:
+      return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kTraining, h); });
+    case 0x49c900:
+      return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kMultiplayer, h); });
     default:
       return Engine::construct(ctor, args);
   }
@@ -208,9 +223,7 @@ void GameEngine::shell_clear(uint32_t state) {
   Engine::shell_clear(state);
 }
 
-// App::Push of a menu object: the ported ones (the options and the credits)
-// are pushed; the Action, Campaign, Training and Multiplayer states and the
-// Pilot state are not ported, so their objects are 0 and a press is logged.
+// App::Push of a menu object: the ported ones are pushed; any other is logged.
 void GameEngine::push_state(Handle state, uint32_t arg) {
   MenuState* st = menu_state_of(state);
   if (!st) st = popup_state_of(state);
@@ -221,6 +234,29 @@ void GameEngine::push_state(Handle state, uint32_t arg) {
   char key[40];
   std::snprintf(key, sizeof key, "0x00590400 (menu state %#x)", state);
   unported(key, {state, arg});
+}
+
+// ---- the pilot (mech3/pilot) ----
+
+void GameEngine::pilot_state_set_mode(Handle state, int32_t mode) {
+  if (auto* p = dynamic_cast<PilotState*>(menu_state_of(state))) p->set_mode(mode);
+  else Engine::pilot_state_set_mode(state, mode);
+}
+
+// [0x0060861c] as a handle of the pilot object, for the parts that read it
+// through the module memory (the mission's, not yet bridged: they see a
+// pilot, not its games).
+void GameEngine::pilot_chosen(Pilot* p) { poke32(0x60861c, handle_of(p)); }
+
+// 0x004785f0 at the app's stop: every pilot destroyed, so saved.
+void GameEngine::pilots_delete() {
+  current_pilot() = nullptr;
+  delete_other_pilots();
+}
+void GameEngine::pilot_delete(const char* name) { delete_pilot(name); }
+
+uint32_t GameEngine::message_box1(int32_t a, int32_t caption, int32_t text, const char* s) {
+  return message_box3(a, caption, text, s, "", "");
 }
 
 }  // namespace mech3

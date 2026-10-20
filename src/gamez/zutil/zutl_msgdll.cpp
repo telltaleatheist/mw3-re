@@ -212,4 +212,12 @@ std::string format_message(int32_t id, std::initializer_list<const char*> args) 
   return s;
 }
 
+std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args) {
+  std::string s[4];
+  size_t n = 0;
+  for (int32_t v : args)
+    if (n < 4) s[n++] = std::to_string(v);
+  return format_message(id, {s[0].c_str(), s[1].c_str(), s[2].c_str(), s[3].c_str()});
+}
+
 }  // namespace zutl

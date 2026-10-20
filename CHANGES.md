@@ -166,6 +166,16 @@ unusual happens.
   path 13) links to a point that does not exist; the original read
   leftover memory there, the rebuild takes no link.
 
+- A damaged pilot file no longer hangs the game while it is read (a count
+  read past the end of the file made up to 4 billion empty campaigns or
+  lancemates).
+- A file in `pilots\` with a name of 64 characters or more no longer
+  crashes the pilot screen; it is not listed.
+- DELETE on the pilot screen before any pilot exists no longer crashes the
+  game; it does nothing.
+- Deleting the pilot you had chosen before no longer leaves the game holding
+  the deleted pilot (it could be taken for the player's in a lobby game).
+
 ## Copy protection removed
 
 - No CD check at startup; the importer copies the movies from the disc.
@@ -243,6 +253,12 @@ These change how the game talks to the computer, not how it plays.
   shows: mech shadows, coloured explosion and muzzle-flash light on textured
   surfaces, the ground lit by weapon fire, and moving cloud shadows. (On a
   1999 Windows 98 machine these may never have shown; that is unconfirmed.)
+
+- Pilot files (and every saved file) are written in the rebuild's own
+  folder; pilots from an imported install are copied there the first time
+  they are opened, so their progress continues. Accented pilot names
+  (Windows' own character set, as the original typed them) are stored as
+  ordinary file names on macOS.
 
 ## Kept as the original, on purpose
 

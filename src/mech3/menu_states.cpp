@@ -18,7 +18,7 @@ const char* name_of(OptionsState::Kind k) {
 MenuState::~MenuState() { clear_screen(); }
 
 // Mech3.exe 1.2 @ 0x00438c80
-void MenuState::escape() { a().pop(1); }
+void MenuState::escape() { e().pop_state(1); }
 
 // Mech3.exe 1.2 @ 0x00438be0, 0x0043a640, 0x0042d9d0
 OptionsState::OptionsState(Kind k, Handle addr) : MenuState(name_of(k), addr), kind(k) {

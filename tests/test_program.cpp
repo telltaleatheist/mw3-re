@@ -28,6 +28,8 @@
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
+#include "mech3/pilot.h"
+#include "mech3/pilot_menu.h"
 #include "mech3/player.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
@@ -200,7 +202,22 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(std::string(menu->version.text) == "MechWarrior 3 1.2");
       EXPECT(menu->head != nullptr && menu->active == 1);
     }
-    EXPECT(engine.unported_counts().count("0x0048a6c0") == 1);  // the Action State's object
+    EXPECT(engine.unported_counts().count("0x00488bc0") == 1);  // the Action State's screen
+    // The pilot screen (menus.md, The pilot screen) is made with its state:
+    // PILOTDIALOG of the main menu's tree, no pilots yet; a name typed makes one.
+    auto* ps = dynamic_cast<mech3::PilotState*>(engine.menu_state_of(engine.peek32(0x609858)));
+    EXPECT(ps != nullptr && ps->screen != nullptr);
+    if (ps && ps->screen) {
+      mech3::PilotScreen& s = *ps->screen;
+      EXPECT(s.pilots.dialog == &s && s.pilots.size == 6 && s.pilots.rows.size() == 6);
+      EXPECT(s.games.dialog == &s && s.games.size == 14 && s.new_bar.editor.size == 0x10);
+      EXPECT(s.rename_bar.dialog == &s && (s.rename_bar.flags & ztwod::kHidden) != 0);
+      EXPECT(s.pilots.item_count() == 0 && s.chosen == nullptr);
+      s.new_bar.set_text("Ace");
+      s.new_bar.on_return();
+      EXPECT(s.pilots.item_count() == 1 && s.chosen != nullptr && s.chosen == mech3::find_pilot("Ace"));
+      EXPECT(zutl::exists("pilots\\Ace.mw3"));
+    }
     // The controls screen (menus.md section 6) is made with its state: the
     // shipped dialog, group 0's commands, the seven groups, the axis popup.
     EXPECT(engine.unported_counts().count("0x0042a590") == 0);

@@ -90,6 +90,11 @@ class GameEngine : public Engine {
   uint32_t message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
                         const char* s3) override;
   void credits_restart(Handle screen) override;
+  void pilot_state_set_mode(Handle state, int32_t mode) override;
+  void pilot_chosen(Pilot* p) override;
+  void pilots_delete() override;
+  void pilot_delete(const char* name) override;
+  uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) override;
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)

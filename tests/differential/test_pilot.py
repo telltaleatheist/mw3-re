@@ -138,50 +138,28 @@ class FS:
 
 # ---- the original ----
 
-class Emulated:
-    def __init__(self, fs):
-        self.fs = fs
-        self.log = []
-        cpu = self.cpu = Original()
-        cpu.uc.mem_map(BIG, 0x10000000)
-        self.big = BIG
+class Files:
+    """The file system's imports and the end-of-file hooks, on an emulator's cpu
+    (test_pilotscreen.py shares them)."""
+
+    def __init__(self, cpu, fs):
+        self.cpu, self.fs = cpu, fs
         self.handles = {}
         self.next_handle = 0x100
         self.short = False
         self.listing = []
-        cpu.stub_function(NEW, self.new)
-        cpu.stub_function(DELETE, lambda c: 0)
-        empty = self.string('')
-        cpu.stub_function(CS_CTOR, lambda c: (c.u32(c.ecx, empty), c.ecx)[1])
-        cpu.stub_function(CS_CTOR_S, lambda c: (c.u32(c.ecx, self.string(self.cstr(c.arg(0)))), c.ecx)[1], 4)
-        cpu.stub_function(CS_DTOR, lambda c: 0)
-        cpu.stub_function(CS_FORMAT, self.format)
-        cpu.stub_function(CS_BUFFER, lambda c: self.r32(c.ecx), 4)
-        cpu.stub_function(ATEXIT, lambda c: 0)
-        cpu.stub_function(0x576040, self.message)
-        cpu.stub_function(0x470e30, self.store_fill)
-        cpu.stub_function(0x4733b0, self.add_mech, 8)
-        cpu.stub_function(0x484840, self.missions)
-        cpu.stub_function(0x4242a0, self.config_load)
-        cpu.stub_function(0x424480, self.config_save, 4)
-        cpu.stub_function(0x424350, lambda c: 0)
         for name, fn, pop in (('CreateFileA', self.create_file, 28), ('ReadFile', self.read_file, 20),
                               ('WriteFile', self.write_file, 20), ('SetFilePointer', self.seek, 16),
                               ('CloseHandle', self.close, 4), ('DeleteFileA', self.delete_file, 4),
                               ('MoveFileA', self.move_file, 8), ('FindFirstFileA', self.find_first, 8),
                               ('FindNextFileA', self.find_next, 8), ('_mkdir', lambda c: 0, 0),
-                              ('_access', self.access, 0), ('_splitpath', self.splitpath, 0),
-                              ('strncmp', self.strncmp, 0), ('free', lambda c: 0, 0)):
+                              ('_access', self.access, 0), ('_splitpath', self.splitpath, 0)):
             cpu.stub_import(IAT[name], fn, pop)
         uc = cpu.uc
         uc.hook_add(UC_HOOK_CODE, self.items_end, begin=ITEMS_KIND_READ, end=ITEMS_KIND_READ)
         uc.hook_add(UC_HOOK_CODE, self.item_id, begin=ITEM_LOAD_ID, end=ITEM_LOAD_ID)
         uc.hook_add(UC_HOOK_CODE, self.mates_end, begin=MATES_LOOP, end=MATES_LOOP)
         uc.hook_add(UC_HOOK_CODE, self.campaigns_end, begin=CAMPAIGNS_LOOP, end=CAMPAIGNS_LOOP)
-        cpu.call(LIST_INIT)
-        for a in SETUP:
-            cpu.u32(a, 0)
-        cpu.u32(CURRENT, 0)
 
     # memory
     def r32(self, a):
@@ -225,61 +203,6 @@ class Emulated:
         a = self.alloc(len(s) + 1)
         self.cpu.write(a, s.encode('latin1') + b'\0')
         return a
-
-    # the stubs
-    def format(self, c):
-        fmt = self.cstr(c.arg(1))
-        args, n, out, i = [], 2, '', 0
-        while i < len(fmt):
-            ch = fmt[i]
-            if ch != '%':
-                out += ch
-                i += 1
-                continue
-            j = i + 1
-            while fmt[j] in '0123456789':
-                j += 1
-            spec = fmt[i:j + 1]
-            if fmt[j] == 's':
-                out += self.cstr(c.arg(n))
-            else:
-                out += spec % i32(c.arg(n))
-            n += 1
-            i = j + 1
-        self.cpu.u32(c.arg(0), self.string(out))
-        return c.arg(0)
-
-    def message(self, c):
-        self.log.append(f'message {c.ecx}')
-        return self.string(f'MSG_{c.ecx}')
-
-    def store_fill(self, c):
-        self.log.append(f'store_fill {GAME_VT[self.r32(c.ecx - 8)]}')
-        return 0
-
-    def add_mech(self, c):
-        self.log.append(f'add_mech {i32(c.arg(0))} {self.cstr(c.arg(1))}')
-        return 1
-
-    def missions(self, c):
-        self.log.append(f'missions {i32(c.ecx)}')
-        return i32(c.ecx) + 3
-
-    def config_load(self, c):
-        data, n = self.read(c.edx, 4)
-        k = struct.unpack('<i', data)[0] if n == 4 else -1
-        self.log.append(f'config_load {k}')
-        if n != 4:
-            return 0
-        o = self.alloc(8)
-        self.cpu.u32(o, k)
-        return o
-
-    def config_save(self, c):
-        k = self.r32(c.ecx)
-        self.log.append(f'config_save {i32(k)}')
-        self.write(c.arg(0), struct.pack('<I', k))
-        return 0
 
     # the file system
     def create_file(self, c):
@@ -412,6 +335,93 @@ class Emulated:
     def campaigns_end(self, uc, address, size, user):
         if self.short:
             uc.mem_write(uc.reg_read(UC_X86_REG_ESP) + 0x10, bytes(4))
+
+
+
+class Emulated(Files):
+    def __init__(self, fs):
+        self.log = []
+        cpu = Original()
+        cpu.uc.mem_map(BIG, 0x10000000)
+        self.big = BIG
+        Files.__init__(self, cpu, fs)
+        cpu.stub_function(NEW, self.new)
+        cpu.stub_function(DELETE, lambda c: 0)
+        empty = self.string('')
+        cpu.stub_function(CS_CTOR, lambda c: (c.u32(c.ecx, empty), c.ecx)[1])
+        cpu.stub_function(CS_CTOR_S, lambda c: (c.u32(c.ecx, self.string(self.cstr(c.arg(0)))), c.ecx)[1], 4)
+        cpu.stub_function(CS_DTOR, lambda c: 0)
+        cpu.stub_function(CS_FORMAT, self.format)
+        cpu.stub_function(CS_BUFFER, lambda c: self.r32(c.ecx), 4)
+        cpu.stub_function(ATEXIT, lambda c: 0)
+        cpu.stub_function(0x576040, self.message)
+        cpu.stub_function(0x470e30, self.store_fill)
+        cpu.stub_function(0x4733b0, self.add_mech, 8)
+        cpu.stub_function(0x484840, self.missions)
+        cpu.stub_function(0x4242a0, self.config_load)
+        cpu.stub_function(0x424480, self.config_save, 4)
+        cpu.stub_function(0x424350, lambda c: 0)
+        cpu.stub_import(IAT['strncmp'], self.strncmp, 0)
+        cpu.stub_import(IAT['free'], lambda c: 0, 0)
+        cpu.call(LIST_INIT)
+        for a in SETUP:
+            cpu.u32(a, 0)
+        cpu.u32(CURRENT, 0)
+
+    # the stubs
+    def format(self, c):
+        fmt = self.cstr(c.arg(1))
+        args, n, out, i = [], 2, '', 0
+        while i < len(fmt):
+            ch = fmt[i]
+            if ch != '%':
+                out += ch
+                i += 1
+                continue
+            j = i + 1
+            while fmt[j] in '0123456789':
+                j += 1
+            spec = fmt[i:j + 1]
+            if fmt[j] == 's':
+                out += self.cstr(c.arg(n))
+            else:
+                out += spec % i32(c.arg(n))
+            n += 1
+            i = j + 1
+        self.cpu.u32(c.arg(0), self.string(out))
+        return c.arg(0)
+
+    def message(self, c):
+        self.log.append(f'message {c.ecx}')
+        return self.string(f'MSG_{c.ecx}')
+
+    def store_fill(self, c):
+        self.log.append(f'store_fill {GAME_VT[self.r32(c.ecx - 8)]}')
+        return 0
+
+    def add_mech(self, c):
+        self.log.append(f'add_mech {i32(c.arg(0))} {self.cstr(c.arg(1))}')
+        return 1
+
+    def missions(self, c):
+        self.log.append(f'missions {i32(c.ecx)}')
+        return i32(c.ecx) + 3
+
+    def config_load(self, c):
+        data, n = self.read(c.edx, 4)
+        k = struct.unpack('<i', data)[0] if n == 4 else -1
+        self.log.append(f'config_load {k}')
+        if n != 4:
+            return 0
+        o = self.alloc(8)
+        self.cpu.u32(o, k)
+        return o
+
+    def config_save(self, c):
+        k = self.r32(c.ecx)
+        self.log.append(f'config_save {i32(k)}')
+        self.write(c.arg(0), struct.pack('<I', k))
+        return 0
 
     # objects
     def pilots(self):

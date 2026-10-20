@@ -16,7 +16,9 @@
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msg.h"
+#include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/pilot.h"
 #include "mech3/music.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
@@ -131,9 +133,12 @@ void Engine::shadow_delete(Handle c) {
 }
 float Engine::clouds_at(float x, float z) { return zmod::clouds_at(x, z); }
 
-// [0x0060861c]+0x18, a string inside the pilot: until the pilot module is
-// ported there is no name, so a lobby launch goes to the main menu.
-const char* Engine::pilot_name() { return nullptr; }
+// [0x0060861c]+0x18, the current pilot's name (mech3/pilot).
+const char* Engine::pilot_name() { return current_pilot() ? current_pilot()->name : nullptr; }
+zrdr::Node* Engine::main_menu_definition() { return main_menu() ? main_menu()->definition : nullptr; }
+std::string Engine::message_format_ints(int32_t id, std::initializer_list<int32_t> args) {
+  return zutl::format_message_ints(id, args);
+}
 
 float Engine::frame_dt() { return ztimer::state().dt; }
 int32_t Engine::in_game_vmode() { return options().in_game_vmode; }

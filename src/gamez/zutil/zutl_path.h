@@ -25,7 +25,10 @@ void mount(const std::string& dir);          // appended: searched after the one
 void mount_front(const std::string& dir);    // searched first (an override folder)
 void set_write_dir(const std::string& dir);
 
-std::string host(const char* path);          // '\\' -> '/'
+// '\\' -> '/'; FIX (A): a game path's characters are the game's code page
+// (Windows-1252: what the edit bars type, a pilot named Müller), the host's
+// UTF-8, so a relative path is converted (an absolute one is the host's).
+std::string host(const char* path);
 std::string find(const char* path);          // the host path in the first mount that has it, "" if none
 bool exists(const char* path);
 std::FILE* open(const char* path, const char* mode);  // reads search the mounts; writes go to the write dir
@@ -33,7 +36,8 @@ std::string write_path(const char* path);    // the host path a write of `path` 
 // FIX (A) for FindFirstFileA / FindNextFileA: the files (not folders) a game
 // pattern ("keys\\*.zrd"; * and ? in the last part, any case) matches in the
 // write dir and every mount, each name once (the first found), sorted as NTFS
-// lists a folder (by the upper-cased name).
+// lists a folder (by the upper-cased name). The names are in the game's code
+// page; a file whose name has a character it lacks is not listed.
 std::vector<std::string> list(const char* pattern);
 
 }  // namespace zutl

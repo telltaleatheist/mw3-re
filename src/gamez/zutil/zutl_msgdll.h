@@ -29,5 +29,7 @@ void install_messages(const MessageDll* dll);
 std::string format_message(int32_t id, const char* arg);
 // The same with %1 .. %9 (the message boxes' three arguments, 0x004ac150).
 std::string format_message(int32_t id, std::initializer_list<const char*> args);
+// The same with numbers (%1!d!: the pilot screen's records), up to four.
+std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args);
 
 }  // namespace zutl

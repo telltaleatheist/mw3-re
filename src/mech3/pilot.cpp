@@ -290,10 +290,14 @@ Pilot* create_pilot(const char* name) {
   return p;
 }
 
-// Mech3.exe 1.2 @ 0x00477f50. The current pilot is not cleared if it is the one.
+// Mech3.exe 1.2 @ 0x00477f50. FIX (bug): the exe leaves [0x0060861c]
+// pointing at the freed pilot when it is the one (the pilot screen's DELETE on
+// the pilot chosen before); nothing reads it before ACCEPT or CANCEL sets it
+// again, but here it is cleared rather than left dangling.
 bool delete_pilot(const char* name) {
   Pilot* p = find_pilot(name);
   if (!p) return true;
+  if (g_current == p) g_current = nullptr;
   g_pilots.remove(p);
   p->delete_files();
   delete p;

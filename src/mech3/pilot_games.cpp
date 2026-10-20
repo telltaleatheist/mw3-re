@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "gamez/zutil/zutl_msg.h"
+#include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/pilot.h"
 
@@ -47,38 +48,9 @@ const char* PilotHooks::message(int32_t id) {
   const char* s = m.get_text ? m.get_text(id) : nullptr;
   return s ? s : "";
 }
-// FormatMessageA's inserts as 0x00575fd0 passes them: %n, or %n!fmt! with a
-// printf format, each the n-th argument; %% is a percent sign.
+// 0x00575fd0: FormatMessageA with the numbers as its inserts (%1!d!, ...).
 std::string PilotHooks::format_ints(int32_t id, std::initializer_list<int32_t> args) {
-  const std::string m = message(id);
-  std::string out;
-  for (size_t i = 0; i < m.size(); ++i) {
-    if (m[i] != '%' || i + 1 >= m.size()) {
-      out += m[i];
-      continue;
-    }
-    const char c = m[i + 1];
-    if (c < '1' || c > '9') {
-      out += c;
-      ++i;
-      continue;
-    }
-    const size_t n = static_cast<size_t>(c - '1');
-    const int32_t v = n < args.size() ? args.begin()[n] : 0;
-    std::string spec = "d";
-    i += 1;
-    if (i + 1 < m.size() && m[i + 1] == '!') {
-      const size_t end = m.find('!', i + 2);
-      if (end != std::string::npos) {
-        spec = m.substr(i + 2, end - (i + 2));
-        i = end;
-      }
-    }
-    char buf[64];
-    std::snprintf(buf, sizeof buf, ("%" + spec).c_str(), v);
-    out += buf;
-  }
-  return out;
+  return zutl::format_message_ints(id, args);
 }
 
 // ---- the store ----
@@ -479,6 +451,16 @@ TrainingGame::TrainingGame(Pilot* p) : Game(p) { pilot_hooks().store_fill(store,
 
 // Mech3.exe 1.2 @ 0x00436f10
 TrainingGame::~TrainingGame() = default;
+
+// Mech3.exe 1.2 @ 0x00437060, 0x004370d0
+int32_t TrainingGame::name_id(int32_t i) {
+  static const int32_t kNames[] = {0x21e, 0x222, 0x224, 0x226};
+  return kNames[(i > 4 ? 4 : i < 1 ? 1 : i) - 1];
+}
+int32_t TrainingGame::text_id(int32_t i) {
+  static const int32_t kTexts[] = {0x21f, 0x223, 0x225, 0x227};
+  return kTexts[(i > 4 ? 4 : i < 1 ? 1 : i) - 1];
+}
 
 // Mech3.exe 1.2 @ 0x00436fe0
 void TrainingGame::save() {
