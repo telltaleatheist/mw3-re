@@ -44,7 +44,7 @@ ClipLine2D::ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t 
 // Mech3.exe 1.2 @ 0x005a3170
 Shape::Shape() {
   Shape::set_pos(0, 0);
-  set_rotation(0);
+  set_scale(0.0f);
 }
 
 // Mech3.exe 1.2 @ 0x005a34c0
@@ -63,8 +63,8 @@ void Shape::set_translation(const float* t) {
 }
 
 // Mech3.exe 1.2 @ 0x005a3530
-void Shape::set_rotation(int32_t a) {
-  rotation = a;
+void Shape::set_scale(float s) {
+  scale = s;
   xform |= 2;
   dirty();
 }

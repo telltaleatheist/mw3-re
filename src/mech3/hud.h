@@ -400,6 +400,8 @@ class HudTarget : public HudMfd {
   void attach(void* hud);            // 0x00441760
   void update(float dt) override;    // +0x24  0x00441490
   int32_t shown_mode() override;     // +0x80  0x004413a0: none without a live target
+  void track(float dt);              // 0x00440b00: the camera, the arrow or circle, the triangle (hud.md section 14)
+  void triangle(int32_t team, float dt, bool zoomed);  // 0x00440510: the three lines around the target
   void draw3d(float dt) override;    // +0x28  0x00441410: mode 1 the target through the view
   ztwod::Shape shape1;               // +0xcd8
   ztwod::Line2D lines[3];            // +0xdfc (0x004400e0: all zero)
@@ -410,7 +412,7 @@ class HudTarget : public HudMfd {
   HudText texts[4];                  // +0x1144
   void* target = nullptr;            // +0x2404
   uint8_t shown = 0;                 // +0x2408
-  float x240c = 0.0f;                // +0x240c
+  float x240c = 0.0f;                // +0x240c the new target's pulse: the triangle starts large and shrinks
   int32_t line_h = 0;                // +0x2410
 };
 
@@ -635,15 +637,79 @@ class HudHooks : public zgame::Unported {
                             zgame::bits(v[3][2])});
   }
   virtual void flush_transparent() { unported("[0x0072f3e4]", {}); }
-  virtual const ztwod::Rect* nav_rect(uint32_t nav) {
-    unported("nav+0x1c84", {nav});
-    return nullptr;
+  virtual const ztwod::Rect* nav_rect(uint32_t nav) {  // the nav list's +0x1c84 (no call)
+    static ztwod::Rect r;
+    r = {static_cast<int32_t>(unported("peek32", {nav + 0x1c84})), static_cast<int32_t>(unported("peek32", {nav + 0x1c88})),
+         static_cast<int32_t>(unported("peek32", {nav + 0x1c8c})), static_cast<int32_t>(unported("peek32", {nav + 0x1c90}))};
+    return &r;
   }
   virtual void message_panel_draw() { unported("0x0040fb30", {}); }
   virtual void zview_render(void* view, float dt) { unported("0x00442870", {id(view), zgame::bits(dt)}); }
   virtual void object_view_flag(void* o, int32_t on) { unported("obj.vt+0x68", {id(o), on}); }
   virtual uint32_t object_node(void* o) { return unported("peek32", {id(o) + 4}); }
   virtual void view_draw_node(void* view, uint32_t node) { unported("0x004428b0", {id(view), node}); }
+  // TARGET's tracking's outside (0x00440b00, 0x00440510): a contact's
+  // direction (+0x20, set by 0x004e7030), entity (+8) and size (0x004e7070:
+  // its vehicle's +0x68, else 5); an entity's node position (+0x14, its data
+  // +0x38: +0x84, after 0x004ed280 when its flags have 0x20); a vehicle's
+  // centre (vt+0xbc) and team (vt+0x28, +0xc0); the mech's ally and enemy
+  // masks (+0xc4, +0xc8); a view prepared for a projection (0x004b51f0,
+  // the zoom window's or the player's); a point on the screen (0x0053cf10,
+  // zmod::project_point); TARGET's camera placed (0x004f3870) and turned
+  // (0x004f36b0); the damage view (0x00447a50) and nav list (0x0047ef10) for
+  // the target.
+  virtual void contact_dir(void* c, float out[3]) { vec3_at(id(c) + 0x20, out); }
+  virtual void* object_seen(void* c) { return ptr(unported("peek32", {id(c) + 4})); }
+  virtual void* contact_entity(void* c) { return ptr(unported("peek32", {id(c) + 8})); }
+  virtual float contact_size(void* c) { return zgame::from_bits(unported("0x004e7070", {id(c)})); }
+  virtual void entity_position(void* e, float out[3]) {
+    const uint32_t node = unported("peek32", {id(e) + 0x14});
+    const uint32_t data = unported("peek32", {node + 0x38});
+    if (unported("peek8", {data}) & 0x20) unported("0x004ed280", {node, 1});
+    vec3_at(data + 0x84, out);
+  }
+  virtual void vehicle_center(void* v, float out[3]) { vec3_at(unported("obj.vt+0xbc", {id(v)}), out); }
+  virtual uint32_t object_team(void* o) { return unported("peek32", {unported("obj.vt+0x28", {id(o)}) + 0xc0}); }
+  virtual uint32_t mech_allies(Mech* m) { return unported("peek32", {id(m) + 0xc4}); }
+  virtual uint32_t mech_enemies(Mech* m) { return unported("peek32", {id(m) + 0xc8}); }
+  virtual void zview_prepare(void*) { unported("0x004b51f0", {}); }
+  virtual uint32_t project(const float in[3], float out[3]) {
+    const uint32_t code = unported("0x0053cf10", {zgame::bits(in[0]), zgame::bits(in[1]), zgame::bits(in[2])});
+    vec3_at(unported("0x0053cf10.out", {}), out);
+    return code;
+  }
+  virtual void camera_set_position(uint32_t cam, const float p[3]) {
+    unported("0x004f3870", {cam, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2])});
+  }
+  virtual void camera_set_angles(uint32_t cam, const float a[3]) {
+    unported("0x004f36b0", {cam, zgame::bits(a[0]), zgame::bits(a[1]), zgame::bits(a[2])});
+  }
+  virtual void damage_view_target(void* view) { unported("0x00447a50", {id(view)}); }
+  virtual void nav_list_target(uint32_t nav, void* mech) { unported("0x0047ef10", {nav, id(mech)}); }
+  // The lead point's outside (0x0041d940, mech3/mech_hud lead_point): a
+  // group's current weapon (+0x10); a weapon's projectile speed (def +0x2c)
+  // and def flags (+0x6c); a contact's vehicle (0x004e6fe0); the mech's own
+  // aim point (+0xec while +0xf8 is not -1); positions (0x005a85e0 the
+  // mech's, 0x005a8630 a vehicle's) and velocities (vt+0xc), as pointers
+  // to three floats in the original.
+  virtual void* group_current_weapon(void* g) { return ptr(unported("peek32", {id(g) + 0x10})); }
+  virtual float weapon_speed(void* w) {
+    return zgame::from_bits(unported("peek32", {unported("peek32", {id(w) + 0x2c}) + 0x2c}));
+  }
+  virtual uint32_t weapon_def_flags(void* w) { return unported("peek32", {unported("peek32", {id(w) + 0x2c}) + 0x6c}); }
+  virtual void* contact_vehicle(void* c) { return ptr(unported("0x004e6fe0", {id(c)})); }
+  virtual bool mech_aim_point(Mech* m, float out[3]) {
+    if (static_cast<int32_t>(unported("peek32", {id(m) + 0xf8})) == -1) return false;
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(unported("peek32", {id(m) + 0xec + 4u * i}));
+    return true;
+  }
+  void vec3_at(uint32_t a, float out[3]) {
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(unported("peek32", {a + 4u * i}));
+  }
+  virtual void mech_position(Mech* m, float out[3]) { vec3_at(unported("0x005a85e0", {id(m)}), out); }
+  virtual void vehicle_position(void* v, float out[3]) { vec3_at(unported("0x005a8630", {id(v)}), out); }
+  virtual void mech_velocity(Mech* m, float out[3]) { vec3_at(unported("mech.vt+0xc", {id(m)}), out); }
+  virtual void vehicle_velocity(void* v, float out[3]) { vec3_at(unported("obj.vt+0xc", {id(v)}), out); }
   // Whether the MFD's title shows: [0x00609994] alone, [0x00605f88] clear in a
   // multiplayer game.
   virtual bool title_flag() { return (unported("peek8", {0x609994}) & 0xff) != 0; }
@@ -672,6 +738,7 @@ class HudHooks : public zgame::Unported {
   virtual int32_t weapon_ammo(void* w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {id(w)})); }
 };
 HudHooks& hud_hooks();
+ztwod::Rect& triangle_rect();  // [0x005e39d8] TARGET's triangle's clip (0x00440510)
 void set_hud_hooks(HudHooks* h);
 
 // The timer (+0x18410): a FontText "00:00:00.00" at (0x244, 0x0f) in

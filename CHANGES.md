@@ -305,3 +305,4 @@ Known quirks the rebuild deliberately keeps:
 - In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
 - A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.
 - A target behind the zoom window's camera no longer picks TARGET's arrow from stray memory bits (the original read an unset value there).
+- A mech with a targeting computer and no weapon group selected no longer crashes the game when it has a target on screen (the lead circle needs a group).

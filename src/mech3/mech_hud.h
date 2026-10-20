@@ -22,5 +22,9 @@ Hud* pilot_hud(Pilot& p);                 // 0x00430aa0: made when first asked (
 void player_frame(Mech& m);               // 0x0041ce60
 void hud_handoff(Mech& m, float dt);      // 0x0041cd40 (the mech's vt+0xe0)
 bool aim_at_point(Mech& m, const float p[3], bool check);  // 0x0041bd80
+// 0x0041d940: where to aim the selected group's current weapon so its shot
+// meets the target (TARGET's lead circle, hud.md section 14); false
+// without a target or a weapon, or when the target outruns the shot.
+bool lead_point(Mech* m, float out[3]);
 
 }  // namespace mech3

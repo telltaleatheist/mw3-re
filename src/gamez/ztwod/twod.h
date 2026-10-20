@@ -651,11 +651,11 @@ class Shape : public PolyLine {
   Shape();                           // 0x005a3170
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x005a34c0: the translation
   void set_translation(const float* t);  // 0x005a34f0
-  void set_rotation(int32_t a);      // 0x005a3530
+  void set_scale(float s);           // 0x005a3530: the base triangle (0x005f4a20) scaled by it
   uint32_t xform = 0;                // +0xec  1 translated, 2 turned (to recompute)
   float translation[3] = {};         // +0xf0
   uint32_t xfc[9] = {};              // +0xfc
-  int32_t rotation = 0;              // +0x120
+  float scale = 0.0f;                // +0x120
 };
 
 // The edit bar's caret (vtable 0x005d0360), 0x10c bytes: an I-beam of 13

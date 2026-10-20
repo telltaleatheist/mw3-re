@@ -574,3 +574,47 @@ The pieces, ported in order (the lead's plan, 2026-10-20):
    render's top doubled onto the window's, clamped to the window). Test:
    `test_project_point.py`, 3000/3000 each (586 behind, 575 at the near
    plane); breaks 9/9.
+2. **The tracking** (0x00440b00, `HudTarget::track`, each frame with a live
+   target, from the HUD's data update 0x0043c390): TARGET's camera put
+   behind the target (the target's node position less 1.2 x the contact's
+   size, 0x004e7070, along the contact's direction, 0x004f3870) and turned
+   from the player toward it (`zmth::direction_angles` 0x00523ac0,
+   0x004f36b0). The target's position projected (part 1), through the zoom
+   window's view first when it shows: on the zoom window it is used there;
+   off it, through the player's view, kept on screen only when it lies past
+   the zoom window's side its outcode names (else nothing). The lines,
+   marker, circle and shape hidden, then by the outcode:
+   - **On screen**: with a targeting computer (equipment kind 14, mech
+     +0x3e4) the **lead circle** (radius 6, the Frame) at the lead point
+     (0x0041d940, `lead_point` in mech_hud: where to aim the selected
+     group's current weapon so its shot, at the definition's speed or
+     instantly for beams and instant weapons, meets the target moving at
+     its velocity relative to the mech; from the mech's own aim point when
+     it has one), clamped 7 pixels inside the display; green, or with ECM
+     on the target yellow (255, 226, 4) and thrown up to 4 pixels each way
+     by rand. Then the **triangle** (0x00440510): three lines round the
+     target's projected position, its height the target's on screen (its
+     centre against its centre raised by its size; a new target's pulse
+     +0x240c adds 3.33 x that of the screen's height and runs down), red for
+     an enemy, blue for an ally (the mech's +0xc8 / +0xc4 masks against the
+     target's +0xc0 team), else green; in a round zoom window each side cut
+     to its circle (0x00440290, zTwoD's 0x005a3580 in floats), else clipped
+     to its rect or the window's ([0x005e39d8]); TARGET's shape at its
+     centre scaled 1.155 x the height (Shape's 0x005a3530 is a float scale:
+     zTwoD's `set_scale`).
+   - **Off an edge** (1 left, 2 right, 4 above, 8 below), projected through
+     the player's view: the team's arrow (enemy, ally, other: left, right,
+     up, down) on that edge, kept on screen along it. Corners (3, 5, 6, 7)
+     and the rest show nothing.
+   - Then the MFD mode's tail for the target: 2 the damage view (0x00447a50),
+     3 the nav list (0x0047ef10), both hooked.
+   FIX (bug): the lead point with no group selected (the original reads
+   through a null group, a crash; `fix_lead_point_without_a_group`). Test:
+   test_hud.py's ops 18 (the tracking; projections answered from a table,
+   rand an MSVCRT LCG on both sides) and 19 (the lead point, on a second
+   fake mech with a contact and an aim point): 100/100. Breaking it: 15 of
+   21 caught; the six misses (the targeting computer's kind, the lead
+   circle's ECM colour, jitter and clamp, the new target's pulse, the round
+   clip's end test at equality) need a target in the player mech's own slot,
+   which the set-up only takes once set_target (0x00441800) is ported:
+   part 3 reruns them.

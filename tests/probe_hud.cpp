@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 
+#include "crt/msvc_rand.h"
 #include "mech3/hud.h"
+#include "mech3/mech_hud.h"
 #include "mech3/options.h"
 #include "probe_twod.h"
 
@@ -22,6 +24,7 @@ bool g_have_zrd = false;
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 bool g_lock_shown = false;
+std::string g_leads;  // op 19's lines
 
 struct Hooks : mech3::HudHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
@@ -120,7 +123,8 @@ struct Hooks : mech3::HudHooks {
       const std::pair<const void*, uint32_t> at[] = {
           {&h, 0}, {&h.radar, 0x14}, {&h.compass, 0xdd4}, {&h.reticle, 0x144c}, {&h.reticle.zoom, 0x1508},
           {&h.gauges, 0x1da8}, {&h.mfd, 0x3434}, {&h.target, 0x410c}, {&h.weapons, 0x6520},
-          {&h.objectives, 0x17964}, {&h.timer, 0x18410}, {&h.equipment, 0x188c0}};
+          {&h.objectives, 0x17964}, {&h.timer, 0x18410}, {&h.equipment, 0x188c0},
+          {&h.target.damage, 0x410c + 0x3c}, {&h.mfd.damage, 0x3434 + 0x3c}};
       for (auto& [q, off] : at)
         if (q == p) return g_hud_addr + off;
     }
@@ -245,6 +249,15 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
       break;
     case 15: ftext(h, v)->set_text_plain("88 TXT"); break;
     case 17: h.draw3d(zgame::from_bits(v)); break;
+    case 18: h.target.track(zgame::from_bits(v)); break;
+    case 19: {
+      float o[3] = {};
+      const bool ok = mech3::lead_point(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(v)), o);
+      char b[64] = "";
+      if (ok) std::snprintf(b, sizeof b, "%x %x %x", zgame::bits(o[0]), zgame::bits(o[1]), zgame::bits(o[2]));
+      g_leads += std::string("lead ") + (ok ? "1 " : "0 ") + b + "\n";
+      break;
+    }
     case 16: {
       const uint32_t j = v >> 8;
       image(h, v & 0xff)->set_image(j < 3 ? mech3::weapon_set().light[j] : mech3::equipment_set().light[j - 3]);
@@ -527,7 +540,7 @@ void dump_hud(Dump& d) {
     d.kv("xf", q.xform);
     for (float f : q.translation) d.f("s", f);
     for (uint32_t v : q.xfc) d.kv("s", v);
-    d.kv("s", q.rotation);
+    d.kv("s", zgame::bits(q.scale));
   };
   d.o << "tshape1 ";
   shape(tg.shape1);
@@ -537,7 +550,9 @@ void dump_hud(Dump& d) {
     d.o << "tline" << i << ' ';
     d.base(&l);
     for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
-                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash)})
+                      l.clip == &mech3::triangle_rect() ? 0x5e39d8u  // the original's global
+                                                        : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)),
+                      static_cast<uint32_t>(l.dash)})
       d.kv("l", v);
     d.o << "\n";
   }
@@ -718,7 +733,8 @@ extern "C" {
 // **[0x005f4d20]) and the pixel doubling ([0x005f4d4c]), for 0x0040d9e0.
 void sync_options() {
   mech3::Options& o = mech3::options();
-  const std::pair<uint32_t, mech3::Rect*> rects[] = {{0x5f4d1c, &o.render}, {0x5f4d20, &o.display}};
+  const std::pair<uint32_t, mech3::Rect*> rects[] = {{0x5f4d1c, &o.render}, {0x5f4d20, &o.display},
+                                                      {0x5f4d24, &o.window}};
   for (auto& [g, r] : rects) {
     const uint32_t a = call("peek32", {call("peek32", {g})});
     int32_t v[8];
@@ -779,10 +795,12 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
     aims += aim_dump(*g_hud) + "\n";
   }
   g_lock_shown = false;
+  g_leads.clear();
+  crt::msvc_srand(1);  // test_hud.py's MsvcRand(1)
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);
-  const std::string s = d.o.str() + aims + "lockshown " + (g_lock_shown ? "1" : "0") + "\n";
+  const std::string s = d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n";
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
   zrdr::close_archives(true);
