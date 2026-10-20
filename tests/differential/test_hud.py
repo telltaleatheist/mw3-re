@@ -91,8 +91,9 @@ def synthetic(seed):
 # frame (dt), 1 the HUD's set_active, 2 the zoom window shown or hidden, 3 the
 # reticle's state, 4 the zoom light's interval, 5 an MFD damage part's flash
 # (part | on << 8 | mode << 16), 6 the MFD's mode, 7 a piece shown or hidden
-# (its offset), 8 the zoom window round, 9 TARGET's slot (none, live, empty),
-# 10 TARGET's mode, 11 a child's flags XORed (CHILDREN index | bits << 16),
+# (its offset), 8 the zoom window round, 9 TARGET's slot (the mech's own
+# +0x6c, a contact's, an empty one; never null), 10 TARGET's mode, 11 a
+# child's flags XORed (CHILDREN index | bits << 16),
 # 12 a weapon line's count (line | count << 8) and changed, 13 every child
 # dirty (kDirty), 14 every child and piece shown, 15 a text set (FTEXTS
 # index), 16 an image set (IMAGES index | shared light << 8: the weapon
@@ -182,7 +183,6 @@ class Original:
         w.answers['@entry+0xd0'] = struct.unpack('<I', bytes(e.cpu.read(entry + 0xd0, 4)))[0]
         self.e.stub(0x491c80, spec='')
         e.stub(0x446ad0, spec='c')
-        e.stub(0x446520, spec='c')
         # zRender's nodes for the zoom views: new ones are fresh handles.
         for a, spec in ((0x4f9e90, ''), (0x4f32e0, ''), (0x4eb300, 'c,zd'), (0x4eb170, 'c,d'), (0x4f9fa0, 'c,d,s0'),
                         (0x4fa0b0, 'c,d,s0'), (0x4f3620, 'c,d'), (0x4f3560, 'c,d'), (0x4f6c80, 'c,*d'),
@@ -273,16 +273,48 @@ class Original:
         e.w32(0x609980, r.choice([0, 0, 1]))
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
         e.w32(0x605f88, r.choice([0, 1]))
-        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x446540, 'c'), (0x479ed0, '')):
+        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x479ed0, '')):
             e.stub(a, spec=spec)
-        w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1])
+        w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1])
 
-        def aim_state(emu, key, a, pop):  # sets the reticle's state 0..3 as in play (the probe from the answer)
-            ret, over = a
-            emu.w32(ret + 0x908, t.handle(key, (ret, over)))
-            emu._ret(0, pop)
-        w.answers['0x00443d20'] = lambda rr, n, a: rr.choice([0, 1, 2, 3])
-        e.stub(0x443d20, '0x00443d20', 'c,s0', None, aim_state)
+        # The aim state 0x00443d20 runs; its outside stubbed (hud.md section 12):
+        # the weapon group (float range on the x87 stack), the contact's mech
+        # and distance, the HUD sounds, the aimed node's object.
+        fbuf = e.world_alloc(8)
+        fthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', fbuf) + b'\xc3')
+
+        def fret(emu, key, a, pop):
+            emu.w32(fbuf, t.handle(key, tuple(a)))
+            emu._ret(0, 0, then=fthunk)
+        e.stub(0x4b1bd0, '0x004b1bd0', 'c', None, fret)
+        e.stub(0x4e7030, '0x004e7030', 'c', None, fret)
+        w.answers['0x004b1bd0'] = lambda rr, n, a: f32(rr.choice([0.0, 60.0, 250.0, 900.0, 900.0, 900.0]))
+        w.answers['0x004e7030'] = lambda rr, n, a: f32(rr.choice([10.0, 200.0, 700.0]))
+        for a_, spec in ((0x4b1c70, 'c'), (0x4b1cd0, 'c'), (0x4e6ff0, 'c'), (0x41e800, 'c'), (0x41e770, 'c')):
+            e.stub(a_, spec=spec)
+        mechs = []
+        for _ in range(2):
+            m = e.world_alloc(0x400)
+            kind = e.world_alloc(0x20)
+            e.w32(kind + 0xc, r.choice([7, 2, 1, 1]))
+            e.w32(m + 0x684, kind)
+            e.w32(m + 0x3cc, r.choice([0, 0, 2]))
+            mechs.append(m)
+        w.answers['0x004b1c70'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
+        w.answers['0x004b1cd0'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
+        w.answers['0x004e6ff0'] = lambda rr, n, a: rr.choice([0, mechs[0], mechs[1]])
+        w.answers['0x0041e800'] = lambda rr, n, a: rr.choice([0, 1])
+        objs = []
+        for _ in range(2):
+            o = e.world_alloc(0x20)
+            e.cpu.write(o + 8, bytes([r.choice([0, 1])]))
+            objs.append(o)
+
+        def node_object(emu, key, a, pop):  # 0x0040eee0: ECX points at the node
+            emu._ret(t.handle('0x0040e920', (emu.r32(a[0]),)), pop)
+        e.stub(0x40eee0, '0x0040e920', 'c', None, node_object)
+        # the same node, the same object (the state asks twice)
+        w.answers['0x0040e920'] = lambda rr, n, a: [0, objs[0], objs[1]][(a[0] >> 8) % 3]
         # The Direct3D pass's render side (hud.md section 11).
 
         def dirty(emu, key, a, pop):
@@ -378,7 +410,7 @@ class Original:
                 elif k == 7:
                     v = fr.choice(TOGGLED)
                 elif k == 9:
-                    v = fr.choice([0, self.slots[0], self.slots[0], self.slots[1]])
+                    v = fr.choice([self.mech + 0x6c, self.slots[0], self.slots[0], self.slots[1]])  # never null (the set-up's slot)
                 elif k == 10:
                     v = fr.choice([0, 1, 2, 3])
                 elif k == 11:
@@ -469,6 +501,12 @@ class Original:
         self.stab = e.world_alloc(0x508 * max(n, 1))
         for i in range(16):
             e.w32(0x608c00 + 4 * i, r.choice([0, 0, 1, 2]))
+        # the hits' nodes: real blocks (the aim state reads +0xbc, hud.md section 12)
+        self.nodes = []
+        for _ in range(4):
+            nd = e.world_alloc(0x100)
+            e.w32(nd + 0xbc, r.choice([0, 1, 2, 3]))
+            self.nodes.append(nd)
         mats = [0]
         for _ in range(4):
             m = e.world_alloc(0x40)
@@ -488,7 +526,7 @@ class Original:
                 t = r.random()
                 pt = [a[q] + (b[q] - a[q]) * t for q in range(3)]
                 struct.pack_into('<6fIfII', buf, 4 + 0x28 * j, r.uniform(-1, 1), r.uniform(-1, 1), r.uniform(-1, 1),
-                                 *pt, r.randrange(4), r.uniform(0, 100), r.choice(mats), r.randrange(1, 1 << 30))
+                                 *pt, r.randrange(4), r.uniform(0, 100), r.choice(mats), r.choice(self.nodes))
             e.cpu.write(base + 4, bytes(buf))
         calls = {'u': 0, 's': 0}
 
@@ -535,12 +573,56 @@ class Original:
         e.w32(vt + 0xa0, e.new_stub('mech.vt+0xa0', 'c', 0))
         # +0x6c: no target (a target's path is TARGET's item, hud.md section 9)
         e.cpu.write(m + 0xbc, bytes([r.randrange(256)]))
-        wm = e.world_alloc(0x40)
+        wm = e.world_alloc(0x100)  # +0x88: the lock shown (the aim state)
         e.w32(m + 0xd4, wm)
         e.w32(wm + 0x24, r.randrange(0, 12))
         for i in range(16):
             e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
+        self.weapon_groups(wm)
         return m
+
+    def weapon_groups(self, wm):
+        """The weapon list's side of the manager (hud.md section 13): mode, the
+        current group, up to five groups of fake weapons (16 lines at most),
+        each weapon's group, name and enabled flag; its vt+8, +0x14 (ammo)
+        and +0x34 (recycle, on the x87) and 0x004b3010 (damage) stubbed."""
+        e, w, t = self.e, self.w, self.t
+        r = rnd(self.seed, 'weapons')
+        fbuf = e.world_alloc(8)
+        fthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', fbuf) + b'\xc3')
+
+        def fret(emu, key, a, pop):
+            emu.w32(fbuf, t.handle(key, tuple(a)))
+            emu._ret(0, pop, then=fthunk)
+        weapons = []
+        for k in range(6):
+            o = e.object('weapon', slots={0x8: ('c', 0), 0x14: ('c', 0), 0x34: ('c', 0, fret)})
+            d = e.world_alloc(0x40)
+            e.w32(d + 8, e.world_string(f'WPN{k}'))
+            e.w32(o + 0x2c, d)
+            e.cpu.write(o + 0x74, bytes([r.choice([0, 1, 1])]))
+            weapons.append(o)
+        e.w32(wm + 0x1c, r.choice([0, 1, 2]))
+        e.w32(wm + 0x28, r.choice([-1, 0, 1, 2, 3, 4]) & 0xffffffff)
+        left = 16
+        for i in range(5):
+            if r.random() < 0.3 or left == 0:
+                continue
+            n = min(r.randrange(0, 5), left)
+            left -= n
+            g = e.world_alloc(0x40)
+            e.w32(g + 8, n)
+            for k in range(n):
+                wpn = r.choice(weapons)
+                e.w32(g + 0x14 + 4 * k, wpn)
+                e.w32(wpn + 0x60, r.choice([i, i, i - 1]) & 0xffffffff)
+            e.w32(wm + 0x2c + 4 * i, g)
+        e.stub(0x4b3010, '0x004b3010', 'c', None, fret)
+        e.stub(0x4b04c0, spec='c')
+        w.answers['weapon.vt+0x34'] = lambda rr, n, a: f32(rr.choice([0.0, 0.3, 1.0, 1.0, 1.5, -0.2]))
+        w.answers['weapon.vt+0x14'] = lambda rr, n, a: rr.choice([0, 5, 20])
+        w.answers['0x004b3010'] = lambda rr, n, a: f32(rr.choice([0.0, 0.0, 0.6, 0.9, 1.0]))
+        w.answers['0x004b04c0'] = lambda rr, n, a: rr.choice([0] + weapons)
 
     def dump(self):
         e, h = self.e, self.hud
@@ -963,7 +1045,8 @@ class Original:
             kv('px', e.r32(DAMAGE + 0x20 * p + 0x14))
             kv('py', e.r32(DAMAGE + 0x20 * p + 0x18))
         out.append(' '.join(line) + ' ')
-        return '\n'.join(out + self.aim_lines) + '\n'
+        shown = e.r8(e.r32(self.mech + 0xd4) + 0x88) if self.mech else 0
+        return '\n'.join(out + self.aim_lines) + f'\nlockshown {shown:x}\n'
 
 
 def test_twod_fnv(b):

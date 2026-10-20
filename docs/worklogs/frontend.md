@@ -194,3 +194,28 @@ rects 0x00576ce0, the message panel 0x0040fb30, the 3D views' rendering
 0x004428b0 / 0x00442870 (render work), the nav list's rect.
 test_hud.py op 17 runs the pass; the new'd views are named 1/2 on both
 sides (view_call / view_name).
+
+## 2026-10-20 Item 5a: the missile lock 0x00443d20 (branch mac3/aim-state)
+
+hud.md section 12. HudReticle::aim_state (x950/x954 are lock/lock_timer).
+Outside through HudHooks, read-only (lead's approval): the group calls
+0x004b1bd0/0x004b1c70/0x004b1cd0 stay hooks (mac 4, the planner), the
+contact's mech/distance (zai_target), the aimed node's object 0x0040e920,
+HUD sounds 0x0041e800/0x0041e770; the manager's +0x88 through a hook.
+test_hud.py: the original runs; float answers on the x87 by a thunk; the
+hits' nodes are real blocks; TARGET's slot is never null (the original
+crashes on one); 0x0040e920 answers by node (asked twice). 100/100, 12/12.
+Next: 5b the weapon lines (0x00446240 layout, 0x00446540 looks, 0x00445dc0
+refresh, 0x00445d10 with a weapon).
+
+## 2026-10-20 Item 5b: the weapon lines (branch mac3/aim-state)
+
+hud.md section 13. HudWeapons::refresh_all 0x00446520 / layout 0x00446240 /
+looks 0x00446540, HudWeaponLine::set_weapon 0x00445d10 (with a weapon; the
+mark image is its second argument) and refresh_line 0x00445dc0. `shown` is
+"refreshed each frame while any line recycles"; x1143c is next_weapon.
+The manager and weapons are read through HudHooks (offsets of weapon.h).
+Not wired in the program: the hooks carry 32-bit handles, the program's
+weapons are pointers; needs a handle registry or typed hooks (proposed).
+test_hud.py's fake mech has a manager with groups of fake weapons (vtables,
+float returns by thunk), the original's refresh runs.

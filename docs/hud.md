@@ -329,6 +329,9 @@ the set-up reads: item 1a's test).
   0x00441560 (TARGET), and the objectives' and weapons' parts of theirs
   (0x00446ad0, 0x00446520).
 - TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).
+- The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
+  0x004b1cd0 stay recorded hooks: mac 4, the planner (they sit in the AI
+  weapon planner's range 0x004b1170..0x004b1d7f).
 
 ## 10. The aim (the reticle's world point)
 
@@ -465,3 +468,81 @@ shown, texts and images set) are there because most children are managed
 it: 21 of 23 caught; the misses are equivalent here: the scores box has no
 lines (its setter 0x00446ad0 is not ported) and the MFD view's box, a managed
 PolyLine, is never made dirty in the test.
+
+## 12. The missile lock and the reticle's image (0x00443d20)
+
+Run from the HUD's frame while the reticle's state is still 5 (once a
+frame), with whether the reticle's point lies over TARGET's shape or circle
+with a live target in range (0x00440a30, hooked). Reads:
+
+- the weapon manager's selected group (mech +0xd4): its longest range
+  (0x004b1bd0), whether any weapon in it locks (0x004b1c70) and 0x004b1cd0
+  (both needed); not ported, mac 4 ports them with the AI weapon planner;
+- TARGET's slot's contact: its mech (0x004e6ff0; kind 7 at +0x684 +0xc never
+  locks) and its distance (0x004e7030, zai_target);
+- the aim's distance (+0x924) against the same range.
+
+"Near": the contact or the aim point within the group's range. A good frame:
+over the target, a group that locks, near, a contact, not kind 7.
+
+| +0x950 | Next | On entering |
+|---|---|---|
+| 0 none, 4 lost | 1 on a good frame, else 0 | 4: both lock tones stopped (HUD sounds 0 and 0xc) |
+| 1 acquiring | 2 on a good frame, else 4 | tone 0xc unless playing; +0x954 = 0.6 s, 1.2 s when the target mech's +0x3cc is above 0 |
+| 2 waiting | 3 once +0x954 reaches 0, 4 on a bad frame | |
+| 3 locked | stays on good frames or while +0x954 is above 0, else 4 | on a good frame +0x954 = 3.5 s; tone 0xc stopped, tone 0 unless playing |
+
+Not near and not locked: 4. The reticle's update counts +0x954 down. While
+locked the weapon manager's +0x88 is set and the reticle shows ret_on
+(state 1); otherwise ret_off (0), then ret_over (2) while waiting, or by the
+aimed hit's node (+0x94c): its object (0x0040e920, asked twice) with its +8
+byte and the aim near: over; no object and the node's +0xbc above 1: over;
+nothing near: ret_cant (3). With the image kept (+0x90c) the state still
+changes but the image does not.
+
+Ported (`HudReticle::aim_state`); the outside through HudHooks. In the
+program the weapon group's calls and TARGET's slot are not wired yet, so
+nothing locks (no target is set: TARGET's 0x00441800 path is not ported).
+Test: test_hud.py runs the original 0x00443d20 in the frames, its outside
+stubbed (the range and distance on the x87 stack), the hits' nodes real
+blocks with +0xbc; the weapon manager's +0x88 compared after. Breaking it:
+12 of 12 caught.
+
+## 13. The weapon lines (0x00446520, 0x00446240, 0x00446540, 0x00445dc0)
+
+Refreshed (0x00446520: layout, then looks) when the list is shown
+(0x00446200), when its reader gives it the mech (0x00446120), and by the
+weapons and the camera's look from outside (hud.md section 1).
+
+- **Layout** (0x00446240): the manager's five groups in order fill the
+  sixteen lines (0x00445d10 per weapon); the current group's lines get the
+  bracket (the PolyLine: 11 pixels either side of the list's x, from the
+  group's first line to its last, 10 pixels a line); unused lines hidden;
+  the panel moved to the list and sized to the column by 10 per line; with a
+  HUD, the equipment list placed 6 pixels below, and the reticle reset when
+  the group cannot lock.
+- **A weapon in a line** (0x00445d10): the weapon's name into the name and
+  the second text; both look flags flipped and set back (0x00445a60), so the
+  fonts are set again; then the refresh.
+- **Looks** (0x00446540), each shown line: the select mark for the current
+  weapon's line in the current group (single fire), every line of the
+  current group (group fire), or select for the current one and chain for
+  the rest (chain fire); none outside the current group. Then the refresh;
+  the list keeps refreshing every frame while any line recycles. +0x1143c:
+  the weapon after the current one (else the first line's).
+- **Refresh** (0x00445dc0): the weapon's vt+8, then the bar at its recycle
+  fraction (vt+0x34, clamped to 0..1; +0x111b when it drops from full), the
+  light by damage (0x004b3010: green, yellow over 0.5, red over 0.8), the
+  count its ammo (vt+0x14, "%3d"), the look red when it has ammo and is
+  enabled (+0x74) and not destroyed, grey when destroyed (damage 1).
+
+Ported (`HudWeapons::refresh_all/layout/looks`, `HudWeaponLine::set_weapon/
+refresh_line`); the manager and weapons read through HudHooks (weapon.h's
+WeaponManager and Weapon, read-only). In the program the hooks are not
+wired yet: they pass the original's 32-bit handles, and the program's
+weapons are 64-bit pointers (a handle registry, or typed hooks, first).
+Test: test_hud.py gives the fake mech a manager with up to five groups of
+fake weapons (16 lines at most) and runs the original's refresh: 100/100.
+Breaking it: 11 of 13 caught; the misses are equivalent here (the unused
+lines are already hidden by the reader's set_weapon(nullptr), and the bar's
+set_value clamps a negative fraction to 0 itself).
