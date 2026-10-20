@@ -201,7 +201,7 @@ through the MCI notify path.
 
 - mech3's controls setup (the default keys of the 0xa7 commands, 0x00411150,
   and the controls file, input.md Open).
-- The main menu's screen (0x00486260) and the other screens on zTwoD and the
+- The main menu's screen (0x00486260, mapped in mainmenu.md) and the other screens on zTwoD and the
   SDL host; the game's message box 0x004ac150 on dlgMessage.zrd.
 - The settings loader 0x0040c420 and a registry stand-in in the write dir
   (`platform::Settings` exists, unimplemented).
