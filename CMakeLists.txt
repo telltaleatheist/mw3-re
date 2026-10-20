@@ -30,6 +30,8 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
+  src/gamez/zutil/zutl_reg.cpp
+  src/platform/reg_file.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
@@ -172,6 +174,7 @@ add_library(mw3probe SHARED
   tests/probe_pose.cpp
   tests/probe_ai.cpp
   tests/probe_zinput.cpp
+  tests/probe_settings.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

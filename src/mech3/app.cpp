@@ -225,6 +225,22 @@ int Mech3App::exit_instance() {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x0047fab0, the app's destructor (at process exit, after
+// ExitInstance): the settings are saved here (docs/settings.md). The frame's
+// delete and MFC's own destructors are left to the platform (FIX (A)).
+void Mech3App::destroy() {
+  Engine& e = *engine_;
+  if (g_globals.script) e.script_delete(g_globals.script);
+  g_globals.script = 0;
+  e.message_dll_free();
+  e.input_maps_free();
+  e.archives_shutdown();
+  e.reader_shutdown();
+  e.list_pool_free();
+  e.options_save();
+  e.settings_free();
+}
+
 // Mech3.exe 1.2 @ 0x00480570, zGameApp start (+0xac): the engine modules, the
 // video mode, then the data the menus need.
 bool Mech3App::start_game(uint32_t window) {

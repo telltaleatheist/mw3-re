@@ -38,6 +38,8 @@ struct Platform {
   platform::Files* files = nullptr;     // what music/trackNN.* the "disc" holds
   platform::Render3D* render = nullptr;
   platform::Screen2D* screen = nullptr;
+  platform::Settings* settings = nullptr;  // the registry's stand-in (settings.md); none: nothing saved
+  uint32_t ram_mb = 4096;               // the machine's memory, for detail.zrd's RAM_KB
   int window_width = 1280, window_height = 960;  // the window made for the 640x480 game
 };
 
@@ -75,7 +77,7 @@ class GameEngine : public Engine {
   void run_dir() override {}
   uint32_t message_dll_load(const char* name) override;
   uint32_t directx_version() override { return 0x700; }
-  uint32_t install_options(uint32_t mask) override { return mask & 0x0101; }
+  uint32_t install_options(uint32_t mask) override { return mask & install_options_; }  // 0x00597d80
   int32_t pick_video_device(int32_t, int32_t) override { return 0; }
   const char* message_format(int32_t id, const char* arg) override;
   uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t arg = 0) override;
@@ -91,7 +93,7 @@ class GameEngine : public Engine {
   void error_log_open(uint32_t hwnd, uint32_t a, const char* name) override;
 
   // Engine modules.
-  void settings_init(const char*, const char*, const char*) override {}
+  void settings_init(const char* company, const char* product, const char* version) override;
   void list_pool_init(int32_t) override {}  // the rebuild's containers stand in (startup.md step 6)
   void list_pool_free() override {}
   void reader_init(const char* dir) override;
@@ -177,6 +179,7 @@ class GameEngine : public Engine {
   std::unordered_map<uint32_t, uint8_t> memory_;
   uint32_t hwnd_ = 0;
   int32_t device_ = -1;
+  uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
   uint32_t cursor_ = 1;

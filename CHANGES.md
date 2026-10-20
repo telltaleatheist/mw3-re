@@ -90,6 +90,8 @@ unusual happens.
   one wrong pose; for the longest motions, garbage).
 - Undefined values the original left in a few places (a matrix row, a new
   sound copy's position, an air burst's surface direction) are zeroed.
+- A damaged saved controls-file name (no end marker) no longer makes the game
+  read past it.
 
 ## Copy protection removed
 
@@ -114,6 +116,13 @@ These change how the game talks to the computer, not how it plays.
   the game's own drawing code is unchanged.
 - Sound through SDL3 instead of DirectSound, with the same volumes and
   panning.
+- Settings are saved in `settings.reg` in the user's folder instead of the
+  Windows registry, with the same names and values (regedit's format: a
+  Windows export of the game's keys can be dropped in). They are read even
+  without an installer's key, which the original needed.
+- The detail settings are picked for a modern machine described by the
+  program (a fast processor with MMX, a 3D card, the real memory) instead of
+  the original's processor timing and DirectDraw queries.
 - Music from `music/trackNN.ogg` (or .flac, .wav, .mp3) instead of the CD;
   a ripped disc maps track for track.
 - The frame clock counts from game start, not from when the computer booted,

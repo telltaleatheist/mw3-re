@@ -41,6 +41,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
+#include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
 namespace {
@@ -186,6 +187,10 @@ int run(const Args& a) {
   p.window = &window, p.alert = &alert, p.clock = &clock, p.input = &input, p.sound = sound.get();
   p.music = &music, p.files = &files, p.render = window.render(), p.screen = &screen;
   p.window_width = a.win_w, p.window_height = a.win_h;
+  // The registry's keys as a file in the write dir (docs/settings.md).
+  platform::RegFile settings(a.write_dir.empty() ? std::string() : a.write_dir + "/settings.reg");
+  if (!a.write_dir.empty()) p.settings = &settings;
+  p.ram_mb = static_cast<uint32_t>(SDL_GetSystemRAM());
 
   int result = 1;
   {
@@ -222,6 +227,7 @@ int run(const Args& a) {
       result = app.run(pump);
       if (app.current() != &mech3::states().exit) app.stop_game();
     }
+    app.destroy();  // the app's destructor: the settings saved
     if (a.verbose) engine.print_unported_summary();
     else std::fprintf(stderr, "mw3: %zu original functions reached are not ported (--verbose lists them)\n",
                       engine.unported_counts().size());

@@ -146,14 +146,23 @@ class MessagePump {
   virtual void raise_priority() {}       // THREAD_PRIORITY_HIGHEST for the game thread
 };
 
-// Stands in for the registry keys the game reads and writes
-// (HKLM/HKCU\SOFTWARE\MicroProse\MechWarrior 3\1.0, docs/startup.md). A value is
-// raw bytes; read() fails when the value is missing or its size differs.
+// Stands in for the registry keys the settings store reads and writes
+// (HKCU and HKLM \SOFTWARE\MicroProse\MechWarrior 3\1.0, docs/settings.md), call
+// for call: per_user picks HKCU (else HKLM). A value is a registry type
+// (4 REG_DWORD, 3 REG_BINARY) and raw bytes.
 class Settings {
  public:
   virtual ~Settings() = default;
-  virtual bool read(const std::string& name, bool per_user, void* data, uint32_t size) = 0;
-  virtual void write(const std::string& name, bool per_user, const void* data, uint32_t size) = 0;
+  // RegOpenKeyExA (KEY_READ) or, for writing, RegCreateKeyExA (KEY_WRITE).
+  virtual bool open(const std::string& key, bool per_user, bool write) = 0;
+  // RegQueryValueExA without data: false when the value is missing.
+  virtual bool query(bool per_user, const std::string& name, uint32_t* size) = 0;
+  // RegQueryValueExA with data: false when missing or larger than *size.
+  virtual bool read(bool per_user, const std::string& name, void* data, uint32_t* size) = 0;
+  // RegSetValueExA.
+  virtual bool write(bool per_user, const std::string& name, uint32_t type, const void* data,
+                     uint32_t size) = 0;
+  virtual void close(bool per_user) = 0;  // RegCloseKey
 };
 
 }  // namespace platform

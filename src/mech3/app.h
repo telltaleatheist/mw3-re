@@ -48,6 +48,7 @@ class Mech3App : public zgame::App {
   bool pre_translate_message(uint32_t msg);                // 0x004803f0, +0x60
   bool init_instance();                                    // 0x00480000, +0x58
   int exit_instance() override;                            // 0x0047fa10, +0x70
+  void destroy();                                          // 0x0047fab0, the destructor's work
   bool start_game(uint32_t window) override;               // 0x00480570, +0xac
   void stop_game() override;                               // 0x004808a0, +0xb0
   uint32_t main_window() override { return engine_->frame_hwnd(frame_); }  // [0x0047fff0()+0x20]

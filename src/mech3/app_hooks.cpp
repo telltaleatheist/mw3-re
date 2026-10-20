@@ -111,6 +111,8 @@ int32_t Engine::window_h() { return mech3::window_h(); }
 void Engine::set_use_joystick(int32_t on) { mech3::set_use_joystick(on); }
 void Engine::set_fast_menu(int32_t on) { mech3::set_fast_menu(on); }
 void Engine::options_apply_all() { mech3::apply_all(); }
+void Engine::options_save() { mech3::save_options(); }
+void Engine::settings_free() { zreg::shutdown(); }
 
 void Engine::exit_process(uint32_t code) { std::exit(static_cast<int>(code)); }
 void Engine::cursor_pos(int32_t* x, int32_t* y) {

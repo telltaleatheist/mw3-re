@@ -14,9 +14,8 @@ stores its pointer at 0x005f4cc8.., and gives it a value from detail.zrd
 (0x0040c3b0: the first item of the named list whose condition holds: DEFAULT,
 or CPU_CLASS / CPU_MHZ / VIDEO_KB / RAM_KB / HW_ACCEL compared by 0x0040bf50
 with the machine's) or the default below. The loader, the store and the
-registry are not ported yet: the rebuild keeps each option as a field of
-`mech3::Options`, starting from these defaults (the GfxFlags without the
-machine bit).
+registry are ported (settings.md): each option is a field of
+`mech3::Options` that its store entry points at.
 
 | Pointer | Registry value | Default | Getter / setter |
 |---|---|---|---|

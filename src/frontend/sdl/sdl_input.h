@@ -84,6 +84,7 @@ class SdlZinHost : public zin::Host {
   uint32_t map_virtual_key(uint32_t scan) override;
   bool keyboard_state(uint8_t* state) override;
   int32_t to_ascii(uint32_t vk, uint32_t scan, const uint8_t* state, uint16_t* out) override;
+  uint32_t* settings_block(const char* name, uint32_t size) override;  // the settings store's entry
 
  private:
   void window_size(int* w, int* h) const;

@@ -2,15 +2,17 @@
 #include <cstdint>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/zutil/zutl_reg.h"
 
 namespace zrdr { struct Node; }
 
 // The game's options: detail settings, gameplay switches and screen modes.
-// Original file unknown: between mech3\briefing.cpp and mech3\mech.cpp, next to
-// the detail.zrd loader 0x0040c420 (not ported yet). In the original each option
-// is a registry entry (0x00597d90) reached through a pointer at 0x005f4cc8..
-// 0x005f4d4c; here each is a field, named after its registry value
-// (docs/options.md). Getters and setters keep the original's side effects.
+// Original file unknown: between mech3\briefing.cpp and mech3\mech.cpp, with
+// the detail.zrd loader 0x0040c420 (docs/settings.md). In the original each
+// option is a settings store entry (0x00597d90) reached through a pointer at
+// 0x005f4cc8..0x005f4d4c; here each is a field the entry points at, named after
+// its registry value (docs/options.md). Getters and setters keep the original's
+// side effects.
 namespace mech3 {
 
 using zgame::Handle;
@@ -32,6 +34,8 @@ struct CameraEntry {
 };
 
 struct Options {
+  zreg::Machine machine;              // 0x005f4c98  the loader's copy (0x00597fa0)
+  zreg::Entry* default_cmd_map = nullptr;  // [0x005f4d28] zInput's bindings' entry
   // Defaults: the detail.zrd loader's own (0x0040c420) when nothing overrides.
   int32_t hw = 0;                     // 0x005f4cc8  which _SW/_HW entry applies (HWCardFlag)
   int32_t hw_card_flag = 0;           // [0x005f4ccc] HWCardFlag
@@ -154,6 +158,16 @@ class OptionsHooks : public zgame::Unported {
   }
   virtual void input_set_screen(int32_t w, int32_t h) { unported("0x0051b590", {w, h}); }
   virtual zrdr::Node* reader_load(const char* name);               // 0x00556740, ported: zrdr::load
+  virtual void reader_free(zrdr::Node* n);                         // 0x00556820, ported: zrdr::free_node
+  virtual const char* message(int32_t id) {                        // 0x00576040, Mech3Msg.dll
+    unported("0x00576040", {id});
+    return "";
+  }
+  // mech3's controls (input.md, Open): the default bindings and CMD_ names,
+  // the controls file named by ActiveCtlCfg, and freeing the groups.
+  virtual void controls_set_defaults() { unported("0x00411150", {}); }
+  virtual void controls_load(const char* name) { unported("0x004120a0", {name}); }
+  virtual void controls_free() { unported("0x00410a80", {}); }
 };
 void set_options_hooks(OptionsHooks* hooks);
 OptionsHooks& options_hooks();
@@ -227,5 +241,14 @@ float sound_volume();                       // 0x0040daa0
 void set_cd_volume(float v);                // 0x0040dab0
 float cd_volume();                          // 0x0040dae0
 void apply_all();                           // 0x0040cb30  every setter with its own value
+
+// The settings loader (docs/settings.md): every option's entry, its value from
+// detail.zrd's list for this machine (or the default), then the saved values.
+// 1, or 0 when `path` is given and cannot be read.
+int32_t load_options(const char* path);     // 0x0040c420
+void save_options();                        // 0x0040cb20  the store saved, the controls freed
+// detail.zrd's value for `name` on this machine (0x0040c3b0): the first entry
+// whose condition holds, else `def` (also without a file).
+int32_t detail_value(zrdr::Node* root, const char* name, int32_t def);
 
 }  // namespace mech3

@@ -215,6 +215,11 @@ class Engine : public zgame::AppHooks {
   virtual void ai_targets_shutdown() { unported("0x004d72a0", {}); }
   virtual void list_pool_free() { unported("0x00555d90", {}); }
   virtual void entity_shutdown() { unported("0x005a8bb0", {}); }
+  // The app's destructor (0x0047fab0).
+  virtual void message_dll_free() { unported("0x00575f70", {}); }
+  virtual void input_maps_free() { unported("0x0051d0c0", {}); }
+  virtual void options_save();                         // 0x0040cb20, ported
+  virtual void settings_free();                        // 0x00598270, ported
   virtual void input_set_mode(uint32_t mode) { unported("0x0051bae0", {mode}); }
 
   // zVideo's buffers and frame (zvid_buff.c and neighbours).

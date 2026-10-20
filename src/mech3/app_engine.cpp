@@ -35,6 +35,7 @@ struct WiredOptionsHooks : OptionsHooks {
   void model_set_global_light(int32_t on) override { zmod::set_shadows(on); }  // 0x00526a70
   void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
   int32_t video_mode() override { return g_engine ? static_cast<int32_t>(g_engine->peek32(0x72f348)) : 0; }
+  const char* message(int32_t id) override { return g_engine ? g_engine->message(id) : ""; }  // 0x00576040
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
   }
@@ -187,19 +188,24 @@ void GameEngine::reader_init(const char*) { zrdr::init(); }
 void GameEngine::reader_open_archive(const char* path, int32_t current) { zrdr::open_archive(path, current != 0); }
 void GameEngine::reader_close_archives(int32_t all) { zrdr::close_archives(all != 0); }
 
-// 0x0040c420, the detail.zrd loader and the registry, is not ported: it
-// succeeds when detail.zrd can be read, leaving the options at the defaults
-// it would give (docs/options.md), with the 3D card the install says is there.
-int32_t GameEngine::options_load(const char* name) {
-  zrdr::Node* n = zrdr::load(name);
-  if (!n) return 0;
-  zrdr::free_node(n);
-  unported("0x0040c420", {name});
-  const int32_t hw = static_cast<int32_t>(install_options(0xff));
-  select_hw(hw);
-  set_hw_card_dev(hw ? 999 : -1);
-  return 1;
+// 0x00598210: the store's key, and the machine the detail settings are
+// picked for. FIX (A): the platform describes a modern machine instead of the
+// CPUID timing loop, GlobalMemoryStatus and DirectDraw's caps (settings.md).
+void GameEngine::settings_init(const char* company, const char* product, const char* version) {
+  zreg::Machine m;
+  std::memcpy(m.vendor, "GenuineIntel", 13);
+  m.cpu_class = 6;     // CPU_CLASS_PENTIUM_PRO: a P6-family CPU, as every modern x86 is
+  m.cpu_mhz = 2000;
+  m.flags = 0x41;      // MMX, a 3D card
+  const uint64_t kb = static_cast<uint64_t>(p_.ram_mb) * 1024;
+  m.ram_kb = static_cast<uint32_t>(kb > 0x3fffff ? 0x3fffff : kb);  // dwTotalPhys stops at 4 GB
+  m.video_kb = 256 * 1024;
+  zreg::init(company, product, version, m, install_options_);
+  zreg::set_settings(p_.settings);
 }
+
+// 0x0040c420, the detail.zrd loader with the saved settings (mech3/options).
+int32_t GameEngine::options_load(const char* name) { return load_options(name); }
 
 int32_t GameEngine::sound_init(uint32_t window) {
   zsnd::Hooks& h = zsnd::hooks();
