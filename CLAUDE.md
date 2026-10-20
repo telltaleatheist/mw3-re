@@ -183,6 +183,15 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   Owen sets the number: 5, then 2 after five at once hit the account's
   usage limit, then 3 overnight, then none by day after that night used
   about 40% of the week's usage.
+- How agents run (Owen, 2026-10-20, after comparing with Victoria's setup,
+  which did a night's work for about a quarter of our usage): up to two
+  long-lived specialists by area (e.g. game systems; front end and HUD),
+  reused and compacted rather than restarted, each keeping a work log in
+  `docs/worklogs/<area>.md` to pick up from; small assignments (one
+  function family or one screen, not a whole subsystem), one at a time,
+  the specialist waiting between them; targeted test runs while working
+  and the related set once before reporting; short tool output. Porting
+  stays on Opus; docs, reviews and test plumbing may go to Sonnet.
 - Each agent takes a piece with clean boundaries:
   leaf functions, or systems that meet others through a hooks struct the
   test stubs identically on both sides.
