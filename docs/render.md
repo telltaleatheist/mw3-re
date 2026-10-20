@@ -154,7 +154,7 @@ zGameApp::Run 0x58fd70                      main loop, state stack (architecture
    0x4b5060: +4 camera node, +8 window wrapper, +0xc world wrapper,
    +0x14 = [0x72f348] hardware flag). Hardware: `0x4f7030(ECX camera, EDX 0)`;
    software: `0x4f6dc0(camera, 0, 1)`.
-3. HUD/2D: 0x4a8cd0, 0x48f470, 0x4783a0, 0x40f8d0, 0x5a6790/0x5a67c0,
+3. HUD/2D: 0x4a8cd0 (the sensors, not drawing: ai.md 15), 0x48f470, 0x4783a0, 0x40f8d0, 0x5a6790/0x5a67c0,
    0x579af0 BeginScene, `[0x72f3ec]` (0x57e380, one queued 4-vertex quad),
    0x579b10 EndScene.
 4. If draw_cockpit: three more `0x4f73f0(camera, subtree, hw)` passes, each a

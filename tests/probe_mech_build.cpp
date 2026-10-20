@@ -229,7 +229,7 @@ void classify() {
   if (!m) return;
   g_kind[m] = kMech;
   g_kind[&m->parts] = g_kind[&m->actions] = g_kind[&m->x678] = g_kind[&m->x6d0] = kListHead;
-  g_kind[m->x88] = kPair;
+  g_kind[m->tracked] = kPair;
   if (m->hip) g_kind[m->hip] = kHip;
   if (m->torso) g_kind[m->torso] = kTorso;
   if (m->head) g_kind[m->head] = kHead;
@@ -305,13 +305,13 @@ void mech_image(Img& o, const m3::Mech& m) {
   o.q(0x48, m.orientation), o.v3(0x58, m.vec_58), o.b8(0x64, m.x64);
   o.f(0x68, m.height);
   o.p(0x6c, m.target), o.p(0x70, m.ally_target), o.p(0x74, m.enemy_target), o.p(0x78, m.saved_target);
-  o.u(0x7c, m.x7c), o.u(0x80, m.x80);
+  o.p(0x7c, m.own_lance), o.p(0x80, m.nearest_lance);
   o.b8(0x84, m.x84);
-  o.p(0x88, m.x88), o.u(0x8c, addr_of(m.x88) + 8), o.u(0x90, addr_of(m.x88) + 8);
-  o.u(0x94, m.x94), o.u(0x98, m.x98), o.f(0x9c, m.sensor_range), o.f(0xa0, m.range), o.f(0xa4, m.range2);
+  o.p(0x88, m.tracked), o.u(0x8c, addr_of(m.tracked) + 8), o.u(0x90, addr_of(m.tracked) + 8);
+  o.p(0x94, m.own_player), o.p(0x98, m.player_contact), o.f(0x9c, m.sensor_range), o.f(0xa0, m.range), o.f(0xa4, m.range2);
   o.b8(0xa8, m.xa8);
   for (int k = 0; k < 3; ++k) o.u(0xac + 4 * k, 0);  // the contacts: none
-  o.u(0xb8, m.xb8);
+  o.p(0xb8, m.touching);
   o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.xcc), o.u(0xd0, m.net);
   o.p(0xd4, m.ammo), o.p(0xd8, m.net_collision);
   o.b8(0xdc, m.power_down_pending), o.b8(0xdd, m.heat_shutdown), o.b8(0xde, m.powered_down);

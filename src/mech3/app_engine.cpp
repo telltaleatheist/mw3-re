@@ -18,6 +18,7 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_control.h"
 #include "mech3/music.h"
+#include "mech3/player.h"
 #include "platform/platform.h"
 #include "platform/render3d.h"
 #include "platform/sound_output.h"
@@ -110,6 +111,7 @@ uint32_t GameEngine::peek32(uint32_t addr) {
          static_cast<uint32_t>(peek8(addr + 2)) << 16 | static_cast<uint32_t>(peek8(addr + 3)) << 24;
 }
 uint8_t GameEngine::peek8(uint32_t addr) {
+  if (addr == 0x60b56c) return player_get_60b56c();  // the ports' copy (mech3/player)
   auto it = memory_.find(addr);
   return it == memory_.end() ? 0 : it->second;
 }

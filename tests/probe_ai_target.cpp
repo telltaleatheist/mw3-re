@@ -91,7 +91,6 @@ struct Recording : mech3::ai::TargetHooks {
   }
   int32_t node_child_count(Handle node) override { return static_cast<int32_t>(peek(node + 0x5c)); }
   Handle node_child(Handle node, int32_t i) override { return peek(peek(node + 0x60) + 4 * i); }
-  void delete_x7c(Handle) override {}
   // As the test's zWeapon: the node's table (made when it has none) gets the slot.
   int32_t set_weapon_handler(Handle self, Handle node, uint32_t fn) override { return reg(0, self, node, fn); }
   int32_t set_collide_handler(Handle self, Handle node, uint32_t fn) override { return reg(1, self, node, fn); }

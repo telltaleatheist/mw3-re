@@ -270,9 +270,9 @@ void AiTarget::set_sensor_range(Handle self, float r) {
 
 // Mech3.exe 1.2 @ 0x004a7be0
 void AiTarget::clear_contacts() {
-  g_hooks->delete_x7c(x94);
-  g_hooks->delete_x7c(x7c);
-  x94 = x7c = 0;
+  g_hooks->contact_delete(own_player);
+  g_hooks->contact_delete(own_lance);
+  own_player = own_lance = nullptr;
   for (Contact*& c : contacts) {
     g_hooks->contact_delete(c);
     c = nullptr;

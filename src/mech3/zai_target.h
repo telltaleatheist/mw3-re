@@ -42,17 +42,28 @@ struct AiTarget {
   Contact* ally_target = nullptr;    // +0x70  the last ally selected
   Contact* enemy_target = nullptr;   // +0x74  the last enemy selected
   Contact* saved_target = nullptr;   // +0x78  0x004d7220
-  uint32_t x7c = 0, x80 = 0;         // +0x7c (a block 0x004a7be0 frees) +0x80
+  // The sensors' (mech3/sensors, docs/ai.md section 15): the contact on the
+  // nearest of the player and his lancemates under orders (+0x80), kept at
+  // +0x7c when it is in no list; the one on the player (+0x98), kept at +0x94.
+  Contact* own_lance = nullptr;      // +0x7c  owned (0x004a7be0 deletes it)
+  Contact* nearest_lance = nullptr;  // +0x80
   uint8_t x84 = 0;                   // +0x84  a vector's allocator byte (the constructor's first argument)
-  Handle x88[2] = {};                // +0x88  that vector: two nulls (its end and capacity +0x8c, +0x90)
-  uint32_t x94 = 0, x98 = 0;         // +0x94 (a block 0x004a7be0 frees) +0x98
+  // +0x88: a vector of contacts kept track of: each frame the sensors put
+  // the new contact on the same vehicle in its place. The constructor's two
+  // are null and nothing fills them (end, capacity +0x8c, +0x90).
+  Contact* tracked[2] = {};
+  Contact* own_player = nullptr;     // +0x94  owned (0x004a7be0 deletes it)
+  Contact* player_contact = nullptr; // +0x98
   float sensor_range = 1000.0f;      // +0x9c  0x005e8d84; the launch sets it (0x004d6d20)
   float range = 1000.0f;             // +0xa0  capped at 1000, 2000 (0x005e8d8c) in a network game
   float range2 = 1.0e6f;             // +0xa4  its square
   uint8_t xa8 = 0;                   // +0xa8  the contacts' allocator byte (the first argument)
   std::vector<Contact*> contacts;    // +0xac..+0xb4  nearest first
-  uint32_t xb8 = 0;                  // +0xb8
-  uint8_t xbc = 0;                   // +0xbc  bit 4: a lancemate the player commands (0x004d5be0)
+  Contact* touching = nullptr;       // +0xb8  the nearest contact when within 8 m (0x004a9e70)
+  // +0xbc: bit 0 someone's target, bit 1 seen by an enemy, bit 2 passive
+  // radar (the mech's radar mode key), bit 3 the player has seen it (never
+  // cleared), bit 4 a lancemate the player commands (0x004d5be0).
+  uint8_t xbc = 0;
   uint32_t team = 1;                 // +0xc0  one bit per team (team 0: bit 0)
   uint32_t allies = 0;               // +0xc4  the same bits but bit 0
   uint32_t enemies = 0xfffffffe;     // +0xc8  every other bit but bit 0
@@ -115,6 +126,7 @@ class CZAiTarget : public AiTarget {
   bool trap = false;             // vtable 0x005ccc80 (0x004d3080), else 0x005ccb90
   Handle node = 0;               // +0x04  zEntity3d's node
   uint8_t active = 1;            // +0x08
+  uint8_t sensed = 1;            // +0x09  (ZEntity) cleared and set by the sensors
   Handle target_node = 0;        // +0x10  the node a weapon aims at (the record's "target")
   Handle centroid_node = 0;      // +0x14  the HUD's (the record's "centroid")
   TargetDesc desc;               // +0xd4
@@ -244,7 +256,6 @@ class TargetHooks : public zgame::Unported {
   virtual void node_offset(Handle node, const float v[3]) {
     unported("0x004fc1b0", {node, zgame::bits(v[0]), zgame::bits(v[1]), zgame::bits(v[2])});
   }
-  virtual void delete_x7c(Handle p) { (void)p; }   // 0x004a7be0's frees
   virtual void light_end(Handle xcc) { unported("0x00542e40", {xcc}); }  // with 0x00542ca0
   // translate_to_anim_root (0x004d28e0 and the zModel matrix calls after it).
   virtual uint8_t anim_root_moved(Handle anim) { return static_cast<uint8_t>(unported("0x004d28e0", {anim})); }

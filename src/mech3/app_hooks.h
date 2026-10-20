@@ -465,13 +465,13 @@ class Engine : public zgame::AppHooks {
   virtual Handle mech_ai(Handle data) { return unported("0x00430aa0", {data}); }
   virtual void ai_radar_update(Handle ai, float dt) { unported("0x0043cd20", {ai, zgame::bits(dt)}); }
   virtual void ai_reset(uint32_t list) { unported("0x004d8610", {list}); }
-  virtual void ai_start() { unported("0x004d5ca0", {}); }
+  virtual void entities_sort() { unported("0x004d5ca0", {}); }  // ported: mech3/sensors
   virtual void mission_results(uint8_t a, uint8_t b) { unported("0x0047ae10", {a, b}); }
   virtual void missions_update(uint32_t list, float dt) { unported("0x0048f470", {list, zgame::bits(dt)}); }
   virtual void missions_reset(uint32_t list) { unported("0x00490720", {list}); }
   virtual void missions_start(uint32_t list) { unported("0x00490880", {list}); }
   virtual const char* mission_dir(uint32_t n);         // 0x00484c50, ported: mech3/mission
-  virtual void effects_update() { unported("0x004a8cd0", {}); }
+  virtual void sensors_update() { unported("0x004a8cd0", {}); }  // ported: mech3/sensors
   virtual void camera_update() { unported("0x0040f8d0", {}); }
   virtual void effects_draw(int32_t a, Handle rect) { unported("0x005a6790", {a, rect}); }
   virtual void particles_draw(float dt) { unported("0x005a67c0", {zgame::bits(dt)}); }

@@ -160,6 +160,9 @@ unusual happens.
   as its driver is thrown away, and a made-up radio voice name of 15
   letters or more in a mission's vehicle file no longer overruns memory.
   The shipped missions have neither.
+- A big C3 network with mission targets in range no longer writes past
+  the memory set aside for its shared contacts, and a lancemate without a
+  pilot name in a hand-made mission file no longer crashes the start.
 - A hand-made AI region file without a name, or an AI path linking past its
   last point or to points without a position, no longer crashes the
   mission load or the AI's route finding. One shipped path (c2 mission 3,

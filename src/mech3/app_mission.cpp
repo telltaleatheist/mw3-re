@@ -46,6 +46,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
+#include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
@@ -56,6 +57,7 @@
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
+#include "mech3/sensors.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdraiv.h"
@@ -392,6 +394,27 @@ struct WiredTargetHooks : ai::TargetHooks {
     rec[traps].reset();
   }
   Handle target_handle(ai::CZAiTarget* t) override { return e->handle_of(t); }
+  // A contact's sight and teams (0x004e6fe0, vt+0x28): a mech's and a
+  // target's vt+0x2c and vt+0x28 answer themselves.
+  Handle seen_vehicle(Handle s) override { return s; }
+  Handle ai_target(Handle v) override { return v; }
+  uint32_t team_of(Handle t) override {
+    const ai::AiTarget* a = ai::sensor_hooks().fields(t);
+    return a ? a->team : 0;
+  }
+  // 0x005a8390 (zEntity, not ported): the record's target and centroid
+  // subnodes found by name, else the node itself; none are made.
+  void entity_set_node(Handle self, Handle n, Handle a, const char* centroid, const char* target,
+                       Handle* target_node, Handle* centroid_node) override {
+    unported("0x005a8390", {self, n, a, centroid, target});
+    zcls::Node* nd = node(n);
+    auto find = [&](const char* name) {
+      zcls::Node* f = name && nd ? zcls::node_find_in_tree(nd, name) : nullptr;
+      return e->handle_of(f ? f : nd);
+    };
+    *target_node = nd ? find(target) : 0;
+    *centroid_node = nd ? find(centroid) : 0;
+  }
   bool have_pilot() override { return e->pilot() != 0; }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
   int32_t game_type() override { return e->launch().type; }
@@ -753,7 +776,10 @@ void wire_mission_hooks(GameEngine* e) {
   g_target_hooks.e = e;
   ai::set_target_hooks(e ? &g_target_hooks : nullptr);
   // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
-  if (!e) return wire_mech_build(nullptr);
+  if (!e) {
+    wire_sensors(nullptr, nullptr);
+    return wire_mech_build(nullptr);
+  }
   static MechWiring w;
   w.engine = e;
   auto en = [](void* p) { return static_cast<GameEngine*>(p); };
@@ -772,6 +798,7 @@ void wire_mission_hooks(GameEngine* e) {
   w.view = [](void* p) { return static_cast<GameEngine*>(p)->player_view(); };
   (void)en;
   wire_mech_build(&w);
+  wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });
 }
 
 // 0x00490880 on the missions object: the load, then (a debug launch, our
@@ -779,6 +806,7 @@ void wire_mission_hooks(GameEngine* e) {
 void GameEngine::missions_start(uint32_t list) {
   if (list != 0x6098d0) return Engine::missions_start(list);
   Missions& m = missions();
+  ai::entity_list().clear();  // zEntity's list: the last mission's mechs are gone (no destructor ported)
   m.start();
   mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
@@ -799,6 +827,19 @@ void GameEngine::missions_start(uint32_t list) {
     }
     app().replace(app().state(5), 0);
   }
+}
+
+// 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
+void GameEngine::sensors_update() { ai::sensors_update(); }
+void GameEngine::entities_sort() { ai::entities_sort(); }
+
+// 0x0048ee70: the fade state (0x0048eea0, [0x00609888]) is not ported. The
+// Core state's fade at the mission start (its only caller, from its enter)
+// ends at once (our stand-in): the Core state gets the message the fade
+// sends as it ends (7, the mission's resume: the entity sort among it).
+void GameEngine::fade(int32_t a, int32_t b, int32_t c, uint32_t d, int32_t e, int32_t f, int32_t g) {
+  Engine::fade(a, b, c, d, e, f, g);
+  if (a == 7) states().core.resume(7);
 }
 
 // 0x0048f470 on the missions object, each Core frame: the port's (its

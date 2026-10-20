@@ -156,6 +156,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | File list layout, 0x48cda0 | With no row shown (no items, or `top` at the end) the rectangle's bottom is a stack slot never written; the shipped popup's list has no image, so this rectangle is its hit area | (bug) the empty list's hit area is garbage: a click anywhere below could count as on the list | The bottom is the top: an empty list has an empty area. `test_loadsave.py` writes the same into the original's slot (a code hook) |
 | File list rows, 0x48cda0 | Each row's text is set with the item's name as the printf format | (bug) a `%` in a file name reads arguments that are not there (garbage, or a crash on `%s`) | The name shown as it is; identical for every other name |
 | File list row font, 0x48d1c0 | The row is indexed by the item's index | (bug) an item below the shown rows indexes past the rows (no caller in the ported screens) | Only an existing row changes |
+| Sensors' C3 merge, 0x4a9fd0 | The union of the master's and a member's contacts is written into the scratch vector [0x609a5c], sized to zEntity's list (at least 32) | (bug) targets.zrd objects count as contacts too, so a big enough union writes past the heap block | The union goes into a vector of its own that grows; the same contacts result. `mech3/sensors`, test_sensors.py (the original's path: unions within the scratch) |
+| Sensors' contact, 0x4a9530 | The seen entity's vehicle (vt+0x2c) is written through without a check | (bug) a vehicle-less entity in sight would crash the game | Not written; every mech and target answers itself, so play never reaches it |
+| Entity sort, 0x4d7650 | Two lancemates' pilot names (brain +0xd4) are compared with strcmp | (bug) a lancemate without a `pilot` in aiv.zrd crashes the mission start | It ranks after the named ones; every shipped lancemate has a name |
 
 Notes on the fixes:
 

@@ -23,6 +23,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission_launch.h"
+#include "mech3/sensors.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -76,6 +77,8 @@ class WiredBuild : public MechBuildHooks {
   }
   void node_set_action(Handle node, uint32_t) override { zcls::node_set_action(zn(node), nullptr); }
   void node_set_flag8(Handle node, int32_t on) override { zcls::node_set_flag8(zn(node), on); }
+  // 0x005a7f50: onto zEntity's list, the port's (mech3/sensors).
+  void entity_register(Mech& m) override { ai::entity_list().push_back(g_w.handle_of(g_w.engine, &m)); }
   void node_set_active(Handle node, int32_t on) override { zcls::node_set_active(zn(node), on); }
   void node_set_name(Handle node, const char* name) override { zcls::node_set_name(zn(node), name); }
   void node_add_child(Handle parent, Handle child) override {
