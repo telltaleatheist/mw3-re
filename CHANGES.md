@@ -106,6 +106,8 @@ unusual happens.
   room for 32 and stopped only some of the time. No shipped mission comes
   close.
 
+- A cockpit camera given a distance in a mech file no longer reads leftover
+  memory for its offset (no shipped mech does it).
 - On a computer without MMX, the software renderer's screen flashes no longer
   write past the end of the screen's memory on its last line.
 - A mech file with a bad version no longer crashes the game when it unloads.

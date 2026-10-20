@@ -79,6 +79,7 @@ class GameEngine : public Engine {
   Handle pilot_game(Handle p) override;
   uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
+  void view_reset(Handle view) override;  // 0x0040ad90, the port's on the program's view
   // The menu screens that are ported (app_menus.cpp): the shell states hold a
   // handle, a block of the module memory standing for the object, whose
   // offsets lead to its parts (the screen, its buttons).
@@ -106,6 +107,7 @@ class GameEngine : public Engine {
   void pilots_delete() override;
   void pilot_delete(const char* name) override;
   uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) override;
+  void sync_view();  // the player view's mode and target into its block (app_view.cpp)
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
@@ -280,6 +282,7 @@ class GameEngine : public Engine {
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
+  std::map<int32_t, Handle> view_modes_;  // the view's camera ids' blocks (sync_view)
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;

@@ -91,6 +91,7 @@ for t in \
     sensors \
     fade \
     d3d_frame \
+    view \
     destroy \
     tree_copy \
     mech_data_load \

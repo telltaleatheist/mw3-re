@@ -4,6 +4,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -45,6 +46,7 @@
 #include "mech3/zai_steps.h"
 #include "mech3/sensors.h"
 #include "mech3/app_sensors.h"
+#include "mech3/app_view.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
@@ -767,6 +769,112 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
     EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
   }
   zvid::pixel_format() = keep;
+}
+
+// The player's view (docs/view.md): after the launch the view is on the
+// Mad Cat in the options' camera, the cockpit (attach, id 1). Driven from the
+// keyboard as mission_c1m1_player_walks_and_turns_headless, every Core frame
+// camera1 sits at the torso node plus the cockpit's offset (0, 2.45, -1.3
+// turned with the mech): walking, the camera goes along; turning, the offset
+// turns with it.
+TEST(mission_c1m1_camera_follows_the_cockpit_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_view_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, followed = 0;
+    bool cockpit = false, on_player = false, near = true;
+    float first[3] = {}, walked[3] = {}, off_walked[3] = {}, off_turned[3] = {};
+    uint32_t up = 0, left = 0;
+    auto dist = [](const float* a, const float* b) {
+      return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      float cam[3], torso[3];
+      const bool have = mech3::program_view_positions(cam, torso);
+      if (frames >= 2 && frames <= 360) {
+        if (!have || dist(cam, torso) > 4.0f) near = false;
+        else ++followed;
+      }
+      if (frames == 1) {
+        up = zin::key1_of(0x18) & 0xff, left = zin::key1_of(2) & 0xff;  // throttle up, turn left
+      } else if (frames == 2) {
+        cockpit = mech3::program_view_mode_id() == 1;
+        on_player = mech3::program_view_target() == engine.object_of(engine.field32(engine.pilot(), 0x14));
+        std::memcpy(first, cam, sizeof first);
+      } else if (frames == 3) {
+        keys.key(up, true);
+      } else if (frames == 300) {
+        keys.key(up, false);
+        std::memcpy(walked, cam, sizeof walked);
+        for (int i = 0; i < 3; ++i) off_walked[i] = cam[i] - torso[i];
+        keys.key(left, true);
+      } else if (frames == 360) {
+        keys.key(left, false);
+        for (int i = 0; i < 3; ++i) off_turned[i] = cam[i] - torso[i];
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    EXPECT(frames >= 360);
+    EXPECT(cockpit && on_player);
+    EXPECT(near && followed == 359);
+    EXPECT(dist(walked, first) > 20.0f);  // walked, and the camera with it
+    // Turned: the offset's level part turned with the mech.
+    const float a0 = std::atan2(off_walked[0], off_walked[2]), a1 = std::atan2(off_turned[0], off_turned[2]);
+    EXPECT(std::fabs(a1 - a0) > 0.05f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
 }
 
 TEST(mission_c1m1_sensors_fill_the_contacts_headless) {

@@ -131,6 +131,7 @@ add_library(mw3core STATIC
   src/mech3/mission.cpp
   src/mech3/mission_launch.cpp
   src/mech3/player.cpp
+  src/mech3/player_view.cpp
   src/mech3/pilot.cpp
   src/mech3/pilot_games.cpp
   src/mech3/pilot_menu.cpp
@@ -156,6 +157,7 @@ add_library(mw3core STATIC
   src/mech3/app_states.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
+  src/mech3/app_view.cpp
   src/mech3/app_mech.cpp
   src/mech3/app_sensors.cpp
   src/mech3/app_menus.cpp
@@ -238,6 +240,7 @@ add_library(mw3probe SHARED
   tests/probe_sensors.cpp
   tests/probe_fade.cpp
   tests/probe_frame.cpp
+  tests/probe_view.cpp
   tests/probe_mech_data.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
