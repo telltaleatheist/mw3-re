@@ -70,6 +70,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
 }
 
 GameEngine::~GameEngine() {
+  delete_screens();
   if (g_engine == this) {
     g_engine = nullptr;
     set_options_hooks(nullptr);

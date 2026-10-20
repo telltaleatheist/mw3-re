@@ -121,11 +121,11 @@ void Mech3App::restore_video(bool hw, bool pick) {
 }
 
 // Mech3.exe 1.2 @ 0x0047fc20 / 0x0047fe00
-void Mech3App::set_lab_flags(uint8_t a, uint8_t b) {
+void Mech3App::set_reopen_instant_action(uint8_t a, uint8_t b) {
   byte_at(0x1bc) = a;
   byte_at(0x1bf) = b;
 }
-void Mech3App::set_auto_campaign(uint8_t v) { byte_at(0x1be) = v; }
+void Mech3App::set_reopen_training(uint8_t v) { byte_at(0x1be) = v; }
 
 // Mech3.exe 1.2 @ 0x0047ff60: the debug menu's Mech Lab, starting over.
 void Mech3App::restart_in_lab() {

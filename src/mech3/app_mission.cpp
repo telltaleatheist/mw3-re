@@ -324,6 +324,8 @@ uint32_t GameEngine::pilot_campaign_number(Handle p) {
 }
 
 uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) {
+  uint32_t r = 0;
+  if (menu_vcall(obj, slot, args, &r)) return r;
   if (obj && obj == game_) {
     switch (slot) {
       case 0x2c: return static_cast<uint32_t>(launch_.type);

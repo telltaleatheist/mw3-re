@@ -1298,3 +1298,40 @@ From the 2D front end, zTwoD (details: `twod.md`).
   into a picture, usually with a drop shadow. The code can also draw text
   with a gradient, white first and then recoloured row by row from a top
   colour to a bottom one, but no shipped font asks for two colours.
+
+### The main menu
+
+From the main menu's code, 0x00486260 and its buttons (details: `mainmenu.md`).
+
+- **The water ripple on the main menu.** Moving onto a main menu button
+  sends a ring through the screen around it: the picture inside the ring is
+  pushed out along a sine wave, as if a stone dropped in water. The ring
+  grows 120 pixels a second and fades from strength 7 to 2, losing 0.3 every
+  frame, so at 30 fps a ripple lasts about half a second and spreads to about
+  90 pixels; on a fast machine it died almost at once. The rebuild fades it
+  at the 30 fps pace whatever the frame rate.
+- **The menu background and the MECH3 logo crawl by the frame.** The
+  background slides one pixel right and one down every frame and wraps
+  around; the big MECH3 logo slides two pixels left a frame and comes back in
+  on the right. Both ran faster the faster the computer drew the menu; the
+  rebuild moves them at the 30 fps pace.
+- **`-seasick` stops it all.** The `-seasick` switch (the FastMenu option)
+  draws the main menu once, takes a picture of it, and from then on only
+  redraws the button under the mouse: no crawling background, no sliding
+  logo, no ripples.
+- **Every button has a key:** I Instant Action, C Campaign, M Multiplayer,
+  T Training, O Options, Q Quit, and R for the cRedits.
+- **The game puts you back where you were.** After an Instant Action game the
+  main menu presses Instant Action for you, after a training mission
+  Training; after the campaign's ending movie (c4win) it opens the credits by
+  itself (0x0047aa50 sets the flag, 0x00486c17 presses the button).
+- **Quit is the one silent button.** Every other main menu button plays its
+  click and shows its pressed picture before opening its menu; Quit goes
+  straight to the "quit?" question.
+- **Leftovers from the demo.** The full game's main menu file still gives
+  Campaign, Training and Multiplayer an "Only Available In Full Version"
+  help text, and the same file holds the demo's exit screen with "Buy Now"
+  and Quit buttons. The 1.2 program never reads either.
+- **The version line assumes 640x480.** The "MechWarrior 3 1.2" text in
+  the corner is placed for a 640x480 screen whatever the resolution, while
+  the background and the logo use the real screen size.

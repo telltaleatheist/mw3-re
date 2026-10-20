@@ -64,6 +64,9 @@ class Engine : public zgame::AppHooks {
   virtual int32_t window_h();                          // 0x0040d7c0
   virtual void set_use_joystick(int32_t on);           // 0x0040d070
   virtual void set_fast_menu(int32_t on);              // 0x0040ce90
+  virtual int32_t fast_menu();                         // 0x0040cec0
+  virtual int32_t display_width();                     // 0x0040d760
+  virtual int32_t display_height();                    // 0x0040d770
   virtual void options_apply_all();                    // 0x0040cb30
   virtual void effects_set_level(int32_t v) { unported("0x00508fb0", {v}); }
   virtual int32_t options_load(const char* name) {     // 0x0040c420, detail.zrd + registry
@@ -266,6 +269,10 @@ class Engine : public zgame::AppHooks {
   virtual void screen_refresh(Handle s) { unported("0x0059fa60", {s}); }
   virtual void screen_hide(Handle s) { unported("0x0059fa40", {s}); }
   virtual void shell_clear(uint32_t state) { unported("0x0048ee00", {state}); }
+  // zGameApp::Push (0x00590400) of a state the port does not have (a menu
+  // object of 0x00609858..0x00609878, by its handle).
+  virtual void push_state(Handle state, uint32_t arg) { unported("0x00590400", {state, arg}); }
+  virtual void confirm_quit();                         // 0x00482a20, ported: Mech3App::confirm_quit
   virtual Handle construct(uint32_t ctor, std::initializer_list<Arg> args) {  // new + ctor
     char key[16];
     format_key(key, ctor);

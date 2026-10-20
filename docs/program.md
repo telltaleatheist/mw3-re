@@ -35,8 +35,11 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
 
 Plain `mw3` runs the original start: the constructor, InitInstance, the
 engine start (the `zXxxInit: PASSED` lines), the Intro state (movies hooked,
-so it moves on at once), then the Main state. The main menu's screen
-(0x00486260) is not ported, so the window stays dark there; close it to quit.
+so it moves on at once), then the Main state and its main menu (ported,
+mainmenu.md: the background, the buttons and their ripples' state, the
+logo, the hotkeys; the ripple's zRender drawing 0x00558dd0 is a hook, so no
+ring shows). Its buttons reach the menus they open, which are hooks, so
+only Quit (its question, then the Exit state) does something.
 
 ## Debug starts (our addition)
 
@@ -109,8 +112,8 @@ Objects the ports hand out (zSound objects, voices, snapshots, the interp)
 get 32-bit handles from a table.
 
 Still hooked (logged once each, return 0), the main ones: the movies (zFMV
-0x00598cc0..), the main menu's screen and menu objects (0x00486260,
-0x0048a6c0 ..), the pilots, mechs, maps and missions (0x004788b0,
+0x00598cc0..), the main menu's menu objects (0x0048a6c0 ..) and App::Push
+of them (0x00590400), the pilots, mechs, maps and missions (0x004788b0,
 0x0040f410, 0x004583b0 ...), the mission's modules (mission-load.md, Open), zEffect, zClass's and zModel's
 module starts, mech3's controls (0x00411150, 0x004120a0), the network. `--verbose` prints the full list of a run.
 
@@ -189,7 +192,8 @@ implements it:
   order, the music tracks found through the mounts and the disc's track
   count, and the whole start-up with fake platform parts: InitInstance,
   `zGameApp::Run` through Intro to the Main state, the title, Direct3D
-  chosen, the movies and the main menu reaching their hooks, frames flipped.
+  chosen, the movies reaching their hooks, the main menu built from
+  MAINMENU (its buttons bound, the version line), frames flipped.
 - `build/mw3sdltests` (`tests/test_sdl_frontend.cpp`): the DIK table (known
   codes, no two keys sharing one), the keyboard buffer (order, auto-repeat,
   overflow, unacquired), the mouse counts, the GDI text on the game's fonts
@@ -219,8 +223,9 @@ through the MCI notify path.
 
 - mech3's controls setup (the default keys of the 0xa7 commands, 0x00411150,
   and the controls file, input.md Open).
-- The main menu's screen (0x00486260, mapped in mainmenu.md) and the other screens on zTwoD and the
-  SDL host; the game's message box 0x004ac150 on dlgMessage.zrd.
+- The screens after the main menu (mainmenu.md, Left) on zTwoD and the
+  SDL host; the game's message box 0x004ac150 on dlgMessage.zrd; the
+  ripple's drawing 0x00558dd0.
 - The mission's hooked modules (mission-load.md, Open): the player's mech,
   AI, weapons, effects, HUD; the briefing screen and its Launch button.
 - Movies (zFMV, Indeo 5).

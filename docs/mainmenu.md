@@ -1,83 +1,226 @@
-# The main menu screen (0x00486260): mapped, not ported
+# The main menu screen (0x00486260): ported
 
-Mech3.exe 1.2, 2026-10-20. The Main state's screen (game-loop.md, Main),
-read from the constructor, the vtables and the button handlers; nothing here
-is ported yet. `MainState` (`mech3/app_states`) still reaches it through
-`construct(0x486260)` and `vcall`.
+Mech3.exe 1.2, 2026-10-20. The Main state's screen (game-loop.md, Main): a
+zTwoD dialog (twod.md) built from dialog.zrd's MAINMENU, with a scrolling
+background, seven rippling buttons, the scrolling MECH3 title and the version
+line. Ported in `src/mech3/menu_widgets` (what the menu screens share) and
+`src/mech3/mainmenu`; checked against the exe by
+`tests/differential/test_mainmenu.py`. The screens the buttons open are not
+ported: each press reaches its hook.
 
-## The screen
+## 1. The classes
 
-`new(0x12c1c)`, constructor 0x00486260(state), vtable 0x005c4b10 (the
-mech3 menu screens' base 0x005bc190 differs only in +0x08, the deleting
-destructor 0x00485a60 -> 0x00485780). A zTwoD Dialog (0x0059ec40, twod.md)
-with, by offset:
+No RTTI; names are ours. Original files unknown (menu_widgets.h says where
+each sits).
 
-| Offset | What |
-|---|---|
-| +0x10fec | the Main state |
-| +0x1116c, +0x11170 | 1, 1; then two Images (0x0059b970) and a rectangle set twice (0x0042a140, the second from the render size 0x0040d770 / 0x0040d760) |
-| +0x110b0 | BACKGROUND: an Image subclass, vtable 0x005bc1b0 |
-| +0x111e8 | byte: menus move (not FastMenu, 0x0040cec0; `-seasick` turns it off) |
-| +0x111ec, +0x11494, +0x1173c, +0x119e4, +0x11c8c, +0x11f34, +0x121dc | the seven buttons (0x2a8 bytes each): INSTANTACTION, NEWCAMPAIGN, MULTIPLAYER, TRAINING, OPTIONS, CREDITS, QUIT |
-| +0x12484 | MECH3TEXT: an Image subclass, vtable 0x005bd988, a float 2.0 at its +0xbc |
-| +0x12600 | the dialog's +0x128 (the definition) when it loaded, else 0 |
-| +0x12750 | a Text (0x005a15a0): the version line, "%s %s" of a message (0x004af290 -> 0x00576040) in a fonts.zrd font (0x00517680), centred by measure (0x005a1380); +0x12bc4 set: the text's +0xac |
+| Class | Constructor | Vtable | Size | Base |
+|---|---|---|---|---|
+| MenuScreen | 0x0040a110 (inlined in 0x00486260) | 0x005bc190 | 0x110b0 + 0x13c | Dialog |
+| ScrollImage (BACKGROUND) | in the screen's | 0x005bc1b0 | 0x13c | Image |
+| ShellButton | 0x0040a5d0 | 0x005bc230 | 0x158 | Control |
+| SlideButton | 0x00438d70 | 0x005bd888 | 0x1ec | ShellButton |
+| Ripple (zTwoD) | 0x005a53e0 | 0x005d04a8 | 0x4c | Object2D |
+| Marquee (MECH3TEXT) | in 0x00486260 | 0x005bd988 | 0xc0 | Image |
+| MainMenuButton | in 0x00486260 | 0x005c4f90, one per button 0x005c4ef0..0x005c4b30 | 0x2a8 | SlideButton |
+| MainMenu | 0x00486260 | 0x005c4b10 | 0x12c1c | MenuScreen |
 
-The constructor, after the members: unless the no-voice flag (app +0x1c3)
-a sound (0x0056f520), a CD cue (0x00572a30) and 0x004ac290 (likely the menu
-music); the image path (0x00516f50); the render target from zVideo's
-buffers (0x00576db0..0x00576d80, 0x00558290); `load("dialog.zrd",
-"MAINMENU", !moving)` (0x0059f010); then BACKGROUND as a primitive, the seven
-buttons by name, the version text, and either MECH3TEXT as a primitive
-(menus moving) or, with FastMenu, 0x00486ed0: the screen drawn once at rest
-and grabbed as the static background, every button set to its end place
-(+0x90(1)). Then the page flipping mode (0x0059fcf0: 2, or 0 with
-FastMenu), active (+0x04(1)), and [0x00609854] = the screen.
+ScrollImage, ShellButton and SlideButton are used by many screens (their
+vtables are set in 0x00428a1f.., 0x0042a8cb.., 0x0042daff.., 0x0042e90f..:
+the options, the credits and others), so the next screens build on them.
 
-Shipped MAINMENU (dialog.zrd) labels: CAMPAIGN, TRAINING, INSTANT ACTION,
-MULTIPLAYER, OPTIONS, CREDITS, QUIT (`mw3 --dialog dialog.zrd MAINMENU`
-draws them, now with zInput's mouse).
+### MenuScreen (0x005bc190)
 
-## The buttons
+A Dialog plus: +0x10fec the shell state that owns it, +0x10ff0 a "busy"
+byte (+0x18 sets it and returns the old value, +0x1c reads it; a ShellButton
+takes no mouse while it is set, 0x0040a720; ShellState::resume sets it
+around its redraw), +0x10ff4 an Image for FastMenu's still screen, +0x110b0
+the BACKGROUND. +0x14 (0x0040a510, three arguments, empty) is where a
+ShellButton reports a press (0x0040a6e0: its id +0x150 and two values). The
+slots +0x0c and +0x10 are empty.
 
-Class constructor 0x00438d70(-1) (a Control, 0x0059bbe0, with a child Image
-at +0x1ec), base vtable 0x005c4f90; the seven differ only in +0x00 (their
-destructors 0x00486840..0x00486900) and +0x30, the left button's release:
+### The background (0x005bc1b0)
 
-| Button | +0x30 | Pushes |
-|---|---|---|
-| INSTANTACTION | 0x0048e980 | [0x0060985c] (0x0048a6c0's object) |
-| NEWCAMPAIGN | 0x0048ea80 | [0x00609864] (0x0048aef0) |
-| MULTIPLAYER | 0x0048e9c0 | [0x00609860] (0x0049c900) |
-| TRAINING | 0x0048ea00 | [0x00609874] (0x0048b120) |
-| OPTIONS | 0x0048ea40 | [0x00609868] (0x00438be0) |
-| CREDITS | 0x0048eac0 | [0x00609878] (0x004295e0) |
-| QUIT | 0x0048eb00 | (not decompiled; likely the quit question) |
+Unless FastMenu (+0x138, read at construction), update (0x0040a210) moves a
+view rectangle (+0xe8, starting at the display size 0x0040d760 / 0x0040d770)
+by (+0xbc, +0xc0) = (1, 1) pixels a frame, wrapping at the image's size, and
+cuts it into up to four pieces (+0xc4 flags, +0xc8 positions, +0xf8 source
+rectangles): the view clipped at the image's right and bottom edges, then the
+image's left strip, top strip and corner filling the rest of the screen.
+draw (0x0040a490) draws each flagged piece at its place. A second test after
+each edge clip (`right < right`) can never be true.
 
-Each: when the button is live (+0xc4), Control's press (0x0059c960: input
-reset, the ACTIVATE image, sound and labels) and +0x8c(1, 0) (0x0040a6e0:
-tells its owner, +0x08's +0x14, with its id +0x150); then
-`App::push(menu object, 0)` (0x00590400). The menu objects are the states
-of gametypes.md made by the Main state's enter.
+### The buttons
 
-The shared slots: +0x24 update 0x0048e810 (the child image's update, then
-0x00485650, the slide), +0x2c 0x00485590 (the bounds, none while sliding:
-+0x14c), +0x3c enter 0x00485570 (+0x98, then Control's), +0x40 leave
-0x00485640, +0x54 accepts 0x0040a720, +0x5c hit 0x004855f0 (inside the
-bounds), +0x84 read_control 0x0048e6b0 (Control's read 0x0059cdc0, then two
-values from the entry, a float default 20.0 at +0x1d4 and an int default
-200 at +0x1d0, their square at +0x1d8, the child image's BITMAP placed
-by the entry's offsets and shown for good), +0x88 after_bind 0x0042a250
-(the start and end places +0x15c..+0x168 from the position, the child
-moved), +0x8c 0x0040a6e0.
+ShellButton (0x005bc230): a Control with +0x14c "reading" (inside
+read_control: get_rect returns nothing then, and with FastMenu), +0x150 an id
+(-1 for the main menu's), +0x154 "borrowed" (its destructor clears the
+images first), +0x30 (0x0042a3d0) Control's press then +0x8c(1, 0), the
+screen's +0x14.
 
-## Left to port
+SlideButton (0x005bd888) adds the ripple: on enter (0x00485570) it restarts
+it (0x00485530: radius 20, phase 0, amplitude 7.0, on unless FastMenu); each
+update (0x00485650), while on, the button is dirtied, drawn, and the ring
+grows by +0x1bc = 120 pixels a second (0x00485510, with the wavelength
++0x1c4 = 12) up to MAXRADIUS (+0x1d0, default 200), the phase moves on by
+pi x the growth / 12, and the amplitude falls by 0.3 a frame; it stops at
+2.0 or less, drawing once more. The ring (the Ripple at +0x16c) runs from
+radius - 3 wavelengths to radius at the button image's centre (after_bind
+0x0042a250, also on every move 0x0042a400). RADIUS (+0x1d4, default 20) and
+its square only set +0x15c..+0x168, a square nothing here reads. Leaving
+(0x00485640) stops it. The button's bounds (0x00485590) are Control's,
+computed with the stashed image when baked; its hit test (0x004855f0) takes
+the edges and ignores hiding. +0x1dc is an HP STL vector of objects deleted
+with the button, empty in every screen seen.
 
-The screen class with BACKGROUND (0x005bc1b0: 0x0041ebb0, 0x0040a490,
-0x0040a210) and MECH3TEXT (0x005bd988) images, the button class (0x00438d70,
-0x00485570..0x00485780, 0x0048e6b0, 0x0042a250, 0x0042a3d0, 0x0042a400) and
-its slide, 0x00486ed0, the destructor; the targets are the nine menu states
-(gametypes.md), none ported, so each press would be a logged hook until
-they are; QUIT's 0x0048eb00 to be read from the disassembly. The test would
-build on `test_twod.py`'s world (twod.md section 7) with the press's
-`App::push` and the menu objects stubbed.
+Baking (+0x90, 0x0042a160) is FastMenu's: the normal image moves to +0x158
+and the button draws nothing (the still screen shows it); unbaking puts it
+back.
+
+The Ripple (zTwoD, vtable 0x005d04a8, in the render overlay layer's range)
+draws through zRender's 0x00558dd0 (x, y, inner, outer, amplitude,
+wavelength, phase, clip): every pixel of the ring is copied from the
+render target 2 (0x00558290's buffers) shifted along the radius by a sine of
+the distance, the inside left alone. Hooked (`ztwod::Host::ripple`), not
+ported.
+
+MainMenuButton (0x005c4f90) adds the line to its label (+0x1ec, AUXBITMAP
+("name" dx dy), read raw: list items 1..3, placed at the button's position
+plus the offsets and shown for good, 0x0048e6b0), updated before the button
+(0x0048e810) and hidden while baked (0x0048e780). The seven differ in their
+destructor and +0x30:
+
+| Button | +0x30 | Pushes | Hotkey |
+|---|---|---|---|
+| INSTANTACTION | 0x0048e980 | [0x0060985c], Action State (0x0048a6c0) | I |
+| NEWCAMPAIGN | 0x0048ea80 | [0x00609864], Campaign State (0x0048aef0) | C |
+| MULTIPLAYER | 0x0048e9c0 | [0x00609860], Multiplayer State (0x0049c900) | M |
+| TRAINING | 0x0048ea00 | [0x00609874], Training State (0x0048b120) | T |
+| OPTIONS | 0x0048ea40 | [0x00609868] (0x00438be0) | O |
+| CREDITS | 0x0048eac0 | [0x00609878] (0x004295e0) | R |
+| QUIT | 0x0048eb00 | nothing: `Mech3App::confirm_quit` (0x00482a20) | Q |
+
+Each but QUIT: when enabled, Control's press (the ACTIVATE image and sound)
+and +0x8c(1, 0); then, enabled or not, `App::Push(menu object, 0)`
+(0x00590400). QUIT goes straight to the question, without the press's
+sound and image.
+
+## 2. The screen (0x00486260)
+
+The members, by offset: MenuScreen (above), the seven buttons at +0x111ec +
+0x2a8 n (INSTANTACTION, NEWCAMPAIGN, MULTIPLAYER, TRAINING, OPTIONS,
+CREDITS, QUIT; each constructed with its line hidden), MECH3TEXT at +0x12484
+(a float 2.0 at +0xbc), an Image at +0x12544 and a Control at +0x12604 that
+are never bound, +0x12600 the dialog's tree when it loaded, the version Text
+at +0x12750.
+
+Then, in order: unless the no-voice flag (app +0x1c3) the MENU sound set
+(0x0056f520) and the menu music, CD track "menu" (0x00572a30) in mode 2
+(0x004ac290); the image path "zbd" (0x00516f50); the render target 2 from
+zVideo's buffers (0x00576db0, 0x00576da0, 0x00576d90, 0x00576d80 ->
+0x00558290); `load("dialog.zrd", "MAINMENU", no_draw = menus moving)`; if it
+loads: BACKGROUND bound as a primitive, the seven buttons by name, the
+version line (fonts.zrd's debug_font, "%s %s" of message 7 and the version
+number 0x004af290, rendered, placed at (640 - (width + 5), 480 - (height +
+3)) and added), then either MECH3TEXT bound (menus moving) or, with FastMenu,
+0x00486ed0 (the screen drawn once without the cursor and grabbed, the grab
+made the static background and the still image, added to the list),
+BACKGROUND taken out of the list and every button baked. Last: every
+object's flags set to 0 when moving (drawn every frame) or 2 with FastMenu
+(drawn only when dirty) (0x0059fcf0), active, [0x00609854] = the screen.
+
+The destructor (0x00485780) releases the MENU set (0x0056f530), stops the
+CD (0x00572c30) and clears [0x00609854].
+
+Shipped MAINMENU: buttons at (20, 20) NEWCAMPAIGN, (92, 95) TRAINING, (20,
+170) INSTANTACTION, (92, 245) MULTIPLAYER, (20, 320) OPTIONS, (360, 320)
+CREDITS, (432, 395) QUIT, each `circlebtn_small` with a red label 47, 35 to
+its right and the line `main_line1..7` at 59, 47; MECH3TEXT `main_mech3` at
+(240, 240); BACKGROUND `common_background`. Each button but INSTANTACTION,
+OPTIONS, CREDITS and QUIT also has DEMO_HELP ("Only Available In Full
+Version"), a key the 1.2 exe never reads; dialog.zrd's DEMOEXITMENU (a
+"Buy Now" screen) is never loaded either: both are the demo's.
+
+## 3. Resolution (for the any-size work, fixes.md candidates)
+
+The original assumes 640x480 in places and asks the display size in others:
+
+- The version line is placed with the constants 640 and 480 (0x005c4b04,
+  0x005c4b00), whatever the mode.
+- The background's view and its wrap, and MECH3TEXT's wrap to the right
+  edge, use the display size (0x0040d760 / 0x0040d770): at a larger size the
+  background tiles and the title travels the whole width.
+- Every position in MAINMENU is a 640x480 pixel position; the cursor, the
+  buttons and their labels do not scale.
+
+The port keeps all of it (the test runs sizes from 320x240 to 1600x1200).
+
+## 4. The port
+
+`mech3::MainMenu` and its parts are native zTwoD objects; the game's calls
+outside zTwoD go through `mech3::Engine` (new hooks: fast_menu 0x0040cec0,
+display_width / display_height 0x0040d760 / 0x0040d770, push_state
+0x00590400, confirm_quit 0x00482a20; the rest existed), zTwoD's through
+`ztwod::Host` (new: ripple 0x00558dd0). The Main state is unchanged: it
+still makes its screen with `construct(0x486260)` and talks to it through
+`vcall`, `screen_refresh` etc.; the program's `GameEngine`
+(`src/mech3/app_menus.cpp`, our addition) answers those for ported screens:
+the handle is a block of the module memory the size of the object, offset 0
+the screen's vtable (+0x00 update, +0x04 active, +0x08 delete, +0x18 /
++0x1c busy), +0x111ec + 0x2a8 n a button (+0x30 press); `shell_clear`
+(0x0048ee00, now `ShellState::clear_screen`) deletes it; the nine menu
+objects stay unported, so their handles are 0 and a press is logged as
+`0x00590400 (menu state 0)`. `twod_set_cursor` (0x0059fb80) is zTwoD's
+page-flip switch, now wired.
+
+FIX (B): the background's 1 pixel, MECH3TEXT's 2 pixels and the ripple's 0.3
+are steps a frame, so the menu moved faster the faster the machine drew.
+With `zfix::options().per_second` (on by default) each is taken once for
+every 30 fps frame that has passed (fractions carried over); the probe turns
+it off (fixes.md).
+
+## 5. Testing
+
+`test_mainmenu.py` (60 runs): the original constructor and screen run in
+the emulator on `twod_world.py`'s world, plus stubs for the options
+(FastMenu off, on, or random per call; display sizes 320x240..1600x1200),
+zVideo's buffers, the render target, the ripple, the version and message,
+App::Push, the quit question, the sound set and music, the no-voice flag;
+even runs the shipped MAINMENU, odd runs a synthetic one (RADIUS and
+MAXRADIUS on some buttons, buttons and primitives missing, moved buttons, no
+line, MECH3TEXT near the left edge; one in eight with no MAINMENU at all, so
+nothing binds); in two runs of three the background and title images are
+small, so both wrap within the run. The plan:
+construct, usually the unload the Main state does, then 30 to 90 frames of
+mouse input around the buttons (rollovers start ripples, clicks press) mixed
+with presses through +0x30, the busy flag, baking and unbaking, bounds,
+enabling, activation, dirty-all and restore; then a dump and the deleting
+destructor. Compared: every call (the ripples' arguments included) and a
+dump of the dialog, every object in its list and the menu's own state
+(background pieces, title, every button's ripple, line and stash). Result:
+60/60 identical (192,251 calls; 822 ripples drawn, 265 menu pushes, 39
+quit questions). `tests/test_mainmenu.cpp` checks the FIX (B) path (one
+second at 30, 60 and 144 fps) and the exe's.
+
+Breaking the port showed the test catches it, 19 of 20: the background
+wrapping a pixel late, piece 2 placed by the width, the corner piece's
+source, the title wrapping only past 0, the ring's inner edge, the fade
+step, the phase's sign, the ripple ignoring FastMenu, the hit test's right
+edge, the centre by the full width, a busy screen taking the mouse, baking
+that keeps the image, AUXBITMAP's offsets swapped, QUIT pressed like the
+others, a disabled button pushing nothing, the version line at the display
+size, managed flags while moving, the music's mode, baking with the cursor
+shown. Missed, and unobservable: the radius's clamp at 0 (the frame time is
+never negative).
+
+## 6. Left
+
+- The menus the buttons open: the Action, Campaign, Training and
+  Multiplayer states (gametypes.md), the options (0x00438be0, with the
+  three option menus 0x0043a640 and 0x0042d9d0) and the credits
+  (0x004295e0), and the menu object 0x00488910; each is a hook until ported.
+  They share MenuScreen, ShellButton, SlideButton and ScrollImage.
+- The ripple's drawing (zRender 0x00558dd0) and the render overlay layer
+  (0x005a4590..) a Ripple can also live in (its +0x04, 0x005a5360).
+- The Main state itself still goes through `construct` / `vcall` (its test,
+  test_app_states.py, compares those calls); it can call the screen
+  directly once the menu states are ported.

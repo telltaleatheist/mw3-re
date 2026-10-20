@@ -87,6 +87,10 @@ class Host : public zgame::Unported {
   virtual void timer_update();                                        // 0x00575a00
   virtual float frame_dt();                                           // [0x0072c52c]
   virtual void video_flip(const Rect* a, const Rect* b, int32_t c, int32_t d);  // 0x00576ea0
+  // zRender's ripple (0x00558dd0): ECX x, EDX y, then the radii, amplitude,
+  // wavelength, phase and an optional clip rectangle (docs/mainmenu.md).
+  virtual void ripple(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength,
+                      float phase, const Rect* clip);
   virtual void crt_free(void* p);                                     // MSVCRT free
   // zSound.
   virtual int32_t sound_find(const char* name);                       // 0x0056f6f0: ECX name

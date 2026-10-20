@@ -8,6 +8,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "mech3/app.h"
 #include "mech3/app_states.h"
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
@@ -111,6 +112,10 @@ Handle Engine::vstride() { return static_cast<Handle>(mech3::vstride()); }
 int32_t Engine::window_h() { return mech3::window_h(); }
 void Engine::set_use_joystick(int32_t on) { mech3::set_use_joystick(on); }
 void Engine::set_fast_menu(int32_t on) { mech3::set_fast_menu(on); }
+int32_t Engine::fast_menu() { return mech3::fast_menu(); }
+int32_t Engine::display_width() { return mech3::display_w(); }
+int32_t Engine::display_height() { return mech3::display_h(); }
+void Engine::confirm_quit() { app().confirm_quit(); }
 void Engine::options_apply_all() { mech3::apply_all(); }
 void Engine::options_save() { mech3::save_options(); }
 void Engine::settings_free() { zreg::shutdown(); }
