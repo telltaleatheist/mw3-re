@@ -253,6 +253,7 @@ void Mech::ceiling_response(const CollisionHit& h) {
   torso->apply_damage(side, 1);
   torso->apply_damage(side, 2);
   if (g_calls.crouch) g_calls.crouch(*hip, v);
+  else hip->duck(v);
 }
 
 // Mech3.exe 1.2 @ 0x004237c0. Each vehicle hit: a non-allied one takes damage

@@ -26,6 +26,10 @@ it is clear what the designers meant.
   slopes and ledges, the blend into a walk, jump-jet thrust and the damage
   done to buildings you push into all went by frames; they now play as they
   did at 30 fps.
+- **The throttle keys open the throttle at the same speed at any frame
+  rate.** Each frame a key was held added a fixed step, so on a fast computer
+  the throttle ran up several times faster. It now moves as it did at
+  30 fps: from stop to full in about 1.3 seconds.
 - **Alan talks in every mission.** His name is misspelt in two missions'
   data (the first Instant Action map of the first world and operation 3's
   mission 6), so the game did not give him his radio voice there. Both

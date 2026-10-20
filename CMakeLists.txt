@@ -105,6 +105,7 @@ add_library(mw3core STATIC
   src/mech3/mech_data.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
+  src/mech3/mech_part_update.cpp
   src/mech3/mech_pose.cpp
   src/mech3/mech_move.cpp
   src/mech3/mech_skis.cpp
@@ -174,6 +175,8 @@ add_library(mw3probe SHARED
   tests/probe_anim_run.cpp
   tests/probe_mechanim.cpp
   tests/probe_pose.cpp
+  tests/probe_parts.cpp
+  tests/probe_controls.cpp
   tests/probe_ai.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

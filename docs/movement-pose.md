@@ -24,7 +24,7 @@ by `test_pose.py`.
 
 The ankle target, less the hip offset, in the hip's frame. Two bones in the
 leg's plane: `c = (d^2 - a^2 - b^2) / 2ab` (+0xcc, +0xd0, set up from the
-rest pose by 0x4637b0, not ported), clamped to 1 with the target pulled in
+rest pose by Leg::Setup 0x4637b0, `movement-ground.md`), clamped to 1 with the target pulled in
 along the line to it when out of reach; knee `atan2(+-sqrt(1 - c^2), c)` (the
 sign by +0x7c, the knee's direction), thigh pitch `atan2(z, y) - atan2(b s,
 a + b c)`, and a roll about z toward the foot's side `atan2(x - x0, y)`
@@ -55,8 +55,9 @@ The toe loops use the left foot's toe count for both feet and let the right
 foot's index reach its own count (`ja`), past its arrays when it has fewer
 toes: FIX (bug), stopped at the count (the probes keep the exe's check).
 
-## Left
+## The part updates
 
-The part updates the poses feed (torso 0x464e80 / 0x464ce0, hip 0x4623a0,
-arms 0x466510, feet 0x462a10 / 0x463110), the leg setup 0x4637b0 and the hip
-setup 0x462130.
+The targets the poses store are put on the nodes by the parts' updates
+(the torso 0x464e80, the hip 0x4623a0, the feet 0x462a10 / 0x463110, the
+arms 0x466510), and the IK's constants come from the leg's setup 0x4637b0:
+all ported, `movement-ground.md`, The part updates.

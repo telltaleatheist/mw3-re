@@ -287,6 +287,43 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   keeps being refreshed every frame after that.
 - **A mech lying on the ground that is powered down still turns its torso
   and moves its parts**; one that is powered up holds still until it gets up.
+- **"Center legs" swings the legs round at 1.75 times the twist per second**
+  (0x464e80, `movement-ground.md`): with the torso twisted 40 degrees, the legs
+  start turning at 70 degrees a second and slow as they catch up. Throttle
+  does not slow it: the game divides the turn by the same throttle factor a
+  normal turn multiplies by. Touching any torso or look control cancels it.
+- **The torso twist has a servo sound only while it moves freely**: it starts
+  with your input and stops the moment the twist hits its limit, or when you
+  let go.
+- **A foot only "lands" while it is coming down.** It counts as touching once
+  it is within 25 cm of the ground and not rising, and lifts off again above
+  20 cm. Each landing plays the ground's step sound, at 45% volume standing
+  and full volume at full throttle, and leaves a footprint 5 cm above the
+  ground, except in water (a splash instead) or while you are being shoved
+  (sliding off a slope or a ledge).
+- **Every footfall hits what it lands on.** The moment a foot touches down
+  the game hands whatever object is underfoot a 1000-point hit through its
+  damage handler (likely what flattens small things a mech walks over).
+- **Feet bank to the ground.** At close range a planted foot turns to lie
+  flat on the slope under it; at a distance feet keep the walk's angle.
+- **Arms track your target with their own limits.** Each arm turns toward the
+  weapons' target at its own rate (`aim_slerp_freq`), within the pitch and
+  yaw limits in the mech file (the right arm uses the left's limits
+  mirrored), and drifts back to rest at half that rate when there is no
+  target. Some arms leave the whole aim to the hand.
+- **Weapon recoil twists your torso**: a shot kicks the arm back and turns
+  the torso, a left-arm weapon one way and a right-arm weapon the other (by
+  the mech's `recoil_twist`). The kick fades in about a third of a second.
+- **The game knows when an arm is under water**: when both feet are in water
+  and a part is below the surface, the player's HUD redraws its weapon list.
+- **You can only crouch below walking pace** (slower than the step gait's
+  top speed), and Elementals never crouch. Going faster stands you up; only
+  your own mech plays the stand-up sound.
+- **Ducking under a low ceiling is instant**: the hip drops at once by a
+  share of the crouch depth (the crouch itself eases down at 2 m a second).
+- **Landing dust looks 50 m down**: a landing or a fall throws dust from
+  the ground under your torso, or a splash when that ground's material is
+  water; nothing when there is no ground within 50 m below.
 
 ## Weapons
 
@@ -1071,6 +1108,33 @@ From the input module, zInput (details: `input.md`).
   wheel turn again.
 - **Your key bindings are saved with the other settings** (in the registry,
   under the name `DefaultCmdMap`).
+
+From the player's controls, 0x427d60 (details: `controls.md`):
+
+- **The throttle keys move the throttle by a step each frame**, 2.5% of full
+  a frame: at 30 fps from stop to full in 1.3 seconds, at 60 fps in 0.7.
+  The rebuild moves it at the 30 fps pace whatever the frame rate.
+- **With "Constant throttle" off (the code's default), the throttle eases
+  back to zero when you let go of the throttle up and down keys** (about half
+  its value a second; it drops to zero below 5%). A throttle set with the
+  number keys holds. With the option on, the throttle stays where you left
+  it.
+- **A joystick throttle takes over only once you move it.** From then on it
+  sets the throttle outright, until you touch a throttle key again. Setting
+  it this way does not switch the reverse flag.
+- **Zooming in slows your torso to 30%.** While the reticule zoom is held,
+  the twist and pitch keys turn the torso at 0.3 the rate. Holding the zoom
+  key zooms in, letting go zooms out, with a click each way.
+- **The joystick hat drives the camera:** one camera command each time it
+  changes direction, the command depending on the camera view (not in the
+  free-look view).
+- **"MW2 jump jets" changes the jets:** with that option the jet forward,
+  back, left and right keys fire the jets in that direction, and the jet
+  rotate keys turn you while airborne. Without it only "jets up" fires.
+- **The free look follows the twist and pitch keys smoothly** (eased in at
+  six times the distance a second), and a mouse bound to twist and pitch
+  becomes a pointer, a free look at 1.5 times the speed, or the torso,
+  depending on the view.
 
 ## Menus
 

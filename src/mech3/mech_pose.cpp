@@ -63,10 +63,8 @@ void Hip::set_pose(const Vec3* pos, const float* q) {
   zmth::quat_conjugate(zmth::Quat{q[0], q[1], q[2], q[3]}, c);
   zmth::quat_normalize(c, c);
   inv[0] = c.w, inv[1] = c.x, inv[2] = c.y, inv[3] = c.z;
-  if (move_calls().foot_ground) {
-    move_calls().foot_ground(*mech->legs[0]->foot);
-    move_calls().foot_ground(*mech->legs[1]->foot);
-  }
+  foot_ground(*mech->legs[0]->foot);
+  foot_ground(*mech->legs[1]->foot);
 }
 
 // Mech3.exe 1.2 @ 0x00464600. Only the rotation, kept for the torso's

@@ -104,26 +104,68 @@ defaults to calling +0x1c, and +0x30 to calling +0x24.
   snapping within 0.05. Ported with the throttle and turn (`mech3/mech_control`,
   `movement.md`).
 
-## PlayerControls::Update(dt) @ 0x427d60
+## PlayerControls::Update(dt) @ 0x427d60 (ported)
 
-It reads input with 0x51d300(cmd) (input-state query on `[0x63cdb8]`; `&3` = held). The
-command ids come from the binding table at 0x411150 (CMD_ names):
-- CMD_THROTTLE_UP/DN (0x18/0x19): throttle delta +-0.1, then `SetThrottle(+0x44 + delta)`
-  (0x428278). CMD_THROTTLE1..0 (0x1b..0x24) go through the callback 0x426cb0, registered
-  in 0x426ce0, which forwards to the singleton's primary vt+0x1c (0x4274d0).
-- CMD_TURN_LEFT/RIGHT (2/3): turn +-1, then `SetTurn` (0x4282d9). CMD_JJ_ROTLEFT/RIGHT
-  (0x11/0x12) also set turn, but only when the mech has jump jets (`mech+0x3d8 > 0`) and
-  is airborne (vt+0x144, likely).
-- CMD_JJ_UP (0xc) and CMD_JJ_FORWARD/BACKWARD/LEFT/RIGHT (0xd..0x10): jump = 1, then
-  `SetJump` (0x428311). The fwd/back and strafe values are stored straight into +0x28/+0x24.
-- CMD_TWIST_LEFT/RIGHT (8/9): +-1.5 into +0x1c. CMD_PITCH_UP/DN (4/5): +-1 into +0x18.
-  Both are smoothed with `[0x5e25b4]*dt`.
-- CMD_RETICULE_ZOOM (0x14) is handled here too (HUD at mech+0x684).
-- 0x427870 adds joystick axes to the same locals.
-- At the end it calls `MechControls::Update(dt)` (0x428424).
+`mech3/mech_control.cpp` (`PlayerControls`), checked by `test_player.py`.
+ECX is the IControls (+0x14c); the fields below are from the start, which
+is the MechControls layout. Commands are read with 0x51d300 (zInput's
+`command`, `& 3` held; input.md):
+
+```
+powering down (mech vt +0xa0, 0x41cc10: +0xdc or +0xde): nothing but the smoothing
+pilot tick: IControls +0xa4 (0x4d8990 -> 0x4d9290, the +0x5c pilot base; lance orders, likely)
+locals 0; the HUD screen when the mech is the viewed one
+0x427870: the axes (below)
+CMD_THROTTLE_UP / DOWN (0x18 / 0x19): delta +-0.025 a frame; clears +0x3c and +0x3e
+CMD_TURN_LEFT / RIGHT (2 / 3): turn +-1
+with jump jets (mech +0x3d8 > 0): CMD_JJ_UP (0xc) jump 1; with the MW2JJets option
+  (0x40d1e0, [0x5f4d04] bit 7): JJ_FORWARD / BACKWARD (0xd / 0xe) jump and +-1 ahead,
+  JJ_LEFT / RIGHT (0xf / 0x10) jump and -+1 strafe, and airborne JJ_ROTLEFT / RIGHT
+  (0x11 / 0x12) the turn
+CMD_RETICULE_ZOOM (0x14), with a screen whose +0x167c is clear: held zooms in (+0x1508
+  vt +0x60(-1)), let go zooms out (vt +0x64); the click (pilot sound 0x17, mech +0x614)
+  as the state changes (+0x1514 bit 4 set: not zoomed)
+CMD_TWIST_LEFT / RIGHT (8 / 9) twist +-1.5; CMD_PITCH_UP / DOWN (4 / 5) pitch +-1
+fire (+0x34) = command 0x3d held (0x467480)
+throttle, turn clamped to +-1, jump to 0..1
++0x3c clear: delta 0, ThrottleConst off (+0x3f) and +0x3e clear: target x exp(-0.7 dt),
+             0 under 0.05; else SetThrottle(target + delta)
++0x3c set (the stick's throttle): target = the value straight (the reverse flag kept)
+SetTurn; SetJump unless +0x3d (a held jump) and jump 0
+pitch +0x18, twist +0x1c, the free look +0x2c / +0x30 toward theirs at 6/s, snap 0.05
+JJ strafe +0x24, ahead +0x28
+MechControls::Update (the smoothing)
+```
+
+The axes 0x427870 read the axis table 0x6040d0 (four 16-byte entries:
+source, scale, offset, dead zone; throttle, twist, pitch, turn; filled by
+the controls file reader 0x4120a0, not ported). A source is 1..6 the stick's
+axes (centred and scaled by zInput's setup, 0x42fea0), 7 and 8 its sliders,
+9..11 the mouse's position from the centre; the value (0x42fe10) is `scale
+x reading + offset`, 0 inside the dead zone; the motion (0x42fe70, 0x42fff0)
+the stick's velocities (DirectInput never fills them) or the mouse's scaled
+motion. Turn and throttle (its sign flipped in reverse) are values. With
+twist and pitch both on the mouse they are motion over dt (x -0.26 and
+-0.16) by the view state +0x0c: 0 the torso, 1 the free look (x1.5), 2 a
+pointer (+0x138..+0x144), 3 the torso with the pointer held (0x51b440);
+else values clamped to +-1 (the free look in view 1), and in camera views 0
+and 1 the look's y drifts by 5 dt x pitch (0 in the others). With a
+joystick: its throttle counts only once it has moved from its last reading
+(+0x40), then sets the target outright (+0x3c); a change of the hat (+0x54,
+not in view 1) runs a camera command (0x51c440): up 0x65 (0x66 in camera
+view 4), right 0x63, down 0x64, left 0x62, each 0x66 in camera view 0, 5, 1.
+The exe also writes 2 over its copy of the camera view in view 1, where the
+hat is not read: no effect.
+
+FIX (B): the throttle keys' 0.025 is per 1/30 s (`zfix::frame_steps`;
+fixes.md).
 
 The singleton `[0x6056ec]` is made by 0x427280(mode), called from 0x491150 (mission.cpp),
-with mode 3 or 6. A second call only reapplies the mode (0x426650).
+with mode 3 or 6. A second call only reapplies the mode (0x426650). The fields
++0x3c..+0x3f: the stick's throttle set, a held jump (0x426b20(v, 1)), the
+throttle held (set by the THROTTLE1..0 callback 0x4274d0, which also clears
++0x3c), ThrottleConst off (1 from the constructor 0x4265a0; the option's
+setter 0x40d052, options.md).
 
 ## Who sets Mech +0x37c
 
@@ -149,7 +191,10 @@ state fields into the wrapped controls (+0x158), puts the singleton back, and de
 AIControls 0x4d8750(owner, a2, a3, isMostDerived). It calls 0x4d8670 and puts the
 virtual base at +0x30c. Its Update (0x4e96f0) adjusts `this` to the sub-object at +0x5c
 (vtable 0x5cd2c8, code in 0x4e9xxx/0x4eaxxx, near zrdrvalve.cpp/zclass) and runs
-0x4e9710, which is likely the AI brain. PlayerControls also has a +0x5c sub-object
+0x4e9710, which is likely the AI brain, and returns its byte as 0 or 1 (ported as
+`AiControls`; the brain is `ControlsCalls::ai_brain`, and until it is ported the
+smoothing alone stands in; `test_player.py`). The brain runs the smoothing itself
+through 0x4d89f0. PlayerControls also has a +0x5c sub-object
 (0x4d9840, vtable 0x5bd708), likely a shared AI/pilot base. I did not trace how the AI
 brain sets throttle and turn, but it can only do so through the same IControls setters.
 
@@ -157,5 +202,5 @@ brain sets throttle and turn, but it can only do so through the same IControls s
 
 - IControls +0x04 and +0x54 (AI overrides), +0x10 (byte +0x34), and the full
   ClearCommands body (0x428490 continues past 0x4284ef).
-- MechControls +0x0c states 0..3 (0x426780) and the 0x6040d0 joystick block.
+- MechControls +0x0c states 0..3 (0x426780); who fills the 0x6040d0 axis table.
 - Names of the classes: there is no RTTI. File guesses come from func2file neighbours only.

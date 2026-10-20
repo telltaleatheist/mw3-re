@@ -59,6 +59,8 @@ for t in \
     mechanim \
     mechdata \
     pose \
+    parts \
+    player \
     ai_readers \
     zinput \
     settings \

@@ -85,7 +85,7 @@ struct CollideCalls {
   bool (*remote)(Mech& other) = nullptr;                     // vt +0x58
   void (*net_shove)(Mech& self, Mech& other, float damage, float vx, float vz) = nullptr;  // 0x00470320
   void (*ff_jolt)(const float n[3], float amount) = nullptr; // 0x004335d0 on [0x00608620]
-  void (*crouch)(Hip& hip, float amount) = nullptr;          // 0x004622a0
+  void (*crouch)(Hip& hip, float amount) = nullptr;          // test hook (0x004622a0): unset runs Hip::duck
 };
 CollideCalls& collide_calls();
 

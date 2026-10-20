@@ -342,7 +342,31 @@ float wading_speed(float depth, bool fixed) {
   return m.speed_target;
 }
 
+// Half a second holding the throttle-up key: the target's climb.
+float throttle_after_half_second(float fps, bool per_second) {
+  zfix::options().per_second = per_second;
+  static mech3::Mech m;
+  static mech3::PlayerControls c;
+  m = mech3::Mech{};
+  c = mech3::PlayerControls{};
+  c.owner = &m;
+  m.controls = &c;
+  mech3::controls_calls().command = [](int cmd) { return cmd == 0x18 ? 2u : 0u; };  // CMD_THROTTLE_UP held
+  mech3::controls_calls().joy_present = [] { return false; };
+  for (int i = 0; i < static_cast<int>(fps / 2); ++i) c.update(1.0f / fps);
+  mech3::controls_calls() = mech3::ControlsCalls{};
+  zfix::options().per_second = true;
+  return c.throttle_target;
+}
+
 }  // namespace
+
+TEST(fix_throttle_keys_per_second) {
+  EXPECT(std::fabs(throttle_after_half_second(30, true) - 0.375f) < 1e-5f);  // 0.025 a frame at 30 fps
+  EXPECT(std::fabs(throttle_after_half_second(144, true) - 0.375f) < 1e-3f);
+  EXPECT(throttle_after_half_second(30, false) == throttle_after_half_second(30, true));
+  EXPECT(throttle_after_half_second(144, false) == 1.0f);  // the exe: 0.025 a frame, full in 0.28 s
+}
 
 TEST(fix_action_momentum_per_second) {
   const float want = 10.0f * std::pow(0.6f, 30.0f);

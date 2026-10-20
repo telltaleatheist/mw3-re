@@ -108,7 +108,8 @@ checks the line). The step from 1 to 0.63 at 0.1 H goes with it.
 momentum x0.6, the skis' step, slope and ledge pushes and the far mechs'
 push x3, the jets' climb cap of 6, the 20-frame blend-in, 20 damage to
 touched objects) run per 1/30 s in the port (`FIX (B)`, `zfix::frame_steps`,
-fixes.md), equal to the exe's at 30 fps.
+fixes.md), equal to the exe's at 30 fps. So do the throttle keys' 0.025 a
+frame (controls.md).
 
 States (+0x578, previous +0x57c) are named in `movement-jump.md`. Animation
 slots (+0x424 + 4i, made by 0x415ca0): 0/1 limp left/right, 2 stand, 3 step,
@@ -233,16 +234,20 @@ zmth_matrix; the render tests pass either way, the segment query caught it).
 | MechAnim (vtable 0x5bd1f0: init 0x41f580, footfalls 0x41fd30, start at the left foot forward 0x41fc40, mirror 0x41f680, copy 0x41f180), the blend 0x5bd240, the one-shot 0x5bd290, the loaders 0x41f000 / 0x420d00 | | `mech3/mech_anim` | the same |
 | The mech type's load 0x431a70 (gaits 0x431350, one-shots 0x4315d0), copies 0x431fb0 / 0x432030, the gait table 0x4329c0, the engine speed 0x433030, MASC 0x41df50, set_max_speed's calls | | `mech3/mech_data`, `mech_move` | `test_mechdata.py`: the original's load run whole on each mech's reader tree; 275 animations, copies, gait tables, 114 MASC switches; 10 of 11 breaks |
 | set_pose (base, place, hip, foot, torso), the leg IK, the gait, jump and action poses | 0x460280, 0x460210, 0x4624b0, 0x4629b0, 0x464600, 0x463e40, 0x463c90; 0x417bbc.., 0x4177e7.., 0x416fb8.. | `mech3/mech_pose` | `test_pose.py`: 20000 calls on random leg geometries and scripted animations, the original run from inside Move, JumpJets and ActionUpdate; 15 of 17 breaks |
+| The player's controls (keys, the stick and mouse axes, the hat's camera commands, the reticule zoom, the throttle's three modes, the eased pitch, twist and free look), the axis readers; the AI's controls; the crouch, the hip's crouch target and duck; the landing and fall rays (dust or splash), the landing pose | 0x427d60, 0x427870, 0x42fe10, 0x42fe70, 0x42fea0, 0x42fff0; 0x4e96f0; 0x41bda0, 0x4621f0, 0x4622a0; 0x4164f3.., 0x416d3a.., 0x41660b.. | `mech3/mech_control`, `mech_move`, `mech_part_update` | `test_player.py`: 20000 updates, every command read in order; 16 of 16 breaks. `test_parts.py` (crouch, duck, target, both rays): 12 of 12 breaks |
+| The part updates and setups: the torso (AI aim, rate and absolute modes, free look, centring the legs, servo sound, recoil twist, jolt, shake spring, node), the hip's crouch, the feet's ground update, tilt, counter-spin, touch and plant (force feedback, splash, footprint, step sound, stepping on things), the arms' aim, recoil and kick, the base (under water) update; the hip, leg (IK constants), foot, arm and hand setups | 0x464e80, 0x464ce0, 0x465bc0, 0x465d10, 0x4659c0, 0x465940; 0x4623a0; 0x462a10, 0x462de0, 0x463110, 0x462fa0, 0x463ee0; 0x466510, 0x466840, 0x4666f0, 0x466610; 0x461730; 0x462130, 0x4637b0, 0x462860, 0x4663e0, 0x466e80, 0x45fdd0 | `mech3/mech_part_update` | `test_parts.py`: 20000 calls on random mechs (feet near their ground), every call out logged; 20 of 20 breaks |
 
 The phase cache and the blends: `motion.md`, Playback; the pose:
-`movement-pose.md`.
+`movement-pose.md`; the part updates: `movement-ground.md`, The part
+updates. Porting them showed two of zmth's sums in a different order from
+the exe's (0x522640 rotate_points_transposed, 0x522910
+inverse_transform_points_to): fixed, bit for bit now.
 
 ## Left
 
-1. **The part updates** the poses feed: torso 0x464e80 with 0x464ce0, hip
-   0x4623a0, arms 0x466510, feet 0x462a10 / 0x463110 (`movement-ground.md`),
-   the leg and hip setup 0x4637b0 / 0x462130 that make the IK's constants.
-   Until then `MoveCalls::foot_ground` stands in for 0x462a10.
-2. The player's controls (0x427d60, input) and the AI's (0x4e96f0), the
-   crouch 0x41bda0, the landing and fall effects (rays, dust, splashes;
-   `landing_dust`, `landing_pose`, `action_dust` hooks).
+1. The torso's setup 0x464290 (the def's shake and limits, its box) and the
+   calls the parts make outside (`PartCalls`: the splash effect, what a
+   foot steps on, the weapons' target, the cockpit's look limits, the HUD).
+2. The AI brain 0x4e9710 the AI's controls run (`ControlsCalls::ai_brain`;
+   ai.md), the pilot's tick 0x4d9290 the player's run, mech3's controls
+   setup that fills the commands and the axis table (input.md, Open).

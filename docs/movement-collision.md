@@ -118,7 +118,7 @@ stand, the wall response blocks.
 **Ceiling (0x423600)**: airborne and rising: vertical speed * -0.66, the mech
 put just under the contact, 0.002 head damage. On foot: damage by the volume
 of the box hit (dx dy dz / 180 / 4): head 0.1, torso 0.4, sides 0.25 each, and
-the hip crouches (0x4622a0, sound 12).
+the hip crouches (0x4622a0, sound 12; ported as `Hip::duck`, `test_parts.py`).
 
 After the responses the segments are queried again; the mech stays blocked
 while touch, ceiling or wall hits remain, and only then are the probe
