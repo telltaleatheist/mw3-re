@@ -253,6 +253,58 @@ bool get_bool_int(Node* node, int32_t* out) {
   return false;
 }
 
+// Mech3.exe 1.2 @ 0x00556fe0. A Float is copied as raw bits; an int goes
+// through fild / fstp.
+bool get_float_value(Node* node, float* out) {
+  if (!node) return false;
+  if (node->type == List && node->list[0].i > 1) node = &node->list[1];
+  if (node->type == Float) {
+    std::memcpy(out, &node->f, 4);
+    return true;
+  }
+  if (node->type != Int) return false;
+  *out = static_cast<float>(node->i);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00557030
+bool get_string_value(Node* node, const char** out) {
+  if (!node || !out) return false;
+  if (node->type == List && node->list[0].i > 1) node = &node->list[1];
+  if (node->type == Int) {
+    if (node->i != 0) return false;
+    *out = nullptr;
+    return true;
+  }
+  if (node->type != String) return false;
+  *out = node->s;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00556e90
+bool get_tristate(Node* node, int32_t* out) {
+  int32_t scratch;
+  if (!out) out = &scratch;
+  if (!node) return false;
+  if (node->type == List && node->list[0].i > 1) node = &node->list[1];
+  if (node->type == Int) {
+    *out = node->i >= 0 && node->i <= 2 ? node->i : 2;
+    return true;
+  }
+  if (node->type != String) return false;
+  if (crt::msvc_stricmp(node->s, "true") == 0 || crt::msvc_stricmp(node->s, "on") == 0) {
+    *out = 1;
+    return true;
+  }
+  for (const char* zero : {"false", "off", "none", "default"}) {
+    if (crt::msvc_stricmp(node->s, zero) == 0) {
+      *out = 0;
+      return true;
+    }
+  }
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x005570b0
 bool get_vec3(Node* node, const char* key, float out[3]) { return get_vec3(find(node, key), out); }
 // Mech3.exe 1.2 @ 0x005570d0

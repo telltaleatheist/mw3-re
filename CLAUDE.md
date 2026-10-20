@@ -286,6 +286,12 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       (`zmodel/gmod_puff`, `zrender/zrndr_draw`, `zeffect/zeff_anim_puffer`,
       0x57caa0; `docs/puffers.md`). The anim event 42 is ported, waiting for
       the anim run to call it.
+- [ ] AI: mapped (`docs/ai.md`: files, classes, the tick, a porting order);
+      the data side ported and emulator-checked on every shipped file (net
+      and region files, aiv.zrd, targets.zrd, the valves registry;
+      `mech3/zrdrainet`, `zrdraiv`, `zainet_node`, `zai_params`, `zai_valve`,
+      `test_ai_readers.py`). Next: regions, the run-time net, net queries,
+      valves, targeting, behaviours, the brain (`ai.md` section 6).
 - [ ] Assets: interp scripts, gamez.zbd and anim.zbd traced (`interp.md`,
       `gamez.md`, `anim.md`); trace what remains in `docs/assets.md`, one per sitting,
       cross-checked against mech3ax.

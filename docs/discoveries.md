@@ -929,6 +929,41 @@ are all "puffers": emitters that drop little textured squares.
   to `reader.zbd` when there is none. None ship with the game, but the hook is
   still there.
 
+## The AI
+
+- **Every mission ships its AI as small text-like files.** Each mission's
+  reader archive holds the AI paths (`net_NN`, 308 of them in all), regions
+  (`reg_*`, 393: areas such as the mission boundary drawn on your map,
+  `reg_inside_*` and `reg_outside_*`), one record per vehicle (`aiv.zrd`),
+  the scored targets (`targets.zrd`) and the mission's triggers
+  (`valves.zrd`) (`ai.md`).
+- **Triggers are named on/off switches.** The game calls them valves: a path
+  node can wait for one, set one, or open only when several are set; a
+  target sets one when its health drops below a value (the radio lines when
+  you damage and destroy a mission objective come from these).
+- **How far an enemy sees is in its file.** Each vehicle's record gives its
+  sight and attack ranges (the first numbers after `params`); the AI takes
+  the nearest contact of the side it wants within its sight range.
+- **Game intensity stretches an AI delay.** One of the AI's timings is
+  multiplied by the Game Intensity setting each time it is set.
+- **Alan may be silent in two missions.** Your wingmen's radio voice is picked
+  from their name when the file gives none, and Alan's name is misspelt in
+  the first Instant Action map of the first world (`Alan_Mattilla`) and in
+  mission 6 of operation 3 (`Alan_Matilla`), so his voice lines likely don't
+  play there.
+- **Two Instant Action enemies forgot their orders.** In two Instant Action
+  maps on the c4 world one enemy's order list lost its `vlist` label in the
+  data, so the game ignores the list and that enemy follows no scripted
+  orders.
+- **There was an AI tester in the game.** A developer dialog for steering a
+  unit by hand ("Direct", "Zig Zag", "Circle", "Jump", "Random Move") and
+  picking its target ("player", "nearest enemy") is still in the exe behind
+  the debug menu, along with an in-game editor for the AI paths that could
+  save them back to files.
+- **Old formats still load.** The vehicle reader also understands an older
+  layout of the AI settings (tags p3, p4, p5, p7) that no shipped mission
+  uses, and complains if a file mixes it with the new one.
+
 ## Game states
 
 - **Escape doesn't pause a multiplayer mission**: a message box asks instead

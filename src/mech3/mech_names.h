@@ -12,6 +12,7 @@ const char* part_name(int32_t id);   // 0x00484cc0, "none" when unknown
 enum Tech : int32_t { kClan = 1, kInnerSphere = 2, kAnyTech = 3 };
 int32_t mech_tech(int32_t mech);           // 0x00484720
 const char* mech_name(int32_t mech);       // 0x00484650, "notmech" when out of range
+int32_t mech_index(const char* name);      // 0x004845f0, any case; -1 when unknown
 int32_t tech_id(const char* name);         // 0x004852b0
 int32_t equip_kind(const char* name);      // 0x004849a0, -1 when unknown
 int32_t weapon_index(const char* name);    // 0x004848a0, -1 when unknown

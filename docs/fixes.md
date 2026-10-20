@@ -93,6 +93,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | Video, 0x579c60 / 0x576de0 / 0x576ea0 / [0x72f38c] | DirectDraw's mode, locked back buffer and flip; the 3D card chosen from the registry's InstallOptions and HWCardDev; a 4 MB check | (A) DirectDraw | The GPU is the 3D card (InstallOptions answers 0x101, HWCardDev picks device 0, its memory reported as 256 MB); the menus' 16-bit buffer is presented through `SdlScreen2D` (a texture drawn by Render3D) |
 | Settings loader, 0x40c420 (detail.zrd and the registry) | Every option from detail.zrd and `HKLM/HKCU\SOFTWARE\MicroProse\MechWarrior 3\1.0` | not ported yet | The program checks detail.zrd can be read and keeps the loader's defaults, with HWCardFlag from InstallOptions; nothing is saved yet |
 | Menu text, GDI (twod_wintext.cpp, through `ztwod::Host`) | `CreateFontA` on the installed Arial / Impact / Lucida Console, `DrawTextA` into a 16-bit DIB | (A) GDI | `SdlTwodHost` on SDL3_ttf with the game's own arial.ttf, impact.ttf, lucon.ttf, unantialiased so the key-colour blit keeps clean edges; GDI's height rules (negative: character height, positive: cell height), line breaks, `DT_WORDBREAK`, `&` prefixes, opaque and transparent modes; fonts.zrd's WINDOWS_FONTS read by name (the zImage font table 0x517280.. is not ported) |
+| AI reader files, zrdraiv.cpp / zrdrainet.cpp (0x4decf0, 0x4ded20, 0x4da0d0, 0x4db850, 0x4db1b0, 0x4df730, 0x4e08c0) | Every value is read as the shape the code expects: a list's items, a string pointer, `key + 5` for node_XX | (bug) a malformed file (a number where a list or a name belongs, a short key) crashes the game or reads past a string; emulator: a non-list file root crashes 0x4da0d0 | The value is passed over; the shipped files never take these paths, so all 773 still match exactly (`ai.md` section 5) |
+| aiv.zrd old tags, 0x4df730 | The scratch the p3/p4/p5/p7 tags share is uninitialised stack when the tag that sets it is missing, and p4's order is built on uninitialised stack | (bug) the result depends on what was on the stack | Zeros and the order defaults; no shipped file has these tags (the test pins the exe's stack the same way) |
+| AI values of the wrong type | A string or list where a number belongs is copied as its pointer bits | (A) a 32-bit heap address | 0 |
 
 Notes on the fixes:
 
@@ -217,3 +220,13 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
   so they never show. Mapping those names to the soils that exist would
   restore them; which soil each should be is a guess.
+- Lancemate voices (aiv.zrd, 0x4df730): a vehicle record without a
+  `sound_tag` gets `alan`, `dom` or `epona` only when it is named exactly
+  `Alan_Mattila`, `Dominic_Paine` or `Epona_Rhi`. Two records misspell Alan
+  (`Alan_Mattilla` in the c1 Instant Action map 1, `Alan_Matilla` in c3
+  mission 6), so likely his radio lines do not play there; the importer could
+  correct the names. Whether the tag is what picks his voice is traced only
+  as far as the `<tag>_<event>` names of 0x4e7dc0.
+- Missing `vlist` key (aiv.zrd): `Enemy_12` in c4 readeria1 and `Enemy_06` in
+  c4 readeria2 have their order lists without the `vlist` tag in front, so
+  the reader skips them and those enemies follow no scripted orders.

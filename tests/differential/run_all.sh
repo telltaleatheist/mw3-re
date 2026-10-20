@@ -59,6 +59,7 @@ for t in \
     mechanim \
     mechdata \
     pose \
+    ai_readers \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done
