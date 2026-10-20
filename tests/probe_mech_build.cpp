@@ -199,6 +199,9 @@ struct Launch : m3::LaunchHooks {
   m3::Config* config_of(uint32_t h) override { return obj_at<m3::Config>(h); }
   Handle rec_ref(const m3::ai::AivRecord*) override { return hd(g_rec); }
   void clear_60b570() override { poke8(0x60b570, 0); }
+  void mech_attach_view(m3::Mech& m) override {
+    call("0x0041ce30", {addr_of(&m), static_cast<uint32_t>(zmod::zones().mode)});
+  }
   m3::ai::AivRecord* aiv_read_named(m3::ai::AivRecord& rec, const char* name) override {
     if (!call("0x004e0680", {g_rec, name}) || !g_have_record) return nullptr;
     std::memcpy(rec.raw + 4, g_record + 4, sizeof g_record - 4);

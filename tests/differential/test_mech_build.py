@@ -157,7 +157,7 @@ class World:
         self.configs = self.config_addrs()
         # The models: mech_<name>.flt and the low-detail mech_<name>_1.flt as fake nodes.
         name = MECHS[case['roster']]
-        self.model = self.lay_tree(tree(probe, f'mech_{name}.flt'))
+        self.model = self.lay_tree(self.tweak(tree(probe, f'mech_{name}.flt')))
         self.lod = self.lay_tree(tree(probe, f'mech_{name}_1.flt')) if case['lod'] else 0
         self.cockpit = a(0x80) if case['cockpit'] else 0
         if self.cockpit:
@@ -197,6 +197,28 @@ class World:
             return []
         b, end = e.r32(cl + 0xc), e.r32(cl + 0x10)
         return [e.r32(b + 4 * i) for i in range((end - b) // 4)] if b else []
+
+    def tweak(self, nodes):
+        """Crafted feet: a box whose bottom is above the origin (or NaN), and
+        children whose names nearly start like the toes'."""
+        if not self.case['tweak']:
+            return nodes
+        r = self.r
+        nodes = [list(n) for n in nodes]
+        for i in range(len(nodes)):
+            name = nodes[i][0].split(b'\0')[0]
+            if name not in (b'lfoot', b'rfoot'):
+                continue
+            c, other = name[:1], (b'r' if name[:1] == b'l' else b'l')
+            if r.random() < 0.6:
+                box = bytearray(nodes[i][5])
+                struct.pack_into('<f', box, 4, r.choice([0.5, 2.0, float('nan'), -0.0]))
+                nodes[i][5] = bytes(box)
+            for decoy in r.sample([c + b'tox', c + b'to', other + b'toe01', c + b'toe_x', c.upper() + b'toe01',
+                                   c + b'toe09'], 3):
+                nodes[i][4] = nodes[i][4] + [len(nodes)]
+                nodes.append([decoy.ljust(36, b'\0'), 5, i, 0, [], bytes(24), bytes(0x30)])
+        return [tuple(n) for n in nodes]
 
     def lay_tree(self, nodes):
         e, a = self.e, self.e.world_alloc
@@ -425,9 +447,9 @@ def run_original(probe, case):
         em._ret(0, 4)
     e.stub(0x4782c0, '0x004782c0', '', 4, pilot_mech)
 
-    def attach(em, key, a, pop):
+    def attach(em, key, a, pop):  # zModel's zone mode as the view attaches, too
         mech = em.args('c')[0]
-        t.handle(key, [mech])
+        t.handle(key, [mech, em.r32(0x5ea1d0)])
         if case['view_on_mech']:
             em.world_w32(world.view + 0x64, mech)
         em._ret(0, 0)
@@ -648,6 +670,7 @@ def make_case(probe, seed):
         if r.random() < 0.1:
             case['missing'].add(nm)
     case['fp_drop'] = r.choice([0.0, 0.0, 0.3])
+    case['tweak'] = r.random() < 0.3
     case['anim_fail'] = r.choice([0.0, 0.0, 0.2])
     case['box_fail'] = 0 if r.random() < 0.9 else 5
     case['box'] = [r.uniform(-8, 0), r.uniform(-1, 0), r.uniform(-8, 0), r.uniform(0, 8), r.uniform(4, 20),
