@@ -5,6 +5,7 @@ set -e
 cd "$(dirname "$0")/../.."
 cmake --build build
 ./build/mw3tests | tail -1
+if [ -x build/mw3sdltests ]; then ./build/mw3sdltests | tail -1; fi
 for t in \
     spans \
     ztimer \

@@ -23,6 +23,7 @@ add_library(mw3core STATIC
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
   src/gamez/zutil/zutl_msg.cpp
+  src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
@@ -100,6 +101,7 @@ add_library(mw3core STATIC
   src/mech3/app.cpp
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
+  src/mech3/app_engine.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -157,6 +159,7 @@ add_executable(mw3tests
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp
   tests/test_zreader.cpp
+  tests/test_program.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.
@@ -164,13 +167,52 @@ target_compile_definitions(mw3tests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/ga
                                           MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
 add_test(NAME mw3tests COMMAND mw3tests)
 
-# Development tools on SDL3 (not part of the port): the world viewer.
+# The SDL3 front end and the programs on it.
 find_package(SDL3 CONFIG QUIET)
 if(SDL3_FOUND)
-  # The SDL3 front end: platform implementations on SDL (render3d, sound).
-  add_library(mw3sdl STATIC src/frontend/sdl/sdl_render3d.cpp src/frontend/sdl/sdl_sound.cpp)
+  # Platform implementations on SDL (docs/program.md): window and message
+  # pump, input, render3d, sound, music; the debug world loader.
+  add_library(mw3sdl STATIC
+    src/frontend/debug_world.cpp
+    src/frontend/sdl/sdl_input.cpp
+    src/frontend/sdl/sdl_music.cpp
+    src/frontend/sdl/sdl_platform.cpp
+    src/frontend/sdl/sdl_render3d.cpp
+    src/frontend/sdl/sdl_sound.cpp
+  )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3)
-  add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp tools/viewer/realframe.cpp)
+  # Music files other than .wav decode with SDL3_sound (brew install sdl3_sound).
+  find_package(SDL3_sound CONFIG QUIET)
+  if(SDL3_sound_FOUND)
+    target_link_libraries(mw3sdl PUBLIC SDL3_sound::SDL3_sound)
+    target_compile_definitions(mw3sdl PRIVATE MW3_HAVE_SDL_SOUND=1)
+  else()
+    message(STATUS "SDL3_sound not found: music plays .wav tracks only")
+  endif()
+  # The game, and its front end's tests: the 2D text needs SDL3_ttf.
+  find_package(SDL3_ttf CONFIG QUIET)
+  if(SDL3_ttf_FOUND)
+    add_library(mw3text STATIC src/frontend/sdl/sdl_twod_host.cpp)
+    target_link_libraries(mw3text PUBLIC mw3sdl SDL3_ttf::SDL3_ttf)
+    add_executable(mw3
+      src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/debug_states.cpp
+    )
+    target_link_libraries(mw3 PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
+    target_compile_definitions(mw3 PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")
+    add_executable(mw3sdltests
+      tests/main.cpp
+      tests/test_sdl_frontend.cpp
+    )
+    target_link_libraries(mw3sdltests PRIVATE mw3text mw3sdl mw3core SDL3::SDL3)
+    target_compile_definitions(mw3sdltests PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2"
+                                                 MW3_TEST_TMP="${CMAKE_BINARY_DIR}")
+    add_test(NAME mw3sdltests COMMAND mw3sdltests)
+  else()
+    message(STATUS "SDL3_ttf not found: mw3 is not built (brew install sdl3_ttf)")
+  endif()
+  # Development tools (not part of the port): the world viewer.
+  add_executable(mw3view tools/viewer/viewer.cpp tools/viewer/scene.cpp)
   target_link_libraries(mw3view PRIVATE mw3core mw3sdl SDL3::SDL3)
   target_include_directories(mw3view PRIVATE tools/viewer)
   target_compile_definitions(mw3view PRIVATE MW3_GAME_DIR="${CMAKE_SOURCE_DIR}/game/mw3-1.2")

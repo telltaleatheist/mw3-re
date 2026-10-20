@@ -498,8 +498,10 @@ Mapped, not ported:
   (zimg_winfonts.cpp 0x00517280..0x00517680), zFont, zVideo's lock and grabs
   (0x00576de0, 0x00579500, 0x00579660), the DirectDraw path 0x00576f90 and
   the 8-bit blit 0x0055b250, the message lookup 0x00575fb0.
-- The front end: a `ztwod::Host` on SDL3 (TTF text into the 16-bit image,
-  the 16-bit target presented, mouse from SDL), and the game's screens
+- The front end's `ztwod::Host` on SDL3 is done (`SdlTwodHost`,
+  program.md: TTF text into the 16-bit image, the 16-bit target presented,
+  mouse from SDL; `mw3 --dialog dialog.zrd MAINMENU` shows a dialog). Left:
+  the game's screens
   (mech3: the menus' shell 0x0048eb10 and each screen's constructor, e.g.
   the main menu 0x00486260 binding INSTANTACTION, NEWCAMPAIGN, MULTIPLAYER,
   TRAINING, OPTIONS, CREDITS, QUIT and BACKGROUND / MECH3TEXT) rebuilt on the

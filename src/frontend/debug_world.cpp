@@ -1,4 +1,4 @@
-#include "realframe.h"
+#include "frontend/debug_world.h"
 
 #include <cmath>
 #include <cstdio>
@@ -13,6 +13,7 @@
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
@@ -26,6 +27,7 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zsound/zsnd.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
@@ -34,7 +36,7 @@
 #include "mech3/mission_world.h"
 #include "platform/render3d.h"
 
-namespace viewer {
+namespace frontend {
 namespace {
 
 zcls::Node* camera_node() {
@@ -106,7 +108,8 @@ std::string read_world_params(const std::string& mission, const std::string& var
 
 }  // namespace
 
-std::string real_load(const std::string& mission, const std::string& variant, platform::Render3D* render) {
+std::string world_load(const std::string& mission, const std::string& variant, platform::Render3D* render, int width,
+                       int height) {
   // Fresh pools, as a mission load starts (0x4ff520's callers).
   zimg::TextureTable& t = zimg::textures();
   std::memset(t.entries, 0, sizeof t.entries);
@@ -121,18 +124,17 @@ std::string real_load(const std::string& mission, const std::string& variant, pl
   zvid::set_pixel_format(5, 6, 5);
   zvid::channel_masks() = {0xf800, 0x07e0, 0x001f};
   zrndr::device_fog().active = 1;  // the Direct3D path
-  zerr::set_sink(nullptr);
   const std::string path = "zbd\\" + mission + "\\gamez.zbd";
   if (zcls::read_zbd(path.c_str()) != 0) return "could not read " + path;
   if (!camera_node()) return "no camera in " + path;
   // The world files keep a 320x200 window; the game resizes it to the display
-  // mode at startup (the window setter is not ported yet). A 640x480 mode:
+  // mode at startup (the window setter is not ported yet): the mode asked for.
   for (zcls::ListItem* i = zcls::list_head(zcls::kWindows); i; i = i->next)
     if (i->node && i->node->data) {
       auto* w = static_cast<zcls::Window*>(i->node->data);
-      w->put<int32_t>(0x0, 0), w->put<int32_t>(0x4, 0), w->put<int32_t>(0x8, 640), w->put<int32_t>(0xc, 480);
+      w->put<int32_t>(0x0, 0), w->put<int32_t>(0x4, 0), w->put<int32_t>(0x8, width), w->put<int32_t>(0xc, height);
     }
-  render->set_viewport(0, 0, 640, 480);
+  render->set_viewport(0, 0, width, height);
 
   // The libraries as mission load registers them (0x48fcfe): the mission's
   // "texture", "mechtex", then "image", r-prefixed on hardware, found through
@@ -174,7 +176,14 @@ std::string real_load(const std::string& mission, const std::string& variant, pl
   return read_world_params(mission, variant);
 }
 
-void real_frame(const float eye[3], float yaw, float pitch, platform::Render3D* render) {
+void world_sounds_on() {
+  zcls::WorldRenderHooks& h = zcls::world_render_hooks();
+  h.world_sounds = [](void*, zcls::Node* world) { zcls::world_sounds(world); };  // 0x004f3170
+  h.listener_speed_limit = [](void*) { return zsnd::speed_of_sound(); };       // 0x00572360
+  h.listener = [](void*, const float* m, const float v[3]) { zsnd::set_listener(m, v); };  // 0x00571e50
+}
+
+void world_frame(const float eye[3], float yaw, float pitch, platform::Render3D* render, float dt) {
   zcls::Node* cam = camera_node();
   if (!cam) return;
   // The camera looks along -z at zero rotation (render.md section 0); the
@@ -183,10 +192,10 @@ void real_frame(const float eye[3], float yaw, float pitch, platform::Render3D* 
   zcls::camera_set_rotation(cam, -pitch, yaw + 3.14159265f, 0.0f);
   zcls::camera_set_position(cam, eye[0], eye[1], eye[2]);
   ++zcls::frames().frame;
-  ztimer::state().dt = 1.0f / 60;
+  if (dt >= 0) ztimer::state().dt = dt;
   render->clear(true, 89, 115, 140);
   zcls::render_world(cam, 0);
   render->present();
 }
 
-}  // namespace viewer
+}  // namespace frontend

@@ -22,6 +22,7 @@ struct State {
 State& state();
 void set_clock(platform::Clock* clock);
 
+void init();                       // 0x005759a0, the clock's start (zGameApp start, 0x00480570)
 void update();                     // 0x00575a00, once per frame from zGameApp::Run
 float set_max_rate(float fps);     // 0x00575ab0
 void set_clamp_enabled(int on);    // 0x00575af0

@@ -209,7 +209,8 @@ The rebuild keeps its report sink for debugging; nothing installs one.
 
 ## The port
 
-`zgame::App::run` takes a `platform::MessagePump` (PeekMessage, PumpMessage,
+The program that runs all this on SDL3, and what each hook is wired to
+there, is program.md. `zgame::App::run` takes a `platform::MessagePump` (PeekMessage, PumpMessage,
 MsgWaitForMultipleObjects, PostQuitMessage, the thread priority). The game's
 calls into modules not ported go through `mech3::Engine` (app_hooks.h), one
 virtual per original function with its address as the key; the defaults call
