@@ -77,6 +77,9 @@ void euler(const float rot[3], const float pos[3], const float scale[3]);  // 0x
 // --- Matrices ---
 void matrix_to_euler(const Mat34& m, float out[3]);  // 0x00523bc0
 bool invert(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50, false if singular
+// The same at the x87's 24-bit precision (every operation rounded to a
+// float), for code tested at the precision Direct3D sets (CLAUDE.md).
+bool invert_single(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50
 void euler_to_quat(float x, float y, float z, float q[4]);  // 0x00525340  q = (w, x, y, z)
 void quat_matrix(const float q[4], float r[9]);           // 0x00525740  unit quaternion to 3x3
 void quat_exp(const float v[3], float q[4]);               // 0x00525900  axis-angle vector to (w, x, y, z)

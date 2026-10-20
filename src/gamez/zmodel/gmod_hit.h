@@ -37,6 +37,27 @@ int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float poin
 // first vertex's).
 int32_t polygon_ground_point(zcls::GroundHit* slot, const float* verts, float x, float z, int32_t n);  // 0x0054d640
 
+// The shot queries' model test (cls_di.c's segment list, 0x004eed90): ECX
+// the model, EDX the record's next slot, the segment a-b. The segment goes
+// into the model's space (the inverse of the stack's top, 0x00523c50; a
+// singular top finds nothing), the cached polygon is tried first, then the
+// others; the first crossed gives the slot its normal, point (back in world
+// space) and material. Polygons whose material has flag 2 are tested with
+// their texture coordinates.
+int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const float b[3]);  // 0x0054cad0
+
+// One polygon of n vertices against the segment a-b, crossed from its front
+// (either side when two_sided): 1 with the slot's unit normal and point.
+int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3], const float* verts, int32_t n,
+                        int32_t two_sided);  // 0x0054d760
+// The same with the polygon's texture coordinates (3 pairs) at the point,
+// into uv_out and the capture (0x005426e0), whether or not it is on.
+int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[3], const float* verts,
+                           const float* uvs, float uv_out[2], int32_t n, int32_t two_sided);  // 0x0054dd30
+// The six faces of a box (its eight corners as node_box_corners gives
+// them), one-sided; the slot's material is 0.
+int32_t box_segment(const float corners[8][3], zcls::LineHit* slot, const float a[3], const float b[3]);  // 0x0054d2f0
+
 // The texture coordinates of the last crossing of a textured polygon, kept
 // while `on` is set (0x0074a2ac, set by 0x00542700; read with 0x005426d0).
 struct UvCapture {

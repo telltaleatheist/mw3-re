@@ -97,6 +97,10 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- A soils file missing one of the game's ground types no longer corrupts the
+  word in memory before the game's soil table; the type is just left out.
+- A shot passing through more than 32 objects no longer writes past the end
+  of the list of what it hit; the original had room for 32.
 - Asking for the ground under a point where more than 32 objects' surfaces
   overlap no longer writes past the end of the answer; the original had
   room for 32 and stopped only some of the time. No shipped mission comes
