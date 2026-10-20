@@ -98,8 +98,10 @@ These change how the game talks to the computer, not how it plays.
 - Some rendering depends on the processor's math precision. In the emulator,
   at the 24-bit precision DirectX 6 sets, mech shadows, coloured lights on
   textures and the moving cloud shadows come out blank or black. On Windows
-  11 the original shows mech shadows, so the rebuild is being set to draw
-  what that runtime shows (in progress).
+  11 the original shows mech shadows, so the rebuild draws what that runtime
+  shows: mech shadows, coloured explosion and muzzle-flash light on textured
+  surfaces, the ground lit by weapon fire, and moving cloud shadows. (On a
+  1999 Windows 98 machine these may never have shown; that is unconfirmed.)
 
 ## Kept as the original, on purpose
 

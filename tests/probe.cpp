@@ -1,6 +1,7 @@
 // C entry points over ported functions, loaded by tests/differential/*.py to compare
 // them with the original x86 code running in an emulator.
 #include <cstdint>
+#include <cstdlib>
 
 #include "gamez/zrender/zrndr_span.h"
 
@@ -30,7 +31,10 @@ void probe_span_textured16(uint16_t* dest, const uint16_t* texture, uint32_t du,
 
 namespace {
 // The whole probe library tests the original path: the zfix fixes off.
-const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false, true);
+// MW3_FPU53=1 keeps the 53-bit rounding, to compare with the original run at
+// full precision (MW3_X87=64).
+const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
+                          zfix::options().fpu53 = std::getenv("MW3_FPU53") && *std::getenv("MW3_FPU53") == '1', true);
 struct ProbeClock : platform::Clock {
   uint32_t now = 0;
   uint32_t ticks_ms() override { return now; }

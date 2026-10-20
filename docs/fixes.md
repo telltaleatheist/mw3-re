@@ -124,11 +124,19 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   precision the game runs at, so textured vertices lit by a coloured point
   light come out black (emulator; render-drawtable.md). Check in play
   (explosions or muzzle flashes near textured surfaces); then likely a
-  FIX (bug): round properly.
+  FIX (bug): round properly. Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at
+  64 bits: within one colour step (the original's arithmetic is wider).
 - Projected-light triangles, 0x57ea20 / 0x57fe20: the same rounding, so the
   ground the weapon lights subdivide is drawn black at 24-bit (emulator,
   render-shadows.md). Same check in play and the same likely FIX (bug); the
-  port keeps the 24-bit result for now, as for the point-lit vertices.
+  port keeps the 24-bit result for now, as for the point-lit vertices. Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at
+  64 bits: within one colour step (the original's arithmetic is wider).
 - Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
   fixed point with the same trick, so at 24-bit nothing is filled and the
   shadow texture is plain white: shadows invisible on hardware (emulator,
@@ -157,7 +165,11 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   so at 24-bit it is always 0 and the moving cloud pattern on the sun is a
   constant (c1: a flat 70%) on Direct3D (emulator, render-lighting.md). If
   confirmed in play, the hardware renderer never showed moving cloud
-  shadows; restoring them would be a FIX (bug).
+  shadows; restoring them would be a FIX (bug). Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at 64
+  bits: identical.
 - Point lights just inside their near range, 0x545720: below near squared the
   squared distance is compared as a distance, so a vertex can go dark
   (near 32 / far 64: 0.875 at 6, 0 from 10 to 31, 1 at 32). How often shipped

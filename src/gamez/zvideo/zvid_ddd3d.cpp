@@ -1,5 +1,6 @@
 #include "gamez/zvideo/zvid_ddd3d.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
@@ -11,6 +12,7 @@
 #include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 
 // The original rounds every step to float (Direct3D runs the FPU at 24 bits);
@@ -112,10 +114,11 @@ int32_t ftol(float x) { return crt::msvc_ftol(x); }
 // `x - -0.5` then _ftol: rounds the 0..255 colours.
 uint32_t round_byte(float x) { return static_cast<uint32_t>(ftol(x - -0.5f)); }
 
-// x - -1.5 * 2^52 stored as a double, its low dword taken: x rounded to an
-// integer at 64-bit precision, but 0 for every colour at the 24 bits the
-// game runs at (docs/drafts/drawtable.md, the point-light quirk).
+// x - -1.5 * 2^52 stored as a double, its low dword taken: x rounded to the
+// nearest integer on a 53- or 64-bit FPU (zfix fpu53, as in play), but 0 for
+// every colour at 24 bits (render-drawtable.md, the point-light quirk).
 int32_t magic_round(float x) {
+  if (zfix::options().fpu53) return static_cast<int32_t>(std::nearbyint(double{x}));
   const float t = x - -6755399441055744.0f;
   const double d = t;
   uint64_t bits;
