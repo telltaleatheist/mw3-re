@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "crt/msvc_math.h"
+
 #pragma STDC FP_CONTRACT OFF
 
 namespace zmth {
@@ -167,6 +169,45 @@ void quat_exp(const Vec3& v, Quat& out) {
   out.x = k * v.x;
   out.y = v.y * k;
   out.z = v.z * k;
+}
+
+// Mech3.exe 1.2 @ 0x00525ce0. ECX a, EDX b. The angle from fpatan and the
+// two fsin stay on the x87 stack; each product with them rounds once to a
+// float (24-bit precision).
+void quat_slerp(const float a_in[4], const float b_in[4], float t, float out[4]) {
+  if (t == 0.0f) {
+    for (int i = 0; i < 4; ++i) out[i] = a_in[i];
+    return;
+  }
+  if (t == 1.0f) {
+    for (int i = 0; i < 4; ++i) out[i] = b_in[i];
+    return;
+  }
+  float a[4], b[4];
+  for (int i = 0; i < 4; ++i) a[i] = a_in[i], b[i] = b_in[i];
+  const float part = (a[1] * b[1] + a[2] * b[2]) + a[3] * b[3];
+  float c = b[0] * a[0] + part;
+  if (c < 0.0f) {
+    for (float& v : b) v = -v;
+    c = -c;
+  }
+  if (static_cast<double>(c) > 0.95) {  // 0x005ce0c0
+    const float u = 1.0f - t;
+    for (int i = 0; i < 4; ++i) out[i] = a[i] * u + b[i] * t;
+    return;
+  }
+  const float x = 1.0f - c * c;
+  uint32_t bits;
+  std::memcpy(&bits, &x, 4);
+  bits = static_cast<uint32_t>((static_cast<int32_t>(bits) >> 1) + 0x1fc00000);
+  float s;
+  std::memcpy(&s, &bits, 4);
+  const double angle = std::atan2(double{s}, double{c});
+  const double sa = std::sin(double{crt::x87_mul_f24(1.0f - t, angle)});
+  const double sb = std::sin(double{crt::x87_mul_f24(angle, t)});
+  for (int i = 0; i < 4; ++i) out[i] = crt::x87_mul_f24(a[i], sa) + crt::x87_mul_f24(sb, b[i]);
+  const float inv = 1.0f / s;
+  for (int i = 0; i < 4; ++i) out[i] = inv * out[i];
 }
 
 }  // namespace zmth

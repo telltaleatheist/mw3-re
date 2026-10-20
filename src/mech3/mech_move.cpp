@@ -356,8 +356,8 @@ void Mech::select_gait(float dt) {
     anims[kStepWalk]->copy_phase(*anims[anim_index]);
     anims[kWalk]->copy_phase(*anims[anim_index]);
     const MechAnim& s = *anims[kStep];
-    const float fr = frac(s.t / s.loop);
-    const float a = s.events[0] / s.loop, b = s.events[1] / s.loop;
+    const float fr = frac(s.t / s.loop_time);
+    const float a = s.events[0] / s.loop_time, b = s.events[1] / s.loop_time;
     bool hit = false;
     if (thr > 0.0f) {
       if (fr > a && fr - frame_dt * kFootfall < a) hit = true, footfall = 0;
@@ -382,7 +382,7 @@ void Mech::select_gait(float dt) {
   else if (asks_walk) stop = false;
   else {
     stop = true;
-    if (anim_index == kStep && !planted) stop = frac(anims[kStep]->t / anims[kStep]->loop) < dt + dt;
+    if (anim_index == kStep && !planted) stop = frac(anims[kStep]->t / anims[kStep]->loop_time) < dt + dt;
   }
 
   auto enter = [&](int slot, int state) {
@@ -619,7 +619,7 @@ void Mech::update_action(float dt) {
     }
     act->reset();
     float q[4];
-    act->root(&action_root, q);
+    act->hip(&action_root.x, q);
     momentum = vec_3c;
   }
   // x0.6 a frame (0x005bcd50). FIX (B): 0.6 per 1/30 s (fixes.md, Frame rate).
@@ -630,7 +630,7 @@ void Mech::update_action(float dt) {
   act->advance(dt);
   Vec3 root{};
   float q[4] = {1, 0, 0, 0};
-  act->root(&root, q);
+  act->hip(&root.x, q);
   const Vec3 d{root.x - action_root.x, root.y - action_root.y, root.z - action_root.z};
   action_root = root;
   vec_3c.x = d.x / dt + momentum.x;

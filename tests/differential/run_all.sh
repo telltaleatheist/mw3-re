@@ -54,6 +54,7 @@ for t in \
     update \
     di \
     collide \
+    mechanim \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

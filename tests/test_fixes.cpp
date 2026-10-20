@@ -217,6 +217,17 @@ TEST(fix_ammo_groups_keep_their_names) {
 // The movement steps (mech_move, mech_skis, mech_collide).
 namespace {
 
+// Animations without motion data: no root motion.
+struct StillAnim : mech3::MechAnim {
+  void velocity(mech3::Vec3*) override {}
+};
+struct StillAction : mech3::MechAction {
+  void hip(float* p, float q[4]) override {
+    p[0] = p[1] = p[2] = 0.0f;
+    q[0] = 1.0f, q[1] = q[2] = q[3] = 0.0f;
+  }
+};
+
 mech3::Mech* bare_mech() {
   static mech3::Mech m;
   static mech3::MechControls c;
@@ -226,14 +237,14 @@ mech3::Mech* bare_mech() {
   static mech3::Leg legs[2];
   static mech3::Foot feet[2];
   static mech3::Pilot pilot;
-  static mech3::MechAnim anims[13];
+  static StillAnim anims[13];
   m = mech3::Mech{};
   c = mech3::MechControls{};
   c.owner = &m;
   m.controls = &c;
   m.torso = &torso, m.head = &head, m.hip = &hip, m.pilot = &pilot;
   for (int i = 0; i < 2; ++i) feet[i] = mech3::Foot{}, legs[i].foot = &feet[i], m.legs[i] = &legs[i];
-  for (int i = 0; i < 13; ++i) anims[i] = mech3::MechAnim{}, anims[i].loop = 1.0f, m.anims[i] = &anims[i];
+  for (int i = 0; i < 13; ++i) anims[i] = StillAnim{}, anims[i].loop_time = 1.0f, m.anims[i] = &anims[i];
   m.remote = true;
   m.height = 10.0f;
   m.heat = 0.0f;
@@ -243,9 +254,9 @@ mech3::Mech* bare_mech() {
 float carried_momentum(float fps, bool per_second) {
   zfix::options().per_second = per_second;
   mech3::Mech& m = *bare_mech();
-  static mech3::MechAction act;
-  act = mech3::MechAction{};
-  act.loop = 10.0f;
+  static StillAction act;
+  act = StillAction{};
+  act.loop_time = 10.0f;
   m.action_objects[5] = &act;
   m.actions.push_back(5);
   m.anim_state = 12;

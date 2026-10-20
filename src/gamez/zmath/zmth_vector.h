@@ -31,6 +31,9 @@ void quat_roll(float angle, Quat& out);                  // 0x00525210: about z
 void quat_normalize(const Quat& q, Quat& out);           // 0x00525500: bit-trick square root
 void quat_mul(const Quat& a, const Quat& b, Quat& out);  // 0x005255d0: a b
 void quat_exp(const Vec3& v, Quat& out);                 // 0x00525900: (cos |v|, sin |v| v / |v|)
+// a to b by t along the shorter arc; linear above a cosine of 0.95, the sine's
+// divisor from the bit-trick square root. out may be a or b.
+void quat_slerp(const float a[4], const float b[4], float t, float out[4]);  // 0x00525ce0
 
 // The same two with pointer outputs, as the weapon code calls them.
 inline float direction_to(const Vec3& from, const Vec3& to, Vec3* out) { return direction(from, to, *out); }

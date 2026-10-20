@@ -386,7 +386,7 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
     b.insert(b.end(), c, c + n);
   };
   const uint8_t okb = ok, act = s.active;
-  put(&okb, 1), put(&s.unk_04, 4), put(&s.unk_08, 4), put(&s.unk_0c, 4), put(&act, 1);
+  put(&okb, 1), put(&s.rate, 4), put(&s.mult, 4), put(&s.stride, 4), put(&act, 1);
   put(&s.loop_time, 4), put(&s.inv_loop_time, 4), put(&s.frame_time, 4), put(&s.inv_frame_time, 4);
   put(&s.frame_count, 4), put(&s.part_count, 4), put(&s.time, 4);
   const uint32_t n = s.frame_count + 1;
@@ -395,7 +395,7 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
     put(p->name, std::strlen(p->name) + 1);
     put(p->translations, n * 12);
     put(p->rotations, n * 16);
-    if (p->scales) put(p->scales, n * 12);
+    if (p->velocities) put(p->velocities, n * 12);
   }
   if (static_cast<int>(b.size()) > cap) return -1;
   std::memcpy(out, b.data(), b.size());
