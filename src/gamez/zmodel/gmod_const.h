@@ -55,4 +55,14 @@ int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 void cycle_reset(Model* m);                   // 0x0053bc10
 void cycle_set_frame(Model* m, int32_t n);    // 0x0053bc90
 
+// A model's box (min xyz, max xyz) over its vertices, its lights' points
+// and its fully morphed vertices, then its bounding centre (+0x48) and
+// radius (+0x54, a square root by halving the float's bits). A facade
+// (type 1) turns the box into one centred on the model's origin. `header` is
+// the model's 0x5c bytes; mechlib models (zcls::Model) have no lights.
+// Box untouched when the model has neither vertices nor lights.
+void model_box(uint8_t* header, const float* vertices, const Light* lights, const float* morphs,
+               float box[6]);              // 0x0053b4e0 ECX model, EDX box (0x0053b680 the extent)
+inline void model_box(Model* m, float box[6]) { model_box(m->header, m->vertices, m->lights, m->morphs, box); }
+
 }  // namespace zmod

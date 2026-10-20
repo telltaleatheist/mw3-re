@@ -386,6 +386,14 @@ int ar_open(const char* world, const char* anim_path) {
   return 0;
 }
 
+// 1: the node and frame updates recorded (events 6 and 7); 0: the port runs.
+void ar_stub_update(int on) {
+  zcls::update_hooks() = zcls::UpdateHooks{};
+  if (!on) return;
+  zcls::update_hooks().update_node = [](void*, Node* n) { tr({6, static_cast<uint32_t>(nidx(n))}); };
+  zcls::update_hooks().frame_update = [](void*) { tr({7}); };
+}
+
 void ar_random(const float* table) { std::memcpy(zeff::anim().random, table, sizeof zeff::anim().random); }
 
 int ar_load() {

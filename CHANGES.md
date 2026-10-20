@@ -103,6 +103,8 @@ unusual happens.
 - Three checks the original menus skipped no longer crash when missed (a
   credits line over 255 characters, a dialog without a mouse pointer, the
   credits opened without the main menu); nothing shipped reaches them.
+- A scripted sequence with no frames in it no longer reads past its data (no
+  shipped mission makes one).
 - The game starts without a mouse (the original crashed), and pressing a
   newer key such as Power, Sleep or a web key while holding Ctrl, Alt and
   Shift no longer corrupts the game's input memory.
@@ -165,6 +167,10 @@ Details: [`docs/protection.md`](docs/protection.md).
 ## Running on modern machines
 
 These change how the game talks to the computer, not how it plays.
+
+- A developer's leftover debug message ("haha", whenever an object named
+  blackhawk_01 has its bounds rebuilt) is not printed. The 1999 game had no
+  console to show it in; the rebuild would print it to the terminal.
 
 - The main menu's crawling background, sliding MECH3 logo and the ripples
   around its buttons move at the same speed at any frame rate (the 30 fps

@@ -5,15 +5,31 @@
 // (docs/render.md section 1, docs/drafts/scenewalk.md).
 namespace zcls {
 
-// The frame update of changed nodes (list 7): 0x004f7e00 brings one node and
-// its ancestors up to date, 0x004f7f70 runs the whole pass. Not ported yet
-// (they rebuild +0x30 from the euler angles, 0x004eca00, and purge the
-// lists); null hooks skip them.
+// gwNodeUpdate (ECX node): a changed node's model box (+0x2c bit 4) and its
+// children's box (bit 2) rebuilt, its local matrix from its euler angles
+// when dirty, then its bounds (+0x74) and its place in its world's cells;
+// its ancestors (not worlds) are marked changed for theirs. A world pushes
+// its fog and area updates, a sound starts or moves. Flag 2 and the item's
+// hold on list 7 are released. 3 for a class with no update.
+int node_update(Node* node);        // 0x004eca00
+// A test's observer, told of each node_update before it runs (null in the game).
+using NodeObserver = void (*)(Node* node);
+NodeObserver& node_update_observer();
+int node_model_box(Node* node);     // 0x004ed220  +0x8c from the model, flag 0x200
+int node_children_box(Node* node);  // 0x004ecf70  +0xa4 from the children's, flag 0x400
+int node_bound_box(Node* node);     // 0x004ecc00  +0x74 = model box u children's box, flag 0x100
+
+// The frame update of changed nodes (list.cpp: 0x004f7e00, 0x004f7f70,
+// 0x004f7e50). The callers reach them through these hooks, the port by
+// default; a test may stand others in (null skips the call).
+void update_node(Node* node);       // 0x004f7e00
+void frame_update();                // 0x004f7f70
+int update_changed();               // 0x004f7e50
 struct UpdateHooks {
   void* ctx = nullptr;
-  void (*update_node)(void* ctx, Node* node) = nullptr;  // 0x004f7e00
-  void (*frame_update)(void* ctx) = nullptr;             // 0x004f7f70
-  void (*pending)(void* ctx) = nullptr;                  // 0x004f7e50: the nodes queued at [0x0060bea0]
+  void (*update_node)(void* ctx, Node* node) = [](void*, Node* n) { zcls::update_node(n); };  // 0x004f7e00
+  void (*frame_update)(void* ctx) = [](void*) { zcls::frame_update(); };                     // 0x004f7f70
+  void (*pending)(void* ctx) = [](void*) { zcls::update_changed(); };  // 0x004f7e50: the nodes queued at [0x0060bea0]
 };
 UpdateHooks& update_hooks();
 

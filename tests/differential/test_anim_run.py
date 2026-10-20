@@ -20,8 +20,8 @@ the whole node pool too.
 Not ported, recorded on both sides with the same answers: zSound's play
 calls (0x56e3d0, 0x56e7e0), the ground probe (0x4edab0: a deterministic
 grid of hits), the "if" event's ray (0x507220), the node update and the
-frame update (0x4f7e00, 0x4f7f70, not ported: zclass's UpdateHooks), the
-puffer tick (0x5490e0, test_puffers covers it), the unshipped events 3,
+frame update run for real on both sides (0x4f7e00, 0x4f7f70,
+docs/action-lists.md; MW3_STUB_UPDATE=1 records them instead), the puffer tick (0x5490e0, test_puffers covers it), the unshipped events 3,
 16, 20, 21 and the 2D ones 36, 37, 38 (whole handlers), the weapon lookup
 and detonation (0x581ed0 / 0x5822c0), zerr.
 """
@@ -38,9 +38,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from test_gamez import WORLDS, ZBD, Emulated as WorldEmu, probe  # noqa: E402
 
 DUMP = os.environ.get('MW3_DUMP') == '1'
+# The node and frame updates (0x4f7e00, 0x4f7f70) run for real on both sides;
+# MW3_STUB_UPDATE=1 records them instead (as before they were ported).
+STUB_UPDATE = os.environ.get('MW3_STUB_UPDATE') == '1'
 
 probe.ar_open.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
 probe.ar_random.argtypes = [ctypes.c_void_p]
+probe.ar_stub_update.argtypes = [ctypes.c_int]
 probe.ar_frame.argtypes = [ctypes.c_float]
 probe.ar_start.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float]
 probe.ar_start_at.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
@@ -123,8 +127,9 @@ class Emu(WorldEmu):
         cpu.stub_function(0x56e7e0, self.play_at, 8)
         cpu.stub_function(0x4edab0, self.ground, 12)
         cpu.stub_function(0x507220, self.ray, 8)
-        cpu.stub_function(0x4f7e00, lambda c: (self.trace.extend([6, self.index(c.ecx)]), 0)[1])
-        cpu.stub_function(0x4f7f70, lambda c: (self.trace.append(7), 0)[1])
+        if STUB_UPDATE:
+            cpu.stub_function(0x4f7e00, lambda c: (self.trace.extend([6, self.index(c.ecx)]), 0)[1])
+            cpu.stub_function(0x4f7f70, lambda c: (self.trace.append(7), 0)[1])
         cpu.stub_function(0x5490e0, lambda c: (self.trace.append(8), 0)[1])
         for addr, kind, pop in ((0x5031b0, 3, 0), (0x505df0, 16, 0), (0x503c10, 20, 4), (0x503d50, 21, 4),
                                 (0x5074b0, 36, 4), (0x5076c0, 37, 4)):
@@ -284,6 +289,7 @@ class Emu(WorldEmu):
         head = self.read_zbd(world.read_bytes(), str(world).encode())
         assert struct.unpack_from('<i', head)[0] == 0
         self.trace = []
+        cpu.u32(0x74a288, self.calloc(12 * 0x4000))  # the morph scratch (0x526510), for the model boxes
         cpu.write(BLOCK, bytes(0x44))
         cpu.write(0x60c570, bytes(0x80))
         cpu.call(0x509150, ecx=1)
@@ -636,6 +642,7 @@ class Port:
 
     def open(self, world, anim):
         assert probe.ar_open(str(world).encode(), str(anim).encode()) == 0
+        probe.ar_stub_update(int(STUB_UPDATE))
 
     def set_random(self, table):
         probe.ar_random(struct.pack('<200f', *table))

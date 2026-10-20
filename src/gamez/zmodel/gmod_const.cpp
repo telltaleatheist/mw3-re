@@ -1,11 +1,16 @@
 #include "gamez/zmodel/gmod_const.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "crt/msvc_math.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zvideo/zvid_format.h"
+
+#pragma STDC FP_CONTRACT OFF
 
 namespace zmod {
 
@@ -135,6 +140,95 @@ void cycle_set_frame(Model* m, int32_t n) {
   else if (n < 0) n = 0;
   mat->texture = c->textures[n];
   c->index = static_cast<float>(n);
+}
+
+namespace {
+// One point into the box. The x87 compares differ per side, so a NaN
+// coordinate lands only on some (0x0053b733..0x0053b7d2 for the lights).
+void grow_light(float* b, const float* p) {
+  if (!(p[0] >= b[0])) b[0] = p[0];
+  if (!(b[3] >= p[0])) b[3] = p[0];
+  if (b[1] > p[1]) b[1] = p[1];
+  if (!(b[4] >= p[1])) b[4] = p[1];
+  if (b[2] > p[2]) b[2] = p[2];
+  if (!(b[5] >= p[2])) b[5] = p[2];
+}
+// The vertices and the morphed ones (0x0053b80d.., 0x0053b8c8..).
+void grow_vertex(float* b, const float* p) {
+  if (!(p[0] >= b[0])) b[0] = p[0];
+  if (p[0] > b[3]) b[3] = p[0];
+  if (b[1] > p[1]) b[1] = p[1];
+  if (!(b[4] >= p[1])) b[4] = p[1];
+  if (b[2] > p[2]) b[2] = p[2];
+  if (!(b[5] >= p[2])) b[5] = p[2];
+}
+int32_t hdr_i(const uint8_t* h, int off) {
+  int32_t v;
+  std::memcpy(&v, h + off, 4);
+  return v;
+}
+void hdr_f(uint8_t* h, int off, float v) { std::memcpy(h + off, &v, 4); }
+
+// Mech3.exe 1.2 @ 0x0053b680. Starts from the first vertex, else the first
+// light's first point.
+void model_extent(const uint8_t* h, const float* vertices, const Light* lights, const float* morphs, float* b) {
+  const int32_t nv = hdr_i(h, 0x14), nl = lights ? hdr_i(h, 0x20) : 0, nm = hdr_i(h, 0x1c);
+  const float* first = nv >= 1 ? vertices : nl >= 1 ? lights[0].vertices : nullptr;
+  if (first) {
+    b[0] = b[3] = first[0];
+    b[1] = b[4] = first[1];
+    b[2] = b[5] = first[2];
+  }
+  for (int32_t i = 0; i < nl; ++i) {
+    const Light& l = lights[i];
+    const int32_t n = hdr_i(l.raw, 0xc);
+    for (int32_t j = 0; j < n; ++j) grow_light(b, l.vertices + 3 * j);
+  }
+  for (int32_t i = 1; i < nv; ++i) grow_vertex(b, vertices + 3 * i);
+  if (nm != 0 && morphs) {
+    std::vector<zmth::Vec3> out(static_cast<uint32_t>(nm));  // the scratch at [0x0074a288]
+    zmth::morph(out.data(), reinterpret_cast<const zmth::Vec3*>(vertices),
+                reinterpret_cast<const zmth::Vec3*>(morphs), static_cast<uint32_t>(nm), 1.0f);
+    for (int32_t i = 0; i < nm; ++i) grow_vertex(b, &out[i].x);
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0053b4e0. Type 0 keeps the extent; type 1 (a facade)
+// takes the larger of each axis's ends: mode 0 a box as wide in z as in x,
+// otherwise a cube. Other types keep the box as given.
+void model_box(uint8_t* h, const float* vertices, const Light* lights, const float* morphs, float box[6]) {
+  if (!h || !box) return;
+  const int32_t type = hdr_i(h, 0);
+  if (type == 0) {
+    model_extent(h, vertices, lights, morphs, box);
+  } else if (type == 1) {
+    model_extent(h, vertices, lights, morphs, box);
+    float x = box[3], y = box[4], z = box[5];
+    if (std::fabs(box[0]) > x) x = std::fabs(box[0]);
+    if (std::fabs(box[1]) > y) y = std::fabs(box[1]);
+    if (std::fabs(box[2]) > z) z = std::fabs(box[2]);
+    if (hdr_i(h, 4) != 0) {
+      float m = x;
+      if (y > m) m = y;
+      if (z > m) m = z;
+      x = y = z = m;
+    } else {
+      if (x > z) z = x;
+      else x = z;
+    }
+    box[0] = -x, box[1] = -y, box[2] = -z;
+    box[3] = x, box[4] = y, box[5] = z;
+  }
+  const float hx = (box[3] - box[0]) * 0.5f, hy = (box[4] - box[1]) * 0.5f, hz = (box[5] - box[2]) * 0.5f;
+  hdr_f(h, 0x48, hx + box[0]);
+  hdr_f(h, 0x4c, hy + box[1]);
+  hdr_f(h, 0x50, hz + box[2]);
+  const float r2 = (hx * hx + hy * hy) + hz * hz;
+  uint32_t bits;
+  std::memcpy(&bits, &r2, 4);
+  bits = static_cast<uint32_t>((static_cast<int32_t>(bits) >> 1) + 0x1fc00000);
+  std::memcpy(h + 0x54, &bits, 4);
 }
 
 }  // namespace zmod

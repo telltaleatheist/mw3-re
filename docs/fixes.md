@@ -141,6 +141,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | Launch, 0x491150 (mech-build.md section 12) | The definition's skins are counted without a null check; the HUD reset at the end gets 0x14 (no HUD + 0x14) when the view is not on the player's mech | (bug) crashes: a definition without skins (none ship), the view elsewhere (cannot happen: the launch attaches it first) | Checked; the HUD call skipped (`zfix bugs`; off, as the exe) |
 | Foot, 0x462590 | The foot's node is read through unchecked | (bug) a crash for a model without the foot's node; none ship | Sole 0, no shadow or toes |
 | Controls file location, 0x42d0b0 / 0x411e60 / 0x4120a0 | `keys\<name>.zrd` relative to the game folder, `_mkdir("keys")` | (A) the install is read-only data in the rebuild | Written to and read from the write dir through zutl::open, which makes the folder; text mode (LF on macOS), which the reader takes either way |
+| Node bounds, 0x4ecc00 | `printf("haha")` for a node named `blackhawk_01` each time its bounds are rebuilt (a developer's leftover) | (A) the Windows game has no console; on macOS it would print to the terminal every frame the node moves | Dropped (`zclass/class.cpp`, `action-lists.md` section 7) |
+| Sequence step, 0x4fdf50 | A sequence without entries reads the entry past its data (the calloc'd header, then memory before it once the index steps to -1) | (bug) undefined reads, possibly a hang | The time still advances; with no entries nothing steps. No shipped script makes a sequence (`zclass/seq.cpp`) |
 
 Notes on the fixes:
 

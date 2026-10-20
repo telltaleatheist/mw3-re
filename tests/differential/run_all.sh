@@ -63,6 +63,7 @@ for t in \
     di \
     collide \
     anim_run \
+    action_lists \
     mechanim \
     mechdata \
     pose \

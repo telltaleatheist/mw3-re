@@ -148,7 +148,7 @@ ancestors (up to, not including, a world) are appended.
   flags bit 0, on its action list, and on 6.
 - 0x4f7f80 count, 0x4f8040 head, 0x4f7fe0 find by name (strcmp), 0x4f7fa0
   debug print, 0x4f8050 push on the deferred-delete list, 0x4f7e50 walk list
-  7 (sets bits 0/1, 0x4f7e00), the frame update, not needed here.
+  7 (sets bits 0/1, 0x4f7e00), the frame update: `action-lists.md`.
 
 ### 0x4ed990 `node_set_expiry(node)` (ECX), recursive
 

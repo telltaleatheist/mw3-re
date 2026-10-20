@@ -158,9 +158,7 @@ class Emu:
         cpu.stub_function(0x4eb450, lambda c: (self.log.append(
             [3, self.nid(c.ecx), 1 if c.edx == TICK else 2 if c.edx else 0]), 0)[1])
         cpu.stub_function(0x4eaea0, lambda c: (self.log.append([4, self.nid(c.ecx)]), 0)[1])
-        if world:
-            cpu.stub_function(0x4f7e00, lambda c: 0)  # the port's update hook is unset too
-        else:
+        if not world:  # on the world the node update (0x4f7e00) runs for real on both sides
             cpu.stub_function(EULER, lambda c: self.node_table(c, 7, 0))
             cpu.stub_function(POSITION, lambda c: self.node_table(c, 8, 1))
         cpu.stub_import(0x72f3c0, lambda c: self.draw(c, 0), 8)

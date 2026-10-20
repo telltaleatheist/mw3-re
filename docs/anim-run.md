@@ -135,8 +135,10 @@ the hook [0x60c714] (null in single play); unsaved ones are dropped again.
 
 zSound's play calls, the ground hits (0x4edab0, `cls_di.c`), the "if" ray
 (0x507220, `cls_di.c`), events 3, 16, 20, 21, 36, 37, 38 and the weapon
-lookup and detonation of 41; zClass's frame update (0x4f7f70) and node
-update (0x4f7e00), still `UpdateHooks`. The tree copy 0x4f9b50 stays a hook
+lookup and detonation of 41. zClass's frame update (0x4f7f70) and node
+update (0x4f7e00) are ported (`action-lists.md`) and run for real on both
+sides of test_anim_run.py (`MW3_STUB_UPDATE=1` records them instead, as
+before). The tree copy 0x4f9b50 stays a hook
 (the instance path without a node, never reached by shipped data, fails).
 
 ## Check

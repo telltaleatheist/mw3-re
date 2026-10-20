@@ -14,6 +14,8 @@
 
 #include "crt/msvc_string.h"
 #include "gamez/zclass/camera.h"
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zclass/display.h"
@@ -67,6 +69,10 @@ Engine make_engine() {
   e.set_name = zcls::node_set_name;
   e.set_active = zcls::node_set_active;
   e.add_child = zcls::node_add_child;
+  e.set_action = zcls::node_set_action;
+  e.set_action_priority = zcls::node_set_priority;
+  e.write_prepare_a = zcls::frame_update;
+  e.write_prepare_b = [] { zcls::purge_lists(); };
   e.read_zbd = zcls::read_zbd;
   e.camera_set_active = zcls::node_set_active;  // 0x004f3420 is a jmp to it
   e.camera_set_clip = zcls::camera_set_clip;
