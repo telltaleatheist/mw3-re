@@ -5,7 +5,6 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
-#include "gamez/zreader/zreader.h"
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
 
@@ -36,7 +35,7 @@ void rotate(const float* q, const float* v, float* out) { zmth::quat_rotate(Q(q)
 // Mech3.exe 1.2 @ 0x00525690 (ECX a, EDX b, out): b's conjugate times a, in
 // the x87's order of the sums.
 void relative(const float* a, const float* b, float* out) {
-  out[0] = ((b[0] * a[0] + b[1] * a[1]) + b[2] * a[2]) + b[3] * a[3];
+  out[0] = ((b[3] * a[3] + b[2] * a[2]) + b[1] * a[1]) + b[0] * a[0];
   out[1] = ((b[0] * a[1] - a[0] * b[1]) - b[3] * a[2]) + a[3] * b[2];
   out[2] = ((b[0] * a[2] - a[0] * b[2]) - a[3] * b[1]) + b[3] * a[1];
   out[3] = ((b[0] * a[3] - a[0] * b[3]) - b[2] * a[1]) + a[2] * b[1];
@@ -105,29 +104,34 @@ void CameraMode::reset(PlayerView& v) {
 // Mech3.exe 1.2 @ 0x00421530
 MechCamera::MechCamera(int32_t i) : CameraMode(i) {
   copy4(look_q, kIdentity);
+  look_left = zgame::from_bits(0x3fc6d3f2);
+  look_right = zgame::from_bits(0xbfc6d3f2);
+  look_down = zgame::from_bits(0xbe860a92);
+  look_up = zgame::from_bits(0x3f490fdb);
   dist_now = dist;
 }
 
 // Mech3.exe 1.2 @ 0x004215d0: the camera's block: dist, the speed terms,
 // desired_pos, delta_rot (degrees) and look_limits (degrees).
-bool MechCamera::read(zrdr::Node* node) {
+bool MechCamera::read(void* node) {
   if (!node) return false;
+  ViewHooks& h = *g_hooks;
   float e[3] = {kZero[0], kZero[1], kZero[2]};
-  zrdr::get_float(node, "dist", &dist);
-  zrdr::get_float(node, "dist_vary_factor", &dist_vary_factor);
-  zrdr::get_float(node, "dist_vary", &dist_vary);
-  zrdr::get_float(node, "dist_factor", &dist_factor);
-  zrdr::get_float(node, "dist_catch_up", &dist_catch_up);
-  zrdr::get_vec3(node, "desired_pos", desired_pos);
-  if (zrdr::get_vec3(node, "delta_rot", e)) {
+  h.reader_float(node, "dist", &dist);
+  h.reader_float(node, "dist_vary_factor", &dist_vary_factor);
+  h.reader_float(node, "dist_vary", &dist_vary);
+  h.reader_float(node, "dist_factor", &dist_factor);
+  h.reader_float(node, "dist_catch_up", &dist_catch_up);
+  h.reader_vec3(node, "desired_pos", desired_pos);
+  if (h.reader_vec3(node, "delta_rot", e)) {
     constexpr float k = 0.017453292f;  // 0x005bd320
     e[0] = e[0] * k, e[1] = e[1] * k, e[2] = e[2] * k;
     zmth::euler_to_quat(e[1], e[0], e[2], delta_rot);
   }
-  if (zrdr::Node* lim = zrdr::find(node, "look_limits")) {
+  if (void* lim = h.reader_find(node, "look_limits")) {
     constexpr double k = 0.01745329251994;  // 0x005bd328
     auto deg = [&](const char* key, float* f) {
-      if (zrdr::get_float(lim, key, f)) *f = static_cast<float>(*f * k);
+      if (h.reader_float(lim, key, f)) *f = static_cast<float>(*f * k);
     };
     deg("left", &look_left);
     deg("right", &look_right);
@@ -288,15 +292,16 @@ CameraList::~CameraList() {
 }
 
 // Mech3.exe 1.2 @ 0x00430e70
-CameraList* make_cameras(zrdr::Node* reader, int32_t roster, float fov_x) {
+CameraList* make_cameras(int32_t roster) {
+  ViewHooks& h = *g_hooks;
   auto* list = new CameraList;
-  zrdr::Node* cams = reader ? zrdr::find(reader, "camera") : nullptr;
-  auto block = [&](const char* name) { return cams ? zrdr::find(cams, name) : nullptr; };
+  void* cams = h.reader_find(h.dfn_reader(roster), "camera");
+  auto block = [&](const char* name) { return h.reader_find(cams, name); };
 
   auto* tether = new MechCamera(0);
   tether->dist = 12.0f;
   copy4(tether->delta_rot, kIdentity);
-  zmth::quat_pitch(-0.087266463f, Q(tether->delta_rot));
+  zmth::quat_pitch(zgame::from_bits(0xbdb2b8c2), Q(tether->delta_rot));
   switch (roster) {
     case 0: tether->desired_pos[1] = 0.7f; break;
     case 1: case 0x10: tether->desired_pos[1] = 0.6f; break;
@@ -334,7 +339,7 @@ CameraList* make_cameras(zrdr::Node* reader, int32_t roster, float fov_x) {
   auto* zipper = new MechCamera(2);
   zipper->dist = 14.0f;
   copy4(zipper->delta_rot, kIdentity);
-  zmth::quat_pitch(0.034906585f, Q(zipper->delta_rot));
+  zmth::quat_pitch(zgame::from_bits(0x3d0efa35), Q(zipper->delta_rot));
   zipper->desired_pos[1] = -0.12f;
   zipper->desired_pos[2] = 1.0f;
   zipper->desired_pos[0] = 0.36f;
@@ -348,7 +353,7 @@ CameraList* make_cameras(zrdr::Node* reader, int32_t roster, float fov_x) {
 
   auto* gods = new MechCamera(3);
   gods->dist = 150.0f;
-  zmth::quat_pitch(-1.5707964f, Q(gods->delta_rot));
+  zmth::quat_pitch(zgame::from_bits(0xbfc90fd8), Q(gods->delta_rot));
   gods->desired_pos[0] = 0.0f;
   gods->desired_pos[1] = 1.0f;
   gods->desired_pos[2] = 0.0f;
@@ -359,7 +364,9 @@ CameraList* make_cameras(zrdr::Node* reader, int32_t roster, float fov_x) {
   list->modes.push_back(gods);
 
   auto* area = new AreaCamera;
-  const float half = static_cast<float>(fov_x * 0.5);
+  float fov = 0.0f;
+  const double fx = h.view_fov(&fov) ? double{fov} : 1.0471975511964;
+  const float half = static_cast<float>(fx * 0.5);
   area->desired_pos[0] = 0.0f;
   area->desired_pos[2] = 1.0f;
   area->dist_vary_factor = 1.0f;
@@ -371,7 +378,7 @@ CameraList* make_cameras(zrdr::Node* reader, int32_t roster, float fov_x) {
   auto* mcb = new MechCamera(4);
   mcb->dist = 30.0f;
   copy4(mcb->delta_rot, kIdentity);
-  zmth::quat_pitch(-0.15707964f, Q(mcb->delta_rot));
+  zmth::quat_pitch(zgame::from_bits(0xbe20d97c), Q(mcb->delta_rot));
   mcb->desired_pos[2] = 1.0f;
   mcb->dist_vary_factor = 1.0f;
   mcb->desired_pos[0] = 0.0f;
@@ -607,16 +614,16 @@ void AreaCamera::set_look(int32_t look) {
   if (h.mech_dead(m) != 0) return;
   float angle;
   switch (look) {
-    case 0: angle = 1.5707964f; break;
-    case 1: angle = -1.5707964f; break;
-    case 3: angle = 3.1415927f; break;
+    case 0: angle = zgame::from_bits(0x3fc90fdb); break;
+    case 1: angle = zgame::from_bits(0xbfc90fdb); break;
+    case 3: angle = zgame::from_bits(0x40490fdb); break;
     case 2:
     case 4:
       copy4(look_q, kIdentity);
       h.mech_41ca30(m, look == 4);
       return;
     case 5:
-      zmth::quat_pitch(-0.52359879f, Q(look_q));
+      zmth::quat_pitch(zgame::from_bits(0xbf060a92), Q(look_q));
       h.mech_41ca30(m, 1);
       return;
     default: return;

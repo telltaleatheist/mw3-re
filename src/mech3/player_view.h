@@ -34,7 +34,7 @@ class CameraMode {
   virtual void reset(PlayerView& v);                    // +0x14 0x0040b820
   virtual bool usable(PlayerView& v) { (void)v; return true; }  // +0x18 0x0040bad0
   virtual void on_switch(PlayerView& v, bool on) { (void)v, (void)on; }  // +0x20 0x0040baf0
-  virtual bool read(zrdr::Node* node) { (void)node; return false; }  // +0x24
+  virtual bool read(void* node) { (void)node; return false; }  // +0x24
 
   int32_t id;                      // +0x04  0 tether, 1 attach (cockpit), 2 zippercam, 3 godseye, 4 mcbtether, 5 area
   float delta_rot[4];              // +0x08  the offset's rotation (w, x, y, z)
@@ -58,7 +58,7 @@ class MechCamera : public CameraMode {
   void set_look(int32_t look) override;                 // 0x00421c00
   void reset(PlayerView& v) override;                   // 0x00421900
   bool usable(PlayerView& v) override;                  // 0x00421a30
-  bool read(zrdr::Node* node) override;                 // 0x004215d0
+  bool read(void* node) override;                       // 0x004215d0
 
   float look_q[4];                 // +0x44  the look's rotation
   uint8_t torso_look = 0;          // +0x54  look along the torso
@@ -97,9 +97,9 @@ struct CameraList {
   ~CameraList();                       // 0x0040abf0
 };
 // Mech3.exe 1.2 @ 0x00430e70: the six cameras with their defaults, then each
-// one's block of the mech's `camera` reader node; `roster` picks tether's
-// height, `fov_x` is the view camera's (area's from it).
-CameraList* make_cameras(zrdr::Node* mech_reader, int32_t roster, float fov_x);
+// one's block of the mech definition's `camera` reader node; `roster` picks
+// tether's height; area's from the view camera's field of view.
+CameraList* make_cameras(int32_t roster);
 
 // What the view calls outside it: zClass's camera and nodes, the world's
 // queries and fog, the weather, the mech's torso, controls and HUD. One per
@@ -147,6 +147,14 @@ class ViewHooks : public zgame::Unported {
   // altitude (2) and colour (3) ([0x00609900..] / [0x006098dc..]).
   virtual const float* mission_fog(bool water) = 0;
   virtual void set_camera_option(int32_t mode) { unported("0x0040ce10", {mode}); }
+  // The mech definition's reader (0x004846a0 on the roster, its +0x08) and
+  // zReader's find (0x005569e0), float (0x00556a60) and vec3 (0x005570b0).
+  virtual void* dfn_reader(int32_t roster) = 0;
+  virtual void* reader_find(void* node, const char* key) = 0;
+  virtual bool reader_float(void* node, const char* key, float* out) = 0;
+  virtual bool reader_vec3(void* node, const char* key, float out[3]) = 0;
+  // [0x005f4c8c]'s camera's field of view (data +0xec); false without a view.
+  virtual bool view_fov(float* fov) = 0;
   // 0x004edab0 on the world: the ground under (x, y, z), kept for the zone;
   // true when it found none.
   virtual bool ground_query(float x, float y, float z) = 0;
