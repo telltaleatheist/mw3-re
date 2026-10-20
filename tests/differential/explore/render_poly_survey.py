@@ -3,7 +3,8 @@
 # priorities, vertex colours on textured vs untextured polygons, and which nodes
 # use given untextured material colours. Usage: render_poly_survey.py c1 [r,g,b ...]
 import struct, sys, collections, math
-G = 'game/mw3-1.2/zbd/'
+import os; ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+G = ROOT + '/game/mw3-1.2/zbd/'
 U = lambda b, o, f='<i': struct.unpack_from(f, b, o)[0]
 
 def load(m):

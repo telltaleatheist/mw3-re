@@ -3,11 +3,11 @@
 import json, os, socket, subprocess, sys, threading
 sock_path = sys.argv[1]
 env = dict(os.environ,
-    PATH='~/.nvm/versions/node/v24.22.0/bin:' + os.environ['PATH'],
+    PATH=os.path.expanduser('~/.nvm/versions/node/v24.22.0/bin:') + os.environ['PATH'],
     GHIDRA_INSTALL_DIR='/opt/homebrew/opt/ghidra/libexec',
     JAVA_HOME='/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home',
     REA_GHIDRA_STARTUP_TIMEOUT_MS='1800000')
-p = subprocess.Popen(['nice', '-n', '15', '~/.nvm/versions/node/v24.22.0/bin/rea', 'mcp'],
+p = subprocess.Popen(['nice', '-n', '15', os.path.expanduser('~/.nvm/versions/node/v24.22.0/bin/rea'), 'mcp'],
                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(sock_path + '.stderr', 'w'), env=env, text=True)
 lock = threading.Lock(); n = 0
 def rpc(method, params=None, notify=False):
