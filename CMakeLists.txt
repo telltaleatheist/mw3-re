@@ -97,6 +97,10 @@ add_library(mw3core STATIC
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
+  src/mech3/zai_valve.cpp
+  src/mech3/zainet_node.cpp
+  src/mech3/zrdrainet.cpp
+  src/mech3/zrdraiv.cpp
   src/mech3/app.cpp
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
@@ -141,6 +145,7 @@ add_library(mw3probe SHARED
   tests/probe_weapons_run.cpp
   tests/probe_weapons_hit.cpp
   tests/probe_twod.cpp
+  tests/probe_ai.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 
