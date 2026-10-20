@@ -79,6 +79,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
 | Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
 | Throttle keys, 0x427d60 | CMD_THROTTLE_UP / DOWN move the throttle target 0.025 each frame they are held | (B) at 144 fps the throttle opens almost five times as fast (full in 0.28 s instead of 1.3 s) | 0.025 per 1/30 s (`zfix::frame_steps`), equal to the exe's at 30 fps; off in the probes; `tests/test_fixes.cpp` |
+| Beam recharge, 0x4b4230 | Adds ftol(rate x dt) (dt times the heat factor 0.5..1) to a beam's charge each frame it is not firing | (B) the fraction is lost every frame, so the faster the game runs the slower beams recharge: TAG (166.7 a second) refills in 67 s at 30 fps, 83 s at 60, 69 s at 144, and never above 166 fps, or at 144 fps once heat passes 0.58 (emulator, `test_tag.py`; weapons.md, "TAG, end to end"); plain lasers stop recharging above 420 fps | The 30 fps frame's whole units, ftol(rate x / (30 dt)), spread over the frame with the fraction carried (`mech3::beam_recharge`): the exe's amount at 30 fps, the same per second at any rate; `zfix::options().per_second`, off in the probes; `tests/test_fixes.cpp` |
 | Smoke drag and wind, 0x5490e0 / 0x523f70 | Drag from a table of e^-(i/51) with the step truncated; the wind's speed steps by up to `random_accel` a frame | (B) at 60 fps and above muzzle smoke and trails get no drag at all, and gusts change faster the faster the game runs | e^-(dt * friction) computed, and the speed step scaled as per 1/30 s (Owen 2026-10-20); `zfix` switch as above. At 30 fps the drag is now a little stronger than the table's (it rounded 0.033 down to 0.0196) |
 | Sound fades, 0x571940 | A fade ends only when a 25 dB/s step lands exactly on the target, which happens only at full volume or silence | (bug) fades to a partial volume never end: the voice wobbles a step around the target and the fade stays in the list for good | A step that reaches or passes the target ends the fade on it (Owen 2026-10-20); `zfix::options().bugs` |
 | Unpause, 0x56f130 | Every voice of each sound kept at pause plays again, finished ones from the start, once per record (a sound with two copies playing replays both twice) | (bug) sounds that had ended start over and doubles pile up after a pause | Only the voices that were playing resume, each once, from where they stopped (Owen 2026-10-20) |
@@ -250,6 +251,33 @@ Resolved (2026-10-21):
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
+
+- TAG (weapons.md, "TAG, end to end"; numbers from the emulator,
+  `test_tag.py`). It works as coded, but three things make it look broken;
+  none is a clear bug, so all are kept:
+  1. The hold has no room: the beam lasts 32 frames at 30 fps and the
+     strike needs 30 on the target; at 60 and 144 fps it needs every frame
+     but one (61 of 62, 145 of 146). A frame on the ground costs two, a
+     frame on the sky starts it over, letting go wastes the charge. Options:
+     (a) keep; (b) have a frame off the target pause the timer instead of
+     counting it down or resetting it; (c) let the charge last a little
+     longer than DESIGNATE's time (U_FIRE_TIME 1.2, a data change: about 7
+     frames of slack at 30 fps, 13 at 60); (d) compare the timer with 1.0 less a
+     small epsilon, so 60 frames do at 60 fps (it only removes the float
+     shortfall, one frame).
+  2. The strike only hits a target that stands still: the missiles start at
+     zero speed (ACCELERATION 60, VELOCITY 400) and take 7.2 s, homing on the
+     fixed point the beam touched; a mech moving faster than about 8 m/s
+     (30 kph) is untouched, only a standing one takes the direct hits.
+     Options: (a) keep (an artillery strike on a position, buildings and
+     parked targets); (b) home on the designated thing (the lock has room
+     for an entity and its velocity; the strike passes none); (c) launch at
+     full speed (about 3.9 s instead of 7.2); (d) both.
+  3. A press from a partial charge does nothing, so after letting go early
+     TAG is dead for up to a minute with no sign why. Options: (a) keep;
+     (b) let a press fire from a partial charge (lasting what is left);
+     (c) make sure the HUD shows the charge (not checked: the HUD is not
+     ported).
 
 - c4b mission 6's boundary: the player's orders (aiv.zrd `player` vlist)
   name the regions `reg_inside_c4m7` / `reg_outside_c4m7`, but the

@@ -497,3 +497,35 @@ TEST(fix_zaps_hud_reads_its_hold) {
   zfix::options().bugs = true;
   zrdr::close_archives(true);
 }
+
+namespace {
+
+// TAG's recharge (U_RECHARGE_TIME 60: 166.7 a second) over `seconds` at `fps`,
+// hot by the BeamWeapon's factor min(1, max(0.5, 0.5 / heat)).
+int32_t tag_recharge(float fps, float heat, float seconds, bool per_second) {
+  zfix::options().per_second = per_second;
+  const float rate = 10000.0f * 1.0f / 60.0f;
+  const float dt = 1.0f / fps;
+  float f = heat > 0.5f ? 0.5f / heat : 1.0f;
+  if (f < 0.5f) f = 0.5f;
+  float carry = 0;
+  int32_t n = 0;
+  for (int i = 0; i < static_cast<int>(fps * seconds + 0.5f); ++i) n += mech3::beam_recharge(rate, f * dt, dt, &carry);
+  zfix::options().per_second = true;
+  return n;
+}
+
+}  // namespace
+
+TEST(fix_beam_recharge_per_second) {
+  EXPECT(tag_recharge(30, 0, 10, false) == 1500);   // the exe at 30 fps: 5 a frame
+  EXPECT(tag_recharge(30, 0, 10, true) == 1500);    // unchanged there
+  EXPECT(tag_recharge(60, 0, 10, false) == 1200);   // the exe: 2 a frame
+  EXPECT(tag_recharge(144, 0, 10, false) == 1440);  // 1 a frame
+  EXPECT(tag_recharge(200, 0, 10, false) == 0);     // never refills
+  EXPECT(tag_recharge(144, 0.6f, 10, false) == 0);  // nor at 144 fps once a little hot
+  for (float fps : {60.0f, 144.0f, 200.0f, 500.0f}) {
+    EXPECT(std::abs(tag_recharge(fps, 0, 10, true) - 1500) <= 1);
+    EXPECT(std::abs(tag_recharge(fps, 1.0f, 10, true) - tag_recharge(30, 1.0f, 10, true)) <= 1);
+  }
+}

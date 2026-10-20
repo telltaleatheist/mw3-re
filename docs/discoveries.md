@@ -400,8 +400,9 @@ From the weapon code (weapons.md).
   is pushed back once it strays past 1 m sideways (0.75 m up and down).
 - **LB-X shells burst at 30 m** into three pellets each, in a cone of about one
   degree around the shell's path.
-- **TAG calls four missiles**, from 1500 m behind along the beam and 400 m up,
-  spread 50 m apart.
+- **TAG calls four missiles**, from 1500 m back along the beam and 400 m up
+  (so from far behind you, out of sight), each up to 25 m to the side. They
+  hit for 18 each plus splash within 30 m.
 - **Arm weapons can only aim about 27 degrees off the arm's facing**; centre
   torso weapons aim anywhere (0x4b38b6).
 - **The AI waits for its LRMs**: it fires a launcher type again only after the
@@ -435,8 +436,27 @@ From the weapon code (weapons.md).
   (0x581230, 0x581400).
 - **TAG needs a full second on a target**: the beam counts up while it touches
   something that can be hurt and calls the airstrike after 1 s (DESIGNATE's
-  last value); looking away counts the time back down rather than resetting
-  it. Its spot light is green (0.51, 1.0, 0.03).
+  last value). On the ground the count runs back down (a frame there costs
+  two), on open sky it starts over. Its spot light is green (0.51, 1.0,
+  0.03).
+- **TAG works, but almost never visibly.** Checked frame by frame in the
+  original code:
+  - Its beam lasts only a hair longer than the second it needs: 32 frames
+    at 30 fps for 30 needed, and at 60 fps 62 for 61. At 30 fps you can
+    slip off the target for one frame; at 60 fps or more, not once.
+  - Hold the trigger the whole time: letting go stops the beam, and the
+    charge it used is gone. TAG only fires from a full charge, which takes
+    67 seconds at 30 fps (83 at 60), so a short tap leaves it dead for up
+    to a minute with nothing to say why.
+  - The airstrike comes about 7 seconds later: the missiles start from a
+    standstill 1.2 km or more behind you and speed up as they go. They fly
+    to the spot the beam touched, not to the target, so a standing mech
+    takes four direct hits (72 damage), one walking away at 18 kph only
+    splash (about 58), and one moving faster than about 30 kph nothing.
+  - Ground and buildings that cannot be damaged never call it.
+  - On a fast PC the original's TAG recharges slower, and above about 166 fps
+    (or at 144 fps when running hot) it never recharges after its first
+    use. The rebuild recharges it at its 30 fps pace at any frame rate.
 - **The ERPPC's HUD static lasts 2 seconds** in the data, but the original
   read the first number twice and held it 0.5 s; the rebuild uses the 2 s.
 - **Unused weapon features**: zWeapon supports mines that bounce, lie in wait
@@ -870,7 +890,9 @@ From the mech definitions (mechdef-parts.md).
   radius or share at all (0), and its torso ones only a radius of 0.2.
 - **TAG always fires from the first firepoint** in the mech's list
   (`firepoint01`, a right-arm point on every shipped mech), whatever the
-  loadout.
+  loadout, so losing the right arm loses TAG even when the equipment sits
+  elsewhere (the Cauldron-Born's Alternate B, the only stock loadout with
+  TAG, has it in the left torso). It is always weapon group 5 (F5).
 - **A leftover `parts` lookup.** The reader asks every mech file for a
   `parts` entry that no file has, then ignores whatever it would have found:
   the same 13 part names are set for every mech. The left and right side

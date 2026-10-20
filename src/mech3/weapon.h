@@ -207,6 +207,7 @@ struct BeamWeapon : Weapon {           // vtable 0x005c90c0, 0xa4 bytes
   bool firing = false;                 // +0x98
   const Vec3f* aim_at = nullptr;       // +0x9c  the caller's aim point
   Handle beam = nullptr;               // +0xa0  the zWeapon beam
+  float recharge_carry = 0;            // the rebuild's: the recharge's fraction (FIX (B), beam_recharge)
 
   BeamWeapon(WeaponItem* item, WeaponManager* m);          // 0x004b3c10
   BeamWeapon(WeaponDef* def, Handle node, WeaponManager* m);  // 0x004b3d70
@@ -299,6 +300,10 @@ void configure_weapons(Handle mech, WeaponManager* m, Config* cfg, Config** kept
 // new manager for it (the old one deleted); nullptr without the list.
 WeaponManager* build_vehicle_weapons(Handle vehicle, WeaponManager* old, zrdr::Node* def);
 Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m);  // 0x004b23f0
+// A beam's recharge this frame, `x` the frame's (heat-scaled) seconds: the exe's
+// ftol(rate x), or with zfix per_second the 30 fps frame's amount spread over
+// the frame with the fraction carried (FIX (B), docs/fixes.md).
+int32_t beam_recharge(float rate, float x, float dt, float* carry);
 // 0x004b4a40: spawns the shot; with SHOW_ON_RADAR the projectile goes on the radar.
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
                         const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly);

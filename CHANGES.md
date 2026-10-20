@@ -30,6 +30,12 @@ it is clear what the designers meant.
   rate.** Each frame a key was held added a fixed step, so on a fast computer
   the throttle ran up several times faster. It now moves as it did at
   30 fps: from stop to full in about 1.3 seconds.
+- **Lasers and TAG recharge at the same speed at any frame rate.** The
+  original dropped the fraction of each frame's recharge, so the faster the
+  game ran the slower beams came back: TAG took 67 seconds at 30 fps, 83 at
+  60, and above about 166 fps (or at 144 fps once the mech ran a little hot)
+  it never recharged at all after its first shot. Beams now recharge at
+  their 30 fps pace whatever the frame rate.
 - **Alan talks in every mission.** His name is misspelt in two missions'
   data (the first Instant Action map of the first world and operation 3's
   mission 6), so the game did not give him his radio voice there. Both
