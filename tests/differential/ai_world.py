@@ -29,7 +29,7 @@ VLIST_DEFAULTS = struct.pack('<7I', 0x3e800000, 0x3dcccccd, 0x3f4ccccd, 0, 0x456
 HANDLE = 0x1234
 BIG = 0x40000000
 # The AI globals the static initializers set up (zeroed before each run).
-GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x30)]
+GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78)]
 
 
 def fnv(b):
@@ -315,6 +315,8 @@ class Emulated:
         cpu.call(0x4d3d70)          # the valves' list (0x0060b500)
         cpu.call(0x4dc150)          # the net files' map (0x0060b5a8)
         cpu.call(0x4df620)          # aiv.zrd's file object (0x0060b5e0)
+        cpu.call(0x4e0820)          # targets.zrd's (0x0060b608)
+        cpu.call(0x4e0720)          # traps.zrd's (0x0060b630)
 
     # --- what the port's probe writes ------------------------------------------
     def valves(self):
@@ -539,6 +541,66 @@ class AivRun:
             self.put_record(o, e.eax())
         cpu.call(0x4e04f0, ecx=rec)
         self.put_file(o)
+        vl = e.valves()
+        o.u(len(vl))
+        for v in vl:
+            o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events
+
+
+# --- targets.zrd ------------------------------------------------------------------
+class TargetsRun:
+    """What probe_targets_run writes, from the original's memory."""
+    FILE = 0x60b608
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def put_target(self, o, r):
+        e, u = self.e, self.e.u32
+        if r == 0:
+            o.u(0)
+            return
+        o.u(1)
+        o.u(u(r)), o.s(e.cstr(u(r + 4))), o.u(u(r + 8))
+        for off in (0xc, 0x10, 0x14):
+            o.s(e.cstr(u(r + off)))
+        for off in range(0x18, 0x30, 4):
+            o.u(u(r + off))
+        hb = u(r + 0x30)
+        if hb == 0:
+            o.u(0xffffffff)
+        else:
+            b, end = u(hb + 4), u(hb + 8)
+            vl = e.valves()
+            o.u((end - b) // 12 if b else 0)
+            for p in range(b, end, 12):
+                o.u(e.valve_token(u(p), vl)), o.u(u(p + 4)), o.u(u(p + 8))
+        o.u(u(r + 0x34)), o.u(e.u8(r + 0x38))
+
+    def run(self, files):
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        cpu.call(0x4deb50, ecx=self.FILE)
+        o.u(e.u32(self.FILE + 0x10)), o.u(1 if e.u32(self.FILE + 0xc) else 0)
+        cpu.call(0x4decf0, ecx=self.FILE)
+        n = s32(e.eax())
+        o.u(n)
+        rec = e.alloc(0x3c)
+        cpu.call(0x4e07d0, ecx=rec)
+        slot = e.alloc(4)
+        for i in range(-1, n + 1):
+            cpu.u32(slot, 0)
+            cpu.call(0x4ded20, ecx=self.FILE, stack_args=(i & 0xffffffff, slot))
+            value = e.eax()
+            name = e.u32(slot)
+            o.s(e.cstr(name))
+            cpu.call(0x4e07e0, ecx=rec, stack_args=(value, name))
+            self.put_target(o, e.eax())
+        cpu.call(0x4e0890, ecx=rec)
+        cpu.call(0x4deba0, ecx=self.FILE)
+        o.u(e.u32(self.FILE + 0x10)), o.u(1 if e.u32(self.FILE + 0xc) else 0)
         vl = e.valves()
         o.u(len(vl))
         for v in vl:

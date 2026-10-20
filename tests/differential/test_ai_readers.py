@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ai_world import ROOT, AivRun, Emulated, archive, mission_archives, ser  # noqa: E402
+from ai_world import ROOT, AivRun, Emulated, TargetsRun, archive, mission_archives, ser  # noqa: E402
 import zrd  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
@@ -33,6 +33,8 @@ probe.probe_ainet_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_voi
                                   ctypes.c_int, ctypes.c_void_p]
 probe.probe_aiv_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int,
                                 ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+probe.probe_targets_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int,
+                                    ctypes.c_void_p]
 WORK = ROOT / 'build' / 'ai_readers'
 # Files the original crashes on, which the port reads (docs/fixes.md).
 CRASHES = {'not a list'}
@@ -50,7 +52,10 @@ COVER = {0x4da95c: 'past version', 0x4da973: 'future version', 0x4da9d5: '"mech3
          0x4e0027: 'alan voice', 0x4e0062: 'dom voice', 0x4e00b3: 'lancemate', 0x4e01e6: '17-item order',
          0x4e027f: 'order region', 0x4e0298: 'order valve', 0x4e0308: 'mech3 tag', 0x4e0351: 'p8 with old tags',
          0x4e03f7: 'p3 alone', 0x4e03d8: 'p3 and p7 differ', 0x4e0431: 'p5 jump', 0x4e043d: 'p5 both',
-         0x4e045a: 'p5 none'}
+         0x4e045a: 'p5 none', 0x4e0970: 'translate_to_anim_root', 0x4e09a5: 'target node', 0x4e09b3: 'target offset',
+         0x4e09d7: 'centroid node', 0x4e09e5: 'centroid offset', 0x4e0a37: 'radar', 0x4e0a7b: 'display',
+         0x4e0abf: 'reticule_select', 0x4e0b04: 'zoom_select', 0x4e0b2f: 'height', 0x4e0bc0: 'health_below entry',
+         0x4e0bcc: 'health_below no valve'}
 CAP, LOGCAP = 1 << 22, 1 << 18
 
 
@@ -100,6 +105,18 @@ def port_aiv(files, names):
     r = probe.probe_aiv_run(str(path).encode(), arr, len(names), out, CAP, log, LOGCAP, ctypes.byref(nlog))
     if r < 0:
         raise SystemExit(f'probe_aiv_run: {r}')
+    return bytes(out[:r]), port_events(log, nlog.value)
+
+
+def port_targets(files):
+    path = WORK / 'targets.zbd'
+    path.write_bytes(archive(files))
+    out = (ctypes.c_uint8 * CAP)()
+    log = (ctypes.c_uint32 * LOGCAP)()
+    nlog = ctypes.c_int()
+    r = probe.probe_targets_run(str(path).encode(), out, CAP, log, LOGCAP, ctypes.byref(nlog))
+    if r < 0:
+        raise SystemExit(f'probe_targets_run: {r}')
     return bytes(out[:r]), port_events(log, nlog.value)
 
 
@@ -171,6 +188,35 @@ class Checker:
                 if mlog != plog:
                     j = first_diff(mlog, plog)
                     print('  log original', mlog[j:j + 4], 'port', plog[j:j + 4])
+
+
+    def compare(self, label, run, port):
+        self.cases += 1
+        try:
+            mine, mlog = run()
+        except Exception as e:  # the original crashed
+            self.fails += 1
+            print(f'CRASH {label}: {e}')
+            reached = self.emu.reached
+            self.emu = Emulated()
+            self.emu.cover(COVER)
+            self.emu.reached = reached
+            return
+        theirs, plog = port()
+        if mine != theirs or mlog != plog:
+            self.fails += 1
+            if self.fails <= 10:
+                i = first_diff(mine, theirs)
+                print(f'MISMATCH {label}: stream {len(mine)} vs {len(theirs)} bytes, first difference at {i}; '
+                      f'logs {len(mlog)} vs {len(plog)}')
+                print('  original', mine[max(0, i - 16):i + 32].hex())
+                print('  port    ', theirs[max(0, i - 16):i + 32].hex())
+                if mlog != plog:
+                    j = first_diff(mlog, plog)
+                    print('  log original', mlog[j:j + 4], 'port', plog[j:j + 4])
+
+    def targets(self, label, files):
+        self.compare(label, lambda: TargetsRun(self.emu).run(files), lambda: port_targets(files))
 
 
 def record_names(data):
@@ -362,6 +408,43 @@ def aiv_variants(rng):
     return out
 
 
+def shipped_targets(check):
+    count = 0
+    for path, files in mission_archives():
+        if 'targets.zrd' in files:
+            check.targets(f'{path.parent.name}/{path.name}/targets.zrd', {'targets.zrd': files['targets.zrd']})
+            count += 1
+    return count
+
+
+TARGET_PROPS = [
+    ['health', [35.0]], ['health', [20]], ['translate_to_anim_root', [1]], ['translate_to_anim_root', []],
+    ['destroy_anim', ['destroy_x']], ['destroy_anim', [0]], ['target', ['node_a']], ['target', ['node_b', [1.0, 2.0, 3.0]]],
+    ['target', [5, [4.0, 5.0, 6.0]]], ['centroid', ['node_c']], ['centroid', ['node_d', [7.0, 8, 9.5]]],
+    ['name', ['MSG_TARGET']], ['radar', [1]], ['radar', ['off']], ['radar', [0]], ['display', ['true']],
+    ['display', [2]], ['reticule_select', ['false']], ['zoom_select', [0]], ['zoom_select', ['bogus']],
+    ['height', [12.5]], ['height', [7]], ['height', ['x']],
+    ['health_below', ['hb_one', 1, 35.0, 'hb_two', 0, 0.0]], ['health_below', [0, 1, 2.0, 'hb_three', 1, 5.0]],
+    ['health_below', []],
+]
+
+
+def target_variants(rng):
+    out = []
+    for i, p in enumerate(TARGET_PROPS):
+        out.append((f'target prop {p[0]} {i}', [('t', [2] + p), ('u', [7] + p)]))
+    out.append(('target empty', [('t', []), ('u', [1])]))
+    for i in range(40):
+        recs = []
+        for k in range(rng.randrange(1, 5)):
+            props = []
+            for p in rng.sample(TARGET_PROPS, rng.randrange(0, 8)):
+                props += p
+            recs.append((f't{k}', [rng.randrange(0, 4)] + props))
+        out.append((f'target random {i}', recs))
+    return out
+
+
 def shipped(check):
     count = 0
     for path, files in mission_archives():
@@ -386,6 +469,8 @@ def main():
     print(f'shipped: {n} net and region files')
     n = shipped_aiv(check)
     print(f'shipped: {n} aiv.zrd files')
+    n = shipped_targets(check)
+    print(f'shipped: {n} targets.zrd files')
     vs = variants(rng)
     for label, files, steps in vs:
         check.nets(label, files, steps, ['node_01', 'node_04', 'missing'])
@@ -395,6 +480,10 @@ def main():
         names = [k for k, v in recs] + ['missing']
         check.aiv(label, {'aiv.zrd': aiv_file(recs)}, names)
     print(f'aiv variants: {len(avs)}')
+    tvs = target_variants(rng)
+    for label, recs in tvs:
+        check.targets(label, {'targets.zrd': aiv_file(recs)})
+    print(f'target variants: {len(tvs)}')
     missed = [v for a, v in COVER.items() if a not in check.emu.reached]
     if missed:
         raise SystemExit(f'not reached in the original: {missed}')

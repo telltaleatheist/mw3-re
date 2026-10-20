@@ -253,6 +253,20 @@ bool get_bool_int(Node* node, int32_t* out) {
   return false;
 }
 
+// Mech3.exe 1.2 @ 0x00556fe0. A Float is copied as raw bits; an int goes
+// through fild / fstp.
+bool get_float_value(Node* node, float* out) {
+  if (!node) return false;
+  if (node->type == List && node->list[0].i > 1) node = &node->list[1];
+  if (node->type == Float) {
+    std::memcpy(out, &node->f, 4);
+    return true;
+  }
+  if (node->type != Int) return false;
+  *out = static_cast<float>(node->i);
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00557030
 bool get_string_value(Node* node, const char** out) {
   if (!node || !out) return false;

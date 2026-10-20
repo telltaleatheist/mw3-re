@@ -424,4 +424,89 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
   return this;
 }
 
+// --- targets.zrd and traps.zrd ---------------------------------------------------
+
+namespace {
+RecordFile*& targets_slot() {
+  static RecordFile* f = new RecordFile("targets");  // 0x0060b608, 0x004e0810
+  return f;
+}
+RecordFile*& traps_slot() {
+  static RecordFile* f = new RecordFile("traps");  // 0x0060b630, 0x004e0710
+  return f;
+}
+}  // namespace
+
+RecordFile& targets_file() { return *targets_slot(); }
+RecordFile& traps_file() { return *traps_slot(); }
+
+void record_files_reset() {
+  for (RecordFile** slot : {&targets_slot(), &traps_slot()}) {
+    if ((*slot)->tree) (*slot)->unload();
+    const std::string base((*slot)->name, std::strlen((*slot)->name) - 4);
+    delete *slot;
+    *slot = new RecordFile(base.c_str());
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004e0890
+TargetRec::~TargetRec() { delete health_below; }
+
+// Mech3.exe 1.2 @ 0x004e08c0 (through 0x004e07e0, which returns the record or
+// none). The defaults first, the old list freed; a key's value that is not a
+// list is passed over (FIX (bug): the exe reads it as one).
+TargetRec* TargetRec::parse(zrdr::Node* value, const char* record) {
+  delete health_below;
+  kind = 2, name = nullptr, health = 100.0f, destroy_anim = target = centroid = nullptr;
+  for (int k = 0; k < 3; ++k) target_offset[k] = centroid_offset[k] = 0;
+  health_below = nullptr, height = 0, flags = 0x30;
+  if (!value) return nullptr;
+  if (value->type != zrdr::List) return this;  // FIX (bug)
+  if (value->list[0].i > 1) kind = static_cast<int32_t>(word(value->list[1]));
+  auto find = [&](const char* key) -> zrdr::Node* {
+    zrdr::Node* f = zrdr::find(value, key);
+    return f && f->type == zrdr::List ? f->list : nullptr;
+  };
+  zrdr::Node* f;
+  if ((f = find("health"))) flags |= 0x01, health = word_f(f[1]);
+  if (zrdr::find(value, "translate_to_anim_root")) flags |= 0x02;
+  if ((f = find("destroy_anim"))) destroy_anim = text(f[1]);
+  if ((f = find("target"))) {
+    if (f[1].type == zrdr::String) target = f[1].s;
+    if (f[0].i > 2) zrdr::get_vec3(&f[2], target_offset);
+  }
+  if ((f = find("centroid"))) {
+    if (f[1].type == zrdr::String) centroid = f[1].s;
+    if (f[0].i > 2) zrdr::get_vec3(&f[2], centroid_offset);
+  }
+  if ((f = find("name")) && text(f[1])) name = localize(f[1].s);
+  struct { const char* key; uint8_t bit; } kBools[] = {
+      {"radar", 0x04}, {"display", 0x08}, {"reticule_select", 0x10}, {"zoom_select", 0x20}};
+  for (const auto& b : kBools) {
+    int32_t v = 0;
+    if ((f = find(b.key)) && zrdr::get_bool_int(&f[1], &v))
+      flags = static_cast<uint8_t>((flags & ~b.bit) | (v == 1 ? b.bit : 0));
+  }
+  if (zrdr::Node* h = zrdr::find(value, "height")) zrdr::get_float_value(h, &height);
+  if ((f = find("health_below")) && f[0].i > 1) {
+    for (int32_t i = 1; i < f[0].i; i += 3) {
+      HealthBelow hb;
+      hb.valve = valve_get(text(f[i]));
+      hb.a = static_cast<int32_t>(word(f[i + 1]));
+      hb.health = word_f(f[i + 2]);
+      if (!hb.valve) {
+        const char* v = text(f[i]);
+        char msg[512];
+        std::snprintf(msg, sizeof msg, "%s: %s: could not find a valve named \"%s\"", record ? record : "(null)",
+                      "health_below", v ? v : "(null)");
+        report(0x200, 0x5ec, msg);
+        continue;
+      }
+      if (!health_below) health_below = new std::vector<HealthBelow>;  // 0x004d1f60
+      health_below->push_back(hb);                                      // 0x004d1f80
+    }
+  }
+  return this;
+}
+
 }  // namespace mech3::ai

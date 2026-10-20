@@ -169,9 +169,62 @@ void put_aiv_file(Out& o) {
   const AivFile& f = aiv_file();
   o.u(uint32_t(f.refs)), o.u(f.tree ? 1 : 0), o.u(uint32_t(f.first)), o.u(uint32_t(f.record_count()));
 }
+void put_target(Out& o, const TargetRec* r) {
+  if (!r) return o.u(0);
+  o.u(1);
+  o.u(uint32_t(r->kind)), o.s(r->name), o.f(r->health), o.s(r->destroy_anim), o.s(r->target), o.s(r->centroid);
+  for (float x : r->target_offset) o.f(x);
+  for (float x : r->centroid_offset) o.f(x);
+  if (!r->health_below) {
+    o.u(0xffffffffu);
+  } else {
+    o.u(static_cast<uint32_t>(r->health_below->size()));
+    for (const HealthBelow& h : *r->health_below) o.u(valve_token(h.valve)), o.u(uint32_t(h.a)), o.f(h.health);
+  }
+  o.f(r->height), o.u(r->flags);
+}
 }  // namespace
 
 extern "C" {
+
+// targets.zrd from `archive`: a reference taken, every record read by number
+// (-1 to the count) into one TargetRec, the reference dropped.
+int probe_targets_run(const char* archive, uint8_t* out, int cap, uint32_t* logbuf, int logcap, int* nlog) {
+  g_log.clear();
+  g_strings.clear();
+  g_strings.reserve(8192);
+  g_out = Out{};
+  set_hooks();
+  valves_clear();
+  record_files_reset();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  RecordFile& f = targets_file();
+  f.add_ref();
+  g_out.u(uint32_t(f.refs)), g_out.u(f.tree ? 1 : 0);
+  const int32_t n = f.record_count();
+  g_out.u(uint32_t(n));
+  {
+    TargetRec rec;
+    for (int32_t i = -1; i <= n; ++i) {
+      const char* name = nullptr;
+      zrdr::Node* value = f.record(i, &name);
+      g_out.s(name);
+      put_target(g_out, rec.parse(value, name));
+    }
+  }
+  f.release();
+  g_out.u(uint32_t(f.refs)), g_out.u(f.tree ? 1 : 0);
+  g_out.u(static_cast<uint32_t>(valves().size()));
+  for (const Valve* v : valves()) g_out.s(v->name);
+  zerr::set_sink(nullptr);
+  if (static_cast<int>(g_out.b.size()) > cap || static_cast<int>(g_log.size()) > logcap) return -101;
+  std::memcpy(out, g_out.b.data(), g_out.b.size());
+  std::memcpy(logbuf, g_log.data(), g_log.size() * 4);
+  *nlog = static_cast<int>(g_log.size());
+  return static_cast<int>(g_out.b.size());
+}
 
 // aiv.zrd from `archive`: a record made (aiv.zrd loaded), every record read by
 // number (-1 to the count), then each of `names` by name, the record dropped.

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "gamez/zreader/zreader.h"
 #include "mech3/zai_params.h"
@@ -88,6 +89,48 @@ class AivRecord : public AiParams {
 
   int32_t mech3_set = 0;   // +0xdc  a "mech3" tag was there
   int32_t mech3 = 0;       // +0xe0  its value != 0 (left as it was without the tag)
+};
+
+// targets.zrd (0x0060b608) and traps.zrd (0x0060b630, which no mission
+// ships): plain record files, vtable 0x005cd440 (0x004e0740).
+class RecordFile : public RdrFile {
+ public:
+  explicit RecordFile(const char* name) : RdrFile(name, 0x80, 0x64, 0, 1) {}
+};
+RecordFile& targets_file();
+RecordFile& traps_file();
+void record_files_reset();  // not original: the tests start from fresh objects
+
+// health_below ( "valve" count value ... ): 0x0c bytes each.
+struct HealthBelow {
+  Valve* valve = nullptr;
+  int32_t a = 0;     // the second item
+  float health = 0;  // the third: the valve is set when the health falls below it
+};
+
+// One targets.zrd record: a building or object the mission scores (0x3c bytes,
+// the defaults at 0x005e94e8, 0x004e0870). The names point into the reader
+// tree or the message table; they are not copied.
+struct TargetRec {
+  int32_t kind = 2;                   // +0x00  the first item
+  const char* name = nullptr;         // +0x04  localized
+  float health = 100.0f;              // +0x08
+  const char* destroy_anim = nullptr; // +0x0c
+  const char* target = nullptr;       // +0x10  the node that takes the damage
+  const char* centroid = nullptr;     // +0x14  the node the HUD aims at
+  float target_offset[3] = {};        // +0x18
+  float centroid_offset[3] = {};      // +0x24
+  std::vector<HealthBelow>* health_below = nullptr;  // +0x30  a 0x14-byte vector owner in the exe
+  float height = 0;                   // +0x34
+  // +0x38: 0x01 health given, 0x02 translate_to_anim_root, 0x04 radar,
+  // 0x08 display, 0x10 reticule_select, 0x20 zoom_select (both on by default).
+  uint8_t flags = 0x30;
+
+  TargetRec() = default;                       // 0x004e07d0
+  TargetRec(const TargetRec&) = delete;
+  TargetRec& operator=(const TargetRec&) = delete;
+  ~TargetRec();                                // 0x004e0890
+  TargetRec* parse(zrdr::Node* value, const char* record);  // 0x004e07e0 -> 0x004e08c0
 };
 
 }  // namespace mech3::ai
