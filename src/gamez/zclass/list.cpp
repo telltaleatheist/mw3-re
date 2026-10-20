@@ -346,7 +346,7 @@ int classes_reset() {
     p.capacity = 0, p.live = 0, p.free_head = -1;
   }
   scene_walk().pre = nullptr, scene_walk().post = nullptr;  // 0x004f7630(0), 0x004f7650(0)
-  std::memset(zbd_path(), 0, 4);                            // 0x004fe0f0
+  zbd_path()[0] = 0;                                        // 0x004fe0f0: the first byte
   return 0;  // [0x0060bf48] (0x004f8f70's periodic callback flag) has no port
 }
 

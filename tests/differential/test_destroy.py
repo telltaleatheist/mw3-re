@@ -79,12 +79,19 @@ class Emulated(G.Emulated):
         self.cpu.write(c.arg(0), s + b'\0')
         return len(s)
 
-    def load(self, path):
+    def load(self, path, name=None):
+        """The world read from `path`, remembered as `name` (short enough for
+        0x60bf50, so the re-read 0x4ff730 finds it again)."""
         cpu = self.cpu
         for a, v in ((IMMEDIATE, 1), (ENABLED, 1), (FRAME, 0), (EXPIRY, 0), (UPDATE_FRAME, 1), (FROZEN, 0)):
             cpu.u32(a, v)
-        out = self.read_zbd(path.read_bytes(), str(path).encode())
+        out = self.read_zbd(path.read_bytes(), (name or str(path)).encode())
+        cpu.stub_import(G.IAT_FOPEN, self.fopen)  # each open reads from the start
         return struct.unpack_from('<i', out)[0]
+
+    def fopen(self, c):
+        self.pos = 0
+        return G.HANDLE if self.open_ok else 0
 
     def blocks(self):
         i32 = self.i32
@@ -184,6 +191,24 @@ class Emulated(G.Emulated):
             p = self.i32(p + 8) & 0xffffffff
         return out
 
+    def record_model(self, index):
+        """The model index the file's record of this slot gives (-1 none)."""
+        size, off = struct.unpack_from('<ii', self.data, 0x18)[0], struct.unpack_from('<i', self.data, 0x20)[0]
+        if index >= size:
+            return -1
+        return struct.unpack_from('<i', self.data, off + index * 0xd4 + 0x3c)[0]
+
+    def subtree(self, index):
+        """The node's descendants by pool index (the node too)."""
+        out, todo = [], [index]
+        while todo:
+            k = todo.pop()
+            out.append(k)
+            a = self.node(k)
+            kids = self.i32(a + 0x60) & 0xffffffff
+            todo += [self.index(self.i32(kids + 4 * j) & 0xffffffff) for j in range(self.i32(a + 0x5c))]
+        return out
+
     def info(self, index):
         n = self.node(index)
         cls, data = self.i32(n + 0x34), self.i32(n + 0x38)
@@ -200,13 +225,14 @@ def compare(what, want, buf, n):
         raise SystemExit(f'{what}: original {len(want)} bytes, port {n}, first difference at {at}')
 
 
-def pick_op(rng, emu, worlds):
+def pick_op(rng, emu, worlds, made):
     """One random operation as (op, a, b, c) on the original's current nodes."""
     nodes = emu.listed()
     if not nodes:
         return 12, -1, -1, 0
     r = rng.random()
-    n = rng.choice(nodes)
+    live = [m for m in made if m in set(nodes)] if rng.random() < 0.4 else []
+    n = rng.choice(live or nodes)  # the run-time nodes often, the file's the rest
     cls, parents, children, model, data = emu.info(n)
     if r < 0.18:
         parent = -1
@@ -235,8 +261,15 @@ def pick_op(rng, emu, worlds):
         other = emu.info(rng.choice(nodes))[3]
         if other:
             return 14, n, (other - (emu.i32(G.POOL) & 0xffffffff)) // 0x60, 0
-    if r < 0.52:  # the file's model again (0x4ff730), its tree too
-        return 15, n, rng.randrange(2), 0
+    # The file's model again (0x4ff730): only for the file's own nodes (a
+    # run-time one's slot reads a free record, and its index sends the exe
+    # through garbage), its tree too when all of it is the file's. A node the
+    # file gives no model (-1) re-reads the 0x60 bytes before the model table
+    # as one (a garbage read in the exe): only nodes with models.
+    if r < 0.52 and n not in made and emu.record_model(n) >= 0:
+        tree = emu.subtree(n)
+        whole = not any(k in made or emu.record_model(k) < 0 for k in tree)
+        return 15, n, int(whole and rng.random() < 0.5), 0
     if cls == 0:
         return 0, n, 0, 0  # an unknown class: 3, reported when deletes are immediate
     # The bare release and free skip the class's own delete: a light or sound
@@ -250,14 +283,16 @@ def pick_op(rng, emu, worlds):
 
 def main():
     emu = Emulated()
+    os.chdir(G.ZBD.parent)  # the worlds by their short names, as the game reads them
     buf = ctypes.create_string_buffer(64 << 20)
     seed = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     total_ops = calls = 0
     worlds = os.environ.get('DESTROY_WORLDS', ','.join(G.WORLDS)).split(',')  # a break test runs one
     for wi, w in enumerate(worlds):
         path = G.ZBD / w / 'gamez.zbd'
-        want = emu.load(path)
-        got = probe.probe_destroy_load(str(path).encode())
+        name = f'zbd/{w}/gamez.zbd'  # short enough to be remembered for the re-read
+        want = emu.load(path, name)
+        got = probe.probe_destroy_load(name.encode())
         if want != got:
             raise SystemExit(f'{w}: read_zbd {want} vs {got}')
         compare(f'{w} after the read', emu.dump(1), buf, probe.probe_destroy_dump(1, buf, len(buf)))
@@ -275,8 +310,9 @@ def main():
                 ops.append((rng.choice((9, 10)), rng.choice(worlds), -1, 0))
         steps = 0
         history = []
+        made = []
         for step in range(520):
-            op = ops[step] if step < len(ops) else pick_op(rng, emu, worlds)
+            op = ops[step] if step < len(ops) else pick_op(rng, emu, worlds, made)
             if step == 500:
                 op = (12, -1, -1, 0)  # the shutdown pass on what is left
             elif step == 510:
@@ -294,6 +330,8 @@ def main():
             compare(f'{w} step {step} {NAMES[op[0]]}{op[1:]}', emu.dump(pool), buf,
                     probe.probe_destroy_dump(int(pool), buf, len(buf)))
             steps += 1
+            if op[0] in (8, 9, 10) and want >= 0:
+                made.append(want)
         live = struct.unpack_from('<i', emu.dump(0), 4)[0]
         print(f'{w}: {steps} calls identical (the node pool, the lists, the deferred deletes, the models); '
               f'{live} nodes left after the reset')
