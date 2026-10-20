@@ -330,20 +330,54 @@ void AxisPopupState::apply(float scale, float offset) {
 }
 
 // Mech3.exe 1.2 @ 0x0042f230 (its name copied from the axis popup's)
-LoadSavePopupState::LoadSavePopupState(Engine& e, Handle addr) : MenuState("Assign Axis Popup State", addr) {
-  screen_ = e.construct(0x42e890, {addr});  // new(0x11cd4), LOAD_SAVE_POPUP: not ported
+LoadSavePopupState::LoadSavePopupState(Engine& e, Handle addr)
+    : MenuState("Assign Axis Popup State", addr), e_(e) {
+  popup = new LoadSavePopupScreen(e, addr);  // new(0x11cd4)
+  popup->owner = this;
+  screen_ = e.adopt_screen(popup, 0x11cd4);
+  if (!screen_) {  // no engine to own it: this state does
+    delete popup;
+    popup = nullptr;
+  }
 }
 
-// Mech3.exe 1.2 @ 0x0042f2b0: the file list and the edit bar filled, not ported.
+LoadSavePopupState::~LoadSavePopupState() {
+  if (screen_) e_.vcall(screen_, 0x08, {1});
+  screen_ = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0042f2b0
 bool LoadSavePopupState::enter() {
-  e().unported("0x0042f2b0", {addr()});
+  prepare();
   return ShellState::enter();
+}
+
+void LoadSavePopupState::prepare() {
+  if (!popup) return;
+  popup->save = save;
+  zimg::Texture* g = ztwod::host().screen_grab(2);
+  popup->grab = g;
+  if (g) popup->backdrop.set_image(g);
+  popup->bar.set_text(file_part(e_.active_ctl_cfg()).c_str());
+  popup->fill();
 }
 
 // Mech3.exe 1.2 @ 0x0042f340
 void LoadSavePopupState::leave() {
   ShellState::leave();
-  e().unported("0x0042f340", {addr()});
+  finish();
+}
+
+// Mech3.exe 1.2 @ 0x0042f380
+void LoadSavePopupState::apply(const char* name, uint8_t to_file) {
+  if (owner) owner->load_save(name, to_file != 0);
+}
+
+void LoadSavePopupState::finish() {
+  if (!popup || !popup->grab) return;
+  ztwod::host().texture_free(popup->grab);
+  popup->grab = nullptr;
+  popup->backdrop.set_image(static_cast<zimg::Texture*>(nullptr));
 }
 
 // ---- the screen ----
@@ -854,6 +888,72 @@ void AxisPopupScreen::OkButton::on_left_up() {
   const float offset = (v * k) * -1.0f;
   if (s->owner) s->owner->apply(k, offset);
   s->state_escape();
+}
+
+// ---- the load/save popup ----
+
+// Mech3.exe 1.2 @ 0x0042e890
+LoadSavePopupScreen::LoadSavePopupScreen(Engine& e, Handle s)
+    : MenuScreen(e, s), ok(e), cancel(e), bar(e), files(e) {
+  if (load("dlgOptions.zrd", "LOAD_SAVE_POPUP", true)) {
+    add(&backdrop);
+    bind_primitive(&box, "LOAD_BOX");
+    bind_button(&ok, "MB_OK");
+    bind_button(&cancel, "MB_CANCEL");
+    bind_button(&bar, "EDITBAR");
+    bind_button(&files, "FILELIST");
+    unload();
+  }
+  set_flags_all(0);
+}
+
+// Mech3.exe 1.2 @ 0x0042eff0
+void LoadSavePopupScreen::fill() {
+  files.clear_items();
+  files.layout();
+  int32_t n = 0;
+  for (const std::string& name : engine().list_files("keys\\*.zrd")) files.add_item(file_part(name.c_str()).c_str(), n++);
+}
+
+// Mech3.exe 1.2 @ 0x0042f160
+void LoadSavePopupScreen::OkButton::on_left_up() {
+  auto* s = dynamic_cast<LoadSavePopupScreen*>(dialog);
+  if (!s) return;
+  const uint8_t save = s->save;
+  const char* name = s->bar.get_text();
+  if (s->owner) s->owner->apply(name, save);
+  s->state_escape();
+}
+
+// The bar's constructor inline in 0x0042e890: what a file name cannot hold
+// refused, 20 bytes (19 characters).
+LoadSavePopupScreen::NameBar::NameBar(Engine& e) : ShellEditBar(e) {
+  editor.set_reject(":|\\<>/?\"*");
+  set_size(0x14);
+  set_focus(0);
+}
+
+// Mech3.exe 1.2 @ 0x0042f1b0
+void LoadSavePopupScreen::NameBar::on_left_up() {
+  active = 1;
+  set_focus(1);
+}
+
+// Mech3.exe 1.2 @ 0x0042f1a0
+void LoadSavePopupScreen::NameBar::on_return() {
+  active = 0;
+  set_focus(0);
+}
+void LoadSavePopupScreen::NameBar::on_cancel() { on_return(); }
+
+// Mech3.exe 1.2 @ 0x0042f1c0: the dialog's bar (+0x115c4 of the list's owner)
+// takes the chosen name, or none.
+void LoadSavePopupScreen::Files::select(int32_t index) {
+  FileList::select(index);
+  auto* s = dynamic_cast<LoadSavePopupScreen*>(owner);
+  if (!s) return;
+  if (index >= 0 && index < item_count()) s->bar.set_text(items[static_cast<size_t>(index)]->text);
+  else s->bar.set_text(nullptr);
 }
 
 }  // namespace mech3

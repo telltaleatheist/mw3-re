@@ -240,6 +240,11 @@ class Original:
         e.import_stub(IAT['sprintf'], '@sprintf', 's0,s1', 0, sprintf)
         e.import_stub(IAT['_mkdir'], '@_mkdir', 's0', 0, lambda emu, key, a, pop: emu._ret(0, 0))
 
+        def copy_rect(emu, key, a, pop):  # the load/save popup's file list (built with the screen)
+            emu.cpu.write(a[0], emu.cpu.read(a[1], 16))
+            emu._ret(1, 8)
+        e.import_stub(IAT['CopyRect'], '@CopyRect', 's0,s1', 8, copy_rect)
+
         def split(emu, key, a, pop):
             parts = splitpath(emu.cstr(a[0]))
             for buf, s in zip(a[1:], parts):
@@ -253,7 +258,7 @@ class Original:
                  0x51d200: 'c', 0x51d210: 'c', 0x51d220: 'c', 0x51d230: 'c', 0x51d240: 'c', 0x51d250: 'c',
                  0x51d260: 'c', 0x51d270: 'c', 0x51d280: 'c,d', 0x51d290: 'c,d', 0x51d2a0: 'c,d', 0x51d2b0: 'c,d',
                  0x51d1c0: '', 0x51dc10: '', 0x411150: '', 0x410f80: '', 0x410fa0: 'c', 0x410fb0: 'c',
-                 0x410fd0: 'c,d', 0x4120a0: 'zc', 0x411e60: 'zc', 0x40d070: 'c', 0x42e890: 's0'}
+                 0x410fd0: 'c,d', 0x4120a0: 'zc', 0x411e60: 'zc', 0x40d070: 'c'}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)
         e.stub(0x48ebf0, '@shell_enter', 'c')
@@ -307,7 +312,7 @@ class Original:
             '0x00576040': lambda rr, k, a: 0 if 0x100 <= a[0] < 0x200 and rr.random() < 0.2
             else e.world_string(f'M{a[0]:x}'),
             '0x004ac150': lambda rr, k, a: rr.choice([1, 1, 2, 6]),
-            '0x00590400': 0, '0x005905a0': 0, '0x00558290': 0, '0x00558dd0': 0, '0x0042e890': 0,
+            '0x00590400': 0, '0x005905a0': 0, '0x00558290': 0, '0x00558dd0': 0,
             '0x0051aa00': lambda rr, k, a: rr.choice([0] * 7 + [1, 0x1c, 0x2a, 0x11e, 0x210]),
             '0x0051dd20': lambda rr, k, a: rr.choice([0] * 6 + [1, 4, 10]),
             '0x0051baf0': lambda rr, k, a: rr.choice([0] * 6 + [1, 2, 3]),

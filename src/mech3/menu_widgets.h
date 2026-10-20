@@ -235,4 +235,140 @@ class LevelCycle : public CycleButton {
   void after_bind() override;        // 0x00438f10
 };
 
+// ---- the file list (docs/menus.md, The file list) ----
+// The list of names the controls' load/save popup, the pilot screen, the mech
+// lab and the pause screen pick from. Original file unknown: 0x0048bfe0..
+// 0x0048d770 and 0x0048e4e0..0x0048e630, between mech3\mech_waynet.cpp and
+// mech3\mission.cpp, by the cycle button.
+
+class FileList;
+
+// A row (vtable 0x005c5c48), 0x4d8 bytes: a Text showing an item, with an
+// object that hears its rollover (+0x4cc; none in the popup).
+class FileRow : public ztwod::Text {
+ public:
+  FileRow(FileList* list, Handle font);  // 0x0048bfe0
+  void update(float dt) override;    // +0x24  0x0048c070
+  ztwod::Rect* get_rect() override { return &fixed_rect; }  // +0x2c  0x0048e540
+  void on_left_up() override;        // +0x30  0x0048e520: the list's +0x98 with its index
+  void on_enter() override;          // +0x3c  0x0048e550
+  void on_leave() override;          // +0x40  0x0048e560
+  void flash(bool on, Handle font);  // 0x0048c0b0: in the font's colour, or back
+
+  ztwod::Object2D* attached = nullptr;  // +0x4cc
+  int32_t index = 0;                 // +0x4d0  the item shown (not set by the constructor)
+  FileList* list;                    // +0x4d4
+};
+
+// UP and DOWN (vtables 0x005c5e30, 0x005c5da0), 0x15c bytes: a press scrolls
+// the list a row, enabled or not (the list asks first).
+class FileListArrow : public ShellButton {
+ public:
+  FileListArrow(Engine& e, FileList* l, int32_t step) : ShellButton(e, -1), list(l), by(step) {}
+  void on_left_up() override;        // +0x30  0x0048e4e0 (up, -1), 0x0048e500 (down, +1)
+  void after_bind() override { flags &= ztwod::kHidden; }  // +0x88  0x00456800
+
+  FileList* list;                    // +0x158
+  int32_t by;                        // which of the two (the vtable in the original)
+};
+
+// The list (vtable 0x005c5cf8), 0x200 bytes: SIZE rows of the items from the
+// one at `top`, the selected one shown in its own row and font over a BAR
+// image, ITEMROLLOVER's image under the row the mouse is on; UP and DOWN
+// scroll, repeating while held. The game adds the items.
+class FileList : public ShellButton {
+ public:
+  struct Item {                      // 8 bytes, new'd (freed by 0x0044ed90)
+    char* text;                      // +0x00  _strdup'd
+    int32_t value;                   // +0x04
+  };
+  FileList(Engine& e, int32_t id);   // 0x0048c0e0
+  ~FileList() override;              // 0x0048c250 (deleting 0x0048c230)
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0048d2c0
+  void update(float dt) override;    // +0x24  0x0048c910
+  ztwod::Rect* get_rect() override { return nullptr; }  // +0x2c  0x004d72a0
+  void on_left_up() override;        // +0x30  0x0048d6a0
+  void on_right_up() override;       // +0x34  0x0048d750
+  void on_enter() override;          // +0x3c  0x0048d4a0
+  void on_leave() override;          // +0x40  0x0048d4c0
+  void on_drag(int32_t px, int32_t py) override;  // +0x4c  0x0048d3e0: the row under the mouse lit
+  int32_t hit(int32_t px, int32_t py) override;   // +0x5c  0x0048d210
+  void show_for(float seconds) override;  // +0x60  0x0048c880
+  void hide() override;              // +0x64  0x0048c8c0
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0048c410
+  void after_bind() override;        // +0x88  0x0048c7f0
+  virtual bool can_light(int32_t) { return true; }      // +0x90  0x0040bad0
+  virtual bool can_choose(int32_t) { return true; }     // +0x94  0x0040bad0 (asked by nothing here)
+  virtual void select(int32_t index);  // +0x98  0x0048d0d0: -1 none; scrolled into view
+  virtual bool can_roll(int32_t) { return true; }       // +0x9c  0x0040bad0: the rollover image
+  virtual void set_row_font(int32_t index, Handle font);  // +0xa0  0x0048d1c0
+  virtual void layout();             // +0xa4  0x0048cda0
+
+  int32_t add_item(const char* text, int32_t value);  // 0x0042fbf0: the old count
+  void clear_items();                // the inline frees of 0x0048c250 and 0x0042eff0
+  void select_index(int32_t index) { select(index); }  // 0x0048d0c0
+  void scroll(int32_t by);           // 0x0048d160: top within 0..items
+  void place_at(ztwod::Image* o);    // 0x0048d2f0: at o, the rectangle its image's
+  void set_rows(int32_t n);          // 0x0048d770
+  FileRow* row_at(int32_t px, int32_t py);  // 0x0048d540
+  FileRow* row_under_mouse();        // 0x0048d500: at the dialog's cursor
+  bool over_up(int32_t px, int32_t py);    // 0x0048d600: shown and enabled
+  bool over_down(int32_t px, int32_t py);  // 0x0048d650
+  void stop_sound(int32_t i);        // 0x0048d380
+  void play_sound(int32_t i, float volume);  // 0x0048d3b0
+  int32_t item_count() const { return static_cast<int32_t>(items.size()); }
+
+  // +0x158 the vector's allocator byte (the constructor stores its id's low byte)
+  std::vector<Item*> items;          // +0x15c
+  std::vector<FileRow*> rows;        // +0x16c  (+0x168 its allocator byte)
+  FileRow* selected_row = nullptr;   // +0x178  SELECTED_FONT
+  int32_t selected = -1;             // +0x17c
+  int32_t top = 0;                   // +0x180  the first item shown
+  int32_t size = 8;                  // +0x184  SIZE: rows
+  ztwod::Rect rect;                  // +0x188  where the rows are (hit)
+  int32_t spacing_x = 0, spacing_y = 12;  // +0x198  SPACING (x for every row, y a row)
+  int32_t offset_x = 0, offset_y = 0;     // +0x1a0  OFFSET: the first row from the button
+  Handle font_normal = 0;            // +0x1a8  NORMAL_FONT
+  Handle font_selected = 0;          // +0x1ac  SELECTED_FONT, else NORMAL_FONT
+  Handle font_rollover = 0;          // +0x1b0  FONT (with ITEMROLLOVER)
+  int32_t bar_dx = 0, bar_dy = 0;    // +0x1b4  BAR's OFFSET from the selected row
+  int32_t roll_dx = 0, roll_dy = 0;  // +0x1bc  ITEMROLLOVER's
+  ztwod::Image* roll_image = nullptr;  // +0x1c4  ITEMROLLOVER's BITMAP
+  ztwod::Image* bar_image = nullptr;   // +0x1c8  BAR's BITMAP
+  int32_t sounds[2] = {};            // +0x1cc  ROLLOVER_SOUND, SELECT_SOUND (played: none)
+  int32_t playing[2] = {};           // +0x1d4
+  int32_t arrow_lit = 0;             // +0x1dc  1 UP, 2 DOWN under the mouse
+  FileListArrow* up = nullptr;       // +0x1e0  UP
+  FileListArrow* down = nullptr;     // +0x1e4  DOWN
+  uint8_t inside = 0;                // +0x1e8
+  FileRow* lit = nullptr;            // +0x1ec  the row under the mouse
+  float repeat_timer = 0.5f;         // +0x1f0
+  float repeat_delay = 0.5f;         // +0x1f4  before an arrow held repeats
+  float repeat_rate = 0.15f;         // +0x1f8  then a step each
+  uint8_t repeating = 0;             // +0x1fc
+  uint8_t no_repeat = 0;             // +0x1fd  (nothing sets it)
+};
+
+// An edit bar of the game's screens (the controls file's, the pilot's, the
+// mech lab's): its first label follows the bar (0x0048b1d0, 0x0048b220;
+// destructor 0x00487860 / 0x00487870, between mech3\mech_waynet.cpp and
+// mech3\mission.cpp), and while it reads its entry it has no rectangle
+// unless FastMenu (0x0042f860, 0x0042f890, with the controls screen).
+class ShellEditBar : public ztwod::EditBar {
+ public:
+  explicit ShellEditBar(Engine& e) : e_(e) {}
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0048b220
+  ztwod::Rect* get_rect() override;  // +0x2c  0x0042f890
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0042f860
+  void after_bind() override;        // +0x88  0x0048b1d0: the label's place kept
+
+  // +0x380: the first label's place after binding; set_pos adds it to the new
+  // place (an absolute place, so a moved bar's label lands that much further).
+  int32_t label_x = 0, label_y = 0;
+  uint8_t reading = 0;               // +0x388  set while reading, unless FastMenu
+
+ protected:
+  Engine& e_;
+};
+
 }  // namespace mech3

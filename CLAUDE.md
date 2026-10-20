@@ -278,8 +278,11 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       emulator-checked on every shipped dialog (`test_twod.py`,
       `test_twod_msgbox.py`, `test_twod_blit.py`); the main menu and the
       shared menu pieces (`mech3/mainmenu`, `menu_widgets`,
-      `test_mainmenu.py`). Left: the HUD primitives, an SDL3 Host, the
-      ripple draw 0x558dd0 and the screens the menu opens (twod.md 9).
+      `test_mainmenu.py`); the options, graphics, controls and credits
+      screens, the edit bar, the file list and the controls load/save box
+      (`docs/menus.md`). Left: the HUD primitives, an SDL3 Host, the
+      ripple draw 0x558dd0, the pilot screen and the campaign, Instant
+      Action, training and multiplayer screens (menus.md, Left).
 - [x] Mission animations: reader, post-load pass 0x50ae60 and the runtime
       (every shipped event type, instances, reset/start/stop, the action
       lists) ported and emulator-checked frame by frame on all six missions

@@ -103,6 +103,12 @@ class Host : public zgame::Unported {
   virtual const char* message(const char* key);                       // 0x00575fb0: ECX key
   virtual MouseState mouse();                                         // 0x0051b7b0
   virtual void input_reset();                                         // 0x0051b1c0
+  // 0x0051a9a0 (ECX, EDX): zInput's text callback, null to clear. Ported:
+  // zin::set_char_callback.
+  virtual void set_char_callback(void (*cb)(int32_t ch, int32_t key, uintptr_t ctx), uintptr_t ctx);
+  // zRender's 2D line (0x00562940: ECX x0, EDX y0; x1, y1, the pixel) into the
+  // locked buffer. Ported: zrndr::line16 into zrndr::target2d().
+  virtual void line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel);
 
   // GDI32 / USER32 (FIX (A), above), argument for argument.
   virtual Handle GetStockObject(int32_t which);

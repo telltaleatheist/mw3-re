@@ -99,8 +99,8 @@ template <int N>
 void cmd_cb(int32_t cmd) { g_cb(kCmdCb, N, cmd, nullptr, nullptr); }
 const zin::CommandCallback kCmd[8] = {cmd_cb<0>, cmd_cb<1>, cmd_cb<2>, cmd_cb<3>,
                                       cmd_cb<4>, cmd_cb<5>, cmd_cb<6>, cmd_cb<7>};
-void char0(int32_t ch, int32_t key, uint32_t ctx) {
-  uint32_t io[1] = {ctx};
+void char0(int32_t ch, int32_t key, uintptr_t ctx) {
+  uint32_t io[1] = {static_cast<uint32_t>(ctx)};
   g_cb(kCharCb, ch, key, nullptr, io);
 }
 
@@ -216,7 +216,7 @@ int32_t zin_dump(uint32_t* o) {
   *p++ = s.pressed_capacity;
   *p++ = s.modifiers;
   *p++ = s.char_callback ? 1 : 0;
-  *p++ = s.char_ctx;
+  *p++ = static_cast<uint32_t>(s.char_ctx);
   for (const zin::KeySlot& k : s.keys) *p++ = k.state, *p++ = k.callback ? 1 : 0;
   for (uint32_t i = 0; i < s.event_count && i < s.events.size(); ++i) *p++ = s.events[i].ofs, *p++ = s.events[i].data;
   *p++ = s.joy_ready;

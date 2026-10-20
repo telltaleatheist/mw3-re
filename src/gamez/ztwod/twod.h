@@ -316,6 +316,10 @@ class FontText : public TextBase {
   virtual void render();             // +0xac  0x005a0790
 
   void delete_font();                // 0x005a0610
+  // 0x005a0e20: DrawTextA's box (DT_CALCRECT) of the first n characters into
+  // r (its left and top in); n < 1 measures "W" and keeps the width 0. False
+  // when no DC or DrawTextA fails, or n is past the text.
+  bool measure_prefix(int32_t n, Rect* r);
   int32_t text_height();             // 0x005a1380: height - leading
   const char* rendered_text();       // 0x005a10b0: the text the image holds, rendered first
  protected:
@@ -488,6 +492,122 @@ class Ripple : public Object2D {
   // +0x04 (0x005a5360) draws it once for each view of the render overlay layer
   // it belongs to (0x005a4590, not ported); the menus call +0x7c directly.
   virtual void draw_ripple();        // +0x7c  0x005a5440
+};
+
+// ---- the edit bar (0x005a3830..0x005a3a40, 0x005a46a0..0x005a5340; docs/twod.md, The edit bar) ----
+
+// A line of text being typed (vtable 0x005d0330), 0x114 bytes: the buffer, the
+// cursor, characters refused outright, and what each character does
+// (`keys`: 1 insert, 2 nothing, 3 Escape, 4 Enter, 5 Backspace, 6 Delete,
+// 7 left, 8 right, 9 home, 10 end; zInput's keypad codes 1, 2, 4, 6, 0x7f).
+// The interp console's line (0x005a4660..0x005a4690) is one too.
+class LineEditor {
+ public:
+  explicit LineEditor(int32_t size);  // 0x005a46a0
+  virtual ~LineEditor();             // 0x005a4720 (not a slot: its owner destroys it in place)
+  virtual void on_reject(int32_t) {}  // +0x00  0x004bf620
+  virtual void insert(int32_t ch);   // +0x04  0x005a49a0: at the cursor; on_full when full
+  virtual void on_control(int32_t) {}  // +0x08  0x004bf620
+  virtual void on_enter() {}         // +0x0c  0x005ac5c0
+  virtual void on_escape() {}        // +0x10  0x005ac5c0
+  virtual void backspace();          // +0x14  0x005a49f0
+  virtual void del();                // +0x18  0x005a4a10
+  virtual void left();               // +0x1c  0x005a4a20
+  virtual void right();              // +0x20  0x005a4a30
+  virtual void home() { cursor = 0; }  // +0x24  0x005a4a50
+  virtual void end();                // +0x28  0x005a4a60
+  virtual void on_full() {}          // +0x2c  0x005ac5c0
+
+  int32_t key(int32_t ch);           // 0x005a4880: its action (0 refused)
+  void set_reject(const char* chars);  // 0x005a4840: _strdup'd, null: none
+  void resize(int32_t n);            // 0x005a4740
+  void set_text(const char* s);      // 0x005a47b0: cut to the buffer, the cursor kept inside
+  const char* text() const { return buf; }  // 0x005a47f0
+  void set_cursor(int32_t pos);      // 0x005a4800: past the end goes to the end
+  bool open_gap(int32_t n, int32_t at);   // 0x005a4a80: false when it would not fit
+  void close_gap(int32_t n, int32_t at);  // 0x005a4ad0
+
+  char* reject = nullptr;            // +0x04
+  char* buf = nullptr;               // +0x08
+  int32_t size = 0;                  // +0x0c  bytes, the terminator included
+  int32_t cursor = 0;                // +0x10
+  int8_t keys[256] = {};             // +0x14
+};
+
+// Lines through points (vtable 0x005cfff0), 0xec bytes: the HUD's polylines
+// (not ported) and the edit bar's caret. Each draw erases, then joins the
+// points in order with zRender's 2D line (0x00562940, Host::line).
+class PolyLine : public Object2D {
+ public:
+  PolyLine();                        // 0x005a3830
+  void draw() override;              // +0x04  0x005a38f0
+  void set_point(int32_t i, int32_t px, int32_t py);  // 0x005a38a0: point 0 moves the object
+
+  int32_t pts[21][2] = {};           // +0x34
+  int32_t count = 0;                 // +0xdc
+  uint32_t color = 0;                // +0xe0  a pixel (not set by the constructor)
+  // +0xe4 a zRender draw list (0x00562cb0) and +0xe8 a transformed flag
+  // (0x005a3580): the HUD's, zero here; their paths are not ported.
+  Handle draw_list = 0;              // +0xe4
+  uint8_t transformed = 0;           // +0xe8
+};
+
+// The edit bar's caret (vtable 0x005d0360), 0x10c bytes: an I-beam of 13
+// points, blinking when `blink` is set (never, here).
+class Caret : public PolyLine {
+ public:
+  Caret();                           // 0x005a4b10
+  void update(float dt) override;    // +0x24  0x005a4c90: drawn every frame it shows
+  void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x005a4cf0
+
+  int32_t cx = 0, cy = 0;            // +0xec
+  int32_t cw = 1, ch = 10;           // +0xf4
+  int32_t blink = 0;                 // +0xfc
+  float period = 0.35f;              // +0x100
+  float blink_timer = 0.0f;          // +0x104
+  int32_t phase = 1;                 // +0x108  1 shown, -1 not
+};
+
+class EditBar;
+
+// The bar's line (vtable 0x005d0478): Enter and Escape go to the bar.
+class BarEditor : public LineEditor {
+ public:
+  explicit BarEditor(int32_t n) : LineEditor(n) {}
+  void on_enter() override;          // +0x0c  0x005a5320: the bar's +0x90
+  void on_escape() override;         // +0x10  0x005a5340: the bar's +0x94
+  EditBar* bar = nullptr;            // +0x114
+};
+
+// A text field (vtable 0x005d03e0), 0x380 bytes: a button whose first LABEL
+// shows the line being typed. While it has the focus zInput's text callback
+// (0x0051a9a0) sends it every character typed, and the caret stands after
+// the cursor's character.
+class EditBar : public Control {
+ public:
+  EditBar();                         // 0x005a4ec0
+  ~EditBar() override;               // 0x005a4fb0 (deleting 0x005a4f80): the focus given up
+  void update(float dt) override;    // +0x24  0x005a50e0
+  void on_left_up() override;        // +0x30  0x005a50d0
+  // +0x8c 0x005a5040: a typed character (and its key code); numeric bars take
+  // only "0123456789.-" and the editing keys.
+  virtual void on_char(int32_t ch, int32_t key);
+  virtual void on_return() {}        // +0x90  0x0049bfd0: Enter
+  virtual void on_cancel() {}        // +0x94  0x0049bfd0: Escape
+
+  // 0x005a5020: zInput's text callback (ECX the character, EDX its key code).
+  static void char_callback(int32_t ch, int32_t key, uintptr_t bar);
+  void set_focus(uint8_t on);        // 0x005a5090: the callback set or cleared on a change
+  void set_size(int32_t n) { editor.resize(n); }  // 0x005a5280
+  void set_text(const char* s);      // 0x005a52a0: the cursor at its end
+  const char* get_text() const { return editor.text(); }  // 0x005a5310
+
+  BarEditor editor{0x200};           // +0x14c
+  Caret caret;                       // +0x264
+  int32_t caret_w = 0;               // +0x370
+  uint8_t focus = 0;                 // +0x374
+  int32_t clicked = 1;               // +0x378  set by a click, read by nothing
+  uint8_t numeric = 0;               // +0x37c
 };
 
 // A font of a dialog's FONTS list (Dialog +0x1d38), 0x24 bytes.

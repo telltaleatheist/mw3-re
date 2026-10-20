@@ -29,7 +29,7 @@ struct Host {
 };
 
 using KeyCallback = void (*)(int32_t key);                         // ECX = the key code
-using CharCallback = void (*)(int32_t ch, int32_t key, uint32_t ctx);
+using CharCallback = void (*)(int32_t ch, int32_t key, uintptr_t ctx);  // EDX the key code, the context on the stack
 using CommandCallback = void (*)(int32_t command);                 // ECX = the command
 
 constexpr int kKeys = 0x7de;           // key codes: DIK code | 0x100 Alt | 0x200 Ctrl | 0x400 Shift
@@ -98,7 +98,7 @@ struct State {
   uint32_t modifiers = 0;              // 0x006385a8
   KeySlot keys[kKeys];                 // 0x006385ac
   CharCallback char_callback = nullptr;  // 0x0063c49c
-  uint32_t char_ctx = 0;               // 0x0063c4a0
+  uintptr_t char_ctx = 0;              // 0x0063c4a0
 
   // Joystick.
   uint32_t joy_ready = 0;              // 0x0063c4a4
@@ -164,7 +164,7 @@ uint32_t kbd_close();                    // 0x0051a290
 void kbd_reset();                      // 0x0051a300
 void kbd_age();                        // 0x0051a550
 void kbd_read(bool callbacks);         // 0x0051a5d0
-void set_char_callback(CharCallback cb, uint32_t ctx);  // 0x0051a9a0
+void set_char_callback(CharCallback cb, uintptr_t ctx);  // 0x0051a9a0
 uint32_t key_state(int32_t key);       // 0x0051a9b0
 int32_t set_key_callback(int32_t key, KeyCallback cb);  // 0x0051a9c0: -1 when one is set
 void clear_key_callbacks();            // 0x0051a9e0

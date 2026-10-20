@@ -16,6 +16,7 @@
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msg.h"
+#include "gamez/zutil/zutl_path.h"
 #include "mech3/music.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
@@ -74,6 +75,7 @@ int32_t Engine::controls_group_command(int32_t g, int32_t i) { return mech3::con
 void Engine::controls_read(const char* path) { mech3::controls_load(path); }
 void Engine::controls_write(const char* path) { mech3::controls_save(path); }
 char* Engine::active_ctl_cfg() { return mech3::options().active_ctl_cfg; }
+std::vector<std::string> Engine::list_files(const char* pattern) { return zutl::list(pattern); }
 
 void Engine::format_key(char* out, uint32_t addr) { std::snprintf(out, 16, "0x%08x", addr); }
 

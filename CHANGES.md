@@ -110,6 +110,9 @@ unusual happens.
   Shift no longer corrupts the game's input memory.
 - A damaged or hand-edited saved loadout (`configs\<mech>.mw3`) can no longer
   hang the load or crash it.
+- A controls profile with a `%` in its file name shows its name in the load
+  and save list instead of garbage (or a crash), and an empty list's
+  clickable area is empty instead of whatever was left in memory.
 - A damaged archive or script file is stopped at its end instead of making
   the game read or allocate gigabytes.
 - Rare random rolls in equipment critical hits no longer crash.
@@ -181,6 +184,10 @@ These change how the game talks to the computer, not how it plays.
 - A developer's leftover debug message ("haha", whenever an object named
   blackhawk_01 has its bounds rebuilt) is not printed. The 1999 game had no
   console to show it in; the rebuild would print it to the terminal.
+- The controls' load and save list shows the profiles in your save folder
+  (and any in the game folders) instead of asking Windows for the game
+  folder's `keys` files, in alphabetical order as Windows lists an NTFS
+  folder.
 
 - The main menu's crawling background, sliding MECH3 logo and the ripples
   around its buttons move at the same speed at any frame rate (the 30 fps

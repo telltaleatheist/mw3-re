@@ -5,11 +5,12 @@ Mech3.exe 1.2, 2026-10-20. The main menu's OPTIONS and CREDITS buttons
 heap, each with a zTwoD screen (twod.md). Ported: the four menu objects of
 the options and the credits, the credits screen, the game options and the
 graphics and audio options, the cycle button they share, and the controls
-screen (0x0042a590) with its axis popup; its load/save popup's screen stays
-a hook (section 6). Code: `src/mech3/menu_states`, `credits`,
-`options_menu`, `controls_menu`, and the shared pieces in `menu_widgets`;
-checked by `tests/differential/test_menus.py`, `test_ctlscreen.py` and
-`test_app_states.py`.
+screen (0x0042a590) with its axis popup and its load/save popup (section 6),
+and the file list and edit bar the remaining screens share (section 2).
+Code: `src/mech3/menu_states`, `credits`, `options_menu`, `controls_menu`,
+and the shared pieces in `menu_widgets`; checked by
+`tests/differential/test_menus.py`, `test_ctlscreen.py`, `test_loadsave.py`
+and `test_app_states.py`.
 
 ## 1. The menu objects
 
@@ -82,6 +83,53 @@ arrows. After binding (+0x88) each kind adds its choices:
 The helpers 0x00438e10 (item or null), 0x00438e50 (value or 0), 0x0048b8f0
 (select the first with a value) and 0x0043a710 (select every one with it:
 the last stays) sit with the option screens.
+
+**The file list** (0x0048c0e0, vtable 0x005c5cf8), 0x200 bytes: the list of
+names the controls' load/save popup, the pilot screen (a subclass whose
+destructor 0x00487890 is folded with the popup's), the mech lab
+(0x0044b215..) and the pause screen pick from. A ShellButton (its id the
+constructor's; +0x158 is its items vector's allocator byte, the id's low
+byte) holding the game's **items** (+0x15c, 8-byte {_strdup'd text, value},
+freed by 0x0044ed90; the popup appends with 0x0042fbf0) and SIZE (8)
+**rows** (+0x16c, made by 0x0048d770 after binding: Texts of 0x4d8 bytes,
+vtable 0x005c5c48, 0x0048bfe0, with an object that hears their rollover at
++0x4cc, the item's index +0x4d0 and the list +0x4d4) showing the items from
+`top` (+0x180). Its entry (0x0048c410, after Control's read):
+SELECTED_FONT and NORMAL_FONT (fonts.zrd names; the selected falls back to
+the normal), SPACING (x y: every row moves x, each y further down; 0 12),
+OFFSET (x y, the first row from the button), SIZE, ROLLOVER_SOUND and
+SELECT_SOUND, BAR ((BITMAP OFFSET) an image under the selected row),
+ITEMROLLOVER ((BITMAP OFFSET) under the row the mouse is on, with FONT read
+from the list's own entry), UP and DOWN (push buttons, vtables 0x005c5e30 /
+0x005c5da0, placed from the list's place and taken out of the dialog: the
+list updates them). The list's rectangle (+0x188) is its image's (place
+0x0048d2f0), or without one the rows' extent, set on each layout.
+
+Layout (+0xa4, 0x0048cda0): the rows shown, each the item's text (passed as
+the printf format: FIX (bug)), SPACING apart; the selected item's row
+(+0x17c) is hidden and a row of its own (+0x178, SELECTED_FONT) takes its
+place, over the BAR. A press (+0x30, 0x0048d6a0) on a row selects its item
+(+0x98, 0x0048d0d0: the selection scrolled into view, the screen told (10,
+index) through +0x8c), then the press is shown and the screen told (1, 0);
+off the rows it presses an arrow. Each frame (+0x24, 0x0048c910) while the
+mouse is in: the row under the cursor lights in FONT's colour (a Text flash,
+0x0048c0b0) with the rollover sound (0x0048d3e0), the arrows light, and an
+arrow held down repeats after 0.5 s, then every 0.15 s (+0x1f0..+0x1f8,
+seconds of frame time); UP is enabled past the first item, DOWN while items
+are below the last row; the rows, the selected row, the images and the
+arrows update. Scrolling (0x0048d160) keeps `top` within 0..items. Slots
++0x90, +0x94 and +0x9c (may a row light, be chosen, show the rollover image)
+answer 1 here; +0xa0 (0x0048d1c0) sets a row's font (by the item's index:
+FIX (bug)). The list's +0x2c answers null: Window's routing uses its +0x5c
+(0x0048d210: the rectangle or an arrow).
+
+**The game's edit bar** (0x0048b1d0, 0x0048b220): zTwoD's edit bar (twod.md,
+The edit bar) whose first label, after binding, follows the bar: set_pos
+puts it at the new place plus the label's place after binding (+0x380), an
+absolute place, so a bar that moves takes its label that much further;
+while it reads its entry (+0x388, 0x0042f860) it answers no rectangle
+(0x0042f890) unless FastMenu. The popup's, the pilot screen's and the mech
+lab's bars (0x0042ea08, 0x004870fd, 0x0044bae4) are its.
 
 ## 3. The credits (0x004289a0, vtable 0x005bd738)
 
@@ -273,11 +321,34 @@ and reads the active file again; ACCEPT with changes asks "Save Changes"
 (0xfb4): yes opens the load/save popup to save, no leaves with the changes
 kept in memory. EXPORT and IMPORT open the popup to save or load.
 
-**The load/save popup** (LOAD_SAVE_POPUP: state 0x0042f230, named "Assign
-Axis Popup State" again; screen 0x0042e890 with an edit bar, zTwoD's
-0x005a4ec0, and a file list, 0x0048c0e0, filled from `keys\*.zrd` by
-FindFirstFileA, 0x0042eff0): not ported. Its state is pushed; its screen is
-a hook, so it shows nothing and Escape returns.
+**The load/save popup** (LOAD_SAVE_POPUP: state 0x0042f230, vtable
+0x005be978, named "Assign Axis Popup State" again; screen 0x0042e890,
+vtable 0x005be6d8, 0x11cd4 bytes, loaded without drawing): an image of the
+screen behind (+0x11c10, the dialog's first object), LOAD_BOX (+0x11b54),
+MB_OK (+0x111ec, 0x0042f160), MB_CANCEL (+0x113d8, BACK's 0x00428c60),
+EDITBAR (+0x115c4, the game's edit bar, vtable 0x005be7a0) and FILELIST
+(+0x11954, the file list, vtable 0x005be6f8). Its +0x00 is Window::update
+(0x0042efe0).
+
+The bar refuses `: | \ < > / ? " *` and holds 19 characters (20 bytes); a
+click gives it the focus (0x0042f1b0), Enter or Escape takes it away
+(0x0042f1a0) and nothing else: neither loads or saves. While it reads its
+entry it answers no rectangle unless FastMenu (0x0042f860, 0x0042f890). A
+row chosen in the list puts its name in the bar (0x0042f1c0, through the
+dialog's +0x115c4).
+
+Entering (0x0042f2b0) copies the mode (+0x11cd0: 1 save, 0 load), grabs
+the screen (zVideo's buffer 2) as the backdrop, puts ActiveCtlCfg's file
+name in the bar (`_splitpath`) and fills the list (0x0042eff0): every file
+FindFirstFileA / FindNextFileA find for `keys\*.zrd` (folders skipped),
+by its name without the extension, its place in the listing as its value;
+the handle is never closed (FindClose is not even imported). FIX (A): the
+listing is `Engine::list_files` (`zutl::list`: the write dir's and the
+mounts' `keys`, each name once, in NTFS's order, case aside), as the
+controls file's open finds them. Leaving (0x0042f340) frees the grab. OK
+(0x0042f160) loads or saves the bar's name through the state's owner
+(0x0042f380 -> 0x0042d0b0, `keys\<name>.zrd`, whatever the bar holds, empty
+included) and calls the state's +0x28.
 
 ## 7. Resolution (for the any-size work, fixes.md Candidates)
 
@@ -308,6 +379,13 @@ pixels. At any size the dialog positions need one scale (or a centred
 640x480 frame) for the screen and its popups alike, and the grab the
 display's real size.
 
+The load/save popup is drawn in place at LOAD_BOX (200, 82) over the
+screen it grabs (zVideo's buffer 2, the display's size, as its first
+object); the file list's rows are SPACING pixels apart (15 shipped) and its
+hit area the rows' text extent in pixels (the fake GDI's in the tests);
+the edit bar's caret is as tall as the label's DT_CALCRECT box and drawn
+with zRender's 2D line into the 16-bit buffer, pixel for pixel.
+
 ## 8. The port
 
 The states are `mech3::OptionsState` and `CreditsState` (menu_states.h);
@@ -332,8 +410,14 @@ itself and hands it to the engine (`adopt_screen`); the screen goes with it.
 zInput's map and capture, the stick's reading (0x0051dce0, 0x0042fea0), the
 controls setup (groups, defaults, the file's read and write), ActiveCtlCfg
 and the three-string message box are `mech3::Engine` hooks whose defaults
-are the ports (zin, controls_cfg, options). The load/save popup's screen is
-`construct(0x0042e890)`, unported (0).
+are the ports (zin, controls_cfg, options). The load/save popup's state
+makes its screen (`LoadSavePopupScreen`) and hands it to the engine the same
+way; its OK goes through the state's `apply` (0x0042f380) to the controls
+screen's `load_save`, and its listing through `Engine::list_files` (FIX (A),
+`zutl::list`). The file list and the game's edit bar are `mech3::FileList`
+and `ShellEditBar` (menu_widgets.h), zTwoD's edit bar `ztwod::EditBar`
+(twod.md, The edit bar); typed characters arrive through zInput's text
+callback (the SDL front end's key events, ToAscii'd by zin).
 
 ## 9. Testing
 
@@ -375,7 +459,7 @@ set. Missed, and unobservable: after-bind clearing kHidden too (nothing is
 hidden at that point). `tests/test_menus.cpp` checks the FIX (B) cut (and
 fails with it removed).
 
-`test_ctlscreen.py` (24 runs: 24/24 identical, about 335,000 calls): the
+`test_ctlscreen.py` (24 runs: 24/24 identical, about 348,000 calls): the
 controls screen 0x0042a590 and inside it the axis popup, on the same world
 plus stubs for zInput's map (the 0x0051d2xx wrappers; the names a stub's
 "C/K/J/B<code>", empty for some commands), its capture (the last key, the
@@ -385,9 +469,10 @@ run, their titles, the defaults, the file's read and write), the message
 formatting (0x00575fd0) and the message box with its three strings,
 UseJoystick, the CRT's `_splitpath`, `sprintf`, `_mkdir`; the outer state
 and the axis popup's state +0x28 (its vtable copied with that slot a stub)
-are recorded, the load/save popup's screen (0x0042e890) and the shell's
-enter and leave (0x0048ebf0, 0x0048ec40, around the popup's halves) are
-stubs. The command entries, the axis table and its ready flag, ActiveCtlCfg
+are recorded, the shell's enter and leave (0x0048ebf0, 0x0048ec40, around
+the popup's halves) are stubs; the load/save popup's screen is built and
+destroyed with the screen (`CopyRect` stubbed; its plan is
+test_loadsave.py's). The command entries, the axis table and its ready flag, ActiveCtlCfg
 and the mouse guard are random and handed to the port. Even runs use the
 shipped dialogs, odd runs synthetic ones (buttons and primitives missing,
 moved, RADIUS / MAXRADIUS, arrows and labels missing; one in eight without
@@ -415,19 +500,76 @@ INVERT, the offset's sign, INVERT from scale > 0, the sliders offered, the
 INVERT labels not moved, key A's right click not reselecting, a row change
 keeping the capture, the group press listing group 0. `mw3tests`
 (`test_program.cpp`) builds the screen through the program's engine at
-start and checks its lists, groups, popup and the popup states' handles.
+start and checks its lists, groups, popups (the load/save one's bar and
+list bound) and the popup states' handles.
+
+`test_loadsave.py` (24 runs: 24/24 identical, about 148,000 calls; 40 runs
+also identical): the
+load/save popup's state 0x0042f230 and its screen on `twod_world.py`'s
+world, plus stubs for `_strdup`, `strchr`, `_splitpath`, `CopyRect`, a fake
+directory behind FindFirstFileA / FindNextFileA (0 to 20 entries, folders
+among them, names with no, an upper-case or a second extension), zInput's
+text callback 0x0051a9a0 (kept, so the plan can type through it), zRender's
+line 0x00562940, the owner's load or save 0x0042f380 and the state's +0x28;
+the shell's enter and leave around the state's halves are stubs (the plan
+activates the screen as the enter does). Even runs use the shipped dialog,
+odd runs a synthetic one (FILELIST's SIZE 0..10, SPACING, OFFSET, POSITION,
+an image of its own, BAR, ITEMROLLOVER with or without FONT, the two sounds,
+the fonts and the arrows missing or moved; EDITBAR moved or relabelled;
+either missing; MB_OK and MB_CANCEL as the option screens' mutations). The
+plan: the enter with a listing (again later with others), the leave, 40 to
+120 frames of mouse input over the rows, arrows, bar and buttons, with
+dwells holding the button down on one spot (the arrows' repeat), presses of
+OK, CANCEL, the bar and the list (left and right), typed characters (letters,
+the refused ones, Backspace, Delete, the cursor keys, Enter, Escape, 0, a
+numeric bar), the bar's text (cut at 19), the base bar's click, the list's
+select, scroll, layout, show and hide, dirty-all and restore; then a dump and
+the state's destructor. Compared: every call and a dump of the dialog, its
+objects, the bar (line, cursor, refused set, focus, caret points, colour and
+flags), the list (items, rows, the selected row, the arrows, images, fonts,
+sounds, the lit row, the repeat), the grab and the mode. The FIX (bug) of
+the empty list's rectangle is applied to the original by a code hook
+(0x0048d06d) so the rest compares.
+
+Breaking the port showed the test catches it, 39 of 42 (16 or 24 runs
+each): a full line taking one more, Backspace deleting forward, home going
+to the end, Backspace not moving, right past the end, nothing refused,
+numeric bars refusing `-`, set_text's cursor at 0, the caret at the text's
+left, "W" keeping its width, the prefix measure one short, the focus not
+clearing the callback, the polyline one segment short, the caret in the
+bottom colour; rows without SPACING's x, rows a spacing lower, the selection
+scrolled one too far, scrolling to one item less, DOWN enabled at the end,
+UP enabled from the second item, the repeat at the delay's pace, the repeat
+starting early, the rollover sound from the select slot, leaving the list
+keeping the lit row's flash, the selected row not hit, the rectangle's
+right edge exclusive, its bottom without the text height, no font fallback,
+the arrows not placed from the list, the flash in the bottom colour, both
+arrows' rollover in one frame, the rollover image's x offset, the listing's
+values from 1, the bar with the whole path, 21 bytes, a choice showing the
+first name, OK's mode inverted, the leave keeping the backdrop, `*` allowed.
+Missed, and unobservable: the caret's first point (its width is 0), the
+list's press telling the screen (0, 0) (the popup's +0x14 is empty), the
+reading flag inverted (the popup loads without drawing, so nothing asks
+for the rectangle while reading). `test_twod_line.py`: the line 0x00563b80
+on 3,000 random lines inside random targets identical, 1,000 lines past
+the edges drawing only their pixels on the target (break tests: the error
+step at >=, the right clip one past: both caught). `mw3tests` checks the
+listing (`controls_file_listing`) and the line's clip.
 
 ## 10. Left
 
-- The load/save popup's screen (0x0042e890, LOAD_SAVE_POPUP): zTwoD's edit
-  bar (0x005a4880..0x005a5340, with the char callback 0x0051a9a0), the
-  game's file list (0x0048c0e0..0x0048d750), its fill from `keys\*.zrd`
-  (0x0042eff0, FIX (A): a listing of the write dir and the mounts), its
-  enter and leave (0x0042f2b0, 0x0042f340) and OK (0x0042f160: 0x0042d0b0
-  with the bar's text). Until then EXPORT, IMPORT and ACCEPT's "save
-  changes" open an empty state that Escape leaves.
-- The Pilot State (0x00488910) and the Action, Campaign, Training and
-  Multiplayer states (gametypes.md).
+- The Pilot State (0x00488910, [0x00609858]) and its screen (0x00486f40,
+  vtable 0x005c54e8 for the state, 0x13184 bytes): PILOTDIALOG with
+  PILOTLIST (a FileList subclass whose deleting destructor 0x00487890 is
+  the popup's list's; the pilots' fonts by +0x6cc through 0x0048ccf0),
+  EDITBAR and RENAMEBAR (ShellEditBars, vtable 0x005c5310: +0x30
+  0x00487dc0, +0x90 0x00487cf0, +0x94 0x00487d40; refused characters
+  `:|\<>/?"*` and tab, 16 bytes), ACCEPT, CANCEL, DELETE, RENAME and LINES1..3,
+  over 0x00487430..0x00488bc0. It needs the pilot structure and its files
+  (the pilot record at [0x0060861c], not ported), so it is the next piece
+  after them. The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its
+  lists (0x0044b215..0x0044bc5c) use the same widgets.
+- The Action, Campaign, Training and Multiplayer states (gametypes.md).
 - The pause screen (0x00492750) and its Options press (0x00492d70), which
   make and push the option objects from a mission.
 - The menu objects' constructors and destructors run in the program but are

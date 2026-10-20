@@ -2,11 +2,15 @@
 // the background drawn with a source rectangle bigger than its image
 // (FIX (B), fixes.md: the pause screen's Options above 960 lines).
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <vector>
 
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/menu_widgets.h"
 
@@ -90,4 +94,42 @@ TEST(still_menu_background_on_a_tall_screen) {
     }
   bg.image = nullptr;
   bg.src = nullptr;
+}
+
+// FIX (A) for the load/save popup's FindFirstFileA (docs/fixes.md): the
+// files of the write dir and the mounts, each name once, folders skipped,
+// in NTFS's order; the line clip of zrndr::line16 (FIX (bug)).
+TEST(controls_file_listing) {
+  namespace fs = std::filesystem;
+  const fs::path root = fs::temp_directory_path() / "mw3_list_test";
+  fs::remove_all(root);
+  fs::create_directories(root / "w" / "keys" / "sub.zrd");
+  fs::create_directories(root / "m" / "keys");
+  for (const char* f : {"w/keys/beta.zrd", "w/keys/Alpha.ZRD", "w/keys/notes.txt", "m/keys/alpha.zrd",
+                        "m/keys/gamma.zrd", "m/keys/a.b.zrd"})
+    std::ofstream(root / f) << "x";
+  zutl::Mounts saved = zutl::mounts();
+  zutl::mounts().read = {(root / "m").string()};
+  zutl::mounts().write = (root / "w").string();
+  const std::vector<std::string> got = zutl::list("keys\\*.zrd");
+  zutl::mounts() = saved;
+  fs::remove_all(root);
+  const std::vector<std::string> want = {"a.b.zrd", "Alpha.ZRD", "beta.zrd", "gamma.zrd"};
+  EXPECT(got == want);
+}
+
+TEST(line16_clips_to_the_target) {
+  std::vector<uint16_t> px(10 * 4, 0);
+  zrndr::Target2D& t = zrndr::target2d();
+  const zrndr::Target2D old = t;
+  t.base = reinterpret_cast<uint8_t*>(px.data());
+  t.width = 10;
+  t.height = 4;
+  t.pitch = 20;
+  zrndr::line16(-5, 1, 14, 1, 7);  // across the whole row, both ends off the target
+  zrndr::line16(3, -2, 3, 9, 9);   // down a column, off top and bottom
+  t = old;
+  for (int x = 0; x < 10; ++x) EXPECT(px[10 + x] == (x == 3 ? 9 : 7));
+  for (int y = 0; y < 4; ++y) EXPECT(px[y * 10 + 3] == 9);
+  EXPECT(px[0] == 0 && px[39] == 0);
 }

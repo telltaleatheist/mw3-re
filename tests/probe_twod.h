@@ -149,6 +149,9 @@ struct RecordingHost : ztwod::Host {
     return base;
   }
   void crt_free(void* p) override { call("@free", {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p))}); }
+  void line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel) override {
+    call("0x00562940", {x0, y0, x1, y1, pixel});
+  }
   void ripple(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase,
               const Rect* clip) override {
     call("0x00558dd0", {x, y, inner, outer, amplitude, zgame::bits(wavelength), zgame::bits(phase), clip ? 1 : 0});
