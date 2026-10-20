@@ -11,9 +11,15 @@ import sys
 
 
 def entries(data):
+    # MW3: ... table, version 1, count. Pirate's Moon: ... table, version 2,
+    # count, then one more dword (docs/pirates-moon.md).
     version, count = struct.unpack_from('<II', data, len(data) - 8)
-    assert version == 1, version
-    table = len(data) - 8 - count * 0x94
+    tail = 8
+    if version != 1:
+        version, count = struct.unpack_from('<II', data, len(data) - 12)
+        tail = 12
+    assert version in (1, 2), version
+    table = len(data) - tail - count * 0x94
     for i in range(count):
         start, length = struct.unpack_from('<II', data, table + i * 0x94)
         name = data[table + i * 0x94 + 8:table + i * 0x94 + 72].split(b'\0')[0].decode('latin-1')

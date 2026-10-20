@@ -92,6 +92,11 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   open to it meanwhile: game data through the asset mounts, no MW3-only
   constants where the exe reads data, game-specific choices made at run
   time rather than compiled in.
+- Pirate's Moon 1.0 is extracted for reading alongside MW3 (not ported):
+  `game/pm/` (the install, `Mech3.exe` sha256 57cd2ee7...) and
+  `game/pm-disc/` (the image; track 2 is CD audio). First findings and the
+  differences from MW3: `docs/pirates-moon.md`. Community-reported MW3
+  problems to check the port against: `docs/community-issues.md`.
 - REA source for reading: `../rea` (a clone, not a
   dependency).
 - mech3ax source for checking formats: `../mech3ax`
