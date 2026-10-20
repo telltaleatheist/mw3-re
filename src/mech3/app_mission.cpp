@@ -43,6 +43,7 @@
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zwep_damage.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "gamez/zutil/ztimer.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -286,7 +287,6 @@ struct WiredPlayerHooks : PlayerHooks {
   }
   void vehicle_update(Handle v, float dt) override {
     void* m = e->object_of(v);
-    sync_frame_step(e->frame_dt());
     if (m && is_launched_mech(m)) update_mech(m, dt);
     else PlayerHooks::vehicle_update(v, dt);
   }
@@ -864,6 +864,14 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+// Mech3.exe 1.2 @ 0x00575a00 (ztimer::update), once a frame from zGameApp::Run:
+// the step [0x0072c52c] is one global in the exe, so its copies in the mech,
+// weapon and zWeapon modules are set with it.
+void GameEngine::timer_update() {
+  ztimer::update();
+  sync_frame_step(ztimer::state().dt);
+}
+
 // Mech3.exe 1.2 @ 0x00583870 -> 0x00584920: zWeapon down (its pool's nodes
 // and the defs), without the weapon types' free callback, as the exe.
 void GameEngine::weapons_shutdown() { zwep::shutdown(nullptr); }

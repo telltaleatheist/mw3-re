@@ -29,6 +29,11 @@ void wire_weapons();
 void unwire_weapons();
 void sync_frame_step(float dt);
 int32_t mech_select_hot_group(void* mech);
+// For the program's tests: hits the mechs' damage handler took (and the last
+// shooter node), a mech's node, whether a group's weapons are firing or reloading.
+int32_t mech_hits_taken(void** attacker_node);
+void* mech_node(void* mech);
+bool mech_group_reloading(void* mech, int32_t group);
 void mech_after_tick(void* mech, uint32_t (*unported)(const char*));  // 0x0041aba0  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
 void mech_set_damage_handler(void* mech);
 

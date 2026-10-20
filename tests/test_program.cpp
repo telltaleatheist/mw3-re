@@ -1226,7 +1226,9 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     struct Seen {
       int frames = 0;
       mech3::LaunchedMech owens_before, owens_after, player_before, player_peak;
-      int32_t flying_max = 0, hot_group = -1;
+      int32_t flying_max = 0, hot_group = -1, hits_before = 0, hits_after = 0;
+      bool hot_fired = false;
+      void* attacker = nullptr;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1248,11 +1250,13 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         mech3::move_mech(player, at, -1.5707964f);
         mech3::describe_mech(owens, &seen.owens_before);
         mech3::describe_mech(player, &seen.player_before);
+        seen.hits_before = mech3::mech_hits_taken(nullptr);
       } else if (seen.frames == 6) {
         keys.key(fire, true);
       } else if (seen.frames == 120) {
         // The first group (the machine guns) makes no heat: one that does.
         seen.hot_group = mech3::mech_select_hot_group(player);
+        seen.player_before = seen.player_peak;  // the heat before the hot group
       } else if (seen.frames > 6 && seen.frames < 200) {
         // The HUD's reticle on the Owens' middle (0x0041cd40 is not ported).
         mech3::LaunchedMech o;
@@ -1264,9 +1268,11 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
         mech3::LaunchedMech m;
         if (mech3::describe_mech(player, &m) && m.heat > seen.player_peak.heat) seen.player_peak = m;
+        if (seen.frames > 120 && mech3::mech_group_reloading(player, seen.hot_group)) seen.hot_fired = true;
       } else if (seen.frames == 200) {
         keys.key(fire, false);
         mech3::describe_mech(owens, &seen.owens_after);
+        seen.hits_after = mech3::mech_hits_taken(&seen.attacker);
       }
     };
     CountingPump pump;
@@ -1275,7 +1281,9 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     EXPECT(seen.frames >= 200);
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
-    EXPECT(seen.hot_group >= 0);
+    EXPECT(seen.hits_after > seen.hits_before);                // through the Owens' damage handler
+    EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
+    EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
     EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
     mech3::missions().cleanup(false);
     app.stop_game();
