@@ -58,6 +58,7 @@ for t in \
     twod_msgbox \
     mainmenu \
     menus \
+    ctlscreen \
     update \
     di \
     collide \

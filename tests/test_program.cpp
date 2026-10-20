@@ -19,6 +19,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
+#include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
 #include "gamez/zutil/zutl_reg.h"
 #include "mech3/mission.h"
@@ -193,6 +194,22 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(menu->head != nullptr && menu->active == 1);
     }
     EXPECT(engine.unported_counts().count("0x0048a6c0") == 1);  // the Action State's object
+    // The controls screen (menus.md section 6) is made with its state: the
+    // shipped dialog, group 0's commands, the seven groups, the axis popup.
+    EXPECT(engine.unported_counts().count("0x0042a590") == 0);
+    const mech3::Handle cs = engine.state_screen(engine.peek32(0x609870));
+    auto* ctl = dynamic_cast<mech3::ControlsScreen*>(engine.screen_of(cs));
+    EXPECT(ctl != nullptr);
+    if (ctl) {
+      EXPECT(ctl->group_cycle.count() == 7 && ctl->group_cycle.index == 0);
+      EXPECT(!ctl->commands.strings.empty() && ctl->commands.first == 0);
+      EXPECT(ctl->key_a.strings.size() == ctl->commands.strings.size());
+      EXPECT(ctl->commands.dialog == ctl && ctl->assign_axis.dialog == ctl);
+      EXPECT(ctl->axis_popup.popup != nullptr && ctl->axis_popup.popup->sources.count() == 9);
+      EXPECT(engine.popup_state_of(cs + 0x16760) == &ctl->axis_popup);
+      EXPECT(engine.popup_state_of(cs + 0x1677c) == &ctl->load_save_popup);
+      EXPECT(engine.state_screen(cs + 0x16760) == ctl->axis_popup.screen_);
+    }
     EXPECT(screen.frames > 0);                       // the shell flips its 2D frame
     app.stop_game();
     app.exit_instance();

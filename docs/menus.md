@@ -4,10 +4,11 @@ Mech3.exe 1.2, 2026-10-20. The main menu's OPTIONS and CREDITS buttons
 (mainmenu.md) push *menu objects*: shell states (game-loop.md) made on the
 heap, each with a zTwoD screen (twod.md). Ported: the four menu objects of
 the options and the credits, the credits screen, the game options and the
-graphics and audio options, and the cycle button they share. The controls
-screen (0x0042a590) is not: its state is ported and its screen stays a hook.
-Code: `src/mech3/menu_states`, `credits`, `options_menu`, and the shared
-pieces in `menu_widgets`; checked by `tests/differential/test_menus.py` and
+graphics and audio options, the cycle button they share, and the controls
+screen (0x0042a590) with its axis popup; its load/save popup's screen stays
+a hook (section 6). Code: `src/mech3/menu_states`, `credits`,
+`options_menu`, `controls_menu`, and the shared pieces in `menu_widgets`;
+checked by `tests/differential/test_menus.py`, `test_ctlscreen.py` and
 `test_app_states.py`.
 
 ## 1. The menu objects
@@ -23,7 +24,7 @@ screen.
 |---|---|---|---|---|---|
 | [0x00609868] | Game Options State | 0x00438be0 | 0x005bf7a8 | 0x004379f0 (0x1407c) | with the state |
 | [0x0060986c] | Gfx and Audio Options State | 0x0043a640 | 0x005c0040 | 0x00438f60 (0x13f9c) | with the state |
-| [0x00609870] | Controls Configure State | 0x0042d9d0 | 0x005be3d8 | 0x0042a590 (0x16c94), not ported | with the state |
+| [0x00609870] | Controls Configure State | 0x0042d9d0 | 0x005be3d8 | 0x0042a590 (0x16c94) | with the state |
 | [0x00609878] | Credits State | 0x004295e0 | 0x005bd938 | 0x004289a0 (0x11ae0) | on entering |
 | [0x00609858] | Pilot State | 0x00488910 | 0x005c54e8 | 0x00486f40 (0x13184) | with the state; not a main menu button's (the campaign's and Instant Action's), not ported |
 
@@ -174,7 +175,111 @@ applies the game options' screen too; no puts the old device back. The rest
 is written either way; lighting and both shadows only when HWCardFlag and
 InstallOptions 0xff allow a 3D card, else written off.
 
-## 6. Resolution (for the any-size work, fixes.md Candidates)
+## 6. The controls screen (0x0042a590, vtable 0x005bd968)
+
+CTL_CFG_DIALOG, 0x16c94 bytes, made with its state (0x0042d9d0). Its +0x10
+is empty (0x004a5bc0): the state's enter reads nothing, the lists are filled
+by the constructor. Its parts:
+
+| Offset | Name | Class (vtable) | Press (+0x30) |
+|---|---|---|---|
+| +0x111ec | TITLE_TEXT1..6 | six Texts (0x4cc) | |
+| +0x12eb4 | ACCEPT | slide (0x005be268) | 0x0042d960 |
+| +0x130a0 | CANCEL | slide (0x005be1c8) | 0x0042d730 |
+| +0x1328c | CMD_RESET_TO_MOUSE_BTN | slide (0x005be128) | 0x0042d210 |
+| +0x13478 | CMD_RESET_TO_JSTICK_BTN | slide (0x005be088) | 0x0042d2b0 |
+| +0x13664 | CMD_COMMAND_BTN | ListBox (0x005bdff0) | toggle; +0x90 0x0042d3a0 |
+| +0x13cb4, +0x14304 | CMD_KEYA_BTN, CMD_KEYB_BTN | ListBox (0x005bdf58, 0x005bdec0) | 0x0042d3c0 / 0x0042d450; right 0x0042d3f0 / 0x0042d480; +0x90 0x0042d420 / 0x0042d4a0 |
+| +0x14954 | CMD_JOY_BTN | ListBox (0x005bde28) | 0x0042d4d0; right 0x0042d530; +0x90 0x0042d550 |
+| +0x14fa4 | CMD_MOUSE_BTN | ListBox (0x005bdd90) | 0x0042d5b0; right 0x0042d5e0; +0x90 0x0042d610 |
+| +0x155f4 | CMD_SET_BTN | cycle (0x005bdce8): the groups (+0x88 0x0042ad70) | 0x0042d640 |
+| +0x15a18, +0x15b64 | CMD_NEXT_CMD_BTN, CMD_PREV_CMD_BTN | Control (0x005bdc58, 0x005bdbc8) | 0x0042d6f0, 0x0042d710 |
+| +0x15cb0, +0x15dfc | CMD_EXPORT_BTN, CMD_IMPORT_BTN | Control (0x005bdb38, 0x005bdaa8) | 0x0042d890 (save), 0x0042d8c0 (load) |
+| +0x15f48 | CMD_ASSIGN_AXIS_BTN | slide (0x005bda08) | 0x0042d8f0 |
+| +0x16134 | CMD_DESCRIPTION | FontText | |
+| +0x165e4 | OPTIONTEXT | the title (0x005bd988); not in the shipped dialog | |
+| +0x166a4 | LINES | Image | |
+| +0x16760 | | the axis popup's state (0x1c bytes) | |
+| +0x1677c | | the load/save popup's state (0x18 bytes) | |
+| +0x16794 | CURRENT_FILENAME | FontText | |
+| +0x16c44 | | the capture: 0 none, 1 key A, 2 key B, 3 stick, 4 mouse | |
+| +0x16c50 | | each stick source's lowest and highest reading (8 pairs) | |
+| +0x16c90 | | dirty: the map changed since the file was read or written | |
+
+The constructor builds the parts (the two popups' states make their screens
+there, so ASSIGN_AXIS_POPUP is read before CTL_CFG_DIALOG), resets zInput,
+reads the dialog with the option screens' BACKGROUND (section 2; with
+FastMenu the background stays in the list, unlike theirs), fills the lists
+with group 0, selects group 0, shows the file name. The shipped dialog's
+PRESS_A_KEY primitive is never bound.
+
+**The lists** (0x0042c160, the group's commands, from controls_cfg's groups;
+docs/controls.md): the items are {_strdup'd text, the command}. A command
+whose zInput name is empty is left out. Its row: its name message (the
+entry's +0x00), key A's and key B's names, then the stick and mouse
+columns: for a command with an axis (the throttle, turn, twist and pitch
+keys, entry +0x08) bound to a stick axis the stick column shows
+"Joystick <X> axis" (0xf5c) and the mouse column its button; bound to a
+mouse axis, the mouse column shows "Mouse <X> axis" (0xf5d) and the stick
+column its button. Then row 0 is selected. Selecting a row (0x0042c4e0)
+shows that row in all five lists, enables PREV (not on row 0), NEXT (not on
+the last), ASSIGN_AXIS (only for an axis command), and the description,
+message +0x100; a row other than the current one ends any capture. NEXT and
+PREV step a row (0x0042d1c0).
+
+**Capture.** A press on a key or button column starts its capture (the
+capture mode, zInput reset; the column checked); clicking a row of that
+column selects the row and starts it too. Each frame (0x0042be10) the
+other columns are unchecked and zInput asked: key A and B take the last
+key (0x0051aa00), the stick the first button (0x0051dd20), the mouse the
+first button (0x0051baf0). Escape (key 1) cancels; for keys it arrives as
+the key, which the bind treats as cancel. The binds (0x0042c670, 0x0042c830,
+0x0042c960, 0x0042cb00): a key or button another command has asks
+"Reassign Key" / "Reassign Joystick Button" / "Reassign Mouse Button"
+(0xf27..0xf2b, with the key's name and both commands'); no leaves it. A key
+is taken from the other slot of its holder explicitly, from the same slot by
+zInput's bind; a stick button replaces the command's stick axis, a mouse
+button its mouse axis (0x0042ce90, 0x0042cfa0). Then the lists are filled
+again and the row reselected. A right click unbinds (a bind of key or
+button 0). In stick capture the readings of the eight stick sources are
+sampled when it starts; the first whose range since then exceeds 1.0 (half
+its travel) opens the axis popup with that source. After a mouse button is
+bound the mouse column ignores presses for 10 frames ([0x006056f4], counted
+down every frame the screen is idle), so the click that bound it does not
+start another capture.
+
+**The axis popup** (ASSIGN_AXIS_POPUP, state 0x0042e6a0 "Assign Axis Popup
+State", screen 0x0042da80, 0x12194 bytes): MB_OK, MB_CANCEL (the state's
++0x28), CMD_AXIS_CYCLE_BTN (the stick's X, Y, Z, Rx, Ry, Rz and the mouse's
+X, Y, Z; 0x0042dd20: 0x00430180 offers the stick's six whatever the stick
+has, its sliders never), AXIS_VALUE (a slider) and INVERT_CHECKBOX (labels
+right-aligned to their place, 0x0042f920). Entering (0x0042e720) takes the
+stick, selects the found source or the axis's own and checks INVERT when
+its scale is negative, grabs the screen behind into the (unlisted)
+background; leaving frees it. Each frame (0x0042e470) the source's reading
+-1..1 shows as 0..1. OK (0x0042e5b0) binds the source to the selected
+command's axis (0x0042cca0) with scale 1 (-1 inverted), the offset that makes
+the reading now 0, no dead zone; a source another axis has asks "Reassign
+Axis" (0xfb6, 0xfb7) and takes it.
+
+**Files and defaults.** 0x0042d0b0 writes or reads `keys\<name>.zrd`
+(controls_cfg) and puts its path in ActiveCtlCfg; the file name shows as
+"CURRENT CONFIG: <name>" with a `*` while dirty. The two reset buttons load
+the default keys (0x00411150) and the mouse's axes (pitch Y, twist X) or the
+stick's (0x00410950's), then save them as `keys\DefaultCtlConfig.zrd`
+(message 0xfc0) and set UseJoystick. CANCEL with changes resets the
+defaults and the stick's or mouse's axes (by whether a stick is present)
+and reads the active file again; ACCEPT with changes asks "Save Changes"
+(0xfb4): yes opens the load/save popup to save, no leaves with the changes
+kept in memory. EXPORT and IMPORT open the popup to save or load.
+
+**The load/save popup** (LOAD_SAVE_POPUP: state 0x0042f230, named "Assign
+Axis Popup State" again; screen 0x0042e890 with an edit bar, zTwoD's
+0x005a4ec0, and a file list, 0x0048c0e0, filled from `keys\*.zrd` by
+FindFirstFileA, 0x0042eff0): not ported. Its state is pushed; its screen is
+a hook, so it shows nothing and Escape returns.
+
+## 7. Resolution (for the any-size work, fixes.md Candidates)
 
 The dialogs are 640x480 pixel positions, as the main menu's. Each screen's
 background view is the display size when it is made: 640x480 from the main
@@ -194,7 +299,16 @@ image (FIX (B), `zrndr::blit16`, fixes.md; `tests/test_menus.cpp`). The
 scrolling background's four pieces cover at most twice the image: beyond
 2560x1920 it needs tiling further.
 
-## 7. The port
+The controls screen adds: its lists' rows are SPACING (15) pixels apart from
+LIST_OFFSET, with LISTWIDTH and WORDWRAP in pixels; the axis popup draws
+message_box at (212, 158) over the screen it grabs on entering (zVideo's
+buffer 2 at the display's size, then given to an image that is not drawn,
+so only its own parts show); AXIS_VALUE's fill is the bitmap's width in
+pixels. At any size the dialog positions need one scale (or a centred
+640x480 frame) for the screen and its popups alike, and the grab the
+display's real size.
+
+## 8. The port
 
 The states are `mech3::OptionsState` and `CreditsState` (menu_states.h);
 the program's `GameEngine` (app_menus.cpp) makes them for the main menu's
@@ -207,11 +321,21 @@ screen's real size for the offsets into it. The options are reached through
 `set_in_game_vmode`, `settings_write`), zVideo's devices and memory through
 new hooks (0x00579a10, 0x00579a40, 0x00579aa0, 0x00579a70, 0x00579b70), the
 app's queue through `pop_state` and `replace_with_exit`. 0x004ab860 is
-ported as `Engine::video_mode_range`. Controls Configure's state is made and
-pushed; its screen's `construct` (0x0042a590) is logged and returns 0, so
-it shows nothing and Escape returns.
+ported as `Engine::video_mode_range`.
 
-## 8. Testing
+The controls screen (`mech3::ControlsScreen`, controls_menu.h) is made by
+`construct(0x0042a590)` with its own handle, so its popups' states are at
+handle + 0x16760 and + 0x1677c as in the original: `push_state` with those
+handles pushes them, and `vcall` (their +0x28) and `state_screen` find them
+(`GameEngine::popup_state_of`). The axis popup's state makes its screen
+itself and hands it to the engine (`adopt_screen`); the screen goes with it.
+zInput's map and capture, the stick's reading (0x0051dce0, 0x0042fea0), the
+controls setup (groups, defaults, the file's read and write), ActiveCtlCfg
+and the three-string message box are `mech3::Engine` hooks whose defaults
+are the ports (zin, controls_cfg, options). The load/save popup's screen is
+`construct(0x0042e890)`, unported (0).
+
+## 9. Testing
 
 `test_menus.py` (30 runs a screen: 90/90 identical, 436,719 calls; 40 a
 screen also identical): the original constructor and screen run in the emulator on
@@ -251,11 +375,57 @@ set. Missed, and unobservable: after-bind clearing kHidden too (nothing is
 hidden at that point). `tests/test_menus.cpp` checks the FIX (B) cut (and
 fails with it removed).
 
-## 9. Left
+`test_ctlscreen.py` (24 runs: 24/24 identical, about 335,000 calls): the
+controls screen 0x0042a590 and inside it the axis popup, on the same world
+plus stubs for zInput's map (the 0x0051d2xx wrappers; the names a stub's
+"C/K/J/B<code>", empty for some commands), its capture (the last key, the
+stick's and mouse's buttons), the stick's state and readings (0x0051dce0,
+0x0042fea0, random floats), the controls setup (fixed groups of 6..9 rows a
+run, their titles, the defaults, the file's read and write), the message
+formatting (0x00575fd0) and the message box with its three strings,
+UseJoystick, the CRT's `_splitpath`, `sprintf`, `_mkdir`; the outer state
+and the axis popup's state +0x28 (its vtable copied with that slot a stub)
+are recorded, the load/save popup's screen (0x0042e890) and the shell's
+enter and leave (0x0048ebf0, 0x0048ec40, around the popup's halves) are
+stubs. The command entries, the axis table and its ready flag, ActiveCtlCfg
+and the mouse guard are random and handed to the port. Even runs use the
+shipped dialogs, odd runs synthetic ones (buttons and primitives missing,
+moved, RADIUS / MAXRADIUS, arrows and labels missing; one in eight without
+CTL_CFG_DIALOG). The plan: 40 to 110 frames of mouse input over the lists'
+rows, buttons and arrows (so the captures run), mixed with presses of every
+bound button, list (left and right) and arrow, row selections, the group
+cycle (stepped, then pressed), the four binds with Escape, keys and buttons
+and 0, the axis bind, both axis clears, loads and saves, the popup's fields,
+enter and leave halves, frames and presses (OK, NO, the cycle, INVERT, the
+slider), dirty-all and restore; then a dump and the deleting destructor.
+Compared: every call and a dump of both dialogs and their objects, the
+lists' items and values, the group and source cycles, the capture mode, the
+ranges, dirty, the guard, the slide buttons' ripple, the axis table,
+ActiveCtlCfg and the popups' fields.
 
-- The controls screen (0x0042a590 and 0x0042be10.., its load and save
-  0x0042d0b0, the defaults, the axis popup ASSIGN_AXIS_POPUP and
-  LOAD_SAVE_POPUP of dlgOptions.zrd): its state is ported, its screen a hook.
+Breaking the port showed the test catches it, 26 of 26 (8 runs each): the
+stick threshold at 0.5, the range's high not sampled, a mouse axis shown as
+a stick axis, mouse sources from 10, the description's id, NEXT enabled on
+the last row, Escape bound as a key, key B left on the old command, a stick
+button keeping the axis, the question's names swapped, the other axis
+keeping its source, the bind keeping the dead zone, a load leaving dirty,
+the star when clean, CANCEL's twist on mouse Y, the mouse reset turning the
+stick on, ACCEPT leaving without saving, a 9-frame guard, the popup ignoring
+INVERT, the offset's sign, INVERT from scale > 0, the sliders offered, the
+INVERT labels not moved, key A's right click not reselecting, a row change
+keeping the capture, the group press listing group 0. `mw3tests`
+(`test_program.cpp`) builds the screen through the program's engine at
+start and checks its lists, groups, popup and the popup states' handles.
+
+## 10. Left
+
+- The load/save popup's screen (0x0042e890, LOAD_SAVE_POPUP): zTwoD's edit
+  bar (0x005a4880..0x005a5340, with the char callback 0x0051a9a0), the
+  game's file list (0x0048c0e0..0x0048d750), its fill from `keys\*.zrd`
+  (0x0042eff0, FIX (A): a listing of the write dir and the mounts), its
+  enter and leave (0x0042f2b0, 0x0042f340) and OK (0x0042f160: 0x0042d0b0
+  with the bar's text). Until then EXPORT, IMPORT and ACCEPT's "save
+  changes" open an empty state that Escape leaves.
 - The Pilot State (0x00488910) and the Action, Campaign, Training and
   Multiplayer states (gametypes.md).
 - The pause screen (0x00492750) and its Options press (0x00492d70), which

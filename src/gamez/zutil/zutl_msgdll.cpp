@@ -194,4 +194,22 @@ std::string format_message(int32_t id, const char* arg) {
   return s;
 }
 
+std::string format_message(int32_t id, std::initializer_list<const char*> args) {
+  const char* t = messages().get_text ? messages().get_text(id) : nullptr;
+  const std::string in = t ? t : "";
+  std::string s;
+  for (size_t i = 0; i < in.size(); ++i) {
+    const size_t k = i + 1 < in.size() ? static_cast<size_t>(in[i + 1] - '1') : args.size();
+    if (in[i] != '%' || k >= args.size()) {
+      s += in[i];
+      continue;
+    }
+    const char* a = args.begin()[k];
+    s += a ? a : "";
+    ++i;
+    if (i + 3 < in.size() && in[i + 1] == '!' && in[i + 3] == '!') i += 3;  // "%1!s!"
+  }
+  return s;
+}
+
 }  // namespace zutl

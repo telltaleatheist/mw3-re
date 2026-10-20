@@ -6,11 +6,13 @@
 // button's +0x111ec) still lead to its parts; a menu object's handle is a block
 // of 0x10, its address for the hooks that name it.
 #include <cstdio>
+#include <vector>
 
 #include "gamez/ztwod/twod.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
+#include "mech3/controls_menu.h"
 #include "mech3/credits.h"
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
@@ -33,6 +35,21 @@ MenuScreen* GameEngine::screen_of(Handle h, uint32_t* offset) const {
 MenuState* GameEngine::menu_state_of(Handle h) const {
   auto it = menu_states_.find(h);
   return it == menu_states_.end() ? nullptr : it->second;
+}
+
+MenuState* GameEngine::popup_state_of(Handle h) const {
+  uint32_t off = 0;
+  auto* c = dynamic_cast<ControlsScreen*>(screen_of(h, &off));
+  if (!c) return nullptr;
+  if (off == 0x16760) return &c->axis_popup;
+  if (off == 0x1677c) return &c->load_save_popup;
+  return nullptr;
+}
+
+Handle GameEngine::adopt_screen(MenuScreen* screen, uint32_t size) {
+  const Handle h = alloc_block(size);
+  screens_[h] = {screen, size, true};
+  return h;
 }
 
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
@@ -63,7 +80,13 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kGame, h); });
     case 0x43a640:
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kGfxAudio, h); });
-    case 0x42d9d0:  // its screen (0x0042a590) is not ported: a hook, logged
+    case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
+      const Handle h = alloc_block(0x16c94);
+      screens_[h] = {nullptr, 0x16c94};
+      screens_[h].screen = new ControlsScreen(*this, a0, h);
+      return h;
+    }
+    case 0x42d9d0:
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kControls, h); });
     case 0x4295e0:
       return state([](Handle h) -> MenuState* { return new CreditsState(h); });
@@ -74,12 +97,13 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
 
 bool GameEngine::menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out) {
   const uint32_t a0 = args.size() ? args.begin()->v : 0;
-  if (MenuState* st = menu_state_of(obj)) {
+  MenuState* st = menu_state_of(obj);
+  if (!st) st = popup_state_of(obj);
+  if (st) {
     *out = 0;
     switch (slot) {
-      case 0x00:  // the deleting destructor
-        menu_states_.erase(obj);
-        delete st;
+      case 0x00:  // the deleting destructor (the popups' states are their screen's)
+        if (menu_states_.erase(obj)) delete st;
         return true;
       case 0x28: st->escape(); return true;
       default: break;
@@ -129,15 +153,20 @@ void GameEngine::delete_screens() {
     st->screen_ = 0;
     delete st;
   }
-  for (auto& [h, s] : screens_) {
-    if (main_menu() == s.screen) poke32(0x609854, 0);
-    delete s.screen;
+  // A screen's own popups go with it (their states delete them).
+  std::vector<MenuScreen*> top;
+  for (auto& [h, s] : screens_)
+    if (!s.owned && s.screen) top.push_back(s.screen);
+  for (MenuScreen* s : top) {
+    if (main_menu() == s) poke32(0x609854, 0);
+    delete s;
   }
   screens_.clear();
 }
 
 Handle GameEngine::state_screen(Handle state) {
   if (MenuState* st = menu_state_of(state)) return st->screen_;
+  if (MenuState* st = popup_state_of(state)) return st->screen_;
   return Engine::state_screen(state);
 }
 
@@ -170,7 +199,9 @@ void GameEngine::shell_clear(uint32_t state) {
       return;
     }
   }
-  if (MenuState* m = menu_state_of(state)) {
+  MenuState* m = menu_state_of(state);
+  if (!m) m = popup_state_of(state);
+  if (m) {
     m->clear_screen();
     return;
   }
@@ -181,7 +212,9 @@ void GameEngine::shell_clear(uint32_t state) {
 // are pushed; the Action, Campaign, Training and Multiplayer states and the
 // Pilot state are not ported, so their objects are 0 and a press is logged.
 void GameEngine::push_state(Handle state, uint32_t arg) {
-  if (MenuState* st = menu_state_of(state)) {
+  MenuState* st = menu_state_of(state);
+  if (!st) st = popup_state_of(state);
+  if (st) {
     app().push(st, arg);
     return;
   }

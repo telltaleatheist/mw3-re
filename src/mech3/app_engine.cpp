@@ -15,6 +15,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mech3_interp.h"
+#include "mech3/mech_control.h"
 #include "mech3/music.h"
 #include "platform/platform.h"
 #include "platform/render3d.h"
@@ -162,6 +163,21 @@ uint32_t GameEngine::message_box(int32_t a, int32_t caption, int32_t text, int32
   unported("0x004ac150", {a, caption, text});
   if (!p_.alert) return 0;
   return p_.alert->message_box(body, title, static_cast<uint32_t>(a) & 0xf) == 1 ? 1 : 0;
+}
+
+// 0x004ac150 with three strings (the controls screen's reassignment questions).
+uint32_t GameEngine::message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
+                                  const char* s3) {
+  const std::string body = zutl::format_message(text, {s1, s2, s3});
+  const std::string title = message(caption);
+  unported("0x004ac150", {a, caption, text});
+  if (!p_.alert) return 0;
+  return p_.alert->message_box(body, title, static_cast<uint32_t>(a) & 0xf) == 1 ? 1 : 0;
+}
+
+Handle GameEngine::joy_state() { return handle_of(zin::joy_state()); }
+float GameEngine::source_value(int32_t src, Handle joy) {
+  return mech3::source_value(src, static_cast<const platform::JoyState*>(object_of(joy)), nullptr);
 }
 
 // 0x00410700 on a new interp object: "interp.zbd" with "DamageScale".

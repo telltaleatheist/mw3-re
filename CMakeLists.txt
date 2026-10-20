@@ -148,6 +148,7 @@ add_library(mw3core STATIC
   src/mech3/menu_states.cpp
   src/mech3/credits.cpp
   src/mech3/options_menu.cpp
+  src/mech3/controls_menu.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -192,6 +193,7 @@ add_library(mw3probe SHARED
   tests/probe_twod.cpp
   tests/probe_mainmenu.cpp
   tests/probe_menus.cpp
+  tests/probe_ctlscreen.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_collide.cpp

@@ -19,6 +19,8 @@ namespace mech3 {
 using zgame::Arg;
 using zgame::Handle;
 
+class MenuScreen;
+
 class Engine : public zgame::AppHooks {
  public:
   // Memory of modules not ported yet, by the original's address.
@@ -372,6 +374,56 @@ class Engine : public zgame::AppHooks {
   virtual void mouse_set_pos(int32_t x, int32_t y) { unported("0x0051b4f0", {x, y}); }
   virtual void mouse_set_accel(float x, float y) { unported("0x0051b790", {zgame::bits(x), zgame::bits(y)}); }
   virtual void set_screen_mode(int32_t mode) { unported("0x004ab6b0", {mode}); }
+  // What the controls screen calls (docs/menus.md, The controls screen): zInput's
+  // key and button capture and its command map (the current map's 0x0051d2xx
+  // wrappers), the stick's reading and the controls setup (controls_cfg).
+  // Ported: the defaults are the ports.
+  virtual uint32_t input_read_key(int32_t wait);                // 0x0051aa00
+  virtual int32_t joy_wait_button(int32_t wait);                // 0x0051dd20
+  virtual int32_t mouse_wait_button(int32_t wait);              // 0x0051baf0
+  virtual Handle joy_state() { return unported("0x0051dce0", {}); }  // the stick's last read, 0 none
+  // 0x0042fea0 (src, joy, mouse 0): a source's reading off a joy_state() read.
+  virtual float source_value(int32_t src, Handle joy) {
+    return zgame::from_bits(unported("0x0042fea0", {src, joy, 0}));
+  }
+  virtual void joy_use();                                       // 0x0051b2c0
+  virtual void joy_unuse();                                     // 0x0051b2f0
+  virtual uint32_t key1_of(int32_t cmd);                        // 0x0051d200
+  virtual uint32_t key2_of(int32_t cmd);                        // 0x0051d210
+  virtual uint32_t joy_of(int32_t cmd);                         // 0x0051d220
+  virtual uint32_t mouse_of(int32_t cmd);                       // 0x0051d230
+  virtual int32_t key1_command(uint32_t key);                   // 0x0051d240
+  virtual int32_t key2_command(uint32_t key);                   // 0x0051d250
+  virtual int32_t joy_command(uint32_t b);                      // 0x0051d260
+  virtual int32_t mouse_command(uint32_t b);                    // 0x0051d270
+  virtual void bind_key1(uint32_t key, int32_t cmd);            // 0x0051d280
+  virtual void bind_key2(uint32_t key, int32_t cmd);            // 0x0051d290
+  virtual void bind_joy(uint32_t b, int32_t cmd);               // 0x0051d2a0
+  virtual void bind_mouse(uint32_t b, int32_t cmd);             // 0x0051d2b0
+  virtual const char* command_name(int32_t cmd, char* out, int32_t n);      // 0x0051d310
+  virtual const char* key_name(uint32_t key, char* out, int32_t n);         // 0x0051d330
+  virtual const char* joy_button_name(uint32_t b, char* out, int32_t n);    // 0x0051d350
+  virtual const char* mouse_button_name(uint32_t b, char* out, int32_t n);  // 0x0051d370
+  virtual void input_map_refresh();                             // 0x0051d1c0
+  virtual int32_t controls_defaults();                          // 0x00411150
+  virtual int32_t controls_group_count();                       // 0x00410f80
+  virtual const char* controls_group_title(int32_t group);      // 0x00410fa0
+  virtual int32_t controls_group_size(int32_t group);           // 0x00410fb0
+  virtual int32_t controls_group_command(int32_t group, int32_t i);  // 0x00410fd0
+  virtual void controls_read(const char* path);                 // 0x004120a0
+  virtual void controls_write(const char* path);                // 0x00411e60
+  virtual char* active_ctl_cfg();                               // *[0x005f4d40], ActiveCtlCfg (0x104 bytes)
+  // 0x004ac150 with three strings for the message's %1 %2 %3.
+  virtual uint32_t message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
+                                const char* s3) {
+    return unported("0x004ac150", {a, caption, text, s1, s2, s3});
+  }
+  // A ported screen made by a ported state rather than by construct(): its
+  // handle (the program registers it as construct's screens; 0 elsewhere).
+  virtual Handle adopt_screen(MenuScreen* screen, uint32_t size) {
+    (void)screen, (void)size;
+    return 0;
+  }
 
   // Sound and music.
   virtual void cd_pause();                             // 0x00572c90, ported: zsnd_cd

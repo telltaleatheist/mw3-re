@@ -82,7 +82,13 @@ class GameEngine : public Engine {
   MenuScreen* screen_of(Handle h, uint32_t* offset = nullptr) const;
   void delete_screens();  // the ones still open at exit, and the menu objects
   MenuState* menu_state_of(Handle h) const;
+  MenuState* popup_state_of(Handle h) const;  // the controls screen's popups (+0x16760, +0x1677c)
+  Handle adopt_screen(MenuScreen* screen, uint32_t size) override;
   Handle state_screen(Handle state) override;
+  Handle joy_state() override;                 // 0x0051dce0: zin::joy_state
+  float source_value(int32_t src, Handle joy) override;  // 0x0042fea0: mech3::source_value
+  uint32_t message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
+                        const char* s3) override;
   void credits_restart(Handle screen) override;
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
@@ -242,6 +248,7 @@ class GameEngine : public Engine {
   struct OpenScreen {
     MenuScreen* screen;
     uint32_t size;  // the original object's, for the offsets into it
+    bool owned = false;  // made by another screen's part (adopt_screen), deleted with it
   };
   std::map<Handle, OpenScreen> screens_;
   std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)

@@ -8,9 +8,16 @@
 // (docs/movement.md, Throttle and turn). Original file unknown: the code sits
 // between mech_config and mech_data (named here mech_control after the
 // alphabetical link order). The player, AI and network classes derive from it.
+namespace platform { struct JoyState; }
+namespace zin { struct MouseInfo; }
+
 namespace mech3 {
 
 struct Mech;
+
+// Mech3.exe 1.2 @ 0x0042fea0: a source's reading (1..6 the stick's axes, 7, 8
+// its sliders, 9..11 the mouse); null devices read 0.
+float source_value(int32_t src, const platform::JoyState* j, const zin::MouseInfo* m);
 
 // exp(x) the game's way (ftol(x * 2^23 / ln 2) + 0x3f800000 as float bits; 0x00426960 and others).
 float fast_exp(float x);
