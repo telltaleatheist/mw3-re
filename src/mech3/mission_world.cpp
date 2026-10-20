@@ -38,7 +38,8 @@ uint32_t g_soils[64];  // 0x00608c00
 }
 
 // Mech3.exe 1.2 @ 0x0047f400. A name zModel does not know gives -1, and the
-// exe writes the word before the table; FIX (A): skipped.
+// exe writes the word before the table. FIX (bug): skipped, as is an index
+// past the table (fixes.md).
 void build_soil_table() {
   g_soils[0] = 0;
   for (uint32_t soil = 1; soil < 11; ++soil) {

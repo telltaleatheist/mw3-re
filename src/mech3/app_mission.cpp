@@ -275,7 +275,8 @@ struct WiredPlayerHooks : PlayerHooks {
   }
   float frame_dt() override { return e->frame_dt(); }
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
-  // The pilot's mech is the port's (the launch): its frame, 0x00419fc0.
+  // Mech3.exe 1.2 @ 0x00419fc0 (vtable +0x34): the pilot's mech is the
+  // port's (the launch), its frame.
   void vehicle_update(Handle v, float dt) override {
     void* m = e->object_of(v);
     if (m && is_launched_mech(m)) update_mech(m, dt);
@@ -854,10 +855,12 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+// Mech3.exe 1.2 @ 0x0041ca30 on the launched mech
 void GameEngine::mech_set_mode_a(Handle mech, int32_t a) {
   if (void* m = object_of(mech); m && is_launched_mech(m)) mech_set_hud_fall(m, a);
   else Engine::mech_set_mode_a(mech, a);
 }
+// Mech3.exe 1.2 @ 0x0041cc30 (Mech::power) on the launched mech
 void GameEngine::mech_set_mode_b(Handle mech, int32_t a) {
   if (void* m = object_of(mech); m && is_launched_mech(m)) mech_power(m, a);
   else Engine::mech_set_mode_b(mech, a);

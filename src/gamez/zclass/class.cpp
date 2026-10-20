@@ -394,6 +394,64 @@ int node_box_extent_xz(Node* node, float out[6]) {
   return status;
 }
 
+// Mech3.exe 1.2 @ 0x004ec6b0. 0x004ec430 in three axes, with its own sum
+// orders for the combined matrix.
+int node_box_extent(Node* node, float out[6]) {
+  if (!node) return zerr::report(0x400, kFile, 0xc28, "Null node pointer."), 5;
+  if (!node->data) return zerr::report(0x400, kFile, 0xc29, "Null class data pointer"), 5;
+  const uint32_t flags = node->flags();
+  if (!(flags & 0x100)) return 1;
+  int status = 0;
+  const float* local = nullptr;
+  bool local_identity = false;
+  auto* raw = static_cast<uint8_t*>(node->data);
+  switch (node->cls()) {
+    case 1: local = reinterpret_cast<float*>(raw + 0x80); break;
+    case 2: case 6: case 7: local_identity = true; break;
+    case 5:
+      local_identity = (static_cast<Object3d*>(node->data)->get<uint32_t>(0) >> 3) & 1;
+      local = reinterpret_cast<float*>(raw + 0x30);
+      break;
+    case 8:
+      if (!(flags & 4) || !(raw[4] & 4)) local_identity = true;
+      local = reinterpret_cast<float*>(raw + 8);
+      break;
+    case 9: case 10: break;
+    default: status = 3; break;
+  }
+  if (!local) local_identity = true;
+  zmth::MatrixStack& s = zmth::matrix_stack();
+  const bool top_identity = s.slot[s.top] ? s.is_identity() != 0 : true;
+  const float* box = reinterpret_cast<const float*>(node->raw + 0x74);
+  if (top_identity && local_identity) {
+    std::memcpy(out, box, 24);
+    return status;
+  }
+  const float* m = top_identity ? local : s.matrix().m;
+  float c[12] = {};
+  if (!top_identity && !local_identity) {
+    const float* l = local;
+    const float* t = s.matrix().m;
+    c[0] = (t[6] * l[2] + t[3] * l[1]) + l[0] * t[0];
+    c[1] = (l[0] * t[1] + l[1] * t[4]) + l[2] * t[7];
+    c[2] = (l[0] * t[2] + t[8] * l[2]) + t[5] * l[1];
+    c[3] = (t[0] * l[3] + l[4] * t[3]) + l[5] * t[6];
+    c[4] = (l[5] * t[7] + l[4] * t[4]) + t[1] * l[3];
+    c[5] = (t[2] * l[3] + t[5] * l[4]) + t[8] * l[5];
+    c[6] = (t[0] * l[6] + t[6] * l[8]) + t[3] * l[7];
+    c[7] = (t[4] * l[7] + t[7] * l[8]) + t[1] * l[6];
+    c[8] = (t[2] * l[6] + t[8] * l[8]) + t[5] * l[7];
+    c[9] = ((t[0] * l[9] + l[10] * t[3]) + l[11] * t[6]) + t[9];
+    c[10] = ((l[10] * t[4] + l[11] * t[7]) + l[9] * t[1]) + t[10];
+    c[11] = ((t[2] * l[9] + t[5] * l[10]) + t[8] * l[11]) + t[11];
+    m = c;
+  }
+  float b[6];
+  std::memcpy(b, box, sizeof b);
+  zmth::transform_box(m, b, out);
+  return status;
+}
+
 namespace {
 // The local matrix a node's box goes through (the pick of 0x004f2a40,
 // inlined in 0x004ecc00 and 0x004ecf70): none for an object3d still at the
