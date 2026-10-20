@@ -162,6 +162,15 @@ int32_t pl_point(float x, float y, float z, int32_t zone_mode, int32_t* out) {
   return r;
 }
 
+// 0x004eda10 on the same point: the hit kept.
+void pl_below(float x, float y, float z, int32_t zone_mode, int32_t* out) {
+  zmod::zones().mode = zone_mode;
+  const float at[3] = {x, y, z};
+  zcls::ground_below(world_node(), at, &g_point);
+  zmod::zones().mode = 1;
+  put_record(out, g_point);
+}
+
 void pl_reset() { std::memset(&g_point, 0, sizeof g_point); }
 
 // Adds nodes (by pool index) to the world's children, as the test does to

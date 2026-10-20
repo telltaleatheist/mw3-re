@@ -1045,7 +1045,7 @@ TEST(settings_file_reads_an_export_and_keeps_what_the_game_saved) {
   EXPECT(mech3::load_options(nullptr) == 1);
   EXPECT(mech3::options().in_game_vmode == 10);
   EXPECT(mech3::options().mouse_accel[0] == 2.0f);
-  mech3::options().sound_volume = 0.25f;
+  mech3::options().sound_frequency = 0.25f;
   EXPECT(zreg::write_all() == 1);
 
   platform::RegFile again(path);

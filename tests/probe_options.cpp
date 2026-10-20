@@ -59,7 +59,7 @@ void probe_options_io(uint32_t* w, int32_t write) {
     io(r->x_last); io(r->y_last); io(r->depth); io(r->target);
   }
   io(o.mouse_accel[0]); io(o.mouse_accel[1]); io(o.joy_accel[0]); io(o.joy_accel[1]);
-  io(o.sound_volume); io(o.mouse_mode); io(o.cd_volume); io(o.pixel_double);
+  io(o.sound_frequency); io(o.mouse_mode); io(o.cd_volume); io(o.pixel_double);
   io(o.intensity[0]); io(o.intensity[1]); io(o.intensity[2]);
   io8(o.intensity_flag[0]); io8(o.intensity_flag[1]);
   mech3::AxisTable& t = mech3::axis_table();
@@ -137,8 +137,8 @@ uint32_t probe_options_op(uint32_t addr, uint32_t value, uint32_t value2) {
     case 0x40d7f0: set_window_origin(v, v2); break;
     case 0x40d810: set_vmode(v); break;
     case 0x40d9d0: r = vmode(); break;
-    case 0x40da80: set_sound_volume(f); break;
-    case 0x40daa0: r = zgame::bits(sound_volume()); break;
+    case 0x40da80: set_sound_frequency(f); break;
+    case 0x40daa0: r = zgame::bits(sound_frequency()); break;
     case 0x40dab0: set_cd_volume(f); break;
     case 0x40dae0: r = zgame::bits(cd_volume()); break;
     case 0x40cb30: apply_all(); break;

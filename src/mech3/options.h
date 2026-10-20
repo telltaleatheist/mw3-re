@@ -57,7 +57,7 @@ struct Options {
   Rect render, display, window;       // [0x005f4d1c] Render, [0x005f4d20] Display, [0x005f4d24] Window
   float mouse_accel[2] = {1.3f, 1.3f};  // [0x005f4d2c] MouseAccelX, [0x005f4d30] Y
   float joy_accel[2] = {1.3f, 1.3f};    // [0x005f4d34] JoyAccelX, [0x005f4d38] Y
-  float sound_volume = 0.5f;          // [0x005f4d3c] SoundVolume
+  float sound_frequency = 0.5f;          // [0x005f4d3c] SoundVolume
   char active_ctl_cfg[0x104] = {};    // [0x005f4d40] ActiveCtlCfg
   int32_t mouse_mode = 2;             // [0x005f4d44] MouseMode
   float cd_volume = 0.5f;             // [0x005f4d48] CDVolume
@@ -234,8 +234,8 @@ void set_window_size(int32_t w, int32_t h);   // 0x0040d7d0
 void set_window_origin(int32_t x, int32_t y); // 0x0040d7f0
 void set_vmode(int32_t mode);               // 0x0040d810
 int32_t vmode();                            // 0x0040d9d0
-void set_sound_volume(float v);             // 0x0040da80
-float sound_volume();                       // 0x0040daa0
+void set_sound_frequency(float v);             // 0x0040da80
+float sound_frequency();                       // 0x0040daa0
 void set_cd_volume(float v);                // 0x0040dab0
 float cd_volume();                          // 0x0040dae0
 void apply_all();                           // 0x0040cb30  every setter with its own value

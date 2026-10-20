@@ -42,6 +42,7 @@ from test_scenewalk import f2u  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 
 probe.pl_point.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_void_p]
+probe.pl_below.argtypes = probe.pl_point.argtypes
 probe.pl_pick.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_int,
                           ctypes.c_void_p]
 probe.pl_place.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int,
@@ -52,7 +53,7 @@ probe.pl_polygon.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_float, ctyp
 probe.pl_spawn.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint8, ctypes.c_int, ctypes.c_uint32, ctypes.c_int,
                            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
 
-POINT, PICK, PLACE, SPAWN, POLYGON = 0x4edab0, 0x4abd90, 0x4161c0, 0x4782f0, 0x54d640
+POINT, PICK, PLACE, SPAWN, POLYGON, BELOW = 0x4edab0, 0x4abd90, 0x4161c0, 0x4782f0, 0x54d640, 0x4eda10
 # Branches the point query must reach (counted in the original as it runs).
 # The worlds hold no sequence (7) or animated (8) node and no fading one:
 # those branches are 0x4ee2f0's (test_di) for one point, and not reached.
@@ -181,6 +182,30 @@ class Place(World):
             out.append(self.node_index(h[9]) & 0xffffffff if h[9] else 0xffffffff)
         return r, out, [rep[1] for rep in self.reports]
 
+    def below(self, x, y, z, zone_mode):
+        # 0x4eda10: ECX the world, EDX the point, the record on the stack.
+        cpu = self.cpu
+        if not hasattr(self, 'below_at'):
+            self.below_at = self.alloc(12)
+            # The scene walk's harness stubs 0x4eda10 (its zone probe): enter it
+            # past the stub through its first two instructions (push ebx; push ebp).
+            at = cpu.code_next
+            self.below_entry = cpu.code(b'\x53\x55\xe9' + struct.pack('<i', BELOW + 2 - (at + 7)))
+        cpu.write(self.below_at, struct.pack('<3f', x, y, z))
+        cpu.u32(ZONE_MODE, zone_mode)
+        self.reports = []
+        self.logging = False
+        cpu.call(self.below_entry, ecx=self.world, edx=self.below_at, stack_args=(self.out,), count=500_000_000)
+        cpu.u32(ZONE_MODE, 1)
+        rec = cpu.read(self.out, REC)
+        out = [rec[0]]
+        for j in range(32):
+            h = struct.unpack_from('<10I', rec, 4 + 0x28 * j)
+            out.extend(h[:8])
+            out.append(self.material_index(h[8]) & 0xffffffff)
+            out.append(self.node_index(h[9]) & 0xffffffff if h[9] else 0xffffffff)
+        return out
+
     def pick(self, heights, soils, y, step, water_not_ground):
         cpu = self.cpu
         if not hasattr(self, 'pick_code'):
@@ -281,6 +306,12 @@ def port_point(x, y, z, zone_mode):
     return r, [v & 0xffffffff for v in out]
 
 
+def port_below(x, y, z, zone_mode):
+    out = (ctypes.c_int32 * (1 + 32 * 10))()
+    probe.pl_below(x, y, z, zone_mode, out)
+    return [v & 0xffffffff for v in out]
+
+
 def port_pick(heights, soils, y, step, water_not_ground):
     n = len(heights)
     hs = (ctypes.c_float * max(n, 1))(*heights)
@@ -372,6 +403,9 @@ def check_polygons(emu, rng, count):
     return inside, vertical
 
 
+BELOWS = [0, 0]  # 0x4eda10 queries, those that chose among several hits
+
+
 def check_point(emu, rng, x, z, y, mode, where):
     r, want, reports = emu.point(x, y, z, mode)
     pr, got = port_point(x, y, z, mode)
@@ -383,6 +417,13 @@ def check_point(emu, rng, x, z, y, mode, where):
                          f'{want[i]:#x} vs {got[i]:#x}')
     if reports:
         raise SystemExit(f'{where}: the original reported {reports}')
+    wb, gb = emu.below(x, y, z, mode), port_below(x, y, z, mode)
+    if wb != gb:
+        i = first_diff(wb, gb)
+        raise SystemExit(f'{where}: the kept hit (0x4eda10) differs at slot {(i - 1) // 10} word {(i - 1) % 10}: '
+                         f'{wb[i]:#x} vs {gb[i]:#x}')
+    BELOWS[0] += 1
+    BELOWS[1] += wb[0] == 1 and want[0] > 1
     return want
 
 
@@ -521,8 +562,11 @@ def main():
     print('reached:', ', '.join(f'{k} {v}' for k, v in COVERED.items()))
     if not hits or not landed or not wrapped or not all(COVERED.values()):
         raise SystemExit(f'coverage: {hits} hits, {landed} placements moved by the ground, {wrapped} wrapped points')
+    if BELOWS[1] == 0:
+        raise SystemExit('coverage: no kept-hit query chose among several hits')
     print(f'ok: {total} point queries ({hits} hits, {wrapped} wrapped off the grid), {picks} picks, {places} placements '
-          f'({landed} moved to the ground, {stacked} over stacked polygons) on the {len(WORLDS)} worlds identical')
+          f'({landed} moved to the ground, {stacked} over stacked polygons) on the {len(WORLDS)} worlds identical; '
+          f'{BELOWS[0]} kept-hit queries (0x4eda10), {BELOWS[1]} choosing among stacked hits')
 
 
 if __name__ == '__main__':

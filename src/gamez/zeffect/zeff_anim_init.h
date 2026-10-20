@@ -104,5 +104,6 @@ Node* anim_find_in_tree(Node* node, const char* name);    // 0x005096d0
 int32_t anim_light_index(AnimDef* def, const char* name); // 0x005091e0
 int32_t anim_sound_index(AnimDef* def, const char* name); // 0x00509160
 Node* anim_find_node(AnimDef* def, const char* name);     // 0x00509640
+AnimDef* anim_find(const char* name);                     // 0x0050b450
 
 }  // namespace zeff

@@ -54,6 +54,9 @@ int ground_query(Node* world, float* probes, int32_t count, float top, GroundHit
 // applies; a point off the grid on a world without wrapping tests only the
 // world's own children. Returns 1 when none was found.
 int ground_point(Node* world, float x, float y, float z, GroundHits* out);  // 0x004edab0
+// 0x004eda10: the ground point query kept to one hit, the highest at or below
+// `at` (count 1), else none (count 0).
+int ground_below(Node* world, const float at[3], GroundHits* out);
 
 // One crossing of the shot queries' segment, or a node the sphere query
 // found (0x28 bytes): the surface's normal, the point, the squared distance

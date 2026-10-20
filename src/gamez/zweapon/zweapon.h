@@ -223,7 +223,7 @@ struct RunHooks {
   Handle (*effect_handle)(Handle anim, const float args[9]) = nullptr;  // 0x00508aa0 when its result is kept
   Handle (*sound_at)(Handle sound, const Vec3f3* at, float volume) = nullptr;  // 0x0056e7e0(s, at, volume, 0)
   void (*sound_stop)(Handle s) = nullptr;                          // 0x0056e9f0
-  void (*sound_volume)(Handle s, float v) = nullptr;               // 0x0056f280
+  void (*sound_frequency)(Handle s, float t) = nullptr;               // 0x0056f280: the pitch, 0..1 over its range
   // cls_di.c's queries and their settings.
   void (*impact_type)(int32_t t) = nullptr;                        // 0x005426a0
   void (*query_static)(int32_t on) = nullptr;                      // 0x004ed9d0

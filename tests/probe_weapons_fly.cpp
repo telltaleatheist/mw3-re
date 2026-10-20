@@ -233,7 +233,7 @@ void set_hooks() {
   k.set_flag_4fbb90 = [](Handle n, int32_t on) { call(53, {u(n), on}); };
   k.set_uniform_scale = [](Handle n, float s) { call(54, {u(n), fb(s)}); };
   k.sound_stop = [](Handle s) { call(55, {u(s)}); };
-  k.sound_volume = [](Handle s, float v) { call(56, {u(s), fb(v)}); };
+  k.sound_frequency = [](Handle s, float v) { call(56, {u(s), fb(v)}); };
   k.anim_free = [](Handle a) { call(57, {u(a)}); };
   k.query_static = [](int32_t on) { call(35, {on}); };
   k.query_since = [](int32_t on, uint32_t f) { call(36, {on, static_cast<int32_t>(f)}); };
