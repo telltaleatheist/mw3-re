@@ -21,6 +21,7 @@ int g_unprojects = 0, g_segments = 0;
 bool g_have_zrd = false;
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
+bool g_lock_shown = false;
 
 struct Hooks : mech3::HudHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
@@ -93,8 +94,10 @@ struct Hooks : mech3::HudHooks {
   uint32_t view_name(void* v) { return v == g_hud->mfd.view ? 1 : v == g_hud->target.view ? 2 : id(v); }
   void zview_render(void* v, float dt) override { call("0x00442870", {view_name(v), zgame::bits(dt)}); }
   void view_draw_node(void* v, uint32_t node) override { call("0x004428b0", {view_name(v), node}); }
-  void reticle_aim_state(void* r, bool over) override {
-    static_cast<mech3::HudReticle*>(r)->state = static_cast<int32_t>(call("0x00443d20", {id(r), over ? 1u : 0u}));
+  // The weapon manager's +0x88 as the aim state sets it (test_hud.py's dump).
+  void set_lock_shown(uint32_t wm, bool on) override {
+    g_lock_shown = on;
+    call("poke8", {wm + 0x88, on ? 1u : 0u});
   }
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
@@ -555,8 +558,8 @@ void dump_hud(Dump& d) {
   d.o << "reticle ";
   d.image(&rt);
   d.kv("state", rt.state);
-  d.kv("x950", rt.x950);
-  d.f("x954", rt.x954);
+  d.kv("x950", rt.lock);
+  d.f("x954", rt.lock_timer);
   d.kv("locked", rt.locked);
   d.kv("src", g_hooks.id(rt.source));
   for (auto* t : {rt.img_off, rt.img_on, rt.img_over, rt.img_cant, rt.img_x920}) d.t("i", t);
@@ -764,10 +767,11 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
     g_hud->reticle.place(places[2 * i], places[2 * i + 1]);
     aims += aim_dump(*g_hud) + "\n";
   }
+  g_lock_shown = false;
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);
-  const std::string s = d.o.str() + aims;
+  const std::string s = d.o.str() + aims + "lockshown " + (g_lock_shown ? "1" : "0") + "\n";
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
   zrdr::close_archives(true);

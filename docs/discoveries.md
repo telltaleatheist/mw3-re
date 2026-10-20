@@ -1869,6 +1869,13 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   the see-through panel behind the equipment list is only drawn while the
   weapon list is shown too, so an equipment list shown on its own would have
   no panel behind it (whether play ever does that is not checked).
+- **How a missile lock works:** keep the reticle on the target with a
+  weapon group that locks, and the lock tone starts; after 0.6 seconds (1.2
+  against some targets, by a field of the target not identified yet) the
+  lock is on and the reticle lights up. It holds for 3.5 seconds after the
+  reticle leaves the target. Either the target or the aim point has to be
+  within the group's longest range, and one kind of target (kind 7, not
+  identified yet) can never be locked.
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not

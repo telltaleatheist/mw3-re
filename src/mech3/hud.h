@@ -458,8 +458,9 @@ class HudReticle : public ztwod::Image {
   zimg::Texture* img_x920 = nullptr; // +0x920 ret_on again
   float aim_distance = 0.0f;         // +0x924 to the aim point from the near plane (0x00444690)
   zwep::HitRecord hit{};             // +0x928 what the aim hit (its node 0: nothing)
-  int32_t x950 = 0;                  // +0x950
-  float x954 = 0.0f;                 // +0x954 0.6 after a reset ([0x005e3a0c])
+  int32_t lock = 0;                  // +0x950 the missile lock: 0 none, 1 acquiring, 2 waiting, 3 locked, 4 lost
+  float lock_timer = 0.0f;           // +0x954 0.6 after a reset ([0x005e3a0c]); counts down in update
+  void aim_state(bool over);         // 0x00443d20: the lock and the reticle's image
   void* source = nullptr;            // +0x958 (not set by the constructor)
 };
 
@@ -580,7 +581,31 @@ class HudHooks : public zgame::Unported {
   virtual bool reticle_over_target(void* target, int32_t x, int32_t y) {
     return (unported("0x00440a30", {id(target), uint32_t(x), uint32_t(y)}) & 0xff) != 0;
   }
-  virtual void reticle_aim_state(void* reticle, bool over) { unported("0x00443d20", {id(reticle), over ? 1u : 0u}); }
+  virtual void reticle_aim_state(void* reticle, bool over);  // 0x00443d20 (HudReticle::aim_state)
+  // The aim state's outside (0x00443d20). The weapon manager's selected
+  // group (mac 4, the planner): its longest range (0x004b1bd0), whether any
+  // of its weapons locks (0x004b1c70) and 0x004b1cd0; its +0x88, the lock
+  // shown. TARGET's slot's contact ([slot]), its mech (0x004e6ff0) and
+  // distance (0x004e7030, zai_target); a mech's kind (+0x684 +0xc) and
+  // +0x3cc. The aimed node's object (0x0040eee0 → 0x0040e920), the object's
+  // +8 byte and the node's +0xbc. The HUD's sounds (0x0041e800 playing,
+  // 0x0041e770 played at 1.0, -1.0).
+  virtual float group_range(uint32_t wm) { return zgame::from_bits(unported("0x004b1bd0", {wm})); }
+  virtual bool group_locks(uint32_t wm) { return (unported("0x004b1c70", {wm}) & 0xff) != 0; }
+  virtual bool group_4b1cd0(uint32_t wm) { return (unported("0x004b1cd0", {wm}) & 0xff) != 0; }
+  virtual void set_lock_shown(uint32_t wm, bool on) { unported("poke8", {wm + 0x88, on ? 1u : 0u}); }
+  virtual uint32_t slot_contact(void* slot) { return unported("peek32", {id(slot)}); }
+  virtual uint32_t contact_mech(uint32_t c) { return unported("0x004e6ff0", {c}); }
+  virtual float contact_distance(uint32_t c) { return zgame::from_bits(unported("0x004e7030", {c})); }
+  virtual int32_t mech_kind_of(uint32_t m) {
+    return static_cast<int32_t>(unported("peek32", {unported("peek32", {m + 0x684}) + 0xc}));
+  }
+  virtual int32_t mech_3cc(uint32_t m) { return static_cast<int32_t>(unported("peek32", {m + 0x3cc})); }
+  virtual uint32_t node_object(uint32_t node) { return unported("0x0040e920", {node}); }
+  virtual bool object_byte8(uint32_t o) { return (unported("peek8", {o + 8}) & 0xff) != 0; }
+  virtual uint32_t node_bc(uint32_t node) { return unported("peek32", {node + 0xbc}); }
+  virtual bool hud_sound_playing(int32_t channel) { return unported("0x0041e800", {channel}) != 0; }
+  virtual void hud_sound_play(int32_t channel) { unported("0x0041e770", {channel}); }
   virtual void weapons_looks(void* weapons) { unported("0x00446540", {id(weapons)}); }
   virtual void nav_list_update(uint32_t nav, float dt) { unported("nav.vt+0x24", {nav, zgame::bits(dt)}); }
   virtual void network_hud() {
