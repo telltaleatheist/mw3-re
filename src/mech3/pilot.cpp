@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 
 namespace mech3 {
@@ -141,6 +142,22 @@ bool Pilot::write_header() {
   return wr4(file, &magic) && wr4(file, &version) && wr4(file, &x0c);
 }
 
+// Two pilot names name the same file: without case (ASCII and the
+// Windows-1252 letters) when the fix is on, else byte for byte (strncmp, 64).
+bool same_name(const char* a, const char* b) {
+  if (!zfix::options().bugs) return std::strncmp(a, b, 0x40) == 0;
+  auto fold = [](unsigned char c) -> unsigned char {
+    if ((c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7)) return static_cast<unsigned char>(c + 0x20);
+    return c;
+  };
+  for (int i = 0; i < 0x40; ++i) {
+    const unsigned char x = fold(static_cast<unsigned char>(a[i])), y = fold(static_cast<unsigned char>(b[i]));
+    if (x != y) return false;
+    if (!x) return true;
+  }
+  return true;
+}
+
 // The save the creators and the rename do inline (0x004788b0, 0x00478a40,
 // 0x00477fe0, 0x00478f10): open, the header, the games, close.
 bool Pilot::save() {
@@ -192,6 +209,11 @@ bool Pilot::write() {
 // another pilot has the name.
 bool Pilot::rename(const char* n) {
   if (std::strcmp(n, name) == 0) return true;
+  // FIX (bug): the exe renamed onto another pilot's name, sharing its file.
+  if (zfix::options().bugs) {
+    Pilot* other = find_pilot(n);
+    if (other && other != this) return false;
+  }
   const std::string old_path = file_path();
   for (Game* g : campaigns) {
     auto* c = static_cast<CampaignGame*>(g);
@@ -248,11 +270,13 @@ TrainingGame* Pilot::training_game() {
   return current && current->type() == kTraining ? static_cast<TrainingGame*>(current) : nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00478be0
+// Mech3.exe 1.2 @ 0x00478be0. FIX (bug): the exe compares with case while the
+// file names do not, so "BOB" made over "bob" shared bob.mw3 and clobbered
+// it; here names match as Windows file names do (docs/fixes.md).
 Pilot* find_pilot(const char* name) {
   if (!name) return nullptr;
   for (Pilot* p : g_pilots)
-    if (p && std::strncmp(name, p->name, 0x40) == 0) return p;
+    if (p && same_name(name, p->name)) return p;
   return nullptr;
 }
 

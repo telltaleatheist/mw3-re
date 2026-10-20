@@ -161,6 +161,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Pilot campaigns and lancemates, 0x4790d0 / 0x434040 | A damaged count reads on past the file's end, making a campaign or a slot each time | (bug) a corrupted pilot file hangs the game for up to 4 billion reads | Stops at the end of the file (`test_pilot.py` makes the original stop there too, 0x479366, 0x434244) |
 | Pilot name, 0x477b20 / 0x478560 | `strcpy` of the name into 64 bytes | (bug) a pilots\ file name of 64 characters or more overruns the record into the games' vector: a crash at the pilot screen | Such files are not listed; a name is cut to 63 characters |
 | Current pilot, 0x477f50 | Deleting a pilot leaves [0x0060861c] pointing at it when it is the current one | (bug) a dangling pointer (the pilot screen's DELETE on the pilot chosen before; a lobby launch then took it for a pilot) | Cleared (the test clears the original's the same way, 0x477f56) |
+| Pilot names, 0x478be0 / 0x477fe0 (pilot.md) | Names are compared with case (strncmp) while the file names are not, and a rename never checks the new name is free | (bug) "BOB" made over "bob", or a rename onto another pilot's name, shares one file: both are listed and whichever is saved last decides what it holds | Names match without case (ASCII and the Windows-1252 letters), so "BOB" finds bob; a rename onto another pilot's name is refused (Owen 2026-10-20); `zfix::options().bugs`, off in the probes; `tests/test_pilot_names.cpp` |
 | Pilot screen DELETE, 0x487e30 | With no pilot chosen the question formats the name at address 0x18 | (bug) a crash: DELETE pressed before any pilot exists | Nothing happens |
 | Pilot list item, 0x488770 | The item's value is the pilot's address (read by nothing) | (A) a 64-bit pointer | 0 |
 | Sensors' C3 merge, 0x4a9fd0 | The union of the master's and a member's contacts is written into the scratch vector [0x609a5c], sized to zEntity's list (at least 32) | (bug) targets.zrd objects count as contacts too, so a big enough union writes past the heap block | The union goes into a vector of its own that grows; the same contacts result. `mech3/sensors`, test_sensors.py (the original's path: unions within the scratch) |
@@ -366,10 +367,3 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   registry is lost on any visit to the screen. Keeping the magnitude and
   flipping only the sign would be the evident intent; it changes the feel
   for players who tuned it.
-- Pilot names are compared with case (0x478be0, strncmp) but the file names
-  are not: making "BOB" when "bob" exists opens bob's file, writes a new
-  pilot over it and lists both; whichever is destroyed last (at the main
-  menu's leave, the game's exit) decides what bob.mw3 holds. Renaming a
-  pilot to another one's name does the same (nothing checks the name is
-  free). Comparing without case, and refusing a taken name, would be the
-  evident intent (pilot.md, discoveries.md).

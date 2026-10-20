@@ -247,6 +247,7 @@ add_executable(mw3tests
   tests/test_fixes.cpp
   tests/test_zreader.cpp
   tests/test_controls_cfg.cpp
+  tests/test_pilot_names.cpp
   tests/test_program.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)

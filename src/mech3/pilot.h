@@ -275,6 +275,7 @@ class Pilot {
 std::list<Pilot*>& pilots();         // 0x004779f0 makes the list
 Pilot*& current_pilot();             // [0x0060861c]
 Pilot* find_pilot(const char* name);  // 0x00478be0
+bool same_name(const char* a, const char* b);  // pilot names that share a file
 Pilot* load_pilot(const char* name, bool reload);  // 0x00478700
 Pilot* create_pilot(const char* name);  // 0x004788b0: or the one already listed
 bool delete_pilot(const char* name);  // 0x00477f50: and its files

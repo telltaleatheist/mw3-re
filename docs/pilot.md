@@ -189,7 +189,9 @@ Changes (docs/fixes.md):
   OPEN_ALWAYS keep the original's "never truncate"; MoveFileA fails when the
   new name is taken (a new case of the same name moves). FindFirstFileA is
   `zutl::list` (the write dir's and the mounts', each name once, NTFS's
-  order). Names are Windows-1252 in the game and UTF-8 on the host
+  order). FIX (bug): pilot names match without case, as their files do
+  (0x478be0), and a rename onto another pilot's name is refused
+  (0x477fe0). Names are Windows-1252 in the game and UTF-8 on the host
   (`zutl::host`, `zutl::list`).
 - FIX (bug): a damaged campaign count, lancemate count (or item count, as in
   the loadouts) read on past the end of the file, making a campaign or slot

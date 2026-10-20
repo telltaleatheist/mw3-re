@@ -552,3 +552,4 @@ TEST(fix_beam_recharge_per_second) {
     EXPECT(std::abs(tag_recharge(fps, 1.0f, 10, true) - tag_recharge(30, 1.0f, 10, true)) <= 1);
   }
 }
+

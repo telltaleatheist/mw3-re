@@ -1695,8 +1695,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   two pilots to the game but one file to Windows: making "BOB" when "bob"
   exists writes a new pilot over bob's file and lists both, and whichever is
   saved last (when you leave the main menu or quit) decides what the file
-  holds. Renaming a pilot to another pilot's name does the same. The rebuild
-  keeps this for now (`fixes.md`, Candidates).
+  holds. Renaming a pilot to another pilot's name does the same. Fixed in the
+  rebuild: "BOB" picks the existing bob, and a rename onto a taken name is
+  refused (`fixes.md`).
 - **A pilot file of another version is not refused:** its header is simply
   rewritten and the rest read as if it were this version's.
 - **The game crashes** if you press DELETE before any pilot exists (the
