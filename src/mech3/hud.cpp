@@ -9,6 +9,7 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -46,6 +47,15 @@ EquipmentSet& equipment_set() { return g_equipment; }
 WeaponSet& weapon_set() { return g_weapons; }
 HudHooks& hud_hooks() { return *g_hooks; }
 void set_hud_hooks(HudHooks* h) { g_hooks = h ? h : &g_default_hooks; }
+
+ztwod::Rect HudHooks::display_rect() {
+  const Rect& r = display();
+  return {r.x, r.y, r.x_end, r.y_end};
+}
+ztwod::Rect HudHooks::window_rect() {
+  const Rect& r = window();
+  return {r.x, r.y, r.x_end, r.y_end};
+}
 
 void HudHooks::piece(uint32_t ctor, std::initializer_list<zgame::Arg> args) {
   char key[16];
@@ -391,8 +401,9 @@ HudGauges::HudGauges()
   show_for(-1.0f);
 }
 
-// The original's calloc(4, 3): three 32-bit pointers.
-HudLight::HudLight() : Image(0), images(static_cast<zimg::Texture**>(std::calloc(3, sizeof(zimg::Texture*)))) {}
+// The original's calloc(4, n): n 32-bit pointers.
+HudLight::HudLight(int32_t n)
+    : Image(0), count(n), images(static_cast<zimg::Texture**>(std::calloc(n, sizeof(zimg::Texture*)))) {}
 HudLight::~HudLight() { std::free(images); }
 
 void HudLight::select(int32_t i) {
@@ -503,6 +514,190 @@ void HudRadar::set_dir(const float* d) {
   y1 = get_y() + crt::msvc_ftol((v[0] * sin_half + v[2] * cos_half) * rr);
   x1 = get_x() + crt::msvc_ftol((v[0] * cos_half - v[2] * sin_half) * rr);
   lines[1].set(get_x(), get_y(), x1, y1);
+}
+
+// Mech3.exe 1.2 @ 0x004b5440
+HudViewWindow::HudViewWindow(const char* name) {
+  HudHooks& k = *g_hooks;
+  node = k.window_node_new();
+  k.node_set_name(node, name);
+  set_area(ztwod::Rect{});
+}
+
+// Inlined (0x004b5440, 0x0043f660): the ratio of the area to its target, then
+// the node's size and place.
+void HudViewWindow::set_area(const ztwod::Rect& r) {
+  area = r;
+  target = r;
+  scaled = !(target.right == area.right && target.bottom == area.bottom && target.left == area.left &&
+             target.top == area.top);
+  if (scaled) {
+    sx = static_cast<float>(area.right - area.left) / static_cast<float>(target.right - target.left);
+    sy = static_cast<float>(area.bottom - area.top) / static_cast<float>(target.bottom - target.top);
+    isx = 1.0f / sx;  // 0x005c91a0
+    isy = 1.0f / sy;
+  }
+  g_hooks->window_set_size(node, area.right - area.left, area.bottom - area.top);
+  g_hooks->window_set_pos(node, area.left, area.top);
+}
+
+// Mech3.exe 1.2 @ 0x004b5150
+HudZView::HudZView(const char* name, HudViewWindow* w, uint32_t wd) {
+  HudHooks& k = *g_hooks;
+  camera = k.camera_node_new();
+  k.node_set_name(camera, name);
+  x10 = 0;
+  window = w;
+  k.camera_set_window(camera, w ? w->node : 0);
+  world = wd;
+  k.camera_set_world(camera, k.world_node(wd));
+  hardware = ztwod::host().video_mode();
+  k.camera_set_zone(camera, 0xffffff01);  // [0x005e8854]: the default zone
+}
+
+// Mech3.exe 1.2 @ 0x0043f660
+HudZoomView::HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h)
+    : Object2D(0, 0), view("camx", new HudViewWindow("winx"), g_hooks->world()) {
+  rect = {px, py, px + w, py + h};
+  view.window->set_area(rect);
+  HudHooks& k = *g_hooks;
+  k.camera_set_zoom(view.camera, 1.0f);
+  k.camera_set_fov(view.camera, 0.87266463f, 1.0471976f);  // 50 and 60 degrees
+  k.camera_set_clip(view.camera, 1.0f, 500.0f);
+  x168 = 0;
+  HudZoomView::hide();
+}
+
+// Mech3.exe 1.2 @ 0x0043fc60
+void HudZoomView::hide() {
+  Object2D::hide();
+  g_hooks->node_set_active(view.camera, false);
+  if (x4c != 0xffff) g_hooks->unported("0x0043fc60.light", {x4c});  // a light's flag (0x004b5560); never at build
+}
+
+// Mech3.exe 1.2 @ 0x00442ac0
+HudZoomWindow::HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h) : HudZoomView(px, py, w, h) {
+  base_w = w;
+  base_h = h;
+  HudZoomWindow::hide();
+  set_rect(px, py, w, h);
+  light.show_for(-1.0f);
+  text.hide();
+  HudHooks& k = *g_hooks;
+  k.node_set_name(view.camera, "zoomcam");
+  k.camera_set_fov(view.camera, 0.08726646f, 0.08726646f);  // 5 degrees
+  float near_z, far_z;
+  k.player_camera_clip(&near_z, &far_z);
+  k.camera_set_clip(view.camera, near_z, far_z);
+  x174 = 0;
+  k.camera_set_zoom(view.camera, 10.0f);
+  light.center = 1;
+  ztwod::Host& hs = ztwod::host();
+  light.images[0] = hs.image_get("hud_zoomoff");
+  light.images[1] = hs.image_get("hud_zoomon");
+  light.images[2] = hs.image_get("hud_zoomover");
+  light.images[3] = hs.image_get("hud_zoomcant");
+}
+
+// Mech3.exe 1.2 @ 0x00443880
+void HudZoomWindow::hide() {
+  HudZoomView::hide();
+  if (x4c != 0xffff) g_hooks->unported("0x0043fc60.light", {x4c});
+  text.hide();
+  x174 = 0;
+}
+
+// Mech3.exe 1.2 @ 0x004438f0
+void HudZoomWindow::set_rect(int32_t px, int32_t py, int32_t w, int32_t h) {
+  int32_t sw = crt::msvc_ftol(static_cast<float>(w) * zoom);
+  int32_t sh = crt::msvc_ftol(static_cast<float>(h) * zoom);
+  if (sw < 2) sw = 2;
+  if (sh < 2) sh = 2;
+  px += (w - sw) / 2;
+  py += (h - sh) / 2;
+  const ztwod::Rect r = g_hooks->window_rect();
+  if (px < r.left) px = r.left;
+  if (px + sw > r.right) px = r.right - sw;
+  if (py < r.top) py = r.top;
+  if (py + sh > r.bottom) py = r.bottom - sh;
+  set_view_rect(&px, &py, &sw, &sh);
+  light.set_pos(sw / 2 + px, sh / 2 + py);
+  text.set_pos(px - 1, py + sh + 1);
+  if (round) {
+    frame.set_pos(sw / 2 + px, sh / 2 + py);
+    frame.radius = sw / 2;
+    frame.radius_sq = frame.radius * frame.radius;
+    frame.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+    return;
+  }
+  const int32_t x0 = px - 1, y0 = py - 1, bw = sw + 1, bh = sh + 1;
+  box.set_pos(x0, y0);
+  box.set_point(0, x0, y0);
+  box.set_point(1, bw + x0, y0);
+  box.set_point(2, bw + x0, bh + y0);
+  box.set_point(3, x0, bh + y0);
+  box.set_point(4, x0, y0);
+  box.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+}
+
+// Mech3.exe 1.2 @ 0x0043fa40: an edge past the display's inner border moved
+// back (one per axis), the window's area set.
+void HudZoomWindow::set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h) {
+  rect = {*px, *py, *px + *w, *py + *h};
+  const ztwod::Rect d = g_hooks->display_rect();
+  const int32_t right = d.right - 2, left = d.left + 2, top = d.top + 2, bottom = d.bottom - 2;
+  bool moved = true;
+  if (right < rect.left) rect.left = right;
+  else if (rect.left < left) rect.left = left;
+  else if (right < rect.right) rect.right = right;
+  else if (rect.right < left) rect.right = left;
+  else moved = false;
+  if (moved) {
+    *px = rect.left;
+    *w = rect.right - rect.left;
+  }
+  moved = true;
+  if (bottom < rect.top) rect.top = bottom;
+  else if (rect.top < top) rect.top = top;
+  else if (bottom < rect.bottom) rect.bottom = bottom;
+  else if (rect.bottom < top) rect.bottom = top;
+  else moved = false;
+  if (moved) {
+    *py = rect.top;
+    *h = rect.bottom - rect.top;
+  }
+  view.window->set_area(rect);
+}
+
+// Mech3.exe 1.2 @ 0x00443b60
+HudReticle::HudReticle(const char* on, const char* off) : Image(0) {
+  locked = 0;
+  x950 = 0;
+  x954 = 0.0f;
+  Image::set_pos(0, 0);
+  ztwod::Host& h = ztwod::host();
+  img_on = h.image_get(on);
+  img_off = h.image_get(off);
+  img_over = h.image_get("ret_over");
+  img_cant = h.image_get("ret_cant");
+  img_x920 = h.image_get("ret_on");
+  center = 1;
+  u40 = 1;
+  state = 5;
+  dirty();
+  if (state != 0) {  // inlined: the state set to off
+    state = 0;
+    if (!locked) set_image(img_off);
+  }
+  Object2D::show_for(-1.0f);
+  zoom.hide();
+  for (uint32_t& v : x928) v = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00443d00
+void HudReticle::hide() {
+  Object2D::hide();
+  zoom.hide();
 }
 
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order

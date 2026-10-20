@@ -213,14 +213,15 @@ class HudGauges : public ztwod::Object2D {
   int32_t toggler_y = 0;             // +0x1688 the meter's bottom less half the toggler
 };
 
-// A light of three images, one shown (vtable 0x005c0260, 0xd0 bytes).
+// A light of n images, one shown (vtable 0x005c0260, 0xd0 bytes; its
+// constructor inlined).
 class HudLight : public ztwod::Image {
  public:
-  HudLight();
+  explicit HudLight(int32_t n);
   ~HudLight() override;
   void select(int32_t i);            // inlined: the image of light i
-  zimg::Texture** images;            // +0xbc green, yellow, red (calloc'd)
-  int32_t count = 3;                 // +0xc0
+  int32_t count;                     // +0xc0
+  zimg::Texture** images;            // +0xbc calloc'd
   int32_t current = -1;              // +0xc4
   uint32_t xc8 = 0, xcc = 0;         // +0xc8, +0xcc
 };
@@ -250,16 +251,121 @@ class HudRadar : public ztwod::FilledBox {
   ztwod::ClipLine2D lines[3];        // +0xb4 the cone's edges (green) and a red one
   HudText text1;                     // +0x1a4
   HudText text2;                     // +0x654
-  HudLight light;                    // +0xb04
+  HudLight light{3};                 // +0xb04 green, yellow, red
   uint32_t xbd4 = 0, xbd8 = 0;       // +0xbd4
   ztwod::PolyLine polys[2];          // +0xbdc
   uint32_t xdb4 = 0, xdb8 = 0;       // +0xdb4
   void* source = nullptr;            // +0xdbc the HUD it shows
 };
 
+// zView's window (0x004b5440, vtable 0x005c91a4), 0x3c bytes: a window node
+// and its area on screen.
+struct HudViewWindow {
+  explicit HudViewWindow(const char* name);  // 0x004b5440
+  void set_area(const ztwod::Rect& r);  // inlined in 0x0043f660: the area and its target
+  uint32_t node = 0;                 // +0x04
+  ztwod::Rect area{};                // +0x08
+  ztwod::Rect target{};              // +0x18
+  uint8_t scaled = 0;                // +0x28 area and target differ
+  float sx = 0.0f, sy = 0.0f, isx = 0.0f, isy = 0.0f;  // +0x2c their ratio (unset when equal)
+};
+
+// A zView (0x004b5150, vtable 0x005c9118), 0x18 bytes: a camera node in a
+// window, in the world.
+struct HudZView {
+  HudZView(const char* name, HudViewWindow* w, uint32_t world);  // 0x004b5150
+  uint32_t camera = 0;               // +0x04
+  HudViewWindow* window = nullptr;   // +0x08 (0x004b51b0)
+  uint32_t world = 0;                // +0x0c (0x004b51d0)
+  uint32_t x10 = 0;                  // +0x10
+  int32_t hardware = 0;              // +0x14 [0x0072f348]
+};
+
+// A 3D view in a HUD box (vtable 0x005c0368, 0x16c bytes): the MFD's mech,
+// TARGET's and the reticle's zoom. Partial: built; its drawing and camera
+// work not ported (the render work, hud.md).
+class HudZoomView : public ztwod::Object2D {
+ public:
+  HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043f660
+  void hide() override;              // +0x64  0x0043fc60: the camera off too
+  HudZView view;                     // +0x34 (its vtable 0x005c0360)
+  uint32_t x4c = 0xffff;             // +0x4c
+  ztwod::Rect rect{};                // +0x50
+  HudPanel panel;                    // +0x60
+  uint32_t x168 = 0;                 // +0x168
+};
+
+// The reticle's zoom window (0x00442ac0, vtable 0x005c0608): the zoom
+// camera's view in a box or circle, its light and text.
+class HudZoomWindow : public HudZoomView {
+ public:
+  HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442ac0
+  // +0x60 show_for 0x004438d0: not ported yet.
+  void hide() override;              // +0x64  0x00443880
+  void set_rect(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004438f0: scaled by the zoom, kept on screen
+  void set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h);  // 0x0043fa40: 2 pixels inside the display
+  uint8_t round = 0;                 // +0x16c a circle, not a box
+  float zoom = 0.0f;                 // +0x170 the window's scale
+  uint8_t x174 = 0;                  // +0x174
+  int32_t base_w = 0, base_h = 0;    // +0x178
+  HudText text;                      // +0x180
+  HudLight light{4};                 // +0x630 hud_zoomoff, on, over, cant
+  ztwod::Frame frame;                // +0x700 the circle
+  ztwod::PolyLine box;               // +0x754 (vtable 0x005c0580)
+};
+
+// The reticle (vtable 0x005c0688, 0x95c bytes): its images by state and the
+// zoom window.
+class HudReticle : public ztwod::Image {
+ public:
+  HudReticle(const char* on, const char* off);  // 0x00443b60
+  // +0x60 show_for 0x00443cf0: Object2D's.
+  void hide() override;              // +0x64  0x00443d00: the zoom window too
+  HudZoomWindow zoom{10, 0x172, 0x5a, 0x5a};  // +0xbc
+  int32_t state = 0;                 // +0x908
+  uint8_t locked = 0;                // +0x90c the image kept
+  zimg::Texture* img_off = nullptr;  // +0x910
+  zimg::Texture* img_on = nullptr;   // +0x914
+  zimg::Texture* img_over = nullptr; // +0x918 ret_over
+  zimg::Texture* img_cant = nullptr; // +0x91c ret_cant
+  zimg::Texture* img_x920 = nullptr; // +0x920 ret_on again
+  uint32_t x928[10] = {};            // +0x928
+  int32_t x950 = 0;                  // +0x950
+  float x954 = 0.0f;                 // +0x954
+  void* source = nullptr;            // +0x958 (not set by the constructor)
+};
+
 // What the HUD calls outside it.
 class HudHooks : public zgame::Unported {
  public:
+  // zRender's nodes for the zoom views (not ported: the render work).
+  virtual uint32_t window_node_new() { return unported("0x004f9e90", {}); }
+  virtual uint32_t camera_node_new() { return unported("0x004f32e0", {}); }
+  virtual void node_set_name(uint32_t node, const char* name) { unported("0x004eb300", {node, name}); }
+  virtual void node_set_active(uint32_t node, bool on) { unported("0x004eb170", {node, on ? 1u : 0u}); }
+  virtual void window_set_size(uint32_t node, int32_t w, int32_t h) { unported("0x004f9fa0", {node, w, h}); }
+  virtual void window_set_pos(uint32_t node, int32_t x, int32_t y) { unported("0x004fa0b0", {node, x, y}); }
+  virtual void camera_set_window(uint32_t cam, uint32_t window) { unported("0x004f3620", {cam, window}); }
+  virtual void camera_set_world(uint32_t cam, uint32_t world) { unported("0x004f3560", {cam, world}); }
+  virtual void camera_set_zone(uint32_t cam, uint32_t zone) { unported("0x004f6c80", {cam, zone}); }
+  virtual void camera_set_zoom(uint32_t cam, float z) { unported("0x004f3ff0", {cam, zgame::bits(z)}); }
+  virtual void camera_set_fov(uint32_t cam, float x, float y) {
+    unported("0x004f3d90", {cam, zgame::bits(x), zgame::bits(y)});
+  }
+  virtual void camera_set_clip(uint32_t cam, float near_z, float far_z) {
+    unported("0x004f3a70", {cam, zgame::bits(near_z), zgame::bits(far_z)});
+  }
+  // The player view's camera clip (0x004f3b00 on [0x005f4c8c] +4).
+  virtual void player_camera_clip(float* near_z, float* far_z) {
+    *near_z = zgame::from_bits(unported("0x004f3b00.near", {}));
+    *far_z = zgame::from_bits(unported("0x004f3b00.far", {}));
+  }
+  // The options' display and window rects (0x0040d750, 0x0040d7b0): left, top, right, bottom.
+  virtual ztwod::Rect display_rect();
+  virtual ztwod::Rect window_rect();
+  // The world ([0x00608c84]) and its node (+4).
+  virtual uint32_t world() { return unported("peek32", {0x608c84}); }
+  virtual uint32_t world_node(uint32_t w) { return unported("peek32", {w + 4}); }
   virtual uint32_t id(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
   // The mission's current world entry (0x00491c80 on [0x006098d0]) and its
   // +0xd0 (above 0: the map is flipped, the compass turned half round).
@@ -297,7 +403,7 @@ class Hud : public ztwod::Layer {
   Mech* mech = nullptr;              // +0x10
   HudRadar radar{60.0f};             // +0x14
   HudCompass compass;                // +0xdd4
-  PendingPiece reticle{0x00443b60, {"ret_on", "ret_off"}};     // +0x144c 0x00443b60 (not ported yet)
+  HudReticle reticle{"ret_on", "ret_off"};  // +0x144c
   HudGauges gauges;                  // +0x1da8
   PendingPiece mfd{0x00442060, {0x212, 0x172, 0x4b, 100, 1}};         // +0x3434 0x00442060 (not ported yet)
   PendingPiece target{0x0043fcb0, {10, 0x172, 0x4b, 100}};      // +0x410c 0x0043fcb0 (not ported yet)

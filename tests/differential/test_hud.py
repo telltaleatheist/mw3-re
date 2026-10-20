@@ -20,7 +20,7 @@ from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
 from twod_world import TwodWorld  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 import test_twod  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
@@ -29,7 +29,7 @@ HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
-STUBBED = {0x443b60: 'zs0,zs1', 0x442060: 's0,s1,s2,s3,s4',
+STUBBED = {0x442060: 's0,s1,s2,s3,s4',
            0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
@@ -55,6 +55,41 @@ class Original:
         self.e.stub(0x491c80, spec='')
         e.stub(0x446ad0, spec='c')
         e.stub(0x446520, spec='c')
+        # zRender's nodes for the zoom views: new ones are fresh handles.
+        for a, spec in ((0x4f9e90, ''), (0x4f32e0, ''), (0x4eb300, 'c,zd'), (0x4eb170, 'c,d'), (0x4f9fa0, 'c,d,s0'),
+                        (0x4fa0b0, 'c,d,s0'), (0x4f3620, 'c,d'), (0x4f3560, 'c,d'), (0x4f6c80, 'c,*d'),
+                        (0x4f3ff0, 'c,s0'), (0x4f3d90, 'c,s0,s1'), (0x4f3a70, 'c,s0,s1')):
+            e.stub(a, spec=spec)
+        w.answers['0x004f9e90'] = lambda rr, n, a: e.world_alloc(0x40)
+        w.answers['0x004f32e0'] = lambda rr, n, a: e.world_alloc(0x40)
+        world = e.world_alloc(0x10)
+        e.w32(world + 4, e.world_alloc(0x40))
+        e.w32(0x608c84, world)
+        # The player camera's clip (0x004f3b00): written to *edx and *s0; the
+        # answer points the probe at the two.
+        e.stub(0x4f3b00, spec='')
+        clip = e.world_alloc(8)
+        e.cpu.write(clip, struct.pack('<ff', r.choice([0.5, 1.0, 2.0]), r.choice([300.0, 500.0, 1000.0])))
+
+        def player_clip(rr, n, a):
+            esp = e.uc.reg_read(UC_X86_REG_ESP)
+            e.w32(e.uc.reg_read(UC_X86_REG_EDX), e.r32(clip))
+            e.w32(e.r32(esp + 4), e.r32(clip + 4))
+            return clip
+        w.answers['0x004f3b00'] = player_clip
+        p_cam = e.world_alloc(8)
+        e.w32(0x5f4c8c, p_cam)
+        # The options' display and window rects (**[0x005f4d20], **[0x005f4d24]).
+        for g in (0x5f4d20, 0x5f4d24):
+            rect = e.world_alloc(16)
+            if r.random() < 0.7:
+                vals = (0, 0, r.choice([640, 800, 1024]), r.choice([480, 600, 768]))
+            else:
+                vals = tuple(r.randrange(-20, 500) for _ in range(4))
+            e.cpu.write(rect, struct.pack('<4i', *vals))
+            box = e.world_alloc(4)
+            e.w32(box, rect)
+            e.w32(g, box)
         # Mech3Msg.dll's messages: "msg<id>" into the buffer (s0), or none.
         e.stub(0x575ff0, spec='s1,s2')
         has_msgs = r.random() < 0.8
@@ -273,6 +308,62 @@ class Original:
         for i in range(2):
             poly(o + 0xbdc + 0xec * i)
             flush(f'rpoly{i}')
+        def zoomview(o, head):
+            base(o)
+            kv('cam', e.r32(o + 0x38))
+            kv('world', e.r32(o + 0x40))
+            kv('x10', e.r32(o + 0x44))
+            kv('hw', e.r32(o + 0x48))
+            kv('x4c', e.r32(o + 0x4c))
+            rc('rect', o + 0x50)
+            kv('x168', e.r32(o + 0x168))
+            flush(head)
+            wn = e.r32(o + 0x3c)
+            kv('node', e.r32(wn + 4))
+            rc('area', wn + 8)
+            rc('target', wn + 0x18)
+            kv('scaled', e.r8(wn + 0x28))
+            if e.r8(wn + 0x28):
+                for i in range(4):
+                    kv('s', e.r32(wn + 0x2c + 4 * i))
+            flush(head + '.window')
+            panel(o + 0x60)
+            flush(head + '.panel')
+
+        o = h + 0x144c
+        image(o)
+        for k, off in (('state', 0x908), ('x950', 0x950), ('x954', 0x954)):
+            kv(k, e.r32(o + off))
+        kv('locked', e.r8(o + 0x90c))
+        for i in range(5):
+            tx('i', e.r32(o + 0x910 + 4 * i))
+        for i in range(10):
+            kv('z', e.r32(o + 0x928 + 4 * i))
+        flush('reticle')
+        q = o + 0xbc
+        zoomview(q, 'zoom')
+        kv('round', e.r8(q + 0x16c))
+        kv('zoom', e.r32(q + 0x170))
+        kv('x174', e.r8(q + 0x174))
+        kv('bw', e.r32(q + 0x178))
+        kv('bh', e.r32(q + 0x17c))
+        flush('zoomw')
+        ftext(q + 0x180)
+        flush('ztext')
+        image(q + 0x630)
+        for i in range(4):
+            tx('l', e.r32(e.r32(q + 0x630 + 0xbc) + 4 * i))
+        for k, off in (('count', 0xc0), ('cur', 0xc4), ('xc8', 0xc8), ('xcc', 0xcc)):
+            kv(k, e.r32(q + 0x630 + off))
+        flush('zlight')
+        base(q + 0x700)
+        for k, off in (('radius', 0x34), ('rsq', 0x38), ('color', 0x3c)):
+            kv(k, e.r32(q + 0x700 + off))
+        kv('clipped', e.r8(q + 0x740))
+        rc('clip', q + 0x744)
+        flush('zframe')
+        poly(q + 0x754)
+        flush('zbox')
         o = h + 0x1da8
         base(o)
         for k, off in (('x143c', 0x143c), ('x1440', 0x1440), ('x1444', 0x1444), ('hw', 0x1448), ('hh', 0x144c),

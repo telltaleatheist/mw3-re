@@ -18,6 +18,18 @@ mech3::Hud* g_hud = nullptr;
 struct Hooks : mech3::HudHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   float entry_flip(uint32_t entry) override { return zgame::from_bits(call("peek32", {entry + 0xd0})); }
+  void player_camera_clip(float* n, float* f) override {
+    const uint32_t a = call("0x004f3b00", {});
+    *n = zgame::from_bits(call("peek32", {a}));
+    *f = zgame::from_bits(call("peek32", {a + 4}));
+  }
+  static ztwod::Rect rect_at(uint32_t global) {
+    const uint32_t r = call("peek32", {call("peek32", {global})});  // [global] -> [+0] -> the rect
+    return {static_cast<int32_t>(call("peek32", {r})), static_cast<int32_t>(call("peek32", {r + 4})),
+            static_cast<int32_t>(call("peek32", {r + 8})), static_cast<int32_t>(call("peek32", {r + 12}))};
+  }
+  ztwod::Rect display_rect() override { return rect_at(0x5f4d20); }
+  ztwod::Rect window_rect() override { return rect_at(0x5f4d24); }
   uint32_t id(const void* p) override { return p == g_hud ? g_hud_addr : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 };
 Hooks g_hooks;
@@ -82,6 +94,31 @@ void poly(Dump& d, ztwod::PolyLine* p) {
   d.kv("color", p->color);
   d.kv("dl", p->draw_list);
   d.kv("tf", p->transformed);
+}
+
+void panel(Dump& d, mech3::HudPanel* p);
+
+void zoomview(Dump& d, mech3::HudZoomView* v, const std::string& head) {
+  d.o << head << ' ';
+  d.base(v);
+  d.kv("cam", v->view.camera);
+  d.kv("world", v->view.world);
+  d.kv("x10", v->view.x10);
+  d.kv("hw", v->view.hardware);
+  d.kv("x4c", v->x4c);
+  d.r("rect", v->rect);
+  d.kv("x168", v->x168);
+  const mech3::HudViewWindow& w = *v->view.window;
+  d.o << "\n" << head << ".window ";
+  d.kv("node", w.node);
+  d.r("area", w.area);
+  d.r("target", w.target);
+  d.kv("scaled", w.scaled);
+  if (w.scaled)
+    for (float f : {w.sx, w.sy, w.isx, w.isy}) d.f("s", f);
+  d.o << "\n" << head << ".panel ";
+  panel(d, &v->panel);
+  d.o << "\n";
 }
 
 void panel(Dump& d, mech3::HudPanel* p) {
@@ -200,6 +237,43 @@ void dump_hud(Dump& d) {
     poly(d, &rd.polys[i]);
     d.o << "\n";
   }
+  mech3::HudReticle& rt = h.reticle;
+  d.o << "reticle ";
+  d.image(&rt);
+  d.kv("state", rt.state);
+  d.kv("x950", rt.x950);
+  d.f("x954", rt.x954);
+  d.kv("locked", rt.locked);
+  for (auto* t : {rt.img_off, rt.img_on, rt.img_over, rt.img_cant, rt.img_x920}) d.t("i", t);
+  for (uint32_t v : rt.x928) d.kv("z", v);
+  d.o << "\n";
+  mech3::HudZoomWindow& z = rt.zoom;
+  zoomview(d, &z, "zoom");
+  d.o << "zoomw ";
+  d.kv("round", z.round);
+  d.f("zoom", z.zoom);
+  d.kv("x174", z.x174);
+  d.kv("bw", z.base_w);
+  d.kv("bh", z.base_h);
+  d.o << "\nztext ";
+  ftext(d, &z.text);
+  d.o << "\nzlight ";
+  d.image(&z.light);
+  for (int i = 0; i < 4; ++i) d.t("l", z.light.images[i]);
+  d.kv("count", z.light.count);
+  d.kv("cur", z.light.current);
+  d.kv("xc8", z.light.xc8);
+  d.kv("xcc", z.light.xcc);
+  d.o << "\nzframe ";
+  d.base(&z.frame);
+  d.kv("radius", z.frame.radius);
+  d.kv("rsq", z.frame.radius_sq);
+  d.kv("color", z.frame.color);
+  d.kv("clipped", z.frame.clipped);
+  d.r("clip", z.frame.clip);
+  d.o << "\nzbox ";
+  poly(d, &z.box);
+  d.o << "\n";
   mech3::HudGauges& g = h.gauges;
   d.o << "gauges ";
   d.base(&g);
