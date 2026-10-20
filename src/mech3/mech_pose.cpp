@@ -197,9 +197,8 @@ void Mech::pose_toes(MechAnim& a, float blend) {
 
 // Mech3.exe 1.2 @ 0x00417bbc..0x0041818d (Move). The feet sampled in their
 // skis' frames; over the blend-in the feet, hip, torso and root motion go
-// from the last pose toward the animation's. The original blends the left
-// foot's rotation twice (from each foot's last) and the right's never
-// (fixes.md, candidates); kept.
+// from the last pose toward the animation's. The exe blends the left foot's
+// rotation twice (from each foot's last) and the right's never.
 void Mech::pose_gait(MechAnim& a, int jets, const Vec3& saved) {
   float* (*ski)(Handle) = skis_calls().node_matrix;
   a.ski_frame(0, ski ? ski(skis->ski[0]) : nullptr);
@@ -218,7 +217,9 @@ void Mech::pose_gait(MechAnim& a, int jets, const Vec3& saved) {
     for (int i = 0; i < 2; ++i) {
       Foot& f = *foot(i);
       lerp_into(*f.translation, i == 0 ? lp : rp, b, crouch == 0.0f);
-      slerp_into(f.rot, lq, b);
+      // FIX (bug): each foot from its own last rotation (Owen, 2026-10-20);
+      // the exe writes both into the left's, so the right foot snaps.
+      slerp_into(f.rot, zfix::options().bugs && i == 1 ? rq : lq, b);
     }
     slerp_into(hip->rot, hq, b);
     lerp_into(*hip->translation, hp, b, crouch == 0.0f);

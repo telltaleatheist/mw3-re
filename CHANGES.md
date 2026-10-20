@@ -26,6 +26,10 @@ it is clear what the designers meant.
   slopes and ledges, the blend into a walk, jump-jet thrust and the damage
   done to buildings you push into all went by frames; they now play as they
   did at 30 fps.
+- **Both feet ease into a walk.** For the first two thirds of a second of
+  walking, the right foot snapped straight to its walking angle and the left
+  one swung toward the right foot's old angle. Each foot now eases in from
+  its own position.
 - **Deep water no longer stops a mech dead.** Wading in water nearly as deep
   as the mech is tall slowed it almost to a standstill, then it sped back up
   to 70% once the water was deeper still. It now slows smoothly down to 70%.

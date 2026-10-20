@@ -39,7 +39,8 @@ the foot the target and the rotation.
   each foot, the hip, the torso and the root motion go from the last pose to
   the animation's by `clamp(frames / 20, 0.15, 1)` (with a crouch, the feet and
   hip keep their height). The left foot's rotation is blended twice (from each
-  foot's last) and the right's never: a bug, kept (fixes.md, candidates). Then
+  foot's last) and the right's never: a bug, fixed behind `zfix bugs` (each
+  foot from its own; fixes.md). Then
   0x475f20 (a foot lift to the skis, whose switches [0x6084f0] / [0x6084f4]
   nothing sets: it does nothing), the IK per leg, the arms and hands (not
   when the arm is destroyed), the toes (detail bit 1), the hip, the torso.

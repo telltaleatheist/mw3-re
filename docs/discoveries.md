@@ -171,7 +171,8 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 - **When you start walking, the right foot snaps.** For the first two thirds
   of a second the legs ease from their last pose into the walk, except that
   the right foot's angle jumps straight to the walk's while the left one
-  eases twice over (a mix-up in the original code, kept).
+  eases twice over (a mix-up in the original code: the right foot's result
+  is written over the left's). Fixed in the rebuild.
 - **In the cockpit your torso barely sways.** The player's torso takes only a
   tenth of the walk animation's sway when you look out of the cockpit, the
   full amount in the outside views.
