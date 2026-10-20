@@ -63,8 +63,8 @@ Contact* contact_at(uint32_t a) {
   auto c = std::make_unique<Contact>();
   c->owner = peek(a), c->seen = peek(a + 4), c->entity = peek(a + 8);
   c->dist2 = peekf(a + 0xc);
-  for (int i = 0; i < 3; ++i) c->delta[i] = peekf(a + 0x10 + 4 * i), c->x20[i] = peek(a + 0x20 + 4 * i);
-  c->x1c = peekf(a + 0x1c);
+  for (int i = 0; i < 3; ++i) c->delta[i] = peekf(a + 0x10 + 4 * i), c->dir[i] = peekf(a + 0x20 + 4 * i);
+  c->dist = peekf(a + 0x1c);
   c->flags = peek8(a + 0x2c);
   Contact* r = c.get();
   g_contact_of[a] = r;
@@ -141,7 +141,7 @@ void put_contact(const Contact* c, const AiTarget* in) {
   put(1);
   put(c->owner), put(c->seen), put(c->entity), put(zgame::bits(c->dist2));
   for (float d : c->delta) put(zgame::bits(d));
-  put(zgame::bits(c->x1c)), put(c->flags & 1);
+  put(zgame::bits(c->dist)), put(c->flags & 1);
   uint32_t idx = 0xffffffff;
   if (in)
     for (size_t i = 0; i < in->contacts.size(); ++i)

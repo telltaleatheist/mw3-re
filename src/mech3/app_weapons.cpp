@@ -96,6 +96,17 @@ MechPart* part_by_id(Mech& m, int32_t id) {
 uint32_t g_zone;  // the spawn's zone word: the entity's +0x64 byte
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x0040e9d0: a vehicle's node (+0x28 id 0xf000) its owner,
+// a part's (0xff) the part's mech (0x00460000).
+void* node_owner(void* n) {
+  zcls::Node* z = zn(n);
+  if (!z) return nullptr;
+  const uint32_t id = z->get<uint32_t>(0x28);
+  if (id & 0xf000) return z->owner;
+  if (id & 0xff) return static_cast<MechPart*>(z->owner)->mech;
+  return nullptr;
+}
+
 void wire_weapons() {
   WeaponCalls& c = weapon_calls();
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
@@ -219,14 +230,7 @@ void wire_weapons() {
     zcls::Node* z = zn(n);
     return z && (z->get<uint32_t>(0x28) & 0xff) ? static_cast<MechPart*>(z->owner) : nullptr;
   };
-  d.node_owner = [](Handle n) -> Handle {
-    zcls::Node* z = zn(n);
-    if (!z) return nullptr;
-    const uint32_t id = z->get<uint32_t>(0x28);
-    if (id & 0xf000) return z->owner;
-    if (id & 0xff) return static_cast<MechPart*>(z->owner)->mech;  // 0x00460000
-    return nullptr;
-  };
+  d.node_owner = node_owner;
 
   UpdateCalls& u = update_calls();
   u.weapons_fire = [](Mech& m, uint8_t fire) {  // 0x004b0c20 on +0xd4

@@ -73,6 +73,10 @@ struct LaunchedMech {
   int32_t jets = 0;        // jump jets installed (equipment[11])
   int32_t jets_firing = 0; // +0x580
   bool crouched = false;   // +0x586
+  float alive = 0;         // +0x414  seconds of full updates
+  int32_t anim_state = 0;  // +0x578
+  bool blocked[4] = {};    // +0x374  the last collide: vehicle, mech or bump, ceiling, wall or touch
+  const void* attacker = nullptr;  // the last mech to hit it
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
@@ -90,6 +94,8 @@ int32_t spawn_updates();                                           // the spawn'
 const float* spawn_position();                                     // the placed mech's position before its last step
 bool is_launched_mech(const void* mech);                           // the pilot's mech, the port's
 void update_mech(void* mech, float dt);
+void update_entities(float dt);                                   // 0x004a1140: every other entity's frame
+void* node_owner(void* node);                                     // 0x0040e9d0 (app_weapons.cpp)
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4

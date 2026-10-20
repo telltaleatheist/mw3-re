@@ -224,6 +224,7 @@ add_library(mw3probe SHARED
   tests/probe_place.cpp
   tests/probe_shotq.cpp
   tests/probe_command.cpp
+  tests/probe_entities.cpp
   tests/probe_collide.cpp
   tests/probe_anim_run.cpp
   tests/probe_action_lists.cpp
