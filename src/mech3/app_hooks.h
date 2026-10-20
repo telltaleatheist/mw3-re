@@ -317,6 +317,15 @@ class Engine : public zgame::AppHooks {
   virtual void video_end_scene() { unported("0x00579b10", {}); }
   virtual void video_double(Handle a, Handle b) { unported("[0x0072f358]", {a, b}); }
   virtual void video_apply_fog() { unported("[0x0072f3f0]", {}); }
+  // The fade state's screen calls (0x0048f0b0).
+  virtual Handle video_grab(int32_t buffer) { return unported("0x00579500", {buffer}); }  // a new image
+  // 0x0055b1f0: ECX image, EDX x; y, the colour key, the source rectangle (0: all).
+  virtual void image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) {
+    unported("0x0055b1f0", {image, x, y, key, rect});
+  }
+  // 0x00558540: CX colour, EDX rectangle (0: the screen); the alpha a double.
+  virtual void screen_tint(uint16_t colour, Handle rect, double alpha);
+  virtual void image_free(Handle image) { unported("0x00517cc0", {image}); }
   virtual void render_set_target(Handle target, Handle rect, Handle b, Handle a) {
     unported("0x00557f90", {target, rect, b, a});
   }

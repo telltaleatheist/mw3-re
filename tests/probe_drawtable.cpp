@@ -8,6 +8,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -19,6 +20,7 @@ namespace {
 //   3 clear: colour, r, g, b    4 begin    5 end    6 fog colour: r, g, b
 //   7 present    8 zerr: level, line, length, one word per character
 //   9 the dirty flags after begin_scene    10 present's return value
+//   11 the tint quad: pending, 32 vertex dwords    12 the scene depth
 std::vector<int32_t> g_log;
 std::vector<uint8_t> g_rgba;
 int32_t g_next_handle = 0x7000;
@@ -52,6 +54,12 @@ class Recorder : public platform::Render3D {
   void present() override { g_log.push_back(7); }
 };
 Recorder g_recorder;
+void put_quad() {
+  const zvid::TintQuad& q = zvid::tint_quad();
+  g_log.insert(g_log.end(), {11, q.pending});
+  const auto* w = reinterpret_cast<const int32_t*>(q.verts);
+  g_log.insert(g_log.end(), w, w + 32);
+}
 
 void zerr_sink(int level, const char*, int line, const char* message) {
   const int32_t n = static_cast<int32_t>(std::strlen(message));
@@ -183,6 +191,18 @@ void probe_dt_call(int32_t fn, const int32_t* a, uint8_t* tl, const float* work,
       g_log.insert(g_log.end(), {10, r});
       break;
     }
+    case 14: {  // 0x0057dd80: colour, rect?, l t r b (or the copy surface's w h), the alpha's dwords
+      zvid::surfaces().copy.width = a[2], zvid::surfaces().copy.height = a[3];
+      const uint64_t q = static_cast<uint32_t>(a[6]) | static_cast<uint64_t>(static_cast<uint32_t>(a[7])) << 32;
+      double alpha;
+      std::memcpy(&alpha, &q, 8);
+      zvid::set_tint_quad(static_cast<uint16_t>(a[0]), a[1] ? a + 2 : nullptr, alpha);
+      put_quad();
+      break;
+    }
+    case 15: zvid::draw_tint_quad(), put_quad(); break;
+    case 16: zvid::scene_depth() = a[0], zvid::scene_begin(), g_log.insert(g_log.end(), {12, zvid::scene_depth()}); break;
+    case 17: zvid::scene_depth() = a[0], zvid::scene_end(), g_log.insert(g_log.end(), {12, zvid::scene_depth()}); break;
     default: break;
   }
   std::memcpy(tl, g_tl, sizeof g_tl);

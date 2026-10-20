@@ -13,6 +13,7 @@
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_format.h"
 
 // The original rounds every step to float (Direct3D runs the FPU at 24 bits);
@@ -41,6 +42,7 @@ PointLight g_light;
 ChannelMasks g_masks;
 Display g_display;
 D3DTexture* g_default = nullptr;
+TintQuad g_tint;
 
 constexpr const char* kFile = "C:\\zipper\\GameZMech3\\zVideo\\zvid_ddd3d.c";
 constexpr float kInv255 = 0.003921569f;  // 0x005ceb78
@@ -303,6 +305,7 @@ bool is_pow2(int32_t n) {  // 0x0057e9e0: starts at 2, so 1 is not a power of tw
 
 TransparentQueue& transparent_queue() { return g_queue; }
 OverlayList& overlay_list() { return g_overlay; }
+TintQuad& tint_quad() { return g_tint; }
 TLVertex* flat_buffer() { return g_flat; }
 DeviceState& device_state() { return g_state; }
 void set_render3d(platform::Render3D* render) { g_render = render; }
@@ -718,6 +721,52 @@ void set_point_light_color(const float rgb[3]) {
   } else {
     l.brightest = below(l.color[0], l.color[2]) ? 2 : 0;
   }
+}
+
+// Mech3.exe 1.2 @ 0x0057dd80. Without a rect the quad takes the software
+// surface's [0x008027cc] as its right and [0x008027c8] as its bottom: height
+// and width swapped (unreached: 0x00558540 always passes one).
+void set_tint_quad(uint16_t colour, const int32_t* rect, double alpha) {
+  TintQuad& q = g_tint;
+  q.pending = 1;
+  float l, t, r, b;
+  if (!rect) {
+    const Surface& c = surfaces().copy;
+    l = 0.0f, t = 0.0f;  // read as unsigned (FILD of a zero-extended qword)
+    r = static_cast<float>(static_cast<uint32_t>(c.height)), b = static_cast<float>(static_cast<uint32_t>(c.width));
+  } else {
+    l = static_cast<float>(rect[0]), t = static_cast<float>(rect[1]);
+    r = static_cast<float>(rect[2]), b = static_cast<float>(rect[3]);
+  }
+  q.verts[0].sx = l, q.verts[0].sy = t;
+  q.verts[1].sx = r, q.verts[1].sy = t;
+  q.verts[2].sx = r, q.verts[2].sy = b;
+  q.verts[3].sx = l, q.verts[3].sy = b;
+  const PixelFormat& f = pixel_format();
+  const ChannelMasks& m = g_masks;
+  const auto a = static_cast<uint32_t>(crt::msvc_ftol(static_cast<float>(alpha * 255.0)));
+  uint32_t argb = (colour & m.r) >> (f.r_shift & 31) | a << 8;
+  argb = argb << 8 | (colour & m.g) >> (f.g_shift & 31);
+  argb = argb << 8 | (colour & m.b) << (f.b_shift_right & 31);
+  for (TLVertex& v : q.verts) v.diffuse = argb;
+}
+
+// Mech3.exe 1.2 @ 0x0057e380 ([0x0072f3ec]): blended, untextured, Gouraud,
+// no depth test or write, in the current primitive type.
+void draw_tint_quad() {
+  TintQuad& q = g_tint;
+  DeviceState& s = g_state;
+  if (!q.pending) return;
+  set_shade(2);
+  if (s.alpha_blend != 1) set_render_state(27, 1), s.alpha_blend = 1;
+  if (s.z_write != 0) set_render_state(14, 0), s.z_write = 0;
+  set_texture(nullptr);
+  set_render_state(23, 8);
+  draw_primitive(s.primitive, q.verts, 4);
+  q.pending = 0;
+  set_render_state(23, 7);
+  if (s.alpha_blend != 0) set_render_state(27, 0), s.alpha_blend = 0;
+  if (s.z_write != 1) set_render_state(14, 1), s.z_write = 1;
 }
 
 // Mech3.exe 1.2 @ 0x0057bcf0. FIX (A): FOGCOLOR goes to Render3D.

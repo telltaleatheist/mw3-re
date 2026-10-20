@@ -31,6 +31,7 @@
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/ztimer.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/mission_world.h"
@@ -166,10 +167,11 @@ std::string world_load(const std::string& mission, const std::string& variant, p
   zcls::update_hooks() = zcls::UpdateHooks{};
   zcls::WorldRenderHooks& h = zcls::world_render_hooks();
   h = zcls::WorldRenderHooks{};
-  h.begin_scene = [](void*) { zvid::begin_scene(); };
-  h.end_scene = [](void*) { zvid::end_scene(); };
+  h.begin_scene = [](void*) { zvid::scene_begin(); };
+  h.end_scene = [](void*) { zvid::scene_end(); };
   h.flush_transparent = [](void*) { zvid::flush_transparent(); };
   h.flush_overlay = [](void*) { zvid::flush_overlay(); };
+  h.draw_quad = [](void*) { zvid::draw_tint_quad(); };
   h.puffers = [](void*) { zmod::puff_draw(); };  // none yet: the animations make them (anim run, not ported)
   zimg::default_entry()->surface = &g_fallback;
   zmth::reset_stack();

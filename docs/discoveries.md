@@ -720,6 +720,16 @@ From the network code (network-messages.md).
 
 ## Graphics
 
+- **In software mode, screen flashes and fades miss the right edge.** The
+  software renderer colours the screen four pixels at a time (MMX), and the
+  screen's right edge is kept one pixel short, so on a 640-wide screen the
+  last four columns stay their normal colour while the rest flashes or fades
+  (0x558610, `render-frame.md`). On a PC without MMX the whole width is
+  coloured. In Direct3D the colour is one quad over the whole screen.
+- **A software-mode flash never wears off by itself:** the colour is kept and
+  laid over every following frame until the game sets another (0x558610).
+- **Fades and flashes in Direct3D are one see-through rectangle** drawn over
+  everything, depth ignored, in the frame's last scene (0x57dd80, 0x57e380).
 - **The software renderer draws with the stack pointer** (`blit-trick.md`). To
   fill a row of pixels fast, it points the CPU's stack at the screen and
   "pushes" colours onto it, two bytes at a time, backwards. It is quick on a
@@ -1015,6 +1025,27 @@ From the mech's constructor and the launch (mech-build.md).
 - **Unnamed mechs are numbered**: a mech made without a name is called
   after its type and a count of every mech made since the game started
   (`madcat07`). The player's is always `player`.
+- **Every mech has its own copy of its model and its materials.** The game
+  loads each mech type's model once, but each mech built from it gets a
+  full copy, colours and textures included (one set per model piece), so a
+  camo or battle damage on one Mad Cat never shows on another.
+- **Instant action and multiplayer use different destruction effects.** A
+  mech's death, disable and limb-loss effects come in two sets, and in
+  instant action and multiplayer the game picks the "m" set
+  (`madcat_mdestroy`, `madcat_larm_mdetach`, ...). The Elemental is the
+  exception: it always uses the campaign's.
+- **Footsteps and footprints are per mech and per ground.** Each mech type
+  looks for its own step sound and footprint on each of the 11 ground types
+  (`madcatDirt`, `madcatSnow`, ...) and falls back to the shared one
+  (`soilDirt`) when it has none; prints on grass are drawn at 90% size.
+- **A broken mech type stays broken.** If a mech's data fails to load, the
+  game remembers the failure and does not try again while the mission
+  lasts; if a mission loads before the type is forgotten, the original
+  crashes (fixed in the rebuild).
+- **Lights, sounds and a few other scene objects can't be copied.** The
+  engine's copy of a 3D object skips them with "Function not yet
+  implemented" messages still in the game: anything copied (mechs,
+  wreckage, effects) carries only models, levels of detail and cameras.
 
 ## Mechs: the definition file and saved loadouts
 
@@ -1374,6 +1405,21 @@ are all "puffers": emitters that drop little textured squares.
   catches up: moved objects get their new bounds and map square. So a shot
   always leaves from where your mech is this frame, and the animations see
   where the shots ended up.
+- **A mission starts with two seconds frozen.** Before the mission runs,
+  the game takes a still of the screen and fades it in from black over 2
+  seconds (0x48eea0, `game-loop.md`, The fade state). The fade sits on top of
+  the mission, so nothing moves and the mission clock does not run until it
+  is over; only then does the mission really start (resume 7: the AI's lists
+  are sorted then). In the 320x240 doubled mode there is no fade. Leaving a
+  mission through its end screen or the pause menu fades the screen to black
+  the same way.
+- **The fade's picture is a snapshot,** grabbed the moment the fade begins,
+  not the live screen. The fade in grabs the back buffer, the fade outs the
+  screen as shown. What the back buffer holds at a mission's start (likely
+  the last loading frame) is not checked in play.
+- **The fades follow real time, not frames:** each frame adds its share of
+  the 2 seconds, so they take as long on a fast PC as on a slow one. The
+  frame that reaches the end is still drawn.
 - **A developer's "haha" is still in the game.** Each time an object named
   `blackhawk_01` has its bounds rebuilt, the game prints "haha" (0x4ecc00),
   to a console a Windows game does not have, so nobody ever saw it.

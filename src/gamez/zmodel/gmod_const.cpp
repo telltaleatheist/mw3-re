@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "crt/msvc_math.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -38,6 +39,64 @@ uint32_t Model::count(int off) const {
 Model* model_at(int32_t index) {
   if (index < 0 || index >= static_cast<int32_t>(g_pool.slots.size())) return nullptr;
   return &g_pool.slots[index];
+}
+
+// Mech3.exe 1.2 @ 0x00538640 (ECX the file at the models' table, EDX the
+// index): one model read again into a new slot, its arrays from the data
+// offset its slot records (+0x5c). A failed read gives the slot back when
+// the file's use count is 0 (else it stays taken, half read).
+Model* reread_model(std::FILE* f, int32_t index) {
+  int32_t size, count, free_head;
+  int line = 0;
+  if (std::fread(&size, 4, 1, f) != 1) line = 0x323;
+  else if (std::fread(&count, 4, 1, f) != 1) line = 0x330;
+  else if (std::fread(&free_head, 4, 1, f) != 1) line = 0x33d;
+  if (line) {
+    zerr::report(0x200, kFile, line, "Error reading GameZ Model3D buffer data.");
+    zerr::report(0x200, kFile, 0x4b9, "Error reading GameZ Model3D buffer data.");
+    return nullptr;
+  }
+  if (size == 0 || size <= index) return nullptr;
+  std::fseek(f, static_cast<long>(index) * 0x60, SEEK_CUR);
+  uint8_t raw[0x60];
+  if (std::fread(raw, sizeof raw, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x4d2, "Error reading GameZ Model3D buffer data.");
+    return nullptr;
+  }
+  Model* m = model_alloc();
+  std::memcpy(m->header, raw, 0x5c);
+  uint32_t offset;
+  std::memcpy(&offset, raw + 0x5c, 4);
+  std::fseek(f, static_cast<long>(offset), SEEK_SET);
+  if (read_model_data(f, *m) == 0) return m;  // 0x00553450's edge pass: not ported (one video mode)
+  model_release(m);  // 1 (kept) when the file's use count is not 0
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00526800 (the pool's part; the draw table and lighting
+// settings are the caller's).
+void reset_pool() {
+  ModelPool& p = g_pool;
+  if (p.size == 0) p.size = 0x6d6;
+  p.slots.assign(p.size, Model{});
+  for (int32_t i = 0; i < p.size; ++i) p.slots[i].link = static_cast<uint32_t>(i + 1 < p.size ? i + 1 : -1);
+  p.free_head = 0;
+  p.count = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00538fe0
+Model* model_alloc() {
+  ModelPool& p = g_pool;
+  if (p.free_head < 0) zcls::gamez_abort("GameZ model resource failure: restarting your game usually solves this.");
+  Model* m = &p.slots[p.free_head];
+  ++p.count;
+  p.free_head = static_cast<int32_t>(m->link);
+  const uint32_t link = m->link;
+  *m = Model{};
+  m->link = link;
+  const uint32_t flags = 3;  // (+8 & ~0x10) | 3 on the cleared header
+  std::memcpy(m->header + 8, &flags, 4);
+  return m;
 }
 
 // Mech3.exe 1.2 @ 0x00538a70. Every read error returns -1, which the caller
@@ -119,6 +178,115 @@ int read_models(std::FILE* f) {
   }
   for (int i = 0; i < size; ++i) read_model_data(f, p.slots[i]);
   return size;
+}
+
+// Mech3.exe 1.2 @ 0x00539150. 1 while a node still uses it. The polygons'
+// arrays, the vertices, normals, morphs and lights are freed, the header
+// zeroed and the slot put back on the pool's free list.
+int model_release(Model* m) {
+  if (!m) return 5;
+  if (m->count(0xc) != 0) return 1;
+  for (uint32_t i = 0; m->polygons && i < m->count(0x10); ++i) {
+    Polygon& q = m->polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs);
+    std::free(q.colors), std::free(q.scratch);
+    q.vertex_indices = q.normal_indices = q.scratch = nullptr;
+    q.uvs = q.colors = nullptr;
+  }
+  std::memset(m->header + 0x10, 0, 4);
+  delete[] m->polygons;
+  std::free(m->vertices), std::free(m->normals), std::free(m->morphs);
+  for (uint32_t i = 0; m->lights && i < m->count(0x20); ++i) std::free(m->lights[i].vertices);
+  std::free(m->lights);
+  m->polygons = nullptr, m->vertices = m->normals = m->morphs = nullptr, m->lights = nullptr;
+  std::memset(m->header, 0, sizeof m->header);
+  const int32_t index = static_cast<int32_t>(m - g_pool.slots.data());
+  m->link = static_cast<uint32_t>(g_pool.free_head);
+  --g_pool.count;
+  g_pool.free_head = index;
+  return 0;
+}
+
+namespace {
+template <typename T>
+T* dup(const T* src, size_t count) {
+  auto* p = static_cast<T*>(std::malloc(count * sizeof(T)));
+  if (count) std::memcpy(p, src, count * sizeof(T));
+  return p;
+}
+void put32(uint8_t* h, int off, uint32_t v) { std::memcpy(h + off, &v, 4); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005396c0. Flag bits 0..4 come from m (the rest stay the
+// pool's 3, which has none), then the type, mode, +0x24..+0x30, the lights
+// with their points, morphs, vertices, normals and polygons; UVs only where
+// the (copied) material is textured.
+Model* model_copy(const Model& m, int32_t own_materials, int32_t shared) {
+  Model* c = model_alloc();
+  uint8_t* h = c->header;
+  std::memcpy(h, m.header, 8);  // +0 type, +4 mode
+  put32(h, 0xc, 0);
+  put32(h, 8, (m.count(8) & 0x1f) | (c->count(8) & ~0x1fu));
+  std::memcpy(h + 0x24, m.header + 0x24, 0x10);
+  const uint32_t lights = m.count(0x20);
+  put32(h, 0x20, lights);
+  if (lights) {
+    c->lights = static_cast<Light*>(std::malloc(lights * sizeof(Light)));
+    for (uint32_t i = 0; i < lights; ++i) {
+      c->lights[i] = m.lights[i];
+      int32_t n;
+      std::memcpy(&n, c->lights[i].raw + 0xc, 4);
+      c->lights[i].vertices = dup(m.lights[i].vertices, n > 0 ? 3 * static_cast<size_t>(n) : 0);
+    }
+  }
+  const int32_t morphs = static_cast<int32_t>(m.count(0x1c)), verts = static_cast<int32_t>(m.count(0x14));
+  const int32_t norms = static_cast<int32_t>(m.count(0x18)), polys = static_cast<int32_t>(m.count(0x10));
+  if (morphs > 0) c->morphs = dup(m.morphs, 3 * static_cast<size_t>(morphs));
+  put32(h, 0x1c, m.count(0x1c));
+  if (verts > 0) c->vertices = dup(m.vertices, 3 * static_cast<size_t>(verts));
+  put32(h, 0x14, m.count(0x14));
+  if (norms > 0) c->normals = dup(m.normals, 3 * static_cast<size_t>(norms));
+  put32(h, 0x18, m.count(0x18));
+  if (polys > 0) c->polygons = new Polygon[polys]{};
+  put32(h, 0x10, m.count(0x10));
+  std::vector<std::pair<Material*, Material*>> made;  // this copy's material copies
+  for (int32_t i = 0; i < polys; ++i) {
+    const Polygon& s = m.polygons[i];
+    Polygon& d = c->polygons[i];
+    d.priority = s.priority;
+    d.flags = s.flags & 0x700;
+    d.zone_set = s.zone_set;
+    d.material_index = s.material_index;
+    d.material = s.material;
+    if (own_materials && (!shared || material_changes(*s.material))) {
+      Material* copy = nullptr;
+      for (const auto& p : made)
+        if (p.first == s.material) copy = p.second;
+      if (!copy) {
+        copy = material_copy(*s.material);
+        made.emplace_back(s.material, copy);
+      }
+      d.material = copy;
+    }
+    const uint32_t k = s.flags & 0xff;
+    if (k) {
+      d.vertex_indices = dup(s.vertex_indices, k);
+      if ((s.flags & 0x200) && s.normal_indices) d.normal_indices = dup(s.normal_indices, k);
+    }
+    d.flags = (d.flags & ~0xffu) | k;
+    if (d.material->flags & 1) d.uvs = dup(s.uvs, 2 * static_cast<size_t>(k));
+    d.colors = dup(s.colors, 3 * static_cast<size_t>(k));
+    d.scratch = static_cast<uint32_t*>(std::malloc(k * 4));
+  }
+  return c;
+}
+
+// Mech3.exe 1.2 @ 0x0053b3c0
+int model_changes(const Model& m) {
+  if (m.count(8) & 0x1c) return 1;
+  for (uint32_t i = 0; i < m.count(0x10); ++i)
+    if (material_changes(*m.polygons[i].material)) return 1;
+  return 0;
 }
 
 // Mech3.exe 1.2 @ 0x0053bc10

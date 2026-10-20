@@ -10,7 +10,6 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
-#include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_draw.h"
@@ -197,10 +196,8 @@ T header(const uint8_t* h, int off) {
   return v;
 }
 
-// 0x00543330's body for either model port (the world's zmod::Model or a
-// mechlib node's zcls::Model): the same header and polygon layout.
-template <typename M>
-void shadow_model_of(const M& m) {
+// 0x00543330's body.
+void shadow_model_of(const Model& m) {
   const uint8_t* h = m.header;
   if (header<uint32_t>(h, 0x10) == 0) return;
   float (*cam)[3] = draw_buffers().cam;  // [0x0074639c]
@@ -467,7 +464,6 @@ void shadow_node(zcls::Node* node) {
 // Mech3.exe 1.2 @ 0x00543330
 void shadow_model(zcls::Node* node) {
   if (node->model) shadow_model_of(*node->model);
-  else if (node->lib_model) shadow_model_of(*node->lib_model);
 }
 
 }  // namespace zmod

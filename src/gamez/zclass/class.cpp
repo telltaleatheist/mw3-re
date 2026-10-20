@@ -445,9 +445,6 @@ int node_model_box(Node* node) {
   float* box = reinterpret_cast<float*>(node->raw + 0x8c);
   if (node->model) {
     zmod::model_box(node->model, box);
-  } else if (node->lib_model) {
-    Model* m = node->lib_model;  // a mechlib model: no lights
-    zmod::model_box(m->header, m->vertices, nullptr, m->morphs, box);
   } else {
     node->set_flags(node->flags() & ~0x200u);
     return 0;

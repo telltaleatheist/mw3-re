@@ -8,7 +8,7 @@ mw3 and pm, which might connect dots").
 
 ## The copy
 
-- Source: `/Volumes/iO/backups/win98/MW3 pirates moon.zip`, a Redump-style
+- Source: `MW3 pirates moon.zip` from Owen's Win98 backups, a Redump-style
   image: `Track 1.bin` (MODE1/2352, volume `MW3 PM`) and `Track 2.bin`
   (CD audio, about 9.4 minutes: the expansion's music).
 - Extracted under `game/` (git-ignored): `game/pm-disc/` (the bins, `pm.iso`

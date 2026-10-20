@@ -1,7 +1,8 @@
 # Exploration script (subagent, 2026-10-19), kept as a starting point for a real
 # test: runs the original zClass code / read_tree in Unicorn. See docs/zclass-world.md.
 import struct,sys
-sys.path.insert(0,'tests/differential')
+import os; ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0,ROOT + '/tests/differential')
 from original import Original
 c=Original()
 heap={}

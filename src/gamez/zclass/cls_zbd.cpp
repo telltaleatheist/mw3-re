@@ -239,6 +239,57 @@ std::FILE* open_zbd(const char* path, ZbdHeader* header) {
   return nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x004fe100. -1 for a null node; one outside the pool
+// returns whatever EAX held in the exe (here -1).
+int32_t node_index_of(const Node* node) {
+  if (!node) return -1;
+  const NodePool& p = nodes();
+  for (size_t b = 0; b < p.blocks.size(); ++b) {
+    const Node* base = p.blocks[b].get();
+    if (node >= base && node <= base + p.block_size - 1)
+      return static_cast<int32_t>(node - base) + static_cast<int32_t>(b) * p.block_size;
+  }
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x004ff7a0 (ECX file, EDX header, stack node, recurse):
+// the node's model as the file has it, read again into a new slot; the
+// node's current one is let go (freed when unused), kept when the read
+// fails. 1 when the node is not in the file or its record is unreadable.
+int reread_node(std::FILE* f, const ZbdHeader& h, Node* node, int32_t recurse) {
+  const int32_t index = node_index_of(node);
+  if (index < 0 || index >= h.node_array_size) return 1;
+  std::fseek(f, h.nodes_offset + index * 0xd4, SEEK_SET);
+  uint8_t record[0xd4];
+  if (std::fread(record, sizeof record, 1, f) != 1) return read_error(0x624, "Error reading GameZ Node buffer."), 1;
+  std::fseek(f, h.models_offset, SEEK_SET);
+  zmod::Model* old = node->model;  // 0x004eb420
+  node_set_model(node, nullptr);
+  int32_t model;
+  std::memcpy(&model, record + 0x3c, 4);
+  if (zmod::Model* m = zmod::reread_model(f, model)) {
+    node_set_model(node, m);
+    if (old) zmod::model_release(old);
+  } else {
+    node_set_model(node, old);
+  }
+  if (recurse)
+    for (int32_t i = 0; i < node->child_count(); ++i) reread_node(f, h, node->children[i], recurse);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ff730 (ECX node, EDX recurse): from the file the last
+// read_zbd remembered (the destructible buildings' reset, 0x00500760).
+int reread(Node* node, int32_t recurse) {
+  if (zbd_path()[0] == 0) return 1;
+  ZbdHeader h;
+  std::FILE* f = open_zbd(zbd_path(), &h);
+  if (!f) return 1;
+  const int r = reread_node(f, h, node, recurse);
+  std::fclose(f);
+  return r;
+}
+
 char* zbd_path() {
   static char path[0x30];
   return path;

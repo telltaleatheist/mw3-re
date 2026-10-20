@@ -2,6 +2,7 @@
 // message DLL, the mounts and write dir, the music lookup, and the start-up
 // through InitInstance and the original main loop to the main menu's state.
 #include <cmath>
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -19,6 +20,10 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zrender/zrndr_tint.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app.h"
@@ -170,6 +175,8 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("program_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -254,6 +261,8 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -272,6 +281,8 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_start_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -321,9 +332,8 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
       EXPECT(m.team == 4);                                          // team 2: mask 4
       EXPECT(m.powering_down);                                      // p12 ("owens" 0 1)
       // On the ground at its aiv.zrd place (-1767.7 3 -1229, yaw 30 degrees):
-      // the terrain there is at 3, the mech 0.01 above it. Not in the world
-      // while its node is the library's tree (app_mech.cpp, 0x004f9af0).
-      EXPECT(!m.in_world);
+      // the terrain there is at 3, the mech 0.01 above it, in the world.
+      EXPECT(m.in_world);
       EXPECT(m.pos[0] == -1767.7f && m.pos[2] == -1229.0f);
       EXPECT(m.pos[1] == static_cast<float>(3.0 + 0.01));
       EXPECT(std::fabs(m.yaw_sin - std::sin(0.52359879f / 2)) < 1e-6f);
@@ -409,6 +419,8 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -425,6 +437,8 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mech_build_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -464,6 +478,8 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -492,10 +508,9 @@ zcls::Node* watcher(int32_t priority, zcls::NodeAction fn, bool back) {
 // window (docs/action-lists.md): each Core frame runs zClass's action lists
 // (0x004f7d80), so the player's tick (priority 2, 0x004a1160) and weapon_tick
 // (priority 3, zwep::tick) run once a frame, in that order, between watchers
-// put before and after each on their lists. The zClass reset between
-// missions (0x004f8f40) is not ported, so the earlier test's mission leaves
-// its player's tick on list 2 too (the world, weapons included, is kept):
-// every tick object counts.
+// put before and after each on their lists. The earlier tests' missions are
+// gone: their stop took zClass down (0x004f8f40), so list 2 holds this
+// mission's one tick object.
 TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -503,6 +518,8 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_frames_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -547,7 +564,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
     pump.limit = 400;
     app.run(pump);
     EXPECT(ticks_at_start > 0);  // the player's tick ran before the watchers came
-    EXPECT(tick_objects >= 1);
+    EXPECT(tick_objects == 1);
     // Every frame since: 1, then the player's tick between 2< and 2>, the
     // weapon tick between 3< and 3>, then 4.
     const size_t frames = g_watch.ran.size() / 6;
@@ -567,6 +584,8 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -669,6 +688,64 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
 // the sensors (0x004a8cd0) fill the contact lists, nearest first: the
 // player's holds the Owens and the targets.zrd objects within its 1000 m,
 // the Owens' holds the player; the target keys pick from them.
+// The program's Direct3D frame (render-frame.md): the locked back buffer is
+// the 16-bit layer filled with the key, laid over the frame at the unlock
+// (FIX (A)); the fade's colour through the ports, the Direct3D quad or the
+// software finish (whose MMX rows leave a 640-wide screen's last four
+// columns); the stills' handles reused.
+TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
+  struct LayerScreen : platform::Screen2D {
+    int overlays = 0;
+    uint16_t key = 0, first = 0, second = 0;
+    void present_16(const uint16_t*, int, int, int, bool) override {}
+    void overlay_16(const uint16_t* px, int, int, int, bool, uint16_t k) override {
+      ++overlays, key = k, first = px[0], second = px[1];
+    }
+  };
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  LayerScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  const zvid::PixelFormat keep = zvid::pixel_format();
+  zvid::set_pixel_format(5, 6, 5);
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    engine.poke32(0x72f348, 1);
+    engine.video_begin_3d();
+    EXPECT(zrndr::target2d().base == reinterpret_cast<uint8_t*>(engine.buffer16()));
+    EXPECT(engine.buffer16()[0] == mech3::GameEngine::kLayerKey && engine.buffer16()[1] == mech3::GameEngine::kLayerKey);
+    engine.buffer16()[0] = 0x1234;
+    engine.video_end_3d();
+    EXPECT(screen.overlays == 1 && screen.key == mech3::GameEngine::kLayerKey && screen.first == 0x1234 &&
+           screen.second == mech3::GameEngine::kLayerKey);
+    engine.screen_tint(0, 0, 0.5);  // Direct3D: the quad over the locked size, half black
+    const zvid::TintQuad& q = zvid::tint_quad();
+    EXPECT(q.pending == 1 && q.verts[2].sx == 640.0f && q.verts[2].sy == 480.0f && q.verts[0].diffuse == 0x7f000000u);
+    engine.video_draw_3d();
+    EXPECT(q.pending == 0);
+
+    engine.poke32(0x72f348, 0);  // software: kept, then the finish
+    engine.video_lock();
+    std::fill(engine.buffer16(), engine.buffer16() + 640 * 480, uint16_t{0xffff});
+    engine.screen_tint(0, 0, 0.5);
+    engine.render_finish();
+    EXPECT(engine.buffer16()[0] == 0x7bef && engine.buffer16()[635] == 0x7bef && engine.buffer16()[636] == 0xffff &&
+           engine.buffer16()[640 * 479 + 1] == 0x7bef);
+    zrndr::tint_state() = zrndr::TintState{};
+
+    const mech3::Handle g1 = engine.video_grab(0), g2 = engine.video_grab(2);
+    EXPECT(g1 && g2 && g1 != g2);
+    engine.image_free(g1);
+    EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+  }
+  zvid::pixel_format() = keep;
+}
+
 TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -676,6 +753,8 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_sensors_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -706,13 +785,15 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
       int32_t player_n = 0, owens_n = 0;
       bool player_sees_owens = false, owens_hidden = false, owens_sees_player = false, nearest_first = true;
       bool owens_in_sight = false, picked = false, kept = false;
-      bool player_down = false, player_placed = false;
+      bool player_down = false, player_placed = false, far_sensed = false, near_distance = false;
     } seen;
     mech3::Handle player = 0, owens = 0;
+    int fade_frames = 0;  // the mission start's fade in (0x0048eea0) runs first
     engine.on_present = [&](int) {
+      if (app.current() == &mech3::states().fade && seen.frames == 0) ++fade_frames;
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
-      if (seen.frames == 3) {  // the Owens powered down: sensed, not in sight
+      if (seen.frames == 3) {  // as launched: 1433 m apart, beyond the player's 1000 m
         player = engine.field32(engine.pilot(), 0x14);
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
@@ -722,23 +803,35 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
         seen.player_first = !list.empty() && list[0] == player;
         seen.sorted = mech3::player_get_60b56c() == 1;
         mech3::SensedContact c[64];
+        const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
+        for (int32_t i = 0; i < n && i < 64; ++i) seen.far_sensed |= c[i].seen == owens;
+        // The launch leaves the player powered down (0x004782f0).
+        mech3::LaunchedMech pm;
+        seen.player_down = mech3::describe_mech(engine.object_of(player), &pm) && pm.powering_down;
+        seen.player_placed = pm.in_world && pm.pos[0] == -3200.9f && pm.pos[2] == -1225.1f &&
+                             pm.pos[1] > -35.9f && pm.pos[1] < -35.8f;
+        // Walked up: moved (vtable +0xdc) to the ground 300 m short of the Owens.
+        const float near[3] = {-2067.7f, -35.79f, -1229.0f};
+        mech3::move_mech(engine.object_of(player), near, 0.0f);
+      } else if (seen.frames == 4) {  // the Owens powered down: sensed, not in sight
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        mech3::SensedContact c[64];
         seen.player_n = mech3::sensed_contacts(engine.object_of(player), c, 64);
         for (int32_t i = 0; i < seen.player_n && i < 64; ++i) {
           if (i > 0 && c[i].distance < c[i - 1].distance) seen.nearest_first = false;
-          if (c[i].seen == owens) seen.player_sees_owens = true, seen.owens_hidden = !c[i].in_sight;
+          if (c[i].seen == owens) {
+            seen.player_sees_owens = true, seen.owens_hidden = !c[i].in_sight;
+            seen.near_distance = c[i].distance > 290.0f && c[i].distance < 310.0f;
+          }
         }
-        if (owens) {
+        if (made == 1) {
           seen.owens_n = mech3::sensed_contacts(ai[0].mech, c, 64);
           for (int32_t i = 0; i < seen.owens_n && i < 64; ++i) seen.owens_sees_player |= c[i].seen == player;
         }
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
-        // The launch leaves the player powered down (0x004782f0); P powers it up.
-        mech3::LaunchedMech pm;
-        seen.player_down = mech3::describe_mech(engine.object_of(player), &pm) && pm.powering_down;
-        seen.player_placed = !pm.in_world && pm.pos[0] == -3200.9f && pm.pos[2] == -1225.1f &&
-                             pm.pos[1] > -35.9f && pm.pos[1] < -35.8f;
-        mech3::mech_power(engine.object_of(player), 0);
-      } else if (seen.frames == 5) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
+        mech3::mech_power(engine.object_of(player), 0);                         // P powers the player up
+      } else if (seen.frames == 6) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
         for (int32_t i = 0; i < n && i < 64; ++i) seen.owens_in_sight |= c[i].seen == owens && c[i].in_sight;
@@ -747,7 +840,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
           const int32_t k = mech3::selected_contact(engine.object_of(player));
           seen.picked = k >= 0 && k < n && c[k].seen == owens;
         }
-      } else if (seen.frames == 6) {  // the pick holds over a frame: the sensors find it again
+      } else if (seen.frames == 7) {  // the pick holds over a frame: the sensors find it again
         const int32_t k = mech3::selected_contact(engine.object_of(player));
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
@@ -757,9 +850,12 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     CountingPump pump;
     pump.limit = 400;
     app.run(pump);
-    EXPECT(seen.frames >= 6);
+    EXPECT(fade_frames > 1);
+    EXPECT(seen.frames >= 7);
     EXPECT(seen.entities == 2 && seen.player_first && seen.sorted);
+    EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
+    EXPECT(seen.near_distance);
     EXPECT(seen.owens_in_sight && seen.picked && seen.kept);
     EXPECT(seen.player_down && seen.player_placed);
     EXPECT(engine.unported_counts().count("0x004782f0") == 0);

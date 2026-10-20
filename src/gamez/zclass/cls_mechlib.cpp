@@ -2,10 +2,14 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zutl_zar.h"
 
 namespace zcls {
@@ -25,6 +29,113 @@ uint32_t u32_at(const uint8_t* p, int off) {
 }
 }  // namespace
 
+bool& mechlib_post_process() {
+  static bool on = false;
+  return on;
+}
+
+// Mech3.exe 1.2 @ 0x004fc6d0
+bool mechlib_open(MechLib& lib, const char* path) {
+  const bool ok = zutl_zar::open(lib.archive, path);
+  uint32_t version = 0, format = 0, size = 4, size2 = 4;
+  zutl_zar::read(lib.archive, zutl_zar::find(lib.archive, "version"), &version, &size);
+  zutl_zar::read(lib.archive, zutl_zar::find(lib.archive, "format"), &format, &size2);
+  if (version != 27 || format != 1) {  // [0x005eb1f0], [0x005eb1f4]
+    zutl_zar::close(lib.archive);
+    return false;
+  }
+  if (ok) mechlib_read_materials(lib);
+  return ok;
+}
+
+// Mech3.exe 1.2 @ 0x004fc9e0. A missing entry reads none.
+bool mechlib_read_materials(MechLib& lib) {
+  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, "materials"), nullptr);
+  if (!f) return false;
+  uint32_t count = 0;
+  std::fread(&count, 4, 1, f);
+  lib.materials.reserve(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    auto* m = new Material{};  // 0x004fc470
+    read_material(f, *m);
+    lib.materials.push_back(m);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004fc650
+Node* mechlib_find(MechLib& lib, const char* name) {
+  for (Node* root : lib.trees)
+    if (std::strcmp(root->name(), name) == 0) return root;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc8f0
+Node* mechlib_load(MechLib& lib, const char* name) {
+  if (Node* hit = mechlib_find(lib, name)) return hit;
+  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, name), nullptr);
+  Node* root = read_tree(lib.reader, f, nullptr);
+  mechlib_resolve(lib, root);
+  // 0x004fc8b0 (an edge pass per model) is not ported: only one video mode sets the flag.
+  if (root) lib.trees.push_back(root);
+  return root;
+}
+
+// Mech3.exe 1.2 @ 0x004fcd40. Each polygon's index becomes the world material.
+void mechlib_resolve(MechLib& lib, Node* node) {
+  if (!node) return;
+  if (zmod::Model* m = node->model)
+    for (uint32_t i = 0; i < m->count(0x10); ++i) {
+      zmod::Polygon& p = m->polygons[i];
+      p.material = material_resolve(*lib.materials[p.material_index]);
+    }
+  for (int32_t i = 0; i < node->child_count(); ++i) mechlib_resolve(lib, node->children[i]);
+}
+
+// Mech3.exe 1.2 @ 0x004fc520. The raw bytes as a world material: the texture
+// at +0x10 once named, the soil at +0x20, the cycle (+0x24) 0 in the file.
+zmod::Material* material_resolve(Material& m) {
+  if (m.resolved) return m.world;
+  if (m.texture) m.entry = zimg::add_texture(m.texture);
+  zmod::Material w{};
+  const uint8_t* r = m.raw;
+  w.alpha = r[0], w.flags = r[1];
+  std::memcpy(&w.rgb, r + 2, 2);
+  std::memcpy(&w.r, r + 4, 4), std::memcpy(&w.g, r + 8, 4), std::memcpy(&w.b, r + 0xc, 4);
+  w.texture = m.entry;
+  if (!m.entry) w.texture_index = u32_at(r, 0x10);
+  std::memcpy(w.unk_14, r + 0x14, 12);
+  w.soil = u32_at(r, 0x20);
+  w.file_cycle = u32_at(r, 0x24);
+  if (zmod::Material* added = zmod::material_add(w)) {
+    m.resolved = true;
+    std::free(m.raw);
+    m.raw = nullptr;
+    m.world = added;
+  }
+  return m.resolved ? m.world : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc490
+void material_free(Material& m) {
+  if (!m.resolved && m.raw) std::free(m.raw);
+  std::free(m.texture);
+  m.texture = nullptr;
+  m.raw = nullptr, m.world = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc790
+void mechlib_close(MechLib& lib) {
+  for (Material* m : lib.materials) {
+    if (!m) continue;
+    material_free(*m);
+    delete m;
+  }
+  lib.materials.clear();
+  lib.trees.clear();
+  zutl_zar::close(lib.archive);
+}
+
 // Mech3.exe 1.2 @ 0x004fc570. A non-zero texture field means a name follows.
 bool read_material(std::FILE* f, Material& m) {
   m.raw = static_cast<uint8_t*>(std::malloc(0x28));
@@ -38,53 +149,37 @@ bool read_material(std::FILE* f, Material& m) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004fcf20. FIX (A): the model comes from new, not the
-// 0x60-byte pool at 0x007402e4 (which quits the game when empty).
-Model* read_model(std::FILE* f) {
-  auto* m = new Model{};
-  std::fread(m->header, 0x5c, 1, f);
-  m->polygon_count = u32_at(m->header, 0x10);
-  m->vertex_count = u32_at(m->header, 0x14);
-  m->normal_count = u32_at(m->header, 0x18);
-  m->morph_count = u32_at(m->header, 0x1c);
-  if (m->vertex_count) m->vertices = read_array<float>(f, m->vertex_count, 12);
-  if (m->normal_count) m->normals = read_array<float>(f, m->normal_count, 12);
-  if (m->morph_count) m->morphs = read_array<float>(f, m->morph_count, 12);
-  if (m->polygon_count) {
-    m->polygons = new Polygon[m->polygon_count]{};
-    for (uint32_t i = 0; i < m->polygon_count; ++i) {
-      uint8_t raw[0x24];
-      std::fread(raw, 0x24, 1, f);
-      Polygon& p = m->polygons[i];
-      p.flags = u32_at(raw, 0);
-      p.priority = static_cast<int32_t>(u32_at(raw, 4));
-      for (int k = 0; k < 5; ++k) p.file_ptrs[k] = u32_at(raw, 8 + 4 * k);
-      p.material = u32_at(raw, 0x1c);
-      p.zone_set = u32_at(raw, 0x20);
-    }
-  }
-  for (uint32_t i = 0; i < m->polygon_count; ++i) {
-    Polygon& p = m->polygons[i];
+// Mech3.exe 1.2 @ 0x004fcf20. The file's 0x5c bytes over a pool slot (its
+// link stays). The file's pointer fields only say whether an array follows.
+zmod::Model* read_model(std::FILE* f) {
+  uint8_t header[0x5c];
+  std::fread(header, sizeof header, 1, f);
+  zmod::Model* m = zmod::model_alloc();
+  std::memcpy(m->header, header, sizeof header);
+  const uint32_t polys = u32_at(header, 0x10), verts = u32_at(header, 0x14);
+  const uint32_t norms = u32_at(header, 0x18), morphs = u32_at(header, 0x1c);
+  if (static_cast<int32_t>(verts) > 0) m->vertices = read_array<float>(f, verts, 12);
+  if (static_cast<int32_t>(norms) > 0) m->normals = read_array<float>(f, norms, 12);
+  if (static_cast<int32_t>(morphs) > 0) m->morphs = read_array<float>(f, morphs, 12);
+  if (static_cast<int32_t>(polys) <= 0) return m;
+  std::vector<uint8_t> raw(static_cast<size_t>(polys) * 0x24);
+  std::fread(raw.data(), raw.size(), 1, f);
+  m->polygons = new zmod::Polygon[polys]{};
+  for (uint32_t i = 0; i < polys; ++i) {
+    const uint8_t* r = raw.data() + i * 0x24;
+    zmod::Polygon& p = m->polygons[i];
+    p.flags = u32_at(r, 0);
+    p.priority = static_cast<int32_t>(u32_at(r, 4));
+    p.material_index = u32_at(r, 0x1c);
+    p.zone_set = u32_at(r, 0x20);
     const uint32_t k = p.flags & 0xff;
     if (k) p.vertex_indices = read_array<uint32_t>(f, k, 4);
-    if ((p.flags & 0x200) && p.file_ptrs[1]) p.normal_indices = read_array<uint32_t>(f, k, 4);
-    if (p.file_ptrs[2]) p.uvs = read_array<float>(f, k, 8);
-    if (p.file_ptrs[3]) p.colors = read_array<float>(f, k, 12);
+    if ((p.flags & 0x200) && u32_at(r, 0xc)) p.normal_indices = read_array<uint32_t>(f, k, 4);
+    if (u32_at(r, 0x10)) p.uvs = read_array<float>(f, k, 8);
+    if (u32_at(r, 0x14)) p.colors = read_array<float>(f, k, 12);
     p.scratch = static_cast<uint32_t*>(std::malloc(k * 4));
   }
   return m;
-}
-
-void free_model(Model* m) {
-  if (!m) return;
-  for (uint32_t i = 0; i < m->polygon_count; ++i) {
-    Polygon& p = m->polygons[i];
-    std::free(p.vertex_indices), std::free(p.normal_indices), std::free(p.uvs);
-    std::free(p.colors), std::free(p.scratch);
-  }
-  delete[] m->polygons;
-  std::free(m->vertices), std::free(m->normals), std::free(m->morphs);
-  delete m;
 }
 
 // Mech3.exe 1.2 @ 0x004fce50. The file's 0xd0 bytes replace the new node
@@ -113,7 +208,7 @@ Node* read_tree(TreeReader& lib, std::FILE* f, Node* parent) {
   if (!f) return nullptr;
   ++lib.depth;
   Node* node = read_node(f, parent);
-  if (node->get<int32_t>(0x3c) != 0) node->lib_model = read_model(f);
+  if (node->get<int32_t>(0x3c) != 0) node->model = read_model(f);
   const int32_t children = node->child_count();
   node->put<int32_t>(0x5c, 0), node->put<int32_t>(0x60, 0);
   node->children = nullptr;

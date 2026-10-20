@@ -191,6 +191,17 @@ void flush_overlay();      // 0x0057e4c0
 void set_point_light_color(const float rgb[3]);  // 0x005798a0, rgb 0..1
 void send_fog_color();     // 0x0057bcf0: zrndr::device_fog().sent to FOGCOLOR
 
+// The full-screen colour quad (flashes and fades): 0x0057dd80 fills it,
+// [0x0072f3ec] = 0x0057e380 draws it once.
+struct TintQuad {
+  int32_t pending = 0;               // 0x008095bc
+  TLVertex verts[4] = {};            // 0x008095c0  left-top, right-top, right-bottom, left-bottom
+};
+TintQuad& tint_quad();
+// Mech3.exe 1.2 @ 0x0057dd80 (ECX colour, EDX rect or null; the alpha a double).
+void set_tint_quad(uint16_t colour, const int32_t* rect, double alpha);
+void draw_tint_quad();     // 0x0057e380
+
 int32_t begin_scene();     // 0x0057a740
 int32_t end_scene();       // 0x0057a7e0
 int32_t frame_clear(bool back_buffer);         // 0x005777f0

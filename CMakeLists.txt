@@ -19,6 +19,7 @@ add_library(mw3core STATIC
   src/crt/msvc_rand.cpp
   src/crt/msvc_string.cpp
   src/gamez/zerror/zerr.cpp
+  src/gamez/zvideo/zvid_dd.cpp
   src/gamez/zvideo/zvid_ddd3d.cpp
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
@@ -44,6 +45,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/cls_zbd.cpp
   src/gamez/zclass/display.cpp
   src/gamez/zclass/light.cpp
+  src/gamez/zclass/lod.cpp
   src/gamez/zclass/list.cpp
   src/gamez/zclass/seq.cpp
   src/gamez/zclass/object3d.cpp
@@ -92,6 +94,7 @@ add_library(mw3core STATIC
   src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
+  src/gamez/zrender/zrndr_tint.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp
@@ -109,6 +112,7 @@ add_library(mw3core STATIC
   src/mech3/mech_control.cpp
   src/mech3/mech_damage.cpp
   src/mech3/mech_data.cpp
+  src/mech3/mech_lib.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
   src/mech3/mech_part_update.cpp
@@ -231,6 +235,9 @@ add_library(mw3probe SHARED
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
   tests/probe_sensors.cpp
+  tests/probe_fade.cpp
+  tests/probe_frame.cpp
+  tests/probe_mech_data.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

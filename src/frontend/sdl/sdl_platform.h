@@ -49,9 +49,12 @@ class SdlScreen2D : public platform::Screen2D {
  public:
   explicit SdlScreen2D(SdlRender3D* render) : render_(render) {}
   void present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) override;
+  void overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key) override;
   int frames = 0;  // frames shown
 
  private:
+  void upload(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, bool keyed, uint16_t key);
+  void draw_layer(int width, int height, bool blend);
   SdlRender3D* render_;
   int32_t texture_ = -1;
   int tw_ = 0, th_ = 0;

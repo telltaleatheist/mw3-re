@@ -104,7 +104,9 @@ Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
 | zTwoD's outside calls (`ztwod::Host`) | `SdlTwodHost` (below) |
 | the settings store 0x00598210, 0x00597d80, the loader 0x0040c420, the save 0x0040cb20 and the store's free 0x00598270 (the app's destructor 0x0047fab0, `Mech3App::destroy`) | `zreg`, `mech3::load_options` (settings.md); the registry is the write dir's `settings.reg` (`platform::RegFile`) |
 | the mission load 0x00490880, 0x00490ab0, 0x0048faf0 (and 0x004902a0, 0x00490630, 0x00484c50) | `mech3::Missions` (mission-load.md); its hooks in `app_mission.cpp`: zInterp, the options, zImage, zClass's and zModel's resets, node lookups, animations, world.zrd, the readers, sounds; the view's camera run is the scene walk |
-| the sensors 0x004a8cd0 (each Core frame) and the entity sort 0x004d5ca0 (the mission start's resume 7) | `mech3/sensors` (ai.md section 15) over `app_sensors.cpp`: zEntity's list is the port's, the mechs put on it by the build's 0x005a7f50; the fade state 0x0048eea0 is not ported, so the Core state's mission-start fade ends at once with resume(7) |
+| the sensors 0x004a8cd0 (each Core frame) and the entity sort 0x004d5ca0 (the mission start's resume 7) | `mech3/sensors` (ai.md section 15) over `app_sensors.cpp`: zEntity's list is the port's, the mechs put on it by the build's 0x005a7f50; the Core state's mission-start fade (0x0048ee70) runs the ported fade state, whose end gives resume(7) |
+| the fade state's screen calls: the grab 0x00579500, the draw 0x0055b1f0, the free 0x00517cc0; the colour 0x00558540 | `GameEngine` (`app_engine.cpp`): the still is a copy of the 16-bit buffer, drawn back whole (FIX (A)); the colour is the port (`zrndr::tint`) |
+| the Direct3D frame: the lock 0x00576d00 / 0x00576d60, the scene nesting 0x00579af0 / 0x00579b10, the quad [0x0072f3ec], the software finish 0x00558610 | `zvid_dd`, `zvid_ddd3d`, `zrndr_tint` (render-frame.md); the surface Lock / Unlock on the 16-bit layer and `Screen2D::overlay_16` (FIX (A)) |
 | zInput: the command map 0x0051c630, start and stop 0x0051b0a0 / 0x0051b170, the activate and deactivate, polls 0x0051b360, key states 0x0051a9b0, resets, the mouse's use, centre, position, acceleration and screen, joystick and force feedback 0x0051dc10 / 0x0051ddb0 | `zin` (input.md), on `SdlInput` and `SdlZinHost` |
 
 Memory of modules not ported (the `peek`/`poke` the app code uses for
@@ -154,7 +156,15 @@ implements it:
 - **Render3D** (`SdlRender3D`, render.md section 4) for the 3D path, and
   **Screen2D** (`SdlScreen2D`) for the menus: the 16-bit back buffer the
   2D blits draw into (locked by 0x00576de0, flipped by 0x00576ea0) is
-  converted to a texture and drawn over the window by Render3D.
+  converted to a texture and drawn over the window by Render3D. Render3D
+  keeps one back-buffer texture a frame (the window's pixels): every scene,
+  2D layer and colour quad of the frame draws into it in order, the frame
+  clear (0x005777f0) clears it once, and the flip shows it (or saves it for
+  `--shot`). In Direct3D the back buffer's lock (0x00576d00, render-frame.md)
+  hands the 2D code the 16-bit layer filled with a key colour (0xf81f), and
+  its unlock lays the changed pixels over the 3D frame
+  (`Screen2D::overlay_16`), so the HUD and the fade's still go on top of
+  the world as on the locked DirectDraw surface.
 - **2D host** (`SdlTwodHost`, twod.md section 6): GDI's text on SDL3_ttf
   with the game's own `arial.ttf`, `impact.ttf` and `lucon.ttf` ("Lucida
   Console"), found through the mounts. GDI's rules where the game can see

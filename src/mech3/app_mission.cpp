@@ -38,6 +38,7 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zwep_damage.h"
@@ -515,6 +516,8 @@ struct WiredMissionHooks : MissionHooks {
   int32_t game_type() override { return e->launch().type; }
   int32_t game_mission_number() override { return e->launch().number; }
   uint8_t game_saved() override { return 0; }
+  void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
+  void fn_4319a0() override { mech3::mech_types_refresh(); }    // 0x004319a0: the mech types' sounds again
   uint8_t app_rgb() override { return app().byte_at(0x1b9); }       // 0x00608e41
   uint8_t app_turrets() override { return app().byte_at(0x1b2); }   // 0x00608e3a
   void set_holes(uint8_t on) override { e->poke8(0x6061cc, on); }
@@ -598,6 +601,7 @@ struct WiredMissionHooks : MissionHooks {
   void models_reset() override {
     zmod::materials() = zmod::MaterialTable{};
     zmod::models() = zmod::ModelPool{};
+    zmod::reset_pool();
     zmod::fog() = zmod::Fog{};
     zrndr::fog_color() = zrndr::FogColor{};
     zrndr::device_fog().active = 1;  // the Direct3D path
@@ -612,10 +616,11 @@ struct WiredMissionHooks : MissionHooks {
     zcls::update_hooks() = zcls::UpdateHooks{};
     zcls::WorldRenderHooks& h = zcls::world_render_hooks();
     h = zcls::WorldRenderHooks{};
-    h.begin_scene = [](void*) { zvid::begin_scene(); };
-    h.end_scene = [](void*) { zvid::end_scene(); };
+    h.begin_scene = [](void*) { zvid::scene_begin(); };
+    h.end_scene = [](void*) { zvid::scene_end(); };
     h.flush_transparent = [](void*) { zvid::flush_transparent(); };
     h.flush_overlay = [](void*) { zvid::flush_overlay(); };
+    h.draw_quad = [](void*) { zvid::draw_tint_quad(); };
     h.puffers = [](void*) { zmod::puff_draw(); };
     h.world_sounds = [](void*, zcls::Node* world) { zcls::world_sounds(world); };  // 0x004f3170
     h.listener_speed_limit = [](void*) { return zsnd::speed_of_sound(); };       // 0x00572360
@@ -834,13 +839,11 @@ void GameEngine::missions_start(uint32_t list) {
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
 
-// 0x0048ee70: the fade state (0x0048eea0, [0x00609888]) is not ported. The
-// Core state's fade at the mission start (its only caller, from its enter)
-// ends at once (our stand-in): the Core state gets the message the fade
-// sends as it ends (7, the mission's resume: the entity sort among it).
+// 0x0048ee70: the port's fade (mech3::fade_push, next 0); the Core state's
+// mission start fades in from black over 2 s, then gets resume(7).
 void GameEngine::fade(int32_t a, int32_t b, int32_t c, uint32_t d, int32_t e, int32_t f, int32_t g) {
-  Engine::fade(a, b, c, d, e, f, g);
-  if (a == 7) states().core.resume(7);
+  fade_push(nullptr, static_cast<uint32_t>(a), b, c, zgame::from_bits(d), static_cast<uint8_t>(e),
+            static_cast<uint8_t>(f), static_cast<uint8_t>(g));
 }
 
 // 0x0048f470 on the missions object, each Core frame: the port's (its

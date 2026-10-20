@@ -11,6 +11,8 @@
 #include "mech3/options.h"
 #include "platform/platform.h"
 
+namespace zvid { struct Surface; }
+
 namespace platform {
 class Render3D;
 class SoundOutput;
@@ -105,6 +107,8 @@ class GameEngine : public Engine {
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
   void video_clear_b(Handle rect) override;
   void lists_update() override;  // 0x004f7d80: zcls::run_action_lists
+  void classes_shutdown() override;   // 0x004f8f40: zcls::classes_reset
+  void missions_shutdown() override;  // 0x004844b0: mech3::close_mechlib
   std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
   bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene
   int frames_presented = 0;
@@ -208,6 +212,24 @@ class GameEngine : public Engine {
   void video_clear(Handle rect) override;
   void video_flip(int32_t a, int32_t b, int32_t c, int32_t d) override;
   uint32_t video_show_cursor(uint32_t on) override;
+  // The fade's stills (0x00579500, 0x0055b1f0, 0x00517cc0) on the 16-bit buffer;
+  // the colour is the ported tint (0x00558540).
+  Handle video_grab(int32_t buffer) override;
+  void image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) override;
+  void screen_tint(uint16_t colour, Handle rect, double alpha) override;
+  void image_free(Handle image) override;
+  // The Direct3D frame: zvid's lock (0x00576d00 / 0x00576d60), scene nesting
+  // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
+  void video_begin_3d() override;
+  void video_end_3d() override;
+  void video_begin_scene() override;
+  void video_draw_3d() override;
+  void video_end_scene() override;
+  void render_finish() override;
+  int32_t lock_back(zvid::Surface* s);
+  int32_t unlock_back(zvid::Surface* s);
+  // The 2D layer's untouched pixels (FIX (A)): a magenta no 2D draw in the game uses as a colour.
+  static constexpr uint16_t kLayerKey = 0xf81f;
   uint16_t* buffer16() { return buffer_.data(); }
   int buffer_width() const { return width_; }
   int buffer_height() const { return height_; }
@@ -234,7 +256,8 @@ class GameEngine : public Engine {
   zutl::MessageDll& messages() { return dll_; }
 
   static constexpr Handle kFrame = 0x00010000, kBackBuffer = 0x00010010, kFrontBuffer = 0x00010020,
-                          kTarget = 0x00010030, kScreenRect = 0x00010040;
+                          kTarget = 0x00010030, kScreenRect = 0x00010040,
+                          kGrabs = 0x00010100;  // the fade's stills, 0x10 apart
 
  private:
   Platform p_;
@@ -246,6 +269,7 @@ class GameEngine : public Engine {
   uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
+  std::map<Handle, std::vector<uint16_t>> grabs_;  // the fade's stills, by handle
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;
   std::string formatted_;
@@ -254,7 +278,7 @@ class GameEngine : public Engine {
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
-  bool scene_drawn_ = false, last_drew_scene_ = false;
+  bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
   std::unordered_map<void*, Handle> handles_;
   struct OpenScreen {
     MenuScreen* screen;
@@ -264,5 +288,8 @@ class GameEngine : public Engine {
   std::map<Handle, OpenScreen> screens_;
   std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)
 };
+
+// The frame's surface and tint hooks to `e`'s buffer and Render3D (null: none).
+void wire_frame_hooks(GameEngine* e);
 
 }  // namespace mech3

@@ -1,7 +1,8 @@
 # Exploration script (subagent, 2026-10-19) for interp.zbd (docs/interp.md):
 # dump = decode the archive, cmds/asmcmds = list the dispatcher's commands.
 import re,sys
-sys.path.insert(0,'tools/analysis'); import pe
+import os; ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0,ROOT + '/tools/analysis'); import pe
 L=open(sys.argv[1]).read().splitlines()
 H={'595e70':'s','595ef0':'f','595f10':'i','595ea0':'b'}
 SKIP={'5952d0','4108f0','596090','595240'}

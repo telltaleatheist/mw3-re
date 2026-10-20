@@ -204,11 +204,13 @@ entry's object, then the entries), 0x0040f0a0, 0x00537520: true.
   original's addresses. The bases, the collider and the parts' constructors
   set exactly the fields the exe's do; fields the port did not have are
   added with their offsets (`mech.h`, `mech_parts.h`, `mech_skis.h`).
-- **The program** (`app_mech.cpp`, our addition): the mech data is made from
-  mechlib.zbd's two trees and the motions (0x00430d10 and the data's loader
-  are not ported); zClass's tree copy 0x004f9af0 is not ported, so the mech
-  uses the library's tree itself (one mech of each type); zEntity's node
-  set-up keeps the node and its matrix. `mw3 --mission c1m1` launches after
+- **The program** (`app_mech.cpp`, our addition): the mech data is the
+  port's (0x00430d10, section 14), its trees mechlib's through the ported
+  library (mechlib.md); each mech's model and low-detail model are zClass
+  tree copies (0x004f9af0(node, 1, 1): its own models and materials); the
+  node removals, tree delete, model set and pool, subtree update and pending
+  nodes the chain asks for are the ports; zEntity's node set-up keeps the
+  node and its matrix. `mw3 --mission c1m1` launches after
   the load (standing in for the briefing's Launch): the pilot's slot is the
   Mad Cat in its first configuration (`GameEngine::Launch::mech`), and the
   log says what was built. player.cpp's `mech_create`, `mech_set_skin` and
@@ -300,10 +302,12 @@ the structure table one row off.
 
 ## 13. Left
 
-- The mech data's constructor and loader (0x004303d0, 0x004308a0; the
-  canned effects 0x00431750, the HUD's 0x00430aa0), the cache 0x00430d10.
-- zClass's tree copy 0x004f9af0; zEntity's node set-up 0x004d6c90 /
-  0x005a8390 and its list 0x005a7f50; the hit handler 0x005833b0.
+- The mech data's camera kinds 0x00430e70 (the 0x421530 objects), the HUD's
+  model object 0x00430aa0 / 0x00430ad0, the canned effects' spawn 0x00432830
+  (and so 0x00431800 has nothing to take down), the skins' state on the
+  model 0x00475780.
+- zEntity's node set-up 0x004d6c90 / 0x005a8390 and its list 0x005a7f50;
+  the hit handler 0x005833b0.
 - The torso's set-up 0x00464290 (the definition's look limits, its half
   width and depth, the death effects): the port's torso uses the base set-up.
 - The mech's destructor 0x00414f40, its view attach 0x0041ce30, the AI side
@@ -311,3 +315,88 @@ the structure table one row off.
   0x0049e5e0, instant action 0x0049dc80, multiplayer 0x0046da80.
 - The AI mechs are built (ai.md section 12); their placement 0x004161c0
   and the AI side of the mech (0x004e61e0, 0x004d6d20) are left.
+- The mission's unload 0x00490480 (which clears the mech types, 0x004318e0,
+  closes mechlib and resets zClass between two missions of one run) is a
+  hook: the program's runs are one mission each.
+
+## 14. The mech types' data (mech_data.cpp, ported 2026-10-20)
+
+One 0x234-byte object per mech type (`Pilot`, mech.h), in a cache
+(0x00605704, a `std::list`, count 0x00605708):
+
+- **0x00430d10 (ECX roster, EDX create)**: the cached type, else with
+  `create` a new one (`new(0x234)`, the constructor 0x004303d0); +8, its
+  count of holders, goes up either way. It returns 0 when the load failed,
+  **but the failed type stays cached** and is handed out (as 0) without a
+  second try. The exe also builds and destroys an empty one on the stack
+  around the lookup (0x004303c0 / 0x00430580), which leaves no trace.
+- **0x004303d0**: 0x00430490 (the defaults: roster -1, the gaits' throttle
+  bounds stand 0..0.01, step 0..0.04, walk 0.02..0.45, trot 0.41..0.85, run
+  0.75..1, the limps' stride speed 13, the five canned slots' offsets the
+  zero vector), +0xc the roster, +0x10 its name (0x00484650), the loader,
+  then onto the cache (`new(0xc)`).
+- **0x004308a0** clears +0x20 and reads both mechlib trees (0x00484760,
+  variants 0 and 1), setting the intersect flag on each (0x004eb6d0, also
+  on a null one: a report); +0x14 the full one. Without it: the error box
+  (0x004ac150, 0x1e0, 0xf2c, the name). Without a definition: "Unable to
+  setup (%s): invalid data file" (0x800, line 0xe2). Else +0x20 = 1, the
+  skins' state on the model (0x00475780, when the definition has skins),
+  +0x1b0..+0x220 cleared (the part effects, death effects, splashes, stub
+  nodes), the ranges (0x00430840: the definition's +0x14c and +0x150
+  squared), then while +0x20 holds: the cameras (0x00430e70), the sounds
+  (0x004306d0), the animations (0x00431a70, movement.md), the effects
+  (0x004320b0); the soils (0x00432670) whatever happened; a failure shows
+  the error box with no name (0xf2d).
+- **The sounds** (0x004306d0), 25 slots at +0x28: engine, engine_water,
+  limp, jumpjet, servo, heat_warning, heat_warning1, engine_up,
+  engine_down, lockon_warning, eject, crouch, landing, collide,
+  jumpjet_start, jumpjet_stop, radar_up, radar_down, falling, fall,
+  shutdown_warning, shutdown, shutdown_off, zoom (each `mech_<x>`, the
+  radar ones without), and slot 24 `mech_<name>`.
+- **The effects** (0x004320b0), by name through the animations (0x0050b450):
+  the four death effects `<name>_disable`, `_destroy`, `_fwd_disable`,
+  `_back_disable`; `<name>_landing_effects`, `mech_splash`, `nuke_splash`;
+  per thigh and arm `<name>_<part>_destroy`, `_detach`, `_stub`; the stub
+  nodes `larm_stub01.flt` .. `rleg_stub01.flt` by name on list 6 (0x004f7fe0);
+  `cpit_effects_explosion`. **In instant action and multiplayer** (the
+  pilot's game type 2 or 3, 0x00479460 / 0x00479480) every one but the
+  landing and splashes takes its "m" form (`_mdisable`, `_lthigh_mdestroy`,
+  ...), except for the Elemental.
+- **The soils** (0x00432670, `new(0xb0)`, 0x004326d0): for the 11 soils
+  (default, water, grass, dirt, mud, concrete, snow, mech, lava, silt,
+  noslip, 0x0047f380) the step sound and the footprint named `<name><Soil>`
+  (`madcatDirt`), each missing one `soil<Soil>`; the footprint scale 1, grass
+  0.9.
+- **The canned effects** (0x00431750, from 0x00431a70 and the refresh): the
+  definition's `animations` / `canned` blocks `eject`, `jumpjets`, `narc`
+  into +0x14c + 0x14 i: the effect named first in the block, its `ofs`, its
+  `node` found by name on list 6.
+- **0x004319a0**, at each mission's load: on every cached type 0x004319f0
+  makes the soils again and reads the canned effects and the sounds again
+  (they belong to the mission's sound and effect sets).
+- **0x004318e0**, at the mission's unload: each type's destructor
+  (0x00430580: off the cache, the HUD object, the animations and actions,
+  the cameras, the soils; the block at +0x228 is the HUD's) and delete,
+  then 0x00431800 takes down the canned effects' node copies (made by
+  0x00432830).
+
+The program: `mech_data()` replaces app_mech.cpp's own assembly; mechlib
+opens with the mission's load (0x00484270) and the types refresh with it
+(0x004319a0); the zClass reset (0x004f8f40) and mechlib's close (0x004844b0)
+run at the stop.
+
+**Quirks.** A type whose definition fails to load stays cached; at the next
+mission's refresh the exe reads its reader through null (0x00431a20): FIX
+(bug), the port reads none. The trees and models it copies are mechlib's,
+shared by every type's mechs (each mech copies them, section 3).
+
+`test_mech_data_load.py` (probe `tests/probe_mech_data.cpp`): 152 sessions,
+all 19 mechs, each a random run of lookups (create or not, the same type
+again, others), refreshes and clears, with types missing their model, the
+low-detail model, the definition or skins, the animations failing the step,
+the game type, and sounds, effects, nodes and canned blocks missing at
+random. The original runs first with every call out of mech_data.cpp
+stubbed (CString emulated), the port on a Replay: 32,824 calls, every
+result and the cache's order, and 550 live data and soils blocks laid over
+field by field identical. Sessions that refresh keep every definition (the
+exe crashes otherwise, above).

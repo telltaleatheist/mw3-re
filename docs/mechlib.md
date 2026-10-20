@@ -1,6 +1,6 @@
 # Mech model library (`mechlib.zbd`), draft
 
-Mech3.exe 1.2, 2026-10-19. Research draft: nothing ported yet. `mechlib.zbd` is
+Mech3.exe 1.2, 2026-10-19. Ported (2026-10-20): the reader, the library, the load path and the tree copy. `mechlib.zbd` is
 a zArchive (`zreader.md`) of 60 entries: `version` (u32 27), `format` (u32 1),
 57 `.flt` model trees (`mech_<name>.flt`, `mech_<name>_1.flt`,
 `mech_<name>_hud.flt` (no `_hud` for elemental), `lab.flt`) and, last,
@@ -207,10 +207,99 @@ with children), the pointers +0x38 (object3d data), +0x3c (model), +0x58
 (0x4fcf20). `tests/differential/test_mechlib.py` walks the file in the exe's
 order, runs both originals on every material and model, and compares
 everything read and the bytes consumed: all 442 materials and 770 models are
-identical. FIX (A): models come from `new` rather than the 0x60-byte pool.
+identical. (Until 2026-10-20 the models came from `new`; they now come from
+the world pool, "One model port" below.)
 The data never has a normal-index pointer without flag 0x200, so the test
 cannot see whether that condition is ported right; it is ported as the
 disassembly reads.
+
+### One model port (2026-10-20)
+
+The mechlib models are now the world's `zmod::Model`, taken from the world
+pool (0x538fe0, `zmod::model_alloc`) as the exe takes them; the separate
+`zcls::Model` and `Node::lib_model` are gone, and with them the FIX (A)
+above. A polygon keeps the file's material index in `material_index` until
+the library resolves it into `material` (a world material), which is the
+exe's single +0x1c field in two. The pool must exist first: zModel's start
+(0x526800, `zmod::reset_pool`, 1750 slots) or a world's gamez.zbd; the
+probes and the viewer reset it before reading a tree.
+
+## Loading a tree (ported 2026-10-20)
+
+`zcls::MechLib` (cls_mechlib) is the library object: open 0x4fc6d0 (the
+version and format check, then the materials 0x4fc9e0), the cache by root
+name 0x4fc650, the load 0x4fc8f0 (read, resolve, append to the list), the
+resolve 0x4fcd40 with each material's 0x4fc520, the free 0x4fc490 and the
+close 0x4fc790. The material resolve builds the world material from the raw
+bytes (the texture by name through zImage's 0x518c60 / 0x518cc0, now
+`zimg::add_texture`) and asks the world table for an equal one or a new one
+(0x536ad0 with the compare 0x536f10, `zmod::material_add`): the 442
+library materials become world materials once, shared by every mech. The
+post-pass 0x4fc8b0 (0x552540) runs only when 0x553450 is set (one video
+mode) and is not ported (`mechlib_post_process()` stays false).
+
+MW3's side (`mech3/mech_lib`): 0x484270 makes the library once and opens
+`zbd\mechlib.zbd`, then loads two voice tables (by equipment kind, 1 ams ..
+15 tc, damage.md; by weapon kind, 1 ac .. 13 streak and 14 tag); 0x484740
+loads a tree by entry; 0x484760 builds `mech_<name>.flt` or
+`mech_<name>_<variant>.flt` and loads it with the texture group set to 3,
+loading the group's textures when found (0x519080); 0x4847e0 the HUD model;
+0x4844b0 closes and frees the library (its trees are the world's), frees
+the definitions (0x46b9b0) and clears the voices. The program opens it at
+the mission load (0x48faf0's call) and closes it at the stop.
+
+The world material table grows by blocks of 1000 (0x536ad0 and 0x537830
+add one when the free list is empty, each new slot on the free list with
+flag 0x20). FIX (A): owned blocks, so a material keeps its address.
+
+## Copying a tree (ported 2026-10-20)
+
+zClass's copy (cls_util.c) is what gives every mech its own model:
+
+- **0x4f9af0(node, copy_models, own_materials)** sets [0x5ea838] and
+  [0x60bf40] for the copy and restores them; **0x4f9b50(node,
+  own_materials, shared)** sets [0x60bf40] and [0x60bf44]. Mechs copy with
+  (1, 1) (0x430c60, 0x430c20, 0x44fd20); every other caller with (0, 0).
+- **0x4f99f0** copies by class: object3d 0x4f96f0, LoD 0x4f9840, camera
+  0x4f9560. A node with flag 0x4000000 is handed out itself (shared, not
+  copied); worlds, lights, sounds, sequences, animates and switches are
+  refused with a report ("Function not yet implemented") and left out.
+- **The base 0x4f9190**: the name, the active, altitude-surface (8),
+  intersect (0x10), intersect-bbox (0x20), proximity (0x40), landmark
+  (0x80), can_modify (0x10000), clip_to (0x20000) and overwrite (0x800000)
+  flags through their setters, the DI zone check (0x1000000) only cleared
+  (0x4eb920 never sets it), flags 0x70000000 or-ed in, +0x28, +0x2c bits
+  3-4, 0x20 and 0x40, the model (0x4f90e0), the priority, the action (the
+  source's callback, so a copy joins the same action list) and the zone.
+  The source's user field (+0x40) is not copied (a report if set).
+- **The model (0x4f90e0)**: shared (its use count up) unless [0x5ea838];
+  then copied (0x5396c0) unless [0x60bf44] is set and the model does not
+  change (0x53b3c0: flags 4, 8 or 0x10, or a material with flag 2 or 4 or a
+  cycle). **0x5396c0** takes a new pool slot with the type, mode, the low
+  five flag bits, +0x24..+0x30, the lights with their points, morphs,
+  vertices, normals and polygons (each polygon's flags 0x100..0x400 and
+  vertex count only; UVs only when its material is textured), but not the
+  bounding sphere (+0x48..+0x58, rebuilt only by the node's box). With
+  [0x60bf40] each polygon's material is copied too (0x537830), one copy per
+  distinct material of that model, unless [0x60bf44] and the material does
+  not change. So **every mech owns copies of its materials**, one set per
+  model, which is what lets a mech's camo and damage textures differ from
+  another's of the same type.
+- Object3d copies keep the transform (a given matrix as such, else
+  translation, rotation and scale) unless it is the identity; a child that
+  fails to copy is skipped. A camera's or LoD's failing child fails the
+  whole copy (the copy made so far stays in the pool). A LoD's second range
+  goes through the engine's square-root guess and is squared again.
+
+`test_tree_copy.py`: a world read (t1), the library's materials read by the
+original (0x4fc470), then every one of the 57 trees read (0x4fcdc0),
+resolved (0x4fcd40) and copied four ways (mech, shared, models with shared
+materials, own changing materials) and two copies and the root taken down
+(0x4f9050, 0x4f84b0): 399 calls; after each, the node pool and lists, every
+model a node holds (bytes, arrays, polygons with their materials as table
+indices), the material table (every used material, the free list) and the
+texture table identical. The material table ends with 3682 materials
+(four blocks).
 
 ## Exe and mech3ax compared
 
@@ -267,11 +356,11 @@ differ:
    (0x4eb9b0 -> 0x4fb7a0 -> 0x4eba90), which belong to the zClass port; stub
    them for the first test and compare node bytes except the runtime fields
    (+0x24 low bits, +0x38, +0x54..+0x60, +0xcc).
-5. 0x4fc650 (cache), 0x4fc8f0 (load), 0x4fc790 (close).
-6. 0x4fcd40 / 0x4fc520 material resolution: needs the texture lookup
+5. **Ported.** 0x4fc650 (cache), 0x4fc8f0 (load), 0x4fc790 (close).
+6. **Ported.** 0x4fcd40 / 0x4fc520 material resolution: needs the texture lookup
    (0x518c60 and the zimg_library port) and the world material table
    (0x536ad0, `gmod_matl.c`), so it waits for those.
-7. MW3 side: 0x484270, 0x484740, 0x484760, 0x4847e0, 0x4844b0, and the mech
+7. **Ported.** MW3 side: 0x484270, 0x484740, 0x484760, 0x4847e0, 0x4844b0, and the mech
    table at 0x5e6078.
 8. Last or never: 0x4fc8b0 / 0x552540 (only in one video mode) and the writer
    (0x4fc990, 0x4fcca0, 0x4fc4d0), which is dead.

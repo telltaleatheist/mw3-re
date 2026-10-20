@@ -21,9 +21,19 @@ struct MechWiring {
   uint32_t (*vcall)(void* e, uint32_t obj, uint32_t slot, std::initializer_list<zgame::Arg> args) = nullptr;
   uint32_t (*pilot)(void* e) = nullptr;   // [0x0060861c]
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
-  const char* mechlib = "zbd/mechlib.zbd";  // the mech types' models, through the mounts
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
+
+// The mech types (mech_lib.h, mech_data.h) for the engine and the mission:
+// mechlib opened with its voices (0x00484270), the cached types' sounds and
+// effects made again for a new mission (0x004319a0), mechlib closed and the
+// definitions freed (0x004844b0).
+void mech_types_open();
+void mech_types_refresh();
+void mech_types_close();
+// As a new process starts: no mech type cached (the exe clears them only at
+// a mission's unload, 0x004318e0 in 0x00490480, which the program has not).
+void mech_types_forget();
 
 // What the last launch built (0x00491150), for the program's log and its tests.
 struct LaunchedMech {

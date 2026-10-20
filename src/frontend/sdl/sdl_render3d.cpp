@@ -88,6 +88,7 @@ SdlRender3D::~SdlRender3D() {
     if (t) SDL_ReleaseGPUTexture(dev_, t);
   if (depth_) SDL_ReleaseGPUTexture(dev_, depth_);
   if (vbuf_) SDL_ReleaseGPUBuffer(dev_, vbuf_);
+  if (frame_) SDL_ReleaseGPUTexture(dev_, frame_);
   for (SDL_GPUShader* s : {vs_, fs_tex_, fs_flat_})
     if (s) SDL_ReleaseGPUShader(dev_, s);
 }
@@ -195,7 +196,10 @@ void SdlRender3D::release_texture(int32_t h) {
 
 void SdlRender3D::set_viewport(int x, int y, int w, int h) { vx_ = x, vy_ = y, vw_ = w, vh_ = h; }
 
+// FIX (A): the frame clear (0x005777f0) fills the back buffer once; here it
+// is kept for the next scene's pass, colour and depth (depth to 0).
 void SdlRender3D::clear(bool color, uint8_t r, uint8_t g, uint8_t b) {
+  clear_pending_ = true;
   clear_color_ = color;
   clear_rgb_[0] = r / 255.0f, clear_rgb_[1] = g / 255.0f, clear_rgb_[2] = b / 255.0f;
 }
@@ -254,11 +258,33 @@ void SdlRender3D::ensure_buffer(uint32_t bytes) {
   vbuf_ = SDL_CreateGPUBuffer(dev_, &bi);
 }
 
+// The back buffer: one colour target the size of the window's pixels, kept
+// across the scenes, 2D layers and quads of a frame (FIX (A): DirectDraw's
+// back buffer), shown by present().
+bool SdlRender3D::ensure_frame() {
+  int pw = 0, ph = 0;
+  SDL_GetWindowSizeInPixels(window_, &pw, &ph);
+  const Uint32 w = pw > 0 ? static_cast<Uint32>(pw) : 1280, h = ph > 0 ? static_cast<Uint32>(ph) : 960;
+  if (frame_ && frame_w_ == w && frame_h_ == h) return true;
+  if (frame_) SDL_ReleaseGPUTexture(dev_, frame_);
+  SDL_GPUTextureCreateInfo ti{};
+  ti.type = SDL_GPU_TEXTURETYPE_2D, ti.format = color_format_;
+  ti.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+  ti.width = w, ti.height = h, ti.layer_count_or_depth = 1, ti.num_levels = 1;
+  frame_ = SDL_CreateGPUTexture(dev_, &ti);
+  frame_w_ = w, frame_h_ = h;
+  clear_pending_ = true;  // a new back buffer starts cleared
+  return frame_ != nullptr;
+}
+
+// One scene's draws into the back buffer, in order, in one render pass with
+// reversed depth (GREATER_OR_EQUAL; cleared to 0 by a pending frame clear).
 void SdlRender3D::end_scene() {
   if (std::getenv("MW3_R3D_STATS"))
     std::fprintf(stderr, "Render3D scene: %zu triangles in %zu runs, %zu textures, viewport %d %d %d %d\n",
                  vertices_.size() / 3, runs_.size(), textures_.size(), vx_, vy_, vw_, vh_);
-  cmd_ = SDL_AcquireGPUCommandBuffer(dev_);
+  if (!ensure_frame()) return;
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
   const auto bytes = static_cast<uint32_t>(vertices_.size() * sizeof(platform::TLVertex));
   SDL_GPUTransferBuffer* tb = nullptr;
   if (bytes) {
@@ -267,35 +293,25 @@ void SdlRender3D::end_scene() {
     tb = SDL_CreateGPUTransferBuffer(dev_, &tbi);
     std::memcpy(SDL_MapGPUTransferBuffer(dev_, tb, false), vertices_.data(), bytes);
     SDL_UnmapGPUTransferBuffer(dev_, tb);
-    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd_);
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
     SDL_GPUTransferBufferLocation src{tb, 0};
     SDL_GPUBufferRegion dst{vbuf_, 0, bytes};
-    SDL_UploadToGPUBuffer(copy, &src, &dst, false);
+    SDL_UploadToGPUBuffer(copy, &src, &dst, true);  // cycled: an earlier pass may still read it
     SDL_EndGPUCopyPass(copy);
   }
-  SDL_GPUTexture* target = nullptr;
-  Uint32 w = 0, h = 0;
-  SDL_GPUTexture* offscreen = nullptr;
-  if (capture_path_) {
-    w = 1280, h = static_cast<Uint32>(1280.0f * vh_ / (vw_ > 0 ? vw_ : 1));
-    SDL_GPUTextureCreateInfo ti{};
-    ti.type = SDL_GPU_TEXTURETYPE_2D, ti.format = color_format_, ti.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
-    ti.width = w, ti.height = h, ti.layer_count_or_depth = 1, ti.num_levels = 1;
-    target = offscreen = SDL_CreateGPUTexture(dev_, &ti);
-  } else if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmd_, window_, &target, &w, &h) || !target) {
-    if (tb) SDL_ReleaseGPUTransferBuffer(dev_, tb);
-    return;
-  }
+  const Uint32 w = frame_w_, h = frame_h_;
   ensure_depth(w, h);
   SDL_GPUColorTargetInfo ct{};
-  ct.texture = target;
+  ct.texture = frame_;
   ct.clear_color = {clear_rgb_[0], clear_rgb_[1], clear_rgb_[2], 1};
-  ct.load_op = clear_color_ ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+  ct.load_op = clear_pending_ && clear_color_ ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
   ct.store_op = SDL_GPU_STOREOP_STORE;
   SDL_GPUDepthStencilTargetInfo dt{};
-  dt.texture = depth_, dt.clear_depth = 0, dt.load_op = SDL_GPU_LOADOP_CLEAR;  // DEPTHFILL 0 (0x005777f0)
-  dt.store_op = SDL_GPU_STOREOP_DONT_CARE;
-  SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd_, &ct, 1, &dt);
+  dt.texture = depth_, dt.clear_depth = 0;  // DEPTHFILL 0 (0x005777f0)
+  dt.load_op = clear_pending_ ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+  dt.store_op = SDL_GPU_STOREOP_STORE;
+  clear_pending_ = false;
+  SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &ct, 1, &dt);
   // The game's viewport (its window, e.g. 640x480) is stretched over the
   // whole target: the shader maps game pixels to NDC by the game's rect.
   SDL_GPUViewport vp{0, 0, static_cast<float>(w), static_cast<float>(h), 0, 1};
@@ -307,10 +323,10 @@ void SdlRender3D::end_scene() {
     SDL_GPUGraphicsPipeline* p = pipeline(r.state, textured);
     if (!p) continue;
     SDL_BindGPUGraphicsPipeline(pass, p);
-    SDL_PushGPUVertexUniformData(cmd_, 0, vu, sizeof vu);
+    SDL_PushGPUVertexUniformData(cmd, 0, vu, sizeof vu);
     const float fu[8] = {fog_rgb_[0], fog_rgb_[1], fog_rgb_[2], 1, r.state.fog ? 1.0f : 0.0f,
                          r.state.alpha_modulate ? 1.0f : 0.0f, 0, 0};
-    SDL_PushGPUFragmentUniformData(cmd_, 0, fu, sizeof fu);
+    SDL_PushGPUFragmentUniformData(cmd, 0, fu, sizeof fu);
     SDL_GPUBufferBinding vb{vbuf_, 0};
     SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
     if (textured) {
@@ -320,32 +336,51 @@ void SdlRender3D::end_scene() {
     SDL_DrawGPUPrimitives(pass, r.count, 1, r.first, 0);
   }
   SDL_EndGPURenderPass(pass);
-  if (offscreen) {
+  SDL_SubmitGPUCommandBuffer(cmd);
+  if (tb) SDL_ReleaseGPUTransferBuffer(dev_, tb);
+  vertices_.clear();
+  runs_.clear();
+}
+
+// Flip (0x0057a850): the back buffer onto the window's swapchain (vsync), or
+// into the capture file. With the window hidden there is no swapchain to wait on.
+void SdlRender3D::present() {
+  if (!frame_) return;
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
+  if (capture_path_) {
+    const Uint32 w = frame_w_, h = frame_h_;
     SDL_GPUTransferBufferCreateInfo dbi{SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD, w * h * 4, 0};
     SDL_GPUTransferBuffer* db = SDL_CreateGPUTransferBuffer(dev_, &dbi);
-    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd_);
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
     SDL_GPUTextureRegion src{};
-    src.texture = offscreen, src.w = w, src.h = h, src.d = 1;
+    src.texture = frame_, src.w = w, src.h = h, src.d = 1;
     SDL_GPUTextureTransferInfo dst{db, 0, 0, 0};
     SDL_DownloadFromGPUTexture(copy, &src, &dst);
     SDL_EndGPUCopyPass(copy);
-    SDL_SubmitGPUCommandBuffer(cmd_);
-    cmd_ = nullptr;
-    SDL_WaitForGPUIdle(dev_);
-    SDL_Surface* s = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_ARGB8888, SDL_MapGPUTransferBuffer(dev_, db, false), w * 4);
-    SDL_SaveBMP(s, capture_path_);
-    SDL_DestroySurface(s);
+    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+    SDL_WaitForGPUFences(dev_, true, &fence, 1);
+    SDL_ReleaseGPUFence(dev_, fence);
+    SDL_Surface* sf = SDL_CreateSurfaceFrom(static_cast<int>(w), static_cast<int>(h), SDL_PIXELFORMAT_ARGB8888,
+                                            SDL_MapGPUTransferBuffer(dev_, db, false), static_cast<int>(w * 4));
+    SDL_SaveBMP(sf, capture_path_);
+    SDL_DestroySurface(sf);
     SDL_UnmapGPUTransferBuffer(dev_, db);
     SDL_ReleaseGPUTransferBuffer(dev_, db);
-    SDL_ReleaseGPUTexture(dev_, offscreen);
     capture_path_ = nullptr;
+    return;
   }
-  if (tb) SDL_ReleaseGPUTransferBuffer(dev_, tb);
-}
-
-void SdlRender3D::present() {
-  if (cmd_) SDL_SubmitGPUCommandBuffer(cmd_);  // the swapchain presents with vsync
-  cmd_ = nullptr;
+  SDL_GPUTexture* sc = nullptr;
+  Uint32 w = 0, h = 0;
+  const bool hidden = (SDL_GetWindowFlags(window_) & SDL_WINDOW_HIDDEN) != 0;
+  if (!hidden && SDL_WaitAndAcquireGPUSwapchainTexture(cmd, window_, &sc, &w, &h) && sc) {
+    SDL_GPUBlitInfo bi{};
+    bi.source.texture = frame_, bi.source.w = frame_w_, bi.source.h = frame_h_;
+    bi.destination.texture = sc, bi.destination.w = w, bi.destination.h = h;
+    bi.load_op = SDL_GPU_LOADOP_DONT_CARE;
+    bi.filter = SDL_GPU_FILTER_LINEAR;
+    SDL_BlitGPUTexture(cmd, &bi);
+  }
+  SDL_SubmitGPUCommandBuffer(cmd);
 }
 
 }  // namespace sdlfe

@@ -1,5 +1,7 @@
 #include "gamez/zclass/light.h"
 
+#include <cstdio>
+
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
@@ -34,6 +36,22 @@ Node* light_create() {
   l->nodes = nullptr;
   push_front(kLights, node);
   return node;
+}
+
+// Mech3.exe 1.2 @ 0x004fa850
+int light_delete(Node* node) {
+  if (!node) return zerr::report(0x400, kFile, 0x11c, "Null node pointer."), 5;
+  auto* l = static_cast<Light*>(node->data);
+  if (!l) return zerr::report(0x400, kFile, 0x11d, "Null class data pointer"), 5;
+  if (l->get<int32_t>(0xc8) > 0) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "ERROR deleting light; Light attached to %d world nodes", l->get<int32_t>(0xc8));
+    return zerr::report(0x400, kFile, 0x123, msg), 1;
+  }
+  delete[] l->nodes;
+  l->nodes = nullptr;
+  if (l->get<uint32_t>(0xb0) & 0x100) node_touch_frame();
+  return node_release(node);
 }
 
 namespace {

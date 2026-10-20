@@ -12,6 +12,11 @@ namespace zcls {
 
 struct Camera;
 
+Node* camera_create();                                             // 0x004f32e0
+int camera_set_world(Node* node, Node* world);                     // 0x004f3560  data +0
+int camera_set_window(Node* node, Node* window);                   // 0x004f3620  data +4
+int camera_set_fov_angles(Node* node, float h, float v);           // 0x004f3d90
+int camera_add_child(Node* node, Node* child);                     // 0x004f33a0
 int camera_set_clip(Node* node, float near_clip, float far_clip);  // 0x004f3a70
 int camera_set_fov(Node* node, float h, float v);                  // 0x004f3b90
 
@@ -89,6 +94,7 @@ struct WorldRenderHooks {
   void (*end_scene)(void* ctx) = nullptr;         // 0x00579b10
   void (*flush_transparent)(void* ctx) = nullptr;  // [0x0072f3e4] = 0x0057e110
   void (*flush_overlay)(void* ctx) = nullptr;     // [0x0072f3e8] = 0x0057e4c0
+  void (*draw_quad)(void* ctx) = nullptr;         // [0x0072f3ec] = 0x0057e380, the colour quad
   void (*puffers)(void* ctx) = nullptr;           // 0x005496c0
   void (*after_scene)(void* ctx, float dt) = nullptr;  // 0x005a67c0, when EDX != 0
   void (*world_sounds)(void* ctx, Node* world) = nullptr;  // 0x004f3170

@@ -54,10 +54,18 @@ struct ListWalk {
 // list is empty, else 0.
 int list_remove(int list, Node* node);     // 0x004f8220 ECX list, EDX node
 int list_purge(int list);                  // 0x004f7980
-int purge_lists();                         // 0x004f7bd0, then the deferred deletes
-// The deferred-delete list's nodes are destroyed by 0x004eaf90, not ported
-// yet: the hook (null skips the node).
-void set_node_destroy(void (*destroy)(Node* node));
+int purge_lists();                         // 0x004f7bd0, then the deferred deletes (0x004f81e0)
+int deferred_push(Node* node);             // 0x004f8050: freed (0x004eaf90) at the next purge
+int node_unlist(Node* node);               // 0x004f8390: off every list it is on
+// A node and its ties (docs/zclass-world.md, Destroy): its model let go (and
+// freed when unused), its children and parents unlinked, its class's own
+// delete. 0 gone, 1 still held (parents, a world listing it), else an error.
+int node_destroy(Node* node);              // 0x004f84b0
+int destroy_all();                         // 0x004f8ab0: every node, the lists and their items
+void free_items();                         // 0x004f7920
+// zClass's reset between missions and at shutdown (0x004f8f40 calls it):
+// every node destroyed and the pool's blocks freed.
+int classes_reset();                       // 0x004f8fb0
 // The frame's actions: each live item whose node is active (flag 4) and has
 // an action (+0x48) runs it, with purging held off; items without a node or
 // an action are marked removable. Then every flagged list is purged.

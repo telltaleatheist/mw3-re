@@ -67,17 +67,21 @@ bool DebugMissionState::enter() {
 bool DebugMissionState::update() {
   const float dt = ztimer::state().dt;
   if (input_->key_down(kEscape)) return true;
-  platform::MouseState m;
-  if (input_->mouse_state(&m) == 0 && (input_->mouse_buttons & 2)) {
-    o_.yaw += m.x * 0.004f;
-    o_.pitch = std::fmax(-1.5f, std::fmin(1.5f, o_.pitch - m.y * 0.004f));
+  // The mouse straight from SDL: the free camera is ours, and zInput need
+  // not hold the mouse here.
+  float mx = 0, my = 0;
+  input_->take_motion(&mx, &my);
+  if (input_->mouse_buttons & 2) {
+    o_.yaw += mx * 0.004f;
+    o_.pitch = std::fmax(-1.5f, std::fmin(1.5f, o_.pitch + my * 0.004f));
   }
   const float turn = 1.5f * dt;
   o_.yaw += (input_->key_down(kRight) - input_->key_down(kLeft)) * turn;
-  o_.pitch = std::fmax(-1.5f, std::fmin(1.5f, o_.pitch + (input_->key_down(kUp) - input_->key_down(kDown)) * turn));
+  o_.pitch = std::fmax(-1.5f, std::fmin(1.5f, o_.pitch + (input_->key_down(kDown) - input_->key_down(kUp)) * turn));
   const bool fast = input_->key_down(kLShift) || input_->key_down(kRShift);
   const float speed = (fast ? 2000.0f : 300.0f) * dt;
-  const float fwd[3] = {std::cos(o_.pitch) * std::sin(o_.yaw), std::sin(o_.pitch), std::cos(o_.pitch) * std::cos(o_.yaw)};
+  // The view's pitch is positive looking down (the render's convention).
+  const float fwd[3] = {std::cos(o_.pitch) * std::sin(o_.yaw), -std::sin(o_.pitch), std::cos(o_.pitch) * std::cos(o_.yaw)};
   const float right[3] = {-std::cos(o_.yaw), 0, std::sin(o_.yaw)};
   for (int i = 0; i < 3; ++i) {
     o_.eye[i] += (input_->key_down(kW) - input_->key_down(kS)) * fwd[i] * speed;

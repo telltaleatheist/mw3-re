@@ -156,7 +156,8 @@ Enter (0x00480c70): in a network game the system keys are locked
 applied (0x0040cb30); without a pilot's mech, Replace with Main is queued; the
 in-game screen mode set; the drawing path picked; the message box
 (dlgMessage.zrd MESSAGEBOX) made hidden; the mission started (below); then
-a fade (software) or resume(7); "mech_powerup" plays unless the pilot's +0x59;
+the fade in (below) unless the screen is pixel doubled (0x0040d4b0), where
+resume(7) runs at once; "mech_powerup" plays unless the pilot's +0x59;
 the mouse acceleration options applied.
 
 The drawing path (0x00480bf0), re-picked whenever VMode changes: Direct3D
@@ -207,6 +208,58 @@ Leave (0x00481fc0): mouse acceleration back to 1.3, screen mode 5, the CD
 stopped, the mission archives closed, animations, sounds and voices stopped,
 the system keys unlocked.
 
+### The fade state
+
+"Fade State" (0x00609888, vtable 0x005c6088, constructor 0x0048f1b0), ported
+in `mech3/app_states` (`FadeState`, `fade_push`, `fade_replace`). It shows a
+still of the screen with a colour faded over it, then moves the stack on.
+
+- Entries: 0x0048eea0 (ECX next state, EDX code; direction, buffer, seconds,
+  r, g, b) pushes it in mode 0; 0x0048ef00 (same arguments) replaces the
+  current state with it in mode 2; 0x0048ee70 is the Core state's wrapper
+  (ECX code, EDX direction; next 0). Each stores the buffer (+0x34), mode
+  (+0x0c), code (+0x08) and next state (+0x10), then 0x0048f060 sets the
+  direction (+0x1c), the colour packed to 16 bits (+0x20, 0x00579370), the
+  seconds (+0x24), t = 0 (+0x28), 1.0 (+0x2c, never read) and 1/seconds
+  (+0x30).
+- Queued (vt+0x08, 0x0048ef60): the still is grabbed then, before the fade
+  is entered: 0x00579500(buffer) copies zVideo's buffer 0 (back), 1 (the
+  extra surface) or 2 (front) into a new image (+0x18).
+- Enter (0x0048ef70): the cursor hidden (0x00579840(0), the old state kept
+  at +0x14) and 0x0059fb80(0).
+- Update (0x0048ef90) runs one step (0x0048f0b0) with the frame time
+  [0x0072c52c]: t += dt / seconds; the alpha is 1 - t for direction -1 (in
+  from the colour), else t (out to it). Each step draws the still at 0,0
+  (0x0055b1f0), the colour over the screen at the alpha (0x00558540: in
+  Direct3D a quad 0x0057dd80 drawn by [0x0072f3ec] in a scene; in software
+  kept for the renderer's finish 0x00558610), then flips. The step that
+  reaches 0 (fading in) or passes 1 (fading out) still draws, clamped, and
+  reports the end; with no still the fade ends on its first update without
+  drawing. At the end: mode 0 pops with the code, then pushes the next state
+  when there is one; mode 1 (no caller sets it) pops twice, the second with
+  the code; mode 2 replaces itself with the next state, or pops with the code.
+- Leave (0x0048f030): the cursor's old state to 0x00579840 and 0x0059fb80,
+  the still freed (0x00517cc0).
+
+Callers: the Core state's mission start (in from black over [0x005e7274] = 2 s,
+buffer 0, code 7: resume(7) starts the mission, sorting the entities); the
+fade outs to black over 2 s from the front buffer, each replacing the current
+state with another (direction 1, buffer 2, code 0): from 0x004707c0 (next
+0x00605fa8), 0x0047d030 (0x00608bd0), 0x0048e390 (0x00609848), the mission's
+end screen 0x00491bf0 (`Missions::end_screen`, the hook `fade_out` in
+`mission.h`) and the pause screen's buttons 0x00492d70, both to the
+campaign's sequence 0x006099a0. Those next states are not ported yet, so
+their callers keep a hook; `fade_replace` is there for them.
+
+While the fade runs it is the top state, so the state below gets no updates:
+the mission does not run during its 2 s fade in. It is time-based (dt), so it
+needs no per-frame scaling.
+
+The program (program.md) grabs and draws the still on its 16-bit buffer
+(FIX (A)); the colour goes through the ported tint (render-frame.md): in
+Direct3D the quad 0x0057dd80 / 0x0057e380 over the locked layer, in software
+the finish 0x00558610.
+
 ## The release build's error reports are empty
 
 0x0049bfd0, the `FUN_0049bfd0(level, file, line, format)` every assertion
@@ -249,6 +302,16 @@ addresses, and every byte either side wrote outside the ported fields.
 - `test_app_loop.py`: start + Run with scripted messages, activations and
   states that queue changes; 60 runs, the traces and the final stack.
 - `test_app_options.py`: options.md.
+- `test_fade.py`: the fade state through its three entries and every
+  frame to its end and leave, 300 runs at 24-bit precision with random
+  directions, buffers, times, colours, frame times (some runs steady, so the
+  alpha lands exactly on 0 or 1), pixel formats and video modes; the traces
+  (each frame's alpha), the queue and the fields after every call. Breaking
+  the port: 17 of 17 caught (the direction test, both ends' comparisons,
+  t not accumulated, the next state dropped or given the code, the cursor
+  calls, the still not cleared, the flip's arguments, no still never ending,
+  the colour's channels, the buffer, the tint at t, the replace entry's mode,
+  Direct3D without end_3d, the rate 0.05% off).
 - `test_app_states.py`: 56 functions of the app and the states, 60 worlds
   each (pilot, view, vehicle, menus, options as fake objects).
 - `tests/test_zgameapp.cpp`, `tests/test_app.cpp`: the loop's rules and a few
