@@ -219,3 +219,19 @@ Not wired in the program: the hooks carry 32-bit handles, the program's
 weapons are pointers; needs a handle registry or typed hooks (proposed).
 test_hud.py's fake mech has a manager with groups of fake weapons (vtables,
 float returns by thunk), the original's refresh runs.
+
+## 2026-10-20 The HUD on the real mech (branch mac3/hud-wire)
+
+HudHooks' handles are void* now (lead agreed): the program passes real
+pointers, the probe the emulator's 32-bit addresses (id() maps back); the
+weapon list's +0x38 and next_weapon are pointers, dumped by id(). No
+registry. ProgramHudHooks: mech_weapons = m->ammo, the planner getters,
+has_target (+0x88), TARGET's slot = &m->target, contact_mech through
+collide_calls(), Pilot roster (7 Elemental), equipment[8] (ECM), the groups
+and weapons (DESC +8 as the name, ready(), ammo(), damage, enabled).
+mw3tests can't include mech.h (app_hooks' Handle is 32-bit, mech.h's
+void*): the test reads through app_hud's program_hud_report /
+program_hud_lock_on / program_hud_force_over. The fake clock steps 1/60 s.
+Next (lead): TARGET's tracking 0x00440b00, set_target 0x00441800,
+0x00440a30 and the hit tests 0x005a3440 / 0x005a3270 / 0x005a3b30, ending
+with the real c1m1 lock (no force).

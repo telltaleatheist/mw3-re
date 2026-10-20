@@ -189,14 +189,14 @@ class HudWeapons : public ztwod::Object2D {
   void hide() override;              // +0x64  0x00446220
   void read_layout(Hud* hud);        // 0x00446120 (WEAPONS)
   void* hud = nullptr;               // +0x34 the HUD it shows
-  uint32_t weapons = 0;              // +0x38 the mech's weapon manager
+  void* weapons = nullptr;           // +0x38 the mech's weapon manager
   ztwod::PolyLine poly;              // +0x3c
   zimg::Texture* select = nullptr;   // +0x128 hud_weapon_select
   zimg::Texture* chain = nullptr;    // +0x12c hud_weapon_chain
   HudWeaponLine lines[16];           // +0x130
   HudPanel panel;                    // +0x11330
   uint8_t shown = 1;                 // +0x11438 the lines refreshed each frame (some recycling)
-  uint32_t next_weapon = 0;          // +0x1143c the weapon after the current one (else the first)
+  void* next_weapon = nullptr;       // +0x1143c the weapon after the current one (else the first)
   int32_t column = 0x6e;             // +0x11440
 };
 
@@ -524,6 +524,8 @@ class HudHooks : public zgame::Unported {
   virtual uint32_t world() { return unported("peek32", {0x608c84}); }
   virtual uint32_t world_node(uint32_t w) { return unported("peek32", {w + 4}); }
   virtual uint32_t id(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+  // A recorded answer as a handle (the probe's emulator addresses).
+  static void* ptr(uint32_t v) { return reinterpret_cast<void*>(static_cast<uintptr_t>(v)); }
   // The mission's current world entry (0x00491c80 on [0x006098d0]) and its
   // +0xd0 (above 0: the map is flipped, the compass turned half round).
   virtual uint32_t mission_entry() { return unported("0x00491c80", {}); }
@@ -546,8 +548,8 @@ class HudHooks : public zgame::Unported {
   virtual bool mech_dead(Mech* m) { return unported("mech.vt+0xa0", {id(m)}) != 0; }
   virtual int32_t mech_kind(Mech* m) { return static_cast<int32_t>(unported("0x0041df10", {id(m)})); }
   virtual bool mech_flag_bc4(Mech* m) { return (unported("peek8", {id(m) + 0xbc}) >> 2 & 1) != 0; }
-  virtual uint32_t mech_weapons(Mech* m) { return unported("peek32", {id(m) + 0xd4}); }
-  virtual int32_t weapons_count(uint32_t w) { return static_cast<int32_t>(unported("peek32", {w + 0x24})); }
+  virtual void* mech_weapons(Mech* m) { return ptr(unported("peek32", {id(m) + 0xd4})); }
+  virtual int32_t weapons_count(void* w) { return static_cast<int32_t>(unported("peek32", {id(w) + 0x24})); }
   virtual int32_t mech_part_count(Mech* m, int32_t i) {
     return static_cast<int32_t>(unported("peek32", {id(m) + 0x3ac + 4 * i}));
   }
@@ -593,20 +595,20 @@ class HudHooks : public zgame::Unported {
   // +0x3cc. The aimed node's object (0x0040eee0 → 0x0040e920), the object's
   // +8 byte and the node's +0xbc. The HUD's sounds (0x0041e800 playing,
   // 0x0041e770 played at 1.0, -1.0).
-  virtual float group_range(uint32_t wm) { return zgame::from_bits(unported("0x004b1bd0", {wm})); }
-  virtual bool group_locks(uint32_t wm) { return (unported("0x004b1c70", {wm}) & 0xff) != 0; }
-  virtual bool group_4b1cd0(uint32_t wm) { return (unported("0x004b1cd0", {wm}) & 0xff) != 0; }
-  virtual void set_lock_shown(uint32_t wm, bool on) { unported("poke8", {wm + 0x88, on ? 1u : 0u}); }
-  virtual uint32_t slot_contact(void* slot) { return unported("peek32", {id(slot)}); }
-  virtual uint32_t contact_mech(uint32_t c) { return unported("0x004e6ff0", {c}); }
-  virtual float contact_distance(uint32_t c) { return zgame::from_bits(unported("0x004e7030", {c})); }
-  virtual int32_t mech_kind_of(uint32_t m) {
-    return static_cast<int32_t>(unported("peek32", {unported("peek32", {m + 0x684}) + 0xc}));
+  virtual float group_range(void* wm) { return zgame::from_bits(unported("0x004b1bd0", {id(wm)})); }
+  virtual bool group_locks(void* wm) { return (unported("0x004b1c70", {id(wm)}) & 0xff) != 0; }
+  virtual bool group_4b1cd0(void* wm) { return (unported("0x004b1cd0", {id(wm)}) & 0xff) != 0; }
+  virtual void set_lock_shown(void* wm, bool on) { unported("poke8", {id(wm) + 0x88, on ? 1u : 0u}); }
+  virtual void* slot_contact(void* slot) { return ptr(unported("peek32", {id(slot)})); }
+  virtual void* contact_mech(void* c) { return ptr(unported("0x004e6ff0", {id(c)})); }
+  virtual float contact_distance(void* c) { return zgame::from_bits(unported("0x004e7030", {id(c)})); }
+  virtual int32_t mech_kind_of(void* m) {
+    return static_cast<int32_t>(unported("peek32", {unported("peek32", {id(m) + 0x684}) + 0xc}));
   }
-  virtual int32_t mech_3cc(uint32_t m) { return static_cast<int32_t>(unported("peek32", {m + 0x3cc})); }
-  virtual uint32_t node_object(uint32_t node) { return unported("0x0040e920", {node}); }
-  virtual bool object_byte8(uint32_t o) { return (unported("peek8", {o + 8}) & 0xff) != 0; }
-  virtual uint32_t node_bc(uint32_t node) { return unported("peek32", {node + 0xbc}); }
+  virtual int32_t mech_3cc(void* m) { return static_cast<int32_t>(unported("peek32", {id(m) + 0x3cc})); }
+  virtual void* node_object(void* node) { return ptr(unported("0x0040e920", {id(node)})); }
+  virtual bool object_byte8(void* o) { return (unported("peek8", {id(o) + 8}) & 0xff) != 0; }
+  virtual uint32_t node_bc(void* node) { return unported("peek32", {id(node) + 0xbc}); }
   virtual bool hud_sound_playing(int32_t channel) { return unported("0x0041e800", {channel}) != 0; }
   virtual void hud_sound_play(int32_t channel) { unported("0x0041e770", {channel}); }
   virtual void nav_list_update(uint32_t nav, float dt) { unported("nav.vt+0x24", {nav, zgame::bits(dt)}); }
@@ -652,22 +654,22 @@ class HudHooks : public zgame::Unported {
   // (0x004b04c0); a weapon's group +0x60, name (def +0x2c, +8), vt+8,
   // recycle fraction vt+0x34, damage 0..1 (0x004b3010), enabled +0x74, ammo
   // vt+0x14.
-  virtual int32_t wm_mode(uint32_t wm) { return static_cast<int32_t>(unported("peek32", {wm + 0x1c})); }
-  virtual int32_t wm_group_index(uint32_t wm) { return static_cast<int32_t>(unported("peek32", {wm + 0x28})); }
-  virtual uint32_t wm_group(uint32_t wm, int32_t i) { return unported("peek32", {wm + 0x2c + 4 * i}); }
-  virtual int32_t group_count(uint32_t g) { return static_cast<int32_t>(unported("peek32", {g + 8})); }
-  virtual uint32_t group_weapon(uint32_t g, int32_t k) { return unported("peek32", {g + 0x14 + 4 * k}); }
-  virtual uint32_t wm_current(uint32_t wm) { return unported("0x004b04c0", {wm}); }
-  virtual int32_t weapon_group(uint32_t w) { return static_cast<int32_t>(unported("peek32", {w + 0x60})); }
-  virtual const char* weapon_name(uint32_t w) {
-    unported("weapon.name", {w});
+  virtual int32_t wm_mode(void* wm) { return static_cast<int32_t>(unported("peek32", {id(wm) + 0x1c})); }
+  virtual int32_t wm_group_index(void* wm) { return static_cast<int32_t>(unported("peek32", {id(wm) + 0x28})); }
+  virtual void* wm_group(void* wm, int32_t i) { return ptr(unported("peek32", {id(wm) + 0x2c + 4 * i})); }
+  virtual int32_t group_count(void* g) { return static_cast<int32_t>(unported("peek32", {id(g) + 8})); }
+  virtual void* group_weapon(void* g, int32_t k) { return ptr(unported("peek32", {id(g) + 0x14 + 4 * k})); }
+  virtual void* wm_current(void* wm) { return ptr(unported("0x004b04c0", {id(wm)})); }
+  virtual int32_t weapon_group(void* w) { return static_cast<int32_t>(unported("peek32", {id(w) + 0x60})); }
+  virtual const char* weapon_name(void* w) {
+    unported("weapon.name", {id(w)});
     return "";
   }
-  virtual void weapon_vt8(uint32_t w) { unported("weapon.vt+0x8", {w}); }
-  virtual float weapon_recycle(uint32_t w) { return zgame::from_bits(unported("weapon.vt+0x34", {w})); }
-  virtual float weapon_damage(uint32_t w) { return zgame::from_bits(unported("0x004b3010", {w})); }
-  virtual bool weapon_enabled(uint32_t w) { return (unported("peek8", {w + 0x74}) & 0xff) != 0; }
-  virtual int32_t weapon_ammo(uint32_t w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {w})); }
+  virtual void weapon_vt8(void* w) { unported("weapon.vt+0x8", {id(w)}); }
+  virtual float weapon_recycle(void* w) { return zgame::from_bits(unported("weapon.vt+0x34", {id(w)})); }
+  virtual float weapon_damage(void* w) { return zgame::from_bits(unported("0x004b3010", {id(w)})); }
+  virtual bool weapon_enabled(void* w) { return (unported("peek8", {id(w) + 0x74}) & 0xff) != 0; }
+  virtual int32_t weapon_ammo(void* w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {id(w)})); }
 };
 HudHooks& hud_hooks();
 void set_hud_hooks(HudHooks* h);

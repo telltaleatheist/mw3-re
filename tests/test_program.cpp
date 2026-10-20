@@ -1730,6 +1730,96 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c1m1 on the real mech (hud.md sections 12, 13): the player's HUD lists the
+// Mad Cat's weapons, one shown line each with the weapon's DESC, the current
+// group bracketed; then, with the Owens in the player's target slot and a
+// group that locks, the lock goes through acquiring, waiting and locked.
+// "Over TARGET's box" is forced (program_hud_force_over): 0x00440a30 needs
+// TARGET's tracking 0x00440b00, not ported yet (the next item).
+TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_hud_write"));
+  mech3::reset_states();
+  reset_effects();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, weapons = 0, lines = 0, names_ok = 0, bracketed = 0, lock_group = -1;
+      int first[4] = {0, 0, 0, 0};  // the first frame of lock states 1..3
+      bool target_set = false;
+    } seen;
+    void* player = nullptr;
+    void* owens = nullptr;
+    mech3::HudReport r;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        mech3::LaunchedMech o;  // 150 m west of the Owens, facing it
+        mech3::describe_mech(owens, &o);
+        const float x = o.pos[0] - 150.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+      } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
+        seen.weapons = r.weapons, seen.lines = r.lines, seen.names_ok = r.named, seen.bracketed = r.bracketed;
+      } else if (seen.frames == 20) {
+        seen.lock_group = mech3::program_hud_lock_on(owens, &seen.target_set);
+        mech3::program_hud_force_over(true);
+      } else if (seen.frames > 20 && mech3::program_hud_report(&r)) {
+        if (r.lock >= 1 && r.lock <= 3 && !seen.first[r.lock]) seen.first[r.lock] = seen.frames;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    app.run(pump);
+    mech3::program_hud_force_over(false);
+    std::printf("  %d weapons, %d lines shown (%d named), bracket %d; group %d, target %d, lock 1/2/3 at %d/%d/%d\n",
+                seen.weapons, seen.lines, seen.names_ok, seen.bracketed, seen.lock_group, seen.target_set,
+                seen.first[1], seen.first[2], seen.first[3]);
+    EXPECT(seen.weapons > 0);
+    EXPECT(seen.lines == seen.weapons);    // one shown line a weapon
+    EXPECT(seen.names_ok == seen.lines);   // named by the weapon's DESC
+    EXPECT(seen.bracketed);                // the current group's bracket
+    EXPECT(seen.lock_group >= 0 && seen.target_set);
+    EXPECT(seen.first[1] > 0 && seen.first[2] > seen.first[1] && seen.first[3] > seen.first[2]);
+    // 0.6 s waiting, on the fake clock's 1/60 s frames: about 36 frames from 2 to 3
+    EXPECT(seen.first[3] - seen.first[2] >= 33 && seen.first[3] - seen.first[2] <= 39);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_effects();
+  mech3::options() = mech3::Options{};
+}
+
 // The aim from the HUD (0x0041ce60, 0x00444350, 0x0041cd40): the look
 // centred, the reticle's ray through the screen's middle finds the Owens 80 m
 // ahead, and the weapons aimed there hit it with no other help.

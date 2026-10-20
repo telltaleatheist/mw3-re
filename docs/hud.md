@@ -501,8 +501,16 @@ nothing near: ret_cant (3). With the image kept (+0x90c) the state still
 changes but the image does not.
 
 Ported (`HudReticle::aim_state`); the outside through HudHooks. In the
-program the weapon group's calls and TARGET's slot are not wired yet, so
-nothing locks (no target is set: TARGET's 0x00441800 path is not ported).
+program (`app_hud`) the hooks are the player's mech, its WeaponManager with
+mac 4's group getters (`weapon_planner.h`), its target contact (TARGET's
+slot is the mech's `target`, +0x6c) and the contact's mech and distance
+(zai_target); "kind 7" is the target Pilot's roster index, the Elemental,
+and +0x3cc its ECM count. "Over TARGET's box" (0x00440a30) waits for
+TARGET's tracking (0x00440b00), so the program never locks yet; the aimed
+node's object (0x0040e920) is not ported either (no "over" image from it).
+mw3tests `mission_c1m1_hud_weapon_lines_and_lock_headless` forces "over"
+(`program_hud_force_over`) with the Owens as the target and the LRM group:
+acquiring, waiting, locked 0.6 s later.
 Test: test_hud.py runs the original 0x00443d20 in the frames, its outside
 stubbed (the range and distance on the x87 stack), the hits' nodes real
 blocks with +0xbc; the weapon manager's +0x88 compared after. Breaking it:
@@ -538,9 +546,11 @@ weapons and the camera's look from outside (hud.md section 1).
 
 Ported (`HudWeapons::refresh_all/layout/looks`, `HudWeaponLine::set_weapon/
 refresh_line`); the manager and weapons read through HudHooks (weapon.h's
-WeaponManager and Weapon, read-only). In the program the hooks are not
-wired yet: they pass the original's 32-bit handles, and the program's
-weapons are 64-bit pointers (a handle registry, or typed hooks, first).
+WeaponManager and Weapon, read-only). The HUD's handles are pointers
+(`void*`): the program passes its own WeaponManager*, Weapon* and Mech*; the
+probe's are the emulator's 32-bit addresses, mapped back by `id()`. In c1m1
+the Mad Cat's ten weapons show, each named by its definition's DESC, the
+current group bracketed (mw3tests above).
 Test: test_hud.py gives the fake mech a manager with up to five groups of
 fake weapons (16 lines at most) and runs the original's refresh: 100/100.
 Breaking it: 11 of 13 caught; the misses are equivalent here (the unused

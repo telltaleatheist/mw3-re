@@ -16,10 +16,14 @@
 #include "mech3/hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
+#include "mech3/weapon.h"
+#include "mech3/weapon_planner.h"
+#include "mech3/zai_target.h"
 
 namespace mech3 {
 
@@ -78,6 +82,51 @@ struct ProgramHudHooks : HudHooks {
     for (int i = 0; i < r.count && i < 31; ++i) std::memcpy(&out->rec[i], &r.hit[i], sizeof(zwep::HitRecord));
     return res;
   }
+  // The player's mech, its weapon manager and target (hud.md sections 12,
+  // 13), read-only: the HUD's handles are the program's own pointers.
+  static WeaponManager* wm(void* p) { return static_cast<WeaponManager*>(p); }
+  // 0x00440a30 (the reticle over TARGET's box) waits for TARGET's tracking
+  // (0x00440b00, hud.md section 7 item 6): none, unless a test forces it.
+  bool force_over = false;
+  bool reticle_over_target(void*, int32_t, int32_t) override { return force_over; }
+  static Weapon* wp(void* p) { return static_cast<Weapon*>(p); }
+  void* mech_weapons(Mech* m) override { return m ? m->ammo : nullptr; }
+  int32_t weapons_count(void* w) override { return w ? static_cast<int32_t>(wm(w)->count) : 0; }
+  void* mech_target_slot(Mech* m) override { return m ? &m->target : nullptr; }  // +0x6c
+  bool target_valid(void* t) override { return t && *static_cast<ai::Contact**>(t); }
+  float group_range(void* w) override { return group_max_range(*wm(w)); }  // 0x004b1bd0
+  bool group_locks(void* w) override { return group_locks_on(*wm(w)); }    // 0x004b1c70
+  bool group_4b1cd0(void* w) override { return group_has_ammo(*wm(w)); }   // 0x004b1cd0
+  void set_lock_shown(void* w, bool on) override { wm(w)->has_target = on; }  // +0x88
+  void* slot_contact(void* slot) override { return *static_cast<ai::Contact**>(slot); }
+  void* contact_mech(void* c) override {  // 0x004e6ff0
+    return collide_calls().contact_mech ? collide_calls().contact_mech(c) : nullptr;
+  }
+  float contact_distance(void* c) override { return static_cast<ai::Contact*>(c)->distance(); }  // 0x004e7030
+  int32_t mech_kind_of(void* m) override {
+    const Mech* me = static_cast<Mech*>(m);
+    return me->pilot ? me->pilot->roster : 0;  // +0x684 +0xc: 7 the Elemental
+  }
+  int32_t mech_3cc(void* m) override { return static_cast<Mech*>(m)->equipment[8]; }  // ECM
+  // 0x0040e920 (a node's game object) is not ported: the aim's node gives
+  // none, and its +0xbc none either (hud.md section 12, Left).
+  void* node_object(void*) override { return nullptr; }
+  uint32_t node_bc(void*) override { return 0; }
+  int32_t wm_mode(void* w) override { return wm(w)->mode; }
+  int32_t wm_group_index(void* w) override { return wm(w)->group; }
+  void* wm_group(void* w, int32_t i) override { return wm(w)->groups[i]; }
+  int32_t group_count(void* g) override { return static_cast<int32_t>(static_cast<WeaponGroup*>(g)->count); }
+  void* group_weapon(void* g, int32_t k) override { return static_cast<WeaponGroup*>(g)->weapons[k]; }
+  void* wm_current(void* w) override { return wm(w)->current(); }  // 0x004b04c0
+  int32_t weapon_group(void* w) override { return wp(w)->group; }
+  const char* weapon_name(void* w) override {  // the definition's DESC (+8)
+    return wp(w)->def && wp(w)->def->desc ? wp(w)->def->desc : "";
+  }
+  void weapon_vt8(void* w) override { wp(w)->is_beam(); }
+  float weapon_recycle(void* w) override { return wp(w)->ready(); }        // vt+0x34
+  float weapon_damage(void* w) override { return wp(w)->damage; }          // 0x004b3010
+  bool weapon_enabled(void* w) override { return wp(w)->enabled; }         // +0x74
+  int32_t weapon_ammo(void* w) override { return wp(w)->ammo(); }         // vt+0x14
   // The Direct3D pass (0x0043c6b0) on the zVideo ports; the dirty rects, the
   // message panel and the 3D views are not wired yet (hud.md section 11).
   void scene_begin() override { zvid::scene_begin(); }
@@ -109,6 +158,44 @@ void unwire_hud() {
 
 void program_hud_update(float dt) {
   if (Mech* m = static_cast<Mech*>(program_view_target())) hud_handoff(*m, dt);
+}
+
+void program_hud_force_over(bool on) { g_hooks.force_over = on; }
+
+bool program_hud_report(HudReport* r) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  auto* wm = m ? static_cast<WeaponManager*>(m->ammo) : nullptr;
+  if (!h || !wm) return false;
+  *r = HudReport{};
+  for (WeaponGroup* g : wm->groups)
+    if (g) r->weapons += static_cast<int>(g->count);
+  for (HudWeaponLine& line : h->weapons.lines) {
+    if (line.flags & ztwod::kHidden) continue;
+    ++r->lines;
+    auto* w = static_cast<Weapon*>(line.weapon);
+    if (w && w->def && w->def->desc && std::strcmp(line.name.text, w->def->desc) == 0) ++r->named;
+  }
+  r->bracketed = !(h->weapons.poly.flags & ztwod::kHidden);
+  r->lock = h->reticle.lock;
+  r->lock_timer = h->reticle.lock_timer;
+  return true;
+}
+
+int program_hud_lock_on(void* mech, bool* target_set) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  auto* wm = m ? static_cast<WeaponManager*>(m->ammo) : nullptr;
+  *target_set = false;
+  if (!wm) return -1;
+  int found = -1;
+  for (int g = 0; g < 5 && found < 0; ++g)
+    if (wm->groups[g] && wm->select_group(g) && group_locks_on(*wm)) found = g;
+  for (ai::Contact* c : m->contacts)
+    if (collide_calls().contact_mech && collide_calls().contact_mech(c) == mech) {
+      m->target = c;
+      *target_set = true;
+    }
+  return found;
 }
 
 // Mech3.exe 1.2 @ 0x0041cd90: the view target's HUD, its Direct3D pass.
