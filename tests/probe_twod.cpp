@@ -226,6 +226,8 @@ int probe_twod_run(const char* path, long offset, const char* name, int no_draw,
 }  // extern "C"
 
 #include "gamez/zrender/zrndr_blit.h"
+#include "crt/msvc_rand.h"
+#include "gamez/zrender/zrndr_prim2d.h"
 
 extern "C" {
 
@@ -248,6 +250,142 @@ void probe_blit16(uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, int
   img.alpha = alpha;
   img.palette = palette;
   zrndr::blit16(&img, x, y, key, reinterpret_cast<const zrndr::BlitRect*>(rect));
+}
+
+// zRender's 2D primitives (zrndr_prim2d) into a buffer the caller owns
+// (test_prim2d.py): op 0 dashed, 1 clipped line, 2 line list, 3 pixel,
+// 4 circle, 5 jittered circle, 6 noisy line; a[] the integers in the
+// original's order, rand seeded first.
+void probe_prim2d(int32_t op, uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, const int32_t* a, float noise,
+                  const int32_t* clip, const int32_t* points, int32_t count, uint32_t seed) {
+  zrndr::Target2D& t = zrndr::target2d();
+  t.base = target, t.width = tw, t.height = th, t.pitch = pitch;
+  crt::msvc_srand(seed);
+  const uint16_t px = static_cast<uint16_t>(a[4]);
+  switch (op) {
+    case 0: zrndr::line16_dashed(a[0], a[1], a[2], a[3], px, a[5]); break;
+    case 1: zrndr::line16_clipped(clip, a[0], a[1], a[2], a[3], px); break;
+    case 2: zrndr::line16_list(points, count, clip, px); break;
+    case 3: zrndr::pixel16(a[0], a[1], px); break;
+    case 4: zrndr::circle16(a[0], a[1], a[2], px, clip); break;
+    case 5: zrndr::circle16_noisy(a[0], a[1], a[2], px, noise, clip); break;
+    case 6: zrndr::line16_noisy(a[0], a[1], a[2], a[3], px, noise, clip); break;
+    default: break;
+  }
+}
+
+// zTwoD's HUD primitives drawn through a logging host (test_twod_prims.py):
+// kind 0 Line2D, 1 ClipLine2D, 2 Frame, 3 FilledBox, 4 Polygon, 5 PolyLine;
+// the fields as the test set them in the original's object (raw, its layout).
+namespace {
+struct PrimHost : ztwod::Host {
+  std::string log;
+  float clip_min[3] = {}, clip_max[3] = {};
+  void add(const char* k, std::initializer_list<uint32_t> v) {
+    log += k;
+    char b[16];
+    for (uint32_t x : v) std::snprintf(b, sizeof b, " %x", x), log += b;
+    log += "\n";
+  }
+  static uint32_t f(float v) { return zgame::bits(v); }
+  static void rect(std::initializer_list<uint32_t>&, const ztwod::Rect*) {}
+  void line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p) override {
+    add("line", {uint32_t(x0), uint32_t(y0), uint32_t(x1), uint32_t(y1), p});
+  }
+  void line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p, int32_t d) override {
+    add("dashed", {uint32_t(x0), uint32_t(y0), uint32_t(x1), uint32_t(y1), p, uint32_t(d)});
+  }
+  void line_list(const int32_t* pts, int32_t n, const ztwod::Rect* c, uint32_t p) override {
+    add("list", {uint32_t(n), uint32_t(c->left), uint32_t(c->top), uint32_t(c->right), uint32_t(c->bottom), p});
+    for (int32_t i = 0; i <= n; ++i) add(" pt", {uint32_t(pts[2 * i]), uint32_t(pts[2 * i + 1])});
+  }
+  void circle(int32_t cx, int32_t cy, int32_t r, uint32_t p, const ztwod::Rect* c) override {
+    add("circle", {uint32_t(cx), uint32_t(cy), uint32_t(r), p});
+    if (c) add(" clip", {uint32_t(c->left), uint32_t(c->top), uint32_t(c->right), uint32_t(c->bottom)});
+  }
+  void circle_noisy(int32_t cx, int32_t cy, int32_t r, uint32_t p, float n, const ztwod::Rect* c) override {
+    add("noisy circle", {uint32_t(cx), uint32_t(cy), uint32_t(r), p, f(n)});
+    if (c) add(" clip", {uint32_t(c->left), uint32_t(c->top), uint32_t(c->right), uint32_t(c->bottom)});
+  }
+  void line_noisy(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p, float n, const ztwod::Rect* c) override {
+    add("noisy line", {uint32_t(x0), uint32_t(y0), uint32_t(x1), uint32_t(y1), p, f(n)});
+    if (c) add(" clip", {uint32_t(c->left), uint32_t(c->top), uint32_t(c->right), uint32_t(c->bottom)});
+  }
+  void polygon(const float* v, int32_t n, uint32_t color, int32_t winding) override {
+    add("polygon", {uint32_t(n), color, uint32_t(winding)});
+    for (int32_t i = 0; i < n; ++i) add(" v", {f(v[3 * i]), f(v[3 * i + 1])});
+  }
+  void render_clip(float mn[3], float mx[3]) override {
+    for (int i = 0; i < 3; ++i) mn[i] = clip_min[i], mx[i] = clip_max[i];
+  }
+};
+}  // namespace
+
+int probe_twod_prim(int32_t kind, const uint8_t* raw, const float* saved_clip, const float* line_clip, char* out,
+                    int size) {
+  PrimHost h;
+  for (int i = 0; i < 3; ++i) h.clip_min[i] = saved_clip[i], h.clip_max[i] = saved_clip[3 + i];
+  ztwod::set_host(&h);
+  ztwod::LineClip& lc = ztwod::line_clip();
+  for (int i = 0; i < 3; ++i) lc.min[i] = line_clip[i], lc.max[i] = line_clip[3 + i];
+  auto i32 = [&](int off) {
+    int32_t v;
+    std::memcpy(&v, raw + off, 4);
+    return v;
+  };
+  auto f32 = [&](int off) {
+    float v;
+    std::memcpy(&v, raw + off, 4);
+    return v;
+  };
+  ztwod::Rect rect{i32(0x200), i32(0x204), i32(0x208), i32(0x20c)};  // the test's rect, after the object
+  auto base = [&](ztwod::Object2D& o) { o.x = i32(0x14), o.y = i32(0x18); };
+  if (kind <= 1) {
+    ztwod::ClipLine2D l(0, 0, 0, 0, 0);
+    base(l);
+    l.end_x = i32(0x34), l.end_y = i32(0x38), l.color = static_cast<uint32_t>(i32(0x3c));
+    l.clipped = i32(0x40), l.clip = i32(0x44) ? &rect : nullptr, l.dash = i32(0x48);
+    if (kind == 1) {
+      l.noise = f32(0x4c);
+      l.draw();
+    } else {
+      l.Line2D::draw();
+    }
+  } else if (kind <= 3) {
+    ztwod::FilledBox c(0, 0, 0, 0, nullptr);
+    base(c);
+    c.radius = i32(0x34), c.color = static_cast<uint32_t>(i32(0x3c)), c.clipped = raw[0x40];
+    c.clip = {i32(0x44), i32(0x48), i32(0x4c), i32(0x50)};
+    if (kind == 3) {
+      c.noise = f32(0x54);
+      c.draw();
+    } else {
+      c.Frame::draw();
+    }
+  } else if (kind == 4) {
+    ztwod::Polygon p;
+    base(p);
+    std::memcpy(p.pts, raw + 0x34, sizeof p.pts);
+    p.count = i32(0x130), p.color = static_cast<uint32_t>(i32(0x134));
+    p.draw();
+  } else {
+    ztwod::PolyLine p;
+    base(p);
+    std::memcpy(p.pts, raw + 0x34, sizeof p.pts);
+    p.count = i32(0xdc), p.color = static_cast<uint32_t>(i32(0xe0));
+    p.clip = i32(0xe4) ? &rect : nullptr, p.round = raw[0xe8];
+    p.draw();
+  }
+  char b[16];
+  h.log += "lineclip";
+  for (float v : lc.min) std::snprintf(b, sizeof b, " %x", zgame::bits(v)), h.log += b;
+  for (float v : lc.max) std::snprintf(b, sizeof b, " %x", zgame::bits(v)), h.log += b;
+  for (int32_t v : lc.ints) std::snprintf(b, sizeof b, " %x", static_cast<uint32_t>(v)), h.log += b;
+  h.log += "\n";
+  ztwod::set_host(nullptr);
+  if (static_cast<int>(h.log.size()) >= size) return -1;
+  std::memcpy(out, h.log.c_str(), h.log.size() + 1);
+  return static_cast<int>(h.log.size());
 }
 
 // zrndr::line16 into a buffer the caller owns (test_twod_line.py).

@@ -14,7 +14,6 @@ class Hud;
 struct MechHudCalls {
   bool (*is_view_target)(const Mech&) = nullptr;  // the player view's target ([0x005f4c8c] +0x64)
   void (*zoom_camera)(Mech&, int32_t) = nullptr;  // the mech's vt+0xfc (0x14: the zoom camera, not ported)
-  void (*hud_frame)(Hud&, float dt) = nullptr;    // the HUD's +0x00, 0x0043c820 (not ported)
   void (*cockpit)(Pilot&) = nullptr;              // 0x00430ad0's second half: the cockpit's node at +0x228
 };
 MechHudCalls& mech_hud_calls();

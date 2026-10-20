@@ -538,7 +538,7 @@ class LineEditor {
 };
 
 // Lines through points (vtable 0x005cfff0), 0xec bytes: the HUD's polylines
-// (not ported) and the edit bar's caret. Each draw erases, then joins the
+// and the edit bar's caret. Each draw erases, then joins the
 // points in order with zRender's 2D line (0x00562940, Host::line).
 class PolyLine : public Object2D {
  public:
@@ -549,18 +549,18 @@ class PolyLine : public Object2D {
   int32_t pts[21][2] = {};           // +0x34
   int32_t count = 0;                 // +0xdc
   uint32_t color = 0;                // +0xe0  a pixel (not set by the constructor)
-  // +0xe4 a zRender draw list (0x00562cb0) and +0xe8 a transformed flag
-  // (0x005a3580): the HUD's, zero here; their paths are not ported.
-  Handle draw_list = 0;              // +0xe4
-  uint8_t transformed = 0;           // +0xe8
+  // The HUD's clipping: within `clip` (0x00562cb0), or with `round`, within
+  // the circle across it (0x005a3580). Unset, the lines join unclipped.
+  const Rect* clip = nullptr;        // +0xe4
+  uint8_t round = 0;                 // +0xe8
 };
 
-// A circle or box outline (vtable 0x005d0070), 0x54 bytes. Partial: built
-// only; its draw 0x005a3b00 not ported (twod.md).
+// A circle outline around the object's place (vtable 0x005d0070), 0x54 bytes.
 class Frame : public Object2D {
  public:
   Frame();                           // 0x005a39f0
   Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
+  void draw() override;              // +0x04  0x005a3b00
   int32_t radius = 0;                // +0x34
   int32_t radius_sq = 0;             // +0x38
   uint32_t color = 0;                // +0x3c  a pixel
@@ -568,40 +568,79 @@ class Frame : public Object2D {
   Rect clip{};                       // +0x44  [0x0063d880] (always zero) when none
 };
 
-// A filled frame (vtable 0x005d00f0), 0x58 bytes. Partial as Frame.
+// A circle with static (vtable 0x005d00f0), 0x58 bytes: its points thrown
+// about by `noise` (the radar's; named a box before its draw was read).
 class FilledBox : public Frame {
  public:
   FilledBox(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3b60
-  uint32_t x54 = 0;                  // +0x54
+  void draw() override;              // +0x04  0x005a3bc0: plain at 0
+  void set_noise(float f) { noise = f; }  // 0x005a3bb0
+  float noise = 0.0f;                // +0x54
 };
 
 // A HUD line from the object's place to an end (vtable 0x005d06e0), 0x4c
-// bytes. Partial: built and placed; its draw 0x005a68b0 not ported.
+// bytes: clipped to a rect when `clipped`, dashed when `dash` is over 1.
 class Line2D : public Object2D {
  public:
   Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a67e0
   void set(int32_t x0, int32_t y0, int32_t x1, int32_t y1);  // 0x005a6880
+  void draw() override;              // +0x04  0x005a68b0
   int32_t end_x = 0, end_y = 0;      // +0x34
   uint32_t color = 0;                // +0x3c  a pixel
-  uint32_t x40 = 0, x44 = 0, x48 = 0;  // +0x40..+0x48
+  int32_t clipped = 0;               // +0x40
+  const Rect* clip = nullptr;        // +0x44
+  int32_t dash = 0;                  // +0x48
 };
 
-// A line clipped to the radar (vtable 0x005d0760), 0x50 bytes. Partial as Line2D.
+// A HUD line with static (vtable 0x005d0760), 0x50 bytes: drawn thrown about
+// by `noise`, plain at 0.
 class ClipLine2D : public Line2D {
  public:
   ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a6ae0
-  uint32_t x4c = 0;                  // +0x4c
+  void draw() override;              // +0x04  0x005a6b30
+  void set_noise(float f) { noise = f; }  // 0x005a6b20
+  float noise = 0.0f;                // +0x4c
 };
 
-// A polygon of up to 21 points (vtable 0x005d0860), 0x134 bytes: the HUD's
-// bars. Partial: built and set up; its draw 0x005a6ca0 not ported (twod.md).
+// The line clipping box zTwoD's HUD lines set ([0x005f4800], [0x005f4810]:
+// min and max x, y, z; their whole-number copies at [0x007319a0]).
+struct LineClip {
+  float min[3] = {}, max[3] = {};
+  int32_t ints[4] = {};              // 0x007319a0 left, top, right, bottom
+};
+LineClip& line_clip();
+void set_line_clip(const float* min, const float* max);  // 0x0059b2f0
+// 0x0059b490 (0x0059b4d0 by x, then 0x0059b640 by y): the segment within the
+// box, false when it misses (the flags set for a clipped end, never read).
+bool clip_line(float* a, float* b);
+bool clip_round(const Rect& r, const int32_t* p0, const int32_t* p1, int32_t* o0, int32_t* o1);  // 0x005a3580
+
+// An image that blinks or swaps with another (0x005a6d10 its update; the
+// HUD's damage parts, whose constructor 0x00447460 sets these inline).
+class FlashImage : public Image {
+ public:
+  explicit FlashImage(int32_t center) : Image(center) {}
+  void update(float dt) override;    // +0x24  0x005a6d10
+  float rate = 0.35f;                // +0xbc  a half period, seconds
+  float timer = 0.0f;                // +0xc0
+  int32_t on = 0;                    // +0xc4
+  int32_t mode = 0;                  // +0xc8  1 blink, 2 swap with `alt`
+  int32_t phase = 1;                 // +0xcc  1 or -1
+  uint32_t xd0 = 0;                  // +0xd0
+  zimg::Texture* alt = nullptr;      // +0xd4
+};
+
+// A filled polygon of up to 21 points (vtable 0x005d0860), 0x138 bytes: the
+// HUD's bars.
 class Polygon : public Object2D {
  public:
   Polygon();                         // 0x005a6bd0
   void set_point(int32_t i, float px, float py);  // 0x005a6c30: point 0 moves the object
+  void draw() override;              // +0x04  0x005a6ca0
 
   float pts[21][3] = {};             // +0x34  x, y (the third never set here)
   int32_t count = 0;                 // +0x130
+  uint32_t color = 0;                // +0x134 a pixel
 };
 
 // A polyline moved and turned as a whole (vtable 0x005cff58), 0x124 bytes:

@@ -89,6 +89,9 @@ struct Hooks : mech3::HudHooks {
     const uint32_t soil = call("peek32", {id(m) + 0x20});
     return call("peek32", {0x608c00 + 4 * soil});
   }
+  void reticle_aim_state(void* r, bool over) override {
+    static_cast<mech3::HudReticle*>(r)->state = static_cast<int32_t>(call("0x00443d20", {id(r), over ? 1u : 0u}));
+  }
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
   // emulator's own handles) as it is.
@@ -107,6 +110,136 @@ struct Hooks : mech3::HudHooks {
   }
 };
 Hooks g_hooks;
+
+// zRender's 2D draws as test_hud.py's stubs log them.
+struct HudHost : RecordingHost {
+  static uint32_t u(int32_t v) { return static_cast<uint32_t>(v); }
+  void line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p, int32_t d) override {
+    call("0x00562c80", {x0, y0, x1, y1, p, d});
+  }
+  void line_list(const int32_t* pts, int32_t n, const Rect* c, uint32_t p) override {
+    call("0x00562cb0", {n, c->left, c->top, c->right, c->bottom, p});
+    for (int32_t i = 0; i <= n; ++i) call("0x00562cb0.pt", {pts[2 * i], pts[2 * i + 1]});
+  }
+  void circle(int32_t cx, int32_t cy, int32_t r, uint32_t p, const Rect* c) override {
+    if (c) call("0x005630c0", {cx, cy, r, p, c->left, c->top, c->right, c->bottom});
+    else call("0x005630c0", {cx, cy, r, p});
+  }
+  void circle_noisy(int32_t cx, int32_t cy, int32_t r, uint32_t p, float n, const Rect* c) override {
+    const uint32_t f = zgame::bits(n);
+    if (c) call("0x00563440", {cx, cy, r, p, f, c->left, c->top, c->right, c->bottom});
+    else call("0x00563440", {cx, cy, r, p, f});
+  }
+  void line_noisy(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p, float n, const Rect* c) override {
+    const uint32_t f = zgame::bits(n);
+    if (c) call("0x00562970", {x0, y0, x1, y1, p, f, c->left, c->top, c->right, c->bottom});
+    else call("0x00562970", {x0, y0, x1, y1, p, f});
+  }
+  void polygon(const float* v, int32_t n, uint32_t color, int32_t winding) override {
+    call("0x0055d010", {n, color, winding});
+    for (int32_t i = 0; i < n; ++i) call("0x0055d010.v", {zgame::bits(v[3 * i]), zgame::bits(v[3 * i + 1])});
+  }
+  void render_clip(float mn[3], float mx[3]) override {
+    call("0x0053ce20", {});
+    const float c[6] = {0.0f, 0.0f, 0.5f, 640.0f, 480.0f, 1000.0f};  // test_hud.py CLIP
+    for (int i = 0; i < 3; ++i) mn[i] = c[i], mx[i] = c[3 + i];
+  }
+};
+
+// test_hud.py's CHILDREN, in its order.
+ztwod::Object2D* child(mech3::Hud& h, uint32_t i) {
+  std::vector<ztwod::Object2D*> c;
+  mech3::HudGauges& g = h.gauges;
+  for (ztwod::Object2D* o : std::initializer_list<ztwod::Object2D*>{
+           &g.coolant_text, &g.heat_text, &g.speed_text, &g.speed_bar, &g.fuel_bar, &g.coolant_bar, &g.speed_frame,
+           &g.coolant_frame, &g.fuel_frame, &g.heat_bar, &g.heat_meter, &g.toggler, &h.compass.tape,
+           &h.compass.frame, &h.objectives.panel, &h.objectives.scores, &h.equipment.panel})
+    c.push_back(o);
+  for (auto& l : h.equipment.lines) c.push_back(&l), c.push_back(&l.value), c.push_back(&l.light);
+  c.push_back(&h.weapons.panel), c.push_back(&h.weapons.poly);
+  for (auto& l : h.weapons.lines) c.push_back(&l), c.push_back(&l.count_text), c.push_back(&l.light), c.push_back(&l.mark);
+  c.push_back(&h.mfd.title), c.push_back(&h.mfd.damage), c.push_back(&h.mfd.damage.bg);
+  for (auto& p : h.mfd.damage.parts) c.push_back(&p);
+  mech3::HudTarget& t = h.target;
+  for (ztwod::Object2D* o : std::initializer_list<ztwod::Object2D*>{
+           &t.lines[0], &t.lines[1], &t.lines[2], &t.texts[0], &t.texts[1], &t.texts[2], &t.texts[3], &t.marker,
+           &t.frame, &h.reticle.zoom.text, &h.reticle.zoom.light, &h.reticle.zoom.frame, &h.reticle.zoom.box,
+           h.mfd.view})
+    c.push_back(o);
+  return i < c.size() ? c[i] : nullptr;
+}
+
+// test_hud.py's FTEXTS and IMAGES, in its order.
+ztwod::FontText* ftext(mech3::Hud& h, uint32_t i) {
+  std::vector<ztwod::FontText*> c = {&h.gauges.coolant_text, &h.gauges.heat_text, &h.gauges.speed_text};
+  for (int j = 0; j < 4; ++j) c.push_back(&h.equipment.lines[j]), c.push_back(&h.equipment.lines[j].value);
+  for (int j = 0; j < 4; ++j) c.push_back(&h.weapons.lines[j].count_text);
+  c.push_back(&h.mfd.title);
+  for (auto& t : h.target.texts) c.push_back(&t);
+  c.push_back(&h.reticle.zoom.text);
+  return c[i];
+}
+ztwod::Image* image(mech3::Hud& h, uint32_t i) {
+  std::vector<ztwod::Image*> c;
+  for (int j = 0; j < 4; ++j) c.push_back(&h.equipment.lines[j].light);
+  for (int j = 0; j < 4; ++j) c.push_back(&h.weapons.lines[j].light), c.push_back(&h.weapons.lines[j].mark);
+  c.push_back(&h.target.marker);
+  return c[i];
+}
+
+// test_hud.py's OPS on the rebuilt HUD.
+void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
+  mech3::HudZoomWindow& z = h.reticle.zoom;
+  switch (k) {
+    case 0: h.update(zgame::from_bits(v)); break;
+    case 1: h.set_active(static_cast<int32_t>(v)); break;
+    case 2: z.flags ^= ztwod::kHidden; break;
+    case 3: h.reticle.state = static_cast<int32_t>(v); break;
+    case 4: z.light.interval = zgame::from_bits(v); break;
+    case 5: {
+      mech3::HudDamagePart& p = h.mfd.damage.parts[v & 0xff];
+      p.on = static_cast<int32_t>(v >> 8 & 0xff);
+      p.mode = static_cast<int32_t>(v >> 16);
+      break;
+    }
+    case 6: h.mfd.mode = static_cast<int32_t>(v); break;
+    case 7: {
+      const std::pair<uint32_t, ztwod::Object2D*> at[] = {
+          {0xdd4, &h.compass}, {0x1da8, &h.gauges}, {0x3434, &h.mfd}, {0x410c, &h.target},
+          {0x6520, &h.weapons}, {0x17964, &h.objectives}, {0x188c0, &h.equipment}, {0x144c, &h.reticle}};
+      for (auto& [off, o] : at)
+        if (off == v) o->flags ^= ztwod::kHidden;
+      break;
+    }
+    case 8: z.round = static_cast<uint8_t>(v); break;
+    case 9: h.target.target = reinterpret_cast<void*>(static_cast<uintptr_t>(v)); break;
+    case 10: h.target.mode = static_cast<int32_t>(v); break;
+    case 11:
+      if (ztwod::Object2D* o = child(h, v & 0xffff)) o->flags ^= v >> 16;
+      break;
+    case 13:
+    case 14:
+      for (uint32_t i = 0; ztwod::Object2D* o = child(h, i); ++i) o->flags = k == 13 ? o->flags | 4 : o->flags & ~0x10u;
+      if (k == 14)
+        for (ztwod::Object2D* o : std::initializer_list<ztwod::Object2D*>{
+                 &h.compass, &h.gauges, &h.mfd, &h.target, &h.weapons, &h.objectives, &h.equipment, &h.reticle})
+          o->flags &= ~0x10u;
+      break;
+    case 15: ftext(h, v)->set_text_plain("88 TXT"); break;
+    case 16: {
+      const uint32_t j = v >> 8;
+      image(h, v & 0xff)->set_image(j < 3 ? mech3::weapon_set().light[j] : mech3::equipment_set().light[j - 3]);
+      break;
+    }
+    case 12: {
+      mech3::HudWeaponLine& l = h.weapons.lines[v & 0xff];
+      l.count = static_cast<int8_t>(v >> 8 & 0xff);
+      l.changed = 1;
+      break;
+    }
+    default: break;
+  }
+}
 
 // A piece's name by its place in the HUD (as the emulator's offsets).
 std::string piece_name(const ztwod::Object2D* p) {
@@ -166,8 +299,8 @@ void poly(Dump& d, ztwod::PolyLine* p) {
     for (int32_t v : pt) d.kv("p", v);
   d.kv("count", p->count);
   d.kv("color", p->color);
-  d.kv("dl", p->draw_list);
-  d.kv("tf", p->transformed);
+  d.kv("dl", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->clip)));
+  d.kv("tf", p->round);
 }
 
 void panel(Dump& d, mech3::HudPanel* p);
@@ -234,8 +367,8 @@ void damageview(Dump& d, mech3::HudDamageView* v, const std::string& head) {
     mech3::HudDamagePart& p = v->parts[i];
     d.o << head << ".part" << i << ' ';
     d.image(&p);
-    d.f("f", p.xbc);
-    for (uint32_t x : {p.xc0, p.xc4, p.xc8, p.xcc, p.xd0}) d.kv("f", x);
+    d.f("f", p.rate);
+    for (uint32_t x : {zgame::bits(p.timer), uint32_t(p.on), uint32_t(p.mode), uint32_t(p.phase), p.xd0}) d.kv("f", x);
     d.kv("part", p.images - mech3::damage_set().parts);
     d.o << "\n";
   }
@@ -326,7 +459,7 @@ void dump_hud(Dump& d) {
   d.kv("color", rd.color);
   d.kv("clipped", rd.clipped);
   d.r("clip", rd.clip);
-  d.kv("x54", rd.x54);
+  d.kv("x54", zgame::bits(rd.noise));
   d.kv("x58", rd.x58);
   d.kv("zoomed", rd.zoomed);
   d.kv("active", rd.active);
@@ -344,7 +477,9 @@ void dump_hud(Dump& d) {
     ztwod::ClipLine2D& l = rd.lines[i];
     d.o << "rline" << i << ' ';
     d.base(&l);
-    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48, l.x4c})
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
+                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash),
+                      zgame::bits(l.noise)})
       d.kv("l", v);
     d.o << "\n";
   }
@@ -357,8 +492,8 @@ void dump_hud(Dump& d) {
   for (int i = 0; i < 3; ++i) d.t("l", rd.light.images[i]);
   d.kv("count", rd.light.count);
   d.kv("cur", rd.light.current);
-  d.kv("xc8", rd.light.xc8);
-  d.kv("xcc", rd.light.xcc);
+  d.kv("xc8", zgame::bits(rd.light.interval));
+  d.kv("xcc", zgame::bits(rd.light.time));
   d.o << "\n";
   for (int i = 0; i < 2; ++i) {
     d.o << "rpoly" << i << ' ';
@@ -382,7 +517,8 @@ void dump_hud(Dump& d) {
     ztwod::Line2D& l = tg.lines[i];
     d.o << "tline" << i << ' ';
     d.base(&l);
-    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48})
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
+                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash)})
       d.kv("l", v);
     d.o << "\n";
   }
@@ -443,8 +579,8 @@ void dump_hud(Dump& d) {
   for (int i = 0; i < 4; ++i) d.t("l", z.light.images[i]);
   d.kv("count", z.light.count);
   d.kv("cur", z.light.current);
-  d.kv("xc8", z.light.xc8);
-  d.kv("xcc", z.light.xcc);
+  d.kv("xc8", zgame::bits(z.light.interval));
+  d.kv("xcc", zgame::bits(z.light.time));
   d.o << "\nzframe ";
   d.base(&z.frame);
   d.kv("radius", z.frame.radius);
@@ -597,8 +733,8 @@ std::string aim_dump(mech3::Hud& h) {
 }
 
 int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const float* places, int nplaces,
-                    uint32_t utab, uint32_t stab, char* out, int size) {
-  RecordingHost host;
+                    uint32_t utab, uint32_t stab, const uint32_t* ops, int nops, char* out, int size) {
+  HudHost host;
   ztwod::set_host(&host);
   reset();  // the textures by address: each run's emulator starts over
   mech3::set_hud_hooks(&g_hooks);
@@ -623,6 +759,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
     g_hud->reticle.place(places[2 * i], places[2 * i + 1]);
     aims += aim_dump(*g_hud) + "\n";
   }
+  for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);
   const std::string s = d.o.str() + aims;

@@ -29,9 +29,9 @@ porting order is section 7. Status: mapped, nothing ported yet.
     equipment's damage).
   - The HUD's own +0x00 (0x0043c820) through the target mech's vt+0xe0
     (0x0041cd40, from the Core frame's HUD update 0x0040fac0, only for the
-    view's target): per-frame bookkeeping, the debug overlays (`%s [%s]: %d
-    %d %d`, the gait names), the ammo gauge 0x00443d20, then 0x0041bd80 on
-    +0x1d48 (the gauges) unless the mech's +0x638.
+    view's target): the HUD's frame (section 11: the debug overlays, the
+    pieces' updates and draws, the reticle's aim state 0x00443d20), then
+    0x0041bd80 aims at the reticle's point +0x1d48 unless the mech's +0x638.
   - Drawing: the pieces are zTwoD objects in the HUD's Layer (0x0059fba0);
     zTwoD's per-frame update (0x0059fd20) draws them inside the Core frame's
     locked back buffer (render-frame.md). The 25 message lines at
@@ -276,7 +276,7 @@ order): `HudRadar`, `HudCompass`, `HudReticle` (with `HudZoomWindow`),
 fonts and damage silhouettes every HUD shares are `weapon_set()`,
 `equipment_set()` and `damage_set()`. The constructors and the set-up
 (`Hud::setup`, the pieces' `read_layout`, `place` and `attach`) are ported;
-the frame updates are not (section 7).
+the frame and the pieces' updates too (section 11).
 
 The engine sits behind `HudHooks`: hud.zrd's load, the video mode, the
 display's size, the mech's fields the set-up reads (vt+0xa0, 0x0041df10,
@@ -371,3 +371,74 @@ torso until the reticle's ray ends on the Owens 80 m away and checks the
 weapons, with no other aim, take its armor down. Breaking the aim: 10 of 10
 caught.
 
+
+## 11. The frame (0x0043c820) and the pieces' updates
+
+The HUD's vtable +0x00, run by 0x0041cd40 each frame for the view's target,
+only with a mech:
+
+1. The **debug overlays**, while the debug text 0x005fc378 shows (toggled by
+   0x0040dc34 and [0x005f4d6c]; the test reads its flags [0x005fc384]): the
+   mech's gait, speeds and the like into five global texts
+   (0x005fe918..0x005ffbd8, 0x4b0 apart). Hooked (`hud_debug`).
+2. zTwoD's **Layer update** (0x0059fd20, only while the layer is active):
+   each piece the constructor added (compass, gauges, TARGET, MFD, weapons,
+   equipment) runs its +0x24.
+3. The **timer**, the **objectives** and the **radar** (0x0043dd00, hooked
+   until item 7), which are not in the layer's list.
+4. While the reticle's state is still 5 (nothing set it this frame):
+   whether its point lies over TARGET's shape or circle with a live target
+   (0x00440a30) into the **aim state** (0x00443d20: the weapons' range and
+   lock, their sounds, the reticle's image by state 0 on, 1 off, 2 over,
+   3 can't). Both hooked; item 5's ammo gauge in the porting order.
+5. The **reticle** (0x004441a0), then its state back to 5; the network's
+   part (0x00479ed0) in a network game ([0x00609980]).
+
+Each piece's update draws only while shown (kHidden clear), except the MFD
+(0x00442540) and the damage silhouette (0x00447b50), which leave it to their
+children:
+
+| Piece | Update | Draws |
+|---|---|---|
+| Compass | 0x0043f620 | the frame, then the tape |
+| Gauges | 0x004452c0 | the speed, coolant and heat texts; the speed bar and frame, the fuel bar and frame, the coolant bar and frame; the heat bar, meter and toggler |
+| MFD | 0x00442540 | by its mode (vt+0x80): 1 its 3D view's box (0x00442880), 2 the damage silhouette, 3 the nav list; the title only with [0x00609994], or in a multiplayer game while [0x00605f88] is clear |
+| TARGET | 0x00441490 | the three lines, the mode's piece as the MFD, three of the four texts, the marker, the circle; no title. Its mode (0x004413a0) is none without a live target and only the 3D view for a target that is not a mech |
+| Damage silhouette | 0x00447b50 | the background, the eight parts (each a flashing image, 0x005a6d10) |
+| Weapons | 0x00446680 | with a weapon manager: the lines' looks (0x00446540, hooked) while shown, the panel, the 16 lines (0x00445c10), the bracket |
+| Weapon line | 0x00445c10 | when changed, the second text's and the name's rendered images become the bar's fill and empty; the bar, the count (unless -1), the light, the mark |
+| Equipment | 0x00448450 | the panel, the lines up to the first hidden one (0x00448030: name, light, value) |
+| Objectives | 0x00447410 | the panel, the text, the scores |
+| Panel | 0x0043ad00 | in software or when opaque; a see-through panel in Direct3D draws in the 3D pass |
+| Light | 0x004486e0 | with an interval, the image steps each interval |
+| Zoom window | 0x00442e30 | its scale grows at 4.8 a second while shown and shrinks at 7 while hidden; at full size its light shows the reticle's state, then its text; then the circle or the box |
+| Reticle | 0x004441a0 | the zoom window; nothing more once the HUD is off with its mech dead; itself only while the zoom window is hidden; +0x954 counts down to 0 |
+
+A flashing image (zTwoD's update 0x005a6d10): mode 1 blinks
+(drawn on phase 1), mode 2 swaps its image with a second one each half
+period (+0xbc, 0.35 s). Mode 0 falls through into mode 1's code (a missing
+`break`): it draws, then draws again on phase 1. Ported as written.
+
+**The 3D pass** (0x0043c6b0, from the mech's 0x0041cd90 for the view's
+target): in Direct3D the see-through panels (0x0043ad70 each: the MFD's and
+TARGET's when their mode is 1, the weapons' and equipment's, the
+objectives') and the MFD's and TARGET's 3D views (+0x28: 0x00442500,
+0x00441410). Not ported yet: in Direct3D the panels do not show until it
+is, the texts and images over them do.
+
+In the program, `hud_handoff` runs the frame (`Hud::update`) inside the Core
+frame's 2D layer; the hooks the program does not implement answer 0 (no
+debug overlay, no radar, the aim state left alone, no nav list).
+
+Test: `test_hud.py` runs, after the build and the aim, a random sequence of
+frames (dt 0 to 2.5 s) with changes between them (the HUD on or off, the
+zoom window shown or hidden and round, the reticle's state, the zoom light's
+interval, a damage part's flash, the MFD's mode, any piece shown or hidden),
+the unported pieces stubbed (the aim state sets a state 0..3, as in play),
+zRender's 2D draws logged, and compares every draw and the HUD's fields
+after, on 100 runs (126,437 calls). Ops 13 to 16 (every child dirty or
+shown, texts and images set) are there because most children are managed
+(drawn only when dirty) and empty until their unported setters run. Breaking
+it: 21 of 23 caught; the misses are equivalent here: the scores box has no
+lines (its setter 0x00446ad0 is not ported) and the MFD view's box, a managed
+PolyLine, is never made dirty in the test.

@@ -113,6 +113,21 @@ class Host : public zgame::Unported {
   // zRender's 2D line (0x00562940: ECX x0, EDX y0; x1, y1, the pixel) into the
   // locked buffer. Ported: zrndr::line16 into zrndr::target2d().
   virtual void line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel);
+  // zRender's other 2D primitives (zrndr_prim2d, the same target): a dashed
+  // line (0x00562c80), lines joining count + 1 points each clipped
+  // (0x00562cb0), a circle (0x005630c0), one with static (0x00563440), a line
+  // with static (0x00562970), a filled polygon with its winding ([0x0074a3c8],
+  // 0x0055d010; vertices x, y every 12 bytes).
+  virtual void line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, int32_t dash);
+  virtual void line_list(const int32_t* points, int32_t count, const Rect* clip, uint32_t pixel);
+  virtual void circle(int32_t cx, int32_t cy, int32_t r, uint32_t pixel, const Rect* clip);
+  virtual void circle_noisy(int32_t cx, int32_t cy, int32_t r, uint32_t pixel, float noise, const Rect* clip);
+  virtual void line_noisy(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, float noise,
+                          const Rect* clip);
+  virtual void polygon(const float* vertices, int32_t count, uint32_t color, int32_t winding);
+  // 0x0053ce20: the render's clip volume, min and max x, y, z (the camera
+  // window's sides, its near and far planes; [0x007402fc..0x00740310]).
+  virtual void render_clip(float min[3], float max[3]);
 
   // GDI32 / USER32 (FIX (A), above), argument for argument.
   virtual Handle GetStockObject(int32_t which);
