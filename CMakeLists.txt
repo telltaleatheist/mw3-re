@@ -135,6 +135,7 @@ add_library(mw3core STATIC
   src/mech3/player_view.cpp
   src/mech3/hud.cpp
   src/mech3/mech_hud.cpp
+  src/mech3/app_hud.cpp
   src/mech3/pilot.cpp
   src/mech3/pilot_games.cpp
   src/mech3/pilot_menu.cpp

@@ -516,6 +516,19 @@ void unproject(const Vec3* screen, Vec3* cam, int32_t count) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00523930: screen points (x, y, 1/z) into the world
+// through the camera's matrix (the one view() keeps; the exe pushes a copy).
+void unproject_world(const Vec3* screen, Vec3* out, int32_t count) {
+  const float* m = view().camera.m;
+  for (; count > 0; --count, ++screen, ++out) {
+    Vec3 c;
+    unproject(screen, &c, 1);
+    const Vec3 r = {c.z * m[6] + c.y * m[3] + c.x * m[0] + m[9], c.z * m[7] + c.y * m[4] + c.x * m[1] + m[10],
+                    c.z * m[8] + c.y * m[5] + c.x * m[2] + m[11]};
+    *out = r;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x005220e0. dst = base + delta * f (LoD morph; the model draw
 // passes its morph count +0x1c and factor +0x24).
 void morph(Vec3* dst, const Vec3* base, const Vec3* delta, uint32_t count, float f) {

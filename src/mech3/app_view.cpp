@@ -1,5 +1,8 @@
 #include "mech3/app_view.h"
 
+#include "mech3/hud.h"
+#include "mech3/mech_hud.h"
+
 #include <cstring>
 #include <memory>
 
@@ -192,12 +195,12 @@ void program_view_make(void* camera) {
 }
 
 // Mech3.exe 1.2 @ 0x0041ce30: the view onto the mech in its data's current
-// camera, then the HUD's set-up (0x00430aa0, 0x0043bb80; not ported).
+// camera, then the HUD's set-up for it (0x00430aa0, 0x0043bb80).
 void program_view_attach(Mech& m) {
   if (!g_view) return;
   auto* list = m.pilot ? static_cast<CameraList*>(m.pilot->cameras) : nullptr;
   g_view->attach(&m, list ? list->find(list->current) : nullptr);
-  g_hooks.unported("0x0043bb80", {});
+  if (Hud* h = m.pilot ? pilot_hud(*m.pilot) : nullptr) h->setup(&m);
   sync();
 }
 void program_view_set_camera(int32_t id) {
