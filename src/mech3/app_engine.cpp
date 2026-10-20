@@ -331,10 +331,13 @@ uint32_t GameEngine::video_show_cursor(uint32_t on) {
   return old;
 }
 
+// FIX (A): the fade's DirectDraw and Direct3D calls on the 16-bit buffer
+// (fixes.md, Running on modern machines).
 // 0x00579500: the screen to a new image. The port has one buffer, whichever
-// the original asked for.
+// the original asked for. Handles of freed stills are reused.
 Handle GameEngine::video_grab(int32_t) {
-  const Handle h = alloc_block(0x10);
+  Handle h = kGrabs;
+  while (grabs_.count(h)) h += 0x10;
   grabs_[h] = buffer_;
   return h;
 }
@@ -350,20 +353,26 @@ void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Han
 // it; here, for both, straight into the 16-bit buffer.
 void GameEngine::screen_tint(uint16_t colour, Handle rect, double alpha) {
   if (rect) return Engine::screen_tint(colour, rect, alpha);
-  const zvid::PixelFormat& f = zvid::pixel_format();
-  const int gb = f.g_bits + f.b_bits;
-  const uint32_t rm = (1u << f.r_bits) - 1, gm = (1u << f.g_bits) - 1, bm = (1u << f.b_bits) - 1;
-  const float a = static_cast<float>(alpha), k = 1.0f - a;
-  auto mix = [&](uint32_t p, uint32_t c) { return static_cast<uint32_t>(p * k + c * a + 0.5f); };
-  for (uint16_t& px : buffer_) {
-    const uint32_t r = mix(px >> gb & rm, colour >> gb & rm);
-    const uint32_t g = mix(px >> f.b_bits & gm, colour >> f.b_bits & gm);
-    const uint32_t b = mix(px & bm, colour & bm);
-    px = static_cast<uint16_t>(r << gb | g << f.b_bits | b);
-  }
+  tint16(buffer_.data(), buffer_.size(), colour, static_cast<float>(alpha));
 }
 void GameEngine::image_free(Handle image) {
   if (!grabs_.erase(image)) Engine::image_free(image);
+}
+
+// Each channel of the pixel format mixed toward the colour, rounded to nearest.
+void tint16(uint16_t* px, size_t n, uint16_t colour, float alpha) {
+  const zvid::PixelFormat& f = zvid::pixel_format();
+  const int gb = f.g_bits + f.b_bits;
+  const uint32_t rm = (1u << f.r_bits) - 1, gm = (1u << f.g_bits) - 1, bm = (1u << f.b_bits) - 1;
+  const float k = 1.0f - alpha;
+  auto mix = [&](uint32_t p, uint32_t c) { return static_cast<uint32_t>(p * k + c * alpha + 0.5f); };
+  for (size_t i = 0; i < n; ++i) {
+    const uint32_t p = px[i];
+    const uint32_t r = mix(p >> gb & rm, colour >> gb & rm);
+    const uint32_t g = mix(p >> f.b_bits & gm, colour >> f.b_bits & gm);
+    const uint32_t b = mix(p & bm, colour & bm);
+    px[i] = static_cast<uint16_t>(r << gb | g << f.b_bits | b);
+  }
 }
 
 Handle GameEngine::handle_of(void* p) {
