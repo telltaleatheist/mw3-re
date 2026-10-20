@@ -78,7 +78,7 @@ void MechControls::zero() {
 
 namespace {
 ControlsCalls g_calls;
-AxisBinding g_axes[4];
+
 
 // The commands the player's controls read (the CMD_ ids, docs/controls.md).
 constexpr int kTurnLeft = 2, kTurnRight = 3, kPitchUp = 4, kPitchDown = 5, kTwistLeft = 8, kTwistRight = 9;
@@ -150,7 +150,52 @@ float source_delta(int32_t src, const platform::JoyState* j, const zin::MouseInf
 }  // namespace
 
 ControlsCalls& controls_calls() { return g_calls; }
-AxisBinding* axis_bindings() { return g_axes; }
+
+// Mech3.exe 1.2 @ 0x00426650. Every call takes the joystick once more
+// (0x0051b2c0, its use count), as the original does.
+void MechControls::set_mode(uint32_t mode) {
+  flags = mode;
+  throttle_held = false;
+  AxisTable& t = axis_table();
+  if (t.ready) {
+    if (mode & 4) {
+      t.axes[0] = {3, -0.5f, 0.5f, 0.05f};
+      t.ready = 0;
+      t.set3(1, 6, -1.0f, 0.0f);
+      t.axes[1].deadzone = 0.0f;
+      t.ready = 0;
+      t.set3(2, 2, 1.0f, 0.0f);
+      t.axes[2].deadzone = 0.0f;
+      t.ready = 0;
+      t.set(3, 1, -1.0f, 0.0f, 0.0f);
+      t.ready = 1;
+    } else if (mode & 1) {
+      t.axes[2] = {10, 1.0f, 0.0f, 0.0f};
+      t.axes[1] = {9, 1.0f, 0.0f, 0.0f};
+      t.axes[0].source = 0;
+      t.axes[3].source = 0;
+      t.ready = 1;
+    }
+  }
+  if (g_calls.joy_use) g_calls.joy_use();
+  else zin::joy_use();
+}
+
+// Mech3.exe 1.2 @ 0x004300e0: an axis source's name in the controls file.
+// (It calls zInput's joystick setup 0x0051da90 first and drops the result.)
+const char* axis_source_name(int32_t source) {
+  switch (source) {
+    case 1: case 9: return "X";
+    case 2: case 10: return "Y";
+    case 3: case 11: return "Z";
+    case 4: return "Rx";
+    case 5: return "Ry";
+    case 6: return "Rz";
+    case 7: return "Slider0";
+    case 8: return "Slider1";
+    default: return "";
+  }
+}
 
 // Mech3.exe 1.2 @ 0x0042fe10: scaled and offset, 0 inside the dead zone.
 float AxisBinding::value(const void* j, const void* m) const {
@@ -177,7 +222,7 @@ void PlayerControls::read_axes(float dt, float* thr, float* tn, float* p, float*
   const platform::JoyState* j = joy();
   const zin::MouseInfo* m = mouse();
   const int cam = g_calls.camera_view ? g_calls.camera_view() : 0;
-  const AxisBinding* ax = g_axes;
+  const AxisBinding* ax = axis_table().axes;
   if (ax[3].source != 0) *tn = ax[3].value(j, m);
   if (ax[0].source != 0) {
     const float sign = reverse ? -1.0f : 1.0f;  // IControls +0x18

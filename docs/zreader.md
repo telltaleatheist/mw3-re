@@ -45,10 +45,71 @@ each open archive, in the order they were opened. The sound module loads
 `sounds.zrd` into 0x72c440 and passes its `CD_TRACKS` node to the CD code
 (0x5706f0 -> 0x572450).
 
-The loose text files (`.zrd` text, with `#if`/`#endif`) go through a tokenizer at
-0x5563f0, 0x556510, 0x557550 and neighbours. None ship with the game, so it is not
-ported yet. The archive writer (0x5765b0, 0x576890, 0x576990, 0x576720) is not
+A name no open archive has is looked for as a loose text file (0x556240:
+the path as given if `_access` finds it, else along the search path) and
+read by the text branch below. None ship with the game; the controls files
+the game writes, `keys\<name>.zrd`, are text (controls.md, Setup). The archive writer (0x5765b0, 0x576890, 0x576990, 0x576720) is not
 ported either; the game never builds archives at run time.
+
+## Text files (ported)
+
+0x5563d0(handle), read a byte at a time (ReadFile, 0x5563a0). Ported in
+`zreader.cpp` (`parse_text`, and `load`'s text branch), checked by
+`test_zreader_text.py` on 540 files.
+
+- **Balance check** 0x5562a0: counts `(` and `)` outside `"..."` strings and
+  `;` comments (to the line's end, CR or LF); a quote inside a comment does
+  not count, a `;` inside a string does not start one. Not zero: no tree
+  (the load returns 0). The file is rewound.
+- **Lists** 0x5563f0: tokens up to the `)` that closes the list, or the
+  file's end; a `(` reads a nested list. Items are kept in order (a queue of
+  8-byte nodes from a pool, 0x555cd0 at start). The root is the list of
+  everything at the top level, so a file `( KEYS (...) )` gives
+  `[[KEYS, [...]]]`; `find` searches nested lists anyway.
+- **Tokens** 0x556510: delimited by `(`, `)` and spaces (MSVCRT isspace). A
+  `;` skips to the line's end without ending the token (`ab;x\ncd` is
+  `abcd`). A `"` starts a quoted part that may sit in a token's middle;
+  the closing quote writes a 0 into the token, so text after it is lost
+  (`"ab"cd` is `ab`), and a quoted token is always a string. A token in
+  progress when the file ends is dropped.
+- **Values** 0x556690: an unquoted token strtol (base 10) reads whole is an
+  int (out of range: LONG_MAX or LONG_MIN), else one strtod reads whole a
+  float (exponents `e`, `E`, `d`, `D`; `5.`, `.5`), else a string: `0x1c`,
+  `1e`, `-` are strings.
+- **Directives** 0x557550, at a token's start only: the word after `#` up to
+  a space (0x557650): `ifdef NAME` (0x5577d0 looks NAME up in a list at
+  0x72bf94 that nothing ever fills, so it is always false), `else`,
+  `endif`; any other word is skipped. A false `#ifdef` scans for the next
+  `#` (in comments and strings too) and reads directives until its `#else`
+  (the else part is read) or its `#endif`; an `#else` met while reading
+  skips to the `#endif`. The nesting count 0x72c1ac is global and carries
+  from file to file; a stray `#endif` takes it below 0, which only shifts
+  the comparisons.
+
+Bugs, fixed in the port (fixes.md):
+
+- An unquoted token of 256 characters or more writes its terminator over
+  the low byte of the token reader's return address, which then returns
+  into the middle of an instruction; the "token too long" message after
+  the 257th character is never reached cleanly. FIX (bug): the token is
+  dropped and the list ends, as the message intends.
+- A quoted part has no length check (a stack overrun past 256) and reads on
+  forever at the file's end; an `#ifdef` or `#else` whose `#endif` is
+  missing scans forever at the end. FIX (bug): both stop there.
+- FIX (A): stdio for ReadFile, and zutl::open (the write dir, then the
+  mounts) for `_access` and the search path.
+
+`test_zreader_text.py` runs 0x5563d0 in the emulator (the list pool 0x555cd0
+and the defines list's constructor 0x557490 first; MSVCRT's strtol, strtod
+and isspace as stand-ins of the same grammar as `crt::msvc_strtol` /
+`msvc_strtod`) against `parse_text` on 40 controls files and 500 random
+ones, the #ifdef depth carried from file to file; trees compared node by
+node. Result: 540 identical (25 unbalanced). Breaking the port showed the
+test catches it, 9 of 9: a comment ending the token, the balance counting
+parentheses in comments, quoted tokens read as numbers, no `d` exponent,
+strtol wrapping, the #else not taken, #endif not counting, items reversed,
+the last token kept at the end of the file. The fixes are checked in
+`mw3tests` (`zreader_text_files`).
 
 ## Original behaviour worth knowing
 

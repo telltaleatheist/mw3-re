@@ -10,10 +10,12 @@ for t in \
     spans \
     ztimer \
     zreader \
+    zreader_text \
     heat \
     power \
     damage \
     controls \
+    ctlcfg \
     gait \
     skis \
     jets \

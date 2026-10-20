@@ -165,56 +165,35 @@ void set_throttle_const(int32_t on) {
 // Mech3.exe 1.2 @ 0x0040d060
 int32_t throttle_const() { return static_cast<int32_t>((word() >> 5) & 1); }
 
-namespace {
-// 0x0040daf0 / 0x0040db30 / 0x0040db10 on the axis table at 0x006040d0; the
-// table's +0x40 byte (0x00604110) is cleared by each write.
-void axis3(int i, uint32_t a, uint32_t b, uint32_t c) {
-  g_options.axis_map[i][0] = a;
-  g_options.axis_map[i][1] = b;
-  g_options.axis_map[i][2] = c;
-}
-void axis4(int i, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-  g_options.axis_map[i][0] = a;
-  g_options.axis_map[i][1] = b;
-  g_options.axis_map[i][2] = c;
-  g_options.axis_map[i][3] = d;
-  g_options.axis_map_ready = 0;
-}
-void axis1(int i, uint32_t a) {
-  g_options.axis_map[i][0] = a;
-  g_options.axis_map_ready = 0;
-}
-}  // namespace
-
 // Mech3.exe 1.2 @ 0x0040d070: when the axis table is ready, switching rewrites it
 // for joystick or mouse, then the mech's control mode follows (6 joystick, 3 not).
 void set_use_joystick(int32_t on) {
-  Options& o = g_options;
+  AxisTable& t = axis_table();
   if (on) {
     word() |= kUseJoystick;
-    if (o.axis_map_ready) {
-      axis3(0, 3, zgame::bits(-0.5f), zgame::bits(0.5f));
-      o.axis_map[0][3] = zgame::bits(0.05f);
-      o.axis_map_ready = 0;
-      axis3(1, 6, zgame::bits(-1.0f), 0);
-      o.axis_map[1][3] = 0;
-      o.axis_map_ready = 0;
-      axis4(2, 2, zgame::bits(1.0f), 0, 0);
-      axis4(3, 1, zgame::bits(-1.0f), 0, 0);
-      o.axis_map_ready = 1;
+    if (t.ready) {
+      t.set3(0, 3, -0.5f, 0.5f);
+      t.axes[0].deadzone = 0.05f;
+      t.ready = 0;
+      t.set3(1, 6, -1.0f, 0.0f);
+      t.axes[1].deadzone = 0.0f;
+      t.ready = 0;
+      t.set(2, 2, 1.0f, 0.0f, 0.0f);
+      t.set(3, 1, -1.0f, 0.0f, 0.0f);
+      t.ready = 1;
     }
   } else {
     word() &= ~kUseJoystick;
-    if (o.axis_map_ready) {
-      axis3(2, 10, zgame::bits(1.0f), 0);
-      o.axis_map[2][3] = 0;
-      o.axis_map_ready = 0;
-      axis3(1, 9, zgame::bits(1.0f), 0);
-      o.axis_map[1][3] = 0;
-      o.axis_map_ready = 0;
-      axis1(0, 0);
-      axis1(3, 0);
-      o.axis_map_ready = 1;
+    if (t.ready) {
+      t.set3(2, 10, 1.0f, 0.0f);
+      t.axes[2].deadzone = 0.0f;
+      t.ready = 0;
+      t.set3(1, 9, 1.0f, 0.0f);
+      t.axes[1].deadzone = 0.0f;
+      t.ready = 0;
+      t.set_source(0, 0);
+      t.set_source(3, 0);
+      t.ready = 1;
     }
   }
   if (Handle mech = g_hooks->player_mech())

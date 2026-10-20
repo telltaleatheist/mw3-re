@@ -11,6 +11,7 @@
 #include "gamez/zerror/zerr.h"
 #include "mech3/app.h"
 #include "mech3/app_states.h"
+#include "mech3/controls_cfg.h"
 #include "mech3/options.h"
 #include "probe_app.h"
 
@@ -212,6 +213,10 @@ void probe_states_reset() {
   mech3::reset_states();
   mech3::globals() = mech3::AppGlobals{};
   mech3::options() = mech3::Options{};
+  // The axis table as the emulator's .data holds it: 0x410950 does not run there.
+  mech3::axis_table() = mech3::AxisTable{};
+  for (mech3::AxisBinding& a : mech3::axis_table().axes) a = mech3::AxisBinding{};
+  mech3::axis_table().ready = 0;
   g_engine = new Recording;
   zerr::set_sink(nullptr);  // the release build's report (0x0049bfd0) is empty
   g_app = new mech3::Mech3App(g_engine);  // recorded only through probe_states_construct

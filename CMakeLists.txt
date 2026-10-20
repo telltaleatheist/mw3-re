@@ -101,6 +101,7 @@ add_library(mw3core STATIC
   src/gamez/ztwod/twod_wintext.cpp
   src/mech3/mech.cpp
   src/mech3/mech3_interp.cpp
+  src/mech3/controls_cfg.cpp
   src/mech3/mech_config.cpp
   src/mech3/mech_control.cpp
   src/mech3/mech_damage.cpp
@@ -180,6 +181,7 @@ add_library(mw3probe SHARED
   tests/probe_pose.cpp
   tests/probe_parts.cpp
   tests/probe_controls.cpp
+  tests/probe_ctlcfg.cpp
   tests/probe_ai.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
@@ -200,6 +202,7 @@ add_executable(mw3tests
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp
   tests/test_zreader.cpp
+  tests/test_controls_cfg.cpp
   tests/test_program.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)

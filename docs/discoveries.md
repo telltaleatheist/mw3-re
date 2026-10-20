@@ -1182,6 +1182,44 @@ From the player's controls, 0x427d60 (details: `controls.md`):
   becomes a pointer, a free look at 1.5 times the speed, or the torso,
   depending on the view.
 
+From the default bindings and the controls profiles, 0x411150 and 0x4120a0
+(details and the full default key list: `controls.md`, Setup):
+
+- **Number key 2 sets 20% throttle, not the 10% the controls screen
+  says.** The keys give 0, 20, 30, 40 .. 90 and 100%; there is no 10%.
+  In reverse they give the same speeds backwards.
+- **Insert and Page Up both turn you and rotate you on the jump jets:**
+  they are the turns' second keys and the jet rotations' first keys at once
+  (a key can sit in both slots), so in the air with "MW2 jump jets" on they
+  do both.
+- **Look up and look down are on Alt + keypad 2 and Alt + keypad 8**, the
+  other way round from the arrows printed on the keypad (like pulling back
+  on a stick).
+- **Ctrl+Q is "Exit Mission"**, and Alt-F4 is a hidden "Quick Exit" command
+  that is in no list: the controls screen does not show it and a saved
+  profile does not store it.
+- **Loading a saved control profile unbinds everything it does not list**,
+  Alt-F4's Quick Exit included, until you reset to the defaults.
+- **The default joystick buttons:** 1 fire, 2 lock zoom, 3 next enemy, 4
+  next weapon group, 5 fire mode, 6 alpha strike, 7 jump jets, 8 center
+  legs, 10 throttle direction; button 9 does nothing. The left mouse button
+  fires and the right one is the free look.
+- **Profiles are plain text** (`keys\<name>.zrd`): keys as hex codes, axes
+  with a source, slope, intercept and dead zone, and can be edited by hand,
+  with some traps: a key written as a plain number (`keya(28)`) is read as
+  nothing (it must be `0x1c`), yet `keya(28x)` reads as 28; a command name
+  the game does not know takes those keys away from every command; an axis
+  line without `joystick(...)` or `mouse(...)` copies the source of the line
+  above it. An axis name other than Throttle, Twist, Pitch or LR corrupted
+  the original's memory (a crash later); the rebuild skips it.
+- **The game notices when a profile's axes are exactly the stock joystick
+  setup**: only then may the game switch them to the mouse by itself at the
+  next start (when no joystick is found). Custom axes are left alone by the
+  "use joystick" option and the game.
+- **A profile named like one of the game's own data files** (for example
+  "detail" or "weapons") saves fine but loads the game's file of that name
+  instead, so loading it changes nothing.
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).

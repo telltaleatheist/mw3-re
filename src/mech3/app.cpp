@@ -271,8 +271,8 @@ bool Mech3App::start_game(uint32_t window) {
   e.sound_load(window, "sounds.zrd", 0x4e6b00, 0);
   e.input_start(window, cmd_show_);
   if (!e.joystick_present()) {
-    Options& o = options();
-    if (o.axis_map_init) o.axis_map_ready = 1;
+    AxisTable& t = axis_table();
+    if (t.stock) t.ready = 1;
     e.set_use_joystick(0);
   } else {
     if (Handle old = e.network_game()) e.network_game_delete(old);

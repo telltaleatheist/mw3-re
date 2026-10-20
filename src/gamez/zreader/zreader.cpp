@@ -6,6 +6,7 @@
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 
 namespace zrdr {
@@ -376,9 +377,242 @@ std::FILE* find_in_archives(const char* name) {
   return nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00556740. The text branch (a loose file found on the search
-// path, parsed by 0x005563d0) is not ported; the shipped game has no loose files,
-// so the original takes the same "not found" path there.
+namespace {
+// Mech3.exe 1.2 @ 0x005563a0: one byte, false at the end. FIX (A): stdio for
+// ReadFile on the file's handle.
+bool read_char(std::FILE* f, char* c) {
+  const int v = std::fgetc(f);
+  if (v == EOF) return false;
+  *c = static_cast<char>(v);
+  return true;
+}
+
+// MSVCRT isspace in the C locale on a char passed sign-extended: bytes from
+// 0x80 are not spaces.
+bool space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
+
+void too_long(const char* token) { std::fprintf(stderr, "token[%s] too long\n", token); }  // printf, 0x005ef940
+
+// Mech3.exe 1.2 @ 0x005562a0: the parentheses outside strings and comments
+// must balance; the file is rewound either way.
+bool balanced(std::FILE* f) {
+  int32_t depth = 0;
+  bool comment = false, quote = false;
+  char c;
+  while (read_char(f, &c)) {
+    switch (c) {
+      case '\n':
+      case '\r':
+        if (!quote) comment = false;
+        break;
+      case '"':
+        if (!comment) quote = !quote;
+        break;
+      case '(':
+        if (!quote && !comment) ++depth;
+        break;
+      case ')':
+        if (!quote && !comment) --depth;
+        break;
+      case ';':
+        if (!quote) comment = true;
+        break;
+      default:
+        break;
+    }
+  }
+  std::fseek(f, 0, SEEK_SET);
+  return depth == 0;
+}
+
+// The word after a '#' or an #ifdef (0x00557650, 0x005577d0): read up to a
+// space, which is consumed. False at the end of the file or a word too long.
+bool read_word(std::FILE* f, char* c, char (&word)[0x102]) {
+  int32_t n = 0;
+  word[0] = '\0';  // the original compares its stack as it was
+  if (!read_char(f, c)) return false;
+  while (!space(*c)) {
+    if (n > 0xff) {
+      too_long(word);
+      return false;
+    }
+    word[n] = *c;
+    word[n + 1] = '\0';
+    ++n;
+    if (!read_char(f, c)) return false;
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00557650: 0 ifdef, 1 else, 2 endif, 3 anything else.
+int directive_word(std::FILE* f, char* c) {
+  char w[0x102];
+  if (!read_word(f, c, w)) return 3;
+  if (std::strcmp(w, "ifdef") == 0) return 0;
+  if (std::strcmp(w, "else") == 0) return 1;
+  return std::strcmp(w, "endif") == 0 ? 2 : 3;
+}
+
+// Mech3.exe 1.2 @ 0x005577d0: the name after #ifdef is in the defines.
+bool defined(std::FILE* f, char* c) {
+  char w[0x102];
+  if (!read_word(f, c, w)) return false;
+  for (const std::string& d : g_state.defines)
+    if (d == w) return true;
+  return false;
+}
+
+// Reads on to the next '#' (looking at *c first); false at the end of the file.
+bool skip_to_hash(std::FILE* f, char* c) {
+  while (*c != '#')
+    if (!read_char(f, c)) return false;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00557550: a directive at the start of a token. A false
+// #ifdef skips to its #else (true: the else branch is read) or its #endif;
+// an #else reached while reading skips to the #endif. A '#' counts anywhere
+// in the skipped text, in comments and strings too.
+bool directive(std::FILE* f, char* c, bool skipping) {
+  const int32_t depth = g_state.if_depth;
+  switch (directive_word(f, c)) {
+    case 0:
+      ++g_state.if_depth;
+      if (defined(f, c) || g_state.if_depth <= depth) return false;
+      for (;;) {
+        // FIX (bug): the original scans on forever when the file ends here.
+        if (!skip_to_hash(f, c)) return false;
+        if (directive(f, c, true)) return true;
+        if (g_state.if_depth <= depth) return false;
+      }
+    case 1:
+      if (skipping) return true;
+      while (depth <= g_state.if_depth) {
+        if (!skip_to_hash(f, c)) return false;  // FIX (bug), as above
+        directive(f, c, false);
+      }
+      return false;
+    case 2:
+      --g_state.if_depth;
+      return false;
+    default:
+      return false;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00556690: an unquoted token that strtol or strtod reads
+// whole is an int or a float; anything else a string.
+Node* token_value(const char* s, bool quoted) {
+  Node* n = new_nodes(String, 1);
+  const size_t len = std::strlen(s);
+  if (!quoted && len > 0) {
+    const char* end = s;
+    const int32_t i = crt::msvc_strtol(s, &end);
+    if (static_cast<size_t>(end - s) == len) {
+      n->type = Int;
+      n->i = i;
+      return n;
+    }
+    const double d = crt::msvc_strtod(s, &end);
+    if (static_cast<size_t>(end - s) == len) {
+      n->type = Float;
+      n->f = static_cast<float>(d);
+      return n;
+    }
+  }
+  n->type = String;
+  const size_t size = len + 1;
+  n->s = static_cast<char*>(std::malloc(size));  // _strdup
+  std::memcpy(n->s, s, size);
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00556510: the next token into *out (nullptr when there is
+// none before the delimiter). Returns the delimiter, '(' ')' or a space, or 0
+// at the end of the file, where a token in progress is dropped. A ';' comment
+// runs to the end of its line without ending the token; quotes may sit in a
+// token's middle.
+int read_token(std::FILE* f, Node** out) {
+  char buf[0x102];
+  int32_t n = 0;
+  bool quoted = false;
+  char c;
+  if (!read_char(f, &c)) return 0;
+  for (;;) {
+    if (c == ';') {
+      do {
+        if (!read_char(f, &c)) return 0;
+      } while (c != '\n');
+    } else {
+      if (n == 0 && c == '#') directive(f, &c, false);
+      if (c == '(' || c == ')' || space(c)) {
+        *out = n ? token_value(buf, quoted) : nullptr;
+        return c;
+      }
+      if (n >= 0x100) {
+        *out = nullptr;
+        too_long(buf);
+        return 0;
+      }
+      if (c == '"') {
+        quoted = true;
+        // FIX (bug): the original reads on past the end of the file and past
+        // its 256-byte buffer; the string stops at either.
+        bool more = read_char(f, &c);
+        while (more && c != '"') {
+          if (n < 0xff) buf[n++] = c;
+          more = read_char(f, &c);
+        }
+        buf[n++] = '\0';
+      } else {
+        buf[n++] = c;
+        buf[n] = '\0';
+      }
+    }
+    if (!read_char(f, &c)) return 0;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x005563f0: the items up to the ')' that closes the list
+// (or the end of the file), in order, as a list node.
+Node* parse_list(std::FILE* f) {
+  std::vector<Node> items;
+  Node* out = nullptr;
+  for (;;) {
+    const int r = read_token(f, &out);
+    if (r == 0) break;
+    if (out) {
+      items.push_back(*out);
+      std::free(out);
+    }
+    if (r == '(') {
+      out = parse_list(f);
+      items.push_back(*out);
+      std::free(out);
+    } else if (r == ')') {
+      break;
+    }
+  }
+  Node* node = new_nodes(List, 1);
+  const int32_t count = static_cast<int32_t>(items.size()) + 1;
+  node->list = alloc_list(count);
+  node->list[0].type = Int;
+  node->list[0].i = count;
+  for (size_t i = 0; i < items.size(); ++i) node->list[i + 1] = items[i];
+  return node;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005563d0
+Node* parse_text(std::FILE* file) {
+  if (!balanced(file)) return nullptr;
+  return parse_list(file);
+}
+
+// Mech3.exe 1.2 @ 0x00556740. Not in an archive: the text branch (the search
+// 0x00556240, then 0x005563d0). FIX (A): the file is found through
+// zutl::open, the write dir then the mounts, for the original's _access and
+// search path, and read with stdio.
 Node* load(const char* path) {
   crt::msvc_splitpath_name(path, g_fname, g_ext);
   std::strncat(g_fname, g_ext, sizeof g_fname - std::strlen(g_fname) - 1);
@@ -387,7 +621,11 @@ Node* load(const char* path) {
     read_node(f, root);
     return root;
   }
-  return nullptr;
+  std::FILE* f = zutl::open(path, "rb");
+  if (!f) return nullptr;
+  Node* root = parse_text(f);
+  std::fclose(f);
+  return root;
 }
 
 }  // namespace zrdr

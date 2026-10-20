@@ -36,6 +36,9 @@ struct WiredOptionsHooks : OptionsHooks {
   void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
   int32_t video_mode() override { return g_engine ? static_cast<int32_t>(g_engine->peek32(0x72f348)) : 0; }
   const char* message(int32_t id) override { return g_engine ? g_engine->message(id) : ""; }  // 0x00576040
+  void controls_set_defaults() override { mech3::controls_set_defaults(); }        // 0x00411150
+  void controls_load(const char* name) override { mech3::controls_load(name); }    // 0x004120a0
+  void controls_free() override { mech3::controls_free_groups(); }                 // 0x00410a80
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
   }

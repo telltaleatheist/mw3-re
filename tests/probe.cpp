@@ -126,6 +126,24 @@ int copy_out(const std::string& s, char* buf, int size) {
 
 extern "C" {
 
+// A text file through zrdr::parse_text with the #ifdef depth given and
+// returned: 1 with the tree loaded, 0 when it did not balance, -1 no file.
+int probe_zrdr_text(const char* path, int32_t* depth) {
+  if (g_probe_loaded) zrdr::free_contents(&g_probe_root);
+  g_probe_loaded = false;
+  std::FILE* f = std::fopen(path, "rb");
+  if (!f) return -1;
+  zrdr::state().if_depth = *depth;
+  zrdr::Node* root = zrdr::parse_text(f);
+  std::fclose(f);
+  *depth = zrdr::state().if_depth;
+  if (!root) return 0;
+  g_probe_root = *root;
+  std::free(root);
+  g_probe_loaded = true;
+  return 1;
+}
+
 // Reads one node tree from `path` at `offset` with zrdr::read_node; returns bytes read.
 int probe_zrdr_load(const char* path, long offset) {
   if (g_probe_loaded) zrdr::free_contents(&g_probe_root);

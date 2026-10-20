@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 namespace zutl_zar { struct Archive; }
@@ -10,10 +11,10 @@ namespace zutl_zar { struct Archive; }
 //
 //   ("CD_TRACKS" (("menu" 2) ("c1" 3) ...) "OTHER_KEY" 1.5 ...)
 //
-// Shipped data comes from the .zbd archives in a binary form; the developers'
-// loose text files (*.zrd, with #if/#endif) are read by a tokenizer that is not
-// ported yet (0x005563f0, 0x00556510, 0x00557550 and neighbours), since no text
-// files ship with the game.
+// Shipped data comes from the .zbd archives in a binary form; loose text files
+// (*.zrd, with ; comments and #ifdef/#else/#endif) go through the tokenizer
+// (0x005563d0 and neighbours, docs/zreader.md). None ship with the game; the
+// controls files the game writes (keys\\<name>.zrd, docs/controls.md) are text.
 //
 // Binary node: uint32 type, then int32 | float32 | (uint32 length, bytes) | list.
 // A list is uint32 count, then count - 1 nodes. In memory the list keeps that
@@ -77,6 +78,8 @@ struct State {
   bool archives_created = false;                  // 0x0072c1a4 != 0
   std::vector<zutl_zar::Archive*> archives;       // 0x0072c1a4
   zutl_zar::Archive* current = nullptr;           // 0x0072c1a8
+  int32_t if_depth = 0;                           // 0x0072c1ac  the text files' #ifdef nesting, kept across files
+  std::vector<std::string> defines;               // 0x0072bf94  what #ifdef finds: nothing in the exe adds to it
 };
 State& state();
 
@@ -84,8 +87,14 @@ void init();                                                  // 0x00556170
 bool open_archive(const char* path, bool make_current);      // 0x00557320
 void close_archives(bool all);                                // 0x005573d0
 std::FILE* find_in_archives(const char* name);                // 0x005572c0
+// 0x005563d0: a text file's tree, nullptr when its parentheses do not
+// balance. The root is a list of everything at the top level.
+Node* parse_text(std::FILE* file);
+
 // 0x00556740: reads the named data file. The directory is ignored for archives:
-// "foo\\bar\\detail.zrd" is looked up as "detail.zrd". nullptr if not found.
+// "foo\\bar\\detail.zrd" is looked up as "detail.zrd". Not in an archive, the
+// path is a text file found through zutl::open (the write dir, then the
+// mounts). nullptr if not found.
 Node* load(const char* path);
 
 }  // namespace zrdr

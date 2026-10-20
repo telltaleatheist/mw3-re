@@ -113,6 +113,12 @@ unusual happens.
   sound copy's position, an air burst's surface direction) are zeroed.
 - A damaged saved controls-file name (no end marker) no longer makes the game
   read past it.
+- A hand-edited controls profile (`keys\<name>.zrd`) with an axis of an
+  unknown name, or a number or an empty entry where a command belongs, no
+  longer crashes the game; the bad line is skipped.
+- A text data file with a word of 256 letters or more, a quote that is never
+  closed, or an `#ifdef` without its `#endif` no longer crashes or hangs the
+  game.
 
 ## Copy protection removed
 
@@ -155,6 +161,9 @@ These change how the game talks to the computer, not how it plays.
   replaced by ordinary writes, pixel for pixel the same.
 - Files are found through search folders, so replacement files can sit in
   front of the original install, or stand in for it.
+- Controls profiles (`keys\<name>.zrd`) are saved in the user's folder
+  instead of the game folder, in the same text format (a profile from the
+  original game can be copied in).
 - The game is its own program, `mw3`, in an ordinary window (SDL3) instead
   of a Windows program; it starts the way the original did, step for step.
   Saves and settings go to the user's application-data folder, not into the

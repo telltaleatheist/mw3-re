@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "mech3/controls_cfg.h"
+
 // The shared part of a mech's controls (docs/controls.md): the commanded
 // throttle, turn and jump, and their smoothing toward the targets
 // (docs/movement.md, Throttle and turn). Original file unknown: the code sits
@@ -49,6 +51,9 @@ struct MechControls {
     jump_held = hold;
   }
   void zero();                   // 0x00426c80
+  // 0x00426650: the control mode (+0x08). While the axis table is ready, bit
+  // 4 puts the joystick's axes in it and bit 1 the mouse's.
+  void set_mode(uint32_t mode);
 };
 
 // The player's controls (ctor 0x00427320, 0x160 bytes; controls.md): the
@@ -68,16 +73,9 @@ struct AiControls : MechControls {
   int update(float dt) override;   // 0x004e96f0
 };
 
-// The joystick axis bindings (0x006040d0, four 16-byte entries: throttle,
-// twist, pitch, turn), filled by the controls file reader (0x004120a0, not
-// ported) and the options; a source 0 is unbound.
-struct AxisBinding {
-  int32_t source = 0;          // 1..6 the stick's axes, 7, 8 its sliders, 9..11 the mouse's
-  float scale = 0, offset = 0, deadzone = 0;
-  float value(const void* joy, const void* mouse) const;  // 0x0042fe10
-  float delta(const void* joy, const void* mouse) const;  // 0x0042fe70
-};
-AxisBinding* axis_bindings();  // [4]
+// The axis table's four bindings (0x006040d0: throttle, twist, pitch, turn;
+// controls_cfg.h), set by the controls file, the options and set_mode.
+inline AxisBinding* axis_bindings() { return axis_table().axes; }
 
 // What the controls call outside: zInput (unset: its port), the HUD, the
 // pilot and the AI brain (unset: nothing, 0).
@@ -95,6 +93,7 @@ struct ControlsCalls {
   uint8_t (*screen_busy)(void* screen) = nullptr;  // the HUD's +0x167c
   void (*zoom)(void* screen, bool in) = nullptr; // the HUD's +0x1508: vt +0x60(-1) held, vt +0x64 let go
   int (*ai_brain)(MechControls&, float dt) = nullptr;  // 0x004e9710 on +0x5c; unset: the smoothing alone
+  void (*joy_use)() = nullptr;                   // 0x0051b2c0; unset: zin::joy_use
 };
 ControlsCalls& controls_calls();
 
