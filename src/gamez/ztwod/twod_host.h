@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdarg>
 #include <cstdint>
 
 #include "gamez/zgame/unported.h"
@@ -76,6 +77,9 @@ class Host : public zgame::Unported {
   virtual Handle image_dc(zimg::Texture* image);
   virtual void image_dc_release(zimg::Texture* image, Handle dc);
   // zVideo and zRender for the message box's own loop (0x005a7280).
+  // 0x00575ff0: Mech3Msg.dll's message `id` formatted into buf (FormatMessageA,
+  // the trailing CR LF cut); its length, 0 when none.
+  virtual uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args);
   virtual int32_t video_mode();                                       // [0x0072f348]: 0 software, 1 Direct3D
   virtual void video_double();                                        // [0x0072f358](0, 0)
   virtual uint32_t show_cursor(uint32_t on);                          // 0x00579840: ECX; returns the old state

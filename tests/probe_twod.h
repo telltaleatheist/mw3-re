@@ -75,6 +75,12 @@ struct RecordingHost : ztwod::Host {
   zimg::Texture* image_release(zimg::Texture* t) override { return tex(call("0x00517b10", {id(t)})); }
   void texture_free(zimg::Texture* t) override { call("0x00517cc0", {id(t)}); }
   Handle font_find(const char* name) override { return call("0x00517680", {name}); }
+  // The tests' messages are "msg<id>" when the stub answers a length.
+  uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list) override {
+    const uint32_t n = call("0x00575ff0", {size, id});
+    std::snprintf(buf, size, "%s", n ? ("msg" + std::to_string(id)).c_str() : "");
+    return n;
+  }
   ztwod::NamedFont font_fields(Handle f) override {
     ztwod::NamedFont n;
     n.hfont = call("peek32", {f + 0x44});

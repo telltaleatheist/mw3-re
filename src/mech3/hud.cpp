@@ -331,6 +331,65 @@ void HudWeapons::hide() {
   shown = 0;
 }
 
+// Mech3.exe 1.2 @ 0x00448550
+void HudBar::set_box(int32_t px, int32_t py, int32_t w, int32_t h) {
+  set_point(0, static_cast<float>(px), static_cast<float>(py));
+  set_point(1, static_cast<float>(px), static_cast<float>(h + py));
+  const float x1 = static_cast<float>(w + 1 + px);
+  set_point(2, x1, static_cast<float>(h + py));
+  set_point(3, x1, static_cast<float>(py));
+  height = h;
+  width = w;
+}
+
+namespace {
+// The gauges' texts: Arial 8, green with a dark green shadow.
+void gauge_font(ztwod::FontText& t) {
+  t.create_font("Arial", 8, 300, 6, 0, 0, 2);
+  if (t.color_top != 0x1fa201 || t.color_bottom != 0x1fa201) {
+    t.color_top = t.color_bottom = 0x1fa201;
+    t.needs_render = 1;
+  }
+}
+void gauge_shadow(ztwod::FontText& t) {
+  t.shadow = 1;
+  t.shadow_dx = t.shadow_dy = 1;
+  t.shadow_color = 0x184e18;
+}
+int32_t image_h(const ztwod::Image& i) { return i.image ? i.image->height : 0; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00444760
+HudGauges::HudGauges()
+    : Object2D(0, 0), coolant_text(nullptr, 0, 0), fuel_text(nullptr, 0, 0),
+      speed_frame("hud_speed_frame", 0x23f, 0x100, 0), coolant_frame("hud_coolant_frame", 8, 0x122, 0),
+      fuel_frame("hud_fuel_frame", 0x20f, 0x128, 0), heat_bar("hud_heat_bar", 0x12, 0xa3, 0),
+      heat_meter("hud_heat_meter", 0x10, 0xa3, 0), toggler("lab_toggler_green", 10, 0x96, 0) {
+  speed_text.set_pos(speed_frame.get_x() + 0x1b, speed_frame.get_y() + 0x30);
+  gauge_font(speed_text);
+  gauge_shadow(speed_text);
+  coolant_text.set_pos(coolant_frame.get_x() + 0x16, coolant_frame.get_y() + 0x21);
+  gauge_font(coolant_text);
+  coolant_text.set_text_id(0x1d5);
+  gauge_shadow(coolant_text);
+  fuel_text.set_pos(0x1e, 0x115);
+  gauge_font(fuel_text);
+  fuel_text.set_text_id(0x1d6);
+  gauge_shadow(fuel_text);
+  speed_bar.set_box(speed_frame.get_x() + 0xf, speed_frame.get_y() + 5, 4, 0x2f);
+  coolant_bar.color = zvid::pack_bytes(0, 0, 0xff);
+  coolant_bar.set_box(coolant_frame.get_x() + 9, coolant_frame.get_y() + 7, 4, image_h(coolant_frame) - 8);
+  fuel_bar.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+  fuel_bar.set_box(fuel_frame.get_x() + 0x10, fuel_frame.get_y() + 5, 4, image_h(fuel_frame) - 8);
+  toggler_y = heat_meter.get_y() + image_h(heat_meter) - (image_h(toggler) >> 1) - 1;
+  x1444 = 0;
+  heat_bottom = heat_bar.get_y() + image_h(heat_bar);
+  heat_h = image_h(heat_bar);
+  x1440 = 0;
+  heat_w = heat_bar.image ? heat_bar.image->width : 0;
+  show_for(-1.0f);
+}
+
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order
 // (the ones not ported yet are recorded calls).
 Hud::Hud(Mech* m) {

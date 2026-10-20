@@ -20,6 +20,7 @@ from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
 from twod_world import TwodWorld  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 import test_twod  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
@@ -28,7 +29,7 @@ HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
-STUBBED = {0x43d260: 's0', 0x443b60: 'zs0,zs1', 0x444760: '', 0x442060: 's0,s1,s2,s3,s4',
+STUBBED = {0x43d260: 's0', 0x443b60: 'zs0,zs1', 0x442060: 's0,s1,s2,s3,s4',
            0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
@@ -54,6 +55,17 @@ class Original:
         self.e.stub(0x491c80, spec='')
         e.stub(0x446ad0, spec='c')
         e.stub(0x446520, spec='c')
+        # Mech3Msg.dll's messages: "msg<id>" into the buffer (s0), or none.
+        e.stub(0x575ff0, spec='s1,s2')
+        has_msgs = r.random() < 0.8
+
+        def message(rr, n, a):
+            if not has_msgs:
+                return 0
+            t = f'msg{a[1]}'.encode()
+            e.cpu.write(e.r32(e.uc.reg_read(UC_X86_REG_ESP) + 4), t + b'\0')
+            return len(t)
+        w.answers['0x00575ff0'] = message
         e.cpu.import_code(IAT_FLOOR, FLOOR)
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
@@ -123,14 +135,19 @@ class Original:
             kv('maxw', e.r32(o + 0x4a8))
             kv('named', e.r32(o + 0x4ac))
 
-        def text(o):
+        def ftext(o):
             fonttext(o)
             for k, off in (('font', 0x234), ('centered', 0x238), ('shcol', 0x254), ('lead', 0x478), ('fixed', 0x47c),
-                           ('sdx', 0x4a0), ('sdy', 0x4a4), ('ft', 0x4b0), ('frate', 0x4b4), ('atop', 0x4b8)):
+                           ('sdx', 0x4a0), ('sdy', 0x4a4)):
                 kv(k, e.r32(o + off))
             if e.r32(o + 0x46c) == 2:
                 kv('bkc', e.r32(o + 0x470))
             rc('fr', o + 0x480)
+
+        def text(o):
+            ftext(o)
+            for k, off in (('ft', 0x4b0), ('frate', 0x4b4), ('atop', 0x4b8)):
+                kv(k, e.r32(o + off))
             kv('fon', e.r8(o + 0x4c0))
             kv('fmode', e.r32(o + 0x4c4))
             kv('phase', e.r32(o + 0x4c8))
@@ -209,6 +226,28 @@ class Original:
             kv('state', e.r32(q + 0xa38))
             kv('item', e.r32(q + 0xa3c))
             flush('light')
+        o = h + 0x1da8
+        base(o)
+        for k, off in (('x143c', 0x143c), ('x1440', 0x1440), ('x1444', 0x1444), ('hw', 0x1448), ('hh', 0x144c),
+                       ('hb', 0x150c), ('ty', 0x1688)):
+            kv(k, e.r32(o + off))
+        flush('gauges')
+        for nm, off in (('coolant', 0x38), ('fuel', 0x4e8), ('speed', 0x998)):
+            ftext(o + off)
+            flush(nm)
+        for nm, off in (('sbar', 0xe48), ('fbar', 0xf88), ('cbar', 0x10c8)):
+            base(o + off)
+            for i in range(63):
+                kv('p', e.r32(o + off + 0x34 + 4 * i))
+            for k, d in (('count', 0x130), ('height', 0x138), ('width', 0x13c)):
+                kv(k, e.r32(o + off + d))
+            if nm != 'sbar':
+                kv('color', e.r32(o + off + 0x134))
+            flush(nm)
+        for nm, off in (('sframe', 0x1208), ('cframe', 0x12c4), ('fframe', 0x1380), ('hbar', 0x1450),
+                        ('hmeter', 0x1510), ('toggler', 0x15cc)):
+            image(o + off)
+            flush(nm)
         o = h + 0x6520
         base(o)
         kv('hud', e.r32(o + 0x34))

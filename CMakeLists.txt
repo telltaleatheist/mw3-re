@@ -99,6 +99,7 @@ add_library(mw3core STATIC
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp
   src/gamez/ztwod/twod_editbar.cpp
+  src/gamez/ztwod/twod_shapes.cpp
   src/gamez/ztwod/twod_host.cpp
   src/gamez/ztwod/twod_list.cpp
   src/gamez/ztwod/twod_msgbox.cpp

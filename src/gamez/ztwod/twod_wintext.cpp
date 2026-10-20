@@ -302,6 +302,20 @@ void FontText::set_text(const char* format, ...) {
   changed_text();
 }
 
+// Mech3.exe 1.2 @ 0x00409bd0
+void FontText::set_text_id(uint32_t id, ...) {
+  va_list args;
+  va_start(args, id);
+  set_text_id_v(id, args);
+  va_end(args);
+}
+
+// Mech3.exe 1.2 @ 0x00409bf0: the message is passed as a format.
+void FontText::set_text_id_v(uint32_t id, va_list args) {
+  char buf[0x200];
+  if (host().format_message(buf, sizeof buf, id, args)) set_text(buf);
+}
+
 // Mech3.exe 1.2 @ 0x005a1250
 void FontText::set_text_v(const char* format, va_list args) {
   if (!format) {

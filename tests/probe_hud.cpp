@@ -35,8 +35,8 @@ std::string piece_name(const ztwod::Object2D* p) {
   return "?";
 }
 
-// test_hud.py's order: FontText's fields, then Text's and the rest.
-void text(Dump& d, ztwod::Text* p) {
+// test_hud.py's order: FontText's fields, then the rest; a Text's flash after.
+void ftext(Dump& d, ztwod::FontText* p) {
   d.fonttext(p);
   d.kv("font", p->font);
   d.kv("centered", p->centered);
@@ -45,11 +45,15 @@ void text(Dump& d, ztwod::Text* p) {
   d.kv("fixed", p->fixed);
   d.kv("sdx", p->shadow_dx);
   d.kv("sdy", p->shadow_dy);
+  if (p->bk_mode == 2) d.kv("bkc", p->bk_color);
+  d.r("fr", p->fixed_rect);
+}
+
+void text(Dump& d, ztwod::Text* p) {
+  ftext(d, p);
   d.f("ft", p->flash_timer);
   d.f("frate", p->flash_rate);
   d.kv("atop", p->alt_top);
-  if (p->bk_mode == 2) d.kv("bkc", p->bk_color);
-  d.r("fr", p->fixed_rect);
   d.kv("fon", p->flash_on);
   d.kv("fmode", p->flash_mode);
   d.kv("phase", p->phase);
@@ -137,6 +141,39 @@ void dump_hud(Dump& d) {
     d.image(&l.light);
     d.kv("state", l.state);
     d.kv("item", l.item);
+    d.o << "\n";
+  }
+  mech3::HudGauges& g = h.gauges;
+  d.o << "gauges ";
+  d.base(&g);
+  const std::pair<const char*, int32_t> ks[] = {{"x143c", g.x143c}, {"x1440", g.x1440}, {"x1444", g.x1444},
+      {"hw", g.heat_w}, {"hh", g.heat_h}, {"hb", g.heat_bottom}, {"ty", g.toggler_y}};
+  for (auto& [k, v] : ks) d.kv(k, v);
+  d.o << "\n";
+  const std::pair<const char*, ztwod::FontText*> texts[] = {
+      {"coolant", &g.coolant_text}, {"fuel", &g.fuel_text}, {"speed", &g.speed_text}};
+  for (auto& [n, t] : texts) {
+    d.o << n << ' ';
+    ftext(d, t);
+    d.o << "\n";
+  }
+  const std::pair<const char*, mech3::HudBar*> bars[] = {{"sbar", &g.speed_bar}, {"fbar", &g.fuel_bar}, {"cbar", &g.coolant_bar}};
+  for (auto& [n, b] : bars) {
+    d.o << n << ' ';
+    d.base(b);
+    for (auto& pt : b->pts)
+      for (float v : pt) d.f("p", v);
+    d.kv("count", b->count);
+    d.kv("height", b->height);
+    d.kv("width", b->width);
+    if (b != &g.speed_bar) d.kv("color", b->color);
+    d.o << "\n";
+  }
+  const std::pair<const char*, ztwod::Image*> imgs[] = {{"sframe", &g.speed_frame}, {"cframe", &g.coolant_frame},
+      {"fframe", &g.fuel_frame}, {"hbar", &g.heat_bar}, {"hmeter", &g.heat_meter}, {"toggler", &g.toggler}};
+  for (auto& [n, i] : imgs) {
+    d.o << n << ' ';
+    d.image(i);
     d.o << "\n";
   }
   mech3::HudWeapons& w = h.weapons;

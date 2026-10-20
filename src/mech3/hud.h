@@ -179,6 +179,40 @@ class HudWeapons : public ztwod::Object2D {
   int32_t column = 0x6e;             // +0x11440
 };
 
+// A gauge's bar (vtable 0x005c0788, 0x140 bytes; 0x00448530 builds one too):
+// a four-point polygon.
+class HudBar : public ztwod::Polygon {
+ public:
+  void set_box(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00448550: w + 1 wide
+  uint32_t color = 0;                // +0x134 a pixel (not set by the constructor)
+  int32_t height = 0;                // +0x138
+  int32_t width = 0;                 // +0x13c
+};
+
+// The gauges (vtable 0x005c0708, 0x168c bytes): speed, coolant and fuel
+// frames with their bars, the heat bar and meter, and three texts.
+class HudGauges : public ztwod::Object2D {
+ public:
+  HudGauges();                       // 0x00444760
+  ztwod::FontText coolant_text;      // +0x38   message 0x1d5
+  ztwod::FontText fuel_text;         // +0x4e8  message 0x1d6
+  HudText speed_text;                // +0x998
+  HudBar speed_bar;                  // +0xe48
+  HudBar fuel_bar;                   // +0xf88
+  HudBar coolant_bar;                // +0x10c8
+  ztwod::Image speed_frame;          // +0x1208 hud_speed_frame at (575, 256)
+  ztwod::Image coolant_frame;        // +0x12c4 hud_coolant_frame at (8, 290)
+  ztwod::Image fuel_frame;           // +0x1380 hud_fuel_frame at (527, 296)
+  int32_t x143c = 0;                 // +0x143c
+  int32_t x1440 = 0, x1444 = 0;      // +0x1440, +0x1444
+  int32_t heat_w = 0, heat_h = 0;    // +0x1448, +0x144c the heat bar's size
+  ztwod::Image heat_bar;             // +0x1450 hud_heat_bar at (18, 163)
+  int32_t heat_bottom = 0;           // +0x150c the heat bar's bottom
+  ztwod::Image heat_meter;           // +0x1510 hud_heat_meter at (16, 163)
+  ztwod::Image toggler;              // +0x15cc lab_toggler_green at (10, 150)
+  int32_t toggler_y = 0;             // +0x1688 the meter's bottom less half the toggler
+};
+
 // What the HUD calls outside it.
 class HudHooks : public zgame::Unported {
  public:
@@ -216,7 +250,7 @@ class Hud : public ztwod::Layer {
   PendingPiece radar{0x0043d260, {zgame::bits(60.0f)}};       // +0x14   0x0043d260 (not ported yet)
   HudCompass compass;                // +0xdd4
   PendingPiece reticle{0x00443b60, {"ret_on", "ret_off"}};     // +0x144c 0x00443b60 (not ported yet)
-  PendingPiece gauges{0x00444760, {}};      // +0x1da8 0x00444760 (not ported yet)
+  HudGauges gauges;                  // +0x1da8
   PendingPiece mfd{0x00442060, {0x212, 0x172, 0x4b, 100, 1}};         // +0x3434 0x00442060 (not ported yet)
   PendingPiece target{0x0043fcb0, {10, 0x172, 0x4b, 100}};      // +0x410c 0x0043fcb0 (not ported yet)
   HudWeapons weapons;                // +0x6520
