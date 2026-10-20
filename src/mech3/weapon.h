@@ -23,8 +23,8 @@ struct WeaponType {
   float heat = 0;                    // +0x08  HEAT: added to the firing mech
   float heat_2 = 0;                  // +0x0c  HEAT's second value: added to the target (0 in every weapon)
   bool show_on_radar = false;        // +0x10
-  float zaps_hud = 0;                // +0x14  ZAPS_HUD
-  float zaps_hud_2 = 0;              // +0x18
+  float zaps_hud = 0;                // +0x14  ZAPS_HUD: the HUD static a hit adds
+  float zaps_hud_2 = 0;              // +0x18  and its hold in seconds (the first value again in the exe)
   struct Lab {
     float tons = 0;                  // MASS clan / sphere
     int32_t slots = 0;

@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_names.h"
@@ -133,6 +134,33 @@ int probe_zwep_run(const char* archive, const uint32_t* crater, int hardware, in
   return rc;
 }
 
+// The soil names the next init sees (zmod::soil_names): n names, NUL-separated.
+void probe_zwep_soils(int n, const char* names) {
+  auto& v = zmod::soil_names();
+  v.clear();
+  for (int i = 0; i < n; ++i) {
+    v.emplace_back(names);
+    names += v.back().size() + 1;
+  }
+}
+
+// LoadSoils on an archive's soils.zrd after the reset: the names, NUL-ended.
+int probe_zwep_load_soils(const char* archive, char* out, int cap) {
+  zmod::reset_soils();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -1;
+  zmod::load_soils("soils.zrd");
+  int n = 0;
+  for (const std::string& s : zmod::soil_names()) {
+    if (n + static_cast<int>(s.size()) + 1 > cap) return -2;
+    std::memcpy(out + n, s.c_str(), s.size() + 1);
+    n += static_cast<int>(s.size()) + 1;
+  }
+  zmod::reset_soils();
+  return n;
+}
+
 // Globals after the run: def count, pool size, the four sounds, crater radius
 // bits, world, arg, tick, whether the free list runs through the whole pool.
 void probe_zwep_globals(uint32_t* out) {
@@ -209,9 +237,10 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
   put(def, 0x1e4, d.x1e4);
   put(def, 0x1e8, d.terrain_height);
   put(def, 0x1ec, callback_addr(d.callback));
-  std::memset(impacts, 0, 6 * 0x5c);
+  const int soils = static_cast<int>(zmod::soil_names().size());
+  std::memset(impacts, 0, static_cast<size_t>(soils) * 0x5c);
   if (d.impacts)
-    for (int k = 0; k < zwep::kSoilCount; ++k) put_effect(impacts + 0x5c * k, d.impacts[k]);
+    for (int k = 0; k < soils; ++k) put_effect(impacts + 0x5c * k, d.impacts[k]);
   std::memset(type, 0, 0xc8);
   if (const mech3::WeaponType* t = d.type) {
     put(type, 0x00, t->id);

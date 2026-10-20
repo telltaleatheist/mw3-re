@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 #include "gamez/zimage/zimg_texture.h"
@@ -44,5 +45,15 @@ MaterialTable& materials();
 
 int read_materials(std::FILE* f);  // 0x005363d0
 Material* take_material(int32_t index);  // 0x00536070, marks it referenced
+
+// The soil names a material's +0x20 indexes (0x005edbc0, count 0x005edbb8,
+// at most 100): the engine's six, then the mission script's `LoadSoils
+// soils.zrd` adds dirt, mud, grass, concrete, snow, mech, silt and noslip
+// (6..13). zWeapon reads one IMPACT block per name (docs/weapons.md).
+// FIX (A): std::string for the exe's malloc'd copies.
+std::vector<std::string>& soil_names();
+int32_t soil_index(const char* name);  // 0x00535f20: a whole-word, case-blind prefix match, -1 none
+int load_soils(const char* file);      // 0x00537cb0, the LoadSoils command
+int reset_soils();                     // 0x00537270 (0x00537350 too): back to the six
 
 }  // namespace zmod

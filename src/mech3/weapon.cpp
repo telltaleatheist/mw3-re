@@ -8,6 +8,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_names.h"
 
@@ -32,13 +33,14 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (Node* n = zrdr::find(node, "SHOW_ON_RADAR"); n && n->type == zrdr::List) {
     if (zrdr::list_count(n) > 1 && n->list[1].type == zrdr::Int) show_on_radar = n->list[1].i != 0;
   }
-  // ZAPS_HUD: one or two numbers, int or float. The second slot reads the
-  // first value again (0x004af71b), so ERPPC's (0.5 2.0) gives 0.5 twice;
-  // kept as shipped, a candidate in docs/fixes.md.
+  // ZAPS_HUD: the HUD static a hit adds, then how long it holds before it
+  // fades (0x0043be70 keeps the longest hold; 0x0043d07a counts it down).
+  // FIX (bug): the exe reads the first value for both (0x004af71b), so the
+  // ERPPC's (0.5 2.0) held its static 0.5 s, not 2 s (docs/fixes.md).
   if (Node* n = zrdr::find(node, "ZAPS_HUD"); n && n->type == zrdr::List && zrdr::list_count(n) > 1) {
     float* out[2] = {&zaps_hud, &zaps_hud_2};
     for (int i = 1; i <= 2 && i < zrdr::list_count(n); ++i) {
-      const zrdr::Node& v = n->list[1];
+      const zrdr::Node& v = n->list[zfix::options().bugs ? i : 1];
       if (v.type == zrdr::Int) *out[i - 1] = static_cast<float>(v.i);
       else if (v.type == zrdr::Float) *out[i - 1] = v.f;
     }
