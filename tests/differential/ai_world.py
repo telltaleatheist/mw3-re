@@ -682,7 +682,7 @@ class RegionsRun:
         got = []
         for name in names:
             p = e.new_string(name.encode() if isinstance(name, str) else name)
-            cpu.call(REGION, ecx=p)
+            cpu.call(REGION, ecx=p, count=2_000_000_000)  # a net named as a region is compiled first
             got.append(e.eax())
             self.put_region(o, got[-1])
         self.put_state(o)
@@ -803,3 +803,114 @@ class CompiledRun:
             o.s(e.cstr(e.u32(v)))
         return bytes(o.b), e.events
 
+
+# --- the way along a net ---------------------------------------------------------
+class PathsRun(CompiledRun):
+    """What probe_paths_run writes, from the original's memory: nets built as
+    CompiledRun does, then queries (see run_query in tests/probe_ai_net.cpp)
+    at the 24 bits of play."""
+
+    def pilot(self, jets, name, pos):
+        """A brain the steps can ask: +0xe0 its virtual base table (offset 0),
+        +0xf0 the vehicle; the vehicle's +0x04 its node (the name first, +0x38
+        the matrix block whose +0x84 is the position, flag 0x20 clear), its
+        slot +0x50 the mech (whose +0x3d8 counts the jump jets)."""
+        e = self.e
+        brain, table, veh, node, block, mech = (e.alloc(0x100), e.alloc(8), e.alloc(0x10), e.alloc(0x40),
+                                                e.alloc(0x90), e.alloc(0x400))
+        vt, code = e.alloc(0x60), e.alloc(8)
+        e.cpu.u32(brain + 0xe0, table)
+        e.cpu.u32(table + 4, 0)
+        e.cpu.u32(brain + 0xf0, veh)
+        e.cpu.u32(veh, vt)
+        e.cpu.u32(veh + 4, node)
+        e.cpu.write(node, name[:0x37] + b'\0')
+        e.cpu.u32(node + 0x38, block)
+        e.cpu.write(block + 0x84, struct.pack('<3f', *pos))
+        e.cpu.write(code, b'\xb8' + struct.pack('<I', mech) + b'\xc3')   # mov eax, mech; ret
+        e.cpu.u32(vt + 0x50, code)
+        e.cpu.u32(mech + 0x3d8, jets & 0xffffffff)
+        return brain
+
+    def node_step(self, elems, k):
+        u = self.e.u32
+        for p in elems:
+            if u(p) in NODES:
+                if k == 0:
+                    return p
+                k -= 1
+        return 0
+
+    def put_way(self, o, elems, f):
+        e, u = self.e, self.e.u32
+        if f == 0:
+            o.u(0xffffffff)
+            return
+        head = u(f + 8)
+        items, p = [], u(head)
+        while p != head:
+            items.append(u(p + 8))
+            p = u(p)
+        o.u(e.u8(f + 0x14)), o.u(u(f + 0x10)), o.u(len(items))
+        for it in items:
+            o.u(self.token(elems, it))
+
+    def by_id(self, nid):
+        for x in self.compiled():
+            if self.e.u32(x + 4) == nid & 0xffffffff:
+                return x
+        return 0
+
+    def query(self, o, q, names):
+        e, cpu, u = self.e, self.e.cpu, self.e.u32
+        op = q[0]
+        if op == 3:
+            name = names[q[2]]
+            for v in e.valves():
+                if e.cstr(u(v)) == name:
+                    cpu.u32(u(v + 4) + 4, q[3] & 0xffffffff)
+                    break
+            return
+        x = self.by_id(q[1])
+        if x == 0:
+            o.u(0xeeeeeeee)
+            return
+        elems = self.elems(x)
+        f = lambda i: struct.unpack('<f', struct.pack('<i', q[i]))[0]
+        if op == 1:
+            pt = e.alloc(12)
+            cpu.write(pt, struct.pack('<3i', q[2], q[3], q[4]))
+            cpu.call(0x4d51d0, ecx=x, stack_args=(pt,))
+            o.u(self.token(elems, e.eax()))
+            return
+        start, target = self.node_step(elems, q[2]), self.node_step(elems, q[3])
+        if start == 0 or target == 0:
+            o.u(0xdddddddd)
+            return
+        brain = self.pilot(q[4], names[q[5]], (f(6), f(7), f(8)))
+        holder = e.alloc(4)
+        cpu.call(0x4c7c10, ecx=holder, stack_args=(brain, x, start, target), count=4_000_000_000)
+        o.u(e.eax() & 0xff)
+        self.put_way(o, elems, u(holder))
+        if q[10] > 0:
+            self.query(o, [3, q[1], q[10], q[11]], names)
+        at = start
+        for _ in range(q[9]):
+            if at == 0:
+                break
+            cpu.call(0x4c7cb0, ecx=holder, stack_args=(at,), count=4_000_000_000)
+            at = e.eax()
+            o.u(self.token(elems, at) if at else 0xffffffff)
+            self.put_way(o, elems, u(holder))
+
+    def run_paths(self, files, nets, queries, names):
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        for n in nets:
+            cpu.call(0x402240, ecx=n, edx=0, count=2_000_000_000)
+        cpu.fpu_control(0x007f)   # the queries run in play: 24 bits
+        for q in queries:
+            self.query(o, q, names)
+        cpu.fpu_control(0x027f)
+        return bytes(o.b), e.events

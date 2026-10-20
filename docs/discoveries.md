@@ -1047,6 +1047,22 @@ are all "puffers": emitters that drop little textured squares.
 - **One AI path points at nothing.** In the c2 world's mission 3, path 13
   is a single point linking to a point that does not exist; the original
   reads leftover memory there. The rebuild takes it as no link.
+- **AI pilots plan by straight lines.** When a pilot needs a route to a
+  point of its path network, it picks the shortest one measured in straight
+  lines from point to point (from where it stands), ignoring hills and
+  water between them. Of two routes the same length, the one found first
+  (by the order the points list their links) wins.
+- **Some links are only for some pilots.** A link marked `jump` is taken
+  only by a mech with jump jets, a `gate` link only by the vehicle the
+  gate names, and a link with a trigger only while the
+  trigger has the right value; the route finder leaves the others out.
+- **Pilots re-plan only when their way shuts.** A pilot keeps its route and
+  checks at each point that the rest of it is still open (a trigger may
+  have changed); only then does it search again from where it is.
+- **The route finder tries every route.** It walks every loop-free route
+  through the network, giving up on one only once it is no shorter than
+  the best so far. On today's machines that takes milliseconds even in the
+  biggest networks (246 points).
 - **There was an AI tester in the game.** A developer dialog for steering a
   unit by hand ("Direct", "Zig Zag", "Circle", "Jump", "Random Move") and
   picking its target ("player", "nearest enemy") is still in the exe behind

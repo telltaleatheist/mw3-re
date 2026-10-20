@@ -11,6 +11,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zreader/zreader.h"
+#include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_region.h"
@@ -178,6 +179,69 @@ void put_compiled(Out& o, const CompiledNet& n) {
   for (int32_t i = 0; i < n.count(); ++i) put_step(o, n, n.step(i));
 }
 
+// The k-th node step of a net (in slot order), null past the last.
+Behaviour* node_step(const CompiledNet& n, int32_t k) {
+  for (int32_t i = 0; i < n.count(); ++i) {
+    Behaviour* b = n.step(i);
+    if (dynamic_cast<NodeStep*>(b) && k-- == 0) return b;
+  }
+  return nullptr;
+}
+
+CompiledNet* compiled(int32_t id) {
+  znet::Object* o = znet::find(id);
+  return o ? dynamic_cast<CompiledNet*>(o) : nullptr;
+}
+
+void put_way(Out& o, const CompiledNet& n, const PathFinder* f) {
+  if (!f) return o.u(0xffffffffu);
+  o.u(f->found ? 1 : 0), o.f(f->best_length), o.u(uint32_t(f->best.size()));
+  for (const Behaviour* b : f->best) o.u(slot_token(n, b));
+}
+
+// One query, 12 words: op, net, then by op
+//   1 near:  x y z (floats)
+//   2 path:  start, target (k-th node steps), jets, name index, x y z, follows,
+//            then a valve (name index, 0 none) set to a value before following
+//   3 valve: name index, value
+void run_query(Out& o, const int32_t* q, const char* const* names) {
+  const int32_t op = q[0];
+  auto f = [&](int i) {
+    float v;
+    std::memcpy(&v, &q[i], 4);
+    return v;
+  };
+  if (op == 3) {
+    if (Valve* v = valve_find(names[q[2]])) v->value->value = q[3];
+    return;
+  }
+  CompiledNet* n = compiled(q[1]);
+  if (!n) return o.u(0xeeeeeeeeu);
+  if (op == 1) {
+    const float p[3] = {f(2), f(3), f(4)};
+    return o.u(slot_token(*n, nearest_step(*n, p)));
+  }
+  Behaviour* start = node_step(*n, q[2]);
+  Behaviour* target = node_step(*n, q[3]);
+  if (!start || !target) return o.u(0xddddddddu);
+  const float pos[3] = {f(6), f(7), f(8)};
+  Pilot pilot;
+  pilot.jump_jets = q[4];
+  pilot.name = names[q[5]];
+  pilot.pos = pos;
+  PathHolder h;
+  o.u(h.find(&pilot, n, start, target) ? 1 : 0);
+  put_way(o, *n, h.finder);
+  if (q[10] > 0)
+    if (Valve* v = valve_find(names[q[10]])) v->value->value = q[11];
+  Behaviour* at = start;
+  for (int32_t k = 0; k < q[9] && at; ++k) {
+    at = h.next(at);
+    o.u(at ? slot_token(*n, at) : 0xffffffffu);
+    put_way(o, *n, h.finder);
+  }
+}
+
 void put_state(Out& o) {
   o.u(uint32_t(znet::registry().list.size()));
   for (znet::Object* x : znet::registry().list) o.u(uint32_t(x->get_id())), o.u(kind(x));
@@ -253,6 +317,21 @@ int probe_nets_run(const char* archive, const int32_t* nets, int n, uint8_t* out
     if (auto* c = dynamic_cast<CompiledNet*>(x)) put_compiled(g_out, *c);
   g_out.u(static_cast<uint32_t>(valves().size()));
   for (const Valve* v : valves()) g_out.s(v->name);
+  return finish(out, cap, logbuf, logcap, nlog);
+}
+
+// Nets from `archive` built as probe_nets_run builds them, then `nq`
+// queries of 12 words each (run_query) at the 24 bits of play.
+int probe_paths_run(const char* archive, const int32_t* nets, int n, const int32_t* queries, int nq,
+                    const char* const* names, int nnames, uint8_t* out, int cap, uint32_t* logbuf, int logcap,
+                    int* nlog) {
+  (void)nnames;
+  reset();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  for (int i = 0; i < n; ++i) net_build(nets[i]);
+  for (int i = 0; i < nq; ++i) run_query(g_out, queries + 12 * i, names);
   return finish(out, cap, logbuf, logcap, nlog);
 }
 

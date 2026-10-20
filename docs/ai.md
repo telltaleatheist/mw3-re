@@ -238,13 +238,13 @@ Clean boundaries for later work, each a piece with its own test:
    mission boundary from the world's `inout` polygons (render.md 6a), read
    at mission load (0x4c3b80 -> 0x4c3930) and asked by the behaviours
    (0x4c3000, seven callers) to keep a destination inside; not ported
-   (section 10).
+   (section 11).
 2. **The run-time net**: done (section 9), the builder and the compiled
    net of steps. Left: the mission start's call (0x49e810, player.cpp), the
    ground snap and the multiplayer waynet (NetHooks), the built-in nets
    (0x604008, the seven-behaviour net 0x4c0090) and the 105/107 versions.
-3. **Net queries** (the nearest step 0x4d51d0, the way finder 0x4c7d00):
-   next.
+3. **Net queries**: done (section 10), the nearest step and the way
+   finder. What the steps do when a pilot reaches them is step 6.
 4. **Valves** at run time (ZRdrValve.cpp 0x4e2330 reader and the action and
    condition classes): the registry is ported; actions call into sound,
    animation, mission end and entities through a hooks struct.
@@ -314,6 +314,29 @@ mcbwait, plain nodes unnamed, missing links kept, the null step kept by
 attach, the deploy target by number, the canleave tests swapped, the scan
 aim inverted, edge nodes not counted, the net under the builder's id,
 built nets rebuilt: 14 of 14.
+
+`tests/differential/test_ai_paths.py` (`PathsRun`, with a pilot made in the
+emulator's memory: brain, vehicle, node name and position, mech and jump
+jets): every mission's nets built, then the nearest step to 6 points round
+each net's nodes, and in each net of at most 30 nodes 6 ways between random
+nodes for pilots near the start, with and without jets, named for a gate or
+not, under random valve settings, each way followed up to 7 steps (24
+bits); plus a ladder net (a jump, a gate, a valve, a valve union) and a
+ring net, 12 rounds each, and a fork whose short way a valve shuts once it
+is found (so the finder must search again): 3912 queries, 64 of 64 cases
+identical. Ways are not asked in the bigger nets: the walk is exhaustive
+up to the best length found, which in them runs past four billion emulated
+instructions (and the emulator, which never frees memory, runs out of it);
+natively, ways sampled in the biggest shipped nets (246 nodes) take
+milliseconds. Breaks caught: the nearest step the last of equals, the
+pilot counted at the target within 20, an equal way replacing the best,
+only the last leg measured, visited marks kept, the step reached dropped
+with the way before it, no new search when the way shuts, valves open on
+the other values, jumps for all, gates open to all, unions never open: 11
+of 11. Two tried breaks change nothing a caller sees and were dropped:
+keeping branches as long as the best (the cut only saves time: a way no
+shorter is never kept), and not testing the target when checking a kept
+way (targets are node steps, which let every pilot by).
 
 ## 8. The net objects
 
@@ -451,7 +474,8 @@ section 2), one slot per piece:
   (0x4bd790), in this order: speed (0x4c9eb0, the rate), wait_interval
   (0x4c9f80), wait_time (0x4ca0a0), valve (0x4ca1c0: the valve and its
   value; a valve given without a value gets 1 on the node's last link and 0
-  on the others), canleave (0x4cbcf0 with test 0x4d9c80 for `canleave (1
+  on the others: the way finder lets a pilot by only while the valve holds
+  it, section 10), canleave (0x4cbcf0 with test 0x4d9c80 for `canleave (1
   n)`, n != 0; 0x4cbd40 with 0x4d9ca0 for `(1 0)`), scans (one 0x4cb950
   with a test per scan_aim / scan_hit / scan_time present, each by whether
   its second item is non-zero), jump (0x4cb2a0), sound (0x4cce30), gate
@@ -496,7 +520,52 @@ speed 452, wait_interval 363, deploy 288, valve_assign 120, arrangenodes
   vector. The port drops them, so the net is what the exe's ends up as.
 - arrangenodes past the nodes: section 8.
 
-## 10. Not ported: the mission boundary
+## 10. Finding the way
+
+Ported 2026-10-20 (`mech3/zai_path`, the steps' tests in `zai_steps`);
+test `tests/differential/test_ai_paths.py`. Per-frame code, at 24 bits.
+
+**Nearest step** (0x4d51d0, a method of every net; eight callers: the
+behaviours 0x4c8860, 0x4cae32, 0x4cbfb9, the waynet 0x479b58 / 0x47a8a5,
+0x45a159 / 0x45a3a9, 0x4ae45c): the element with a position whose squared
+distance to the point is least (the first of equals), else element 0.
+Only node steps have positions.
+
+**The way finder** (0x4c7d00, 0x38 bytes, kept by its user through
+0x4c7c10 / 0x4c7cb0, made on the first search and dropped when a search
+fails or the way is used up; its user in the exe is the brain's order
+stack, 0x4c84b0). A search (0x4c7f70 -> 0x4c7e80) from a start step to a
+target step:
+
+- a pilot standing within 10 (squared distance under 100) of the target
+  has the way [start] at once;
+- else a depth-first walk (0x4c7fa0) over the steps' links, in link order,
+  that measures the way from where the pilot stands through each step with
+  a position (straight lines, 0x51e000), keeps the shortest way to reach
+  the target (0x4c8140: only a strictly shorter one replaces it), and cuts
+  a branch once it is no shorter than the best (so the first of equal ways
+  wins). Steps already on the way are not entered again (each step's
+  visited bit, +0x04; the net's +0x18 bit marks a search in progress, and
+  a second search of the same net at once finds nothing).
+- a step is entered only if it lets this pilot by from where it comes
+  (+0xac): a valve step while its valve holds the step's value (0x4ca260),
+  a jump step if the pilot's vehicle is a mech with jump jets (0x4cb2c0:
+  vehicle slot +0x50, mech +0x3d8 > 0), a gate step if the gate's name is
+  the vehicle's node's name (0x4cd5d0), a valve-union step while any of its
+  valves holds its count (0x4d4600); every other step always.
+
+The way is kept as a list of steps from the start (the target is not on
+it). Asked for the step after one it has reached (0x4c7cb0), the finder
+drops the way up to that step (0x4c8330), checks that every step left (and
+the target) still lets the pilot by from the one before (0x4c8270), and
+answers the next one (the target when the list runs out). If the way is
+closed or the step is not on it, it searches again from that step and
+answers from the new way; no way, or the target, and the finder is
+dropped. So a pilot re-plans only when a valve, gate or the like has shut
+its way, and the way is the shortest by straight lines between the nodes,
+whatever the ground between them (jump steps aside).
+
+## 11. Not ported: the mission boundary
 
 `ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0, 67 functions): at mission load
 (0x4c3b80 -> 0x4c36c0, 0x4c3930) the world's `inout` node is found, the

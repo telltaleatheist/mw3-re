@@ -62,6 +62,7 @@ for t in \
     ai_readers \
     ai_regions \
     ai_nets \
+    ai_paths \
     zinput \
     settings \
     mission_load \
