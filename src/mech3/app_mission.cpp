@@ -165,6 +165,17 @@ struct WiredPlayerHooks : PlayerHooks {
   void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }
   uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
   Handle controls_interface(Handle ctl) override { return ctl; }
+  // The mech itself is the port's (mech3/mech_build); its controller would be
+  // the AI's (0x004d8750, not ported, so none is made yet and no mech either).
+  Handle mech_create(int32_t mech, Handle ctl, int32_t config, const char* name) override {
+    void* c = e->object_of(ctl);
+    if (!c) return PlayerHooks::mech_create(mech, ctl, config, name);
+    return e->handle_of(build_ai_mech(mech, c, config, name));
+  }
+  void mech_set_skin(Handle mech, Handle skin) override { set_mech_skin(e->object_of(mech), e->object_of(skin)); }
+  Handle mech_dfn_of(Handle mech) override {
+    return e->handle_of(const_cast<void*>(mech_definition(e->object_of(mech))));
+  }
   void report(int32_t level, int32_t line, const char* text) override {
     if (!e->quiet) std::fprintf(stderr, "mw3: report %#x player.cpp:%d %s\n", level, line, text);
   }

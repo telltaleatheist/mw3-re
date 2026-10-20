@@ -40,6 +40,13 @@ struct LaunchedMech {
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 
+// player.cpp's AI mechs (mission-start.md section 4): 0x00414150 on a
+// controller the program made (a MechControls), the definition's skin
+// (0x00414390), the mech's definition (0x0041e9a0). Pointers as void*.
+void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name);
+bool set_mech_skin(void* mech, void* skin);
+const void* mech_definition(void* mech);
+
 // The debug launch's slot (our addition, mission-load.md section 4): the
 // mech by roster index, its first configuration, the definition's skin 0.
 uint32_t debug_slot_config(int32_t mech, void* e, uint32_t (*handle_of)(void* e, const void* p));

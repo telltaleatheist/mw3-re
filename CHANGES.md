@@ -124,6 +124,10 @@ unusual happens.
   letters, overwrote the vehicle's settings. A made-up vehicle whose name
   ends in `_mech...` without an AI path no longer gets the file's own record
   as its driver. No shipped mission has either.
+- A mech model missing a node its definition names (a firepoint or a foot),
+  or a definition without camos, no longer crashes the game as the mech is
+  built at launch, nor does a launch with the view on another vehicle (the
+  game never does that). No shipped mech has either.
 - A hand-made AI region file without a name, or an AI path linking past its
   last point or to points without a position, no longer crashes the
   mission load or the AI's route finding. One shipped path (c2 mission 3,

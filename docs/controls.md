@@ -161,7 +161,7 @@ hat is not read: no effect.
 FIX (B): the throttle keys' 0.025 is per 1/30 s (`zfix::frame_steps`;
 fixes.md).
 
-The singleton `[0x6056ec]` is made by 0x427280(mode), called from 0x491150 (mission.cpp),
+The singleton `[0x6056ec]` is made by 0x427280(mode) (ported, mech-build.md section 7), called from 0x491150 (mission.cpp),
 with mode 3 or 6. A second call only reapplies the mode (0x426650). The fields
 +0x3c..+0x3f: the stick's throttle set, a held jump (0x426b20(v, 1)), the
 throttle held (set by the THROTTLE1..0 callback 0x4274d0, which also clears

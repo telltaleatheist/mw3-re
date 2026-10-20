@@ -184,6 +184,12 @@ bool launched_mech(LaunchedMech* out) {
   return true;
 }
 
+void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name) {
+  return mech_create(mech, static_cast<MechControls*>(controls), config, name);
+}
+bool set_mech_skin(void* mech, void* skin) { return mech && mech_set_skin(*static_cast<Mech*>(mech), skin); }
+const void* mech_definition(void* mech) { return mech ? mech_dfn(static_cast<Mech*>(mech)->pilot->roster) : nullptr; }
+
 uint32_t debug_slot_config(int32_t mech, void* e, uint32_t (*handle_of)(void* e, const void* p)) {
   const MechDfn* d = mech_dfn(mech);
   if (!d || !d->configs || d->configs->configs.empty()) return 0;

@@ -106,7 +106,8 @@ scroll list (0x005964c0(0)).
   a def naming an effect drops out), world.zrd's reader (wind, clouds and
   sun; weather does nothing), the reader archives, the sounds, the weapons
   (`zwep::init` with the weapon_tick object) and the mission's vehicles
-  (`mech3::player_setup`, mission-start.md). The rest (effects, decals, the
+  (`mech3::player_setup`, mission-start.md) and, for a debug launch, the
+  launch 0x00491150 that builds the player's mech (mech-build.md). The rest (effects, decals, the
   HUD, the stealth entity, the mechs' and AI's other set-up, objectives, the
   start animation) are logged once by address.
 - The view's +0x04 (its camera run) is the scene walk on `camera1`
@@ -116,8 +117,10 @@ scroll list (0x005964c0(0)).
   game answers type 1, the mission number and index, with a placeholder mech
   handle at +0x14 (the Core state leaves without one), makes the Load state
   the state after the intro, and after the load queues the Core state in
-  place of the briefing's Launch button. `--pos X Y Z --look YAW PITCH`
-  places the camera (there is no mech to follow). `mw3 --fly c1` keeps the
+  place of the briefing's Launch button, after the launch 0x00491150 has
+  built the player's mech (the Mad Cat in its first loadout, mech-build.md
+  section 9). `--pos X Y Z --look YAW PITCH`
+  places the camera (the view does not follow the mech yet). `mw3 --fly c1` keeps the
   old free-camera viewer.
 
 Checked by hand (2026-10-20): `mw3 --mission c1m1 --shot` goes through the
@@ -154,8 +157,8 @@ keeping the larger.
 ## Open
 
 - What each hooked step does: effects 0x0050d2c0, decals 0x00501ab0, the
-  HUD 0x0040f7f0, stealth 0x004a4de0, the launch 0x00491150 (the player's
-  mech, mission-start.md section 10),
+  HUD 0x0040f7f0, stealth 0x004a4de0, the launch's line-ups (mech-build.md
+  section 13),
   the AI (0x004c3b80, 0x004d2e20.., ai.md), objectives 0x0045c2d0, the start
   animation 0x0050b450, the unload 0x00490480 and cleanup 0x00491780.
 - InstallOptions bits 2 and 4 (the 16-bit mech textures installed, likely).
