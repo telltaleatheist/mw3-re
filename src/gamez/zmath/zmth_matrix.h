@@ -76,9 +76,11 @@ void euler(const float rot[3], const float pos[3], const float scale[3]);  // 0x
 
 // --- Matrices ---
 void matrix_to_euler(const Mat34& m, float out[3]);  // 0x00523bc0
+// At 53 bits, the reference runtime's precision (test_matrix.py): for callers
+// on the full-precision path (render-matrix.md).
 bool invert(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50, false if singular
-// The same at the x87's 24-bit precision (every operation rounded to a
-// float), for code tested at the precision Direct3D sets (CLAUDE.md).
+// The same at 24 bits (every operation rounded to a float), for play code
+// checked in the emulator at Direct3D's setting: the shot queries' model test.
 bool invert_single(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50
 void euler_to_quat(float x, float y, float z, float q[4]);  // 0x00525340  q = (w, x, y, z)
 void quat_matrix(const float q[4], float r[9]);           // 0x00525740  unit quaternion to 3x3

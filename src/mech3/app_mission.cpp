@@ -277,8 +277,16 @@ struct WiredPlayerHooks : PlayerHooks {
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
   // Mech3.exe 1.2 @ 0x00419fc0 (vtable +0x34): the pilot's mech is the
   // port's (the launch), its frame.
+  void vehicle_41aba0(Handle v, float dt) override {
+    void* m = e->object_of(v);
+    if (!m || !is_launched_mech(m)) return PlayerHooks::vehicle_41aba0(v, dt);
+    static GameEngine* s_e;
+    s_e = e;
+    mech_after_tick(m, [](const char* k) { return s_e->unported(k, {}); });
+  }
   void vehicle_update(Handle v, float dt) override {
     void* m = e->object_of(v);
+    sync_frame_step(e->frame_dt());
     if (m && is_launched_mech(m)) update_mech(m, dt);
     else PlayerHooks::vehicle_update(v, dt);
   }
@@ -715,6 +723,7 @@ struct WiredMissionHooks : MissionHooks {
     w.find_node = [](int32_t list, const char* n) -> zwep::Handle { return zcls::list_find_by_name(list, n); };
     w.set_active = [](zwep::Handle n, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(n), on); };
     w.object3d_create = []() -> zwep::Handle { return zcls::object3d_create(); };
+    w.pool_objects = [](int32_t create) { zwep::pool_objects(create); };  // 0x005847c0: the shots' nodes
     w.set_action_priority = [](zwep::Handle n, int32_t p) {
       zcls::node_set_priority(static_cast<zcls::Node*>(n), p);
     };
@@ -855,6 +864,10 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+// Mech3.exe 1.2 @ 0x00583870 -> 0x00584920: zWeapon down (its pool's nodes
+// and the defs), without the weapon types' free callback, as the exe.
+void GameEngine::weapons_shutdown() { zwep::shutdown(nullptr); }
+
 // Mech3.exe 1.2 @ 0x0041ca30 on the launched mech
 void GameEngine::mech_set_mode_a(Handle mech, int32_t a) {
   if (void* m = object_of(mech); m && is_launched_mech(m)) mech_set_hud_fall(m, a);

@@ -23,6 +23,14 @@ struct MechWiring {
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
+// The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
+// queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
+void wire_weapons();
+void unwire_weapons();
+void sync_frame_step(float dt);
+int32_t mech_select_hot_group(void* mech);
+void mech_after_tick(void* mech, uint32_t (*unported)(const char*));  // 0x0041aba0  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
+void mech_set_damage_handler(void* mech);
 
 // The mech types (mech_lib.h, mech_data.h) for the engine and the mission:
 // mechlib opened with its voices (0x00484270), the cached types' sounds and
@@ -54,6 +62,8 @@ struct LaunchedMech {
   float yaw_sin = 0;       // the orientation's y (sin of half the yaw)
   bool in_world = false;   // the node's parent is the world node
   bool feet_down = false;  // both skis on the ground
+  float armor = 0;         // armor and structure left, summed over the parts (fractions)
+  float heat = 0;          // +0x554
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
@@ -70,7 +80,8 @@ void move_mech(void* mech, const float pos[3], float yaw);         // vtable +0x
 int32_t spawn_updates();                                           // the spawn's update steps run so far
 const float* spawn_position();                                     // the placed mech's position before its last step
 bool is_launched_mech(const void* mech);                           // the pilot's mech, the port's
-void update_mech(void* mech, float dt);                            // vtable +0x34, 0x00419fc0 (Mech::update)
+void update_mech(void* mech, float dt);
+bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 // The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,

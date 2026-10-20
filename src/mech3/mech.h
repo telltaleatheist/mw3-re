@@ -220,7 +220,10 @@ struct Mech : ai::AiTarget {
   int place(const float pos[3], float yaw);       // 0x004161c0: on the ground under pos, in the world
   void set_place(const float pos[3], float yaw);  // vtable +0xdc, 0x00418f30
   void reset_at(const float pos[3]);              // 0x00418e90: at rest at pos
-  void entity_moved();  // 0x005a85c0 with vtable +0x1c 0x005a85a0: the node's matrix and +0x18, +0x24 again
+  void entity_moved();
+  // The weapons' aim (mech.cpp): the HUD's reticle point each frame (0x0041cd40).
+  bool aim_at(const Vec3* at, void* torso_out, bool check);  // 0x0041bc20
+  // 0x005a85c0 with vtable +0x1c 0x005a85a0: the node's matrix and +0x18, +0x24 again
 
   // Movement (mech_move.cpp).
   int jump_jets(float dt);            // 0x004173b0, returns +0x580
@@ -371,6 +374,15 @@ struct DamageCalls {
   const Vec3* (*position)(Mech&) = nullptr;                   // 0x005a85e0, the world position
 };
 DamageCalls& damage_calls();
+
+// What the aim (0x0041bc20) calls outside the mech code; unset, nothing (the
+// view not the cockpit's, the torso not turned: its aim 0x00465ea0 is not
+// ported).
+struct AimCalls {
+  bool (*cockpit_view)(Mech&) = nullptr;   // [0x005f4c8c] +0x64 is the mech, its camera (+0x58) +4 is 1
+  int (*torso_aim)(Mech&, const Vec3* dir, void* out, int on) = nullptr;  // 0x00465ea0 on the torso
+};
+AimCalls& aim_calls();
 
 void update_heat(Mech& m, float dt);  // 0x004192f0
 

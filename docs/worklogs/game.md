@@ -43,3 +43,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   both sides (the point query moves cached polygons).
 - Next: the fire wiring on mac2/fire (RunHooks::segment_list/segment,
   HitHooks::query to these).
+
+## 2026-10-20: the player's weapons fire (branch mac2/fire)
+
+- Commits f1a9e50 (invert comments, tools/analysis/x87.py), a59570b (the
+  wiring and the c1m1 fire test). app_weapons.cpp wires the manager's,
+  zWeapon's RunHooks/HitHooks, DamageCalls' node_part/node_owner, the Heat
+  option, the frame step copies, Mech::aim_at 0x41bc20, 0x41aba0; the load
+  needed InitHooks::pool_objects and the light hooks; zwep::shutdown at exit.
+- The aim comes from the HUD's reticle (0x41cd40, not ported): the test
+  aims for it. Group selection needs the mech's command handler (not
+  ported): the test selects a hot group on the manager. The Mad Cat's first
+  group is machine guns (heat 0).
+- test_weapons_fly takes ~25 min (normal).
