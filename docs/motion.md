@@ -45,3 +45,27 @@ mech_anim.cpp) set the byte in their constructors (0x5a9990, 0x5a9970,
 0x5a99f0) and force the loop time to frames / 30 (frames / 15 for the leg
 one-shots) after loading; playback then samples `frac(rate * t / loop)`
 (`movement.md`, The animation objects).
+
+## Playback (ported, `test_mechanim.py`)
+
+The phase (0x5abae0; 0x432a80 for looping scripts, +0x70) is `frac(rate t /
+loop)` times the key count (frames for a loop, frames - 1 for a one-shot,
+which also stops exactly on its last key), split into two keys and a fraction
+at +0x7c..+0x84; it is cached by t alone (+0x74). Translations lerp, rotations
+slerp (0x525ce0: linear above a cosine of 0.95, the sine's divisor from the
+bit-trick square root), velocity keys are `(key - previous) / frame time`
+(0x5aac60) times the rate; a part may carry a 3x4 frame (the skis' for the
+feet). A blend lends its own timing to both animations' parts and mixes their
+samples by its weight; its loop time and stride lie between theirs.
+
+At load each gait is turned so it starts with the left foot furthest forward
+(0x41fc40) and resampled to 60 keys (0x5aa780, through the old keys at rate 1).
+The footfalls (0x41fd30) are where the feet are equally far fore and aft with
+the right foot highest; the step is then turned so its footfall key matches
+the walk's (0x431a70). The right limp is the left one mirrored (x negated,
+yaw and roll negated, 0x5aa940), the left collapse the right one.
+
+SetLoopTime resets the cached t to 0 but not the keys, so after the resample
+a first sample at exactly t = 0 reuses the resample's last keys: the wrong
+pose for that sample, and for motions longer than 60 frames keys past the
+arrays (FIX (bug): recomputed when out of range; `fixes.md`).

@@ -27,6 +27,13 @@ float x87_mul_f24(double a, double b) {
   return round_once(p, std::fma(a, b, -p));
 }
 
+float x87_add_f24(double a, double b) {
+  const double s = a + b;
+  const double bb = s - a;
+  const double e = (a - (s - bb)) + (b - bb);  // two-sum: s + e is exact
+  return round_once(s, e);
+}
+
 float x87_div_f24(double a, double b) {
   const double q = a / b;
   const double r = std::fma(-q, b, a);  // a - q*b, exact

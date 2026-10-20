@@ -27,10 +27,19 @@ void poly_normal(const float a[3], const float b[3], const float c[3], float out
 // a degenerate triangle.
 void plane_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float t0, float t1, float t2,
                     float* ga, float* gb);  // 0x005240d7
+void quat_pitch(float angle, Quat& out);                 // 0x00525130: about x
+void quat_yaw(float angle, Quat& out);                   // 0x005251a0: about y
 void quat_roll(float angle, Quat& out);                  // 0x00525210: about z
+void quat_conjugate(const Quat& q, Quat& out);           // 0x00525580
+// q's rotation angle times f about the same axis (0x00525be0); a zero axis
+// leaves q. The axis length from the bit-trick square root.
+void quat_scale(const Quat& q, float f, Quat& out);
 void quat_normalize(const Quat& q, Quat& out);           // 0x00525500: bit-trick square root
 void quat_mul(const Quat& a, const Quat& b, Quat& out);  // 0x005255d0: a b
 void quat_exp(const Vec3& v, Quat& out);                 // 0x00525900: (cos |v|, sin |v| v / |v|)
+// a to b by t along the shorter arc; linear above a cosine of 0.95, the sine's
+// divisor from the bit-trick square root. out may be a or b.
+void quat_slerp(const float a[4], const float b[4], float t, float out[4]);  // 0x00525ce0
 
 // The same two with pointer outputs, as the weapon code calls them.
 inline float direction_to(const Vec3& from, const Vec3& to, Vec3* out) { return direction(from, to, *out); }

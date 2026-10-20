@@ -56,6 +56,9 @@ for t in \
     di \
     collide \
     anim_run \
+    mechanim \
+    mechdata \
+    pose \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

@@ -68,6 +68,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | Weapon manager with no group, 0x4b0c30 / 0x4b0790 / 0x4b07e0 / 0x4b08c0 | Trigger, next and previous weapon and the network release call through the selected group without checking it | (bug) group -1 is a null call (crash); the manager starts at group 0, so only a weapon moved to group -1 gets there | Nothing happens without a group. The test never reaches it on either side |
 | Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
+| Animation phase cache, 0x5abae0 / 0x432a80 (and every sampler inlining it) | The phase is cached by time alone; SetLoopTime 0x5aa3b0 resets the cached time to 0 but not the keys, so after the 60-frame resample (0x5aa360) a first sample at t = 0 reuses the last resample's keys | (bug) for motions longer than 60 frames those keys are past the new arrays: the exe reads the heap beyond them for that sample | Keys past the last are recomputed; in-range stale keys are kept as the exe has them. `test_mechanim.py` samples elsewhere first where the original would read out of bounds (motion.md, Playback) |
+| Toe poses, 0x417fde.. / 0x4178a8.. / 0x417177.. | Both feet loop over the left foot's toe count; the right foot's index is checked with `ja`, so it reaches its own count | (bug) a right foot with fewer toes than the left reads and writes one quaternion and one toe node past its arrays | Stopped at the count. Shipped mechs likely have equal counts (not checked); `zfix bugs` off in the probes keeps the exe's check (`movement-pose.md`) |
+| Missing stand or step motion, 0x431350 | Frees the hip velocity keys of the loaded animation without checking it loaded | (bug) a crash; never with the shipped motions | Checked |
 | Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
 | Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
 | Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
@@ -167,8 +170,12 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   probe only) and the test pins the original to the same; the intent is
   likely the ski half-length (`movement-ground.md`). A FIX (bug) once
   checked in play.
-- Gait blend-in, 0x417a80: the right foot's rotation is never blended (the
-  left one's is blended twice); the pose is not ported yet (`movement.md`).
+- Gait blend-in, 0x417a80 (0x417d85): the right foot's rotation is never
+  blended in; the left one's is blended twice, the second time from the right
+  foot's last rotation (`movement-pose.md`). Ported as the original; fixing
+  it (blend each foot from its own) is Owen's call. In play: for the first
+  two thirds of a second of walking, the right foot snaps to the walk's
+  rotation and the left one lurches toward the right's old angle.
 
 - Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
   then neither queued nor drawn, so fake shadows vanish there (emulator; check

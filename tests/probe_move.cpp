@@ -95,7 +95,7 @@ void foot_io(Foot& f, Vec3& pos, uint8_t* b, bool store) {
 
 void anim_io(MechAnim& a, uint8_t* b, bool store) {
   Io io{b, store};
-  io.f(0x04, a.rate), io.f(0x08, a.mult), io.f(0x0c, a.stride), io.f(0x54, a.loop), io.f(0x88, a.t);
+  io.f(0x04, a.rate), io.f(0x08, a.mult), io.f(0x0c, a.stride), io.f(0x54, a.loop_time), io.f(0x88, a.t);
   io.f(0x8c, a.stride_speed);
   for (int k = 0; k < 3; ++k) io.f(0xd0 + 4 * k, a.events[k]);
 }

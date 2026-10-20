@@ -50,7 +50,8 @@ struct LogLeg : Leg {
 // The root sample stand-in, as test_actions.py's: (1.5 t, 0.25 t + k, -2 t).
 struct TestAction : MechAction {
   int kind = 0;
-  void root(Vec3* p, float q[4]) override {
+  void hip(float* pp, float q[4]) override {
+    Vec3* p = reinterpret_cast<Vec3*>(pp);
     *p = {t * 1.5f, t * 0.25f + static_cast<float>(kind), t * -2.0f};
     q[0] = 1.0f, q[1] = 0.0f, q[2] = t * 0.5f, q[3] = 0.0f;
   }
@@ -99,7 +100,7 @@ void controls_io(MechControls& c, uint8_t* b, bool store) {
 
 void action_io(TestAction& a, uint8_t* b, bool store) {
   Io io{b, store};
-  io.f(0x54, a.loop), io.f(0x88, a.t), io.bo(0xec, a.done), io.bo(0xed, a.reversed);
+  io.f(0x54, a.loop_time), io.f(0x88, a.t), io.bo(0xec, a.done), io.bo(0xed, a.reversed);
 }
 }  // namespace
 
