@@ -30,3 +30,7 @@ CLAUDE.md; Ghidra headless needs `JAVA_HOME` as noted there.
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.
+- `fadecheck.py [mission] [frame ...]`: shoots frames of the mission-start
+  fade with `mw3 --shot-any` and checks they show the picture, brighter each
+  time (uses the GPU).
+

@@ -76,6 +76,13 @@ class Render3D {
   }
   virtual void set_fog_color(uint8_t r, uint8_t g, uint8_t b) = 0;  // FOGCOLOR (0x0057bcf0)
   virtual void present() = 0;      // Flip, or the windowed Blt (0x0057a850 / 0x00577130)
+  // FIX (A): the back buffer read back (DirectDraw's Lock read it in the exe;
+  // a GPU frame has to be downloaded): 0xAARRGGBB, top row first, at the
+  // back buffer's own size. False when the backend cannot.
+  virtual bool read_back(std::vector<uint32_t>* argb, int* width, int* height) {
+    (void)argb, (void)width, (void)height;
+    return false;
+  }
 };
 
 }  // namespace platform

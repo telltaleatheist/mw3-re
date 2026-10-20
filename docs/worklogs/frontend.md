@@ -107,3 +107,14 @@ Remember: in view 0 the controls zero the look every frame (the reticle stays
 centred); the cockpit ray at 11.9 m passes over an Owens' middle, so the test
 pitches the torso (CMD_PITCH_DOWN 5) until the ray ends on it.
 Next: back to the porting order (item 2, the HUD primitives' drawing).
+
+## 2026-10-20 The mission-start fade (branch mac3/fade-grab)
+
+FIX (A): `Render3D::read_back` (SDL GPU download on a fence, also used by the
+capture now) and `GameEngine::video_grab` scaling it to the 16-bit size; the
+menus' software grabs keep the layer. The Core state queues the fade before
+the mission's first frame, so the still is the last 3D picture. `mw3
+--shot-any` counts the fade's frames (--shot counts only scene frames);
+`tools/analysis/fadecheck.py` checks frames 60/200/400 (GPU: ask Owen first,
+he said yes on 2026-10-20). Locks stay without readback (a stall per frame).
+Next: item 2, the drawing primitives (the reticle and the HUD on screen).

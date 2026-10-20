@@ -16,6 +16,7 @@
 //     --pos X Y Z, --look YAW PITCH (degrees): the camera's start
 //   --dialog FILE NAME   debug start showing one zTwoD dialog, e.g. dialog.zrd MAINMENU
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
+//     --shot-any         count every frame shown (the fade's too), not only the 3D scene's
 //   --frames N           quit after N frames of a debug start
 //   --window WxH         window size (default 1280x960)
 //   --nosound            no audio device (a silent DirectSound stand-in)
@@ -57,13 +58,14 @@ struct Args {
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960;
+  bool shot_any = false;
 };
 
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N]] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any]] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -82,6 +84,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--dialog" && next(2)) a.dialog_file = argv[++i], a.dialog_name = argv[++i];
     else if (s == "--shot" && next(1)) a.shot = argv[++i];
     else if (s == "--shot-frame" && next(1)) a.shot_frame = std::atoi(argv[++i]);
+    else if (s == "--shot-any") a.shot_any = true;
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
@@ -227,7 +230,7 @@ int run(const Args& a) {
       launch = true;
       int shots = 0;
       engine.on_present = [&, shots](int) mutable {
-        if (!engine.drew_scene()) return;
+        if (!a.shot_any && !engine.drew_scene()) return;
         ++shots;
         if (!a.shot.empty() && shots == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && shots == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), shots);

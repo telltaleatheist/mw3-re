@@ -342,30 +342,49 @@ void SdlRender3D::end_scene() {
   runs_.clear();
 }
 
+// FIX (A): the back buffer downloaded (the fade's still, the capture). The
+// swapchain's format is BGRA or RGBA; either comes back as 0xAARRGGBB.
+bool SdlRender3D::read_back(std::vector<uint32_t>* argb, int* width, int* height) {
+  if (!frame_) return false;
+  const Uint32 w = frame_w_, h = frame_h_;
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
+  if (!cmd) return false;
+  SDL_GPUTransferBufferCreateInfo dbi{SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD, w * h * 4, 0};
+  SDL_GPUTransferBuffer* db = SDL_CreateGPUTransferBuffer(dev_, &dbi);
+  SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+  SDL_GPUTextureRegion src{};
+  src.texture = frame_, src.w = w, src.h = h, src.d = 1;
+  SDL_GPUTextureTransferInfo dst{db, 0, 0, 0};
+  SDL_DownloadFromGPUTexture(copy, &src, &dst);
+  SDL_EndGPUCopyPass(copy);
+  SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+  SDL_WaitForGPUFences(dev_, true, &fence, 1);
+  SDL_ReleaseGPUFence(dev_, fence);
+  const auto* p = static_cast<const uint32_t*>(SDL_MapGPUTransferBuffer(dev_, db, false));
+  argb->assign(p, p + static_cast<size_t>(w) * h);
+  SDL_UnmapGPUTransferBuffer(dev_, db);
+  SDL_ReleaseGPUTransferBuffer(dev_, db);
+  if (color_format_ == SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM || color_format_ == SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB)
+    for (uint32_t& v : *argb) v = (v & 0xff00ff00u) | (v >> 16 & 0xffu) | (v & 0xffu) << 16;
+  *width = static_cast<int>(w);
+  *height = static_cast<int>(h);
+  return true;
+}
+
 // Flip (0x0057a850): the back buffer onto the window's swapchain (vsync), or
 // into the capture file. With the window hidden there is no swapchain to wait on.
 void SdlRender3D::present() {
   if (!frame_) return;
   SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev_);
   if (capture_path_) {
-    const Uint32 w = frame_w_, h = frame_h_;
-    SDL_GPUTransferBufferCreateInfo dbi{SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD, w * h * 4, 0};
-    SDL_GPUTransferBuffer* db = SDL_CreateGPUTransferBuffer(dev_, &dbi);
-    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
-    SDL_GPUTextureRegion src{};
-    src.texture = frame_, src.w = w, src.h = h, src.d = 1;
-    SDL_GPUTextureTransferInfo dst{db, 0, 0, 0};
-    SDL_DownloadFromGPUTexture(copy, &src, &dst);
-    SDL_EndGPUCopyPass(copy);
-    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
-    SDL_WaitForGPUFences(dev_, true, &fence, 1);
-    SDL_ReleaseGPUFence(dev_, fence);
-    SDL_Surface* sf = SDL_CreateSurfaceFrom(static_cast<int>(w), static_cast<int>(h), SDL_PIXELFORMAT_ARGB8888,
-                                            SDL_MapGPUTransferBuffer(dev_, db, false), static_cast<int>(w * 4));
-    SDL_SaveBMP(sf, capture_path_);
-    SDL_DestroySurface(sf);
-    SDL_UnmapGPUTransferBuffer(dev_, db);
-    SDL_ReleaseGPUTransferBuffer(dev_, db);
+    SDL_SubmitGPUCommandBuffer(cmd);
+    std::vector<uint32_t> px;
+    int w = 0, h = 0;
+    if (read_back(&px, &w, &h)) {
+      SDL_Surface* sf = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_ARGB8888, px.data(), w * 4);
+      SDL_SaveBMP(sf, capture_path_);
+      SDL_DestroySurface(sf);
+    }
     capture_path_ = nullptr;
     return;
   }
