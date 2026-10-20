@@ -14,6 +14,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
+#include "mech3/mech_skis.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
@@ -380,4 +381,20 @@ TEST(fix_deep_water_curve) {
   // The exe: near a standstill just under full depth, then back to 0.7.
   EXPECT(wading_speed(9.99f, false) < 0.01f);
   EXPECT(std::fabs(wading_speed(12.0f, false) - 0.7f) < 1e-5f);
+}
+
+// A foot just behind its ski's middle: with the fix the middle probe is its
+// contact (and its water); the exe's unset width picks the back probe.
+TEST(fix_foot_uses_its_middle_probe) {
+  mech3::Skis s{};
+  for (int i = 0; i < 6; ++i) s.local[i].z = (i % 3 - 1) * 6.0f;  // front -6, middle 0, back 6
+  s.in_water[1] = 1;
+  float surface = 0.0f;
+  mech3::GroundHit* hit = nullptr;
+  s.height_at(0, 1.0f, &hit);
+  EXPECT(hit == &s.contact[1] && s.water_at(0, 1.0f, &surface));
+  zfix::options().bugs = false;
+  s.height_at(0, 1.0f, &hit);
+  EXPECT(hit == &s.contact[2] && !s.water_at(0, 1.0f, &surface));
+  zfix::options().bugs = true;
 }

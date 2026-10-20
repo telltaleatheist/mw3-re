@@ -26,6 +26,12 @@ it is clear what the designers meant.
   slopes and ledges, the blend into a walk, jump-jet thrust and the damage
   done to buildings you push into all went by frames; they now play as they
   did at 30 fps.
+- **Feet use the ground under their middle.** Each foot reads the ground
+  at its front, middle and back, but the setting that picks the middle was
+  never filled in, so the game used leftover memory: usually the front or
+  back reading, sometimes any. The middle is used now when it is nearest.
+  This touches how feet sit on slopes and riverbanks and when a foot counts
+  as in water.
 - **Both feet ease into a walk.** For the first two thirds of a second of
   walking, the right foot snapped straight to its walking angle and the left
   one swung toward the right foot's old angle. Each foot now eases in from

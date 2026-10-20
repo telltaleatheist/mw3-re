@@ -73,14 +73,16 @@ void Skis::fit(int side) {
   c[side] = ground[i + 1];
 }
 
+float Skis::mid() const { return zfix::options().bugs ? half : mid_width; }
+
 // Mech3.exe 1.2 @ 0x00475de0. The contact is the mid probe's within
-// mid_width / 2 of it, else the front or back one.
+// mid() / 2 of it, else the front or back one.
 float Skis::height_at(int side, float z, GroundHit** out) {
   const float h = z * z * a[side] - b[side] * z + c[side];
   if (out) {
     const int i = side ? 3 : 0;
     const float zm = local[i + 1].z;
-    if (mid_width * kHalf > std::fabs(z - zm)) *out = &contact[i + 1];
+    if (mid() * kHalf > std::fabs(z - zm)) *out = &contact[i + 1];
     else *out = &contact[z < zm ? i : i + 2];
   }
   return h;
@@ -90,7 +92,7 @@ float Skis::height_at(int side, float z, GroundHit** out) {
 bool Skis::water_at(int side, float z, float* surface_y) const {
   const int i = side ? 3 : 0;
   const float zm = local[i + 1].z;
-  const int k = mid_width * kHalf > std::fabs(z - zm) ? i + 1 : z < zm ? i : i + 2;
+  const int k = mid() * kHalf > std::fabs(z - zm) ? i + 1 : z < zm ? i : i + 2;
   *surface_y = surface[k];
   return in_water[k] == 1;
 }

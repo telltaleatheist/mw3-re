@@ -63,6 +63,9 @@ class Skis {
   float length = 12.0f;       // +0x2ec  4 for the Elemental
   float half = 6.0f;          // +0x2f0
   float mid_width = 0;        // +0x2f4  never written in the exe (docs/movement-ground.md)
+  // FIX (bug): the mid probe's width as the half length (the nearest probe
+  // wins); the exe's unset +0x2f4 with zfix bugs off.
+  float mid() const;
   float inv_half = 0, inv_half2 = 0;  // +0x2f8, +0x2fc
 
   bool update(float dt);                                     // 0x004765b0, returns airborne

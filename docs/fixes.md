@@ -69,6 +69,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 | Animation phase cache, 0x5abae0 / 0x432a80 (and every sampler inlining it) | The phase is cached by time alone; SetLoopTime 0x5aa3b0 resets the cached time to 0 but not the keys, so after the 60-frame resample (0x5aa360) a first sample at t = 0 reuses the last resample's keys | (bug) for motions longer than 60 frames those keys are past the new arrays: the exe reads the heap beyond them for that sample | Keys past the last are recomputed; in-range stale keys are kept as the exe has them. `test_mechanim.py` samples elsewhere first where the original would read out of bounds (motion.md, Playback) |
+| Foot ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0) | The width that picks a foot's middle probe for its ground contact and its water is never written: whatever the heap held | (bug) a foot's ground and water come from the front or back probe, or from any probe by chance | The ski's half length, so the nearest probe wins (Owen 2026-10-20); `zfix bugs`, off in the probes (the test pins the original's to 0) |
 | Gait blend-in, 0x417a80 (0x417d85) | Over the first 20 frames of walking the left foot's rotation is blended twice, the second time from the right foot's last rotation, and the right foot's never | (bug) the right foot snaps to the walk's angle and the left lurches toward the right's old one for the first 2/3 s of every walk | Each foot blends from its own last rotation (Owen 2026-10-20); `zfix bugs`, off in the probes (`movement-pose.md`) |
 | Toe poses, 0x417fde.. / 0x4178a8.. / 0x417177.. | Both feet loop over the left foot's toe count; the right foot's index is checked with `ja`, so it reaches its own count | (bug) a right foot with fewer toes than the left reads and writes one quaternion and one toe node past its arrays | Stopped at the count. Shipped mechs likely have equal counts (not checked); `zfix bugs` off in the probes keeps the exe's check (`movement-pose.md`) |
 | Missing stand or step motion, 0x431350 | Frees the hip velocity keys of the loaded animation without checking it loaded | (bug) a crash; never with the shipped motions | Checked |
@@ -172,12 +173,6 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   (the original's own images, bit for bit: test_shadow_image.py); `k24`
   keeps the blank images of a 24-bit FPU. Not a FIX: the original's
   behaviour on the reference runtime.
-- Ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0): the width that
-  picks a foot's middle probe (for its ground contact and its water) is never
-  written, so it is whatever the heap held. The port keeps 0 (front or back
-  probe only) and the test pins the original to the same; the intent is
-  likely the ski half-length (`movement-ground.md`). A FIX (bug) once
-  checked in play.
 - Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
   then neither queued nor drawn, so fake shadows vanish there (emulator; check
   in play).
