@@ -24,6 +24,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -89,6 +90,7 @@ Engine make_engine() {
   e.clouds_level = zmod::clouds_set_level;
   e.clouds_heading = zmod::clouds_set_heading;
   e.anim_set_zbd_path = zeff::anim_set_zbd_path;
+  e.load_soils = zmod::load_soils;
   e.delete_file = delete_file;
   e.make_dir = make_dir;
   e.print = print;

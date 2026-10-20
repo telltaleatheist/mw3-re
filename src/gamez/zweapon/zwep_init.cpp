@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "crt/msvc_math.h"
+#include "gamez/zmodel/gmod_matl.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -16,7 +17,6 @@ InitHooks g_hooks;
 
 using zrdr::Node;
 
-const char* const kSoilNames[kSoilCount] = {"default", "water", "seafloor", "quicksand", "lava", "fire"};
 
 int32_t count(const Node* n) { return n->list[0].i; }
 const Node& item(const Node* n, int i) { return n->list[i]; }
@@ -139,6 +139,7 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
   zrdr::get_float(root, "MAX_CRATER_RADIUS", &s.max_crater_radius);
 
   int32_t pool_count = 0;
+  const std::vector<std::string>& soils = zmod::soil_names();  // 0x005edbc0, count 0x005edbb8
   Node* bal = zrdr::find(root, "BALLISTICS");
   if (bal) {
     s.defs.assign(static_cast<size_t>((count(bal) - 1) / 2), WeaponDef{});
@@ -150,7 +151,7 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
     for (uint32_t k = 1; k < static_cast<uint32_t>(count(bal)); k += 2, ++d) {
       d->flags |= kDetonateOnWater;
       d->index = index++;
-      d->impacts = new Effect[kSoilCount]();
+      d->impacts = new Effect[soils.size()]();  // one per soil name known now (zmod::soil_names)
       Node* n = zrdr::find(bal, item(bal, k).s);
       if (n) {
         d->key = item(bal, k).s;
@@ -258,10 +259,10 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
         }
         read_bit(n, "SHOW_ON_RADAR", d->flags, 28);
         if (Node* imp = zrdr::find(n, "IMPACT")) {
-          read_effect(imp, &d->impacts[kSoilDefault], kSoilNames[kSoilDefault]);
-          for (int k2 = 1; k2 < kSoilCount; ++k2) {
-            if (zrdr::find(imp, kSoilNames[k2])) {
-              read_effect(imp, &d->impacts[k2], kSoilNames[k2]);
+          read_effect(imp, &d->impacts[kSoilDefault], soils[kSoilDefault].c_str());
+          for (size_t k2 = 1; k2 < soils.size(); ++k2) {
+            if (zrdr::find(imp, soils[k2].c_str())) {
+              read_effect(imp, &d->impacts[k2], soils[k2].c_str());
               if (!d->impacts[k2].animation_min_range)
                 d->impacts[k2].animation_min_range = d->impacts[kSoilDefault].animation_min_range;
             } else {
@@ -323,7 +324,10 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
       if (!(d->flags & kBeam)) pool_count += 1 + crt::msvc_ftol(d->range / d->velocity / d->period);
     }
   }
-  s.pool.assign(static_cast<size_t>(pool_count), Projectile{});
+  Projectile blank;  // calloc'd in the original: every field 0
+  blank.health = blank.damage_scale = 0;
+  blank.track_scale[0] = blank.track_scale[1] = 0;
+  s.pool.assign(static_cast<size_t>(pool_count), blank);
   s.free_list = nullptr;
   for (Projectile& p : s.pool) {
     p.next = s.free_list;

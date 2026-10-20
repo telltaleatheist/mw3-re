@@ -1,9 +1,11 @@
 #include "gamez/zmodel/gmod_matl.h"
 
 #include <cstdlib>
+#include <cctype>
 #include <cstring>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zreader/zreader.h"
 #include "gamez/zvideo/zvid_format.h"
 
 namespace zmod {
@@ -96,6 +98,59 @@ int read_materials(std::FILE* f) {
     }
   }
   return t.capacity;
+}
+
+namespace {
+std::vector<std::string> g_soils = {"default", "water", "seafloor", "quicksand", "lava", "fire"};
+
+// The name test 0x00535f20 and 0x00537cb0 share: `name` starts with the soil
+// and ends there or at a space.
+bool soil_matches(const char* name, const std::string& soil) {
+  const size_t n = soil.size();
+  if (std::strlen(name) < n) return false;
+  const unsigned char c = static_cast<unsigned char>(name[n]);
+  if (c && !std::isspace(c)) return false;
+  for (size_t i = 0; i < n; ++i)
+    if (std::tolower(static_cast<unsigned char>(name[i])) != std::tolower(static_cast<unsigned char>(soil[i])))
+      return false;
+  return true;
+}
+}  // namespace
+
+std::vector<std::string>& soil_names() { return g_soils; }
+
+// Mech3.exe 1.2 @ 0x00535f20
+int32_t soil_index(const char* name) {
+  if (!name) return -1;
+  for (size_t i = 0; i < g_soils.size(); ++i)
+    if (soil_matches(name, g_soils[i])) return static_cast<int32_t>(i);
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x00537cb0: the names in the file's first list not known
+// yet are added, up to 100 in all. The items are taken as strings unchecked.
+int load_soils(const char* file) {
+  if (!file) return 0;
+  zrdr::Node* root = zrdr::load(file);
+  if (!root) return 0;
+  zrdr::Node* list = root->list[1].list;
+  if (list) {
+    const int32_t n = zrdr::list_count(&root->list[1]);
+    for (int32_t i = 1; i < n; ++i) {
+      const char* name = list[i].s;
+      if (name && soil_index(name) != -1) continue;
+      if (g_soils.size() >= 100) break;
+      g_soils.emplace_back(name ? name : "");
+    }
+  }
+  zrdr::free_node(root);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00537270
+int reset_soils() {
+  g_soils.resize(6);
+  return 0;
 }
 
 }  // namespace zmod

@@ -39,6 +39,8 @@ LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 probe.probe_zwep_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p,
                                  ctypes.c_int, ctypes.c_void_p]
+probe.probe_zwep_load_soils.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]
+probe.probe_zwep_soils.argtypes = [ctypes.c_int, ctypes.c_char_p]
 probe.probe_zwep_def.argtypes = [ctypes.c_int] + [ctypes.c_void_p] * 4 + [ctypes.c_int]
 READER = ROOT / 'game' / 'mw3-1.2' / 'zbd' / 'reader.zbd'
 WORK = ROOT / 'build' / 'weapons_zrd'
@@ -191,7 +193,8 @@ class Emulated:
         return (cpu.ecx >> 3) & 1
 
     def load(self, cpu):
-        self.check(self.cstr(cpu.ecx) == b'weapons.zrd' and cpu.edx == 0 and cpu.arg(0) == 0)
+        self.check(self.cstr(cpu.ecx) == getattr(self, 'load_name', b'weapons.zrd') and cpu.edx == 0 and
+                   cpu.arg(0) == 0)
         return self.root
 
     # --- memory --------------------------------------------------------------
@@ -251,7 +254,8 @@ class Emulated:
             imp, tp = u(d + 0x13c), u(d + 0x1f0)
             for o in (0, 4, 8, 0xc, 0x13c, 0x1f0):
                 img[o:o + 4] = bytes(4)
-            impacts = cpu.read(imp, 6 * 0x5c) if imp else bytes(6 * 0x5c)
+            ns = u(0x5edbb8)
+            impacts = cpu.read(imp, ns * 0x5c) if imp else bytes(ns * 0x5c)
             t = bytearray(0xc8)
             if tp:
                 t = bytearray(cpu.read(tp, 0xc8))
@@ -287,8 +291,7 @@ def port_events(buf, n):
     return out
 
 
-def write_archive(path, data):
-    name = b'weapons.zrd'
+def write_archive(path, data, name=b'weapons.zrd'):
     entry = struct.pack('<II', 0, len(data)) + name.ljust(64, b'\0') + bytes(0x94 - 8 - 64)
     path.write_bytes(data + entry + struct.pack('<II', 1, 1))
 
@@ -520,6 +523,16 @@ def variant(rng, tree):
     return t
 
 
+def set_soils(emu, names):
+    """The engine's soil names (0x5edbc0, count 0x5edbb8) on both sides."""
+    for i, nm in enumerate(names):
+        if i >= 6:
+            p = emu.cpu.code(nm.encode() + b'\0')  # kept over the heap resets
+            emu.cpu.u32(0x5edbc0 + 4 * i, p)
+    emu.cpu.u32(0x5edbb8, len(names))
+    probe.probe_zwep_soils(len(names), b''.join(n.encode() + b'\0' for n in names))
+
+
 def compare(emu, data, crater, hardware, tick_ok, label, lab=True):
     WORK.mkdir(parents=True, exist_ok=True)
     arch = WORK / 'w.zbd'
@@ -543,7 +556,7 @@ def compare(emu, data, crater, hardware, tick_ok, label, lab=True):
     if ga != list(gb):
         raise SystemExit(f'{label}: globals {ga} vs {list(gb)}')
     for i, (img, imp, t, strings) in enumerate(emu.defs()):
-        d, im, ty = (ctypes.c_uint8 * 0x1f4)(), (ctypes.c_uint8 * (6 * 0x5c))(), (ctypes.c_uint8 * 0xc8)()
+        d, im, ty = (ctypes.c_uint8 * 0x1f4)(), (ctypes.c_uint8 * len(imp))(), (ctypes.c_uint8 * 0xc8)()
         text = ctypes.create_string_buffer(4096)
         k = probe.probe_zwep_def(i, d, im, ty, text, 4096)
         bs = text.raw[:k].split(b'\0')[:4]
@@ -564,6 +577,73 @@ def compare(emu, data, crater, hardware, tick_ok, label, lab=True):
     return 0, ga[0], a_ev
 
 
+def soils_check(emu, rng):
+    """LoadSoils 0x537cb0 (with the reset 0x537270) on soils.zrd and variants:
+    the soil names that result on both sides."""
+    cpu = emu.cpu
+    cpu.stub_import(0x5bb604, lambda c: stricmp_n(emu.cstr(c.arg(0)), emu.cstr(c.arg(1)), c.arg(2)))
+    cpu.stub_import(0x5bb570, lambda c: 8 if (c.arg(0) & 0xff) in (9, 10, 11, 12, 13, 32) else 0)
+    cpu.stub_import(0x5bb65c, lambda c: 0)  # free
+    mb = cpu.code(struct.pack('<I', 1))
+    cpu.u32(0x5bb56c, mb)
+    table = cpu.code(b''.join(struct.pack('<H', 8 if c in (9, 10, 11, 12, 13, 32) else 0) for c in range(256)))
+    cpu.u32(0x5bb574, cpu.code(struct.pack('<I', table)))
+    cpu.stub_function(0x556820, lambda c: 0, 0)  # the reader tree's free
+    data = READER.read_bytes()
+    st, n = next((st, n) for name, st, n in zrd.entries(data) if name == 'soils.zrd')
+    real = data[st:st + n]
+    tree, _ = zrd.node(real, 0)
+    words = ['dirt', 'Mud', 'grass', 'water', 'snow x', 'snowy', 'mech', 'lava', 'concrete', 'ice', 'sand', 'Dirt',
+             'silt', 'noslip', 'rock', 'fire']
+    cases = [real]
+    for _ in range(40):
+        k = rng.choice([0, 1, 3, 8, 20, 120])
+        cases.append(ser([[rng.choice(words) if rng.random() < 0.7 else f's{rng.randrange(300)}' for _ in range(k)]]))
+    names = []
+    for i, d in enumerate(cases):
+        cpu.call(0x537270)
+        emu.data, emu.pos = d, 0
+        emu.root = cpu.alloc(8)
+        cpu.call(READ_NODE, ecx=HANDLE, edx=emu.root)
+        emu.load_name = b'soils.zrd'
+        path = cpu.alloc(16)
+        cpu.write(path, b'soils.zrd\0')
+        cpu.call(0x537cb0, ecx=path)
+        emu.load_name = b'weapons.zrd'
+        a = [emu.cstr(emu.u32(0x5edbc0 + 4 * j)).decode() for j in range(emu.u32(0x5edbb8))]
+        arch = WORK / 'soils.zbd'
+        write_archive(arch, d, b'soils.zrd')
+        out = ctypes.create_string_buffer(8192)
+        nb = probe.probe_zwep_load_soils(str(arch).encode(), out, 8192)
+        b = out.raw[:nb].decode().split('\0')[:-1]
+        if a != b:
+            raise SystemExit(f'soils case {i}: {a} vs {b}')
+        if i == 0:
+            names = a
+    cpu.call(0x537270)
+    return names, len(cases)
+
+
+def stricmp_n(a, b, n):
+    a, b = a[:n].lower(), b[:n].lower()
+    return (a > b) - (a < b)
+
+
+SOILS = ['default', 'water', 'seafloor', 'quicksand', 'lava', 'fire', 'dirt', 'mud', 'grass', 'concrete', 'snow',
+         'mech', 'silt', 'noslip']
+
+
+def surface_marks(emu):
+    """How many defs got a SURFACE_ANIMATION on dirt, mud or snow (6, 7, 10)."""
+    base, n = emu.u32(0x9a0eac), emu.u32(0x9a0ea8)
+    k = 0
+    for i in range(n):
+        imp = emu.u32(base + 0x1f4 * i + 0x13c)
+        if imp and any(emu.u32(imp + 0x5c * s + 0x14) for s in (6, 7, 10)):
+            k += 1
+    return k
+
+
 def main():
     emu = Emulated()
     rng = random.Random(1999)
@@ -575,6 +655,14 @@ def main():
     assert rc == 0 and ndefs == 49, (rc, ndefs)
     real_calls = len(ev)
     compare(emu, real, crater, 0, 0, 'weapons.zrd, software, no tick')
+    # As in a mission: the script's `LoadSoils soils.zrd` has run before the
+    # weapons are read, so there is an impact block per soil (the pock marks).
+    loaded, soil_cases = soils_check(emu, rng)
+    assert loaded == SOILS, loaded
+    set_soils(emu, SOILS)
+    compare(emu, real, crater, 1, 1, 'weapons.zrd with the mission soils')
+    marks = surface_marks(emu)
+    set_soils(emu, SOILS[:6])
     variants = int(os.environ.get('WEAPONS_VARIANTS', '300'))
     defs = calls = fails = 0
     for v in range(variants):
@@ -587,7 +675,8 @@ def main():
     missing = sorted(COVER[a] for a in set(COVER) - emu.reached)
     if missing:
         raise SystemExit(f'coverage: never reached {missing}')
-    print(f'ok: weapons.zrd (49 defs, {real_calls} calls) and {variants} variants ({defs} defs, {calls} calls, '
+    print(f'ok: LoadSoils on {soil_cases} files; weapons.zrd (49 defs, {real_calls} calls), with the mission '
+          f'soils ({marks} weapons with a dirt, mud or snow mark), and {variants} variants ({defs} defs, {calls} calls, '
           f'{fails} rejected) agree byte for byte, with the mech lab view of all 37 weapons; '
           f'all {len(COVER)} paths reached')
 

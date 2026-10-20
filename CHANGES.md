@@ -53,6 +53,8 @@ it is clear what the designers meant.
 - **Wingmen call out low and empty ammo.** Dom, Alan and Epona have lines
   for it that never played because of a mistake in the sound data. They now
   play, each line at most twice a mission.
+- **The ERPPC's HUD static lasts as long as its data says** (2 seconds); the
+  original read the first number twice and held it half a second.
 - **The plain PPC is in the mech lab.** The game defines and names it, but it
   was left out of the mech lab's weapon list. It can now be mounted (Inner
   Sphere, 7 tons, 3 slots, as the data says).
@@ -95,6 +97,8 @@ unusual happens.
 - A damaged archive or script file is stopped at its end instead of making
   the game read or allocate gigabytes.
 - Rare random rolls in equipment critical hits no longer crash.
+- Clearing every shot in flight no longer writes past a firing laser's
+  memory (the original treated beams as missiles there).
 - Very large polygons, long script lines and oversized weapon sound or
   damage lists no longer write past their buffers.
 - A null texture, a missing weapon group and a few malformed script commands

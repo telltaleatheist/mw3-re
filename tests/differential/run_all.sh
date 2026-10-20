@@ -49,6 +49,7 @@ for t in \
     weapons_zrd \
     weapons_run \
     weapons_hit \
+    weapons_fly \
     twod \
     twod_blit \
     twod_msgbox \

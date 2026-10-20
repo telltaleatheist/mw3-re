@@ -14,9 +14,12 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zreader/zreader.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/weapon.h"
 
@@ -68,6 +71,19 @@ std::unique_ptr<mech3::Config> g_config;
 std::vector<std::unique_ptr<mech3::WeaponItem>> g_items;  // the weapons' config items, in add order
 std::vector<mech3::ConfigItem*> g_config_items;            // the config's items, in list order
 std::unique_ptr<mech3::WeaponManager> g_m;
+const mech3::WeaponManager* g_dying = nullptr;
+int32_t g_vehicle_fp[2] = {};  // the nodes "firepoint01" and "firepoint" name (test_weapons_run.py)
+uint32_t fnv1(const char* s) {
+  uint32_t x = 2166136261u;
+  for (; s && *s; ++s) x = (x ^ static_cast<uint8_t>(*s)) * 16777619u;
+  return x;
+}
+int32_t vehicle_fp(const char* name) {
+  if (!std::strcmp(name, "firepoint01")) return g_vehicle_fp[0];
+  if (!std::strcmp(name, "firepoint")) return g_vehicle_fp[1];
+  if (!std::strcmp(name, "fp")) return g_vehicle_fp[0];
+  return 0;
+}
 Vec3f g_vel;
 uint32_t g_spawned = 0, g_beams = 0, g_sounds = 0;
 
@@ -90,6 +106,15 @@ void set_calls() {
   c.vehicle_mech = [](Handle) { return h(g_w[kMech]); };
   c.vehicle_entity = [](Handle) { return h(g_w[kEntity]); };
   c.vehicle_node = [](Handle) { return h(g_w[kVehicleNode]); };
+  c.add_jump_jet = [](Handle) { log({39}); };
+  c.node_find = [](Handle, const char* name) {
+    log({37, static_cast<int32_t>(fnv1(name))});
+    return h(vehicle_fp(name));
+  };
+  c.node_by_name = [](Handle, const char* name) {
+    log({38, static_cast<int32_t>(fnv1(name))});
+    return h(vehicle_fp(name));
+  };
   c.vehicle_velocity = [](Handle) -> const Vec3f* {
     g_vel = {bf(g_w[kVel]), bf(g_w[kVel + 1]), bf(g_w[kVel + 2])};
     return &g_vel;
@@ -148,11 +173,11 @@ void set_calls() {
     log({9, static_cast<int32_t>(u(tm)), static_cast<int32_t>(u(v)), d->index});
   };
   c.ecm_count = [](Handle) { return g_w[kTmEcm]; };
-  c.entity_id = [](Handle) {
+  c.target_position = [](Handle) -> const zwep::Vec3f3* {
     log({10});
-    return g_w[kEntityId];
+    return static_cast<const zwep::Vec3f3*>(h(g_w[kEntityId]));
   };
-  c.target_x10 = [](Handle) { return g_w[kTargetX10]; };
+  c.target_velocity = [](Handle) { return static_cast<const zwep::Vec3f3*>(h(g_w[kTargetX10])); };
   c.target_key = [](Handle) { return h(g_w[kTargetKey]); };
   c.net_target = [](Handle id) -> Handle {
     for (int i = 0; i < 3; ++i)
@@ -207,6 +232,20 @@ void set_calls() {
   c.destroyed_sounds = [](Handle a, Handle b) { log({22, static_cast<int32_t>(u(a)), static_cast<int32_t>(u(b))}); };
   c.voice_destroyed = [](int32_t i) { log({23, i}); };
   c.screen = [](Handle) { return g_w[kScreen] != 0; };
+  c.hud_screen = [](Handle) { return g_w[kScreen] ? h(0x5c5c) : nullptr; };
+  c.gauge_6c = [](Handle) {
+    log({35, 0x6c});
+    return 0x6c6c;
+  };
+  c.gauge_68 = [](Handle) {
+    log({35, 0x68});
+    return 0x6868;
+  };
+  c.hud_440a30 = [](Handle, int32_t a, int32_t b) {
+    log({33, a, b});
+    return 0x4444;
+  };
+  c.hud_443d20 = [](Handle, int32_t v) { log({34, v}); };
   // The screen may be missing: the original calls these on 0 + 0x6520 then.
   c.hud_groups = [](Handle) { log({24, g_w[kScreen] != 0}); };
   c.hud_weapons = [](Handle) { log({25, g_w[kScreen] != 0}); };
@@ -244,9 +283,10 @@ void sync_world() {
 }
 
 int32_t slot_of(const mech3::Weapon* w) {
-  if (!w || !g_m) return -1;
-  for (uint32_t i = 0; i < g_m->count; ++i)
-    if (g_m->weapons[i] == w) return static_cast<int32_t>(i);
+  const mech3::WeaponManager* m = g_m ? g_m.get() : g_dying;  // the builder deletes the old manager
+  if (!w || !m) return -1;
+  for (uint32_t i = 0; i < m->count; ++i)
+    if (m->weapons[i] == w) return static_cast<int32_t>(i);
   return -2;
 }
 int32_t bin_token(const mech3::AmmoBin* b) {
@@ -273,13 +313,13 @@ int32_t weapon_ptr_token(const void* p) {
   for (uint32_t i = 0; g_m && i < g_m->count; ++i) {
     const mech3::Weapon* w = g_m->weapons[i];
     if (p == &w->lock_flag) return static_cast<int32_t>(i * 0x100 + 4);
-    if (p == &w->lock_target) return static_cast<int32_t>(i * 0x100 + 8);
+    if (p == &w->lock) return static_cast<int32_t>(i * 0x100 + 8);
   }
   return -2;
 }
 
 void put_weapon(std::vector<int32_t>& o, const mech3::Weapon* w) {
-  o.insert(o.end(), {w->lock_flag, static_cast<int32_t>(u(w->lock_target)), w->lock_id, w->lock_x10,
+  o.insert(o.end(), {w->lock_flag, static_cast<int32_t>(u(w->lock.entity)), static_cast<int32_t>(u(w->lock.at)), static_cast<int32_t>(u(w->lock.velocity)),
                      static_cast<int32_t>(u(w->projectile_target)), fb(w->rating), w->slot,
                      static_cast<int32_t>(u(w->node)), static_cast<int32_t>(u(w->part)), w->index,
                      w->def ? w->def->index : -1, fb(w->reload), fb(w->target.x), fb(w->target.y), fb(w->target.z),
@@ -374,6 +414,8 @@ void probe_wm_new(const float* fps, int nfp, const int32_t* items, int nitems, u
   g_m = std::make_unique<mech3::WeaponManager>(h(g_w[kVehicle]));
 }
 
+void probe_wm_vehicle_fp(int32_t a, int32_t b) { g_vehicle_fp[0] = a, g_vehicle_fp[1] = b; }
+
 // The operations of test_weapons_run.py; returns the result, logs the calls.
 int32_t probe_wm_op(int op, const int32_t* a) {
   sync_world();
@@ -437,6 +479,74 @@ int32_t probe_wm_op(int op, const int32_t* a) {
       auto fn = op == 26 ? mech3::salvo_spread : op == 27 ? mech3::airstrike : mech3::burst;
       r = static_cast<int32_t>(fn(&d, &hit, &p));
       break;
+    }
+    case 30: m.ammo_gauge(); break;
+    case 32: {  // the mech's configuration step (0x00414501..0x00414732)
+      int32_t equipment[15] = {};
+      mech3::Ams ams(150.0f, 0.6f, 100);
+      mech3::Config* kept = nullptr;
+      zerr::set_sink([](int level, const char*, int line, const char*) { log({15, level, line}); });
+      mech3::configure_weapons(h(g_w[kMech]), &m, g_config.get(), &kept, equipment, &ams, h(a[0]));
+      zerr::set_sink(nullptr);
+      std::vector<int32_t> v{40};
+      v.insert(v.end(), equipment, equipment + 15);
+      v.push_back(ams.rounds);
+      v.push_back(kept == g_config.get() ? 1 : 0);
+      g_log.push_back(static_cast<int32_t>(v.size()));
+      g_log.insert(g_log.end(), v.begin(), v.end());
+      break;
+    }
+    case 31: {  // the vehicle builder on a made-up `weapons` list (test_weapons_run.py, vehicle_op)
+      static const char* const kFp[] = {"firepoint01", "fpX", "firepoint", "firepoint02"};
+      std::vector<zrdr::Node*> keep;
+      auto list = [&](int32_t n) {
+        auto* l = new zrdr::Node[static_cast<size_t>(n) + 1]();
+        l[0].type = zrdr::Int;
+        l[0].i = n;
+        keep.push_back(l);
+        return l;
+      };
+      auto str = [](zrdr::Node& v, const char* t) {
+        v.type = zrdr::String;
+        v.s = const_cast<char*>(t);
+      };
+      const int32_t n = a[0];
+      zrdr::Node* items = list(n + 1);
+      for (int32_t i = 0; i < n; ++i) {
+        const int32_t* r = a + 1 + 4 * i;
+        const bool fp = r[2] != 0;
+        zrdr::Node* it = list(fp ? 11 : 9);
+        str(it[1], r[0] >= 0 ? mech3::weapon_name(r[0]) : r[0] == -1 ? "BOGUS" : "TAG_MISSILE");
+        it[2] = {zrdr::Int, {1}}, it[3] = {zrdr::Int, {1}};
+        it[4].type = zrdr::Int, it[4].i = r[1];
+        it[5].type = zrdr::Float, it[5].f = 5.0f;
+        it[6].type = zrdr::Float, it[6].f = 25.0f;
+        it[7].type = zrdr::Float, it[7].f = 100000.0f;
+        it[8] = {zrdr::Int, {0}};
+        if (fp) {
+          str(it[9], "firepoint");
+          zrdr::Node* f = list(3);
+          str(f[1], kFp[r[3]]);
+          str(f[2], "firepoint02");
+          it[10].type = zrdr::List, it[10].list = f;
+        }
+        items[i + 1].type = zrdr::List, items[i + 1].list = it;
+      }
+      zrdr::Node* root = list(3);
+      str(root[1], "weapons");
+      root[2].type = zrdr::List, root[2].list = items;
+      zrdr::Node top{};
+      top.type = zrdr::List, top.list = root;
+      zerr::set_sink([](int level, const char*, int line, const char*) { log({15, level, line}); });
+      g_dying = g_m.get();
+      mech3::WeaponManager* nm = mech3::build_vehicle_weapons(h(g_w[kVehicle]), g_m.release(), &top);
+      g_dying = nullptr;
+      zerr::set_sink(nullptr);
+      g_m.reset(nm);
+      r = nm ? 1 : 0;
+      for (zrdr::Node* l : keep) delete[] l;
+      if (!g_m) g_m = std::make_unique<mech3::WeaponManager>(h(g_w[kVehicle]));  // the test keeps a manager
+      return r;
     }
     case 29: {  // the AI's wait and the mech lab's rounds
       if (static_cast<uint32_t>(a[0]) < m.count) {

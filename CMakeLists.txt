@@ -85,6 +85,8 @@ add_library(mw3core STATIC
   src/gamez/zsound/zsnd_parm.cpp
   src/gamez/zsound/zsnd_play.cpp
   src/gamez/zweapon/zweapon.cpp
+  src/gamez/zweapon/zwep_shot.cpp
+  src/gamez/zweapon/zwep_beam.cpp
   src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
@@ -168,6 +170,7 @@ add_library(mw3probe SHARED
   tests/probe_weapons.cpp
   tests/probe_weapons_run.cpp
   tests/probe_weapons_hit.cpp
+  tests/probe_weapons_fly.cpp
   tests/probe_twod.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp

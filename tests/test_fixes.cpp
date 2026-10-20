@@ -19,6 +19,7 @@
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
+#include "mech3/weapon.h"
 
 namespace {
 
@@ -464,4 +465,35 @@ TEST(fix_loose_orders_are_read) {
     EXPECT((r->vlist && !r->vlist->empty()) == fix);
     close_aiv(r);
   }
+}
+
+// ZAPS_HUD's second value is the static's hold time (mech3/weapon.cpp); the
+// exe reads the first value twice (0x004af71b).
+TEST(fix_zaps_hud_reads_its_hold) {
+  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+    std::fclose(f);
+  } else {
+    std::printf("  (skipped: no %s)\n", path.c_str());
+    return;
+  }
+  zrdr::init();
+  EXPECT(zrdr::open_archive(path.c_str(), true));
+  zrdr::Node* b = zrdr::find(zrdr::load("weapons.zrd"), "BALLISTICS");
+  EXPECT(b != nullptr);
+  zrdr::Node* erppc = nullptr;
+  for (int32_t i = 1; b && i + 1 < zrdr::list_count(b); i += 2)
+    if (b->list[i].type == zrdr::String && std::strcmp(b->list[i].s, "ERPPC") == 0) erppc = &b->list[i + 1];
+  EXPECT(erppc != nullptr);
+  for (bool fix : {true, false}) {
+    zfix::options().bugs = fix;
+    zwep::WeaponDef d;
+    d.name = "ERPPC";
+    d.period = 1.0f;
+    if (erppc) mech3::make_weapon_type(erppc, &d);
+    EXPECT(d.type && d.type->zaps_hud == 0.5f && d.type->zaps_hud_2 == (fix ? 2.0f : 0.5f));
+    mech3::free_weapon_type(&d);
+  }
+  zfix::options().bugs = true;
+  zrdr::close_archives(true);
 }

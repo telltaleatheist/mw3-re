@@ -128,6 +128,158 @@ void step(WeaponDef* def, Projectile* p, Vec3f3* move) {
   if (gone) p->state = 0;
 }
 
+namespace {
+// rand / 32767 times a span (the craters' random parts).
+float rand_span(float span) {
+  float r = static_cast<float>(crt::msvc_rand());
+  r = r * 3.05185094e-05f;
+  return r * span;
+}
+bool craterable(Handle node) {
+  const RunHooks& rh = run_hooks();
+  return rh.node_flags && (rh.node_flags(node) & 0x10000);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005825b0: a crater where a CRATER shot hit, on a node
+// that takes them: points, radius and depth each the minimum plus a random
+// share of the span. 1 when it was made.
+int32_t crater(WeaponDef* def, HitRecord* rec, Projectile* p) {
+  if (!craterable(rec->node)) return 0;
+  const RunHooks& rh = run_hooks();
+  CraterOrder c;
+  if (rh.crater_defaults) rh.crater_defaults(&c);
+  c.material = rec->material;
+  c.at = rec->point;
+  if (const int32_t span = def->crater_span.points) {
+    float r = static_cast<float>(crt::msvc_rand());
+    r = r * 3.05185094e-05f;
+    c.points = crt::msvc_ftol(r * static_cast<float>(span)) + def->crater.points;
+  }
+  if (def->crater_span.radius > 0.0f) c.radius = rand_span(def->crater_span.radius) + def->crater.radius;
+  if (def->crater_span.depth > 0.0f) c.depth = rand_span(def->crater_span.depth) + def->crater.depth;
+  c.owner = p->owner;
+  return rh.crater_make && rh.crater_make(&c) == 0 ? 1 : 0;
+}
+
+// Mech3.exe 1.2 @ 0x005824b0: a quicksand pit, likewise; only on the default
+// soil.
+void quicksand(WeaponDef* def, HitRecord* rec, int32_t soil, Projectile* p) {
+  if (soil != 0 || !craterable(rec->node)) return;
+  const RunHooks& rh = run_hooks();
+  QuicksandOrder q;
+  if (rh.quicksand_defaults) rh.quicksand_defaults(&q);
+  q.at = rec->point;
+  if (const int32_t span = def->crater_span.points) {
+    float r = static_cast<float>(crt::msvc_rand());
+    r = r * 3.05185094e-05f;
+    q.points = crt::msvc_ftol(r * static_cast<float>(span)) + def->crater.points;
+  }
+  if (def->crater_span.radius > 0.0f) q.radius = rand_span(def->crater_span.radius) + def->crater.radius;
+  if (def->crater_span.depth > 0.0f) q.depth = rand_span(def->crater_span.depth) + def->crater.depth;
+  q.owner = p->owner;
+  if (rh.quicksand_make) rh.quicksand_make(&q);
+}
+
+namespace {
+uintptr_t handler_of(Handle n) { return run_hooks().handler ? run_hooks().handler(n) : 0; }
+void put_handler(Handle n, uintptr_t h) {
+  if (run_hooks().set_handler) run_hooks().set_handler(n, h);
+}
+int32_t parent_count(Handle n) { return run_hooks().parent_count ? run_hooks().parent_count(n) : 0; }
+int32_t child_count(Handle n) { return run_hooks().child_count ? run_hooks().child_count(n) : 0; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00583220: no parent (up to the first null one) has the
+// same table: the node owns it.
+bool handler_owned(Handle node, uintptr_t h) {
+  const int32_t n = parent_count(node);
+  int32_t i = 0;
+  for (; i < n; ++i) {
+    Handle p = run_hooks().parent(node, i);
+    if (!p || handler_of(p) == h) break;
+  }
+  return i >= n;
+}
+
+// Mech3.exe 1.2 @ 0x00583250
+bool own_handler(Handle node) {
+  if (!node) return false;
+  const uintptr_t h = handler_of(node);
+  return h && handler_owned(node, h);
+}
+
+// Mech3.exe 1.2 @ 0x00583270
+void handler_set_slot(NodeHandlers* t, uintptr_t old, Handle object, Handle node, void (*fn)(), int32_t slot) {
+  t->slot[slot] = {object, fn};
+  handler_hand_down(node, t, old);
+}
+
+// Mech3.exe 1.2 @ 0x005832a0
+void handler_hand_down(Handle node, NodeHandlers* t, uintptr_t old) {
+  if (handler_of(node) != old) return;
+  for (int32_t i = 0; i < child_count(node); ++i) handler_hand_down(run_hooks().child(node, i), t, old);
+  put_handler(node, reinterpret_cast<uintptr_t>(t));
+}
+
+// Mech3.exe 1.2 @ 0x005832f0: a slot of the node's own table, made (or split
+// from the parent's, the other slot left empty) as needed; 0 when the slot
+// is taken. FIX (A): new for calloc.
+int32_t set_handler(Handle object, Handle node, void (*fn)(), int32_t slot) {
+  const uintptr_t h = handler_of(node);
+  if (h == 0) {
+    handler_set_slot(new NodeHandlers, 0, object, node, fn, slot);
+    return 1;
+  }
+  if (handler_owned(node, h)) {
+    NodeHandlers* t = reinterpret_cast<NodeHandlers*>(h);
+    if (t->slot[slot].fn) return 0;
+    t->slot[slot] = {object, fn};
+    return 1;
+  }
+  handler_set_slot(new NodeHandlers, h, object, node, fn, slot);
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x005833b0
+int32_t set_damage_handler(Handle object, Handle node, DamageFn fn, int32_t flag) {
+  const int32_t r = set_handler(object, node, reinterpret_cast<void (*)()>(fn), 0);
+  if (r && flag && run_hooks().set_flag_4eb790) run_hooks().set_flag_4eb790(node, 1);
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x005833f0
+int32_t set_touch_handler(Handle object, Handle node, TouchFn fn) {
+  return set_handler(object, node, reinterpret_cast<void (*)()>(fn), 1);
+}
+
+// Mech3.exe 1.2 @ 0x00583400: the node's own table off its subtree and freed.
+int32_t remove_handlers(Handle node) {
+  if (!node) return 0;
+  const uintptr_t h = handler_of(node);
+  if (!h || !handler_owned(node, h)) return 0;
+  handler_clear(node, h);
+  delete reinterpret_cast<NodeHandlers*>(h);
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00583440
+void handler_clear(Handle node, uintptr_t h) {
+  for (int32_t i = 0; i < child_count(node); ++i) handler_clear(run_hooks().child(node, i), h);
+  if (handler_of(node) == h) put_handler(node, 0);
+}
+
+// Mech3.exe 1.2 @ 0x005836b0: something walks into a node: its touch handler
+// (slot 1) with the damage; the shot line is set to from -> the contact.
+void touch(const Vec3f3* from, HitRecord* hit, float damage) {
+  const NodeHandlers* t = reinterpret_cast<const NodeHandlers*>(handler_of(hit->node));
+  if (g_hit.record_shot == 1) {
+    g_hit.shot_from = *from;
+    g_hit.shot_to = hit->point;
+  }
+  reinterpret_cast<TouchFn>(t->slot[1].fn)(t->slot[1].object, damage);
+}
+
 // Mech3.exe 1.2 @ 0x00583710
 void note_kill(Handle killed, HitRecord* at) {
   if (at && at->node) g_hit.killed_at = at;
@@ -189,22 +341,31 @@ uint32_t impact(WeaponDef* def, HitRecord* rec, Projectile* p, Handle anim) {
   const uint32_t r = apply_damage(def, p->owner, &p->position, rec, def->damage * p->damage_scale, anim);
   if ((def->flags & kCrater) && !(flags & 2)) {
     if (!(def->flags & kAnimationAlways)) skip = 1;
-    skip &= g_hh.crater ? g_hh.crater(def, rec, soil, p) : 0;
+    skip &= g_hh.crater ? g_hh.crater(def, rec, soil, p) : crater(def, rec, p);
   } else if ((def->flags & kQuicksand) && !(flags & 2)) {
     if (HitRecord* k = g_hit.killed_at) {
       if (g_hh.quicksand) g_hh.quicksand(def, k, soil_of(k->material), p);
+      else quicksand(def, k, soil_of(k->material), p);
     } else if (g_hh.quicksand) {
       g_hh.quicksand(def, rec, soil, p);
+    } else {
+      quicksand(def, rec, soil, p);
     }
   }
   // A kill makes its own crater where it fell.
-  if (g_hit.killed && (def->flags & kCrater) && g_hit.killed_at && !(flags & 2) && g_hh.crater)
-    g_hh.crater(def, g_hit.killed_at, soil_of(g_hit.killed_at->material), p);
+  if (g_hit.killed && (def->flags & kCrater) && g_hit.killed_at && !(flags & 2)) {
+    if (g_hh.crater) g_hh.crater(def, g_hit.killed_at, soil_of(g_hit.killed_at->material), p);
+    else crater(def, g_hit.killed_at, p);
+  }
   if ((def->flags & kQuicksand) && g_hit.killed_at && !(flags & 2)) {
     if (g_hh.quicksand) g_hh.quicksand(def, g_hit.killed_at, soil_of(g_hit.killed_at->material), p);
+    else quicksand(def, g_hit.killed_at, soil_of(g_hit.killed_at->material), p);
     return r;
   }
-  if (!(flags & 1) && g_hh.sound) g_hh.sound(def, rec, soil, 1.0f);
+  if (!(flags & 1)) {
+    if (g_hh.sound) g_hh.sound(def, rec, soil, 1.0f);
+    else sound(def, rec, soil, 1.0f);  // 0x00582f60 (zwep_shot.cpp)
+  }
   if (!skip) {
     if (!(flags & 4) && r == 0) {
       if (Handle a = def->impacts[soil].animation) play_at(anim ? anim : a, rec->point);
@@ -233,7 +394,7 @@ int32_t splash_query(WeaponDef* def, Projectile* p, int32_t flag, HitList* out) 
     toggled = true;
     if (g_hh.set_intersect) g_hh.set_intersect(node, 0);
   }
-  int32_t n = g_hh.query ? g_hh.query(node, &p->position, def->impact_proximity * p->damage_scale, out) : 1;
+  int32_t n = g_hh.query ? g_hh.query(state().world, &p->position, def->impact_proximity * p->damage_scale, out) : 1;
   if (toggled && g_hh.set_intersect) g_hh.set_intersect(node, 1);
   // Only the shooter in range: no splash (both callers pass flag 1, so dead).
   if (flag == 0 && out->count == 1 && out->rec[0].node == p->owner) n = 1;
@@ -312,7 +473,7 @@ void air_burst(WeaponDef* def, Projectile* p) {
 }
 
 // Mech3.exe 1.2 @ 0x00581f60
-void set_lock(int32_t* flag, Handle* target) {
+void set_lock(int32_t* flag, LockRef* target) {
   g_fire.lock_flag = flag;
   g_fire.lock_target = target;
 }

@@ -473,7 +473,9 @@ void use_ported() {
   const size_t n = sizeof(Engine) / sizeof(Fn);
   Fn* to = reinterpret_cast<Fn*>(&e);
   const Fn* from = reinterpret_cast<const Fn*>(&d);
+  // LoadSoils (zmod::load_soils) stays recorded: it reads reader.zbd, not mounted here.
   const size_t keep[] = {offsetof(Engine, read_zbd), offsetof(Engine, delete_file), offsetof(Engine, make_dir),
+                         offsetof(Engine, load_soils),
                          offsetof(Engine, print)};
   for (size_t i = 0; i < n; ++i) {
     bool k = false;

@@ -1,12 +1,16 @@
 #include "mech3/weapon.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <list>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_names.h"
 
@@ -31,13 +35,14 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (Node* n = zrdr::find(node, "SHOW_ON_RADAR"); n && n->type == zrdr::List) {
     if (zrdr::list_count(n) > 1 && n->list[1].type == zrdr::Int) show_on_radar = n->list[1].i != 0;
   }
-  // ZAPS_HUD: one or two numbers, int or float. The second slot reads the
-  // first value again (0x004af71b), so ERPPC's (0.5 2.0) gives 0.5 twice;
-  // kept as shipped, a candidate in docs/fixes.md.
+  // ZAPS_HUD: the HUD static a hit adds, then how long it holds before it
+  // fades (0x0043be70 keeps the longest hold; 0x0043d07a counts it down).
+  // FIX (bug): the exe reads the first value for both (0x004af71b), so the
+  // ERPPC's (0.5 2.0) held its static 0.5 s, not 2 s (docs/fixes.md).
   if (Node* n = zrdr::find(node, "ZAPS_HUD"); n && n->type == zrdr::List && zrdr::list_count(n) > 1) {
     float* out[2] = {&zaps_hud, &zaps_hud_2};
     for (int i = 1; i <= 2 && i < zrdr::list_count(n); ++i) {
-      const zrdr::Node& v = n->list[1];
+      const zrdr::Node& v = n->list[zfix::options().bugs ? i : 1];
       if (v.type == zrdr::Int) *out[i - 1] = static_cast<float>(v.i);
       else if (v.type == zrdr::Float) *out[i - 1] = v.f;
     }
@@ -106,7 +111,7 @@ WeaponType::WeaponType(Node* node, WeaponDef* d)
   if (v < 100.0f) v = 100.0f;
   else if (v > 5000.0f) v = 5000.0f;
   if (id >= 0x11 && id <= 0x14) lrm_flight = crt::x87_mul_f24(range, 0.7) / v;  // LRM5..LRM20
-  strike_at = &strike_point;
+  strike_lock.at = &strike_point;
 }
 
 // Mech3.exe 1.2 @ 0x004afb10
@@ -157,7 +162,7 @@ void halt(Handle& s) {
 void net_event(Handle owner, Weapon* w) {
   if (g_calls.net_event) g_calls.net_event(owner, 0x16, w);
 }
-void set_lock_globals(int32_t* flag, Handle* target) { zwep::set_lock(flag, target); }
+void set_lock_globals(int32_t* flag, zwep::LockRef* target) { zwep::set_lock(flag, target); }
 void mech_sound(int32_t i) {
   if (g_calls.mech_sound) g_calls.mech_sound(i);
 }
@@ -262,7 +267,7 @@ void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const 
     from.x = rand_unit() * 50.0f + start.x;
     from.y = rand_unit() * 50.0f + start.y;
     from.z = start.z;
-    zwep::set_lock(&strike_flag, &strike_target);
+    zwep::set_lock(&strike_flag, &strike_lock);
     spawn_projectile(strike_weapon, owner_node, nullptr, vf(&from), vf(&d), vf(&still), 0, 0, false);
   }
   zwep::set_lock(nullptr, nullptr);
@@ -298,7 +303,7 @@ uint32_t burst(WeaponDef* def, const zwep::HitRecord*, zwep::Projectile* p) {
     float d[3] = {v.x, v.y, v.z};
     zmod::normalize(d);
     const zmth::Vec3 dn{d[0], d[1], d[2]};
-    if (g_calls.spawn) g_calls.spawn(t->burst, p->owner, nullptr, vf(&pos), vf(&dn), vf(&v), 0, 0, false);
+    spawn_shot(t->burst, p->owner, nullptr, vf(&pos), vf(&dn), vf(&v), 0, 0, false);
   }
   return 0;
 }
@@ -522,10 +527,10 @@ void WeaponManager::reset() {
 void WeaponManager::forget_target(Handle target) {
   for (uint32_t i = 0; i < count; ++i) {
     Weapon* w = weapons[i];
-    if (w->lock_flag && w->lock_target == (g_calls.target_key ? g_calls.target_key(target) : nullptr)) {
+    if (w->lock_flag && w->lock.entity == (g_calls.target_key ? g_calls.target_key(target) : nullptr)) {
       w->lock_flag = 0;
-      w->lock_x10 = 0;
-      w->lock_id = 0;
+      w->lock.velocity = nullptr;
+      w->lock.at = nullptr;
     }
   }
 }
@@ -559,6 +564,16 @@ Weapon* WeaponManager::add(int32_t index, Handle node, int32_t g) {
     w->set_group(g);
   }
   return w;
+}
+
+// Mech3.exe 1.2 @ 0x004b0460, the named form: the node is looked up by name
+// under `node` first (0x004abb60); none found, no weapon.
+Weapon* WeaponManager::add(int32_t index, Handle node, const char* name, int32_t g) {
+  if (name) {
+    node = g_calls.node_by_name ? g_calls.node_by_name(node, name) : nullptr;
+    if (!node) return nullptr;
+  }
+  return add(index, node, g);
 }
 
 // Mech3.exe 1.2 @ 0x004b04c0
@@ -670,10 +685,10 @@ bool WeaponManager::net_fire(uint32_t i, Handle target, int32_t action) {
   if (target) {
     if (Handle t = g_calls.net_target ? g_calls.net_target(target) : nullptr) {
       w->lock_flag = 1;
-      w->lock_target = g_calls.target_key ? g_calls.target_key(t) : nullptr;
-      w->lock_id = g_calls.entity_id ? g_calls.entity_id(t) : 0;
-      w->lock_x10 = g_calls.target_x10 ? g_calls.target_x10(t) : 0;
-      set_lock_globals(&w->lock_flag, &w->lock_target);
+      w->lock.entity = g_calls.target_key ? g_calls.target_key(t) : nullptr;
+      w->lock.at = g_calls.target_position ? g_calls.target_position(t) : nullptr;
+      w->lock.velocity = g_calls.target_velocity ? g_calls.target_velocity(t) : nullptr;
+      set_lock_globals(&w->lock_flag, &w->lock);
     }
   }
   return w->aim_and_fire(&aim, true);
@@ -1014,9 +1029,215 @@ Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m) {
 // Mech3.exe 1.2 @ 0x004b4a40
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
                         const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) {
-  Handle p = g_calls.spawn ? g_calls.spawn(def, node, x64, muzzle, dir, velocity, p5, p6, friendly) : nullptr;
-  if (p && type_of(def)->show_on_radar && g_calls.radar_track) g_calls.radar_track(p, friendly);
+  Handle p = spawn_shot(def, node, x64, muzzle, dir, velocity, p5, p6, friendly);
+  if (p && type_of(def)->show_on_radar) {
+    if (g_calls.radar_track) {
+      g_calls.radar_track(p, friendly);
+    } else {
+      auto* q = static_cast<zwep::Projectile*>(p);
+      q->tick = friendly ? radar_friend : radar_foe;
+      q->tick_arg = reinterpret_cast<uintptr_t>(q);
+    }
+  }
   return p;
+}
+
+namespace {
+std::list<RadarBlip*> g_blips;     // 0x0060b228
+Handle g_radar_node = nullptr;     // 0x0060b26c
+}  // namespace
+
+std::list<RadarBlip*>& radar_blips() { return g_blips; }
+
+// Mech3.exe 1.2 @ 0x004b49c0: a shot on the radar for this frame (each shot's
+// tick puts it back every frame; the radar's action empties the list).
+void radar_add(zwep::Projectile* p, bool friendly) { g_blips.push_back(new RadarBlip{p, friendly}); }
+
+// Mech3.exe 1.2 @ 0x004b4a20
+void radar_foe(zwep::Projectile* p) { radar_add(p, false); }
+
+// Mech3.exe 1.2 @ 0x004b4a30
+void radar_friend(zwep::Projectile* p) { radar_add(p, true); }
+
+// Mech3.exe 1.2 @ 0x004b4b10 (the list's clear), run as the radar object's
+// action 0x004b49b0.
+void radar_clear() {
+  for (RadarBlip* b : g_blips) delete b;
+  g_blips.clear();
+}
+
+// Mech3.exe 1.2 @ 0x004b4ab0: the object whose action clears the list, at
+// priority 2 (after the weapons' tick at 3, likely).
+void radar_objects_create() {
+  g_radar_node = g_calls.object3d_create ? g_calls.object3d_create() : nullptr;
+  if (g_calls.set_action_priority) g_calls.set_action_priority(g_radar_node, 2);
+  if (g_calls.set_action) g_calls.set_action(g_radar_node, radar_clear);
+}
+
+// Mech3.exe 1.2 @ 0x004b4ae0
+void radar_objects_destroy() {
+  radar_clear();
+  if (!g_radar_node) return;
+  if (g_calls.set_action) g_calls.set_action(g_radar_node, nullptr);
+  if (g_calls.node_destroy) g_calls.node_destroy(g_radar_node);
+  g_radar_node = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00414501..0x00414732 (mech.cpp)
+void configure_weapons(Handle mech, WeaponManager* m, Config* cfg, Config** kept, int32_t equipment[15], Ams* ams,
+                       Handle node) {
+  m->reset();
+  for (ConfigItem* it : cfg->items) {
+    if (it->kind() != 1) continue;
+    auto* w = static_cast<WeaponItem*>(it);
+    if (!m->add(w)) {
+      char msg[256];
+      std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%d)", weapon_name(w->weapon), w->part);
+      zerr::report(0x400, "C:\\zipper\\Mech3\\mech.cpp", 0x1b1, msg);
+    }
+  }
+  *kept = cfg;
+  for (ConfigItem* it : cfg->items) {
+    if (it->kind() == 2) {
+      auto* a = static_cast<AmmoItem*>(it);
+      if (!weapon_uses_ammo(a->weapon)) continue;
+      Weapon* w = m->find(a->weapon, 0);
+      if (w && a->count && w->bin) w->bin->add(a->count);
+    } else if (it->kind() == 3) {
+      const int32_t e = static_cast<EquipmentItem*>(it)->equipment;
+      if (e == 11) {
+        if (g_calls.add_jump_jet) g_calls.add_jump_jet(mech);
+      } else {
+        ++equipment[e];
+      }
+      if (e == 0) {
+        ams->rounds = equipment[0] * 100;
+      } else if (e == 13) {
+        const std::vector<Firepoint*>* fps = g_calls.firepoints ? g_calls.firepoints(mech) : nullptr;
+        const Firepoint* fp = fps && !fps->empty() ? (*fps)[0] : nullptr;
+        if (!fp) continue;
+        if (Weapon* t = m->add(0x20, node, fp->name, 4)) {
+          t->set_group(4);
+        } else {
+          char msg[256];
+          std::snprintf(msg, sizeof msg, "Failed to add weapon (%s) firepoint=(%s)", weapon_name(0x20), fp->name);
+          zerr::report(0x400, "C:\\zipper\\Mech3\\mech.cpp", 0x1e0, msg);
+        }
+      }
+    }
+  }
+}
+
+namespace {
+void vehicle_error(int line, const char* fmt, const char* a, const char* b, const char* c) {
+  char msg[512];
+  std::snprintf(msg, sizeof msg, fmt, a, b, c);
+  zerr::report(0x200, "C:\\zipper\\Mech3\\weapon.cpp", line, msg);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004b4660: each item of `weapons` is (name n n ammo ...
+// "firepoint" (names)). The firepoint is looked up in the whole list, not the
+// item, so every weapon takes the first item's first firepoint (a quirk:
+// docs/weapons.md). Ammo 0 is an endless bin, for all but beams; group 4,
+// then 0.
+WeaponManager* build_vehicle_weapons(Handle vehicle, WeaponManager* old, zrdr::Node* def) {
+  delete old;
+  zrdr::Node* list = zrdr::find(def, "weapons");
+  if (!list) return nullptr;
+  auto* m = new WeaponManager(vehicle);
+  Handle vnode = g_calls.vehicle_node ? g_calls.vehicle_node(vehicle) : nullptr;
+  const char* vname = g_calls.node_name ? g_calls.node_name(vnode) : "";
+  const char* fp = "firepoint";
+  const int32_t n = zrdr::list_count(list) - 1;
+  for (int32_t i = 1; i <= n; ++i) {
+    const zrdr::Node* item = list->list[i].list;
+    const char* name = item[1].s;
+    const int32_t ammo = item[4].i;  // read as an int whatever its type
+    if (const char* f = zrdr::get_string(list, "firepoint")) fp = f;
+    WeaponDef* d = zwep::find_def(name);
+    Handle fpn = g_calls.node_find ? g_calls.node_find(vnode, fp) : nullptr;
+    const int32_t idx = weapon_index(name);
+    if (d && idx != -1 && fpn) {
+      if (Weapon* w = m->add(idx, vnode, fp, 4)) {
+        w->set_group(0);
+        if (AmmoBin* b = w->bin) {
+          if (ammo == 0) {
+            if (!w->is_beam()) b->infinite = true;
+          } else {
+            b->add(ammo);
+          }
+        }
+      }
+      continue;
+    }
+    if (!d) vehicle_error(0xd94, "vehicle %s: weapon %s: no ZWEP_ID", vname, name, nullptr);
+    if (idx == -1) vehicle_error(0xd97, "vehicle %s: weapon %s: no MECH_WEAPON", vname, name, nullptr);
+    if (!fpn) vehicle_error(0xd9a, "vehicle %s: weapon %s: no firepoint node named %s", vname, name, fp);
+  }
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x004b0d80: the player's HUD ammo gauge redrawn (the HUD
+// code is not ported; these are its calls). The original reads the screen of
+// a null owner when there is no player; here nothing happens.
+void WeaponManager::ammo_gauge() const {
+  if (!owner || owner != g_world.player) return;
+  Handle screen = g_calls.hud_screen ? g_calls.hud_screen(owner) : nullptr;
+  if (!screen) return;
+  const int32_t a = g_calls.gauge_6c ? g_calls.gauge_6c(screen) : 0;
+  const int32_t b = g_calls.gauge_68 ? g_calls.gauge_68(screen) : 0;
+  const int32_t v = g_calls.hud_440a30 ? g_calls.hud_440a30(screen, b, a) : 0;
+  if (g_calls.hud_443d20) g_calls.hud_443d20(screen, v);
+}
+
+// Mech3.exe 1.2 @ 0x004b3ab0
+Ams::Ams(float r, float p, int32_t n) : on(true), range(r), next(0), period(p), target(nullptr), rounds(n) {}
+
+// Mech3.exe 1.2 @ 0x004b3ae0: the radar's nearest shot within range, by
+// |dx| + |dz|: side 0 foes' shots only (the player's AMS), 1 friends' only
+// (the enemy's), else all.
+bool Ams::find(int32_t side, const zwep::Vec3f3* at) {
+  if (rounds <= 0) return false;
+  float best = range;
+  for (RadarBlip* b : g_blips) {
+    if (side == 0 && b->friendly) continue;
+    if (side == 1 && !b->friendly) continue;
+    const zwep::Projectile* p = b->shot;
+    const float dz = std::fabs(p->position.z - at->z);
+    const float dx = std::fabs(p->position.x - at->x);
+    const float d = dz + dx;
+    if (d < best) {
+      best = d;
+      target = b->shot;
+    }
+  }
+  return target != nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004b3ba0
+const zwep::Vec3f3* Ams::target_at() const { return target ? &target->position : nullptr; }
+
+// Mech3.exe 1.2 @ 0x004b3bb0: once the period (shared out over `count` AMS)
+// has passed, the target is shot down and a round spent; the target is
+// forgotten either way.
+void Ams::fire(int32_t count) {
+  if (rounds != 0 && !(g_world.clock < next)) {
+    const float f = count == 1 ? 1.0f : 1.0f / static_cast<float>(count);
+    target->health = 0;
+    --rounds;
+    next = period * f + g_world.clock;
+  }
+  target = nullptr;
+}
+
+// 0x00585010 through the hook a test sets, else the port.
+Handle spawn_shot(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) {
+  if (g_calls.spawn) return g_calls.spawn(def, node, x64, muzzle, dir, velocity, p5, p6, friendly);
+  return zwep::spawn(def, node, static_cast<const uint32_t*>(x64), reinterpret_cast<const zwep::Vec3f3*>(muzzle),
+                     reinterpret_cast<const zwep::Vec3f3*>(dir), reinterpret_cast<const zwep::Vec3f3*>(velocity), p5,
+                     reinterpret_cast<zwep::Projectile*>(static_cast<uintptr_t>(static_cast<uint32_t>(p6))));
 }
 
 // Mech3.exe 1.2 @ 0x004b4de0
@@ -1162,11 +1383,11 @@ bool Weapon::lock_on(Handle tgt, bool* f) {
     if (g_calls.lock_notice) g_calls.lock_notice(tm, manager->vehicle, def);
     if (g_calls.ecm_count && g_calls.ecm_count(tm) > 0) ecm = true;
   }
-  lock_target = tgt;
-  lock_id = g_calls.entity_id ? g_calls.entity_id(tgt) : 0;
-  lock_x10 = g_calls.target_x10 ? g_calls.target_x10(tgt) : 0;
+  lock.entity = tgt;
+  lock.at = g_calls.target_position ? g_calls.target_position(tgt) : nullptr;
+  lock.velocity = g_calls.target_velocity ? g_calls.target_velocity(tgt) : nullptr;
   lock_flag = 1;
-  set_lock_globals(&lock_flag, &lock_target);
+  set_lock_globals(&lock_flag, &lock);
   if (!ecm && *f) {
     zwep::fire_state().track_scale[0] = 2.0f;
     zwep::fire_state().track_scale[1] = 2.0f;
@@ -1343,7 +1564,10 @@ BeamWeapon::~BeamWeapon() {
   halt(recharge_sound);
   delete bin;
   bin = nullptr;
-  if (beam && g_calls.beam_free) beam = g_calls.beam_free(beam);
+  if (beam) {
+    if (g_calls.beam_free) beam = g_calls.beam_free(beam);
+    else beam = reinterpret_cast<Handle>(static_cast<intptr_t>(zwep::beam_free(static_cast<zwep::Beam*>(beam))));
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004b4e50
@@ -1360,9 +1584,11 @@ bool BeamWeapon::aim_and_fire(const Vec3f* at, bool) {
   if (!can_fire()) return false;
   aim_at = at;
   if (!aim(const_cast<Vec3f*>(at), &muzzle, &direction, nullptr)) return false;
-  if (!beam && g_calls.beam_create) {
+  if (!beam) {
     Handle owner_node = g_calls.vehicle_node ? g_calls.vehicle_node(manager->vehicle) : nullptr;
-    beam = g_calls.beam_create(def, owner_node, node, &muzzle, &direction);
+    if (g_calls.beam_create) beam = g_calls.beam_create(def, owner_node, node, &muzzle, &direction);
+    else beam = zwep::beam_make(def, owner_node, nullptr, reinterpret_cast<const zwep::Vec3f3*>(&muzzle),
+                                reinterpret_cast<const zwep::Vec3f3*>(&direction), 1);
   }
   return true;
 }
@@ -1387,6 +1613,7 @@ bool BeamWeapon::trigger() {
     bin->amount -= used;
     if (bin->manager) bin->manager->ammo_value = bin->manager->ammo_value - static_cast<float>(used) * bin->damage;
     if (g_calls.beam_start) g_calls.beam_start(beam);
+    else zwep::beam_start(static_cast<zwep::Beam*>(beam));
     firing = true;
     if (Handle owner = manager->owner) {
       projectile_target = nullptr;
@@ -1403,6 +1630,7 @@ bool BeamWeapon::trigger() {
 void BeamWeapon::stop() {
   if (!firing) return;
   if (g_calls.beam_stop) g_calls.beam_stop(beam);
+  else zwep::beam_stop(static_cast<zwep::Beam*>(beam));
   firing = false;
   if (Handle owner = manager->owner) net_event(owner, this);
 }

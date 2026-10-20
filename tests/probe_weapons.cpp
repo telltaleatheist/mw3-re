@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_names.h"
@@ -76,7 +77,7 @@ void put(uint8_t* b, int off, T v) { std::memcpy(b + off, &v, sizeof v); }
 void put_effect(uint8_t* b, const zwep::Effect& e) {
   put(b, 0x00, e.flags);
   put(b, 0x04, u(e.animation));
-  put(b, 0x08, e.x08);
+  put(b, 0x08, u(e.animation2));
   put(b, 0x0c, u(e.animation_attached));
   put(b, 0x10, u(e.model_animation));
   put(b, 0x14, u(e.surface_animation));
@@ -131,6 +132,33 @@ int probe_zwep_run(const char* archive, const uint32_t* crater, int hardware, in
   std::memcpy(out, g_log.data(), g_log.size() * 4);
   *n = static_cast<int>(g_log.size());
   return rc;
+}
+
+// The soil names the next init sees (zmod::soil_names): n names, NUL-separated.
+void probe_zwep_soils(int n, const char* names) {
+  auto& v = zmod::soil_names();
+  v.clear();
+  for (int i = 0; i < n; ++i) {
+    v.emplace_back(names);
+    names += v.back().size() + 1;
+  }
+}
+
+// LoadSoils on an archive's soils.zrd after the reset: the names, NUL-ended.
+int probe_zwep_load_soils(const char* archive, char* out, int cap) {
+  zmod::reset_soils();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -1;
+  zmod::load_soils("soils.zrd");
+  int n = 0;
+  for (const std::string& s : zmod::soil_names()) {
+    if (n + static_cast<int>(s.size()) + 1 > cap) return -2;
+    std::memcpy(out + n, s.c_str(), s.size() + 1);
+    n += static_cast<int>(s.size()) + 1;
+  }
+  zmod::reset_soils();
+  return n;
 }
 
 // Globals after the run: def count, pool size, the four sounds, crater radius
@@ -189,11 +217,11 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
   put(def, 0x070, d.lock_on_lead_min);
   put(def, 0x074, d.lock_on_lead_max);
   put(def, 0x078, d.lock_on_lead_span);
-  put(def, 0x07c, d.x7c);
+  put(def, 0x07c, u(d.active));
   put(def, 0x080, d.flyout_health);
   put_effect(def + 0x84, d.fire);
   put_effect(def + 0xe0, d.flyout);
-  put(def, 0x140, d.x140);
+  put(def, 0x140, u(d.model_pool));
   put(def, 0x144, d.damage_anim_count);
   for (int k = 0; k < 4; ++k) {
     put(def, 0x148 + 8 * k, d.damage_anims[k].health);
@@ -209,9 +237,10 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
   put(def, 0x1e4, d.x1e4);
   put(def, 0x1e8, d.terrain_height);
   put(def, 0x1ec, callback_addr(d.callback));
-  std::memset(impacts, 0, 6 * 0x5c);
+  const int soils = static_cast<int>(zmod::soil_names().size());
+  std::memset(impacts, 0, static_cast<size_t>(soils) * 0x5c);
   if (d.impacts)
-    for (int k = 0; k < zwep::kSoilCount; ++k) put_effect(impacts + 0x5c * k, d.impacts[k]);
+    for (int k = 0; k < soils; ++k) put_effect(impacts + 0x5c * k, d.impacts[k]);
   std::memset(type, 0, 0xc8);
   if (const mech3::WeaponType* t = d.type) {
     put(type, 0x00, t->id);
@@ -254,8 +283,8 @@ int probe_zwep_def(int i, uint8_t* def, uint8_t* impacts, uint8_t* type, char* t
     put(type, 0x9c, t->fire_time);
     put(type, 0xa0, def_token(t->strike_weapon));
     put(type, 0xb0, t->strike_flag);
-    put(type, 0xb8, static_cast<uint32_t>(t->strike_at == &t->strike_point));
-    put(type, 0xbc, u(t->strike_velocity));
+    put(type, 0xb8, static_cast<uint32_t>(t->strike_lock.at == &t->strike_point));
+    put(type, 0xbc, u(t->strike_lock.velocity));
     put(type, 0xc0, t->lrm_flight);
     put(type, 0xc4, t->ready_at);
   }
