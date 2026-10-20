@@ -14,6 +14,7 @@ namespace {
 using namespace probe_twod;
 
 uint32_t g_hud_addr = 0;
+bool g_have_zrd = false;
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 
@@ -44,7 +45,32 @@ struct Hooks : mech3::HudHooks {
   }
   ztwod::Rect display_rect() override { return rect_at(0x5f4d20); }
   ztwod::Rect window_rect() override { return rect_at(0x5f4d24); }
-  uint32_t id(const void* p) override { return p == g_hud ? g_hud_addr : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+  int32_t display_w() override { return static_cast<int32_t>(call("peek32", {rect_ptr(0x5f4d20) + 0x10})); }
+  int32_t display_h() override { return static_cast<int32_t>(call("peek32", {rect_ptr(0x5f4d20) + 0x14})); }
+  static uint32_t rect_ptr(uint32_t global) { return call("peek32", {call("peek32", {global})}); }
+  float player_camera_fov() override {
+    const uint32_t node = call("peek32", {call("peek32", {0x5f4c8c}) + 4});
+    return zgame::from_bits(call("peek32", {call("peek32", {node + 0x38}) + 0xe8}));
+  }
+  void* mech_target_slot(mech3::Mech* m) override {
+    return m ? reinterpret_cast<void*>(static_cast<uintptr_t>(id(m) + 0x6c)) : nullptr;
+  }
+  zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
+  // The HUD and its pieces by the original's offsets; anything else (the
+  // emulator's own handles) as it is.
+  uint32_t id(const void* p) override {
+    if (!p) return 0;
+    if (g_hud) {
+      const mech3::Hud& h = *g_hud;
+      const std::pair<const void*, uint32_t> at[] = {
+          {&h, 0}, {&h.radar, 0x14}, {&h.compass, 0xdd4}, {&h.reticle, 0x144c}, {&h.reticle.zoom, 0x1508},
+          {&h.gauges, 0x1da8}, {&h.mfd, 0x3434}, {&h.target, 0x410c}, {&h.weapons, 0x6520},
+          {&h.objectives, 0x17964}, {&h.timer, 0x18410}, {&h.equipment, 0x188c0}};
+      for (auto& [q, off] : at)
+        if (q == p) return g_hud_addr + off;
+    }
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
+  }
 };
 Hooks g_hooks;
 
@@ -121,7 +147,7 @@ void zoomview(Dump& d, mech3::HudZoomView* v, const std::string& head) {
   d.kv("hw", v->view.hardware);
   d.kv("x4c", v->x4c);
   d.r("rect", v->rect);
-  d.kv("x168", v->x168);
+  d.kv("x168", g_hooks.id(v->source));
   const mech3::HudViewWindow& w = *v->view.window;
   d.o << "\n" << head << ".window ";
   d.kv("node", w.node);
@@ -184,7 +210,7 @@ void damageview(Dump& d, mech3::HudDamageView* v, const std::string& head) {
 void mfd(Dump& d, mech3::HudMfd* m, const std::string& head) {
   d.o << head << ' ';
   d.base(m);
-  d.kv("x34", m->x34);
+  d.kv("x34", g_hooks.id(m->hud));
   d.kv("mode", m->mode);
   d.kv("nav", m->nav);
   d.o << "\n";
@@ -201,7 +227,9 @@ void dump_hud(Dump& d) {
   mech3::Hud& h = *g_hud;
   d.kv("active", h.active);
   d.o << "head=" << piece_name(h.head) << " tail=" << piece_name(h.tail) << ' ';
-  d.kv("mech", 0);
+  d.kv("mech", g_hooks.id(h.mech));
+  d.kv("reader", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h.reader)));
+  d.kv("block", h.block ? 1 : 0);
   for (uint32_t v : h.x22e08) d.kv("z", v);
   d.o << "\n";
   for (const ztwod::Object2D* p : {static_cast<ztwod::Object2D*>(&h.compass), static_cast<ztwod::Object2D*>(&h.gauges),
@@ -237,7 +265,7 @@ void dump_hud(Dump& d) {
   d.o << "\nequipment ";
   mech3::HudEquipment& eq = h.equipment;
   d.base(&eq);
-  d.kv("hud", 0);
+  d.kv("hud", g_hooks.id(eq.hud));
   d.kv("below", eq.below);
   d.kv("column", eq.column);
   d.o << "\nepanel ";
@@ -274,7 +302,7 @@ void dump_hud(Dump& d) {
   for (float v : rd.dir) d.f("dir", v);
   for (float v : {rd.half_fov, rd.cos_half, rd.sin_half}) d.f("fov", v);
   for (auto& [k, v] : std::initializer_list<std::pair<const char*, uint32_t>>{
-           {"xbd4", rd.xbd4}, {"xbd8", rd.xbd8}, {"xdb4", rd.xdb4}, {"xdb8", rd.xdb8}, {"src", 0}})
+           {"xbd4", rd.xbd4}, {"xbd8", rd.xbd8}, {"xdb4", rd.xdb4}, {"xdb8", rd.xdb8}, {"src", g_hooks.id(rd.source)}})
     d.kv(k, v);
   d.o << "\n";
   for (int i = 0; i < 3; ++i) {
@@ -334,11 +362,11 @@ void dump_hud(Dump& d) {
   d.r("clip", tg.frame.clip);
   d.o << "\ntfields ";
   for (auto* t : tg.arrows) d.t("a", t);
-  d.kv("target", 0);
+  d.kv("target", g_hooks.id(tg.target));
   d.kv("shown", tg.shown);
   d.f("x240c", tg.x240c);
   d.kv("lh", tg.line_h);
-  d.kv("dmech", 0);
+  d.kv("dmech", g_hooks.id(tg.damage.mech));
   d.o << "\ntmarker ";
   d.image(&tg.marker);
   d.o << "\n";
@@ -354,6 +382,7 @@ void dump_hud(Dump& d) {
   d.kv("x950", rt.x950);
   d.f("x954", rt.x954);
   d.kv("locked", rt.locked);
+  d.kv("src", g_hooks.id(rt.source));
   for (auto* t : {rt.img_off, rt.img_on, rt.img_over, rt.img_cant, rt.img_x920}) d.t("i", t);
   for (uint32_t v : rt.x928) d.kv("z", v);
   d.o << "\n";
@@ -420,8 +449,8 @@ void dump_hud(Dump& d) {
   mech3::HudWeapons& w = h.weapons;
   d.o << "weapons ";
   d.base(&w);
-  d.kv("hud", 0);
-  d.kv("x38", w.x38);
+  d.kv("hud", g_hooks.id(w.hud));
+  d.kv("x38", w.weapons);
   d.t("select", w.select);
   d.t("chain", w.chain);
   d.kv("shown", w.shown);
@@ -488,7 +517,7 @@ void dump_hud(Dump& d) {
 extern "C" {
 
 // Builds the HUD as the emulator did at `hud_addr` for `mech`, dumps it.
-int probe_hud_build(uint32_t hud_addr, uint32_t mech, char* out, int size) {
+int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, char* out, int size) {
   RecordingHost host;
   ztwod::set_host(&host);
   reset();  // the textures by address: each run's emulator starts over
@@ -498,13 +527,21 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, char* out, int size) {
   mech3::weapon_set() = mech3::WeaponSet{};
   g_hud_addr = hud_addr;
   g_hud = nullptr;  // the last one is left: its images' release would call the host
-  g_hud = static_cast<mech3::Hud*>(::operator new(sizeof(mech3::Hud)));
+  g_have_zrd = zbd && *zbd;
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (g_have_zrd) zrdr::open_archive(zbd, true);
+  // Zeroed as the emulator's fresh block: +0x22e3c's exe path (hud.md section 3).
+  void* storage = ::operator new(sizeof(mech3::Hud));
+  std::memset(storage, 0, sizeof(mech3::Hud));
+  g_hud = static_cast<mech3::Hud*>(storage);
   new (g_hud) mech3::Hud(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(mech)));
   Dump d;
   dump_hud(d);
   const std::string s = d.o.str();
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
+  zrdr::close_archives(true);
   ztwod::set_host(nullptr);
   return static_cast<int>(s.size());
 }

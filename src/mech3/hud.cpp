@@ -48,6 +48,9 @@ WeaponSet& weapon_set() { return g_weapons; }
 HudHooks& hud_hooks() { return *g_hooks; }
 void set_hud_hooks(HudHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 
+int32_t HudHooks::display_w() { return display().w; }
+int32_t HudHooks::display_h() { return display().h; }
+
 ztwod::Rect HudHooks::display_rect() {
   const Rect& r = display();
   return {r.x, r.y, r.x_end, r.y_end};
@@ -266,7 +269,7 @@ void HudEquipLine::reset() {
 // Mech3.exe 1.2 @ 0x00448070
 HudEquipment::HudEquipment() : Object2D(0, 0) {
   place(0x212, 0x1e, 0);
-  hud = nullptr;  // 0x00448200 with no HUD
+  read_layout(nullptr);
   show_for(-1.0f);
 }
 
@@ -343,9 +346,7 @@ HudWeapons::HudWeapons() : Object2D(0, 0) {
   chain = h.image_get("hud_weapon_chain");
   poly.color = zvid::pack_bytes(1, 0xa2, 0x1f);
   set_pos(0x212, 0x1e);
-  x1143c = 0;  // 0x00446120 with no HUD
-  x38 = 0;
-  hud = nullptr;
+  read_layout(nullptr);
   panel.set_opacity(hud_opacity());
   panel.set_color(zvid::pack_bytes(0, 0x40, 0));  // 0x0043aae0
 }
@@ -597,7 +598,7 @@ HudZoomView::HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h)
   k.camera_set_zoom(view.camera, 1.0f);
   k.camera_set_fov(view.camera, 0.87266463f, 1.0471976f);  // 50 and 60 degrees
   k.camera_set_clip(view.camera, 1.0f, 500.0f);
-  x168 = 0;
+  source = nullptr;
   HudZoomView::hide();
 }
 
@@ -746,7 +747,7 @@ void HudTarget::set_mode(int32_t m) {
 // yet). Targets are read as the original's objects (hud.md).
 void HudTarget::set_target(void* t) {
   target = t;
-  if (t && *static_cast<void**>(t)) {
+  if (g_hooks->target_valid(t)) {
     g_hooks->unported("0x00441800", {g_hooks->id(this), g_hooks->id(t)});
     return;
   }
@@ -756,7 +757,7 @@ void HudTarget::set_target(void* t) {
 
 // Mech3.exe 1.2 @ 0x00441780
 void HudTarget::set_shown(bool on) {
-  if (on && target && *static_cast<void**>(target)) {
+  if (on && g_hooks->target_valid(target)) {
     g_hooks->unported("0x00441780", {g_hooks->id(this), 1});
     return;
   }
@@ -767,7 +768,7 @@ void HudTarget::set_shown(bool on) {
 
 // Mech3.exe 1.2 @ 0x00441660 (the clear path; with a target, not ported yet)
 void HudTarget::update_texts(bool clear) {
-  if (!clear && target && *static_cast<void**>(target)) {
+  if (!clear && g_hooks->target_valid(target)) {
     g_hooks->unported("0x00441660", {g_hooks->id(this), 0});
     return;
   }
@@ -901,13 +902,298 @@ void HudReticle::hide() {
   zoom.hide();
 }
 
+// ---------------------------------------------------------------------------
+// The set-up (hud.md section 3)
+
+namespace {
+// 0x00557110 on a key: (x, y) or (w, h).
+bool ivec2(zrdr::Node* n, const char* key, int32_t out[2]) { return zrdr::get_ivec2(n, key, out); }
+constexpr const char* kModeBlock[] = {nullptr, nullptr, nullptr, "V640x480", nullptr, "V640x480", "V800x600",
+                                      "V1024x768", "V1152x864", "V1280x1024", "V1600x1200"};
+// The parts the equipment list counts, by mech +0x3ac index ([0x005e3a30..0x005e3a50]).
+constexpr int32_t kEquipParts[8] = {0, 12, 3, 8, 14, 6, 7, 4};
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0043bb80: an unlisted video mode keeps +0x22e3c as it
+// is (FIX (bug) in the constructor, hud.md section 3).
+void Hud::setup(Mech* m) {
+  HudHooks& k = *g_hooks;
+  if (m) mech = m;
+  reader = k.load_hud_zrd();
+  if (reader) {
+    const int32_t v = k.vmode();
+    if (v >= 0 && v <= 10 && kModeBlock[v]) block = zrdr::find(reader, kModeBlock[v]);
+  }
+  if (block) {
+    int32_t a[2], b[2];
+    zrdr::Node* n = zrdr::find(block, "MFD");
+    if (n && ivec2(n, "size", b) && ivec2(n, "position", a)) mfd.place(a[0], a[1], b[0], b[1]);
+    n = zrdr::find(block, "TARGET");
+    if (n && ivec2(n, "size", b) && ivec2(n, "position", a)) target.place(a[0], a[1], b[0], b[1]);
+    n = zrdr::find(block, "TIMER");
+    if (n && ivec2(n, "position", a)) timer.set_pos(a[0], a[1]);
+  }
+  reset();
+  reticle.attach(this);
+  mfd.attach(this);
+  target.attach(this);
+  target.set_target(k.mech_target_slot(m));
+  radar.attach(this);
+  equipment.read_layout(this);
+  weapons.read_layout(this);
+  compass.read_layout(this);
+  gauges.read_layout(this);
+  set_active(m ? (k.mech_dead(m) ? 0 : 1) : 0);
+  if (m) reticle.zoom.round = k.mech_kind(m) == 2;  // 0x00442df0
+  if (reader) {
+    reader = reinterpret_cast<zrdr::Node*>(static_cast<intptr_t>(zrdr::free_node(reader)));
+    block = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0043baf0
+void Hud::set_active(int32_t on) {
+  active = on;
+  if (on == 1)
+    radar.show_for(-1.0f);
+  else
+    radar.hide();
+}
+
+// Mech3.exe 1.2 @ 0x0043be10
+void Hud::reset() {
+  for (uint32_t& v : x22e08) v = 0;
+  radar.set_fade(0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x0043dc70
+void HudRadar::set_fade(float f) {
+  if (f > 1.0f) f = 1.0f;
+  else if (f < 0.0f) f = 0.0f;
+  x54 = zgame::bits(f);  // 0x005a3bb0
+  for (auto& l : lines) l.x4c = zgame::bits(f);  // 0x005a6b20
+}
+
+// Mech3.exe 1.2 @ 0x0043d630
+void HudRadar::set_amber(bool on) {
+  if (x58 != (on ? 1 : 0)) {
+    const uint16_t c = on ? zvid::pack_bytes(0xff, 0xe2, 4) : zvid::pack_bytes(0, 0xff, 0);
+    color = c;
+    lines[0].color = c;
+    lines[1].color = c;
+    x58 = on ? 1 : 0;
+  }
+  changed = 1;
+}
+
+// Mech3.exe 1.2 @ 0x0043d6d0: the zoomed radar centred on the display, its
+// radius 180 at 480 lines.
+void HudRadar::attach(void* hud) {
+  if (!hud) return;
+  HudHooks& k = *g_hooks;
+  source = hud;
+  Mech* m = static_cast<Hud*>(hud)->mech;
+  set_amber(m && k.mech_flag_bc4(m));
+  cx[1] = k.display_w() / 2;
+  cy[1] = k.display_h() / 2;
+  r[1] = k.display_h() * 0xb4 / 0x1e0;
+  to_r = r[zoomed];
+  to_x = cx[zoomed];
+  to_y = cy[zoomed];
+  set_pos(cx[zoomed], cy[zoomed]);
+  radius = r[zoomed];
+  radius_sq = radius * radius;
+  x_steps = std::abs(to_x - get_x());
+  y_steps = std::abs(to_y - get_y());
+  r_steps = std::abs(to_r - radius);
+  changed = 1;
+  set_fov(k.player_camera_fov());
+}
+
+// Mech3.exe 1.2 @ 0x0043db70
+void HudRadar::show_for(float seconds) {
+  to_r = r[zoomed];
+  Object2D::show_for(seconds);
+  lines[0].show_for(seconds);
+  lines[1].show_for(seconds);
+  if (xbd4 > 3) polys[0].show_for(-1.0f);
+  if (xbd8 > 3) polys[1].show_for(-1.0f);
+  changed = 1;
+}
+
+// Mech3.exe 1.2 @ 0x0043f500
+void HudCompass::read_layout(const Hud* hud) {
+  if (!hud || !hud->block) return;
+  zrdr::Node* n = zrdr::find(hud->block, "COMPASS");
+  int32_t a[2];
+  if (ivec2(n, "tape", a)) tape.set_pos(a[0], a[1]);
+  if (ivec2(n, "frame", a)) frame.set_pos(a[0], a[1]);
+}
+
+// Mech3.exe 1.2 @ 0x00444dc0: the frames moved, then the texts, bars and
+// heat marks laid out again from them.
+void HudGauges::read_layout(const Hud* hud) {
+  if (!hud || !hud->block) return;
+  zrdr::Node* n = zrdr::find(hud->block, "GAUGES");
+  int32_t a[2];
+  if (ivec2(n, "speed_frame", a)) speed_frame.set_pos(a[0], a[1]);
+  if (ivec2(n, "fuel_frame", a)) fuel_frame.set_pos(a[0], a[1]);
+  if (ivec2(n, "heat_bar", a)) heat_bar.set_pos(a[0], a[1]);
+  if (ivec2(n, "heat_meter", a)) heat_meter.set_pos(a[0], a[1]);
+  if (ivec2(n, "heat_text", a)) fuel_text.set_pos(a[0], a[1]);
+  if (ivec2(n, "heat_arrow", a)) toggler.set_pos(a[0], a[1]);
+  if (ivec2(n, "coolant_frame", a)) coolant_frame.set_pos(a[0], a[1]);
+  speed_text.set_pos(speed_frame.get_x() + 0x1b, speed_frame.get_y() + 0x30);
+  coolant_text.set_pos(coolant_frame.get_x() + 0x16, coolant_frame.get_y() + 0x21);
+  speed_bar.set_box(speed_frame.get_x() + 0xf, speed_frame.get_y() + 5, 4, 0x2f);
+  coolant_bar.set_box(coolant_frame.get_x() + 9, coolant_frame.get_y() + 7, 4, image_h(coolant_frame) - 8);
+  fuel_bar.set_box(fuel_frame.get_x() + 0x10, fuel_frame.get_y() + 5, 4, image_h(fuel_frame) - 8);
+  toggler_y = heat_meter.get_y() - 1 + (image_h(heat_meter) - (image_h(toggler) >> 1));
+  x1444 = 0;
+  heat_bottom = heat_bar.get_y() + image_h(heat_bar);
+  heat_h = image_h(heat_bar);
+  x1440 = 0;
+  heat_w = heat_bar.image ? heat_bar.image->width : 0;
+}
+
+// Mech3.exe 1.2 @ 0x00448200: with a mech, the lines go below the point
+// unless the weapons and the listed parts' equipment pass 16.
+void HudEquipment::read_layout(Hud* h) {
+  if (!h || !h->mech) {
+    hud = nullptr;
+    return;
+  }
+  HudHooks& k = *g_hooks;
+  if (h->block) {
+    if (zrdr::Node* n = zrdr::find(h->block, "EQUIPMENT")) {
+      zrdr::get_int(n, "width", &column);
+      int32_t a[2];
+      if (ivec2(n, "position", a)) place(a[0], a[1], 0);
+    }
+  }
+  hud = h;
+  for (HudEquipLine& l : lines) l.reset();
+  panel.set_opacity(hud_opacity());
+  panel.set_color(zvid::pack_bytes(0, 0x40, 0));  // 0x0043aae0
+  int32_t n = k.weapons_count(k.mech_weapons(h->mech));
+  for (int32_t i : kEquipParts) {
+    const int32_t c = k.mech_part_count(h->mech, i);
+    if (c > 0) n += c;
+  }
+  below = n < 0x11;
+}
+
+// Mech3.exe 1.2 @ 0x00446120
+void HudWeapons::read_layout(Hud* h) {
+  x1143c = 0;
+  if (!h || !h->mech) {
+    weapons = 0;
+    hud = nullptr;
+    return;
+  }
+  HudHooks& k = *g_hooks;
+  if (h->block) {
+    if (zrdr::Node* n = zrdr::find(h->block, "WEAPONS")) {
+      zrdr::get_int(n, "width", &column);
+      int32_t a[2];
+      if (ivec2(n, "position", a)) set_pos(a[0], a[1]);
+    }
+  }
+  hud = h;
+  weapons = k.mech_weapons(h->mech);
+  for (HudWeaponLine& l : lines) l.set_weapon(nullptr);
+  k.weapons_refresh(this);
+}
+
+// Mech3.exe 1.2 @ 0x00445d10 (with a weapon: its name and the look, not ported yet)
+void HudWeaponLine::set_weapon(void* w) {
+  weapon = w;
+  show_for(-1.0f);
+  if (w) {
+    g_hooks->unported("0x00445d10", {g_hooks->id(this), g_hooks->id(w)});
+    return;
+  }
+  hide();
+  hide();  // 0x00445dc0 with no weapon
+}
+
+// Mech3.exe 1.2 @ 0x004479a0
+void HudDamageView::move(int32_t px, int32_t py) {
+  for (HudDamagePart& p : parts) p.set_pos(p.images->x + px, p.images->y + py);  // 0x00447530
+  bg.set_pos(px, py);
+  rect = {px, py, px + g_damage.bg_w, py + g_damage.bg_h};
+}
+
+// Mech3.exe 1.2 @ 0x0043f890
+void HudZoomView::place(int32_t px, int32_t py, int32_t w, int32_t h) {
+  rect = {px, py, w + px, h + py};
+  view.window->set_area(rect);
+}
+
+// Mech3.exe 1.2 @ 0x004427b0
+void HudMfdView::place(int32_t px, int32_t py, int32_t w, int32_t h) {
+  HudZoomView::place(px, py, w, h);
+  panel.set_size(w, h);
+  panel.set_pos(px, py);
+  box.set_point(0, px, py);
+  box.set_point(1, w + px, py);
+  box.set_point(2, w + px, h + py);
+  box.set_point(3, px, h + py);
+  box.set_point(4, px, py);
+}
+
+// Mech3.exe 1.2 @ 0x00442230
+void HudMfd::place(int32_t px, int32_t py, int32_t w, int32_t h) {
+  damage.move(px, py);
+  view->place(px, py, w, h);
+  g_hooks->nav_list_place(nav, px, py + 0xe, h - 0xf, 6, 4);  // [0x005e3a00], [0x005e3a04]
+  title.set_pos(px, py - title.text_height() - 1);
+}
+
+// Mech3.exe 1.2 @ 0x004423c0
+void HudMfd::attach(void* h) {
+  hud = h;
+  view->set_source(h);
+  Mech* m = h ? static_cast<Hud*>(h)->mech : nullptr;
+  damage.set_mech(m);
+  g_hooks->nav_list_attach(nav, m);
+}
+
+// Mech3.exe 1.2 @ 0x00440110
+void HudTarget::place(int32_t px, int32_t py, int32_t w, int32_t h) {
+  HudMfd::place(px, py, w, h);
+  texts[0].set_pos(px, py + line_h * -2 - 1);
+  texts[1].set_pos(px, py - line_h - 1);
+  texts[2].set_pos(px, py + line_h * -3 - 1);
+}
+
+// Mech3.exe 1.2 @ 0x00441760
+void HudTarget::attach(void* h) {
+  HudMfd::attach(h);
+  update_texts(false);
+}
+
+// Mech3.exe 1.2 @ 0x00444250
+void HudReticle::attach(void* h) {
+  if (h) source = h;
+  zoom.set_source(source);
+  reset();
+}
+
+// Mech3.exe 1.2 @ 0x00443cc0: the lock tone's channels stopped.
+void HudReticle::reset() {
+  x950 = 0;
+  x954 = 0.6f;  // [0x005e3a0c]
+  g_hooks->hud_sound_stop(0, 0);
+  g_hooks->hud_sound_stop(0xc, 0);
+}
+
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order.
 Hud::Hud(Mech* m) {
-  HudHooks& h = *g_hooks;
   if (zfix::options().bugs) block = nullptr;
   load_damage_set();
   mech = nullptr;
-  h.setup(this, m);
+  setup(m);
   add(&compass);
   add(&gauges);
   add(&target);

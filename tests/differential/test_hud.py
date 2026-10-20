@@ -20,13 +20,58 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
-from twod_world import TwodWorld  # noqa: E402
+from twod_world import IAT, READER, ROOT, TwodWorld, entries, parse_node, write_node  # noqa: E402
+from test_twod_msgbox import archive  # noqa: E402
+import random  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 import test_twod  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
-probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+ZRDR_LOAD = 0x556740
+SHIPPED = READER.read_bytes()
+HUD_START = next(s for n, s, _ in entries(SHIPPED) if n.lower() == 'hud.zrd')
+HUD_TREE, _ = parse_node(SHIPPED, HUD_START)
+SYNTH = ROOT / 'build' / 'test_hud.zbd'
+
+
+def synthetic(seed):
+    """The shipped hud.zrd changed: blocks and keys dropped or renamed, odd values."""
+    import copy
+    r = random.Random(f'hudzrd:{seed}')
+    tree = copy.deepcopy(HUD_TREE)
+    top = tree[0]
+    for _ in range(r.randrange(1, 6)):
+        bi = r.randrange(0, len(top), 2)
+        what = r.randrange(5)
+        if what == 0 and len(top) > 2:
+            del top[bi:bi + 2]  # a block gone
+            continue
+        body = top[bi + 1]
+        ki = r.randrange(0, len(body), 2)
+        if what == 1:
+            del body[ki:ki + 2]  # a piece gone
+        elif what == 2:
+            body[ki] = body[ki].lower()  # renamed
+        else:
+            fields = body[ki + 1]
+            fi = r.randrange(0, len(fields), 2)
+            if what == 3:
+                fields[fi + 1] = [r.randrange(-50, 1700) for _ in fields[fi + 1]]
+            else:
+                del fields[fi:fi + 2]
+    if r.random() < 0.6:  # MFD and TARGET resized everywhere: the panel's image grows or shrinks
+        size = [r.randrange(20, 160), r.randrange(20, 160)]
+        for i in range(0, len(top), 2):
+            for j in range(0, len(top[i + 1]), 2):
+                if top[i + 1][j] in ('MFD', 'TARGET'):
+                    f = top[i + 1][j + 1]
+                    for q in range(0, len(f), 2):
+                        if f[q] == 'size':
+                            f[q + 1] = list(size)
+    return tree
+
 
 HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
@@ -43,7 +88,39 @@ class Original:
 
     def run(self):
         e, w = self.e, self.w
-        e.stub(0x43bb80, spec='c,s0')
+        r0 = rnd(self.seed, 'setup')
+        # hud.zrd: the shipped one, a crafted one, or none.
+        kind = r0.choice(['shipped', 'shipped', 'synthetic', 'none'])
+        self.path = b''
+        tree = 0
+        if kind == 'shipped':
+            tree = w.read_tree(SHIPPED, HUD_START)
+            self.path = str(READER).encode()
+        elif kind == 'synthetic':
+            blob = write_node(synthetic(self.seed))
+            SYNTH.write_bytes(archive([('hud.zrd', blob)]))
+            tree = w.read_tree(blob, 0)
+            self.path = str(SYNTH).encode()
+        e.stub(ZRDR_LOAD, '@zrdr_load', 'c,d', None, lambda emu, key, a, pop: emu._ret(tree, pop))
+
+        def realloc(emu, key, a, pop):
+            p, n = a
+            q = emu.alloc(max(n, 4))
+            if p:
+                emu.cpu.write(q, bytes(emu.cpu.read(p, n)))
+            emu._ret(q, 0)
+        e.import_stub(IAT['realloc'], '@realloc', 's0,s1', 0, realloc)
+        box = e.world_alloc(4)
+        e.w32(box, r0.choice([3, 5, 6, 7, 8, 9, 10, 3, 5, 0, 4, 11]))
+        e.w32(0x5f4d0c, box)
+        # The mech's side: dead (vt+0xa0), its kind (0x0041df10), the HUD sound
+        # channels, the nav list, the weapon list's refresh.
+        e.stub(0x41df10, spec='c')
+        w.answers['0x0041df10'] = lambda rr, n, a: rr.choice([0, 1, 2, 2])
+        e.stub(0x41e7a0, spec='c,d')
+        e.stub(0x47eba0, spec='c,s0')
+        e.stub(0x47eb60, spec='c,s0,s1,s2,s3,s4')
+        w.answers['mech.vt+0xa0'] = lambda rr, n, a: rr.choice([0, 0, 1])
         r = rnd(self.seed, 'world')
         entry = e.world_alloc(0x100)
         e.cpu.write(entry + 0xd0, struct.pack('<f', r.choice([0.0, 1.0, -1.0])))
@@ -87,16 +164,20 @@ class Original:
         e.stub(0x4f34c0, spec='c,d')
         e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
         e.w32(0x60598c, r.choice([0, 0, 1, 2, 3]))
-        p_cam = e.world_alloc(8)
+        # The player view: its camera node, the node's data, the field of view.
+        p_cam, node, data = e.world_alloc(8), e.world_alloc(0x40), e.world_alloc(0x100)
         e.w32(0x5f4c8c, p_cam)
+        e.w32(p_cam + 4, node)
+        e.w32(node + 0x38, data)
+        e.wf(data + 0xe8, r.choice([1.0471976, 0.87266463, 1.5707964]))
         # The options' display and window rects (**[0x005f4d20], **[0x005f4d24]).
         for g in (0x5f4d20, 0x5f4d24):
-            rect = e.world_alloc(16)
+            rect = e.world_alloc(0x18)
             if r.random() < 0.7:
-                vals = (0, 0, r.choice([640, 800, 1024]), r.choice([480, 600, 768]))
+                vals = (0, 0, r.choice([640, 800, 1024, 1600]), r.choice([480, 600, 768, 1200]))
             else:
                 vals = tuple(r.randrange(-20, 500) for _ in range(4))
-            e.cpu.write(rect, struct.pack('<4i', *vals))
+            e.cpu.write(rect, struct.pack('<6i', *vals, vals[2] - vals[0], vals[3] - vals[1]))
             box = e.world_alloc(4)
             e.w32(box, rect)
             e.w32(g, box)
@@ -114,10 +195,27 @@ class Original:
         e.cpu.import_code(IAT_FLOOR, FLOOR)
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
-        self.mech = e.world_alloc(0x10) if r.random() < 0.8 else 0
+        self.mech = self.fake_mech(r) if r.random() < 0.8 else 0
         self.snapshot = e.snapshot()
         e.call(0x43b190, ecx=self.hud, stack=(self.mech,))
         return self.dump()
+
+    def fake_mech(self, r):
+        """The fields the set-up reads: vt+0xa0, +0x6c (empty), +0xbc, the
+        weapon manager's count, the parts' equipment counts."""
+        e = self.e
+        m = e.world_alloc(0x400)
+        vt = e.world_alloc(0x100)
+        e.w32(m, vt)
+        e.w32(vt + 0xa0, e.new_stub('mech.vt+0xa0', 'c', 0))
+        # +0x6c: no target (a target's path is TARGET's item, hud.md section 9)
+        e.cpu.write(m + 0xbc, bytes([r.randrange(256)]))
+        wm = e.world_alloc(0x40)
+        e.w32(m + 0xd4, wm)
+        e.w32(wm + 0x24, r.randrange(0, 12))
+        for i in range(16):
+            e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
+        return m
 
     def dump(self):
         e, h = self.e, self.hud
@@ -235,6 +333,8 @@ class Original:
         kv('active', e.r32(h + 4))
         line.append(f'head={piece(e.r32(h + 8))} tail={piece(e.r32(h + 0xc))}')
         kv('mech', e.r32(h + 0x10))
+        kv('reader', e.r32(h + 0x22e38))
+        kv('block', int(e.r32(h + 0x22e3c) != 0))
         for i in range(12):
             kv('z', e.r32(h + 0x22e08 + 4 * i))
         out.append(' '.join(line) + ' ')
@@ -425,6 +525,7 @@ class Original:
         for k, off in (('state', 0x908), ('x950', 0x950), ('x954', 0x954)):
             kv(k, e.r32(o + off))
         kv('locked', e.r8(o + 0x90c))
+        kv('src', e.r32(o + 0x958))
         for i in range(5):
             tx('i', e.r32(o + 0x910 + 4 * i))
         for i in range(10):
@@ -559,7 +660,7 @@ def run_case(seed, verbose=False):
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     buf = ctypes.create_string_buffer(1 << 20)
-    n = probe.probe_hud_build(orig.hud, orig.mech, buf, len(buf))
+    n = probe.probe_hud_build(orig.hud, orig.mech, orig.path, buf, len(buf))
     assert n >= 0, 'probe failed'
     dump_r = buf.value.decode('latin1')
     stubbed = orig.w.stub_textures

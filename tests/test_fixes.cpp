@@ -12,6 +12,7 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
+#include "mech3/hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
@@ -551,5 +552,19 @@ TEST(fix_beam_recharge_per_second) {
     EXPECT(std::abs(tag_recharge(fps, 0, 10, true) - 1500) <= 1);
     EXPECT(std::abs(tag_recharge(fps, 1.0f, 10, true) - tag_recharge(30, 1.0f, 10, true)) <= 1);
   }
+}
+
+// The HUD's +0x22e3c (hud.md section 3): with a video mode hud.zrd has no
+// block for, the set-up reads whatever the block slot held. The fix clears it
+// in the constructor; here the HUD is built over garbage and the set-up runs
+// with no block (the exe would read through 0xcdcdcdcd).
+TEST(fix_hud_block_cleared) {
+  zfix::options().bugs = true;
+  void* storage = ::operator new(sizeof(mech3::Hud));
+  std::memset(storage, 0xcd, sizeof(mech3::Hud));
+  auto* hud = new (storage) mech3::Hud(nullptr);  // the default hooks: no hud.zrd, video mode 0
+  EXPECT(hud->block == nullptr);
+  hud->~Hud();
+  ::operator delete(storage);
 }
 
