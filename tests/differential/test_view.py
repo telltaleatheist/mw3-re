@@ -423,7 +423,7 @@ def run(probe, seed, verbose=False):
     e.w32(w.view, VIEW_VT)
     e.w32(w.view + 4, w.cam)
     e.w32(w.view + 0xc, w.world)  # zView's +0x0c (0x004b4fe0's object): +4 the world node the ground query asks
-    vraw[6] = fbits(rf(0, 8))
+    vraw[6] = fbits(r.choice([rf(0, 8), rf(15, 40)]))  # fast enough before for the 0.9 x dist floor
     for base in (7, 11, 15):
         q = qnorm([1.0, rf(-0.2, 0.2), rf(-0.2, 0.2), 0.0]) if r.random() < 0.5 else [1.0, 0.0, 0.0, 0.0]
         vraw[base:base + 4] = [fbits(x) for x in q]
