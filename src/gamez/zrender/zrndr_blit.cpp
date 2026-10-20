@@ -38,6 +38,26 @@ Target2D& target2d() { return g_target; }
 
 // Mech3.exe 1.2 @ 0x0055b3c0
 void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const BlitRect* src) {
+  // FIX (B): a source rectangle reaching past the image is cut at its edges;
+  // the original reads past the pixels. The menus pass the screen's size as
+  // the rectangle of their 1280x960 background, so at taller or wider screens
+  // (the pause screen's Options above 960 lines) it read past it
+  // (docs/menus.md, The background at other sizes; fixes.md).
+  BlitRect cut;
+  if (src) {
+    cut = *src;
+    if (cut.left < 0) {
+      x -= cut.left;
+      cut.left = 0;
+    }
+    if (cut.top < 0) {
+      y -= cut.top;
+      cut.top = 0;
+    }
+    if (cut.right > img->width) cut.right = img->width;
+    if (cut.bottom > img->height) cut.bottom = img->height;
+    src = &cut;
+  }
   int32_t w, h;
   if (!src) {
     w = img->width;

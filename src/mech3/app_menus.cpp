@@ -122,9 +122,11 @@ bool GameEngine::menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg
 }
 
 void GameEngine::delete_screens() {
-  while (!menu_states_.empty()) {  // each deletes its screen
+  // The app may be gone: the screens go below, not through the states' destructors.
+  while (!menu_states_.empty()) {
     MenuState* st = menu_states_.begin()->second;
     menu_states_.erase(menu_states_.begin());
+    st->screen_ = 0;
     delete st;
   }
   for (auto& [h, s] : screens_) {

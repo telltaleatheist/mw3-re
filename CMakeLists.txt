@@ -214,6 +214,7 @@ add_executable(mw3tests
   tests/test_zgameapp.cpp
   tests/test_app.cpp
   tests/test_mainmenu.cpp
+  tests/test_menus.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp

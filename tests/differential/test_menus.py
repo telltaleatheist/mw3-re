@@ -194,6 +194,8 @@ def make_plan(seed, kind, n_slides, n_cycles, n_others, spots, bound):
             lines.append(f'R {r.randrange(2)}')
         elif roll < 0.31 and kind == 2:
             lines.append(f'G {r.choice([-1, 0, 1, 2])}')
+        elif roll < 0.34 and kind == 2:  # another device, then ACCEPT's apply
+            lines += ['S 4 1', 'R 1']
         elif roll < 0.33:
             lines.append(f'B {r.randrange(2)}')
         elif roll < 0.35 and n_slides:

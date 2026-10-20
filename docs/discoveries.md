@@ -1335,3 +1335,47 @@ From the main menu's code, 0x00486260 and its buttons (details: `mainmenu.md`).
 - **The version line assumes 640x480.** The "MechWarrior 3 1.2" text in
   the corner is placed for a 640x480 screen whatever the resolution, while
   the background and the logo use the real screen size.
+
+### Options and credits
+
+From the option and credits screens, 0x004379f0, 0x00438f60, 0x004289a0
+(details: `menus.md`).
+
+- **Difficulty is GameIntensity.** The Options screen's Difficulty (Low,
+  Medium, High) is the same setting as the registry's GameIntensity
+  (`options.md`).
+- **The red switches are the cheats.** Invincible and Infinite Ammo show ON
+  in red, Heat Management shows OFF in red: the three settings that mark a
+  game as cheated (`protection.md`). Everything else is green.
+- **Inverting the mouse resets its sensitivity.** "Invert mouse Y" is just
+  the sign of the vertical mouse speed, and pressing Accept on the game
+  options writes it back as exactly 1.3 (or -1.3), so a vertical speed set
+  in the registry is lost every time you accept that screen.
+- **Back saves nothing, Accept writes the registry.** Back leaves the
+  options as they were; Accept on the game options saves every setting to
+  the registry at once. Back and the credits' Back are also the only menu
+  buttons that make no click.
+- **The graphics menu never offers more than 1024x768.** It shows the modes
+  a card can run by its free video memory: 640x480 to 1024x768 for a 3D card
+  (800x600 below 4.5 MB free, 640x480 below 2.75 MB), 320x240 and 640x480 in
+  software. The game has names ready for 1152x864, 1280x1024 and 1600x1200
+  and its list would show them, but the check never reaches them, so they
+  stay registry-only; and accepting the graphics menu replaces a
+  registry-set one with the mode shown.
+- **The texture size is a choice of 2, 4 or 8 MB.** "MAX" appears only for
+  the software renderer, and a card shows only the sizes its memory holds.
+- **Changing the video card restarts the game.** Picking another device and
+  pressing Accept asks to restart; yes ends the game so it can start again
+  on the new card (the game options screen's choices are applied too), no
+  keeps the old card. While you browse cards
+  the menu shows each card's own lighting, effects and shadow settings: the
+  game keeps a separate set for software and for 3D.
+- **Shadows need a 3D card and one feature of it.** Lighting and self
+  shadows are greyed out in software; Shadows also needs the card to report
+  capability 3.
+- **The credits take four minutes.** 246 entries scroll by at one second
+  each, then start again from the bottom, at the same speed on any computer.
+- **The "Other Voices" heading is out of line.** Its position in the credits
+  file has one number instead of two, so it borrows the position of the name
+  above it: it is indented like a name, with no gap, unlike every other
+  heading (likely a typo).
