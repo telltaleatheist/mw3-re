@@ -106,7 +106,10 @@ unusual happens.
 - A damaged saved controls-file name (no end marker) no longer makes the game
   read past it.
 - A hand-made AI region file without a name, or an AI path linking past its
-  last point, no longer crashes the mission load.
+  last point or to points without a position, no longer crashes the
+  mission load or the AI's route finding. One shipped path (c2 mission 3,
+  path 13) links to a point that does not exist; the original read
+  leftover memory there, the rebuild takes no link.
 
 ## Copy protection removed
 

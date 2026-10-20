@@ -29,13 +29,16 @@ VLIST_DEFAULTS = struct.pack('<7I', 0x3e800000, 0x3dcccccd, 0x3f4ccccd, 0, 0x456
 HANDLE = 0x1234
 BIG = 0x40000000
 # The AI globals the static initializers set up (zeroed before each run).
-GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78), (0x603fd8, 0x10), (0x60b3f0, 0xc)]
+GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78), (0x603fd8, 0x10), (0x60b3f0, 0xc),
+           (0x608c84, 4), (0x736558, 0x10),  # no world loaded, no vehicles
+           (0x60b444, 4)]  # the node steps' scratch vector (0x004c8f70; set to 0 by 0x004c7b20)
 # MSVCRT's floor as x87 code (test_scenewalk.py).
 FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
 IAT_FLOOR = 0x5bb66c
 REGISTRY, REGIONS = 0x603fd8, 0x60b3f0
-# Not ported yet: the version-106 net compiler (zainetedit.cpp's build_compiled).
-COMPILE_106 = 0x4be670
+# The multiplayer waynet (mech_waynet.cpp), which arrangenodes nodes join:
+# none, as the port's NetHooks::waynet_point.
+WAYNET = 0x4d5460
 
 
 def fnv(b):
@@ -124,12 +127,13 @@ class Emulated:
             SOUND: (self.sound, 0),
             ZERR: (self.zerr, 0),
             ATEXIT: (lambda c: 0, 0),
-            COMPILE_106: (lambda c: 0, 0),
+            WAYNET: (lambda c: 0, 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
         self.trees = {}
         self.reached = set()
+        self.guard = None
         # The aiv reader's old-tag scratch is uninitialised stack in the exe;
         # the port takes zeros and the order defaults (FIX (bug)): pin them.
         cpu.uc.hook_add(UC_HOOK_CODE, self.pin_aiv_stack, begin=AIV_PARSE, end=AIV_PARSE)
@@ -145,8 +149,14 @@ class Emulated:
     # --- C runtime -------------------------------------------------------------
     def alloc(self, n):
         a = self.next
-        self.next += (max(n, 1) + 0xf) & ~0xf
-        self.cpu.write(a, bytes((max(n, 1) + 0xf) & ~0xf))
+        size = (max(n, 1) + 0xf) & ~0xf
+        self.next += size
+        self.cpu.write(a, bytes(size))
+        if self.guard is not None:
+            # What the exe reads just past a block (a vector indexed past its
+            # end): pinned to the value the port's FIX (bug) takes instead.
+            self.cpu.write(a + n, bytes([self.guard]) * (size - n + 16))
+            self.next += 16
         return a
 
     def pin_aiv_stack(self, uc, address, size, user):
@@ -321,6 +331,8 @@ class Emulated:
         cpu.call(0x4e0720)          # traps.zrd's (0x0060b630)
         cpu.call(0x4c7b80, ecx=REGISTRY)  # the numbered objects (0x00603fd8)
         cpu.call(0x4c5d80, ecx=REGIONS)   # the regions' list (0x0060b3f0)
+        cpu.call(0x4105d0, ecx=0x603fa0)  # the null step
+        cpu.call(0x4c8750, ecx=0x604068)  # the default behaviour
 
     # --- what the port's probe writes ------------------------------------------
     def valves(self):
@@ -688,3 +700,106 @@ class RegionsRun:
         cpu.call(0x4c5fa0)
         self.put_state(o)
         return bytes(o.b), e.events
+
+
+# --- compiled nets --------------------------------------------------------------
+NULL_STEP, DEFAULT_BEHAVIOUR = 0x603fa0, 0x604068
+VALUE_STEPS = {0x5cb488, 0x5cb560, 0x5cb638, 0x5cbaf8, 0x5cc008}   # speed, waits, jump, sound
+STEPS = VALUE_STEPS | {0x5cb710, 0x5cbbd0, 0x5cbca8, 0x5cbd60, 0x5cc0e0, 0x5cc1b8, 0x5cc368, 0x5cc440}
+NODES = {0x5cc6f0, 0x5cc7a8, 0x5cbf30, 0x5cc898}
+
+
+class CompiledRun:
+    """What probe_nets_run writes, from the original's memory."""
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def token(self, elems, p):
+        if p == NULL_STEP:
+            return -2
+        if p == DEFAULT_BEHAVIOUR:
+            return -3
+        if p in elems:
+            return elems.index(p)
+        return -4
+
+    def put_step(self, o, elems, p):
+        e, u, u8 = self.e, self.e.u32, self.e.u8
+        vt = u(p)
+        o.u(vt)
+        if p in (NULL_STEP, DEFAULT_BEHAVIOUR):
+            return
+        o.u(u8(p + 4)), o.u(u(p + 8))
+        vl = e.valves()
+        if vt in STEPS:
+            nxt = u(p + 0xc)
+            # A slot number left unresolved (the exe's FIX (bug) case) is written as it is.
+            o.u(self.token(elems, nxt) if nxt in elems or nxt in (NULL_STEP, DEFAULT_BEHAVIOUR) else nxt)
+            if vt in VALUE_STEPS:
+                o.u(u(p + 0x10))
+            elif vt == 0x5cb710:
+                o.u(e.valve_token(u(p + 0x10), vl)), o.u(u(p + 0x14))
+            elif vt in (0x5cbbd0, 0x5cbca8, 0x5cbd60):
+                b, end = u(p + 0x14), u(p + 0x18)
+                o.u(u8(p + 0x10)), o.u((end - b) // 8 if b else 0)
+                for q in range(b, end, 8):
+                    o.u(u(q)), o.u(u(q + 4))
+            elif vt == 0x5cc0e0:
+                o.s(e.cstr(u(p + 0x10)))
+            elif vt == 0x5cc368:
+                # +0x10 is the reader's union tag: a stack address's low byte in the exe, never read.
+                b, end = u(p + 0x14), u(p + 0x18)
+                o.u((end - b) // 8 if b else 0)
+                for q in range(b, end, 8):
+                    o.u(e.valve_token(u(q), vl)), o.u(u(q + 4))
+            elif vt == 0x5cc440:
+                o.u(e.valve_token(u(p + 0x10), vl)), o.u(u(p + 0x14))
+            return
+        if vt in NODES:
+            o.s(e.cstr(u(p + 0xc)))
+            for off in (0x10, 0x14, 0x18):
+                o.u(u(p + off))
+            b, end = u(p + 0x20), u(p + 0x24)
+            o.u((end - b) // 4 if b else 0)
+            for q in range(b, end, 4):
+                o.u(self.token(elems, u(q)))
+            if vt == 0x5cbf30:
+                o.u(e.valve_token(u(p + 0x2c), vl)), o.u(u(p + 0x30)), o.u(u(p + 0x34))
+            elif vt == 0x5cc898:
+                o.u(e.valve_token(u(p + 0x2c), vl)), o.u(u(p + 0x30)), o.u(e.valve_token(u(p + 0x34), vl))
+                o.u(u(p + 0x38)), o.u(self.token(elems, u(p + 0x3c)))
+
+    def elems(self, x):
+        u = self.e.u32
+        b, end = u(x + 0xc), u(x + 0x10)
+        return [u(q) for q in range(b, end, 4)] if b else []
+
+    def put_compiled(self, o, x):
+        u = self.e.u32
+        els = self.elems(x)
+        o.u(u(x + 4)), o.u(self.e.u8(x + 0x18)), o.u(len(els))
+        for p in els:
+            self.put_step(o, els, p)
+
+    def compiled(self):
+        rr = RegionsRun(self.e)
+        return [x for x in rr.list_items(self.e.u32(REGISTRY + 4)) if self.e.u32(x) == 0x5ca6d8]
+
+    def run(self, files, nets=range(1, 100)):
+        """0x402240 for each net number in turn (0x402170 asks 1..99), then every
+        compiled net in the registry dumped."""
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        for n in nets:
+            cpu.call(0x402240, ecx=n, edx=0, count=2_000_000_000)
+        RegionsRun(e).put_state(o)
+        for x in self.compiled():
+            self.put_compiled(o, x)
+        vl = e.valves()
+        o.u(len(vl))
+        for v in vl:
+            o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events
+

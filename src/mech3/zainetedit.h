@@ -13,6 +13,26 @@
 // --debug (ai.md, The developer tools).
 namespace mech3::ai {
 
+// Calls compiling a net makes into modules not ported, or ported elsewhere.
+struct NetHooks {
+  // 0x004edab0 / 0x004abd90 while a world is loaded ([0x00608c84]): a node's
+  // height put on the ground under it. None: the file's height.
+  void (*ground)(float pos[3]) = nullptr;
+  // 0x004d5460, 0x00479be0, 0x0047a320, 0x0047a010 (mech_waynet.cpp): an
+  // arrangenodes node also becomes a point of the multiplayer "mcbwaynet".
+  // None: not ported.
+  void (*waynet_point)(const NetNodeRec& rec, const float pos[3]) = nullptr;
+  // 0x004be5a0 over the vehicles (0x0073655c): the ones following a net
+  // that is rebuilt are let go of it, then given the new one.
+  void (*rebuilt)(AiNet* old_net, AiNet* new_net) = nullptr;
+};
+NetHooks& net_hooks();
+
+// 0x00402240: net_NN built (a short-lived builder), unless one of that
+// number is registered; the compiled net, null for none.
+AiNet* net_build(int32_t net);
+void nets_build_all();  // 0x00402170: nets 1..99, as a mission starts (0x0049e810)
+
 // 0x004bf000's answer: a region's loop of nodes.
 struct NetLoop {
   int32_t count = 0;  // edges

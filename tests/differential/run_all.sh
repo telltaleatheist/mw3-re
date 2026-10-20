@@ -61,6 +61,7 @@ for t in \
     pose \
     ai_readers \
     ai_regions \
+    ai_nets \
     zinput \
     settings \
     mission_load \

@@ -2,8 +2,12 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
+#include "mech3/zai_steps.h"
 #include "mech3/zainet_region.h"
 
 namespace mech3::ai {
@@ -156,9 +160,202 @@ Region* CZAiNetEdit::make_region(Region* r, const NetLoop& l) {
   return r;
 }
 
-// Mech3.exe 1.2 @ 0x004be670: a version-106 net compiled into the steps the
-// pilots follow. Not ported yet (ai.md, porting order step 2): none.
-AiNet* CZAiNetEdit::build_compiled() { return nullptr; }
+NetHooks& net_hooks() {
+  static NetHooks h;
+  return h;
+}
+
+namespace {
+
+uint32_t bits(float f) {
+  uint32_t u;
+  std::memcpy(&u, &f, 4);
+  return u;
+}
+
+// 0x004bd440 (vtable 0x005ca480): what compiling a net keeps between nodes.
+// The slot counts (0x004bd670, 0x004bd4e0, 0x004bd5b0) come first, the
+// steps (0x004be230, 0x004bde20, 0x004bd790, 0x004bdd90) after.
+struct Compiler {
+  CZAiNetEdit* edit;
+  int32_t slots = 0;            // +0x08
+  int32_t max_links = 0;        // +0x0c
+  std::vector<int32_t> slot_of; // +0x14  a node's number -> its step's slot, -1 for none
+  std::vector<int32_t> targets; // +0x24  the current node's links as slots
+  CompiledNet* net = nullptr;   // +0x30
+  NetNode* cur = nullptr;       // +0x34
+  int32_t target = 0;           // +0x38  the node the current link goes to
+  int32_t slot = 0;             // +0x40  the next slot to fill
+  int32_t link = 0;             // +0x44
+  int32_t links = 0;            // +0x48
+  int32_t* way = nullptr;       // +0x4c  the word the next step's slot goes into
+  int32_t lost = -1;            // FIX (bug): stands in for a way past the node's links
+  std::vector<std::unique_ptr<Step>> lost_steps;
+
+  explicit Compiler(CZAiNetEdit* e) : edit(e), slot_of(size_t(e->count()), -1) {}
+
+  bool positioned(NetNode* n) const { return n && n != edit->placeholder && n->rec.kind == 0; }
+  bool on_edges(NetNode* n) const { return n && n != edit->placeholder && n->rec.kind != 0; }
+  int32_t slot_for(int32_t node) const {  // FIX (bug): the exe indexes unchecked
+    return node >= 0 && size_t(node) < slot_of.size() ? slot_of[size_t(node)] : -1;
+  }
+
+  // Mech3.exe 1.2 @ 0x004bd5b0: one step per property the node has.
+  static int32_t properties(const NetNodeRec& r) {
+    int32_t n = (r.speed_on != 0) + (r.wait_interval_on != 0) + (r.wait_time_on != 0) + (r.valve_on != 0);
+    n += (r.canleave[0] != 0) + (r.jump_on != 0) + (r.sound != nullptr);
+    n += (r.scan_aim[0] != 0 || r.scan_hit[0] != 0 || r.scan_time[0] != 0);
+    n += (r.gate != nullptr) + (r.shunt != 0) + (r.valve_union != nullptr) + (r.valve_assign != nullptr);
+    return n;
+  }
+
+  // Mech3.exe 1.2 @ 0x004bd4e0: the steps an edge node `m` (one without a
+  // position: links from, to...) adds to the current node, once for each of
+  // its ends the current node links to.
+  int32_t edge_count(NetNode* m) const {
+    if (!on_edges(m)) return 0;
+    const std::vector<int32_t>& l = m->rec.links;
+    if (l.size() < 2 || l[0] != cur->rec.index) return 0;
+    int32_t hits = 0;
+    for (size_t k = 1; k < l.size(); ++k)
+      for (int32_t t : cur->rec.links)
+        if (t == l[k]) {
+          ++hits;
+          break;
+        }
+    return hits > 0 ? properties(m->rec) * hits : 0;
+  }
+
+  // Mech3.exe 1.2 @ 0x004bd670: a positioned node's slot, then room for its
+  // properties on each link and the edge nodes' on theirs.
+  void count(NetNode* n) {
+    cur = n;
+    if (!positioned(n)) return;
+    slot_of[size_t(n->rec.index)] = slots;
+    const int32_t nl = n->link_count();
+    if (max_links < nl) max_links = nl;
+    slots += 1 + properties(n->rec) * nl;
+    int32_t extra = 0;
+    for (znet::Element* e : edit->elems) extra += edge_count(e ? static_cast<AiElem*>(e)->as_node() : nullptr);
+    slots += extra;
+  }
+
+  // One step into the next slot, threaded into the current link's chain.
+  void add(Step* s) {
+    s->next_slot = *way, s->slot_set = true;
+    *way = slot;
+    way = &s->next_slot;
+    // FIX (bug): a step past the counted slots (a node linking to one node
+    // twice with an edge node on that link) is written past the vector in
+    // the exe. Here it is kept aside and dropped: the net is what the exe's
+    // ends up as, the chain through it broken (attach finds no step there).
+    if (size_t(slot) < net->elems.size())
+      net->elems[size_t(slot)] = s;
+    else
+      lost_steps.emplace_back(s);
+    ++slot;
+  }
+
+  // Mech3.exe 1.2 @ 0x004bd790: node `n`'s properties as steps on the current
+  // link, in this order.
+  void emit(NetNode* n) {
+    const NetNodeRec& r = n->rec;
+    if (r.speed_on) add(new ValueStep(StepKind::Speed, bits(r.speed)));
+    if (r.wait_interval_on) add(new ValueStep(StepKind::WaitInterval, bits(r.wait_interval)));
+    if (r.wait_time_on) add(new ValueStep(StepKind::WaitTime, bits(r.wait_time)));
+    // A valve without a value is set to 1 on the node's last link, 0 on the others.
+    if (r.valve_on) add(new ValveStep(r.valve, r.valve_has_value ? r.valve_value : int32_t(link == links - 1)));
+    if (r.canleave[0]) {
+      const bool on = r.canleave[1] != 0;
+      auto* s = new ScanStep(on ? StepKind::CanLeave : StepKind::CanLeaveNot, 1);  // 0x004cbcf0 / 0x004cbd40
+      s->tests.emplace_back(on ? ScanTest::CanLeave : ScanTest::CanLeaveNot, 0);
+      add(s);
+    }
+    if (r.scan_aim[0] || r.scan_hit[0] || r.scan_time[0]) {
+      auto* s = new ScanStep(StepKind::Scan, (r.scan_aim[0] != 0) + (r.scan_hit[0] != 0) + (r.scan_time[0] != 0));
+      if (r.scan_aim[0]) s->tests.emplace_back(r.scan_aim[1] ? ScanTest::AimOn : ScanTest::AimOff, 0);
+      if (r.scan_hit[0]) s->tests.emplace_back(r.scan_hit[1] ? ScanTest::HitOn : ScanTest::HitOff, 0);
+      if (r.scan_time[0]) s->tests.emplace_back(r.scan_time[1] ? ScanTest::TimeOn : ScanTest::TimeOff, 0);
+      add(s);
+    }
+    if (r.jump_on) add(new ValueStep(StepKind::Jump, bits(r.jump)));
+    if (r.sound) add(new SoundStep(r.sound));
+    if (r.gate) add(new GateStep(r.gate));
+    if (r.shunt) add(new Step(StepKind::Shunt));
+    if (r.valve_union) add(new UnionStep(*r.valve_union));
+    if (r.valve_assign) add(new AssignStep(*r.valve_assign));
+  }
+
+  // Mech3.exe 1.2 @ 0x004bdd90 (-> 0x004bdd70): an edge node from the current
+  // node puts its properties on each of its ends the current link goes to.
+  void edge(NetNode* m) {
+    if (!on_edges(m)) return;
+    const std::vector<int32_t>& l = m->rec.links;
+    if (l.size() < 2 || l[0] != cur->rec.index) return;
+    for (size_t k = 1; k < l.size(); ++k)
+      if (l[k] == target) emit(m);
+  }
+
+  // Mech3.exe 1.2 @ 0x004bde20: a positioned node's step, then each link's
+  // chain of property steps leading on to the node it links to.
+  void compile(NetNode* n) {
+    cur = n;
+    if (!positioned(n)) return;
+    const NetNodeRec& r = n->rec;
+    slot = slot_of[size_t(r.index)];
+    links = n->link_count();
+    float p[3] = {r.pos[0], r.pos[1], r.pos[2]};
+    if (net_hooks().ground) net_hooks().ground(p);
+    for (int32_t k = 0; k < links; ++k) targets[size_t(k)] = slot_for(r.links[size_t(k)]);
+    NodeStep* s;
+    if (r.deploy_set)
+      s = new DeployNode(p, targets.data(), links, r.auxname, r.deploy_valve_a, r.deploy_a, r.deploy_valve_b,
+                         r.deploy_b, slot_for(int32_t(r.deploy_c)));
+    else if (r.mcbwait_set)
+      s = new McbWaitNode(p, targets.data(), links, r.auxname, r.mcbwait_valve, r.mcbwait_b, r.mcbwait_time);
+    else if (r.backup)
+      s = new NodeStep(StepKind::BackupNode, p, targets.data(), links);
+    else {
+      s = new NodeStep(StepKind::Node, p, targets.data(), links);
+      s->set_name(r.auxname);
+    }
+    if (r.arrange_set && net_hooks().waynet_point) net_hooks().waynet_point(r, p);
+    net->elems[size_t(slot)] = s;
+    ++slot;
+    for (link = 0; link < links; ++link) {
+      way = size_t(link) < s->slots.size() ? &s->slots[size_t(link)] : &(lost = -1);
+      target = r.links[size_t(link)];
+      emit(n);
+      for (znet::Element* e : edit->elems) edge(e ? static_cast<AiElem*>(e)->as_node() : nullptr);
+    }
+  }
+};
+
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004be670 -> 0x004be300 (no net given): a version-106 net
+// compiled into steps (ai.md section 9). A net built before is dropped first;
+// the vehicles following it are handed the new one (NetHooks::rebuilt).
+AiNet* CZAiNetEdit::build_compiled() {
+  if (header.version != 0x6a) return nullptr;
+  AiNet* old = net;
+  if (net) {
+    if (net_hooks().rebuilt) net_hooks().rebuilt(old, nullptr);
+    drop_net();
+  }
+  Compiler c(this);
+  for (znet::Element* e : elems) c.count(e ? static_cast<AiElem*>(e)->as_node() : nullptr);  // 0x004bd740
+  auto* cn = new CompiledNet(header.net, c.slots);
+  cn->elems.assign(size_t(c.slots), null_step());
+  net = cn;
+  // 0x004be230: the net checked to be a compiled one (0x004bd640).
+  c.net = cn;
+  c.targets.assign(size_t(c.max_links), 0);
+  for (znet::Element* e : elems) c.compile(e ? static_cast<AiElem*>(e)->as_node() : nullptr);
+  for (size_t i = 0; i < cn->elems.size(); ++i) static_cast<AiElem*>(cn->elems[i])->as_behaviour()->attach(cn);
+  if (net_hooks().rebuilt) net_hooks().rebuilt(old, cn);
+  return cn;
+}
 
 // Mech3.exe 1.2 @ 0x004bf3f0
 Region* CZAiNetEdit::build_region() {
@@ -170,6 +367,17 @@ Region* CZAiNetEdit::build_region() {
   Region* got = made ? made->as_region() : nullptr;
   if (got != r) delete r;
   return got;
+}
+
+// Mech3.exe 1.2 @ 0x00402240 (in the exe's first, unnamed module)
+AiNet* net_build(int32_t n) {
+  CZAiNetEdit edit(n, nullptr, 1);
+  return edit.as_compiled();
+}
+
+// Mech3.exe 1.2 @ 0x00402170
+void nets_build_all() {
+  for (int32_t n = 1; n < 100; ++n) net_build(n);
 }
 
 }  // namespace mech3::ai

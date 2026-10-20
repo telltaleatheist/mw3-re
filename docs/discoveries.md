@@ -1028,6 +1028,25 @@ are all "puffers": emitters that drop little textured squares.
   file name is misspelt (`reg_friefly_02_go`, which calls itself
   `reg_firefly_02_go`); in c3's mission 2 two regions are AI paths too.
   Nothing uses them, so nothing is lost.
+- **A vehicle's first number is the path it walks.** The first number of
+  each record in `aiv.zrd` is the number of the AI path (`net_NN`) the
+  vehicle's pilot follows; 0 or a path that does not exist gives it the
+  built-in default.
+- **Paths are compiled into little programs.** At mission start every
+  path file is turned into a list of steps: each point becomes a "go
+  here" step, and each of its settings (speed, waits, triggers, scans,
+  may-leave, jumps, sounds, gates) becomes a step on every link out of it,
+  so a pilot meets them on the way to the next point. Settings can also
+  sit on chosen links only: a path entry without a position, listing a
+  point and some of its neighbours, puts its settings on those links.
+- **A trigger on a path point is a switch.** A point that names a trigger
+  (`valve`) without a value opens its last link only while the trigger is
+  on and all its other links only while it is off, so the mission flips a
+  patrol onto another route by setting one trigger. With a value given,
+  every link opens at that value.
+- **One AI path points at nothing.** In the c2 world's mission 3, path 13
+  is a single point linking to a point that does not exist; the original
+  reads leftover memory there. The rebuild takes it as no link.
 - **There was an AI tester in the game.** A developer dialog for steering a
   unit by hand ("Direct", "Zig Zag", "Circle", "Jump", "Random Move") and
   picking its target ("player", "nearest enemy") is still in the exe behind

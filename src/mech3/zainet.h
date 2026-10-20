@@ -15,12 +15,15 @@ class CZAiNetEdit;
 float normalize_load(float v[3]);  // 0x004020d0 at load-time precision
 class NetNode;
 class Region;
+struct Behaviour;
 
 // An element of an AI net: the nodes of the builder, the edges of a region,
-// the steps of a compiled net. In the exe two casts (+0x60, then +0x88) take
-// an element to the node it is; anything else answers null.
+// the steps of a compiled net. In the exe two casts (+0x60, then +0x88 or
+// +0x74) take an element to the node or the behaviour it is; anything else
+// answers null.
 struct AiElem : znet::Element {
   virtual NetNode* as_node() { return nullptr; }
+  virtual Behaviour* as_behaviour() { return nullptr; }  // +0x60 then +0x74
 };
 
 // 0x004d5120: a numbered object (vtable 0x005ccda8) with the casts the AI

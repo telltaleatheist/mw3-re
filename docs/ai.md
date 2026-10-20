@@ -238,12 +238,13 @@ Clean boundaries for later work, each a piece with its own test:
    mission boundary from the world's `inout` polygons (render.md 6a), read
    at mission load (0x4c3b80 -> 0x4c3930) and asked by the behaviours
    (0x4c3000, seven callers) to keep a destination inside; not ported
-   (section 11).
-2. **The run-time net** (CZAiNetEdit 0x4bcba0 without the editing, the node
-   0x4c6d30, the net base 0x4d5120 with its network object stubbed): nodes and
-   links from NetRef. Test: build every shipped net, compare node arrays.
-3. **Net queries** the behaviours use (nearest node, next node along links,
-   arrangement 0x4c0090 family): leaf functions once 2 is in.
+   (section 10).
+2. **The run-time net**: done (section 9), the builder and the compiled
+   net of steps. Left: the mission start's call (0x49e810, player.cpp), the
+   ground snap and the multiplayer waynet (NetHooks), the built-in nets
+   (0x604008, the seven-behaviour net 0x4c0090) and the 105/107 versions.
+3. **Net queries** (the nearest step 0x4d51d0, the way finder 0x4c7d00):
+   next.
 4. **Valves** at run time (ZRdrValve.cpp 0x4e2330 reader and the action and
    condition classes): the registry is ported; actions call into sound,
    animation, mission end and entities through a hooks struct.
@@ -298,6 +299,21 @@ z are 0, so no order rounds differently), negative links followed (the
 reader never keeps a negative link) and the walk following the last link
 (the edges then follow another way and the port runs out of memory: caught,
 but no use as a break).
+
+`tests/differential/test_ai_nets.py` (`CompiledRun`): 0x402240 for 1..99
+in every mission's archive (308 net files), then 137 made-up nets (every
+property alone and on edge nodes, special nodes, duplicates, links to
+missing and unpositioned nodes, nets built twice, ids out of range, 80
+random); the registry and every compiled net's steps (kind, data, links as
+slots) match: 174 of 174, and in 29 made-up nets the original crashes
+where the port reads (section 9; the emulator pins the bytes just past a
+heap block to 0xff, the -1 the port's FIX takes). Breaks caught: the
+default valve value on the first link, speed after the waits, edge ends
+counted per link, an edge node on its first end only, backup before
+mcbwait, plain nodes unnamed, missing links kept, the null step kept by
+attach, the deploy target by number, the canleave tests swapped, the scan
+aim inverted, edge nodes not counted, the net under the builder's id,
+built nets rebuilt: 14 of 14.
 
 ## 8. The net objects
 
@@ -399,6 +415,102 @@ have: in c4b mission 6 the player's own `vlist` sets the valves
 leaving the area never fails it (and the map has no boundary to draw,
 likely). Which pair was meant is not clear
 (fixes.md, candidates).
+
+## 9. The compiled net
+
+Ported 2026-10-20 (`mech3/zainetedit` Compiler, `mech3/zai_steps`); test
+`tests/differential/test_ai_nets.py`.
+
+**When.** As a mission starts the player's set-up (0x49e810, player.cpp)
+asks for nets 1..99 (0x402170 -> 0x402240): a builder for each number reads
+`net_NN.zrd` and, for a version-106 file, compiles it (0x4be670 ->
+0x4be300). The compiled net (0x4bf910, 0x1c bytes, vtable 0x5ca6d8) is a
+numbered object under the net's number, so asking again (or a later
+builder) finds it and builds nothing. A pilot's brain (0x4cf330) takes
+the net of its aiv.zrd record's first item (AiParams +0x04, "kind" in
+section 3: it is the vehicle's net number), as compiled (cast +0x34), or
+the built-in one at 0x604008 when there is none. In the port
+`nets_build_all` / `net_build`; the mission start does not call them yet
+(player.cpp is not ported).
+
+**What.** The net becomes a flat array of behaviours (the order classes of
+section 2), one slot per piece:
+
+- each **positioned** node (`node_XX (12 (x y z) (links) ...)`) is a node
+  step at the slot 0x4bd670 gave it: plain (0x4cf820, vtable 0x5cc6f0,
+  named with the record's auxname), or with `deploy` a deploy node
+  (0x4cff10: auxname, both valves and bytes, and the slot of the node its
+  last item names), with `mcbwait` an mcbwait node (0x4ccc30: auxname,
+  valve, byte, time), with `backup` a backup node (0x4cfa00, no name), in
+  that order of precedence. Its position is the record's, put on the ground
+  under it when a world is loaded (0x4edab0 / 0x4abd90 at [0x608c84];
+  `NetHooks::ground`). With `arrangenodes` the node also joins the
+  multiplayer "mcbwaynet" (0x4d5460.., mech_waynet.cpp; `NetHooks`, not
+  ported, likely only used by the multiplayer deploy points).
+- after it, for **each link** in turn, one step per property the node has
+  (0x4bd790), in this order: speed (0x4c9eb0, the rate), wait_interval
+  (0x4c9f80), wait_time (0x4ca0a0), valve (0x4ca1c0: the valve and its
+  value; a valve given without a value gets 1 on the node's last link and 0
+  on the others), canleave (0x4cbcf0 with test 0x4d9c80 for `canleave (1
+  n)`, n != 0; 0x4cbd40 with 0x4d9ca0 for `(1 0)`), scans (one 0x4cb950
+  with a test per scan_aim / scan_hit / scan_time present, each by whether
+  its second item is non-zero), jump (0x4cb2a0), sound (0x4cce30), gate
+  (0x4cd4a0, the name), shunt (0x4cd6e0), valveunion (0x4cda50, the list
+  copied), valve_assign (0x4cdc20); then the same for every **edge node**
+  (`node_XX ((from to to...) ...)`, no position) whose first link is this
+  node, once for each of its other links equal to the link's target. The
+  link's steps form a chain: the node step's link points to the first, each
+  to the next (+0x0c), the last to the target's node step.
+- slots no piece took hold the shared null step (0x603fa0).
+
+So a path's properties sit on its links, not on its nodes: a node's own
+properties apply to every link out of it, an edge node's to the links it
+names. Then each step resolves its slot numbers into pointers (+0x6c:
+0x4c9e60, 0x4c94a0 dropping links to nothing, 0x4cffd0 for the deploy
+target). A link to a node without a position (an edge node) or to no node
+is no link (dropped by the node step; a property step whose chain ends
+there keeps the slot number as its pointer in the exe: the port's FIX
+(bug) makes it the null step).
+
+**Counts.** 0x4bd670 / 0x4bd4e0 / 0x4bd5b0 count the slots first: a node
+step, then the node's property count times its links, plus each edge
+node's properties times the number of its other ends this node links to.
+The shipped nets: 308 files, 12944 nodes of which 3384 edge nodes; the
+properties used, most first: valve 4416, canleave 2858, scan_time 2796,
+speed 452, wait_interval 363, deploy 288, valve_assign 120, arrangenodes
+96, valveunion 94, scan_hit 70, gate 46, wait_time 26, jump 14, scan_aim 3.
+
+**Faults kept or fixed** (fixes.md):
+
+- The trailing links that name no positioned node are cut from a node
+  step, but its properties are still put on every link: for a cut link the
+  chain starts past the node's links (a write past the vector; with every
+  link cut, through a null pointer, a crash at load: 0x4bd790). The port
+  starts that chain nowhere (FIX (bug)); the steps are still made.
+- A node linking to a node number past the net reads the slot map past
+  its end (0x4bde20): heap garbage. One shipped net does it: c2 mission 3's
+  `net_13`, a single node linking to a node 1 that is not there. The port
+  takes no node (FIX (bug); the test pins the exe's read to the same).
+- A node that links to one node twice, with an edge node on that link,
+  makes more steps than were counted: the exe writes them past the net's
+  vector. The port drops them, so the net is what the exe's ends up as.
+- arrangenodes past the nodes: section 8.
+
+## 10. Not ported: the mission boundary
+
+`ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0, 67 functions): at mission load
+(0x4c3b80 -> 0x4c36c0, 0x4c3930) the world's `inout` node is found, the
+variant for the game mode picked by name (render.md 6a), its polygons
+classed by their material colour (0x4c1ab0: four colours, inside or
+outside, the four constants at 0x5e8a20..0x5e8a58) and turned into lines
+with widths (0x4c11f0, "zero length segment in an inside/outside net"),
+then the `inout` subtree is deleted. In play the behaviours ask 0x4c3000
+(seven callers) to pull a destination back inside: 0x4c2b00 crosses the
+segment from the vehicle to the destination with the lines (0x4c1410,
+0x4c1770, 0x4c22c0) and moves the point to the nearest crossing or along
+the boundary. It reads the world's nodes and models (zModel polygons with
+their material colours, the node matrix 0x4c3520), so it belongs with the
+world's port; the next piece to take for the AI's movement.
 
 ## Open
 

@@ -11,6 +11,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zreader/zreader.h"
+#include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
 #include "mech3/zainet_region.h"
 #include "mech3/zainetedit.h"
@@ -93,7 +94,88 @@ void put_region(Out& o, Region* r) {
 uint32_t kind(znet::Object* o) {
   if (dynamic_cast<Region*>(o)) return 1;
   if (dynamic_cast<CZAiNetEdit*>(o)) return 2;
+  if (dynamic_cast<CompiledNet*>(o)) return 3;
   return 9;
+}
+
+// A valve as its place in the registry, from 1; 0 for none.
+uint32_t valve_token(const Valve* v) {
+  if (!v) return 0;
+  uint32_t i = 1;
+  for (const Valve* w : valves()) {
+    if (w == v) return i;
+    ++i;
+  }
+  return 0xdeadu;
+}
+
+// A step as its slot in the net; -2 the null step, -3 the default behaviour,
+// -4 not in the net.
+uint32_t slot_token(const CompiledNet& n, const Behaviour* b) {
+  if (b == null_step()) return uint32_t(-2);
+  if (b == default_behaviour()) return uint32_t(-3);
+  const int32_t i = n.index_of(b);
+  return i >= 0 ? uint32_t(i) : uint32_t(-4);
+}
+
+void put_step(Out& o, const CompiledNet& n, const Behaviour* b) {
+  o.u(uint32_t(b->kind));
+  if (b == null_step() || b == default_behaviour()) return;
+  o.u(b->flags), o.u(uint32_t(b->x08));
+  if (auto* s = dynamic_cast<const Step*>(b)) {
+    o.u(s->unresolved ? uint32_t(s->next_slot) : slot_token(n, s->next));
+    switch (b->kind) {
+      case StepKind::Speed: case StepKind::WaitInterval: case StepKind::WaitTime: case StepKind::Jump:
+        o.u(static_cast<const ValueStep*>(b)->value);
+        break;
+      case StepKind::Sound:
+        o.u(uint32_t(reinterpret_cast<uintptr_t>(static_cast<const SoundStep*>(b)->sound)));
+        break;
+      case StepKind::Valve: {
+        auto* v = static_cast<const ValveStep*>(b);
+        o.u(valve_token(v->valve)), o.u(uint32_t(v->value));
+        break;
+      }
+      case StepKind::Scan: case StepKind::CanLeave: case StepKind::CanLeaveNot: {
+        auto* v = static_cast<const ScanStep*>(b);
+        o.u(v->count), o.u(uint32_t(v->tests.size()));
+        for (auto& t : v->tests) o.u(uint32_t(t.first)), o.u(uint32_t(t.second));
+        break;
+      }
+      case StepKind::Gate: {
+        auto* v = static_cast<const GateStep*>(b);
+        o.s(v->has_gate ? v->gate.c_str() : nullptr);
+        break;
+      }
+      case StepKind::ValveUnion: {
+        auto* v = static_cast<const UnionStep*>(b);
+        o.u(uint32_t(v->valves.size()));  // the tag is junk in the exe (ai_world.py)
+        for (const ValveCount& c : v->valves) o.u(valve_token(c.valve)), o.u(uint32_t(c.count));
+        break;
+      }
+      case StepKind::ValveAssign: {
+        auto* v = static_cast<const AssignStep*>(b);
+        o.u(valve_token(v->valve)), o.u(uint32_t(v->value));
+        break;
+      }
+      default: break;
+    }
+    return;
+  }
+  auto* nd = dynamic_cast<const NodeStep*>(b);
+  if (!nd) return;
+  o.s(nd->has_name ? nd->name.c_str() : nullptr);
+  for (float v : nd->pos) o.f(v);
+  o.u(uint32_t(nd->links.size()));
+  for (const Behaviour* l : nd->links) o.u(slot_token(n, l));
+  if (auto* m = dynamic_cast<const McbWaitNode*>(b)) o.u(valve_token(m->valve)), o.u(m->b), o.f(m->time);
+  if (auto* d = dynamic_cast<const DeployNode*>(b))
+    o.u(valve_token(d->valve_a)), o.u(d->a), o.u(valve_token(d->valve_b)), o.u(d->b), o.u(slot_token(n, d->target_step));
+}
+
+void put_compiled(Out& o, const CompiledNet& n) {
+  o.u(uint32_t(n.get_id())), o.u(n.x18), o.u(uint32_t(n.count()));
+  for (int32_t i = 0; i < n.count(); ++i) put_step(o, n, n.step(i));
 }
 
 void put_state(Out& o) {
@@ -154,6 +236,23 @@ int probe_regions_run(const char* archive, const char* const* names, int n, cons
   }
   regions_clear();
   put_state(g_out);
+  return finish(out, cap, logbuf, logcap, nlog);
+}
+
+// Nets from `archive`: 0x00402240 for each of `nets` in turn (a mission asks
+// 1..99), then the registry and every compiled net dumped.
+int probe_nets_run(const char* archive, const int32_t* nets, int n, uint8_t* out, int cap, uint32_t* logbuf,
+                   int logcap, int* nlog) {
+  reset();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  for (int i = 0; i < n; ++i) net_build(nets[i]);
+  put_state(g_out);
+  for (znet::Object* x : znet::registry().list)
+    if (auto* c = dynamic_cast<CompiledNet*>(x)) put_compiled(g_out, *c);
+  g_out.u(static_cast<uint32_t>(valves().size()));
+  for (const Valve* v : valves()) g_out.s(v->name);
   return finish(out, cap, logbuf, logcap, nlog);
 }
 

@@ -120,6 +120,7 @@ add_library(mw3core STATIC
   src/mech3/weapon.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_valve.cpp
+  src/mech3/zai_steps.cpp
   src/mech3/zainet.cpp
   src/mech3/zainetedit.cpp
   src/mech3/zainet_region.cpp
