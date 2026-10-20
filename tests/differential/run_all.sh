@@ -81,6 +81,7 @@ for t in \
     mech_build \
     ai_brain \
     ai_valves \
+    ai_targets \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

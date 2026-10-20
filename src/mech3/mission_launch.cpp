@@ -148,7 +148,7 @@ bool launch_player() {
     default:
       break;
   }
-  h.target_4d6d20(*m, zgame::bits(m->x9c));
+  h.target_4d6d20(*m, zgame::bits(m->sensor_range));
   {
     const Handle player = h.h(h.field32(pilot, 0x14));
     const Handle screen = player == h.h(h.field32(h.view(), 0x64)) ? h.mech_screen(m->pilot) : nullptr;

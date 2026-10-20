@@ -363,9 +363,11 @@ def main():
         b, words_b = run_rebuild(probe, case, mem, addr, fields, addr['ia'])
         name = f'seed {seed} (type {case["type"]}, ops {[o[0] for o in case["ops"]]})'
         if not compare(name, a.log, b.log, ulps=ULPS):
+            sys.stdout.flush()
             os._exit(1)
         if words_a != words_b:
             print(f'{name}: Instant Action\'s words differ: {words_a} (original) {words_b} (rebuild)')
+            sys.stdout.flush()
             os._exit(1)
         calls += len(a.log)
         reached |= {k for k, _ in a.log}

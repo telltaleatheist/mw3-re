@@ -151,19 +151,21 @@ void vehicle_base(Mech& m) {
   m.vec_58 = kZero;
   m.x64 = 0;
   m.height = 10.0f;  // AiTarget
-  for (uint32_t& v : m.x6c) v = 0;
+  m.target = m.ally_target = m.enemy_target = m.saved_target = nullptr;
+  m.x7c = m.x80 = 0;
   m.x84 = 0;
-  m.x88[0] = m.x88[1] = nullptr;
+  m.x88[0] = m.x88[1] = 0;
   g_hooks->on_new(8, m.x88);
   m.x94 = m.x98 = 0;
-  m.x9c = m.xa0 = 1000.0f;  // 0x005e8d84
-  m.xa4 = m.xa0 * m.xa0;
+  m.sensor_range = m.range = 1000.0f;  // 0x005e8d84
+  m.range2 = m.range * m.range;
   m.xa8 = 0;
-  for (uint32_t& v : m.xac) v = 0;
+  m.contacts.clear();
+  m.xb8 = 0;
   m.xbc &= 0xf0;
   m.team = 1, m.allies = 0, m.enemies = 0xfffffffe;  // team 0
   player_clear_60b56c();  // [0x0060b56c]
-  m.xcc = m.xd0 = 0;
+  m.xcc = 0, m.net = 0;
   m.ammo = nullptr, m.net_collision = nullptr;  // Vehicle
 }
 

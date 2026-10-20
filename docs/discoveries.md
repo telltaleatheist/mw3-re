@@ -1303,6 +1303,24 @@ are all "puffers": emitters that drop little textured squares.
   picking its target ("player", "nearest enemy") is still in the exe behind
   the debug menu, along with an in-game editor for the AI paths that could
   save them back to files.
+- **"Target next enemy" picks anything that isn't a friend.** The E,
+  Shift+E and Ctrl+E keys are written as "not an ally", so they also stop on
+  neutral things in sight (team 0, such as some buildings); W, Shift+W and
+  Ctrl+W take only allies. Each key first returns to the last enemy (or
+  ally) you had selected, if that isn't your current target.
+- **Your sensors are nearly unlimited in Instant Action and multiplayer.**
+  Your own mech's sensor range is capped at 1000 m in the campaign and
+  training, but set to 50,000 m in Instant Action and multiplayer.
+- **Friends share what they see.** Allied vehicles merge their contact
+  lists, so an enemy one of your side spots is in everyone's list (likely:
+  the merge 0x4a9fd0 is not ported).
+- **Mission targets take their health from their destruction animation.**
+  A targets.zrd object without its own `health` gets its hit points from the
+  animation that plays when it is destroyed; one whose destruction animation
+  is not on its node is not a target at all. The "hit" and "down" radio
+  triggers (`health_below`) fire from the highest threshold down as its
+  health drops, all at once when it is destroyed. If two objects share a
+  name, only the first gets the triggers.
 - **Old formats still load.** The vehicle reader also understands an older
   layout of the AI settings (tags p3, p4, p5, p7) that no shipped mission
   uses, and complains if a file mixes it with the new one.

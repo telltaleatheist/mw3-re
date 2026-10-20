@@ -108,7 +108,7 @@ scroll list (0x005964c0(0)).
   sun; weather does nothing), the reader archives, the sounds, the weapons
   (`zwep::init` with the weapon_tick object), the mission's vehicles
   (`mech3::player_setup`, mission-start.md: the AI mechs built on their
-  controllers, ai.md section 12), valves.zrd (0x004e2120, ai.md section
+  controllers, ai.md section 12), targets.zrd and traps.zrd (0x004d2e20, 0x004d31d0, ai.md section 14), valves.zrd (0x004e2120, ai.md section
   13) and, for a debug launch, the
   launch 0x00491150 that builds the player's mech (mech-build.md). The
   frame and the cleanup that follow the load: mission-frame.md. The rest (effects, decals, the

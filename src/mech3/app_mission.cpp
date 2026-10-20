@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "gamez/zweapon/zwep_damage.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
@@ -55,6 +57,8 @@
 #include "mech3/options.h"
 #include "mech3/player.h"
 #include "mech3/zai_brain.h"
+#include "mech3/zai_target.h"
+#include "mech3/zrdraiv.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/render3d.h"
@@ -357,6 +361,122 @@ struct WiredValveHooks : ai::ValveHooks {
 };
 WiredValveHooks g_valve_hooks;
 
+// targets.zrd's objects (mech3/zai_target) on what the program has: the
+// reader's files, zClass's walk of list 6, zEffect's animations, zWeapon's
+// damage records; zEntity3d, the radar's node map and the HUD's markers are
+// not ported (logged). zWeapon's hit code is not ported either, so nothing
+// calls the callbacks yet.
+int32_t target_weapon_hit(void* owner, const void* hit, int32_t, float damage) {
+  return static_cast<int32_t>(static_cast<ai::CZAiTarget*>(owner)->on_hit(0, 0, damage)) + (hit ? 0 : 0);
+}
+float target_collide(void* owner, float damage) { return static_cast<ai::CZAiTarget*>(owner)->on_collide(damage); }
+
+struct WiredTargetHooks : ai::TargetHooks {
+  GameEngine* e = nullptr;
+  std::unique_ptr<ai::TargetRec> rec[2];
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  ai::RecordFile& file(bool traps) { return traps ? ai::traps_file() : ai::targets_file(); }
+  void records_open(bool traps) override {
+    rec[traps] = std::make_unique<ai::TargetRec>();  // 0x004e0870 / 0x004e07d0
+    file(traps).add_ref();
+  }
+  int32_t record_count(bool traps) override { return file(traps).record_count(); }
+  ai::TargetRec* record(bool traps, int32_t i, const char** name) override {
+    zrdr::Node* value = file(traps).record(i, name);
+    return rec[traps]->parse(value, *name);
+  }
+  void records_close(bool traps) override {
+    file(traps).release();
+    rec[traps].reset();
+  }
+  Handle target_handle(ai::CZAiTarget* t) override { return e->handle_of(t); }
+  bool have_pilot() override { return e->pilot() != 0; }
+  Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
+  int32_t game_type() override { return e->launch().type; }
+  void sorted_clear() override { player_clear_60b56c(); }
+  // zClass's list 6 by name (0x004f8c30) or by prefix (0x004f8b80).
+  static bool prefixed(zcls::Node* n) {
+    const char* key = static_cast<const char*>(zcls::list_walk().key);
+    return std::strncmp(n->name(), key, std::strlen(key)) == 0;
+  }
+  Handle nodes_first(const char* name, bool prefix) override {
+    return e->handle_of(prefix ? zcls::list_walk_next(name, 6, prefixed) : zcls::list_walk_by_name(name, 6));
+  }
+  Handle nodes_next(bool prefix) override {
+    return e->handle_of(prefix ? zcls::list_walk_next(nullptr, 6, prefixed) : zcls::list_walk_by_name(nullptr, 6));
+  }
+  zcls::Node* node(Handle h) const { return static_cast<zcls::Node*>(e->object_of(h)); }
+  int32_t node_box(Handle n, float box[6]) override {
+    zcls::Node* nd = node(n);
+    if (!nd || !nd->data) return 5;
+    std::memcpy(box, nd->raw + 0x74, 6 * sizeof(float));  // 0x004ebd50
+    return (nd->flags() & 0x100) == 0 ? 1 : 0;
+  }
+  // 0x0050b4e0: the first def in use named so whose node is this one.
+  Handle anim_of_node(const char* name, int32_t len, Handle n) override {
+    zeff::AnimState& a = zeff::anim();
+    if (!name || len <= 0 || !n) return 0;
+    for (int32_t i = 1; a.defs && i < a.def_count(); ++i) {
+      zeff::AnimDef& d = a.defs[i];
+      if (d.raw[0x98] != 5 && std::strncmp(d.name(), name, len) == 0 && d.node == node(n)) return e->handle_of(&d);
+    }
+    return 0;
+  }
+  zeff::AnimDef* def(Handle h) const { return static_cast<zeff::AnimDef*>(e->object_of(h)); }
+  float anim_health(Handle a) override { return def(a) ? def(a)->get<float>(0xb0) : 0.0f; }
+  float anim_max_health(Handle a) override { return def(a) ? def(a)->get<float>(0xac) : 0.0f; }
+  Handle anim_node(Handle a) override { return def(a) && def(a)->raw[0x98] != 5 ? e->handle_of(def(a)->node) : 0; }
+  Handle anim_node2(Handle a) override { return def(a) && def(a)->raw[0x98] != 5 ? e->handle_of(def(a)->root) : 0; }
+  void anim_run(Handle a) override {
+    if (zeff::AnimDef* d = def(a)) zeff::anim_start(d, nullptr, 0, 0, 0);
+  }
+  // zWeapon's records: the callbacks as the exe's addresses for the checks.
+  Handle node_handlers(Handle n) override { return node(n) ? e->handle_of(zwep::record_of(node(n))) : 0; }
+  uint32_t handler_word(Handle t, int32_t i) override {
+    auto* r = static_cast<zwep::DamageRecord*>(e->object_of(t));
+    if (!r) return 0;
+    const zwep::DamageRecord::Slot& s = r->slot[i / 2];
+    if (i % 2 == 0) return e->handle_of(s.owner);
+    if (!s.callback) return 0;
+    if (s.callback == reinterpret_cast<void*>(&zeff::anim_on_weapon_hit)) return 0x502e60;
+    if (s.callback == reinterpret_cast<void*>(&zeff::anim_on_collide)) return 0x502df0;
+    if (s.callback == reinterpret_cast<void*>(&target_weapon_hit)) return 0x4d26b0;
+    if (s.callback == reinterpret_cast<void*>(&target_collide)) return 0x4d26d0;
+    return e->handle_of(s.callback);
+  }
+  static void* callback_of(uint32_t v) {
+    if (v == 0x4d26b0) return reinterpret_cast<void*>(&target_weapon_hit);
+    if (v == 0x4d26d0) return reinterpret_cast<void*>(&target_collide);
+    return nullptr;
+  }
+  void set_handler_word(Handle t, int32_t i, uint32_t v) override {
+    auto* r = static_cast<zwep::DamageRecord*>(e->object_of(t));
+    if (!r) return;
+    if (i % 2 == 0) r->slot[i / 2].owner = e->object_of(v);
+    else r->slot[i / 2].callback = callback_of(v);
+  }
+  uint32_t handlers_own(Handle n) override {
+    zcls::Node* nd = node(n);
+    return nd && zwep::record_of(nd) ? static_cast<uint32_t>(zwep::owns_record(nd, zwep::record_of(nd))) : 0;
+  }
+  int32_t set_weapon_handler(Handle self, Handle n, uint32_t fn) override {
+    return zwep::register_weapon_hit(e->object_of(self), node(n), 1, callback_of(fn));
+  }
+  int32_t set_collide_handler(Handle self, Handle n, uint32_t fn) override {
+    return zwep::register_collide(e->object_of(self), node(n), callback_of(fn));
+  }
+  void valve_set(void* valve, int32_t v) override {
+    if (valve) static_cast<ai::Valve*>(valve)->set(v);
+  }
+  void report(int32_t line, const char* fmt, Handle n) override {
+    if (!e->quiet) std::fprintf(stderr, "mw3: report 0x200 ZAiTarget.cpp:%d %s (%s)\n", line, fmt,
+                                node(n) ? node(n)->name() : "?");
+  }
+};
+WiredTargetHooks g_target_hooks;
+
 struct WiredMissionHooks : MissionHooks {
   GameEngine* e = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
@@ -572,6 +692,9 @@ struct WiredMissionHooks : MissionHooks {
   Handle sound_find(const char* name) override { return e->sound_find(name); }
   // The mission's valves.zrd (0x004e2120, mech3/zrdrvalve).
   void fn_4e2120() override { ai::valves_load(); }
+  // targets.zrd and traps.zrd (0x004d2e20, 0x004d31d0, mech3/zai_target).
+  void fn_4d2e20() override { ai::targets_create(); }
+  void fn_4d31d0() override { ai::traps_create(); }
 
   // The frame (0x0048f470, docs/mission-frame.md): the game time to the
   // ports' copies of [0x0060991c], the valves' timers, zSound's voice lines.
@@ -597,6 +720,8 @@ struct WiredMissionHooks : MissionHooks {
   // goes; the clean-ups of modules not ported are logged.
   void cleanup(int32_t unload) override { missions().cleanup(unload != 0); }
   void valves_end() override { ai::valves_end(); }
+  void targets_end() override { ai::targets_end(); }
+  void fn_4d8270() override { ai::targets_delete_all(); }  // the targets and traps deleted (0x004d8360)
   void voice_release(const char* name) override { zsnd::unload_set(name); }
   void sound_reset() override { zsnd::reset(); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
@@ -625,6 +750,8 @@ void wire_mission_hooks(GameEngine* e) {
   ai::set_brain_hooks(e ? &g_brain_hooks : nullptr);
   g_valve_hooks.e = e;
   ai::set_valve_hooks(e ? &g_valve_hooks : nullptr);
+  g_target_hooks.e = e;
+  ai::set_target_hooks(e ? &g_target_hooks : nullptr);
   // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
   if (!e) return wire_mech_build(nullptr);
   static MechWiring w;

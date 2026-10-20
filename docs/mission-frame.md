@@ -121,7 +121,7 @@ snapshot stopped and freed (0x0056eb10, 0x0056f0a0, 0x0056f190), zSound's
 reset 0x005716a0, the view (0x0040ae70, 0x0040adf0), the player's vehicle
 taken from the pilot (0x004782c0(0)) and deleted, the stealth entity
 taken out of zEntity's list (0x005a89c0) while 0x004e6910, 0x004b4ae0,
-the landmines 0x00413770, 0x0049dc40, 0x004a7970, 0x004d8270 and
+the landmines 0x00413770, 0x0049dc40, 0x004a7970, every target (0x004d8270, ai.md section 14) and
 0x00584fe0 clean up, then put back (0x005a8820), 0x0047a720 on
 [0x0060b544], the stations' owner deleted, 0x004d54f0, 0x00479850,
 0x004ea750, "Deleting AI Nets", znet's registry 0x0058b290, 0x004c5fa0,

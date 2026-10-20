@@ -31,6 +31,7 @@
 #include "mech3/player.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_target.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
@@ -335,7 +336,31 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
           mech3::ai::valve_timers() ? mech3::ai::valve_timers()->as_composite() : nullptr;
       EXPECT(timers && timers->items.size() == 2);
     }
-    mech3::ai::valves_end();
+    // targets.zrd (docs/ai.md section 14): the satellite dish, 35 health,
+    // its triggers comcntr_hit below 35 and comcntr_down at 0.
+    {
+      const auto& targets = mech3::ai::target_list();
+      const mech3::ai::CZAiTarget* dish = nullptr;
+      for (const mech3::ai::CZAiTarget* t : targets)
+        if (t->node && std::string(static_cast<const zcls::Node*>(engine.object_of(t->node))->name()) == "satdish")
+          dish = t;
+      EXPECT(dish != nullptr);
+      if (dish) {
+        EXPECT(dish->desc.health == 35.0f && dish->desc.max_health == 35.0f && dish->desc.destroy_anim != 0);
+        EXPECT(dish->desc.triggers && dish->desc.triggers->size() == 2);
+        EXPECT(dish->team == 4);  // team 2
+        mech3::ai::CZAiTarget* d = const_cast<mech3::ai::CZAiTarget*>(dish);
+        mech3::ai::Valve* hit = mech3::ai::valve_find("comcntr_hit");
+        mech3::ai::Valve* down = mech3::ai::valve_find("comcntr_down");
+        EXPECT(hit && down && hit->get() == 0 && down->get() == 0);
+        d->on_collide(10.0f);
+        EXPECT(hit && hit->get() == 1 && down && down->get() == 0 && !d->destroyed);
+        d->on_collide(25.0f);
+        EXPECT(down && down->get() == 1 && d->destroyed && d->desc.health == 0.0f);
+      }
+    }
+    mech3::missions().cleanup(false);  // 0x00491780: the valves and targets end
+    EXPECT(mech3::ai::target_list().empty());
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -390,6 +415,7 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
     EXPECT(m.team == 2);      // team 1 (aiv.zrd's player record): mask 2
     EXPECT(m.skis && m.ams);
     EXPECT(m.motions);        // motion.zbd's walk, and the step-walk blend
+    mech3::missions().cleanup(false);  // 0x00491780, as the debrief would
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -492,6 +518,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
       EXPECT(r[0] == "1:" + t && r[1] == "2<:" + t && r[2] == "2>:" + t1);
       EXPECT(r[3] == "3<:" + t1 && r[4] == "3>:" + t1 && r[5] == "4:" + t1);
     }
+    mech3::missions().cleanup(false);  // 0x00491780, as the debrief would
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
