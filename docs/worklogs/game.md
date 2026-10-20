@@ -78,3 +78,20 @@ Newest last. One short entry per item: what, commits, what to remember.
   (roster 17).
 - Left as hooks: the HUD keys, camera look keys, torso centre, 0x426780,
   nav points, lance orders, part targeting 0x41d810, MCB, chat, 0x3e, 0xa6.
+
+## 2026-10-20: the AI mechs' frames (branch mac2/ai-frames)
+
+- a9265ac: option_5f4d44 reads options().mouse_mode (program_mouse_mode).
+- 1fb52df: zent::Budget::update_all (0x5a8850; per_frame 0x40 from
+  0x5a8750) from player_tick's 0x4a1140 (hook renamed entities_update);
+  node_mech / node_entity / the bump's contacts wired, Contact::distance
+  0x4e7030 (Contact +0x1c dist, +0x20 dir); controls_calls().ai_brain
+  records 0x4e9710 and smooths. node_owner 0x40e9d0 is one function now.
+- The walk leaves `current` on the start slot (the second loop's end): the
+  diff test found it.
+- Merged main (mac 3's reticle aim); the fire test's mech_aim_at stand-in
+  dropped. main's and my test_program.cpp additions conflicted at the same
+  place: rebuilt the file from main plus my test (checkout --ours lost
+  main's other hunks; don't).
+- The probes rarely reach the Owens head-on: the bump does most of the
+  blocking; node_mech's break shows as the attacker check.

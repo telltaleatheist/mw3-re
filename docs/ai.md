@@ -1150,6 +1150,59 @@ turns the allies, the mech's vt slots the sensors call (the HUD's lock
 0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),
 zEntity3d.
 
+## 16. The AI mechs' frames (in the program)
+
+Nothing in the AI calls a vehicle's frame. The player tick 0x4a1160 updates
+the pilot's vehicle itself, then calls 0x4a1140, which, while [0x5e7284] is
+set (initialised 1, never written), runs the entity manager's walk 0x5a8850
+on zEntity's list (the manager at 0x736558: the list +0x04..+0x08, resume
++0x10, current +0x14, left +0x18, per_frame +0x1c, which 0x5a8750 sets to
+0x40). The walk starts where the last frame's counted update left off,
+runs to the end and round from the start, and calls vt+0x34 on each entity
+whose +0x09 is set. The sensors (section 15) clear +0x09 on the pilot's
+vehicle each frame, so it is not updated twice. Mech::Update's budget
+(0x5a8910 / 0x5a8960) counts the full updates: past per_frame, an entity
+only gathers its frame time (+0x6b0) for later. The walk then moves the
+next frame's start one entity on.
+
+Ported as `zent::Budget::update_all` (`gamez/zentity/zent_manager.h`;
+`test_entity_walk.py`: 5,000 walks of up to 40 entities, live or not,
+counting or not, identical to the original in the order, the allowed flags
+and the budget after; 4 of 4 breaks caught). The program's
+`PlayerHooks::entities_update` (`update_entities`, `app_mech.cpp`) runs it
+on the program's list, which holds the mechs only: targets.zrd's objects
+are not registered there (0x5a7e10 is not ported), so their vt+0x34 does
+not run.
+
+An AI mech's frame is Mech::Update with its AiControls: 0x4e96f0 runs the
+brain 0x4e9710, not ported. In its place the program records "0x004e9710"
+and runs the controls' smoothing (0x426960) on the targets as they are, so
+an AI mech stands where it was put, powers up and down, settles on its skis,
+keeps its pose, fires nothing and turns to nothing. Its weapons' manager
+updates inside Mech::Update (0x4b0c20 / 0x4b0c30).
+
+The mechs collide as mechs: the collider's lookups 0x40ef10 (0x40e9d0, the
+node's owner by its +0x28 id) and 0x40ef00 (0x40e960) put another mech's
+nodes in the mechs list (`mech_response` 0x423a20: shove, damage unless
+allied, blocked[1]) instead of the walls; the bump reads the sensors'
+contacts (`Contact::distance` 0x4e7030; a mech's vt+0x2c, +0x40 and +0x50
+answer itself, 0x4d2a70; targets.zrd's vt+0x40 answers 0, 0x40bae0).
+
+Test: `mission_c1m1_owens_runs_its_frames_headless`. The Owens is powered
+down until bramp, which powers it up (Mech::power(0) is immediate). It runs
+a full update every frame from then on, stands on the ground with both feet
+down, and blocks the player walking into it from 30 m as a mech, not as a
+wall. The bump keeps the player more than 3 m off, and the Owens records the
+player as its attacker. Breaking the walk, `node_mech` or the contacts each
+fails it.
+
+Left as hooks, for the next items: the brain's decisions 0x4e9710 (the
+orders, behaviours, targeting and the firing state machine 0x4e9fb0 ->
+0x4b5b80, the planner 0x4b1170); AiControls' vt+0x140 +0x70 (the wall
+response's reversal count, `CollideCalls::ai_reverses`); the vehicles that
+are not mechs (their frames, the Mobile HQ's bump); targets.zrd's entity
+registration 0x5a7e10.
+
 ## Open
 
 - Whether mission loading runs at 24 or 53 bits: hardware mode has a

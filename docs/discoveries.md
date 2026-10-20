@@ -1586,6 +1586,15 @@ mech's commands; `heat.md`, Coolant flush):
   beeping,** and only for the mech you are looking from.
 - **Lance orders (F6 to F11) are ignored in multiplayer.**
 
+From the entity manager's frame, 0x5a8850 (details: `ai.md` section 16):
+
+- **At most 64 vehicles get a full update each frame.** The rest only save
+  up their frame time for a later frame, and the next frame's walk starts
+  one vehicle further on, so in a big battle the turns rotate. The player's
+  own mech is updated separately and never waits.
+- **Powering up is instant.** A mech asked to power up is up on the spot;
+  only powering down waits for the mech to be standing (or crouched).
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).
