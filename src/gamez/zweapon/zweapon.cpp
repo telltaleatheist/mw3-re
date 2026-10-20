@@ -315,7 +315,7 @@ void air_burst(WeaponDef* def, Projectile* p) {
 }
 
 // Mech3.exe 1.2 @ 0x00581f60
-void set_lock(int32_t* flag, const LockRef* target) {
+void set_lock(int32_t* flag, LockRef* target) {
   g_fire.lock_flag = flag;
   g_fire.lock_target = target;
 }

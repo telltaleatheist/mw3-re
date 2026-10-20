@@ -24,10 +24,27 @@ using zwep::Vec3f3;
 using PyFn = int32_t (*)(int32_t kind, const int32_t* args, int32_t n, int32_t* out);
 PyFn g_py = nullptr;
 int32_t g_lock_flag;
-zwep::LockRef g_lock;
-Vec3f3 g_lock_at, g_lock_vel;
-// A lock pointer as a token: 0x30001 the position, 0x30002 the velocity.
-int32_t ltok(const Vec3f3* v) { return !v ? 0 : v == &g_lock_at ? 0x30001 : v == &g_lock_vel ? 0x30002 : -2; }
+zwep::LockRef g_locks[8];
+Vec3f3 g_lock_at[8], g_lock_vel[8];
+// A lock pointer as a token: 0x30001 + 2i target i's position, 0x30002 + 2i its velocity.
+int32_t ltok(const Vec3f3* v) {
+  if (!v) return 0;
+  for (int i = 0; i < 8; ++i) {
+    if (v == &g_lock_at[i]) return 0x30001 + 2 * i;
+    if (v == &g_lock_vel[i]) return 0x30002 + 2 * i;
+  }
+  return -2;
+}
+// The beams the test made, by index; their muzzles and directions.
+zwep::Beam* g_beams[16];
+Vec3f3 g_beam_at[16], g_beam_dir[16];
+uint32_t g_beam_zone[16];
+int32_t btok(const zwep::Beam* b) {
+  if (!b) return 0;
+  for (int i = 0; i < 16; ++i)
+    if (g_beams[i] == b) return 0x50000 + i;
+  return -2;
+}
 
 int32_t fb(float f) {
   int32_t i;
@@ -140,9 +157,9 @@ void set_hooks() {
   k.set_translation = [](Handle n, float x, float y, float z) { call(11, {u(n), fb(x), fb(y), fb(z)}); };
   k.rotate = [](Handle n, float x, float y, float z) { call(12, {u(n), fb(x), fb(y), fb(z)}); };
   k.light_create = [] { return h(call(20, {})); };
-  k.light_color = [](Handle l, float r, float g, float b) { call(21, {u(l), fb(r), fb(g), fb(b)}); };
+  k.light_position = [](Handle l, float r, float g, float b) { call(21, {u(l), fb(r), fb(g), fb(b)}); };
   k.light_range = [](Handle l, float a, float b) { call(22, {u(l), fb(a), fb(b)}); };
-  k.light_position = [](Handle l, float x, float y, float z) { call(23, {u(l), fb(x), fb(y), fb(z)}); };
+  k.light_color = [](Handle l, float x, float y, float z) { call(23, {u(l), fb(x), fb(y), fb(z)}); };
   k.world_add_light = [](Handle l) { call(24, {u(l)}); };
   k.world_remove_light = [](Handle l) { call(25, {u(l)}); };
   k.anim_attached = [](Handle a, Handle n, const void* off) { return h(call(26, {u(a), u(n), u(off)})); };
@@ -154,6 +171,14 @@ void set_hooks() {
     return h(call(33, {u(s), fb(at->x), fb(at->y), fb(at->z), fb(vol)}));
   };
   k.impact_type = [](int32_t t) { call(34, {t}); };
+  k.effect_handle = [](Handle a, const float* x) {
+    return h(call(31, {u(a), fb(x[0]), fb(x[1]), fb(x[2]), fb(x[3]), fb(x[4]), fb(x[5]), fb(x[6]), fb(x[7]), fb(x[8])}));
+  };
+  k.set_flag_4fbb90 = [](Handle n, int32_t on) { call(53, {u(n), on}); };
+  k.set_uniform_scale = [](Handle n, float s) { call(54, {u(n), fb(s)}); };
+  k.sound_stop = [](Handle s) { call(55, {u(s)}); };
+  k.sound_volume = [](Handle s, float v) { call(56, {u(s), fb(v)}); };
+  k.anim_free = [](Handle a) { call(57, {u(a)}); };
   k.query_static = [](int32_t on) { call(35, {on}); };
   k.query_since = [](int32_t on, uint32_t f) { call(36, {on, static_cast<int32_t>(f)}); };
   k.query_mask = [](uint32_t m) { call(37, {static_cast<int32_t>(m)}); };
@@ -256,16 +281,14 @@ void probe_fly_setup(PyFn py) {
   zwep::run_state() = zwep::RunState{};
   zwep::hit_state() = zwep::HitState{};
   zwep::fire_state() = zwep::FireState{};
+  mech3::radar_clear();
+  for (auto& b : g_beams) b = nullptr;
 }
 
 // The globals an op starts from: dt, frame, net clock, zone, init arg, the
 // fire state (damage, track x2, terrain, lock flag set, lock values), the hit
 // state (record_shot, splash, counted, hits), the tether ceiling, the clock.
 void probe_fly_globals(const int32_t* g) {
-  int32_t& lock_flag = g_lock_flag;
-  zwep::LockRef& lock = g_lock;
-  Vec3f3& lock_at = g_lock_at;
-  Vec3f3& lock_vel = g_lock_vel;
   zwep::HitState& hs = zwep::hit_state();
   zwep::RunState& rs = zwep::run_state();
   zwep::FireState& f = zwep::fire_state();
@@ -278,13 +301,16 @@ void probe_fly_globals(const int32_t* g) {
   f.track_scale[0] = bf(g[6]);
   f.track_scale[1] = bf(g[7]);
   f.terrain_follow = g[8];
+  g_lock_flag = g[10];
+  for (int i = 0; i < 8; ++i) {
+    const int32_t* e = i == 0 ? g + 11 : g + 24 + 7 * (i - 1);
+    g_lock_at[i] = {bf(e[1]), bf(e[2]), bf(e[3])};
+    g_lock_vel[i] = {bf(e[4]), bf(e[5]), bf(e[6])};
+    g_locks[i] = {h(e[0]), &g_lock_at[i], &g_lock_vel[i]};
+  }
   if (g[9]) {
-    lock_flag = g[10];
-    lock_at = {bf(g[12]), bf(g[13]), bf(g[14])};
-    lock_vel = {bf(g[15]), bf(g[16]), bf(g[17])};
-    lock = {h(g[11]), &lock_at, &lock_vel};
-    f.lock_flag = &lock_flag;
-    f.lock_target = &lock;
+    f.lock_flag = &g_lock_flag;
+    f.lock_target = g_locks;
   } else {
     f.lock_flag = nullptr;
     f.lock_target = nullptr;
@@ -295,6 +321,8 @@ void probe_fly_globals(const int32_t* g) {
   hs.hits = g[21];
   hs.tether_ceiling = bf(g[22]);
   mech3::weapon_world().clock = bf(g[23]);
+  f.beam_range_scale = bf(g[73]);
+  f.beam_ground_fx = g[74];
   hs.killed = nullptr;
   hs.killed_at = nullptr;
 }
@@ -426,6 +454,76 @@ void probe_fly_poke(int i, int which, int32_t v) {
   }
 }
 
+// Beams: 0 make (def, owner, zone set, zone, slot, segments) -> index,
+// 1 start, 2 stop, 3 free (index).
+int32_t probe_fly_beam(int op, const int32_t* a) {
+  switch (op) {
+    case 0: {
+      const int slot = a[4];
+      g_beam_zone[slot] = static_cast<uint32_t>(a[3]);
+      g_beams[slot] = zwep::beam_make(&zwep::state().defs[static_cast<size_t>(a[0])], h(a[1]),
+                                      a[2] ? &g_beam_zone[slot] : nullptr, &g_beam_at[slot], &g_beam_dir[slot], a[5]);
+      return 0x50000 + slot;
+    }
+    case 1: return zwep::beam_start(g_beams[a[0]]);
+    case 2: return zwep::beam_stop(g_beams[a[0]]);
+    case 3: {
+      const int32_t r = zwep::beam_free(g_beams[a[0]]);
+      g_beams[a[0]] = nullptr;
+      return r;
+    }
+    default: return -1;
+  }
+}
+
+void probe_fly_beam_at(int slot, const int32_t* v) {
+  g_beam_at[slot] = {bf(v[0]), bf(v[1]), bf(v[2])};
+  g_beam_dir[slot] = {bf(v[3]), bf(v[4]), bf(v[5])};
+}
+
+// A beam's fields (test_weapons_fly.py, beam_fields).
+int probe_fly_beam_dump(int slot, int32_t* o) {
+  const zwep::Beam* b = g_beams[slot];
+  int n = 0;
+  auto put = [&](int32_t v) { o[n++] = v; };
+  put(btok(b->next));
+  put(btok(b->prev));
+  put(b->def->index);
+  put(u(b->owner));
+  put(b->zone ? 1 : 0);
+  put(u(b->sound));
+  put(u(b->light));
+  for (float x : {b->length, b->timer, b->age, b->damage_scale, b->range_scale}) put(fb(x));
+  put(b->segment_count);
+  put(b->active);
+  for (const zwep::BeamSegment& sg : b->segments) {
+    put(u(sg.node));
+    for (float x : {sg.start.x, sg.start.y, sg.start.z, sg.dir.x, sg.dir.y, sg.dir.z, sg.length}) put(fb(x));
+  }
+  put(b->lock_count == &g_lock_flag ? 1 : b->lock_count ? -2 : 0);
+  put(b->targets == g_locks ? 1 : b->targets ? -2 : 0);
+  put(static_cast<int32_t>(b->flags));
+  return n;
+}
+
+// The lock array after an op (a MULTI_TARGET beam sorts it): entity, at token.
+void probe_fly_locks(int32_t* o) {
+  for (int i = 0; i < 8; ++i) {
+    o[2 * i] = u(g_locks[i].entity);
+    o[2 * i + 1] = ltok(g_locks[i].at);
+  }
+}
+
+// The radar list: shot token, friendly.
+int probe_fly_radar(int32_t* o) {
+  int n = 0;
+  for (const mech3::RadarBlip* b : mech3::radar_blips()) {
+    o[n++] = ptok(b->shot);
+    o[n++] = b->friendly ? 1 : 0;
+  }
+  return n;
+}
+
 // The network callbacks [0x0072fcac] and [0x0072fcb4] on or off.
 void probe_fly_net(int gate, int det) {
   zwep::run_hooks().net_gate = gate ? net_gate : nullptr;
@@ -502,7 +600,8 @@ int probe_fly_world(int32_t* o) {
   for (const Projectile* p = s.free_list; p; p = p->next) put(ptok(p));
   put(-1);
   for (const zwep::WeaponDef& d : s.defs) {
-    for (const Projectile* p = d.active; p; p = p->next) put(ptok(p));
+    if (!(d.flags & zwep::kBeam))  // a beam def's list holds Beams: dumped apart
+      for (const Projectile* p = d.active; p; p = p->next) put(ptok(p));
     put(-1);
     put(u(d.model_pool));
     put(d.fire.sound_choice);

@@ -52,6 +52,7 @@ enum : uint32_t {
 
 struct WeaponDef;
 struct Projectile;
+struct Beam;
 struct HitRecord;
 // def +0x1ec: run by the impact (0x005826b0) for a shot of this weapon, set by
 // the MW3 side (0x00584de0): the salvo spread, the LB-X burst, the airstrike.
@@ -98,7 +99,10 @@ struct WeaponDef {             // 0x1f4
   float lock_on_lead_min = 0;          // +0x070
   float lock_on_lead_max = 0;          // +0x074
   float lock_on_lead_span = 0;         // +0x078  1 / (max - min)
-  Projectile* active = nullptr;        // +0x07c  its shots in flight (beams: its Beams)
+  union {
+    Projectile* active = nullptr;      // +0x07c  its shots in flight
+    Beam* beams;                       //         a BEAM def: its beams firing
+  };
   float flyout_health = 0;             // +0x080  -1 without FLYOUT_HEALTH
   Effect fire;                         // +0x084
   Effect flyout;                       // +0x0e0

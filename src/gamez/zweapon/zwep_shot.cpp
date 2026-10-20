@@ -194,9 +194,13 @@ void kill_all(WeaponDef* def) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00584fe0
+// Mech3.exe 1.2 @ 0x00584fe0. FIX (A): the original runs this on the BEAM
+// defs too, taking a firing beam (0x150 bytes) for a projectile (0x5d8):
+// it writes past the beam and stops its sound handles as animations. Beams
+// are left to their weapons here (docs/fixes.md).
 void kill_all() {
-  for (WeaponDef& d : state().defs) kill_all(&d);
+  for (WeaponDef& d : state().defs)
+    if (!(d.flags & kBeam)) kill_all(&d);
 }
 
 // Mech3.exe 1.2 @ 0x005847c0: the pool's scene nodes (and the impact lights)
@@ -855,13 +859,13 @@ void bounce_sound(WeaponDef* def, HitRecord* rec, int32_t soil, float volume) {
   if (g_rh.sound_at) g_rh.sound_at(e.bounce_sounds[i], &rec->point, volume);
 }
 
-// Mech3.exe 1.2 @ 0x00586970: eight "Thermal glow" lights, dark, range 0.1 to
-// 0.2, on a list through node +0x40.
+// Mech3.exe 1.2 @ 0x00586970: eight "Thermal glow" lights at the origin, range
+// 0.1 to 0.2, on a list through node +0x40.
 int32_t lights_init() {
   for (int i = 0; i < 8; ++i) {
     Handle l = g_rh.light_create ? g_rh.light_create() : nullptr;
     if (g_rh.set_name) g_rh.set_name(l, "Thermal glow");
-    if (g_rh.light_color) g_rh.light_color(l, 0.0f, 0.0f, 0.0f);
+    if (g_rh.light_position) g_rh.light_position(l, 0.0f, 0.0f, 0.0f);
     if (g_rh.light_range) g_rh.light_range(l, 0.1f, 0.2f);
     set_link(l, g_rs.lights);
     g_rs.lights = l;
@@ -884,13 +888,13 @@ int32_t lights_free() {
   return 1;
 }
 
-// Mech3.exe 1.2 @ 0x00586b20: a light off the list, put at `at` in the world.
-Handle light_take(const Vec3f3* at) {
+// Mech3.exe 1.2 @ 0x00586b20: a light off the list, coloured and put in the world.
+Handle light_take(const Vec3f3* color) {
   Handle l = g_rs.lights;
   if (!l) return nullptr;
   g_rs.lights = link_of(l);
   if (g_rh.light_range) g_rh.light_range(l, 0.1f, 0.2f);
-  if (g_rh.light_position) g_rh.light_position(l, at->x, at->y, at->z);
+  if (g_rh.light_color) g_rh.light_color(l, color->x, color->y, color->z);
   if (g_rh.world_add_light) g_rh.world_add_light(l);
   return l;
 }

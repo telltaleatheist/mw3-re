@@ -289,6 +289,23 @@ Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m);  // 0
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
                         const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly);
 
+// 0x00585010 (the port, or WeaponCalls::spawn when set).
+Handle spawn_shot(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly);
+
+// The radar's list of shots in the air this frame (0x004b49c0..0x004b4b96).
+struct RadarBlip {                     // 8 bytes
+  zwep::Projectile* shot;              // +0
+  bool friendly;                       // +4
+};
+std::list<RadarBlip*>& radar_blips();                      // 0x0060b228
+void radar_add(zwep::Projectile* p, bool friendly);        // 0x004b49c0
+void radar_foe(zwep::Projectile* p);                       // 0x004b4a20
+void radar_friend(zwep::Projectile* p);                    // 0x004b4a30
+void radar_clear();                                        // 0x004b4b10 (action 0x004b49b0)
+void radar_objects_create();                               // 0x004b4ab0
+void radar_objects_destroy();                              // 0x004b4ae0
+
 // The world the weapons read (globals of other modules).
 struct WeaponWorld {
   Handle player = nullptr;             // [0x005f4c8c] +0x64
@@ -368,6 +385,11 @@ struct WeaponCalls {
   int32_t (*control_mode)(Handle owner) = nullptr;            // +0x37c +0xc
   const zmth::Quat* (*torso_aim)(Handle owner) = nullptr;    // 0x00465940 on the torso (+0x39c)
   const zmth::Quat* (*torso_look)(Handle owner) = nullptr;   // the torso's +0xa4 when +0xa2, else 0
+  // The radar list's object (0x004b4ab0).
+  Handle (*object3d_create)() = nullptr;                      // 0x004fb740
+  void (*set_action_priority)(Handle node, int32_t p) = nullptr;  // 0x004eb5b0
+  void (*set_action)(Handle node, void (*fn)()) = nullptr;    // 0x004eb450
+  void (*node_destroy)(Handle node) = nullptr;                // 0x004eaea0
 };
 WeaponCalls& weapon_calls();
 

@@ -14,7 +14,7 @@ namespace zwep {
 // spawn, docs/weapons.md "Fire modifiers").
 struct FireState {
   int32_t* lock_flag = nullptr;        // 0x009a0ee0  the firing weapon's lock flag
-  const LockRef* lock_target = nullptr;  // 0x009a0ee4  and its target
+  LockRef* lock_target = nullptr;      // 0x009a0ee4  and its target (MULTI_TARGET beams: an array they sort)
   int32_t beam_ground_fx = 1;          // 0x009a17cc  0: the beam plays no ground impact
   float damage_scale = 1;              // 0x009a17d0
   float beam_range_scale = 1;          // 0x009a17d4  0.5 under water
@@ -41,11 +41,37 @@ struct HitState {
 };
 HitState& hit_state();
 
-// A beam in the air, 0x150 bytes (0x00584a70). The fields its damage reads.
+// One drawn piece of a beam, 0x20 bytes: a node scaled along z to its length.
+struct BeamSegment {
+  Handle node = nullptr;               // +0x00  "BeamReflect_%d", the FLYOUT model under it
+  Vec3f3 start{};                      // +0x04  MULTI_TARGET: its start; else the ray's end
+  Vec3f3 dir{};                        // +0x10  MULTI_TARGET only
+  float length = 0;                    // +0x1c
+};
+
+// A beam in the air, 0x150 bytes (0x00584a70), on its def's list (+0x7c)
+// while it fires.
 struct Beam {
-  float length = 0;                    // +0x28
+  Beam* next = nullptr;                // +0x00
+  Beam* prev = nullptr;                // +0x04
+  WeaponDef* def = nullptr;            // +0x08
+  Handle owner = nullptr;              // +0x0c  the shooter's node, out of its own rays
+  const uint32_t* zone = nullptr;      // +0x10  the shooter's zone set, or none
+  Handle sound = nullptr;              // +0x14  the FLYOUT sound, looping while it fires
+  uint32_t x18 = 0;                    // +0x18
+  Handle light = nullptr;              // +0x1c  DESIGNATE: a light from the pool on the spot
+  const Vec3f3* origin = nullptr;      // +0x20  the weapon's muzzle, followed each frame
+  const Vec3f3* dir = nullptr;         // +0x24  and its direction
+  float length = 0;                    // +0x28  grows toward RANGE x range scale
+  float timer = 0;                     // +0x2c  DESIGNATE: time on a target
+  float age = 0;                       // +0x30
   float damage_scale = 1;              // +0x34  FireState::damage_scale at the start
   float range_scale = 1;               // +0x38  FireState::beam_range_scale (0.5 under water)
+  int32_t segment_count = 0;           // +0x3c  made: up to 8, 1 for DESIGNATE
+  int32_t active = 0;                  // +0x40  shown this frame
+  BeamSegment segments[8];             // +0x44
+  const int32_t* lock_count = nullptr;     // +0x144  LOCK_ON: the weapon's lock flag, a count for MULTI_TARGET
+  LockRef* targets = nullptr;              // +0x148  and its targets (an array for MULTI_TARGET)
   uint32_t flags = 0;                  // +0x14c  bit 0 ground effect, bit 1 damage dealt
 };
 
@@ -118,11 +144,12 @@ struct RunHooks {
   void (*set_translation)(Handle node, float x, float y, float z) = nullptr;  // 0x004fc0b0
   void (*rotate)(Handle node, float x, float y, float z) = nullptr;           // 0x004fbef0
   void (*set_uniform_scale)(Handle node, float s) = nullptr;                  // 0x004fba20
+  void (*set_flag_4fbb90)(Handle node, int32_t on) = nullptr;                 // 0x004fbb90
   // light.c
   Handle (*light_create)() = nullptr;                              // 0x004fa720
-  void (*light_color)(Handle light, float r, float g, float b) = nullptr;   // 0x004faf80
+  void (*light_position)(Handle light, float x, float y, float z) = nullptr;  // 0x004faf80 (likely)
   void (*light_range)(Handle light, float near_, float far_) = nullptr;     // 0x004fadf0
-  void (*light_position)(Handle light, float x, float y, float z) = nullptr;  // 0x004fb510
+  void (*light_color)(Handle light, float r, float g, float b) = nullptr;   // 0x004fb510 (likely)
   void (*world_add_light)(Handle light) = nullptr;                 // 0x004f2d50 on the world
   void (*world_remove_light)(Handle light) = nullptr;              // 0x004f2e00 on the world
   // Animations (zeffect) and sounds.
@@ -132,6 +159,7 @@ struct RunHooks {
   void (*anim_on_done)(Handle a, Projectile* p) = nullptr;         // 0x00508f00(a, 0x00583120, p)
   void (*anim_stop)(Handle a) = nullptr;                           // 0x00508460(a, 0)
   void (*anim_free)(Handle a) = nullptr;                           // 0x00506ca0
+  Handle (*effect_handle)(Handle anim, const float args[9]) = nullptr;  // 0x00508aa0 when its result is kept
   Handle (*sound_at)(Handle sound, const Vec3f3* at, float volume) = nullptr;  // 0x0056e7e0(s, at, volume, 0)
   void (*sound_stop)(Handle s) = nullptr;                          // 0x0056e9f0
   void (*sound_volume)(Handle s, float v) = nullptr;               // 0x0056f280
@@ -204,10 +232,21 @@ inline Handle attacker() { return hit_state().attacker; }                  // 0x
 // The impact light pool: eight lights made with the pool objects.
 int32_t lights_init();                                                     // 0x00586970
 int32_t lights_free();                                                     // 0x005869f0
-Handle light_take(const Vec3f3* at);                                       // 0x00586b20
+Handle light_take(const Vec3f3* color);                                    // 0x00586b20
 void light_return(Handle light);                                           // 0x00586b70
 
-void set_lock(int32_t* flag, const LockRef* target);                // 0x00581f60
+// The beams (zwep_beam.cpp).
+Beam* beam_make(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3f3* origin, const Vec3f3* dir,
+                int32_t segments);                                         // 0x00584a70
+int32_t beam_free(Beam* b);                                                // 0x00584b40
+Handle beam_segment_node(Handle model);                                    // 0x00584db0
+int32_t beam_start(Beam* b);                                               // 0x00581230
+int32_t beam_stop(Beam* b);                                                // 0x00581400
+void beam_sort_targets(Beam* b, float* along, Vec3f3* far_dir);            // 0x00582c10
+int32_t beam_cast(WeaponDef* def, Beam* b, BeamSegment* s, const Vec3f3* to);  // 0x00582de0
+void beam_draw(const BeamSegment* s);                                      // 0x00582f00
+
+void set_lock(int32_t* flag, LockRef* target);                      // 0x00581f60
 bool set_fire_sound(WeaponDef* def, int32_t choice);                 // 0x00581f70
 bool set_fire_animation(WeaponDef* def, int32_t choice);             // 0x00581f90
 void attach_fire(WeaponDef* def, Handle node);                       // 0x00581fb0

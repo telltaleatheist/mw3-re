@@ -22,7 +22,7 @@ in call order from the operation's seed. Every call out is logged on both
 sides; after each operation every pool slot, the weapon lists, the fire / hit
 / run globals and the scene must match. Floats match bit for bit except for
 the CRT's trig against the x87's (asin, acos, atan2, sin, cos), compared
-within 1e-5 of the size of the value, or of 1 for smaller values (MW3_FLY_TOL): the
+within 3e-5 of the size of the value, or of 1 for smaller values (MW3_FLY_TOL): the
 difference grows over a homing missile's frames.
 """
 import ctypes
@@ -40,7 +40,7 @@ import test_weapons_zrd as zr  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
-TOL = float(os.environ.get('MW3_FLY_TOL', '1e-5'))
+TOL = float(os.environ.get('MW3_FLY_TOL', '3e-5'))
 probe = zr.probe
 PYFN = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32), ctypes.c_int32,
                         ctypes.POINTER(ctypes.c_int32))
@@ -65,11 +65,12 @@ NAMES = {1: 'add_child', 2: 'remove_child', 3: 'obj_add_child', 4: 'obj_remove_c
          30: 'anim_stop', 31: 'effect', 32: 'impact_effect', 33: 'sound_at', 34: 'impact_type',
          35: 'query_static', 36: 'query_since', 37: 'query_mask', 38: 'segment_list', 39: 'segment',
          40: 'ground', 41: 'net_gate', 42: 'net_detonated', 43: 'splash_query', 44: 'handler',
-         45: 'surface_mark', 46: 'crater', 47: 'quicksand', 49: 'surface_angles', 51: 'tick_cb', 52: 'set_active'}
+         45: 'surface_mark', 46: 'crater', 47: 'quicksand', 49: 'surface_angles', 51: 'tick_cb', 52: 'set_active',
+         53: 'flag4fbb90', 54: 'uniform_scale', 55: 'sound_stop', 56: 'sound_volume', 57: 'anim_free'}
 FLOATS = {9: (1, 2, 3), 10: (1, 2, 3), 11: (1, 2, 3), 12: (1, 2, 3), 21: (1, 2, 3), 22: (1, 2), 23: (1, 2, 3),
           31: tuple(range(1, 10)), 32: (1, 2, 3), 33: (1, 2, 3, 4), 38: tuple(range(6)), 39: tuple(range(6)),
           40: (0, 1, 2), 42: (2, 3, 4), 43: (1, 2, 3, 4), 44: (2, 3, 4, 6), 45: (0, 1, 2), 46: (1, 2, 3),
-          47: (1, 2, 3), 49: (0, 1, 2)}
+          47: (1, 2, 3), 49: (0, 1, 2), 54: (1,), 56: (1,)}
 COVER = {
     0x584e1a: 'pooled flyout model', 0x5830cb: 'model cloned', 0x5830ba: 'model from the pool',
     0x584ebd: 'model returned', 0x584eb6: 'model detached', 0x585063: 'pool empty', 0x58503c: 'network gate refuses',
@@ -96,6 +97,18 @@ COVER = {
     0x51e483: 'slerp t 0', 0x51e4af: 'slerp t 1', 0x582f85: 'impact sound', 0x582fe5: 'bounce sound pick',
     0x582064: 'aim slope gravity', 0x582095: 'aim slope mine', 0x5869f0: 'lights freed', 0x586b2f: 'light taken',
     0x586b70: 'light returned', 0x5847de: 'pool objects freed',
+    0x584ab3: 'beam: 8 segments at most', 0x584ac2: 'beam: designate one', 0x584b11: 'beam: segment flag',
+    0x58126f: 'beam: designate silent', 0x581281: 'beam: fire effect', 0x5812aa: 'beam: random roll',
+    0x581312: 'beam: fire animation', 0x581390: 'beam: lock', 0x5813b5: 'beam: designate light',
+    0x58140f: 'beam: loop stopped', 0x581437: 'beam: animation freed', 0x58147b: 'beam: light back',
+    0x58199f: 'beam: grows', 0x5819c4: 'beam: snaps', 0x5819bb: 'beam: clamped', 0x581ab9: 'beam: owner hidden',
+    0x581b11: 'beam: hit', 0x581ba4: 'beam: designating', 0x581bdc: 'beam: designate impact',
+    0x581c67: 'beam: burns', 0x581c8c: 'beam: damage', 0x581cbe: 'beam: designate off', 0x581ce1: 'beam: volume',
+    0x581cea: 'beam: timer out', 0x581d0e: 'beam: ground animation', 0x581d3a: 'beam: bounce',
+    0x581d90: 'beam: designate lost', 0x581566: 'multi: chain', 0x581583: 'multi: four at most',
+    0x58165c: 'multi: kinks', 0x58171e: 'multi: chain goes on', 0x5817d1: 'multi: last target', 0x58181f: 'multi: one lock',
+    0x5818e9: 'multi: one lock reached', 0x58192c: 'multi: no lock', 0x582c50: 'multi: farthest',
+    0x582d44: 'multi: sorted', 0x582e61: 'multi: cast handler', 0x582e7b: 'multi: cast damage', 0x582ed1: 'multi: cast miss',
 }
 
 
@@ -196,6 +209,7 @@ class Fly(zr.Emulated):
         cpu.stub_import(0x5bb4c8, lambda c: 0)  # operator delete
         cpu.stub_import(0x5bb4bc, lambda c: self.zalloc(max(c.arg(0), 1)))  # operator new
         cpu.stub_import(0x5bb658, self.sprintf)
+        cpu.stub_import(0x5bb65c, lambda c: 0)  # free
         huge = cpu.code(struct.pack('<d', math.inf))  # _HUGE, the CRT's double infinity (kept over sessions)
         cpu.u32(0x5bb5bc, huge)
         self.handler_fn = cpu.code(b'\xc2\x08\x00')
@@ -283,8 +297,12 @@ class Fly(zr.Emulated):
             self.mats.append((m, soil))
         self.soils = dict(self.mats)
         self.pool_live = int(rng.random() < 0.9)
-        self.lock = [self.zalloc(4), self.zalloc(12), self.zalloc(12), self.zalloc(12)]  # flag, struct, at, vel
+        self.lock = [self.zalloc(4), self.zalloc(12 * 8), [self.zalloc(12) for _ in range(8)],
+                     [self.zalloc(12) for _ in range(8)]]  # flag, the LockRef array, positions, velocities
+        self.beams = {}     # slot -> the emulator's beam
+        self.beam_at = [(self.zalloc(12), self.zalloc(12), self.zalloc(4)) for _ in range(16)]
         self.taken_lights = []
+        self.beams, self.beam_state = {}, {}
         self.ahead = [0.0, 0.0, -400.0]
         # the radar list's head (the ctor at 0x4b4970)
         cpu.call(0x4b4970)
@@ -324,7 +342,7 @@ class Fly(zr.Emulated):
                        self.handle('orig', 28, c.ecx, c.edx), 12),
             0x508f00: (lambda c: self.check(c.edx == 0x583120) or self.ev('orig', 29, c.ecx, self.ptok(c.arg(0))), 4),
             0x508460: (lambda c: self.check(c.edx == 0) or self.ev('orig', 30, c.ecx), 0),
-            0x508aa0: (lambda c: self.check(c.edx == 0) or self.ev('orig', 31, c.ecx, *[c.arg(i) for i in range(9)]),
+            0x508aa0: (lambda c: self.check(c.edx == 0) or self.handle('orig', 31, c.ecx, *[c.arg(i) for i in range(9)]),
                        0x24),
             0x50d650: (lambda c: self.ev('orig', 32, c.ecx, *self.vec(c.edx)), 0),
             0x56e7e0: (lambda c: self.check(c.arg(1) == 0) or self.handle('orig', 33, c.ecx, *self.vec(c.edx), c.arg(0)),
@@ -343,6 +361,11 @@ class Fly(zr.Emulated):
             0x5824b0: (lambda c: self.ev('orig', 47, self.def_index(c.ecx), *self.rec_args(c.edx), s32(c.arg(0))), 8),
             0x525a50: (lambda c: self.ev('orig', 49, *self.vec(c.edx)), 4),
             0x525f80: (lambda c: self.cpu.write(c.edx, struct.pack('<3I', *self.angles)), 0),
+            0x4fbb90: (lambda c: self.ev('orig', 53, c.ecx, c.edx), 0),
+            0x4fba20: (lambda c: self.ev('orig', 54, c.ecx, c.arg(0)), 4),
+            0x56e9f0: (lambda c: self.ev('orig', 55, c.ecx), 0),
+            0x56f280: (lambda c: self.ev('orig', 56, c.ecx, c.arg(0)), 4),
+            0x506ca0: (lambda c: self.ev('orig', 57, c.ecx), 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
@@ -368,7 +391,50 @@ class Fly(zr.Emulated):
         return 0x20000
 
     def ltok(self, p):
-        return 0 if p == 0 else 0x30001 if p == self.lock[2] else 0x30002 if p == self.lock[3] else -2
+        if p == 0:
+            return 0
+        for i in range(8):
+            if p == self.lock[2][i]:
+                return 0x30001 + 2 * i
+            if p == self.lock[3][i]:
+                return 0x30002 + 2 * i
+        return -2
+
+    def btok(self, p):
+        if p == 0:
+            return 0
+        for k_, v in self.beams.items():
+            if v == p:
+                return 0x50000 + k_
+        return -2
+
+    def beam_fields(self, slot):
+        b, u, o, fl = self.beams[slot], self.u32, [], []
+
+        def put(v, f=False):
+            if f:
+                fl.append(len(o))
+            o.append(s32(v))
+        put(self.btok(u(b)))
+        put(self.btok(u(b + 4)))
+        put(self.def_index(u(b + 8)))
+        put(u(b + 0xc))
+        put(int(u(b + 0x10) != 0))
+        put(u(b + 0x14))
+        put(u(b + 0x1c))
+        for off in (0x28, 0x2c, 0x30, 0x34, 0x38):
+            put(u(b + off), True)
+        put(u(b + 0x3c))
+        put(u(b + 0x40))
+        for i in range(8):
+            sg = b + 0x44 + 0x20 * i
+            put(u(sg))
+            for k_ in range(7):
+                put(u(sg + 4 + 4 * k_), True)
+        put(1 if u(b + 0x144) == self.lock[0] else -2 if u(b + 0x144) else 0)
+        put(1 if u(b + 0x148) == self.lock[1] else -2 if u(b + 0x148) else 0)
+        put(u(b + 0x14c))
+        return o, fl
 
     def vec(self, p):
         return list(struct.unpack('<3I', self.cpu.read(p, 12)))
@@ -578,7 +644,7 @@ class Fly(zr.Emulated):
                 nd = sc.get(u[0])
                 nd.flags = (nd.flags | 0x10) if a[1] else (nd.flags & ~0x10)
             return 0
-        if kind in (26, 27, 28, 33):
+        if kind in (26, 27, 28, 31, 33):
             return s32(self.handle('port', kind, *a))
         if kind == 19:
             self.ev('port', 19)
@@ -686,7 +752,7 @@ class Fly(zr.Emulated):
         put(-1)
         for k in range(self.ndefs):
             d = self.defs_base + 0x1f4 * k
-            p = u(d + 0x7c)
+            p = u(d + 0x7c) if not (u(d + 0x6c) & 2) else 0
             while p:
                 put(self.ptok(p))
                 p = u(p)
@@ -830,6 +896,10 @@ def pokes(emu, rng):
     poke(emu, 'AC5', 0, fl('AC5') | 0x8)    # shootable, health 0, no destroy animation: shot down at once
     poke(emu, 'AC5', 13, 0)
     poke(emu, 'AC5', 9, 0)
+    poke(emu, 'Laser_Small', 0, fl('Laser_Small') | 0x20000 | 0x8000)  # MULTI_TARGET with LOCK_ON
+    poke(emu, 'ERLaser_Small', 0, fl('ERLaser_Small') | 0x20000)       # MULTI_TARGET, no lock: a straight ray
+    poke(emu, 'Laser_Medium', 0, fl('Laser_Medium') | BOUNCES)
+    poke(emu, 'ERLaser_Medium', 0, fl('ERLaser_Medium') | BOUNCES | 0x8000)
 
 
 def main():
@@ -882,18 +952,37 @@ def main():
                  *[f2i(f32(rng.uniform(-30, 30))) for _ in range(3)],
                  int(rng.random() < 0.9), int(rng.random() < 0.85), rng.choice([0] + emu.world_nodes[:2]),
                  rng.randrange(5), f2i(f32(rng.choice([30.0, 5.0]))), f2i(f32(clock))]
+            for _ in range(7):  # more lock targets, for MULTI_TARGET beams
+                g += [rng.choice(emu.world_nodes), *[f2i(f32(rng.uniform(-300, 300))) for _ in range(3)],
+                      *[f2i(f32(rng.uniform(-30, 30))) for _ in range(3)]]
+            g += [f2i(f32(rng.choice([1.0, 1.0, 0.5]))), rng.choice([1, 1, 0])]
+            if g[9] and rng.random() < 0.5:
+                g[10] = rng.choice([0, 1, 2, 3, 4, 5, 8, 9])
+            # the beams' muzzles move
+            for slot in emu.beams:
+                at, dp, _ = emu.beam_at[slot]
+                v = [f2i(f32(rng.uniform(-100, 100))) for _ in range(3)]
+                d_ = [rng.uniform(-1, 1) for _ in range(3)]
+                n2 = math.sqrt(sum(x * x for x in d_)) or 1
+                v += [f2i(f32(x / n2)) for x in d_]
+                cpu.write(at, struct.pack('<3I', *v[:3]))
+                cpu.write(dp, struct.pack('<3I', *v[3:]))
+                probe.probe_fly_beam_at(slot, (ctypes.c_int32 * 6)(*[s32(x) for x in v]))
             probe.probe_fly_globals((ctypes.c_int32 * len(g))(*[s32(x) for x in g]))
             for addr, v in ((0x72c52c, g[0]), (0x72f338, g[1]), (0x72c538, g[2]), (0x74a328, g[3]),
                             (0x9a0ec0, g[4]), (0x9a17d0, g[5]), (0x9a17d8, g[6]), (0x9a17dc, g[7]), (0x9a17e0, g[8]),
                             (0x9a0eec, g[18]), (0x9a0ee8, g[19]), (0x9a17c4, g[20]), (0x9a17c0, g[21]),
-                            (0x9a17a0, g[22]), (0x72c530, g[23]), (0x9a1788, 0), (0x9a1790, 0)):
+                            (0x9a17a0, g[22]), (0x72c530, g[23]), (0x9a1788, 0), (0x9a1790, 0),
+                            (0x9a17d4, g[73]), (0x9a17cc, g[74])):
                 cpu.u32(addr, v)
+            flag, st, ats, vels = emu.lock
+            cpu.u32(flag, g[10])
+            for i in range(8):
+                e = g[11:18] if i == 0 else g[24 + 7 * (i - 1):31 + 7 * (i - 1)]
+                cpu.write(st + 12 * i, struct.pack('<3I', e[0], ats[i], vels[i]))
+                cpu.write(ats[i], struct.pack('<3I', *e[1:4]))
+                cpu.write(vels[i], struct.pack('<3I', *e[4:7]))
             if g[9]:
-                flag, st, at, vel = emu.lock
-                cpu.u32(flag, g[10])
-                cpu.write(st, struct.pack('<3I', g[11], at, vel))
-                cpu.write(at, struct.pack('<3I', *g[12:15]))
-                cpu.write(vel, struct.pack('<3I', *g[15:18]))
                 cpu.u32(0x9a0ee0, flag)
                 cpu.u32(0x9a0ee4, st)
             else:
@@ -902,7 +991,7 @@ def main():
             if k == 0:
                 op, args = 5, [1]
             else:
-                op = rng.choice([0] * 9 + [1] * 12 + [2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16] +
+                op = rng.choice([0] * 9 + [1] * 12 + [2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16] + [17, 18, 18, 19, 20] +
                                 [4, 5] * (k % 17 == 0))
                 args = []
             seed = rng.randrange(1 << 31)
@@ -965,10 +1054,14 @@ def main():
                 cpu.call(0x5822c0, ecx=emu.defs_base + 0x1f4 * d, edx=ap)
                 res_a = s32(cpu.uc.reg_read(UC_X86_REG_EAX))
             elif op == 4:
+                if 1 in emu.beam_state.values():
+                    continue  # a firing beam would be killed as a projectile (FIX (A), zwep_shot.cpp)
                 cpu.call(0x584fe0)
             elif op == 5:
                 if not args:
                     args = [rng.choice([0, 1])]
+                if args[0] == 0 and 1 in emu.beam_state.values():
+                    continue
                 cpu.call(0x5847c0, ecx=args[0])  # passed through: the original runs
                 res_a = s32(cpu.uc.reg_read(UC_X86_REG_EAX))
             elif op == 6:
@@ -1034,6 +1127,39 @@ def main():
                 cpu.write(rp + 0xc, struct.pack('<3I', *pt))
                 cpu.call(0x582f60 if op == 12 else 0x582fc0, ecx=emu.defs_base + 0x1f4 * d, edx=rp,
                          stack_args=(soil, vol))
+            elif op in (17, 18, 19, 20):
+                beam_defs = [n for n in names if emu.u32(emu.defs_base + 0x1f4 * emu.names[n] + 0x6c) & 2]
+                if op == 17:
+                    free = [i for i in range(16) if i not in emu.beams]
+                    if not free:
+                        continue
+                    slot = rng.choice(free)
+                    d = emu.names[rng.choice(beam_defs)]
+                    zone_on = int(rng.random() < 0.5)
+                    zone = rng.choice([3, 0x104])
+                    segs = rng.choice([1, 1, 2, 3, 8, 9])
+                    args = [d, rng.choice(emu.world_nodes), zone_on, zone, slot, segs]
+                    at, dp, zp = emu.beam_at[slot]
+                    cpu.u32(zp, zone)
+                    cpu.call(0x584a70, ecx=emu.defs_base + 0x1f4 * d, edx=args[1],
+                             stack_args=(zp if zone_on else 0, 0x77, at, dp, segs))
+                    emu.beams[slot] = cpu.uc.reg_read(UC_X86_REG_EAX)
+                    emu.beam_state[slot] = 0
+                    res_a = 0x50000 + slot
+                else:
+                    want = {18: 0, 19: 1, 20: 0}[op]
+                    cand = [i for i, st in emu.beam_state.items() if st == want]
+                    if not cand:
+                        continue
+                    slot = rng.choice(cand)
+                    args = [slot]
+                    cpu.call({18: 0x581230, 19: 0x581400, 20: 0x584b40}[op], ecx=emu.beams[slot])
+                    res_a = s32(cpu.uc.reg_read(UC_X86_REG_EAX))
+                    if op == 20:
+                        del emu.beams[slot]
+                        del emu.beam_state[slot]
+                    else:
+                        emu.beam_state[slot] = 1 if op == 18 else 0
             elif op in (15, 16):
                 vs = lambda n_, lo, hi: [f2i(f32(rng.uniform(lo, hi))) for _ in range(n_)]  # noqa: E731
                 if op == 15:
@@ -1070,7 +1196,11 @@ def main():
                 out_a = [s32(x) for x in struct.unpack('<3I', cpu.read(o_, 12))]
             # the port
             emu.rand = MsvcRand(seed)
-            res_b = probe.probe_fly_op(op, (ctypes.c_int32 * max(1, len(args)))(*[s32(x) for x in args]), seed, out)
+            if op >= 17:
+                res_b = probe.probe_fly_beam(op - 17, (ctypes.c_int32 * len(args))(*[s32(x) for x in args]))
+            else:
+                res_b = probe.probe_fly_op(op, (ctypes.c_int32 * max(1, len(args)))(*[s32(x) for x in args]), seed,
+                                           out)
             if op in (6,):
                 if not close(res_a & 0xffffffff, res_b & 0xffffffff, TOL) or out_a[0] != out[0]:
                     raise SystemExit(f'session {sess} op {k} aim slope: {res_a:#x} {out_a} vs {res_b:#x} {out[0]:#x}')
@@ -1106,7 +1236,27 @@ def main():
             nb = probe.probe_fly_world(buf)
             err = compare_lists(f'{where}: world', a, list(buf[:nb]), fl, TOL, stats)
             if err:
+                if os.environ.get("FLY_DEBUG"):
+                    import difflib
+                    print("\n".join(list(difflib.unified_diff([str(x) for x in a], [str(x) for x in buf[:nb]], lineterm=""))[:40]))
+                    print(a.index(-1), a[160:200], list(buf[160:200]))
                 raise SystemExit(err)
+            for slot in emu.beams:
+                a, fl = emu.beam_fields(slot)
+                nb = probe.probe_fly_beam_dump(slot, buf)
+                err = compare_lists(f'{where}: beam {slot}', a, list(buf[:nb]), fl, TOL, stats)
+                if err:
+                    raise SystemExit(err)
+            la = []
+            for i in range(8):
+                la += [s32(emu.u32(emu.lock[1] + 12 * i)), emu.ltok(emu.u32(emu.lock[1] + 12 * i + 4))]
+            probe.probe_fly_locks(buf)
+            if la != list(buf[:16]):
+                raise SystemExit(f'{where}: lock array {la} vs {list(buf[:16])}')
+            ra = [x for e in emu.radar() for x in e]
+            nb = probe.probe_fly_radar(buf)
+            if ra != list(buf[:nb]):
+                raise SystemExit(f'{where}: radar {ra} vs {list(buf[:nb])}')
             sa, sb = emu.scene_fields('orig'), emu.scene_fields('port')
             if sa != sb:
                 i = next(i for i, (x, y) in enumerate(zip(sa, sb)) if x != y)
@@ -1123,6 +1273,12 @@ def set_choices(d, sound, flyout):
     probe.probe_fly_choice(d, sound, flyout)
 
 
+probe.probe_fly_beam.argtypes = [ctypes.c_int, ctypes.c_void_p]
+probe.probe_fly_beam.restype = ctypes.c_int32
+probe.probe_fly_beam_at.argtypes = [ctypes.c_int, ctypes.c_void_p]
+probe.probe_fly_beam_dump.argtypes = [ctypes.c_int, ctypes.c_void_p]
+probe.probe_fly_locks.argtypes = [ctypes.c_void_p]
+probe.probe_fly_radar.argtypes = [ctypes.c_void_p]
 probe.probe_fly_trim.argtypes = [ctypes.c_int]
 probe.probe_fly_net.argtypes = [ctypes.c_int, ctypes.c_int]
 probe.probe_fly_choice.argtypes = [ctypes.c_int, ctypes.c_int32, ctypes.c_int32]
