@@ -152,7 +152,7 @@ void panel(Dump& d, mech3::HudPanel* p) {
     d.kv("tpx", t->pixels == p->colors);
     d.kv("tal", t->alpha == p->alphas);
     d.kv("hc", fnv(reinterpret_cast<const uint8_t*>(p->colors), static_cast<size_t>(n) * 2));
-    d.kv("ha", fnv(p->alphas, static_cast<size_t>(n)));
+    if (p->alpha < 0xfe) d.kv("ha", fnv(p->alphas, static_cast<size_t>(n)));  // else never filled
   }
   d.r("rect", p->rect);
   for (auto& c : p->corners)

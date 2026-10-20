@@ -223,7 +223,8 @@ class Original:
                 kv('tpx', int(e.r32(t + 0x10) == e.r32(o + 0x100)))
                 kv('tal', int(e.r32(t + 0x14) == e.r32(o + 0x104)))
                 kv('hc', test_twod_fnv(bytes(e.cpu.read(e.r32(o + 0x100), 2 * n))))
-                kv('ha', test_twod_fnv(bytes(e.cpu.read(e.r32(o + 0x104), n))))
+                if e.r8(o + 0xfe) < 0xfe:  # else the alpha is never filled
+                    kv('ha', test_twod_fnv(bytes(e.cpu.read(e.r32(o + 0x104), n))))
             rc('rect', o + 0xbc)
             for i in range(12):
                 kv('c', e.r32(o + 0xcc + 4 * i))
