@@ -138,9 +138,11 @@ void player_setup(bool full) {
     if (!r || std::strcmp(name, "player") == 0 || std::strcmp(name, "stealth") == 0) continue;
     // The type is the name up to its first '_', the rest the suffix.
     char type_buf[0x100], name_buf[0x100];
+    uint8_t frame[0x14 + 0x1c + 0xd0];
     char* type = type_buf;
     char* full_name = name_buf;
-    if (zfix::options().bugs) {
+    const bool whole = zfix::options().bugs;
+    if (whole) {
       // FIX (bug): whole names. The exe's buffers are 20 and 28 bytes, then
       // this record (docs/mission-start.md, Quirks).
       std::snprintf(type_buf, sizeof type_buf, "%s", name);
@@ -149,19 +151,15 @@ void player_setup(bool full) {
       // The exe's frame: the type's 20 bytes, the name's 28, the record (its
       // vtable, then AiParams +0x04..). A name of 20 or more spills from the
       // type into the name, of 28 or more into the record's first fields.
-      uint8_t frame[0x14 + 0x1c + 0xd0];
       std::memcpy(frame + 0x30, r->raw, 0xd0);
       full_name = reinterpret_cast<char*>(frame + 0x14);
       std::snprintf(full_name, sizeof frame - 0x14, "%s", name);  // FIX (bug): as text, not as the format
       type = reinterpret_cast<char*>(frame);
       std::memmove(type, full_name, std::strlen(full_name) + 1);
-      std::memcpy(r->raw + 4, frame + 0x34, 0xcc);
-      std::snprintf(type_buf, sizeof type_buf, "%s", type);
-      std::snprintf(name_buf, sizeof name_buf, "%s", full_name);
-      type = type_buf, full_name = name_buf;
     }
     char* suffix = std::strchr(type, '_');
     if (suffix) *suffix++ = '\0';
+    if (!whole) std::memcpy(r->raw + 4, frame + 0x34, 0xcc);
     int32_t mech = r->get<int32_t>(0xc4);
     mech = mech > 0x12 ? 0x12 : (mech < -1 ? -1 : mech);
     // A campaign's lancemate the player configures (pilot can_configure,

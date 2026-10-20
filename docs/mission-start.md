@@ -165,7 +165,7 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   formatted), the globals (0x005ea1d0, 0x00609a00, the three gravities,
   0x0060b56c, 0x005e8110, 0x005e8114) and every dword written outside the
   stack (the team masks, the lancemate slots' +0x14, the held flag,
-  [0x006099c0]). 34,559 calls identical. Breaking the port showed the test
+  [0x006099c0]). 35,209 calls identical (92,334 over 1000 cases). Breaking the port showed the test
   catches it, 22 of 22: the allies keeping bit 0, the mech clamp at 19, the
   lancemate flag read from bit 6, skin 8 allowed, the water and quicksand
   defaults swapped, `mobilehq` matched as a prefix, no `mech` suffix rule,
@@ -219,7 +219,8 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   would be read as a format. FIX (bug): copied as text.
 - The type's buffer is 20 bytes and the name's 28, followed by the record
   being read: a name of 20 or more characters runs from the type into the
-  name (the name then reads as its own tail), one of 28 or more on into the
+  name (the name then reads as its own tail, cut where the type is cut at
+  its `_`), one of 28 or more on into the
   record's vtable and settings (the path number first). No shipped name is
   longer than 19. FIX (bug), behind `zfix::options().bugs`: whole names; off,
   the port lays out the exe's frame and gets the same.
