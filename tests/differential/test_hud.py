@@ -61,8 +61,20 @@ def synthetic(seed):
                 fields[fi + 1] = [r.randrange(-50, 1700) for _ in fields[fi + 1]]
             else:
                 del fields[fi:fi + 2]
+    for key, n in (('heat_text', 2), ('width', 1)):  # moved everywhere
+        if r.random() < 0.4:
+            v = [r.randrange(0, 600) for _ in range(n)]
+            for i in range(0, len(top), 2):
+                b = top[i + 1]
+                for j in range(1, len(b), 2):
+                    f = b[j]
+                    for q in range(0, len(f) - 1, 2):
+                        if f[q] == key:
+                            f[q + 1] = list(v)
     if r.random() < 0.6:  # MFD and TARGET resized everywhere: the panel's image grows or shrinks
         size = [r.randrange(20, 160), r.randrange(20, 160)]
+        if r.random() < 0.3:
+            size = [100, 75]  # as many pixels, transposed
         for i in range(0, len(top), 2):
             for j in range(0, len(top[i + 1]), 2):
                 if top[i + 1][j] in ('MFD', 'TARGET'):
@@ -471,6 +483,7 @@ class Original:
             kv('x34', e.r32(o + 0x34))
             kv('mode', e.r32(o + 0x38))
             kv('nav', e.r32(o + 0x820))
+            kv('dmech', e.r32(o + 0x3c + 0x7d0))
             flush(head)
             damageview(o + 0x3c, head + '.damage')
             v = e.r32(o + 0x824)

@@ -213,6 +213,7 @@ void mfd(Dump& d, mech3::HudMfd* m, const std::string& head) {
   d.kv("x34", g_hooks.id(m->hud));
   d.kv("mode", m->mode);
   d.kv("nav", m->nav);
+  d.kv("dmech", g_hooks.id(m->damage.mech));
   d.o << "\n";
   damageview(d, &m->damage, head + ".damage");
   zoomview(d, m->view, head + ".view");
@@ -421,7 +422,7 @@ void dump_hud(Dump& d) {
   for (auto& [k, v] : ks) d.kv(k, v);
   d.o << "\n";
   const std::pair<const char*, ztwod::FontText*> texts[] = {
-      {"coolant", &g.coolant_text}, {"fuel", &g.fuel_text}, {"speed", &g.speed_text}};
+      {"coolant", &g.coolant_text}, {"fuel", &g.heat_text}, {"speed", &g.speed_text}};
   for (auto& [n, t] : texts) {
     d.o << n << ' ';
     ftext(d, t);

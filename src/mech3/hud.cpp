@@ -406,7 +406,7 @@ int32_t image_h(const ztwod::Image& i) { return i.image ? i.image->height : 0; }
 
 // Mech3.exe 1.2 @ 0x00444760
 HudGauges::HudGauges()
-    : Object2D(0, 0), coolant_text(nullptr, 0, 0), fuel_text(nullptr, 0, 0),
+    : Object2D(0, 0), coolant_text(nullptr, 0, 0), heat_text(nullptr, 0, 0),
       speed_frame("hud_speed_frame", 0x23f, 0x100, 0), coolant_frame("hud_coolant_frame", 8, 0x122, 0),
       fuel_frame("hud_fuel_frame", 0x20f, 0x128, 0), heat_bar("hud_heat_bar", 0x12, 0xa3, 0),
       heat_meter("hud_heat_meter", 0x10, 0xa3, 0), toggler("lab_toggler_green", 10, 0x96, 0) {
@@ -417,10 +417,10 @@ HudGauges::HudGauges()
   gauge_font(coolant_text);
   coolant_text.set_text_id(0x1d5);
   gauge_shadow(coolant_text);
-  fuel_text.set_pos(0x1e, 0x115);
-  gauge_font(fuel_text);
-  fuel_text.set_text_id(0x1d6);
-  gauge_shadow(fuel_text);
+  heat_text.set_pos(0x1e, 0x115);
+  gauge_font(heat_text);
+  heat_text.set_text_id(0x1d6);
+  gauge_shadow(heat_text);
   speed_bar.set_box(speed_frame.get_x() + 0xf, speed_frame.get_y() + 5, 4, 0x2f);
   coolant_bar.color = zvid::pack_bytes(0, 0, 0xff);
   coolant_bar.set_box(coolant_frame.get_x() + 9, coolant_frame.get_y() + 7, 4, image_h(coolant_frame) - 8);
@@ -1040,7 +1040,7 @@ void HudGauges::read_layout(const Hud* hud) {
   if (ivec2(n, "fuel_frame", a)) fuel_frame.set_pos(a[0], a[1]);
   if (ivec2(n, "heat_bar", a)) heat_bar.set_pos(a[0], a[1]);
   if (ivec2(n, "heat_meter", a)) heat_meter.set_pos(a[0], a[1]);
-  if (ivec2(n, "heat_text", a)) fuel_text.set_pos(a[0], a[1]);
+  if (ivec2(n, "heat_text", a)) heat_text.set_pos(a[0], a[1]);
   if (ivec2(n, "heat_arrow", a)) toggler.set_pos(a[0], a[1]);
   if (ivec2(n, "coolant_frame", a)) coolant_frame.set_pos(a[0], a[1]);
   speed_text.set_pos(speed_frame.get_x() + 0x1b, speed_frame.get_y() + 0x30);

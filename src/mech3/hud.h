@@ -202,7 +202,7 @@ class HudGauges : public ztwod::Object2D {
  public:
   HudGauges();                       // 0x00444760
   ztwod::FontText coolant_text;      // +0x38   message 0x1d5
-  ztwod::FontText fuel_text;         // +0x4e8  message 0x1d6
+  ztwod::FontText heat_text;         // +0x4e8  message 0x1d6 (hud.zrd heat_text)
   HudText speed_text;                // +0x998
   HudBar speed_bar;                  // +0xe48
   HudBar fuel_bar;                   // +0xf88

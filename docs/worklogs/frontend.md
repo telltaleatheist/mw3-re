@@ -72,3 +72,22 @@ show in the trace. Break script: scratch/breaks_hud.py (33 of 41, misses
 equivalent at construction).
 Next: 1a, the set-up 0x0043bb80 and the hud.zrd readers, with the +0x22e3c
 FIX (bug) checked in tests/test_fixes.cpp.
+
+## 2026-10-20 The HUD's set-up, item 1a (branch mac3/hud-map)
+
+Hud::setup 0x0043bb80 runs from the constructor: hud.zrd's block by video
+mode, MFD/TARGET/TIMER, the pieces' attach calls (reticle, MFD, TARGET,
+radar with the display-sized zoom), and the readers EQUIPMENT, WEAPONS,
+COMPASS, GAUGES (`read_layout`). test_hud.py now loads hud.zrd for real on
+both sides (the original's zrdr load stubbed to a tree read by
+`w.read_tree`, the probe opening the archive): shipped, crafted
+(`synthetic`, resized MFDs reach the panel's realloc: stubbed) or none, with
+a fake mech (vtable stub for vt+0xa0, fields the set-up peeks). The probe's
+`id()` maps the HUD's members to the original's offsets for hook arguments.
+test_fixes fix_hud_block_cleared checks +0x22e3c.
+Remember: the equipment count skips non-positive parts (Ghidra was right,
+my asm reading wasn't); a fake mech's +0x6c must stay 0 (a set slot takes
+TARGET's unported path).
+Next (lead, priority): the reticle's aim point and the hand-off 0x0041cd40
+into mech +0x1d48, so `mw3 --mission c1m1` aims where you look; then the
+porting order.

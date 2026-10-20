@@ -1808,3 +1808,10 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   mission; the first time it starts in mode 1 in Direct3D and 3 in software.
 - **The HUD's arrows for "other" targets are misspelled in the data:**
   `hud_othererrow_left/right/up/down`.
+- **The zoomed radar grows with the screen,** to a radius of 180 pixels at
+  480 lines (225 at 600, 450 at 1200) around the middle; the small radar
+  stays 50 pixels in the corner at every resolution.
+- **The equipment list is told to make room when it is long:** with 17 or
+  more lines (weapons plus equipped parts) its next placing puts it left of
+  its spot instead of below it.
+

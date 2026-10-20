@@ -92,7 +92,7 @@ size goes to [0x00605998] / [0x0060599c].
 - **Gauges** (0x168c): `hud_speed_frame` (575, 256), `hud_coolant_frame` (8,
   290), `hud_fuel_frame` (527, 296), `hud_heat_bar` (18, 163),
   `hud_heat_meter` (16, 163), the heat arrow (`lab_toggler_green`, 10, 150),
-  the coolant and fuel texts (Arial 8, messages 0x1d5 / 0x1d6, green with a
+  the coolant and heat texts (Arial 8, messages 0x1d5 / 0x1d6, green with a
   dark green shadow), the speed text, and three bars (four-point polygons,
   0x005a6bd0; coolant blue, fuel green) inside the frames.
 - **MFD and TARGET** (0xcd8, 0x2414; one base, 0x00442060 and 0x00441da0):
@@ -138,17 +138,43 @@ hud.zrd holds one block per resolution, `V640x480`, `V800x600`,
 | TIMER | position | the timer's set_pos (vt+0x0c) |
 | GAUGES | speed_frame, fuel_frame, heat_bar, heat_meter, heat_text, heat_arrow, coolant_frame (x y each) | 0x00444dc0 / 0x00444e55 |
 
-The set-up keeps the mech (+0x10), opens hud.zrd (0x00556740), picks the
+The set-up keeps the mech (+0x10), loads hud.zrd (0x00556740) and picks the
 block by the video mode (0x0040d9d0: 3 and 5 V640x480, 6 V800x600, 7
 V1024x768, 8 V1152x864, 9 V1280x1024, 10 V1600x1200; any other mode keeps
-+0x22e3c as it is: 0 after an earlier set-up, which clears it at its end,
-but on the first set-up whatever `new` left there, as the constructor does
-not clear it; a bug candidate), sets MFD, TARGET
-and TIMER, then gives each piece the mech (0x0043be10, 0x00444250,
-0x004423c0, 0x00441760, 0x00441800 with the mech's +0x6c, 0x0043d6d0) and
-the readers their blocks (EQUIPMENT, WEAPONS, COMPASS, GAUGES), shows the
-HUD when the mech is alive, sets the zoom's state (0x00442df0 when the
-mech's 0x0041df10 is 2), and releases the reader.
++0x22e3c as it is: 0 after an earlier set-up, which clears it at its end, but
+on the first set-up whatever `new` left there, as the constructor does not
+clear it; FIX (bug), section 9). With a block: MFD and TARGET (both `size`
+and `position` needed; 0x00442230 moves the silhouette, the 3D view, its
+panel, box and nav list, and the title; 0x00440110 also TARGET's three
+texts), TIMER's `position`. Then, block or not:
+
+- 0x0043be10: +0x22e08..+0x22e34 cleared, the radar's fade 0 (0x0043dc70:
+  the box's and lines' +0x54 / +0x4c).
+- The reticle, MFD and TARGET get the HUD (0x00444250 with the lock tone's
+  channels 0 and 12 stopped, 0x0041e7a0; 0x004423c0 gives the silhouette the
+  mech and the nav list the mech, 0x0047eba0; 0x00441760 also clears
+  TARGET's texts), TARGET the mech's target slot (+0x6c, 0x00441800).
+- The radar (0x0043d6d0): amber (255, 226, 4) instead of green when the
+  mech's +0xbc bit 2 is set (0x0043d630); the zoomed size from the display:
+  centred, radius 180 at 480 lines (h x 180 / 480); the view cone from the
+  player camera's field of view.
+- EQUIPMENT (0x00448200, with a mech): `width`, then `position`; the lines
+  hang below the point unless the weapons (manager +0x24) and the listed
+  parts' equipment (mech +0x3ac by index 0, 12, 3, 8, 14, 6, 7, 4; only the
+  positive counts) come to 17 or more.
+- WEAPONS (0x00446120, with a mech): `width`, `position`, the weapon manager
+  (+0xd4), every line emptied (0x00445d10), the lines filled from the mech
+  (0x00446520).
+- COMPASS (0x0043f500): `tape` and `frame`.
+- GAUGES (0x00444dc0): `speed_frame`, `fuel_frame`, `heat_bar`,
+  `heat_meter`, `heat_text` (the text of message 0x1d6), `heat_arrow` (the
+  toggler), `coolant_frame`; then the texts, bars and heat marks laid out
+  again from the frames, as the constructor did.
+
+Last: the HUD shown when the mech lives (mech vt+0xa0; 0x0043baf0 shows or
+hides the radar, 0x0043db70 / 0x0043dc00), the zoom window round when the
+mech's 0x0041df10 is 2 (0x00442df0), hud.zrd released (+0x22e38 gets
+0x00556820's answer, +0x22e3c 0).
 
 ## 4. The primitives it uses
 
@@ -206,11 +232,9 @@ Small items, each with a differential test:
    - 1b, done: the HUD object (0x0043b190) and every piece's constructor
      with their defaults and helpers, on the ported zTwoD (`mech3/hud`,
      section 9).
-   - 1a, next: the set-up 0x0043bb80 with every hud.zrd reader (0x00442230,
-     0x00440110, 0x0043f500, 0x00444dc0 / 0x00444e55, 0x00446120,
-     0x00448200, the timer). Test: the fields on the shipped hud.zrd at
-     every video mode and on crafted variants (missing keys, missing blocks,
-     odd values).
+   - 1a, done: the set-up 0x0043bb80 with every hud.zrd reader and the
+     pieces' attach calls (section 3), on the shipped hud.zrd at every video
+     mode and on crafted variants.
 2. **The HUD primitives** zTwoD has left: FilledBox / Frame, PolyLine and
    Shape with the transformed points and zRender's line list, the line clip
    helpers, the key-list bars (twod.md, Left).
@@ -232,6 +256,9 @@ Small items, each with a differential test:
 
 ## 8. Open
 
+- What the mech's +0xbc bit 2 is (the radar turns amber with it,
+  0x0043d630) and what 0x0041df10 answers (2 makes the zoom window round).
+
 - Which buttons and options show the large radar, the zoom window and the
   equipment list; what +0x70 of the HUD selects for the radar.
 - 0x0043be10, 0x00441800 (with the mech's +0x6c) and 0x0041bd80 are not
@@ -247,12 +274,15 @@ order): `HudRadar`, `HudCompass`, `HudReticle` (with `HudZoomWindow`),
 `HudEquipment` (`HudEquipLine`), with the shared `HudPanel`, `HudText`
 (a FontText in mech_string, vtable 0x005bc598) and `HudLight`. The lights,
 fonts and damage silhouettes every HUD shares are `weapon_set()`,
-`equipment_set()` and `damage_set()`. Only the constructors and what they
-call are ported; the frame updates, show_for of the radar, the zoom window,
-TARGET and the objectives, and the set-up are not (section 7).
+`equipment_set()` and `damage_set()`. The constructors and the set-up
+(`Hud::setup`, the pieces' `read_layout`, `place` and `attach`) are ported;
+the frame updates are not (section 7).
 
-The engine sits behind `HudHooks`: the set-up 0x0043bb80, the mission
-entry's flip, zRender's nodes for the zoom views (window and camera nodes,
+The engine sits behind `HudHooks`: hud.zrd's load, the video mode, the
+display's size, the mech's fields the set-up reads (vt+0xa0, 0x0041df10,
++0xbc, +0xd4 and its +0x24, +0x3ac, the target slot +0x6c), the HUD's
+sound channels, the nav list's attach and place, the weapon list's refresh
+0x00446520, the mission entry's flip, zRender's nodes for the zoom views (window and camera nodes,
 names, size, place, zoom, field of view, clip, active), the player camera's
 clip, the options' display and window rects, the nav list 0x0047e840, the
 pilot's game, Mech3Msg.dll's messages and the saved MFD modes.
@@ -267,10 +297,17 @@ which the original leaves as `new` left it and the set-up reads for a video
 mode without a hud.zrd block (section 3; `fixes.md`).
 
 Test: `test_hud.py` (`tests/probe_hud.cpp`) builds the HUD in the emulator
-and in the port, with random render paths, display and window rects, saved
-modes, message tables and mission flips, and compares the call traces and
-every field the constructors set, on 100 runs. Breaking the port: 33 of 41
-mutations caught; the eight misses change nothing a constructor does (a
+and in the port (the constructor runs the set-up), with random render paths,
+display and window rects, saved modes, message tables, mission flips, video
+modes (listed and not), hud.zrd shipped, crafted (blocks, pieces and keys
+dropped or renamed, odd values, MFD and TARGET resized) or missing, and a
+fake mech or none, and compares the call traces and every field the
+constructor and set-up set, on 100 runs. `test_fixes.cpp`
+fix_hud_block_cleared checks the fix. Breaking the set-up: 22 of 25
+caught (the misses: the MFD's two keys read in the other order, an amber that
+packs to the same 565 pixel, steps computed after the move that makes them
+0, and TARGET's clear that set_target repeats). Breaking the constructors: 33
+of 41 mutations caught; the eight misses change nothing a constructor does (a
 wrap constant that rounds to the same float, flags already clear, the red
 look never taken, red 1 and 0 packing to the same 565 pixel, steps already
 positive, a text already empty, points set in order, and +0x22e3c, which only
@@ -278,7 +315,7 @@ the set-up reads: item 1a's test).
 
 ### Left
 
-- The set-up and the readers (item 1a).
+- The set-up with a target in the mech's slot (TARGET's 0x00441800 path).
 - The zoom views' drawing and camera work, with the render work: the zView
   and window creation (0x004b5150, 0x004b5440) and the camera setters stay
   recorded hooks until then (lead, 2026-10-20).
