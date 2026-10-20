@@ -5,6 +5,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/zai_params.h"
+#include "mech3/zai_steps.h"
 
 namespace znet { class Object; }
 
@@ -24,6 +25,10 @@ class AiNet;
 class Brain;
 struct Order;
 
+class NetPart;
+class BehaviourState;
+struct Behaviour;
+
 // What the brain calls outside it. The defaults run the ports.
 class BrainHooks : public zgame::Unported {
  public:
@@ -38,6 +43,8 @@ class BrainHooks : public zgame::Unported {
   // The built-in net at 0x00604008 (made at start-up by 0x004c0310, not
   // ported): the pilot's net when its own is missing.
   virtual AiNet* builtin_net() { return nullptr; }
+  // The default behaviour at 0x00604068 (zai_steps): an order's without one.
+  virtual Behaviour* default_behaviour();
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
   // The player's vehicle ([0x0060861c] +0x14) and its allies (+0xc4, the
   // AiTarget masks); false when there is no pilot or no vehicle. Silent.
@@ -52,46 +59,96 @@ class BrainHooks : public zgame::Unported {
 BrainHooks& brain_hooks();
 void set_brain_hooks(BrainHooks* h);
 
-// What a net builds in an order's +0x30 (its vt+0x5c: 0x004c0070 for a
-// compiled net, 0x004c0520 for the built-in one): the order and the net.
-// 0x0c bytes over 0x004bffe0, vtable 0x005ca748 (0x005cab50 built-in).
-struct OrderNet {
-  bool builtin = false;
-  Order* order = nullptr;  // +0x04
-  AiNet* net = nullptr;    // +0x08
+// What a net builds in an order (its vt+0x5c, in place at the order's
+// +0x30; docs/ai.md 17.2). Slot 0 destroys it in place (no free).
+class NetPart {
+ public:
+  explicit NetPart(Order* o) : order(o) {}
+  virtual ~NetPart() = default;           // +0x00
+  virtual void run(float dt) { (void)dt; }  // +0x04: 0x004bf620 for the shipped kinds
+  virtual AiNet* net() const = 0;         // +0x08
+
+  Order* order = nullptr;                 // +0x04
 };
 
-// What a behaviour builds in an order's +0x54 (its vt+0x8c): the order's
-// state for it. The orders made here run the shared behaviour at 0x0060b460
-// (class 0x004cbe10, vtable 0x005cbe18; what it does is the behaviours'),
-// whose state (0x004cbe30 -> 0x004cbe50 over 0x004c8660, vtable 0x005cbed0)
-// is 8 bytes: the order.
-struct OrderState {
+// The part a compiled net and the built-in one make: 0x0c bytes over
+// 0x004bffe0 (0x004c0070 -> 0x004c0010, vtable 0x005ca748; the built-in's
+// 0x004c0520 -> 0x004c0540, 0x005cab50): the order and the net.
+class NetLink : public NetPart {
+ public:
+  NetLink(Order* o, AiNet* n, bool built_in) : NetPart(o), target(n), builtin(built_in) {}
+  AiNet* net() const override { return target; }  // 0x004c0030
+
+  AiNet* target = nullptr;  // +0x08
+  bool builtin = false;     // the vtable
+};
+
+// What a behaviour builds in an order (its vt+0x8c, in place at +0x54),
+// over 0x004c8660 (vtable 0x005cb238): the order. The slots' defaults are the
+// base's; each behaviour's own state class overrides them (ai.md 17.2).
+class BehaviourState {
+ public:
+  BehaviourState(Order* o, Behaviour* b) : order(o), from(b) {}
+  virtual ~BehaviourState() = default;                  // +0x00
+  virtual bool may_break_in() const { return true; }    // +0x04 0x00499270
+  virtual bool may_fire() const { return true; }        // +0x08 0x004d7210
+  virtual void suspend() {}                             // +0x0c 0x0049bfd0
+  virtual void resume() {}                              // +0x10 0x0049bfd0
+  virtual void run(float dt);                           // +0x14 0x004c8690 (not ported)
+  virtual Behaviour* behaviour() const { return from; } // +0x18
+
   Order* order = nullptr;  // +0x04
+  Behaviour* from = nullptr;
+};
+
+// The state of the shared behaviour at 0x0060b460 (class 0x004cbe10, vtable
+// 0x005cbe18) every first order runs: 0x004cbe30 -> 0x004cbe50 (vtable
+// 0x005cbed0), 8 bytes. Its run 0x004cbeb0 is not ported (ai.md 17.2).
+class SharedState : public BehaviourState {
+ public:
+  explicit SharedState(Order* o);
+  bool may_break_in() const override { return false; }  // 0x004d72a0
+  bool may_fire() const override { return false; }      // 0x004d7290
+  void run(float dt) override;                          // 0x004cbeb0
+};
+
+// The shared behaviour at 0x0060b460, made at start-up.
+Behaviour* shared_behaviour();
+
+// The built-in net at 0x00604008 (0x004c0310 over the seven-behaviour net,
+// not ported): what an order without a net goes on. Its part is the
+// built-in kind (0x004c0520).
+class BuiltinNet : public CompiledNet {
+ public:
+  using CompiledNet::CompiledNet;
+  NetPart* make_part(Order& o) override;
 };
 
 // One order (0x98 bytes, vtables 0x005cd8d4 / 0x005cd8d8, ctor 0x004e7f80,
 // 0x004e8030 for the template at 0x0060b898). The deque's orders are
 // 0x004e8070's (the template argument unused); the brain's own at +0x194 is
-// 0x004e8180's (vtable 0x005cd8e8).
+// 0x004e8180's (vtable 0x005cd8e8). Its parts live in place in the exe
+// (+0x30, +0x54); here they are owned.
 struct Order {
   Order() = default;
-  ~Order();  // 0x004e7ff0: the state and the net's part destroyed in place
+  ~Order();                                        // 0x004e7ff0: the state, then the net's part, then the owner cleared
   Order(const Order&) = delete;
   Order& operator=(const Order&) = delete;
 
-  uint8_t x04 = 0;                  // +0x04
+  void run(float dt);                              // vt+0x04 0x004e8150: the part, then the state
+  void pop();                                      // vt+0x08 0x004e8170: its owner's pop
+  bool reset(AiNet* n, Behaviour* b);              // 0x004e80b0: both parts remade
+  bool set_behaviour(Behaviour* b);                // 0x004e8120: the state remade
+
+  uint8_t x04 = 0;                  // +0x04  marks the orders a stop takes back (0x004e8c60)
   Brain* owner = nullptr;           // +0x08  0x004e8090 sets it once
-  OrderNet* net = nullptr;          // +0x0c  -> net_part
-  OrderState* state = nullptr;      // +0x10  -> state_part
+  std::unique_ptr<NetPart> net;     // +0x0c  (in place at +0x30)
+  std::unique_ptr<BehaviourState> state;  // +0x10  (in place at +0x54)
   int32_t x14 = 0;                  // +0x14  0x004ce200: a word and a point
   float x18[3] = {};                // +0x18
   float x24[3] = {};                // +0x24  0x0063d870 (the zero vector)
-  OrderNet net_part;                // +0x30  (0x24 bytes of room)
-  OrderState state_part;            // +0x54  (0x44 bytes of room)
-  bool own_net = false, own_state = false;  // which parts were built (the pointers say it)
 
-  bool set_owner(Brain* b) {  // 0x004e8090
+  bool set_owner(Brain* b) {                       // 0x004e8090
     if (!owner) owner = b;
     return owner == b;
   }
@@ -178,6 +235,25 @@ class Brain {
   // net. False (nothing changed) when the net is not a compiled one.
   bool set_net(AiNet* net);
 
+  // The order stack (docs/ai.md 17.2). A net or behaviour of none is the
+  // built-in net (0x00604008) or the default behaviour (0x00604068).
+  Order& current() { return orders.back(); }       // 0x004ea760
+  bool remake(AiNet* n);                           // 0x004e82e0: the current order on n
+  bool push_net(AiNet* n);                         // 0x004e86a0
+  bool push(AiNet* n, Behaviour* b);               // 0x004e87c0
+  bool push_behaviour(Behaviour* b);               // 0x004e88c0: on the current order's net
+  void pop();                                      // 0x004e8380
+  bool pop_if(AiNet* n);                           // 0x004e84a0: when the current order is on n
+  Order* top_unmarked();                           // 0x004e8c60
+  void unwind_to(Order* o);                        // 0x004e8990
+  bool stop();                                     // vt+0x40 0x004ea4e0
+  bool may_fire();                                 // 0x004e9070
+  // From the IControls side, given a znet object (its vt+0x34 cast).
+  bool pop_if_object(znet::Object* o);             // 0x004e8660
+  bool push_object(znet::Object* o);               // 0x004e8960
+  bool clear_if_object(znet::Object* o);           // 0x004e9100
+  void push_order();  // 0x004e9d80 -> 0x004e9d90: a new order without parts (the template's)
+
   AiParams params;          // +0x00  0x004d9bf0 -> 0x004d9940 (vtable 0x005cd360, the brain's 0x005cc698)
   float xdc = 3.4028235e38f;  // +0xdc  FLT_MAX (0x004d9bf0)
   // +0xe0: the virtual base pointer.
@@ -197,7 +273,7 @@ class Brain {
   std::deque<Order> orders;
   const void* order_block = nullptr;  // the deque's first block and map, for the tests
   const void* order_map = nullptr;
-  Order order;                // +0x194  0x004e8180, its owner this brain
+  Order order;                                     // +0x194  0x004e8180, its owner this brain
   uint8_t x22c = 2;           // +0x22c
   int32_t x230 = 0;           // +0x230
   char* x234 = nullptr;       // +0x234  0x0049d180: a string holder, empty
@@ -210,9 +286,9 @@ class Brain {
   Radio* radio = nullptr;     // +0x2a8  0x004e7e20
 
  private:
-  void push_order();     // 0x004e9d80 -> 0x004e9d90 (push_back of the template)
-  void pop_order();      // the pop_back of 0x004e9380
-  void make_radio();     // 0x004e7e20
+  void pop_order();                                // the pop_back of 0x004e9380 (no resume)
+  void pop_resume();                               // the pop of 0x004e8380: then the new current state's resume
+  void make_radio();                               // 0x004e7e20
 };
 
 // 0x004a4a70 over 0x004a4000 (0x14 bytes, vtable 0x005c8340): a turret's

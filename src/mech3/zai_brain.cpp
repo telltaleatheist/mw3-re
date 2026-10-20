@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
@@ -12,6 +13,11 @@
 namespace mech3::ai {
 
 namespace {
+uint32_t bits(float f) {
+  uint32_t u;
+  std::memcpy(&u, &f, 4);
+  return u;
+}
 BrainHooks g_default_hooks;
 BrainHooks* g_hooks = &g_default_hooks;
 
@@ -28,14 +34,88 @@ void set_brain_hooks(BrainHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 
 znet::Object* BrainHooks::net_find(int32_t id) { return znet::find(id); }
 void* BrainHooks::sound_find(const char* name) { return zsnd::find(name); }
+Behaviour* BrainHooks::default_behaviour() { return mech3::ai::default_behaviour(); }
 
 // Mech3.exe 1.2 @ 0x004e7ff0: the parts built in place go with their
-// order (their slot 0 with 0: no free).
+// order (their slot 0 with 0: no free), the state first.
 Order::~Order() {
-  state = nullptr;
-  net = nullptr;
+  state.reset();
+  net.reset();
   owner = nullptr;
 }
+
+// Mech3.exe 1.2 @ 0x004e8150
+void Order::run(float dt) {
+  net->run(dt);
+  state->run(dt);
+}
+
+// Mech3.exe 1.2 @ 0x004e8170
+void Order::pop() { owner->pop(); }
+
+// Mech3.exe 1.2 @ 0x004e80b0: the old state and part destroyed, then the
+// net's part (the built-in net's for none) and the behaviour's state (the
+// default behaviour's for none).
+bool Order::reset(AiNet* n, Behaviour* b) {
+  state.reset();
+  net.reset();
+  if (!b) b = brain_hooks().default_behaviour();
+  if (!n) n = brain_hooks().builtin_net();
+  net.reset(n->make_part(*this));
+  state.reset(b->make_state(*this));
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004e8120
+bool Order::set_behaviour(Behaviour* b) {
+  state.reset();
+  state.reset(b->make_state(*this));
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004c0070 -> 0x004c0010
+NetPart* CompiledNet::make_part(Order& o) { return new NetLink(&o, this, false); }
+// Mech3.exe 1.2 @ 0x004c0520 -> 0x004c0540
+NetPart* BuiltinNet::make_part(Order& o) { return new NetLink(&o, this, true); }
+
+namespace {
+// The default behaviour's state (0x004c8770 -> 0x004c8790, vtable
+// 0x005cb330). Its run 0x004c87f0 is not ported.
+class DefaultState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  bool may_break_in() const override { return false; }  // 0x004d72a0
+  bool may_fire() const override { return false; }      // 0x004d7290
+  void run(float dt) override { brain_hooks().unported("0x004c87f0", {BrainHooks::low(order), bits(dt)}); }
+};
+
+// 0x004cbe10 (vtable 0x005cbe18), made at start-up into 0x0060b460.
+struct SharedBehaviour : Behaviour {
+  SharedBehaviour() : Behaviour(StepKind::Shared) {}
+  BehaviourState* make_state(Order& o) override { return new SharedState(&o); }  // 0x004cbe30
+};
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004c8620 (the base, the step base) and 0x004c8770 (the
+// default behaviour). The other behaviours' own states come with their ports
+// (docs/ai.md 17.9); until then they get the base's.
+BehaviourState* Behaviour::make_state(Order& o) {
+  if (kind == StepKind::Behaviour) return new DefaultState(&o, this);
+  return new BehaviourState(&o, this);
+}
+
+// Mech3.exe 1.2 @ 0x004c8690 (not ported: the controls' stop and IControls
+// vt+0x10(0)).
+void BehaviourState::run(float dt) { brain_hooks().unported("0x004c8690", {BrainHooks::low(order), bits(dt)}); }
+
+Behaviour* shared_behaviour() {
+  static SharedBehaviour b;
+  return &b;
+}
+
+// Mech3.exe 1.2 @ 0x004cbe50
+SharedState::SharedState(Order* o) : BehaviourState(o, shared_behaviour()) {}
+void SharedState::run(float dt) { brain_hooks().unported("0x004cbeb0", {BrainHooks::low(order), bits(dt)}); }
 
 // Mech3.exe 1.2 @ 0x004b6570, with the fire plan 0x004b6390 and the aim
 // 0x004b7060 (`new(0x24)`).
@@ -156,9 +236,15 @@ void Brain::pop_order() {
     h.on_delete(order_map);
     order_block = order_map = nullptr;
   }
-  // Not empty: the new last order's state vt+0x10 (resume, likely); the
-  // shared behaviour's does nothing (0x0049bfd0) and no other order is made
-  // here.
+}
+
+// The pop of 0x004e8380, 0x004e84a0, 0x004e8990 and 0x004e9100: then the
+// new current order's state resumes. Emptied, the exe still resumes
+// "the current state" through a null block (a crash) in all but 0x004e9100;
+// no caller gets there (ai.md 17.2), and here nothing is resumed.
+void Brain::pop_resume() {
+  pop_order();
+  if (!orders.empty()) current().state->resume();
 }
 
 // Mech3.exe 1.2 @ 0x004e9380 (IControls vt+0x04 of the AI's controls).
@@ -167,17 +253,116 @@ bool Brain::set_net(AiNet* net) {
   if (!compiled) return false;
   while (!orders.empty()) pop_order();
   push_order();
-  Order& o = orders.back();
-  // The net's vt+0x5c (0x004c0070 / 0x004c0520) into +0x30, the shared
-  // behaviour's vt+0x8c (0x004cbe30) into +0x54.
-  o.net_part.builtin = compiled == brain_hooks().builtin_net();
-  o.net_part.order = &o;
-  o.net_part.net = compiled;
-  o.net = &o.net_part;
-  o.own_net = true;
-  o.state_part.order = &o;
-  o.state = &o.state_part;
-  o.own_state = true;
+  // The net's part into +0x30, the shared behaviour's state into +0x54.
+  Order& o = current();
+  o.net.reset(compiled->make_part(o));
+  o.state.reset(shared_behaviour()->make_state(o));
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004e82e0
+bool Brain::remake(AiNet* n) { return current().reset(n, nullptr); }
+
+// Mech3.exe 1.2 @ 0x004e86a0: the current state suspended, a new order (the
+// last one's +0x14..+0x2f copied) on the net with the default behaviour.
+bool Brain::push_net(AiNet* n) {
+  current().state->suspend();
+  push_order();
+  return current().reset(n, nullptr);
+}
+
+// Mech3.exe 1.2 @ 0x004e87c0: the same with a behaviour; the new order has
+// no parts to destroy.
+bool Brain::push(AiNet* n, Behaviour* b) {
+  current().state->suspend();
+  push_order();
+  Order& o = current();
+  if (!b) b = brain_hooks().default_behaviour();
+  if (!n) n = brain_hooks().builtin_net();
+  o.net.reset(n->make_part(o));
+  o.state.reset(b->make_state(o));
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004e88c0
+bool Brain::push_behaviour(Behaviour* b) { return push(current().net->net(), b); }
+
+// Mech3.exe 1.2 @ 0x004e8380
+void Brain::pop() { pop_resume(); }
+
+// Mech3.exe 1.2 @ 0x004e84a0
+bool Brain::pop_if(AiNet* n) {
+  if (!n || current().net->net() != n) return false;
+  pop_resume();
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004e8c60: from the current order down, the first not
+// marked. All marked, the exe answers the slot before the first (no order);
+// here none, which 0x004e8990 treats the same.
+Order* Brain::top_unmarked() {
+  for (auto it = orders.rbegin(); it != orders.rend(); ++it)
+    if (!it->x04) return &*it;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004e8990: pops down to `o` and it, but never the last
+// order left (o the bottom one: all above it go). No order (none matches)
+// pops down to one; the exe given 0 with one order left pops it too (a
+// crash, see pop_resume), which no caller does.
+void Brain::unwind_to(Order* o) {
+  const Order* seen = nullptr;
+  while (orders.size() > 1) {
+    seen = &current();
+    if (seen == o) break;
+    pop_resume();
+  }
+  if (seen && seen == o) pop_resume();
+}
+
+// Mech3.exe 1.2 @ 0x004ea4e0 (vt+0x40: the player's stop, likely). Every
+// order marked, 0x004e8c60 answers the slot before the first, which matches
+// none.
+bool Brain::stop() {
+  unwind_to(top_unmarked());
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004e9070
+bool Brain::may_fire() { return current().state->may_fire(); }
+
+namespace {
+AiNet* cast_net(znet::Object* o) {  // vt+0x34
+  AiNet* n = o ? dynamic_cast<AiNet*>(o) : nullptr;
+  return n ? n->as_compiled() : nullptr;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004e8660 (IControls side).
+bool Brain::pop_if_object(znet::Object* o) { return pop_if(cast_net(o)); }
+
+// Mech3.exe 1.2 @ 0x004e8960 (IControls side).
+bool Brain::push_object(znet::Object* o) {
+  AiNet* n = cast_net(o);
+  return n ? push_net(n) : false;
+}
+
+// Mech3.exe 1.2 @ 0x004e9100 (IControls side): when any order, first to
+// last, is on the net, every order goes (each pop resumes the next current
+// one while any is left). FIX (bug): the exe's search for a net no order is
+// on steps past a full last block into the deque's map (a crash); here it
+// stops at the last order (docs/fixes.md).
+bool Brain::clear_if_object(znet::Object* o) {
+  AiNet* n = cast_net(o);
+  if (!n) return false;
+  bool found = false;
+  for (const Order& r : orders)
+    if (r.net->net() == n) {
+      found = true;
+      break;
+    }
+  if (!found) return false;
+  while (!orders.empty()) pop_resume();
   return true;
 }
 

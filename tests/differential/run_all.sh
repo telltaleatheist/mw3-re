@@ -87,6 +87,7 @@ for t in \
     mission_start \
     mech_build \
     ai_brain \
+    ai_orders \
     ai_valves \
     ai_targets \
     sensors \

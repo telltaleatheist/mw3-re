@@ -304,3 +304,4 @@ Known quirks the rebuild deliberately keeps:
 - Every mech's engine tops out at 400.
 - In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
 - A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.
+- An AI pilot with exactly 13 (or 39, ...) orders queued no longer reads past its order list (a possible crash) when the game checks whether it is on a path it is not on.

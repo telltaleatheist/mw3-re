@@ -16,6 +16,8 @@ float normalize_load(float v[3]);  // 0x004020d0 at load-time precision
 class NetNode;
 class Region;
 struct Behaviour;
+class NetPart;
+struct Order;
 
 // An element of an AI net: the nodes of the builder, the edges of a region,
 // the steps of a compiled net. In the exe two casts (+0x60, then +0x88 or
@@ -38,6 +40,8 @@ class AiNet : public znet::Object {
   virtual AiNet* as_compiled() { return nullptr; }  // +0x34: a net_NN, compiled (0x004bf910)
   virtual Region* as_region() { return nullptr; }   // +0x44: a reg_* loop (0x004c5b00)
   virtual const char* name();                       // +0x4c 0x004d52a0: "net_%02d" of the id
+  // +0x5c: what the net builds in an order (zai_brain.h; the caller owns it).
+  virtual NetPart* make_part(Order& o) { (void)o; return nullptr; }
   void link_pass();                                 // +0x30 0x004d53f0
 };
 

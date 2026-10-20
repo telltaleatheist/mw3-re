@@ -865,3 +865,8 @@ address,name,source,notes
 0x004e8f10,AiPilot::MayEngage,asm,"mapped: ai.md 17.3"
 0x004e87c0,AiPilot::PushOrder,asm,"mapped: ai.md 17.2, the order stack"
 0x004b5b80,AiFiring::Update,asm,"mapped: ai.md 17.7, the firing state machine"
+0x004e8380,AiPilot::PopOrder,asm,"ported; Brain::pop, resumes the next (null block when emptied)"
+0x004e8990,AiPilot::UnwindTo,asm,"ported; Brain::unwind_to, never pops the last"
+0x004e8c60,AiPilot::TopUnmarked,asm,"ported; Brain::top_unmarked"
+0x004e9100,AiPilot::ClearIfOnNet,asm,"ported; Brain::clear_if_object, FIX (bug) past a full block"
+0x004e80b0,AiOrder::Reset,asm,"ported; Order::reset, the parts remade"

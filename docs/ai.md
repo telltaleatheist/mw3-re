@@ -1284,15 +1284,48 @@ vt+0x08 (0x4e8170) pops it through its owner.
 | 0x4e8960 | push on a net given as a znet object (vt+0x34) |
 | 0x4e8990 | pop down to an order (exclusive of the last), resuming each new current one |
 | 0x4e8c60 | the topmost order without +0x04 set, from the current down |
-| 0x4e9100 | (IControls side) pop every order above the first on a given net |
+| 0x4e9100 | (IControls side) when any order is on a given net, pop every order (the stack is left empty) |
 | 0x4e9070 | the current state's vt+0x08 (may it fire, likely) |
 | 0x4ea4e0 | brain vt+0x40: 0x4e8c60 then 0x4e8990 to it (back to the last order not marked) |
 | 0x4d88a0 / 0x4d88d0 | (the AI controls) is the order under the marked ones on the net 0x603fb8; push on it |
 
 Popping the last order leaves the deque empty and 0x4e8380 still resumes
 "the current state" there, reading through a null block (a crash); no
-caller seen pops the last one (0x4e8990 keeps one), so it is noted, not
-fixed.
+caller seen pops the last one (0x4e8990 keeps one), so it is left as the
+exe has it (decided with the lead, 2026-10-20): the port resumes nothing
+there and the test never does it. Two more edges: with every order marked
+0x4e8c60 answers the slot before the first (no order; 0x4e8990 then pops
+down to one), and 0x4e8990 given 0 with one order left pops it (no caller
+does).
+
+**Ported** (2026-10-20, `mech3/zai_brain`): every function of the table but
+0x4d88a0 / 0x4d88d0 (they need the net 0x603fb8, item 10). An order owns
+its net part (`NetPart`, made by `AiNet::make_part`, vt+0x5c; the compiled
+and built-in nets' `NetLink`) and its state (`BehaviourState`, made by
+`Behaviour::make_state`, vt+0x8c; the base state for every behaviour whose
+own state is not ported yet, `DefaultState` for 0x604068, `SharedState` for
+0x60b460). Their runs are recorded hooks until the behaviours land (items
+7-11). The deque is the C++ library's: its blocks and map are not the
+exe's. FIX (bug): 0x4e9100's search for a net no order is on walks past a
+full last block into the map (the push takes its next block only when it
+needs one), a crash; the port answers no.
+
+Test `test_ai_orders.py` (probe `tests/probe_ai_orders.cpp`): fake nets
+and behaviours on both sides whose parts and states are numbered and
+report every call to one trace; 300 random runs from an empty brain
+(65,034 operations, stacks up to 60 orders, past two blocks and the map's
+growth): after each operation the trace, the answer and the whole stack
+(marks, owners, parts and states by number with their net and behaviour,
++0x14..+0x2f) identical, 144,021 calls. One run reached the exe's crash in
+0x4e9100 (counted, not made). Breaking the port showed the test
+catches it, 17 of 17: the state made before the part, the part destroyed
+before the state, no suspend on a push, the fields copied from the first
+order, no resume after a pop, pop_if on any net, the unmarked search from
+the first, the unwind keeping its order, the unwind popping the last, the
+clear's search on the current order only, the clear keeping the first, may
+fire as may break in, the state run before the part, push_behaviour on the
+built-in net, remake keeping the behaviour, the stop doing nothing with
+every order marked, the default behaviour swapped for the shared one.
 
 **Behaviours** are the objects a net is made of (section 9: node steps,
 property steps) plus a few shared ones. Each has the 40-slot vtable of the
@@ -1432,11 +1465,8 @@ goes through a hooks struct the test stubs the same on both sides.
 
 1. **The HUD's planner getters** 0x4b1bd0, 0x4b1c70, 0x4b1cd0: done
    (17.7).
-2. **The order stack**: 0x4e80b0, 0x4e8120, 0x4e82e0, 0x4e86a0, 0x4e87c0,
-   0x4e88c0, 0x4e8380, 0x4e84a0, 0x4e8660, 0x4e8960, 0x4e8990, 0x4e8c60,
-   0x4e9070, 0x4e9100, 0x4ea4e0, 0x4d88a0, 0x4d88d0, 0x4ea760, with
-   orders holding a net part and a state made by hooks (net vt+0x5c,
-   behaviour vt+0x8c). The existing Order becomes polymorphic.
+2. **The order stack**: done (17.2), but 0x4d88a0 / 0x4d88d0 (with the
+   net 0x603fb8, item 10).
 3. **The gates**: 0x4e8f10, 0x4e8dd0, 0x4e9640, 0x4e9650, 0x4e96b0.
 4. **The brain's frame** 0x4e9710 / 0x4e96f0 with everything below as
    hooks; replaces `controls_calls().ai_brain`.

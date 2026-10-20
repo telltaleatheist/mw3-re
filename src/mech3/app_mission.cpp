@@ -371,7 +371,7 @@ struct WiredValveHooks : ai::ValveHooks {
   void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
   Handle brain_order_net(Handle b) override {
     auto* br = static_cast<ai::Brain*>(e->object_of(b));
-    return br && !br->orders.empty() ? e->handle_of(br->orders.back().net_part.net) : 0;
+    return br && !br->orders.empty() ? e->handle_of(br->current().net->net()) : 0;
   }
   void controls_set_net(Handle c, Handle net) override {
     if (ai::Brain* b = brain(c)) b->set_net(static_cast<ai::AiNet*>(e->object_of(net)));

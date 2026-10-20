@@ -246,6 +246,7 @@ add_library(mw3probe SHARED
   tests/probe_player.cpp
   tests/probe_mech_build.cpp
   tests/probe_ai_brain.cpp
+  tests/probe_ai_orders.cpp
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
   tests/probe_sensors.cpp

@@ -139,12 +139,12 @@ void order_image(Img& o, uint32_t at, const ai::Order& r, uint32_t vtable, uint3
   o.u(at + 0x14, static_cast<uint32_t>(r.x14));
   o.v3(at + 0x18, r.x18);
   o.v3(at + 0x24, r.x24);
-  if (r.own_net) {
-    o.u(at + 0x30, r.net_part.builtin ? 0x005cab50 : 0x005ca748);
+  if (const auto* link = dynamic_cast<const ai::NetLink*>(r.net.get())) {
+    o.u(at + 0x30, link->builtin ? 0x005cab50 : 0x005ca748);
     o.u(at + 0x34, self);
-    o.p(at + 0x38, r.net_part.net);
+    o.p(at + 0x38, link->net());
   }
-  if (r.own_state) {
+  if (dynamic_cast<const ai::SharedState*>(r.state.get())) {
     o.u(at + 0x54, 0x005cbed0);
     o.u(at + 0x58, self);
   }
@@ -413,7 +413,8 @@ void probe_ab_reset() {
 void probe_ab_net(uint32_t addr, int32_t kind, int32_t id) {
   std::unique_ptr<znet::Object> n;
   if (kind == 0) n = std::make_unique<ai::AiNet>(id);
-  else n = std::make_unique<ai::CompiledNet>(id, 0);
+  else if (kind == 1) n = std::make_unique<ai::CompiledNet>(id, 0);
+  else n = std::make_unique<ai::BuiltinNet>(id, 0);
   if (kind == 2) g_builtin = static_cast<ai::AiNet*>(n.get());
   bind(n.get(), addr);
   g_nets.push_back(std::move(n));
