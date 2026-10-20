@@ -68,6 +68,7 @@ class HudPanel : public ztwod::Image {
   void set_color(uint16_t c);        // 0x0043aaa0
   void set_alpha(uint8_t a);         // 0x0043a9d0: 0xfe and up opaque
   void set_opacity(float f);         // 0x0043aa60
+  void set_size(int32_t w, int32_t h);  // 0x0043ab10: its image made or resized
   ztwod::Rect rect{};                // +0xbc
   float corners[4][3] = {};          // +0xcc  (x, y, 0.9): top left, bottom left, bottom right, top right
   uint16_t color = 0;                // +0xfc
@@ -287,12 +288,59 @@ struct HudZView {
 class HudZoomView : public ztwod::Object2D {
  public:
   HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043f660
+  void show_for(float seconds) override;  // +0x60  0x0043fc10: the camera on too
   void hide() override;              // +0x64  0x0043fc60: the camera off too
   HudZView view;                     // +0x34 (its vtable 0x005c0360)
   uint32_t x4c = 0xffff;             // +0x4c
   ztwod::Rect rect{};                // +0x50
   HudPanel panel;                    // +0x60
   uint32_t x168 = 0;                 // +0x168
+};
+
+// The MFD's 3D view (0x00442620, vtable 0x005c0500, 0x258 bytes): the zoom
+// view on a panel of its size, boxed.
+class HudMfdView : public HudZoomView {
+ public:
+  HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442620
+  ztwod::PolyLine box;               // +0x16c (vtable 0x005c0580)
+};
+
+// One part's damage image in a damage view (vtable 0x005c09e0, 0xdc bytes).
+class HudDamagePart : public ztwod::Image {
+ public:
+  HudDamagePart(DamageImages* images, int32_t px, int32_t py);  // 0x00447460
+  float xbc = 0.35f;                 // +0xbc
+  uint32_t xc0 = 0, xc4 = 0, xc8 = 0;  // +0xc0
+  uint32_t xcc = 1;                  // +0xcc
+  uint32_t xd0 = 0, xd4 = 0;         // +0xd0
+  DamageImages* images = nullptr;    // +0xd8
+};
+
+// A mech's damage silhouette (vtable 0x005c0a60, 0x7e4 bytes): the background
+// and the eight parts, in one of two orders (the player's own, or a target's
+// seen from the front).
+class HudDamageView : public ztwod::Object2D {
+ public:
+  // 0x00447680 (own; a third argument unused) and 0x00447820 (target).
+  HudDamageView(int32_t px, int32_t py, bool target);
+  ztwod::Image bg;                   // +0x34
+  HudDamagePart parts[8];            // +0xf0
+  ztwod::Rect rect{};                // +0x7d4 the background's
+};
+
+// An MFD (vtable 0x005c0470, 0xcd8 bytes): the damage view, the 3D view, the
+// nav list and a title. The MFD itself (0x00442060) and TARGET's base
+// (0x0043fcb0 through 0x00441da0) differ in the damage view and the nav
+// list's sizes.
+class HudMfd : public ztwod::Object2D {
+ public:
+  HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool target);  // 0x00442060 / 0x00441da0
+  uint32_t x34 = 0;                  // +0x34
+  int32_t mode = 0;                  // +0x38
+  HudDamageView damage;              // +0x3c
+  uint32_t nav = 0;                  // +0x820 the nav list (hooked)
+  HudMfdView* view = nullptr;        // +0x824
+  HudText title;                     // +0x828
 };
 
 // The reticle's zoom window (0x00442ac0, vtable 0x005c0608): the zoom
@@ -339,9 +387,21 @@ class HudReticle : public ztwod::Image {
 class HudHooks : public zgame::Unported {
  public:
   // zRender's nodes for the zoom views (not ported: the render work).
+  // The nav list in an MFD (0x0047e840 on a new 0x2fb8-byte object; not
+  // ported yet, hud.md): its handle.
+  virtual uint32_t nav_list_new(int32_t x, int32_t y, int32_t w, int32_t a, int32_t b) {
+    return unported("0x0047e840", {x, y, w, a, b});
+  }
+  // The pilot's game when it is multiplayer (0x00479480 on [0x0060861c]).
+  virtual uint32_t multiplayer_game() { return unported("0x00479480", {}); }
+  virtual const char* message(int32_t id);  // 0x00576040, Mech3Msg.dll's text
+  // The MFD's and TARGET's last modes ([0x00605988], [0x0060598c]; 0 at first).
+  virtual int32_t saved_mfd_mode() { return static_cast<int32_t>(unported("peek32", {0x605988})); }
+  virtual int32_t saved_target_mode() { return static_cast<int32_t>(unported("peek32", {0x60598c})); }
   virtual uint32_t window_node_new() { return unported("0x004f9e90", {}); }
   virtual uint32_t camera_node_new() { return unported("0x004f32e0", {}); }
   virtual void node_set_name(uint32_t node, const char* name) { unported("0x004eb300", {node, name}); }
+  virtual void camera_set_flag8(uint32_t cam, bool on) { unported("0x004f34c0", {cam, on ? 1u : 0u}); }
   virtual void node_set_active(uint32_t node, bool on) { unported("0x004eb170", {node, on ? 1u : 0u}); }
   virtual void window_set_size(uint32_t node, int32_t w, int32_t h) { unported("0x004f9fa0", {node, w, h}); }
   virtual void window_set_pos(uint32_t node, int32_t x, int32_t y) { unported("0x004fa0b0", {node, x, y}); }
@@ -405,7 +465,7 @@ class Hud : public ztwod::Layer {
   HudCompass compass;                // +0xdd4
   HudReticle reticle{"ret_on", "ret_off"};  // +0x144c
   HudGauges gauges;                  // +0x1da8
-  PendingPiece mfd{0x00442060, {0x212, 0x172, 0x4b, 100, 1}};         // +0x3434 0x00442060 (not ported yet)
+  HudMfd mfd{0x212, 0x172, 0x4b, 100, false};  // +0x3434 (a fifth argument 1, unused)
   PendingPiece target{0x0043fcb0, {10, 0x172, 0x4b, 100}};      // +0x410c 0x0043fcb0 (not ported yet)
   HudWeapons weapons;                // +0x6520
   HudObjectives objectives;          // +0x17964

@@ -20,7 +20,7 @@ from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
 from twod_world import TwodWorld  # noqa: E402
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 import test_twod  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
@@ -29,8 +29,7 @@ HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
-STUBBED = {0x442060: 's0,s1,s2,s3,s4',
-           0x43fcb0: 's0,s1,s2,s3'}
+STUBBED = {0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
 
@@ -77,6 +76,18 @@ class Original:
             e.w32(e.r32(esp + 4), e.r32(clip + 4))
             return clip
         w.answers['0x004f3b00'] = player_clip
+        # The MFDs: the nav list (0x0047e840, not ported) answers its object;
+        # the title by the pilot's game; the last modes.
+        e.stub(0x47e840, spec='s0,s1,s2,s3,s4')
+        w.answers['0x0047e840'] = lambda rr, n, a: e.uc.reg_read(UC_X86_REG_ECX)
+        e.stub(0x479480, spec='')
+        w.answers['0x00479480'] = lambda rr, n, a: rr.choice([0, 0x51000000])
+        e.stub(0x576040, spec='c')
+        titles = {i: e.world_string(f'title {i:x}') for i in (0xdbe, 0xfbb)}
+        w.answers['0x00576040'] = lambda rr, n, a: titles.get(a[0], 0)
+        e.stub(0x4f34c0, spec='c,d')
+        e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
+        e.w32(0x60598c, r.choice([0, 0, 1, 2, 3]))
         p_cam = e.world_alloc(8)
         e.w32(0x5f4c8c, p_cam)
         # The options' display and window rects (**[0x005f4d20], **[0x005f4d24]).
@@ -202,13 +213,24 @@ class Original:
 
         def panel(o):
             image(o)
+            t = e.r32(o + 0x3c)
+            if t and t not in self.w.stub_textures:
+                n = e.r32(t)
+                kv('tn', n)
+                kv('twh', e.r32(t + 4))
+                kv('tf', e.r8(t + 9))
+                kv('tw2', e.r32(t + 0x34))
+                kv('tpx', int(e.r32(t + 0x10) == e.r32(o + 0x100)))
+                kv('tal', int(e.r32(t + 0x14) == e.r32(o + 0x104)))
+                kv('hc', test_twod_fnv(bytes(e.cpu.read(e.r32(o + 0x100), 2 * n))))
+                kv('ha', test_twod_fnv(bytes(e.cpu.read(e.r32(o + 0x104), n))))
             rc('rect', o + 0xbc)
             for i in range(12):
                 kv('c', e.r32(o + 0xcc + 4 * i))
             kv('color', e.r32(o + 0xfc) & 0xffff)
             kv('alpha', e.r8(o + 0xfe))
-            kv('colors', e.r32(o + 0x100))
-            kv('alphas', e.r32(o + 0x104))
+            kv('colors', int(e.r32(o + 0x100) != 0))
+            kv('alphas', int(e.r32(o + 0x104) != 0))
 
         kv('active', e.r32(h + 4))
         line.append(f'head={piece(e.r32(h + 8))} tail={piece(e.r32(h + 0xc))}')
@@ -330,6 +352,35 @@ class Original:
             panel(o + 0x60)
             flush(head + '.panel')
 
+        def damageview(o, head):
+            base(o)
+            rc('rect', o + 0x7d4)
+            flush(head)
+            image(o + 0x34)
+            flush(head + '.bg')
+            for i in range(8):
+                q = o + 0xf0 + 0xdc * i
+                image(q)
+                for j in range(6):
+                    kv('f', e.r32(q + 0xbc + 4 * j))
+                kv('part', (e.r32(q + 0xd8) - DAMAGE) // 0x20)
+                flush(f'{head}.part{i}')
+
+        def mfd(o, head):
+            base(o)
+            kv('x34', e.r32(o + 0x34))
+            kv('mode', e.r32(o + 0x38))
+            kv('nav', e.r32(o + 0x820))
+            flush(head)
+            damageview(o + 0x3c, head + '.damage')
+            v = e.r32(o + 0x824)
+            zoomview(v, head + '.view')
+            poly(v + 0x16c)
+            flush(head + '.box')
+            ftext(o + 0x828)
+            flush(head + '.title')
+
+        mfd(h + 0x3434, 'mfd')
         o = h + 0x144c
         image(o)
         for k, off in (('state', 0x908), ('x950', 0x950), ('x954', 0x954)):
@@ -447,6 +498,13 @@ class Original:
             kv('py', e.r32(DAMAGE + 0x20 * p + 0x18))
         out.append(' '.join(line) + ' ')
         return '\n'.join(out) + '\n'
+
+
+def test_twod_fnv(b):
+    v = 2166136261
+    for c in b:
+        v = ((v ^ c) * 16777619) & 0xffffffff
+    return v
 
 
 def strip_next(dump):

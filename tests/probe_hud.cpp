@@ -3,6 +3,7 @@
 // the original's object from the emulator's memory.
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <map>
 #include <string>
 
@@ -13,6 +14,7 @@ namespace {
 using namespace probe_twod;
 
 uint32_t g_hud_addr = 0;
+std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 
 struct Hooks : mech3::HudHooks {
@@ -27,6 +29,18 @@ struct Hooks : mech3::HudHooks {
     const uint32_t r = call("peek32", {call("peek32", {global})});  // [global] -> [+0] -> the rect
     return {static_cast<int32_t>(call("peek32", {r})), static_cast<int32_t>(call("peek32", {r + 4})),
             static_cast<int32_t>(call("peek32", {r + 8})), static_cast<int32_t>(call("peek32", {r + 12}))};
+  }
+  const char* message(int32_t id) override {
+    const uint32_t a = call("0x00576040", {id});
+    if (!a) return nullptr;
+    std::string t;
+    for (uint32_t i = 0; i < 256; ++i) {
+      const char c = static_cast<char>(call("peek8", {a + i}));
+      if (!c) break;
+      t += c;
+    }
+    g_strings.push_back(t);
+    return g_strings.back().c_str();
   }
   ztwod::Rect display_rect() override { return rect_at(0x5f4d20); }
   ztwod::Rect window_rect() override { return rect_at(0x5f4d24); }
@@ -121,15 +135,66 @@ void zoomview(Dump& d, mech3::HudZoomView* v, const std::string& head) {
   d.o << "\n";
 }
 
+uint32_t fnv(const uint8_t* b, size_t n) {
+  uint32_t v = 2166136261u;
+  for (size_t i = 0; i < n; ++i) v = (v ^ b[i]) * 16777619u;
+  return v;
+}
+
 void panel(Dump& d, mech3::HudPanel* p) {
   d.image(p);
+  if (const zimg::Texture* t = p->image; t && !g_tex_id.count(t)) {
+    const int32_t n = t->pixel_count;
+    d.kv("tn", n);
+    d.kv("twh", static_cast<uint16_t>(t->width) | static_cast<uint32_t>(static_cast<uint16_t>(t->height)) << 16);
+    d.kv("tf", t->flags);
+    d.kv("tw2", t->width_again);
+    d.kv("tpx", t->pixels == p->colors);
+    d.kv("tal", t->alpha == p->alphas);
+    d.kv("hc", fnv(reinterpret_cast<const uint8_t*>(p->colors), static_cast<size_t>(n) * 2));
+    d.kv("ha", fnv(p->alphas, static_cast<size_t>(n)));
+  }
   d.r("rect", p->rect);
   for (auto& c : p->corners)
     for (float v : c) d.f("c", v);
   d.kv("color", p->color);
   d.kv("alpha", p->alpha);
-  d.kv("colors", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->colors)));
-  d.kv("alphas", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->alphas)));
+  d.kv("colors", p->colors != nullptr);
+  d.kv("alphas", p->alphas != nullptr);
+}
+
+void damageview(Dump& d, mech3::HudDamageView* v, const std::string& head) {
+  d.o << head << ' ';
+  d.base(v);
+  d.r("rect", v->rect);
+  d.o << "\n" << head << ".bg ";
+  d.image(&v->bg);
+  d.o << "\n";
+  for (int i = 0; i < 8; ++i) {
+    mech3::HudDamagePart& p = v->parts[i];
+    d.o << head << ".part" << i << ' ';
+    d.image(&p);
+    d.f("f", p.xbc);
+    for (uint32_t x : {p.xc0, p.xc4, p.xc8, p.xcc, p.xd0}) d.kv("f", x);
+    d.kv("part", p.images - mech3::damage_set().parts);
+    d.o << "\n";
+  }
+}
+
+void mfd(Dump& d, mech3::HudMfd* m, const std::string& head) {
+  d.o << head << ' ';
+  d.base(m);
+  d.kv("x34", m->x34);
+  d.kv("mode", m->mode);
+  d.kv("nav", m->nav);
+  d.o << "\n";
+  damageview(d, &m->damage, head + ".damage");
+  zoomview(d, m->view, head + ".view");
+  d.o << head << ".box ";
+  poly(d, &m->view->box);
+  d.o << "\n" << head << ".title ";
+  ftext(d, &m->title);
+  d.o << "\n";
 }
 
 void dump_hud(Dump& d) {
@@ -237,6 +302,7 @@ void dump_hud(Dump& d) {
     poly(d, &rd.polys[i]);
     d.o << "\n";
   }
+  mfd(d, &h.mfd, "mfd");
   mech3::HudReticle& rt = h.reticle;
   d.o << "reticle ";
   d.image(&rt);

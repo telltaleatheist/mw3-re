@@ -57,6 +57,11 @@ ztwod::Rect HudHooks::window_rect() {
   return {r.x, r.y, r.x_end, r.y_end};
 }
 
+const char* HudHooks::message(int32_t id) {
+  unported("0x00576040", {id});
+  return nullptr;
+}
+
 void HudHooks::piece(uint32_t ctor, std::initializer_list<zgame::Arg> args) {
   char key[16];
   std::snprintf(key, sizeof key, "0x%08x", ctor);
@@ -163,6 +168,44 @@ void HudPanel::set_alpha(uint8_t a) {
 // Mech3.exe 1.2 @ 0x0043aa60
 void HudPanel::set_opacity(float f) {
   set_alpha(static_cast<uint8_t>(crt::msvc_ftol(std::floor(static_cast<double>(f * 255.0f)))));
+}
+
+// Mech3.exe 1.2 @ 0x0043ab10: the corners at the rect's place (Direct3D's
+// depth 0.9); a new image of the colour and alpha, or the old one resized.
+void HudPanel::set_size(int32_t w, int32_t h) {
+  const float fx = static_cast<float>(rect.left), fy = static_cast<float>(rect.top);
+  const float y1 = static_cast<float>(h) + fy, x1 = static_cast<float>(w) + fx;
+  const float c[4][3] = {{fx, fy, 0.9f}, {fx, y1, 0.9f}, {x1, y1, 0.9f}, {x1, fy, 0.9f}};
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 3; ++j) corners[i][j] = c[i][j];
+  rect.bottom = rect.top + h;
+  rect.right = rect.left + w;
+  const int32_t n = w * h;
+  if (!image) {
+    auto* t = static_cast<zimg::Texture*>(std::calloc(1, sizeof(zimg::Texture)));  // 0x00517c10
+    set_image(t);
+    t->flags = 0x61;                                     // 0x00517c60
+    colors = static_cast<uint16_t*>(std::malloc(static_cast<size_t>(n) * 2));
+    alphas = static_cast<uint8_t*>(std::malloc(static_cast<size_t>(n)));
+  } else if (image->pixel_count == n) {
+    image->width = static_cast<int16_t>(w);             // 0x00517c90
+    image->height = static_cast<int16_t>(h);
+    image->width_again = static_cast<int16_t>(w);
+    image->pixel_count = static_cast<int16_t>(h) * static_cast<int16_t>(w);
+    return;
+  } else {
+    colors = static_cast<uint16_t*>(std::realloc(colors, static_cast<size_t>(n) * 2));
+    alphas = static_cast<uint8_t*>(std::realloc(alphas, static_cast<size_t>(n)));
+  }
+  image->pixels = colors;                                // 0x00517c70
+  image->alpha = alphas;
+  if (alphas) image->flags |= 2;
+  image->width = static_cast<int16_t>(w);               // 0x00517c90
+  image->height = static_cast<int16_t>(h);
+  image->width_again = static_cast<int16_t>(w);
+  image->pixel_count = static_cast<int16_t>(h) * static_cast<int16_t>(w);
+  set_color(color);
+  set_alpha(alpha);
 }
 
 // Mech3.exe 1.2 @ 0x00446700
@@ -568,11 +611,81 @@ HudZoomView::HudZoomView(int32_t px, int32_t py, int32_t w, int32_t h)
   HudZoomView::hide();
 }
 
+// Mech3.exe 1.2 @ 0x0043fc10
+void HudZoomView::show_for(float seconds) {
+  Object2D::show_for(seconds);
+  g_hooks->node_set_active(view.camera, true);
+  if (x4c != 0xffff) g_hooks->unported("0x0043fc60.light", {x4c});
+}
+
 // Mech3.exe 1.2 @ 0x0043fc60
 void HudZoomView::hide() {
   Object2D::hide();
   g_hooks->node_set_active(view.camera, false);
   if (x4c != 0xffff) g_hooks->unported("0x0043fc60.light", {x4c});  // a light's flag (0x004b5560); never at build
+}
+
+// Mech3.exe 1.2 @ 0x00442620
+HudMfdView::HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h) : HudZoomView(px, py, w, h) {
+  g_hooks->camera_set_flag8(view.camera, true);
+  panel.set_size(w, h);
+  panel.set_pos(px, py);
+  panel.set_color(zvid::pack_bytes(0, 0x40, 0));  // 0x0043aae0
+  panel.set_opacity(hud_opacity());
+  box.set_point(0, px, py);
+  box.set_point(1, px + w, py);
+  box.set_point(2, px + w, py + h);
+  box.set_point(3, px, py + h);
+  box.set_point(4, px, py);
+  box.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+  box.show_for(-1.0f);
+  panel.show_for(-1.0f);
+  show_for(-1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x00447460: at the part's place in the silhouette, blue.
+HudDamagePart::HudDamagePart(DamageImages* d, int32_t px, int32_t py) : Image(0), images(d) {
+  Image::set_pos(d->x + px, d->y + py);
+  set_image(d->image[0]);
+}
+
+namespace {
+// 0x0043afc0 on a part's entry: the set loaded, the entry back.
+DamageImages* loaded(int i) {
+  load_damage_set();
+  return &g_damage.parts[i];
+}
+// The parts by the table's index: own head, rtorso, ltorso, ctorso, rarm,
+// larm, rleg, lleg; a target's head, ltorso, rtorso, ctorso, larm, rarm, lleg, rleg.
+constexpr int kOwnOrder[8] = {5, 0, 4, 3, 2, 6, 7, 1};
+constexpr int kTargetOrder[8] = {5, 4, 0, 3, 6, 2, 1, 7};
+const int* order(bool t) { return t ? kTargetOrder : kOwnOrder; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00447680, 0x00447820
+HudDamageView::HudDamageView(int32_t px, int32_t py, bool t)
+    : Object2D(0, 0), bg(static_cast<zimg::Texture*>(nullptr), px, py, 0),
+      parts{{loaded(order(t)[0]), px, py}, {loaded(order(t)[1]), px, py}, {loaded(order(t)[2]), px, py},
+            {loaded(order(t)[3]), px, py}, {loaded(order(t)[4]), px, py}, {loaded(order(t)[5]), px, py},
+            {loaded(order(t)[6]), px, py}, {loaded(order(t)[7]), px, py}} {
+  rect = {px, py, px + g_damage.bg_w, py + g_damage.bg_h};
+}
+
+// Mech3.exe 1.2 @ 0x00442060 (target false), 0x00441da0 (true)
+HudMfd::HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool t) : Object2D(0, 0), damage(px, py, t) {
+  HudHooks& k = *g_hooks;
+  view = new HudMfdView(px, py, w, h);
+  nav = k.nav_list_new(px, py + 0xe, h - 0xf, 5, 5);  // [0x005e39f8] / [0x005e39f0] and the next: 5
+  damage.bg.set_image(g_damage.bg[0]);
+  title.set_text("%s", k.message(k.multiplayer_game() ? 0xfbb : 0xdbe));
+  title.set_pos(px, py - title.text_height() - 1);
+  if (title.color_top != 0xff || title.color_bottom != 0xff) {
+    title.color_top = title.color_bottom = 0xff;
+    title.needs_render = 1;
+  }
+  title.show_for(-1.0f);
+  mode = k.saved_mfd_mode();
+  if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;  // 0x00441d90
 }
 
 // Mech3.exe 1.2 @ 0x00442ac0
