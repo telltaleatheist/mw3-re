@@ -95,12 +95,12 @@ struct Hooks : mech3::HudHooks {
   void zview_render(void* v, float dt) override { call("0x00442870", {view_name(v), zgame::bits(dt)}); }
   void view_draw_node(void* v, uint32_t node) override { call("0x004428b0", {view_name(v), node}); }
   // The weapon manager's +0x88 as the aim state sets it (test_hud.py's dump).
-  void set_lock_shown(uint32_t wm, bool on) override {
+  void set_lock_shown(void* wm, bool on) override {
     g_lock_shown = on;
-    call("poke8", {wm + 0x88, on ? 1u : 0u});
+    call("poke8", {id(wm) + 0x88, on ? 1u : 0u});
   }
-  const char* weapon_name(uint32_t w) override {  // def +0x2c, its name +8, from the emulator's memory
-    const uint32_t a = call("peek32", {call("peek32", {w + 0x2c}) + 8});
+  const char* weapon_name(void* w) override {  // def +0x2c, its name +8, from the emulator's memory
+    const uint32_t a = call("peek32", {call("peek32", {id(w) + 0x2c}) + 8});
     std::string n;
     for (uint32_t i = 0; i < 64; ++i) {
       const char c = static_cast<char>(call("peek8", {a + i}));
@@ -647,11 +647,11 @@ void dump_hud(Dump& d) {
   d.o << "weapons ";
   d.base(&w);
   d.kv("hud", g_hooks.id(w.hud));
-  d.kv("x38", w.weapons);
+  d.kv("x38", g_hooks.id(w.weapons));
   d.t("select", w.select);
   d.t("chain", w.chain);
   d.kv("shown", w.shown);
-  d.kv("x1143c", w.next_weapon);
+  d.kv("x1143c", g_hooks.id(w.next_weapon));
   d.kv("column", w.column);
   d.o << "\nwpoly ";
   poly(d, &w.poly);

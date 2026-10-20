@@ -1898,12 +1898,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   weapon list is shown too, so an equipment list shown on its own would have
   no panel behind it (whether play ever does that is not checked).
 - **How a missile lock works:** keep the reticle on the target with a
-  weapon group that locks, and the lock tone starts; after 0.6 seconds (1.2
-  against some targets, by a field of the target not identified yet) the
+  weapon group that locks, and the lock tone starts; after 0.6 seconds the
   lock is on and the reticle lights up. It holds for 3.5 seconds after the
   reticle leaves the target. Either the target or the aim point has to be
-  within the group's longest range, and one kind of target (kind 7, not
-  identified yet) can never be locked.
+  within the group's longest range.
+- **Elementals can't be missile-locked:** the lock skips any target whose
+  pilot is an Elemental.
+- **ECM doubles the lock time:** against a target carrying ECM, a missile
+  lock takes 1.2 seconds instead of 0.6.
 - **What the weapon list's colours mean:** each weapon's light turns
   yellow past half damage and red past 80%; its name turns grey when the
   weapon is destroyed, and its texts go red only while it has ammo and is

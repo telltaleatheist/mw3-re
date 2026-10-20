@@ -407,7 +407,7 @@ void HudWeapons::layout() {
   poly.hide();
   next_weapon = 0;
   for (int32_t i = 0; i < 5; ++i) {
-    const uint32_t g = i == -1 ? 0 : h.wm_group(weapons, i);
+    void* g = i == -1 ? nullptr : h.wm_group(weapons, i);
     const int32_t n = g ? h.group_count(g) : 0;
     if (n == 0) continue;
     if (current == i) {
@@ -418,8 +418,8 @@ void HudWeapons::layout() {
       poly.set_point(3, px + kWeaponBracket, n * kWeaponLine + py);
     }
     for (int32_t k = 0; k < n; ++k) {
-      const uint32_t w = k < h.group_count(g) ? h.group_weapon(g, k) : 0;
-      lines[total + k].set_weapon(reinterpret_cast<void*>(static_cast<uintptr_t>(w)), nullptr);
+      void* w = k < h.group_count(g) ? h.group_weapon(g, k) : nullptr;
+      lines[total + k].set_weapon(w, nullptr);
       py += kWeaponLine;
     }
     total += n;
@@ -442,13 +442,13 @@ void HudWeapons::layout() {
 void HudWeapons::looks() {
   HudHooks& h = *g_hooks;
   const int32_t gi = h.wm_group_index(weapons);
-  const uint32_t group = gi == -1 ? 0 : h.wm_group(weapons, gi);
+  void* group = gi == -1 ? nullptr : h.wm_group(weapons, gi);
   shown = 0;
   next_weapon = 0;
   bool after_current = false;
   for (HudWeaponLine& l : lines) {
     if (l.flags & ztwod::kHidden) continue;
-    const uint32_t w = h.id(l.weapon);
+    void* w = l.weapon;
     zimg::Texture* mark = nullptr;
     if (after_current) next_weapon = w;
     after_current = w == h.wm_current(weapons);
@@ -460,7 +460,7 @@ void HudWeapons::looks() {
     const bool recycling = l.refresh_line(mark);
     shown = shown || recycling;
   }
-  if (next_weapon == 0) next_weapon = h.id(lines[0].weapon);
+  if (!next_weapon) next_weapon = lines[0].weapon;
 }
 
 // Mech3.exe 1.2 @ 0x00446220
@@ -1310,7 +1310,7 @@ void HudWeaponLine::set_weapon(void* w, zimg::Texture* mark) {
     refresh_line(mark);
     return;
   }
-  const char* n = g_hooks->weapon_name(g_hooks->id(w));
+  const char* n = g_hooks->weapon_name(w);
   name.set_text_plain(n);
   text2.set_text_plain(n);
   red = !red;
@@ -1328,7 +1328,7 @@ bool HudWeaponLine::refresh_line(zimg::Texture* mark_image) {
     hide();
     return false;
   }
-  const uint32_t w = h.id(weapon);
+  void* w = weapon;
   h.weapon_vt8(w);
   float f = h.weapon_recycle(w);
   if (f > 1.0f) f = 1.0f;
@@ -1612,11 +1612,11 @@ void HudHooks::reticle_aim_state(void* r, bool over) { static_cast<HudReticle*>(
 void HudReticle::aim_state(bool over) {
   HudHooks& h = hud_hooks();
   Hud* hud = static_cast<Hud*>(source);
-  const uint32_t wm = h.mech_weapons(hud->mech);
+  void* wm = h.mech_weapons(hud->mech);
   const float range = h.group_range(wm);
   const bool lockable = h.group_locks(wm) && h.group_4b1cd0(wm);
-  const uint32_t contact = h.slot_contact(hud->target.target);
-  const uint32_t mech = contact ? h.contact_mech(contact) : 0;
+  void* contact = h.slot_contact(hud->target.target);
+  void* mech = contact ? h.contact_mech(contact) : nullptr;
   const bool kind7 = mech && h.mech_kind_of(mech) == 7;
   const bool in_range = contact && h.contact_distance(contact) < range;
   const bool aim_close = aim_distance < range;
@@ -1660,7 +1660,7 @@ void HudReticle::aim_state(bool over) {
   h.set_lock_shown(wm, is_locked);
   if (is_locked) return;
   if (lock == 2) return show(2, img_over);
-  const uint32_t node = h.id(hit.node);
+  void* node = hit.node;
   if (!node) {
     if (!aim_close) show(3, img_cant);
     return;
