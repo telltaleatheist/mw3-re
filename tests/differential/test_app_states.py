@@ -57,9 +57,19 @@ class Script(dict):
         return []
 
 
+# The heap menu objects (menu_states.h): made first in every world, so at the
+# same addresses each time; their vtables, so internal calls run.
+MENU_VTABLES = {'options': 0x5bf7a8, 'gfx': 0x5c0040, 'controls': 0x5be3d8, 'credits': 0x5bd938}
+MENU = {}
+
+
 def build_world(seed, t, case):
     w = World(t, seed)
     e = w.emu
+    for k, vt in MENU_VTABLES.items():
+        o = e.world_alloc(0x10)
+        e.w32(o, vt)
+        assert MENU.setdefault(k, o) == o
     r = rnd(seed, 'setup')
     w.answers = {}
     w.command_line = r.choice(['mech3.exe', 'mech3.exe -nofmv', 'mech3.exe -cd7 -seasick',
@@ -164,7 +174,7 @@ def field_values(probe, seed):
         elif addr == 0x608ec0 + 0x1c:
             v = r.choice(list(RENDERERS))
         elif addr == 0x608ec0 + 0x20 or addr in (0x608f00 + 0xc, 0x608f48 + 0xc, 0x608f18 + 0xc,
-                                                  0x608e70 + 0xc):
+                                                  0x608e70 + 0xc) or addr - 0xc in MENU.values():
             v = 0x1234  # a mission's message box, the menus' screens: always there
         elif addr in (0x608ec0 + 0x14, 0x608f00 + 0x14, APP + 0x1cc, APP + 0x1d0, APP + 0x1d4):
             v = fbits(r.choice([0.0, 1.0, 0.04, 30.0, -0.5]))
@@ -282,9 +292,16 @@ CASES = [
     ('win leave', 0x47af20, 0x47af20, STATES[9], none),
     ('salvage enter', 0x47d310, 0x47d310, STATES[8], none),
     ('salvage leave', 0x47d390, 0x47d390, STATES[8], none),
+    ('options enter', 0x438c90, 0x438c90, 'options', none),
+    ('gfx enter', 0x42da50, 0x42da50, 'gfx', none),
+    ('controls enter', 0x42da50, 0x42da50, 'controls', none),
+    ('options resume', 0x42da70, 0x42da70, 'options', lambda r: (lambda v: (v, 0, (v,), 0))(r.randrange(3))),
+    ('options escape', 0x438c80, 0x438c80, 'gfx', none),
+    ('credits enter', 0x429600, 0x429600, 'credits', none),
+    ('credits leave', 0x429670, 0x429670, 'credits', none),
 ]
 # Results compared as booleans (functions returning bool / BOOL / a byte).
-BOOL_RESULT = {0x482a20, 0x480570, 0x480970, 0x480000, 0x482330, 0x482430, 0x482070,
+BOOL_RESULT = {0x438c90, 0x42da50, 0x429600, 0x482a20, 0x480570, 0x480970, 0x480000, 0x482330, 0x482430, 0x482070,
                0x482170, 0x482060, 0x480b30, 0x480b60, 0x480c70, 0x481f70, 0x481e70,
                0x482520, 0x48ebf0, 0x48ed30, 0x486990, 0x486d40, 0x493040, 0x4091e0,
                0x409440, 0x47ac20, 0x47aed0, 0x47d310}
@@ -297,6 +314,10 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
     w = build_world(seed, t, name)
     t.script = Script(make_script(seed, w))
     probe.probe_states_reset()
+    probe.probe_states_set_menus(*(MENU[k] for k in MENU_VTABLES))
+    if isinstance(ecx, str):
+        ecx = MENU[ecx]
+        probe.probe_states_this(ecx)
     probe.probe_states_set_command_line(w.command_line.encode())
     values = field_values(probe, seed)
     if paddr == 0x47f7a0:  # static objects start zeroed, before their constructors
@@ -308,7 +329,7 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
         pass
     snap = w.emu.snapshot()
     w.emu.watch_writes([(w.emu.world_base, w.emu.world_base + w.emu.world_size),
-                        (0x5e0000, 0x810000)], IGNORE)
+                        (0x5e0000, 0x810000)], IGNORE + [(o, o + 0x10) for o in MENU.values()])
     if eaddr == 0x47f7a0:
         eret = w.call(eaddr, ecx=ecx)
     else:

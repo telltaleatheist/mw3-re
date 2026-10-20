@@ -78,7 +78,7 @@ STRINGS = {0x576040: 'msg', 0x4af280: 'ver', 0x4af290: 'num', 0x484c50: 'dir'}
 # Constructors: the answer is the object made (a fake object, by kind).
 CTORS = {0x410700: '', 0x433090: '', 0x486260: 's0', 0x48a6c0: '', 0x488910: '', 0x48aef0: '',
          0x48b120: '', 0x438be0: '', 0x43a640: '', 0x42d9d0: '', 0x49c900: '', 0x4295e0: '',
-         0x492750: 's0', 0x405230: 'zs0', 0x47b430: 's0,s1,s2,s3', 0x47d3b0: 's0',
+         0x492750: 's0', 0x4289a0: 's0', 0x405230: 'zs0', 0x47b430: 's0,s1,s2,s3', 0x47d3b0: 's0',
          0x48dfe0: 'zs0,zs1', 0x598cc0: 's0,s1,s2', 0x590920: 'zs0'}
 # Imports by IAT slot: (key, spec, pop).
 IMPORTS = {
@@ -211,7 +211,7 @@ class World:
         usual slots of the shell screens and menu objects."""
         if key == '0x00590920':  # the frame: the original's own `this`
             return self.emu.uc.reg_read(UC_X86_REG_ECX)
-        o = self.obj({0x0: 1, 0x4: 1, 0x8: 1, 0x18: 1}, size=0x14000)
+        o = self.obj({0x0: 1, 0x4: 1, 0x8: 1, 0x10: 1, 0x18: 1}, size=0x14000)
         for off in (0x111ec, 0x11494, 0x1173c, 0x119e4, 0x11c8c, 0x11f34, 0x121dc):
             self.emu.w32(o + off, self.vtable({0x30: 0}))
         return o

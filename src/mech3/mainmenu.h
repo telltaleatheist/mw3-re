@@ -35,7 +35,6 @@ class MainMenu : public MenuScreen {
  public:
   MainMenu(Engine& e, Handle state);  // 0x00486260
   ~MainMenu() override;              // 0x00485780 (deleting 0x00485a60)
-  void bake();                       // 0x00486ed0: FastMenu's still screen
   // The button at an offset of the object (+0x111ec + 0x2a8 n), or null.
   MainMenuButton* button_at(uint32_t offset);
 

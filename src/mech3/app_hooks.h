@@ -4,6 +4,7 @@
 #include "gamez/zgame/zgameapp.h"
 
 namespace zcls { struct Node; }
+namespace zimg { struct Texture; }
 
 // What the game's app and states call in code not ported yet (docs/game-loop.md).
 // One method per original function, its address in the key; by default each
@@ -68,6 +69,64 @@ class Engine : public zgame::AppHooks {
   virtual int32_t display_width();                     // 0x0040d760
   virtual int32_t display_height();                    // 0x0040d770
   virtual void options_apply_all();                    // 0x0040cb30
+  // The game options screen's (docs/menus.md), ported.
+  virtual int32_t game_intensity();                    // 0x0040cdf0
+  virtual void set_game_intensity(int32_t v);          // 0x0040cc20
+  virtual int32_t camera_mode();                       // 0x0040ce70
+  virtual void set_camera_mode(int32_t v);             // 0x0040ce10
+  virtual int32_t invincible();                        // 0x0040cf20
+  virtual void set_invincible(int32_t v);              // 0x0040ced0
+  virtual int32_t infinite_ammo();                     // 0x0040cf80
+  virtual void set_infinite_ammo(int32_t v);           // 0x0040cf30
+  virtual int32_t heat();                              // 0x0040cfc0
+  virtual void set_heat(int32_t v);                    // 0x0040cf90
+  virtual int32_t torso_auto_return();                 // 0x0040d010
+  virtual void set_torso_auto_return(int32_t v);       // 0x0040cfd0
+  virtual int32_t throttle_const();                    // 0x0040d060
+  virtual void set_throttle_const(int32_t v);          // 0x0040d020
+  virtual int32_t mw2_jump_jets();                     // 0x0040d1e0
+  virtual void set_mw2_jump_jets(int32_t v);           // 0x0040d1c0
+  virtual void set_mouse_accel_y(float v);             // *[0x005f4d30] = v (no setter)
+  virtual void settings_write();                       // 0x00597a60, ported: zreg::write_all
+  // The graphics and audio screen's, ported.
+  virtual float cd_volume();                           // 0x0040dae0
+  virtual void set_cd_volume(float v);                 // 0x0040dab0
+  virtual float sound_volume();                        // 0x0040daa0
+  virtual void set_sound_volume(float v);              // 0x0040da80
+  virtual int32_t texture_memory();                    // 0x0040d410
+  virtual void set_texture_memory(int32_t v);          // 0x0040d3f0
+  virtual int32_t sound_lod();                         // 0x0040d3e0
+  virtual void set_sound_lod(int32_t v);               // 0x0040d3d0
+  virtual int32_t object_lod();                        // 0x0040d3b0
+  virtual void set_object_lod(int32_t v);              // 0x0040d310
+  virtual int32_t effects_level();                     // 0x0040d2f0
+  virtual void set_effects_level(int32_t v);           // 0x0040d2a0
+  virtual int32_t shadow_parts();                      // 0x0040d220
+  virtual void set_shadow_parts(int32_t v);            // 0x0040d1f0
+  virtual int32_t shadow();                            // 0x0040d280
+  virtual void set_shadow(int32_t v);                  // 0x0040d240
+  virtual void set_gfx_flags(int32_t v);               // 0x0040d430
+  virtual void set_in_game_vmode(int32_t v);           // *[0x005f4d10] = v (no setter)
+  // 0x004ab860 (ECX device, EDX the lowest mode out): the screen modes a
+  // device can run, the highest by its video memory. Ported, on zVideo's
+  // memory counts below.
+  virtual void video_mode_range(int32_t device, int32_t* lo, int32_t* hi);
+  virtual int32_t video_memory_total() { return static_cast<int32_t>(unported("0x00579a10", {})); }
+  virtual int32_t video_memory_used() { return static_cast<int32_t>(unported("0x00579a40", {})); }
+  virtual uint32_t video_has_cap(int32_t cap) { return unported("0x00579b70", {cap}); }
+  virtual uint32_t video_device_count() { return unported("0x00579aa0", {}); }
+  virtual const char* video_device_name(uint32_t i) {  // 0x00579a70
+    unported("0x00579a70", {i});
+    return "";
+  }
+  // zModel's and zRender's GfxFlags: the settings entry `name` if the store
+  // has it, else a copy of `flags` (0x00526750, 0x00557ae0).
+  virtual void model_use_gfx_flags(const char* name, int32_t flags) { unported("0x00526750", {name, flags}); }
+  virtual void render_use_gfx_flags(const char* name, int32_t flags) { unported("0x00557ae0", {name, flags}); }
+  virtual void pop_state(uint32_t arg);                // 0x005905a0, ported: zGameApp::Pop
+  // Replace(state(4), 0) (0x00482970, 0x00590250): the Exit state, so the game
+  // restarts with a new video device. Ported.
+  virtual void replace_with_exit();
   virtual void effects_set_level(int32_t v) { unported("0x00508fb0", {v}); }
   virtual int32_t options_load(const char* name) {     // 0x0040c420, detail.zrd + registry
     return static_cast<int32_t>(unported("0x0040c420", {name}));
@@ -272,6 +331,14 @@ class Engine : public zgame::AppHooks {
   // zGameApp::Push (0x00590400) of a state the port does not have (a menu
   // object of 0x00609858..0x00609878, by its handle).
   virtual void push_state(Handle state, uint32_t arg) { unported("0x00590400", {state, arg}); }
+  // The menu objects' fields the screens read: a shell state's screen (+0x0c).
+  virtual Handle state_screen(Handle state) { return peek32(state + 0xc); }
+  // The main menu's BACKGROUND image and its scrolling ([0x00609854] +0x110ec,
+  // +0x111e8); false without a main menu. Ported: mech3::main_menu().
+  virtual bool main_menu_background(zimg::Texture** image, uint8_t* moving);
+  virtual uint8_t mission_running();                   // 0x0047fb70: the Core state's +0x19, ported
+  // The credits state's reset of its screen's clock ([screen+0x11adc] = 0).
+  virtual void credits_restart(Handle screen) { poke32(screen + 0x11adc, 0); }
   virtual void confirm_quit();                         // 0x00482a20, ported: Mech3App::confirm_quit
   virtual Handle construct(uint32_t ctor, std::initializer_list<Arg> args) {  // new + ctor
     char key[16];

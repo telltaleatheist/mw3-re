@@ -46,6 +46,7 @@ struct Platform {
 
 class GameEngine;
 class MenuScreen;
+class MenuState;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
 
 class GameEngine : public Engine {
@@ -78,7 +79,10 @@ class GameEngine : public Engine {
   void push_state(Handle state, uint32_t arg) override;
   bool menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out);
   MenuScreen* screen_of(Handle h, uint32_t* offset = nullptr) const;
-  void delete_screens();  // the ones still open at exit
+  void delete_screens();  // the ones still open at exit, and the menu objects
+  MenuState* menu_state_of(Handle h) const;
+  Handle state_screen(Handle state) override;
+  void credits_restart(Handle screen) override;
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
@@ -233,7 +237,12 @@ class GameEngine : public Engine {
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false;
   std::unordered_map<void*, Handle> handles_;
-  std::map<Handle, MenuScreen*> screens_;
+  struct OpenScreen {
+    MenuScreen* screen;
+    uint32_t size;  // the original object's, for the offsets into it
+  };
+  std::map<Handle, OpenScreen> screens_;
+  std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)
 };
 
 }  // namespace mech3

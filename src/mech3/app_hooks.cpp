@@ -10,6 +10,7 @@
 #include "gamez/zmodel/gmod_light.h"
 #include "mech3/app.h"
 #include "mech3/app_states.h"
+#include "mech3/mainmenu.h"
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msg.h"
@@ -117,6 +118,78 @@ int32_t Engine::display_width() { return mech3::display_w(); }
 int32_t Engine::display_height() { return mech3::display_h(); }
 void Engine::confirm_quit() { app().confirm_quit(); }
 void Engine::options_apply_all() { mech3::apply_all(); }
+int32_t Engine::game_intensity() { return mech3::game_intensity(); }
+void Engine::set_game_intensity(int32_t v) { mech3::set_game_intensity(v); }
+int32_t Engine::camera_mode() { return mech3::camera_mode(); }
+void Engine::set_camera_mode(int32_t v) { mech3::set_camera_mode(v); }
+int32_t Engine::invincible() { return mech3::invincible(); }
+void Engine::set_invincible(int32_t v) { mech3::set_invincible(v); }
+int32_t Engine::infinite_ammo() { return mech3::infinite_ammo(); }
+void Engine::set_infinite_ammo(int32_t v) { mech3::set_infinite_ammo(v); }
+int32_t Engine::heat() { return mech3::heat(); }
+void Engine::set_heat(int32_t v) { mech3::set_heat(v); }
+int32_t Engine::torso_auto_return() { return mech3::torso_auto_return(); }
+void Engine::set_torso_auto_return(int32_t v) { mech3::set_torso_auto_return(v); }
+int32_t Engine::throttle_const() { return mech3::throttle_const(); }
+void Engine::set_throttle_const(int32_t v) { mech3::set_throttle_const(v); }
+int32_t Engine::mw2_jump_jets() { return mech3::mw2_jump_jets(); }
+void Engine::set_mw2_jump_jets(int32_t v) { mech3::set_mw2_jump_jets(v); }
+void Engine::set_mouse_accel_y(float v) { options().mouse_accel[1] = v; }
+void Engine::settings_write() { zreg::write_all(); }
+float Engine::cd_volume() { return mech3::cd_volume(); }
+void Engine::set_cd_volume(float v) { mech3::set_cd_volume(v); }
+float Engine::sound_volume() { return mech3::sound_volume(); }
+void Engine::set_sound_volume(float v) { mech3::set_sound_volume(v); }
+int32_t Engine::texture_memory() { return mech3::texture_memory(); }
+void Engine::set_texture_memory(int32_t v) { mech3::set_texture_memory(v); }
+int32_t Engine::sound_lod() { return mech3::sound_lod(); }
+void Engine::set_sound_lod(int32_t v) { mech3::set_sound_lod(v); }
+int32_t Engine::object_lod() { return mech3::object_lod(); }
+void Engine::set_object_lod(int32_t v) { mech3::set_object_lod(v); }
+int32_t Engine::effects_level() { return mech3::effects_level(); }
+void Engine::set_effects_level(int32_t v) { mech3::set_effects_level(v); }
+int32_t Engine::shadow_parts() { return mech3::shadow_parts(); }
+void Engine::set_shadow_parts(int32_t v) { mech3::set_shadow_parts(v); }
+int32_t Engine::shadow() { return mech3::shadow(); }
+void Engine::set_shadow(int32_t v) { mech3::set_shadow(v); }
+void Engine::set_gfx_flags(int32_t v) { mech3::set_gfx_flags(v); }
+void Engine::set_in_game_vmode(int32_t v) { options().in_game_vmode = v; }
+
+// Mech3.exe 1.2 @ 0x004ab860: software 3..5 (320x240 doubled to 640x480);
+// a 3D card 5 up to 7 (1024x768), 6 below 3 x 1.5 MB of free video memory,
+// 5 below 3 x 960,000 bytes. Modes 8..10 are never offered (docs/menus.md).
+void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
+  *lo = 3;
+  *hi = 7;
+  int32_t free = 0, frames = 1;
+  if (device < 0) {
+    *lo = 3;
+    *hi = 5;
+  } else {
+    const int32_t total = video_memory_total();
+    free = total - video_memory_used();
+    frames = 3;
+    if (free < 1) free = video_memory_total();
+    *lo = 5;
+  }
+  if (free > 0) {
+    *hi = 7;
+    if (free < frames * 0x180000) {
+      *hi = 6;
+      if (free < frames * 960000) *hi = 5;
+    }
+  }
+}
+void Engine::pop_state(uint32_t arg) { app().pop(arg); }
+void Engine::replace_with_exit() { app().replace(app().state(4), 0); }
+bool Engine::main_menu_background(zimg::Texture** image, uint8_t* moving) {
+  MainMenu* m = main_menu();
+  if (!m) return false;
+  *image = m->background.image;
+  *moving = m->background.moving;
+  return true;
+}
+uint8_t Engine::mission_running() { return states().core.active_; }
 void Engine::options_save() { mech3::save_options(); }
 void Engine::settings_free() { zreg::shutdown(); }
 
