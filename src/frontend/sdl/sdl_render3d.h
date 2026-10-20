@@ -32,8 +32,13 @@ class SdlRender3D : public platform::Render3D {
   void set_fog_color(uint8_t r, uint8_t g, uint8_t b) override;
   void present() override;
 
-  // Renders the next scene into an offscreen target as well and saves it.
+  // Saves the next presented frame as a BMP instead of showing it.
   void capture_next(const char* bmp_path) { capture_path_ = bmp_path; }
+  // Draws what is collected so far (outside a scene), so a 2D layer goes on top.
+  void flush() {
+    if (!runs_.empty()) end_scene();
+  }
+  void viewport(int* x, int* y, int* w, int* h) const { *x = vx_, *y = vy_, *w = vw_, *h = vh_; }
 
  private:
   void upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba);
@@ -45,6 +50,7 @@ class SdlRender3D : public platform::Render3D {
   SDL_GPUSampler* sampler(uint8_t u, uint8_t v);
   void ensure_depth(uint32_t w, uint32_t h);
   void ensure_buffer(uint32_t bytes);
+  bool ensure_frame();
 
   SDL_GPUDevice* dev_;
   SDL_Window* window_;
@@ -64,9 +70,11 @@ class SdlRender3D : public platform::Render3D {
   std::vector<Run> runs_;
   int vx_ = 0, vy_ = 0, vw_ = 640, vh_ = 480;
   bool clear_color_ = true;
+  bool clear_pending_ = true;
+  SDL_GPUTexture* frame_ = nullptr;  // the back buffer
+  Uint32 frame_w_ = 0, frame_h_ = 0;
   float clear_rgb_[3] = {0, 0, 0};
   float fog_rgb_[3] = {0, 0, 0};
-  SDL_GPUCommandBuffer* cmd_ = nullptr;
   const char* capture_path_ = nullptr;
 };
 

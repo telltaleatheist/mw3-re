@@ -19,6 +19,7 @@ add_library(mw3core STATIC
   src/crt/msvc_rand.cpp
   src/crt/msvc_string.cpp
   src/gamez/zerror/zerr.cpp
+  src/gamez/zvideo/zvid_dd.cpp
   src/gamez/zvideo/zvid_ddd3d.cpp
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
@@ -92,6 +93,7 @@ add_library(mw3core STATIC
   src/gamez/zweapon/zwep_init.cpp
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
+  src/gamez/zrender/zrndr_tint.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp
@@ -229,6 +231,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_target.cpp
   tests/probe_sensors.cpp
   tests/probe_fade.cpp
+  tests/probe_frame.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

@@ -89,6 +89,7 @@ struct WorldRenderHooks {
   void (*end_scene)(void* ctx) = nullptr;         // 0x00579b10
   void (*flush_transparent)(void* ctx) = nullptr;  // [0x0072f3e4] = 0x0057e110
   void (*flush_overlay)(void* ctx) = nullptr;     // [0x0072f3e8] = 0x0057e4c0
+  void (*draw_quad)(void* ctx) = nullptr;         // [0x0072f3ec] = 0x0057e380, the colour quad
   void (*puffers)(void* ctx) = nullptr;           // 0x005496c0
   void (*after_scene)(void* ctx, float dt) = nullptr;  // 0x005a67c0, when EDX != 0
   void (*world_sounds)(void* ctx, Node* world) = nullptr;  // 0x004f3170

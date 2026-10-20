@@ -82,6 +82,12 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   show, Owen 2026-10-20). Correction:
   0x51fee0 sums column 2 and the translation's z in another order
   (`zmth::multiply` now bit-exact).
+- The frame around the scene: the back buffer's lock for 2D on top
+  (0x576d00 / 0x576d60 over 0x577590 / 0x577600), the scene nesting
+  (0x579af0 / 0x579b10), the colour quad (0x57dd80, [0x72f3ec] = 0x57e380,
+  now called by the scene walk after the overlay flush) and the software
+  tint (0x558540, the finish 0x558610 and its rows): `zvideo/zvid_dd`,
+  `zvid_ddd3d`, `zrender/zrndr_tint`, `render-frame.md`.
 - The clippers, fog and sort match the original in Unicorn with the FPU at
   24-bit precision, as the game runs (CLAUDE.md).
 
@@ -560,7 +566,7 @@ repo; the slot meanings fit every call's arguments]**.
 | every draw | **DrawPrimitive** (vt+0x70) type [0x72f418] (6 fan / 5 strip / 1 point), FVF 0x1c4 (D3DTLVERTEX: XYZRHW, DIFFUSE, SPECULAR, TEX1), flags 0x18 | | append to a per-frame vertex buffer, fans turned into triangle lists (`0, i, i+1`); one draw per state change. Vertices are already in screen pixels: the vertex shader maps `sx, sy` to NDC (`x = sx / w * 2 - 1`, `y = 1 - sy / h * 2`), depth `sz`, `w = 1 / rhw` for perspective-correct UVs |
 | 0x57e110 (transparent flush) | ALPHABLENDENABLE(27)=1, ZWRITEENABLE(14)=0, SHADEMODE 2, sorted DrawPrimitives, then back | | sort on the CPU as the original (section 3) and draw with a blended, no-depth-write pipeline |
 | 0x57e4c0 (overlay list, [0x72f3e8], max 0x180 "ZVID_MAX_OVERWRITE_POLYS") | ZFUNC(23)=ALWAYS(8), blend on, Z writes off, per entry type 0 untextured flat / 1 untextured blended / 3 Gouraud / 4 textured; ZFUNC back to GREATEREQUAL | | a no-depth-test pipeline, drawn after the transparent queue |
-| 0x57e380 ([0x72f3ec], one 4-vertex quad, 0x57dd80 sets rect and colour) | ZFUNC ALWAYS, blend on, no texture | | full-screen tint quad (flashes/fades) **[unverified: who sets it]** |
+| 0x57e380 ([0x72f3ec], one 4-vertex quad, 0x57dd80 sets rect and colour) | ZFUNC ALWAYS, blend on, no texture | | full-screen tint quad: set by 0x558540 (the fade state, 0x599b66, 0x5a53cf) and 0x55a653 / 0x55a7b3 (render-frame.md) |
 | 0x57bcf0 ([0x72f3f0]) | SetRenderState FOGCOLOR(34) = fog rgb 0..255 ([0x72f3f4..]) | | a uniform for the fragment shader |
 | 0x57bb70, 0x57bbc0, 0x57bc00, 0x57bc40 ([0x72f39c]..[0x72f3a8]) | FOGENABLE(28), SetLightState FOGMODE(4)=LINEAR(3), FOGSTART/FOGEND(5/6) | **never called** (no reference besides the table fill) | none |
 | 0x57eeb0, 0x57f2a0 (shadow multipass) | per shadow pass: SRCBLEND ZERO(1), DESTBLEND SRCCOLOR(3) (multiply), FOGENABLE 0, TEXCOORDINDEX, ADDRESS CLAMP (3), MAG/MIN filter (16/17) LINEAR, COLOROP SELECTARG1; afterwards SRCALPHA/INVSRCALPHA and **FOGENABLE 1** | | a multiply-blend pipeline drawing the same triangles again with the shadow texture's UVs |

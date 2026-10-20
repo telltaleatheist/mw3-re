@@ -97,6 +97,8 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- On a computer without MMX, the software renderer's screen flashes no longer
+  write past the end of the screen's memory on its last line.
 - A mech file with a bad version no longer crashes the game when it unloads.
 - The option screens no longer read past their background picture on a
   screen taller than 960 lines or wider than 1280, the likely cause of the
@@ -216,9 +218,12 @@ These change how the game talks to the computer, not how it plays.
   window's size; a joystick gets the game's own ranges and dead zones.
 - Graphics through SDL3 (Metal, Direct3D 12 or Vulkan) instead of DirectX 6;
   the game's own drawing code is unchanged.
-- The fades (a mission's start, leaving it) are drawn on the program's own
-  copy of the screen instead of through DirectDraw and Direct3D; they look
-  and last the same.
+- The fades (a mission's start, leaving it) take their still picture from
+  the program's own copy of the screen instead of from DirectDraw; the colour
+  over it is drawn as the original drew it. They look and last the same.
+- The HUD and the other 2D drawing in a mission are laid over the 3D picture
+  instead of being drawn into a locked DirectDraw back buffer; they look the
+  same.
 - Sound through SDL3 instead of DirectSound, with the same volumes and
   panning.
 - Settings are saved in `settings.reg` in the user's folder instead of the

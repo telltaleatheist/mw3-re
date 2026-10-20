@@ -15,6 +15,9 @@
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zrender/zrndr_tint.h"
+#include "gamez/zvideo/zvid_dd.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_control.h"
@@ -71,6 +74,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   zsnd_cd::set_backend(p_.files, p_.music, "music");
   set_options_hooks(&g_options_hooks);
   wire_mission_hooks(this);
+  wire_frame_hooks(this);
 }
 
 GameEngine::~GameEngine() {
@@ -79,6 +83,7 @@ GameEngine::~GameEngine() {
     g_engine = nullptr;
     set_options_hooks(nullptr);
     wire_mission_hooks(nullptr);
+    wire_frame_hooks(nullptr);
   }
   zutl::install_messages(nullptr);
 }
@@ -303,15 +308,16 @@ void GameEngine::video_lock() {
   t.height = static_cast<uint32_t>(height_);
   t.pitch = static_cast<uint32_t>(width_ * 2);
   t.format = 6;
+  zrndr::set_finish_target(buffer_.data(), width_, height_, width_ * 2);  // 0x00558290, as 0x00576de0 sets it
 }
 void GameEngine::video_clear(Handle) { std::fill(buffer_.begin(), buffer_.end(), uint16_t{0}); }
 // 0x00576ea0: the back buffer to the screen.
 // A frame whose 3D scene was drawn (the Core state's) shows that instead.
 void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
-  if (scene_drawn_ && p_.render) p_.render->present();
+  if ((scene_drawn_ || layer_drawn_) && p_.render) p_.render->present();
   else if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
   last_drew_scene_ = scene_drawn_;
-  scene_drawn_ = false;
+  scene_drawn_ = layer_drawn_ = false;
   ++frames_presented;
   if (on_present) on_present(frames_presented);
 }
@@ -348,31 +354,50 @@ void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Han
     return (void)Engine::image_draw(image, x, y, key, rect);
   buffer_ = it->second;
 }
-// 0x00558540: the colour over the whole buffer at `alpha`. In the original the
-// software renderer's finish (0x00558610) or a Direct3D quad (0x0057dd80) does
-// it; here, for both, straight into the 16-bit buffer.
+// 0x00558540, ported (zrndr::tint): kept for the software finish, or the
+// Direct3D quad. A rect is four ints in the modules' memory.
 void GameEngine::screen_tint(uint16_t colour, Handle rect, double alpha) {
-  if (rect) return Engine::screen_tint(colour, rect, alpha);
-  tint16(buffer_.data(), buffer_.size(), colour, static_cast<float>(alpha));
+  int32_t r[4] = {};
+  if (rect)
+    for (int i = 0; i < 4; ++i) r[i] = static_cast<int32_t>(peek32(rect + 4 * i));
+  zrndr::tint(colour, rect ? r : nullptr, alpha, video_mode() != 0);
 }
 void GameEngine::image_free(Handle image) {
   if (!grabs_.erase(image)) Engine::image_free(image);
 }
 
-// Each channel of the pixel format mixed toward the colour, rounded to nearest.
-void tint16(uint16_t* px, size_t n, uint16_t colour, float alpha) {
-  const zvid::PixelFormat& f = zvid::pixel_format();
-  const int gb = f.g_bits + f.b_bits;
-  const uint32_t rm = (1u << f.r_bits) - 1, gm = (1u << f.g_bits) - 1, bm = (1u << f.b_bits) - 1;
-  const float k = 1.0f - alpha;
-  auto mix = [&](uint32_t p, uint32_t c) { return static_cast<uint32_t>(p * k + c * alpha + 0.5f); };
-  for (size_t i = 0; i < n; ++i) {
-    const uint32_t p = px[i];
-    const uint32_t r = mix(p >> gb & rm, colour >> gb & rm);
-    const uint32_t g = mix(p >> f.b_bits & gm, colour >> f.b_bits & gm);
-    const uint32_t b = mix(p & bm, colour & bm);
-    px[i] = static_cast<uint16_t>(r << gb | g << f.b_bits | b);
-  }
+// The Direct3D frame (render-frame.md): the ported lock, scene nesting, quad
+// and finish. FIX (A): the back buffer's Lock gives the 16-bit layer, filled
+// with kLayerKey; its Unlock lays what the 2D code drew over the 3D frame.
+void GameEngine::video_begin_3d() { zvid::lock_3d(); }
+void GameEngine::video_end_3d() { zvid::unlock_3d(); }
+void GameEngine::video_begin_scene() { zvid::scene_begin(); }
+void GameEngine::video_draw_3d() { zvid::draw_tint_quad(); }
+void GameEngine::video_end_scene() { zvid::scene_end(); }
+void GameEngine::render_finish() { zrndr::finish(); }
+
+int32_t GameEngine::lock_back(zvid::Surface* s) {
+  std::fill(buffer_.begin(), buffer_.end(), kLayerKey);
+  s->width = width_, s->height = height_, s->pitch = width_ * 2, s->pixels = buffer_.data();
+  return 0;
+}
+int32_t GameEngine::unlock_back(zvid::Surface*) {
+  if (p_.screen) p_.screen->overlay_16(buffer_.data(), width_, height_, width_ * 2, true, kLayerKey);
+  layer_drawn_ = true;
+  return 0;
+}
+
+void wire_frame_hooks(GameEngine* e) {
+  zvid::surface_hooks() = e ? zvid::SurfaceHooks{[](void* c, zvid::Surface* s) {
+                                                    return static_cast<GameEngine*>(c)->lock_back(s);
+                                                  },
+                                                  [](void* c, zvid::Surface* s) {
+                                                    return static_cast<GameEngine*>(c)->unlock_back(s);
+                                                  },
+                                                  e}
+                            : zvid::SurfaceHooks{};
+  zrndr::tint_hooks().quad = e ? zvid::set_tint_quad : nullptr;
+  zvid::scene_depth() = 0;
 }
 
 Handle GameEngine::handle_of(void* p) {

@@ -1,6 +1,7 @@
 // The program's pieces that run without a window (docs/program.md): the
 // message DLL, the mounts and write dir, the music lookup, and the start-up
 // through InitInstance and the original main loop to the main menu's state.
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -17,6 +18,9 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zrender/zrndr_tint.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
@@ -654,45 +658,62 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
 // the sensors (0x004a8cd0) fill the contact lists, nearest first: the
 // player's holds the Owens and the targets.zrd objects within its 1000 m,
 // the Owens' holds the player; the target keys pick from them.
-// The fade's colour on the 16-bit buffer (FIX (A), 0x00558540): each channel
-// mixed and rounded to nearest, in 565 and 555; the stills' handles reused.
-TEST(fade_tint_mixes_each_channel_in_565_and_555) {
-  const zvid::PixelFormat keep = zvid::pixel_format();
-  zvid::set_pixel_format(5, 6, 5);
-  uint16_t px[4] = {0xffff, 0x0000, 0xf800, 0x07e0};
-  mech3::tint16(px, 4, 0x0000, 0.5f);  // half black: 31 -> 16 (15.5 rounds up), 63 -> 32
-  EXPECT(px[0] == (16 << 11 | 32 << 5 | 16) && px[1] == 0 && px[2] == 16 << 11 && px[3] == 32 << 5);
-  uint16_t a[2] = {0x1234, 0xffff};
-  mech3::tint16(a, 2, 0x001f, 0.0f);  // alpha 0: unchanged
-  EXPECT(a[0] == 0x1234 && a[1] == 0xffff);
-  mech3::tint16(a, 2, 0x001f, 1.0f);  // alpha 1: the colour
-  EXPECT(a[0] == 0x001f && a[1] == 0x001f);
-  uint16_t q[1] = {0};
-  mech3::tint16(q, 1, 0xffff, 0.25f);  // 31 * 0.25 = 7.75 -> 8, 63 * 0.25 = 15.75 -> 16
-  EXPECT(q[0] == (8 << 11 | 16 << 5 | 8));
-  zvid::set_pixel_format(5, 5, 5);
-  uint16_t b[2] = {0x7fff, 0x7c00};
-  mech3::tint16(b, 2, 0x0000, 0.5f);  // 31 -> 16 in all three fields, bit 15 stays clear
-  EXPECT(b[0] == (16 << 10 | 16 << 5 | 16) && b[1] == 16 << 10);
-  uint16_t c[1] = {0x0000};
-  mech3::tint16(c, 1, 0x03e0, 1.0f);  // a 555 green stays in its field
-  EXPECT(c[0] == 0x03e0);
-  zvid::pixel_format() = keep;
-
+// The program's Direct3D frame (render-frame.md): the locked back buffer is
+// the 16-bit layer filled with the key, laid over the frame at the unlock
+// (FIX (A)); the fade's colour through the ports, the Direct3D quad or the
+// software finish (whose MMX rows leave a 640-wide screen's last four
+// columns); the stills' handles reused.
+TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
+  struct LayerScreen : platform::Screen2D {
+    int overlays = 0;
+    uint16_t key = 0, first = 0, second = 0;
+    void present_16(const uint16_t*, int, int, int, bool) override {}
+    void overlay_16(const uint16_t* px, int, int, int, bool, uint16_t k) override {
+      ++overlays, key = k, first = px[0], second = px[1];
+    }
+  };
   FakeWindow window;
   FakeAlert alert;
   FakeClock clock;
-  FakeScreen screen;
+  LayerScreen screen;
   platform::SilentSoundOutput sound;
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
-  mech3::GameEngine engine(p, "mech3.exe -nofmv");
-  engine.quiet = true;
-  const mech3::Handle g1 = engine.video_grab(0), g2 = engine.video_grab(2);
-  EXPECT(g1 && g2 && g1 != g2);
-  engine.image_free(g1);
-  EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+  const zvid::PixelFormat keep = zvid::pixel_format();
+  zvid::set_pixel_format(5, 6, 5);
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    engine.poke32(0x72f348, 1);
+    engine.video_begin_3d();
+    EXPECT(zrndr::target2d().base == reinterpret_cast<uint8_t*>(engine.buffer16()));
+    EXPECT(engine.buffer16()[0] == mech3::GameEngine::kLayerKey && engine.buffer16()[1] == mech3::GameEngine::kLayerKey);
+    engine.buffer16()[0] = 0x1234;
+    engine.video_end_3d();
+    EXPECT(screen.overlays == 1 && screen.key == mech3::GameEngine::kLayerKey && screen.first == 0x1234 &&
+           screen.second == mech3::GameEngine::kLayerKey);
+    engine.screen_tint(0, 0, 0.5);  // Direct3D: the quad over the locked size, half black
+    const zvid::TintQuad& q = zvid::tint_quad();
+    EXPECT(q.pending == 1 && q.verts[2].sx == 640.0f && q.verts[2].sy == 480.0f && q.verts[0].diffuse == 0x7f000000u);
+    engine.video_draw_3d();
+    EXPECT(q.pending == 0);
+
+    engine.poke32(0x72f348, 0);  // software: kept, then the finish
+    engine.video_lock();
+    std::fill(engine.buffer16(), engine.buffer16() + 640 * 480, uint16_t{0xffff});
+    engine.screen_tint(0, 0, 0.5);
+    engine.render_finish();
+    EXPECT(engine.buffer16()[0] == 0x7bef && engine.buffer16()[635] == 0x7bef && engine.buffer16()[636] == 0xffff &&
+           engine.buffer16()[640 * 479 + 1] == 0x7bef);
+    zrndr::tint_state() = zrndr::TintState{};
+
+    const mech3::Handle g1 = engine.video_grab(0), g2 = engine.video_grab(2);
+    EXPECT(g1 && g2 && g1 != g2);
+    engine.image_free(g1);
+    EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+  }
+  zvid::pixel_format() = keep;
 }
 
 TEST(mission_c1m1_sensors_fill_the_contacts_headless) {

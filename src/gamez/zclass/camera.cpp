@@ -1100,6 +1100,7 @@ int render_world(Node* camera_node, int32_t after) {
   if (after && g_hooks.after_scene) g_hooks.after_scene(g_hooks.ctx, ztimer::state().dt);
   if (g_hooks.flush_transparent) g_hooks.flush_transparent(g_hooks.ctx);
   if (g_hooks.flush_overlay) g_hooks.flush_overlay(g_hooks.ctx);
+  if (g_hooks.draw_quad) g_hooks.draw_quad(g_hooks.ctx);
   if (g_hooks.end_scene) g_hooks.end_scene(g_hooks.ctx);
   // With more than one camera, the window's polygon list (+0x40, 0x34
   // each, +0xe0 count with bit 31 on) gives the rects to repaint.
