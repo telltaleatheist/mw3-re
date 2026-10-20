@@ -76,6 +76,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | Medium sound format, 0x570ccf and the per-sound formats | Looks up `"MED"` where `sounds.zrd` says `MEDIUM` | (bug) a typo: the medium playback format is never read | `MEDIUM` |
 | Mad Cat and Supernova damage textures, skin reader (`mech3::read_skins`) | `damage` lists two (Mad Cat) and one (Supernova) slots longer than the primary skin, so every damage mask lands on the wrong texture; the size check then drops some | (bug) misplaced data: those mechs show the wrong or no battle damage | Leading empty slots are dropped until the damage list is as long as the primary (Owen 2026-10-20); `tests/test_fixes.cpp` checks both on the real files |
 | Plain PPC, weapon table 0x5e64f0 | 37 weapons; `weapons.zrd` defines a `PPC` and Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc; the old slot 0x2ee between NARC and the pulse lasers is empty) but the table has no row | (bug) the mech lab cannot offer a weapon the data defines | A 38th row, `PPC` (message 0x2fd, family 3 as ERPPC, Inner Sphere tech 2 as the plain lasers, no ammo); `mech3::weapon_count()` (Owen 2026-10-20) |
+| AI reader files, zrdraiv.cpp / zrdrainet.cpp (0x4decf0, 0x4ded20, 0x4da0d0, 0x4db850, 0x4db1b0, 0x4df730, 0x4e08c0) | Every value is read as the shape the code expects: a list's items, a string pointer, `key + 5` for node_XX | (bug) a malformed file (a number where a list or a name belongs, a short key) crashes the game or reads past a string; emulator: a non-list file root crashes 0x4da0d0 | The value is passed over; the shipped files never take these paths, so all 773 still match exactly (`ai.md` section 5) |
+| aiv.zrd old tags, 0x4df730 | The scratch the p3/p4/p5/p7 tags share is uninitialised stack when the tag that sets it is missing, and p4's order is built on uninitialised stack | (bug) the result depends on what was on the stack | Zeros and the order defaults; no shipped file has these tags (the test pins the exe's stack the same way) |
+| AI values of the wrong type | A string or list where a number belongs is copied as its pointer bits | (A) a 32-bit heap address | 0 |
 
 Notes on the fixes:
 
@@ -204,3 +207,13 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
   so they never show. Mapping those names to the soils that exist would
   restore them; which soil each should be is a guess.
+- Lancemate voices (aiv.zrd, 0x4df730): a vehicle record without a
+  `sound_tag` gets `alan`, `dom` or `epona` only when it is named exactly
+  `Alan_Mattila`, `Dominic_Paine` or `Epona_Rhi`. Two records misspell Alan
+  (`Alan_Mattilla` in the c1 Instant Action map 1, `Alan_Matilla` in c3
+  mission 6), so likely his radio lines do not play there; the importer could
+  correct the names. Whether the tag is what picks his voice is traced only
+  as far as the `<tag>_<event>` names of 0x4e7dc0.
+- Missing `vlist` key (aiv.zrd): `Enemy_12` in c4 readeria1 and `Enemy_06` in
+  c4 readeria2 have their order lists without the `vlist` tag in front, so
+  the reader skips them and those enemies follow no scripted orders.

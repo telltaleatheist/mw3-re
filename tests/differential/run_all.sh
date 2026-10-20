@@ -51,6 +51,7 @@ for t in \
     twod \
     twod_blit \
     twod_msgbox \
+    ai_readers \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done
