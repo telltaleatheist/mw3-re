@@ -266,6 +266,10 @@ def pick_op(rng, emu, worlds, made):
     # through garbage), its tree too when all of it is the file's. A node the
     # file gives no model (-1) re-reads the 0x60 bytes before the model table
     # as one (a garbage read in the exe): only nodes with models.
+    if r < 0.52 and rng.random() < 0.5:  # half the time a parent, so the tree's re-read reaches its children
+        parents = [k for k in nodes[:400] if emu.info(k)[2] > 0 and k not in made and emu.record_model(k) >= 0]
+        if parents:
+            n = rng.choice(parents)
     if r < 0.52 and n not in made and emu.record_model(n) >= 0:
         tree = emu.subtree(n)
         whole = not any(k in made or emu.record_model(k) < 0 for k in tree)
