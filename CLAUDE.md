@@ -269,9 +269,9 @@ Each item is one sitting; findings go in `docs/`, quirks also in
 - [x] Mechlib: materials and models ported (`src/gamez/zclass/cls_mechlib`),
       identical on all 442 materials and 770 models.
 - [x] Mechlib: the node tree ported (`cls_mechlib` read_tree, `object3d`,
-      `cls_node`), identical on all 57 trees. Debt: mechlib models are their
-      own `zcls::Model` (Node::lib_model), apart from the world's `zmod::Model`;
-      merge the two model ports. Open: zClass removal and destroy (step 7).
+      `cls_node`), identical on all 57 trees; the tree copy, destroy and reset
+      and the mech data loader ported (`docs/mech-build.md` section 14);
+      mechlib models are the world's `zmod::Model`s now.
 - [x] Mission worlds: mapped (`docs/gamez.md`), walk scripts in
       `tests/differential/explore/gamez_*.py`.
 - [x] Mission worlds: `gamez.zbd` ported end to end (`zclass/cls_zbd`
