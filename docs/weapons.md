@@ -808,8 +808,8 @@ craters, the AI's firing (the planner 0x004b1170).
 
 ## Left to port
 
-- The AI's weapon planner 0x4b1170..0x4b1d7f (with 0x4b1bd0 / 0x4b1c70, which
-  the HUD gauge's 0x443d20 also calls).
+- The AI's weapon planner 0x4b1170..0x4b1860 (ai.md 17.7; the HUD's three,
+  0x4b1bd0, 0x4b1c70 and 0x4b1cd0, are ported in `mech3/weapon_planner`).
 - The glow objects 0x5869d0 / 0x586a30 / 0x586af0 (the game's freeze and heat
   effects, called from 0x4accb7..0x4ad4b5), and the startup 0x583750's network
   registration.

@@ -303,3 +303,4 @@ Known quirks the rebuild deliberately keeps:
 - Radio chatter plays the newest line first.
 - Every mech's engine tops out at 400.
 - In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
+- A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.

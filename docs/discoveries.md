@@ -1398,6 +1398,18 @@ are all "puffers": emitters that drop little textured squares.
 - **Old formats still load.** The vehicle reader also understands an older
   layout of the AI settings (tags p3, p4, p5, p7) that no shipped mission
   uses, and complains if a file mixes it with the new one.
+- **Enemy pilots can be told to give up a chase.** Read from the code, not
+  yet seen in play: before an AI pilot breaks off its path to attack, it
+  checks switches in its vehicle record: whether it may fight at all (some
+  only after a delay), a leash (too far from its home point and it will not
+  start a fight), a health floor, and a time limit on each attack. Each
+  attack's time scales with the game's intensity setting (`ai.md` 17.3).
+- **Pilots stand down when the mission ends.** One switch turns every
+  pilot's thinking on when the mission starts and off in the cleanup; off,
+  they only stop and settle (`ai.md` 17.8).
+- **Empty weapon groups.** A weapon group with no weapons left in it (or none
+  picked) gave the HUD a "has ammo" answer that depended on where the game
+  happened to keep its weapon list in memory; the rebuild says no ammo.
 
 ## The cameras
 

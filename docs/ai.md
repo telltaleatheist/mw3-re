@@ -1203,6 +1203,264 @@ response's reversal count, `CollideCalls::ai_reverses`); the vehicles that
 are not mechs (their frames, the Mobile HQ's bump); targets.zrd's entity
 registration 0x5a7e10.
 
+## 17. The brain's decisions (map, not ported)
+
+Mapped 2026-10-20 from the disassembly (the decompiler loses `this` and
+the switch fall-throughs here; read `mech3.asm`). "Likely" marks a reading
+no string confirms. Offsets are the brain's (section 12) unless said.
+
+### 17.1 The frame (0x4e96f0 -> 0x4e9710)
+
+The AI controls' update (IControls vt+0x0c, 0x4e96f0) returns the brain's
+answer. The brain's own vtable (0x5cc698; the mech controls' copy 0x5cd2c8,
+the vehicle's 0x5cd6e8) has 19 slots: +0x04 the controls' own update
+(the mech's 0x4d89f0 -> 0x426960, the smoothing: the one the program runs
+today), +0x0c 0x4e9640 (+0x54 is 0), +0x10 0x4e9650 (sees its target,
+the +0x88 / +0x8c choice below), +0x14 0x4e95a0, +0x18 / +0x1c the firing
+state's (the mech's 0x4b6370 swaps +0x138, 0x4b6350 returns 0), +0x20 to
++0x48 the lancemate orders (17.6).
+
+```
+0x4e9710 brain(dt): answer = 1
+  [0x60b938] == 0 (the AI switch, 17.8): controls stop (IControls vt+0x14), vt+0x04(dt), done
+  owner = the vehicle (IControls +0x10); down = owner vt+0xa0 == 1 (powered down)
+  steering +0x250: 0x4cec80(dt, owner)                                  (17.4)
+  down and not +0x2a4: stop, vt+0x04(dt), done
+  +0x22c = 2 when +0xcc bit 2 is set, else 0 (the hurt test, 17.3)
+  +0x5c and +0xdc < now: +0x3c = 1 (engaging allowed from now), +0xdc = FLT_MAX
+  awake = true
+  +0x88 == 0: target = the nearest enemy contact 0x4d6b90(1) when +0x8c == 0,
+              else the owner's +0x98 (its attacker's contact, section 15)
+              awake = target and target distance (+0x0c) < the sight range +0x1c
+  awake:
+    [0x6099c0] += 1 (a count of awake pilots this frame; Mech::Update counts too)
+    a radio, a weapon manager (owner +0xd4) and its ammo value 0x4b4ed0 under 0.25:
+      the radio's "low_ammo" line (radio +0x24, 0x4e6d50(1.0))         (17.6)
+    the vlist triggers 0x4e9550 -> 0x4d9290 -> 0x4d8e70 each            (17.5)
+    +0xf0 == 0, +0x9c, the timer +0x100 < now, IControls vt+0xa0 and the
+      current order's state vt+0x08: +0x100 = now + +0xb0, the firing state
+      reset (0x4e9590 -> 0x4b6700), vt+0x1c(IControls +0x0c), 0x4e96b0
+    the current order's net may engage (net vt+0x54) and its state (vt+0x04),
+      and 0x4e8f10 allows it (17.3):
+        target = the owner's +0x6c, else the nearest enemy; its vehicle (contact
+        +0x04 vt+0x2c, vt+0x40) and distance; under the attack range +0x20:
+          the target vehicle's own net (vt+0xd8) and its attack behaviour
+          (0x4c0e10): attack (0x4e9ca0), +0x230 = owner vt+0x98 - +0xb4,
+          +0xe8 = now + +0x4c x GameIntensity [0x608e54], 0x4e87c0(net, beh)
+    not attacking: +0xf0 == 0, +0xa0 and state vt+0x08: a random wait
+      (+0xf4: now + rand in [+0x64, +0x68]); due: 0x4e96b0, +0xf4 = FLT_MAX
+    the current order's run (vt+0x04) until it stops asking again (+0x104)
+    not down, [0x5e9d40] == 1 (always) and +0x80 == 1: the brain's own order +0x194 runs
+    vt+0x04(dt); not down: the firing state 0x4e9fb0 -> 0x4b5b80(dt)  (17.7)
+  not awake: the owner's attacker within its vehicle's +0xa4: stop, vt+0x04; else answer 0
+  +0x22c settled (not 2): +0xcc bit 2 = +0x22c != 0
+```
+
+0x4e96b0 (the manoeuvre): by +0xa4 (p8 17), 0 pushes the behaviour at
+0x604088, 1 the one at 0x604098 (both class 0x4ca440, 17.2), and resets
++0xf4.
+
+### 17.2 The orders and the behaviours
+
+**The order stack** is the deque at +0x160 (MSVC: +0x164 the start
+iterator, +0x174 the finish {first, last, cur, map}, +0x184 the map,
++0x188 its size, +0x18c the count). The last order is the current one
+(0x4ea760). An order (0x98 bytes) holds a net part at +0x0c (made in
+place at +0x30 by the net's vt+0x5c) and a behaviour's state at +0x10 (in
+place at +0x54 by the behaviour's vt+0x8c); its run (order vt+0x04,
+0x4e8150) is the net part's vt+0x04, then the state's vt+0x14. Its
+vt+0x08 (0x4e8170) pops it through its owner.
+
+| Address | What |
+|---|---|
+| 0x4e80b0 | an order's parts remade: the old state and net part destroyed, then the net's (or the built-in 0x604008's) part and the behaviour's (or the default 0x604068's) state |
+| 0x4e8120 | the order's state replaced by a behaviour's |
+| 0x4e82e0 | the current order remade on a net (0x4e80b0(net, none)) |
+| 0x4e86a0 | push on a net: the current state's vt+0x0c (suspend, likely), a new order (0x4e9d80, the last one's +0x14..+0x2f copied), 0x4e80b0(net, none); 1 |
+| 0x4e87c0 | push a net and a behaviour (either may be none: the built-in net, the default behaviour) |
+| 0x4e88c0 | push a behaviour on the current order's net (net part vt+0x08) |
+| 0x4e8380 | pop: the order destroyed in place, its block freed as it empties, then the new current state's vt+0x10 (resume) |
+| 0x4e84a0 / 0x4e8660 | pop when the current order's net is the one given (0x4e8660 casts it, vt+0x34) |
+| 0x4e8960 | push on a net given as a znet object (vt+0x34) |
+| 0x4e8990 | pop down to an order (exclusive of the last), resuming each new current one |
+| 0x4e8c60 | the topmost order without +0x04 set, from the current down |
+| 0x4e9100 | (IControls side) pop every order above the first on a given net |
+| 0x4e9070 | the current state's vt+0x08 (may it fire, likely) |
+| 0x4ea4e0 | brain vt+0x40: 0x4e8c60 then 0x4e8990 to it (back to the last order not marked) |
+| 0x4d88a0 / 0x4d88d0 | (the AI controls) is the order under the marked ones on the net 0x603fb8; push on it |
+
+Popping the last order leaves the deque empty and 0x4e8380 still resumes
+"the current state" there, reading through a null block (a crash); no
+caller seen pops the last one (0x4e8990 keeps one), so it is noted, not
+fixed.
+
+**Behaviours** are the objects a net is made of (section 9: node steps,
+property steps) plus a few shared ones. Each has the 40-slot vtable of the
+base 0x4c8600 (0x5cb180): +0x54 may engage from here, +0x5c a net part,
++0x74 itself as a behaviour, **+0x8c its state**, +0xac may a pilot pass.
+**States** (over 0x4c8660, vtable slots): +0x00 destroy, +0x04 may the
+brain break in for an attack, +0x08 may it fire (or reset its firing),
++0x0c suspend, +0x10 resume, +0x14 run(dt), +0x18 its behaviour.
+
+| State (ctor, vtable) | Behaviour | Run (+0x14) | Notes |
+|---|---|---|---|
+| 0x4c8660, 0x5cb238 | the base 0x5cb180, the step base 0x5cb3d0, 0x5c3828 | 0x4c8690: stop, IControls vt+0x10(0) | |
+| 0x4c8700, 0x5cb258 | the null step 0x603fa0 (0x5bc8d0) | 0x4c8690 | |
+| 0x4c8790, 0x5cb330 | the default 0x604068 (0x5cb278) | 0x4c87f0: stop; the nearest net node to the vehicle (0x4d51d0), its node step's state in place of this one (0x4e8120), run again (+0x104) | no breaking in, fires |
+| 0x4c88c0, 0x5cb350 | 0x5bca40 | nothing | |
+| 0x4c8940, 0x5cb370 | 0x5bc988 | 0x4c89a0 | |
+| 0x4c8a30, 0x5cb390 | made by 0x4c9750, 0x4cc290, 0x4d1320, 0x4d1650, 0x4d1870, 0x4d1cc0 | 0x4c8690 | a wait (likely) |
+| 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties |
+| 0x4ca3b0, 0x5cb8a0 | 0x5cb7e8 (0x4ca370) | 0x4ca420 | resume 0x4ca410 |
+| 0x4caae0 (0x4ca440), 0x5cb8e8 / 0x5cb908 | 0x604088 / 0x604098 (0x5bcaf8 / 0x5bcbb0) | 0x4ca600 (223 lines) | the combat manoeuvre: lasts now + rand in [+0x6c, +0x70]; suspend 0x4ca5f0 |
+| 0x4cac20, 0x5cb928 | 0x5cd920 (the attack's first, 0x4e9ca0) | 0x4c8690 | resume 0x4cac80 |
+| 0x4cace0, 0x5cba00 | 0x4caca0 (0x5cb948) | 0x4c8690 | resume 0x4cad30 |
+| 0x4cadb0, 0x5cbad8 | 0x4cad70 (0x5cba20), given the target | 0x4cae90 (108) | resume 0x4cae10 |
+| 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | |
+| 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | |
+| 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
+| 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | |
+| 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | |
+| 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | |
+| 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700 |
+| 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
+
+**The vehicle's own net** (vt+0xd8 of a vehicle; 0x4c0810, 0x1c bytes):
+the behaviours to use against or with that vehicle: 0x4c0de0 (follow,
+likely: the lancemates on the player's), 0x4c0e10 (attack it), 0x4c0e40
+(the brain's own order). **The attack** (0x4e9ca0): the current order
+remade on that net, then three orders pushed on it, from the last run to
+the first: 0x4cad70 (given the target distance), 0x4caca0, the 0x5cd920
+behaviour.
+
+### 17.3 The engage gate (0x4e8f10, 0x4e8dd0)
+
+0x4e8f10(owner, net, state) allows an attack when engaging is on (+0x3c,
+params 2 or the delay +0x5c), the net (vt+0x54) and the state (vt+0x04)
+allow it, and none of these: +0xcc bit 0 and the owner farther than
+sqrt(+0x24) from the home point +0xe4; the hurt flag +0x22c (decided once
+a frame, when +0xcc bit 2: owner vt+0x98 under +0x50); +0xcc bit 1 and the
+attack's time +0xe8 passed; +0xcc bit 3 and owner vt+0x98 under +0x230.
+0x4e8dd0(owner) is the same without the net and state.
+
+### 17.4 Steering (+0x250, 0x4ce620..0x4cec80)
+
+Each frame 0x4cec80: +0x20 eases toward +0x24 at 2.0 a second (snapped
+within 0.05), +0x1c falls by +0x28 a second down to +0x14; then 0x4ceb50:
+the heading to the target point (+0x2c, 0x4ceb00 from the vehicle's
+position), a turn when it is off by more than 30 less the sideways part
+(0x4ce800), and under +0x34 (20) the contacts (owner +0xac..+0xb0) for one
+in the way (0x4ce780, 0x4ce7d0). The node state, the attack and the
+manoeuvre set the point and speeds.
+
+### 17.5 The vlist triggers (0x4d8e70)
+
+The aiv.zrd `vlist` entries (section 3) are triggers, not orders: each
+frame each one tests its conditions (flags +0x18: bit 3 powered down, bit
+5 owner vt+0x9c under +0x08, bit 4 vt+0x98 over +0x04, bit 2 the distance
+to +0x00, bits 6 and 7 the nearest enemy within the squared ranges +0x0c /
++0x10, the region +0x14 inside or outside by +0x19) and sets its valve
+(0x4d3c00) by the result, with its bit 1 as the sense.
+
+### 17.6 The radio and the player's orders
+
+The player's lance commands (the command handler's table at
+0x469970..0x4699d8, mech_*.cpp) call 0x4ea000..0x4ea230: each the brain's
+vt+0x20..+0x48, then 0x4e9fd0 on the answer (0: a radio line through 0x4e6d50, 1: a
+callback, 0x4ea030 or 0x4ea0e0; which lines is not traced). The slots: +0x20 0x4ea450 attack
+my target (its net, 0x4c0de0, 0x4e87c0), +0x24 / +0x34 the same,
++0x28 0x4ea4b0 form on me (net 0x603fb8), +0x2c / +0x44 0x4ea390 only an
+enemy, +0x30 / +0x48 0x4ea3f0 only an ally, +0x3c 0x4ea260 (0x4d08d0's
+order), +0x40 0x4ea4e0 stop (back to the last unmarked order).
+
+The radio's lines play through 0x4e6d50 -> 0x4e6c60: a line plays when its
+repeat time has passed (+0x08 = now + +0x04), with a subtitle when
+[0x60b878] (0x4e6aa0 "MINDELAY SUBTITLE"). Callers: low ammo (above),
+hits taken (IControls 0x4ea520: an enemy's from over 500 m, "friendly
+fire" from an ally, the player's hits counted, 0x4d5dc0 past 3), the
+target lost (0x4ea630), death (0x4ea6b0), each order's answer.
+
+### 17.7 Firing (0x4b5b80, the firing state +0x108)
+
+A state machine over +0x00, run until a step asks for no more: 1 / 6 pick a
+plan (+0x30, else +0x50, else 0x4b6790: the weapon manager's volley,
+0x4b5a20 -> 0x4b1860 in weapon.cpp), 2 aim (the plan's vt+0x10 / +0x04
+with the delays +0x08 / +0x0c), 3 lead and lock (0x4b72a0, 0x4b77e0,
+0x4b0a70 alpha for 0.2 s when the plan's kind +0x10 is 3), 4 fire (the
+trigger IControls vt+0x10(1), 0x4b4ba0 the type's wait, 0x4b5940 the
+contacts in the line), 5 the wait (0x4b63f0, the parts' 0x465a00), 7 the
+burst's end, 8 reset (0x4b6700 is the reset from the brain). The weapon
+manager's side (0x4b04c0, 0x4b0a70, 0x4b0bc0, 0x4b4ba0, 0x4b4c90) is
+ported (weapons.md); the planner's volley pick 0x4b1860 (with 0x4b1350,
+0x4b1470) and its start-up object 0x4b1170 are not.
+
+The HUD's three (0x443d20, 0x446240) read the selected group (manager
++0x28, +0x1c group mode 2 = all its weapons, else the current one):
+0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
+whether any weapon locks on (def +0x6c bit 15, LOCK_ON), 0x4b1cd0 whether
+any has ammo (vt+0x14 > 0 or -1). Ported (`mech3/weapon_planner`,
+`group_max_range`, `group_locks_on`, `group_has_ammo`). 0x4b1cd0 leaves a
+byte of its saved ECX (the top byte of the manager's address) as the answer
+for an empty group in group fire and for a group without a current weapon
+in the other modes: FIX (bug), no ammo (fixes.md).
+
+Test `test_weapon_planner.py` (over `test_weapons_run.py`'s managers,
+probe `probe_wm_planner`): after every operation of 200 managers (14,123
+operations: loadouts, fire modes, ammo used up, beams in and out of water,
+part loss), the three as the manager stands and with a random mode and
+group set on both sides: 28,608 checks identical, among them 2364 without a
+group, 4096 in group fire, 1696 empty groups in group fire, 4950 without a
+current weapon (the fix's two cases, where the exe's byte and the port's no
+are each checked). Breaking the port showed the test catches
+it, 8 of 8: the shortest range, group fire on the current weapon, the
+group's last weapon only, the LOCK_ON_LEAD bit, the current weapon's
+lock-on from the group's first, unlimited ammo not counted, zero ammo
+counted, group fire as mode 1.
+
+### 17.8 The switches
+
+[0x60b938] is the AI switch: on at the end of the mission start
+(0x4811f2 -> 0x4ea740), off in the cleanup (0x49191c -> 0x4ea750); off,
+every brain only stops and smooths. [0x5e9d40] is 1 and never written.
+[0x6099c0] counts awake pilots. The AI tester dialog (section 1) is the
+only other way in.
+
+### 17.9 Porting order
+
+Each item is one family with its own differential test; what it calls
+goes through a hooks struct the test stubs the same on both sides.
+
+1. **The HUD's planner getters** 0x4b1bd0, 0x4b1c70, 0x4b1cd0: done
+   (17.7).
+2. **The order stack**: 0x4e80b0, 0x4e8120, 0x4e82e0, 0x4e86a0, 0x4e87c0,
+   0x4e88c0, 0x4e8380, 0x4e84a0, 0x4e8660, 0x4e8960, 0x4e8990, 0x4e8c60,
+   0x4e9070, 0x4e9100, 0x4ea4e0, 0x4d88a0, 0x4d88d0, 0x4ea760, with
+   orders holding a net part and a state made by hooks (net vt+0x5c,
+   behaviour vt+0x8c). The existing Order becomes polymorphic.
+3. **The gates**: 0x4e8f10, 0x4e8dd0, 0x4e9640, 0x4e9650, 0x4e96b0.
+4. **The brain's frame** 0x4e9710 / 0x4e96f0 with everything below as
+   hooks; replaces `controls_calls().ai_brain`.
+5. **The vlist triggers** 0x4d9290, 0x4d8e70 (and 0x4e94f0).
+6. **Steering** 0x4ce620..0x4cec80.
+7. **The plain states**: 0x4c8660, 0x4c8700, 0x4c8790, 0x4c88c0, 0x4c8940,
+   0x4c8a30 and the shared 0x4cbe50.
+8. **The node state** 0x4ced40 (with backup and deploy).
+9. **The property states**: speed, waits, valve, scan / canleave, sound,
+   gate, shunt, valve union / assign, mcbwait (one or two a sitting);
+   jump 0x4cb330 alone.
+10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its
+    three states (0x4cac20, 0x4cace0, 0x4cadb0).
+11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
+12. **The firing state machine** 0x4b5b80 and its plans (0x4b6390..0x4b7060,
+    0x4b6790, 0x4b5a20), then the aim and lead 0x4b70b0..0x4b77e0.
+13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
+    manager side: agree with mac 2).
+14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's
+    orders** 0x4ea000..0x4ea230 and brain vt+0x20..+0x48; the IControls
+    events 0x4ea520, 0x4ea630, 0x4ea6b0, 0x4ea700, 0x4e95b0.
+15. **The rest**: 0x4ea260 with 0x4d08d0 / 0x4d0a10, the brain's step
+    0x4cd7b0, the 0x4ca3b0 class, the switches 0x4ea740 / 0x4ea750.
+
 ## Open
 
 - Whether mission loading runs at 24 or 53 bits: hardware mode has a
