@@ -199,6 +199,11 @@ unusual happens.
   game; it does nothing.
 - Deleting the pilot you had chosen before no longer leaves the game holding
   the deleted pilot (it could be taken for the player's in a lobby game).
+- A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.
+- An AI pilot with exactly 13 (or 39, ...) orders queued no longer reads past its order list (a possible crash) when the game checks whether it is on a path it is not on.
+- A target behind the zoom window's camera no longer picks TARGET's arrow from stray memory bits (the original read an unset value there).
+- A mech with a targeting computer and no weapon group selected no longer crashes the game when it has a target on screen (the lead circle needs a group).
+
 
 ## Copy protection removed
 
@@ -291,6 +296,8 @@ These change how the game talks to the computer, not how it plays.
   they are opened, so their progress continues. Accented pilot names
   (Windows' own character set, as the original typed them) are stored as
   ordinary file names on macOS.
+- In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
+
 
 ## Kept as the original, on purpose
 
@@ -302,8 +309,3 @@ Known quirks the rebuild deliberately keeps:
 - Missiles that miss vanish at the end of their range without exploding.
 - Radio chatter plays the newest line first.
 - Every mech's engine tops out at 400.
-- In Direct3D the HUD's see-through images (compass, reticle) blend with the 3D picture behind them, as on the original; the rebuild's overlay layer had shown them with magenta fringes.
-- A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.
-- An AI pilot with exactly 13 (or 39, ...) orders queued no longer reads past its order list (a possible crash) when the game checks whether it is on a path it is not on.
-- A target behind the zoom window's camera no longer picks TARGET's arrow from stray memory bits (the original read an unset value there).
-- A mech with a targeting computer and no weapon group selected no longer crashes the game when it has a target on screen (the lead circle needs a group).
