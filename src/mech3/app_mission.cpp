@@ -845,6 +845,14 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+void GameEngine::mech_set_mode_a(Handle mech, int32_t a) {
+  if (void* m = object_of(mech); m && is_launched_mech(m)) mech_set_hud_fall(m, a);
+  else Engine::mech_set_mode_a(mech, a);
+}
+void GameEngine::mech_set_mode_b(Handle mech, int32_t a) {
+  if (void* m = object_of(mech); m && is_launched_mech(m)) mech_power(m, a);
+  else Engine::mech_set_mode_b(mech, a);
+}
 
 // 0x0048ee70: the port's fade (mech3::fade_push, next 0); the Core state's
 // mission start fades in from black over 2 s, then gets resume(7).

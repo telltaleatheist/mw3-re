@@ -243,6 +243,35 @@ updates. Porting them showed two of zmth's sums in a different order from
 the exe's (0x522640 rotate_points_transposed, 0x522910
 inverse_transform_points_to): fixed, bit for bit now.
 
+## In the program (`mw3 --mission`)
+
+The player's mech runs its real frame: the player tick 0x004a1160 calls the
+pilot's vehicle's vtable +0x34, which the program sends to `Mech::update`
+(0x00419fc0) for the launched mech, as the spawn's one step (0x004782f0)
+does; Core's resume(7) powers it up (mission-start.md section 11). The
+controls read zInput's commands (`PlayerControls`, keyboard mode 3), and
+the frame goes through the ported gait, Move, turning, the skis' ground
+query, collision and the pose. What the program wires for it
+(`app_mech.cpp`, `wire_mech_frame`): the node matrices for the pose and
+the skis (0x004fc3f0 / 0x004fc300), the skis' position (0x005a85e0) and
+soil (the table 0x00608c00, ported: `build_soil_table` 0x0047f400, from
+the world object's constructor), collision's vtable +0x18 (the node's
+translation and zEntity's refresh 0x005a85c0) and the boxes it probes from
+(0x004ecf70, node +0xa4), and 0x005a85c0 after every move.
+
+`mw3tests` `mission_c1m1_player_walks_and_turns_headless`: a fake
+DirectInput keyboard holds the throttle-up key for 300 frames, and the Mad
+Cat (powered up by then) walks more than 20 m along its heading with both
+skis down; the turn-left key then changes its heading.
+
+Still hooks or logged on the frame's path in the program: the HUD
+(`heat_calls().screen` and the cockpit sounds), the weapons' fire and
+update (+0xd4: 0x004b0c20, 0x004b0c30) and 0x0041aba0, the sounds and
+effects of the feet and the landing (`PartCalls`, `MoveCalls`), force
+feedback, what a foot steps on (0x005836b0), the other mechs and vehicles
+as collision targets (`collide_calls().node_mech` / `node_entity`, so they
+count as walls), the AI mechs' own frames (their entities' ticks).
+
 ## Left
 
 1. The torso's setup 0x464290 (the def's shake and limits, its box) and the

@@ -43,6 +43,7 @@ int32_t invincible();  // 0x0040cf20, mech3/options.h
 
 namespace {
 int32_t g_spawn_updates = 0;  // the spawn's update steps run (0x004782f0)
+float g_spawn_pos[3] = {};    // where the placement left the mech, before that step
 
 MechWiring g_w;
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
@@ -144,6 +145,7 @@ class WiredLaunch : public LaunchHooks {
   // The spawn's one step (0x004782f0): the port's frame.
   void mech_update(Mech& m, float dt) override {
     ++g_spawn_updates;
+    if (m.transform) std::memcpy(g_spawn_pos, m.transform + 9, sizeof g_spawn_pos);
     m.update(dt);
   }
   uint8_t cheat_invincible() override { return static_cast<uint8_t>(g_w.peek32(g_w.engine, 0x608e40)); }
@@ -263,6 +265,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.powering_down = m->power_down_pending || m->powered_down;
   if (m->transform) s.pos[0] = m->transform[9], s.pos[1] = m->transform[10], s.pos[2] = m->transform[11];
   s.yaw_sin = m->orientation[2];
+  s.feet_down = m->skis && m->skis->down[0] && m->skis->down[1];
   const zcls::Node* n = static_cast<const zcls::Node*>(m->node);
   for (int32_t i = 0; n && i < n->parent_count(); ++i) s.in_world |= n->parents[i] == world_hooks().world && n->parents[i];
   *out = s;
@@ -279,6 +282,7 @@ int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
   return mech ? static_cast<Mech*>(mech)->place(pos, angle) : 0;
 }
 int32_t spawn_updates() { return g_spawn_updates; }
+const float* spawn_position() { return g_spawn_pos; }
 bool is_launched_mech(const void* mech) { return mech && mech == mech3::launched_mech(); }
 void update_mech(void* mech, float dt) {
   if (mech) static_cast<Mech*>(mech)->update(dt);
