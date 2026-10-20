@@ -487,6 +487,9 @@ void probe_fly_poke(int i, int which, int32_t v) {
     case 16: d.acceleration = bf(v); break;
     case 19: d.fire.flags = static_cast<uint32_t>(v); break;
     case 20: d.velocity = bf(v); break;
+    case 21: d.crater_span.points = v; break;
+    case 22: d.crater.points = v; break;
+    case 23: d.detonation_distance_sq = bf(v); break;
     case 17:
       for (int k = 0; k < zwep::kSoilCount; ++k) {
         d.impacts[k].bounce_sound_count = 2;
@@ -512,6 +515,10 @@ int32_t probe_fly_beam(int op, const int32_t* a) {
     }
     case 1: return zwep::beam_start(g_beams[a[0]]);
     case 2: return zwep::beam_stop(g_beams[a[0]]);
+    case 4:  // set a beam's length (by its reach less a[1]) and designate timer
+      g_beams[a[0]]->length = g_beams[a[0]]->range_scale * g_beams[a[0]]->def->range - bf(a[1]);
+      g_beams[a[0]]->timer = bf(a[2]);
+      return 0;
     case 3: {
       const int32_t r = zwep::beam_free(g_beams[a[0]]);
       g_beams[a[0]] = nullptr;

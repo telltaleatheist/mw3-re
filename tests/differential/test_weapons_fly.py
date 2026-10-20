@@ -906,7 +906,7 @@ def poke(emu, name, which, v):
     k = emu.names[name]
     dp = emu.defs_base + 0x1f4 * k
     off = {0: 0x6c, 1: 0x70, 2: 0x74, 3: 0x78, 4: 0x4c, 5: 0x100, 6: 0xf0, 7: 0xe4, 8: 0xec, 9: 0x168, 10: 0xa0,
-           11: 0xd4, 12: 0xd8, 13: 0x80, 14: 0x1c, 16: 0x38, 18: 0x54, 19: 0x84, 20: 0x2c}
+           11: 0xd4, 12: 0xd8, 13: 0x80, 14: 0x1c, 16: 0x38, 18: 0x54, 19: 0x84, 20: 0x2c, 21: 0x1a0, 22: 0x178, 23: 0x44}
     if which == 17:
         imp = emu.u32(dp + 0x13c)
         for k_ in range(6):
@@ -940,7 +940,7 @@ def pokes(emu, rng):
     poke(emu, 'AC5', 4, f2i(9.8))
     poke(emu, 'AC10', 4, f2i(9.8))
     poke(emu, 'AC10', 0, fl('AC10') | FIXED)
-    for n in ('LRM5', 'LRM15', 'MGUN', 'AC2'):
+    for n in ('LRM5', 'LRM15', 'LRM20', 'SRM6', 'StreakSRM4', 'MGUN', 'AC2', 'TAG_MISSILE'):
         poke(emu, n, 0, fl(n) | HIT_OWNER)
     poke(emu, 'AC20', 4, f2i(9.8))
     poke(emu, 'MGUN', 6, 0x0b000001)   # an animated FLYOUT model: pooled copies
@@ -953,6 +953,10 @@ def pokes(emu, rng):
     poke(emu, 'SRM2', 13, f2i(rng.choice([1.0, 0.0])))
     poke(emu, 'TAG_MISSILE', 14, f2i(40.0))
     poke(emu, 'NUKE', 0, (fl('NUKE') & ~0x10) | 0x40000)  # QUICKSAND
+    for n in ('NUKE', 'AC20'):  # a points span for the crater module
+        poke(emu, n, 21, 4)
+        poke(emu, n, 22, 2)
+    poke(emu, 'AC20', 0, fl('AC20') | 0x10)  # CRATER
     poke(emu, 'LANDMINE', 4, f2i(9.8))      # a thrown mine
     poke(emu, 'LANDMINE', 17, 0x0c000010)   # bounce sounds
     poke(emu, 'GASTANK', 17, 0x0c000020)
@@ -965,18 +969,24 @@ def pokes(emu, rng):
     poke(emu, 'Laser_Medium', 0, fl('Laser_Medium') | BOUNCES)
     poke(emu, 'PulseLaser_Small', 10, 0x0b000007)       # a fire EFFECT on a beam
     poke(emu, 'PulseLaser_Medium', 19, 1)               # RANDOM_ROTATE on a beam's fire animation
-    poke(emu, 'Laser_Large', 20, f2i(2.0))              # a slow beam: it grows, then snaps to its reach
+    poke(emu, 'Laser_Large', 20, f2i(4.0))              # a slow beam: it grows, then snaps to its reach
+    poke(emu, 'TAG', 23, f2i(0.5))                      # TAG calls its strike after 0.5 s on a target
     poke(emu, 'ERLaser_Medium', 0, fl('ERLaser_Medium') | BOUNCES | 0x8000)
 
 
 def main():
     emu = Fly()
     rng = random.Random(1205)
-    sessions = int(os.environ.get('WEAPON_FLY_SESSIONS', '120'))
+    sessions = int(os.environ.get('WEAPON_FLY_SESSIONS', '200'))
     ops_per = int(os.environ.get('WEAPON_FLY_OPS', '40'))
     stats = {'near': 0, 'ops': 0, 'calls': 0, 'spawned': 0}
     cpu = emu.cpu
-    for sess in range(sessions):
+    # At least `sessions`; more (up to twice as many) until every path is reached.
+    sess = -1
+    while True:
+        sess += 1
+        if sess >= sessions and (sess >= 2 * sessions or not set(COVER) - emu.reached):
+            break
         emu.new_session(rng)
         pokes(emu, rng)
         init_arg = int(rng.random() < 0.3)
@@ -1025,7 +1035,7 @@ def main():
                       *[f2i(f32(rng.uniform(-30, 30))) for _ in range(3)]]
             g += [f2i(f32(rng.choice([1.0, 1.0, 0.5]))), rng.choice([1, 1, 0])]
             if g[9] and rng.random() < 0.5:
-                g[10] = rng.choice([0, 1, 2, 3, 4, 5, 6, 8, 9])
+                g[10] = rng.choice([0, 1, 2, 3, 4, 5, 6, 8])  # the lock array holds 8: more and both read past it
             # the beams' muzzles move
             for slot in emu.beams:
                 at, dp, _ = emu.beam_at[slot]
@@ -1059,8 +1069,8 @@ def main():
             if k == 0:
                 op, args = 5, [1]
             else:
-                op = rng.choice([0] * 9 + [1] * 12 + [2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16] + [17, 18, 18, 19, 20] +
-                                [4, 5] * (k % 17 == 0) + [21, 21, 22, 22, 23, 24, 25, 26, 27, 27, 28])
+                op = rng.choice([0] * 9 + [1] * 12 + [2, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16] + [17, 17, 18, 18, 18, 19, 20] +
+                                [4, 5] * (k % 17 == 0) + [21, 21, 22, 22, 23, 24, 25, 26, 27, 27, 28, 28, 8, 8, 8, 29, 29, 30, 30, 30, 30])
                 args = []
             seed = rng.randrange(1 << 31)
             emu.rand = MsvcRand(seed)
@@ -1101,7 +1111,10 @@ def main():
                 cpu.call(0x585010, ecx=dp, edx=owner, stack_args=(zp if zone_on else 0, mp, dpp, vp, net, 0))
                 res_a = emu.ptok(cpu.uc.reg_read(UC_X86_REG_EAX))
                 stats['spawned'] += res_a != 0
-            elif op == 1:
+            elif op in (1, 30):
+                if op == 30:  # a frame where nearly every cast hits (TAG's time on a target, mines settling)
+                    emu.miss_rate = 0.0
+                    op = 1
                 cpu.call(0x5823c0)
             elif op == 2:
                 d = emu.names[rng.choice(['GASTANK', 'LANDMINE', rng.choice(proj_defs)])]
@@ -1195,6 +1208,18 @@ def main():
                 cpu.write(rp + 0xc, struct.pack('<3I', *pt))
                 cpu.call(0x582f60 if op == 12 else 0x582fc0, ecx=emu.defs_base + 0x1f4 * d, edx=rp,
                          stack_args=(soil, vol))
+            elif op == 29:
+                cand = [i for i, st in emu.beam_state.items() if st == 1]
+                if not cand:
+                    continue
+                slot = rng.choice(cand)
+                b = emu.beams[slot]
+                dl = f2i(f32(rng.choice([0.05, 0.5, -0.05])))
+                tm = f2i(f32(rng.choice([0.0, 0.3, 0.45])))
+                args = [slot, dl, tm]
+                reach = f32(i2f(emu.u32(b + 0x38)) * i2f(emu.u32(emu.u32(b + 8) + 0x1c)))
+                cpu.u32(b + 0x28, f2i(f32(reach - i2f(dl))))
+                cpu.u32(b + 0x2c, tm)
             elif op in (17, 18, 19, 20):
                 beam_defs = [n for n in names if emu.u32(emu.defs_base + 0x1f4 * emu.names[n] + 0x6c) & 2]
                 if op == 17:
@@ -1202,7 +1227,7 @@ def main():
                     if not free:
                         continue
                     slot = rng.choice(free)
-                    d = emu.names[rng.choice(beam_defs)]
+                    d = emu.names[rng.choice(beam_defs + ['Laser_Small', 'Laser_Small', 'TAG', 'TAG', 'Laser_Large'])]
                     zone_on = int(rng.random() < 0.5)
                     zone = rng.choice([3, 0x104])
                     segs = rng.choice([1, 1, 2, 3, 8, 9])
@@ -1236,7 +1261,12 @@ def main():
                     args = [f2i(f32(rng.choice([150.0, 400.0]))), f2i(f32(rng.choice([0.6, 0.05]))), rng.choice([100, 2, 0])]
                     cpu.call(0x4b3ab0, ecx=emu.ams, stack_args=tuple(args))
                 elif op == 27:
-                    args = [rng.choice([0, 1, 2])] + [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
+                    near = [emu.pool_base + 0x5d8 * (b_[0] - 0x10000) for b_ in emu.radar()]
+                    if near and rng.random() < 0.7:  # beside a shot on the radar
+                        at = struct.unpack('<3f', cpu.read(rng.choice(near) + 0x48, 12))
+                        args = [rng.choice([0, 1, 2])] + [f2i(f32(x + rng.uniform(-40, 40))) for x in at]
+                    else:
+                        args = [rng.choice([0, 1, 2])] + [f2i(f32(rng.uniform(-200, 200))) for _ in range(3)]
                     ap = emu.zalloc(12)
                     cpu.write(ap, struct.pack('<3I', *args[1:]))
                     cpu.call(0x4b3ae0, ecx=emu.ams, stack_args=(0x77, args[0], ap))
@@ -1244,7 +1274,7 @@ def main():
                 else:
                     if not emu.u32(emu.ams + 0x14):
                         continue  # fire wants a target (it writes its health)
-                    args = [rng.choice([1, 2, 3])]
+                    args = [rng.choice([1, 1, 2, 3])]
                     cpu.call(0x4b3bb0, ecx=emu.ams, stack_args=(args[0],))
                 cpu.call(0x4b3ba0, ecx=emu.ams)
                 tp = cpu.uc.reg_read(UC_X86_REG_EAX)
@@ -1320,7 +1350,9 @@ def main():
             # the port
             emu.rand = MsvcRand(seed)
             probe.probe_fly_seed(seed)
-            if op >= 26:
+            if op == 29:
+                res_b = probe.probe_fly_beam(4, (ctypes.c_int32 * 3)(*[s32(x) for x in args]))
+            elif op >= 26:
                 res_b = probe.probe_fly_ams(op - 26, (ctypes.c_int32 * len(args))(*[s32(x) for x in args]), out)
                 if out_a != list(out[:7]):
                     raise SystemExit(f'session {sess} op {k} AMS ({op}): {out_a} vs {list(out[:7])}')
@@ -1394,7 +1426,7 @@ def main():
     missing = sorted(COVER[a] for a in set(COVER) - emu.reached)
     if missing:
         raise SystemExit(f'coverage: never reached {missing}')
-    print(f'ok: {sessions} sessions, {stats["ops"]} operations ({stats["spawned"]} shots) agree; {stats["calls"]} '
+    print(f'ok: {sess} sessions, {stats["ops"]} operations ({stats["spawned"]} shots) agree; {stats["calls"]} '
           f'calls out matched, {stats["near"]} trig-fed floats within {TOL}; all {len(COVER)} paths reached')
 
 
