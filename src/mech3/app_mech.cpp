@@ -142,7 +142,8 @@ class WiredLaunch : public LaunchHooks {
     if (Mech* m = mech3::launched_mech()) place_pilot_mech(*this, p, *m, pos, yaw);
     else LaunchHooks::pilot_place(p, pos, yaw);  // logged: no mech to place
   }
-  // The spawn's one step (0x004782f0): the port's frame.
+  // Mech3.exe 1.2 @ 0x004782f0's vtable +0x34: the spawn's one step, the
+  // port's frame (0x00419fc0).
   void mech_update(Mech& m, float dt) override {
     ++g_spawn_updates;
     if (m.transform) std::memcpy(g_spawn_pos, m.transform + 9, sizeof g_spawn_pos);
@@ -161,8 +162,8 @@ WiredLaunch g_launch;
 }  // namespace
 
 namespace {
-// 0x005a85e0: the entity's node's world position, its world matrix
-// refreshed first when stale (0x0051e9d0, 0x0051fde0, 0x004ed280, 0x0051ea00).
+// Mech3.exe 1.2 @ 0x005a85e0: the entity's node's world position, its world
+// matrix refreshed first when stale (0x0051e9d0, 0x0051fde0, 0x004ed280, 0x0051ea00).
 const Vec3* entity_position(Mech& m) {
   auto* n = zn(m.node);
   if (!n || !n->data || n->cls() != 5) return nullptr;
@@ -263,6 +264,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.ams = m->ams != nullptr;
   s.motions = m->anims[4] && m->anims[8];
   s.powering_down = m->power_down_pending || m->powered_down;
+  s.powered_down = m->powered_down;
   if (m->transform) s.pos[0] = m->transform[9], s.pos[1] = m->transform[10], s.pos[2] = m->transform[11];
   s.yaw_sin = m->orientation[2];
   s.feet_down = m->skis && m->skis->down[0] && m->skis->down[1];

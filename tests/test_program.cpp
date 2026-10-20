@@ -1001,7 +1001,8 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
-      bool spawned_down = false, powered_up = false;
+      bool powered_up = false;
+      float off_ground = 0;
       mech3::LaunchedMech start, walked, turned;
       bool feet = true;
     } seen;
@@ -1015,12 +1016,19 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
         up = zin::key1_of(0x18) & 0xff, left = zin::key1_of(2) & 0xff;  // throttle up, turn left
         mech3::describe_mech(player, &seen.start);
       } else if (seen.frames == 3) {
+        // Powered up: the spawn's +0xde cleared by Core's resume(7) through
+        // the port (0x0041cc30 never logged).
         mech3::LaunchedMech m;
-        seen.powered_up = mech3::describe_mech(player, &m) && !m.powering_down;
+        seen.powered_up = mech3::describe_mech(player, &m) && !m.powered_down && !m.powering_down &&
+                          engine.unported_counts().count("0x0041cc30") == 0;
+        seen.feet = m.feet_down;
         keys.key(up, true);
       } else if (seen.frames > 3 && seen.frames < 300) {
+        // Both skis down every frame, the body on the ground under it.
         mech3::LaunchedMech m;
-        if (seen.frames > 10 && mech3::describe_mech(player, &m) && !m.feet_down) seen.feet = false;
+        if (!mech3::describe_mech(player, &m) || !m.feet_down) seen.feet = false;
+        const float g = ground_under(m.pos[0], m.pos[1] + 20.0f, m.pos[2]);
+        seen.off_ground = std::max(seen.off_ground, std::fabs(m.pos[1] - g));
       } else if (seen.frames == 300) {
         keys.key(up, false);
         mech3::describe_mech(player, &seen.walked);
@@ -1043,6 +1051,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     const float yaw = 2.0f * std::asin(seen.start.yaw_sin);
     EXPECT(d > 0 && (dx * -std::sin(yaw) + dz * -std::cos(yaw)) / d > 0.95f);
     EXPECT(seen.feet);
+    EXPECT(seen.off_ground < 0.1f);  // 0.024 m at most on c1m1's shore
     EXPECT(std::fabs(seen.turned.yaw_sin - seen.walked.yaw_sin) > 0.05f);
     mech3::missions().cleanup(false);
     app.stop_game();
