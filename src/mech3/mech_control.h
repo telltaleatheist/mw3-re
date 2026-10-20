@@ -1,7 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <memory>
 
 #include "mech3/controls_cfg.h"
+#include "mech3/zai_brain.h"
 
 // The shared part of a mech's controls (docs/controls.md): the commanded
 // throttle, turn and jump, and their smoothing toward the targets
@@ -52,6 +54,7 @@ struct MechControls {
     jump_held = hold;
   }
   void zero();                   // 0x00426c80
+  void init();                   // 0x004265a0's fields (most derived 0): at rest, view state 2
   // 0x00426650: the control mode (+0x08). While the axis table is ready, bit
   // 4 puts the joystick's axes in it and bit 1 the mouse's.
   void set_mode(uint32_t mode);
@@ -71,10 +74,17 @@ struct PlayerControls : MechControls {
                  float* look_yaw);
 };
 
-// The AI's controls (ctor 0x004d8750, 0x320 bytes): the AI brain at +0x5c
-// (ai.md section 4, not ported) sets the targets and runs the smoothing.
+// The AI's controls (ctor 0x004d8750 over 0x004d8670, 0x320 bytes; docs/ai.md,
+// The AI controls): MechControls, the pilot's brain at +0x5c (a base in the
+// exe, ai::Brain), the IControls virtual base at +0x30c (its owner +0x31c).
+// Each frame the brain (0x004e9710, not ported) sets the targets and runs the
+// smoothing. Made without a record, it has no brain (the smoothing's tests).
 struct AiControls : MechControls {
+  AiControls() = default;
+  AiControls(Mech* owner, ai::AiNet* net, const ai::AiParams& rec);  // 0x004d8750(owner, net, rec, 1)
+  ~AiControls() override;          // IControls vt+0x00: 0x004d8bf0 -> 0x004d8c00
   int update(float dt) override;   // 0x004e96f0
+  std::unique_ptr<ai::Brain> brain;  // +0x5c
 };
 
 // Mech3.exe 1.2 @ 0x00427280: the player's controls, made once in `mode`

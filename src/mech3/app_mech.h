@@ -38,8 +38,10 @@ struct LaunchedMech {
   uint32_t team = 0;       // the AiTarget mask
   bool skis = false, ams = false;
   bool motions = false;    // the walk and its blends copied from the type's motions
+  bool powering_down = false;  // asked to power down (0x0041cc30), or down
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
+bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
 
 // player.cpp's AI mechs (mission-start.md section 4): 0x00414150 on a
 // controller the program made (a MechControls), the definition's skin
@@ -47,6 +49,22 @@ bool launched_mech(LaunchedMech* out);  // false when the launch made none
 void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name);
 bool set_mech_skin(void* mech, void* skin);
 const void* mech_definition(void* mech);
+void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)
+uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
+// The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,
+// +0xc8 enemies); false for any other offset.
+bool mech_set_mask(void* mech, uint32_t off, uint32_t v);
+bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v);
+
+// The AI mechs player.cpp built this mission (app_mission.cpp, our record of
+// them for the log and the tests): each mech (a Mech*) and its controller (an
+// AiControls*), in the order they were made.
+struct AiMechMade {
+  void* mech = nullptr;
+  void* controls = nullptr;
+  const char* name = nullptr;  // the aiv.zrd record's
+};
+const AiMechMade* mission_ai_mechs(int32_t* count);
 
 // The debug launch's slot (our addition, mission-load.md section 4): the
 // mech by roster index, its first configuration, the definition's skin 0.

@@ -144,7 +144,7 @@ void probe_controls_load(const uint8_t* mech, const uint8_t* ctl, const uint32_t
   ControlsWorld& w = *g;
   w.m = Mech{};
   w.pc = PlayerControls{};
-  w.ac = AiControls{};
+  static_cast<MechControls&>(w.ac) = MechControls{};  // the AI controls without a brain
   std::memcpy(w.env, env, sizeof w.env);
   mech_io(const_cast<uint8_t*>(mech), false);
   player_io(const_cast<uint8_t*>(ctl), false);

@@ -1208,6 +1208,19 @@ are all "puffers": emitters that drop little textured squares.
 - **One AI path points at nothing.** In the c2 world's mission 3, path 13
   is a single point linking to a point that does not exist; the original
   reads leftover memory there. The rebuild takes it as no link.
+- **Every pilot starts with one order: its path.** As a mission starts each
+  AI mech and vehicle gets a pilot that copies its record and starts with a
+  single order on its path network (a mech whose path is missing is not
+  made at all, a vehicle is made without a driver).
+- **Enemies get a radio too.** A pilot with a radio voice (the lancemates'
+  `dom`, `alan` and `epona`, or any record's `sound_tag`) loads its sixteen
+  radio lines (call for help, engaging, low ammo, ...) only if your mech
+  counts its team as an ally, but at mission start your mech does not exist
+  yet (it is built at launch), so every voiced pilot made then gets its
+  lines, enemies included. Lancemates who join at launch are checked
+  against your mech.
+- **The Owens has no hands.** Its model's arms end in the guns, so it is
+  built with 11 parts where most mechs have 13.
 - **AI pilots plan by straight lines.** When a pilot needs a route to a
   point of its path network, it picks the shortest one measured in straight
   lines from point to point (from where it stands), ignoring hills and

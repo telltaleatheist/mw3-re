@@ -128,6 +128,7 @@ add_library(mw3core STATIC
   src/mech3/weapon.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_valve.cpp
+  src/mech3/zai_brain.cpp
   src/mech3/zai_steps.cpp
   src/mech3/zai_path.cpp
   src/mech3/zainet.cpp
@@ -208,6 +209,7 @@ add_library(mw3probe SHARED
   tests/probe_mission.cpp
   tests/probe_player.cpp
   tests/probe_mech_build.cpp
+  tests/probe_ai_brain.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

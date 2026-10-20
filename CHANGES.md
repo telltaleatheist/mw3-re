@@ -142,6 +142,10 @@ unusual happens.
   or a definition without camos, no longer crashes the game as the mech is
   built at launch, nor does a launch with the view on another vehicle (the
   game never does that). No shipped mech has either.
+- An AI vehicle that fails to be built no longer crashes the mission start
+  as its driver is thrown away, and a made-up radio voice name of 15
+  letters or more in a mission's vehicle file no longer overruns memory.
+  The shipped missions have neither.
 - A hand-made AI region file without a name, or an AI path linking past its
   last point or to points without a position, no longer crashes the
   mission load or the AI's route finding. One shipped path (c2 mission 3,

@@ -158,8 +158,10 @@ void wire_mech_build(const MechWiring* w) {
   };
 }
 
-bool launched_mech(LaunchedMech* out) {
-  const Mech* m = mech3::launched_mech();
+bool launched_mech(LaunchedMech* out) { return describe_mech(mech3::launched_mech(), out); }
+
+bool describe_mech(const void* mech, LaunchedMech* out) {
+  const Mech* m = static_cast<const Mech*>(mech);
   if (!m) return false;
   LaunchedMech s;
   s.roster = m->pilot->roster;
@@ -181,6 +183,7 @@ bool launched_mech(LaunchedMech* out) {
   s.skis = m->skis != nullptr;
   s.ams = m->ams != nullptr;
   s.motions = m->anims[4] && m->anims[8];
+  s.powering_down = m->power_down_pending || m->powered_down;
   *out = s;
   return true;
 }
@@ -189,6 +192,26 @@ void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* na
   return mech_create(mech, static_cast<MechControls*>(controls), config, name);
 }
 bool set_mech_skin(void* mech, void* skin) { return mech && mech_set_skin(*static_cast<Mech*>(mech), skin); }
+void mech_power(void* mech, int32_t down) {
+  if (mech) static_cast<Mech*>(mech)->power(down);
+}
+uint32_t mech_allies(const void* mech) { return mech ? static_cast<const Mech*>(mech)->allies : 0; }
+bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
+  Mech* m = static_cast<Mech*>(mech);
+  if (!m) return false;
+  if (off == 0xc0) return m->team = v, true;
+  if (off == 0xc4) return m->allies = v, true;
+  if (off == 0xc8) return m->enemies = v, true;
+  return false;
+}
+bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v) {
+  const Mech* m = static_cast<const Mech*>(mech);
+  if (!m) return false;
+  if (off == 0xc0) return *v = m->team, true;
+  if (off == 0xc4) return *v = m->allies, true;
+  if (off == 0xc8) return *v = m->enemies, true;
+  return false;
+}
 const void* mech_definition(void* mech) { return mech ? mech_dfn(static_cast<Mech*>(mech)->pilot->roster) : nullptr; }
 
 uint32_t debug_slot_config(int32_t mech, void* e, uint32_t (*handle_of)(void* e, const void* p)) {
