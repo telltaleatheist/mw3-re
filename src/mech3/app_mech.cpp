@@ -18,6 +18,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/app_view.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
@@ -47,6 +48,8 @@ class WiredData : public MechDataHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
+  Handle cameras(Pilot& p) override { return program_cameras(p.roster); }      // 0x00430e70
+  void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
   void animations(Pilot& p) override {
     if (open_motions("zbd/motion.zbd")) load_animations(p);
@@ -108,8 +111,10 @@ class WiredLaunch : public LaunchHooks {
   Handle game_slot(Handle game) override { return h(g_w.vcall(g_w.engine, low(game), 0x34, {0})); }
   int32_t game_type(Handle game) override { return static_cast<int32_t>(g_w.vcall(g_w.engine, low(game), 0x2c, {})); }
   int32_t use_joystick() override { return 0; }   // keyboard and mouse
-  int32_t camera_mode() override { return 0; }
-  void set_camera_mode(int32_t) override {}
+  int32_t camera_mode() override { return program_camera_option(); }  // 0x0040ce70
+  void set_camera_mode(int32_t m) override { program_camera_set(m); }  // 0x0040ce10
+  void mech_attach_view(Mech& m) override { program_view_attach(m); }   // vt+0x108, 0x0041ce30
+  void view_set_camera(Handle, uint32_t mode) override { program_view_set_camera(static_cast<int32_t>(mode)); }
   // The pilot's vehicle is the mech (as the exe's 0x004782c0 sets it).
   void pilot_set_mech(Handle p, Mech& m) override {
     unported("0x004782c0", {low(p), 0});

@@ -49,6 +49,8 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
+#include "mech3/app_view.h"
+#include "mech3/player_view.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
@@ -275,6 +277,12 @@ struct WiredPlayerHooks : PlayerHooks {
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
+  // view.vt+0x08 (0x0040ada0): the port's view, each player tick.
+  void view_tick(Handle v, float dt) override {
+    if (!v || !program_view()) return PlayerHooks::view_tick(v, dt);
+    program_view()->update(dt);
+    e->sync_view();
+  }
   Handle stealth() override { return e->peek32(0x609a2c); }
   void clear_6099c0() override { e->poke32(0x6099c0, 0); }
 };
@@ -656,6 +664,7 @@ struct WiredMissionHooks : MissionHooks {
   Handle make_view(Handle mem, Handle camera, Handle window, Handle x) override {
     unported("0x0040aca0", {mem, camera, window, x});
     e->set_mission_view(mem, camera);
+    program_view_make(mission_node(*e, camera));
     return mem;
   }
   Handle make_608c84(Handle mem, Handle world) override {
@@ -902,6 +911,12 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
   }
   // The view's +0x04 runs its camera: the world drawn by the scene walk
   // (0x004f7030), the frame counted as the class lists' pass counts it.
+  // +0x08 its update (0x0040ada0, the port's).
+  if (obj && obj == view_ && slot == 0x08 && program_view()) {
+    program_view()->update(zgame::from_bits(args.begin()->v));
+    sync_view();
+    return 0;
+  }
   if (obj && obj == view_ && slot == 0x04) {
     if (zcls::Node* cam = mission_node(*this, camera_)) {
       ++zcls::frames().frame;
@@ -911,6 +926,32 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
     return 0;
   }
   return Engine::vcall(obj, slot, args);
+}
+
+const float* program_mission_fog(bool water) {
+  static float f[7];
+  const MissionWorld& w = missions().world;
+  const float* r = water ? w.water_range : w.fog_range;
+  const float* a = water ? w.water_altitude : w.fog_altitude;
+  const float* c = water ? w.water_color : w.fog_color;
+  f[0] = r[0], f[1] = r[1], f[2] = a[0], f[3] = a[1], f[4] = c[0], f[5] = c[1], f[6] = c[2];
+  return f;
+}
+
+// The player view's camera id and target into its block, as the app code
+// reads them (+0x58 a block whose +4 is the id, +0x64 the mech's handle).
+void GameEngine::sync_view() {
+  if (!view_) return;
+  Handle mode = 0;
+  if (const int32_t id = program_view_mode_id(); id >= 0) {
+    Handle& b = view_modes_[id];
+    if (!b) b = alloc_block(0x10);
+    poke32(b + 4, static_cast<uint32_t>(id));
+    mode = b;
+  }
+  poke32(view_ + 0x58, mode);
+  void* t = program_view_target();
+  poke32(view_ + 0x64, t ? handle_of(t) : 0);
 }
 
 void GameEngine::set_mission_view(Handle view, Handle camera) {

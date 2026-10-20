@@ -157,6 +157,7 @@ add_library(mw3core STATIC
   src/mech3/app_states.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
+  src/mech3/app_view.cpp
   src/mech3/app_mech.cpp
   src/mech3/app_sensors.cpp
   src/mech3/app_menus.cpp

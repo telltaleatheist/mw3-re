@@ -4,6 +4,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -43,6 +44,7 @@
 #include "mech3/zai_steps.h"
 #include "mech3/sensors.h"
 #include "mech3/app_sensors.h"
+#include "mech3/app_view.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
@@ -744,6 +746,75 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
     EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
   }
   zvid::pixel_format() = keep;
+}
+
+// The player's view (docs/view.md): after the launch the view is on the
+// Mad Cat in the options' camera, the cockpit (attach, id 1), and each Core
+// frame puts camera1 at the torso node; walked 1100 m, the camera goes along.
+TEST(mission_c1m1_camera_follows_the_cockpit_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_view_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    bool cockpit = false, on_player = false, near1 = false, near2 = false, moved = false;
+    float first[3] = {};
+    auto dist = [](const float* a, const float* b) {
+      return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      const mech3::Handle player = engine.field32(engine.pilot(), 0x14);
+      float cam[3], torso[3];
+      if (frames == 2) {
+        cockpit = mech3::program_view_mode_id() == 1;
+        on_player = mech3::program_view_target() == engine.object_of(player);
+        near1 = mech3::program_view_positions(cam, torso) && dist(cam, torso) < 4.0f;
+        std::memcpy(first, cam, sizeof first);
+        const float there[3] = {-2067.7f, -35.79f, -1229.0f};  // 1133 m east, on the ground
+        mech3::move_mech(engine.object_of(player), there, 0.0f);
+      } else if (frames == 5) {
+        near2 = mech3::program_view_positions(cam, torso) && dist(cam, torso) < 4.0f;
+        moved = dist(cam, first) > 1000.0f;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    EXPECT(frames >= 5);
+    EXPECT(cockpit && on_player);
+    EXPECT(near1 && near2 && moved);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
 }
 
 TEST(mission_c1m1_sensors_fill_the_contacts_headless) {

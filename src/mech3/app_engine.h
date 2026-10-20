@@ -102,6 +102,7 @@ class GameEngine : public Engine {
   void pilots_delete() override;
   void pilot_delete(const char* name) override;
   uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) override;
+  void sync_view();  // the player view's mode and target into its block (app_view.cpp)
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
@@ -276,6 +277,7 @@ class GameEngine : public Engine {
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
+  std::map<int32_t, Handle> view_modes_;  // the view's camera ids' blocks (sync_view)
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
