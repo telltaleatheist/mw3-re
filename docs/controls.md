@@ -471,6 +471,69 @@ through 0x4d89f0. PlayerControls also has a +0x5c sub-object
 (0x4d9840, vtable 0x5bd708), likely a shared AI/pilot base. I did not trace how the AI
 brain sets throttle and turn, but it can only do so through the same IControls setters.
 
+## The mech's commands, 0x41be80 (ported)
+
+`Mech::command` (`mech3/mech_command.cpp`), vtable +0xfc. The player's keys
+reach it through 0x426cb0 (`player_command`): the controls' +0x1c first, then
+this on the vehicle at the view's +0x64. Two switches. The first runs only
+while the mech is active (+0x08):
+
+| Commands | What happens |
+|---|---|
+| 0x06 / 0x07 CENTER_TORSO / LEGS | 0x465a00(1 / 2) on the torso (hook) |
+| 0x13 CROUCH | `crouch(!crouched)` unless powered down (vt+0xa0, 0x41cc10) |
+| 0x14 RETICULE_ZOOM, 0x48 TARGET_CURSOR | with the screen: the object under the reticle (0x444330, 0x40eee0), handed to 0x4a7b40 after a side check (vt+0x28 +0xc0 against +0xc4 and vt+0xac for 0x14; vt+0xb0 for 0x48). HUD hook |
+| 0x15 ZOOM_LOCK | 0x442e00 on screen +0x1508 (with no screen too), sound 0x17 kept at +0x614, then 0x14's |
+| 0x25 / 0x26 WEP_NEXT / PREV | the manager's 0x4b0790 / 0x4b07e0 |
+| 0x27 NEXT_WEAPON | the weapon the HUD highlights (screen +0x1795c): its group selected (0x4b0730), and if that took, the weapon selected in it (0x4b1de0) |
+| 0x28 FIREMODE | mode = (mode + 1) % 3, the group selected again, 0x4b0830's sound |
+| 0x2a / 0x2b WEPGRP_NEXT / PREV | 0x4b04f0 / 0x4b0610 |
+| 0x2c..0x30 WEPGRP_1..5 | `select_group(cmd - 0x2c)` |
+| 0x31..0x35 MOVETOWG_1..5 | the current weapon (0x4b04c0), if any, into that group (0x4b1e10), then as 0x27 |
+| 0x36..0x38 NAVPT_NEXT / PREV / NEAR | [0x609980] vt+0x60 / +0x64 / +0x68(0x5a85e0's position) (hook) |
+| 0x39 ALPHASTRIKE | 0x4b0a70(0.2) unless powered down |
+| 0x3a AMS_TOGGLE | the AMS's on byte flipped, when there is one |
+| 0x3b JETTISON_AMMO | 0x4b0ae0; when it did, mech sound 0x10 |
+| 0x3e (no key) | 0x41d070 (hook) |
+| 0x3f SHUTDOWN | `power(0)` when powered down, else `power(1)` |
+| 0x40 SHUT_OVER | 0x419190(1), the override (heat.md) |
+| 0x41 COOLANTFLUSH | 0x419e60 (heat.md, Coolant flush) |
+| 0x44 GETUP | 0x41b840 |
+| 0x46, 0x47, 0x4b..0x4e | the target keys (zai_target), each with side 0 |
+| 0x4f, 0x51..0x56 | lance orders: unless 0x479480 says multiplayer, +0x37c = 0x469930(+0x37c, order): POCKET 0x4f = 2, PAUSE 0x51 = 1, FOLLOW 0x52 = 0, 0x53 = 9, ATTACKT 0x54 = 0xa, DEFENDT 0x55 = 0xb, REFITT 0x56 = 0xc (hook) |
+| 0x57 / 0x58 DIRECT_AWAITCMD / CANCEL | +0x78 = +0x6c / 0 |
+| 0x59..0x60 the part keys | 0x41d810(head 6, centre torso 1, left torso 7, right torso 8, left arm 2, right arm 3, left leg 0xb, right leg 0xc) (hook) |
+| 0x62..0x67 the look keys | the view's camera (+0x58) vt+0x10(left 0, right 1, up 4, down 5, front 2, rear 3) (hook) |
+| 0x68, 0x74, 0x75, 0xa5 | with the screen: 0x43da40, 0x43d240, 0x43d250, 0x43dc10 (HUD hook) |
+| 0x69 RADAR_RANGE | not passive (+0xbc bit 2): below the reach (2000 with a C3 computer, equipment kind 6, else 1000) the range doubles (0x4d6d20) and that is all; at it, 500 and passive. Passive: 500, bit cleared. Both then vt+0xb8 (0x41ded0, the HUD's light) |
+| 0x6b HUD_TOGGLE | with the screen, unless powered down: screen vt+4(screen +4 == 0) |
+| 0x6e MASC | with MASC (kind 12): `masc(masc_time == 0)` |
+| 0x73 MCB_COMMAND, 0x76 / 0x77 the chat keys | 0x47a910, 0x41e4e0(0 / 1) (hooks) |
+
+The second runs always: 0x16 TOGGLE_TMODE (view 0 or 1 → 0x426780(2), 2 or 3
+→ 0x426780(0)), 0x17 FREELOOK (view 0 → 0x426780(1); view 1 → 0x426780(0)
+and the camera vt+0x10(2)), both then storing the controls' view (+0xc)
+through [0x5f4d44] (the options' MouseMode); 0x43 OBJECTIVES (the screen's
++0x17964 vt+0x60(-1) or +0x64 by +0x17970 bit 4); 0x49 TARGET_NONE (vt+0xc0,
+0x41d890: `set_target(null, 0)` and the HUD's lock); 0xa6 (no key) 0x40f070.
+Every command ends in the controls' vt+0, `ret 4` for every controls class.
+
+The screen is 0x430aa0 on the pilot (+0x684), only for the view's mech.
+The program wires the handler on the pilot's mech (`WiredBuild::
+view_target_command`, `app_mech.cpp`); the HUD, camera, torso, nav, lance and
+chat calls stay hooks, logged once by the engine as unported. 0x426780 is
+`update_calls().controls_view`, unported.
+
+Tests: `tests/differential/test_command.py` runs 0x41be80 in Unicorn with
+every callee a logging stub against the port (`CommandCalls::own` answers the
+mech's and the manager's calls the same way): 6,000 random commands of 97
+kinds and a sweep of the radar's edges, the call log and the fields written
+identical; 0x419190 and 0x419e60 run for real, 3,000 cases identical.
+`mission_c1m1_player_commands_headless` (mw3tests) drives the Thor (c1m1 with
+`l.mech = 17`: the Mad Cat has no jump jets) by keyboard: F2 selects the
+second group, S powers down, it stays down 30 frames, S powers up, J held
+fires the jets and lifts it.
+
 ## Open
 
 - IControls +0x04 and +0x54 (AI overrides), +0x10 (byte +0x34), and the full

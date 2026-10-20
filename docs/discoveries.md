@@ -1563,6 +1563,29 @@ From the default bindings and the controls profiles, 0x411150 and 0x4120a0
   "detail" or "weapons") saves fine but loads the game's file of that name
   instead, so loading it changes nothing.
 
+From the mech's command handler, 0x41be80 (details: `controls.md`, The
+mech's commands; `heat.md`, Coolant flush):
+
+- **Coolant flush is strongest the first time.** Each flush doubles what is
+  left in the tank, takes that much heat off (or all of it), and keeps half
+  of what was not used. A full tank can wipe out a whole heat bar in one
+  press; after a flush that took h, the next can take at most 2 - h (on the
+  game's 0 to 2 heat scale). The tank never refills during a mission, and
+  every mech has one: no equipment needed.
+- **The radar range key (Alt+R) cycles 500 m, 1000 m, then passive.** A mech
+  with a C3 computer gets an extra 2000 m step before passive. Passive
+  always comes back at 500 m. In the campaign the sensors never actually
+  reach past 1000 m, whatever the setting; in Instant Action and multiplayer
+  your own mech sees 50 km, whatever the setting.
+- **Shift+F1 to F5 move the selected weapon into that group** and select it
+  there; Enter selects the weapon the HUD highlights, switching to its group.
+- **Crouch, alpha strike and the HUD key do nothing while powered down;**
+  the handler does not hold back the other keys (getting up, targets, weapon
+  groups, the AMS).
+- **The thermal shutdown override (O) only takes while the heat warning is
+  beeping,** and only for the mech you are looking from.
+- **Lance orders (F6 to F11) are ignored in multiplayer.**
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).

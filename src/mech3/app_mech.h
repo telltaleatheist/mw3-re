@@ -29,6 +29,11 @@ void wire_weapons();
 void unwire_weapons();
 void sync_frame_step(float dt);
 int32_t mech_select_hot_group(void* mech);
+// For the program's tests: hits the mechs' damage handler took (and the last
+// shooter node), a mech's node, whether a group's weapons are firing or reloading.
+int32_t mech_hits_taken(void** attacker_node);
+void* mech_node(void* mech);
+bool mech_group_reloading(void* mech, int32_t group);
 void mech_after_tick(void* mech, uint32_t (*unported)(const char*));  // 0x0041aba0  // a group whose weapons heat (as F1..F5 would), -1 none  // [0x0072c52c] into the mech, weapon and zWeapon modules
 void mech_set_damage_handler(void* mech);
 
@@ -64,6 +69,10 @@ struct LaunchedMech {
   bool feet_down = false;  // both skis on the ground
   float armor = 0;         // armor and structure left, summed over the parts (fractions)
   float heat = 0;          // +0x554
+  int32_t group = -1;      // the manager's selected group (+0x28), -1 without one
+  int32_t jets = 0;        // jump jets installed (equipment[11])
+  int32_t jets_firing = 0; // +0x580
+  bool crouched = false;   // +0x586
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)

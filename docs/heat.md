@@ -140,6 +140,17 @@ cools then reaches a critical level of heat" (0x97b). In the state machine the
 bit makes state 2 skip the power-down; 1.5 heat still forces it, and the bit
 clears below 0.4. 0x419190(0) clears it.
 
+## Coolant flush (0x419e60, ported)
+
+Command 0x41 (F). The mech's +0x56c starts at 1.0 (0x4149f0). With it and the
+heat both non-zero: c = 2 x coolant; the heat loses min(heat, c); the coolant
+becomes (c - what was spent) / 2. Mech sound 0x11 for the pilot's mech. With
+heat on a 0..2 scale, the first flush can take up to 2.0, everything; after
+it, a flush that took h leaves (2 - h) / 2, so the next takes at most 2 - h.
+Nothing refills it during a mission, and no equipment is needed. Ported as
+`Mech::flush_coolant` with the override as `Mech::heat_override`
+(`mech.cpp`); `test_command.py` checks both.
+
 ## Losing heat sinks
 
 `HeatSinks::Lose(n)` (0x45fbc0) takes n off the count (not below 0) and always

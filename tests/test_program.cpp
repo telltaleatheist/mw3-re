@@ -1226,7 +1226,9 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     struct Seen {
       int frames = 0;
       mech3::LaunchedMech owens_before, owens_after, player_before, player_peak;
-      int32_t flying_max = 0, hot_group = -1;
+      int32_t flying_max = 0, hot_group = -1, hits_before = 0, hits_after = 0;
+      bool hot_fired = false;
+      void* attacker = nullptr;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1248,11 +1250,13 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         mech3::move_mech(player, at, -1.5707964f);
         mech3::describe_mech(owens, &seen.owens_before);
         mech3::describe_mech(player, &seen.player_before);
+        seen.hits_before = mech3::mech_hits_taken(nullptr);
       } else if (seen.frames == 6) {
         keys.key(fire, true);
       } else if (seen.frames == 120) {
         // The first group (the machine guns) makes no heat: one that does.
         seen.hot_group = mech3::mech_select_hot_group(player);
+        seen.player_before = seen.player_peak;  // the heat before the hot group
       } else if (seen.frames > 6 && seen.frames < 200) {
         // The HUD's reticle on the Owens' middle (0x0041cd40 is not ported).
         mech3::LaunchedMech o;
@@ -1264,9 +1268,11 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
         mech3::LaunchedMech m;
         if (mech3::describe_mech(player, &m) && m.heat > seen.player_peak.heat) seen.player_peak = m;
+        if (seen.frames > 120 && mech3::mech_group_reloading(player, seen.hot_group)) seen.hot_fired = true;
       } else if (seen.frames == 200) {
         keys.key(fire, false);
         mech3::describe_mech(owens, &seen.owens_after);
+        seen.hits_after = mech3::mech_hits_taken(&seen.attacker);
       }
     };
     CountingPump pump;
@@ -1275,8 +1281,121 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     EXPECT(seen.frames >= 200);
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
-    EXPECT(seen.hot_group >= 0);
+    EXPECT(seen.hits_after > seen.hits_before);                // through the Owens' damage handler
+    EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
+    EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
     EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's keys through the mech's command handler (0x0041be80,
+// docs/controls.md, The mech's commands): F2 selects the second weapon
+// group; the power key powers the Mad Cat down, and again back up; the jump
+// key, held, fires the jump jets.
+TEST(mission_c1m1_player_commands_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_commands_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    l.mech = 17;                  // the Thor: its first configuration has jump jets
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, down_at = 0, up_at = 0;
+      mech3::LaunchedMech start, f2, jump_start;
+      float climb = 0;
+      int32_t jets_firing = 0;
+      bool powering = false, stayed_down = true;
+    } seen;
+    void* player = nullptr;
+    uint32_t f2 = 0, power = 0, jump = 0;
+    auto tap = [&](uint32_t k) { keys.key(k, true), keys.key(k, false); };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      mech3::LaunchedMech m;
+      if (seen.frames > 3) mech3::describe_mech(player, &m);
+      if (seen.frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        f2 = zin::key1_of(0x2d) & 0xff, power = zin::key1_of(0x3f) & 0xff, jump = zin::key1_of(0xc) & 0xff;
+        mech3::describe_mech(player, &seen.start);
+        tap(f2);
+      } else if (seen.frames == 6) {
+        seen.f2 = m;
+        tap(power);
+      } else if (seen.frames > 6 && seen.frames < 300) {
+        seen.powering |= m.powering_down;
+        if (!seen.down_at && m.powered_down) seen.down_at = seen.frames;
+        if (seen.down_at && seen.frames < seen.down_at + 30 && !m.powered_down) seen.stayed_down = false;
+        if (seen.down_at && seen.frames == seen.down_at + 30) tap(power);
+        if (seen.down_at && !seen.up_at && !m.powering_down) seen.up_at = seen.frames;
+      } else if (seen.frames == 300) {
+        seen.jump_start = m;
+        keys.key(jump, true);
+      } else if (seen.frames > 300 && seen.frames < 360) {
+        seen.climb = std::max(seen.climb, m.pos[1] - seen.jump_start.pos[1]);
+        seen.jets_firing = std::max(seen.jets_firing, m.jets_firing);
+      } else if (seen.frames == 360) {
+        keys.key(jump, false);
+        std::printf("commands: group %d -> %d, down at %d, up at %d, jets %d firing %d climb %.2f\n", seen.start.group,
+                    seen.f2.group, seen.down_at, seen.up_at, m.jets, seen.jets_firing, seen.climb);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 800;
+    app.run(pump);
+    EXPECT(seen.frames >= 360);
+    EXPECT(seen.start.group == 0 && seen.f2.group == 1);  // F2: the second group
+    EXPECT(seen.powering && seen.down_at > 0);            // the power key: down
+    EXPECT(seen.stayed_down && seen.up_at > seen.down_at + 30);  // until pressed again, then up
+    EXPECT(seen.jets_firing > 0 && seen.climb > 1.0f);    // the jump jets lift it
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

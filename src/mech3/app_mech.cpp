@@ -26,6 +26,7 @@
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
 #include "mech3/mech_collide.h"
+#include "mech3/mech_command.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_skis.h"
 #include "mech3/mech_config.h"
@@ -101,6 +102,12 @@ class WiredBuild : public MechBuildHooks {
   Handle view_camera(Handle v) override { return v ? h(g_w.peek32(g_w.engine, low(v) + 0x58)) : nullptr; }
   uint32_t camera_mode(Handle c) override { return g_w.peek32(g_w.engine, low(c) + 4); }
   Handle view_target(Handle v) override { return v ? h(g_w.peek32(g_w.engine, low(v) + 0x64)) : nullptr; }
+  // vt+0xfc: the port's handler on the pilot's mech (mech_command.cpp).
+  void view_target_command(Handle target, int32_t cmd) override {
+    void* m = g_w.object_of(g_w.engine, low(target));
+    if (is_launched_mech(m)) static_cast<Mech*>(m)->command(cmd);
+    else MechBuildHooks::view_target_command(target, cmd);
+  }
 };
 
 class WiredLaunch : public LaunchHooks {
@@ -208,6 +215,13 @@ void wire_mech_frame() {
     m.entity_moved();
   };
   update_calls().moved = [](Mech& m) { m.entity_moved(); };                                 // 0x005a85c0
+  // The player's keys (Mech::command): what is not ported is logged once by
+  // the engine; the HUD's keys wait for the HUD's own commands.
+  CommandCalls& k = command_calls();
+  k.unported = [](const char* key, int32_t cmd) { return g_w.unported(g_w.engine, key, {cmd}); };
+  k.handle = [](Mech& m) { return g_w.handle_of(g_w.engine, &m); };
+  k.view_camera = program_view_set_camera;                                                  // 0x0040ae70
+  k.set_view_option = program_set_mouse_mode;                                              // [[0x005f4d44]]
 }
 }  // namespace
 
@@ -218,6 +232,7 @@ void wire_mech_build(const MechWiring* w) {
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
     update_calls().moved = nullptr;
+    command_calls() = CommandCalls{};
     unwire_weapons();
     set_mech_build_hooks(nullptr);
     set_mech_data_hooks(nullptr);
@@ -270,7 +285,13 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
     s.parts += l->foot && l->foot->node;
     if (l->foot) s.toes += static_cast<int32_t>(l->foot->toe_count);
   }
-  if (const auto* wm = static_cast<const WeaponManager*>(m->ammo)) s.weapons = static_cast<int32_t>(wm->count);
+  if (const auto* wm = static_cast<const WeaponManager*>(m->ammo)) {
+    s.weapons = static_cast<int32_t>(wm->count);
+    s.group = wm->group;
+  }
+  s.jets = m->equipment[11];
+  s.jets_firing = m->jump_jets_firing;
+  s.crouched = m->crouched;
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;

@@ -151,7 +151,7 @@ struct Mech : ai::AiTarget {
   float jet_burn = 0;        // +0x560  fuel per second firing: tonnage / (100 * jets)
   float jet_fuel = 1;        // +0x564  0..1
   bool infinite_fuel = false;  // +0x568  nothing sets it
-  float x56c = 1.0f;         // +0x56c
+  float coolant = 1.0f;      // +0x56c  the flush's (0x00419e60): doubled, spent on the heat, the rest halved
   float narc_time = 0;       // +0x570
   float masc_time;           // +0x574  non-zero while MASC is on
   int32_t anim_state;        // +0x578  1, 12, 13 let a power-down finish; 10 dead
@@ -236,6 +236,9 @@ struct Mech : ai::AiTarget {
   bool death_fall(int kind);                // 0x0041b760
   void stagger(const Vec3& knock);          // 0x0041b7f0
   void get_up();                            // 0x0041b840
+  void command(int32_t cmd);                // 0x0041be80: the player's keys (mech_command.cpp)
+  void heat_override(bool on);              // 0x00419190: the shutdown override (docs/heat.md)
+  void flush_coolant();                     // 0x00419e60
   void update_action(float dt);             // 0x00416860
   bool vital_part_lost() const;             // inlined in 0x00416660 and 0x00416860
   void select_gait(float dt);         // 0x004181c0

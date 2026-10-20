@@ -344,7 +344,7 @@ void mech_image(Img& o, const m3::Mech& m) {
   if (g_configured) o.f(0x530, m.throttle_up), o.f(0x534, m.throttle_down), o.f(0x538, m.turn_accel);
   o.f(0x53c, m.knock), o.v3(0x540, m.knock_vec), o.f(0x54c, m.lean), o.f(0x550, m.x550);
   o.f(0x554, m.heat), o.f(0x558, m.heat_added), o.f(0x55c, m.heat_dissipation), o.f(0x560, m.jet_burn);
-  o.f(0x564, m.jet_fuel), o.b8(0x568, m.infinite_fuel), o.f(0x56c, m.x56c), o.f(0x570, m.narc_time);
+  o.f(0x564, m.jet_fuel), o.b8(0x568, m.infinite_fuel), o.f(0x56c, m.coolant), o.f(0x570, m.narc_time);
   o.f(0x574, m.masc_time), o.i(0x578, m.anim_state), o.i(0x57c, m.prev_state), o.i(0x580, m.jump_jets_firing);
   o.b8(0x584, m.no_power_down), o.b8(0x585, m.knee_back), o.b8(0x586, m.crouched), o.b8(0x587, m.hud_saved);
   o.b8(0x588, m.wading), o.u(0x58c, m.gait_frames), o.f(0x590, m.lie_time), o.v3(0x594, m.impulse);

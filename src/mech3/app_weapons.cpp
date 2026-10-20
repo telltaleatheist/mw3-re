@@ -16,6 +16,7 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "mech3/app_view.h"
 #include "mech3/mech.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
@@ -60,7 +61,12 @@ int32_t segment_nearest(const zwep::Vec3f3* a, const zwep::Vec3f3* b, zwep::HitL
 
 // Mech3.exe 1.2 @ 0x004161a0: the mech's damage handler, vtable +0x164
 // (Mech::TakeDamage) on the hit.
+int32_t g_hits = 0;                  // the handler's calls, for the program's tests
+zwep::Handle g_last_attacker = nullptr;  // zWeapon's shooter node at the last ([0x009a0edc])
+
 uint32_t mech_damage(zwep::Handle object, zwep::WeaponDef* def, zwep::HitRecord* hit, float damage) {
+  ++g_hits;
+  g_last_attacker = zwep::attacker();
   Collision c;
   c.x20 = hit->material;
   c.node = hit->node;
@@ -199,6 +205,11 @@ void wire_weapons() {
   };
 
   heat_calls().heat_option = [] { return heat() != 0; };  // 0x0040cfc0, the Heat option
+  // The aim's view test (0x0041bc20): [0x005f4c8c] +0x64 is the mech and its
+  // camera (+0x58) +4 is 1, the cockpit.
+  aim_calls().cockpit_view = [](Mech& m) {
+    return program_view_target() == static_cast<void*>(&m) && program_view_mode_id() == 1;
+  };
 
   // Mech3.exe 1.2 @ 0x0040ea10 / 0x0040e9d0 (through 0x0040ef30 / 0x0040ef10):
   // what a node hit belongs to, by its +0x28 id and +0x40 owner (the build
@@ -234,6 +245,21 @@ void sync_frame_step(float dt) {
   zwep::hit_state().dt = dt;
 }
 
+int32_t mech_hits_taken(void** attacker_node) {
+  if (attacker_node) *attacker_node = g_last_attacker;
+  return g_hits;
+}
+
+void* mech_node(void* mech) { return mech ? static_cast<Mech*>(mech)->node : nullptr; }
+
+bool mech_group_reloading(void* mech, int32_t g) {
+  auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  if (!wm || g < 0 || g > 4 || !wm->groups[g]) return false;
+  for (uint32_t i = 0; i < wm->groups[g]->count; ++i)
+    if (const Weapon* w = wm->groups[g]->weapons[i]; w && (w->reload > 0.0f || w->is_firing())) return true;
+  return false;
+}
+
 // What F1..F5 select (CMD_WEPGRP_1..5 through the mech's command handler,
 // not ported): the first group holding a weapon that heats its mech; -1 none.
 int32_t mech_select_hot_group(void* mech) {
@@ -258,8 +284,10 @@ void mech_after_tick(void* mech, uint32_t (*unported)(const char*)) {
   m->attacker = nullptr;
 }
 
+// Everything wire_weapons set, back to the defaults.
 void unwire_weapons() {
-  weapon_calls().vehicle_entity = nullptr;
+  weapon_calls() = WeaponCalls{};
+  aim_calls() = AimCalls{};
   zwep::run_hooks() = zwep::RunHooks{};
   zwep::hit_hooks() = zwep::HitHooks{};
   update_calls().weapons_fire = nullptr;
