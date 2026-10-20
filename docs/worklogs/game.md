@@ -144,3 +144,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   (0x542060), lens flares (0x567420..), cockpit sounds 0x41e770, Betty.
 - Note: hung mw3tests processes in state UE pile up after crashes; avoid
   aborting runs and never pkill broadly.
+
+### After the reboot
+
+- Merged main; my emulator tests (modeldraw, matrix, place, entity_walk,
+  command) end with os._exit like main's.
+- The first full run crashed (exit 139, no hang): with the sound sets now
+  loaded, a later test's Core state played a sound into zSound's null queue.
+  zSound's shutdown leaves `initialized` set (the exe never needs more), so
+  a second engine in one process was refused its init ("zSndInit: FAILED"
+  in every mission test before). `reset_effects` resets zSound's state too;
+  now "zSndInit: PASSED" in all 13 mission tests.
+- Ran: mw3tests 89/89, mw3sdltests 6/6, test_matrix, test_place,
+  test_modeldraw, test_entity_walk, test_command, test_weapons_run,
+  test_weapons_hit, test_anim_run, test_collide, test_update: all pass.

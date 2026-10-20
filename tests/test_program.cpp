@@ -103,12 +103,15 @@ struct SavedMounts {
 
 }  // namespace
 
-// A new process starts with no animations and an empty effect table; one
-// mission after another in the same process would keep the first one's
-// (the unload 0x00490480 with 0x0050b380 is not ported: weapon-effects.md).
+// A new process starts with no animations, an empty effect table and zSound
+// not yet initialised. One mission after another in the same process would
+// keep the first one's animations (the unload 0x00490480 with 0x0050b380 is
+// not ported: weapon-effects.md), and zSound's shutdown leaves it marked
+// initialised, so the next engine's init is refused with no queue.
 void reset_effects() {
   zeff::anim() = zeff::AnimState{};
   zeff::effects_reset();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
