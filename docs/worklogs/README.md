@@ -35,6 +35,9 @@ compaction by reading it.
     `scratch/`, then read the file, so a hang never blocks the session.
 - Never kill processes by name (`pkill -f mw3tests` and the like): the
   other sessions run the same programs. Kill only a pid you started.
+- A `CHANGES.md` line goes under its heading (bug fixes that change play,
+  crashes, protection, modern machines), never at the end of the file: the
+  last section lists what the rebuild keeps on purpose.
 - Every item comes with a differential test with break tests, its docs,
   `fixes.md` and `CHANGES.md` lines for any change from the original, and
   player-facing finds in `discoveries.md`.
