@@ -240,7 +240,8 @@ class GameEngine : public Engine {
   zutl::MessageDll& messages() { return dll_; }
 
   static constexpr Handle kFrame = 0x00010000, kBackBuffer = 0x00010010, kFrontBuffer = 0x00010020,
-                          kTarget = 0x00010030, kScreenRect = 0x00010040;
+                          kTarget = 0x00010030, kScreenRect = 0x00010040,
+                          kGrabs = 0x00010100;  // the fade's stills, 0x10 apart
 
  private:
   Platform p_;
@@ -271,5 +272,8 @@ class GameEngine : public Engine {
   std::map<Handle, OpenScreen> screens_;
   std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)
 };
+
+// The fade's colour over a 16-bit buffer in zvid::pixel_format() (FIX (A), 0x00558540).
+void tint16(uint16_t* px, size_t n, uint16_t colour, float alpha);
 
 }  // namespace mech3

@@ -216,6 +216,9 @@ These change how the game talks to the computer, not how it plays.
   window's size; a joystick gets the game's own ranges and dead zones.
 - Graphics through SDL3 (Metal, Direct3D 12 or Vulkan) instead of DirectX 6;
   the game's own drawing code is unchanged.
+- The fades (a mission's start, leaving it) are drawn on the program's own
+  copy of the screen instead of through DirectDraw and Direct3D; they look
+  and last the same.
 - Sound through SDL3 instead of DirectSound, with the same volumes and
   panning.
 - Settings are saved in `settings.reg` in the user's folder instead of the

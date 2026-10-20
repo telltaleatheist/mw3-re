@@ -17,6 +17,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app.h"
@@ -653,6 +654,47 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
 // the sensors (0x004a8cd0) fill the contact lists, nearest first: the
 // player's holds the Owens and the targets.zrd objects within its 1000 m,
 // the Owens' holds the player; the target keys pick from them.
+// The fade's colour on the 16-bit buffer (FIX (A), 0x00558540): each channel
+// mixed and rounded to nearest, in 565 and 555; the stills' handles reused.
+TEST(fade_tint_mixes_each_channel_in_565_and_555) {
+  const zvid::PixelFormat keep = zvid::pixel_format();
+  zvid::set_pixel_format(5, 6, 5);
+  uint16_t px[4] = {0xffff, 0x0000, 0xf800, 0x07e0};
+  mech3::tint16(px, 4, 0x0000, 0.5f);  // half black: 31 -> 16 (15.5 rounds up), 63 -> 32
+  EXPECT(px[0] == (16 << 11 | 32 << 5 | 16) && px[1] == 0 && px[2] == 16 << 11 && px[3] == 32 << 5);
+  uint16_t a[2] = {0x1234, 0xffff};
+  mech3::tint16(a, 2, 0x001f, 0.0f);  // alpha 0: unchanged
+  EXPECT(a[0] == 0x1234 && a[1] == 0xffff);
+  mech3::tint16(a, 2, 0x001f, 1.0f);  // alpha 1: the colour
+  EXPECT(a[0] == 0x001f && a[1] == 0x001f);
+  uint16_t q[1] = {0};
+  mech3::tint16(q, 1, 0xffff, 0.25f);  // 31 * 0.25 = 7.75 -> 8, 63 * 0.25 = 15.75 -> 16
+  EXPECT(q[0] == (8 << 11 | 16 << 5 | 8));
+  zvid::set_pixel_format(5, 5, 5);
+  uint16_t b[2] = {0x7fff, 0x7c00};
+  mech3::tint16(b, 2, 0x0000, 0.5f);  // 31 -> 16 in all three fields, bit 15 stays clear
+  EXPECT(b[0] == (16 << 10 | 16 << 5 | 16) && b[1] == 16 << 10);
+  uint16_t c[1] = {0x0000};
+  mech3::tint16(c, 1, 0x03e0, 1.0f);  // a 555 green stays in its field
+  EXPECT(c[0] == 0x03e0);
+  zvid::pixel_format() = keep;
+
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  const mech3::Handle g1 = engine.video_grab(0), g2 = engine.video_grab(2);
+  EXPECT(g1 && g2 && g1 != g2);
+  engine.image_free(g1);
+  EXPECT(engine.video_grab(0) == g1);  // freed: its handle comes back, nothing leaks
+}
+
 TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
   if (!have_game()) return;
   SavedMounts keep;
