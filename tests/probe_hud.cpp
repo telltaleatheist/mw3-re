@@ -74,6 +74,16 @@ void textbox(Dump& d, ztwod::TextBox* p, const char* head) {
   }
 }
 
+void poly(Dump& d, ztwod::PolyLine* p) {
+  d.base(p);
+  for (auto& pt : p->pts)
+    for (int32_t v : pt) d.kv("p", v);
+  d.kv("count", p->count);
+  d.kv("color", p->color);
+  d.kv("dl", p->draw_list);
+  d.kv("tf", p->transformed);
+}
+
 void panel(Dump& d, mech3::HudPanel* p) {
   d.image(p);
   d.r("rect", p->rect);
@@ -143,6 +153,53 @@ void dump_hud(Dump& d) {
     d.kv("item", l.item);
     d.o << "\n";
   }
+  mech3::HudRadar& rd = h.radar;
+  d.o << "radar ";
+  d.base(&rd);
+  d.kv("radius", rd.radius);
+  d.kv("rsq", rd.radius_sq);
+  d.kv("color", rd.color);
+  d.kv("clipped", rd.clipped);
+  d.r("clip", rd.clip);
+  d.kv("x54", rd.x54);
+  d.kv("x58", rd.x58);
+  d.kv("zoomed", rd.zoomed);
+  d.kv("active", rd.active);
+  d.kv("changed", rd.changed);
+  for (int32_t v : {rd.cx[0], rd.cx[1], rd.cy[0], rd.cy[1], rd.r[0], rd.r[1], rd.to_r, rd.to_x, rd.to_y, rd.r_steps,
+                    rd.x_steps, rd.y_steps})
+    d.kv("v", v);
+  for (float v : rd.dir) d.f("dir", v);
+  for (float v : {rd.half_fov, rd.cos_half, rd.sin_half}) d.f("fov", v);
+  for (auto& [k, v] : std::initializer_list<std::pair<const char*, uint32_t>>{
+           {"xbd4", rd.xbd4}, {"xbd8", rd.xbd8}, {"xdb4", rd.xdb4}, {"xdb8", rd.xdb8}, {"src", 0}})
+    d.kv(k, v);
+  d.o << "\n";
+  for (int i = 0; i < 3; ++i) {
+    ztwod::ClipLine2D& l = rd.lines[i];
+    d.o << "rline" << i << ' ';
+    d.base(&l);
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48, l.x4c})
+      d.kv("l", v);
+    d.o << "\n";
+  }
+  d.o << "rtext1 ";
+  ftext(d, &rd.text1);
+  d.o << "\nrtext2 ";
+  ftext(d, &rd.text2);
+  d.o << "\nrlight ";
+  d.image(&rd.light);
+  for (int i = 0; i < 3; ++i) d.t("l", rd.light.images[i]);
+  d.kv("count", rd.light.count);
+  d.kv("cur", rd.light.current);
+  d.kv("xc8", rd.light.xc8);
+  d.kv("xcc", rd.light.xcc);
+  d.o << "\n";
+  for (int i = 0; i < 2; ++i) {
+    d.o << "rpoly" << i << ' ';
+    poly(d, &rd.polys[i]);
+    d.o << "\n";
+  }
   mech3::HudGauges& g = h.gauges;
   d.o << "gauges ";
   d.base(&g);
@@ -187,13 +244,7 @@ void dump_hud(Dump& d) {
   d.kv("x1143c", w.x1143c);
   d.kv("column", w.column);
   d.o << "\nwpoly ";
-  d.base(&w.poly);
-  for (auto& pt : w.poly.pts)
-    for (int32_t v : pt) d.kv("p", v);
-  d.kv("count", w.poly.count);
-  d.kv("color", w.poly.color);
-  d.kv("dl", w.poly.draw_list);
-  d.kv("tf", w.poly.transformed);
+  poly(d, &w.poly);
   d.o << "\nwpanel ";
   panel(d, &w.panel);
   d.o << "\n";

@@ -213,6 +213,50 @@ class HudGauges : public ztwod::Object2D {
   int32_t toggler_y = 0;             // +0x1688 the meter's bottom less half the toggler
 };
 
+// A light of three images, one shown (vtable 0x005c0260, 0xd0 bytes).
+class HudLight : public ztwod::Image {
+ public:
+  HudLight();
+  ~HudLight() override;
+  void select(int32_t i);            // inlined: the image of light i
+  zimg::Texture** images;            // +0xbc green, yellow, red (calloc'd)
+  int32_t count = 3;                 // +0xc0
+  int32_t current = -1;              // +0xc4
+  uint32_t xc8 = 0, xcc = 0;         // +0xc8, +0xcc
+};
+
+// The radar (vtable 0x005c01e0, 0xdc0 bytes): a filled box, the view cone's
+// lines, the range texts, the light and two polylines. Two sizes: small
+// (55, 55, radius 50) and zoomed (320, 240, radius 180), moved to in steps.
+class HudRadar : public ztwod::FilledBox {
+ public:
+  explicit HudRadar(float fov_degrees);  // 0x0043d260
+  // +0x60 show_for 0x0043db70: not ported yet.
+  void hide() override;              // +0x64  0x0043dc00: shrinks away, stays shown
+  void set_zoom(bool zoomed);        // 0x0043da50
+  void select_sound();               // 0x0043da00 (part: 0x00458590 not ported)
+  void set_fov(float radians);       // 0x0043f0c0
+  void set_dir(const float* v);      // 0x0043f130: the cone's edges from the view direction
+  uint16_t x58 = 0;                  // +0x58
+  uint16_t zoomed = 0;               // +0x5a
+  uint8_t active = 0;                // +0x5c
+  uint8_t changed = 0;               // +0x5d
+  int32_t cx[2] = {}, cy[2] = {}, r[2] = {};  // +0x60, +0x68, +0x70 by zoom
+  int32_t to_r = 0, to_x = 0, to_y = 0;      // +0x78 the size moved to
+  int32_t r_steps = 0, x_steps = 0, y_steps = 0;  // +0x84
+  float dir[3] = {};                 // +0x90
+  float half_fov = 0.0f;             // +0xa8
+  float cos_half = 0.0f, sin_half = 0.0f;  // +0xac, +0xb0
+  ztwod::ClipLine2D lines[3];        // +0xb4 the cone's edges (green) and a red one
+  HudText text1;                     // +0x1a4
+  HudText text2;                     // +0x654
+  HudLight light;                    // +0xb04
+  uint32_t xbd4 = 0, xbd8 = 0;       // +0xbd4
+  ztwod::PolyLine polys[2];          // +0xbdc
+  uint32_t xdb4 = 0, xdb8 = 0;       // +0xdb4
+  void* source = nullptr;            // +0xdbc the HUD it shows
+};
+
 // What the HUD calls outside it.
 class HudHooks : public zgame::Unported {
  public:
@@ -221,6 +265,10 @@ class HudHooks : public zgame::Unported {
   // +0xd0 (above 0: the map is flipped, the compass turned half round).
   virtual uint32_t mission_entry() { return unported("0x00491c80", {}); }
   virtual float entry_flip(uint32_t entry) { return zgame::from_bits(unported("@entry+0xd0", {entry})); }
+  // 0x0043da50's sound for the zoom on the source HUD's mech (0x00432990).
+  virtual void radar_zoom_sound(void* source, bool zoomed) {
+    unported("0x0043da50.sound", {id(source), zoomed ? 1u : 0u});
+  }
   virtual void setup(void* hud, Mech* m) { unported("0x0043bb80", {id(hud), id(m)}); }
   // A piece not ported yet: its constructor's address and arguments.
   virtual void piece(uint32_t ctor, std::initializer_list<zgame::Arg> args);
@@ -247,7 +295,7 @@ class Hud : public ztwod::Layer {
  public:
   explicit Hud(Mech* mech);          // 0x0043b190
   Mech* mech = nullptr;              // +0x10
-  PendingPiece radar{0x0043d260, {zgame::bits(60.0f)}};       // +0x14   0x0043d260 (not ported yet)
+  HudRadar radar{60.0f};             // +0x14
   HudCompass compass;                // +0xdd4
   PendingPiece reticle{0x00443b60, {"ret_on", "ret_off"}};     // +0x144c 0x00443b60 (not ported yet)
   HudGauges gauges;                  // +0x1da8

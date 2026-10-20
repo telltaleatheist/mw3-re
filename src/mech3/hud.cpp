@@ -1,6 +1,7 @@
 #include "mech3/hud.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 
 #include "crt/msvc_math.h"
@@ -388,6 +389,120 @@ HudGauges::HudGauges()
   x1440 = 0;
   heat_w = heat_bar.image ? heat_bar.image->width : 0;
   show_for(-1.0f);
+}
+
+// The original's calloc(4, 3): three 32-bit pointers.
+HudLight::HudLight() : Image(0), images(static_cast<zimg::Texture**>(std::calloc(3, sizeof(zimg::Texture*)))) {}
+HudLight::~HudLight() { std::free(images); }
+
+void HudLight::select(int32_t i) {
+  if (current == i) return;
+  current = i;
+  set_image(images[i]);
+}
+
+namespace {
+ztwod::ClipLine2D clip_line() { return ztwod::ClipLine2D(0, 0, 0, 0, 0); }  // 0x0043d620
+constexpr int32_t kRadarStep = 10;  // [0x005e39c0]: pixels a zoom step
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0043d260
+HudRadar::HudRadar(float fov) : FilledBox(0, 0, 0, 0, nullptr), lines{clip_line(), clip_line(), clip_line()} {
+  color = zvid::pack_bytes(0, 0xff, 0);
+  source = nullptr;
+  if (text1.color_top != 0xff00 || text1.color_bottom != 0xff00) {
+    text1.color_top = text1.color_bottom = 0xff00;
+    text1.needs_render = 1;
+  }
+  lines[0].color = zvid::pack_bytes(0, 0xff, 0);
+  lines[1].color = zvid::pack_bytes(0, 0xff, 0);
+  lines[2].color = zvid::pack_bytes(0xff, 0, 0);
+  ztwod::Host& h = ztwod::host();
+  light.images[0] = h.image_get("hud_light_green");
+  light.images[1] = h.image_get("hud_light_yellow");
+  light.images[2] = h.image_get("hud_light_red");
+  light.select(0);
+  light.set_pos(0xb, 0xb);
+  active = 0;
+  HudRadar::hide();
+  for (auto& l : lines) l.hide();
+  r[0] = 0x32;
+  r[1] = 0xb4;
+  cx[0] = 0x37;
+  cy[0] = 0x37;
+  cx[1] = 0x140;
+  cy[1] = 0xf0;
+  r_steps = x_steps = y_steps = 0;
+  to_r = to_x = to_y = 0;
+  x58 = 0;
+  set_zoom(false);
+  x = cx[0];
+  y = cy[0];
+  dirty();
+  radius = 0;
+  radius_sq = 0;
+  set_fov(static_cast<float>(static_cast<double>(fov) * 0.017453292519943295));  // 0x005c00c8
+  const float down[3] = {0.0f, 0.0f, -1.0f};
+  set_dir(down);
+  text2.set_pos(cx[0] - r[0], cy[0] + r[0] + 0xf);
+  text2.shadow = 1;
+  text2.shadow_dx = text2.shadow_dy = 1;
+  text2.shadow_color = 0x184e18;
+  if (text2.color_top != 0x1fa201 || text2.color_bottom != 0x1fa201) {
+    text2.color_top = text2.color_bottom = 0x1fa201;
+    text2.needs_render = 1;
+  }
+  xdb8 = xdb4 = 0;
+  xbd8 = xbd4 = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0043dc00
+void HudRadar::hide() {
+  to_r = 0;
+  changed = 1;
+}
+
+// Mech3.exe 1.2 @ 0x0043da00: with the radar active, the sound for the zoom.
+void HudRadar::select_sound() {
+  if (active) g_hooks->unported("0x0043da00", {g_hooks->id(this), zoomed});
+}
+
+// Mech3.exe 1.2 @ 0x0043da50: the size to move to and the steps there.
+void HudRadar::set_zoom(bool on) {
+  zoomed = on ? 1 : 0;
+  to_r = r[zoomed];
+  to_x = cx[zoomed];
+  to_y = cy[zoomed];
+  x_steps = std::abs((to_x - get_x()) / kRadarStep);
+  y_steps = std::abs((to_y - get_y()) / kRadarStep);
+  r_steps = std::abs((to_r - radius) / kRadarStep);
+  if (source) g_hooks->radar_zoom_sound(source, zoomed != 0);
+  select_sound();
+  changed = 1;
+}
+
+// Mech3.exe 1.2 @ 0x0043f0c0
+void HudRadar::set_fov(float a) {
+  half_fov = a * 0.5f;
+  cos_half = static_cast<float>(std::cos(static_cast<double>(half_fov)));
+  sin_half = static_cast<float>(std::sin(static_cast<double>(half_fov)));
+}
+
+// Mech3.exe 1.2 @ 0x0043f130: on a flipped map the direction turned round.
+void HudRadar::set_dir(const float* d) {
+  if (d) dir[0] = d[0], dir[1] = d[1], dir[2] = d[2];
+  float v[3] = {dir[0], dir[1], dir[2]};
+  if (active) {
+    HudHooks& k = *g_hooks;
+    if (k.entry_flip(k.mission_entry()) > 0.0f) v[0] = -v[0], v[1] = -v[1], v[2] = -v[2];  // 0x005c007c
+  }
+  const float rr = static_cast<float>(radius);
+  int32_t y1 = get_y() + crt::msvc_ftol((v[2] * cos_half - v[0] * sin_half) * rr);
+  int32_t x1 = get_x() + crt::msvc_ftol((v[2] * sin_half + v[0] * cos_half) * rr);
+  lines[0].set(get_x(), get_y(), x1, y1);
+  y1 = get_y() + crt::msvc_ftol((v[0] * sin_half + v[2] * cos_half) * rr);
+  x1 = get_x() + crt::msvc_ftol((v[0] * cos_half - v[2] * sin_half) * rr);
+  lines[1].set(get_x(), get_y(), x1, y1);
 }
 
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order

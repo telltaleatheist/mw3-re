@@ -555,6 +555,44 @@ class PolyLine : public Object2D {
   uint8_t transformed = 0;           // +0xe8
 };
 
+// A circle or box outline (vtable 0x005d0070), 0x54 bytes. Partial: built
+// only; its draw 0x005a3b00 not ported (twod.md).
+class Frame : public Object2D {
+ public:
+  Frame();                           // 0x005a39f0
+  Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
+  int32_t radius = 0;                // +0x34
+  int32_t radius_sq = 0;             // +0x38
+  uint32_t color = 0;                // +0x3c  a pixel
+  uint8_t clipped = 0;               // +0x40  clip given
+  Rect clip{};                       // +0x44  [0x0063d880] (always zero) when none
+};
+
+// A filled frame (vtable 0x005d00f0), 0x58 bytes. Partial as Frame.
+class FilledBox : public Frame {
+ public:
+  FilledBox(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3b60
+  uint32_t x54 = 0;                  // +0x54
+};
+
+// A HUD line from the object's place to an end (vtable 0x005d06e0), 0x4c
+// bytes. Partial: built and placed; its draw 0x005a68b0 not ported.
+class Line2D : public Object2D {
+ public:
+  Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a67e0
+  void set(int32_t x0, int32_t y0, int32_t x1, int32_t y1);  // 0x005a6880
+  int32_t end_x = 0, end_y = 0;      // +0x34
+  uint32_t color = 0;                // +0x3c  a pixel
+  uint32_t x40 = 0, x44 = 0, x48 = 0;  // +0x40..+0x48
+};
+
+// A line clipped to the radar (vtable 0x005d0760), 0x50 bytes. Partial as Line2D.
+class ClipLine2D : public Line2D {
+ public:
+  ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a6ae0
+  uint32_t x4c = 0;                  // +0x4c
+};
+
 // A polygon of up to 21 points (vtable 0x005d0860), 0x134 bytes: the HUD's
 // bars. Partial: built and set up; its draw 0x005a6ca0 not ported (twod.md).
 class Polygon : public Object2D {

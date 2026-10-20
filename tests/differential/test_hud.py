@@ -29,7 +29,7 @@ HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
-STUBBED = {0x43d260: 's0', 0x443b60: 'zs0,zs1', 0x442060: 's0,s1,s2,s3,s4',
+STUBBED = {0x443b60: 'zs0,zs1', 0x442060: 's0,s1,s2,s3,s4',
            0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
@@ -226,6 +226,53 @@ class Original:
             kv('state', e.r32(q + 0xa38))
             kv('item', e.r32(q + 0xa3c))
             flush('light')
+        def poly(o):
+            base(o)
+            for i in range(42):
+                kv('p', e.r32(o + 0x34 + 4 * i))
+            for k, off in (('count', 0xdc), ('color', 0xe0), ('dl', 0xe4)):
+                kv(k, e.r32(o + off))
+            kv('tf', e.r8(o + 0xe8))
+
+        o = h + 0x14
+        base(o)
+        for k, off in (('radius', 0x34), ('rsq', 0x38), ('color', 0x3c)):
+            kv(k, e.r32(o + off))
+        kv('clipped', e.r8(o + 0x40))
+        rc('clip', o + 0x44)
+        kv('x54', e.r32(o + 0x54))
+        kv('x58', e.r32(o + 0x58) & 0xffff)
+        kv('zoomed', e.r32(o + 0x5a) & 0xffff)
+        kv('active', e.r8(o + 0x5c))
+        kv('changed', e.r8(o + 0x5d))
+        for i in range(12):
+            kv('v', e.r32(o + 0x60 + 4 * i))
+        for i in range(3):
+            kv('dir', e.r32(o + 0x90 + 4 * i))
+        for i in range(3):
+            kv('fov', e.r32(o + 0xa8 + 4 * i))
+        for k, off in (('xbd4', 0xbd4), ('xbd8', 0xbd8), ('xdb4', 0xdb4), ('xdb8', 0xdb8), ('src', 0xdbc)):
+            kv(k, e.r32(o + off))
+        flush('radar')
+        for i in range(3):
+            q = o + 0xb4 + 0x50 * i
+            base(q)
+            for j in range(7):
+                kv('l', e.r32(q + 0x34 + 4 * j))
+            flush(f'rline{i}')
+        for nm, off in (('rtext1', 0x1a4), ('rtext2', 0x654)):
+            ftext(o + off)
+            flush(nm)
+        q = o + 0xb04
+        image(q)
+        for i in range(3):
+            tx('l', e.r32(e.r32(q + 0xbc) + 4 * i))
+        for k, off in (('count', 0xc0), ('cur', 0xc4), ('xc8', 0xc8), ('xcc', 0xcc)):
+            kv(k, e.r32(q + off))
+        flush('rlight')
+        for i in range(2):
+            poly(o + 0xbdc + 0xec * i)
+            flush(f'rpoly{i}')
         o = h + 0x1da8
         base(o)
         for k, off in (('x143c', 0x143c), ('x1440', 0x1440), ('x1444', 0x1444), ('hw', 0x1448), ('hh', 0x144c),

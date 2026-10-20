@@ -8,6 +8,37 @@
 
 namespace ztwod {
 
+// Mech3.exe 1.2 @ 0x005a39f0
+Frame::Frame() : Object2D(0, 0) {}
+
+// Mech3.exe 1.2 @ 0x005a3a60
+Frame::Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* cl)
+    : Object2D(px, py), radius(r), radius_sq(r * r), color(c), clipped(cl != nullptr) {
+  if (cl) clip = *cl;
+}
+
+// Mech3.exe 1.2 @ 0x005a3b60
+FilledBox::FilledBox(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* cl) : Frame(px, py, r, c, cl) {}
+
+// Mech3.exe 1.2 @ 0x005a67e0
+Line2D::Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c) : Object2D(0, 0) {
+  set(x0, y0, x1, y1);
+  x40 = 0;
+  color = c;
+  x44 = 0;
+  x48 = 0;
+}
+
+// Mech3.exe 1.2 @ 0x005a6880
+void Line2D::set(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
+  set_pos(x0, y0);
+  end_x = x1;
+  end_y = y1;
+}
+
+// Mech3.exe 1.2 @ 0x005a6ae0
+ClipLine2D::ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c) : Line2D(x0, y0, x1, y1, c) {}
+
 // Mech3.exe 1.2 @ 0x005a6bd0
 Polygon::Polygon() : Object2D(0, 0) { dirty(); }
 
