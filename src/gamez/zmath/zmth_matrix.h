@@ -107,6 +107,7 @@ void project(const Vec3* cam, Vec3* screen, uint32_t count);      // 0x005234f0 
 void project_d3d(const Vec3* cam, Vec3* screen, uint32_t count);  // 0x00523540  z' = near/z
 void unproject_d3d(const Vec3* screen, Vec3* cam, int32_t count); // 0x00523590
 void unproject(const Vec3* screen, Vec3* cam, int32_t count);     // 0x005235f0
+void unproject_world(const Vec3* screen, Vec3* out, int32_t count);  // 0x00523930: then by view().camera
 
 // --- Points through the top of the stack ---
 void morph(Vec3* dst, const Vec3* base, const Vec3* delta, uint32_t count, float f);  // 0x005220e0

@@ -6,14 +6,18 @@
 #include <deque>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "mech3/hud.h"
+#include "mech3/options.h"
 #include "probe_twod.h"
 
 namespace {
 using namespace probe_twod;
 
 uint32_t g_hud_addr = 0;
+uint32_t g_utab = 0, g_stab = 0;  // the aim's answers in the emulator (test_hud.py aim_world)
+int g_unprojects = 0, g_segments = 0;
 bool g_have_zrd = false;
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
@@ -54,6 +58,36 @@ struct Hooks : mech3::HudHooks {
   }
   void* mech_target_slot(mech3::Mech* m) override {
     return m ? reinterpret_cast<void*>(static_cast<uintptr_t>(id(m) + 0x6c)) : nullptr;
+  }
+  void unproject_world(const float sc[3], float out[3]) override {
+    call("0x00523930", {zgame::bits(sc[0]), zgame::bits(sc[1]), zgame::bits(sc[2])});
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(call("peek32", {g_utab + 12u * g_unprojects + 4u * i}));
+    ++g_unprojects;
+  }
+  int32_t segment_list(uint32_t world, const float a[3], const float b[3], zwep::HitList* out) override {
+    const uint32_t code = call("0x004eed90", {world, zgame::bits(a[0]), zgame::bits(a[1]), zgame::bits(a[2]),
+                                              zgame::bits(b[0]), zgame::bits(b[1]), zgame::bits(b[2])});
+    const uint32_t base = g_stab + 0x508u * g_segments++ + 4;
+    *out = zwep::HitList{};
+    out->count = static_cast<uint8_t>(call("peek8", {base}));
+    for (int j = 0; j < out->count && j < 31; ++j) {
+      const uint32_t r = base + 4 + 0x28u * j;
+      float f[6];
+      for (int q = 0; q < 6; ++q) f[q] = zgame::from_bits(call("peek32", {r + 4u * q}));
+      zwep::HitRecord& h = out->rec[j];
+      h.normal = {f[0], f[1], f[2]};
+      h.point = {f[3], f[4], f[5]};
+      h.x18 = call("peek32", {r + 0x18});
+      h.distance_sq = zgame::from_bits(call("peek32", {r + 0x1c}));
+      h.material = reinterpret_cast<zwep::Handle>(static_cast<uintptr_t>(call("peek32", {r + 0x20})));
+      h.node = reinterpret_cast<zwep::Handle>(static_cast<uintptr_t>(call("peek32", {r + 0x24})));
+    }
+    return static_cast<int32_t>(code);
+  }
+  uint32_t material_soil(zwep::Handle m) override {
+    if (!m) return 0;
+    const uint32_t soil = call("peek32", {id(m) + 0x20});
+    return call("peek32", {0x608c00 + 4 * soil});
   }
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
@@ -385,7 +419,14 @@ void dump_hud(Dump& d) {
   d.kv("locked", rt.locked);
   d.kv("src", g_hooks.id(rt.source));
   for (auto* t : {rt.img_off, rt.img_on, rt.img_over, rt.img_cant, rt.img_x920}) d.t("i", t);
-  for (uint32_t v : rt.x928) d.kv("z", v);
+  {
+    const zwep::HitRecord& t = rt.hit;
+    for (float f : {t.normal.x, t.normal.y, t.normal.z, t.point.x, t.point.y, t.point.z}) d.kv("z", zgame::bits(f));
+    d.kv("z", t.x18);
+    d.kv("z", zgame::bits(t.distance_sq));
+    d.kv("z", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t.material)));
+    d.kv("z", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t.node)));
+  }
   d.o << "\n";
   mech3::HudZoomWindow& z = rt.zoom;
   zoomview(d, &z, "zoom");
@@ -518,7 +559,45 @@ void dump_hud(Dump& d) {
 extern "C" {
 
 // Builds the HUD as the emulator did at `hud_addr` for `mech`, dumps it.
-int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, char* out, int size) {
+// The options' rects as the emulator has them (render, display: **[0x005f4d1c],
+// **[0x005f4d20]) and the pixel doubling ([0x005f4d4c]), for 0x0040d9e0.
+void sync_options() {
+  mech3::Options& o = mech3::options();
+  const std::pair<uint32_t, mech3::Rect*> rects[] = {{0x5f4d1c, &o.render}, {0x5f4d20, &o.display}};
+  for (auto& [g, r] : rects) {
+    const uint32_t a = call("peek32", {call("peek32", {g})});
+    int32_t v[8];
+    for (int i = 0; i < 8; ++i) v[i] = static_cast<int32_t>(call("peek32", {a + 4u * i}));
+    r->x = v[0], r->y = v[1], r->x_end = v[2], r->y_end = v[3], r->w = v[4], r->h = v[5], r->x_last = v[6],
+    r->y_last = v[7];
+  }
+  o.pixel_double = static_cast<int32_t>(call("peek32", {0x5f4d4c}));
+}
+
+std::string aim_dump(mech3::Hud& h) {
+  const mech3::HudReticle& r = h.reticle;
+  const zwep::HitRecord& t = r.hit;
+  std::vector<uint32_t> v = {static_cast<uint32_t>(r.x), static_cast<uint32_t>(r.y)};
+  for (float f : r.aim_point) v.push_back(zgame::bits(f));
+  v.push_back(zgame::bits(r.aim_distance));
+  for (float f : {t.normal.x, t.normal.y, t.normal.z, t.point.x, t.point.y, t.point.z}) v.push_back(zgame::bits(f));
+  v.push_back(t.x18);
+  v.push_back(zgame::bits(t.distance_sq));
+  v.push_back(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t.material)));
+  v.push_back(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t.node)));
+  const mech3::HudZoomWindow& z = r.zoom;
+  for (int32_t q : {z.rect.left, z.rect.top, z.rect.right, z.rect.bottom, z.x, z.y}) v.push_back(static_cast<uint32_t>(q));
+  std::string s = "aim ";
+  char b[16];
+  for (uint32_t x : v) {
+    std::snprintf(b, sizeof b, "%x ", x);
+    s += b;
+  }
+  return s;
+}
+
+int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const float* places, int nplaces,
+                    uint32_t utab, uint32_t stab, char* out, int size) {
   RecordingHost host;
   ztwod::set_host(&host);
   reset();  // the textures by address: each run's emulator starts over
@@ -529,6 +608,8 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, char* out
   g_hud_addr = hud_addr;
   g_hud = nullptr;  // the last one is left: its images' release would call the host
   g_have_zrd = zbd && *zbd;
+  g_utab = utab, g_stab = stab, g_unprojects = 0, g_segments = 0;
+  sync_options();
   zrdr::init();
   zrdr::close_archives(true);
   if (g_have_zrd) zrdr::open_archive(zbd, true);
@@ -537,9 +618,14 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, char* out
   std::memset(storage, 0, sizeof(mech3::Hud));
   g_hud = static_cast<mech3::Hud*>(storage);
   new (g_hud) mech3::Hud(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(mech)));
+  std::string aims;
+  for (int i = 0; i < nplaces; ++i) {
+    g_hud->reticle.place(places[2 * i], places[2 * i + 1]);
+    aims += aim_dump(*g_hud) + "\n";
+  }
   Dump d;
   dump_hud(d);
-  const std::string s = d.o.str();
+  const std::string s = d.o.str() + aims;
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
   zrdr::close_archives(true);
