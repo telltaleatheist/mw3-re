@@ -708,8 +708,12 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   that "the spot's height plus 10, plus the spot's height again". A spot
   below zero over a bridge puts the mech under the bridge; a high spot can
   take a surface well above it.
-- **Your mech starts every mission powered down.** The game sets it down
-  when it puts you in the world; the power-up you see comes after.
+- **Your mech starts every mission powered down, and the fade-in powers it
+  up.** The game puts you in the world with the reactor off; the moment
+  the opening fade ends it switches the reactor on, while the "power up"
+  sound plays.
+- **The campaign starts underwater.** In Operation 1's first mission your
+  Mad Cat stands on the seabed under almost 5 m of ocean and wades ashore.
 
 ## Multiplayer
 

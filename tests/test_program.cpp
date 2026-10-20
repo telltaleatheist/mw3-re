@@ -14,6 +14,8 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zinput/zinput.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zsound/zsnd_cd.h"
@@ -51,6 +53,27 @@
 #include "platform/silent_sound.h"
 
 namespace {
+
+// 0x005bcd88, the double 0x4161c0 subtracts from the ground's height
+// (test_place.py checks the placement against the exe in the emulator).
+constexpr double kPlaceSink = -0.01;
+
+// The highest ground under (x, z) from top down, water (a material of soil
+// 1) left out, through the multi-probe query 0x4ee2f0 (test_di),
+// independent of the placement's own query; NaN when none.
+float ground_under(float x, float top, float z) {
+  zcls::Node* w = mech3::world_hooks().world;
+  if (!w) return std::nanf("");
+  float probe[3] = {x, top, z};
+  static zcls::GroundHits hits;
+  zcls::ground_query(w, probe, 1, top, &hits);
+  float best = std::nanf("");
+  for (int i = 0; i < hits.count; ++i) {
+    if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
+    if (!(hits.hit[i].height <= best)) best = hits.hit[i].height;
+  }
+  return best;
+}
 
 bool have_game() { return std::filesystem::exists(std::string(MW3_GAME_DIR) + "/Mech3Msg.dll"); }
 
@@ -337,7 +360,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
       // the terrain there is at 3, the mech 0.01 above it, in the world.
       EXPECT(m.in_world);
       EXPECT(m.pos[0] == -1767.7f && m.pos[2] == -1229.0f);
-      EXPECT(m.pos[1] == static_cast<float>(3.0 + 0.01));
+      EXPECT(m.pos[1] == static_cast<float>(static_cast<double>(ground_under(m.pos[0], 103.0f, m.pos[2])) - kPlaceSink));
       EXPECT(std::fabs(m.yaw_sin - std::sin(0.52359879f / 2)) < 1e-6f);
       if (zcls::Node* w = mech3::world_hooks().world) {
         float probe[3] = {m.pos[0], 103.0f, m.pos[2]};
@@ -843,11 +866,6 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     EXPECT(app.init_instance());
     mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
     engine.set_launch(l);
-    // The last test's world is kept (0x00490ab0 keeps the same mission's), its
-    // view made by that test's engine: this engine gets its camera, as the
-    // game's one engine has it, so the world's queries find the world.
-    if (mech3::missions().current != -1)
-      engine.set_mission_view(0, engine.handle_of(zcls::list_find_by_name(8, "camera1")));
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
@@ -856,7 +874,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
       int32_t player_n = 0, owens_n = 0;
       bool player_sees_owens = false, owens_hidden = false, owens_sees_player = false, nearest_first = true;
       bool owens_in_sight = false, picked = false, kept = false;
-      bool player_down = false, player_placed = false, far_sensed = false, near_distance = false;
+      bool player_up = false, player_placed = false, far_sensed = false, near_distance = false;
     } seen;
     mech3::Handle player = 0, owens = 0;
     int fade_frames = 0;  // the mission start's fade in (0x0048eea0) runs first
@@ -876,11 +894,17 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
         for (int32_t i = 0; i < n && i < 64; ++i) seen.far_sensed |= c[i].seen == owens;
-        // The launch leaves the player powered down (0x004782f0).
+        // The spawn left the player powered down (0x004782f0); the fade's end,
+        // Core's resume(7), powered it up (0x0041cc30).
         mech3::LaunchedMech pm;
-        seen.player_down = mech3::describe_mech(engine.object_of(player), &pm) && pm.powering_down;
-        seen.player_placed = pm.in_world && pm.pos[0] == -3200.9f && pm.pos[2] == -1225.1f &&
-                             pm.pos[1] > -35.9f && pm.pos[1] < -35.8f;
+        seen.player_up = mech3::describe_mech(engine.object_of(player), &pm) && !pm.powering_down;
+        // aiv y -35.9: the pick's reach (2y + 10) takes nothing, so the lowest
+        // polygon, the only one there (mission-start.md section 11), before
+        // the spawn's one update step lets the skis settle it.
+        const float* at = mech3::spawn_position();
+        seen.player_placed = pm.in_world && at[0] == -3200.9f && at[2] == -1225.1f &&
+                             at[1] == static_cast<float>(static_cast<double>(ground_under(at[0], 64.1f, at[2])) - kPlaceSink) &&
+                             std::fabs(pm.pos[1] - at[1]) < 0.05f;
         // Walked up: moved (vtable +0xdc) to the ground 300 m short of the Owens.
         const float near[3] = {-2067.7f, -35.79f, -1229.0f};
         mech3::move_mech(engine.object_of(player), near, 0.0f);
@@ -901,7 +925,6 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
           for (int32_t i = 0; i < seen.owens_n && i < 64; ++i) seen.owens_sees_player |= c[i].seen == player;
         }
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
-        mech3::mech_power(engine.object_of(player), 0);                         // P powers the player up
       } else if (seen.frames == 6) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
@@ -928,7 +951,8 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
     EXPECT(seen.near_distance);
     EXPECT(seen.owens_in_sight && seen.picked && seen.kept);
-    EXPECT(seen.player_down && seen.player_placed);
+    EXPECT(seen.player_up);
+    EXPECT(seen.player_placed);
     EXPECT(engine.unported_counts().count("0x004782f0") == 0);
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -993,5 +1017,110 @@ TEST(settings_file_reads_an_export_and_keeps_what_the_game_saved) {
   EXPECT(again.read(true, "InGameVMode", &v, &size) && v == 10);
   zreg::set_settings(nullptr);
   zreg::shutdown();
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1 driven from the keyboard (docs/movement.md): the spawn's step
+// and Core's power-up (0x0041cc30 from resume(7)) leave the Mad Cat powered
+// up; the throttle-up key, held through zInput, walks it forward along the
+// terrain (its feet on the ground), and a turn key turns it.
+TEST(mission_c1m1_player_walks_and_turns_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_drive_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      bool spawned_down = false, powered_up = false;
+      mech3::LaunchedMech start, walked, turned;
+      bool feet = true;
+    } seen;
+    void* player = nullptr;
+    uint32_t up = 0, left = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 1) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        up = zin::key1_of(0x18) & 0xff, left = zin::key1_of(2) & 0xff;  // throttle up, turn left
+        mech3::describe_mech(player, &seen.start);
+      } else if (seen.frames == 3) {
+        mech3::LaunchedMech m;
+        seen.powered_up = mech3::describe_mech(player, &m) && !m.powering_down;
+        keys.key(up, true);
+      } else if (seen.frames > 3 && seen.frames < 300) {
+        mech3::LaunchedMech m;
+        if (seen.frames > 10 && mech3::describe_mech(player, &m) && !m.feet_down) seen.feet = false;
+      } else if (seen.frames == 300) {
+        keys.key(up, false);
+        mech3::describe_mech(player, &seen.walked);
+        keys.key(left, true);
+      } else if (seen.frames == 360) {
+        keys.key(left, false);
+        mech3::describe_mech(player, &seen.turned);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    EXPECT(seen.frames >= 360);
+    EXPECT(mech3::spawn_updates() > 0);  // the spawn's step (0x004782f0) ran the frame
+    EXPECT(seen.powered_up);
+    const float dx = seen.walked.pos[0] - seen.start.pos[0], dz = seen.walked.pos[2] - seen.start.pos[2];
+    const float d = std::sqrt(dx * dx + dz * dz);
+    EXPECT(d > 20.0f);  // walked
+    // Along its heading: forward is -z turned by the yaw (a quaternion about y).
+    const float yaw = 2.0f * std::asin(seen.start.yaw_sin);
+    EXPECT(d > 0 && (dx * -std::sin(yaw) + dz * -std::cos(yaw)) / d > 0.95f);
+    EXPECT(seen.feet);
+    EXPECT(std::fabs(seen.turned.yaw_sin - seen.walked.yaw_sin) > 0.05f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
   mech3::options() = mech3::Options{};
 }

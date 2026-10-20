@@ -9,6 +9,7 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -29,6 +30,24 @@ using zcls::world_get_fog_range;
 }  // namespace
 
 Environment& environment() { return g_env; }
+
+const char* soil_name(int32_t i);  // 0x0047f380, mech_data.cpp
+
+namespace {
+uint32_t g_soils[64];  // 0x00608c00
+}
+
+// Mech3.exe 1.2 @ 0x0047f400. A name zModel does not know gives -1, and the
+// exe writes the word before the table; FIX (A): skipped.
+void build_soil_table() {
+  g_soils[0] = 0;
+  for (uint32_t soil = 1; soil < 11; ++soil) {
+    const int32_t i = zmod::soil_index(soil_name(static_cast<int32_t>(soil)));
+    if (i >= 0 && i < 64) g_soils[i] = soil;
+  }
+}
+
+uint32_t game_soil(uint32_t zmodel_soil) { return zmodel_soil < 64 ? g_soils[zmodel_soil] : 0; }
 WorldHooks& world_hooks() { return g_hooks; }
 
 // Mech3.exe 1.2 @ 0x00491d70

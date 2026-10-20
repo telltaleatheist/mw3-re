@@ -275,6 +275,12 @@ struct WiredPlayerHooks : PlayerHooks {
   }
   float frame_dt() override { return e->frame_dt(); }
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
+  // The pilot's mech is the port's (the launch): its frame, 0x00419fc0.
+  void vehicle_update(Handle v, float dt) override {
+    void* m = e->object_of(v);
+    if (m && is_launched_mech(m)) update_mech(m, dt);
+    else PlayerHooks::vehicle_update(v, dt);
+  }
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
   // view.vt+0x08 (0x0040ada0): the port's view, each player tick.
@@ -669,6 +675,7 @@ struct WiredMissionHooks : MissionHooks {
   }
   Handle make_608c84(Handle mem, Handle world) override {
     unported("0x0047f2b0", {mem, world});
+    build_soil_table();  // 0x0047f400, in the constructor
     return mem;
   }
   void anim_allow_loading(int32_t on) override { zeff::anim_allow_loading(on); }
@@ -847,6 +854,14 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+void GameEngine::mech_set_mode_a(Handle mech, int32_t a) {
+  if (void* m = object_of(mech); m && is_launched_mech(m)) mech_set_hud_fall(m, a);
+  else Engine::mech_set_mode_a(mech, a);
+}
+void GameEngine::mech_set_mode_b(Handle mech, int32_t a) {
+  if (void* m = object_of(mech); m && is_launched_mech(m)) mech_power(m, a);
+  else Engine::mech_set_mode_b(mech, a);
+}
 
 // 0x0048ee70: the port's fade (mech3::fade_push, next 0); the Core state's
 // mission start fades in from black over 2 s, then gets resume(7).

@@ -52,6 +52,7 @@ struct LaunchedMech {
   float pos[3] = {};       // the node's translation
   float yaw_sin = 0;       // the orientation's y (sin of half the yaw)
   bool in_world = false;   // the node's parent is the world node
+  bool feet_down = false;  // both skis on the ground
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
@@ -64,7 +65,12 @@ bool set_mech_skin(void* mech, void* skin);
 const void* mech_definition(void* mech);
 void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)
 int32_t place_mech(void* mech, const float pos[3], uint32_t yaw);  // 0x004161c0 (Mech::place)
-void move_mech(void* mech, const float pos[3], float yaw);         // vtable +0xdc, 0x00418f30 (Mech::set_place)
+void move_mech(void* mech, const float pos[3], float yaw);
+int32_t spawn_updates();                                           // the spawn's update steps run so far
+const float* spawn_position();                                     // the placed mech's position before its last step
+bool is_launched_mech(const void* mech);                           // the pilot's mech, the port's
+void update_mech(void* mech, float dt);                            // vtable +0x34, 0x00419fc0 (Mech::update)
+void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30         // vtable +0xdc, 0x00418f30 (Mech::set_place)
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 // The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,
 // +0xc8 enemies); false for any other offset.
