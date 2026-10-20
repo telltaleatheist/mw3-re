@@ -811,6 +811,12 @@ void ShellState::resume(uint32_t arg) {
   en.video_flip(0, 0, 1, 1);
 }
 
+// Mech3.exe 1.2 @ 0x0048ee00: the screen deleted (its +0x08(1)).
+void ShellState::clear_screen() {
+  if (screen_) e().vcall(screen_, 0x08, {1});
+  screen_ = 0;
+}
+
 // Mech3.exe 1.2 @ 0x0048edc0
 void ShellState::refresh_target() {
   Engine& en = e();
@@ -824,10 +830,10 @@ void ShellState::refresh_target() {
 
 namespace {
 // The main menu screen's buttons (fields of the 0x00486260 screen, each pressed
-// through its vtable +0x30).
+// through its vtable +0x30; mech3/mainmenu).
 enum MainButton : uint32_t {
-  kButtonLab = 0x111ec, kButtonA = 0x11494, kButtonMulti = 0x1173c, kButtonCampaign = 0x119e4,
-  kButtonB = 0x11c8c, kButtonC = 0x11f34, kButtonD = 0x121dc,
+  kButtonInstantAction = 0x111ec, kButtonCampaign = 0x11494, kButtonMulti = 0x1173c, kButtonTraining = 0x119e4,
+  kButtonOptions = 0x11c8c, kButtonCredits = 0x11f34, kButtonQuit = 0x121dc,
 };
 // The menu objects the main menu makes (0x00609858..0x00609878): their
 // globals and constructors, in the order made (the Action, Campaign, Training,
@@ -854,15 +860,15 @@ bool MainState::enter() {
   reset_idle();
   Mech3App& ap = a();
   if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
-  if (ap.auto_lab()) {
-    en.vcall(screen_ + kButtonLab, 0x30, {});
-    ap.set_lab_flags(0, ap.auto_lab_arg());
-  } else if (ap.auto_campaign()) {
-    ap.set_auto_campaign(0);
-    en.vcall(screen_ + kButtonCampaign, 0x30, {});
-  } else if (ap.auto_multiplayer()) {
-    ap.auto_multiplayer() = 0;
-    en.vcall(screen_ + kButtonC, 0x30, {});
+  if (ap.reopen_instant_action()) {
+    en.vcall(screen_ + kButtonInstantAction, 0x30, {});
+    ap.set_reopen_instant_action(0, ap.instant_action_arg());
+  } else if (ap.reopen_training()) {
+    ap.set_reopen_training(0);
+    en.vcall(screen_ + kButtonTraining, 0x30, {});
+  } else if (ap.reopen_credits()) {
+    ap.reopen_credits() = 0;
+    en.vcall(screen_ + kButtonCredits, 0x30, {});
   }
   return true;
 }
@@ -881,8 +887,8 @@ bool MainState::update() {
   static const struct {
     int32_t key;
     uint32_t button;
-  } kKeys[] = {{0x18, kButtonB}, {0x2e, kButtonA}, {0x32, kButtonMulti}, {0x17, kButtonLab},
-               {0x14, kButtonCampaign}, {0x10, kButtonD}, {0x13, kButtonC}};
+  } kKeys[] = {{0x18, kButtonOptions}, {0x2e, kButtonCampaign}, {0x32, kButtonMulti}, {0x17, kButtonInstantAction},
+               {0x14, kButtonTraining}, {0x10, kButtonQuit}, {0x13, kButtonCredits}};
   for (const auto& k : kKeys) {
     if (en.key_state(k.key) & 1) {
       en.vcall(s + k.button, 0x30, {});

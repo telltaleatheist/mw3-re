@@ -73,6 +73,10 @@ Handle Host::render_target(int32_t* w, int32_t* h, int32_t* depth, int32_t* pitc
 void Host::render_set_target(Handle base, const Rect* r, Handle depth, Handle pitch) {
   unported("0x00557f90", {base, r->left, r->top, r->right, r->bottom, depth, pitch});
 }
+void Host::ripple(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength,
+                  float phase, const Rect* clip) {
+  unported("0x00558dd0", {x, y, inner, outer, amplitude, zgame::bits(wavelength), zgame::bits(phase), ptr(clip)});
+}
 Handle Host::video_get(uint32_t addr) {
   char key[16];
   std::snprintf(key, sizeof key, "0x%08x", addr);

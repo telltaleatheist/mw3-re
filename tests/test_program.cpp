@@ -16,6 +16,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
+#include "mech3/mainmenu.h"
 #include "gamez/zutil/zutl_reg.h"
 #include "mech3/options.h"
 #include "platform/reg_file.h"
@@ -174,7 +175,19 @@ TEST(program_starts_like_the_game_to_the_main_state) {
     app.run(pump);
     EXPECT(app.current() == &mech3::states().main);  // Intro -> SPLASH -> Main
     EXPECT(engine.unported_counts().count("0x00598cc0") == 1);  // the movies are hooked
-    EXPECT(engine.unported_counts().count("0x00486260") == 1);  // and the main menu's screen
+    // The main menu's screen is ported (mainmenu.md): MAINMENU loaded, its
+    // buttons bound, the version line set; the menus it opens are hooks.
+    EXPECT(engine.unported_counts().count("0x00486260") == 0);
+    const mech3::MainMenu* menu = mech3::main_menu();
+    EXPECT(menu != nullptr);
+    if (menu) {
+      EXPECT(menu->buttons[0].base_x == 20 && menu->buttons[0].base_y == 170);  // INSTANTACTION
+      EXPECT(menu->buttons[6].base_x == 432 && menu->buttons[6].base_y == 395);  // QUIT
+      EXPECT(menu->buttons[0].max_radius == 200 && menu->buttons[0].wavelength == 12.0f);
+      EXPECT(std::string(menu->version.text) == "MechWarrior 3 1.2");
+      EXPECT(menu->head != nullptr && menu->active == 1);
+    }
+    EXPECT(engine.unported_counts().count("0x0048a6c0") == 1);  // the Action State's object
     EXPECT(screen.frames > 0);                       // the shell flips its 2D frame
     app.stop_game();
     app.exit_instance();

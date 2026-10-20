@@ -44,13 +44,13 @@ globals. The ones known:
 | +0x19c | 0x00608e24 | started from a DirectPlay lobby |
 | +0x1b2 | 0x00608e3a | 1; 0 after the debug menu's Mech Lab (0x0047ff60) |
 | +0x1b4 | 0x00608e3c | the `-cdN` track |
-| +0x1bc / +0x1bf | 0x00608e44 / 47 | the main menu presses Mech Lab at once, with this argument |
+| +0x1bc / +0x1bf | 0x00608e44 / 47 | the main menu presses Instant Action on entry (0x0047fc20: set by the debug menu's Instant Action and on the way back from an Instant Action game, 0x0047cfe8), then clears it, keeping the argument |
 | +0x1bd | 0x00608e45 | a network game is on (0x0047fc40): cheats leave the mech alone, system keys are locked |
-| +0x1be | 0x00608e46 | the main menu presses its campaign button at once |
+| +0x1be | 0x00608e46 | the main menu presses Training on entry (0x0047fe00: set on the way back from a training mission, 0x00491ba5, 0x00492e89) |
 | +0x1c1 | 0x00608e49 | movies on (`-nofmv` clears it) |
 | +0x1c3 | 0x00608e4b | no briefing and debriefing voices |
 | +0x1c4 / +0x1c5, +0x1cc..+0x1d4 | 0x00608e4c.., 0x00608e54.. | GameIntensity's flags and values (options.md) |
-| +0x1c6 | 0x00608e4e | the main menu presses its multiplayer button once |
+| +0x1c6 | 0x00608e4e | the main menu presses Credits once on entry: set when the "Win Movie State" (constructor 0x0047a960, vtable 0x005c3958: fmv.zrd's c4win, the campaign's ending) finishes its movie (0x0047aa50) and replaces itself with Main |
 | +0x1c7 | 0x00608e4f | full screen: the video start restores the saved card and mode; no cursor polling |
 | +0x1d8 | 0x00608e60 | lock the system keys (Alt-Tab etc.) in missions |
 | +0x1dc | 0x00608e64 | the state after the intro |
@@ -128,9 +128,12 @@ leave save and restore the cursor (0x00579840) and take and release input.
 (0x00609858..0x00609878, among them the Action, Campaign, Training and
 Multiplayer states of gametypes.md). Sixty idle seconds (+0x14) push the
 Attract state. Hotkeys press the screen's buttons: raw keys read with 0x0051a9b0, not
-commands (input.md): O 0x18, C 0x2e, M 0x32, I 0x17, T 0x14, Q 0x10, R 0x13,
-the first pressed this frame wins. The launch flags above press
-a button on entry. Escape asks "quit?" (0x00482a20, messages 0xdc8/0xde1) and
+commands (input.md): O 0x18 Options, C 0x2e Campaign, M 0x32 Multiplayer, I
+0x17 Instant Action, T 0x14 Training, Q 0x10 Quit, R 0x13 cRedits, the first
+pressed this frame wins. On entry the screen's Multiplayer button is pressed
+in a network game or a lobby, and the flags above reopen the menu a game
+came from (Instant Action, Training) or the credits after the campaign's
+end. The screen is ported (mainmenu.md). Escape asks "quit?" (0x00482a20, messages 0xdc8/0xde1) and
 on yes replaces with Exit. Back from a game (resume 4 or 5) 0x00477f50
 ("mechlab") runs.
 
@@ -258,7 +261,9 @@ Escape always pausing, the shell redrawing on any resume: 13 of 13 caught.
 ## Open
 
 - The key list's screen (0x00482570) and the screens' constructors are the
-  2D front end's; KeyListState::enter is one hook.
+  2D front end's; KeyListState::enter is one hook. The main menu's is ported
+  (mainmenu.md) and reached through `construct(0x486260)` in the program;
+  0x0048ee00, which deletes a shell's screen, is `ShellState::clear_screen`.
 - 0x004814e0, the Direct3D path's first call, is the mechs' projected
   shadows (ported: `mech3::update_shadows`, render-shadows.md); its entity
   calls (0x005a85e0, the node handles) wait for the entities' port.

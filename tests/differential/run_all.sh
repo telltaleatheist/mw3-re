@@ -52,6 +52,7 @@ for t in \
     twod \
     twod_blit \
     twod_msgbox \
+    mainmenu \
     update \
     di \
     collide \

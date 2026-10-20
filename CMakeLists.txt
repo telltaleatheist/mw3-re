@@ -128,6 +128,9 @@ add_library(mw3core STATIC
   src/mech3/app_states.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
+  src/mech3/app_menus.cpp
+  src/mech3/mainmenu.cpp
+  src/mech3/menu_widgets.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -169,6 +172,7 @@ add_library(mw3probe SHARED
   tests/probe_weapons_run.cpp
   tests/probe_weapons_hit.cpp
   tests/probe_twod.cpp
+  tests/probe_mainmenu.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_collide.cpp
@@ -193,6 +197,7 @@ add_executable(mw3tests
   tests/test_ztimer.cpp
   tests/test_zgameapp.cpp
   tests/test_app.cpp
+  tests/test_mainmenu.cpp
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp

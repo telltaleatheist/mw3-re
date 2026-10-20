@@ -470,6 +470,26 @@ class Movie2D : public Object2D {
   virtual void start();              // +0x7c  0x005a7d10
 };
 
+// A ring of the screen pushed out along a sine wave (vtable 0x005d04a8), 0x4c
+// bytes: the ripple around a main menu button (docs/mainmenu.md). It draws
+// through zRender (0x00558dd0, Host::ripple), from `inner` to `outer` pixels
+// around (x, y), shifted by up to `amplitude` pixels.
+class Ripple : public Object2D {
+ public:
+  const Rect* clip = nullptr;        // +0x34  null: the whole target
+  int32_t inner = 0;                 // +0x38  (not set by the constructor)
+  int32_t outer = 0;                 // +0x3c
+  int32_t amplitude = 0;             // +0x40
+  float wavelength = 0.0f;           // +0x44  pixels a radian
+  float phase = 0.0f;                // +0x48
+
+  Ripple();                          // 0x005a53e0
+  ~Ripple() override = default;      // 0x005a6860
+  // +0x04 (0x005a5360) draws it once for each view of the render overlay layer
+  // it belongs to (0x005a4590, not ported); the menus call +0x7c directly.
+  virtual void draw_ripple();        // +0x7c  0x005a5440
+};
+
 // A font of a dialog's FONTS list (Dialog +0x1d38), 0x24 bytes.
 struct FontEntry {
   int32_t used = 0;                  // +0x00

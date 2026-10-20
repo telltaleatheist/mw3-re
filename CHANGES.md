@@ -125,6 +125,11 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The main menu's crawling background, sliding MECH3 logo and the ripples
+  around its buttons move at the same speed at any frame rate (the 30 fps
+  pace). The original moved them a step every frame, so on a fast computer
+  the menu raced and the ripples vanished almost at once.
+
 - Keyboard, mouse and joystick through SDL3 instead of DirectInput, read the
   same way: the mouse is captured while the window has the focus (as
   DirectInput's exclusive mouse was) and moves at the same speed whatever the

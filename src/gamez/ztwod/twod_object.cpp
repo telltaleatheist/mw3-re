@@ -520,4 +520,12 @@ void Movie2D::set_color_key(uint16_t c) { host().unported("0x005a7c30", {c}); }
 // Mech3.exe 1.2 @ 0x005a7d10 (not ported)
 void Movie2D::start() { host().unported("0x005a7d10", {}); }
 
+// ---- Ripple ----
+
+// Mech3.exe 1.2 @ 0x005a53e0
+Ripple::Ripple() : Object2D(0, 0) {}
+
+// Mech3.exe 1.2 @ 0x005a5440
+void Ripple::draw_ripple() { host().ripple(x, y, inner, outer, amplitude, wavelength, phase, clip); }
+
 }  // namespace ztwod

@@ -41,8 +41,8 @@ class Mech3App : public zgame::App {
   void set_defaults();                                     // 0x0047fb80
   void pick_post_intro_state(bool lobby);                  // 0x0047fed0
   void restore_video(bool hw, bool pick);                  // 0x0047fe10
-  void set_lab_flags(uint8_t a, uint8_t b);                // 0x0047fc20
-  void set_auto_campaign(uint8_t v);                       // 0x0047fe00
+  void set_reopen_instant_action(uint8_t a, uint8_t b);    // 0x0047fc20
+  void set_reopen_training(uint8_t v);                     // 0x0047fe00
   void restart_in_lab();                                   // 0x0047ff60
   bool confirm_quit();                                     // 0x00482a20
   bool pre_translate_message(uint32_t msg);                // 0x004803f0, +0x60
@@ -71,11 +71,12 @@ class Mech3App : public zgame::App {
   uint8_t field_1a4_ = 0;         // +0x1a4 0x00608e2c
   // +0x1ac..+0x1db (0x00608e34..0x00608e63), set by set_defaults, by offset:
   //   +0x1ac..+0x1b1 1, +0x1b2 1 (0x00608e3a), +0x1b4 the -cd track (dword,
-  //   0x00608e3c), +0x1bc auto Mech Lab, +0x1bd a network game is on
-  //   (options().multiplayer), +0x1be auto campaign, +0x1bf the lab argument,
+  //   0x00608e3c), +0x1bd a network game is on (options().multiplayer),
   //   +0x1c1 movies on (-nofmv), +0x1c3 no briefing voices, +0x1c4/+0x1c5 and
-  //   +0x1cc..+0x1d4 GameIntensity's values (in options()), +0x1c6 auto
-  //   multiplayer, +0x1c7 full screen, +0x1d8 lock the system keys.
+  //   +0x1cc..+0x1d4 GameIntensity's values (in options()), +0x1c7 full
+  //   screen, +0x1d8 lock the system keys. The main menu presses a button on
+  //   entry to reopen the menu a game came from: +0x1bc Instant Action (with
+  //   +0x1bf), +0x1be Training, +0x1c6 Credits (after the campaign's end).
   uint8_t block_[0x30] = {};
   State* post_intro_ = nullptr;   // +0x1dc 0x00608e64  where the Intro state goes
   Handle field_1e0_ = 0, field_1e4_ = 0;  // +0x1e0 +0x1e4
@@ -83,13 +84,13 @@ class Mech3App : public zgame::App {
   uint8_t& byte_at(int off) { return block_[off - 0x1ac]; }
   int32_t cd_track() const;
   void set_cd_track(int32_t track);
-  uint8_t& auto_lab() { return byte_at(0x1bc); }
+  uint8_t& reopen_instant_action() { return byte_at(0x1bc); }
   uint8_t& multiplayer();
-  uint8_t& auto_campaign() { return byte_at(0x1be); }
-  uint8_t& auto_lab_arg() { return byte_at(0x1bf); }
+  uint8_t& reopen_training() { return byte_at(0x1be); }
+  uint8_t& instant_action_arg() { return byte_at(0x1bf); }
   uint8_t& fmv() { return byte_at(0x1c1); }
   uint8_t& no_voices() { return byte_at(0x1c3); }
-  uint8_t& auto_multiplayer() { return byte_at(0x1c6); }
+  uint8_t& reopen_credits() { return byte_at(0x1c6); }
   uint8_t& fullscreen() { return byte_at(0x1c7); }
   uint8_t& lock_system_keys() { return byte_at(0x1d8); }
 

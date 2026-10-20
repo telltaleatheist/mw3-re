@@ -45,6 +45,7 @@ struct Platform {
 };
 
 class GameEngine;
+class MenuScreen;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
 
 class GameEngine : public Engine {
@@ -65,6 +66,19 @@ class GameEngine : public Engine {
   Handle pilot_game(Handle p) override;
   uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
+  // The menu screens that are ported (app_menus.cpp): the shell states hold a
+  // handle, a block of the module memory standing for the object, whose
+  // offsets lead to its parts (the screen, its buttons).
+  Handle construct(uint32_t ctor, std::initializer_list<Arg> args) override;
+  void screen_refresh(Handle s) override;
+  void screen_hide(Handle s) override;
+  void twod_reset(Handle h) override;
+  void twod_set_cursor(uint32_t v) override;  // 0x0059fb80: ztwod::set_page_flip
+  void shell_clear(uint32_t state) override;  // 0x0048ee00: ShellState::clear_screen
+  void push_state(Handle state, uint32_t arg) override;
+  bool menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out);
+  MenuScreen* screen_of(Handle h, uint32_t* offset = nullptr) const;
+  void delete_screens();  // the ones still open at exit
   void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
   Handle mission_camera() const { return camera_; }
   Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
@@ -219,6 +233,7 @@ class GameEngine : public Engine {
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false;
   std::unordered_map<void*, Handle> handles_;
+  std::map<Handle, MenuScreen*> screens_;
 };
 
 }  // namespace mech3

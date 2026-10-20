@@ -123,6 +123,7 @@ class ShellState : public State {
   void resume(uint32_t arg) override;   // 0x0048ecc0
   virtual void escape() {}            // +0x28, command 1 (Escape)
   void refresh_target();              // 0x0048edc0
+  void clear_screen();                // 0x0048ee00
 
   uint32_t cursor_ = 0;               // +0x08  the cursor state before entering
   Handle screen_ = 0;                 // +0x0c

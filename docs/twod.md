@@ -79,6 +79,7 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | | PolyLine | no |
 | Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | | Object2D | no |
 | Render overlay | 0x005a4590 | 0x005d0288 (+0x28: 0x005d0290) | | Layer | no |
+| Ripple | 0x005a53e0 | 0x005d04a8 | 0x4c | Object2D | yes (its zRender draw 0x00558dd0 hooked; mainmenu.md) |
 | SnowFX, Snow, Rain | 0x005a5470, 0x005a5ad0, 0x005a60a0 | 0x005d0528, 0x005d05e0, 0x005d0660 | | Object2D | no |
 
 Dialog is a Window with a Cursor inside it (the second vtable is the cursor
@@ -334,7 +335,7 @@ built and run, FastMenu set around it (0x0040ce90), destroyed.
   (0x0059fba0..0x0059fd20, 0x0059fa60), Window (0x005a2b50..0x005a2bb0),
   Image (0x0059b830..0x0059bb70, 0x00409cb0, 0x00409cf0, 0x00409d30), Cursor
   (0x005a7750..0x005a7a50), Movie2D (0x005a7a90, 0x005a7ae0), page flip
-  0x0059fb80.
+  0x0059fb80, Ripple (0x005a53e0, 0x005a5440).
 - `twod_control.cpp`: Control (0x0059bbe0..0x0059c960, read 0x0059cdc0),
   CheckButton (0x0059d870..0x0059dc40).
 - `twod_wintext.cpp`: TextBase (0x005a2da0, 0x005a2f40..0x005a3080,
@@ -368,7 +369,8 @@ its target. The message box's loop adds Host calls for zVideo and zRender
 (the video mode, the double-size switch [0x0072f358], the cursor 0x00579840,
 the screen rectangle 0x00579880, the render target 0x00558080 / 0x00557f90
 and the buffers behind it, input poll 0x0051b360, the clock 0x00575a00, the
-frame time, the flip 0x00576ea0).
+frame time, the flip 0x00576ea0). The main menu's buttons add zRender's
+ripple 0x00558dd0 (mainmenu.md).
 
 Objects keep the original fields and offsets (in comments) as native C++
 members and the vtables as virtual methods in slot order, so the game's
@@ -488,7 +490,8 @@ Mapped, not ported:
 - The HUD side: primitives 0x005a3170..0x005a3bc0 (zRender's 2D lines
   0x00562940 / 0x00562cb0, boxes 0x005630c0 / 0x00563440), the line clip
   helpers 0x0059b2f0..0x0059b7e0, HUD lines 0x005a67e0..0x005a6b30, the
-  render overlay 0x005a4590.. with zRender's 0x00558dd0, the text console
+  render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in it)
+  and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4880, the
   key-list screen pieces 0x005a6bd0..0x005a6d10.
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md).
@@ -500,9 +503,11 @@ Mapped, not ported:
   the 8-bit blit 0x0055b250, the message lookup 0x00575fb0.
 - The front end's `ztwod::Host` on SDL3 is done (`SdlTwodHost`,
   program.md: TTF text into the 16-bit image, the 16-bit target presented,
-  mouse from SDL; `mw3 --dialog dialog.zrd MAINMENU` shows a dialog). Left:
-  the game's screens
-  (mech3: the menus' shell 0x0048eb10 and each screen's constructor, e.g.
-  the main menu 0x00486260 binding INSTANTACTION, NEWCAMPAIGN, MULTIPLAYER,
-  TRAINING, OPTIONS, CREDITS, QUIT and BACKGROUND / MECH3TEXT) rebuilt on the
-  port's classes in place of `mech3::Engine`'s screen hooks.
+  mouse from SDL; `mw3 --dialog dialog.zrd MAINMENU` shows a dialog).
+- The game's screens on the port's classes: the main menu is done
+  (mainmenu.md: `mech3/menu_widgets` has the menu screens' base 0x0040a110,
+  the scrolling background, the game's buttons 0x0040a5d0 and 0x00438d70
+  that the other menus share; `mech3/mainmenu` the screen 0x00486260). Left:
+  the menus it opens (options, credits, Instant Action, campaign, training,
+  multiplayer), the pause, briefing, debriefing, salvage and mech lab
+  screens, each still a `mech3::Engine` hook.
