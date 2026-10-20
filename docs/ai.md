@@ -240,8 +240,8 @@ Clean boundaries for later work, each a piece with its own test:
    (0x4c3000, seven callers) to keep a destination inside; not ported
    (section 11).
 2. **The run-time net**: done (section 9), the builder and the compiled
-   net of steps. Left: the mission start's call (0x49e810, player.cpp), the
-   ground snap and the multiplayer waynet (NetHooks), the built-in nets
+   net of steps. The mission start's call (0x49e810, player.cpp) is ported
+   (mission-start.md). Left: the ground snap and the multiplayer waynet (NetHooks), the built-in nets
    (0x604008, the seven-behaviour net 0x4c0090) and the 105/107 versions.
 3. **Net queries**: done (section 10), the nearest step and the way
    finder. What the steps do when a pilot reaches them is step 6.
@@ -453,8 +453,9 @@ builder) finds it and builds nothing. A pilot's brain (0x4cf330) takes
 the net of its aiv.zrd record's first item (AiParams +0x04, "kind" in
 section 3: it is the vehicle's net number), as compiled (cast +0x34), or
 the built-in one at 0x604008 when there is none. In the port
-`nets_build_all` / `net_build`; the mission start does not call them yet
-(player.cpp is not ported).
+`nets_build_all` / `net_build`, called by the ported mission start
+(`mech3::player_setup`, mission-start.md), whose builders then find each
+vehicle's net through znet (0x58b160 -> vt+0x28 -> vt+0x34).
 
 **What.** The net becomes a flat array of behaviours (the order classes of
 section 2), one slot per piece:

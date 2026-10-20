@@ -119,6 +119,11 @@ unusual happens.
 - A text data file with a word of 256 letters or more, a quote that is never
   closed, or an `#ifdef` without its `#endif` no longer crashes or hangs the
   game.
+- A vehicle with a name of 20 letters or more (or with a `%` in it) in a
+  mission's vehicle file keeps its name; the original cut it and, from 28
+  letters, overwrote the vehicle's settings. A made-up vehicle whose name
+  ends in `_mech...` without an AI path no longer gets the file's own record
+  as its driver. No shipped mission has either.
 - A hand-made AI region file without a name, or an AI path linking past its
   last point or to points without a position, no longer crashes the
   mission load or the AI's route finding. One shipped path (c2 mission 3,
