@@ -3,6 +3,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "gamez/ztwod/twod.h"
 
 // The HUD (docs/hud.md). File unknown: the code between mech3\mech_data.cpp
@@ -396,6 +397,7 @@ class HudZoomWindow : public HudZoomView {
   void hide() override;              // +0x64  0x00443880
   void set_rect(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004438f0: scaled by the zoom, kept on screen
   void set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h);  // 0x0043fa40: 2 pixels inside the display
+  void follow(int32_t px, int32_t py);  // 0x00443660: centred on the reticle, when shown or scaled
   uint8_t round = 0;                 // +0x16c a circle, not a box
   float zoom = 0.0f;                 // +0x170 the window's scale
   uint8_t x174 = 0;                  // +0x174
@@ -415,7 +417,14 @@ class HudReticle : public ztwod::Image {
   void hide() override;              // +0x64  0x00443d00: the zoom window too
   void attach(void* hud);            // 0x00444250
   void reset();                      // 0x00443cc0
+  // 0x004445f0: at the display's centre plus (fx, fy) of its half size, the
+  // aim worked out, the zoom window following.
+  void place(float fx, float fy);
+  void aim();                        // 0x00444350: the ray through the reticle into the world
+  void set_hit(const zwep::HitRecord* h, float d);  // 0x00444710
+  void set_miss(const float* far_point, float far_z);  // 0x004446a0
   HudZoomWindow zoom{10, 0x172, 0x5a, 0x5a};  // +0xbc
+  float aim_point[3] = {};           // +0x8fc the world point the weapons aim at (0x0041cd40)
   int32_t state = 0;                 // +0x908
   uint8_t locked = 0;                // +0x90c the image kept
   zimg::Texture* img_off = nullptr;  // +0x910
@@ -423,7 +432,8 @@ class HudReticle : public ztwod::Image {
   zimg::Texture* img_over = nullptr; // +0x918 ret_over
   zimg::Texture* img_cant = nullptr; // +0x91c ret_cant
   zimg::Texture* img_x920 = nullptr; // +0x920 ret_on again
-  uint32_t x928[10] = {};            // +0x928
+  float aim_distance = 0.0f;         // +0x924 to the aim point from the near plane (0x00444690)
+  zwep::HitRecord hit{};             // +0x928 what the aim hit (its node 0: nothing)
   int32_t x950 = 0;                  // +0x950
   float x954 = 0.0f;                 // +0x954 0.6 after a reset ([0x005e3a0c])
   void* source = nullptr;            // +0x958 (not set by the constructor)
@@ -470,6 +480,17 @@ class HudHooks : public zgame::Unported {
   // The options' display and window rects (0x0040d750, 0x0040d7b0): left, top, right, bottom.
   virtual ztwod::Rect display_rect();
   virtual ztwod::Rect window_rect();
+  // The aim ray (0x00444350): the player view prepared for a projection
+  // (0x004b51f0 on [0x005f4c8c]), a screen point (x, y, 1/z) into the world
+  // (0x00523930), a node left out of queries (0x004eb6d0), the world's
+  // segment query (0x004eed90 on [0x00608c84] +4; nonzero: failed), a
+  // material's game soil ([0x00608c00]), the mech's node (+4).
+  virtual void view_prepare() { unported("0x004b51f0", {}); }
+  virtual void unproject_world(const float screen[3], float out[3]);
+  virtual void node_set_intersect(uint32_t node, bool on) { unported("0x004eb6d0", {node, on ? 1u : 0u}); }
+  virtual int32_t segment_list(uint32_t world, const float a[3], const float b[3], zwep::HitList* out);
+  virtual uint32_t material_soil(zwep::Handle material);
+  virtual uint32_t mech_node(Mech* m) { return unported("peek32", {id(m) + 4}); }
   // The world ([0x00608c84]) and its node (+4).
   virtual uint32_t world() { return unported("peek32", {0x608c84}); }
   virtual uint32_t world_node(uint32_t w) { return unported("peek32", {w + 4}); }

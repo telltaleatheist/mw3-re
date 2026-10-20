@@ -278,6 +278,25 @@ int32_t gfx_flags() { return g_options.gfx_flags[g_options.hw ? 1 : 0]; }
 void set_pixel_double(int32_t on) { g_options.pixel_double = on; }
 int32_t pixel_double() { return g_options.pixel_double; }
 
+// Mech3.exe 1.2 @ 0x0040d540
+void clamp_to(const Rect& r, float p[2]) {
+  if (p[0] < static_cast<float>(r.x)) p[0] = static_cast<float>(r.x);
+  else if (static_cast<float>(r.x_last) < p[0]) p[0] = static_cast<float>(r.x_last);
+  if (p[1] < static_cast<float>(r.y)) p[1] = static_cast<float>(r.y);
+  else if (static_cast<float>(r.y_last) < p[1]) p[1] = static_cast<float>(r.y_last);
+}
+
+// Mech3.exe 1.2 @ 0x0040d9e0: with pixels doubled (VMode 3) the point is
+// halved into the render target and kept on it.
+void screen_to_render(float p[2]) {
+  const Rect& rr = g_options.render;
+  const Rect& dr = g_options.display;
+  if (!pixel_double()) return;
+  p[0] = p[0] * 0.5f;  // 0x005bc458
+  p[1] = static_cast<float>(rr.y) + (p[1] - static_cast<float>(dr.y)) * 0.5f;
+  clamp_to(rr, p);
+}
+
 // Mech3.exe 1.2 @ 0x0040d4e0
 void rect_set_origin(Rect& r, int32_t x, int32_t y) {
   r.x = x;

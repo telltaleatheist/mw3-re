@@ -28,7 +28,8 @@ import test_twod  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
-probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float),
+                                  ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
 ZRDR_LOAD = 0x556740
 SHIPPED = READER.read_bytes()
 HUD_START = next(s for n, s, _ in entries(SHIPPED) if n.lower() == 'hud.zrd')
@@ -183,13 +184,14 @@ class Original:
         e.w32(node + 0x38, data)
         e.wf(data + 0xe8, r.choice([1.0471976, 0.87266463, 1.5707964]))
         # The options' display and window rects (**[0x005f4d20], **[0x005f4d24]).
-        for g in (0x5f4d20, 0x5f4d24):
-            rect = e.world_alloc(0x18)
+        e.w32(0x5f4d4c, r.choice([0, 0, 1]))  # pixels doubled (VMode 3)
+        for g in (0x5f4d1c, 0x5f4d20, 0x5f4d24):
+            rect = e.world_alloc(0x20)
             if r.random() < 0.7:
                 vals = (0, 0, r.choice([640, 800, 1024, 1600]), r.choice([480, 600, 768, 1200]))
             else:
                 vals = tuple(r.randrange(-20, 500) for _ in range(4))
-            e.cpu.write(rect, struct.pack('<6i', *vals, vals[2] - vals[0], vals[3] - vals[1]))
+            e.cpu.write(rect, struct.pack('<8i', *vals, vals[2] - vals[0], vals[3] - vals[1], vals[2] - 1, vals[3] - 1))
             box = e.world_alloc(4)
             e.w32(box, rect)
             e.w32(g, box)
@@ -208,9 +210,83 @@ class Original:
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
         self.mech = self.fake_mech(r) if r.random() < 0.8 else 0
+        self.aim_world(r)
         self.snapshot = e.snapshot()
         e.call(0x43b190, ecx=self.hud, stack=(self.mech,))
+        # The reticle placed where the player looks (0x004445f0), a few times.
+        self.aim_lines = []
+        if self.mech:
+            for fx, fy in self.places:
+                e.call(0x4445f0, ecx=self.hud + 0x144c, stack=(struct.unpack('<I', struct.pack('<f', fx))[0],
+                                                             struct.unpack('<I', struct.pack('<f', fy))[0]))
+                self.aim_lines.append(self.aim_dump())
         return self.dump()
+
+    def aim_world(self, r):
+        """The aim ray's answers, made before the snapshot so the probe can read
+        them: the unprojected points, the segment lists and their results, the
+        materials' soils and [0x00608c00]."""
+        e, w = self.e, self.w
+        n = r.randrange(1, 6) if self.mech else 0
+        self.places = [(r.uniform(-1.2, 1.2), r.uniform(-1.2, 1.2)) for _ in range(n)]
+        self.utab = e.world_alloc(24 * max(n, 1))
+        self.stab = e.world_alloc(0x508 * max(n, 1))
+        for i in range(16):
+            e.w32(0x608c00 + 4 * i, r.choice([0, 0, 1, 2]))
+        mats = [0]
+        for _ in range(4):
+            m = e.world_alloc(0x40)
+            e.w32(m + 0x20, r.randrange(16))
+            mats.append(m)
+        for k in range(n):
+            a = [r.uniform(-50, 50) for _ in range(3)]
+            b = [v + r.uniform(-400, 400) for v in a]
+            e.cpu.write(self.utab + 24 * k, struct.pack('<6f', *a, *b))
+            base = self.stab + 0x508 * k
+            code = r.choice([0, 0, 0, 0, 1])
+            count = r.choice([0, 1, 1, 2, 3, 5])
+            e.w32(base, code)
+            buf = bytearray(0x504)
+            buf[0] = count
+            for j in range(count):
+                t = r.random()
+                pt = [a[q] + (b[q] - a[q]) * t for q in range(3)]
+                struct.pack_into('<6fIfII', buf, 4 + 0x28 * j, r.uniform(-1, 1), r.uniform(-1, 1), r.uniform(-1, 1),
+                                 *pt, r.randrange(4), r.uniform(0, 100), r.choice(mats), r.randrange(1, 1 << 30))
+            e.cpu.write(base + 4, bytes(buf))
+        calls = {'u': 0, 's': 0}
+
+        def unproject(emu, key, a, pop):
+            sp, out, cnt = a
+            vals = struct.unpack('<3I', bytes(emu.cpu.read(sp, 12)))
+            self.t.handle(key, vals)
+            i = calls['u']
+            calls['u'] += 1
+            emu.cpu.write(out, bytes(emu.cpu.read(self.utab + 12 * i, 12)))
+            emu._ret(0, pop)
+        e.stub(0x523930, '0x00523930', 'c,d,s0', None, unproject)
+
+        def segments(emu, key, a, pop):
+            world, buf, *pts = a
+            k = calls['s']
+            calls['s'] += 1
+            code = self.t.handle(key, (world, *pts))
+            base = self.stab + 0x508 * k
+            emu.cpu.write(buf, bytes(emu.cpu.read(base + 4, 0x504)))
+            emu._ret(code, pop)
+        w.answers['0x004eed90'] = lambda rr, n, a: e.r32(self.stab + 0x508 * n)
+        e.stub(0x4eed90, '0x004eed90', 'c,d,s0,s1,s2,s3,s4,s5', None, segments)
+        e.stub(0x4b51f0, spec='')
+        e.stub(0x4eb6d0, spec='c,d')
+
+    def aim_dump(self):
+        e = self.e
+        o = self.hud + 0x144c
+        vals = [e.r32(o + 0x14), e.r32(o + 0x18)] + [e.r32(o + 0x8fc + 4 * i) for i in range(3)]
+        vals += [e.r32(o + 0x924)] + [e.r32(o + 0x928 + 4 * i) for i in range(10)]
+        z = o + 0xbc
+        vals += [e.r32(z + 0x50 + 4 * i) for i in range(4)] + [e.r32(z + 0x14), e.r32(z + 0x18)]
+        return 'aim ' + ' '.join(f'{v:x}' for v in vals) + ' '
 
     def fake_mech(self, r):
         """The fields the set-up reads: vt+0xa0, +0x6c (empty), +0xbc, the
@@ -219,6 +295,7 @@ class Original:
         m = e.world_alloc(0x400)
         vt = e.world_alloc(0x100)
         e.w32(m, vt)
+        e.w32(m + 4, e.world_alloc(0x40))  # its node
         e.w32(vt + 0xa0, e.new_stub('mech.vt+0xa0', 'c', 0))
         # +0x6c: no target (a target's path is TARGET's item, hud.md section 9)
         e.cpu.write(m + 0xbc, bytes([r.randrange(256)]))
@@ -650,7 +727,7 @@ class Original:
             kv('px', e.r32(DAMAGE + 0x20 * p + 0x14))
             kv('py', e.r32(DAMAGE + 0x20 * p + 0x18))
         out.append(' '.join(line) + ' ')
-        return '\n'.join(out) + '\n'
+        return '\n'.join(out + self.aim_lines) + '\n'
 
 
 def test_twod_fnv(b):
@@ -673,7 +750,9 @@ def run_case(seed, verbose=False):
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     buf = ctypes.create_string_buffer(1 << 20)
-    n = probe.probe_hud_build(orig.hud, orig.mech, orig.path, buf, len(buf))
+    places = (ctypes.c_float * (2 * len(orig.places) + 1))(*[v for p in orig.places for v in p])
+    n = probe.probe_hud_build(orig.hud, orig.mech, orig.path, places, len(orig.places), orig.utab, orig.stab, buf,
+                              len(buf))
     assert n >= 0, 'probe failed'
     dump_r = buf.value.decode('latin1')
     stubbed = orig.w.stub_textures

@@ -9,6 +9,7 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -58,6 +59,19 @@ ztwod::Rect HudHooks::display_rect() {
 ztwod::Rect HudHooks::window_rect() {
   const Rect& r = window();
   return {r.x, r.y, r.x_end, r.y_end};
+}
+
+void HudHooks::unproject_world(const float screen[3], float out[3]) {
+  unported("0x00523930", {zgame::bits(screen[0]), zgame::bits(screen[1]), zgame::bits(screen[2])});
+  out[0] = out[1] = out[2] = 0.0f;
+}
+int32_t HudHooks::segment_list(uint32_t world, const float a[3], const float b[3], zwep::HitList* out) {
+  out->count = 0;
+  return static_cast<int32_t>(unported("0x004eed90", {world, zgame::bits(a[0]), zgame::bits(a[1]), zgame::bits(a[2]),
+                                                      zgame::bits(b[0]), zgame::bits(b[1]), zgame::bits(b[2])}));
+}
+uint32_t HudHooks::material_soil(zwep::Handle material) {
+  return material ? unported("0x00608c00", {id(material)}) : 0;
 }
 
 const char* HudHooks::message(int32_t id) {
@@ -893,7 +907,95 @@ HudReticle::HudReticle(const char* on, const char* off) : Image(0) {
   }
   Object2D::show_for(-1.0f);
   zoom.hide();
-  for (uint32_t& v : x928) v = 0;
+  hit = zwep::HitRecord{};
+}
+
+// Mech3.exe 1.2 @ 0x004445f0
+void HudReticle::place(float fx, float fy) {
+  HudHooks& k = *g_hooks;
+  const int32_t hw = k.display_w() / 2, hh = k.display_h() / 2;
+  const int32_t py = crt::msvc_ftol(static_cast<float>(hh) * fy) + hh;
+  const int32_t px = crt::msvc_ftol(static_cast<float>(hw) * fx) + hw;
+  Image::set_pos(px, py);
+  aim();
+  zoom.follow(get_x(), get_y());
+}
+
+// Mech3.exe 1.2 @ 0x00444350: the reticle's point unprojected at the player
+// camera's near and far planes, the segment between queried with the mech
+// left out; the nearest hit counts unless its ground is soil kind 1 (one
+// hit alone: kept unless so). No hit: the far point (hud.md section 10).
+void HudReticle::aim() {
+  HudHooks& k = *g_hooks;
+  float s[3] = {static_cast<float>(get_x()), static_cast<float>(get_y()), 0.0f};
+  screen_to_render(s);
+  Mech* m = static_cast<Hud*>(source)->mech;
+  static zwep::HitList hits;
+  hits = zwep::HitList{};
+  float near_z = 0.0f, far_z = 0.0f;
+  k.player_camera_clip(&near_z, &far_z);
+  k.view_prepare();
+  float a[3], b[3];
+  s[2] = 1.0f / near_z;  // 0x005c0074
+  k.unproject_world(s, a);
+  s[2] = 1.0f / far_z;
+  k.unproject_world(s, b);
+  const uint32_t node = k.mech_node(m);
+  k.node_set_intersect(node, false);
+  int32_t best = -1;
+  bool missed = true;
+  if (k.segment_list(k.world_node(k.world()), a, b, &hits) == 0) {
+    if (hits.count == 1) {
+      if (k.material_soil(hits.rec[0].material) != 1) best = 0;
+    } else if (hits.count != 0) {
+      float nearest = 3.4028235e38f;
+      for (int32_t i = 0; i < hits.count; ++i) {
+        if (k.material_soil(hits.rec[i].material) == 1) continue;
+        const float d = zmth::distance_sq(*reinterpret_cast<const zmth::Vec3*>(a),
+                                          *reinterpret_cast<const zmth::Vec3*>(&hits.rec[i].point));  // 0x0051dfa0
+        if (d < nearest) {
+          nearest = d;
+          best = i;
+        }
+      }
+    }
+    hits.count = static_cast<uint8_t>(best);
+    if (best >= 0) missed = false;
+  }
+  k.node_set_intersect(node, true);
+  const float* p;
+  if (!missed) {
+    const zwep::HitRecord& h = hits.rec[hits.count];
+    p = &h.point.x;
+    const float d[3] = {a[0] - p[0], a[1] - p[1], a[2] - p[2]};
+    set_hit(&h, std::sqrt((d[0] * d[0] + d[1] * d[1]) + d[2] * d[2]));
+  } else {
+    p = b;
+    set_miss(b, far_z);
+  }
+  aim_point[0] = p[0];
+  aim_point[1] = p[1];
+  aim_point[2] = p[2];
+}
+
+// Mech3.exe 1.2 @ 0x00444710
+void HudReticle::set_hit(const zwep::HitRecord* h, float d) {
+  hit = h ? *h : zwep::HitRecord{};
+  aim_distance = d;
+}
+
+// Mech3.exe 1.2 @ 0x004446a0: a record of nothing at the far point, facing up.
+void HudReticle::set_miss(const float* p, float far_z) {
+  hit = zwep::HitRecord{};
+  hit.normal = {0.0f, 1.0f, 0.0f};  // [0x005eda70]
+  hit.point = {p[0], p[1], p[2]};
+  hit.distance_sq = far_z * far_z;
+  aim_distance = far_z;
+}
+
+// Mech3.exe 1.2 @ 0x00443660
+void HudZoomWindow::follow(int32_t px, int32_t py) {
+  if (!(flags & ztwod::kHidden) || zoom != 0.0f) set_rect(px - base_w / 2, py - base_h / 2, base_w, base_h);
 }
 
 // Mech3.exe 1.2 @ 0x00443d00

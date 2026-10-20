@@ -26,6 +26,9 @@ float fast_exp(float x);
 
 struct MechControls {
   virtual ~MechControls() = default;
+  // vtable +0x14: where the reticle sits, (x, y) in -1..1 of the display's
+  // half size; none but the player's (0x0040bae0; 0x00428800 below).
+  virtual const float* look_position() { return nullptr; }
   uint32_t flags = 0;          // +0x08  bit 2 doubles the turn rate
   int32_t view = 0;            // +0x0c  the player's view state 0..3 (0x00426780)
   float throttle = 0;          // +0x10  -1..1, smoothed toward throttle_target
@@ -76,6 +79,7 @@ struct PlayerControls : MechControls {
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
   void construct(uint32_t mode);   // 0x00427320 with the base 0x004265a0
   int update(float dt) override;   // 0x00427d60
+  const float* look_position() override { return &look_x; }  // 0x00428800
   // 0x00427870: the joystick and mouse axes into the frame's inputs.
   void read_axes(float dt, float* throttle, float* turn, float* pitch, float* twist, float* look_pitch,
                  float* look_yaw);
