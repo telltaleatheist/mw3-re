@@ -17,6 +17,11 @@
 namespace mech3 {
 
 namespace {
+constexpr int32_t kWeaponBracket = 11;  // [0x005e3a18] the bracket's half width
+constexpr int32_t kWeaponLine = 10;     // [0x005e3a1c] a weapon line's height
+}  // namespace
+
+namespace {
 DamageSet g_damage;
 EquipmentSet g_equipment;
 WeaponSet g_weapons;
@@ -381,7 +386,81 @@ void HudWeapons::set_pos(int32_t px, int32_t py) {
 void HudWeapons::show_for(float seconds) {
   Object2D::show_for(seconds);
   shown = 1;
-  g_hooks->unported("0x00446520", {g_hooks->id(this)});  // the lines from the mech: with the readers (hud.md)
+  refresh_all();
+}
+
+// Mech3.exe 1.2 @ 0x00446520
+void HudWeapons::refresh_all() {
+  layout();
+  looks();
+}
+
+// Mech3.exe 1.2 @ 0x00446240: the five groups' weapons fill the lines in
+// order; the current group's get the bracket; the rest hidden; the panel
+// sized to them and the equipment list put below.
+void HudWeapons::layout() {
+  HudHooks& h = *g_hooks;
+  const int32_t current = h.wm_group_index(weapons);
+  const int32_t px = get_x();
+  int32_t py = get_y();
+  int32_t total = 0;
+  poly.hide();
+  next_weapon = 0;
+  for (int32_t i = 0; i < 5; ++i) {
+    const uint32_t g = i == -1 ? 0 : h.wm_group(weapons, i);
+    const int32_t n = g ? h.group_count(g) : 0;
+    if (n == 0) continue;
+    if (current == i) {
+      poly.show_for(-1.0f);
+      poly.set_point(0, px + kWeaponBracket, py);
+      poly.set_point(1, px - kWeaponBracket, py);
+      poly.set_point(2, px - kWeaponBracket, n * kWeaponLine + py);
+      poly.set_point(3, px + kWeaponBracket, n * kWeaponLine + py);
+    }
+    for (int32_t k = 0; k < n; ++k) {
+      const uint32_t w = k < h.group_count(g) ? h.group_weapon(g, k) : 0;
+      lines[total + k].set_weapon(reinterpret_cast<void*>(static_cast<uintptr_t>(w)), nullptr);
+      py += kWeaponLine;
+    }
+    total += n;
+  }
+  const int32_t height = kWeaponLine * total;
+  for (int32_t i = total; i < 16; ++i) lines[i].hide();
+  panel.set_pos(get_x(), get_y());
+  panel.set_size(column, height);
+  if (hud) {
+    Hud* hd = static_cast<Hud*>(hud);
+    hd->equipment.place(get_x(), get_y(), height + 6);
+    if (!h.group_locks(h.mech_weapons(hd->mech))) hd->reticle.reset();
+  }
+  panel.show_for(-1.0f);
+  shown = 1;
+}
+
+// Mech3.exe 1.2 @ 0x00446540: the current group's lines get the select mark
+// (or chain for the others in chain fire), the rest none.
+void HudWeapons::looks() {
+  HudHooks& h = *g_hooks;
+  const int32_t gi = h.wm_group_index(weapons);
+  const uint32_t group = gi == -1 ? 0 : h.wm_group(weapons, gi);
+  shown = 0;
+  next_weapon = 0;
+  bool after_current = false;
+  for (HudWeaponLine& l : lines) {
+    if (l.flags & ztwod::kHidden) continue;
+    const uint32_t w = h.id(l.weapon);
+    zimg::Texture* mark = nullptr;
+    if (after_current) next_weapon = w;
+    after_current = w == h.wm_current(weapons);
+    if (w && group && h.weapon_group(w) == gi) {
+      const int32_t mode = h.wm_mode(weapons);
+      if (mode == 0) mark = after_current ? select : chain;
+      else if (mode == 2 || after_current) mark = select;
+    }
+    const bool recycling = l.refresh_line(mark);
+    shown = shown || recycling;
+  }
+  if (next_weapon == 0) next_weapon = h.id(lines[0].weapon);
 }
 
 // Mech3.exe 1.2 @ 0x00446220
@@ -1201,7 +1280,7 @@ void HudEquipment::read_layout(Hud* h) {
 
 // Mech3.exe 1.2 @ 0x00446120
 void HudWeapons::read_layout(Hud* h) {
-  x1143c = 0;
+  next_weapon = 0;
   if (!h || !h->mech) {
     weapons = 0;
     hud = nullptr;
@@ -1218,19 +1297,60 @@ void HudWeapons::read_layout(Hud* h) {
   hud = h;
   weapons = k.mech_weapons(h->mech);
   for (HudWeaponLine& l : lines) l.set_weapon(nullptr);
-  k.weapons_refresh(this);
+  refresh_all();
 }
 
-// Mech3.exe 1.2 @ 0x00445d10 (with a weapon: its name and the look, not ported yet)
-void HudWeaponLine::set_weapon(void* w) {
+// Mech3.exe 1.2 @ 0x00445d10: both looks flipped, then set back, so the
+// fonts are set again for the new name.
+void HudWeaponLine::set_weapon(void* w, zimg::Texture* mark) {
   weapon = w;
   show_for(-1.0f);
-  if (w) {
-    g_hooks->unported("0x00445d10", {g_hooks->id(this), g_hooks->id(w)});
+  if (!w) {
+    hide();
+    refresh_line(mark);
     return;
   }
-  hide();
-  hide();  // 0x00445dc0 with no weapon
+  const char* n = g_hooks->weapon_name(g_hooks->id(w));
+  name.set_text_plain(n);
+  text2.set_text_plain(n);
+  red = !red;
+  grey = !grey;
+  set_look(!red, !grey);
+  refresh_line(mark);
+}
+
+// Mech3.exe 1.2 @ 0x00445dc0: the bar the recycle fraction (clamped to 0..1;
+// +0x111b set when it drops from full), the light by damage (green, yellow
+// over 0.5, red over 0.8), the count the ammo, grey when destroyed.
+bool HudWeaponLine::refresh_line(zimg::Texture* mark_image) {
+  HudHooks& h = *g_hooks;
+  if (!weapon) {
+    hide();
+    return false;
+  }
+  const uint32_t w = h.id(weapon);
+  h.weapon_vt8(w);
+  float f = h.weapon_recycle(w);
+  if (f > 1.0f) f = 1.0f;
+  else if (f < 0.0f) f = 0.0f;
+  const bool recycling = f != 1.0f;
+  x111b = value == 1.0f && f != 1.0f;
+  set_value(f);  // vt+0x8c
+  int32_t light_index = 0;
+  if (h.weapon_damage(w) > 0.8f) light_index = 2;
+  else if (h.weapon_damage(w) > 0.5f) light_index = 1;
+  const bool destroyed = h.weapon_damage(w) == 1.0f;
+  const bool live = !destroyed && h.weapon_enabled(w);
+  mark.set_image(mark_image);
+  const int32_t n = h.weapon_ammo(w);
+  const bool r = live && n != 0;
+  if (count != n) {
+    count = n;
+    count_text.set_text("%3d", n);  // [0x005e41a4]
+  }
+  set_look(r, destroyed);
+  light.set_image(g_weapons.light[light_index]);
+  return recycling;
 }
 
 // Mech3.exe 1.2 @ 0x004479a0
@@ -1557,7 +1677,7 @@ void HudReticle::aim_state(bool over) {
 // Mech3.exe 1.2 @ 0x00446680
 void HudWeapons::update(float dt) {
   if ((flags & ztwod::kHidden) || weapons == 0) return;
-  if (shown) hud_hooks().weapons_looks(this);
+  if (shown) looks();
   panel.update(dt);
   for (HudWeaponLine& l : lines) l.update(dt);
   poly.update(dt);

@@ -160,7 +160,8 @@ class HudWeaponLine : public ztwod::Slider {
   void place(int32_t px, int32_t py, int32_t column);  // 0x00445ba0
   void reset();                      // 0x00445a30
   bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
-  void set_weapon(void* w);          // 0x00445d10 (part: with a weapon, not ported yet)
+  void set_weapon(void* w, zimg::Texture* mark = nullptr);  // 0x00445d10: its name, the look forced, a refresh
+  bool refresh_line(zimg::Texture* mark);  // 0x00445dc0: the bar, light, count and look from the weapon; true while it recycles
   void update(float dt) override;    // +0x24  0x00445c10: the bar's images from the texts when changed
   HudText name;                      // +0x188
   HudText text2;                     // +0x638
@@ -181,7 +182,10 @@ class HudWeapons : public ztwod::Object2D {
   HudWeapons();                      // 0x00445f80
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x004460c0: the lines 10 apart
   void update(float dt) override;    // +0x24  0x00446680
-  void show_for(float seconds) override;  // +0x60  0x00446200 (part: 0x00446520 not ported)
+  void show_for(float seconds) override;  // +0x60  0x00446200: then the lines refreshed (0x00446520)
+  void refresh_all();                // 0x00446520: layout, then looks
+  void layout();                     // 0x00446240: the lines by group, the current one bracketed
+  void looks();                      // 0x00446540: each shown line's mark and refresh
   void hide() override;              // +0x64  0x00446220
   void read_layout(Hud* hud);        // 0x00446120 (WEAPONS)
   void* hud = nullptr;               // +0x34 the HUD it shows
@@ -191,8 +195,8 @@ class HudWeapons : public ztwod::Object2D {
   zimg::Texture* chain = nullptr;    // +0x12c hud_weapon_chain
   HudWeaponLine lines[16];           // +0x130
   HudPanel panel;                    // +0x11330
-  uint8_t shown = 1;                 // +0x11438
-  int32_t x1143c = 0;                // +0x1143c
+  uint8_t shown = 1;                 // +0x11438 the lines refreshed each frame (some recycling)
+  uint32_t next_weapon = 0;          // +0x1143c the weapon after the current one (else the first)
   int32_t column = 0x6e;             // +0x11440
 };
 
@@ -571,8 +575,7 @@ class HudHooks : public zgame::Unported {
   // are [0x005fc384]), the radar's update
   // (0x0043dd00), whether the reticle's point is over TARGET's shape or
   // circle while a live target is in range (0x00440a30), the reticle's aim
-  // state from it (0x00443d20: ranges, lock sounds, its image), the weapon
-  // lines' looks (0x00446540), the nav list's update (its vt+0x24), the
+  // state from it (0x00443d20, HudReticle::aim_state), the nav list's update (its vt+0x24), the
   // network's (0x00479ed0 while [0x00609980]).
   virtual void hud_debug(void* hud) {
     if (!(unported("peek32", {0x5fc384}) >> 4 & 1)) unported("0x0043c820.debug", {id(hud)});
@@ -606,7 +609,6 @@ class HudHooks : public zgame::Unported {
   virtual uint32_t node_bc(uint32_t node) { return unported("peek32", {node + 0xbc}); }
   virtual bool hud_sound_playing(int32_t channel) { return unported("0x0041e800", {channel}) != 0; }
   virtual void hud_sound_play(int32_t channel) { unported("0x0041e770", {channel}); }
-  virtual void weapons_looks(void* weapons) { unported("0x00446540", {id(weapons)}); }
   virtual void nav_list_update(uint32_t nav, float dt) { unported("nav.vt+0x24", {nav, zgame::bits(dt)}); }
   virtual void network_hud() {
     if (unported("peek32", {0x609980})) unported("0x00479ed0", {});
@@ -644,8 +646,28 @@ class HudHooks : public zgame::Unported {
   // multiplayer game.
   virtual bool title_flag() { return (unported("peek8", {0x609994}) & 0xff) != 0; }
   virtual bool title_mp_off() { return unported("peek32", {0x605f88}) != 0; }
-  // The weapon list's lines from the mech's weapons (0x00446520).
-  virtual void weapons_refresh(void* weapons) { unported("0x00446520", {id(weapons)}); }
+  // The weapon list's outside, read-only (weapon.h's WeaponManager and
+  // Weapon): the manager's mode +0x1c, group index +0x28 (-1 none), groups
+  // +0x2c; a group's count +8 and weapons +0x14; the current weapon
+  // (0x004b04c0); a weapon's group +0x60, name (def +0x2c, +8), vt+8,
+  // recycle fraction vt+0x34, damage 0..1 (0x004b3010), enabled +0x74, ammo
+  // vt+0x14.
+  virtual int32_t wm_mode(uint32_t wm) { return static_cast<int32_t>(unported("peek32", {wm + 0x1c})); }
+  virtual int32_t wm_group_index(uint32_t wm) { return static_cast<int32_t>(unported("peek32", {wm + 0x28})); }
+  virtual uint32_t wm_group(uint32_t wm, int32_t i) { return unported("peek32", {wm + 0x2c + 4 * i}); }
+  virtual int32_t group_count(uint32_t g) { return static_cast<int32_t>(unported("peek32", {g + 8})); }
+  virtual uint32_t group_weapon(uint32_t g, int32_t k) { return unported("peek32", {g + 0x14 + 4 * k}); }
+  virtual uint32_t wm_current(uint32_t wm) { return unported("0x004b04c0", {wm}); }
+  virtual int32_t weapon_group(uint32_t w) { return static_cast<int32_t>(unported("peek32", {w + 0x60})); }
+  virtual const char* weapon_name(uint32_t w) {
+    unported("weapon.name", {w});
+    return "";
+  }
+  virtual void weapon_vt8(uint32_t w) { unported("weapon.vt+0x8", {w}); }
+  virtual float weapon_recycle(uint32_t w) { return zgame::from_bits(unported("weapon.vt+0x34", {w})); }
+  virtual float weapon_damage(uint32_t w) { return zgame::from_bits(unported("0x004b3010", {w})); }
+  virtual bool weapon_enabled(uint32_t w) { return (unported("peek8", {w + 0x74}) & 0xff) != 0; }
+  virtual int32_t weapon_ammo(uint32_t w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {w})); }
 };
 HudHooks& hud_hooks();
 void set_hud_hooks(HudHooks* h);

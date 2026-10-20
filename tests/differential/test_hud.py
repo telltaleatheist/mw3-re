@@ -183,7 +183,6 @@ class Original:
         w.answers['@entry+0xd0'] = struct.unpack('<I', bytes(e.cpu.read(entry + 0xd0, 4)))[0]
         self.e.stub(0x491c80, spec='')
         e.stub(0x446ad0, spec='c')
-        e.stub(0x446520, spec='c')
         # zRender's nodes for the zoom views: new ones are fresh handles.
         for a, spec in ((0x4f9e90, ''), (0x4f32e0, ''), (0x4eb300, 'c,zd'), (0x4eb170, 'c,d'), (0x4f9fa0, 'c,d,s0'),
                         (0x4fa0b0, 'c,d,s0'), (0x4f3620, 'c,d'), (0x4f3560, 'c,d'), (0x4f6c80, 'c,*d'),
@@ -274,7 +273,7 @@ class Original:
         e.w32(0x609980, r.choice([0, 0, 1]))
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
         e.w32(0x605f88, r.choice([0, 1]))
-        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x446540, 'c'), (0x479ed0, '')):
+        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x479ed0, '')):
             e.stub(a, spec=spec)
         w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1])
 
@@ -579,7 +578,51 @@ class Original:
         e.w32(wm + 0x24, r.randrange(0, 12))
         for i in range(16):
             e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
+        self.weapon_groups(wm)
         return m
+
+    def weapon_groups(self, wm):
+        """The weapon list's side of the manager (hud.md section 13): mode, the
+        current group, up to five groups of fake weapons (16 lines at most),
+        each weapon's group, name and enabled flag; its vt+8, +0x14 (ammo)
+        and +0x34 (recycle, on the x87) and 0x004b3010 (damage) stubbed."""
+        e, w, t = self.e, self.w, self.t
+        r = rnd(self.seed, 'weapons')
+        fbuf = e.world_alloc(8)
+        fthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', fbuf) + b'\xc3')
+
+        def fret(emu, key, a, pop):
+            emu.w32(fbuf, t.handle(key, tuple(a)))
+            emu._ret(0, pop, then=fthunk)
+        weapons = []
+        for k in range(6):
+            o = e.object('weapon', slots={0x8: ('c', 0), 0x14: ('c', 0), 0x34: ('c', 0, fret)})
+            d = e.world_alloc(0x40)
+            e.w32(d + 8, e.world_string(f'WPN{k}'))
+            e.w32(o + 0x2c, d)
+            e.cpu.write(o + 0x74, bytes([r.choice([0, 1, 1])]))
+            weapons.append(o)
+        e.w32(wm + 0x1c, r.choice([0, 1, 2]))
+        e.w32(wm + 0x28, r.choice([-1, 0, 1, 2, 3, 4]) & 0xffffffff)
+        left = 16
+        for i in range(5):
+            if r.random() < 0.3 or left == 0:
+                continue
+            n = min(r.randrange(0, 5), left)
+            left -= n
+            g = e.world_alloc(0x40)
+            e.w32(g + 8, n)
+            for k in range(n):
+                wpn = r.choice(weapons)
+                e.w32(g + 0x14 + 4 * k, wpn)
+                e.w32(wpn + 0x60, r.choice([i, i, i - 1]) & 0xffffffff)
+            e.w32(wm + 0x2c + 4 * i, g)
+        e.stub(0x4b3010, '0x004b3010', 'c', None, fret)
+        e.stub(0x4b04c0, spec='c')
+        w.answers['weapon.vt+0x34'] = lambda rr, n, a: f32(rr.choice([0.0, 0.3, 1.0, 1.0, 1.5, -0.2]))
+        w.answers['weapon.vt+0x14'] = lambda rr, n, a: rr.choice([0, 5, 20])
+        w.answers['0x004b3010'] = lambda rr, n, a: f32(rr.choice([0.0, 0.0, 0.6, 0.9, 1.0]))
+        w.answers['0x004b04c0'] = lambda rr, n, a: rr.choice([0] + weapons)
 
     def dump(self):
         e, h = self.e, self.hud

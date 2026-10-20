@@ -507,3 +507,42 @@ Test: test_hud.py runs the original 0x00443d20 in the frames, its outside
 stubbed (the range and distance on the x87 stack), the hits' nodes real
 blocks with +0xbc; the weapon manager's +0x88 compared after. Breaking it:
 12 of 12 caught.
+
+## 13. The weapon lines (0x00446520, 0x00446240, 0x00446540, 0x00445dc0)
+
+Refreshed (0x00446520: layout, then looks) when the list is shown
+(0x00446200), when its reader gives it the mech (0x00446120), and by the
+weapons and the camera's look from outside (hud.md section 1).
+
+- **Layout** (0x00446240): the manager's five groups in order fill the
+  sixteen lines (0x00445d10 per weapon); the current group's lines get the
+  bracket (the PolyLine: 11 pixels either side of the list's x, from the
+  group's first line to its last, 10 pixels a line); unused lines hidden;
+  the panel moved to the list and sized to the column by 10 per line; with a
+  HUD, the equipment list placed 6 pixels below, and the reticle reset when
+  the group cannot lock.
+- **A weapon in a line** (0x00445d10): the weapon's name into the name and
+  the second text; both look flags flipped and set back (0x00445a60), so the
+  fonts are set again; then the refresh.
+- **Looks** (0x00446540), each shown line: the select mark for the current
+  weapon's line in the current group (single fire), every line of the
+  current group (group fire), or select for the current one and chain for
+  the rest (chain fire); none outside the current group. Then the refresh;
+  the list keeps refreshing every frame while any line recycles. +0x1143c:
+  the weapon after the current one (else the first line's).
+- **Refresh** (0x00445dc0): the weapon's vt+8, then the bar at its recycle
+  fraction (vt+0x34, clamped to 0..1; +0x111b when it drops from full), the
+  light by damage (0x004b3010: green, yellow over 0.5, red over 0.8), the
+  count its ammo (vt+0x14, "%3d"), the look red when it has ammo and is
+  enabled (+0x74) and not destroyed, grey when destroyed (damage 1).
+
+Ported (`HudWeapons::refresh_all/layout/looks`, `HudWeaponLine::set_weapon/
+refresh_line`); the manager and weapons read through HudHooks (weapon.h's
+WeaponManager and Weapon, read-only). In the program the hooks are not
+wired yet: they pass the original's 32-bit handles, and the program's
+weapons are 64-bit pointers (a handle registry, or typed hooks, first).
+Test: test_hud.py gives the fake mech a manager with up to five groups of
+fake weapons (16 lines at most) and runs the original's refresh: 100/100.
+Breaking it: 11 of 13 caught; the misses are equivalent here (the unused
+lines are already hidden by the reader's set_weapon(nullptr), and the bar's
+set_value clamps a negative fraction to 0 itself).

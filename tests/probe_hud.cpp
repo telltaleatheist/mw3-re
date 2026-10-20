@@ -99,6 +99,17 @@ struct Hooks : mech3::HudHooks {
     g_lock_shown = on;
     call("poke8", {wm + 0x88, on ? 1u : 0u});
   }
+  const char* weapon_name(uint32_t w) override {  // def +0x2c, its name +8, from the emulator's memory
+    const uint32_t a = call("peek32", {call("peek32", {w + 0x2c}) + 8});
+    std::string n;
+    for (uint32_t i = 0; i < 64; ++i) {
+      const char c = static_cast<char>(call("peek8", {a + i}));
+      if (!c) break;
+      n += c;
+    }
+    g_strings.push_back(n);
+    return g_strings.back().c_str();
+  }
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
   // emulator's own handles) as it is.
@@ -640,7 +651,7 @@ void dump_hud(Dump& d) {
   d.t("select", w.select);
   d.t("chain", w.chain);
   d.kv("shown", w.shown);
-  d.kv("x1143c", w.x1143c);
+  d.kv("x1143c", w.next_weapon);
   d.kv("column", w.column);
   d.o << "\nwpoly ";
   poly(d, &w.poly);
@@ -662,7 +673,7 @@ void dump_hud(Dump& d) {
     d.kv("red", l.red);
     d.kv("changed", l.changed);
     d.kv("x111b", l.x111b);
-    d.kv("weapon", 0);
+    d.kv("weapon", g_hooks.id(l.weapon));
     d.o << "\nname ";
     d.fonttext(&l.name);
     d.o << "\ntext2 ";

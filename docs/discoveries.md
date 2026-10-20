@@ -1876,6 +1876,12 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   reticle leaves the target. Either the target or the aim point has to be
   within the group's longest range, and one kind of target (kind 7, not
   identified yet) can never be locked.
+- **What the weapon list's colours mean:** each weapon's light turns
+  yellow past half damage and red past 80%; its name turns grey when the
+  weapon is destroyed, and its texts go red only while it has ammo and is
+  working. In chain fire the weapon that fires next has the select mark and
+  the rest of its group the chain mark; in group fire the whole group is
+  marked.
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not
