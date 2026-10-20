@@ -60,8 +60,8 @@ whether the mech is alive, vt+0xa0). The pieces live inside it:
 | +0x0410c | TARGET (the target's damage and text) | 0x0043fcb0 (10, 370, 75, 100) | 0x005c03e8 | 0x00441490 | yes |
 | +0x06520 | weapons list | 0x00445f80 | 0x005c0898 | 0x00446680 | yes |
 | +0x17964 | objectives and multiplayer scores (a TextBox) | 0x00446700 | 0x005c0918 | 0x00447410 | no |
-| +0x18410 | mission timer (a FontText, "00:00:00.00", font 0x005e14e4) | 0x005a00c0 | 0x005bc598 | | yes |
-| +0x188c0 | equipment list | 0x00448070 | 0x005c0b90 | 0x00448450 | no |
+| +0x18410 | mission timer (a FontText, "00:00:00.00", font 0x005e14e4) | 0x005a00c0 | 0x005bc598 | | no (shown for good) |
+| +0x188c0 | equipment list | 0x00448070 | 0x005c0b90 | 0x00448450 | yes |
 | +0x22e08..+0x22e34 | cleared by the constructor | | | | |
 | +0x22e38 | hud.zrd's root while the set-up runs | | | | |
 | +0x22e3c | the resolution's block while the set-up runs | | | | |
