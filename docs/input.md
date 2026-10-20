@@ -219,8 +219,9 @@ shots fly. mw3tests `mission_c1m1_left_button_fires_after_focus_headless`
 plays it headless (a fake exclusive foreground mouse refused until the
 window comes to the front): the left button alone puts shots in the air,
 hits the Owens and fires the hot group. Nothing in the glue needed
-changing; the Mad Cat's first group, the machine guns, shows nothing on
-the screen yet (weapons.md), which is likely what made the click look dead.
+changing. Open: why the click looked dead in play. The Mad Cat's first
+group is its machine guns (no heat); whether their shots show on the
+screen in the program has not been checked.
 
 ## Open
 
