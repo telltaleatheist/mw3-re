@@ -112,6 +112,8 @@ void transform_points(Vec3* v, uint32_t count);               // 0x005227a0  in 
 // ECX matrix, EDX box (min xyz, max xyz), stack out: the box through m,
 // axis aligned again (each term takes min or max by the sign of m's entry).
 void transform_box(const float* m, const float box[6], float out[6]);  // 0x005231b0
+// The same in x and z only: out[1] and out[4] are left as they were.
+void transform_box_xz(const float* m, const float box[6], float out[6]);  // 0x00523040
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count);  // 0x00522910
 void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // inlined in 0x0053f2e0
 // ECX m (12 floats), EDX box (min x, y, z, max x, y, z), stack out: the

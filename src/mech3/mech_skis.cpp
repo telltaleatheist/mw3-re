@@ -115,6 +115,18 @@ void Skis::set_ski(int side, float angle, float lift) {
   fit(side);
 }
 
+// Mech3.exe 1.2 @ 0x00475fb0
+void Skis::reset() {
+  for (int side = 0; side < 2; ++side) {
+    const float x = side ? half_track : -half_track;
+    local[3 * side] = {x, 0.0f, -half};
+    local[3 * side + 1] = {x, 0.0f, 0.0f};
+    local[3 * side + 2] = {x, 0.0f, half};
+  }
+  set_ski(0, 0.0f, 0.0f);
+  set_ski(1, 0.0f, 0.0f);
+}
+
 // Mech3.exe 1.2 @ 0x00476590
 void Skis::set_vy(float v) {
   for (float& x : vy) x = v;

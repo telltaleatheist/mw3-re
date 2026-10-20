@@ -97,6 +97,11 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- Asking for the ground under a point where more than 32 objects' surfaces
+  overlap no longer writes past the end of the answer; the original had
+  room for 32 and stopped only some of the time. No shipped mission comes
+  close.
+
 - On a computer without MMX, the software renderer's screen flashes no longer
   write past the end of the screen's memory on its last line.
 - A mech file with a bad version no longer crashes the game when it unloads.

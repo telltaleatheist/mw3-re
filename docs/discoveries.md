@@ -699,6 +699,17 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   after the last does it end.
 - **In multiplayer, failing doesn't end your game**: your mech is put down
   instead and the game goes on.
+- **Every mech starts a mission one centimetre above the ground.** The
+  game finds the ground under the mission file's spot, looking from 100 m
+  above it, and puts the mech 0.01 m over it.
+- **Where a mech starts on stacked ground depends on how high its spot is.**
+  When the game drops a mech onto its spot, it should take the highest
+  surface no more than 10 m above the spot, but a slip in the code makes
+  that "the spot's height plus 10, plus the spot's height again". A spot
+  below zero over a bridge puts the mech under the bridge; a high spot can
+  take a surface well above it.
+- **Your mech starts every mission powered down.** The game sets it down
+  when it puts you in the world; the power-up you see comes after.
 
 ## Multiplayer
 

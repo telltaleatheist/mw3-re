@@ -83,7 +83,8 @@ vehicle.zrd has no such type.
    skin of that index (0x0041e9a0 +0x1c), given to 0x00414390 (which
    swaps the mech's texture set, 0x004757f0).
 5. The team masks (section 5), then 0x004161c0 puts it on the ground at the
-   record's (x y z) and yaw. Failing: controller and mech deleted, 0.
+   record's (x y z) and yaw (section 11). Failing (it never does):
+   controller and mech deleted, 0.
 6. **p12's second flag** (+0xcc bit 5): the controller's vt+0x90 object
    gets +0x88 = 1 for one 0.1 s update of the mech (vt+0x34), then its own
    value back, and the mech **powers down** (0x0041cc30(1)).
@@ -138,9 +139,8 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   definitions, the nets (the compiled ones built by `nets_build_all`),
   zClass, the AI controllers (0x004d8750 and 0x004e71c0 with the brain's
   data, ai.md section 12) and the AI mechs (mech-build.md) to the ports.
-  The placement 0x004161c0 is not ported (logged; the mech keeps its
-  constructor's place and is kept, as the exe's call always succeeds), nor
-  are the other vehicles (logged, none made: their controllers are deleted). The weapons load
+  The placement 0x004161c0 is the port's (section 11), so the Owens stands
+  on the terrain at its aiv.zrd place; the other vehicles are not ported (logged, none made: their controllers are deleted). The weapons load
   0x00583880 now runs the ported `zwep::init` with `make_weapon_type`, which
   makes the weapon_tick object (priority 3, action `zwep::tick`). Both run
   each Core frame from the ported action lists (0x004f7d80,
@@ -247,8 +247,140 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   lancemates from their slots, with 0x0049e540), 0x0049dc80 (instant
   action's line-up from its records, 381 lines), 0x0046da80 (multiplayer).
 - The builders' callees: the vehicles 0x004589d0 / 0x004ac320, their setup
-  0x0049ef40 and 0x0049f660, the ground placement 0x004161c0, the skin swap
+  0x0049ef40 and 0x0049f660 (and their vt+0xdc place), the skin swap
   0x004757f0. The AI controls 0x004d8750 / 0x004e71c0 are ported up to the
   brain's decisions (ai.md section 12).
 - The nets' passes 0x004d52b0 / 0x004d5300 (base AiNet vt+0x2c 0x004d5350
   and the link pass; the compiled nets and regions do nothing there).
+
+## 11. The placement: 0x004161c0
+
+`Mech::place(pos, yaw)` (mech.cpp; `mech3/mech_place.cpp`), from
+player.cpp's AI mechs (section 4) and the pilot's spawn 0x004782f0 (the
+player, mech-build.md section 8). Always 1.
+
+1. zModel's zone mode [0x005ea1d0] is saved and set to 0 (every node
+   passes), the ground under (x, y + 100, z) is asked of the world
+   ([0x00608c84]+4) with the **point query 0x004edab0** (below), and the
+   mode restored.
+2. With polygons found, **0x004abd90** picks one with the mech's y and
+   **y + 10 as its step** (water, soil 1, not taken as ground), and y
+   becomes the pick minus -0.01: **the mech stands 0.01 above the ground.**
+3. The mech's node joins the world: [0x00608c84] vtable +0 (0x0040bab0)
+   is `node_add_child(world, node)`. The query ran before, so a mech never
+   finds itself.
+4. vtable +0xdc, **SetPlace 0x00418f30**: the controls zeroed (0x00426c80),
+   the orientation the yaw's quaternion (0x005251a0) and the node's 3x3 from
+   it (0x00525740), then **0x00418e90**: the controls zeroed again, +0x3c,
+   +0x30, +0x58 zeroed, vtable +0x18 (zEntity3d's 0x005a8550: the node's
+   translation 0x004fc0b0, then 0x005a85c0), 0x005a85c0 again (for a node
+   with a parent, vtable +0x1c 0x005a85a0: the node's matrix set, the two
+   marker nodes' world matrices, +0x18 and +0x24 from the matrix's z row),
+   the collider's points through the matrix into this frame's and last
+   frame's (0x00422500), and the skis reset (0x00475fb0: the six ski
+   probes at (+-half track, 0, -half / 0 / +half), both skis level through
+   0x004764a0).
+
+**The pick 0x004abd90** (between turret.cpp and veh_basic.cpp; the skis'
+0x00477820 is its twin with the soil table): the highest polygon at most
+`step` above y; water (a material whose +0x20 is 1, read directly) gives
+the surface and is ground only when the fourth argument is 0; in water when
+the surface is within the step below y. None in reach: **the lowest
+polygon**; an empty record: 0. Its other callers pass a constant step (4,
+20, a mech's own); 0x004161c0 passes y + 10, so the reach is 2y + 10, not
+y + 10 (below).
+
+**The point query 0x004edab0** (cls_di.c, `zcls::ground_point`): one point
+instead of 0x004ee2f0's up to 24. The stored cell of the point (moved into
+it when the world wraps; off the grid without wrapping, no cell), its
+nodes (each zone checked first), its fading nodes (their pose and zone set
+first), then the world's own children at the point as given. The walk
+0x004eddb0 tests a node's model with 0x0054be40 (the cached polygon first,
+then the rest; a strip as its triangles) and **records one polygon per
+node**: the first whose plane at the point is no higher than the point's y
+(0x0054d640: inside within 0.0001 of every edge; a vertical polygon takes
+its first vertex's height; facing down counts, unlike 0x004ee2f0's). Its
+box test 0x004f12e0 uses the box through the matrices axis aligned again in
+x and z (0x004ec430 with 0x00523040). Class 8 tests its own model before
+its matrix goes on the stack. The record holds 32; the walk's entry stops
+at 32 with "Database intersections array is full", the model tests do not
+check (FIX (A) below). Returns 1 when nothing was found.
+
+**The spawn 0x004782f0** (pilot.cpp's neighbourhood, `place_pilot_mech`):
+0x004161c0 on the pilot's mech (+0x14), its Invincible flag (+0x630) from
+the cheat byte [0x00608e40] or the option 0x0040cf20, one update of 1/30 s
+(vtable +0x34) with detail bit 0 (the sounds) off, then +0xdc 0, +0xde 1,
++0x587 1: **the player's mech starts the mission powered down**, the HUD's
+saved state 1; the weapons' fire mode (+0xd4 +0x1c) from the pilot's +0x80.
+What powers it up is not traced (Core's enter plays "mech_powerup",
+game-loop.md; the power command 0x0041c08a toggles it).
+
+**Findings**
+
+- **The step quirk**: the pick's reach is 2y + 10 for a mech placed at y.
+  For y = 0 that is the intended 10 above; for the Mad Cat's c1m1 place
+  (y -35.9) it is -61.8, below the ground (-35.86), so nothing is "in
+  reach" and the lowest polygon is taken, the same one here. Where
+  polygons stack (a bridge over a valley, a roof over a floor) a mech
+  placed below 0 takes the lowest surface, one placed high may take a
+  surface up to y + 10 + y above it. `test_place.py` finds such places on
+  the shipped worlds (237 of 3600 placements over stacked polygons).
+  Kept: fixes.md, Candidates.
+- c1m1: the Owens' place (-1767.7 3 -1229, yaw 30 degrees) is flat ground
+  at 3, so it stands at 3.01; the Mad Cat starts at (-3200.9 -35.85
+  -1225.1), 1433 m from it, beyond its 1000 m sensors.
+
+**FIX (A)**: a model test past the record's 32nd slot would write past it
+in the exe (only the walk's entry checks); the port stops at 32. No shipped
+place comes near (a point under more than 32 nodes' polygons).
+
+**The port and its test.** `zcls::ground_point` (cls_di.cpp),
+`zmod::model_ground_point` / `polygon_ground_point` (gmod_hit.cpp),
+`zcls::node_box_extent_xz` (class.cpp), `zmth::transform_box_xz`,
+`mech3::ground_pick` (veh_basic.cpp), `Mech::place` / `set_place` /
+`reset_at` / `entity_moved` (mech_place.cpp), `Collider::place`,
+`Skis::reset`, `place_pilot_mech` (mission_launch.cpp). Calls out:
+`place_calls()` (the query, the attach), `collide_calls().set_position`
+(vtable +0x18) and `update_calls().moved` (0x005a85c0) when set; unset,
+the ports on `world_hooks().world`. The program wires player.cpp's
+`mech_place` and the launch's `pilot_place` to them; `node_add_child`
+now takes a world parent (0x004f2a40, already ported).
+
+`tests/differential/test_place.py` (in run_all.sh), on the six worlds:
+points over each world (on and off the grid, wrapping or not, zone mode 0
+and 1, heights around the ground; the camera and the sun added as world
+children for classes 1 and 9; half way, strips and boxed nodes as in
+test_di), each record, result, cached polygon and node flag bit for bit;
+the pick on each record and on crafted ones (water, no material, exactly
+step above, the surface exactly step below); a placement at each point on a
+mech image (its fields, matrix, controls, collider, skis and ski matrices,
+and every call out with the zone mode the query saw); 3000 crafted polygons
+for 0x0054d640 (walls, slivers, points on vertices and edges); 200 spawns.
+7200 queries, 7200 picks, 3600 placements identical.
+
+Break tests (`test_place.py 100` had to fail): 22 of 30 caught. Not
+caught: the cell's zone check left to the walk, the xz box writing y, the
+controls kept by SetPlace (all three equivalent); the wrapped point not
+moved back and the world's children tested as only children (no world
+child has a model or a box that matters on the shipped worlds); a lod at
+exactly 5 skipped (none is); the combined box matrix's [8] summed in
+0x004ec150's order (a rounding difference not reached). Caught: the edge
+tolerance, a vertical polygon's height, a polygon exactly at y, the
+cached polygon, strip winding, the zone, the box's max z (both paths), the
+pick's boundary, its in-water boundary, its fallback, its water flag, the
+0.01's sign, the step of 10 (the fix candidate), the zone mode, one
+0x005a85c0 instead of two, +0x58 kept, the collider's last points, the ski
+probes swapped, the right ski not levelled, the spawn's update with
+sounds, the fire mode, the HUD state.
+
+`mw3tests`: `mission_start_reads_c1m1_vehicles_headless` (the Owens on the
+ground at 3.01, in the world, its yaw), `mission_c1m1_sensors_fill_the_contacts_headless`
+(the Mad Cat placed and powered down by the spawn, 1433 m out and not
+sensed, then moved 300 m short of the Owens with SetPlace).
+
+Left: the classes 7 and 8 and fading nodes of the point walk are not on
+the shipped worlds (they mirror 0x004ee2f0's, test_di); a mech's polygons
+are found only once mechlib nodes carry their models as `model`
+(Node::lib_model, cls_mechlib); the vehicles' vt+0xdc; zEntity's marker
+nodes (0x005a8390: the program's stand-in uses the mech's own node).
+

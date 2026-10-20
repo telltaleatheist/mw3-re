@@ -216,6 +216,12 @@ struct Mech : ai::AiTarget {
   Foot* foot(int leg) const;    // 0x0041d4f0
   Calf* calf(int leg) const;    // 0x0041d4d0
 
+  // Placement (mech_place.cpp, docs/mission-start.md section 11).
+  int place(const float pos[3], float yaw);       // 0x004161c0: on the ground under pos, in the world
+  void set_place(const float pos[3], float yaw);  // vtable +0xdc, 0x00418f30
+  void reset_at(const float pos[3]);              // 0x00418e90: at rest at pos
+  void entity_moved();  // 0x005a85c0 with vtable +0x1c 0x005a85a0: the node's matrix and +0x18, +0x24 again
+
   // Movement (mech_move.cpp).
   int jump_jets(float dt);            // 0x004173b0, returns +0x580
   void add_jump_jet(bool add);        // 0x00417300

@@ -44,6 +44,10 @@ int node_box_corners(Node* node, float out[8][3]);  // 0x004ebdb0
 // queries' box tests (cls_di.c): bottom (min x, max z), (max x, max z),
 // (max x, min z), (min x, min z), then the top in that order.
 int node_box_xz(Node* node, float out[8][2]);       // 0x004ec150
+// The same box through the same matrices, axis aligned again, in x and z
+// only: out[0] min x, out[2] min z, out[3] max x, out[5] max z (the point
+// query's box test).
+int node_box_extent_xz(Node* node, float out[6]);   // 0x004ec430
 // ECX node, EDX out: the node's world rotation as euler angles (0x00523bc0)
 // and its world position, from an object3d's cached world matrix (+0x60) when
 // it is valid, else through node_to_world. 0 ok, 1 null node.
