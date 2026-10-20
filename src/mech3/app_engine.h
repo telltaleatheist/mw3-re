@@ -57,6 +57,7 @@ class GameEngine : public Engine {
     int32_t index = 0;   // the mission directory (0x00484c50): c1 c2 c3 c4 c4b t1
     int32_t type = 1;    // the game type: 1 a campaign mission (gametypes.md)
     int32_t number = 1;  // the mission number (world.zrd's m<n>, the start animation's)
+    int32_t mech = 9;    // the player's mech by roster index (9 the Mad Cat), its first configuration
     bool have_pos = false;  // the camera placed (--pos/--look): there is no mech to follow yet
     float eye[3] = {}, yaw = 0, pitch = 0;
     bool active = false;
@@ -234,6 +235,7 @@ class GameEngine : public Engine {
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
+  Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false;
   std::unordered_map<void*, Handle> handles_;

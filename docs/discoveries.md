@@ -953,6 +953,34 @@ From the mech definitions (mechdef-configs.md).
   the file's `max_turn_rate` and the mech's acceleration values; the per-engine
   override the code allows is never used.
 
+## Mechs: how a mech is built
+
+From the mech's constructor and the launch (mech-build.md).
+
+- **Every mech is built from two models.** Each part looks for its node in
+  the full model and in the low-detail one (`mech_<name>_1`) and claims
+  both, and the low-detail copy hangs under the mech just while its hit
+  handler is set, so shots on either model count as hits on the mech.
+- **A mech's height is its model's**: the box of the model, top to bottom
+  (12 m when it has no box). Its target node (likely where others aim)
+  sits at 65% of that height, its centre node at half.
+- **Armor and internal structure follow BattleTech.** Each section's
+  internal structure comes from a table by tonnage (a 100-ton mech: 31
+  centre torso, 21 side torso, 17 arm, 21 leg); the head always has 3,
+  whatever the tonnage. A section's armor is its loadout's points; one with
+  no armor at all takes damage as if it had a single point.
+- **Two "skis" under every mech follow the ground**: 12 m long (4 m for the
+  Elemental), one under each foot's track, each with three probes (front,
+  middle, back). They carry a hidden debug model the developers could show.
+- **The torso's twist limits start at 100 degrees and the look at -12 to
+  +20** until the mech's own file sets them.
+- **A joystick counts only when the joystick option is on**: the launch
+  picks the joystick control mode then, and keyboard and mouse otherwise,
+  whatever is plugged in.
+- **Unnamed mechs are numbered**: a mech made without a name is called
+  after its type and a count of every mech made since the game started
+  (`madcat07`). The player's is always `player`.
+
 ## Mechs: the definition file and saved loadouts
 
 From the mech definitions (mechdef-head.md).

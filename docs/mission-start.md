@@ -234,14 +234,12 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
 
 ## 10. Left
 
-- The launch 0x00491150 (mission.cpp): the player's mech (0x004140c0 and
-  the Mech constructor 0x004149f0, 218 lines plus the vehicle base
-  0x004aeb00, the collider, the weapon manager 0x004b00d0, the model and
-  parts 0x00415b00), its configuration (0x00414430, whose weapons part is
-  `mech3::configure_weapons`, and the AMS), the controls 0x00427280, the
-  cockpit; then 0x0049e5e0 (the campaign's lancemates from their slots,
-  with 0x0049e540), 0x0049dc80 (instant action's line-up from its records,
-  381 lines), 0x0046da80 (multiplayer).
+- The launch 0x00491150 and the mech's constructor chain (0x00414150,
+  0x004140c0, 0x004149f0 and down) are ported: mech-build.md. The AI mechs
+  of section 4 can use it (`app_mission.cpp` wires `mech_create` to it)
+  once their controls are. Left of the launch: 0x0049e5e0 (the campaign's
+  lancemates from their slots, with 0x0049e540), 0x0049dc80 (instant
+  action's line-up from its records, 381 lines), 0x0046da80 (multiplayer).
 - The builders' callees: the AI controls 0x004d8750 / 0x004e71c0 (the
   brain), the vehicles 0x004589d0 / 0x004ac320, their setup 0x0049ef40 and
   0x0049f660, the ground placement 0x004161c0, the skin swap 0x004757f0.

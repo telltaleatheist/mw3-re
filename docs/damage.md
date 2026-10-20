@@ -541,8 +541,8 @@ The ported functions are in `symbols.csv`. Others proposed:
 | Address | Name | Note |
 |---|---|---|
 | 0x4161a0 | mech_damage_callback | node +0xbc handler → +0x164 |
-| 0x45fe00 | MechPart::Init | armor and IS from config and table |
-| 0x4644b0 | Torso::Init | |
+| 0x45fe00 | MechPart::Init | armor and IS from config and table (ported, mech-build.md section 4) |
+| 0x4644b0 | Torso::Init | the sections 1-5 and the side structure (ported) |
 | 0x583020 | zWeapon_BeamDamage | |
 | 0x583480 | zWeapon_DealDamage | sets the shot `[0x9a0ec4]` |
 | 0x5826b0 | zWeapon_ProjectileHit | |

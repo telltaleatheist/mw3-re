@@ -44,6 +44,7 @@ class Skis {
   Mech* mech = nullptr;       // +0x000
   bool slid = false;          // +0x005  pushed this frame: no push decay, throttle stop
   float matrix[12] = {};      // +0x008  the mech's world matrix, moved ahead by the frame's motion
+  Handle base = nullptr;      // +0x038  "ski base" under the mech's node (its wrapper's node)
   Handle ski[2] = {};         // +0x03c, +0x040  (their wrappers' node)
   float sin_pitch[2] = {}, cos_pitch[2] = {};  // +0x044, +0x04c
   float a[2] = {}, b[2] = {}, c[2] = {};       // +0x054, +0x05c, +0x064  each ski's height parabola

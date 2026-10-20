@@ -150,6 +150,18 @@ int32_t weapon_count() { return zfix::options().bugs ? 38 : 37; }
 // Mech3.exe 1.2 @ 0x004846e0
 float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }
 
+// Mech3.exe 1.2 @ 0x00485400 (and 0x00485430, 0x00485460, 0x00485490): the
+// BattleTech table, a row per 5 t from 10 t (tonnage, CT, side torso, arm, leg).
+int32_t internal_points(int32_t mech, int32_t column) {
+  static const int32_t kTable[19][5] = {
+      {10, 4, 3, 1, 2},     {15, 5, 4, 2, 3},     {20, 6, 5, 3, 4},     {25, 8, 6, 4, 6},     {30, 10, 7, 5, 7},
+      {35, 11, 8, 6, 8},    {40, 12, 10, 6, 10},  {45, 14, 11, 7, 11},  {50, 16, 12, 8, 12},  {55, 18, 13, 9, 13},
+      {60, 20, 14, 10, 14}, {65, 21, 15, 10, 15}, {70, 22, 15, 11, 15}, {75, 23, 16, 12, 16}, {80, 25, 17, 13, 17},
+      {85, 27, 18, 14, 18}, {90, 29, 19, 15, 19}, {95, 30, 20, 16, 20}, {100, 31, 21, 17, 21}};
+  const int32_t row = static_cast<int32_t>(max_mass(mech)) / 5 - 2;  // every roster mass is in the table
+  return kTable[row][column];
+}
+
 // Mech3.exe 1.2 @ 0x00484aa0. Kinds as in equip_kind; tech 1 is Clan.
 float equip_weight(int32_t kind, int32_t tech) {
   const bool clan = tech == kClan;
