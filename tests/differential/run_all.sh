@@ -73,6 +73,7 @@ for t in \
     settings \
     mission_load \
     mission_start \
+    mech_build \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done
