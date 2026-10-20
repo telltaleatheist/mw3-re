@@ -9,7 +9,6 @@
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
-#include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
@@ -1127,10 +1126,9 @@ int render_world(Node* camera_node, int32_t after) {
 }
 
 namespace {
-// The node's model (a world model, or a mechlib node's own port) takes the
-// morph of a morphing LoD, then casts.
+// The node's model takes the morph of a morphing LoD, then casts.
 void shadow_model_morphed(Node* node) {
-  uint8_t* h = node->model ? node->model->header : node->lib_model ? node->lib_model->header : nullptr;
+  uint8_t* h = node->model ? node->model->header : nullptr;
   if (!h) return;
   if (g_walk.morph) {
     uint32_t f;

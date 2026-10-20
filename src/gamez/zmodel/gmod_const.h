@@ -24,6 +24,9 @@ struct Polygon {                 // 0x24 bytes
   uint32_t* scratch;             // +0x18
   Material* material;            // +0x1c  an index in the file
   uint32_t zone_set;             // +0x20
+  // A mechlib polygon's +0x1c until the library resolves it (0x004fcd40):
+  // the index in mechlib's own material list.
+  uint32_t material_index = 0;
 };
 
 struct Model {                   // 0x60-byte slot
@@ -46,8 +49,15 @@ struct ModelPool {
 ModelPool& models();
 
 Model* model_at(int32_t index);               // 0x005380c0
+// zModel's start (0x00526800's pool part): `size` slots ([0x007402e0], 1750
+// when unset), all free. A world's gamez.zbd then replaces the pool.
+void reset_pool();
+// A free slot, its header cleared and +8 = 3 (flag 0x10 off). An empty pool
+// stops the game ("GameZ model resource failure").
+Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
+int model_release(Model* m);                  // 0x00539150, 1 while used (+0xc)
 
 // The texture cycle of the model's first polygon's material (gmod_const.c):
 // back to its first texture, or to frame n (past the end it wraps, below 0

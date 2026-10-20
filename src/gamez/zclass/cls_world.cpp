@@ -367,6 +367,39 @@ int world_remove_child(Node* world, Node* node) {
   return area_pending_push(world, w, &p);
 }
 
+// Mech3.exe 1.2 @ 0x004f2770. With +0xb8 set the rows are not the world's
+// to free; the grid is emptied either way.
+int world_free_partitions(Node* world) {
+  World* w = world_of(world);
+  if (!w->rows) return 0;
+  const bool own = w->get<int32_t>(0xb8) == 0;
+  for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z) {
+    for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+      Partition& p = w->rows[z][x];
+      delete[] p.nodes;
+      p.nodes = nullptr;
+      delete[] p.fades;
+      p.fades = nullptr;
+    }
+    if (own) delete[] w->rows[z];
+  }
+  if (own) delete[] w->rows;
+  w->rows = nullptr;
+  for (int off : {0x90, 0x68, 0x64, 0x8c, 0x88}) w->put<int32_t>(off, 0);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f1c60
+int world_delete(Node* world) {
+  if (world_free_partitions(world) != 0) return 0;
+  World* w = world_of(world);
+  delete[] w->lights, delete[] w->light_data, delete[] w->sounds, delete[] w->sound_data;
+  delete[] w->area_pending;
+  w->lights = nullptr, w->light_data = nullptr, w->sounds = nullptr, w->sound_data = nullptr;
+  w->area_pending = nullptr;
+  return node_release(world);
+}
+
 // Mech3.exe 1.2 @ 0x004f2d50. Both sides' lists, no duplicate check.
 int world_add_light(Node* world, Node* light) {
   World* w = world_of(world);

@@ -1,14 +1,26 @@
 #include "gamez/zclass/list.h"
 
+#include <cstdio>
 #include <cstring>
 #include <new>
 
+#include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/cls_zbd.h"
+#include "gamez/zclass/light.h"
 #include "gamez/zclass/seq.h"
+#include "gamez/zclass/sound.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zmodel/gmod_const.h"
 
 namespace zcls {
 
 namespace {
+const char kListFile[] = "C:\\zipper\\GameZMech3\\zClass\\List.c";
+const char kOldFile[] = "C:\\zipper\\GameZMech3\\zError\\zerr_old.c";  // 0x0050da70's reports
 Lists g_lists;
 ListWalk g_walk;
 
@@ -113,12 +125,6 @@ int push_back(int list, Node* node) {
   return 0;
 }
 
-namespace {
-void (*g_destroy)(Node* node) = nullptr;
-}  // namespace
-
-void set_node_destroy(void (*destroy)(Node* node)) { g_destroy = destroy; }
-
 // Mech3.exe 1.2 @ 0x004f8220. List 7 goes through the node's own item
 // (kept when the node's flag 2 is set); the others take the first item of
 // this node that is not already marked.
@@ -180,12 +186,168 @@ int purge_lists() {
   static const int kOrder[] = {6, 0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 13, 14, 15, 11, 12};
   for (int list : kOrder)
     if (g_lists.list[list].needs_purge) list_purge(list);
-  while (ListItem* item = g_lists.deferred) {
+  while (ListItem* item = g_lists.deferred) {  // 0x004f81e0
     g_lists.deferred = item->next;
-    if (item->node && g_destroy) g_destroy(item->node);
+    if (item->node) node_free(item->node);
     item_free(item);
   }
   return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f8050
+int deferred_push(Node* node) {
+  ListItem* item = item_alloc();
+  item->node = node;
+  if (g_lists.deferred) {
+    item->next = g_lists.deferred;
+    g_lists.deferred->prev = item;
+  }
+  g_lists.deferred = item;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f8390. Its class's list, list 7 when on it, its
+// action list, then list 6. An unknown class is reported (0x0050da70) and
+// the node still leaves the other lists.
+int node_unlist(Node* node) {
+  switch (node->cls()) {
+    case 1: list_remove(kCameras, node); break;
+    case 2: list_remove(kWorlds, node); break;
+    case 3: list_remove(kWindows, node); break;
+    case 4: list_remove(kDisplays, node); break;
+    case 5: case 6: case 11: break;
+    case 7: list_remove(11, node); break;
+    case 8: list_remove(12, node); break;
+    case 9: list_remove(kLights, node); break;
+    case 10: list_remove(kSounds, node); break;
+    default: {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "%s: Line %d: Unknown class type while deleting node from lists.\n", kListFile,
+                    0x954);
+      zerr::report(3, kOldFile, 0x23, msg);
+      break;
+    }
+  }
+  if (node->flags() & 1) list_remove(kChanged, node);
+  const int32_t priority = node->get<int32_t>(0x44);
+  if (node->action && priority >= 0 && priority < 6) list_remove(priority, node);
+  list_remove(kAllNodes, node);
+  return 0;
+}
+
+namespace {
+// Each child taken off (not destroyed: it stays on list 6 for its own turn).
+int drop_children(Node* node) {
+  while (node->child_count() > 0)
+    if (int r = node_remove_child(node, node->children[0])) return r;
+  return 0;
+}
+int drop_parents(Node* node) {
+  while (node->parent_count() > 0)
+    if (int r = node_remove_child(node->parents[0], node)) return r;
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f84b0 (_gwListDeleteANode). 0 when the node is gone, 1
+// while something still holds it, else the first error.
+int node_destroy(Node* node) {
+  if (int r = node_drop_model(node)) return r;
+  switch (node->cls()) {
+    case 1: case 3: case 4: case 7: case 11:
+      if (int r = drop_children(node)) return r;
+      return node->parent_count() == 0 ? node_release(node) : 1;
+    case 2: {
+      auto* w = static_cast<World*>(node->data);
+      while (w->get<int32_t>(0xa0) > 0)
+        if (int r = world_remove_light(node, w->lights[0])) return r;
+      if (w->lights) {
+        delete[] w->lights, delete[] w->light_data;
+        w->lights = nullptr, w->light_data = nullptr;
+      }
+      while (w->get<int32_t>(0xac) > 0)
+        if (int r = world_remove_sound(node, w->sounds[0])) return r;
+      if (w->sounds) {
+        delete[] w->sounds, delete[] w->sound_data;
+        w->sounds = nullptr, w->sound_data = nullptr;
+      }
+      if (int r = drop_children(node)) return r;
+      for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z)
+        for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+          Partition& p = w->rows[z][x];
+          while (p.get<int16_t>(0x3a) > 0)
+            if (int r = world_remove_child(node, p.nodes[0])) return r;
+        }
+      return node->parent_count() == 0 ? world_delete(node) : 1;
+    }
+    case 5: case 6:
+      if (int r = drop_children(node)) return r;
+      if (int r = drop_parents(node)) return r;
+      return node_release(node);
+    case 8:
+      if (int r = drop_children(node)) return r;
+      return node->parent_count() == 0 ? animate_delete(node) : 1;
+    case 9:
+    case 10: {
+      if (int r = drop_children(node)) return r;
+      if (int r = drop_parents(node)) return r;
+      const bool light = node->cls() == 9;
+      const auto* d = static_cast<const uint8_t*>(node->data);
+      int32_t worlds;
+      std::memcpy(&worlds, d + (light ? 0xc8 : 0x8c), 4);  // the worlds that list it
+      if (worlds > 0) return 1;
+      return light ? light_delete(node) : sound_delete(node);
+    }
+    default: {
+      if (immediate_delete()) {
+        char msg[120];
+        std::snprintf(msg, sizeof msg, "_gwListDeleteANode(): Unrecognized node class type:node = %s ptr = 0x%08x class_type = %d",
+                      node->name(), 0u, node->cls());
+        zerr::report(0x400, kListFile, 0xaeb, msg);
+      }
+      return 3;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004f8ab0. With immediate deletes off, every node on list
+// 6 is destroyed, pass after pass, until a pass destroys none; then the
+// lists are emptied and their items freed.
+int destroy_all() {
+  const int32_t immediate = immediate_delete();
+  immediate_delete() = 0;
+  purge_lists();
+  ListItem* head = g_lists.list[kAllNodes].head;
+  for (int destroyed = 1; head && destroyed > 0;) {
+    destroyed = 0;
+    for (ListItem* item = head; item; item = item->next)
+      if (item->node && node_destroy(item->node) == 0) {
+        item->node = nullptr;
+        ++destroyed;
+      }
+  }
+  reset_lists();
+  immediate_delete() = immediate;
+  free_items();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7920
+void free_items() { g_lists.chunks.clear(); }
+
+// Mech3.exe 1.2 @ 0x004f8fb0 (0x004f8f40 calls it): every node destroyed,
+// the pool's blocks freed, the render's pre/post callbacks back to none and
+// the remembered gamez.zbd path cleared.
+int classes_reset() {
+  destroy_all();
+  NodePool& p = nodes();
+  if (p.capacity > 0) {
+    p.blocks.clear();
+    p.capacity = 0, p.live = 0, p.free_head = -1;
+  }
+  scene_walk().pre = nullptr, scene_walk().post = nullptr;  // 0x004f7630(0), 0x004f7650(0)
+  std::memset(zbd_path(), 0, 4);                            // 0x004fe0f0
+  return 0;  // [0x0060bf48] (0x004f8f70's periodic callback flag) has no port
 }
 
 // Mech3.exe 1.2 @ 0x004f7d20

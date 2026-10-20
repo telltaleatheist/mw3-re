@@ -1,5 +1,6 @@
 #include "gamez/zclass/sound.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "gamez/zclass/class.h"
@@ -53,6 +54,25 @@ Node* sound_create() {
   s->nodes = nullptr;
   push_front(kSounds, node);
   return node;
+}
+
+// Mech3.exe 1.2 @ 0x004fd370. A playing voice is stopped first; one still
+// listed by a world is reported (0x0050da70) and kept.
+int sound_delete(Node* node) {
+  if (!node) return zerr::report(0x400, kFile, 0xc3, "Null node pointer."), 5;
+  auto* s = static_cast<Sound*>(node->data);
+  if (!s) return zerr::report(0x400, kFile, 0xc4, "Null class data pointer"), 5;
+  if (s->voice) stop_voice(s);
+  if (s->get<int32_t>(0x8c) > 0) {
+    char msg[120];
+    std::snprintf(msg, sizeof msg, "%s: Line %d: ERROR deleting sound; Sound attached to %d world nodes.\n", kFile, 0xda,
+                  s->get<int32_t>(0x8c));
+    zerr::report(1, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg);
+    return 1;
+  }
+  delete[] s->nodes;
+  s->nodes = nullptr;
+  return node_release(node);
 }
 
 // Mech3.exe 1.2 @ 0x004fd520. Turning off a playing sound stops it.

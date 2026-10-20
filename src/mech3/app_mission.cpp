@@ -285,6 +285,7 @@ struct WiredMissionHooks : MissionHooks {
   void models_reset() override {
     zmod::materials() = zmod::MaterialTable{};
     zmod::models() = zmod::ModelPool{};
+    zmod::reset_pool();
     zmod::fog() = zmod::Fog{};
     zrndr::fog_color() = zrndr::FogColor{};
     zrndr::device_fog().active = 1;  // the Direct3D path

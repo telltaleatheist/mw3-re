@@ -427,6 +427,7 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
 }  // extern "C"
 
 #include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zmodel/gmod_const.h"
 
 namespace {
 void put_bytes(std::vector<uint8_t>& b, const void* p, size_t n) {
@@ -448,7 +449,9 @@ int probe_mechlib_model(const char* path, long offset, uint8_t* out, int cap) {
   std::FILE* f = std::fopen(path, "rb");
   if (!f) return -1;
   std::fseek(f, offset, SEEK_SET);
-  zcls::Model* m = zcls::read_model(f);
+  zmod::models() = zmod::ModelPool{};
+  zmod::reset_pool();
+  zmod::Model* m = zcls::read_model(f);
   const long end = std::ftell(f);
   std::fclose(f);
   std::vector<uint8_t> b;
@@ -456,14 +459,14 @@ int probe_mechlib_model(const char* path, long offset, uint8_t* out, int cap) {
   put_bytes(b, &used, 4);
   put_bytes(b, m->header, 0x34);
   put_bytes(b, m->header + 0x48, 0x5c - 0x48);
-  if (m->vertices) put_bytes(b, m->vertices, m->vertex_count * 12);
-  if (m->normals) put_bytes(b, m->normals, m->normal_count * 12);
-  if (m->morphs) put_bytes(b, m->morphs, m->morph_count * 12);
-  for (uint32_t i = 0; i < m->polygon_count; ++i) {
-    const zcls::Polygon& p = m->polygons[i];
+  if (m->vertices) put_bytes(b, m->vertices, m->count(0x14) * 12);
+  if (m->normals) put_bytes(b, m->normals, m->count(0x18) * 12);
+  if (m->morphs) put_bytes(b, m->morphs, m->count(0x1c) * 12);
+  for (uint32_t i = 0; i < m->count(0x10); ++i) {
+    const zmod::Polygon& p = m->polygons[i];
     const uint32_t k = p.flags & 0xff;
     put_bytes(b, &p.flags, 4), put_bytes(b, &p.priority, 4);
-    put_bytes(b, &p.material, 4), put_bytes(b, &p.zone_set, 4);
+    put_bytes(b, &p.material_index, 4), put_bytes(b, &p.zone_set, 4);
     const uint8_t has[4] = {p.vertex_indices != nullptr, p.normal_indices != nullptr,
                             p.uvs != nullptr, p.colors != nullptr};
     put_bytes(b, has, 4);
@@ -472,7 +475,7 @@ int probe_mechlib_model(const char* path, long offset, uint8_t* out, int cap) {
     if (p.uvs) put_bytes(b, p.uvs, k * 8);
     if (p.colors) put_bytes(b, p.colors, k * 12);
   }
-  zcls::free_model(m);
+  zmod::models() = zmod::ModelPool{};
   return finish(b, out, cap);
 }
 
@@ -681,7 +684,15 @@ void put_class_data(std::vector<uint8_t>& b, zcls::Node* n) {
     }
     case 2: {
       auto* w = static_cast<World*>(n->data);
-      put_raw(b, w->raw, sizeof w->raw, {0x90, 0xa4, 0xa8, 0xb0, 0xb4});
+      put_raw(b, w->raw, sizeof w->raw, {0x0c, 0x90, 0xa4, 0xa8, 0xb0, 0xb4});
+      // The cells waiting for the area update, as (row, column).
+      for (int32_t i = 0; i < w->get<int32_t>(4); ++i) {
+        int32_t at = -1;
+        for (int32_t z = 0; at < 0 && z < w->get<int32_t>(0x8c); ++z)
+          for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x)
+            if (reinterpret_cast<uint32_t*>(w->rows[z][x].raw) == w->area_pending[i]) at = z * 0x10000 + x;
+        put_i32(b, at);
+      }
       const int32_t lights = w->get<int32_t>(0xa0), sounds = w->get<int32_t>(0xac);
       put_nodes(b, w->lights, lights);
       for (int32_t i = 0; w->lights && i < lights; ++i) put_i32(b, w->light_data[i] == w->lights[i]->data);
@@ -737,16 +748,19 @@ void reset_world_state(int free_head) {
   zerr::set_sink(record_report);
 }
 
-void dump_world(std::vector<uint8_t>& b, int size) {
+// With `items`, each node's list-7 item (+0xcc) as its place in the item pool.
+void dump_world(std::vector<uint8_t>& b, int size, bool items = false) {
   const zcls::NodePool& p = zcls::nodes();
   put_i32(b, p.capacity), put_i32(b, p.live), put_i32(b, p.free_head);
   put_i32(b, static_cast<int32_t>(p.blocks.size()));
   for (int32_t i = 0; i < p.capacity; ++i) {
     zcls::Node* n = zcls::node_at(i);
-    put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x48, 0x58, 0x60});
+    if (items) put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x48, 0x58, 0x60, 0xcc});
+    else put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x48, 0x58, 0x60});
     put_bytes(b, &n->link, 4);
     put_i32(b, n->model ? static_cast<int32_t>(n->model - zmod::models().slots.data()) : -1);
     put_i32(b, n->action != nullptr);
+    if (items) put_item(b, n->changed);
     if (i >= size) continue;
     put_nodes(b, n->parents, n->parent_count());
     put_nodes(b, n->children, n->child_count());
@@ -818,6 +832,94 @@ int probe_read_zbd(const char* path, int size, uint8_t* out, int cap) {
   put_i32(b, zimg::textures().count), put_i32(b, zmod::materials().count);
   put_i32(b, zmod::models().count);
   if (r == 0) dump_world(b, size);
+  return finish(b, out, cap);
+}
+
+}  // extern "C"
+
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_util.h"
+#include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/light.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zclass/sound.h"
+
+namespace {
+void destroy_probe_action(zcls::Node*) {}
+int32_t idx(const zcls::Node* n) { return node_index(n); }
+}  // namespace
+
+extern "C" {
+
+// Taking nodes down (test_destroy.py): a world read whole, then operations on
+// its nodes by pool index, each answered with its result.
+int probe_destroy_load(const char* path) {
+  zimg::textures().count = 0;
+  zimg::textures().group = 3;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zvid::set_pixel_format(5, 6, 5);
+  reset_world_state(-1);
+  zcls::immediate_delete() = 1;
+  zcls::frames() = zcls::Frames{};
+  return zcls::read_zbd(path);
+}
+
+int probe_destroy_op(int op, int a, int b, int c) {
+  using namespace zcls;
+  Node* n = a >= 0 ? node_at(a) : nullptr;
+  switch (op) {
+    case 0: return node_destroy(n);
+    case 1: return node_delete(n);
+    case 2: return node_release(n);
+    case 3: return tree_destroy(n);
+    case 4: return node_remove_child(node_at(b), n);
+    case 5: immediate_delete() = a; return 0;
+    case 6: lists().enabled = a; return 0;
+    case 7: return purge_lists();
+    case 8: {
+      Node* o = object3d_create();
+      if (n) n->cls() == 2 ? world_add_child(n, o) : node_add_child(n, o);
+      if (b >= 0) {
+        node_set_priority(o, b);
+        c ? node_set_action_back(o, destroy_probe_action) : node_set_action(o, destroy_probe_action);
+      }
+      return idx(o);
+    }
+    case 9: {
+      Node* l = light_create();
+      if (n) world_add_light(n, l);
+      return idx(l);
+    }
+    case 10: {
+      Node* s = sound_create();
+      if (n) world_add_sound(n, s);
+      return idx(s);
+    }
+    case 11: return node_free(n);
+    case 12: return destroy_all();
+    case 13: return classes_reset();
+    case 14: return node_set_model(n, b >= 0 ? zmod::model_at(b) : nullptr);
+    default: return -99;
+  }
+}
+
+// The world as test_gamez dumps it, then the delete state and, with `pool`,
+// every model slot's use count, polygon count and link.
+int probe_destroy_dump(int pool, uint8_t* out, int cap) {
+  std::vector<uint8_t> b;
+  dump_world(b, zcls::nodes().capacity, true);
+  put_i32(b, zcls::immediate_delete()), put_i32(b, zcls::lists().enabled);
+  put_bytes(b, zcls::zbd_path(), 4);
+  int32_t deferred = 0;
+  for (zcls::ListItem* i = zcls::lists().deferred; i; i = i->next) ++deferred;
+  put_i32(b, deferred);
+  for (zcls::ListItem* i = zcls::lists().deferred; i; i = i->next) put_i32(b, idx(i->node)), put_item(b, i);
+  const zmod::ModelPool& mp = zmod::models();
+  put_i32(b, mp.count), put_i32(b, mp.free_head);
+  if (pool)
+    for (const zmod::Model& m : mp.slots) put_i32(b, static_cast<int32_t>(m.count(0xc))), put_i32(b, static_cast<int32_t>(m.count(0x10))), put_bytes(b, &m.link, 4);
+  zerr::set_sink(record_report);
   return finish(b, out, cap);
 }
 
@@ -1128,7 +1230,7 @@ void put_node_graph(std::vector<uint8_t>& b) {
     put_i32(b, i);
     put_raw(b, n->raw, 0xd0, {0x38, 0x3c, 0x58, 0x60, 0xcc});
     put_bytes(b, &n->link, 4);
-    b.push_back(n->lib_model != nullptr);
+    b.push_back(n->model != nullptr);
     for (int32_t k = 0; k < n->parent_count(); ++k) put_i32(b, node_index(n->parents[k]));
     for (int32_t k = 0; k < n->child_count(); ++k) put_i32(b, node_index(n->children[k]));
     put_item(b, n->changed);
@@ -1155,6 +1257,8 @@ int probe_mechlib_tree(const char* path, long offset, int frame, uint8_t* out, i
   zcls::nodes() = zcls::NodePool{};
   zcls::lists() = zcls::Lists{};
   zcls::frames() = zcls::Frames{static_cast<uint32_t>(frame), 0};
+  zmod::models() = zmod::ModelPool{};
+  zmod::reset_pool();
   zcls::TreeReader lib;
   zcls::Node* root = zcls::read_tree(lib, f, nullptr);
   const long end = std::ftell(f);

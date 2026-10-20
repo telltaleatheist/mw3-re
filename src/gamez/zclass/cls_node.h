@@ -8,7 +8,7 @@
 // original file is unknown: these functions sit between class.c, cls_util.c
 // and cls_zbd.c, so the file is named for the struct.
 namespace zmod { struct Model; }
-namespace zcls { struct Model; }
+
 namespace platform { class Alert; }
 
 namespace zcls {
@@ -21,9 +21,7 @@ struct Node {                      // 0xd4-byte pool slot
   uint8_t raw[0xd0];               // as stored; the fields below replace its pointers
   uint32_t link;                   // +0xd0  bits 0-23 free link, bit 24 live
   void* data = nullptr;            // +0x38  class data
-  zmod::Model* model = nullptr;    // +0x3c  an index in the file
-  Model* lib_model = nullptr;      // +0x3c  for mechlib nodes: their models are a
-                                   // separate port for now (cls_mechlib.h)
+  zmod::Model* model = nullptr;    // +0x3c  an index in the file, a pool slot
   void* action = nullptr;          // +0x48  callback (a NodeAction)
   void* owner = nullptr;           // +0x40  set by its user (an animation's def for its
                                    // own object, zeff_anim_run)
@@ -100,6 +98,26 @@ int node_set_proximity(Node* node, int on);               // 0x004eb790, flag 0x
 // node `test` returns 1 for. Original file unknown (zClass, next to 0x004f9d60).
 int node_tree_any(Node* node, int (*test)(Node* node));   // 0x004f9e00
 int node_is_billboard(Node* node);                        // 0x004f9de0, a CylindricalY facade model
+
+// The node's model's 0x5c bytes (the use count at +0xc), null for none.
+uint8_t* node_model_header(const Node* node);
+// 0x004eb370: the old model's use count down, the new one's up and its box
+// into +0x8c (flag 0x200), the node marked changed (+0x2c bit 2). Null
+// drops the model (the use count is the caller's to act on).
+int node_set_model(Node* node, zmod::Model* model);       // 0x004eb370
+// The node lets its model go; one no node uses any more is freed (0x00539150).
+// Inline in 0x004f84b0 and 0x004f9050.
+int node_drop_model(Node* node);
+
+// Taking nodes down (docs/zclass-world.md, Destroy). Removing a child is by
+// the parent's class; freeing returns the slot when nothing holds the node.
+int node_remove_child(Node* parent, Node* child);  // 0x004ebb40, 5 null, 1 not its child
+int node_free(Node* node);         // 0x004eaf90, 1 while it has links or a model
+int node_release(Node* node);      // 0x004eb050: off the lists, then freed (or deferred)
+int node_delete(Node* node);       // 0x004eaea0: by class, only without parents
+// [0x005e9e18]: a released node leaves its lists and is freed at once (1),
+// or stays listed until the lists are reset (0, the shutdown's setting).
+int32_t& immediate_delete();       // 0x004eb040 reads it, 0x004eb030 sets it
 
 // The null and class checks every class setter starts with: 0, or the
 // setter's return code (5 null node or data, 3 wrong class).

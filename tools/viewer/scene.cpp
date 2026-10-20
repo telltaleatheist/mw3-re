@@ -268,6 +268,8 @@ std::string Mech::load(const std::string& zbd_dir, const std::string& entry) {
     return "no " + entry + " in mechlib.zbd; entries:" + names;
   }
   zcls::nodes() = zcls::NodePool{};
+  zmod::models() = zmod::ModelPool{};
+  zmod::reset_pool();  // 0x00526800: the mechlib models come from the world pool
   zcls::TreeReader reader;
   d_->root = zcls::read_tree(reader, f, nullptr);
   if (!d_->root) return "could not read " + entry;
@@ -284,13 +286,13 @@ void Mech::build(Scene& out, const Pose* pose) const {
     todo.pop_back();
     ++out.nodes;
     for (int c = n->child_count() - 1; c >= 0 && n->children; --c) todo.push_back(n->children[c]);
-    if (n->cls() != kObject3d || !n->lib_model) continue;
+    if (n->cls() != kObject3d || !n->model) continue;
     ++out.objects;
-    const zcls::Model& m = *n->lib_model;
+    const zmod::Model& m = *n->model;
     const Xform x = world_xform(n, pose);
-    for (uint32_t p = 0; p < m.polygon_count && m.polygons; ++p) {
-      const zcls::Polygon& poly = m.polygons[p];
-      const zcls::Material* mat = poly.material < d_->mats.size() ? &d_->mats[poly.material] : nullptr;
+    for (uint32_t p = 0; p < m.count(0x10) && m.polygons; ++p) {
+      const zmod::Polygon& poly = m.polygons[p];
+      const zcls::Material* mat = poly.material_index < d_->mats.size() ? &d_->mats[poly.material_index] : nullptr;
       float rgb[3] = {255, 255, 255};
       int img = -1;
       uint8_t alpha = 255;
@@ -299,7 +301,7 @@ void Mech::build(Scene& out, const Pose* pose) const {
         alpha = mat->raw[0];
         if ((mat->raw[1] & 1) && poly.uvs) img = build.image(mat->texture);
       }
-      build.polygon(x, m.vertices, m.vertex_count, {poly.flags, poly.vertex_indices, poly.uvs, poly.colors, img, rgb, alpha},
+      build.polygon(x, m.vertices, m.count(0x14), {poly.flags, poly.vertex_indices, poly.uvs, poly.colors, img, rgb, alpha},
                     false, nullptr);
     }
   }

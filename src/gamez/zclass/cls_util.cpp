@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "gamez/zclass/cls_node.h"
+
 #pragma STDC FP_CONTRACT OFF
 
 namespace zcls {
@@ -39,6 +41,19 @@ void box_sphere(const float box[6], float centre[3], float* radius) {
   const float hx = (box[3] - box[0]) * 0.5f, hy = (box[4] - box[1]) * 0.5f, hz = (box[5] - box[2]) * 0.5f;
   centre[0] = box[0] + hx, centre[1] = hy + box[1], centre[2] = hz + box[2];
   *radius = approx_sqrt((hx * hx + hy * hy) + hz * hz);
+}
+
+// Mech3.exe 1.2 @ 0x004f9050. A child left without parents goes with it; a
+// failing child stops the walk, not the node's own delete.
+int tree_destroy(Node* node) {
+  if (!node || node->parent_count() > 0) return 1;
+  while (node->child_count() > 0) {
+    Node* child = node->children[0];
+    if (node_remove_child(node, child) != 0) break;
+    if (child->parent_count() == 0 && tree_destroy(child) != 0) break;
+  }
+  if (int r = node_drop_model(node)) return r;
+  return node_delete(node);
 }
 
 }  // namespace zcls

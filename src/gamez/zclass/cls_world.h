@@ -44,6 +44,8 @@ int world_add_light(Node* world, Node* light);    // 0x004f2d50
 int world_remove_light(Node* world, Node* light);  // 0x004f2e00
 int world_add_sound(Node* world, Node* sound);    // 0x004f2f90
 int world_remove_sound(Node* world, Node* sound);  // 0x004f3040
+int world_free_partitions(Node* world);           // 0x004f2770
+int world_delete(Node* world);                    // 0x004f1c60: its grid and lists, then released
 
 // The cell a box (x and z) fits, with the world's margins, else (-1, -1).
 void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z,

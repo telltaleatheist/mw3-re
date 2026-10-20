@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "crt/msvc_math.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -38,6 +39,32 @@ uint32_t Model::count(int off) const {
 Model* model_at(int32_t index) {
   if (index < 0 || index >= static_cast<int32_t>(g_pool.slots.size())) return nullptr;
   return &g_pool.slots[index];
+}
+
+// Mech3.exe 1.2 @ 0x00526800 (the pool's part; the draw table and lighting
+// settings are the caller's).
+void reset_pool() {
+  ModelPool& p = g_pool;
+  if (p.size == 0) p.size = 0x6d6;
+  p.slots.assign(p.size, Model{});
+  for (int32_t i = 0; i < p.size; ++i) p.slots[i].link = static_cast<uint32_t>(i + 1 < p.size ? i + 1 : -1);
+  p.free_head = 0;
+  p.count = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00538fe0
+Model* model_alloc() {
+  ModelPool& p = g_pool;
+  if (p.free_head < 0) zcls::gamez_abort("GameZ model resource failure: restarting your game usually solves this.");
+  Model* m = &p.slots[p.free_head];
+  ++p.count;
+  p.free_head = static_cast<int32_t>(m->link);
+  const uint32_t link = m->link;
+  *m = Model{};
+  m->link = link;
+  const uint32_t flags = 3;  // (+8 & ~0x10) | 3 on the cleared header
+  std::memcpy(m->header + 8, &flags, 4);
+  return m;
 }
 
 // Mech3.exe 1.2 @ 0x00538a70. Every read error returns -1, which the caller
@@ -119,6 +146,33 @@ int read_models(std::FILE* f) {
   }
   for (int i = 0; i < size; ++i) read_model_data(f, p.slots[i]);
   return size;
+}
+
+// Mech3.exe 1.2 @ 0x00539150. 1 while a node still uses it. The polygons'
+// arrays, the vertices, normals, morphs and lights are freed, the header
+// zeroed and the slot put back on the pool's free list.
+int model_release(Model* m) {
+  if (!m) return 5;
+  if (m->count(0xc) != 0) return 1;
+  for (uint32_t i = 0; m->polygons && i < m->count(0x10); ++i) {
+    Polygon& q = m->polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs);
+    std::free(q.colors), std::free(q.scratch);
+    q.vertex_indices = q.normal_indices = q.scratch = nullptr;
+    q.uvs = q.colors = nullptr;
+  }
+  std::memset(m->header + 0x10, 0, 4);
+  delete[] m->polygons;
+  std::free(m->vertices), std::free(m->normals), std::free(m->morphs);
+  for (uint32_t i = 0; m->lights && i < m->count(0x20); ++i) std::free(m->lights[i].vertices);
+  std::free(m->lights);
+  m->polygons = nullptr, m->vertices = m->normals = m->morphs = nullptr, m->lights = nullptr;
+  std::memset(m->header, 0, sizeof m->header);
+  const int32_t index = static_cast<int32_t>(m - g_pool.slots.data());
+  m->link = static_cast<uint32_t>(g_pool.free_head);
+  --g_pool.count;
+  g_pool.free_head = index;
+  return 0;
 }
 
 // Mech3.exe 1.2 @ 0x0053bc10

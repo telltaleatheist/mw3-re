@@ -12,6 +12,11 @@ void corners_sphere(const float corners[8][3], float centre[3], float* radius); 
 // and half-diagonal (the partitions' sphere after the area update).
 void box_sphere(const float box[6], float centre[3], float* radius);  // 0x004f9bc0
 
+struct Node;
+// A node without parents and its whole tree below (each child that has no
+// other parent), models let go: 0 gone, 1 held, else an error.
+int tree_destroy(Node* node);  // 0x004f9050
+
 // The engine's square root guess (bits / 2 + 0x1fc00000), up to ~6% off.
 float approx_sqrt(float x);
 
