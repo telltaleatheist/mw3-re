@@ -312,8 +312,13 @@ the cheat byte [0x00608e40] or the option 0x0040cf20, one update of 1/30 s
 (vtable +0x34) with detail bit 0 (the sounds) off, then +0xdc 0, +0xde 1,
 +0x587 1: **the player's mech starts the mission powered down**, the HUD's
 saved state 1; the weapons' fire mode (+0xd4 +0x1c) from the pilot's +0x80.
-What powers it up is not traced (Core's enter plays "mech_powerup",
-game-loop.md; the power command 0x0041c08a toggles it).
+**The power-up** is Core's resume(7) (0x00481170, game-loop.md), when the
+mission's fade in ends: zInput reset, then for the pilot's mech (unless the
+pilot's +0x59) 0x0041ca30(0) (the HUD's fall flag +0x638: the player's mech
+takes the value, any other 1) and **0x0041cc30(0), the power-up**; Core's
+enter has meanwhile played the "mech_powerup" sound. So every mission
+starts with the reactor coming on as the screen fades in; the power key
+(the command at 0x0041c077) toggles it after.
 
 **Findings**
 
@@ -328,7 +333,10 @@ game-loop.md; the power command 0x0041c08a toggles it).
   Kept: fixes.md, Candidates.
 - c1m1: the Owens' place (-1767.7 3 -1229, yaw 30 degrees) is flat ground
   at 3, so it stands at 3.01; the Mad Cat starts at (-3200.9 -35.85
-  -1225.1), 1433 m from it, beyond its 1000 m sensors.
+  -1225.1), 1433 m from it, beyond its 1000 m sensors, **on the seabed
+  under 4.86 m of the ocean** (`ocean67` at -31 above the ground at
+  -35.86; the pick leaves water out): the campaign opens with a wade
+  ashore.
 
 **FIX (A)**: a model test past the record's 32nd slot would write past it
 in the exe (only the walk's entry checks); the port stops at 32. No shipped
