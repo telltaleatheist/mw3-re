@@ -54,14 +54,19 @@ uint32_t rgba_of(uint16_t p, bool rgb565) {
 }  // namespace
 
 // The 16-bit pixels as RGBA8 into the layer's texture; `key` pixels (when
-// keyed) transparent.
+// keyed) transparent, blended ones (`alpha`, zrndr::LayerCover) see-through.
 void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, bool keyed,
-                         uint16_t key) {
+                         uint16_t key, const uint8_t* alpha, const uint16_t* colour) {
   rgba_.resize(static_cast<size_t>(width) * height * 4);
   for (int y = 0; y < height; ++y) {
     const uint16_t* row = reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(pixels) + y * pitch);
     auto* o = reinterpret_cast<uint32_t*>(&rgba_[static_cast<size_t>(y) * width * 4]);
     for (int x = 0; x < width; ++x) o[x] = keyed && row[x] == key ? 0u : rgba_of(row[x], rgb565);
+    if (alpha) {
+      const size_t at = static_cast<size_t>(y) * (pitch / 2);
+      for (int x = 0; x < width; ++x)
+        if (alpha[at + x] && colour[at + x] == row[x]) o[x] = (o[x] & 0xffffffu) | uint32_t(alpha[at + x]) << 24;
+    }
   }
   if (texture_ < 0 || tw_ != width || th_ != height) {
     if (texture_ >= 0) render_->release_texture(texture_);
@@ -96,10 +101,11 @@ void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int 
   render_->present();
 }
 
-void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key) {
+void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key,
+                             const uint8_t* alpha, const uint16_t* colour) {
   if (!render_ || width <= 0 || height <= 0) return;
   render_->flush();
-  upload(pixels, width, height, pitch, rgb565, true, key);
+  upload(pixels, width, height, pitch, rgb565, true, key, alpha, colour);
   int vx, vy, vw, vh;
   render_->viewport(&vx, &vy, &vw, &vh);
   render_->set_viewport(0, 0, width, height);

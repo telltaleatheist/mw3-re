@@ -277,6 +277,8 @@ class GameEngine : public Engine {
   uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
+  std::vector<uint8_t> cover_alpha_;   // the layer's blends (zrndr::LayerCover), FIX (A)
+  std::vector<uint16_t> cover_colour_;
   std::map<Handle, std::vector<uint16_t>> grabs_;  // the fade's stills, by handle
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;

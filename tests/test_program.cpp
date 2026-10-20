@@ -726,7 +726,7 @@ TEST(frame_lock_lays_the_layer_and_the_tint_goes_through_the_ports) {
     int overlays = 0;
     uint16_t key = 0, first = 0, second = 0;
     void present_16(const uint16_t*, int, int, int, bool) override {}
-    void overlay_16(const uint16_t* px, int, int, int, bool, uint16_t k) override {
+    void overlay_16(const uint16_t* px, int, int, int, bool, uint16_t k, const uint8_t*, const uint16_t*) override {
       ++overlays, key = k, first = px[0], second = px[1];
     }
   };
