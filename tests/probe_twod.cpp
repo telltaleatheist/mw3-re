@@ -226,6 +226,8 @@ int probe_twod_run(const char* path, long offset, const char* name, int no_draw,
 }  // extern "C"
 
 #include "gamez/zrender/zrndr_blit.h"
+#include "crt/msvc_rand.h"
+#include "gamez/zrender/zrndr_prim2d.h"
 
 extern "C" {
 
@@ -248,6 +250,28 @@ void probe_blit16(uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, int
   img.alpha = alpha;
   img.palette = palette;
   zrndr::blit16(&img, x, y, key, reinterpret_cast<const zrndr::BlitRect*>(rect));
+}
+
+// zRender's 2D primitives (zrndr_prim2d) into a buffer the caller owns
+// (test_prim2d.py): op 0 dashed, 1 clipped line, 2 line list, 3 pixel,
+// 4 circle, 5 jittered circle, 6 noisy line; a[] the integers in the
+// original's order, rand seeded first.
+void probe_prim2d(int32_t op, uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, const int32_t* a, float noise,
+                  const int32_t* clip, const int32_t* points, int32_t count, uint32_t seed) {
+  zrndr::Target2D& t = zrndr::target2d();
+  t.base = target, t.width = tw, t.height = th, t.pitch = pitch;
+  crt::msvc_srand(seed);
+  const uint16_t px = static_cast<uint16_t>(a[4]);
+  switch (op) {
+    case 0: zrndr::line16_dashed(a[0], a[1], a[2], a[3], px, a[5]); break;
+    case 1: zrndr::line16_clipped(clip, a[0], a[1], a[2], a[3], px); break;
+    case 2: zrndr::line16_list(points, count, clip, px); break;
+    case 3: zrndr::pixel16(a[0], a[1], px); break;
+    case 4: zrndr::circle16(a[0], a[1], a[2], px, clip); break;
+    case 5: zrndr::circle16_noisy(a[0], a[1], a[2], px, noise, clip); break;
+    case 6: zrndr::line16_noisy(a[0], a[1], a[2], a[3], px, noise, clip); break;
+    default: break;
+  }
 }
 
 // zrndr::line16 into a buffer the caller owns (test_twod_line.py).
