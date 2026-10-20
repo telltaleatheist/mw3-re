@@ -177,9 +177,10 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Working with agents (2026-10-20)
 
-- Standing rule (Owen, 2026-10-20): **never more than 2 agents at a time,
+- Standing rule (Owen, 2026-10-20): **never more than 3 agents at a time,
   and agents never start agents of their own** (every agent prompt says so).
-  The limit was 5 until five at once hit the account's usage limit.
+  Owen sets the number: 5, then 2 after five at once hit the account's
+  usage limit, then 3.
 - Each agent takes a piece with clean boundaries:
   leaf functions, or systems that meet others through a hooks struct the
   test stubs identically on both sides.
