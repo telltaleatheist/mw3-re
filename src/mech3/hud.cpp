@@ -1072,8 +1072,8 @@ void Hud::reset() {
 void HudRadar::set_fade(float f) {
   if (f > 1.0f) f = 1.0f;
   else if (f < 0.0f) f = 0.0f;
-  x54 = zgame::bits(f);  // 0x005a3bb0
-  for (auto& l : lines) l.x4c = zgame::bits(f);  // 0x005a6b20
+  set_noise(f);
+  for (auto& l : lines) l.set_noise(f);
 }
 
 // Mech3.exe 1.2 @ 0x0043d630

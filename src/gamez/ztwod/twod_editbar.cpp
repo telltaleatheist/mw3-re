@@ -158,10 +158,20 @@ void PolyLine::set_point(int32_t i, int32_t px, int32_t py) {
   dirty();
 }
 
-// Mech3.exe 1.2 @ 0x005a38f0
+// Mech3.exe 1.2 @ 0x005a38f0: within its clip rect (each line clipped), or
+// with `round` within the circle across it, or the lines as they are.
 void PolyLine::draw() {
   erase();
-  for (int32_t i = 0; i < count - 1; ++i) host().line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], color);
+  if (count == 0) return;
+  if (clip && !round) return host().line_list(&pts[0][0], count - 1, clip, color);
+  for (int32_t i = 0; i < count - 1; ++i) {
+    if (!round) {
+      host().line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], color);
+      continue;
+    }
+    int32_t a[2], b[2];
+    if (clip_round(*clip, pts[i], pts[i + 1], a, b)) host().line(a[0], a[1], b[0], b[1], color);
+  }
 }
 
 // Mech3.exe 1.2 @ 0x005a4b10

@@ -192,7 +192,6 @@ class HudWeapons : public ztwod::Object2D {
 class HudBar : public ztwod::Polygon {
  public:
   void set_box(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00448550: w + 1 wide
-  uint32_t color = 0;                // +0x134 a pixel (not set by the constructor)
   int32_t height = 0;                // +0x138
   int32_t width = 0;                 // +0x13c
 };

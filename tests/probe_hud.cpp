@@ -166,8 +166,8 @@ void poly(Dump& d, ztwod::PolyLine* p) {
     for (int32_t v : pt) d.kv("p", v);
   d.kv("count", p->count);
   d.kv("color", p->color);
-  d.kv("dl", p->draw_list);
-  d.kv("tf", p->transformed);
+  d.kv("dl", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->clip)));
+  d.kv("tf", p->round);
 }
 
 void panel(Dump& d, mech3::HudPanel* p);
@@ -326,7 +326,7 @@ void dump_hud(Dump& d) {
   d.kv("color", rd.color);
   d.kv("clipped", rd.clipped);
   d.r("clip", rd.clip);
-  d.kv("x54", rd.x54);
+  d.kv("x54", zgame::bits(rd.noise));
   d.kv("x58", rd.x58);
   d.kv("zoomed", rd.zoomed);
   d.kv("active", rd.active);
@@ -344,7 +344,9 @@ void dump_hud(Dump& d) {
     ztwod::ClipLine2D& l = rd.lines[i];
     d.o << "rline" << i << ' ';
     d.base(&l);
-    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48, l.x4c})
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
+                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash),
+                      zgame::bits(l.noise)})
       d.kv("l", v);
     d.o << "\n";
   }
@@ -382,7 +384,8 @@ void dump_hud(Dump& d) {
     ztwod::Line2D& l = tg.lines[i];
     d.o << "tline" << i << ' ';
     d.base(&l);
-    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48})
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
+                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash)})
       d.kv("l", v);
     d.o << "\n";
   }
