@@ -27,6 +27,7 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
+  src/gamez/zclass/cls_di.cpp
   src/gamez/zclass/cls_mechlib.cpp
   src/gamez/zclass/cls_node.cpp
   src/gamez/zclass/cls_util.cpp
@@ -39,6 +40,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/sound.cpp
   src/gamez/zclass/window.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
+  src/gamez/zentity/zent_manager.cpp
   src/gamez/zeffect/zeff_anim_puffer.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zinterp/zinterp.cpp
@@ -54,6 +56,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_draw.cpp
   src/gamez/zmodel/gmod_fogcalc.cpp
   src/gamez/zmodel/gmod_fog.cpp
+  src/gamez/zmodel/gmod_hit.cpp
   src/gamez/zmodel/gmod_init.cpp
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
@@ -91,6 +94,8 @@ add_library(mw3core STATIC
   src/mech3/mech_parts.cpp
   src/mech3/mech_move.cpp
   src/mech3/mech_skis.cpp
+  src/mech3/mech_update.cpp
+  src/mech3/mech_collide.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
@@ -141,6 +146,9 @@ add_library(mw3probe SHARED
   tests/probe_weapons_run.cpp
   tests/probe_weapons_hit.cpp
   tests/probe_twod.cpp
+  tests/probe_update.cpp
+  tests/probe_di.cpp
+  tests/probe_collide.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

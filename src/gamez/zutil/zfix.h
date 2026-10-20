@@ -16,11 +16,16 @@ struct Options {
   // on Windows 11 in play (Owen, 2026-10-20: mechs cast shadows); false gives
   // the 24-bit result Direct3D 6's FPU setting would (CLAUDE.md, FPU precision).
   bool fpu53 = true;
+  bool deep_water = true;  // FIX (bug): the gait's wading slowdown as a continuous curve (movement.md)
 };
 
 inline Options& options() {
   static Options o;
   return o;
 }
+
+// A per-frame step's share of this frame: 1 in the exe, dt * 30 with the fix
+// (exactly 1 at dt = 1/30).
+inline float frame_steps(float dt) { return options().per_second ? dt * kReferenceFps : 1.0f; }
 
 }  // namespace zfix

@@ -1,8 +1,11 @@
 #include "mech3/mech_skis.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech.h"
@@ -11,6 +14,15 @@
 #pragma STDC FP_CONTRACT OFF
 
 namespace mech3 {
+
+// The skis keep the engine's records as they are (0x006061d0).
+static_assert(sizeof(GroundHits) == sizeof(zcls::GroundHits) && sizeof(GroundHit) == sizeof(zcls::GroundHit) &&
+                  offsetof(GroundHit, height) == offsetof(zcls::GroundHit, height) &&
+                  offsetof(GroundHit, zone) == offsetof(zcls::GroundHit, zone) &&
+                  offsetof(GroundHit, material) == offsetof(zcls::GroundHit, material) &&
+                  offsetof(GroundHit, node) == offsetof(zcls::GroundHit, node) &&
+                  offsetof(GroundHits, hit) == offsetof(zcls::GroundHits, hit),
+              "the skis read the ground query's records");
 
 namespace {
 SkisCalls g_calls;
@@ -198,7 +210,12 @@ bool Skis::update(float dt) {
 
   static GroundHits hits[7];  // 0x006061d0
   for (GroundHits& h : hits) h = GroundHits{};
-  if (g_calls.query) g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
+  if (g_calls.query) {
+    g_calls.query(&world[start], count, matrix[10] - kQueryTop, &hits[start]);
+  } else if (Node* w = world_hooks().world) {
+    zcls::ground_query(w, &world[start].x, count, matrix[10] - kQueryTop,
+                       reinterpret_cast<zcls::GroundHits*>(&hits[start]));
+  }
 
   float g = environment().gravity;
   const bool both = down[0] && down[1];
@@ -238,12 +255,15 @@ bool Skis::update(float dt) {
       contact[k] = contact[6];
       y[k] = y[6], clearance[k] = clearance[6], landed[k] = landed[6];
     }
-    if (slid) m.push = {m.push.x * kSnap, m.push.y * kSnap, m.push.z * kSnap};  // per frame
+    // x3 a frame. FIX (B): x3 per 1/30 s (fixes.md, Frame rate).
+    const float x3 = zfix::options().per_second ? std::pow(kSnap, zfix::frame_steps(dt)) : kSnap;
+    if (slid) m.push = {m.push.x * x3, m.push.y * x3, m.push.z * x3};
   }
 
   // Each ski's slope from its regular segment; a wall-like step ahead or
   // behind and a slope past 35 degrees push the mech (per frame).
   Vec3* push = down[0] || down[1] ? &m.push : nullptr;
+  const float steps = zfix::frame_steps(dt);  // FIX (B): these pushes per 1/30 s
   float lift[2];
   for (int side = 0; side < 2; ++side) {
     const int i = side ? 3 : 0;
@@ -273,12 +293,13 @@ bool Skis::update(float dt) {
     if (push) {
       if (kick != 0.0f) {
         slid = true;
+        kick = kick * steps;
         const Vec3 d{m.forward.x * kick, m.forward.y * kick, m.forward.z * kick};
         *push = {d.x + push->x, d.y + push->y, d.z + push->z};
       }
       if (clamped) {
         slid = true;
-        const float k = t * kSlopePush / kMaxSlope;
+        const float k = t * kSlopePush / kMaxSlope * steps;
         zmth::Vec3 d;
         zmth::direction({world[i].x, world[i].y, world[i].z}, {world[i + 1].x, world[i + 1].y, world[i + 1].z}, d);
         d.y = 0.0f;
@@ -298,7 +319,8 @@ bool Skis::update(float dt) {
       zmth::Vec3 r;
       zmth::quat_rotate({m.orientation[0], m.orientation[1], m.orientation[2], m.orientation[3]},
                         {sgn * -1.0f, 0.0f, 0.0f}, r);
-      m.push = {m.push.x + r.x, m.push.y + r.y, m.push.z + r.z};
+      const float s = zfix::frame_steps(dt);  // FIX (B): per 1/30 s
+      m.push = {m.push.x + r.x * s, m.push.y + r.y * s, m.push.z + r.z * s};
       slid = true;
     }
   }

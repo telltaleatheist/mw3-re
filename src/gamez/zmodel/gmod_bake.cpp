@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_clip3d.h"
 #include "gamez/zmodel/gmod_light.h"
 
@@ -45,24 +46,6 @@ void scale_inverse(float v[3], float len) {
   if (len == 0.0f) return;
   const float inv = 1.0f / len;
   v[0] = inv * v[0], v[1] = v[1] * inv, v[2] = v[2] * inv;
-}
-
-// Mech3.exe 1.2 @ 0x00524020 (zMath): the unit normal (b - a) x (c - a), ECX a,
-// EDX b, stack c. A zero-length normal is stored as (y, z, x), as the x87
-// stack leaves it (all zero anyway).
-void poly_normal(const float a[3], const float b[3], const float c[3], float out[3]) {
-  const float px = c[0] - a[0], py = c[1] - a[1], pz = c[2] - a[2];
-  const float qx = b[0] - a[0], qy = b[1] - a[1], qz = b[2] - a[2];
-  const float x = qy * pz - py * qz;
-  const float y = qz * px - pz * qx;
-  const float z = qx * py - qy * px;
-  const float len = std::sqrt(x * x + y * y + z * z);
-  if (len == 0.0f) {
-    out[0] = y, out[1] = z, out[2] = x;
-    return;
-  }
-  const float inv = 1.0f / len;
-  out[0] = x * inv, out[1] = y * inv, out[2] = z * inv;
 }
 
 // The sun's term for one normal: min(1, diffuse * N.L + ambient), or the
@@ -128,7 +111,7 @@ void bake_static_light(Model& model, const float (*cam)[3], const float (*normal
         if (no_sun) {
           lit = ambient > 1.0f ? 1.0f : ambient;
         } else if (!vn) {
-          if (!have_normal) poly_normal(poly_cam[1], poly_cam[2], poly_cam[0], normal), have_normal = true;
+          if (!have_normal) zmth::poly_normal(poly_cam[1], poly_cam[2], poly_cam[0], normal), have_normal = true;
           lit = directed_term(dot(normal, dir), diffuse, ambient);
         }
         directed = true;
@@ -142,7 +125,7 @@ void bake_static_light(Model& model, const float (*cam)[3], const float (*normal
       const float* pos = d->floats(kCamPos);
       float spot, factor;  // [ebp-0x44] the polygon's N.L, the first vertex's spot factor
       if (fl & kSpot) {
-        if (!have_normal) poly_normal(poly_cam[1], poly_cam[2], poly_cam[0], normal), have_normal = true;
+        if (!have_normal) zmth::poly_normal(poly_cam[1], poly_cam[2], poly_cam[0], normal), have_normal = true;
         spot = dot(normal, dir);
         if (!(double{spot} > kVisible)) {
           spot = 0.0f, factor = 0.0f;

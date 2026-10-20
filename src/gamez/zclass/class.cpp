@@ -233,4 +233,58 @@ int node_box_corners(Node* node, float out[8][3]) {
   return status;
 }
 
+// Mech3.exe 1.2 @ 0x004ec150. 0x004ebdb0 in x and z only; the combined
+// matrix fills just the entries the corner transform reads.
+int node_box_xz(Node* node, float out[8][2]) {
+  if (!node) return zerr::report(0x400, kFile, 0xa71, "Null node pointer."), 5;
+  if (!node->data) return zerr::report(0x400, kFile, 0xa72, "Null class data pointer"), 5;
+  const uint32_t flags = node->flags();
+  if (!(flags & 0x100)) return 1;
+  int status = 0;
+  const float* local = nullptr;
+  bool local_identity = false;
+  auto* raw = static_cast<uint8_t*>(node->data);
+  switch (node->cls()) {
+    case 1: local = reinterpret_cast<float*>(raw + 0x80); break;
+    case 2: case 6: case 7: local_identity = true; break;
+    case 5:
+      local_identity = (static_cast<Object3d*>(node->data)->get<uint32_t>(0) >> 3) & 1;
+      local = reinterpret_cast<float*>(raw + 0x30);
+      break;
+    case 8:
+      if (!(flags & 4) || !(raw[4] & 4)) local_identity = true;
+      local = reinterpret_cast<float*>(raw + 8);
+      break;
+    case 9: case 10: break;
+    default: status = 3; break;
+  }
+  if (!local) local_identity = true;
+  zmth::MatrixStack& s = zmth::matrix_stack();
+  const bool top_identity = s.slot[s.top] ? s.is_identity() != 0 : true;
+  float box[6];
+  std::memcpy(box, node->raw + 0x74, sizeof box);
+  if (top_identity && local_identity) {
+    static const int kPick[8][2] = {{0, 5}, {3, 5}, {3, 2}, {0, 2}, {0, 5}, {3, 5}, {3, 2}, {0, 2}};
+    for (int i = 0; i < 8; ++i) out[i][0] = box[kPick[i][0]], out[i][1] = box[kPick[i][1]];
+    return status;
+  }
+  const float* m = top_identity ? local : s.matrix().m;
+  float c[12] = {};
+  if (!top_identity && !local_identity) {
+    const float* l = local;
+    const float* t = s.matrix().m;
+    c[0] = (l[1] * t[3] + l[2] * t[6]) + l[0] * t[0];
+    c[3] = (l[3] * t[0] + l[4] * t[3]) + l[5] * t[6];
+    c[6] = (l[6] * t[0] + l[7] * t[3]) + l[8] * t[6];
+    c[2] = (l[0] * t[2] + l[2] * t[8]) + l[1] * t[5];
+    c[5] = (l[5] * t[8] + l[3] * t[2]) + l[4] * t[5];
+    c[8] = (l[6] * t[2] + l[7] * t[5]) + l[8] * t[8];
+    c[9] = ((l[9] * t[0] + l[11] * t[6]) + l[10] * t[3]) + t[9];
+    c[11] = ((l[9] * t[2] + l[10] * t[5]) + l[11] * t[8]) + t[11];
+    m = c;
+  }
+  zmth::box_corners_xz(m, box, out);
+  return status;
+}
+
 }  // namespace zcls

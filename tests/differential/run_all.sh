@@ -51,6 +51,9 @@ for t in \
     twod \
     twod_blit \
     twod_msgbox \
+    update \
+    di \
+    collide \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

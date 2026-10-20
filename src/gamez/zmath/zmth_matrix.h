@@ -108,5 +108,8 @@ void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // inline
 // ECX m (12 floats), EDX box (min x, y, z, max x, y, z), stack out: the
 // eight corners through m, in the order of zcls::node_box_corners.
 void box_corners(const float* m, const float box[6], float out[8][3]);  // 0x00522ab0
+// The (x, z) of a box's (min xyz, max xyz) eight corners through m, in the
+// order of zcls::node_box_xz; reads m's x and z columns only.
+void box_corners_xz(const float* m, const float box[6], float out[8][2]);  // 0x00522d60
 
 }  // namespace zmth

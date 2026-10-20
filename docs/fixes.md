@@ -68,6 +68,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
 | Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
+| Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
+| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
 | Smoke drag and wind, 0x5490e0 / 0x523f70 | Drag from a table of e^-(i/51) with the step truncated; the wind's speed steps by up to `random_accel` a frame | (B) at 60 fps and above muzzle smoke and trails get no drag at all, and gusts change faster the faster the game runs | e^-(dt * friction) computed, and the speed step scaled as per 1/30 s (Owen 2026-10-20); `zfix` switch as above. At 30 fps the drag is now a little stronger than the table's (it rounded 0.033 down to 0.0196) |
 | Sound fades, 0x571940 | A fade ends only when a 25 dB/s step lands exactly on the target, which happens only at full volume or silence | (bug) fades to a partial volume never end: the voice wobbles a step around the target and the fade stays in the list for good | A step that reaches or passes the target ends the fade on it (Owen 2026-10-20); `zfix::options().bugs` |
 | Unpause, 0x56f130 | Every voice of each sound kept at pause plays again, finished ones from the start, once per record (a sound with two copies playing replays both twice) | (bug) sounds that had ended start over and doubles pile up after a pause | Only the voices that were playing resume, each once, from where they stopped (Owen 2026-10-20) |
@@ -194,15 +196,6 @@ Bugs whose intent is clear, fixed as the port reaches the code:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- Movement done per frame, not per second (`movement*.md`): a fall's carried
-  momentum (x0.6 a frame), the ground probes' slope and ledge pushes and the
-  far mechs' push x3, the jump jets' climb impulse (capped at 6 a frame), the
-  gait's 20-frame blend-in, the 20 damage a frame to touched buildings. All
-  change with the frame rate, as lava heat did (now scaled, above); candidates
-  for the same `zfix::per_second` switch at the 30 fps reference.
-- Deep water (gait 0x4181c0): the slowdown runs to almost a standstill as the
-  water nears the mech's height, then jumps back to 70% once deeper. A
-  continuous curve may have been meant.
 - Missing animation object, 0x50a0e0: one prerequisite naming an object not
   in the level clears all of the animation's prerequisites, so it fires
   without waiting. Dropping only the broken one, or never firing, are both

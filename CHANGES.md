@@ -22,6 +22,13 @@ it is clear what the designers meant.
   smoke stopped slowing down and ignored the wind, and the wind's gusts
   changed faster the faster the game ran. Both now go by time, at the 30 fps
   pace.
+- **Mech movement plays the same at any frame rate.** Falls, the shoves from
+  slopes and ledges, the blend into a walk, jump-jet thrust and the damage
+  done to buildings you push into all went by frames; they now play as they
+  did at 30 fps.
+- **Deep water no longer stops a mech dead.** Wading in water nearly as deep
+  as the mech is tall slowed it almost to a standstill, then it sped back up
+  to 70% once the water was deeper still. It now slows smoothly down to 70%.
 - **Wingmen call out low and empty ammo.** Dom, Alan and Epona have lines
   for it that never played because of a mistake in the sound data. They now
   play, each line at most twice a mission.

@@ -51,6 +51,7 @@ class MechPart {
   Handle trail_effect = nullptr;   // +0x70
 
   virtual ~MechPart() = default;
+  virtual void update(float) {}  // +0x10 (base 0x00461730; torso 0x00464e80, hip 0x004623a0, leg 0x00463ee0, arm 0x00466510)
   virtual int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse);  // +0x18
   virtual void apply_impact(Vec3*, float) {}                  // +0x1c, 0x0040baf0
   virtual void destroy(int variant, int fly);                 // +0x20
@@ -84,6 +85,9 @@ class Torso : public MechPart {
   Handle death_effect2 = nullptr;  // +0x78
   float half_width = 0;            // +0x7c
   float half_depth = 0;            // +0x80
+  int32_t aim = 0;                 // +0x09c  the AI's aim, cancelled by any player input
+  float twist_in = 0, pitch_in = 0;    // +0x0bc, +0x0c0  the controls' twist and pitch
+  float look_yaw = 0, look_pitch = 0;  // +0x0c4, +0x0c8  the free look
   Vec3 jolt_spin{};                // +0xd8
   Vec3 jolt{};                     // +0x100
   float jolt_scale[3] = {};        // +0x14c
@@ -104,6 +108,8 @@ class Torso : public MechPart {
   float get_armor_scale(int s) const override;             // 0x004649f0
   float get_internal_scale(int s) const override;          // 0x00464a70
   int hit_section(const Vec3* shot) const;                 // 0x00460350
+  bool set_twist(float twist, float look);                 // 0x00466200
+  bool set_pitch(float pitch, float look);                 // 0x00466240
 
  private:
   float* internal_slot(int s);

@@ -13,15 +13,20 @@ MatrixStack g_stack;
 View g_view;
 Projection g_proj;
 
-// r = l * t for 3x4 row-vector matrices (l applied first). The x87 sums run
-// (l0*t0 + l1*t3) + l2*t6, kept here.
+// r = l * t for 3x4 row-vector matrices (l applied first). The sums in the x87 code's order (0x0051fee0, 0x0051fb30 and 0x00521670
+// share it): the z column adds its terms from the last, and the z
+// translation adds the first term to t[11] before the others.
 void mul34(const float* l, const float* t, float* r, bool translation) {
   for (int row = 0; row < 3; ++row) {
     const float* a = l + 3 * row;
-    for (int j = 0; j < 3; ++j) r[3 * row + j] = a[0] * t[j] + a[1] * t[3 + j] + a[2] * t[6 + j];
+    r[3 * row] = a[0] * t[0] + a[1] * t[3] + a[2] * t[6];
+    r[3 * row + 1] = a[0] * t[1] + a[1] * t[4] + a[2] * t[7];
+    r[3 * row + 2] = (a[2] * t[8] + a[1] * t[5]) + a[0] * t[2];
   }
   if (!translation) return;
-  for (int j = 0; j < 3; ++j) r[9 + j] = l[9] * t[j] + l[10] * t[3 + j] + l[11] * t[6 + j] + t[9 + j];
+  r[9] = l[9] * t[0] + l[10] * t[3] + l[11] * t[6] + t[9];
+  r[10] = l[9] * t[1] + l[10] * t[4] + l[11] * t[7] + t[10];
+  r[11] = (l[11] * t[8] + l[10] * t[5]) + (l[9] * t[2] + t[11]);
 }
 
 // x87 compares: an unordered (NaN) result sets C3 like "equal", so the
@@ -467,6 +472,20 @@ Vec3 transform(const Vec3& v, const float* t) {
   return {r.x + t[9], r.y + t[10], r.z + t[11]};
 }
 }  // namespace
+
+// Mech3.exe 1.2 @ 0x00522d60. The shared products and their sums in the
+// x87 code's order.
+void box_corners_xz(const float* m, const float b[6], float out[8][2]) {
+  const float r = m[0] * b[0], t = m[0] * b[3], p = m[3] * b[4], u = m[3] * b[1];
+  const float s = m[2] * b[0], w = m[2] * b[3], q = m[5] * b[4], v = m[5] * b[1];
+  const float a_lo = b[2] * m[6] + m[9], c_lo = m[8] * b[2] + m[11];
+  const float a_hi = m[6] * b[5] + m[9], c_hi = m[8] * b[5] + m[11];
+  const float ur = u + r, ut = u + t, pr = p + r, pt = p + t;
+  const float vs = v + s, vw = v + w, qs = q + s, qw = q + w;
+  const float x[8] = {a_hi + ur, a_hi + ut, a_lo + ut, a_lo + ur, pr + a_hi, pt + a_hi, pt + a_lo, pr + a_lo};
+  const float z[8] = {c_hi + vs, c_hi + vw, c_lo + vw, c_lo + vs, qs + c_hi, qw + c_hi, qw + c_lo, qs + c_lo};
+  for (int i = 0; i < 8; ++i) out[i][0] = x[i], out[i][1] = z[i];
+}
 
 // Mech3.exe 1.2 @ 0x005225b0. Nothing to do when the top is the identity.
 void rotate_points(Vec3* v, uint32_t count) {

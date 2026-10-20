@@ -84,4 +84,89 @@ void quat_axis_angle(const Vec3& axis, float angle, Quat* q) {
   q->z = axis.z * s;
 }
 
+// Mech3.exe 1.2 @ 0x00524020 (zMath): the unit normal (b - a) x (c - a), ECX a,
+// EDX b, stack c. A zero-length normal is stored as (y, z, x), as the x87
+// stack leaves it (all zero anyway).
+void poly_normal(const float a[3], const float b[3], const float c[3], float out[3]) {
+  const float px = c[0] - a[0], py = c[1] - a[1], pz = c[2] - a[2];
+  const float qx = b[0] - a[0], qy = b[1] - a[1], qz = b[2] - a[2];
+  const float x = qy * pz - py * qz;
+  const float y = qz * px - pz * qx;
+  const float z = qx * py - qy * px;
+  const float len = std::sqrt(x * x + y * y + z * z);
+  if (len == 0.0f) {
+    out[0] = y, out[1] = z, out[2] = x;
+    return;
+  }
+  const float inv = 1.0f / len;
+  out[0] = x * inv, out[1] = y * inv, out[2] = z * inv;
+}
+
+// Mech3.exe 1.2 @ 0x005240d7. ECX ga, EDX gb; differences taken from vertex 1.
+void plane_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float t0, float t1, float t2,
+                    float* ga, float* gb) {
+  const float p = a2 - a1, q = b2 - b1, r = a0 - a1, s = b0 - b1;
+  const float d = q * r - p * s;
+  if (d == 0.0f) {
+    *ga = 0.0f;
+    *gb = 0.0f;
+    return;
+  }
+  const float inv = 1.0f / d;
+  const float b = t2 - t1, a = t0 - t1;
+  *ga = -((b * s - q * a) * inv);
+  *gb = -((p * a - b * r) * inv);
+}
+
+// Mech3.exe 1.2 @ 0x00525210. The sine and cosine of the half angle as the
+// emulator computes them (in double, then rounded).
+void quat_roll(float angle, Quat& out) {
+  const float h = angle * 0.5f;
+  out.z = static_cast<float>(std::sin(double{h}));
+  out.x = out.y = 0.0f;
+  out.w = static_cast<float>(std::cos(double{h}));
+}
+
+// Mech3.exe 1.2 @ 0x00525500. The length is the float's bits halved
+// (sqrt's exponent), not a true square root: the result is only near unit.
+void quat_normalize(const Quat& q, Quat& out) {
+  float n2 = (q.x * q.x + q.y * q.y) + q.z * q.z;
+  n2 = q.w * q.w + n2;
+  int32_t bits;
+  std::memcpy(&bits, &n2, 4);
+  bits = (bits >> 1) + 0x1fc00000;
+  float len;
+  std::memcpy(&len, &bits, 4);
+  const float inv = 1.0f / len;
+  out.w = inv * q.w;
+  out.x = q.x * inv;
+  out.y = q.y * inv;
+  out.z = q.z * inv;
+}
+
+// Mech3.exe 1.2 @ 0x005255d0
+void quat_mul(const Quat& a, const Quat& b, Quat& out) {
+  const Quat r{((a.w * b.w - a.x * b.x) - a.y * b.y) - a.z * b.z,
+               ((a.w * b.x + a.x * b.w) + a.y * b.z) - a.z * b.y,
+               ((a.w * b.y + a.y * b.w) + a.z * b.x) - a.x * b.z,
+               ((a.w * b.z + a.z * b.w) + a.x * b.y) - a.y * b.x};
+  out = r;
+}
+
+// Mech3.exe 1.2 @ 0x00525900. fsincos; the sine goes through a float
+// before the division (beyond 2^63 a separate fsin keeps it on the stack).
+void quat_exp(const Vec3& v, Quat& out) {
+  const float a = std::sqrt((v.x * v.x + v.y * v.y) + v.z * v.z);
+  if (a == 0.0f) {
+    out = {1.0f, 0.0f, 0.0f, 0.0f};
+    return;
+  }
+  const auto s = static_cast<float>(std::sin(double{a}));
+  out.w = static_cast<float>(std::cos(double{a}));
+  const float k = s / a;
+  out.x = k * v.x;
+  out.y = v.y * k;
+  out.z = v.z * k;
+}
+
 }  // namespace zmth

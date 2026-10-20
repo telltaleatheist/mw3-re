@@ -93,4 +93,28 @@ int object3d_set_translation(Node* node, float x, float y, float z) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004fc1b0: moves by (dx, dy, dz), otherwise as
+// object3d_set_translation, but with the class check.
+int object3d_translate(Node* node, float dx, float dy, float dz) {
+  if (int r = check_class(node, 5, kFile, 0x4c5)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  const float x = dx + d->get<float>(0x54), y = dy + d->get<float>(0x58), z = dz + d->get<float>(0x5c);
+  d->put(0x54, x), d->put(0x58, y), d->put(0x5c, z);
+  uint32_t f = d->get<uint32_t>(0);
+  auto nz = [](float v) { return v < 0.0f || v > 0.0f; };
+  if ((f & 8) && (nz(x) || nz(y) || nz(z))) f &= ~8u;
+  d->put<uint32_t>(0, f | 1);
+  node_mark_unk25(node);
+  if ((node->flags() & 1) == 0) {
+    push_front(kChanged, node);
+    node->set_flags(node->flags() | 1);
+  } else if (node->get<uint32_t>(0xc4) <= frames().frame) {
+    frames().expiry = frames().frame + 0xa0;
+    set_expiry(node);
+  }
+  node->set_flags(node->flags() | 2);
+  if (node->changed) node->changed->removable = 0;
+  return 0;
+}
+
 }  // namespace zcls
