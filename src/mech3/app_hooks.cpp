@@ -13,6 +13,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/music.h"
+#include "mech3/mission.h"
 #include "mech3/options.h"
 
 namespace mech3 {
@@ -111,6 +112,8 @@ int32_t Engine::window_h() { return mech3::window_h(); }
 void Engine::set_use_joystick(int32_t on) { mech3::set_use_joystick(on); }
 void Engine::set_fast_menu(int32_t on) { mech3::set_fast_menu(on); }
 void Engine::options_apply_all() { mech3::apply_all(); }
+void Engine::options_save() { mech3::save_options(); }
+void Engine::settings_free() { zreg::shutdown(); }
 
 void Engine::exit_process(uint32_t code) { std::exit(static_cast<int>(code)); }
 void Engine::cursor_pos(int32_t* x, int32_t* y) {
@@ -140,10 +143,7 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
   unported("sprintf", {out});
 }
 const char* Engine::version_number() { return "1.2"; }
-const char* Engine::mission_dir(uint32_t n) {
-  unported("0x00484c50", {n});
-  return "";
-}
+const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
 
 void Engine::cd_pause() { zsnd_cd::pause(); }
 void Engine::cd_resume(int32_t mode) { zsnd_cd::resume(mode); }

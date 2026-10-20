@@ -476,6 +476,64 @@ From the weapon code (weapons.md).
   lobby, it closes the old copy instead.
 - **The default mech is the Bushwacker**, set in the app defaults at startup.
 
+## Settings
+
+From the settings loader at 0x40c420 and the registry code around 0x5977d0
+(details: `settings.md`).
+
+- **The three hidden resolutions are real.** The mode a mission starts in is
+  the registry value `InGameVMode` under
+  `HKEY_CURRENT_USER\Software\MicroProse\MechWarrior 3\1.0`. The menu offers
+  5, 6 and 7 (640x480, 800x600, 1024x768), but the game reads any number,
+  and its mode switch also knows 8 (1152x864), 9 (1280x1024) and 10
+  (1600x1200).
+- **The menus' own resolution is never saved.** It is picked fresh at every
+  start: 640x480 on a Pentium Pro or better, 320x240 doubled below that.
+- **Your settings are only read if the installer's key exists.** The game
+  opens both its user key and the machine-wide key
+  (`HKEY_LOCAL_MACHINE\...\MechWarrior 3\1.0`) and reads nothing at all
+  unless both open. A copied install that never ran the installer always
+  starts at the defaults.
+- **And they are only saved if Windows lets it write the machine-wide key.**
+  The save creates both keys first; if the machine key is refused, nothing
+  is written, not even your own settings. On Windows Vista and later the
+  32-bit game is likely redirected to a private copy of that key, which would be
+  why it mostly works there.
+- **Settings are saved when the game quits normally**, from the
+  application's destructor. A crash loses everything changed that session.
+- **The detail settings are chosen by a little rule file**, `detail.zrd`,
+  that compares your PC with thresholds: Lighting needs over 200 MHz,
+  Perspective correction 166 MHz, high object detail over 233 MHz, the
+  biggest software texture memory 63 MB of RAM. The "video memory" test it
+  offers can never pass: it reads an empty slot next to the real value, so
+  it always sees 0 (the shipped file never uses it). It also has an
+  "about equal" test (within 2%) nobody used.
+- **The hidden "FastMenu" option (the `-seasick` switch) defaults on below
+  200 MHz**, so slow machines got the still menus.
+
+## Loading a mission
+
+From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
+
+- **The mission loads while you read the briefing.** The briefing starts a
+  second thread at idle priority that loads the whole mission behind it, and
+  checks between steps whether you left; that is why the briefing could feel
+  sluggish on slow machines.
+- **The "Texture Memory" setting has fewer real steps than it shows.** 12 MB,
+  10 MB and 8 MB all cap the textures at 8 MB; then 6, 4 and 2 MB; "Max" uses
+  whatever the card reports.
+- **In software mode the mechs wear a cheaper texture set** (`mechtexS`, the
+  palettised one); with a 3D card they use `mechtex`.
+- **Every mission opens with an animation script, not code.** The start is
+  `start_single_player_m<n>` (instant action `switch_ia_m<n>`, multiplayer
+  `start_multiplayer_m<n>`, training `start_training_m<n>`) from the
+  mission's `anim.zbd`, falling back to the name without the number. What
+  happens in a mission's first seconds is data.
+- **Multiplayer maps from the third on take their objectives from
+  `mpinfo.zrd`**, the first two from `objectives.zrd` like the campaign.
+- **The release exe calls itself "PRODUCTION"**: the loading text reads
+  "MechWarrior3 (PRODUCTION) (1.2)", a build marker left in.
+
 ## Multiplayer
 
 From the network code (network-messages.md).

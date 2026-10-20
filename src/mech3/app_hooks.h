@@ -215,6 +215,11 @@ class Engine : public zgame::AppHooks {
   virtual void ai_targets_shutdown() { unported("0x004d72a0", {}); }
   virtual void list_pool_free() { unported("0x00555d90", {}); }
   virtual void entity_shutdown() { unported("0x005a8bb0", {}); }
+  // The app's destructor (0x0047fab0).
+  virtual void message_dll_free() { unported("0x00575f70", {}); }
+  virtual void input_maps_free() { unported("0x0051d0c0", {}); }
+  virtual void options_save();                         // 0x0040cb20, ported
+  virtual void settings_free();                        // 0x00598270, ported
   virtual void input_set_mode(uint32_t mode) { unported("0x0051bae0", {mode}); }
 
   // zVideo's buffers and frame (zvid_buff.c and neighbours).
@@ -334,7 +339,7 @@ class Engine : public zgame::AppHooks {
   virtual void missions_update(uint32_t list, float dt) { unported("0x0048f470", {list, zgame::bits(dt)}); }
   virtual void missions_reset(uint32_t list) { unported("0x00490720", {list}); }
   virtual void missions_start(uint32_t list) { unported("0x00490880", {list}); }
-  virtual const char* mission_dir(uint32_t n);         // 0x00484c50
+  virtual const char* mission_dir(uint32_t n);         // 0x00484c50, ported: mech3/mission
   virtual void effects_update() { unported("0x004a8cd0", {}); }
   virtual void camera_update() { unported("0x0040f8d0", {}); }
   virtual void effects_draw(int32_t a, Handle rect) { unported("0x005a6790", {a, rect}); }

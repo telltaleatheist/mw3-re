@@ -1,6 +1,7 @@
 #include "mech3/options.h"
 
 #include <cstring>
+#include <string>
 
 #include "gamez/zreader/zreader.h"
 
@@ -51,6 +52,7 @@ void set_hw_card_dev(int32_t dev) {
 int32_t hw_card_dev() { return g_options.hw_card_dev; }
 
 zrdr::Node* OptionsHooks::reader_load(const char* name) { return zrdr::load(name); }
+void OptionsHooks::reader_free(zrdr::Node* n) { zrdr::free_node(n); }
 
 // Mech3.exe 1.2 @ 0x0040cc20. The level is stored as given and clamped only to
 // pick the preset; a complete (name f f f b b) entry in intensity.zrd overrides it.
@@ -456,6 +458,196 @@ void apply_all() {
   set_shadow(shadow());
   set_sound_volume(sound_volume());
   set_cd_volume(cd_volume());
+}
+
+// ---------------------------------------------------------------------------
+// The settings loader (docs/settings.md).
+
+namespace {
+// detail.zrd's names for its values (0x005e0710, 30 pairs).
+struct Named {
+  const char* name;
+  int32_t value;
+};
+constexpr Named kNamed[] = {
+    {"TRUE", 1}, {"FALSE", 0}, {"HIGH", 0}, {"MEDIUM", 1}, {"LOW", 2},
+    {"CPU_CLASS_8086", 0}, {"CPU_CLASS_80286", 2}, {"CPU_CLASS_80386", 3}, {"CPU_CLASS_80486", 4},
+    {"CPU_CLASS_PENTIUM", 5}, {"CPU_CLASS_PENTIUM_PRO", 6}, {"CPU_CLASS_PENTIUM_NEWER", 7},
+    {"TEXMEM_MAX", 0}, {"TEXMEM_12MB", 1}, {"TEXMEM_10MB", 2}, {"TEXMEM_8MB", 3}, {"TEXMEM_6MB", 4},
+    {"TEXMEM_4MB", 5}, {"TEXMEM_2MB", 6},
+    {"ZVID_320x200x16", 2}, {"ZVID_320x240x16", 3}, {"ZVID_640x400x16", 4}, {"ZVID_640x480x16", 5},
+    {"ZVID_800x600x16", 6}, {"ZVID_1024x768x16", 7},
+    {"SOUND_API_DSOUND", 0}, {"SOUND_API_A3D", 1},
+    {"camAttach", 1}, {"camTether", 0}, {"camTetherZ", 2},
+};
+
+const char* str(const zrdr::Node& n) { return n.type == zrdr::String && n.s ? n.s : ""; }
+
+// Mech3.exe 1.2 @ 0x0040bec0: a value's name, 0 when unknown.
+int32_t named_value(const char* s) {
+  for (const Named& n : kNamed)
+    if (std::strcmp(n.name, s) == 0) return n.value;
+  return 0;
+}
+
+// _ftol's low dword: truncated; 0 when out of the 64-bit range (its 0x8000...).
+int32_t ftol32(float f) {
+  if (!(f > -9.2233720368547758e18f && f < 9.2233720368547758e18f)) return 0;
+  return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(static_cast<int64_t>(f))));
+}
+
+// Mech3.exe 1.2 @ 0x0040bf20: a node's value as an int.
+int32_t node_value(const zrdr::Node& n) {
+  if (n.type == zrdr::Int) return n.i;
+  if (n.type == zrdr::Float) return ftol32(n.f);
+  if (n.type == zrdr::String) return named_value(n.s ? n.s : "");
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0040bf50: the machine's value against detail.zrd's, by
+// the operator's name; "~=" is within 2% of the machine's; unknown ones fail.
+int32_t compare(const char* op, int32_t machine, int32_t value) {
+  if (std::strcmp(op, "==") == 0) return machine == value;
+  if (std::strcmp(op, "<") == 0) return machine < value;
+  if (std::strcmp(op, ">") == 0) return machine > value;
+  if (std::strcmp(op, "<=") == 0) return machine <= value;
+  if (std::strcmp(op, ">=") == 0) return machine >= value;
+  if (std::strcmp(op, "!=") == 0) return machine != value;
+  if (std::strcmp(op, "~=") == 0) {
+    int32_t d = static_cast<int32_t>(static_cast<uint32_t>(machine) - static_cast<uint32_t>(value));
+    d = d < 0 ? static_cast<int32_t>(0u - static_cast<uint32_t>(d)) : d;  // cdq/xor/sub: INT_MIN stays
+    return static_cast<double>(machine) * 0.02 > static_cast<double>(d);  // x87 at 53 bits
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0040c1a0: "DEFAULT", or (NAME OP VALUE) on the machine.
+// An unknown NAME compares 0.
+int32_t condition(const zrdr::Node& c) {
+  if (c.type == zrdr::String) return std::strcmp(str(c), "DEFAULT") == 0;
+  if (c.type != zrdr::List || c.list[0].i != 4) return 0;
+  const char* name = str(c.list[1]);
+  const char* op = str(c.list[2]);
+  const int32_t value = node_value(c.list[3]);
+  const zreg::Machine& m = g_options.machine;
+  int32_t have = 0;
+  if (std::strcmp(name, "CPU_CLASS") == 0) have = static_cast<int32_t>(m.cpu_class);
+  else if (std::strcmp(name, "CPU_MHZ") == 0) have = static_cast<int32_t>(m.cpu_mhz);
+  else if (std::strcmp(name, "VIDEO_KB") == 0) have = static_cast<int32_t>(m.unset20);  // a dword off: always 0
+  else if (std::strcmp(name, "RAM_KB") == 0) have = static_cast<int32_t>(m.ram_kb);
+  else if (std::strcmp(name, "HW_ACCEL") == 0) have = static_cast<int32_t>((m.flags >> 6) & 1);
+  return compare(op, have, value);
+}
+
+zreg::Entry* make(const char* name, int32_t type, void* field, uint32_t size = 0, int32_t scope = zreg::kUser) {
+  return zreg::create(name, type, size, scope, field);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0040c3b0. Each item after the name is (CONDITION VALUE).
+int32_t detail_value(zrdr::Node* root, const char* name, int32_t def) {
+  if (!root) return def;
+  zrdr::Node* n = zrdr::find(root, name);
+  if (!n || n->type != zrdr::List) return def;  // not a list: the original reads it as one
+  const int32_t count = n->list[0].i;
+  for (int32_t i = 1; i < count; ++i) {
+    const zrdr::Node& e = n->list[i];
+    if (e.type != zrdr::List || e.list[0].i < 3) continue;  // the original assumes (cond value)
+    if (condition(e.list[1])) return node_value(e.list[2]);
+  }
+  return def;
+}
+
+// Mech3.exe 1.2 @ 0x0040c420. Each option's entry is made (bound to its field),
+// set through its setter from detail.zrd or the default, then the store reads
+// the saved values over them (raw, not through the setters: InitInstance's
+// apply-all 0x0040cb30 applies them later). With path null, defaults only.
+int32_t load_options(const char* path) {
+  Options& o = g_options;
+  o.machine = zreg::Machine{};  // the 0x2d dwords at 0x005f4c98: the copy, hw, the entry pointers
+  o.hw = 0;
+  o.default_cmd_map = nullptr;
+  zrdr::Node* root = nullptr;
+  if (path && !(root = g_hooks->reader_load(path))) return 0;
+  o.machine = zreg::machine();
+  auto d = [&](const char* name, int32_t def) { return detail_value(root, name, def); };
+  using zreg::kBinary4;
+  using zreg::kDword;
+
+  if (make("HWCardFlag", kDword, &o.hw_card_flag)) select_hw(static_cast<int32_t>(zreg::install_options(0xff)));
+  if (make("HWCardDev", kDword, &o.hw_card_dev)) set_hw_card_dev(zreg::install_options(0xff) ? 999 : -1);
+  if (make("TextureMemory_SW", kDword, &o.texture_memory[0])) o.hw = 0, set_texture_memory(d("TextureMemory_SW", 0));
+  if (make("TextureMemory_HW", kDword, &o.texture_memory[1])) o.hw = 1, set_texture_memory(d("TextureMemory_HW", 0));
+  for (int hw = 0; hw < 2; ++hw) {
+    if (!make(hw ? "GfxFlags_HW" : "GfxFlags_SW", kDword, &o.gfx_flags[hw])) continue;
+    int32_t f = (o.machine.flags & 1) ? 0x04 : 0;  // MMX
+    o.hw = hw;
+    if (d("Transparency", 1)) f |= 0x02;
+    if (d("Lighting", 1)) f |= 0x01;
+    if (d("Perspective", 1)) f |= 0x08;
+    if (d(hw ? "GlobalLight_HW" : "GlobalLight_SW", hw)) f |= 0x10;
+    if (d("AllVideoBuffer", 0)) f |= 0x10000;
+    set_gfx_flags(f);
+  }
+  if (make("SoundLOD", kDword, &o.sound_lod)) set_sound_lod(d("SoundLOD", 0));
+  if (make("ObjectLOD_SW", kDword, &o.object_lod[0])) o.hw = 0, set_object_lod(d("ObjectLOD_SW", 0));
+  if (make("ObjectLOD_HW", kDword, &o.object_lod[1])) o.hw = 1, set_object_lod(d("ObjectLOD_HW", 0));
+  if (make("EffectsLevel_SW", kDword, &o.effects_level[0])) o.hw = 0, set_effects_level(d("EffectsLevel_SW", 1));
+  if (make("EffectsLevel_HW", kDword, &o.effects_level[1])) o.hw = 1, set_effects_level(d("EffectsLevel_HW", 0));
+  if (make("ShadowParts_SW", kDword, &o.shadow_parts[0])) o.hw = 0, set_shadow_parts(d("ShadowParts_SW", 0));
+  if (make("ShadowParts_HW", kDword, &o.shadow_parts[1])) o.hw = 1, set_shadow_parts(d("ShadowParts_HW", 0));
+  if (make("Shadow", kDword, &o.shadow)) set_shadow(d("Shadow", 1));
+  if (make("GameOptions", kDword, &o.game_options)) {
+    set_game_options(0);
+    set_camera_mode(d("CameraMode", 1));
+    set_invincible(d("Invincible", 0));
+    set_infinite_ammo(d("InfiniteAmmo", 0));
+    set_heat(d("HeatMgmt", 1));
+    set_torso_auto_return(d("TorsoAutoRtn", 0));
+    set_throttle_const(d("ThrottleConst", 0));
+    set_use_joystick(d("UseJoystick", 1));
+    set_mw2_jump_jets(d("MW2JJets", 0));
+    set_fast_menu(d("FastMenu", 0));
+  }
+  if (make("MouseAccelX", kBinary4, &o.mouse_accel[0])) o.mouse_accel[0] = 1.3f;
+  if (make("MouseAccelY", kBinary4, &o.mouse_accel[1])) o.mouse_accel[1] = 1.3f;
+  if (make("JoyAccelX", kBinary4, &o.joy_accel[0])) o.joy_accel[0] = 1.3f;
+  if (make("JoyAccelY", kBinary4, &o.joy_accel[1])) o.joy_accel[1] = 1.3f;
+  if (make("GameIntensity", kDword, &o.game_intensity)) set_game_intensity(1);
+  if (make("MouseMode", kDword, &o.mouse_mode)) o.mouse_mode = 2;
+  if (make("SoundVolume", kBinary4, &o.sound_volume)) set_sound_volume(0.5f);
+  if (make("CDVolume", kBinary4, &o.cd_volume)) set_cd_volume(0.5f);
+  // Not saved (scope 2): the stride, the camera and the three rectangles, VMode.
+  if (make("VStride", kDword, &o.vstride, 0, zreg::kNotSaved)) o.vstride = 1;
+  make("Camera", zreg::kBlock, &o.camera, sizeof o.camera, zreg::kNotSaved);
+  make("Render", zreg::kBlock, &o.render, sizeof o.render, zreg::kNotSaved);
+  make("Display", zreg::kBlock, &o.display, sizeof o.display, zreg::kNotSaved);
+  make("Window", zreg::kBlock, &o.window, sizeof o.window, zreg::kNotSaved);
+  if (make("VMode", kDword, &o.vmode, 0, zreg::kNotSaved)) set_vmode(d("VMode", 5));
+  // The mode a mission starts in: saved, and read as any number, so 8..10
+  // (1152x864, 1280x1024, 1600x1200, which the menu does not offer) work.
+  if (make("InGameVMode", kDword, &o.in_game_vmode)) o.in_game_vmode = d("InGameVMode", 5);
+  if (make("ActiveCtlCfg", 3, o.active_ctl_cfg, sizeof o.active_ctl_cfg))
+    std::strncpy(o.active_ctl_cfg, g_hooks->message(0xfc0), sizeof o.active_ctl_cfg);  // "DefaultCtlConfig"
+  g_hooks->controls_set_defaults();
+  o.default_cmd_map = zreg::find("DefaultCmdMap");
+  zreg::read_all();
+  // FIX (bug): a saved name without its 0 ran past the buffer (fixes.md).
+  const std::string ctl(o.active_ctl_cfg, strnlen(o.active_ctl_cfg, sizeof o.active_ctl_cfg));
+  g_hooks->controls_load(ctl.c_str());
+  // Handles of objects of the last run would be stale: cleared.
+  o.camera.camera = 0;
+  o.render.target = 0;
+  o.display.target = 0;
+  o.window.target = 0;
+  if (root) g_hooks->reader_free(root);
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0040cb20, from the app's destructor 0x0047fab0.
+void save_options() {
+  zreg::write_all();
+  g_hooks->controls_free();
 }
 
 }  // namespace mech3

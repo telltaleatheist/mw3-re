@@ -1,5 +1,7 @@
 #include "frontend/sdl/sdl_input.h"
 
+#include "gamez/zutil/zutl_reg.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -323,6 +325,12 @@ int32_t SdlZinHost::to_ascii(uint32_t, uint32_t scan, const uint8_t* st, uint16_
   if (k < 0x20 || k >= 0x7f) return 0;
   *out = static_cast<uint16_t>(k);
   return 1;
+}
+
+// 0x00597d90(name, 7, size, per user): saved with the other settings.
+uint32_t* SdlZinHost::settings_block(const char* name, uint32_t size) {
+  zreg::Entry* e = zreg::create(name, zreg::kBlock, size, zreg::kUser);
+  return e ? reinterpret_cast<uint32_t*>(e->data) : nullptr;
 }
 
 }  // namespace sdlfe

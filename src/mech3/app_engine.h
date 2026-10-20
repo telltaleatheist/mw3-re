@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -38,11 +39,40 @@ struct Platform {
   platform::Files* files = nullptr;     // what music/trackNN.* the "disc" holds
   platform::Render3D* render = nullptr;
   platform::Screen2D* screen = nullptr;
+  platform::Settings* settings = nullptr;  // the registry's stand-in (settings.md); none: nothing saved
+  uint32_t ram_mb = 4096;               // the machine's memory, for detail.zrd's RAM_KB
   int window_width = 1280, window_height = 960;  // the window made for the 640x480 game
 };
 
+class GameEngine;
+void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
+
 class GameEngine : public Engine {
  public:
+  // A mission started from the command line (our addition, docs/program.md):
+  // the pilot's game answers these, and the load goes on to the Core state.
+  struct Launch {
+    int32_t index = 0;   // the mission directory (0x00484c50): c1 c2 c3 c4 c4b t1
+    int32_t type = 1;    // the game type: 1 a campaign mission (gametypes.md)
+    int32_t number = 1;  // the mission number (world.zrd's m<n>, the start animation's)
+    bool have_pos = false;  // the camera placed (--pos/--look): there is no mech to follow yet
+    float eye[3] = {}, yaw = 0, pitch = 0;
+    bool active = false;
+  };
+  void set_launch(const Launch& l);
+  const Launch& launch() const { return launch_; }
+  void missions_start(uint32_t list) override;   // 0x00490880: mech3::missions().start()
+  Handle pilot_game(Handle p) override;
+  uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
+  uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
+  void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
+  Handle mission_camera() const { return camera_; }
+  Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
+  void video_clear_b(Handle rect) override;
+  std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
+  bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene
+  int frames_presented = 0;
+
   GameEngine(const Platform& p, std::string command_line);
   ~GameEngine() override;
 
@@ -75,7 +105,7 @@ class GameEngine : public Engine {
   void run_dir() override {}
   uint32_t message_dll_load(const char* name) override;
   uint32_t directx_version() override { return 0x700; }
-  uint32_t install_options(uint32_t mask) override { return mask & 0x0101; }
+  uint32_t install_options(uint32_t mask) override { return mask & install_options_; }  // 0x00597d80
   int32_t pick_video_device(int32_t, int32_t) override { return 0; }
   const char* message_format(int32_t id, const char* arg) override;
   uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t arg = 0) override;
@@ -91,7 +121,7 @@ class GameEngine : public Engine {
   void error_log_open(uint32_t hwnd, uint32_t a, const char* name) override;
 
   // Engine modules.
-  void settings_init(const char*, const char*, const char*) override {}
+  void settings_init(const char* company, const char* product, const char* version) override;
   void list_pool_init(int32_t) override {}  // the rebuild's containers stand in (startup.md step 6)
   void list_pool_free() override {}
   void reader_init(const char* dir) override;
@@ -177,12 +207,17 @@ class GameEngine : public Engine {
   std::unordered_map<uint32_t, uint8_t> memory_;
   uint32_t hwnd_ = 0;
   int32_t device_ = -1;
+  uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;
   std::string formatted_;
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
+  Launch launch_;
+  Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
+  Handle next_block_ = 0x01000000;
+  bool scene_drawn_ = false, last_drew_scene_ = false;
   std::unordered_map<void*, Handle> handles_;
 };
 

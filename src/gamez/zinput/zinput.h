@@ -24,7 +24,7 @@ struct Host {
   virtual bool keyboard_state(uint8_t*) { return false; }  // GetKeyboardState
   virtual int32_t to_ascii(uint32_t, uint32_t, const uint8_t*, uint16_t*) { return 0; }
   // The settings store's entry the command map's bindings live in (0x00597d90,
-  // type 7, per user): null keeps them in the map (the store is not ported).
+  // type 7, per user; gamez/zutil/zutl_reg): null keeps them in the map.
   virtual uint32_t* settings_block(const char*, uint32_t) { return nullptr; }
 };
 

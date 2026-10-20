@@ -30,6 +30,8 @@ add_library(mw3core STATIC
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
+  src/gamez/zutil/zutl_reg.cpp
+  src/platform/reg_file.cpp
   src/gamez/zutil/zutl_zar.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
@@ -111,6 +113,7 @@ add_library(mw3core STATIC
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
+  src/mech3/mission.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
@@ -123,6 +126,7 @@ add_library(mw3core STATIC
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
   src/mech3/app_engine.cpp
+  src/mech3/app_mission.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)
@@ -172,6 +176,8 @@ add_library(mw3probe SHARED
   tests/probe_pose.cpp
   tests/probe_ai.cpp
   tests/probe_zinput.cpp
+  tests/probe_settings.cpp
+  tests/probe_mission.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

@@ -40,14 +40,24 @@ so it moves on at once), then the Main state. The main menu's screen
 
 ## Debug starts (our addition)
 
-While the menus and the mission load are not ported, two states of our own
-take the place of the state after the intro (the app's +0x1dc, where a lobby
-launch puts the Load state). They run inside the original main loop, after
-the original start-up, like any state.
+While the menus are not ported, the debug starts take the place of the state
+after the intro (the app's +0x1dc, where a lobby launch puts the Load state).
+They run inside the original main loop, after the original start-up.
 
-- `mw3 --mission c1` (also `c1m2`: world block m2, mission number 2; `c4b`,
-  `t1`; `--variant BLOCK`, `--pos X Y Z`, `--look YAW PITCH` in degrees): the
-  world loaded as `mw3view --real` loads it (`src/frontend/debug_world`: the
+- `mw3 --mission c1m1` (`c1` is mission 1; `c2`, `c3`, `c4`, `c4b`, `t1`;
+  `--pos X Y Z`, `--look YAW PITCH` in degrees place the camera):
+  **through the original's states** (mission-load.md): the pilot's game
+  answers a campaign mission (type 1, the number, the directory's index), the
+  Load state runs, its mission load (0x00490880 -> 0x00490ab0 -> 0x0048faf0,
+  ported: the interp scripts read gamez.zbd, the textures, the view,
+  animations, world.zrd) prints its progress lines, then the Core state
+  (queued in place of the briefing's Launch button) runs the mission frame
+  and draws the world through its Direct3D path from `camera1`. Mechs, AI,
+  weapons, the HUD and the briefing screen are hooks logged once.
+  `--shot`/`--frames` count the Core state's frames.
+- `mw3 --fly c1` (also `c1m2`: world block m2, mission number 2; `c4b`,
+  `t1`; `--variant BLOCK`, `--pos X Y Z`, `--look YAW PITCH` in degrees): a
+  state of our own, the world loaded as `mw3view --real` loads it (`src/frontend/debug_world`: the
   ported gamez.zbd reader, texture groups, world.zrd parameters), drawn every
   frame by the ported render path on the SDL GPU. A free camera: W/S/A/D, Q/E
   down and up, arrows turn, Shift fast, right mouse button looks, P prints the
@@ -56,9 +66,8 @@ the original start-up, like any state.
   `mech_powerup` at the start (as the Core state's enter plays it), the
   world's sound nodes and the listener wired to the scene walk; the music
   track picked as the mission start picks it (0x00480df0: `-cdN`, else by
-  mission number on a 2..5-track disc). Not there yet: the mission load
-  (0x0048faf0), the animations and their puffers, mechs, AI, weapons, HUD,
-  weather.
+  mission number on a 2..5-track disc). No mission load, animations, mechs,
+  AI, weapons, HUD or weather.
 - `mw3 --dialog dialog.zrd MAINMENU` (any dialog of twod.md section 3): the
   dialog drawn by the ported zTwoD on the SDL host, every BUTTONS and
   PRIMITIVES entry bound by name (check buttons when they have CHECKED, texts
@@ -90,6 +99,8 @@ Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
 | the options and their hooks (sound volume, music volume, global light, video mode) | `mech3/options`, `zsnd`, `mech3_music`, `zmod` |
 | messages 0x00576040, 0x00575fb0, 0x00575fd0 | `zutl_msgdll` over Mech3Msg.dll |
 | zTwoD's outside calls (`ztwod::Host`) | `SdlTwodHost` (below) |
+| the settings store 0x00598210, 0x00597d80, the loader 0x0040c420, the save 0x0040cb20 and the store's free 0x00598270 (the app's destructor 0x0047fab0, `Mech3App::destroy`) | `zreg`, `mech3::load_options` (settings.md); the registry is the write dir's `settings.reg` (`platform::RegFile`) |
+| the mission load 0x00490880, 0x00490ab0, 0x0048faf0 (and 0x004902a0, 0x00490630, 0x00484c50) | `mech3::Missions` (mission-load.md); its hooks in `app_mission.cpp`: zInterp, the options, zImage, zClass's and zModel's resets, node lookups, animations, world.zrd, the readers, sounds; the view's camera run is the scene walk |
 | zInput: the command map 0x0051c630, start and stop 0x0051b0a0 / 0x0051b170, the activate and deactivate, polls 0x0051b360, key states 0x0051a9b0, resets, the mouse's use, centre, position, acceleration and screen, joystick and force feedback 0x0051dc10 / 0x0051ddb0 | `zin` (input.md), on `SdlInput` and `SdlZinHost` |
 
 Memory of modules not ported (the `peek`/`poke` the app code uses for
@@ -100,9 +111,8 @@ get 32-bit handles from a table.
 Still hooked (logged once each, return 0), the main ones: the movies (zFMV
 0x00598cc0..), the main menu's screen and menu objects (0x00486260,
 0x0048a6c0 ..), the pilots, mechs, maps and missions (0x004788b0,
-0x0040f410, 0x004583b0, 0x0048faf0 ...), zEffect, zClass's and zModel's
-module starts, the settings loader 0x0040c420 (the program keeps its defaults,
-options.md), the network. `--verbose` prints the full list of a run.
+0x0040f410, 0x004583b0 ...), the mission's modules (mission-load.md, Open), zEffect, zClass's and zModel's
+module starts, mech3's controls (0x00411150, 0x004120a0), the network. `--verbose` prints the full list of a run.
 
 ## The platform underneath (FIX (A), fixes.md)
 
@@ -160,6 +170,9 @@ implements it:
   wav|mp3)`; `mech3::MountFiles` looks it up in the write dir, then every
   mount, so the tracks can sit in the write dir's `music/` or the install's.
   The file is decoded as it plays (SDL3_sound), gain from the CD volume.
+- **Settings** (`platform::RegFile`, settings.md): the registry's two keys
+  as regedit's text in the write dir's `settings.reg`, written when the app
+  ends; zInput's bindings are a store entry (`SdlZinHost::settings_block`).
 - **Alert** (`SdlAlert`): `MessageBoxA` and the game's own box 0x004ac150
   (its dlgMessage.zrd box is the 2D front end's, not wired yet) as SDL's
   message box with the same texts and buttons.
@@ -184,6 +197,11 @@ implements it:
   GDI's cell height, word breaks, `&` prefixes).
 - `tests/differential/test_zinput.py`: zInput against the exe (input.md,
   Testing).
+- `tests/differential/test_mission_load.py`: the mission load against the
+  exe (mission-load.md, Testing).
+- `tests/differential/test_settings.py`: the settings loader and the store
+  against the exe (settings.md, Testing); `mw3tests` reads a regedit export
+  and saves through `platform::RegFile`.
 - `tests/differential/test_ztimer.py` now also runs the clock start
   0x005759a0 on a random frame against the exe (break tests: the total not
   zeroed, the tick product rounded differently: both caught).
@@ -203,10 +221,8 @@ through the MCI notify path.
   and the controls file, input.md Open).
 - The main menu's screen (0x00486260, mapped in mainmenu.md) and the other screens on zTwoD and the
   SDL host; the game's message box 0x004ac150 on dlgMessage.zrd.
-- The settings loader 0x0040c420 and a registry stand-in in the write dir
-  (`platform::Settings` exists, unimplemented).
-- The mission load 0x0048faf0, so `--mission` can go through the Load and
-  Core states instead of its own.
+- The mission's hooked modules (mission-load.md, Open): the player's mech,
+  AI, weapons, effects, HUD; the briefing screen and its Launch button.
 - Movies (zFMV, Indeo 5).
 - The cursor (0x00579840) is not shown or hidden; the menus draw their own.
 - Shaders are MSL only (Metal); SPIR-V and DXIL come with the Windows build.

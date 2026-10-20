@@ -16,7 +16,9 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
+#include "gamez/zutil/zutl_reg.h"
 #include "mech3/options.h"
+#include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
 namespace {
@@ -180,5 +182,61 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// The registry as a file (docs/settings.md): a regedit export reads as the
+// registry would, values the game does not know survive a save, and a saved
+// InGameVMode of 10 (1600x1200, not offered by the menu) comes back.
+TEST(settings_file_reads_an_export_and_keeps_what_the_game_saved) {
+  const std::string dir = temp_dir("settings");
+  const std::string path = dir + "/settings.reg";
+  const char text[] =
+      "Windows Registry Editor Version 5.00\r\n\r\n"
+      "[HKEY_CURRENT_USER\\Software\\MicroProse\\MechWarrior 3\\1.0]\r\n"
+      "\"InGameVMode\"=dword:0000000a\r\n"
+      "\"MouseAccelX\"=hex:00,00,\\\r\n  00,40\r\n"
+      "\"Somebody's\"=\"a string\"\r\n"
+      "\"Kept\"=dword:12345678\r\n"
+      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\MicroProse\\MechWarrior 3\\1.0]\r\n"
+      "\"InstallOptions\"=dword:00000101\r\n";
+  {  // as regedit writes it: UTF-16LE with a byte-order mark
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    std::fputc(0xff, f), std::fputc(0xfe, f);
+    for (const char* p = text; *p; ++p) std::fputc(*p, f), std::fputc(0, f);
+    std::fclose(f);
+  }
+  platform::RegFile reg(path);
+  const std::string key = "SOFTWARE\\MicroProse\\MechWarrior 3\\1.0";
+  EXPECT(reg.open(key, true, false));
+  uint32_t size = 0, v = 0;
+  EXPECT(reg.query(true, "ingamevmode", &size) && size == 4);
+  EXPECT(reg.read(true, "InGameVMode", &v, &size) && v == 10);
+  float f = 0;
+  size = 4;
+  EXPECT(reg.read(true, "MouseAccelX", &f, &size) && f == 2.0f);
+  EXPECT(!reg.query(true, "Somebody's", &size));  // a string value: not the game's
+  EXPECT(reg.query(false, "InstallOptions", &size) && size == 4);
+  reg.close(true);
+
+  zreg::Machine m;
+  m.cpu_mhz = 2000;
+  zreg::init("MicroProse", "MechWarrior 3", "1.0", m, 0x101);
+  zreg::set_settings(&reg);
+  mech3::options() = mech3::Options{};
+  EXPECT(mech3::load_options(nullptr) == 1);
+  EXPECT(mech3::options().in_game_vmode == 10);
+  EXPECT(mech3::options().mouse_accel[0] == 2.0f);
+  mech3::options().sound_volume = 0.25f;
+  EXPECT(zreg::write_all() == 1);
+
+  platform::RegFile again(path);
+  EXPECT(again.open(key, true, false));
+  EXPECT(again.query(true, "Kept", &size));
+  size = 4;
+  EXPECT(again.read(true, "SoundVolume", &f, &size) && f == 0.25f);
+  EXPECT(again.read(true, "InGameVMode", &v, &size) && v == 10);
+  zreg::set_settings(nullptr);
+  zreg::shutdown();
   mech3::options() = mech3::Options{};
 }

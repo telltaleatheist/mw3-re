@@ -107,8 +107,8 @@ command one dword of bindings (key1 bits 0-10, key2 11-21, joystick button
 and reverse tables: key1 and key2 to command (0x7de each), joystick button
 (16) and mouse button (4) to command. The bindings are the settings store's
 entry named for the map (0x00597d90, type 7, per user), so they are saved
-with the other settings; the store is not ported, so the port keeps them in
-the map (`zin::Host::settings_block`).
+with the other settings (settings.md; `zin::Host::settings_block`, which the
+SDL host answers from the store; null keeps them in the map).
 
 - `bind(cmd, name, key1, key2, joy, mouse)` 0x0051c190 (0x0051d2c0): each
   input taken from the command that had it, the command's old one freed.
