@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -1276,6 +1277,172 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     CountingPump pump;
     pump.limit = 700;
     app.run(pump);
+    EXPECT(seen.frames >= 200);
+    EXPECT(seen.flying_max > 0);                                // shots in the air
+    EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
+    EXPECT(seen.hits_after > seen.hits_before);                // through the Owens' damage handler
+    EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
+    EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
+    EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// The left mouse button fires (CMD_TRIGGER1), with the mouse as DirectInput
+// has it: exclusive and foreground, so refused while the window is not in
+// front. The game starts unfocused, the window then gains the focus (the
+// frame's OnActivate), and a held left button sets the weapons going.
+TEST(mission_c1m1_left_button_fires_after_focus_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_fire_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    bool focused = false, mouse_acquired = false, mouse_lost = false, left = false;
+    uint32_t coop[3] = {};
+    int acquires = 0, refusals = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard || d == kMouse; }
+    void close(Device) override {}
+    void set_cooperative_level(Device d, uint32_t f) override { coop[d] = f; }
+    int32_t acquire(Device d) override {
+      if (d != kMouse) return 0;
+      ++acquires;
+      if ((coop[d] & 5) == 5 && !focused) return ++refusals, kNotAcquired;  // DISCL_EXCLUSIVE | FOREGROUND
+      mouse_acquired = true, mouse_lost = false;
+      return 0;
+    }
+    int32_t unacquire(Device d) override {
+      if (d == kMouse) mouse_acquired = false;
+      return 0;
+    }
+    void focus(bool on) {
+      focused = on;
+      if (!on && mouse_acquired && (coop[kMouse] & 5) == 5) mouse_acquired = false, mouse_lost = true;
+    }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override {
+      if (!mouse_acquired) return mouse_lost ? kInputLost : kNotAcquired;
+      *m = platform::MouseState{};
+      m->buttons[0] = left ? 0x80 : 0;
+      return 0;
+    }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      mech3::LaunchedMech owens_before, owens_after, player_before, player_peak;
+      int32_t flying_max = 0, hot_group = -1, hits_before = 0, hits_after = 0;
+      bool hot_fired = false;
+      void* attacker = nullptr;
+    } seen;
+    void* player = nullptr;
+    void* owens = nullptr;
+    uint32_t fire = 0;
+    // The message loop: 40 passes after the first frame the window comes to
+    // the front (SdlPump's focus event: the frame's OnActivate, the device's focus).
+    struct FocusPump : CountingPump {
+      std::function<void()> front;
+      int since = -1;
+      bool peek() override {
+        if (since >= 0 && ++since == 40 && front) front();
+        return CountingPump::peek();
+      }
+    } pump;
+    pump.limit = 900;
+    pump.front = [&] {
+      app.on_window_activate(1);
+      keys.focus(true);
+    };
+    bool unfocused = false;
+    engine.on_present = [&](int) {
+      if (!unfocused) {  // the game starts behind another window (the terminal)
+        unfocused = true;
+        keys.focus(false);
+        app.on_window_activate(0);
+        pump.since = 0;
+      }
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+        // 80 m west of the Owens, on the ground, facing east (+x: yaw -90).
+        mech3::LaunchedMech o;
+        mech3::describe_mech(owens, &o);
+        const float x = o.pos[0] - 80.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+        mech3::describe_mech(owens, &seen.owens_before);
+        mech3::describe_mech(player, &seen.player_before);
+        seen.hits_before = mech3::mech_hits_taken(nullptr);
+      } else if (seen.frames == 10) {
+        keys.left = true;           // and the player clicks
+      } else if (seen.frames == 120) {
+        // The first group (the machine guns) makes no heat: one that does.
+        seen.hot_group = mech3::mech_select_hot_group(player);
+        seen.player_before = seen.player_peak;  // the heat before the hot group
+      } else if (seen.frames > 6 && seen.frames < 200) {
+        // The HUD's reticle on the Owens' middle (0x0041cd40 is not ported).
+        mech3::LaunchedMech o;
+        mech3::describe_mech(owens, &o);
+        const float at[3] = {o.pos[0], o.pos[1] + o.height * 0.5f, o.pos[2]};
+        mech3::mech_aim_at(player, at);
+        zwep::PoolStats ps;
+        zwep::pool_stats(&ps);
+        if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
+        mech3::LaunchedMech m;
+        if (mech3::describe_mech(player, &m) && m.heat > seen.player_peak.heat) seen.player_peak = m;
+        if (seen.frames > 120 && mech3::mech_group_reloading(player, seen.hot_group)) seen.hot_fired = true;
+      } else if (seen.frames == 200) {
+        keys.left = false;
+        mech3::describe_mech(owens, &seen.owens_after);
+        seen.hits_after = mech3::mech_hits_taken(&seen.attacker);
+      }
+    };
+    app.run(pump);
+    std::printf("  mouse: %d acquires, %d refused; trigger on the left button: %u\n", keys.acquires, keys.refusals,
+                zin::mouse_of(0x3d));
     EXPECT(seen.frames >= 200);
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit

@@ -207,6 +207,23 @@ button's command reading the left, the joystick centre halved, Alt-F4 run
 while up, the wheel's reset quirk fixed, an overflowing read kept, the
 joystick reset's off-by-one fixed, the first key's callback not set.
 
+In the program (2026-10-20, Owen's click that did not fire): the mouse is
+exclusive and foreground, so `SdlInput` refuses it while the window is
+not in front. The original's logic recovers by itself: the frame's
+OnActivate resumes zInput (0x0051b080), and every mouse read retries the
+acquire while `mouse_acquired` is 0 (0x0051b7d0); after a lost read the
+next one acquires. Checked on the GPU with SDL events pushed into `mw3
+--mission c1m1`: focus lost at start, back 0.8 s later, a left click: the
+read is lost once, then acquired; CMD_TRIGGER1 goes pressed and held and
+shots fly. mw3tests `mission_c1m1_left_button_fires_after_focus_headless`
+plays it headless (a fake exclusive foreground mouse refused until the
+window comes to the front): the left button alone puts shots in the air,
+hits the Owens and fires the hot group. Nothing in the glue needed
+changing. Why the click looked dead in play: frame 40 of c1m1 shot with
+and without a click at frame 20 is the same to the pixel while the click's
+shots are in flight; the shots (the Mad Cat's first group, its machine
+guns) draw nothing in the program yet (weapons' side).
+
 ## Open
 
 - The controls screen (0x0042be10 ..), which uses read_key and the wait
