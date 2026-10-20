@@ -69,6 +69,48 @@ void Shape::set_scale(float s) {
   dirty();
 }
 
+namespace {
+const float kTriangle[9] = {0.0f, -0.57735002f, 0.0f, -0.5f, 0.28867501f, 0.0f, 0.5f, 0.28867501f, 0.0f};  // 0x005f4a20
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005a3270: scaled (when the scale changed) and moved.
+// Moved alone, the translation adds onto the points again (as written; the
+// HUD always sets both).
+void Shape::transform() {
+  if (xform > 1)
+    for (int i = 0; i < 9; ++i) points[i] = scale * kTriangle[i];
+  for (int c = 0; c < 3; ++c)
+    for (int i = 0; i < 3; ++i) points[3 * c + i] = points[3 * c + i] + translation[i];
+  set_point(0, crt::msvc_ftol(points[0]), crt::msvc_ftol(points[1]));
+  set_point(1, crt::msvc_ftol(points[3]), crt::msvc_ftol(points[4]));
+  set_point(2, crt::msvc_ftol(points[6]), crt::msvc_ftol(points[7]));
+  set_point(3, crt::msvc_ftol(points[0]), crt::msvc_ftol(points[1]));
+  xform = 0;
+}
+
+// Mech3.exe 1.2 @ 0x005a3550
+void Shape::update(float dt) {
+  if (xform) transform();
+  Object2D::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x005a3440: between the apex's row (point 0) and the
+// base's (point 1), within 0.577 of the depth either side of the centre.
+bool Shape::contains(int32_t px, int32_t py) {
+  if (flags & kHidden) return false;
+  if (xform) transform();
+  if (py > pts[1][1]) return false;
+  const float d = static_cast<float>(py - pts[0][1]);
+  if (!(d > 0.0f)) return false;  // [0x005cffd8]
+  return !(d * 0.57735097f < std::fabs(static_cast<float>(px) - translation[0]));  // [0x005cffdc]
+}
+
+// Mech3.exe 1.2 @ 0x005a3b30
+bool Frame::contains(int32_t px, int32_t py) const {
+  const int32_t dx = px - x, dy = py - y;
+  return dx * dx + dy * dy < radius_sq;
+}
+
 // Mech3.exe 1.2 @ 0x005a6bd0
 Polygon::Polygon() : Object2D(0, 0) { dirty(); }
 

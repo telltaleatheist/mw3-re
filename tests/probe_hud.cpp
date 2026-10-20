@@ -102,6 +102,18 @@ struct Hooks : mech3::HudHooks {
     g_lock_shown = on;
     call("poke8", {id(wm) + 0x88, on ? 1u : 0u});
   }
+  const char* object_name(void* o) override {  // obj.vt+0xa4: a C string in the emulator, or none
+    const uint32_t a = call("obj.vt+0xa4", {id(o)});
+    if (!a) return nullptr;
+    std::string n;
+    for (uint32_t i = 0; i < 64; ++i) {
+      const char c = static_cast<char>(call("peek8", {a + i}));
+      if (!c) break;
+      n += c;
+    }
+    g_strings.push_back(n);
+    return g_strings.back().c_str();
+  }
   const char* weapon_name(void* w) override {  // def +0x2c, its name +8, from the emulator's memory
     const uint32_t a = call("peek32", {call("peek32", {id(w) + 0x2c}) + 8});
     std::string n;
@@ -539,7 +551,7 @@ void dump_hud(Dump& d) {
     poly(d, &q);
     d.kv("xf", q.xform);
     for (float f : q.translation) d.f("s", f);
-    for (uint32_t v : q.xfc) d.kv("s", v);
+    for (float v : q.points) d.kv("s", zgame::bits(v));
     d.kv("s", zgame::bits(q.scale));
   };
   d.o << "tshape1 ";

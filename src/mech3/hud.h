@@ -391,11 +391,12 @@ class HudTarget : public HudMfd {
  public:
   HudTarget(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043fcb0
   void hide() override;              // +0x64  0x004415f0
-  // +0x60 show_for 0x00441560: not ported yet.
+  void show_for(float seconds) override;  // +0x60  0x00441560: the lines and three texts too
   virtual void set_mode(int32_t m);  // +0x7c  0x004400f0: kept for the next TARGET
-  void set_target(void* t);          // 0x00441800 (part: with a target, not ported yet)
-  void set_shown(bool on);           // 0x00441780 (part, as set_target)
-  void update_texts(bool clear);     // 0x00441660 (part, as set_target)
+  void set_target(void* t);          // 0x00441800: shown with a live target
+  void set_shown(bool on);           // 0x00441780: a new target's pulse, the reticle reset
+  void update_texts(bool clear);     // 0x00441660: the damage view's mech, the mode, the nav list, the name
+  bool over(int32_t px, int32_t py); // 0x00440a30: a NARCed target, or the point on the shape or the circle
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00440110 (TARGET in hud.zrd)
   void attach(void* hud);            // 0x00441760
   void update(float dt) override;    // +0x24  0x00441490
@@ -565,6 +566,14 @@ class HudHooks : public zgame::Unported {
   }
   virtual bool object_a8(void* o) { return (unported("obj.vt+0xa8", {id(o)}) & 0xff) != 0; }
   virtual bool object_mech(void* o) { return unported("obj.vt+0x50", {id(o)}) != 0; }
+  // TARGET's texts (0x00441660): the object's mech (vt+0x50) and name
+  // (vt+0xa4, a C string); a mech's NARC timer (+0x570, 0x00440a30).
+  virtual void* object_mech_ptr(void* o) { return ptr(unported("obj.vt+0x50", {id(o)})); }
+  virtual const char* object_name(void* o) {
+    unported("obj.vt+0xa4", {id(o)});
+    return nullptr;
+  }
+  virtual float mech_narc(void* m) { return zgame::from_bits(unported("peek32", {id(m) + 0x570})); }
   // The HUD's sound channels (0x0041e7a0: a channel's sound stopped; with
   // `fade`, faded instead).
   virtual void hud_sound_stop(int32_t channel, int32_t fade) { unported("0x0041e7a0", {channel, fade}); }
@@ -585,9 +594,7 @@ class HudHooks : public zgame::Unported {
     if (!(unported("peek32", {0x5fc384}) >> 4 & 1)) unported("0x0043c820.debug", {id(hud)});
   }
   virtual void radar_update(void* radar, float dt) { unported("0x0043dd00", {id(radar), zgame::bits(dt)}); }
-  virtual bool reticle_over_target(void* target, int32_t x, int32_t y) {
-    return (unported("0x00440a30", {id(target), uint32_t(x), uint32_t(y)}) & 0xff) != 0;
-  }
+  virtual bool reticle_over_target(void* target, int32_t x, int32_t y);  // 0x00440a30 (HudTarget::over)
   virtual void reticle_aim_state(void* reticle, bool over);  // 0x00443d20 (HudReticle::aim_state)
   // The aim state's outside (0x00443d20). The weapon manager's selected
   // group (mac 4, the planner): its longest range (0x004b1bd0), whether any

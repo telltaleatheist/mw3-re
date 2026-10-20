@@ -1904,6 +1904,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   within the group's longest range.
 - **Elementals can't be missile-locked:** the lock skips any target whose
   pilot is an Elemental.
+- **A NARCed target locks without aiming at it:** while a NARC beacon is on
+  a target (30 seconds, and never on a mech carrying ECM), the lock counts
+  the reticle as on the target wherever you point it.
 - **ECM doubles the lock time:** against a target carrying ECM, a missile
   lock takes 1.2 seconds instead of 0.6.
 - **What the weapon list's colours mean:** each weapon's light turns

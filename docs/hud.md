@@ -618,3 +618,23 @@ The pieces, ported in order (the lead's plan, 2026-10-20):
    clip's end test at equality) need a target in the player mech's own slot,
    which the set-up only takes once set_target (0x00441800) is ported:
    part 3 reruns them.
+3. **A target given to TARGET** (0x00441800, `set_target`, with the slot the
+   set-up hands it: the mech's own +0x6c): with a live contact TARGET shows
+   with its three lines and texts (0x00441560) and turns on (0x00441780: the
+   triangle's 0.3 s pulse, the reticle reset); its texts (0x00441660): the
+   target's mech into the damage view and the nav list, the mode the saved
+   one (else 1 in Direct3D, 3 in software), the first text the target's
+   name (vt+0xa4); a target whose vt+0xa8 answers (dead) gets mode 0 and no
+   mech. **Over the target** (0x00440a30, `over`, the lock's "over"): a
+   NARCed target (its mech's +0x570 above 0) always; else the reticle's
+   point inside TARGET's triangle shape (zTwoD 0x005a3440: below its apex,
+   above its base, within 0.577 of the depth either side, after the shape's
+   points are worked out, 0x005a3270, also on its update 0x005a3550) or
+   inside the lead circle (0x005a3b30). Test: test_hud.py with a target in
+   the fake mech's own slot half the time, the original 0x00440a30 in the
+   frames, contact mechs with NARC timers: 100/100. Breaking parts 2 and 3
+   together: of the 17 left from part 2 and new here, 11 caught; the misses:
+   the ECM colour's blue 4 (the same 565 pixel as 0), TARGET's shape never
+   drawn by TARGET's update (its transform matters only to the hit test),
+   the circle's and the shape's edges only at equality, the round clip's
+   end at equality, and the dead target's mode (rarely reached).

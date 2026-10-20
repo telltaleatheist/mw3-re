@@ -561,6 +561,7 @@ class Frame : public Object2D {
   Frame();                           // 0x005a39f0
   Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
   void draw() override;              // +0x04  0x005a3b00
+  bool contains(int32_t px, int32_t py) const;  // 0x005a3b30: inside the circle
   int32_t radius = 0;                // +0x34
   int32_t radius_sq = 0;             // +0x38
   uint32_t color = 0;                // +0x3c  a pixel
@@ -643,18 +644,21 @@ class Polygon : public Object2D {
   uint32_t color = 0;                // +0x134 a pixel
 };
 
-// A polyline moved and turned as a whole (vtable 0x005cff58), 0x124 bytes:
-// the HUD's arrows and markers. Partial: built and set; its transformed
-// points 0x005a3580 and draw not ported (twod.md).
+// A triangle polyline (vtable 0x005cff58), 0x124 bytes: a base triangle
+// (0x005f4a20) scaled and moved, its points worked out at the next update
+// (TARGET's shape, hud.md section 14).
 class Shape : public PolyLine {
  public:
   Shape();                           // 0x005a3170
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x005a34c0: the translation
   void set_translation(const float* t);  // 0x005a34f0
   void set_scale(float s);           // 0x005a3530: the base triangle (0x005f4a20) scaled by it
-  uint32_t xform = 0;                // +0xec  1 translated, 2 turned (to recompute)
+  void update(float dt) override;    // +0x24  0x005a3550: the points first when pending
+  void transform();                  // 0x005a3270
+  bool contains(int32_t px, int32_t py);  // 0x005a3440: below the apex, above the base, within its slope
+  uint32_t xform = 0;                // +0xec  1 moved, 2 scaled (pending)
   float translation[3] = {};         // +0xf0
-  uint32_t xfc[9] = {};              // +0xfc
+  float points[9] = {};              // +0xfc  the three corners worked out
   float scale = 0.0f;                // +0x120
 };
 

@@ -287,9 +287,8 @@ class Original:
         e.w32(0x609980, r.choice([0, 0, 1]))
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
         e.w32(0x605f88, r.choice([0, 1]))
-        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x479ed0, '')):
+        for a, spec in ((0x43dd00, 'c,s0'), (0x479ed0, '')):
             e.stub(a, spec=spec)
-        w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1])
 
         # The aim state 0x00443d20 runs; its outside stubbed (hud.md section 12):
         # the weapon group (float range on the x87 stack), the contact's mech
@@ -308,7 +307,8 @@ class Original:
             e.stub(a_, spec=spec)
         mechs = []
         for _ in range(2):
-            m = e.world_alloc(0x400)
+            m = e.world_alloc(0x600)
+            e.cpu.write(m + 0x570, struct.pack('<f', r.choice([0.0, 0.0, 12.0])))  # the NARC timer (0x00440a30)
             kind = e.world_alloc(0x20)
             e.w32(kind + 0xc, r.choice([7, 2, 1, 1]))
             e.w32(m + 0x684, kind)
@@ -316,7 +316,13 @@ class Original:
             mechs.append(m)
         w.answers['0x004b1c70'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         w.answers['0x004b1cd0'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
-        w.answers['0x004e6ff0'] = lambda rr, n, a: rr.choice([0, mechs[0], mechs[1]])
+        contact_mechs = {}  # one answer per contact for the run (the original asks twice in a row)
+
+        def contact_mech(rr, n, a):
+            if a[0] not in contact_mechs:
+                contact_mechs[a[0]] = rr.choice([0, mechs[0], mechs[1]])
+            return contact_mechs[a[0]]
+        w.answers['0x004e6ff0'] = contact_mech
         w.answers['0x0041e800'] = lambda rr, n, a: rr.choice([0, 1])
         objs = []
         for _ in range(2):
@@ -397,7 +403,11 @@ class Original:
         contact = e.world_alloc(0x40)
         e.w32(self.slots[0], contact)
         obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0), 0x68: ('c,s0', 4), 0xc: ('c', 0),
-                                     0x28: ('c', 0), 0xbc: ('c', 0)})
+                                     0x28: ('c', 0), 0xbc: ('c', 0), 0xa4: ('c', 0)})
+        names = [e.world_string('Owens'), 0]
+        w.answers['obj.vt+0xa4'] = lambda rr, n, a: rr.choice(names)
+        if self.mech and r.random() < 0.5:  # the player's target (the set-up's TARGET slot, 0x00441800)
+            e.w32(self.mech + 0x6c, contact)
         self.track_world(r, contact, obj)
         e.w32(obj + 4, e.world_alloc(0x10))  # its node
         e.stub(0x4e6fe0, spec='c')
@@ -696,6 +706,9 @@ class Original:
         e.w32(m, vt)
         e.w32(m + 4, e.world_alloc(0x40))  # its node
         e.w32(vt + 0xa0, e.new_stub('mech.vt+0xa0', 'c', 0))
+        e.w32(vt + 0xc, e.new_stub('mech.vt+0xc', 'c', 0))  # its velocity (the lead point)
+        e.w32(m + 0xf8, r.choice([-1, -1, 0]) & 0xffffffff)
+        e.cpu.write(m + 0xec, struct.pack('<3f', r.uniform(-300, 300), r.uniform(0, 30), r.uniform(-300, 300)))
         # +0x6c: no target (a target's path is TARGET's item, hud.md section 9)
         e.cpu.write(m + 0xbc, bytes([r.randrange(256)]))
         wm = e.world_alloc(0x100)  # +0x88: the lock shown (the aim state)
