@@ -65,6 +65,8 @@ class GameEngine : public Engine {
   void set_launch(const Launch& l);
   const Launch& launch() const { return launch_; }
   void missions_start(uint32_t list) override;   // 0x00490880: mech3::missions().start()
+  void missions_update(uint32_t list, float dt) override;  // 0x0048f470: mech3::missions().update()
+  void missions_reset(uint32_t list) override;   // 0x00490720: only the mission number is kept
   Handle pilot_game(Handle p) override;
   uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;

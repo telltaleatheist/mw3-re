@@ -56,6 +56,7 @@ uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v);
 void* mech_controls_of(void* mech);              // +0x37c (a MechControls*)
 float mech_game_time();                          // [0x0060991c]
+void mech_set_game_time(float t);
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v);
 
 // The AI mechs player.cpp built this mission (app_mission.cpp, our record of

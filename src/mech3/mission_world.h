@@ -80,11 +80,18 @@ struct WorldHooks {
   void (*fluctuate_base_amp)(float base, float amplitude); // 0x00543960
   void (*fluctuate_heading)(float radians);                // 0x005439f0
   void (*software_color)(const float rgb[3]);              // 0x00566250, software renderer
+  // The frame's (0x004926d0).
+  const float* (*camera_angles)();                         // [[0x005f4c8c]+4] data +0x20, the camera's rotation
+  float (*frame_dt)();                                     // [0x0072c52c]
+  void (*clouds_advance)(const float dir[2], float dt);    // 0x00543a50, gmod_light
 };
 WorldHooks& world_hooks();
 
 void world_init(MissionWorld& m);                          // 0x00491d70
 bool world_clear(MissionWorld& m);                         // 0x00491d80
+// 0x004926d0, from the missions' frame: the cloud pattern drifts the way the
+// camera looks (its dt argument is not used: the frame's [0x0072c52c] is).
+void world_update(const MissionWorld& m);
 void world_set_enabled(MissionWorld& m, bool on);          // 0x00492660
 // Reads `key` of `file` (world.zrd and the mission's name); multiplayer maps
 // past 2 read mpinfo.zrd's world_params instead. Always true.

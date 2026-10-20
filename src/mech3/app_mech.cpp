@@ -206,6 +206,8 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
 }
 void* mech_controls_of(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 float mech_game_time() { return world().time; }
+// The missions object's +0x4c (0x0048f470) is [0x0060991c]: the copies the ports keep.
+void mech_set_game_time(float t) { world().time = weapon_world().time = t; }
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v) {
   const Mech* m = static_cast<const Mech*>(mech);
   if (!m) return false;

@@ -78,10 +78,12 @@ for t in \
     zinput \
     settings \
     mission_load \
+    mission_frame \
     mission_start \
     mech_build \
     ai_brain \
     ai_valves \
+    ai_targets \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

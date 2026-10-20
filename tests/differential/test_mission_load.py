@@ -1,5 +1,6 @@
 """The mission load against the original (docs/mission-load.md): the world
-0x48faf0 (with its texture budget 0x4902a0) and the mission setup 0x490ab0.
+0x48faf0 (with its texture budget 0x4902a0) and the mission setup 0x490ab0
+(with its start 0x48f400 and the cheats' check 0x491d20, mission-frame.md).
 
 Both are orchestration: every call out of mission.cpp is stubbed in the
 emulator and a hook in the port, both answered from one script, and the call
@@ -45,7 +46,7 @@ CALLS = {
     0x50d2c0: 'c,d,zs0', 0x5090e0: 'c', 0x50ae60: 'zc', 0x501ab0: 'c,d', 0x583880: 'c,zd,s0,s1',
     0x40d7b0: '', 0x40d750: '', 0x40f7f0: 'c,d', 0x40db60: '', 0x4ac860: 'c', 0x4a51b0: 'c,s0',
     0x4a4de0: 'c,s0',
-    0x48f400: '', 0x413e60: '', 0x4319a0: '', 0x459e80: 'c', 0x491de0: 'zs0,zs1', 0x4e7b40: '',
+    0x51d2f0: 'c,d', 0x40cf20: '', 0x40cf80: '', 0x40cfc0: '', 0x413e60: '', 0x4319a0: '', 0x459e80: 'c', 0x491de0: 'zs0,zs1', 0x4e7b40: '',
     0x5a84c0: 'c,zs0', 0x4c3b80: '', 0x4135c0: 'c,zs0,zs1', 0x4b4ab0: 'c', 0x49e810: 'cl',
     0x4a76b0: 'zc,d', 0x45c2d0: 'zc,zd,s0,s1,s2,s3,s4', 0x50b450: 'zc', 0x490950: 'c',
     0x56f6f0: 'zc', 0x4d2e20: '', 0x4d31d0: '', 0x4e2120: '', 0x4d8610: 'c', 0x51a300: '',

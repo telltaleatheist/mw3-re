@@ -3,9 +3,9 @@
 Mech3.exe 1.2, 2026-10-20. The map of the AI code in the game half
 (0x4b4880..0x4eada0), the data files it reads, how one AI tick runs, and a
 porting order. The data side, the nets at run time, the AI controls
-with the brain's data and the valves at run time are ported and
-emulator-checked (sections 5, 8, 12, 13); the brain's decisions, the
-behaviours and targeting are not.
+with the brain's data, the valves at run time and targeting are ported
+and emulator-checked (sections 5, 8, 12, 13, 14); the brain's decisions
+and the behaviours are not.
 
 Names are ours unless an assert string gives them (`CZAiNetEdit`,
 `CFileDialogNet`, the five source paths). "Likely" marks a reading of what the
@@ -249,12 +249,13 @@ Clean boundaries for later work, each a piece with its own test:
 3. **Net queries**: done (section 10), the nearest step and the way
    finder. What the steps do when a pilot reaches them is step 6.
 4. **Valves** at run time: done (section 13), the reader, the conditions,
-   every action, the timers. Left: the missions' update that ticks the
-   timers (0x48f470) and the cleanup that ends them (0x491780), both in
-   mission.cpp.
-5. **Targeting**: AiTarget (0x4d56e0) masks and height, the contact list
-   (0x4ceb50, +0xac vector), the pick 0x4d6b90, CZAiTarget 0x4d2960 from the
-   ported TargetRec. Meets the vehicles through their AiTarget fields only.
+   every action, the timers, ticked by the missions' frame (0x48f470) and
+   ended by the cleanup (0x491780) (mission-frame.md).
+5. **Targeting**: done (section 14), AiTarget's fields, the pick
+   0x4d6b90, set_target, the target keys, the ranges; CZAiTarget from
+   targets.zrd with its damage, triggers and end. Left: the sensors that
+   fill the contacts (0x4a8cd0), the entity sort 0x4d5ca0. (0x4ceb50 is
+   the steering's look at the contacts, the brain's.)
 6. **The behaviours** (0x4c8600 family, ~40 classes with factories): one
    class per sitting, each against the net queries and a vehicle hooks struct.
 7. **The brain** 0x4e9710 and the AI controls' update 0x4e96f0, then the
@@ -846,13 +847,146 @@ update, the attack strategy one word off, canleave without +0xdc.
 other vehicles are not ported, so their lookups give none), power them
 through `Mech::power`, write their brains' settings, re-plan a teleported
 pilot (its placement is logged: not ported), play sounds through zSound;
-animations, destroys and the mission's abort are logged. Left: the
-missions' per-frame update 0x48f470 that ticks the timers, and the cleanup
-0x491780 that ends them (`valves_end`), both mission.cpp's.
+animations and destroys are logged; the mission's abort is the port's loss
+(0x48f9e0). The missions' frame 0x48f470 ticks the timers each Core frame
+and the cleanup 0x491780 ends them (`valves_end`), mission-frame.md.
 
 `mw3tests` `mission_start_reads_c1m1_vehicles_headless` loads c1 mission
 1's valves.zrd through the program: `bramp` holds its four reactions, and
 setting it wakes the Owens (Mech::power) and starts its two timers.
+
+## 14. Targets and targeting
+
+Ported 2026-10-20 (`mech3/zai_target`); test
+`tests/differential/test_ai_targets.py`.
+
+**AiTarget** (0x4d56e0, vtable 0x5cced8, the vehicle's +0x68..+0xd0; the
+port's `ai::AiTarget`, which `Mech` derives from):
+
+| Off | What |
+|---|---|
+| +0x68 | height (10; a mech's from its model's box) |
+| +0x6c / +0x70 / +0x74 / +0x78 | the target selected, the last ally selected, the last enemy, the one saved (0x4d7220; 0x4d7240 gives it or the last ally) |
+| +0x7c, +0x94 | blocks 0x4a7be0 frees |
+| +0x84..+0x90 | a vector of two nulls |
+| +0x9c / +0xa0 / +0xa4 | the sensor range, the range and its square (1000; 0x4d6d00, 0x4d6d20) |
+| +0xa8..+0xb4 | **the contacts**: a vector of 0x30-byte records the vehicle owns (0x4a7be0 deletes them), nearest first |
+| +0xbc | bit 4: a lancemate under the player's orders (0x4d5be0) |
+| +0xc0 / +0xc4 / +0xc8 | the team masks: a bit per 5-bit team in the value; allies the same bits but bit 0, enemies all the others but bit 0, so team 0 is no one's ally or enemy |
+| +0xd0 | a net of its own, made on first ask (0x4d70f0 over 0x4c0090) |
+
+**A contact** (made by 0x4aa270 in the sensors' module 0x4a8710..0x4ab4c0,
+between turret.cpp and veh_basic.cpp, which the Core frame's 0x4a8cd0 runs:
+not ported, so the program's lists stay empty): +0x00 the vehicle seeing it,
++0x04 what is seen (its vehicle through vt+0x2c, 0x4e6fe0, whose vt+0x28 is
+its AiTarget), +0x08 the entity, +0x0c the squared distance, +0x10 the
+offset, +0x1c -1, +0x2c bit 0 in sight. Allies share their lists
+(0x4a9fd0: merged by entity, every ally's contacts in each).
+
+**The pick** 0x4d6b90(side): the first contact of the side (0 ally, 1
+enemy, 2 neither, 3 or anything else any), in sight or not. The brain's
+(section 4) and the MFB check's 0x45a270. **set_target** (vt+0xc0,
+0x4d5e40): unless told to keep, an ally becomes the last ally, an enemy the
+last enemy; none clears the last picks it was.
+
+**The player's target keys** (mech.cpp's handler 0x41c28f.., all called
+with side 0): W 0x4d64b0 the next ally in sight after the target (else the
+first before it), Shift+W 0x4d5ee0 the one before (else the last after),
+Ctrl+W 0x4d6970 the nearest; E 0x4d6710, Shift+E 0x4d6260, Ctrl+E 0x4d6a80
+the same for **what is not an ally**: enemies and neutral things alike.
+Each first goes back to the last pick of its kind when that is not the
+current target; with no current target in the list, the nearest.
+
+**The sensor range** 0x4d6d20 (the launch's, mech-build.md): the player's
+own vehicle (or one whose vt+0x58 answers) in Instant Action or
+multiplayer sees 50000; every other range is capped at 1000.
+
+**CZAiTarget** (ZAiTarget.cpp, 0xf4 bytes: AiTarget through 0x4d7f80, which
+keeps every one in the list 0x60b584, then a description at +0xd4 and
++0xf0). The mission start ("Post Vehicle Fixup", 0x4d2e20) makes the HUD's
+three markers (`hud_target_ally_sm`, `_enemy_sm`, `_other_sm`, zTwoD images
+at 0x60b4f0, 0x4d2d70 by side) and, for each targets.zrd record, a target
+per node of list 6 named as the record (0x4d2d80); 0x4d31d0 does the same
+for traps.zrd by name prefix (none ship). For each node:
+
+- **the description** (0x4d2480's defaults: health 100 of 100, no name, no
+  triggers, flags 0), then 0x4d25c0: the record's `destroy_anim` must be an
+  animation of that node (0x50b4e0: in use, the name, its node), else no
+  target. 0x4d24f0: the record's health, or the animation's (+0xb0 of
+  +0xac) without one; the name strdup'd; `health_below`'s list taken over
+  (so of two nodes of one name only the first gets the triggers) and sorted
+  highest first (0x4d21f0, MSVC's sort); display, radar, reticule_select
+  and zoom_select as four bits. A record without `destroy_anim` keeps the
+  defaults (every shipped one has one).
+- **the object** 0x4d2960: zEntity3d's node set (0x5a8390, the record's
+  `target` and `centroid` subnodes), the node-to-entity map (0x40eaa0), the
+  offsets on those subnodes (0x4fc1b0); the destroy animation's node (+0x64,
+  else +0x40) gets the target's damage callbacks 0x4d26b0 / 0x4d26d0: new
+  ones (0x5833b0, 0x5833f0) when it has none, or the animation's own taken
+  over; a node with someone else's callbacks or inherited ones is reported
+  (0x4d26f0, 0x4d27d0) and left; the animation's owner registry 0x4d4f20;
+  `translate_to_anim_root` moves the animation's root (0x4d28e0) and every
+  child but the two subnodes back. The team masks from the record's first
+  item, the height from the record or the node's box.
+- **damage** 0x4d2c00 (a weapon) and 0x4d2cd0 (a collision): the health
+  drops, every trigger whose threshold it is now below (or every one left
+  at 0) sets its valve to its second item, at 0 the target is destroyed
+  (vt+0x70 0x4d2b30: the destroy animation runs, then 0x4d2b60: the rest of
+  the triggers, health 0, inactive); a weapon's hit is told the health left
+  (0x583730) or the kill (0x583710).
+- **the end**: the cleanup's 0x4d8270 deletes every target (0x4d8360,
+  0x4d2aa0: the callbacks taken off its node 0x583400, the description,
+  0x4d81e0, 0x4d58a0), its 0x4d3030 the markers.
+
+**Fixes**: none needed; `team_number` (0x4d71a0, the masks back to teams)
+would loop for ever on masks of 0 and is not ported (no caller here).
+
+**In the program** (`app_mission.cpp`): the targets are made from the
+reader's targets.zrd on zClass's nodes and zEffect's animations, their
+callbacks put in zWeapon's damage records (zWeapon's hit code is not ported,
+so nothing calls them yet), the triggers set the mission's valves; zEntity3d,
+the node map and the markers are logged. The cleanup deletes them.
+`mw3tests` `mission_start_reads_c1m1_vehicles_headless`: c1 mission 1's
+`satdish` is made with 35 health and its two triggers; a hit of 10 fires
+`comcntr_hit`, one of 25 `comcntr_down` and destroys it.
+
+**The test** (`test_ai_targets.py`, probe `tests/probe_ai_target.cpp`).
+Part 1, 3000 cases: random contact lists (0 to 12, in sight or not, teams
+of one or two bits, team 0 and all bits, duplicate entities and owners) on
+an AiTarget with random masks and last picks (in the list, out of it,
+none), each running one of the pick, the six keys, set_target, the side
+test, the ranges, the save; the call traces (every vt+0x2c and vt+0x28
+asked) and the fields after compared: every set_target call site in the
+keys reached. Part 2: the 27 shipped targets.zrd and 300 made-up record
+sets (traps among them; up to 33 triggers, so the big sort runs) on
+made-up nodes and animations (several nodes of one name, boxes or none,
+animations not found, on another root, the node's handlers none, the
+animation's, a foreign callback, another animation's, collide only,
+inherited), then hits, collisions, destructions, another animation taking
+a handler, the deletion and the markers; the call traces and every
+target's fields, description and triggers, and every node's handler table
+after each step: all identical, every marked branch of the original
+reached. The x87 at 24 bits. Breaking the port showed the test catches it,
+30 of 30: the pick asking the in-sight flag, "neither" asking allies first,
+set_target always keeping the sides, none not clearing the last ally, an
+ally taken as an enemy first, the enemy keys taking the side, the enemy
+keys going back to the last enemy for side 1, the last pick taken when it
+is the current, a contact matched by its entity alone, the previous key's
+wrap taking the current, the next enemy without the wrap, the wide range
+in a campaign, the cap at 2000, the radar flag in bit 0, the animation's
+health and maximum swapped, the triggers lowest first, a threshold equal
+to the health not firing, a hit to exactly 0 not destroying, the health
+left inverted, the kill leaving the entity active, the animation's
+handlers taken without the collide check, inherited handlers accepted,
+the height along x, no target without destroy_anim, the record's team
+ignored, the markers out of order, the destroy animation run twice, the
+target subnode moved back by translate_to_anim_root, the old handlers
+removed by the weapon slot only, the description's default health 50.
+
+Left: the sensors that fill the contacts (0x4a8cd0 and its module), the
+entity sort and lance flags at the Core frame's start (0x4d5ca0, 0x4d7360,
+0x4d7650, 0x4d5be0, 0x4d5dc0), the target under the cursor (0x4d72b0,
+0x4d5980's line of sight), zEntity3d itself, the brain's use of the pick.
 
 ## Open
 

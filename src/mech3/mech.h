@@ -7,6 +7,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_skis.h"
+#include "mech3/zai_target.h"
 
 // The mech object and the parts of it ported so far. Layout: docs/structs.md.
 // Original file: mech3\mech.cpp (these functions sit between it and
@@ -56,7 +57,7 @@ struct Pilot {
   int32_t* x228 = nullptr;       // +0x228  a block whose [1] is read: the cockpit's node (the launch)
 };
 
-struct Mech {
+struct Mech : ai::AiTarget {
   Handle node = nullptr;     // +0x004  the world node
   bool active = true;        // +0x008
   bool x09 = true;           // +0x009  (ZEntity)
@@ -70,22 +71,8 @@ struct Mech {
   float orientation[4] = {1, 0, 0, 0};  // +0x048  quaternion w, x, y, z (yaw only)
   Vec3 vec_58{};             // +0x058
   uint8_t x64 = 0;           // +0x064  (ZEntity3d)
-  float height;              // +0x068  from the model's bounding box, 12 if none (AiTarget's 10 before)
-  // AiTarget (0x004d56e0); its fields are not named yet.
-  uint32_t x6c[6] = {};      // +0x06c
-  uint8_t x84 = 0;           // +0x084
-  Handle x88[2] = {};        // +0x088  a vector (+0x88 begin, +0x8c end, +0x90 capacity) of two nulls
-  uint32_t x94 = 0, x98 = 0; // +0x094, +0x098
-  float x9c = 1000.0f;       // +0x09c  (0x005e8d84) passed to 0x004d6d20 at launch
-  float xa0 = 1000.0f;       // +0x0a0
-  float xa4 = 1000000.0f;    // +0x0a4  xa0 squared
-  uint8_t xa8 = 0;           // +0x0a8
-  uint32_t xac[4] = {};      // +0x0ac
-  uint8_t xbc = 0;           // +0x0bc  four flag bits (the constructor clears the low nibble)
-  uint32_t team = 0;         // +0x0c0  AiTarget masks
-  uint32_t allies = 0;       // +0x0c4
-  uint32_t enemies = 0;      // +0x0c8
-  uint32_t xcc = 0, xd0 = 0; // +0x0cc, +0x0d0
+  // +0x068..+0x0d3: AiTarget (0x004d56e0, mech3/zai_target.h), the base; its
+  // height becomes the model's box's (12 without one).
   void* ammo;                // +0x0d4  weapons and ammo bins: the WeaponManager (weapon.h)
   NetCollision* net_collision = nullptr;  // +0x0d8  the network's collision record
   bool power_down_pending;   // +0x0dc

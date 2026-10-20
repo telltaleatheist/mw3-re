@@ -72,12 +72,13 @@ bool Missions::texture_budget(uint32_t* mb) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00490600 with 0x00490590: the reader block of the
-// game: "ia%d" for type 2, "mp%d" for 3, else "m%d", by mission number.
-void Missions::block_name(char* out) {
-  MissionHooks& h = *g_hooks;
-  const int32_t n = h.game_mission_number();
-  const int32_t type = h.game_type();
+// Mech3.exe 1.2 @ 0x00490600: the reader block of the game: "ia%d" for
+// type 2, "mp%d" for 3, else "m%d", by mission number.
+void Missions::block_name(char* out) { block_name(g_hooks->game_mission_number(), out); }
+
+// Mech3.exe 1.2 @ 0x00490590
+void Missions::block_name(int32_t n, char* out) {
+  const int32_t type = g_hooks->game_type();
   std::snprintf(out, 0x20, type == 2 ? "ia%d" : type == 3 ? "mp%d" : "m%d", n);
 }
 
@@ -252,7 +253,7 @@ bool Missions::setup() {
   const int32_t index = h.game_mission_index();
   const std::string name = mission_dir(index);
   h.fn_576270(0);
-  h.fn_48f400();
+  begin();
   h.progress(0.0f);
   const int32_t type = h.game_type();
   const int32_t number = h.game_mission_number();
@@ -338,8 +339,8 @@ bool Missions::setup() {
   if (abort) return false;
   h.progress(0.9f);
   h.ai_list_reset(0x603f90);
-  f55 = f56 = 0;
-  f58 = 0;
+  ended = aborting = 0;
+  end_delay = 0;
   h.fn_4d4b30();
   if (abort) return false;
   h.progress_text("Ready To Launch");
@@ -359,6 +360,291 @@ void Missions::start() {
   abort = 0;
   failed = setup() ? 0 : 1;
   done = 1;
+}
+
+// --- The mission at run time (docs/mission-frame.md) ---------------------------
+
+namespace {
+constexpr Handle kThis = 0x6098d0;
+// The objectives' places in the missions object, as their functions take them.
+constexpr Handle kObj[5] = {kThis + 0x78, kThis + 0x7c, kThis + 0x80, kThis + 0x84, kThis + 0x88};
+
+// The cockpit's screen (0x00430aa0 on the mech's data) when the player's view
+// is on the player's own mech, else none.
+Handle cockpit(MissionHooks& h) {
+  const Handle v = h.player_vehicle();
+  if (v != h.field32(h.view(), 0x64)) return 0;
+  return h.mech_screen(h.field32(v, 0x684));
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0048f400: the game time from 0, MISSION_COMPLETE bound.
+bool Missions::begin() {
+  MissionHooks& h = *g_hooks;
+  loaded = 0;
+  time = 0;
+  abort = 0;
+  voice = 0;
+  h.bind_command(0x71, kMissionCommand);
+  h.bind_command(0x72, kMissionCommand);
+  check_cheats();
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00491d20: invincibility, unlimited ammo or heat off,
+// outside a network game.
+void Missions::check_cheats() {
+  MissionHooks& h = *g_hooks;
+  if (h.app_network()) {
+    cheats = 0;
+    return;
+  }
+  cheats = (h.invincible() || h.infinite_ammo() || !h.heat()) ? 1 : 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048f440. Exit Mission (Ctrl+Q) works only once the
+// mission is won or lost; 0x72 is bound to it too but does nothing.
+void Missions::on_command(int32_t cmd) {
+  if (cmd != 0x71) return;
+  if (aborting || ended) end_screen();
+}
+
+// Mech3.exe 1.2 @ 0x0048f470: one frame. The game time [0x0060991c] is +0x4c.
+void Missions::update(float dt) {
+  MissionHooks& h = *g_hooks;
+  time = dt + time;
+  clock = clock_down ? clock - dt : dt + clock;
+  world_update(world);
+  h.valves_tick(dt);
+  h.map_update(dt);
+  if (stations) h.stations_update(stations, dt, h.player_vehicle());
+  voice_next = 0;
+  if (aborting) {
+    end_delay = end_delay - dt;
+    if (!(end_delay > 0.0f) && !h.app_1c2()) {
+      end_screen();
+      play_voice();
+      return;
+    }
+  } else {
+    if (objectives[2]) {  // the secondary objectives
+      objective_sound = sounds[3];
+      h.objective_check(objectives[2]);
+    }
+    if (!ended) {
+      uint8_t done_now = 0, done_before = 0;
+      if (objectives[1]) {  // the primary ones: their being done is the win's first test
+        objective_sound = sounds[2];
+        done_before = h.objective_done(objectives[1]);
+        done_now = h.objective_check(objectives[1]);
+      }
+      if (done_now) {
+        if (objectives[3]) {
+          if (done_now != done_before) {
+            const Handle scr = cockpit(h);
+            if (scr && h.objectives_announce(kObj[1], kObj[2], kObj[3], kObj[4])) h.screen_flash(scr + 0x17964, -1.0f);
+          }
+          objective_sound = 0;
+          done_now = h.condition_met(objectives[3]);
+        }
+        if (done_now) complete();
+      }
+    }
+    if (objectives[4]) {
+      objective_sound = 0;
+      if (h.condition_met(objectives[4])) lose();
+    }
+  }
+  play_voice();
+}
+
+// Mech3.exe 1.2 @ 0x0048f630: the line asked for this frame plays unless a
+// line of higher priority still does.
+void Missions::play_voice() {
+  MissionHooks& h = *g_hooks;
+  if (voice && h.sound_playing(voice) == 0) {
+    voice = 0;
+    voice_priority = -1.0f;
+  }
+  if (!voice_next) return;
+  if (!voice || voice_next_priority >= voice_priority) {
+    if (voice) h.sound_stop(voice);
+    voice = h.sound_play(voice_next, 1.0f);
+    voice_priority = voice_next_priority;
+  }
+  voice_next = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048f6c0: no sound is the objective's own line at 0.
+void Missions::ask_voice(Handle sound, float priority) {
+  if (!sound) {
+    sound = objective_sound;
+    priority = 0.0f;
+    if (!sound) return;
+  }
+  if (!voice_next || priority >= voice_next_priority) {
+    voice_next = sound;
+    voice_next_priority = priority;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0048f740: the win. Instant Action's endless and wave
+// modes (+0x44 1 and 2) load the next wave's objectives instead, up to wave
+// 20 in mode 2; training goes on to its next lesson while it has one.
+void Missions::complete() {
+  MissionHooks& h = *g_hooks;
+  if (ended) return;
+  ended = 1;
+  aborting = 0;
+  const Handle scr = cockpit(h);
+  const uint8_t announce = h.objectives_announce(kObj[1], kObj[2], kObj[3], kObj[4]);
+  bool voice_line = true;
+  const int32_t type = h.game_type();
+  auto mode = [&h] { return h.field32(h.ia_game(), 0x44); };
+  if (type == 2) {
+    if (mode() == 1 || mode() == 2) {
+      const Handle ia = h.ia_game();
+      const int32_t wave = static_cast<int32_t>(h.field32(ia, 0x6c));
+      if (h.field32(ia, 0x44) == 2 && wave > static_cast<int32_t>(h.field32(ia, 0x68))) h.set_field32(ia, 0x68, wave);
+      h.set_field32(ia, 0x6c, h.field32(ia, 0x6c) + 1);
+      h.set_field32(ia, 0x70, h.field32(ia, 0x70) + 1);
+      const Handle ia2 = h.ia_game();
+      if (h.field32(ia2, 0x44) != 2 || static_cast<int32_t>(h.field32(ia2, 0x6c)) - 1 <= 0x13) {
+        h.fn_5392c0();
+        h.fn_49dc80(0);
+        h.objectives_free(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
+        const std::string block = format("ia%d", h.game_mission_number());
+        h.objectives_load("objectives.zrd", block.c_str(), kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
+        h.objectives_start(kObj[1], kObj[2], kObj[3], kObj[4]);
+        ended = aborting = 0;
+        if (scr) h.screen_reset(scr + 0x17964);
+      }
+    }
+  } else if (type == 4) {
+    const Handle t = h.training(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
+    if (h.training_next(t)) {
+      voice_line = false;
+      ended = aborting = 0;
+      if (scr) h.screen_reset(scr + 0x17964);
+    }
+  }
+  if (voice_line && (!h.ia_game() || (mode() != 1 && mode() != 2))) ask_voice(sounds[0], 2.0f);  // com_success
+  if (scr && announce) h.screen_flash(scr + 0x17964, -1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x0048f9e0: the loss (also the valves' missionabort and
+// the player's mech destroyed). In multiplayer the player's mech is put
+// down unless it already is (+0x578 10) and the game goes on.
+void Missions::lose() {
+  MissionHooks& h = *g_hooks;
+  if (h.multiplayer()) {
+    const Handle v = h.player_vehicle();
+    if (h.field32(v, 0x578) != 10) h.action_start(h.mech_action(v, 1));
+    aborting = 0;
+    return;
+  }
+  if (aborting) return;
+  ended = aborting = 1;
+  end_delay = 8.0f;
+  h.sound_play(sounds[1], 1.0f);  // com_failed
+  if (const Handle scr = cockpit(h)) h.screen_flash(scr + 0x17964, -1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x00491bf0 (also through 0x00491c70): the debriefing's
+// fade (0x0048ef00 on the campaign's sequence 0x006099a0 or training's
+// 0x006098c8); multiplayer and other games get none.
+void Missions::end_screen() {
+  MissionHooks& h = *g_hooks;
+  switch (static_cast<uint32_t>(h.game_type())) {
+    case 0: case 1:
+      h.fn_40f0b0(0);
+      h.fade_out(0x6099a0);
+      break;
+    case 2: h.fade_out(0x6099a0); break;
+    case 4: h.fade_out(0x6098c8); break;
+    default: break;
+  }
+  h.fn_40f0b0(0);
+}
+
+// Mech3.exe 1.2 @ 0x00491780: the mission's end. `unload` also drops the
+// world (0x00490480); without it 0x005394c0(1, 1). Nothing when no mission
+// is up. The two calls to the empty 0x005ac5c0 are left out.
+bool Missions::cleanup(bool unload) {
+  MissionHooks& h = *g_hooks;
+  if (!loaded) return false;
+  const Handle saved = h.fn_4eb040();
+  if (unload) h.fn_4eb030(0);
+  if (event) {
+    h.close_handle(event);
+    event = 0;
+  }
+  if (thread) {
+    h.close_handle(thread);
+    thread = 0;
+    h.set_thread_priority(h.field32(0x608cb4, 0), 2);  // the game thread back to normal
+  }
+  h.fn_4e7bc0();
+  if (xbc) xbc = h.fn_4582c0(xbc);
+  h.anim_cleanup();
+  h.fn_570410();
+  const Handle bank = h.sounds_bank();
+  h.sounds_stop(bank);
+  h.sounds_free(bank);
+  h.sound_reset();
+  if (h.view()) {
+    h.view_fn_40ae70(h.view());
+    h.view_fn_40adf0(h.view());
+  }
+  const Handle vehicle = h.player_vehicle();
+  h.pilot_set_vehicle(0);
+  if (vehicle) h.delete_object(vehicle);
+  const Handle stealth = h.stealth();
+  if (stealth) h.entities_remove(stealth);  // kept out of what follows, then put back
+  h.fn_4e6910();
+  h.fn_4b4ae0();
+  h.landmines_free();
+  h.fn_49dc40();
+  h.fn_4a7970();
+  h.fn_4d8270();
+  h.fn_584fe0();
+  if (stealth) h.entities_add(h.stealth());
+  h.fn_47a720(h.field32(0x60b544, 0));
+  if (xb4) h.delete_object(xb4);
+  xb4 = 0;
+  stations = 0;
+  h.fn_4d54f0();
+  h.fn_479850();
+  h.fn_4ea750();
+  h.progress_text("Deleting AI Nets");
+  h.znet_free();
+  h.fn_4c5fa0();
+  h.fn_4c3240();
+  h.valves_end();
+  h.targets_end();
+  h.fn_4d71f0();
+  h.fn_427300();
+  h.lists_4f7bd0();
+  h.objectives_free(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
+  world_clear(world);
+  h.fn_414000();
+  char block[0x20];
+  block_name(number, block);
+  h.voice_release(format("%s%s", mission_dir(current), block).c_str());  // the mission's lines, "c1m1"
+  h.fn_431800();
+  h.fn_50b2f0();
+  if (unload) {
+    h.unload();
+    h.progress_text("Done:Unloading db");
+  } else {
+    h.fn_5394c0();
+  }
+  h.fn_5573d0();
+  h.fn_576270(0);
+  h.fn_4eb030(saved);
+  h.lists_4f7bd0();
+  time = 0;
+  return true;
 }
 
 }  // namespace mech3

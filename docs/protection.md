@@ -293,9 +293,12 @@ compatibility issue, the CRC stays on the host.
 
 ## 5. Other things that look like protection but are not
 
-- **"Cheated" flag `[0x609994]`.** Set to 1 (never cleared; only three writes
-  in the exe) when the player turns on invincibility (options bit 1, 0x40ced0),
-  unlimited ammo (bit 2, 0x40cf30) or turns heat off (bit 3 cleared, 0x40cf90).
+- **"Cheated" flag `[0x609994]`.** Set to 1 when the player turns on
+  invincibility (options bit 1, 0x40ced0), unlimited ammo (bit 2, 0x40cf30) or
+  turns heat off (bit 3 cleared, 0x40cf90). It is the missions object's +0xc4
+  (0x6098d0 + 0xc4), and each mission's start (0x491d20, through ESI, so a
+  search for the address misses it) sets it anew: 1 if one of the three is on
+  then, else 0, and 0 in a network game (mission-frame.md section 2).
   Read at 0x442588 (0x442540, a mech-data method that makes one extra
   vt+0x24 call outside multiplayer when set; meaning not traced), 0x47ac64 and
   0x47d042 (end of mission) and 0x47b6f6 (debrief screen). In a campaign, a

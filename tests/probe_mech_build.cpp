@@ -304,12 +304,15 @@ void mech_image(Img& o, const m3::Mech& m) {
   o.v3(0x18, m.x18), o.v3(0x24, m.forward), o.v3(0x30, m.velocity), o.v3(0x3c, m.vec_3c);
   o.q(0x48, m.orientation), o.v3(0x58, m.vec_58), o.b8(0x64, m.x64);
   o.f(0x68, m.height);
-  for (int k = 0; k < 6; ++k) o.u(0x6c + 4 * k, m.x6c[k]);
+  o.p(0x6c, m.target), o.p(0x70, m.ally_target), o.p(0x74, m.enemy_target), o.p(0x78, m.saved_target);
+  o.u(0x7c, m.x7c), o.u(0x80, m.x80);
   o.b8(0x84, m.x84);
   o.p(0x88, m.x88), o.u(0x8c, addr_of(m.x88) + 8), o.u(0x90, addr_of(m.x88) + 8);
-  o.u(0x94, m.x94), o.u(0x98, m.x98), o.f(0x9c, m.x9c), o.f(0xa0, m.xa0), o.f(0xa4, m.xa4), o.b8(0xa8, m.xa8);
-  for (int k = 0; k < 4; ++k) o.u(0xac + 4 * k, m.xac[k]);
-  o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.xcc), o.u(0xd0, m.xd0);
+  o.u(0x94, m.x94), o.u(0x98, m.x98), o.f(0x9c, m.sensor_range), o.f(0xa0, m.range), o.f(0xa4, m.range2);
+  o.b8(0xa8, m.xa8);
+  for (int k = 0; k < 3; ++k) o.u(0xac + 4 * k, 0);  // the contacts: none
+  o.u(0xb8, m.xb8);
+  o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.xcc), o.u(0xd0, m.net);
   o.p(0xd4, m.ammo), o.p(0xd8, m.net_collision);
   o.b8(0xdc, m.power_down_pending), o.b8(0xdd, m.heat_shutdown), o.b8(0xde, m.powered_down);
   o.f(0xe0, m.last_hit_time), o.p(0xe4, m.last_hit_part), o.p(0xe8, m.xe8), o.i(0xf8, m.xf8);

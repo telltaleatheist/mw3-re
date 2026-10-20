@@ -11,6 +11,7 @@ int failures = 0;
 }  // namespace check
 
 int main() {
+  std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
   for (const check::Test& t : check::registry()) {
     const int before = check::failures;
     t.fn();

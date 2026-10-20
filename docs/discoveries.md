@@ -572,10 +572,11 @@ From the weapon code (weapons.md).
   and track 1 of a game CD is data: that mission is silent (on a disc of 2-5
   tracks the mission number picks instead). In the rebuild there is no
   track01 file, so the same silence.
-- **Turn a cheat on once and the campaign mission doesn't count.**
+- **Turn a cheat on during a campaign mission and it doesn't count.**
   Invincibility, unlimited ammo or heat off, even switched off again, mean
-  "Replay Mission" instead of "Next Mission" and no score added, until you
-  restart the game.
+  "Replay Mission" instead of "Next Mission" and no score added. The mark
+  lasts until the next mission starts: each mission's start looks again at
+  the three settings and clears it when all are off (`mission-frame.md`).
 - **In multiplayer the host re-checks the locked rules every 51 seconds**;
   changing them in memory (say, unlimited ammo after the lock) ends the game
   a minute or two later as if the clock ran out.
@@ -664,6 +665,40 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   the shipped files use only 0, 1 and 2.
 - **The release exe calls itself "PRODUCTION"**: the loading text reads
   "MechWarrior3 (PRODUCTION) (1.2)", a build marker left in.
+
+## Playing a mission
+
+From mission.cpp's frame 0x48f470 and its neighbours (details:
+`mission-frame.md`).
+
+- **The mission keeps the game's clock.** The game time every timer reads
+  (trigger delays, weapon recycling, the AI's fire timers) is a counter in
+  the mission object, started at 0 when the mission loads and moved on by
+  each frame's step; the cleanup at the end puts it back to 0.
+- **Exit Mission (Ctrl+Q) only works once the mission is over.** Before you
+  win or lose it does nothing; after, it skips straight to the debriefing.
+- **Losing gives you eight seconds.** When the mission fails, "mission
+  failed" plays at once and the debriefing follows 8 seconds later (Exit
+  Mission skips the wait).
+- **Winning doesn't end the mission by itself.** When the objectives are
+  done the game marks the mission won and plays "mission complete", and
+  the mission runs on: the mission code's only ways to the debriefing are
+  the loss's countdown and Exit Mission, so after a win you leave with
+  Ctrl+Q (or another screen's way out, not traced).
+- **Mission voice lines take turns by priority.** Only one line plays at a
+  time: a new one waits out a line of higher priority but cuts off one of
+  equal or lower priority. Objective lines have priority 0 and "mission
+  complete" 2, so the win's line interrupts an objective's.
+- **Instant Action's wave mode stops at wave 20.** In its endless and wave
+  modes, winning a wave loads the map's objectives again for the next one
+  (and records the best wave in wave mode), with no "mission complete" line;
+  wave mode stops after the 20th wave and the mission then ends, the endless
+  mode never does.
+- **Training goes on lesson by lesson.** Completing a training mission's
+  objectives moves it to its next lesson when there is one, silently; only
+  after the last does it end.
+- **In multiplayer, failing doesn't end your game**: your mech is put down
+  instead and the game goes on.
 
 ## Multiplayer
 
@@ -1268,6 +1303,24 @@ are all "puffers": emitters that drop little textured squares.
   picking its target ("player", "nearest enemy") is still in the exe behind
   the debug menu, along with an in-game editor for the AI paths that could
   save them back to files.
+- **"Target next enemy" picks anything that isn't a friend.** The E,
+  Shift+E and Ctrl+E keys are written as "not an ally", so they also stop on
+  neutral things in sight (team 0, such as some buildings); W, Shift+W and
+  Ctrl+W take only allies. Each key first returns to the last enemy (or
+  ally) you had selected, if that isn't your current target.
+- **Your sensors are nearly unlimited in Instant Action and multiplayer.**
+  Your own mech's sensor range is capped at 1000 m in the campaign and
+  training, but set to 50,000 m in Instant Action and multiplayer.
+- **Friends share what they see.** Allied vehicles merge their contact
+  lists, so an enemy one of your side spots is in everyone's list (likely:
+  the merge 0x4a9fd0 is not ported).
+- **Mission targets take their health from their destruction animation.**
+  A targets.zrd object without its own `health` gets its hit points from the
+  animation that plays when it is destroyed; one whose destruction animation
+  is not on its node is not a target at all. The "hit" and "down" radio
+  triggers (`health_below`) fire from the highest threshold down as its
+  health drops, all at once when it is destroyed. If two objects share a
+  name, only the first gets the triggers.
 - **Old formats still load.** The vehicle reader also understands an older
   layout of the AI settings (tags p3, p4, p5, p7) that no shipped mission
   uses, and complains if a file mixes it with the new one.
