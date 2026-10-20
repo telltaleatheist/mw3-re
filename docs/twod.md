@@ -507,7 +507,10 @@ Mapped, not ported:
 - The game's screens on the port's classes: the main menu is done
   (mainmenu.md: `mech3/menu_widgets` has the menu screens' base 0x0040a110,
   the scrolling background, the game's buttons 0x0040a5d0 and 0x00438d70
-  that the other menus share; `mech3/mainmenu` the screen 0x00486260). Left:
-  the menus it opens (options, credits, Instant Action, campaign, training,
-  multiplayer), the pause, briefing, debriefing, salvage and mech lab
-  screens, each still a `mech3::Engine` hook.
+  that the other menus share; `mech3/mainmenu` the screen 0x00486260), and
+  so are the credits and the game and graphics options (menus.md:
+  `mech3/credits`, `mech3/options_menu`, and in `menu_widgets` the cycle
+  button 0x0048b280 built of three Controls). Left: the controls screen,
+  Instant Action, campaign, training and multiplayer, the pause, briefing,
+  debriefing, salvage and mech lab screens, each still a `mech3::Engine`
+  hook.

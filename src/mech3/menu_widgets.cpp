@@ -1,5 +1,8 @@
 #include "mech3/menu_widgets.h"
 
+#include <cstdlib>
+#include <cstring>
+
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
@@ -140,6 +143,44 @@ uint8_t MenuScreen::set_busy(uint8_t on) {
   const uint8_t old = busy_;
   busy_ = on;
   return old;
+}
+
+// Mech3.exe 1.2 @ 0x00486ed0 (called on the main menu, the option screens and the credits)
+void MenuScreen::bake() {
+  set_active(1);
+  cursor_obj.hide();
+  update(0.0f);
+  cursor_obj.show_for(-1.0f);
+  zimg::Texture* grab = ztwod::host().screen_grab(1);
+  set_active(0);
+  restore_behind();
+  set_static_bg(grab);
+  add(&still);
+  still.set_image(grab);
+}
+
+void MenuScreen::borrow_background(bool option_screen) {
+  zimg::Texture* img = nullptr;
+  uint8_t moving = 0;
+  const bool have = e_.main_menu_background(&img, &moving);
+  if (option_screen && !have) {
+    bind_primitive(&background, "BACKGROUND");
+  } else {
+    // FIX (bug): the credits read the main menu's fields without checking it is
+    // there (unreachable: they open only from it); here no image, still.
+    add(&background);
+    background.set_image(img);
+    background.moving = moving;
+    if (!moving) {
+      background.set_pos(0, 0);
+      background.src = &background.view;
+    }
+  }
+  if (option_screen && e_.mission_running()) {
+    background.moving = 0;
+    background.set_pos(0, 0);
+    background.src = &background.view;
+  }
 }
 
 // ---- the push button ----
@@ -330,6 +371,297 @@ void SlideButton::restart_ripple() {
   phase = 0.0f;
   amplitude = 7.0f;
   rippling = e_.fast_menu() ? 0 : 1;
+}
+
+// ---- the cycle button ----
+
+// Mech3.exe 1.2 @ 0x0048b280: the ShellButton's id stays -1; `id` is the cycle's.
+CycleButton::CycleButton(Engine& e, int32_t id) : ShellButton(e, -1), cycle_id(id) {}
+
+// Mech3.exe 1.2 @ 0x0048b380
+CycleButton::~CycleButton() {
+  clear_items();
+  if (!labels.empty()) labels[0]->set_text_plain("deleted cycle button");
+}
+
+// Mech3.exe 1.2 @ 0x0048b9b0
+void CycleButton::set_pos(int32_t px, int32_t py) {
+  if (!labels.empty()) {
+    ztwod::Text* l = labels[0];
+    const int32_t lx = l->get_x(), x0 = get_x(), ly = l->get_y(), y0 = get_y();
+    l->set_pos(lx - x0 + px, ly - y0 + py);
+  }
+  Image::set_pos(px, py);
+  prev.set_pos(prev_dx + px, prev_dy + py);
+  next.set_pos(next_dx + px, next_dy + py);
+}
+
+namespace {
+// 0x0048b670: the dialog's cursor position.
+void cursor_xy(ztwod::Layer* owner, int32_t* x, int32_t* y) {
+  auto* w = dynamic_cast<ztwod::Window*>(owner);
+  // (the original reads through the owner's cursor unchecked; every dialog
+  // the game loads has one)
+  if (!w || !w->cursor) {
+    *x = *y = 0;
+    return;
+  }
+  *x = w->cursor->get_x();
+  *y = w->cursor->get_y();
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0048b550: rolling onto the right arrow wins over the left.
+void CycleButton::update(float dt) {
+  int32_t mx, my;
+  cursor_xy(owner, &mx, &my);
+  const bool in_next = next.hit(mx, my) == 1;
+  const bool in_prev = prev.hit(mx, my) == 1;
+  if ((hover == 1) != in_next) {
+    if (in_next) {
+      next.on_enter();
+      hover = 1;
+    } else {
+      hover = 0;
+      next.on_leave();
+    }
+  } else if ((hover == 2) != in_prev) {
+    if (in_prev) {
+      prev.on_enter();
+      hover = 2;
+    } else {
+      hover = 0;
+      prev.on_leave();
+    }
+  }
+  Object2D::update(dt);
+  prev.update(dt);
+  next.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0048b6b0: the left arrow steps back, the right one (or,
+// with click_steps, anywhere else) forward; the screen hears of it either way.
+void CycleButton::on_left_up() {
+  int32_t mx, my;
+  cursor_xy(owner, &mx, &my);
+  if (prev.enabled && prev.hit(mx, my)) {
+    prev.on_left_up();
+    step(-1);
+    notify(1, 0);
+    return;
+  }
+  if ((next.enabled && next.hit(mx, my)) || click_steps) {
+    next.on_left_up();
+    step(1);
+  }
+  notify(1, 0);
+}
+
+// Mech3.exe 1.2 @ 0x0048b950
+int32_t CycleButton::hit(int32_t px, int32_t py) {
+  if (Control::hit(px, py) || prev.hit(px, py)) return 1;
+  return next.hit(px, py) ? 1 : 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048b4e0
+void CycleButton::show_for(float seconds) {
+  Control::show_for(seconds);
+  prev.show_for(seconds);
+  next.show_for(seconds);
+}
+
+// Mech3.exe 1.2 @ 0x0048b520
+void CycleButton::hide() {
+  Control::hide();
+  prev.hide();
+  next.hide();
+}
+
+// Mech3.exe 1.2 @ 0x0048be70: TOGGLE_LEFT and TOGGLE_RIGHT read as controls,
+// their places kept and taken out of the dialog (the button draws them).
+bool CycleButton::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  reading = 1;
+  const bool r = Control::read_control(node, dialog);
+  reading = 0;
+  if (zrdr::Node* t = zrdr::find(node, "TOGGLE_LEFT")) {
+    prev.read_control(t, dialog);
+    prev.after_bind();
+    prev_dx = prev.get_x();
+    prev_dy = prev.get_y();
+    dialog->remove(&prev);
+  }
+  if (zrdr::Node* t = zrdr::find(node, "TOGGLE_RIGHT")) {
+    next.read_control(t, dialog);
+    next.after_bind();
+    next_dx = next.get_x();
+    next_dy = next.get_y();
+    dialog->remove(&next);
+  }
+  const int32_t py = get_y();
+  set_pos(get_x(), py);
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0048bf60: no backgrounds, every flag but kHidden cleared
+// (drawn every frame).
+void CycleButton::after_bind() {
+  prev.set_background(nullptr, nullptr);
+  next.set_background(nullptr, nullptr);
+  flags &= ztwod::kHidden;
+  prev.flags &= ztwod::kHidden;
+  next.flags &= ztwod::kHidden;
+}
+
+// Mech3.exe 1.2 @ 0x0042fbc0
+void CycleButton::notify(int32_t a, int32_t b) {
+  if (!owner) return;
+  if (auto* s = dynamic_cast<MenuScreen*>(owner)) s->on_button(cycle_id, a, b);
+}
+
+// Mech3.exe 1.2 @ 0x0048b490
+void CycleButton::set_baked(bool on) { set_enabled(on ? 1 : 0); }
+void CycleButton::set_enabled(int32_t on) {
+  enabled = on;
+  refresh();
+  prev.enabled = on;
+  prev.refresh();
+  next.enabled = on;
+  next.refresh();
+}
+
+// Mech3.exe 1.2 @ 0x0048bd40
+void CycleButton::set_arrows(uint8_t prev_on, uint8_t click_on, uint8_t next_on) {
+  click_steps = click_on;
+  prev.enabled = prev_on;
+  prev.refresh();
+  next.enabled = next_on;
+  next.refresh();
+}
+
+// Mech3.exe 1.2 @ 0x0048bcf0
+void CycleButton::set_arrows(uint8_t prev_on, uint8_t next_on) {
+  prev.enabled = prev_on;
+  prev.refresh();
+  next.enabled = next_on;
+  next.refresh();
+}
+
+// Mech3.exe 1.2 @ 0x0048ba80
+void CycleButton::set_label_font(Handle font) {
+  if (!labels.empty() && font) labels[0]->set_font(font);
+}
+
+// Mech3.exe 1.2 @ 0x0048b850
+void CycleButton::select(int32_t i) {
+  index = i;
+  if (i >= 0 && i < count()) {
+    if (!labels.empty()) labels[0]->set_text_plain(items[static_cast<size_t>(i)]->text);
+    return;
+  }
+  if (!labels.empty()) labels[0]->set_text_plain("");
+}
+
+// Mech3.exe 1.2 @ 0x0048b790
+void CycleButton::step(int32_t by) {
+  int32_t i = index + by;
+  index = i;
+  const int32_t n = count();
+  if (i < 0) {
+    i = wraps ? n + i : 0;
+  } else if (i >= n) {
+    i = wraps ? i - n : n - 1;
+  } else {
+    select(index);
+    return;
+  }
+  index = i;
+  select(index);
+}
+
+// Mech3.exe 1.2 @ 0x0048bac0: the first choice added is selected at once.
+int32_t CycleButton::add_item(const char* text, int32_t value) {
+  const int32_t old = count();
+  auto* it = new Item{text ? ::strdup(text) : nullptr, value};
+  items.push_back(it);
+  if (index < 0) step(-index);
+  return old;
+}
+
+// Mech3.exe 1.2 @ 0x0048bda0
+void CycleButton::clear_items() {
+  for (Item*& it : items) {
+    if (it) {
+      std::free(it->text);
+      delete it;
+    }
+    it = nullptr;
+  }
+  items.clear();
+  if (!labels.empty()) labels[0]->set_text_plain("");
+  index = -1;
+}
+
+// Mech3.exe 1.2 @ 0x00438e10
+CycleButton::Item* CycleButton::item(int32_t i) {
+  if (i < 0 || i >= count()) return nullptr;
+  return items[static_cast<size_t>(i)];
+}
+
+// Mech3.exe 1.2 @ 0x00438e50
+int32_t CycleButton::value_at(int32_t i) {
+  Item* it = item(i);
+  return it ? it->value : 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048b8f0
+int32_t CycleButton::select_value(int32_t v) {
+  for (int32_t i = 0; i < count(); ++i) {
+    if (items[static_cast<size_t>(i)]->value == v) {
+      select(i);
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x0043a710
+void CycleButton::select_each_value(int32_t v) {
+  for (int32_t i = 0; i < count(); ++i)
+    if (value_at(i) == v) select(i);
+}
+
+// Mech3.exe 1.2 @ 0x00437fe0: OFF / ON (messages 0x20, 0x21), green or red.
+void AlertCycle::after_bind() {
+  CycleButton::after_bind();
+  add_item(e_.message(0x20), 0);
+  add_item(e_.message(0x21), 1);
+  font_normal = ztwod::host().font_find("ia_small_green");
+  font_alert = ztwod::host().font_find("ia_small_red");
+}
+
+// Mech3.exe 1.2 @ 0x00438040
+void AlertCycle::select(int32_t i) {
+  CycleButton::select(i);
+  if (i == alert) {
+    if (font_alert) set_label_font(font_alert);
+  } else if (font_normal) {
+    set_label_font(font_normal);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00438ed0
+void OnOffCycle::after_bind() {
+  CycleButton::after_bind();
+  add_item(e_.message(0x20), 0);
+  add_item(e_.message(0x21), 1);
+}
+
+// Mech3.exe 1.2 @ 0x00438f10
+void LevelCycle::after_bind() {
+  CycleButton::after_bind();
+  add_item(e_.message(0x40), 0);
+  add_item(e_.message(0x39), 1);
+  add_item(e_.message(0x38), 2);
 }
 
 }  // namespace mech3

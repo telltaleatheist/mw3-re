@@ -12,6 +12,7 @@
 #include "mech3/app.h"
 #include "mech3/app_states.h"
 #include "mech3/controls_cfg.h"
+#include "mech3/menu_states.h"
 #include "mech3/options.h"
 #include "probe_app.h"
 
@@ -129,6 +130,10 @@ zgame::State* state_at(uint32_t addr) {
   return nullptr;
 }
 
+// The heap menu objects (menu_states.h) at the addresses the test gives them.
+std::vector<mech3::MenuState*> g_menus;
+mech3::MenuState* g_this = nullptr;
+
 void build_fields() {
   using namespace mech3;
   g_fields.clear();
@@ -189,6 +194,10 @@ void build_fields() {
   f(0x608f18 + 0x18, 4, &s.load.movie_);
   f(0x608e70 + 0x10, 1, &s.win.campaign_won_);
   f(0x608e70 + 0x14, 4, &s.win.movie_);
+  for (MenuState* m : g_menus) {
+    f(m->addr() + 0x8, 4, &m->cursor_);
+    f(m->addr() + 0xc, 4, &m->screen_);
+  }
 }
 
 uint32_t renderer_vtable(int kind) {
@@ -225,6 +234,27 @@ void probe_states_reset() {
 }
 
 void probe_states_set_command_line(const char* line) { g_command_line = line; }
+
+// The game options, graphics, controls and credits states at a, b, c, d
+// (their constructors' calls muted: set-up). Then the calls on `this`.
+void probe_states_set_menus(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+  {
+    probe_app::Mute quiet;
+    for (mech3::MenuState* m : g_menus) {
+      m->screen_ = 0;
+      delete m;
+    }
+    g_menus = {new mech3::OptionsState(mech3::OptionsState::kGame, a),
+               new mech3::OptionsState(mech3::OptionsState::kGfxAudio, b),
+               new mech3::OptionsState(mech3::OptionsState::kControls, c), new mech3::CreditsState(d)};
+  }
+  build_fields();
+}
+void probe_states_this(uint32_t addr) {
+  g_this = nullptr;
+  for (mech3::MenuState* m : g_menus)
+    if (m->addr() == addr) g_this = m;
+}
 
 // The constructor 0x0047f7a0, recorded, on a fresh app.
 void probe_states_construct() {
@@ -357,6 +387,12 @@ int32_t probe_states_call(uint32_t addr, uint32_t arg, uint32_t arg2, uint32_t* 
       case 0x47af20: s.win.leave(); break;
       case 0x47d310: r = s.salvage.enter(); break;
       case 0x47d390: s.salvage.leave(); break;
+      case 0x438c90:
+      case 0x42da50: r = g_this->enter(); break;
+      case 0x42da70: g_this->resume(arg); break;
+      case 0x438c80: g_this->escape(); break;
+      case 0x429600: r = g_this->enter(); break;
+      case 0x429670: g_this->leave(); break;
       default: r = 0xdeadbeef;
     }
   } catch (const Exit&) {

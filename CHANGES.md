@@ -95,6 +95,14 @@ None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
 - A mech file with a bad version no longer crashes the game when it unloads.
+- The option screens no longer read past their background picture on a
+  screen taller than 960 lines or wider than 1280, the likely cause of the
+  crash when opening Options from the pause menu at 1280x1024 or 1600x1200.
+- A video card whose name has a `%` in it, or is very long, no longer
+  garbles or crashes the graphics options; it is shown as written.
+- Three checks the original menus skipped no longer crash when missed (a
+  credits line over 255 characters, a dialog without a mouse pointer, the
+  credits opened without the main menu); nothing shipped reaches them.
 - The game starts without a mouse (the original crashed), and pressing a
   newer key such as Power, Sleep or a web key while holding Ctrl, Alt and
   Shift no longer corrupts the game's input memory.

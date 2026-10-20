@@ -141,21 +141,6 @@ MainMenu::~MainMenu() {
   g_main_menu = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00486ed0: everything drawn once without the cursor and
-// grabbed; the grab becomes the static background and the first object.
-void MainMenu::bake() {
-  set_active(1);
-  cursor_obj.hide();
-  update(0.0f);
-  cursor_obj.show_for(-1.0f);
-  zimg::Texture* grab = ztwod::host().screen_grab(1);
-  set_active(0);
-  restore_behind();
-  set_static_bg(grab);
-  add(&still);
-  still.set_image(grab);
-}
-
 MainMenuButton* MainMenu::button_at(uint32_t offset) {
   if (offset < kButtons || (offset - kButtons) % kButtonSize) return nullptr;
   const uint32_t i = (offset - kButtons) / kButtonSize;

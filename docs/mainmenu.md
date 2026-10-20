@@ -167,9 +167,10 @@ still makes its screen with `construct(0x486260)` and talks to it through
 the handle is a block of the module memory the size of the object, offset 0
 the screen's vtable (+0x00 update, +0x04 active, +0x08 delete, +0x18 /
 +0x1c busy), +0x111ec + 0x2a8 n a button (+0x30 press); `shell_clear`
-(0x0048ee00, now `ShellState::clear_screen`) deletes it; the nine menu
-objects stay unported, so their handles are 0 and a press is logged as
-`0x00590400 (menu state 0)`. `twod_set_cursor` (0x0059fb80) is zTwoD's
+(0x0048ee00, now `ShellState::clear_screen`) deletes it. The options' and
+the credits' menu objects are ported (menus.md) and pushed; the other five
+are not, so their handles are 0 and a press is logged as `0x00590400 (menu
+state 0)`. `twod_set_cursor` (0x0059fb80) is zTwoD's
 page-flip switch, now wired.
 
 FIX (B): the background's 1 pixel, MECH3TEXT's 2 pixels and the ripple's 0.3
@@ -215,10 +216,10 @@ never negative).
 ## 6. Left
 
 - The menus the buttons open: the Action, Campaign, Training and
-  Multiplayer states (gametypes.md), the options (0x00438be0, with the
-  three option menus 0x0043a640 and 0x0042d9d0) and the credits
-  (0x004295e0), and the menu object 0x00488910; each is a hook until ported.
-  They share MenuScreen, ShellButton, SlideButton and ScrollImage.
+  Multiplayer states (gametypes.md) and the Pilot State 0x00488910, each a
+  hook until ported. The options and the credits are ported (menus.md),
+  but for the controls screen 0x0042a590. They share MenuScreen,
+  ShellButton, SlideButton, ScrollImage and the cycle button.
 - The ripple's drawing (zRender 0x00558dd0) and the render overlay layer
   (0x005a4590..) a Ripple can also live in (its +0x04, 0x005a5360).
 - The Main state itself still goes through `construct` / `vcall` (its test,

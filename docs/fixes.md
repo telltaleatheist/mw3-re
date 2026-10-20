@@ -46,6 +46,11 @@ Each change is also marked `FIX` in the code next to the original address.
 | 2D blit, 0x55b1f0 (zTwoD's every draw) | DirectDraw `Blt` (0x576f90) when the image has a surface and the target is the locked buffer, else the software blit | (A) DirectDraw | Images carry no surface: always the software blit `zrndr::blit16` (0x55b3c0) into the 16-bit buffer the platform presents (twod.md section 5) |
 | 2D blit, 0x55b3c0 | The bottom clip keeps a last row equal to the height (`jbe`) | (bug) an image whose bottom lands exactly one row past the buffer writes that row beyond it | Clipped at the last row; everything else pixel-identical on 3,000 random blits (`test_twod_blit.py`) |
 | 2D blit, 0x55b3c0, palettised paths | The row loops count the width up from minus itself to 0 | (bug) a zero-width source rectangle on a palettised image counts from 0 past 2^32 and faults | Nothing drawn |
+| 2D blit, 0x55b3c0, any source rectangle | The source rectangle is taken as given; only the screen clips | (B) the menu screens draw their still background (a mission's Options, FastMenu) with the screen's size as the rectangle of the 1280x960 image (menus.md, The background at other sizes): on a screen taller than 960 lines or wider than 1280 it reads past the image, the likely cause of the pause screen's Options crash above ~1000 lines (community-issues.md); the port, which has no 640x480 mode switch yet and will run up to 4K, would read past it at any larger window | The rectangle is cut at the image's edges (a negative left or top moves the draw instead); identical for every rectangle inside the image (`test_twod_blit.py`); `tests/test_menus.cpp` checks the cut and the menus' still background on a tall screen |
+| Credits background, 0x004289a0 | Reads the main menu's background through [0x00609854] unchecked | (bug) a null read without a main menu (unreachable: the credits open only from it) | No image, still (`MenuScreen::borrow_background`) |
+| Credits text, 0x00429200 | Each line's messages are `strcat`ed into a 256-byte stack buffer | (bug) a longer line overruns the stack (no shipped line comes near) | Cut at 255 characters |
+| Video device names, 0x004394d0 | `sprintf(buf, name)`: the card's name is the format, into 64 bytes | (bug) a `%` in a driver's name reads the stack; a long one overruns | The name copied as text, cut at 63 |
+| Cycle buttons, 0x0048b550 / 0x0048b6b0 | The mouse is read through the dialog's cursor unchecked | (bug) a null read in a dialog without a CURSOR (every shipped one has one) | (0, 0) |
 | Text box, 0x5a2320 / 0x5a1e80 / 0x5a2280 | Shrinking the line count leaves the current line one past the last | (bug) the next write reads the flags of a line that is not there, and an append (0x5a22f0) writes through it | A line past the end counts as hidden (the write scrolls onto the last line); an append goes to the last line |
 | Menu text, twod_wintext.cpp (0x5a00c0..0x5a0790, 0x5a0f00) | GDI: `CreateFontA`, `GetStockObject`, `CreateCompatibleDC`, `SelectObject`, `DrawTextA`, `GetTextExtentPoint32A`, `GetTextMetricsA`, colours and modes, a DC on the text image ([0x72f394]); a mutex around the render | (A) GDI is Win32 only | The same calls in the same order through `ztwod::Host` for a TrueType rasteriser over the shipped fonts; the mutex (only for the movie thread) is left out. Emulator-verified call for call (`test_twod.py`) |
 | Script files, zinterp.cpp (0x595990, 0x596620, 0x596810, 0x5763b0) | `fopen(name, "r")` text mode, the archive on the `.;zbd` search path, `_stat` relative to the working directory, `_mkdir`, `DeleteFileA` | (A) Windows paths and MSVCRT text mode | Through the mounts (`zutl_path`); loose files read binary with MSVCRT's text-mode rules (CR LF to LF, Ctrl-Z ends the file) done by hand. Emulator-verified with loose files, CR, Ctrl-Z and NUL (`test_interp.py`) |
@@ -305,3 +310,23 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   after the settings loader and the menus. The main menu (mainmenu.md,
   Resolution) places its version line for 640x480 and its dialog in
   640x480 pixels, while its background and title wrap at the display size.
+  The option and credits screens (menus.md, Resolution) are 640x480 dialogs
+  too; their background view is the display size when they are made (a
+  mission's when the pause screen makes them), and the scrolling background
+  is cut into four pieces, which cover at most twice the image (2560x1920):
+  a 4K screen needs it tiled further. The graphics screen offers modes 5..7
+  (and 3 for software) by a video-memory estimate (0x004ab860); its names
+  for 8..10 (1152x864, 1280x1024, 1600x1200) are never used, and ACCEPT
+  writes the chosen mode over a registry-set 8..10.
+
+- The credits' "Other Voices" heading (dlgCredits.zrd) has `"offset" (20)`,
+  one number, so the reader keeps the line before's offset (30 0): the
+  heading is indented like a name and sits with no gap above it, unlike
+  every other heading's (20 20). An importer data fix would make it
+  `(20 20)`; cosmetic.
+
+- Inverted mouse Y (the game options' CMD_INVERT_MOUSE_Y) is the sign of
+  MouseAccelY; ACCEPT writes -1.3 or 1.3, so a sensitivity set in the
+  registry is lost on any visit to the screen. Keeping the magnitude and
+  flipping only the sign would be the evident intent; it changes the feel
+  for players who tuned it.
