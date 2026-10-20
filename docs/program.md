@@ -1,0 +1,207 @@
+# The program: mw3
+
+`mw3` is the rebuild as a program: the original's own start-up and main loop
+(startup.md, game-loop.md) running on SDL3. Everything the start-up reaches
+that is ported runs; everything that is not is a hook that does nothing,
+logged once with the original's address. It is the place the remaining
+modules plug into as they are ported. `mw3view` stays the development viewer.
+
+## Building and starting
+
+Needs SDL3 and SDL3_ttf (`brew install sdl3 sdl3_ttf`); SDL3_sound
+(`brew install sdl3_sound`) adds .ogg, .flac and .mp3 music (without it,
+.wav only). CMake builds `build/mw3` when SDL3_ttf is found.
+
+```
+build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
+```
+
+- **The install**: the folder holding `Mech3.exe` and `zbd/` (MW3 1.2), as a
+  path argument, `--install DIR`, or `install=DIR` in `mw3.cfg` in the write
+  dir; the build's default is the repo's `game/mw3-1.2`. It is mounted
+  (assets-layer.md); `--assets DIR` (or `assets=DIR` lines) mounts folders of
+  replacement files in front of it.
+- **The write dir**: saves and settings, never the install. Default
+  `SDL_GetPrefPath("MicroProse", "MechWarrior 3")` (on macOS
+  `~/Library/Application Support/MicroProse/MechWarrior 3/`), or
+  `--write-dir DIR`. It is searched before the mounts, so what the game wrote
+  wins.
+- **The original's switches** (`-nofmv`, `-seasick`, `-cdN`) go on to the
+  ported command-line parser as the exe's command line.
+- `--window WxH` (default 1280x960: the game's 640x480 doubled),
+  `--nosound` (a silent DirectSound stand-in), `--hidden`, `--verbose` (lists
+  every unported function reached, with call counts, at exit),
+  `--frames N` (quit after N frames).
+
+Plain `mw3` runs the original start: the constructor, InitInstance, the
+engine start (the `zXxxInit: PASSED` lines), the Intro state (movies hooked,
+so it moves on at once), then the Main state. The main menu's screen
+(0x00486260) is not ported, so the window stays dark there; close it to quit.
+
+## Debug starts (our addition)
+
+While the menus and the mission load are not ported, two states of our own
+take the place of the state after the intro (the app's +0x1dc, where a lobby
+launch puts the Load state). They run inside the original main loop, after
+the original start-up, like any state.
+
+- `mw3 --mission c1` (also `c1m2`: world block m2, mission number 2; `c4b`,
+  `t1`; `--variant BLOCK`, `--pos X Y Z`, `--look YAW PITCH` in degrees): the
+  world loaded as `mw3view --real` loads it (`src/frontend/debug_world`: the
+  ported gamez.zbd reader, texture groups, world.zrd parameters), drawn every
+  frame by the ported render path on the SDL GPU. A free camera: W/S/A/D, Q/E
+  down and up, arrows turn, Shift fast, right mouse button looks, P prints the
+  camera as arguments, Escape quits. Sound: zSound's frame each frame as the
+  Core frame calls it (0x0056dfb0(0, 1)), the `common` and `mech` sets,
+  `mech_powerup` at the start (as the Core state's enter plays it), the
+  world's sound nodes and the listener wired to the scene walk; the music
+  track picked as the mission start picks it (0x00480df0: `-cdN`, else by
+  mission number on a 2..5-track disc). Not there yet: the mission load
+  (0x0048faf0), the animations and their puffers, mechs, AI, weapons, HUD,
+  weather.
+- `mw3 --dialog dialog.zrd MAINMENU` (any dialog of twod.md section 3): the
+  dialog drawn by the ported zTwoD on the SDL host, every BUTTONS and
+  PRIMITIVES entry bound by name (check buttons when they have CHECKED, texts
+  when they have TEXT), the window's mouse given to Window::update (the
+  buttons do nothing: their screens are not ported).
+- `--shot FILE.bmp [--shot-frame N]` saves frame N (default 30) of either
+  and quits, with the window hidden.
+
+## What runs ported
+
+The app's start-up and loop as written, checked against the exe by the app
+tests (game-loop.md, Testing): the constructor 0x0047f7a0, InitInstance
+0x00480000, the engine start 0x00480570, the video open 0x00480970, the
+main window 0x00482d10 and its command line, `zGameApp::Run` 0x0058fd70 with
+the state commands, every state (Intro, Main, Attract, Pause, Exit, Core,
+Load, Pre Lab, Salvage, Win, the key list), the stop 0x004808a0 and
+ExitInstance 0x0047fa10.
+
+Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
+
+| Hook | Port |
+|---|---|
+| the interp script object 0x00410700 | `mech3::interp_create` (interp.zbd, DamageScale) |
+| zReader init / archives 0x00556170, 0x00557320, 0x005573d0 | `zrdr` |
+| zSound init, load, sets, play, frame, pause snapshot, reset, shutdown (0x005700f0, 0x005705e0, 0x0056f4b0, 0x0056f520, 0x0056f530, 0x0056f6f0, 0x0056e3d0, 0x0056e9f0, 0x0056dfb0, 0x0056eb10, 0x0056f0a0, 0x0056f190, 0x005716a0, 0x005715d0, 0x00570510) | `zsnd`; its engine variables SoundLOD and SoundVolume are the options' |
+| the CD (CD_TRACKS from sounds.zrd, 0x00572450 / 0x005728f0) and the music calls | `zsnd_cd`, `mech3_music` |
+| the clock 0x00575a00, its start 0x005759a0 | `ztimer::update`, `ztimer::init` (ported here) |
+| global light 0x00526a70 / 0x00526a80, lights 0x00542bb0 | `zmod` |
+| the options and their hooks (sound volume, music volume, global light, video mode) | `mech3/options`, `zsnd`, `mech3_music`, `zmod` |
+| messages 0x00576040, 0x00575fb0, 0x00575fd0 | `zutl_msgdll` over Mech3Msg.dll |
+| zTwoD's outside calls (`ztwod::Host`) | `SdlTwodHost` (below) |
+
+Memory of modules not ported (the `peek`/`poke` the app code uses for
+their fields) is a sparse byte map: what is poked reads back, the rest is 0.
+Objects the ports hand out (zSound objects, voices, snapshots, the interp)
+get 32-bit handles from a table.
+
+Still hooked (logged once each, return 0), the main ones: zInput's command
+map and polls (0x0051c630, 0x0051b360, 0x0051a9b0 ...), the movies (zFMV
+0x00598cc0..), the main menu's screen and menu objects (0x00486260,
+0x0048a6c0 ..), the pilots, mechs, maps and missions (0x004788b0,
+0x0040f410, 0x004583b0, 0x0048faf0 ...), zEffect, zClass's and zModel's
+module starts, the settings loader 0x0040c420 (the program keeps its defaults,
+options.md), the network. `--verbose` prints the full list of a run.
+
+## The platform underneath (FIX (A), fixes.md)
+
+`src/platform/platform.h` names what the game needs; `src/frontend/sdl`
+implements it:
+
+- **Window** (`SdlWindow`): the `Mech3Class` frame. Made hidden before the
+  engine starts so the GPU device and Render3D exist; the game's
+  `CreateEx` sizes and titles it ("MechWarrior 3 1.2", message 7 and the
+  version), `UpdateWindow` shows it. The game's 640x480 is stretched over the
+  window.
+- **Message pump** (`SdlPump`): SDL's event queue for `zGameApp::Run`. Focus
+  gained and lost are the frame's OnActivate (0x00590c00), so the loop idles
+  while the window is in the background, as the original's did. The window's
+  close posts the quit. A music file's end is MCI's notify (0x00590740).
+- **Clock** (`SdlClock`): `GetTickCount` counted from the start, `Sleep`.
+- **Input** (`SdlInput`): DirectInput as zInput opens it (0x0051b0a0): the
+  keyboard buffered as `GetDeviceData` gives it (0x80 events of
+  DIDEVICEOBJECTDATA with DIK codes, overflow reported as
+  DI_BUFFEROVERFLOW, auto-repeat not reported, nothing while unacquired), the
+  mouse as DIMOUSESTATE (relative counts since the last read, the wheel in
+  120s, buttons left, right, middle, X1), the first joystick as DIJOYSTATE2
+  (axes 0..65535, DirectInput's default range; hats as POV hundredths of a
+  degree, -1 centred; 128 buttons). SDL scancodes are USB usages; the DIK
+  codes are the PC keyboard's set-1 scan codes, mapped key for key by
+  position (`dik_from_scancode`). zInput (what the game does with these: the
+  command map, the key tables, 0x0051a170..) is not ported yet; the debug
+  states read DIK codes directly.
+- **Render3D** (`SdlRender3D`, render.md section 4) for the 3D path, and
+  **Screen2D** (`SdlScreen2D`) for the menus: the 16-bit back buffer the
+  2D blits draw into (locked by 0x00576de0, flipped by 0x00576ea0) is
+  converted to a texture and drawn over the window by Render3D.
+- **2D host** (`SdlTwodHost`, twod.md section 6): GDI's text on SDL3_ttf
+  with the game's own `arial.ttf`, `impact.ttf` and `lucon.ttf` ("Lucida
+  Console"), found through the mounts. GDI's rules where the game can see
+  them: a negative height is the character height, a positive one the cell
+  height; text is drawn without antialiasing (GDI on a 16-bit DIB), so the
+  key-colour blit keeps clean edges; `DT_CALCRECT`, line breaks,
+  `DT_WORDBREAK` in the box, `DT_CENTER` / `DT_RIGHT`, `&` prefixes; opaque
+  and transparent background modes; `GetTextMetrics` (internal leading the
+  cell height less the em). Text is Windows-1252, converted to UTF-8 for
+  SDL_ttf. fonts.zrd's WINDOWS_FONTS are read by name for zImage's named
+  fonts (face, height, colour or two, shadow, align, weight). Images come
+  from the image library (`zimg::fetch_image`, refcounted by name); screen
+  grabs copy the 16-bit buffer; the mouse is zInput's (0x0051b7b0, not
+  ported) stood in by the window's cursor scaled to 640x480, each button 1
+  pressed, 2 held, 4 released.
+- **Sound** (`SdlSoundOutput`, sound.md section 7), or
+  `platform::SilentSoundOutput` with `--nosound` and in tests.
+- **Music** (`SdlMusicOutput`): `zsnd_cd` asks for `music/trackNN.(ogg|flac|
+  wav|mp3)`; `mech3::MountFiles` looks it up in the write dir, then every
+  mount, so the tracks can sit in the write dir's `music/` or the install's.
+  The file is decoded as it plays (SDL3_sound), gain from the CD volume.
+- **Alert** (`SdlAlert`): `MessageBoxA` and the game's own box 0x004ac150
+  (its dlgMessage.zrd box is the 2D front end's, not wired yet) as SDL's
+  message box with the same texts and buttons.
+- **Mech3Msg.dll** (`zutl_msgdll`): read as data. The message table is the
+  DLL's RT_MESSAGETABLE resource; `ZLocGetID`'s `{name, id}` table is found
+  by following the export into its binary search (`mov ebx, table` ...
+  `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
+  and exits, as the original does.
+
+## Tests
+
+- `build/mw3tests` (`tests/test_program.cpp`): Mech3Msg.dll read (message 7,
+  0x14d, the skin keys through `zutl::localize`), the mounts and write dir
+  order, the music tracks found through the mounts and the disc's track
+  count, and the whole start-up with fake platform parts: InitInstance,
+  `zGameApp::Run` through Intro to the Main state, the title, Direct3D
+  chosen, the movies and the main menu reaching their hooks, frames flipped.
+- `build/mw3sdltests` (`tests/test_sdl_frontend.cpp`): the DIK table (known
+  codes, no two keys sharing one), the keyboard buffer (order, auto-repeat,
+  overflow, unacquired), the mouse counts, the GDI text on the game's fonts
+  (extents, metrics, two lines, colour only where the glyphs are, opaque mode,
+  GDI's cell height, word breaks, `&` prefixes).
+- `tests/differential/test_ztimer.py` now also runs the clock start
+  0x005759a0 on a random frame against the exe (break tests: the total not
+  zeroed, the tick product rounded differently: both caught).
+- The app tests (`test_app_loop.py`, `test_app_options.py`,
+  `test_app_states.py`) are unchanged and pass: `GameEngine` only overrides
+  hooks; the base `Engine` they test is as it was.
+
+Checked by hand (2026-10-20): `mw3 --mission c1 --shot` draws the world
+(c1's river and canyon under the hormain sky), `--dialog dialog.zrd MAINMENU`
+draws the main menu with its TrueType labels, a visible window runs 150
+frames of c1m2, a test track in the write dir's `music/` plays and loops
+through the MCI notify path.
+
+## Open
+
+- zInput (0x0051a170..0x0051dfa0: the command map "DefaultCmdMap", the key
+  tables, the mouse integration) on top of `platform::Input`; then Escape and
+  the hotkeys reach the states.
+- The main menu's screen (0x00486260) and the other screens on zTwoD and the
+  SDL host; the game's message box 0x004ac150 on dlgMessage.zrd.
+- The settings loader 0x0040c420 and a registry stand-in in the write dir
+  (`platform::Settings` exists, unimplemented).
+- The mission load 0x0048faf0, so `--mission` can go through the Load and
+  Core states instead of its own.
+- Movies (zFMV, Indeo 5).
+- The cursor (0x00579840) is not shown or hidden; the menus draw their own.
+- Shaders are MSL only (Metal); SPIR-V and DXIL come with the Windows build.

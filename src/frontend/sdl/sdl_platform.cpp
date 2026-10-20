@@ -1,0 +1,169 @@
+#include "frontend/sdl/sdl_platform.h"
+
+#include <cstdio>
+
+#include "frontend/sdl/sdl_input.h"
+#include "gamez/zgame/zgameapp.h"
+#include "gamez/zsound/zsnd_cd.h"
+
+namespace sdlfe {
+
+bool SdlWindow::init(bool hidden_for_good) {
+  hidden_ = hidden_for_good;
+  device_ = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, false, nullptr);
+  if (!device_) return std::fprintf(stderr, "mw3: SDL_CreateGPUDevice: %s\n", SDL_GetError()), false;
+  window_ = SDL_CreateWindow("MechWarrior 3", 1280, 960, SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+  if (!window_) return std::fprintf(stderr, "mw3: SDL_CreateWindow: %s\n", SDL_GetError()), false;
+  if (!SDL_ClaimWindowForGPUDevice(device_, window_))
+    return std::fprintf(stderr, "mw3: SDL_ClaimWindowForGPUDevice: %s\n", SDL_GetError()), false;
+  render_ = std::make_unique<SdlRender3D>(device_, window_);
+  return render_->ok();
+}
+
+SdlWindow::~SdlWindow() {
+  render_.reset();
+  if (device_ && window_) SDL_ReleaseWindowFromGPUDevice(device_, window_);
+  if (window_) SDL_DestroyWindow(window_);
+  if (device_) SDL_DestroyGPUDevice(device_);
+}
+
+uint32_t SdlWindow::create(const std::string& title, int width, int height) {
+  if (!window_) return 0;
+  SDL_SetWindowSize(window_, width, height);
+  SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  if (!title.empty()) SDL_SetWindowTitle(window_, title.c_str());
+  return kHwnd;
+}
+void SdlWindow::set_title(const std::string& title) {
+  if (window_) SDL_SetWindowTitle(window_, title.c_str());
+}
+void SdlWindow::show() {
+  if (window_ && !hidden_) SDL_ShowWindow(window_), SDL_RaiseWindow(window_);
+}
+void SdlWindow::client_size(int* width, int* height) {
+  *width = *height = 0;
+  if (window_) SDL_GetWindowSize(window_, width, height);
+}
+
+void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) {
+  if (!render_ || width <= 0 || height <= 0) return;
+  ++frames;
+  rgba_.resize(static_cast<size_t>(width) * height * 4);
+  for (int y = 0; y < height; ++y) {
+    const uint16_t* row = reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(pixels) + y * pitch);
+    uint8_t* o = &rgba_[static_cast<size_t>(y) * width * 4];
+    for (int x = 0; x < width; ++x, o += 4) {
+      const uint16_t p = row[x];
+      const int r = rgb565 ? p >> 11 : (p >> 10) & 31, g = rgb565 ? (p >> 5) & 63 : ((p >> 5) & 31) << 1,
+                b = p & 31;
+      o[0] = static_cast<uint8_t>(r << 3 | r >> 2), o[1] = static_cast<uint8_t>(g << 2 | g >> 4);
+      o[2] = static_cast<uint8_t>(b << 3 | b >> 2), o[3] = 255;
+    }
+  }
+  if (texture_ < 0 || tw_ != width || th_ != height) {
+    if (texture_ >= 0) render_->release_texture(texture_);
+    texture_ = render_->create_texture(width, height, rgba_.data(), 1);
+    tw_ = width, th_ = height;
+  } else {
+    render_->update_texture(texture_, width, height, rgba_.data());
+  }
+  platform::DrawState s;
+  s.texture = texture_, s.address_u = s.address_v = 3;
+  s.depth_write = false, s.depth_always = true;
+  const float w = static_cast<float>(width), h = static_cast<float>(height);
+  const platform::TLVertex quad[4] = {{0, 0, 1, 1, 0xffffffffu, 0xff000000u, 0, 0},
+                                      {w, 0, 1, 1, 0xffffffffu, 0xff000000u, 1, 0},
+                                      {w, h, 1, 1, 0xffffffffu, 0xff000000u, 1, 1},
+                                      {0, h, 1, 1, 0xffffffffu, 0xff000000u, 0, 1}};
+  render_->set_viewport(0, 0, width, height);
+  render_->clear(true, 0, 0, 0);
+  render_->begin_scene();
+  render_->draw(platform::Primitive::kFan, quad, 4, s);
+  render_->end_scene();
+  render_->present();
+}
+
+void SdlAlert::abort_message(const std::string& message) {
+  std::fprintf(stderr, "mw3: %s\n", message.c_str());
+  if (!headless_) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", message.c_str(), parent_);
+}
+
+int32_t SdlAlert::message_box(const std::string& text, const std::string& caption, uint32_t style) {
+  std::fprintf(stderr, "mw3: [%s] %s\n", caption.c_str(), text.c_str());
+  if (headless_) return 1;
+  const bool ok_cancel = (style & 0xf) == 1;
+  SDL_MessageBoxButtonData buttons[2] = {
+      {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "OK"},
+      {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 2, "Cancel"}};
+  SDL_MessageBoxData box{};
+  box.flags = (style & 0xf0) == 0x10 ? SDL_MESSAGEBOX_ERROR : (style & 0xf0) == 0x30 ? SDL_MESSAGEBOX_WARNING
+                                                                                     : SDL_MESSAGEBOX_INFORMATION;
+  box.window = parent_;
+  box.title = caption.c_str();
+  box.message = text.c_str();
+  box.numbuttons = ok_cancel ? 2 : 1;
+  box.buttons = buttons;
+  int hit = 1;
+  if (!SDL_ShowMessageBox(&box, &hit)) return 1;
+  return hit == 2 ? 2 : 1;  // IDOK / IDCANCEL
+}
+
+Uint32 SdlPump::music_event() {
+  static const Uint32 e = SDL_RegisterEvents(1);
+  return e;
+}
+
+bool SdlPump::peek() {
+  if (!quit_ && should_quit && should_quit()) post_quit();
+  if (quit_) return true;
+  SDL_PumpEvents();
+  return SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0;
+}
+
+bool SdlPump::pump() {
+  SDL_Event e;
+  if (!SDL_PollEvent(&e)) return !quit_;  // WM_QUIT is the last message
+  handle(e);
+  return !(quit_ && e.type == SDL_EVENT_QUIT);
+}
+
+void SdlPump::handle(const SDL_Event& e) {
+  if (input_) input_->on_event(e);
+  switch (e.type) {
+    case SDL_EVENT_QUIT:
+      quit_ = true;
+      break;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:  // WM_CLOSE: the frame is destroyed, PostQuitMessage
+      post_quit();
+      break;
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+      if (app_ && !app_->active()) app_->on_window_activate(1);  // WA_ACTIVE
+      break;
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+      if (app_ && app_->active()) app_->on_window_activate(0);
+      break;
+    default:
+      if (e.type == music_event() && app_) {
+        const zsnd_cd::State& s = zsnd_cd::state();
+        if (s.track + 1 < s.end_track && !zsnd_cd::track_path(s.track + 1).empty())
+          zsnd_cd::on_output_finished();  // a CD plays on into the next track
+        else
+          app_->message(1, 0);  // MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL (0x00590740)
+      }
+      break;
+  }
+}
+
+void SdlPump::wait(uint32_t ms) { SDL_WaitEventTimeout(nullptr, static_cast<Sint32>(ms)); }
+
+void SdlPump::post_quit() {
+  if (quit_) return;
+  quit_ = true;
+  SDL_Event q{};
+  q.type = SDL_EVENT_QUIT;
+  SDL_PushEvent(&q);
+}
+
+void SdlPump::raise_priority() { SDL_SetCurrentThreadPriority(SDL_THREAD_PRIORITY_HIGH); }
+
+}  // namespace sdlfe

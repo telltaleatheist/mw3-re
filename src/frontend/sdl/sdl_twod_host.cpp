@@ -1,0 +1,506 @@
+#include "frontend/sdl/sdl_twod_host.h"
+
+#include <SDL3_ttf/SDL_ttf.h>
+
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "frontend/sdl/sdl_input.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "gamez/zreader/zreader.h"
+#include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zsound/zsnd.h"
+#include "gamez/zsound/zsnd_cd.h"
+#include "gamez/zutil/ztimer.h"
+#include "gamez/zutil/zutl_msg.h"
+#include "gamez/zutil/zutl_path.h"
+#include "gamez/zvideo/zvid_format.h"
+#include "mech3/app_engine.h"
+
+namespace sdlfe {
+
+namespace {
+
+constexpr uint32_t kCalcRect = 0x400, kWordBreak = 0x10, kCenter = 0x1, kRight = 0x2, kNoPrefix = 0x800,
+                   kSingleLine = 0x20, kVCenter = 0x4, kBottom = 0x8;
+
+// The game's strings are Windows-1252; SDL_ttf reads UTF-8.
+std::string utf8(const char* s, int32_t length) {
+  std::string out;
+  const size_t n = length < 0 ? std::strlen(s) : static_cast<size_t>(length);
+  for (size_t i = 0; i < n && s[i]; ++i) {
+    const auto c = static_cast<uint8_t>(s[i]);
+    if (c < 0x80) {
+      out += static_cast<char>(c);
+    } else {
+      out += static_cast<char>(0xc0 | c >> 6);
+      out += static_cast<char>(0x80 | (c & 0x3f));
+    }
+  }
+  return out;
+}
+
+// DrawText's prefix: "&x" underlines x (not drawn here), "&&" is one "&".
+std::string strip_prefix(const std::string& s) {
+  std::string out;
+  for (size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '&' && i + 1 < s.size()) ++i;
+    out += s[i];
+  }
+  return out;
+}
+
+zimg::Texture* new_image(int w, int h) {  // 0x00517c10..0x00517c90, as FontText makes them
+  auto* t = static_cast<zimg::Texture*>(std::calloc(1, sizeof(zimg::Texture)));
+  t->flags = 1 | zimg::kPixelsOwned;
+  t->width = static_cast<int16_t>(w), t->height = static_cast<int16_t>(h);
+  t->width_again = t->width;
+  t->pixel_count = w * h;
+  t->pixels = std::calloc(static_cast<size_t>(w > 0 ? w : 1) * (h > 0 ? h : 1), 2);
+  return t;
+}
+
+}  // namespace
+
+SdlTwodHost::SdlTwodHost(mech3::GameEngine* engine, SdlInput* input, platform::Window* window)
+    : engine_(engine), input_(input), window_(window) {
+  ttf_ok_ = TTF_Init();
+  if (!ttf_ok_) std::fprintf(stderr, "mw3: TTF_Init: %s\n", SDL_GetError());
+}
+
+SdlTwodHost::~SdlTwodHost() {
+  for (auto& [h, f] : fonts_)
+    if (f.ttf) TTF_CloseFont(f.ttf);
+  if (ttf_ok_) TTF_Quit();
+}
+
+std::string SdlTwodHost::font_file(const std::string& face) {
+  std::string f;
+  for (char c : face) f += static_cast<char>(c >= 'A' && c <= 'Z' ? c + 32 : c);
+  if (f.find("impact") != std::string::npos) return "impact.ttf";
+  if (f.find("lucida console") != std::string::npos || f.find("courier") != std::string::npos ||
+      f.find("fixed") != std::string::npos)
+    return "lucon.ttf";
+  return "arial.ttf";  // Arial, and what Windows would have substituted for others
+}
+
+// ---------------------------------------------------------------------------
+// zImage
+
+zimg::Texture* SdlTwodHost::image_get(const char* name) {
+  if (!name || !*name) return nullptr;
+  auto it = images_.find(name);
+  if (it != images_.end()) {
+    ++it->second.refs;
+    return it->second.image;
+  }
+  zimg::Texture* t = zimg::fetch_image(name);
+  if (!t) {
+    std::fprintf(stderr, "mw3: image %s not found\n", name);
+    return nullptr;
+  }
+  images_[name] = {t, 1};
+  return t;
+}
+
+zimg::Texture* SdlTwodHost::image_release(zimg::Texture* image) {
+  for (auto it = images_.begin(); it != images_.end(); ++it) {
+    if (it->second.image != image) continue;
+    if (--it->second.refs <= 0) images_.erase(it);  // the library keeps the image
+    break;
+  }
+  return nullptr;
+}
+
+void SdlTwodHost::image_path(const char*) {}  // the mounts and the image library find them
+
+// The fonts.zrd WINDOWS_FONTS entries: face, height, color (r g b) or two of
+// them, shadow "true", align "right" / "center", weight.
+bool SdlTwodHost::load_named_fonts() {
+  if (named_loaded_) return true;
+  named_loaded_ = true;
+  zrdr::Node* top = zrdr::load("fonts.zrd");
+  if (!top) return false;
+  zrdr::Node* list = zrdr::find(top, "WINDOWS_FONTS");
+  if (list && list->type == zrdr::List) {
+    for (int32_t i = 1; i + 1 < zrdr::list_count(list); i += 2) {
+      zrdr::Node& name = list->list[i];
+      zrdr::Node& props = list->list[i + 1];
+      if (name.type != zrdr::String || props.type != zrdr::List) continue;
+      const char* face = zrdr::get_string(&props, "face");
+      int32_t height = -10, weight = 400;
+      zrdr::get_int(&props, "height", &height);
+      zrdr::get_int(&props, "weight", &weight);
+      ztwod::NamedFont nf;
+      auto colorref = [](zrdr::Node* c) -> uint32_t {
+        if (!c || c->type != zrdr::List || zrdr::list_count(c) < 4) return 0xffffff;
+        return static_cast<uint32_t>(c->list[1].i & 255) | static_cast<uint32_t>(c->list[2].i & 255) << 8 |
+               static_cast<uint32_t>(c->list[3].i & 255) << 16;
+      };
+      if (zrdr::Node* c = zrdr::find(&props, "color")) {
+        if (zrdr::list_count(c) >= 3 && c->list[1].type == zrdr::List) {
+          nf.color_top = colorref(&c->list[1]);
+          nf.color_bottom = colorref(&c->list[2]);
+        } else {
+          nf.color_top = nf.color_bottom = colorref(c);
+        }
+      }
+      if (const char* s = zrdr::get_string(&props, "shadow")) nf.shadow = std::strcmp(s, "true") == 0;
+      if (const char* a = zrdr::get_string(&props, "align"))
+        nf.align = std::strcmp(a, "right") == 0 ? 2 : std::strcmp(a, "center") == 0 ? 1 : 0;
+      nf.hfont = CreateFontA(height, 0, 0, 0, weight, 0, 0, 0, 0, 0, 0, 1, 0, face ? face : "Arial");
+      const Handle h = next_++;
+      named_[h] = {nf, 0};
+      named_by_name_[name.s] = h;
+    }
+  }
+  zrdr::free_node(top);
+  return true;
+}
+
+Handle SdlTwodHost::font_find(const char* name) {
+  load_named_fonts();
+  auto it = named_by_name_.find(name ? name : "");
+  if (it == named_by_name_.end()) return 0;
+  ++named_[it->second].refs;
+  return it->second;
+}
+ztwod::NamedFont SdlTwodHost::font_fields(Handle f) {
+  auto it = named_.find(f);
+  return it == named_.end() ? ztwod::NamedFont{} : it->second.fields;
+}
+void SdlTwodHost::font_addref(Handle f) {
+  auto it = named_.find(f);
+  if (it != named_.end()) ++it->second.refs;
+}
+void SdlTwodHost::font_release(Handle f) {
+  auto it = named_.find(f);
+  if (it != named_.end() && it->second.refs > 0) --it->second.refs;  // the table keeps them
+}
+
+// ---------------------------------------------------------------------------
+// zVideo, on the engine's 16-bit buffer
+
+void SdlTwodHost::video_lock() {
+  if (engine_) engine_->video_lock();
+}
+void SdlTwodHost::video_unlock() {}
+
+zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
+  const zrndr::Target2D& t = zrndr::target2d();
+  if (!t.base) return nullptr;
+  zimg::Texture* img = new_image(static_cast<int>(t.width), static_cast<int>(t.height));
+  for (uint32_t y = 0; y < t.height; ++y)
+    std::memcpy(static_cast<uint16_t*>(img->pixels) + y * t.width, t.base + y * t.pitch, t.width * 2);
+  return img;
+}
+
+zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Texture* into) {
+  const zrndr::Target2D& t = zrndr::target2d();
+  if (!t.base) return nullptr;
+  ztwod::Rect c = *r;
+  if (c.left < 0) c.left = 0;
+  if (c.top < 0) c.top = 0;
+  if (c.right > static_cast<int32_t>(t.width)) c.right = static_cast<int32_t>(t.width);
+  if (c.bottom > static_cast<int32_t>(t.height)) c.bottom = static_cast<int32_t>(t.height);
+  if (c.right <= c.left || c.bottom <= c.top) return nullptr;  // off screen
+  const int w = c.right - c.left, h = c.bottom - c.top;
+  if (into && (into->width < w || into->height < h)) into = nullptr;
+  zimg::Texture* img = into ? into : new_image(w, h);
+  for (int y = 0; y < h; ++y)
+    std::memcpy(static_cast<uint16_t*>(img->pixels) + y * img->width, t.base + (c.top + y) * t.pitch + c.left * 2,
+                static_cast<size_t>(w) * 2);
+  *r = c;
+  return img;
+}
+
+Handle SdlTwodHost::image_dc(zimg::Texture* image) {
+  const Handle h = CreateCompatibleDC(0);
+  dcs_[h].image = image;
+  return h;
+}
+void SdlTwodHost::image_dc_release(zimg::Texture*, Handle dc) { DeleteDC(dc); }
+
+int32_t SdlTwodHost::video_mode() { return engine_ ? static_cast<int32_t>(engine_->peek32(0x72f348)) : 0; }
+uint32_t SdlTwodHost::show_cursor(uint32_t on) { return engine_ ? engine_->video_show_cursor(on) : 0; }
+ztwod::Rect SdlTwodHost::screen_rect() {
+  ztwod::Rect r;
+  r.right = engine_ ? engine_->buffer_width() : 640;
+  r.bottom = engine_ ? engine_->buffer_height() : 480;
+  return r;
+}
+Handle SdlTwodHost::render_target(int32_t* w, int32_t* h, int32_t* depth, int32_t* pitch) {
+  *w = engine_ ? engine_->buffer_width() : 640;
+  *h = engine_ ? engine_->buffer_height() : 480;
+  *depth = 16;
+  *pitch = *w * 2;
+  return mech3::GameEngine::kBackBuffer;
+}
+void SdlTwodHost::timer_update() { ztimer::update(); }
+float SdlTwodHost::frame_dt() { return ztimer::state().dt; }
+void SdlTwodHost::video_flip(const ztwod::Rect*, const ztwod::Rect*, int32_t, int32_t) {
+  if (engine_) engine_->video_flip(0, 0, 0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// zSound, the messages, zInput's mouse
+
+int32_t SdlTwodHost::sound_find(const char* name) {
+  return engine_ ? static_cast<int32_t>(engine_->sound_find(name)) : 0;
+}
+int32_t SdlTwodHost::sound_play(int32_t sound, float volume) {
+  if (!engine_) return 0;
+  auto* o = static_cast<zsnd::Object*>(engine_->object_of(static_cast<Handle>(sound)));
+  return o ? static_cast<int32_t>(engine_->handle_of(zsnd::play(o, volume))) : 0;
+}
+void SdlTwodHost::sound_stop(int32_t handle) {
+  if (engine_) engine_->voice_stop(static_cast<Handle>(handle));
+}
+int32_t SdlTwodHost::cd_find(const char* name) { return zsnd_cd::cue_track(name ? name : ""); }
+int32_t SdlTwodHost::cd_play(int32_t track, int32_t mode) { return zsnd_cd::play_track(track, mode) ? 1 : 0; }
+void SdlTwodHost::cd_stop() { zsnd_cd::stop(); }
+const char* SdlTwodHost::message(const char* key) { return zutl::localize(key); }
+
+// zInput's mouse (0x0051b7b0, not ported): the cursor in the 640x480 frame,
+// each button 1 pressed this frame, 2 held, 4 released this frame.
+ztwod::MouseState SdlTwodHost::mouse() {
+  ztwod::MouseState m{};
+  if (!input_) return m;
+  const int fw = engine_ ? engine_->buffer_width() : 640, fh = engine_ ? engine_->buffer_height() : 480;
+  int win_w_ = 0, win_h_ = 0;
+  if (window_) window_->client_size(&win_w_, &win_h_);
+  m.x = win_w_ > 0 ? static_cast<int32_t>(input_->mouse_x * fw / win_w_) : static_cast<int32_t>(input_->mouse_x);
+  m.y = win_h_ > 0 ? static_cast<int32_t>(input_->mouse_y * fh / win_h_) : static_cast<int32_t>(input_->mouse_y);
+  m.fx = static_cast<float>(m.x), m.fy = static_cast<float>(m.y);
+  const uint32_t now = input_->mouse_buttons;
+  uint32_t* out[3] = {&m.left, &m.right, &m.middle};
+  for (int b = 0; b < 3; ++b) {
+    const bool was = buttons_ >> b & 1, is = now >> b & 1;
+    *out[b] = is ? (was ? 2u : 1u) : (was ? 4u : 0u);
+  }
+  buttons_ = now;
+  return m;
+}
+
+// ---------------------------------------------------------------------------
+// GDI
+
+SdlTwodHost::Font* SdlTwodHost::font(Handle h) {
+  auto it = fonts_.find(h);
+  return it == fonts_.end() ? nullptr : &it->second;
+}
+SdlTwodHost::Dc* SdlTwodHost::dc(Handle h) {
+  auto it = dcs_.find(h);
+  return it == dcs_.end() ? nullptr : &it->second;
+}
+
+// lfHeight < 0 is the character height (the em), > 0 the cell height
+// (ascent + descent), 0 a default of 12 pixels.
+TTF_Font* SdlTwodHost::open_ttf(Font& f) {
+  if (f.ttf || !ttf_ok_) return f.ttf;
+  const std::string path = zutl::find(font_file(f.face).c_str());
+  if (path.empty()) {
+    std::fprintf(stderr, "mw3: font %s (%s) not found in the game folder\n", f.face.c_str(),
+                 font_file(f.face).c_str());
+    return nullptr;
+  }
+  const int want = f.height == 0 ? 12 : std::abs(f.height);
+  f.ttf = TTF_OpenFont(path.c_str(), static_cast<float>(want));
+  if (!f.ttf) return nullptr;
+  f.em = want;
+  if (f.height > 0) {
+    const int cell = TTF_GetFontHeight(f.ttf);
+    if (cell > 0 && cell != want) {
+      f.em = static_cast<int>(std::lround(static_cast<double>(want) * want / cell));
+      TTF_SetFontSize(f.ttf, static_cast<float>(f.em));
+    }
+  }
+  TTF_SetFontHinting(f.ttf, TTF_HINTING_MONO);
+  TTF_SetFontStyle(f.ttf, (f.weight >= 600 ? TTF_STYLE_BOLD : 0) | (f.italic ? TTF_STYLE_ITALIC : 0));
+  return f.ttf;
+}
+
+Handle SdlTwodHost::GetStockObject(int32_t which) {
+  static Handle stock = 0;
+  if (which != 10 && which != 13 && which != 17) return 0;  // OEM_FIXED, SYSTEM, DEFAULT_GUI fonts
+  if (!stock) stock = CreateFontA(12, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 1, 0, "Lucida Console");
+  return stock;
+}
+
+Handle SdlTwodHost::CreateFontA(int32_t height, int32_t, int32_t, int32_t, int32_t weight, uint32_t italic, uint32_t,
+                                uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const char* face) {
+  Font f;
+  f.face = face ? face : "Arial";
+  f.height = height;
+  f.weight = weight ? weight : 400;
+  f.italic = italic;
+  if (!open_ttf(f)) return 0;
+  const Handle h = next_++;
+  fonts_[h] = f;
+  return h;
+}
+
+int32_t SdlTwodHost::GetObjectA(Handle font_h) { return font(font_h) ? 0x3c : 0; }  // sizeof(LOGFONTA)
+Handle SdlTwodHost::CreateFontIndirectA(Handle from) {
+  Font* f = font(from);
+  if (!f) return 0;
+  return CreateFontA(f->height, 0, 0, 0, f->weight, f->italic, 0, 0, 0, 0, 0, 1, 0, f->face.c_str());
+}
+void SdlTwodHost::DeleteObject(Handle object) {
+  auto it = fonts_.find(object);
+  if (it == fonts_.end()) return;
+  if (it->second.ttf) TTF_CloseFont(it->second.ttf);
+  fonts_.erase(it);
+}
+
+Handle SdlTwodHost::CreateCompatibleDC(Handle) {
+  const Handle h = next_++;
+  dcs_[h] = Dc{};
+  return h;
+}
+Handle SdlTwodHost::SelectObject(Handle d, Handle object) {
+  Dc* x = dc(d);
+  if (!x) return 0;
+  const Handle old = x->font;
+  x->font = object;
+  return old;
+}
+void SdlTwodHost::DeleteDC(Handle d) { dcs_.erase(d); }
+
+int32_t SdlTwodHost::GetTextExtentPoint32A(Handle d, const char* text, int32_t length, int32_t* cx, int32_t* cy) {
+  *cx = *cy = 0;
+  Dc* x = dc(d);
+  Font* f = x ? font(x->font) : nullptr;
+  if (!f || !f->ttf || !text) return 0;
+  const std::string s = utf8(text, length);
+  int w = 0, h = 0;
+  if (!s.empty()) TTF_GetStringSize(f->ttf, s.c_str(), s.size(), &w, &h);
+  *cx = w;
+  *cy = TTF_GetFontHeight(f->ttf);
+  return 1;
+}
+
+// The text's lines: "\n" (and "\r\n") break, and with DT_WORDBREAK words wrap
+// at the box's width.
+std::vector<std::string> SdlTwodHost::lines(const Font& f, const std::string& s, int wrap_width, bool wrap) {
+  std::vector<std::string> out;
+  size_t start = 0;
+  while (start <= s.size()) {
+    size_t end = s.find('\n', start);
+    if (end == std::string::npos) end = s.size();
+    std::string line = s.substr(start, end - start);
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!wrap || wrap_width <= 0) {
+      out.push_back(line);
+    } else {
+      while (true) {
+        int mw = 0;
+        size_t fit = 0;
+        TTF_MeasureString(f.ttf, line.c_str(), line.size(), wrap_width, &mw, &fit);
+        if (fit >= line.size()) {
+          out.push_back(line);
+          break;
+        }
+        size_t cut = line.rfind(' ', fit);
+        if (cut == std::string::npos || cut == 0) cut = fit > 0 ? fit : 1;  // a word wider than the box
+        out.push_back(line.substr(0, cut));
+        size_t next = cut;
+        while (next < line.size() && line[next] == ' ') ++next;
+        line = line.substr(next);
+      }
+    }
+    if (end == s.size()) break;
+    start = end + 1;
+  }
+  return out;
+}
+
+int32_t SdlTwodHost::DrawTextA(Handle d, const char* text, int32_t length, ztwod::Rect* rect, uint32_t format) {
+  Dc* x = dc(d);
+  Font* f = x ? font(x->font) : nullptr;
+  if (!f || !f->ttf || !text) return 0;
+  std::string s = utf8(text, length);
+  if (!(format & kNoPrefix)) s = strip_prefix(s);
+  const int box_w = rect->right - rect->left;
+  std::vector<std::string> ls =
+      (format & kSingleLine) ? std::vector<std::string>{s} : lines(*f, s, box_w, (format & kWordBreak) != 0);
+  const int lh = TTF_GetFontHeight(f->ttf);
+  const int total = lh * static_cast<int>(ls.size());
+  if (format & kCalcRect) {
+    int widest = 0;
+    for (const std::string& l : ls) {
+      int w = 0, h = 0;
+      if (!l.empty()) TTF_GetStringSize(f->ttf, l.c_str(), l.size(), &w, &h);
+      if (w > widest) widest = w;
+    }
+    if (!(format & kWordBreak) || widest > box_w) rect->right = rect->left + widest;
+    rect->bottom = rect->top + total;
+    return total;
+  }
+  zimg::Texture* img = x->image;
+  if (!img || !img->pixels) return total;
+  uint16_t* px = static_cast<uint16_t*>(img->pixels);
+  const auto pack = [](uint32_t c) {
+    return zvid::pack_bytes(static_cast<uint8_t>(c), static_cast<uint8_t>(c >> 8), static_cast<uint8_t>(c >> 16));
+  };
+  const uint16_t fg = pack(x->text), bg = pack(x->bk);
+  int y0 = rect->top;
+  if (format & kSingleLine) {
+    if (format & kVCenter) y0 = rect->top + (rect->bottom - rect->top - lh) / 2;
+    else if (format & kBottom) y0 = rect->bottom - lh;
+  }
+  for (size_t i = 0; i < ls.size(); ++i) {
+    const std::string& l = ls[i];
+    int w = 0, h = 0;
+    if (!l.empty()) TTF_GetStringSize(f->ttf, l.c_str(), l.size(), &w, &h);
+    int x0 = rect->left;
+    if (format & kCenter) x0 = rect->left + (box_w - w) / 2;
+    else if (format & kRight) x0 = rect->right - w;
+    const int ly = y0 + static_cast<int>(i) * lh;
+    auto put = [&](int px_, int py_, uint16_t c) {
+      if (px_ < rect->left || px_ >= rect->right || py_ < rect->top || py_ >= rect->bottom) return;  // clipped
+      if (px_ < 0 || py_ < 0 || px_ >= img->width || py_ >= img->height) return;
+      px[py_ * img->width + px_] = c;
+    };
+    if (x->bk_mode == 2)  // OPAQUE: the text's cells filled first
+      for (int yy = 0; yy < lh; ++yy)
+        for (int xx = 0; xx < w; ++xx) put(x0 + xx, ly + yy, bg);
+    if (l.empty()) continue;
+    SDL_Surface* surf = TTF_RenderText_Solid(f->ttf, l.c_str(), l.size(), SDL_Color{255, 255, 255, 255});
+    if (!surf) continue;
+    const auto* p = static_cast<const uint8_t*>(surf->pixels);
+    for (int yy = 0; yy < surf->h; ++yy)
+      for (int xx = 0; xx < surf->w; ++xx)
+        if (p[yy * surf->pitch + xx]) put(x0 + xx, ly + yy, fg);
+    SDL_DestroySurface(surf);
+  }
+  return total;
+}
+
+int32_t SdlTwodHost::GetTextMetricsA(Handle d, ztwod::TextMetrics* out) {
+  *out = ztwod::TextMetrics{};
+  Dc* x = dc(d);
+  Font* f = x ? font(x->font) : nullptr;
+  if (!f || !f->ttf) return 0;
+  out->height = TTF_GetFontHeight(f->ttf);
+  out->ascent = TTF_GetFontAscent(f->ttf);
+  out->internal_leading = out->height - f->em > 0 ? out->height - f->em : 0;
+  const int skip = TTF_GetFontLineSkip(f->ttf);
+  out->external_leading = skip > out->height ? skip - out->height : 0;
+  return 1;
+}
+
+void SdlTwodHost::SetTextColor(Handle d, uint32_t color) {
+  if (Dc* x = dc(d)) x->text = color;
+}
+void SdlTwodHost::SetBkColor(Handle d, uint32_t color) {
+  if (Dc* x = dc(d)) x->bk = color;
+}
+void SdlTwodHost::SetBkMode(Handle d, int32_t mode) {
+  if (Dc* x = dc(d)) x->bk_mode = mode;
+}
+
+}  // namespace sdlfe

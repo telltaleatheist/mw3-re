@@ -1,4 +1,5 @@
-"""The ported frame timer against the original x87 code, frame by frame.
+"""The ported frame timer against the original x87 code, frame by frame: the
+update (0x00575a00) and the start (0x005759a0) on a random frame.
 
     cmake --build build && .venv/bin/python tests/differential/test_ztimer.py
 """
@@ -19,7 +20,7 @@ GET_TICK_COUNT = 0x00575d30  # the import thunk 0x00575a00 calls
 f32 = lambda cpu, a: struct.unpack('<f', cpu.read(a, 4))[0]  # noqa: E731
 
 
-def original(ticks, scale, scale_frame):
+def original(ticks, scale, scale_frame, init_frame):
     cpu = Original()
     now = {'t': 0}
 
@@ -31,23 +32,26 @@ def original(ticks, scale, scale_frame):
         uc.reg_write(UC_X86_REG_EIP, ret)
 
     cpu.uc.hook_add(UC_HOOK_CODE, fake_tick_count, begin=GET_TICK_COUNT, end=GET_TICK_COUNT)
-    dts, raws = [], []
+    dts, raws, totals = [], [], []
     for i, t in enumerate(ticks):
         if i == scale_frame:
             cpu.write(0x005f0970, struct.pack('<f', scale))
         now['t'] = t
+        if i == init_frame:
+            cpu.call(0x005759a0)
         cpu.call(0x00575a00)
         dts.append(f32(cpu, 0x0072c52c))
         raws.append(f32(cpu, 0x0072c534))
-    return dts, raws
+        totals += [f32(cpu, 0x0072c538), f32(cpu, 0x0072c530)]
+    return dts, raws, totals
 
 
-def rebuilt(ticks, scale, scale_frame):
+def rebuilt(ticks, scale, scale_frame, init_frame):
     n = len(ticks)
     t = (ctypes.c_uint32 * n)(*ticks)
-    dt, raw = (ctypes.c_float * n)(), (ctypes.c_float * n)()
-    probe.probe_ztimer(t, n, ctypes.c_float(scale), scale_frame, dt, raw)
-    return list(dt), list(raw)
+    dt, raw, totals = (ctypes.c_float * n)(), (ctypes.c_float * n)(), (ctypes.c_float * (2 * n))()
+    probe.probe_ztimer(t, n, ctypes.c_float(scale), scale_frame, init_frame, dt, raw, totals)
+    return list(dt), list(raw), list(totals)
 
 
 def main():
@@ -59,7 +63,9 @@ def main():
             t += rng.choice([rng.randint(0, 40), rng.randint(0, 400), 0])
             ticks.append(t)
         scale, scale_frame = rng.choice([0.5, 0.25, 2.0, 1.0]), rng.randint(0, 59)
-        a, b = original(ticks, scale, scale_frame), rebuilt(ticks, scale, scale_frame)
+        init_frame = rng.choice([-1, 0, rng.randint(1, 59)])
+        a = original(ticks, scale, scale_frame, init_frame)
+        b = rebuilt(ticks, scale, scale_frame, init_frame)
         if a != b:
             raise SystemExit(f'ztimer differs on run {run}:\n{a}\n{b}')
         frames += len(ticks)

@@ -45,17 +45,21 @@ ProbeClock g_probe_clock;
 
 extern "C" {
 
-// Runs ztimer::update() for each tick value; writes dt and raw_dt per frame.
-void probe_ztimer(const uint32_t* ticks, int frames, float scale_on_frame, int scale_frame,
-                  float* dt_out, float* raw_out) {
+// Runs ztimer::update() for each tick value, ztimer::init() (0x005759a0)
+// first on frame init_frame; writes dt, raw_dt and the two totals per frame.
+void probe_ztimer(const uint32_t* ticks, int frames, float scale_on_frame, int scale_frame, int init_frame,
+                  float* dt_out, float* raw_out, float* totals_out) {
   ztimer::state() = ztimer::State{};
   ztimer::set_clock(&g_probe_clock);
   for (int i = 0; i < frames; ++i) {
     if (i == scale_frame) ztimer::state().scale = scale_on_frame;
     g_probe_clock.now = ticks[i];
+    if (i == init_frame) ztimer::init();
     ztimer::update();
     dt_out[i] = ztimer::state().dt;
     raw_out[i] = ztimer::state().raw_dt;
+    totals_out[2 * i] = ztimer::state().total_raw;
+    totals_out[2 * i + 1] = ztimer::state().total_scaled;
   }
   ztimer::set_clock(nullptr);
 }

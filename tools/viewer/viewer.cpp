@@ -5,7 +5,7 @@
 //           [--info] [--shot out.bmp] [--pos x y z] [--look yaw pitch]
 //
 // --real draws the mission through the ported render path itself
-// (realframe.h): walk, cull, model draw, lighting, fog, clips, draw table;
+// (src/frontend/debug_world.h): walk, cull, model draw, lighting, fog, clips, draw table;
 // --variant picks the mission's world.zrd block (fog, sky, sun).
 // --tl draws through the ported Direct3D stand-in (platform::Render3D on SDL3)
 // with the original's camera-space projection done on the CPU (render.md
@@ -29,7 +29,7 @@
 
 #include "frontend/sdl/sdl_render3d.h"
 #include "gamez/zutil/zutl_path.h"
-#include "realframe.h"
+#include "frontend/debug_world.h"
 #include "scene.h"
 
 namespace {
@@ -495,7 +495,7 @@ int main(int argc, char** argv) {
       handles.push_back(r3d->create_texture(img.width, img.height, img.rgba.data(), img.alpha ? 4 : 1));
   }
   if (real) {
-    const std::string e = viewer::real_load(mission, variant, r3d.get());
+    const std::string e = frontend::world_load(mission, variant, r3d.get());
     if (!e.empty()) {
       std::fprintf(stderr, "%s\n", e.c_str());
       return 1;
@@ -504,7 +504,7 @@ int main(int argc, char** argv) {
 
   if (!shot.empty() && r3d) {
     r3d->capture_next(shot.c_str());
-    if (real) viewer::real_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
+    if (real) frontend::world_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
     else draw_tl(*r3d, scene, handles, cam, 1280, 720);
     std::printf("wrote %s\n", shot.c_str());
     return 0;
@@ -572,7 +572,7 @@ int main(int argc, char** argv) {
     if (r3d) {
       int ww = 0, wh = 0;
       SDL_GetWindowSizeInPixels(a.window, &ww, &wh);
-      if (real) viewer::real_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
+      if (real) frontend::world_frame(cam.eye, cam.yaw, cam.pitch, r3d.get());
       else draw_tl(*r3d, scene, handles, cam, ww, wh);
       continue;
     }

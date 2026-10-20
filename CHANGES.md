@@ -100,6 +100,17 @@ These change how the game talks to the computer, not how it plays.
   replaced by ordinary writes, pixel for pixel the same.
 - Files are found through search folders, so replacement files can sit in
   front of the original install, or stand in for it.
+- The game is its own program, `mw3`, in an ordinary window (SDL3) instead
+  of a Windows program; it starts the way the original did, step for step.
+  Saves and settings go to the user's application-data folder, not into the
+  game folder.
+- The keyboard, mouse and joystick are read through SDL3 instead of
+  DirectInput, with every key reported under the same code the original's
+  key tables use.
+- The game's texts come from its own `Mech3Msg.dll`, read as data, and the
+  menus' writing is drawn with the game's own fonts (Arial, Impact, Lucida
+  Console, shipped with it) instead of Windows' text drawing.
+- Message boxes are the computer's own instead of Windows'.
 - The game's random numbers are generated exactly as on the original's
   Windows, so everything random behaves the same.
 - Some rendering depends on the processor's math precision. In the emulator,
