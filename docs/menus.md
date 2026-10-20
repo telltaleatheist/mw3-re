@@ -403,7 +403,7 @@ lists' items and values, the group and source cycles, the capture mode, the
 ranges, dirty, the guard, the slide buttons' ripple, the axis table,
 ActiveCtlCfg and the popups' fields.
 
-Breaking the port showed the test catches it, 26 of 26 (8 or 12 runs): the
+Breaking the port showed the test catches it, 26 of 26 (8 runs each): the
 stick threshold at 0.5, the range's high not sampled, a mouse axis shown as
 a stick axis, mouse sources from 10, the description's id, NEXT enabled on
 the last row, Escape bound as a key, key B left on the old command, a stick
