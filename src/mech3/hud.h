@@ -47,6 +47,13 @@ class HudCompass : public ztwod::Object2D {
   ztwod::FontText text;              // +0x1c8
 };
 
+// A text in the font mech_string (vtable 0x005bc598, inlined constructor:
+// FontText's with its own destructor 0x0048c050).
+class HudText : public ztwod::FontText {
+ public:
+  HudText();
+};
+
 // The panels' green (0, 64, 0) and opacity: 0.6 in Direct3D, opaque in software.
 uint16_t hud_green();                // 0x0043b170
 float hud_opacity();                 // 0x0043a7c0
@@ -103,7 +110,7 @@ class HudEquipLine : public ztwod::Text {
   HudEquipLine();                    // 0x00447c40
   void place(int32_t px, int32_t py, int32_t column);  // 0x00447fe0
   void reset();                      // 0x00447e10
-  ztwod::FontText value;             // +0x4cc (vtable 0x005bc598: FontText's but the destructor)
+  HudText value;                     // +0x4cc
   ztwod::Image light;                // +0x97c
   int32_t state = 0;                 // +0xa38
   int32_t item = 0;                  // +0xa3c
@@ -119,6 +126,57 @@ class HudEquipment : public ztwod::Object2D {
   HudPanel panel;                    // +0xa438
   uint8_t below = 1;                 // +0xa540 under the point; else left of it by the column
   int32_t column = 0x6e;             // +0xa544 the values' right edge
+};
+
+// The weapon list's lights and fonts, shared ([0x006059b0..0x006059cc],
+// loaded by the first line made).
+struct WeaponSet {
+  zimg::Texture* light[3] = {};      // 0x006059b0 green, yellow, red
+  ztwod::Handle font_red = 0;        // 0x006059c0
+  ztwod::Handle font_green = 0;      // 0x006059c4
+  ztwod::Handle font_yellow = 0;     // 0x006059c8
+  ztwod::Handle font_grey = 0;       // 0x006059cc
+};
+WeaponSet& weapon_set();
+
+// One line of the weapon list (vtable 0x005c0808, 0x1120 bytes): a slider
+// (the recycle bar) with the weapon's name, two texts, its light and a mark.
+class HudWeaponLine : public ztwod::Slider {
+ public:
+  HudWeaponLine();                   // 0x00445760
+  void place(int32_t px, int32_t py, int32_t column);  // 0x00445ba0
+  void reset();                      // 0x00445a30
+  bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
+  HudText name;                      // +0x188
+  HudText text2;                     // +0x638
+  HudText count_text;                // +0xae8 "%3d", right-aligned at the column
+  ztwod::Image light;                // +0xf98
+  ztwod::Image mark;                 // +0x1054 left of the line
+  int32_t count = 0;                 // +0x1110 the number shown
+  uint8_t red = 1;                   // +0x1118
+  uint8_t grey = 0;                  // +0x1119 (not set by the constructor)
+  uint8_t changed = 0;               // +0x111a
+  uint8_t x111b = 0;                 // +0x111b
+  void* weapon = nullptr;            // +0x111c
+};
+
+// The weapon list (vtable 0x005c0898, 0x11444 bytes): sixteen lines over a panel.
+class HudWeapons : public ztwod::Object2D {
+ public:
+  HudWeapons();                      // 0x00445f80
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x004460c0: the lines 10 apart
+  void show_for(float seconds) override;  // +0x60  0x00446200 (part: 0x00446520 not ported)
+  void hide() override;              // +0x64  0x00446220
+  void* hud = nullptr;               // +0x34 the HUD it shows (0x00446120)
+  uint32_t x38 = 0;                  // +0x38
+  ztwod::PolyLine poly;              // +0x3c
+  zimg::Texture* select = nullptr;   // +0x128 hud_weapon_select
+  zimg::Texture* chain = nullptr;    // +0x12c hud_weapon_chain
+  HudWeaponLine lines[16];           // +0x130
+  HudPanel panel;                    // +0x11330
+  uint8_t shown = 1;                 // +0x11438
+  int32_t x1143c = 0;                // +0x1143c
+  int32_t column = 0x6e;             // +0x11440
 };
 
 // What the HUD calls outside it.
@@ -161,7 +219,7 @@ class Hud : public ztwod::Layer {
   PendingPiece gauges{0x00444760, {}};      // +0x1da8 0x00444760 (not ported yet)
   PendingPiece mfd{0x00442060, {0x212, 0x172, 0x4b, 100, 1}};         // +0x3434 0x00442060 (not ported yet)
   PendingPiece target{0x0043fcb0, {10, 0x172, 0x4b, 100}};      // +0x410c 0x0043fcb0 (not ported yet)
-  PendingPiece weapons{0x00445f80, {}};     // +0x6520 0x00445f80 (not ported yet)
+  HudWeapons weapons;                // +0x6520
   HudObjectives objectives;          // +0x17964
   HudTimer timer;                    // +0x18410
   HudEquipment equipment;            // +0x188c0

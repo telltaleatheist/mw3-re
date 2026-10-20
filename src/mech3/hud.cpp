@@ -16,6 +16,7 @@ namespace mech3 {
 namespace {
 DamageSet g_damage;
 EquipmentSet g_equipment;
+WeaponSet g_weapons;
 HudHooks g_default_hooks;
 HudHooks* g_hooks = &g_default_hooks;
 
@@ -41,6 +42,7 @@ constexpr PartImages kParts[8] = {
 
 DamageSet& damage_set() { return g_damage; }
 EquipmentSet& equipment_set() { return g_equipment; }
+WeaponSet& weapon_set() { return g_weapons; }
 HudHooks& hud_hooks() { return *g_hooks; }
 void set_hud_hooks(HudHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 
@@ -98,6 +100,8 @@ void HudCompass::set_heading(float h) {
   src.right = x + half;
   src.left = x - half;
 }
+
+HudText::HudText() : FontText(nullptr, 0, 0) { set_font(ztwod::host().font_find("mech_string")); }
 
 // Mech3.exe 1.2 @ 0x0043b170
 uint16_t hud_green() { return zvid::pack_bytes(0, 0x40, 0); }
@@ -187,9 +191,8 @@ void HudObjectives::hide() {
 }
 
 // Mech3.exe 1.2 @ 0x00447c40
-HudEquipLine::HudEquipLine() : value(nullptr, 0, 0), light(0) {
+HudEquipLine::HudEquipLine() : light(0) {
   ztwod::Host& h = ztwod::host();
-  value.set_font(h.font_find("mech_string"));
   EquipmentSet& e = g_equipment;
   if (!e.light[0]) e.light[0] = h.image_get("hud_light_red");
   if (!e.light[1]) e.light[1] = h.image_get("hud_light_yellow");
@@ -239,6 +242,93 @@ void HudEquipment::place(int32_t px, int32_t py, int32_t dy) {
     l.reset();
     py += 10;
   }
+}
+
+// Mech3.exe 1.2 @ 0x00445760
+HudWeaponLine::HudWeaponLine() : light(0), mark(0) {
+  ztwod::Host& h = ztwod::host();
+  WeaponSet& w = g_weapons;
+  if (!w.light[0]) w.light[0] = h.image_get("hud_light_green");
+  if (!w.light[1]) w.light[1] = h.image_get("hud_light_yellow");
+  if (!w.light[2]) w.light[2] = h.image_get("hud_light_red");
+  if (!w.font_red) w.font_red = h.font_find("wepstring_red");
+  if (!w.font_green) w.font_green = h.font_find("wepstring_green");
+  if (!w.font_yellow) w.font_yellow = h.font_find("wepstring_yellow");
+  if (!w.font_grey) w.font_grey = h.font_find("wepstring_grey");
+  hide();  // 0x00445dc0 with no weapon
+  flags &= ztwod::kHidden;
+}
+
+// Mech3.exe 1.2 @ 0x00445ba0
+void HudWeaponLine::place(int32_t px, int32_t py, int32_t col) {
+  Image::set_pos(px, py);
+  count_text.set_pos(col - 0xf + px, py);
+  light.set_pos(col - 9 + px, py + 1);
+  mark.set_pos(px - 10, py + 2);
+}
+
+// Mech3.exe 1.2 @ 0x00445a30
+void HudWeaponLine::reset() {
+  weapon = nullptr;
+  red = 1;
+  set_look(false, false);
+  changed = 1;
+  count = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00445a60: red, the name red and the rest green; else all
+// grey or all yellow.
+bool HudWeaponLine::set_look(bool r, bool g) {
+  if (red == r && grey == g) return false;
+  const WeaponSet& w = g_weapons;
+  const ztwod::Handle f1 = r ? w.font_red : g ? w.font_grey : w.font_yellow;
+  const ztwod::Handle f2 = r ? w.font_green : f1;
+  name.set_named_font(f1, false);
+  text2.set_named_font(f2, false);
+  if (count_text.set_named_font(f2, false)) count_text.align = 2;
+  red = r;
+  grey = g;
+  changed = 1;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00445f80
+HudWeapons::HudWeapons() : Object2D(0, 0) {
+  ztwod::Host& h = ztwod::host();
+  select = h.image_get("hud_weapon_select");
+  chain = h.image_get("hud_weapon_chain");
+  poly.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+  set_pos(0x212, 0x1e);
+  x1143c = 0;  // 0x00446120 with no HUD
+  x38 = 0;
+  hud = nullptr;
+  panel.set_opacity(hud_opacity());
+  panel.set_color(zvid::pack_bytes(0, 0x40, 0));  // 0x0043aae0
+}
+
+// Mech3.exe 1.2 @ 0x004460c0
+void HudWeapons::set_pos(int32_t px, int32_t py) {
+  x = px;
+  y = py;
+  dirty();
+  for (HudWeaponLine& l : lines) {
+    l.place(px, py, column);
+    l.reset();
+    py += 10;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00446200
+void HudWeapons::show_for(float seconds) {
+  Object2D::show_for(seconds);
+  shown = 1;
+  g_hooks->unported("0x00446520", {g_hooks->id(this)});  // the lines from the mech: with the readers (hud.md)
+}
+
+// Mech3.exe 1.2 @ 0x00446220
+void HudWeapons::hide() {
+  Object2D::hide();
+  shown = 0;
 }
 
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order

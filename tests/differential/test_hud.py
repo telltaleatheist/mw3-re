@@ -29,7 +29,7 @@ PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
 STUBBED = {0x43d260: 's0', 0x443b60: 'zs0,zs1', 0x444760: '', 0x442060: 's0,s1,s2,s3,s4',
-           0x43fcb0: 's0,s1,s2,s3', 0x445f80: ''}
+           0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
 
@@ -53,6 +53,7 @@ class Original:
         w.answers['@entry+0xd0'] = struct.unpack('<I', bytes(e.cpu.read(entry + 0xd0, 4)))[0]
         self.e.stub(0x491c80, spec='')
         e.stub(0x446ad0, spec='c')
+        e.stub(0x446520, spec='c')
         e.cpu.import_code(IAT_FLOOR, FLOOR)
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
@@ -208,6 +209,50 @@ class Original:
             kv('state', e.r32(q + 0xa38))
             kv('item', e.r32(q + 0xa3c))
             flush('light')
+        o = h + 0x6520
+        base(o)
+        kv('hud', e.r32(o + 0x34))
+        kv('x38', e.r32(o + 0x38))
+        tx('select', e.r32(o + 0x128))
+        tx('chain', e.r32(o + 0x12c))
+        kv('shown', e.r8(o + 0x11438))
+        kv('x1143c', e.r32(o + 0x1143c))
+        kv('column', e.r32(o + 0x11440))
+        flush('weapons')
+        base(o + 0x3c)
+        for i in range(42):
+            kv('p', e.r32(o + 0x3c + 0x34 + 4 * i))
+        for k, off in (('count', 0xdc), ('color', 0xe0), ('dl', 0xe4)):
+            kv(k, e.r32(o + 0x3c + off))
+        kv('tf', e.r8(o + 0x3c + 0xe8))
+        flush('wpoly')
+        panel(o + 0x11330)
+        flush('wpanel')
+        for i in range(16):
+            q = o + 0x130 + 0x1120 * i
+            image(q)
+            for k, off in (('bx', 0xbc), ('by', 0xc0), ('en', 0xc4), ('value', 0x14c)):
+                kv(k, e.r32(q + off))
+            rc('bounds', q + 0xcc)
+            tx('fill', e.r32(q + 0x150))
+            tx('empty', e.r32(q + 0x16c))
+            kv('count', e.r32(q + 0x1110))
+            kv('red', e.r8(q + 0x1118))
+            kv('changed', e.r8(q + 0x111a))
+            kv('x111b', e.r8(q + 0x111b))
+            kv('weapon', e.r32(q + 0x111c))
+            flush(f'wline{i}')
+            for nm, off in (('name', 0x188), ('text2', 0x638), ('ctext', 0xae8)):
+                fonttext(q + off)
+                flush(nm)
+            for nm, off in (('light', 0xf98), ('mark', 0x1054)):
+                image(q + off)
+                flush(nm)
+        for i in range(3):
+            tx('light', e.r32(0x6059b0 + 4 * i))
+        for i in range(4):
+            kv('font', e.r32(0x6059c0 + 4 * i))
+        flush('wset')
         for i in range(3):
             tx('light', e.r32(0x6059d0 + 4 * i))
         for i in range(4):

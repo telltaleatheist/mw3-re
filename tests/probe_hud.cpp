@@ -139,6 +139,60 @@ void dump_hud(Dump& d) {
     d.kv("item", l.item);
     d.o << "\n";
   }
+  mech3::HudWeapons& w = h.weapons;
+  d.o << "weapons ";
+  d.base(&w);
+  d.kv("hud", 0);
+  d.kv("x38", w.x38);
+  d.t("select", w.select);
+  d.t("chain", w.chain);
+  d.kv("shown", w.shown);
+  d.kv("x1143c", w.x1143c);
+  d.kv("column", w.column);
+  d.o << "\nwpoly ";
+  d.base(&w.poly);
+  for (auto& pt : w.poly.pts)
+    for (int32_t v : pt) d.kv("p", v);
+  d.kv("count", w.poly.count);
+  d.kv("color", w.poly.color);
+  d.kv("dl", w.poly.draw_list);
+  d.kv("tf", w.poly.transformed);
+  d.o << "\nwpanel ";
+  panel(d, &w.panel);
+  d.o << "\n";
+  for (int i = 0; i < 16; ++i) {
+    mech3::HudWeaponLine& l = w.lines[i];
+    d.o << "wline" << i << ' ';
+    d.image(&l);
+    d.kv("bx", l.base_x);
+    d.kv("by", l.base_y);
+    d.kv("en", l.enabled);
+    d.f("value", l.value);
+    d.r("bounds", l.bounds);
+    d.t("fill", l.fill);
+    d.t("empty", l.empty);
+    d.kv("count", l.count);
+    d.kv("red", l.red);
+    d.kv("changed", l.changed);
+    d.kv("x111b", l.x111b);
+    d.kv("weapon", 0);
+    d.o << "\nname ";
+    d.fonttext(&l.name);
+    d.o << "\ntext2 ";
+    d.fonttext(&l.text2);
+    d.o << "\nctext ";
+    d.fonttext(&l.count_text);
+    d.o << "\nlight ";
+    d.image(&l.light);
+    d.o << "\nmark ";
+    d.image(&l.mark);
+    d.o << "\n";
+  }
+  const mech3::WeaponSet& ws = mech3::weapon_set();
+  d.o << "wset ";
+  for (auto* t : ws.light) d.t("light", t);
+  for (uint32_t f : {ws.font_red, ws.font_green, ws.font_yellow, ws.font_grey}) d.kv("font", f);
+  d.o << "\n";
   const mech3::EquipmentSet& es = mech3::equipment_set();
   d.o << "eset ";
   for (auto* t : es.light) d.t("light", t);
@@ -169,6 +223,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, char* out, int size) {
   mech3::set_hud_hooks(&g_hooks);
   mech3::damage_set() = mech3::DamageSet{};
   mech3::equipment_set() = mech3::EquipmentSet{};
+  mech3::weapon_set() = mech3::WeaponSet{};
   g_hud_addr = hud_addr;
   g_hud = nullptr;  // the last one is left: its images' release would call the host
   g_hud = static_cast<mech3::Hud*>(::operator new(sizeof(mech3::Hud)));
