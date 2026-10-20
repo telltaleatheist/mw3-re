@@ -174,6 +174,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Sensors' C3 merge, 0x4a9fd0 | The union of the master's and a member's contacts is written into the scratch vector [0x609a5c], sized to zEntity's list (at least 32) | (bug) targets.zrd objects count as contacts too, so a big enough union writes past the heap block | The union goes into a vector of its own that grows; the same contacts result. `mech3/sensors`, test_sensors.py (the original's path: unions within the scratch) |
 | Sensors' contact, 0x4a9530 | The seen entity's vehicle (vt+0x2c) is written through without a check | (bug) a vehicle-less entity in sight would crash the game | Not written; every mech and target answers itself, so play never reaches it |
 | Entity sort, 0x4d7650 | Two lancemates' pilot names (brain +0xd4) are compared with strcmp | (bug) a lancemate without a `pilot` in aiv.zrd crashes the mission start | It ranks after the named ones; every shipped lancemate has a name |
+| Point query's model test, 0x54be40 from 0x4eddb0/0x4ee140/0x4ee220 (mission-start.md section 11) | A polygon found for a record already holding 32 is written past the record (only the walk's entry checks) | (A) memory safety; no shipped place has 32 nodes' polygons under one point | Stops at 32; differential test identical on the six worlds |
 
 Notes on the fixes:
 
@@ -298,6 +299,14 @@ Resolved (2026-10-21):
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
+
+- Placing a mech (0x4161c0, mission-start.md section 11) gives the ground
+  pick y + 10 as its step where every other caller passes a constant, so
+  the highest surface up to 2y + 10 is taken, not up to y + 10: a mech
+  placed below 0 over stacked surfaces (a bridge, a roof) lands on the
+  lowest, one placed high may land up to y above where intended. A step of
+  10 is the likely intent; it changes where some mechs start (test_place.py
+  finds such places on the shipped worlds), so it is kept.
 
 - A valve that updates itself, directly or round a loop of `update` actions
   and any/all conditions (ai.md section 13), recurses until the stack runs

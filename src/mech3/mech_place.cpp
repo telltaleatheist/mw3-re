@@ -27,11 +27,9 @@ constexpr float kAbove = 100.0f;  // 0x005bcd80 (-100): the query starts this fa
 constexpr float kStep = 10.0f;    // 0x005bcd84 (-10)
 constexpr double kSink = -0.01;   // 0x005bcd88: subtracted, so the mech stands 0.01 above
 
-// 0x005a85c0. Unset, nothing, as in Mech::update: Mech::entity_moved needs
-// zEntity's own marker nodes (0x005a8390, not ported; the build's stand-in
-// uses the mech's node, which has more than one parent).
 void moved(Mech& m) {
-  if (update_calls().moved) update_calls().moved(m);
+  if (update_calls().moved) update_calls().moved(m);  // 0x005a85c0
+  else m.entity_moved();
 }
 }  // namespace
 
@@ -40,7 +38,7 @@ PlaceCalls& place_calls() { return g_calls; }
 // Mech3.exe 1.2 @ 0x004161c0. The ground is looked for from 100 above pos
 // with every zone in, before the mech's own node joins the world. The pick
 // is given y + 10 as its step, so ground up to 2y + 10 counts (the other
-// callers pass a constant; docs/mission-start.md section 8); none in reach
+// callers pass a constant; docs/mission-start.md section 11); none in reach
 // takes the lowest polygon. Always 1.
 int Mech::place(const float pos[3], float yaw) {
   float p[3] = {pos[0], pos[1], pos[2]};

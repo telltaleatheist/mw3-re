@@ -1,4 +1,4 @@
-"""Putting a mech on the ground (docs/mission-start.md section 8) on the six
+"""Putting a mech on the ground (docs/mission-start.md section 11) on the six
 mission worlds, against the original x86:
 
 - the point query 0x4edab0 (zclass\\cls_di.c) with its node walk (0x4eddb0,
@@ -460,7 +460,7 @@ def main():
             hs = sorted(struct.unpack('<f', struct.pack('<I', top[1 + 10 * i + 4]))[0] for i in range(top[0]))
             if len(hs) >= 2 and rng.random() < 0.7:
                 # Stacked polygons h1 < h2 with y where the pick's reach, 2y + 10
-                # (docs/mission-start.md section 8), takes one and y + 10 the other.
+                # (docs/mission-start.md section 11), takes one and y + 10 the other.
                 i = rng.randrange(len(hs) - 1)
                 h1, h2 = hs[i], hs[i + 1]
                 y = f32((max((h2 - 10) / 2, h1 - 10) if h2 > 10 else max(h2 - 10, (h1 - 10) / 2)) + 100)

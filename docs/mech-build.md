@@ -174,7 +174,8 @@ mech (section 1); none: the message box 0xf30 with the mech's name, false.
 The slot's skin (+0x10) of the definition's (0x00414390, with the skins'
 0x004757f0), the team masks (as player.cpp's), the control mode, the view
 attached (vt+0x108, 0x0041ce30) and the camera set twice around the pilot's
-vehicle and place (0x004782c0, 0x004782f0; the second attach with zModel's
+vehicle and place (0x004782c0, 0x004782f0, ported: mission-start.md section
+11; the second attach with zModel's
 zone mode off), the interpreter's mech (0x004108a0), the HUD reset (screen
 +0x17964 vt+0x64), the controls given the record (IControls vt+0x88), the
 camera mode set again, the game type; the cockpit's `cpit_ania`..`cpit_anic`
@@ -313,8 +314,9 @@ the structure table one row off.
 - The mech's destructor 0x00414f40, its view attach 0x0041ce30, the AI side
   (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates
   0x0049e5e0, instant action 0x0049dc80, multiplayer 0x0046da80.
-- The AI mechs are built (ai.md section 12); their placement 0x004161c0
-  and the AI side of the mech (0x004e61e0, 0x004d6d20) are left.
+- The AI mechs are built (ai.md section 12) and placed (0x004161c0,
+  mission-start.md section 11); the AI side of the mech (0x004e61e0,
+  0x004d6d20) is left.
 - The mission's unload 0x00490480 (which clears the mech types, 0x004318e0,
   closes mechlib and resets zClass between two missions of one run) is a
   hook: the program's runs are one mission each.

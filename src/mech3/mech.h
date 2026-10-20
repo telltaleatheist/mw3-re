@@ -216,7 +216,7 @@ struct Mech : ai::AiTarget {
   Foot* foot(int leg) const;    // 0x0041d4f0
   Calf* calf(int leg) const;    // 0x0041d4d0
 
-  // Placement (mech_place.cpp, docs/mission-start.md section 8).
+  // Placement (mech_place.cpp, docs/mission-start.md section 11).
   int place(const float pos[3], float yaw);       // 0x004161c0: on the ground under pos, in the world
   void set_place(const float pos[3], float yaw);  // vtable +0xdc, 0x00418f30
   void reset_at(const float pos[3]);              // 0x00418e90: at rest at pos

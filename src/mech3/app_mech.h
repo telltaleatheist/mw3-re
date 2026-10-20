@@ -64,6 +64,7 @@ bool set_mech_skin(void* mech, void* skin);
 const void* mech_definition(void* mech);
 void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)
 int32_t place_mech(void* mech, const float pos[3], uint32_t yaw);  // 0x004161c0 (Mech::place)
+void move_mech(void* mech, const float pos[3], float yaw);         // vtable +0xdc, 0x00418f30 (Mech::set_place)
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 // The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,
 // +0xc8 enemies); false for any other offset.

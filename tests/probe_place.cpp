@@ -52,9 +52,8 @@ int32_t node_index(const zcls::Node* n) {
 
 int32_t material_index(const zmod::Material* m) {
   if (!m) return -1;
-  const auto& s = zmod::materials().slots;
-  if (m >= s.data() && m < s.data() + s.size()) return static_cast<int32_t>(m - s.data());
-  return -2;
+  const int32_t i = zmod::materials().index_of(m);
+  return i >= 0 ? i : -2;
 }
 
 zcls::Node* world_node() { return zcls::camera_world(zcls::list_head(zcls::kCameras)->node); }

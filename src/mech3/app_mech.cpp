@@ -27,7 +27,6 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission_launch.h"
-#include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
 #include "mech3/sensors.h"
 #include "mech3/weapon.h"
@@ -156,14 +155,7 @@ void wire_mech_build(const MechWiring* w) {
   set_launch_hooks(&g_launch);
   // The weapons a mech mounts look up its owner, firepoints and jump jets
   // (weapon.h); the program's managers are all mechs' so far.
-  // The placement's attach to the world ([0x00608c84] vtable +0): the mech's
-  // node is still the library's tree (node_clone above), so it stays out of
-  // the world (a second parent stops node_to_world) until 0x004f9af0 is ported.
-  place_calls().attach = [](Handle n) {
-    zcls::Node* node = zn(n);
-    if (node && node->parent_count() == 0 && world_hooks().world) zcls::node_add_child(world_hooks().world, node);
-    else if (g_w.unported) g_w.unported(g_w.engine, "world attach (the library's tree)", {});
-  };
+
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
   c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };
@@ -223,6 +215,9 @@ int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
   float angle;
   std::memcpy(&angle, &yaw, 4);
   return mech ? static_cast<Mech*>(mech)->place(pos, angle) : 0;
+}
+void move_mech(void* mech, const float pos[3], float yaw) {
+  if (mech) static_cast<Mech*>(mech)->set_place(pos, yaw);
 }
 void mech_power(void* mech, int32_t down) {
   if (mech) static_cast<Mech*>(mech)->power(down);
