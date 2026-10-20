@@ -267,6 +267,44 @@ void quat_matrix(const float q[4], float r[9]) {
   r[8] = t - b;
 }
 
+// Mech3.exe 1.2 @ 0x00525900. A zero vector is the identity. The sine is
+// taken in double and divided by the length there, as the x87 keeps it.
+void quat_exp(const float v[3], float q[4]) {
+  const float len = static_cast<float>(std::sqrt(double{(v[0] * v[0] + v[1] * v[1]) + v[2] * v[2]}));
+  if (!(len < 0.0f || len > 0.0f)) {
+    q[0] = 1.0f, q[1] = q[2] = q[3] = 0.0f;
+    return;
+  }
+  q[0] = static_cast<float>(std::cos(double{len}));
+  const float s = static_cast<float>(std::sin(double{len}) / len);
+  q[1] = s * v[0], q[2] = v[1] * s, q[3] = v[2] * s;
+}
+
+// Mech3.exe 1.2 @ 0x005255d0. The x87's order of the sums.
+void quat_mul(const float a[4], const float b[4], float out[4]) {
+  out[0] = ((b[0] * a[0] - a[1] * b[1]) - a[2] * b[2]) - a[3] * b[3];
+  out[1] = ((a[0] * b[1] + b[0] * a[1]) + b[3] * a[2]) - a[3] * b[2];
+  out[2] = ((a[0] * b[2] + b[0] * a[2]) + a[3] * b[1]) - b[3] * a[1];
+  out[3] = ((a[0] * b[3] + b[0] * a[3]) + b[2] * a[1]) - a[2] * b[1];
+}
+
+// Mech3.exe 1.2 @ 0x00523ac0
+void direction_angles(const float a[3], const float b[3], float out[3]) {
+  const float dx = a[0] - b[0], dy = b[1] - a[1], dz = a[2] - b[2];
+  const float yaw = static_cast<float>(std::atan2(double{dx}, double{dz}));
+  const float flat = static_cast<float>(std::sqrt(double{dx * dx + dz * dz}));
+  out[0] = static_cast<float>(std::atan2(double{dy}, double{flat}));
+  out[1] = yaw;
+  out[2] = 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x00523b40. Returned on the x87 stack; the callers store it.
+float direction_pitch(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0], dy = b[1] - a[1], dz = a[2] - b[2];
+  const float flat = static_cast<float>(std::sqrt(double{dx * dx + dz * dz}));
+  return static_cast<float>(std::atan2(double{dy}, double{flat}));
+}
+
 // Mech3.exe 1.2 @ 0x00523f70. The table (0x0063d340, built once: flag
 // 0x005eda94) holds e^(-i * 0.019607844) as the x87 makes it at 24-bit
 // precision: t = -(i * c) * log2(e) rounded to float, then 2^frac(t) scaled.
@@ -478,6 +516,25 @@ void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
 void transform_points(Vec3* v, uint32_t count) {
   if (g_stack.is_identity()) return;
   for (; count != 0; --count, ++v) *v = transform(*v, g_stack.matrix().m);
+}
+
+// Mech3.exe 1.2 @ 0x005231b0. A zero entry counts as positive.
+void transform_box(const float* m, const float box[6], float out[6]) {
+  for (int c = 0; c < 3; ++c) {
+    float lo, hi;
+    for (int r = 0; r < 3; ++r) {
+      const float e = m[3 * r + c];
+      const float a = box[r] * e, b = box[3 + r] * e;
+      const bool pos = !(e < 0.0f);
+      if (r == 0) {
+        lo = pos ? a : b, hi = pos ? b : a;
+      } else {
+        lo = (pos ? a : b) + lo, hi = (pos ? b : a) + hi;
+      }
+    }
+    out[c] = lo + m[9 + c];
+    out[3 + c] = hi + m[9 + c];
+  }
 }
 
 // Mech3.exe 1.2 @ 0x00522910. v' = (v - t) * transpose(R): the inverse of a

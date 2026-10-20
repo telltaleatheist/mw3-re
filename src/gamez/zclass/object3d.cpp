@@ -93,4 +93,135 @@ int object3d_set_translation(Node* node, float x, float y, float z) {
   return 0;
 }
 
+namespace {
+// The x87 compare's "equal" also holds for NaN (unordered sets C3).
+bool same(float a, float b) { return !(a < b || a > b); }
+
+// The setters' common tail, as in object3d_set_translation: changed (+0 bit
+// 0), UNK25 down the tree, on list 7 or the expiry pushed, flag 2.
+void touch(Node* node, Object3d* d) {
+  d->put<uint32_t>(0, d->get<uint32_t>(0) | 1);
+  node_mark_unk25(node);
+  if ((node->flags() & 1) == 0) {
+    push_front(kChanged, node);
+    node->set_flags(node->flags() | 1);
+  } else if (node->get<uint32_t>(0xc4) <= frames().frame) {
+    frames().expiry = frames().frame + 0xa0;
+    set_expiry(node);
+  }
+  node->set_flags(node->flags() | 2);
+  if (node->changed) node->changed->removable = 0;
+}
+
+Object3d* data_or_report(Node* node, int line) {
+  if (!node) return zerr::report(0x400, kFile, line, "Null node pointer."), nullptr;
+  auto* d = static_cast<Object3d*>(node->data);
+  if (!d) zerr::report(0x400, kFile, line + 1, "Null class data pointer");
+  return d;
+}
+
+void drop_matrix(Object3d* d) { d->put<uint32_t>(0, d->get<uint32_t>(0) & ~0x10u); }
+void drop_initial(Object3d* d) { d->put<uint32_t>(0, d->get<uint32_t>(0) & ~8u); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004fba20
+int object3d_set_opacity(Node* node, float v) {
+  if (int r = check_class(node, 5, kFile, 0x249)) return r;
+  static_cast<Object3d*>(node->data)->put(0x4, v);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbaa0
+int object3d_get_opacity(Node* node, float* out) {
+  if (int r = check_class(node, 5, kFile, 0x262)) return r;
+  *out = static_cast<Object3d*>(node->data)->get<float>(0x4);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbb90
+int object3d_use_opacity(Node* node, int on) {
+  if (int r = check_class(node, 5, kFile, 0x29b)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  d->put<uint32_t>(0, on ? d->get<uint32_t>(0) | 2 : d->get<uint32_t>(0) & ~2u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbc10. No class check; any scale but (1, 1, 1) drops
+// the identity flag.
+int object3d_set_scale(Node* node, float x, float y, float z) {
+  Object3d* d = data_or_report(node, 0x2db);
+  if (!d) return 5;
+  drop_matrix(d);
+  d->put(0x24, x), d->put(0x28, y), d->put(0x2c, z);
+  if (!same(x, 1.0f) || !same(y, 1.0f) || !same(z, 1.0f)) drop_initial(d);
+  touch(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbd20
+int object3d_get_scale(Node* node, float* x, float* y, float* z) {
+  Object3d* d = data_or_report(node, 0x378);
+  if (!d) return 5;
+  *x = d->get<float>(0x24), *y = d->get<float>(0x28), *z = d->get<float>(0x2c);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbd80. The identity flag is only tested while still set.
+int object3d_set_rotation(Node* node, float x, float y, float z) {
+  Object3d* d = data_or_report(node, 0x39e);
+  if (!d) return 5;
+  drop_matrix(d);
+  d->put(0x18, x), d->put(0x1c, y), d->put(0x20, z);
+  if ((d->get<uint32_t>(0) & 8) && (!same(x, 0.0f) || !same(y, 0.0f) || !same(z, 0.0f))) drop_initial(d);
+  touch(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbe90
+int object3d_get_rotation(Node* node, float* x, float* y, float* z) {
+  Object3d* d = data_or_report(node, 0x3f0);
+  if (!d) return 5;
+  *x = d->get<float>(0x18), *y = d->get<float>(0x1c), *z = d->get<float>(0x20);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fbef0. The identity test is on the sums.
+int object3d_add_rotation(Node* node, float x, float y, float z) {
+  Object3d* d = data_or_report(node, 0x416);
+  if (!d) return 5;
+  drop_matrix(d);
+  x = x + d->get<float>(0x18), y = y + d->get<float>(0x1c), z = z + d->get<float>(0x20);
+  d->put(0x18, x), d->put(0x1c, y), d->put(0x20, z);
+  if ((d->get<uint32_t>(0) & 8) && (!same(x, 0.0f) || !same(y, 0.0f) || !same(z, 0.0f))) drop_initial(d);
+  touch(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fc1b0. The given-matrix flag stays.
+int object3d_add_translation(Node* node, float x, float y, float z) {
+  if (int r = check_class(node, 5, kFile, 0x4c5)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  x = x + d->get<float>(0x54), y = y + d->get<float>(0x58), z = z + d->get<float>(0x5c);
+  d->put(0x54, x), d->put(0x58, y), d->put(0x5c, z);
+  if ((d->get<uint32_t>(0) & 8) && (!same(x, 0.0f) || !same(y, 0.0f) || !same(z, 0.0f))) drop_initial(d);
+  touch(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fc300. USE_MATRIX set, the identity flag dropped.
+int object3d_set_matrix(Node* node, const float* m) {
+  if (int r = check_class(node, 5, kFile, 0x502)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  if (m != d->floats(0x30)) std::memcpy(d->raw + 0x30, m, 0x30);
+  d->put<uint32_t>(0, (d->get<uint32_t>(0) & ~8u) | 0x11);
+  touch(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fc3f0
+float* object3d_matrix(Node* node) {
+  if (check_class(node, 5, kFile, 0x545)) return nullptr;
+  return static_cast<Object3d*>(node->data)->floats(0x30);
+}
+
 }  // namespace zcls

@@ -634,6 +634,29 @@ int camera_set_position(Node* node, float x, float y, float z) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f37c0. Unlike the setter, the given-matrix flag stays.
+int camera_add_rotation(Node* node, float x, float y, float z) {
+  if (int r = check_class(node, 1, kFile, 0x4a0)) return r;
+  Camera* d = cam_of(node);
+  x = x + d->get<float>(0x20), y = y + d->get<float>(0x24), z = z + d->get<float>(0x28);
+  d->put(0x20, x), d->put(0x24, y);
+  d->put<int32_t>(0x184, 1);
+  d->put(0x28, z);
+  if (node->parent_count() > 0) camera_mark_changed(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3920
+int camera_add_position(Node* node, float x, float y, float z) {
+  if (int r = check_class(node, 1, kFile, 0x530)) return r;
+  Camera* d = cam_of(node);
+  const int off = (d->get<uint32_t>(0x10) & 2) ? 0xa4 : 0x14;
+  x = x + d->get<float>(off), y = y + d->get<float>(off + 4), z = z + d->get<float>(off + 8);
+  d->put(off, x), d->put(off + 4, y), d->put(off + 8, z);
+  if (node->parent_count() > 0) camera_mark_changed(node, d);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f3ff0
 int camera_set_lod_scale(Node* node, float f) {
   if (int r = check_class(node, 1, kFile, 0x6eb)) return r;

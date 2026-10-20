@@ -249,11 +249,12 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       Left (`movement.md`, Left): Mech::Update 0x419fc0, collision, the
       engine's ground and segment queries (cls_di.c), animation sampling,
       the pose on the parts.
-- [ ] Mission animations: the reader, its lookups and the light/sound node
-      creators ported and checked against each mission's world
-      (`zeffect/zeff_anim_init`). Still hooked: the effect table (puffers
-      and zSound's lookup are ported). Next the post-load pass 0x50ae60,
-      mapped with a porting order in `docs/anim-postload.md`.
+- [x] Mission animations: reader, post-load pass 0x50ae60 and the runtime
+      (every shipped event type, instances, reset/start/stop, the action
+      lists) ported and emulator-checked frame by frame on all six missions
+      (`zeffect/zeff_anim_*`, `docs/anim-run.md`). Hooked: zSound play, the
+      ground and ray queries (cls_di.c), events 3/16/20/21/36/37/38, weapon
+      detonation, zClass's node/frame update (0x4f7e00, 0x4f7f70).
 - [x] Mission scripts: the archive, reader, macros, preprocessor, dispatcher
       and every command's arguments ported (`gamez/zinterp`,
       `mech3/mech3_interp`), identical on every shipped script and on the six

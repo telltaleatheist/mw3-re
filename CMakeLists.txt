@@ -40,6 +40,10 @@ add_library(mw3core STATIC
   src/gamez/zclass/window.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zeffect/zeff_anim_puffer.cpp
+  src/gamez/zeffect/zeff_anim_events.cpp
+  src/gamez/zeffect/zeff_anim_run.cpp
+  src/gamez/zeffect/zeff_anim_save.cpp
+  src/gamez/zweapon/zwep_damage.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zinterp/zinterp.cpp
   src/gamez/zinterp/zinterp_parse.cpp
@@ -124,6 +128,7 @@ add_library(mw3probe SHARED
   tests/probe_jets.cpp
   tests/probe_actions.cpp
   tests/probe_sound.cpp
+  tests/probe_anim_run.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

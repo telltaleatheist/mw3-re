@@ -178,6 +178,55 @@ def compare(what, want, n, buf):
         raise SystemExit(f'{what}: original {len(want)} bytes, port {n}, first difference at {at}')
 
 
+probe.probe_anim_fix.argtypes = [ctypes.c_int]
+probe.probe_anim_prereqs.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+
+
+def check_prerequisite_fix(emu, buf):
+    """A node prerequisite renamed to a node no world has, in a copy of t1's
+    anim.zbd: the original drops all of the def's prerequisites (0x33a0);
+    the port's exe path matches it exactly; its FIX (bug) drops only that
+    one and keeps the others."""
+    def find():
+        for w in WORLDS:
+            world, anim = ZBD / w / 'gamez.zbd', ZBD / w / 'anim.zbd'
+            emu.run(world, anim)
+            data = anim.read_bytes()
+            count = struct.unpack('<h', emu.cpu.read(BLOCK + 0x0a, 2))[0]
+            defs = emu.u(DEFS)
+            for i in range(1, count):
+                d = defs + 0x13c * i
+                n = emu.cpu.read(d + 0x110, 1)[0]
+                lst = emu.u(d + 0x130)
+                recs = [emu.cpu.read(lst + 0x30 * k, 0x2c) for k in range(n)]
+                two = [k for k, r in enumerate(recs) if r[4] == 2 and data.count(r) == 1]
+                if n >= 2 and two:
+                    return w, world, anim, data, defs, i, n, recs, two[0]
+        raise SystemExit('prerequisite fix: no def with two prerequisites to break')
+    w, world, anim, data, defs, i, n, recs, k = find()
+    at = data.index(recs[k]) + 0xc
+    doctored = data[:at] + b'no_such_node'.ljust(0x20, b'\0') + data[at + 0x20:]
+    tmp = ROOT / 'build' / 'test-anim'
+    tmp.mkdir(exist_ok=True)
+    path = tmp / 'doctored.zbd'
+    path.write_bytes(doctored)
+    want = emu.run(world, path, full=True)
+    compare(f'doctored {w}, exe path', want, probe.probe_anim(str(world).encode(), str(path).encode(), -1, 1, buf,
+                                                            len(buf)), buf)
+    lines = [x[1] for x in emu.reports]
+    assert 0x33a0 in lines and emu.cpu.read(defs + 0x13c * i + 0x110, 1)[0] == 0, 'the original kept them'
+    probe.probe_anim_fix(1)
+    try:
+        probe.probe_anim(str(world).encode(), str(path).encode(), -1, 0, buf, len(buf))
+        types = ctypes.create_string_buffer(256)
+        got = probe.probe_anim_prereqs(i, types, 256)
+    finally:
+        probe.probe_anim_fix(0)
+    assert got & 0xff == n - 1, f'the fix kept {got & 0xff} of {n}'
+    return (f'prerequisite FIX (bug): {w} def {i} with a missing node: the original drops all {n}, the exe path '
+            f'matches, the fix keeps {n - 1} (count to meet {got >> 8})')
+
+
 def main():
     emu = Emulated()
     buf = ctypes.create_string_buffer(64 << 20)
@@ -202,6 +251,7 @@ def main():
         compare(f't1 fail at {k}', want, probe.probe_anim(str(world).encode(), str(anim).encode(), k, 0, buf, len(buf)),
                 buf)
         runs += 1
+    print(check_prerequisite_fix(emu, buf))
     print(f'ok: {len(WORLDS)} anim.zbd read against their worlds identical ({calls} unported calls, '
           f'{live} live nodes after); {runs} mismatched and failing runs agree')
 

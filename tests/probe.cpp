@@ -883,6 +883,18 @@ void dump_anim(std::vector<uint8_t>& b) {
 
 extern "C" {
 
+// 0 (default): the exe's prerequisite path; 1: the port's FIX (bug).
+int g_anim_fix = 0;
+void probe_anim_fix(int on) { g_anim_fix = on; }
+
+// After probe_anim: def i's prerequisite count | the count to meet << 8, and
+// its entries' types (the FIX (bug) case in test_anim.py).
+int probe_anim_prereqs(int i, uint8_t* types, int cap) {
+  const zeff::AnimDef& d = zeff::anim().defs[i];
+  for (int k = 0; k < d.count(0x110) && k < cap; ++k) types[k] = d.prereqs[k].raw[4];
+  return d.count(0x110) | d.count(0x111) << 8;
+}
+
 // 0x50a0e0 on one anim.zbd against a world read by read_zbd (test_anim.py),
 // with the calls into unported parts recorded. `full` adds the read
 // structures and the node pool after.
@@ -898,6 +910,7 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
   if (zcls::read_zbd(world) != 0) return -2;
   g_reports.clear();
   zeff::anim() = zeff::AnimState{};
+  zeff::anim().fix_prerequisites = g_anim_fix != 0;
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();
