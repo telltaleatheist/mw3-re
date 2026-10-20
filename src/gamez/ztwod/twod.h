@@ -309,7 +309,9 @@ class FontText : public TextBase {
                            uint32_t italic, uint32_t charset, uint32_t pitch);  // +0x88  0x005a0710
   virtual bool set_named_font(Handle f, bool force);  // +0x8c  0x005a0680
   virtual void set_font(Handle f) { set_named_font(f, true); }  // +0x90  0x005a0660
-  // +0x94 0x005961d0 (a LOGFONT), +0x98 0x00409bd0, +0x9c 0x00409bf0: not ported (docs/twod.md).
+  // +0x94 0x005961d0 (a LOGFONT): not ported (docs/twod.md).
+  virtual void set_text_id(uint32_t id, ...);  // +0x98  0x00409bd0 (cdecl)
+  virtual void set_text_id_v(uint32_t id, va_list args);  // +0x9c  0x00409bf0: a message as the format
   virtual void set_text_v(const char* format, va_list args);  // +0xa0  0x005a1250
   virtual void set_text_plain(const char* s);   // +0xa4  0x005a12f0
   // +0xa8 0x00409c40 (a message id): not ported.
@@ -386,7 +388,8 @@ class TextBox : public FontText {
   void set_font(Handle f) override;  // +0x90  0x005a2160
   void set_text(const char* format, ...) override;           // +0x7c  0x005a1d70
   void set_text_v(const char* format, va_list args) override;  // +0xa0  0x005a1d90: a new line
-  // +0x98 / +0x9c (0x005a1cd0, 0x005a1cf0: by a message id): not ported.
+  // +0x98 / +0x9c (0x005a1cd0, 0x005a1cf0: by a message id): not ported;
+  // FontText's run instead.
   virtual void set_text_top(const char* format, ...);        // +0xb0  0x005a1e10
   virtual void set_text_top_v(const char* format, va_list args);  // +0xb4  0x005a1e30
   virtual void advance();            // +0xb8  0x005a1e80
@@ -550,6 +553,70 @@ class PolyLine : public Object2D {
   // (0x005a3580): the HUD's, zero here; their paths are not ported.
   Handle draw_list = 0;              // +0xe4
   uint8_t transformed = 0;           // +0xe8
+};
+
+// A circle or box outline (vtable 0x005d0070), 0x54 bytes. Partial: built
+// only; its draw 0x005a3b00 not ported (twod.md).
+class Frame : public Object2D {
+ public:
+  Frame();                           // 0x005a39f0
+  Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
+  int32_t radius = 0;                // +0x34
+  int32_t radius_sq = 0;             // +0x38
+  uint32_t color = 0;                // +0x3c  a pixel
+  uint8_t clipped = 0;               // +0x40  clip given
+  Rect clip{};                       // +0x44  [0x0063d880] (always zero) when none
+};
+
+// A filled frame (vtable 0x005d00f0), 0x58 bytes. Partial as Frame.
+class FilledBox : public Frame {
+ public:
+  FilledBox(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3b60
+  uint32_t x54 = 0;                  // +0x54
+};
+
+// A HUD line from the object's place to an end (vtable 0x005d06e0), 0x4c
+// bytes. Partial: built and placed; its draw 0x005a68b0 not ported.
+class Line2D : public Object2D {
+ public:
+  Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a67e0
+  void set(int32_t x0, int32_t y0, int32_t x1, int32_t y1);  // 0x005a6880
+  int32_t end_x = 0, end_y = 0;      // +0x34
+  uint32_t color = 0;                // +0x3c  a pixel
+  uint32_t x40 = 0, x44 = 0, x48 = 0;  // +0x40..+0x48
+};
+
+// A line clipped to the radar (vtable 0x005d0760), 0x50 bytes. Partial as Line2D.
+class ClipLine2D : public Line2D {
+ public:
+  ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a6ae0
+  uint32_t x4c = 0;                  // +0x4c
+};
+
+// A polygon of up to 21 points (vtable 0x005d0860), 0x134 bytes: the HUD's
+// bars. Partial: built and set up; its draw 0x005a6ca0 not ported (twod.md).
+class Polygon : public Object2D {
+ public:
+  Polygon();                         // 0x005a6bd0
+  void set_point(int32_t i, float px, float py);  // 0x005a6c30: point 0 moves the object
+
+  float pts[21][3] = {};             // +0x34  x, y (the third never set here)
+  int32_t count = 0;                 // +0x130
+};
+
+// A polyline moved and turned as a whole (vtable 0x005cff58), 0x124 bytes:
+// the HUD's arrows and markers. Partial: built and set; its transformed
+// points 0x005a3580 and draw not ported (twod.md).
+class Shape : public PolyLine {
+ public:
+  Shape();                           // 0x005a3170
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x005a34c0: the translation
+  void set_translation(const float* t);  // 0x005a34f0
+  void set_rotation(int32_t a);      // 0x005a3530
+  uint32_t xform = 0;                // +0xec  1 translated, 2 turned (to recompute)
+  float translation[3] = {};         // +0xf0
+  uint32_t xfc[9] = {};              // +0xfc
+  int32_t rotation = 0;              // +0x120
 };
 
 // The edit bar's caret (vtable 0x005d0360), 0x10c bytes: an I-beam of 13

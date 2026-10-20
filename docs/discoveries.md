@@ -1795,3 +1795,16 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   or longer (the rebuild skips it).
 - **The debug menu's campaign jumps use a pilot named "DefaultPlayer"**, the
   debug Mech Lab start one named "Default Player".
+- **The HUD's lists stop at sixteen:** the weapon list and the equipment
+  list each have exactly sixteen lines, ten pixels apart.
+- **The radar has two sizes:** small, a radius of 50 pixels around (55, 55)
+  near the corner, and zoomed, a radius of 180 around the middle of a
+  640x480 screen; it slides between them ten pixels a step.
+- **The zoom window magnifies ten times** through a 5-degree camera that
+  borrows your main camera's draw distance.
+- **In software mode the HUD's green panels are solid;** in Direct3D they
+  are 60% see-through.
+- **TARGET remembers its display mode** (and the MFD its own) for the next
+  mission; the first time it starts in mode 1 in Direct3D and 3 in software.
+- **The HUD's arrows for "other" targets are misspelled in the data:**
+  `hud_othererrow_left/right/up/down`.
