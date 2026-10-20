@@ -432,4 +432,231 @@ int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float poin
   return 1;
 }
 
+namespace {
+uint32_t abs_bits(float f) {
+  uint32_t u;
+  std::memcpy(&u, &f, 4);
+  return u & 0x7fffffffu;
+}
+
+// The inside test of 0x0054d760 on the plane (u, v): c a vertex, a the next.
+float edge(const float* p, const float* c, const float* a, int u, int v) {
+  return (p[v] - c[v]) * (a[u] - c[u]) + (p[u] - c[u]) * (c[v] - a[v]);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0054d760. The normal is the cross product of the first
+// three vertices' edges, normalised only on a hit. The inside test runs on
+// the plane the normal points along most (picked by the magnitudes' bit
+// patterns), the edges walked back from the closing one, within 0.0001; on
+// the -z plane an unordered edge also fails, on the others only the first.
+int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3], const float* v, int32_t n,
+                        int32_t two_sided) {
+  const float e1x = v[3] - v[0], e1y = v[4] - v[1], e1z = v[5] - v[2];
+  const float e2x = v[6] - v[0], e2y = v[7] - v[1], e2z = v[8] - v[2];
+  float* nn = slot->normal;
+  nn[0] = e2z * e1y - e2y * e1z;
+  nn[1] = e2x * e1z - e2z * e1x;
+  nn[2] = e2y * e1x - e2x * e1y;
+  const float d_end = ((b[1] - v[1]) * nn[1] + (b[2] - v[2]) * nn[2]) + (b[0] - v[0]) * nn[0];
+  if (!two_sided && d_end >= 0.0f) return 0;  // 0x005ce510
+  const float d_start = ((a[1] - v[1]) * nn[1] + (a[2] - v[2]) * nn[2]) + (a[0] - v[0]) * nn[0];
+  if (same_sign(d_end, d_start)) return 0;
+  const float t = d_start / (d_start - d_end);
+  float* p = slot->point;
+  p[0] = (b[0] - a[0]) * t + a[0];
+  p[1] = (b[1] - a[1]) * t + a[1];
+  p[2] = (b[2] - a[2]) * t + a[2];
+  const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
+  int k = ax < ay ? 1 : 0;
+  if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
+  uint32_t sign;
+  std::memcpy(&sign, &nn[k], 4);
+  if (sign & 0x80000000u) k += 3;
+  static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
+  const int u = kAxes[k][0], w = kAxes[k][1];
+  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
+  for (int32_t i = n - 2; i >= 0; --i) {
+    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
+    if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
+  }
+  zmth::Vec3 un{nn[0], nn[1], nn[2]};
+  zmth::normalize(un);
+  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0054dd30. As one segment of 0x0054ea30 (the unit normal,
+// the projected inside test), but one-sided unless two_sided, and the
+// coordinates always captured.
+int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[3], const float* v,
+                           const float* uvs, float uv_out[2], int32_t n, int32_t two_sided) {
+  float* nn = slot->normal;
+  zmth::poly_normal(v, v + 3, v + 6, nn);
+  const float d_end = dot_from(b, v, nn);
+  if (!two_sided && !(d_end < 0.0f)) return 0;
+  const float d_start = dot_from(a, v, nn);
+  if (same_sign(d_start, d_end)) return 0;
+  const float t = d_start / (d_start - d_end);
+  float* p = slot->point;
+  for (int i = 0; i < 3; ++i) p[i] = a[i] + t * (b[i] - a[i]);
+  const float mx = std::fabs(nn[0]), my = std::fabs(nn[1]);
+  int axis = mx < my ? 1 : 0;
+  if ((mx < my ? my : mx) < std::fabs(nn[2])) axis = 2;
+  bool in = true;
+  int32_t j = 0;
+  for (int32_t i = n - 1; i >= 0; j = i, --i) {
+    if (!in) return 0;
+    const float* c = v + 3 * i;
+    const float* q = v + 3 * j;
+    float s;
+    if (axis == 0) {
+      float y, z;
+      if (0.0f <= nn[0]) y = q[1] - c[1], z = c[2] - q[2];
+      else y = c[1] - q[1], z = q[2] - c[2];
+      s = (p[1] - c[1]) * z + (p[2] - c[2]) * y;
+    } else if (axis == 1) {
+      float x, z;
+      if (nn[1] <= 0.0f) x = q[0] - c[0], z = c[2] - q[2];
+      else x = c[0] - q[0], z = q[2] - c[2];
+      s = (p[2] - c[2]) * x + (p[0] - c[0]) * z;
+    } else {
+      float y, x;
+      if (nn[2] <= 0.0f) y = q[1] - c[1], x = c[0] - q[0];
+      else y = c[1] - q[1], x = q[0] - c[0];
+      s = (p[1] - c[1]) * x + (p[0] - c[0]) * y;
+    }
+    in = s > -0.0001;
+  }
+  if (!in) return 0;
+  const int a0 = axis == 0 ? 1 : 0, a1 = axis == 2 ? 1 : 2;
+  float gu[2], gv[2];
+  zmth::plane_gradient(v[a0], v[a1], v[3 + a0], v[3 + a1], v[6 + a0], v[6 + a1], uvs[0], uvs[2], uvs[4], &gu[0],
+                       &gu[1]);
+  zmth::plane_gradient(v[a0], v[a1], v[3 + a0], v[3 + a1], v[6 + a0], v[6 + a1], uvs[1], uvs[3], uvs[5], &gv[0],
+                       &gv[1]);
+  uv_out[0] = (p[a0] - v[a0]) * gu[0] + (p[a1] - v[a1]) * gu[1] + uvs[0];
+  uv_out[1] = (p[a1] - v[a1]) * gv[1] + (p[a0] - v[a0]) * gv[0] + uvs[1];
+  g_uv.uv[0] = uv_out[0];
+  g_uv.uv[1] = uv_out[1];
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0054d2f0
+int32_t box_segment(const float c[8][3], zcls::LineHit* slot, const float a[3], const float b[3]) {
+  static const int kFaces[6][4] = {{0, 4, 7, 3}, {0, 1, 5, 4}, {5, 1, 2, 6}, {7, 6, 2, 3}, {0, 3, 2, 1}, {4, 5, 6, 7}};
+  slot->material = nullptr;
+  for (const auto& f : kFaces) {
+    for (int i = 0; i < 4; ++i) std::memcpy(g_s.poly + 3 * i, c[f[i]], 12);
+    if (polygon_segment(slot, a, b, g_s.poly, 4, 0)) return 1;
+  }
+  return 0;
+}
+
+namespace {
+// A model's vertices in its own space, morphed when the node set a morph.
+const float* model_vertices(Model& m) {
+  float f;
+  std::memcpy(&f, m.header + 0x24, 4);
+  if ((hdr(m, 8) & 8) && f != 0.0f && hdr(m, 0x1c) != 0) {
+    float* dst = sized(g_s.morphed, 3 * hdr(m, 0x1c));
+    zmth::morph(reinterpret_cast<zmth::Vec3*>(dst), reinterpret_cast<const zmth::Vec3*>(m.vertices),
+                reinterpret_cast<const zmth::Vec3*>(m.morphs), hdr(m, 0x1c), f);
+    return dst;
+  }
+  return m.vertices;
+}
+
+// One polygon of 0x0054cad0: -1 for a strip of two vertices (the exe reads
+// its unset result as a hit at the cached index, nothing elsewhere).
+int32_t segment_polygon(const Polygon& p, const float* verts, zcls::LineHit* slot, const float* a, const float* b) {
+  const uint32_t flags = p.flags;
+  const uint32_t n = flags & 0xff;
+  const int32_t two = (flags >> 8) & 1;
+  const bool textured = p.material && (p.material->flags & 2);
+  float uv_out[2];
+  if (!(flags & 0x400)) {
+    for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, verts, p.vertex_indices[i]);
+    return textured ? polygon_segment_uv(slot, a, b, g_s.poly, p.uvs, uv_out, static_cast<int32_t>(n), two)
+                    : polygon_segment(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
+  }
+  if (n == 2) return -1;
+  if (n < 2) return 0;  // the exe walks past its list; none ships
+  for (uint32_t s = 2; s < n; ++s) {
+    const uint32_t i0 = s - 2, i1 = (s - 1) | 1, i2 = s & ~1u;
+    copy_vertex(g_s.poly, verts, p.vertex_indices[i0]);
+    copy_vertex(g_s.poly + 3, verts, p.vertex_indices[i1]);
+    copy_vertex(g_s.poly + 6, verts, p.vertex_indices[i2]);
+    int32_t r;
+    if (textured) {
+      const float uv[6] = {p.uvs[2 * i0], p.uvs[2 * i0 + 1], p.uvs[2 * i1], p.uvs[2 * i1 + 1], p.uvs[2 * i2],
+                           p.uvs[2 * i2 + 1]};
+      r = polygon_segment_uv(slot, a, b, g_s.poly, uv, uv_out, 3, two);
+    } else {
+      r = polygon_segment(slot, a, b, g_s.poly, 3, two);
+    }
+    if (r) return r;
+  }
+  return 0;
+}
+
+// The hit back in world space: the point through the top, the normal through
+// its 3x3, normalised.
+void hit_to_world(zcls::LineHit* slot) {
+  const float* m = zmth::matrix_stack().matrix().m;
+  const float* q = slot->point;
+  const float px = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
+  const float py = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
+  const float pz = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
+  slot->point[0] = px, slot->point[1] = py, slot->point[2] = pz;
+  const float* nn = slot->normal;
+  zmth::Vec3 w{(nn[0] * m[0] + nn[1] * m[3]) + nn[2] * m[6], (nn[0] * m[1] + nn[1] * m[4]) + nn[2] * m[7],
+               (nn[0] * m[2] + nn[1] * m[5]) + nn[2] * m[8]};
+  zmth::normalize(w);
+  slot->normal[0] = w.x, slot->normal[1] = w.y, slot->normal[2] = w.z;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0054cad0
+int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const float b[3]) {
+  if (hdr(*model, 0x10) == 0) return 0;
+  const float* verts = model_vertices(*model);
+  zmth::MatrixStack& st = zmth::matrix_stack();
+  const bool identity = st.is_identity() != 0;
+  float sa[3], sb[3];
+  if (!identity) {
+    zmth::Mat34 inv;
+    if (!zmth::invert_single(st.matrix(), inv, true)) return 0;
+    const float* m = inv.m;
+    for (int k = 0; k < 2; ++k) {
+      const float* q = k ? b : a;
+      float* o = k ? sb : sa;
+      o[0] = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
+      o[2] = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
+      o[1] = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
+    }
+  } else {
+    std::memcpy(sa, a, 12);
+    std::memcpy(sb, b, 12);
+  }
+  const uint32_t cached = hdr(*model, 0x58);
+  const Polygon& c = model->polygons[cached];
+  if (segment_polygon(c, verts, slot, sa, sb)) {
+    slot->material = c.material;
+    if (!identity) hit_to_world(slot);
+    return 1;
+  }
+  for (uint32_t i = 0; i < hdr(*model, 0x10); ++i) {
+    if (i == hdr(*model, 0x58)) continue;
+    const Polygon& p = model->polygons[i];
+    if (segment_polygon(p, verts, slot, sa, sb) > 0) {
+      slot->material = p.material;
+      if (!identity) hit_to_world(slot);
+      std::memcpy(model->header + 0x58, &i, 4);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 }  // namespace zmod

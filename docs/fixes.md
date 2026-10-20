@@ -175,6 +175,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Sensors' contact, 0x4a9530 | The seen entity's vehicle (vt+0x2c) is written through without a check | (bug) a vehicle-less entity in sight would crash the game | Not written; every mech and target answers itself, so play never reaches it |
 | Entity sort, 0x4d7650 | Two lancemates' pilot names (brain +0xd4) are compared with strcmp | (bug) a lancemate without a `pilot` in aiv.zrd crashes the mission start | It ranks after the named ones; every shipped lancemate has a name |
 | Soil table, 0x47f400 (mission-start.md section 11) | A soil name zModel does not know gives index -1 and the game soil is written to the word before the table [0x608c00] | (bug) a write outside the table; no shipped soils.zrd lacks a name | Skipped, as is an index past the table's 64 |
+| Shot queries' model test, 0x54cad0 from 0x4ef570 / 0x4ef980 / 0x4efaa0 / 0x4efba0 (movement-collision.md, The shot queries) | A crossing found for a record already holding 32 is written past the record (only the walk's entry checks) | (A) memory safety; a shot through more than 32 nodes | Stops at 32; differential test identical on the six worlds |
 | Point query's model test, 0x54be40 from 0x4eddb0/0x4ee140/0x4ee220 (mission-start.md section 11) | A polygon found for a record already holding 32 is written past the record (only the walk's entry checks) | (A) memory safety; no shipped place has 32 nodes' polygons under one point | Stops at 32; differential test identical on the six worlds |
 
 Notes on the fixes:

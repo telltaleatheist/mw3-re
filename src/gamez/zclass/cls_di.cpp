@@ -9,7 +9,9 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zclass/cls_util.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_hit.h"
 
@@ -838,6 +840,496 @@ int ground_query(Node* world, float* probes, int32_t count, float top, GroundHit
   }
   zmth::pop();
   return 0;
+}
+
+namespace {
+// The shot queries' segment (0x0060b978, 0x0060b984), its box (0x0060b990,
+// min xyz then max xyz; both moved into a wrapped cell while it is walked)
+// and the record (0x0060bab0; the next slot is its count's).
+struct LineQuery {
+  float a[3] = {}, b[3] = {};
+  float box[6] = {};
+  LineHits* out = nullptr;
+};
+LineQuery g_lq;
+
+constexpr uint32_t kIntersect = 0x10, kBoxHit = 0x20;
+
+bool line_done() { return g_opt.first_hit && g_lq.out->count != 0; }
+bool line_static_ok(const Node* n) { return !g_opt.static_only || n->get<uint32_t>(0xc4) <= frames().frame; }
+int line_result() { return g_lq.out->count == 0; }
+
+// The node itself as the hit (INTERSECT_BBOX, its box crossed).
+void line_take(Node* node) {
+  LineHits& r = *g_lq.out;
+  r.hit[r.count].node = node;
+  ++r.count;
+}
+
+// The node's model crossed: its slot filled, the node recorded.
+void line_model(Node* node) {
+  LineHits& r = *g_lq.out;
+  if (!node->model || !(g_opt.since < node->get<int32_t>(0xc4))) return;
+  if (r.count >= 32) return;  // FIX (A): the exe's record has no room past 32
+  if (zmod::model_segment(node->model, &r.hit[r.count], g_lq.a, g_lq.b)) line_take(node);
+}
+
+int line_node(Node* node, int32_t siblings);
+
+void line_children(Node* node, bool filtered) {
+  if (line_done()) return;
+  for (int32_t i = 0; i < node->child_count(); ++i) {
+    Node* c = node->children[i];
+    if (filtered && !((c->flags() & kActive) && (c->flags() & kIntersect) && line_static_ok(c))) continue;
+    line_node(c, node->child_count());
+    if (line_done()) break;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004f1470. 0 when the segment's box meets the node's
+// (through its matrices, 0x004ec6b0, or with INTERSECT_BBOX its corners'
+// extent, 0x004ebdb0) and, with INTERSECT_BBOX, a face of the box is
+// crossed (0x0054d2f0, into the record's next slot).
+int line_box(Node* node) {
+  if (!(node->flags() & kHasBox)) return 1;
+  float lo[3], hi[3];
+  float c[8][3];
+  if (!(node->flags() & kBoxHit)) {
+    float b[6];
+    node_box_extent(node, b);
+    lo[0] = b[0], lo[1] = b[1], lo[2] = b[2], hi[0] = b[3], hi[1] = b[4], hi[2] = b[5];
+  } else {
+    node_box_corners(node, c);
+    for (int k = 0; k < 3; ++k) lo[k] = hi[k] = c[0][k];
+    for (int i = 1; i < 8; ++i)
+      for (int k = 0; k < 3; ++k) {
+        if (!(lo[k] <= c[i][k])) lo[k] = c[i][k];
+        else if (hi[k] < c[i][k]) hi[k] = c[i][k];
+      }
+  }
+  const float* q = g_lq.box;
+  if (q[3] <= lo[0] || hi[0] <= q[0] || q[4] <= lo[1] || hi[1] <= q[1] || q[5] <= lo[2] || hi[2] <= q[2]) return 1;
+  if (node->flags() & kBoxHit) {
+    LineHits& r = *g_lq.out;
+    if (!zmod::box_segment(c, &r.hit[r.count], g_lq.a, g_lq.b)) return 1;
+  }
+  return 0;
+}
+
+// The box gate of the walk's classes: 0 to go on, else the result.
+int line_gate(Node* node, int32_t siblings, bool* taken) {
+  *taken = false;
+  if (siblings > 1 || (node->flags() & kBoxHit)) {
+    if (int r = line_box(node)) return r;
+    if (node->flags() & kBoxHit) {
+      line_take(node);
+      *taken = true;
+    }
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ef980 (class 8): the box first, then its matrix.
+int line_animate(Node* node, int32_t siblings) {
+  bool taken;
+  if (int r = line_gate(node, siblings, &taken)) return r;
+  if (taken) return 0;
+  auto* d = static_cast<uint8_t*>(node->data);
+  const bool pushed = node->flags() & kActive;
+  if (pushed) {
+    zmth::push_copy(mat(d, 0x38));
+    zmth::multiply(*mat(d, 8), 1);
+  }
+  line_model(node);
+  line_children(node, false);
+  if (pushed) zmth::pop();
+  return line_result();
+}
+
+// Mech3.exe 1.2 @ 0x004efaa0 (class 1, a camera): no box test.
+int line_camera(Node* node) {
+  auto* d = static_cast<uint8_t*>(node->data);
+  const float scale[3] = {1.0f, 1.0f, 1.0f};
+  const bool pushed = node->flags() & kActive;
+  if (pushed) {
+    zmth::push_copy(mat(d, 0x44));
+    zmth::euler(reinterpret_cast<float*>(d + 0x20), reinterpret_cast<float*>(d + 0x14), scale);
+  }
+  line_model(node);
+  line_children(node, false);
+  if (pushed) zmth::pop();
+  return line_result();
+}
+
+// Mech3.exe 1.2 @ 0x004efba0 (class 9, a light)
+int line_light(Node* node, int32_t siblings) {
+  bool taken;
+  if (int r = line_gate(node, siblings, &taken)) return r;
+  if (taken) return 0;
+  auto* d = static_cast<uint8_t*>(node->data);
+  zmth::push_copy(mat(d, 0x30));
+  zmth::translate(at<float>(d, 0xc), at<float>(d, 0x10), at<float>(d, 0x14));
+  zmth::rotate_y(at<float>(d, 4));
+  zmth::rotate_x(at<float>(d, 0));
+  zmth::rotate_z(at<float>(d, 8));
+  line_model(node);
+  line_children(node, false);
+  zmth::pop();
+  return line_result();
+}
+
+// Mech3.exe 1.2 @ 0x004ef570. Class 10 returns the node's address in the
+// exe (non-zero); 1 here. No caller reads the result but the sequence's.
+int line_node(Node* node, int32_t siblings) {
+  const uint32_t flags = node->flags();
+  if (!(flags & kActive) || !(flags & kIntersect)) return 1;
+  if (g_opt.exclude & flags) return 1;
+  if (line_done()) return 0;
+  if (!zmod::zone_visible(node->raw[0x30])) return 1;
+  if (g_opt.static_only && frames().frame < node->get<uint32_t>(0xc4)) return 1;
+  node->set_flags(node->flags() & ~0x2000000u);
+  if (g_lq.out->count > 0x1f) {
+    zerr::report(0x200, kFile, 0xa1c, "Database intersections array is full");
+    return 1;
+  }
+  auto* d = static_cast<uint8_t*>(node->data);
+  bool taken;
+  switch (node->cls()) {
+    case 1: return line_camera(node);
+    case 5: {
+      if (int r = line_gate(node, siblings, &taken)) return r;
+      if (taken) return 0;
+      auto* o = static_cast<Object3d*>(node->data);
+      uint32_t of = o->get<uint32_t>(0);
+      bool pushed = false;
+      if (!(of & 8)) {
+        pushed = true;
+        if (!(node->flags() & 0x80000)) {
+          zmth::push_copy(mat(d, 0x60));
+          zmth::multiply(*mat(d, 0x30), 1);
+        } else if (!(of & 0x20)) {
+          zmth::push(mat(d, 0x60));
+        } else {
+          zmth::push_copy(mat(d, 0x60));
+          zmth::multiply(*mat(d, 0x30), 1);
+          of = o->get<uint32_t>(0);
+          if (!(of & 1)) o->put<uint32_t>(0, of & ~0x20u);
+        }
+      }
+      line_model(node);
+      line_children(node, true);
+      if (pushed) zmth::pop();
+      return line_result();
+    }
+    case 6:  // lod: past 5 it is not tested
+      if (at<float>(d, 4) > 5.0) return 1;  // 0x005cdaf8
+      if (int r = line_gate(node, siblings, &taken)) return r;
+      if (taken) return 0;
+      for (int32_t i = 0; i < node->child_count(); ++i) {
+        line_node(node->children[i], node->child_count());
+        if (line_done()) break;
+      }
+      return line_result();
+    case 7: {  // sequence: only its current child
+      if (at<int32_t>(d, 0) == 0) return 1;
+      if (int r = line_gate(node, siblings, &taken)) return r;
+      if (taken) return 0;
+      Node* child;
+      std::memcpy(&child, d + 0x20 + 8 * at<int32_t>(d, 0x14), sizeof child);  // FIX (A): a 32-bit pointer in the exe
+      return line_node(child, node->child_count());
+    }
+    case 8: return line_animate(node, siblings);
+    case 9: return line_light(node, siblings);
+    case 10: return 1;
+    default: {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "Unrecognized node class type:  node = %s class_type = %d", node->name(),
+                    node->cls());
+      zerr::report(0x200, kFile, 0xa4a, msg);
+      return 3;
+    }
+  }
+}
+
+void line_shift(float dx, float dz) {
+  g_lq.a[0] = dx + g_lq.a[0], g_lq.a[2] = dz + g_lq.a[2];
+  g_lq.b[0] = dx + g_lq.b[0], g_lq.b[2] = dz + g_lq.b[2];
+  g_lq.box[0] = dx + g_lq.box[0], g_lq.box[2] = dz + g_lq.box[2];
+  g_lq.box[3] = dx + g_lq.box[3], g_lq.box[5] = dz + g_lq.box[5];
+}
+
+// Mech3.exe 1.2 @ 0x004eefe0. The cells the segment passes over, stepped
+// along it in x and z (a grid walk); a cell off the grid of a wrapping world
+// is the stored cell its nodes are, the segment moved there meanwhile and
+// the crossings found there moved back. With first-hit on, a crossing ends
+// the walk at once: in a wrapped cell its point stays moved (and the
+// segment too).
+void line_cells(Node* world) {
+  auto* w = static_cast<World*>(world->data);
+  int32_t cx = cell_of(g_lq.a[0], w->get<float>(0x34), w->get<float>(0x74));
+  int32_t cz = cell_of(g_lq.a[2], w->get<float>(0x38), w->get<float>(0x78));
+  const float dx = g_lq.b[0] - g_lq.a[0];
+  const float dz = g_lq.b[2] - g_lq.a[2];
+  int32_t step_x = 0, step_z = 0;
+  float inv_x = 0, inv_z = 0;
+  auto sign_differs = [](float a, float b) {
+    uint32_t x, y;
+    std::memcpy(&x, &a, 4);
+    std::memcpy(&y, &b, 4);
+    return ((x ^ y) & 0x80000000u) != 0;
+  };
+  if (dx != 0.0f) {
+    inv_x = 1.0f / dx;
+    step_x = sign_differs(dx, w->get<float>(0x74)) ? -1 : 1;
+  }
+  if (dz != 0.0f) {
+    inv_z = 1.0f / dz;
+    step_z = sign_differs(dz, w->get<float>(0x78)) ? -1 : 1;
+  }
+  float tx = 2.0f, tz = 2.0f;
+  for (;;) {
+    Partition* cell = nullptr;
+    bool wrapped = false;
+    float sx = 0, sz = 0;
+    uint32_t had = 0;
+    if (cx >= 0 && cx < w->get<int32_t>(0x88) && cz >= 0 && cz < w->get<int32_t>(0x8c)) {
+      cell = &w->rows[cz][cx];
+    } else if (w->get<int32_t>(0x50) != 0) {
+      had = g_lq.out->count;
+      int32_t wx, wz, inside;
+      world_wrap_cell(world, cx, cz, &wx, &wz, &inside);
+      sx = static_cast<float>(wx - cx) * w->get<float>(0x64);
+      sz = static_cast<float>(wz - cz) * w->get<float>(0x68);
+      wrapped = true;
+      line_shift(sx, sz);
+      cell = &w->rows[wz][wx];
+    }
+    if (cell) {
+      Partition& p = *cell;
+      for (int32_t i = 0; i < p.get<int16_t>(0x3a); ++i) {
+        Node* n = p.nodes[i];
+        if (!(n->flags() & kActive) || !(n->flags() & kIntersect) || !line_static_ok(n)) continue;
+        line_node(n, p.get<int16_t>(0x3a) + 1);
+        if (line_done()) return;
+      }
+      for (int32_t i = 0; i < p.get<int32_t>(0x40); ++i) {
+        uint8_t* e = p.fades + 0x44 * i;
+        Node* n;
+        std::memcpy(&n, e, sizeof n);  // FIX (A): a 32-bit pointer in the exe
+        if (!(n->flags() & kActive) || !(n->flags() & kIntersect) || !line_static_ok(n)) continue;
+        std::memcpy(n->raw + 0x64, e + 0x28, 12);
+        if (n->cls() == 5) {
+          auto* o = static_cast<Object3d*>(n->data);
+          o->put<uint32_t>(0, o->get<uint32_t>(0) & ~8u);
+          std::memcpy(o->raw + 0x60, e + 4, 48);
+          std::memcpy(o->raw + 0x30, e + 4, 48);
+        }
+        n->raw[0x30] = e[0x40];
+        line_node(n, p.get<int32_t>(0x40) + 1);
+        if (line_done()) return;
+      }
+      if (wrapped) {
+        line_shift(-sx, -sz);
+        LineHits& r = *g_lq.out;
+        for (uint32_t k = had; k < r.count; ++k) {
+          r.hit[k].point[0] = r.hit[k].point[0] - sx;
+          r.hit[k].point[2] = r.hit[k].point[2] - sz;
+        }
+      }
+    }
+    if (step_x != 0) {
+      const int32_t edge = step_x == 1 ? cx + 1 : cx;
+      tx = ((static_cast<float>(edge) * w->get<float>(0x64) + w->get<float>(0x34)) - g_lq.a[0]) * inv_x;
+    }
+    if (step_z != 0) {
+      const int32_t edge = step_z == 1 ? cz + 1 : cz;
+      tz = ((static_cast<float>(edge) * w->get<float>(0x68) + w->get<float>(0x38)) - g_lq.a[2]) * inv_z;
+    }
+    if (tx > 1.0f && tz > 1.0f) break;
+    const bool x_first = tx <= tz, z_first = tz <= tx;
+    if (x_first) cx += step_x;
+    if (z_first) cz += step_z;
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004eed90
+int segment_list(Node* world, const float from[3], const float to[3], LineHits* out) {
+  out->count = 0;
+  if (!world) return zerr::report(0x400, kFile, 0x872, "Null node pointer."), 5;
+  if (!world->data) return zerr::report(0x400, kFile, 0x873, "Null class data pointer"), 5;
+  if (update_hooks().pending) update_hooks().pending(update_hooks().ctx);  // 0x004f7e50 when [0x0060bea0]
+  auto* w = static_cast<World*>(world->data);
+  for (int k = 0; k < 3; ++k) {
+    if (to[k] <= from[k]) g_lq.box[k] = to[k], g_lq.box[3 + k] = from[k];
+    else g_lq.box[k] = from[k], g_lq.box[3 + k] = to[k];
+  }
+  std::memcpy(g_lq.a, from, 12);
+  std::memcpy(g_lq.b, to, 12);
+  g_lq.out = out;
+  zmth::Mat34 m;
+  zmth::push(&m);
+  zmth::load_identity();
+  if (w->get<int32_t>(0x50) != 0 ||
+      (g_lq.box[0] < w->get<float>(0x44) && w->get<float>(0x34) <= g_lq.box[3] &&
+       g_lq.box[2] <= w->get<float>(0x38) && w->get<float>(0x48) < g_lq.box[5]))
+    line_cells(world);
+  if (!line_done()) {
+    for (int32_t i = 0; i < world->child_count(); ++i) {
+      Node* n = world->children[i];
+      if (!(n->flags() & kActive) || !(n->flags() & kIntersect)) continue;
+      if (!zmod::zone_visible(n->raw[0x30])) continue;
+      if (g_opt.static_only && !(n->get<uint32_t>(0xc4) <= frames().frame)) continue;
+      line_node(n, world->child_count() + 1);
+      if (line_done()) break;
+    }
+  }
+  zmth::pop();
+  g_opt.exclude = 0;
+  return out->count == 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eece0. With one crossing its distance is not
+// written.
+int segment_nearest(Node* world, const float from[3], const float to[3], LineHits* out) {
+  if (segment_list(world, from, to, out)) return 1;
+  out->total = out->count;
+  if (out->count < 2) {
+    out->count = 0;
+    return 0;
+  }
+  const zmth::Vec3 f{from[0], from[1], from[2]};
+  auto dist2 = [&](int k) {
+    const LineHit& h = out->hit[k];
+    return zmth::distance_sq(f, zmth::Vec3{h.point[0], h.point[1], h.point[2]});
+  };
+  float best = dist2(0);
+  out->hit[0].dist2 = best;
+  uint8_t pick = 0;
+  for (uint8_t k = 1; k < out->total; ++k) {
+    const float d = dist2(k);
+    out->hit[k].dist2 = d;
+    if (d < best) best = d, pick = k;
+  }
+  out->count = pick;
+  return 0;
+}
+
+namespace {
+// The sphere query in progress (0x0060b950..0x0060b964).
+struct SphereQuery {
+  const char* prefix = nullptr;   // 0x0060b950
+  const float* centre = nullptr;  // 0x0060b954
+  float radius2 = 0;              // 0x0060b958
+  int32_t ranged = 0;             // 0x0060b95c
+  Node* sight_world = nullptr;    // 0x0060b960
+  LineHits* out = nullptr;        // 0x0060b964
+};
+SphereQuery g_spq;
+
+bool name_matches(const Node* n) {
+  return !g_spq.prefix || std::strncmp(n->name(), g_spq.prefix, std::strlen(g_spq.prefix)) == 0;
+}
+
+// The node's box (0x004ebd50) as its eight corners (0x004f0f00), through
+// its world matrix (0x004ed280, 0x005227a0), as a sphere (0x004f9c40),
+// tested and recorded; 0 recorded, else why not.
+int sphere_leaf(Node* node) {
+  const float* b = reinterpret_cast<const float*>(node->raw + 0x74);
+  float c[8][3] = {{b[0], b[1], b[5]}, {b[3], b[1], b[5]}, {b[3], b[1], b[2]}, {b[0], b[1], b[2]},
+                   {b[0], b[4], b[5]}, {b[3], b[4], b[5]}, {b[3], b[4], b[2]}, {b[0], b[4], b[2]}};
+  zmth::Mat34 buf;
+  zmth::push(&buf);
+  zmth::load_identity();
+  if (int r = node_to_world(node, 1)) {
+    zmth::pop();
+    return r;
+  }
+  zmth::transform_points(reinterpret_cast<zmth::Vec3*>(c), 8);
+  zmth::pop();
+  float centre[3], radius;
+  corners_sphere(c, centre, &radius);
+  float d2 = 0.0f;
+  if (g_spq.ranged) {
+    const float d = zmth::distance(zmth::Vec3{g_spq.centre[0], g_spq.centre[1], g_spq.centre[2]},
+                                   zmth::Vec3{centre[0], centre[1], centre[2]}) -
+                    radius;
+    d2 = 0.0f <= d ? d * d : 0.0f;
+    if (g_spq.radius2 < d2) return 1;
+  }
+  if (g_spq.sight_world && (node->flags() & 0x400000)) {
+    static LineHits seen;  // the exe's stack buffer
+    g_opt.first_hit = 1;   // 0x004ed9c0
+    g_opt.exclude = 0x40000;  // 0x004eda00
+    node_set_intersect(node, 0);
+    const int none = segment_list(g_spq.sight_world, g_spq.centre, centre, &seen);
+    node_set_intersect(node, 1);
+    g_opt.first_hit = 0;
+    if (none == 0 && seen.count != 0) return 1;
+  }
+  LineHits& r = *g_spq.out;
+  LineHit& h = r.hit[r.count];
+  h.node = node;
+  std::memcpy(h.point, centre, 12);
+  h.material = nullptr;
+  h.dist2 = d2;
+  ++r.count;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f0f90
+int sphere_node(Node* node) {
+  if (g_spq.out->count > 0x1f) {
+    zerr::report(0x200, kFile, 0x10f5, "Database intersections array is full");
+    return 1;
+  }
+  if (!(node->flags() & kActive)) return 1;
+  if (!zmod::zone_visible(node->raw[0x30])) return 1;
+  if (!name_matches(node)) return 1;
+  if (!(node->flags() & 0x40)) {
+    int r = 1;
+    for (int32_t i = 0; i < node->child_count(); ++i)
+      if (sphere_node(node->children[i]) == 0) r = 0;
+    return r;
+  }
+  if (!(node->flags() & kHasBox)) return 1;
+  return sphere_leaf(node);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f0ac0
+int sphere_query(Node* world, const float centre[3], float radius, const char* prefix, int32_t ranged,
+                 int32_t sighted, LineHits* out) {
+  if (!world) return zerr::report(0x400, kFile, 0x108c, "Null node pointer."), 5;
+  if (!world->data) return zerr::report(0x400, kFile, 0x108d, "Null class data pointer"), 5;
+  if (update_hooks().pending) update_hooks().pending(update_hooks().ctx);  // 0x004f7e50 when [0x0060bea0]
+  out->count = 0;
+  int32_t x0, z0, x1, z1;
+  if (int r = world_cell_clamped(world, &x0, centre[0] - radius, radius + centre[2], &z0)) return r;
+  if (int r = world_cell_clamped(world, &x1, radius + centre[0], centre[2] - radius, &z1)) return r;
+  g_spq = {prefix, centre, radius * radius, ranged, sighted ? world : nullptr, out};
+  auto* w = static_cast<World*>(world->data);
+  for (int32_t z = z0; z <= z1; ++z) {
+    for (int32_t x = x0; x <= x1; ++x) {
+      Partition& p = w->rows[z][x];
+      for (int32_t i = 0; i < p.get<int16_t>(0x3a); ++i) {
+        Node* n = p.nodes[i];
+        if (out->count >= 0x20) {
+          zerr::report(0x200, kFile, 0x10f5, "Database intersections array is full");
+          continue;
+        }
+        if (!(n->flags() & kActive) || !zmod::zone_visible(n->raw[0x30])) continue;
+        if (!name_matches(n)) continue;
+        if (!(n->flags() & 0x40)) {
+          for (int32_t k = 0; k < n->child_count(); ++k) sphere_node(n->children[k]);
+        } else if (n->flags() & kHasBox) {
+          sphere_leaf(n);
+        }
+      }
+    }
+  }
+  for (int32_t i = 0; i < world->child_count(); ++i) sphere_node(world->children[i]);
+  return out->count == 0;
 }
 
 }  // namespace zcls

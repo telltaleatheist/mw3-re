@@ -29,3 +29,17 @@ Newest last. One short entry per item: what, commits, what to remember.
 - c1m1's player starts on the seabed under 4.86 m of water.
 - Open: HUD, weapons (0x0041aba0, +0xd4), foot effects and sounds, mechs
   and vehicles as collision targets, the AI mechs' own frames.
+
+## 2026-10-20: the shot queries (branch mac2/shot-queries)
+
+- Ported cls_di.c's third query family: segment_list 0x4eed90 (cells
+  0x4eefe0, nodes 0x4ef570 / 0x4ef980 / 0x4efaa0 / 0x4efba0, box 0x4f1470
+  with 0x4ec6b0), segment_nearest 0x4eece0, sphere_query 0x4f0ac0
+  (0x4f0f90, 0x4f0f00); gmod_hit model_segment 0x54cad0, polygon_segment
+  0x54d760, polygon_segment_uv 0x54dd30, box_segment 0x54d2f0;
+  zmth::invert_single (0x523c50 at 24 bits).
+- test_shotq.py; scratch/x87.py traces an asm range's x87 sums (Ghidra's
+  printed orders are wrong for these). Ground probes in a test must run on
+  both sides (the point query moves cached polygons).
+- Next: the fire wiring on mac2/fire (RunHooks::segment_list/segment,
+  HitHooks::query to these).

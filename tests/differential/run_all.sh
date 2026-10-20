@@ -66,6 +66,7 @@ for t in \
     update \
     di \
     place \
+    shotq \
     collide \
     anim_run \
     action_lists \

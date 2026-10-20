@@ -137,3 +137,104 @@ at the ground and disarms it.
    mech with recorded part damage.
 3. 0x422d20 with `di_segments` stubbed by canned hits; then 0x4225c0 whole.
 4. `di_segments` 0x4efcd0 itself (cls_di.c), on the worlds test_gamez loads.
+
+## The shot queries (cls_di.c)
+
+The weapons ask the world what a shot's segment crosses and what lies near
+a point, through a third family of queries in cls_di.c, apart from the
+ground query (0x004ee2f0, 0x004edab0) and the mechs' segment query
+(0x004efcd0). Ported in `zclass/cls_di.cpp` and `zmodel/gmod_hit.cpp`;
+zWeapon reaches them through `RunHooks::segment_list`, `segment` and
+`HitHooks::query` (wiring: weapons.md).
+
+**The segment list 0x004eed90** (`zcls::segment_list`): ECX the world, EDX
+a record (the exe's 0x504 bytes: a count, then 32 slots of 0x28: normal,
+point, +0x18, the squared distance, material, node). The segment's box goes
+to 0x0060b990, the segment to 0x0060b978. When the world wraps or the box
+meets the world's bounds (+0x34 / +0x44 in x, +0x48 / +0x38 in z, whose z
+runs downward), the cells are walked along the
+segment (0x004eefe0, a grid walk in x and z by the cells' edges); then the
+world's own children. Every node needs ACTIVE (4) and INTERSECT (0x10),
+none of the exclude flags (0x0060b974, cleared at the end), its zone, and
+with the static-only mode (0x0060b96c) a +0xc4 stamp not past the frame
+counter. Off the grid of a wrapping world the stored cell is walked with the
+segment moved there and the crossings found there moved back; with
+first-hit on (0x0060b968) the walk stops at the first crossing, **in a
+wrapped cell before moving its point back** (the point stays in the stored
+cell's coordinates). Returns 1 when nothing was crossed.
+
+The node walk 0x004ef570 (cameras 0x004efaa0, animated nodes 0x004ef980,
+lights 0x004efba0): a node among siblings, or with INTERSECT_BBOX (0x20),
+must have its box met by the segment's box (0x004f1470: the box through its
+matrices, 0x004ec6b0, or with INTERSECT_BBOX its corners' extent and a face
+crossed, 0x0054d2f0); an INTERSECT_BBOX node is then recorded as itself.
+Otherwise its model is tested when its +0xc4 stamp is past `since`
+(0x0060b970: 0 at start, -1 "every node" once 0x004ed9e0 turns it off), and
+its children walked. One slot per node.
+
+**The model test 0x0054cad0** (`zmod::model_segment`) works in the model's
+space: the segment through the inverse of the stack's top (0x00523c50; a
+singular top finds nothing), the cached polygon first, then the rest; the
+crossing's point and normal back through the top, the normal normalised.
+Polygons are crossed from the front (either side with flag 0x100), tested
+on the plane the normal points along most (0x0054d760: picked by the
+magnitudes' bit patterns; on the -z plane a NaN edge fails, on the others
+only the first edge's does), within 0.0001. A polygon whose material has
+**flag 2** is tested with its texture coordinates (0x0054dd30), which are
+always captured (0x005426e0), unlike the mechs' segment query's flag-1
+test. A strip of two vertices at the cached index reads an unset result as
+a hit in the exe (the port does the same); fewer than two would walk past
+its vertex list (none ships; the port skips it).
+
+**The nearest hit 0x004eece0** (`zcls::segment_nearest`): the list, then
+with two or more crossings each one's squared distance from the start
+(0x0051dfa0) and the nearest one's index in the count byte, the count in
+byte 1. With one, no distance is written.
+
+**The sphere query 0x004f0ac0** (`zcls::sphere_query`): the cells under the
+sphere's square (0x004f2060 at two corners), each cell's nodes, then the
+world's children. A node with flag 0x40 and a box is taken by its box's
+bounding sphere through its world matrix (0x004ebd50, 0x004f0f00,
+0x004ed280, 0x005227a0, 0x004f9c40); without 0x40 its children are walked
+(0x004f0f90). A name prefix filters them (strncmp). With `ranged`, the
+distance from the centre past the node's own radius, squared, must be
+within radius squared (else 0 is recorded). With `sighted`, a node with
+flag 0x400000 must be visible: a first-hit segment list from the centre to
+it, with exclude 0x40000 and the node's own INTERSECT off, finds nothing
+(first-hit is left off after, not restored). The record: node, its centre
+as the point, material 0, the squared distance; the normal is left.
+
+**Precision.** These run while the game is up, at the 24-bit precision
+Direct3D 6 sets; the ports are in floats. The inverse 0x00523c50 had been
+ported at 53 bits (`zmth::invert`, doubles); `zmth::invert_single` is the
+same at 24 bits, which this test needed.
+
+**FIX (A)**: the model test past the record's 32nd slot would write past it
+(only the walk's entry checks); the port stops at 32.
+
+**Test.** `tests/differential/test_shotq.py` (in run_all.sh), on the six
+worlds with the camera and sun as world children, +0xc4 stamps and sphere
+targets (flags 0x40, 0x400000) given to a share of nodes on both sides:
+shots along the ground, from above, up, long, short and off the grid, with
+the world wrapping or not, first-hit, exclude flags, static-only and
+`since` drawn at random; the list or the nearest hit; a sphere at each with
+a prefix, range and sight; half way, strips, INTERSECT_BBOX and material
+flag 2. Records (32 slots), results, options left, captured coordinates,
+cached polygons and node flags identical at 24-bit precision. No world has
+an animated node (class 8, 0x004ef980 not reached).
+
+Break tests (`test_shotq.py 60` had to fail): 18 of 25 caught. Caught: the
+closing edge's tolerance, the normal's sign in the plane's pick, the
+textured test's capture and its u gradient, the cached polygon, the
+textured test by flag 1, the boxes' strict comparison, an INTERSECT_BBOX
+node not recorded, `since` taken inclusively, the exclude flags ignored or
+kept after, the static-only mode in the walk, a wrapped cell's crossings
+not moved back, the sphere's distance inside a node, its sight line's
+exclude, the whole name for the prefix, first-hit left on after the sight
+line, the unmoved box's maximum. Not caught, equivalent or out of reach on
+the shipped worlds: a polygon whose plane holds the segment's end exactly,
+a NaN edge on the -z plane, the box's face order (its faces are one-sided,
+so one at most is crossed), the normal renormalised after the world
+transform (the nodes hit carry no scale), the grid walk's diagonal step
+(exact ties at cell corners), the last of equally near crossings, and a
+division for a multiplication in the inverse (an ulp, not reached).

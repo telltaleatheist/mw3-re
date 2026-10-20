@@ -382,6 +382,33 @@ bool invert(const Mat34& mat, Mat34& out, bool translation) {
   return true;
 }
 
+// Mech3.exe 1.2 @ 0x00523c50 at 24 bits: invert's operations in floats.
+bool invert_single(const Mat34& mat, Mat34& out, bool translation) {
+  const float* m = mat.m;
+  float* o = out.m;
+  const float c0 = m[8] * m[4] - m[5] * m[7];
+  const float c1 = m[6] * m[5] - m[3] * m[8];
+  const float c2 = m[3] * m[7] - m[6] * m[4];
+  const float det = (c1 * m[1] + c2 * m[2]) + m[0] * c0;
+  if (!(det < 0.0f || det > 0.0f)) return false;
+  const float inv = 1.0f / det;
+  const float a = m[0] * inv, b = inv * m[1], c = inv * m[2];
+  o[0] = inv * c0;
+  o[1] = c * m[7] - b * m[8];
+  o[2] = b * m[5] - c * m[4];
+  o[3] = inv * c1;
+  o[4] = a * m[8] - c * m[6];
+  o[5] = c * m[3] - a * m[5];
+  o[6] = inv * c2;
+  o[7] = b * m[6] - a * m[7];
+  o[8] = a * m[4] - b * m[3];
+  if (translation) {
+    const float t0 = -m[9], t1 = -m[10], t2 = -m[11];
+    for (int j = 0; j < 3; ++j) o[9 + j] = t0 * o[j] + t1 * o[3 + j] + t2 * o[6 + j];
+  }
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00520b00. camera = the camera's world matrix with rows y
 // and z negated (camera space looks down +z, y down); view = its rigid inverse.
 void set_view(const Mat34& w) {
