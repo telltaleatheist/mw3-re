@@ -1,5 +1,6 @@
 #include "mech3/mission_world.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -7,6 +8,7 @@
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -55,6 +57,21 @@ bool world_clear(MissionWorld& m) {
   }
   m.fog = 0;
   return true;
+}
+
+// Mech3.exe 1.2 @ 0x004926d0, with zMath's 0x00522170 (pitch and yaw to the
+// direction they face) and 0x004020d0 on its level part.
+void world_update(const MissionWorld& m) {
+  const WorldHooks& h = g_hooks;
+  if (!m.fluctuate) return;
+  const float* rot = h.camera_angles();
+  const float pitch = rot[0], yaw = rot[1];
+  const float cp = static_cast<float>(std::cos(double{pitch}));
+  zmth::Vec3 dir{-cp * static_cast<float>(std::sin(double{yaw})), 0.0f,
+                 -cp * static_cast<float>(std::cos(double{yaw}))};
+  zmth::normalize(dir);
+  const float d[2] = {dir.z, -dir.x};
+  h.clouds_advance(d, h.frame_dt());
 }
 
 // Mech3.exe 1.2 @ 0x00492660. The sun is lit only on the Direct3D renderer.

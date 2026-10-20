@@ -61,8 +61,9 @@ progress bar 0x004050d0 and its text 0x00405120 between steps):
 
 ## 3. The rest, 0x00490ab0
 
-The game's mission index (pilot's game vt+0x54), type (vt+0x2c) and number
-(vt+0x4c). The reader archives 0x00490630: `zbd\<dir>\reader.zbd`, the
+The game's mission index (pilot's game vt+0x54), the mission's start
+0x0048f400 (the game time from 0, Exit Mission bound, the cheats checked:
+mission-frame.md section 2), type (vt+0x2c) and number (vt+0x4c). The reader archives 0x00490630: `zbd\<dir>\reader.zbd`, the
 loose paths (`..\data\common\zrdr`, `..\mechs`, `..\data\<dir>\zrdr`,
 `..\aipath`), the block's aipath and `zbd\<dir>\reader<block>.zbd`, where
 the block is `m<n>`, `ia<n>` (type 2) or `mp<n>` (type 3) (0x00490590).
@@ -109,7 +110,8 @@ scroll list (0x005964c0(0)).
   (`mech3::player_setup`, mission-start.md: the AI mechs built on their
   controllers, ai.md section 12), valves.zrd (0x004e2120, ai.md section
   13) and, for a debug launch, the
-  launch 0x00491150 that builds the player's mech (mech-build.md). The rest (effects, decals, the
+  launch 0x00491150 that builds the player's mech (mech-build.md). The
+  frame and the cleanup that follow the load: mission-frame.md. The rest (effects, decals, the
   HUD, the stealth entity, the mechs' and AI's other set-up, objectives, the
   start animation) are logged once by address.
 - The view's +0x04 (its camera run) is the scene walk on `camera1`
@@ -162,6 +164,7 @@ keeping the larger.
   HUD 0x0040f7f0, stealth 0x004a4de0, the launch's line-ups (mech-build.md
   section 13),
   the AI (0x004c3b80, 0x004d2e20.., ai.md), objectives 0x0045c2d0, the start
-  animation 0x0050b450, the unload 0x00490480 and cleanup 0x00491780.
+  animation 0x0050b450, the unload 0x00490480 (the cleanup 0x00491780 is
+  ported: mission-frame.md).
 - InstallOptions bits 2 and 4 (the 16-bit mech textures installed, likely).
 - The window's clear colour (the port clears to the debug viewer's sky).

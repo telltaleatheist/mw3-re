@@ -249,9 +249,8 @@ Clean boundaries for later work, each a piece with its own test:
 3. **Net queries**: done (section 10), the nearest step and the way
    finder. What the steps do when a pilot reaches them is step 6.
 4. **Valves** at run time: done (section 13), the reader, the conditions,
-   every action, the timers. Left: the missions' update that ticks the
-   timers (0x48f470) and the cleanup that ends them (0x491780), both in
-   mission.cpp.
+   every action, the timers, ticked by the missions' frame (0x48f470) and
+   ended by the cleanup (0x491780) (mission-frame.md).
 5. **Targeting**: AiTarget (0x4d56e0) masks and height, the contact list
    (0x4ceb50, +0xac vector), the pick 0x4d6b90, CZAiTarget 0x4d2960 from the
    ported TargetRec. Meets the vehicles through their AiTarget fields only.
@@ -846,9 +845,9 @@ update, the attack strategy one word off, canleave without +0xdc.
 other vehicles are not ported, so their lookups give none), power them
 through `Mech::power`, write their brains' settings, re-plan a teleported
 pilot (its placement is logged: not ported), play sounds through zSound;
-animations, destroys and the mission's abort are logged. Left: the
-missions' per-frame update 0x48f470 that ticks the timers, and the cleanup
-0x491780 that ends them (`valves_end`), both mission.cpp's.
+animations and destroys are logged; the mission's abort is the port's loss
+(0x48f9e0). The missions' frame 0x48f470 ticks the timers each Core frame
+and the cleanup 0x491780 ends them (`valves_end`), mission-frame.md.
 
 `mw3tests` `mission_start_reads_c1m1_vehicles_headless` loads c1 mission
 1's valves.zrd through the program: `bramp` holds its four reactions, and

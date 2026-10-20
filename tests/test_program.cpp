@@ -501,6 +501,98 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c1 mission 1 through the Load and Core states (docs/mission-frame.md): each
+// Core frame runs the missions' frame (0x0048f470), which advances the game
+// time [0x0060991c] by the frame's step and ticks the valves' timers. bramp,
+// set on the first frame, wakes the Owens and starts its two delayed
+// updates: truck_go after 18 s and c1m1dialogue4_play after 22 s, each set
+// on the first frame its time is past. The cleanup (0x00491780) ends the
+// valves and puts the game time back to 0.
+namespace {
+struct FastClock : platform::Clock {
+  uint32_t now = 0;
+  uint32_t ticks_ms() override { return now += 60; }
+};
+}  // namespace
+
+TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_timers_write"));
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    using mech3::ai::valve_find;
+    struct Seen {
+      int frames = 0;
+      float start = -1, last = 0;          // the game time at bramp's set, and the frame before
+      float truck = -1, dialogue = -1;     // the game time on the frame each was set
+      float truck_before = -1, dialogue_before = -1;
+      bool time_steps = true;              // each frame's time is the last plus the frame's step
+      bool woke = false;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      const float now = mech3::missions().time;
+      if (seen.frames > 0 && now != seen.last + engine.frame_dt()) seen.time_steps = false;
+      if (seen.frames == 0) {
+        if (mech3::ai::Valve* b = valve_find("bramp")) {
+          b->set(1);
+          seen.start = mech3::mech_game_time();
+          int32_t made = 0;
+          const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+          mech3::LaunchedMech m;
+          seen.woke = made == 1 && mech3::describe_mech(ai[0].mech, &m) && !m.powering_down;
+        }
+      }
+      const mech3::ai::Valve* t = valve_find("truck_go");
+      const mech3::ai::Valve* d = valve_find("c1m1dialogue4_play");
+      if (t && t->get() == 1 && seen.truck < 0) seen.truck = now, seen.truck_before = seen.last;
+      if (d && d->get() == 1 && seen.dialogue < 0) seen.dialogue = now, seen.dialogue_before = seen.last;
+      seen.last = now;
+      ++seen.frames;
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    app.run(pump);
+    EXPECT(seen.frames > 200);
+    EXPECT(seen.start >= 0 && seen.woke);
+    EXPECT(seen.time_steps);
+    EXPECT(mech3::mech_game_time() == mech3::missions().time);  // the ports' copy of [0x0060991c]
+    // Each fired on the frame its time was first past, not before.
+    EXPECT(seen.truck > seen.start + 18.0f && !(seen.truck_before > seen.start + 18.0f));
+    EXPECT(seen.dialogue > seen.start + 22.0f && !(seen.dialogue_before > seen.start + 22.0f));
+    EXPECT(mech3::ai::valve_timers() == nullptr);  // both done, the list gone
+    // The cleanup: the valves end, the game time goes back to 0.
+    EXPECT(mech3::missions().loaded == 1);
+    EXPECT(mech3::missions().cleanup(false));
+    EXPECT(valve_find("bramp") == nullptr && mech3::missions().time == 0.0f);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
 
 // The registry as a file (docs/settings.md): a regedit export reads as the
 // registry would, values the game does not know survive a save, and a saved

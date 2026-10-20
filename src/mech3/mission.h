@@ -3,14 +3,17 @@
 #include <string>
 
 #include "gamez/zgame/unported.h"
+#include "mech3/mission_world.h"
 
 // C:\zipper\Mech3\mission.cpp: bringing a mission up (docs/mission-load.md).
 // The missions object (0x006098d0) loads the world 0x0048faf0 (the interp
 // scripts that read gamez.zbd, the texture libraries, the view, effects,
 // animations, weapons, the HUD) and then the rest 0x00490ab0 (the reader
 // archives, mechs and AI, world.zrd, objectives, the mission's start
-// animation), from the briefing's loader thread 0x00490880. Everything
-// outside mission.cpp is a hook here.
+// animation), from the briefing's loader thread 0x00490880; each frame it
+// runs the mission 0x0048f470 (the game time, the valves' timers, the
+// objectives, the win and the loss) and at the end cleans it up 0x00491780
+// (docs/mission-frame.md). Everything outside mission.cpp is a hook here.
 namespace mech3 {
 
 using zgame::Handle;
@@ -119,8 +122,12 @@ class MissionHooks : public zgame::Unported {
   virtual void reader_open(const char* path, int32_t current) { unported("0x00557320", {path, current}); }
   virtual void reader_set_path(const char* path) { unported("0x005561a0", {path}); }
   virtual void reader_add_path(const char* path) { unported("0x005561e0", {path}); }
-  // The rest of the mission (0x00490ab0).
-  virtual void fn_48f400() { unported("0x0048f400", {}); }
+  // The rest of the mission (0x00490ab0) and its start 0x0048f400.
+  virtual void bind_command(int32_t cmd, uint32_t handler) { unported("0x0051d2f0", {cmd, handler}); }
+  virtual uint8_t app_network() { return static_cast<uint8_t>(unported("[0x00608e45]", {})); }
+  virtual int32_t invincible() { return static_cast<int32_t>(unported("0x0040cf20", {})); }
+  virtual int32_t infinite_ammo() { return static_cast<int32_t>(unported("0x0040cf80", {})); }
+  virtual int32_t heat() { return static_cast<int32_t>(unported("0x0040cfc0", {})); }
   virtual void mechs_init() { unported("0x00413e60", {}); }
   virtual void fn_4319a0() { unported("0x004319a0", {}); }
   virtual void fn_459e80(Handle h) { unported("0x00459e80", {h}); }
@@ -150,18 +157,121 @@ class MissionHooks : public zgame::Unported {
   virtual void fn_4d4b30() { unported("0x004d4b30", {}); }
   virtual void anim_run(Handle anim) { unported("0x00508c10", {anim, 0, 0, 0, 0}); }
   virtual void interp_5964c0(int32_t v) { unported("0x005964c0", {v}); }
+
+  // The frame 0x0048f470 (docs/mission-frame.md).
+  virtual void valves_tick(float dt) { unported("0x004d3d30", {zgame::bits(dt)}); }
+  virtual void map_update(float dt) { unported("0x0045a270", {0x605ae0, zgame::bits(dt)}); }
+  virtual void stations_update(Handle st, float dt, Handle vehicle) {
+    unported("stations.vt+0x6c", {st, zgame::bits(dt), vehicle});
+  }
+  virtual Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
+  virtual Handle mech_screen(Handle data) { return unported("0x00430aa0", {data}); }
+  virtual void screen_flash(Handle obj, float v) { unported("screen.vt+0x60", {obj, zgame::bits(v)}); }
+  virtual void screen_reset(Handle obj) { unported("0x00446ad0", {obj}); }
+  virtual uint8_t objective_check(Handle obj) { return static_cast<uint8_t>(unported("0x0045e540", {obj, 1})); }
+  virtual uint8_t objective_done(Handle obj) { return static_cast<uint8_t>(unported("objective+0x08", {obj})); }
+  virtual uint8_t condition_met(Handle obj) { return static_cast<uint8_t>(unported("condition.vt+0x4", {obj})); }
+  virtual uint8_t objectives_announce(Handle a, Handle b, Handle c, Handle d) {
+    return static_cast<uint8_t>(unported("0x0045c180", {a, b, c, d}));
+  }
+  virtual uint8_t app_1c2() { return static_cast<uint8_t>(unported("[0x00608e4a]", {})); }
+  // zSound: the mission's voice lines.
+  virtual uint32_t sound_playing(Handle s) { return unported("0x0056e8e0", {s}); }
+  virtual void sound_stop(Handle s) { unported("0x0056e9f0", {s}); }
+  virtual Handle sound_play(Handle s, float volume) { return unported("0x0056e3d0", {s, zgame::bits(volume)}); }
+  // The win (0x0048f740): Instant Action's next wave, training's lessons.
+  virtual Handle ia_game() { return unported("0x00479460", {}); }
+  virtual void fn_5392c0() { unported("0x005392c0", {}); }
+  virtual void fn_49dc80(uint8_t v) { unported("0x0049dc80", {v}); }
+  virtual void objectives_free(Handle a, Handle b, Handle c, Handle d, Handle e) {
+    unported("0x0045c1d0", {a, b, c, d, e});
+  }
+  virtual void objectives_start(Handle b, Handle c, Handle d, Handle e) { unported("0x0045c4a0", {b, c, d, e}); }
+  virtual Handle training(Handle a, Handle b, Handle c, Handle d, Handle e) {
+    return unported("0x004794a0", {a, b, c, d, e});
+  }
+  virtual uint8_t training_next(Handle t) { return static_cast<uint8_t>(unported("0x004373b0", {t})); }
+  // The loss (0x0048f9e0): in multiplayer the player's mech is put down.
+  virtual Handle multiplayer() { return unported("0x00479480", {}); }
+  virtual Handle mech_action(Handle mech, int32_t v) { return unported("0x0041d510", {mech, v}); }
+  virtual void action_start(Handle a) { unported("action.vt+0x3c", {a, 0, 0}); }
+  // The end screen (0x00491bf0).
+  virtual void fn_40f0b0(uint8_t v) { unported("0x0040f0b0", {v}); }
+  virtual void fade_out(Handle seq) { unported("0x0048ef00", {seq, 0, 1, 2, zgame::bits(2.0f), 0, 0, 0}); }
+
+  // The cleanup 0x00491780.
+  virtual Handle fn_4eb040() { return unported("0x004eb040", {}); }
+  virtual void fn_4eb030(Handle v) { unported("0x004eb030", {v}); }
+  virtual void close_handle(Handle h) { unported("CloseHandle", {h}); }
+  virtual void set_thread_priority(Handle thread, int32_t p) { unported("SetThreadPriority", {thread, p}); }
+  virtual void fn_4e7bc0() { unported("0x004e7bc0", {}); }
+  virtual Handle fn_4582c0(Handle obj) { return unported("0x004582c0", {obj}); }
+  virtual void anim_cleanup() { unported("0x0050ace0", {1}); }
+  virtual void fn_570410() { unported("0x00570410", {1}); }
+  virtual Handle sounds_bank() { return unported("0x0056eb10", {}); }
+  virtual void sounds_stop(Handle bank) { unported("0x0056f0a0", {bank}); }
+  virtual void sounds_free(Handle bank) { unported("0x0056f190", {bank}); }
+  virtual void sound_reset() { unported("0x005716a0", {}); }
+  virtual void view_fn_40ae70(Handle view) { unported("0x0040ae70", {view, 0}); }
+  virtual void view_fn_40adf0(Handle view) { unported("0x0040adf0", {view, 0, 0}); }
+  virtual void pilot_set_vehicle(Handle v) { unported("0x004782c0", {v}); }
+  virtual void delete_object(Handle obj) { unported("object.vt+0x0", {obj, 1}); }
+  virtual void entities_remove(Handle e) { unported("0x005a89c0", {e}); }
+  virtual void entities_add(Handle e) { unported("0x005a8820", {e}); }
+  virtual void fn_4e6910() { unported("0x004e6910", {}); }
+  virtual void fn_4b4ae0() { unported("0x004b4ae0", {0x60b228}); }
+  virtual void landmines_free() { unported("0x00413770", {0x604e48}); }
+  virtual void fn_49dc40() { unported("0x0049dc40", {}); }
+  virtual void fn_4a7970() { unported("0x004a7970", {}); }
+  virtual void fn_4d8270() { unported("0x004d8270", {}); }
+  virtual void fn_584fe0() { unported("0x00584fe0", {}); }
+  virtual void fn_47a720(Handle obj) { unported("0x0047a720", {obj}); }
+  virtual void fn_4d54f0() { unported("0x004d54f0", {}); }
+  virtual void fn_479850() { unported("0x00479850", {}); }
+  virtual void fn_4ea750() { unported("0x004ea750", {}); }
+  virtual void znet_free() { unported("0x0058b290", {0x603fd8}); }
+  virtual void fn_4c5fa0() { unported("0x004c5fa0", {}); }
+  virtual void fn_4c3240() { unported("0x004c3240", {}); }
+  virtual void valves_end() { unported("0x004d3fa0", {}); }
+  virtual void targets_end() { unported("0x004d3030", {}); }
+  virtual void fn_4d71f0() { unported("0x004d71f0", {}); }
+  virtual void fn_427300() { unported("0x00427300", {}); }
+  virtual void fn_414000() { unported("0x00414000", {}); }
+  virtual void fn_431800() { unported("0x00431800", {}); }
+  virtual void fn_50b2f0() { unported("0x0050b2f0", {}); }
+  virtual void fn_5394c0() { unported("0x005394c0", {1, 1}); }
+  virtual void fn_5573d0() { unported("0x005573d0", {0}); }
+  virtual void voice_release(const char* name) { unported("0x0056f530", {name}); }
 };
 
 // The missions object (0x006098d0), the fields mission.cpp uses.
 struct Missions {
-  uint8_t f55 = 0, f56 = 0;      // +0x55 +0x56
-  uint32_t f58 = 0;              // +0x58
+  MissionWorld world;            // +0x00..+0x4b  world.zrd's parameters (mission_world.h)
+  float time = 0;                // +0x4c  the game time [0x0060991c], seconds since the setup
+  float clock = 0;               // +0x50  the mission clock, counting down while +0x54
+  uint8_t clock_down = 0;        // +0x54
+  uint8_t ended = 0;             // +0x55  won or lost: the objectives are no longer checked
+  uint8_t aborting = 0;          // +0x56  lost: the end screen follows after +0x58
+  float end_delay = 0;           // +0x58  seconds left (8 from a loss)
   uint8_t loaded = 0;            // +0x5c  the mission is up
   int32_t current = -1;          // +0x60  the world's mission index, -1 none
+  int32_t number = 0;            // +0x64  the game's mission number (0x00490720)
+  Handle event = 0;              // +0x68  the loader thread's event
+  Handle thread = 0;             // +0x6c  and the thread
   uint8_t abort = 0;             // +0x70  set from outside to stop a load
-  uint32_t objectives[5] = {};   // +0x78..+0x88 objectives.zrd's results
+  // +0x78..+0x88 objectives.zrd's: +0x7c the primary objectives, +0x80 the
+  // secondary, +0x84 the win's condition, +0x88 the loss's.
+  uint32_t objectives[5] = {};
   Handle sounds[4] = {};         // +0x8c com_success, com_failed, obj_primary, obj_secondary
+  Handle objective_sound = 0;    // +0x9c  the line an objective checked now announces itself with
+  Handle voice_next = 0;         // +0xa0  the line asked for this frame (0x0048f6c0)
+  float voice_next_priority = 0; // +0xa4
+  Handle voice = 0;              // +0xa8  the line playing
+  float voice_priority = 0;      // +0xac  its priority, -1 when none
   Handle stations = 0;           // +0xb0  multiplayer stations' list
+  Handle xb4 = 0;                // +0xb4  the stations' owner (0x004797c0), deleted by the cleanup
+  Handle xb8 = 0, xbc = 0;       // +0xb8 +0xbc  an object 0x00491c80 makes (0x004580c0) and its user
+  uint8_t cheats = 0;            // +0xc4  a cheat was on as the mission started (0x00491d20)
   uint8_t done = 0;              // the event +0x68 (set when the load ends)
   uint8_t failed = 0;            // the thread's exit code
 
@@ -170,9 +280,23 @@ struct Missions {
   void start();                            // 0x00490880 (FIX (A): no thread)
   bool finished() const { return done; }   // 0x00490930
   void open_readers(const char* name);     // 0x00490630
-  void block_name(char* out);              // 0x00490600 / 0x00490590: m%d, ia%d or mp%d
+  void block_name(char* out);              // 0x00490600
+  void block_name(int32_t number, char* out);  // 0x00490590: m%d, ia%d or mp%d
   bool texture_budget(uint32_t* mb);       // 0x004902a0
+  bool begin();                            // 0x0048f400
+  void check_cheats();                     // 0x00491d20
+  void update(float dt);                   // 0x0048f470
+  void play_voice();                       // 0x0048f630
+  void ask_voice(Handle sound, float priority);  // 0x0048f6c0
+  void complete();                         // 0x0048f740
+  void lose();                             // 0x0048f9e0
+  void end_screen();                       // 0x00491bf0
+  void on_command(int32_t cmd);            // 0x0048f440, bound to 0x71 and 0x72
+  bool cleanup(bool unload);               // 0x00491780
 };
+
+// The command handler 0x0048f400 binds (MISSION_COMPLETE 0x71 and 0x72).
+constexpr uint32_t kMissionCommand = 0x0048f440;
 
 Missions& missions();
 void set_mission_hooks(MissionHooks* h);

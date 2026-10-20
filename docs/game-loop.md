@@ -184,8 +184,8 @@ The drawing path (0x00480bf0), re-picked whenever VMode changes: Direct3D
 The software path (0x00481290): the window cleared, the render target set;
 the cockpit hidden; the scene begun and the view's camera run (vt+0x04),
 drawn; the mech's AI ticks (0x00430aa0 +0x144c vt+0x28); Escape is checked
-here, before the world moves; then effects (0x004a8cd0), missions
-(0x0048f470), the pilot (0x004783a0) and cameras (0x0040f8d0) update; effects
+here, before the world moves; then effects (0x004a8cd0), the missions
+(0x0048f470, mission-frame.md), the pilot (0x004783a0) and cameras (0x0040f8d0) update; effects
 and particles draw under the video lock; the cockpit parts (+0x394, +0x398, the
 torso) are drawn over it; the HUD of the view; the scene ends and presents;
 the target's vt+0xe4(dt); under the lock the HUD (0x0040fac0, 0x0040e4b0),

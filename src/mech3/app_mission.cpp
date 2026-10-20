@@ -113,7 +113,16 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   h.fluctuate_base_amp = zmod::clouds_set_level;
   h.fluctuate_heading = zmod::clouds_set_heading;
   h.software_color = [](const float*) {};
-  static MissionWorld m;
+  // The frame's cloud drift (0x004926d0): the camera's rotation, the frame's dt.
+  h.camera_angles = []() -> const float* {
+    static float none[3] = {};
+    GameEngine* g = engine_of_hooks();
+    zcls::Node* cam = g ? mission_node(*g, g->mission_camera()) : nullptr;
+    return cam && cam->data ? static_cast<zcls::Camera*>(cam->data)->floats(0x20) : none;
+  };
+  h.frame_dt = [] { return engine_of_hooks() ? engine_of_hooks()->frame_dt() : 0.0f; };
+  h.clouds_advance = zmod::clouds_advance;
+  MissionWorld& m = missions().world;  // the missions object's first 0x4c bytes
   m = MissionWorld{};
   world_init(m);
   if (!world_read_params(m, file, block)) std::fprintf(stderr, "mw3: no block %s in %s\n", block, file);
@@ -344,6 +353,7 @@ struct WiredValveHooks : ai::ValveHooks {
     player_clear_60b56c();
   }
   float game_time() override { return mech_game_time(); }
+  void mission_abort() override { missions().lose(); }  // 0x0048f730 -> 0x0048f9e0
 };
 WiredValveHooks g_valve_hooks;
 
@@ -562,6 +572,33 @@ struct WiredMissionHooks : MissionHooks {
   Handle sound_find(const char* name) override { return e->sound_find(name); }
   // The mission's valves.zrd (0x004e2120, mech3/zrdrvalve).
   void fn_4e2120() override { ai::valves_load(); }
+
+  // The frame (0x0048f470, docs/mission-frame.md): the game time to the
+  // ports' copies of [0x0060991c], the valves' timers, zSound's voice lines.
+  void valves_tick(float) override {
+    mech_set_game_time(missions().time);
+    ai::valves_tick(missions().time);
+  }
+  Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
+  void bind_command(int32_t cmd, uint32_t handler) override { unported("0x0051d2f0", {cmd, handler}); }
+  uint8_t app_network() override { return options().multiplayer; }
+  int32_t invincible() override { return mech3::invincible(); }
+  int32_t infinite_ammo() override { return mech3::infinite_ammo(); }
+  int32_t heat() override { return mech3::heat(); }
+  uint8_t app_1c2() override { return app().byte_at(0x1c2); }  // 0x00608e4a, never set
+  zsnd::VoiceBase* voice_of(Handle s) const { return static_cast<zsnd::VoiceBase*>(e->object_of(s)); }
+  uint32_t sound_playing(Handle s) override { return static_cast<uint32_t>(zsnd::status(voice_of(s))); }
+  void sound_stop(Handle s) override { zsnd::stop(voice_of(s)); }
+  Handle sound_play(Handle s, float volume) override {
+    auto* o = static_cast<zsnd::Object*>(e->object_of(s));
+    return o ? e->handle_of(zsnd::play(o, volume)) : 0;
+  }
+  // The cleanup (0x00491780): the valves end, the voice set of the mission
+  // goes; the clean-ups of modules not ported are logged.
+  void cleanup(int32_t unload) override { missions().cleanup(unload != 0); }
+  void valves_end() override { ai::valves_end(); }
+  void voice_release(const char* name) override { zsnd::unload_set(name); }
+  void sound_reset() override { zsnd::reset(); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
     char text[512];
     std::snprintf(text, sizeof text, fmt, arg);
@@ -616,6 +653,7 @@ void GameEngine::missions_start(uint32_t list) {
   if (list != 0x6098d0) return Engine::missions_start(list);
   Missions& m = missions();
   m.start();
+  mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
   zcls::Node* cam = mission_node(*this, camera_);
   if (launch_.active && launch_.have_pos && cam) {  // as the debug viewer places it (render.md section 0)
@@ -634,6 +672,21 @@ void GameEngine::missions_start(uint32_t list) {
     }
     app().replace(app().state(5), 0);
   }
+}
+
+// 0x0048f470 on the missions object, each Core frame: the port's (its
+// valves' tick copies the game time to the ports' [0x0060991c]).
+void GameEngine::missions_update(uint32_t list, float dt) {
+  if (list != 0x6098d0) return Engine::missions_update(list, dt);
+  missions().update(dt);
+}
+
+// 0x00490720 (the Load state's, not ported: the briefing's sounds, the
+// stations): only the mission number (+0x64, the game's vt+0x4c) is kept,
+// which the cleanup names the mission's voice set by.
+void GameEngine::missions_reset(uint32_t list) {
+  Engine::missions_reset(list);
+  if (list == 0x6098d0 && pilot_) missions().number = launch_.number;
 }
 
 // The debug launch's pilot and game (our addition): [0x0060861c] a pilot

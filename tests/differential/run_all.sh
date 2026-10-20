@@ -76,6 +76,7 @@ for t in \
     zinput \
     settings \
     mission_load \
+    mission_frame \
     mission_start \
     mech_build \
     ai_brain \
