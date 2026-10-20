@@ -21,6 +21,7 @@
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/mech3_interp.h"
+#include "mech3/app_view.h"
 #include "mech3/mech_control.h"
 #include "mech3/music.h"
 #include "mech3/player.h"
@@ -47,6 +48,8 @@ struct WiredOptionsHooks : OptionsHooks {
   void controls_set_defaults() override { mech3::controls_set_defaults(); }        // 0x00411150
   void controls_load(const char* name) override { mech3::controls_load(name); }    // 0x004120a0
   void controls_free() override { mech3::controls_free_groups(); }                 // 0x00410a80
+  Handle player_view() override { return g_engine ? g_engine->player_view() : 0; }  // [0x005f4c8c]
+  void view_set_camera_mode(Handle, int32_t mode) override { program_view_set_camera(mode); }  // 0x0040ae70
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
   }
@@ -66,6 +69,9 @@ void zerr_to_log(int level, const char* file, int line, const char* message) {
 
 }  // namespace
 
+int32_t program_camera_option() { return camera_mode(); }  // 0x0040ce70
+void program_camera_set(int32_t mode) { set_camera_mode(mode); }  // 0x0040ce10
+
 bool MountFiles::exists(const std::string& path) { return zutl::exists(path.c_str()); }
 
 GameEngine::GameEngine(const Platform& p, std::string command_line)
@@ -76,6 +82,12 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   set_options_hooks(&g_options_hooks);
   wire_mission_hooks(this);
   wire_frame_hooks(this);
+  static ViewProgram vp;
+  vp.ctx = this;
+  vp.unported = [](void* c, const char* key) { return static_cast<GameEngine*>(c)->unported(key, {}); };
+  vp.hardware = [](void* c) { return static_cast<GameEngine*>(c)->video_mode(); };
+  vp.sync = [](void* c) { static_cast<GameEngine*>(c)->sync_view(); };
+  wire_view(&vp);
 }
 
 GameEngine::~GameEngine() {
@@ -85,6 +97,7 @@ GameEngine::~GameEngine() {
     set_options_hooks(nullptr);
     wire_mission_hooks(nullptr);
     wire_frame_hooks(nullptr);
+    wire_view(nullptr);
   }
   zutl::install_messages(nullptr);
 }

@@ -311,7 +311,8 @@ the structure table one row off.
   the hit handler 0x005833b0.
 - The torso's set-up 0x00464290 (the definition's look limits, its half
   width and depth, the death effects): the port's torso uses the base set-up.
-- The mech's destructor 0x00414f40, its view attach 0x0041ce30, the AI side
+- The mech's destructor 0x00414f40 (its view attach 0x0041ce30 is ported:
+  view.md), the AI side
   (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates
   0x0049e5e0, instant action 0x0049dc80, multiplayer 0x0046da80.
 - The AI mechs are built (ai.md section 12) and placed (0x004161c0,
