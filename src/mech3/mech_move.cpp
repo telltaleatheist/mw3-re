@@ -4,7 +4,10 @@
 
 #include "crt/msvc_rand.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_names.h"
@@ -43,6 +46,8 @@ constexpr int kKnockSound = 0x18;  // cockpit table 0x00605598
 constexpr uint32_t kBlendFrames = 20;  // 0x005e1fac
 constexpr int kMasc = 12, kMascSound = 0x1b;  // equipment kind; the cockpit sound (table 0x00605598)
 constexpr int kJumpJet = 11, kElementalRoster = 7, kJetSound = 3, kSoundJumpJet = 3, kJumpPose = 12;
+constexpr int kStandUpSound = 0xb, kStandUpSlot = 11;  // mech +0x5e4
+constexpr float kDustAbove = -50.0f, kDustBelow = 50.0f;  // 0x005bcda0, 0x005bcda4
 
 enum Slot { kStand = 2, kStep = 3, kWalk = 4, kTrot = 5, kRun = 6, kStepWalk = 8, kWalkTrot = 9,
             kTrotRun = 10, kLimpBlend = 11 };
@@ -246,7 +251,9 @@ void Mech::ground_step(float dt) {
   if (detail & 8) {
     controls->set_throttle(0.0f);
     if (g_calls.landing_dust) g_calls.landing_dust(*this);
+    else ground_dust();
     if (g_calls.landing_pose) g_calls.landing_pose(*this);
+    else landing_pose();
     momentum = vec_3c;
   }
 }
@@ -365,7 +372,10 @@ void Mech::select_gait(float dt) {
   speed_factor = (speed_target - speed_factor) * kSpeedRate * dt + speed_factor;
   thr = thr * speed_factor;
   spd = spd * speed_factor;
-  if (crouched && spd > gait[kStep][kHi] && g_calls.crouch) g_calls.crouch(*this, 0);
+  if (crouched && spd > gait[kStep][kHi]) {
+    if (g_calls.crouch) g_calls.crouch(*this, 0);
+    else crouch(false);
+  }
 
   // Leaving stand or step: hold just under walking until a foot comes down
   // in the step animation. Out of this block the step/walk seek index is 0
@@ -634,6 +644,7 @@ void Mech::update_action(float dt) {
         break;
       case 3: case 4:
         if (g_calls.action_dust) g_calls.action_dust(*this);
+        else ground_dust();
         break;
       default:
         break;
@@ -659,6 +670,81 @@ void Mech::update_action(float dt) {
   const Vec3 hip{0.0f, root.y, 0.0f};
   if (g_calls.action_pose) g_calls.action_pose(*this, *act, hip, q);
   else pose_action(*act, hip, q);  // 0x00416fb8..0x00417293 (mech_pose.cpp)
+}
+
+// Mech3.exe 1.2 @ 0x0041bda0. Down while slower than the step's top speed
+// (the hip's crouch target the crouch depth below); else up, the player's
+// mech playing the stand-up sound if it was down. The Elemental never crouches.
+void Mech::crouch(bool on) {
+  if (pilot->roster == kElementalRoster) return;
+  bool was = false;
+  if (on && gait[kStep][kHi] > std::fabs(controls->throttle)) {  // GetThrottle
+    const Vec3 down{0.0f, -crouch_depth, 0.0f};
+    hip->set_crouch(&down);
+    crouched = true;
+  } else {
+    was = crouched;
+    static const Vec3 zero{0, 0, 0};  // 0x0063d870
+    hip->set_crouch(&zero);
+    crouched = false;
+  }
+  if (was && this == world().player)
+    sounds[kStandUpSlot] = g_calls.pilot_sound ? g_calls.pilot_sound(*this, kStandUpSound, 1.0f, -1.0f) : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004164f3..0x0041660b (a landing in 0x004162c0) and
+// 0x00416d3a..0x00416e91 (landf / landb starting in ActionUpdate, through
+// 0x0041eb90 and 0x0041ecf0, the same code): the world's ground under the
+// torso, the mech itself left out, from 50 m above to 50 m below; on the
+// highest found, a splash at it on soil 1, else dust on the hip moving with
+// the mech.
+void Mech::ground_dust() {
+  const PartCalls& pc = part_calls();
+  Vec3 p{0, 0, 0};
+  if (pc.world_position) pc.world_position(torso->node, &p);
+  else zcls::node_world_position(static_cast<zcls::Node*>(torso->node), &p.x);
+  int32_t saved = 1;
+  auto flag8 = [&](int32_t* get, int set) {
+    if (pc.flag8) return pc.flag8(node, get, set);
+    auto* n = static_cast<zcls::Node*>(node);
+    return get ? zcls::node_get_flag8(n, get) : zcls::node_set_flag8(n, set);
+  };
+  flag8(&saved, 0);
+  flag8(nullptr, 0);
+  GroundHits hits;
+  hits.count = 0;
+  if (pc.ground_at) pc.ground_at(p.x, p.y - kDustAbove, p.z, &hits);
+  flag8(nullptr, saved);
+  float top = p.y - kDustBelow;
+  bool found = false;
+  uint32_t soil = 0;
+  for (int i = 0; i < hits.count; ++i) {
+    const GroundHit& h = hits.hit[i];
+    if (!(top < h.height)) continue;
+    top = h.height;
+    soil = !h.material ? 0 : pc.material_soil ? pc.material_soil(h.material)
+                                              : static_cast<zmod::Material*>(h.material)->soil;
+    found = true;
+  }
+  if (!found) return;
+  Handle fx = soil == 1 ? pilot->landing_splash : pilot->landing_dust;
+  if (!fx) return;
+  DamageCalls& dc = damage_calls();
+  if (soil == 1) {
+    const float args[9] = {p.x, top, p.z, 0, 0, 0, 0, 0, 0};
+    if (dc.spawn_effect) dc.spawn_effect(fx, nullptr, args);
+  } else if (dc.spawn_effect_at) {
+    dc.spawn_effect_at(fx, hip->node, velocity.x, velocity.y, velocity.z);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041660b..0x0041662d: landf made ready and its root's
+// start kept, so the landing's action starts from it.
+void Mech::landing_pose() {
+  MechAction* a = action_objects[3];
+  a->reset();
+  float q[4];
+  a->hip(&action_root.x, q);
 }
 
 }  // namespace mech3

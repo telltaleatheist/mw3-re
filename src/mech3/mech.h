@@ -46,6 +46,8 @@ struct Pilot {
   Handle part_effects[6][3] = {};  // +0x1a4 + 0xc x id: two destruction effects, a trail
   Handle death_effects[4] = {};  // +0x1ec
   int32_t x200 = 0;              // +0x200
+  Handle landing_dust = nullptr;    // +0x204  a landing's dust (0x0041ecf0)
+  Handle landing_splash = nullptr;  // +0x208  and its splash, on a material of soil 1
   Handle water_death = nullptr;  // +0x20c
   int32_t* x228 = nullptr;       // +0x228  a block whose [1] is read
 };
@@ -179,6 +181,9 @@ struct Mech {
   bool vital_part_lost() const;             // inlined in 0x00416660 and 0x00416860
   void select_gait(float dt);         // 0x004181c0
   void masc(bool on);                 // 0x0041df50: max speed x1.25, the speed kept
+  void crouch(bool on);               // 0x0041bda0: the hip down by the crouch depth (not the Elemental)
+  void ground_dust();                 // 0x004164f3.. / 0x00416d3a..: dust or a splash on the ground below
+  void landing_pose();                // 0x0041660b..: landf from its start, its root kept
   void move(float dt, MechAnim* anim, float speed);  // 0x00417a80
   // The pose on the parts (mech_pose.cpp, docs/movement-pose.md).
   float gait_blend(int jets) const;   // 0x00417c65..: the blend-in weight, -1 when none
@@ -300,7 +305,7 @@ struct DamageCalls {
   const float* (*node_matrix)(MechPart&) = nullptr;          // node +0x38 +0x60, 3x3 + translation
   void (*node_update)(MechPart&) = nullptr;                   // 0x004ed530
   bool (*anim_ok)(Mech&, int kind, int arg) = nullptr;        // 0x00416780; test hook, unset runs Mech::queue_action
-  void (*hip_reset)(MechPart& hip, const Vec3* v) = nullptr;  // 0x004621f0
+  void (*hip_reset)(MechPart& hip, const Vec3* v) = nullptr;  // test hook (0x004621f0): unset runs Hip::set_crouch
   void (*death_prep)(Mech&) = nullptr;                        // 0x0041d070
   void (*death_anim)(Mech&, int anim) = nullptr;              // 0x0041b760
   void (*stop_action)(Handle obj) = nullptr;                  // 0x00421060

@@ -172,6 +172,7 @@ add_library(mw3probe SHARED
   tests/probe_mechanim.cpp
   tests/probe_pose.cpp
   tests/probe_parts.cpp
+  tests/probe_controls.cpp
   tests/probe_ai.cpp
   tests/probe_zinput.cpp
 )

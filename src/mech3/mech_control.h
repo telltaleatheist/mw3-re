@@ -14,6 +14,7 @@ struct Mech;
 float fast_exp(float x);
 
 struct MechControls {
+  virtual ~MechControls() = default;
   uint32_t flags = 0;          // +0x08  bit 2 doubles the turn rate
   int32_t view = 0;            // +0x0c  the player's view state 0..3 (0x00426780)
   float throttle = 0;          // +0x10  -1..1, smoothed toward throttle_target
@@ -26,16 +27,75 @@ struct MechControls {
   float axis_2c = 0, axis_30 = 0;  // +0x2c, +0x30  free-look pitch and yaw (the torso's look inputs)
   uint8_t fire = 0;            // +0x34  handed to the weapons each frame (IControls +0x10)
   int32_t wrapped = 0;         // +0x38  set: an order wrapper to take off (primary vt +0x04)
+  bool joy_throttle_set = false;  // +0x3c  the joystick's throttle sets the target outright (the throttle keys clear it)
+  bool jump_held = false;      // +0x3d  a jump set to hold (0x00426b20(v, 1)): the player's zero leaves it
+  bool throttle_held = false;  // +0x3e  cleared by the throttle keys; set, the throttle does not return to zero
+  bool throttle_returns = false;  // +0x3f  ThrottleConst off: with no throttle key the throttle eases to zero
+  float joy_throttle = 0;      // +0x40  the joystick throttle's last reading
   float throttle_target = 0;   // +0x44  -1..1
   float turn_target = 0;       // +0x48
   float jump_target = 0;       // +0x4c
   bool reverse = false;        // +0x50  the last non-zero throttle command was < 0
+  uint32_t last_pov = 1;       // +0x54  the joystick hat's last reading
   bool moves[2] = {true, true};  // +0x58, +0x59  either set: the gait or the actions run
   Mech* owner = nullptr;       // +0x70  (IControls +0x10)
 
-  int update(float dt);          // 0x00426960 (IControls +0x0c, the base and network class)
+  virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
+  int smooth(float dt) { return MechControls::update(dt); }  // 0x00426960 whatever the class
   void set_throttle(float v);    // 0x00426b60 (IControls +0x20)
+  void set_turn(float v) { turn_target = v; }  // 0x00426b10 (IControls +0x28)
+  void set_jump(float v, bool hold = false) {  // 0x00426b20 (IControls +0x34: 0x00426b40, no hold)
+    jump_target = v;
+    jump_held = hold;
+  }
   void zero();                   // 0x00426c80
 };
+
+// The player's controls (ctor 0x00427320, 0x160 bytes; controls.md): the
+// keyboard, joystick and mouse through zInput's commands and devices.
+struct PlayerControls : MechControls {
+  float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
+  float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
+  int update(float dt) override;   // 0x00427d60
+  // 0x00427870: the joystick and mouse axes into the frame's inputs.
+  void read_axes(float dt, float* throttle, float* turn, float* pitch, float* twist, float* look_pitch,
+                 float* look_yaw);
+};
+
+// The AI's controls (ctor 0x004d8750, 0x320 bytes): the AI brain at +0x5c
+// (ai.md section 4, not ported) sets the targets and runs the smoothing.
+struct AiControls : MechControls {
+  int update(float dt) override;   // 0x004e96f0
+};
+
+// The joystick axis bindings (0x006040d0, four 16-byte entries: throttle,
+// twist, pitch, turn), filled by the controls file reader (0x004120a0, not
+// ported) and the options; a source 0 is unbound.
+struct AxisBinding {
+  int32_t source = 0;          // 1..6 the stick's axes, 7, 8 its sliders, 9..11 the mouse's
+  float scale = 0, offset = 0, deadzone = 0;
+  float value(const void* joy, const void* mouse) const;  // 0x0042fe10
+  float delta(const void* joy, const void* mouse) const;  // 0x0042fe70
+};
+AxisBinding* axis_bindings();  // [4]
+
+// What the controls call outside: zInput (unset: its port), the HUD, the
+// pilot and the AI brain (unset: nothing, 0).
+struct ControlsCalls {
+  uint32_t (*command)(int cmd) = nullptr;        // 0x0051d300; unset: zin::command
+  const void* (*joy_state)() = nullptr;          // 0x0051dce0 (a DIJOYSTATE2); unset: zin::joy_state
+  const void* (*joy_config)() = nullptr;         // 0x0051da90 (six zin::JoyAxis); unset: zin::joy_config
+  const void* (*mouse_info)() = nullptr;         // 0x0051b7b0 (a zin::MouseInfo); unset: zin::mouse_info
+  bool (*joy_present)() = nullptr;               // 0x0051dc10; unset: zin::joy_present
+  void (*run_command)(int cmd) = nullptr;        // 0x0051c440; unset: zin::run_callback
+  void (*mouse_set)(float x, float y) = nullptr; // 0x0051b440; unset: zin::mouse_set
+  int (*camera_view)() = nullptr;                // [0x005f4c8c] +0x58 +0x40
+  bool (*mw2_jets)() = nullptr;                  // 0x0040d1e0: the MW2JJets option ([0x005f4d04] bit 7)
+  void (*pilot_tick)(MechControls&) = nullptr;   // IControls +0xa4: 0x004d8990 (0x004d9290)
+  uint8_t (*screen_busy)(void* screen) = nullptr;  // the HUD's +0x167c
+  void (*zoom)(void* screen, bool in) = nullptr; // the HUD's +0x1508: vt +0x60(-1) held, vt +0x64 let go
+  int (*ai_brain)(MechControls&, float dt) = nullptr;  // 0x004e9710 on +0x5c; unset: the smoothing alone
+};
+ControlsCalls& controls_calls();
 
 }  // namespace mech3

@@ -60,6 +60,7 @@ for t in \
     mechdata \
     pose \
     parts \
+    player \
     ai_readers \
     zinput \
     ; do

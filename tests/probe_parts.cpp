@@ -72,7 +72,8 @@ constexpr int32_t kIds[kParts] = {kLeftThigh, kRightThigh, kLeftCalf, kRightCalf
 enum {
   kFlags, kScreenFlags, kTarget, kPosition = kTarget + 3, kMechMatrix = kPosition + 3,
   kEuler = kMechMatrix + 12, kLook = kEuler + 3, kSoil = kLook + 3, kSteps = kSoil + 12,
-  kPrints = kSteps + 11, kPlaying = kPrints + 11, kWorld = kPlaying + 3, kEnv = kWorld + 3 * kNodes,
+  kPrints = kSteps + 11, kPlaying = kPrints + 11, kWorld = kPlaying + 3, kDust = kWorld + 3 * kNodes,
+  kEnv = kDust + 5 + 16,
 };
 
 struct PartsWorld {
@@ -91,6 +92,7 @@ struct PartsWorld {
   MechDfn dfn{0, nullptr};
   float nodes[kNodes][12] = {};
   float transform[12] = {};
+  Handle world_node = nodes[15];
   uint32_t env[kEnv] = {};
   Vec3 position{};
   int screen = 1;
@@ -147,7 +149,8 @@ void part_io(int k, uint8_t* b, bool store) {
     if (!store) f.shadow = sh ? g->nodes[kShadow0 + k - kFoot0] : nullptr;
   } else if (k == kHip) {
     Hip& h = g->hip;
-    io.q(0x74, h.rot), io.q(0x84, h.inv), io.f(0x94, h.track), io.v3(0x98, h.offset), io.f(0xa8, h.crouch_target);
+    io.q(0x74, h.rot), io.q(0x84, h.inv), io.f(0x94, h.track), io.v3(0x98, h.offset), io.f(0xa4, h.target_x);
+    io.f(0xa8, h.crouch_target), io.f(0xac, h.target_z);
   } else if (k == kTorso) {
     Torso& t = g->torso;
     io.i(0x84, t.mode), io.i(0x88, t.aim_local), io.v3(0x8c, t.aim_dir), io.f(0x98, t.facing), io.i(0x9c, t.aim);
@@ -177,9 +180,11 @@ void part_io(int k, uint8_t* b, bool store) {
 void mech_io(uint8_t* b, bool store) {
   Io io{b, store};
   Mech& m = g->m;
-  io.v3(0x24, m.forward), io.v3(0x3c, m.vec_3c), io.f(0x508, m.hip_height), io.f(0x50c, m.crouch_depth);
+  io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.f(0x4bc, m.gait[3][1]);
+  io.f(0x508, m.hip_height), io.f(0x50c, m.crouch_depth);
   io.f(0x518, m.max_speed), io.f(0x520, m.turn_rate), io.bo(0x584, m.no_power_down), io.bo(0x585, m.knee_back);
-  io.h(0x5c8, m.servo()), io.u32(0x688, m.detail);
+  io.bo(0x586, m.crouched), io.h(0x5c8, m.servo()), io.h(0x5e4, m.sounds[11]), io.h(0x5e8, m.sounds[12]);
+  io.u32(0x688, m.detail);
 }
 
 void skis_io(uint8_t* b, bool store) {
@@ -257,11 +262,39 @@ void hooks() {
     return true;
   };
   c.screen_flags = [](void*) { return g->env[kScreenFlags]; };
-  c.servo_sound = [](Mech&) -> void* {
-    log({33});
+  c.sound = [](Mech&, int id, float vol) -> void* {
+    log({33, id, bits(vol), 0});
     return reinterpret_cast<void*>(uintptr_t{9});
   };
+  c.flag8 = [](Handle n, int32_t* get, int set) {
+    if (get) {
+      log({48, node_index(n)});
+      *get = static_cast<int32_t>(g->env[kDust + 3]);
+    } else {
+      log({49, node_index(n), set});
+    }
+    return 0;
+  };
+  c.ground_at = [](float x, float y, float z, void* out) {
+    log({47, node_index(g->world_node), bits(x), bits(y), bits(z)});
+    auto& h = *static_cast<GroundHits*>(out);
+    h.count = static_cast<uint8_t>(g->env[kDust + 4]);
+    for (int k = 0; k < h.count; ++k) {
+      h.hit[k].height = flt(g->env[kDust + 5 + 2 * k]);
+      h.hit[k].material = reinterpret_cast<Handle>(uintptr_t{g->env[kDust + 6 + 2 * k]});
+    }
+  };
+  c.material_soil = [](Handle m) { return static_cast<uint32_t>(hid(m)); };
+  move_calls().pilot_sound = [](Mech&, int id, float vol, float) -> Sound {
+    log({42});
+    log({33, id, bits(vol), 1});
+    return reinterpret_cast<Sound>(uintptr_t{9});
+  };
   DamageCalls& d = damage_calls();
+  d.spawn_effect_at = [](Handle e, Handle n, float x, float y, float z) {
+    log({46, hid(e), node_index(n), bits(x), bits(y), bits(z)});
+    return Handle{};
+  };
   d.stop_foot_effect = [](Handle e) { log({25, hid(e)}); };
   d.node_set_active = [](Handle n, int on) { log({23, node_index(n), on}); };
   d.spawn_effect = [](Handle e, Handle n, const float a[9]) {
@@ -301,7 +334,8 @@ void unhook() {
   pose_calls() = PoseCalls{};
   DamageCalls& d = damage_calls();
   d.stop_foot_effect = nullptr, d.node_set_active = nullptr, d.spawn_effect = nullptr, d.hud_weapons = nullptr;
-  d.free_part = nullptr;
+  d.free_part = nullptr, d.spawn_effect_at = nullptr;
+  move_calls().pilot_sound = nullptr;
   heat_calls().screen = nullptr, heat_calls().stop_sound = nullptr;
   update_calls().turn = nullptr, update_calls().dfn = nullptr;
   skis_calls().position = nullptr, skis_calls().soil = nullptr;
@@ -329,6 +363,9 @@ void probe_parts_load(const uint8_t* mech, const uint8_t* parts, const float* no
     w.soils.footprint[i] = reinterpret_cast<Handle>(uintptr_t{env[kPrints + i]});
   }
   w.pilot.soils = &w.soils;
+  w.pilot.roster = static_cast<int32_t>(env[kDust]);
+  w.pilot.landing_dust = reinterpret_cast<Handle>(uintptr_t{env[kDust + 1]});
+  w.pilot.landing_splash = reinterpret_cast<Handle>(uintptr_t{env[kDust + 2]});
   w.m.pilot = &w.pilot;
   w.m.controls = &w.ctl;
   w.ctl.owner = &w.m;
@@ -384,6 +421,14 @@ float probe_parts_op(int op, const float* a) {
     case 7: return w.hip.setup() ? 1.0f : 0.0f;
     case 8: return w.legs[i].setup() ? 1.0f : 0.0f;
     case 9: return w.arms[i].setup() ? 1.0f : 0.0f;
+    case 10: w.m.crouch(i != 0); break;
+    case 11: w.hip.duck(a[2]); break;
+    case 12: {
+      const Vec3 v{a[0], a[2], a[3]};
+      w.hip.set_crouch(&v);
+      break;
+    }
+    case 13: case 14: w.m.ground_dust(); break;
     default: return -1.0f;
   }
   return 0.0f;

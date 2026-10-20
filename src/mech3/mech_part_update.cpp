@@ -37,6 +37,7 @@ constexpr double kNear = 0.009999999776482582;  // 0x005c2800
 constexpr float kShakeStep = 0.06666667f;  // 0x005c2808: the shake spring in 1/15 s substeps
 constexpr float kServoVolume = 0.6f;       // 0x3f19999a
 constexpr int kServoSound = 4;
+constexpr int kDuckSound = 0xc, kDuckSlot = 12;  // mech +0x5e8
 constexpr float kRecoilHold = 4.0f;        // 0x005c2820, per second
 constexpr float kRecoilDecay = 6.0f;       // 0x005c2824
 constexpr float kRecoilMin = 0.001f;       // 0x005c2828
@@ -61,7 +62,8 @@ const MechDfn* mech_def(Mech& m) {
 void* screen(Mech& m) {
   return &m == world().player && heat_calls().screen ? heat_calls().screen(m) : nullptr;
 }
-// The HUD's +0x1514 bit 4 clear: the player's torso turns at 0.3 the rate.
+// The HUD's +0x1514 bit 4 clear (the reticule zoomed in, controls.md): the
+// player's torso turns at 0.3 the rate.
 bool slow_turn(Mech& m) {
   void* s = screen(m);
   return s && g_calls.screen_flags && !(g_calls.screen_flags(s) & 0x10);
@@ -244,6 +246,29 @@ void Hip::update(float dt) {
   if (offset.y > 0.0f) offset.y = 0.0f;
   else if (depth > offset.y) offset.y = depth;
   node_changed();
+}
+
+// Mech3.exe 1.2 @ 0x004621f0: the crouch's target (only y is used), kept
+// within [-crouch depth, 0]; the update eases toward it.
+void Hip::set_crouch(const Vec3* t) {
+  target_x = t->x, crouch_target = t->y, target_z = t->z;
+  const float depth = -mech->crouch_depth;
+  if (crouch_target > 0.0f) crouch_target = 0.0f;
+  else if (depth > crouch_target) crouch_target = depth;
+}
+
+// Mech3.exe 1.2 @ 0x004622a0 (a ceiling hit, mech_collide): the hip drops by
+// amount x the crouch depth at once (amount within 0..1), within [-depth, 0];
+// the duck sound with sounds on.
+void Hip::duck(float amount) {
+  Mech& m = *mech;
+  const float a = amount > 1.0f ? 1.0f : !(amount >= 0.0f) ? 0.0f : amount;
+  offset.y = offset.y - a * m.crouch_depth;
+  const float depth = -m.crouch_depth;
+  if (offset.y > 0.0f) offset.y = 0.0f;
+  else if (depth > offset.y) offset.y = depth;
+  if (m.detail & 1)
+    m.sounds[kDuckSlot] = move_calls().pilot_sound ? move_calls().pilot_sound(m, kDuckSound, 1.0f, -1.0f) : nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x00463ee0
@@ -625,7 +650,8 @@ void Torso::update(float dt) {
     yaw_pitch(yaw, pitch, turn_q);
     yaw_pitch(look_yaw_angle + yaw, look_pitch_angle + pitch, view_q);
     if (!servo) {
-      if (!view_aim && input && !clamped) m.servo() = g_calls.servo_sound ? g_calls.servo_sound(m) : nullptr;
+      if (!view_aim && input && !clamped)
+        m.servo() = g_calls.sound ? g_calls.sound(m, kServoSound, kServoVolume) : nullptr;
     } else if ((view_aim || !input || clamped) && m.servo()) {
       if (heat_calls().stop_sound) heat_calls().stop_sound(m.servo());
       m.servo() = nullptr;

@@ -33,9 +33,9 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
-from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT, STACK_TOP, Original  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EIP, UC_X86_REG_ESI, UC_X86_REG_ESP  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
@@ -58,7 +58,9 @@ SOIL_TABLE, CAMERA, MISSION, STATS = 0x608c00, 0x5f4c8c, 0x60861c, 0x608620
 # env words, probe_parts.cpp's order.
 FLAGS, SCREEN_FLAGS, TARGET, POSITION, MECH_MATRIX, EULER, LOOK, SOIL, STEPS, PRINTS, PLAYING, WORLD = (
     0, 1, 2, 5, 8, 20, 23, 26, 38, 49, 60, 63)
-ENV = WORLD + 3 * NNODES
+DUST = WORLD + 3 * NNODES  # roster, dust, splash, the mech node's flag 8, hit count, 8 x (height, material)
+ENV = DUST + 5 + 16
+WORLD_OBJ = 0x608c84
 
 
 def F(o, n=1):
@@ -69,7 +71,7 @@ BASE = [(0x48, 'b'), (0x49, 'b'), (0x4a, 'b')] + F(0x4c, 7)
 LEG = BASE + [(0x7c, 'b')] + F(0x80, 2 + 8 + 11)
 FOOT = BASE + F(0x74) + F(0x7c, 3) + [(0x78, 'i'), (0x88, 'b')] + F(0x8c, 2) + [(0x94, 'i'), (0xac, 'b'), (0xc0, 'b')] + \
     F(0xc4, 4) + F(0xd4, 4) + [(0xe4, 'i'), (0xe8, 'i')]
-HIP_F = BASE + F(0x74, 8) + F(0x94, 4) + F(0xa8)
+HIP_F = BASE + F(0x74, 8) + F(0x94, 4) + F(0xa4, 3)
 TORSO_F = BASE + [(0x84, 'i'), (0x88, 'i')] + F(0x8c, 4) + [(0x9c, 'i'), (0xa0, 'b'), (0xa1, 'b'), (0xa2, 'b')] + \
     F(0xa4, 10) + F(0xd0, 2) + F(0xd8, 6) + F(0xf0, 4) + F(0x100, 6) + F(0x118, 4) + F(0x128, 4) + F(0x138, 5) + \
     F(0x158, 2) + F(0x160, 6) + [(0x1b0, 'i')]
@@ -77,8 +79,8 @@ ARM_F = BASE + F(0x2c) + F(0x34) + [(0x74, 'i')] + F(0x78, 5) + F(0x8c, 3) + F(0
     [(0xcc, 'b')]
 HAND_F = BASE + F(0x74, 4) + F(0x84, 3)
 FIELDS = [LEG, LEG, BASE, BASE, FOOT, FOOT, HIP_F, TORSO_F, ARM_F, ARM_F, HAND_F, HAND_F]
-MECH_FIELDS = F(0x24, 3) + F(0x3c, 3) + F(0x508, 2) + F(0x518) + F(0x520) + [(0x584, 'b'), (0x585, 'b'), (0x5c8, 'i'),
-                                                                           (0x688, 'i')]
+MECH_FIELDS = F(0x24, 3) + F(0x30, 3) + F(0x3c, 3) + F(0x4bc) + F(0x508, 2) + F(0x518) + F(0x520) + \
+    [(0x584, 'b'), (0x585, 'b'), (0x586, 'b'), (0x5c8, 'i'), (0x5e4, 'i'), (0x5e8, 'i'), (0x688, 'i')]
 CTL_FIELDS = F(0x10, 2)
 
 
@@ -88,6 +90,10 @@ def f32(x):
 
 def u(x):
     return struct.unpack('<I', struct.pack('<f', x))[0]
+
+
+def u2f(x):
+    return struct.unpack('<f', struct.pack('<I', x))[0]
 
 
 def put(buf, off, kind, v):
@@ -166,6 +172,11 @@ class World:
         s(0x41e9a0, lambda c: self.log(44) or self.dfn)
         s(0x4846a0, lambda c: self.log(45) or self.dfn)
         s(0x430aa0, lambda c: self.log(43) or (self.screen if self.flags >> 3 & 1 else 0))
+        s(0x4edab0, self.ground_at, 12)
+        s(0x4eb660, self.flag8_get)
+        s(0x4eb620, lambda c: self.log(49, self.node_index(c.ecx), c.edx))
+        s(0x508c10, lambda c: self.log(46, c.ecx, self.node_index(c.edx), c.arg(0), c.arg(1), c.arg(2)), 12)
+        self.world_obj = a(8)
         # A thunk that pushes the ground update's 0 and keeps its st0.
         self.ground = cpu.code(b'\x6a\x00\xb8' + struct.pack('<I', 0x462a10) + b'\xff\xd0\xd9\x1d' +
                                struct.pack('<I', self.slot) + b'\xc3')
@@ -187,6 +198,31 @@ class World:
 
     def fx_id(self, e):
         return self.fx.index(e) if e in self.fx[1:] else e
+
+    def ground_at(self, c):
+        self.log(47, self.node_index(c.ecx), c.arg(0), c.arg(1), c.arg(2))
+        e = self.env[DUST:]
+        out = bytearray(0x504)
+        out[0] = e[4]
+        for k in range(e[4]):
+            struct.pack_into('<I', out, 4 + 0x28 * k + 0x10, e[5 + 2 * k])
+            m = e[6 + 2 * k]
+            struct.pack_into('<I', out, 4 + 0x28 * k + 0x20, self.mats[m] if m else 0)
+        c.write(c.edx, out)
+        return 0
+
+    def flag8_get(self, c):
+        self.log(48, self.node_index(c.ecx))
+        c.u32(c.edx, self.env[DUST + 3])
+        return 0
+
+    def run_at(self, start, until, regs):
+        uc = self.cpu.uc
+        for r_, v in regs.items():
+            uc.reg_write(r_, v & 0xffffffff)
+        uc.emu_start(start, until, count=5_000_000)
+        if uc.reg_read(UC_X86_REG_EIP) != until:
+            raise RuntimeError(f'{start:#x} did not reach {until:#x}')
 
     def step_on(self, uc, address, size, user):
         c = self.cpu
@@ -221,9 +257,9 @@ class World:
 
     def servo(self, c):
         args = [c.arg(k) for k in range(5)]
-        if args != [4, u(0.6), 0, 0, u(-1.0)]:
-            raise SystemExit(f'servo sound args {args}')
-        self.log(33)
+        if args[3:] != [0, u(-1.0)]:
+            raise SystemExit(f'sound args {args}')
+        self.log(33, args[0], args[1], 1 if args[2] else 0)
         return 9
 
     def env_bytes(self, i, n):
@@ -288,7 +324,11 @@ class World:
         cpu.u32(self.ctl + 4, self.vbt)
         cpu.write(self.vbt, struct.pack('<II', 0, 0x5c))
         cpu.u32(self.ctl + 0x60, CTL_VT)
-        cpu.u32(self.pilot + 0xc, 3)
+        cpu.u32(self.pilot + 0xc, s['env'][DUST])
+        cpu.u32(self.pilot + 0x204, s['env'][DUST + 1])
+        cpu.u32(self.pilot + 0x208, s['env'][DUST + 2])
+        cpu.u32(WORLD_OBJ, self.world_obj)
+        cpu.u32(self.world_obj + 4, self.nodes[FX_NODE0])
         cpu.u32(self.pilot + 0x230, self.soils)
         cpu.write(self.soils, self.env_bytes(STEPS, 22))
         cpu.u32(self.screen + 0x1514, s['env'][SCREEN_FLAGS])
@@ -342,10 +382,24 @@ class World:
             cpu.call(0x464e80, ecx=p[TORSO], stack_args=(dt,))
         elif op == 6:
             cpu.call(vt(HAND0, 0x10), ecx=p[HAND0 + i], stack_args=(dt,))
-        else:
+        elif op in (7, 8, 9):
             k = {7: HIP, 8: LEG0 + i, 9: ARM0 + i}[op]
             cpu.call(vt(k, 4), ecx=p[k])
             return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 10:
+            cpu.call(0x41bda0, ecx=self.mech, stack_args=(i,))
+        elif op == 11:
+            cpu.call(0x4622a0, ecx=p[HIP], stack_args=(u(a[2]),))
+        elif op == 12:
+            cpu.write(self.slot, struct.pack('<3f', a[0], a[2], a[3]))
+            cpu.call(0x4621f0, ecx=p[HIP], stack_args=(self.slot,))
+        elif op == 13:
+            esp = STACK_TOP - 0x3000
+            self.run_at(0x4164f3, 0x41660b, {UC_X86_REG_ESP: esp, UC_X86_REG_ESI: self.mech})
+        elif op == 14:
+            ebp = STACK_TOP - 0x2000
+            self.run_at(0x416d3a, 0x416e91, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: ebp - 0x640,
+                                             UC_X86_REG_ESI: self.mech})
         return 0.0
 
 
@@ -526,6 +580,23 @@ def scenario(rng, op):
             z = struct.unpack_from('<f', nodes, 48 * (FOOT0 + i) + 44)[0]
             a_, b_, c_ = (struct.unpack_from('<f', skis, o + 4 * i)[0] for o in (0x54, 0x5c, 0x64))
             env[WORLD + 3 * (FOOT0 + i) + 1] = u(f32(z * z * a_ - b_ * z + c_ + rng.uniform(-0.3, 0.8)))
+    env[DUST] = rng.choice([3, 3, 7])
+    env[DUST + 1] = rng.choice([0, 0x61])
+    env[DUST + 2] = rng.choice([0, 0x62])
+    env[DUST + 3] = rng.choice([0, 1])
+    env[DUST + 4] = rng.choice([0, 1, 2, 3, 8])
+    ty = u2f(env[WORLD + 3 * TORSO + 1])
+    for k in range(8):
+        env[DUST + 5 + 2 * k] = u(f32(ty - 50.0) if rng.random() < 0.15 else f32(ty + rng.uniform(-70, 70)))
+        env[DUST + 6 + 2 * k] = rng.choice([0, 1, 1, rng.randrange(2, 12)])
+    for j in range(3):
+        put(mech, 0x30 + 4 * j, 'f', rnd(rng, -20, 20))
+    put(mech, 0x4bc, 'f', rnd(rng, 0, 0.3))
+    if rng.random() < 0.2:  # the throttle right at the step's top speed
+        put(ctl, 0x10, 'f', struct.unpack_from('<f', mech, 0x4bc)[0] * rng.choice([1, -1]))
+    put(mech, 0x586, 'b', rng.random() < 0.5)
+    put(mech, 0x5e4, 'i', rng.choice([0, 3]))
+    put(mech, 0x5e8, 'i', rng.choice([0, 4]))
     dfn = bytearray(DEF_SIZE)
     put(dfn, 0x148, 'f', rng.choice([0.0, rnd(rng, 0.5, 3), rnd(rng, -2, -0.1)]))
     for o in range(0x174, 0x1a4, 4):
@@ -581,8 +652,9 @@ def compare(what, want, wlog, got, glog):
                          f'  port     {glog[max(0, k - 8):k + 24]}')
 
 
-OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9]
-NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup']
+OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14]
+NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
+         'duck', 'crouch target', 'landing dust', 'action dust']
 
 
 def main():
@@ -595,7 +667,7 @@ def main():
         op = rng.choice(OPS)
         s = scenario(rng, op)
         dt = rng.choice([0.0, f32(1 / 30), f32(1 / 60), rnd(rng, 0.001, 0.2), rnd(rng, 0.05, 0.4)])
-        args = [dt, float(rng.randrange(2)), rnd(rng, -0.5, 1.5), 0.0]
+        args = [dt, float(rng.randrange(2)), rng.choice([rnd(rng, -0.5, 1.5), rnd(rng, -5, 0)]), rnd(rng, -2, 2)]
         world.load(s)
         wret = world.run(op, args)
         want, wlog = world.store()

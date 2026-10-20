@@ -11,7 +11,7 @@ struct MoveCalls {
   void (*move)(Mech&, float dt, MechAnim* anim, float speed) = nullptr;  // test hook; unset runs Mech::move
   void (*foot_ground)(Foot&) = nullptr;            // test hook (0x00462a10): unset runs Foot::ground_update
   void (*gait_pose)(Mech&, MechAnim&, float blend) = nullptr;  // test hook (0x00417bbc..): unset runs Mech::pose_gait
-  void (*crouch)(Mech&, int on) = nullptr;                              // 0x0041bda0
+  void (*crouch)(Mech&, int on) = nullptr;         // test hook (0x0041bda0): unset runs Mech::crouch
   void (*wading_effect)(int on) = nullptr;                              // 0x00433930 on [0x00608620]
   bool (*skis_update)(Mech&, float dt) = nullptr;  // test hook; unset runs Skis::update
   Sound (*pilot_sound)(Mech&, int id, float volume, float pitch) = nullptr;  // 0x00432990 at the mech
@@ -21,13 +21,13 @@ struct MoveCalls {
   void (*ff_jets)(int on) = nullptr;               // 0x00433870 on [0x00608620]
   void (*ff_landing)(float jolt) = nullptr;        // 0x00433800 on [0x00608620]
   void (*jet_pose)(Mech&) = nullptr;               // test hook (0x004177e7..0x004179fd): unset runs Mech::pose_jump
-  void (*landing_dust)(Mech&) = nullptr;           // 0x004164f3..0x0041660b: a ray down, dust or splash
-  void (*landing_pose)(Mech&) = nullptr;           // 0x0041660b: landf's Reset and root (+0x494)
+  void (*landing_dust)(Mech&) = nullptr;           // test hook (0x004164f3..0x0041660b): unset runs Mech::ground_dust
+  void (*landing_pose)(Mech&) = nullptr;           // test hook (0x0041660b..): unset runs Mech::landing_pose
   void (*controls_landed)(Mech&) = nullptr;        // controls vt +0xac (0x005ac5c0, nothing, in the base)
   void (*weapons_enable)(Mech&, int on) = nullptr; // 0x004b0bf0 on +0xd4
   void (*fall_camera)(Mech&) = nullptr;            // 0x00413af0
   void (*restore_camera)(Mech&) = nullptr;         // 0x00413b70
-  void (*action_dust)(Mech&) = nullptr;            // 0x00416d3a..0x00416e91: landf/landb's ray, dust or splash
+  void (*action_dust)(Mech&) = nullptr;            // test hook (0x00416d3a..0x00416e91): unset runs Mech::ground_dust
   void (*action_pose)(Mech&, MechAction&, const Vec3& hip, const float q[4]) = nullptr;  // test hook (0x00416fb8..0x00417293): unset runs Mech::pose_action
 };
 MoveCalls& move_calls();

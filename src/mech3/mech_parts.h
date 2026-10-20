@@ -49,7 +49,10 @@ struct PartCalls {
   bool (*aim_point)(Mech&, Vec3* at) = nullptr;             // +0xd4: +0x18 has a target, +0x0c its point (the arms' aim)
   int (*node_angles)(Handle node, float out[3]) = nullptr;  // 0x004ed5d0: the node's world Euler angles; unset: zcls::node_world_euler
   uint32_t (*screen_flags)(void* screen) = nullptr;         // the HUD's +0x1514
-  void* (*servo_sound)(Mech&) = nullptr;                    // 0x00432990(4, 0.6, 0, 0, -1) on +0x684
+  void* (*sound)(Mech&, int id, float volume) = nullptr;    // 0x00432990(id, volume, 0, 0, -1) on +0x684: not placed
+  int (*flag8)(Handle node, int32_t* get, int set) = nullptr;  // 0x004eb660 (get) / 0x004eb620 (set); unset: zcls's
+  void (*ground_at)(float x, float y, float z, void* hits) = nullptr;  // 0x004edab0 on [0x00608c84] +4 (a GroundHits)
+  uint32_t (*material_soil)(Handle material) = nullptr;     // +0x20; unset: zmod::Material::soil
 };
 PartCalls& part_calls();
 
@@ -258,10 +261,14 @@ class Hip : public MechPart {    // vtable 0x005c28a8
   float inv[4] = {1, 0, 0, 0};    // +0x84  its inverse
   float track = 0;               // +0x94  between the thighs
   Vec3 offset{};                 // +0x98  added to the pose (y: the crouch, toward crouch_target)
+  float target_x = 0;            // +0xa4  (the crouch's target is a vector; only y is read)
   float crouch_target = 0;       // +0xa8
+  float target_z = 0;            // +0xac
   void set_pose(const Vec3* pos, const float* q) override;  // 0x004624b0
   bool setup() override;         // 0x00462130
   void update(float dt) override;  // 0x004623a0
+  void set_crouch(const Vec3* target);  // 0x004621f0: kept in [-crouch depth, 0]
+  void duck(float amount);       // 0x004622a0: down by amount (0..1) x the crouch depth at once
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00462560
   void apply_impact(Vec3* impulse, float force) override;   // 0x00466c30
   void destroy(int variant, int fly) override;              // 0x00462490

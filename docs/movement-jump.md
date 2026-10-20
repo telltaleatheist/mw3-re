@@ -84,6 +84,17 @@ imp > 0.7: each leg takes imp * 0.005
 detail bit 3: SetThrottle(0), a 50 m ray down: a splash on water, dust otherwise; landing pose
 ```
 
+The ray down (0x4164f3, the same code as landf / landb's start at 0x416d3a
+through 0x41eb90 and 0x41ecf0; ported as `Mech::ground_dust`): the world's
+ground query (0x4edab0) under the torso from 50 m above, the mech's own node
+left out (its flag 8 cleared and put back, 0x4eb660 / 0x4eb620); the highest
+hit above 50 m below wins. A material of soil 1 (the material's own +0x20,
+not the soil table's) gives the pilot's splash (+0x208, 0x508aa0) at the
+hit; anything else the dust (+0x204) on the hip moving with the mech
+(0x508c10). The landing pose (0x41660b, `Mech::landing_pose`) resets landf
+and keeps its root's start (+0x494) for the action that follows.
+`test_parts.py` checks both rays.
+
 ## Falls and getting up
 
 ```

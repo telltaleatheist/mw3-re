@@ -189,7 +189,7 @@ a mech and a node registers (0x41b8d0) and inits its armor (vt +0x08).
   to `1.75 yaw / ((1 - 0.8 |throttle|) turn_rate)`, the mech's Turn runs
   (vt +0x170), the turn is zeroed: the legs come round under the torso at
   1.75 x the twist per second. Rate mode (+0xa0 clear, 0x464ce0): yaw and
-  pitch += dt x input (x 0.3 with the HUD's +0x1514 bit 4 clear), clamped to
+  pitch += dt x input (x 0.3 zoomed in: the HUD's +0x1514 bit 4 clear), clamped to
   def +0x174 max yaw, +0x178 max pitch, +0x17c min pitch; the free look the
   same with the cockpit's limits (mech vt +0x10c(1), vt +0x1c: +0x68,
   +0x74, +0x70), which stay in the torso's fields. Absolute mode (or

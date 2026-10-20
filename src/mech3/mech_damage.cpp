@@ -221,6 +221,7 @@ bool Mech::knocked_down(int kind) {
   if (down) {
     static const Vec3 zero{0, 0, 0};  // 0x0063d870
     if (c.hip_reset) c.hip_reset(*hip, &zero);
+    else hip->set_crouch(&zero);
     if (this == world().mission_player && world().stats && c.stats) c.stats(0x433840, 0);
   }
   knock = 0.0f;

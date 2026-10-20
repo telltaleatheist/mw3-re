@@ -3,7 +3,10 @@
 #include <cmath>
 #include <cstring>
 
+#include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
+#include "platform/platform.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -71,6 +74,266 @@ void MechControls::set_throttle(float v) {
 void MechControls::zero() {
   jj_strafe = jj_forward = twist = pitch = axis_30 = axis_2c = 0;
   throttle_target = throttle = turn_target = turn = jump_target = jump = 0;
+}
+
+namespace {
+ControlsCalls g_calls;
+AxisBinding g_axes[4];
+
+// The commands the player's controls read (the CMD_ ids, docs/controls.md).
+constexpr int kTurnLeft = 2, kTurnRight = 3, kPitchUp = 4, kPitchDown = 5, kTwistLeft = 8, kTwistRight = 9;
+constexpr int kJetsUp = 0xc, kJetsForward = 0xd, kJetsBack = 0xe, kJetsLeft = 0xf, kJetsRight = 0x10;
+constexpr int kJetsTurnLeft = 0x11, kJetsTurnRight = 0x12, kZoom = 0x14, kThrottleUp = 0x18;
+constexpr int kThrottleDown = 0x19, kFire = 0x3d;
+constexpr int kZoomSound = 0x17, kZoomSoundSlot = 23;  // mech +0x614
+constexpr float kThrottleStep = 0.025f;    // 0x3ccccccd, a frame
+constexpr float kThrottleReturn = -0.7f;   // 0x005e25b0, per second
+constexpr double kThrottleZero = 0.05;     // 0x005bd648
+constexpr float kInputRate = 6.0f;         // 0x005e25b4, per second
+constexpr double kInputSnap = 0.05000000074505806;  // 0x005bd5f0
+constexpr float kTwistKey = 1.5f;          // 0x3fc00000
+constexpr float kMouseYaw = -0.26f, kMousePitch = -0.16f;  // 0x005e25a0, 0x005e25a4: per pixel a frame
+constexpr float kMouseLook = 1.5f;         // 0x005bd634
+constexpr float kLookReturn = 5.0f;        // 0x005e25ac
+
+const platform::JoyState* joy() {
+  return static_cast<const platform::JoyState*>(g_calls.joy_state ? g_calls.joy_state() : zin::joy_state());
+}
+const zin::MouseInfo* mouse() {
+  return static_cast<const zin::MouseInfo*>(g_calls.mouse_info ? g_calls.mouse_info() : zin::mouse_info());
+}
+const zin::JoyAxis* joy_axes() {
+  return static_cast<const zin::JoyAxis*>(g_calls.joy_config ? g_calls.joy_config() : zin::joy_config());
+}
+bool held(int cmd) { return ((g_calls.command ? g_calls.command(cmd) : zin::command(cmd)) & 3) != 0; }
+void run_command(int cmd) {
+  if (g_calls.run_command) g_calls.run_command(cmd);
+  else zin::run_callback(cmd);
+}
+
+float clamp1(float v) { return v > 1.0f ? 1.0f : !(v >= -1.0f) ? -1.0f : v; }
+
+// (target - v) * 6 dt + v, snapped within 0.05.
+void approach(float& v, float target, float dt) {
+  const float n = (target - v) * kInputRate * dt + v;
+  v = n;
+  if (std::fabs(target - n) < kInputSnap) v = target;
+}
+
+// Mech3.exe 1.2 @ 0x0042fea0: a source's reading. The stick's axes are
+// centred and scaled by zInput's setup (0x0051da90); 9..11 the mouse's
+// position from the centre.
+float source_value(int32_t src, const platform::JoyState* j, const zin::MouseInfo* m) {
+  const zin::JoyAxis* a = joy_axes();
+  if (src >= 1 && src <= 6) {
+    if (!j) return 0.0f;
+    const int32_t v[6] = {j->x, j->y, j->z, j->rx, j->ry, j->rz};
+    return (static_cast<float>(v[src - 1]) + a[src - 1].centre) * a[src - 1].scale;
+  }
+  if (src == 7 || src == 8) return j ? static_cast<float>(j->slider[src - 7]) : 0.0f;
+  if (src >= 9 && src <= 11) {
+    if (!m) return 0.0f;
+    return src == 9 ? m->fx : src == 10 ? m->fy : m->fz;
+  }
+  return 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x0042fff0: a source's motion this read (the stick's
+// velocities, never filled; the mouse's scaled motion).
+float source_delta(int32_t src, const platform::JoyState* j, const zin::MouseInfo* m) {
+  if (src >= 1 && src <= 8) return j ? static_cast<float>(j->rest[src - 1]) : 0.0f;
+  if (src == 9) return m->fdx;
+  if (src == 10) return m->fdy;
+  if (src == 11) return m->fdz;
+  return 0.0f;
+}
+}  // namespace
+
+ControlsCalls& controls_calls() { return g_calls; }
+AxisBinding* axis_bindings() { return g_axes; }
+
+// Mech3.exe 1.2 @ 0x0042fe10: scaled and offset, 0 inside the dead zone.
+float AxisBinding::value(const void* j, const void* m) const {
+  const float r = source_value(source, static_cast<const platform::JoyState*>(j), static_cast<const zin::MouseInfo*>(m));
+  const float v = scale * r + offset;
+  return deadzone > std::fabs(v) ? 0.0f : v;
+}
+
+// Mech3.exe 1.2 @ 0x0042fe70: the motion, scaled and offset (no dead zone).
+float AxisBinding::delta(const void* j, const void* m) const {
+  return source_delta(source, static_cast<const platform::JoyState*>(j), static_cast<const zin::MouseInfo*>(m)) *
+             scale + offset;
+}
+
+// Mech3.exe 1.2 @ 0x00427870. The bound axes: the turn, the throttle (its
+// sign flipped in reverse), and twist and pitch. With both on the mouse
+// (sources 9..11) they are motion turned into rates by the view state (+0x0c:
+// 0 the torso, 1 the free look at 1.5x, 2 a pointer, 3 the torso with the
+// pointer held at the mouse look's place); else positions, the free look in
+// view 1, and the camera's look drifting back by the pitch. A stick: its
+// throttle counts only once it has moved (then it sets the target outright),
+// and a change of the hat runs the camera's commands.
+void PlayerControls::read_axes(float dt, float* thr, float* tn, float* p, float* tw, float* lp, float* ly) {
+  const platform::JoyState* j = joy();
+  const zin::MouseInfo* m = mouse();
+  const int cam = g_calls.camera_view ? g_calls.camera_view() : 0;
+  const AxisBinding* ax = g_axes;
+  if (ax[3].source != 0) *tn = ax[3].value(j, m);
+  if (ax[0].source != 0) {
+    const float sign = reverse ? -1.0f : 1.0f;  // IControls +0x18
+    *thr = ax[0].value(j, m) * sign;
+  }
+  if (ax[2].source >= 9 && ax[1].source >= 9) {
+    const float inv = 1.0f / dt;
+    const float fx = inv * kMouseYaw, fy = inv * kMousePitch;
+    switch (view) {
+      case 0:
+        look_y = look_x = look_dy = look_dx = 0.0f;
+        *tw = ax[1].delta(j, m) * fx;
+        *p = ax[2].delta(j, m) * fy;
+        break;
+      case 1:
+        look_y = look_x = look_dy = look_dx = 0.0f;
+        *ly = ax[1].delta(j, m) * fx * kMouseLook;
+        *lp = ax[2].delta(j, m) * fy * kMouseLook;
+        break;  // (the exe writes 2 over its copy of the camera's view here; the hat, not read in view 1, never sees it)
+      case 2: {
+        const float a = ax[1].value(j, m), b = ax[2].value(j, m);
+        look_dx = look_x - a;
+        look_dy = look_y - b;
+        look_x = a;
+        look_y = b;
+        *p = 0.0f;
+        *tw = 0.0f;
+        break;
+      }
+      case 3:
+        *tw = ax[1].delta(j, m) * fx;
+        *p = ax[2].delta(j, m) * fy;
+        if (g_calls.mouse_set) g_calls.mouse_set(look_x, look_y);
+        else zin::mouse_set(look_x, look_y);
+        break;
+      default:
+        break;
+    }
+  } else {
+    const bool free = cam == 0 || cam == 1;
+    if (ax[1].source != 0) {
+      *tw = clamp1(ax[1].value(j, m));
+      if (view == 1) *ly = *tw, *tw = 0.0f;
+    }
+    if (ax[2].source != 0) {
+      *p = clamp1(ax[2].value(j, m));
+      if (view == 1) *lp = *p, *p = 0.0f;
+    }
+    look_y = free ? clamp1(look_y - kLookReturn * dt * *p) : 0.0f;
+  }
+  if (!(g_calls.joy_present ? g_calls.joy_present() : zin::joy_present())) return;
+  if (!joy_throttle_set) {
+    if (!(*thr < joy_throttle || *thr > joy_throttle)) {
+      *thr = 0.0f;
+    } else {
+      joy_throttle_set = true;
+      joy_throttle = *thr;
+    }
+  } else {
+    joy_throttle = *thr;
+  }
+  const uint32_t pov = j->pov[0];
+  if (last_pov == pov || view == 1) return;
+  last_pov = pov;
+  if ((pov & 0xffff) == 0xffff) return;  // centred
+  const int dir = pov < 4500 ? 0 : pov <= 13500 ? 1 : pov < 22500 ? 2 : pov > 31500 ? 0 : 3;
+  static const int kHatCommand[4] = {0x65, 0x63, 0x64, 0x62};  // up, right, down, left (camera commands)
+  static const int kHatView[4] = {4, 0, 5, 1};  // the view in which each gives 0x66 (up: 0x66 in view 4)
+  const int cmd = dir == 0 ? 0x65 + (cam == 4 ? 1 : 0) : cam == kHatView[dir] ? 0x66 : kHatCommand[dir];
+  run_command(cmd);
+}
+
+// Mech3.exe 1.2 @ 0x00427d60. Not while powering down: the pilot's tick
+// (lance orders, likely), the axes, then the keys over them; the reticule
+// zoom; the throttle (a step a frame, or the joystick's outright, or easing
+// back to zero with ThrottleConst off); the turn and jump; pitch, twist and
+// the free look eased toward their inputs at 6/s. Then the smoothing.
+int PlayerControls::update(float dt) {
+  Mech& m = *owner;
+  if (!m.is_powered_down()) {  // vtable +0xa0, 0x0041cc10
+    if (g_calls.pilot_tick) g_calls.pilot_tick(*this);
+    float d = 0, tn = 0, jump_in = 0, p = 0, tw = 0, lp = 0, ly = 0, strafe = 0, ahead = 0;
+    void* screen = &m == world().player && heat_calls().screen ? heat_calls().screen(m) : nullptr;
+    read_axes(dt, &d, &tn, &p, &tw, &lp, &ly);
+    // FIX (B): the throttle keys' step is per 1/30 s, not per frame (fixes.md, Frame rate).
+    const float step = kThrottleStep * zfix::frame_steps(dt);
+    if (held(kThrottleUp)) {
+      d = step;
+      joy_throttle_set = throttle_held = false;
+    } else if (held(kThrottleDown)) {
+      d = -step;
+      joy_throttle_set = throttle_held = false;
+    }
+    if (held(kTurnLeft)) tn = 1.0f;
+    else if (held(kTurnRight)) tn = -1.0f;
+    if (m.equipment[11] > 0) {  // jump jets
+      if (held(kJetsUp)) jump_in = 1.0f;
+      if (g_calls.mw2_jets && g_calls.mw2_jets()) {
+        if (held(kJetsForward)) jump_in = 1.0f, ahead = 1.0f;
+        else if (held(kJetsBack)) jump_in = 1.0f, ahead = -1.0f;
+        if (held(kJetsLeft)) jump_in = 1.0f, strafe = -1.0f;
+        else if (held(kJetsRight)) jump_in = 1.0f, strafe = 1.0f;
+        if (m.airborne()) {
+          if (held(kJetsTurnLeft)) tn = 1.0f;
+          else if (held(kJetsTurnRight)) tn = -1.0f;
+        }
+      }
+    }
+    if (screen) {
+      // Held zooms in, let go zooms out; the click plays as it changes (the
+      // HUD's +0x1514 bit 4 set: not zoomed).
+      const bool zoom = held(kZoom);
+      auto busy = [&] { return g_calls.screen_busy ? g_calls.screen_busy(screen) : uint8_t{0}; };
+      const uint32_t fl = part_calls().screen_flags ? part_calls().screen_flags(screen) : 0;
+      if (!busy() && ((fl & 0x10) != 0) == zoom)
+        m.sounds[kZoomSoundSlot] = part_calls().sound ? part_calls().sound(m, kZoomSound, 1.0f) : nullptr;
+      if (!busy() && g_calls.zoom) g_calls.zoom(screen, zoom);
+    }
+    if (held(kTwistLeft)) tw = kTwistKey;
+    else if (held(kTwistRight)) tw = -kTwistKey;
+    if (held(kPitchUp)) p = 1.0f;
+    else if (held(kPitchDown)) p = -1.0f;
+    fire = held(kFire) ? 1 : 0;  // 0x00467480
+    d = clamp1(d);
+    tn = clamp1(tn);
+    jump_in = jump_in > 1.0f ? 1.0f : !(jump_in >= 0.0f) ? 0.0f : jump_in;
+    if (!joy_throttle_set) {
+      if (!(d < 0.0f || d > 0.0f) && throttle_returns && !throttle_held) {
+        throttle_target = fast_exp(kThrottleReturn * dt) * throttle_target;
+        if (std::fabs(throttle_target) < kThrottleZero) throttle_target = 0.0f;
+      } else {
+        set_throttle(throttle_target + d);  // IControls +0x20
+      }
+    } else {
+      throttle_target = clamp1(d);  // straight in: the reverse flag is not touched
+    }
+    set_turn(tn);
+    if (!jump_held || jump_in < 0.0f || jump_in > 0.0f) set_jump(jump_in);
+    approach(pitch, p, dt);
+    approach(twist, tw, dt);
+    approach(axis_2c, lp, dt);
+    approach(axis_30, ly, dt);
+    jj_strafe = strafe;
+    jj_forward = ahead;
+  }
+  MechControls::update(dt);
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x004e96f0: the brain's update (0x004e9710, on +0x5c), which
+// sets the targets and runs the smoothing itself (through 0x004d89f0). Until
+// the brain is ported, the smoothing alone stands in for it.
+int AiControls::update(float dt) {
+  if (g_calls.ai_brain) return g_calls.ai_brain(*this, dt) != 0 ? 1 : 0;
+  MechControls::update(dt);
+  return 1;
 }
 
 }  // namespace mech3
