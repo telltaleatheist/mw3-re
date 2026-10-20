@@ -393,6 +393,26 @@ or item index), not raw pointers.
    re-read 0x4ff730 joined later, gamez.md).
 8. Copying: **ported** (`cls_util`, mechlib.md "Copying a tree").
 
+Break tests (2026-10-20; each changed the port the way a bug would, the
+test had to fail). test_destroy.py on c1 caught all 10: the free ignoring
+parents, the unlist leaving list 7, the shutdown pass run once, an object3d
+keeping its parents, a world keeping its cells' nodes, a freed model off
+the free list, the release unlisting with deletes off, the deferred list
+appended to, the re-read keeping the old model, the re-read ignoring
+`recurse`. test_tree_copy.py (on c1, all 57 trees) caught 3 of 8: the
+materials shared, one material copy per polygon rather than per material,
+the texture name ignored at the resolve. The other five (the landmark flag
+dropped, every polygon flag kept, the identity transform set anyway, the
+soil fix-up left out, the last-material shortcut skipped) are equivalent
+on the shipped files (no mechlib node has the landmark flag, no polygon a
+flag above 0x7ff, an identity object3d has a zero translation and rotation
+and unit scale, no resolve needs the soil fix-up, and the newest material
+heads the used list the search walks). test_mech_data_load.py caught all
+8: the sounds in table order, the Elemental's "m" effects, a failed type
+handed out, grass prints at full size, a cache hit not counted, both soil
+fallbacks taken when one is missing, the soils skipped after a failed step,
+the refresh without the canned effects.
+
 ### Taking nodes down (2026-10-20)
 
 - **0x4f84b0 (`_gwListDeleteANode`)** lets the node's model go (0x4eb370
