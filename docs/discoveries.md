@@ -1402,8 +1402,11 @@ are all "puffers": emitters that drop little textured squares.
   yet seen in play: before an AI pilot breaks off its path to attack, it
   checks switches in its vehicle record: whether it may fight at all (some
   only after a delay), a leash (too far from its home point and it will not
-  start a fight), a health floor, and a time limit on each attack. Each
-  attack's time scales with the game's intensity setting (`ai.md` 17.3).
+  start a fight), a health floor (oddly, only checked until the first time the
+  pilot is found above it: a pilot healthy when it first weighs a fight never
+  checks it again, one already hurt stays out until repaired), a time limit on each attack, and how much damage it takes before
+  giving an attack up. The time limit scales with the game's intensity
+  setting (`ai.md` 17.3).
 - **Pilots stand down when the mission ends.** One switch turns every
   pilot's thinking on when the mission starts and off in the cleanup; off,
   they only stop and settle (`ai.md` 17.8).
