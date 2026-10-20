@@ -119,6 +119,8 @@ add_library(mw3core STATIC
   src/mech3/mech_part_build.cpp
   src/mech3/mech_update.cpp
   src/mech3/mech_collide.cpp
+  src/mech3/mech_place.cpp
+  src/mech3/veh_basic.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
@@ -209,6 +211,7 @@ add_library(mw3probe SHARED
   tests/probe_pilotscreen.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
+  tests/probe_place.cpp
   tests/probe_collide.cpp
   tests/probe_anim_run.cpp
   tests/probe_action_lists.cpp

@@ -373,4 +373,63 @@ void model_ground(zcls::Node* node, Model* model, const float* probes, const int
   }
 }
 
+// Mech3.exe 1.2 @ 0x0054d640. Inside means on the inner side of every
+// edge, walked backwards from the closing one, within 0.0001.
+int32_t polygon_ground_point(zcls::GroundHit* slot, const float* v, float x, float z, int32_t n) {
+  for (int32_t i = n - 1; i >= 0; --i) {
+    const float* c = v + 3 * i;
+    const float* a = i == n - 1 ? v : v + 3 * (i + 1);
+    const float e = (x - c[0]) * (a[2] - c[2]) + (z - c[2]) * (c[0] - a[0]);
+    if (!(e > -0.0001)) return 0;  // 0x005ce518
+  }
+  zmth::poly_normal(v, v + 3, v + 6, slot->normal);
+  if (slot->normal[1] == 0.0f) {
+    slot->height = v[1];
+    return 1;
+  }
+  const float inv = 1.0f / slot->normal[1];
+  const float fx = -(slot->normal[0] * inv), fz = -(slot->normal[2] * inv);
+  slot->height = ((z - v[2]) * fz + (x - v[0]) * fx) + v[1];
+  return 1;
+}
+
+namespace {
+// One polygon of 0x0054be40: a strip as its triangles, the count byte left
+// alone. A strip of fewer than two vertices would read past its list in the
+// exe; none ships, and the port skips it.
+int32_t point_polygon(const Polygon& p, const float* world, zcls::GroundHit* slot, const float* pt) {
+  const uint32_t n = p.flags & 0xff;
+  if (!(p.flags & 0x400)) {
+    for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, world, p.vertex_indices[i]);
+    return polygon_ground_point(slot, g_s.poly, pt[0], pt[2], static_cast<int32_t>(n)) && !(slot->height > pt[1]);
+  }
+  if (n < 3) return 0;
+  for (uint32_t s = 2; s < n; ++s) {
+    copy_vertex(g_s.poly, world, p.vertex_indices[s - 2]);
+    copy_vertex(g_s.poly + 3, world, p.vertex_indices[(s - 1) | 1]);
+    copy_vertex(g_s.poly + 6, world, p.vertex_indices[s & ~1u]);
+    if (polygon_ground_point(slot, g_s.poly, pt[0], pt[2], 3) && !(slot->height > pt[1])) return 1;
+  }
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0054be40
+int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float point[3]) {
+  if (hdr(*model, 0x10) == 0) return 0;
+  const float* world = place_vertices(*model);
+  uint32_t hit = hdr(*model, 0x58);
+  bool found = point_polygon(model->polygons[hit], world, slot, point);
+  for (uint32_t i = 0; !found && i < hdr(*model, 0x10); ++i) {
+    if (i == hdr(*model, 0x58)) continue;
+    if (point_polygon(model->polygons[i], world, slot, point)) hit = i, found = true;
+  }
+  if (!found) return 0;
+  std::memcpy(model->header + 0x58, &hit, 4);
+  const Polygon& p = model->polygons[hit];
+  slot->zone[0] = p.zone_set;
+  slot->material = p.material;
+  return 1;
+}
+
 }  // namespace zmod

@@ -7,6 +7,7 @@
 #include "mech3/app_mech.h"
 
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -23,10 +24,14 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission_launch.h"
+#include "mech3/mech_place.h"
+#include "mech3/mission_world.h"
 #include "mech3/sensors.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
+
+int32_t invincible();  // 0x0040cf20, mech3/options.h
 
 namespace {
 
@@ -130,6 +135,12 @@ class WiredLaunch : public LaunchHooks {
     zint::Interp* in = mech3::interp();
     return in && zint::source(*in, path) ? 1 : 0;
   }
+  // 0x004782f0 on the mech the launch just built (the pilot's +0x14).
+  void pilot_place(Handle p, const float pos[3], uint32_t yaw) override {
+    if (Mech* m = mech3::launched_mech()) place_pilot_mech(*this, p, *m, pos, yaw);
+  }
+  uint8_t cheat_invincible() override { return static_cast<uint8_t>(g_w.peek32(g_w.engine, 0x608e40)); }
+  int32_t option_invincible() override { return mech3::invincible(); }  // options.h (not includable with mech.h)
   // The missions' list at +0xc0 is not in the program's memory.
   void free(Handle) override {}
 };
@@ -151,6 +162,14 @@ void wire_mech_build(const MechWiring* w) {
   set_launch_hooks(&g_launch);
   // The weapons a mech mounts look up its owner, firepoints and jump jets
   // (weapon.h); the program's managers are all mechs' so far.
+  // The placement's attach to the world ([0x00608c84] vtable +0): the mech's
+  // node is still the library's tree (node_clone above), so it stays out of
+  // the world (a second parent stops node_to_world) until 0x004f9af0 is ported.
+  place_calls().attach = [](Handle n) {
+    zcls::Node* node = zn(n);
+    if (node && node->parent_count() == 0 && world_hooks().world) zcls::node_add_child(world_hooks().world, node);
+    else if (g_w.unported) g_w.unported(g_w.engine, "world attach (the library's tree)", {});
+  };
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
   c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };
@@ -187,6 +206,10 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.ams = m->ams != nullptr;
   s.motions = m->anims[4] && m->anims[8];
   s.powering_down = m->power_down_pending || m->powered_down;
+  if (m->transform) s.pos[0] = m->transform[9], s.pos[1] = m->transform[10], s.pos[2] = m->transform[11];
+  s.yaw_sin = m->orientation[2];
+  const zcls::Node* n = static_cast<const zcls::Node*>(m->node);
+  for (int32_t i = 0; n && i < n->parent_count(); ++i) s.in_world |= n->parents[i] == world_hooks().world && n->parents[i];
   *out = s;
   return true;
 }
@@ -195,6 +218,11 @@ void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* na
   return mech_create(mech, static_cast<MechControls*>(controls), config, name);
 }
 bool set_mech_skin(void* mech, void* skin) { return mech && mech_set_skin(*static_cast<Mech*>(mech), skin); }
+int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
+  float angle;
+  std::memcpy(&angle, &yaw, 4);
+  return mech ? static_cast<Mech*>(mech)->place(pos, angle) : 0;
+}
 void mech_power(void* mech, int32_t down) {
   if (mech) static_cast<Mech*>(mech)->power(down);
 }

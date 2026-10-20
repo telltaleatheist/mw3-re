@@ -525,6 +525,235 @@ void segment_query(Node* world, float* segs, int32_t points, SegmentHits* out) {
   g_opt.exclude = 0;
 }
 
+namespace {
+// The point query in progress: the point (0x0060b978, moved into the
+// stored cell while it is tested) and the record (0x0060bab0; the next
+// slot, 0x0060bab4, is its count's).
+struct PointQuery {
+  float p[3] = {};
+  GroundHits* out = nullptr;
+};
+PointQuery g_pq;
+
+int point_node(Node* node, int32_t siblings);
+
+// The node's model under the point: a hit takes the record's next slot.
+// FIX (A): the exe's record has no room past 32 (only the node walk's own
+// entry checks); the port stops there.
+void point_model(Node* node) {
+  GroundHits& r = *g_pq.out;
+  if (!node->model || r.count >= 32) return;
+  if (!zmod::model_ground_point(node->model, &r.hit[r.count], g_pq.p)) return;
+  r.hit[r.count].node = node;
+  ++r.count;
+}
+
+void point_children(Node* node, bool all) {
+  for (int32_t i = 0; i < node->child_count(); ++i)
+    if (all || tested(node->children[i])) point_node(node->children[i], node->child_count());
+}
+
+int point_result() { return g_pq.out->count == 0; }
+
+// Mech3.exe 1.2 @ 0x004f12e0. 0 when the point is inside the node's box
+// in x and z; 1 outside, or without a box.
+int box_point_test(Node* node) {
+  if (!(node->flags() & kHasBox)) return 1;
+  float b[6];
+  node_box_extent_xz(node, b);
+  const float x = g_pq.p[0], z = g_pq.p[2];
+  if (!(x >= b[0]) || x > b[3] || !(z >= b[2]) || z > b[5]) return 1;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ee140 (class 8). Its own model is tested before its
+// matrix goes on the stack, then its box.
+int point_animate(Node* node, int32_t siblings) {
+  point_model(node);
+  auto* d = static_cast<uint8_t*>(node->data);
+  const bool pushed = node->raw[0x24] & kActive;
+  if (pushed) {
+    zmth::push_copy(mat(d, 0x38));
+    zmth::multiply(*mat(d, 8), 1);
+  }
+  if (siblings > 1) {
+    if (int r = box_point_test(node)) {
+      if (pushed) zmth::pop();
+      return r;
+    }
+  }
+  point_children(node, true);
+  if (pushed) zmth::pop();
+  return point_result();
+}
+
+// Mech3.exe 1.2 @ 0x004ee220 (class 9)
+int point_light(Node* node, int32_t siblings) {
+  if (siblings > 1) {
+    if (int r = box_point_test(node)) return r;
+  }
+  auto* d = static_cast<uint8_t*>(node->data);
+  zmth::push_copy(mat(d, 0x30));
+  zmth::translate(at<float>(d, 0xc), at<float>(d, 0x10), at<float>(d, 0x14));
+  zmth::rotate_y(at<float>(d, 4));
+  zmth::rotate_x(at<float>(d, 0));
+  zmth::rotate_z(at<float>(d, 8));
+  point_model(node);
+  point_children(node, true);
+  zmth::pop();
+  return point_result();
+}
+
+// Mech3.exe 1.2 @ 0x004eddb0. As ground_node, for one point; class 10
+// returns a stack slot never written (0 here; no caller reads it).
+int point_node(Node* node, int32_t siblings) {
+  const uint32_t flags = node->flags();
+  if (!(flags & kActive) || !(flags & kAltitude)) return 1;
+  if ((flags & kZoned) && !zmod::zone_visible(node->raw[0x30])) return 1;
+  const uint32_t kept = node->flags() & ~0x2000000u;
+  node->set_flags(kept);
+  if (g_pq.out->count > 0x1f) {
+    zerr::report(0x200, kFile, 0x2e3, "Database intersections array is full");
+    return 1;
+  }
+  auto* d = static_cast<uint8_t*>(node->data);
+  switch (node->cls()) {
+    case 1: {  // camera
+      const float scale[3] = {1.0f, 1.0f, 1.0f};
+      const bool pushed = kept & kActive;
+      if (pushed) {
+        zmth::push_copy(mat(d, 0x44));
+        zmth::euler(reinterpret_cast<float*>(d + 0x20), reinterpret_cast<float*>(d + 0x14), scale);
+      }
+      point_model(node);
+      point_children(node, false);
+      if (pushed) zmth::pop();
+      return point_result();
+    }
+    case 5: {
+      if (siblings > 1) {
+        if (int r = box_point_test(node)) return r;
+      }
+      auto* o = static_cast<Object3d*>(node->data);
+      uint32_t of = o->get<uint32_t>(0);
+      bool pushed = false;
+      if (!(of & 8)) {
+        pushed = true;
+        if (!(node->flags() & 0x80000)) {
+          zmth::push_copy(mat(d, 0x60));
+          zmth::multiply(*mat(d, 0x30), 1);
+        } else if (!(of & 0x20)) {
+          zmth::push(mat(d, 0x60));
+        } else {
+          zmth::push_copy(mat(d, 0x60));
+          zmth::multiply(*mat(d, 0x30), 1);
+          of = o->get<uint32_t>(0);
+          if (!(of & 1)) o->put<uint32_t>(0, of & ~0x20u);
+        }
+      }
+      point_model(node);
+      point_children(node, false);
+      if (pushed) zmth::pop();
+      return point_result();
+    }
+    case 6:  // lod: past 5 it is not tested
+      if (at<float>(d, 4) > 5.0) return 1;  // 0x005cdaf8
+      if (siblings > 1) {
+        if (int r = box_point_test(node)) return r;
+      }
+      point_children(node, true);
+      return point_result();
+    case 7: {  // sequence: only its current child
+      if (at<int32_t>(d, 0) == 0) return 1;
+      if (siblings > 1) {
+        if (int r = box_point_test(node)) return r;
+      }
+      Node* child;
+      std::memcpy(&child, d + 0x20 + 8 * at<int32_t>(d, 0x14), sizeof child);  // FIX (A): a 32-bit pointer in the exe
+      return point_node(child, node->child_count());
+    }
+    case 8: return point_animate(node, siblings);
+    case 9: return point_light(node, siblings);
+    case 10: return 0;
+    default: {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "Unrecognized node class type:  node = %s class_type = %d", node->name(),
+                    node->cls());
+      zerr::report(0x200, kFile, 0x30d, msg);
+      return 3;
+    }
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004edab0. The stored cell's nodes, then its fading
+// ones (each given its stored pose and zone first), then the world's own
+// children at the point as given.
+int ground_point(Node* world, float x, float y, float z, GroundHits* out) {
+  out->count = 0;
+  if (update_hooks().pending) update_hooks().pending(update_hooks().ctx);  // 0x004f7e50 when [0x0060bea0]
+  g_pq.p[0] = x, g_pq.p[1] = y, g_pq.p[2] = z;
+  g_pq.out = out;
+  auto* w = static_cast<World*>(world->data);
+  zmth::Mat34 m;
+  zmth::push(&m);
+  zmth::load_identity();
+  const int32_t cx = cell_of(x, w->get<float>(0x34), w->get<float>(0x74));
+  const int32_t cz = cell_of(z, w->get<float>(0x38), w->get<float>(0x78));
+  Partition* cell = nullptr;
+  bool wrapped = false;
+  float shift[2] = {};
+  if (cx >= 0 && cx < w->get<int32_t>(0x88) && cz >= 0 && cz < w->get<int32_t>(0x8c)) {
+    cell = &w->rows[cz][cx];
+  } else if (w->get<int32_t>(0x50) != 0) {
+    int32_t sx, sz, inside;
+    world_wrap_cell(world, cx, cz, &sx, &sz, &inside);
+    wrapped = true;
+    shift[0] = static_cast<float>(sx - cx) * w->get<float>(0x64);
+    shift[1] = static_cast<float>(sz - cz) * w->get<float>(0x68);
+    cell = &w->rows[sz][sx];
+    g_pq.p[0] = shift[0] + g_pq.p[0];
+    g_pq.p[2] = shift[1] + g_pq.p[2];
+  }
+  if (cell) {
+    Partition& p = *cell;
+    for (int32_t i = 0; i < p.get<int16_t>(0x3a); ++i) {
+      Node* n = p.nodes[i];
+      if (!tested(n)) continue;
+      if ((n->flags() & kZoned) && !zmod::zone_visible(n->raw[0x30])) continue;
+      point_node(n, p.get<int16_t>(0x3a) + 1);
+    }
+    for (int32_t i = 0; i < p.get<int32_t>(0x40); ++i) {
+      uint8_t* e = p.fades + 0x44 * i;
+      Node* n;
+      std::memcpy(&n, e, sizeof n);  // FIX (A): a 32-bit pointer in the exe
+      if (!(n->flags() & kActive) || !(n->flags() & kFade)) continue;
+      n->raw[0x30] = e[0x40];
+      if ((n->flags() & kZoned) && !zmod::zone_visible(n->raw[0x30])) continue;
+      std::memcpy(n->raw + 0x64, e + 0x28, 12);
+      if (n->cls() == 5) {
+        auto* o = static_cast<Object3d*>(n->data);
+        o->put<uint32_t>(0, o->get<uint32_t>(0) & ~8u);
+        std::memcpy(o->raw + 0x60, e + 4, 48);
+        std::memcpy(o->raw + 0x30, e + 4, 48);
+      }
+      point_node(n, p.get<int32_t>(0x40) + 1);
+    }
+    if (wrapped) {
+      g_pq.p[0] = g_pq.p[0] - shift[0];
+      g_pq.p[2] = g_pq.p[2] - shift[1];
+    }
+  }
+  for (int32_t i = 0; i < world->child_count(); ++i) {
+    Node* n = world->children[i];
+    if (!tested(n)) continue;
+    if ((n->flags() & kZoned) && !zmod::zone_visible(n->raw[0x30])) continue;
+    point_node(n, world->child_count() + 1);
+  }
+  zmth::pop();
+  return out->count == 0;
+}
+
 // Mech3.exe 1.2 @ 0x004ee2f0
 int ground_query(Node* world, float* probes, int32_t count, float top, GroundHits* out) {
   if (count > kMaxProbes) {

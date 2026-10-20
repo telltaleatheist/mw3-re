@@ -25,6 +25,18 @@ void model_ground(zcls::Node* node, Model* model, const float* probes, const int
 int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask,
                        int32_t count, float top, const float* verts, const Polygon& poly);  // 0x0054c330
 
+// ECX the model, EDX the record's next slot; the point (x, y, z). The
+// first polygon (the cached one first) that holds the point in x and z, at
+// a height at most its y, gives the slot its normal, height, zone and
+// material and becomes the cached one: 1. Facing down counts too; a slot a
+// polygon held above y keeps that polygon's normal and height.
+int32_t model_ground_point(Model* model, zcls::GroundHit* slot, const float point[3]);  // 0x0054be40
+
+// One polygon of n vertices (world space) at (x, z): 1 when inside, with
+// the slot's normal and height (the plane at x, z; a vertical polygon's
+// first vertex's).
+int32_t polygon_ground_point(zcls::GroundHit* slot, const float* verts, float x, float z, int32_t n);  // 0x0054d640
+
 // The texture coordinates of the last crossing of a textured polygon, kept
 // while `on` is set (0x0074a2ac, set by 0x00542700; read with 0x005426d0).
 struct UvCapture {

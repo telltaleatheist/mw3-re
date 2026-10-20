@@ -1,5 +1,7 @@
 #include "mech3/mission_launch.h"
 
+#include <cstring>
+
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/mech3_interp.h"
@@ -8,6 +10,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
+#include "mech3/weapon.h"
 #include "mech3/zrdraiv.h"
 
 // docs/mech-build.md section 8.
@@ -39,7 +42,26 @@ Handle LaunchHooks::mech_screen(Pilot* data) { return h(unported("0x00430aa0", {
 void LaunchHooks::controls_set_record(MechControls* c, const ai::AivRecord* rec) {
   unported("ictl.vt+0x88", {mech_build_hooks().controls_ref(c), low(rec_ref(rec))});
 }
+void LaunchHooks::mech_update(Mech& m, float dt) { unported("mech.vt+0x34", {mech_build_hooks().ref(&m), zgame::bits(dt)}); }
 void LaunchHooks::target_4d6d20(Mech& m, uint32_t v) { unported("0x004d6d20", {mech_build_hooks().ref(&m), v}); }
+
+// Mech3.exe 1.2 @ 0x004782f0. Detail bit 0 (the sounds) is off for the
+// update; the mech then starts the mission powered down, the HUD's saved
+// state 1.
+int32_t place_pilot_mech(LaunchHooks& h, Handle pilot, Mech& m, const float pos[3], uint32_t yaw) {
+  float angle;
+  std::memcpy(&angle, &yaw, 4);
+  h.mech_place(m, pos, angle);
+  m.invincible = h.cheat_invincible() != 0 || h.option_invincible() != 0;
+  m.detail &= ~1u;
+  h.mech_update(m, 1.0f / 30.0f);  // 0x3d088889
+  m.detail |= 1u;
+  m.power_down_pending = false;
+  m.powered_down = true;
+  m.hud_saved = 1;
+  if (auto* w = static_cast<WeaponManager*>(m.ammo)) w->mode = static_cast<int32_t>(h.field32(pilot, 0x80));
+  return 1;
+}
 
 // Mech3.exe 1.2 @ 0x00491150. The exe first closes the loader thread's
 // handles (+0x68, +0x6c) and gives the game thread its priority back; the

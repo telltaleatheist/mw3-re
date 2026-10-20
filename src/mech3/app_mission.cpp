@@ -255,11 +255,12 @@ struct WiredPlayerHooks : PlayerHooks {
     mechs.insert(h);
     return h;
   }
-  // 0x004161c0 (mech.cpp, not ported): the mech stays where its constructor
-  // left it; the exe's always succeeds.
+  // 0x004161c0: the port's mech on the ground at the record's place.
   int32_t mech_place(Handle m, const ai::AivRecord* rec) override {
-    PlayerHooks::mech_place(m, rec);
-    return 1;
+    void* mech = e->object_of(m);
+    if (!mech || !mechs.count(m)) return PlayerHooks::mech_place(m, rec);
+    const float pos[3] = {rec->get<float>(0x08), rec->get<float>(0x0c), rec->get<float>(0x10)};
+    return place_mech(mech, pos, rec_yaw(rec));
   }
   void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
   void mech_set_skin(Handle mech, Handle skin) override { set_mech_skin(e->object_of(mech), e->object_of(skin)); }

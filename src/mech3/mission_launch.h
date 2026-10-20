@@ -48,6 +48,11 @@ class LaunchHooks : public zgame::Unported {
     unported("0x004782f0", {low(pilot), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2]), yaw});
   }
   virtual void interp_set_mech(Handle interp, Mech& m);       // 0x004108a0
+  // What place_pilot_mech (0x004782f0) reads and runs.
+  virtual uint8_t cheat_invincible() { return static_cast<uint8_t>(unported("[0x00608e40]", {})); }
+  virtual int32_t option_invincible() { return static_cast<int32_t>(unported("0x0040cf20", {})); }
+  virtual void mech_update(Mech& m, float dt);                // vtable +0x34, 0x00419fc0
+  virtual int32_t mech_place(Mech& m, const float pos[3], float yaw) { return m.place(pos, yaw); }  // 0x004161c0
   virtual Handle mech_screen(Pilot* data);                    // 0x00430aa0
   virtual void hud_reset(Handle screen) { unported("hud.vt+0x64", {low(screen) + 0x17964}); }
   virtual void hud_zoom(Handle screen, float v) { unported("hud.vt+0x60", {low(screen) + 0x17964, zgame::bits(v)}); }
@@ -75,6 +80,12 @@ class LaunchHooks : public zgame::Unported {
   virtual void fn_40f0a0() { unported("0x0040f0a0", {}); }
   virtual void fn_537520() { unported("0x00537520", {}); }
 };
+
+// Mech3.exe 1.2 @ 0x004782f0: the pilot's mech (pilot +0x14) on the ground
+// at pos, its Invincible flag, one update of a 30th of a second with the
+// sounds off, powered down, its weapons' fire mode the pilot's (+0x80).
+// Always 1.
+int32_t place_pilot_mech(LaunchHooks& h, Handle pilot, Mech& m, const float pos[3], uint32_t yaw);
 
 void set_launch_hooks(LaunchHooks* h);
 LaunchHooks& launch_hooks();

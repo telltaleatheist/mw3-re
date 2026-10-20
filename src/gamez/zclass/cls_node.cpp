@@ -6,6 +6,7 @@
 #include <new>
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
@@ -179,6 +180,7 @@ int node_add_child(Node* parent, Node* child) {
   if (!parent) return zerr::report(0x400, kClassFile, 0x790, "Null node pointer."), 5;
   if (parent == child) return 1;
   switch (parent->cls()) {
+    case 2: return world_add_child(parent, child);
     case 3: case 4: case 9: case 10: return node_link(parent, child);
     case 5: return object3d_add_child(parent, child);
     default: {

@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "check.h"
 
@@ -10,9 +12,12 @@ std::vector<Test>& registry() {
 int failures = 0;
 }  // namespace check
 
+// MW3_TEST=<part of a name> runs only the tests whose names hold it.
 int main() {
   std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
+  const char* only = std::getenv("MW3_TEST");
   for (const check::Test& t : check::registry()) {
+    if (only && *only && !std::strstr(t.name, only)) continue;
     const int before = check::failures;
     t.fn();
     std::printf("%s %s\n", check::failures == before ? "ok  " : "FAIL", t.name);
