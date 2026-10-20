@@ -141,3 +141,16 @@ light reads past its 4 images, as the original would; never in play);
 0x004e6fe0 takes what TARGET's slot holds, not the slot; most HUD children
 are managed (drawn only when dirty) and empty until their unported setters
 run, so the test sets texts/images/flags itself or breaks go unseen.
+
+## 2026-10-20 (a) The HUD's see-through images in Direct3D (branch mac3/hud-key)
+
+Not a colour key after all: 0x0055b1f0's DirectDraw path (0x00576f90, keyed
+on black: the surface 0x005778d0 is made with DDSD_CKSRCBLT and a zero key)
+only serves images given a surface by [0x0072f360] = 0x005773e0 (a few
+screens), never Image. The HUD's images take blit16's alpha blend onto the
+locked back buffer, which holds the frame in the original but the magenta
+key in our layer. FIX (A) `zrndr::LayerCover` (coverage and colour per
+pixel while GameEngine's layer is locked) and `Screen2D::overlay_16` taking
+it. mw3tests fix_layer_blend_keeps_its_alpha; GPU shot of c1m1 clean.
+Remember: the cover is set only between lock_back and unlock_back; with it
+unset blit16 is the original exactly (test_twod_blit.py).
