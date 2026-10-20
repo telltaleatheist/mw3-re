@@ -192,8 +192,8 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   and the related set once before reporting; short tool output. Porting
   stays on Opus; docs, reviews and test plumbing may go to Sonnet.
 - The specialists (Owen, 2026-10-20): the lead session "mw3 mac 1"
-  orchestrates the sessions "mw3 mac 2" (game systems) and "mw3 mac 3"
-  (front end) over SendMessage, one item at a time, by the protocol in
+  orchestrates the sessions "mw3 mac 2" (game systems), "mw3 mac 3"
+  (front end) and "mw3 mac 4" (the AI, from 2026-10-20) over SendMessage, one item at a time, by the protocol in
   `docs/worklogs/README.md`. Porting and analysis run on Opus 5.5; reviews
   are Sonnet 5.5 subagents the lead starts. Everything uses the 5.5
   models.

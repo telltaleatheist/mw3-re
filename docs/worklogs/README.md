@@ -7,8 +7,9 @@ compaction by reading it.
 
 | Session | Area | Log |
 |---|---|---|
-| mw3 mac 2 | Game systems: mechs, movement, weapons, AI, the world's queries | `game.md` |
+| mw3 mac 2 | Game systems: mechs, movement, weapons, effects, the world's queries | `game.md` |
 | mw3 mac 3 | Front end and presentation: fades, the HUD, screens, render glue | `frontend.md` |
+| mw3 mac 4 | The AI: the brain, orders, behaviours, AI firing, lancemates | `ai.md` |
 
 ## Rules for a specialist
 
