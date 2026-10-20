@@ -119,6 +119,7 @@ add_library(mw3core STATIC
   src/mech3/mech_reader.cpp
   src/mech3/mech_skin.cpp
   src/mech3/mission.cpp
+  src/mech3/player.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
@@ -197,6 +198,7 @@ add_library(mw3probe SHARED
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp
+  tests/probe_player.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

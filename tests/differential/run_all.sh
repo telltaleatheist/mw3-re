@@ -72,6 +72,7 @@ for t in \
     zinput \
     settings \
     mission_load \
+    mission_start \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

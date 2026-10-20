@@ -7,18 +7,22 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/mainmenu.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "mech3/mission.h"
 #include "mech3/options.h"
+#include "mech3/player.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
@@ -189,6 +193,63 @@ TEST(program_starts_like_the_game_to_the_main_state) {
     }
     EXPECT(engine.unported_counts().count("0x0048a6c0") == 1);  // the Action State's object
     EXPECT(screen.frames > 0);                       // the shell flips its 2D frame
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// The debug launch of c1 mission 1 without a window (docs/mission-start.md):
+// the mission load reaches the mission start (0x0049e810), which reads
+// player.zrd's gravities and aiv.zrd's vehicles, finds each one's compiled
+// net and asks for its controller and vehicle; those are not ported, so
+// none is made (each constructor is counted once per vehicle). The weapons
+// load (0x00583880) reads weapons.zrd and makes the weapon_tick object.
+TEST(mission_start_reads_c1m1_vehicles_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_start_write"));
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    mech3::missions().start();
+    EXPECT(!mech3::missions().failed);
+    const mech3::PlayerState& s = mech3::player_state();
+    EXPECT(s.gravity == 40.0f && s.water_gravity == 9.0f && s.quicksand_gravity == 3.0f);  // player.zrd
+    EXPECT(s.tick != 0);
+    const auto* tick = static_cast<const zcls::Node*>(engine.object_of(s.tick));
+    EXPECT(tick && tick->action && tick->get<int32_t>(0x44) == 2);  // the player's tick, priority 2
+    // weapons.zrd's definitions, and the weapon_tick object (priority 3).
+    EXPECT(zwep::state().defs.size() > 30 && zwep::find_def("ERPPC") != nullptr);
+    const auto* wt = static_cast<const zcls::Node*>(zwep::state().tick);
+    EXPECT(wt && wt->action && wt->get<int32_t>(0x44) == 3);
+    const auto& n = engine.unported_counts();
+    auto count = [&](const char* k) { return n.count(k) ? n.at(k) : 0u; };
+    EXPECT(count("0x004d8750") == 1);  // owens_01: an AI mech's controller, over net 4
+    EXPECT(count("0x004589d0") == 3);  // mobilehq_01..03, over net 2
+    EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
+    EXPECT(count("0x004ac860") == 8);  // each vehicle has its net: a controller each, and the stealth entity
+    EXPECT(count("0x00414150") == 0);  // no controller, no mech
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

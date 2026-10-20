@@ -69,9 +69,10 @@ the block is `m<n>`, `ia<n>` (type 2) or `mp<n>` (type 3) (0x00490590).
 Then the world (above; failing, the setup fails), the archives again, the
 mechs' HUD markers 0x00413e60, 0x004319a0, 0x00459e80, **world.zrd's block**
 (0x00491de0, world-params.md), 0x004e7b40, the stealth entity, the InOut AI
-data (0x004c3b80), `landmines.zrd`, 0x004b4ab0, **the player** (0x0049e810,
-player.cpp; likely the player's mech from its definition and loadout), "Saved Game
-Loaded" when the game was restored.
+data (0x004c3b80), `landmines.zrd`, 0x004b4ab0, **the mission's vehicles**
+(0x0049e810, player.cpp, ported: mission-start.md; not the player's mech,
+which the briefing's Launch makes, 0x00491150), "Saved Game Loaded" when the
+game was restored.
 
 By game type: the turrets (`aiTurrets.zrd`, when the app's +0x1b2) for
 single player and training; the objectives (0x0045c2d0, `objectives.zrd`
@@ -103,9 +104,11 @@ scroll list (0x005964c0(0)).
   engine start would set), node lookups, the window node's size, the
   animation hooks (puffers, sounds; zEffect's effect table is not ported, so
   a def naming an effect drops out), world.zrd's reader (wind, clouds and
-  sun; weather does nothing), the reader archives, the sounds. The rest
-  (effects, decals, weapons, the HUD, the stealth entity, mechs and AI, the
-  player, objectives, the start animation) are logged once by address.
+  sun; weather does nothing), the reader archives, the sounds, the weapons
+  (`zwep::init` with the weapon_tick object) and the mission's vehicles
+  (`mech3::player_setup`, mission-start.md). The rest (effects, decals, the
+  HUD, the stealth entity, the mechs' and AI's other set-up, objectives, the
+  start animation) are logged once by address.
 - The view's +0x04 (its camera run) is the scene walk on `camera1`
   (`zcls::render_world`), so the Core state's Direct3D path draws the world;
   the flip shows the 3D frame.
@@ -151,7 +154,8 @@ keeping the larger.
 ## Open
 
 - What each hooked step does: effects 0x0050d2c0, decals 0x00501ab0, the
-  HUD 0x0040f7f0, stealth 0x004a4de0, the player 0x0049e810 and the mechs,
+  HUD 0x0040f7f0, stealth 0x004a4de0, the launch 0x00491150 (the player's
+  mech, mission-start.md section 10),
   the AI (0x004c3b80, 0x004d2e20.., ai.md), objectives 0x0045c2d0, the start
   animation 0x0050b450, the unload 0x00490480 and cleanup 0x00491780.
 - InstallOptions bits 2 and 4 (the 16-bit mech textures installed, likely).

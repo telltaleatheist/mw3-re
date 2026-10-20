@@ -619,6 +619,29 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   happens in a mission's first seconds is data.
 - **Multiplayer maps from the third on take their objectives from
   `mpinfo.zrd`**, the first two from `objectives.zrd` like the campaign.
+- **Two in three campaign enemy mechs start the mission switched off.**
+  The vehicle file marks each mech that starts powered down (106 of the
+  168 AI mechs in the campaign and training missions), so they sit cold
+  until the AI wakes them; most of operation 1's do, while some later
+  groups start up and moving (c2 mission 3, c4 mission 1, c4b mission 4).
+  Dominic starts c1 mission 4 powered down too (`mission-start.md`).
+- **Lancemates join your lance after their first mission.** Where Dominic
+  (c1 mission 4), Epona (c2 mission 4) and Alan (c3 mission 2) first
+  appear, their files say you cannot configure them: they fight in that
+  mission's own mech and loadout. From the next mission on they are kept
+  by the campaign, with whatever you give them in the mech lab, and each
+  mission's file only says where they start and what orders they follow.
+- **An enemy mech without an AI path is never made.** A mech whose path
+  number has no path file is skipped at mission start ("no mech net"),
+  while a vehicle without one is made but has no driver. Every shipped
+  mission has all its paths.
+- **Training picks your loadout.** In the training missions the player's
+  record chooses one of the mech's stock loadouts.
+- **Gravity is in a data file**: `player.zrd` sets 40 on land, 9 in water
+  and 3 in quicksand.
+- **A team value can hold several teams**, 5 bits each (33 is team 1
+  twice, 65 teams 1 and 2), so a vehicle could fight for two sides at once;
+  the shipped files use only 0, 1 and 2.
 - **The release exe calls itself "PRODUCTION"**: the loading text reads
   "MechWarrior3 (PRODUCTION) (1.2)", a build marker left in.
 

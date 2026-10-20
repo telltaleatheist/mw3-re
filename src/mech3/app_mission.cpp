@@ -29,22 +29,36 @@
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmodel/gmod_puff.h"
+#include "gamez/znetwork/znet_object.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "gamez/zweapon/zwep_init.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
+#include "mech3/mech_skin.h"
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
+#include "mech3/player.h"
+#include "mech3/zainetedit.h"
 #include "platform/render3d.h"
 
 namespace mech3 {
+
+// From mech3/mech_names.h and mech3/weapon.h, whose own Engine and Handle
+// clash with app_hooks.h's.
+int32_t mech_index(const char* name);                        // 0x004845f0
+void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
 
 namespace {
 
@@ -96,6 +110,69 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   world_init(m);
   if (!world_read_params(m, file, block)) std::fprintf(stderr, "mw3: no block %s in %s\n", block, file);
 }
+
+// player.cpp's hooks (docs/mission-start.md): the reader, the records, the
+// mech definitions, the nets and zClass are ported; the vehicles, mechs and
+// AI controllers are not, so their constructors are logged and give none.
+struct WiredPlayerHooks : PlayerHooks {
+  GameEngine* e = nullptr;
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  template <class T>
+  T* as(Handle h) const { return static_cast<T*>(e->object_of(h)); }
+
+  void nets_build_all() override { ai::nets_build_all(); }
+  Handle object3d_create() override { return e->handle_of(zcls::object3d_create()); }
+  void set_action_priority(Handle node, int32_t p) override { zcls::node_set_priority(as<zcls::Node>(node), p); }
+  // The player's tick runs with the action lists (0x004f7d80), which the
+  // Core state does not run yet (its lists_update is a hook).
+  void set_action(Handle node, uint32_t fn) override {
+    if (fn == kPlayerTick) zcls::node_set_action(as<zcls::Node>(node), [](zcls::Node*) { player_tick(); });
+  }
+  Handle reader_load(const char* path) override { return e->handle_of(zrdr::load(path)); }
+  Handle reader_find(Handle node, const char* key) override {
+    zrdr::Node* n = as<zrdr::Node>(node);
+    return n ? e->handle_of(zrdr::find(n, key)) : 0;
+  }
+  void reader_free(Handle node) override {
+    if (zrdr::Node* n = as<zrdr::Node>(node)) zrdr::free_node(n);
+  }
+  float reader_item_float(Handle node, int32_t i) override { return as<zrdr::Node>(node)->list[i].f; }
+  Handle reader_item(Handle node, int32_t i) override { return e->handle_of(&as<zrdr::Node>(node)->list[i]); }
+  int32_t game_type() override { return e->launch().type; }
+  Handle campaign() override { return e->launch().type == 1 ? e->pilot_game(e->pilot()) : 0; }
+  Handle training() override { return e->launch().type == 4 ? e->pilot_game(e->pilot()) : 0; }
+  Handle mech_dfn(int32_t mech) override { return e->handle_of(mech3::mech_dfn(mech)); }
+  int32_t dfn_config_count(Handle dfn) override {
+    const MechDfn* d = as<MechDfn>(dfn);
+    return d && d->configs ? static_cast<int32_t>(d->configs->configs.size()) : 0;
+  }
+  Handle dfn_config(Handle dfn, int32_t i) override { return e->handle_of(as<MechDfn>(dfn)->configs->configs[i]); }
+  int32_t dfn_skin_count(Handle dfn) override {
+    const MechDfn* d = as<MechDfn>(dfn);
+    return d && d->skins ? static_cast<int32_t>(d->skins->skins.size()) : 0;
+  }
+  Handle dfn_skin(Handle dfn, int32_t i) override { return e->handle_of(as<MechDfn>(dfn)->skins->skins[i]); }
+  int32_t mech_index(const char* name) override { return mech3::mech_index(name); }
+  Handle znet_find(int32_t id) override { return e->handle_of(znet::find(id)); }
+  Handle net_object(Handle o) override { return e->handle_of(dynamic_cast<ai::AiNet*>(as<znet::Object>(o))); }
+  Handle net_compiled(Handle o) override { return e->handle_of(as<ai::AiNet>(o)->as_compiled()); }
+  Handle alloc(uint32_t size) override { return e->alloc_block(size); }
+  void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }
+  uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
+  Handle controls_interface(Handle ctl) override { return ctl; }
+  void report(int32_t level, int32_t line, const char* text) override {
+    if (!e->quiet) std::fprintf(stderr, "mw3: report %#x player.cpp:%d %s\n", level, line, text);
+  }
+  float frame_dt() override { return e->frame_dt(); }
+  Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
+  Handle view() override { return e->player_view(); }
+  Handle view_target(Handle v) override { return e->field32(v, 0x64); }
+  Handle stealth() override { return e->peek32(0x609a2c); }
+  void clear_6099c0() override { e->poke32(0x6099c0, 0); }
+};
+WiredPlayerHooks g_player_hooks;
 
 struct WiredMissionHooks : MissionHooks {
   GameEngine* e = nullptr;
@@ -274,6 +351,40 @@ struct WiredMissionHooks : MissionHooks {
     read_world_params(file, block, mission_node(*e, e->mission_camera()), e->launch().type, e->launch().number);
   }
   void reader_open(const char* path, int32_t current) override { zrdr::open_archive(path, current != 0); }
+  // 0x00583880: weapons.zrd into zWeapon's definitions (each def's game half
+  // by 0x004b0020, mech3/weapon), the projectile pool and the weapon_tick
+  // object (priority 3, its action zwep::tick). Not ported and left out: the
+  // impact lights 0x00586970, the defs' destroy animations (0x0050b450),
+  // effects, craters' defaults, the pool's objects 0x005847c0.
+  void weapons_load(Handle world, const char* file, int32_t a, uint32_t callback) override {
+    zwep::InitHooks& w = zwep::init_hooks();
+    w = zwep::InitHooks{};
+    w.sound = [](const char* n) -> zwep::Handle { return zsnd::find(n); };
+    w.message = zutl::localize;
+    w.effect = [](const char*) -> int32_t { return -1; };
+    w.find_node = [](int32_t list, const char* n) -> zwep::Handle { return zcls::list_find_by_name(list, n); };
+    w.set_active = [](zwep::Handle n, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(n), on); };
+    w.object3d_create = []() -> zwep::Handle { return zcls::object3d_create(); };
+    w.set_action_priority = [](zwep::Handle n, int32_t p) {
+      zcls::node_set_priority(static_cast<zcls::Node*>(n), p);
+    };
+    w.set_tick_action = [](zwep::Handle n) {
+      zcls::node_set_action(static_cast<zcls::Node*>(n), [](zcls::Node*) { zwep::tick(); });
+    };
+    w.error = [](int32_t level, int32_t line, const char* what) {
+      if (GameEngine* g = engine_of_hooks(); g && !g->quiet)
+        std::fprintf(stderr, "mw3: report %#x zwep_init.cpp:%d %s\n", level, line, what);
+    };
+    w.hardware = true;
+    if (callback != 0x004b0020) unported("0x00583880", {world, file, a, callback});
+    zwep::init(e->object_of(world), file, a, mech3::make_weapon_type);
+  }
+  // 0x0049e810: the mission's vehicles (mech3/player).
+  void player_setup(uint8_t full) override {
+    player_setup_ran = true;
+    mech3::player_setup(full != 0);
+  }
+  bool player_setup_ran = false;
   Handle sound_find(const char* name) override { return e->sound_find(name); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
     char text[512];
@@ -287,8 +398,10 @@ WiredMissionHooks g_mission_hooks;
 
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;
+  g_player_hooks.e = e;
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
+  set_player_hooks(e ? &g_player_hooks : nullptr);
 }
 
 // 0x00490880 on the missions object: the load, then (a debug launch, our
