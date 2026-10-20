@@ -209,6 +209,13 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(engine.popup_state_of(cs + 0x16760) == &ctl->axis_popup);
       EXPECT(engine.popup_state_of(cs + 0x1677c) == &ctl->load_save_popup);
       EXPECT(engine.state_screen(cs + 0x16760) == ctl->axis_popup.screen_);
+      // The load/save popup: its screen adopted, the bar and the list bound.
+      mech3::LoadSavePopupScreen* ls = ctl->load_save_popup.popup;
+      EXPECT(ls != nullptr && engine.state_screen(cs + 0x1677c) == ctl->load_save_popup.screen_);
+      if (ls) {
+        EXPECT(ls->bar.dialog == ls && ls->files.dialog == ls && ls->bar.editor.size == 0x14);
+        EXPECT(ls->files.size == 7 && ls->files.rows.size() == 7 && ls->files.down != nullptr);
+      }
     }
     EXPECT(screen.frames > 0);                       // the shell flips its 2D frame
     app.stop_game();

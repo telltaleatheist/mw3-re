@@ -30,4 +30,8 @@ struct BlitRect {
 // colour (or index) `key` is transparent.
 void blit16(const zimg::Texture* image, int32_t x, int32_t y, uint16_t key, const BlitRect* src);
 
+// Mech3.exe 1.2 @ 0x00563b80, the 16-bit target's line ([0x008008c0], behind
+// 0x00562940): from (x0, y0) to (x1, y1) inclusive, stepping the longer axis.
+void line16(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t pixel);
+
 }  // namespace zrndr

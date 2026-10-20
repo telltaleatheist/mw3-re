@@ -30,5 +30,10 @@ std::string find(const char* path);          // the host path in the first mount
 bool exists(const char* path);
 std::FILE* open(const char* path, const char* mode);  // reads search the mounts; writes go to the write dir
 std::string write_path(const char* path);    // the host path a write of `path` goes to
+// FIX (A) for FindFirstFileA / FindNextFileA: the files (not folders) a game
+// pattern ("keys\\*.zrd"; * and ? in the last part, any case) matches in the
+// write dir and every mount, each name once (the first found), sorted as NTFS
+// lists a folder (by the upper-cased name).
+std::vector<std::string> list(const char* pattern);
 
 }  // namespace zutl

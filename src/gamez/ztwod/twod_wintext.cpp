@@ -198,6 +198,29 @@ void FontText::set_fixed_rect(const Rect* r) {
   fixed_rect = *r;
 }
 
+// Mech3.exe 1.2 @ 0x005a0e20
+bool FontText::measure_prefix(int32_t n, Rect* r) {
+  bool ok = false;
+  const Handle dc = host().CreateCompatibleDC(0);
+  if (!dc) return false;
+  const Handle old = host().SelectObject(dc, hfont);
+  if (n < 1) {
+    if (host().DrawTextA(dc, "W", -1, r, 0x400)) {  // DT_CALCRECT: the line's height
+      ok = true;
+      r->right = r->left;
+    }
+  } else {
+    std::string s(text);
+    if (n <= static_cast<int32_t>(s.size())) {
+      s.resize(static_cast<size_t>(n));
+      if (host().DrawTextA(dc, s.c_str(), -1, r, 0x400)) ok = true;
+    }
+  }
+  host().SelectObject(dc, old);
+  host().DeleteDC(dc);
+  return ok;
+}
+
 // Mech3.exe 1.2 @ 0x005a1380
 int32_t FontText::text_height() {
   if (needs_render) render();

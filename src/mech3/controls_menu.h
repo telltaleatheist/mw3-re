@@ -90,17 +90,28 @@ class AxisPopupState : public MenuState {
   Engine& e_;
 };
 
+class LoadSavePopupScreen;
+
 // "Assign Axis Popup State" again by its name (0x0042f230, vtable 0x005be978):
-// the LOAD_SAVE_POPUP's, 0x18 bytes at +0x1677c. Its screen (0x0042e890, the
-// edit bar and the file list) is not ported: a hook, so it shows nothing and
-// Escape pops it.
+// the LOAD_SAVE_POPUP's, 0x18 bytes at +0x1677c, its screen made with it.
 class LoadSavePopupState : public MenuState {
  public:
   LoadSavePopupState(Engine& e, Handle addr);  // 0x0042f230
-  bool enter() override;             // +0x0c  0x0042f2b0, a hook
-  void leave() override;             // +0x18  0x0042f340, a hook
+  ~LoadSavePopupState() override;    // 0x0048eb80: its screen deleted through the engine it was made with
+  bool enter() override;             // +0x0c  0x0042f2b0
+  void leave() override;             // +0x18  0x0042f340
+  // 0x0042f2b0 before the shell's enter: the mode, the screen behind as the
+  // backdrop, the active file's name in the bar, the files listed.
+  void prepare();
+  void finish();                     // 0x0042f340 after the shell's leave: the grab freed
+  virtual void apply(const char* name, uint8_t save);  // 0x0042f380: the owner's 0x0042d0b0
+
+  LoadSavePopupScreen* popup = nullptr;  // +0x0c's object
   ControlsScreen* owner = nullptr;   // +0x10
   uint8_t save = 0;                  // +0x14  1 save, 0 load
+
+ private:
+  Engine& e_;
 };
 
 // The controls screen (vtable 0x005bd968), 0x16c94 bytes.
@@ -217,6 +228,55 @@ class AxisPopupScreen : public MenuScreen {
   zimg::Texture* grab = nullptr;     // +0x1218c  the screen behind, taken on entering
   int32_t axis = 0;                  // +0x12190  (written, never read)
   AxisPopupState* owner = nullptr;   // the state at +0x10fec, as an object
+};
+
+// The load/save popup (0x0042e890, vtable 0x005be6d8), 0x11cd4 bytes:
+// LOAD_SAVE_POPUP's file name bar over the list of keys\*.zrd; OK loads or
+// saves the bar's name through the controls screen (docs/menus.md).
+class LoadSavePopupScreen : public MenuScreen {
+ public:
+  LoadSavePopupScreen(Engine& e, Handle state);  // 0x0042e890
+  ~LoadSavePopupScreen() override = default;  // 0x0042eda0 (deleting 0x0042eb50)
+  void update(float dt) override { Window::update(dt); }  // +0x00  0x0042efe0
+  // 0x0042eff0: the list emptied and filled with the files' names, each its
+  // place in the listing as its value. FIX (A): the listing is
+  // Engine::list_files (the original's FindFirstFileA never closed its handle).
+  void fill();
+
+  // MB_OK (vtable 0x005be8d8, +0x30 0x0042f160): the bar's name loaded or
+  // saved by the controls screen (0x0042f380 -> 0x0042d0b0), then the state's +0x28.
+  class OkButton : public SlideButton {
+   public:
+    explicit OkButton(Engine& e) : SlideButton(e, -1) {}
+    void on_left_up() override;
+  };
+  // EDITBAR (vtable 0x005be7a0), 0x390 bytes: a click gives it the focus,
+  // Enter or Escape takes it away; the characters a file name cannot have
+  // are refused, 19 at most.
+  class NameBar : public ShellEditBar {
+   public:
+    explicit NameBar(Engine& e);
+    void on_left_up() override;        // +0x30  0x0042f1b0
+    void on_return() override;         // +0x90  0x0042f1a0
+    void on_cancel() override;         // +0x94  0x0042f1a0
+    uint8_t active = 0;                // +0x38c
+  };
+  // FILELIST (vtable 0x005be6f8): a choice shows in the bar.
+  class Files : public FileList {
+   public:
+    explicit Files(Engine& e) : FileList(e, -1) {}
+    void select(int32_t index) override;  // +0x98  0x0042f1c0
+  };
+
+  OkButton ok;                       // +0x111ec  MB_OK
+  StateBackButton cancel;            // +0x113d8  MB_CANCEL
+  NameBar bar;                       // +0x115c4  EDITBAR
+  Files files;                       // +0x11954  FILELIST
+  ztwod::Image box{0};               // +0x11b54  LOAD_BOX
+  ztwod::Image backdrop{0};          // +0x11c10  the screen behind (the list's first object)
+  zimg::Texture* grab = nullptr;     // +0x11ccc  taken on entering
+  uint8_t save = 0;                  // +0x11cd0
+  LoadSavePopupState* owner = nullptr;  // the state at +0x10fec, as an object
 };
 
 }  // namespace mech3

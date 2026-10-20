@@ -1496,3 +1496,29 @@ From the controls screen and its axis popup, 0x0042a590 and 0x0042da80
   bound,** so the click that set it does not start listening again.
 - **The screen has an unused "press a key" prompt** (PRESS_A_KEY in its
   dialog file) that the game never shows.
+
+### The controls' load and save box
+
+From the box Export, Import and "save changes?" open, 0x0042e890 (details:
+`menus.md` section 6, the file list in section 2).
+
+- **Profile names are 19 characters at most,** and `: | \ < > / ? " *`
+  cannot be typed at all.
+- **Click the name before typing.** The box only takes keys once its name
+  field has been clicked; Enter and Escape just stop the typing. Only OK
+  loads or saves. OK and No leave the field listening, so until you leave
+  the main menu, the next time the box opens you can type straight away
+  (and keys typed on the controls screen meanwhile go to the hidden field,
+  harmlessly: the box puts the current profile's name back on opening).
+- **OK with the name field empty saves (or loads) a profile with no name**:
+  the file `keys\.zrd`, which then shows in the list as an empty row.
+- **The list is in the order Windows lists the folder**: alphabetical on
+  NTFS, but on a Windows 98 FAT drive the order the files were made.
+- **The list's up arrow is invisible while it works.** Its dialog gives it a
+  greyed picture and a highlighted one, but no normal one: at the top of the
+  list it shows greyed, and once you have scrolled down it vanishes until
+  the mouse is on it. The down arrow has all three.
+- **Holding an arrow scrolls on its own** after half a second, then about
+  seven rows a second.
+- **Each opening of the box leaves a Windows file search open** (the game
+  never closes it, FindClose is not even imported): harmless, a handle a time.

@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "gamez/zgame/zgameapp.h"
 
@@ -413,6 +415,9 @@ class Engine : public zgame::AppHooks {
   virtual void controls_read(const char* path);                 // 0x004120a0
   virtual void controls_write(const char* path);                // 0x00411e60
   virtual char* active_ctl_cfg();                               // *[0x005f4d40], ActiveCtlCfg (0x104 bytes)
+  // FindFirstFileA / FindNextFileA's files for a pattern ("keys\\*.zrd"), in
+  // the listing's order. FIX (A): the write dir's and the mounts' (zutl::list).
+  virtual std::vector<std::string> list_files(const char* pattern);
   // 0x004ac150 with three strings for the message's %1 %2 %3.
   virtual uint32_t message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
                                 const char* s3) {

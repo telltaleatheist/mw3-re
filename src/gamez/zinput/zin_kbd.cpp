@@ -202,7 +202,7 @@ void kbd_read(bool callbacks) {
 }
 
 // Mech3.exe 1.2 @ 0x0051a9a0
-void set_char_callback(CharCallback cb, uint32_t ctx) {
+void set_char_callback(CharCallback cb, uintptr_t ctx) {
   state().char_callback = cb;
   state().char_ctx = ctx;
 }

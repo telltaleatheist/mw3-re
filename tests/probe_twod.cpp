@@ -250,6 +250,17 @@ void probe_blit16(uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, int
   zrndr::blit16(&img, x, y, key, reinterpret_cast<const zrndr::BlitRect*>(rect));
 }
 
+// zrndr::line16 into a buffer the caller owns (test_twod_line.py).
+void probe_line16(uint8_t* target, uint32_t tw, uint32_t th, uint32_t pitch, int32_t x0, int32_t y0, int32_t x1,
+                  int32_t y1, uint16_t pixel) {
+  zrndr::Target2D& t = zrndr::target2d();
+  t.base = target;
+  t.width = tw;
+  t.height = th;
+  t.pitch = pitch;
+  zrndr::line16(x0, y0, x1, y1, pixel);
+}
+
 }  // extern "C"
 
 extern "C" {

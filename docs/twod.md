@@ -35,8 +35,11 @@ Only two source names survive in the exe's error reports: `twod_dialog.cpp`
 | 0x005a2b50..0x005a2bb0 | Window (mouse routing) |
 | 0x005a2da0..0x005a3080 | TextBase (bitmap-font text) |
 | 0x005a3170..0x005a3bc0 | HUD primitives: polylines, rectangles, filled boxes |
-| 0x005a3cd0..0x005a4880 | the text console layer (`Arial`), the interp debug console (0x005a40b0, interp.md) and its line editor |
-| 0x005a4590..0x005a5440 | the render overlay layer (0x005a6790 / 0x005a67c0 from the draw paths) |
+| 0x005a3cd0..0x005a4690 | the text console layer (`Arial`), the interp debug console (0x005a40b0, interp.md) and its line's keys (0x005a4660..0x005a4690) |
+| 0x005a4590..0x005a4680 | the render overlay layer (0x005a6790 / 0x005a67c0 from the draw paths) |
+| 0x005a46a0..0x005a4ad0 | the line editor (the console's and the edit bar's) |
+| 0x005a4b10..0x005a5340 | the edit bar's caret and the edit bar (section 5) |
+| 0x005a5360..0x005a5440 | the ripple |
 | 0x005a5470..0x005a6110 | weather as 2D: SnowFX base, snow 0x005a5ad0, rain 0x005a60a0 (world-params.md) |
 | 0x005a67e0..0x005a6d10 | HUD lines (ENDP_REL / ENDP_ABS, the clamp of protection.md) and small HUD objects; the key-list screen's pieces (0x00482570) |
 | 0x005a6e60..0x005a7730 | MessageBox, its modal loop 0x005a7288 and the MB_* buttons |
@@ -75,8 +78,11 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
 | MessageBox | 0x005a6e60 | 0x005d08f0 | 0x12494 | Dialog | yes |
 | MbButton (8 vtables) | 0x0059bbe0 | 0x005d0d10..0x005d0920 | 0x14c | Control | yes |
-| PolyLine | 0x005a3830 | 0x005cfff0 | >= 0xec | Object2D | no |
 | Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | | PolyLine | no |
+| PolyLine | 0x005a3830 | 0x005cfff0 | 0xec | Object2D | the plain path (the draw list and transformed paths are the HUD's) |
+| LineEditor | 0x005a46a0 | 0x005d0330 | 0x114 | | yes |
+| Caret | 0x005a4b10 | 0x005d0360 | 0x10c | PolyLine | yes |
+| EditBar (its line: vtable 0x005d0478) | 0x005a4ec0 | 0x005d03e0 | 0x380 | Control | yes |
 | Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | | Object2D | no |
 | Render overlay | 0x005a4590 | 0x005d0288 (+0x28: 0x005d0290) | | Layer | no |
 | Ripple | 0x005a53e0 | 0x005d04a8 | 0x4c | Object2D | yes (its zRender draw 0x00558dd0 hooked; mainmenu.md) |
@@ -304,6 +310,48 @@ entries' width cut, ACTIVE_RECT the box's bounds. SPACING is read as the
 node's raw value: a bare number in the shipped files; a list there would
 give a pointer as the spacing.
 
+### The edit bar (0x005a4ec0)
+
+A text field: a Control (0x380 bytes) whose first LABEL shows the line being
+typed, with a **line editor** at +0x14c (0x005a46a0, vtable 0x005d0330: the
+buffer +0x08 of +0x0c bytes, 0x200 until the owner resizes it; the cursor
++0x10; a _strdup'd set of refused characters +0x04; and a byte per
+character, +0x14, saying what it does: 1 insert, 2 nothing (the control
+characters), 3 Escape (0x1b), 4 Enter (0x0d), 5 Backspace (0x08), 6 Delete
+(0x7f), 7 left (2), 8 right (6), 9 home (1), 10 end (4), the keypad codes
+zInput's text callback sends, input.md). The interp console's line is one
+too (its keys 0x005a4660..0x005a4690). Its character (0x005a4880): a
+refused one is dropped, the rest do what their byte says. Inserting
+(0x005a49a0) opens a gap at the cursor (0x005a4a80) while the text is
+shorter than the buffer's last byte; a full line ignores the character.
+Backspace closes the gap before the cursor (0x005a4ad0), Delete the one at
+it; left, right, home and end move the cursor within the text.
+
+The bar (vtable 0x005d03e0) has the **focus** (+0x374) when the game gives
+it (0x005a5090): zInput's text callback (0x0051a9a0, the 0x0063c49c pair) is
+then 0x005a5020 with the bar as its context, so every key typed comes to its
++0x8c (0x005a5040) as a character; a numeric bar (+0x37c, set by nothing in
+the menus) takes only `0123456789.-` and the editing keys. Losing the focus
+clears the callback. Enter and Escape call the bar's +0x90 and +0x94
+(empty here; the game's bars override them). Setting the text (0x005a52a0)
+cuts it to the buffer and puts the cursor at the end of what was given
+(clamped to the text).
+
+Each frame (0x005a50e0), with the focus: the first label is shown with the
+line, and the **caret** (+0x264, vtable 0x005d0360, a PolyLine of 13
+points: an I-beam w either side of its x, h tall, placed by 0x005a4cf0)
+stands at the right of the cursor's characters, measured with DrawTextA's
+DT_CALCRECT on the label's font (0x005a0e20; with the cursor at 0, "W"'s
+height at the label's left), in the label's top colour (0x00579370). The
+caret's width (+0x370) is 0, so the beam is a vertical line the text's
+height. Without the focus it hides. The caret draws every frame it shows
+(0x005a4c90: no dirty logic; a blink mode, +0xfc, is never set), each time
+erasing (it has no background, so nothing) and joining its points with
+zRender's 2D line (0x00562940 -> [0x008008c0] = 0x00563b80 in 16-bit
+modes: Bresenham, unclipped). A hidden bar hides its label and caret. The
+bar reads its first label unchecked: a bar with no LABEL faults on its
+first update.
+
 ### The message box (0x005a6e60)
 
 A Dialog (dlgMessage.zrd MESSAGEBOX) with a TITLE and MESSAGE FontText and
@@ -350,6 +398,13 @@ built and run, FastMenu set around it (0x0040ce90), destroyed.
 - `twod_textbox.cpp`: the text copies (0x005a0200, 0x005a03f0, 0x005a2a70,
   0x005a2ae0, 0x005a2e30, 0x005a2ed0), the vector (0x005a2700, 0x004097e0)
   and TextBox (0x005a18f0..0x005a2640, 0x00406020).
+- `twod_editbar.cpp`: the line editor (0x005a46a0..0x005a4ad0), PolyLine
+  (0x005a3830, 0x005a38a0, 0x005a38f0's plain path), the Caret (0x005a4b10,
+  0x005a4c90, 0x005a4cf0) and the EditBar (0x005a4ec0..0x005a5340); its
+  label's measure 0x005a0e20 is FontText::measure_prefix (twod_wintext.cpp).
+  zInput's text callback and zRender's line are Host calls (`set_char_callback`
+  0x0051a9a0, the port's `zin::set_char_callback`; `line` 0x00562940, the
+  port's `zrndr::line16`, 0x00563b80).
 - `twod_msgbox.cpp`: MessageBox (0x005a6e60, 0x005a7150, the loop
   0x005a7280, the answers 0x005a7560..0x005a7640) and its buttons
   (0x005a7650..0x005a7730).
@@ -448,6 +503,11 @@ the blink mode's off half (nothing sets mode 1), the Yes/No/Cancel buttons
 shown in another order (showing has no outside effect), and the box's loop
 counting one frame less (it differs only at the 100,000-frame timeout).
 
+The edit bar is checked inside the controls' load/save popup
+(`test_loadsave.py`, menus.md section 9): the line editor's every action,
+refused and numeric characters, the focus and zInput's text callback, the
+caret's place, colour and lines (0x00562940 recorded), set_text's cuts.
+
 ## 8. Quirks kept
 
 - A check button plays its rollover sound twice on enter (0x0059db00 plays
@@ -487,12 +547,13 @@ Mapped, not ported:
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
   0x005a7d10 (zFMV is not ported).
-- The HUD side: primitives 0x005a3170..0x005a3bc0 (zRender's 2D lines
-  0x00562940 / 0x00562cb0, boxes 0x005630c0 / 0x00563440), the line clip
+- The HUD side: primitives 0x005a3170..0x005a3bc0 but the polyline's plain
+  path (zRender's 2D line list 0x00562cb0, the transformed points 0x005a3580,
+  boxes 0x005630c0 / 0x00563440), the line clip
   helpers 0x0059b2f0..0x0059b7e0, HUD lines 0x005a67e0..0x005a6b30, the
   render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in it)
   and zRender's ripple 0x00558dd0 (Host::ripple), the text console
-  0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4880, the
+  0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
   key-list screen pieces 0x005a6bd0..0x005a6d10.
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10

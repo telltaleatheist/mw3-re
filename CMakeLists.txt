@@ -94,6 +94,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp
+  src/gamez/ztwod/twod_editbar.cpp
   src/gamez/ztwod/twod_host.cpp
   src/gamez/ztwod/twod_list.cpp
   src/gamez/ztwod/twod_msgbox.cpp
@@ -194,6 +195,7 @@ add_library(mw3probe SHARED
   tests/probe_mainmenu.cpp
   tests/probe_menus.cpp
   tests/probe_ctlscreen.cpp
+  tests/probe_loadsave.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_collide.cpp

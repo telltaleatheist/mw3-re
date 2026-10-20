@@ -155,4 +155,41 @@ void blit16(const zimg::Texture* img, int32_t x, int32_t y, uint16_t key, const 
     for (int32_t c = 0; c < width; ++c) dst[c] = pal[s[c]];
 }
 
+// Mech3.exe 1.2 @ 0x00563b80
+// Bresenham from the first point: the error starts at half the longer axis and
+// the shorter one steps once it passes the longer. FIX (bug): the original
+// writes every pixel unclipped, past the buffer for a point off screen; here a
+// pixel off the target is skipped (docs/fixes.md).
+void line16(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t pixel) {
+  const Target2D& t = g_target;
+  int32_t dy = y1 - y0, sy = 1;
+  if (dy < 0) dy = -dy, sy = -1;
+  int32_t dx = x1 - x0, sx = 1;
+  if (dx < 0) dx = -dx, sx = -1;
+  const int32_t pitch = static_cast<int32_t>(t.pitch >> 1);
+  auto put = [&](int32_t px, int32_t py) {
+    if (!t.base || px < 0 || py < 0 || px >= static_cast<int32_t>(t.width) || py >= static_cast<int32_t>(t.height))
+      return;
+    reinterpret_cast<uint16_t*>(t.base)[py * pitch + px] = pixel;
+  };
+  int32_t x = x0, y = y0;
+  if (dx > dy) {
+    int32_t err = dx >> 1;
+    for (int32_t n = dx + 1; n; --n) {
+      put(x, y);
+      err += dy;
+      x += sx;
+      if (err > dx) err -= dx, y += sy;
+    }
+  } else {
+    int32_t err = dy >> 1;
+    for (int32_t n = dy + 1; n; --n) {
+      put(x, y);
+      err += dx;
+      y += sy;
+      if (err > dy) err -= dy, x += sx;
+    }
+  }
+}
+
 }  // namespace zrndr

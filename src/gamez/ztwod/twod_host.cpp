@@ -5,6 +5,7 @@
 #include <cstdlib>
 
 #include "gamez/zimage/zimg_library.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zrender/zrndr_blit.h"
 
 namespace ztwod {
@@ -108,6 +109,10 @@ MouseState Host::mouse() {
   return MouseState{};
 }
 void Host::input_reset() { unported("0x0051b1c0", {}); }
+void Host::set_char_callback(void (*cb)(int32_t, int32_t, uintptr_t), uintptr_t ctx) { zin::set_char_callback(cb, ctx); }
+void Host::line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel) {
+  zrndr::line16(x0, y0, x1, y1, static_cast<uint16_t>(pixel));
+}
 
 Handle Host::GetStockObject(int32_t which) { return unported("GetStockObject", {which}); }
 Handle Host::CreateFontA(int32_t height, int32_t width, int32_t escapement, int32_t orientation, int32_t weight,

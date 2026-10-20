@@ -43,8 +43,7 @@ const char* name_of(const char* key, uint32_t v, int32_t n, const char* prefix, 
 
 struct CtlEngine : mech3::Engine {
   char active[0x104] = {};
-  Handle popup_handle = 0;
-  mech3::MenuScreen* popup = nullptr;
+  std::map<Handle, mech3::MenuScreen*> popups;  // the axis and load/save popups' screens
 
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override { return call(key, args); }
   int32_t fast_menu() override { return static_cast<int32_t>(call("0x0040cec0", {}) & 0xff); }
@@ -112,14 +111,15 @@ struct CtlEngine : mech3::Engine {
   void controls_write(const char* path) override { call("0x00411e60", {path}); }
   char* active_ctl_cfg() override { return active; }
   Handle adopt_screen(mech3::MenuScreen* s, uint32_t) override {
-    popup = s;
-    popup_handle = 0x7a000000;
-    return popup_handle;
+    const Handle h = 0x7a000000 + 0x100000 * static_cast<Handle>(popups.size());
+    popups[h] = s;
+    return h;
   }
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override {
-    if (obj == popup_handle && popup && slot == 0x08) {  // the axis state's destructor
-      delete popup;
-      popup = nullptr;
+    auto it = popups.find(obj);
+    if (it != popups.end() && slot == 0x08) {  // a popup state's destructor
+      delete it->second;
+      popups.erase(it);
       return 0;
     }
     return Engine::vcall(obj, slot, args);

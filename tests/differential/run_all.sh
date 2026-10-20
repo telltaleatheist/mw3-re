@@ -55,10 +55,12 @@ for t in \
     tag \
     twod \
     twod_blit \
+    twod_line \
     twod_msgbox \
     mainmenu \
     menus \
     ctlscreen \
+    loadsave \
     update \
     di \
     collide \

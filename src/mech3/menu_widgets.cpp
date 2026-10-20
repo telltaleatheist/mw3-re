@@ -664,4 +664,480 @@ void LevelCycle::after_bind() {
   add_item(e_.message(0x38), 2);
 }
 
+// ---- the file list ----
+
+namespace {
+ztwod::Object2D* cursor_of(ztwod::Layer* owner) {
+  auto* w = dynamic_cast<ztwod::Window*>(owner);
+  return w ? w->cursor : nullptr;
+}
+bool shown(const ztwod::Object2D* o) { return !(o->flags & ztwod::kHidden); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0048bfe0
+FileRow::FileRow(FileList* l, Handle font) : list(l) {
+  FontText::set_font(font);
+  flash_rate = 0.01f;
+}
+
+// Mech3.exe 1.2 @ 0x0048c070
+void FileRow::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  if (attached) attached->update(dt);
+  Text::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0048e520
+void FileRow::on_left_up() { list->select(index); }
+
+// Mech3.exe 1.2 @ 0x0048e550
+void FileRow::on_enter() {
+  if (attached) attached->on_enter();
+}
+
+// Mech3.exe 1.2 @ 0x0048e560
+void FileRow::on_leave() {
+  if (attached) attached->on_leave();
+}
+
+// Mech3.exe 1.2 @ 0x0048c0b0
+void FileRow::flash(bool on, Handle font) {
+  if (!on) {
+    stop_flash();
+    return;
+  }
+  if (font) set_flash(ztwod::host().font_fields(font).color_top, 0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x0048e4e0 (UP), 0x0048e500 (DOWN)
+void FileListArrow::on_left_up() {
+  Control::on_left_up();
+  list->scroll(by);
+}
+
+// Mech3.exe 1.2 @ 0x0048c0e0
+FileList::FileList(Engine& e, int32_t i) : ShellButton(e, i) {}
+
+// Mech3.exe 1.2 @ 0x0048c250
+FileList::~FileList() {
+  clear_items();
+  layout();
+  delete selected_row;
+  for (FileRow* r : rows) delete r;
+  rows.clear();
+  delete up;
+  delete down;
+  delete bar_image;
+  delete roll_image;
+}
+
+void FileList::clear_items() {
+  for (Item* it : items) {
+    if (!it) continue;
+    if (it->text) std::free(it->text);
+    delete it;
+  }
+  items.clear();
+}
+
+// Mech3.exe 1.2 @ 0x0042fbf0
+int32_t FileList::add_item(const char* text, int32_t value) {
+  const int32_t old = item_count();
+  items.push_back(new Item{strdup(text), value});
+  layout();
+  return old;
+}
+
+// Mech3.exe 1.2 @ 0x0048c410
+bool FileList::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  ztwod::Host& h = ztwod::host();
+  reading = 1;
+  Control::read_control(node, dialog);
+  reading = 0;
+  font_selected = h.font_find(zrdr::get_string(node, "SELECTED_FONT"));
+  font_normal = h.font_find(zrdr::get_string(node, "NORMAL_FONT"));
+  if (!font_selected) font_selected = font_normal;
+  int32_t v[2];
+  if (zrdr::get_ivec2(node, "SPACING", v)) spacing_x = v[0], spacing_y = v[1];
+  if (zrdr::get_ivec2(node, "OFFSET", v)) offset_x = v[0], offset_y = v[1];
+  zrdr::get_int(node, "SIZE", &size);
+  if (const char* sn = zrdr::get_string(node, "ROLLOVER_SOUND")) sounds[0] = h.sound_find(sn);
+  if (const char* sn = zrdr::get_string(node, "SELECT_SOUND")) sounds[1] = h.sound_find(sn);
+  if (zrdr::Node* n = zrdr::find(node, "BAR")) {
+    bar_image = new ztwod::Image(0);
+    const char* name = zrdr::get_string(n, "BITMAP");
+    if (zrdr::get_ivec2(n, "OFFSET", v)) bar_dx = v[0], bar_dy = v[1];
+    bar_image->set_image(name);
+  }
+  if (zrdr::Node* n = zrdr::find(node, "ITEMROLLOVER")) {
+    roll_image = new ztwod::Image(0);
+    const char* name = zrdr::get_string(n, "BITMAP");
+    if (zrdr::get_ivec2(n, "OFFSET", v)) roll_dx = v[0], roll_dy = v[1];
+    roll_image->set_image(name);
+    font_rollover = h.font_find(zrdr::get_string(node, "FONT"));  // looked up from the list's entry
+  }
+  // The arrows are placed from the list and taken out of the dialog: the list updates them.
+  for (int k = 0; k < 2; ++k) {
+    zrdr::Node* n = zrdr::find(node, k ? "DOWN" : "UP");
+    if (!n) continue;
+    FileListArrow*& a = k ? down : up;
+    a = new FileListArrow(e_, this, k ? 1 : -1);
+    a->read_control(n, dialog);
+    a->after_bind();
+    const int32_t ay = a->get_y() + get_y();
+    a->set_pos(a->get_x() + get_x(), ay);
+    dialog->remove(a);
+  }
+  place_at(this);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0048c7f0
+void FileList::after_bind() {
+  set_rows(size);
+  selected_row = new FileRow(this, font_selected);
+  set_pos(x, y);
+}
+
+// Mech3.exe 1.2 @ 0x0048d770
+void FileList::set_rows(int32_t n) {
+  size = n;
+  while (static_cast<int32_t>(rows.size()) < size) rows.push_back(new FileRow(this, font_normal));
+  while (static_cast<int32_t>(rows.size()) > size) {
+    delete rows.back();
+    rows.pop_back();
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0048d2c0
+void FileList::set_pos(int32_t px, int32_t py) {
+  Image::set_pos(px, py);
+  layout();
+}
+
+// Mech3.exe 1.2 @ 0x0048d2f0
+void FileList::place_at(ztwod::Image* o) {
+  if (!o) return;
+  const int32_t oy = o->get_y();
+  set_pos(o->get_x(), oy);
+  rect.left = o->get_x();
+  rect.top = o->get_y();
+  rect.right = rect.left + (o->image ? o->image->width : 0);
+  rect.bottom = rect.top + (o->image ? o->image->height : 0);
+}
+
+// Mech3.exe 1.2 @ 0x0048cda0: the rows from `top` down from OFFSET, SPACING
+// apart, the selected item in its own row over the BAR; the rectangle round
+// the rows when the list has no image of its own.
+void FileList::layout() {
+  if (flags & ztwod::kHidden) return;
+  const int32_t x0 = get_x() + offset_x;
+  const int32_t y0 = get_y() + offset_y;
+  int32_t n = item_count() - top;
+  const int32_t nrows = static_cast<int32_t>(rows.size());
+  if (n > nrows) n = nrows;
+  else if (n < 0) n = 0;
+  int32_t max_h = 0, max_w = 0;
+  // FIX (bug): with no row shown the original's bottom is a stack slot never
+  // written (the shipped popup's list has no image, so its rectangle is
+  // garbage until it has items); here it is the top (docs/fixes.md).
+  int32_t row_y = y0;
+  if (selected_row) selected_row->hide();
+  if (bar_image) bar_image->hide();
+  for (int32_t i = 0; i < n; ++i) {
+    FileRow* r = rows[static_cast<size_t>(i)];
+    r->show_for(-1.0f);
+    r->index = i + top;
+    // FIX (bug): the original passes the name as the printf format, so a "%"
+    // in a file name read arguments that are not there; shown as it is here.
+    r->set_text("%s", items[static_cast<size_t>(i + top)]->text);
+    row_y = i * spacing_y + y0;
+    if (r->needs_render) r->render();
+    if (max_w <= r->width) {
+      if (r->needs_render) r->render();
+      max_w = r->width;
+    }
+    if (max_h <= r->text_height()) max_h = r->text_height();
+    r->set_pos(x0 + spacing_x, row_y);
+    if (i + top == selected && selected_row) {
+      const int32_t sx = r->get_x();
+      const int32_t sy = r->get_y();
+      selected_row->show_for(-1.0f);
+      selected_row->set_pos(sx, sy);
+      selected_row->index = i + top;
+      selected_row->set_text("%s", items[static_cast<size_t>(i + top)]->text);
+      r->hide();
+      if (bar_image) {
+        bar_image->set_pos(bar_dx + sx, bar_dy + sy);
+        bar_image->show_for(-1.0f);
+      }
+    }
+  }
+  for (int32_t i = n; i < nrows; ++i) rows[static_cast<size_t>(i)]->hide();
+  if (!image) rect = ztwod::Rect{x0, y0, max_w + x0, row_y + max_h};
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x0048d0d0
+void FileList::select(int32_t index) {
+  if (index != -1 && (index < 0 || index >= item_count())) return;
+  selected = index;
+  if (index != -1) {
+    if (index < top) {
+      top = index;
+    } else if (index > size - 1 + top) {
+      const int32_t t = index - size + 1;
+      top = t < 0 ? 0 : t;
+    }
+  }
+  notify(10, index);
+  layout();
+}
+
+// Mech3.exe 1.2 @ 0x0048d160
+void FileList::scroll(int32_t by) {
+  top += by;
+  if (top > item_count()) top = item_count();
+  else if (top < 0) top = 0;
+  layout();
+}
+
+// Mech3.exe 1.2 @ 0x0048d1c0. FIX (bug): the original indexes the rows by the
+// item's index, past the rows for an item below them; such a row is skipped.
+void FileList::set_row_font(int32_t index, Handle font) {
+  if (index < 0 || index >= item_count()) return;
+  if (index < static_cast<int32_t>(rows.size())) rows[static_cast<size_t>(index)]->set_font(font);
+  layout();
+}
+
+// Mech3.exe 1.2 @ 0x0048d210
+int32_t FileList::hit(int32_t px, int32_t py) {
+  const bool in = shown(this) && px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom;
+  const int32_t u = up ? up->hit(px, py) : 0;
+  const int32_t d = down ? down->hit(px, py) : 0;
+  return in || u || d;
+}
+
+// Mech3.exe 1.2 @ 0x0048d540: a shown row (or the thing it carries) under the
+// point, else the selected row.
+FileRow* FileList::row_at(int32_t px, int32_t py) {
+  for (FileRow* r : rows) {
+    if (!shown(r)) continue;
+    if (r->hit(px, py)) return r;
+    if (r->attached && r->attached->hit(px, py)) return r;
+  }
+  if (selected_row && shown(selected_row) && selected_row->hit(px, py)) return selected_row;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x0048d500
+FileRow* FileList::row_under_mouse() {
+  ztwod::Object2D* c = cursor_of(owner);
+  const int32_t cx = c->get_x();
+  const int32_t cy = c->get_y();
+  return row_at(cx, cy);
+}
+
+// Mech3.exe 1.2 @ 0x0048d600
+bool FileList::over_up(int32_t px, int32_t py) { return up && shown(up) && up->enabled && up->hit(px, py); }
+// Mech3.exe 1.2 @ 0x0048d650
+bool FileList::over_down(int32_t px, int32_t py) {
+  return down && shown(down) && down->enabled && down->hit(px, py);
+}
+
+// Mech3.exe 1.2 @ 0x0048d380
+void FileList::stop_sound(int32_t i) {
+  ztwod::host().sound_stop(playing[i]);
+  playing[i] = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048d3b0
+void FileList::play_sound(int32_t i, float volume) { playing[i] = ztwod::host().sound_play(sounds[i], volume); }
+
+// Mech3.exe 1.2 @ 0x0048d3e0: the row under the mouse lights in FONT's colour
+// with the rollover sound; leaving it stops the sound (not on leaving the list).
+void FileList::on_drag(int32_t px, int32_t py) {
+  if (!inside) return;
+  FileRow* r = row_at(px, py);
+  if (r == lit) return;
+  if (lit) {
+    stop_sound(0);
+    lit->on_leave();
+    lit->flash(false, 0);
+  }
+  if (r && can_light(r->index)) {
+    play_sound(0, 1.0f);
+    r->on_enter();
+    lit = r;
+    r->flash(true, font_rollover);
+    dirty();
+    return;
+  }
+  lit = nullptr;
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x0048d4a0
+void FileList::on_enter() {
+  Control::on_enter();
+  inside = 1;
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x0048d4c0
+void FileList::on_leave() {
+  Control::on_leave();
+  inside = 0;
+  if (lit) lit->flash(false, 0);
+  lit = nullptr;
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x0048d6a0: a row selects itself (the press shown, the
+// screen told); off the rows, a press on an arrow, unless repeating.
+void FileList::on_left_up() {
+  if (FileRow* r = row_under_mouse()) {
+    r->on_left_up();
+    if (enabled) {
+      Control::on_left_up();
+      notify(1, 0);
+    }
+    return;
+  }
+  if (repeating) return;
+  ztwod::Object2D* c = cursor_of(owner);
+  const int32_t cx = c->get_x();
+  const int32_t cy = c->get_y();
+  if (over_up(cx, cy)) {
+    up->on_left_up();
+    return;
+  }
+  if (over_down(cx, cy)) down->on_left_up();
+}
+
+// Mech3.exe 1.2 @ 0x0048d750
+void FileList::on_right_up() {
+  if (FileRow* r = row_under_mouse()) r->on_right_up();
+}
+
+// Mech3.exe 1.2 @ 0x0048c880
+void FileList::show_for(float seconds) {
+  Control::show_for(seconds);
+  layout();
+  if (up) up->show_for(seconds);
+  if (down) down->show_for(seconds);
+}
+
+// Mech3.exe 1.2 @ 0x0048c8c0
+void FileList::hide() {
+  Control::hide();
+  if (up) up->hide();
+  if (down) down->hide();
+  if (bar_image) bar_image->hide();
+  if (roll_image) roll_image->hide();
+}
+
+// Mech3.exe 1.2 @ 0x0048c910: the arrows light under the cursor and repeat
+// while the left button is held on them (after repeat_delay, then every
+// repeat_rate seconds of the frame time); the rollover image follows the lit
+// row; UP is enabled past the first item, DOWN while items are below.
+void FileList::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  Object2D::update(dt);
+  if (!inside) {
+    repeating = 0;
+    repeat_timer = repeat_delay;
+  } else {
+    ztwod::Object2D* c = cursor_of(owner);
+    const int32_t cx = c->get_x();
+    const int32_t cy = c->get_y();
+    on_drag(cx, cy);
+    const bool u = over_up(cx, cy);
+    const bool d = over_down(cx, cy);
+    if ((arrow_lit == 1) != u) {
+      if (u) {
+        up->on_enter();
+        arrow_lit = 1;
+      } else {
+        arrow_lit = 0;
+        up->on_leave();
+      }
+    } else if ((arrow_lit == 2) != d) {
+      if (d) {
+        down->on_enter();
+        arrow_lit = 2;
+      } else {
+        arrow_lit = 0;
+        down->on_leave();
+      }
+    }
+    const ztwod::MouseState m = ztwod::host().mouse();
+    if (!no_repeat && m.left == 2) {
+      repeat_timer -= dt;
+      if (!repeating) {
+        repeating = repeat_timer < 0.0f ? 1 : 0;
+      } else if (repeat_timer < 0.0f) {
+        repeat_timer = repeat_rate;
+        if (u) up->on_left_up();
+        else if (d) down->on_left_up();
+        else repeating = 0;
+      }
+    } else {
+      repeating = 0;
+      repeat_timer = repeat_delay;
+    }
+  }
+  if (bar_image) bar_image->update(dt);
+  if (roll_image) {
+    if (lit && can_roll(lit->index)) {
+      const int32_t ly = lit->get_y() + roll_dy;
+      roll_image->set_pos(lit->get_x() + roll_dx, ly);
+      roll_image->show_for(-1.0f);
+    } else {
+      roll_image->hide();
+    }
+    roll_image->update(dt);
+  }
+  for (size_t i = 0; i < rows.size(); ++i) rows[i]->update(dt);
+  if (selected_row) selected_row->update(dt);
+  if (up) {
+    up->enabled = top != 0;
+    up->refresh();
+    up->update(dt);
+  }
+  if (down) {
+    const int32_t nrows = static_cast<int32_t>(rows.size());
+    const int32_t below = top + nrows < item_count() ? top + nrows : item_count();
+    down->enabled = below < item_count();
+    down->refresh();
+    down->update(dt);
+  }
+}
+
+// ---- the game's edit bar ----
+
+// Mech3.exe 1.2 @ 0x0048b220
+void ShellEditBar::set_pos(int32_t px, int32_t py) {
+  Image::set_pos(px, py);
+  if (!labels.empty()) labels[0]->set_pos(label_x + px, label_y + py);
+}
+
+// Mech3.exe 1.2 @ 0x0042f890
+ztwod::Rect* ShellEditBar::get_rect() { return reading ? nullptr : Control::get_rect(); }
+
+// Mech3.exe 1.2 @ 0x0042f860
+bool ShellEditBar::read_control(zrdr::Node* n, ztwod::Dialog* d) {
+  reading = e_.fast_menu() ? 0 : 1;
+  const bool r = Control::read_control(n, d);
+  reading = 0;
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0048b1d0
+void ShellEditBar::after_bind() {
+  if (labels.empty()) return;
+  label_x = labels[0]->get_x();
+  label_y = labels[0]->get_y();
+}
+
 }  // namespace mech3
