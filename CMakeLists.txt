@@ -93,6 +93,7 @@ add_library(mw3core STATIC
   src/mech3/mech_data.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
+  src/mech3/mech_pose.cpp
   src/mech3/mech_move.cpp
   src/mech3/mech_skis.cpp
   src/mech3/mech_update.cpp
@@ -151,6 +152,7 @@ add_library(mw3probe SHARED
   tests/probe_di.cpp
   tests/probe_collide.cpp
   tests/probe_mechanim.cpp
+  tests/probe_pose.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

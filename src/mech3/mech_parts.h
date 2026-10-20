@@ -16,6 +16,13 @@ struct Vec3 {
 
 using Handle = void*;  // an object of a system not ported yet (node, effect, entity)
 
+// The scene-node calls the parts' pose makes (zClass/Object3d.c). Unset: nothing.
+struct PoseCalls {
+  void (*node_set)(Handle node, const float* m) = nullptr;  // 0x004fc300: m (3x4) is the node's new matrix
+  float* (*node_matrix)(Handle node) = nullptr;             // 0x004fc3f0: the object3d's local 3x4
+};
+PoseCalls& pose_calls();
+
 // The weapon a hit comes from: the zWeapon definition and its MW3 half
 // (mech3/weapon.h, docs/weapons.md).
 struct WeaponType;
@@ -39,6 +46,7 @@ class MechPart {
  public:
   Mech* mech = nullptr;          // +0x04  (looked up lazily in the exe, 0x460000)
   Handle node = nullptr;         // +0x08
+  float* rotation = nullptr;     // +0x14  the node's local 3x3 (object3d data +0x30); the translation follows it
   Vec3* translation = nullptr;   // +0x18  the node's local translation (object3d data +0x54, 0x00460190)
   int32_t id = -1;               // node +0x28, -1 without a node
   float internal = 1.0f;         // +0x38
@@ -46,12 +54,16 @@ class MechPart {
   float armor = 1.0f;            // +0x40
   float armor_scale = 100.0f;    // +0x44
   bool destroyed = false;        // +0x48
+  bool pending = false;          // +0x4a  a pose to apply instead of the next one (+0x4c, +0x58)
+  Vec3 pending_pos{};            // +0x4c
+  float pending_q[4] = {1, 0, 0, 0};  // +0x58  (a foot's target rotation, set_pose 0x004629b0)
   Handle x68 = nullptr;          // +0x68
   Handle debris_effect = nullptr;  // +0x6c
   Handle trail_effect = nullptr;   // +0x70
 
   virtual ~MechPart() = default;
   virtual void update(float) {}  // +0x10 (base 0x00461730; torso 0x00464e80, hip 0x004623a0, leg 0x00463ee0, arm 0x00466510)
+  virtual void node_changed();   // +0x14, 0x00460180: the node's matrix set (0x004fc300); torso 0x004659c0
   virtual int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse);  // +0x18
   virtual void apply_impact(Vec3*, float) {}                  // +0x1c, 0x0040baf0
   virtual void destroy(int variant, int fly);                 // +0x20
@@ -63,6 +75,7 @@ class MechPart {
   virtual float get_internal(int) const { return internal; }  // +0x48, 0x00467350
   virtual float get_armor_scale(int) const { return armor_scale; }        // +0x4c, 0x00467360
   virtual float get_internal_scale(int) const { return internal_scale; }  // +0x50, 0x00467370
+  virtual void set_pose(const Vec3* pos, const float* q);  // +0x2c, 0x00460280 (hip 0x004624b0, torso 0x00464600, foot 0x004629b0)
 
   void detach();                 // vtable +0x0c with no node, 0x00460190
   void lose_contents();          // 0x004617f0
@@ -120,6 +133,23 @@ class Leg : public MechPart {
  public:
   Calf* calf = nullptr;          // +0x74
   Foot* foot = nullptr;          // +0x78
+  bool knee_back = false;        // +0x7c  mech +0x585 at setup (0x004637b0): the knee bends the other way
+  float thigh_angle = 0;         // +0x80  the IK's pitch at the hip
+  float knee_angle = 0;          // +0x84
+  float thigh_q[4] = {1, 0, 0, 0};  // +0x88
+  float calf_q[4] = {1, 0, 0, 0};   // +0x98
+  // Set up by 0x004637b0 from the rest pose (not ported): the leg's lengths and offsets.
+  float ik_a8 = 0;               // +0xa8
+  float thigh_len = 0;           // +0xac  hip joint to knee
+  float ik_b0 = 0;               // +0xb0
+  float hip_x = 0;               // +0xb4  the foot's rest x, taken off the target
+  float calf_len = 0;            // +0xb8  knee to ankle
+  float ik_bc = 0, ik_c0 = 0, ik_c4 = 0, ik_c8 = 0;  // +0xbc..+0xc8
+  float ik_k = 0;                // +0xcc  -(thigh^2 + calf^2)
+  float ik_m = 0;                // +0xd0  1 / (2 thigh calf)
+
+  bool solve(const Vec3& p);     // 0x00463c90: the angles and joint rotations for an ankle at p
+  bool reach(const Vec3& p, const float q[4]);  // 0x00463e40: the IK onto the thigh, calf and foot
 
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00463b40
   void destroy(int variant, int fly) override;              // 0x00463f70
@@ -143,6 +173,11 @@ class Head : public MechPart {   // vtable 0x005c2b80, 0x74 bytes
 
 class Hip : public MechPart {    // vtable 0x005c28a8
  public:
+  float rot[4] = {1, 0, 0, 0};    // +0x74  the pose's hip rotation
+  float inv[4] = {1, 0, 0, 0};    // +0x84  its inverse
+  Vec3 offset{};                 // +0x98  added to the pose (y: the crouch, toward crouch_target)
+  float crouch_target = 0;       // +0xa8
+  void set_pose(const Vec3* pos, const float* q) override;  // 0x004624b0
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00462560
   void apply_impact(Vec3* impulse, float force) override;   // 0x00466c30
   void destroy(int variant, int fly) override;              // 0x00462490
@@ -153,6 +188,10 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
  public:
   float clearance = 0;           // +0x8c  height above the ground
   int32_t ground_state = 0;      // +0x94  0 air, 1 touching, 2, 3 planted
+  uint32_t toe_count = 0;        // +0xa0
+  Handle* toe_nodes = nullptr;   // +0xa4
+  float (*toe_q)[4] = nullptr;   // +0xa8  each toe's last rotation
+  float last_q[4] = {1, 0, 0, 0};  // +0xc4  the rotation set last (the gait's blend-in starts from it)
   Handle shadow = nullptr;       // +0x78  always 0: the constructor hides <c>_shadow and clears it
   bool in_water = false;         // +0xac
   bool pivot = false;            // +0xc0  counter-spins while the mech turns in place
@@ -168,6 +207,7 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   void set_internal(float v, int section) override;         // 0x00462890
   void stop_effect();                                       // 0x00463100
   void set_pivot(float rate);                               // 0x00462dc0
+  void set_pose(const Vec3* pos, const float* q) override;  // 0x004629b0: the target, applied by the foot's update
   void show_shadow(bool on);                                // 0x0041eca0
 };
 

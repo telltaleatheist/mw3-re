@@ -129,6 +129,24 @@ void quat_roll(float angle, Quat& out) {
   out.w = static_cast<float>(std::cos(double{h}));
 }
 
+// Mech3.exe 1.2 @ 0x00525130 (about x) and 0x005251a0 (about y), as quat_roll.
+void quat_pitch(float angle, Quat& out) {
+  const float h = angle * 0.5f;
+  out.x = static_cast<float>(std::sin(double{h}));
+  out.y = out.z = 0.0f;
+  out.w = static_cast<float>(std::cos(double{h}));
+}
+
+void quat_yaw(float angle, Quat& out) {
+  const float h = angle * 0.5f;
+  out.y = static_cast<float>(std::sin(double{h}));
+  out.x = out.z = 0.0f;
+  out.w = static_cast<float>(std::cos(double{h}));
+}
+
+// Mech3.exe 1.2 @ 0x00525580: the sign bits of x, y and z flipped.
+void quat_conjugate(const Quat& q, Quat& out) { out = {q.w, -q.x, -q.y, -q.z}; }
+
 // Mech3.exe 1.2 @ 0x00525500. The length is the float's bits halved
 // (sqrt's exponent), not a true square root: the result is only near unit.
 void quat_normalize(const Quat& q, Quat& out) {
