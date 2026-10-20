@@ -102,11 +102,15 @@ struct CameraList {
 CameraList* make_cameras(zrdr::Node* mech_reader, int32_t roster, float fov_x);
 
 // What the view calls outside it: zClass's camera and nodes, the world's
-// queries and fog, the mech's torso and HUD. One per original function.
+// queries and fog, the weather, the mech's torso, controls and HUD. One per
+// original function or read; the keys are the addresses.
 class ViewHooks : public zgame::Unported {
  public:
   // How a node or object is named in the hooks' records (the probe's addresses).
   virtual uint32_t id(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+  uint32_t m(Mech& x) { return id(&x); }
+
+  // zClass.
   virtual void camera_set_position(Node3 cam, float x, float y, float z) {   // 0x004f3870
     unported("0x004f3870", {id(cam), zgame::bits(x), zgame::bits(y), zgame::bits(z)});
   }
@@ -116,18 +120,83 @@ class ViewHooks : public zgame::Unported {
   virtual void camera_add_position(Node3 cam, float x, float y, float z) {   // 0x004f3920
     unported("0x004f3920", {id(cam), zgame::bits(x), zgame::bits(y), zgame::bits(z)});
   }
-  // A node's data: the flags (+0x00, 0x20: its world matrix is stale) and the
-  // world position (+0x84). Read, not called.
-  virtual uint32_t node_flags(Node3 node) { return unported("@node_flags", {id(node)}); }
+  virtual void camera_set_horizon(Node3 cam, Node3 horizon) { unported("0x004f4090", {id(cam), id(horizon)}); }
+  virtual Node3 find_node(int32_t list, const char* name) = 0;           // 0x004f7fe0
+  // A node's data: the flags (+0x00, 0x20: the world matrix is stale) and the
+  // world position (+0x84). Reads, not calls.
+  virtual uint32_t node_flags(Node3 node) = 0;
   virtual const float* node_position(Node3 node) = 0;
   // 0x0051e9d0, 0x0051fde0, 0x004ed280(node, 1), 0x0051ea00: the stale world matrix rebuilt.
   virtual void node_refresh(Node3 node) { unported("0x004ed280", {id(node), 1}); }
-  virtual void node_world_position(Node3 node, float out[3]) = 0;  // 0x004ed530
-  virtual const float* torso_aim(Mech& m) = 0;                       // 0x0041ce00: the torso's rotation
-  virtual void torso_cockpit(Mech& m, bool on) = 0;                  // 0x0041ce10
-  virtual void mech_attached(Mech& m) = 0;                           // vt+0x100
-  virtual void mech_detached(Mech& m) = 0;                           // vt+0x104
-  virtual void hud_set_camera(Mech& m, int32_t id) = 0;              // the activations' HUD calls
+  virtual void node_world_position(Node3 node, float out[3]) = 0;        // 0x004ed530
+  virtual Node3 node_parent(Node3 node) = 0;                             // +0x58[0] when +0x54
+  virtual void node_remove_child(Node3 parent, Node3 child) {            // 0x004ebb40
+    unported("0x004ebb40", {id(parent), id(child)});
+  }
+  virtual void node_add_child(Node3 parent, Node3 child) {               // 0x004eb9b0
+    unported("0x004eb9b0", {id(parent), id(child)});
+  }
+  virtual Node3 world_node() = 0;                                        // [0x00608c84]+4
+  virtual void node_set_intersect(Node3 node, int32_t on) { unported("0x004eb6d0", {id(node), on}); }
+  virtual void query_mode(int32_t on) { unported("0x004ed9c0", {on}); }
+  // 0x004eed90 on the world: what the segment a-b meets; its result (0 when
+  // it found any) and the first record's first byte.
+  virtual int32_t segment_query(const float a[3], const float b[3], uint8_t* found) = 0;
+  virtual const float* camera_position(Node3 cam) = 0;                   // the camera's data +0x14
+  // The mission's fog (world.zrd): the water's or the air's range (2),
+  // altitude (2) and colour (3) ([0x00609900..] / [0x006098dc..]).
+  virtual const float* mission_fog(bool water) = 0;
+  virtual void set_camera_option(int32_t mode) { unported("0x0040ce10", {mode}); }
+  // 0x004edab0 on the world: the ground under (x, y, z), kept for the zone;
+  // true when it found none.
+  virtual bool ground_query(float x, float y, float z) = 0;
+  // 0x004abd90 on the last ground query: the ground's height; the hit's
+  // index, the water's kind (1 water) and level.
+  virtual float water_query(float y, float height, int32_t* index, uint8_t flag, int32_t* kind, float* level) = 0;
+  virtual uint8_t water_flag() = 0;                                      // [0x005e06f0]
+  // 0x0040b080's calls: the camera's zone from hit `index` (0x004f6c80),
+  // [0x0074a328], zEntity's 0x005a80d0 and the animations' 0x00502d70.
+  virtual void camera_zone(Node3 cam, int32_t index, Mech* target) = 0;
+  virtual void world_fog_range(float a, float b) = 0;                    // 0x004f2440
+  virtual void world_fog_color(float r, float g, float b) = 0;           // 0x004f23f0
+  virtual void world_fog_altitude(float a, float b) = 0;                 // 0x004f2420
+  // The weather object ([0x006098d0]): +0x0c bit 4 (hidden), vt+0x64 / vt+0x60(-1).
+  virtual bool has_weather() = 0;
+  virtual uint32_t weather_flags() = 0;
+  virtual void weather_hide() { unported("weather.vt+0x64", {}); }
+  virtual void weather_show() { unported("weather.vt+0x60", {zgame::bits(-1.0f)}); }
+  virtual void pull_in(float pos[3], const float at[3], const float back[3]) = 0;  // 0x0040b310, not ported
+  virtual const float* entity_position(Mech& t) = 0;                     // 0x005a85e0
+
+  // The mech.
+  virtual CameraMode* mech_camera(Mech& t, int32_t id) = 0;              // vt+0x10c: its data's camera `id`
+  virtual void mech_attached(Mech& t) { unported("mech.vt+0x100", {m(t)}); }
+  virtual void mech_detached(Mech& t) { unported("mech.vt+0x104", {m(t)}); }
+  virtual uint32_t mech_dead(Mech& t) { return unported("mech.vt+0xa0", {m(t)}); }
+  virtual const float* torso_aim(Mech& t) = 0;                           // 0x0041ce00 (0x00465940)
+  virtual void torso_cockpit(Mech& t, int32_t on) { unported("0x0041ce10", {m(t), on}); }
+  virtual void mech_41ca30(Mech& t, int32_t on) { unported("0x0041ca30", {m(t), on}); }
+  virtual void mech_41ca60(Mech& t, int32_t on) { unported("0x0041ca60", {m(t), on}); }
+  virtual float torso_pitch_rate(Mech& t) { return zgame::from_bits(unported("0x00465900", {m(t)})); }
+  virtual float torso_yaw_rate(Mech& t) { return zgame::from_bits(unported("0x004658c0", {m(t)})); }
+  virtual void torso_464ac0(Mech& t, int32_t on) { unported("0x00464ac0", {m(t), on}); }
+  virtual void torso_465a00(Mech& t, int32_t on) { unported("0x00465a00", {m(t), on}); }
+  virtual void torso_466190(Mech& t, int32_t on) { unported("0x00466190", {m(t), on}); }
+  // The controls (+0x37c): +0x08 flags (4: the torso looks), +0x0c kind; 0x00426780(arg).
+  virtual uint32_t controls_flags(Mech& t) = 0;
+  virtual int32_t controls_kind(Mech& t) = 0;
+  virtual void controls_426780(Mech& t, uint32_t arg) { unported("0x00426780", {m(t), arg}); }
+  virtual uint32_t option_5f4d44() = 0;                                  // [[0x005f4d44]]
+  virtual void anim_502da0(int32_t on) { unported("0x00502da0", {on}); }
+  virtual uint8_t head_bob() = 0;                                        // [0x005e2448]: the head bob is on
+  virtual float head_bob_scale() = 0;                                    // [0x005e244c], 0.15
+  // The HUD (0x00430aa0 on the pilot data) and its look's 0x00446240 on +0x6520.
+  virtual uint32_t mech_screen(Mech& t) { return unported("0x00430aa0", {m(t)}); }
+  virtual void screen_look(uint32_t screen) { unported("0x00446240", {screen + 0x6520}); }
+  virtual Mech* player_target() = 0;                                     // [0x005f4c8c]+0x64
+  // The pilot's game (0x00479480) and its +0x8e: outside cameras barred.
+  virtual uint32_t pilot_game() { return unported("0x00479480", {}); }
+  virtual uint8_t game_byte_8e(uint32_t game) = 0;
 };
 ViewHooks& view_hooks();
 void set_view_hooks(ViewHooks* h);
@@ -136,11 +205,15 @@ void set_view_hooks(ViewHooks* h);
 class PlayerView {
  public:
   PlayerView(Node3 camera, Node3 window, Node3 x, int32_t hardware);  // 0x0040aca0
-  ~PlayerView();                                        // 0x0040bab0
+  void add_to_camera(Node3 node);                       // +0x00 0x0040bab0: `node` a child of the camera
   void update(float dt);                                // +0x08 0x0040ada0
   bool attach(Mech* target, CameraMode* mode);          // 0x0040adf0
   void set_camera_mode(int32_t id);                     // 0x0040ae70
   void reset();                                         // 0x0040ad90
+  void cycle_camera();                                  // 0x0040aed0
+  bool follow_ground();                                 // 0x0040af30
+  void set_underwater(bool on);                         // 0x0040b0e0
+  void weather_check();                                 // 0x0040b9a0
   // 0x0040b7e0: the camera at `pos` (+ the offset turned by `rot` times
   // `dist`), looking along `look` then the mode's delta.
   void place(const float pos[3], float dist, const float rot[4], const float offset[3], const float look[4],
