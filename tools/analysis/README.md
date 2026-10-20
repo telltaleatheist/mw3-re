@@ -26,6 +26,7 @@ CLAUDE.md; Ghidra headless needs `JAVA_HOME` as noted there.
 | `keycheck.py` | Reader keys the exe looks up that no data file contains: optional, dead or misspelt (`docs/discoveries.md`). |
 | `isols.py`, `isoget.py` | List or extract an ISO 9660 image (the disc), without mounting it. |
 | `peimports.py <exe>` | Lists a PE's imported DLLs and functions. |
+| `x87.py <start> <end> [reg=name ...]` | Traces a straight-line asm range's x87 code into C expressions in the exe's evaluation order (Ghidra's printed sums are not; a port that must match bit for bit needs the real order). Run from the repo root. |
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.

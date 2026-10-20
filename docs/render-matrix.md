@@ -60,7 +60,7 @@ All fastcall: ECX, EDX, then the stack (popped by the callee).
 | 0x520610 / 0x5207b0 / 0x520960 | `rotate_x/y/z` | stack angle | top = R * top, R as in render.md section 0 |
 | 0x521670 | `euler` | ECX rot, EDX pos, stack scale | top = (S * Rz * Rx * Ry, pos) * top |
 | 0x523bc0 | `matrix_to_euler` | ECX m, EDX out | render.md section 0 formula; see quirks |
-| 0x523c50 | `invert` | ECX m, EDX out, stack flag | cofactor inverse, row 3 = -t * inverse when flag; returns 0 if det == 0 |
+| 0x523c50 | `invert`, `invert_single` | ECX m, EDX out, stack flag | cofactor inverse, row 3 = -t * inverse when flag; returns 0 if det == 0. `invert` keeps the x87's 53-bit intermediates (the reference-runtime path, test_matrix.py); `invert_single` rounds each operation to a float, for play code checked at 24 bits (the shot queries' model test 0x54cad0, test_shotq.py) |
 | 0x520b00 | `set_view` | ECX camera world matrix | W' = W with rows 1, 2 negated -> 0x73fc00; V = rigid inverse of W' -> 0x73fbc0 |
 | 0x521c10 | `set_fov` | stack h, v | |
 | 0x521c60 | `set_projection` | stack x, y, w/2, h/2, cot_h, cot_v, near, far | all the Projection fields; reads [0x72f348] (Direct3D) |
