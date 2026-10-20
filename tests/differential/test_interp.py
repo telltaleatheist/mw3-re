@@ -65,7 +65,8 @@ REAL = {'find_node', 'find_in_tree', 'list_count', 'node_alloc', 'set_name', 'se
         'object3d_create', 'object3d_add_child', 'world_set_fog_type', 'world_set_fog_color', 'world_get_fog_color',
         'world_set_fog_altitude', 'world_set_fog_density', 'world_set_fog_range', 'world_get_fog_range',
         'find_texture', 'pack_rgb', 'clouds_on', 'clouds_period', 'clouds_wavelength', 'clouds_level',
-        'clouds_heading', 'anim_set_zbd_path'}
+        'clouds_heading', 'anim_set_zbd_path', 'set_action', 'set_action_priority', 'write_prepare_a',
+        'write_prepare_b'}
 NODE_BLOCKS, NODE_NBLOCKS, NODE_BLOCK_SIZE, NODE_LIVE, NODE_CAP = 0x60bf38, 0x60bf30, 0x5ea830, 0x60bf3c, 0x60bf34
 MODEL_POOL, MODEL_SIZE, ANIM_PATH = 0x7402e4, 0x7402e0, 0x60c570
 
@@ -287,7 +288,8 @@ class Emulated:
         if not world:
             self.patch(0x4eb300, self.set_name)
         self.patch(0x4eb420, self.get_model)
-        self.patch(0x4eb450, self.set_action)
+        if not world:
+            self.patch(0x4eb450, self.set_action)
         cpu.uc.ctl_flush_tb()  # the world read ran some of the patched code already
         cpu.u32(BFE, fbits(0.0125))
         cpu.uc.hook_add(UC_HOOK_CODE, self.on_bfe, begin=0x53cf00, end=0x53cf00)

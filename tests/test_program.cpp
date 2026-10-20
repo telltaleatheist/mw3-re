@@ -8,6 +8,8 @@
 
 #include "check.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zsound/zsnd_cd.h"
@@ -15,6 +17,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
@@ -250,6 +253,108 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
     EXPECT(count("0x004ac860") == 8);  // each vehicle has its net: a controller each, and the stealth entity
     EXPECT(count("0x00414150") == 0);  // no controller, no mech
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+namespace {
+// Observers on the action lists, around the two ticks (docs/action-lists.md):
+// each records its place and what the ticks have done so far.
+struct TickWatch {
+  const mech3::GameEngine* engine = nullptr;
+  std::vector<std::string> ran;
+  uint32_t player_ticks() const {
+    const auto& n = engine->unported_counts();
+    return n.count("0x0041e3f0") ? n.at("0x0041e3f0") : 0;  // a call out of player_tick (0x004a1160)
+  }
+  void add(const char* what) { ran.push_back(std::string(what) + ":" + std::to_string(player_ticks())); }
+};
+TickWatch g_watch;
+zcls::Node* watcher(int32_t priority, zcls::NodeAction fn, bool back) {
+  zcls::Node* n = zcls::object3d_create();
+  zcls::node_set_priority(n, priority);
+  back ? zcls::node_set_action_back(n, fn) : zcls::node_set_action(n, fn);
+  return n;
+}
+}  // namespace
+
+// The debug launch of c1 mission 1 through the Load and Core states without a
+// window (docs/action-lists.md): each Core frame runs zClass's action lists
+// (0x004f7d80), so the player's tick (priority 2, 0x004a1160) and weapon_tick
+// (priority 3, zwep::tick) run once a frame, in that order, between watchers
+// put before and after each on their lists. The zClass reset between
+// missions (0x004f8f40) is not ported, so the earlier test's mission leaves
+// its player's tick on list 2 too (the world, weapons included, is kept):
+// every tick object counts.
+TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_frames_write"));
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    g_watch = TickWatch{};
+    g_watch.engine = &engine;
+    int scenes = 0;
+    uint32_t ticks_at_start = 0, tick_objects = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;  // headless: no 3D scene is drawn
+      if (scenes++ == 0) {  // the mission runs: the watchers join the lists
+        ticks_at_start = g_watch.player_ticks();
+        const auto* tick = static_cast<const zcls::Node*>(engine.object_of(mech3::player_state().tick));
+        for (zcls::ListItem* it = zcls::lists().list[2].head; it; it = it->next)
+          tick_objects += tick && it->node && it->node->action == tick->action;
+        watcher(1, [](zcls::Node*) { g_watch.add("1"); }, false);
+        watcher(2, [](zcls::Node*) { g_watch.add("2<"); }, false);
+        watcher(2, [](zcls::Node*) { g_watch.add("2>"); }, true);
+        watcher(3, [](zcls::Node*) {
+          g_watch.add("3<");
+          zwep::run_state().zone = 0x55, zwep::run_state().tick_zone = 0;  // the weapon tick copies it
+        }, false);
+        watcher(3, [](zcls::Node*) { g_watch.add(zwep::run_state().tick_zone == 0x55 ? "3>" : "3>no-tick"); }, true);
+        watcher(4, [](zcls::Node*) { g_watch.add("4"); }, false);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    EXPECT(ticks_at_start > 0);  // the player's tick ran before the watchers came
+    EXPECT(tick_objects >= 1);
+    // Every frame since: 1, then the player's tick between 2< and 2>, the
+    // weapon tick between 3< and 3>, then 4.
+    const size_t frames = g_watch.ran.size() / 6;
+    EXPECT(frames >= 3);
+    EXPECT(g_watch.ran.size() == frames * 6);
+    for (size_t f = 0; f < frames && f * 6 + 5 < g_watch.ran.size(); ++f) {
+      const std::string t = std::to_string(ticks_at_start + f * tick_objects);
+      const std::string t1 = std::to_string(ticks_at_start + (f + 1) * tick_objects);
+      const std::string* r = &g_watch.ran[f * 6];
+      EXPECT(r[0] == "1:" + t && r[1] == "2<:" + t && r[2] == "2>:" + t1);
+      EXPECT(r[3] == "3<:" + t1 && r[4] == "3>:" + t1 && r[5] == "4:" + t1);
+    }
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
