@@ -1655,6 +1655,22 @@ void BeamWeapon::held() {
   if (is_player(owner) && g_calls.hud_fire) g_calls.hud_fire(owner);
 }
 
+// The recharge step of 0x004b4230. FIX (B): the exe truncates rate x dt each
+// frame, so the faster the game runs the more it loses: TAG (166.7 a second)
+// refills in 67 s at 30 fps, 83 s at 60, never above 166 fps or at 144 fps
+// once hot (docs/weapons.md, "TAG, end to end"). With per_second the 30 fps
+// frame's whole units are spread over the frame and the fraction carried:
+// the exe's amount at 30 fps, the same per second at any rate.
+int32_t beam_recharge(float rate, float x, float dt, float* carry) {
+  if (!zfix::options().per_second) return crt::msvc_ftol(rate * x);
+  const float s = zfix::frame_steps(dt);
+  if (s == 1.0f) return crt::msvc_ftol(rate * x);
+  const float gain = static_cast<float>(crt::msvc_ftol(rate * (x / s))) * s + *carry;
+  const int32_t n = static_cast<int32_t>(std::floor(gain));
+  *carry = gain - static_cast<float>(n);
+  return n;
+}
+
 // Mech3.exe 1.2 @ 0x004b4230. The charge drains while firing and comes back
 // at U_RECHARGE_TIME, slower when hot (docs/weapons.md, "Beams").
 void BeamWeapon::update(float dt) {
@@ -1690,8 +1706,11 @@ void BeamWeapon::update(float dt) {
     } else {
       x = dt;
     }
-    int32_t amt = bin->amount + crt::msvc_ftol(t->recharge_rate * x);
-    if (amt > bin->max) amt = bin->max;
+    int32_t amt = bin->amount + beam_recharge(t->recharge_rate, x, dt, &recharge_carry);  // FIX (B)
+    if (amt >= bin->max) {
+      amt = bin->max;
+      recharge_carry = 0;
+    }
     bin->set_amount(amt);
   } else if (recharge_sound) {
     halt(recharge_sound);

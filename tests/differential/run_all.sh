@@ -52,6 +52,7 @@ for t in \
     weapons_run \
     weapons_hit \
     weapons_fly \
+    tag \
     twod \
     twod_blit \
     twod_msgbox \

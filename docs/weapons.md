@@ -23,6 +23,14 @@ logged on both sides):
 | weapon.cpp: the radar list 0x4b49c0..0x4b4b96, the AMS 0x4b3ab0..0x4b3c05, the HUD ammo gauge 0x4b0d80, the vehicle builder 0x4b4660 with the named add 0x4b0460, the mech's configuration step 0x414501..0x414732 | `mech3/weapon` | radar and AMS in `test_weapons_fly.py`; the rest in `test_weapons_run.py` (600 managers, 73 paths) |
 | The engine's soil names and LoadSoils 0x535f20 / 0x537cb0 / 0x537270, read by the impact table | `gamez/zmodel/gmod_matl` | `test_weapons_zrd.py`: LoadSoils on soils.zrd and 40 variants; weapons.zrd read with the mission's 14 soils |
 
+TAG end to end (the section of that name): `test_tag.py` runs the original's
+configuration step, manager and beam weapon at 30, 60 and 144 fps, then
+zWeapon's beam frame, the airstrike and the missiles' flights over a
+scripted world (flat ground, a mech as a capsule), the port beside it; the
+flights compare within 2e-3 of the vectors' size (the CRT's acos against
+the x87's over about a thousand homing frames). Five break tests
+(`TAG_TEST_BREAK=1..5`).
+
 The engine calls (scene graph, object3d, animations, sounds, the crater
 module, cls_di.c's segment, ground and sphere queries) go through
 `zwep::RunHooks` / `HitHooks`; the queries are ported separately in cls_di.c
@@ -587,7 +595,8 @@ segments made (up to 8, 1 for DESIGNATE; the game asks for 1), +0x40 shown,
   then adds the pellet's own 400 (likely about 800 m/s).
 - NARC: a homing missile of DAMAGE 0; TakeDamage marks with ISNARC.
 - TAG: the strike (0x4afed0) is 4 TAG_MISSILEs from 1500 back along the beam
-  and 400 up, 50 apart, homing on the point.
+  and 400 up, each moved by up to 25 in x and in y (z is shared), homing on
+  the point ("TAG, end to end" below).
 - AMS (0x4b3ab0..0x4b3c05, weapon.cpp; the mech makes it with range 150,
   period 0.6, 100 rounds, and the configuration step sets 100 rounds per
   AMS): it takes the nearest shot on the radar list within 150 by |dx| + |dz|
@@ -597,6 +606,105 @@ segments made (up to 8, 1 for DESIGNATE; the game asks for 1), +0x40 shown,
 - The radar list (0x4b49c0..0x4b4b96): a std::list of {shot, friendly}; every
   frame each radar shot's tick puts itself on it, and the radar object's
   action (priority 2) empties it.
+
+## TAG, end to end
+
+Does it work? Yes, as coded, end to end: the original's own code, run in the
+emulator from the trigger to the missiles' hits (`test_tag.py`, the port
+beside it, every call out and every pool slot compared). But it only works
+on a target that stands still, after a hold with no room for error, and the
+missiles take seven seconds to arrive from far behind the player. That is
+why it looks as if it does nothing. The numbers below are the original's.
+
+**The mount.** One stock loadout carries TAG: the Cauldron-Born's
+`MSG_CONFIG_ALTERNATE_B`, `("tag" "ltorso")` (the mech lab can add it to
+others). The configuration step (0x414679..0x4146f7) mounts weapon 0x20 on
+the node named like `firepoints[0]` (`firepoint01`, the right arm on the
+Cauldron), in group index 4, "Weapon Group 5": F5 (WEPGRP_5, 0x41c460) selects
+it, and `[` / `]` reach it too (0x4b04f0 counts beams). The vehicle
+constructor 0x4b28d0 matches the node's name against the dfn's firepoints and
+takes the part from the node, so the TAG has firepoint 0 and the right arm's
+part (emulator: the run harness's configuration step, `test_tag.py` part 1).
+So it fires from the right arm, aims like an arm weapon, and is lost with the
+right arm, wherever the equipment sits. Weapons the loadout puts in group 5
+share the group with it (none on the Cauldron's Alternate B).
+
+**The frame order.** The player's mech update (Mech::Update vt+0x34, which runs
+the weapon manager 0x4b0c30 at 0x41a814) and every other entity's
+(0x5a8850) run from the action 0x4a1160 at priority 2 (set at 0x49e85a); zWeapon's
+tick 0x5823c0 is the priority 3 action (0x584759); the lists run 0 to 5
+(0x4f7d80). So in a frame the charge is drained, stopped or the beam started
+first, and the beam is cast after: it is cast on the frame it starts, and its
+last cast is the frame before the update that finds the charge empty.
+
+**The hold** (DESIGNATE's sixth value, 1.0 s; the charge 10000, drained
+ftol(10000 dt) a frame; U_RECHARGE_TIME 60):
+
+| fps | drain a frame | frames cast | on the mech needed | to spare | refill |
+|---|---|---|---|---|---|
+| 30 | 333 | 32 (1.067 s) | 30 | 2 | 2000 frames, 66.7 s |
+| 60 | 166 | 62 (1.033 s) | 61 | 1 | 5000 frames, 83.3 s |
+| 144 | 69 | 146 (1.014 s) | 145 | 1 | 10000 frames, 69.4 s |
+
+The timer adds the frame's dt in float, so 60 x (1/60) and 144 x (1/144)
+fall just short of 1.0 and take one frame more. Off the mech: on the ground
+(no damage handler) the timer counts down by dt, so a frame there costs two;
+on the sky (nothing hit) it goes back to 0. At 30 fps one frame on the
+ground still calls the strike, on the last frame cast; two do not, nor one
+on the sky. At 60 and 144 fps any one frame off the mech, ground or sky, and
+there is no strike. Letting go stops it at once (U_FIRE_TIME 1.0 is over the
+0.5 that release 0x4b4180 keeps), the charge already drained stays spent,
+and the trigger wants a full charge again: let go after 10 frames at 30 fps,
+6669 left, and it fires again only 666 frames (22.2 s) later. The recharge
+truncates each frame (frame-rate dependence above): hot, 0.5 / heat of it
+(heat 1.0 at 30 fps: 60 a second, 167 s); at 144 fps with heat above 0.58,
+or at any heat above 166 fps, it never refills. The port carries the
+fraction (FIX (B), fixes.md).
+
+**The strike.** On the frame the timer passes 1.0, the impact 0x5826b0 runs
+with a stand-in shot (the beam's owner, origin and direction), TAG's def
+callback 0x4afea0 calls WeaponType::strike 0x4afed0 with the point the beam
+touched: four TAG_MISSILEs (spawn 0x4b4a40 -> 0x585010, on the radar) from
+the point less 1500 along the beam plus 400 up, each moved up to 25 in x and
+y, aimed at the point and locked on it (a fixed point, no entity, no
+velocity). The beam is at most 600 long, so they start some 900..1500 m
+behind the shooter and 400 m up, out of sight. ACCELERATION 60 from 0.0001
+m/s: 400 m/s only after 6.7 s and 1333 m. The homing (LOCK_ON 0.1, suspend
+0.05) has them on the line at once, and the path (about 1550 m) is short of
+RANGE 2000. On flat ground against a mech (a capsule 12 m tall, radius 3)
+300 m away:
+
+| the mech | the missiles land | from the mech | its damage |
+|---|---|---|---|
+| standing (30, 60, 144 fps) | 7.2 s after the strike | on it: 4 direct hits | 72 (4 x 18) |
+| walking away at 5 m/s (18 kph) | 7.3 s | 7..17 m | 58 (splash only) |
+| walking away at 7 m/s (25 kph) | 7.3 s | 23..34 m | 15 (two splashes) |
+| walking away at 10 m/s (36 kph) | 7.3 s | 45..56 m | 0 |
+| crossing at 10 m/s | 7.3 s | 72..75 m | 0 |
+| running away at 20 m/s | 7.3 s | 120..126 m | 0 |
+
+Splash is IMPACT_PROXIMITY 30 with the damage falling off with the square of
+the distance; the test measures the distance to the mech's surface (the
+sphere query 0x4f0ac0 is not ported: an assumption). So a mech moving faster
+than about 8 m/s (30 kph) over the 8 seconds from the first frame of the
+beam is not touched, and only one standing still takes the direct hits. A
+building with a damage handler works. Nothing else stops it: the network
+gate (0x585010) applies only in multiplayer (not traced further), the four
+missiles take four of the 164 pool slots the mission shares (a full pool
+would drop them silently), and the owner is the shooter's node, so they cannot hit
+the shooter.
+
+**Why Owen saw nothing.** Any of: the target moved (the missiles hit where
+it stood seven seconds earlier, 1.2 km behind and above the player, so
+neither the launch nor the flight is in view); the beam left the target for
+one frame (at 60 fps there is no frame to spare, and a frame on open sky
+resets it); the beam was on the ground or a building without a damage
+handler (the timer never counts up there); the trigger was let go before the
+second was up (the beam stops and the charge is gone for 22..67 s); or the
+next try came before the minute-long recharge was full (a trigger from a
+partial charge does nothing at all).
+
+What could change is listed in fixes.md, Candidates for Owen (TAG).
 
 ## Discoveries
 
@@ -610,7 +718,11 @@ See `docs/discoveries.md`, Weapons.
 - The homing clock stops one frame past LOCK_ON, so the top turn factor of a
   missile with a suspend time depends on that frame's length.
 - Beam recharge adds ftol(rate x dt) a frame: at 420 fps and above a plain
-  laser never recharges. A port at a high frame rate must carry the fraction.
+  laser never recharges, TAG above 166 fps (or at 144 fps once hot). The
+  port carries the fraction (FIX (B), `mech3::beam_recharge`, fixes.md).
+- A beam's charge drains ftol(10000 dt) a frame, so it lasts a little longer
+  than U_FIRE_TIME, less so the faster the game runs (TAG: 1.067 s at 30 fps,
+  1.014 s at 144).
 - Homing slows a turning shot per frame (0.8 + 0.2 cos(turn)), so the loss
   depends on the frame rate (likely less at a high one).
 
@@ -629,9 +741,11 @@ See `docs/discoveries.md`, Weapons.
   that use ammo), equipment counted at +0x3ac (jump jets, kind 11, through
   0x417300), the AMS given 100 rounds per AMS, and TAG (kind 13) mounted as
   weapon 0x20 on the first firepoint's node by name, in group 5 (index 4).
-  A TAG mounted this way has no firepoint (the vehicle constructor), and the
-  arm check 0x4b2f90 reads through it for a side view (likely a crash the
-  game never reaches; the test keeps clear of it).
+  The vehicle constructor 0x4b28d0 finds the TAG's firepoint by the node's
+  name (`firepoint01`, so `firepoints[0]`) and its part from the node, as
+  BindFirepoints 0x46cb80 does for every firepoint, so the arm check reads a
+  real firepoint (an earlier note here guessed it had none; the emulator
+  shows it has: `test_tag.py`).
 
 ## Left to port
 
