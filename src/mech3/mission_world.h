@@ -51,6 +51,13 @@ struct Environment {
 };
 Environment& environment();
 
+// The game's soils (0 default, 1 water, 2 grass, 3 dirt, 4 mud, 5 concrete,
+// 6 snow, 7 mech, 8 lava, 9 silt, 10 noslip) and the table 0x00608c00 from
+// zModel's soil index (a material's +0x20) to them, filled by the world
+// object's constructor 0x0047f2b0 (names: mech_data's soil_name 0x0047f380).
+void build_soil_table();              // 0x0047f400
+uint32_t game_soil(uint32_t zmodel_soil);  // [0x00608c00 + 4 * soil]; 0 past the table
+
 // The calls into engine parts not ported yet; the front end or a test sets them.
 struct WorldHooks {
   int32_t (*game_type)();                                  // [0x0060861c]+0x6c vtable +0x2c (3 multiplayer)

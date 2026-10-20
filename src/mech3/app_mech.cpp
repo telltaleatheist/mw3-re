@@ -11,7 +11,10 @@
 
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/list.h"
@@ -21,6 +24,9 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_collide.h"
+#include "mech3/mech_move.h"
+#include "mech3/mech_skis.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_lib.h"
@@ -36,6 +42,7 @@ namespace mech3 {
 int32_t invincible();  // 0x0040cf20, mech3/options.h
 
 namespace {
+int32_t g_spawn_updates = 0;  // the spawn's update steps run (0x004782f0)
 
 MechWiring g_w;
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
@@ -114,6 +121,10 @@ class WiredLaunch : public LaunchHooks {
   void pilot_set_mech(Handle p, Mech& m) override {
     unported("0x004782c0", {low(p), 0});
     set_field32(p, 0x14, g_w.handle_of(g_w.engine, &m));
+    // The mech globals: [0x0060861c]+0x14, and the view's target (+0x64,
+    // set by the view attach 0x0041ce30, not ported) is the same mech.
+    world().mission_player = &m;
+    world().player = &m;
   }
   void interp_set_mech(Handle, Mech& m) override {
     if (zint::Interp* in = mech3::interp()) mech3::interp_set_mech(*in, &m, zn(m.node));
@@ -128,6 +139,12 @@ class WiredLaunch : public LaunchHooks {
   // 0x004782f0 on the mech the launch just built (the pilot's +0x14).
   void pilot_place(Handle p, const float pos[3], uint32_t yaw) override {
     if (Mech* m = mech3::launched_mech()) place_pilot_mech(*this, p, *m, pos, yaw);
+    else LaunchHooks::pilot_place(p, pos, yaw);  // logged: no mech to place
+  }
+  // The spawn's one step (0x004782f0): the port's frame.
+  void mech_update(Mech& m, float dt) override {
+    ++g_spawn_updates;
+    m.update(dt);
   }
   uint8_t cheat_invincible() override { return static_cast<uint8_t>(g_w.peek32(g_w.engine, 0x608e40)); }
   int32_t option_invincible() override { return mech3::invincible(); }  // options.h (not includable with mech.h)
@@ -141,9 +158,53 @@ WiredLaunch g_launch;
 
 }  // namespace
 
+namespace {
+// 0x005a85e0: the entity's node's world position, its world matrix
+// refreshed first when stale (0x0051e9d0, 0x0051fde0, 0x004ed280, 0x0051ea00).
+const Vec3* entity_position(Mech& m) {
+  auto* n = zn(m.node);
+  if (!n || !n->data || n->cls() != 5) return nullptr;
+  auto* d = static_cast<zcls::Object3d*>(n->data);
+  if (d->get<uint32_t>(0) & 0x20) {
+    zmth::Mat34 buf;
+    zmth::push(&buf);
+    zmth::load_identity();
+    zcls::node_to_world(n, 1);
+    zmth::pop();
+  }
+  return reinterpret_cast<const Vec3*>(d->floats(0x84));
+}
+
+// The mech's frame (Mech::update and below) on the engine's ports.
+void wire_mech_frame() {
+  PoseCalls& p = pose_calls();
+  p.node_set = [](Handle n, const float* m) { zcls::object3d_set_matrix(zn(n), m); };       // 0x004fc300
+  p.node_matrix = [](Handle n) { return zcls::object3d_matrix(zn(n)); };                    // 0x004fc3f0
+  SkisCalls& s = skis_calls();
+  s.node_matrix = p.node_matrix;
+  s.set_node_matrix = p.node_set;
+  s.position = entity_position;
+  s.soil = [](Handle mat) {  // [0x00608c00 + 4 * material +0x20]
+    return static_cast<int>(game_soil(static_cast<const zmod::Material*>(mat)->soil));
+  };
+  CollideCalls& c = collide_calls();
+  c.refresh_box = [](Handle n) { zcls::node_children_box(zn(n)); };                         // 0x004ecf70
+  c.node_box = [](Handle n) { return reinterpret_cast<const float*>(zn(n)->raw + 0xa4); };
+  c.set_position = [](Mech& m, const Vec3* at) {  // vtable +0x18, zEntity3d's 0x005a8550
+    zcls::object3d_set_translation(zn(m.node), at->x, at->y, at->z);
+    m.entity_moved();
+  };
+  update_calls().moved = [](Mech& m) { m.entity_moved(); };                                 // 0x005a85c0
+}
+}  // namespace
+
 void wire_mech_build(const MechWiring* w) {
   if (!w) {
     g_w = MechWiring{};
+    pose_calls() = PoseCalls{};
+    skis_calls() = SkisCalls{};
+    collide_calls() = CollideCalls{};
+    update_calls().moved = nullptr;
     set_mech_build_hooks(nullptr);
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
@@ -156,6 +217,7 @@ void wire_mech_build(const MechWiring* w) {
   // The weapons a mech mounts look up its owner, firepoints and jump jets
   // (weapon.h); the program's managers are all mechs' so far.
 
+  wire_mech_frame();
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
   c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };
@@ -215,6 +277,17 @@ int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
   float angle;
   std::memcpy(&angle, &yaw, 4);
   return mech ? static_cast<Mech*>(mech)->place(pos, angle) : 0;
+}
+int32_t spawn_updates() { return g_spawn_updates; }
+bool is_launched_mech(const void* mech) { return mech && mech == mech3::launched_mech(); }
+void update_mech(void* mech, float dt) {
+  if (mech) static_cast<Mech*>(mech)->update(dt);
+}
+// Mech3.exe 1.2 @ 0x0041ca30: the player's mech takes the value, any other 1.
+void mech_set_hud_fall(void* mech, int32_t v) {
+  if (!mech) return;
+  Mech* m = static_cast<Mech*>(mech);
+  m->hud_fall = m == world().mission_player ? v : 1;  // [0x0060861c]+0x14
 }
 void move_mech(void* mech, const float pos[3], float yaw) {
   if (mech) static_cast<Mech*>(mech)->set_place(pos, yaw);

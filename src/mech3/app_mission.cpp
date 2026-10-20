@@ -273,6 +273,12 @@ struct WiredPlayerHooks : PlayerHooks {
   }
   float frame_dt() override { return e->frame_dt(); }
   Handle pilot_vehicle() override { return e->field32(e->pilot(), 0x14); }
+  // The pilot's mech is the port's (the launch): its frame, 0x00419fc0.
+  void vehicle_update(Handle v, float dt) override {
+    void* m = e->object_of(v);
+    if (m && is_launched_mech(m)) update_mech(m, dt);
+    else PlayerHooks::vehicle_update(v, dt);
+  }
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
   Handle stealth() override { return e->peek32(0x609a2c); }
@@ -660,6 +666,7 @@ struct WiredMissionHooks : MissionHooks {
   }
   Handle make_608c84(Handle mem, Handle world) override {
     unported("0x0047f2b0", {mem, world});
+    build_soil_table();  // 0x0047f400, in the constructor
     return mem;
   }
   void anim_allow_loading(int32_t on) override { zeff::anim_allow_loading(on); }
