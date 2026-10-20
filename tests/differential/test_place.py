@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from original import Original  # noqa: E402
 from test_di import REC, World, f32, port_state, probe  # noqa: E402
 from test_gamez import WORLDS, ZBD  # noqa: E402
 from test_scenewalk import f2u  # noqa: E402
@@ -43,6 +44,7 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 
 probe.pl_point.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_void_p]
 probe.pl_below.argtypes = probe.pl_point.argtypes
+probe.pl_keep_below.argtypes = [ctypes.c_void_p, ctypes.c_float]
 probe.pl_pick.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_int,
                           ctypes.c_void_p]
 probe.pl_place.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int,
@@ -406,6 +408,41 @@ def check_polygons(emu, rng, count):
 BELOWS = [0, 0]  # 0x4eda10 queries, those that chose among several hits
 
 
+def check_keep_below(rng, cases=4000):
+    """0x4eda10's choice on made-up lists: 0x4edab0 stubbed to hand both sides
+    the same hits (ties, zone bytes, heights above the point, NaN)."""
+    cpu = Original()
+    rec, at = cpu.alloc(REC), cpu.alloc(12)
+    state = {}
+
+    def query(c):
+        c.write(c.edx, state['rec'])
+        return 0 if state['rec'][0] else 1
+    cpu.stub_function(POINT, query, 0xc)
+    ties = 0
+    for k in range(cases):
+        n = rng.choice([1, 2, 2, 3, 5, 8, 32])
+        y = f32(rng.uniform(-20, 40))
+        hs = [rng.choice([y, y - 1.0, y + 2.0, 10.0, 10.0, f32(rng.uniform(-30, 50)), float('nan')]) for _ in range(n)]
+        b = bytearray(REC)
+        b[0] = n
+        for j, h in enumerate(hs):
+            slot = struct.pack('<6f', 0, 1, 0, f32(rng.uniform(-5, 5)), h, f32(rng.uniform(-5, 5)))
+            zone = struct.pack('<2I', rng.choice([0, 0, 1, 0x1ff00, 0xffffff01]), rng.randrange(1 << 32))
+            b[4 + 0x28 * j:4 + 0x28 * j + 0x28] = slot + zone + struct.pack('<2I', 0x1000 + j, 0x2000 + j)
+        ties += len(set(h for h in hs if h == h)) < len([h for h in hs if h == h])
+        state['rec'] = bytes(b)
+        cpu.write(at, struct.pack('<3f', 1.0, y, 2.0))
+        cpu.write(rec, bytes(REC))
+        cpu.call(BELOW, ecx=0, edx=at, stack_args=(rec,))
+        want = cpu.read(rec, REC)
+        got = (ctypes.c_uint8 * REC)(*b)
+        probe.pl_keep_below(got, ctypes.c_float(y))
+        if want[:4 + 0x28] != bytes(got)[:4 + 0x28] or want[0] != 1:
+            raise SystemExit(f'kept hit {k}: y {y} heights {hs}: {want[:4 + 0x28].hex()} vs {bytes(got)[:4 + 0x28].hex()}')
+    return cases, ties
+
+
 def check_point(emu, rng, x, z, y, mode, where):
     r, want, reports = emu.point(x, y, z, mode)
     pr, got = port_point(x, y, z, mode)
@@ -465,6 +502,8 @@ def check_place(emu, rng, pos, where):
 def main():
     queries = int(sys.argv[1]) if len(sys.argv) > 1 else 600
     rng = random.Random(0x4161c0)
+    kept, ties = check_keep_below(random.Random(0x4eda10))
+    print(f'{kept} made-up lists through 0x4eda10\'s choice identical ({ties} with tied heights)')
     total = hits = places = landed = picks = wrapped = stacked = 0
     for wi, name in enumerate(WORLDS):
         emu = Place(name)

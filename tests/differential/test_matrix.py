@@ -253,6 +253,34 @@ def test_euler(emu, rnd):
     return cases
 
 
+def test_surface(emu, rnd):
+    """The impact's turn to a surface: 0x525a50 from (0, 1, 0) to a unit normal
+    (as 0x4020d0 leaves it), then 0x525f80 (0x525740, 0x523bc0)."""
+    cases = 0
+    for n in range(1500):
+        if n < 40:
+            v = [rnd.choice([0.0, 1.0, -1.0]) for _ in range(3)] or [0, 1, 0]
+            if not any(v):
+                v = [0.0, -1.0, 0.0]
+        else:
+            v = [rnd.uniform(-1, 1) for _ in range(3)]
+            if rnd.random() < 0.3:
+                v[1] = abs(v[1]) + 2.0  # mostly up, as the ground is
+        length = math.sqrt(sum(x * x for x in v))
+        v = [f32(x / length) for x in v]
+        up, q = emu.a, emu.c
+        emu.wf(up, [0.0, 1.0, 0.0])
+        emu.wf(emu.b, v)
+        emu.o.call(0x525a50, ecx=up, edx=emu.b, stack_args=(q,))
+        emu.o.call(0x525f80, ecx=q, edx=emu.top)
+        want = emu.rf(emu.top, 3)
+        out = arr([], 3)
+        probe.probe_surface_angles(arr(v), out)
+        check(f'surface angles {v}', list(out), want, 1.0, 1e-5)
+        cases += 1
+    return cases
+
+
 def test_invert(emu, rnd):
     cases = 0
     for n in range(800):
@@ -388,7 +416,7 @@ def main():
     rnd = random.Random(1999)
     emu = Emu()
     counts = {}
-    for name, fn in (('stack', test_stack), ('view', test_view), ('euler', test_euler), ('invert', test_invert),
+    for name, fn in (('stack', test_stack), ('view', test_view), ('euler', test_euler), ('surface', test_surface), ('invert', test_invert),
                      ('projection', test_projection), ('points', test_points)):
         before = len(fails)
         counts[name] = fn(emu, rnd)

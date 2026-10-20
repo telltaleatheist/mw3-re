@@ -95,3 +95,52 @@ Newest last. One short entry per item: what, commits, what to remember.
   main's other hunks; don't).
 - The probes rarely reach the Owens head-on: the bump does most of the
   blocking; node_mech's break shows as the attacker check.
+
+## 2026-10-20: weapon effects (branch mac2/weapon-fx)
+
+- What was missing: every RunHooks/HitHooks/InitHooks effect entry was
+  unset (anims, sounds, lights, the anim lookup 0x50b450). Lasers and
+  LRMs already drew (their FLYOUT models); the machine gun's tracer is a
+  model light (no polygons), drawn by 0x541df0 as a D3D point (0x57dba0),
+  neither ported: now `gmod_draw` model_light and `zvid` draw_point.
+- The weapons' looped sounds need zSound's "common" set, which 0x490720
+  (the Load state's mission reset) loads: ported into GameEngine::
+  missions_reset with "mech", the dir's and the voice set.
+- Ported small links: zeff anim_find 0x50b450, anim_stop_all 0x50ace0, the
+  effect table's header and lookup (effects.zrd is empty in MW3 and PM),
+  cls_di ground_below 0x4eda10 (NaN-exact choice), zmth quat_angles
+  0x525f80, the anim copy_tree (0x4f9b50(n, 1, 1)).
+- Trap: mission N+1 in one process keeps mission N's anim defs (the unload
+  0x490480 with 0x50b380 is not ported; anim_load returns early on the old
+  block): "Multiple parents" and freed nodes in the world. mw3tests clears
+  zEffect's state in `reset_effects` after each reset_states.
+- `mw3 --fire N --fire-group G` (ours) and `weapon_fx_log()` (ours) for the
+  checks. MW3_TEST takes a comma list now.
+- Debugging: lldb --batch hung; a temporary backtrace_symbols_fd in the
+  reporting function found the caller fast. Don't `pkill -f mw3tests`: it
+  hits other sessions' runs (told the lead).
+
+### Where weapon-fx stands (saved before the reboot, 2026-10-20 evening)
+
+- Done (in the WIP commit): every effect hook wired (anims, sounds, impact
+  lights, the anim lookup and copy_tree), model lights as points (0x541df0,
+  0x57dba0), the mission sound sets (0x490720), anim_stop_all 0x50ace0,
+  ground_below/keep_below 0x4eda10, quat_angles 0x525f80, the empty effect
+  table, mw3 --fire/--fire-group, weapon_fx_log, reset_effects in mw3tests,
+  docs (weapon-effects.md, weapons.md link, discoveries, this log).
+- Verified before the reboot: the c1m1 set 11/11 (with reset_effects),
+  test_modeldraw (lights varied) 24,792 calls identical, test_place's
+  4,000 made-up lists identical, test_matrix's surface angles; breaks
+  caught: light priority bias, light fade, keep_below tie and NaN, surface
+  angles, impact anims unset, common set not loaded. The fire test asserts
+  the effects and passed.
+- Not yet run after the last changes: the full mw3tests and mw3sdltests,
+  test_weapons_run/hit, test_anim_run, test_command, test_entity_walk,
+  test_collide, test_update. Run them first after the reboot (in the
+  background), then commit (non-WIP message), then report to mw3 mac 1.
+- Report items: tracers are 1-pixel points as in the original; the unload
+  0x490480 (with anim free 0x50b380) not ported, so a 2nd mission in one
+  run keeps stale anims; left as hooks: craters (zdeclient), surface marks
+  (0x542060), lens flares (0x567420..), cockpit sounds 0x41e770, Betty.
+- Note: hung mw3tests processes in state UE pile up after crashes; avoid
+  aborting runs and never pkill broadly.

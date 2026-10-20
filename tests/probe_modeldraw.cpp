@@ -96,7 +96,6 @@ void point(void*, const float s[3], uint32_t color, int32_t alpha) {
   u32(8), put(s, 12), u32(color), u32(alpha);
 }
 
-void model_light(void*, const float* v, uint32_t color, zmod::Light*) { u32(9), put(v, 12), u32(color & 0xffff); }
 void fog_send() { u32(10), put(zrndr::device_fog().sent, 12); }
 
 void refresh_static(void*, zmod::Model*, zcls::Node*) { u32(13); }
@@ -113,7 +112,7 @@ void install() {
   t.shadowed_vertex = shadowed_vertex, t.point = point;
   t.projected = projected, t.projected_shadowed = projected_shadowed;
   zmod::DrawHooks& h = zmod::draw_hooks();
-  h.refresh_static = refresh_static, h.model_light = model_light;
+  h.refresh_static = refresh_static, h.model_light = nullptr, h.flare = [](void*, zmod::Light*) { u32(18); };
   zmod::LightHooks& lh = zmod::light_hooks();
   lh = zmod::LightHooks{};
   lh.point_color = point_color, lh.send_mix_fog = send_mix_fog, lh.mix_fog = mix_fog;

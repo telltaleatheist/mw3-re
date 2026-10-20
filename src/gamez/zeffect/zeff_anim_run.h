@@ -83,6 +83,7 @@ void anim_set_level(int32_t level);                    // 0x00508fb0
 void anim_set_player(const float pos[3]);              // 0x00502d40
 void anim_set_zone(const uint8_t zone[4]);             // 0x00502d70, ignored if an id is 0xff
 void anim_keep_stopped_elapsed(int32_t on);            // 0x00502d20
+int32_t anim_stop_all(int32_t keep_elapsed);           // 0x0050ace0: every def and instance, at the mission's end
 
 // The damage callbacks registered at load (zwep_damage). ECX def.
 float anim_on_collide(AnimDef* def, float damage);                       // 0x00502df0

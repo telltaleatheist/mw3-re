@@ -704,6 +704,19 @@ void anim_set_zone(const uint8_t zone[4]) {
 }
 
 // Mech3.exe 1.2 @ 0x00502d20
+// Mech3.exe 1.2 @ 0x0050ace0 (ECX the setting for the run): every def but
+// the first, and each of its instances, stopped; [0x0060c1d4] put back.
+int32_t anim_stop_all(int32_t keep_elapsed) {
+  const int32_t saved = A().stopped_elapsed;  // 0x00502d30
+  anim_keep_stopped_elapsed(keep_elapsed);
+  for (int32_t j = 1; j < A().def_count(); ++j) {
+    anim_stop(&A().defs[j]);
+    for (AnimDef* c = A().defs[j].instance; c; c = c->instance) anim_stop(c);
+  }
+  anim_keep_stopped_elapsed(saved);
+  return 0;
+}
+
 void anim_keep_stopped_elapsed(int32_t on) { A().stopped_elapsed = on; }
 
 // Mech3.exe 1.2 @ 0x00502df0. Damage over the threshold (+0xb4) comes off

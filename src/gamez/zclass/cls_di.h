@@ -57,6 +57,7 @@ int ground_point(Node* world, float x, float y, float z, GroundHits* out);  // 0
 // 0x004eda10: the ground point query kept to one hit, the highest at or below
 // `at` (count 1), else none (count 0).
 int ground_below(Node* world, const float at[3], GroundHits* out);
+void ground_keep_below(GroundHits* out, float y);  // its choice among the hits
 
 // One crossing of the shot queries' segment, or a node the sphere query
 // found (0x28 bytes): the surface's normal, the point, the squared distance

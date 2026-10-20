@@ -19,8 +19,10 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
+#include "gamez/zclass/cls_util.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zeffect/zeff_init.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zinterp/zinterp.h"
@@ -694,33 +696,55 @@ struct WiredMissionHooks : MissionHooks {
   // effect is left out of the post-load pass (anim-postload.md).
   void anim_set_world(Handle world) override {
     zeff::AnimHooks& a = zeff::anim_hooks();
-    a.copy_tree = [](zcls::Node*) -> zcls::Node* { return nullptr; };  // dead: copy_trees is never set
+    // 0x004f9b50 with [0x005ebcb4] and [0x005ebcb8] (both 1): a running def's
+    // second instance at no node (an impact while the last one plays) copies its tree.
+    a.copy_tree = [](zcls::Node* n) { return zcls::tree_copy_materials(n, 1, 1); };
     a.create_puffer = []() -> void* { return zmod::puffer_create(); };
     a.find_sound = [](const char* name) -> void* { return zsnd::find(name); };
-    a.effect_index = [](const char* name) -> int32_t {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x0050d9e0", {name});
-      return -1;
-    };
+    a.effect_index = zeff::effect_find;  // 0x0050d9e0
     zcls::set_find_sound(a.find_sound);
     zmod::puff_hooks().create_node = [](void*) { return zcls::object3d_create(); };
     zeff::anim_set_world(mission_node(*e, world));
   }
   void anim_load(const char*) override { zeff::anim_load(); }
+  void anim_cleanup() override { zeff::anim_stop_all(1); }  // 0x0050ace0(1)
+  // 0x0050d2c0: zEffect's table from effects.zrd (an empty list in both games).
+  void effects_load(Handle, Handle, const char* file) override {
+    zeff::EffectHooks& h = zeff::effect_hooks();
+    h.unported = [](const char* key, int32_t i) {
+      if (GameEngine* g = engine_of_hooks()) g->unported(key, {i});
+    };
+    h.error = [](const char* f) {
+      if (GameEngine* g = engine_of_hooks(); g && !g->quiet) std::fprintf(stderr, "mw3: Failed to read %s\n", f);
+    };
+    zeff::effects_init(file);
+  }
   void world_params(const char* file, const char* block) override {
     read_world_params(file, block, mission_node(*e, e->mission_camera()), e->launch().type, e->launch().number);
   }
   void reader_open(const char* path, int32_t current) override { zrdr::open_archive(path, current != 0); }
   // 0x00583880: weapons.zrd into zWeapon's definitions (each def's game half
-  // by 0x004b0020, mech3/weapon), the projectile pool and the weapon_tick
-  // object (priority 3, its action zwep::tick). Not ported and left out: the
-  // impact lights 0x00586970, the defs' destroy animations (0x0050b450),
-  // effects, craters' defaults, the pool's objects 0x005847c0.
+  // by 0x004b0020, mech3/weapon), the projectile pool, its nodes and the
+  // impact lights, the weapon_tick object (priority 3, its action
+  // zwep::tick). The animations are the mission's (0x0050b450), the effects
+  // zEffect's table; the crater module's defaults (0x004ff920) are not ported.
   void weapons_load(Handle world, const char* file, int32_t a, uint32_t callback) override {
     zwep::InitHooks& w = zwep::init_hooks();
     w = zwep::InitHooks{};
     w.sound = [](const char* n) -> zwep::Handle { return zsnd::find(n); };
     w.message = zutl::localize;
-    w.effect = [](const char*) -> int32_t { return -1; };
+    w.effect = zeff::effect_find;                                    // 0x0050d9e0
+    w.anim = [](const char* n) -> zwep::Handle { return zeff::anim_find(n); };  // 0x0050b450
+    w.lights_init = []() { zwep::lights_init(); };                    // 0x00586970
+    w.crater_defaults = [](zwep::Crater*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x004ff920", {});
+    };
+    w.set_intersect_surface = [](zwep::Handle n, int32_t on) {        // 0x004eb6d0
+      zcls::node_set_intersect(static_cast<zcls::Node*>(n), on);
+    };
+    w.tree_unlit = [](zwep::Handle n) {                               // 0x004f9e00 with 0x004f9de0
+      return zcls::node_tree_any(static_cast<zcls::Node*>(n), zcls::node_is_billboard);
+    };
     w.find_node = [](int32_t list, const char* n) -> zwep::Handle { return zcls::list_find_by_name(list, n); };
     w.set_active = [](zwep::Handle n, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(n), on); };
     w.object3d_create = []() -> zwep::Handle { return zcls::object3d_create(); };
@@ -902,12 +926,25 @@ void GameEngine::missions_update(uint32_t list, float dt) {
   missions().update(dt);
 }
 
-// 0x00490720 (the Load state's, not ported: the briefing's sounds, the
-// stations): only the mission number (+0x64, the game's vt+0x4c) is kept,
-// which the cleanup names the mission's voice set by.
+// 0x00490720 (the Load state's): the mission number (+0x64, the game's
+// vt+0x4c), which the cleanup names the mission's voice set by, and the sound
+// sets the mission plays from: "common" (the weapons' own sounds), "mech",
+// the mission directory's and "<dir><block>" (its voices), unless the game is
+// of kind 6 (vt+0x54) or the briefing voices are off (app +0x1c3). Not ported:
+// the stations line-up (0x004797c0 into +0xb0 / +0xb4).
 void GameEngine::missions_reset(uint32_t list) {
   Engine::missions_reset(list);
-  if (list == 0x6098d0 && pilot_) missions().number = launch_.number;
+  if (list != 0x6098d0 || !pilot_) return;
+  missions().number = launch_.number;
+  if (launch_.index != 6 && !app().no_voices()) {
+    const char* dir = mission_dir(launch_.index);
+    zsnd::load_set("common");  // 0x0056f520
+    zsnd::load_set("mech");
+    zsnd::load_set(dir);
+    char block[32] = {};
+    missions().block_name(block);  // 0x00490600
+    zsnd::load_set((std::string(dir) + block).c_str());  // "%s%s"
+  }
 }
 
 // The debug launch's pilot and game (our addition): [0x0060861c] a pilot

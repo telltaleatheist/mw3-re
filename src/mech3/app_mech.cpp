@@ -287,7 +287,7 @@ void wire_mech_build(const MechWiring* w) {
 
   wire_mech_frame();
   wire_hud();
-  wire_weapons();
+  wire_weapons([](const char* key) { return g_w.unported ? g_w.unported(g_w.engine, key, {}) : 0u; });
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
   c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };

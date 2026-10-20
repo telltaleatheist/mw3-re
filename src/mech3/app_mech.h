@@ -2,6 +2,9 @@
 #include <cstdint>
 #include <initializer_list>
 
+#include <string>
+#include <vector>
+
 #include "gamez/zgame/unported.h"
 
 // The mech build's and the launch's hooks wired to the program (app_mech.cpp,
@@ -25,10 +28,13 @@ struct MechWiring {
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 // The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
-void wire_weapons();
+void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once
 void unwire_weapons();
 void sync_frame_step(float dt);
 int32_t mech_select_hot_group(void* mech);
+bool mech_select_group(void* mech, int32_t g);
+std::string mech_group_names(void* mech, int32_t g);
+std::vector<std::string>& weapon_fx_log();  // ours: "anim <name>" and "sound <name>" as the weapons start them  // the weapons' names, for the debug start  // the manager's 0x004b0730, as F1..F5
 // For the program's tests: hits the mechs' damage handler took (and the last
 // shooter node), a mech's node, whether a group's weapons are firing or reloading.
 int32_t mech_hits_taken(void** attacker_node);

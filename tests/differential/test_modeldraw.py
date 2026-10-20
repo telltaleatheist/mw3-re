@@ -119,7 +119,6 @@ class Original:
         fog_send = cpu.code(b'\xc3')
         self.hook(fog_send, lambda c: self.put(struct.pack('<I', 10) + c.read(0x72f400, 12)), 0)
         cpu.u32(0x72f3f0, fog_send)
-        self.hook(0x541df0, self.model_light, 4)
         self.hook(0x5798a0, lambda c: self.put(struct.pack('<I', 15) + c.read(c.ecx, 12)), 0)
         self.hook(0x579980, lambda c: self.put(struct.pack('<I', 16)), 0)
         self.hook(0x5680c0, lambda c: self.put(struct.pack('<I', 17) + c.read(c.ecx, 12)), 0)
@@ -128,7 +127,7 @@ class Original:
         self.hook(ZERR, lambda c: self.put(struct.pack('<II', 14, c.arg(2))), 0)
         if not REAL_MODEL_VIEW:
             self.hook(MODEL_VIEW, self.model_view, 0)
-        self.hook(0x567420, lambda c: self.fail(0x567420), 0)
+        self.hook(0x567420, lambda c: self.put(struct.pack('<I', 18)), 8)  # the lens-flare list
         cpu.u32(0x74639c, 0x74039c)
         cpu.u32(0x7463a0, 0x74339c)
         cpu.u32(0x72f348, 1)
@@ -383,7 +382,7 @@ class Original:
 # light floats per vertex, 5-7 and 12 then the projected-shadow sets.
 FORMATS = {0: 'uuc' 'uuu', 1: 'ufffuucuuu', 2: 'cufuu', 3: 'ucuufuu', 4: 'ucufuu', 5: 'cuu', 6: 'ucuu',
            7: 'ucuu', 8: 'fffuu', 9: 'fffu', 10: 'fff', 11: 'ucuufuu', 12: 'ucuu', 13: '', 14: 'u', 15: 'fff',
-           16: '', 17: 'fff'}
+           16: '', 17: 'fff', 18: ''}
 VERTEX = 'ffffuuff' 'ffffff'
 WITH_VERTS = (0, 1, 2, 3, 4, 5, 6, 7, 11, 12)
 WITH_LIGHT = (11, 12)
@@ -623,6 +622,18 @@ def edit(orig, rng, mi, mtype, node):
                        (0x28, rng.randrange(0x10000))):
             old = orig.light_word(mi, li, off, v)
             undo.append(lambda li=li, off=off, old=old: orig.light_word(mi, li, off, old))
+        # What 0x541df0 reads: the priority (+0x18, a short), the fade
+        # (near +0x30, far +0x34, rate +0x38) and the flare flag (+0x3c).
+        if rng.random() < 0.7:
+            near = rng.choice([0.0, 5.0, 40.0, rng.uniform(0, 200)])
+            far = rng.choice([0.0, 0.0, near + rng.uniform(1, 400), near])
+            prio = (orig.light_word(mi, li, 0x18) & 0xffff0000) | (rng.choice([0, 0, 1, 3, -2, 15]) & 0xffff)
+            for off, v in ((0x18, prio), (0x30, struct.unpack('<I', fbits(near))[0]),
+                           (0x34, struct.unpack('<I', fbits(far))[0]),
+                           (0x38, struct.unpack('<I', fbits(rng.choice([0.5, 1.0, 2.55, 10.0])))[0]),
+                           (0x3c, rng.choice([0, 0, 0, 1]))):
+                old = orig.light_word(mi, li, off, v)
+                undo.append(lambda li=li, off=off, old=old: orig.light_word(mi, li, off, old))
     if rng.random() < 0.3:
         for off, v in ((0xc0, rng.choice([0, 1, 5])), (0xc4, rng.choice([0, 0x7fffffff, 3]))):
             old = orig.node_word(node, off, v)

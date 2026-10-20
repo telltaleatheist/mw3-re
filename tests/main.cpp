@@ -1,3 +1,4 @@
+#include <string>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -14,10 +15,21 @@ int failures = 0;
 
 int main() {
   std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
-  // MW3_TEST=name runs only the tests whose names contain it.
+  // MW3_TEST=name runs only the tests whose names contain it; a,b,c any of them.
   const char* only = std::getenv("MW3_TEST");
+  auto wanted = [only](const char* name) {
+    if (!only) return true;
+    for (const char* p = only; *p;) {
+      const char* e = std::strchr(p, ',');
+      const std::string part(p, e ? e - p : std::strlen(p));
+      if (!part.empty() && std::strstr(name, part.c_str())) return true;
+      if (!e) break;
+      p = e + 1;
+    }
+    return false;
+  };
   for (const check::Test& t : check::registry()) {
-    if (only && !std::strstr(t.name, only)) continue;
+    if (!wanted(t.name)) continue;
     const int before = check::failures;
     t.fn();
     std::printf("%s %s\n", check::failures == before ? "ok  " : "FAIL", t.name);

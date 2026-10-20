@@ -293,6 +293,14 @@ void quat_matrix(const float q[4], float r[9]) {
   r[8] = t - b;
 }
 
+// Mech3.exe 1.2 @ 0x00525f80: the rotation's angles. Its 0x30-byte stack
+// matrix gets the 3x3 only; the angles read nothing else.
+void quat_angles(const float q[4], float out[3]) {
+  Mat34 m{};
+  quat_matrix(q, m.m);
+  matrix_to_euler(m, out);
+}
+
 // Mech3.exe 1.2 @ 0x00525900. A zero vector is the identity. The sine is
 // taken in double and divided by the length there, as the x87 keeps it.
 void quat_exp(const float v[3], float q[4]) {

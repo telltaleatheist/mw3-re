@@ -89,7 +89,7 @@ AnimState& anim();
 
 // The calls into engine parts not ported yet; the front end or a test sets them.
 struct AnimHooks {
-  Node* (*copy_tree)(Node* node);                          // 0x004f9b50 (dead: copy_trees is never set)
+  Node* (*copy_tree)(Node* node);                          // 0x004f9b50(node, 1, 1): a running def's instance (the post-load copy is dead)
   void* (*create_puffer)();                                // 0x0054a710, gmod_puff
   void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
   int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect

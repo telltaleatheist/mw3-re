@@ -46,6 +46,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "gamez/zinput/zinput.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "platform/reg_file.h"
@@ -60,7 +61,7 @@ struct Args {
   float pos[3] = {0, 60, 0};
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
-  int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0;
+  int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0;
   bool shot_any = false;
 };
 
@@ -68,7 +69,7 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any]] [--fire N] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any]] [--fire N [--fire-group 1..5]] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -89,6 +90,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--shot-frame" && next(1)) a.shot_frame = std::atoi(argv[++i]);
     else if (s == "--shot-any") a.shot_any = true;
     else if (s == "--fire" && next(1)) a.fire = std::atoi(argv[++i]);
+    else if (s == "--fire-group" && next(1)) a.fire_group = std::atoi(argv[++i]);
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
@@ -245,10 +247,18 @@ int run(const Args& a) {
         ++shots;
         if (a.fire > 0 && shots == a.fire) {
           s_fire = true;
-          mech3::mech_select_hot_group(engine.object_of(engine.field32(engine.pilot(), 0x14)));
+          void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+          const int32_t g = a.fire_group > 0 ? (mech3::mech_select_group(m, a.fire_group - 1), a.fire_group - 1)
+                                              : mech3::mech_select_hot_group(m);
+          std::printf("mw3: firing group %d: %s\n", g + 1, mech3::mech_group_names(m, g).c_str());
         }
         if (!a.shot.empty() && shots == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && shots == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), shots);
+        if (a.fire > 0 && shots >= a.fire && (shots - a.fire) % 5 == 0) {
+          zwep::PoolStats ps;
+          zwep::pool_stats(&ps);
+          std::printf("mw3: frame %d, %d shots in flight\n", shots, ps.flying);
+        }
         if ((!a.shot.empty() && shots >= a.shot_frame) || (a.frames > 0 && shots >= a.frames)) launch_done = true;
       };
     } else if (!a.mission.empty()) {

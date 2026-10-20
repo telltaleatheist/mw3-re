@@ -112,8 +112,11 @@ struct DrawHooks {
   int32_t (*projected_draw)(void* ctx, int32_t count, uint32_t per_vertex, uint32_t fogged,
                             Material* material, int32_t priority) =
       [](void*, int32_t n, uint32_t pv, uint32_t f, Material* m, int32_t p) { return draw_projected(n, pv, f, m, p); };
-  // 0x541df0(ECX vertex, EDX colour, light): one model light (lens flare).
+  // 0x541df0(ECX vertex, EDX colour, light): one model light; unset, the
+  // port's (a point). Set by the tests to log it.
   void (*model_light)(void* ctx, const float* vertex, uint32_t color, Light* light) = nullptr;
+  // 0x00567420 from 0x541df0: a light with +0x3c onto the lens-flare list (not ported).
+  void (*flare)(void* ctx, Light* light) = nullptr;
   // 0x540552..0x5408d8 / 0x540ef6..0x541260: the projected-shadow casters
   // over this polygon into clip2d().shadow (count reset to 0 before).
   void (*collect_shadows)(void* ctx, int32_t count, const float normal[3]) =

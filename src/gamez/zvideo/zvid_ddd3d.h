@@ -147,6 +147,7 @@ int32_t has_caps(int32_t which);  // 0x00579b70
 // them (docs/render.md section 3); counts are 1..64, the TL vertices in
 // draw_buffers().tl, already projected.
 void draw_flat(uint32_t color, int32_t alpha, int32_t count, int32_t priority, int32_t overlay);  // 0x0057bf80
+void draw_point(const float screen[3], uint32_t color, int32_t alpha);  // 0x0057dba0
 void draw_lit(uint32_t color, const float rgb[3], uint32_t flags, int32_t alpha, int32_t count,
               int32_t priority, int32_t overlay);                                       // 0x0057c700
 void draw_textured(int32_t count, const D3DTexture* texture, float opacity, int32_t overlay);  // 0x0057ce20

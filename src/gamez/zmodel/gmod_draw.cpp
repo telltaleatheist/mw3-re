@@ -188,9 +188,45 @@ void morph_vertices(const Model& m) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00541df0 (ECX vertex, EDX colour, the light): one model
+// light as a point, the hardware path (the software one plots into the flare
+// list). The vertex to camera space by the stack's top (unless it is the
+// identity), past the near plane, projected, inside the point rect; its depth
+// biased by the light's priority (+0x18) as polygons are; faded out between
+// +0x30 and +0x34 at the rate +0x38. A light with +0x3c also goes on the
+// lens-flare list (0x00567420, by its world point), not ported.
+void model_light(const float* vertex, uint32_t color, Light& l) {
+  DrawState& s = g_state;
+  zmth::MatrixStack& st = zmth::matrix_stack();
+  float c[3] = {vertex[0], vertex[1], vertex[2]};
+  if (!st.is_identity()) transform_point(vertex, st.matrix().m, c);
+  if (!(c[2] > s.clip.near_z)) return;
+  const zmth::Vec3 cam{c[0], c[1], c[2]};
+  zmth::Vec3 sc;
+  zmth::project_d3d(&cam, &sc, 1);
+  if (below(sc.x, s.point_rect[0]) || below(sc.y, s.point_rect[1])) return;
+  if (sc.x > s.point_rect[2] || sc.y > s.point_rect[3]) return;
+  const float priority = static_cast<float>(light_field<int16_t>(l, 0x18));
+  const float screen_pt[3] = {sc.x, sc.y, (priority * s.priority_scale - -1.0f) * sc.z};  // 0x005ce1dc
+  int32_t alpha = 0xff;
+  const float near_ = light_field<float>(l, 0x30), far_ = light_field<float>(l, 0x34);
+  if (far_ != 0.0f) {
+    if (!(c[2] < far_)) alpha = 0;
+    else if (c[2] > near_) alpha = static_cast<int32_t>((far_ - c[2]) * light_field<float>(l, 0x38));  // ftol
+  }
+  if (alpha != 0 && g_table.point) g_table.point(g_table.ctx, screen_pt, color & 0xffff, alpha);
+  if (light_field<int32_t>(l, 0x3c) != 0 && g_hooks.flare) g_hooks.flare(g_hooks.ctx, &l);
+}
+
 // The model lights (+0x20, 0x4c each): type 0 blinks by swapping its two
 // colours, type 1 steps along its vertices drawing the previous one in the
 // second colour.
+// The test hook stands in for the draw when set.
+void light(const float* vertex, uint32_t color, Light& l) {
+  if (g_hooks.model_light) g_hooks.model_light(g_hooks.ctx, vertex, color, &l);
+  else model_light(vertex, color, l);
+}
+
 void animate_lights(Model& m) {
   const int32_t n = field<int32_t>(m, 0x20);
   for (int32_t i = 0; i < n; ++i) {
@@ -208,7 +244,7 @@ void animate_lights(Model& m) {
           l.color = static_cast<uint16_t>(pair >> 16);
         }
       }
-      if (g_hooks.model_light) g_hooks.model_light(g_hooks.ctx, l.vertices, l.color, &l);
+      light(l.vertices, l.color, l);
     } else if (type == 1) {
       const float t = dt + light_field<float>(l, 0x10);
       set_light_field(l, 0x10, t);
@@ -220,9 +256,8 @@ void animate_lights(Model& m) {
       }
       const uint32_t k = light_field<uint32_t>(l, 0x14);
       const uint32_t at = k & 0xffff;
-      if (g_hooks.model_light) g_hooks.model_light(g_hooks.ctx, l.vertices + 3 * at, l.color, &l);
-      if (at != 0 && g_hooks.model_light)
-        g_hooks.model_light(g_hooks.ctx, l.vertices + 3 * (at - 1), k >> 16, &l);
+      light(l.vertices + 3 * at, l.color, l);
+      if (at != 0) light(l.vertices + 3 * (at - 1), k >> 16, l);
     }
   }
 }

@@ -750,7 +750,9 @@ See `docs/discoveries.md`, Weapons.
 ## In the program (`mw3 --mission`)
 
 The player's weapons fire, fly and hit in the program (`mech3/app_weapons.cpp`,
-`wire_weapons`, called with the mech build's wiring):
+`wire_weapons`, called with the mech build's wiring). What they show and play
+(muzzle flashes, tracers, impact animations, sounds, impact lights) is
+`weapon-effects.md`.
 
 - **Firing**: Mech::update's `weapons_fire` / `weapons_update` run the
   manager's trigger (0x004b0c20, the controls' fire byte, CMD_TRIGGER1
