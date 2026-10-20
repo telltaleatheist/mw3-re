@@ -174,10 +174,14 @@ position, scale) interpolated to key i + 1 and times their multipliers
 - The frame update runs after every non-empty list, six times a frame at
   most; nodes changed by the last list (5, the puffers) are current for the
   draw.
-- In the port, the zClass reset between missions (0x4f8f40 -> 0x4f8fb0) is
-  not ported: a second mission in one run keeps the first one's nodes and
-  actions (the player's tick object among them). One debug launch is one
-  mission, so it does not show yet; it must come with the mission end.
+- The zClass reset (0x4f8f40 -> 0x4f8fb0, zclass-world.md "Taking nodes
+  down") is ported and runs at the program's stop, so its tick objects go
+  with the nodes; the program tests start as a new process does (no mission
+  up, no mech type cached), and `mission_c1m1_frames` sees exactly one
+  player tick object. The mission's own unload (0x490480, which runs the
+  same reset between two missions of one run) is still a hook: a second
+  mission in one program run would keep the first one's mech types (their
+  trees freed by then), so it must come with the mission end.
 
 ## 8. The port and its test
 

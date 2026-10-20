@@ -377,9 +377,67 @@ or item index), not raw pointers.
    compares every node, its object3d data, links, and lists 6 and 7 with
    their items, at frames 0 and 300. The multi-parent paths of 0x4ed8f0 and
    0x4ed8b0 and the list-7 branch of 0x4eba90 are not reached by mechlib.
-7. Removal: 0x4f8220, 0x4f7980, 0x4f7bd0, 0x4f81e0, 0x4f8050, 0x4f8390,
-   0x4ebc30, 0x4fb7f0, 0x4ebb40, 0x4eaf90, 0x4eb050, 0x4f84b0 (needs gmod's
-   model release), 0x4f8ab0.
+7. Removal: **ported** (`cls_node`, `list`, `cls_util`, the classes'
+   files; 2026-10-20): 0x4f8220, 0x4f7980, 0x4f7bd0 with 0x4f81e0, 0x4f8050,
+   0x4f8390, 0x4ebc30, 0x4ebb40 with each class's child removal (0x4f33e0,
+   0x4f2c30, 0x4f9f60, 0x4fa540, 0x4fb7f0, 0x4fe0b0, 0x4fdd90, 0x4fd900,
+   0x4fa900, 0x4fd440, 0x4fd230), 0x4eaf90, 0x4eb050, 0x4eaea0, 0x4f84b0,
+   the class deletes (world 0x4f1c60 with 0x4f2770, light 0x4fa850, sound
+   0x4fd370, animate 0x4fd890), the model set 0x4eb370 and free 0x539150,
+   the tree delete 0x4f9050, the shutdown pass 0x4f8ab0 with 0x4f7920, the
+   reset 0x4f8fb0 (0x4f8f40). `test_destroy.py`: the six worlds read whole,
+   run-time object3d, light and sound nodes added, then 500 random takedowns
+   each (immediate deletes on and off, the lists held off), the shutdown
+   pass and the reset: every slot, link, class datum, list and item, the
+   deferred list and the model pool identical (3066 calls; the file
+   re-read 0x4ff730 joined later, gamez.md).
+8. Copying: **ported** (`cls_util`, mechlib.md "Copying a tree").
+
+### Taking nodes down (2026-10-20)
+
+- **0x4f84b0 (`_gwListDeleteANode`)** lets the node's model go (0x4eb370
+  with null, the use count down; 0x539150 frees it at 0), unlinks every
+  child (the child stays: it is destroyed on its own turn) and, for
+  object3d, LoD, light and sound, every parent, then the class's delete.
+  A camera, window, display, sequence, animate or switch with parents is
+  not destroyed (1); a light or sound a world still lists is not (1). A
+  world first drops its lights and sounds (0x4f2e00 / 0x4f3040), its
+  children and every cell's nodes (0x4f2c30, each cell joining the area
+  update's pending list), then frees its grid (0x4f2770) and lists. An
+  unknown class returns 3, reported only while deletes are immediate.
+- **0x4eb050** clears flag 2 and marks the list-7 item removable; with
+  immediate deletes ([0x5e9e18], 1) it unlists the node (0x4f8390) and
+  purges; if the lists are held (a running action list) the node goes on
+  the deferred list (0x4f8050) and is freed by the next purge (0x4f81e0).
+  Otherwise, and in the shutdown, 0x4eaf90 frees it at once, its items left
+  on the lists (they are all reset after).
+- **The shutdown pass 0x4f8ab0** turns immediate deletes off, purges, and
+  walks list 6 again and again until a pass destroys nothing: a parent's
+  destroy frees its children for the next pass. Then 0x4f89a0 resets every
+  list, the flag comes back, the item chunks are freed (0x4f7920). 0x4f8fb0
+  then frees the pool's blocks, resets the render's pre/post callbacks and
+  clears the remembered gamez.zbd path (0x4fe0f0).
+- **0x50da70 is not fatal**: it reports at the level in ECX (1 or 3 here,
+  5 in the world's light and sound removal) with zerr_old.c line 0x23 and
+  returns. The unknown-class paths of 0x4f8390 (level 3) and 0x4ebb40 and
+  0x4fd370 (level 1) carry on. (camera.cpp's view footprint, where
+  gModDIPointInPolygonInit fails, still stops the game as "zerr's fatal
+  exit"; in the exe that report returns and the walk goes on. Left for the
+  render's owner.)
+- 0x4eaf90 refuses a node with children, parents or a model, so a light or
+  sound freed bare (0x4eb050) while a world lists it leaves the world
+  pointing at a freed slot: the world's destroy then reads through null in
+  the exe and in the port alike (the test does not do it; the game does not).
+- A world deleted by class (0x4eaea0 -> 0x4f1c60) while it still has
+  children frees its grid and its light, sound and pending lists, but stays
+  (0x4eaf90 refuses it) with the lists' pointers and counts left dangling;
+  the next removal from one of its cells reads through the null grid. The
+  game deletes worlds only in the shutdown pass, which empties them first;
+  the port keeps the lists until the slot goes (FIX (A)), and the test does
+  not class-delete worlds.
+- The model pool's shutdown 0x526920 frees slots 0..count-1 while each free
+  lowers the count it compares with, so about half the models are freed
+  (a leak at the mission's unload, harmless).
 
 Scratch scripts used (session scratchpad, disposable): `emu.py` (pool growth
 with chunk size 3, create, add/remove, free and reuse) and `tree.py`

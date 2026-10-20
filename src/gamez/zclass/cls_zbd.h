@@ -21,5 +21,10 @@ struct ZbdHeader {                 // 0x24 bytes
 std::FILE* open_zbd(const char* path, ZbdHeader* header);     // 0x004ff6a0
 char* zbd_path();                                             // 0x0060bf50, 0x30 bytes
 int read_zbd(const char* path);                               // 0x004ff520
+int32_t node_index_of(const Node* node);                      // 0x004fe100
+// A node's model (and with `recurse` its tree's) read again from the file
+// the last read_zbd remembered: 0, or 1 without a file or the node in it.
+int reread_node(std::FILE* f, const ZbdHeader& h, Node* node, int32_t recurse);  // 0x004ff7a0
+int reread(Node* node, int32_t recurse);                      // 0x004ff730
 
 }  // namespace zcls

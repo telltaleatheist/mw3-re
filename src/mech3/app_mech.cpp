@@ -1,9 +1,7 @@
 // The mech build's and the launch's hooks wired to the ports (docs/mech-build.md
 // section 9). Not original code: it stands where the exe's other modules
-// will be. zClass's nodes are the ported ones; the mech data (0x00430d10,
-// mech_data.cpp's constructor and loader, not ported) is made here from
-// mechlib.zbd's trees and the motions; what has no port is logged once by
-// address through the engine.
+// will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
+// ports; what has no port is logged once by address through the engine.
 #include "mech3/app_mech.h"
 
 #include <cstdio>

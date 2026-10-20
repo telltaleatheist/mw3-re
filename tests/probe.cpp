@@ -900,6 +900,7 @@ int probe_destroy_op(int op, int a, int b, int c) {
     case 12: return destroy_all();
     case 13: return classes_reset();
     case 14: return node_set_model(n, b >= 0 ? zmod::model_at(b) : nullptr);
+    case 15: return reread(n, b);
     default: return -99;
   }
 }

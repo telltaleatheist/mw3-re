@@ -21,7 +21,6 @@ struct MechWiring {
   uint32_t (*vcall)(void* e, uint32_t obj, uint32_t slot, std::initializer_list<zgame::Arg> args) = nullptr;
   uint32_t (*pilot)(void* e) = nullptr;   // [0x0060861c]
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
-  const char* mechlib = "zbd/mechlib.zbd";  // the mech types' models, through the mounts
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 

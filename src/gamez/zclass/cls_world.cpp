@@ -392,11 +392,17 @@ int world_free_partitions(Node* world) {
 // Mech3.exe 1.2 @ 0x004f1c60
 int world_delete(Node* world) {
   if (world_free_partitions(world) != 0) return 0;
+  // The exe frees the light, sound and pending lists but leaves their
+  // pointers and counts. A world that then stays (it still has children or
+  // a model, as when 0x004eaea0 deletes it) keeps them in the port (FIX (A):
+  // nothing dangles) until its slot is freed.
   World* w = world_of(world);
-  delete[] w->lights, delete[] w->light_data, delete[] w->sounds, delete[] w->sound_data;
-  delete[] w->area_pending;
-  w->lights = nullptr, w->light_data = nullptr, w->sounds = nullptr, w->sound_data = nullptr;
-  w->area_pending = nullptr;
+  if (world->child_count() == 0 && world->parent_count() == 0 && !node_model_header(world)) {
+    delete[] w->lights, delete[] w->light_data, delete[] w->sounds, delete[] w->sound_data;
+    delete[] w->area_pending;
+    w->lights = nullptr, w->light_data = nullptr, w->sounds = nullptr, w->sound_data = nullptr;
+    w->area_pending = nullptr;
+  }
   return node_release(world);
 }
 

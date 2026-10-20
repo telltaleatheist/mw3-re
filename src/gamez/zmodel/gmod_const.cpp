@@ -41,6 +41,38 @@ Model* model_at(int32_t index) {
   return &g_pool.slots[index];
 }
 
+// Mech3.exe 1.2 @ 0x00538640 (ECX the file at the models' table, EDX the
+// index): one model read again into a new slot, its arrays from the data
+// offset its slot records (+0x5c). A failed read gives the slot back when
+// the file's use count is 0 (else it stays taken, half read).
+Model* reread_model(std::FILE* f, int32_t index) {
+  int32_t size, count, free_head;
+  int line = 0;
+  if (std::fread(&size, 4, 1, f) != 1) line = 0x323;
+  else if (std::fread(&count, 4, 1, f) != 1) line = 0x330;
+  else if (std::fread(&free_head, 4, 1, f) != 1) line = 0x33d;
+  if (line) {
+    zerr::report(0x200, kFile, line, "Error reading GameZ Model3D buffer data.");
+    zerr::report(0x200, kFile, 0x4b9, "Error reading GameZ Model3D buffer data.");
+    return nullptr;
+  }
+  if (size == 0 || size <= index) return nullptr;
+  std::fseek(f, static_cast<long>(index) * 0x60, SEEK_CUR);
+  uint8_t raw[0x60];
+  if (std::fread(raw, sizeof raw, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x4d2, "Error reading GameZ Model3D buffer data.");
+    return nullptr;
+  }
+  Model* m = model_alloc();
+  std::memcpy(m->header, raw, 0x5c);
+  uint32_t offset;
+  std::memcpy(&offset, raw + 0x5c, 4);
+  std::fseek(f, static_cast<long>(offset), SEEK_SET);
+  if (read_model_data(f, *m) == 0) return m;  // 0x00553450's edge pass: not ported (one video mode)
+  model_release(m);  // 1 (kept) when the file's use count is not 0
+  return nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x00526800 (the pool's part; the draw table and lighting
 // settings are the caller's).
 void reset_pool() {

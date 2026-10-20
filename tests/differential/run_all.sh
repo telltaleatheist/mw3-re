@@ -78,6 +78,9 @@ for t in \
     mission_load \
     mission_start \
     mech_build \
+    destroy \
+    tree_copy \
+    mech_data_load \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

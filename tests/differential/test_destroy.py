@@ -9,8 +9,9 @@ cells or among its own children) and under other nodes, some with actions
 on lists 0..5 (front and back), lights and sounds the world lists. Then
 random operations on random nodes of list 6: the list delete 0x4f84b0, the
 class delete 0x4eaea0, the release 0x4eb050, the tree delete 0x4f9050, a
-child's removal 0x4ebb40, the slot free 0x4eaf90, a model dropped
-(0x4eb370), immediate deletes off ([0x5e9e18] 0, the shutdown's setting)
+child's removal 0x4ebb40, the slot free 0x4eaf90, a model dropped or swapped
+(0x4eb370), the file's model read again (0x4ff730 with 0x4ff7a0 and 0x538640, the
+node alone or its tree), immediate deletes off ([0x5e9e18] 0, the shutdown's setting)
 and the lists held off ([0x5ea6b0] 0, a running action list: the deferred
 list) then purged (0x4f7bd0). Last the shutdown pass 0x4f8ab0 and the reset
 0x4f8fb0 (0x4f8f40). After every call: its result, the whole node pool
@@ -19,8 +20,8 @@ their items, the item pool, the deferred list, the reports, the model
 pool's count and free head; every 16 calls and at the end every model
 slot's use count, polygon count and link.
 
-DESTROY_TEST_BREAK=<n> runs with break n compiled into nothing: the breaks
-are made by editing the port (docs/action-lists.md lists them).
+DESTROY_WORLDS=c1 runs one world (the break tests, docs/zclass-world.md, edit the
+port and need the failure); DESTROY_HISTORY=<file> keeps the calls for a replay.
 """
 import ctypes
 import os
@@ -48,7 +49,7 @@ OPS = {
 HISTORY = Path(os.environ['DESTROY_HISTORY']) if os.environ.get('DESTROY_HISTORY') else None  # debugging
 NAMES = {0: 'list delete', 1: 'class delete', 2: 'release', 3: 'tree delete', 4: 'remove child',
          5: 'immediate', 6: 'lists held', 7: 'purge', 8: 'object3d', 9: 'light', 10: 'sound',
-         11: 'free', 12: 'shutdown pass', 13: 'reset', 14: 'drop model'}
+         11: 'free', 12: 'shutdown pass', 13: 'reset', 14: 'set model', 15: 're-read'}
 
 
 def s32(v):
@@ -59,6 +60,12 @@ class Emulated(G.Emulated):
     def __init__(self):
         super().__init__()
         self.cpu.stub_import(IAT_SPRINTF, self.sprintf)
+
+    def fseek(self, c):
+        """SEEK_SET and SEEK_CUR (the model re-read 0x538640 steps to its slot)."""
+        assert c.arg(0) == G.HANDLE and c.arg(2) in (0, 1)
+        self.pos = (self.pos if c.arg(2) == 1 else 0) + s32(c.arg(1))
+        return 0
 
     def cstr(self, p):
         out = bytearray()
@@ -133,6 +140,9 @@ class Emulated(G.Emulated):
             return self.ret()
         if op == 14:
             cpu.call(0x4eb370, ecx=n, edx=(self.i32(G.POOL) + 0x60 * b) if b >= 0 else 0)
+            return self.ret()
+        if op == 15:
+            cpu.call(0x4ff730, ecx=n, edx=b)
             return self.ret()
         raise ValueError(op)
 
@@ -221,12 +231,21 @@ def pick_op(rng, emu, worlds):
             return 4, n, parent, 0
     if r < 0.41 and model:
         return 14, n, -1, 0
+    if r < 0.45 and model:  # another node's model
+        other = emu.info(rng.choice(nodes))[3]
+        if other:
+            return 14, n, (other - (emu.i32(G.POOL) & 0xffffffff)) // 0x60, 0
+    if r < 0.52:  # the file's model again (0x4ff730), its tree too
+        return 15, n, rng.randrange(2), 0
     if cls == 0:
         return 0, n, 0, 0  # an unknown class: 3, reported when deletes are immediate
     # The bare release and free skip the class's own delete: a light or sound
     # freed so would stay in its world's list (both sides then crash), so
     # they are only used on object3d nodes, as the game does.
-    return rng.choice((0, 0, 0, 1, 3, 3) + ((2, 11) if cls == 5 else ())), n, 0, 0
+    # A world deleted by class (0x4eaea0) while it has children stays with its
+    # grid gone, and the next removal from a cell reads through null in the
+    # exe: the game never does it.
+    return rng.choice((0, 0, 0, 3, 3) + ((1,) if cls != 2 else ()) + ((2, 11) if cls == 5 else ())), n, 0, 0
 
 
 def main():
@@ -242,7 +261,7 @@ def main():
         if want != got:
             raise SystemExit(f'{w}: read_zbd {want} vs {got}')
         compare(f'{w} after the read', emu.dump(1), buf, probe.probe_destroy_dump(1, buf, len(buf)))
-        rng = random.Random(seed * 100 + wi)
+        rng = random.Random(seed * 100 + G.WORLDS.index(w))
         worlds = [i for i in emu.listed() if emu.info(i)[0] == 2]
         ops = []
         # The run-time nodes first, then the random takedown.

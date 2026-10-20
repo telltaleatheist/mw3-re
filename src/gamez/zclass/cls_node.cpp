@@ -464,7 +464,13 @@ namespace {
 void delete_class_data(Node* node) {
   switch (node->cls()) {
     case 1: delete static_cast<Camera*>(node->data); break;
-    case 2: delete static_cast<World*>(node->data); break;
+    case 2: {
+      auto* w = static_cast<World*>(node->data);  // the lists a staying world kept (world_delete)
+      delete[] w->lights, delete[] w->light_data, delete[] w->sounds, delete[] w->sound_data;
+      delete[] w->area_pending;
+      delete w;
+      break;
+    }
     case 3: delete static_cast<Window*>(node->data); break;
     case 4: delete static_cast<Display*>(node->data); break;
     case 5: delete static_cast<Object3d*>(node->data); break;
