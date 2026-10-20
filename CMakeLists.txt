@@ -125,6 +125,8 @@ add_library(mw3core STATIC
   src/mech3/mission.cpp
   src/mech3/mission_launch.cpp
   src/mech3/player.cpp
+  src/mech3/pilot.cpp
+  src/mech3/pilot_games.cpp
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
@@ -199,6 +201,7 @@ add_library(mw3probe SHARED
   tests/probe_menus.cpp
   tests/probe_ctlscreen.cpp
   tests/probe_loadsave.cpp
+  tests/probe_pilot.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_collide.cpp

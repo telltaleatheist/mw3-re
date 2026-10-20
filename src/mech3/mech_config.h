@@ -131,6 +131,11 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   static Config* from_file(const char* name, std::FILE* f);  // 0x004242a0
 };
 
+// The item list of the loadouts' and the stores' shared base (0x00470ce0):
+// 0x004717a0 writes it (none when `base_flag`), 0x00471540 reads it.
+uint32_t save_item_list(const std::list<ConfigItem*>& items, uint8_t base_flag, std::FILE* f);
+void load_item_list(std::list<ConfigItem*>& items, std::FILE* f);
+
 struct ConfigList {                // 0x18 bytes
   int32_t count;                   // +0x00
   int32_t mech;                    // +0x04
