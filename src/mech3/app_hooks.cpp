@@ -1,6 +1,7 @@
 #include "mech3/app_hooks.h"
 
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -230,6 +231,12 @@ void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
   }
 }
 void Engine::pop_state(uint32_t arg) { app().pop(arg); }
+// The double as its two dwords on the stack, low first.
+void Engine::screen_tint(uint16_t colour, Handle rect, double alpha) {
+  uint64_t q;
+  std::memcpy(&q, &alpha, sizeof q);
+  unported("0x00558540", {colour, rect, static_cast<uint32_t>(q), static_cast<uint32_t>(q >> 32)});
+}
 void Engine::replace_with_exit() { app().replace(app().state(4), 0); }
 bool Engine::main_menu_background(zimg::Texture** image, uint8_t* moving) {
   MainMenu* m = main_menu();

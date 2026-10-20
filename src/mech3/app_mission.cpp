@@ -833,13 +833,11 @@ void GameEngine::missions_start(uint32_t list) {
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
 
-// 0x0048ee70: the fade state (0x0048eea0, [0x00609888]) is not ported. The
-// Core state's fade at the mission start (its only caller, from its enter)
-// ends at once (our stand-in): the Core state gets the message the fade
-// sends as it ends (7, the mission's resume: the entity sort among it).
+// 0x0048ee70: the port's fade (mech3::fade_push, next 0); the Core state's
+// mission start fades in from black over 2 s, then gets resume(7).
 void GameEngine::fade(int32_t a, int32_t b, int32_t c, uint32_t d, int32_t e, int32_t f, int32_t g) {
-  Engine::fade(a, b, c, d, e, f, g);
-  if (a == 7) states().core.resume(7);
+  fade_push(nullptr, static_cast<uint32_t>(a), b, c, zgame::from_bits(d), static_cast<uint8_t>(e),
+            static_cast<uint8_t>(f), static_cast<uint8_t>(g));
 }
 
 // 0x0048f470 on the missions object, each Core frame: the port's (its

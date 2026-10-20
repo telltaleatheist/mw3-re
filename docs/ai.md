@@ -1134,9 +1134,8 @@ filled by the mech build's 0x5a7f50 (app_mech.cpp) and cleared at each
 mission start; the sensors' hooks answer as the Mech's and CZAiTarget's
 vtables do (`app_sensors.cpp`), positions through zClass's node_to_world;
 the targets' centroid and target nodes are their record's named subnodes
-or the node (0x5a8390 stands in); the fade state (0x48eea0) is not ported,
-so the Core state's mission-start fade ends at once with resume(7), which
-sorts. `mw3tests` `mission_c1m1_sensors_fill_the_contacts_headless`: the
+or the node (0x5a8390 stands in); the Core state's mission-start fade
+(0x48eea0, game-loop.md) runs for its 2 s, then resume(7) sorts. `mw3tests` `mission_c1m1_sensors_fill_the_contacts_headless`: the
 Mad Cat and the Owens on the list, the player first; the player senses the
 Owens, not in sight while powered down, the Owens senses the player;
 after bramp wakes it, it is in sight, Ctrl+E selects it and the next

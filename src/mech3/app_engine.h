@@ -208,6 +208,12 @@ class GameEngine : public Engine {
   void video_clear(Handle rect) override;
   void video_flip(int32_t a, int32_t b, int32_t c, int32_t d) override;
   uint32_t video_show_cursor(uint32_t on) override;
+  // The fade's still and colour (0x00579500, 0x0055b1f0, 0x00558540, 0x00517cc0),
+  // on the 16-bit buffer.
+  Handle video_grab(int32_t buffer) override;
+  void image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) override;
+  void screen_tint(uint16_t colour, Handle rect, double alpha) override;
+  void image_free(Handle image) override;
   uint16_t* buffer16() { return buffer_.data(); }
   int buffer_width() const { return width_; }
   int buffer_height() const { return height_; }
@@ -246,6 +252,7 @@ class GameEngine : public Engine {
   uint32_t install_options_ = 0x0101;  // HKLM's InstallOptions: a 3D card (FIX (A), fixes.md)
   int width_ = 640, height_ = 480;
   std::vector<uint16_t> buffer_;
+  std::map<Handle, std::vector<uint16_t>> grabs_;  // the fade's stills, by handle
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;
   std::string formatted_;

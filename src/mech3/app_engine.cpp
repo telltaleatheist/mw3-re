@@ -15,6 +15,7 @@
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_control.h"
 #include "mech3/music.h"
@@ -328,6 +329,41 @@ uint32_t GameEngine::video_show_cursor(uint32_t on) {
   const uint32_t old = cursor_;
   cursor_ = on;
   return old;
+}
+
+// 0x00579500: the screen to a new image. The port has one buffer, whichever
+// the original asked for.
+Handle GameEngine::video_grab(int32_t) {
+  const Handle h = alloc_block(0x10);
+  grabs_[h] = buffer_;
+  return h;
+}
+// 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0.
+void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) {
+  auto it = grabs_.find(image);
+  if (it == grabs_.end() || x || y || rect || it->second.size() != buffer_.size())
+    return (void)Engine::image_draw(image, x, y, key, rect);
+  buffer_ = it->second;
+}
+// 0x00558540: the colour over the whole buffer at `alpha`. In the original the
+// software renderer's finish (0x00558610) or a Direct3D quad (0x0057dd80) does
+// it; here, for both, straight into the 16-bit buffer.
+void GameEngine::screen_tint(uint16_t colour, Handle rect, double alpha) {
+  if (rect) return Engine::screen_tint(colour, rect, alpha);
+  const zvid::PixelFormat& f = zvid::pixel_format();
+  const int gb = f.g_bits + f.b_bits;
+  const uint32_t rm = (1u << f.r_bits) - 1, gm = (1u << f.g_bits) - 1, bm = (1u << f.b_bits) - 1;
+  const float a = static_cast<float>(alpha), k = 1.0f - a;
+  auto mix = [&](uint32_t p, uint32_t c) { return static_cast<uint32_t>(p * k + c * a + 0.5f); };
+  for (uint16_t& px : buffer_) {
+    const uint32_t r = mix(px >> gb & rm, colour >> gb & rm);
+    const uint32_t g = mix(px >> f.b_bits & gm, colour >> f.b_bits & gm);
+    const uint32_t b = mix(px & bm, colour & bm);
+    px = static_cast<uint16_t>(r << gb | g << f.b_bits | b);
+  }
+}
+void GameEngine::image_free(Handle image) {
+  if (!grabs_.erase(image)) Engine::image_free(image);
 }
 
 Handle GameEngine::handle_of(void* p) {

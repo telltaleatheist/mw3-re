@@ -228,6 +228,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
   tests/probe_sensors.cpp
+  tests/probe_fade.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

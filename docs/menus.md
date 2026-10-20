@@ -745,7 +745,9 @@ kept.
   briefing (the Load State, ported), which reaches the pilot's game through
   the module-memory handle at [0x0060861c] (not yet bridged, pilot.md).
 - The pause screen (0x00492750) and its Options press (0x00492d70), which
-  make and push the option objects from a mission.
+  make and push the option objects from a mission; another of its buttons
+  fades out to the campaign's sequence (0x00492ede: the fade state's
+  replace entry, ported as `mech3::fade_replace`, game-loop.md).
 - The menu objects' constructors and destructors run in the program but are
   not in a differential case (their calls are the screen's construct and
   delete, compared through the screens' tests).

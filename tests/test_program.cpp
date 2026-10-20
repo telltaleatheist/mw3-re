@@ -687,7 +687,9 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
       bool owens_in_sight = false, picked = false, kept = false;
     } seen;
     mech3::Handle player = 0, owens = 0;
+    int fade_frames = 0;  // the mission start's fade in (0x0048eea0) runs first
     engine.on_present = [&](int) {
+      if (app.current() == &mech3::states().fade && seen.frames == 0) ++fade_frames;
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
       if (seen.frames == 3) {  // the Owens powered down: sensed, not in sight
@@ -729,6 +731,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     CountingPump pump;
     pump.limit = 400;
     app.run(pump);
+    EXPECT(fade_frames > 1);
     EXPECT(seen.frames >= 6);
     EXPECT(seen.entities == 2 && seen.player_first && seen.sorted);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
