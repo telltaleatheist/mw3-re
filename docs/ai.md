@@ -278,3 +278,10 @@ gives 0 or 1).
   brain is not mapped beyond section 4).
 - Duplicate record names in a file: by number both are read, by name the
   first wins.
+
+## The developer tools (decided with Owen, 2026-10-20)
+
+The AI tester dialog and the in-game AI path editor (ZAiNetEdit's editing
+side), reached in the exe through the debug menu, are to be ported later
+behind a `--debug` switch, off by default, as hidden as the original's
+menu. They are not needed to play.
