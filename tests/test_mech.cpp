@@ -2,7 +2,7 @@
 #include "mech3/mech.h"
 
 TEST(heat_sinks_rate_and_loss) {
-  mech3::HeatSinks s{10, false};
+  mech3::HeatSinks s{3, 10, false};  // tech, count, doubles
   EXPECT(s.rate() == 1.25f);
   s.doubles = true;
   EXPECT(s.rate() == 2.5f);

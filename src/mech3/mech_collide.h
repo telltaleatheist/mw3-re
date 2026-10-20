@@ -33,6 +33,8 @@ struct Collider {
   Vec3 local[15] = {};             // +0x124
   Vec3 world[15] = {};             // +0x1d8  this frame
   Vec3 last[15] = {};              // +0x28c  where last frame's resolution left them
+  float matrix[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};  // +0x340  a 3x3 and translation (0x004abaf0)
+  uint32_t x370 = 0;               // +0x370
   bool any() const { return !vehicles.empty() || !mechs.empty() || !ceilings.empty() || !walls.empty() ||
                             !touches.empty(); }
   void clear_lists();              // 0x00422c60

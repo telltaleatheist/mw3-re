@@ -25,6 +25,7 @@ PoseCalls& pose_calls();
 
 struct GroundHit;
 struct MechDfn;
+struct Config;
 class MechPart;
 
 // What the parts' setups and updates call outside the parts
@@ -78,9 +79,18 @@ enum CriticalKind : int32_t { kCritSink = 0, kCritWeapon, kCritAmmo, kCritEquipm
 class MechPart {
  public:
   Mech* mech = nullptr;          // +0x04  (looked up lazily in the exe, 0x460000)
-  Handle node = nullptr;         // +0x08
+  Handle node = nullptr;         // +0x08  `found` when it is an object3d (0x00460190)
+  Handle found = nullptr;        // +0x0c  the part's node by name under the mech's node
+  Handle lod = nullptr;          // +0x10  and under the mech's low-detail model (+0x698)
   float* rotation = nullptr;     // +0x14  the node's local 3x3 (object3d data +0x30); the translation follows it
   Vec3* translation = nullptr;   // +0x18  the node's local translation (object3d data +0x54, 0x00460190)
+  float* x1c = nullptr;          // +0x1c  object3d data +0x30 again
+  float* x20 = nullptr;          // +0x20  data +0x3c
+  float* x24 = nullptr;          // +0x24  data +0x48
+  Vec3* x28 = nullptr;           // +0x28  data +0x54 again
+  float x2c = 0;                 // +0x2c  the arm's setup sets 1
+  uint32_t x30 = 0;              // +0x30
+  float recoil = 0;              // +0x34  an arm's: 0..1, the kick (0x00466610), decaying
   int32_t id = -1;               // node +0x28, -1 without a node
   float internal = 1.0f;         // +0x38
   float internal_scale = 1.0f;   // +0x3c
@@ -97,6 +107,7 @@ class MechPart {
 
   virtual ~MechPart() = default;
   virtual bool setup();          // +0x04, 0x0045fdd0 (hip 0x00462130, leg 0x004637b0, foot 0x00462860, arm 0x004663e0, hand 0x00466e80)
+  virtual bool init(const Config* cfg);  // +0x08, 0x0045fe00: armor and structure (mech_part_build.cpp)
   virtual void update(float dt); // +0x10, 0x00461730 (torso 0x00464e80, hip 0x004623a0, leg 0x00463ee0, foot 0x00463110, arm 0x00466510)
   virtual void node_changed();   // +0x14, 0x00460180: the node's matrix set (0x004fc300); torso 0x004659c0
   virtual int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse);  // +0x18
@@ -167,6 +178,7 @@ class Torso : public MechPart {
   int32_t centring = 0;            // +0x1b0  CMD_CENTER_TORSO 1, CMD_CENTER_LEGS 2 (docs/movement-ground.md)
 
   void set_pose(const Vec3* pos, const float* q) override;  // 0x00464600
+  bool init(const Config* cfg) override;                    // 0x004644b0
   void update(float dt) override;                           // 0x00464e80
   void node_changed() override;                             // 0x004659c0
   bool steer(float dt, float* yaw, float* pitch, const float* yaw_in, float* pitch_in);  // 0x00464ce0: true when clamped
@@ -225,14 +237,13 @@ class Leg : public MechPart {
 
 class Arm : public MechPart {    // vtable 0x005c2a48, 0xd0 bytes
  public:
-  float x2c = 1;                 // +0x2c  set to 1 by the setup
-  float recoil = 0;              // +0x34  0..1, the kick (0x00466610), decaying
   Hand* hand = nullptr;          // +0x74
   float length = 0;              // +0x78  to the hand
   float recoil_hold = 0;         // +0x7c  what the recoil decays toward, itself decaying
   float recoil_pitch = 0, recoil_push = 0, recoil_twist = 0;  // +0x80, +0x84, +0x88  def recoil_*
   Vec3 rest{};                   // +0x8c  the arm's rest place
   float aim_pitch = 0, aim_yaw = 0;  // +0x98, +0x9c
+  float xa0 = 0;                 // +0xa0
   float aim_q[4] = {1, 0, 0, 0}; // +0xa4
   float aim_rate = 0;            // +0xb4  def aim_slerp_freq
   float min_pitch = 0, max_pitch = 0, min_yaw = 0, max_yaw = 0;  // +0xb8..+0xc4  def aim_*
@@ -283,12 +294,15 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   float clearance = 0;           // +0x8c  height above the ground
   float last_clearance = 0;      // +0x90
   int32_t ground_state = 0;      // +0x94  0 air, 1 touching, 2, 3 planted
+  uint32_t x98 = 0, x9c = 0;     // +0x98  the toe count again; +0x9c
   uint32_t toe_count = 0;        // +0xa0
   Handle* toe_nodes = nullptr;   // +0xa4
   float (*toe_q)[4] = nullptr;   // +0xa8  each toe's last rotation
   float rot[4] = {1, 0, 0, 0};    // +0xc4  the foot's rotation as its updates set it (the gait's blend-in starts from it)
   Handle shadow = nullptr;       // +0x78  always 0: the constructor hides <c>_shadow and clears it
   bool in_water = false;         // +0xac
+  uint32_t xb0 = 0, xb4 = 0, xb8 = 0;  // +0xb0..+0xb8
+  float xbc = -1;                // +0xbc
   bool pivot = false;            // +0xc0  counter-spins while the mech turns in place
   float pivot_rate = 0;          // +0xd4
   float spin = 0;                // +0xd8  the counter-spin's angle

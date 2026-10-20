@@ -40,6 +40,7 @@ struct MechControls {
   bool reverse = false;        // +0x50  the last non-zero throttle command was < 0
   uint32_t last_pov = 1;       // +0x54  the joystick hat's last reading
   bool moves[2] = {true, true};  // +0x58, +0x59  either set: the gait or the actions run
+  bool x5a = false;            // +0x5a
   Mech* owner = nullptr;       // +0x70  (IControls +0x10)
 
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
@@ -57,10 +58,13 @@ struct MechControls {
 };
 
 // The player's controls (ctor 0x00427320, 0x160 bytes; controls.md): the
-// keyboard, joystick and mouse through zInput's commands and devices.
+// keyboard, joystick and mouse through zInput's commands and devices. The
+// IControls base sits at +0x14c here (its owner at +0x15c); +0x5c is a base
+// of the AI's (0x004d9840), not ported.
 struct PlayerControls : MechControls {
   float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
+  void construct(uint32_t mode);   // 0x00427320 with the base 0x004265a0
   int update(float dt) override;   // 0x00427d60
   // 0x00427870: the joystick and mouse axes into the frame's inputs.
   void read_axes(float dt, float* throttle, float* turn, float* pitch, float* twist, float* look_pitch,
@@ -72,6 +76,14 @@ struct PlayerControls : MechControls {
 struct AiControls : MechControls {
   int update(float dt) override;   // 0x004e96f0
 };
+
+// Mech3.exe 1.2 @ 0x00427280: the player's controls, made once in `mode`
+// ([0x006056ec], with the commands' callback registered), the mode set again
+// on later calls (the launch, 0x00491150).
+PlayerControls* player_controls(uint32_t mode);
+PlayerControls*& player_controls_instance();  // [0x006056ec]
+void register_player_commands();               // 0x00426ce0
+void player_command(int32_t cmd);              // 0x00426cb0: to the controls, then the viewed vehicle
 
 // The axis table's four bindings (0x006040d0: throttle, twist, pitch, turn;
 // controls_cfg.h), set by the controls file, the options and set_mode.

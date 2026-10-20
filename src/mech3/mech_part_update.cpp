@@ -113,7 +113,8 @@ PartCalls& part_calls() { return g_calls; }
 bool MechPart::setup() {
   if (!mech || !node) return false;
   if (g_calls.register_part) g_calls.register_part(*mech, *this);  // 0x0041b8d0
-  if (g_calls.init) g_calls.init(*this);                           // vtable +0x08
+  if (g_calls.init) g_calls.init(*this);                           // vtable +0x08 (0): the torso's side structure
+  else init(nullptr);
   return true;
 }
 

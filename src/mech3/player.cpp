@@ -65,6 +65,9 @@ void delete_controls(Handle ctl) {
 }  // namespace
 
 PlayerState& player_state() { return g_state; }
+void player_clear_60b56c() { g_state.x60b56c = 0; }
+void player_set_60b56c(uint8_t v) { g_state.x60b56c = v; }
+uint8_t player_get_60b56c() { return g_state.x60b56c; }
 void set_player_hooks(PlayerHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 PlayerHooks& player_hooks() { return *g_hooks; }
 

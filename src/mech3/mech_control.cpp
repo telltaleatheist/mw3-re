@@ -6,6 +6,7 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
+#include "mech3/mech_build.h"
 #include "platform/platform.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -379,6 +380,79 @@ int AiControls::update(float dt) {
   if (g_calls.ai_brain) return g_calls.ai_brain(*this, dt) != 0 ? 1 : 0;
   MechControls::update(dt);
   return 1;
+}
+
+// --- the player's controls made (docs/mech-build.md section 7) -----------------
+
+namespace {
+PlayerControls* g_player = nullptr;  // 0x006056ec
+}  // namespace
+
+PlayerControls*& player_controls_instance() { return g_player; }
+
+// Mech3.exe 1.2 @ 0x00427280
+PlayerControls* player_controls(uint32_t mode) {
+  if (!g_player) {
+    register_player_commands();
+    auto* pc = new PlayerControls();
+    mech_build_hooks().on_new(0x160, pc);
+    pc->construct(mode);
+    g_player = pc;
+  } else {
+    g_player->set_mode(mode);
+  }
+  return g_player;
+}
+
+// Mech3.exe 1.2 @ 0x00427320 (most derived), over 0x004265a0(0, 0): at rest,
+// view state 2, ThrottleConst off (the throttle returns), the hat centred.
+void PlayerControls::construct(uint32_t mode) {
+  owner = nullptr;  // the IControls base (0x004aec00 on +0x150; owner +0x15c)
+  // 0x004265a0
+  view = 2;
+  axis_2c = axis_30 = 0;
+  jump_held = false;
+  moves[1] = true;
+  throttle_returns = true;
+  last_pov = 1;
+  throttle = turn = pitch = twist = jump = 0;
+  jj_forward = jj_strafe = 0;
+  throttle_target = turn_target = jump_target = 0;
+  flags = 0;
+  moves[0] = false;
+  x5a = false;
+  fire = 0;
+  reverse = false;
+  joy_throttle_set = false;
+  throttle_held = false;
+  wrapped = 0;
+  mech_build_hooks().controls_brain_init(*this);
+  flags = 0;
+  joy_throttle = 0;
+  set_mode(mode);
+  look_dx = look_dy = 0;
+  look_y = look_x = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00426ce0: the commands whose keys reach the controls and
+// the viewed vehicle (0x00426cb0), in the exe's order.
+void register_player_commands() {
+  static const int32_t kCommands[] = {
+      0x24, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x1a, 0x25, 0x26, 0x27, 0x2a, 0x2b,
+      0x28, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x39, 0x06, 0x07, 0x3b, 0x3a,
+      0x6e, 0x6b, 0x68, 0x74, 0x75, 0xa5, 0x69, 0x47, 0x4e, 0x4d, 0x46, 0x4c, 0x4b, 0x48, 0x14, 0x15,
+      0x49, 0x4a, 0x29, 0x99, 0x41, 0x16, 0x17, 0x76, 0x77, 0x92, 0x13, 0x3e, 0x3f, 0x40, 0x43, 0xa6,
+      0x42, 0x44, 0x36, 0x37, 0x38, 0x52, 0x51, 0x4f, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x62, 0x63,
+      0x66, 0x67, 0x64, 0x65, 0x45, 0xa1, 0x73, 0x59, 0x5a, 0x5d, 0x5e, 0x5f, 0x60, 0x5c, 0x5b};
+  for (const int32_t cmd : kCommands) mech_build_hooks().set_command_callback(cmd);
+}
+
+// Mech3.exe 1.2 @ 0x00426cb0
+void player_command(int32_t cmd) {
+  MechBuildHooks& h = mech_build_hooks();
+  h.controls_command(g_player, cmd);  // the controls' vt+0x1c (0x004274d0)
+  if (const Handle view = h.view())
+    if (const Handle target = h.view_target(view)) h.view_target_command(target, cmd);  // vt+0xfc
 }
 
 }  // namespace mech3
