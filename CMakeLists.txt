@@ -99,6 +99,7 @@ add_library(mw3core STATIC
   src/gamez/ztwod/twod_control.cpp
   src/gamez/ztwod/twod_dialog.cpp
   src/gamez/ztwod/twod_editbar.cpp
+  src/gamez/ztwod/twod_shapes.cpp
   src/gamez/ztwod/twod_host.cpp
   src/gamez/ztwod/twod_list.cpp
   src/gamez/ztwod/twod_msgbox.cpp
@@ -132,6 +133,7 @@ add_library(mw3core STATIC
   src/mech3/mission_launch.cpp
   src/mech3/player.cpp
   src/mech3/player_view.cpp
+  src/mech3/hud.cpp
   src/mech3/pilot.cpp
   src/mech3/pilot_games.cpp
   src/mech3/pilot_menu.cpp
@@ -241,6 +243,7 @@ add_library(mw3probe SHARED
   tests/probe_fade.cpp
   tests/probe_frame.cpp
   tests/probe_view.cpp
+  tests/probe_hud.cpp
   tests/probe_mech_data.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)

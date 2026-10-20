@@ -60,6 +60,10 @@ void Host::blit(zimg::Texture* image, int32_t x, int32_t y, int32_t flags, const
 }
 Handle Host::image_dc(zimg::Texture* image) { return unported("[0x0072f394]", {ptr(image)}); }
 void Host::image_dc_release(zimg::Texture* image, Handle dc) { unported("[0x0072f398]", {ptr(image), dc}); }
+uint32_t Host::format_message(char* buf, uint32_t size, uint32_t id, va_list) {
+  if (size) buf[0] = 0;
+  return unported("0x00575ff0", {size, id});
+}
 int32_t Host::video_mode() { return static_cast<int32_t>(unported("peek32", {0x72f348})); }
 void Host::video_double() { unported("[0x0072f358]", {0, 0}); }
 uint32_t Host::show_cursor(uint32_t on) { return unported("0x00579840", {on}); }
