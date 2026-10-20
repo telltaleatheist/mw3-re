@@ -5,6 +5,7 @@
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -42,14 +43,15 @@ const char* const kEquipment[15] = {"ams",  "armor", "armorff", "fcs",  "bap", "
                                     "ecm",  "sink",  "dsink",   "jjets", "masc", "tag", "tc"};
 
 // 0x005e64f0, 6 dwords each (docs/weapons.md); the index equals the position.
-const char* const kWeapons[37] = {
+// FIX (bug): the 38th, the plain PPC, is the rebuild's (weapon_count).
+const char* const kWeapons[38] = {
     "AC2",          "AC5",          "AC10",          "AC20",         "ERLaser_Small",     "ERLaser_Medium",
     "ERLaser_Large", "ERPPC",       "Flamer",        "GaussRifle",   "Laser_Small",       "Laser_Medium",
     "Laser_Large",  "LB2XAC",       "LB5XAC",        "LB10XAC",      "LB20XAC",           "LRM5",
     "LRM10",        "LRM15",        "LRM20",         "MGUN",         "NARC",              "PulseLaser_Small",
     "PulseLaser_Medium", "PulseLaser_Large", "SRM2", "SRM4",         "SRM6",              "StreakSRM2",
     "StreakSRM4",   "StreakSRM6",   "TAG",           "UltraAC2",     "UltraAC5",          "UltraAC10",
-    "UltraAC20"};
+    "UltraAC20",    "PPC"};
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x00484720
@@ -76,7 +78,7 @@ int32_t equip_kind(const char* name) {
 // Mech3.exe 1.2 @ 0x004848a0. Any case.
 int32_t weapon_index(const char* name) {
   if (!name || !*name) return -1;
-  for (int32_t i = 0; i < 37; ++i)
+  for (int32_t i = 0; i < weapon_count(); ++i)
     if (crt::msvc_stricmp(kWeapons[i], name) == 0) return i;
   return -1;
 }
@@ -124,13 +126,19 @@ const WeaponLab* weapon_lab(int32_t weapon) { return g_weapon_lab ? g_weapon_lab
 
 // Mech3.exe 1.2 @ 0x00484960: autocannons, Gauss, LB-X, missiles, MGUN and NARC.
 bool weapon_uses_ammo(int32_t weapon) {
-  static const uint8_t kUses[37] = {1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
-                                    1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
-  return weapon >= 0 && weapon < 37 && kUses[weapon];
+  static const uint8_t kUses[38] = {1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+                                    1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0};
+  return weapon >= 0 && weapon < weapon_count() && kUses[weapon];
 }
 
 // Mech3.exe 1.2 @ 0x00484900
-const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < 37 ? kWeapons[weapon] : "noweapon"; }
+const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < weapon_count() ? kWeapons[weapon] : "noweapon"; }
+
+// The exe's table has 37 weapons. FIX (bug): weapons.zrd defines a plain PPC and
+// Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc), but its row was
+// never added, so the mech lab could not offer it. Its row would be message
+// 0x2fd, family 3 (as ERPPC), tech 2 (Inner Sphere, as the plain lasers), no ammo.
+int32_t weapon_count() { return zfix::options().bugs ? 38 : 37; }
 
 // Mech3.exe 1.2 @ 0x004846e0
 float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }

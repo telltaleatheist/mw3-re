@@ -659,4 +659,20 @@ void Hand::set_internal(float v, int s) {
   if (Arm* a = arm()) a->set_internal(v, s);
 }
 
+// Mech3.exe 1.2 @ 0x00466200. A non-zero twist takes the torso off the AI's aim.
+bool Torso::set_twist(float twist, float look) {
+  if (twist != 0.0f) aim = 0;
+  twist_in = twist;
+  look_yaw = look;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00466240
+bool Torso::set_pitch(float pitch, float look) {
+  if (pitch != 0.0f) aim = 0;
+  pitch_in = pitch;
+  look_pitch = look;
+  return true;
+}
+
 }  // namespace mech3

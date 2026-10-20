@@ -1,5 +1,6 @@
 #include "gamez/zvideo/zvid_ddd3d.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
@@ -11,6 +12,7 @@
 #include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 
 // The original rounds every step to float (Direct3D runs the FPU at 24 bits);
@@ -112,10 +114,11 @@ int32_t ftol(float x) { return crt::msvc_ftol(x); }
 // `x - -0.5` then _ftol: rounds the 0..255 colours.
 uint32_t round_byte(float x) { return static_cast<uint32_t>(ftol(x - -0.5f)); }
 
-// x - -1.5 * 2^52 stored as a double, its low dword taken: x rounded to an
-// integer at 64-bit precision, but 0 for every colour at the 24 bits the
-// game runs at (docs/drafts/drawtable.md, the point-light quirk).
+// x - -1.5 * 2^52 stored as a double, its low dword taken: x rounded to the
+// nearest integer on a 53- or 64-bit FPU (zfix fpu53, as in play), but 0 for
+// every colour at 24 bits (render-drawtable.md, the point-light quirk).
 int32_t magic_round(float x) {
+  if (zfix::options().fpu53) return static_cast<int32_t>(std::nearbyint(double{x}));
   const float t = x - -6755399441055744.0f;
   const double d = t;
   uint64_t bits;
@@ -836,6 +839,38 @@ D3DTexture* create_texture(const char* name, const zimg::Texture& image, int32_t
   t->address_u = clamp_u ? 3 : 1;
   t->address_v = clamp_v ? 3 : 1;
   return t;
+}
+
+// Mech3.exe 1.2 @ 0x0057baa0. FIX (A): the copy into the system surface
+// (0x0057b6c0) and the video texture's Load become one update of the handle.
+void reload_texture(D3DTexture* record, const zimg::Texture* image) {
+  if (!record || !image || record->handle < 0) return;
+  const int32_t w = image->width, h = image->height;
+  std::vector<uint8_t> rgba(static_cast<size_t>(w) * h * 4);
+  texture_rgba(*image, image->flags & 2, rgba.data());
+  if (g_render) g_render->update_texture(record->handle, w, h, rgba.data());
+}
+
+// Mech3.exe 1.2 @ 0x0057bb00. The exe releases the default records only while
+// 0x005788b0 sets [0x00802710] (the device's shutdown), which has no port.
+void release_texture(D3DTexture* record) {
+  if (record == g_default) return;
+  if (g_render && record->handle >= 0) g_render->release_texture(record->handle);
+  delete record;
+}
+
+// Mech3.exe 1.2 @ 0x00579b70
+int32_t has_caps(int32_t which) {
+  const Display& d = g_display;
+  if (!d.fullscreen) return 1;
+  if (!d.device) return 0;
+  if (which & 1) {
+    if (!(d.tri_misc_caps & 0x40) || !(d.src_blend_caps & 1) || !(d.dest_blend_caps & 4)) return 0;
+  }
+  if (which & 2) {
+    if (!(d.tri_misc_caps & 0x40) || !(d.address_caps & 4)) return 0;
+  }
+  return 1;
 }
 
 // Mech3.exe 1.2 @ 0x00579f50, the Direct3D entries the model draw calls

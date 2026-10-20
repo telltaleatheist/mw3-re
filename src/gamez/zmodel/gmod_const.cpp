@@ -116,4 +116,25 @@ int read_models(std::FILE* f) {
   return size;
 }
 
+// Mech3.exe 1.2 @ 0x0053bc10
+void cycle_reset(Model* m) {
+  Material* mat = m->polygons[0].material;
+  Cycle* c = mat->cycle;
+  if (!c) return;
+  c->index = 0.0f;
+  mat->texture = c->textures[0];
+}
+
+// Mech3.exe 1.2 @ 0x0053bc90. A frame past the end wraps by the count.
+void cycle_set_frame(Model* m, int32_t n) {
+  Material* mat = m->polygons[0].material;
+  Cycle* c = mat->cycle;
+  if (!c) return;
+  const int32_t count = static_cast<int32_t>(c->texture_count);
+  if (n >= count) n = n % count;
+  else if (n < 0) n = 0;
+  mat->texture = c->textures[n];
+  c->index = static_cast<float>(n);
+}
+
 }  // namespace zmod

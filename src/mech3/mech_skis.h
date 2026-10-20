@@ -27,10 +27,10 @@ struct GroundHits {        // 0x504 bytes per probe, at 0x006061d0
   GroundHit hit[32];
 };
 
-// Calls into the engine not ported yet. The ground query is zClass's
-// (cls_di.c), not ported; the test feeds it the original's results.
+// Calls into the engine. The ground query is zclass/cls_di's (0x004ee2f0) on
+// world_hooks().world; a test can stand in for it with `query`.
 struct SkisCalls {
-  void (*query)(Vec3* probes, int count, float top, GroundHits* out) = nullptr;  // 0x004ee2f0; can nudge off-grid probes by an ulp
+  void (*query)(Vec3* probes, int count, float top, GroundHits* out) = nullptr;  // test hook; unset: zcls::ground_query
   int (*soil)(Handle material) = nullptr;            // [0x00608c00 + 4 * material +0x20]
   float* (*node_matrix)(Handle node) = nullptr;      // 0x004fc3f0: the object3d's local 3x4
   void (*set_node_matrix)(Handle node, const float* m) = nullptr;  // 0x004fc300

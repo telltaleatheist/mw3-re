@@ -65,3 +65,17 @@ TEST(ztimer_float_seconds_lose_frames_at_ten_days_of_uptime) {
   const float b = static_cast<float>(ten_days_ms + 16u) * 0.001f;
   EXPECT(b - a == 0.0f);
 }
+
+TEST(ztimer_init_starts_the_step_from_now) {
+  reset();
+  FakeClock clock;
+  ztimer::set_clock(&clock);
+  ztimer::state().dt = 0.5f;
+  ztimer::state().total_raw = 9.0f;
+  clock.now = 5000;
+  ztimer::init();  // 0x005759a0
+  EXPECT(ztimer::state().dt == 0.0f && ztimer::state().total_raw == 0.0f);
+  clock.now = 5020;
+  ztimer::update();
+  EXPECT(ztimer::state().raw_dt > 0.0199f && ztimer::state().raw_dt < 0.0201f);
+}

@@ -1,6 +1,7 @@
 // C entry points over ported functions, loaded by tests/differential/*.py to compare
 // them with the original x86 code running in an emulator.
 #include <cstdint>
+#include <cstdlib>
 
 #include "gamez/zrender/zrndr_span.h"
 
@@ -24,10 +25,17 @@ void probe_span_textured16(uint16_t* dest, const uint16_t* texture, uint32_t du,
 
 }  // extern "C"
 
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 #include "platform/platform.h"
 
 namespace {
+// The whole probe library tests the original path: the zfix fixes off.
+// MW3_FPU53=1 keeps the 53-bit rounding, to compare with the original run at
+// full precision (MW3_X87=64).
+const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
+                          zfix::options().deep_water = false,
+                          zfix::options().fpu53 = std::getenv("MW3_FPU53") && *std::getenv("MW3_FPU53") == '1', true);
 struct ProbeClock : platform::Clock {
   uint32_t now = 0;
   uint32_t ticks_ms() override { return now; }
@@ -37,17 +45,21 @@ ProbeClock g_probe_clock;
 
 extern "C" {
 
-// Runs ztimer::update() for each tick value; writes dt and raw_dt per frame.
-void probe_ztimer(const uint32_t* ticks, int frames, float scale_on_frame, int scale_frame,
-                  float* dt_out, float* raw_out) {
+// Runs ztimer::update() for each tick value, ztimer::init() (0x005759a0)
+// first on frame init_frame; writes dt, raw_dt and the two totals per frame.
+void probe_ztimer(const uint32_t* ticks, int frames, float scale_on_frame, int scale_frame, int init_frame,
+                  float* dt_out, float* raw_out, float* totals_out) {
   ztimer::state() = ztimer::State{};
   ztimer::set_clock(&g_probe_clock);
   for (int i = 0; i < frames; ++i) {
     if (i == scale_frame) ztimer::state().scale = scale_on_frame;
     g_probe_clock.now = ticks[i];
+    if (i == init_frame) ztimer::init();
     ztimer::update();
     dt_out[i] = ztimer::state().dt;
     raw_out[i] = ztimer::state().raw_dt;
+    totals_out[2 * i] = ztimer::state().total_raw;
+    totals_out[2 * i + 1] = ztimer::state().total_scaled;
   }
   ztimer::set_clock(nullptr);
 }
@@ -378,7 +390,7 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
     b.insert(b.end(), c, c + n);
   };
   const uint8_t okb = ok, act = s.active;
-  put(&okb, 1), put(&s.unk_04, 4), put(&s.unk_08, 4), put(&s.unk_0c, 4), put(&act, 1);
+  put(&okb, 1), put(&s.rate, 4), put(&s.mult, 4), put(&s.stride, 4), put(&act, 1);
   put(&s.loop_time, 4), put(&s.inv_loop_time, 4), put(&s.frame_time, 4), put(&s.inv_frame_time, 4);
   put(&s.frame_count, 4), put(&s.part_count, 4), put(&s.time, 4);
   const uint32_t n = s.frame_count + 1;
@@ -387,7 +399,7 @@ int probe_motion(const char* path, long offset, uint8_t* out, int cap) {
     put(p->name, std::strlen(p->name) + 1);
     put(p->translations, n * 12);
     put(p->rotations, n * 16);
-    if (p->scales) put(p->scales, n * 12);
+    if (p->velocities) put(p->velocities, n * 12);
   }
   if (static_cast<int>(b.size()) > cap) return -1;
   std::memcpy(out, b.data(), b.size());
@@ -883,6 +895,18 @@ void dump_anim(std::vector<uint8_t>& b) {
 
 extern "C" {
 
+// 0 (default): the exe's prerequisite path; 1: the port's FIX (bug).
+int g_anim_fix = 0;
+void probe_anim_fix(int on) { g_anim_fix = on; }
+
+// After probe_anim: def i's prerequisite count | the count to meet << 8, and
+// its entries' types (the FIX (bug) case in test_anim.py).
+int probe_anim_prereqs(int i, uint8_t* types, int cap) {
+  const zeff::AnimDef& d = zeff::anim().defs[i];
+  for (int k = 0; k < d.count(0x110) && k < cap; ++k) types[k] = d.prereqs[k].raw[4];
+  return d.count(0x110) | d.count(0x111) << 8;
+}
+
 // 0x50a0e0 on one anim.zbd against a world read by read_zbd (test_anim.py),
 // with the calls into unported parts recorded. `full` adds the read
 // structures and the node pool after.
@@ -898,6 +922,7 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
   if (zcls::read_zbd(world) != 0) return -2;
   g_reports.clear();
   zeff::anim() = zeff::AnimState{};
+  zeff::anim().fix_prerequisites = g_anim_fix != 0;
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();

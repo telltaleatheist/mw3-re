@@ -203,7 +203,10 @@ int probe_world(const char* archive, const char* file, const char* key, const in
   zerr::set_sink([](int level, const char*, int at, const char* msg) { line("zerr %x %d %s", level, at, msg); });
   build_scene();
   install_hooks();
-  mech3::environment() = mech3::Environment{1.5f, 2.5f, 3.5f};
+  mech3::environment() = mech3::Environment{};
+  mech3::environment().ambient_temperature = 1.5f;
+  mech3::environment().inv_temperature = 2.5f;
+  mech3::environment().jet_ceiling = 3.5f;
 
   mech3::MissionWorld m;
   for (int o = 0x0c; o < 0x4c; o += 4) {

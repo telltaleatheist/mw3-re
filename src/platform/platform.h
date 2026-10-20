@@ -14,6 +14,7 @@ class Clock {
  public:
   virtual ~Clock() = default;
   virtual uint32_t ticks_ms() = 0;
+  virtual void sleep(uint32_t ms) { (void)ms; }  // Sleep()
 };
 
 // Stands in for the CD drive behind MCI "cdaudio". Plays one audio file at a time
@@ -41,6 +42,79 @@ class Alert {
  public:
   virtual ~Alert() = default;
   virtual void abort_message(const std::string& message) = 0;
+  // MessageBoxA(hwnd, text, caption, style) for the app's own boxes (startup.md):
+  // style's low 4 bits as MB_* (0 OK, 1 OK/Cancel); returns IDOK 1 or IDCANCEL 2.
+  virtual int32_t message_box(const std::string& text, const std::string& caption, uint32_t style) {
+    (void)style;
+    abort_message(caption + ": " + text);
+    return 1;
+  }
+};
+
+// Stands in for the main window: CWnd::CreateEx of the "Mech3Class" frame,
+// SetWindowTextA, ShowWindow/UpdateWindow and GetClientRect (docs/startup.md).
+// The handle stands for the HWND the game keeps.
+class Window {
+ public:
+  virtual ~Window() = default;
+  virtual uint32_t create(const std::string& title, int width, int height) = 0;  // 0 when it fails
+  virtual void set_title(const std::string& title) = 0;
+  virtual void show() = 0;
+  virtual void client_size(int* width, int* height) = 0;
+};
+
+// Stands in for the DirectDraw primary surface the menus' 16-bit back buffer
+// is flipped or blitted to (0x00576ea0, docs/twod.md section 5): shows one
+// frame of 16-bit pixels, RGB565 or RGB555, `pitch` bytes a row.
+class Screen2D {
+ public:
+  virtual ~Screen2D() = default;
+  virtual void present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) = 0;
+};
+
+// Stands in for DirectInput as zInput uses it (DINPUT.dll's DirectInputCreateA,
+// 0x0051b0a0): the keyboard read buffered with GetDeviceData (0x0051a5d0, 0x80
+// events, DIK scan codes), the mouse with GetDeviceState into a DIMOUSESTATE
+// (0x0051b7d0, relative counts) and the first attached joystick with Poll and
+// GetDeviceState into a DIJOYSTATE2 (0x0051dc20). Same structures and HRESULTs.
+struct KeyEvent {                  // DIDEVICEOBJECTDATA, 16 bytes
+  uint32_t ofs = 0;                // the DIK code
+  uint32_t data = 0;               // 0x80 down, 0 up
+  uint32_t timestamp = 0;          // ms
+  uint32_t sequence = 0;
+};
+struct MouseState {                // DIMOUSESTATE, 0x10 bytes
+  int32_t x = 0, y = 0, z = 0;     // mickeys since the last read (wheel in z)
+  uint8_t buttons[4] = {};         // 0x80 down: left, right, middle, fourth
+};
+struct JoyState {                  // DIJOYSTATE2, 0x110 bytes
+  int32_t x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0;
+  int32_t slider[2] = {};
+  uint32_t pov[4] = {0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu};  // hundredths of a degree, -1 centred
+  uint8_t buttons[128] = {};
+  int32_t rest[24] = {};           // velocities, accelerations, forces: never filled
+};
+static_assert(sizeof(KeyEvent) == 0x10 && sizeof(MouseState) == 0x10 && sizeof(JoyState) == 0x110,
+              "DirectInput's layouts");
+
+class Input {
+ public:
+  enum Device : int { kKeyboard = 0, kMouse = 1, kJoystick = 2 };
+  static constexpr int32_t kInputLost = static_cast<int32_t>(0x8007001e);    // DIERR_INPUTLOST
+  static constexpr int32_t kNotAcquired = static_cast<int32_t>(0x8007000c);  // DIERR_NOTACQUIRED
+  static constexpr int32_t kBufferOverflow = 1;                              // DI_BUFFEROVERFLOW
+  static constexpr int32_t kAxisMin = 0, kAxisMax = 65535;  // DirectInput's default DIPROP_RANGE
+
+  virtual ~Input() = default;
+  virtual bool open(Device d) = 0;         // CreateDevice + SetDataFormat + SetCooperativeLevel; false: none
+  virtual void close(Device d) = 0;        // Unacquire + Release
+  virtual int32_t acquire(Device d) = 0;   // IDirectInputDevice::Acquire
+  virtual int32_t unacquire(Device d) = 0;
+  // GetDeviceData(sizeof(KeyEvent), out, count, 0): up to *count events, oldest
+  // first, removed; *count becomes the number given.
+  virtual int32_t keyboard_data(KeyEvent* out, uint32_t* count) = 0;
+  virtual int32_t mouse_state(MouseState* out) = 0;    // GetDeviceState(0x10)
+  virtual int32_t joystick_state(JoyState* out) = 0;   // Poll, then GetDeviceState(0x110)
 };
 
 // Stands in for the Windows message queue zGameApp::Run (0x0058fd70) drives:

@@ -8,6 +8,7 @@
 #include "crt/msvc_rand.h"
 #include "mech3/weapon.h"
 #include "mech3/mech.h"
+#include "mech3/mech_data.h"
 #include "mech3/mech_names.h"
 
 namespace mech3 {
@@ -230,9 +231,13 @@ bool Mech::knocked_down(int kind) {
 // Mech3.exe 1.2 @ 0x004143c0. The gaits are rescaled; walking is 60%.
 void Mech::set_max_speed(float v) {
   DamageCalls& c = calls();
-  for (int i = 0; i < 13; ++i)
-    if (anims[i] && (i < 0 || (i > 1 && i != 11)) && c.anim_speed) c.anim_speed(anims[i], v);
+  for (int i = 0; i < 13; ++i) {
+    if (!anims[i] || !(i < 0 || (i > 1 && i != 11))) continue;
+    if (c.anim_speed) c.anim_speed(anims[i], v);
+    else anims[i]->set_stride_speed(v);
+  }
   if (c.gait_speed) c.gait_speed(*this, v);
+  else if (pilot) scale_gaits(*pilot, gait, v);
   max_speed = v;
   walk_speed = v * 0.6f;
 }

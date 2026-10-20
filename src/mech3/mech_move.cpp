@@ -3,8 +3,11 @@
 #include <cmath>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_data.h"
+#include "mech3/mech_names.h"
 #include "mech3/mission_world.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -38,6 +41,7 @@ constexpr int kStateStand = 1, kDead = 10, kFalling = 11, kFallenBack = 12, kFal
 constexpr int kNetAction = 0x17;  // docs/network-messages.md
 constexpr int kKnockSound = 0x18;  // cockpit table 0x00605598
 constexpr uint32_t kBlendFrames = 20;  // 0x005e1fac
+constexpr int kMasc = 12, kMascSound = 0x1b;  // equipment kind; the cockpit sound (table 0x00605598)
 constexpr int kJumpJet = 11, kElementalRoster = 7, kJetSound = 3, kSoundJumpJet = 3, kJumpPose = 12;
 
 enum Slot { kStand = 2, kStep = 3, kWalk = 4, kTrot = 5, kRun = 6, kStepWalk = 8, kWalkTrot = 9,
@@ -65,7 +69,6 @@ MoveCalls& move_calls() { return g_calls; }
 // Mech3.exe 1.2 @ 0x00417a80. A grounded local mech whose knock exceeds its
 // threshold falls; then the animation moves it (root motion into +0x44),
 // blended in over the first 20 frames of walking (docs/movement.md, Move).
-// The pose on the parts is not ported (gait_pose).
 void Mech::move(float dt, MechAnim* anim, float speed) {
   if (!no_power_down && !remote) {
     float t = tonnage();
@@ -96,14 +99,16 @@ void Mech::move(float dt, MechAnim* anim, float speed) {
     }
     return;
   }
-  float blend = 1.0f;
-  if (anim_state >= 4 && gait_frames < kBlendFrames && jets == 0) {
-    blend = static_cast<float>(gait_frames) / static_cast<float>(kBlendFrames);
-    blend = blend > 1.0f ? 1.0f : blend < 0.15f ? 0.15f : blend;  // 0x005e1fb0
+  if (!g_calls.gait_pose) {
+    pose_gait(*anim, jets, saved);  // 0x00417bbc..0x0041818d (mech_pose.cpp)
+    return;
+  }
+  // The test hook: the blend-in of the root motion only, the pose logged.
+  const float blend = gait_blend(jets);
+  if (blend >= 0.0f)
     vec_3c = {(vec_3c.x - saved.x) * blend + saved.x, (vec_3c.y - saved.y) * blend + saved.y,
               (vec_3c.z - saved.z) * blend + saved.z};
-  }
-  if (g_calls.gait_pose) g_calls.gait_pose(*this, *anim, blend);
+  g_calls.gait_pose(*this, *anim, blend < 0.0f ? 1.0f : blend);
 }
 
 // Mech3.exe 1.2 @ 0x00417300 (one call per jump-jet item at setup): the
@@ -131,7 +136,7 @@ float Mech::altitude() const {
 
 // Mech3.exe 1.2 @ 0x004173b0. Thrust goes to the skis as a climb impulse;
 // the player's jets push along the throttle unless the MW2 option is on
-// (docs/movement-jump.md). The pose of a firing jump is not ported (jet_pose).
+// (docs/movement-jump.md). The pose of a firing jump is pose_jump.
 int Mech::jump_jets(float dt) {
   if (!(equipment[kJumpJet] > 0)) {  // +0x580 is left as it was
     if (sounds[kJetSound]) {
@@ -173,7 +178,9 @@ int Mech::jump_jets(float dt) {
       else if (vec_3c.x < -kJetStrafeMax) vec_3c.x = -kJetStrafeMax;
     }
   }
-  if (impulse.y > kJetImpulseMax) impulse.y = kJetImpulseMax;
+  // A cap of 6 a frame. FIX (B): 6 per 1/30 s.
+  const float cap = kJetImpulseMax * zfix::frame_steps(dt);
+  if (impulse.y > cap) impulse.y = cap;
   else if (impulse.y < 0.0f) impulse.y = 0.0f;
   if (firing) jet_fuel = jet_fuel - jet_burn * dt;
   else if (!airborne() && jet_fuel < 1.0f) jet_fuel = jet_fuel - jet_burn * dt * -0.5f;  // 0x005bcdd8
@@ -199,7 +206,10 @@ int Mech::jump_jets(float dt) {
   }
   if (!firing && jump_jets_firing && anims[kJumpPose]) anims[kJumpPose]->seek(-1);
   jump_jets_firing = firing;
-  if (firing && g_calls.jet_pose) g_calls.jet_pose(*this);
+  if (firing) {
+    if (g_calls.jet_pose) g_calls.jet_pose(*this);
+    else pose_jump();  // 0x004177e7..0x004179fd (mech_pose.cpp)
+  }
   return jump_jets_firing;
 }
 
@@ -240,6 +250,24 @@ void Mech::ground_step(float dt) {
     if (g_calls.landing_dust) g_calls.landing_dust(*this);
     if (g_calls.landing_pose) g_calls.landing_pose(*this);
     momentum = vec_3c;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041df50. On: the top speed x1.25 with the throttle
+// rescaled so the speed holds (vt +0x114 throttle x max, +0x11c speed /
+// max); off: the engine's top speed and no rescale, so the mech slows at once.
+void Mech::masc(bool on) {
+  if (!(equipment[kMasc] > 0) || on == (masc_time != 0.0f)) return;
+  const float base = engine_speed(config->engine, max_mass(config->mech));
+  if (on) {
+    if (this == world().mission_player && heat_calls().play_mech_sound) heat_calls().play_mech_sound(kMascSound);
+    const float speed = controls->throttle * max_speed;
+    set_max_speed(base * 1.25f);  // 0x005bce70
+    controls->throttle = speed / max_speed;
+    masc_time = 0.001f;
+  } else {
+    set_max_speed(base);
+    masc_time = 0.0f;
   }
 }
 
@@ -316,7 +344,16 @@ void Mech::select_gait(float dt) {
   const float h = height;
   const bool ff = this == world().mission_player && world().stats;
   if (d > h * kWadeStart) {
-    speed_target = d < h ? (h - d) * kWade / h * speed_target : kWade * speed_target;
+    if (zfix::options().deep_water) {
+      // FIX (bug): from full speed at a tenth of the height down to 70% at
+      // full depth, where the exe fell to a standstill and then jumped back
+      // to 70% (movement.md, Speed and gait; fixes.md).
+      float frac = (d - h * kWadeStart) / (h - h * kWadeStart);
+      frac = frac > 1.0f ? 1.0f : frac;
+      speed_target = (1.0f - (1.0f - kWade) * frac) * speed_target;
+    } else {
+      speed_target = d < h ? (h - d) * kWade / h * speed_target : kWade * speed_target;
+    }
     if (ff && !wading) {
       if (g_calls.wading_effect) g_calls.wading_effect(1);
       wading = true;
@@ -342,8 +379,8 @@ void Mech::select_gait(float dt) {
     anims[kStepWalk]->copy_phase(*anims[anim_index]);
     anims[kWalk]->copy_phase(*anims[anim_index]);
     const MechAnim& s = *anims[kStep];
-    const float fr = frac(s.t / s.loop);
-    const float a = s.events[0] / s.loop, b = s.events[1] / s.loop;
+    const float fr = frac(s.t / s.loop_time);
+    const float a = s.events[0] / s.loop_time, b = s.events[1] / s.loop_time;
     bool hit = false;
     if (thr > 0.0f) {
       if (fr > a && fr - frame_dt * kFootfall < a) hit = true, footfall = 0;
@@ -368,7 +405,7 @@ void Mech::select_gait(float dt) {
   else if (asks_walk) stop = false;
   else {
     stop = true;
-    if (anim_index == kStep && !planted) stop = frac(anims[kStep]->t / anims[kStep]->loop) < dt + dt;
+    if (anim_index == kStep && !planted) stop = frac(anims[kStep]->t / anims[kStep]->loop_time) < dt + dt;
   }
 
   auto enter = [&](int slot, int state) {
@@ -400,7 +437,7 @@ void Mech::select_gait(float dt) {
   if (stop) {
     enter(kStand, 1);
     play_gait(*this, dt, anims[kStand], thr);
-    gait_frames = 0;
+    gait_frames = 0, gait_steps = 0;
     return;
   }
   if (spd < gait[kWalk][kLo] && !asks_walk) {
@@ -408,13 +445,13 @@ void Mech::select_gait(float dt) {
     else follow(kStep);
     enter(kStep, 3);
     play_gait(*this, dt, anims[kStep], (kStepSpeed + thr2) * kStepScale);
-    gait_frames = 0;
+    gait_frames = 0, gait_steps = 0;
     return;
   }
   if (spd < gait[kStep][kHi] && !asks_walk) {
     if (anim_index == kStep) {
       anims[kStepWalk]->seek(footfall);
-      gait_frames = 0;
+      gait_frames = 0, gait_steps = 0;
     } else {
       follow(kStepWalk);
     }
@@ -449,6 +486,7 @@ void Mech::select_gait(float dt) {
   }
   play_gait(*this, dt, anims[slot], thr);
   ++gait_frames;
+  gait_steps = gait_steps + zfix::frame_steps(dt);
 }
 
 
@@ -604,22 +642,25 @@ void Mech::update_action(float dt) {
     }
     act->reset();
     float q[4];
-    act->root(&action_root, q);
+    act->hip(&action_root.x, q);
     momentum = vec_3c;
   }
-  momentum = {momentum.x * 0.6f, momentum.y * 0.6f, momentum.z * 0.6f};  // per frame (0x005bcd50)
+  // x0.6 a frame (0x005bcd50). FIX (B): 0.6 per 1/30 s (fixes.md, Frame rate).
+  const float carry = zfix::options().per_second ? std::pow(0.6f, zfix::frame_steps(dt)) : 0.6f;
+  momentum = {momentum.x * carry, momentum.y * carry, momentum.z * carry};
   vec_3c.y = momentum.y;
   ground_step(dt);
   act->advance(dt);
   Vec3 root{};
   float q[4] = {1, 0, 0, 0};
-  act->root(&root, q);
+  act->hip(&root.x, q);
   const Vec3 d{root.x - action_root.x, root.y - action_root.y, root.z - action_root.z};
   action_root = root;
   vec_3c.x = d.x / dt + momentum.x;
   vec_3c.z = d.z / dt + momentum.z;
   const Vec3 hip{0.0f, root.y, 0.0f};
   if (g_calls.action_pose) g_calls.action_pose(*this, *act, hip, q);
+  else pose_action(*act, hip, q);  // 0x00416fb8..0x00417293 (mech_pose.cpp)
 }
 
 }  // namespace mech3

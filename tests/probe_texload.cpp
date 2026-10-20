@@ -33,6 +33,7 @@ class Recorder : public platform::Render3D {
     return h;
   }
   void release_texture(int32_t) override {}
+  void update_texture(int32_t, int, int, const uint8_t*) override {}
   void set_viewport(int, int, int, int) override {}
   void clear(bool, uint8_t, uint8_t, uint8_t) override {}
   void begin_scene() override {}

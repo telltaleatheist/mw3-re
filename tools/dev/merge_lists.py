@@ -45,17 +45,20 @@ def cmake(s):
 
 
 def run_all(s):
-    m = MARK.search(s)
-    if not m:
-        return s
+    # The whole list, from the first `for t in` to the last `; do`, rebuilt as
+    # the union of every name in it (conflict markers and repeated loop heads
+    # from earlier merges included), in order of first appearance.
+    a = s.index('for t in')
+    b = s.rindex('; do\n') + len('; do\n')
     names = []
-    for part in (m.group(1), m.group(2)):
-        body = part.replace('for t in', ' ').replace('; do', ' ')
-        for w in re.findall(r"[a-z0-9_]+", body):
-            if w not in names and w not in ('do',):
+    for line in s[a:b].splitlines():
+        if line.startswith(('<<<<<<<', '=======', '>>>>>>>')):
+            continue
+        for w in re.findall(r"[a-z0-9_]+", line.replace('for t in', ' ').replace('; do', ' ')):
+            if w not in names:
                 names.append(w)
     block = "for t in \\\n" + ''.join(f"    {t} \\\n" for t in names) + "    ; do\n"
-    return s[:m.start()] + block + s[m.end():]
+    return s[:a] + block + s[b:]
 
 
 def concat(s):
@@ -67,7 +70,7 @@ def main():
     for f in files:
         p = Path(f)
         s = p.read_text()
-        if '<<<<<<<' not in s:
+        if '<<<<<<<' not in s and not (p.name == 'run_all.sh' and s.count('for t in') > 1):
             continue
         s = cmake(s) if p.name == 'CMakeLists.txt' else run_all(s) if p.name == 'run_all.sh' else concat(s)
         if '<<<<<<<' in s or '>>>>>>>' in s:

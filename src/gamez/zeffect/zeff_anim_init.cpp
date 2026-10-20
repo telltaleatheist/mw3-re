@@ -1,6 +1,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #include "gamez/zclass/light.h"
@@ -9,6 +10,10 @@
 #include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_msg.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zmodel/gmod_puff.h"
+#include "gamez/zweapon/zwep_damage.h"
 
 namespace zeff {
 
@@ -57,6 +62,8 @@ bool read_def(std::FILE* f, AnimDef& d) {
   // The reset sequence again, over the copy in the record.
   if (std::fread(d.raw + 0xc8, 0x40, 1, f) != 1) return false;
   if (!read_blob(f, d.get<int32_t>(0x104), &d.reset_events)) return false;
+  std::memcpy(d.reset_seq.raw, d.raw + 0xc8, 0x40);
+  d.reset_seq.events = d.reset_events;
   for (uint8_t i = 0; i < seqs; ++i) {
     SeqDef& s = d.seqs[i];
     if (std::fread(s.raw, sizeof s.raw, 1, f) != 1) return false;
@@ -141,8 +148,22 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
                       "ACTIVATION_PREREQUISITE error; couldn't find node.\n  Animation: %s; node: %s\n",
                       d.name(), want);
         zerr::report(0x400, kFile, 0x33a0, msg);
-        d.raw[0x110] = 0;  // the def loses every prerequisite
-        break;
+        if (!g_anim.fix_prerequisites) {
+          d.raw[0x110] = 0;  // the exe: the def loses every prerequisite
+          break;
+        }
+        // FIX (bug): only this entry goes; the def keeps waiting on the rest
+        // (decided with Owen, docs/fixes.md). The count to meet comes down if
+        // fewer entries that count are left.
+        for (int j = k; j + 1 < d.count(0x110); ++j) d.prereqs[j] = d.prereqs[j + 1];
+        d.raw[0x110] = static_cast<uint8_t>(d.raw[0x110] - 1);
+        int counting = 0;
+        for (int j = 0; j < d.count(0x110); ++j)
+          if (d.prereqs[j].get<uint32_t>(0) && (d.prereqs[j].raw[4] == 1 || d.prereqs[j].raw[4] == 2)) ++counting;
+        if (d.raw[0x111] > counting) d.raw[0x111] = static_cast<uint8_t>(counting);
+        last = nullptr;
+        --k;
+        continue;
       }
       p.node = n;
       last = type == 2 ? nullptr : n;
@@ -236,6 +257,281 @@ int32_t anim_light_index(AnimDef* def, const char* name) {
 // Mech3.exe 1.2 @ 0x00509160
 int32_t anim_sound_index(AnimDef* def, const char* name) {
   return def->count(0x10d) ? created_index(def->sounds, def->count(0x10d), name) : -1;
+}
+
+namespace {
+// 0x00509400 / 0x005092e0: a new entry at the end of a created-node list,
+// its first 0x24 bytes the new node's name buffer. A list made here starts
+// with an empty entry 0. 0xff entries are full (reported; the node leaks).
+int32_t add_created(AnimDef& def, CreatedRef*& list, int count_off, Node* made, int line, const char* what) {
+  if (!list) {
+    list = new CreatedRef[1]{};
+    def.raw[count_off] = static_cast<uint8_t>(def.raw[count_off] + 1);
+  }
+  const uint8_t count = def.raw[count_off];
+  if (count == 0xff) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "%s list overflow.\n  Animation: %s\n", what, def.name());
+    zerr::report(0x400, kFile, line, msg);
+    return -1;
+  }
+  auto* grown = new CreatedRef[count + 1]{};
+  for (int i = 0; i < count; ++i) grown[i] = list[i];
+  delete[] list;
+  list = grown;
+  CreatedRef& r = grown[count];
+  std::memcpy(r.raw, made->raw, 0x24);
+  r.made = made;
+  r.put<int32_t>(0x28, 0);
+  def.raw[count_off] = static_cast<uint8_t>(count + 1);
+  return count;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00509400. Found by the light node's name, or a new light
+// named so.
+int32_t anim_light_ref(AnimDef& def, const char* name) {
+  const int32_t found = anim_light_index(&def, name);
+  if (found > 0) return found;
+  Node* n = zcls::light_create();
+  if (!n) return -1;
+  zcls::node_set_name(n, name);
+  return add_created(def, def.lights, 0x10b, n, 0x249, "Light");
+}
+
+// Mech3.exe 1.2 @ 0x005092e0. The same for a dynamic sound node.
+int32_t anim_sound_ref(AnimDef& def, const char* name) {
+  const int32_t found = anim_sound_index(&def, name);
+  if (found > 0) return found;
+  Node* n = zcls::sound_create();
+  if (!n) return -1;
+  zcls::node_set_name(n, name);
+  zcls::sound_set_name(n, name);
+  return add_created(def, def.sounds, 0x10d, n, 0x200, "Sound");
+}
+
+// Mech3.exe 1.2 @ 0x00509eb0. The def follows `node`: its node, and its
+// root when that was the node, else the root found again under the node
+// (missing: status 5, 0). The object and node refs and the node
+// prerequisites are looked up again (a missing ref is only reported).
+AnimDef* anim_bind(AnimDef* def, Node* node) {
+  if (!def || !node || def->raw[0x98] == 5) return nullptr;
+  Node* old = def->node;
+  def->node = node;
+  if (def->root == old) {
+    std::strcpy(reinterpret_cast<char*>(def->raw + 0x20), node->name());
+    def->root = node;
+    std::strcpy(reinterpret_cast<char*>(def->raw + 0x44), node->name());
+  } else {
+    std::strcpy(reinterpret_cast<char*>(def->raw + 0x20), node->name());
+    Node* root = anim_find_in_tree(def->node, reinterpret_cast<const char*>(def->raw + 0x44));
+    if (!root) {
+      zerr::report(0x400, kFile, 0x2f19, "Animation node not found.");
+      def->raw[0x98] = 5;
+      return nullptr;
+    }
+    def->root = root;
+  }
+  const auto name = [](const auto& rec) { return reinterpret_cast<const char*>(rec.raw); };
+  if (def->count(0x109) > 1)
+    for (int k = 1; k < def->count(0x109); ++k)
+      if (!(def->objects[k].node = anim_find_node(def, name(def->objects[k]))))
+        zerr::report(0x400, kFile, 0x2f44, "Animation node not found.");
+  if (def->count(0x10a) > 1)
+    for (int k = 1; k < def->count(0x10a); ++k)
+      if (!(def->nodes[k].node = anim_find_node(def, name(def->nodes[k]))))
+        zerr::report(0x400, kFile, 0x2f6e, "Animation node not found.");
+  Node* last = nullptr;
+  for (int k = 0; k < def->count(0x110); ++k) {
+    Prerequisite& p = def->prereqs[k];
+    if (p.raw[4] != 3 && p.raw[4] != 2) continue;
+    const char* want = reinterpret_cast<const char*>(p.raw + 0xc);
+    last = last ? zcls::node_find_in_tree(last, want) : anim_find_node(def, want);
+    if (p.raw[4] == 2) {
+      p.node = last;
+      last = nullptr;
+    }
+  }
+  return def;
+}
+
+// Mech3.exe 1.2 @ 0x005097c0. A copy of the def for another node (or, with
+// none, a copy of its node's tree, the dead path), with its own object,
+// lights, puffers, sounds and lists; its sequences' current events still
+// point into the original's (until restarted, as in the exe).
+AnimDef* anim_instance(AnimDef* def, Node* node) {
+  if (!def) return nullptr;
+  auto* c = new AnimDef(*def);  // FIX (A): calloc + memcpy of the 0x13c bytes
+  c->object = zcls::object3d_create();
+  char buf[0x24];
+  std::snprintf(buf, sizeof buf, "_%s", def->name());
+  zcls::node_set_name(c->object, buf);
+  zcls::node_set_priority(c->object, c->raw[0x9a]);
+  c->instance = nullptr;
+  c->put<uint32_t>(0x94, c->get<uint32_t>(0x94) & ~0x100u);
+  if (!node) {
+    c->node = g_hooks.copy_tree ? g_hooks.copy_tree(def->node) : nullptr;
+    if (!c->node) {
+      zerr::report(0x400, kFile, 0x2dc4, "ERROR: Copying Animation Node Tree.");
+      return nullptr;
+    }
+    c->put<uint32_t>(0x94, c->get<uint32_t>(0x94) | 0x20000);
+  } else {
+    c->node = node;
+    std::strcpy(reinterpret_cast<char*>(c->raw + 0x20), node->name());
+  }
+  if (def->root == def->node) {
+    c->root = c->node;
+    std::strcpy(reinterpret_cast<char*>(c->raw + 0x44), c->node->name());
+  } else {
+    c->root = anim_find_in_tree(c->node, reinterpret_cast<const char*>(def->raw + 0x44));
+  }
+  if (!c->root) {
+    zerr::report(0x400, kFile, 0x2ddb, "Animation node not found.");
+    c->raw[0x98] = 5;
+    return nullptr;
+  }
+  const auto copy_list = [](auto*& list, uint8_t n, const auto* from) {
+    using T = std::remove_reference_t<decltype(*list)>;
+    if (!n) return;
+    list = new T[n];
+    for (uint8_t i = 0; i < n; ++i) list[i] = from[i];
+  };
+  if (const uint8_t n = c->count(0x10b)) {
+    copy_list(c->lights, n, def->lights);
+    for (int i = 0; i < n; ++i) {
+      if (def->lights[i].made) {
+        Node* l = zcls::light_create();
+        c->lights[i].made = l;
+        zcls::node_set_name(l, reinterpret_cast<const char*>(c->lights[i].raw));
+      }
+      c->lights[i].put<int32_t>(0x28, 0);
+    }
+  }
+  if (const uint8_t n = c->count(0x10c)) {
+    copy_list(c->puffers, n, def->puffers);
+    for (int i = 0; i < n; ++i) {
+      c->puffers[i].put<int32_t>(0x28, 1);
+      if (def->puffers[i].made) c->puffers[i].made = g_hooks.create_puffer ? g_hooks.create_puffer() : nullptr;
+    }
+  }
+  if (const uint8_t n = c->count(0x10d)) {
+    copy_list(c->sounds, n, def->sounds);
+    for (int i = 0; i < n; ++i) {
+      if (def->sounds[i].made) {
+        Node* s = zcls::sound_create();
+        c->sounds[i].made = s;
+        zcls::node_set_name(s, reinterpret_cast<const char*>(c->sounds[i].raw));
+        zcls::sound_set_name(s, reinterpret_cast<const char*>(c->sounds[i].raw));
+      }
+      c->sounds[i].put<int32_t>(0x28, 0);
+    }
+  }
+  if (const uint8_t n = c->count(0x109)) {
+    copy_list(c->objects, n, def->objects);
+    for (int i = 0; i < n; ++i)
+      if (def->objects[i].node)
+        c->objects[i].node = anim_find_node(c, reinterpret_cast<const char*>(c->objects[i].raw));
+  }
+  if (const uint8_t n = c->count(0x10a)) {
+    copy_list(c->nodes, n, def->nodes);
+    for (int i = 0; i < n; ++i)
+      if (def->nodes[i].node) c->nodes[i].node = anim_find_node(c, reinterpret_cast<const char*>(c->nodes[i].raw));
+  }
+  if (const uint8_t n = c->count(0x108)) {
+    c->seqs = new SeqDef[n];
+    for (int i = 0; i < n; ++i) {
+      c->seqs[i] = def->seqs[i];
+      const int32_t size = def->seqs[i].get<int32_t>(0x3c);
+      if (size > 0) {
+        c->seqs[i].events = new uint8_t[size];
+        std::memcpy(c->seqs[i].events, def->seqs[i].events, size);
+      }
+    }
+  }
+  if (const int32_t size = def->get<int32_t>(0x104); size > 0) {
+    c->reset_events = new uint8_t[size];
+    std::memcpy(c->reset_events, def->reset_events, size);
+    c->reset_seq.events = c->reset_events;
+  }
+  copy_list(c->static_sounds, c->count(0x10e), def->static_sounds);
+  copy_list(c->effects, c->count(0x10f), def->effects);
+  copy_list(c->prereqs, c->count(0x110), def->prereqs);
+  if (const uint8_t n = c->count(0x112)) {
+    copy_list(c->anim_refs, n, def->anim_refs);
+    for (int i = 0; i < n; ++i) c->anim_refs[i].ref = nullptr;
+  }
+  return c;
+}
+
+// Mech3.exe 1.2 @ 0x00509750. A def flagged 0x8000 gets a copy of its node's
+// tree (none shipped).
+int32_t anim_copy_node_tree(AnimDef* def) {
+  if (!def) return 0;
+  if (def->get<uint32_t>(0x94) & 0x8000) {
+    def->node = g_hooks.copy_tree ? g_hooks.copy_tree(def->node) : nullptr;
+    if (!def->node) return 0;
+    def->put<uint32_t>(0x94, def->get<uint32_t>(0x94) | 0x20000);
+    anim_bind(def, def->node);
+    def->put<uint32_t>(0x94, def->get<uint32_t>(0x94) & ~0x8000u);
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0050ae60 (ECX "anim.zrd", unused). Once per mission:
+// the puffers' tick node, the file, then four passes over defs 1..: (1) the
+// billboard flag 0x200, the def's own object `_<name>` at its priority, the
+// damage callbacks on its root; (2) RESET_TIME defs run their reset
+// sequence; (3) every def saves its objects' states (after the reset: the
+// reset defines the start); (4) the corrupt are reported, startup anims start.
+int32_t anim_load() {
+  AnimState& a = g_anim;
+  if (a.block.get<int32_t>(0) != 0) return 0;
+  zmod::puff_tick_reset();
+  anim_read_zbd();  // the result is not checked
+  for (int32_t i = 1; i < a.def_count(); ++i) {
+    AnimDef* d = &a.defs[i];
+    if (d->raw[0x98] == 5 || d->raw[0x98] == 4) continue;
+    if (zcls::node_tree_any(d->node, zcls::node_is_billboard)) d->put<uint32_t>(0x94, d->get<uint32_t>(0x94) | 0x200);
+    if (!d->node) d->node = d->root = zcls::object3d_create();  // dead: the walk above read it
+    if (d->get<uint32_t>(0x94) & 0x8000) anim_copy_node_tree(d);
+    d->object = zcls::object3d_create();
+    char buf[0x24];
+    std::snprintf(buf, sizeof buf, "_%s", d->name());
+    zcls::node_set_name(d->object, buf);
+    zcls::node_set_priority(d->object, d->raw[0x9a]);
+    if (d->raw[0x99] == 1) zwep::register_collide(d, d->root, reinterpret_cast<void*>(&anim_on_collide));
+    if (d->raw[0x99] == 0)
+      zwep::register_weapon_hit(d, d->root, (d->get<uint32_t>(0x94) >> 20) & 1,
+                                reinterpret_cast<void*>(&anim_on_weapon_hit));
+    if (d->raw[0x99] == 2) {
+      zwep::register_collide(d, d->root, reinterpret_cast<void*>(&anim_on_collide));
+      zwep::register_weapon_hit(d, d->root, (d->get<uint32_t>(0x94) >> 20) & 1,
+                                reinterpret_cast<void*>(&anim_on_weapon_hit));
+    }
+  }
+  for (int32_t i = 1; i < a.def_count(); ++i) {
+    AnimDef* d = &a.defs[i];
+    const uint8_t s = d->raw[0x98];
+    if (s == 5 || s == 4 || !(d->get<uint32_t>(0x94) & 0x20)) continue;
+    if (s == 0 || s == 1) anim_reset(d, nullptr, 0);
+  }
+  for (int32_t i = 1; i < a.def_count(); ++i) {
+    AnimDef* d = &a.defs[i];
+    if (d->raw[0x98] != 5 && d->raw[0x98] != 4) anim_save_states(d);
+  }
+  for (int32_t i = 1; i < a.def_count(); ++i) {
+    AnimDef* d = &a.defs[i];
+    if (d->raw[0x98] == 5) {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "Corrupt animation loaded: %s\n", d->name());
+      zerr::report(0x400, kFile, 0x3595, msg);
+    } else if (d->raw[0x98] != 2 && d->raw[0x99] == 4) {
+      anim_start(d, nullptr, 0.0f, 0.0f, 0.0f);
+    }
+  }
+  a.block.put<int32_t>(0, 1);
+  return 0;
 }
 
 // Mech3.exe 1.2 @ 0x00509640. Under the def's root, under its node, its own

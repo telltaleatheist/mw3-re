@@ -18,6 +18,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Engine abort, 0x4eada0 | Leaves the DirectDraw mode, `MessageBoxA`, prints, `ExitProcess(0)` | (A) Win32 | `platform::Alert` shows the message, then the same prints and `exit(0)` |
 | Mech definition dtor, 0x46b9b0 | Saves the player's loadouts (0x424f60) with no check that any exist | (bug) a mech file with a bad or missing `version` stops the read before the loadouts are made, and the save then crashes the game (emulator: 0x424f9b) | The save is skipped when there are no loadouts; the file simply fails to load. Decided with Owen 2026-10-20 |
 | Animation prerequisites, 0x50aaa3 | The search for a prerequisite animation stops one short of the list | (bug) the mission's last animation can never be waited for | The whole list is searched. No shipped mission names the last one, so all six still match the original exactly |
+| Missing animation object, 0x50a0e0 | One node prerequisite naming an object not in the level sets the def's prerequisite count to 0 | (bug) the animation then fires without waiting for any of its conditions | Only the broken entry is dropped; the count to meet comes down only if fewer counting entries are left. Decided with Owen 2026-10-20. No shipped mission reaches it (all six checked); `anim().fix_prerequisites = false` keeps the exe's path, which test_anim.py compares exactly, plus a doctored c2 file showing both |
 | Saved loadouts, item list 0x471540 | Counts a damaged item count down past the file's end, reading nothing | (bug) a corrupted `configs\<mech>.mw3` can hang the game at load for up to 4 billion reads | Stops at the end of the file; the same items result (emulator-checked by making the original stop there too) |
 | Length-prefixed strings, 0x576460 | `malloc(length + 1)` for whatever length the file holds | (bug) a damaged length makes it allocate up to 4 GB and crash when that fails | The buffer stops at the file's end, which holds the same string |
 | Saved loadouts, item load 0x472b20 | An id cut off by the file's end is whatever ECX held: the item's own address | (A) a heap address | INT32_MAX, which, like the address, no weapon, equipment or engine table knows (the test pins the original's to the same value) |
@@ -37,7 +38,16 @@ Each change is also marked `FIX` in the code next to the original address.
 | Projected shadows and lights, zvid_ddd3d.c (0x57eeb0, 0x57f2a0, 0x57f860, 0x57ea20, 0x57fe20) | DrawPrimitive with FVF `0xc4 \| (n + 1) << 8`: one interleaved buffer with a UV pair per shadow, drawn again per shadow with SRCBLEND ZERO / DESTBLEND SRCCOLOR, COLOROP SELECTARG1 and TEXCOORDINDEX k | (A) Direct3D 6 | `Render3D::draw_multi` (default: the selected UV set as a TLVertex, white diffuse under `color_select`); `DrawState` gains `color_select` and `texcoord`, `multiply` follows the blend factors. Emulator-verified identical (`test_shadows.py`, render-shadows.md) |
 | Projected-light subdivision, 0x547160 (from 0x547740) | Splits into fixed arrays of 2,048 triangles and 6,144 vertices with no check | (bug) a large polygon in a light's falloff band overruns them into the light count and the vertex records | A split that would not fit is not made (the triangle stays whole); the test applies the same to the original at that point. The unbounded search for the shared vertex across the edge stops at 3 (it always finds it) |
 | Shadowed draws, 0x57eeb0.. | Read the base texture's address modes through the pointer, null or not | (bug) a crash on a textured polygon whose material lost its texture | The address modes are skipped for a null texture |
+| Shadow image size, 0x542d30 | Resizing an image clears the caster's image pointer, then frees through it (reads address 0x10) | (bug) a crash; unreached in 1.2 (only a new caster gets a size) | The old image is freed (render-shadows.md) |
+| Polygon filler, 0x55d010 | A level edge just at or above a row centre is listed without x or slope (stack garbage, used for that row); with no vertices the second edge walk never ends | (bug) uninitialised memory; a hang | The edge's end x and no slope (the test makes the original do the same); a polygon without vertices is not filled. Its 16.16 rounding runs at 53 bits by default: in play on Windows 11 + DDrawCompat the shadows are visible (Owen, 2026-10-20), so the FPU is not truncated there; `shadow_state().precision = k24` keeps the blank 24-bit images (whether Windows 98's DirectX 6 hid them is unconfirmed) |
+| Shadow textures, 0x57baa0 / 0x57bb00 ([0x72f374] / [0x72f378]) | The image copied into the system surface (0x57b6c0) and Loaded into the video texture; the surfaces and texture Released | (A) Direct3D 6 | `Render3D::update_texture` (new) and `release_texture`; the RGBA as 0x57b130's (test_shadow_image.py) |
+| Device caps, 0x579b70 | D3D6 triangle and address caps (blend ZERO / SRCCOLOR, CLAMP) | (A) Direct3D 6 | `zvid::Display` holds them, all set for a modern GPU |
 | Direct3D draw table, zvid_ddd3d.c (0x57bf80, 0x57c700, 0x57ce20, 0x57caa0, 0x57d160, 0x57d690, flushes 0x57e110 / 0x57e4c0, frame calls 0x57a740 / 0x57a7e0 / 0x5777f0 / 0x57a850, FOGCOLOR 0x57bcf0, texture records 0x57b130) | IDirect3DDevice3 SetRenderState / SetTextureStageState / SetTexture / DrawPrimitive, BeginScene / EndScene, DirectDraw Blt fills, Flip, two surfaces and a Load per texture | (A) Direct3D 6 does not exist on macOS and is legacy on Windows | The same calls under the same caches set a `platform::DrawState` and go to `platform::Render3D` (draw, clear, present, create_texture as RGBA8 decoded from the 16-bit surface the original filled); HRESULT reports and lost-surface restores go. Emulator-verified identical as DrawState and vertex bytes (`test_drawtable.py`, drafts/drawtable.md) |
+| 2D blit, 0x55b1f0 (zTwoD's every draw) | DirectDraw `Blt` (0x576f90) when the image has a surface and the target is the locked buffer, else the software blit | (A) DirectDraw | Images carry no surface: always the software blit `zrndr::blit16` (0x55b3c0) into the 16-bit buffer the platform presents (twod.md section 5) |
+| 2D blit, 0x55b3c0 | The bottom clip keeps a last row equal to the height (`jbe`) | (bug) an image whose bottom lands exactly one row past the buffer writes that row beyond it | Clipped at the last row; everything else pixel-identical on 3,000 random blits (`test_twod_blit.py`) |
+| 2D blit, 0x55b3c0, palettised paths | The row loops count the width up from minus itself to 0 | (bug) a zero-width source rectangle on a palettised image counts from 0 past 2^32 and faults | Nothing drawn |
+| Text box, 0x5a2320 / 0x5a1e80 / 0x5a2280 | Shrinking the line count leaves the current line one past the last | (bug) the next write reads the flags of a line that is not there, and an append (0x5a22f0) writes through it | A line past the end counts as hidden (the write scrolls onto the last line); an append goes to the last line |
+| Menu text, twod_wintext.cpp (0x5a00c0..0x5a0790, 0x5a0f00) | GDI: `CreateFontA`, `GetStockObject`, `CreateCompatibleDC`, `SelectObject`, `DrawTextA`, `GetTextExtentPoint32A`, `GetTextMetricsA`, colours and modes, a DC on the text image ([0x72f394]); a mutex around the render | (A) GDI is Win32 only | The same calls in the same order through `ztwod::Host` for a TrueType rasteriser over the shipped fonts; the mutex (only for the movie thread) is left out. Emulator-verified call for call (`test_twod.py`) |
 | Script files, zinterp.cpp (0x595990, 0x596620, 0x596810, 0x5763b0) | `fopen(name, "r")` text mode, the archive on the `.;zbd` search path, `_stat` relative to the working directory, `_mkdir`, `DeleteFileA` | (A) Windows paths and MSVCRT text mode | Through the mounts (`zutl_path`); loose files read binary with MSVCRT's text-mode rules (CR LF to LF, Ctrl-Z ends the file) done by hand. Emulator-verified with loose files, CR, Ctrl-Z and NUL (`test_interp.py`) |
 | Script lines, zinterp.cpp (0x5954a0 / 0x5955e0, 0x5956e0, 0x595850) | A 1 KB line buffer, a 64-byte macro name and a 1 KB expansion buffer, all unbounded; 16 argv slots with no bound (the 17th token overwrites the macro table pointer) | (bug) a long line, name or expansion, or too many tokens, corrupts memory | The line buffer grows, the name has no limit, the expansion stops at 4 KB, tokens past 16 are dropped; the shared expansion buffer itself is kept (its aliasing is original behaviour) |
 | Archive lines, 0x5955e0 / 0x596620 | A short read leaves the line size as the FILE pointer; the size and argc are trusted; a huge script count wraps the directory's size | (trap) a damaged interp.zbd crashes or overruns | A short read or a size over 1 MB ends the script; argc is capped at 16 and tokens stop at the text's end; a count outside 0..1M rejects the archive |
@@ -58,6 +68,30 @@ Each change is also marked `FIX` in the code next to the original address.
 | Weapon manager with no group, 0x4b0c30 / 0x4b0790 / 0x4b07e0 / 0x4b08c0 | Trigger, next and previous weapon and the network release call through the selected group without checking it | (bug) group -1 is a null call (crash); the manager starts at group 0, so only a weapon moved to group -1 gets there | Nothing happens without a group. The test never reaches it on either side |
 | Gravity shots that accelerate, 0x585d61 | The velocity is rebuilt with ECX = 1 as the base vector | (bug) a crash; no shipped weapon has gravity | The shot's base velocity, as in the branch without gravity |
 | Air burst record, 0x582320 | The record built for a burst in the air leaves the surface normal unset (stack bytes) | (bug) the surface animation's orientation is whatever the stack held | A zero normal. Only LANDMINE has a surface animation in its default impact; the test leaves it out of the air bursts |
+| Animation phase cache, 0x5abae0 / 0x432a80 (and every sampler inlining it) | The phase is cached by time alone; SetLoopTime 0x5aa3b0 resets the cached time to 0 but not the keys, so after the 60-frame resample (0x5aa360) a first sample at t = 0 reuses the last resample's keys | (bug) for motions longer than 60 frames those keys are past the new arrays: the exe reads the heap beyond them for that sample | Keys past the last are recomputed; in-range stale keys are kept as the exe has them. `test_mechanim.py` samples elsewhere first where the original would read out of bounds (motion.md, Playback) |
+| Toe poses, 0x417fde.. / 0x4178a8.. / 0x417177.. | Both feet loop over the left foot's toe count; the right foot's index is checked with `ja`, so it reaches its own count | (bug) a right foot with fewer toes than the left reads and writes one quaternion and one toe node past its arrays | Stopped at the count. Shipped mechs likely have equal counts (not checked); `zfix bugs` off in the probes keeps the exe's check (`movement-pose.md`) |
+| Missing stand or step motion, 0x431350 | Frees the hip velocity keys of the loaded animation without checking it loaded | (bug) a crash; never with the shipped motions | Checked |
+| Lava heat, 0x4192f0 | Adds 0.05 heat each frame either foot is on lava | (B) frame-rate dependent: about 1.5/s at 30 fps, 7/s at 144 fps | 0.05 per 1/30 s (1.5 heat a second at any frame rate), the 30 fps reference chosen by Owen 2026-10-20; `zfix::options().per_second`, off in the probes |
+| Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80, the 20 damage to touched buildings 0x423c90 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s, a building takes 2,880 a second instead of 600 | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps, 600 dt damage; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
+| Deep water, gait 0x4181c0 | Past a tenth of the mech's height the speed factor is 0.7 (H - d) / H, and 0.7 once deeper than H | (bug, game-breaking per Owen) the factor falls from 0.63 to a standstill as the water nears the mech's height, then jumps back to 0.7 | A straight line from 1 at 0.1 H to 0.7 at H, then 0.7 (movement.md, Speed and gait); `zfix::options().deep_water`, off in the probes, so `test_gait.py` checks the exe's curve |
+| Smoke drag and wind, 0x5490e0 / 0x523f70 | Drag from a table of e^-(i/51) with the step truncated; the wind's speed steps by up to `random_accel` a frame | (B) at 60 fps and above muzzle smoke and trails get no drag at all, and gusts change faster the faster the game runs | e^-(dt * friction) computed, and the speed step scaled as per 1/30 s (Owen 2026-10-20); `zfix` switch as above. At 30 fps the drag is now a little stronger than the table's (it rounded 0.033 down to 0.0196) |
+| Sound fades, 0x571940 | A fade ends only when a 25 dB/s step lands exactly on the target, which happens only at full volume or silence | (bug) fades to a partial volume never end: the voice wobbles a step around the target and the fade stays in the list for good | A step that reaches or passes the target ends the fade on it (Owen 2026-10-20); `zfix::options().bugs` |
+| Unpause, 0x56f130 | Every voice of each sound kept at pause plays again, finished ones from the start, once per record (a sound with two copies playing replays both twice) | (bug) sounds that had ended start over and doubles pile up after a pause | Only the voices that were playing resume, each once, from where they stopped (Owen 2026-10-20) |
+| Wingmen's ammo calls, group reader 0x573560 | `dom/alan/epona_low/out_of_ammo` list `"PLAY_COUNT" 2` at group level; the reader takes any unknown word as the group's name, so all six are named "PLAY_COUNT" | (bug) the low-ammo and out-of-ammo lines never play | PLAY_COUNT at group level applies to each line of the group (each plays at most twice); the groups keep their names (Owen 2026-10-20: a cue to repair at the MFB) |
+| Stereo, the PLAYBACK_FORMAT reader (zsnd_init `read_playback`) | The channel count in `sounds.zrd` (HIGH: 2) is not read; 1 is stored | (bug) on Windows 9x the mix was mono, so the 3D sounds' left/right pan was lost | The data's channel count is read (Owen 2026-10-20). The SDL output mixes stereo either way |
+| Medium sound format, 0x570ccf and the per-sound formats | Looks up `"MED"` where `sounds.zrd` says `MEDIUM` | (bug) a typo: the medium playback format is never read | `MEDIUM` |
+| Mad Cat and Supernova damage textures, skin reader (`mech3::read_skins`) | `damage` lists two (Mad Cat) and one (Supernova) slots longer than the primary skin, so every damage mask lands on the wrong texture; the size check then drops some | (bug) misplaced data: those mechs show the wrong or no battle damage | Leading empty slots are dropped until the damage list is as long as the primary (Owen 2026-10-20); `tests/test_fixes.cpp` checks both on the real files |
+| Plain PPC, weapon table 0x5e64f0 | 37 weapons; `weapons.zrd` defines a `PPC` and Mech3Msg.dll names it (0x2fd, after the last weapon's 0x2fc; the old slot 0x2ee between NARC and the pulse lasers is empty) but the table has no row | (bug) the mech lab cannot offer a weapon the data defines | A 38th row, `PPC` (message 0x2fd, family 3 as ERPPC, Inner Sphere tech 2 as the plain lasers, no ammo); `mech3::weapon_count()` (Owen 2026-10-20) |
+| The program, `mw3` (program.md) | The exe on Win32: `WinMain`, MFC's `CWinApp`, the `Mech3Class` frame | (A) Win32 / MFC | The app constructor, InitInstance, the engine start, `zGameApp::Run` and the states run as ported, from `mw3_main.cpp` on SDL3; `mech3::GameEngine` wires their hooks to the ports and to `src/frontend/sdl` |
+| Main window, 0x482d10 (`CWnd::CreateEx`, `SetWindowTextA`, `UpdateWindow`, `GetFocus`) | A 640x480 frame clamped to the work area, the debug menu (MENU 0x93) | (A) Win32 | An SDL window (1280x960 by default, the game's 640x480 scaled over it), titled from message 7; no debug menu |
+| Message queue, 0x58fd70 / OnActivate 0x590c00 / MM_MCINOTIFY 0x590740 | `PeekMessageA`, `PumpMessage`, `MsgWaitForMultipleObjects`, `WM_ACTIVATE`, the MCI notify message | (A) Win32 | `SdlPump`: SDL's event queue; focus gained / lost is the frame's OnActivate; a music file's end is posted as the notify; the window's close posts the quit |
+| Mech3Msg.dll, 0x575f30 / ZLocGetID / 0x576040 / 0x575fd0 | `LoadLibraryA`, the DLL's sorted `{name, id}` table, `FormatMessageA` on its RT_MESSAGETABLE | (A) a Windows DLL cannot be loaded on macOS | `zutl_msgdll` reads the table and the message resource from the file (found through the mounts) and answers the same lookups; `%1` inserts done as FormatMessage does |
+| Message boxes, `MessageBoxA` and the game's box 0x4ac150 | Win32 boxes; the game's own dlgMessage.zrd box | (A) Win32; the game's box is the 2D front end's, not ported yet | SDL's message box with the same texts and buttons (OK, OK/Cancel) |
+| Clock, `GetTickCount` / `Sleep`, and the clock start 0x5759a0 | Win32 | (A) | `SdlClock` (milliseconds from the start, `SDL_Delay`); 0x5759a0 ported as `ztimer::init`, emulator-checked (`test_ztimer.py`) |
+| Input, DirectInput (0x51b0a0: `DirectInputCreateA`, the keyboard buffered by `GetDeviceData`, the mouse and joystick by `GetDeviceState`) | DIK scan codes, DIMOUSESTATE, DIJOYSTATE2 | (A) DirectInput does not exist on macOS | `platform::Input` with DirectInput's structures and HRESULTs; `SdlInput` maps SDL scancodes to the same DIK codes key for key, sums mouse motion into the relative counts and reads the first joystick in the 0..65535 range. zInput itself (0x51a170.., what it does with them) is not ported |
+| Video, 0x579c60 / 0x576de0 / 0x576ea0 / [0x72f38c] | DirectDraw's mode, locked back buffer and flip; the 3D card chosen from the registry's InstallOptions and HWCardDev; a 4 MB check | (A) DirectDraw | The GPU is the 3D card (InstallOptions answers 0x101, HWCardDev picks device 0, its memory reported as 256 MB); the menus' 16-bit buffer is presented through `SdlScreen2D` (a texture drawn by Render3D) |
+| Settings loader, 0x40c420 (detail.zrd and the registry) | Every option from detail.zrd and `HKLM/HKCU\SOFTWARE\MicroProse\MechWarrior 3\1.0` | not ported yet | The program checks detail.zrd can be read and keeps the loader's defaults, with HWCardFlag from InstallOptions; nothing is saved yet |
+| Menu text, GDI (twod_wintext.cpp, through `ztwod::Host`) | `CreateFontA` on the installed Arial / Impact / Lucida Console, `DrawTextA` into a 16-bit DIB | (A) GDI | `SdlTwodHost` on SDL3_ttf with the game's own arial.ttf, impact.ttf, lucon.ttf, unantialiased so the key-colour blit keeps clean edges; GDI's height rules (negative: character height, positive: cell height), line breaks, `DT_WORDBREAK`, `&` prefixes, opaque and transparent modes; fonts.zrd's WINDOWS_FONTS read by name (the zImage font table 0x517280.. is not ported) |
 
 Notes on the fixes:
 
@@ -106,24 +140,42 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   precision the game runs at, so textured vertices lit by a coloured point
   light come out black (emulator; render-drawtable.md). Check in play
   (explosions or muzzle flashes near textured surfaces); then likely a
-  FIX (bug): round properly.
+  FIX (bug): round properly. Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at
+  64 bits: within one colour step (the original's arithmetic is wider).
 - Projected-light triangles, 0x57ea20 / 0x57fe20: the same rounding, so the
   ground the weapon lights subdivide is drawn black at 24-bit (emulator,
   render-shadows.md). Same check in play and the same likely FIX (bug); the
-  port keeps the 24-bit result for now, as for the point-lit vertices.
-- Mech shadow images, 0x55d010 (from 0x542e70, not ported yet): every edge
-  goes to 16.16 fixed point with the same trick, so at 24-bit nothing is
-  filled and the shadow texture is plain white: shadows invisible on
-  hardware (emulator, render-shadows.md). When the caster module is ported,
-  a FIX (bug) candidate (round properly) to show the shadows as designed.
+  port keeps the 24-bit result for now, as for the point-lit vertices. Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at
+  64 bits: within one colour step (the original's arithmetic is wider).
+- Mech shadow images, 0x55d010 (from 0x542e70): every edge goes to 16.16
+  fixed point with the same trick, so at 24-bit nothing is filled and the
+  shadow texture is plain white: shadows invisible on hardware (emulator,
+  render-shadows.md). In play on Windows 11 + DDrawCompat the shadows are
+  visible (Owen, 2026-10-20): the reference runtime leaves the FPU at 53
+  bits at least there (whether 1999 DirectX 6 on Windows 98 hid them stays
+  unconfirmed). Ported with a switch, `zmod::shadow_state().precision`:
+  `k53`, the default, runs the filler at double precision as seen in play
+  (the original's own images, bit for bit: test_shadow_image.py); `k24`
+  keeps the blank images of a 24-bit FPU. Not a FIX: the original's
+  behaviour on the reference runtime.
 - Ground probes, mech skis +0x2f4 (0x475de0, 0x475ea0): the width that
   picks a foot's middle probe (for its ground contact and its water) is never
   written, so it is whatever the heap held. The port keeps 0 (front or back
   probe only) and the test pins the original to the same; the intent is
   likely the ski half-length (`movement-ground.md`). A FIX (bug) once
   checked in play.
-- Gait blend-in, 0x417a80: the right foot's rotation is never blended (the
-  left one's is blended twice); the pose is not ported yet (`movement.md`).
+- Gait blend-in, 0x417a80 (0x417d85): the right foot's rotation is never
+  blended in; the left one's is blended twice, the second time from the right
+  foot's last rotation (`movement-pose.md`). Ported as the original; fixing
+  it (blend each foot from its own) is Owen's call. In play: for the first
+  two thirds of a second of walking, the right foot snaps to the walk's
+  rotation and the left one lurches toward the right's old angle.
 
 - Translucent untextured polygons on lit or fogged models, 0x57c700: coloured,
   then neither queued nor drawn, so fake shadows vanish there (emulator; check
@@ -133,47 +185,35 @@ Bugs whose intent is clear, fixed as the port reaches the code:
   so at 24-bit it is always 0 and the moving cloud pattern on the sun is a
   constant (c1: a flat 70%) on Direct3D (emulator, render-lighting.md). If
   confirmed in play, the hardware renderer never showed moving cloud
-  shadows; restoring them would be a FIX (bug).
+  shadows; restoring them would be a FIX (bug). Settled (Owen, 2026-10-20: mechs cast shadows in play on Windows 11, so
+  the FPU is not at 24 bits there): `zfix::options().fpu53`, on by default,
+  gives the 53-bit result (x rounded to the nearest integer); off, the
+  24-bit one, which the probes keep. Checked against the original run at 64
+  bits: identical.
 - Point lights just inside their near range, 0x545720: below near squared the
   squared distance is compared as a distance, so a vertex can go dark
   (near 32 / far 64: 0.875 at 6, 0 from 10 to 31, 1 at 32). How often shipped
   lights show it is not checked.
 
+## Decided to keep (Owen, 2026-10-20)
+
+- Wading: the depth ratio is clamped with max where min was likely meant, so
+  any depth gives the full x8 cooling. Players plan around it; kept.
+- Water cooling checks only the left foot; kept.
+- Elemental armor: 1 point in every location (11), where the 1 ton the file
+  gives is worth 16. The only effect of the mismatch is a log line at load,
+  and one point a location is evidently the design (an Elemental dies to a
+  single hit); kept.
+- Missiles that miss vanish at RANGE without exploding; kept.
+- Radio chatter (QUEUE) plays newest first; kept as design (chatter stays
+  current).
+- Every mech's maximum engine forced to 400 and only a weapon's first group
+  counting look deliberate; kept.
+
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- Lava heat, 0.05 per frame (`heat.md`): frame-rate dependent, so faster
-  machines cook faster. Options: a fixed per-second rate matching some
-  reference frame rate (1.5/s at 30 fps, 3/s at 60 fps), or keep per frame.
-- Particle drag, 0x5490e0 / 0x523f70 (`puffers.md`): the drag factor comes
-  from a table of e^-(i/51) with the step truncated, so `dt * friction` below
-  1/51 gives no drag at all: smoke with friction 1 (muzzle smoke, missile
-  trails) ignores friction and wind at 60 fps and above, all shipped smoke
-  above 89 fps; at 30 fps it slows and drifts. The wind's speed also takes
-  its random step per frame, not per second. A FIX (B) candidate: e^-x
-  computed (or the table interpolated), and the speed step scaled to a
-  reference frame rate. Kept as the original for now.
-- Wading (`heat.md`): the depth ratio is clamped with max where min was likely
-  meant, so any depth gives the full x8 cooling. Fixing it makes shallow
-  water cool less.
-- Water cooling checks only the left foot.
-- Movement done per frame, not per second (`movement*.md`): a fall's carried
-  momentum (x0.6 a frame), the ground probes' slope and ledge pushes and the
-  far mechs' push x3, the jump jets' climb impulse (capped at 6 a frame), the
-  gait's 20-frame blend-in, the 20 damage a frame to touched buildings. All
-  change with the frame rate, as lava heat does.
-- Deep water (gait 0x4181c0): the slowdown runs to almost a standstill as the
-  water nears the mech's height, then jumps back to 70% once deeper. A
-  continuous curve may have been meant.
-- Mad Cat damage list: two extra zeros shift every damage mask by two, so two
-  textures get none and two get a mask of the wrong size (dropped). Removing
-  the zeros restores the damage look; the Supernova's one extra item likewise.
-- Elemental armor: the file hands out 11 points for a ton worth 16.
-- Missing animation object, 0x50a0e0: one prerequisite naming an object not
-  in the level clears all of the animation's prerequisites, so it fires
-  without waiting. Dropping only the broken one, or never firing, are both
-  plausible intents. Whether any shipped mission hits it is not yet checked.
 - ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
   the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
   is the evident intent, but what the second number does on the HUD
@@ -183,24 +223,3 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (0x5edbc0: default, water, seafloor, quicksand, lava, fire) does not have,
   so they never show. Mapping those names to the soils that exist would
   restore them; which soil each should be is a guess.
-- Missiles that miss vanish at RANGE without exploding (every shipped missile
-  has EXPIRES, 0x5860fb); keep, or let them burst.
-- The plain PPC is defined but missing from the mech lab's table; every mech
-  maximum engine is forced to 400; only a weapon's first group counts. These
-  look deliberate and stay unless Owen says otherwise.
-
-- Sound groups `dom_low_ammo`, `alan_low_ammo`, `epona_low_ammo`,
-  `dom_out_of_ammo`, `alan_out_of_ammo`, `epona_out_of_ammo`: `PLAY_COUNT 2`
-  at group level is not a keyword, so the reader renames them all
-  "PLAY_COUNT" and the wingmen's ammo calls never play (sound.md). Fixing the
-  data (drop the two words, or move them into the entries) restores lines
-  players never heard.
-- Sound fades (0x571940) end only on an exact landing, so fades to a partial
-  volume never end and jitter one step around the target; snapping to the
-  target when the step passes it is the likely intent.
-- Unpause (0x56f130) replays every copy of each sound that was playing
-  (finished ones from the start, twice for two copies) instead of resuming
-  the ones that were; resuming only the recorded voices is the likely intent.
-- Radio chatter (QUEUE) plays newest first; first-in first-out may have been
-  meant, but newest-first keeps chatter current, so it may be design.
-- 3D panning: the game asks for mono output (above); the port plays stereo.

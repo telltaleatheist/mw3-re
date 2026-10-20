@@ -1,10 +1,15 @@
 #include "gamez/zclass/cls_world.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 
 #pragma STDC FP_CONTRACT OFF
 
+#include "crt/msvc_math.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zrender/zrndr_fog.h"
@@ -188,6 +193,257 @@ int world_cell_clamped(Node* world, int32_t* cell_x, float x, float z, int32_t* 
   *cell_x = static_cast<int32_t>((cx - w->get<float>(0x34)) * w->get<float>(0x74));
   *cell_z = static_cast<int32_t>(w->get<float>(0x78) * (cz - w->get<float>(0x38)));
   return 0;
+}
+
+namespace {
+const char kWorldFile[] = "C:\\zipper\\GameZMech3\\zClass\\cls_world.c";
+
+// FIX (A): the exe reallocs these arrays by one; here a new array each time.
+template <typename T>
+T* grown(T* array, int32_t count, T value) {
+  T* out = new T[count + 1];
+  for (int32_t i = 0; i < count; ++i) out[i] = array[i];
+  out[count] = value;
+  delete[] array;
+  return out;
+}
+
+// Removes entry `at` of an array of `count` by moving the rest down.
+template <typename T>
+void erase_at(T* array, int32_t count, int32_t at) {
+  for (int32_t i = at; i < count - 1; ++i) array[i] = array[i + 1];
+}
+
+// 0x004f1810 (ECX world node, EDX its data, stack the partition): the
+// partition joins the pending list (grown by one when full) and is flagged,
+// the world is marked changed.
+int area_pending_push(Node* world, World* w, Partition* p) {
+  const int32_t count = w->get<int32_t>(4), cap = w->get<int32_t>(8);
+  uint32_t* entry = reinterpret_cast<uint32_t*>(p->raw);
+  if (count == cap) {
+    auto** bigger = new uint32_t*[cap + 1];
+    for (int32_t i = 0; i < count; ++i) bigger[i] = w->area_pending[i];
+    delete[] w->area_pending;
+    w->area_pending = bigger;
+    w->put<int32_t>(8, cap + 1);
+  }
+  w->area_pending[count] = entry;
+  w->put<int32_t>(4, count + 1);
+  p->put<uint32_t>(0, p->get<uint32_t>(0) | 1);
+  if ((world->flags() & 1) == 0 && push_back(kChanged, world) == 0) world->set_flags(world->flags() | 1);
+  world->set_flags(world->flags() | 2);
+  if (world->changed) world->changed->removable = 0;
+  mark(w, 0x10);
+  return 0;
+}
+
+// 0x004f2110 (ECX world node, EDX &cell x, stack min x, max x, min z, max z,
+// &cell z): the one cell a box fits in, with the world's margins (+0x80 x,
+// +0x84 z), else (-1, -1). Cells count from +0x34 / +0x38 by +0x74 / +0x78.
+void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z, int32_t* cz) {
+  const World* w = world_of(world);
+  *cz = -1, *cx = -1;
+  const float mx = w->get<float>(0x80), mz = w->get<float>(0x84);
+  if (!(w->get<float>(0x34) - mx <= min_x)) return;
+  if (!(max_x < w->get<float>(0x44) + mx)) return;
+  if (!(max_z <= w->get<float>(0x38) + mz)) return;
+  if (!(min_z > w->get<float>(0x48) - mz)) return;
+  const float mid_x = (max_x + min_x) * 0.5f, mid_z = (max_z + min_z) * 0.5f;
+  *cx = crt::msvc_ftol((mid_x - w->get<float>(0x34)) * w->get<float>(0x74));
+  *cz = crt::msvc_ftol(w->get<float>(0x78) * (mid_z - w->get<float>(0x38)));
+  if (*cx < 0) *cx = 0;
+  else if (*cx >= w->get<int32_t>(0x88)) *cx = w->get<int32_t>(0x88) - 1;
+  if (*cz < 0) *cz = 0;
+  else if (*cz >= w->get<int32_t>(0x8c)) *cz = w->get<int32_t>(0x8c) - 1;
+  const Partition& p = w->rows[*cz][*cx];
+  const float px = p.get<float>(0x8), pz = p.get<float>(0xc);
+  const float right = w->get<float>(0x64) + px, bottom = w->get<float>(0x68) + pz;
+  const bool fits = (!(min_x < px) || px - min_x <= mx) && (!(max_x > right) || max_x - right <= mx) &&
+                    (!(min_z < bottom) || bottom - min_z <= mz) && (max_z <= pz || max_z - pz <= mz);
+  if (!fits) *cz = -1, *cx = -1;
+}
+
+// 0x004f28c0 (ECX world, EDX node, stack cell x, cell z): into the cell's
+// node list (a full one, 0x7fff, sends it to the world's own children).
+int world_link(Node* world, Node* node, int32_t x, int32_t z) {
+  World* w = world_of(world);
+  if (x >= 0 && z >= 0 && w->rows[z][x].get<int16_t>(0x3a) >= 0x7fff) x = z = -1;
+  if (x >= 0 && z >= 0) {
+    Partition& p = w->rows[z][x];
+    const int16_t n = p.get<int16_t>(0x3a);
+    p.nodes = grown(p.nodes, n, node);
+    p.put<int16_t>(0x3a, static_cast<int16_t>(n + 1));
+    node->put<int32_t>(0x50, z), node->put<int32_t>(0x4c, x);
+    node->parents = grown(node->parents, node->parent_count(), world);
+    node->put<int32_t>(0x54, node->parent_count() + 1);
+    if (node->parent_count() > 1) node_set_tree_valid(node, 0);
+    if (p.get<uint32_t>(0) & 1) return 0;
+    return area_pending_push(world, w, &p);
+  }
+  world->children = grown(world->children, world->child_count(), node);
+  world->put<int32_t>(0x5c, world->child_count() + 1);
+  node->put<int32_t>(0x4c, -1), node->put<int32_t>(0x50, -1);
+  node->parents = grown(node->parents, node->parent_count(), world);
+  node->put<int32_t>(0x54, node->parent_count() + 1);
+  if (node->parent_count() > 1) node_set_tree_valid(node, 0);
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f2a40. A node with a box (flag 0x100) goes in the
+// cell its world box fits; without one its box is the whole world (so no
+// cell); flag 0x80 keeps it out of the cells. The box is the node's own
+// through its matrix: an object3d's unless it is still the identity (data
+// flag 8), a camera's (+0x80), a display's (class 8) when active and set.
+int world_add_child(Node* world, Node* node) {
+  const World* w = world_of(world);
+  const uint32_t flags = node->flags();
+  int32_t cx = -1, cz = -1;
+  if ((flags & 0x80) == 0) {
+    float box[6];
+    if ((flags & 0x100) == 0) {
+      box[0] = w->get<float>(0x34), box[1] = 0.0f, box[2] = w->get<float>(0x38);
+      box[3] = w->get<float>(0x3c) + w->get<float>(0x34), box[4] = 1.0f;
+      box[5] = w->get<float>(0x40) + w->get<float>(0x38);
+    } else {
+      const float* m = nullptr;
+      auto* d = static_cast<uint8_t*>(node->data);
+      uint32_t dflags = 0;
+      if (d) std::memcpy(&dflags, d, 4);
+      if (node->cls() == 5) {
+        if ((dflags & 8) == 0) m = reinterpret_cast<const float*>(d + 0x30);
+      } else if (node->cls() == 1) {
+        m = reinterpret_cast<const float*>(d + 0x80);
+      } else if (node->cls() == 8 && (flags & 4)) {
+        uint32_t f4;
+        std::memcpy(&f4, d + 4, 4);
+        if (f4 & 4) m = reinterpret_cast<const float*>(d + 8);
+      }
+      if (m) zmth::transform_box(m, reinterpret_cast<const float*>(node->raw + 0x74), box);
+      else std::memcpy(box, node->raw + 0x74, sizeof box);
+    }
+    box_cell(world, &cx, box[0], box[3], box[2], box[5], &cz);
+  }
+  return world_link(world, node, cx, cz);
+}
+
+// Mech3.exe 1.2 @ 0x004f2c30. A node in no cell is unlinked as a child; in a
+// cell it leaves the cell's list and its parents (the cell is flagged for
+// the area update).
+int world_remove_child(Node* world, Node* node) {
+  const int32_t x = node->get<int32_t>(0x4c), z = node->get<int32_t>(0x50);
+  if (x == -1 && z == -1) return node_unlink(world, node);
+  World* w = world_of(world);
+  Partition& p = w->rows[z][x];
+  const int16_t n = p.get<int16_t>(0x3a);
+  int32_t at = -1;
+  for (int32_t i = 0; i < n; ++i)
+    if (p.nodes[i] == node) {
+      at = i;
+      break;
+    }
+  if (at < 0) {
+    char msg[120];
+    std::snprintf(msg, sizeof msg, "ERROR deleting child node %s from parent node %s", node->name(), world->name());
+    return zerr::report(0x200, kWorldFile, 0x11ce, msg), 1;
+  }
+  erase_at(p.nodes, n, at);
+  p.put<int16_t>(0x3a, static_cast<int16_t>(n - 1));
+  node->put<int32_t>(0x4c, -1), node->put<int32_t>(0x50, -1);
+  at = -1;
+  for (int32_t i = 0; i < node->parent_count(); ++i)
+    if (node->parents[i] == world) {
+      at = i;
+      break;
+    }
+  if (at >= 0) {
+    erase_at(node->parents, node->parent_count(), at);
+    node->put<int32_t>(0x54, node->parent_count() - 1);
+  }
+  if (p.get<uint32_t>(0) & 1) return 0;
+  return area_pending_push(world, w, &p);
+}
+
+// Mech3.exe 1.2 @ 0x004f2d50. Both sides' lists, no duplicate check.
+int world_add_light(Node* world, Node* light) {
+  World* w = world_of(world);
+  auto* l = static_cast<Light*>(light->data);
+  const int32_t n = w->get<int32_t>(0xa0);
+  w->lights = grown(w->lights, n, light);
+  w->light_data = grown(w->light_data, n, static_cast<void*>(l));
+  w->put<int32_t>(0xa0, n + 1);
+  l->nodes = grown(l->nodes, l->get<int32_t>(0xc8), world);
+  l->put<int32_t>(0xc8, l->get<int32_t>(0xc8) + 1);
+  return 0;
+}
+
+namespace {
+// 0x004f2e00 / 0x004f3040: a light or sound out of the world's lists and the
+// world out of its node's. A miss is printed and reported through 0x0050da70
+// (level 5, line 0x23 of zerr_old.c).
+int remove_from_world(Node* world, Node* node, int32_t* count, Node** nodes, void** data, int32_t* back_count,
+                      Node** back, int line, const char* what) {
+  int32_t at = -1;
+  for (int32_t i = 0; i < *count; ++i)
+    if (nodes[i] == node) {
+      at = i;
+      break;
+    }
+  if (at == -1) {
+    char msg[160];
+    std::snprintf(msg, sizeof msg, "%s: Line %d: ERROR deleting %s; not found in world list.", kWorldFile, line, what);
+    return zerr::report(5, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg), 5;
+  }
+  for (int32_t i = at; i < *count - 1; ++i) nodes[i] = nodes[i + 1], data[i] = data[i + 1];
+  --*count;
+  at = -1;
+  for (int32_t i = 0; i < *back_count; ++i)
+    if (back[i] == world) {
+      at = i;
+      break;
+    }
+  if (at == -1) {
+    char msg[160];
+    std::snprintf(msg, sizeof msg, "%s: Line %d: ERROR deleting %s; world not found.", kWorldFile, line + 0x27, what);
+    return zerr::report(5, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg), 5;
+  }
+  erase_at(back, *back_count, at);
+  --*back_count;
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f2e00
+int world_remove_light(Node* world, Node* light) {
+  World* w = world_of(world);
+  auto* l = static_cast<Light*>(light->data);
+  int32_t n = w->get<int32_t>(0xa0), back = l->get<int32_t>(0xc8);
+  const int r = remove_from_world(world, light, &n, w->lights, w->light_data, &back, l->nodes, 0x12ac, "light");
+  w->put<int32_t>(0xa0, n), l->put<int32_t>(0xc8, back);
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x004f2f90
+int world_add_sound(Node* world, Node* sound) {
+  World* w = world_of(world);
+  auto* s = static_cast<Sound*>(sound->data);
+  const int32_t n = w->get<int32_t>(0xac);
+  w->sounds = grown(w->sounds, n, sound);
+  w->sound_data = grown(w->sound_data, n, static_cast<void*>(s));
+  w->put<int32_t>(0xac, n + 1);
+  s->nodes = grown(s->nodes, s->get<int32_t>(0x8c), world);
+  s->put<int32_t>(0x8c, s->get<int32_t>(0x8c) + 1);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3040
+int world_remove_sound(Node* world, Node* sound) {
+  World* w = world_of(world);
+  auto* s = static_cast<Sound*>(sound->data);
+  int32_t n = w->get<int32_t>(0xac), back = s->get<int32_t>(0x8c);
+  const int r = remove_from_world(world, sound, &n, w->sounds, w->sound_data, &back, s->nodes, 0x13eb, "sound");
+  w->put<int32_t>(0xac, n), s->put<int32_t>(0x8c, back);
+  return r;
 }
 
 }  // namespace zcls

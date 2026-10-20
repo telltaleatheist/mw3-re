@@ -12,6 +12,19 @@ platform::Clock* g_clock = nullptr;
 State& state() { return g_state; }
 void set_clock(platform::Clock* clock) { g_clock = clock; }
 
+// Mech3.exe 1.2 @ 0x005759a0: the times zeroed and the last tick read now, so
+// the first update's step is the time since the start, not since 0.
+void init() {
+  State& s = g_state;
+  s.now_s = 0;
+  s.total_raw = 0;
+  s.raw_dt = 0;
+  s.total_scaled = 0;
+  s.dt = 0;
+  const uint32_t ticks = g_clock ? g_clock->ticks_ms() : 0;
+  s.prev_s = static_cast<float>(static_cast<double>(ticks) * static_cast<double>(0.001f));  // 0x005ce748
+}
+
 // Mech3.exe 1.2 @ 0x00575a00
 // FIX (B): ticks since game start, not since boot (docs/fixes.md). The product
 // stays unrounded on the x87 stack, hence the double.

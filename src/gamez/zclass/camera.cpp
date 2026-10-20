@@ -9,6 +9,7 @@
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
@@ -634,6 +635,29 @@ int camera_set_position(Node* node, float x, float y, float z) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f37c0. Unlike the setter, the given-matrix flag stays.
+int camera_add_rotation(Node* node, float x, float y, float z) {
+  if (int r = check_class(node, 1, kFile, 0x4a0)) return r;
+  Camera* d = cam_of(node);
+  x = x + d->get<float>(0x20), y = y + d->get<float>(0x24), z = z + d->get<float>(0x28);
+  d->put(0x20, x), d->put(0x24, y);
+  d->put<int32_t>(0x184, 1);
+  d->put(0x28, z);
+  if (node->parent_count() > 0) camera_mark_changed(node, d);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3920
+int camera_add_position(Node* node, float x, float y, float z) {
+  if (int r = check_class(node, 1, kFile, 0x530)) return r;
+  Camera* d = cam_of(node);
+  const int off = (d->get<uint32_t>(0x10) & 2) ? 0xa4 : 0x14;
+  x = x + d->get<float>(off), y = y + d->get<float>(off + 4), z = z + d->get<float>(off + 8);
+  d->put(off, x), d->put(off + 4, y), d->put(off + 8, z);
+  if (node->parent_count() > 0) camera_mark_changed(node, d);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f3ff0
 int camera_set_lod_scale(Node* node, float f) {
   if (int r = check_class(node, 1, kFile, 0x6eb)) return r;
@@ -1100,6 +1124,69 @@ int render_world(Node* camera_node, int32_t after) {
     if (g_hooks.dirty_rect) g_hooks.dirty_rect(g_hooks.ctx, rect);
   }
   return 0;
+}
+
+namespace {
+// The node's model (a world model, or a mechlib node's own port) takes the
+// morph of a morphing LoD, then casts.
+void shadow_model_morphed(Node* node) {
+  uint8_t* h = node->model ? node->model->header : node->lib_model ? node->lib_model->header : nullptr;
+  if (!h) return;
+  if (g_walk.morph) {
+    uint32_t f;
+    std::memcpy(&f, h + 8, 4);
+    f |= 8;
+    std::memcpy(h + 8, &f, 4);
+    std::memcpy(h + 0x24, &g_walk.morph_factor, 4);
+  }
+  zmod::shadow_model(node);
+}
+
+void shadow_children(Node* node) {
+  for (int32_t i = 0; i < node->child_count(); ++i) zmod::shadow_node(node->children[i]);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f7670. The matrix as the walk's object3d renderer
+// pushes it (0x004f5910), but a clean cached one is pushed without the
+// local multiply and a dirty one under a tree-valid node is cleaned.
+void shadow_object3d(Node* node) {
+  if (!(node->flags() & kActive)) return;
+  auto* d = static_cast<Object3d*>(node->data);
+  const uint32_t flags = node->flags() & ~kUnk25;
+  node->set_flags(flags);
+  int32_t pushed = 0;
+  const uint32_t df = d->get<uint32_t>(0);
+  if (!(df & 8)) {
+    pushed = 1;
+    if (flags & kTreeValid) {
+      if (df & 0x20) {
+        zmth::push_copy(mat(d->floats(0x60)));
+        zmth::multiply(*mat(d->floats(0x30)), 3);
+        d->put<uint32_t>(0, d->get<uint32_t>(0) & ~0x20u);
+      } else {
+        zmth::push(mat(d->floats(0x60)));
+      }
+    } else {
+      zmth::push_copy(mat(d->floats(0x60)));
+      zmth::multiply(*mat(d->floats(0x30)), 3);
+    }
+  }
+  node->set_flags(node->flags() | kDrawn);
+  shadow_model_morphed(node);
+  shadow_children(node);
+  if (pushed) zmth::pop();
+}
+
+// Mech3.exe 1.2 @ 0x004f7750. Only a LoD whose +4 is 0 or less (or NaN):
+// no matrix, no range test.
+void shadow_lod(Node* node) {
+  if (!(node->flags() & kActive)) return;
+  const float level = static_cast<Lod*>(node->data)->get<float>(4);
+  if (level > 0.0f) return;
+  node->set_flags(node->flags() | kDrawn);
+  shadow_model_morphed(node);
+  shadow_children(node);
 }
 
 }  // namespace zcls

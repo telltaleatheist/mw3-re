@@ -10,6 +10,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 
 namespace zsnd {
@@ -338,6 +339,7 @@ Group* read_group(zrdr::Node* node, LoadFn fn) {
   auto* g = new Group;
   g->kind = 1;
   zrdr::Node* items = node->list;
+  int16_t group_count = 0;
   for (int32_t i = 1; i < items[0].i; ++i) {
     zrdr::Node& it = items[i];
     if (it.type == zrdr::List) {
@@ -374,11 +376,20 @@ Group* read_group(zrdr::Node* node, LoadFn fn) {
       } else if (std::strcmp(s, "EXTRA") == 0) {
         ++i;
         if (fn) g->extra = fn(g, &items[i]);
+      } else if (zfix::options().bugs && std::strcmp(s, "PLAY_COUNT") == 0) {
+        // FIX (bug): six ammo groups put this entry keyword at group level and
+        // the exe takes it as the group's name; here it applies to each entry.
+        if (v.type == zrdr::Int) group_count = static_cast<int16_t>(v.i);
+        else if (v.type == zrdr::Float) group_count = static_cast<int16_t>(static_cast<int32_t>(raw_float(v) - 0.5f));
+        ++i;
       } else {
         g->name = s;
       }
     }
   }
+  if (group_count != 0)
+    for (GroupEntry& e : g->entries)
+      if (e.count == -1) e.count = e.initial = group_count;
   bool unweighted = false;
   for (GroupEntry& e : g->entries)
     if (!(e.weight > 0.0001f)) {

@@ -12,6 +12,8 @@ using zcls::Node;
 using zcls::Raw;
 
 struct SeqDef : Raw<0x40> {
+  uint8_t* cur = nullptr;          // +0x34  the current event (run time; the file's value is stale)
+  const char* name() const { return reinterpret_cast<const char*>(raw); }
   uint8_t* events = nullptr;       // +0x38  size +0x3c
 };
 
@@ -25,13 +27,25 @@ struct Prerequisite : Raw<0x30> {
   AnimDef* def = nullptr;          // +0x28  type 1
   Node* node = nullptr;            // +0x2c  types 2, 3
 };
-struct AnimRefRec : Raw<0x48> { void* ref = nullptr; };    // +0x44
+struct AnimDef;
+struct AnimRefRec : Raw<0x48> { AnimDef* ref = nullptr; };  // +0x44  the def a call started
 
 struct AnimDef : Raw<0x13c> {
+  // ECX def, EDX the argument set with it, stack a value (0 when the anim
+  // stops, the callback event's +0x0c otherwise).
+  using Callback = void (*)(AnimDef* def, void* arg, int32_t value);
   Node* node = nullptr;            // +0x40  found by the name at +0x20
   Node* root = nullptr;            // +0x64  found by the name at +0x44
+  Node* object = nullptr;          // +0x68  its own object3d `_<name>`, whose action ticks it
+  Callback callback = nullptr;     // +0x6c  set by 0x00508f00 with +0x70
+  void* callback_arg = nullptr;    // +0x70
+  Node* at_node = nullptr;         // +0x74  the node it was started at (event node -200), +0x78 offset
+  Node* at_node2 = nullptr;        // +0x84  a connector's other end, +0x88 offset
+  AnimDef* instance = nullptr;     // +0x138 the next copy of it (started at another node)
   SeqDef* seqs = nullptr;          // +0xc4  count +0x108
   uint8_t* reset_events = nullptr; // +0x100 size +0x104
+  SeqDef reset_seq;                // +0xc8..+0x107 at run time: the reset sequence (its bytes
+                                   // copied from raw after the read, events = reset_events)
   ObjectRef* objects = nullptr;    // +0x114 count +0x109
   NodeRef40* nodes = nullptr;      // +0x118 count +0x10a
   CreatedRef* lights = nullptr;    // +0x11c count +0x10b
@@ -55,8 +69,21 @@ struct AnimState {
   char path[0x80] = {};            // 0x0060c570
   int32_t loading = 0;             // 0x005ebcbc
   int32_t copy_trees = 0;          // 0x0060c5f0  never set: the copy path is dead
+  bool fix_prerequisites = true;   // FIX (bug) on a missing prerequisite node (false: the exe)
+  float random[200] = {};          // 0x0073f400  rand() / 32767, filled at init (0x00508fc0)
+  int32_t random_index = 0;        // 0x0060c5f4
+  uint8_t stagger = 0;             // 0x0060c1d8  1..10, spreads the range/zone tests over frames
+  int32_t stopped_elapsed = 0;     // 0x0060c1d4  0x00502d20: a stopped anim keeps its reset clock
+  int32_t level = 0;               // 0x0060c1d0  0x00508fb0, the "if" event's level test
+  int32_t sounds_on = 1;           // 0x005ebbf0
+  zcls::Node* player_node = nullptr;  // 0x0073f740 (block +0x20; the files hold 0, the setter is unknown)
   int16_t def_count() const { return block.get<int16_t>(0x0a); }
   int32_t message_count() const { return block.get<int32_t>(0x10); }
+  // The globals the block covers (0x0073f720 + offset), kept in the block:
+  // +0x24 player position known, +0x28 zone known, +0x2c player position,
+  // +0x38 zone list, +0x3c the "if" event's flag 0x40, +0x40 the time the
+  // running sequence still has this frame.
+  float& time_left() { return *block.floats(0x40); }
 };
 AnimState& anim();
 

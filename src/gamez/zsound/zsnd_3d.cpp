@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 
 namespace zsnd {
@@ -39,10 +40,14 @@ void fade_init(Fade* f, Voice* v, float level, int32_t stop) {
 int32_t fade_step(Fade* f, float dt) {
   const float dir = (f->target - f->current < 0.0f) ? -1.0f : 1.0f;
   f->current = dir * dt * 2500.0f + f->current;
+  // FIX (bug): a step reaching the target ends the fade there, so fades to a
+  // partial volume end instead of wobbling around it.
+  const bool reached = zfix::options().bugs && (dir > 0.0f ? f->current >= f->target : f->current <= f->target);
+  if (reached) f->current = f->target;
   if (f->current > 0.0f) f->current = 0.0f;
   else if (f->current < -10000.0f) f->current = -10000.0f;
   out()->set_volume(f->voice->buffer, static_cast<int32_t>(f->current));
-  if (!(f->current == f->target)) return 0;
+  if (!reached && !(f->current == f->target)) return 0;
   if (f->stop) stop(f->voice);
   state().free_fades.push_back(f);
   return 1;

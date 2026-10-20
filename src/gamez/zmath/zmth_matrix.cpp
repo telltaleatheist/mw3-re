@@ -13,15 +13,20 @@ MatrixStack g_stack;
 View g_view;
 Projection g_proj;
 
-// r = l * t for 3x4 row-vector matrices (l applied first). The x87 sums run
-// (l0*t0 + l1*t3) + l2*t6, kept here.
+// r = l * t for 3x4 row-vector matrices (l applied first). The sums in the x87 code's order (0x0051fee0, 0x0051fb30 and 0x00521670
+// share it): the z column adds its terms from the last, and the z
+// translation adds the first term to t[11] before the others.
 void mul34(const float* l, const float* t, float* r, bool translation) {
   for (int row = 0; row < 3; ++row) {
     const float* a = l + 3 * row;
-    for (int j = 0; j < 3; ++j) r[3 * row + j] = a[0] * t[j] + a[1] * t[3 + j] + a[2] * t[6 + j];
+    r[3 * row] = a[0] * t[0] + a[1] * t[3] + a[2] * t[6];
+    r[3 * row + 1] = a[0] * t[1] + a[1] * t[4] + a[2] * t[7];
+    r[3 * row + 2] = (a[2] * t[8] + a[1] * t[5]) + a[0] * t[2];
   }
   if (!translation) return;
-  for (int j = 0; j < 3; ++j) r[9 + j] = l[9] * t[j] + l[10] * t[3 + j] + l[11] * t[6 + j] + t[9 + j];
+  r[9] = l[9] * t[0] + l[10] * t[3] + l[11] * t[6] + t[9];
+  r[10] = l[9] * t[1] + l[10] * t[4] + l[11] * t[7] + t[10];
+  r[11] = (l[11] * t[8] + l[10] * t[5]) + (l[9] * t[2] + t[11]);
 }
 
 // x87 compares: an unordered (NaN) result sets C3 like "equal", so the
@@ -108,8 +113,29 @@ void multiply(const Mat34& local, int mode) {
   }
   // FIX (bug): mode 2 copied the stack temp's unwritten row 3 (leftover stack
   // bytes) into the top's translation; zero here (docs/drafts/matrix.md).
+  // The x87's order: columns 0 and 1 sum left to right, column 2 as
+  // a0 t2 + (a1 t5 + a2 t8); the translation's z as (l9 t2 + t11) + (l10 t5
+  // + l11 t8) (docs/render-shadows.md, the shadow box checks it bit for bit).
   float r[12] = {};
-  mul34(local.m, top.m, r, mode != 2);
+  const float* l = local.m;
+  const float* t = top.m;
+  for (int row = 0; row < 3; ++row) {
+    const float* a = l + 3 * row;
+    const float x0 = a[0] * t[0], x1 = a[1] * t[3], x2 = a[2] * t[6];
+    r[3 * row] = (x0 + x1) + x2;
+    const float y0 = a[0] * t[1], y1 = a[1] * t[4], y2 = a[2] * t[7];
+    r[3 * row + 1] = (y0 + y1) + y2;
+    const float z0 = a[0] * t[2], z1 = a[1] * t[5], z2 = a[2] * t[8];
+    r[3 * row + 2] = z0 + (z1 + z2);
+  }
+  if (mode != 2) {
+    const float x0 = l[9] * t[0], x1 = l[10] * t[3], x2 = l[11] * t[6];
+    r[9] = ((x0 + x1) + x2) + t[9];
+    const float y0 = l[9] * t[1], y1 = l[10] * t[4], y2 = l[11] * t[7];
+    r[10] = ((y0 + y1) + y2) + t[10];
+    const float z0 = l[9] * t[2], z1 = l[10] * t[5], z2 = l[11] * t[8];
+    r[11] = (z0 + t[11]) + (z1 + z2);
+  }
   std::memcpy(top.m, r, sizeof r);
   g_stack.is_identity() = 0;
 }
@@ -265,6 +291,44 @@ void quat_matrix(const float q[4], float r[9]) {
   r[7] = e - g;
   t = 1.0f - a;
   r[8] = t - b;
+}
+
+// Mech3.exe 1.2 @ 0x00525900. A zero vector is the identity. The sine is
+// taken in double and divided by the length there, as the x87 keeps it.
+void quat_exp(const float v[3], float q[4]) {
+  const float len = static_cast<float>(std::sqrt(double{(v[0] * v[0] + v[1] * v[1]) + v[2] * v[2]}));
+  if (!(len < 0.0f || len > 0.0f)) {
+    q[0] = 1.0f, q[1] = q[2] = q[3] = 0.0f;
+    return;
+  }
+  q[0] = static_cast<float>(std::cos(double{len}));
+  const float s = static_cast<float>(std::sin(double{len}) / len);
+  q[1] = s * v[0], q[2] = v[1] * s, q[3] = v[2] * s;
+}
+
+// Mech3.exe 1.2 @ 0x005255d0. The x87's order of the sums.
+void quat_mul(const float a[4], const float b[4], float out[4]) {
+  out[0] = ((b[0] * a[0] - a[1] * b[1]) - a[2] * b[2]) - a[3] * b[3];
+  out[1] = ((a[0] * b[1] + b[0] * a[1]) + b[3] * a[2]) - a[3] * b[2];
+  out[2] = ((a[0] * b[2] + b[0] * a[2]) + a[3] * b[1]) - b[3] * a[1];
+  out[3] = ((a[0] * b[3] + b[0] * a[3]) + b[2] * a[1]) - a[2] * b[1];
+}
+
+// Mech3.exe 1.2 @ 0x00523ac0
+void direction_angles(const float a[3], const float b[3], float out[3]) {
+  const float dx = a[0] - b[0], dy = b[1] - a[1], dz = a[2] - b[2];
+  const float yaw = static_cast<float>(std::atan2(double{dx}, double{dz}));
+  const float flat = static_cast<float>(std::sqrt(double{dx * dx + dz * dz}));
+  out[0] = static_cast<float>(std::atan2(double{dy}, double{flat}));
+  out[1] = yaw;
+  out[2] = 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x00523b40. Returned on the x87 stack; the callers store it.
+float direction_pitch(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0], dy = b[1] - a[1], dz = a[2] - b[2];
+  const float flat = static_cast<float>(std::sqrt(double{dx * dx + dz * dz}));
+  return static_cast<float>(std::atan2(double{dy}, double{flat}));
 }
 
 // Mech3.exe 1.2 @ 0x00523f70. The table (0x0063d340, built once: flag
@@ -447,6 +511,20 @@ Vec3 transform(const Vec3& v, const float* t) {
 }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x00522d60. The shared products and their sums in the
+// x87 code's order.
+void box_corners_xz(const float* m, const float b[6], float out[8][2]) {
+  const float r = m[0] * b[0], t = m[0] * b[3], p = m[3] * b[4], u = m[3] * b[1];
+  const float s = m[2] * b[0], w = m[2] * b[3], q = m[5] * b[4], v = m[5] * b[1];
+  const float a_lo = b[2] * m[6] + m[9], c_lo = m[8] * b[2] + m[11];
+  const float a_hi = m[6] * b[5] + m[9], c_hi = m[8] * b[5] + m[11];
+  const float ur = u + r, ut = u + t, pr = p + r, pt = p + t;
+  const float vs = v + s, vw = v + w, qs = q + s, qw = q + w;
+  const float x[8] = {a_hi + ur, a_hi + ut, a_lo + ut, a_lo + ur, pr + a_hi, pt + a_hi, pt + a_lo, pr + a_lo};
+  const float z[8] = {c_hi + vs, c_hi + vw, c_lo + vw, c_lo + vs, qs + c_hi, qw + c_hi, qw + c_lo, qs + c_lo};
+  for (int i = 0; i < 8; ++i) out[i][0] = x[i], out[i][1] = z[i];
+}
+
 // Mech3.exe 1.2 @ 0x005225b0. Nothing to do when the top is the identity.
 void rotate_points(Vec3* v, uint32_t count) {
   if (g_stack.is_identity()) return;
@@ -480,6 +558,25 @@ void transform_points(Vec3* v, uint32_t count) {
   for (; count != 0; --count, ++v) *v = transform(*v, g_stack.matrix().m);
 }
 
+// Mech3.exe 1.2 @ 0x005231b0. A zero entry counts as positive.
+void transform_box(const float* m, const float box[6], float out[6]) {
+  for (int c = 0; c < 3; ++c) {
+    float lo, hi;
+    for (int r = 0; r < 3; ++r) {
+      const float e = m[3 * r + c];
+      const float a = box[r] * e, b = box[3 + r] * e;
+      const bool pos = !(e < 0.0f);
+      if (r == 0) {
+        lo = pos ? a : b, hi = pos ? b : a;
+      } else {
+        lo = (pos ? a : b) + lo, hi = (pos ? b : a) + hi;
+      }
+    }
+    out[c] = lo + m[9 + c];
+    out[3 + c] = hi + m[9 + c];
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00522910. v' = (v - t) * transpose(R): the inverse of a
 // rigid top.
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count) {
@@ -506,6 +603,20 @@ void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
   do {
     *dst++ = transform(*src++, g_stack.matrix().m);
   } while (--count != 0);
+}
+
+// Mech3.exe 1.2 @ 0x00522ab0. Each corner is (x r0 + y r1) + (z r2 + t).
+void box_corners(const float* m, const float box[6], float out[8][3]) {
+  static const int kPick[8][3] = {{0, 1, 5}, {3, 1, 5}, {3, 1, 2}, {0, 1, 2},
+                                  {0, 4, 5}, {3, 4, 5}, {3, 4, 2}, {0, 4, 2}};
+  for (int i = 0; i < 8; ++i) {
+    const float x = box[kPick[i][0]], y = box[kPick[i][1]], z = box[kPick[i][2]];
+    for (int c = 0; c < 3; ++c) {
+      const float xy = x * m[c] + y * m[3 + c];
+      const float zt = z * m[6 + c] + m[9 + c];
+      out[i][c] = xy + zt;
+    }
+  }
 }
 
 }  // namespace zmth

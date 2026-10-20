@@ -37,6 +37,7 @@ class Recorder : public platform::Render3D {
     return g_next_handle++;
   }
   void release_texture(int32_t) override {}
+  void update_texture(int32_t, int, int, const uint8_t*) override {}
   void set_viewport(int, int, int, int) override {}
   void clear(bool color, uint8_t r, uint8_t g, uint8_t b) override { g_log.insert(g_log.end(), {3, color, r, g, b}); }
   void begin_scene() override { g_log.push_back(4); }

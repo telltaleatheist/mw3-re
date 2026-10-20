@@ -14,5 +14,6 @@ inline int32_t msvc_ftol(double x) {
 // double and then casting rounds twice, which differs in rare ties.
 float x87_mul_f24(double a, double b);
 float x87_div_f24(double a, double b);
+float x87_add_f24(double a, double b);  // a + b, the same single rounding
 
 }  // namespace crt

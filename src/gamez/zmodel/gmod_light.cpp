@@ -9,6 +9,7 @@
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -87,11 +88,12 @@ float cloud_table(uint32_t i) {
 }
 
 // The table index the exe takes with the 1.5 * 2^52 rounding trick: the low
-// word of (a * 128/2pi + 1.5 * 2^52) as a double. The x87 runs at 24-bit
-// precision in play, so the sum keeps no low bits: the index is always 0 and
-// the pattern is flat (docs/drafts/lighting.md, Clouds). Kept as written.
+// word of (a * 128/2pi + 1.5 * 2^52) as a double, a * 128/2pi rounded on a
+// 53-bit FPU (zfix fpu53, as in play). At 24 bits the sum keeps no low bits:
+// the index is always 0 and the pattern is flat (render-lighting.md, Clouds).
 uint32_t cloud_index(float a) {
   const float scaled = a * 20.371832f;          // 0x005ce480, 128 / 2pi
+  if (zfix::options().fpu53) return static_cast<uint32_t>(static_cast<int64_t>(std::nearbyint(double{scaled})));
   const float sum = scaled - -6755399441055744.0f;  // 0x005ce488
   const double d = sum;
   uint64_t bits;

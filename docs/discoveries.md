@@ -37,7 +37,7 @@ From the heat update at 0x4192f0 (details: `heat.md`).
   time. So the faster the game ran, the faster lava cooked you: about 1.5 heat a
   second at 30 fps, 3 at 60 fps. The game waits for the monitor's refresh, so
   in 1999 that topped out around 60-85 fps; at 144 fps today it would be over
-  7 a second.
+  7 a second. The rebuild fixes it at 1.5 a second, what lava did at 30 fps.
 - **Critical hits can destroy heat sinks, but your pilot never says so.** One
   kind of critical hit on a part (0x460d50, type 0) knocks out a heat sink, and
   cooling drops 10% for each one lost. It is meant to play a voice callout, but
@@ -158,6 +158,29 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 (details: `movement.md` and the `movement-*.md` files). The ones marked
 "code reading" have not been run in the emulator yet.
 
+- **Every gait animation is 60 frames.** Whatever the motion file holds, each
+  walk, trot or run is resampled to 60 keys at load and turned to start with
+  the left foot furthest forward; the step animation is then shifted so its
+  footfall lines up with the walk's, which is what makes stepping off into a
+  walk seamless.
+- **The right leg's limp is the left one mirrored**, and so is the left-side
+  collapse: the files only have one of each. A mech without a collapse
+  animation falls over backwards instead.
+- **Falls and getting up play at 20 frames a second, collapses at 15**, slower
+  than the 30 the gaits run at.
+- **When you start walking, the right foot snaps.** For the first two thirds
+  of a second the legs ease from their last pose into the walk, except that
+  the right foot's angle jumps straight to the walk's while the left one
+  eases twice over (a mix-up in the original code, kept).
+- **In the cockpit your torso barely sways.** The player's torso takes only a
+  tenth of the walk animation's sway when you look out of the cockpit, the
+  full amount in the outside views.
+- **Mid-jump, the legs hold a frozen standing pose.** The game has a slot for a
+  jump pose but never loads one, so while the jets fire the legs take the
+  stand animation at the moment it was left.
+- **MASC is all or nothing.** Turning MASC on raises the top speed by a
+  quarter and keeps your current speed; turning it off drops the top speed at
+  once, so the mech slows immediately.
 - **Your throttle is not a speed, it picks a gait.** Each mech's file lists
   where its walk, trot and run start, as fractions of full throttle; the
   animation of that gait then carries the mech: its legs' stride is its
@@ -233,13 +256,47 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   when it hits a wall; yours drops to 10%. Only your mech has the low probes at
   its feet, so AI mechs walk over low things you would bump into.
 
+- **A mech wading into water about its own height grinds to a halt.** The
+  slowdown for wading is computed from how much of the mech is still above
+  the water, so it reaches zero just before the water covers the mech; once
+  the water is deeper the mech walks at 70% again. In a river of your mech's
+  height you stand still. (The rebuild fixes this to a smooth slowdown down to
+  70%.)
+- **Many movement steps happen once per frame**, so they depend on the frame
+  rate: how long a fall keeps its momentum, how hard slopes and ledges shove
+  you, how quickly the walk blends in from a standstill (20 frames), and the
+  20 damage a frame you deal to a building you lean on. At 144 fps a building
+  takes 2,880 damage a second instead of 600. (The rebuild makes them per
+  second, as at 30 fps.)
+- **Pushing into another mech hurts both of you, by weight.** Each frame of
+  contact deals damage from your speed (squared, against your top speed), and
+  the heavier mech takes the smaller share; the other mech is also shoved a
+  little along your direction. Allies are spared the damage.
+- **Ramming a vehicle damages it with 20 x (speed / top speed)^2 a frame**; if
+  that kills it you drive straight through, otherwise it is shoved.
+- **Hitting your head on a ceiling while jumping bounces you down** at two
+  thirds of your climb and costs a sliver of head armour; walking into
+  something low crushes your head and torso by the volume of what you hit, and
+  your mech ducks.
+- **Bumping into a mech that stands within 9 m** pushes you apart, swings you
+  round at almost twice your turn rate and cuts your throttle to a tenth.
+- **Your mech leans into turns** (by its `lean_angle`), but only half as much
+  in the cockpit view.
+- **The "last part hit" resets to the torso one second after a hit**, and
+  keeps being refreshed every frame after that.
+- **A mech lying on the ground that is powered down still turns its torso
+  and moves its parts**; one that is powered up holds still until it gets up.
+
 ## Weapons
 
 From the weapon code (weapons.md).
 
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the
   MechLab's weapon table (0x5e64f0) only lists the ER PPC, so no mech can
-  carry the plain one.
+  carry the plain one. Its name is in the game's text (message 0x2fd, right
+  after the last weapon's) and the slot it once had between NARC and the
+  pulse lasers is empty: it was moved to the end of the list and its row was
+  never added. The rebuild adds it, so the mech lab offers the PPC.
 - **Hot lasers recharge slower.** Above heat 0.5, a beam weapon's recharge is
   multiplied by 0.5 / heat (0x4b43bf): at heat 1.0 lasers refill at half speed.
 - **Small lasers are the slowest to recharge**: 4 seconds, against 3 for medium
@@ -319,12 +376,13 @@ From the weapon code (weapons.md).
   shipped, so the game moves on to the next one: medium loads the 11 kHz
   low set. The "medium" playback format is never read either: the setup
   asks `sounds.zrd` for `"MED"` (0x570ccf) where the file says `MEDIUM`
-  (sound.md).
+  (sound.md). The rebuild reads `MEDIUM`.
 - **The game asks the sound card for mono.** The playback formats in
   `sounds.zrd` say stereo for high quality, but the setup stores 1 channel
   whatever the file says, so on the Windows 9x DirectSound of the time the
   whole mix was mono and the left/right panning of 3D sounds was lost. Since
   Vista Windows ignores that request, so players today hear it in stereo.
+  The rebuild reads the file's channel count, so it asks for stereo too.
 - **60 sounds were never shipped.** `sounds.zrd` names 1058 sounds, but 60
   WAVs are in neither archive: Dom's four ejection lines, Alan's fourth
   "disregard", the wingmen's acknowledgements ("sure sir", "affirmative",
@@ -337,6 +395,8 @@ From the weapon code (weapons.md).
   `sounds.zrd` those six groups list `"PLAY_COUNT" 2` after their name, and
   PLAY_COUNT is not a group keyword: the reader takes it as the group's
   name, so all six are called "PLAY_COUNT" and the lookups find nothing.
+  The rebuild restores them: Dom, Alan and Epona now call out low and empty
+  ammo, each line at most twice a mission (a hint to rearm at the MFB).
 - **Radio chatter queues newest first.** Lines marked QUEUE wait their turn,
   half a second apart, but the queue is a stack: the most recent line plays
   next, and a line that waited more than 5 seconds is dropped unheard.
@@ -358,11 +418,13 @@ From the weapon code (weapons.md).
 - **Volume fades rarely finish.** A fade moves 25 dB a second and ends only
   when it lands exactly on its target, which happens only at full volume or
   silence; a fade to anything in between keeps nudging the volume up and
-  down one step around the target for as long as the sound plays.
+  down one step around the target for as long as the sound plays. Fixed in
+  the rebuild.
 - **Unpausing replays sounds.** Leaving the pause menu does not resume what
   was playing: for every sound that was playing it starts all its copies
   again (any that had already finished included, from the start), and twice
-  for a sound that had two copies playing.
+  for a sound that had two copies playing. Fixed in the rebuild: only what
+  was playing resumes, from where it stopped.
 
 - **Sounds are plain WAV files** packed in `soundsL.zbd` (11 kHz, 8-bit) and
   `soundsH.zbd` (22 kHz), 999 of them, named in `sounds.zrd` by set: menus,
@@ -580,14 +642,28 @@ From the render path (render.md).
   tree, so lone objects are always sent on to be drawn.
 - **The sky is a dome that follows you** (position only), drawn past the far
   plane so it never gets cut off.
-- **Mechs cast real shadows, but hardware mode probably never showed
-  them** (render-shadows.md). Every mech within 100 m of you, and your own,
+- **Mechs cast real shadows** (render-shadows.md). Every mech within 100 m of you, and your own,
   gets a small picture of its silhouette, blurred, laid on the ground along
   the sun's direction and multiplied over whatever it falls on (up to seven
   shadows overlapping on one surface). The code that paints the silhouette
-  rounds with a trick that needs full FPU precision; under Direct3D the
-  picture comes out plain white, so the shadow passes run every frame and
-  change nothing. Found in the emulator; still to be confirmed in play.
+  rounds with a trick that needs full FPU precision; with the FPU cut to
+  24 bits (as DirectX 6 can leave it) the picture comes out plain white and
+  the shadows vanish. On Windows 11 with DDrawCompat they show (checked in
+  play, 2026-10-20); whether they showed on 1999 Windows 98 machines is not
+  known. The game's own code draws every mech's
+  shadow: a 64x64 picture for yours, 32x32 for the others, covering a
+  quarter to half of it in the mechs' standing pose (more for a low sun, as
+  on the second campaign's maps and the training map).
+- **How dark a mech's shadow is depends on the sun, the clouds and the
+  distance.** The shade is the share of the sunlight that is direct (a map
+  with strong ambient light gets pale shadows), lighter where the cloud
+  pattern dims the sun, and from 50 m to 100 m away from you a mech's shadow
+  fades to nothing; beyond 100 m it is dropped. The shadow's size never
+  changes with distance, only its darkness.
+- **A shadow only covers the mech's standing box.** The picture spans the
+  mech's bounding box slid along the sunlight; any part that sticks out of
+  it (an arm swung far out) makes that whole part vanish from the shadow
+  rather than being cut off at the edge.
 - **Weapon lights were meant to light up the ground around them.** The PPC,
   autocannon, LBX, Gauss, pulse laser, flamer and AMS lights, a flickering
   light and the cave lights of the training mission are flagged to cut the
@@ -620,7 +696,8 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
   0x474740 rejects (sizes from `rmechtex.zbd`, by the primary name). The
   Supernova has one extra damage item too; `supern_d03` (128x128) is paired
   with a 128x64 mask, which fits only its alternate `supernova18`. Whether the game logs and drops these at run time is
-  unverified (it depends on which name the entry loads, +8 or +0xc).
+  unverified (it depends on which name the entry loads, +8 or +0xc). The
+  rebuild drops the extra slots, so both show their battle damage as drawn.
 - **Variant camos are only suffixes.** Every camo after the first is the
   primary list with `_b`, `_c` ... appended to each texture name; the files
   never list variant textures one by one.
@@ -736,7 +813,9 @@ From the animation files (anim.md).
   animation's "wait until this object is active" condition names an object
   that is not in the level, the game drops every condition of that
   animation, not just the broken one, and the animation can then fire
-  without waiting.
+  without waiting. None of the six shipped missions trips over it (checked
+  against every level), so it only bites in modded missions. (Fixed in the
+  rebuild: only the broken condition is dropped.)
 - **Every animation's reset script runs once while the mission loads**, and
   what it leaves is the starting state of the level (anim-postload.md).
 - **Lights, sounds and smoke tied to animations start switched off**: in the
@@ -751,6 +830,38 @@ From the animation files (anim.md).
 - **The list of source files is read and ignored.** Each anim.zbd starts with
   the names and dates of the text files it was built from; the game reads
   past them without looking.
+- **Distance- and zone-triggered effects check only every few frames.** An
+  animation that runs only near the player or in a zone tests that once,
+  then waits 1 to 10 frames (a counter handed round in turn) before testing
+  again, so such effects start or freeze a few frames late (anim-run.md).
+- **Flying debris gives up after 15 seconds of falling.** A piece thrown by
+  an animation with gravity (a torn-off mech limb, rubble) that finds no
+  ground under it stops moving after 15 seconds in the air, wherever it is.
+- **Debris lands softly or bounces.** On touching the ground a piece moving
+  sideways bounces up by half its step; one falling straight is set on the
+  ground. If it lands slower than it accelerates it stops; otherwise it keeps
+  a fifth of its speed. Pieces can start a different sequence and sound
+  depending on the surface (two special surface types).
+- **A flying piece's first ground check can happen in the wrong place.** The
+  matrix the game works out for a piece thrown "in its parent's frame" gets
+  leftover memory as its position, and that matrix is then kept as the
+  piece's world position, so in the original its next ground test looks
+  under an undefined spot (fixed in the rebuild with the matrix code).
+- **An "if" with several "else if" branches tests the first branch's object
+  in every branch.** Conditions about an object (is the ground under it,
+  is it below a height) always read the object named by the first "if",
+  whatever object the later branches name.
+- **Light animations cannot shrink a light to nothing.** A light's near range
+  pushed below 0 jumps to 1, and a far range pushed below the near one is
+  set one unit past it.
+- **Every animation start is written down for the savegame and the network.**
+  Each start, reset and connector call is logged with its arguments (1000
+  entries, doubled when full), except effects added to the world for the
+  run and effects without a name.
+- **An animation clock never passes a day.** A looping animation's clock is
+  pulled back to 86,400 seconds when it gets past that.
+- **"-99" means "never restart while running".** An animation whose reset
+  time is -99 ignores calls to start it while it is still running.
 
 ## Smoke and fire
 
@@ -785,7 +896,8 @@ are all "puffers": emitters that drop little textured squares.
   trails to "no slowing at all", so they ignore the wind and keep their
   launch speed; at 30 fps they slow and drift. Above about 90 fps no smoke
   drifts. The wind's gusts also change per frame, so they change faster the
-  faster the game runs.
+  faster the game runs. The rebuild makes both work per second (as at 30
+  fps), so the smoke drifts the same at any frame rate.
 - **There is no limit on smoke.** Every puff of every effect is kept in one
   list until it dies; a busy battle simply makes it longer.
 - **Unused features.** The engine can colour and tint smoke over its life,
@@ -830,3 +942,32 @@ are all "puffers": emitters that drop little textured squares.
   "pops" leave it resuming the bottom screen, and too many "pushes" overwrite
   the top one. Pushing onto an empty stack would crash; the game always starts
   with a "replace", so it never happens.
+
+## Menus
+
+From the 2D front end, zTwoD (details: `twod.md`).
+
+- **Menus only redraw what changes.** Nothing clears the screen between menu
+  frames: each button repaints its own rectangle when it changes, first
+  painting back a snapshot of the empty menu taken when it opened. Text is
+  the exception and repaints every frame.
+- **Check boxes play their hover sound twice.** Moving onto an unticked
+  toggle button starts its rollover sound, then the ordinary button code
+  starts it again at the same moment (0x59db00, then 0x59c650).
+- **Every menu could have had movies, music and text in its background.** The
+  menu loader reads background movies (with a transparent colour), looping
+  sounds or CD tracks, and fixed texts for any menu, but no shipped menu uses
+  them: the menus' movies and music come from the game's own code.
+- **A blinking-text mode exists but nothing uses it.** Flashing labels only
+  ever swap colours; the code for text that blinks on and off is there, with
+  no way to switch it on.
+- **An unanswered question box closes itself.** The yes/no and OK/Cancel boxes
+  run their own loop for at most 100,000 frames, about 28 minutes at 60
+  frames a second, then close with no answer: the main menu's "quit?" then
+  counts as "no" and you stay (0x5a7288).
+- **Menu text is real Windows fonts, and could have been two-tone.** Labels
+  are drawn by Windows with TrueType fonts (Lucida Console for nearly all of
+  them, Arial for a few, Impact once; the game ships the three .ttf files)
+  into a picture, usually with a drop shadow. The code can also draw text
+  with a gradient, white first and then recoloured row by row from a top
+  colour to a bottom one, but no shipped font asks for two colours.

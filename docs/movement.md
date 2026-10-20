@@ -92,6 +92,24 @@ spd < trot.hi: trot/run (10, 8);   > run.lo: run (6, 9); then +0x58c++
 each switch copies the old animation's phase into the new one (0x41ef00)
 ```
 
+**Deep water, a fix.** The water factor is meant to slow a wading mech the
+deeper it goes, to 70% when the water reaches its height: the deep case
+(d >= H) is exactly 0.7, the constant the shallow case multiplies by. But the
+shallow case multiplies 0.7 by `(H - d) / H`, the part of the mech still above
+the water, so the factor starts at 0.63 at a tenth of the height, falls to a
+standstill as the water nears the top, and jumps back to 0.7 deeper still: a
+mech crossing a river of its own height stops dead in it (Owen: game-breaking).
+The port draws the line it was meant to be, from full speed at 0.1 H to 0.7
+at H, then 0.7 (`FIX (bug)`, `zfix::options().deep_water`; the probes turn it
+off, so `test_gait.py` checks the exe's curve; `tests/test_fixes.cpp`
+checks the line). The step from 1 to 0.63 at 0.1 H goes with it.
+
+**Per frame, now per second.** The movement's per-frame steps (a fall's
+momentum x0.6, the skis' step, slope and ledge pushes and the far mechs'
+push x3, the jets' climb cap of 6, the 20-frame blend-in, 20 damage to
+touched objects) run per 1/30 s in the port (`FIX (B)`, `zfix::frame_steps`,
+fixes.md), equal to the exe's at 30 fps.
+
 States (+0x578, previous +0x57c) are named in `movement-jump.md`. Animation
 slots (+0x424 + 4i, made by 0x415ca0): 0/1 limp left/right, 2 stand, 3 step,
 4 walk, 5 trot, 6 run, 7..10 the blends stand/step, step/walk, walk/trot,
@@ -184,6 +202,9 @@ into code not ported go through `MoveCalls`, `SkisCalls` and the existing
 | Ground probes: Update, parabola, height, water, ski pitch, ground pick, integrate, slope slide; the vector helpers | 0x4765b0, 0x475c80, 0x475de0, 0x475ea0, 0x4764a0, 0x477820, 0x477940, 0x477620; 0x4020d0, 0x51e3d0, 0x51e210, 0x525840 | `mech3/mech_skis`, `gamez/zmath/zmth_vector` | `test_skis.py`: 14400 frames walking, jetting and falling on the six worlds, the original's ground query 0x4ee2f0 run on each; plus made-up ground for the pushes. The ski pitch's sine and cosine within 2e-7 (the CRT asin is an x87 stand-in) |
 | Move, jump jets, AddJumpJet, landing (with the knockdown it starts) | 0x417a80, 0x4173b0, 0x417300, 0x4162c0 | `mech3/mech_move` | `test_jets.py`: 40000 calls |
 | Action queue and state machine: Queue, ActionUpdate, StateForAction, SoundForAction, DeathFall, Stagger, GetUp, KnockedDown on the real queue; the action's Reset, Advance, IsStarted, Stop | 0x416780, 0x416860, 0x416660, 0x416720, 0x41b760, 0x41b7f0, 0x41b840, 0x41b660; 0x420f40, 0x420f80, 0x421000, 0x421060 | `mech3/mech_move`, `mech_anim` | `test_actions.py`: 1500 runs, 114750 calls through falls, lying down, getting up, deaths, remote mechs |
+| Mech::Update whole: the entity budget, death stop, view key, yaw decay, lying countdown, the call order (gait or actions, turn, torso inputs, part updates, Collide), lean, orientation step, world velocity and push, display matrix, push decay or throttle stop, hit timeout, movement sounds, controls unwrap, knock decay; the quaternion helpers; object3d translate-by | 0x419fc0, 0x5a8910, 0x5a8960, 0x466200, 0x466240, 0x41d190; 0x525210, 0x525500, 0x5255d0, 0x525900; 0x4fc1b0 | `mech3/mech_update`, `gamez/zentity/zent_manager`, `zmath/zmth_vector`, `zclass/object3d` | `test_update.py`: 20000 frames, every call out logged; 12 of 12 breaks caught |
+| Collision: Collide whole, probe setup, the sweep, query and sort, the wall (with reflect), ceiling, vehicle, mech and touch responses, the bump off nearby mechs, the network's record, TurnRate | 0x4225c0, 0x422360, 0x422d20, 0x422ef0, 0x423010, 0x4231c0, 0x51e280, 0x423600, 0x4237c0, 0x423a20, 0x423c90, 0x418f70 | `mech3/mech_collide` | `test_collide.py`: 20000 Collides on scripted crossings (the query itself is in `test_di`); 17 of 17 breaks caught |
+| The engine's ground and segment queries (cls_di.c) with their node walks, box tests, the model's polygon tests, the 2D box corners, the textured crossing's UV gradient | 0x4ee2f0, 0x4ee790, 0x4eeb50, 0x4eec10, 0x4f1350; 0x4efcd0, 0x4efef0, 0x4f0480, 0x4f08c0, 0x4f09b0, 0x4f1640; 0x54c5f0, 0x54c330, 0x54f450, 0x54e2b0, 0x54ea30, 0x54fa10; 0x4ec150, 0x522d60, 0x5240d7 | `zclass/cls_di`, `zmodel/gmod_hit`, `zclass/class`, `zmath` | `test_di.py`: 9000 ground and 9000 segment queries on the six worlds (half of them with a quarter of the polygons made strips and some nodes boxed), every record slot, the model caches and node flags |
 
 Breaking the port showed each test catches what it covers: accel and decel
 swapped, the jump thrust rate, the deeper foot slowing instead of the
@@ -192,32 +213,36 @@ gravity x3 on the ground, the ledge threshold, the ceiling's 4 s, the jet
 refill rate, the sideways landing's fall chance, the blend-in floor, landb
 after fallb, the time lying down, the stagger direction: 15 of 15 caught.
 
+Corrections found while porting the frame: Collide's result is
+`== 1` (blocked), its booleans read straight; the orientation step's sine goes
+through a float before the division (fsincos, not fsin); the display matrix
+is not refreshed on a frame the collider stops the mech (+0x374, +0x375 or
++0x377); a mech lying down only skips the turn and the part updates when
+powered (a powered-down one turns and updates them); the lean is halved in
+the cockpit view; 0x413cb0 gets the frame time after it was cleared (0 on a
+full update). The shared matrix product (0x51fee0, 0x51fb30, 0x521670) adds
+its z column from the last term and its z translation with t[11] first: the
+port's product had the textbook order, an ulp off now and then (fixed in
+zmth_matrix; the render tests pass either way, the segment query caught it).
+
+## Ported since: animations, the mech data, the pose
+
+| Piece | Original | Port | Test |
+|---|---|---|---|
+| zSIScript sampling: phase, translation, rotation, velocity and their blends, slerp, velocity keys, resample, key rotation, mirror, find / free parts | 0x5abae0, 0x432a80, 0x5aafe0..0x5ab8c0, 0x525ce0, 0x5aac60, 0x5aa780, 0x5aaa40, 0x5aa940, 0x5aa270, 0x5aa310 | `gamez/zsiscript`, `zmath` | `test_mechanim.py`: every gait and one-shot of the 19 mechs loaded from motion.zbd on both sides (272 motions, every key), 7600 random sampler calls; 15 of 16 breaks |
+| MechAnim (vtable 0x5bd1f0: init 0x41f580, footfalls 0x41fd30, start at the left foot forward 0x41fc40, mirror 0x41f680, copy 0x41f180), the blend 0x5bd240, the one-shot 0x5bd290, the loaders 0x41f000 / 0x420d00 | | `mech3/mech_anim` | the same |
+| The mech type's load 0x431a70 (gaits 0x431350, one-shots 0x4315d0), copies 0x431fb0 / 0x432030, the gait table 0x4329c0, the engine speed 0x433030, MASC 0x41df50, set_max_speed's calls | | `mech3/mech_data`, `mech_move` | `test_mechdata.py`: the original's load run whole on each mech's reader tree; 275 animations, copies, gait tables, 114 MASC switches; 10 of 11 breaks |
+| set_pose (base, place, hip, foot, torso), the leg IK, the gait, jump and action poses | 0x460280, 0x460210, 0x4624b0, 0x4629b0, 0x464600, 0x463e40, 0x463c90; 0x417bbc.., 0x4177e7.., 0x416fb8.. | `mech3/mech_pose` | `test_pose.py`: 20000 calls on random leg geometries and scripted animations, the original run from inside Move, JumpJets and ActionUpdate; 15 of 17 breaks |
+
+The phase cache and the blends: `motion.md`, Playback; the pose:
+`movement-pose.md`.
+
 ## Left
 
-In the order they would go:
-
-1. **Mech::Update 0x419fc0** as a whole: the frame order above, the yaw
-   decay, the orientation step (expmap 0x525900, product 0x5255d0, the
-   bit-trick normalise 0x525500), the lean (0x525210, def `lean_angle`,
-   `lean_factor`), the world velocity and the move (0x4fc1b0, object3d
-   translate-by), the push decay, the knock decay, the lying countdown, the
-   movement sounds (0x41a7xx..0x41a9xx). Everything it calls is now ported
-   or a hook.
-2. **Collision** (`movement-collision.md`): the collider at +0xfc, probe
-   setup 0x422360, segments 0x422d20, sort 0x423010, the responses 0x4231c0,
-   0x423a20, 0x4237c0, 0x423600, 0x423c90, Collide 0x4225c0; then the
-   engine's segment query 0x4efcd0 (cls_di.c) on the real worlds, as
-   `test_skis.py` does for the ground query.
-3. **The engine's ground query 0x4ee2f0** (cls_di.c) itself: the port's
-   `SkisCalls::query` still needs it to run without the emulator.
-4. **The animation sampling** (mech_anim.cpp): the motion keys' phase,
-   lerp/slerp (0x525ce0) and velocity keys (0x5aac60), so `MechAnim::velocity`
-   and `MechAction::root` give the real hip motion; the blends (vtable
-   0x5bd240); the gait table loaders 0x431350 / 0x431a70 and 0x4329c0;
-   set_max_speed's rescale and MASC 0x41df50.
-5. **The pose on the parts**: Move's pose 0x417bbc.., the jump pose
-   0x4177e7.., the actions' pose 0x416fb8.., the leg IK 0x463e40 / 0x463c90,
-   and the part updates (torso 0x464e80 with 0x464ce0, hip 0x4623a0, arms
-   0x466510, feet 0x462a10 / 0x463110), mapped in `movement-ground.md`.
-6. The player's controls (0x427d60, input) and the AI's (0x4e96f0), the
-   crouch 0x41bda0, the landing and fall effects (rays, dust, splashes).
+1. **The part updates** the poses feed: torso 0x464e80 with 0x464ce0, hip
+   0x4623a0, arms 0x466510, feet 0x462a10 / 0x463110 (`movement-ground.md`),
+   the leg and hip setup 0x4637b0 / 0x462130 that make the IK's constants.
+   Until then `MoveCalls::foot_ground` stands in for 0x462a10.
+2. The player's controls (0x427d60, input) and the AI's (0x4e96f0), the
+   crouch 0x41bda0, the landing and fall effects (rays, dust, splashes;
+   `landing_dust`, `landing_pose`, `action_dust` hooks).

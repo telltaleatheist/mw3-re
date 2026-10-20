@@ -137,7 +137,12 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   data), marked `FIX (A)` / `FIX (B)` / `FIX (bug)` and listed in
   `docs/fixes.md`. The differential test checks the original path and says
   where the fix departs. Where the intent is a guess (balance), list it in
-  `fixes.md` as a candidate for Owen. The copy-protection and anti-tamper
+  `fixes.md` as a candidate for Owen. Every change from the original also
+  gets a plain-words line in `CHANGES.md` at the repo root (Owen,
+  2026-10-20: the list of what the rebuild changes). Play-changing fixes
+  sit behind `zfix::options()` (`per_second`, `bugs`; per-frame steps are
+  scaled to a 30 fps frame), which the probe library turns off so the
+  differential tests check the original path. The copy-protection and anti-tamper
   traps are removed (Owen, 2026-10-20), marked `FIX (trap)`
   (`docs/protection.md`).
 - Self-contained functions get a differential test (`tests/differential/`) that
@@ -151,11 +156,13 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   otherwise; the per-file `#pragma STDC FP_CONTRACT OFF` lines say the same). Then
   the clippers match bit for bit (`render-clip2d.md`). Only the CRT start-up
   sets the precision itself (0x5ac5a0: `_controlfp(_PC_53)`, before WinMain).
-  Open: whether Windows 11's DirectX runtime with DDrawCompat really leaves
-  the FPU at 24-bit. Four emulator findings depend on it (point-lit textures
-  black, frozen cloud shading, blank shadow images, black projected lights;
-  `fixes.md`); the quick check in play is whether mechs cast visible shadows
-  in hardware mode on Owen's PC.
+  Checked in play (Owen, 2026-10-20): mechs cast visible shadows in hardware
+  mode on Windows 11 with DDrawCompat, so the reference runtime does not
+  truncate there, and the four emulator findings that need 24-bit (point-lit
+  textures black, frozen cloud shading, blank shadow images, black projected
+  lights; `fixes.md`) do not happen in play. The port gives those four the
+  full-precision result by default, with the 24-bit one behind a switch for
+  the tests. Whether Win98 with real DirectX 6 hid them stays unknown.
 - No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
@@ -165,8 +172,9 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 
 ## Working with agents (2026-10-20)
 
-- Standing rule (Owen, 2026-10-20): **never more than 5 agents at a time,
+- Standing rule (Owen, 2026-10-20): **never more than 2 agents at a time,
   and agents never start agents of their own** (every agent prompt says so).
+  The limit was 5 until five at once hit the account's usage limit.
 - Each agent takes a piece with clean boundaries:
   leaf functions, or systems that meet others through a hooks struct the
   test stubs identically on both sides.
@@ -255,11 +263,19 @@ Each item is one sitting; findings go in `docs/`, quirks also in
       Left (`movement.md`, Left): Mech::Update 0x419fc0, collision, the
       engine's ground and segment queries (cls_di.c), animation sampling,
       the pose on the parts.
-- [ ] Mission animations: the reader, its lookups and the light/sound node
-      creators ported and checked against each mission's world
-      (`zeffect/zeff_anim_init`). Still hooked: the effect table (puffers
-      and zSound's lookup are ported). Next the post-load pass 0x50ae60,
-      mapped with a porting order in `docs/anim-postload.md`.
+- [ ] 2D front end (zTwoD): mapped (`docs/twod.md`); objects, layers, the
+      mouse routing, images, push and check buttons, text (GDI through
+      `ztwod::Host`), the cursor, sliders, list boxes, text boxes, the
+      message box, dialogs from their .zrd and the software blit ported,
+      emulator-checked on every shipped dialog (`test_twod.py`,
+      `test_twod_msgbox.py`, `test_twod_blit.py`). Left: the HUD
+      primitives, an SDL3 Host and the game's screens (twod.md 9).
+- [x] Mission animations: reader, post-load pass 0x50ae60 and the runtime
+      (every shipped event type, instances, reset/start/stop, the action
+      lists) ported and emulator-checked frame by frame on all six missions
+      (`zeffect/zeff_anim_*`, `docs/anim-run.md`). Hooked: zSound play, the
+      ground and ray queries (cls_di.c), events 3/16/20/21/36/37/38, weapon
+      detonation, zClass's node/frame update (0x4f7e00, 0x4f7f70).
 - [x] Mission scripts: the archive, reader, macros, preprocessor, dispatcher
       and every command's arguments ported (`gamez/zinterp`,
       `mech3/mech3_interp`), identical on every shipped script and on the six

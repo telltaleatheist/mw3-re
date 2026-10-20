@@ -5,6 +5,7 @@ set -e
 cd "$(dirname "$0")/../.."
 cmake --build build
 ./build/mw3tests | tail -1
+if [ -x build/mw3sdltests ]; then ./build/mw3sdltests | tail -1; fi
 for t in \
     spans \
     ztimer \
@@ -37,20 +38,28 @@ for t in \
     textures \
     texload \
     scenewalk \
-for t in \
     interp \
     app_loop \
     app_options \
     app_states \
-for t in \
     shadows \
+    shadow_image \
     puffers \
     sound \
     weapons_zrd \
     weapons_run \
     weapons_hit \
     weapons_fly \
-    ; do
+    twod \
+    twod_blit \
+    twod_msgbox \
+    update \
+    di \
+    collide \
+    anim_run \
+    mechanim \
+    mechdata \
+    pose \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

@@ -18,6 +18,8 @@ int camera_set_fov(Node* node, float h, float v);                  // 0x004f3b90
 Node* camera_world(Node* node);                                    // 0x004f3610  data +0
 int camera_set_rotation(Node* node, float x, float y, float z);    // 0x004f36b0
 int camera_set_position(Node* node, float x, float y, float z);    // 0x004f3870
+int camera_add_rotation(Node* node, float x, float y, float z);    // 0x004f37c0
+int camera_add_position(Node* node, float x, float y, float z);    // 0x004f3920
 int camera_set_lod_scale(Node* node, float f);                     // 0x004f3ff0
 int camera_set_horizon(Node* node, Node* horizon);                 // 0x004f4090  EDX horizon
 int camera_set_horizon_xz(Node* node, Node* horizon);              // 0x004f4100
@@ -102,6 +104,11 @@ struct WorldRenderHooks {
 WorldRenderHooks& world_render_hooks();
 
 void render_node(Node* node, int32_t siblings);    // 0x004f5910 ECX node, EDX (see the doc)
+// The shadow-image walk (zmod::shadow_draw, docs/render-shadows.md): an
+// active object3d with its matrix, or a LoD whose +4 is not above 0, casts
+// its model and children.
+void shadow_object3d(Node* node);                  // 0x004f7670
+void shadow_lod(Node* node);                       // 0x004f7750
 int32_t view_hull(float (*points)[3], int32_t count);  // 0x004f5a90  XZ convex hull in place
 int pick_cells(Node* world, Camera* camera);       // 0x004f5c80 ECX world node, EDX its data
 int pick_cells_virtual(Node* world, Camera* camera);  // 0x004f61b0

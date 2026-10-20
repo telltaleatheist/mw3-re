@@ -45,5 +45,13 @@ tests/differential/run_all.sh   # all of the below
   `fixes.md`, `symbols.csv`.
 - `tools/`: the analysis scripts and the Ghidra script.
 
+## Run
+
+With SDL3 and SDL3_ttf (`brew install sdl3 sdl3_ttf sdl3_sound`) the build
+makes `build/mw3`, the game on SDL3: `build/mw3 path/to/mw3-1.2` runs the
+original start-up; `build/mw3 --mission c1` starts straight into a mission
+world with a free camera (`docs/program.md`).
+
 Music: put the CD's audio tracks in `music/` as `track02.ogg`, `track03.ogg`
-and so on (ogg, flac, wav or mp3), numbered as on the disc.
+and so on (ogg, flac, wav or mp3), numbered as on the disc, in the write dir
+or the game folder (`docs/program.md`).

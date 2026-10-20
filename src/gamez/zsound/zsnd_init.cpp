@@ -7,6 +7,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zsound/zsnd_cd.h"
+#include "gamez/zutil/zfix.h"
 
 namespace zsnd {
 
@@ -52,6 +53,9 @@ void read_playback(zrdr::Node* pf, const char* key, int i) {
   st.playback[i].rate = static_cast<int32_t>(raw(n->list[1]));
   st.playback[i].bits = static_cast<int32_t>(raw(n->list[2]));
   st.playback[i].channels = 1;
+  // FIX (bug): the data's channel count is read, so the high format is stereo
+  // and the 3D sounds' pan is heard (the exe forced mono).
+  if (zfix::options().bugs) st.playback[i].channels = static_cast<int32_t>(raw(n->list[3]));
 }
 
 bool has(zrdr::Node* n, const char* key) { return zrdr::find(n, key) != nullptr; }
@@ -227,7 +231,8 @@ int32_t read_syntax2(zrdr::Node* root, LoadFn fn, int32_t demo) {
   if (zrdr::get_float(root, "SPEED_OF_SOUND", &sos)) set_speed_of_sound(sos);
   if (zrdr::Node* pf = zrdr::find(root, "PLAYBACK_FORMAT")) {
     read_playback(pf, "HIGH", 0);
-    read_playback(pf, "MED", 1);  // never matches "MEDIUM": no medium entry
+    // FIX (bug): the exe asks for "MED", which never matches the data's "MEDIUM".
+    read_playback(pf, zfix::options().bugs ? "MEDIUM" : "MED", 1);
     read_playback(pf, "LOW", 2);
   }
   zrdr::Node* demo_sets = nullptr;
@@ -301,7 +306,7 @@ int32_t read_syntax2(zrdr::Node* root, LoadFn fn, int32_t demo) {
       }
       for (int f = 0; f < 3; ++f) s.formats[f] = defaults[f];
       read_format(zrdr::find(node, "HIGH"), s.formats[0]);
-      read_format(zrdr::find(node, "MED"), s.formats[1]);
+      read_format(zrdr::find(node, zfix::options().bugs ? "MEDIUM" : "MED"), s.formats[1]);  // FIX (bug) as above
       read_format(zrdr::find(node, "LOW"), s.formats[2]);
       s.freq_min = 20000.0f;
       s.freq_max = 90000.0f;
