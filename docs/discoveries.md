@@ -311,6 +311,11 @@ From the weapon code (weapons.md).
 - **CASE stops ammo crits but not heat cook-offs.** CASE in a hit part cancels
   an ammo critical there (0x460e30), but the overheating cook-off roll never
   checks for it.
+- **Clan CASE weighs nothing and works.** `equipment.zrd` gives Clan CASE 0 tons
+  and 0 critical slots (Inner Sphere: 0.5 and 1). The protection check only asks
+  whether the part lists a CASE (0x460c10), not its slots, so zero-slot CASE
+  protects like any other, and since equipment criticals are weighted by slots,
+  it can never be destroyed by one.
 - **"Fire rate" in the data is really a period.** The weapon reader stores
   1 / `FIRE_RATE` (0x583e87), the time between shots.
 - **Ultra ACs never jam**: they simply fire twice as often as the standard AC
