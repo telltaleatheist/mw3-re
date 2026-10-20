@@ -48,6 +48,13 @@ struct SegmentHits {
 // tested, then moved back, which can leave it an ulp off. Always 0.
 int ground_query(Node* world, float* probes, int32_t count, float top, GroundHits* out);  // 0x004ee2f0
 
+// ECX world node, EDX the record (its count reset), stack the point: the
+// polygons under one point, at most its y, one per node, in the walk's
+// order (a node's model before its children). The world's zone mode
+// applies; a point off the grid on a world without wrapping tests only the
+// world's own children. Returns 1 when none was found.
+int ground_point(Node* world, float x, float y, float z, GroundHits* out);  // 0x004edab0
+
 // What a segment query's caller sets: stop at the first crossing of
 // segment 0, and node flags that exclude a node (cleared by every query).
 struct SegmentOptions {

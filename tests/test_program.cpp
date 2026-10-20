@@ -1,6 +1,7 @@
 // The program's pieces that run without a window (docs/program.md): the
 // message DLL, the mounts and write dir, the music lookup, and the start-up
 // through InitInstance and the original main loop to the main menu's state.
+#include <cmath>
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -8,6 +9,7 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
@@ -32,6 +34,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
+#include "mech3/mission_world.h"
 #include "mech3/options.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
@@ -316,7 +319,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
     EXPECT(count("0x004ac860") == 1);  // the stealth entity's block (the vehicles' controllers are made)
     EXPECT(count("0x00414150") == 0);  // the mech is the port's
-    EXPECT(count("0x004161c0") == 1);  // its placement is not ported
+    EXPECT(count("0x004161c0") == 0);  // its placement is the port's
     // owens_01: the AI mech, its controller and brain.
     int32_t made = 0;
     const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
@@ -328,6 +331,18 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
       EXPECT(m.roster == 11 && m.parts == 11 && m.weapons > 0);  // an Owens (its model has no hands)
       EXPECT(m.team == 4);                                          // team 2: mask 4
       EXPECT(m.powering_down);                                      // p12 ("owens" 0 1)
+      // On the ground at its aiv.zrd place (-1767.7 3 -1229, yaw 30 degrees):
+      // the terrain there is at 3, the mech 0.01 above it, in the world.
+      EXPECT(m.in_world);
+      EXPECT(m.pos[0] == -1767.7f && m.pos[2] == -1229.0f);
+      EXPECT(m.pos[1] == static_cast<float>(3.0 + 0.01));
+      EXPECT(std::fabs(m.yaw_sin - std::sin(0.52359879f / 2)) < 1e-6f);
+      if (zcls::Node* w = mech3::world_hooks().world) {
+        float probe[3] = {m.pos[0], 103.0f, m.pos[2]};
+        static zcls::GroundHits hits;
+        zcls::ground_query(w, probe, 1, 103.0f, &hits);
+        EXPECT(hits.count >= 1 && hits.hit[0].height == 3.0f);
+      }
       const auto* c = static_cast<const mech3::AiControls*>(ai[0].controls);
       EXPECT(c->owner == ai[0].mech);  // the mech's constructor set it
       EXPECT(c->view == 2 && c->moves[1] && c->throttle_returns);   // 0x004265a0
@@ -757,6 +772,11 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     EXPECT(app.init_instance());
     mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
     engine.set_launch(l);
+    // The last test's world is kept (0x00490ab0 keeps the same mission's), its
+    // view made by that test's engine: this engine gets its camera, as the
+    // game's one engine has it, so the world's queries find the world.
+    if (mech3::missions().current != -1)
+      engine.set_mission_view(0, engine.handle_of(zcls::list_find_by_name(8, "camera1")));
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
@@ -765,6 +785,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
       int32_t player_n = 0, owens_n = 0;
       bool player_sees_owens = false, owens_hidden = false, owens_sees_player = false, nearest_first = true;
       bool owens_in_sight = false, picked = false, kept = false;
+      bool player_down = false, player_placed = false, far_sensed = false, near_distance = false;
     } seen;
     mech3::Handle player = 0, owens = 0;
     int fade_frames = 0;  // the mission start's fade in (0x0048eea0) runs first
@@ -772,7 +793,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
       if (app.current() == &mech3::states().fade && seen.frames == 0) ++fade_frames;
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
-      if (seen.frames == 3) {  // the Owens powered down: sensed, not in sight
+      if (seen.frames == 3) {  // as launched: 1433 m apart, beyond the player's 1000 m
         player = engine.field32(engine.pilot(), 0x14);
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
@@ -782,17 +803,35 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
         seen.player_first = !list.empty() && list[0] == player;
         seen.sorted = mech3::player_get_60b56c() == 1;
         mech3::SensedContact c[64];
+        const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
+        for (int32_t i = 0; i < n && i < 64; ++i) seen.far_sensed |= c[i].seen == owens;
+        // The launch leaves the player powered down (0x004782f0).
+        mech3::LaunchedMech pm;
+        seen.player_down = mech3::describe_mech(engine.object_of(player), &pm) && pm.powering_down;
+        seen.player_placed = pm.in_world && pm.pos[0] == -3200.9f && pm.pos[2] == -1225.1f &&
+                             pm.pos[1] > -35.9f && pm.pos[1] < -35.8f;
+        // Walked up: moved (vtable +0xdc) to the ground 300 m short of the Owens.
+        const float near[3] = {-2067.7f, -35.79f, -1229.0f};
+        mech3::move_mech(engine.object_of(player), near, 0.0f);
+      } else if (seen.frames == 4) {  // the Owens powered down: sensed, not in sight
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        mech3::SensedContact c[64];
         seen.player_n = mech3::sensed_contacts(engine.object_of(player), c, 64);
         for (int32_t i = 0; i < seen.player_n && i < 64; ++i) {
           if (i > 0 && c[i].distance < c[i - 1].distance) seen.nearest_first = false;
-          if (c[i].seen == owens) seen.player_sees_owens = true, seen.owens_hidden = !c[i].in_sight;
+          if (c[i].seen == owens) {
+            seen.player_sees_owens = true, seen.owens_hidden = !c[i].in_sight;
+            seen.near_distance = c[i].distance > 290.0f && c[i].distance < 310.0f;
+          }
         }
-        if (owens) {
+        if (made == 1) {
           seen.owens_n = mech3::sensed_contacts(ai[0].mech, c, 64);
           for (int32_t i = 0; i < seen.owens_n && i < 64; ++i) seen.owens_sees_player |= c[i].seen == player;
         }
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
-      } else if (seen.frames == 5) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
+        mech3::mech_power(engine.object_of(player), 0);                         // P powers the player up
+      } else if (seen.frames == 6) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
         for (int32_t i = 0; i < n && i < 64; ++i) seen.owens_in_sight |= c[i].seen == owens && c[i].in_sight;
@@ -801,7 +840,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
           const int32_t k = mech3::selected_contact(engine.object_of(player));
           seen.picked = k >= 0 && k < n && c[k].seen == owens;
         }
-      } else if (seen.frames == 6) {  // the pick holds over a frame: the sensors find it again
+      } else if (seen.frames == 7) {  // the pick holds over a frame: the sensors find it again
         const int32_t k = mech3::selected_contact(engine.object_of(player));
         mech3::SensedContact c[64];
         const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
@@ -812,10 +851,14 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     pump.limit = 400;
     app.run(pump);
     EXPECT(fade_frames > 1);
-    EXPECT(seen.frames >= 6);
+    EXPECT(seen.frames >= 7);
     EXPECT(seen.entities == 2 && seen.player_first && seen.sorted);
+    EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
+    EXPECT(seen.near_distance);
     EXPECT(seen.owens_in_sight && seen.picked && seen.kept);
+    EXPECT(seen.player_down && seen.player_placed);
+    EXPECT(engine.unported_counts().count("0x004782f0") == 0);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

@@ -65,6 +65,7 @@ for t in \
     pilotscreen \
     update \
     di \
+    place \
     collide \
     anim_run \
     action_lists \

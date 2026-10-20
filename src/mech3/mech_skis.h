@@ -75,6 +75,7 @@ class Skis {
   bool water_at(int side, float z, float* surface_y) const;  // 0x00475ea0
   void set_ski(int side, float angle, float lift);           // 0x004764a0
   void set_vy(float v);                                      // 0x00476590
+  void reset();  // 0x00475fb0: the six ski probes back under the skis, both skis level
 
   static float pick_ground(const GroundHits& hits, int* best, float probe_y, float step,
                            bool water_not_ground, int32_t* in_water, float* surface);  // 0x00477820

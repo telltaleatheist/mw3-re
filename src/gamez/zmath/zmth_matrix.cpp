@@ -558,9 +558,9 @@ void transform_points(Vec3* v, uint32_t count) {
   for (; count != 0; --count, ++v) *v = transform(*v, g_stack.matrix().m);
 }
 
-// Mech3.exe 1.2 @ 0x005231b0. A zero entry counts as positive.
-void transform_box(const float* m, const float box[6], float out[6]) {
-  for (int c = 0; c < 3; ++c) {
+namespace {
+void transform_box_columns(const float* m, const float box[6], float out[6], int step) {
+  for (int c = 0; c < 3; c += step) {
     float lo, hi;
     for (int r = 0; r < 3; ++r) {
       const float e = m[3 * r + c];
@@ -576,6 +576,13 @@ void transform_box(const float* m, const float box[6], float out[6]) {
     out[3 + c] = hi + m[9 + c];
   }
 }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005231b0. A zero entry counts as positive.
+void transform_box(const float* m, const float box[6], float out[6]) { transform_box_columns(m, box, out, 1); }
+
+// Mech3.exe 1.2 @ 0x00523040
+void transform_box_xz(const float* m, const float box[6], float out[6]) { transform_box_columns(m, box, out, 2); }
 
 // Mech3.exe 1.2 @ 0x00522910. v' = (v - t) * transpose(R): the inverse of a
 // rigid top, each sum in the x87's order (y and z start from their outer

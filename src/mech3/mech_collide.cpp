@@ -67,6 +67,16 @@ void Collider::clear_lists() {
   touches.clear();
 }
 
+// Mech3.exe 1.2 @ 0x00422500
+void Collider::place(const float m[12]) {
+  for (int32_t i = 0; i < count; ++i) {
+    const Vec3& l = local[i];
+    world[i] = {((l.x * m[0] + l.y * m[3]) + l.z * m[6]) + m[9], ((l.x * m[1] + l.y * m[4]) + l.z * m[7]) + m[10],
+                ((l.x * m[2] + l.y * m[5]) + l.z * m[8]) + m[11]};
+    last[i] = world[i];
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00418f70: the turn rate at the current throttle.
 float Mech::turn_rate_now() const {
   return (1.0f - std::fabs(controls->throttle) * 0.8f) * turn_rate;  // 0x005bcdf8, 0x005e1fcc

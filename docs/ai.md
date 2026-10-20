@@ -708,8 +708,8 @@ settings' copy without its orders, a radio without a voice.
 **In the program** (`app_mission.cpp`): player.cpp's hooks make the port's
 controllers over the vehicle's compiled net and record, and the AI mechs on
 them through the ported constructor chain (mech-build.md); the placement
-0x4161c0 is not ported (the mech stays where its constructor left it, the
-exe's always succeeds), the power-down runs `Mech::power`, the brain's +0x88
+0x4161c0 puts it on the ground at its record's place (mission-start.md
+section 11), the power-down runs `Mech::power`, the brain's +0x88
 is the brain's settings. The vehicles themselves are not ported, so their
 controllers are made and deleted. `mw3tests`
 `mission_start_reads_c1m1_vehicles_headless` checks c1 mission 1's AI mech:
@@ -1140,8 +1140,9 @@ Mad Cat and the Owens on the list, the player first; the player senses the
 Owens, not in sight while powered down, the Owens senses the player;
 after bramp wakes it, it is in sight, Ctrl+E selects it and the next
 frame's sensors keep it selected. (The satellite dish, 2 km out and without
-`radar`, is beyond the 1000 m; both mechs stand at the origin until the
-placement 0x4161c0 is ported.)
+`radar`, is beyond the 1000 m. Placed by 0x4161c0, the Mad Cat starts
+1433 m from the Owens and does not sense it; the test moves it 300 m short
+with SetPlace first.)
 
 Left: the turrets' pick 0x4d72b0 and the line of sight 0x4d5980 (zClass's
 segment walk 0x4eed90 is not ported), the AI's friendly-fire handler that

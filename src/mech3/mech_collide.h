@@ -38,6 +38,7 @@ struct Collider {
   bool any() const { return !vehicles.empty() || !mechs.empty() || !ceilings.empty() || !walls.empty() ||
                             !touches.empty(); }
   void clear_lists();              // 0x00422c60
+  void place(const float m[12]);   // 0x00422500: world and last = m * local
 };
 
 // The network's collision record a remote side sends (mech +0xd8).
