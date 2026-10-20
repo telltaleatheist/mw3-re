@@ -320,7 +320,7 @@ def make_case(seed, rec, crafted):
 
 def main():
     probe = setup_probe()
-    crafted_n = int(sys.argv[1]) if len(sys.argv) > 1 else 300
+    crafted_n = int(sys.argv[1]) if len(sys.argv) > 1 else 600
     recs = shipped(probe)
     stats = collections.Counter()
     calls = blocks = 0

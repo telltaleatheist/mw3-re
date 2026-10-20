@@ -23,6 +23,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zrdrvalve.h"
 #include "gamez/zutil/zutl_reg.h"
 #include "mech3/mission.h"
 #include "mech3/options.h"
@@ -293,6 +294,28 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
         EXPECT(b->steer.x34 == 20.0f && b->steer.x38 > 0.7071f && b->steer.x38 < 0.7072f);
       }
     }
+    // valves.zrd (docs/ai.md section 13): c1 mission 1's triggers; bramp's
+    // four records (wake owens_01, two delayed updates, a radio line), and
+    // setting it wakes the Owens and starts the two timers.
+    EXPECT(count("0x004e2120") == 0);
+    mech3::ai::Valve* bramp = mech3::ai::valve_find("bramp");
+    mech3::ai::Composite* c = bramp && bramp->chain ? bramp->chain->as_composite() : nullptr;
+    EXPECT(c && c->items.size() == 4);
+    if (c && c->items.size() == 4) {
+      EXPECT(static_cast<mech3::ai::ValveAction*>(c->items.front())->kind == mech3::ai::ValveAction::Shutdown);
+      EXPECT(static_cast<mech3::ai::ValveAction*>(c->items.back())->kind == mech3::ai::ValveAction::SoundOnce);
+    }
+    const mech3::ai::Valve* any = mech3::ai::valve_find("inside_c1m1");
+    EXPECT(any != nullptr);
+    if (bramp && made == 1) {
+      bramp->set(1);
+      mech3::LaunchedMech m;
+      EXPECT(mech3::describe_mech(ai[0].mech, &m) && !m.powering_down);  // the trigger woke it
+      const mech3::ai::Composite* timers =
+          mech3::ai::valve_timers() ? mech3::ai::valve_timers()->as_composite() : nullptr;
+      EXPECT(timers && timers->items.size() == 2);
+    }
+    mech3::ai::valves_end();
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

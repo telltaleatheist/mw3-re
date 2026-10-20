@@ -1219,6 +1219,32 @@ are all "puffers": emitters that drop little textured squares.
   yet (it is built at launch), so every voiced pilot made then gets its
   lines, enemies included. Lancemates who join at launch are checked
   against your mech.
+- **A trigger's "shutdown" wakes mechs.** valves.zrd's shutdown
+  action powers a mech up or down by its second number, and every one of
+  the 186 in the shipped missions says 0: up. They are how the mechs that
+  start a mission powered down come alive (c1 mission 1's Owens wakes on
+  the trigger `bramp`, which also starts the trucks and a radio line).
+- **"Mission complete" triggers do nothing.** A trigger can name
+  `missioncomplete`, but the function it calls is empty in the released
+  game (`missionabort` works); `missionreset` is not even made. No shipped
+  mission uses them: missions end through their objectives.
+- **Delayed triggers copy the value.** `delayupdate` fires on any change of
+  its trigger, and after the delay sets the other trigger to the value the
+  first had when it changed; a trigger that flips twice inside the delay
+  sets the other twice.
+- **A delayed trigger can swallow the next one.** When the only pending
+  delayed trigger fires and starts another delayed trigger, the game drops
+  the new one. In operation 3 mission 2, `ambush_powerup_down_a` starts the
+  three 10-second radio lines ig3214, ig3215 and ig3205 this way: when
+  nothing else is waiting at that second, they never play (likely; the
+  rebuild keeps them).
+- **"Any" and "all" triggers re-fire.** A trigger defined as any/all of a
+  list of others runs its actions every time one of them changes, even when
+  its own any/all answer stays the same: a sound on it can play more than
+  once.
+- **Operation 2 mission 2 can destroy you outright.** Its triggers
+  `destroy_player` and `destroy_dominic` blow up your mech and Dominic's
+  (likely the mission's scripted failure).
 - **The Owens has no hands.** Its model's arms end in the guns, so it is
   built with 11 parts where most mechs have 13.
 - **AI pilots plan by straight lines.** When a pilot needs a route to a

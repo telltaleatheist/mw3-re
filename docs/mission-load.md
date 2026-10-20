@@ -105,8 +105,10 @@ scroll list (0x005964c0(0)).
   animation hooks (puffers, sounds; zEffect's effect table is not ported, so
   a def naming an effect drops out), world.zrd's reader (wind, clouds and
   sun; weather does nothing), the reader archives, the sounds, the weapons
-  (`zwep::init` with the weapon_tick object) and the mission's vehicles
-  (`mech3::player_setup`, mission-start.md) and, for a debug launch, the
+  (`zwep::init` with the weapon_tick object), the mission's vehicles
+  (`mech3::player_setup`, mission-start.md: the AI mechs built on their
+  controllers, ai.md section 12), valves.zrd (0x004e2120, ai.md section
+  13) and, for a debug launch, the
   launch 0x00491150 that builds the player's mech (mech-build.md). The rest (effects, decals, the
   HUD, the stealth entity, the mechs' and AI's other set-up, objectives, the
   start animation) are logged once by address.

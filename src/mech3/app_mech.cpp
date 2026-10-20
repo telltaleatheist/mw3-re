@@ -204,6 +204,8 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   if (off == 0xc8) return m->enemies = v, true;
   return false;
 }
+void* mech_controls_of(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
+float mech_game_time() { return world().time; }
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v) {
   const Mech* m = static_cast<const Mech*>(mech);
   if (!m) return false;

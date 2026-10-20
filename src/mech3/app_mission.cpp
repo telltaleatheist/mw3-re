@@ -56,6 +56,7 @@
 #include "mech3/player.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zainetedit.h"
+#include "mech3/zrdrvalve.h"
 #include "platform/render3d.h"
 
 namespace mech3 {
@@ -279,6 +280,73 @@ struct WiredBrainHooks : ai::BrainHooks {
 };
 WiredBrainHooks g_brain_hooks;
 
+// valves.zrd's actions (mech3/zrdrvalve) on what the program has: the AI
+// mechs by their records' names (the other vehicles are not ported), their
+// controls and brains, Mech::power, zSound. The rest is logged.
+struct WiredValveHooks : ai::ValveHooks {
+  GameEngine* e = nullptr;
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  void report(int32_t level, int32_t line, const char* text) override {
+    if (!e->quiet) std::fprintf(stderr, "mw3: report %#x ZRdrValve.cpp:%d %s\n", level, line, text);
+  }
+  Handle sound_find(const char* name) override { return e->sound_find(name); }
+  void sound_play(Handle s) override {
+    if (auto* o = static_cast<zsnd::Object*>(e->object_of(s))) zsnd::play_at(o, nullptr, 1.0f, nullptr);
+  }
+  Handle target_find(const char* name) override {
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; name && i < n; ++i)
+      if (std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
+    return ValveHooks::target_find(name);
+  }
+  Handle entity_find(const char* name) override {
+    const Handle h = target_find(name);
+    return h ? h : ValveHooks::entity_find(name);
+  }
+  bool mech(Handle h) const {
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; i < n; ++i)
+      if (e->object_of(h) == m[i].mech) return true;
+    return false;
+  }
+  Handle as_vehicle(Handle o) override { return mech(o) ? o : ValveHooks::as_vehicle(o); }
+  Handle vehicle_of(Handle o) override { return mech(o) ? o : ValveHooks::vehicle_of(o); }
+  Handle mech_of(Handle o) override { return mech(o) ? o : ValveHooks::mech_of(o); }
+  Handle controls_of(Handle v) override {
+    return mech(v) ? e->handle_of(mech_controls_of(e->object_of(v))) : ValveHooks::controls_of(v);
+  }
+  ai::Brain* brain(Handle c) const {
+    auto* ctl = dynamic_cast<AiControls*>(static_cast<MechControls*>(e->object_of(c)));
+    return ctl ? ctl->brain.get() : nullptr;
+  }
+  Handle brain_of(Handle c) override { return e->handle_of(brain(c)); }
+  void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
+  Handle brain_order_net(Handle b) override {
+    auto* br = static_cast<ai::Brain*>(e->object_of(b));
+    return br && !br->orders.empty() ? e->handle_of(br->orders.back().net_part.net) : 0;
+  }
+  void controls_set_net(Handle c, Handle net) override {
+    if (ai::Brain* b = brain(c)) b->set_net(static_cast<ai::AiNet*>(e->object_of(net)));
+  }
+  void brain_write(Handle b, uint32_t off, uint32_t v) override {
+    auto* br = static_cast<ai::Brain*>(e->object_of(b));
+    if (!br) return;
+    if (off < ai::AiParams::kEnd) return br->params.put_raw(static_cast<int>(off), v);
+    if (off == 0xdc) std::memcpy(&br->xdc, &v, 4);
+  }
+  void target_masks(Handle o, uint32_t t, uint32_t a, uint32_t en) override {
+    void* m = e->object_of(o);
+    mech_set_mask(m, 0xc0, t), mech_set_mask(m, 0xc4, a), mech_set_mask(m, 0xc8, en);
+    player_clear_60b56c();
+  }
+  float game_time() override { return mech_game_time(); }
+};
+WiredValveHooks g_valve_hooks;
+
 struct WiredMissionHooks : MissionHooks {
   GameEngine* e = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
@@ -491,6 +559,8 @@ struct WiredMissionHooks : MissionHooks {
   }
   bool player_setup_ran = false;
   Handle sound_find(const char* name) override { return e->sound_find(name); }
+  // The mission's valves.zrd (0x004e2120, mech3/zrdrvalve).
+  void fn_4e2120() override { ai::valves_load(); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
     char text[512];
     std::snprintf(text, sizeof text, fmt, arg);
@@ -515,6 +585,8 @@ void wire_mission_hooks(GameEngine* e) {
   set_player_hooks(e ? &g_player_hooks : nullptr);
   g_brain_hooks.e = e;
   ai::set_brain_hooks(e ? &g_brain_hooks : nullptr);
+  g_valve_hooks.e = e;
+  ai::set_valve_hooks(e ? &g_valve_hooks : nullptr);
   // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
   if (!e) return wire_mech_build(nullptr);
   static MechWiring w;

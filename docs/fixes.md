@@ -136,6 +136,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | Vehicle controller, 0x49f800 | Without an AI net the vehicle is given the aiv record as its controller | (bug) its animation slot becomes a stack address; a failed build deletes the record as a controller (a crash). Only a `mech...` suffix without a net reaches it; none ship | No controller (`zfix bugs`; off, the record's handle, as the exe) |
 | Lancemate slot, 0x49e810 | `new(0x18)` is written through unchecked | (bug) a crash if it failed | Skipped |
 | AI radio names, 0x4e7dc0 (ai.md section 12) | `sprintf("%s_%s", voice, event)` into 32 bytes | (bug) a radio voice (aiv.zrd `sound_tag`) of 15 or more characters overruns the frame; the shipped ones are 3 to 5 | Cut to fit (`test_ai_brain.py` keeps voices under 15) |
+| valves.zrd records, 0x4e2330 (ai.md section 13) | Every tag's value is read as a list and every name item as a string | (bug) a hand-edited file with a number or a string where a list or name belongs crashes the mission start | Such tags and names are skipped (`test_ai_valves.py`'s six broken files) |
+| Valve scans, 0x4e3200 | A scan action keeps the vehicle's brain found at mission start and writes through it when it fires | (bug) a scan naming a vehicle that is missing or not AI-driven writes through null (a crash); no shipped mission has scans | Nothing is written |
+| Valve teleport, 0x4e3ba0 | The pilot's current order is read from the back of its deque without a check | (bug) a pilot with no order (a net that is not compiled) reads before the deque: a crash | Skipped |
+| Delayed updates, 0x4d3d30 | A lone timer whose update starts another delayed update becomes a list of both as it runs; the slot is then cleared | (bug) the new timers are lost: c3 mission 2's `ambush_powerup_down_a` can lose three radio lines | The list stays (`zfix bugs`; off, as the exe, which the test checks) |
 | AI vehicle controls' destructor, 0x4ac800 | Calls its owner's vt+0xec with no check that it has one | (bug) a vehicle that fails to build deletes its controller before giving it an owner (mission-start.md section 5): a crash | The owner is asked only when there is one |
 | Firepoints, 0x46cb80 (mech-build.md section 12) | A definition's firepoint takes the part of its model node with no check that the node exists or a part owns it | (bug) a crash (it reads through a null part) for a model without one of its definition's firepoints; none ship | The firepoint keeps part -1 |
 | Launch, 0x491150 (mech-build.md section 12) | The definition's skins are counted without a null check; the HUD reset at the end gets 0x14 (no HUD + 0x14) when the view is not on the player's mech | (bug) crashes: a definition without skins (none ship), the view elsewhere (cannot happen: the launch attaches it first) | Checked; the HUD call skipped (`zfix bugs`; off, as the exe) |
@@ -265,6 +269,12 @@ Resolved (2026-10-21):
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
+
+- A valve that updates itself, directly or round a loop of `update` actions
+  and any/all conditions (ai.md section 13), recurses until the stack runs
+  out, in the exe as in the port. No shipped mission has such a loop; a
+  guard (each valve's reactions not re-entered while they run) would only
+  matter to hand-made missions.
 
 - TAG (weapons.md, "TAG, end to end"; numbers from the emulator,
   `test_tag.py`). It works as coded, but three things make it look broken;

@@ -54,6 +54,8 @@ uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 // The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,
 // +0xc8 enemies); false for any other offset.
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v);
+void* mech_controls_of(void* mech);              // +0x37c (a MechControls*)
+float mech_game_time();                          // [0x0060991c]
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v);
 
 // The AI mechs player.cpp built this mission (app_mission.cpp, our record of
