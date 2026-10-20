@@ -37,6 +37,7 @@ struct LaunchedMech {
   float torso_armor_scale = 0;  // the centre torso's 100 / armor points
   uint32_t team = 0;       // the AiTarget mask
   bool skis = false, ams = false;
+  bool motions = false;    // the walk and its blends copied from the type's motions
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 

@@ -739,8 +739,8 @@ def main():
         stats['mechs built'] += any(k == 'new' and a == (0x6d8,) for k, a in t.log)
         stats['configured'] += any(k == 'weapons' for k, _ in t.log)
         stats['crafted'] += bool(case['mods'])
-    print(f'{count} cases, {calls} calls, {blocks} blocks: the rebuilt mech build matches the original')
     print('  ' + ', '.join(f'{k} {v}' for k, v in sorted(stats.items())))
+    print(f'{count} cases, {calls} calls, {blocks} blocks: the rebuilt mech build matches the original')
 
 
 if __name__ == '__main__':

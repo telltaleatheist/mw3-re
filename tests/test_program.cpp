@@ -304,6 +304,7 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
     EXPECT(m.torso_armor_scale > 2.77f && m.torso_armor_scale < 2.78f);  // 36 points in the centre torso: 100 / 36
     EXPECT(m.team == 2);      // team 1 (aiv.zrd's player record): mask 2
     EXPECT(m.skis && m.ams);
+    EXPECT(m.motions);        // motion.zbd's walk, and the step-walk blend
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

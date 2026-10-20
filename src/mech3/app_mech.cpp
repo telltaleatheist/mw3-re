@@ -180,6 +180,7 @@ bool launched_mech(LaunchedMech* out) {
   s.team = m->team;
   s.skis = m->skis != nullptr;
   s.ams = m->ams != nullptr;
+  s.motions = m->anims[4] && m->anims[8];
   *out = s;
   return true;
 }
