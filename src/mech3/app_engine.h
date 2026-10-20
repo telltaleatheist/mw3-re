@@ -11,6 +11,8 @@
 #include "mech3/options.h"
 #include "platform/platform.h"
 
+namespace zvid { struct Surface; }
+
 namespace platform {
 class Render3D;
 class SoundOutput;
@@ -208,12 +210,24 @@ class GameEngine : public Engine {
   void video_clear(Handle rect) override;
   void video_flip(int32_t a, int32_t b, int32_t c, int32_t d) override;
   uint32_t video_show_cursor(uint32_t on) override;
-  // The fade's still and colour (0x00579500, 0x0055b1f0, 0x00558540, 0x00517cc0),
-  // on the 16-bit buffer.
+  // The fade's stills (0x00579500, 0x0055b1f0, 0x00517cc0) on the 16-bit buffer;
+  // the colour is the ported tint (0x00558540).
   Handle video_grab(int32_t buffer) override;
   void image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) override;
   void screen_tint(uint16_t colour, Handle rect, double alpha) override;
   void image_free(Handle image) override;
+  // The Direct3D frame: zvid's lock (0x00576d00 / 0x00576d60), scene nesting
+  // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
+  void video_begin_3d() override;
+  void video_end_3d() override;
+  void video_begin_scene() override;
+  void video_draw_3d() override;
+  void video_end_scene() override;
+  void render_finish() override;
+  int32_t lock_back(zvid::Surface* s);
+  int32_t unlock_back(zvid::Surface* s);
+  // The 2D layer's untouched pixels (FIX (A)): a magenta no 2D draw in the game uses as a colour.
+  static constexpr uint16_t kLayerKey = 0xf81f;
   uint16_t* buffer16() { return buffer_.data(); }
   int buffer_width() const { return width_; }
   int buffer_height() const { return height_; }
@@ -262,7 +276,7 @@ class GameEngine : public Engine {
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
-  bool scene_drawn_ = false, last_drew_scene_ = false;
+  bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
   std::unordered_map<void*, Handle> handles_;
   struct OpenScreen {
     MenuScreen* screen;
@@ -273,7 +287,7 @@ class GameEngine : public Engine {
   std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)
 };
 
-// The fade's colour over a 16-bit buffer in zvid::pixel_format() (FIX (A), 0x00558540).
-void tint16(uint16_t* px, size_t n, uint16_t colour, float alpha);
+// The frame's surface and tint hooks to `e`'s buffer and Render3D (null: none).
+void wire_frame_hooks(GameEngine* e);
 
 }  // namespace mech3

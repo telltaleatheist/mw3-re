@@ -38,6 +38,7 @@
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zwep_damage.h"
@@ -611,10 +612,11 @@ struct WiredMissionHooks : MissionHooks {
     zcls::update_hooks() = zcls::UpdateHooks{};
     zcls::WorldRenderHooks& h = zcls::world_render_hooks();
     h = zcls::WorldRenderHooks{};
-    h.begin_scene = [](void*) { zvid::begin_scene(); };
-    h.end_scene = [](void*) { zvid::end_scene(); };
+    h.begin_scene = [](void*) { zvid::scene_begin(); };
+    h.end_scene = [](void*) { zvid::scene_end(); };
     h.flush_transparent = [](void*) { zvid::flush_transparent(); };
     h.flush_overlay = [](void*) { zvid::flush_overlay(); };
+    h.draw_quad = [](void*) { zvid::draw_tint_quad(); };
     h.puffers = [](void*) { zmod::puff_draw(); };
     h.world_sounds = [](void*, zcls::Node* world) { zcls::world_sounds(world); };  // 0x004f3170
     h.listener_speed_limit = [](void*) { return zsnd::speed_of_sound(); };       // 0x00572360

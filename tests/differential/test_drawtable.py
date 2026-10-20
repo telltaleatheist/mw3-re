@@ -260,6 +260,20 @@ class Emu:
                 self.log.append(('clear', 1, v >> 16 & 0xff, v >> 8 & 0xff, v & 0xff))
             else:
                 self.log.append(('clear', 0, 0, 0, 0))
+        elif fn == 14:
+            if a[1]:
+                cpu.write(self.rect, struct.pack('<4i', *[s32(x) for x in a[2:6]]))
+            else:
+                cpu.write(0x8027c8, struct.pack('<2i', s32(a[2]), s32(a[3])))
+            cpu.call(0x57dd80, ecx=a[0], edx=self.rect if a[1] else 0, stack_args=(a[6], a[7]))
+            self.log.append(self.quad())
+        elif fn == 15:
+            cpu.call(0x57e380)
+            self.log.append(self.quad())
+        elif fn in (16, 17):
+            cpu.u32(0x80270c, a[0] & 0xffffffff)
+            cpu.call(0x579af0 if fn == 16 else 0x579b10)
+            self.log.append(('depth', s32(struct.unpack('<I', cpu.read(0x80270c, 4))[0])))
         elif fn == 13:
             cpu.call(0x57caa0, ecx=a[0], edx=self.tex(a[1]), stack_args=(a[2], a[3], a[4]))
         elif fn == 12:
@@ -267,6 +281,9 @@ class Emu:
             cpu.call(0x57a850, ecx=self.rect, edx=self.rect, stack_args=(1, 0))
             self.log.append(('ret', s32(cpu.uc.reg_read(UC_X86_REG_EAX))))
         return self.log, cpu.read(TL, 64 * 32)
+
+    def quad(self):
+        return ('quad', s32(struct.unpack('<I', self.cpu.read(0x8095bc, 4))[0]), bytes(self.cpu.read(0x8095c0, 128)))
 
     def counts(self):
         n, v = struct.unpack('<II', self.cpu.read(QCOUNT, 8))
@@ -346,6 +363,12 @@ def port_log():
             i += 2
         elif k == 10:
             out.append(('ret', w[i + 1]))
+            i += 2
+        elif k == 11:
+            out.append(('quad', w[i + 1], struct.pack('<32i', *w[i + 2:i + 34])))
+            i += 34
+        elif k == 12:
+            out.append(('depth', w[i + 1]))
             i += 2
         else:
             raise SystemExit(f'bad probe log word {k} at {i}')
@@ -624,6 +647,48 @@ def test_frame(rng, emu, port):
     return f'{runs} frame, fog colour and point-light calls identical'
 
 
+def test_tint_quad(rng, emu, port):
+    """The colour quad 0x57dd80 then its draw 0x57e380 (flashes, fades), and
+    the scene nesting 0x579af0 / 0x579b10, mixed with the draw table's calls."""
+    runs = draws = quads = 0
+    textures = [(0x1000 + i, rng.choice([1, 4, 5]), rng.choice([1, 3]), rng.choice([1, 3])) for i in range(16)]
+    emu.setup(textures)
+    port.setup(textures)
+    emu.reset(0, 0, 0)
+    port.reset(0, 0, 0)
+    for case in range(1500):
+        if case % 50 == 0:
+            dev = random_device(rng, textures)
+            emu.set(*dev)
+            port.set(*dev)
+            emu.fmt = dev[4]
+        fn = rng.choice([14, 14, 15, 15, 16, 17, 0, 2, 6])
+        if fn == 14:
+            alpha = rng.choice([0.0, 1.0, 0.5, rng.random(), float(struct.unpack('<f', struct.pack('<f', rng.random()))[0]),
+                                1.5, -0.25, 0.999999])
+            lo, hi = struct.unpack('<II', struct.pack('<d', alpha))
+            rect = [rng.choice([0, 1, 17, -5, 639, 640]), rng.choice([0, 3, 479, 480]),
+                    rng.choice([640, 1, 320, 1024]), rng.choice([480, 2, 240, 768])]
+            a = [rng.getrandbits(16), int(rng.random() < 0.8)] + rect + [lo, hi]
+        elif fn in (16, 17):
+            a = [rng.choice([0, 0, 1, 2, -1, 5])]
+        elif fn == 15:
+            a = []
+        else:
+            fn2, a = random_call(rng)
+            fn = fn2 if fn2 in (0, 2) else 6
+        tl, work = random_tl(rng), random_work(rng, 'plain')
+        want = emu.call(fn, a, tl, work, [0, 0, 0])[0]
+        got = port.call(fn, a, tl, work, [0, 0, 0])[0]
+        if want != got:
+            raise SystemExit(f'tint case {case} fn {fn} {a}: {describe_diff(want, got)}')
+        check(f'tint case {case}: state', emu.get(), port.get())
+        runs += 1
+        draws += sum(e[0] == 'draw' for e in want)
+        quads += fn == 15 and any(e[0] == 'draw' for e in want)
+    return f'{runs} colour-quad, quad-draw and scene-nesting calls ({draws} draws, {quads} quads drawn) identical'
+
+
 # ---------------------------------------------------------------- textures
 
 class TexEmu:
@@ -809,6 +874,7 @@ def main():
     print(test_draws(rng, emu, port))
     print(test_flush(rng, emu, port))
     print(test_frame(rng, emu, port))
+    print(test_tint_quad(rng, emu, port))
     print(test_textures(rng))
     print('ok: draw table, flushes, frame calls and texture records identical to the original (24-bit FPU)')
 

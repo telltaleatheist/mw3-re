@@ -720,6 +720,16 @@ From the network code (network-messages.md).
 
 ## Graphics
 
+- **In software mode, screen flashes and fades miss the right edge.** The
+  software renderer colours the screen four pixels at a time (MMX), and the
+  screen's right edge is kept one pixel short, so on a 640-wide screen the
+  last four columns stay their normal colour while the rest flashes or fades
+  (0x558610, `render-frame.md`). On a PC without MMX the whole width is
+  coloured. In Direct3D the colour is one quad over the whole screen.
+- **A software-mode flash never wears off by itself:** the colour is kept and
+  laid over every following frame until the game sets another (0x558610).
+- **Fades and flashes in Direct3D are one see-through rectangle** drawn over
+  everything, depth ignored, in the frame's last scene (0x57dd80, 0x57e380).
 - **The software renderer draws with the stack pointer** (`blit-trick.md`). To
   fill a row of pixels fast, it points the CPU's stack at the screen and
   "pushes" colours onto it, two bytes at a time, backwards. It is quick on a

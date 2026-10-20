@@ -255,9 +255,10 @@ While the fade runs it is the top state, so the state below gets no updates:
 the mission does not run during its 2 s fade in. It is time-based (dt), so it
 needs no per-frame scaling.
 
-The program (program.md) grabs and draws on its 16-bit buffer and blends the
-colour into it for both video modes (the Direct3D quad and the software
-finish are not ported).
+The program (program.md) grabs and draws the still on its 16-bit buffer
+(FIX (A)); the colour goes through the ported tint (render-frame.md): in
+Direct3D the quad 0x0057dd80 / 0x0057e380 over the locked layer, in software
+the finish 0x00558610.
 
 ## The release build's error reports are empty
 

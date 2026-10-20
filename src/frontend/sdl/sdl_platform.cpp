@@ -45,20 +45,23 @@ void SdlWindow::client_size(int* width, int* height) {
   if (window_) SDL_GetWindowSize(window_, width, height);
 }
 
-void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) {
-  if (!render_ || width <= 0 || height <= 0) return;
-  ++frames;
+namespace {
+uint32_t rgba_of(uint16_t p, bool rgb565) {
+  const int r = rgb565 ? p >> 11 : (p >> 10) & 31, g = rgb565 ? (p >> 5) & 63 : ((p >> 5) & 31) << 1, b = p & 31;
+  return static_cast<uint32_t>(r << 3 | r >> 2) | static_cast<uint32_t>(g << 2 | g >> 4) << 8 |
+         static_cast<uint32_t>(b << 3 | b >> 2) << 16 | 0xff000000u;
+}
+}  // namespace
+
+// The 16-bit pixels as RGBA8 into the layer's texture; `key` pixels (when
+// keyed) transparent.
+void SdlScreen2D::upload(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, bool keyed,
+                         uint16_t key) {
   rgba_.resize(static_cast<size_t>(width) * height * 4);
   for (int y = 0; y < height; ++y) {
     const uint16_t* row = reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(pixels) + y * pitch);
-    uint8_t* o = &rgba_[static_cast<size_t>(y) * width * 4];
-    for (int x = 0; x < width; ++x, o += 4) {
-      const uint16_t p = row[x];
-      const int r = rgb565 ? p >> 11 : (p >> 10) & 31, g = rgb565 ? (p >> 5) & 63 : ((p >> 5) & 31) << 1,
-                b = p & 31;
-      o[0] = static_cast<uint8_t>(r << 3 | r >> 2), o[1] = static_cast<uint8_t>(g << 2 | g >> 4);
-      o[2] = static_cast<uint8_t>(b << 3 | b >> 2), o[3] = 255;
-    }
+    auto* o = reinterpret_cast<uint32_t*>(&rgba_[static_cast<size_t>(y) * width * 4]);
+    for (int x = 0; x < width; ++x) o[x] = keyed && row[x] == key ? 0u : rgba_of(row[x], rgb565);
   }
   if (texture_ < 0 || tw_ != width || th_ != height) {
     if (texture_ >= 0) render_->release_texture(texture_);
@@ -67,20 +70,41 @@ void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int 
   } else {
     render_->update_texture(texture_, width, height, rgba_.data());
   }
+}
+
+void SdlScreen2D::draw_layer(int width, int height, bool blend) {
   platform::DrawState s;
   s.texture = texture_, s.address_u = s.address_v = 3;
-  s.depth_write = false, s.depth_always = true;
+  s.depth_write = false, s.depth_always = true, s.blend = blend;
   const float w = static_cast<float>(width), h = static_cast<float>(height);
   const platform::TLVertex quad[4] = {{0, 0, 1, 1, 0xffffffffu, 0xff000000u, 0, 0},
                                       {w, 0, 1, 1, 0xffffffffu, 0xff000000u, 1, 0},
                                       {w, h, 1, 1, 0xffffffffu, 0xff000000u, 1, 1},
                                       {0, h, 1, 1, 0xffffffffu, 0xff000000u, 0, 1}};
-  render_->set_viewport(0, 0, width, height);
-  render_->clear(true, 0, 0, 0);
   render_->begin_scene();
   render_->draw(platform::Primitive::kFan, quad, 4, s);
   render_->end_scene();
+}
+
+void SdlScreen2D::present_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565) {
+  if (!render_ || width <= 0 || height <= 0) return;
+  ++frames;
+  upload(pixels, width, height, pitch, rgb565, false, 0);
+  render_->set_viewport(0, 0, width, height);
+  render_->clear(true, 0, 0, 0);
+  draw_layer(width, height, false);
   render_->present();
+}
+
+void SdlScreen2D::overlay_16(const uint16_t* pixels, int width, int height, int pitch, bool rgb565, uint16_t key) {
+  if (!render_ || width <= 0 || height <= 0) return;
+  render_->flush();
+  upload(pixels, width, height, pitch, rgb565, true, key);
+  int vx, vy, vw, vh;
+  render_->viewport(&vx, &vy, &vw, &vh);
+  render_->set_viewport(0, 0, width, height);
+  draw_layer(width, height, true);
+  render_->set_viewport(vx, vy, vw, vh);
 }
 
 void SdlAlert::abort_message(const std::string& message) {
