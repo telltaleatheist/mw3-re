@@ -120,6 +120,17 @@ void approach(float& v, float target, float dt) {
   if (std::fabs(target - n) < kInputSnap) v = target;
 }
 
+// Mech3.exe 1.2 @ 0x0042fff0: a source's motion this read (the stick's
+// velocities, never filled; the mouse's scaled motion).
+float source_delta(int32_t src, const platform::JoyState* j, const zin::MouseInfo* m) {
+  if (src >= 1 && src <= 8) return j ? static_cast<float>(j->rest[src - 1]) : 0.0f;
+  if (src == 9) return m->fdx;
+  if (src == 10) return m->fdy;
+  if (src == 11) return m->fdz;
+  return 0.0f;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x0042fea0: a source's reading. The stick's axes are
 // centred and scaled by zInput's setup (0x0051da90); 9..11 the mouse's
 // position from the centre.
@@ -138,16 +149,6 @@ float source_value(int32_t src, const platform::JoyState* j, const zin::MouseInf
   return 0.0f;
 }
 
-// Mech3.exe 1.2 @ 0x0042fff0: a source's motion this read (the stick's
-// velocities, never filled; the mouse's scaled motion).
-float source_delta(int32_t src, const platform::JoyState* j, const zin::MouseInfo* m) {
-  if (src >= 1 && src <= 8) return j ? static_cast<float>(j->rest[src - 1]) : 0.0f;
-  if (src == 9) return m->fdx;
-  if (src == 10) return m->fdy;
-  if (src == 11) return m->fdz;
-  return 0.0f;
-}
-}  // namespace
 
 ControlsCalls& controls_calls() { return g_calls; }
 

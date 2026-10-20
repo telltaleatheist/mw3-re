@@ -8,8 +8,10 @@
 #include "crt/msvc_rand.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zinput/zinput.h"
 #include "mech3/app.h"
 #include "mech3/app_states.h"
+#include "mech3/controls_cfg.h"
 #include "mech3/mainmenu.h"
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/ztimer.h"
@@ -32,6 +34,46 @@ uint32_t Engine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> arg
     default: return unported(key, {obj, a[0], a[1], a[2]});
   }
 }
+
+// The controls screen's calls, to the ports.
+uint32_t Engine::input_read_key(int32_t wait) { return zin::read_key(wait != 0); }
+int32_t Engine::joy_wait_button(int32_t wait) { return zin::joy_wait_button(wait != 0); }
+int32_t Engine::mouse_wait_button(int32_t wait) { return zin::mouse_wait_button(wait != 0); }
+void Engine::joy_use() { zin::joy_use(); }
+void Engine::joy_unuse() { zin::joy_unuse(); }
+uint32_t Engine::key1_of(int32_t cmd) { return zin::key1_of(cmd); }
+uint32_t Engine::key2_of(int32_t cmd) { return zin::key2_of(cmd); }
+uint32_t Engine::joy_of(int32_t cmd) { return zin::joy_of(cmd); }
+uint32_t Engine::mouse_of(int32_t cmd) { return zin::mouse_of(cmd); }
+int32_t Engine::key1_command(uint32_t key) { return zin::key1_command(static_cast<int32_t>(key)); }
+int32_t Engine::key2_command(uint32_t key) { return zin::key2_command(static_cast<int32_t>(key)); }
+int32_t Engine::joy_command(uint32_t b) { return zin::joy_command(static_cast<int32_t>(b)); }
+int32_t Engine::mouse_command(uint32_t b) { return zin::mouse_command(static_cast<int32_t>(b)); }
+void Engine::bind_key1(uint32_t key, int32_t cmd) { zin::bind_key1(key, cmd); }
+void Engine::bind_key2(uint32_t key, int32_t cmd) { zin::bind_key2(key, cmd); }
+void Engine::bind_joy(uint32_t b, int32_t cmd) { zin::bind_joy(b, cmd); }
+void Engine::bind_mouse(uint32_t b, int32_t cmd) { zin::bind_mouse(b, cmd); }
+const char* Engine::command_name(int32_t cmd, char* out, int32_t n) {
+  return zin::command_name(cmd, out, static_cast<size_t>(n));
+}
+const char* Engine::key_name(uint32_t key, char* out, int32_t n) {
+  return zin::key_name(key, out, static_cast<size_t>(n));
+}
+const char* Engine::joy_button_name(uint32_t b, char* out, int32_t n) {
+  return zin::joy_button_name(static_cast<int32_t>(b), out, static_cast<size_t>(n));
+}
+const char* Engine::mouse_button_name(uint32_t b, char* out, int32_t n) {
+  return zin::mouse_button_name(static_cast<int32_t>(b), out, static_cast<size_t>(n));
+}
+void Engine::input_map_refresh() { zin::map_refresh(); }
+int32_t Engine::controls_defaults() { return mech3::controls_set_defaults(); }
+int32_t Engine::controls_group_count() { return mech3::controls_group_count(); }
+const char* Engine::controls_group_title(int32_t g) { return mech3::controls_group_title(g); }
+int32_t Engine::controls_group_size(int32_t g) { return mech3::controls_group_size(g); }
+int32_t Engine::controls_group_command(int32_t g, int32_t i) { return mech3::controls_group_command(g, i); }
+void Engine::controls_read(const char* path) { mech3::controls_load(path); }
+void Engine::controls_write(const char* path) { mech3::controls_save(path); }
+char* Engine::active_ctl_cfg() { return mech3::options().active_ctl_cfg; }
 
 void Engine::format_key(char* out, uint32_t addr) { std::snprintf(out, 16, "0x%08x", addr); }
 

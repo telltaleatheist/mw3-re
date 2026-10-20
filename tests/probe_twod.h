@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <typeinfo>
 #include <map>
 #include <sstream>
 #include <string>
@@ -424,6 +425,7 @@ inline void dump_dialog(ztwod::Dialog& d, Dump& out) {
     char k = 'I';
     if (p == &d.cursor_obj) k = 'U';
     else if (g_kind.count(p)) k = g_kind[p];
+    else if (typeid(*p) == typeid(ztwod::FontText)) k = 'F';
     else if (dynamic_cast<ztwod::ListItem*>(p)) k = 'Y';
     else if (dynamic_cast<ztwod::Text*>(p)) k = 'T';
     else if (dynamic_cast<ztwod::CheckButton*>(p)) k = 'K';
@@ -437,6 +439,7 @@ inline void dump_dialog(ztwod::Dialog& d, Dump& out) {
       case 'X': out.listbox(static_cast<ztwod::ListBox*>(p)); break;
       case 'Y': out.item(static_cast<ztwod::ListItem*>(p)); break;
       case 'Z': out.textbox(static_cast<ztwod::TextBox*>(p)); break;
+      case 'F': out.fonttext(static_cast<ztwod::FontText*>(p)); break;
       default: out.image(static_cast<ztwod::Image*>(p)); break;
     }
     out.o << '\n';

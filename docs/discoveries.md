@@ -1424,3 +1424,47 @@ From the option and credits screens, 0x004379f0, 0x00438f60, 0x004289a0
   file has one number instead of two, so it borrows the position of the name
   above it: it is indented like a name, with no gap, unlike every other
   heading (likely a typo).
+
+### The controls screen
+
+From the controls screen and its axis popup, 0x0042a590 and 0x0042da80
+(details: `menus.md` section 6).
+
+- **Every command has a description.** The text under the lists is the
+  command's own help line (its name's message plus 0x100 in the game's
+  message table).
+- **Click a row, then click again to rebind.** Clicking a key in another
+  row only selects that row; clicking the selected row's key (or the column
+  itself) starts listening. Right-clicking a key or button clears it.
+- **Escape can never be a key binding.** While the screen listens for a
+  key, Escape cancels instead.
+- **Taking a key from another command asks first** ("Reassign Key"), and
+  takes it from whichever of its two slots it was in.
+- **Binding a joystick or mouse button to the throttle, turn, twist or
+  pitch drops that command's stick or mouse axis.**
+- **Moving the stick while the joystick column listens picks an axis.**
+  Push any axis more than half its travel and the "assign axis" box opens
+  with that axis chosen.
+- **The axis box always offers six stick axes and three mouse axes,** X, Y,
+  Z and the three rotations whether or not your stick has them, and never
+  the two sliders: a slider (or a throttle wheel the game sees as one) can
+  only be set by editing a saved profile by hand.
+- **Assigning an axis there centres it where it is when you press OK**, at
+  full scale (inverted if ticked) and with no dead zone. A throttle lever
+  assigned this way has its stop wherever the lever was, with reverse
+  below it; the stock throttle's half scale, offset and small dead zone come
+  back only with "Joystick defaults".
+- **The two default buttons save a profile.** "Mouse defaults" and
+  "Joystick defaults" reset every key and the axes, then save them as the
+  profile `DefaultCtlConfig` and make it the current one.
+- **Cancel does not just undo.** With changes made, Cancel resets the
+  stock keys and axes, then reads the current profile again from disk. If
+  you never saved a profile, that file does not exist, so you are left with
+  the stock defaults: any bindings you had only in the registry are gone.
+- **"Save changes?" No keeps the changes.** Accept with changes asks to
+  save; answering No leaves the screen with the new bindings still active
+  (they are only not written to a profile).
+- **The mouse column is deaf for ten frames after a mouse button is
+  bound,** so the click that set it does not start listening again.
+- **The screen has an unused "press a key" prompt** (PRESS_A_KEY in its
+  dialog file) that the game never shows.

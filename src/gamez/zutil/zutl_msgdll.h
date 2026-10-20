@@ -1,4 +1,5 @@
 #pragma once
+#include <initializer_list>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -26,5 +27,7 @@ void install_messages(const MessageDll* dll);
 
 // 0x00575fd0: message `id` with FormatMessage's %1 replaced by `arg`.
 std::string format_message(int32_t id, const char* arg);
+// The same with %1 .. %9 (the message boxes' three arguments, 0x004ac150).
+std::string format_message(int32_t id, std::initializer_list<const char*> args);
 
 }  // namespace zutl

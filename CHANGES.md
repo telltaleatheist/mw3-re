@@ -130,6 +130,9 @@ unusual happens.
 - A hand-edited controls profile (`keys\<name>.zrd`) with an axis of an
   unknown name, or a number or an empty entry where a command belongs, no
   longer crashes the game; the bad line is skipped.
+- The controls screen no longer overruns its file name with a very long
+  current-profile setting, and an empty command group (none ships) shows an
+  empty list instead of crashing.
 - A text data file with a word of 256 letters or more, a quote that is never
   closed, or an `#ifdef` without its `#endif` no longer crashes or hangs the
   game.

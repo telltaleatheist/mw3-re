@@ -175,11 +175,12 @@ setter 0x40d052, options.md).
 checked against the exe by `test_ctlcfg.py`. The settings loader 0x40c420
 calls the defaults before the registry read and the controls file after it
 (settings.md); the app's destructor frees the groups (0x40cb20 ->
-0x410a80). The controls screen (0x42be10.., not ported) lists the groups,
-binds keys, and loads, saves and resets them: 0x42d0b0 writes or reads
-`keys\<name>.zrd` (`sprintf("%s\\%s.zrd", "keys", name)`, `_mkdir("keys")`)
-and puts that path in ActiveCtlCfg; 0x42d210, 0x42d2b0 and 0x42d730 call the
-defaults again.
+0x410a80). The controls screen (0x42a590, ported: menus.md section 6,
+`mech3/controls_menu`) lists the groups, binds keys, buttons and axes, and
+loads, saves and resets them: 0x42d0b0 writes or reads `keys\<name>.zrd`
+(`sprintf("%s\\%s.zrd", "keys", name)`, `_mkdir("keys")`) and puts that path
+in ActiveCtlCfg; 0x42d210, 0x42d2b0 and 0x42d730 call the defaults again,
+the first two then save them as `keys\DefaultCtlConfig.zrd`.
 
 ### State
 
@@ -399,9 +400,10 @@ working directory); the port reads and writes it in the write dir through
 zutl::open, which makes the folder (the screen's `_mkdir`), and reads it
 from the mounts too. Text mode as the original: CR LF on Windows, LF
 elsewhere; the reader takes either. ActiveCtlCfg starts as
-"DefaultCtlConfig" (message 0xfc0), a file nobody writes, so until a
-profile is saved or loaded in the controls screen the bindings are the
-defaults plus what the registry's DefaultCmdMap restored.
+"DefaultCtlConfig" (message 0xfc0), a file only the controls screen's two
+reset buttons write, so until one of them is pressed or a profile is saved
+or loaded there the bindings are the defaults plus what the registry's
+DefaultCmdMap restored.
 
 ### The controls' mode, 0x426650 (ported)
 
@@ -474,6 +476,6 @@ brain sets throttle and turn, but it can only do so through the same IControls s
 - IControls +0x04 and +0x54 (AI overrides), +0x10 (byte +0x34), and the full
   ClearCommands body (0x428490 continues past 0x4284ef).
 - MechControls +0x0c states 0..3 (0x426780).
-- The controls screen (0x42be10..0x42e7xx: the groups, binding a key, load,
-  save and defaults) and what the commands without a key were for (Setup).
+- The controls screen's load/save popup (menus.md section 10) and what the
+  commands without a key were for (Setup).
 - Names of the classes: there is no RTTI. File guesses come from func2file neighbours only.
