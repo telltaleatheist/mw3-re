@@ -28,8 +28,10 @@ compaction by reading it.
   - While iterating, run only the tests you touch.
   - Before reporting, run the related set, plus `mw3tests` and
     `mw3sdltests`.
-  - End emulator tests with `os._exit` (Unicorn processes can hang at exit
-    on this Mac).
+  - End emulator tests with `sys.stdout.flush(); os._exit(code)`: Unicorn
+    processes can hang at exit on this Mac, in a state nothing can kill.
+    Run long tests in the background with their output going to a file in
+    `scratch/`, then read the file, so a hang never blocks the session.
 - Every item comes with a differential test with break tests, its docs,
   `fixes.md` and `CHANGES.md` lines for any change from the original, and
   player-facing finds in `discoveries.md`.
