@@ -3,6 +3,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app.h"
+#include "mech3/app_hud.h"
 
 namespace mech3 {
 
@@ -362,6 +363,7 @@ Handle mech_torso(Engine& en, Handle veh) {
 // The HUD update and the overlay (0x0040fac0, 0x0040e4b0, then the debug view or
 // 0x0041ab90 on the pilot's mech).
 void hud(Engine& en) {
+  program_hud_update(en.frame_dt());  // 0x0040fac0's first call (the view target's vt+0xe0)
   en.hud_update();
   en.hud_draw();
   if (Handle dv = globals().debug_view) en.vcall(dv, 0x04, {});

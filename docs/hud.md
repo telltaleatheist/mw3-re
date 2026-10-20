@@ -329,3 +329,45 @@ the set-up reads: item 1a's test).
   0x00441560 (TARGET), and the objectives' and weapons' parts of theirs
   (0x00446ad0, 0x00446520).
 - TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).
+
+## 10. The aim (the reticle's world point)
+
+Every weapon aims at one world point the HUD works out each frame.
+
+1. **Placing** (the mech's 0x0041ce60, from Mech::update for the view's
+   target): the controls' vtable +0x14 gives where the player looks, (x, y)
+   in -1..1 of the display's half size (PlayerControls 0x00428800: its
+   +0x140; every other controls class answers none, and in view 0 the
+   controls keep it at 0, so the reticle stays centred). 0x004445f0 puts the
+   reticle there (display centre + offset x half size), then:
+2. **The ray** (0x00444350): the reticle's point, through 0x0040d9e0 (halved
+   into the render target when pixels are doubled, VMode 3), unprojected
+   into the world at the player camera's near and far planes (0x004b51f0 to
+   set the camera's matrices, 0x00523930 with 1/z = 1/near and 1/far). The
+   world's segment query (0x004eed90) runs between them with the mech's own
+   node left out (0x004eb6d0 off, then on). One hit counts unless its
+   material's game soil is 1 (water); with several, the nearest by squared
+   distance from the near point among the non-water ones. A failed query or
+   no hit: the far point.
+3. **Kept** at reticle +0x8fc (the aim point, = HUD +0x1d48), +0x924 its
+   distance from the near point (the far plane's when nothing was hit), and
+   +0x928 the hit's record (0x00444710; 0x004446a0 builds one facing up at
+   the far point). The zoom window follows the reticle when shown or scaled
+   (0x00443660).
+4. **Handed over** (the mech's 0x0041cd40, its vtable +0xe0, from the Core
+   frame's 0x0040fac0): the HUD's frame (+0x00, 0x0043c820, not ported), then
+   0x0041bd80 aims the mech at the point (0x0041bc20) unless +0x638.
+
+In the program (`mech3/app_hud`, `mech_hud`): the player's HUD is made on
+its mech data when first asked (0x00430aa0) and set up at the view attach
+(0x0041ce30); `update_calls().player_frame` runs 0x0041ce60; the Core frame's
+HUD update runs 0x0041cd40 before the rest of 0x0040fac0 (still unported);
+the hooks use zClass's segment query, the camera's clip and field of view,
+zModel's camera set-up and zMath's unproject (0x00523930, ported). Tests:
+`test_hud.py` places the reticle on precomputed rays and hit lists
+(missing, failing, water and several hits) and compares every field;
+mw3tests `mission_c1m1_player_aims_with_the_reticle_headless` pitches the
+torso until the reticle's ray ends on the Owens 80 m away and checks the
+weapons, with no other aim, take its armor down. Breaking the aim: 10 of 10
+caught.
+

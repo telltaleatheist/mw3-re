@@ -27,6 +27,7 @@
 #include "mech3/mech_build.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_command.h"
+#include "mech3/app_hud.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_skis.h"
 #include "mech3/mech_config.h"
@@ -270,6 +271,7 @@ void wire_mech_build(const MechWiring* w) {
     controls_calls().ai_brain = nullptr;
     update_calls().moved = nullptr;
     command_calls() = CommandCalls{};
+    unwire_hud();
     unwire_weapons();
     set_mech_build_hooks(nullptr);
     set_mech_data_hooks(nullptr);
@@ -284,6 +286,7 @@ void wire_mech_build(const MechWiring* w) {
   // (weapon.h); the program's managers are all mechs' so far.
 
   wire_mech_frame();
+  wire_hud();
   wire_weapons();
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
