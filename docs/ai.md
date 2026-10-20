@@ -1257,8 +1257,8 @@ state's (the mech's 0x4b6370 swaps +0x138, 0x4b6350 returns 0), +0x20 to
 ```
 
 0x4e96b0 (the manoeuvre): by +0xa4 (p8 17), 0 pushes the behaviour at
-0x604088, 1 the one at 0x604098 (both class 0x4ca440, 17.2), and resets
-+0xf4.
+0x604098, 1 the one at 0x604088 (both class 0x4ca440, 17.2), other values
+nothing; either resets +0xf4.
 
 ### 17.2 The orders and the behaviours
 
@@ -1369,12 +1369,48 @@ behaviour.
 ### 17.3 The engage gate (0x4e8f10, 0x4e8dd0)
 
 0x4e8f10(owner, net, state) allows an attack when engaging is on (+0x3c,
-params 2 or the delay +0x5c), the net (vt+0x54) and the state (vt+0x04)
-allow it, and none of these: +0xcc bit 0 and the owner farther than
-sqrt(+0x24) from the home point +0xe4; the hurt flag +0x22c (decided once
-a frame, when +0xcc bit 2: owner vt+0x98 under +0x50); +0xcc bit 1 and the
-attack's time +0xe8 passed; +0xcc bit 3 and owner vt+0x98 under +0x230.
-0x4e8dd0(owner) is the same without the net and state.
+params 2 or the delay +0x5c), the net (vt+0x54: yes for compiled nets) and
+the state (vt+0x04) allow it, and none of these, in this order: +0xcc bit
+0 and the owner's position (0x5a85e0) farther than sqrt(+0x24) from the
+home point +0xe4 (when there is one); the hurt flag +0x22c, decided once a
+frame (the frame sets it to 2, the first check to 1 when +0xcc bit 2 and
+the vehicle's health vt+0x98 is under +0x50; at the frame's end bit 2
+becomes the flag, so the first check that finds the pilot above the floor
+clears bit 2 for good: the floor only holds back a pilot hurt when it
+first weighs a fight, until it is repaired over it, fixes.md candidates); +0xcc bit 1 and the game time
+at or past the attack's end +0xe8; +0xcc bit 3 and the health under +0x230
+(the health the attack began with less +0xb4). The vehicle's health is the
+Mech's 0x41ba40: its parts' health multiplied, cached at +0x40c (not
+ported). 0x4e8dd0(owner) answers the reverse without the net and state:
+must the pilot break off (yes too when engaging is off); the node state and
+three of the attack's states ask it (0x4c990b, 0x4d140a, 0x4d176d,
+0x4d1d84). The x87's unordered compares (a NaN) fall as written: a NaN
+distance or time passes, a NaN health is hurt and under the floor.
+
+The brain's vt+0x0c 0x4e9640 is +0x54 == 0 (p6's first; its use is the
+callers'), vt+0x10 0x4e9650 "sees its target": always with +0x88 at 1, else
+the contact on the player (owner +0x98, +0x8c set) or on the nearest of his
+lance (owner +0x80) within the sight range +0x1c (squared).
+
+**Ported** (2026-10-20, `mech3/zai_brain`: `may_engage`, `must_break_off`,
+`p6_clear`, `sees_target`, `manoeuvre`). The vehicle comes in as a handle
+and the brain asks `BrainHooks` for its health, position, AiTarget and the
+game time; the manoeuvres' behaviours are placeholders (`StepKind::
+Manoeuvre`, `Manoeuvre2`) with the base state until item 11.
+
+Test `test_ai_gates.py` (probe `tests/probe_ai_orders.cpp`, over
+test_ai_orders.py's brain and fakes): the vehicle a fake (its health an x87
+`fld` thunk answered from the trace, its position, its two contacts), at
+24-bit x87; 200 cases of 100 checks with random settings, flags, hurt
+flag, home point, times, positions and contacts, NaNs among them: 18,333
+checks, the answers, +0x22c, +0xf4, 24,940 calls and the stack identical,
+all 23 marked branches of the five reached. Breaking the port showed the test catches it, 15 of 15: the
+hurt flag decided on every call, the leash without its flag, the time on
+the wrong flag, a NaN time refused, the health floor at +0x50, a NaN
+health not hurt, the net or the state not asked, no break-off with
+engaging off, the two contacts swapped, +0x88 not always in sight, the two
+manoeuvres swapped, the manoeuvre's timer kept, +0x58 for +0x54, the leash
+measured from the origin.
 
 ### 17.4 Steering (+0x250, 0x4ce620..0x4cec80)
 
@@ -1467,7 +1503,7 @@ goes through a hooks struct the test stubs the same on both sides.
    (17.7).
 2. **The order stack**: done (17.2), but 0x4d88a0 / 0x4d88d0 (with the
    net 0x603fb8, item 10).
-3. **The gates**: 0x4e8f10, 0x4e8dd0, 0x4e9640, 0x4e9650, 0x4e96b0.
+3. **The gates**: done (17.3).
 4. **The brain's frame** 0x4e9710 / 0x4e96f0 with everything below as
    hooks; replaces `controls_calls().ai_brain`.
 5. **The vlist triggers** 0x4d9290, 0x4d8e70 (and 0x4e94f0).

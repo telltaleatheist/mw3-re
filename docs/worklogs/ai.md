@@ -34,3 +34,16 @@ Newest last. One short entry per item: what, commits, what to remember.
 - FIX (bug) 0x4e9100: forward search past a full last block (the push
   allocates its next block lazily).
 - Remember: `cp` in zsh is interactive and hangs: `command cp -f`.
+
+## 2026-10-20 Item 3: the gates (mac4/gates)
+
+- Ported 0x4e8f10, 0x4e8dd0, 0x4e9640, 0x4e9650, 0x4e96b0. The brain takes
+  the vehicle as a Handle; BrainHooks has now/health/position/targetable/
+  manoeuvre_behaviour (program wiring comes with item 4). xe4 is a pointer
+  (the home point), x230 a float. My map had 0x4e96b0's two manoeuvres
+  swapped: fixed in 17.1.
+- Test test_ai_gates.py over test_ai_orders' Original; an x87-returning
+  fake via a `fld [val]; ret` thunk with a code hook that answers the
+  value; the brain's vbase (+0xe0) table for the owner lookup.
+- Quirk: the health floor bit clears the first time the pilot is found
+  above it (fixes.md candidate).

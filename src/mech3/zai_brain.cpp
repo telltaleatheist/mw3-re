@@ -7,6 +7,7 @@
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_target.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -17,6 +18,11 @@ uint32_t bits(float f) {
   uint32_t u;
   std::memcpy(&u, &f, 4);
   return u;
+}
+float fbits(uint32_t u) {
+  float f;
+  std::memcpy(&f, &u, 4);
+  return f;
 }
 BrainHooks g_default_hooks;
 BrainHooks* g_hooks = &g_default_hooks;
@@ -35,6 +41,18 @@ void set_brain_hooks(BrainHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 znet::Object* BrainHooks::net_find(int32_t id) { return znet::find(id); }
 void* BrainHooks::sound_find(const char* name) { return zsnd::find(name); }
 Behaviour* BrainHooks::default_behaviour() { return mech3::ai::default_behaviour(); }
+float BrainHooks::now() { return fbits(unported("[0x0060991c]", {})); }
+float BrainHooks::health(zgame::Handle v) { return fbits(unported("vehicle.vt+0x98", {v})); }
+void BrainHooks::position(zgame::Handle v, float out[3]) {
+  out[0] = out[1] = out[2] = 0;
+  unported("0x005a85e0", {v});
+}
+Behaviour* BrainHooks::manoeuvre_behaviour(int32_t which) {
+  // 0x00410650 / 0x00410680 at start-up; their state (0x004caae0, item 11)
+  // is not ported: the base one for now.
+  static Behaviour evade(StepKind::Manoeuvre2), circle(StepKind::Manoeuvre);
+  return which == 0 ? &evade : &circle;
+}
 
 // Mech3.exe 1.2 @ 0x004e7ff0: the parts built in place go with their
 // order (their slot 0 with 0: no free), the state first.
@@ -411,6 +429,69 @@ AiVehicleControls::AiVehicleControls(void* o, AiNet* net, const AiParams& rec)
 AiVehicleControls::~AiVehicleControls() {
   brain.reset();
   if (owner) brain_hooks().vehicle_controls_gone(owner);
+}
+
+// --- the gates (docs/ai.md 17.3) ---------------------------------------------
+
+namespace {
+// The checks 0x004e8f10 and 0x004e8dd0 share after their first tests: the
+// hurt flag decided once a frame (+0xcc bit 2), then a leash from the home
+// point (bit 0), the hurt flag, the attack's time (bit 1) and the health it
+// gives up at (bit 3). The x87's unordered compares pass as written.
+bool engage_checks(Brain& b, zgame::Handle owner) {
+  BrainHooks& h = brain_hooks();
+  const uint8_t flags = b.params.raw[0xcc];
+  if (b.x22c == 2) b.x22c = (flags & 4) && !(h.health(owner) >= b.params.get<float>(0x50));
+  if ((flags & 1) && b.xe4) {
+    float p[3];
+    h.position(owner, p);
+    const float dx = p[0] - b.xe4[0], dy = p[1] - b.xe4[1], dz = p[2] - b.xe4[2];
+    const float d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 > b.params.get<float>(0x24)) return false;
+  }
+  if (b.x22c) return false;
+  if ((flags & 2) && h.now() >= b.xe8) return false;
+  if ((flags & 8) && !(h.health(owner) >= b.x230)) return false;
+  return true;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004e8f10: engaging on (+0x3c), the net and the state
+// letting the pilot break in, and the checks.
+bool Brain::may_engage(zgame::Handle owner, AiNet* net, BehaviourState* st) {
+  if (!params.get<int32_t>(0x3c)) return false;
+  if (net && !net->allows_attack()) return false;
+  if (st && !st->may_break_in()) return false;
+  return engage_checks(*this, owner);
+}
+
+// Mech3.exe 1.2 @ 0x004e8dd0: the reverse, without the net and state: yes
+// when engaging is off or a check fails (the states' break-off test).
+bool Brain::must_break_off(zgame::Handle owner) {
+  if (!params.get<int32_t>(0x3c)) return true;
+  return !engage_checks(*this, owner);
+}
+
+// Mech3.exe 1.2 @ 0x004e9640
+bool Brain::p6_clear() const { return params.get<int32_t>(0x54) == 0; }
+
+// Mech3.exe 1.2 @ 0x004e9650: always with +0x88 at 1, else whether the
+// contact on the player (+0x8c set: owner +0x98) or on the nearest of his
+// lance (owner +0x80) is within the sight range (+0x1c, squared).
+bool Brain::sees_target(zgame::Handle owner) {
+  if (params.get<int32_t>(0x88) == 1) return true;
+  const AiTarget* t = brain_hooks().targetable(owner);
+  const Contact* c = t ? (params.get<int32_t>(0x8c) ? t->player_contact : t->nearest_lance) : nullptr;
+  return c && !(c->dist2 >= params.get<float>(0x1c));
+}
+
+// Mech3.exe 1.2 @ 0x004e96b0: +0xa4 picks the manoeuvre (0 the one at
+// 0x00604098, 1 at 0x00604088, else none), pushed on the current net.
+void Brain::manoeuvre() {
+  const int32_t which = params.get<int32_t>(0xa4);
+  if (which != 0 && which != 1) return;
+  push_behaviour(brain_hooks().manoeuvre_behaviour(which));
+  xf4 = 3.4028235e38f;
 }
 
 }  // namespace mech3::ai

@@ -28,6 +28,7 @@ struct Order;
 class NetPart;
 class BehaviourState;
 struct Behaviour;
+struct AiTarget;
 
 // What the brain calls outside it. The defaults run the ports.
 class BrainHooks : public zgame::Unported {
@@ -45,6 +46,16 @@ class BrainHooks : public zgame::Unported {
   virtual AiNet* builtin_net() { return nullptr; }
   // The default behaviour at 0x00604068 (zai_steps): an order's without one.
   virtual Behaviour* default_behaviour();
+  // The game time [0x0060991c].
+  virtual float now();
+  // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98
+  // (the Mech's 0x0041ba40, its parts' product); its position (0x005a85e0);
+  // its AiTarget part (+0x68..), whose contacts the brain reads.
+  virtual float health(zgame::Handle v);
+  virtual void position(zgame::Handle v, float out[3]);
+  virtual AiTarget* targetable(zgame::Handle v) { (void)v; return nullptr; }
+  // The manoeuvres at 0x00604098 (0) and 0x00604088 (1), class 0x004ca440.
+  virtual Behaviour* manoeuvre_behaviour(int32_t which);
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
   // The player's vehicle ([0x0060861c] +0x14) and its allies (+0xc4, the
   // AiTarget masks); false when there is no pilot or no vehicle. Silent.
@@ -254,10 +265,17 @@ class Brain {
   bool clear_if_object(znet::Object* o);           // 0x004e9100
   void push_order();  // 0x004e9d80 -> 0x004e9d90: a new order without parts (the template's)
 
+  // The gates (docs/ai.md 17.3), given the pilot's vehicle.
+  bool may_engage(zgame::Handle owner, AiNet* net, BehaviourState* state);  // 0x004e8f10
+  bool must_break_off(zgame::Handle owner);                                 // 0x004e8dd0
+  bool p6_clear() const;            // vt+0x0c 0x004e9640: +0x54 is 0
+  bool sees_target(zgame::Handle owner);  // vt+0x10 0x004e9650
+  void manoeuvre();                 // 0x004e96b0
+
   AiParams params;          // +0x00  0x004d9bf0 -> 0x004d9940 (vtable 0x005cd360, the brain's 0x005cc698)
   float xdc = 3.4028235e38f;  // +0xdc  FLT_MAX (0x004d9bf0)
   // +0xe0: the virtual base pointer.
-  int32_t xe4 = 0;            // +0xe4
+  const float* xe4 = nullptr;  // +0xe4  the home point the leash measures from (0x004e8f10)
   float xe8 = 3.4028235e38f;  // +0xe8
   float xec = 1.0f;           // +0xec
   int32_t xf0 = 0;            // +0xf0
@@ -274,8 +292,8 @@ class Brain {
   const void* order_block = nullptr;  // the deque's first block and map, for the tests
   const void* order_map = nullptr;
   Order order;                                     // +0x194  0x004e8180, its owner this brain
-  uint8_t x22c = 2;           // +0x22c
-  int32_t x230 = 0;           // +0x230
+  uint8_t x22c = 2;           // +0x22c  hurt: 2 not decided this frame, 0 / 1 (0x004e8f10)
+  float x230 = 0;             // +0x230  the health an attack gives up at (0x004e9710)
   char* x234 = nullptr;       // +0x234  0x0049d180: a string holder, empty
   void* x238 = nullptr;       // +0x238  an object the dtor deletes (vt+0, 1)
   void* x23c = nullptr;       // +0x23c  the same

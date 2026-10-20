@@ -394,3 +394,11 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   registry is lost on any visit to the screen. Keeping the magnitude and
   flipping only the sign would be the evident intent; it changes the feel
   for players who tuned it.
+
+- The AI's health floor (aiv.zrd p2 bit 2 with +0x50, 0x4e8f10 and the
+  brain's frame 0x4e9710): the brain clears the bit the first time the
+  check finds the pilot above the floor, so the floor never applies again;
+  only pilots already hurt when they first weigh a fight are held back.
+  Re-checking it every frame (keeping the bit) would match the setting's
+  likely intent; it would make damaged pilots break off fights mid-mission,
+  a balance change.
