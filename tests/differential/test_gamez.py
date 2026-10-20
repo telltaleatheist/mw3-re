@@ -246,11 +246,21 @@ class Emulated:
         self.pos = c.arg(1)
         return 0
 
-    def dump_world(self, size):
+    def dump_world(self, size, items=False):
+        """With `items`, each node's list-7 item (+0xcc) as its place in the item pool."""
         cpu, r, i32 = self.cpu, self.cpu.read, self.i32
         bs, nblocks, cap = i32(0x5ea830), i32(NODE_NBLOCKS), i32(NODE_CAP)
         blocks = [i32(i32(NODE_BLOCKS) + 4 * b) & 0xffffffff for b in range(nblocks)]
         pool = i32(POOL) & 0xffffffff
+        chunk_cnt, chunks_arr = i32(ITEM_NCHUNKS), i32(ITEM_CHUNKS) & 0xffffffff
+        chunks = [i32(chunks_arr + 4 * c) & 0xffffffff for c in range(chunk_cnt)]
+        cs = i32(0x5ea750)
+
+        def item(ptr):
+            for c, base in enumerate(chunks):
+                if ptr and base <= ptr < base + cs * 0x10:
+                    return struct.pack('<ii', c, (ptr - base) // 0x10)
+            return struct.pack('<ii', -1, -1)
 
         def index(ptr):
             if ptr == 0:
@@ -279,10 +289,12 @@ class Emulated:
         for i in range(cap):
             a = slot(i)
             h = r(a, 0xd4)
-            raw(a, 0xd0, (0x38, 0x3c, 0x48, 0x58, 0x60))
+            raw(a, 0xd0, (0x38, 0x3c, 0x48, 0x58, 0x60) + ((0xcc,) if items else ()))
             out.append(h[0xd0:0xd4])
             model, action = struct.unpack_from('<II', h, 0x3c)[0], struct.unpack_from('<I', h, 0x48)[0]
             out.append(struct.pack('<ii', -1 if model == 0 else (model - pool) // 0x60, action != 0))
+            if items:
+                out.append(item(struct.unpack_from('<I', h, 0xcc)[0]))
             if i >= size:
                 continue
             cls, d, np, pp, nc, cp = struct.unpack_from('<iIiIiI', h, 0x34)[0:2] + struct.unpack_from('<iIiI', h, 0x54)
@@ -294,7 +306,13 @@ class Emulated:
                 raw(d, 0x1e8, (0, 4, 8, 0xc))
                 nodes(d, 4)
             elif cls == 2:
-                raw(d, 0xbc, (0x90, 0xa4, 0xa8, 0xb0, 0xb4))
+                raw(d, 0xbc, (0x0c, 0x90, 0xa4, 0xa8, 0xb0, 0xb4))
+                rows_, cols_, rp_ = i32(d + 0x8c), i32(d + 0x88), i32(d + 0x90) & 0xffffffff
+                cells = {(i32(rp_ + 4 * z) & 0xffffffff) + 0x48 * x: z * 0x10000 + x
+                         for z in range(rows_) for x in range(cols_)}
+                pend = i32(d + 0xc) & 0xffffffff
+                for k in range(i32(d + 4)):
+                    out.append(struct.pack('<i', cells.get(i32(pend + 4 * k) & 0xffffffff, -1)))
                 for cnt, lp, dp in ((0xa0, 0xa4, 0xa8), (0xac, 0xb0, 0xb4)):
                     n, lst, dat = i32(d + cnt), i32(d + lp) & 0xffffffff, i32(d + dp) & 0xffffffff
                     nodes(lst, n)
@@ -317,16 +335,6 @@ class Emulated:
             elif cls == 10:
                 raw(d, 0x94, (0x90,))
                 nodes(i32(d + 0x90) & 0xffffffff, i32(d + 0x8c))
-        chunk_cnt, chunks_arr = i32(ITEM_NCHUNKS), i32(ITEM_CHUNKS) & 0xffffffff
-        chunks = [i32(chunks_arr + 4 * c) & 0xffffffff for c in range(chunk_cnt)]
-        cs = i32(0x5ea750)
-
-        def item(ptr):
-            for c, base in enumerate(chunks):
-                if ptr and base <= ptr < base + cs * 0x10:
-                    return struct.pack('<ii', c, (ptr - base) // 0x10)
-            return struct.pack('<ii', -1, -1)
-
         for li in range(16):
             head = i32(LIST_HEADS + 4 * li) & 0xffffffff
             tail = i32(LIST_TAILS + 4 * li) & 0xffffffff

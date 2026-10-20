@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "check.h"
 
@@ -12,7 +14,10 @@ int failures = 0;
 
 int main() {
   std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
+  // MW3_TEST=name runs only the tests whose names contain it.
+  const char* only = std::getenv("MW3_TEST");
   for (const check::Test& t : check::registry()) {
+    if (only && !std::strstr(t.name, only)) continue;
     const int before = check::failures;
     t.fn();
     std::printf("%s %s\n", check::failures == before ? "ok  " : "FAIL", t.name);

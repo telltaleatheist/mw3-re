@@ -5,6 +5,8 @@
 namespace zcls {
 
 Node* light_create();              // 0x004fa720
+// 1 while a world still lists it; a static light (0x100) bumps the frame stamp.
+int light_delete(Node* node);      // 0x004fa850
 
 // The setters the mission's world.zrd reader calls on the sun (mission_world).
 // Each marks the light changed (+0xb0 |= 1) and, for a static light (0x100),

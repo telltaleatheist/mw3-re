@@ -27,16 +27,122 @@ T at(const uint8_t* p, int off) {
 
 MaterialTable& materials() { return g_table; }
 
+int32_t MaterialTable::index_of(const Material* m) const {
+  for (size_t b = 0; m && b < blocks.size(); ++b)
+    if (m >= blocks[b].get() && m < blocks[b].get() + kBlock)
+      return static_cast<int32_t>(b) * kBlock + static_cast<int32_t>(m - blocks[b].get());
+  return -1;
+}
+
 // Mech3.exe 1.2 @ 0x00536070. No upper bound check.
 Material* take_material(int32_t index) {
   if (index < 0) return nullptr;
-  Material& m = g_table.slots[index];
+  Material& m = g_table.at(index);
   m.flags |= 0x10;
   return &m;
 }
 
-// Mech3.exe 1.2 @ 0x005363d0. FIX (A): one vector instead of 0x2c-byte slots
-// in malloc'd blocks; capacity is still rounded up to whole blocks.
+namespace {
+// The shared tail of 0x00536ad0 and 0x00537830: a full table grows by a block
+// whose slots all go on the free list; the free head moves to the front of
+// the used list, takes m's first 0x24 bytes and is referenced; a cycle is
+// copied with its own texture list.
+Material* new_material(const Material& m) {
+  MaterialTable& t = g_table;
+  if (t.free_head < 0) {
+    t.blocks.emplace_back(new Material[kBlock]{});
+    const int32_t first = t.capacity;
+    t.free_head = first;
+    t.capacity += kBlock;
+    for (int32_t i = first; i < t.capacity; ++i) {
+      Material& s = t.at(i);
+      s.prev = static_cast<int16_t>(i == first ? -1 : i - 1);
+      s.next = static_cast<int16_t>(i == t.capacity - 1 ? -1 : i + 1);
+      s.flags |= 0x20;
+    }
+  }
+  const int32_t index = t.free_head;
+  Material& e = t.at(index);
+  const int16_t prev = e.prev, next = e.next;
+  t.free_head = next;
+  if (prev >= 0) t.at(prev).next = next;
+  if (t.free_head >= 0) t.at(t.free_head).prev = prev;
+  e.prev = -1;
+  e.next = static_cast<int16_t>(t.used_head);
+  e.flags &= ~0x20;
+  if (t.used_head >= 0) t.at(t.used_head).prev = static_cast<int16_t>(index);
+  ++t.count;
+  t.used_head = index;
+  e.alpha = m.alpha, e.flags = m.flags, e.rgb = m.rgb;
+  e.r = m.r, e.g = m.g, e.b = m.b;
+  e.texture = m.texture, e.texture_index = m.texture_index;
+  std::memcpy(e.unk_14, m.unk_14, sizeof e.unk_14);
+  e.soil = m.soil;
+  e.file_cycle = 0;  // +0x24 is the new cycle or 0
+  e.flags |= 0x10;
+  e.cycle = nullptr;
+  if (m.flags & 4) {
+    auto* c = static_cast<Cycle*>(std::malloc(sizeof(Cycle)));
+    *c = *m.cycle;
+    c->textures = static_cast<zimg::TextureEntry**>(std::calloc(c->texture_count, sizeof(void*)));
+    std::memcpy(c->textures, m.cycle->textures, c->texture_count * sizeof(void*));
+    e.cycle = c;
+  }
+  return &e;
+}
+
+// The exe compares +0x10 as one dword: the texture once resolved, the file's
+// index for a coloured material.
+bool same_texture(const Material& a, const Material& b) {
+  if (a.texture || b.texture) return a.texture == b.texture;
+  return a.texture_index == b.texture_index;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00536f10. The first 0x20 bytes with flag bits 0x10..0x80
+// ignored, then the soils.
+int material_differs(Material& entry, Material& m) {
+  if (!same_texture(entry, m)) return 1;
+  const bool same = entry.alpha == m.alpha && (entry.flags & 0x0f) == (m.flags & 0x0f) && entry.rgb == m.rgb &&
+                    std::memcmp(&entry.r, &m.r, 4) == 0 && std::memcmp(&entry.g, &m.g, 4) == 0 &&
+                    std::memcmp(&entry.b, &m.b, 4) == 0 && std::memcmp(entry.unk_14, m.unk_14, 12) == 0;
+  if (!same) return 1;
+  if (entry.soil == m.soil) return 0;
+  if (entry.soil == 0) return entry.soil = m.soil, 0;
+  if (m.soil == 0) return m.soil = entry.soil, 0;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00536ab0
+int material_changes(const Material& m) {
+  // +0x24: a cycle, or the file's stale pointer on a world material that has none.
+  return (m.flags & 6) != 0 || m.cycle != nullptr || m.file_cycle != 0 ? 1 : 0;
+}
+
+// Mech3.exe 1.2 @ 0x00536ad0
+Material* material_add(Material& m) {
+  MaterialTable& t = g_table;
+  if (t.last && !(t.last->flags & 0x20) && material_differs(*t.last, m) == 0) {
+    t.last->flags |= 0x10;
+    return t.last;
+  }
+  for (int32_t i = t.used_head; i >= 0; i = t.at(i).next) {
+    Material& e = t.at(i);
+    if (material_differs(e, m) == 0) {
+      e.flags |= 0x10;
+      return &e;
+    }
+  }
+  t.last = new_material(m);
+  return t.last;
+}
+
+// Mech3.exe 1.2 @ 0x00537830. The exe writes through null for a null
+// material; every caller passes one.
+Material* material_copy(const Material& m) { return new_material(m); }
+
+// Mech3.exe 1.2 @ 0x005363d0. FIX (A): owned blocks (MaterialTable); the
+// capacity is rounded up to whole blocks.
 int read_materials(std::FILE* f) {
   MaterialTable& t = g_table;
   int32_t size, count, free_head, used_head;
@@ -47,11 +153,12 @@ int read_materials(std::FILE* f) {
   t.capacity = size, t.count = count, t.free_head = free_head, t.used_head = used_head;
   if (size == 0) return 0;
   const int blocks = (size + kBlock - 1) / kBlock;
-  t.slots.assign(static_cast<size_t>(blocks) * kBlock, Material{});
+  t.blocks.clear();
+  for (int b = 0; b < blocks; ++b) t.blocks.emplace_back(new Material[kBlock]{});
   for (int i = 0; i < size; ++i) {
     uint8_t raw[0x2c];
     if (std::fread(raw, 0x2c, 1, f) != 1) return -1;
-    Material& m = t.slots[i];
+    Material& m = t.at(i);
     m.alpha = raw[0], m.flags = raw[1], m.rgb = at<uint16_t>(raw, 2);
     m.r = at<float>(raw, 4), m.g = at<float>(raw, 8), m.b = at<float>(raw, 0xc);
     m.texture_index = at<uint32_t>(raw, 0x10);
@@ -62,16 +169,16 @@ int read_materials(std::FILE* f) {
   }
   // The rest of a partial last block goes on the free list (never in the data).
   for (int i = blocks * kBlock - 1; i >= size; --i) {
-    Material& m = t.slots[i];
+    Material& m = t.at(i);
     m.flags = 0x20;
     m.next = static_cast<int16_t>(t.free_head);
     m.prev = -1;
-    if (t.free_head >= 0) t.slots[t.free_head].prev = static_cast<int16_t>(i);
+    if (t.free_head >= 0) t.at(t.free_head).prev = static_cast<int16_t>(i);
     t.free_head = i;
   }
   t.capacity = blocks * kBlock;
-  for (int i = t.used_head; i != -1; i = t.slots[i].next) {
-    Material& m = t.slots[i];
+  for (int i = t.used_head; i != -1; i = t.at(i).next) {
+    Material& m = t.at(i);
     if (m.flags & 1) {
       m.texture = zimg::texture_at(static_cast<int32_t>(m.texture_index));
     } else {

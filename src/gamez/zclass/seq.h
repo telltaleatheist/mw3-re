@@ -15,5 +15,7 @@ int seq_update(Node* node);        // 0x004fdf50
 // between two keys (0x004fdab0), its matrix marked dirty and the node put
 // on list 7. Stopped: its playing bit is cleared.
 int animate_update(Node* node);    // 0x004fd950
+int seq_remove_child(Node* parent, Node* child);  // 0x004fdd90, its entry too
+int animate_delete(Node* node);    // 0x004fd890
 
 }  // namespace zcls

@@ -33,6 +33,8 @@ compaction by reading it.
 - Every item comes with a differential test with break tests, its docs,
   `fixes.md` and `CHANGES.md` lines for any change from the original, and
   player-facing finds in `discoveries.md`.
+- Commit messages carry no `Co-Authored-By` or `Claude-Session` lines, and
+  the author email is the noreply address set in the repo's git config.
 - Commit on your branch and never push or merge to main. Report to "mw3 mac
   1" with SendMessage: the commits, what is ported (by address), the test
   results, the findings, the fixes and what is left. Keep the report short.

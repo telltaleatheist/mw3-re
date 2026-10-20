@@ -65,7 +65,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 ## Game files (git-ignored, under `game/`)
 
 - `game/mw3-1.2/` is a patched v1.2 install assembled from Owen's backups on
-  `/Volumes/iO/backups/win98/` (`MechWarrior 3.zip` = the disc ISO, `MW3 patches
+  Owen's Win98 backups (`MechWarrior 3.zip` = the disc ISO, `MW3 patches
   and cracks.zip` = the official 1.2 patch). Rebuild it from there if lost: the
   disc's `DATA1.CAB` is InstallShield (`unshield`, in Homebrew); every component
   merges into one folder without collisions, then the patch's `Patch Files`
@@ -78,7 +78,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
 - The install has software-texture sets as well as hardware ones: MW3 has a
   software renderer, the likely home of the blit trick.
 - Pirate's Moon (expansion): after MW3 is complete, the same process (Owen,
-  2026-10-20). Backup: `/Volumes/iO/backups/win98/MW3 pirates moon.zip` (the
+  2026-10-20). Backup: `MW3 pirates moon.zip` in the same backups (the
   disc image inside). Same studio, same GameZ engine and MW3 code base, so
   the plan is to diff its exe against MW3 1.2 function by function (match by
   bytes and structure, then by call graph), port only what changed, and run
@@ -97,9 +97,9 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   `game/pm-disc/` (the image; track 2 is CD audio). First findings and the
   differences from MW3: `docs/pirates-moon.md`. Community-reported MW3
   problems to check the port against: `docs/community-issues.md`.
-- REA source for reading: `../rea` (a clone, not a
+- REA source for reading: `../rea` (beside this repo) (a clone, not a
   dependency).
-- mech3ax source for checking formats: `../mech3ax`
+- mech3ax source for checking formats: `../mech3ax` (beside this repo)
   (a clone, EUPL-1.2). Ports come from the exe; mech3ax is the cross-check.
 
 ## Known from Owen's own disassembly
@@ -168,7 +168,6 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   lights; `fixes.md`) do not happen in play. The port gives those four the
   full-precision result by default, with the 24-bit one behind a switch for
   the tests. Whether Win98 with real DirectX 6 hid them stays unknown.
-- No GPU use while Owen is streaming (ask; it was free on 2026-10-20).
 - `tools/viewer` (`mw3view`, SDL3 GPU, Metal shaders for now) is a development
   viewer that draws a mission world from the ported loaders. It is not the
   render port (zRender, mapped in `docs/render.md` with a porting order).
@@ -183,7 +182,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   Owen sets the number: 5, then 2 after five at once hit the account's
   usage limit, then 3 overnight, then none by day after that night used
   about 40% of the week's usage.
-- How agents run (Owen, 2026-10-20, after comparing with Victoria's setup,
+- How agents run (Owen, 2026-10-20, after comparing with another project's setup,
   which did a night's work for about a quarter of our usage): up to two
   long-lived specialists by area (e.g. game systems; front end and HUD),
   reused and compacted rather than restarted, each keeping a work log in

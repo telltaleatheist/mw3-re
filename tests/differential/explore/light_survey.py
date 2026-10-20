@@ -1,7 +1,8 @@
 # Exploration script (subagent, 2026-10-19): world light nodes (class 9), model
 # flags and model lights in each gamez.zbd, for the lighting map.
 import struct, sys, collections
-G='game/mw3-1.2/zbd/'
+import os; ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+G=ROOT + '/game/mw3-1.2/zbd/'
 U=lambda b,o,f='<i': struct.unpack_from(f,b,o)[0]
 def walk(m):
     b=open(G+m+'/gamez.zbd','rb').read()

@@ -390,11 +390,22 @@ the original 0xd4-byte record. Then it seeks to `models_offset` and calls
 **0x538640(file, model index)**: it reads the 12-byte model header again,
 seeks `index*0x60` from there, reads the slot, takes a new pool slot,
 **seeks to the slot's +0x5c data offset** and reads the model's arrays.
-0x4eb420 / 0x4eb370 likely swap the node's model, and with `recurse` it does the
-same for each child. Its caller is 0x500760 (between `zdec_crater.cpp` and
-`zdec_init.cpp`, the destructible-environment client), likely restoring
-destroyed buildings' original models. This is why the file keeps model data
-offsets.
+0x4eb420 / 0x4eb370 swap the node's model: the current one is let go
+(0x4eb370 with null), the re-read one set, and the old one released
+(0x539150, freed when no node uses it); a failed read puts the old one
+back. 0x538640 takes its slot inline (the pool's 0x538fe0 by hand) and, when
+the arrays fail to read, gives it back only if the file's use count was 0.
+With `recurse` it does the same for each child. Its caller is 0x500760
+(between `zdec_crater.cpp` and `zdec_init.cpp`, the destructible-environment
+client), likely restoring destroyed buildings' original models. This is why
+the file keeps model data offsets. 0x4fe100 (node to index) returns
+whatever EAX held for a node outside the pool.
+
+**Ported** (2026-10-20): `zcls::reread` (0x4ff730), `reread_node`
+(0x4ff7a0), `node_index_of` (0x4fe100), `zmod::reread_model` (0x538640).
+`test_destroy.py` runs them among its takedowns on the six worlds (the node
+alone or its tree, after models were dropped or swapped), comparing the pool,
+the lists and the model pool.
 
 ## Exe and mech3ax compared
 
@@ -500,13 +511,13 @@ indices), plus the bytes consumed.
    the live count and the live bits. t1 covers the partial block.
 6. **Top level**, 0x4ff6a0 + 0x4ff520 on each file, plus a bad signature, a
    bad version and a truncated file.
-7. Later: the re-read path (0x4ff730, 0x4ff7a0, 0x538640), once the zClass
-   model swap (0x4eb420 / 0x4eb370) and the destructible-environment caller
-   are mapped. The writers (0x4fe8e0, 0x5180a0, 0x5360c0, model and node
+7. **Ported**: the re-read path (0x4ff730, 0x4ff7a0, 0x538640) with the
+   model swap (0x4eb420 / 0x4eb370); its caller 0x500760 (the
+   destructible-environment client) is not. The writers (0x4fe8e0, 0x5180a0, 0x5360c0, model and node
    writers) are only for the authoring tool; port last or never.
 
 FIX (A) candidates: the pools hold 32-bit pointers in fields that are 32-bit
 in the file (texture +0x24, material +0x10/+0x24, node +0x38/+0x3c/+0x58/
 +0x60, the list arrays). A 64-bit port needs separate in-memory structs with
-the file layout kept for reading. That is the same change the mechlib port
-made with `new` instead of the pool.
+the file layout kept for reading (the ports keep the bytes and add typed
+pointer fields; mechlib models share the world pool since 2026-10-20).

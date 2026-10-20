@@ -306,12 +306,12 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
     part_io(*g->parts[i], const_cast<uint8_t*>(part_imgs + 0x200 * i), false);
     g->nodes[i] = g->parts[i]->node;
   }
-  // pilot: roster, effects [6][3], death[4], x200, water, x228 present, x228[1]
+  // pilot: roster, effects [6][3], death[4], cockpit explosion (+0x200), water, x228 present, x228[1]
   Pilot& p = g->pilot;
   p.roster = pilot[0];
   for (int i = 0; i < 18; ++i) p.part_effects[i / 3][i % 3] = h(static_cast<uint32_t>(pilot[1 + i]));
   for (int i = 0; i < 4; ++i) p.death_effects[i] = h(static_cast<uint32_t>(pilot[19 + i]));
-  p.x200 = pilot[23];
+  p.cockpit_explosion = h(static_cast<uint32_t>(pilot[23]));
   p.water_death = h(static_cast<uint32_t>(pilot[24]));
   g->x228[1] = pilot[26];
   p.x228 = pilot[25] ? g->x228 : nullptr;

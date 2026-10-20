@@ -1,9 +1,7 @@
 // The mech build's and the launch's hooks wired to the ports (docs/mech-build.md
 // section 9). Not original code: it stands where the exe's other modules
-// will be. zClass's nodes are the ported ones; the mech data (0x00430d10,
-// mech_data.cpp's constructor and loader, not ported) is made here from
-// mechlib.zbd's trees and the motions; what has no port is logged once by
-// address through the engine.
+// will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
+// ports; what has no port is logged once by address through the engine.
 #include "mech3/app_mech.h"
 
 #include <cstdio>
@@ -13,6 +11,10 @@
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_util.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech3_interp.h"
@@ -20,6 +22,7 @@
 #include "mech3/mech_build.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
+#include "mech3/mech_lib.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission_launch.h"
@@ -33,48 +36,36 @@ namespace {
 MechWiring g_w;
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
 
-// The mech type's data: mechlib's two trees (0x00484760, variants 0 and 1)
-// and its motions. One per roster index, kept for the program's life.
-Pilot* mech_type(int32_t index) {
-  static std::unique_ptr<Pilot> cache[19];
-  if (index < 0 || index >= 19) return nullptr;
-  if (cache[index]) return cache[index].get();
-  static zutl_zar::Archive lib{};
-  static bool lib_open = false;
-  if (!lib_open) {
-    zutl_zar::init(lib);
-    lib_open = zutl_zar::open(lib, g_w.mechlib);
-    if (!lib_open) std::fprintf(stderr, "mw3: no %s: the player's mech has no model\n", g_w.mechlib);
+// The mech data's calls (mech_data.cpp): the ports, and the engine for what
+// has none (the cameras, the effects by name, the game type, the error box).
+class WiredData : public MechDataHooks {
+ public:
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
-  auto p = std::make_unique<Pilot>();
-  p->roster = index;
-  p->name = mech_name(index);
-  for (int v = 0; v < 2 && lib_open; ++v) {
-    const std::string entry = v ? std::string("mech_") + p->name + "_1.flt" : std::string("mech_") + p->name + ".flt";
-    if (std::FILE* f = zutl_zar::seek(lib, zutl_zar::find(lib, entry.c_str()), nullptr)) {
-      zcls::TreeReader reader;
-      p->models[v] = zcls::read_tree(reader, f, nullptr);
-    }
+  // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
+  void animations(Pilot& p) override {
+    if (open_motions("zbd/motion.zbd")) load_animations(p);
   }
-  p->model = p->models[0];
-  if (open_motions("zbd/motion.zbd")) load_animations(*p);
-  cache[index] = std::move(p);
-  return cache[index].get();
-}
+};
 
 class WiredBuild : public MechBuildHooks {
  public:
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
-  Pilot* mech_data(int32_t index, int32_t) override { return mech_type(index); }
+  Pilot* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
   Handle node_find(Handle root, const char* name) override { return zcls::node_find_in_tree(zn(root), name); }
-  // zClass's tree copy (0x004f9af0) is not ported: the mech uses the
-  // library's tree itself (one mech of each type).
-  Handle node_clone(Handle node) override {
-    unported("0x004f9af0", {low(node), 1, 1});
-    return node;
+  // Each mech its own tree: the models and their materials copied.
+  Handle node_clone(Handle node) override { return zcls::tree_copy(zn(node), 1, 1); }
+  void node_remove_child(Handle parent, Handle child) override { zcls::node_remove_child(zn(parent), zn(child)); }
+  void node_free(Handle node) override { zcls::tree_destroy(zn(node)); }
+  void node_tree_update(Handle node) override { zcls::update_subtree(zn(node)); }
+  void nodes_pending() override { zcls::update_changed(); }
+  void node_set_model(Handle node, Handle model) override {
+    zcls::node_set_model(zn(node), static_cast<zmod::Model*>(model));
   }
+  Handle model_new() override { return zmod::model_alloc(); }
   void node_set_action(Handle node, uint32_t) override { zcls::node_set_action(zn(node), nullptr); }
   void node_set_flag8(Handle node, int32_t on) override { zcls::node_set_flag8(zn(node), on); }
   // 0x005a7f50: onto zEntity's list, the port's (mech3/sensors).
@@ -135,6 +126,7 @@ class WiredLaunch : public LaunchHooks {
 };
 
 WiredBuild g_build;
+WiredData g_data;
 WiredLaunch g_launch;
 
 }  // namespace
@@ -143,11 +135,13 @@ void wire_mech_build(const MechWiring* w) {
   if (!w) {
     g_w = MechWiring{};
     set_mech_build_hooks(nullptr);
+    set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
     return;
   }
   g_w = *w;
   set_mech_build_hooks(&g_build);
+  set_mech_data_hooks(&g_data);
   set_launch_hooks(&g_launch);
   // The weapons a mech mounts look up its owner, firepoints and jump jets
   // (weapon.h); the program's managers are all mechs' so far.
@@ -160,6 +154,13 @@ void wire_mech_build(const MechWiring* w) {
     return d ? d->firepoints : nullptr;
   };
 }
+
+void mech_types_open() {
+  if (!open_mechlib()) std::fprintf(stderr, "mw3: no zbd\\mechlib.zbd: the mechs have no models\n");
+}
+void mech_types_refresh() { mech_data_refresh(); }
+void mech_types_close() { close_mechlib(); }
+void mech_types_forget() { mech_data_clear(); }
 
 bool launched_mech(LaunchedMech* out) { return describe_mech(mech3::launched_mech(), out); }
 
