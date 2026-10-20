@@ -109,7 +109,7 @@ void fill(Contact* c, Handle owner, Handle entity, float d2, const Vec& d, uint8
   c->seen = entity ? vt(entity, 0x24) : 0;
   c->dist2 = d2;
   c->delta[0] = d.x, c->delta[1] = d.y, c->delta[2] = d.z;
-  c->x1c = -1.0f;
+  c->dist = -1.0f;
   c->flags = static_cast<uint8_t>((c->flags & ~1u) | (vis & 1));
 }
 

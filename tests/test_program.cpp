@@ -1260,11 +1260,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         seen.hot_group = mech3::mech_select_hot_group(player);
         seen.player_before = seen.player_peak;  // the heat before the hot group
       } else if (seen.frames > 6 && seen.frames < 200) {
-        // The HUD's reticle on the Owens' middle (0x0041cd40 is not ported).
-        mech3::LaunchedMech o;
-        mech3::describe_mech(owens, &o);
-        const float at[3] = {o.pos[0], o.pos[1] + o.height * 0.5f, o.pos[2]};
-        mech3::mech_aim_at(player, at);
+        // The weapons aim where the HUD's reticle ray ends (0x0041cd40).
         zwep::PoolStats ps;
         zwep::pool_stats(&ps);
         if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
@@ -1398,6 +1394,122 @@ TEST(mission_c1m1_player_commands_headless) {
     EXPECT(seen.powering && seen.down_at > 0);            // the power key: down
     EXPECT(seen.stayed_down && seen.up_at > seen.down_at + 30);  // until pressed again, then up
     EXPECT(seen.jets_firing > 0 && seen.climb > 1.0f);    // the jump jets lift it
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's Owens through the entity manager's frame (0x004a1140,
+// 0x005a8850; docs/ai.md, The AI mechs' frames): woken by bramp it powers up
+// and stands on its feet; the player walking into it is blocked by it as a
+// mech (the head-on probe's mech response), not as a wall.
+TEST(mission_c1m1_owens_runs_its_frames_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_ai_frames_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      mech3::LaunchedMech asleep, woke, owens_end;
+      float off_ground = 0, closest = 1e9f;
+      bool feet = true, mech_block = false, wall_block = false;
+    } seen;
+    void* player = nullptr;
+    void* owens = nullptr;
+    uint32_t up = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      mech3::LaunchedMech o, m;
+      if (seen.frames > 3) mech3::describe_mech(owens, &o), mech3::describe_mech(player, &m);
+      if (seen.frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        up = zin::key1_of(0x18) & 0xff;  // throttle up
+        mech3::describe_mech(owens, &seen.asleep);
+        if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
+        mech3::describe_mech(owens, &seen.woke);
+      } else if (seen.frames > 3 && seen.frames < 200) {
+        // Its frames run, standing on the ground.
+        if (!o.feet_down) seen.feet = false;
+        const float g = ground_under(o.pos[0], o.pos[1] + 20.0f, o.pos[2]);
+        seen.off_ground = std::max(seen.off_ground, std::fabs(o.pos[1] - g));
+      } else if (seen.frames == 200) {
+        seen.owens_end = o;
+        // 30 m west of the Owens, facing east (+x), walking at it.
+        const float x = o.pos[0] - 30.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+        keys.key(up, true);
+      } else if (seen.frames > 200 && seen.frames < 500) {
+        seen.mech_block |= m.blocked[1];
+        seen.wall_block |= m.blocked[3];
+        const float dx = m.pos[0] - o.pos[0], dz = m.pos[2] - o.pos[2];
+        seen.closest = std::min(seen.closest, std::sqrt(dx * dx + dz * dz));
+      } else if (seen.frames == 500) {
+        keys.key(up, false);
+        seen.owens_end.attacker = o.attacker;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    EXPECT(seen.frames >= 500);
+    EXPECT(seen.asleep.powered_down && !seen.woke.powering_down);  // bramp powers it up
+    EXPECT(seen.owens_end.alive - seen.woke.alive > 3.0f);   // a full update each frame since
+    EXPECT(seen.feet && seen.off_ground < 0.1f);             // standing on the ground
+    EXPECT(seen.mech_block && !seen.wall_block);             // the player blocked by it as a mech
+    EXPECT(seen.closest > 3.0f);                             // not walked through
+    EXPECT(seen.owens_end.attacker == player);               // the bump hit it (0x00423a20)
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

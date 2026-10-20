@@ -138,6 +138,13 @@ at the ground and disarms it.
 3. 0x422d20 with `di_segments` stubbed by canned hits; then 0x4225c0 whole.
 4. `di_segments` 0x4efcd0 itself (cls_di.c), on the worlds test_gamez loads.
 
+## In the program
+
+`app_mech.cpp` wires the lookups: `node_mech` is 0x40e9d0 (the node's +0x28
+id: 0xf000 its owner, 0xff its part's mech), `node_entity` 0x40e960 (bit 18
+the owner, else 0x40e9d0, else bit 19 the owner), the contacts are the
+sensors'. Another mech is a mech, not a wall (ai.md section 16).
+
 ## The shot queries (cls_di.c)
 
 The weapons ask the world what a shot's segment crosses and what lies near

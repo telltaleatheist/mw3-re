@@ -135,7 +135,7 @@ struct ProgramViewHooks : ViewHooks {
   }
   uint32_t controls_flags(Mech& t) override { return t.controls ? t.controls->flags : 0; }
   int32_t controls_kind(Mech& t) override { return t.controls ? t.controls->view : 0; }
-  uint32_t option_5f4d44() override { return 0; }
+  uint32_t option_5f4d44() override { return static_cast<uint32_t>(program_mouse_mode()); }
   uint8_t head_bob() override { return 1; }       // [0x005e2448]
   float head_bob_scale() override { return 0.15f; }  // [0x005e244c]
   Mech* player_target() override { return g_view ? g_view->target : nullptr; }

@@ -37,7 +37,10 @@
 #include "mech3/mech_reader.h"
 #include "mech3/mission_launch.h"
 #include "mech3/mission_world.h"
+#include "gamez/zentity/zent_manager.h"
+#include "mech3/mech_control.h"
 #include "mech3/sensors.h"
+#include "mech3/zai_target.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -216,6 +219,39 @@ void wire_mech_frame() {
     m.entity_moved();
   };
   update_calls().moved = [](Mech& m) { m.entity_moved(); };                                 // 0x005a85c0
+  // What a probe hit (0x0040ef10 / 0x0040ef00): a mech's nodes are its own,
+  // so it blocks and is shoved as a mech rather than as a wall.
+  c.node_mech = [](Handle n) { return static_cast<Mech*>(node_owner(n)); };
+  c.node_entity = [](Handle n) -> Handle {  // 0x0040e960
+    const zcls::Node* z = zn(n);
+    if (!z) return nullptr;
+    const uint32_t id = z->get<uint32_t>(0x28);
+    if (id & 0x40000) return z->owner;
+    if (Handle o = node_owner(n)) return o;
+    return id & 0x80000 ? z->owner : nullptr;  // 0x0040e9b0
+  };
+  // The bump looks through the sensors' contacts. A contact's vehicle (vt+0x2c)
+  // and mech (vt+0x50) are the mech itself (0x004d2a70); targets.zrd's
+  // objects answer vt+0x40 with 0 (0x0040bae0), and the vehicles that do
+  // (the Mobile HQ) are not ported.
+  c.contact_count = [](Mech& m) { return static_cast<int32_t>(m.contacts.size()); };
+  c.contact = [](Mech& m, int32_t i) -> Handle { return m.contacts[i]; };
+  c.contact_mech = [](Handle ct) -> Mech* {  // 0x004e6ff0
+    const ai::Handle s = static_cast<ai::Contact*>(ct)->seen;
+    for (const ai::Handle e : ai::entity_list())
+      if (s && e == s) return static_cast<Mech*>(g_w.object_of(g_w.engine, s));
+    return nullptr;
+  };
+  c.contact_target = [](Handle) { return false; };
+  c.contact_dist2 = [](Handle ct) { return static_cast<ai::Contact*>(ct)->dist2; };
+  c.contact_dist = [](Handle ct) { return static_cast<ai::Contact*>(ct)->distance(); };
+  c.contact_dir = [](Handle ct) { return reinterpret_cast<const Vec3*>(static_cast<ai::Contact*>(ct)->dir); };
+  // The AI mechs' controls: the brain (0x004e9710 on +0x5c) is not ported;
+  // the smoothing it ends in runs on the targets as they are.
+  controls_calls().ai_brain = [](MechControls& ctl, float dt) {
+    g_w.unported(g_w.engine, "0x004e9710", {});
+    return ctl.smooth(dt);
+  };
   // The player's keys (Mech::command): what is not ported is logged once by
   // the engine; the HUD's keys wait for the HUD's own commands.
   CommandCalls& k = command_calls();
@@ -232,6 +268,7 @@ void wire_mech_build(const MechWiring* w) {
     pose_calls() = PoseCalls{};
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
+    controls_calls().ai_brain = nullptr;
     update_calls().moved = nullptr;
     command_calls() = CommandCalls{};
     unwire_hud();
@@ -295,6 +332,10 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.jets = m->equipment[11];
   s.jets_firing = m->jump_jets_firing;
   s.crouched = m->crouched;
+  s.alive = m->alive_time;
+  s.anim_state = m->anim_state;
+  for (int i = 0; i < 4; ++i) s.blocked[i] = m->blocked[i];
+  s.attacker = m->attacker;
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;
@@ -333,6 +374,15 @@ bool mech_aim_at(void* mech, const float at[3]) {
 }
 void update_mech(void* mech, float dt) {
   if (mech) static_cast<Mech*>(mech)->update(dt);
+}
+// Mech3.exe 1.2 @ 0x004a1140 ([0x005e7284] is 1): the entity manager's walk
+// 0x005a8850 over zEntity's list, the program's mechs; the sensors leave the
+// player's +0x09 clear, so its frame is the player tick's alone.
+void update_entities(float dt) {
+  zent::budget().update_all(ai::entity_list(), [dt](ai::Handle h) {
+    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    if (m && m->x09) m->update(dt);  // vt+0x34
+  });
 }
 // Mech3.exe 1.2 @ 0x0041ca30: the player's mech takes the value, any other 1.
 void mech_set_hud_fall(void* mech, int32_t v) {

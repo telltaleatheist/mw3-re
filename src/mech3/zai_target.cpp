@@ -5,6 +5,7 @@
 #include <new>
 #include <utility>
 
+#include "gamez/zmath/zmth_vector.h"
 #include "mech3/zrdraiv.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -39,6 +40,16 @@ void AiTarget::set_team(uint32_t t) {
 }
 
 // Mech3.exe 1.2 @ 0x004e6fe0: a contact's vehicle (none without what it saw).
+// Mech3.exe 1.2 @ 0x004e7030: worked out once, on the first ask.
+float Contact::distance() {
+  if (dist < 0.0f) {
+    zmth::Vec3 d{delta[0], delta[1], delta[2]};
+    dist = zmth::normalize(d);
+    dir[0] = d.x, dir[1] = d.y, dir[2] = d.z;
+  }
+  return dist;
+}
+
 Handle AiTarget::vehicle_of(const Contact* c) const { return c->seen ? g_hooks->seen_vehicle(c->seen) : 0; }
 uint32_t AiTarget::team_of(Handle vehicle) const { return g_hooks->team_of(g_hooks->ai_target(vehicle)); }
 

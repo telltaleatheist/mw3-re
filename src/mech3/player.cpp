@@ -314,8 +314,8 @@ Handle make_vehicle_controls(Handle net, ai::AivRecord* rec) {
 
 // Mech3.exe 1.2 @ 0x004a1160: the tick object's action (priority 2), once a
 // frame: the player's vehicle, the stealth entity when the view looks at it,
-// the network, the HUD's view. A frame time of 0 (or NaN, the x87 compare
-// says equal) gives an inverse of 10000.
+// every other entity's frame (0x004a1140), the HUD's view. A frame time of 0
+// (or NaN, the x87 compare says equal) gives an inverse of 10000.
 void player_tick() {
   PlayerHooks& h = *g_hooks;
   PlayerState& s = g_state;
@@ -325,7 +325,7 @@ void player_tick() {
   const Handle st = h.stealth();
   if (h.view_target(h.view()) == st) h.stealth_update(st, s.dt);
   h.clear_6099c0();
-  h.net_tick(s.dt);
+  h.entities_update(s.dt);
   h.tick_41e3f0(s.dt);
   const int32_t type = h.game_type();
   if (type == 2 || type == 3) h.tick_537f20(s.x5e8118);

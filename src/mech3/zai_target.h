@@ -27,9 +27,11 @@ struct Contact {
   Handle entity = 0;       // +0x08
   float dist2 = 0;         // +0x0c  squared distance: the list is nearest first
   float delta[3] = {};     // +0x10
-  float x1c = -1.0f;       // +0x1c
-  uint32_t x20[3] = {};    // +0x20
+  float dist = -1.0f;      // +0x1c  the distance, -1 until distance() works it out
+  float dir[3] = {};       // +0x20  the unit delta, with it
   uint8_t flags = 0;       // +0x2c  bit 0: in sight now (likely)
+
+  float distance();        // 0x004e7030
 };
 
 // The sides a pick asks for: 0 an ally, 1 an enemy, 2 neither, 3 any.

@@ -290,6 +290,7 @@ struct WiredPlayerHooks : PlayerHooks {
     if (m && is_launched_mech(m)) update_mech(m, dt);
     else PlayerHooks::vehicle_update(v, dt);
   }
+  void entities_update(float dt) override { update_entities(dt); }  // 0x004a1140
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
   // view.vt+0x08 (0x0040ada0): the port's view, each player tick.
