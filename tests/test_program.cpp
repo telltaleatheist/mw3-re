@@ -401,8 +401,9 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
         EXPECT(b->orders.size() == 1);                              // one order, on net 4
         if (b->orders.size() == 1) {
           const mech3::ai::Order& o = b->orders.back();
-          EXPECT(o.owner == b && o.net == &o.net_part && o.state == &o.state_part);
-          EXPECT(o.net->net && o.net->net->get_id() == 4 && !o.net->builtin);
+          const auto* link = dynamic_cast<const mech3::ai::NetLink*>(o.net.get());
+          EXPECT(o.owner == b && link && dynamic_cast<const mech3::ai::SharedState*>(o.state.get()));
+          EXPECT(link && link->net() && link->net()->get_id() == 4 && !link->builtin);
           EXPECT(o.net->order == &o && o.state->order == &o);
         }
         EXPECT(b->order.owner == b);

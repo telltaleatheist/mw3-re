@@ -18,6 +18,8 @@
 namespace mech3::ai {
 
 class CompiledNet;
+class BehaviourState;
+struct Order;
 
 // What a step asks of the pilot finding its way (in the exe its brain: the
 // vehicle at brain +0xf0 through the virtual base at +0xe0).
@@ -30,6 +32,7 @@ struct Pilot {
 // Which class an element is, by the exe's vtable (the tests compare these).
 enum class StepKind : uint32_t {
   Behaviour = 0x5cb278,     // 0x004c8750, the default behaviour (0x00604068)
+  Shared = 0x5cbe18,        // 0x004cbe10, the shared behaviour (0x0060b460)
   Null = 0x5bc8d0,          // 0x004105d0, the null step (0x00603fa0)
   Speed = 0x5cb488,         // 0x004c9eb0
   WaitInterval = 0x5cb560,  // 0x004c9f80
@@ -69,6 +72,8 @@ struct Behaviour : AiElem {
   virtual Behaviour* link(int32_t i) const;           // +0x08: the null step here
   virtual const float* position() const { return nullptr; }  // +0x18
   virtual void attach(CompiledNet* net) { (void)net; }        // +0x6c
+  // +0x8c: its state in an order (zai_brain.h; the caller owns it).
+  virtual BehaviourState* make_state(Order& o);
   // +0xac 0x004cd490: whether `p` may go on here from `from`; yes but for
   // valves, jumps, gates and valve unions.
   virtual bool passable(const Pilot* p, const Behaviour* from) const {
@@ -204,6 +209,7 @@ class CompiledNet : public AiNet {
   CompiledNet(int32_t id, int32_t slots);  // 0x004bf910 with no starting list
   ~CompiledNet() override;
   AiNet* as_compiled() override { return this; }
+  NetPart* make_part(Order& o) override;  // +0x5c 0x004c0070 (zai_brain.cpp)
   bool mark(bool on);  // 0x004c0e70: the path finder's mark (+0x18 bit 0)
   Behaviour* step(int32_t i) const {
     znet::Element* e = elem(i);
