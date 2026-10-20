@@ -91,3 +91,19 @@ TARGET's unported path).
 Next (lead, priority): the reticle's aim point and the hand-off 0x0041cd40
 into mech +0x1d48, so `mw3 --mission c1m1` aims where you look; then the
 porting order.
+
+## 2026-10-20 The aim from the reticle (lead's priority)
+
+hud.md section 10. HUD side in mech3/hud (0x004445f0, 0x00444350,
+0x00444710, 0x004446a0, 0x00443660), the mech side in mech3/mech_hud
+(0x0041ce60, 0x0041cd40, 0x0041bd80, 0x00430aa0), options' 0x0040d9e0,
+zMath's 0x00523930; the program in mech3/app_hud (wired with the mech build;
+the HUD set up at the view attach; the Core frame's hud() runs the hand-off).
+MechControls got vtable +0x14 `look_position` (PlayerControls +0x140).
+test_hud.py's aim phase: answers made before the snapshot (the replay reads
+the snapshot), the segment code answered through the script so the replay
+returns it. mw3tests mission_c1m1_player_aims_with_the_reticle_headless.
+Remember: in view 0 the controls zero the look every frame (the reticle stays
+centred); the cockpit ray at 11.9 m passes over an Owens' middle, so the test
+pitches the torso (CMD_PITCH_DOWN 5) until the ray ends on it.
+Next: back to the porting order (item 2, the HUD primitives' drawing).

@@ -1814,4 +1814,11 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **The equipment list is told to make room when it is long:** with 17 or
   more lines (weapons plus equipped parts) its next placing puts it left of
   its spot instead of below it.
+- **Your weapons aim where the reticle's line of sight ends,** worked out
+  every frame from the camera through the reticle: at whatever it first
+  meets, or at the far edge of your view distance when it meets nothing.
+- **The reticle sees through water:** the aim skips water surfaces, so you
+  can aim at things under or beyond the water instead of the water itself.
+- **In the cockpit view the reticle stays centred;** only the free-look
+  mouse mode moves it around the screen.
 
