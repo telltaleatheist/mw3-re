@@ -267,7 +267,7 @@ def pick_op(rng, emu, worlds, made):
     # file gives no model (-1) re-reads the 0x60 bytes before the model table
     # as one (a garbage read in the exe): only nodes with models.
     if r < 0.52 and rng.random() < 0.5:  # half the time a parent, so the tree's re-read reaches its children
-        parents = [k for k in nodes[:400] if emu.info(k)[2] > 0 and k not in made and emu.record_model(k) >= 0]
+        parents = [k for k in emu.file_parents if k in set(nodes) and emu.info(k)[2] > 0]
         if parents:
             n = rng.choice(parents)
     if r < 0.52 and n not in made and emu.record_model(n) >= 0:
@@ -302,6 +302,9 @@ def main():
         compare(f'{w} after the read', emu.dump(1), buf, probe.probe_destroy_dump(1, buf, len(buf)))
         rng = random.Random(seed * 100 + G.WORLDS.index(w))
         worlds = [i for i in emu.listed() if emu.info(i)[0] == 2]
+        # The file's object3d parents whose whole tree has models (the tree re-read's targets).
+        emu.file_parents = [k for k in emu.listed() if emu.info(k)[0] == 5 and emu.info(k)[2] > 0 and
+                            all(emu.record_model(j) >= 0 for j in emu.subtree(k))]
         ops = []
         # The run-time nodes first, then the random takedown.
         for _ in range(120):
