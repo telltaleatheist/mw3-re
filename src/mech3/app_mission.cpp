@@ -41,6 +41,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
@@ -59,6 +60,8 @@ namespace mech3 {
 // clash with app_hooks.h's.
 int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
+bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
+const char* mech_name(int32_t mech);                         // 0x00484650
 
 namespace {
 
@@ -402,6 +405,26 @@ void wire_mission_hooks(GameEngine* e) {
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
   set_player_hooks(e ? &g_player_hooks : nullptr);
+  // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
+  if (!e) return wire_mech_build(nullptr);
+  static MechWiring w;
+  w.engine = e;
+  auto en = [](void* p) { return static_cast<GameEngine*>(p); };
+  w.unported = [](void* p, const char* key, std::initializer_list<zgame::Arg> args) {
+    return static_cast<GameEngine*>(p)->unported(key, args);
+  };
+  w.peek32 = [](void* p, uint32_t a) { return static_cast<GameEngine*>(p)->peek32(a); };
+  w.poke32 = [](void* p, uint32_t a, uint32_t v) { static_cast<GameEngine*>(p)->poke32(a, v); };
+  w.poke8 = [](void* p, uint32_t a, uint8_t v) { static_cast<GameEngine*>(p)->poke8(a, v); };
+  w.object_of = [](void* p, uint32_t h) { return static_cast<GameEngine*>(p)->object_of(h); };
+  w.handle_of = [](void* p, const void* o) { return static_cast<GameEngine*>(p)->handle_of(const_cast<void*>(o)); };
+  w.vcall = [](void* p, uint32_t obj, uint32_t slot, std::initializer_list<zgame::Arg> args) {
+    return static_cast<GameEngine*>(p)->vcall(obj, slot, args);
+  };
+  w.pilot = [](void* p) { return static_cast<GameEngine*>(p)->pilot(); };
+  w.view = [](void* p) { return static_cast<GameEngine*>(p)->player_view(); };
+  (void)en;
+  wire_mech_build(&w);
 }
 
 // 0x00490880 on the missions object: the load, then (a debug launch, our
@@ -416,7 +439,18 @@ void GameEngine::missions_start(uint32_t list) {
     zcls::camera_set_rotation(cam, -launch_.pitch, launch_.yaw + 3.14159265f, 0.0f);
     zcls::camera_set_position(cam, launch_.eye[0], launch_.eye[1], launch_.eye[2]);
   }
-  if (launch_.active && !m.failed) app().replace(app().state(5), 0);
+  if (launch_.active && !m.failed) {
+    // The briefing's Launch (0x0040500a): the player's mech (0x00491150).
+    LaunchedMech s;
+    if (!launch_player() || !launched_mech(&s)) {
+      std::fprintf(stderr, "mw3: the launch made no mech\n");
+    } else if (!quiet) {
+      std::fprintf(stderr, "mw3: launched the %s: %d parts, %d weapons, %d heat sinks, %.1f m tall, %.1f m/s\n",
+                   mech_name(s.roster), s.parts, s.weapons, s.sinks, static_cast<double>(s.height),
+                   static_cast<double>(s.max_speed));
+    }
+    app().replace(app().state(5), 0);
+  }
 }
 
 // The debug launch's pilot and game (our addition): [0x0060861c] a pilot
@@ -442,6 +476,16 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
   if (obj && obj == game_) {
     switch (slot) {
       case 0x2c: return static_cast<uint32_t>(launch_.type);
+      case 0x34:  // the pilot's slot: the mech, its first configuration, skin 0
+        if (!slot_) {
+          slot_ = alloc_block(0x20);
+          poke32(slot_ + 4, static_cast<uint32_t>(launch_.mech));
+          poke32(slot_ + 8, debug_slot_config(launch_.mech, this, [](void* p, const void* o) {
+            return static_cast<GameEngine*>(p)->handle_of(const_cast<void*>(o));
+          }));
+          poke32(slot_ + 0x10, 0);
+        }
+        return slot_;
       case 0x4c: return static_cast<uint32_t>(launch_.number);
       case 0x54: return static_cast<uint32_t>(launch_.index);
       case 0x28: return 0;

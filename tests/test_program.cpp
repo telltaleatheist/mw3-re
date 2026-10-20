@@ -17,6 +17,7 @@
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "mech3/mainmenu.h"
 #include "gamez/zutil/zutl_reg.h"
@@ -250,6 +251,59 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
     EXPECT(count("0x004ac860") == 8);  // each vehicle has its net: a controller each, and the stealth entity
     EXPECT(count("0x00414150") == 0);  // no controller, no mech
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// The debug launch of c1 mission 1 without a window (docs/mech-build.md
+// section 9): after the load the briefing's Launch (0x00491150) builds the
+// player's mech, a Mad Cat in its first configuration, from mechlib.zbd's
+// model, the definition and the motions: every part on its node, its
+// weapons mounted, its armor, ten heat sinks, its height from the model,
+// the skis and the AMS, on the player's team (aiv.zrd's player record).
+TEST(mech_build_launches_the_player_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mech_build_write"));
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1, the Mad Cat
+    engine.set_launch(l);
+    engine.missions_start(0x6098d0);  // the load, then the launch (our debug addition)
+    EXPECT(!mech3::missions().failed);
+    mech3::LaunchedMech m;
+    EXPECT(mech3::launched_mech(&m));
+    EXPECT(m.roster == 9);
+    EXPECT(m.parts == 13);    // hip, torso, head, the arms and hands, thighs, calves and feet
+    EXPECT(m.weapons > 0);    // its first loadout's weapons on their firepoints
+    EXPECT(m.sinks >= 10);
+    EXPECT(m.toes > 0);
+    EXPECT(m.height > 5.0f && m.height < 20.0f);  // the model's box, not the default 12
+    EXPECT(m.max_speed > 10.0f);  // the engine's top speed
+    EXPECT(m.torso_armor_scale > 2.77f && m.torso_armor_scale < 2.78f);  // 36 points in the centre torso: 100 / 36
+    EXPECT(m.team == 2);      // team 1 (aiv.zrd's player record): mask 2
+    EXPECT(m.skis && m.ams);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
