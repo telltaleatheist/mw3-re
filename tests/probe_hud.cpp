@@ -35,6 +35,52 @@ std::string piece_name(const ztwod::Object2D* p) {
   return "?";
 }
 
+// test_hud.py's order: FontText's fields, then Text's and the rest.
+void text(Dump& d, ztwod::Text* p) {
+  d.fonttext(p);
+  d.kv("font", p->font);
+  d.kv("centered", p->centered);
+  d.kv("shcol", p->shadow_color);
+  d.kv("lead", p->leading);
+  d.kv("fixed", p->fixed);
+  d.kv("sdx", p->shadow_dx);
+  d.kv("sdy", p->shadow_dy);
+  d.f("ft", p->flash_timer);
+  d.f("frate", p->flash_rate);
+  d.kv("atop", p->alt_top);
+  if (p->bk_mode == 2) d.kv("bkc", p->bk_color);
+  d.r("fr", p->fixed_rect);
+  d.kv("fon", p->flash_on);
+  d.kv("fmode", p->flash_mode);
+  d.kv("phase", p->phase);
+}
+
+void textbox(Dump& d, ztwod::TextBox* p, const char* head) {
+  d.o << head << ' ';
+  d.fonttext(p);
+  d.kv("current", p->current);
+  d.kv("bup", p->bottom_up);
+  d.kv("repos", p->reposition);
+  d.kv("nlines", static_cast<int64_t>(p->lines.size()));
+  d.o << "\n";
+  for (size_t i = 0; i < p->lines.size(); ++i) {
+    d.o << head << ".line" << i << ' ';
+    text(d, &p->lines[i]);
+    d.o << "\n";
+  }
+}
+
+void panel(Dump& d, mech3::HudPanel* p) {
+  d.image(p);
+  d.r("rect", p->rect);
+  for (auto& c : p->corners)
+    for (float v : c) d.f("c", v);
+  d.kv("color", p->color);
+  d.kv("alpha", p->alpha);
+  d.kv("colors", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->colors)));
+  d.kv("alphas", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->alphas)));
+}
+
 void dump_hud(Dump& d) {
   mech3::Hud& h = *g_hud;
   d.kv("active", h.active);
@@ -64,6 +110,40 @@ void dump_hud(Dump& d) {
   d.o << "\ntimer ";
   d.fonttext(&h.timer);
   d.o << "\n";
+  mech3::HudObjectives& ob = h.objectives;
+  textbox(d, &ob, "objectives");
+  d.o << "opanel ";
+  panel(d, &ob.panel);
+  d.o << "\n";
+  textbox(d, &ob.scores, "scores");
+  d.o << "ofonts ";
+  for (uint32_t f : {ob.font_title, ob.font_complete, ob.font_incomplete, ob.font_scores}) d.kv("font", f);
+  d.o << "\nequipment ";
+  mech3::HudEquipment& eq = h.equipment;
+  d.base(&eq);
+  d.kv("hud", 0);
+  d.kv("below", eq.below);
+  d.kv("column", eq.column);
+  d.o << "\nepanel ";
+  panel(d, &eq.panel);
+  d.o << "\n";
+  for (int i = 0; i < 16; ++i) {
+    mech3::HudEquipLine& l = eq.lines[i];
+    d.o << "eline" << i << ' ';
+    text(d, &l);
+    d.o << "\nvalue ";
+    d.fonttext(&l.value);
+    d.o << "\nlight ";
+    d.image(&l.light);
+    d.kv("state", l.state);
+    d.kv("item", l.item);
+    d.o << "\n";
+  }
+  const mech3::EquipmentSet& es = mech3::equipment_set();
+  d.o << "eset ";
+  for (auto* t : es.light) d.t("light", t);
+  for (uint32_t f : {es.font_red, es.font_yellow, es.font_green, es.font_grey}) d.kv("font", f);
+  d.o << "\n";
   const mech3::DamageSet& s = mech3::damage_set();
   d.kv("loaded", s.loaded);
   d.kv("bgw", s.bg_w);
@@ -88,6 +168,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, char* out, int size) {
   reset();  // the textures by address: each run's emulator starts over
   mech3::set_hud_hooks(&g_hooks);
   mech3::damage_set() = mech3::DamageSet{};
+  mech3::equipment_set() = mech3::EquipmentSet{};
   g_hud_addr = hud_addr;
   g_hud = nullptr;  // the last one is left: its images' release would call the host
   g_hud = static_cast<mech3::Hud*>(::operator new(sizeof(mech3::Hud)));

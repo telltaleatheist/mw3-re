@@ -1,11 +1,13 @@
 #include "mech3/hud.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "crt/msvc_math.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod_host.h"
+#include "gamez/zvideo/zvid_format.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -13,6 +15,7 @@ namespace mech3 {
 
 namespace {
 DamageSet g_damage;
+EquipmentSet g_equipment;
 HudHooks g_default_hooks;
 HudHooks* g_hooks = &g_default_hooks;
 
@@ -37,6 +40,7 @@ constexpr PartImages kParts[8] = {
 }  // namespace
 
 DamageSet& damage_set() { return g_damage; }
+EquipmentSet& equipment_set() { return g_equipment; }
 HudHooks& hud_hooks() { return *g_hooks; }
 void set_hud_hooks(HudHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 
@@ -93,6 +97,148 @@ void HudCompass::set_heading(float h) {
   const int32_t x = crt::msvc_ftol(scale * h) + centre;
   src.right = x + half;
   src.left = x - half;
+}
+
+// Mech3.exe 1.2 @ 0x0043b170
+uint16_t hud_green() { return zvid::pack_bytes(0, 0x40, 0); }
+
+// Mech3.exe 1.2 @ 0x0043a7c0
+float hud_opacity() { return ztwod::host().video_mode() != 0 ? 0.6f : 1.0f; }
+
+// Mech3.exe 1.2 @ 0x0043a7e0
+HudPanel::HudPanel() : Image(0) {
+  color = zvid::pack_bytes(0, 0x40, 0);
+  alpha = static_cast<uint8_t>(crt::msvc_ftol(hud_opacity() * 255.0f));  // 0x005c0078
+}
+
+// Mech3.exe 1.2 @ 0x0043a8f0
+void HudPanel::set_pos(int32_t px, int32_t py) {
+  Image::set_pos(px, py);
+  const int32_t w = image ? image->width : 0, h = image ? image->height : 0;
+  rect = {px, py, px + w, py + h};
+  const float fx = static_cast<float>(px), fy = static_cast<float>(py);
+  const float x1 = static_cast<float>(w) + fx, y1 = static_cast<float>(h) + fy;
+  const float c[4][3] = {{fx, fy, 0.9f}, {fx, y1, 0.9f}, {x1, y1, 0.9f}, {x1, fy, 0.9f}};
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 3; ++j) corners[i][j] = c[i][j];
+}
+
+// Mech3.exe 1.2 @ 0x0043aaa0
+void HudPanel::set_color(uint16_t c) {
+  color = c;
+  if (colors)
+    for (int32_t i = 0; i < image->pixel_count; ++i) colors[i] = color;
+}
+
+// Mech3.exe 1.2 @ 0x0043a9d0
+void HudPanel::set_alpha(uint8_t a) {
+  alpha = a;
+  if (!image) return;
+  image->alpha = nullptr;
+  if (alpha > 0xfd) {
+    image->flags = 0x61;  // 0x00517c60
+    return;
+  }
+  image->flags = 0x63;
+  image->alpha = alphas;
+  if (alphas)
+    for (int32_t i = 0; i < image->pixel_count; ++i) alphas[i] = alpha;
+}
+
+// Mech3.exe 1.2 @ 0x0043aa60
+void HudPanel::set_opacity(float f) {
+  set_alpha(static_cast<uint8_t>(crt::msvc_ftol(std::floor(static_cast<double>(f * 255.0f)))));
+}
+
+// Mech3.exe 1.2 @ 0x00446700
+HudObjectives::HudObjectives() : TextBox(0x19), scores(0x19) {
+  ztwod::Host& h = ztwod::host();
+  font_title = h.font_find("rtobjective_title");
+  font_incomplete = h.font_find("rtobjective_incomplete");
+  font_complete = h.font_find("rtobjective_complete");
+  font_scores = h.font_find("rt_mp_scores");
+  TextBox::set_font(font_title);
+  scores.set_font(font_title);
+  panel.show_for(-1.0f);
+  panel.set_color(hud_green());
+  panel.set_opacity(hud_opacity());
+  hide();
+}
+
+// Mech3.exe 1.2 @ 0x00446870: the box's size measured and dropped.
+void HudObjectives::set_pos(int32_t px, int32_t py) {
+  TextBox::set_pos(px, py);
+  scores.set_pos(px + 0x104, py);
+  total_height();
+  max_width();
+}
+
+// Mech3.exe 1.2 @ 0x00446820
+void HudObjectives::show_for(float seconds) {
+  Object2D::show_for(seconds);
+  scores.show_for(seconds);
+  g_hooks->unported("0x00446ad0", {g_hooks->id(this)});  // the panel's size: with the readers (hud.md)
+}
+
+// Mech3.exe 1.2 @ 0x00446850
+void HudObjectives::hide() {
+  Object2D::hide();
+  scores.hide();
+}
+
+// Mech3.exe 1.2 @ 0x00447c40
+HudEquipLine::HudEquipLine() : value(nullptr, 0, 0), light(0) {
+  ztwod::Host& h = ztwod::host();
+  value.set_font(h.font_find("mech_string"));
+  EquipmentSet& e = g_equipment;
+  if (!e.light[0]) e.light[0] = h.image_get("hud_light_red");
+  if (!e.light[1]) e.light[1] = h.image_get("hud_light_yellow");
+  if (!e.light[2]) e.light[2] = h.image_get("hud_light_green");
+  if (!e.font_red) e.font_red = h.font_find("wepstring_red");
+  if (!e.font_green) e.font_green = h.font_find("wepstring_green");
+  if (!e.font_yellow) e.font_yellow = h.font_find("wepstring_yellow");
+  if (!e.font_grey) e.font_grey = h.font_find("wepstring_grey");
+}
+
+// Mech3.exe 1.2 @ 0x00447fe0: the value's right edge at the column, the light after it.
+void HudEquipLine::place(int32_t px, int32_t py, int32_t col) {
+  x = px;
+  y = py;
+  value.set_pos(col - 0xf + px, py);
+  value.align = 2;
+  light.set_pos(col - 9 + px, py + 1);
+}
+
+// Mech3.exe 1.2 @ 0x00447e10: empty, the hidden bit kept.
+void HudEquipLine::reset() {
+  item = -1;
+  state = 2;
+  flags &= ztwod::kHidden;
+}
+
+// Mech3.exe 1.2 @ 0x00448070
+HudEquipment::HudEquipment() : Object2D(0, 0) {
+  place(0x212, 0x1e, 0);
+  hud = nullptr;  // 0x00448200 with no HUD
+  show_for(-1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x00448140: unmoved when already there.
+void HudEquipment::place(int32_t px, int32_t py, int32_t dy) {
+  if (below)
+    py += dy;
+  else
+    px += -0xf - column;
+  if (px == get_x() && py == get_y()) return;
+  x = px;
+  y = py;
+  dirty();
+  panel.set_pos(get_x(), get_y());
+  for (HudEquipLine& l : lines) {
+    l.place(px, py, column);
+    l.reset();
+    py += 10;
+  }
 }
 
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order

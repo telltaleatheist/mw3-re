@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
 from twod_world import TwodWorld  # noqa: E402
+from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 import test_twod  # noqa: E402
 
 probe = load_probe()
@@ -28,7 +29,7 @@ PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 # The pieces not ported yet: constructor -> (spec of its arguments).
 STUBBED = {0x43d260: 's0', 0x443b60: 'zs0,zs1', 0x444760: '', 0x442060: 's0,s1,s2,s3,s4',
-           0x43fcb0: 's0,s1,s2,s3', 0x445f80: '', 0x446700: '', 0x448070: ''}
+           0x43fcb0: 's0,s1,s2,s3', 0x445f80: ''}
 DAMAGE = 0x605888
 
 
@@ -51,6 +52,9 @@ class Original:
         self.flip = r.random() < 0.5
         w.answers['@entry+0xd0'] = struct.unpack('<I', bytes(e.cpu.read(entry + 0xd0, 4)))[0]
         self.e.stub(0x491c80, spec='')
+        e.stub(0x446ad0, spec='c')
+        e.cpu.import_code(IAT_FLOOR, FLOOR)
+        e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
         self.mech = e.world_alloc(0x10) if r.random() < 0.8 else 0
         self.snapshot = e.snapshot()
@@ -118,6 +122,41 @@ class Original:
             kv('maxw', e.r32(o + 0x4a8))
             kv('named', e.r32(o + 0x4ac))
 
+        def text(o):
+            fonttext(o)
+            for k, off in (('font', 0x234), ('centered', 0x238), ('shcol', 0x254), ('lead', 0x478), ('fixed', 0x47c),
+                           ('sdx', 0x4a0), ('sdy', 0x4a4), ('ft', 0x4b0), ('frate', 0x4b4), ('atop', 0x4b8)):
+                kv(k, e.r32(o + off))
+            if e.r32(o + 0x46c) == 2:
+                kv('bkc', e.r32(o + 0x470))
+            rc('fr', o + 0x480)
+            kv('fon', e.r8(o + 0x4c0))
+            kv('fmode', e.r32(o + 0x4c4))
+            kv('phase', e.r32(o + 0x4c8))
+
+        def textbox(o, head):
+            fonttext(o)
+            kv('current', e.r32(o + 0x4b0))
+            kv('bup', e.r8(o + 0x4b4))
+            kv('repos', e.r8(o + 0x4b5))
+            first, last = e.r32(o + 0x4bc), e.r32(o + 0x4c0)
+            n = (last - first) // 0x4cc if first else 0
+            kv('nlines', n)
+            flush(head)
+            for i in range(n):
+                text(first + 0x4cc * i)
+                flush(f'{head}.line{i}')
+
+        def panel(o):
+            image(o)
+            rc('rect', o + 0xbc)
+            for i in range(12):
+                kv('c', e.r32(o + 0xcc + 4 * i))
+            kv('color', e.r32(o + 0xfc) & 0xffff)
+            kv('alpha', e.r8(o + 0xfe))
+            kv('colors', e.r32(o + 0x100))
+            kv('alphas', e.r32(o + 0x104))
+
         kv('active', e.r32(h + 4))
         line.append(f'head={piece(e.r32(h + 8))} tail={piece(e.r32(h + 0xc))}')
         kv('mech', e.r32(h + 0x10))
@@ -143,6 +182,37 @@ class Original:
         flush('ctext')
         fonttext(h + 0x18410)
         flush('timer')
+        o = h + 0x17964
+        textbox(o, 'objectives')
+        panel(o + 0x4c8)
+        flush('opanel')
+        textbox(o + 0x5d4, 'scores')
+        for off in (0xa9c, 0xaa0, 0xaa4, 0xaa8):
+            kv('font', e.r32(o + off))
+        flush('ofonts')
+        o = h + 0x188c0
+        base(o)
+        kv('hud', e.r32(o + 0x34))
+        kv('below', e.r8(o + 0xa540))
+        kv('column', e.r32(o + 0xa544))
+        flush('equipment')
+        panel(o + 0xa438)
+        flush('epanel')
+        for i in range(16):
+            q = o + 0x38 + 0xa40 * i
+            text(q)
+            flush(f'eline{i}')
+            fonttext(q + 0x4cc)
+            flush('value')
+            image(q + 0x97c)
+            kv('state', e.r32(q + 0xa38))
+            kv('item', e.r32(q + 0xa3c))
+            flush('light')
+        for i in range(3):
+            tx('light', e.r32(0x6059d0 + 4 * i))
+        for i in range(4):
+            kv('font', e.r32(0x6059e0 + 4 * i))
+        flush('eset')
         kv('loaded', e.r8(0x605990))
         kv('bgw', e.r32(0x605998))
         kv('bgh', e.r32(0x60599c))
