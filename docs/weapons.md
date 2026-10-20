@@ -747,6 +747,63 @@ See `docs/discoveries.md`, Weapons.
   real firepoint (an earlier note here guessed it had none; the emulator
   shows it has: `test_tag.py`).
 
+## In the program (`mw3 --mission`)
+
+The player's weapons fire, fly and hit in the program (`mech3/app_weapons.cpp`,
+`wire_weapons`, called with the mech build's wiring):
+
+- **Firing**: Mech::update's `weapons_fire` / `weapons_update` run the
+  manager's trigger (0x004b0c20, the controls' fire byte, CMD_TRIGGER1
+  Space) and update (0x004b0c30); the manager's calls into the mech are the
+  port's: parts by id (0x0041d510), their nodes, the node's world point
+  (0x004ed650) and facing (node +0x38 +0x78), the entity's velocity, zone
+  byte (+0x64) and enemies (+0xc8), the configuration, heat and add_heat
+  (0x00419e40). The shots and beams are zWeapon's ports (0x00585010,
+  0x00584a70).
+- **The aim**: each frame the HUD (0x0041cd40) hands the mech its reticle's
+  point (screen +0x1d48) through 0x0041bc20 (`Mech::aim_at`, ported: a
+  point behind the torso's half depth along the facing clears the aim; the
+  torso's own aim 0x00465ea0 is a hook, not ported), which sets the
+  manager's aim (0x004b0bc0). **Every weapon aims at that point**
+  (0x004b3190 passes it unconditionally): the HUD is not ported, so without
+  it the shots go toward the aim's last value (the world's origin at
+  first). The headless test sets it as the reticle would.
+- **zWeapon's engine calls** (`RunHooks`): the scene graph, object3d, the
+  impact lights (zClass's lights and the world's light list), the node
+  handler slots (node +0xbc, `Node::damage`), and the shot queries
+  (`segment_list` 0x004eed90, the nearest hit 0x004eece0, their options
+  0x004ed9d0 / 0x004ed9e0 / 0x004eda00; movement-collision.md). The load
+  makes the projectile pool's nodes (`InitHooks::pool_objects`,
+  0x005847c0). Animations, sounds, craters, surface marks, the ground probe
+  0x004eda10 and the network are unset.
+- **Hits** (`HitHooks`): a node's handler table, its damage slot called on
+  the hit; the splash query is `sphere_query` 0x004f0ac0 (ranged, sighted).
+  A mech's node gets its damage handler at build (0x005833b0 with
+  0x004161a0: vtable +0x164, `Mech::take_damage`), handed down its subtree;
+  the hit node's part and owner (0x0040ea10, 0x0040e9d0) by the +0x28 id
+  and +0x40 owner the build stamps on each part's subtree.
+- **The frame's step** [0x0072c52c] is one global in the exe and a copy in
+  the mech, weapon and zWeapon modules here: the program copies it into
+  each before the vehicles update (`sync_frame_step`); without it the shots
+  never moved.
+- **Heat**: only with the Heat option on (0x0040cfc0, now wired;
+  `HeatCalls::heat_option`). Machine guns make none (HEAT 0 in weapons.zrd).
+- 0x0041aba0 on the player tick: the ammo gauge and the last attacker
+  cleared; the target's chosen part 0x0041d6f0 (HUD) is logged when there
+  is a target.
+
+`mw3tests` `mission_c1m1_player_fires_on_the_owens_headless`: the Mad Cat,
+moved 80 m west of the powered-down Owens and turned to it, holds the fire
+key with the reticle on the Owens: shots in the air, the Owens' armor drops
+(machine-gun hits of 0.8 on its torso); then a group that makes heat (F1..F5
+through the manager: the command handler that takes the keys is not
+ported) heats it.
+
+Left on this path: the HUD (its reticle, the aim's source; the gauges), the
+mech's command handler (groups, the power key), the torso's aim 0x00465ea0,
+the target's part 0x0041d6f0, effects and sounds of shots and hits, the
+craters, the AI's firing (the planner 0x004b1170).
+
 ## Left to port
 
 - The AI's weapon planner 0x4b1170..0x4b1d7f (with 0x4b1bd0 / 0x4b1c70, which

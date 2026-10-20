@@ -1170,3 +1170,119 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
   mech3::reset_states();
   mech3::options() = mech3::Options{};
 }
+
+// c1 mission 1's guns (docs/weapons.md, In the program): the Mad Cat, moved
+// 80 m west of the powered-down Owens and turned to face it, holds the fire
+// key; its weapons fire through the manager into zWeapon, the shots (beams
+// and projectiles) cross the Owens through the shot queries, its damage
+// handler (0x004161a0) takes the hits into Mech::TakeDamage, and its armor
+// drops; firing heats the Mad Cat.
+TEST(mission_c1m1_player_fires_on_the_owens_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_fire_write"));
+  mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      mech3::LaunchedMech owens_before, owens_after, player_before, player_peak;
+      int32_t flying_max = 0, hot_group = -1;
+    } seen;
+    void* player = nullptr;
+    void* owens = nullptr;
+    uint32_t fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+        // 80 m west of the Owens, on the ground, facing east (+x: yaw -90).
+        mech3::LaunchedMech o;
+        mech3::describe_mech(owens, &o);
+        const float x = o.pos[0] - 80.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+        mech3::describe_mech(owens, &seen.owens_before);
+        mech3::describe_mech(player, &seen.player_before);
+      } else if (seen.frames == 6) {
+        keys.key(fire, true);
+      } else if (seen.frames == 120) {
+        // The first group (the machine guns) makes no heat: one that does.
+        seen.hot_group = mech3::mech_select_hot_group(player);
+      } else if (seen.frames > 6 && seen.frames < 200) {
+        // The HUD's reticle on the Owens' middle (0x0041cd40 is not ported).
+        mech3::LaunchedMech o;
+        mech3::describe_mech(owens, &o);
+        const float at[3] = {o.pos[0], o.pos[1] + o.height * 0.5f, o.pos[2]};
+        mech3::mech_aim_at(player, at);
+        zwep::PoolStats ps;
+        zwep::pool_stats(&ps);
+        if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
+        mech3::LaunchedMech m;
+        if (mech3::describe_mech(player, &m) && m.heat > seen.player_peak.heat) seen.player_peak = m;
+      } else if (seen.frames == 200) {
+        keys.key(fire, false);
+        mech3::describe_mech(owens, &seen.owens_after);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 700;
+    app.run(pump);
+    EXPECT(seen.frames >= 200);
+    EXPECT(seen.flying_max > 0);                                // shots in the air
+    EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
+    EXPECT(seen.hot_group >= 0);
+    EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}

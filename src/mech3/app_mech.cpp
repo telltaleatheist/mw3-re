@@ -69,6 +69,9 @@ class WiredBuild : public MechBuildHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
+  // 0x005833b0(mech, node, 1, 0x004161a0): hits on the mech's node go to
+  // Mech::TakeDamage (app_weapons.cpp).
+  void touch_handler(Mech& m, Handle) override { mech_set_damage_handler(&m); }
   Pilot* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
   Handle node_find(Handle root, const char* name) override { return zcls::node_find_in_tree(zn(root), name); }
   // Each mech its own tree: the models and their materials copied.
@@ -131,6 +134,8 @@ class WiredLaunch : public LaunchHooks {
     // set by the view attach 0x0041ce30, not ported) is the same mech.
     world().mission_player = &m;
     world().player = &m;
+    weapon_world().mission_player = &m;
+    weapon_world().player = &m;
   }
   void interp_set_mech(Handle, Mech& m) override {
     if (zint::Interp* in = mech3::interp()) mech3::interp_set_mech(*in, &m, zn(m.node));
@@ -213,6 +218,7 @@ void wire_mech_build(const MechWiring* w) {
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
     update_calls().moved = nullptr;
+    unwire_weapons();
     set_mech_build_hooks(nullptr);
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
@@ -226,6 +232,7 @@ void wire_mech_build(const MechWiring* w) {
   // (weapon.h); the program's managers are all mechs' so far.
 
   wire_mech_frame();
+  wire_weapons();
   WeaponCalls& c = weapon_calls();
   c.vehicle_mech = [](Handle v) { return v; };
   c.vehicle_node = [](Handle v) { return static_cast<Mech*>(v)->node; };
@@ -251,7 +258,11 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   LaunchedMech s;
   s.roster = m->pilot->roster;
   const MechPart* parts[] = {m->hip, m->torso, m->head, m->arms[0], m->arms[1], m->legs[0], m->legs[1]};
-  for (const MechPart* p : parts) s.parts += p && p->node;
+  for (const MechPart* p : parts) {
+    s.parts += p && p->node;
+    if (p) s.armor += p->armor + p->internal;
+  }
+  s.heat = m->heat;
   for (const Arm* a : m->arms) s.parts += a && a->hand && a->hand->node;
   for (const Leg* l : m->legs) {
     if (!l) continue;
@@ -291,6 +302,11 @@ int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
 int32_t spawn_updates() { return g_spawn_updates; }
 const float* spawn_position() { return g_spawn_pos; }
 bool is_launched_mech(const void* mech) { return mech && mech == mech3::launched_mech(); }
+bool mech_aim_at(void* mech, const float at[3]) {
+  if (!mech) return false;
+  const Vec3 p{at[0], at[1], at[2]};
+  return static_cast<Mech*>(mech)->aim_at(&p, nullptr, true);
+}
 void update_mech(void* mech, float dt) {
   if (mech) static_cast<Mech*>(mech)->update(dt);
 }

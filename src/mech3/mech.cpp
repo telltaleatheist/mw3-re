@@ -3,8 +3,11 @@
 #include <cmath>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zclass/class.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/mission_world.h"
+#include "mech3/weapon.h"
 
 namespace mech3 {
 
@@ -338,6 +341,44 @@ void update_heat(Mech& m, float dt) {
     }
   }
   m.heat_added = 0.0f;
+}
+
+namespace {
+AimCalls g_aim;
+}
+AimCalls& aim_calls() { return g_aim; }
+
+// Mech3.exe 1.2 @ 0x0041bc20. A point behind the torso's front (its half
+// depth along the mech's facing, +0x18) clears the aim. In the cockpit view
+// the facing test is skipped and the exe hands the torso an unset direction
+// (here zero; the torso's aim 0x00465ea0 is not ported yet).
+bool Mech::aim_at(const Vec3* at, void* torso_out, bool check) {
+  auto* wm = static_cast<WeaponManager*>(ammo);
+  auto torso_aim = [&](const Vec3* d) { return g_aim.torso_aim ? g_aim.torso_aim(*this, d, torso_out, 1) : 0; };
+  if (!at) {
+    if (wm) wm->set_aim(nullptr);
+    return torso_aim(nullptr) == 1;
+  }
+  bool r = false;
+  if (check) {
+    Vec3 d{};
+    if (!(g_aim.cockpit_view && g_aim.cockpit_view(*this))) {
+      float p[3] = {0, 0, 0};
+      zcls::node_world_position(static_cast<zcls::Node*>(node), p);  // 0x004ed530
+      d = {at->x - p[0], at->y - p[1], at->z - p[2]};
+      const float f = (d.z * x18.z + d.y * x18.y) + d.x * x18.x;
+      if (f < (torso ? torso->half_depth : 0.0f)) {
+        if (wm) wm->set_aim(nullptr);
+        return false;
+      }
+    }
+    zmth::Vec3 n{d.x, d.y, d.z};
+    zmth::normalize(n);
+    const Vec3 dir{n.x, n.y, n.z};
+    r = torso_aim(&dir) == 1;
+  }
+  if (wm) wm->set_aim(reinterpret_cast<const Vec3f*>(at));
+  return r;
 }
 
 }  // namespace mech3
