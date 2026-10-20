@@ -104,11 +104,24 @@ class GameEngine : public Engine {
   void sound_shutdown_groups(uint32_t callback) override;
   void sound_shutdown() override;
   void light_init() override;
+  // zInput (gamez/zinput, docs/input.md).
+  void input_init(int32_t commands, const char* map) override;
   void input_start(uint32_t window, uint32_t cmd_show) override;
   void input_devices_shutdown() override;
   void input_acquire() override;
   void input_unacquire() override;
   uint32_t joystick_present() override;
+  uint32_t force_feedback_present() override;
+  void input_set_mode(uint32_t mode) override;
+  void input_poll(uint8_t callbacks) override;
+  uint32_t key_state(int32_t key) override;
+  void input_clear() override;
+  void input_reset() override;
+  void input_capture() override;
+  void input_release() override;
+  void input_center_mouse() override;
+  void mouse_set_pos(int32_t x, int32_t y) override;
+  void mouse_set_accel(float x, float y) override;
   void clock_init() override;
   void cd_init(int32_t) override {}  // the MCI notify window: the pump stands in
   void video_select_device(int32_t dev) override { device_ = dev; }

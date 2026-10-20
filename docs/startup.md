@@ -79,8 +79,8 @@ back, sound when 1), textures and sound modes, the video (0x480970: the 3D
 card or InstallOptions 0xff00 for software, else message 0xf41; the screen
 (0x579c60), the software spans (0x564370), the buffers), the graphics flags
 into models and render, lights, fonts.zrd, sounds.zrd, input, the joystick
-(none: the axis table made ready, UseJoystick off) or the network game object
-(0x433090), mechs, maps.zrd, the clock and CD, and a 3D card with under 4 MB
+(none: the axis table made ready, UseJoystick off; with one that has force
+feedback, 0x0051ddb0, an object 0x433090, likely the force effects: input.md), mechs, maps.zrd, the clock and CD, and a 3D card with under 4 MB
 fails with message 0xfbf.
 
 ## Game states

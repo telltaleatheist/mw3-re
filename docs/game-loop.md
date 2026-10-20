@@ -127,8 +127,9 @@ leave save and restore the cursor (0x00579840) and take and release input.
 **Main** (0x00486990..): makes the screen (0x00486260) and nine menu objects
 (0x00609858..0x00609878, among them the Action, Campaign, Training and
 Multiplayer states of gametypes.md). Sixty idle seconds (+0x14) push the
-Attract state. Hotkeys press the screen's buttons (commands 0x18, 0x2e, 0x32,
-0x17, 0x14, 0x10, 0x13, the first pressed wins). The launch flags above press
+Attract state. Hotkeys press the screen's buttons: raw keys read with 0x0051a9b0, not
+commands (input.md): O 0x18, C 0x2e, M 0x32, I 0x17, T 0x14, Q 0x10, R 0x13,
+the first pressed this frame wins. The launch flags above press
 a button on entry. Escape asks "quit?" (0x00482a20, messages 0xdc8/0xde1) and
 on yes replaces with Exit. Back from a game (resume 4 or 5) 0x00477f50
 ("mechlab") runs.

@@ -403,7 +403,7 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   en.vcall(en.player_view(), 0x04, {});
   en.scene_draw(scene);
   if (veh) ai_tick(en, veh);
-  if (en.command(1) & 3) {
+  if (en.key_state(1) & 3) {
     if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
     return true;
   }
@@ -521,7 +521,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   if (veh) ai_tick(en, veh);
-  if (en.command(1) & 3) {
+  if (en.key_state(1) & 3) {
     if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
     return true;
   }
@@ -611,7 +611,7 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   en.scene_draw(scene);
-  if (en.command(1) & 3) {
+  if (en.key_state(1) & 3) {
     if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
     return true;
   }
@@ -721,7 +721,7 @@ bool KeyListState::enter() {
 bool KeyListState::update() {
   Engine& en = e();
   en.input_poll(1);
-  if (en.command(1) != 0) {
+  if (en.key_state(1) != 0) {
     en.input_clear();
     a().pop(0);
   }
@@ -762,7 +762,7 @@ bool ShellState::update() {
     en.mouse_set_pos(x, y);
   }
   en.sound_update(0, 0);
-  if (en.command(1) == 1) escape();
+  if (en.key_state(1) == 1) escape();
   en.video_lock();
   if (screen_) en.vcall(screen_, 0x00, {zgame::bits(en.frame_dt())});
   en.video_unlock();
@@ -879,12 +879,12 @@ bool MainState::update() {
     reset_idle();
   }
   static const struct {
-    int32_t command;
+    int32_t key;
     uint32_t button;
   } kKeys[] = {{0x18, kButtonB}, {0x2e, kButtonA}, {0x32, kButtonMulti}, {0x17, kButtonLab},
                {0x14, kButtonCampaign}, {0x10, kButtonD}, {0x13, kButtonC}};
   for (const auto& k : kKeys) {
-    if (en.command(k.command) & 1) {
+    if (en.key_state(k.key) & 1) {
       en.vcall(s + k.button, 0x30, {});
       return r;
     }

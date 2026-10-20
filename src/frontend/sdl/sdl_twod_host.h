@@ -64,7 +64,7 @@ class SdlTwodHost : public ztwod::Host {
   void cd_stop() override;
   const char* message(const char* key) override;
   ztwod::MouseState mouse() override;
-  void input_reset() override {}
+  void input_reset() override;
 
   Handle GetStockObject(int32_t which) override;
   Handle CreateFontA(int32_t height, int32_t width, int32_t escapement, int32_t orientation, int32_t weight,

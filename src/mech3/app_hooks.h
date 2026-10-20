@@ -173,7 +173,7 @@ class Engine : public zgame::AppHooks {
   }
   virtual void input_start(uint32_t window, uint32_t cmd_show) { unported("0x0051b0a0", {window, cmd_show}); }
   virtual uint32_t joystick_present() { return unported("0x0051dc10", {}); }
-  virtual uint32_t network_present() { return unported("0x0051ddb0", {}); }
+  virtual uint32_t force_feedback_present() { return unported("0x0051ddb0", {}); }
   virtual Handle network_game_new() { return unported("0x00433090", {}); }  // new(0x34)
   virtual void network_game_delete(Handle g) { unported("0x004333f0", {g}); }
   virtual void network_game_start(Handle g, int32_t a) { unported("0x004338a0", {g, a}); }
@@ -284,7 +284,7 @@ class Engine : public zgame::AppHooks {
 
   // Input (zInput).
   virtual void input_poll(uint8_t a) { unported("0x0051b360", {a}); }
-  virtual uint32_t command(int32_t id) { return unported("0x0051a9b0", {id}); }  // pressed bits
+  virtual uint32_t key_state(int32_t key) { return unported("0x0051a9b0", {key}); }  // a DIK code's state, zin::key_state
   virtual void input_clear() { unported("0x0051a300", {}); }
   virtual void input_reset() { unported("0x0051b1c0", {}); }
   virtual void input_capture() { unported("0x0051b310", {}); }

@@ -115,6 +115,22 @@ class Input {
   virtual int32_t keyboard_data(KeyEvent* out, uint32_t* count) = 0;
   virtual int32_t mouse_state(MouseState* out) = 0;    // GetDeviceState(0x10)
   virtual int32_t joystick_state(JoyState* out) = 0;   // Poll, then GetDeviceState(0x110)
+
+  // SetCooperativeLevel's DISCL_ flags (1 exclusive, 2 non-exclusive, 4
+  // foreground, 8 background): the keyboard 10, the mouse the game's input
+  // mode (5), the joystick 5 or 9 (docs/input.md).
+  virtual void set_cooperative_level(Device, uint32_t) {}
+  // The joystick's GetCapabilities (DIDEVCAPS dwFlags and dwAxes),
+  // GetObjectInfo by offset (DIJOFS_X 0 .. DIJOFS_RZ 0x14: the axis's name;
+  // an error when the stick has no such axis), and DIPROP_RANGE /
+  // DIPROP_DEADZONE on an axis by offset.
+  static constexpr int32_t kObjectNotFound = static_cast<int32_t>(0x80070002);
+  static constexpr int32_t kUnsupported = static_cast<int32_t>(0x80004001);
+  virtual int32_t joystick_caps(uint32_t* flags, uint32_t* axes) { *flags = *axes = 0; return 0; }
+  virtual int32_t joystick_object_name(uint32_t, char* name, uint32_t) { name[0] = 0; return kObjectNotFound; }
+  virtual int32_t joystick_set_range(uint32_t, int32_t, int32_t) { return kUnsupported; }
+  virtual int32_t joystick_get_range(uint32_t, int32_t* min, int32_t* max) { *min = kAxisMin, *max = kAxisMax; return 0; }
+  virtual int32_t joystick_set_deadzone(uint32_t, uint32_t) { return 0; }
 };
 
 // Stands in for the Windows message queue zGameApp::Run (0x0058fd70) drives:

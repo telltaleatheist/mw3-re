@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "frontend/sdl/sdl_input.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zreader/zreader.h"
@@ -264,26 +265,14 @@ int32_t SdlTwodHost::cd_play(int32_t track, int32_t mode) { return zsnd_cd::play
 void SdlTwodHost::cd_stop() { zsnd_cd::stop(); }
 const char* SdlTwodHost::message(const char* key) { return zutl::localize(key); }
 
-// zInput's mouse (0x0051b7b0, not ported): the cursor in the 640x480 frame,
-// each button 1 pressed this frame, 2 held, 4 released this frame.
+// zInput's mouse (0x0051b7b0): its 15 dwords as zInput integrated them.
 ztwod::MouseState SdlTwodHost::mouse() {
   ztwod::MouseState m{};
-  if (!input_) return m;
-  const int fw = engine_ ? engine_->buffer_width() : 640, fh = engine_ ? engine_->buffer_height() : 480;
-  int win_w_ = 0, win_h_ = 0;
-  if (window_) window_->client_size(&win_w_, &win_h_);
-  m.x = win_w_ > 0 ? static_cast<int32_t>(input_->mouse_x * fw / win_w_) : static_cast<int32_t>(input_->mouse_x);
-  m.y = win_h_ > 0 ? static_cast<int32_t>(input_->mouse_y * fh / win_h_) : static_cast<int32_t>(input_->mouse_y);
-  m.fx = static_cast<float>(m.x), m.fy = static_cast<float>(m.y);
-  const uint32_t now = input_->mouse_buttons;
-  uint32_t* out[3] = {&m.left, &m.right, &m.middle};
-  for (int b = 0; b < 3; ++b) {
-    const bool was = buttons_ >> b & 1, is = now >> b & 1;
-    *out[b] = is ? (was ? 2u : 1u) : (was ? 4u : 0u);
-  }
-  buttons_ = now;
+  static_assert(sizeof m == sizeof(zin::MouseInfo), "the same 15 dwords");
+  std::memcpy(&m, zin::mouse_info(), sizeof m);
   return m;
 }
+void SdlTwodHost::input_reset() { zin::reset(); }  // 0x0051b1c0
 
 // ---------------------------------------------------------------------------
 // GDI
