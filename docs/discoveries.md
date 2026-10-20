@@ -1025,6 +1025,27 @@ From the mech's constructor and the launch (mech-build.md).
 - **Unnamed mechs are numbered**: a mech made without a name is called
   after its type and a count of every mech made since the game started
   (`madcat07`). The player's is always `player`.
+- **Every mech has its own copy of its model and its materials.** The game
+  loads each mech type's model once, but each mech built from it gets a
+  full copy, colours and textures included (one set per model piece), so a
+  camo or battle damage on one Mad Cat never shows on another.
+- **Instant action and multiplayer use different destruction effects.** A
+  mech's death, disable and limb-loss effects come in two sets, and in
+  instant action and multiplayer the game picks the "m" set
+  (`madcat_mdestroy`, `madcat_larm_mdetach`, ...). The Elemental is the
+  exception: it always uses the campaign's.
+- **Footsteps and footprints are per mech and per ground.** Each mech type
+  looks for its own step sound and footprint on each of the 11 ground types
+  (`madcatDirt`, `madcatSnow`, ...) and falls back to the shared one
+  (`soilDirt`) when it has none; prints on grass are drawn at 90% size.
+- **A broken mech type stays broken.** If a mech's data fails to load, the
+  game remembers the failure and does not try again while the mission
+  lasts; if a mission loads before the type is forgotten, the original
+  crashes (fixed in the rebuild).
+- **Lights, sounds and a few other scene objects can't be copied.** The
+  engine's copy of a 3D object skips them with "Function not yet
+  implemented" messages still in the game: anything copied (mechs,
+  wreckage, effects) carries only models, levels of detail and cameras.
 
 ## Mechs: the definition file and saved loadouts
 

@@ -9,7 +9,6 @@
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
-#include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
@@ -596,6 +595,70 @@ int camera_set_fov(Node* node, float h, float v) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f32e0: unit fov factors, the matrices and planes to
+// rebuild, an empty zone list (+0x1e4), on list 8.
+Node* camera_create() {
+  Node* node = node_alloc();
+  if (!node) return zerr::report(0x400, kFile, 0x292, "Null node pointer."), nullptr;
+  node->put<int32_t>(0x34, 1);
+  auto* c = new Camera{};
+  std::memset(c->raw, 0, sizeof c->raw);
+  node->data = c;
+  c->put(0xd8, 1.0f), c->put(0xdc, 1.0f);
+  c->put<int32_t>(0xf8, 1), c->put<int32_t>(0x184, 1), c->put<int32_t>(0x138, 1);
+  zmod::zone_reset(c->raw + 0x1e4);
+  push_front(kCameras, node);
+  return node;
+}
+
+// Mech3.exe 1.2 @ 0x004f3560
+int camera_set_world(Node* node, Node* world) {
+  if (!node) return zerr::report(0x400, kFile, 0x37f, "Null node pointer."), 5;
+  if (!world) return zerr::report(0x400, kFile, 0x380, "Null node pointer."), 5;
+  if (!node->data) return zerr::report(0x400, kFile, 0x382, "Null class data pointer"), 5;
+  if (!world->data) return zerr::report(0x400, kFile, 0x383, "Null class data pointer"), 5;
+  char msg[64];
+  if (node->cls() != 1) {
+    std::snprintf(msg, sizeof msg, "Bad Class Found.\n Wanted (%d)\n Found (%d)", node->cls(), 1);
+    return zerr::report(0x400, kFile, 0x385, msg), 3;
+  }
+  if (world->cls() != 2) {
+    std::snprintf(msg, sizeof msg, "Bad Class Found.\n Wanted (%d)\n Found (%d)", world->cls(), 2);
+    return zerr::report(0x400, kFile, 0x386, msg), 3;
+  }
+  cam_of(node)->nodes[0] = world;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3620. No checks.
+int camera_set_window(Node* node, Node* window) {
+  cam_of(node)->nodes[1] = window;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3d90: the field of view as angles (+0xe8/+0xec are
+// what 0x004f3b90 derives), the base the factors divide.
+int camera_set_fov_angles(Node* node, float h, float v) {
+  if (int r = check_class(node, 1, kFile, 0x673)) return r;
+  Camera* c = cam_of(node);
+  const double ah = static_cast<double>(h) / c->get<float>(0xd8), av = static_cast<double>(v) / c->get<float>(0xdc);
+  c->put<int32_t>(0x138, 1), c->put<int32_t>(0xf8, 1);
+  const double hh = ah * 0.5, hv = av * 0.5;
+  c->put(0xe0, h), c->put(0xe4, v);
+  c->put(0xe8, static_cast<float>(ah)), c->put(0xec, static_cast<float>(av));
+  c->put(0xf0, static_cast<float>(hh)), c->put(0xf4, static_cast<float>(hv));
+  c->put(0x1d4, static_cast<float>(1.0 / std::tan(hh)));
+  c->put(0x1d8, static_cast<float>(1.0 / std::tan(hv)));
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f33a0
+int camera_add_child(Node* node, Node* child) {
+  if (!node) return zerr::report(0x400, kFile, 0x2e3, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, kFile, 0x2e4, "Null node pointer."), 5;
+  return node_link(node, child);
+}
+
 // Mech3.exe 1.2 @ 0x004f3610. No checks.
 Node* camera_world(Node* node) { return cam_of(node)->nodes[0]; }
 
@@ -1128,10 +1191,9 @@ int render_world(Node* camera_node, int32_t after) {
 }
 
 namespace {
-// The node's model (a world model, or a mechlib node's own port) takes the
-// morph of a morphing LoD, then casts.
+// The node's model takes the morph of a morphing LoD, then casts.
 void shadow_model_morphed(Node* node) {
-  uint8_t* h = node->model ? node->model->header : node->lib_model ? node->lib_model->header : nullptr;
+  uint8_t* h = node->model ? node->model->header : nullptr;
   if (!h) return;
   if (g_walk.morph) {
     uint32_t f;

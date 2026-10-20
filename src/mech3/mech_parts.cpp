@@ -116,7 +116,7 @@ int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) 
   apply_damage(d, section);
   if (&m == w.mission_player && id == kHead) {
     Pilot& p = *m.pilot;
-    if (p.x228 && p.x228[1] && p.x200 && g_calls.head_hit_hud) g_calls.head_hit_hud();
+    if (p.x228 && p.x228[1] && p.cockpit_explosion && g_calls.head_hit_hud) g_calls.head_hit_hud();
   }
   return 0;
 }

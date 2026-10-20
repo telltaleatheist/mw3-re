@@ -31,29 +31,46 @@ enum : uint32_t {
   kPoweredDown = 0x2000000,
 };
 
-// The pilot side of a mech (+0x684): its roster entry and the effects its
-// parts and death use (docs/damage.md); the mech type's data with its
-// animations (mech_data.cpp, mech_data.h).
+// The pilot side of a mech (+0x684): the mech type's data (0x234 bytes,
+// mech_data.cpp, docs/mech-build.md section 14): its models, sounds,
+// animations and the effects its parts and death use (docs/damage.md). One
+// per type, cached and shared by every mech of it.
 struct Pilot {
+  float range_sq[2] = {};        // +0x000  the definition's +0x14c and +0x150, squared
+  int32_t refs = 0;              // +0x008  the mechs (and lookups) holding it
   int32_t roster = 0;            // +0x00c  index in the mech roster; 7 is the Elemental
   const char* name = nullptr;    // +0x010  the mech's name, motions are <name>_<gait>
   Handle model = nullptr;        // +0x014  the model tree each mech copies (= models[0])
   Handle models[2] = {};         // +0x018  mechlib's trees (0x00484760): mech_<name>, mech_<name>_1 (low detail)
-  uint8_t x20 = 0;               // +0x020  what 0x004315d0 returns
+  uint8_t x20 = 0;               // +0x020  loaded: each step clears it on failure
+  Handle cameras = nullptr;      // +0x024  the view's camera kinds (0x00430e70)
+  Handle sounds[25] = {};        // +0x028  by slot (mech_data.cpp kSounds): engine, ..., the mech's own
   MechAnim* anims[13] = {};      // +0x08c  the gait animations by slot (movement.md); copied to each mech
   float trans[13][2] = {};       // +0x0c0  each gait's throttle bounds from the file; scaled into Mech::gait
   MechAction* actions[9] = {};   // +0x128  the one-shots by kind, 1 fallf .. 8 collapser
-  float limp_speed = 0;          // +0x22c  the limps' stride speed
-  struct Soils {                 // by soil (docs/movement-ground.md, Soils)
-    Handle step_sound[11];       // +0x00
-    Handle footprint[11];        // +0x2c  a decal effect
-  }* soils = nullptr;            // +0x230
-  Handle part_effects[6][3] = {};  // +0x1a4 + 0xc x id: two destruction effects, a trail
-  Handle death_effects[4] = {};  // +0x1ec
-  int32_t x200 = 0;              // +0x200
-  Handle landing_dust = nullptr;    // +0x204  a landing's dust (0x0041ecf0)
-  Handle landing_splash = nullptr;  // +0x208  and its splash, on a material of soil 1
-  Handle water_death = nullptr;  // +0x20c
+  struct Canned {                // +0x14c + 0x14 i: eject, jumpjets, narc (0x00431750), 5 slots
+    Handle effect = nullptr;     // +0x00
+    float offset[3] = {};        // +0x04  "ofs"
+    Handle node = nullptr;       // +0x10  "node", by name on list 6
+  } canned[5];
+  float limp_speed = 13.0f;      // +0x22c  the limps' stride speed
+  struct Soils {                 // +0x230 (0x00432670, 0xb0 bytes), by soil (docs/movement-ground.md)
+    Handle step_sound[11] = {};  // +0x00  <name><Soil>, else soil<Soil>
+    Handle footprint[11] = {};   // +0x2c  a decal effect, the same names
+    float scale[11] = {};        // +0x58  1, grass 0.9
+  }* soils = nullptr;
+  // +0x1a4 + 0xc x id: destroy, detach, stub (ids 2..5; +0x1bc..+0x1e8).
+  // FIX (A): its own array; ids 0 and 1 would overlap canned[3..4] in the exe.
+  Handle part_effects[6][3] = {};
+  Handle death_effects[4] = {};  // +0x1ec  disable, destroy, fwd and back disable
+  Handle x1fc = nullptr;         // +0x1fc  cleared, not set
+  Handle cockpit_explosion = nullptr;  // +0x200  cpit_effects_explosion
+  Handle landing_dust = nullptr;    // +0x204  <name>_landing_effects (0x0041ecf0)
+  Handle landing_splash = nullptr;  // +0x208  mech_splash, on a material of soil 1
+  Handle water_death = nullptr;  // +0x20c  nuke_splash
+  Handle x210 = nullptr;         // +0x210  cleared, not set
+  Handle stubs[4] = {};          // +0x214  larm, rarm, lleg, rleg _stub01.flt
+  Handle hud = nullptr;          // +0x224  the HUD's model object (0x00430aa0, made when first asked)
   int32_t* x228 = nullptr;       // +0x228  a block whose [1] is read: the cockpit's node (the launch)
 };
 

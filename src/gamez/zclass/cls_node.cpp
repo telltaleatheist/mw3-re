@@ -5,9 +5,14 @@
 #include <cstring>
 #include <new>
 
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/light.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zclass/seq.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -303,6 +308,51 @@ int node_get_flag8(Node* node, int32_t* out) {
   return 0;
 }
 
+namespace {
+int set_flag(Node* node, uint32_t flag, int on, int line) {
+  if (!node) return zerr::report(0x400, kClassFile, line, "Null node pointer."), 5;
+  node->set_flags(on ? node->flags() | flag : node->flags() & ~flag);
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004eb6d0
+int node_set_intersect(Node* node, int on) { return set_flag(node, 0x10, on, 0x672); }
+// Mech3.exe 1.2 @ 0x004eb750
+int node_set_intersect_bbox(Node* node, int on) { return set_flag(node, 0x20, on, 0x6a0); }
+// Mech3.exe 1.2 @ 0x004eb7d0
+int node_set_landmark(Node* node, int on) { return set_flag(node, 0x80, on, 0x6e7); }
+// Mech3.exe 1.2 @ 0x004eb260
+int node_set_can_modify(Node* node, int on) { return set_flag(node, 0x10000, on, 0x4bd); }
+// Mech3.exe 1.2 @ 0x004eb2b0
+int node_set_clip_to(Node* node, int on) { return set_flag(node, 0x20000, on, 0x4cc); }
+// Mech3.exe 1.2 @ 0x004eb960
+int node_set_overwrite(Node* node, int on) { return set_flag(node, 0x800000, on, 0x756); }
+
+// Mech3.exe 1.2 @ 0x004eb920. Only ever clears the flag (alloc sets it).
+int node_set_zone_check(Node* node, int on) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x738, "Null node pointer."), 5;
+  if ((node->flags() & 0x1000000) && on == 0) node->set_flags(node->flags() & ~0x1000000u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb880. 0 for a null node.
+uint32_t node_draw_bits(const Node* node) { return node ? (node->get<uint32_t>(0x2c) >> 3) & 3 : 0; }
+
+// Mech3.exe 1.2 @ 0x004eb840
+int node_set_draw_bits(Node* node, uint32_t bits) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x707, "Null node pointer."), 5;
+  node->put<uint32_t>(0x2c, ((bits & 3) << 3) | (node->get<uint32_t>(0x2c) & ~0x18u));
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb810
+int node_set_zone(Node* node, uint8_t zone) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x6ff, "Null node pointer."), 5;
+  node->raw[0x30] = zone;
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004eb790. mech3ax PROXIMITY: only set once anims are loaded.
 int node_set_proximity(Node* node, int on) {
   if (!node) return zerr::report(0x400, kClassFile, 0x6cd, "Null node pointer."), 5;
@@ -362,6 +412,179 @@ int node_is_billboard(Node* node) {
   uint32_t type, mode;
   std::memcpy(&type, m->header, 4), std::memcpy(&mode, m->header + 4, 4);
   return type == 1 && mode == 0 ? 1 : 0;
+}
+
+uint8_t* node_model_header(const Node* node) { return node->model ? node->model->header : nullptr; }
+
+namespace {
+int32_t g_immediate = 1;  // .data initial 1
+
+void add_uses(uint8_t* header, int32_t d) {
+  int32_t n;
+  std::memcpy(&n, header + 0xc, 4);
+  n += d;
+  std::memcpy(header + 0xc, &n, 4);
+}
+}  // namespace
+
+int32_t& immediate_delete() { return g_immediate; }
+
+// Mech3.exe 1.2 @ 0x004eb370
+int node_set_model(Node* node, zmod::Model* model) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x52a, "Null node pointer."), 5;
+  if (node->model) add_uses(node->model->header, -1);  // 0x00539d60
+  node->model = model;
+  if (model) {
+    add_uses(model->header, 1);  // 0x00539d50
+    node_model_box(node);        // 0x0053b4e0 into +0x8c, flag 0x200
+  } else {
+    node->set_flags(node->flags() & ~0x200u);
+  }
+  node->put<uint32_t>(0x2c, node->get<uint32_t>(0x2c) | 4);
+  if ((node->flags() & 1) == 0) {
+    push_front(kChanged, node);
+    node->set_flags(node->flags() | 1);
+  }
+  node->set_flags(node->flags() | 2);
+  if (node->changed) node->changed->removable = 0;
+  return 0;
+}
+
+int node_drop_model(Node* node) {
+  zmod::Model* m = node->model;
+  if (!m) return 0;
+  if (int r = node_set_model(node, nullptr)) return r;
+  if (m->count(0xc) != 0) return 0;  // 0x00539d70
+  return zmod::model_release(m);
+}
+
+namespace {
+// The class data as its class made it (cls_data.h); the arrays it points to
+// are freed by the class's own delete before this.
+void delete_class_data(Node* node) {
+  switch (node->cls()) {
+    case 1: delete static_cast<Camera*>(node->data); break;
+    case 2: {
+      auto* w = static_cast<World*>(node->data);  // the lists a staying world kept (world_delete)
+      delete[] w->lights, delete[] w->light_data, delete[] w->sounds, delete[] w->sound_data;
+      delete[] w->area_pending;
+      delete w;
+      break;
+    }
+    case 3: delete static_cast<Window*>(node->data); break;
+    case 4: delete static_cast<Display*>(node->data); break;
+    case 5: delete static_cast<Object3d*>(node->data); break;
+    case 6: delete static_cast<Lod*>(node->data); break;
+    case 7: delete static_cast<Seq*>(node->data); break;
+    case 8: delete static_cast<Animate*>(node->data); break;
+    case 9: delete static_cast<Light*>(node->data); break;
+    case 10: delete static_cast<Sound*>(node->data); break;
+    default: break;  // no class makes other data
+  }
+}
+
+// The child removals whose whole body is null checks and 0x004ebc30:
+// Camera.c 0x004f33e0, Window.c 0x004f9f60, Display.c 0x004fa540 (0 even
+// when the child is not its), Animate.c 0x004fd900, Light.c 0x004fa900,
+// Sound.c 0x004fd440, Switch.c 0x004fd230 (the last three-line ones also
+// check the data).
+int plain_remove_child(Node* parent, Node* child) {
+  struct Lines {
+    const char* file;
+    int line;
+    bool data;
+  };
+  Lines l{};
+  switch (parent->cls()) {
+    case 1: l = {"C:\\zipper\\GameZMech3\\zClass\\Camera.c", 0x2fb, false}; break;
+    case 3: l = {"C:\\zipper\\GameZMech3\\zClass\\Window.c", 0xb6, false}; break;
+    case 4: l = {"C:\\zipper\\GameZMech3\\zClass\\Display.c", 0x8f, false}; break;
+    case 8: l = {"C:\\zipper\\GameZMech3\\zClass\\Animate.c", 0xa4, true}; break;
+    case 9: l = {"C:\\zipper\\GameZMech3\\zClass\\Light.c", 0x14c, false}; break;
+    case 10: l = {"C:\\zipper\\GameZMech3\\zClass\\Sound.c", 0x100, false}; break;
+    default: l = {"C:\\zipper\\GameZMech3\\zClass\\Switch.c", 0x9f, true}; break;
+  }
+  if (!child) return zerr::report(0x400, l.file, l.line + 1, "Null node pointer."), 5;
+  if (l.data && !parent->data) return zerr::report(0x400, l.file, l.line + 2, "Null class data pointer"), 5;
+  const int r = node_unlink(parent, child);
+  return parent->cls() == 4 ? 0 : r;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ebb40. By the parent's class; an unknown class is
+// reported (0x0050da70) and refused.
+int node_remove_child(Node* parent, Node* child) {
+  if (!parent) return zerr::report(0x400, kClassFile, 0x83f, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, kClassFile, 0x840, "Null node pointer."), 5;
+  switch (parent->cls()) {
+    case 1: case 3: case 4: case 8: case 9: case 10: case 11: return plain_remove_child(parent, child);
+    case 2: return world_remove_child(parent, child);
+    case 5: return object3d_remove_child(parent, child);
+    case 6: node_unlink(parent, child); return 0;  // the LoD's 0x004fe0b0
+    case 7: return seq_remove_child(parent, child);
+    default: {
+      char msg[120];
+      std::snprintf(msg, sizeof msg, "%s: Line %d: ERROR: Unrecognized node class type for node: %s\n", kClassFile,
+                    0x874, parent->name());
+      zerr::report(1, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg);
+      return 1;
+    }
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004eaf90. Nothing is freed while the node has children,
+// parents or a model; the slot keeps its bytes.
+int node_free(Node* node) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x381, "Null node pointer."), 5;
+  if (node->child_count() > 0 || node->parent_count() > 0 || node_model_header(node)) return 1;
+  delete[] node->children;
+  node->children = nullptr;
+  delete[] node->parents;
+  node->parents = nullptr;
+  if (node->data) {
+    delete_class_data(node);
+    node->data = nullptr;
+    node->put<int32_t>(0x34, 0);
+  }
+  node_slot_free(node);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb050. While the lists cannot purge (an action list
+// is running) the node waits on the deferred-delete list.
+int node_release(Node* node) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x3ea, "Null node pointer."), 5;
+  node->set_flags(node->flags() & ~2u);
+  if (node->changed) node->changed->removable = 1;
+  if (g_immediate) {
+    node_unlist(node);
+    if (purge_lists() != 0) {
+      deferred_push(node);
+      return 0;
+    }
+  }
+  node_free(node);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eaea0. Only a node without parents. The exe frees a
+// block at +0xc8 first; nothing in the port keeps one there.
+int node_delete(Node* node) {
+  if (!node) return 5;
+  if (node->parent_count() >= 1) return 1;
+  switch (node->cls()) {
+    case 1: case 3: case 4: case 5: case 6: case 7: case 11: return node_release(node);
+    case 2: return world_delete(node);
+    case 8: return animate_delete(node);
+    case 9: return light_delete(node);
+    case 10: return sound_delete(node);
+    default: {
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "ERROR: Unrecognized node class type for node: %s\n", node->name());
+      zerr::report(0x400, kClassFile, 0x365, msg);
+      return 1;
+    }
+  }
 }
 
 // The message's arguments are swapped: "Wanted" shows the class found.

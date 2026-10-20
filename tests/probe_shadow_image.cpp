@@ -107,7 +107,7 @@ int32_t node_index(const zcls::Node* n) {
 
 uint8_t* model_header(zcls::Node* n) {
   if (n->model) return n->model->header;
-  if (n->lib_model) return n->lib_model->header;
+
   return nullptr;
 }
 
@@ -144,6 +144,8 @@ int probe_si_tree(const char* path, long offset) {
   zcls::nodes() = zcls::NodePool{};
   zcls::lists() = zcls::Lists{};
   zcls::frames() = zcls::Frames{};
+  zmod::models() = zmod::ModelPool{};
+  zmod::reset_pool();
   zcls::TreeReader lib;
   g_root = zcls::read_tree(lib, f, nullptr);
   std::fclose(f);
@@ -155,7 +157,7 @@ int probe_si_bytes(int write, int kind, int index, int off, uint8_t* data, int l
   zcls::Node* n = zcls::node_at(index);
   if (!n) return -1;
   if (kind == 3) {  // polygon `off`'s flags
-    uint32_t* f = n->lib_model ? &n->lib_model->polygons[off].flags : n->model ? &n->model->polygons[off].flags : nullptr;
+    uint32_t* f = n->model ? &n->model->polygons[off].flags : nullptr;
     if (!f || len != 4) return -1;
     if (write) std::memcpy(f, data, 4);
     else std::memcpy(data, f, 4);

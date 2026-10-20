@@ -5,6 +5,7 @@
 namespace zcls {
 
 Node* sound_create();                               // 0x004fd280
+int sound_delete(Node* node);                       // 0x004fd370
 int sound_set_active(Node* node, int on);           // 0x004fd520
 int sound_set_name(Node* node, const char* name);   // 0x004fd480
 

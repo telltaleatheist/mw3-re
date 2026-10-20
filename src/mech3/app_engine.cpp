@@ -1,4 +1,5 @@
 #include "mech3/app_engine.h"
+#include "mech3/app_mech.h"
 
 #include <cstdio>
 #include <cstring>
@@ -325,6 +326,8 @@ void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
 // (docs/action-lists.md): the player's tick (2), weapon_tick (3), the
 // mission's animations and the scripts' ticks.
 void GameEngine::lists_update() { zcls::run_action_lists(); }
+void GameEngine::classes_shutdown() { zcls::classes_reset(); }
+void GameEngine::missions_shutdown() { mech3::mech_types_close(); }
 // 0x00576cf0: the 3D window cleared before the Core state draws (the sky
 // colour of the debug viewer: the window's clear colour is not traced).
 void GameEngine::video_clear_b(Handle) {

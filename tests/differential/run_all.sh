@@ -89,6 +89,9 @@ for t in \
     sensors \
     fade \
     d3d_frame \
+    destroy \
+    tree_copy \
+    mech_data_load \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

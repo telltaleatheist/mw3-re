@@ -8,6 +8,7 @@
 // original's addresses from the `new`s they stand for, so their images can be
 // laid over the emulator's blocks and compared field by field.
 #include <cstdint>
+#include "gamez/zmodel/gmod_const.h"
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -760,6 +761,8 @@ int probe_mb_tree(const char* zbd, const char* entry) {
   std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, entry), nullptr);
   if (!f) return -2;
   zcls::nodes() = zcls::NodePool{};
+  zmod::models() = zmod::ModelPool{};
+  zmod::reset_pool();
   zcls::TreeReader reader;
   zcls::Node* root = zcls::read_tree(reader, f, nullptr);
   g_tree.clear();
@@ -779,7 +782,7 @@ int probe_mb_tree_node(int i, char* name, int32_t* info, int32_t* children, int 
   };
   info[0] = n->cls();
   info[1] = n->parent_count() && n->parents ? index(n->parents[0]) : -1;
-  info[2] = n->lib_model != nullptr;
+  info[2] = n->model != nullptr;
   int c = 0;
   for (int32_t k = 0; n->children && k < n->child_count() && c < cap; ++k) children[c++] = index(n->children[k]);
   std::memcpy(box, n->raw + 0x74, 24);

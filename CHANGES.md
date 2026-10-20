@@ -100,6 +100,8 @@ unusual happens.
 - On a computer without MMX, the software renderer's screen flashes no longer
   write past the end of the screen's memory on its last line.
 - A mech file with a bad version no longer crashes the game when it unloads.
+- A mech type whose file fails to load no longer crashes the next mission's
+  load (the original kept the broken type and read through it there).
 - The option screens no longer read past their background picture on a
   screen taller than 960 lines or wider than 1280, the likely cause of the
   crash when opening Options from the pause menu at 1280x1024 or 1600x1200.

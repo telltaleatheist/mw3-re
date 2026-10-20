@@ -61,6 +61,14 @@ int object3d_add_child(Node* parent, Node* child) {
   return node_link(parent, child);
 }
 
+// Mech3.exe 1.2 @ 0x004fb7f0
+int object3d_remove_child(Node* parent, Node* child) {
+  if (!parent) return zerr::report(0x400, kFile, 0x1be, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, kFile, 0x1bf, "Null node pointer."), 5;
+  if (!parent->data) return zerr::report(0x400, kFile, 0x1c0, "Null class data pointer"), 5;
+  return node_unlink(parent, child);
+}
+
 // Mech3.exe 1.2 @ 0x004fc020
 int object3d_get_translation(Node* node, float* x, float* y, float* z) {
   if (int r = check_class(node, 5, kFile, 0x461)) return r;

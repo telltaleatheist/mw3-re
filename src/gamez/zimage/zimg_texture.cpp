@@ -1,5 +1,6 @@
 #include "gamez/zimage/zimg_texture.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "gamez/zerror/zerr.h"
@@ -106,6 +107,29 @@ TextureEntry* find_texture(const char* name) {
     if (e.state != 0 && std::strcmp(e.name, name) == 0) return &e;
   }
   return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00518cc0
+TextureEntry* free_texture_entry() {
+  for (int32_t i = 0; i < g_table.count; ++i)
+    if (g_table.entries[i].state == 0) return &g_table.entries[i];
+  if (g_table.count > 0xfff) return nullptr;
+  return &g_table.entries[g_table.count++];
+}
+
+// Mech3.exe 1.2 @ 0x00518c60. The name is looked up without its last
+// extension (the exe cuts it in place and puts the dot back).
+TextureEntry* add_texture(const char* name) {
+  char cut[256];
+  std::snprintf(cut, sizeof cut, "%s", name);
+  if (char* dot = std::strrchr(cut, '.')) *dot = 0;
+  if (TextureEntry* e = find_texture(cut)) return e;
+  TextureEntry* e = free_texture_entry();
+  if (!e) return default_entry();
+  set_entry_name(name, e->name);
+  e->state = 2;
+  e->group = g_table.group;
+  return e;
 }
 
 // Mech3.exe 1.2 @ 0x00519210. No bound on dst (the entry's 20 bytes).

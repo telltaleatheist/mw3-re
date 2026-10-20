@@ -67,7 +67,7 @@ void MechBuildHooks::model_add_polygon(Handle model, int32_t n, const float* v) 
 const char* MechBuildHooks::node_name(Handle node) { return node ? zn(node)->name() : ""; }
 int32_t MechBuildHooks::node_class(Handle node) { return node ? zn(node)->cls() : 0; }
 Handle MechBuildHooks::node_data(Handle node) { return node ? zn(node)->data : nullptr; }
-Handle MechBuildHooks::node_model(Handle node) { return node ? zn(node)->lib_model : nullptr; }
+Handle MechBuildHooks::node_model(Handle node) { return node ? zn(node)->model : nullptr; }
 int32_t MechBuildHooks::node_child_count(Handle node) { return node ? zn(node)->child_count() : 0; }
 Handle MechBuildHooks::node_child(Handle node, int32_t i) {
   return node && zn(node)->children ? zn(node)->children[i] : nullptr;
