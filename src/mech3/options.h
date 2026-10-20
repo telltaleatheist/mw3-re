@@ -211,6 +211,7 @@ void set_pixel_double(int32_t on);          // 0x0040d4a0
 int32_t pixel_double();                     // 0x0040d4b0
 void clamp_to(const Rect& r, float p[2]);   // 0x0040d540: into r's first and last pixel
 void screen_to_render(float p[2]);          // 0x0040d9e0: a display point into the render target
+void render_to_screen(float p[2]);          // 0x0040da30: a render-target point out to the window
 void rect_set_origin(Rect& r, int32_t x, int32_t y);  // 0x0040d4e0
 void rect_set_size(Rect& r, int32_t w, int32_t h);    // 0x0040d510
 void set_camera(Handle camera);             // 0x0040d590

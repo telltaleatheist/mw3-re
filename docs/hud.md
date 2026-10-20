@@ -556,3 +556,21 @@ fake weapons (16 lines at most) and runs the original's refresh: 100/100.
 Breaking it: 11 of 13 caught; the misses are equivalent here (the unused
 lines are already hidden by the reader's set_weapon(nullptr), and the bar's
 set_value clamps a negative fraction to 0 itself).
+
+## 14. TARGET's tracking: the target on the screen
+
+The pieces, ported in order (the lead's plan, 2026-10-20):
+
+1. **A world point on the screen** (0x0053cf10, `zmod::project_point`,
+   zmodel/gmod_screen): through the view (on zMath's stack: push, load_view,
+   pop), projected (0x005234f0) and clamped to the point rect (0x0074031c);
+   the outcode: 1 left, 2 right, 4 above, 8 below. A point behind the near
+   plane (0x00740304) gets 8, y on the bottom edge and x spread across the
+   screen (-5000..5000 over the clip's width from its left; the clip's right
+   0x00740314). FIX (bug): there the original ORs the low bits of the input
+   point's address (an unset local when the top is the identity) into the
+   outcode; the port returns 8. And its way back with pixels doubled
+   (0x0040da30, `render_to_screen` in options: x doubled, y from the
+   render's top doubled onto the window's, clamped to the window). Test:
+   `test_project_point.py`, 3000/3000 each (586 behind, 575 at the near
+   plane); breaks 9/9.

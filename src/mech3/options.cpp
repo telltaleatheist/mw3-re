@@ -297,6 +297,18 @@ void screen_to_render(float p[2]) {
   clamp_to(rr, p);
 }
 
+// Mech3.exe 1.2 @ 0x0040da30: with pixels doubled the point is doubled out
+// into the window and kept on it (0x0040d9e0's inverse).
+void render_to_screen(float p[2]) {
+  const Rect& rr = g_options.render;
+  const Rect& wr = g_options.window;
+  if (!pixel_double()) return;
+  p[0] = p[0] + p[0];
+  const float d = p[1] - static_cast<float>(rr.y);
+  p[1] = static_cast<float>(wr.y) + (d + d);
+  clamp_to(wr, p);
+}
+
 // Mech3.exe 1.2 @ 0x0040d4e0
 void rect_set_origin(Rect& r, int32_t x, int32_t y) {
   r.x = x;
