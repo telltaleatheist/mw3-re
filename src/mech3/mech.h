@@ -29,9 +29,16 @@ enum : uint32_t {
 };
 
 // The pilot side of a mech (+0x684): its roster entry and the effects its
-// parts and death use (docs/damage.md).
+// parts and death use (docs/damage.md); the mech type's data with its
+// animations (mech_data.cpp, mech_data.h).
 struct Pilot {
   int32_t roster = 0;            // +0x00c  index in the mech roster; 7 is the Elemental
+  const char* name = nullptr;    // +0x010  the mech's name, motions are <name>_<gait>
+  uint8_t x20 = 0;               // +0x020  what 0x004315d0 returns
+  MechAnim* anims[13] = {};      // +0x08c  the gait animations by slot (movement.md); copied to each mech
+  float trans[13][2] = {};       // +0x0c0  each gait's throttle bounds from the file; scaled into Mech::gait
+  MechAction* actions[9] = {};   // +0x128  the one-shots by kind, 1 fallf .. 8 collapser
+  float limp_speed = 0;          // +0x22c  the limps' stride speed
   Handle part_effects[6][3] = {};  // +0x1a4 + 0xc x id: two destruction effects, a trail
   Handle death_effects[4] = {};  // +0x1ec
   int32_t x200 = 0;              // +0x200
@@ -163,6 +170,7 @@ struct Mech {
   void update_action(float dt);             // 0x00416860
   bool vital_part_lost() const;             // inlined in 0x00416660 and 0x00416860
   void select_gait(float dt);         // 0x004181c0
+  void masc(bool on);                 // 0x0041df50: max speed x1.25, the speed kept
   void move(float dt, MechAnim* anim, float speed);  // 0x00417a80
   void turn(float dt);                // vtable +0x170, 0x00418fc0
   Leg* pivot_leg() const;             // 0x00418e00
@@ -283,8 +291,8 @@ struct DamageCalls {
   void (*death_anim)(Mech&, int anim) = nullptr;              // 0x0041b760
   void (*stop_action)(Handle obj) = nullptr;                  // 0x00421060
   Handle (*blend_anim)(Handle base, Handle limp) = nullptr;   // 0x0041ff30
-  void (*anim_speed)(Handle anim, float v) = nullptr;         // 0x0041ef90
-  void (*gait_speed)(Mech&, float v) = nullptr;               // 0x004329c0 on +0x684 with +0x4a0
+  void (*anim_speed)(Handle anim, float v) = nullptr;         // 0x0041ef90; test hook, unset runs set_stride_speed
+  void (*gait_speed)(Mech&, float v) = nullptr;               // 0x004329c0 on +0x684 with +0x4a0; test hook, unset runs scale_gaits
   const Vec3* (*position)(Mech&) = nullptr;                   // 0x005a85e0, the world position
 };
 DamageCalls& damage_calls();

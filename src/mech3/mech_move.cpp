@@ -6,6 +6,8 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_data.h"
+#include "mech3/mech_names.h"
 #include "mech3/mission_world.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -39,6 +41,7 @@ constexpr int kStateStand = 1, kDead = 10, kFalling = 11, kFallenBack = 12, kFal
 constexpr int kNetAction = 0x17;  // docs/network-messages.md
 constexpr int kKnockSound = 0x18;  // cockpit table 0x00605598
 constexpr uint32_t kBlendFrames = 20;  // 0x005e1fac
+constexpr int kMasc = 12, kMascSound = 0x1b;  // equipment kind; the cockpit sound (table 0x00605598)
 constexpr int kJumpJet = 11, kElementalRoster = 7, kJetSound = 3, kSoundJumpJet = 3, kJumpPose = 12;
 
 enum Slot { kStand = 2, kStep = 3, kWalk = 4, kTrot = 5, kRun = 6, kStepWalk = 8, kWalkTrot = 9,
@@ -245,6 +248,24 @@ void Mech::ground_step(float dt) {
     if (g_calls.landing_dust) g_calls.landing_dust(*this);
     if (g_calls.landing_pose) g_calls.landing_pose(*this);
     momentum = vec_3c;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041df50. On: the top speed x1.25 with the throttle
+// rescaled so the speed holds (vt +0x114 throttle x max, +0x11c speed /
+// max); off: the engine's top speed and no rescale, so the mech slows at once.
+void Mech::masc(bool on) {
+  if (!(equipment[kMasc] > 0) || on == (masc_time != 0.0f)) return;
+  const float base = engine_speed(config->engine, max_mass(config->mech));
+  if (on) {
+    if (this == world().mission_player && heat_calls().play_mech_sound) heat_calls().play_mech_sound(kMascSound);
+    const float speed = controls->throttle * max_speed;
+    set_max_speed(base * 1.25f);  // 0x005bce70
+    controls->throttle = speed / max_speed;
+    masc_time = 0.001f;
+  } else {
+    set_max_speed(base);
+    masc_time = 0.0f;
   }
 }
 

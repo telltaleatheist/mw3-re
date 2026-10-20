@@ -90,6 +90,7 @@ add_library(mw3core STATIC
   src/mech3/mech_config.cpp
   src/mech3/mech_control.cpp
   src/mech3/mech_damage.cpp
+  src/mech3/mech_data.cpp
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
   src/mech3/mech_move.cpp

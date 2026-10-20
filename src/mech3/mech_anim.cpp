@@ -184,8 +184,7 @@ void MechAnim::set_stride_speed(float s) {
 }
 
 // Mech3.exe 1.2 @ 0x0041f340, after the script's load: the parts by name.
-void MechAnim::bind_parts(const char* motion_name) {
-  if (!active) return;
+void MechAnim::find_parts() {
   feet[0] = find_part(kFeet[0], true);
   feet[1] = find_part(kFeet[1], true);
   hip_part = find_part("hip", true);
@@ -201,6 +200,11 @@ void MechAnim::bind_parts(const char* motion_name) {
     std::snprintf(n, sizeof n, "rtoe%02d", i + 1);
     toes[1][i] = find_part(n, true);
   }
+}
+
+void MechAnim::bind_parts(const char* motion_name) {
+  if (!active) return;
+  find_parts();
   if (!feet[0] || !feet[1] || !hip_part || !torso_part) {
     (void)motion_name;
     zerr::report(0x400, kAnimFile, 0xb4, "Motion (%s):  feet=( 0x%08x, 0x%08x ) hip=0x%08x, torso=0x%08x");
@@ -214,7 +218,7 @@ void MechAnim::copy_from(const MechAnim& from) {
   share(from);
   stride_speed = from.stride_speed;
   t = from.t;
-  bind_parts(nullptr);
+  find_parts();
   events[0] = from.events[0];
   events[1] = from.events[1];
   events[2] = from.events[2];

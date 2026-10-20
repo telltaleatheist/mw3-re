@@ -28,6 +28,8 @@ os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from test_motion import MOTION, entries  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
@@ -93,7 +95,8 @@ class Emulated:
         cpu.stub_import(IAT_SPRINTF, self.sprintf)
         cpu.stub_function(DELETE, lambda c: 0)
         cpu.stub_function(REPORT, self.report)
-        cpu.stub_function(BASE_CTOR, self.base_ctor, 4)
+        self.preloaded = False
+        cpu.uc.hook_add(UC_HOOK_CODE, self.base_ctor, begin=BASE_CTOR, end=BASE_CTOR)
         self.scratch = self.alloc(0x400)
         self.ret_slot = self.alloc(16)
         # push 0; call eax; fstp dword [slot]; ret: the footfalls (one unused argument) return in ST0
@@ -118,12 +121,19 @@ class Emulated:
         self.reports += 1
         return 0
 
-    def base_ctor(self, c):
-        # 0x41ed70 after the script is loaded here: its vtable, t and stride speed.
+    def base_ctor(self, uc, address, size, user):
+        """0x41ed70 for a script loaded here beforehand: only its vtable, t and
+        stride speed (the load itself is skipped). Otherwise it runs."""
+        if not self.preloaded:
+            return
+        c = self.cpu
         c.u32(c.ecx, 0x5bd1b0)
         c.u32(c.ecx + 0x88, 0)
         c.u32(c.ecx + 0x8c, 0)
-        return c.ecx
+        esp = uc.reg_read(UC_X86_REG_ESP)
+        uc.reg_write(UC_X86_REG_EAX, c.ecx)
+        uc.reg_write(UC_X86_REG_ESP, esp + 8)
+        uc.reg_write(UC_X86_REG_EIP, struct.unpack("<I", c.read(esp, 4))[0])
 
     def cstr(self, p):
         out = bytearray()
@@ -169,10 +179,12 @@ class Emulated:
         sname = self.alloc(len(name) + 1)
         cpu.write(sname, name.encode() + b'\0')
         self.pending = obj
+        self.preloaded = True
         if kind == 0:
             cpu.call(LOAD_ANIM, ecx=sname, edx=frames, stack_args=(f2u(speed),))
         else:
             cpu.call(LOAD_ACTION, ecx=sname, edx=frames)
+        self.preloaded = False
         if self.pending:
             raise SystemExit('the factory did not allocate')
         got = cpu.uc.reg_read(19)  # EAX

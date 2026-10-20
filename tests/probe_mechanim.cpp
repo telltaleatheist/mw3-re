@@ -6,12 +6,19 @@
 #include <cstring>
 #include <vector>
 
+#include "gamez/zerror/zerr.h"
+#include "gamez/zreader/zreader.h"
+#include "mech3/mech.h"
 #include "mech3/mech_anim.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_data.h"
+#include "mech3/mech_reader.h"
 
 using namespace mech3;
 
 namespace {
 std::vector<MechAnim*> g_objs;
+Pilot* g_pilot = nullptr;
 
 void put(std::vector<uint8_t>& b, const void* p, size_t n) {
   const auto* c = static_cast<const uint8_t*>(p);
@@ -148,6 +155,114 @@ int probe_ma_set_rotations(int h, int slot, const float* keys, float* old) {
   std::memcpy(old, p->rotations, (a.frame_count + 1) * 16);
   std::memcpy(p->rotations, keys, (a.frame_count + 1) * 16);
   return 1;
+}
+
+// A mech type's whole animation load (0x00431a70) on the reader tree of a
+// dfn file at `offset`. handles: the 13 gaits then the 9 one-shots (-1 for
+// none), registered for probe_ma_state; trans: the 26 bounds; config: config
+// 0's engine and mech for the emulator's stand-in; log: (1, i) per canned
+// call, (2, line) per report.
+int probe_mdata_load(const char* path, long offset, int roster, const char* name, float limp, int32_t* handles,
+                  float* trans, int32_t* config, int32_t* log, int cap) {
+  static zrdr::Node roots[19];
+  static mech3::MechDfn* dfns[19] = {};
+  static std::vector<int32_t> events;
+  static Pilot pilots[19];
+  events.clear();
+  if (!dfns[roster]) {
+    std::FILE* f = std::fopen(path, "rb");
+    if (!f) return -1;
+    std::fseek(f, offset, SEEK_SET);
+    zrdr::read_node(f, &roots[roster]);
+    std::fclose(f);
+    dfns[roster] = new mech3::MechDfn(roster, &roots[roster]);  // kept: its destructor saves loadouts
+    mech3::read_dfn(*dfns[roster]);
+  }
+  static mech3::MechDfn* cur;
+  cur = dfns[roster];
+  mech_data_calls().dfn = [](Pilot&) -> const mech3::MechDfn* { return cur; };
+  mech_data_calls().canned = [](Pilot&, zrdr::Node*, int i) {
+    events.push_back(1), events.push_back(i);
+    return true;
+  };
+  zerr::set_sink([](int, const char*, int line, const char*) { events.push_back(2), events.push_back(line); });
+  Pilot& p = pilots[roster];
+  p = Pilot{};
+  p.roster = roster;
+  p.name = name;
+  p.limp_speed = limp;
+  load_animations(p);
+  zerr::set_sink(nullptr);
+  g_pilot = &p;
+  for (int i = 0; i < 13; ++i) {
+    handles[i] = -1;
+    if (p.anims[i]) g_objs.push_back(p.anims[i]), handles[i] = static_cast<int>(g_objs.size()) - 1;
+  }
+  for (int i = 0; i < 9; ++i) {
+    handles[13 + i] = -1;
+    if (p.actions[i]) g_objs.push_back(p.actions[i]), handles[13 + i] = static_cast<int>(g_objs.size()) - 1;
+  }
+  for (int i = 0; i < 13; ++i) trans[2 * i] = p.trans[i][0], trans[2 * i + 1] = p.trans[i][1];
+  const mech3::Config* c = cur->configs && !cur->configs->configs.empty() ? cur->configs->configs.front() : nullptr;
+  config[0] = c ? c->engine : -1;
+  config[1] = c ? c->mech : -1;
+  config[2] = c ? c->xl : 0;
+  if (static_cast<int>(events.size()) > cap) return -1;
+  std::memcpy(log, events.data(), events.size() * 4);
+  return static_cast<int>(events.size());
+}
+
+// The copies a mech gets (0x00431fb0, 0x00432030), registered.
+int probe_mdata_copy(int kind, int i) {
+  MechAnim* a = kind == 0 ? static_cast<MechAnim*>(gait_copy(*g_pilot, i)) : action_copy(*g_pilot, i);
+  if (!a) return -1;
+  g_objs.push_back(a);
+  return static_cast<int>(g_objs.size()) - 1;
+}
+
+// 0x004329c0 on the last loaded mech type.
+void probe_mdata_scale(float max_speed, float* gait) {
+  float g[13][2];
+  scale_gaits(*g_pilot, g, max_speed);
+  std::memcpy(gait, g, sizeof g);
+}
+
+// MASC 0x0041df50 (with set_max_speed 0x004143c0) on a mech of the last
+// loaded type with the given anims (13 handles, -1 none). in: equipment,
+// masc_time, throttle, max_speed, player; out: max speed, walk speed,
+// throttle, masc time, the 26 gait bounds, then each anim's mult and
+// stride speed; returns the sound played (or -1).
+int probe_mdata_masc(int on, const int32_t* anims, const float* in, float* out) {
+  static Mech m;
+  static MechControls c;
+  static mech3::Config* cfg;
+  static int sound;
+  m = Mech{};
+  c = MechControls{};
+  m.controls = &c;
+  c.owner = &m;
+  m.pilot = g_pilot;
+  const mech3::MechDfn* d = mech_data_calls().dfn(*g_pilot);
+  cfg = d->configs->configs.front();
+  m.config = cfg;
+  for (int i = 0; i < 13; ++i) m.anims[i] = anims[i] >= 0 ? g_objs[anims[i]] : nullptr;
+  m.equipment[12] = static_cast<int32_t>(in[0]);
+  m.masc_time = in[1];
+  c.throttle = in[2];
+  m.max_speed = in[3];
+  world().mission_player = in[4] != 0 ? &m : nullptr;
+  sound = -1;
+  heat_calls().play_mech_sound = [](int i) { sound = i; };
+  m.masc(on != 0);
+  heat_calls().play_mech_sound = nullptr;
+  world().mission_player = nullptr;
+  out[0] = m.max_speed, out[1] = m.walk_speed, out[2] = c.throttle, out[3] = m.masc_time;
+  std::memcpy(out + 4, m.gait, sizeof m.gait);
+  for (int i = 0; i < 13; ++i) {
+    out[30 + 2 * i] = m.anims[i] ? m.anims[i]->mult : 0.0f;
+    out[31 + 2 * i] = m.anims[i] ? m.anims[i]->stride_speed : 0.0f;
+  }
+  return sound;
 }
 
 void probe_ma_free() {

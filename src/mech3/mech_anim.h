@@ -48,6 +48,7 @@ class MechAnim : public zsis::Script {
   // by name; without both feet, both arms... the first four, it reports and
   // deactivates. The copy constructor 0x0041f180 shares another's buffers.
   void bind_parts(const char* motion_name);
+  void find_parts();                      // the lookups alone (0x0041f180 copies without the check)
   void copy_from(const MechAnim& from);   // 0x0041f180 (with 0x0041edd0)
   void copy_phase(const MechAnim& from);  // 0x0041ef00
   void set_stride_speed(float s);         // 0x0041ef90
