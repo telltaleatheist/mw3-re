@@ -95,7 +95,15 @@ Callers of 0x00558540: the fade state's step (0x0048f0b0), 0x00599b66 and
   into it in order, the frame clear clears it once, and the flip shows it.
 - Not reproduced: a lock that reads the 3D picture back (the layer starts
   as the key, so 2D code that reads the screen sees the key; nothing ported
-  reads it). The fade's grabs copy the layer (game-loop.md).
+  reads it: a readback each lock would stall the GPU every frame).
+- The screen grab 0x00579500 (the fade's still, game-loop.md) does read it
+  back, FIX (A): `Render3D::read_back` downloads the back-buffer texture
+  (SDL GPU, waited on a fence), and `GameEngine::video_grab` scales it to the
+  game's 16-bit size. The Core state queues its fade before the mission's
+  first frame, so the still is the last 3D picture drawn; the fade brings it
+  in from black over two seconds. Checked with `tools/analysis/fadecheck.py`
+  (`mw3 --shot-any`, frames 60, 200 and 400 of c1m1: the picture, brighter
+  each time; flat black before).
 
 ## 5. Testing
 

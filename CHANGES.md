@@ -240,6 +240,8 @@ These change how the game talks to the computer, not how it plays.
 - The HUD and the other 2D drawing in a mission are laid over the 3D picture
   instead of being drawn into a locked DirectDraw back buffer; they look the
   same.
+- The fade at a mission's start reads the picture back from the graphics card
+  to fade in from it, as the original's DirectDraw grab did.
 - Sound through SDL3 instead of DirectSound, with the same volumes and
   panning.
 - Settings are saved in `settings.reg` in the user's folder instead of the

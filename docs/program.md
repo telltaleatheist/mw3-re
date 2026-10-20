@@ -76,7 +76,8 @@ They run inside the original main loop, after the original start-up.
   PRIMITIVES entry bound by name (check buttons when they have CHECKED, texts
   when they have TEXT), the window's mouse given to Window::update (the
   buttons do nothing: their screens are not ported).
-- `--shot FILE.bmp [--shot-frame N]` saves frame N (default 30) of either
+- `--shot FILE.bmp [--shot-frame N] [--shot-any]` saves frame N (default 30;
+  with `--shot-any` every frame shown counts, the fade's too) of either
   and quits, with the window hidden.
 
 ## What runs ported

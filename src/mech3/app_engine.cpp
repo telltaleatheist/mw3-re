@@ -357,11 +357,28 @@ uint32_t GameEngine::video_show_cursor(uint32_t on) {
 // FIX (A): the fade's DirectDraw and Direct3D calls on the 16-bit buffer
 // (fixes.md, Running on modern machines).
 // 0x00579500: the screen to a new image. The port has one buffer, whichever
-// the original asked for. Handles of freed stills are reused.
+// the original asked for. Handles of freed stills are reused. FIX (A): the
+// screen is the GPU's back buffer, read back and scaled to the game's 16-bit
+// size (the exe's Lock read the DirectDraw surface); without a readback, the
+// 16-bit buffer (the menus' screens, drawn there in full).
 Handle GameEngine::video_grab(int32_t) {
   Handle h = kGrabs;
   while (grabs_.count(h)) h += 0x10;
-  grabs_[h] = buffer_;
+  std::vector<uint32_t> px;
+  int w = 0, ht = 0;
+  if (video_mode() != 0 && p_.render && p_.render->read_back(&px, &w, &ht) && w > 0 && ht > 0) {
+    std::vector<uint16_t> still(static_cast<size_t>(width_) * height_);
+    for (int y = 0; y < height_; ++y) {
+      const uint32_t* row = px.data() + static_cast<size_t>(y * ht / height_) * w;
+      for (int x = 0; x < width_; ++x) {
+        const uint32_t c = row[x * w / width_];
+        still[static_cast<size_t>(y) * width_ + x] = zvid::pack_bytes(c >> 16 & 0xff, c >> 8 & 0xff, c & 0xff);
+      }
+    }
+    grabs_[h] = std::move(still);
+  } else {
+    grabs_[h] = buffer_;
+  }
   return h;
 }
 // 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0.

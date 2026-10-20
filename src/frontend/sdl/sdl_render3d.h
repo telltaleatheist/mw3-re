@@ -31,6 +31,7 @@ class SdlRender3D : public platform::Render3D {
             const platform::DrawState& state) override;
   void set_fog_color(uint8_t r, uint8_t g, uint8_t b) override;
   void present() override;
+  bool read_back(std::vector<uint32_t>* argb, int* width, int* height) override;
 
   // Saves the next presented frame as a BMP instead of showing it.
   void capture_next(const char* bmp_path) { capture_path_ = bmp_path; }
