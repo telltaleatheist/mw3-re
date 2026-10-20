@@ -9,7 +9,7 @@ namespace mech3 {
 // The calls movement makes into code not ported yet. Unset ones do nothing.
 struct MoveCalls {
   void (*move)(Mech&, float dt, MechAnim* anim, float speed) = nullptr;  // test hook; unset runs Mech::move
-  void (*foot_ground)(Foot&) = nullptr;            // 0x00462a10(0): a foot's ground update
+  void (*foot_ground)(Foot&) = nullptr;            // test hook (0x00462a10): unset runs Foot::ground_update
   void (*gait_pose)(Mech&, MechAnim&, float blend) = nullptr;  // test hook (0x00417bbc..): unset runs Mech::pose_gait
   void (*crouch)(Mech&, int on) = nullptr;                              // 0x0041bda0
   void (*wading_effect)(int on) = nullptr;                              // 0x00433930 on [0x00608620]
@@ -31,6 +31,12 @@ struct MoveCalls {
   void (*action_pose)(Mech&, MechAction&, const Vec3& hip, const float q[4]) = nullptr;  // test hook (0x00416fb8..0x00417293): unset runs Mech::pose_action
 };
 MoveCalls& move_calls();
+
+// A foot's ground update (0x00462a10) through the test hook.
+inline void foot_ground(Foot& f) {
+  if (move_calls().foot_ground) move_calls().foot_ground(f);
+  else f.ground_update();
+}
 
 struct MechDfn;
 

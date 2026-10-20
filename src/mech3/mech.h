@@ -39,6 +39,10 @@ struct Pilot {
   float trans[13][2] = {};       // +0x0c0  each gait's throttle bounds from the file; scaled into Mech::gait
   MechAction* actions[9] = {};   // +0x128  the one-shots by kind, 1 fallf .. 8 collapser
   float limp_speed = 0;          // +0x22c  the limps' stride speed
+  struct Soils {                 // by soil (docs/movement-ground.md, Soils)
+    Handle step_sound[11];       // +0x00
+    Handle footprint[11];        // +0x2c  a decal effect
+  }* soils = nullptr;            // +0x230
   Handle part_effects[6][3] = {};  // +0x1a4 + 0xc x id: two destruction effects, a trail
   Handle death_effects[4] = {};  // +0x1ec
   int32_t x200 = 0;              // +0x200
@@ -90,6 +94,8 @@ struct Mech {
   Vec3 momentum{};           // +0x488  carried into an action, x0.6 a frame
   Vec3 action_root{};        // +0x494  the action's last root position
   float gait[13][2] = {};    // +0x4a0  (lo, hi) throttle bounds per gait; [3] step, [4] walk, [5] trot, [6] run
+  float hip_height = 0;      // +0x508  the hip's rest height (Hip::setup)
+  float crouch_depth = 0;    // +0x50c  def crouch_height, else 0.7 hip_height
   float walk_speed = 0;      // +0x510
   float max_speed = 0;       // +0x518
   float turn_rate = 0;       // +0x520  def max_turn_rate / 2
@@ -117,6 +123,7 @@ struct Mech {
   Vec3 impulse{};            // +0x594  this frame's; y is the jump jets' climb (+0x598)
   Vec3 push{};               // +0x5a0  outside push: slopes, walls, ledges; decays
   float lie_time = 0;        // +0x590  how long a fallen mech stays down before it gets up
+  bool knee_back = false;    // +0x585  the knees bend backward (copied to the legs)
   bool crouched = false;     // +0x586
   bool wading = false;       // +0x588  the wading force-feedback effect is on
   uint32_t gait_frames = 0;  // +0x58c  frames at walk or faster since stand or step
@@ -141,6 +148,7 @@ struct Mech {
   float knockdown[5] = {};   // +0x6b8  base, x 0.8, x 80, threshold, slope (0x414c71, 0x417a10)
 
   Sound* loops() { return sounds; }                 // +0x5b8, three: stopped on power-down
+  Sound& servo() { return sounds[4]; }              // +0x5c8  the torso's twist
   Sound& heat_beep() { return sounds[5]; }          // +0x5cc
   Sound& heat_alarm() { return sounds[6]; }         // +0x5d0
   Sound& power_up_sound() { return sounds[7]; }     // +0x5d4

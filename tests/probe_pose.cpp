@@ -133,8 +133,8 @@ void part_io(int k, uint8_t* b, bool store) {
     Leg& l = g->legs[k - kLeg0];
     io.bo(0x7c, l.knee_back), io.f(0x80, l.thigh_angle), io.f(0x84, l.knee_angle);
     io.q(0x88, l.thigh_q), io.q(0x98, l.calf_q);
-    float* ik[] = {&l.ik_a8, &l.thigh_len, &l.ik_b0, &l.hip_x, &l.calf_len, &l.ik_bc, &l.ik_c0, &l.ik_c4,
-                   &l.ik_c8, &l.ik_k, &l.ik_m};
+    float* ik[] = {&l.rest_x, &l.thigh_len, &l.ik_b0, &l.hip_x, &l.calf_len, &l.rest_angle, &l.ankle.x, &l.ankle.y,
+                   &l.ankle.z, &l.ik_k, &l.ik_m};
     for (int i = 0; i < 11; ++i) io.f(0xa8 + 4 * i, *ik[i]);
   } else if (k == kFoot0 || k == kFoot1) {
     Foot& f = g->feet[k - kFoot0];

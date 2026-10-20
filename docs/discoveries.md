@@ -287,6 +287,35 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   keeps being refreshed every frame after that.
 - **A mech lying on the ground that is powered down still turns its torso
   and moves its parts**; one that is powered up holds still until it gets up.
+- **"Center legs" swings the legs round at 1.75 times the twist per second**
+  (0x464e80, `movement-ground.md`): with the torso twisted 40 degrees, the legs
+  start turning at 70 degrees a second and slow as they catch up. Throttle
+  does not slow it: the game divides the turn by the same throttle factor a
+  normal turn multiplies by. Touching any torso or look control cancels it.
+- **The torso twist has a servo sound only while it moves freely**: it starts
+  with your input and stops the moment the twist hits its limit, or when you
+  let go.
+- **A foot only "lands" while it is coming down.** It counts as touching once
+  it is within 25 cm of the ground and not rising, and lifts off again above
+  20 cm. Each landing plays the ground's step sound, at 45% volume standing
+  and full volume at full throttle, and leaves a footprint 5 cm above the
+  ground, except in water (a splash instead) or while you are being shoved
+  (sliding off a slope or a ledge).
+- **Every footfall hits what it lands on.** The moment a foot touches down
+  the game hands whatever object is underfoot a 1000-point hit through its
+  damage handler (likely what flattens small things a mech walks over).
+- **Feet bank to the ground.** At close range a planted foot turns to lie
+  flat on the slope under it; at a distance feet keep the walk's angle.
+- **Arms track your target with their own limits.** Each arm turns toward the
+  weapons' target at its own rate (`aim_slerp_freq`), within the pitch and
+  yaw limits in the mech file (the right arm uses the left's limits
+  mirrored), and drifts back to rest at half that rate when there is no
+  target. Some arms leave the whole aim to the hand.
+- **Weapon recoil twists your torso**: a shot kicks the arm back and turns
+  the torso, a left-arm weapon one way and a right-arm weapon the other (by
+  the mech's `recoil_twist`). The kick fades in about a third of a second.
+- **The game knows when an arm is under water**: when both feet are in water
+  and a part is below the surface, the player's HUD redraws its weapon list.
 
 ## Weapons
 

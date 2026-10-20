@@ -70,7 +70,7 @@ airborne = jet impulse > 0 || (|clearance 6| >= 0.2 && neither ski down)
 
 The body never tilts (the orientation is yaw only); the legs follow slopes
 because the animation's feet are evaluated in the pitched ski frames (anim
-vt +0x1c 0x41fbe0) and solved by the leg IK (0x463e40 / 0x463c90, not mapped).
+vt +0x1c 0x41fbe0) and solved by the leg IK (0x463e40 / 0x463c90, `movement-pose.md`).
 
 ## The terrain query (0x4ee2f0, `zclass\cls_di.c`)
 
@@ -89,46 +89,148 @@ is a strip. Out per probe 0x504 bytes: count, then up to 32 hits of 0x28
 Each model caches its last polygon per probe (header +0x58). Always returns 0.
 Water is a separate flat polygon (y 0, soil 1).
 
-## Feet (0x462a10, Foot::GroundUpdate)
+## The part updates (ported: `mech3/mech_part_update.cpp`, `test_parts.py`)
 
-World position (0x4ed530); ground = the ski parabola at the foot's z
-(0x475de0, which also picks the contact: mid when within +0x2f4 / 2, else
-front or back); water from the same probe (0x475ea0). Tilt to the contact
-normal (0x462de0, with detail bits 2 and 4). Clearance = (y - ground) * n.y -
-sole; state +0x94: 0 air, 1 touching (clearance falling below 0.25), 2, 3
-planted, back to 0 above 0.2. Water depth +0xdc. On touch: soil from the
-material, and a node damage callback with 1000 (stepping on things).
-Foot::Update 0x463110: the turn-in-place counter-spin (+0xd8 += +0xd4 dt,
-else decays by exp(-3 dt)); 1->2 a camera shake for the player, 2->3 a
-splash in water or a footprint, the step sound at `0.55 |throttle| + 0.45`.
+Mech::Update runs, when no action plays, the torso's and the hip's update,
+then (after Collide) both legs' (which run their foot's) and both arms'
+(which run their hand's). The poses (`movement-pose.md`) only store targets;
+these updates put them on the nodes.
+
+### Feet: the ground update (0x462a10, Foot::GroundUpdate)
+
+From the hip's set_pose, and from Move for far mechs (no animation):
+
+```
+side = node id != 13 (13 the left foot)
+W = world position (0x4ed530); ground = the ski parabola at the foot's local z,
+    contact = mid probe within +0x2f4 / 2 of it, else front or back (0x475de0)
+surface (+0xe0) = 0; in water (+0xac) = the same probe's (0x475ea0)
+tilt 0x462de0 (below)
+clearance (+0x8c) = n.y (W.y - ground) - sole (+0x74); the last one kept (+0x90)
+state +0x94: 0 -> 1 when not rising (last >= now) and below 0.25;
+             3 -> 0 above 0.2 (1 -> 2 -> 3 in the foot's update)
+in water: depth (+0xdc) = surface - W.y, out of the water when negative
+else: the splash effect (+0xe4) stops if playing; depth 0
+state 1 (touching): soil (+0xe8) = table 0x608c00 by the contact's material,
+    and the node underfoot is handed 1000 (0x5836b0, its damage record +0xbc)
+returns the clearance
+```
+
+The shadow node (+0x78, a matrix under the foot shown out of the water)
+is cleared by the constructor: dead code, ported as written. Two switches,
+[0x605cb4] (the world's own ground under the player's feet within 1 m) and
+[0x605cb8] (a second height, 0x475d10), are never set.
+
+Tilt 0x462de0 (detail bits 2 and 4 only): the contact's normal kept (+0x7c);
+a foot on the ground takes the rotation turning up onto that normal (seen in
+the mech's frame, 0x4ed280 mode 2, normalised; 0x525a50), less the hip's turn
+(hip +0x84 x that), into +0xc4; in the air the pose's (+0x58). [0x605cbc]
+would ease it by half the frame; never set.
+
+### Feet: the update (0x463110, through the leg's 0x463ee0)
+
+```
+no node: nothing.  detail bit 4 clear: stop the splash, return
+counter-spin (+0xd8): += rate (+0xd4) dt on a turn-in-place frame (+0xc0, cleared),
+    else times exp(-3 dt) (the fast exp) outside +-0.01; 0 airborne or without bit 2
+node rotation = rotation (+0xc4) x yaw(spin) outside +-0.01, else +0xc4
+state 1 -> 2: the player's force feedback 0x4337c0(|forward speed| / max speed)
+state 2 -> 3, with footsteps (bit 3), at W less the sole:
+    in water: soil 1, the splash moved to the probe's x, z and the water's surface
+              and started with the throttle (0x45faf0)
+    else, not pushed this frame (skis +0x05): a footprint (pilot +0x230 +0x2c by soil,
+              0x508aa0) 5 cm up, laid by 0x462fa0; a playing splash stops
+    sounds (bit 0): the soil's step sound (pilot +0x230 by soil) at 0.55 |throttle| + 0.45
+other states: a playing splash follows the probe on the water
+```
+
+Footprint 0x462fa0: flat ground (n.y exactly 1) faces atan2(-fx, -fz);
+vertical faces (n.y 0) none; else the mech's flat forward laid on the plane
+(y solved from n), normalised, its cross with n, and the Euler angles
+(0x523bc0) of the rows (f x n, n, -f).
+
+### Hip (0x4623a0) and the setups
+
+Hip::Update: the crouch offset (+0x9c, y of +0x98) approaches its target
+(+0xa8) at 2/s (`y - (t - y) dt (-2)`), snaps within 0.05, kept in
+[-crouch depth, 0]; the node is set. Hip::Setup 0x462130: hip height
+(mech +0x508) = the rest y, crouch depth (+0x50c) = def `crouch_height`
+(+0x148), 0.7 hip height when that is 0; +0x94 the thighs' x spacing.
+
+Leg::Setup 0x4637b0 (with the calf's 0x45fdd0 and foot's 0x462860, which
+makes the splash effect 0x45f980): knee direction from mech +0x585, the
+mech's node tree refreshed (0x4f7db0), then on the matrix stack: the thigh's
+origin, the foot's rest place (a child of the hip) taken into the thigh's
+and the calf's frames (0x522910 twice). Thigh length = |calf offset|_yz
+(+0xac), calf length = |ankle in the calf|_yz (+0xb8), the IK constants
+`-(a^2 + b^2)` (+0xcc) and `1 / 2ab` (+0xd0), the foot's rest x (+0xb4),
+the thigh's (+0xa8), atan2(-(fy - ty), fx - tx) (+0xbc), the ankle in the
+calf (+0xc0). (The calf's origin is also taken through the thigh, unused.)
+
+Arm::Setup 0x4663e0: def +0x180.. `recoil_*` (+0x80 pitch, +0x84 push, +0x88
+twist), aim rate (+0xb4), pitch and yaw limits (+0xb8..+0xc4), the hand's
+share (+0xc8), hand takes all (+0xcc); the rest place (+0x8c); the hand's
+setup 0x466e80 keeps its own rest (+0x84), and the arm its length (+0x78);
+a hand that fails is deleted. Every setup starts with 0x45fdd0: a part with
+a mech and a node registers (0x41b8d0) and inits its armor (vt +0x08).
+
+### Torso (0x464e80, mode +0x84)
+
+- Mode 0, the AI (when an aim is set, +0x9c): the aim direction (+0x8c, in
+  the mech's frame when +0x88; 0x465d10) gives pitch asin(y) and yaw
+  atan2(x, -z), clamped to the limits (0x465bc0); clamped, the direction
+  becomes (sin yaw, sin pitch, -cos yaw). Unless the pitch is locked, pitch
+  and yaw approach it by k = exp(-2 dt) (0 below 0.03), the yaw with its sign
+  flipped. Into the view quaternion (+0xa4) when +0xa2, else the torso's
+  (+0x118); +0x98 is the aim's cosine to the forward.
+- Mode 1, the player: the pitch lock (+0xa1) levels pitch at 1.75/s and
+  drops the pitch input. Any input (twist, pitch, free look) cancels
+  CMD_CENTER_LEGS; while centring and not turning, the controls' turn is set
+  to `1.75 yaw / ((1 - 0.8 |throttle|) turn_rate)`, the mech's Turn runs
+  (vt +0x170), the turn is zeroed: the legs come round under the torso at
+  1.75 x the twist per second. Rate mode (+0xa0 clear, 0x464ce0): yaw and
+  pitch += dt x input (x 0.3 with the HUD's +0x1514 bit 4 clear), clamped to
+  def +0x174 max yaw, +0x178 max pitch, +0x17c min pitch; the free look the
+  same with the cockpit's limits (mech vt +0x10c(1), vt +0x1c: +0x68,
+  +0x74, +0x70), which stay in the torso's fields. Absolute mode (or
+  centring): each approaches `limit x input` at 1.75/s (1.4 centring, 0.3
+  centring with the HUD bit clear). The servo sound (mech +0x5c8, 0x432990
+  id 4 at 0.6) plays while there is input that is not clamped, and stops
+  without input, when clamped, or with +0xa2.
+- Every mode: the arms' recoil twist (+0xd0 x (1 - 3 dt), spring +0xd4 by
+  (1 - 5 dt)), the jolt's spin (+0xd8 x (1 - 0.9 dt)) and its integral (+0xe4,
+  x (1 - 2.5 dt)) as a quaternion (+0xf0); the shake spring (position +0x10c,
+  velocity +0x100, def `freq` +0x158, `damp_freq` +0x15c) in 1/15 s substeps
+  (already frame-rate independent); the forward (+0x160) and its flat unit
+  (+0x16c); the node: pose rotation x (turn x yaw(+0xd4) x jolt x exp(spring))
+  (0x4659c0, 0x465940); the base update.
+
+### Arms (0x466510) and the base update (0x461730)
+
+Full detail (bit 4) only. Aim 0x466840 (not a destroyed arm): with a target
+(weapons +0x18, the point +0x0c) its direction from the arm, in the torso's
+frame (the torso node's world Euler angles 0x4ed5d0, 0x525340), as pitch and
+yaw (0x523ac0), approached by exp(-rate dt) (0x523f70), clamped (the right
+arm's yaw limits mirrored); without a target back toward 0 by exp(-rate dt
+/ 2). The arm takes the yaw and `|yaw| x share` as its pitch angle, the hand
+the pitch less that share; with +0xcc the hand takes it all and the arm
+keeps its last rotation. Recoil (+0x34, raised by a weapon through vt +0x24,
+0x466610, to at most 1; it also twists the torso by `recoil_twist`, the left
+arm one way and the right the other): decays toward a hold (+0x7c, itself
+x exp(-4 dt)) by exp(-6 dt), 0 below 0.001; its pose 0x4666f0 pitches the
+arm up by asin(recoil_pitch x recoil) and slides the hand back by
+recoil_push x recoil (the arm itself without a hand). Then the hand's update
+and the arm's base update.
+
+Base update 0x461730 (hands, the arms', the torso's): a part is under water
+when both feet are in water and its world y is below the left foot's
+surface (+0x49); the player's HUD redraws its weapon list when that changes.
 
 ## Soils (table 0x608c00 by material +0x20)
 
 1 water (surface, not ground; splashes), 10 noslip (no slope slide), 8 lava
 (heat only). Footprint decals and step sounds per soil (pilot +0x230). No
 soil changes speed.
-
-## Torso, hip, arms
-
-Torso inputs 0x466200 / 0x466240 (twist from controls +0x1c, pitch +0x18, the
-free-look +0x30 / +0x2c; a non-zero input cancels the AI aim). Torso::Update
-0x464e80, mode +0x84 (1 player, 0 AI aim, 2 frozen):
-
-- Player rate mode: yaw and pitch += dt * input (x 0.3 with HUD flag +0x1514
-  bit 4 clear... the zoom, likely), clamped to the definition's limits
-  (def +0x174 max yaw, +0x178 max pitch, +0x17c min pitch; 0x464ce0); a pitch
-  lock decays pitch by 1.75/s. Absolute mode approaches `max * input` at 1.75/s
-  (1.4 when centring). Centre legs (+0x1b0 == 2) turns the legs toward the
-  torso through the mech's turn.
-- AI aim: asin / atan2 of the aim direction, clamped, approached by
-  exp(-2 dt).
-- Then the shake/jolt springs (substeps of 1/15 s, def `freq`, `damp_freq`,
-  `torso_shake`) and the servo sound.
-
-Hip::Update 0x4623a0: crouch offset approaches its target at 2/s, snaps at
-0.05, clamped to [-crouch depth, 0] (def `crouch_height`, else 0.7 hip height).
-Arm::Update 0x466510: aim toward the target with def `aim_*` limits and
-`aim_slerp_freq`, recoil decay (def `recoil_*`).
 
 ## Detail bits (+0x688, 0x41e870 by camera distance; the player all)
 

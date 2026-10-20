@@ -93,10 +93,8 @@ void Mech::move(float dt, MechAnim* anim, float speed) {
   const int jets = jump_jets(dt);
   ground_step(dt);
   if (!anim || !(detail & 0x10)) {
-    if (g_calls.foot_ground) {
-      g_calls.foot_ground(*legs[0]->foot);
-      g_calls.foot_ground(*legs[1]->foot);
-    }
+    foot_ground(*legs[0]->foot);
+    foot_ground(*legs[1]->foot);
     return;
   }
   if (!g_calls.gait_pose) {

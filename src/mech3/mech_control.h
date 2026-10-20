@@ -10,6 +10,9 @@ namespace mech3 {
 
 struct Mech;
 
+// exp(x) the game's way (ftol(x * 2^23 / ln 2) + 0x3f800000 as float bits; 0x00426960 and others).
+float fast_exp(float x);
+
 struct MechControls {
   uint32_t flags = 0;          // +0x08  bit 2 doubles the turn rate
   int32_t view = 0;            // +0x0c  the player's view state 0..3 (0x00426780)

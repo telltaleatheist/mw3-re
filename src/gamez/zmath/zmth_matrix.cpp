@@ -538,8 +538,8 @@ void rotate_points_transposed(Vec3* v, int32_t count) {
   for (; count != 0; --count, ++v) {
     const float* t = g_stack.matrix().m;
     const Vec3 p = *v;
-    *v = {t[0] * p.x + t[1] * p.y + t[2] * p.z, t[3] * p.x + t[4] * p.y + t[5] * p.z,
-          t[6] * p.x + t[7] * p.y + t[8] * p.z};
+    *v = {(t[2] * p.z + t[1] * p.y) + t[0] * p.x, (t[5] * p.z + t[4] * p.y) + t[3] * p.x,
+          (t[8] * p.z + t[7] * p.y) + t[6] * p.x};  // the x87's order: z first
   }
 }
 
@@ -578,7 +578,8 @@ void transform_box(const float* m, const float box[6], float out[6]) {
 }
 
 // Mech3.exe 1.2 @ 0x00522910. v' = (v - t) * transpose(R): the inverse of a
-// rigid top.
+// rigid top, each sum in the x87's order (y and z start from their outer
+// terms).
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count) {
   if (g_stack.is_identity()) {
     std::memcpy(dst, src, static_cast<uint32_t>(count) * sizeof(Vec3));
@@ -587,8 +588,8 @@ void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count) {
   for (; count > 0; --count, ++src, ++dst) {
     const float* t = g_stack.matrix().m;
     const float x = src->x - t[9], y = src->y - t[10], z = src->z - t[11];
-    *dst = {t[2] * z + t[1] * y + x * t[0], t[4] * y + t[5] * z + t[3] * x,
-            t[6] * x + t[7] * y + t[8] * z};
+    *dst = {(x * t[0] + t[1] * y) + t[2] * z, (t[3] * x + t[5] * z) + t[4] * y,
+            (t[8] * z + t[7] * y) + t[6] * x};
   }
 }
 

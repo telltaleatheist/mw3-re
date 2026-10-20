@@ -59,6 +59,7 @@ for t in \
     mechanim \
     mechdata \
     pose \
+    parts \
     ai_readers \
     zinput \
     ; do

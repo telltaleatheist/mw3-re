@@ -9,6 +9,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
@@ -666,56 +667,6 @@ void billboard_y(float camera_yaw) {
   st.is_identity() = 0;
 }
 
-// Mech3.exe 1.2 @ 0x0051e740. ECX v, EDX out: a unit vector perpendicular to
-// v in the xy plane, with the exe's approximate square root.
-void perpendicular_xy(const float v[3], float out[3]) {
-  out[2] = 0.0f;
-  if (zero(v[0])) {
-    out[0] = 1.0f, out[1] = 0.0f;
-    return;
-  }
-  const float yy = v[1] * v[1], xx = v[0] * v[0];
-  const float s = yy + xx;
-  int32_t bits;
-  std::memcpy(&bits, &s, 4);
-  bits = (bits >> 1) + 0x1fc00000;
-  float root;
-  std::memcpy(&root, &bits, 4);
-  const float r = 1.0f / root;
-  out[0] = r * v[1];
-  out[1] = -(r * v[0]);
-}
-
-// Mech3.exe 1.2 @ 0x00525a50. ECX from, EDX to (unit), stack out: the
-// quaternion (w, x, y, z) turning `from` onto `to`, through the half vector.
-void quat_between(const float u[3], const float d[3], float q[4]) {
-  float h[3] = {u[0] + d[0], u[1] + d[1], u[2] + d[2]};
-  if (zero(h[0]) && zero(h[1]) && zero(h[2])) {
-    q[0] = 0.0f;
-    return perpendicular_xy(u, q + 1);
-  }
-  normalize(h);
-  const float a = u[1] * h[2], b = u[2] * h[1];
-  const float c0 = a - b;
-  const float e = u[2] * h[0], f = u[0] * h[2];
-  const float c1 = e - f;
-  const float g = u[0] * h[1], k = u[1] * h[0];
-  const float c2 = g - k;
-  if (zero(c0) && zero(c1) && zero(c2)) {
-    const float p0 = u[0] * d[0], p1 = u[1] * d[1], p2 = u[2] * d[2];
-    const float s = p0 + p1;
-    const float dot = s + p2;
-    if (below(dot, 0.0f)) {
-      q[0] = 0.0f;
-      return perpendicular_xy(u, q + 1);
-    }
-  }
-  const float p0 = u[0] * h[0], p1 = u[1] * h[1], p2 = u[2] * h[2];
-  const float s = p0 + p1;
-  q[0] = s + p2;
-  q[1] = c0, q[2] = c1, q[3] = c2;
-}
-
 // Mech3.exe 1.2 @ 0x0051efb0. Facade mode 1, turning to face the camera: the
 // model-view's rotation turned so its y axis points along the view direction
 // to the model.
@@ -730,7 +681,7 @@ void billboard_sphere() {
   float u[3] = {m[3], m[4], m[5]};
   if (zero(normalize(u))) u[0] = 1.0f;
   float q[4], r[9];
-  quat_between(u, d, q);
+  zmth::quat_between(u, d, q);  // 0x00525a50
   zmth::quat_matrix(q, r);
   for (int row = 0; row < 3; ++row) {
     float* v = m + 3 * row;

@@ -17,6 +17,8 @@ constexpr float kJumpFall = 9.0f;         // 0x005e259c, toward a zero target
 // MSVCRT _ftol (0x005ac340): truncates.
 int32_t ftol(float x) { return static_cast<int32_t>(x); }
 
+}  // namespace
+
 // exp(x) by writing x / ln 2 straight into a float's exponent (Schraudolph):
 // within a few percent of the true value, and what the game uses.
 float fast_exp(float x) {
@@ -25,7 +27,6 @@ float fast_exp(float x) {
   std::memcpy(&f, &bits, 4);
   return f;
 }
-}  // namespace
 
 // Mech3.exe 1.2 @ 0x00426960
 int MechControls::update(float dt) {
