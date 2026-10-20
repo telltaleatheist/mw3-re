@@ -325,7 +325,9 @@ class HudDamageView : public ztwod::Object2D {
   HudDamageView(int32_t px, int32_t py, bool target);
   ztwod::Image bg;                   // +0x34
   HudDamagePart parts[8];            // +0xf0
+  void* mech = nullptr;              // +0x7d0 (not set by the constructor)
   ztwod::Rect rect{};                // +0x7d4 the background's
+  bool set_mech(void* m);            // 0x00447c00: shown with one
 };
 
 // An MFD (vtable 0x005c0470, 0xcd8 bytes): the damage view, the 3D view, the
@@ -341,6 +343,30 @@ class HudMfd : public ztwod::Object2D {
   uint32_t nav = 0;                  // +0x820 the nav list (hooked)
   HudMfdView* view = nullptr;        // +0x824
   HudText title;                     // +0x828
+};
+
+// TARGET (vtable 0x005c03e8, 0x2414 bytes): an MFD for the target, with its
+// arrows, markers and three texts above it.
+class HudTarget : public HudMfd {
+ public:
+  HudTarget(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043fcb0
+  void hide() override;              // +0x64  0x004415f0
+  // +0x60 show_for 0x00441560: not ported yet.
+  virtual void set_mode(int32_t m);  // +0x7c  0x004400f0: kept for the next TARGET
+  void set_target(void* t);          // 0x00441800 (part: with a target, not ported yet)
+  void set_shown(bool on);           // 0x00441780 (part, as set_target)
+  void update_texts(bool clear);     // 0x00441660 (part, as set_target)
+  ztwod::Shape shape1;               // +0xcd8
+  ztwod::Line2D lines[3];            // +0xdfc (0x004400e0: all zero)
+  ztwod::Shape shape2;               // +0xee0
+  ztwod::Frame frame;                // +0x1004
+  zimg::Texture* arrows[12] = {};    // +0x1058 enemy, ally, other: left, right, up, down
+  ztwod::Image marker{0};            // +0x1088
+  HudText texts[4];                  // +0x1144
+  void* target = nullptr;            // +0x2404
+  uint8_t shown = 0;                 // +0x2408
+  float x240c = 0.0f;                // +0x240c
+  int32_t line_h = 0;                // +0x2410
 };
 
 // The reticle's zoom window (0x00442ac0, vtable 0x005c0608): the zoom
@@ -397,6 +423,7 @@ class HudHooks : public zgame::Unported {
   virtual const char* message(int32_t id);  // 0x00576040, Mech3Msg.dll's text
   // The MFD's and TARGET's last modes ([0x00605988], [0x0060598c]; 0 at first).
   virtual int32_t saved_mfd_mode() { return static_cast<int32_t>(unported("peek32", {0x605988})); }
+  virtual void save_target_mode(int32_t m) { unported("poke32", {0x60598c, m}); }
   virtual int32_t saved_target_mode() { return static_cast<int32_t>(unported("peek32", {0x60598c})); }
   virtual uint32_t window_node_new() { return unported("0x004f9e90", {}); }
   virtual uint32_t camera_node_new() { return unported("0x004f32e0", {}); }
@@ -436,18 +463,9 @@ class HudHooks : public zgame::Unported {
     unported("0x0043da50.sound", {id(source), zoomed ? 1u : 0u});
   }
   virtual void setup(void* hud, Mech* m) { unported("0x0043bb80", {id(hud), id(m)}); }
-  // A piece not ported yet: its constructor's address and arguments.
-  virtual void piece(uint32_t ctor, std::initializer_list<zgame::Arg> args);
 };
 HudHooks& hud_hooks();
 void set_hud_hooks(HudHooks* h);
-
-// A piece not ported yet: an Object2D whose construction is the original
-// constructor's recorded call (HudHooks::piece), in the HUD's member order.
-class PendingPiece : public ztwod::Object2D {
- public:
-  PendingPiece(uint32_t ctor, std::initializer_list<zgame::Arg> args);
-};
 
 // The timer (+0x18410): a FontText "00:00:00.00" at (0x244, 0x0f) in
 // mech_string, set as it is made (vtable 0x005bc598, FontText's slots).
@@ -466,7 +484,7 @@ class Hud : public ztwod::Layer {
   HudReticle reticle{"ret_on", "ret_off"};  // +0x144c
   HudGauges gauges;                  // +0x1da8
   HudMfd mfd{0x212, 0x172, 0x4b, 100, false};  // +0x3434 (a fifth argument 1, unused)
-  PendingPiece target{0x0043fcb0, {10, 0x172, 0x4b, 100}};      // +0x410c 0x0043fcb0 (not ported yet)
+  HudTarget target{10, 0x172, 0x4b, 100};  // +0x410c
   HudWeapons weapons;                // +0x6520
   HudObjectives objectives;          // +0x17964
   HudTimer timer;                    // +0x18410

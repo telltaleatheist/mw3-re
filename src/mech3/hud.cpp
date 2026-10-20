@@ -62,16 +62,6 @@ const char* HudHooks::message(int32_t id) {
   return nullptr;
 }
 
-void HudHooks::piece(uint32_t ctor, std::initializer_list<zgame::Arg> args) {
-  char key[16];
-  std::snprintf(key, sizeof key, "0x%08x", ctor);
-  unported(key, args);
-}
-
-PendingPiece::PendingPiece(uint32_t ctor, std::initializer_list<zgame::Arg> args) : Object2D(0, 0) {
-  g_hooks->piece(ctor, args);
-}
-
 HudTimer::HudTimer() : FontText("00:00:00.00", 0x244, 0xf) { set_font(ztwod::host().font_find("mech_string")); }
 
 // Mech3.exe 1.2 @ 0x0043ae50: a null name keeps the slot.
@@ -688,6 +678,104 @@ HudMfd::HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool t) : Object2D(
   if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;  // 0x00441d90
 }
 
+// Mech3.exe 1.2 @ 0x00447c00
+bool HudDamageView::set_mech(void* m) {
+  mech = m;
+  if (m) {
+    show_for(-1.0f);
+    return true;
+  }
+  hide();
+  return false;
+}
+
+namespace {
+ztwod::Line2D zero_line() { return ztwod::Line2D(0, 0, 0, 0, 0); }  // 0x004400e0
+const char* const kArrows[12] = {
+    "hud_enarrow_left",     "hud_enarrow_right",     "hud_enarrow_up",     "hud_enarrow_down",
+    "hud_allyarrow_left",   "hud_allyarrow_right",   "hud_allyarrow_up",   "hud_allyarrow_down",
+    "hud_othererrow_left",  "hud_othererrow_right",  "hud_othererrow_up",  "hud_othererrow_down"};
+void set_colors(ztwod::FontText& t, uint32_t c) {
+  if (t.color_top != c || t.color_bottom != c) {
+    t.color_top = t.color_bottom = c;
+    t.needs_render = 1;
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0043fcb0
+HudTarget::HudTarget(int32_t px, int32_t py, int32_t w, int32_t h)
+    : HudMfd(px, py, w, h, true), lines{zero_line(), zero_line(), zero_line()} {
+  target = nullptr;
+  texts[0].set_text_id(0x22a);
+  line_h = texts[0].text_height();
+  texts[0].set_pos(px, py - line_h * 2 - 1);
+  texts[1].set_pos(px, py - line_h - 1);
+  texts[2].set_pos(px, py - line_h * 3 - 1);
+  set_colors(texts[0], 0xff00);
+  texts[0].set_text("");  // [0x005f4c90]
+  set_colors(texts[1], 0xff00);
+  texts[1].set_text("");
+  set_colors(texts[2], 0xff0000);
+  texts[2].set_text("");
+  ztwod::Host& hs = ztwod::host();
+  for (int i = 0; i < 12; ++i) arrows[i] = hs.image_get(kArrows[i]);
+  shape1.hide();
+  for (auto& l : lines) l.hide();
+  marker.hide();
+  for (int i = 0; i < 3; ++i) texts[i].hide();
+  set_target(nullptr);
+  mode = g_hooks->saved_target_mode();  // 0x0043fca0
+  if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;
+}
+
+// Mech3.exe 1.2 @ 0x004415f0
+void HudTarget::hide() {
+  Object2D::hide();
+  for (auto& l : lines) l.hide();
+  for (int i = 0; i < 3; ++i) texts[i].hide();
+}
+
+// Mech3.exe 1.2 @ 0x004400f0
+void HudTarget::set_mode(int32_t m) {
+  mode = m;
+  if (m && m != g_hooks->saved_target_mode()) g_hooks->save_target_mode(m);
+}
+
+// Mech3.exe 1.2 @ 0x00441800 (a target whose +0 is set: shown; not ported
+// yet). Targets are read as the original's objects (hud.md).
+void HudTarget::set_target(void* t) {
+  target = t;
+  if (t && *static_cast<void**>(t)) {
+    g_hooks->unported("0x00441800", {g_hooks->id(this), g_hooks->id(t)});
+    return;
+  }
+  hide();
+  set_shown(false);
+}
+
+// Mech3.exe 1.2 @ 0x00441780
+void HudTarget::set_shown(bool on) {
+  if (on && target && *static_cast<void**>(target)) {
+    g_hooks->unported("0x00441780", {g_hooks->id(this), 1});
+    return;
+  }
+  shown = 0;
+  x240c = 0.0f;
+  update_texts(true);
+}
+
+// Mech3.exe 1.2 @ 0x00441660 (the clear path; with a target, not ported yet)
+void HudTarget::update_texts(bool clear) {
+  if (!clear && target && *static_cast<void**>(target)) {
+    g_hooks->unported("0x00441660", {g_hooks->id(this), 0});
+    return;
+  }
+  set_mode(0);
+  damage.set_mech(nullptr);
+  texts[0].set_text_plain("");  // [0x005f4c90]
+}
+
 // Mech3.exe 1.2 @ 0x00442ac0
 HudZoomWindow::HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h) : HudZoomView(px, py, w, h) {
   base_w = w;
@@ -813,8 +901,7 @@ void HudReticle::hide() {
   zoom.hide();
 }
 
-// Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order
-// (the ones not ported yet are recorded calls).
+// Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order.
 Hud::Hud(Mech* m) {
   HudHooks& h = *g_hooks;
   if (zfix::options().bugs) block = nullptr;

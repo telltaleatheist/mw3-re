@@ -604,6 +604,21 @@ class Polygon : public Object2D {
   int32_t count = 0;                 // +0x130
 };
 
+// A polyline moved and turned as a whole (vtable 0x005cff58), 0x124 bytes:
+// the HUD's arrows and markers. Partial: built and set; its transformed
+// points 0x005a3580 and draw not ported (twod.md).
+class Shape : public PolyLine {
+ public:
+  Shape();                           // 0x005a3170
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x005a34c0: the translation
+  void set_translation(const float* t);  // 0x005a34f0
+  void set_rotation(int32_t a);      // 0x005a3530
+  uint32_t xform = 0;                // +0xec  1 translated, 2 turned (to recompute)
+  float translation[3] = {};         // +0xf0
+  uint32_t xfc[9] = {};              // +0xfc
+  int32_t rotation = 0;              // +0x120
+};
+
 // The edit bar's caret (vtable 0x005d0360), 0x10c bytes: an I-beam of 13
 // points, blinking when `blink` is set (never, here).
 class Caret : public PolyLine {

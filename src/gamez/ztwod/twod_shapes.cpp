@@ -39,6 +39,34 @@ void Line2D::set(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
 // Mech3.exe 1.2 @ 0x005a6ae0
 ClipLine2D::ClipLine2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c) : Line2D(x0, y0, x1, y1, c) {}
 
+// Mech3.exe 1.2 @ 0x005a3170
+Shape::Shape() {
+  Shape::set_pos(0, 0);
+  set_rotation(0);
+}
+
+// Mech3.exe 1.2 @ 0x005a34c0
+void Shape::set_pos(int32_t px, int32_t py) {
+  const float t[3] = {static_cast<float>(px), static_cast<float>(py), 0.0f};
+  set_translation(t);
+}
+
+// Mech3.exe 1.2 @ 0x005a34f0
+void Shape::set_translation(const float* t) {
+  translation[0] = t[0];
+  translation[1] = t[1];
+  translation[2] = t[2];
+  xform |= 1;
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x005a3530
+void Shape::set_rotation(int32_t a) {
+  rotation = a;
+  xform |= 2;
+  dirty();
+}
+
 // Mech3.exe 1.2 @ 0x005a6bd0
 Polygon::Polygon() : Object2D(0, 0) { dirty(); }
 

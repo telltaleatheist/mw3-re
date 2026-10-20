@@ -303,6 +303,50 @@ void dump_hud(Dump& d) {
     d.o << "\n";
   }
   mfd(d, &h.mfd, "mfd");
+  mech3::HudTarget& tg = h.target;
+  mfd(d, &tg, "target");
+  auto shape = [&](ztwod::Shape& q) {
+    poly(d, &q);
+    d.kv("xf", q.xform);
+    for (float f : q.translation) d.f("s", f);
+    for (uint32_t v : q.xfc) d.kv("s", v);
+    d.kv("s", q.rotation);
+  };
+  d.o << "tshape1 ";
+  shape(tg.shape1);
+  d.o << "\n";
+  for (int i = 0; i < 3; ++i) {
+    ztwod::Line2D& l = tg.lines[i];
+    d.o << "tline" << i << ' ';
+    d.base(&l);
+    for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, l.x40, l.x44, l.x48})
+      d.kv("l", v);
+    d.o << "\n";
+  }
+  d.o << "tshape2 ";
+  shape(tg.shape2);
+  d.o << "\ntframe ";
+  d.base(&tg.frame);
+  d.kv("radius", tg.frame.radius);
+  d.kv("rsq", tg.frame.radius_sq);
+  d.kv("color", tg.frame.color);
+  d.kv("clipped", tg.frame.clipped);
+  d.r("clip", tg.frame.clip);
+  d.o << "\ntfields ";
+  for (auto* t : tg.arrows) d.t("a", t);
+  d.kv("target", 0);
+  d.kv("shown", tg.shown);
+  d.f("x240c", tg.x240c);
+  d.kv("lh", tg.line_h);
+  d.kv("dmech", 0);
+  d.o << "\ntmarker ";
+  d.image(&tg.marker);
+  d.o << "\n";
+  for (int i = 0; i < 4; ++i) {
+    d.o << "ttext" << i << ' ';
+    ftext(d, &tg.texts[i]);
+    d.o << "\n";
+  }
   mech3::HudReticle& rt = h.reticle;
   d.o << "reticle ";
   d.image(&rt);

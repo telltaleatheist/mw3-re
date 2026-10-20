@@ -1,11 +1,14 @@
 """The HUD's construction against the original (docs/hud.md).
 
 The original's constructor 0x43b190 runs in the emulator on a fresh
-0x22e40-byte block (zTwoD's outside stubbed by twod_world.py, the pieces not
-ported yet stubbed and recorded), then the rebuild's (probe_hud.cpp) with the
-original's answers replayed. Compared: the call traces and a dump of the HUD,
-its pieces and their zTwoD objects (the same fields as test_twod.py's dumps),
-and the damage silhouettes every HUD shares.
+0x22e40-byte block (zTwoD's outside stubbed by twod_world.py; the set-up
+0x43bb80, zRender's nodes, the nav list and the messages stubbed and
+recorded), then the rebuild's (probe_hud.cpp) with the original's answers
+replayed. Random per run: the render path, the options' display and window
+rects, the saved MFD modes, whether messages exist. Compared: the call traces
+and a dump of the HUD, all ten pieces and their zTwoD objects (the fields
+each constructor sets), and the lights, fonts and damage silhouettes the HUDs
+share.
 
     cmake --build build && .venv/bin/python -P -u tests/differential/test_hud.py [seeds]
 """
@@ -28,8 +31,6 @@ probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_cha
 HUD_SIZE = 0x22e40
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
-# The pieces not ported yet: constructor -> (spec of its arguments).
-STUBBED = {0x43fcb0: 's0,s1,s2,s3'}
 DAMAGE = 0x605888
 
 
@@ -42,8 +43,6 @@ class Original:
 
     def run(self):
         e, w = self.e, self.w
-        for addr, spec in STUBBED.items():
-            e.stub(addr, spec=spec)
         e.stub(0x43bb80, spec='c,s0')
         r = rnd(self.seed, 'world')
         entry = e.world_alloc(0x100)
@@ -382,6 +381,45 @@ class Original:
             flush(head + '.title')
 
         mfd(h + 0x3434, 'mfd')
+        o = h + 0x410c
+        mfd(o, 'target')
+
+        def shape(q):
+            poly(q)
+            kv('xf', e.r32(q + 0xec))
+            for i in range(13):
+                kv('s', e.r32(q + 0xf0 + 4 * i))
+
+        shape(o + 0xcd8)
+        flush('tshape1')
+        for i in range(3):
+            q = o + 0xdfc + 0x4c * i
+            base(q)
+            for j in range(6):
+                kv('l', e.r32(q + 0x34 + 4 * j))
+            flush(f'tline{i}')
+        shape(o + 0xee0)
+        flush('tshape2')
+        q = o + 0x1004
+        base(q)
+        for k, off in (('radius', 0x34), ('rsq', 0x38), ('color', 0x3c)):
+            kv(k, e.r32(q + off))
+        kv('clipped', e.r8(q + 0x40))
+        rc('clip', q + 0x44)
+        flush('tframe')
+        for i in range(12):
+            tx('a', e.r32(o + 0x1058 + 4 * i))
+        kv('target', e.r32(o + 0x2404))
+        kv('shown', e.r8(o + 0x2408))
+        kv('x240c', e.r32(o + 0x240c))
+        kv('lh', e.r32(o + 0x2410))
+        kv('dmech', e.r32(o + 0x3c + 0x7d0))
+        flush('tfields')
+        image(o + 0x1088)
+        flush('tmarker')
+        for i in range(4):
+            ftext(o + 0x1144 + 0x4b0 * i)
+            flush(f'ttext{i}')
         o = h + 0x144c
         image(o)
         for k, off in (('state', 0x908), ('x950', 0x950), ('x954', 0x954)):
