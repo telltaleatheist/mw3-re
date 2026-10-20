@@ -44,6 +44,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/cls_zbd.cpp
   src/gamez/zclass/display.cpp
   src/gamez/zclass/light.cpp
+  src/gamez/zclass/lod.cpp
   src/gamez/zclass/list.cpp
   src/gamez/zclass/seq.cpp
   src/gamez/zclass/object3d.cpp

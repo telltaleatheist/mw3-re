@@ -7,7 +7,9 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zutl_zar.h"
 
 namespace zcls {
@@ -26,6 +28,113 @@ uint32_t u32_at(const uint8_t* p, int off) {
   return v;
 }
 }  // namespace
+
+bool& mechlib_post_process() {
+  static bool on = false;
+  return on;
+}
+
+// Mech3.exe 1.2 @ 0x004fc6d0
+bool mechlib_open(MechLib& lib, const char* path) {
+  const bool ok = zutl_zar::open(lib.archive, path);
+  uint32_t version = 0, format = 0, size = 4, size2 = 4;
+  zutl_zar::read(lib.archive, zutl_zar::find(lib.archive, "version"), &version, &size);
+  zutl_zar::read(lib.archive, zutl_zar::find(lib.archive, "format"), &format, &size2);
+  if (version != 27 || format != 1) {  // [0x005eb1f0], [0x005eb1f4]
+    zutl_zar::close(lib.archive);
+    return false;
+  }
+  if (ok) mechlib_read_materials(lib);
+  return ok;
+}
+
+// Mech3.exe 1.2 @ 0x004fc9e0. A missing entry reads none.
+bool mechlib_read_materials(MechLib& lib) {
+  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, "materials"), nullptr);
+  if (!f) return false;
+  uint32_t count = 0;
+  std::fread(&count, 4, 1, f);
+  lib.materials.reserve(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    auto* m = new Material{};  // 0x004fc470
+    read_material(f, *m);
+    lib.materials.push_back(m);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004fc650
+Node* mechlib_find(MechLib& lib, const char* name) {
+  for (Node* root : lib.trees)
+    if (std::strcmp(root->name(), name) == 0) return root;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc8f0
+Node* mechlib_load(MechLib& lib, const char* name) {
+  if (Node* hit = mechlib_find(lib, name)) return hit;
+  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, name), nullptr);
+  Node* root = read_tree(lib.reader, f, nullptr);
+  mechlib_resolve(lib, root);
+  // 0x004fc8b0 (an edge pass per model) is not ported: only one video mode sets the flag.
+  if (root) lib.trees.push_back(root);
+  return root;
+}
+
+// Mech3.exe 1.2 @ 0x004fcd40. Each polygon's index becomes the world material.
+void mechlib_resolve(MechLib& lib, Node* node) {
+  if (!node) return;
+  if (zmod::Model* m = node->model)
+    for (uint32_t i = 0; i < m->count(0x10); ++i) {
+      zmod::Polygon& p = m->polygons[i];
+      p.material = material_resolve(*lib.materials[p.material_index]);
+    }
+  for (int32_t i = 0; i < node->child_count(); ++i) mechlib_resolve(lib, node->children[i]);
+}
+
+// Mech3.exe 1.2 @ 0x004fc520. The raw bytes as a world material: the texture
+// at +0x10 once named, the soil at +0x20, the cycle (+0x24) 0 in the file.
+zmod::Material* material_resolve(Material& m) {
+  if (m.resolved) return m.world;
+  if (m.texture) m.entry = zimg::add_texture(m.texture);
+  zmod::Material w{};
+  const uint8_t* r = m.raw;
+  w.alpha = r[0], w.flags = r[1];
+  std::memcpy(&w.rgb, r + 2, 2);
+  std::memcpy(&w.r, r + 4, 4), std::memcpy(&w.g, r + 8, 4), std::memcpy(&w.b, r + 0xc, 4);
+  w.texture = m.entry;
+  if (!m.entry) w.texture_index = u32_at(r, 0x10);
+  std::memcpy(w.unk_14, r + 0x14, 12);
+  w.soil = u32_at(r, 0x20);
+  w.file_cycle = u32_at(r, 0x24);
+  if (zmod::Material* added = zmod::material_add(w)) {
+    m.resolved = true;
+    std::free(m.raw);
+    m.raw = nullptr;
+    m.world = added;
+  }
+  return m.resolved ? m.world : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc490
+void material_free(Material& m) {
+  if (!m.resolved && m.raw) std::free(m.raw);
+  std::free(m.texture);
+  m.texture = nullptr;
+  m.raw = nullptr, m.world = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004fc790
+void mechlib_close(MechLib& lib) {
+  for (Material* m : lib.materials) {
+    if (!m) continue;
+    material_free(*m);
+    delete m;
+  }
+  lib.materials.clear();
+  lib.trees.clear();
+  zutl_zar::close(lib.archive);
+}
 
 // Mech3.exe 1.2 @ 0x004fc570. A non-zero texture field means a name follows.
 bool read_material(std::FILE* f, Material& m) {

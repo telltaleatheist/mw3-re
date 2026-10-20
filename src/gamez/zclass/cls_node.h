@@ -94,6 +94,17 @@ int node_set_priority(Node* node, int32_t priority);      // 0x004eb5b0
 int node_set_flag8(Node* node, int on);                   // 0x004eb620
 int node_get_flag8(Node* node, int32_t* out);             // 0x004eb660
 int node_set_proximity(Node* node, int on);               // 0x004eb790, flag 0x40
+// The other flag setters the tree copy uses (names from its messages).
+int node_set_intersect(Node* node, int on);               // 0x004eb6d0, flag 0x10
+int node_set_intersect_bbox(Node* node, int on);          // 0x004eb750, flag 0x20
+int node_set_landmark(Node* node, int on);                // 0x004eb7d0, flag 0x80
+int node_set_can_modify(Node* node, int on);              // 0x004eb260, flag 0x10000
+int node_set_clip_to(Node* node, int on);                 // 0x004eb2b0, flag 0x20000
+int node_set_overwrite(Node* node, int on);               // 0x004eb960, flag 0x800000
+int node_set_zone_check(Node* node, int on);              // 0x004eb920, flag 0x1000000 (clears only)
+uint32_t node_draw_bits(const Node* node);                // 0x004eb880, +0x2c bits 3-4
+int node_set_draw_bits(Node* node, uint32_t bits);        // 0x004eb840
+int node_set_zone(Node* node, uint8_t zone);              // 0x004eb810, the byte at +0x30
 // Depth first, the node then its children last to first: 1 at the first
 // node `test` returns 1 for. Original file unknown (zClass, next to 0x004f9d60).
 int node_tree_any(Node* node, int (*test)(Node* node));   // 0x004f9e00

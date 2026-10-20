@@ -175,6 +175,88 @@ int model_release(Model* m) {
   return 0;
 }
 
+namespace {
+template <typename T>
+T* dup(const T* src, size_t count) {
+  auto* p = static_cast<T*>(std::malloc(count * sizeof(T)));
+  if (count) std::memcpy(p, src, count * sizeof(T));
+  return p;
+}
+void put32(uint8_t* h, int off, uint32_t v) { std::memcpy(h + off, &v, 4); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005396c0. Flag bits 0..4 come from m (the rest stay the
+// pool's 3, which has none), then the type, mode, +0x24..+0x30, the lights
+// with their points, morphs, vertices, normals and polygons; UVs only where
+// the (copied) material is textured.
+Model* model_copy(const Model& m, int32_t own_materials, int32_t shared) {
+  Model* c = model_alloc();
+  uint8_t* h = c->header;
+  std::memcpy(h, m.header, 8);  // +0 type, +4 mode
+  put32(h, 0xc, 0);
+  put32(h, 8, (m.count(8) & 0x1f) | (c->count(8) & ~0x1fu));
+  std::memcpy(h + 0x24, m.header + 0x24, 0x10);
+  const uint32_t lights = m.count(0x20);
+  put32(h, 0x20, lights);
+  if (lights) {
+    c->lights = static_cast<Light*>(std::malloc(lights * sizeof(Light)));
+    for (uint32_t i = 0; i < lights; ++i) {
+      c->lights[i] = m.lights[i];
+      int32_t n;
+      std::memcpy(&n, c->lights[i].raw + 0xc, 4);
+      c->lights[i].vertices = dup(m.lights[i].vertices, n > 0 ? 3 * static_cast<size_t>(n) : 0);
+    }
+  }
+  const int32_t morphs = static_cast<int32_t>(m.count(0x1c)), verts = static_cast<int32_t>(m.count(0x14));
+  const int32_t norms = static_cast<int32_t>(m.count(0x18)), polys = static_cast<int32_t>(m.count(0x10));
+  if (morphs > 0) c->morphs = dup(m.morphs, 3 * static_cast<size_t>(morphs));
+  put32(h, 0x1c, m.count(0x1c));
+  if (verts > 0) c->vertices = dup(m.vertices, 3 * static_cast<size_t>(verts));
+  put32(h, 0x14, m.count(0x14));
+  if (norms > 0) c->normals = dup(m.normals, 3 * static_cast<size_t>(norms));
+  put32(h, 0x18, m.count(0x18));
+  if (polys > 0) c->polygons = new Polygon[polys]{};
+  put32(h, 0x10, m.count(0x10));
+  std::vector<std::pair<Material*, Material*>> made;  // this copy's material copies
+  for (int32_t i = 0; i < polys; ++i) {
+    const Polygon& s = m.polygons[i];
+    Polygon& d = c->polygons[i];
+    d.priority = s.priority;
+    d.flags = s.flags & 0x700;
+    d.zone_set = s.zone_set;
+    d.material_index = s.material_index;
+    d.material = s.material;
+    if (own_materials && (!shared || material_changes(*s.material))) {
+      Material* copy = nullptr;
+      for (const auto& p : made)
+        if (p.first == s.material) copy = p.second;
+      if (!copy) {
+        copy = material_copy(*s.material);
+        made.emplace_back(s.material, copy);
+      }
+      d.material = copy;
+    }
+    const uint32_t k = s.flags & 0xff;
+    if (k) {
+      d.vertex_indices = dup(s.vertex_indices, k);
+      if ((s.flags & 0x200) && s.normal_indices) d.normal_indices = dup(s.normal_indices, k);
+    }
+    d.flags = (d.flags & ~0xffu) | k;
+    if (d.material->flags & 1) d.uvs = dup(s.uvs, 2 * static_cast<size_t>(k));
+    d.colors = dup(s.colors, 3 * static_cast<size_t>(k));
+    d.scratch = static_cast<uint32_t*>(std::malloc(k * 4));
+  }
+  return c;
+}
+
+// Mech3.exe 1.2 @ 0x0053b3c0
+int model_changes(const Model& m) {
+  if (m.count(8) & 0x1c) return 1;
+  for (uint32_t i = 0; i < m.count(0x10); ++i)
+    if (material_changes(*m.polygons[i].material)) return 1;
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x0053bc10
 void cycle_reset(Model* m) {
   Material* mat = m->polygons[0].material;

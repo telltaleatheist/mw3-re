@@ -55,6 +55,11 @@ Texture& default_image();    // 0x005ecbc0: 8x8 red/green checks, 565
 TextureEntry* default_entry();  // 0x00518210: the entry naming default_image()
 
 TextureEntry* find_texture(const char* name);  // 0x00518220: case-sensitive, in-use entries
+TextureEntry* free_texture_entry();            // 0x00518cc0: the first free one, else one more (4096 at most)
+// A texture by file name: the one loaded under the name without its
+// extension, else a new entry to load (state 2, the current group), else
+// (a full table) the default.
+TextureEntry* add_texture(const char* name);   // 0x00518c60
 void set_entry_name(const char* path, char* dst);  // 0x00519210: base name, extension cut (0x00519150)
 // ECX name: the image from the current library list, else the other (which
 // then becomes current); an alpha texture's transparent texels are zeroed.

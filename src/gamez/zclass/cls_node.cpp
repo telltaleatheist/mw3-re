@@ -308,6 +308,51 @@ int node_get_flag8(Node* node, int32_t* out) {
   return 0;
 }
 
+namespace {
+int set_flag(Node* node, uint32_t flag, int on, int line) {
+  if (!node) return zerr::report(0x400, kClassFile, line, "Null node pointer."), 5;
+  node->set_flags(on ? node->flags() | flag : node->flags() & ~flag);
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004eb6d0
+int node_set_intersect(Node* node, int on) { return set_flag(node, 0x10, on, 0x672); }
+// Mech3.exe 1.2 @ 0x004eb750
+int node_set_intersect_bbox(Node* node, int on) { return set_flag(node, 0x20, on, 0x6a0); }
+// Mech3.exe 1.2 @ 0x004eb7d0
+int node_set_landmark(Node* node, int on) { return set_flag(node, 0x80, on, 0x6e7); }
+// Mech3.exe 1.2 @ 0x004eb260
+int node_set_can_modify(Node* node, int on) { return set_flag(node, 0x10000, on, 0x4bd); }
+// Mech3.exe 1.2 @ 0x004eb2b0
+int node_set_clip_to(Node* node, int on) { return set_flag(node, 0x20000, on, 0x4cc); }
+// Mech3.exe 1.2 @ 0x004eb960
+int node_set_overwrite(Node* node, int on) { return set_flag(node, 0x800000, on, 0x756); }
+
+// Mech3.exe 1.2 @ 0x004eb920. Only ever clears the flag (alloc sets it).
+int node_set_zone_check(Node* node, int on) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x738, "Null node pointer."), 5;
+  if ((node->flags() & 0x1000000) && on == 0) node->set_flags(node->flags() & ~0x1000000u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb880. 0 for a null node.
+uint32_t node_draw_bits(const Node* node) { return node ? (node->get<uint32_t>(0x2c) >> 3) & 3 : 0; }
+
+// Mech3.exe 1.2 @ 0x004eb840
+int node_set_draw_bits(Node* node, uint32_t bits) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x707, "Null node pointer."), 5;
+  node->put<uint32_t>(0x2c, ((bits & 3) << 3) | (node->get<uint32_t>(0x2c) & ~0x18u));
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb810
+int node_set_zone(Node* node, uint8_t zone) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x6ff, "Null node pointer."), 5;
+  node->raw[0x30] = zone;
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004eb790. mech3ax PROXIMITY: only set once anims are loaded.
 int node_set_proximity(Node* node, int on) {
   if (!node) return zerr::report(0x400, kClassFile, 0x6cd, "Null node pointer."), 5;
