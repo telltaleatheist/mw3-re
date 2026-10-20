@@ -11,6 +11,7 @@
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "mech3/controls_cfg.h"
 #include "mech3/options.h"
 #include "platform/platform.h"
 #include "probe_app.h"
@@ -101,6 +102,10 @@ extern "C" {
 void probe_settings_reset(const uint32_t* machine, uint32_t install_options) {
   zreg::shutdown();
   mech3::options() = mech3::Options{};
+  // The axis table as the emulator's .data holds it: 0x410950 does not run there.
+  mech3::axis_table() = mech3::AxisTable{};
+  for (mech3::AxisBinding& a : mech3::axis_table().axes) a = mech3::AxisBinding{};
+  mech3::axis_table().ready = 0;
   zreg::Machine m;
   std::memcpy(&m, machine, sizeof m);
   zreg::init("MicroProse", "MechWarrior 3", "1.0", m, install_options);

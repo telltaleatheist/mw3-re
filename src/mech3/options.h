@@ -3,6 +3,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "mech3/controls_cfg.h"
 
 namespace zrdr { struct Node; }
 
@@ -66,12 +67,7 @@ struct Options {
   float intensity[3] = {1, 1, 1};     // 0x00608e54 0x00608e58 0x00608e5c (the app's +0x1cc..)
   uint8_t intensity_flag[2] = {};     // 0x00608e4c 0x00608e4d (the app's +0x1c4, +0x1c5)
 
-  // The control axis table at 0x006040d0: four 16-byte entries (an id, then
-  // floats), rewritten when UseJoystick changes, only while "ready" (its +0x40
-  // byte, 0x00604110, which each write clears and the setter sets again).
-  uint32_t axis_map[4][4] = {};       // 0x006040d0
-  uint8_t axis_map_ready = 0;         // 0x00604110
-  uint8_t axis_map_init = 0;          // 0x00604111  makes it ready at start (0x00480570)
+  // The control axis table (0x006040d0) is axis_table(), controls_cfg.h.
 
   uint8_t cheated = 0;                // 0x00609994  set by turning a cheat on (protection.md)
   uint8_t multiplayer = 0;            // 0x00608e45  a network game is on (the app's +0x1bd):

@@ -18,6 +18,21 @@ void msvc_splitpath_name(const char* path, char* fname, char* ext);
 // "nan" or hex forms, which a modern strtod would take.
 double msvc_atof(const char* s);
 
+// strtod with the grammar of msvc_atof; *end is past the number, or `s`
+// when there is none.
+double msvc_strtod(const char* s, const char** end);
+
+// strtol(s, end, 10): whitespace, a sign and decimal digits; out of range it
+// gives LONG_MAX or LONG_MIN as MSVCRT does. *end is `s` when there are no
+// digits.
+int32_t msvc_strtol(const char* s, const char** end);
+
+// sscanf(s, "%x") and sscanf(s, "%d") as MSVCRT reads them: whitespace, for
+// %x an optional 0x or 0X (its 0 counts as a digit), for %d a sign; the
+// value wraps at 32 bits. Returns the conversions (0 or 1).
+int msvc_scan_hex(const char* s, uint32_t* out);
+int msvc_scan_dec(const char* s, int32_t* out);
+
 // atoi: whitespace, a sign and decimal digits, wrapping on overflow as
 // MSVCRT's atol does.
 int32_t msvc_atoi(const char* s);

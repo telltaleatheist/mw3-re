@@ -91,7 +91,7 @@ it through its setter, in this order:
 
 The names in parentheses are detail.zrd's keys and the defaults used when the
 file has no entry for them. Then: mech3's default key bindings 0x00411150
-(input.md, Open), `[0x005f4d28]` = the "DefaultCmdMap" entry, **the
+(controls.md, Setup), `[0x005f4d28]` = the "DefaultCmdMap" entry, **the
 registry read** 0x005977d0, the controls file named by ActiveCtlCfg
 (0x004120a0), the camera's node and the three rectangles' targets cleared
 (handles of a run that is gone), the file freed; returns 1. The saved
@@ -204,9 +204,8 @@ value kept through a save, InGameVMode 10 read and saved.
 
 ## Open
 
-- mech3's default bindings 0x00411150 and the controls file 0x004120a0
-  (input.md, Open) are hooks: the "DefaultCmdMap" entry is saved and read,
-  but nothing binds keys yet. After the read the map's bindings hold the
+- mech3's default bindings 0x00411150 and the controls file 0x004120a0 are
+  ported (controls.md, Setup). After the registry read the map's bindings hold the
   saved keys while its reverse tables still hold the defaults until the
   next rebuild (0x0051bca0); not traced whether the original rebuilds them
   before play.

@@ -101,7 +101,7 @@ port carries on with no mouse (FIX (bug), fixes.md).
 
 The game's 0xa7 commands (InitInstance: 0x0051c630(0xa7, "DefaultCmdMap"),
 startup.md; the CMD_ names and default keys are set by mech3's controls
-setup, 0x00411150, not ported). A map (0x3f5c bytes, `zin::CmdMap`) holds per
+setup, 0x00411150: controls.md, Setup). A map (0x3f5c bytes, `zin::CmdMap`) holds per
 command one dword of bindings (key1 bits 0-10, key2 11-21, joystick button
 22-25, mouse button 26-27; 0x0051beb0), a callback and a name (0x50 bytes),
 and reverse tables: key1 and key2 to command (0x7de each), joystick button
@@ -209,10 +209,8 @@ joystick reset's off-by-one fixed, the first key's callback not set.
 
 ## Open
 
-- mech3's controls setup: the default bindings and CMD_ names 0x00411150
-  (with 0x004110d0, the groups 0x00410b70, the name map 0x004127d0), the
-  controls file reader 0x004120a0 (the axis table 0x006040d0) and the
-  controls screen (0x0042be10 ..), which use read_key and the wait functions.
+- The controls screen (0x0042be10 ..), which uses read_key and the wait
+  functions (mech3's controls setup and file: controls.md, Setup).
 - The settings store entry the bindings live in (0x00597d90).
 - The static object at 0x0051af60..0x0051b020 (lists at +0x4848) between
   the two files: not traced.

@@ -62,9 +62,11 @@ void probe_options_io(uint32_t* w, int32_t write) {
   io(o.sound_volume); io(o.mouse_mode); io(o.cd_volume); io(o.pixel_double);
   io(o.intensity[0]); io(o.intensity[1]); io(o.intensity[2]);
   io8(o.intensity_flag[0]); io8(o.intensity_flag[1]);
-  for (auto& e : o.axis_map)
-    for (auto& x : e) io(x);
-  io8(o.axis_map_ready); io8(o.cheated); io8(o.multiplayer);
+  mech3::AxisTable& t = mech3::axis_table();
+  for (mech3::AxisBinding& a : t.axes) {
+    io(a.source); io(a.scale); io(a.offset); io(a.deadzone);
+  }
+  io8(t.ready); io8(o.cheated); io8(o.multiplayer);
 }
 
 // Runs one setter or getter by its original address with an int or float value

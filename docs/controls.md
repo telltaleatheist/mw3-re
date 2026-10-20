@@ -138,8 +138,9 @@ MechControls::Update (the smoothing)
 ```
 
 The axes 0x427870 read the axis table 0x6040d0 (four 16-byte entries:
-source, scale, offset, dead zone; throttle, twist, pitch, turn; filled by
-the controls file reader 0x4120a0, not ported). A source is 1..6 the stick's
+source, scale, offset, dead zone; throttle, twist, pitch, turn; set by the
+controls file, the UseJoystick option and the controls' mode: Setup below).
+A source is 1..6 the stick's
 axes (centred and scaled by zInput's setup, 0x42fea0), 7 and 8 its sliders,
 9..11 the mouse's position from the centre; the value (0x42fe10) is `scale
 x reading + offset`, 0 inside the dead zone; the motion (0x42fe70, 0x42fff0)
@@ -166,6 +167,276 @@ with mode 3 or 6. A second call only reapplies the mode (0x426650). The fields
 throttle held (set by the THROTTLE1..0 callback 0x4274d0, which also clears
 +0x3c), ThrottleConst off (1 from the constructor 0x4265a0; the option's
 setter 0x40d052, options.md).
+
+## Setup: the commands' names, the defaults and the controls file (ported)
+
+`mech3/controls_cfg` (the original file is unknown: the code sits between
+`briefing.cpp` and `mech.cpp`, after the options, 0x410950..0x4130xx),
+checked against the exe by `test_ctlcfg.py`. The settings loader 0x40c420
+calls the defaults before the registry read and the controls file after it
+(settings.md); the app's destructor frees the groups (0x40cb20 ->
+0x410a80). The controls screen (0x42be10.., not ported) lists the groups,
+binds keys, and loads, saves and resets them: 0x42d0b0 writes or reads
+`keys\<name>.zrd` (`sprintf("%s\\%s.zrd", "keys", name)`, `_mkdir("keys")`)
+and puts that path in ActiveCtlCfg; 0x42d210, 0x42d2b0 and 0x42d730 call the
+defaults again.
+
+### State
+
+| Address | What |
+|---|---|
+| 0x6040b8 | the name map: `std::map<const char*, int>` in strcmp order (MSVC `_Tree`: header `[0x6040bc]`, nil `[0x604e38]`; nodes left, parent, right, key +0xc, value +0x10). Static constructor 0x411020, destructor registered with atexit (0x411040) |
+| 0x6040c8 | the group the defaults add to |
+| 0x6040d0 | the axis table: four 16-byte entries {source, scale, offset, dead zone}, throttle, twist, pitch, turn |
+| 0x604110 | the table is "ready": the UseJoystick option (0x40d070) and the controls' mode (0x426650) rewrite it only then |
+| 0x604111 | "stock": the controls file's four axes were the joystick's defaults; at start (0x480570, no joystick) it makes the table ready again |
+| 0x60411c | the groups: a vector of 0x14-byte groups {CString title, a byte, vector<int> commands} |
+| 0x604128 | the commands' entries, 0x14 bytes each for the 0xa7 commands: +0 the name's message, +4 the CMD_ name, +8 a byte set for the keys that also have an axis, +0x10 that axis (0 throttle, 1 twist, 2 pitch, 3 turn); +0xc unused. The controls screen reads them (0x42c160, 0x42c4e0) |
+
+The static constructor 0x410950 starts the table with the joystick's axes
+(throttle Z x -0.5 + 0.5 with a 0.05 dead zone, twist Rz x -1, pitch Y x 1,
+turn X x -1), ready, not stock.
+
+### The defaults, 0x411150
+
+Frees the groups (0x410a80), then for each of seven groups makes it
+(0x410b70: its title is a message) and adds its commands through 0x4110d0
+(cmd, message, key1, key2, joystick button, mouse button, CMD_ name): zInput's
+bind 0x51d2c0 with the message as the command's name, the command added to
+the current group (0x410dc0), the entry's message and name, and the name
+mapped to the command (inserted if new, then set). Last, command 1 is bound
+to Alt-F4 (0x13e) with message 0x8a1 "Quick Exit": no group, no CMD_ name,
+so neither the controls screen nor a controls file knows it. Returns 1. A
+later call makes the groups again and keeps the map and the entries.
+
+Keys are zInput codes (input.md: the DIK code, Alt 0x100, Ctrl 0x200, Shift
+0x400). Mouse 1 left, 2 right. A bind takes a key from the command that had
+it in the same slot only: Insert and Page Up are the turns' second keys and
+the jet rotations' first keys at once, so both commands read them.
+
+| group | command | name | keys | joystick | mouse |
+|---|---|---|---|---|---|
+| Movement | 0x18 `THROTTLE_UP` | Forward throttle | Up |  |  |
+|  | 0x19 `THROTTLE_DN` | Reverse throttle | Down |  |  |
+|  | 0x02 `TURN_LEFT` | Turn Left | Left, Insert |  |  |
+|  | 0x03 `TURN_RIGHT` | Turn Right | Right, Page Up |  |  |
+|  | 0x08 `TWIST_LEFT` | Twist Left | , |  |  |
+|  | 0x09 `TWIST_RIGHT` | Twist Right | . |  |  |
+|  | 0x04 `PITCH_UP` | Pitch Up | - |  |  |
+|  | 0x05 `PITCH_DN` | Pitch Down | = |  |  |
+|  | 0x06 `CENTER_TORSO` | Center torso to legs | Shift+/ |  |  |
+|  | 0x07 `CENTER_LEGS` | Center Legs | / | 8 |  |
+|  | 0x1a `THROTTLE_REV` | Toggle throttle direction | Backspace | 10 |  |
+|  | 0x1b `THROTTLE1` | 0% throttle | 1 |  |  |
+|  | 0x1c `THROTTLE2` | 10% throttle | 2 |  |  |
+|  | 0x1d `THROTTLE3` | 30% throttle | 3 |  |  |
+|  | 0x1e `THROTTLE4` | 40% throttle | 4 |  |  |
+|  | 0x1f `THROTTLE5` | 50% throttle | 5 |  |  |
+|  | 0x20 `THROTTLE6` | 60% throttle | 6 |  |  |
+|  | 0x21 `THROTTLE7` | 70% throttle | 7 |  |  |
+|  | 0x22 `THROTTLE8` | 80% throttle | 8 |  |  |
+|  | 0x23 `THROTTLE9` | 90% throttle | 9 |  |  |
+|  | 0x24 `THROTTLE0` | 100% throttle | 0 |  |  |
+|  | 0x0c `JJ_UP` | Jump Jet | J | 7 |  |
+|  | 0x0d `JJ_FORWARD` | Jump Jet Forward | Home |  |  |
+|  | 0x0e `JJ_BACKWARD` | Jump Jet Reverse | End |  |  |
+|  | 0x0f `JJ_LEFT` | Jump Jet Left | Delete |  |  |
+|  | 0x10 `JJ_RIGHT` | Jump Jet Right | Page Down |  |  |
+|  | 0x11 `JJ_ROTLEFT` | Rotate Left | Insert |  |  |
+|  | 0x12 `JJ_ROTRIGHT` | Rotate Right | Page Up |  |  |
+|  | 0x44 `GETUP` | Get up | G |  |  |
+|  | 0x13 `CROUCH` | Crouch | C |  |  |
+|  | 0x3f `SHUTDOWN` | Startup/Shutdown  | S |  |  |
+|  | 0x6e `MASC` | Toggle MASC | V |  |  |
+| Weapon | 0x3d `TRIGGER1` | Fire weapon | Space | 1 | left |
+|  | 0x2a `WEPGRP_NEXT` | Next weapon group | ] | 4 |  |
+|  | 0x2b `WEPGRP_PREV` | Previous weapon group | [ |  |  |
+|  | 0x26 `WEP_PREV` | Previous Weapon in Group | Ctrl+[ |  |  |
+|  | 0x25 `WEP_NEXT` | Next Weapon in Group | Ctrl+] |  |  |
+|  | 0x27 `NEXT_WEAPON` | Next weapon  | Enter |  |  |
+|  | 0x2c `WEPGRP_1` | Weapon Group 1 | F1 |  |  |
+|  | 0x2d `WEPGRP_2` | Weapon Group 2 | F2 |  |  |
+|  | 0x2e `WEPGRP_3` | Weapon Group 3 | F3 |  |  |
+|  | 0x2f `WEPGRP_4` | Weapon Group 4 | F4 |  |  |
+|  | 0x30 `WEPGRP_5` | Weapon Group 5 | F5 |  |  |
+|  | 0x31 `MOVETOWG_1` | Assign weapon to group 1 | Shift+F1 |  |  |
+|  | 0x32 `MOVETOWG_2` | Assign weapon to group 2 | Shift+F2 |  |  |
+|  | 0x33 `MOVETOWG_3` | Assign weapon to group 3 | Shift+F3 |  |  |
+|  | 0x34 `MOVETOWG_4` | Assign weapon to group 4 | Shift+F4 |  |  |
+|  | 0x35 `MOVETOWG_5` | Assign weapon to group 5 | Shift+F5 |  |  |
+|  | 0x28 `FIREMODE` | Toggle fire mode  | \\ | 5 |  |
+|  | 0x39 `ALPHASTRIKE` | Alpha Strike | Keypad Enter | 6 |  |
+|  | 0x41 `COOLANTFLUSH` | Flush Coolant | F |  |  |
+|  | 0x40 `SHUT_OVER` | Override Thermal Shutdown | O |  |  |
+|  | 0x3b `JETTISON_AMMO` | Jettison ammo | Shift+K |  |  |
+| View | 0x61 `CYCLE_CAM` | Cycle Camera Mode | X |  |  |
+|  | 0x62 `LOOK_LEFT` | Look Left | Alt+Keypad 4 |  |  |
+|  | 0x63 `LOOK_RIGHT` | Look Right | Alt+Keypad 6 |  |  |
+|  | 0x64 `LOOK_UP` | Look Up | Alt+Keypad 2 |  |  |
+|  | 0x65 `LOOK_DOWN` | Look down | Alt+Keypad 8 |  |  |
+|  | 0x67 `LOOK_REAR` | Look back | Alt+Keypad . |  |  |
+|  | 0x66 `LOOK_FRONT` | Look forward | Alt+Keypad 5 |  |  |
+|  | 0x6c `VMODE_TOGGLE` | Cycle Resolution | Shift+V |  |  |
+| Targeting | 0x46 `TARGET_NEXT_E` | Target next enemy | E | 3 |  |
+|  | 0x4d `TARGET_PREV_E` | Target previous enemy | Shift+E |  |  |
+|  | 0x4c `TARGET_CLOSE_E` | Target nearest enemy | Ctrl+E |  |  |
+|  | 0x47 `TARGET_NEXT_F` | Target next ally | W |  |  |
+|  | 0x4e `TARGET_PREV_F` | Target previous ally | Shift+W |  |  |
+|  | 0x4b `TARGET_CLOSE_F` | Target nearest ally | Ctrl+W |  |  |
+|  | 0x48 `TARGET_CURSOR` | Target object under reticule | Q |  |  |
+|  | 0x49 `TARGET_NONE` | Clear Target Selection | T |  |  |
+|  | 0x59 `TARGET_HEAD` | Target Head | Keypad 8 |  |  |
+|  | 0x5d `TARGET_LARM` | Target Left Arm | Keypad 7 |  |  |
+|  | 0x5e `TARGET_RARM` | Target Right Arm | Keypad 9 |  |  |
+|  | 0x5a `TARGET_TORSO` | Target Center Torso | Keypad 5 |  |  |
+|  | 0x5b `TARGET_LTORSO` | Target Left Torso | Keypad 4 |  |  |
+|  | 0x5c `TARGET_RTORSO` | Target Right Torso | Keypad 6 |  |  |
+|  | 0x5f `TARGET_LLEG` | Target Left Leg | Keypad 1 |  |  |
+|  | 0x60 `TARGET_RLEG` | Target Right Leg | Keypad 3 |  |  |
+| Cockpit | 0x14 `RETICULE_ZOOM` | Zoom Reticule | Z |  |  |
+|  | 0x15 `ZOOM_LOCK` | Lock Zoom reticule | Keypad 0 | 2 |  |
+|  | 0x16 `TOGGLE_TMODE` | Toggle Torso Mode | Ctrl+Keypad 0 |  |  |
+|  | 0x17 `FREELOOK` | Freelook | L |  | right |
+|  | 0x74 `DAMAGE_TOGGLE` | Toggle Damage display | D |  |  |
+|  | 0x75 `EDAMAGE_TOGGLE` | Toggle Enemy Damage Display | Ctrl+D |  |  |
+|  | 0x68 `RADAR_TOGGLE` | Toggle Radar size | R |  |  |
+|  | 0x69 `RADAR_RANGE` | Toggle Radar mode | Alt+R |  |  |
+|  | 0xa5 `RADAR_MAP_TOGGLE` | Toggle Radar map | Shift+R |  |  |
+|  | 0x6b `HUD_TOGGLE` | Toggle HUD on/off | H |  |  |
+|  | 0x3a `AMS_TOGGLE` | Toggle AMS on/off | A |  |  |
+| Communications | 0x54 `DIRECT_ATTACKT` | Attack my target | F6 |  |  |
+|  | 0x55 `DIRECT_DEFENDT` | Defend my target | F7 |  |  |
+|  | 0x52 `DIRECT_FOLLOW` | Follow Me | F8 |  |  |
+|  | 0x51 `DIRECT_PAUSE` | Hold position | F9 |  |  |
+|  | 0x56 `DIRECT_REFITT` | Repair in MFB | F10 |  |  |
+|  | 0x4f `DIRECT_POCKET` | Lancemate command screen | F11 |  |  |
+|  | 0x57 `DIRECT_AWAITCMD` | Lock Awaiting orders | Shift+F11 |  |  |
+|  | 0x58 `DIRECT_AWAITCMDCANCEL` | Cancel Awaiting orders | Ctrl+F11 |  |  |
+|  | 0x73 `MCB_COMMAND` | Order MFB | M |  |  |
+|  | 0x36 `NAVPT_NEXT` | Next Op point | N |  |  |
+|  | 0x37 `NAVPT_PREV` | Previous Op point | Shift+N |  |  |
+|  | 0x38 `NAVPT_NEAR` | Nearest Op point | Ctrl+N |  |  |
+|  | 0x76 `CHAT_TEAM` |  Send message to team | Keypad - |  |  |
+|  | 0x77 `CHAT_ALL` |  Send message to all | Keypad * |  |  |
+| Mission | 0x43 `OBJECTIVES` | Mission Objectives | F12 |  |  |
+|  | 0x71 `MISSION_COMPLETE` | Exit Mission | Ctrl+Q |  |  |
+|  | 0x70 `MESSAGE_TOGGLE` | Message Window | Grave (the key left of 1) |  |  |
+
+The texts are Mech3Msg.dll's. THROTTLE1..0 set 0, 20, 30, .. 90 and 100%
+(0x4274d0; THROTTLE2 sets 0.2, though its text says 10%), negative in
+reverse.
+
+Commands with a handler but no default key and no CMD_ name (0x29, 0x3e,
+0x42, 0x45, 0x53, 0x72, 0x7e, 0x92, 0x99, 0xa1, 0xa6; set_callback in
+0x40db60, 0x426ce0, 0x48f400) cannot be bound from the screen or a file;
+nothing in the release binds them, likely the debug key setup (0x40e430,
+not traced).
+
+### The controls file
+
+A text .zrd (zreader.md, Text files), written by 0x411e60 (fopen "w",
+fprintf):
+
+```
+(
+	KEYS (
+		(CMD_ALPHASTRIKE	keya(0x9c)	joybtn(0x6))
+		...
+	)
+	AXES (
+		(Throttle	joystick(Z)	slope(-0.500000)	intercept(0.500000)	deadzone(0.050000))
+		...
+	)
+)
+```
+
+KEYS lists every name in the map in strcmp order (0x410fe0 finds each one's
+command again) with what it has: keya (key1), keyb (key2), mousebtn,
+joybtn, each written only when not 0. AXES lists each axis whose source is
+not 0 by name (Throttle, Twist, Pitch, LR for the turn) with `joystick` (a
+source below 9) or `mouse` and the source's name (0x4300e0: X, Y, Z, Rx, Ry,
+Rz, Slider0, Slider1; 9..11 X, Y, Z), then the three floats as `%f`.
+
+The reader 0x4120a0(path) loads it with zrdr::load (an archive first by its
+file name alone, then the text file). KEYS (found anywhere, depth first):
+zInput's map is cleared (0x51d1d0(0), the callbacks kept); each entry's
+first item names the command (0x410fe0; a name not in the map is added as
+command 0, so its keys end up on command 0, which does nothing), its four
+values are read by 0x412520 (a string `0x..` in hex, a string starting with
+a digit in decimal, anything else 0: `keya(28)` is an int and reads as 0,
+`keya(28x)` as 28) and bound with no name; then the map's tables are
+rebuilt (0x51d1c0). Every command the file leaves out ends unbound, Quick
+Exit too. AXES: every source is set to 0 and the table is not ready; each
+entry names an axis and a source (`joystick(..)` 1..8, else `mouse(..)`
+9..11, an unknown name 0) and the three floats (defaults 1, 0, 0); an entry
+with neither source keeps the source of the entry before it, for the first
+the list's count (a register left as it was). An entry that is exactly the
+joystick's default for its axis marks that axis stock (never unmarked by a
+later entry); stock is set when all four are. The table stays not ready.
+
+Writing and reading back are exact for every value the writer produces;
+floats keep the six decimals `%f` gives.
+
+### Quirks and bugs
+
+- **An axis named other than the four** is written as a fifth entry,
+  0x604110..0x60411f: the flags (reset after), two bytes after them and the
+  first two words and the begin pointer of the groups' vector, so the game
+  crashes at exit or in the controls screen. FIX (bug): skipped.
+- **An entry of KEYS or AXES that is not a list starting with a name** (or
+  a KEYS or AXES that is not a list) is read as one: a crash. FIX (bug):
+  skipped.
+- **The name map keeps the pointer it was given**: for a name read from a
+  file, a string the reader frees at the end of the load. FIX (bug): the
+  map keeps a copy.
+- A file named like one of reader.zbd's (`keys\detail.zrd`) loads the
+  archive's file instead: nothing in it is KEYS or AXES, so nothing changes.
+
+### Where the file lives
+
+FIX (A): the original's `keys\` is relative to the game's folder (its
+working directory); the port reads and writes it in the write dir through
+zutl::open, which makes the folder (the screen's `_mkdir`), and reads it
+from the mounts too. Text mode as the original: CR LF on Windows, LF
+elsewhere; the reader takes either. ActiveCtlCfg starts as
+"DefaultCtlConfig" (message 0xfc0), a file nobody writes, so until a
+profile is saved or loaded in the controls screen the bindings are the
+defaults plus what the registry's DefaultCmdMap restored.
+
+### The controls' mode, 0x426650 (ported)
+
+`MechControls::set_mode(mode)`: +0x08 = mode, +0x3e cleared; while the
+table is ready, bit 4 puts the joystick's axes in it (as 0x410950), else
+bit 1 the mouse's (pitch Y = 10, twist X = 9, scale 1, throttle and turn
+unbound), each leaving it ready. Then the joystick is taken once more
+(0x51b2c0), on every call: its use count grows. Callers: the player's
+controls (0x427280, 0x427320), the mech (0x41cf30, which turns mode 4
+into 3 without a joystick), the lance orders' wrappers (0x469400, 0x469650,
+0x469940, 0x46ab90, 0x46ad80).
+
+### Testing
+
+`test_ctlcfg.py`: one run of 400 random steps on both sides, the original
+from its static constructors (0x410950, 0x411020) on: the defaults (again
+and again), controls files (as the writer makes them with random bindings
+and axes; unknown command names, decimal and odd values, missing sections
+and keys, axes with neither source or an unknown one, the stock axes exact,
+one value off, and followed by another entry; unknown axis names, whose
+bytes the original writes over are put back after its read), saves (the
+text compared, and read back), the controls' mode on random tables, the
+groups freed. zInput's map and the messages are stubs on both sides, every
+call logged and answered from one model; after each step the command
+entries, the groups, the name map in order and the axis table must match.
+Result: 400 steps identical. Breaking the port showed the test catches it,
+17 of 17: unknown names not added, KEYS not clearing the map, joystick and
+mouse buttons swapped, decimal values ignored, a missing source as 0, the
+stock dead zone unchecked, a later entry unmarking stock, AXES leaving the
+table ready, mouse source Z unknown, the writer's button order, source 9
+written as a joystick's, one group only, Quick Exit unbound, the free
+look's mouse button dropped, the mouse mode leaving the turn bound, the
+joystick taken only when ready. `mw3tests` (`test_controls_cfg.cpp`): the
+defaults, a save and load on the real zInput map, the stock flag, and the
+fixes the original cannot be run on (it crashes there).
 
 ## Who sets Mech +0x37c
 
@@ -202,5 +473,7 @@ brain sets throttle and turn, but it can only do so through the same IControls s
 
 - IControls +0x04 and +0x54 (AI overrides), +0x10 (byte +0x34), and the full
   ClearCommands body (0x428490 continues past 0x4284ef).
-- MechControls +0x0c states 0..3 (0x426780); who fills the 0x6040d0 axis table.
+- MechControls +0x0c states 0..3 (0x426780).
+- The controls screen (0x42be10..0x42e7xx: the groups, binding a key, load,
+  save and defaults) and what the commands without a key were for (Setup).
 - Names of the classes: there is no RTTI. File guesses come from func2file neighbours only.
