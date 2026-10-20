@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod.h"
 
 // The HUD (docs/hud.md). File unknown: the code between mech3\mech_data.cpp
@@ -12,6 +13,7 @@
 namespace mech3 {
 
 struct Mech;
+class Hud;
 
 // One part's damage silhouettes: blue, green, yellow, red, black, and where
 // the part sits in the silhouette (a 0x20-byte entry of [0x00605888]).
@@ -44,6 +46,7 @@ class HudCompass : public ztwod::Object2D {
   ztwod::Rect src{};                 // +0x40  the tape's part shown
   ztwod::Image tape;                 // +0x50  hud_compass at (245, 19)
   ztwod::Image frame;                // +0x10c hud_compass_frame at (245, 11)
+  void read_layout(const Hud* hud);  // 0x0043f500 (COMPASS)
   ztwod::FontText text;              // +0x1c8
 };
 
@@ -122,7 +125,8 @@ class HudEquipment : public ztwod::Object2D {
  public:
   HudEquipment();                    // 0x00448070
   void place(int32_t px, int32_t py, int32_t dy);  // 0x00448140
-  void* hud = nullptr;               // +0x34 the HUD it shows (0x00448200)
+  void read_layout(Hud* hud);        // 0x00448200 (EQUIPMENT)
+  void* hud = nullptr;               // +0x34 the HUD it shows
   HudEquipLine lines[16];            // +0x38
   HudPanel panel;                    // +0xa438
   uint8_t below = 1;                 // +0xa540 under the point; else left of it by the column
@@ -148,6 +152,7 @@ class HudWeaponLine : public ztwod::Slider {
   void place(int32_t px, int32_t py, int32_t column);  // 0x00445ba0
   void reset();                      // 0x00445a30
   bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
+  void set_weapon(void* w);          // 0x00445d10 (part: with a weapon, not ported yet)
   HudText name;                      // +0x188
   HudText text2;                     // +0x638
   HudText count_text;                // +0xae8 "%3d", right-aligned at the column
@@ -168,8 +173,9 @@ class HudWeapons : public ztwod::Object2D {
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x004460c0: the lines 10 apart
   void show_for(float seconds) override;  // +0x60  0x00446200 (part: 0x00446520 not ported)
   void hide() override;              // +0x64  0x00446220
-  void* hud = nullptr;               // +0x34 the HUD it shows (0x00446120)
-  uint32_t x38 = 0;                  // +0x38
+  void read_layout(Hud* hud);        // 0x00446120 (WEAPONS)
+  void* hud = nullptr;               // +0x34 the HUD it shows
+  uint32_t weapons = 0;              // +0x38 the mech's weapon manager
   ztwod::PolyLine poly;              // +0x3c
   zimg::Texture* select = nullptr;   // +0x128 hud_weapon_select
   zimg::Texture* chain = nullptr;    // +0x12c hud_weapon_chain
@@ -196,7 +202,7 @@ class HudGauges : public ztwod::Object2D {
  public:
   HudGauges();                       // 0x00444760
   ztwod::FontText coolant_text;      // +0x38   message 0x1d5
-  ztwod::FontText fuel_text;         // +0x4e8  message 0x1d6
+  ztwod::FontText heat_text;         // +0x4e8  message 0x1d6 (hud.zrd heat_text)
   HudText speed_text;                // +0x998
   HudBar speed_bar;                  // +0xe48
   HudBar fuel_bar;                   // +0xf88
@@ -212,6 +218,7 @@ class HudGauges : public ztwod::Object2D {
   ztwod::Image heat_meter;           // +0x1510 hud_heat_meter at (16, 163)
   ztwod::Image toggler;              // +0x15cc lab_toggler_green at (10, 150)
   int32_t toggler_y = 0;             // +0x1688 the meter's bottom less half the toggler
+  void read_layout(const Hud* hud);  // 0x00444dc0 (GAUGES)
 };
 
 // A light of n images, one shown (vtable 0x005c0260, 0xd0 bytes; its
@@ -233,8 +240,11 @@ class HudLight : public ztwod::Image {
 class HudRadar : public ztwod::FilledBox {
  public:
   explicit HudRadar(float fov_degrees);  // 0x0043d260
-  // +0x60 show_for 0x0043db70: not ported yet.
+  void show_for(float seconds) override;  // +0x60  0x0043db70: grows back
   void hide() override;              // +0x64  0x0043dc00: shrinks away, stays shown
+  void attach(void* hud);            // 0x0043d6d0: the zoomed size from the display
+  void set_amber(bool on);           // 0x0043d630: amber instead of green
+  void set_fade(float f);            // 0x0043dc70
   void set_zoom(bool zoomed);        // 0x0043da50
   void select_sound();               // 0x0043da00 (part: 0x00458590 not ported)
   void set_fov(float radians);       // 0x0043f0c0
@@ -294,7 +304,9 @@ class HudZoomView : public ztwod::Object2D {
   uint32_t x4c = 0xffff;             // +0x4c
   ztwod::Rect rect{};                // +0x50
   HudPanel panel;                    // +0x60
-  uint32_t x168 = 0;                 // +0x168
+  void* source = nullptr;            // +0x168 the HUD it shows
+  void set_source(void* s) { if (s) source = s; }  // 0x0043fa20
+  void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043f890
 };
 
 // The MFD's 3D view (0x00442620, vtable 0x005c0500, 0x258 bytes): the zoom
@@ -302,6 +314,7 @@ class HudZoomView : public ztwod::Object2D {
 class HudMfdView : public HudZoomView {
  public:
   HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442620
+  void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004427b0
   ztwod::PolyLine box;               // +0x16c (vtable 0x005c0580)
 };
 
@@ -328,6 +341,7 @@ class HudDamageView : public ztwod::Object2D {
   void* mech = nullptr;              // +0x7d0 (not set by the constructor)
   ztwod::Rect rect{};                // +0x7d4 the background's
   bool set_mech(void* m);            // 0x00447c00: shown with one
+  void move(int32_t px, int32_t py);  // 0x004479a0
 };
 
 // An MFD (vtable 0x005c0470, 0xcd8 bytes): the damage view, the 3D view, the
@@ -337,7 +351,9 @@ class HudDamageView : public ztwod::Object2D {
 class HudMfd : public ztwod::Object2D {
  public:
   HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool target);  // 0x00442060 / 0x00441da0
-  uint32_t x34 = 0;                  // +0x34
+  void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442230 (MFD in hud.zrd)
+  void attach(void* hud);            // 0x004423c0
+  void* hud = nullptr;               // +0x34
   int32_t mode = 0;                  // +0x38
   HudDamageView damage;              // +0x3c
   uint32_t nav = 0;                  // +0x820 the nav list (hooked)
@@ -356,6 +372,8 @@ class HudTarget : public HudMfd {
   void set_target(void* t);          // 0x00441800 (part: with a target, not ported yet)
   void set_shown(bool on);           // 0x00441780 (part, as set_target)
   void update_texts(bool clear);     // 0x00441660 (part, as set_target)
+  void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00440110 (TARGET in hud.zrd)
+  void attach(void* hud);            // 0x00441760
   ztwod::Shape shape1;               // +0xcd8
   ztwod::Line2D lines[3];            // +0xdfc (0x004400e0: all zero)
   ztwod::Shape shape2;               // +0xee0
@@ -395,6 +413,8 @@ class HudReticle : public ztwod::Image {
   HudReticle(const char* on, const char* off);  // 0x00443b60
   // +0x60 show_for 0x00443cf0: Object2D's.
   void hide() override;              // +0x64  0x00443d00: the zoom window too
+  void attach(void* hud);            // 0x00444250
+  void reset();                      // 0x00443cc0
   HudZoomWindow zoom{10, 0x172, 0x5a, 0x5a};  // +0xbc
   int32_t state = 0;                 // +0x908
   uint8_t locked = 0;                // +0x90c the image kept
@@ -405,7 +425,7 @@ class HudReticle : public ztwod::Image {
   zimg::Texture* img_x920 = nullptr; // +0x920 ret_on again
   uint32_t x928[10] = {};            // +0x928
   int32_t x950 = 0;                  // +0x950
-  float x954 = 0.0f;                 // +0x954
+  float x954 = 0.0f;                 // +0x954 0.6 after a reset ([0x005e3a0c])
   void* source = nullptr;            // +0x958 (not set by the constructor)
 };
 
@@ -462,7 +482,37 @@ class HudHooks : public zgame::Unported {
   virtual void radar_zoom_sound(void* source, bool zoomed) {
     unported("0x0043da50.sound", {id(source), zoomed ? 1u : 0u});
   }
-  virtual void setup(void* hud, Mech* m) { unported("0x0043bb80", {id(hud), id(m)}); }
+  // The set-up's outside: the video mode (**[0x005f4d0c], 0x0040d9d0), the
+  // display's size (0x0040d760 / 0x0040d770), the player camera's field of
+  // view (its data +0xe8), hud.zrd (0x00556740).
+  virtual int32_t vmode() { return static_cast<int32_t>(unported("peek32", {unported("peek32", {0x5f4d0c})})); }
+  virtual int32_t display_w();
+  virtual int32_t display_h();
+  virtual float player_camera_fov() { return zgame::from_bits(unported("0x004f3b00.fov", {})); }
+  virtual zrdr::Node* load_hud_zrd() { return zrdr::load("hud.zrd"); }
+  // The mech's (not ported here): vt+0xa0 (dead), 0x0041df10 (its
+  // definition's kind), +0xbc bit 2, the weapon manager +0xd4 and its count
+  // +0x24, a part's equipment count +0x3ac, the target slot +0x6c.
+  virtual bool mech_dead(Mech* m) { return unported("mech.vt+0xa0", {id(m)}) != 0; }
+  virtual int32_t mech_kind(Mech* m) { return static_cast<int32_t>(unported("0x0041df10", {id(m)})); }
+  virtual bool mech_flag_bc4(Mech* m) { return (unported("peek8", {id(m) + 0xbc}) >> 2 & 1) != 0; }
+  virtual uint32_t mech_weapons(Mech* m) { return unported("peek32", {id(m) + 0xd4}); }
+  virtual int32_t weapons_count(uint32_t w) { return static_cast<int32_t>(unported("peek32", {w + 0x24})); }
+  virtual int32_t mech_part_count(Mech* m, int32_t i) {
+    return static_cast<int32_t>(unported("peek32", {id(m) + 0x3ac + 4 * i}));
+  }
+  virtual void* mech_target_slot(Mech*) { return nullptr; }  // wired with the mech (item 10)
+  virtual bool target_valid(void* t) { return t && unported("peek32", {id(t)}) != 0; }
+  // The HUD's sound channels (0x0041e7a0: a channel's sound stopped; with
+  // `fade`, faded instead).
+  virtual void hud_sound_stop(int32_t channel, int32_t fade) { unported("0x0041e7a0", {channel, fade}); }
+  // The nav list: given the mech (0x0047eba0), placed (0x0047eb60).
+  virtual void nav_list_attach(uint32_t nav, Mech* m) { unported("0x0047eba0", {nav, id(m)}); }
+  virtual void nav_list_place(uint32_t nav, int32_t x, int32_t y, int32_t h, int32_t a, int32_t b) {
+    unported("0x0047eb60", {nav, x, y, h, a, b});
+  }
+  // The weapon list's lines from the mech's weapons (0x00446520).
+  virtual void weapons_refresh(void* weapons) { unported("0x00446520", {id(weapons)}); }
 };
 HudHooks& hud_hooks();
 void set_hud_hooks(HudHooks* h);
@@ -478,6 +528,9 @@ class HudTimer : public ztwod::FontText {
 class Hud : public ztwod::Layer {
  public:
   explicit Hud(Mech* mech);          // 0x0043b190
+  void setup(Mech* m);               // 0x0043bb80: hud.zrd's layout for the video mode, the mech given out
+  void set_active(int32_t on) override;  // +0x04  0x0043baf0: the radar shown or hidden
+  void reset();                      // 0x0043be10
   Mech* mech = nullptr;              // +0x10
   HudRadar radar{60.0f};             // +0x14
   HudCompass compass;                // +0xdd4
@@ -490,10 +543,10 @@ class Hud : public ztwod::Layer {
   HudTimer timer;                    // +0x18410
   HudEquipment equipment;            // +0x188c0
   uint32_t x22e08[12] = {};          // +0x22e08..+0x22e34
-  void* reader = nullptr;            // +0x22e38 hud.zrd's root during the set-up
+  zrdr::Node* reader = nullptr;      // +0x22e38 hud.zrd's root during the set-up
   // +0x22e3c the resolution's block during it. Not set by the original's
   // constructor; FIX (bug), behind zfix bugs: cleared here (docs/hud.md).
-  void* block;
+  zrdr::Node* block;
 };
 
 }  // namespace mech3

@@ -61,6 +61,9 @@ it is clear what the designers meant.
   play, each line at most twice a mission.
 - **The ERPPC's HUD static lasts as long as its data says** (2 seconds); the
   original read the first number twice and held it half a second.
+- **The HUD no longer reads a stray layout** when the screen mode has none of
+  its own in hud.zrd: the original could use whatever memory held; the
+  rebuild keeps the 640x480 layout, as later set-ups did.
 - **Pilot names ignore capitals, as their files do.** Making "BOB" when
   "bob" exists picks bob instead of a second pilot sharing (and
   overwriting) bob's file, and renaming onto another pilot's name is refused.
