@@ -13,6 +13,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/music.h"
+#include "mech3/mission.h"
 #include "mech3/options.h"
 
 namespace mech3 {
@@ -142,10 +143,7 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
   unported("sprintf", {out});
 }
 const char* Engine::version_number() { return "1.2"; }
-const char* Engine::mission_dir(uint32_t n) {
-  unported("0x00484c50", {n});
-  return "";
-}
+const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
 
 void Engine::cd_pause() { zsnd_cd::pause(); }
 void Engine::cd_resume(int32_t mode) { zsnd_cd::resume(mode); }

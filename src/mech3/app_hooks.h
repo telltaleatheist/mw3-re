@@ -339,7 +339,7 @@ class Engine : public zgame::AppHooks {
   virtual void missions_update(uint32_t list, float dt) { unported("0x0048f470", {list, zgame::bits(dt)}); }
   virtual void missions_reset(uint32_t list) { unported("0x00490720", {list}); }
   virtual void missions_start(uint32_t list) { unported("0x00490880", {list}); }
-  virtual const char* mission_dir(uint32_t n);         // 0x00484c50
+  virtual const char* mission_dir(uint32_t n);         // 0x00484c50, ported: mech3/mission
   virtual void effects_update() { unported("0x004a8cd0", {}); }
   virtual void camera_update() { unported("0x0040f8d0", {}); }
   virtual void effects_draw(int32_t a, Handle rect) { unported("0x005a6790", {a, rect}); }

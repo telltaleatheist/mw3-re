@@ -62,6 +62,7 @@ for t in \
     ai_readers \
     zinput \
     settings \
+    mission_load \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

@@ -144,7 +144,7 @@ voice `c<op>m<mission>win` plays unless +0x1c3; operation 4 mission 6 sets
 **Load** (0x00409440): the briefing movie first (0x00409320 starts it, then it
 is polled), then once: the mission's sounds and `zbd;zbd\<dir>` geometry,
 the briefing name `brief_<dir><n>` (`brief_ia..`, `brief_mp..`; "default"
-otherwise), its voice unless +0x1c3, the screen (0x00405230), 0x00490880.
+otherwise), its voice unless +0x1c3, the screen (0x00405230), then the mission load 0x00490880 (mission-load.md).
 
 ### The mission: Core
 

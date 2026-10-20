@@ -9,9 +9,11 @@
 //   --install DIR        the MW3 1.2 folder (default: mw3.cfg's install=, else game/mw3-1.2)
 //   --assets DIR         a folder of replacement files searched first (repeatable)
 //   --write-dir DIR      where saves and settings go (default: the user's app data)
-//   --mission NAME       debug start straight into a world: c1, c1m2, c4b, t1 ...
+//   --mission NAME       debug start into a mission through the Load and Core
+//                        states: c1, c1m2 (mission 2 of c1), c4b, t1 ...
+//   --fly NAME           debug start: the world alone with a free camera
 //     --variant BLOCK    the world.zrd block (default m1 or the first)
-//     --pos X Y Z, --look YAW PITCH (degrees)
+//     --pos X Y Z, --look YAW PITCH (degrees): the camera's start
 //   --dialog FILE NAME   debug start showing one zTwoD dialog, e.g. dialog.zrd MAINMENU
 //   --shot FILE.bmp      save frame N (--shot-frame N, default 30) and quit; hides the window
 //   --frames N           quit after N frames of a debug start
@@ -41,6 +43,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_states.h"
+#include "mech3/mission.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 
@@ -52,14 +55,14 @@ struct Args {
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   float pos[3] = {0, 60, 0};
   float look[2] = {0, -2.9f};
-  bool have_pos = false, nosound = false, hidden = false, verbose = false;
+  bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960;
 };
 
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
-      "    [--mission NAME [--variant BLOCK] [--pos X Y Z] [--look YAW PITCH]] [--dialog FILE NAME]\n"
+      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N]] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
@@ -74,6 +77,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--assets" && next(1)) a.assets.emplace_back(argv[++i]);
     else if (s == "--write-dir" && next(1)) a.write_dir = argv[++i];
     else if (s == "--mission" && next(1)) a.mission = argv[++i];
+    else if (s == "--fly" && next(1)) a.mission = argv[++i], a.fly = true;
     else if (s == "--variant" && next(1)) a.variant = argv[++i];
     else if (s == "--dialog" && next(2)) a.dialog_file = argv[++i], a.dialog_name = argv[++i];
     else if (s == "--shot" && next(1)) a.shot = argv[++i];
@@ -202,7 +206,34 @@ int run(const Args& a) {
     mech3::set_app(&app);
 
     std::unique_ptr<mech3::State> debug;
-    if (!a.mission.empty()) {
+    bool launch = false, launch_done = false;
+    if (!a.mission.empty() && !a.fly) {
+      // Through the original's states: the Load state loads the mission
+      // (mech3/mission), then the Core state runs it (docs/mission-load.md).
+      std::string dir, variant;
+      mech3::GameEngine::Launch l;
+      split_mission(a.mission, dir, variant, l.number);
+      l.index = -1;
+      for (int32_t i = 0; i < 9; ++i)
+        if (dir == mech3::mission_dir(i)) l.index = i;
+      if (l.index < 0) {
+        std::fprintf(stderr, "mw3: --mission %s: not a mission (c1 c2 c3 c4 c4b t1)\n", a.mission.c_str());
+        return 2;
+      }
+      l.have_pos = a.have_pos;
+      for (int i = 0; i < 3; ++i) l.eye[i] = a.pos[i];
+      l.yaw = a.look[0] * 0.0174533f, l.pitch = a.look[1] * 0.0174533f;
+      engine.set_launch(l);
+      launch = true;
+      int shots = 0;
+      engine.on_present = [&, shots](int) mutable {
+        if (!engine.drew_scene()) return;
+        ++shots;
+        if (!a.shot.empty() && shots == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
+        if (!a.shot.empty() && shots == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), shots);
+        if ((!a.shot.empty() && shots >= a.shot_frame) || (a.frames > 0 && shots >= a.frames)) launch_done = true;
+      };
+    } else if (!a.mission.empty()) {
       sdlfe::DebugMissionOptions o;
       o.variant = a.variant;
       split_mission(a.mission, o.mission, o.variant, o.number);
@@ -219,11 +250,13 @@ int run(const Args& a) {
       // The state after the intro (the app's +0x1dc): the debug start takes
       // the place the lobby launch gives the Load state.
       if (debug) app.post_intro_ = debug.get();
-      if (!debug)
+      if (launch) app.post_intro_ = &mech3::states().load;
+      if (!debug && !launch)
         std::printf("mw3: the main menu (0x00486260) and the screens are not ported yet; the window stays "
                     "dark. Start a world with --mission c1 or a dialog with --dialog dialog.zrd MAINMENU.\n");
       sdlfe::SdlPump pump(&input, &app);
-      if (!debug && a.frames > 0) pump.should_quit = [&] { return screen.frames >= a.frames; };
+      if (!debug && !launch && a.frames > 0) pump.should_quit = [&] { return screen.frames >= a.frames; };
+      if (launch) pump.should_quit = [&] { return launch_done; };
       result = app.run(pump);
       if (app.current() != &mech3::states().exit) app.stop_game();
     }

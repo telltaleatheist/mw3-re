@@ -63,12 +63,14 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   ztimer::set_clock(p_.clock);
   zsnd_cd::set_backend(p_.files, p_.music, "music");
   set_options_hooks(&g_options_hooks);
+  wire_mission_hooks(this);
 }
 
 GameEngine::~GameEngine() {
   if (g_engine == this) {
     g_engine = nullptr;
     set_options_hooks(nullptr);
+    wire_mission_hooks(nullptr);
   }
   zutl::install_messages(nullptr);
 }
@@ -280,8 +282,19 @@ void GameEngine::video_lock() {
 }
 void GameEngine::video_clear(Handle) { std::fill(buffer_.begin(), buffer_.end(), uint16_t{0}); }
 // 0x00576ea0: the back buffer to the screen.
+// A frame whose 3D scene was drawn (the Core state's) shows that instead.
 void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
-  if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
+  if (scene_drawn_ && p_.render) p_.render->present();
+  else if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
+  last_drew_scene_ = scene_drawn_;
+  scene_drawn_ = false;
+  ++frames_presented;
+  if (on_present) on_present(frames_presented);
+}
+// 0x00576cf0: the 3D window cleared before the Core state draws (the sky
+// colour of the debug viewer: the window's clear colour is not traced).
+void GameEngine::video_clear_b(Handle) {
+  if (p_.render) p_.render->clear(true, 89, 115, 140);
 }
 // 0x00579840: the cursor's on/off, the old state back. The menus draw their own.
 uint32_t GameEngine::video_show_cursor(uint32_t on) {

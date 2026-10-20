@@ -511,6 +511,29 @@ From the settings loader at 0x40c420 and the registry code around 0x5977d0
 - **The hidden "FastMenu" option (the `-seasick` switch) defaults on below
   200 MHz**, so slow machines got the still menus.
 
+## Loading a mission
+
+From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
+
+- **The mission loads while you read the briefing.** The briefing starts a
+  second thread at idle priority that loads the whole mission behind it, and
+  checks between steps whether you left; that is why the briefing could feel
+  sluggish on slow machines.
+- **The "Texture Memory" setting has fewer real steps than it shows.** 12 MB,
+  10 MB and 8 MB all cap the textures at 8 MB; then 6, 4 and 2 MB; "Max" uses
+  whatever the card reports.
+- **In software mode the mechs wear a cheaper texture set** (`mechtexS`, the
+  palettised one); with a 3D card they use `mechtex`.
+- **Every mission opens with an animation script, not code.** The start is
+  `start_single_player_m<n>` (instant action `switch_ia_m<n>`, multiplayer
+  `start_multiplayer_m<n>`, training `start_training_m<n>`) from the
+  mission's `anim.zbd`, falling back to the name without the number. What
+  happens in a mission's first seconds is data.
+- **Multiplayer maps from the third on take their objectives from
+  `mpinfo.zrd`**, the first two from `objectives.zrd` like the campaign.
+- **The release exe calls itself "PRODUCTION"**: the loading text reads
+  "MechWarrior3 (PRODUCTION) (1.2)", a build marker left in.
+
 ## Multiplayer
 
 From the network code (network-messages.md).

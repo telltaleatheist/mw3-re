@@ -126,6 +126,7 @@ add_library(mw3core STATIC
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
   src/mech3/app_engine.cpp
+  src/mech3/app_mission.cpp
   src/mech3/music.cpp
 )
 target_include_directories(mw3core PUBLIC src)

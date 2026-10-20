@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -43,8 +44,35 @@ struct Platform {
   int window_width = 1280, window_height = 960;  // the window made for the 640x480 game
 };
 
+class GameEngine;
+void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
+
 class GameEngine : public Engine {
  public:
+  // A mission started from the command line (our addition, docs/program.md):
+  // the pilot's game answers these, and the load goes on to the Core state.
+  struct Launch {
+    int32_t index = 0;   // the mission directory (0x00484c50): c1 c2 c3 c4 c4b t1
+    int32_t type = 1;    // the game type: 1 a campaign mission (gametypes.md)
+    int32_t number = 1;  // the mission number (world.zrd's m<n>, the start animation's)
+    bool have_pos = false;  // the camera placed (--pos/--look): there is no mech to follow yet
+    float eye[3] = {}, yaw = 0, pitch = 0;
+    bool active = false;
+  };
+  void set_launch(const Launch& l);
+  const Launch& launch() const { return launch_; }
+  void missions_start(uint32_t list) override;   // 0x00490880: mech3::missions().start()
+  Handle pilot_game(Handle p) override;
+  uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
+  uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
+  void set_mission_view(Handle view, Handle camera);  // the view 0x0040aca0 makes, and its camera
+  Handle mission_camera() const { return camera_; }
+  Handle alloc_block(uint32_t size);  // a block of the modules' memory (the peek/poke map)
+  void video_clear_b(Handle rect) override;
+  std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
+  bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene
+  int frames_presented = 0;
+
   GameEngine(const Platform& p, std::string command_line);
   ~GameEngine() override;
 
@@ -186,6 +214,10 @@ class GameEngine : public Engine {
   zutl::MessageDll dll_;
   std::string formatted_;
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
+  Launch launch_;
+  Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
+  Handle next_block_ = 0x01000000;
+  bool scene_drawn_ = false, last_drew_scene_ = false;
   std::unordered_map<void*, Handle> handles_;
 };
 

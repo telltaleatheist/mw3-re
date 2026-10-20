@@ -123,6 +123,9 @@ These change how the game talks to the computer, not how it plays.
 - The detail settings are picked for a modern machine described by the
   program (a fast processor with MMX, a 3D card, the real memory) instead of
   the original's processor timing and DirectDraw queries.
+- A mission loads before its briefing appears, instead of in the
+  background while the briefing plays (the graphics card wants the world's
+  textures loaded from the game's own thread).
 - Music from `music/trackNN.ogg` (or .flac, .wav, .mp3) instead of the CD;
   a ripped disc maps track for track.
 - The frame clock counts from game start, not from when the computer booted,
