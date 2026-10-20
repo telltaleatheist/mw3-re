@@ -27,6 +27,7 @@ add_library(mw3core STATIC
   src/gamez/zinput/zin_mouse.cpp
   src/gamez/zinput/zin_cmdmap.cpp
   src/gamez/zinput/zin_joy.cpp
+  src/gamez/znetwork/znet_object.cpp
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
@@ -123,6 +124,11 @@ add_library(mw3core STATIC
   src/mech3/weapon.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_valve.cpp
+  src/mech3/zai_steps.cpp
+  src/mech3/zai_path.cpp
+  src/mech3/zainet.cpp
+  src/mech3/zainetedit.cpp
+  src/mech3/zainet_region.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
   src/mech3/zrdraiv.cpp
@@ -183,6 +189,7 @@ add_library(mw3probe SHARED
   tests/probe_controls.cpp
   tests/probe_ctlcfg.cpp
   tests/probe_ai.cpp
+  tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp

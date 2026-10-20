@@ -119,6 +119,11 @@ unusual happens.
 - A text data file with a word of 256 letters or more, a quote that is never
   closed, or an `#ifdef` without its `#endif` no longer crashes or hangs the
   game.
+- A hand-made AI region file without a name, or an AI path linking past its
+  last point or to points without a position, no longer crashes the
+  mission load or the AI's route finding. One shipped path (c2 mission 3,
+  path 13) links to a point that does not exist; the original read
+  leftover memory there, the rebuild takes no link.
 
 ## Copy protection removed
 

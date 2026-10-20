@@ -107,6 +107,14 @@ Each change is also marked `FIX` in the code next to the original address.
 | AI reader files, zrdraiv.cpp / zrdrainet.cpp (0x4decf0, 0x4ded20, 0x4da0d0, 0x4db850, 0x4db1b0, 0x4df730, 0x4e08c0) | Every value is read as the shape the code expects: a list's items, a string pointer, `key + 5` for node_XX | (bug) a malformed file (a number where a list or a name belongs, a short key) crashes the game or reads past a string; emulator: a non-list file root crashes 0x4da0d0 | The value is passed over; the shipped files never take these paths, so all 773 still match exactly (`ai.md` section 5) |
 | aiv.zrd old tags, 0x4df730 | The scratch the p3/p4/p5/p7 tags share is uninitialised stack when the tag that sets it is missing, and p4's order is built on uninitialised stack | (bug) the result depends on what was on the stack | Zeros and the order defaults; no shipped file has these tags (the test pins the exe's stack the same way) |
 | AI values of the wrong type | A string or list where a number belongs is copied as its pointer bits | (A) a 32-bit heap address | 0 |
+| AI regions, 0x4c5b00 (from 0x4bf3f0) | A version-108 file without a `name` gives the region `strdup(NULL)` | (bug) a crash at mission load (emulator: the `no name` case) | The region has no name, so the lookup (0x4c5c00) drops it as the exe would have had it lived; no shipped file lacks one |
+| AI nets, arrangenodes 0x4c7340, node links 0x4c71f0 | A link's node is read from the builder's slots unchecked, and a link index may reach the link count | (bug) a link past the file's nodes reads past the vector | Nothing to arrange, no node; the shipped files never link past their nodes |
+| AI net compile, 0x4bde20 / 0x4bd790 | A node's properties are chained onto each of its links through a pointer into the node step's links, which have lost their trailing links to no positioned node | (bug) a write past the vector; a node whose links all go nowhere crashes the load (emulator: 0x4bd790..0x4bdd70) | That link's chain starts nowhere; its steps are still made, as the exe's are (`test_ai_nets.py` pins the exe's read past the links to -1) |
+| AI net compile, 0x4bde20 | A link to a node number past the net is looked up in the slot map unchecked | (bug) heap garbage as the link's target; c2 mission 3's `net_13` does it | No target (-1), so no link (the test pins the exe's read to -1) |
+| AI net compile, 0x4bd790 | A node linking to one node twice with an edge node on that link makes more steps than were counted | (bug) writes past the compiled net's vector | The extra steps are dropped: the net is the size the exe's is, the chain through them broken as in the exe |
+| AI net steps, 0x4c9e60 | A property step whose chain ends at a slot with no step keeps the slot number as its pointer | (bug) followed later, a crash | The null step |
+| AI way finder, valve unions 0x4d4490 | Each entry's valve is read unchecked | (bug) a union entry without a valve (no name) crashes the search | The entry does not open the way |
+| Numbered objects, 0x58b060 | An index out of range asks element 0 of the object, which an empty object does not have | (bug) reads past an empty vector | None |
 | Input, zInput (0x51a170..0x51ddc0, input.md) | DirectInput 5 (DirectInputCreateA, IDirectInputDevice2: keyboard buffered, mouse and joystick states, cooperative levels, axis ranges and dead zones) and Win32 (ClientToScreen, ScreenToClient, SetCursorPos, GetClientRect, MapVirtualKeyA, GetKeyboardState, ToAscii) | (A) DirectInput does not exist on macOS | `platform::Input` with DirectInput's structures and results, `zin::Host` for the Win32 calls; on SDL3 the exclusive mouse is relative mouse mode while acquired, motion scaled to the 640-pixel frame, the joystick's ranges and dead zones applied to SDL's axes, characters from SDL's keymap |
 | Keyboard read, 0x51a5d0 / 0x51aa00 / 0x51a300 | A key code (DIK code with Alt 0x100, Ctrl 0x200, Shift 0x400) indexes the 0x7de key states unchecked | (bug) a DIK code from 0xde up (Power, Sleep, Wake, the web and media keys) with all three modifiers held writes past the table into the text callback's pointer (a crash at the next key) and the joystick's globals | Codes past the table are skipped |
 | Mouse start, 0x51b5f0 | CreateDevice's failure ignored; QueryInterface called through the pointer it did not get | (bug) a crash at start on a machine without a mouse | The mouse counts as present and reads nothing |
@@ -242,6 +250,15 @@ Resolved (2026-10-21):
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
+
+- c4b mission 6's boundary: the player's orders (aiv.zrd `player` vlist)
+  name the regions `reg_inside_c4m7` / `reg_outside_c4m7`, but the
+  mission's archive has `reg_inside_c4bm6/7` and `reg_outside_c4bm6/7`, so
+  the valve `outside_c4m7` that fails the mission for leaving its area
+  (objectives.zrd `m6`) is never set and the map has no boundary to draw
+  (ai.md section 8). Pointing the orders at the `c4bm7` pair (the mission's
+  valves say m7) or the `c4bm6` pair would restore it; which one the
+  designers meant is a guess (compare the two areas on the map first).
 
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the

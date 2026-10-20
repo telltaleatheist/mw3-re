@@ -2,8 +2,9 @@
 
 Mech3.exe 1.2, 2026-10-20. The map of the AI code in the game half
 (0x4b4880..0x4eada0), the data files it reads, how one AI tick runs, and a
-porting order. The data side is ported and emulator-checked (section 5); the
-brain, the nets at run time, targeting and the valves' actions are not.
+porting order. The data side and the nets at run time are ported and
+emulator-checked (sections 5, 8); the brain, the behaviours, targeting and
+the valves' actions are not.
 
 Names are ours unless an assert string gives them (`CZAiNetEdit`,
 `CFileDialogNet`, the five source paths). "Likely" marks a reading of what the
@@ -192,8 +193,10 @@ All load-time code, checked in Unicorn against the original on every shipped
 file (`tests/differential/test_ai_readers.py`, 1211 cases: 698 net and region
 files by number and by name, 48 aiv.zrd, 27 targets.zrd, 438 made-up files
 reaching 80 marked places in the original). Output streams (records with
-valves as registry places, strings as text) and the logs of zerr, localize,
-zSound and region calls match byte for byte, at 53-bit and at 24-bit x87.
+valves as registry places, regions as their place in the region list,
+strings as text) and the logs of zerr, localize and zSound calls match byte
+for byte, at 53-bit and at 24-bit x87. The orders' regions are loaded by the
+ported lookup (section 8) on both sides.
 
 | Piece | Original | Port |
 |---|---|---|
@@ -208,7 +211,8 @@ zSound and region calls match byte for byte, at 53-bit and at 24-bit x87.
 | mech by name | 0x4845f0 | `mech3/mech_names` mech_index |
 
 Hooks (`RdrHooks`): the loose-file search (0x556240; none, FIX (A)),
-localize, zSound's lookup, and the region lookup 0x4c5c00 (not ported).
+localize, zSound's lookup. The region lookup 0x4c5c00 is the port's
+(`region_find`, section 8).
 Not ported on purpose: the editor's writers (0x4dad10, 0x4db8d0, 0x4dc2b0),
 the record caches the editor fills (left empty), the AI tester dialog.
 
@@ -228,14 +232,19 @@ Breaks: section 7.
 
 Clean boundaries for later work, each a piece with its own test:
 
-1. **Regions and the inside/outside test** (ZAiNetMechInOut.cpp, 0x4c11f0..,
-   0x4c5c00 registry): pure geometry over the ported records; plugs into
-   RdrHooks::find_region. Differential test on the 393 reg files with points.
-2. **The run-time net** (CZAiNetEdit 0x4bcba0 without the editing, the node
-   0x4c6d30, the net base 0x4d5120 with its network object stubbed): nodes and
-   links from NetRef. Test: build every shipped net, compare node arrays.
-3. **Net queries** the behaviours use (nearest node, next node along links,
-   arrangement 0x4c0090 family): leaf functions once 2 is in.
+1. **Regions and the inside test**: done (section 8), the lookup 0x4c5c00,
+   the builder's run-time side it needs, the edges and 0x4c57d0.
+   `ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0) is not this: it is the
+   mission boundary from the world's `inout` polygons (render.md 6a), read
+   at mission load (0x4c3b80 -> 0x4c3930) and asked by the behaviours
+   (0x4c3000, seven callers) to keep a destination inside; not ported
+   (section 11).
+2. **The run-time net**: done (section 9), the builder and the compiled
+   net of steps. Left: the mission start's call (0x49e810, player.cpp), the
+   ground snap and the multiplayer waynet (NetHooks), the built-in nets
+   (0x604008, the seven-behaviour net 0x4c0090) and the 105/107 versions.
+3. **Net queries**: done (section 10), the nearest step and the way
+   finder. What the steps do when a pilot reaches them is step 6.
 4. **Valves** at run time (ZRdrValve.cpp 0x4e2330 reader and the action and
    condition classes): the registry is ported; actions call into sound,
    animation, mission end and entities through a hooks struct.
@@ -269,6 +278,308 @@ in twos, an int height not converted, a target offset needing 3 items: 32 of
 spare slot, the same as the default), the targets' header default (the reader
 resets the flags itself), and radar on any non-zero value (get_bool_int only
 gives 0 or 1).
+
+`tests/differential/test_ai_regions.py` (probe `tests/probe_ai_net.cpp`,
+`RegionsRun` in `ai_world.py`): every reg_*.zrd of every mission looked up
+twice, every net file and a missing name as regions, then 93 made-up files
+(versions, names, loops broken every way, holes before the start,
+duplicates, a side of no length, arrangenodes round a loop); the lookups at
+53 bits, then a few dozen points per region tested in turn at 24 bits. Streams
+(each region's id, name, edges and where its test stopped; the registry's
+ids and kinds; the region list) and zerr logs match: 140 of 140. Breaks
+caught: the test's start kept after a pass, the plane counting as outside,
+the normal flipped, the test always starting at the first edge, a side of
+no length's normal, the start's budget not shrinking, the walk starting at
+slot 0, names matched in any case, region ids from 10001, arrangenodes not
+rounding to a tenth, its angle not snapped, a duplicate record replacing
+the first, edges reversed, regions put at the front of the list, a loop
+needing 3 nodes: 15 of 15. Three tried breaks were replaced: the dot
+product's order (the normal's y is 0 but for sides of no length, whose x and
+z are 0, so no order rounds differently), negative links followed (the
+reader never keeps a negative link) and the walk following the last link
+(the edges then follow another way and the port runs out of memory: caught,
+but no use as a break).
+
+`tests/differential/test_ai_nets.py` (`CompiledRun`): 0x402240 for 1..99
+in every mission's archive (308 net files), then 137 made-up nets (every
+property alone and on edge nodes, special nodes, duplicates, links to
+missing and unpositioned nodes, nets built twice, ids out of range, 80
+random); the registry and every compiled net's steps (kind, data, links as
+slots) match: 174 of 174, and in 29 made-up nets the original crashes
+where the port reads (section 9; the emulator pins the bytes just past a
+heap block to 0xff, the -1 the port's FIX takes). Breaks caught: the
+default valve value on the first link, speed after the waits, edge ends
+counted per link, an edge node on its first end only, backup before
+mcbwait, plain nodes unnamed, missing links kept, the null step kept by
+attach, the deploy target by number, the canleave tests swapped, the scan
+aim inverted, edge nodes not counted, the net under the builder's id,
+built nets rebuilt: 14 of 14.
+
+`tests/differential/test_ai_paths.py` (`PathsRun`, with a pilot made in the
+emulator's memory: brain, vehicle, node name and position, mech and jump
+jets): every mission's nets built, then the nearest step to 6 points round
+each net's nodes, and in each net of at most 30 nodes 6 ways between random
+nodes for pilots near the start, with and without jets, named for a gate or
+not, under random valve settings, each way followed up to 7 steps (24
+bits); plus a ladder net (a jump, a gate, a valve, a valve union) and a
+ring net, 12 rounds each, and a fork whose short way a valve shuts once it
+is found (so the finder must search again): 3912 queries, 64 of 64 cases
+identical. Ways are not asked in the bigger nets: the walk is exhaustive
+up to the best length found, which in them runs past four billion emulated
+instructions (and the emulator, which never frees memory, runs out of it);
+natively, ways sampled in the biggest shipped nets (246 nodes) take
+milliseconds. Breaks caught: the nearest step the last of equals, the
+pilot counted at the target within 20, an equal way replacing the best,
+only the last leg measured, visited marks kept, the step reached dropped
+with the way before it, no new search when the way shuts, valves open on
+the other values, jumps for all, gates open to all, unions never open: 11
+of 11. Two tried breaks change nothing a caller sees and were dropped:
+keeping branches as long as the best (the cut only saves time: a way no
+shorter is never kept), and not testing the target when checking a kept
+way (targets are node steps, which let every pilot by).
+
+## 8. The net objects
+
+Ported 2026-10-20 (`gamez/znetwork/znet_object`, `mech3/zainet`,
+`mech3/zainetedit`, `mech3/zainet_region`); test in section 7.
+
+**Numbered objects.** Every AI net, region and waynet is a numbered object
+(0x58aec0, 0x18 bytes: vtable 0x5cefd0, the id at +4, a vector of elements
+at +0xc). While it lives it sits in one list (0x603fd8, made by 0x4c7b80),
+where 0x58b160 finds the first of an id. 0x58b1c0 hands out a free id in a
+range, from the one asked for upwards and wrapping to the range's start
+(but a search that started above the start stops when it wraps, so a full
+top end gives -1 even with free ids below it; an id asked for outside the
+range is taken as it is when free). At mission end 0x58b290 deletes every
+object under 10000 (0x5f2a48); the regions (10000 up) are freed by their
+own list. The ids likely let a multiplayer session name nets across
+machines (the code sits after `znet_dplay.cpp`).
+
+**The builder** (`CZAiNetEdit`, 0x4bcba0, 0x44 bytes). In play it is only
+ever made for a moment, with its `build` flag set (0x402240, 0x4797c0,
+0x4c5c00); the editing side (flag clear, 0x4bd360 / 0x4bd3d0 from the
+debug menu) writes edits back through the record cache and is not ported.
+Made for net `n`: its own id comes from 400..499; a net already registered
+under `n` is taken as it is (nothing is rebuilt; the builder's file is read
+under that net's name); else the file (`net_%02d` of `n` or the name given)
+is read into one node (0x4c6d30, 0xbc bytes: the record copied, the
+builder at +0xb8) per record, at the slot of the record's number (the
+vector grows to the highest number; slots without a record hold a
+placeholder node, 0x4c6da0, whose setters do nothing; a second record with
+a number is reported, "net %d: ignoring duplicate node %d", and dropped).
+Then the link pass (0x4d53f0 -> 0x410590 / 0x4c7170 / 0x4c6fc0: each link
+re-stored as the index of the node it names, which changes nothing for the
+builder's own nodes) and `arrangenodes` (0x4c74a0, below). With `build`
+and at least one record, the file's version picks what is built: 106 a
+compiled net (0x4be670, section 9), 108 a region (0x4bf3f0); 105
+(0x4bed90) and 107 (0x4be690, the multiplayer waynets) are not ported (no
+single-player file has them). The builder's destructor leaves what it
+built alone.
+
+**arrangenodes ( r )** (0x4c74a0 -> 0x4c7300 / 0x4c7340): each node this
+one links to is moved onto the circle of radius `r` round it, at the
+nearest of `links` even angles (from +z, through atan2(dx, dz)), keeping
+its height, each coordinate rounded to a tenth. Nodes are arranged in
+slot order, so a node moved by one arrangement can be the centre of a later
+one, and a node linking to itself moves its own centre mid-way. In the
+shipped nets only `net_` files use it.
+
+**Regions.** 0x4c5c00 is the lookup the vehicles' orders use (aiv.zrd
+`vlist` item 10, 0x4dfb00; the old p4 order 0x4e0281). The map's mission
+boundary is not looked up again: it is the last of the player's order
+regions whose name starts `reg_inside_` / `reg_outside_` (0x4d92f0,
+0x4d9360, `strncmp`). A region
+already loaded is found by name (0x4c5e50, `strcmp`, so case counts);
+otherwise a builder is made for the first free id from 10000 and the
+name, and what it built is kept only if it is a region whose own `name`
+field is the name asked for (else it is deleted and nothing is kept, so the
+file is read again at every lookup). Kept regions go to the end of the list
+at 0x60b3f0.
+
+A region (0x4c5b00, 0x20 bytes over the edge net 0x4c5640) is built
+(0x4bf3f0) when the builder's net id is 10000 or more, the file's version
+is 108 and its nodes form one closed loop (0x4bf000): the loop starts at
+the first slot holding a real node (the placeholders before it are skipped
+with a budget that shrinks with every slot skipped, so the start must lie
+in the first half of the slots) and follows each node's first link until
+it comes back to the start; a link to no node is reported (0x800,
+"region "%s" node %d points to nonexistant node %d") and ends the walk, as
+does a node without links, a negative link or running out of slots. Each
+step of the loop becomes an edge (0x4bf1b0 -> 0x4c5960, 0x1c bytes): its
+start, and the normal of its vertical plane, (dz, 0, -dx) of the side
+normalized (0, 1, 0 for a side of no length on the ground, which then
+tests only height). The region keeps the file's `name`.
+
+**Inside** (0x4c57d0 -> 0x4c5a30): a point is inside when it is on the
+inner side (dot with the normal not negative) of every edge, so a region
+is a convex area drawn with its inside on the right going round (seen from
+above, x right and z up: the loop runs clockwise). Heights only count for a
+side of no length. The test starts at the edge the last failing test
+stopped at and goes round; a pass resets it to the first edge. The region
+test of an order (0x4d8e70: vlist item 9 "when inside", item 17 "when
+outside"; both set: always) needs the region, so an order whose region did
+not load never fires on it.
+
+In the shipped missions, 386 of the 390 region files load (each region in
+4184 edges' worth, `test_ai_regions.py`); the four that do not:
+
+| Mission | File | Why |
+|---|---|---|
+| c1 m1 | `reg_firefly_02_go` | version 106: a net, not a region |
+| c1 m1 | `reg_friefly_02_go` | its own name is `reg_firefly_02_go` (the file name is misspelt) |
+| c3 m2 | `reg_p2`, `reg_up_circle` | version 106 |
+
+No order names any of them. One order names a region its mission does not
+have: in c4b mission 6 the player's own `vlist` sets the valves
+`inside_c4m7` and `outside_c4m7` from `reg_inside_c4m7` and
+`reg_outside_c4m7`, but the archive's files are `reg_inside_c4bm6/7` and
+`reg_outside_c4bm6/7`. The mission's fail objective is `outside_c4m7`
+("left the mission boundaries", objectives.zrd `m6`), so in that mission
+leaving the area never fails it (and the map has no boundary to draw,
+likely). Which pair was meant is not clear
+(fixes.md, candidates).
+
+## 9. The compiled net
+
+Ported 2026-10-20 (`mech3/zainetedit` Compiler, `mech3/zai_steps`); test
+`tests/differential/test_ai_nets.py`.
+
+**When.** As a mission starts the player's set-up (0x49e810, player.cpp)
+asks for nets 1..99 (0x402170 -> 0x402240): a builder for each number reads
+`net_NN.zrd` and, for a version-106 file, compiles it (0x4be670 ->
+0x4be300). The compiled net (0x4bf910, 0x1c bytes, vtable 0x5ca6d8) is a
+numbered object under the net's number, so asking again (or a later
+builder) finds it and builds nothing. A pilot's brain (0x4cf330) takes
+the net of its aiv.zrd record's first item (AiParams +0x04, "kind" in
+section 3: it is the vehicle's net number), as compiled (cast +0x34), or
+the built-in one at 0x604008 when there is none. In the port
+`nets_build_all` / `net_build`; the mission start does not call them yet
+(player.cpp is not ported).
+
+**What.** The net becomes a flat array of behaviours (the order classes of
+section 2), one slot per piece:
+
+- each **positioned** node (`node_XX (12 (x y z) (links) ...)`) is a node
+  step at the slot 0x4bd670 gave it: plain (0x4cf820, vtable 0x5cc6f0,
+  named with the record's auxname), or with `deploy` a deploy node
+  (0x4cff10: auxname, both valves and bytes, and the slot of the node its
+  last item names), with `mcbwait` an mcbwait node (0x4ccc30: auxname,
+  valve, byte, time), with `backup` a backup node (0x4cfa00, no name), in
+  that order of precedence. Its position is the record's, put on the ground
+  under it when a world is loaded (0x4edab0 / 0x4abd90 at [0x608c84];
+  `NetHooks::ground`). With `arrangenodes` the node also joins the
+  multiplayer "mcbwaynet" (0x4d5460.., mech_waynet.cpp; `NetHooks`, not
+  ported, likely only used by the multiplayer deploy points).
+- after it, for **each link** in turn, one step per property the node has
+  (0x4bd790), in this order: speed (0x4c9eb0, the rate), wait_interval
+  (0x4c9f80), wait_time (0x4ca0a0), valve (0x4ca1c0: the valve and its
+  value; a valve given without a value gets 1 on the node's last link and 0
+  on the others: the way finder lets a pilot by only while the valve holds
+  it, section 10), canleave (0x4cbcf0 with test 0x4d9c80 for `canleave (1
+  n)`, n != 0; 0x4cbd40 with 0x4d9ca0 for `(1 0)`), scans (one 0x4cb950
+  with a test per scan_aim / scan_hit / scan_time present, each by whether
+  its second item is non-zero), jump (0x4cb2a0), sound (0x4cce30), gate
+  (0x4cd4a0, the name), shunt (0x4cd6e0), valveunion (0x4cda50, the list
+  copied), valve_assign (0x4cdc20); then the same for every **edge node**
+  (`node_XX ((from to to...) ...)`, no position) whose first link is this
+  node, once for each of its other links equal to the link's target. The
+  link's steps form a chain: the node step's link points to the first, each
+  to the next (+0x0c), the last to the target's node step.
+- slots no piece took hold the shared null step (0x603fa0).
+
+So a path's properties sit on its links, not on its nodes: a node's own
+properties apply to every link out of it, an edge node's to the links it
+names. Then each step resolves its slot numbers into pointers (+0x6c:
+0x4c9e60, 0x4c94a0 dropping links to nothing, 0x4cffd0 for the deploy
+target). A link to a node without a position (an edge node) or to no node
+is no link (dropped by the node step; a property step whose chain ends
+there keeps the slot number as its pointer in the exe: the port's FIX
+(bug) makes it the null step).
+
+**Counts.** 0x4bd670 / 0x4bd4e0 / 0x4bd5b0 count the slots first: a node
+step, then the node's property count times its links, plus each edge
+node's properties times the number of its other ends this node links to.
+The shipped nets: 308 files, 12944 nodes of which 3384 edge nodes; the
+properties used, most first: valve 4416, canleave 2858, scan_time 2796,
+speed 452, wait_interval 363, deploy 288, valve_assign 120, arrangenodes
+96, valveunion 94, scan_hit 70, gate 46, wait_time 26, jump 14, scan_aim 3.
+
+**Faults kept or fixed** (fixes.md):
+
+- The trailing links that name no positioned node are cut from a node
+  step, but its properties are still put on every link: for a cut link the
+  chain starts past the node's links (a write past the vector; with every
+  link cut, through a null pointer, a crash at load: 0x4bd790). The port
+  starts that chain nowhere (FIX (bug)); the steps are still made.
+- A node linking to a node number past the net reads the slot map past
+  its end (0x4bde20): heap garbage. One shipped net does it: c2 mission 3's
+  `net_13`, a single node linking to a node 1 that is not there. The port
+  takes no node (FIX (bug); the test pins the exe's read to the same).
+- A node that links to one node twice, with an edge node on that link,
+  makes more steps than were counted: the exe writes them past the net's
+  vector. The port drops them, so the net is what the exe's ends up as.
+- arrangenodes past the nodes: section 8.
+
+## 10. Finding the way
+
+Ported 2026-10-20 (`mech3/zai_path`, the steps' tests in `zai_steps`);
+test `tests/differential/test_ai_paths.py`. Per-frame code, at 24 bits.
+
+**Nearest step** (0x4d51d0, a method of every net; eight callers: the
+behaviours 0x4c8860, 0x4cae32, 0x4cbfb9, the waynet 0x479b58 / 0x47a8a5,
+0x45a159 / 0x45a3a9, 0x4ae45c): the element with a position whose squared
+distance to the point is least (the first of equals), else element 0.
+Only node steps have positions.
+
+**The way finder** (0x4c7d00, 0x38 bytes, kept by its user through
+0x4c7c10 / 0x4c7cb0, made on the first search and dropped when a search
+fails or the way is used up; its user in the exe is the brain's order
+stack, 0x4c84b0). A search (0x4c7f70 -> 0x4c7e80) from a start step to a
+target step:
+
+- a pilot standing within 10 (squared distance under 100) of the target
+  has the way [start] at once;
+- else a depth-first walk (0x4c7fa0) over the steps' links, in link order,
+  that measures the way from where the pilot stands through each step with
+  a position (straight lines, 0x51e000), keeps the shortest way to reach
+  the target (0x4c8140: only a strictly shorter one replaces it), and cuts
+  a branch once it is no shorter than the best (so the first of equal ways
+  wins). Steps already on the way are not entered again (each step's
+  visited bit, +0x04; the net's +0x18 bit marks a search in progress, and
+  a second search of the same net at once finds nothing).
+- a step is entered only if it lets this pilot by from where it comes
+  (+0xac): a valve step while its valve holds the step's value (0x4ca260),
+  a jump step if the pilot's vehicle is a mech with jump jets (0x4cb2c0:
+  vehicle slot +0x50, mech +0x3d8 > 0), a gate step if the gate's name is
+  the vehicle's node's name (0x4cd5d0), a valve-union step while any of its
+  valves holds its count (0x4d4600); every other step always.
+
+The way is kept as a list of steps from the start (the target is not on
+it). Asked for the step after one it has reached (0x4c7cb0), the finder
+drops the way up to that step (0x4c8330), checks that every step left (and
+the target) still lets the pilot by from the one before (0x4c8270), and
+answers the next one (the target when the list runs out). If the way is
+closed or the step is not on it, it searches again from that step and
+answers from the new way; no way, or the target, and the finder is
+dropped. So a pilot re-plans only when a valve, gate or the like has shut
+its way, and the way is the shortest by straight lines between the nodes,
+whatever the ground between them (jump steps aside).
+
+## 11. Not ported: the mission boundary
+
+`ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0, 67 functions): at mission load
+(0x4c3b80 -> 0x4c36c0, 0x4c3930) the world's `inout` node is found, the
+variant for the game mode picked by name (render.md 6a), its polygons
+classed by their material colour (0x4c1ab0: four colours, inside or
+outside, the four constants at 0x5e8a20..0x5e8a58) and turned into lines
+with widths (0x4c11f0, "zero length segment in an inside/outside net"),
+then the `inout` subtree is deleted. In play the behaviours ask 0x4c3000
+(seven callers) to pull a destination back inside: 0x4c2b00 crosses the
+segment from the vehicle to the destination with the lines (0x4c1410,
+0x4c1770, 0x4c22c0) and moves the point to the nearest crossing or along
+the boundary. It reads the world's nodes and models (zModel polygons with
+their material colours, the node matrix 0x4c3520), so it belongs with the
+world's port; the next piece to take for the AI's movement.
 
 ## Open
 

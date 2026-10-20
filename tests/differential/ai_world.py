@@ -29,7 +29,16 @@ VLIST_DEFAULTS = struct.pack('<7I', 0x3e800000, 0x3dcccccd, 0x3f4ccccd, 0, 0x456
 HANDLE = 0x1234
 BIG = 0x40000000
 # The AI globals the static initializers set up (zeroed before each run).
-GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78)]
+GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78), (0x603fd8, 0x10), (0x60b3f0, 0xc),
+           (0x608c84, 4), (0x736558, 0x10),  # no world loaded, no vehicles
+           (0x60b444, 4)]  # the node steps' scratch vector (0x004c8f70; set to 0 by 0x004c7b20)
+# MSVCRT's floor as x87 code (test_scenewalk.py).
+FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
+IAT_FLOOR = 0x5bb66c
+REGISTRY, REGIONS = 0x603fd8, 0x60b3f0
+# The multiplayer waynet (mech_waynet.cpp), which arrangenodes nodes join:
+# none, as the port's NetHooks::waynet_point.
+WAYNET = 0x4d5460
 
 
 def fnv(b):
@@ -88,6 +97,7 @@ class Emulated:
     def __init__(self):
         cpu = self.cpu = Original()
         cpu.import_code(IAT_FTOL, FTOL)
+        cpu.import_code(IAT_FLOOR, FLOOR)
         # Load-time code: the x87 at 53 bits, as the CRT start-up sets it
         # (CLAUDE.md); MW3_X87=24 runs it at the in-play 24 instead.
         if os.environ.get('MW3_X87') != '24':
@@ -117,12 +127,13 @@ class Emulated:
             SOUND: (self.sound, 0),
             ZERR: (self.zerr, 0),
             ATEXIT: (lambda c: 0, 0),
-            REGION: (self.region, 0),
+            WAYNET: (lambda c: 0, 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
         self.trees = {}
         self.reached = set()
+        self.guard = None
         # The aiv reader's old-tag scratch is uninitialised stack in the exe;
         # the port takes zeros and the order defaults (FIX (bug)): pin them.
         cpu.uc.hook_add(UC_HOOK_CODE, self.pin_aiv_stack, begin=AIV_PARSE, end=AIV_PARSE)
@@ -138,8 +149,14 @@ class Emulated:
     # --- C runtime -------------------------------------------------------------
     def alloc(self, n):
         a = self.next
-        self.next += (max(n, 1) + 0xf) & ~0xf
-        self.cpu.write(a, bytes((max(n, 1) + 0xf) & ~0xf))
+        size = (max(n, 1) + 0xf) & ~0xf
+        self.next += size
+        self.cpu.write(a, bytes(size))
+        if self.guard is not None:
+            # What the exe reads just past a block (a vector indexed past its
+            # end): pinned to the value the port's FIX (bug) takes instead.
+            self.cpu.write(a + n, bytes([self.guard]) * (size - n + 16))
+            self.next += 16
         return a
 
     def pin_aiv_stack(self, uc, address, size, user):
@@ -265,11 +282,6 @@ class Emulated:
             return 0
         return self.log(1, c.arg(0), c.arg(2))
 
-    def region(self, c):
-        s = self.cstr(c.ecx)
-        self.log(6, fnv(s))
-        return 0x6000000 | (fnv(s) & 0xffffff)
-
     def sound(self, c):
         s = self.cstr(c.ecx)
         self.log(4, fnv(s))
@@ -317,6 +329,10 @@ class Emulated:
         cpu.call(0x4df620)          # aiv.zrd's file object (0x0060b5e0)
         cpu.call(0x4e0820)          # targets.zrd's (0x0060b608)
         cpu.call(0x4e0720)          # traps.zrd's (0x0060b630)
+        cpu.call(0x4c7b80, ecx=REGISTRY)  # the numbered objects (0x00603fd8)
+        cpu.call(0x4c5d80, ecx=REGIONS)   # the regions' list (0x0060b3f0)
+        cpu.call(0x4105d0, ecx=0x603fa0)  # the null step
+        cpu.call(0x4c8750, ecx=0x604068)  # the default behaviour
 
     # --- what the port's probe writes ------------------------------------------
     def valves(self):
@@ -326,6 +342,9 @@ class Emulated:
             out.append(self.u32(p + 8))
             p = self.u32(p)
         return out
+
+    def region_token(self, r, regs):
+        return 0 if r == 0 else regs.index(r) + 1 if r in regs else 0xdead
 
     def valve_token(self, v, vlist):
         return 0 if v == 0 else vlist.index(v) + 1 if v in vlist else 0xdead
@@ -507,10 +526,11 @@ class AivRun:
         while p != head:
             items.append(p + 8)
             p = u(p)
+        regs = RegionsRun(e).list_items(u(REGIONS + 4))
         o.u(len(items))
         for it in items:
             for off in range(0, 0x1c, 4):
-                o.u(u(it + off))
+                o.u(u(it + off) if off != 0x14 else e.region_token(u(it + off), regs))
             o.u(e.valve_token(u(it + 0x1c), vl))
 
     def put_file(self, o):
@@ -545,6 +565,10 @@ class AivRun:
         o.u(len(vl))
         for v in vl:
             o.s(e.cstr(e.u32(v)))
+        regs = RegionsRun(e).list_items(e.u32(REGIONS + 4))
+        o.u(len(regs))
+        for r in regs:
+            o.s(e.cstr(e.u32(r + 0x1c)))
         return bytes(o.b), e.events
 
 
@@ -605,4 +629,288 @@ class TargetsRun:
         o.u(len(vl))
         for v in vl:
             o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events
+
+
+# --- regions ------------------------------------------------------------------------
+KINDS = {0x5cae00: 1, 0x5ca420: 2, 0x5ca6d8: 3}
+
+
+class RegionsRun:
+    """What probe_regions_run writes, from the original's memory."""
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def put_region(self, o, r):
+        e, u = self.e, self.e.u32
+        if r == 0:
+            o.u(0)
+            return
+        o.u(1)
+        b, end = u(r + 0xc), u(r + 0x10)
+        o.u(u(r + 4)), o.s(e.cstr(u(r + 0x1c))), o.u((end - b) // 4 if b else 0), o.u((u(r + 0x18) - b) // 4)
+        for p in range(b, end, 4):
+            edge = u(p)
+            for off in range(4, 0x1c, 4):
+                o.u(u(edge + off))
+
+    def list_items(self, head):
+        u, out = self.e.u32, []
+        p = u(head)
+        while p != head:
+            out.append(u(p + 8))
+            p = u(p)
+        return out
+
+    def put_state(self, o):
+        e, u = self.e, self.e.u32
+        objs = self.list_items(u(REGISTRY + 4))
+        o.u(len(objs))
+        for x in objs:
+            o.u(u(x + 4)), o.u(KINDS.get(u(x), 9))
+        regs = self.list_items(u(REGIONS + 4))
+        o.u(len(regs))
+        for r in regs:
+            o.s(e.cstr(u(r + 0x1c)))
+
+    def run(self, files, names, points):
+        """points[i]: the points to test in the region names[i] gives."""
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        got = []
+        for name in names:
+            p = e.new_string(name.encode() if isinstance(name, str) else name)
+            cpu.call(REGION, ecx=p, count=2_000_000_000)  # a net named as a region is compiled first
+            got.append(e.eax())
+            self.put_region(o, got[-1])
+        self.put_state(o)
+        cpu.fpu_control(0x007f)   # the tests run in play: 24 bits
+        slot = e.alloc(12)
+        for r, pts in zip(got, points):
+            if r == 0:
+                continue
+            for pt in pts:
+                cpu.write(slot, struct.pack('<3f', *pt))
+                cpu.call(0x4c57d0, ecx=r, stack_args=(slot,))
+                b = e.u32(r + 0xc)
+                o.u(e.eax() & 0xff), o.u((e.u32(r + 0x18) - b) // 4)
+        cpu.fpu_control(0x027f)
+        cpu.call(0x4c5fa0)
+        self.put_state(o)
+        return bytes(o.b), e.events
+
+
+# --- compiled nets --------------------------------------------------------------
+NULL_STEP, DEFAULT_BEHAVIOUR = 0x603fa0, 0x604068
+VALUE_STEPS = {0x5cb488, 0x5cb560, 0x5cb638, 0x5cbaf8, 0x5cc008}   # speed, waits, jump, sound
+STEPS = VALUE_STEPS | {0x5cb710, 0x5cbbd0, 0x5cbca8, 0x5cbd60, 0x5cc0e0, 0x5cc1b8, 0x5cc368, 0x5cc440}
+NODES = {0x5cc6f0, 0x5cc7a8, 0x5cbf30, 0x5cc898}
+
+
+class CompiledRun:
+    """What probe_nets_run writes, from the original's memory."""
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def token(self, elems, p):
+        if p == NULL_STEP:
+            return -2
+        if p == DEFAULT_BEHAVIOUR:
+            return -3
+        if p in elems:
+            return elems.index(p)
+        return -4
+
+    def put_step(self, o, elems, p):
+        e, u, u8 = self.e, self.e.u32, self.e.u8
+        vt = u(p)
+        o.u(vt)
+        if p in (NULL_STEP, DEFAULT_BEHAVIOUR):
+            return
+        o.u(u8(p + 4)), o.u(u(p + 8))
+        vl = e.valves()
+        if vt in STEPS:
+            nxt = u(p + 0xc)
+            # A slot number left unresolved (the exe's FIX (bug) case) is written as it is.
+            o.u(self.token(elems, nxt) if nxt in elems or nxt in (NULL_STEP, DEFAULT_BEHAVIOUR) else nxt)
+            if vt in VALUE_STEPS:
+                o.u(u(p + 0x10))
+            elif vt == 0x5cb710:
+                o.u(e.valve_token(u(p + 0x10), vl)), o.u(u(p + 0x14))
+            elif vt in (0x5cbbd0, 0x5cbca8, 0x5cbd60):
+                b, end = u(p + 0x14), u(p + 0x18)
+                o.u(u8(p + 0x10)), o.u((end - b) // 8 if b else 0)
+                for q in range(b, end, 8):
+                    o.u(u(q)), o.u(u(q + 4))
+            elif vt == 0x5cc0e0:
+                o.s(e.cstr(u(p + 0x10)))
+            elif vt == 0x5cc368:
+                # +0x10 is the reader's union tag: a stack address's low byte in the exe, never read.
+                b, end = u(p + 0x14), u(p + 0x18)
+                o.u((end - b) // 8 if b else 0)
+                for q in range(b, end, 8):
+                    o.u(e.valve_token(u(q), vl)), o.u(u(q + 4))
+            elif vt == 0x5cc440:
+                o.u(e.valve_token(u(p + 0x10), vl)), o.u(u(p + 0x14))
+            return
+        if vt in NODES:
+            o.s(e.cstr(u(p + 0xc)))
+            for off in (0x10, 0x14, 0x18):
+                o.u(u(p + off))
+            b, end = u(p + 0x20), u(p + 0x24)
+            o.u((end - b) // 4 if b else 0)
+            for q in range(b, end, 4):
+                o.u(self.token(elems, u(q)))
+            if vt == 0x5cbf30:
+                o.u(e.valve_token(u(p + 0x2c), vl)), o.u(u(p + 0x30)), o.u(u(p + 0x34))
+            elif vt == 0x5cc898:
+                o.u(e.valve_token(u(p + 0x2c), vl)), o.u(u(p + 0x30)), o.u(e.valve_token(u(p + 0x34), vl))
+                o.u(u(p + 0x38)), o.u(self.token(elems, u(p + 0x3c)))
+
+    def elems(self, x):
+        u = self.e.u32
+        b, end = u(x + 0xc), u(x + 0x10)
+        return [u(q) for q in range(b, end, 4)] if b else []
+
+    def put_compiled(self, o, x):
+        u = self.e.u32
+        els = self.elems(x)
+        o.u(u(x + 4)), o.u(self.e.u8(x + 0x18)), o.u(len(els))
+        for p in els:
+            self.put_step(o, els, p)
+
+    def compiled(self):
+        rr = RegionsRun(self.e)
+        return [x for x in rr.list_items(self.e.u32(REGISTRY + 4)) if self.e.u32(x) == 0x5ca6d8]
+
+    def run(self, files, nets=range(1, 100)):
+        """0x402240 for each net number in turn (0x402170 asks 1..99), then every
+        compiled net in the registry dumped."""
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        for n in nets:
+            cpu.call(0x402240, ecx=n, edx=0, count=2_000_000_000)
+        RegionsRun(e).put_state(o)
+        for x in self.compiled():
+            self.put_compiled(o, x)
+        vl = e.valves()
+        o.u(len(vl))
+        for v in vl:
+            o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events
+
+
+# --- the way along a net ---------------------------------------------------------
+class PathsRun(CompiledRun):
+    """What probe_paths_run writes, from the original's memory: nets built as
+    CompiledRun does, then queries (see run_query in tests/probe_ai_net.cpp)
+    at the 24 bits of play."""
+
+    def pilot(self, jets, name, pos):
+        """A brain the steps can ask: +0xe0 its virtual base table (offset 0),
+        +0xf0 the vehicle; the vehicle's +0x04 its node (the name first, +0x38
+        the matrix block whose +0x84 is the position, flag 0x20 clear), its
+        slot +0x50 the mech (whose +0x3d8 counts the jump jets)."""
+        e = self.e
+        brain, table, veh, node, block, mech = (e.alloc(0x100), e.alloc(8), e.alloc(0x10), e.alloc(0x40),
+                                                e.alloc(0x90), e.alloc(0x400))
+        vt, code = e.alloc(0x60), e.alloc(8)
+        e.cpu.u32(brain + 0xe0, table)
+        e.cpu.u32(table + 4, 0)
+        e.cpu.u32(brain + 0xf0, veh)
+        e.cpu.u32(veh, vt)
+        e.cpu.u32(veh + 4, node)
+        e.cpu.write(node, name[:0x37] + b'\0')
+        e.cpu.u32(node + 0x38, block)
+        e.cpu.write(block + 0x84, struct.pack('<3f', *pos))
+        e.cpu.write(code, b'\xb8' + struct.pack('<I', mech) + b'\xc3')   # mov eax, mech; ret
+        e.cpu.u32(vt + 0x50, code)
+        e.cpu.u32(mech + 0x3d8, jets & 0xffffffff)
+        return brain
+
+    def node_step(self, elems, k):
+        u = self.e.u32
+        for p in elems:
+            if u(p) in NODES:
+                if k == 0:
+                    return p
+                k -= 1
+        return 0
+
+    def put_way(self, o, elems, f):
+        e, u = self.e, self.e.u32
+        if f == 0:
+            o.u(0xffffffff)
+            return
+        head = u(f + 8)
+        items, p = [], u(head)
+        while p != head:
+            items.append(u(p + 8))
+            p = u(p)
+        o.u(e.u8(f + 0x14)), o.u(u(f + 0x10)), o.u(len(items))
+        for it in items:
+            o.u(self.token(elems, it))
+
+    def by_id(self, nid):
+        for x in self.compiled():
+            if self.e.u32(x + 4) == nid & 0xffffffff:
+                return x
+        return 0
+
+    def query(self, o, q, names):
+        e, cpu, u = self.e, self.e.cpu, self.e.u32
+        op = q[0]
+        if op == 3:
+            name = names[q[2]]
+            for v in e.valves():
+                if e.cstr(u(v)) == name:
+                    cpu.u32(u(v + 4) + 4, q[3] & 0xffffffff)
+                    break
+            return
+        x = self.by_id(q[1])
+        if x == 0:
+            o.u(0xeeeeeeee)
+            return
+        elems = self.elems(x)
+        f = lambda i: struct.unpack('<f', struct.pack('<i', q[i]))[0]
+        if op == 1:
+            pt = e.alloc(12)
+            cpu.write(pt, struct.pack('<3i', q[2], q[3], q[4]))
+            cpu.call(0x4d51d0, ecx=x, stack_args=(pt,))
+            o.u(self.token(elems, e.eax()))
+            return
+        start, target = self.node_step(elems, q[2]), self.node_step(elems, q[3])
+        if start == 0 or target == 0:
+            o.u(0xdddddddd)
+            return
+        brain = self.pilot(q[4], names[q[5]], (f(6), f(7), f(8)))
+        holder = e.alloc(4)
+        cpu.call(0x4c7c10, ecx=holder, stack_args=(brain, x, start, target), count=4_000_000_000)
+        o.u(e.eax() & 0xff)
+        self.put_way(o, elems, u(holder))
+        if q[10] > 0:
+            self.query(o, [3, q[1], q[10], q[11]], names)
+        at = start
+        for _ in range(q[9]):
+            if at == 0:
+                break
+            cpu.call(0x4c7cb0, ecx=holder, stack_args=(at,), count=4_000_000_000)
+            at = e.eax()
+            o.u(self.token(elems, at) if at else 0xffffffff)
+            self.put_way(o, elems, u(holder))
+
+    def run_paths(self, files, nets, queries, names):
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        for n in nets:
+            cpu.call(0x402240, ecx=n, edx=0, count=2_000_000_000)
+        cpu.fpu_control(0x007f)   # the queries run in play: 24 bits
+        for q in queries:
+            self.query(o, q, names)
+        cpu.fpu_control(0x027f)
         return bytes(o.b), e.events

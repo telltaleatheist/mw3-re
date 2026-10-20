@@ -233,7 +233,8 @@ def shipped_aiv(check):
         if 'aiv.zrd' not in files:
             continue
         names = record_names(files['aiv.zrd']) + ['no_such_vehicle']
-        check.aiv(f'{path.parent.name}/{path.name}/aiv.zrd', {'aiv.zrd': files['aiv.zrd']}, names)
+        # The whole archive: the orders' regions are loaded from it.
+        check.aiv(f'{path.parent.name}/{path.name}/aiv.zrd', files, names)
         count += 1
     return count
 
