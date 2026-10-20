@@ -20,9 +20,6 @@ struct RdrHooks {
   const char* (*find_loose)(const char* name) = nullptr;
   const char* (*localize)(const char* name) = nullptr;  // 0x00575fb0; zutl::localize when null
   void* (*sound_find)(const char* name) = nullptr;      // 0x0056f6f0; zsnd::find when null
-  // 0x004c5c00: a region (zainetmechinout.cpp's inside/outside nets) by name,
-  // loaded on first use. Not ported yet: none when null.
-  void* (*find_region)(const char* name) = nullptr;
 };
 RdrHooks& rdr_hooks();
 

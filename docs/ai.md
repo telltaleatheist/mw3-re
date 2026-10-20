@@ -2,8 +2,9 @@
 
 Mech3.exe 1.2, 2026-10-20. The map of the AI code in the game half
 (0x4b4880..0x4eada0), the data files it reads, how one AI tick runs, and a
-porting order. The data side is ported and emulator-checked (section 5); the
-brain, the nets at run time, targeting and the valves' actions are not.
+porting order. The data side and the nets at run time are ported and
+emulator-checked (sections 5, 8); the brain, the behaviours, targeting and
+the valves' actions are not.
 
 Names are ours unless an assert string gives them (`CZAiNetEdit`,
 `CFileDialogNet`, the five source paths). "Likely" marks a reading of what the
@@ -192,8 +193,10 @@ All load-time code, checked in Unicorn against the original on every shipped
 file (`tests/differential/test_ai_readers.py`, 1211 cases: 698 net and region
 files by number and by name, 48 aiv.zrd, 27 targets.zrd, 438 made-up files
 reaching 80 marked places in the original). Output streams (records with
-valves as registry places, strings as text) and the logs of zerr, localize,
-zSound and region calls match byte for byte, at 53-bit and at 24-bit x87.
+valves as registry places, regions as their place in the region list,
+strings as text) and the logs of zerr, localize and zSound calls match byte
+for byte, at 53-bit and at 24-bit x87. The orders' regions are loaded by the
+ported lookup (section 8) on both sides.
 
 | Piece | Original | Port |
 |---|---|---|
@@ -208,7 +211,8 @@ zSound and region calls match byte for byte, at 53-bit and at 24-bit x87.
 | mech by name | 0x4845f0 | `mech3/mech_names` mech_index |
 
 Hooks (`RdrHooks`): the loose-file search (0x556240; none, FIX (A)),
-localize, zSound's lookup, and the region lookup 0x4c5c00 (not ported).
+localize, zSound's lookup. The region lookup 0x4c5c00 is the port's
+(`region_find`, section 8).
 Not ported on purpose: the editor's writers (0x4dad10, 0x4db8d0, 0x4dc2b0),
 the record caches the editor fills (left empty), the AI tester dialog.
 
@@ -228,9 +232,13 @@ Breaks: section 7.
 
 Clean boundaries for later work, each a piece with its own test:
 
-1. **Regions and the inside/outside test** (ZAiNetMechInOut.cpp, 0x4c11f0..,
-   0x4c5c00 registry): pure geometry over the ported records; plugs into
-   RdrHooks::find_region. Differential test on the 393 reg files with points.
+1. **Regions and the inside test**: done (section 8), the lookup 0x4c5c00,
+   the builder's run-time side it needs, the edges and 0x4c57d0.
+   `ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0) is not this: it is the
+   mission boundary from the world's `inout` polygons (render.md 6a), read
+   at mission load (0x4c3b80 -> 0x4c3930) and asked by the behaviours
+   (0x4c3000, seven callers) to keep a destination inside; not ported
+   (section 11).
 2. **The run-time net** (CZAiNetEdit 0x4bcba0 without the editing, the node
    0x4c6d30, the net base 0x4d5120 with its network object stubbed): nodes and
    links from NetRef. Test: build every shipped net, compare node arrays.
@@ -269,6 +277,128 @@ in twos, an int height not converted, a target offset needing 3 items: 32 of
 spare slot, the same as the default), the targets' header default (the reader
 resets the flags itself), and radar on any non-zero value (get_bool_int only
 gives 0 or 1).
+
+`tests/differential/test_ai_regions.py` (probe `tests/probe_ai_net.cpp`,
+`RegionsRun` in `ai_world.py`): every reg_*.zrd of every mission looked up
+twice, every net file and a missing name as regions, then 93 made-up files
+(versions, names, loops broken every way, holes before the start,
+duplicates, a side of no length, arrangenodes round a loop); the lookups at
+53 bits, then a few dozen points per region tested in turn at 24 bits. Streams
+(each region's id, name, edges and where its test stopped; the registry's
+ids and kinds; the region list) and zerr logs match: 140 of 140. Breaks
+caught: the test's start kept after a pass, the plane counting as outside,
+the normal flipped, the test always starting at the first edge, a side of
+no length's normal, the start's budget not shrinking, the walk starting at
+slot 0, names matched in any case, region ids from 10001, arrangenodes not
+rounding to a tenth, its angle not snapped, a duplicate record replacing
+the first, edges reversed, regions put at the front of the list, a loop
+needing 3 nodes: 15 of 15. Three tried breaks were replaced: the dot
+product's order (the normal's y is 0 but for sides of no length, whose x and
+z are 0, so no order rounds differently), negative links followed (the
+reader never keeps a negative link) and the walk following the last link
+(the edges then follow another way and the port runs out of memory: caught,
+but no use as a break).
+
+## 8. The net objects
+
+Ported 2026-10-20 (`gamez/znetwork/znet_object`, `mech3/zainet`,
+`mech3/zainetedit`, `mech3/zainet_region`); test in section 7.
+
+**Numbered objects.** Every AI net, region and waynet is a numbered object
+(0x58aec0, 0x18 bytes: vtable 0x5cefd0, the id at +4, a vector of elements
+at +0xc). While it lives it sits in one list (0x603fd8, made by 0x4c7b80),
+where 0x58b160 finds the first of an id. 0x58b1c0 hands out a free id in a
+range, from the one asked for upwards and wrapping to the range's start
+(but a search that started above the start stops when it wraps, so a full
+top end gives -1 even with free ids below it; an id asked for outside the
+range is taken as it is when free). At mission end 0x58b290 deletes every
+object under 10000 (0x5f2a48); the regions (10000 up) are freed by their
+own list. The ids likely let a multiplayer session name nets across
+machines (the code sits after `znet_dplay.cpp`).
+
+**The builder** (`CZAiNetEdit`, 0x4bcba0, 0x44 bytes). In play it is only
+ever made for a moment, with its `build` flag set (0x402240, 0x4797c0,
+0x4c5c00); the editing side (flag clear, 0x4bd360 / 0x4bd3d0 from the
+debug menu) writes edits back through the record cache and is not ported.
+Made for net `n`: its own id comes from 400..499; a net already registered
+under `n` is taken as it is (nothing is rebuilt; the builder's file is read
+under that net's name); else the file (`net_%02d` of `n` or the name given)
+is read into one node (0x4c6d30, 0xbc bytes: the record copied, the
+builder at +0xb8) per record, at the slot of the record's number (the
+vector grows to the highest number; slots without a record hold a
+placeholder node, 0x4c6da0, whose setters do nothing; a second record with
+a number is reported, "net %d: ignoring duplicate node %d", and dropped).
+Then the link pass (0x4d53f0 -> 0x410590 / 0x4c7170 / 0x4c6fc0: each link
+re-stored as the index of the node it names, which changes nothing for the
+builder's own nodes) and `arrangenodes` (0x4c74a0, below). With `build`
+and at least one record, the file's version picks what is built: 106 a
+compiled net (0x4be670, section 9), 108 a region (0x4bf3f0); 105
+(0x4bed90) and 107 (0x4be690, the multiplayer waynets) are not ported (no
+single-player file has them). The builder's destructor leaves what it
+built alone.
+
+**arrangenodes ( r )** (0x4c74a0 -> 0x4c7300 / 0x4c7340): each node this
+one links to is moved onto the circle of radius `r` round it, at the
+nearest of `links` even angles (from +z, through atan2(dx, dz)), keeping
+its height, each coordinate rounded to a tenth. Nodes are arranged in
+slot order, so a node moved by one arrangement can be the centre of a later
+one, and a node linking to itself moves its own centre mid-way. In the
+shipped nets only `net_` files use it.
+
+**Regions.** 0x4c5c00 is the lookup the vehicles' orders use (aiv.zrd
+`vlist` item 10, 0x4dfb00; the old p4 order 0x4e0281). The map's mission
+boundary is not looked up again: it is the last of the player's order
+regions whose name starts `reg_inside_` / `reg_outside_` (0x4d92f0,
+0x4d9360, `strncmp`). A region
+already loaded is found by name (0x4c5e50, `strcmp`, so case counts);
+otherwise a builder is made for the first free id from 10000 and the
+name, and what it built is kept only if it is a region whose own `name`
+field is the name asked for (else it is deleted and nothing is kept, so the
+file is read again at every lookup). Kept regions go to the end of the list
+at 0x60b3f0.
+
+A region (0x4c5b00, 0x20 bytes over the edge net 0x4c5640) is built
+(0x4bf3f0) when the builder's net id is 10000 or more, the file's version
+is 108 and its nodes form one closed loop (0x4bf000): the loop starts at
+the first slot holding a real node (the placeholders before it are skipped
+with a budget that shrinks with every slot skipped, so the start must lie
+in the first half of the slots) and follows each node's first link until
+it comes back to the start; a link to no node is reported (0x800,
+"region "%s" node %d points to nonexistant node %d") and ends the walk, as
+does a node without links, a negative link or running out of slots. Each
+step of the loop becomes an edge (0x4bf1b0 -> 0x4c5960, 0x1c bytes): its
+start, and the normal of its vertical plane, (dz, 0, -dx) of the side
+normalized (0, 1, 0 for a side of no length on the ground, which then
+tests only height). The region keeps the file's `name`.
+
+**Inside** (0x4c57d0 -> 0x4c5a30): a point is inside when it is on the
+inner side (dot with the normal not negative) of every edge, so a region
+is a convex area drawn with its inside on the right going round (seen from
+above, x right and z up: the loop runs clockwise). Heights only count for a
+side of no length. The test starts at the edge the last failing test
+stopped at and goes round; a pass resets it to the first edge. The region
+test of an order (0x4d8e70: vlist item 9 "when inside", item 17 "when
+outside"; both set: always) needs the region, so an order whose region did
+not load never fires on it.
+
+In the shipped missions, 386 of the 390 region files load (each region in
+4184 edges' worth, `test_ai_regions.py`); the four that do not:
+
+| Mission | File | Why |
+|---|---|---|
+| c1 m1 | `reg_firefly_02_go` | version 106: a net, not a region |
+| c1 m1 | `reg_friefly_02_go` | its own name is `reg_firefly_02_go` (the file name is misspelt) |
+| c3 m2 | `reg_p2`, `reg_up_circle` | version 106 |
+
+No order names any of them. One order names a region its mission does not
+have: in c4b mission 6 the player's own `vlist` sets the valves
+`inside_c4m7` and `outside_c4m7` from `reg_inside_c4m7` and
+`reg_outside_c4m7`, but the archive's files are `reg_inside_c4bm6/7` and
+`reg_outside_c4bm6/7`. The mission's fail objective is `outside_c4m7`
+("left the mission boundaries", objectives.zrd `m6`), so in that mission
+leaving the area never fails it (and the map has no boundary to draw,
+likely). Which pair was meant is not clear
+(fixes.md, candidates).
 
 ## Open
 

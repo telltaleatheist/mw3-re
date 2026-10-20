@@ -12,6 +12,8 @@
 // out, with the offsets and the file's tags in docs/ai.md.
 namespace mech3::ai {
 
+class Region;
+
 // One "vlist" entry, 0x20 bytes, the defaults at 0x005e8da0 (0x004d8d30): an
 // order the vehicle follows when its valve opens (docs/ai.md).
 struct VListEntry {
@@ -20,7 +22,7 @@ struct VListEntry {
   float f08 = 0.8f;            // +0x08  item 8
   float f0c = 0;               // +0x0c  item 12, squared by AiParams::finish
   float f10 = 3600.0f;         // +0x10  item 14, squared by AiParams::finish
-  void* region = nullptr;      // +0x14  item 10: a region by name (0x004c5c00)
+  Region* region = nullptr;    // +0x14  item 10: a region by name (0x004c5c00)
   uint8_t flags = 0;           // +0x18  bit 0 item 15; bits 1-7 items 1, 2, 4, 5, 7, 11, 13 (!= 0)
   uint8_t flags2 = 0;          // +0x19  bit 0 item 9, bit 1 item 17 (!= 0)
   uint8_t pad[2] = {};         // +0x1a

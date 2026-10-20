@@ -29,7 +29,13 @@ VLIST_DEFAULTS = struct.pack('<7I', 0x3e800000, 0x3dcccccd, 0x3f4ccccd, 0, 0x456
 HANDLE = 0x1234
 BIG = 0x40000000
 # The AI globals the static initializers set up (zeroed before each run).
-GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78)]
+GLOBALS = [(0x60b500, 0x10), (0x60b5a0, 0x30), (0x60b5e0, 0x78), (0x603fd8, 0x10), (0x60b3f0, 0xc)]
+# MSVCRT's floor as x87 code (test_scenewalk.py).
+FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
+IAT_FLOOR = 0x5bb66c
+REGISTRY, REGIONS = 0x603fd8, 0x60b3f0
+# Not ported yet: the version-106 net compiler (zainetedit.cpp's build_compiled).
+COMPILE_106 = 0x4be670
 
 
 def fnv(b):
@@ -88,6 +94,7 @@ class Emulated:
     def __init__(self):
         cpu = self.cpu = Original()
         cpu.import_code(IAT_FTOL, FTOL)
+        cpu.import_code(IAT_FLOOR, FLOOR)
         # Load-time code: the x87 at 53 bits, as the CRT start-up sets it
         # (CLAUDE.md); MW3_X87=24 runs it at the in-play 24 instead.
         if os.environ.get('MW3_X87') != '24':
@@ -117,7 +124,7 @@ class Emulated:
             SOUND: (self.sound, 0),
             ZERR: (self.zerr, 0),
             ATEXIT: (lambda c: 0, 0),
-            REGION: (self.region, 0),
+            COMPILE_106: (lambda c: 0, 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
@@ -265,11 +272,6 @@ class Emulated:
             return 0
         return self.log(1, c.arg(0), c.arg(2))
 
-    def region(self, c):
-        s = self.cstr(c.ecx)
-        self.log(6, fnv(s))
-        return 0x6000000 | (fnv(s) & 0xffffff)
-
     def sound(self, c):
         s = self.cstr(c.ecx)
         self.log(4, fnv(s))
@@ -317,6 +319,8 @@ class Emulated:
         cpu.call(0x4df620)          # aiv.zrd's file object (0x0060b5e0)
         cpu.call(0x4e0820)          # targets.zrd's (0x0060b608)
         cpu.call(0x4e0720)          # traps.zrd's (0x0060b630)
+        cpu.call(0x4c7b80, ecx=REGISTRY)  # the numbered objects (0x00603fd8)
+        cpu.call(0x4c5d80, ecx=REGIONS)   # the regions' list (0x0060b3f0)
 
     # --- what the port's probe writes ------------------------------------------
     def valves(self):
@@ -326,6 +330,9 @@ class Emulated:
             out.append(self.u32(p + 8))
             p = self.u32(p)
         return out
+
+    def region_token(self, r, regs):
+        return 0 if r == 0 else regs.index(r) + 1 if r in regs else 0xdead
 
     def valve_token(self, v, vlist):
         return 0 if v == 0 else vlist.index(v) + 1 if v in vlist else 0xdead
@@ -507,10 +514,11 @@ class AivRun:
         while p != head:
             items.append(p + 8)
             p = u(p)
+        regs = RegionsRun(e).list_items(u(REGIONS + 4))
         o.u(len(items))
         for it in items:
             for off in range(0, 0x1c, 4):
-                o.u(u(it + off))
+                o.u(u(it + off) if off != 0x14 else e.region_token(u(it + off), regs))
             o.u(e.valve_token(u(it + 0x1c), vl))
 
     def put_file(self, o):
@@ -545,6 +553,10 @@ class AivRun:
         o.u(len(vl))
         for v in vl:
             o.s(e.cstr(e.u32(v)))
+        regs = RegionsRun(e).list_items(e.u32(REGIONS + 4))
+        o.u(len(regs))
+        for r in regs:
+            o.s(e.cstr(e.u32(r + 0x1c)))
         return bytes(o.b), e.events
 
 
@@ -605,4 +617,74 @@ class TargetsRun:
         o.u(len(vl))
         for v in vl:
             o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events
+
+
+# --- regions ------------------------------------------------------------------------
+KINDS = {0x5cae00: 1, 0x5ca420: 2, 0x5ca6d8: 3}
+
+
+class RegionsRun:
+    """What probe_regions_run writes, from the original's memory."""
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def put_region(self, o, r):
+        e, u = self.e, self.e.u32
+        if r == 0:
+            o.u(0)
+            return
+        o.u(1)
+        b, end = u(r + 0xc), u(r + 0x10)
+        o.u(u(r + 4)), o.s(e.cstr(u(r + 0x1c))), o.u((end - b) // 4 if b else 0), o.u((u(r + 0x18) - b) // 4)
+        for p in range(b, end, 4):
+            edge = u(p)
+            for off in range(4, 0x1c, 4):
+                o.u(u(edge + off))
+
+    def list_items(self, head):
+        u, out = self.e.u32, []
+        p = u(head)
+        while p != head:
+            out.append(u(p + 8))
+            p = u(p)
+        return out
+
+    def put_state(self, o):
+        e, u = self.e, self.e.u32
+        objs = self.list_items(u(REGISTRY + 4))
+        o.u(len(objs))
+        for x in objs:
+            o.u(u(x + 4)), o.u(KINDS.get(u(x), 9))
+        regs = self.list_items(u(REGIONS + 4))
+        o.u(len(regs))
+        for r in regs:
+            o.s(e.cstr(u(r + 0x1c)))
+
+    def run(self, files, names, points):
+        """points[i]: the points to test in the region names[i] gives."""
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        got = []
+        for name in names:
+            p = e.new_string(name.encode() if isinstance(name, str) else name)
+            cpu.call(REGION, ecx=p)
+            got.append(e.eax())
+            self.put_region(o, got[-1])
+        self.put_state(o)
+        cpu.fpu_control(0x007f)   # the tests run in play: 24 bits
+        slot = e.alloc(12)
+        for r, pts in zip(got, points):
+            if r == 0:
+                continue
+            for pt in pts:
+                cpu.write(slot, struct.pack('<3f', *pt))
+                cpu.call(0x4c57d0, ecx=r, stack_args=(slot,))
+                b = e.u32(r + 0xc)
+                o.u(e.eax() & 0xff), o.u((e.u32(r + 0x18) - b) // 4)
+        cpu.fpu_control(0x027f)
+        cpu.call(0x4c5fa0)
+        self.put_state(o)
         return bytes(o.b), e.events

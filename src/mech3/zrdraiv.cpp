@@ -11,6 +11,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_names.h"
+#include "mech3/zainet_region.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -217,7 +218,7 @@ float as_float(uint32_t u) {
 // FIX (bug): the exe takes any value as a string pointer.
 const char* text(const zrdr::Node& n) { return n.type == zrdr::String ? n.s : nullptr; }
 
-void* region(const char* name) { return rdr_hooks().find_region ? rdr_hooks().find_region(name) : nullptr; }
+Region* region(const char* name) { return region_find(name); }
 const char* localize(const char* s) { return rdr_hooks().localize ? rdr_hooks().localize(s) : zutl::localize(s); }
 char* dup(const char* s) { return s ? strdup(s) : nullptr; }
 

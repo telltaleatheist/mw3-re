@@ -13,6 +13,8 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
 #include "mech3/zai_valve.h"
+#include "mech3/zainet_region.h"
+#include "gamez/znetwork/znet_object.h"
 #include "mech3/zrdrainet.h"
 #include "mech3/zrdraiv.h"
 
@@ -71,10 +73,6 @@ void set_hooks() {
     log({4, fnv(n)});
     return reinterpret_cast<void*>(static_cast<uintptr_t>(0x5000000u | (fnv(n) & 0xffffff)));
   };
-  h.find_region = [](const char* n) -> void* {
-    log({6, fnv(n)});
-    return reinterpret_cast<void*>(static_cast<uintptr_t>(0x6000000u | (fnv(n) & 0xffffff)));
-  };
   zerr::set_sink(sink);
 }
 
@@ -84,6 +82,17 @@ uint32_t valve_token(const Valve* v) {
   uint32_t i = 1;
   for (const Valve* w : valves()) {
     if (w == v) return i;
+    ++i;
+  }
+  return 0xdeadu;
+}
+
+// A region as its place in the region list, from 1; 0 for none.
+uint32_t region_token(const Region* r) {
+  if (!r) return 0;
+  uint32_t i = 1;
+  for (const Region* w : regions()) {
+    if (w == r) return i;
     ++i;
   }
   return 0xdeadu;
@@ -159,7 +168,7 @@ void put_aiv(Out& o, const AivRecord* r) {
   o.u(static_cast<uint32_t>(r->vlist->size()));
   for (const VListEntry& e : *r->vlist) {
     o.f(e.f00), o.f(e.f04), o.f(e.f08), o.f(e.f0c), o.f(e.f10);
-    o.u(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(e.region)));
+    o.u(region_token(e.region));
     o.u(e.flags | e.flags2 << 8 | e.pad[0] << 16 | uint32_t(e.pad[1]) << 24);
     o.u(valve_token(e.valve));
   }
@@ -195,6 +204,8 @@ int probe_targets_run(const char* archive, uint8_t* out, int cap, uint32_t* logb
   g_strings.reserve(8192);
   g_out = Out{};
   set_hooks();
+  regions_clear();
+  znet::clear();
   valves_clear();
   record_files_reset();
   zrdr::init();
@@ -235,6 +246,8 @@ int probe_aiv_run(const char* archive, const char* const* names, int nnames, uin
   g_strings.reserve(8192);
   g_out = Out{};
   set_hooks();
+  regions_clear();
+  znet::clear();
   valves_clear();
   aiv_file_reset();
   zrdr::init();
@@ -254,6 +267,8 @@ int probe_aiv_run(const char* archive, const char* const* names, int nnames, uin
   put_aiv_file(g_out);
   g_out.u(static_cast<uint32_t>(valves().size()));
   for (const Valve* v : valves()) g_out.s(v->name);
+  g_out.u(static_cast<uint32_t>(regions().size()));
+  for (const Region* r : regions()) g_out.s(r->region_name);
   zerr::set_sink(nullptr);
   if (static_cast<int>(g_out.b.size()) > cap || static_cast<int>(g_log.size()) > logcap) return -101;
   std::memcpy(out, g_out.b.data(), g_out.b.size());
@@ -277,6 +292,8 @@ int probe_ainet_run(const char* archive, const int32_t* nets, const char* const*
   g_strings.reserve(8192);
   g_out = Out{};
   set_hooks();
+  regions_clear();
+  znet::clear();
   valves_clear();
   net_files_clear();
   zrdr::init();

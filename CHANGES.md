@@ -105,6 +105,8 @@ unusual happens.
   sound copy's position, an air burst's surface direction) are zeroed.
 - A damaged saved controls-file name (no end marker) no longer makes the game
   read past it.
+- A hand-made AI region file without a name, or an AI path linking past its
+  last point, no longer crashes the mission load.
 
 ## Copy protection removed
 

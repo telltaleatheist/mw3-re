@@ -60,6 +60,7 @@ for t in \
     mechdata \
     pose \
     ai_readers \
+    ai_regions \
     zinput \
     settings \
     mission_load \
