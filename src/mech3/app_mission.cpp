@@ -202,6 +202,8 @@ struct WiredMissionHooks : MissionHooks {
   int32_t game_type() override { return e->launch().type; }
   int32_t game_mission_number() override { return e->launch().number; }
   uint8_t game_saved() override { return 0; }
+  void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
+  void fn_4319a0() override { mech3::mech_types_refresh(); }    // 0x004319a0: the mech types' sounds again
   uint8_t app_rgb() override { return app().byte_at(0x1b9); }       // 0x00608e41
   uint8_t app_turrets() override { return app().byte_at(0x1b2); }   // 0x00608e3a
   void set_holes(uint8_t on) override { e->poke8(0x6061cc, on); }

@@ -234,7 +234,8 @@ def main():
     buf = ctypes.create_string_buffer(64 << 20)
     seed = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     total_ops = calls = 0
-    for wi, w in enumerate(G.WORLDS):
+    worlds = os.environ.get('DESTROY_WORLDS', ','.join(G.WORLDS)).split(',')  # a break test runs one
+    for wi, w in enumerate(worlds):
         path = G.ZBD / w / 'gamez.zbd'
         want = emu.load(path)
         got = probe.probe_destroy_load(str(path).encode())

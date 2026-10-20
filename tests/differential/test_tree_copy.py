@@ -212,6 +212,7 @@ def main():
         raise SystemExit('mechlib open differs')
     D.compare('after the library opened', emu.dump(), buf, probe.probe_copy_dump(buf, len(buf)))
     names = [n for n, _, _ in L.entries(emu.lib_data) if n.endswith('.flt')]
+    names = names[:int(os.environ.get('TREE_COPY_LIMIT', len(names)))]  # a break test runs a few
     calls = trees = 0
     for name in names:
         want = emu.load_tree(name)

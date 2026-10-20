@@ -158,6 +158,8 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("program_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -220,6 +222,8 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -236,6 +240,8 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_start_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -277,6 +283,8 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -293,6 +301,8 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mech_build_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -331,6 +341,8 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
@@ -359,10 +371,9 @@ zcls::Node* watcher(int32_t priority, zcls::NodeAction fn, bool back) {
 // window (docs/action-lists.md): each Core frame runs zClass's action lists
 // (0x004f7d80), so the player's tick (priority 2, 0x004a1160) and weapon_tick
 // (priority 3, zwep::tick) run once a frame, in that order, between watchers
-// put before and after each on their lists. The zClass reset between
-// missions (0x004f8f40) is not ported, so the earlier test's mission leaves
-// its player's tick on list 2 too (the world, weapons included, is kept):
-// every tick object counts.
+// put before and after each on their lists. The earlier tests' missions are
+// gone: their stop took zClass down (0x004f8f40), so list 2 holds this
+// mission's one tick object.
 TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -370,6 +381,8 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("mission_frames_write"));
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
   FakeWindow window;
   FakeAlert alert;
@@ -414,7 +427,7 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
     pump.limit = 400;
     app.run(pump);
     EXPECT(ticks_at_start > 0);  // the player's tick ran before the watchers came
-    EXPECT(tick_objects >= 1);
+    EXPECT(tick_objects == 1);
     // Every frame since: 1, then the player's tick between 2< and 2>, the
     // weapon tick between 3< and 3>, then 4.
     const size_t frames = g_watch.ran.size() / 6;
@@ -433,6 +446,8 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   }
   zrdr::close_archives(true);
   mech3::reset_states();
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
   mech3::options() = mech3::Options{};
 }
 
