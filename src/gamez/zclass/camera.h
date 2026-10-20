@@ -18,6 +18,8 @@ int camera_set_fov(Node* node, float h, float v);                  // 0x004f3b90
 Node* camera_world(Node* node);                                    // 0x004f3610  data +0
 int camera_set_rotation(Node* node, float x, float y, float z);    // 0x004f36b0
 int camera_set_position(Node* node, float x, float y, float z);    // 0x004f3870
+int camera_add_rotation(Node* node, float x, float y, float z);    // 0x004f37c0
+int camera_add_position(Node* node, float x, float y, float z);    // 0x004f3920
 int camera_set_lod_scale(Node* node, float f);                     // 0x004f3ff0
 int camera_set_horizon(Node* node, Node* horizon);                 // 0x004f4090  EDX horizon
 int camera_set_horizon_xz(Node* node, Node* horizon);              // 0x004f4100

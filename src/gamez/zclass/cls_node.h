@@ -14,6 +14,8 @@ namespace platform { class Alert; }
 namespace zcls {
 
 struct ListItem;
+struct Node;
+using NodeAction = void (*)(Node* node);  // +0x48, run by the action lists with ECX = node
 
 struct Node {                      // 0xd4-byte pool slot
   uint8_t raw[0xd0];               // as stored; the fields below replace its pointers
@@ -22,7 +24,10 @@ struct Node {                      // 0xd4-byte pool slot
   zmod::Model* model = nullptr;    // +0x3c  an index in the file
   Model* lib_model = nullptr;      // +0x3c  for mechlib nodes: their models are a
                                    // separate port for now (cls_mechlib.h)
-  void* action = nullptr;          // +0x48  callback
+  void* action = nullptr;          // +0x48  callback (a NodeAction)
+  void* owner = nullptr;           // +0x40  set by its user (an animation's def for its
+                                   // own object, zeff_anim_run)
+  void* damage = nullptr;          // +0xbc  the damage callbacks' record (zwep_damage)
   Node** parents = nullptr;        // +0x58
   Node** children = nullptr;       // +0x60
   ListItem* changed = nullptr;     // +0xcc  its item on list 7
@@ -81,6 +86,20 @@ int node_set_name(Node* node, const char* name);  // 0x004eb300
 void node_touch_frame();                        // 0x004ed960
 Node* node_find_in_tree(Node* node, const char* name);  // 0x004f9d60
 int node_add_child(Node* parent, Node* child);  // 0x004eb9b0
+int node_unlink(Node* parent, Node* child);     // 0x004ebc30, 1 when not its child
+
+// The action callback (+0x48) and its list (+0x44, lists 0..5). A new
+// callback puts the node on its list (front or back), a null one takes it off.
+int node_set_action(Node* node, NodeAction action);       // 0x004eb450, push front
+int node_set_action_back(Node* node, NodeAction action);  // 0x004eb500, push back
+int node_set_priority(Node* node, int32_t priority);      // 0x004eb5b0
+int node_set_flag8(Node* node, int on);                   // 0x004eb620
+int node_get_flag8(Node* node, int32_t* out);             // 0x004eb660
+int node_set_proximity(Node* node, int on);               // 0x004eb790, flag 0x40
+// Depth first, the node then its children last to first: 1 at the first
+// node `test` returns 1 for. Original file unknown (zClass, next to 0x004f9d60).
+int node_tree_any(Node* node, int (*test)(Node* node));   // 0x004f9e00
+int node_is_billboard(Node* node);                        // 0x004f9de0, a CylindricalY facade model
 
 // The null and class checks every class setter starts with: 0, or the
 // setter's return code (5 null node or data, 3 wrong class).

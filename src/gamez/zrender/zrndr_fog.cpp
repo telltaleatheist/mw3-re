@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "crt/msvc_math.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 namespace zrndr {
 
@@ -43,6 +44,32 @@ void set_fog_color(float rgb[3]) {
   const uint32_t g = (level(1) << f.g_shift) & f.g_mask;
   const uint32_t r = (level(0) << f.r_shift) & f.r_mask;
   set_fog_ramp(g_fog, r, g, b);
+}
+
+FogColor& light_color() {
+  static FogColor g_light;
+  return g_light;
+}
+
+// Mech3.exe 1.2 @ 0x00568370. As set_fog_color, for a light's colour: the
+// Direct3D device gets it as its point-light colour (0x005798a0).
+void set_light_color(float rgb[3]) {
+  for (int i = 0; i < 3; ++i) {
+    if (rgb[i] > 1.0f) rgb[i] = 1.0f;
+    else if (rgb[i] < 0.0f) rgb[i] = 0.0f;
+  }
+  FogColor& c = light_color();
+  constexpr double kStep = 0.01f;  // 0x005ce688
+  const auto same = [&](int i) { return std::fabs(double{c.rgb[i]} - rgb[i]) < kStep; };
+  if (same(0) && same(1) && same(2)) return;
+  for (int i = 0; i < 3; ++i) c.rgb[i] = rgb[i];
+  if (g_device.active) zvid::set_point_light_color(rgb);
+  const SoftwareFormat& f = g_format;
+  const auto level = [&](int i) { return static_cast<uint32_t>(crt::msvc_ftol(0.5 - rgb[i] * -255.0)); };
+  const uint32_t b = level(2) >> f.b_shift_right;
+  const uint32_t g = (level(1) << f.g_shift) & f.g_mask;
+  const uint32_t r = (level(0) << f.r_shift) & f.r_mask;
+  set_fog_ramp(c, r, g, b);
 }
 
 // Mech3.exe 1.2 @ 0x0056c170

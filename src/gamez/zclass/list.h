@@ -49,6 +49,21 @@ struct ListWalk {
   ListItem* cursor = nullptr;      // 0x0060be40
   const void* key = nullptr;       // 0x0060be44
 };
+// Removal is lazy: the item loses its node and is marked removable, and the
+// list is flagged for the purge (docs/zclass-world.md section 2). 1 when the
+// list is empty, else 0.
+int list_remove(int list, Node* node);     // 0x004f8220 ECX list, EDX node
+int list_purge(int list);                  // 0x004f7980
+int purge_lists();                         // 0x004f7bd0, then the deferred deletes
+// The deferred-delete list's nodes are destroyed by 0x004eaf90, not ported
+// yet: the hook (null skips the node).
+void set_node_destroy(void (*destroy)(Node* node));
+// The frame's actions: each live item whose node is active (flag 4) and has
+// an action (+0x48) runs it, with purging held off; items without a node or
+// an action are marked removable. Then every flagged list is purged.
+int run_actions(ListItem* head);           // 0x004f7d20
+void run_action_lists();                   // 0x004f7d80: lists 0..5, each followed by 0x004f7f70
+
 ListWalk& list_walk();
 Node* list_walk_next(const void* key, int list, bool (*test)(Node* node));  // 0x004f8b20
 Node* list_walk_by_name(const char* name, int list);                       // 0x004f8bd0

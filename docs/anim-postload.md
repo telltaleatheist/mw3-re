@@ -1,6 +1,10 @@
 # Mission animations: the post-load pass 0x50ae60
 
-Mech3.exe 1.2, 2026-10-19 (subagent draft). Follows `docs/anim.md`: the def
+Mech3.exe 1.2, 2026-10-19 (subagent draft); ported 2026-10-20: every piece
+below (`zeff_anim_init.cpp` anim_load, `zeff_anim_run.*`, `zeff_anim_events.*`,
+`zweapon/zwep_damage.*`, the zClass helpers) and checked with the frames
+after it in `tests/differential/test_anim_run.py`; the runtime is
+`anim-run.md`. Follows `docs/anim.md`: the def
 record (0x13c) offsets below are the ones in its table; "def+X" is an offset
 into one def. `zeffect\zeff_anim_init.c` per `func2file.json`; the helpers
 are in `zeff_anim_run.c`, `zclass\class.c`, `object3d.c`, and an unnamed
@@ -142,27 +146,27 @@ Other state:
 
 | Address | What | Ported |
 |---|---|---|
-| 0x549410 | puffer tick node: once, `0x72be58 = 0x4fb740()`, null -> zerr line 0x1e2 "Error allocating puffer tickNode"; else `0x4eb5b0(node, 5)`, `0x4eb450(node, 0x5490e0)`. Every call: copy vec3 0x63d870 to 0x72be28 and 0x72be38, zero 0x72be4c/50/54 (`gmod_puff.cpp`) | no |
+| 0x549410 | puffer tick node: once, `0x72be58 = 0x4fb740()`, null -> zerr line 0x1e2 "Error allocating puffer tickNode"; else `0x4eb5b0(node, 5)`, `0x4eb450(node, 0x5490e0)`. Every call: copy vec3 0x63d870 to 0x72be28 and 0x72be38, zero 0x72be4c/50/54 (`gmod_puff.cpp`) | yes |
 | 0x50a0e0 | the reader | yes |
-| 0x4f9e00 | `tree_any(node ecx, cb edx)`: cb(node) == 1 -> 1; else children **from the last to the first** (+0x5c count, +0x60 array), recursive | no |
-| 0x4f9de0 | callback: node+0x3c (model) non-null, model+0x00 (type) == 1 Facade and model+0x04 (facade mode) == 0 CylindricalY -> 1 | no |
+| 0x4f9e00 | `tree_any(node ecx, cb edx)`: cb(node) == 1 -> 1; else children **from the last to the first** (+0x5c count, +0x60 array), recursive | yes |
+| 0x4f9de0 | callback: node+0x3c (model) non-null, model+0x00 (type) == 1 Facade and model+0x04 (facade mode) == 0 CylindricalY -> 1 | yes |
 | 0x4fb740 | object3d_create | yes |
-| 0x509750 | (flag 0x8000) `def+0x40 = 0x4f9b50(…, [0x5ebcb4], [0x5ebcb8])` (the tree copy), 0 -> return 0; flags \|= 0x20000; `0x509eb0`; flags &= ~0x8000. Dead for shipped data | no (0x4f9b50 is hooked) |
+| 0x509750 | (flag 0x8000) `def+0x40 = 0x4f9b50(…, [0x5ebcb4], [0x5ebcb8])` (the tree copy), 0 -> return 0; flags \|= 0x20000; `0x509eb0`; flags &= ~0x8000. Dead for shipped data | yes (0x4f9b50 hooked) |
 | 0x4eb300 | node_set_name | yes |
-| 0x4eb5b0 | `node_set_priority(node, p)`: null -> zerr, 5. If a callback (+0x48) is set: off the old action list (+0x44 in 0..5) via 0x4f8220, onto list p via 0x4f8080 (if 0..5). +0x44 = p. Here +0x48 is 0, so only +0x44 = 4 | no |
-| 0x5833f0 | `damage_on_collide(def, node, cb)` = 0x5832f0(…, slot 1) | no |
-| 0x5833b0 | `damage_on_weapon(def, node, flag, cb)` = 0x5832f0(…, slot 0); success and flag -> `0x4eb790(node, 1)` | no |
-| 0x5832f0 | register a damage callback, below | no |
-| 0x583220 | `owns_record(node, rec)`: 1 if every parent (+0x54/+0x58) is non-null and has a different +0xbc | no |
-| 0x583270 | fill slot {def, cb} of a new record, then 0x5832a0 | no |
-| 0x5832a0 | `spread(node, new, old)`: if node+0xbc == old, recurse into the children, then node+0xbc = new | no |
-| 0x4eb790 | node flags +0x24: set/clear 0x40 (mech3ax PROXIMITY, "never set in GameZ, only after Anim is loaded") | no |
-| 0x502df0, 0x502e60 | the collide / weapon damage callbacks (run at hit time, not here; below) | no |
-| 0x508310 | `anim_reset(def, node, keep)`, below | no |
-| 0x507fc0 | `anim_save_states(def)`: object refs from **0** (entry 0's node is 0 in every file); node 0 skipped; +0x28 = ACTIVE; object3d only: +0x2c = USE_MATRIX, then the matrix copy (0x4fc3f0) or 0x4fc020 / 0x4fbe90 / 0x4fbd20 | no |
-| 0x4fc3f0 | object3d transform pointer (data+0x30); checks node, data, class 5 | no |
-| 0x4fc020, 0x4fbe90, 0x4fbd20 | object3d get translation (data+0x54), rotation (+0x18), scale (+0x24); 0x4fc020 checks class 5, the other two do not | no |
-| 0x508ae0 | `anim_start(def, node, x, y, z)`, below | no |
+| 0x4eb5b0 | `node_set_priority(node, p)`: null -> zerr, 5. If a callback (+0x48) is set: off the old action list (+0x44 in 0..5) via 0x4f8220, onto list p via 0x4f8080 (if 0..5). +0x44 = p. Here +0x48 is 0, so only +0x44 = 4 | yes |
+| 0x5833f0 | `damage_on_collide(def, node, cb)` = 0x5832f0(…, slot 1) | yes |
+| 0x5833b0 | `damage_on_weapon(def, node, flag, cb)` = 0x5832f0(…, slot 0); success and flag -> `0x4eb790(node, 1)` | yes |
+| 0x5832f0 | register a damage callback, below | yes |
+| 0x583220 | `owns_record(node, rec)`: 1 if every parent (+0x54/+0x58) is non-null and has a different +0xbc | yes |
+| 0x583270 | fill slot {def, cb} of a new record, then 0x5832a0 | yes |
+| 0x5832a0 | `spread(node, new, old)`: if node+0xbc == old, recurse into the children, then node+0xbc = new | yes |
+| 0x4eb790 | node flags +0x24: set/clear 0x40 (mech3ax PROXIMITY, "never set in GameZ, only after Anim is loaded") | yes |
+| 0x502df0, 0x502e60 | the collide / weapon damage callbacks (run at hit time, not here; below) | yes |
+| 0x508310 | `anim_reset(def, node, keep)`, below | yes |
+| 0x507fc0 | `anim_save_states(def)`: object refs from **0** (entry 0's node is 0 in every file); node 0 skipped; +0x28 = ACTIVE; object3d only: +0x2c = USE_MATRIX, then the matrix copy (0x4fc3f0) or 0x4fc020 / 0x4fbe90 / 0x4fbd20 | yes |
+| 0x4fc3f0 | object3d transform pointer (data+0x30); checks node, data, class 5 | yes |
+| 0x4fc020, 0x4fbe90, 0x4fbd20 | object3d get translation (data+0x54), rotation (+0x18), scale (+0x24); 0x4fc020 checks class 5, the other two do not | yes |
+| 0x508ae0 | `anim_start(def, node, x, y, z)`, below | yes |
 | 0x49bfd0 | zerr_report, empty stub | (symbols.csv) |
 
 ### 0x5832f0 `damage_register(def ecx, node edx, cb, slot)` -> 1 / 0
@@ -353,16 +357,16 @@ ever sets 0x8000.
 ## Open
 
 - What node 0x5090e0 stores in 0x73f738: the code uses it as the world
-  (0x4f2a40, 0x4f2c30, 0x4f2e00, 0x4f3040 are `cls_world.c`); the emulator
-  sets the first list-13 node (slot 0 in every mission) and runs cleanly.
-  Still to trace in 0x48faf0 ([esp+0x30], also passed to 0x50d2c0).
-- What 0x5490e0 (puffer tick) and 0x507de0 / 0x508260 (anim ticks) do each
-  frame; how the action-list dispatcher 0x4f7d40 calls them (ECX = node,
-  only for ACTIVE nodes on non-removable items).
-- The arguments of 0x502e60 beyond ECX/damage; who calls the records'
-  callbacks (readers of node+0xbc in zweapon).
-- Who sets 0x5ebf0c / 0x5ebf10 (log defaults) and 0x60c714 (network hook).
-- 0x50bd50 writes `[0x60c718] & index & 0xffffff` into each record +4 per
-  the decomp; check the asm.
+  (0x4f2a40, 0x4f2c30, 0x4f2e00, 0x4f3040 are `cls_world.c`); both test
+  sides set the first list-13 node. Still to trace in 0x48faf0 ([esp+0x30],
+  also passed to 0x50d2c0).
+- Answered (`anim-run.md`): the ticks 0x507de0 / 0x508260 / 0x5085b0; the
+  dispatcher is 0x4f7d80 over lists 0..5 (0x4f7d20 each, then 0x4f7f70),
+  calling the action with ECX = node for active nodes on non-removable items;
+  0x502e60 is ECX def, EDX the hit (its +0x6c 0x400 skips), a stack dword
+  not used, the damage; 0x50bd50's +4 is `[0x60c718] & index & 0xffffff`.
+- Who calls the records' callbacks: the weapon hit code 0x583480 (slot 0,
+  with globals for the hit position) and 0x5836b0 (slot 1); not ported.
+- Who sets 0x5ebf0c / 0x5ebf10 (log defaults, 1) and 0x60c714 (network hook).
 - `functions reached` in the emu script comes from a block hook and misses
   some (0x4eb170 is called but not listed); use the per-address counters.

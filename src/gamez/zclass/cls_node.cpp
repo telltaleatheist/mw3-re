@@ -10,6 +10,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "platform/platform.h"
 
 namespace zcls {
@@ -246,6 +247,121 @@ Node* node_find_in_tree(Node* node, const char* name) {
   for (int32_t i = node->child_count(); i > 0;)
     if (Node* hit = node_find_in_tree(node->children[--i], name)) return hit;
   return nullptr;
+}
+
+namespace {
+// 0x004eb450 / 0x004eb500. The list push never fails, so the exe's free() of
+// the node on failure is dead.
+int set_action(Node* node, NodeAction action, int null_line, bool back) {
+  if (!node) return zerr::report(0x400, kClassFile, null_line, "Null node pointer."), 5;
+  const int32_t list = node->get<int32_t>(0x44);
+  if (list < 0 || list >= 6) {
+    char msg[64];
+    std::snprintf(msg, sizeof msg, "ERROR setting action callback; priority = %d", list);
+    return zerr::report(0x400, kClassFile, null_line + 5, msg), 1;
+  }
+  if (!node->action) {
+    if (action) back ? push_back(list, node) : push_front(list, node);
+  } else if (!action) {
+    list_remove(list, node);
+  }
+  node->action = reinterpret_cast<void*>(action);
+  return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004eb450
+int node_set_action(Node* node, NodeAction action) { return set_action(node, action, 0x584, false); }
+
+// Mech3.exe 1.2 @ 0x004eb500
+int node_set_action_back(Node* node, NodeAction action) { return set_action(node, action, 0x5c9, true); }
+
+// Mech3.exe 1.2 @ 0x004eb5b0. A node with an action moves to the new list's
+// front; any priority is stored, a list exists only for 0..5.
+int node_set_priority(Node* node, int32_t priority) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x602, "Null node pointer."), 5;
+  if (node->action) {
+    const int32_t old = node->get<int32_t>(0x44);
+    if (old >= 0 && old < 6) list_remove(old, node);
+    if (priority >= 0 && priority < 6) push_front(priority, node);
+  }
+  node->put<int32_t>(0x44, priority);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb620
+int node_set_flag8(Node* node, int on) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x62f, "Null node pointer."), 5;
+  node->set_flags(on ? node->flags() | 8 : node->flags() & ~8u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb660
+int node_get_flag8(Node* node, int32_t* out) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x648, "Null node pointer."), 5;
+  *out = (node->flags() >> 3) & 1;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004eb790. mech3ax PROXIMITY: only set once anims are loaded.
+int node_set_proximity(Node* node, int on) {
+  if (!node) return zerr::report(0x400, kClassFile, 0x6cd, "Null node pointer."), 5;
+  node->set_flags(on ? node->flags() | 0x40 : node->flags() & ~0x40u);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ebc30. The parent's +0x2c bit 2, then marked changed;
+// the child regains TREE_VALID when left with one parent that has it.
+int node_unlink(Node* parent, Node* child) {
+  int32_t at = -1;
+  for (int32_t i = 0; i < parent->child_count(); ++i)
+    if (parent->children[i] == child) {
+      at = i;
+      break;
+    }
+  if (at < 0) {
+    char msg[120];
+    std::snprintf(msg, sizeof msg, "ERROR deleting child node %s from parent node %s", child->name(), parent->name());
+    return zerr::report(0x200, kClassFile, 0x8c8, msg), 1;
+  }
+  for (int32_t i = at; i < parent->child_count() - 1; ++i) parent->children[i] = parent->children[i + 1];
+  parent->put<int32_t>(0x5c, parent->child_count() - 1);
+  at = -1;
+  for (int32_t i = 0; i < child->parent_count(); ++i)
+    if (child->parents[i] == parent) {
+      at = i;
+      break;
+    }
+  if (at >= 0) {
+    for (int32_t i = at; i < child->parent_count() - 1; ++i) child->parents[i] = child->parents[i + 1];
+    child->put<int32_t>(0x54, child->parent_count() - 1);
+    if (child->parent_count() == 1 && (parent->flags() & 0x80000)) node_set_tree_valid(child, 1);
+  }
+  parent->put<uint32_t>(0x2c, parent->get<uint32_t>(0x2c) | 2);
+  if ((parent->flags() & 1) == 0) {
+    push_front(kChanged, parent);
+    parent->set_flags(parent->flags() | 1);
+  }
+  parent->set_flags(parent->flags() | 2);
+  if (parent->changed) parent->changed->removable = 0;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f9e00
+int node_tree_any(Node* node, int (*test)(Node* node)) {
+  if (test(node) == 1) return 1;
+  for (int32_t i = node->child_count() - 1; i >= 0; --i)
+    if (node_tree_any(node->children[i], test) == 1) return 1;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f9de0. Model type 1 (facade), mode 0 (cylindrical y).
+int node_is_billboard(Node* node) {
+  const zmod::Model* m = node->model;
+  if (!m) return 0;
+  uint32_t type, mode;
+  std::memcpy(&type, m->header, 4), std::memcpy(&mode, m->header + 4, 4);
+  return type == 1 && mode == 0 ? 1 : 0;
 }
 
 // The message's arguments are swapped: "Wanted" shows the class found.

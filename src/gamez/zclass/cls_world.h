@@ -34,6 +34,17 @@ int world_cell_wrapped(Node* world, int32_t* cell_x, float x, float z, int32_t* 
 // the grid, truncated.
 int world_cell_clamped(Node* world, int32_t* cell_x, float x, float z, int32_t* cell_z);  // 0x004f2060
 
+// Adding and removing children, lights and sounds (ECX world, EDX node).
+// A child goes in the one partition cell its box fits (its +0x4c / +0x50 the
+// cell), else among the world's direct children (-1, -1); a cell that
+// changes joins the world's pending list (+0x04..+0x0c).
+int world_add_child(Node* world, Node* node);     // 0x004f2a40
+int world_remove_child(Node* world, Node* node);  // 0x004f2c30
+int world_add_light(Node* world, Node* light);    // 0x004f2d50
+int world_remove_light(Node* world, Node* light);  // 0x004f2e00
+int world_add_sound(Node* world, Node* sound);    // 0x004f2f90
+int world_remove_sound(Node* world, Node* sound);  // 0x004f3040
+
 struct World;
 // 0x004f18a0, called for each pending area entry; not ported yet.
 using AreaUpdate = void (*)(World* world, uint32_t* entry);

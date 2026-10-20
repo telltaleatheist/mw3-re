@@ -33,5 +33,9 @@ int node_box_xz(Node* node, float out[8][2]);       // 0x004ec150
 // it is valid, else through node_to_world. 0 ok, 1 null node.
 int node_world_euler(Node* node, float out[3]);     // 0x004ed5d0
 int node_world_position(Node* node, float out[3]);  // 0x004ed530
+// ECX node, EDX point: a point in the node's frame to the world, in place;
+// (0, 0, 0) gives the node's world position. 1 for a null node.
+int node_world_point(Node* node, float p[3]);       // 0x004ed650
+int node_world_frame(Node* node, float p[3], float out[3]);  // 0x004ed6e0, also the angles
 
 }  // namespace zcls

@@ -50,6 +50,11 @@ it is clear what the designers meant.
 - **Heat sink critical hits are reported.** Losing a heat sink to a critical
   hit now gives the "heat sink" callout and sound, which the original's check
   never allowed.
+- **A broken animation condition no longer cancels the others.** When one
+  of a mission animation's conditions names an object missing from the
+  level, the original dropped all its conditions and fired it at once; now
+  only the broken one is ignored. No shipped mission has one; it matters
+  for modded missions.
 - **The last animation in a mission can be waited for.** A search stopped one
   short of the end of the list. No shipped mission was affected.
 - **A smoke fade-in typo is fixed:** smoke set to fade in near the camera

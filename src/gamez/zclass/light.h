@@ -14,4 +14,19 @@ int light_get_orientation(Node* node, float* x, float* y, float* z);    // 0x004
 int light_set_ambient(Node* node, float v);                             // 0x004fa940  data +0xa0
 int light_set_diffuse(Node* node, float v);                             // 0x004fa9b0  data +0x9c
 
+// The light state event's setters (zeff_anim_run 0x00503390). Flags +0xb0
+// (mech3ax): 0x20 ambient only, 0x40 diffuse only, 0x80 directional, 0x100
+// saturated (recomputed: directional, neither "only" bit, white).
+int light_set_bit2(Node* node, int32_t on);                             // 0x004faa20
+int light_set_bit3(Node* node);                                         // 0x004faaa0  and clears bit 4
+int light_set_bit4(Node* node);                                         // 0x004fab20  and clears bit 3
+int light_set_ambient_only(Node* node, int on);                         // 0x004faba0
+int light_set_diffuse_only(Node* node, int on);                         // 0x004fac70
+int light_set_directional(Node* node, int on);                          // 0x004fad30
+int light_set_range(Node* node, float a, float b);                      // 0x004fadf0  +0xb4..+0xc4
+int light_get_range(Node* node, float* near_range, float* far_range);   // 0x004faf20
+int light_set_position(Node* node, float x, float y, float z);          // 0x004faf80  +0x0c
+int light_get_color(Node* node, float* r, float* g, float* b);          // 0x004fb4b0  +0xa4
+int light_set_color(Node* node, float r, float g, float b);             // 0x004fb510
+
 }  // namespace zcls

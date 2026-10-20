@@ -790,7 +790,9 @@ From the animation files (anim.md).
   animation's "wait until this object is active" condition names an object
   that is not in the level, the game drops every condition of that
   animation, not just the broken one, and the animation can then fire
-  without waiting.
+  without waiting. None of the six shipped missions trips over it (checked
+  against every level), so it only bites in modded missions. (Fixed in the
+  rebuild: only the broken condition is dropped.)
 - **Every animation's reset script runs once while the mission loads**, and
   what it leaves is the starting state of the level (anim-postload.md).
 - **Lights, sounds and smoke tied to animations start switched off**: in the
@@ -805,6 +807,38 @@ From the animation files (anim.md).
 - **The list of source files is read and ignored.** Each anim.zbd starts with
   the names and dates of the text files it was built from; the game reads
   past them without looking.
+- **Distance- and zone-triggered effects check only every few frames.** An
+  animation that runs only near the player or in a zone tests that once,
+  then waits 1 to 10 frames (a counter handed round in turn) before testing
+  again, so such effects start or freeze a few frames late (anim-run.md).
+- **Flying debris gives up after 15 seconds of falling.** A piece thrown by
+  an animation with gravity (a torn-off mech limb, rubble) that finds no
+  ground under it stops moving after 15 seconds in the air, wherever it is.
+- **Debris lands softly or bounces.** On touching the ground a piece moving
+  sideways bounces up by half its step; one falling straight is set on the
+  ground. If it lands slower than it accelerates it stops; otherwise it keeps
+  a fifth of its speed. Pieces can start a different sequence and sound
+  depending on the surface (two special surface types).
+- **A flying piece's first ground check can happen in the wrong place.** The
+  matrix the game works out for a piece thrown "in its parent's frame" gets
+  leftover memory as its position, and that matrix is then kept as the
+  piece's world position, so in the original its next ground test looks
+  under an undefined spot (fixed in the rebuild with the matrix code).
+- **An "if" with several "else if" branches tests the first branch's object
+  in every branch.** Conditions about an object (is the ground under it,
+  is it below a height) always read the object named by the first "if",
+  whatever object the later branches name.
+- **Light animations cannot shrink a light to nothing.** A light's near range
+  pushed below 0 jumps to 1, and a far range pushed below the near one is
+  set one unit past it.
+- **Every animation start is written down for the savegame and the network.**
+  Each start, reset and connector call is logged with its arguments (1000
+  entries, doubled when full), except effects added to the world for the
+  run and effects without a name.
+- **An animation clock never passes a day.** A looping animation's clock is
+  pulled back to 86,400 seconds when it gets past that.
+- **"-99" means "never restart while running".** An animation whose reset
+  time is -99 ignores calls to start it while it is still running.
 
 ## Smoke and fire
 

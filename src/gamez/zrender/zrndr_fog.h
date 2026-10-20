@@ -33,6 +33,9 @@ struct FogColor {                  // 0x00800548
   int32_t ramp[32] = {};           // +0x20  ramp[31 - i] = i * step
 };
 FogColor& fog_color();
+FogColor& light_color();           // 0x008005e8, the same layout for the light colour
+
+void set_light_color(float rgb[3]);                        // 0x00568370, clamps rgb in place
 
 void set_fog_color(float rgb[3]);                          // 0x00567eb0, clamps rgb in place
 void set_fog_ramp(FogColor& f, uint32_t r, uint32_t g, uint32_t b);  // 0x0056c170

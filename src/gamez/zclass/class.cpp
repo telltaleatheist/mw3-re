@@ -179,6 +179,51 @@ int node_world_position(Node* node, float out[3]) {
   return 0;
 }
 
+namespace {
+bool zero3(const float* p) {
+  const auto z = [](float v) { return !(v < 0.0f || v > 0.0f); };  // x87 "equal": NaN too
+  return z(p[0]) && z(p[1]) && z(p[2]);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ed650. 1 for a null node.
+int node_world_point(Node* node, float p[3]) {
+  if (!node) return 1;
+  if (zero3(p)) {
+    node_world_position(node, p);
+    return 0;
+  }
+  zmth::Mat34 m;
+  zmth::push(&m);
+  zmth::load_identity();
+  node_to_world(node, 1);
+  zmth::transform_points(reinterpret_cast<zmth::Vec3*>(p), 1);
+  zmth::pop();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004ed6e0 (ECX node, EDX point, stack out). The point as
+// node_world_point (zero: the node's origin), and the angles of the node's
+// -z axis seen from its origin (pitch, yaw), with the pitch toward its +x as
+// the roll.
+int node_world_frame(Node* node, float p[3], float out[3]) {
+  if (!node) return 1;
+  zmth::Vec3 axes[2] = {{0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}};
+  zmth::Mat34 m;
+  zmth::push(&m);
+  zmth::load_identity();
+  node_to_world(node, 1);
+  if (zero3(p)) std::memcpy(p, m.m + 9, 12);
+  else zmth::transform_points(reinterpret_cast<zmth::Vec3*>(p), 1);
+  const float at[3] = {m.m[9], m.m[10], m.m[11]};  // the node's origin, not the point
+  zmth::transform_points(axes, 2);
+  zmth::load_identity();
+  zmth::direction_angles(at, &axes[0].x, out);
+  out[2] = zmth::direction_pitch(at, &axes[1].x);
+  zmth::pop();
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004ebdb0. Box min at +0x74, max at +0x80. The local
 // matrix: camera +0x80, object3d +0x30 (none with data flag 8), animate +8
 // when active; worlds, lods, sequences, lights and sounds have none.

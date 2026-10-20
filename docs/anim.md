@@ -249,7 +249,8 @@ For each def i (offset `i * 0x13c`), with `prev_name` = 0 at the start:
      0x4f9d60 searches `last` and its children, depth first. Not found: logs
      `ACTIVATION_PREREQUISITE error; couldn't find node.` (line 0x33a0) and
      **sets the prerequisite count to 0** (the def loses all of them; the
-     load goes on). Found: +0x2c = node, `last = node`, and type 2 resets
+     load goes on; the port's FIX (bug) drops only that entry, `fixes.md`;
+     no shipped mission reaches it). Found: +0x2c = node, `last = node`, and type 2 resets
      `last` to 0. So a type-3 (parent) entry is looked up under the node found
      by the entry before it.
    - other types: skipped.
@@ -292,8 +293,8 @@ For defs 1..n-1 with status not 4 or 5:
 
 Then: defs with flags & 0x20 and status 0 or 1 -> 0x508310(0); every def ->
 0x507fc0; status 5 logs `Corrupt animation loaded:` (0x5ebee0); status != 2
-and activation 4 -> 0x508ae0(0, 0, 0) (start now). None of this was traced
-further.
+and activation 4 -> 0x508ae0(0, 0, 0) (start now). All of it is mapped in
+`anim-postload.md` and ported with the runtime (`anim-run.md`).
 
 ## mech3ax cross-check
 
@@ -327,7 +328,7 @@ order. Differences:
 4. The fixup pass, checked against the emulator with a loaded `gamez.zbd`
    world (the real lookups instead of stubs).
 5. 0x5090f0, 0x509150, 0x5090e0, 0x508fc0, 0x50b380/0x50b0e0, 0x50ae60.
-6. The event runtime (`zeff_anim_run.c`), its own trace.
+6. The event runtime (`zeff_anim_run.c`): done, `anim-run.md`.
 
 ## Open questions
 

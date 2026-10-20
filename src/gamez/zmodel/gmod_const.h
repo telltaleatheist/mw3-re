@@ -49,4 +49,10 @@ Model* model_at(int32_t index);               // 0x005380c0
 int read_models(std::FILE* f);                // 0x00538e30
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 
+// The texture cycle of the model's first polygon's material (gmod_const.c):
+// back to its first texture, or to frame n (past the end it wraps, below 0
+// it is 0). No cycle: nothing.
+void cycle_reset(Model* m);                   // 0x0053bc10
+void cycle_set_frame(Model* m, int32_t n);    // 0x0053bc90
+
 }  // namespace zmod

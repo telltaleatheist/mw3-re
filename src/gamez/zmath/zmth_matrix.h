@@ -79,6 +79,12 @@ void matrix_to_euler(const Mat34& m, float out[3]);  // 0x00523bc0
 bool invert(const Mat34& m, Mat34& out, bool translation);  // 0x00523c50, false if singular
 void euler_to_quat(float x, float y, float z, float q[4]);  // 0x00525340  q = (w, x, y, z)
 void quat_matrix(const float q[4], float r[9]);           // 0x00525740  unit quaternion to 3x3
+void quat_exp(const float v[3], float q[4]);               // 0x00525900  axis-angle vector to (w, x, y, z)
+void quat_mul(const float a[4], const float b[4], float out[4]);  // 0x005255d0  a * b
+// ECX a, EDX b, stack out: (pitch, yaw, 0) of b seen from a (atan2 of the
+// differences; y counts up).
+void direction_angles(const float a[3], const float b[3], float out[3]);  // 0x00523ac0
+float direction_pitch(const float a[3], const float b[3]);                // 0x00523b40
 
 // e^-x from a 256-entry table in steps of 1/51 (x truncated to a step): 0 above
 // 5, 1 below 0 or NaN. Built on the first call (docs/puffers.md, drag).
@@ -103,6 +109,9 @@ void rotate_points(Vec3* v, uint32_t count);                  // 0x005225b0  in 
 void rotate_points_transposed(Vec3* v, int32_t count);        // 0x00522640  in place, by the inverse 3x3
 void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // 0x005226e0  normals
 void transform_points(Vec3* v, uint32_t count);               // 0x005227a0  in place
+// ECX matrix, EDX box (min xyz, max xyz), stack out: the box through m,
+// axis aligned again (each term takes min or max by the sign of m's entry).
+void transform_box(const float* m, const float box[6], float out[6]);  // 0x005231b0
 void inverse_transform_points_to(const Vec3* src, Vec3* dst, int32_t count);  // 0x00522910
 void transform_points_to(const Vec3* src, Vec3* dst, uint32_t count);  // inlined in 0x0053f2e0
 // ECX m (12 floats), EDX box (min x, y, z, max x, y, z), stack out: the

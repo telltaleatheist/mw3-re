@@ -3,6 +3,8 @@
 #include <cstring>
 #include <new>
 
+#include "gamez/zclass/class.h"
+
 namespace zcls {
 
 namespace {
@@ -108,6 +110,106 @@ int push_back(int list, Node* node) {
   }
   if (list == kChanged) mark_changed(node, item);
   return 0;
+}
+
+namespace {
+void (*g_destroy)(Node* node) = nullptr;
+}  // namespace
+
+void set_node_destroy(void (*destroy)(Node* node)) { g_destroy = destroy; }
+
+// Mech3.exe 1.2 @ 0x004f8220. List 7 goes through the node's own item
+// (kept when the node's flag 2 is set); the others take the first item of
+// this node that is not already marked.
+int list_remove(int list, Node* node) {
+  List& l = g_lists.list[list];
+  if (!l.head) return 1;
+  ListItem* item = nullptr;
+  if (list == kChanged && node->changed) {
+    if (node->flags() & 2) return 0;
+    item = node->changed;
+    node->changed = nullptr;
+    node->set_flags(node->flags() & ~1u);
+  } else {
+    for (item = l.head; item; item = item->next)
+      if (item->node == node && item->removable == 0) break;
+  }
+  if (!item) return 0;
+  item->node = nullptr;
+  item->removable = 1;
+  l.needs_purge = 1;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7980. Unlinks and frees every item marked removable
+// or without a node; on list 7 an item whose node has flag 2 is kept (unmarked).
+int list_purge(int list) {
+  if (!g_lists.enabled) return 0;
+  List& l = g_lists.list[list];
+  ListItem* head = l.head;
+  ListItem* tail = l.tail;
+  ListItem* cursor = head;
+  for (;;) {
+    while (cursor && cursor->removable == 0 && cursor->node) cursor = cursor->next;
+    if (!cursor) break;
+    ListItem* item = cursor;
+    cursor = item->next;
+    if (list == kChanged && item->node && (item->node->flags() & 2)) {
+      item->removable = 0;
+      continue;
+    }
+    if (item == head) l.head = head = head->next;
+    if (item == tail) l.tail = tail = tail->prev;
+    if (item->prev) item->prev->next = item->next;
+    if (item->next) item->next->prev = item->prev;
+    if (list == kChanged && item->node) {
+      item->node->set_flags(item->node->flags() & ~1u);
+      item->node->changed = nullptr;
+    }
+    item_free(item);
+  }
+  l.needs_purge = 0;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7bd0. In the lists' memory order (6, 0..5, 7..10,
+// 13..15, 11, 12), then 0x004f81e0 empties the deferred-delete list.
+int purge_lists() {
+  if (!g_lists.enabled) return 1;
+  static const int kOrder[] = {6, 0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 13, 14, 15, 11, 12};
+  for (int list : kOrder)
+    if (g_lists.list[list].needs_purge) list_purge(list);
+  while (ListItem* item = g_lists.deferred) {
+    g_lists.deferred = item->next;
+    if (item->node && g_destroy) g_destroy(item->node);
+    item_free(item);
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7d20
+int run_actions(ListItem* head) {
+  const int32_t enabled = g_lists.enabled;
+  g_lists.enabled = 0;
+  for (ListItem* item = head; item; item = item->next) {
+    Node* node = item->node;
+    if (!node || !node->action) {
+      item->removable = 1;
+      continue;
+    }
+    if (item->removable == 0 && (node->flags() & 4)) reinterpret_cast<NodeAction>(node->action)(node);
+  }
+  g_lists.enabled = enabled;
+  return purge_lists();
+}
+
+// Mech3.exe 1.2 @ 0x004f7d80. An empty list is skipped, frame update included.
+void run_action_lists() {
+  for (int list = 0; list < 6; ++list) {
+    if (!g_lists.list[list].head) continue;
+    run_actions(g_lists.list[list].head);
+    if (update_hooks().frame_update) update_hooks().frame_update(update_hooks().ctx);
+  }
 }
 
 ListWalk& list_walk() { return g_walk; }
