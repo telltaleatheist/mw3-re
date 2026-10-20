@@ -215,6 +215,18 @@ Bugs whose intent is clear, fixed as the port reaches the code:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
+- Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
+  window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
+  original 640x480 4:3. The game's projection and clipping work from the
+  video mode's width and height; the mode list (640x480, 800x600,
+  1024x768, plus 1152x864, 1280x1024 and 1600x1200 reachable only from the
+  registry) and its checks would accept any size; 16:9 widens the field of
+  view (more to the sides) rather than stretching; the 640x480 menus and
+  HUD art are scaled, the menus pillarboxed. Players' crashes at high
+  resolutions (Escape, the pause menu's Options above ~1000 lines;
+  `community-issues.md`) are to be found in the 2D code then. A FIX (B),
+  after the settings loader and the menus.
+
 - ZAPS_HUD, 0x4af71b: the second value reads the first value's slot again, so
   the ERPPC's `(0.5 2.0)` HUD static is (0.5, 0.5). Reading the second value
   is the evident intent, but what the second number does on the HUD

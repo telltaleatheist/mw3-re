@@ -212,7 +212,9 @@ through hooks:
    pump, clock, input, audio, Render3D) and the hooks wired to the ports, so
    the port starts like the game; a debug start straight into a mission for
    testing while the menus are not ported.
-5. Open from earlier: the lava-per-frame decision (Owen), mission mode 3 and
+5. Any resolution and 16:9, up to 4K, as a setting (Owen, 2026-10-20;
+   `fixes.md` candidates): after the settings loader and the menus.
+6. Open from earlier: the lava-per-frame decision (Owen), mission mode 3 and
    the controls value in heat, the loose-text .zrd tokenizer, weapons/ammo
    and pilot structures, the detail.zrd loader and registry settings.
 
