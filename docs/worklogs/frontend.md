@@ -51,3 +51,24 @@ break script leaves its last mutant built: rebuild after. Commits carry no
 Co-Authored-By / Claude-Session lines (noreply email set in the worktree).
 Left: 0x0040b310 pull-in, the world queries of the ground/water/weather
 checks, the torso's cockpit switch 0x0041ce10 and the HUD's camera calls.
+
+## 2026-10-20 The HUD's construction, item 1b (branch mac3/hud-map)
+
+docs/hud.md maps the HUD (porting order section 7, as ported section 9).
+mech3/hud builds the 0x22e40-byte HUD and all ten pieces on the ported
+zTwoD, members in the original's order so the recorded calls match;
+test_hud.py + probe_hud.cpp compare traces and every constructor-set field
+(100 runs). New in zTwoD: FontText's text by message id (0x00409bd0, the
+FormatMessage behind Host::format_message; the RecordingHost answers
+"msg<id>"), and partial Frame, FilledBox, Line2D, ClipLine2D, Polygon and
+Shape in twod_shapes.cpp (built and set, not drawn). zRender's nodes, the nav
+list 0x0047e840, messages and the options' rects are HudHooks (lead's call:
+the zoom views port with the render work).
+Remember: emulator memory made after the snapshot is invisible to the
+replay's peeks (make strings before `e.snapshot()`); pointers are 64-bit
+here (the original's calloc(4, n) of pointers needs n * 8); an import or
+engine function the original runs natively (0x004f34c0) must be stubbed to
+show in the trace. Break script: scratch/breaks_hud.py (33 of 41, misses
+equivalent at construction).
+Next: 1a, the set-up 0x0043bb80 and the hud.zrd readers, with the +0x22e3c
+FIX (bug) checked in tests/test_fixes.cpp.

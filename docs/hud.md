@@ -75,30 +75,53 @@ size goes to [0x00605998] / [0x0060599c].
 
 ### What each piece draws
 
-- **Radar** (0xdc0 bytes): a FilledBox with three FontTexts (mech_string),
-  the contact images (`hud_light_green/yellow/red` and the like, 0x50 a
-  list), the range text (`%.1fkm`), large and small sizes (0x0043da00),
-  centred at (0x37, 0x37) of a 0x140 x 0xf0 area by default.
+- **Radar** (0xdc0 bytes): a FilledBox (green) with the view cone's two
+  edges and a red line (HUD lines 0x005a6ae0), two texts (mech_string; the
+  range `%.1fkm`), a light (`hud_light_green/yellow/red`, at 11, 11) and two
+  polylines. Two sizes, moved to in steps of 10 pixels (0x0043da50): small,
+  radius 50 at (55, 55); zoomed, radius 180 at (320, 240). The cone is the
+  view's 60 degrees (0x0043f0c0), turned round on a flipped map (0x0043f130).
 - **Compass** (0x678): the `hud_compass` tape (245 x 19) scrolled under
   `hud_compass_frame` (245 x 11) by the heading (0x0043f590).
 - **Reticle** (0x95c): `ret_on`, `ret_off`, `ret_over`, `ret_cant` (aimed,
-  idle, over a target, out of range); the zoom window: the `zoomcam` camera
-  (0x004436c0 places it), `hud_zoomon` / `hud_zoomoff`.
+  idle, over a target, out of range; `ret_on` is fetched twice, +0x914 and
+  +0x920); the zoom window (0x00442ac0): the `zoomcam` camera (5 degrees,
+  zoom 10, the player camera's clip), its light `hud_zoomoff/on/over/cant`,
+  a text, and a box (or a circle when +0x16c), sized by its scale +0x170 and
+  kept 2 pixels inside the display (0x004438f0, 0x0043fa40).
 - **Gauges** (0x168c): `hud_speed_frame` (575, 256), `hud_coolant_frame` (8,
   290), `hud_fuel_frame` (527, 296), `hud_heat_bar` (18, 163),
   `hud_heat_meter` (16, 163), the heat arrow (`lab_toggler_green`, 10, 150),
-  the heat text (Arial 8), and three bars (key-list pieces 0x005a6bd0).
-- **MFD and TARGET** (0xcd8, 0x2414): the damage silhouette in five colours
-  per part; TARGET adds the enemy arrows (`hud_enarrow_left/right`) and the
-  target's text (`%s: %s`, `%.2fkm`, ` (%dm)`, 0x00441850).
-- **Weapons list** (0x11444): one entry per weapon (0x00447c40:
-  `wepstring_red/green`, `hud_light_*`), `hud_weapon_select`,
-  `hud_weapon_chain`, the ammo (`%3d`, 0x00445dc0).
-- **Objectives** (0xaac): `rtobjective_title/incomplete/complete`,
-  `rt_mp_scores`.
+  the coolant and fuel texts (Arial 8, messages 0x1d5 / 0x1d6, green with a
+  dark green shadow), the speed text, and three bars (four-point polygons,
+  0x005a6bd0; coolant blue, fuel green) inside the frames.
+- **MFD and TARGET** (0xcd8, 0x2414; one base, 0x00442060 and 0x00441da0):
+  the damage silhouette in five colours per part (the player's own, or a
+  target's mirrored as seen from the front, 0x00447680 / 0x00447820), a 3D
+  view of the mech (0x00442620: a zoom view on a see-through panel, boxed),
+  the nav list (0x0047e840) and a title (message 0xdbe, 0xfbb in a
+  multiplayer game). TARGET adds two Shapes, three lines, a Frame, twelve
+  arrows (`hud_enarrow`, `hud_allyarrow`, `hud_othererrow` left, right, up,
+  down; "othererrow" as spelled), a marker and three texts above it
+  (message 0x22a; `%s: %s`, `%.2fkm`, ` (%dm)`, 0x00441850). Their modes
+  (+0x38) survive in [0x00605988] / [0x0060598c]; at first 1 in Direct3D, 3
+  in software (0x00441d90).
+- **Weapons list** (0x11444): sixteen lines (0x00445760: a Slider, the
+  recycle bar, with the name and two texts, `wepstring_red/green/yellow/grey`,
+  a light `hud_light_*` and a mark), `hud_weapon_select`, `hud_weapon_chain`,
+  the ammo (`%3d`, 0x00445dc0), over a see-through panel.
+- **Objectives** (0xaac): a TextBox of 25 lines over a panel and the scores
+  box 260 pixels to its right (0x00446870), fonts
+  `rtobjective_title/incomplete/complete`, `rt_mp_scores`; hidden at first.
 - **Timer**: the mission clock (`%02d:%02d:%02d`; the multiplayer clock
   [0x00609920] in a network game, else the game time [0x0060991c]).
-- **Equipment** (0x22e40 - 0x188c0): the equipment list with `dmg_bg_grn`.
+- **Equipment** (0xa548): sixteen lines (0x00447c40: the name, a value
+  right-aligned at column 110, a light `hud_light_red/yellow/green`; fonts
+  `wepstring_*`), 10 pixels apart under (530, 30), over a panel.
+
+The see-through panels (0x0043a7e0, 0x108 bytes) are an image of one colour,
+green (0, 64, 0), at 60% opacity in Direct3D and opaque in software
+(0x0043a7c0), with the four corners Direct3D draws it by (depth 0.9).
 
 ## 3. hud.zrd and the set-up (0x0043bb80)
 
@@ -131,14 +154,16 @@ mech's 0x0041df10 is 2), and releases the reader.
 
 - zTwoD (twod.md, ported): Object2D groups (0x0059fda0), Image (0x0059b970,
   named 0x0059b830), FontText and TextBase (0x005a00c0 with a fonts.zrd font
-  0x00517680, 0x005a0660), Text (0x005a15a0), TextBox (0x005a18f0), Slider
-  (0x0059e0f0), the Layer's add 0x0059fbe0.
-- zTwoD's HUD side, not ported (twod.md, Left): FilledBox and Frame
-  (0x005a3b60, 0x005a39f0), PolyLine and Shape (0x005a3830, 0x005a3170;
-  0x005a38a0, 0x005a3580 its transformed points), zRender's 2D line list
-  0x00562cb0 and boxes 0x005630c0 / 0x00563440, the line clip helpers
-  0x0059b2f0..0x0059b7e0, HUD lines 0x005a67e0..0x005a6b30, the key-list
-  bars 0x005a6bd0..0x005a6d10.
+  0x00517680, 0x005a0660; text by message id 0x00409bd0), Text (0x005a15a0),
+  TextBox (0x005a18f0), Slider (0x0059e0f0), PolyLine (0x005a3830), the
+  Layer's add 0x0059fbe0.
+- zTwoD's HUD side, built and set up but not drawn yet (twod.md): Frame and
+  FilledBox (0x005a39f0, 0x005a3a60, 0x005a3b60), Shape (0x005a3170,
+  0x005a34c0..0x005a3530), the HUD lines (0x005a67e0, 0x005a6880, 0x005a6ae0),
+  the polygon bars (0x005a6bd0, 0x005a6c30). Not ported: their draws,
+  Shape's transformed points 0x005a3580, zRender's 2D line list 0x00562cb0
+  and boxes 0x005630c0 / 0x00563440, the line clip helpers
+  0x0059b2f0..0x0059b7e0.
 - 3D: the zoom window's camera (`zoomcam`: 0x004f3a70, 0x004f3d90,
   0x004f3ff0, 0x004b5150, 0x004b5440, a second view drawn through
   0x004f9fa0 / 0x004fa0b0); the cockpit model's node.
@@ -177,12 +202,15 @@ mech's vt+0x148: heat); the target's text 0x00441850; the equipment
 
 Small items, each with a differential test:
 
-1. **Construction and data**: the HUD object (0x0043b190), the pieces'
-   constructors with their defaults, the damage images (0x0043ae50), and the
-   set-up 0x0043bb80 with every hud.zrd reader (0x00442230, 0x00440110,
-   0x0043f500, 0x00444dc0 / 0x00444e55, 0x00446120, 0x00448200, the timer).
-   Test: the fields on the shipped hud.zrd at every video mode and on
-   crafted variants (missing keys, missing blocks, odd values).
+1. **Construction and data**:
+   - 1b, done: the HUD object (0x0043b190) and every piece's constructor
+     with their defaults and helpers, on the ported zTwoD (`mech3/hud`,
+     section 9).
+   - 1a, next: the set-up 0x0043bb80 with every hud.zrd reader (0x00442230,
+     0x00440110, 0x0043f500, 0x00444dc0 / 0x00444e55, 0x00446120,
+     0x00448200, the timer). Test: the fields on the shipped hud.zrd at
+     every video mode and on crafted variants (missing keys, missing blocks,
+     odd values).
 2. **The HUD primitives** zTwoD has left: FilledBox / Frame, PolyLine and
    Shape with the transformed points and zRender's line list, the line clip
    helpers, the key-list bars (twod.md, Left).
@@ -208,3 +236,59 @@ Small items, each with a differential test:
   equipment list; what +0x70 of the HUD selects for the radar.
 - 0x0043be10, 0x00441800 (with the mech's +0x6c) and 0x0041bd80 are not
   read yet.
+
+## 9. As ported (`mech3/hud`)
+
+`mech3::Hud` is the 0x22e40-byte object, its pieces members in the
+original's order (constructed in it, so the recorded calls come in the same
+order): `HudRadar`, `HudCompass`, `HudReticle` (with `HudZoomWindow`),
+`HudGauges` (`HudBar`), `HudMfd` (`HudDamageView`, `HudMfdView`),
+`HudTarget`, `HudWeapons` (`HudWeaponLine`), `HudObjectives`, the timer and
+`HudEquipment` (`HudEquipLine`), with the shared `HudPanel`, `HudText`
+(a FontText in mech_string, vtable 0x005bc598) and `HudLight`. The lights,
+fonts and damage silhouettes every HUD shares are `weapon_set()`,
+`equipment_set()` and `damage_set()`. Only the constructors and what they
+call are ported; the frame updates, show_for of the radar, the zoom window,
+TARGET and the objectives, and the set-up are not (section 7).
+
+The engine sits behind `HudHooks`: the set-up 0x0043bb80, the mission
+entry's flip, zRender's nodes for the zoom views (window and camera nodes,
+names, size, place, zoom, field of view, clip, active), the player camera's
+clip, the options' display and window rects, the nav list 0x0047e840, the
+pilot's game, Mech3Msg.dll's messages and the saved MFD modes.
+
+The zoom views (0x0043f660: the MFD's and TARGET's mech, the reticle's zoom)
+are built as structs with the original's fields (`HudZView`: the camera node,
+its window, the world, the render path; `HudViewWindow`: the window node,
+its area and target and their ratio) and their engine calls recorded.
+
+FIX (bug), behind `zfix::options().bugs`: the constructor clears +0x22e3c,
+which the original leaves as `new` left it and the set-up reads for a video
+mode without a hud.zrd block (section 3; `fixes.md`).
+
+Test: `test_hud.py` (`tests/probe_hud.cpp`) builds the HUD in the emulator
+and in the port, with random render paths, display and window rects, saved
+modes, message tables and mission flips, and compares the call traces and
+every field the constructors set, on 100 runs. Breaking the port: 33 of 41
+mutations caught; the eight misses change nothing a constructor does (a
+wrap constant that rounds to the same float, flags already clear, the red
+look never taken, red 1 and 0 packing to the same 565 pixel, steps already
+positive, a text already empty, points set in order, and +0x22e3c, which only
+the set-up reads: item 1a's test).
+
+### Left
+
+- The set-up and the readers (item 1a).
+- The zoom views' drawing and camera work, with the render work: the zView
+  and window creation (0x004b5150, 0x004b5440) and the camera setters stay
+  recorded hooks until then (lead, 2026-10-20).
+- The nav list 0x0047e840 (its own 0x2fb8-byte object, mech3's mission
+  side) stays a recorded hook.
+- The paths with a target or a mech: TARGET's 0x00441800 / 0x00441780 /
+  0x00441660 with a target, the radar's zoom sound (0x0043da50 with a
+  source, 0x0043da00), the weapon line's refresh 0x00445dc0 with a weapon,
+  the equipment's and weapons' readers 0x00448200 / 0x00446120 with a HUD.
+- The show_for overrides 0x0043db70 (radar), 0x004438d0 (zoom window),
+  0x00441560 (TARGET), and the objectives' and weapons' parts of theirs
+  (0x00446ad0, 0x00446520).
+- TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).

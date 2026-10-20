@@ -78,12 +78,14 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
 | MessageBox | 0x005a6e60 | 0x005d08f0 | 0x12494 | Dialog | yes |
 | MbButton (8 vtables) | 0x0059bbe0 | 0x005d0d10..0x005d0920 | 0x14c | Control | yes |
-| Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | | PolyLine | no |
+| Shape (transformed polyline) | 0x005a3170 | 0x005cff58 | 0x124 | PolyLine | partial: built and set (0x005a34c0..0x005a3530); points and draw not |
 | PolyLine | 0x005a3830 | 0x005cfff0 | 0xec | Object2D | the plain path (the draw list and transformed paths are the HUD's) |
 | LineEditor | 0x005a46a0 | 0x005d0330 | 0x114 | | yes |
 | Caret | 0x005a4b10 | 0x005d0360 | 0x10c | PolyLine | yes |
 | EditBar (its line: vtable 0x005d0478) | 0x005a4ec0 | 0x005d03e0 | 0x380 | Control | yes |
-| Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | | Object2D | no |
+| Frame / FilledBox | 0x005a39f0, 0x005a3a60 / 0x005a3b60 | 0x005d0070 / 0x005d00f0 | 0x54 / 0x58 | Object2D | partial: built; draws not |
+| Line2D / ClipLine2D (HUD lines) | 0x005a67e0 / 0x005a6ae0 | 0x005d06e0 / 0x005d0760 | 0x4c / 0x50 | Object2D | partial: built and placed (0x005a6880); draws not |
+| Polygon (HUD bars) | 0x005a6bd0 | 0x005d0860 | 0x134 | Object2D | partial: built and set (0x005a6c30); draw 0x005a6ca0 not |
 | Render overlay | 0x005a4590 | 0x005d0288 (+0x28: 0x005d0290) | | Layer | no |
 | Ripple | 0x005a53e0 | 0x005d04a8 | 0x4c | Object2D | yes (its zRender draw 0x00558dd0 hooked; mainmenu.md) |
 | SnowFX, Snow, Rain | 0x005a5470, 0x005a5ad0, 0x005a60a0 | 0x005d0528, 0x005d05e0, 0x005d0660 | | Object2D | no |
@@ -539,18 +541,20 @@ caret's place, colour and lines (0x00562940 recorded), set_text's cuts.
 
 Mapped, not ported:
 
-- The LOGFONT and message-id setters 0x005961d0, 0x00409bd0,
-  0x00409bf0, 0x00409c40 and the text box's 0x005a1cd0 / 0x005a1cf0 (the
-  message table's FormatMessage, 0x00575ff0), the box's text thunk
+- The LOGFONT and message-id setters 0x005961d0, 0x00409c40 and the text
+  box's 0x005a1cd0 / 0x005a1cf0 (FontText's 0x00409bd0 / 0x00409bf0 are
+  ported, the message table's FormatMessage 0x00575ff0 behind
+  `Host::format_message`), the box's text thunk
   0x005a22c0, the plain DrawTextA measure 0x005a0e20.
 - The game's message box call 0x004ac150 / 0x004ac050 (mech3).
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
   0x005a7d10 (zFMV is not ported).
-- The HUD side: primitives 0x005a3170..0x005a3bc0 but the polyline's plain
-  path (zRender's 2D line list 0x00562cb0, the transformed points 0x005a3580,
-  boxes 0x005630c0 / 0x00563440), the line clip
-  helpers 0x0059b2f0..0x0059b7e0, HUD lines 0x005a67e0..0x005a6b30, the
+- The HUD side's drawing (`twod_shapes.cpp` builds Frame, FilledBox, Shape,
+  the HUD lines and the polygon, hud.md): zRender's 2D line list 0x00562cb0,
+  Shape's transformed points 0x005a3580, boxes 0x005630c0 / 0x00563440, the
+  line clip helpers 0x0059b2f0..0x0059b7e0, the HUD lines' draws
+  0x005a68b0..0x005a6b30, the polygon's 0x005a6ca0, the
   render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in it)
   and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
