@@ -116,6 +116,31 @@ Foot* Mech::foot(int leg) const { return legs[leg] ? legs[leg]->foot : nullptr; 
 // Mech3.exe 1.2 @ 0x0041d4d0
 Calf* Mech::calf(int leg) const { return legs[leg] ? legs[leg]->calf : nullptr; }
 
+// Mech3.exe 1.2 @ 0x00419190: the view's mech only; on, while the beep
+// sounds (state bits 0-1), sound 0x16 the first time and bit 24 set.
+void Mech::heat_override(bool on) {
+  if (this != g_world.player) return;
+  if (!on) {
+    heat_state &= ~0x1000000u;
+  } else if (heat_state & 3) {
+    if (!(heat_state & 0x1000000u)) sounds[22] = play(*this, 0x16);  // +0x610
+    heat_state |= 0x1000000u;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00419e60: the coolant doubled and spent on the heat, what
+// is left halved, so each flush takes up to twice what is left
+// (docs/heat.md, Coolant flush). Mech sound 0x11 for the pilot's mech.
+void Mech::flush_coolant() {
+  if (coolant == 0.0f || heat == 0.0f) return;
+  const float c = coolant + coolant;
+  coolant = c;
+  const float spent = heat < c ? heat : c;
+  heat -= spent;
+  coolant = (c - spent) * 0.5f;
+  if (this == g_world.mission_player && g_calls.play_mech_sound) g_calls.play_mech_sound(0x11);
+}
+
 // Mech3.exe 1.2 @ 0x004192f0. Walkthrough and thresholds: docs/heat.md.
 void update_heat(Mech& m, float dt) {
   World& w = g_world;

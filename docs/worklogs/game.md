@@ -56,3 +56,25 @@ Newest last. One short entry per item: what, commits, what to remember.
   ported): the test selects a hot group on the manager. The Mad Cat's first
   group is machine guns (heat 0).
 - test_weapons_fly takes ~25 min (normal).
+
+## 2026-10-20: the mech's commands (branch mac2/commands)
+
+- Fire review fixes first (c21e6ac). Then Mech::command 0x41be80
+  (mech_command.cpp, CommandCalls), Mech::heat_override 0x419190 and
+  flush_coolant 0x419e60 (mech.cpp; +0x56c is now `coolant`), wired on the
+  pilot's mech through WiredBuild::view_target_command; MouseMode through
+  program_set_mouse_mode.
+- My first mapping from the decomp had wrong pieces (0x15 falls into 0x14;
+  lance orders pass an order number, not the command; jettison sound 0x10;
+  0x49 is vt+0xc0). Reading the asm and decoding both jump tables
+  (0x41c7d0/0x41c8d4, 0x41c974/0x41c98c) found them. Do that first.
+- test_command.py: callees stubbed and logged on both sides
+  (CommandCalls::own for the mech's and manager's own calls). The radar
+  needs the directed sweep; random trials miss its edge.
+- mw3tests: player controls are a per-process singleton (0x6056ec) that
+  registers the keys once; a later test in the same process must null
+  player_controls_instance() or its keys never reach the handler.
+- The c1m1 Mad Cat has no jump jets; the commands test launches the Thor
+  (roster 17).
+- Left as hooks: the HUD keys, camera look keys, torso centre, 0x426780,
+  nav points, lance orders, part targeting 0x41d810, MCB, chat, 0x3e, 0xa6.

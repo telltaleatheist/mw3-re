@@ -69,6 +69,10 @@ struct LaunchedMech {
   bool feet_down = false;  // both skis on the ground
   float armor = 0;         // armor and structure left, summed over the parts (fractions)
   float heat = 0;          // +0x554
+  int32_t group = -1;      // the manager's selected group (+0x28), -1 without one
+  int32_t jets = 0;        // jump jets installed (equipment[11])
+  int32_t jets_firing = 0; // +0x580
+  bool crouched = false;   // +0x586
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)

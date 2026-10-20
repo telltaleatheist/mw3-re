@@ -257,7 +257,7 @@ void mech_construct(Mech& m, Pilot* data, MechControls* ctl, Config* cfg, const 
   for (WeaponGroup* g : wm->groups) h.on_new(0x54, g);
   m.ammo = wm;
   m.x63c = 1.0f;
-  m.x56c = 1.0f;
+  m.coolant = 1.0f;
   m.heat = 0;
   m.hud_fall = 1;
   m.x634 = 0;

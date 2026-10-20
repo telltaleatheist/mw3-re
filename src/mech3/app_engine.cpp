@@ -71,6 +71,7 @@ void zerr_to_log(int level, const char* file, int line, const char* message) {
 
 int32_t program_camera_option() { return camera_mode(); }  // 0x0040ce70
 void program_camera_set(int32_t mode) { set_camera_mode(mode); }  // 0x0040ce10
+void program_set_mouse_mode(int32_t v) { options().mouse_mode = v; }
 
 bool MountFiles::exists(const std::string& path) { return zutl::exists(path.c_str()); }
 
