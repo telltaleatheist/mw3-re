@@ -73,7 +73,8 @@ class HudPanel : public ztwod::Image {
   void set_color(uint16_t c);        // 0x0043aaa0
   void set_alpha(uint8_t a);         // 0x0043a9d0: 0xfe and up opaque
   void update(float dt) override;    // +0x24  0x0043ad00: here only when opaque or in software
-  // +0x28 0x0043ad20: Direct3D's see-through quad (not ported yet, hud.md).
+  void draw3d(float dt) override;    // +0x28  0x0043ad20: its quad in a scene of its own
+  void draw_quad();                  // 0x0043ad70: Direct3D's see-through quad, else the image
   void set_opacity(float f);         // 0x0043aa60
   void set_size(int32_t w, int32_t h);  // 0x0043ab10: its image made or resized
   ztwod::Rect rect{};                // +0xbc
@@ -328,6 +329,7 @@ class HudMfdView : public HudZoomView {
   HudMfdView(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442620
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004427b0
   void update(float dt) override;    // +0x24  0x00442880: the box (the 3D view draws in the scene)
+  void draw3d(float dt) override;    // +0x28  0x00442870: its zView's render (hooked)
   ztwod::PolyLine box;               // +0x16c (vtable 0x005c0580)
 };
 
@@ -366,6 +368,11 @@ class HudMfd : public ztwod::Object2D {
   void update(float dt) override;    // +0x24  0x00442540: by the mode, then the title
   virtual int32_t shown_mode() { return mode; }  // +0x80  0x004487d0: 1 the 3D view, 2 the damage, 3 the nav list
   void update_mode(float dt);        // the shared middle of 0x00442540 and 0x00441490
+  // 0x004425d0: the shown piece's rect by the mode (asked again): 1 the 3D
+  // view's, 2 the damage view's (0x00447bf0), 3 the nav list's (+0x1c84 of
+  // it, hooked); else none.
+  const ztwod::Rect* shown_rect();
+  void draw3d(float dt) override;    // +0x28  0x00442500: mode 1 the view's, 2 the damage view's (empty)
   void* hud = nullptr;               // +0x34
   int32_t mode = 0;                  // +0x38
   HudDamageView damage;              // +0x3c
@@ -389,6 +396,7 @@ class HudTarget : public HudMfd {
   void attach(void* hud);            // 0x00441760
   void update(float dt) override;    // +0x24  0x00441490
   int32_t shown_mode() override;     // +0x80  0x004413a0: none without a live target
+  void draw3d(float dt) override;    // +0x28  0x00441410: mode 1 the target through the view
   ztwod::Shape shape1;               // +0xcd8
   ztwod::Line2D lines[3];            // +0xdfc (0x004400e0: all zero)
   ztwod::Shape shape2;               // +0xee0
@@ -578,6 +586,35 @@ class HudHooks : public zgame::Unported {
   virtual void network_hud() {
     if (unported("peek32", {0x609980})) unported("0x00479ed0", {});
   }
+  // The Direct3D pass's render calls: a dirty rect (0x00576ce0, through
+  // [0x00809348]), the scene (0x00579af0 / 0x00579b10), a flat see-through
+  // quad (four vertices into the TL buffer 0x0072f41c from the last, then
+  // [0x0072f3b0] = 0x0057bf80 with the colour, alpha, 4, 0, 0), the
+  // transparent flush ([0x0072f3e4]), the message panel (0x0040fb30: the
+  // panel [0x00603d7c] while shown), a zView's render (0x00442870, its +4),
+  // TARGET's view of its target (0x004428b0 on the view and the target's
+  // node, between the target's vt+0x68(1) and (0)).
+  virtual void dirty_rect(const ztwod::Rect* r) {
+    unported("0x00576ce0", {r ? r->left : 0, r ? r->top : 0, r ? r->right : 0, r ? r->bottom : 0});
+  }
+  virtual void scene_begin() { unported("0x00579af0", {}); }
+  virtual void scene_end() { unported("0x00579b10", {}); }
+  virtual void flat_quad(const float v[4][3], int16_t colour, uint8_t alpha) {
+    unported("0x0057bf80", {colour, alpha, zgame::bits(v[0][0]), zgame::bits(v[0][1]), zgame::bits(v[0][2]),
+                            zgame::bits(v[1][0]), zgame::bits(v[1][1]), zgame::bits(v[1][2]), zgame::bits(v[2][0]),
+                            zgame::bits(v[2][1]), zgame::bits(v[2][2]), zgame::bits(v[3][0]), zgame::bits(v[3][1]),
+                            zgame::bits(v[3][2])});
+  }
+  virtual void flush_transparent() { unported("[0x0072f3e4]", {}); }
+  virtual const ztwod::Rect* nav_rect(uint32_t nav) {
+    unported("nav+0x1c84", {nav});
+    return nullptr;
+  }
+  virtual void message_panel_draw() { unported("0x0040fb30", {}); }
+  virtual void zview_render(void* view, float dt) { unported("0x00442870", {id(view), zgame::bits(dt)}); }
+  virtual void object_view_flag(void* o, int32_t on) { unported("obj.vt+0x68", {id(o), on}); }
+  virtual uint32_t object_node(void* o) { return unported("peek32", {id(o) + 4}); }
+  virtual void view_draw_node(void* view, uint32_t node) { unported("0x004428b0", {id(view), node}); }
   // Whether the MFD's title shows: [0x00609994] alone, [0x00605f88] clear in a
   // multiplayer game.
   virtual bool title_flag() { return (unported("peek8", {0x609994}) & 0xff) != 0; }
@@ -602,6 +639,7 @@ class Hud : public ztwod::Layer {
   void setup(Mech* m);               // 0x0043bb80: hud.zrd's layout for the video mode, the mech given out
   void set_active(int32_t on) override;  // +0x04  0x0043baf0: the radar shown or hidden
   void update(float dt) override;    // +0x00  0x0043c820: the HUD's frame
+  void draw3d(float dt);             // 0x0043c6b0: the Direct3D pass (from the mech's 0x0041cd90)
   void reset();                      // 0x0043be10
   Mech* mech = nullptr;              // +0x10
   HudRadar radar{60.0f};             // +0x14

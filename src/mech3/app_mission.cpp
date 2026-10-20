@@ -47,6 +47,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_hud.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -958,6 +959,11 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
       case 0x28: return 0;
       default: break;
     }
+  }
+  // The view target's vt+0xe4 (0x0041cd90): its HUD's Direct3D pass.
+  if (obj && slot == 0xe4 && view_ && obj == field32(view_, 0x64)) {
+    program_hud_draw3d(zgame::from_bits(args.begin()->v));
+    return 0;
   }
   // The view's +0x04 runs its camera: the world drawn by the scene walk
   // (0x004f7030), the frame counted as the class lists' pass counts it.

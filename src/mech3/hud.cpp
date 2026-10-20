@@ -1328,6 +1328,27 @@ void HudPanel::update(float dt) {
   if (ztwod::host().video_mode() == 0 || alpha == 0xff) Image::update(dt);
 }
 
+// Mech3.exe 1.2 @ 0x0043ad20
+void HudPanel::draw3d(float) {
+  if ((flags & ztwod::kHidden) || ztwod::host().video_mode() == 0 || alpha >= 0xff) return;
+  HudHooks& h = hud_hooks();
+  h.dirty_rect(&rect);
+  h.scene_begin();
+  draw_quad();
+  h.flush_transparent();
+  h.scene_end();
+}
+
+// Mech3.exe 1.2 @ 0x0043ad70: the corners go in from the last vertex back.
+void HudPanel::draw_quad() {
+  if (ztwod::host().video_mode() == 0 || alpha == 0xff) return Image::draw();
+  const float v[4][3] = {{corners[3][0], corners[3][1], corners[3][2]},
+                         {corners[2][0], corners[2][1], corners[2][2]},
+                         {corners[1][0], corners[1][1], corners[1][2]},
+                         {corners[0][0], corners[0][1], corners[0][2]}};
+  hud_hooks().flat_quad(v, static_cast<int16_t>(color), alpha);
+}
+
 // Mech3.exe 1.2 @ 0x00448030
 void HudEquipLine::update(float dt) {
   Text::update(dt);
@@ -1480,6 +1501,77 @@ void HudEquipment::update(float dt) {
     l.update(dt);
   }
   Object2D::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x00442870
+void HudMfdView::draw3d(float dt) { hud_hooks().zview_render(this, dt); }
+
+// Mech3.exe 1.2 @ 0x004425d0
+const ztwod::Rect* HudMfd::shown_rect() {
+  switch (shown_mode()) {
+    case 1: return &view->rect;
+    case 2: return &damage.rect;
+    case 3: return hud_hooks().nav_rect(nav);
+    default: return nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00442500
+void HudMfd::draw3d(float dt) {
+  switch (shown_mode()) {
+    case 1: view->draw3d(dt); break;
+    case 2: damage.draw3d(dt); break;
+    default: break;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00441410
+void HudTarget::draw3d(float dt) {
+  switch (shown_mode()) {
+    case 1: {
+      HudHooks& h = hud_hooks();
+      void* o = h.target_valid(target) ? h.target_object(target) : nullptr;
+      if (!o) return;
+      h.object_view_flag(o, 1);
+      h.view_draw_node(view, h.object_node(o));
+      h.object_view_flag(o, 0);
+      break;
+    }
+    case 2: damage.draw3d(dt); break;
+    default: break;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0043c6b0: with the HUD on, the 3D views' rects marked
+// (TARGET's by 0x004425d0, which asks its mode again), then in one scene the
+// see-through panels: the views' in mode 1, the weapons', the equipment's
+// while the weapons show too, the message panel, the objectives'. Then the
+// 3D views themselves, TARGET's first.
+void Hud::draw3d(float dt) {
+  if (!mech) return;
+  const bool on = active != 0;
+  if (ztwod::host().video_mode() != 0) {
+    HudHooks& h = hud_hooks();
+    const bool mfd1 = mfd.shown_mode() == 1;
+    const bool tgt1 = target.shown_mode() == 1;
+    if (on && tgt1) h.dirty_rect(target.shown_rect());
+    if (on && mfd1) h.dirty_rect(&mfd.view->rect);
+    h.scene_begin();
+    if (on) {
+      if (tgt1) target.view->panel.draw_quad();
+      if (mfd1) mfd.view->panel.draw_quad();
+      if (!(weapons.flags & ztwod::kHidden)) weapons.panel.draw_quad();
+      if (!(weapons.flags & ztwod::kHidden) && !(equipment.flags & ztwod::kHidden)) equipment.panel.draw_quad();
+    }
+    h.message_panel_draw();
+    if (!(objectives.flags & ztwod::kHidden)) objectives.panel.draw_quad();
+    h.flush_transparent();
+    h.scene_end();
+  }
+  if (on) {
+    target.draw3d(dt);
+    mfd.draw3d(dt);
+  }
 }
 
 // Mech3.exe 1.2 @ 0x0043c820: the debug overlays (hooked), the layer's own

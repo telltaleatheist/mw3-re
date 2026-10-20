@@ -96,8 +96,8 @@ def synthetic(seed):
 # 12 a weapon line's count (line | count << 8) and changed, 13 every child
 # dirty (kDirty), 14 every child and piece shown, 15 a text set (FTEXTS
 # index), 16 an image set (IMAGES index | shared light << 8: the weapon
-# list's three, then the equipment's).
-OPS = range(1, 17)
+# list's three, then the equipment's), 17 the Direct3D pass 0x0043c6b0 (dt).
+OPS = range(1, 18)
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
           + [0x6520 + 0x130 + 0x1120 * i + 0xae8 for i in range(4)]
@@ -283,6 +283,31 @@ class Original:
             emu._ret(0, pop)
         w.answers['0x00443d20'] = lambda rr, n, a: rr.choice([0, 1, 2, 3])
         e.stub(0x443d20, '0x00443d20', 'c,s0', None, aim_state)
+        # The Direct3D pass's render side (hud.md section 11).
+
+        def dirty(emu, key, a, pop):
+            t.handle(key, tuple(rect(a[0])) if a[0] else (0, 0, 0, 0))
+            emu._ret(0, pop)
+
+        def flat(emu, key, a, pop):
+            colour, alpha, *rest = a
+            v = [emu.r32(0x72f41c + 0x20 * i + 4 * k) for i in range(4) for k in range(3)]
+            t.handle('0x0057bf80', (colour, alpha, *v))
+            emu._ret(0, pop)
+        e.stub(0x576ce0, '0x00576ce0', 'c', None, dirty)
+        for a, spec in ((0x579af0, ''), (0x579b10, ''), (0x40fb30, '')):
+            e.stub(a, spec=spec)
+
+        def view_call(emu, key, a, pop):  # the views by name: 1 the MFD's, 2 TARGET's (new'd, probe_hud.cpp)
+            v, arg = a
+            h = self.hud
+            name = {emu.r32(h + 0x3434 + 0x824): 1, emu.r32(h + 0x410c + 0x824): 2}.get(v, v)
+            t.handle(key, (name, arg))
+            emu._ret(0, pop)
+        e.stub(0x442870, '0x00442870', 'c,s0', None, view_call)
+        e.stub(0x4428b0, '0x004428b0', 'c,s0', None, view_call)
+        e.w32(0x72f3b0, e.new_stub('[0x0072f3b0]', 'c,d,s0,s1,s2', 0xc, flat))
+        e.w32(0x72f3e4, e.new_stub('[0x0072f3e4]', '', 0))
 
         def rect(p):
             return [e.r32(p + 4 * i) for i in range(4)]
@@ -324,7 +349,8 @@ class Original:
         # vt+0xa8 and vt+0x50 answer at random), one empty.
         self.slots = [e.world_alloc(8), e.world_alloc(8)]
         e.w32(self.slots[0], e.world_alloc(8))
-        obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0)})
+        obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0), 0x68: ('c,s0', 4)})
+        e.w32(obj + 4, e.world_alloc(0x10))  # its node
         e.stub(0x4e6fe0, spec='c')
         w.answers['0x004e6fe0'] = lambda rr, n, a: obj if rr.random() < 0.8 else 0
         w.answers['obj.vt+0xa8'] = lambda rr, n, a: rr.choice([0, 0, 1])
@@ -363,6 +389,8 @@ class Original:
                     v = fr.randrange(len(FTEXTS))
                 elif k == 16:
                     v = fr.randrange(len(IMAGES)) | fr.randrange(6) << 8
+                elif k == 17:
+                    v = f32(fr.choice([0.016, 0.033, 0.1]))
                 elif k == 12:
                     v = fr.randrange(16) | (fr.choice([-1, 0, 3, 12]) & 0xff) << 8
                 else:
@@ -409,6 +437,8 @@ class Original:
                 c = CHILDREN[v & 0xffff]
                 a = e.r32(h + 0x3434 + 0x824) if c == 'view' else h + c
                 e.w32(a + 0xc, e.r32(a + 0xc) ^ v >> 16)
+            elif k == 17:
+                e.call(0x43c6b0, ecx=h, stack=(v,))
             elif k in (13, 14):
                 for c in CHILDREN:
                     a = e.r32(h + 0x3434 + 0x824) if c == 'view' else h + c

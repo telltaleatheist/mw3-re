@@ -179,3 +179,18 @@ Next: read 0x0043ad70 (the quad from the panel's corners +0xcc, colour
 the zView parts hooked (render work), a differential test in test_hud.py
 (the pass after frames, render calls stubbed and logged), then wire it at
 the program's 0x0041cd90 point in the Core frame (where the 3D scene is open).
+
+## 2026-10-20 (b) The HUD's Direct3D pass (branch mac3/hud-key, main merged in)
+
+hud.md section 11. Ported: Hud::draw3d 0x0043c6b0, HudPanel::draw3d
+0x0043ad20 and draw_quad 0x0043ad70, HudMfd::shown_rect 0x004425d0 (asks the
+mode again: a target can drop between the two asks), the MFD's and TARGET's
++0x28 (0x00442500, 0x00441410), the MFD view's 0x00442870 (hooked zView
+render). Object2D +0x28 is `draw3d(float)` now (was `frame()`, unused; the
+original's takes dt). The program runs it at the view target's vt+0xe4
+(GameEngine::vcall → program_hud_draw3d, 0x0041cd90) with scene, quad
+(TL buffer + zvid::draw_flat) and flush on the zVideo ports. Hooked: dirty
+rects 0x00576ce0, the message panel 0x0040fb30, the 3D views' rendering
+0x004428b0 / 0x00442870 (render work), the nav list's rect.
+test_hud.py op 17 runs the pass; the new'd views are named 1/2 on both
+sides (view_call / view_name).
