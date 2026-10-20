@@ -169,6 +169,10 @@ int run(const Args& a) {
   sdlfe::SdlWindow window;
   if (!window.init(a.hidden)) return 1;
   sdlfe::SdlInput input;
+  input.window = window.sdl();
+  input.mickey_scale = a.win_w > 0 ? 640.0f / static_cast<float>(a.win_w) : 1.0f;
+  sdlfe::SdlZinHost zin_host(&input);
+  zin::set_host(&zin_host);
   sdlfe::SdlClock clock;
   sdlfe::SdlAlert alert(window.sdl(), a.hidden);
   sdlfe::SdlScreen2D screen(window.render());
@@ -224,6 +228,7 @@ int run(const Args& a) {
     ztwod::set_host(nullptr);
     mech3::set_app(nullptr);
   }
+  zin::set_host(nullptr);
   return result;
 }
 

@@ -22,6 +22,11 @@ add_library(mw3core STATIC
   src/gamez/zvideo/zvid_ddd3d.cpp
   src/gamez/zvideo/zvid_format.cpp
   src/gamez/zutil/ztimer.cpp
+  src/gamez/zinput/zin_init.cpp
+  src/gamez/zinput/zin_kbd.cpp
+  src/gamez/zinput/zin_mouse.cpp
+  src/gamez/zinput/zin_cmdmap.cpp
+  src/gamez/zinput/zin_joy.cpp
   src/gamez/zutil/zutl_msg.cpp
   src/gamez/zutil/zutl_msgdll.cpp
   src/gamez/zutil/zutl_path.cpp
@@ -166,6 +171,7 @@ add_library(mw3probe SHARED
   tests/probe_mechanim.cpp
   tests/probe_pose.cpp
   tests/probe_ai.cpp
+  tests/probe_zinput.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

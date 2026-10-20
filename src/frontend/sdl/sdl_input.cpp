@@ -1,6 +1,7 @@
 #include "frontend/sdl/sdl_input.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace sdlfe {
@@ -106,12 +107,18 @@ void SdlInput::close(Device d) {
   if (d == kKeyboard) keys_.clear();
 }
 
+// An exclusive foreground device (DISCL_EXCLUSIVE | DISCL_FOREGROUND) is
+// taken only while the window has the focus, and lost when it goes.
 int32_t SdlInput::acquire(Device d) {
   if (!opened_[d]) return kNotAcquired;
+  if ((coop_[d] & 5) == 5 && !focused_) return kNotAcquired;
   acquired_[d] = true;
+  lost_[d] = false;
+  if (d == kMouse && (coop_[d] & 1)) capture(true);
   return 0;
 }
 int32_t SdlInput::unacquire(Device d) {
+  if (d == kMouse && acquired_[d]) capture(false);
   acquired_[d] = false;
   if (d == kKeyboard) keys_.clear();  // a lost device's buffer is gone
   if (d == kMouse) dx_ = dy_ = dz_ = 0;
@@ -128,8 +135,14 @@ int32_t SdlInput::keyboard_data(platform::KeyEvent* out, uint32_t* count) {
   return over ? kBufferOverflow : 0;
 }
 
+void SdlInput::capture(bool on) {
+  if (window) SDL_SetWindowRelativeMouseMode(window, on);
+}
+
+void SdlInput::set_cooperative_level(Device d, uint32_t flags) { coop_[d] = flags; }
+
 int32_t SdlInput::mouse_state(platform::MouseState* out) {
-  if (!opened_[kMouse] || !acquired_[kMouse]) return kNotAcquired;
+  if (!opened_[kMouse] || !acquired_[kMouse]) return lost_[kMouse] ? kInputLost : kNotAcquired;
   out->x = static_cast<int32_t>(dx_), out->y = static_cast<int32_t>(dy_), out->z = static_cast<int32_t>(dz_);
   dx_ -= out->x, dy_ -= out->y, dz_ -= out->z;  // the fractions carry over
   std::memcpy(out->buttons, buttons_, 4);
@@ -142,8 +155,16 @@ int32_t SdlInput::joystick_state(platform::JoyState* out) {
   *out = platform::JoyState{};
   int32_t* axes[8] = {&out->x, &out->y, &out->z, &out->rx, &out->ry, &out->rz, &out->slider[0], &out->slider[1]};
   const int na = SDL_GetNumJoystickAxes(joy_);
-  for (int i = 0; i < 8; ++i)
-    *axes[i] = i < na ? static_cast<int32_t>(SDL_GetJoystickAxis(joy_, i)) + 32768 : (kAxisMin + kAxisMax) / 2;
+  for (int i = 0; i < 8; ++i) {
+    // SDL's -32768..32767 into the range the game set (DIPROP_RANGE), with
+    // its dead zone (DIPROP_DEADZONE, 1/10000 of the range) around the centre.
+    const double v = i < na ? (SDL_GetJoystickAxis(joy_, i) + 32768) / 65535.0 : 0.5;
+    double c = v * 2.0 - 1.0;
+    const double dz = deadzone_[i] / 10000.0;
+    c = std::fabs(c) <= dz ? 0.0 : (c - std::copysign(dz, c)) / (1.0 - dz);
+    const int32_t lo = range_[i][0], hi = range_[i][1];
+    *axes[i] = static_cast<int32_t>(std::lround(lo + (c + 1.0) * 0.5 * (hi - lo)));
+  }
   const int nh = SDL_GetNumJoystickHats(joy_);
   for (int i = 0; i < 4 && i < nh; ++i) {
     static const int32_t kAngles[16] = {-1, 0, 9000, 4500, 18000, -1, 13500, -1,
@@ -156,8 +177,55 @@ int32_t SdlInput::joystick_state(platform::JoyState* out) {
   return acquired_[kJoystick] ? 0 : kNotAcquired;
 }
 
+int32_t SdlInput::joystick_caps(uint32_t* flags, uint32_t* axes) {
+  *flags = 0;  // no force feedback
+  *axes = joy_ ? static_cast<uint32_t>(SDL_GetNumJoystickAxes(joy_)) : 0;
+  return 0;
+}
+
+// DIJOFS_X .. DIJOFS_RZ (0..0x14) are SDL's axes 0..5; DIJOFS_SLIDER 0x18, 0x1c.
+int32_t SdlInput::joystick_object_name(uint32_t ofs, char* name, uint32_t n) {
+  static const char* kNames[8] = {"X Axis", "Y Axis", "Z Axis", "X Rotation", "Y Rotation", "Z Rotation",
+                                  "Slider", "Slider"};
+  const uint32_t i = ofs / 4;
+  if (!joy_ || i >= 8 || static_cast<int>(i) >= SDL_GetNumJoystickAxes(joy_)) {
+    if (n) name[0] = 0;
+    return kObjectNotFound;
+  }
+  std::snprintf(name, n, "%s", kNames[i]);
+  return 0;
+}
+int32_t SdlInput::joystick_set_range(uint32_t ofs, int32_t min, int32_t max) {
+  if (ofs / 4 >= 8) return kObjectNotFound;
+  range_[ofs / 4][0] = min, range_[ofs / 4][1] = max;
+  return 0;
+}
+int32_t SdlInput::joystick_get_range(uint32_t ofs, int32_t* min, int32_t* max) {
+  if (ofs / 4 >= 8) return kObjectNotFound;
+  *min = range_[ofs / 4][0], *max = range_[ofs / 4][1];
+  return 0;
+}
+int32_t SdlInput::joystick_set_deadzone(uint32_t ofs, uint32_t dz) {
+  if (ofs / 4 >= 8) return kObjectNotFound;
+  deadzone_[ofs / 4] = dz > 10000 ? 10000 : dz;
+  return 0;
+}
+
 void SdlInput::on_event(const SDL_Event& e) {
   switch (e.type) {
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+      focused_ = true;
+      break;
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+      focused_ = false;
+      for (int d = 0; d < 3; ++d) {
+        if (acquired_[d] && (coop_[d] & 5) == 5) {  // the system takes a foreground device away
+          if (d == kMouse) capture(false);
+          acquired_[d] = false;
+          lost_[d] = true;
+        }
+      }
+      break;
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
       const uint8_t dik = dik_from_scancode(e.key.scancode);
@@ -175,7 +243,7 @@ void SdlInput::on_event(const SDL_Event& e) {
     }
     case SDL_EVENT_MOUSE_MOTION:
       mouse_x = e.motion.x, mouse_y = e.motion.y;
-      if (acquired_[kMouse]) dx_ += e.motion.xrel, dy_ += e.motion.yrel;
+      if (acquired_[kMouse]) dx_ += e.motion.xrel * mickey_scale, dy_ += e.motion.yrel * mickey_scale;
       break;
     case SDL_EVENT_MOUSE_WHEEL:
       if (acquired_[kMouse]) dz_ += e.wheel.y * 120.0f;  // WHEEL_DELTA a notch
@@ -194,6 +262,67 @@ void SdlInput::on_event(const SDL_Event& e) {
     }
     default: break;
   }
+}
+
+// ---------------------------------------------------------------------------
+// SdlZinHost
+
+namespace {
+SDL_Scancode scancode_of(uint32_t dik) {
+  for (int s = 0; s < SDL_SCANCODE_COUNT; ++s)
+    if (dik_from_scancode(static_cast<SDL_Scancode>(s)) == dik) return static_cast<SDL_Scancode>(s);
+  return SDL_SCANCODE_UNKNOWN;
+}
+}  // namespace
+
+void SdlZinHost::window_size(int* w, int* h) const {
+  *w = fw_, *h = fh_;
+  if (input_ && input_->window) SDL_GetWindowSize(input_->window, w, h);
+}
+void SdlZinHost::client_to_screen(int32_t* x, int32_t* y) {
+  int w, h;
+  window_size(&w, &h);
+  *x = *x * w / fw_, *y = *y * h / fh_;
+}
+void SdlZinHost::screen_to_client(int32_t* x, int32_t* y) {
+  int w, h;
+  window_size(&w, &h);
+  if (w > 0 && h > 0) *x = *x * fw_ / w, *y = *y * fh_ / h;
+}
+// Windows' cursor follows the game's mouse; a captured (relative) mouse has none.
+void SdlZinHost::set_cursor_pos(int32_t x, int32_t y) {
+  if (input_ && input_->window && !SDL_GetWindowRelativeMouseMode(input_->window))
+    SDL_WarpMouseInWindow(input_->window, static_cast<float>(x), static_cast<float>(y));
+}
+// A virtual key for every key the DIK table knows (the scan code itself).
+uint32_t SdlZinHost::map_virtual_key(uint32_t scan) {
+  return scancode_of(scan) != SDL_SCANCODE_UNKNOWN ? scan : 0;
+}
+// VK_SHIFT, VK_CONTROL, VK_MENU held (0x80), VK_CAPITAL and VK_NUMLOCK toggled (1).
+bool SdlZinHost::keyboard_state(uint8_t* st) {
+  std::memset(st, 0, 256);
+  const SDL_Keymod m = SDL_GetModState();
+  if (m & SDL_KMOD_SHIFT) st[0x10] = 0x80;
+  if (m & SDL_KMOD_CTRL) st[0x11] = 0x80;
+  if (m & SDL_KMOD_ALT) st[0x12] = 0x80;
+  if (m & SDL_KMOD_CAPS) st[0x14] = 1;
+  if (m & SDL_KMOD_NUM) st[0x90] = 1;
+  return true;
+}
+int32_t SdlZinHost::to_ascii(uint32_t, uint32_t scan, const uint8_t* st, uint16_t* out) {
+  const SDL_Scancode sc = scancode_of(scan);
+  if (sc == SDL_SCANCODE_UNKNOWN) return 0;
+  SDL_Keymod m = SDL_KMOD_NONE;
+  if (st[0x10] & 0x80) m = static_cast<SDL_Keymod>(m | SDL_KMOD_SHIFT);
+  if (st[0x14] & 1) m = static_cast<SDL_Keymod>(m | SDL_KMOD_CAPS);
+  const SDL_Keycode k = SDL_GetKeyFromScancode(sc, m, false);
+  if (k == SDLK_RETURN) return *out = 0x0d, 1;
+  if (k == SDLK_BACKSPACE) return *out = 0x08, 1;
+  if (k == SDLK_ESCAPE) return *out = 0x1b, 1;
+  if (k == SDLK_TAB) return *out = 0x09, 1;
+  if (k < 0x20 || k >= 0x7f) return 0;
+  *out = static_cast<uint16_t>(k);
+  return 1;
 }
 
 }  // namespace sdlfe

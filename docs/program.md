@@ -90,14 +90,14 @@ Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
 | the options and their hooks (sound volume, music volume, global light, video mode) | `mech3/options`, `zsnd`, `mech3_music`, `zmod` |
 | messages 0x00576040, 0x00575fb0, 0x00575fd0 | `zutl_msgdll` over Mech3Msg.dll |
 | zTwoD's outside calls (`ztwod::Host`) | `SdlTwodHost` (below) |
+| zInput: the command map 0x0051c630, start and stop 0x0051b0a0 / 0x0051b170, the activate and deactivate, polls 0x0051b360, key states 0x0051a9b0, resets, the mouse's use, centre, position, acceleration and screen, joystick and force feedback 0x0051dc10 / 0x0051ddb0 | `zin` (input.md), on `SdlInput` and `SdlZinHost` |
 
 Memory of modules not ported (the `peek`/`poke` the app code uses for
 their fields) is a sparse byte map: what is poked reads back, the rest is 0.
 Objects the ports hand out (zSound objects, voices, snapshots, the interp)
 get 32-bit handles from a table.
 
-Still hooked (logged once each, return 0), the main ones: zInput's command
-map and polls (0x0051c630, 0x0051b360, 0x0051a9b0 ...), the movies (zFMV
+Still hooked (logged once each, return 0), the main ones: the movies (zFMV
 0x00598cc0..), the main menu's screen and menu objects (0x00486260,
 0x0048a6c0 ..), the pilots, mechs, maps and missions (0x004788b0,
 0x0040f410, 0x004583b0, 0x0048faf0 ...), zEffect, zClass's and zModel's
@@ -128,9 +128,15 @@ implements it:
   (axes 0..65535, DirectInput's default range; hats as POV hundredths of a
   degree, -1 centred; 128 buttons). SDL scancodes are USB usages; the DIK
   codes are the PC keyboard's set-1 scan codes, mapped key for key by
-  position (`dik_from_scancode`). zInput (what the game does with these: the
-  command map, the key tables, 0x0051a170..) is not ported yet; the debug
-  states read DIK codes directly.
+  position (`dik_from_scancode`). zInput (input.md) runs on it: the
+  cooperative level (the mouse exclusive and foreground: SDL's relative mouse
+  mode while acquired, so the cursor is hidden and held as DirectInput held
+  it; taken away with the focus, reads then give DIERR_INPUTLOST), motion
+  scaled to the game's 640 pixels across the window, the joystick's
+  capabilities, axis names, ranges and dead zones. `SdlZinHost` gives zInput
+  its Win32 calls (the client area is the 640x480 frame, characters from
+  SDL's keymap). The debug states read DIK codes directly; the dialog one
+  polls zInput, so its dialog gets zInput's mouse.
 - **Render3D** (`SdlRender3D`, render.md section 4) for the 3D path, and
   **Screen2D** (`SdlScreen2D`) for the menus: the 16-bit back buffer the
   2D blits draw into (locked by 0x00576de0, flipped by 0x00576ea0) is
@@ -147,9 +153,7 @@ implements it:
   SDL_ttf. fonts.zrd's WINDOWS_FONTS are read by name for zImage's named
   fonts (face, height, colour or two, shadow, align, weight). Images come
   from the image library (`zimg::fetch_image`, refcounted by name); screen
-  grabs copy the 16-bit buffer; the mouse is zInput's (0x0051b7b0, not
-  ported) stood in by the window's cursor scaled to 640x480, each button 1
-  pressed, 2 held, 4 released.
+  grabs copy the 16-bit buffer; the mouse is zInput's (0x0051b7b0).
 - **Sound** (`SdlSoundOutput`, sound.md section 7), or
   `platform::SilentSoundOutput` with `--nosound` and in tests.
 - **Music** (`SdlMusicOutput`): `zsnd_cd` asks for `music/trackNN.(ogg|flac|
@@ -178,6 +182,8 @@ implements it:
   overflow, unacquired), the mouse counts, the GDI text on the game's fonts
   (extents, metrics, two lines, colour only where the glyphs are, opaque mode,
   GDI's cell height, word breaks, `&` prefixes).
+- `tests/differential/test_zinput.py`: zInput against the exe (input.md,
+  Testing).
 - `tests/differential/test_ztimer.py` now also runs the clock start
   0x005759a0 on a random frame against the exe (break tests: the total not
   zeroed, the tick product rounded differently: both caught).
@@ -193,10 +199,9 @@ through the MCI notify path.
 
 ## Open
 
-- zInput (0x0051a170..0x0051dfa0: the command map "DefaultCmdMap", the key
-  tables, the mouse integration) on top of `platform::Input`; then Escape and
-  the hotkeys reach the states.
-- The main menu's screen (0x00486260) and the other screens on zTwoD and the
+- mech3's controls setup (the default keys of the 0xa7 commands, 0x00411150,
+  and the controls file, input.md Open).
+- The main menu's screen (0x00486260, mapped in mainmenu.md) and the other screens on zTwoD and the
   SDL host; the game's message box 0x004ac150 on dlgMessage.zrd.
 - The settings loader 0x0040c420 and a registry stand-in in the write dir
   (`platform::Settings` exists, unimplemented).

@@ -261,7 +261,7 @@ bool Mech3App::start_game(uint32_t window) {
   } else {
     if (Handle old = e.network_game()) e.network_game_delete(old);
     e.set_network_game(0);
-    if (e.network_present()) e.set_network_game(e.network_game_new());
+    if (e.force_feedback_present()) e.set_network_game(e.network_game_new());
   }
   const Handle win = e.window_rect();
   e.mechs_init(e.display_rect(), win);

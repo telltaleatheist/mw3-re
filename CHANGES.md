@@ -70,6 +70,9 @@ None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
 - A mech file with a bad version no longer crashes the game when it unloads.
+- The game starts without a mouse (the original crashed), and pressing a
+  newer key such as Power, Sleep or a web key while holding Ctrl, Alt and
+  Shift no longer corrupts the game's input memory.
 - A damaged or hand-edited saved loadout (`configs\<mech>.mw3`) can no longer
   hang the load or crash it.
 - A damaged archive or script file is stopped at its end instead of making
@@ -103,6 +106,10 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- Keyboard, mouse and joystick through SDL3 instead of DirectInput, read the
+  same way: the mouse is captured while the window has the focus (as
+  DirectInput's exclusive mouse was) and moves at the same speed whatever the
+  window's size; a joystick gets the game's own ranges and dead zones.
 - Graphics through SDL3 (Metal, Direct3D 12 or Vulkan) instead of DirectX 6;
   the game's own drawing code is unchanged.
 - Sound through SDL3 instead of DirectSound, with the same volumes and

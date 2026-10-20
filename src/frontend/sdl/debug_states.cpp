@@ -6,6 +6,7 @@
 
 #include "frontend/debug_world.h"
 #include "frontend/sdl/sdl_input.h"
+#include "gamez/zinput/zinput.h"
 #include "frontend/sdl/sdl_render3d.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zreader/zreader.h"
@@ -158,6 +159,7 @@ bool DebugDialogState::enter() {
 // The shell's frame (0x0048ed30): lock, the screen's update, unlock, flip.
 bool DebugDialogState::update() {
   if (input_->key_down(kEscape)) return true;
+  zin::poll(false);  // the shell's frame polls zInput (0x0048ed30)
   engine_->sound_update(0, 0);
   engine_->video_lock();
   dialog_->update(ztimer::state().dt);

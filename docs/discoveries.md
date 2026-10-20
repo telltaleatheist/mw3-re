@@ -979,6 +979,36 @@ are all "puffers": emitters that drop little textured squares.
   the top one. Pushing onto an empty stack would crash; the game always starts
   with a "replace", so it never happens.
 
+## Keyboard, mouse and joystick
+
+From the input module, zInput (details: `input.md`).
+
+- **The main menu's hotkeys are plain keys, not your key bindings:** O
+  options, C credits, M multiplayer, I instant action, T training, Q quit and
+  R (the seventh button), whatever you rebound in the controls screen. Escape
+  is fixed the same way.
+- **Left Alt is called "Home" in the key lists.** The game looks up Left
+  Alt's name under the message for Home, so a command bound to Left Alt
+  shows as Home (Right Alt is named correctly).
+- **Alt-F4 runs its command at once,** ahead of every other key and even
+  while you are typing into a text field.
+- **A tap shorter than one frame still counts as a press** for the menus,
+  but not for screens that wait for a key "pressed this frame" exactly.
+- **Holding Ctrl, Alt and Shift and pressing a newer keyboard's Power, Sleep
+  or web key could crash the original** (it wrote past its key table). The
+  rebuild ignores such keys.
+- **Without a mouse the original would not start at all.**
+- **The joystick's trigger survives a reset.** Clearing the buttons skips
+  button 1 and clears a 'button 11' instead (an off-by-one), so holding the
+  trigger through a menu change keeps it held.
+- **The joystick setup is fixed in the code:** every axis -1000..1000, a 10%
+  dead zone on the stick, none on the throttle, 25% on the twist and other
+  rotations.
+- **The mouse wheel is read but drifts:** each input reset adds the last
+  wheel turn again.
+- **Your key bindings are saved with the other settings** (in the registry,
+  under the name `DefaultCmdMap`).
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).

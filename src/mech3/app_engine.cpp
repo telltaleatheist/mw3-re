@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -32,6 +33,7 @@ struct WiredOptionsHooks : OptionsHooks {
     mech3_music::set_volume(static_cast<uint16_t>(l), static_cast<uint16_t>(r));
   }
   void model_set_global_light(int32_t on) override { zmod::set_shadows(on); }  // 0x00526a70
+  void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
   int32_t video_mode() override { return g_engine ? static_cast<int32_t>(g_engine->peek32(0x72f348)) : 0; }
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override {
     return g_engine ? g_engine->unported(key, args) : 0;
@@ -218,31 +220,27 @@ void GameEngine::sound_shutdown_groups(uint32_t) { zsnd::close_device(nullptr); 
 void GameEngine::sound_shutdown() { zsnd::shutdown(); }
 void GameEngine::light_init() { Engine::light_init(); }
 
-// 0x0051b0a0: DirectInput and its three devices (zin_init.cpp); what zInput
-// does with them (0x0051a5d0, 0x0051b7d0, 0x0051dc20) is not ported.
-void GameEngine::input_start(uint32_t, uint32_t) {
-  if (!p_.input) return;
-  for (int d = 0; d < 3; ++d)
-    if (p_.input->open(static_cast<platform::Input::Device>(d)))
-      p_.input->acquire(static_cast<platform::Input::Device>(d));
+// zInput, ported (gamez/zinput, docs/input.md) on the platform's input.
+void GameEngine::input_init(int32_t commands, const char* map) { zin::init(commands, map); }
+void GameEngine::input_start(uint32_t window, uint32_t cmd_show) {
+  zin::set_input(p_.input);
+  zin::start(window, cmd_show);
 }
-void GameEngine::input_devices_shutdown() {
-  if (!p_.input) return;
-  for (int d = 0; d < 3; ++d) p_.input->close(static_cast<platform::Input::Device>(d));
-}
-void GameEngine::input_acquire() {
-  if (!p_.input) return;
-  for (int d = 0; d < 3; ++d) p_.input->acquire(static_cast<platform::Input::Device>(d));
-}
-void GameEngine::input_unacquire() {
-  if (!p_.input) return;
-  for (int d = 0; d < 3; ++d) p_.input->unacquire(static_cast<platform::Input::Device>(d));
-}
-// 0x0051dc10: a joystick was found at the start.
-uint32_t GameEngine::joystick_present() {
-  platform::JoyState s;
-  return p_.input && p_.input->joystick_state(&s) == 0 ? 1 : 0;
-}
+void GameEngine::input_devices_shutdown() { zin::stop(); }
+void GameEngine::input_acquire() { zin::resume(); }
+void GameEngine::input_unacquire() { zin::suspend(); }
+uint32_t GameEngine::joystick_present() { return zin::joy_present() ? 1 : 0; }
+uint32_t GameEngine::force_feedback_present() { return zin::force_feedback(); }
+void GameEngine::input_set_mode(uint32_t mode) { zin::set_mode(mode); }
+void GameEngine::input_poll(uint8_t callbacks) { zin::poll(callbacks != 0); }
+uint32_t GameEngine::key_state(int32_t key) { return zin::key_state(key); }
+void GameEngine::input_clear() { zin::kbd_reset(); }
+void GameEngine::input_reset() { zin::reset(); }
+void GameEngine::input_capture() { zin::mouse_use(); }
+void GameEngine::input_release() { zin::mouse_unuse(); }
+void GameEngine::input_center_mouse() { zin::mouse_centre(); }
+void GameEngine::mouse_set_pos(int32_t x, int32_t y) { zin::mouse_from_cursor(x, y); }
+void GameEngine::mouse_set_accel(float x, float y) { zin::mouse_set_accel(x, y); }
 
 void GameEngine::clock_init() { ztimer::init(); }
 
