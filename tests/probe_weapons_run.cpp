@@ -22,6 +22,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/weapon.h"
+#include "mech3/weapon_planner.h"
 
 namespace {
 
@@ -616,5 +617,17 @@ void probe_wm_fire_flag(int def, uint32_t flags) { zwep::state().defs[static_cas
 
 // The zWeapon fire state as the startup leaves it (0x00583750).
 void probe_wm_reset_fire() { zwep::fire_state() = zwep::FireState{}; }
+
+// The planner's three getters (test_weapon_planner.py) with the manager's
+// mode and group set for the call, then put back.
+void probe_wm_planner(int32_t mode, int32_t group, int32_t* out) {
+  mech3::WeaponManager& m = *g_m;
+  const int32_t was_mode = m.mode, was_group = m.group;
+  m.mode = mode, m.group = group;
+  out[0] = fb(mech3::group_max_range(m));
+  out[1] = mech3::group_locks_on(m);
+  out[2] = mech3::group_has_ammo(m);
+  m.mode = was_mode, m.group = was_group;
+}
 
 }  // extern "C"

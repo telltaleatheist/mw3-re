@@ -50,6 +50,7 @@ for t in \
     sound \
     weapons_zrd \
     weapons_run \
+    weapon_planner \
     weapons_hit \
     weapons_fly \
     tag \

@@ -144,6 +144,7 @@ add_library(mw3core STATIC
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
+  src/mech3/weapon_planner.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_target.cpp
   src/mech3/sensors.cpp
