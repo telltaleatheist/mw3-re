@@ -36,6 +36,7 @@ void program_cameras_free(void* list);      // 0x0040abf0
 int32_t program_camera_option();
 const float* program_mission_fog(bool water);  // world.zrd's fog: range 2, altitude 2, colour 3 (app_mission.cpp)
 void program_camera_set(int32_t mode);
+int32_t program_mouse_mode();
 void program_set_mouse_mode(int32_t v);  // [[0x005f4d44]], the options' MouseMode: the controls' view state
 
 }  // namespace mech3
