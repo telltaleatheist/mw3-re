@@ -7,6 +7,7 @@
 
 #include <cmath>
 
+#include "gamez/zutil/zfix.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_names.h"
@@ -353,7 +354,10 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
     if (!sound_tag && name) {
       if (std::strcmp(name, "Epona_Rhi") == 0)
         sound_tag = dup("epona");
-      else if (std::strcmp(name, "Alan_Mattila") == 0)
+      else if (std::strcmp(name, "Alan_Mattila") == 0 ||
+               // FIX (bug): two records misspell him (c1 Instant Action map 1,
+               // c3 mission 6), so he had no radio voice there (Owen, 2026-10-20).
+               (zfix::options().bugs && (std::strcmp(name, "Alan_Mattilla") == 0 || std::strcmp(name, "Alan_Matilla") == 0)))
         sound_tag = dup("alan");
       else if (std::strcmp(name, "Dominic_Paine") == 0)
         sound_tag = dup("dom");
@@ -363,32 +367,42 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       int32_t v = 0;
       if (zrdr::get_tristate(lm, &v)) set_bit(0xcd, 1, (v >> 1) & 1), set_bit(0xcd, 0, v & 1);
     }
+    auto add_order = [&](const zrdr::Node* s) {
+      VListEntry e;  // 0x004d8d30
+      uint8_t fl = e.flags;
+      fl = with(fl, 1, nz(s, 1)), fl = with(fl, 2, nz(s, 2));
+      e.f00 = word_f(s[3]);
+      fl = with(fl, 3, nz(s, 4)), fl = with(fl, 4, nz(s, 5));
+      e.f04 = word_f(s[6]);
+      fl = with(fl, 5, nz(s, 7));
+      e.f08 = word_f(s[8]);
+      e.flags2 = with(e.flags2, 0, nz(s, 9));
+      if (s[0].i >= 0x12) e.flags2 = with(e.flags2, 1, nz(s, 17));
+      const char* region_name = text(s[10]);
+      fl = with(fl, 6, nz(s, 11));
+      e.f0c = word_f(s[12]);
+      fl = with(fl, 7, nz(s, 13));
+      e.f10 = word_f(s[14]);
+      e.flags = with(fl, 0, nz(s, 15));
+      const char* valve_name = text(s[16]);
+      e.region = region_name ? region(region_name) : nullptr;
+      e.valve = valve_name ? valve_get(valve_name) : nullptr;
+      if (!vlist) vlist = new std::list<VListEntry>;  // 0x004d9480
+      vlist->push_back(e);
+    };
     if ((f = find("vlist")) && f[0].i > 1) {
       for (int32_t k = 1; k < f[0].i; ++k) {
         if (f[k].type != zrdr::List) continue;  // FIX (bug)
-        const zrdr::Node* s = f[k].list;
-        VListEntry e;  // 0x004d8d30
-        uint8_t fl = e.flags;
-        fl = with(fl, 1, nz(s, 1)), fl = with(fl, 2, nz(s, 2));
-        e.f00 = word_f(s[3]);
-        fl = with(fl, 3, nz(s, 4)), fl = with(fl, 4, nz(s, 5));
-        e.f04 = word_f(s[6]);
-        fl = with(fl, 5, nz(s, 7));
-        e.f08 = word_f(s[8]);
-        e.flags2 = with(e.flags2, 0, nz(s, 9));
-        if (s[0].i >= 0x12) e.flags2 = with(e.flags2, 1, nz(s, 17));
-        const char* region_name = text(s[10]);
-        fl = with(fl, 6, nz(s, 11));
-        e.f0c = word_f(s[12]);
-        fl = with(fl, 7, nz(s, 13));
-        e.f10 = word_f(s[14]);
-        e.flags = with(fl, 0, nz(s, 15));
-        const char* valve_name = text(s[16]);
-        e.region = region_name ? region(region_name) : nullptr;
-        e.valve = valve_name ? valve_get(valve_name) : nullptr;
-        if (!vlist) vlist = new std::list<VListEntry>;  // 0x004d9480
-        vlist->push_back(e);
+        add_order(f[k].list);
       }
+    } else if (zfix::options().bugs) {
+      // FIX (bug): two Instant Action records on c4 (Enemy_12 in readeria1,
+      // Enemy_06 in readeria2) list their orders loose in the record, with no
+      // "vlist" around them; the exe skips them (Owen, 2026-10-20).
+      for (int32_t k = 5; k < L[0].i; ++k)
+        if (L[k].type == zrdr::List && L[k - 1].type != zrdr::String && L[k].list[0].i >= 0x12 &&
+            L[k].list[1].type != zrdr::String)
+          add_order(L[k].list);
     }
     if ((f = find("mech3"))) mech3_set = 1, mech3 = nz(f, 1);
     if (p8 && (p3 || p4 || p5 || p7))

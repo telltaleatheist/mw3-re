@@ -15,6 +15,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
+#include "mech3/zrdraiv.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
@@ -397,4 +398,46 @@ TEST(fix_foot_uses_its_middle_probe) {
   s.height_at(0, 1.0f, &hit);
   EXPECT(hit == &s.contact[2] && !s.water_at(0, 1.0f, &surface));
   zfix::options().bugs = true;
+}
+
+namespace {
+// One aiv.zrd record of a mission archive, parsed with the fixes on or off.
+// Returns the record (owned by the caller) or null without the game files.
+mech3::ai::AivRecord* aiv_record(const char* archive, const char* name, bool fix) {
+  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/" + archive;
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) std::fclose(f);
+  else return nullptr;
+  zfix::options().bugs = fix;
+  zrdr::init();
+  zrdr::open_archive(path.c_str(), true);
+  auto* r = new mech3::ai::AivRecord;
+  r->parse(zrdr::find(zrdr::load("aiv.zrd"), name), name);
+  zfix::options().bugs = true;
+  return r;
+}
+void close_aiv(mech3::ai::AivRecord* r) {
+  delete r;
+  mech3::ai::aiv_file_reset();
+  zrdr::close_archives(true);
+}
+}  // namespace
+
+// Alan's two misspelt records get his radio voice; the exe gives them none.
+TEST(fix_alan_misspelt_gets_his_voice) {
+  for (bool fix : {true, false}) {
+    mech3::ai::AivRecord* r = aiv_record("c1/readeria1.zbd", "Alan_Mattilla", fix);
+    if (!r) return std::printf("  (skipped: no game files)\n"), void();
+    EXPECT((r->sound_tag && std::strcmp(r->sound_tag, "alan") == 0) == fix);
+    close_aiv(r);
+  }
+}
+
+// Enemy_12's loose orders on c4 are read; the exe leaves it with none.
+TEST(fix_loose_orders_are_read) {
+  for (bool fix : {true, false}) {
+    mech3::ai::AivRecord* r = aiv_record("c4/readeria1.zbd", "Enemy_12", fix);
+    if (!r) return std::printf("  (skipped: no game files)\n"), void();
+    EXPECT((r->vlist && !r->vlist->empty()) == fix);
+    close_aiv(r);
+  }
 }

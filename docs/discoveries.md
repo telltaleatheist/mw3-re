@@ -950,11 +950,11 @@ are all "puffers": emitters that drop little textured squares.
   from their name when the file gives none, and Alan's name is misspelt in
   the first Instant Action map of the first world (`Alan_Mattilla`) and in
   mission 6 of operation 3 (`Alan_Matilla`), so his voice lines likely don't
-  play there.
+  play there. The rebuild recognises both spellings.
 - **Two Instant Action enemies forgot their orders.** In two Instant Action
   maps on the c4 world one enemy's order list lost its `vlist` label in the
   data, so the game ignores the list and that enemy follows no scripted
-  orders.
+  orders. The rebuild reads them.
 - **There was an AI tester in the game.** A developer dialog for steering a
   unit by hand ("Direct", "Zig Zag", "Circle", "Jump", "Random Move") and
   picking its target ("player", "nearest enemy") is still in the exe behind
