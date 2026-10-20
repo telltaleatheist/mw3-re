@@ -158,6 +158,29 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 (details: `movement.md` and the `movement-*.md` files). The ones marked
 "code reading" have not been run in the emulator yet.
 
+- **Every gait animation is 60 frames.** Whatever the motion file holds, each
+  walk, trot or run is resampled to 60 keys at load and turned to start with
+  the left foot furthest forward; the step animation is then shifted so its
+  footfall lines up with the walk's, which is what makes stepping off into a
+  walk seamless.
+- **The right leg's limp is the left one mirrored**, and so is the left-side
+  collapse: the files only have one of each. A mech without a collapse
+  animation falls over backwards instead.
+- **Falls and getting up play at 20 frames a second, collapses at 15**, slower
+  than the 30 the gaits run at.
+- **When you start walking, the right foot snaps.** For the first two thirds
+  of a second the legs ease from their last pose into the walk, except that
+  the right foot's angle jumps straight to the walk's while the left one
+  eases twice over (a mix-up in the original code, kept).
+- **In the cockpit your torso barely sways.** The player's torso takes only a
+  tenth of the walk animation's sway when you look out of the cockpit, the
+  full amount in the outside views.
+- **Mid-jump, the legs hold a frozen standing pose.** The game has a slot for a
+  jump pose but never loads one, so while the jets fire the legs take the
+  stand animation at the moment it was left.
+- **MASC is all or nothing.** Turning MASC on raises the top speed by a
+  quarter and keeps your current speed; turning it off drops the top speed at
+  once, so the mech slows immediately.
 - **Your throttle is not a speed, it picks a gait.** Each mech's file lists
   where its walk, trot and run start, as fractions of full throttle; the
   animation of that gait then carries the mech: its legs' stride is its

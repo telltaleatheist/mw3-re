@@ -69,7 +69,6 @@ MoveCalls& move_calls() { return g_calls; }
 // Mech3.exe 1.2 @ 0x00417a80. A grounded local mech whose knock exceeds its
 // threshold falls; then the animation moves it (root motion into +0x44),
 // blended in over the first 20 frames of walking (docs/movement.md, Move).
-// The pose on the parts is not ported (gait_pose).
 void Mech::move(float dt, MechAnim* anim, float speed) {
   if (!no_power_down && !remote) {
     float t = tonnage();
@@ -100,16 +99,16 @@ void Mech::move(float dt, MechAnim* anim, float speed) {
     }
     return;
   }
-  float blend = 1.0f;
-  // 20 frames of blend-in. FIX (B): 20/30 s, counted in 1/30 s steps.
-  const float done = zfix::options().per_second ? gait_steps : static_cast<float>(gait_frames);
-  if (anim_state >= 4 && done < static_cast<float>(kBlendFrames) && jets == 0) {
-    blend = done / static_cast<float>(kBlendFrames);
-    blend = blend > 1.0f ? 1.0f : blend < 0.15f ? 0.15f : blend;  // 0x005e1fb0
+  if (!g_calls.gait_pose) {
+    pose_gait(*anim, jets, saved);  // 0x00417bbc..0x0041818d (mech_pose.cpp)
+    return;
+  }
+  // The test hook: the blend-in of the root motion only, the pose logged.
+  const float blend = gait_blend(jets);
+  if (blend >= 0.0f)
     vec_3c = {(vec_3c.x - saved.x) * blend + saved.x, (vec_3c.y - saved.y) * blend + saved.y,
               (vec_3c.z - saved.z) * blend + saved.z};
-  }
-  if (g_calls.gait_pose) g_calls.gait_pose(*this, *anim, blend);
+  g_calls.gait_pose(*this, *anim, blend < 0.0f ? 1.0f : blend);
 }
 
 // Mech3.exe 1.2 @ 0x00417300 (one call per jump-jet item at setup): the
@@ -137,7 +136,7 @@ float Mech::altitude() const {
 
 // Mech3.exe 1.2 @ 0x004173b0. Thrust goes to the skis as a climb impulse;
 // the player's jets push along the throttle unless the MW2 option is on
-// (docs/movement-jump.md). The pose of a firing jump is not ported (jet_pose).
+// (docs/movement-jump.md). The pose of a firing jump is pose_jump.
 int Mech::jump_jets(float dt) {
   if (!(equipment[kJumpJet] > 0)) {  // +0x580 is left as it was
     if (sounds[kJetSound]) {
@@ -207,7 +206,10 @@ int Mech::jump_jets(float dt) {
   }
   if (!firing && jump_jets_firing && anims[kJumpPose]) anims[kJumpPose]->seek(-1);
   jump_jets_firing = firing;
-  if (firing && g_calls.jet_pose) g_calls.jet_pose(*this);
+  if (firing) {
+    if (g_calls.jet_pose) g_calls.jet_pose(*this);
+    else pose_jump();  // 0x004177e7..0x004179fd (mech_pose.cpp)
+  }
   return jump_jets_firing;
 }
 
@@ -658,6 +660,7 @@ void Mech::update_action(float dt) {
   vec_3c.z = d.z / dt + momentum.z;
   const Vec3 hip{0.0f, root.y, 0.0f};
   if (g_calls.action_pose) g_calls.action_pose(*this, *act, hip, q);
+  else pose_action(*act, hip, q);  // 0x00416fb8..0x00417293 (mech_pose.cpp)
 }
 
 }  // namespace mech3

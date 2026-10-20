@@ -6,7 +6,10 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech.h"
+#include "gamez/zutil/zfix.h"
+#include "mech3/mech_anim.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_skis.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -66,6 +69,24 @@ void Hip::set_pose(const Vec3* pos, const float* q) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00464600. Only the rotation, kept for the torso's
+// update. In the cockpit view the player's torso keeps a tenth of the
+// animation's sway, taken out of the hip's turn.
+void Torso::set_pose(const Vec3*, const float* q) {
+  if (!q) return;
+  const int view = damage_calls().view_mode ? damage_calls().view_mode() : -1;
+  if (view == 1 && mech == world().player) {
+    zmth::Quat t, r;
+    zmth::quat_scale(zmth::Quat{q[0], q[1], q[2], q[3]}, 0.1f, t);  // 0x005e4f24
+    const float* inv = mech->hip->inv;
+    zmth::quat_mul(zmth::Quat{inv[0], inv[1], inv[2], inv[3]}, t, r);
+    zmth::quat_normalize(r, r);
+    rot[0] = r.w, rot[1] = r.x, rot[2] = r.y, rot[3] = r.z;
+    return;
+  }
+  for (int i = 0; i < 4; ++i) rot[i] = q[i];
+}
+
 // Mech3.exe 1.2 @ 0x00463c90. Two-bone IK in the leg's plane: the knee from
 // the law of cosines (an ankle out of reach is pulled in along the line to
 // it), the thigh's pitch, and its roll toward the ankle's side. fpatan and
@@ -119,6 +140,152 @@ bool Leg::reach(const Vec3& p, const float q[4]) {
   if (!ok) return false;
   foot->set_pose(&local, q);
   return true;
+}
+
+// Mech3.exe 1.2 @ 0x00460210: the pose made pending, then applied through
+// the base set_pose (no hip offset, no foot target).
+void MechPart::place(const Vec3* pos, const float* q) {
+  if (destroyed || !node) return;
+  pending_pos = pos ? *pos : *translation;
+  for (int i = 0; i < 4; ++i) pending_q[i] = q[i];
+  pending = true;
+  static const Vec3 zero{0, 0, 0};                 // 0x0063d870
+  static const float identity[4] = {1, 0, 0, 0};  // 0x005eda50
+  MechPart::set_pose(&zero, identity);
+}
+
+namespace {
+float* node_matrix(Handle n) { return g_pose.node_matrix ? g_pose.node_matrix(n) : nullptr; }
+
+void slerp_into(const float* from, float* q, float t) { zmth::quat_slerp(from, q, t, q); }
+
+void lerp_into(const Vec3& from, Vec3& p, float t, bool y) {
+  p.x = (p.x - from.x) * t + from.x;
+  if (y) p.y = (p.y - from.y) * t + from.y;
+  p.z = (p.z - from.z) * t + from.z;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00417c65..0x00417cd2: walk or faster, no jets, the
+// first 20 frames since stand or step. FIX (B): counted in 1/30 s steps.
+float Mech::gait_blend(int jets) const {
+  const float done = zfix::options().per_second ? gait_steps : static_cast<float>(gait_frames);
+  if (!(anim_state >= 4 && done < 20.0f && jets == 0)) return -1.0f;  // 0x005e1fac
+  const float b = done / 20.0f;
+  return b > 1.0f ? 1.0f : b < 0.15f ? 0.15f : b;  // 0x005e1fb0
+}
+
+// The toe loops of the three poses: the left foot's toe count for both feet.
+// FIX (bug): the exe lets the right foot's toe index equal its count (ja),
+// past its arrays when it has fewer toes than the left; here it stops.
+void Mech::pose_toes(MechAnim& a, float blend) {
+  const uint32_t n = legs[0]->foot->toe_count;
+  for (uint32_t i = 0; i < n; ++i)
+    for (int leg = 0; leg < 2; ++leg) {
+      float q[4];
+      if (!a.toe(leg, static_cast<int>(i), q)) continue;
+      Foot& f = *legs[leg]->foot;
+      if (zfix::options().bugs ? i >= f.toe_count : i > f.toe_count) continue;  // off: the exe's, for the tests
+      if (blend != 1.0f) slerp_into(f.toe_q[i], q, blend);
+      for (int k = 0; k < 4; ++k) f.toe_q[i][k] = q[k];
+      float* m = node_matrix(f.toe_nodes[i]);
+      if (!m) continue;
+      zmth::quat_matrix(q, m);
+      if (g_pose.node_set) g_pose.node_set(f.toe_nodes[i], m);
+    }
+}
+
+// Mech3.exe 1.2 @ 0x00417bbc..0x0041818d (Move). The feet sampled in their
+// skis' frames; over the blend-in the feet, hip, torso and root motion go
+// from the last pose toward the animation's. The original blends the left
+// foot's rotation twice (from each foot's last) and the right's never
+// (fixes.md, candidates); kept.
+void Mech::pose_gait(MechAnim& a, int jets, const Vec3& saved) {
+  float* (*ski)(Handle) = skis_calls().node_matrix;
+  a.ski_frame(0, ski ? ski(skis->ski[0]) : nullptr);
+  a.ski_frame(1, ski ? ski(skis->ski[1]) : nullptr);
+  Vec3 hp{0, 0, 0}, lp, rp;
+  float hq[4], lq[4], rq[4], tq[4];
+  a.hip(&hp.x, hq);
+  hp.z = 0.0f;
+  a.foot(0, &lp.x, lq);
+  a.foot(1, &rp.x, rq);
+  a.torso_rotation(tq);
+  float blend = 1.0f;
+  const float crouch = hip->offset.y;
+  const float b = gait_blend(jets);
+  if (b >= 0.0f) {
+    for (int i = 0; i < 2; ++i) {
+      Foot& f = *foot(i);
+      lerp_into(*f.translation, i == 0 ? lp : rp, b, crouch == 0.0f);
+      slerp_into(f.rot, lq, b);
+    }
+    slerp_into(hip->rot, hq, b);
+    lerp_into(*hip->translation, hp, b, crouch == 0.0f);
+    lerp_into(saved, vec_3c, b, true);
+    slerp_into(torso->pending_q, tq, b);
+    blend = b;
+  }
+  // 0x00475f20 would lift each foot to its ski here; its switches
+  // [0x006084f0] / [0x006084f4] are never set, so it does nothing.
+  legs[0]->reach(lp, lq);
+  legs[1]->reach(rp, rq);
+  for (int side = 0; side < 2; ++side) {
+    Arm* arm = arms[side];
+    if (arm->destroyed) continue;
+    float q[4];
+    if (!a.arm(side, nullptr, q)) continue;
+    arm->set_pose(nullptr, q);
+    if (arm->hand && a.hand(side, nullptr, q)) arm->hand->set_pose(nullptr, q);
+  }
+  if (detail & 2) pose_toes(a, blend);
+  hip->set_pose(&hp, hq);
+  torso->set_pose(nullptr, tq);
+}
+
+// Mech3.exe 1.2 @ 0x004177e7..0x004179fd (JumpJets): the jump pose, or the
+// stand without one, as it is (not advanced): legs, toes, hip, torso.
+void Mech::pose_jump() {
+  MechAnim& a = anims[12] ? *anims[12] : *anims[2];
+  Vec3 hp{0, 0, 0}, lp, rp;
+  float hq[4], lq[4], rq[4], tq[4];
+  a.hip(&hp.x, hq);
+  hp.z = 0.0f;
+  a.foot(0, &lp.x, lq);
+  a.foot(1, &rp.x, rq);
+  a.torso_rotation(tq);
+  legs[0]->reach(lp, lq);
+  legs[1]->reach(rp, rq);
+  if (detail & 2) pose_toes(a, 1.0f);
+  hip->set_pose(&hp, hq);
+  torso->set_pose(nullptr, tq);
+}
+
+// Mech3.exe 1.2 @ 0x00416fb8..0x00417293 (ActionUpdate): every part placed
+// straight from the one-shot's keys (no IK), hip at (0, root y, 0).
+void Mech::pose_action(MechAction& a, const Vec3& hp, const float hq[4]) {
+  Vec3 lp, rp, tp;
+  float lq[4], rq[4], tq[4];
+  a.foot(0, &lp.x, lq);
+  a.foot(1, &rp.x, rq);
+  a.torso(&tp.x, tq);
+  hip->place(&hp, hq);
+  legs[0]->foot->place(&lp, lq);
+  legs[1]->foot->place(&rp, rq);
+  torso->place(nullptr, tq);
+  a.thigh(0, &lp.x, lq);
+  a.thigh(1, &rp.x, rq);
+  legs[0]->place(nullptr, lq);
+  legs[1]->place(nullptr, rq);
+  a.calf(0, &lp.x, lq);
+  a.calf(1, &rp.x, rq);
+  legs[0]->calf->place(nullptr, lq);
+  legs[1]->calf->place(nullptr, rq);
+  if (a.arm(0, nullptr, lq)) arms[0]->place(nullptr, lq);
+  if (a.arm(1, nullptr, rq)) arms[1]->place(nullptr, rq);
+  if (arms[0]->hand && a.hand(0, nullptr, lq)) arms[0]->hand->place(nullptr, lq);
+  if (arms[1]->hand && a.hand(1, nullptr, rq)) arms[1]->hand->place(nullptr, rq);
+  pose_toes(a, 1.0f);
 }
 
 }  // namespace mech3

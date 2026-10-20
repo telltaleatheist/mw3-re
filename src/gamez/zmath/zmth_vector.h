@@ -31,6 +31,9 @@ void quat_pitch(float angle, Quat& out);                 // 0x00525130: about x
 void quat_yaw(float angle, Quat& out);                   // 0x005251a0: about y
 void quat_roll(float angle, Quat& out);                  // 0x00525210: about z
 void quat_conjugate(const Quat& q, Quat& out);           // 0x00525580
+// q's rotation angle times f about the same axis (0x00525be0); a zero axis
+// leaves q. The axis length from the bit-trick square root.
+void quat_scale(const Quat& q, float f, Quat& out);
 void quat_normalize(const Quat& q, Quat& out);           // 0x00525500: bit-trick square root
 void quat_mul(const Quat& a, const Quat& b, Quat& out);  // 0x005255d0: a b
 void quat_exp(const Vec3& v, Quat& out);                 // 0x00525900: (cos |v|, sin |v| v / |v|)

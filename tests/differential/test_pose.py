@@ -28,7 +28,7 @@ import pose_world as W  # noqa: E402
 def scenario(rng):
     f32 = W.f32
     parts = bytearray(W.IMAGE * W.NPARTS)
-    nodes = bytearray(48 * W.NPARTS)
+    nodes = bytearray(48 * W.NNODES)
     for k in range(W.NPARTS):
         b = W.IMAGE * k
         W.put(parts, b + 0x4a, 'b', rng.random() < 0.15)
@@ -53,11 +53,47 @@ def scenario(rng):
     hb = W.IMAGE * W.HIP
     for j in range(3):
         W.put(parts, hb + 0x98 + 4 * j, 'f', f32(rng.choice([0.0, rng.uniform(-2, 0.5)])))
+    for k in range(W.NPARTS, W.NNODES):
+        m = [rng.uniform(-1, 1) for _ in range(9)] + [rng.uniform(-4, 4) for _ in range(3)]
+        struct.pack_into('<12f', nodes, 48 * k, *[f32(v) for v in m])
+    for i in range(2):
+        b = W.IMAGE * (W.FOOT0 + i)
+        for j, v in enumerate(unit_q(rng)):
+            W.put(parts, b + 0xc4 + 4 * j, 'f', v)
+    W.put(parts, hb + 0x74, 'f', 1.0)
+    for k in (W.HIP, W.TORSO):
+        for j, v in enumerate(unit_q(rng)):
+            W.put(parts, W.IMAGE * k + (0x74 if k == W.HIP else 0x58) + 4 * j, 'f', v)
+    table = []
+    for k in range(W.TABLE):
+        table.append(f32(rng.uniform(-3, 3)))
+    for o in (3, 10, 17, 24, 28) + tuple(92 + 3 + 7 * i for i in range(2)) + tuple(106 + 3 + 7 * i for i in range(2)):
+        table[o:o + 4] = unit_q(rng)
+    for o in [32, 37, 42, 47] + [52 + 5 * i for i in range(8)]:
+        table[o] = 1.0 if rng.random() < 0.8 else 0.0
+        table[o + 1:o + 5] = unit_q(rng)
+    toes = [rng.choice([0, 2, 3, 4]), 0]
+    toes[1] = toes[0] if rng.random() < 0.8 else rng.choice([0, 2, 3, 4])
+    toe_q = b''.join(struct.pack('<4f', *unit_q(rng)) for _ in range(8))
     mech = bytearray(W.MECH_SIZE)
+    for j in range(3):
+        W.put(mech, 0x3c + 4 * j, 'f', f32(rng.uniform(-10, 10)))
+    W.put(mech, 0x578, 'i', rng.choice([1, 3, 4, 5, 6, 7, 9]))
+    W.put(mech, 0x58c, 'i', rng.choice([0, 1, 5, 10, 19, 20, 25]))
+    W.put(mech, 0x688, 'i', rng.choice([0xffffffff, 0x1d, 0x1c, 0x10, 0x12]))
     present = (1 << W.NPARTS) - 1
     if rng.random() < 0.1:
         present &= ~(1 << rng.randrange(W.NPARTS))
-    return {'mech': bytes(mech), 'parts': bytes(parts), 'nodes': bytes(nodes), 'present': present}
+    for i in range(2):
+        W.put(parts, W.IMAGE * (W.ARM0 + i) + 0x48, 'b', rng.random() < 0.1)
+    if rng.random() < 0.5:
+        present |= 1 << 31
+    if rng.random() < 0.4:
+        present |= 1 << 30
+    if rng.random() < 0.6:
+        present |= 1 << 29
+    return {'mech': bytes(mech), 'parts': bytes(parts), 'nodes': bytes(nodes), 'present': present,
+            'table': struct.pack(f'<{W.TABLE}f', *table), 'toes': toes, 'toe_q': toe_q}
 
 
 def target(rng, s, leg):
@@ -82,10 +118,19 @@ def main():
     rng = random.Random(1999)
     trials = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
     ops = set()
+    poses = 0
     for n in range(trials):
         s = scenario(rng)
         r = rng.random()
-        if r < 0.55:
+        if r < 0.3:
+            op = rng.choice([3, 3, 4, 5])
+            if op == 3:
+                args = [float(rng.random() < 0.2)] + [W.f32(rng.uniform(-10, 10)) for _ in range(3)]
+            elif op == 5:
+                args = [0.0, W.f32(rng.uniform(-3, 3)), 0.0] + unit_q(rng)
+            else:
+                args = []
+        elif r < 0.6:
             op, leg = 0, rng.randrange(2)
             args = [float(leg)] + target(rng, s, leg) + unit_q(rng)
             fn, regs = 0x463e40, None
@@ -94,14 +139,20 @@ def main():
             args = [float(leg)] + target(rng, s, leg)
         else:
             op = 1
-            k = rng.choice([W.LEG0, W.CALF1, W.FOOT0, W.FOOT1, W.HIP, W.HIP, W.ARM0, W.HAND1])
+            k = rng.choice([W.LEG0, W.CALF1, W.FOOT0, W.FOOT1, W.HIP, W.HIP, W.ARM0, W.HAND1, W.TORSO])
             hasp = k in (W.FOOT0, W.FOOT1, W.HIP) or rng.random() < 0.7
             hasq = rng.random() < 0.7
             args = [float(k), float(hasp)] + [W.f32(rng.uniform(-5, 5)) for _ in range(3)] + [float(hasq)] + unit_q(rng)
         world.load(s)
         cpu = world.cpu
         sp = cpu.alloc(64)
-        if op == 0:
+        if op == 3:
+            world.gait_pose(int(args[0]), args[1:4])
+        elif op == 4:
+            world.jump_pose()
+        elif op == 5:
+            world.action_pose(args[0:3], args[3:7])
+        elif op == 0:
             cpu.write(sp, struct.pack('<7f', *args[1:8]))
             cpu.call(0x463e40, ecx=world.parts[W.LEG0 + leg], stack_args=(sp, sp + 12))
         elif op == 2:
@@ -118,7 +169,10 @@ def main():
         got, glog = W.port_store()
         W.compare(f'trial {n} op {op} {args[:2]}', want, wlog, got, glog)
         ops.add((op, int(args[0]) if op == 1 else -1))
-    print(f'ok: {trials} IK solves and set_poses identical bit for bit; {len(ops)} kinds')
+        if op >= 3:
+            poses += 1
+    print(f'ok: {trials} IK solves, set_poses and gait, jump and action poses ({poses}) identical bit for bit; '
+          f'{len(ops)} kinds')
 
 
 if __name__ == '__main__':

@@ -493,6 +493,18 @@ void MechAction::bind_leg_parts() {
   reset();
 }
 
+// Mech3.exe 1.2 @ 0x00421080
+void MechAction::calf(int leg, float pos[3], float q[4]) {
+  calves[leg]->translation(t, pos);
+  calves[leg]->rotation(t, q);
+}
+
+// Mech3.exe 1.2 @ 0x004210d0
+void MechAction::thigh(int leg, float pos[3], float q[4]) {
+  thighs[leg]->translation(t, pos);
+  thighs[leg]->rotation(t, q);
+}
+
 // Mech3.exe 1.2 @ 0x00421120 (vtable +0x48): no resample, no rotation.
 void MechAction::init(float, uint32_t) {
   stride = 0.0f;

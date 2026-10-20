@@ -76,6 +76,7 @@ class MechPart {
   virtual float get_armor_scale(int) const { return armor_scale; }        // +0x4c, 0x00467360
   virtual float get_internal_scale(int) const { return internal_scale; }  // +0x50, 0x00467370
   virtual void set_pose(const Vec3* pos, const float* q);  // +0x2c, 0x00460280 (hip 0x004624b0, torso 0x00464600, foot 0x004629b0)
+  void place(const Vec3* pos, const float* q);  // 0x00460210: through the base set_pose whatever the part (null pos: as it is)
 
   void detach();                 // vtable +0x0c with no node, 0x00460190
   void lose_contents();          // 0x004617f0
@@ -108,7 +109,10 @@ class Torso : public MechPart {
   float sec_armor_scale[6] = {};   // +0x188 + 4s, sections 1-5
   float side_internal[2] = {1, 1};        // +0x1a0, +0x1a4
   float side_internal_scale[2] = {1, 1};  // +0x1a8, +0x1ac
+  float rot[4] = {1, 0, 0, 0};     // +0x128  the pose's torso rotation, applied by the torso's update
   int32_t centring = 0;            // +0x1b0  CMD_CENTER_TORSO 1, CMD_CENTER_LEGS 2 (docs/movement-ground.md)
+
+  void set_pose(const Vec3* pos, const float* q) override;  // 0x00464600
 
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00464720
   void apply_impact(Vec3* impulse, float force) override;  // 0x00464af0
@@ -191,7 +195,7 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   uint32_t toe_count = 0;        // +0xa0
   Handle* toe_nodes = nullptr;   // +0xa4
   float (*toe_q)[4] = nullptr;   // +0xa8  each toe's last rotation
-  float last_q[4] = {1, 0, 0, 0};  // +0xc4  the rotation set last (the gait's blend-in starts from it)
+  float rot[4] = {1, 0, 0, 0};    // +0xc4  the foot's rotation as its updates set it (the gait's blend-in starts from it)
   Handle shadow = nullptr;       // +0x78  always 0: the constructor hides <c>_shadow and clears it
   bool in_water = false;         // +0xac
   bool pivot = false;            // +0xc0  counter-spins while the mech turns in place

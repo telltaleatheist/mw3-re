@@ -70,6 +70,9 @@ unusual happens.
   damage lists no longer write past their buffers.
 - A null texture, a missing weapon group and a few malformed script commands
   are checked instead of crashing.
+- A mech whose right foot had fewer toes than its left would have animated
+  one toe too many on that foot, writing past its data; it now stops at the
+  last toe.
 - A mech animation sampled at the very start of its cycle, before any other
   moment of it, no longer reads leftover data past its frames (it could show
   one wrong pose; for the longest motions, garbage).

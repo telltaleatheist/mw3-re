@@ -102,6 +102,8 @@ class MechAction : public MechAnim {
   void advance(float dt) override;  // +0x10, 0x00420f80: clamps to 0..loop and sets done
   void mirror_init(float stride_speed, uint32_t frames) override;  // +0x40, 0x00421140
   void init(float stride_speed, uint32_t frames) override;         // +0x48, 0x00421120
+  virtual void calf(int leg, float pos[3], float q[4]);   // 0x00421080 (not in the vtable; virtual for tests)
+  virtual void thigh(int leg, float pos[3], float q[4]);  // 0x004210d0
   void bind_leg_parts();            // 0x00420ec0
   void reset();                     // 0x00420f40
   bool started() const;             // 0x00421000

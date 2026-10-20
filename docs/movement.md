@@ -225,20 +225,24 @@ its z column from the last term and its z translation with t[11] first: the
 port's product had the textbook order, an ulp off now and then (fixed in
 zmth_matrix; the render tests pass either way, the segment query caught it).
 
+## Ported since: animations, the mech data, the pose
+
+| Piece | Original | Port | Test |
+|---|---|---|---|
+| zSIScript sampling: phase, translation, rotation, velocity and their blends, slerp, velocity keys, resample, key rotation, mirror, find / free parts | 0x5abae0, 0x432a80, 0x5aafe0..0x5ab8c0, 0x525ce0, 0x5aac60, 0x5aa780, 0x5aaa40, 0x5aa940, 0x5aa270, 0x5aa310 | `gamez/zsiscript`, `zmath` | `test_mechanim.py`: every gait and one-shot of the 19 mechs loaded from motion.zbd on both sides (272 motions, every key), 7600 random sampler calls; 15 of 16 breaks |
+| MechAnim (vtable 0x5bd1f0: init 0x41f580, footfalls 0x41fd30, start at the left foot forward 0x41fc40, mirror 0x41f680, copy 0x41f180), the blend 0x5bd240, the one-shot 0x5bd290, the loaders 0x41f000 / 0x420d00 | | `mech3/mech_anim` | the same |
+| The mech type's load 0x431a70 (gaits 0x431350, one-shots 0x4315d0), copies 0x431fb0 / 0x432030, the gait table 0x4329c0, the engine speed 0x433030, MASC 0x41df50, set_max_speed's calls | | `mech3/mech_data`, `mech_move` | `test_mechdata.py`: the original's load run whole on each mech's reader tree; 275 animations, copies, gait tables, 114 MASC switches; 10 of 11 breaks |
+| set_pose (base, place, hip, foot, torso), the leg IK, the gait, jump and action poses | 0x460280, 0x460210, 0x4624b0, 0x4629b0, 0x464600, 0x463e40, 0x463c90; 0x417bbc.., 0x4177e7.., 0x416fb8.. | `mech3/mech_pose` | `test_pose.py`: 20000 calls on random leg geometries and scripted animations, the original run from inside Move, JumpJets and ActionUpdate; 15 of 17 breaks |
+
+The phase cache and the blends: `motion.md`, Playback; the pose:
+`movement-pose.md`.
+
 ## Left
 
-Mech::Update, collision and the engine's queries are done (above); the
-ground query now runs in the port (`SkisCalls::query` defaults to it on
-`world_hooks().world`). Still to go, in order:
-
-1. **The animation sampling** (mech_anim.cpp): the motion keys' phase,
-   lerp/slerp (0x525ce0) and velocity keys (0x5aac60), so `MechAnim::velocity`
-   and `MechAction::root` give the real hip motion; the blends (vtable
-   0x5bd240); the gait table loaders 0x431350 / 0x431a70 and 0x4329c0;
-   set_max_speed's rescale and MASC 0x41df50.
-2. **The pose on the parts**: Move's pose 0x417bbc.., the jump pose
-   0x4177e7.., the actions' pose 0x416fb8.., the leg IK 0x463e40 / 0x463c90,
-   and the part updates (torso 0x464e80 with 0x464ce0, hip 0x4623a0, arms
-   0x466510, feet 0x462a10 / 0x463110), mapped in `movement-ground.md`.
-3. The player's controls (0x427d60, input) and the AI's (0x4e96f0), the
-   crouch 0x41bda0, the landing and fall effects (rays, dust, splashes).
+1. **The part updates** the poses feed: torso 0x464e80 with 0x464ce0, hip
+   0x4623a0, arms 0x466510, feet 0x462a10 / 0x463110 (`movement-ground.md`),
+   the leg and hip setup 0x4637b0 / 0x462130 that make the IK's constants.
+   Until then `MoveCalls::foot_ground` stands in for 0x462a10.
+2. The player's controls (0x427d60, input) and the AI's (0x4e96f0), the
+   crouch 0x41bda0, the landing and fall effects (rays, dust, splashes;
+   `landing_dust`, `landing_pose`, `action_dust` hooks).

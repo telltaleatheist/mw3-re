@@ -144,6 +144,29 @@ void quat_yaw(float angle, Quat& out) {
   out.w = static_cast<float>(std::cos(double{h}));
 }
 
+// Mech3.exe 1.2 @ 0x00525be0. The angle from fpatan stays on the x87 stack;
+// fsincos, the sine through a float before the division (as quat_exp).
+void quat_scale(const Quat& q, float f, Quat& out) {
+  const float n2 = (q.x * q.x + q.y * q.y) + q.z * q.z;
+  if (n2 == 0.0f) {
+    out = q;
+    return;
+  }
+  int32_t bits;
+  std::memcpy(&bits, &n2, 4);
+  bits = (bits >> 1) + 0x1fc00000;
+  float s;
+  std::memcpy(&s, &bits, 4);
+  const double angle = q.w < 0.0f ? -std::atan2(double{s}, -double{q.w}) : std::atan2(double{s}, double{q.w});
+  const double a = crt::x87_mul_f24(angle, f);
+  const float k = static_cast<float>(std::sin(a)) / s;
+  const Quat in = q;
+  out.w = static_cast<float>(std::cos(a));
+  out.x = in.x * k;
+  out.y = in.y * k;
+  out.z = in.z * k;
+}
+
 // Mech3.exe 1.2 @ 0x00525580: the sign bits of x, y and z flipped.
 void quat_conjugate(const Quat& q, Quat& out) { out = {q.w, -q.x, -q.y, -q.z}; }
 

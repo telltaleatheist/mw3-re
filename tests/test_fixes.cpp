@@ -245,6 +245,9 @@ mech3::Mech* bare_mech() {
   m.torso = &torso, m.head = &head, m.hip = &hip, m.pilot = &pilot;
   for (int i = 0; i < 2; ++i) feet[i] = mech3::Foot{}, legs[i].foot = &feet[i], m.legs[i] = &legs[i];
   for (int i = 0; i < 13; ++i) anims[i] = StillAnim{}, anims[i].loop_time = 1.0f, m.anims[i] = &anims[i];
+  // No parts to pose.
+  mech3::move_calls().jet_pose = [](mech3::Mech&) {};
+  mech3::move_calls().action_pose = [](mech3::Mech&, mech3::MechAction&, const mech3::Vec3&, const float*) {};
   m.remote = true;
   m.height = 10.0f;
   m.heat = 0.0f;

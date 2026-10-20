@@ -172,6 +172,12 @@ struct Mech {
   void select_gait(float dt);         // 0x004181c0
   void masc(bool on);                 // 0x0041df50: max speed x1.25, the speed kept
   void move(float dt, MechAnim* anim, float speed);  // 0x00417a80
+  // The pose on the parts (mech_pose.cpp, docs/movement-pose.md).
+  float gait_blend(int jets) const;   // 0x00417c65..: the blend-in weight, -1 when none
+  void pose_gait(MechAnim& a, int jets, const Vec3& saved);  // 0x00417bbc..0x0041818d in Move
+  void pose_jump();                   // 0x004177e7..0x004179fd in JumpJets
+  void pose_action(MechAction& a, const Vec3& hip, const float q[4]);  // 0x00416fb8..0x00417293 in ActionUpdate
+  void pose_toes(MechAnim& a, float blend);  // the toe loops of the three; blend 1: none
   void turn(float dt);                // vtable +0x170, 0x00418fc0
   Leg* pivot_leg() const;             // 0x00418e00
   void update(float dt);              // vtable +0x34, 0x00419fc0: the frame (mech_update.cpp)
