@@ -190,6 +190,48 @@ class SalvageState : public ShellState {
   void escape() override {}           // 0x0049bfd0
 };
 
+// "Fade State" (0x00609888, vtable 0x005c6088; constructor 0x0048f1b0): a still
+// of the screen grabbed when it is queued, faded from or to a colour over a
+// time, then the stack moves on by mode (docs/game-loop.md, The fade state).
+class FadeState : public State {
+ public:
+  enum Mode : int32_t { kPush = 0, kPopTwice = 1, kReplace = 2 };
+  FadeState() : State("Fade State", 0x609888) {}
+  void on_queued() override;          // 0x0048ef60
+  bool enter() override;              // 0x0048ef70
+  bool update() override;             // 0x0048ef90
+  void leave() override;              // 0x0048f030
+  // 0x0048f060: direction -1 fades the colour out (in from it), else in.
+  void setup(int32_t direction, float seconds, uint8_t r, uint8_t g, uint8_t b);
+  bool step(float dt);                // 0x0048f0b0: one frame drawn; false when done
+
+  uint32_t arg_ = 0;                  // +0x08 the code the state below gets
+  int32_t mode_ = kReplace;           // +0x0c
+  zgame::State* next_ = nullptr;      // +0x10
+  uint32_t cursor_ = 0;               // +0x14 the cursor's state before
+  Handle image_ = 0;                  // +0x18 the grab
+  int32_t direction_ = -1;            // +0x1c
+  uint16_t colour_ = 0;               // +0x20 16-bit
+  float seconds_ = 2.0f;              // +0x24
+  float t_ = 0.0f;                    // +0x28 0..1
+  float one_ = 0.0f;                  // +0x2c set to 1, never read
+  float rate_ = 1.0f;                 // +0x30 1 / seconds
+  int32_t buffer_ = 0;                // +0x34 0x00579500's: 0 back, 1 the copy, 2 front
+};
+
+// [0x005e7274], the fades' time in seconds.
+constexpr float kFadeSeconds = 2.0f;
+
+// Mech3.exe 1.2 @ 0x0048eea0 (with its wrapper 0x0048ee70, next = 0): the
+// fade pushed on top; at its end the state below is popped to with `arg`,
+// then `next` pushed when there is one.
+void fade_push(zgame::State* next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+               uint8_t r, uint8_t g, uint8_t b);
+// Mech3.exe 1.2 @ 0x0048ef00: the fade replaces the current state; at its end
+// it is replaced by `next`, or popped with `arg` when there is none.
+void fade_replace(zgame::State* next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+                  uint8_t r, uint8_t g, uint8_t b);
+
 struct States {
   AttractState attract;
   IntroState intro;
@@ -202,6 +244,7 @@ struct States {
   SalvageState salvage;
   WinState win;
   KeyListState key_list;
+  FadeState fade;
 };
 States& states();
 void reset_states();

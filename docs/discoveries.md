@@ -1374,6 +1374,21 @@ are all "puffers": emitters that drop little textured squares.
   catches up: moved objects get their new bounds and map square. So a shot
   always leaves from where your mech is this frame, and the animations see
   where the shots ended up.
+- **A mission starts with two seconds frozen.** Before the mission runs,
+  the game takes a still of the screen and fades it in from black over 2
+  seconds (0x48eea0, `game-loop.md`, The fade state). The fade sits on top of
+  the mission, so nothing moves and the mission clock does not run until it
+  is over; only then does the mission really start (resume 7: the AI's lists
+  are sorted then). In the 320x240 doubled mode there is no fade. Leaving a
+  mission through its end screen or the pause menu fades the screen to black
+  the same way.
+- **The fade's picture is a snapshot,** grabbed the moment the fade begins,
+  not the live screen. The fade in grabs the back buffer, the fade outs the
+  screen as shown. What the back buffer holds at a mission's start (likely
+  the last loading frame) is not checked in play.
+- **The fades follow real time, not frames:** each frame adds its share of
+  the 2 seconds, so they take as long on a fast PC as on a slow one. The
+  frame that reaches the end is still drawn.
 - **A developer's "haha" is still in the game.** Each time an object named
   `blackhawk_01` has its bounds rebuilt, the game prints "haha" (0x4ecc00),
   to a console a Windows game does not have, so nobody ever saw it.

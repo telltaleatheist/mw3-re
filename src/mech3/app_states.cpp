@@ -181,7 +181,7 @@ bool CoreState::enter() {
   start_mission();
   if (Handle game = en.network_game()) en.network_game_start(game, 1);
   if (en.pixel_double() == 0) {
-    en.fade(7, -1, 0, en.peek32(0x5e7274), 0, 0, 0);
+    en.fade(7, -1, 0, zgame::bits(kFadeSeconds), 0, 0, 0);
   } else {
     resume(7);
   }
@@ -1132,6 +1132,120 @@ void SalvageState::leave() {
   ShellState::leave();
   if (screen_) e().vcall(screen_, 0x08, {1});
   screen_ = 0;
+}
+
+// ---------------------------------------------------------------------------
+// The fade state (docs/game-loop.md, The fade state)
+
+// Mech3.exe 1.2 @ 0x0048eea0
+void fade_push(zgame::State* next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+               uint8_t r, uint8_t g, uint8_t b) {
+  FadeState& f = states().fade;
+  f.buffer_ = buffer;
+  f.mode_ = FadeState::kPush;
+  f.arg_ = arg;
+  f.next_ = next;
+  f.setup(direction, seconds, r, g, b);
+  app().push(&f, 0);
+}
+
+// Mech3.exe 1.2 @ 0x0048ef00
+void fade_replace(zgame::State* next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+                  uint8_t r, uint8_t g, uint8_t b) {
+  FadeState& f = states().fade;
+  f.buffer_ = buffer;
+  f.mode_ = FadeState::kReplace;
+  f.arg_ = arg;
+  f.next_ = next;
+  f.setup(direction, seconds, r, g, b);
+  app().replace(&f, 0);
+}
+
+// Mech3.exe 1.2 @ 0x0048f060
+void FadeState::setup(int32_t direction, float seconds, uint8_t r, uint8_t g, uint8_t b) {
+  direction_ = direction;
+  colour_ = zvid::pack_bytes(r, g, b);
+  seconds_ = seconds;
+  t_ = 0.0f;
+  one_ = 1.0f;
+  rate_ = 1.0f / seconds;
+}
+
+// Mech3.exe 1.2 @ 0x0048ef60: the still is taken as the fade is queued.
+void FadeState::on_queued() { image_ = e().video_grab(buffer_); }
+
+// Mech3.exe 1.2 @ 0x0048ef70
+bool FadeState::enter() {
+  Engine& en = e();
+  cursor_ = en.video_show_cursor(0);
+  en.twod_set_cursor(0);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0048ef90
+bool FadeState::update() {
+  if (step(e().frame_dt())) return false;
+  switch (mode_) {
+    case kPush:
+      a().pop(arg_);
+      if (next_) a().push(next_, arg_);
+      break;
+    case kPopTwice:
+      a().pop(0);
+      a().pop(arg_);
+      break;
+    case kReplace:
+      if (next_) a().replace(next_, 0);
+      else a().pop(arg_);
+      break;
+    default: break;
+  }
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x0048f030: the cursor's old state goes to both calls.
+void FadeState::leave() {
+  Engine& en = e();
+  en.video_show_cursor(cursor_);
+  en.twod_set_cursor(cursor_);
+  en.image_free(image_);
+  image_ = 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048f0b0: the still, then the colour over it at the
+// fade's alpha. Time-based (the frame's dt), so no per-frame scaling. With no
+// still it ends at once.
+bool FadeState::step(float dt) {
+  if (!image_) return false;
+  Engine& en = e();
+  bool going = true;
+  float alpha = t_ = rate_ * dt + t_;
+  if (direction_ == -1) {
+    alpha = 1.0f - alpha;
+    if (!(alpha > 0.0f)) {  // x87 "not above": NaN ends it too
+      alpha = 0.0f;
+      going = false;
+    }
+  } else if (alpha > 1.0f) {
+    alpha = 1.0f;
+    going = false;
+  }
+  if (en.video_mode() != 0) en.video_begin_3d();
+  else en.video_lock();
+  en.image_draw(image_, 0, 0, 0, 0);
+  if (en.video_mode() != 0) en.video_end_3d();
+  en.screen_tint(colour_, 0, alpha);
+  if (en.video_mode() != 0) {
+    en.video_begin_scene();
+    en.video_draw_3d();
+    en.video_end_scene();
+    en.video_flip(0, 0, 0, 0);
+  } else {
+    en.render_finish();
+    en.video_unlock();
+    en.video_flip(0, 0, 1, 1);
+  }
+  return going;
 }
 
 }  // namespace mech3
