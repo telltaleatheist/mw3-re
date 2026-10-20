@@ -163,6 +163,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | Current pilot, 0x477f50 | Deleting a pilot leaves [0x0060861c] pointing at it when it is the current one | (bug) a dangling pointer (the pilot screen's DELETE on the pilot chosen before; a lobby launch then took it for a pilot) | Cleared (the test clears the original's the same way, 0x477f56) |
 | Pilot screen DELETE, 0x487e30 | With no pilot chosen the question formats the name at address 0x18 | (bug) a crash: DELETE pressed before any pilot exists | Nothing happens |
 | Pilot list item, 0x488770 | The item's value is the pilot's address (read by nothing) | (A) a 64-bit pointer | 0 |
+| Sensors' C3 merge, 0x4a9fd0 | The union of the master's and a member's contacts is written into the scratch vector [0x609a5c], sized to zEntity's list (at least 32) | (bug) targets.zrd objects count as contacts too, so a big enough union writes past the heap block | The union goes into a vector of its own that grows; the same contacts result. `mech3/sensors`, test_sensors.py (the original's path: unions within the scratch) |
+| Sensors' contact, 0x4a9530 | The seen entity's vehicle (vt+0x2c) is written through without a check | (bug) a vehicle-less entity in sight would crash the game | Not written; every mech and target answers itself, so play never reaches it |
+| Entity sort, 0x4d7650 | Two lancemates' pilot names (brain +0xd4) are compared with strcmp | (bug) a lancemate without a `pilot` in aiv.zrd crashes the mission start | It ranks after the named ones; every shipped lancemate has a name |
 
 Notes on the fixes:
 

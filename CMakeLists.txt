@@ -133,6 +133,7 @@ add_library(mw3core STATIC
   src/mech3/weapon.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_target.cpp
+  src/mech3/sensors.cpp
   src/mech3/zai_valve.cpp
   src/mech3/zai_brain.cpp
   src/mech3/zai_steps.cpp
@@ -150,6 +151,7 @@ add_library(mw3core STATIC
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
   src/mech3/app_mech.cpp
+  src/mech3/app_sensors.cpp
   src/mech3/app_menus.cpp
   src/mech3/mainmenu.cpp
   src/mech3/menu_widgets.cpp
@@ -225,6 +227,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_brain.cpp
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
+  tests/probe_sensors.cpp
 )
 target_link_libraries(mw3probe PRIVATE mw3core)
 

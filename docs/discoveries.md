@@ -1311,9 +1311,37 @@ are all "puffers": emitters that drop little textured squares.
 - **Your sensors are nearly unlimited in Instant Action and multiplayer.**
   Your own mech's sensor range is capped at 1000 m in the campaign and
   training, but set to 50,000 m in Instant Action and multiplayer.
-- **Friends share what they see.** Allied vehicles merge their contact
-  lists, so an enemy one of your side spots is in everyone's list (likely:
-  the merge 0x4a9fd0 is not ported).
+- **Only your C3 shares contacts, and only if you carry the master.** With
+  a C3 computer (`c3`) on your own mech, every allied mech carrying C3 or a
+  C3 slave adds what it senses to your contact list, all of it counted in
+  sight. A C3 slave alone on your mech does nothing, and an enemy's C3
+  never helps the enemy: the game only ever builds the player's network.
+  Allies do not otherwise share what they see.
+- **Sensors see through walls, not through power-downs.** Every vehicle
+  senses everything within its range (1000 m in the campaign) whatever is
+  in between. A powered-down (or powering-down) mech stays on the list but
+  is never "in sight", so the target keys skip it, unless the one looking
+  carries an active Beagle (BAP) and the hidden mech has no ECM. A mech
+  shut down itself sees nothing in sight. Targets whose `radar` flag is off
+  in targets.zrd (such as c1 mission 1's satellite dish) are never in sight.
+- **Passive radar doesn't hide you from the AI.** The radar mode key
+  (Alt+R) cycles 1000 m, then 500 m "passive" when at the top, 500 m, 1000
+  m... Passive only stops your own Beagle and hides you from other passive
+  radars; the AI never switches to passive, so it sees you as before. With
+  C3 the cycle goes up to 2000 m, but the campaign caps the sensors at
+  1000 m anyway, so the extra range never shows.
+- **The lance lines up in a fixed order.** At the start of a mission the
+  game sorts every vehicle: you first, your side next with your lancemates
+  under orders ahead (Dominic Paine, then Epona Rhi, then Alan Mattila),
+  then everyone else; the stealth object last.
+- **Keep shooting a friend and your whole side turns on you.** If you keep
+  hitting an allied mech for more than 3 seconds without a 3-second pause,
+  every allied mech starts treating you as an enemy (though they stay
+  "allies" to your targeting keys).
+- **A lost target hands over to the nearest.** When your selected target
+  leaves sensor range, the sensors pick the nearest one in sight instead:
+  the nearest friend if the lost one was a friend, else the nearest
+  non-friend.
 - **Mission targets take their health from their destruction animation.**
   A targets.zrd object without its own `health` gets its hit points from the
   animation that plays when it is destroyed; one whose destruction animation

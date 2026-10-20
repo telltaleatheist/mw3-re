@@ -33,6 +33,8 @@
 #include "mech3/player.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
+#include "mech3/sensors.h"
+#include "mech3/app_sensors.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
@@ -636,6 +638,102 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
     EXPECT(mech3::missions().loaded == 1);
     EXPECT(mech3::missions().cleanup(false));
     EXPECT(valve_find("bramp") == nullptr && mech3::missions().time == 0.0f);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1 through the Load and Core states (docs/ai.md section 15): the
+// launch puts the player's Mad Cat and the Owens on zEntity's list, the
+// mission start sorts it (0x004d5ca0: the player first), and each Core frame
+// the sensors (0x004a8cd0) fill the contact lists, nearest first: the
+// player's holds the Owens and the targets.zrd objects within its 1000 m,
+// the Owens' holds the player; the target keys pick from them.
+TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_sensors_write"));
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      size_t entities = 0;
+      bool player_first = false, sorted = false;
+      int32_t player_n = 0, owens_n = 0;
+      bool player_sees_owens = false, owens_hidden = false, owens_sees_player = false, nearest_first = true;
+      bool owens_in_sight = false, picked = false, kept = false;
+    } seen;
+    mech3::Handle player = 0, owens = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {  // the Owens powered down: sensed, not in sight
+        player = engine.field32(engine.pilot(), 0x14);
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? engine.handle_of(ai[0].mech) : 0;
+        const std::vector<mech3::Handle>& list = mech3::ai::entity_list();
+        seen.entities = list.size();
+        seen.player_first = !list.empty() && list[0] == player;
+        seen.sorted = mech3::player_get_60b56c() == 1;
+        mech3::SensedContact c[64];
+        seen.player_n = mech3::sensed_contacts(engine.object_of(player), c, 64);
+        for (int32_t i = 0; i < seen.player_n && i < 64; ++i) {
+          if (i > 0 && c[i].distance < c[i - 1].distance) seen.nearest_first = false;
+          if (c[i].seen == owens) seen.player_sees_owens = true, seen.owens_hidden = !c[i].in_sight;
+        }
+        if (owens) {
+          seen.owens_n = mech3::sensed_contacts(ai[0].mech, c, 64);
+          for (int32_t i = 0; i < seen.owens_n && i < 64; ++i) seen.owens_sees_player |= c[i].seen == player;
+        }
+        if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
+      } else if (seen.frames == 5) {  // awake: in sight, and Ctrl+E (0x004d6a80) picks it
+        mech3::SensedContact c[64];
+        const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
+        for (int32_t i = 0; i < n && i < 64; ++i) seen.owens_in_sight |= c[i].seen == owens && c[i].in_sight;
+        if (mech3::ai::AiTarget* t = mech3::ai::sensor_hooks().fields(player)) {
+          t->nearest_enemy(0);
+          const int32_t k = mech3::selected_contact(engine.object_of(player));
+          seen.picked = k >= 0 && k < n && c[k].seen == owens;
+        }
+      } else if (seen.frames == 6) {  // the pick holds over a frame: the sensors find it again
+        const int32_t k = mech3::selected_contact(engine.object_of(player));
+        mech3::SensedContact c[64];
+        const int32_t n = mech3::sensed_contacts(engine.object_of(player), c, 64);
+        seen.kept = k >= 0 && k < n && c[k].seen == owens;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    EXPECT(seen.frames >= 6);
+    EXPECT(seen.entities == 2 && seen.player_first && seen.sorted);
+    EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
+    EXPECT(seen.owens_in_sight && seen.picked && seen.kept);
+    mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

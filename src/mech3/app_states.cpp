@@ -380,7 +380,7 @@ void ai_tick(Engine& en, Handle veh) {
   en.vcall(ai + 0x144c, 0x28, {zgame::bits(en.frame_dt())});
 }
 void world_tick(Engine& en) {
-  en.effects_update();
+  en.sensors_update();
   en.missions_update(0x6098d0, en.frame_dt());
   en.pilot_update(en.pilot(), en.frame_dt());
   en.camera_update();
@@ -702,7 +702,7 @@ void CoreState::resume(uint32_t arg) {
       en.mech_set_mode_a(en.field32(en.pilot(), 0x14), 0);
       en.mech_set_mode_b(en.field32(en.pilot(), 0x14), 0);
     }
-    if (en.peek8(0x60b56c) == 0) en.ai_start();
+    if (en.peek8(0x60b56c) == 0) en.entities_sort();
     en.shadows_reset();
     en.classes_reset();
   }

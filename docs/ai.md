@@ -211,6 +211,7 @@ ported lookup (section 8) on both sides.
 | targets / traps | 0x4e0720, 0x4e0820, 0x4e0740, 0x4e07d0, 0x4e07e0, 0x4e08c0, 0x4e0890 | `mech3/zrdraiv` |
 | reader getters | 0x556fe0, 0x557030, 0x556e90 | `gamez/zreader` |
 | mech by name | 0x4845f0 | `mech3/mech_names` mech_index |
+| the sensors and the entity sort (section 15) | 0x4a8cd0, 0x4a8710, 0x4a83c0, 0x4a91b0, 0x4a8990, 0x4a8960, 0x4a8b70, 0x4a8530, 0x4a7fd0, 0x4a7d00, 0x4a7c70, 0x4a7c90, 0x4a7cd0, 0x4a7f30, 0x4a9680, 0x4a98c0, 0x4a9910, 0x4a9980, 0x4a9530, 0x4a81f0, 0x4a9a60, 0x4a9cf0, 0x4a92c0, 0x4a9fd0, 0x4aa270, 0x4aa260, 0x4a9e70, 0x4a9fb0, 0x4aa400, 0x448600, 0x4e6fe0; MSVC's sort 0x4ab1f0, 0x4ab500, 0x4ab620; the sort 0x4d5ca0, 0x4d5bc0, 0x4d5be0, 0x4d7360, 0x4d7a40, 0x4d7bc0, 0x4d7650; 0x4d5dc0 | `mech3/sensors`, `crt/msvc_sort.h` |
 | AI controls and the brain's data (section 12) | 0x49fe90, 0x49ff10 (player.cpp), 0x4d8750, 0x4d8670, 0x4265a0, 0x4e71c0, 0x4e7090, 0x4ac750, 0x4ac740, 0x4a4af0, 0x4a4a70, 0x4a4000, 0x4a3fc0, 0x4cf330, 0x4d9bf0, 0x4d9940, 0x4d8fe0, 0x4b6570, 0x4b6390, 0x4b7060, 0x4b6660, 0x4e82a0, 0x4e8180, 0x4e8070, 0x4e8030, 0x4e7f80, 0x4ce200, 0x4e8090, 0x4cd770, 0x4c9d00, 0x4ce620, 0x4e9380, 0x4e9d80, 0x4e9d90, 0x4c0070, 0x4c0010, 0x4c0520, 0x4c0540, 0x4bffe0, 0x4cbe30, 0x4cbe50, 0x4c8660, 0x4e7e20, 0x4e7c40, 0x4e7dc0; the destructors 0x4d8bf0, 0x4d8c00, 0x4d8c40, 0x4e7820, 0x4e7830, 0x4e7870, 0x4cf630, 0x4e7df0, 0x4e7ff0, 0x4b65f0 | `mech3/mech_control` AiControls, `mech3/zai_brain` |
 
 Hooks (`RdrHooks`): the loose-file search (0x556240; none, FIX (A)),
@@ -867,21 +868,22 @@ port's `ai::AiTarget`, which `Mech` derives from):
 |---|---|
 | +0x68 | height (10; a mech's from its model's box) |
 | +0x6c / +0x70 / +0x74 / +0x78 | the target selected, the last ally selected, the last enemy, the one saved (0x4d7220; 0x4d7240 gives it or the last ally) |
-| +0x7c, +0x94 | blocks 0x4a7be0 frees |
-| +0x84..+0x90 | a vector of two nulls |
+| +0x7c / +0x80 | the sensors' contact on the nearest of the player and his lancemates under orders (+0x80), kept and owned at +0x7c when in no list (section 15) |
+| +0x84..+0x90 | a vector of tracked contacts (the constructor's two nulls; nothing fills them): the sensors put each frame's new contact on the same vehicle in place |
+| +0x94 / +0x98 | the sensors' contact on the player (+0x98), owned at +0x94 when in no list; a mech's level of detail goes by its distance (0x41e870) |
 | +0x9c / +0xa0 / +0xa4 | the sensor range, the range and its square (1000; 0x4d6d00, 0x4d6d20) |
 | +0xa8..+0xb4 | **the contacts**: a vector of 0x30-byte records the vehicle owns (0x4a7be0 deletes them), nearest first |
-| +0xbc | bit 4: a lancemate under the player's orders (0x4d5be0) |
+| +0xb8 | the nearest contact when within 8 m (64 squared) |
+| +0xbc | bit 0 someone has it targeted, bit 1 seen by an enemy, bit 2 passive radar (the radar mode key), bit 3 the player has seen it (never cleared), bit 4 a lancemate under the player's orders (0x4d5be0) |
 | +0xc0 / +0xc4 / +0xc8 | the team masks: a bit per 5-bit team in the value; allies the same bits but bit 0, enemies all the others but bit 0, so team 0 is no one's ally or enemy |
 | +0xd0 | a net of its own, made on first ask (0x4d70f0 over 0x4c0090) |
 
-**A contact** (made by 0x4aa270 in the sensors' module 0x4a8710..0x4ab4c0,
-between turret.cpp and veh_basic.cpp, which the Core frame's 0x4a8cd0 runs:
-not ported, so the program's lists stay empty): +0x00 the vehicle seeing it,
-+0x04 what is seen (its vehicle through vt+0x2c, 0x4e6fe0, whose vt+0x28 is
-its AiTarget), +0x08 the entity, +0x0c the squared distance, +0x10 the
-offset, +0x1c -1, +0x2c bit 0 in sight. Allies share their lists
-(0x4a9fd0: merged by entity, every ally's contacts in each).
+**A contact** (made by the sensors, section 15, every frame anew): +0x00
+the vehicle seeing it, +0x04 what is seen (the entity's vt+0x24; its
+vehicle through vt+0x2c, 0x4e6fe0, whose vt+0x28 is its AiTarget), +0x08
+the entity, +0x0c the squared distance, +0x10 the offset to it, +0x1c -1,
++0x2c bit 0 in sight. Only the player's C3 network shares contacts (section
+15); allies do not otherwise.
 
 **The pick** 0x4d6b90(side): the first contact of the side (0 ally, 1
 enemy, 2 neither, 3 or anything else any), in sight or not. The brain's
@@ -983,10 +985,170 @@ ignored, the markers out of order, the destroy animation run twice, the
 target subnode moved back by translate_to_anim_root, the old handlers
 removed by the weapon slot only, the description's default health 50.
 
-Left: the sensors that fill the contacts (0x4a8cd0 and its module), the
-entity sort and lance flags at the Core frame's start (0x4d5ca0, 0x4d7360,
-0x4d7650, 0x4d5be0, 0x4d5dc0), the target under the cursor (0x4d72b0,
-0x4d5980's line of sight), zEntity3d itself, the brain's use of the pick.
+Left: the sensors and the entity sort are section 15's; the turrets' pick
+(0x4d72b0, 0x4d5980's line of sight), zEntity3d itself, the brain's use of
+the pick.
+
+## 15. The sensors and the entity sort
+
+Ported 2026-10-20: `mech3/sensors` (and MSVC's sort as a template,
+`crt/msvc_sort.h`); test `tests/differential/test_sensors.py` (probe
+`tests/probe_sensors.cpp`); in the program `mech3/app_sensors`. The module
+is 0x4a7c70..0x4ab4c0, between turret.cpp and veh_basic.cpp (its file name
+is not known). app_hooks.h called 0x4a8cd0 `effects_update`: it is the
+sensors (now `sensors_update`), and 0x4d5ca0 `ai_start` the entity sort
+(now `entities_sort`).
+
+**The frame** 0x4a8cd0 runs from the Core frame's world tick (game-loop.md:
+after the scene and the mech's AI tick, before the missions' frame). The
+player P is [0x60861c]+0x14, the view's vehicle V [0x5f4c8c]+0x64, the
+stealth entity S [0x609a2c]; the entities are zEntity's list
+[0x73655c..0x736560] (sorted at the mission start, below), the targets
+targets.zrd's [0x60b584..0x60b588].
+
+1. **A record per vehicle** (0x44 bytes, 0x4a7fd0; the set-up 0x4a8710,
+   0x4a83c0): P's first (P's vehicle's vt+0xcc is asked and not used), then
+   V's if V is neither P nor S, then every other entity whose vehicle
+   (vt+0x2c) is alive (vt+0xcc); S and the dead ones have their state
+   cleared (below, the target through vt+0xc0(0, 0)) and +0x09 cleared.
+   Each record keeps the vehicle each of the four picks (+0x6c..+0x78)
+   and the tracked contacts (+0x88) saw, and the flags: bit 0 passive radar
+   (+0xbc bit 2), 1 shut down (vt+0xa0 == 1: the mech's power-down pending or
+   done, 0x41cc10), and with a mech (vt+0x50): 2 BAP, 3 C3, 4 C3 slave, 6
+   ECM (equipment kinds 4, 6, 7, 8 above 0), 7 a lancemate under orders
+   (+0xbc bit 4). On anyone but the player C3 and C3 slave become bit 4
+   when he is an ally of the player, else nothing. Then the vehicle's state
+   is cleared: +0x94 and +0x7c deleted, the picks, +0x80, +0x98, +0xb8
+   zeroed, every contact deleted (0x4a7be0), +0xbc bits 0-1 off, vt+0xc8
+   (the mech's brain told, 0x41e810); +0x09 set. zEntity's 0x5a85c0 runs
+   first (vt+0x1c when the node has parents).
+2. **A record per active target** (+0x08; 0x4a8530) likewise, with no
+   vt+0xc8.
+3. **The player with everyone** (0x4a9680, the first record with each other
+   and each target): each senses the other within its own range (below);
+   the other's contact on the player goes to its +0x98 and +0x80, made
+   anyway (and owned at +0x94) when the player is beyond its range.
+4. **The lancemates under orders** (the records after the first while bit 7,
+   0x4a9a60) with every later record and every target: each senses the
+   other; the other's +0x80 becomes the nearer of what it held and this
+   lancemate (owned at +0x7c, reused, when beyond its range).
+5. **Every other pair** (0x4a92c0) of the rest, each with every target too:
+   each senses the other within its own range. Targets never sense targets.
+6. **C3** (0x4a9fd0, when there is a master): the master's list becomes the
+   union, by what each contact saw (pointer order, 0x4ab1f0's sort first),
+   of its own and each C3 member's that is an ally of the master; the
+   member's contacts become new ones from the master's position, in sight
+   (0x4aa270), those on the master dropped; replaced only when the union
+   is longer. [0x609a7c] counts the merges; nothing reads it.
+7. **Each vehicle's list finished** (0x4a9e70): sorted nearest first
+   (MSVC's sort, 0x4ab500 / 0x4ab620, by x87 "below"), the nearest within
+   8 m at +0xb8, the last ally, enemy and saved picks set to their new
+   contacts (none if not sensed), the target re-selected (vt+0xc0(c, 1))
+   when sensed again; a target lost gives way to the nearest ally in sight
+   (0x4d6970) if it was the last ally, else the nearest non-ally in sight
+   (0x4d6a80). vt+0xd0 false clears +0x09 (the mech's: the level of detail by
+   +0x98's distance, 0x41e870). Targets' lists are not sorted.
+8. **The view's ping** (0x4aa400): V's contacts nearest first, up to the
+   first beyond its range: the first whose vehicle's vt+0x40 has a vt+0xec
+   object plays it (0x4adce0 on its +0xe8) at that vehicle's node.
+
+**Sensing** (written out in 0x4a9910, 0x4a9980, 0x4a9cf0, 0x4a92c0 and the
+two kept contacts): within range is the squared distance below the
+observer's +0xa4 (NaN counts), or [0x60b570] (only ever cleared: a debug
+"see everything" switch). The contact (0x4a9530) goes in the observer's
+list; it is in sight unless [0x60b570] is off and: the target's vehicle
+hides (vt+0xb4: a target without `radar` in targets.zrd, 0x4d3380; never a
+mech), or the observer is shut down, or neither (the observer has an
+active (not passive) BAP and the target no ECM) nor (the target is not shut
+down and not both are passive). The target's +0xbc: bit 3 when the player
+sees it, bit 1 when an enemy sees it (in sight), bit 0 when it was the
+observer's target. Offsets point from the observer to the target; the
+distance is (x² + y²) + z².
+
+**The entity sort** 0x4d5ca0 runs in the Core state's resume(7) (the
+mission start, after the fade) while [0x60b56c] is 0 (every AiTarget made
+or re-teamed clears it): every vehicle's lance flag (0x4d5be0: the brain's
++0xcd: bit 1 "default" an ally of the player that is not him, else bit 0;
+no brain none), then MSVC's sort (0x4d7360, the comparator 0x4d7650 and its
+inline copy in 0x4d7bc0): the player first, the stealth entity last, then
+entities with a vehicle before those without, allies of the player before
+the rest, lancemates before other allies, then by mech, by brain (none
+first), by pilot: Dominic Paine, Epona Rhi, Alan Mattila (messages 0xe14,
+0xe15, 0xe01), the rest; ties by address (the vehicle's between non-lance
+allies, else the entity's). [0x60b550] is the second entity, [0x60b548]
+the first after it without a mech allied to the player; [0x60b56c] = 1.
+
+**The allies turn** 0x4d5dc0, from the AI controls' damage handler
+0x4ea520 when the player has kept hitting an ally for over 3 s (0x4aec10
+keeps the last hit's time, its attacker and when that attacker's run of
+hits began, a run broken by a gap over 3 s or another attacker; 0x4aec70
+the run's length): every entity in [0x60b550, 0x60b548), every allied
+mech, takes the player's team as an enemy and drops it from its allies,
+gaining bit 31; the player's enemies lose bit 31. Ported, not wired (the
+handler is the AI's).
+
+**Quirks**: the radar mode key (RADAR_RANGE, Alt+R, the mech's 0x41bfc6)
+cycles the sensor range 1000, then 500 passive (+0xbc bit 2) once at the
+top (2000 with C3), 500 active, 1000...; in the campaign the range is
+capped at 1000 anyway (0x4d6d20), so C3's 2000 never reaches the sensors.
+Passive radar only stops your BAP and hides you from other passive radars:
+the AI is never passive. Only the player leads a C3 network: an AI's C3
+does nothing for its side. Powered-down mechs are sensed but not in sight,
+except by an active BAP when they carry no ECM. Targets without `radar`
+are never in sight. The sort's last tie compares addresses.
+
+**Fixes** (fixes.md): the C3 union in the scratch [0x609a5c] (one slot per
+entity, at least 32) can outgrow it, targets counting too, and write past
+the heap block: the port's grows. A contact on something without a vehicle
+is not written through (the exe would crash; never in play). A lancemate
+whose brain has no pilot name ranks last instead of crashing the sort.
+
+**The tests** (`test_sensors.py`, x87 at 24 bits). Part 1, 1500 frames:
+crafted worlds of 1 to 26 vehicles and 0 to 5 targets (entities their own
+vehicle or another's, alive or not, with mechs carrying BAP, C3, C3 slave,
+ECM, shut down, passive, lancemates, hidden, teams of one or two bits,
+ranges 150 to 50000, pairs at exactly a range, stale nodes, old contacts
+behind every pick and the tracked ones, P, V and S anywhere, [0x60b570]
+on); every call out by object (vt+0xc0 recorded outside AiTarget's own
+pickers, the node refreshes, the ping's position) and every vehicle's and
+target's picks, kept contacts, flags, masks and list, and every +0x09:
+identical, every listed branch reached. Part 2, 500 sorts of 0 to 40
+entities (own entities made out of order, mechs their own, lancemate
+settings, pilot names), with the allies turning: the calls, the order, the
+range and the flags identical. Breaking the port showed the test catches
+it, 33 of 33: BAP through ECM, passive hiding from all, a shut-down observer
+seeing, the range inclusive, the offset reversed, the sum's order, the
+player's mark without sight, an ally's mark for an enemy's, the targeted
+mark missing, 10 m touching, the lost ally falling to an enemy, the target
+re-set without keep, vt+0xd0 skipped, the target dropped instead of
+forgotten, targets told of the clear, no lancemates, the farther lancemate
+kept, no lance contact on the player, the C3 tie taking the member's, the
+C3 ally test missing, others leading C3, ECM from the slave count, the ping
+on every contact, the lance tie by entity, Rhi before Paine, the allies'
+range without the team test, the player his own lancemate, turned allies
+keeping the team, the quicksort down to 8, shut down on any answer, the
+saved pick lost, tracked contacts not followed, C3 copying the master's own.
+
+**In the program**: zEntity's list is the port's (`ai::entity_list()`),
+filled by the mech build's 0x5a7f50 (app_mech.cpp) and cleared at each
+mission start; the sensors' hooks answer as the Mech's and CZAiTarget's
+vtables do (`app_sensors.cpp`), positions through zClass's node_to_world;
+the targets' centroid and target nodes are their record's named subnodes
+or the node (0x5a8390 stands in); the fade state (0x48eea0) is not ported,
+so the Core state's mission-start fade ends at once with resume(7), which
+sorts. `mw3tests` `mission_c1m1_sensors_fill_the_contacts_headless`: the
+Mad Cat and the Owens on the list, the player first; the player senses the
+Owens, not in sight while powered down, the Owens senses the player;
+after bramp wakes it, it is in sight, Ctrl+E selects it and the next
+frame's sensors keep it selected. (The satellite dish, 2 km out and without
+`radar`, is beyond the 1000 m; both mechs stand at the origin until the
+placement 0x4161c0 is ported.)
+
+Left: the turrets' pick 0x4d72b0 and the line of sight 0x4d5980 (zClass's
+segment walk 0x4eed90 is not ported), the AI's friendly-fire handler that
+turns the allies, the mech's vt slots the sensors call (the HUD's lock
+0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),
+zEntity3d.
 
 ## Open
 
