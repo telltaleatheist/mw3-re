@@ -71,6 +71,10 @@ void set_hooks() {
     log({4, fnv(n)});
     return reinterpret_cast<void*>(static_cast<uintptr_t>(0x5000000u | (fnv(n) & 0xffffff)));
   };
+  h.find_region = [](const char* n) -> void* {
+    log({6, fnv(n)});
+    return reinterpret_cast<void*>(static_cast<uintptr_t>(0x6000000u | (fnv(n) & 0xffffff)));
+  };
   zerr::set_sink(sink);
 }
 
@@ -145,9 +149,66 @@ void put_file(Out& o, NetRef& ref, const char* const* named, int nnamed) {
   }
   for (int i = 0; i < nnamed; ++i) put_node(o, f->node_named(named[i]));
 }
+void put_aiv(Out& o, const AivRecord* r) {
+  if (!r) return o.u(0);
+  o.u(1);
+  for (int off = AiParams::kBegin; off < AiParams::kEnd; off += 4) o.u(r->get<uint32_t>(off));
+  o.u(uint32_t(r->mech3_set)), o.u(uint32_t(r->mech3));
+  o.s(r->pilot), o.s(r->sound_tag);
+  if (!r->vlist) return o.u(0xffffffffu);
+  o.u(static_cast<uint32_t>(r->vlist->size()));
+  for (const VListEntry& e : *r->vlist) {
+    o.f(e.f00), o.f(e.f04), o.f(e.f08), o.f(e.f0c), o.f(e.f10);
+    o.u(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(e.region)));
+    o.u(e.flags | e.flags2 << 8 | e.pad[0] << 16 | uint32_t(e.pad[1]) << 24);
+    o.u(valve_token(e.valve));
+  }
+}
+
+void put_aiv_file(Out& o) {
+  const AivFile& f = aiv_file();
+  o.u(uint32_t(f.refs)), o.u(f.tree ? 1 : 0), o.u(uint32_t(f.first)), o.u(uint32_t(f.record_count()));
+}
 }  // namespace
 
 extern "C" {
+
+// aiv.zrd from `archive`: a record made (aiv.zrd loaded), every record read by
+// number (-1 to the count), then each of `names` by name, the record dropped.
+int probe_aiv_run(const char* archive, const char* const* names, int nnames, uint8_t* out, int cap,
+                  uint32_t* logbuf, int logcap, int* nlog) {
+  g_log.clear();
+  g_strings.clear();
+  g_strings.reserve(8192);
+  g_out = Out{};
+  set_hooks();
+  valves_clear();
+  aiv_file_reset();
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  auto* rec = new AivRecord;
+  put_aiv_file(g_out);
+  const int32_t n = aiv_file().record_count();
+  for (int32_t i = -1; i <= n; ++i) {
+    const char* name = nullptr;
+    AivRecord* r = rec->read(i, &name);
+    g_out.s(name);
+    put_aiv(g_out, r);
+  }
+  for (int i = 0; i < nnames; ++i) put_aiv(g_out, rec->read_named(names[i]));
+  delete rec;
+  put_aiv_file(g_out);
+  g_out.u(static_cast<uint32_t>(valves().size()));
+  for (const Valve* v : valves()) g_out.s(v->name);
+  zerr::set_sink(nullptr);
+  if (static_cast<int>(g_out.b.size()) > cap || static_cast<int>(g_log.size()) > logcap) return -101;
+  std::memcpy(out, g_out.b.data(), g_out.b.size());
+  std::memcpy(logbuf, g_log.data(), g_log.size() * 4);
+  *nlog = static_cast<int>(g_log.size());
+  return static_cast<int>(g_out.b.size());
+}
+
 
 // Opens `archive`, then for each of the `n` requests (net, name, op) runs one
 // step: op 0 takes a reference and dumps the file, 1 drops the last one taken,

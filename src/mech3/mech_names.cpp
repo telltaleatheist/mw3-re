@@ -60,6 +60,13 @@ int32_t mech_tech(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].t
 // Mech3.exe 1.2 @ 0x00484650
 const char* mech_name(int32_t mech) { return mech >= 0 && mech < 19 ? kMechs[mech].name : "notmech"; }
 
+// Mech3.exe 1.2 @ 0x004845f0. The table's +0x24 is the entry's own index.
+int32_t mech_index(const char* name) {
+  for (int32_t i = 0; i < 19; ++i)
+    if (crt::msvc_stricmp(name, kMechs[i].name) == 0) return i;
+  return -1;
+}
+
 // Mech3.exe 1.2 @ 0x004852b0. No name counts as Inner Sphere.
 int32_t tech_id(const char* name) {
   if (!name) return kInnerSphere;

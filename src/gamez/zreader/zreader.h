@@ -58,6 +58,10 @@ bool get_vec2(Node* list_node, float out[2]);                        // 0x00556c
 bool get_ivec2(Node* list_node, int32_t out[2]);                     // 0x00556c70
 bool get_ivec3(Node* list_node, int32_t out[3]);                     // 0x00556cf0
 bool get_bool_int(Node* node, int32_t* out);                         // 0x00556da0
+// A string, the int 0 reading as none (out = nullptr); a one-item list too.
+bool get_string_value(Node* node, const char** out);                 // 0x00557030
+// 0, 1 or 2: an int (out of range: 2), or true/on (1), false/off/none/default (0).
+bool get_tristate(Node* node, int32_t* out);                         // 0x00556e90
 
 bool get_vec3(Node* node, const char* key, float out[3]);            // 0x005570b0
 bool get_vec2(Node* node, const char* key, float out[2]);            // 0x005570d0

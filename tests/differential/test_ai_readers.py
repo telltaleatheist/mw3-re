@@ -23,13 +23,16 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ai_world import ROOT, Emulated, archive, mission_archives, ser  # noqa: E402
+from ai_world import ROOT, AivRun, Emulated, archive, mission_archives, ser  # noqa: E402
+import zrd  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 probe.probe_ainet_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int,
                                   ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p,
                                   ctypes.c_int, ctypes.c_void_p]
+probe.probe_aiv_run.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int,
+                                ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
 WORK = ROOT / 'build' / 'ai_readers'
 # Files the original crashes on, which the port reads (docs/fixes.md).
 CRASHES = {'not a list'}
@@ -42,7 +45,12 @@ COVER = {0x4da95c: 'past version', 0x4da973: 'future version', 0x4da9d5: '"mech3
          0x4db41e: 'deploy', 0x4db46d: 'mcbwait', 0x4db4ad: 'arrangenodes', 0x4db4d0: 'sound', 0x4db4f1: 'backup',
          0x4db508: 'gate', 0x4db52a: 'shunt', 0x4db556: 'valveunion', 0x4db5c9: 'valveunion entry',
          0x4db5de: 'valveunion count', 0x4db7ff: 'valve_assign', 0x4dea66: 'wrong suffix', 0x4dea86: '.zrd suffix',
-         0x4decbc: 'missing file', 0x4deb70: 'second reference', 0x4debb9: 'last release unloads'}
+         0x4decbc: 'missing file', 0x4deb70: 'second reference', 0x4debb9: 'last release unloads',
+         0x4df7b6: 'team from the name', 0x4df9bc: 'p4 order', 0x4dfbfe: 'pilot name', 0x4dffec: 'epona voice',
+         0x4e0027: 'alan voice', 0x4e0062: 'dom voice', 0x4e00b3: 'lancemate', 0x4e01e6: '17-item order',
+         0x4e027f: 'order region', 0x4e0298: 'order valve', 0x4e0308: 'mech3 tag', 0x4e0351: 'p8 with old tags',
+         0x4e03f7: 'p3 alone', 0x4e03d8: 'p3 and p7 differ', 0x4e0431: 'p5 jump', 0x4e043d: 'p5 both',
+         0x4e045a: 'p5 none'}
 CAP, LOGCAP = 1 << 22, 1 << 18
 
 
@@ -78,6 +86,20 @@ def port_nets(files, steps, named):
                               ctypes.byref(nlog))
     if r < 0:
         raise SystemExit(f'probe_ainet_run: {r}')
+    return bytes(out[:r]), port_events(log, nlog.value)
+
+
+def port_aiv(files, names):
+    path = WORK / 'aiv.zbd'
+    path.write_bytes(archive(files))
+    keep = [ctypes.c_char_p(k) for k in names]
+    arr = (ctypes.c_char_p * max(len(names), 1))(*keep)
+    out = (ctypes.c_uint8 * CAP)()
+    log = (ctypes.c_uint32 * LOGCAP)()
+    nlog = ctypes.c_int()
+    r = probe.probe_aiv_run(str(path).encode(), arr, len(names), out, CAP, log, LOGCAP, ctypes.byref(nlog))
+    if r < 0:
+        raise SystemExit(f'probe_aiv_run: {r}')
     return bytes(out[:r]), port_events(log, nlog.value)
 
 
@@ -123,6 +145,51 @@ class Checker:
                     j = first_diff(mlog, plog)
                     print('  log original', mlog[j:j + 4], 'port', plog[j:j + 4])
         return mine
+
+    def aiv(self, label, files, names):
+        self.cases += 1
+        names = [k.encode() if isinstance(k, str) else k for k in names]
+        try:
+            mine, mlog = AivRun(self.emu).run(files, names)
+        except Exception as e:  # the original crashed
+            self.fails += 1
+            print(f'CRASH {label}: {e}')
+            reached = self.emu.reached
+            self.emu = Emulated()
+            self.emu.cover(COVER)
+            self.emu.reached = reached
+            return
+        port, plog = port_aiv(files, names)
+        if mine != port or mlog != plog:
+            self.fails += 1
+            if self.fails <= 10:
+                i = first_diff(mine, port)
+                print(f'MISMATCH {label}: stream {len(mine)} vs {len(port)} bytes, first difference at {i}; '
+                      f'logs {len(mlog)} vs {len(plog)}')
+                print('  original', mine[max(0, i - 16):i + 32].hex())
+                print('  port    ', port[max(0, i - 16):i + 32].hex())
+                if mlog != plog:
+                    j = first_diff(mlog, plog)
+                    print('  log original', mlog[j:j + 4], 'port', plog[j:j + 4])
+
+
+def record_names(data):
+    root, _ = zrd.node(data, 0)
+    if not (isinstance(root, list) and len(root) == 1 and isinstance(root[0], list)):
+        return []
+    top = root[0]
+    return [top[i] for i in range(0, len(top) - 1, 2) if isinstance(top[i], str)]
+
+
+def shipped_aiv(check):
+    count = 0
+    for path, files in mission_archives():
+        if 'aiv.zrd' not in files:
+            continue
+        names = record_names(files['aiv.zrd']) + ['no_such_vehicle']
+        check.aiv(f'{path.parent.name}/{path.name}/aiv.zrd', {'aiv.zrd': files['aiv.zrd']}, names)
+        count += 1
+    return count
 
 
 # --- made-up files -----------------------------------------------------------
@@ -225,6 +292,76 @@ def variants(rng):
     return out
 
 
+ENTRY = [1, 0, 0.25, 0, 1, 0.999, 0, 0.8, 1, 'reg_a', 0, 0.0, 1, 60.0, 1, 'valve_a', 1]
+P4 = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 1, 0, 0.5, 1, 0, 0.75, 1, 0.9, 1, 'reg_p4', 1, 12.0, 0, 40.0,
+      'valve_p4']
+
+
+def aiv_rec(kind=4, pos=(1.0, 2.0, 3.0), yaw=30.0, team=2, props=()):
+    return [kind, list(pos), yaw] + ([team] if team is not None else []) + list(props)
+
+
+def aiv_file(records):
+    top = []
+    for k, v in records:
+        top += [k, v]
+    return ser([top])
+
+
+AIV_PROPS = [
+    ['params', [1000.0, 0, 500.0, 130.0, 80.0, 60.0, 1000.0, 2.5, 2.0]], ['params', [1, 2, 3, 4, 5, 6, 7, 8, 9]],
+    ['p2', [0, 1, 1, 0, 50.0, 50.0, 20.0, 0.1]], ['p2', [3, 0, 0, 1, 1.0, 2.0, 3.0, 4.0]],
+    ['p6', [0, 8.0, 1, 0]], ['p8', [12.0, 14.0, 4.0, 6.0, 1, 40.0, 30.0, 50.0, 0.7, 1, 0, 0.4, 0.5, 0, 1, 0, 0]],
+    ['p9', [4.0, 4.0, 12.0, 1, 0.05]], ['p9', [1.0, 2.0, 3.0, 0, 0.5]], ['p10', [2.2, 3]], ['p11', [7.5]],
+    ['p12', ['owens', 0, 1]], ['p12', ['MADCAT', 1, 0]], ['p12', ['nosuchmech', 1, 1]], ['p13', [1]], ['p13', [0]],
+    ['pilot', ['MSG_AIV_X']], ['pilot', ['MSG_AIV_Y', 'can_configure', ['true']]],
+    ['pilot', ['MSG_AIV_Z', 'can_configure', ['false']]], ['pilot', [5, 'can_configure', [1]]],
+    ['sound_tag', ['dom']], ['sound_tag', [0]], ['sound_tag', [1.5]], ['sound_tag', 'alan'], ['sound_tag', [7]],
+    ['skin', [3]], ['lancemate', ['on']], ['lancemate', ['off']], ['lancemate', [2]], ['lancemate', [7]],
+    ['lancemate', ['NONE']], ['lancemate', ['bogus']], ['lancemate', [1.5]], ['lancemate', ['default']],
+    ['vlist', [ENTRY, ENTRY[:16], [0, 1, 1.5, 1, 0, 2.0, 1, 3.0, 0, 0, 1, 4.0, 0, 5.0, 0, 'valve_b', 0]]],
+    ['vlist', []], ['vlist', [ENTRY[:9] + ['reg_b'] + ENTRY[10:15] + ['valve_a'] + [0]]],
+    ['vlist', [ENTRY[:15] + [0, 1]]], ['mech3', [1]], ['mech3', [0]],
+]
+OLD_TAGS = {'p3': ['p3', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], 'p3same': ['p3', [6.0, 5.0, 7.0, 8.0, 9.0, 10.0]],
+            'p4': ['p4', P4], 'p5': ['p5', [1.0, 2.0, 3.0, 1, 1]], 'p7': ['p7', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]],
+            'p8': AIV_PROPS[5]}
+
+
+def aiv_variants(rng):
+    out = []
+    names = ['player', 'stealth', 'Epona_Rhi', 'Alan_Mattila', 'Dominic_Paine', 'Alan_Matilla', 'truck']
+    # Short records: the team from the name; one item more: the team given.
+    recs = [(n, aiv_rec(team=None, props=())) for n in names] + [('given', aiv_rec(team=1))]
+    recs += [('only', [3, [1.0, 2.0, 3.0], 45])]
+    out.append(('short records', recs))
+    for i, p in enumerate(AIV_PROPS):
+        out.append((f'aiv prop {p[0]} {i}', [(names[i % len(names)], aiv_rec(props=p)), ('second', aiv_rec(props=p))]))
+    # The old tags and their checks, every combination.
+    keys = ['p3', 'p4', 'p5', 'p7', 'p8']
+    for mask in range(32):
+        props = []
+        for b, k in enumerate(keys):
+            if mask >> b & 1:
+                props += OLD_TAGS[k]
+        out.append((f'old tags {mask:05b}', [('v', aiv_rec(props=props))]))
+    for a, b in [(0, 0), (0, 1), (1, 1), (2, 1), (3, 0), (0, 3), (5, 0)]:
+        out.append((f'p5 {a} {b}', [('v', aiv_rec(props=['p5', [1.0, 2.0, 3.0, a, b]]))]))
+    out.append(('p3 p7 same', [('v', aiv_rec(props=OLD_TAGS['p3same'] + OLD_TAGS['p7']))]))
+    # Random records, random yaws (the degree/radian round trips).
+    for i in range(60):
+        recs = []
+        for k in range(rng.randrange(1, 6)):
+            props = []
+            for p in rng.sample(AIV_PROPS, rng.randrange(0, 9)):
+                props += p
+            recs.append((rng.choice(names) + f'_{k}', aiv_rec(kind=rng.randrange(0, 27), yaw=rng.uniform(-400, 400),
+                                                              team=rng.choice([None, 0, 1, 2]) if not props else
+                                                              rng.choice([0, 1, 2]), props=props)))
+        out.append((f'aiv random {i}', recs))
+    return out
+
+
 def shipped(check):
     count = 0
     for path, files in mission_archives():
@@ -247,10 +384,17 @@ def main():
     check = Checker()
     n = shipped(check)
     print(f'shipped: {n} net and region files')
+    n = shipped_aiv(check)
+    print(f'shipped: {n} aiv.zrd files')
     vs = variants(rng)
     for label, files, steps in vs:
         check.nets(label, files, steps, ['node_01', 'node_04', 'missing'])
     print(f'variants: {len(vs)}')
+    avs = aiv_variants(rng)
+    for label, recs in avs:
+        names = [k for k, v in recs] + ['missing']
+        check.aiv(label, {'aiv.zrd': aiv_file(recs)}, names)
+    print(f'aiv variants: {len(avs)}')
     missed = [v for a, v in COVER.items() if a not in check.emu.reached]
     if missed:
         raise SystemExit(f'not reached in the original: {missed}')

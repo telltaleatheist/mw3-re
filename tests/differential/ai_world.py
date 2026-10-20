@@ -6,6 +6,7 @@ here from the original's memory.
 Reader trees come from the original's own zReader (0x557180) reading the
 file's bytes through a stubbed ReadFile, as test_weapons_zrd.py does.
 """
+import os
 import struct
 import sys
 from pathlib import Path
@@ -14,15 +15,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools' / 'analysis'))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP  # noqa: E402
 import zrd  # noqa: E402
 
 ZBD = ROOT / 'game' / 'mw3-1.2' / 'zbd'
 IAT = {'readfile': 0x5bb0c4, 'malloc': 0x5bb664, 'free': 0x5bb65c, 'strdup': 0x5bb670, 'strtol': 0x5bb5b4,
        'strrchr': 0x5bb5a8, 'strncpy': 0x5bb648, 'sprintf': 0x5bb658, 'strncmp': 0x5bb654, 'snprintf': 0x5bb638,
        'lockit': 0x5bb4f8, 'unlockit': 0x5bb4f4, 'calloc': 0x5bb60c, 'realloc': 0x5bb610, 'stricmp': 0x5bb580}
-NEW, DELETE, LOAD, READ_NODE, FIND_LOOSE, LOCALIZE, SOUND, ZERR, ATEXIT = (
-    0x5abd26, 0x5abd1a, 0x556740, 0x557180, 0x556240, 0x575fb0, 0x56f6f0, 0x49bfd0, 0x5ac140)
+NEW, DELETE, LOAD, READ_NODE, FIND_LOOSE, LOCALIZE, SOUND, ZERR, ATEXIT, REGION = (
+    0x5abd26, 0x5abd1a, 0x556740, 0x557180, 0x556240, 0x575fb0, 0x56f6f0, 0x49bfd0, 0x5ac140, 0x4c5c00)
+AIV_PARSE = 0x4df730
+VLIST_DEFAULTS = struct.pack('<7I', 0x3e800000, 0x3dcccccd, 0x3f4ccccd, 0, 0x45610000, 0, 0)
 HANDLE = 0x1234
 BIG = 0x40000000
 # The AI globals the static initializers set up (zeroed before each run).
@@ -85,6 +88,10 @@ class Emulated:
     def __init__(self):
         cpu = self.cpu = Original()
         cpu.import_code(IAT_FTOL, FTOL)
+        # Load-time code: the x87 at 53 bits, as the CRT start-up sets it
+        # (CLAUDE.md); MW3_X87=24 runs it at the in-play 24 instead.
+        if os.environ.get('MW3_X87') != '24':
+            cpu.fpu_control(0x027f)
         cpu.uc.mem_map(BIG, 0x8000000)
         self.next = BIG
         cpu.stub_import(IAT['readfile'], self.read_file, pop_bytes=20)
@@ -108,13 +115,17 @@ class Emulated:
             FIND_LOOSE: (lambda c: self.log(2, fnv(self.cstr(c.ecx))), 0),
             LOCALIZE: (self.localize, 0),
             SOUND: (self.sound, 0),
-            ZERR: (lambda c: self.log(1, c.arg(0), c.arg(2)), 0),
+            ZERR: (self.zerr, 0),
             ATEXIT: (lambda c: 0, 0),
+            REGION: (self.region, 0),
         }
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
         self.trees = {}
         self.reached = set()
+        # The aiv reader's old-tag scratch is uninitialised stack in the exe;
+        # the port takes zeros and the order defaults (FIX (bug)): pin them.
+        cpu.uc.hook_add(UC_HOOK_CODE, self.pin_aiv_stack, begin=AIV_PARSE, end=AIV_PARSE)
         self.base_heap = cpu.heap_next
 
     def cover(self, addrs):
@@ -128,7 +139,14 @@ class Emulated:
     def alloc(self, n):
         a = self.next
         self.next += (max(n, 1) + 0xf) & ~0xf
+        self.cpu.write(a, bytes((max(n, 1) + 0xf) & ~0xf))
         return a
+
+    def pin_aiv_stack(self, uc, address, size, user):
+        from unicorn.x86_const import UC_X86_REG_ESP
+        base = uc.reg_read(UC_X86_REG_ESP) - 0x88
+        uc.mem_write(base + 0x10, bytes(0x30))
+        uc.mem_write(base + 0x40, VLIST_DEFAULTS)
 
     def calloc(self, n):
         a = self.alloc(n)
@@ -240,6 +258,18 @@ class Emulated:
         self.log(3, fnv(s))
         return self.new_string(b'L:' + s)
 
+    def zerr(self, c):
+        # 0x49bfd0 is also every empty virtual slot: the aiv file's parse
+        # (called from the load at 0x4decad) is one.
+        if self.u32(c.uc.reg_read(UC_X86_REG_ESP)) == 0x4decb0:
+            return 0
+        return self.log(1, c.arg(0), c.arg(2))
+
+    def region(self, c):
+        s = self.cstr(c.ecx)
+        self.log(6, fnv(s))
+        return 0x6000000 | (fnv(s) & 0xffffff)
+
     def sound(self, c):
         s = self.cstr(c.ecx)
         self.log(4, fnv(s))
@@ -284,6 +314,7 @@ class Emulated:
             cpu.write(a, bytes(n))
         cpu.call(0x4d3d70)          # the valves' list (0x0060b500)
         cpu.call(0x4dc150)          # the net files' map (0x0060b5a8)
+        cpu.call(0x4df620)          # aiv.zrd's file object (0x0060b5e0)
 
     # --- what the port's probe writes ------------------------------------------
     def valves(self):
@@ -444,3 +475,72 @@ def mission_archives():
         data = p.read_bytes()
         out.append((p, {n: data[s:s + k] for n, s, k in zrd.entries(data)}))
     return out
+
+
+# --- aiv.zrd -------------------------------------------------------------------
+class AivRun:
+    """What probe_aiv_run writes, from the original's memory."""
+    AIV = 0x60b5e0
+
+    def __init__(self, emu):
+        self.e = emu
+
+    def put_record(self, o, r):
+        e, u = self.e, self.e.u32
+        if r == 0:
+            o.u(0)
+            return
+        o.u(1)
+        for off in range(0x04, 0xd0, 4):
+            o.u(u(r + off))
+        o.u(u(r + 0xdc)), o.u(u(r + 0xe0))
+        o.s(e.cstr(u(r + 0xd4))), o.s(e.cstr(u(r + 0xd8)))
+        owner = u(r + 0xd0)
+        if owner == 0:
+            o.u(0xffffffff)
+            return
+        head = u(owner + 4)
+        vl = e.valves()
+        items, p = [], u(head)
+        while p != head:
+            items.append(p + 8)
+            p = u(p)
+        o.u(len(items))
+        for it in items:
+            for off in range(0, 0x1c, 4):
+                o.u(u(it + off))
+            o.u(e.valve_token(u(it + 0x1c), vl))
+
+    def put_file(self, o):
+        u, cpu = self.e.u32, self.e.cpu
+        o.u(u(self.AIV + 0x10)), o.u(1 if u(self.AIV + 0xc) else 0), o.u(u(self.AIV + 0x1c))
+        cpu.call(0x4decf0, ecx=self.AIV)
+        o.u(self.e.eax())
+
+    def run(self, files, names):
+        e, cpu = self.e, self.e.cpu
+        e.reset(files)
+        o = Out()
+        rec = e.alloc(0xe4)
+        cpu.call(0x4e0490, ecx=rec)
+        self.put_file(o)
+        cpu.call(0x4decf0, ecx=self.AIV)
+        n = s32(e.eax())
+        slot = e.alloc(4)
+        for i in range(-1, n + 1):
+            cpu.u32(slot, 0)
+            cpu.call(0x4e0600, ecx=rec, stack_args=(i & 0xffffffff, slot))
+            r = e.eax()
+            o.s(e.cstr(e.u32(slot)))
+            self.put_record(o, r)
+        for name in names:
+            p = e.new_string(name)
+            cpu.call(0x4e0680, ecx=rec, stack_args=(p,))
+            self.put_record(o, e.eax())
+        cpu.call(0x4e04f0, ecx=rec)
+        self.put_file(o)
+        vl = e.valves()
+        o.u(len(vl))
+        for v in vl:
+            o.s(e.cstr(e.u32(v)))
+        return bytes(o.b), e.events

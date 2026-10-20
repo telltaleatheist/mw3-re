@@ -97,6 +97,7 @@ add_library(mw3core STATIC
   src/mech3/mission_world.cpp
   src/mech3/options.cpp
   src/mech3/weapon.cpp
+  src/mech3/zai_params.cpp
   src/mech3/zai_valve.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
