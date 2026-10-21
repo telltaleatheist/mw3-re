@@ -109,6 +109,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- A briefing whose voice block has no map markers plays the voice instead of crashing.
 - A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the
   word in memory before the game's soil table; the type is just left out.

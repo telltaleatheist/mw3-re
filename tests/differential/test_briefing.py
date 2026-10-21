@@ -57,8 +57,10 @@ REALLOC_OK = 0x12638
 PARTS = BUTTONS + [REALLOC_OK]
 BAR, LINES, VERSION = 0x11234, 0x113bc, 0x1216c
 SEEN, TARGET, LOADED, SCRIPT = 0x11214, 0x11218, 0x1121c, 0x11220
+CUE = 0x405ed0
+STEP_KINDS = {0x5bbc50: 'V', 0x5bbc40: 'M', 0x5bbc30: 'S'}
 REACHED, VOICE, SCREEN, CURRENT, FRAME_DT = 0x5e043c, 0x5f4c84, 0x5f4c80, 0x60861c, 0x72c52c
-SKIPS = {0x40583d: 0x405bc8, 0x405c1e: 0x405c3d}  # later items (the docstring)
+SKIPS = {0x405c1e: 0x405c3d}  # a later item (the docstring)
 KEYS = (0x26, 0x32, 0x39, 0x1f)
 SECTIONS = ['brief_c11', 'brief_c12', 'brief_c24', 'brief_c36', 'brief_c4b6', 'brief_t13', 'brief_iac21',
             'brief_mpc11', 'default', 'brief_none']
@@ -97,6 +99,22 @@ def synthetic(seed, tree):
             v = body
         elif k.startswith('brief_') and r.random() < 0.3:
             continue
+        elif isinstance(v, list) and 'SOUND' in v and r.random() < 0.6:
+            v = [x for x in v]
+            si = v.index('SOUND') + 1
+            snd = [x for x in v[si]]
+            roll = r.random()
+            if roll < 0.2:
+                snd[0] = r.choice(['no_such_voice', 'briefing_c2m3'])
+            elif roll < 0.5 and 'MARKERS' in snd:
+                mi = snd.index('MARKERS') + 1
+                marks = list(snd[mi])
+                snd[mi] = marks[:r.randrange(0, len(marks) + 1)] + marks[:r.randrange(0, 3)]
+            elif roll < 0.6:
+                del v[si - 1:si + 1]  # no SOUND
+                snd = None
+            if snd is not None:
+                v[si] = snd
         elif k == 'default' and r.random() < 0.15:
             continue
         elif isinstance(v, list) and 'BUTTONS' in v and r.random() < 0.2:
@@ -149,8 +167,14 @@ def make_plan(seed, spots):
     lines = []
     if r.random() < 0.3:
         lines.append(f'V {r.choice([0x77700001, 0x77700002]):x}')
-    lines.append(f'S {hx(r.choice(SECTIONS))}')
     state = {'down': 0}
+    lines.append(f'S {hx(r.choice(SECTIONS))}')
+    if r.random() < 0.7:
+        lines.append('Y')
+        if r.random() < 0.6:  # the voice, then its markers one cue at a time
+            for c in range(r.randrange(1, 5)):
+                lines += [mouse_line(r, spots, state), f'C {c:x}', mouse_line(r, spots, state), 'E']
+            state['cue'] = c
     for _ in range(r.randrange(30, 110)):
         roll = r.random()
         if roll < 0.08:
@@ -173,6 +197,14 @@ def make_plan(seed, spots):
             lines.append(f'R {r.choice([-1, 0, 2, 5]) & 0xffffffff:x}')
         elif roll < 0.42:
             lines.append('E')
+        elif roll < 0.48:
+            state['cue'] = min(state.get('cue', -1) + r.choice([0, 1, 1, 2]), 12) if r.random() < 0.8 else \
+                r.choice([-1, 999])
+            lines.append(f'C {state["cue"] & 0xffffffff:x}')
+            if r.random() < 0.5:  # the step it reaches, a frame on
+                lines += [mouse_line(r, spots, state), 'E']
+        elif roll < 0.50:
+            lines.append('Y')
         lines.append(mouse_line(r, spots, state))
     lines += ['E', 'U']
     return lines
@@ -218,7 +250,8 @@ class Original:
                lambda emu, k, a, p: emu._ret(t.handle(k, (1 if a[0] else 0,)), p))
         plain = {0x40a810: '', 0x40ce90: 'c', 0x404ae0: 's0', 0x408c30: '', 0x408b40: '', 0x448830: 'd,s0',
                  0x47d2f0: '', 0x46ceb0: '', 0x490930: '', 0x491150: '', 0x491780: 's0', 0x434cb0: '',
-                 0x478f10: 's0', 0x56dfb0: 'c,d', 0x576ea0: 'c,d,s0,s1', 0x51a9b0: 'c', 0x51a300: ''}
+                 0x478f10: 's0', 0x56dfb0: 'c,d', 0x576ea0: 'c,d,s0,s1', 0x51a9b0: 'c', 0x51a300: '',
+                 0x406650: '', 0x56e8e0: 'c', 0x56f3e0: 'c'}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)
         w.answers.update({
@@ -231,6 +264,8 @@ class Original:
             '0x00490930': lambda rr, k, a: 1 if rr.random() < cfg['load'] else 0,
             '0x00491150': lambda rr, k, a: 1 if rr.random() < 0.7 else 0,
             '0x00408b40': lambda rr, k, a: 0x5e600000 + k,
+            '0x00406650': 0,
+            '0x0056e8e0': lambda rr, k, a: rr.choice([0, 1, 1, 0xffffffff]),
         })
 
         def skip(uc, address, size, user):
@@ -268,6 +303,8 @@ class Original:
                 e.w32(VOICE, pv[0])
             elif op == 'R':
                 e.w32(REACHED, pv[0])
+            elif op == 'C':
+                e.call(CUE, ecx=pv[0])
             elif op == 'S':
                 self.snapshot = e.snapshot()
                 self.m = self.d = m = e.alloc(SIZE)
@@ -290,6 +327,9 @@ class Original:
                 self.vcall(m + BUTTONS[pv[0]], 0x40)
             elif op == 'L':
                 e.call(SET_LOADED, ecx=m, stack=(pv[0],))
+            elif op == 'Y':  # the Load state's start of the script
+                e.w8(m + SCRIPT + 0x10, 1)
+                e.w32(m + SCRIPT + 0xc, e.r32(e.r32(m + SCRIPT + 4)))
             elif op == 'A':
                 e.call(ABORT, ecx=m)
             elif op == 'Q':
@@ -329,6 +369,23 @@ class Original:
                        f'blink={e.r8(b + 0x159)} period={e.r32(b + 0x15c):x} timer={e.r32(b + 0x160):x} '
                        f'glow={i32(e.r32(b + 0x164))},{i32(e.r32(b + 0x168))} help=' +
                        ''.join(f'o{objs.index(x) if x in objs else -1},' for x in help_) + '\n')
+        nodes, n = [], e.r32(head)
+        while n != head:
+            nodes.append(n)
+            n = e.r32(n)
+        out.append(f'script at={nodes.index(at) if at in nodes else -1}')
+        for nd in nodes:
+            v = e.r32(nd + 8)
+            k = STEP_KINDS.get(e.r32(v), '?')
+            if k == 'V':
+                out.append(f' V"{e.cpu.read(v + 4, 0x50).split(bytes(1))[0].decode("latin1")}",{e.r32(v + 0x54):x},'
+                           f'{e.r8(v + 0x58)},{e.r32(v + 0x5c)}')
+            elif k == 'M':
+                out.append(f' M{i32(e.r32(v + 4))}')
+            else:
+                o = e.r32(v + 4)
+                out.append(f' {k}o{objs.index(o) if o in objs else -1}')
+        out.append('\n')
         ok = m + REALLOC_OK
         out.append(f'REALLOC_OK id={i32(e.r32(ok + 0x150))} en={e.r32(ok + 0xc4)}\n')
         return ''.join(out)
@@ -404,7 +461,8 @@ def main():
         calls += len(trace)
         for k, _ in trace:
             if k in ('0x00590250', '0x004ac150', '0x00491150', '0x00491780', '0x00478f10', '0x00434cb0',
-                     '0x00448830', '0x0047d2f0', '0x0046ceb0', '0x00408c30', '0x0056e9f0', '0x0051a300'):
+                     '0x00448830', '0x0047d2f0', '0x0046ceb0', '0x00408c30', '0x0056e9f0', '0x0051a300',
+                     '0x0056e3d0', '0x0056f3e0', '0x0056e8e0', '0x00406650'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'briefing: {passed}/{runs} runs identical ({calls} calls; ' +
           ', '.join(f'{k} x{v}' for k, v in sorted(stats.items())) + ')')

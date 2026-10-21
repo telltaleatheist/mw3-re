@@ -25,6 +25,43 @@ class BriefingStep {
   virtual void reset() {}            // +0x08: REPLAY
 };
 
+// The briefing's voice (vtable 0x005bbc50), 0x60 bytes: played with its cue
+// markers moving the map on (briefing_cue); without the sound, every map
+// step shows at once (999).
+class BriefingVoice : public BriefingStep {
+ public:
+  BriefingVoice(Engine& e, const char* sound);
+  bool step(float dt) override;      // +0x00  0x00405e10: started; done at once
+
+  Engine& e;                         // (the original's calls are global)
+
+  char name[0x50] = {};              // +0x04  strncpy'd (not ended when 0x50 long)
+  float volume = 1.0f;               // +0x54
+  uint8_t cues = 1;                  // +0x58
+  int32_t x5c = 0;                   // +0x5c
+};
+
+// A map step (vtable 0x005bbc40), 8 bytes: done once the voice's cue reached
+// it; the last one (-1) once the voice has ended.
+class BriefingMarker : public BriefingStep {
+ public:
+  BriefingMarker(Engine& en, int32_t m) : e(en), marker(m) {}
+  bool step(float dt) override;      // +0x00  0x00405db0
+
+  Engine& e;
+  int32_t marker;                    // +0x04
+};
+
+// A map object shown at its step (vtable 0x005bbc30), 8 bytes.
+class BriefingShow : public BriefingStep {
+ public:
+  explicit BriefingShow(ztwod::Object2D* o) : obj(o) {}
+  bool step(float dt) override;      // +0x00  0x00405d50
+  void reset() override;             // +0x08  0x00405d90: hidden again (REPLAY)
+
+  ztwod::Object2D* obj;              // +0x04
+};
+
 // The script (+0x11220): a list, the entry playing and whether it plays.
 struct BriefingScript {
   explicit BriefingScript(Engine& e);  // inline in 0x00405230: the voice stopped
@@ -44,6 +81,8 @@ struct BriefingScript {
 // the voice playing.
 int32_t& briefing_reached();
 Handle& briefing_voice();
+// 0x00405ed0: a cue marker of the voice reached (ECX the marker).
+void briefing_cue(int32_t marker);
 
 // The screen (vtable 0x005bbc70), 0x12e6c bytes.
 class BriefingScreen : public MenuScreen {
@@ -61,6 +100,7 @@ class BriefingScreen : public MenuScreen {
   void launch();                     // 0x00404f70
   void progress(float f) { target = f; }  // 0x004050d0 on [0x005f4c80]
   void log(const char* s);           // 0x00405120 on [0x005f4c80]: a line in the debug lines
+  void read_script(zrdr::Node* section);  // inline in 0x00405230: SOUND, its MARKERS' objects
 
   Store realloc_store;               // +0x111ec  what the mech lab left over (0x00408bd0)
   Store lab_store;                   // +0x11200  the mech lab's (0x00408b40)

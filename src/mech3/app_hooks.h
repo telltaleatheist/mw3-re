@@ -7,6 +7,7 @@
 
 namespace zcls { struct Node; }
 namespace zimg { struct Texture; }
+namespace ztwod { class Object2D; }
 namespace zrdr { struct Node; }
 
 // What the game's app and states call in code not ported yet (docs/game-loop.md).
@@ -452,6 +453,12 @@ class Engine : public zgame::AppHooks {
   virtual void sound_update(int32_t a, int32_t b) { unported("0x0056dfb0", {a, b}); }
   virtual Handle sound_find(const char* name) { return unported("0x0056f6f0", {name}); }
   virtual void sound_play(Handle s, float v) { unported("0x0056e3d0", {s, zgame::bits(v)}); }
+  // The briefing's voice (zsnd): played (0x0056e3d0, the voice), its state
+  // (0x0056e8e0: 1 playing, 0 not, -1 none), its cue markers sent to
+  // briefing_cue (0x0056f3e0 with 0x00405ed0).
+  virtual Handle voice_play(Handle s, float v) { return unported("0x0056e3d0", {s, zgame::bits(v)}); }
+  virtual int32_t voice_status(Handle v) { return static_cast<int32_t>(unported("0x0056e8e0", {v})); }
+  virtual void sound_cue_briefing(Handle s) { unported("0x0056f3e0", {s}); }
   virtual Handle sound_listener() { return unported("0x0056eb10", {}); }
   virtual void sound_stop_all(Handle s) { unported("0x0056f0a0", {s}); }
   virtual void sound_release_all(Handle s) { unported("0x0056f190", {s}); }
@@ -611,6 +618,13 @@ class Engine : public zgame::AppHooks {
   // multiplayer launch's preparation (0x0046ceb0).
   virtual void briefing_map_image(zrdr::Node* section) {
     unported("0x00405160", {section ? 1u : 0u});
+  }
+  // A MARKERS entry's map object (0x00406650: circle, waypoint, bitmap ...),
+  // none when not ported.
+  virtual ztwod::Object2D* briefing_map_object(zrdr::Node* entry) {
+    (void)entry;
+    unported("0x00406650", {});
+    return nullptr;
   }
   virtual void briefing_realloc(int32_t show) { unported("0x00404ae0", {show}); }
   virtual void briefing_lance_loadouts() { unported("0x00408c30", {}); }

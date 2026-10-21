@@ -448,3 +448,15 @@ breaks.py (32). Debug helpers scratch/briefing/dbg2.py (first differing dump
 after each op), dbg3.py (first differing canonical call with its frame).
 Lead (night): go on through items 3-7 without waiting, branch from main if
 merged else from the previous branch; then stop.
+
+## 2026-10-20 Campaign item 3: the briefing script (branch mac3/briefing-script, off mac3/briefing cc1b6b0)
+
+BriefingVoice 0x00405e10 (vtable 0x5bbc50), BriefingMarker 0x00405db0
+(0x5bbc40), BriefingShow 0x00405d50/0x00405d90 (0x5bbc30), briefing_cue
+0x00405ed0, BriefingScreen::read_script (the SOUND block, FIX (bug) for a
+missing MARKERS). Engine hooks voice_play, voice_status, sound_cue_briefing,
+briefing_map_object (0x00406650, null until item 4: BriefingShow untested
+until then). Correction: the destructor's virtual list destroy (0x00409910)
+is the +0x12e60 list's; the script's entries are plain deletes. Test:
+test_briefing.py now runs the SOUND block, ops Y (start) and C (cue).
+Breaks: scratch/briefing/breaks3.py, 12/12 (the marker compare needed a scripted cue run in the plan).

@@ -1931,6 +1931,10 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **Launching with salvage you have not looked at asks first.** In a
   campaign, if the last mission left salvage and you have not pressed Salvage
   on this briefing, Launch asks before it goes.
+- **The briefing map follows cue marks in the voice.** Each briefing's
+  voice file carries markers; as the voice reaches one, the next step of the
+  map (circles, waypoints, pictures, labels) appears. Without the voice file
+  every step shows at once. Replay hides them and starts over.
 - **A click on the briefing's loading bar moves it** to where you clicked;
   it then creeps on towards the real progress from there. The bar creeps 0.005
   a frame, so it filled faster on faster computers (the rebuild: 0.15 a
