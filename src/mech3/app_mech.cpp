@@ -783,7 +783,7 @@ bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[1
   static const int8_t kParts[11][2] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5},
                                        {6, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}};
   for (int k = 0; k < 11; ++k) {
-    const MechPart* p = salvage_part(*m, kParts[k][0]);
+    const MechPart* p = part_by_id(*m, kParts[k][0]);
     left[k] = p ? p->get_armor(kParts[k][1]) : 0.0f;
   }
   return true;
