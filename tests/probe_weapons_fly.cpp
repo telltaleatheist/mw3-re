@@ -186,14 +186,15 @@ void set_hooks() {
     int32_t o[11];
     call(77, {}, o);
     std::memcpy(&q->x00, &o[0], 4), std::memcpy(&q->points, &o[1], 4);
-    for (int i = 0; i < 3; ++i) std::memcpy(&q->x08[i], &o[2 + i], 4);
+    q->cycle = h(o[2]), q->still = h(o[3]);
+    std::memcpy(&q->x10, &o[4], 4);
     q->depth = bf(o[5]), q->radius = bf(o[6]);
     q->at = {bf(o[7]), bf(o[8]), bf(o[9])};
     q->owner = h(o[10]);
   };
   k.quicksand_make = [](const zwep::QuicksandOrder* q) {
-    call(78, {static_cast<int32_t>(q->x00), q->points, static_cast<int32_t>(q->x08[0]), static_cast<int32_t>(q->x08[1]),
-              static_cast<int32_t>(q->x08[2]), fb(q->depth), fb(q->radius), fb(q->at.x), fb(q->at.y), fb(q->at.z),
+    call(78, {static_cast<int32_t>(q->x00), q->points, u(q->cycle), u(q->still),
+              static_cast<int32_t>(q->x10), fb(q->depth), fb(q->radius), fb(q->at.x), fb(q->at.y), fb(q->at.z),
               u(q->owner)});
   };
   k.set_active = [](Handle n, int32_t on) { call(52, {u(n), on}); };

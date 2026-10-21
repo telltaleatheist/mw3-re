@@ -40,7 +40,9 @@ struct CraterOrder {
 struct QuicksandOrder {
   uint32_t x00 = 0;
   int32_t points = 0;          // +0x04
-  uint32_t x08[3] = {};
+  Handle cycle = nullptr;      // +0x08  the pit's animated material (null: zDEClient's)
+  Handle still = nullptr;      // +0x0c  its still frame
+  uint32_t x10 = 0;            // +0x10  declient.zrd's slope (float bits), not read
   float depth = 0;             // +0x14
   float radius = 0;            // +0x18
   Vec3f3 at{};                 // +0x1c

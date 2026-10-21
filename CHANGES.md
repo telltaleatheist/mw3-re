@@ -244,6 +244,8 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
+
 - A developer's leftover debug message ("haha", whenever an object named
   blackhawk_01 has its bounds rebuilt) is not printed. The 1999 game had no
   console to show it in; the rebuild would print it to the terminal.

@@ -784,6 +784,9 @@ struct WiredMissionHooks : MissionHooks {
   void anim_load(const char*) override { zeff::anim_load(); }
   void anim_cleanup() override { zeff::anim_stop_all(1); }  // 0x0050ace0(1)
   // 0x00501ab0: declient.zrd's crater and quicksand settings (craters.md).
+  // 0x00502020: the craters' history, the quicksand frames and the texture
+  // table go with the mission.
+  void decals_free() override { zdec::decals_free(); }
   // The craters' ties: zGeometry finds the world through zDEClient, and the
   // dust is an animation at the crater (0x00508aa0, no node, unturned).
   void decals_load(Handle world, int32_t) override {

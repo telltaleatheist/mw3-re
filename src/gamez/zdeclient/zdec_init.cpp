@@ -144,7 +144,7 @@ int32_t init(zcls::Node* world) {
     float qslope = 40.0f;
     zrdr::get_int(qs, "POINTS", &q.points);
     zrdr::get_float(qs, "SLOPE", &qslope);
-    std::memcpy(&q.x08[2], &qslope, 4);
+    std::memcpy(&q.x10, &qslope, 4);
     zrdr::get_float(qs, "DEPTH", &q.depth);
     zrdr::get_float(qs, "RADIUS", &q.radius);
     s.quicksand_cycle = nullptr, s.quicksand_still = nullptr;

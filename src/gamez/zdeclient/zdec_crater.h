@@ -56,7 +56,13 @@ struct HistoryEntry {
 struct CraterState {
   int (*veto)(const zwep::CraterOrder* order) = nullptr;  // 0x0060bf88 (multiplayer's 0x0046fd30)
   std::vector<HistoryEntry> history;                      // 0x0060bf94..0x0060bf9c
-  std::set<zcls::Node*> touched;                          // 0x0060bfa0  nodes whose models craters replaced
+  // 0x0060bfa0: the nodes whose models craters replaced, in the exe a set by
+  // address (the pool's order); here by pool index, whatever the blocks'
+  // addresses.
+  struct ByIndex {
+    bool operator()(const zcls::Node* a, const zcls::Node* b) const;
+  };
+  std::set<zcls::Node*, ByIndex> touched;
   std::deque<Feature> features;                           // the port's: the crater nodes' records (FIX, see .cpp)
   int (*quicksand_veto)(const zwep::QuicksandOrder* order) = nullptr;  // 0x0060c0c8
 };
@@ -64,6 +70,9 @@ CraterState& craters();
 
 // What a crater calls outside zDEClient and zGeometry.
 struct CraterHooks {
+  // zEntity's record write (0x005a8a50 ECX context, EDX name, stack record
+  // and size): the save that sends the craters to a joining player.
+  void (*write_record)(void* context, const char* name, const void* record, int32_t size) = nullptr;
   // 0x00508aa0: an animation at a point (the dust), ECX the def, EDX 0.
   void (*play_anim)(zeff::AnimDef* anim, const float at[3]) = nullptr;
 };
@@ -88,7 +97,13 @@ void record_free(CraterRecord* r);                          // 0x004ff8f0 ECX r
 CraterRecord* crater_build(const zwep::CraterOrder* order); // 0x004ffad0 ECX order
 int32_t crater_clip(CraterRecord* r);                       // 0x004fff20 ECX r: nodes changed, 0 none or failed
 int32_t crater_tessellate(CraterRecord* r);                 // 0x004fff80 ECX r: 0, or -1
-// The order as the exe's dwords (pointers as their low 32 bits).
+// The order as the exe's dwords. FIX (A): a material travels as its table
+// index (-1 for none) and the shooter as 0, not as the exe's 32-bit pointers
+// (which a 64-bit port cannot keep and which mean nothing on another machine
+// a restore runs on); the indices are the same on every machine with the
+// same world.
+uint32_t material_word(const void* material);
+zmod::Material* word_material(uint32_t word);
 void order_words(const zwep::CraterOrder& o, uint32_t out[10]);
 int32_t history_push(int32_t type, const uint32_t* words);   // 0x00500850 ECX type, EDX order
 void quicksand_words(const zwep::QuicksandOrder& o, uint32_t out[11]);
@@ -103,5 +118,24 @@ QuicksandRecord* quicksand_build(const zwep::QuicksandOrder* order);  // 0x00502
 int32_t quicksand_clip(QuicksandRecord* r);                     // 0x00502660 ECX r
 int32_t quicksand_tessellate(QuicksandRecord* r);               // 0x005026c0 ECX r: 0, or -1
 void note_touched(const zgeo::ClipSet& set);                // 0x00500600 ECX set
+
+// The world as it was before any crater: every touched node's model (and
+// its children's) read again from gamez.zbd and its cell's crater count 0,
+// every crater node taken out of the world and freed.
+void craters_reset();                                       // 0x00500760
+// The history and the touched set emptied.
+int32_t history_clear();                                    // 0x00500af0
+// The mission's unload (decals_free): the history, the quicksand frame names
+// and the crater texture table freed, quicksand off.
+int32_t decals_free();                                      // 0x00502020
+// Each crater's order to `crater`, each quicksand pit's to `quicksand`
+// (multiplayer sends them to a joining player, 0x0046d7e3).
+void history_each(void (*crater)(const uint32_t* order), void (*quicksand)(const uint32_t* order));  // 0x00500c60 ECX, EDX
+// zEntity's save and restore of the craters (0x005a8a20("zDEClient", 0x00500b50,
+// 0x00500c20, 1000, 0)): a "Dummy" record that resets, then one per crater
+// ("Crater<n>") or pit ("QSand<n>"), 0x34 bytes: type, order, the reset
+// flag at +0x30. Restoring remakes each without dust.
+void history_save(void* context);                           // 0x00500b50 ECX context
+void history_restore(const uint32_t* record);               // 0x00500c20 stack record
 
 }  // namespace zdec

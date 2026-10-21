@@ -118,20 +118,51 @@ reads soil only for water (splashes), noslip (no slope slide) and lava
 The lid sits at the ground's height and is solid, so a mech walks across
 the pit as on flat ground. The pit is only a picture.
 
-## 4. Bookkeeping
+## 4. Bookkeeping (ported, part 7)
 
-- The history vector (0x00500850 push, 0x00500af0 clear, 0x00500670 /
-  0x005006b0 / 0x005006f0 its storage, 0x00500c60 walks it calling a
-  crater and a quicksand callback: multiplayer sends every crater to a
-  joining player, 0x0046d7e3).
-- The touched-node set at 0x0060bfa0 (an MSVC `std::set`: 0x00500da0
-  insert, 0x005015b0 node insert, 0x00501980 / 0x005018d0 iterators,
-  0x00500e90 / 0x00500ff0 / 0x00501520 erase).
-- The reset 0x00500760: every touched node re-read from gamez.zbd
-  (0x004ff730, the re-read path not yet ported: gamez.md step 7), its cell's
-  crater count to 0; the crater nodes (node list, 0x004f7fe0) destroyed.
-- 0x00502020 (the unload's `decals_free`): 0x00500af0. 0x00501f90 sets a
-  mode word at app start (`decals_set_mode`).
+- The history vector (0x00500850 push; 0x00500af0 clear, with the touched
+  set; 0x00500670 / 0x005006b0 / 0x005006f0 its static constructor and
+  destructor, not needed in the port). Entries are 0x34 bytes: type (1
+  crater, 3 quicksand), the order (10 or 11 words), a reset flag at +0x30
+  (0). 0x00500c60 walks it with a crater and a quicksand callback, ECX the
+  entry's order: multiplayer sends every crater to a joining player
+  (0x0046d7e3).
+- zEntity's save and restore (registered in 0x00501ab0 as 0x005a8a20
+  ("zDEClient", 0x00500b50, 0x00500c20, 1000, 0)): the save writes a
+  "Dummy" record with the reset flag, then "Crater<n>" / "QSand<n>" per
+  entry (0x005a8a50); the restore of a flagged record resets the world and
+  empties the history, others remake their crater (no dust) or pit.
+  zEntity is not ported: `zdec::crater_hooks().write_record` stands in.
+- The touched-node set at 0x0060bfa0 (an MSVC `std::set` by node address:
+  0x00500da0 insert, 0x005015b0 node insert, 0x00501980 / 0x005018d0
+  iterators, 0x00500e90 / 0x00500ff0 / 0x00501520 erase); the port's is a
+  `std::set` by pool index (the order the exe's addresses have).
+- The reset 0x00500760: every touched node (and its children) re-read from
+  gamez.zbd (`zcls::reread`, 0x004ff730 / 0x004ff7a0 / 0x00538640), its
+  cell's crater count 0 (through its first parent, 0x004f22f0); every
+  ZDEC_FEATURE node (list 6, 0x004f7fe0) taken off its parents, its model
+  released, the node deleted (0x004eaea0). The touched set is not emptied
+  here (0x00500af0 does).
+- 0x00502020 (the unload's `decals_free`): the history cleared, the
+  quicksand frame names and the texture table freed, quicksand off.
+  0x00501f90 sets a mode word at app start (`decals_set_mode`).
+
+FIX (A, fixes.md): a material in a history entry or a zEntity record is
+its table index, not the exe's 32-bit pointer (which a 64-bit port cannot
+hold and which means nothing on the machine that restores it); the shooter
+travels as 0. The undefined words (the Dummy record's first 0x30 bytes, a
+crater entry's 12th word) are 0.
+
+`test_crater.py` runs the original's own history and set code (its static
+constructor 0x00500670 with operator new / delete and the locks stubbed),
+then after each world's craters saves the history through zEntity's write
+(0x005a8a50 stands in), restores the Dummy (the reset: every re-read model
+compared in full, the crater nodes gone, the cells at 0) and restores each
+crater and pit again. With seed 2, two of the replays (c1's 24th, c4's
+5th) hit the Weiler freezes of part 3c in the original, where the port
+gives up (the test then checks the original never returns and moves to
+the next world): the craters a joining player replays can freeze the game.
+Seeds 1 and 2: 422 and 383 identical.
 
 ## 5. zGeometry, what the clip needs
 
@@ -477,3 +508,4 @@ crossing validations); no build refusals came up.
 6. **Quicksand** (0x00502230 .. 0x005026c0). Done (part 6).
 7. **Reset and restore** (0x00500760, 0x00500c20) with gamez.zbd's re-read
    path; the program's wiring (zWeapon's crater hooks, the mission hooks).
+   Done (parts 5c and 7).
