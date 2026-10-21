@@ -406,7 +406,10 @@ exe crashes otherwise, above).
 
 ## 15. Taking a mech down (ported 2026-10-21)
 
-The cleanup (0x00491780) deletes the pilot's mech (its vtable +0 with 1),
+The cleanup (0x00491780) lets the pilot drop its mech first (0x004782c0
+with 0: the weapons' fire mode, +0xd4 +0x1c, kept at the pilot's +0x80,
++0x14 cleared; the port also clears the mech globals the launch set), then
+deletes that mech (its vtable +0 with 1),
 then 0x0049dc40 runs zEntity's 0x005a8280: each entity's vt+0x30 (a mech's
 0x004b3d30 returns 1 and does nothing), then deletes the first entity
 until the list is empty (each one's destructor takes it off, 0x005a7f70).

@@ -591,12 +591,23 @@ struct WiredMissionHooks : MissionHooks {
     auto& list = ai::entity_list();
     while (!list.empty()) {
       const Handle h = list.front();
-      if (!mech_free(e->object_of(h))) {
-        e->unported("entity vt+0x0", {h, 1});
-        list.erase(list.begin());
-      }
+      const size_t before = list.size();
+      if (!mech_free(e->object_of(h))) e->unported("entity vt+0x0", {h, 1});
+      // A mech without a node stays on the list (its destructor takes it off
+      // only with one, as the exe's would): the front goes regardless, so the
+      // loop always ends and nothing is deleted twice.
+      if (list.size() == before && !list.empty() && list.front() == h) list.erase(list.begin());
     }
     e->unported("0x00402560", {});
+  }
+  void pilot_set_vehicle(Handle v) override {  // 0x004782c0 on the pilot
+    const Handle p = e->pilot();
+    if (!p) return;
+    if (v == 0) {
+      int32_t mode = 0;
+      if (mech_player_release(e->object_of(e->field32(p, 0x14)), &mode)) e->set_field32(p, 0x80, static_cast<uint32_t>(mode));
+    }
+    e->set_field32(p, 0x14, v);
   }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out

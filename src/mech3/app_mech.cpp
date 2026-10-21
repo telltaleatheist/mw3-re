@@ -626,7 +626,22 @@ void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
 void mech_destroy_part(void* mech, int32_t id) { static_cast<Mech*>(mech)->destroy_part(id); }
+// Mech3.exe 1.2 @ 0x004782c0 with 0: the pilot lets its mech go, keeping
+// the weapons' fire mode (+0xd4 +0x1c) for its +0x80; the mech globals the
+// launch set (pilot_set_mech) go with it.
+bool mech_player_release(void* mech, int32_t* fire_mode) {
+  auto* m = static_cast<Mech*>(mech);
+  const auto* wm = m ? static_cast<const WeaponManager*>(m->ammo) : nullptr;
+  if (wm) *fire_mode = wm->mode;
+  world().mission_player = world().player = nullptr;
+  weapon_world().mission_player = weapon_world().player = nullptr;
+  return wm != nullptr;
+}
+
+void* mission_player_mech() { return world().mission_player; }
+
 bool mech_free(void* obj) {
+  if (!obj) return false;
   for (const ai::Handle h : ai::entity_list())
     if (g_w.object_of(g_w.engine, h) == obj) return mech_delete(static_cast<Mech*>(obj)), true;
   return false;

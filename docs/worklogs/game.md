@@ -801,3 +801,13 @@ view's ground, the anim lookups 0x50b450 (92).
   mac 1). The exe names only the file (mech_data.cpp). zai_steps' is
   mech3::ai::Pilot, untouched; mech_hud.h's forward declaration was the
   mech type's and is MechData now.
+- Item 2 review (mac 1): pilot_set_vehicle 0x004782c0 ported in the
+  cleanup (the pilot's +0x80 takes the weapons' fire mode, +0x14 cleared)
+  with the mech globals (world and weapon_world mission_player / player)
+  cleared, so Mech::release's player branch is false as in the exe and
+  nothing points at the freed mech; fn_49dc40's loop always drops the front
+  (a null object or a mech without a node no longer loops or deletes
+  twice); +0x94 is freed by clear_contacts (the exe's second delete is of
+  null). The three-mission test checks the player cleared after each
+  cleanup and the pilot's own mech as the player in each mission; ASan
+  clean.

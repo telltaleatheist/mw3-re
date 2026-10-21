@@ -172,7 +172,7 @@ void Mech::release() {
   }
   if (f.torso_cockpit_off) f.torso_cockpit_off(*this);  // 0x0041ce10(0)
   if (f.viewed && f.viewed(*this) && f.view_detach) f.view_detach();  // 0x0040adf0(0, 0)
-  clear_contacts();  // 0x004a7be0
+  clear_contacts();  // 0x004a7be0, +0x94 with them (the exe's later delete of +0x94 frees null)
   for (Sound& s : sounds) {
     if (s && heat_calls().stop_sound) heat_calls().stop_sound(s);  // 0x0056e9f0
     s = nullptr;
