@@ -1,8 +1,10 @@
 #include "mech3/options_menu.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -90,6 +92,16 @@ GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
 
 // Mech3.exe 1.2 @ 0x00438100: inverted mouse Y is MouseAccelY's sign, set to
 // -1.3 or 1.3 (any magnitude the registry held is lost).
+// 0x00438100's MouseAccelY: -1.3 inverted, else 1.3. FIX (bug): the
+// player's sensitivity kept and only its sign set (fixes.md, Decided); a zero
+// one takes the original's 1.3.
+float mouse_y_accel(float current, bool inverted) {
+  if (!zfix::options().bugs) return inverted ? static_cast<float>(-1.3) : static_cast<float>(1.3);
+  float mag = std::fabs(current);
+  if (mag == 0.0f) mag = 1.3f;
+  return inverted ? -mag : mag;
+}
+
 void GameOptionsScreen::apply(int32_t to_options) {
   Engine& e = engine();
   if (!to_options) {
@@ -112,7 +124,7 @@ void GameOptionsScreen::apply(int32_t to_options) {
   e.set_torso_auto_return(torso.selected_value());
   e.set_throttle_const(throttle.selected_value());
   e.set_mw2_jump_jets(jump_jets.selected_value());
-  e.set_mouse_accel_y(invert_y.selected_value() ? static_cast<float>(-1.3) : static_cast<float>(1.3));
+  e.set_mouse_accel_y(mouse_y_accel(e.mouse_accel_y(), invert_y.selected_value() != 0));
 }
 
 // ---- the graphics and audio options ----

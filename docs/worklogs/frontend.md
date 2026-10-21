@@ -288,3 +288,12 @@ Part 3: the program hooks (app_hud), the cone from the torso's flat front
 (0x0041cdf0), the c1m1 check (the Owens is powered down, so not in sight,
 until the bramp valve; mw3tests has no filter, it runs all). Next: inverted
 mouse Y (Owen's decided fix) and item 6's remainder.
+
+## 2026-10-20 Inverted mouse Y (branch mac3/invert-mouse)
+
+Owen's decided fix: the game options' ACCEPT (0x00438100) wrote -1.3 / 1.3
+over MouseAccelY; now `mouse_y_accel` keeps the size and sets the sign,
+behind zfix bugs. test_menus.py options 30/30 (the exe's path);
+fix_inverted_mouse_keeps_sensitivity. Remember: test_fixes.cpp cannot
+include options_menu.h (its Handle clashes with mech.h's); declare instead.
+Next: the credits' "Other Voices" offset and other data slips.
