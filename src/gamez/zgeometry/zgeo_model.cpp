@@ -537,7 +537,7 @@ int clip_model(ClipPolygon& c, zmod::Model* src, zmod::Model** out) {
       code = clip(*weiler_of(c), 3, pts.data(), n, &r);
     }
     switch (code) {
-      case 0:
+      case 0:  // the exe frees the polygon buffer but not the Result (0x0050f470)
         hooks().model_release(m);
         return 0;
       case 1:

@@ -89,6 +89,9 @@ void crater_setup(int32_t material, uint32_t frame) {
   zdec::crater_hooks().play_anim = [](zeff::AnimDef* a, const float at[3]) {
     u32(0x71), u32(a == kDust), raw(at, 12);
   };
+  zdec::state().quicksand_on = 1;
+  zdec::state().quicksand_cycle = &zmod::materials().at(material);
+  zdec::state().quicksand_still = &zmod::materials().at(material + 1);
   zcls::frames().frame = frame;
   zmod::set_vertex_precision(0.001f);
 }
@@ -107,18 +110,25 @@ int crater_run(uint32_t flags, int32_t points, int32_t ground, float depth, floa
     g_live[static_cast<size_t>(i)] = (node->link & zcls::kNodeLive) != 0;
     g_before[static_cast<size_t>(i)] = node->model;
   }
-  zwep::CraterOrder o;
-  o.x00 = flags, o.points = points, o.material = ground >= 0 ? static_cast<zwep::Handle>(&zmod::materials().at(ground)) : nullptr;
-  o.depth = depth, o.radius = radius, o.at = {x, y, z};
   const size_t history = zdec::craters().history.size();
-  u32(static_cast<uint32_t>(zdec::crater_instance(&o, dust)));
+  zwep::CraterOrder o;
+  if (dust < 2) {
+    o.x00 = flags, o.points = points;
+    o.material = ground >= 0 ? static_cast<zwep::Handle>(&zmod::materials().at(ground)) : nullptr;
+    o.depth = depth, o.radius = radius, o.at = {x, y, z};
+    u32(static_cast<uint32_t>(zdec::crater_instance(&o, dust)));
+  } else {  // dust 2: a quicksand pit instead
+    zwep::QuicksandOrder q;
+    q.x00 = flags, q.points = points, q.depth = depth, q.radius = radius, q.at = {x, y, z};
+    u32(static_cast<uint32_t>(zdec::quicksand_make(&q)));
+  }
   u32(0xaaaa);
   if (zdec::craters().history.size() > history) {
     const zdec::HistoryEntry& e = zdec::craters().history.back();
     u32(static_cast<uint32_t>(e.type));
-    for (int i = 0; i < 10; ++i) {
-      if (i == 2) u32(static_cast<uint32_t>(material_index(static_cast<zmod::Material*>(o.material))));
-      else if (i == 9) u32(0);
+    for (int i = 0; i < (e.type == 3 ? 11 : 10); ++i) {
+      if (e.type == 1 && i == 2) u32(static_cast<uint32_t>(material_index(static_cast<zmod::Material*>(o.material))));
+      else if (i == (e.type == 3 ? 10 : 9)) u32(0);
       else u32(e.words[i]);
     }
   }

@@ -1,4 +1,4 @@
-"""Craters end to end (part 5b) against the original x86 (docs/craters.md,
+"""Craters and quicksand end to end (parts 5b, 6) against the original x86 (docs/craters.md,
 sections 2 and 5): 0x4ff940 with the build 0x4ffad0 / 0x4ffe80, the clip
 0x4fff20 -> zgeo_model's 0x50ec10 (the outline snapped 0x50ea50, each node
 0x50ef70: kept clear 0x50f7b0 or clipped 0x50f120 with Weiler, convexify
@@ -56,6 +56,8 @@ class Craters(World):
         tex = self.alloc(12)
         cpu.write(tex, struct.pack('<III', 0, self.material_ptr(material), DUST))
         for a, v in ((0x60c0c0, self.world), (0x60c0c4, wd), (0x60bfbc, tex), (0x60bfb8, 1), (0x72f338, FRAME),
+                     (0x60c0c8, 0), (0x60bfe8, 1), (0x60bffc, self.material_ptr(material)),
+                     (0x60c000, self.material_ptr(material + 1)),
                      (0x5ee3e0, struct.unpack('<I', struct.pack('<f', 0.001))[0])):
             cpu.u32(a, v)
         cpu.write(0x60cb38, bytes(0x24 * 63 + 0x18))
@@ -85,7 +87,8 @@ class Craters(World):
         return self.mat_blocks[i // 1000] + (i % 1000) * 0x2c
 
     def history_push(self, c):
-        words = struct.unpack('<10I', c.read(c.edx, 40))
+        n = 11 if c.ecx == 3 else 10
+        words = struct.unpack(f'<{n}I', c.read(c.edx, 4 * n))
         self.history.append((c.ecx,) + words)
         return 0
 
@@ -137,10 +140,14 @@ class Craters(World):
         cpu = self.cpu
         before, _ = self.live_nodes()
         self.reports, self.history, self.dust = [], [], []
-        order = self.alloc(40)
-        cpu.write(order, struct.pack('<IiIIff3fI', flags, points, self.material_ptr(ground) if ground >= 0 else 0, 0,
-                                     depth, radius, x, y, z, 0))
-        cpu.call(0x4ff940, ecx=order, edx=dust, count=2_000_000_000)
+        order = self.alloc(44)
+        if dust < 2:
+            cpu.write(order, struct.pack('<IiIIff3fI', flags, points, self.material_ptr(ground) if ground >= 0 else 0,
+                                         0, depth, radius, x, y, z, 0))
+            cpu.call(0x4ff940, ecx=order, edx=dust, count=2_000_000_000)
+        else:  # a quicksand pit
+            cpu.write(order, struct.pack('<Ii3Iff3fI', flags, points, 0, 0, 0, depth, radius, x, y, z, 0))
+            cpu.call(0x502110, ecx=order, count=2_000_000_000)
         code = cpu.uc.reg_read(19)
         out = bytearray()
         for level, line in self.reports:
@@ -150,8 +157,10 @@ class Craters(World):
         out += struct.pack('<II', code, 0xaaaa)
         for h in self.history:
             words = list(h)
-            words[3] = self.material_index(words[3]) & 0xffffffff
-            out += struct.pack('<11I', *words)
+            if words[0] == 1:
+                words[3] = self.material_index(words[3]) & 0xffffffff
+            words[-1] = 0  # the owner
+            out += struct.pack(f'<{len(words)}I', *words)
         out += struct.pack('<I', 0xbbbb)
         wd = self.wd
         nx, nz = self.u32(wd + 0x88), self.u32(wd + 0x8c)
@@ -210,14 +219,15 @@ def main():
             points = rng.randint(5, 16)
             depth, radius = rng.uniform(1, 5), rng.uniform(3, 25)
             y = rng.uniform(-5, 40)
-            dust = rng.randint(0, 1)
+            dust = rng.choice((0, 1, 1, 2))  # 2: a quicksand pit
             mx = x + (0.5 if brk == 1 else 0.0)
             mpoints = points + (1 if brk == 2 else 0)
             code, want = emu.crater(flags, points, material, depth, radius, x, y, z, dust)
             n = probe.crater_run(flags, mpoints, material, depth, radius, mx, y, z, dust, BUF, CAP)
             got = BUF.raw[:n]
             runs += 1
-            codes[code] = codes.get(code, 0) + 1
+            kind = ('quicksand' if dust == 2 else 'crater') + ('_made' if code == 0 else '_refused')
+            codes[kind] = codes.get(kind, 0) + 1
             made += code == 0
             if got != want:
                 fails += 1

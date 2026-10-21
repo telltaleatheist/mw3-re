@@ -88,11 +88,35 @@ which sends the crater to the other players instead (the host makes it).
 
 ## 3. Quicksand, 0x00502110
 
-The same steps with the quicksand defaults: gated by [0x0060c0c8] and
-[0x0060bfe8]; build 0x00502230 (0x005025e0 the record), clip 0x00502660,
-tessellate 0x005026c0 (the animated material, 0x00539150), record,
-commit. Who calls it: zWeapon 0x005824b0 for a weapon with the
-`QUICKSAND` flag (no shipped weapon has it) and the restore 0x00500c20.
+The same steps with the quicksand defaults: gated by the veto [0x0060c0c8]
+and declient.zrd's switch [0x0060bfe8]; build 0x00502230 (the crater's
+placement on a record one word on, 0x005025e0: with texture flags and no
+material in the order, zDEClient's animated quicksand [0x0060bffc] and its
+still frame [0x0060c000]), clip 0x00502660, tessellate 0x005026c0, the
+history (type 3, 11 words), the touched nodes, the commit. No colour cache
+and no dust. Who calls it: zWeapon 0x005824b0 for a weapon with the
+`QUICKSAND` flag on default soil (no shipped weapon has it) and the
+restore 0x00500c20. Ported (part 6, `zdec_qsand`, `test_crater.py` mixes
+pits in with the craters).
+
+The tessellation makes two crater nodes (0x0050e950), both ZDEC_FEATURE:
+the pit (slope quads from the ring to points half way in, one depth lower,
+and the floor fan from the centre two depths below the hit) in the still
+frame, and a lid at the hit's height (a fan from the centre to the ring)
+in the animated material, so the ground looks whole and moving. The
+texture repeats 4.5 times over the radius (a crater's once); no colours or
+normals. The lid takes the inner points' UVs, so its texture is squeezed
+toward the middle (kept).
+
+Does quicksand slow or sink a mech? No. The animated material's soil is
+zModel's soil 3, "quicksand" (0x00537270's six: default, water, seafloor,
+quicksand, lava, fire), but the game's soil table (0x0047f400) has no
+quicksand: its names are default, water, grass, dirt, mud, concrete, snow,
+mech, lava, silt and noslip, so the lid reads as game soil 0. Movement
+reads soil only for water (splashes), noslip (no slope slide) and lava
+(heat), and for footprints and step sounds (movement-ground.md, Soils).
+The lid sits at the ground's height and is solid, so a mech walks across
+the pit as on flat ground. The pit is only a picture.
 
 ## 4. Bookkeeping
 
@@ -450,6 +474,6 @@ crossing validations); no build refusals came up.
 5. **The crater** (0x004ffad0, 0x004fff20, 0x004fff80, 0x004ff940, the
    history and the set): differential test making craters on the worlds. Done
    (part 5b, `test_crater.py`); wired into the game in part 5c.
-6. **Quicksand** (0x00502230 .. 0x005026c0).
+6. **Quicksand** (0x00502230 .. 0x005026c0). Done (part 6).
 7. **Reset and restore** (0x00500760, 0x00500c20) with gamez.zbd's re-read
    path; the program's wiring (zWeapon's crater hooks, the mission hooks).

@@ -247,13 +247,13 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     if (qworld()) zcls::world_remove_light(qworld(), zn(l));
   };
   // The decal module's impact type (0x005426a0: [0x0074a2b0]) is read only
-  // by the surface marks (0x00542060), not ported; nor quicksand (0x00502110,
-  // craters.md). Craters are zDEClient's.
+  // by the surface marks (0x00542060), not ported. Craters and quicksand are
+  // zDEClient's.
   r.impact_type = [](int32_t) { unported("0x005426a0"); };
   r.crater_defaults = zdec::crater_defaults;        // 0x004ff920
   r.crater_make = zdec::crater_make;                // 0x004ffaa0
   r.quicksand_defaults = zdec::quicksand_defaults;  // 0x005020f0
-  r.quicksand_make = [](const zwep::QuicksandOrder*) { unported("0x00502110"); };
+  r.quicksand_make = [](const zwep::QuicksandOrder* q) { zdec::quicksand_make(q); };  // 0x00502110
   r.pool_live = []() { return !zcls::nodes().blocks.empty(); };                            // 0x004f8f50: [0x0060bf48]
   // The animations (zeffect): started at a node, following one, on a model.
   r.anim_attached = [](zwep::Handle a, zwep::Handle n, const void* off) -> zwep::Handle {  // 0x00508da0

@@ -53,6 +53,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/window.cpp
   src/gamez/zdeclient/zdec_init.cpp
   src/gamez/zdeclient/zdec_crater.cpp
+  src/gamez/zdeclient/zdec_qsand.cpp
   src/gamez/zgeometry/zgeo_model.cpp
   src/gamez/zgeometry/zgeo_weiler.cpp
   src/gamez/zgeometry/zgeo_convexify.cpp

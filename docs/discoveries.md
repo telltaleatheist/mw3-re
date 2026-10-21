@@ -382,7 +382,11 @@ From the weapon code (weapons.md).
 - **Unused: quicksand weapons.** The same system can sink an animated
   quicksand pit (seven frames, looping, with its own soil type) where a
   shot lands, for a weapon with the `QUICKSAND` flag. Every world sets the
-  pits up in `declient.zrd`, but no shipped weapon has the flag.
+  pits up in `declient.zrd`, but no shipped weapon has the flag. Had one
+  been made, it would not trap anything: the pit is covered by a moving lid
+  at ground level that mechs walk on like any ground (its soil is none the
+  game knows, so it counts as default ground), with the texture repeated
+  4.5 times across it.
 - **One crater setting is ignored.** Every world's `declient.zrd` has a
   `TEXTURE_PARMS (1.0 1.0)` line that the game never reads.
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the

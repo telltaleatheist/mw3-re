@@ -538,3 +538,26 @@ Newest last. One short entry per item: what, commits, what to remember.
   N --shot`); test_crater covers the pipeline on the real worlds.
 - Next: part 6, quicksand (0x502110 ..), with the movement question
   (does the soil slow or sink a mech).
+
+## 2026-10-21 — craters part 6: quicksand (branch mac2/quicksand, from mac2/crater 5cfba30)
+
+- Suggested c1m1 check for Owen (GPU): `build/mw3 --mission c1m1 --fire 60
+  --frames 300 --shot crater.bmp --hidden --nosound` with a --pos/--look
+  aimed at the ground; a missed shot should leave a crater.
+- Ported (new zdec_qsand): quicksand_make 0x502110, record 0x5025e0 /
+  0x5020c0, build 0x502230 (the crater's placement, now shared as
+  zdec::place_ring), clip 0x502660, tessellate 0x5026c0 (pit node in the
+  still frame, lid node at the hit's height in the animated material,
+  UVs 4.5/(2r), the lid on the inner UVs); zwep's quicksand hook wired.
+  The order's own material words (x08[0..1]) are 32-bit in the port's
+  QuicksandOrder: only the zDEClient defaults (0) are supported (every
+  caller).
+- Movement answer (Owen): no slowing or sinking; zModel soil 3
+  "quicksand" maps to game soil 0 (the game's table has no quicksand);
+  the lid is ground-level and walkable. craters.md section 3,
+  discoveries.
+- 5b review items (mac 1): dust null guard marked FIX (bug); clip_model's
+  code-0 path notes the exe leaks the Result too; the Feature on a
+  model-less node noted.
+- Test: test_crater.py mixes quicksand pits (a quarter) with the craters
+  (veto 0, switch on, cycle/still materials set on both sides).
