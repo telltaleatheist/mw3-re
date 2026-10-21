@@ -206,3 +206,18 @@ Newest last. One short entry per item: what, commits, what to remember.
 - fix_place_steps_ten_above checks Mech::place both ways; test_place.py
   (fixes off) unchanged.
 - Next: TAG (ms timing, homing on the marked unit), then craters part 2.
+
+## 2026-10-20: the intermittent crash after the multi-mission test (branch mac2/handle-fix)
+
+- Cause: GameEngine::handle_of keys handles by address and keeps them;
+  WiredPlayerHooks (a global) kept the last mission's and the last
+  engine's controls / params / mechs handle sets. A new AI mech allocated
+  at a dead AiParams' address got its handle, set_team_masks wrote the
+  masks as AiParams offsets into it (centroid = 0x400000004), and
+  Mech::entity_moved crashed in node_to_world. Found with a pool check in
+  entity_moved (ASan cannot see it: no freed memory is read).
+- Fix: the sets cleared per engine (wiring) and per mission (player_setup).
+  15 + 20 runs of the pair clean (before: about 1 crash in 8).
+- Open: an optimized (RelWithDebInfo) ASan build of mw3tests stops in
+  Mech3App::init_instance on a stack address cut to 32 bits; a Debug ASan
+  build runs both tests clean. Not chased yet.

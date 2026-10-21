@@ -29,7 +29,14 @@ void on_crash(int sig) {
 }
 }  // namespace
 
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define MW3_ASAN 1
+#endif
+#endif
+
 int main() {
+#ifndef MW3_ASAN  // AddressSanitizer reports crashes itself
   static char alt[1 << 16];
   stack_t ss{};
   ss.ss_sp = alt, ss.ss_size = sizeof alt;
@@ -40,6 +47,7 @@ int main() {
     sa.sa_flags = SA_ONSTACK;
     sigaction(sig, &sa, nullptr);
   }
+#endif
   std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
   // MW3_TEST=name runs only the tests whose names contain it; a,b,c any of them.
   const char* only = std::getenv("MW3_TEST");
