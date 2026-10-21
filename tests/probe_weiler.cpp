@@ -205,3 +205,32 @@ extern "C" int probe_weiler_leaf(int op, const float* a, int na, float* b, int n
   }
   return finish(out, cap);
 }
+
+// Whole clips (0x0050faf0) of polygons p1 and then p2 against one region,
+// as the game clips each ground polygon in turn with one Weiler: each
+// clip's code, results (unless it failed), the polygon's buffer after it,
+// the contours and `untouched`.
+extern "C" int probe_weiler_clip(float* region, int nr, float* p1, int n1, float* p2, int n2, uint32_t want,
+                                 uint8_t* out, int cap) {
+  g_out.clear();
+  zerr::set_sink(sink);
+  g_caller = region, g_caller_n = nr;
+  zgeo::Weiler* w = zgeo::weiler_new(region, nr, 0);
+  float* polys[2] = {p1, p2};
+  const int counts[2] = {n1, n2};
+  for (int k = 0; k < 2 && counts[k]; ++k) {
+    zgeo::Result result;
+    const int code = zgeo::clip(*w, want, polys[k], counts[k], &result);
+    u32(static_cast<uint32_t>(code));
+    if (code) dump_result(result);
+    floats(polys[k], 3 * static_cast<size_t>(counts[k]));
+    u32(static_cast<uint32_t>(w->contours.count));
+    for (int32_t i = 0; i < w->contours.count; ++i) {
+      zgeo::Contour& c = w->contours.at(i);
+      u32(c.flags), u32(static_cast<uint32_t>(c.count)), u32(c.edge != nullptr);
+    }
+    u32(w->untouched);
+  }
+  zgeo::weiler_free(w);
+  return finish(out, cap);
+}

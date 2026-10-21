@@ -8,7 +8,8 @@
 // clip region (the crater's outline); 0x0050faf0 clips a polygon against it
 // into the parts inside, outside and both. Ported so far (part 3a): the
 // state, its rings and contours, the trivial cases, the whole-polygon
-// results and the geometric leaves.
+// results and the geometric leaves (3a), the shared edges (3b), the walk
+// (3c), the contours' merge, count and output and the driver (3c).
 namespace zgeo {
 
 struct Contour;
@@ -82,6 +83,7 @@ struct Pool {
     return first;
   }
   T& at(int32_t i) { return *slots[static_cast<size_t>(i)]; }
+  const T& at(int32_t i) const { return *slots[static_cast<size_t>(i)]; }
   int32_t index_of(const T* p) const {
     for (size_t i = 0; i < slots.size(); ++i)
       if (slots[i] == p) return static_cast<int32_t>(i);
@@ -133,7 +135,7 @@ struct Weiler {
   std::vector<float> side_poly;    // +0x14c0 rows: region edges, columns: polygon points
   float offset[2] = {};            // +0x28c0  the region's first point when far out
   uint8_t offset_on = 0;           // +0x28c8
-  uint8_t unk_28c9 = 0;            // +0x28c9
+  uint8_t untouched = 0;           // +0x28c9  no contour has both region and polygon edges (0x00513390)
 };
 
 // a and b within `eps` in x and in y.
@@ -199,6 +201,32 @@ int corner_pair(const Edge* e1, const Edge* e2, const Edge* e3, const Edge* e4);
 // The crossings of the region (R, R2) and the polygon (P, P2) found, the
 // edges divided at them and linked; the or of the types (1 an error).
 uint32_t walk(Weiler& w);                                            // 0x00510da0
+
+// Each crossing's links checked for its type (the edges the merge joins);
+// 0 at the first that lacks one (its index in *failed when given).
+int validate_crossings(const Weiler& w, int32_t* failed);           // 0x005154d0 ECX count, EDX crossings
+// The rings rejoined at every crossing by its type into the result
+// contours, each with a contour record (0x005129a0). 0 on failure.
+int merge_contours(Weiler& w);                                       // 0x005129f0
+// e's next edge, turned to follow e (its prev and next, a and b swapped)
+// when it runs the other way.
+Edge* next_edge(Edge* e);                                            // 0x00514710 ECX e
+// Each contour's edges counted, turned one way and their flags or-ed
+// (contour records met on the way dropped); `untouched` set when no contour
+// has both region and polygon edges. 0 when a contour does not close (the
+// exe loops forever there; FIX (bug)).
+int count_contours(Weiler& w);                                      // 0x00513390
+// One contour's points as a result contour of list `list`.
+int output_contour(Weiler& w, int list, const Contour& c);           // 0x005135a0 ECX w, EDX c
+// Each contour to the wanted lists by its flags: 3 (both) inside, 2 or 6
+// (the polygon's) outside, 1 or 5 (the region's) the third list.
+int output_contours(Weiler& w);                                      // 0x00513480
+void free_result(Result& out);                                       // 0x0050fe10 ECX out
+// The polygon (n points, in the caller's buffer, moved and put back) clipped
+// against the region into *out by `want`: 0 failed, 1 apart (*out empty), 2
+// clipped, 3 the polygon whole (inside or equal), 4 the region inside the
+// polygon (the polygon with a hole outside, the region inside).
+int clip(Weiler& w, uint32_t want, float* points, int32_t n, Result* out);  // 0x0050faf0 ECX w, EDX want
 
 // Point q against a closed polygon: 1 inside, -1 outside, 0 on its outline.
 int point_in_polygon(const float q[2], int32_t n, const float* poly);  // 0x00513cf0 ECX q, EDX n

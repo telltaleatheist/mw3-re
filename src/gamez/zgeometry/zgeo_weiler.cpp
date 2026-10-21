@@ -1,7 +1,9 @@
 #include "gamez/zgeometry/zgeo_weiler.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <utility>
 
 #include "gamez/zerror/zerr.h"
 
@@ -835,6 +837,258 @@ uint32_t walk(Weiler& w) {
     } while (e != p_first);
   }
   return result;
+}
+
+// Mech3.exe 1.2 @ 0x005154d0. The links each type needs, as bits of
+// Crossing::links (10 and 11 by whether R2 ends there, 24 and 25 by P2).
+int validate_crossings(const Weiler& w, int32_t* failed) {
+  static const uint8_t kNeeds[26] = {0,    0,    0,    0,    0xff, 0xff, 0x58, 0xac, 0x53, 0xa3, 0x55, 0xa5, 0x84,
+                                     0xc5, 0x41, 0x48, 0xca, 0x82, 0x14, 0x35, 0x21, 0x28, 0x3a, 0x12, 0x55, 0x5a};
+  int ok = 1;
+  for (int32_t i = 0; i < w.crossings.count && ok; ++i) {
+    const Crossing& x = w.crossings.at(i);
+    if (x.type < 3 || x.type > 25) continue;
+    uint8_t needs = kNeeds[x.type];
+    if (x.type == 10 && x.links[1]) needs = 0x58;
+    if (x.type == 11 && x.links[1]) needs = 0xa8;
+    if (x.type == 24 && x.links[5]) needs = 0x05;
+    if (x.type == 25 && x.links[5]) needs = 0x0a;
+    for (int k = 0; k < 8; ++k)
+      if ((needs >> k & 1) && !x.links[k]) ok = 0;
+    if (!ok) {
+      if (failed) *failed = i;
+      char text[64];
+      std::snprintf(text, sizeof text, "validateXing failed (xing %d) (type = %d)", i, static_cast<int>(x.type));
+      zerr::report(0x100, kFile, 0x177e, text);
+    }
+  }
+  return ok;
+}
+
+// Mech3.exe 1.2 @ 0x005129f0. L0..L7 are the crossing's links (R ending, R2
+// ending, R starting, R2 starting, P ending, P2 ending, P starting, P2
+// starting); each type rejoins them its own way, in the exe's order.
+int merge_contours(Weiler& w) {
+  if (!validate_crossings(w, nullptr)) {
+    zerr::report(0x100, kFile, 0xc90, "contourMerge:  Failed validation\n");
+    return 0;
+  }
+  for (int32_t i = 0; i < w.crossings.count; ++i) {
+    Edge* const* L = w.crossings.at(i).links;
+    auto n = [&](int a, int b) { L[a]->next = L[b]; };
+    auto p = [&](int a, int b) { L[a]->prev = L[b]; };
+    auto c = [&](int a) { return new_contour(w, L[a]); };
+    int ok = 1;
+    switch (w.crossings.at(i).type) {
+      case 4: n(0, 5), n(1, 7), p(2, 4), p(3, 6), n(4, 2), n(5, 0), p(6, 3), p(7, 1), ok = c(4) && c(6); break;
+      case 5: n(0, 6), n(1, 4), p(2, 7), p(3, 5), n(4, 1), n(5, 3), p(6, 0), p(7, 2), ok = c(4) && c(6); break;
+      case 6: p(2, 4), p(3, 6), n(4, 2), p(6, 3), ok = c(4) && c(6); break;
+      case 7: p(2, 7), p(3, 5), n(5, 3), p(7, 2), ok = c(5) && c(6); break;
+      case 8: n(0, 6), n(1, 4), n(4, 1), p(6, 0), ok = c(4) && c(6); break;
+      case 9: n(0, 5), n(1, 7), n(5, 0), p(7, 1), ok = c(0) && c(7); break;
+      case 10:
+        if (L[1]) n(1, 4), p(3, 6), n(4, 1), p(6, 3), ok = c(1) && c(3);
+        else n(0, 6), p(2, 4), n(4, 2), p(6, 0), ok = c(0) && c(2);
+        break;
+      case 11:
+        if (L[1]) n(1, 7), p(7, 1), p(3, 5), n(5, 3), ok = c(1) && c(3);
+        else n(0, 7), p(7, 0), p(2, 5), n(5, 2), ok = c(0) && c(2);
+        break;
+      case 12: p(2, 7), p(7, 2), ok = c(2); break;
+      case 13: n(0, 6), p(2, 7), p(6, 0), p(7, 2), ok = c(0) && c(2); break;
+      case 14: n(0, 6), p(6, 0), ok = c(0); break;
+      case 15: p(3, 6), p(6, 3), ok = c(6); break;
+      case 16: n(1, 7), p(3, 6), p(6, 3), p(7, 1), ok = c(1) && c(6); break;
+      case 17: n(1, 7), p(7, 1), ok = c(1); break;
+      case 18: p(2, 4), n(4, 2), ok = c(2); break;
+      case 19: n(0, 5), p(2, 4), n(4, 2), n(5, 0), ok = c(0) && c(2); break;
+      case 20: n(0, 5), n(5, 0), ok = c(0); break;
+      case 21: p(3, 5), n(5, 3), ok = c(3); break;
+      case 22: n(1, 4), p(3, 5), n(4, 1), n(5, 3), ok = c(4) && c(7); break;
+      case 23: n(1, 4), n(4, 1), ok = c(4); break;
+      case 24:
+        if (L[5]) n(0, 5), p(2, 7), n(5, 0), p(7, 2), ok = c(5) && c(7);
+        else n(0, 6), p(2, 4), n(4, 2), p(6, 0), ok = c(4) && c(6);
+        break;
+      case 25:
+        if (L[5]) n(5, 3), p(3, 5), p(7, 1), n(1, 7), ok = c(5) && c(7);
+        else n(4, 3), p(3, 4), p(6, 1), n(1, 6), ok = c(4) && c(6);
+        break;
+      default: break;
+    }
+    if (!ok) {
+      std::fprintf(stderr, "%s %d: _merge_contours failed to receive new contour.\n", kFile, 0xcbb);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00514710
+Edge* next_edge(Edge* e) {
+  Edge* n = e->next;
+  if (n->next == e) {
+    std::swap(n->prev, n->next);
+    n->prev = e;
+    std::swap(n->a, n->b);
+  }
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00513390. A contour that starts on a twin-ring (4)
+// edge is turned round at its first region or polygon edge and counted
+// again from there.
+int count_contours(Weiler& w) {
+  w.untouched = 1;
+  for (int32_t i = 0; i < w.contours.count; ++i) {
+    Contour& c = w.contours.at(i);
+    Edge* const first = c.edge;
+    if (!first) continue;
+    c.flags = first->flags;
+    uint32_t sided = first->flags & 3;
+    if (first->flags == 6) std::swap(first->prev, first->next);
+    c.count = 1;
+    int32_t steps = 0;
+    for (Edge* e = next_edge(first); e != first;) {
+      // FIX (bug): after some shared-edge clips a contour's links cycle
+      // without coming back to its first edge and the exe loops forever.
+      // No ring is longer than all the edges: give up, the clip fails.
+      if (++steps > w.edges.count) {
+        zerr::report(0x100, kFile, 0, "Weiler count gave up: the contour does not close");
+        return 0;
+      }
+      if (!sided && (e->flags & 3)) {
+        sided = 1;
+        c.flags |= e->flags;
+        c.count = 1;
+        std::swap(first->prev, first->next);
+        std::swap(first->a, first->b);
+        e = next_edge(first);
+        steps = 0;
+        continue;
+      }
+      ++c.count;
+      c.flags |= e->flags;
+      if (e->contour) e->contour->edge = nullptr, e->contour = nullptr;
+      e = next_edge(e);
+    }
+    if ((c.flags & 3) == 3) w.untouched = 0;
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x005135a0. The exe writes the ring's points (the first
+// edge's a, then each b up to the edge before its prev) into room for
+// c.count: the same number when the ring is whole.
+int output_contour(Weiler& w, int list, const Contour& c) {
+  Result& out = *w.out;
+  const Edge* e = c.edge;
+  const Edge* const last = e->prev;
+  out.lists[list].push_back(ResultContour{c.count, out.point_count() * 3});
+  const size_t at = out.points.size();
+  out.points.insert(out.points.end(), e->a, e->a + 3);
+  do {
+    out.points.insert(out.points.end(), e->b, e->b + 3);
+    e = e->next;
+    // FIX (bug): the first edge's prev can be left off the ring (it was
+    // turned before its neighbours were); the exe then writes on forever.
+    // One lap is the whole contour.
+    if (e == c.edge && e != last) {
+      zerr::report(0x100, kFile, 0, "Weiler output: contour ended at its first edge");
+      break;
+    }
+  } while (e != last);
+  out.points.resize(at + 3 * static_cast<size_t>(c.count));
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00513480
+int output_contours(Weiler& w) {
+  for (int32_t i = 0; i < w.contours.count; ++i) {
+    const Contour& c = w.contours.at(i);
+    if (!c.edge) continue;
+    if ((w.want & 1) && c.flags == 3 && !output_contour(w, 0, c))
+      return zerr::report(0x200, kFile, 0xf54, "Failed to output contours"), 0;
+    if ((w.want & 2) && (c.flags == 6 || c.flags == 2) && !output_contour(w, 1, c))
+      return zerr::report(0x200, kFile, 0xf67, "Failed to output contours"), 0;
+    if ((w.want & 4) && (c.flags == 1 || c.flags == 5) && !output_contour(w, 2, c))
+      return zerr::report(0x100, kFile, 0xf73, "Found to output contours"), 0;
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0050fe10. The exe frees the buffers and leaves the
+// counts.
+void free_result(Result& out) {
+  for (auto& l : out.lists) l.clear();
+  out.points.clear();
+}
+
+// Mech3.exe 1.2 @ 0x0050faf0 ("weiler_clip"). The polygon is moved to the
+// clip's axes and origin in the caller's buffer and back on every exit but
+// "apart" (code 1), which leaves it moved (only for regions past 65,536 m
+// and swapped axes, neither of which the game uses).
+int clip(Weiler& w, uint32_t want, float* points, int32_t n, Result* out) {
+  if (!w.region_count || !n || !points || !out) {
+    std::fprintf(stderr, "%s %d: Bad parameter(s) passed to Weiler Clip.\n", kFile, 0x296);
+    return 0;
+  }
+  w.poly = points;
+  w.want = want;
+  w.poly_count = n;
+  if (w.axes) swap_axes(w);
+  if (w.offset_on) recenter(w);
+  w.out = out;
+  for (auto& l : out->lists) l.clear();
+  out->points.clear();
+  auto restore = [&](int code) {
+    if (w.offset_on) uncenter(w);
+    if (code != 0 && code != 1) plane_z(w);
+    if (w.axes) swap_axes(w);
+    return code;
+  };
+  auto fail = [&] {
+    if (w.offset_on) uncenter(w);
+    if (w.axes) swap_axes(w);
+    free_result(*out);
+    return 0;
+  };
+  const int trivial = trivial_case(w);
+  if (trivial == 1) return 1;
+  if (trivial == 4) {
+    if (!output_whole(w, 3)) return free_result(*out), restore(0);
+    if (w.offset_on) uncenter(w);
+    if (w.axes) swap_axes(w);
+    return 3;
+  }
+  reset(w);
+  if (!add_rings(w, w.poly, n, 2)) return fail();
+  side_tables(w);
+  if (!weed_out(w)) return fail();
+  const uint32_t crossed = walk(w);
+  if (crossed == 1) return fail();
+  if (crossed != 0) {
+    if (!merge_contours(w)) return fail();
+    if (!count_contours(w)) return fail();
+    if (w.untouched != 1 || trivial == 2) {
+      if (!output_contours(w)) {
+        std::fprintf(stderr, "%s %d: weiler_clip call to gatherContours failed.\n", kFile, 0x3a8);
+        return fail();
+      }
+      return restore(2);
+    }
+    out->lists[1].clear();
+    out->lists[0].clear();
+  }
+  if (trivial == 2) {
+    if (output_with_hole(w) && output_whole(w, 4)) return restore(4);
+  } else if (trivial == 3) {
+    if (output_whole(w, 3)) return restore(3);
+  } else {
+    return restore(1);
+  }
+  free_result(*out);
+  return restore(0);
 }
 
 // Mech3.exe 1.2 @ 0x00513cf0. Counts the polygon's crossings of the ray
