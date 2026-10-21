@@ -332,7 +332,7 @@ The clip then turns each triangle up (0x00516190, reversing 0x00516120)
 and fails the crater if fewer than np + nr came out (never in 3,000 random
 cases).
 
-FIX (A, fixes.md): 0x00515be0 lists a point's edges in 32 ints on the
+FIX (bug, fixes.md): 0x00515be0 lists a point's edges in 32 ints on the
 stack; a polygon corner that sees more than 30 ring points (a ring of
 some 60 points or more inside a small polygon) writes past them. The
 shipped craters' rings are smaller (to be checked in part 5); the port
@@ -340,6 +340,37 @@ lists them in a vector.
 
 The pseudocode sums the plane normal's squares as z² + y² + x²; the asm
 (by its FPU stack) does x² + y² + z², which changes the last bit.
+
+### zModel's polygon add, part 5a
+
+Every crater polygon goes into its model through 0x0053c6c0
+(gmod_const.c; ECX the model, EDX the count, then points, normals, UVs,
+the morph flag, morph points and UVs, material, priority, a flag bit,
+zone and colours). Fewer than 3 points or more than 57 are refused.
+0x0053a530 then drops, in the caller's buffer, every point (but the first)
+on the line of its neighbours (their unit cross product under 0.001 on
+every axis), from the start again after each; the other arrays do not
+follow, so a dropped point leaves the UVs and colours one place off (a
+quirk kept; crater polygons rarely have such points). A polygon of 4 or
+more points not flat to 0.005 (Newell's normal with a real square root)
+goes in as the fan of triangles from its first point (0x0053a930); one of
+more than 48 as fans of up to 4 points (0x0053ac10). Otherwise 0x0053c370
+appends a polygon record and looks up each point among the model's
+vertices (0x00539d80: within the merge distance 0x005ee3e0 on every axis,
+0.001, a crater sets 0.005 while it is made; with morphs 0x00539ec0 needs
+the point and its morph equal) and normals (0x0053a070, within 0.0001),
+adding new ones. 0x0053c500 fills it: a textured polygon's UVs shifted by
+the floor of their smallest u and v, re-derived past the third point from
+the first three's gradient in the plane the normal is most along
+(0x0053bdc0 / 0x0053c270, so the texture lies flat), then snapped to
+256ths (truncated from half a step up, 0x0053af50) and shifted again;
+colours (white without), material, zone, the count up. Past 921 vertices
+or normals in the model it warns and stops.
+
+The pseudocode sums the colinear test's squares as z² + y² + x²; the asm
+does x² + y² + z². The exe's "equal to 0" tests (fcom, test ah, 0x40)
+take NaN as 0 and its "<= 0" tests (test ah, 0x41) take NaN as below: the
+port's compares are written to fail the same way.
 
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.
