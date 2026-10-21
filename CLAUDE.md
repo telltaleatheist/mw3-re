@@ -197,6 +197,12 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   `docs/worklogs/README.md`. Porting and analysis run on Opus 5.5; reviews
   are Sonnet 5.5 subagents the lead starts. Everything uses the 5.5
   models.
+- From 2026-10-21 (Owen): once specialists 2 and 3 finish their overnight
+  orders, the specialists become long-lived subagents of the lead session,
+  one per area (game systems, front end, AI), reused with SendMessage for
+  item after item. The lead checks each one's context at item boundaries
+  and starts a fresh one from the area's work log once it passes ~200k
+  tokens (the lead's own compaction). Same protocol, worktrees and logs.
 - Each agent takes a piece with clean boundaries:
   leaf functions, or systems that meet others through a hooks struct the
   test stubs identically on both sides.
