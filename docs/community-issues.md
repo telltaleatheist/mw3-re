@@ -15,6 +15,9 @@ confirmed bugs; each is checked against the port when its code is reached.
 | Three resolutions in the menu plus three hidden (1152x864, 1280x1024, 1600x1200) set only in the registry | VOGONS | Confirmed (settings.md): InGameVMode, the mode a mission starts in, is saved and read as any number, and the mode switch 0x40d810 knows 8, 9, 10 as 1152x864, 1280x1024, 1600x1200; the VMode the menus use is never saved |
 | Internal aspect ratio fixed at 4:3 | PCGamingWiki | Projection is ported (`render-matrix.md`); widescreen would be a FIX (B) candidate |
 | DDrawCompat: the picture sometimes freezes while the game runs | VOGONS | A wrapper issue, not the game's; the port does not use DirectDraw |
+| A famous zoom reticle / targeting exploit used by speedrunners (what it is, unknown) | Owen, from the community | Open; not found online yet. Check when the zoom window (playtest #7) and TARGET's tracking (0x440b00) are wired: lead point, the zoom's own target, locks through walls |
+| Item duplication: the game checks the player has the items a loadout needs, not how many, so items duplicate (used for a whole Any% run) | Speed Demos Archive, MW3 Any% 0:30:44 (2022) | Open; candidates the mech lab's store checks (`Store::has_config` 0x4735f0, `count_like` 0x473510) and the briefing's reallocation (campaign.md section 9). Kept as the original unless Owen decides otherwise |
+| A restarted mission keeps state from the last attempt: contact destroys buildings, an LRM salvo destroys several buildings at once, a lava explosion carries over | the same run's notes | Open; the port's mission unload and reset (mission-load.md) should be checked for state the original leaves behind |
 
 Sources: [VOGONS: MW3 on Win10/11](https://www.vogons.org/viewtopic.php?p=1420207),
 [VOGONS: physics and rubberbanding](https://www.vogons.org/viewtopic.php?p=510553),
