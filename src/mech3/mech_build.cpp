@@ -298,7 +298,7 @@ void mech_construct(Mech& m, MechData* data, MechControls* ctl, Config* cfg, con
   m.pilot = data;
   m.x68c = nullptr;
   m.frame_dt = 0;
-  m.x6b4 = 0;
+  m.dead_time = 0;
   h.on_new(0xc, &m.x6d0);
   // The knockdown: 0.47, 0.376, 15.04, and 0.376 x 10, x 30 (docs/damage.md).
   m.knockdown[0] = 0.47f, m.knockdown[1] = 0.376000017f, m.knockdown[2] = 15.04f;  // 0x3ec08313: not 0.376f

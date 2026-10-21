@@ -358,7 +358,7 @@ void mech_image(Img& o, const m3::Mech& m) {
   o.p(0x664, m.attacker), o.list(0x674, &m.x678), o.u(0x680, m.x680), o.p(0x684, m.pilot);
   o.u(0x688, m.detail), o.p(0x68c, m.x68c), o.u(0x690, m.x690), o.p(0x694, m.model_node), o.p(0x698, m.lod_node);
   o.u(0x69c, m.heat_state), o.f(0x6a0, m.shutdown_time), o.f(0x6a4, m.beep_time), o.f(0x6a8, m.voice_time);
-  o.u(0x6ac, m.x6ac), o.f(0x6b0, m.frame_dt), o.u(0x6b4, m.x6b4), o.fs(0x6b8, m.knockdown, 5);
+  o.u(0x6ac, m.x6ac), o.f(0x6b0, m.frame_dt), o.f(0x6b4, m.dead_time), o.fs(0x6b8, m.knockdown, 5);
   o.list(0x6cc, &m.x6d0);
 }
 

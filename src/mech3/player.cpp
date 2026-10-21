@@ -316,7 +316,13 @@ Handle make_vehicle_controls(Handle net, ai::AivRecord* rec) {
 // frame: the player's vehicle, the stealth entity when the view looks at it,
 // every other entity's frame (0x004a1140), the HUD's view. A frame time of 0
 // (or NaN, the x87 compare says equal) gives an inverse of 10000.
+namespace {
+uint32_t g_ticks = 0;
+}  // namespace
+uint32_t player_tick_count() { return g_ticks; }
+
 void player_tick() {
+  ++g_ticks;
   PlayerHooks& h = *g_hooks;
   PlayerState& s = g_state;
   s.dt = h.frame_dt();

@@ -164,7 +164,8 @@ int32_t create_basic_vehicle(Handle def, ai::AivRecord* rec, const char* type, c
 Handle make_mech_controls(Handle net, ai::AivRecord* rec);     // 0x0049fe90
 Handle make_vehicle_controls(Handle net, ai::AivRecord* rec);  // 0x0049ff10
 void set_team_masks(Handle vehicle, uint32_t team);            // inline at 0x0049f924, 0x0049fbe1, 0x00491262
-void player_tick();                                            // 0x004a1160, the tick object's action
+void player_tick();
+uint32_t player_tick_count();  // ours, for the tests: player_tick's runs                                            // 0x004a1160, the tick object's action
 // [0x0060b56c] = 0: every team mask sets it so, the AiTarget constructor too
 // (for mech_build and the launch, whose Handle type differs from this file's).
 void player_clear_60b56c();

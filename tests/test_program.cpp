@@ -748,10 +748,7 @@ namespace {
 struct TickWatch {
   const mech3::GameEngine* engine = nullptr;
   std::vector<std::string> ran;
-  uint32_t player_ticks() const {
-    const auto& n = engine->unported_counts();
-    return n.count("0x0041e3f0") ? n.at("0x0041e3f0") : 0;  // a call out of player_tick (0x004a1160)
-  }
+  uint32_t player_ticks() const { return mech3::player_tick_count(); }  // player_tick's runs (0x004a1160)
   void add(const char* what) { ran.push_back(std::string(what) + ":" + std::to_string(player_ticks())); }
 };
 TickWatch g_watch;
@@ -2219,6 +2216,9 @@ TEST(mission_c1m1_owens_dies_headless) {
     EXPECT(seen.ejected == 1);
     // The fall played out (about 4.4 s), then the dead mech's updates stop.
     EXPECT(seen.later.anim_state == 10 && seen.later.action == 0 && seen.later.alive - seen.killed.alive > 3.0f);
+    // Then on the dead mechs' list (0x0041e350), whose tick (0x0041e3f0) keeps
+    // it on the ground; not before its fall ended.
+    EXPECT(!seen.killed.dead_listed && seen.later.dead_listed && seen.later.feet_down);
     EXPECT(seen.player.anim_state != 10 && !seen.lost);
     // The kill credit (0x0041b420): one mech for the player, the Owens' weight
     // class 1 is 400 points, and in the campaign it goes to the salvage.

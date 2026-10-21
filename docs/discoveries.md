@@ -151,6 +151,9 @@ From the port of the damage code, checked in an emulator against the original
   without the screen static that torso, arm and head hits give you.
 - **XL engines have no damage rule.** The `xl` setting changes only the
   engine's weight in the mech lab; nothing in combat reads it.
+- **In Instant Action, wrecks disappear after three minutes.** A dead mech
+  lies where it fell for 170 seconds, fades out over the next ten, and is
+  then removed; only then are its kills added to the match's tallies.
 - **Enemy mechs are silent while you move.** The game spends its one
   "full detail" slot per frame only while your throttle is at zero, and a
   mech's footsteps, engine and power sounds need that detail, so with your

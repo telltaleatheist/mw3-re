@@ -157,6 +157,7 @@ std::vector<std::string> g_ai_names;
 // constructors are logged and give none (their controllers are deleted).
 struct WiredPlayerHooks : PlayerHooks {
   GameEngine* e = nullptr;
+  void tick_41e3f0(float dt) override { mech_dead_tick(dt); }  // 0x0041e3f0 on 0x00605510
   std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
   std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
   std::set<Handle> mechs;          // the AI mechs made
@@ -591,6 +592,12 @@ struct WiredMissionHooks : MissionHooks {
   Handle sounds_bank() override { return e->sound_listener(); }
   void sounds_stop(Handle bank) override { e->sound_stop_all(bank); }
   void sounds_free(Handle bank) override { e->sound_release_all(bank); }
+  // 0x00414000: the dead mechs' list emptied (its mechs are gone with the
+  // rest); its motion archive close and three deletes are not ported.
+  void fn_414000() override {
+    mech_dead_clear();
+    e->unported("0x00414000", {});
+  }
   void delete_object(Handle obj) override {
     if (!mech_free(e->object_of(obj))) MissionHooks::delete_object(obj);
   }
