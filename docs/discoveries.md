@@ -329,6 +329,18 @@ From the gait, the controls, the ground probes, the jump jets and the falls
 
 From the weapon code (weapons.md).
 
+- **Craters really dig into the ground.** A crater is not a painted mark:
+  the game cuts the terrain polygons under the hole away, clips the ones on
+  its edge, and puts in a sloped ring and a floor, textured to match the
+  ground it hit (beach, road, sand and mud each have their own crater
+  texture, set per world in `declient.zrd`). Each patch of ground only
+  takes so many craters, and none are made right next to certain buildings.
+- **Unused: quicksand weapons.** The same system can sink an animated
+  quicksand pit (seven frames, looping, with its own soil type) where a
+  shot lands, for a weapon with the `QUICKSAND` flag. Every world sets the
+  pits up in `declient.zrd`, but no shipped weapon has the flag.
+- **One crater setting is ignored.** Every world's `declient.zrd` has a
+  `TEXTURE_PARMS (1.0 1.0)` line that the game never reads.
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the
   MechLab's weapon table (0x5e64f0) only lists the ER PPC, so no mech can
   carry the plain one. Its name is in the game's text (message 0x2fd, right

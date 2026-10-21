@@ -188,6 +188,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Selected group's ammo, 0x4b1cd0 (the HUD's) | An empty group in group fire, or a group without a current weapon, returns a byte of the saved ECX: the top byte of the weapon manager's address | (bug) the answer is whatever the heap address holds, usually "has ammo" or not by chance | No ammo; `test_weapon_planner.py` checks the exe's byte and the port's no apart |
 | AI order stack, 0x4e9100 | Searching the orders for a net, the loop steps past a full last block of the deque into the map (the push takes its next block only when it needs one) | (bug) reads past an 8-byte heap block: a crash or garbage when no order is on the net and the orders fill a block exactly (13, 39, ... of them) | The search stops at the last order: no order on the net; `test_ai_orders.py` counts the case apart |
 | AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
+| Quicksand texture, declient.zrd read 0x501ab0 | One frame: adds the name past the list's end (frames[1]) and drops the texture; no `DEFAULT_TEXTURE`: reads the last mission's freed name list, or a null one | (bug) a crash or a random texture at mission load | One frame: that frame, set as the material's texture; no `DEFAULT_TEXTURE`: untextured ("Quick sand will NOT be textured"). No shipped file reaches either; `test_zdec_init.py` runs them on the port alone (craters.md) |
 
 Notes on the fixes:
 
@@ -327,12 +328,18 @@ To do, in the specialists' queues:
 - TAG: keep it hard to use (a balance choice) but the same at any frame
   rate, timed in milliseconds rather than frames (the hold and the beam's
   charge by time, the same slack at every rate); the strike homes on the
-  unit that was marked, so it hits a moving target too, directly. Whether a
-  part-charged TAG may fire again is still open (letting go early already
-  refills from what was left). `zfix bugs`.
+  unit that was marked, so it hits a moving target too, directly. It fires only
+  from a full charge, as now (Owen: anything less would be useless);
+  letting go early already refills from what was left. `zfix bugs`.
 - Allied pilots fight the target they are told to, then pick their own
   targets after it (the attack 0x4e9710's "nearest enemy when none is
   selected", which never happens as written). `zfix bugs`.
+- Inverted mouse Y: keep the player's sensitivity and flip only its sign
+  (the options' ACCEPT wrote -1.3 or 1.3 over MouseAccelY). FIX (bug).
+- Cosmetic slips in the data (spelling, a credits heading's `"offset" (20)`
+  missing its second number, so it borrows the line above's): fix them
+  (Owen: "we can fix little cosmetic things like spelling errors").
+  FIX (bug), each listed here and in CHANGES.md.
 - Resolution: 16:9 as the shape either way (today's monitors); limit the
   size to 1920x1080 if larger sizes are a problem.
 
@@ -366,16 +373,4 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (and 3 for software) by a video-memory estimate (0x004ab860); its names
   for 8..10 (1152x864, 1280x1024, 1600x1200) are never used, and ACCEPT
   writes the chosen mode over a registry-set 8..10.
-
-- The credits' "Other Voices" heading (dlgCredits.zrd) has `"offset" (20)`,
-  one number, so the reader keeps the line before's offset (30 0): the
-  heading is indented like a name and sits with no gap above it, unlike
-  every other heading's (20 20). An importer data fix would make it
-  `(20 20)`; cosmetic.
-
-- Inverted mouse Y (the game options' CMD_INVERT_MOUSE_Y) is the sign of
-  MouseAccelY; ACCEPT writes -1.3 or 1.3, so a sensitivity set in the
-  registry is lost on any visit to the screen. Keeping the magnitude and
-  flipping only the sign would be the evident intent; it changes the feel
-  for players who tuned it.
 
