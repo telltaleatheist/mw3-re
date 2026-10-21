@@ -202,6 +202,12 @@ bool handler_owned(Handle node, uintptr_t h) {
   return i >= n;
 }
 
+Handle damage_object(Handle node, DamageFn* fn) {
+  const auto* t = node ? reinterpret_cast<const NodeHandlers*>(handler_of(node)) : nullptr;
+  if (fn) *fn = t ? reinterpret_cast<DamageFn>(t->slot[0].fn) : nullptr;
+  return t ? t->slot[0].object : nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x00583250
 bool own_handler(Handle node) {
   if (!node) return false;

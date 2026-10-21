@@ -8,6 +8,7 @@
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -270,6 +271,13 @@ void beam_sort_targets(Beam* b, float* along, Vec3f3* far_dir) {
   } while (swapped);
 }
 
+// FIX (bug): the hold counted in whole milliseconds; the exe's float sum of
+// 60 x (1/60) falls short of 1.0 and costs a frame (zfix bugs, weapons.md TAG).
+bool designate_held(float timer, float hold) {
+  if (!zfix::options().bugs) return timer >= hold;
+  return std::floor(timer * 1000.0f + 0.5f) >= std::floor(hold * 1000.0f + 0.5f);
+}
+
 // Mech3.exe 1.2 @ 0x005814b0: every beam of a BEAM def, once a frame. The ray
 // grows toward RANGE (x the range scale) at TIME_TO_MAX_RANGE's rate and is
 // cast from the muzzle: a thing with a handler takes the damage (DESIGNATE:
@@ -330,7 +338,7 @@ void beam_update(WeaponDef* def) {
           if (cls == 0) {
             if (def->flags & kDesignate) {
               b->timer = dt + b->timer;
-              if (!(b->timer >= def->detonation_distance_sq)) {
+              if (!designate_held(b->timer, def->detonation_distance_sq)) {
                 apply_damage(def, b->owner, from, rec, 0.0f, nullptr);
                 set_active(b->light, 1);
                 if (rh().light_position) rh().light_position(b->light, rec->point.x, rec->point.y, rec->point.z);

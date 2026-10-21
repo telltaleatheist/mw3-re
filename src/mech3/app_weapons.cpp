@@ -29,6 +29,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
+#include "mech3/mech_skis.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -174,6 +175,18 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   c.add_heat = [](Handle owner, float h) {  // 0x00419e40
     if (owner) mech_of(owner)->add_heat(h);
   };                // 0x00419e40
+  // TAG's strike on the mech its beam marked (FIX (bug), weapons.md "TAG"):
+  // the hit node's damage handler is a mech's: its live position and velocity.
+  c.strike_target = [](Handle node, zwep::LockRef* out) {
+    zwep::DamageFn fn = nullptr;
+    Handle obj = zwep::damage_object(node, &fn);
+    if (!obj || fn != mech_damage || !skis_calls().position) return false;
+    Mech* m = mech_of(obj);
+    out->entity = obj;
+    out->at = reinterpret_cast<const zwep::Vec3f3*>(skis_calls().position(*m));
+    out->velocity = reinterpret_cast<const zwep::Vec3f3*>(&m->velocity);
+    return out->at != nullptr;
+  };
   c.node_position = [](Handle node, Vec3f* p) { return zcls::node_world_point(zn(node), &p->x); };  // 0x004ed650
   c.node_axis = [](Handle node) {  // node +0x38 +0x78: the world matrix's z row
     return reinterpret_cast<const Vec3f*>(static_cast<uint8_t*>(zn(node)->data) + 0x78);

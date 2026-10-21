@@ -1,5 +1,6 @@
 #include "mech3/weapon.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -253,9 +254,17 @@ uint32_t salvo_spread(WeaponDef* def, const zwep::HitRecord*, zwep::Projectile* 
 }
 
 // Mech3.exe 1.2 @ 0x004afed0: TAG's strike, four missiles from 1500 back along
-// the beam and 400 up, 50 apart, homing on the point.
-void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at) {
+// the beam and 400 up, 50 apart, homing on the point. FIX (bug): on the unit
+// the beam marked, so a moving one is hit too (Owen 2026-10-20; zfix bugs).
+void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at,
+                        zwep::Handle hit_node) {
   strike_point = at;
+  strike_lock = zwep::LockRef{};
+  strike_lock.at = &strike_point;
+  if (zfix::options().bugs && g_calls.strike_target) {
+    zwep::LockRef unit;
+    if (g_calls.strike_target(hit_node, &unit) && unit.at) strike_lock = unit;
+  }
   zmth::Vec3 start{dir.x * -1500.0f, dir.y * -1500.0f, dir.z * -1500.0f};
   start = {at.x + start.x, at.y + start.y, at.z + start.z};
   start.y = start.y - -400.0f;
@@ -275,7 +284,7 @@ void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const 
 
 // Mech3.exe 1.2 @ 0x004afea0
 uint32_t airstrike(WeaponDef* def, const zwep::HitRecord* hit, zwep::Projectile* p) {
-  def->type->strike(p->owner, p->direction, hit->point);
+  def->type->strike(p->owner, p->direction, hit->point, hit->node);
   return 0;
 }
 
@@ -1608,6 +1617,7 @@ bool BeamWeapon::trigger() {
   }
   if (!firing && ok && aim_and_fire(&manager->aim, false) && beam) {
     fired = true;
+    fired_time = 0;
     if (in_water(part)) zwep::fire_state().beam_range_scale = 0.5f;
     const int32_t used = bin->amount > 1 ? 1 : bin->amount;
     bin->amount -= used;
@@ -1679,6 +1689,23 @@ void BeamWeapon::update(float dt) {
   float v = def->period * dt;
   if (!(v > 1.0f)) v = 1.0f;
   const int32_t n = crt::msvc_ftol(v);
+  if (firing && (def->flags & zwep::kDesignate) && zfix::options().bugs && bin->left() >= 0) {
+    // FIX (bug): TAG's beam lasts what it does at 30 fps in the exe, in time:
+    // the same slack over the one-second hold at any frame rate (zfix bugs).
+    fired_time += dt;
+    const int32_t per = std::max(1, crt::msvc_ftol(def->period / 30.0f));  // the 30 fps frame's drain
+    const int32_t drains = (bin->max - 1 + per - 1) / per;                 // updates that empty it after the trigger's 1
+    if (std::floor(fired_time * 1000.0f + 0.5f) < std::floor((drains + 1) * 1000.0f / 30.0f + 0.5f)) {
+      const float left = static_cast<float>(bin->max - 1) * (1.0f - fired_time * 30.0f / static_cast<float>(drains));
+      bin->amount = left > 0.0f ? static_cast<int32_t>(left) : 0;
+      return;
+    }
+    bin->amount = 0;
+    stop();
+    if (manager->owner == g_world.mission_player && t->recharge_sound && !recharge_sound && g_calls.play_loop)
+      recharge_sound = g_calls.play_loop(t->recharge_sound);
+    return;
+  }
   if (firing) {
     if (bin->left() > 0) {
       const int32_t used = n < bin->amount ? n : bin->amount;

@@ -95,6 +95,7 @@ it is clear what the designers meant.
 - **A smoke fade-in typo is fixed:** smoke set to fade in near the camera
   vanished instead.
 - The HUD's mission timer keeps its seconds under 60 past the first hour (the original showed an hour and 40 seconds as 01:01:3640).
+- **TAG is the same at every frame rate, and its airstrike follows the target.** The one-second hold is a true second, and the beam lasts what it did at 30 fps, so you always have about 67 ms to slip (the original gave two frames at 30 fps and one at 60 or 144). The four missiles now home on the mech you marked instead of the spot it stood on seven seconds earlier, so a moving mech is hit too. TAG still fires only from a full charge.
 - **A mech put back on the ground looks 10 m above where it stands**, as everything else in the game does. The original looked y + 10 above a mech at height y, so below sea level it found nothing and dropped to the lowest surface (under a bridge), and high up it could land on a roof overhead. No mission's starting place changes: all 195 placements in the 24 campaign missions and all 768 records in every campaign, Instant Action and multiplayer file land exactly where they did. What changes is a mech re-placed where it stands (swapping mechs mid-mission or in multiplayer), which now stays put.
 
 ## Crashes and broken data that no longer break the game

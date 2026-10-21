@@ -76,7 +76,8 @@ struct WeaponType {
   WeaponType& operator=(const WeaponType&) = delete;
 
   uint32_t salvo_mark(const zwep::Vec3f3& at);   // 0x004afc00
-  void strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at);  // 0x004afed0
+  void strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at,
+              zwep::Handle hit_node = nullptr);  // 0x004afed0
   bool ready() const;                            // 0x004b4c70: game time has reached ready_at
   void hold_for_flight();                        // 0x004b4c90: ready_at = now + lrm_flight
   void set_ready_at(float t) { ready_at = t; }   // 0x004b4cb0
@@ -208,6 +209,7 @@ struct BeamWeapon : Weapon {           // vtable 0x005c90c0, 0xa4 bytes
   const Vec3f* aim_at = nullptr;       // +0x9c  the caller's aim point
   Handle beam = nullptr;               // +0xa0  the zWeapon beam
   float recharge_carry = 0;            // the rebuild's: the recharge's fraction (FIX (B), beam_recharge)
+  float fired_time = 0;                // the rebuild's: time since the trigger (TAG's FIX (bug))
 
   BeamWeapon(WeaponItem* item, WeaponManager* m);          // 0x004b3c10
   BeamWeapon(WeaponDef* def, Handle node, WeaponManager* m);  // 0x004b3d70
@@ -393,6 +395,10 @@ struct WeaponCalls {
   Handle (*target_key)(Handle target) = nullptr;              // vt+0x24: what a lock remembers
   Handle (*net_target)(Handle id) = nullptr;                  // the mission player, or the list at 0x00605f84 by +0x6fc
   const zwep::Vec3f3* (*target_velocity)(Handle target) = nullptr;  // vt+0x0c
+  // The rebuild's (TAG's FIX (bug)): the unit a hit node belongs to as a lock
+  // (its live position and velocity); false for none, or a thing that
+  // stands still: the strike then homes on the point as the exe's does.
+  bool (*strike_target)(Handle hit_node, zwep::LockRef* out) = nullptr;
   int32_t (*node_position)(Handle node, Vec3f* out) = nullptr;  // 0x004ed650: nonzero = no position
   const Vec3f* (*node_axis)(Handle node) = nullptr;           // node +0x38 +0x78: the facing
   float (*normalize)(Vec3f* v, Vec3f* out) = nullptr;         // 0x0051e3d0, returns |v|
