@@ -178,6 +178,7 @@ add_library(mw3core STATIC
   src/mech3/app_hooks.cpp
   src/mech3/app_states.cpp
   src/mech3/mech_lab.cpp
+  src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
   src/mech3/app_view.cpp
@@ -242,6 +243,7 @@ add_library(mw3probe SHARED
   tests/probe_pilotscreen.cpp
   tests/probe_briefing.cpp
   tests/probe_debriefing.cpp
+  tests/probe_lab.cpp
   tests/probe_salvage.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp

@@ -255,19 +255,19 @@ def lab_field(r, off, size):
 
 
 def lab_world(w, probe, name, values, seed):
-    """The lab's 3D parts (+0x20, each +0x08 its node), the node pointed at
+    """The lab's 3D mechs (+0x20, each +0x08 its mech), the mech to show
     (+0x38), the game's slot and the answers its developer keys get."""
     r = rnd(seed, 'lab')
     e = w.emu
     n = r.randrange(4)
-    parts = [w.obj(fields={0x8: w.obj()}) for _ in range(n)]
+    parts = [w.obj(fields={0x8: r.randrange(19)}) for _ in range(n)]
     begin = e.world_alloc(4 * n) if n else 0
     for i, p in enumerate(parts):
         e.w32(begin + 4 * i, p)
     for off, v in ((0x20, begin), (0x24, begin + 4 * n), (0x28, begin + 4 * n)):
         e.w32(LAB + off, v)
     probe.probe_states_lab_parts((ctypes.c_uint32 * max(n, 1))(*parts), n)
-    node = r.choice([LabNoNode, LabNoNode, w.obj()] + [e.r32(p + 8) for p in parts])
+    node = r.choice([LabNoMech, LabNoMech, r.randrange(19)] + [e.r32(p + 8) for p in parts])
     for i, addr, size, _ in values:
         if addr == LAB + 0x38:
             e.w32(addr, node)
@@ -288,7 +288,7 @@ def lab_world(w, probe, name, values, seed):
     w.answers['0x0051a9b0'] = lambda rr, n_, a: rr.choice([0, 0, 1, 1, 2])
 
 
-LabNoNode = 0x13
+LabNoMech = 0x13
 
 
 # (name, probe address, emulator address, ecx, args builder) — args builder
@@ -414,7 +414,7 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
     if paddr == 0x448830:  # ECX the pilot, EDX the store, the flag on the stack
         ecx = parg
         probe.probe_states_arg3(stack[0])
-    if paddr == 0x4507c0:  # a node of the parts, none (0x13) or another
+    if paddr == 0x4507c0:  # a mech of the entries, none (0x13) or another
         parg = w.emu.r32(LAB + 0x38)
         stack = (parg,)
     if paddr == 0x4803f0:

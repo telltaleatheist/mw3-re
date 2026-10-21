@@ -23,6 +23,9 @@ class MechButton : public HelpButton {
   explicit MechButton(Engine& e);    // 0x0044a770
   bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0044a840
   void show_name(bool on);           // 0x0044aa70
+  // 0x0044a890 (lab_screen.cpp): a mech's icons (none for -1), then chosen
+  // or not with the glow (0x0044af90).
+  void set_mech(int32_t mech, bool selected, ztwod::Image* glow);
 
   int32_t mech = 0x13;               // +0x17c  0x13: none
   ztwod::Text name;                  // +0x180

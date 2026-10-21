@@ -120,6 +120,12 @@ class GameEngine : public Engine {
   void lab_slot_release(Handle pilot, int32_t i) override;
   Handle lab_slot_config(Handle pilot, int32_t i) override;
   bool lab_world_load(Handle) override { return true; }
+  LabScreen* lab_screen(Handle h) override;            // the ported screen (0x0044b920)
+  void lab_show_slot(Handle state, int32_t slot) override;  // 0x00448f80, the ported Lab State's
+  void lab_page(Handle screen, int32_t page) override;     // 0x0044ce30
+  int32_t lab_slot_mech(Handle slot) override;
+  void lab_slot_drop_config(Handle slot, Handle store) override;  // 0x00433df0 on the ported slot
+  void lab_slot_set_mech(Handle slot, int32_t mech) override;
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;
