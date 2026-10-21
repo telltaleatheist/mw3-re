@@ -335,6 +335,11 @@ From the weapon code (weapons.md).
   ground it hit (beach, road, sand and mud each have their own crater
   texture, set per world in `declient.zrd`). Each patch of ground only
   takes so many craters, and none are made right next to certain buildings.
+  The cut ground is rebuilt from triangles and four-sided pieces: whatever
+  is left of a ground polygon around the hole is split into convex pieces,
+  and a crater that lands wholly inside one big ground polygon gets the
+  ground around it rebuilt as a ring of triangles joining the polygon's
+  corners to the crater's rim.
 - **Craters keep the ground's shading.** The new crater polygons take the
   vertex colours of the ground they cut: each crater vertex copies a cut
   ground vertex within half a metre of it (else the first one cut), so a
