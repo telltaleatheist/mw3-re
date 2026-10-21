@@ -75,11 +75,11 @@ class WiredData : public MechDataHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
-  Handle cameras(Pilot& p) override { return program_cameras(p.roster); }      // 0x00430e70
+  Handle cameras(MechData& p) override { return program_cameras(p.roster); }      // 0x00430e70
   void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
   Handle anim_find(const char* name) override { return zeff::anim_find(name); }  // 0x0050b450, the mission's
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
-  void animations(Pilot& p) override {
+  void animations(MechData& p) override {
     if (open_motions("zbd/motion.zbd")) load_animations(p);
   }
 };
@@ -92,7 +92,7 @@ class WiredBuild : public MechBuildHooks {
   // 0x005833b0(mech, node, 1, 0x004161a0): hits on the mech's node go to
   // Mech::TakeDamage (app_weapons.cpp).
   void touch_handler(Mech& m, Handle) override { mech_set_damage_handler(&m); }
-  Pilot* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
+  MechData* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
   Handle node_find(Handle root, const char* name) override { return zcls::node_find_in_tree(zn(root), name); }
   // Each mech its own tree: the models and their materials copied.
   Handle node_clone(Handle node) override { return zcls::tree_copy(zn(node), 1, 1); }
@@ -627,7 +627,22 @@ void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
 void mech_destroy_part(void* mech, int32_t id) { static_cast<Mech*>(mech)->destroy_part(id); }
+// Mech3.exe 1.2 @ 0x004782c0 with 0: the pilot lets its mech go, keeping
+// the weapons' fire mode (+0xd4 +0x1c) for its +0x80; the mech globals the
+// launch set (pilot_set_mech) go with it.
+bool mech_player_release(void* mech, int32_t* fire_mode) {
+  auto* m = static_cast<Mech*>(mech);
+  const auto* wm = m ? static_cast<const WeaponManager*>(m->ammo) : nullptr;
+  if (wm) *fire_mode = wm->mode;
+  world().mission_player = world().player = nullptr;
+  weapon_world().mission_player = weapon_world().player = nullptr;
+  return wm != nullptr;
+}
+
+void* mission_player_mech() { return world().mission_player; }
+
 bool mech_free(void* obj) {
+  if (!obj) return false;
   for (const ai::Handle h : ai::entity_list())
     if (g_w.object_of(g_w.engine, h) == obj) return mech_delete(static_cast<Mech*>(obj)), true;
   return false;

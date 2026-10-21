@@ -71,13 +71,13 @@ struct Hooks : m3::MechDataHooks {
     return it != g_dfns.end() ? it->second : nullptr;
   }
   void skins_apply(const void* skins, Handle node) override { call("0x00475780", {lo(skins), lo(node)}); }
-  Handle cameras(m3::Pilot& p) override { return hd(call("0x00430e70", {addr_of(&p)})); }
+  Handle cameras(m3::MechData& p) override { return hd(call("0x00430e70", {addr_of(&p)})); }
   void cameras_free(Handle list) override { call("0x0040abf0", {lo(list)}); }
   void hud_free(Handle hud) override { call("0x0043b860", {lo(hud)}); }
   Handle sound_find(const char* name) override { return hd(call("0x0056f6f0", {name})); }
   Handle anim_find(const char* name) override { return hd(call("0x0050b450", {name})); }
   Handle node_named(int32_t list, const char* name) override { return hd(call("0x004f7fe0", {list, name})); }
-  void animations(m3::Pilot& p) override {
+  void animations(m3::MechData& p) override {
     if (call("0x00431a70", {addr_of(&p)}) == 2) p.x20 = 0;  // the stub's way to fail the step
   }
   Handle reader_find(Handle node, const char* key) override { return hd(call("0x005569e0", {lo(node), key})); }
@@ -106,7 +106,7 @@ struct Img {
   void h(uint32_t off, const void* p) { put(off, addr_of(p)); }
 };
 
-void image_data(Img& o, const m3::Pilot& p) {
+void image_data(Img& o, const m3::MechData& p) {
   o.f(0, p.range_sq[0]), o.f(4, p.range_sq[1]);
   o.put(8, static_cast<uint32_t>(p.refs)), o.put(0xc, static_cast<uint32_t>(p.roster));
   // The name is the roster table's (0x005e6078 + 0x3c i, "notmech" 0x005e6ec4).
@@ -135,7 +135,7 @@ void image_data(Img& o, const m3::Pilot& p) {
   o.h(0x230, p.soils);
 }
 
-void image_soils(Img& o, const m3::Pilot::Soils& s) {
+void image_soils(Img& o, const m3::MechData::Soils& s) {
   for (int i = 0; i < 11; ++i) {
     o.h(4 * i, s.step_sound[i]);
     o.h(0x2c + 4 * i, s.footprint[i]);
@@ -175,7 +175,7 @@ void probe_md_clear() { m3::mech_data_clear(); }
 // The cache's entries by address, in order; returns the count.
 int probe_md_cache(uint32_t* out, int cap) {
   int n = 0;
-  for (const m3::Pilot* p : m3::mech_data_cache())
+  for (const m3::MechData* p : m3::mech_data_cache())
     if (n < cap) out[n++] = addr_of(p);
   return static_cast<int>(m3::mech_data_cache().size());
 }
@@ -187,10 +187,10 @@ int probe_md_image(uint32_t addr, uint32_t size, uint8_t* buf, uint8_t* mask) {
   Img o{buf, mask, size};
   const int kind = g_kind[it->second];
   bool live = false;  // freed objects stay in the maps: only the cache's count
-  for (const m3::Pilot* p : m3::mech_data_cache()) live |= p == it->second || p->soils == it->second;
+  for (const m3::MechData* p : m3::mech_data_cache()) live |= p == it->second || p->soils == it->second;
   if (!live) return -2;
-  if (kind == 0) image_data(o, *static_cast<const m3::Pilot*>(it->second));
-  else image_soils(o, *static_cast<const m3::Pilot::Soils*>(it->second));
+  if (kind == 0) image_data(o, *static_cast<const m3::MechData*>(it->second));
+  else image_soils(o, *static_cast<const m3::MechData::Soils*>(it->second));
   return kind;
 }
 

@@ -53,7 +53,7 @@ class LaunchHooks : public zgame::Unported {
   virtual int32_t option_invincible() { return static_cast<int32_t>(unported("0x0040cf20", {})); }
   virtual void mech_update(Mech& m, float dt);                // vtable +0x34, 0x00419fc0
   virtual int32_t mech_place(Mech& m, const float pos[3], float yaw) { return m.place(pos, yaw); }  // 0x004161c0
-  virtual Handle mech_screen(Pilot* data);                    // 0x00430aa0
+  virtual Handle mech_screen(MechData* data);                    // 0x00430aa0
   virtual void hud_reset(Handle screen) { unported("hud.vt+0x64", {low(screen) + 0x17964}); }
   virtual void hud_zoom(Handle screen, float v) { unported("hud.vt+0x60", {low(screen) + 0x17964, zgame::bits(v)}); }
   virtual void controls_set_record(MechControls* c, const ai::AivRecord* rec);  // IControls vt+0x88

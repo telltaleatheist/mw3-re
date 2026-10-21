@@ -22,7 +22,7 @@ Hud* viewed_hud(Mech& m) {
 MechHudCalls& mech_hud_calls() { return g_calls; }
 
 // Mech3.exe 1.2 @ 0x00430aa0 (with 0x00430ad0): only for a loaded type.
-Hud* pilot_hud(Pilot& p) {
+Hud* pilot_hud(MechData& p) {
   if (!p.x20) return nullptr;
   if (!p.hud) {
     p.hud = new Hud(nullptr);

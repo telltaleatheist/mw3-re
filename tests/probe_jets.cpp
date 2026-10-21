@@ -70,7 +70,7 @@ struct GaitAnim : MechAnim {
 struct State {
   Mech m;
   MechControls c;
-  Pilot pilot;
+  MechData pilot;
   Config config{0, "test"};
   Skis skis;
   LogLeg legs[2];

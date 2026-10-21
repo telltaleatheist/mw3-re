@@ -2599,6 +2599,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       size_t libraries = 0;
       mech3::LaunchedMech mech;
       int32_t alive = 0, left = -1;  // mechs up, then after the cleanup
+      bool player_ok = false;          // the mission's player is the pilot's own mech
+      bool player_cleared = false;     // and gone after the cleanup (0x004782c0(0))
     };
     Leg legs[3] = {{0, 1}, {0, 2}, {1, 1}};
     int leg = 0;
@@ -2620,10 +2622,13 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       if (g.frames == 60) {
         mech3::launched_mech(&g.mech);
         g.alive = mech3::mechs_alive();
+        g.player_ok = mech3::mission_player_mech() != nullptr &&
+                      mech3::mission_player_mech() == engine.object_of(engine.field32(engine.pilot(), 0x14));
         if (++leg > 2) return;
         // The mission over: its cleanup, then the next through the Load state.
         mech3::missions().cleanup(false);
         g.left = mech3::mechs_alive();
+        g.player_cleared = mech3::mission_player_mech() == nullptr && engine.field32(engine.pilot(), 0x14) == 0;
         mech3::GameEngine::Launch next;
         next.index = legs[leg].index, next.number = legs[leg].number;
         engine.set_launch(next);
@@ -2636,7 +2641,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     for (const Leg& g : legs) EXPECT(g.frames >= 60 && g.mech.parts > 0);  // each built its mech and ran
     // The cleanup deletes every mech (the pilot's, then zEntity's list):
     // none carried into the next mission, none left at the end.
-    for (int i = 0; i < 2; ++i) EXPECT(legs[i].alive > 0 && legs[i].left == 0);
+    for (int i = 0; i < 2; ++i) EXPECT(legs[i].alive > 0 && legs[i].left == 0 && legs[i].player_cleared);
+    for (const Leg& g : legs) EXPECT(g.player_ok);  // never a stale or an AI mech
     EXPECT(legs[2].alive > 0 && mech3::mechs_alive() == 0);
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
     EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them

@@ -12,7 +12,7 @@ struct Node;
 // A mech type's animations, loaded once and copied to each mech of it
 // (docs/movement.md, The gait table). Original file: mech3\mech_data.cpp
 // (0x004308a0..0x00431a70), its getters just after. The object is the
-// mech's +0x684, here `Pilot` (mech.h).
+// mech's +0x684, here `MechData` (mech.h).
 namespace mech3 {
 
 struct MechDfn;
@@ -20,8 +20,8 @@ struct MechDfn;
 // The calls the animation load makes (a test's stand-ins). Unset: dfn is
 // mech_dfn(roster); canned is the port's load_canned.
 struct MechDataCalls {
-  const MechDfn* (*dfn)(Pilot&) = nullptr;               // 0x004846a0 on +0x0c
-  bool (*canned)(Pilot&, zrdr::Node* canned, int i) = nullptr;  // 0x00431750: the canned effects (+0x14c + 0x14 i)
+  const MechDfn* (*dfn)(MechData&) = nullptr;               // 0x004846a0 on +0x0c
+  bool (*canned)(MechData&, zrdr::Node* canned, int i) = nullptr;  // 0x00431750: the canned effects (+0x14c + 0x14 i)
 };
 MechDataCalls& mech_data_calls();
 
@@ -48,7 +48,7 @@ class MechDataHooks : public zgame::Unported {
   }
   // 0x00430e70: the camera kinds (tether, attach, area, mcbtether, zippercam,
   // godseye) read from the definition into a list, not ported.
-  virtual Handle cameras(Pilot& p) { return h(unported("0x00430e70", {ref(&p)})); }
+  virtual Handle cameras(MechData& p) { return h(unported("0x00430e70", {ref(&p)})); }
   virtual void cameras_free(Handle list) { unported("0x0040abf0", {low(list)}); }
   virtual void hud_free(Handle hud) { unported("0x0043b860", {low(hud)}); }
   virtual Handle sound_find(const char* name);                // 0x0056f6f0: zsnd::find
@@ -57,7 +57,7 @@ class MechDataHooks : public zgame::Unported {
   // The pilot's game ([0x0060861c] +0x6c, vt+0x2c): 3 (0x00479480) or 2 (0x00479460).
   virtual uint32_t game_multiplayer() { return unported("0x00479480", {}); }
   virtual uint32_t game_instant_action() { return unported("0x00479460", {}); }
-  virtual void animations(Pilot& p);                          // 0x00431a70: load_animations
+  virtual void animations(MechData& p);                          // 0x00431a70: load_animations
   // zReader on the definition's tree.
   virtual Handle reader_find(Handle node, const char* key);   // 0x005569e0
   virtual bool reader_vec3(Handle node, const char* key, float out[3]);  // 0x005570b0
@@ -73,31 +73,31 @@ void set_mech_data_hooks(MechDataHooks* h);  // null: the defaults
 MechDataHooks& mech_data_hooks();
 
 // The mech types' data (0x00605704, a std::list, count 0x00605708).
-std::list<Pilot*>& mech_data_cache();
+std::list<MechData*>& mech_data_cache();
 // 0x00430d10 (ECX roster, EDX create): the cached data, else (with create) a
 // new one loaded; its count of holders goes up either way. 0 when it failed
 // to load, though it stays cached (and is not tried again).
-Pilot* mech_data(int32_t roster, int32_t create);
-void mech_data_init(Pilot& p);                 // 0x00430490
-Pilot* mech_data_new(int32_t roster);          // 0x004303d0: init, load, onto the cache
-bool mech_data_load(Pilot& p);                 // 0x004308a0
-void mech_data_free(Pilot* p);                 // 0x00430580 and the delete
+MechData* mech_data(int32_t roster, int32_t create);
+void mech_data_init(MechData& p);                 // 0x00430490
+MechData* mech_data_new(int32_t roster);          // 0x004303d0: init, load, onto the cache
+bool mech_data_load(MechData& p);                 // 0x004308a0
+void mech_data_free(MechData* p);                 // 0x00430580 and the delete
 void mech_data_clear();                        // 0x004318e0, at the mission's unload
 
-// A canned effect (Pilot::canned: 0 eject, 1 jump jets, 2 narc) started at
+// A canned effect (MechData::canned: 0 eject, 1 jump jets, 2 narc) started at
 // `node` at its offset plus `at`; with no node, at a copy of the slot's node
 // (kept for canned_nodes_free), none when the slot has no node. `at` and
 // `vel` null stand for the exe's zero vector 0x0063d870, and a null `at`
 // leaves the copy where it is. 0x00432830 (ECX +0x684).
-Handle canned_effect(Pilot& p, int32_t slot, Handle node, const float* at, const float* vel);
+Handle canned_effect(MechData& p, int32_t slot, Handle node, const float* at, const float* vel);
 void canned_nodes_free();  // 0x00431800: the copies, at the mission's unload
 int32_t canned_nodes_count();  // 0x00605718
 void mech_data_refresh();                      // 0x004319a0, at each mission's load: 0x004319f0 on each
-void load_ranges(Pilot& p);                    // 0x00430840
-void load_sounds(Pilot& p);                    // 0x004306d0
-void load_effects(Pilot& p);                   // 0x004320b0
-void load_soils(Pilot& p);                     // 0x00432670 with 0x004326d0
-bool load_canned(Pilot& p, Handle canned, int i);  // 0x00431750: eject, jumpjets, narc
+void load_ranges(MechData& p);                    // 0x00430840
+void load_sounds(MechData& p);                    // 0x004306d0
+void load_effects(MechData& p);                   // 0x004320b0
+void load_soils(MechData& p);                     // 0x00432670 with 0x004326d0
+bool load_canned(MechData& p, Handle canned, int i);  // 0x00431750: eject, jumpjets, narc
 const char* soil_name(int32_t i);              // 0x0047f380, "unknown" past 10
 
 const char* gait_name(int i);     // 0x00431560: limp, limp, stand, step, walk, trot, run, ..., 12 stand
@@ -108,14 +108,14 @@ const char* action_name(int i);   // 0x004316e0: 1 fallf .. 8 collapser
 float engine_speed(int32_t engine, float mass);
 // The base speed of 0x00431350 (config 0's engine and mech, 0x00432950) and
 // of 0x004329c0 (config 0's engine, the roster's mass).
-float config_speed(Pilot& p, bool roster_mass);
+float config_speed(MechData& p, bool roster_mass);
 
-bool load_gait(Pilot& p, zrdr::Node* motion, int i);   // 0x00431350
-bool load_action_motion(Pilot& p, int i);              // 0x004315d0
-void load_animations(Pilot& p);                        // 0x00431a70
-MechAnim* gait_copy(const Pilot& p, int i);            // 0x00431fb0
-MechAction* action_copy(const Pilot& p, int i);        // 0x00432030
+bool load_gait(MechData& p, zrdr::Node* motion, int i);   // 0x00431350
+bool load_action_motion(MechData& p, int i);              // 0x004315d0
+void load_animations(MechData& p);                        // 0x00431a70
+MechAnim* gait_copy(const MechData& p, int i);            // 0x00431fb0
+MechAction* action_copy(const MechData& p, int i);        // 0x00432030
 // 0x004329c0: the gait table for a top speed, the file's pairs x base / max.
-void scale_gaits(Pilot& p, float gait[13][2], float max_speed);
+void scale_gaits(MechData& p, float gait[13][2], float max_speed);
 
 }  // namespace mech3

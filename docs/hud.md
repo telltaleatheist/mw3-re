@@ -11,10 +11,10 @@ porting order is section 7. Status: mapped, nothing ported yet.
 
 ## 1. Where it lives and when it runs
 
-- **One HUD per mech type**, owned by the mech data (Pilot +0x224), made on
+- **One HUD per mech type**, owned by the mech data (MechData +0x224), made on
   first use by 0x00430ad0 (`new 0x22e40`, constructor 0x0043b190) and
   returned by 0x00430aa0 (0 when the data is not loaded). The same call makes
-  the **cockpit model** at Pilot +0x228: an 8-byte object (vtable 0x005bd2f4)
+  the **cockpit model** at MechData +0x228: an 8-byte object (vtable 0x005bd2f4)
   holding the mech's cockpit node from mechlib (0x004847e0), or a new
   object3d (0x004fb740) when it has none; with a `cockpit` reader node it is
   placed at the origin, made non-intersecting and flagged (0x004eb6d0,

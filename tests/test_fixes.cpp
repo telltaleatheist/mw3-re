@@ -247,7 +247,7 @@ mech3::Mech* bare_mech() {
   static mech3::Hip hip;
   static mech3::Leg legs[2];
   static mech3::Foot feet[2];
-  static mech3::Pilot pilot;
+  static mech3::MechData pilot;
   static StillAnim anims[13];
   m = mech3::Mech{};
   c = mech3::MechControls{};

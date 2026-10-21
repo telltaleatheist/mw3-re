@@ -38,7 +38,7 @@ void LaunchHooks::pilot_set_mech(Handle pilot, Mech& m) {
 void LaunchHooks::interp_set_mech(Handle interp, Mech& m) {
   unported("0x004108a0", {low(interp), mech_build_hooks().ref(&m)});
 }
-Handle LaunchHooks::mech_screen(Pilot* data) { return h(unported("0x00430aa0", {mech_build_hooks().ref(data)})); }
+Handle LaunchHooks::mech_screen(MechData* data) { return h(unported("0x00430aa0", {mech_build_hooks().ref(data)})); }
 void LaunchHooks::controls_set_record(MechControls* c, const ai::AivRecord* rec) {
   unported("ictl.vt+0x88", {mech_build_hooks().controls_ref(c), low(rec_ref(rec))});
 }
@@ -85,7 +85,7 @@ bool launch_player() {
   const Handle game = h.h(h.field32(pilot, 0x6c));
   const Handle slot = h.game_slot(game);
   const int32_t index = static_cast<int32_t>(h.field32(slot, 0x04));
-  Pilot* data = b.mech_data(index, 1);
+  MechData* data = b.mech_data(index, 1);
   Mech* m = mech_new(data, ctl, h.config_of(h.field32(slot, 0x08)), "player");
   g_launched = m;
   if (!m) {

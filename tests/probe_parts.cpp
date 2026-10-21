@@ -78,8 +78,8 @@ enum {
 
 struct PartsWorld {
   Mech m;
-  Pilot pilot;
-  Pilot::Soils soils;
+  MechData pilot;
+  MechData::Soils soils;
   MechControls ctl;
   Leg legs[2];
   Calf calves[2];
@@ -352,7 +352,7 @@ void probe_parts_load(const uint8_t* mech, const uint8_t* parts, const float* no
   if (!g) g = new PartsWorld;
   PartsWorld& w = *g;
   w.m = Mech{};
-  w.pilot = Pilot{};
+  w.pilot = MechData{};
   w.ctl = MechControls{};
   w.skis = Skis{};
   std::memcpy(w.env, env, sizeof w.env);
