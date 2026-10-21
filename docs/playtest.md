@@ -34,6 +34,11 @@ Reference Card if they can be found online, e.g. archive.org). Each command
 not reached, or doing something else, becomes a row above. A headless test
 presses each default key and checks its command fires.
 
+From Owen's play of the original (expected behaviour): ] selects the next
+weapon, [ the previous; Enter jumps to the next weapon group; keypad Enter
+fires every weapon at once. He never used Ctrl-[ / Ctrl-] (guessed: whole
+groups); the audit settles what they do from 0x00411150 and the handlers.
+
 Already known from the readmes: Zoom Reticle Window is keypad 0 (missing
 from the reference card); Ctrl-[ / Ctrl-] select the previous / next weapon
 in a group (the 1.0 and 1.2 readmes swap them); Shift-N / Ctrl-N the
