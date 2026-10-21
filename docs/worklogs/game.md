@@ -245,3 +245,45 @@ Newest last. One short entry per item: what, commits, what to remember.
   volume_default (the exe's static start value). The optimized ASan build
   runs the multi-mission pair clean; test_sound.py, mw3tests 100/100,
   mw3sdltests 6/6.
+
+## 2026-10-20: where things stand (before Owen's /compact)
+
+- Merged into main today: the unload (0x00490480), craters part 1
+  (declient.zrd), the placement step fix, the handle-set fix, TAG (ms
+  timing, homing on the mech), the zSound State self-pointer fix.
+- Next item: **craters part 2**, on branch `mac2/craters2` (cut from main
+  9b0474e, nothing on it yet). The plan is docs/craters.md section 6:
+  2 zgeo_model's buffers and area partitions (0x0050da90..0x0050f950, 31
+  functions, ~1,425 lines), 3 Weiler–Atherton (0x0050f950..0x005158c0, two
+  or three parts, the core 0x00510da0 is 926 lines), 4 convexify, 5 the
+  crater 0x004ffad0/0x004fff20/0x004fff80/0x004ff940 with the history
+  vector and the touched-node std::set, 6 quicksand 0x00502230..0x005026c0,
+  7 reset/restore 0x00500760/0x00500c20 (needs gamez.zbd's re-read path)
+  and the wiring (zWeapon's crater_make / quicksand_make hooks are still
+  unported stubs in app_weapons.cpp). Report to mac 1 after each part.
+- The crater's entry: 0x004ffaa0 (gate [0x0060bf88], multiplayer's
+  0x0046fd30) -> 0x004ff940; the order is zwep::CraterOrder (+0x08 the
+  ground material, +0x0c slope, +0x10 depth, +0x14 radius, +0x18 point).
+  Clip driver 0x0050ec10 picks the cell's polygons with flag 4 and
+  0x20000 / 0x10000, 0x0050ea50 clips each through 0x00515410 (Weiler).
+- Tools and tricks from today:
+  - `build-asan/` in this worktree: RelWithDebInfo + address sanitizer
+    (`cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"`);
+    mw3tests skips its crash handler there. lldb works when launched
+    (`lldb -b -s cmds.txt`, `-k` for on-crash commands); address
+    breakpoints do not hit, name breakpoints do; watch a callee-saved
+    register's slot at `$fp - k` to find who clobbers it.
+  - Port-side heap is not where every stale pointer lives: the node pool
+    and GameEngine's address-keyed handles hide reuse from ASan; a pool
+    check in the suspect function found the handle bug.
+  - `MW3_TEST=a,b`, `MW3_TEST_TRACE=1` (each test's start), the crash
+    handler's backtrace; `MW3_PLACE_POINTS` / `MW3_PLACE_REPORT` for the
+    placement survey (tools/analysis/aiv_points.py); `TAG_UNIT=1
+    test_tag.py` flies the unit-locked strike with the original's homing.
+  - Differential tests that read a .zrd in the emulator: test_zdec_init.py
+    builds the original's reader tree with 0x557180 and stubs 0x556740;
+    stub material init 0x536a70's stack material to zero (0x28 bytes).
+- Rules to keep: no subagents; kill only own pids; os._exit at the end of
+  emulator tests (flush stdout first); CHANGES.md lines under their
+  heading; no Co-Authored-By lines; noreply author email.
