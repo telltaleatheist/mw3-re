@@ -1067,6 +1067,13 @@ From the render path (render.md).
   degrees, but at 16:9 it would be 106.7 degrees, squeezing everything to
   three quarters of its width. The rebuild widens the view the correct way
   instead (96.4 degrees at 16:9).
+- **The main menu's "green ripples" are not drawn, they are the screen
+  pushed around.** Hovering a button starts a water ring that moves the
+  pixels already there (the green background, other buttons) in and out
+  along the radius by up to 7 pixels: three 12-pixel waves growing from
+  the button's centre at 120 pixels a second, fading out in about half a
+  second. The ring finds each pixel's distance with a bit trick on the
+  float instead of a square root.
 - **The sun's lens flare only shows in software mode.** Every map has a
   light flagged for a lens flare (two on the third campaign's maps), and
   the maps load four flare pictures. In the software renderer the flare

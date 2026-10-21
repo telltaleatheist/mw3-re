@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_format.h"
 
 TEST(sdl_input_scancodes_map_to_dik_codes) {
@@ -197,4 +199,45 @@ TEST(sdl_host_word_break_wraps_in_the_box) {
   EXPECT(w_amp == w_plain);  // the & prefix is not drawn
   h.DeleteDC(dc);
   h.DeleteObject(f);
+}
+
+// The main menu's ripple (0x00558dd0, zrndr::ripple) through the SDL host:
+// on the finish target the program's buffer stands for, the ring's pixels
+// move, the inside and everything past the square stay, and the clip holds.
+TEST(sdl_host_ripple_moves_the_ring_on_the_screen) {
+  const int w = 640, h = 480;
+  std::vector<uint16_t> screen(static_cast<size_t>(w) * h);
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x) screen[static_cast<size_t>(y) * w + x] = static_cast<uint16_t>(x * 7 + y * 13);
+  const std::vector<uint16_t> before = screen;
+  zrndr::set_finish_target(screen.data(), w, h, w * 2);
+  sdlfe::SdlTwodHost host(nullptr, nullptr, nullptr);
+  host.ripple(320, 240, 64, 100, 7, 12.0f, 0.0f, nullptr);  // a menu ring: 3 waves of 12 inside 100
+  int moved = 0, inside_moved = 0, outside_moved = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x) {
+      const size_t i = static_cast<size_t>(y) * w + x;
+      const int d2 = (x - 320) * (x - 320) + (y - 240) * (y - 240);
+      const bool changed = screen[i] != before[i];
+      if (d2 < 60 * 60) inside_moved += changed;
+      else if (std::abs(x - 320) > 100 || std::abs(y - 240) > 100) outside_moved += changed;
+      else moved += changed;
+    }
+  EXPECT(moved > 5000);
+  EXPECT(inside_moved == 0);
+  EXPECT(outside_moved == 0);
+
+  // Clipped to the left half: nothing right of the clip changes.
+  screen = before;
+  const ztwod::Rect clip{0, 0, 300, h - 1};
+  host.ripple(320, 240, 64, 100, 7, 12.0f, 0.0f, &clip);
+  int right = 0, left = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x) {
+      const size_t i = static_cast<size_t>(y) * w + x;
+      (x >= 300 ? right : left) += screen[i] != before[i];
+    }
+  EXPECT(right == 0);
+  EXPECT(left > 1000);
+  zrndr::set_finish_target(nullptr, 0, 0, 0);
 }
