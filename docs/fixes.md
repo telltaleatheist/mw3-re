@@ -327,12 +327,14 @@ To do, in the specialists' queues:
 - TAG: keep it hard to use (a balance choice) but the same at any frame
   rate, timed in milliseconds rather than frames (the hold and the beam's
   charge by time, the same slack at every rate); the strike homes on the
-  unit that was marked, so it hits a moving target too, directly. Whether a
-  part-charged TAG may fire again is still open (letting go early already
-  refills from what was left). `zfix bugs`.
+  unit that was marked, so it hits a moving target too, directly. It fires only
+  from a full charge, as now (Owen: anything less would be useless);
+  letting go early already refills from what was left. `zfix bugs`.
 - Allied pilots fight the target they are told to, then pick their own
   targets after it (the attack 0x4e9710's "nearest enemy when none is
   selected", which never happens as written). `zfix bugs`.
+- Inverted mouse Y: keep the player's sensitivity and flip only its sign
+  (the options' ACCEPT wrote -1.3 or 1.3 over MouseAccelY). FIX (bug).
 - Resolution: 16:9 as the shape either way (today's monitors); limit the
   size to 1920x1080 if larger sizes are a problem.
 
@@ -372,10 +374,4 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   heading is indented like a name and sits with no gap above it, unlike
   every other heading's (20 20). An importer data fix would make it
   `(20 20)`; cosmetic.
-
-- Inverted mouse Y (the game options' CMD_INVERT_MOUSE_Y) is the sign of
-  MouseAccelY; ACCEPT writes -1.3 or 1.3, so a sensitivity set in the
-  registry is lost on any visit to the screen. Keeping the magnitude and
-  flipping only the sign would be the evident intent; it changes the feel
-  for players who tuned it.
 
