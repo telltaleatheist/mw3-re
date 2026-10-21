@@ -33,6 +33,7 @@ struct DamageSet {
   zimg::Texture* bg[3] = {};         // 0x006059a0 blue, red, green
 };
 DamageSet& damage_set();
+float& coolant_shown();  // [0x005e3a14] the coolant bar's eased level, 1 at start
 void load_damage_set();              // 0x0043afc0
 
 // The compass (0x0043f3e0, vtable 0x005c02e0, 0x678 bytes): a tape scrolled
@@ -94,6 +95,8 @@ class HudObjectives : public ztwod::TextBox {
   void update(float dt) override;    // +0x24  0x00447410
   void show_for(float seconds) override;  // +0x60  0x00446820 (part: 0x00446ad0 not ported)
   void hide() override;              // +0x64  0x00446850
+  void data_update(float dt);        // 0x00446900: shown, kept above the message panel's point
+  void place_above(int32_t px, int32_t py);  // 0x004468b0: its panel's height above it, the panel 4 left
   HudPanel panel;                    // +0x4c8
   ztwod::TextBox scores;             // +0x5d4
   ztwod::Handle font_title = 0;             // +0xa9c rtobjective_title
@@ -121,6 +124,7 @@ class HudEquipLine : public ztwod::Text {
   void place(int32_t px, int32_t py, int32_t column);  // 0x00447fe0
   void reset();                      // 0x00447e10
   void update(float dt) override;    // +0x24  0x00448030
+  void set_item(Mech* m, int32_t kind);  // 0x00447e40: shown for the kind, its light and font by its state
   HudText value;                     // +0x4cc
   ztwod::Image light;                // +0x97c
   int32_t state = 0;                 // +0xa38
@@ -133,6 +137,7 @@ class HudEquipment : public ztwod::Object2D {
   HudEquipment();                    // 0x00448070
   void place(int32_t px, int32_t py, int32_t dy);  // 0x00448140
   void update(float dt) override;    // +0x24  0x00448450: the lines up to the first hidden
+  void data_update(float dt);        // 0x00448320: a line for each part the mech has, by kind, up to 16
   void read_layout(Hud* hud);        // 0x00448200 (EQUIPMENT)
   void* hud = nullptr;               // +0x34 the HUD it shows
   HudEquipLine lines[16];            // +0x38
@@ -215,6 +220,12 @@ class HudGauges : public ztwod::Object2D {
  public:
   HudGauges();                       // 0x00444760
   void update(float dt) override;    // +0x24  0x004452c0
+  void set_speed(float v);           // 0x004453a0: m/s, shown in km/h, red backwards
+  void set_throttle(float v);        // 0x00445450: -1..1, backwards shorter and red
+  void set_heat(float level, float rate);  // 0x004455e0: the bar by the level, the toggler by level + rate
+  void set_coolant(float v);         // 0x004456f0: eased toward it, 10% a call
+  void set_jump(bool jets, float fuel);  // 0x00445520: the fuel frame and bar shown with jets
+  float speed = 0.0f;                // +0x34 km/h
   ztwod::FontText coolant_text;      // +0x38   message 0x1d5
   ztwod::FontText heat_text;         // +0x4e8  message 0x1d6 (hud.zrd heat_text)
   HudText speed_text;                // +0x998
@@ -225,8 +236,7 @@ class HudGauges : public ztwod::Object2D {
   ztwod::Image coolant_frame;        // +0x12c4 hud_coolant_frame at (8, 290)
   ztwod::Image fuel_frame;           // +0x1380 hud_fuel_frame at (527, 296)
   int32_t x143c = 0;                 // +0x143c
-  int32_t x1440 = 0, x1444 = 0;      // +0x1440, +0x1444
-  int32_t heat_w = 0, heat_h = 0;    // +0x1448, +0x144c the heat bar's size
+  ztwod::Rect heat_src{};            // +0x1440 the heat bar's shown part: left, top (its unlit height), width, height
   ztwod::Image heat_bar;             // +0x1450 hud_heat_bar at (18, 163)
   int32_t heat_bottom = 0;           // +0x150c the heat bar's bottom
   ztwod::Image heat_meter;           // +0x1510 hud_heat_meter at (16, 163)
@@ -752,17 +762,25 @@ class HudHooks : public zgame::Unported {
   }
   virtual void radar_heading(void* radar, Mech* m) { unported("0x0043f2d0", {id(radar), id(m) + 0x24}); }
   virtual void mech_radar_dir(Mech* m, float out[3]) { vec3_at(unported("0x0041cdf0", {id(m)}), out); }
-  virtual void gauges_speed(void* g, float v) { unported("0x004453a0", {id(g), zgame::bits(v)}); }
-  virtual void gauges_throttle(void* g, float v) { unported("0x00445450", {id(g), zgame::bits(v)}); }
-  virtual void gauges_heat(void* g, float level, float rate) {
-    unported("0x004455e0", {id(g), zgame::bits(level), zgame::bits(rate)});
+  // The objectives' place: the message panel's point ([0x00603d7c] +0x4e8,
+  // 0x0040fed0). The equipment's: the mech's +0x3f0 record (its first byte
+  // on, its +0x18 a count), an item kind's name (0x00484980).
+  virtual void message_panel_point(int32_t out[2]) {
+    const uint32_t p = unported("peek32", {0x603d7c});
+    out[0] = static_cast<int32_t>(unported("peek32", {p + 0x4e8}));
+    out[1] = static_cast<int32_t>(unported("peek32", {p + 0x4ec}));
   }
-  virtual void gauges_coolant(void* g, float v) { unported("0x004456f0", {id(g), zgame::bits(v)}); }
-  virtual void gauges_jump(void* g, bool jets, float fuel) {
-    unported("0x00445520", {id(g), jets ? 1u : 0u, zgame::bits(fuel)});
+  virtual bool mech_record_3f0(Mech* m, bool* on, int32_t* count) {
+    const uint32_t r = unported("peek32", {id(m) + 0x3f0});
+    if (!r) return false;
+    *on = (unported("peek8", {r}) & 0xff) != 0;
+    *count = static_cast<int32_t>(unported("peek32", {r + 0x18}));
+    return true;
   }
-  virtual void equipment_update(void* e, float dt) { unported("0x00448320", {id(e), zgame::bits(dt)}); }
-  virtual void objectives_update(void* o, float dt) { unported("0x00446900", {id(o), zgame::bits(dt)}); }
+  virtual const char* equipment_name(int32_t kind) {
+    unported("0x00484980", {static_cast<uint32_t>(kind)});
+    return nullptr;
+  }
   virtual void network_data(int32_t active, float dt) {
     if (unported("peek32", {0x609980})) unported("0x00479ef0", {static_cast<uint32_t>(active), zgame::bits(dt)});
   }

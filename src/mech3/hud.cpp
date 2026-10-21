@@ -52,6 +52,8 @@ constexpr PartImages kParts[8] = {
 }  // namespace
 
 DamageSet& damage_set() { return g_damage; }
+float g_coolant_shown = 1.0f;  // [0x005e3a14]: one for every HUD, kept across missions
+float& coolant_shown() { return g_coolant_shown; }
 EquipmentSet& equipment_set() { return g_equipment; }
 WeaponSet& weapon_set() { return g_weapons; }
 HudHooks& hud_hooks() { return *g_hooks; }
@@ -523,11 +525,11 @@ HudGauges::HudGauges()
   fuel_bar.color = zvid::pack_bytes(1, 0xa2, 0x1f);
   fuel_bar.set_box(fuel_frame.get_x() + 0x10, fuel_frame.get_y() + 5, 4, image_h(fuel_frame) - 8);
   toggler_y = heat_meter.get_y() + image_h(heat_meter) - (image_h(toggler) >> 1) - 1;
-  x1444 = 0;
+  heat_src.top = 0;
   heat_bottom = heat_bar.get_y() + image_h(heat_bar);
-  heat_h = image_h(heat_bar);
-  x1440 = 0;
-  heat_w = heat_bar.image ? heat_bar.image->width : 0;
+  heat_src.bottom = image_h(heat_bar);
+  heat_src.left = 0;
+  heat_src.right = heat_bar.image ? heat_bar.image->width : 0;
   show_for(-1.0f);
 }
 
@@ -1408,11 +1410,161 @@ void HudGauges::read_layout(const Hud* hud) {
   coolant_bar.set_box(coolant_frame.get_x() + 9, coolant_frame.get_y() + 7, 4, image_h(coolant_frame) - 8);
   fuel_bar.set_box(fuel_frame.get_x() + 0x10, fuel_frame.get_y() + 5, 4, image_h(fuel_frame) - 8);
   toggler_y = heat_meter.get_y() - 1 + (image_h(heat_meter) - (image_h(toggler) >> 1));
-  x1444 = 0;
+  heat_src.top = 0;
   heat_bottom = heat_bar.get_y() + image_h(heat_bar);
-  heat_h = image_h(heat_bar);
-  x1440 = 0;
-  heat_w = heat_bar.image ? heat_bar.image->width : 0;
+  heat_src.bottom = image_h(heat_bar);
+  heat_src.left = 0;
+  heat_src.right = heat_bar.image ? heat_bar.image->width : 0;
+}
+
+namespace {
+// A bar's top edge (points 0 and 3) the fraction of its height above its bottom.
+void bar_level(HudBar& b, float v) {
+  const int32_t up = crt::msvc_ftol(std::ceil(static_cast<double>(static_cast<float>(b.height) * v)));
+  const float y = static_cast<float>(crt::msvc_ftol(b.pts[1][1]) - up);
+  b.pts[0][1] = b.pts[3][1] = y;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004453a0: the speed text formatted, then used as the
+// format itself ([0x005e4154] "%0.1f\n%s", message 0x1d7).
+void HudGauges::set_speed(float v) {
+  speed = v * 3.6f;  // [0x005c013c]
+  char buf[16];
+  const char* unit = hud_hooks().message(0x1d7);
+  std::snprintf(buf, sizeof buf, "%0.1f\n%s", static_cast<double>(speed), unit ? unit : "(null)");
+  speed_text.set_text(buf);
+  const uint32_t c = speed >= 0.0f ? 0x1fa201 : 0xff;
+  if (speed_text.color_top != c || speed_text.color_bottom != c) {
+    speed_text.color_top = speed_text.color_bottom = c;
+    speed_text.needs_render = 1;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00445450
+void HudGauges::set_throttle(float v) {
+  if (v > 1.0f) v = 1.0f;
+  else if (v < -1.0f) v = -1.0f;
+  if (v < 0.0f) v *= 0.525f;  // [0x005c0140]
+  speed_bar.color = v < 0.0f ? zvid::pack_bytes(0xff, 0, 0) : zvid::pack_bytes(0xc3, 0xad, 3);
+  bar_level(speed_bar, v);
+}
+
+// Mech3.exe 1.2 @ 0x004455e0: the toggler rides the meter at level + rate,
+// the bar shows the level from its bottom.
+void HudGauges::set_heat(float level, float rate) {
+  float v = rate + level;
+  if (v > 1.0f) v = 1.0f;
+  else if (v < 0.0f) v = 0.0f;
+  const int32_t mh = heat_meter.image ? heat_meter.image->height : 0;
+  toggler.set_y(toggler_y - crt::msvc_ftol(std::ceil(static_cast<double>(static_cast<float>(mh) * v))));
+  const int32_t bh = heat_bar.image ? heat_bar.image->height : 0;
+  const int32_t up = crt::msvc_ftol(std::ceil(static_cast<double>(static_cast<float>(bh) * level)));
+  heat_src.top = (heat_bar.image ? heat_bar.image->height : 0) - up;
+  heat_bar.src = &heat_src;
+  const int32_t y = heat_bottom - up;
+  heat_bar.set_pos(heat_bar.get_x(), y);
+}
+
+// Mech3.exe 1.2 @ 0x004456f0: a tenth of the way there each call (each frame).
+void HudGauges::set_coolant(float v) {
+  g_coolant_shown = g_coolant_shown - (v - g_coolant_shown) * -0.1f;  // [0x005c0144]
+  bar_level(coolant_bar, g_coolant_shown);
+}
+
+// Mech3.exe 1.2 @ 0x00445520
+void HudGauges::set_jump(bool jets, float fuel) {
+  if (fuel > 1.0f) fuel = 1.0f;
+  else if (fuel < 0.0f) fuel = 0.0f;
+  if (jets) {
+    fuel_frame.show_for(-1.0f);
+    fuel_bar.show_for(-1.0f);
+  } else {
+    fuel_frame.hide();
+    fuel_bar.hide();
+  }
+  bar_level(fuel_bar, fuel);
+}
+
+// Mech3.exe 1.2 @ 0x00446900
+void HudObjectives::data_update(float) {
+  if (flags & ztwod::kHidden) return;
+  int32_t p[2];
+  hud_hooks().message_panel_point(p);
+  place_above(p[0], p[1]);
+}
+
+// Mech3.exe 1.2 @ 0x004468b0
+void HudObjectives::place_above(int32_t px, int32_t py) {
+  set_pos(px, panel.rect.top - panel.rect.bottom - 1 + py);
+  const int32_t y = get_y();
+  panel.set_pos(get_x() - 4, y);
+}
+
+// Mech3.exe 1.2 @ 0x00447e40: kind 0 (the +0x3f0 record) red and grey
+// without one, else green or yellow by its flag, with its count; kind 12
+// green or yellow by the mech's +0x574; others green, no value. A new kind
+// renames the line and sets the green font over the one just set.
+void HudEquipLine::set_item(Mech* m, int32_t kind) {
+  if (kind == -1) {
+    hide();
+    return;
+  }
+  show_for(-1.0f);
+  HudHooks& h = hud_hooks();
+  EquipmentSet& e = equipment_set();
+  switch (kind) {
+    case 0: {
+      bool on;
+      int32_t count;
+      if (!h.mech_record_3f0(m, &on, &count)) {
+        light.set_image(e.light[0]);
+        set_named_font(e.font_grey, false);
+        break;
+      }
+      light.set_image(on ? e.light[2] : e.light[1]);
+      set_named_font(on ? e.font_green : e.font_yellow, false);
+      value.set_text("%d", count);  // [0x005e1f4c]
+      break;
+    }
+    case 12: {
+      const bool on = h.mech_f(m, 0x574) != 0.0f;
+      light.set_image(on ? e.light[2] : e.light[1]);
+      set_named_font(on ? e.font_green : e.font_yellow, false);
+      break;
+    }
+    default:
+      light.set_image(e.light[2]);
+      value.hide();
+      break;
+  }
+  if (item != kind) {
+    set_text_plain(h.equipment_name(kind));
+    set_font(e.font_green);
+    item = kind;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00448320: the kinds in the order 0, 12, 3, 8, 14, 6, 7, 4
+// ([0x005e3a30]); the panel 11 a line tall.
+void HudEquipment::data_update(float) {
+  static constexpr int32_t kKinds[8] = {0, 12, 3, 8, 14, 6, 7, 4};
+  HudHooks& h = hud_hooks();
+  Mech* m = hud ? static_cast<Hud*>(hud)->mech : nullptr;
+  int32_t n = 0;
+  if (m) {
+    for (const int32_t* k = kKinds; k < kKinds + 8 && n < 16; ++k) {
+      if (h.mech_part_count(m, *k) <= 0) continue;
+      for (int32_t j = 0; n < 16 && j < h.mech_part_count(m, *k); ++j) lines[n++].set_item(m, *k);
+    }
+  }
+  if (n == 0) {
+    hide();
+    return;
+  }
+  show_for(-1.0f);
+  for (int32_t i = n; i < 16; ++i) lines[i].hide();
+  panel.set_size(column, n * 11);
 }
 
 // Mech3.exe 1.2 @ 0x00448200: with a mech, the lines go below the point
@@ -2560,7 +2712,7 @@ void Hud::data_update(float dt) {
   HudHooks& h = hud_hooks();
   const float thr = h.controls_throttle(mech) * h.mech_f(mech, 0x528);  // speed_factor
   const float speed = h.mech_f(mech, 0x518) * thr * (thr > 0.0f ? 1.0f : -1.0f);  // max_speed, [0x005c0080]
-  h.gauges_speed(&gauges, speed);
+  gauges.set_speed(speed);
   if (active) {
     float v[3];
     if (radar.active) {
@@ -2576,15 +2728,15 @@ void Hud::data_update(float dt) {
     float fwd[3];
     h.mech_forward(mech, fwd);
     compass.set_heading(std::atan2(fwd[0], -fwd[2]));
-    h.gauges_throttle(&gauges, h.controls_throttle_target(mech));
+    gauges.set_throttle(h.controls_throttle_target(mech));
     const float heat = h.mech_f(mech, 0x554);
     const float level = heat > 1.5f ? 1.0f : heat * 0.6666667f;  // [0x005c0084], [0x005c0088]
-    h.gauges_heat(&gauges, level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
-    h.gauges_coolant(&gauges, h.mech_f(mech, 0x56c));
+    gauges.set_heat(level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
+    gauges.set_coolant(h.mech_f(mech, 0x56c));
     const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
-    h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
+    gauges.set_jump(jets, h.mech_jump_fuel(mech));
     target.data_text();
-    if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
+    if (!(weapons.flags & ztwod::kHidden)) equipment.data_update(dt);
     mfd.data_update(dt);
   }
   float t = h.mission_time(h.multiplayer_game() != 0);
@@ -2598,7 +2750,7 @@ void Hud::data_update(float dt) {
   const float secs = zfix::options().bugs ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
   if (negative) hours = -hours;
   timer.set_text("%02d:%02d:%02d", crt::msvc_ftol(hours), crt::msvc_ftol(mins), crt::msvc_ftol(secs));  // [0x005e3d88]
-  h.objectives_update(&objectives, dt);
+  objectives.data_update(dt);
   target.track(dt);
   h.network_data(active, dt);
 }
