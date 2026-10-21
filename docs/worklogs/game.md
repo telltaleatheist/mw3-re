@@ -287,3 +287,35 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Rules to keep: no subagents; kill only own pids; os._exit at the end of
   emulator tests (flush stdout first); CHANGES.md lines under their
   heading; no Co-Authored-By lines; noreply author email.
+
+## 2026-10-20 — craters part 2: zgeo_model (branch mac2/zgeo-model)
+
+- Ported 24 of zgeo_model's 32 functions into
+  `src/gamez/zgeometry/zgeo_model` (+ `zgeo_weiler` with its first leaf,
+  0x00515130 points_near): the colour cache 0x50da90/0x50dad0/0x50dbc0, the
+  plane turns 0x50dc90/0x50dc70 ((x,y,z) -> (x,-z,y)), boxes
+  0x50dcb0/0x50e3d0, coloured materials 0x50dd20/0x50de00, the gradient
+  0x50e020 and UVs/colours/normals at new points 0x50df30/0x50e100/0x50e240,
+  the vertex buffer 0x50f0a0, the clip polygon 0x50e450/0x50e4c0/0x50e520
+  with point/edge search and inserts 0x50e550/0x50e690/0x50e5a0, the clip
+  set 0x50e910/0x50e930 and commit 0x50e850, the polygon adds
+  0x50dea0/0x50f4e0/0x50f640. Map: docs/craters.md section 5.
+- Hooks (zgeo::hooks()): zModel's add-a-polygon 0x53c6c0 (unported, null by
+  default; signature ECX model, EDX n, then points, normals, uvs, 0, 0, 0,
+  material, priority, flag bit 8, zone*, colours), material_add, rand,
+  node get/set model, model_release, Weiler's free 0x50fab0 (null until
+  part 3). Buffers are std::vectors for the exe's malloc/realloc.
+- Left in zgeo_model, for parts 3/5: 0x50e950 (the crater's node),
+  0x50ea50, 0x50ec10 (driver), 0x50ef70, 0x50f120, 0x50f7b0 (need Weiler).
+- Test: `test_zgeo_model.py` (in run_all.sh), probe `tests/probe_zgeo.cpp`;
+  2,000 made-up runs identical at 24-bit x87; BREAK=1..9 each fail. The
+  original's _ftol at 0x5ac340 jumps through the IAT: the test needs
+  `cpu.import_code(IAT_FTOL, FTOL)`. Original.call does not return EAX: read
+  it from the register.
+- Finds: crater vertices take the cut ground's vertex colours (discoveries);
+  untextured cut ground or a crater order without flags 0x1008 gets random
+  colours (packed from the wrong bits); no shipped world has untextured
+  ground on flag-0x10000 nodes (scratch survey over the six gamez.zbd).
+  The crater order's flags are always the defaults' 0x100c (0x5825b0 sets
+  only points, depth, radius), so 0x4fff80's random path never runs either.
+- Next: craters part 3, Weiler–Atherton (0x0050f950..0x005158c0).

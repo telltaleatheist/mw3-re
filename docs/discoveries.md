@@ -335,6 +335,15 @@ From the weapon code (weapons.md).
   ground it hit (beach, road, sand and mud each have their own crater
   texture, set per world in `declient.zrd`). Each patch of ground only
   takes so many craters, and none are made right next to certain buildings.
+- **Craters keep the ground's shading.** The new crater polygons take the
+  vertex colours of the ground they cut: each crater vertex copies a cut
+  ground vertex within half a metre of it (else the first one cut), so a
+  crater dug in a shadow stays dark and one in the open stays bright.
+- **Unused: rainbow craters.** A crater that cuts untextured ground, or one
+  made without its texture flags, gets pieces of random colour, a leftover
+  debug fallback (whose colours are even packed from the wrong bits). Every
+  shipped world's diggable ground is textured and every crater keeps its
+  flags, so it never shows.
 - **Unused: quicksand weapons.** The same system can sink an animated
   quicksand pit (seven frames, looping, with its own soil type) where a
   shot lands, for a weapon with the `QUICKSAND` flag. Every world sets the

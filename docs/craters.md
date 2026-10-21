@@ -117,6 +117,54 @@ commit. Who calls it: zWeapon 0x005824b0 for a weapon with the
 | zgeo_weiler.cpp 0x0050f950..0x005158c0 | 46 | 3,794 | Weiler–Atherton polygon clipping (0x00515410 the entry, 0x00510da0 the core, 926 lines) |
 | zgeo_convexify.cpp 0x005158c0..0x005166c0 | 13 | 724 | splitting the clipped (concave) polygons into convex ones |
 
+### zgeo_model, ported (part 2)
+
+`src/gamez/zgeometry/zgeo_model` (`test_zgeo_model.py`, identical on 2,000
+made-up runs at 24-bit x87). The clip works in a plane: (x, y, z) becomes
+(x, -z, y) (0x0050dc90, back 0x0050dc70), so the ground's (x, z) is the
+outline's 2D (x, y).
+
+- The colour cache (0x0050da90 begin, 0x0050dad0 add, 0x0050dbc0 find;
+  63 entries at 0x0060cb50): each cut polygon's new vertices (0x0050f4e0)
+  note their colour when within the radius + 4 of the crater's centre; the
+  crater's own vertices (0x004fff80) take the colour of the first noted
+  vertex within 0.5 m in x and z, else of the first one noted. So a crater
+  carries the ground's baked shading.
+- Carrying a polygon's UVs, colours and normals to new points: the gradient
+  of each value over the polygon's first three vertices in x and z
+  (0x0050e020; 0 for a triangle with no area there), from vertex 1
+  (0x0050df30, 0x0050e100, 0x0050e240; normals made unit length).
+- The clip polygon (0x1c bytes: Weiler's polygon, the points, the count, the
+  box; 0x0050e450 new, 0x0050e4c0 out, 0x0050e520 free), the point search
+  within 0.01 (0x0050e550, Weiler's 0x00515130), the edge search
+  (0x0050e690: strictly between the ends, within 0.01) and the inserts
+  (0x0050e5a0: a point replaces the one it matches or goes in after its
+  edge).
+- The clip set (0x10 bytes: the outline left, the cells; each cell 0x0c:
+  the (node, new model) pairs and the cell; 0x0050e910 / 0x0050e930) and its
+  commit 0x0050e850: the new models onto the nodes, the old ones released,
+  each cell's crater count (+0x39) up by one.
+- Polygon adds through zModel's 0x0053c6c0 (a hook until zModel's builder is
+  ported): 0x0050dea0 (no UVs and no material: a random colour), 0x0050f4e0
+  (a cut piece of a ground polygon, its values carried over; an untextured
+  one gets a random colour and no colours or normals), 0x0050f640 (a
+  polygon copied whole), with the vertex buffer 0x0050f0a0.
+- The random colour 0x0050dd20 (rand() x 255 / 32767 per channel) and the
+  fixed one 0x0050de00 (used by 0x004c42e0 for pure red and blue) pack the
+  16-bit colour from the 0..255 values' low bits instead of their high
+  ones. No shipped world has untextured polygons on the nodes a crater cuts
+  (flag 0x10000), so the random colours never show.
+
+The tessellation 0x004fff80 adds the crater's own polygons through
+0x0050dea0 with no UVs and no material when the order's flags have neither
+0x1000 nor 8: random colours again. It never does: the weapon's order
+(0x005825b0) changes only the points, depth and radius of the defaults,
+whose flags are 0x100c.
+
+Left for parts 3 and 5: the clip itself (0x0050e950 the crater's node,
+0x0050ea50 / 0x0050ef70 / 0x0050f7b0 / 0x0050f120 per node, 0x0050ec10 the
+driver), which need Weiler–Atherton.
+
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.
 
@@ -126,7 +174,9 @@ lines of pseudocode, five times the first estimate.
    defaults 0x004ff920 / 0x005020f0, 0x00501f90): differential test on the
    six worlds' files, with the material and texture calls stubbed the same
    on both sides.
-2. **zgeo_model's buffers and partitions** (the small functions).
+2. **zgeo_model's buffers and partitions** (the small functions). Done:
+   24 of its 32 functions (section 5); the six clip functions wait for
+   Weiler.
 3. **Weiler–Atherton** (two or three parts: the vertex lists, the
    intersections, the walk): differential tests on made-up polygon pairs
    (touching edges, shared vertices, holes) and on the worlds' cells.

@@ -89,6 +89,7 @@ for t in \
     ai_brain \
     ai_orders \
     zdec_init \
+    zgeo_model \
     ai_gates \
     ai_frame \
     ai_vlist \
