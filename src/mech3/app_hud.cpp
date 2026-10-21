@@ -301,10 +301,17 @@ struct ProgramHudHooks : HudHooks {
     return formatted.c_str();
   }
   std::string formatted;
-  // 0x0040e920 (a node's game object) is not ported: the aim's node gives
-  // none, and its +0xbc none either (hud.md section 12, Left).
-  void* node_object(void*) override { return nullptr; }
-  uint32_t node_bc(void*) override { return 0; }
+  // The aimed node's game object (0x0040e920, app_weapons.cpp's node_entity)
+  // and its +8 byte, ZEntity's active flag: a mech's; any other object's is
+  // not ported (logged, read as 0). The node's +0xbc is its damage
+  // callbacks' record (zwep_damage, a typed field here): "above 1" is "has one".
+  void* node_object(void* n) override { return node_entity(n); }
+  bool object_byte8(void* o) override {
+    if (entity_is_mech(o)) return mech_of(o)->active;
+    unported("object+8", {id(o)});
+    return false;
+  }
+  uint32_t node_bc(void* n) override { return n && static_cast<zcls::Node*>(n)->damage ? 2u : 0u; }
   int32_t wm_mode(void* w) override { return wm(w)->mode; }
   int32_t wm_group_index(void* w) override { return wm(w)->group; }
   void* wm_group(void* w, int32_t i) override { return wm(w)->groups[i]; }
