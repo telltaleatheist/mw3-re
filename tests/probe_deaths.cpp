@@ -664,3 +664,36 @@ int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+extern "C" {
+
+// 0x00464580 on a torso: w: 0 a cockpit node at all, 1 it is the torso
+// node's child, 2 its first parent (0 none), 3 on. Out: the calls.
+int probe_cockpit(const uint32_t* w, uint8_t* out, int cap) {
+  g_out.clear();
+  static uint32_t s_has, s_child, s_parent;
+  s_has = w[0], s_child = w[1], s_parent = w[2];
+  MechData data;
+  Mech m;
+  m.pilot = &data;
+  Torso t;
+  t.mech = &m;
+  t.node = h(0x7700);
+  FreeCalls& f = free_calls();
+  const FreeCalls f0 = f;
+  f = FreeCalls{};
+  f.cockpit_node = [](MechData&) -> Handle { return s_has ? h(0x7800) : nullptr; };
+  f.is_child = [](Handle p, Handle c) { u32(0x90), u32(u(p)), u32(u(c)); return s_child != 0; };
+  f.first_parent = [](Handle) -> Handle { return h(s_parent); };
+  f.remove_child = [](Handle p, Handle c) { u32(0x91), u32(u(p)), u32(u(c)); };
+  f.clear_ids = [](Handle n) { u32(0x92), u32(u(n)); };
+  f.add_child = [](Handle p, Handle c) { u32(0x93), u32(u(p)), u32(u(c)); };
+  f.mark = [](MechPart&, int32_t id, Handle n) { u32(0x94), u32(static_cast<uint32_t>(id)), u32(u(n)); };
+  t.set_cockpit(w[3] != 0);
+  u32(0xf);
+  f = f0;
+  t.mech = nullptr, t.node = nullptr, m.pilot = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"

@@ -37,6 +37,7 @@ probe.probe_lod.argtypes = [P, P, I]
 probe.probe_part_lod.argtypes = [I, P, P, I]
 probe.probe_dead_update.argtypes = [I, P, P, P, F, P, I]
 probe.probe_dead_step.argtypes = [P, P, I]
+probe.probe_cockpit.argtypes = [P, P, I]
 probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
@@ -300,6 +301,43 @@ class Emulated:
         self.log(0xf, self.r32(k + 0xf8))
         self.logf(k + 0x3f4, 6)
         return bytes(self.out)
+
+    # --- the cockpit 0x464580 ---
+    def cockpit(self, w):
+        cpu = self.cpu
+        if not hasattr(self, 'ck_setup'):
+            self.ck_setup = True
+            def is_child(c):
+                self.log(0x90, self.ck_map(cpu.r32(c.ecx + 8) if False else self.r32(c.ecx + 8)), self.ck_map(c.arg(0)))
+                return self.ck_child
+            cpu.stub_function(0x4600e0, is_child, 0xc)
+            cpu.stub_function(0x4ebb40, lambda c: self.log(0x91, self.ck_map(c.ecx), self.ck_map(c.edx)))
+            cpu.stub_function(0x4600b0, lambda c: self.log(0x92, self.ck_map(c.ecx)))
+            cpu.stub_function(0x4eb9b0, lambda c: self.log(0x93, self.ck_map(c.ecx), self.ck_map(c.edx)))
+            cpu.stub_function(0x460050, lambda c: self.log(0x94, c.arg(0), self.ck_map(c.arg(1))), 8)
+        self.out = bytearray()
+        self.ck_child = w[1]
+        m = self.zalloc(0x6d8)
+        data = self.zalloc(0x234)
+        cpu.u32(m + 0x684, data)
+        self.ck_node = self.zalloc(0x100)
+        self.ck_tnode = self.zalloc(0x100)
+        if w[0]:
+            blk = self.zalloc(8)
+            cpu.u32(blk + 4, self.ck_node)
+            cpu.u32(data + 0x228, blk)
+        arr_ = self.zalloc(8)
+        cpu.u32(arr_, w[2])
+        cpu.write(self.ck_node + 0x54, struct.pack('<II', 1 if w[2] else 0, arr_))
+        t = self.zalloc(0x1b4)
+        cpu.u32(t + 4, m)
+        cpu.u32(t + 8, self.ck_tnode)
+        cpu.call(0x464580, ecx=t, stack_args=(w[3],))
+        self.log(0xf)
+        return bytes(self.out)
+
+    def ck_map(self, v):
+        return {self.ck_node: 0x7800, self.ck_tnode: 0x7700}.get(v, v)
 
     # --- the dead mechs ---
     def dead_setup(self, step):
@@ -746,6 +784,7 @@ def main():
     flying = Emulated(False, fly=True)
     lodding = Emulated(False, fly=True)  # its own stubs for 0x4ebb40 and 0x4eb9b0
     dupd, dstep = Emulated(False, fly=True), Emulated(False, fly=True)  # 0x419ef0 itself, and stood in
+    cockpitting = Emulated(False, fly=True)
     runs = fails = 0
     kinds = {}
 
@@ -753,7 +792,7 @@ def main():
         nonlocal runs, fails
         runs += 1
         kinds[kind] = kinds.get(kind, 0) + 1
-        for e in (emu, dying, flying, lodding, dupd, dstep):
+        for e in (emu, dying, flying, lodding, dupd, dstep, cockpitting):
             if e.bad:
                 print(f'FAIL {kind}: the original called out wrongly ({e.bad})')
                 e.bad = None
@@ -838,6 +877,15 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # The cockpit.
+    for _ in range(200):
+        w = [rng.choice((0, 1, 1)), rng.randint(0, 1), rng.choice((0, 0x7700, 0x7900)), rng.randint(0, 1)]
+        mine = list(w)
+        if brk == 16:
+            mine[3] = 1 - mine[3]
+        n2 = probe.probe_cockpit(arr(U, mine), BUF, CAP)
+        check('cockpit', BUF.raw[:n2], cockpitting.cockpit(w))
 
     # The dead mechs.
     for _ in range(300):

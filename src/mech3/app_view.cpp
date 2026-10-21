@@ -33,6 +33,9 @@ struct ProgramViewHooks : ViewHooks {
     return g_wired && g_p.unported ? g_p.unported(g_p.ctx, key) : 0;
   }
   void camera_set_position(Node3 cam, float x, float y, float z) override { zcls::camera_set_position(zn(cam), x, y, z); }
+  void torso_cockpit(Mech& m, int32_t on) override {  // 0x0041ce10 -> 0x00464580 on the torso
+    if (m.torso) m.torso->set_cockpit(on != 0);
+  }
   void camera_set_rotation(Node3 cam, float x, float y, float z) override { zcls::camera_set_rotation(zn(cam), x, y, z); }
   void camera_add_position(Node3 cam, float x, float y, float z) override { zcls::camera_add_position(zn(cam), x, y, z); }
   void camera_set_horizon(Node3 cam, Node3 horizon) override {

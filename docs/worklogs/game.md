@@ -870,3 +870,8 @@ view's ground, the anim lookups 0x50b450 (92).
   0x004aa6b0's AI side is ported (FIX (A), interim; no CHANGES line);
   dead_hide's `player &&` noted; dt is capped at 1/8 s (ztimer), so
   1 - 3dt stays positive.
+- Item 1: Torso::set_cockpit 0x00464580 (+ FreeCalls cockpit hooks, the
+  view's torso_cockpit and the teardown wired; MechData +0x228 unported, so
+  null in the game); +0x378 is multiplayer's (0x0041e4e0/0x0041e5a0):
+  skipped; 0x0049dc40's tick object released; 0x00402560 is the AI's.
+  test_deaths 5,753 (cockpit 200, BREAK=16).

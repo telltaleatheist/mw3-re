@@ -9,6 +9,7 @@
 namespace mech3 {
 
 struct Mech;
+struct MechData;
 
 struct Vec3 {
   float x, y, z;
@@ -106,6 +107,15 @@ struct FreeCalls {
   void (*node_free)(Mech& m) = nullptr;                        // the node out of the world, its models off, "deletedmech", the three trees destroyed
   void (*entity_free)(Mech& m) = nullptr;                      // vt+0x04(0, 0, 0, 0) and 0x005a7f70: off zEntity's list
   void (*player_object_free)(Mech& m) = nullptr;               // 0x0041e580: +0x378, vt+0 (1), for the pilot's mech
+  // The cockpit (Torso::set_cockpit): the type's cockpit node (+0x228 [1];
+  // 0x00430ad0 makes the block, not ported), whether it is the torso node's
+  // child (0x004600e0), its first parent, and the node calls.
+  Handle (*cockpit_node)(MechData& data) = nullptr;
+  bool (*is_child)(Handle parent, Handle child) = nullptr;
+  Handle (*first_parent)(Handle node) = nullptr;
+  void (*remove_child)(Handle parent, Handle child) = nullptr;  // 0x004ebb40
+  void (*add_child)(Handle parent, Handle child) = nullptr;     // 0x004eb9b0
+  void (*mark)(MechPart& p, int32_t id, Handle node) = nullptr; // 0x00460050
 };
 FreeCalls& free_calls();
 // The end callback a part's effects get (0x00508f00 with 0x00461c90, ECX the
@@ -244,6 +254,10 @@ class Torso : public MechPart {
 
   void set_pose(const Vec3* pos, const float* q) override;  // 0x00464600
   void release() override;                                  // 0x00464250: the death effects stopped
+  // 0x00464580 (the mech's 0x0041ce10): the cockpit model (the type's +0x228
+  // block's [1]) taken off the torso's node with its ids, and with `on` put
+  // back under it as part 1's.
+  void set_cockpit(bool on);
   bool init(const Config* cfg) override;                    // 0x004644b0
   void update(float dt) override;                           // 0x00464e80
   void node_changed() override;                             // 0x004659c0
