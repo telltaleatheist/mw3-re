@@ -595,3 +595,25 @@ the results' dump; CString operator= 0x5abdbc stubbed; ICON_RANK's labels
 kept in the synthetic file as the exe reads them unchecked); Line2D got a
 dump kind `N` (test_twod.py, probe_twod.h). test_program's loop checks the
 score through to the next game. Breaks: scratch/briefing/breaks8.py.
+
+## 2026-10-21 Campaign item 8a: a won mission's salvage (branch mac3/salvage)
+
+Branch off main 3182545. First commit bf546c5: the 6b review fix (the
+program's Win State copy skips cards without a record line, since
+lancemates' names are not ported; loop test pins b4[1]). Then 8a: new
+`mech3/mech_salvage` (the original's mech_salvage.cpp): add_salvage
+0x00472f00, add_weapons 0x00472da0, add_vehicle_salvage 0x00472ec0,
+lance_salvage (0x0047ae10's CL 0 path) over a `SalvageMech` view;
+`Store::add_weapon` 0x00471840 and `add_equipment` 0x00471a20 (pilot
+module); `weapon_has_tech` 0x00484940 (mech_names, the 0x005e6500 masks).
+Found in the asm (the decomp hid it): 0x0047ae10 sends the player's own
+mech into the campaign's +0x64 store (ecx = game + 0x64), allies' into
+[0x00609990]. Program: `mech_lance_salvage` builds the view from ported
+mechs (a local copy of 0x0041d510, app_weapons.cpp keeps its own in an
+unnamed namespace), `mission_salvage()` is the missions +0xc0 store, the
+launch empties it (GameEngine::mission_launch), the pilot hooks and
+mission_salvage_store() hand it out. FIX (bug): a weapon without a def
+skipped (exe null read). Test: test_salvage.py 200/200 on test_pilot's
+emulator; breaks 19/21 (2 unshowable). Left for 8b: the store list's rows
+0x0048dbe0 (debriefing salvage list, REALLOC_LIST, 0x00404ae0,
+0x00408bd0/0x00408b40); 8c: 0x00408c30.

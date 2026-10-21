@@ -22,6 +22,7 @@ bool equipment_restricted(int32_t mech, int32_t kind, int32_t tech);  // 0x004d6
 const char* weapon_name(int32_t weapon);   // 0x00484900, "noweapon" when out of range
 int32_t weapon_count();                    // 37 in the exe, 38 with the plain PPC (FIX (bug))
 bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x005e6504
+bool weapon_has_tech(int32_t weapon, int32_t tech);  // 0x00484940, the table's mask at 0x005e6500
 float max_mass(int32_t mech);              // 0x004846e0, 10 when out of range
 // 0x00485400 / 0x00485430 / 0x00485460 / 0x00485490: the internal structure
 // points by tonnage (0x005e6998), column 1 centre torso, 2 side torso, 3 arm, 4 leg.

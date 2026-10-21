@@ -138,6 +138,7 @@ add_library(mw3core STATIC
   src/mech3/veh_basic.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
+  src/mech3/mech_salvage.cpp
   src/mech3/mech_skin.cpp
   src/mech3/mission.cpp
   src/mech3/mission_launch.cpp
@@ -237,6 +238,7 @@ add_library(mw3probe SHARED
   tests/probe_pilotscreen.cpp
   tests/probe_briefing.cpp
   tests/probe_debriefing.cpp
+  tests/probe_salvage.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_place.cpp

@@ -368,7 +368,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     int32_t second_number = 0;
     mech3::Handle debrief_handle = 0;
     bool debrief_freed = false, player_card = false, rank_text = false;
-    int32_t debrief_score = -1;
+    int32_t debrief_score = -1, mechs_before = 0;
     size_t debrief_texts = 0;
     size_t second_steps = 0;
     mech3::LaunchedMech mech;
@@ -400,7 +400,10 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         if (++core_frames == 30) {
           mech3::launched_mech(&mech);
           if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
+          {
             cg->c4 = 123456, cg->b4[1] = 7;  // a score and a lancemate's kills, carried through
+            for (const mech3::ConfigItem* it : cg->store.items) mechs_before += it->kind() == 0 ? it->count : 0;
+          }
           // Won (campaign.md section 1): Exit Mission brings the end screen's
           // fade to the debriefing's Win State.
           mech3::missions().ended = 1;
@@ -447,6 +450,12 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(c && c->operation() == 1 && c->mission_number() == 2);  // the Win State's save made it current
     EXPECT(c && c->c4 == 123456);  // the Win State's copy of the score, into the ported campaign
     EXPECT(c && c->b4[1] == 7);    // a lancemate without a record line keeps its kills
+    // 0x0047ae10's won path: the player's mech (whole) into the campaign's
+    // +0x64 store, which the next mission's game adds to its own store.
+    int32_t mechs_after = 0;
+    if (c)
+      for (const mech3::ConfigItem* it : c->store.items) mechs_after += it->kind() == 0 ? it->count : 0;
+    EXPECT(mechs_after == mechs_before + 1);
     EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
     // A game whose Load state is not ported (Instant Action): no mission
     // left over from the campaign, back to the main menu.

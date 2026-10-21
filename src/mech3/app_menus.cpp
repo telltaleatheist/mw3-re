@@ -23,6 +23,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
 #include "mech3/mission.h"
+#include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
@@ -314,6 +315,7 @@ struct ProgramPilotHooks : PilotHooks {
   int32_t message_box(int32_t type, int32_t caption, int32_t text) override {
     return engine ? static_cast<int32_t>(engine->message_box(type, caption, text)) : 0;
   }
+  Store* mission_salvage() override { return &mech3::mission_salvage(); }  // [0x00609990]
 };
 ProgramPilotHooks g_pilot_hooks;
 }  // namespace
@@ -433,13 +435,14 @@ Handle GameEngine::pilot_campaign(Handle p) {
 }
 
 // Mech3.exe 1.2 @ 0x0047ae10 (CL a, DL b): a failed mission's salvage merged
-// back (0x00434cb0); a won one's lance put in the salvage store, the whole
-// team with b (zEntity's list, 0x00472f00 each: not ported, item 8).
+// back (0x00434cb0); a won one's: the player's mech into the campaign's
+// +0x64 store, with b its allies' into the salvage store (zEntity's list,
+// 0x00472f00 each: mech_salvage.cpp).
 void GameEngine::mission_results(uint8_t a, uint8_t b) {
   CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
   if (!c) return;
   if (a) c->merge_salvage();
-  else unported("0x0047ae10 (the lance into the salvage store)", {b});
+  else mech_lance_salvage(c->store64, b != 0);
 }
 
 // The results' lance from the ported mechs. A lancemate's name (its brain's,
@@ -477,7 +480,14 @@ void GameEngine::win_keep_scores(Handle screen, int32_t n) {
 }
 
 bool GameEngine::missions_loaded() { return missions().finished(); }
-bool GameEngine::mission_launch() { return launch_player(); }
+// The launch 0x00491150 ends by emptying the missions object's +0xc0 store
+// (mission_launch.cpp walks it through memory); here the ported store.
+bool GameEngine::mission_launch() {
+  const bool ok = launch_player();
+  if (ok) mission_salvage().clear();
+  return ok;
+}
+Handle GameEngine::mission_salvage_store() { return handle_of(&mission_salvage()); }
 void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
 void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }
 
