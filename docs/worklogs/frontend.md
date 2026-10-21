@@ -416,3 +416,9 @@ each copy: the test resets the emulator heap between loads; mech_dfn_slot
 added for the probe). Breaks: scratch/campaign/breaks.py SEEDS [names].
 Found: No to "replace saved game" still overwrites the file (zSave writes
 first): fixes.md "still to fix", for when zSave is wired.
+Merged into main (06a6f86). Next: campaign item 2 on mac3/briefing, the
+briefing screen's shell (0x00405230 without the map; buttons and their
+enabling 0x00408ef0/0x00404ae0; the frame 0x00406440; ABORT 0x00405050;
+LAUNCH 0x00404f70), the progress bar's +0.005 a frame per_second at the
+30 fps reference (lead: no candidate). Start by reading those five in
+analysis-output/decomp and the Load state's hooks in app_states.
