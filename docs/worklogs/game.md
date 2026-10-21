@@ -820,3 +820,11 @@ view's ground, the anim lookups 0x50b450 (92).
   moving; with the update off both fail. Survey 2026-10-21: 182 unported
   calls; per frame the rest are drawing (GPU), the AI's (0x0041e810) and
   network (0x00588930), then the level of detail 0x0041e870 (next).
+- Last item of the order: the level of detail 0x0041e870 / 0x0041e9f0 /
+  parts 0x00467290 / foot 0x004672f0 and 0x0041e810's budget
+  (mech_lod.{h,cpp}, movement.md, Level of detail); wired in app_sensors
+  (vt+0xc8, 0xd0) and app_mech (LodCalls). test_deaths: lod 800 and part_lod
+  300 identical (4,653 total, seeds 1/2; BREAK=12, 13 fail). The Owens test
+  checks far (no bits, low model) and near while walking (0x1c, full model);
+  with vt+0xd0 back to the stub it fails. Find: AI mechs are silent while
+  the player's throttle is not 0 (discoveries). Stopped here (mac 1).

@@ -2015,7 +2015,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
-      mech3::LaunchedMech asleep, woke, owens_end;
+      mech3::LaunchedMech asleep, woke, owens_end, far, near;
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
@@ -2050,6 +2050,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         const float g = ground_under(o.pos[0], o.pos[1] + 20.0f, o.pos[2]);
         seen.off_ground = std::max(seen.off_ground, std::fabs(o.pos[1] - g));
       } else if (seen.frames == 200) {
+        seen.far = o;  // 1.4 km from the player: no detail, the low-detail model
         seen.counts1 = engine.unported_counts();
         if (seen.brain)
           for (const mech3::ai::Order& r : seen.brain->orders)
@@ -2061,6 +2062,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         mech3::move_mech(player, at, -1.5707964f);
         keys.key(up, true);
       } else if (seen.frames > 200 && seen.frames < 500) {
+        if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
         seen.wall_block |= m.blocked[3];
         const float dx = m.pos[0] - o.pos[0], dz = m.pos[2] - o.pos[2];
@@ -2074,6 +2076,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     pump.limit = 900;
     app.run(pump);
     EXPECT(seen.frames >= 500);
+    // The level of detail (0x0041e870): 1.4 km off, no detail bits and the
+    // low-detail model; 30 m off with the player's throttle up, 0x1c (no
+    // sounds: the frame's budget is spent while the player moves) and the
+    // full model back.
+    EXPECT(seen.far.detail == 0 && seen.far.lod == 1);
+    EXPECT(seen.near.detail == 0x1c && seen.near.lod == 0);
     EXPECT(seen.asleep.powered_down && !seen.woke.powering_down);  // bramp powers it up
     EXPECT(seen.owens_end.alive - seen.woke.alive > 3.0f);   // a full update each frame since
     EXPECT(seen.feet && seen.off_ground < 0.1f);             // standing on the ground

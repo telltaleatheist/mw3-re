@@ -151,6 +151,12 @@ From the port of the damage code, checked in an emulator against the original
   without the screen static that torso, arm and head hits give you.
 - **XL engines have no damage rule.** The `xl` setting changes only the
   engine's weight in the mech lab; nothing in combat reads it.
+- **Enemy mechs are silent while you move.** The game spends its one
+  "full detail" slot per frame only while your throttle is at zero, and a
+  mech's footsteps, engine and power sounds need that detail, so with your
+  throttle up no other mech makes a sound; stop, and the first one within
+  250 m is heard again. Beyond 800 m a mech also stops moving its legs in
+  full and switches to its low-detail model (unless you have it targeted).
 - **Pilots eject when their mech is destroyed** (unless it explodes, or was
   already lying on the ground): an ejection seat effect starts at the hip,
   the mech sags at the waist as it starts to fall, and the eject sound is

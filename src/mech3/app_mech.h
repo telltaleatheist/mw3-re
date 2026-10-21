@@ -105,6 +105,8 @@ struct LaunchedMech {
   uint32_t kills[6] = {};  // the kill credit (+0x3f4): mechs, vehicles, buildings, then their points
   int32_t debris = 0;      // nodes of parts that flew off (+0x6d0)
   bool debris_in_world = false;  // each of them under the world node
+  uint32_t detail = 0;     // +0x688  the level of detail's bits (mech_lod.cpp)
+  uint32_t lod = 0;        // +0x690  0 the full model, 1 the low-detail one
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)

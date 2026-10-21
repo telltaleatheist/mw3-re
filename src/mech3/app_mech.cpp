@@ -25,6 +25,7 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_lod.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_command.h"
@@ -500,6 +501,23 @@ void wire_mech_parts() {
       it = g_w.object_of(g_w.engine, *it) == &m ? list.erase(it) : std::next(it);
   };
 
+  // The level of detail's model switch (mech_lod.cpp) on zClass.
+  LodCalls& lc = lod_calls();
+  lc.player_target = [](Mech& player) -> Mech* {  // 0x004e6ff0 on +0x6c: the contact's vehicle, a mech
+    const ai::Handle seen = player.target ? player.target->seen : 0;
+    for (const ai::Handle h : ai::entity_list())
+      if (h == seen) return static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    return nullptr;
+  };
+  lc.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };
+  lc.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };
+  lc.find = [](Handle n, const char* name) -> Handle { return zcls::node_find_in_tree(zn(n), name); };  // 0x004f9d60
+  lc.node_set_active = [](Handle n, int32_t on) { zcls::node_set_active(zn(n), on); };
+  lc.node_set_matrix = [](Handle n, const float* m) { zcls::object3d_set_matrix(zn(n), m); };
+  lc.set_node = [](MechPart& p, Handle n) { part_set_node(p, n); };
+  lc.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };
+  lc.jets_effect = [](Mech& m) { return canned_effect(*m.pilot, 1, nullptr, nullptr, nullptr); };
+
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
@@ -690,6 +708,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   if (auto* n = zn(m->node)) s.deadmech = std::strcmp(n->name(), "deadmech") == 0;
   s.aim_torso = m->torso && m->target_node == m->torso->node;
   for (int i = 0; i < 6; ++i) s.kills[i] = m->x3f4[i];
+  s.detail = m->detail, s.lod = m->x690;
   s.debris = static_cast<int32_t>(m->x6d0.size());
   s.debris_in_world = !m->x6d0.empty();
   for (Handle d : m->x6d0)
