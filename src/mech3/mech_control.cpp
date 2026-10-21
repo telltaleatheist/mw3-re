@@ -423,6 +423,16 @@ int AiControls::update(float dt) {
 zgame::Handle AiControls::vehicle() { return ai::brain_hooks().vehicle_handle(owner); }
 bool AiControls::hit_lately() { return ai::brain_hooks().hit_lately(vehicle()); }
 
+// Mech3.exe 1.2 @ 0x00426c10
+void MechControls::halt() {
+  jj_strafe = 0, jj_forward = 0, pitch = 0, turn = 0;
+  set_throttle(0);  // IControls +0x20
+  set_turn(0);      // +0x28
+  set_jump(0);      // +0x34: 0x00426b20(0, 0)
+  joy_throttle_set = false;
+  fire = 0;         // +0x10: 0x00428580
+}
+
 // Mech3.exe 1.2 @ 0x00428490, its five setters through IControls (+0x20,
 // +0x28, +0x34, +0x3c, +0x44).
 void MechControls::stop() {

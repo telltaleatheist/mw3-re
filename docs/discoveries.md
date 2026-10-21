@@ -1074,6 +1074,11 @@ From the render path (render.md).
   the button's centre at 120 pixels a second, fading out in about half a
   second. The ring finds each pixel's distance with a bit trick on the
   float instead of a square root.
+- **A heat spike can be outrun.** When "shutting down" sounds, the mech's
+  throttle is cut and it only switches off once it has come to a stand.
+  If the heat drops back to 90% before then (it takes a running mech
+  several seconds to stop), the shutdown is called off. Only sustained
+  heat shuts down a running mech.
 - **The sun's lens flare only shows in software mode.** Every map has a
   light flagged for a lens flare (two on the third campaign's maps), and
   the maps load four flare pictures. In the software renderer the flare

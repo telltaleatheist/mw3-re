@@ -213,6 +213,7 @@ struct Mech : ai::AiTarget {
   void add_heat(float heat) { heat_added += heat; }  // 0x00419e40
   void power(int power_down);   // 0x0041cc30
   void finish_power_down();     // 0x0041cac0
+  void stop_controls(int arg);  // +0x37c vt+0x4c (0x00426c10)
   Foot* foot(int leg) const;    // 0x0041d4f0
   Calf* calf(int leg) const;    // 0x0041d4d0
 

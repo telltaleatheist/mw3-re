@@ -151,6 +151,9 @@ void* mech_controls_of(void* mech);              // +0x37c (a MechControls*)
 float mech_game_time();                          // [0x0060991c]
 bool mech_world_position(void* mech, float out[3]);  // 0x005a85e0; false (0, 0, 0) without a node
 float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
+bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
+// For the tests: the throttle target set and held, as a throttle key held to v would.
+bool mech_hold_throttle(void* mech, float v);
 bool mech_powered_down(void* mech);              // vt+0xa0, 0x0041cc10
 ai::AiTarget* mech_ai_target(void* mech);        // the Mech's AiTarget base
 // 0x004b4ed0 on the mech's weapon manager (+0xd4): the ammo's value against

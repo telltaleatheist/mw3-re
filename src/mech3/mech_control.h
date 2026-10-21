@@ -65,6 +65,10 @@ struct MechControls {
   }
   void zero();                   // 0x00426c80
   void stop();                   // 0x00428490 (IControls +0x14): throttle, turn, jump and both jump-jet axes 0
+  // 0x00426c10 (IControls +0x4c, Stop; its argument unused): the turn, pitch
+  // and jump-jet axes zeroed at once, the throttle, turn and jump targets 0,
+  // the joystick throttle and the trigger off. Mech::power calls it.
+  void halt();
   void init();                   // 0x004265a0's fields (most derived 0): at rest, view state 2
   // 0x00426650: the control mode (+0x08). While the axis table is ready, bit
   // 4 puts the joystick's axes in it and bit 1 the mouse's.

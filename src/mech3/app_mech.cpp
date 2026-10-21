@@ -1025,6 +1025,18 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
 void* mech_controls_of(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 float mech_game_time() { return world().time; }
 float mech_health(void* mech) { return static_cast<Mech*>(mech)->health(); }
+bool mech_set_heat(void* mech, float heat) {
+  if (!entity_is_mech(mech)) return false;
+  static_cast<Mech*>(mech)->heat = heat;
+  return true;
+}
+bool mech_hold_throttle(void* mech, float v) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  if (!m || !m->controls) return false;
+  m->controls->throttle_target = v;
+  m->controls->throttle_held = true;
+  return true;
+}
 bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered_down(); }
 ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }
 bool mech_ammo_value(void* mech, float* out) {

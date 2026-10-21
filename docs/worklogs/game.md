@@ -948,3 +948,14 @@ view's ground, the anim lookups 0x50b450 (92).
 - SdlTwodHost::ripple draws it on the finish target (the program's
   16-bit buffer, which `video_lock` sets and `video_flip` presents);
   mw3sdltests' check, 7/0.
+## Playtest #9: heat shutdown (2026-10-21)
+
+- Cause: Mech::power's Stop (+0x37c vt+0x4c, 0x426c10) was a hook nobody
+  wired, so the throttle stayed while the pending flag locked the input
+  out, and the mech never stood to finish the power-down. Ported
+  `MechControls::halt`; `Mech::stop_controls` falls back to it (the
+  probes' hook still records). test_controls.py now includes Stop (1,463
+  calls, with the IControls vtable 0x5bd428 and vtordisp 0 in the
+  emulated object). The c1m1 headless test holds the heat at 1.6: down at
+  frame 248, still for 30 frames, up at 278. Break (no Stop): it still
+  moves while "down". test_power and test_heat are unchanged.

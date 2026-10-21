@@ -121,7 +121,21 @@ Ported (`Mech::power`, `Mech::finish_power_down`), checked by
 
 `Mech::Power` (0x41cc30): ignored while a heat shutdown is in progress (+0xdd).
 Power-down only sets "pending" (+0xdc) and stops the controls (+0x37c vtable
-+0x4c), and not at all while +0x584 is set (likely airborne). Power-up, if
++0x4c), and not at all while +0x584 is set (likely airborne). The stop,
+0x426c10 (`MechControls::halt`), zeroes the turn, pitch and jump-jet axes at
+once, sets the throttle, turn and jump targets to 0, and clears the
+joystick throttle and the trigger. The throttle then eases down at the
+mech's rate until the mech stands, which lets the pending power-down finish
+(below). Playtest #9 (2026-10-21): the program never made this call. With
+the player's input already shut out by the pending flag, the mech kept its
+speed and never stood, so it never powered down. `Mech::stop_controls` now
+calls the port when no hook is set (test_controls.py checks 0x426c10;
+test_program's `mission_c1m1_heat_shutdown_stops_the_mech_headless` the
+whole shutdown).
+
+A heat spike that cools to 0.9 before the mech has come to a stand calls the
+shutdown off (state 3) without powering down. At full speed the stop takes
+several seconds, so only sustained heat shuts a running mech down. Power-up, if
 powered down, restarts the controls, restores the HUD (0x43bb50 with the byte
 saved at +0x587), plays sound 7 when +0x688 bit 0 is set, and clears both flags.
 
