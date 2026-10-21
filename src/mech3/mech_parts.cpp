@@ -23,6 +23,7 @@ constexpr int kNetSection = 0x15;         // docs/network-messages.md
 
 DamageCalls g_calls;
 FlyCalls g_fly;
+FreeCalls g_free;
 
 float rand_unit() { return static_cast<float>(crt::msvc_rand()) * kRandUnit; }
 int game_type() { return heat_calls().game_type ? heat_calls().game_type() : 0; }
@@ -82,6 +83,7 @@ std::vector<EquipmentItem*> equipment_in(Mech& m, int part) {
 
 DamageCalls& damage_calls() { return g_calls; }
 FlyCalls& fly_calls() { return g_fly; }
+FreeCalls& free_calls() { return g_free; }
 
 // Mech3.exe 1.2 @ 0x00460970. Docs: damage.md, the hit path.
 int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) {
@@ -693,9 +695,8 @@ void part_effect_ended(Handle effect, MechPart& p, int32_t value) {
   else if (torso && effect == torso->death_effect) torso->death_effect = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x004628c0. Then MechPart's (0x0045fd90). Nothing deletes a
-// mech's feet yet: the mech's destructor is not ported (movement.md, Left).
-Foot::~Foot() {
+// Mech3.exe 1.2 @ 0x004628c0, then the base's.
+void Foot::release() {
   if (effect) {
     stop_effect();
     if (part_calls().effect_free) part_calls().effect_free(effect);
@@ -703,6 +704,57 @@ Foot::~Foot() {
   }
   delete[] toe_nodes;
   delete[] toe_q;
+  toe_nodes = nullptr, toe_q = nullptr;
+  MechPart::release();
+}
+
+// Mech3.exe 1.2 @ 0x0045fd40. The node is left named "deletedpart"
+// (0x005e4f80), its +0x2c bits 5 and 6 off and its ids gone.
+void MechPart::release() {
+  FreeCalls& f = g_free;
+  if (trail_effect && f.stop_effect) f.stop_effect(trail_effect);
+  if (debris_effect && f.stop_effect) f.stop_effect(debris_effect);
+  debris_effect = trail_effect = nullptr;
+  if (x68) {
+    if (f.ref_free) f.ref_free(x68, node);
+    x68 = nullptr;
+  }
+  if (node) {
+    if (f.rename) f.rename(node, "deletedpart");
+    if (f.set_flags2c) f.set_flags2c(node, 5, 0), f.set_flags2c(node, 6, 0);
+    if (f.clear_ids) f.clear_ids(node);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00464250
+void Torso::release() {
+  FreeCalls& f = g_free;
+  if (death_effect && f.stop_effect) f.stop_effect(death_effect);
+  if (death_effect2 && f.stop_effect) f.stop_effect(death_effect2);
+  death_effect2 = death_effect = nullptr;
+  MechPart::release();
+}
+
+// Mech3.exe 1.2 @ 0x00463740
+void Leg::release() {
+  part_delete(calf);
+  part_delete(foot);
+  calf = nullptr, foot = nullptr;
+  MechPart::release();
+}
+
+// Mech3.exe 1.2 @ 0x00466380
+void Arm::release() {
+  part_delete(hand);
+  hand = nullptr;
+  MechPart::release();
+}
+
+// The exe's vtable +0 with 1 (0x0045fd20 and the like).
+void part_delete(MechPart* p) {
+  if (!p) return;
+  p->release();
+  delete p;
 }
 
 // Mech3.exe 1.2 @ 0x00463100

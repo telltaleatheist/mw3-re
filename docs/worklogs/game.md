@@ -787,3 +787,12 @@ view's ground, the anim lookups 0x50b450 (92).
   read on the port's struct): now weapon->flags & kFreeze. The AI targets'
   hit_killed / hit_health / remove_handlers hooks wired (0x00583710,
   0x00583730, 0x00583400; they were logged as unported).
+- Item 2: the Mech's and the parts' destructors ported (mech-build.md
+  section 15): Mech::release (0x004152d0 / 0x00414f40), mech_delete,
+  MechPart::release (0x0045fd40, torso 0x00464250, thigh 0x00463740, arm
+  0x00466380, foot 0x004628c0 replaces ~Foot), part_delete; FreeCalls wired
+  in app_mech; the cleanup's delete_object and 0x0049dc40 delete every mech.
+  Two tests read the player's node after the run (now freed): captured
+  during the frames. The three-mission test checks mechs_alive() == 0
+  after each cleanup (BREAK: the zEntity deletes off fails it); ASan clean.
+- Next (mac 1): mech.h's Pilot vs pilot.h's Pilot (ODR): rename after item 2.
