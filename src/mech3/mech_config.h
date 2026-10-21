@@ -161,6 +161,7 @@ struct ConfigList {                // 0x18 bytes
   ~ConfigList();                            // 0x00425110
   bool load_saved();                        // 0x00424b70, configs\<mech>.mw3
   bool save_all();                          // 0x00424f60, the player's own (+0x1c) only
+  Config* find(const char* name) const;     // 0x00424e90: by name (strcmp), null when none
 };
 
 }  // namespace mech3

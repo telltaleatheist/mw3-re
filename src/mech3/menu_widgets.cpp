@@ -877,6 +877,10 @@ Store* Engine::store_of(Handle h) {
 }
 Handle Engine::store_handle(Store* s) { return handle_for(s); }
 Handle Engine::item_handle(const ConfigItem* it) { return handle_for(it); }
+const ConfigItem* Engine::item_of(Handle h) {
+  auto f = objects().find(h);
+  return f == objects().end() ? nullptr : static_cast<const ConfigItem*>(f->second);
+}
 
 // Mech3.exe 1.2 @ 0x0048d950 (0x0048d960 on the selected index)
 Handle StoreList::selected_value() {

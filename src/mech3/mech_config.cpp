@@ -617,3 +617,15 @@ bool ConfigList::save_all() {
 
 }  // namespace mech3
 
+
+namespace mech3 {
+
+// Mech3.exe 1.2 @ 0x00424e90
+Config* ConfigList::find(const char* name) const {
+  if (!name) return nullptr;
+  for (Config* c : configs)
+    if (c && c->name && std::strcmp(c->name, name) == 0) return c;
+  return nullptr;
+}
+
+}  // namespace mech3

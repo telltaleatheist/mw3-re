@@ -1247,8 +1247,20 @@ From the mech definitions (mechdef-head.md).
   one from a file into that mech's list of loadouts; if a loadout with the
   same name is already there, the loaded one gets a random number added to
   its name. They only work while the mech shown has a loadout.
-- **The mech lab's MISSION DATA tab is always greyed out.** The lab
-  disables it as it opens, and nothing in the game turns it back on.
+- **The mech lab was built with three more tabs.** Its code still handles
+  WEAPONS, EQUIPMENT and MISSION DATA tabs (it hides the first two and
+  MISSION DATA on every page and disables MISSION DATA as it opens), but the
+  shipped dialog leaves all three out: weapons and equipment go on the
+  CRITICALS page instead.
+- **"Sort by name" in the mech lab sorts by the mech's number** in the
+  game's own list of 19 mechs, not by the name you see: the comparison
+  looks the names up and then ignores them. "Sort by mass" sorts by
+  maximum tonnage, ties by that number.
+- **The mech lab's paint scheme list is always the player's.** It reads
+  and sets lance slot 0's skin whichever lance member is shown, so your
+  lancemates keep their default paint.
+- **For a lancemate the chassis list starts with an empty entry**
+  (message 0x23d) in a campaign, to leave that slot without a mech.
 - **The mech lab never leaves on its own:** its frame's "done" value is
   never set, so ACCEPT is the only way out (Escape does nothing there).
 - **A mod with a wrong `version` in a mech file crashes the game** instead of

@@ -234,6 +234,23 @@ void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
   if (device >= 0 && zfix::options().any_resolution) *hi = kLastVMode;
 }
 void Engine::pop_state(uint32_t arg) { app().pop(arg); }
+std::string Engine::peek_string(Handle p) {
+  std::string s;
+  if (!p) return s;
+  for (uint8_t c; (c = peek8(p)) != 0; ++p) s += static_cast<char>(c);
+  return s;
+}
+std::string Engine::lab_config_name(Handle config) { return peek_string(field32(config, 0x18)); }
+void Engine::lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) {
+  out->clear();
+  const Handle set = field32(dfn, 0x1c);
+  const Handle first = set ? field32(set, 0x04) : 0, last = set ? field32(set, 0x08) : 0;
+  for (Handle p = first; first && p < last; p += 4) {
+    const Handle skin = peek32(p);
+    const Handle name = skin ? field32(skin, 0) : 0;
+    out->push_back({skin, name != 0, peek_string(name)});
+  }
+}
 void Engine::lab_store_remove(Handle store, int32_t mech) {
   if (Store* s = store_of(store)) s->remove_mech(mech);
 }

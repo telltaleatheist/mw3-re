@@ -683,6 +683,31 @@ class Engine : public zgame::AppHooks {
   virtual Handle lab_slot(Handle pilot, int32_t i) { return vcall(field32(pilot, 0x6c), 0x34, {i}); }
   virtual int32_t lab_slot_mech(Handle slot) { return static_cast<int32_t>(field32(slot, 0x04)); }
   // The lab's screen behind the Lab State's handle (null: not the port's).
+  // The chassis page's (step 3, mechlab.md): a slot's skin (+0x10, 0x005a2b90
+  // its setter) and loadout (+0x08); a loadout's changed flag (+0x1f), name
+  // (+0x18), recount (0x00425bd0) and check (0x004254d0); a definition's
+  // skins (+0x1c's vector, each a name first); the 3D model's skin
+  // (0x0044fd90, ECX the model); a question with two strings (0x004ac150).
+  virtual int32_t lab_slot_skin(Handle slot) { return static_cast<int32_t>(field32(slot, 0x10)); }
+  virtual void lab_slot_set_skin(Handle slot, int32_t skin) { set_field32(slot, 0x10, static_cast<uint32_t>(skin)); }
+  virtual Handle lab_slot_cfg(Handle slot) { return field32(slot, 0x08); }
+  virtual uint8_t lab_config_modified(Handle config) { return field8(config, 0x1f); }
+  virtual std::string lab_config_name(Handle config);
+  virtual void lab_config_recount(Handle config) { unported("0x00425bd0", {config}); }
+  virtual bool lab_config_valid(Handle config) { return unported("0x004254d0", {config, 0}) != 0; }
+  struct LabSkin {
+    Handle skin;                     // none: an empty place
+    bool named;                      // its name pointer set
+    std::string name;
+  };
+  virtual void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out);
+  virtual void lab_model_skin(Handle model, int32_t skin) { unported("0x0044fd90", {model, skin}); }
+  virtual uint32_t message_box2(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2) {
+    return unported("0x004ac150", {a, caption, text, s1, s2});
+  }
+  // A store item behind its handle (item_handle's other way).
+  virtual const struct ConfigItem* item_of(Handle item);
+  std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }
   virtual class LabScreen* lab_screen(Handle screen) {
     (void)screen;

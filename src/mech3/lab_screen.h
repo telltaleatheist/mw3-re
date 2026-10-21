@@ -77,10 +77,12 @@ class LabEditBar : public ShellEditBar {
   uint8_t x390 = 0;                  // +0x390
 };
 
-// SKIN_LIST (vtable 0x005c1448): its select (0x0044b1c0) is step 3's.
+// SKIN_LIST (vtable 0x005c1448): the player's (slot 0's) skin, whichever
+// slot is shown.
 class LabSkinList : public CycleButton {
  public:
   explicit LabSkinList(Engine& e) : CycleButton(e, -1) {}
+  void select(int32_t i) override;   // +0xa0  0x0044b1c0
 };
 
 // PART_HEAD..PART_RLEG (vtable 0x005c13b0; PART_HEAD made by 0x0044ed40(0x12)
@@ -105,19 +107,23 @@ class LabLoadoutList : public FileList, public LabLater {
   void hide() override;              // +0x64
 };
 
-// CHASSIS_LIST (0x004490d0, vtable 0x005c0cc0): a store list of mechs; step 3's.
-class LabChassisList : public StoreList, public LabLater {
+// CHASSIS_LIST (0x004490d0, vtable 0x005c0cc0): the lab store's mechs, each
+// with its tonnage; for a lancemate in a campaign "none" first.
+class LabChassisList : public StoreList {
  public:
   explicit LabChassisList(Engine& e) : StoreList(e, 0, 0) { x209 = 0; }
   ~LabChassisList() override;        // 0x00449180: the rows' attachments deleted
-  void refill() override { call(0xa8); }  // +0xa8  0x00449250
+  bool can_light(int32_t) override { return true; }   // +0x90  0x0045b6e0
+  bool can_choose(int32_t) override { return true; }  // +0x94  0x0045b6e0
+  void select(int32_t index) override;  // +0x98  0x00449b30: the slot's chassis
+  void layout() override;            // +0xa4  0x0044f4c0: StoreList's, then the tonnages 0x00449760
+  void refill() override;            // +0xa8  0x00449250
   void set_store(Handle s);          // 0x00449220: no choice, the store's mechs
-  void select_mech(int32_t mech) { call_fn("0x00449b00", {mech}); }  // 0x00449b00 (step 3)
-  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
-  void after_bind() override;        // +0x88
-  void show_for(float seconds) override;  // +0x60
-  void hide() override;              // +0x64
-  uint32_t x6d0 = 0;                 // +0x6d0
+  void set_sort(int32_t by);         // 0x00449160: 0 SORT_CHASSISNAME, 1 SORT_CHASSISMASS
+  int32_t find_mech(int32_t mech);   // 0x00449a80: its row, 0 when not there
+  bool select_mech(int32_t mech);    // 0x00449b00
+  int32_t mech_at(int32_t index);    // the row's item's mech, -1 for none (the inline reads)
+  int32_t sort = 0;                  // +0x6d0
 };
 
 // CONFIG_LIST (vtable 0x005c1588) with CONFIG_ADD, CONFIG_DELETE,
@@ -148,6 +154,8 @@ class LabSelect : public InvertCheck {
 class LabItemList : public ShellButton, public LabLater {
  public:
   explicit LabItemList(Engine& e) : ShellButton(e, -1) {}
+  void refill() { call(0xb8, {x220, x224}); }  // +0xb8 (steps 5, 6)
+  Handle x220 = 0, x224 = 0;         // +0x220, +0x224  the store or loadout it lists
   bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
   void after_bind() override;        // +0x88
   void show_for(float seconds) override;  // +0x60
@@ -225,6 +233,8 @@ class LabScreen : public MenuScreen {
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x0044d4d0
   void switch_page(int32_t page);    // 0x0044ce30: 6 is ACCEPT
   void show_slots(int32_t slot);     // 0x0044ce90: the lance's buttons, `slot` chosen
+  void refresh();                    // 0x0044cf50: the page for the shown slot's loadout
+  void refresh(Handle config);       // 0x0044cf70
   void show_page(int32_t page, bool show);  // 0x0044ca50
   HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90

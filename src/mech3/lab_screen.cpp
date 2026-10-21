@@ -3,16 +3,90 @@
 // (0x00448830..0x004561ff, between mech_data.cpp and mech_map.cpp).
 #include "mech3/lab_screen.h"
 
+#include <algorithm>
 #include <cstdarg>
+#include <iterator>
+#include <string>
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app_states.h"
+#include "mech3/pilot.h"
 
 namespace mech3 {
 
+// mech_names.h (its Engine clashes with the app's): 0x00484670's message and 0x004846e0.
+int32_t mech_name_message(int32_t mech);
+float max_mass(int32_t mech);
+
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound
+
+// Mech3.exe 1.2 @ 0x00484670: a mech's name from Mech3Msg.dll, "notmech"
+// out of range; CString::Format's "%s" gives "(null)" for none.
+std::string display_name(Engine& e, int32_t mech) {
+  if (mech < 0 || mech >= 19) return "notmech";
+  const char* s = e.message(mech_name_message(mech));
+  return s ? s : "(null)";
+}
+
+// MSVC 6's std::sort (VC98 <algorithm>), as the exe has it inlined: the
+// comparator's calls are in the trace, so its order of comparisons matters.
+template <typename It, typename Less>
+void vc6_insert(It last, typename std::iterator_traits<It>::value_type v, Less less) {
+  for (It m = last; less(v, *--m); last = m) *last = *m;
+  *last = v;
+}
+template <typename It, typename Less>
+void vc6_insertion_sort(It f, It l, Less less) {
+  if (f == l) return;
+  for (It m = f; ++m != l;) {
+    auto v = *m;
+    if (!less(v, *f)) {
+      vc6_insert(m, v, less);
+    } else {
+      std::copy_backward(f, m, m + 1);
+      *f = v;
+    }
+  }
+}
+template <typename T, typename Less>
+T vc6_median(T a, T b, T c, Less less) {
+  if (less(a, b)) return less(b, c) ? b : less(a, c) ? c : a;
+  return less(a, c) ? a : less(b, c) ? c : b;
+}
+template <typename It, typename T, typename Less>
+It vc6_partition(It f, It l, T piv, Less less) {
+  for (;; ++f) {
+    for (; less(*f, piv); ++f) {}
+    for (; less(piv, *--l);) {}
+    if (!(f < l)) return f;
+    std::iter_swap(f, l);
+  }
+}
+template <typename It, typename Less>
+void vc6_sort_loop(It f, It l, Less less) {
+  while (l - f > 16) {
+    It m = vc6_partition(f, l, vc6_median(*f, *(f + (l - f) / 2), *(l - 1), less), less);
+    if (l - m <= m - f) {
+      vc6_sort_loop(m, l, less);
+      l = m;
+    } else {
+      vc6_sort_loop(f, m, less);
+      f = m;
+    }
+  }
+}
+template <typename It, typename Less>
+void vc6_sort(It f, It l, Less less) {
+  if (l - f <= 16) {
+    vc6_insertion_sort(f, l, less);
+    return;
+  }
+  vc6_sort_loop(f, l, less);
+  vc6_insertion_sort(f, f + 16, less);
+  for (f += 16; f != l; ++f) vc6_insert(f, *f, less);
+}
 }  // namespace
 
 void LabLater::call(uint32_t slot, std::initializer_list<Arg> args) const {
@@ -96,13 +170,148 @@ void LabChassisList::set_store(Handle s) {
   store = s;
   refill();
 }
-bool LabChassisList::read_control(zrdr::Node*, ztwod::Dialog*) {
-  call(0x84);
-  return true;
+
+// Mech3.exe 1.2 @ 0x00449160
+void LabChassisList::set_sort(int32_t by) {
+  sort = by;
+  refill();
 }
-void LabChassisList::after_bind() { call(0x88); }
-void LabChassisList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabChassisList::hide() { call(0x64); }
+
+int32_t LabChassisList::mech_at(int32_t index) {
+  if (index < 0 || index >= item_count()) return -1;
+  const ConfigItem* it = e_.item_of(static_cast<Handle>(items[static_cast<size_t>(index)]->value));
+  return it && it->kind() == 0 ? it->id() : -1;
+}
+
+// Mech3.exe 1.2 @ 0x00449a80
+int32_t LabChassisList::find_mech(int32_t mech) {
+  for (int32_t i = 0; i < item_count(); ++i) {
+    const ConfigItem* it = e_.item_of(static_cast<Handle>(items[static_cast<size_t>(i)]->value));
+    if (it && it->kind() == 0 && it->id() == mech) return i;
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00449b00
+bool LabChassisList::select_mech(int32_t mech) {
+  const int32_t i = find_mech(mech);
+  FileList::select(i);  // 0x0048d0d0, not the lab's select
+  return i != 0;
+}
+
+// Mech3.exe 1.2 @ 0x00449250: the rows from the store (0x00449570 on each
+// item: a mech by its name), sorted (std::sort; 0x004496c0 compares), and
+// the shown slot's mech chosen by its row before the sort.
+void LabChassisList::refill() {
+  Engine& e = e_;
+  clear_items();
+  layout();
+  const LabState& lab = states().lab;
+  const Handle slot = e.lab_slot(lab.pilot_, lab.slot_);
+  if (!slot) return;
+  const int32_t mech = e.lab_slot_mech(slot);
+  if (e.pilot() && e.pilot_campaign(e.pilot()) && lab.slot_ != 0) add_item(e.message(0x23d), 0);
+  int32_t found = 0;
+  if (Store* s = store ? e.store_of(store) : nullptr) {
+    for (const ConfigItem* it : s->items) {
+      if (it->kind() != 0) continue;
+      const std::string name = display_name(e, it->id());
+      const int32_t n = item_count();
+      items.push_back(new Item{strdup(name.c_str()), static_cast<int32_t>(e.item_handle(it))});
+      layout();
+      if (it->id() == mech) found = n;
+    }
+  }
+  // 0x004496c0: by the mech's number (0, the names are looked up and not
+  // used) or its tonnage then number (1); anything else keeps no order.
+  auto mech_of = [&](const Item* x) {
+    const ConfigItem* it = e.item_of(static_cast<Handle>(x->value));
+    return x->value && it ? it->id() : -1;
+  };
+  const int32_t by = sort;
+  vc6_sort(items.begin(), items.end(), [&](const Item* a, const Item* b) {
+    const int32_t ma = mech_of(a), mb = mech_of(b);
+    display_name(e, ma);
+    display_name(e, mb);
+    if (by == 0) return ma < mb;
+    if (by != 1) return false;
+    if (max_mass(mb) != max_mass(ma)) return max_mass(ma) < max_mass(mb);
+    return ma < mb;
+  });
+  FileList::select(found);  // 0x0048d0d0
+}
+
+// Mech3.exe 1.2 @ 0x0044f4c0 (0x0048ccf0, then 0x00449760): each mech's
+// tonnage beside its row, the chosen row's in red.
+void LabChassisList::layout() {
+  StoreList::layout();
+  auto tons = [&](FileRow* r, Handle font, bool chosen) {
+    const int32_t k = r->index;  // 0x0048d960: the row's item, none out of range
+    const ConfigItem* it =
+        k >= 0 && k < item_count() ? e_.item_of(static_cast<Handle>(items[static_cast<size_t>(k)]->value)) : nullptr;
+    if (!it || it->kind() != 0) {
+      if (r->attached) r->attached->hide();
+      return;
+    }
+    auto* t = static_cast<ztwod::Text*>(r->attached);
+    if (!t) r->attached = t = new ztwod::Text;
+    if (chosen) {
+      t->show_for(-1.0f);
+      t->set_font(font);
+    } else {
+      t->set_font(font);
+      t->show_for(-1.0f);
+    }
+    t->set_pos(r->get_x() + 175, r->get_y());
+    char b[32];
+    std::snprintf(b, sizeof b, "%.1f", static_cast<double>(max_mass(it->id())));
+    if (chosen) t->set_text(b);
+    else t->set_text("%s", b);
+  };
+  const Handle green = ztwod::host().font_find("lab_large_greenR");
+  for (FileRow* r : rows)
+    if (!(r->flags & ztwod::kHidden)) tons(r, green, false);
+  if (!selected_row || selected < top) return;
+  const Handle red = ztwod::host().font_find("lab_large_redR");
+  const uint32_t i = static_cast<uint32_t>(selected - top);
+  if (i >= rows.size()) return;
+  FileRow* r = rows[i];
+  tons(r, red, true);
+  selected_row->attached = r->attached;
+}
+
+// Mech3.exe 1.2 @ 0x00449b30: a row pressed. A changed loadout asks first
+// (0x004ac150 0x137 / 0x1ed with the mech and the loadout).
+void LabChassisList::select(int32_t index) {
+  Engine& e = e_;
+  LabScreen* s = e.lab_screen(states().lab.lab_screen_);
+  if (s && s->config_edit.x38c != 0 && e.unported("0x0044a3a0", {0}) == 0) return;
+  const int32_t mech = mech_at(index);
+  const LabState& lab = states().lab;
+  if (const Handle slot = e.lab_slot(lab.pilot_, lab.slot_)) {
+    const Handle cfg = e.lab_slot_cfg(slot);
+    if (cfg && mech == e.config_mech(cfg)) return;
+    if (cfg && e.lab_config_modified(cfg)) {
+      if (s) s->cursor_obj.erase();
+      const int32_t m = e.config_mech(cfg);
+      const std::string name = e.lab_config_name(cfg);
+      const std::string mn = display_name(e, m);
+      if (e.message_box2(1, 0x137, 0x1ed, mn.c_str(), name.c_str()) != 1) return;
+    }
+  }
+  play_sound(1, 1.0f);
+  FileList::select(index);
+  states().lab.set_mech(mech);
+}
+
+// Mech3.exe 1.2 @ 0x0044b1c0: the 3D model's skin follows when one is up.
+void LabSkinList::select(int32_t i) {
+  CycleButton::select(i);
+  Engine& e = e_;
+  const LabState& lab = states().lab;
+  if (lab.model_) e.lab_model_skin(lab.model_, i);
+  if (e.lab_slot(lab.pilot_, 0)) e.lab_slot_set_skin(e.lab_slot(lab.pilot_, 0), i);
+}
 
 bool LabConfigList::read_control(zrdr::Node*, ztwod::Dialog*) {
   call(0x84);
@@ -190,7 +399,7 @@ LabScreen::LabScreen(Engine& e, int32_t slots)
   const struct {
     LabLater* l;
     uint32_t at;
-  } later[] = {{&loadouts, 0x11508}, {&chassis, 0x16e74}, {&configs, 0x17548}, {&unassigned, 0x19290},
+  } later[] = {{&loadouts, 0x11508}, {&configs, 0x17548}, {&unassigned, 0x19290},
                {&assigned, 0x1a13c}, {&ungrouped, 0x1a36c}, {&grouped, 0x1a570}, {&engine_table, 0x1a8c8}};
   for (const auto& x : later) x.l->e = &e, x.l->at = x.at;
   chassis_data = e.construct(0x457600, {});  // new(0x188)
@@ -290,7 +499,13 @@ void LabScreen::on_button(int32_t id, int32_t a, int32_t b) {
     states().lab.show_slot(id - 8);
     return;
   }
-  e.unported("lab.press", {id});  // steps 3..8 (mechlab.md section 5)
+  if (id == 31 || id == 32) {  // SORT_CHASSISNAME, SORT_CHASSISMASS
+    chassis.set_sort(id - 31);
+    return;
+  }
+  // 14..30 the pages' own (steps 4..8); any other id the exe ignores (its
+  // jump table covers 14..32).
+  if (id >= 14 && id <= 30) e.unported("lab.press", {id});
 }
 
 // Mech3.exe 1.2 @ 0x0044ce30: ACCEPT takes the shown slot's mech back out of
@@ -308,7 +523,7 @@ void LabScreen::switch_page(int32_t p) {
   show_page(page, false);
   page = p;
   show_page(p, true);
-  e.unported("0x0044cf50", {});
+  refresh();
 }
 
 // Mech3.exe 1.2 @ 0x0044ce90
@@ -323,7 +538,87 @@ void LabScreen::show_slots(int32_t slot) {
   mechs[slot].set_mech(m, true, &pilot_glow);
   chassis.set_store(lab.store_);
   chassis.select_mech(m);
-  e.unported("0x0044cf50", {});
+  refresh();
+}
+
+// Mech3.exe 1.2 @ 0x0044cf50: the shown slot read unchecked (one is always shown).
+void LabScreen::refresh() {
+  Engine& e = engine();
+  const LabState& lab = states().lab;
+  refresh(e.lab_slot_cfg(e.lab_slot(lab.pilot_, lab.slot_)));
+}
+
+// Mech3.exe 1.2 @ 0x0044cf70: what every page shows for a loadout (none:
+// the slot's mech without one). CONFIG_LIST emptied, SKIN_LIST from the
+// mech's skins with the player's (slot 0's) chosen, CURRENT_CHASSIS's second
+// label, the data panels, the item lists, ARMOR_TITLES, ENGINE_TABLE and
+// the groups (later steps' hooks); CRITICALS and WEAPON GROUPS only with a
+// loadout, WEAPONS, EQUIPMENT and MISSION DATA hidden, ACCEPT only while
+// every slot's loadout passes its check (0x004254d0).
+void LabScreen::refresh(Handle config) {
+  Engine& e = engine();
+  const LabState& lab = states().lab;
+  configs.clear_items();  // 0x0044e7b0, 0x004aa700
+  configs.layout();
+  const int32_t mech = config ? e.config_mech(config) : e.lab_slot_mech(e.lab_slot(lab.pilot_, lab.slot_));
+  if (const Handle dfn = e.mech_dfn_handle(mech)) {
+    std::vector<Engine::LabSkin> list;
+    e.lab_dfn_skins(dfn, &list);
+    const int32_t n = static_cast<int32_t>(list.size());
+    int32_t skin = e.lab_slot(lab.pilot_, 0) ? e.lab_slot_skin(e.lab_slot(lab.pilot_, 0)) : 0;
+    skins.clear_items();
+    for (const auto& s : list)
+      if (s.skin) skins.add_item(s.named ? s.name.c_str() : nullptr, static_cast<int32_t>(s.skin));
+    if (skin > n) skin = n;  // (n itself: past the last)
+    else if (skin < 0) skin = 0;
+    skins.select(skin);
+    if (config_edit.x38c == 0) skins.set_arrows(1, 1);
+    configs.call_fn("0x00449fb0");  // step 4
+  }
+  const Handle cfg = e.lab_slot_cfg(e.lab_slot(lab.pilot_, lab.slot_));
+  ztwod::Text* line = current_chassis.labels.size() > 1 ? current_chassis.labels[1] : nullptr;
+  if (cfg) {
+    e.lab_config_recount(cfg);
+    if (line) {
+      // (0x00484700 and 0x00484720 asked and dropped)
+      const std::string name = display_name(e, e.config_mech(cfg));
+      const std::string cname = e.lab_config_name(cfg);
+      if (e.lab_config_modified(cfg)) line->set_text_id(0xdcd, name.c_str(), cname.c_str());
+      else line->set_text("%s: %s", name.c_str(), cname.c_str());
+    }
+    e.unported("0x00457940", {chassis_data, cfg});  // step 8
+    e.unported("0x00457330", {mech_data, cfg});
+    loadouts.call_fn("0x0044b230", {cfg});
+    unassigned.x224 = 0;
+    unassigned.x220 = lab.store_;
+    unassigned.refill();
+    assigned.x224 = cfg;
+    assigned.x220 = cfg;
+    assigned.refill();
+    if (armor_titles) e.unported("0x00450e00", {armor_titles, cfg});
+    engine_table.call_fn("0x0044b4b0", {cfg});
+    e.lab_groups_refresh();
+  } else {
+    if (line) line->set_text_plain(e.message(0x249));
+    e.unported("0x00457940", {chassis_data, 0});
+    e.unported("0x00457330", {mech_data, 0});
+    loadouts.call_fn("0x0044b230", {0});
+  }
+  const int32_t has = cfg ? 1 : 0;
+  tabs[4].enabled = has;  // WEAPON GROUPS
+  tabs[4].refresh();
+  tabs[3].enabled = has;  // CRITICALS
+  tabs[3].refresh();
+  tabs[1].hide();
+  tabs[2].hide();
+  tabs[5].hide();
+  bool ok = true;
+  for (int32_t i = 0; i < lab.slots_ && ok; ++i) {
+    const Handle c = e.lab_slot_cfg(e.lab_slot(lab.pilot_, i));
+    if (c) ok = e.lab_config_valid(c);
+  }
+  tabs[6].enabled = ok ? 1 : 0;  // ACCEPT
+  tabs[6].refresh();
 }
 
 // Mech3.exe 1.2 @ 0x0044ca20

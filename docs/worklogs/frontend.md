@@ -732,6 +732,28 @@ Network HUD pieces skipped as ordered.
   0x0057a3c0; its hook renamed video_set_clear from video_set_gamma); update's result is never
   set; Ctrl+X / Ctrl+I export/import loadouts (discoveries).
 
+## 2026-10-21 Lab step 3 (branch mac3/lab-chassis)
+
+- CHASSIS_LIST real: refill 0x00449250 (VC6 std::sort written out:
+  vc6_sort in lab_screen.cpp, the comparator's message calls are traced),
+  layout 0x00449760, select 0x00449b30, find/select by mech, sorts 31/32;
+  SKIN_LIST select 0x0044b1c0; the page refresh 0x0044cf70/0x0044cf50 with
+  the later steps' parts hooked. Program overrides on the ported slots,
+  loadouts, dfns and skins.
+- Port gap found for the lead's question: 0x004733b0 (a new campaign's
+  starting mech) was an unported hook, so the store started empty and the
+  briefing's fit cleared slot 0. Ported (PilotHooks default,
+  ConfigList::find 0x00424e90); the campaign test no longer sets the mech.
+- Review items from step 2: the ids the exe ignores are quiet; the
+  set_mech guard noted; 0x00433df0's (0, 1) are in the hook's call.
+- test_lab_screen 60/60 (stores over 16 mechs, the question box, skins).
+- Breaks 27/33 caught (the median one hangs the probe: counted). Not
+  observable: the sort's threshold 16 vs 15 (the partition loop keeps 16),
+  the recursion side (equal halves only), sort modes > 1 (never set), the
+  found index (an equivalent rewrite), the chosen tonnage's font/show order,
+  the skin arrows during a rename (they start on and nothing turns them off
+  yet). Synthetic dialogs add the three tabs the shipped one leaves out.
+
 ## 2026-10-21 Lab step 2 (branch mac3/lab-shell)
 
 - 2a: LabScreen (mech3/lab_screen.{h,cpp}) 0x0044b920 / 0x0044c600: every

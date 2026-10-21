@@ -35,10 +35,7 @@ class PilotHooks : public zgame::Unported {
   }
   // A new campaign's starting mech (0x004733b0): `mech` with the dfn's
   // configuration named `config` added to the store; 1 on success.
-  virtual int32_t store_add_mech(class Store& s, int32_t mech, const char* config) {
-    (void)s;
-    return static_cast<int32_t>(unported("0x004733b0", {mech, config}));
-  }
+  virtual int32_t store_add_mech(class Store& s, int32_t mech, const char* config);
   // The slot's saved configuration (0x004242a0 with the name "temp", and
   // 0x00424480): the ported Config's load and save by default.
   virtual Config* config_load(const char* name, std::FILE* f);

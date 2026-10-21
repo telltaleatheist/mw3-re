@@ -5,6 +5,8 @@
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
 
 namespace mech3 {
@@ -44,6 +46,15 @@ std::string PilotHooks::format_ints(int32_t id, std::initializer_list<int32_t> a
 }
 
 // Mech3.exe 1.2 @ 0x00484840: operations 1 and 2 have four missions, 3 and 4 six.
+// Mech3.exe 1.2 @ 0x004733b0: the dfn's loadout by that name into the store
+// (0x00473400, mech and items); a full store takes it as it is.
+int32_t PilotHooks::store_add_mech(Store& s, int32_t mech, const char* config) {
+  if (s.full) return 1;
+  const MechDfn* d = mech_dfn(mech);
+  const Config* c = d && d->configs ? d->configs->find(config) : nullptr;
+  return c ? (s.give_config(mech, c) ? 1 : 0) : 0;
+}
+
 int32_t PilotHooks::campaign_missions(int32_t campaign) {
   switch (campaign) {
     case 1: case 2: return 4;

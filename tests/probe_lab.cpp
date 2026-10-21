@@ -16,6 +16,9 @@
 #include "mech3/app.h"
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
+#include "mech3/mech_config.h"
+#include "mech3/pilot.h"
+#include <map>
 #include "probe_twod.h"
 
 namespace {
@@ -54,6 +57,20 @@ struct LabEngine : mech3::Engine {
   void lab_store_add(Handle store, int32_t mech) override { call("0x00471c10", {store, mech}); }
   mech3::LabScreen* screen = nullptr;
   mech3::LabScreen* lab_screen(Handle) override { return screen; }
+  // The lab's store, its items by their emulator address.
+  mech3::Store store{0};
+  Handle store_addr = 0;
+  std::map<const mech3::ConfigItem*, Handle> addr_of;
+  std::map<Handle, const mech3::ConfigItem*> item_at;
+  mech3::Store* store_of(Handle h) override { return h && h == store_addr ? &store : nullptr; }
+  Handle item_handle(const mech3::ConfigItem* it) override {
+    auto f = addr_of.find(it);
+    return f == addr_of.end() ? 0 : f->second;
+  }
+  const mech3::ConfigItem* item_of(Handle h) override {
+    auto f = item_at.find(h);
+    return f == item_at.end() ? nullptr : f->second;
+  }
 };
 
 std::vector<uint32_t> g_slots;  // the game's slots, by their address in the emulator
@@ -101,7 +118,25 @@ void dump_screen(mech3::LabScreen& s, Dump& d) {
     << " x218=" << s.chassis.x218 << " store=" << s.chassis.store << std::dec << " slots=";
   for (size_t i = 0; i < g_slots.size(); ++i)
     o << (i ? "," : "") << static_cast<int32_t>(call("peek32", {g_slots[i] + 4})) << '/' << std::hex
-      << call("peek32", {g_slots[i] + 0xc}) << std::dec;
+      << call("peek32", {g_slots[i] + 0xc}) << std::dec << '/' << static_cast<int32_t>(call("peek32", {g_slots[i] + 0x10}));
+  o << '\n';
+  o << "chassis sort=" << s.chassis.sort << " top=" << s.chassis.top << " items=";
+  for (size_t i = 0; i < s.chassis.items.size(); ++i)
+    o << (i ? "|" : "") << (s.chassis.items[i]->text ? s.chassis.items[i]->text : "") << '=' << std::hex
+      << static_cast<uint32_t>(s.chassis.items[i]->value) << std::dec;
+  o << '\n';
+  for (size_t i = 0; i < s.chassis.rows.size(); ++i) {
+    const auto* t = static_cast<const ztwod::Text*>(s.chassis.rows[i]->attached);
+    if (!t) continue;
+    const ztwod::Object2D* sel = s.chassis.selected_row ? s.chassis.selected_row->attached : nullptr;
+    o << "row" << i << " tons " << t->x << ',' << t->y << " flags=" << std::hex << t->flags << " \"" << t->text
+      << "\" named=" << t->named << std::dec << " sel=" << (t == sel ? 1 : 0) << '\n';
+  }
+  o << "skins arrows=" << s.skins.prev.enabled << ',' << s.skins.next.enabled << " index=" << s.skins.index
+    << " items=";
+  for (size_t i = 0; i < s.skins.items.size(); ++i)
+    o << (i ? "|" : "") << (s.skins.items[i]->text ? s.skins.items[i]->text : "") << '=' << std::hex
+      << static_cast<uint32_t>(s.skins.items[i]->value) << std::dec;
   o << '\n';
 }
 
@@ -130,6 +165,28 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     ss >> std::hex >> slots >> pilot >> store >> shown >> flag >> n;
     g_slots.assign(n, 0);
     for (uint32_t& a : g_slots) ss >> a;
+    uint32_t model = 0, items = 0;
+    ss >> model >> items;
+    engine.store_addr = store;
+    for (uint32_t i = 0; i < items; ++i) {
+      uint32_t addr = 0, kind = 0, id = 0, count = 0;
+      ss >> addr >> kind >> id >> count;
+      mech3::ConfigItem* it = nullptr;
+      if (kind == 0) {
+        auto* b = new mech3::BaseItem;
+        b->value = static_cast<int32_t>(id);
+        it = b;
+      } else {
+        auto* w = new mech3::WeaponItem;
+        w->weapon = static_cast<int32_t>(id), w->tech = 1;
+        it = w;
+      }
+      it->count = static_cast<int32_t>(count);
+      engine.store.items.push_back(it);
+      engine.addr_of[it] = addr;
+      engine.item_at[addr] = it;
+    }
+    mech3::states().lab.model_ = model;
     mech3::LabState& lab = mech3::states().lab;
     lab.pilot_ = pilot;
     lab.store_ = store;
@@ -166,6 +223,27 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       s->show_page(static_cast<int32_t>(p), show != 0);
     } else if (op == "B") {
       s->on_button(static_cast<int32_t>(hex(ls)), 0, 0);
+    } else if (op == "L") {
+      s->chassis.select(static_cast<int32_t>(hex(ls)));
+    } else if (op == "Q") {  // the row of the shown slot's loadout's chassis (the test's config_row)
+      const mech3::LabState& lab = mech3::states().lab;
+      const uint32_t slot = lab.slot_ >= 0 && lab.slot_ < static_cast<int32_t>(g_slots.size())
+                                ? g_slots[static_cast<size_t>(lab.slot_)] : 0;
+      const uint32_t cfg = slot ? call("peek32", {slot + 8}) : 0;
+      if (cfg) {
+        const int32_t want = static_cast<int32_t>(call("peek32", {cfg + 0x14}));
+        for (int32_t k = 0; k < s->chassis.item_count(); ++k) {
+          const auto* it = engine.item_of(static_cast<mech3::Handle>(s->chassis.items[static_cast<size_t>(k)]->value));
+          if (it && it->kind() == 0 && it->id() == want) {
+            s->chassis.select(k);
+            break;
+          }
+        }
+      }
+    } else if (op == "K") {
+      s->skins.select(static_cast<int32_t>(hex(ls)));
+    } else if (op == "R") {
+      s->refresh();
     } else if (op == "C") {
       mech3::states().lab.set_mech(static_cast<int32_t>(hex(ls)));
     } else if (op == "X") {
