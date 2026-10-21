@@ -186,6 +186,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Point query's model test, 0x54be40 from 0x4eddb0/0x4ee140/0x4ee220 (mission-start.md section 11) | A polygon found for a record already holding 32 is written past the record (only the walk's entry checks) | (A) memory safety; no shipped place has 32 nodes' polygons under one point | Stops at 32; differential test identical on the six worlds |
 | Selected group's ammo, 0x4b1cd0 (the HUD's) | An empty group in group fire, or a group without a current weapon, returns a byte of the saved ECX: the top byte of the weapon manager's address | (bug) the answer is whatever the heap address holds, usually "has ammo" or not by chance | No ammo; `test_weapon_planner.py` checks the exe's byte and the port's no apart |
 | AI order stack, 0x4e9100 | Searching the orders for a net, the loop steps past a full last block of the deque into the map (the push takes its next block only when it needs one) | (bug) reads past an 8-byte heap block: a crash or garbage when no order is on the net and the orders fill a block exactly (13, 39, ... of them) | The search stops at the last order: no order on the net; `test_ai_orders.py` counts the case apart |
+| AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
 
 Notes on the fixes:
 
@@ -402,3 +403,10 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   Re-checking it every frame (keeping the bit) would match the setting's
   likely intent; it would make damaged pilots break off fights mid-mission,
   a balance change.
+
+- The AI brain's attack (0x4e9710): a pilot without a selected target
+  (Vehicle +0x6c) attacks the nearest enemy only when no enemy was picked
+  earlier in the frame; with p8's +0x88 and +0x8c at 0 the sight check
+  always picks first, so such pilots attack only what is selected for them.
+  Using the enemy already picked would be the evident intent; it would
+  change who the AI fights.

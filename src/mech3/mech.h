@@ -115,8 +115,8 @@ struct Mech : ai::AiTarget {
   Config* config = nullptr;  // +0x3ec
   Ams* ams = nullptr;        // +0x3f0  the anti-missile system (weapon.h)
   uint32_t x3f4[6] = {};     // +0x3f4
-  float x40c = 1.0f;         // +0x40c
-  bool damaged = false;      // +0x410
+  float x40c = 1.0f;         // +0x40c  health() cached
+  bool damaged = false;      // +0x410  health() to work out again
   bool killed_by_nuke = false;  // +0x411
   float alive_time = 0;      // +0x414  seconds of full updates
   Skis* skis = nullptr;      // +0x41c  the ground probes (mech_skis.h)
@@ -274,6 +274,7 @@ struct Mech : ai::AiTarget {
   int take_damage(WeaponDef* def, Collision* coll, float damage);  // vtable +0x164, 0x0041ac60
   void die();                         // vtable +0x70, 0x0041b0d0
   void on_part_destroyed(MechPart* part);  // 0x0041b5f0
+  float health();                          // 0x0041ba40 (vtable +0x98): the parts' health, cached at +0x40c
   void destroy_part(int id);          // 0x0041cfa0
   bool start_limp(int leg, bool fall);  // 0x0041d5f0
   void fall();                        // 0x0041b640

@@ -64,6 +64,7 @@ struct MechControls {
     jump_held = hold;
   }
   void zero();                   // 0x00426c80
+  void stop();                   // 0x00428490 (IControls +0x14): throttle, turn, jump and both jump-jet axes 0
   void init();                   // 0x004265a0's fields (most derived 0): at rest, view state 2
   // 0x00426650: the control mode (+0x08). While the axis table is ready, bit
   // 4 puts the joystick's axes in it and bit 1 the mouse's.
@@ -90,12 +91,18 @@ struct PlayerControls : MechControls {
 // exe, ai::Brain), the IControls virtual base at +0x30c (its owner +0x31c).
 // Each frame the brain (0x004e9710, not ported) sets the targets and runs the
 // smoothing. Made without a record, it has no brain (the smoothing's tests).
-struct AiControls : MechControls {
+struct AiControls : MechControls, ai::BrainControls {
   AiControls() = default;
   AiControls(Mech* owner, ai::AiNet* net, const ai::AiParams& rec);  // 0x004d8750(owner, net, rec, 1)
   ~AiControls() override;          // IControls vt+0x00: 0x004d8bf0 -> 0x004d8c00
   int update(float dt) override;   // 0x004e96f0
   std::unique_ptr<ai::Brain> brain;  // +0x5c
+
+  // What the brain asks of them (ai::BrainControls).
+  zgame::Handle vehicle() override;
+  void stop() override { MechControls::stop(); }
+  void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
+  bool hit_lately() override;      // IControls vt+0xa0 0x004aed40
 };
 
 // Mech3.exe 1.2 @ 0x00427280: the player's controls, made once in `mode`
@@ -125,7 +132,7 @@ struct ControlsCalls {
   void (*pilot_tick)(MechControls&) = nullptr;   // IControls +0xa4: 0x004d8990 (0x004d9290)
   uint8_t (*screen_busy)(void* screen) = nullptr;  // the HUD's +0x167c
   void (*zoom)(void* screen, bool in) = nullptr; // the HUD's +0x1508: vt +0x60(-1) held, vt +0x64 let go
-  int (*ai_brain)(MechControls&, float dt) = nullptr;  // 0x004e9710 on +0x5c; unset: the smoothing alone
+  int (*ai_brain)(MechControls&, float dt) = nullptr;  // AI controls without a brain (the tests'); unset: the smoothing alone
   void (*joy_use)() = nullptr;                   // 0x0051b2c0; unset: zin::joy_use
 };
 ControlsCalls& controls_calls();

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "crt/msvc_rand.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
 #include "mech3/zai_steps.h"
@@ -47,6 +48,47 @@ void BrainHooks::position(zgame::Handle v, float out[3]) {
   out[0] = out[1] = out[2] = 0;
   unported("0x005a85e0", {v});
 }
+bool& ai_switch() {
+  static bool on = false;
+  return on;
+}
+bool BrainHooks::ai_on() { return ai_switch(); }
+int32_t BrainHooks::powered_down(zgame::Handle v) { return static_cast<int32_t>(unported("vehicle.vt+0xa0", {v})); }
+Contact* BrainHooks::pick(zgame::Handle v, int32_t side) {
+  AiTarget* t = targetable(v);
+  return t ? t->first_of(side) : nullptr;
+}
+zgame::Handle BrainHooks::contact_vehicle(const Contact* c) { return unported("0x004e6fe0", {low(c)}); }
+float BrainHooks::contact_range2(zgame::Handle v) {
+  AiTarget* t = targetable(v);
+  return t ? t->range2 : fbits(unported("vehicle+0xa4", {v}));
+}
+void BrainHooks::count_awake() { unported("[0x006099c0]++", {}); }
+float BrainHooks::intensity() { return fbits(unported("[0x00608e54]", {})); }
+int32_t BrainHooks::rand() { return crt::msvc_rand(); }
+bool BrainHooks::ammo_value(zgame::Handle v, float* out) {
+  *out = 1.0f;
+  return unported("0x004b4ed0", {v}) != 0;
+}
+void BrainHooks::steer(Brain& b, zgame::Handle v, float dt) { unported("0x004cec80", {low(&b), v, bits(dt)}); }
+void BrainHooks::radio_line(Brain& b, int32_t event) { unported("0x004e6d50", {low(&b), event}); }
+void BrainHooks::vlist(Brain& b, zgame::Handle v, bool* picked, Contact** target) {
+  (void)picked, (void)target;
+  unported("0x004e9550", {low(&b), v});
+}
+void BrainHooks::firing_reset(Brain& b) { unported("0x004e9590", {low(&b)}); }
+void BrainHooks::firing_run(Brain& b, float dt) { unported("0x004e9fb0", {low(&b), bits(dt)}); }
+AiNet* BrainHooks::vehicle_net(zgame::Handle v) {
+  unported("vehicle.vt+0xd8", {v});
+  return nullptr;
+}
+Behaviour* BrainHooks::attack_behaviour(AiNet* n) {
+  unported("0x004c0e10", {low(n)});
+  return nullptr;
+}
+bool BrainHooks::attack(Brain& b, AiNet* n) { return unported("0x004e9ca0", {low(&b), low(n)}) != 0; }
+void BrainHooks::own_order_run(Brain& b, float dt) { unported("0x004e81a0", {low(&b), bits(dt)}); }
+
 Behaviour* BrainHooks::manoeuvre_behaviour(int32_t which) {
   // 0x00410650 / 0x00410680 at start-up; their state (0x004caae0, item 11)
   // is not ported: the base one for now.
@@ -492,6 +534,123 @@ void Brain::manoeuvre() {
   if (which != 0 && which != 1) return;
   push_behaviour(brain_hooks().manoeuvre_behaviour(which));
   xf4 = 3.4028235e38f;
+}
+
+// --- the frame (docs/ai.md 17.1) ---------------------------------------------
+
+namespace {
+constexpr float kFltMax = 3.4028235e38f;
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004e9710
+bool Brain::frame(BrainControls& c, float dt) {
+  BrainHooks& h = brain_hooks();
+  if (!h.ai_on()) {
+    c.stop();
+    c.smooth(dt);
+    return true;
+  }
+  const zgame::Handle owner = c.vehicle();
+  const bool down = h.powered_down(owner) == 1;
+  h.steer(*this, owner, dt);
+  if (!x2a4 && down) {
+    c.stop();
+    c.smooth(dt);
+    return true;
+  }
+  bool answer = true;
+  bool picked = false;
+  Contact* enemy = nullptr;  // the nearest enemy, picked once
+  const uint8_t flags = params.raw[0xcc];
+  x22c = (flags >> 1) & 2;
+  if (params.get<int32_t>(0x5c) && h.now() > xdc) {  // the delay before engaging (+0x5c)
+    params.put<int32_t>(0x3c, 1);
+    xdc = kFltMax;
+  }
+  AiTarget* self = h.targetable(owner);
+  bool awake = true;
+  if (params.get<int32_t>(0x88) == 0) {
+    const Contact* t;
+    if (params.get<int32_t>(0x8c)) {
+      t = self ? self->player_contact : nullptr;
+    } else {
+      t = enemy = h.pick(owner, kEnemy);
+      picked = true;
+    }
+    if (t) awake = !(t->dist2 >= params.get<float>(0x1c));  // the sight range; a NaN sees
+  }
+  if (!awake) {
+    // Asleep: still steered while its attacker is within that one's range.
+    const Contact* a = self ? self->player_contact : nullptr;
+    const zgame::Handle v = a ? h.contact_vehicle(a) : 0;
+    if (v && !(a->dist2 >= h.contact_range2(v))) {
+      c.stop();
+      c.smooth(dt);
+    } else {
+      answer = false;
+    }
+  } else {
+    h.count_awake();
+    float ammo;
+    if (radio && h.ammo_value(owner, &ammo)) {
+      if (!(ammo >= 0.1f)) h.radio_line(*this, 10);        // out_of_ammo (radio +0x28)
+      else if (!(ammo >= 0.25f)) h.radio_line(*this, 9);   // low_ammo (+0x24)
+    }
+    h.vlist(*this, owner, &picked, &enemy);
+    // Hit lately: the firing starts again and the pilot may manoeuvre (+0x9c).
+    if (xf0 == 0 && params.get<int32_t>(0x9c) && h.now() > x100 && c.hit_lately() && may_fire()) {
+      x100 = params.get<float>(0xb0) + h.now();
+      h.firing_reset(*this);
+      manoeuvre();
+    }
+    bool attacking = false;
+    AiNet* net = current().net->net();
+    if (may_engage(owner, net, current().state.get())) {
+      // Without a selected target the nearest enemy, but only when none was
+      // picked yet this frame: one the sight check picked is not used
+      // (as written; docs/fixes.md candidates).
+      const Contact* t = self ? self->target : nullptr;
+      if (!t && !picked) {
+        picked = true;
+        t = enemy = h.pick(owner, kEnemy);
+      }
+      const zgame::Handle v = t ? h.contact_vehicle(t) : 0;
+      const float d2 = v ? t->dist2 : kFltMax;
+      // FIX (bug): no vehicle with a range past FLT_MAX (a NaN) calls through
+      // null in the exe; here no attack.
+      if (!(d2 >= params.get<float>(0x20)) && v) {
+        attacking = true;
+        if (AiNet* vn = h.vehicle_net(v))
+          if (Behaviour* beh = h.attack_behaviour(vn))
+            if (h.attack(*this, net)) {
+              x230 = h.health(owner) - params.get<float>(0xb4);
+              xe8 = params.get<float>(0x4c) * h.intensity() + h.now();
+              push(vn, beh);
+            }
+      }
+    }
+    bool due = false;
+    if (!attacking && xf0 == 0 && params.get<int32_t>(0xa0) && may_fire()) {
+      if (xf4 == kFltMax) {  // a random wait between +0x64 and +0x68
+        const float lo = params.get<float>(0x64), hi = params.get<float>(0x68), now = h.now();
+        const float r = static_cast<float>(h.rand());
+        xf4 = (hi - lo) * 3.051851e-05f * r + lo + now;
+      } else if (h.now() > xf4) {
+        due = true;
+        manoeuvre();
+      }
+    }
+    if (attacking || due) xf4 = kFltMax;
+    do {
+      x104 = 0;
+      current().run(dt);
+    } while (x104);
+    if (!down && params.get<int32_t>(0x80) == 1) h.own_order_run(*this, dt);  // [0x005e9d40] is 1
+    c.smooth(dt);
+    if (!down) h.firing_run(*this, dt);
+  }
+  if (x22c != 2) params.raw[0xcc] = static_cast<uint8_t>((params.raw[0xcc] & ~4u) | (x22c ? 4u : 0u));
+  return answer;
 }
 
 }  // namespace mech3::ai

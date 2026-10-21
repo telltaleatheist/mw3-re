@@ -161,6 +161,33 @@ void Mech::die() {
   }
 }
 
+// Mech3.exe 1.2 @ 0x0041ba40 (vtable +0x98; the AI's gates read it, ai.md
+// 17.3): 0 dead, 1 invincible, else each part's lost internal weighed (head
+// 1, legs 0.5, arms 0.2, the centre torso 1, its sides 0.5) and multiplied,
+// in float a step at a time as at the game's 24-bit x87.
+float Mech::health() {
+  if (!damaged) return x40c;
+  float h;
+  if (anim_state == 10) {
+    h = 0.0f;
+  } else if (invincible) {
+    h = 1.0f;
+  } else {
+    struct Weighed { MechPart* part; int32_t i; float w; };
+    const Weighed ws[8] = {{head, 0, 1.0f}, {legs[0], 0, 0.5f}, {legs[1], 0, 0.5f}, {arms[0], 0, 0.2f},
+                           {arms[1], 0, 0.2f}, {torso, 0, 1.0f}, {torso, 1, 0.5f}, {torso, 2, 0.5f}};
+    h = 1.0f;
+    for (const Weighed& x : ws) {
+      const float lost = 1.0f - x.part->get_internal(x.i);
+      const float wl = x.w * lost;
+      h = (1.0f - wl) * h;
+    }
+  }
+  x40c = h;
+  damaged = false;
+  return x40c;
+}
+
 // Mech3.exe 1.2 @ 0x0041b5f0. On the Elemental any part lost is death.
 void Mech::on_part_destroyed(MechPart* part) {
   if (!part) return;

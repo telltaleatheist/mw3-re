@@ -203,7 +203,7 @@ unusual happens.
 - An AI pilot with exactly 13 (or 39, ...) orders queued no longer reads past its order list (a possible crash) when the game checks whether it is on a path it is not on.
 - A target behind the zoom window's camera no longer picks TARGET's arrow from stray memory bits (the original read an unset value there).
 - A mech with a targeting computer and no weapon group selected no longer crashes the game when it has a target on screen (the lead circle needs a group).
-
+- An AI vehicle record with a broken attack range no longer crashes the game when its pilot has no target.
 
 ## Copy protection removed
 

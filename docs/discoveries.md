@@ -1407,6 +1407,15 @@ are all "puffers": emitters that drop little textured squares.
   checks it again, one already hurt stays out until repaired), a time limit on each attack, and how much damage it takes before
   giving an attack up. The time limit scales with the game's intensity
   setting (`ai.md` 17.3).
+- **Pilots without a chosen target may not pick one to attack.** Read from
+  the code: when an AI pilot weighs an attack and has no target selected,
+  it takes the nearest enemy only if it has not already looked one up that
+  frame, and the usual sight check has. So most pilots attack only what is
+  selected for them (`ai.md` 17.1).
+- **A pilot that cannot see you stands still.** When its sight check fails
+  and whoever is attacking it is out of range, an AI mech skips its whole
+  update for the frame: it neither moves nor animates until something
+  comes into sight (a cheap way to idle distant enemies).
 - **Pilots stand down when the mission ends.** One switch turns every
   pilot's thinking on when the mission starts and off in the cleanup; off,
   they only stop and settle (`ai.md` 17.8).

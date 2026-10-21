@@ -564,7 +564,7 @@ class Engine : public zgame::AppHooks {
   virtual void hud_update() { unported("0x0040fac0", {}); }
   virtual void hud_draw() { unported("0x0040e4b0", {}); }
   virtual void shadows_reset() { unported("0x004e6900", {}); }
-  virtual void classes_reset() { unported("0x004ea740", {}); }
+  virtual void ai_on() { unported("0x004ea740", {}); }  // the AI switch on (ai::ai_switch_on)
   virtual void reader_close_archives(int32_t all) { unported("0x005573d0", {all}); }
   virtual void anim_stop(int32_t a) { unported("0x0050ace0", {a}); }
   virtual void debug_mark(const char* text) { unported("0x0040fef0", {text}); }

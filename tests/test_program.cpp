@@ -1670,6 +1670,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       mech3::LaunchedMech asleep, woke, owens_end;
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
+      bool ai_on = false, orders_ok = true;
+      mech3::ai::Brain* brain = nullptr;
+      std::map<std::string, uint32_t> counts0, counts1;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1688,12 +1691,18 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         mech3::describe_mech(owens, &seen.asleep);
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
         mech3::describe_mech(owens, &seen.woke);
+        seen.ai_on = mech3::ai::ai_switch();
+        seen.brain = made == 1 ? static_cast<mech3::AiControls*>(ai[0].controls)->brain.get() : nullptr;
+        seen.counts0 = engine.unported_counts();
       } else if (seen.frames > 3 && seen.frames < 200) {
+        // Its brain's frame each tick (ai.md 17.1), its orders never empty.
+        if (seen.brain && seen.brain->orders.empty()) seen.orders_ok = false;
         // Its frames run, standing on the ground.
         if (!o.feet_down) seen.feet = false;
         const float g = ground_under(o.pos[0], o.pos[1] + 20.0f, o.pos[2]);
         seen.off_ground = std::max(seen.off_ground, std::fabs(o.pos[1] - g));
       } else if (seen.frames == 200) {
+        seen.counts1 = engine.unported_counts();
         seen.owens_end = o;
         // 30 m west of the Owens, facing east (+x), walking at it.
         const float x = o.pos[0] - 30.0f, z = o.pos[2];
@@ -1720,7 +1729,20 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.mech_block && !seen.wall_block);             // the player blocked by it as a mech
     EXPECT(seen.closest > 3.0f);                             // not walked through
     EXPECT(seen.owens_end.attacker == player);               // the bump hit it (0x00423a20)
+    // The brain's frame ran on every tick since (its first call out, the
+    // steering 0x004cec80, not ported yet), the AI switch on, the orders kept.
+    auto ran = [&](const char* key) {
+      auto at = [&](const std::map<std::string, uint32_t>& m) { auto i = m.find(key); return i == m.end() ? 0u : i->second; };
+      return at(seen.counts1) - at(seen.counts0);
+    };
+    EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
+    // Awake (the player in sight) each tick: the vlist, the hit test before
+    // the firing's reset, the current order's state (the shared behaviour's
+    // 0x004cbeb0), the brain's own order and the firing ran each time.
+    for (const char* k : {"0x004cec80", "0x004e9550", "0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
+      EXPECT(ran(k) >= 190);
     mech3::missions().cleanup(false);
+    EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

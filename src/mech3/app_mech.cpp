@@ -246,12 +246,7 @@ void wire_mech_frame() {
   c.contact_dist2 = [](Handle ct) { return static_cast<ai::Contact*>(ct)->dist2; };
   c.contact_dist = [](Handle ct) { return static_cast<ai::Contact*>(ct)->distance(); };
   c.contact_dir = [](Handle ct) { return reinterpret_cast<const Vec3*>(static_cast<ai::Contact*>(ct)->dir); };
-  // The AI mechs' controls: the brain (0x004e9710 on +0x5c) is not ported;
-  // the smoothing it ends in runs on the targets as they are.
-  controls_calls().ai_brain = [](MechControls& ctl, float dt) {
-    g_w.unported(g_w.engine, "0x004e9710", {});
-    return ctl.smooth(dt);
-  };
+  // The AI mechs' controls run their brains' frames (AiControls::update).
   // The player's keys (Mech::command): what is not ported is logged once by
   // the engine; the HUD's keys wait for the HUD's own commands.
   CommandCalls& k = command_calls();
@@ -407,6 +402,20 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
 }
 void* mech_controls_of(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 float mech_game_time() { return world().time; }
+float mech_health(void* mech) { return static_cast<Mech*>(mech)->health(); }
+bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered_down(); }
+ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }
+bool mech_ammo_value(void* mech, float* out) {
+  const auto* m = static_cast<const WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  if (!m) return false;
+  *out = m->ammo_value_inv != 0 ? m->ammo_value * m->ammo_value_inv : 1.0f;
+  return true;
+}
+bool mech_world_position(void* mech, float out[3]) {
+  const Vec3* p = entity_position(*static_cast<Mech*>(mech));
+  out[0] = p ? p->x : 0, out[1] = p ? p->y : 0, out[2] = p ? p->z : 0;
+  return p != nullptr;
+}
 // The missions object's +0x4c (0x0048f470) is [0x0060991c]: the copies the ports keep.
 void mech_set_game_time(float t) { world().time = weapon_world().time = t; }
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v) {

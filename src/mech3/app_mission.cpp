@@ -321,6 +321,25 @@ struct WiredBrainHooks : ai::BrainHooks {
     *allies = mech_allies(e->object_of(v));
     return true;
   }
+  // The brain's frame (docs/ai.md 17.1) on the AI mechs: the other vehicles
+  // are not ported, so every pilot's vehicle and every contact's is a mech.
+  void* mech(Handle v) const { return e->object_of(v); }
+  Handle vehicle_handle(void* vehicle) override { return e->handle_of(vehicle); }
+  float now() override { return mech_game_time(); }
+  float health(Handle v) override { return mech_health(mech(v)); }
+  void position(Handle v, float out[3]) override { mech_world_position(mech(v), out); }
+  ai::AiTarget* targetable(Handle v) override { return v ? mech_ai_target(mech(v)) : nullptr; }
+  int32_t powered_down(Handle v) override { return mech_powered_down(mech(v)) ? 1 : 0; }  // 0x0041cc10
+  // 0x004e6fe0 then vt+0x40: a mech answers itself; targets.zrd's objects 0.
+  Handle contact_vehicle(const ai::Contact* c) override {
+    for (const ai::Handle s : ai::entity_list())
+      if (c->seen && s == c->seen) return s;
+    return 0;
+  }
+  float contact_range2(Handle v) override { return mech_ai_target(mech(v))->range2; }
+  void count_awake() override { e->poke32(0x6099c0, e->peek32(0x6099c0) + 1); }
+  float intensity() override { return options().intensity[0]; }
+  bool ammo_value(Handle v, float* out) override { return mech_ammo_value(mech(v), out); }
 };
 WiredBrainHooks g_brain_hooks;
 
@@ -530,6 +549,7 @@ struct WiredTargetHooks : ai::TargetHooks {
 WiredTargetHooks g_target_hooks;
 
 struct WiredMissionHooks : MissionHooks {
+  void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
   GameEngine* e = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
@@ -890,6 +910,7 @@ void GameEngine::missions_start(uint32_t list) {
 // 0x004a8cd0 and 0x004d5ca0: the ports (mech3/sensors).
 void GameEngine::sensors_update() { ai::sensors_update(); }
 void GameEngine::entities_sort() { ai::entities_sort(); }
+void GameEngine::ai_on() { ai::ai_switch_on(); }
 // Mech3.exe 1.2 @ 0x00575a00 (ztimer::update), once a frame from zGameApp::Run:
 // the step [0x0072c52c] is one global in the exe, so its copies in the mech,
 // weapon and zWeapon modules are set with it.

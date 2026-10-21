@@ -409,13 +409,27 @@ AiControls::AiControls(Mech* o, ai::AiNet* net, const ai::AiParams& rec) {
 // 0x004cf630, then the base's vtables back (nothing to free).
 AiControls::~AiControls() = default;
 
-// Mech3.exe 1.2 @ 0x004e96f0: the brain's update (0x004e9710, on +0x5c), which
-// sets the targets and runs the smoothing itself (through 0x004d89f0). Until
-// the brain is ported, the smoothing alone stands in for it.
+// Mech3.exe 1.2 @ 0x004e96f0: the brain's frame (0x004e9710, on +0x5c),
+// which sets the targets and runs the smoothing itself (0x004d89f0).
+// Controls made without a record have no brain: the hook, else the smoothing.
 int AiControls::update(float dt) {
+  if (brain) return brain->frame(*this, dt) ? 1 : 0;
   if (g_calls.ai_brain) return g_calls.ai_brain(*this, dt) != 0 ? 1 : 0;
   MechControls::update(dt);
   return 1;
+}
+
+zgame::Handle AiControls::vehicle() { return ai::brain_hooks().vehicle_handle(owner); }
+bool AiControls::hit_lately() { return ai::brain_hooks().hit_lately(vehicle()); }
+
+// Mech3.exe 1.2 @ 0x00428490, its five setters through IControls (+0x20,
+// +0x28, +0x34, +0x3c, +0x44).
+void MechControls::stop() {
+  set_throttle(0);
+  set_turn(0);
+  set_jump(0);
+  jj_forward = 0;  // 0x00428560
+  jj_strafe = 0;   // 0x00428570
 }
 
 // --- the player's controls made (docs/mech-build.md section 7) -----------------
