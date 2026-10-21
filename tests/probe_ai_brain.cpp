@@ -200,11 +200,12 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   o.u(at + 0x248, static_cast<uint32_t>(b.step.x08));
   o.u(at + 0x24c, 0x00603fa0);
   const ai::Steer& s = b.steer;
-  o.v3(at + 0x250, s.x00);
-  o.u(at + 0x25c, s.x0c), o.u(at + 0x260, s.x10);
-  for (uint32_t i = 0; i < 6; ++i) o.u(at + 0x264 + 4 * i, s.x14[i]);
-  o.u(at + 0x27c, s.x2c), o.u(at + 0x280, s.x30);
-  o.f(at + 0x284, s.x34), o.f(at + 0x288, s.x38);
+  o.v3(at + 0x250, s.start);
+  o.f(at + 0x25c, s.dir[0]), o.f(at + 0x260, s.dir[1]);
+  o.f(at + 0x264, s.along_min), o.f(at + 0x268, s.length), o.f(at + 0x26c, s.along_at);
+  o.f(at + 0x270, s.across), o.f(at + 0x274, s.across_to), o.f(at + 0x278, s.rate);
+  o.f(at + 0x27c, s.along), o.f(at + 0x280, s.side);
+  o.f(at + 0x284, s.near_dist), o.f(at + 0x288, s.x38);
   o.u(at + 0x28c, s.x3c), o.u(at + 0x290, s.x40), o.u(at + 0x294, s.x44);
   o.v3(at + 0x298, b.x298);
   o.b8(at + 0x2a4, b.x2a4);

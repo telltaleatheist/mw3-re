@@ -91,6 +91,7 @@ for t in \
     ai_gates \
     ai_frame \
     ai_vlist \
+    ai_steer \
     mech_health \
     ai_valves \
     ai_targets \

@@ -413,7 +413,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
         EXPECT(b->firing.brain == b && b->firing.aim && b->firing.x00[0] == 8);
         EXPECT(b->radio == nullptr);  // owens_01 has no sound_tag
         EXPECT(b->step.next == mech3::ai::null_step());
-        EXPECT(b->steer.x34 == 20.0f && b->steer.x38 > 0.7071f && b->steer.x38 < 0.7072f);
+        EXPECT(b->steer.near_dist == 20.0f && b->steer.x38 > 0.7071f && b->steer.x38 < 0.7072f);
       }
     }
     // valves.zrd (docs/ai.md section 13): c1 mission 1's triggers; bramp's
@@ -1734,8 +1734,8 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.mech_block && !seen.wall_block);             // the player blocked by it as a mech
     EXPECT(seen.closest > 3.0f);                             // not walked through
     EXPECT(seen.owens_end.attacker == player);               // the bump hit it (0x00423a20)
-    // The brain's frame ran on every tick since (its first call out, the
-    // steering 0x004cec80, not ported yet), the AI switch on, the orders kept.
+    // The brain's frame ran on every tick since (its calls out not ported
+    // yet, counted below), the AI switch on, the orders kept.
     auto ran = [&](const char* key) {
       auto at = [&](const std::map<std::string, uint32_t>& m) { auto i = m.find(key); return i == m.end() ? 0u : i->second; };
       return at(seen.counts1) - at(seen.counts0);
@@ -1744,7 +1744,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // Awake (the player in sight) each tick: the hit test before the
     // firing's reset, the current order's state (the shared behaviour's
     // 0x004cbeb0), the brain's own order and the firing ran each time.
-    for (const char* k : {"0x004cec80", "0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
+    for (const char* k : {"0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
       EXPECT(ran(k) >= 190);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off

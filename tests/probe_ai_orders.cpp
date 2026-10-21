@@ -124,6 +124,17 @@ int32_t contact_index(const ai::Contact* c) {
   return 0;
 }
 
+// The steering test's (test_ai_steer.py): the owner's contacts, each on an
+// entity with a position and a flat forward.
+struct Entity {
+  zgame::Handle handle = 0;
+  float pos[3] = {}, fwd[2] = {};
+};
+std::vector<Entity> g_entity(8);
+std::vector<ai::Contact> g_steer_store(8);
+std::vector<ai::Contact*> g_steer_contacts;
+std::vector<int32_t> g_contact_entity;
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
@@ -133,6 +144,8 @@ struct Hooks : ai::BrainHooks {
   void position(zgame::Handle v, float out[3]) override {
     call("0x005a85e0", {v});
     std::memcpy(out, g_pos, 12);
+    for (const Entity& en : g_entity)
+      if (en.handle && en.handle == v) std::memcpy(out, en.pos, 12);
   }
   ai::AiTarget* targetable(zgame::Handle v) override { return v == kOwner ? &g_target : nullptr; }
   ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
@@ -153,7 +166,16 @@ struct Hooks : ai::BrainHooks {
     (void)v;
     return true;
   }
-  void steer(ai::Brain&, zgame::Handle v, float dt) override { call("0x004cec80", {bits(dt), v}); }
+  const std::vector<ai::Contact*>* contacts(zgame::Handle v) override { return v == kOwner ? &g_steer_contacts : nullptr; }
+  zgame::Handle contact_entity(const ai::Contact* c) override {
+    for (size_t i = 0; i < g_steer_contacts.size(); ++i)
+      if (g_steer_contacts[i] == c) return g_entity[g_contact_entity[i]].handle;
+    return 0;
+  }
+  void forward(zgame::Handle e, float* x, float* z) override {
+    for (const Entity& en : g_entity)
+      if (en.handle && en.handle == e) *x = en.fwd[0], *z = en.fwd[1];
+  }
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
   void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
   void firing_run(ai::Brain&, float dt) override { call("0x004e9fb0", {bits(dt)}); }
@@ -384,5 +406,50 @@ void probe_ao_vlist(int32_t picked, int32_t target, int32_t* out) {
   for (int i = 0; i < 4; ++i) out[2 + i] = g_valves[static_cast<size_t>(i)]->get();
   g_brain->params.vlist = nullptr;
 }
+
+// The steering test's world: n entities (handle, pos[3], fwd[2]: 6 words
+// each) and m contacts (dist2, entity index: 2 words each).
+void probe_ao_steer_world(const uint32_t* ents, int32_t n, const uint32_t* cs, int32_t m) {
+  for (int i = 0; i < 8; ++i) g_entity[static_cast<size_t>(i)] = Entity{};
+  for (int i = 0; i < n; ++i) {
+    Entity& e = g_entity[static_cast<size_t>(i)];
+    e.handle = ents[6 * i];
+    for (int k = 0; k < 3; ++k) e.pos[k] = fl(ents[6 * i + 1 + k]);
+    e.fwd[0] = fl(ents[6 * i + 4]), e.fwd[1] = fl(ents[6 * i + 5]);
+  }
+  g_steer_contacts.clear();
+  g_contact_entity.clear();
+  for (int i = 0; i < m; ++i) {
+    ai::Contact& c = g_steer_store[static_cast<size_t>(i)];
+    c.dist2 = fl(cs[2 * i]);
+    g_steer_contacts.push_back(&c);
+    g_contact_entity.push_back(static_cast<int32_t>(cs[2 * i + 1]));
+  }
+}
+
+// One steering call on the brain's: 0 set(to, from, rate), 1 update(dt), 2
+// near, 3 carrot; f the floats. out: the answer (3 floats for the carrot),
+// then the 0x48 bytes.
+void probe_ao_steer(int32_t op, const uint32_t* f, uint32_t* out) {
+  ai::Steer& s = g_brain->steer;
+  float a[7];
+  for (int i = 0; i < 7; ++i) a[i] = fl(f[i]);
+  out[0] = out[1] = out[2] = 0;
+  switch (op) {
+    case 0: s.set(a, a + 3, a[6], kOwner); break;
+    case 1: s.update(a[0], kOwner); break;
+    case 2: out[0] = s.near(); break;
+    case 3: {
+      float c[3];
+      s.carrot(c);
+      for (int i = 0; i < 3; ++i) out[i] = bits(c[i]);
+      break;
+    }
+  }
+  std::memcpy(out + 3, &s, 0x48);
+}
+
+// The steering block set outright (0x48 bytes).
+void probe_ao_steer_load(const uint8_t* b) { std::memcpy(&g_brain->steer, b, 0x48); }
 
 }  // extern "C"
