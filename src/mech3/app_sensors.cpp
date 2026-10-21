@@ -3,7 +3,7 @@
 // CZAiTarget's vtables do (0x005bcef8, 0x005ccb90), their fields read from
 // the ports' objects, the nodes' world positions from zClass. Not original
 // code. What the mech's slots do beyond the sensors (the HUD's lock 0x0041d890,
-// the brain's refresh 0x004aedd0) is logged; the level of detail is mech_lod's.
+// the brain's refresh 0x004aedd0, empty) is noted; the level of detail is mech_lod's.
 #include "mech3/app_sensors.h"
 #include "mech3/app_hud.h"
 #include "mech3/mech_lod.h"
@@ -79,8 +79,10 @@ struct ProgramSensors : ai::SensorHooks {
         case 0xb4: case 0xec: return 0;
         case 0xcc: return m->active ? 1 : 0;  // 0x004aee00: +0x08, the controls' answer
         case 0xd0: return static_cast<uint32_t>(lod_update(*m));  // 0x0041e870: the level of detail
-        case 0xc8:  // 0x0041e810: the brain told (0x004aedd0, logged), then the detail budget
-          log_unported("0x004aedd0", {o});
+        case 0xc8:  // 0x0041e810: the brain told, then the detail budget
+          // 0x004aedd0: the controls' (vt+0x140) brain (vt+0x54) vt+0x08, the
+          // empty 0x005ac5c0 in every brain's vtable (ai.md, The brain's
+          // refresh): nothing to do.
           if (Mech* p = world().mission_player) lod_budget(*p);
           return 0;
         case 0x140: return handle(m->controls);

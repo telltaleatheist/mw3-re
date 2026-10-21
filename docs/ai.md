@@ -1675,6 +1675,16 @@ every brain only stops and smooths. [0x5e9d40] is 1 and never written.
 [0x6099c0] counts awake pilots. The AI tester dialog (section 1) is the
 only other way in.
 
+### 17.8a The brain's refresh (0x4aedd0)
+
+A mech's vt+0xc8 (0x41e810), which the sensors call on every vehicle each
+frame, first runs 0x4aedd0: the controls (vt+0x140), their brain (vt+0x54),
+then the brain's vt+0x08. In every brain-like vtable (0x5cc698, 0x5cd190,
+0x5cd2c8, 0x5cd6e8, 0x5cd830: those with 0x4e9640 at +0x0c) that slot is
+0x5ac5c0, a bare `ret`, so the refresh does nothing in 1.2. The port calls
+nothing (app_sensors.cpp); the rest of 0x41e810 is the level of detail's
+budget (movement.md).
+
 ### 17.9 Porting order
 
 Each item is one family with its own differential test; what it calls
