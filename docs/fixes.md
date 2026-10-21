@@ -336,6 +336,10 @@ To do, in the specialists' queues:
   selected", which never happens as written). `zfix bugs`.
 - Inverted mouse Y: keep the player's sensitivity and flip only its sign
   (the options' ACCEPT wrote -1.3 or 1.3 over MouseAccelY). FIX (bug).
+- Cosmetic slips in the data (spelling, a credits heading's `"offset" (20)`
+  missing its second number, so it borrows the line above's): fix them
+  (Owen: "we can fix little cosmetic things like spelling errors").
+  FIX (bug), each listed here and in CHANGES.md.
 - Resolution: 16:9 as the shape either way (today's monitors); limit the
   size to 1920x1080 if larger sizes are a problem.
 
@@ -369,10 +373,4 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   (and 3 for software) by a video-memory estimate (0x004ab860); its names
   for 8..10 (1152x864, 1280x1024, 1600x1200) are never used, and ACCEPT
   writes the chosen mode over a registry-set 8..10.
-
-- The credits' "Other Voices" heading (dlgCredits.zrd) has `"offset" (20)`,
-  one number, so the reader keeps the line before's offset (30 0): the
-  heading is indented like a name and sits with no gap above it, unlike
-  every other heading's (20 20). An importer data fix would make it
-  `(20 20)`; cosmetic.
 
