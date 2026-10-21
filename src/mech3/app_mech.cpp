@@ -397,6 +397,22 @@ void mech_power(void* mech, int32_t down) {
   if (mech) static_cast<Mech*>(mech)->power(down);
 }
 uint32_t mech_allies(const void* mech) { return mech ? static_cast<const Mech*>(mech)->allies : 0; }
+std::vector<DebriefMech> mech_debrief_lance() {
+  std::vector<DebriefMech> r;
+  for (const ai::Handle h : ai::entity_list()) {
+    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    if (!m) continue;
+    DebriefMech d;
+    d.mech = m;
+    d.player = m == world().mission_player;
+    d.team = m->team;
+    d.type = m->pilot ? m->pilot->roster : -1;
+    for (int i = 0; i < 6; ++i) d.stats[i] = static_cast<int32_t>(m->x3f4[i]);
+    r.push_back(d);
+  }
+  return r;
+}
+uint32_t mech_player_allies() { return world().mission_player ? world().mission_player->allies : 0; }
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   Mech* m = static_cast<Mech*>(mech);
   if (!m) return false;

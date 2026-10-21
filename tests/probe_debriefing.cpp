@@ -11,6 +11,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
@@ -24,8 +25,11 @@ using mech3::Arg;
 
 struct Setup {
   uint32_t kind = 1, op = 1, mission = 1, failed = 0, cheat = 0, time = 0, salvage = 0, won = 0, ia44 = 1, b0 = 0,
-           round = 0;
+           round = 0, x6c = 0, x70 = 0, c4 = 0, b4[4] = {}, ended = 0, allies = 0;
+  std::vector<mech3::Engine::LanceMech> lance;
+  std::vector<mech3::Engine::Objective> objectives[2];
 };
+const char* const kNames[] = {"", "Me14", "Me15", "Me01", "Kobra"};
 
 std::string hex_s(uint32_t v) {
   char b[16];
@@ -82,6 +86,22 @@ struct DbEngine : mech3::Engine {
     const std::string text = s ? s : "";
     if (!call("0x00575fd0", {id, a, text.c_str()})) return std::string();
     return ("F" + hex_s(static_cast<uint32_t>(id)) + ":" + std::to_string(a) + "," + text).substr(0, 0xff);
+  }
+
+  std::vector<LanceMech> debrief_lance() override { return c.lance; }
+  uint32_t player_allies() override { return c.allies; }
+  std::vector<Objective> debrief_objectives(int32_t which) override { return c.objectives[which & 1]; }
+  const char* objective_text(Handle obj) override {
+    if (!call("0x0045e080", {obj})) return nullptr;
+    return keep("obj" + hex_s(obj));
+  }
+  int32_t campaign_score() override { return static_cast<int32_t>(c.c4); }
+  int32_t campaign_record(int32_t i) override { return static_cast<int32_t>(c.b4[i & 3]); }
+  bool mission_ended() override { return c.ended != 0; }
+  void action_rounds(int32_t* mode, int32_t* rounds, int32_t* waves) override {
+    *mode = static_cast<int32_t>(c.ia44);
+    *rounds = x6c;
+    *waves = x70;
   }
 
   void pilot_save_now() override { call("0x00478ce0", {}); }
@@ -143,6 +163,9 @@ void dump_screen(mech3::DebriefScreen& s, const DbEngine& e, Dump& d) {
     o << "card" << i << " mech=" << c.mech << std::hex << " veh=" << c.vehicle << std::dec
       << " display=" << (c.display ? 1 : 0) << " name=o" << ref(d, &c.name) << '\n';
   }
+  o << "results score=" << s.score << " lance=" << s.lance_scores[0] << ',' << s.lance_scores[1] << ','
+    << s.lance_scores[2] << ',' << s.lance_scores[3] << " count=" << mech3::debrief_lance_count()
+    << " texts=" << s.texts.size() << '\n';
   o << game_line(e);
 }
 
@@ -159,8 +182,34 @@ int probe_debriefing_run(const char* reader, const char* setup, const char* plan
     std::istringstream ss(setup);
     Setup& c = engine.c;
     ss >> std::hex >> c.kind >> c.op >> c.mission >> c.failed >> c.cheat >> c.time >> c.salvage >> c.won >> c.ia44 >>
-        c.b0 >> c.round;
+        c.b0 >> c.round >> c.x6c >> c.x70 >> c.c4 >> c.b4[0] >> c.b4[1] >> c.b4[2] >> c.b4[3] >> c.ended >> c.allies;
     engine.b0 = static_cast<uint8_t>(c.b0);
+    engine.x6c = static_cast<int32_t>(c.x6c);
+    engine.x70 = static_cast<int32_t>(c.x70);
+    uint32_t n = 0;
+    ss >> n;
+    for (uint32_t i = 0; i < n; ++i) {
+      mech3::Engine::LanceMech m;
+      uint32_t player = 0, team = 0, type = 0, name = 0, st[6] = {};
+      ss >> m.mech >> player >> team >> type >> st[0] >> st[1] >> st[2] >> st[3] >> st[4] >> st[5] >> name;
+      m.player = player != 0;
+      m.team = team;
+      m.type = static_cast<int32_t>(type);
+      for (int k = 0; k < 6; ++k) m.stats[k] = static_cast<int32_t>(st[k]);
+      m.name = kNames[name % 5];
+      c.lance.push_back(m);
+    }
+    for (auto& list : c.objectives) {
+      ss >> n;
+      for (uint32_t i = 0; i < n; ++i) {
+        mech3::Engine::Objective o;
+        uint32_t done = 0, shown = 0;
+        ss >> o.obj >> done >> shown;
+        o.done = done != 0;
+        o.shown = shown != 0;
+        list.push_back(o);
+      }
+    }
   }
   std::unique_ptr<mech3::Mech3App> app;
   {

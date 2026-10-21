@@ -1991,6 +1991,26 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   the debriefing's REPLAY button and its salvage.
 - **The lance cards on the debriefing ignore the mouse**; only CONTINUE,
   REPLAY and ABORT react.
+- **How the debriefing scores a campaign mission:** each primary or
+  secondary objective you completed is worth 2,500 points (one not done
+  shows "Failed" and 0); the lance's points for mechs, vehicles and turrets
+  destroyed are added. That is the Mission Total; the Campaign Total is the
+  campaign's running score plus the Mission Total, but only when the
+  mission succeeded and no cheat was used. Objectives hidden from you
+  are not listed or scored.
+- **Your rank is the Campaign Total in steps of 100,000:** Sergeant below
+  100,000, then Master Sergeant, Captain, Major, and Colonel from 400,000
+  on.
+- **The debriefing keeps a career kill count for each pilot:** under
+  "'Mechs Defeated" every pilot in the lance (you, Dominic Paine, Epona Rhi,
+  Alan Mattila) shows the mechs they have destroyed over the whole
+  campaign, this mission's included. Lancemates are recognised by their
+  names. Each lance card shows that pilot's mechs and vehicles destroyed
+  this mission and their sum.
+- **Instant Action's score:** 1,000 flat, or in its wave modes 1,000 a wave
+  plus 100 for each round left at each wave (one round less unless you
+  won), plus the mechs' points. Its debriefing shows a "Primary
+  Objectives" heading with nothing under it, and the rank by that score.
 - **A click on the briefing's loading bar moves it** to where you clicked;
   it then creeps on towards the real progress from there. The bar creeps 0.005
   a frame, so it filled faster on faster computers (the rebuild: 0.15 a

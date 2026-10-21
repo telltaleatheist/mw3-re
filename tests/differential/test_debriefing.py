@@ -15,10 +15,15 @@ lancemates' reset, the fade, the voice, the hooks of later items) and a dump
 of the dialog, the buttons' help, the cards, the salvage list and the game's
 fields the press writes. The x87 runs at 24 bits.
 
-Item 6a: the results block 0x0047baf0..0x0047c84b (with the rank) is a
-hook: a code hook records it and jumps over it. Stubbed: a card's mech
-display 0x0047e840 (a fake object), the salvage list's refill 0x0048dbe0, the
-pilot's file opened 0x00478ce0 (closed: nothing written).
+The results (0x0047baf0..0x0047c84b, the rank 0x0047b2f0) run on a fake
+zEntity list of mechs (the player's, allies, others, entities without a
+mech; their kills and points), fake objective lists ([0x0060994c],
+[0x00609950]: done, shown, a line or none from 0x0045e080), the campaign's
+score and records and Instant Action's mode, rounds and waves; the probe
+gets the same through its setup. Stubbed: a card's set_vehicle 0x0047b210
+as far as the port has it (the display's show, item 6c), a card's mech
+display 0x0047e840 (a fake object), the salvage list's refill 0x0048dbe0,
+the pilot's file opened 0x00478ce0 (closed: nothing written).
 """
 import ctypes
 import os
@@ -33,7 +38,7 @@ from calltrace import Replay, compare, load_probe, Trace  # noqa: E402
 from original import ROOT  # noqa: E402
 from twod_world import IAT, READER, TwodWorld, c_format, entries, find, parse_node, write_node  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 import test_twod  # noqa: E402
 from test_twod import canonical, fbits  # noqa: E402
 from test_twod_msgbox import archive  # noqa: E402
@@ -51,7 +56,8 @@ CARDS = [0x1171c + 0x6a0 * i for i in range(4)]
 RANK, TITLE, SALVAGE = 0x1319c, 0x133b0, 0x134fc
 PARTS = ICONS + CARDS + [RANK]
 CURRENT, FAILED, CHEAT, TIME, SALVAGE_STORE, IA_ROUND = 0x60861c, 0x609926, 0x609994, 0x60991c, 0x609990, 0x60587c
-RESULTS_FROM, RESULTS_TO = 0x47baf0, 0x47c850
+ENDED, LIST, PRIMARY, SECONDARY, LANCE_COUNT = 0x609925, 0x73655c, 0x60994c, 0x609950, 0x608bf8
+NAMES = ['', 'Me14', 'Me15', 'Me01', 'Kobra']
 FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
 IAT_FLOOR = 0x5bb66c
 WIN_STATE = 0x608e70
@@ -76,9 +82,9 @@ def synthetic(seed, tree):
             nb = []
             for j in range(0, len(v) - 1, 2):
                 name, entry = v[j], v[j + 1]
-                # The icons' HELP and WIN_TITLE's labels are read unchecked
-                # (the exe crashes without them; the port does not): kept.
-                if name in ('ICON_CONTINUE', 'ICON_ABORT', 'ICON_REPLAY', 'WIN_TITLE'):
+                # The icons' HELP, WIN_TITLE's and ICON_RANK's labels are read
+                # unchecked (the exe crashes without them; the port does not): kept.
+                if name in ('ICON_CONTINUE', 'ICON_ABORT', 'ICON_REPLAY', 'WIN_TITLE', 'ICON_RANK'):
                     e = [list(x) if isinstance(x, list) else x for x in entry]
                     if 'POSITION' in e and r.random() < 0.3:
                         e[e.index('POSITION') + 1] = [r.randrange(20, 500), r.randrange(20, 400)]
@@ -169,6 +175,8 @@ class Original:
         empty = e.world_string('')
         e.stub(0x5abdb0, '@cs', 'c', 0, lambda emu, k, a, p: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
         e.stub(0x5abda4, '@cs~', '', 0, lambda emu, k, a, p: emu._ret(0, 0))
+        e.stub(0x5abdbc, '@cs=', 'c,s0', 4, lambda emu, k, a, p: (
+            emu.w32(a[0], emu.world_string(emu.cstr(a[1]) if a[1] else '')), emu._ret(a[0], 4)))
 
         def cs_format(emu, key, a, pop):
             va = emu.uc.reg_read(UC_X86_REG_ESP) + 12
@@ -190,6 +198,14 @@ class Original:
             emu._ret(e.world_string('Arena') if t.handle('game.vt', (0xc,)) else 0, 0)
         e.w32(vt + 0xc, e.new_stub('@game.c', '', 0, ia_name))
         e.w32(game + 0x44, cfg['ia44'])
+        e.w32(game + 0x6c, cfg['x6c'])
+        e.w32(game + 0x70, cfg['x70'])
+        e.w32(game + 0xc4, cfg['c4'])
+        for i, v in enumerate(cfg['b4']):
+            e.w32(game + 0xb4 + 4 * i, v)
+        e.cpu.write(ENDED, bytes([cfg['ended']]))
+        self.lance_setup(pilot)
+        self.objectives_setup()
         e.w32(game + 0xb0, cfg['b0'])
         e.w32(IA_ROUND, cfg['round'])
         e.cpu.write(FAILED, bytes([cfg['failed']]))
@@ -237,10 +253,25 @@ class Original:
                 t.override(key, d)  # the rebuild gets the object, not the script's yes
             emu._ret(d, pop)
         e.stub(0x47e840, '0x0047e840', 's0,s1,s2,s3,s4', None, display)
+
+        # A card's set_vehicle as the port has it so far (6c ports the rest).
+        def set_vehicle(emu, key, a, pop):
+            card, v = a
+            emu.w32(card + 0x64c, v)
+            d = emu.r32(card + 0x650)
+            if v and d:
+                t.handle(key, (d, v))
+            emu._ret(0, pop)
+        e.stub(0x47b210, '0x0047b210', 'c,s0', None, set_vehicle)
+
+        def objective_text(emu, key, a, pop):
+            v = t.handle(key, (a[0],))
+            emu._ret(e.world_string(f'obj{a[0]:x}') if v else 0, pop)
+        e.stub(0x45e080, '0x0045e080', 'c', None, objective_text)
         e.stub(0x48dbe0, '0x0048dbe0', 'c', None,
                lambda emu, k, a, p: (t.handle(k, (emu.r32(a[0] + 0x214),)), emu._ret(0, p)))
         plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
-                 0x50ad60: '', 0x47b210: 'c,s0', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
+                 0x50ad60: '', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)
         w.answers.update({
@@ -252,12 +283,8 @@ class Original:
             'game.vt': lambda rr, k, a: rr.choice([0, 1, 1]),
             '0x00575fd0': lambda rr, k, a: rr.choice([0, 1, 1]),
             '0x00575ff0': lambda rr, k, a: rr.choice([1, 1, 0]),
+            '0x0045e080': lambda rr, k, a: self.has_text.get(a[0], 0),
         })
-
-        def skip(uc, address, size, user):
-            t.handle('0x0047baf0', ())
-            uc.reg_write(UC_X86_REG_EIP, RESULTS_TO)
-        e.uc.hook_add(UC_HOOK_CODE, skip, begin=RESULTS_FROM, end=RESULTS_FROM)
 
         # FIX (bug), as the port's FileList: an empty list's rectangle ends at its top.
         def empty_rect(uc, address, size, user):
@@ -279,6 +306,75 @@ class Original:
         e.import_stub(IAT['_strdup'], '@_strdup', 's0', 0, strdup)
         self.m = 0
         self.snapshot = None
+
+    # zEntity's list: fake mechs whose vt+0x2c and vt+0x28 are themselves,
+    # vt+0x50 themselves or none, vt+0x98 a health, vt+0xa4 a name (silent).
+    def lance_setup(self, pilot):
+        e, cfg = self.e, self.cfg
+        player = None
+        ents = []
+        for ent in cfg['lance']:
+            m = e.world_alloc(0x700)
+            vt = e.world_alloc(0x100)
+            e.w32(m, vt)
+            me = e.cpu.code(bytes.fromhex('89c8c3'))
+            for off in (0x28, 0x2c):
+                e.w32(vt + off, me)
+            e.w32(vt + 0x50, me if ent['mech'] else e.cpu.code(bytes.fromhex('31c0c3')))
+            hp = e.world_alloc(4)
+            e.wf(hp, 0.37)
+            e.w32(vt + 0x98, e.cpu.code(bytes.fromhex('d905') + struct.pack('<I', hp) + b'\xc3'))
+            name = e.world_string(NAMES[ent['name']])
+            e.w32(vt + 0xa4, e.cpu.code(b'\xb8' + struct.pack('<I', name) + b'\xc3'))
+            e.w32(m + 0xc0, ent['team'])
+            e.w32(m + 0xc4, cfg['allies'])
+            for i, v in enumerate(ent['stats']):
+                e.w32(m + 0x3f4 + 4 * i, v)
+            pl = e.world_alloc(0x20)
+            e.w32(pl + 0xc, ent['type'] & 0xffffffff)
+            e.w32(m + 0x684, pl)
+            ent['addr'] = m
+            if ent['player']:
+                player = m
+            if not ent.get('hidden'):
+                ents.append(m)
+        if player is None:  # the player's mech, off the list
+            player = e.world_alloc(0x700)
+            e.w32(player + 0xc4, cfg['allies'])
+        e.w32(pilot + 0x14, player)
+        arr = e.world_alloc(4 * max(1, len(ents)))
+        for i, m in enumerate(ents):
+            e.w32(arr + 4 * i, m)
+        e.w32(LIST, arr)
+        e.w32(LIST + 4, arr + 4 * len(ents))
+
+    # The objective lists: a count (+0x48) and a ring of nodes (+0x44), each
+    # node's +8 an objective (+0x08 done, +0x30 shown).
+    def objectives_setup(self):
+        e = self.e
+        self.has_text = {}
+        for where, objs in ((PRIMARY, self.cfg['primary']), (SECONDARY, self.cfg['secondary'])):
+            if objs is None:
+                e.w32(where, 0)
+                continue
+            lst = e.world_alloc(0x50)
+            head = e.world_alloc(0x10)
+            e.w32(head, head)
+            e.w32(lst + 0x44, head)
+            e.w32(lst + 0x48, len(objs))
+            prev = head
+            for o in objs:
+                ob = e.world_alloc(0x40)
+                e.cpu.write(ob + 8, bytes([o['done']]))
+                e.cpu.write(ob + 0x30, bytes([o['shown']]))
+                self.has_text[ob] = o['text']
+                o['addr'] = ob
+                node = e.world_alloc(0x10)
+                e.w32(node, head)
+                e.w32(node + 8, ob)
+                e.w32(prev, node)
+                prev = node
+            e.w32(where, lst)
 
     def vcall(self, obj, slot, stack=()):
         return self.e.call(self.e.r32(self.e.r32(obj) + slot), ecx=obj, stack=stack)
@@ -345,6 +441,9 @@ class Original:
             d = e.r32(b + 0x650)
             out.append(f'card{i} mech={i32(e.r32(b + 0x17c))} veh={e.r32(b + 0x64c):x} display={1 if d else 0} '
                        f'name={ref(b + 0x180)}\n')
+        out.append(f'results score={i32(e.r32(m + 0x13be0))} lance=' +
+                   ','.join(str(i32(e.r32(m + 0x13be4 + 4 * i))) for i in range(4)) +
+                   f' count={i32(e.r32(LANCE_COUNT))} texts={(e.r32(m + 0x13bd4) - e.r32(m + 0x13bd0)) // 4}\n')
         out.append(self.dump_game())
         return ''.join(out)
 
@@ -356,7 +455,15 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     c = ' '.join(f'{v:x}' for v in (cfg['kind'], cfg['op'], cfg['mission'], cfg['failed'], cfg['cheat'],
                                      fbits(cfg['time']), cfg['salvage'], cfg['won'], cfg['ia44'], cfg['b0'],
-                                     cfg['round']))
+                                     cfg['round'], cfg['x6c'], cfg['x70'], cfg['c4'], *cfg['b4'], cfg['ended'],
+                                     cfg['allies']))
+    ents = [x for x in cfg['lance'] if x['mech'] and not x.get('hidden')]
+    c += f' {len(ents):x} ' + ' '.join(
+        ' '.join(f'{v & 0xffffffff:x}' for v in [x['addr'], x['player'], x['team'], x['type'], *x['stats'], x['name']])
+        for x in ents)
+    for objs in (cfg['primary'], cfg['secondary']):
+        objs = objs or []
+        c += f' {len(objs):x} ' + ' '.join(f"{o['addr']:x} {o['done']:x} {o['shown']:x}" for o in objs)
     buf = ctypes.create_string_buffer(1 << 23)
     n = probe.probe_debriefing_run(str(path).encode(), c.encode(), '\n'.join(plan).encode(), buf, len(buf))
     assert n >= 0, 'probe failed'
@@ -404,7 +511,26 @@ def main():
                'time': r.choice([0.0, 59.5, 754.25, 3599.9, 3700.0, 9000.75]),
                'salvage': r.choice([0, 0x5e900000]), 'won': r.choice([0, 0, 1]),
                'ia44': r.choice([1, 2, 3]), 'b0': r.choice([0, 1]), 'round': r.randrange(5),
-               'fast': r.choice([0, 0, 1]), 'size': r.choice(SIZES)}
+               'fast': r.choice([0, 0, 1]), 'size': r.choice(SIZES),
+               'x6c': r.randrange(-1, 6), 'x70': r.choice([0, 0, 1, 2, 3, 7]),
+               'c4': r.choice([0, 1234, 99999, 100000, 250000, 399999, 400000, 900000, -5]),
+               'b4': [r.choice([0, 0, 3, 17, 250]) for _ in range(4)], 'ended': r.choice([0, 1]),
+               'allies': r.choice([0, 1, 3, 3, 0x13])}
+        cfg['lance'] = []
+        player_at = r.choice([0, 0, 1, 2, 3, None])
+        for i in range(r.choice([0, 1, 2, 3, 4, 5, 6, 7, 7])):
+            cfg['lance'].append({
+                'mech': r.random() < 0.9, 'player': i == player_at, 'team': r.choice([0, 1, 1, 2, 4, 0x10, 3]),
+                'type': r.choice([3, 8, 13, 0, -1, 5]), 'name': r.randrange(len(NAMES)),
+                'stats': [r.choice([0, 0, 1, 2, 5]), r.choice([0, 0, 1, 3]), r.choice([0, 7]),
+                          r.choice([0, 0, 150, 1000]), r.choice([0, 0, 250]), r.choice([0, 0, 500])]})
+
+        def objectives():
+            if r.random() < 0.15:
+                return None
+            return [{'done': r.choice([0, 1]), 'shown': r.choice([0, 1, 1, 1]), 'text': r.choice([0, 1, 1, 1])}
+                    for _ in range(r.choice([0, 1, 2, 3, 4, 6]))]
+        cfg['primary'], cfg['secondary'] = objectives(), objectives()
         if seed % 2:
             t = synthetic(seed, tree)
             blob = write_node(t)
@@ -418,8 +544,8 @@ def main():
         calls += len(trace)
         for k, _ in trace:
             if k in ('0x00590250', '0x00491780', '0x00478ce0', '0x00435240', '0x0050ad60', '0x0047abe0',
-                     '0x0048ef00', '0x0047baf0', '0x0047e840', '0x0048dbe0', 'display.vt+0x24', 'game.vt',
-                     '0x00575fd0'):
+                     '0x0048ef00', '0x0047b210', '0x0047e840', '0x0048dbe0', 'display.vt+0x24', 'game.vt',
+                     '0x00575fd0', '0x0045e080', '0x005179d0'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'debriefing: {passed}/{runs} runs identical ({calls} calls; ' +
           ', '.join(f'{k} x{v}' for k, v in sorted(stats.items())) + ')')

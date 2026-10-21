@@ -690,10 +690,48 @@ class Engine : public zgame::AppHooks {
   // Its parts not ported yet: the results (0x0047baf0..0x0047c84b, 6b), a
   // lance card's mech display (0x0047e840 and its calls, 6c), the mech lab's
   // store list's rows (0x0048dbe0), a mech's name (0x00484650).
-  virtual void debrief_results(MenuScreen* s) {
-    (void)s;
-    unported("0x0047baf0", {});
+  // The results' reads (memory and the mechs' own calls in the original;
+  // campaign.md section 3): zEntity's list in its order, each entity with a
+  // mech (vt+0x2c then vt+0x50): the player's mech ([0x0060861c] +0x14) or
+  // not, its team (vt+0x28 +0xc0), its type (+0x684 +0xc, -1 none), the
+  // kill credit's mechs, vehicles and turrets and their points (+0x3f4..
+  // +0x408), its pilot's name (vt+0xa4, 0x0041df30). Its
+  // health (vt+0x98 x 100, floored) is read and dropped.
+  struct LanceMech {
+    Handle mech = 0;
+    bool player = false;
+    uint32_t team = 0;
+    int32_t type = -1;
+    int32_t stats[6] = {};             // +0x3f4 .. +0x408
+    const char* name = nullptr;
+  };
+  virtual std::vector<LanceMech> debrief_lance() { return {}; }
+  virtual uint32_t player_allies() { return 0; }  // the player's mech's +0xc4
+  // The mission's primary (0) and secondary (1) objectives ([0x0060994c],
+  // [0x00609950]; none when the list is missing or empty): each one's
+  // object, done (+0x08) and shown (+0x30); its line (0x0045e080(0), called).
+  struct Objective {
+    Handle obj = 0;
+    bool done = false, shown = false;
+  };
+  virtual std::vector<Objective> debrief_objectives(int32_t which) {
+    (void)which;
+    return {};
   }
+  virtual const char* objective_text(Handle obj) {
+    unported("0x0045e080", {obj});
+    return nullptr;
+  }
+  // The campaign's score (+0xc4) and a pilot's mechs destroyed (+0xb4 + 4 i), the
+  // won flag of the mission ([0x00609925]), Instant Action's mode (+0x44),
+  // rounds (+0x6c) and waves (+0x70).
+  virtual int32_t campaign_score();
+  virtual int32_t campaign_record(int32_t i);
+  virtual bool mission_ended();
+  virtual void action_rounds(int32_t* mode, int32_t* rounds, int32_t* waves);
+  // The Win State's copy of the debriefing's scores into the campaign
+  // (0x0047ac20: +0x13be4 into +0xb4 for n lancemates, +0x13be0 into +0xc4).
+  virtual void win_keep_scores(Handle screen, int32_t n);
   virtual Handle lance_display_new(int32_t x, int32_t y, int32_t height, int32_t width, int32_t space) {
     return unported("0x0047e840", {x, y, height, width, space});
   }

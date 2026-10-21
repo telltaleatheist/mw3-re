@@ -207,7 +207,19 @@ void GameEngine::delete_screens() {
   screens_.clear();
 }
 
+namespace {
+// The ported shell states by address, the end screen's Win State too.
+ShellState* shell_state_at(Handle state) {
+  States& st = states();
+  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage};
+  for (ShellState* s : shells)
+    if (s->addr() == state) return s;
+  return nullptr;
+}
+}  // namespace
+
 Handle GameEngine::state_screen(Handle state) {
+  if (ShellState* s = shell_state_at(state)) return s->screen_;
   if (MenuState* st = menu_state_of(state)) return st->screen_;
   if (MenuState* st = popup_state_of(state)) return st->screen_;
   return Engine::state_screen(state);
@@ -234,13 +246,9 @@ void GameEngine::twod_set_cursor(uint32_t v) { ztwod::set_page_flip(v != 0); }
 
 // 0x0048ee00 on the state the address names.
 void GameEngine::shell_clear(uint32_t state) {
-  States& st = states();
-  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.salvage};
-  for (ShellState* s : shells) {
-    if (s->addr() == state) {
-      s->clear_screen();
-      return;
-    }
+  if (ShellState* s = shell_state_at(state)) {
+    s->clear_screen();
+    return;
   }
   MenuState* m = menu_state_of(state);
   if (!m) m = popup_state_of(state);
@@ -432,6 +440,34 @@ void GameEngine::mission_results(uint8_t a, uint8_t b) {
   if (!c) return;
   if (a) c->merge_salvage();
   else unported("0x0047ae10 (the lance into the salvage store)", {b});
+}
+
+// The results' lance from the ported mechs. A lancemate's name (its brain's,
+// 0x004aee70) is not ported: "" ([0x005f4c90]), so no record line yet.
+std::vector<Engine::LanceMech> GameEngine::debrief_lance() {
+  std::vector<LanceMech> r;
+  for (const DebriefMech& d : mech_debrief_lance()) {
+    LanceMech m;
+    m.mech = handle_of(d.mech);
+    m.player = d.player;
+    m.team = d.team;
+    m.type = d.type;
+    for (int i = 0; i < 6; ++i) m.stats[i] = d.stats[i];
+    m.name = d.player && current_pilot() ? current_pilot()->name : "";  // 0x0041df30
+    r.push_back(m);
+  }
+  return r;
+}
+uint32_t GameEngine::player_allies() { return mech_player_allies(); }
+
+// 0x0047ac20's copy, from the ported screen into the pilot's campaign.
+void GameEngine::win_keep_scores(Handle screen, int32_t n) {
+  auto it = screens_.find(screen);
+  auto* d = it != screens_.end() ? dynamic_cast<DebriefScreen*>(it->second.screen) : nullptr;
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  if (!d || !c) return Engine::win_keep_scores(screen, n);
+  for (int32_t i = 0; i < n && i < 4; ++i) c->b4[i] = d->lance_scores[i];
+  c->c4 = d->score;
 }
 
 bool GameEngine::missions_loaded() { return missions().finished(); }

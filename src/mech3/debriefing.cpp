@@ -2,11 +2,13 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zvideo/zvid_format.h"
 #include "mech3/mission.h"
 #include "mech3/pilot.h"
 
@@ -27,6 +29,30 @@ void Engine::campaign_reset_lancemates() {
 }
 void Engine::campaign_set_b0(uint8_t v) {
   if (CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr) c->b0 = v;
+}
+int32_t Engine::campaign_score() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? c->c4 : 0;
+}
+int32_t Engine::campaign_record(int32_t i) {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c && i >= 0 && i < 4 ? c->b4[i] : 0;
+}
+bool Engine::mission_ended() { return missions().ended != 0; }
+// Instant Action's +0x44, +0x6c and +0x70 are not mapped on the ported
+// ActionGame yet (campaign.md section 7): mode 0 scores the flat 1000.
+void Engine::action_rounds(int32_t* mode, int32_t* rounds, int32_t* waves) {
+  *mode = 0;
+  *rounds = 0;
+  *waves = 0;
+}
+void Engine::win_keep_scores(Handle screen, int32_t n) {
+  for (int32_t i = 0; i < n; ++i) {
+    const uint32_t v = field32(screen, 0x13be4 + 4 * i);
+    set_field32(pilot_campaign(pilot()), 0xb4 + 4 * i, v);
+  }
+  const uint32_t v = field32(screen, 0x13be0);
+  set_field32(pilot_campaign(pilot()), 0xc4, v);
 }
 
 // ---- the mech lab's mech button ----
@@ -94,6 +120,19 @@ bool LanceCard::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
   return r;
 }
 
+// Mech3.exe 1.2 @ 0x0047b2f0: the rank by the score, a step per 100,000
+// (0 to 4): its icon and its name (messages 0x1d8..0x1dc).
+void RankIcon::set_rank(int32_t score) {
+  int32_t r = score / 100000;
+  if (r > 4) r = 4;
+  else if (r < 0) r = 0;
+  char name[32];
+  std::snprintf(name, sizeof name, "icon_rank%d_green", r);
+  if (img_normal) ztwod::host().image_release(img_normal);
+  img_normal = set_image(ztwod::host().image_get(name));
+  if (!labels.empty()) labels[0]->set_text_plain(e_.message(0x1d8 + r));
+}
+
 // Mech3.exe 1.2 @ 0x0047b210: the display shows the vehicle (6c).
 void LanceCard::set_vehicle(Handle v) {
   vehicle = v;
@@ -112,8 +151,7 @@ ztwod::Text* label(ztwod::Control& c, size_t i) { return i < c.labels.size() ? c
 ztwod::Text* help(HelpButton& b) { return b.help.empty() ? nullptr : b.help[0]; }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x0047b430. Item 6a: the texts and buttons; the results
-// (0x0047baf0..0x0047c84b) are a hook (6b).
+// Mech3.exe 1.2 @ 0x0047b430
 DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t mission, const uint8_t* w)
     : MenuScreen(e, state),
       continue_btn(e, -1),
@@ -192,7 +230,205 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t 
     if (*won)
       if (ztwod::Text* h = help(continue_btn)) h->set_message(0xfb8);
   }
-  e.debrief_results(this);  // 0x0047baf0..0x0047c84b: the lance, the points, the score, the rank (6b)
+  results(kind);
+}
+
+namespace {
+// The results' layout (constants in the exe's data, never written).
+constexpr int32_t kX = 0xe1;          // [0x005e5af0]  the left column
+constexpr int32_t kIndent = 0xf;      // [0x005e5af8]
+constexpr int32_t kRight = 0xbd;      // [0x005e5aec]  the numbers' column, from kX
+constexpr int32_t kRow = 14;          // [0x005e5ae8]
+constexpr int32_t kHeader = 16;       // [0x005e5ae4]
+constexpr int32_t kTop = 0x46;        // [0x005e5af4]
+constexpr int32_t kTotals = 0xf0;     // [0x005e5b04]
+int32_t g_lance_count = 0;            // [0x00608bf8]
+}  // namespace
+
+int32_t& debrief_lance_count() { return g_lance_count; }
+
+// Mech3.exe 1.2 @ 0x0047cab0: a line of text at (x, *y), kept for the
+// destructor; *y moves on by step.
+ztwod::Text* DebriefScreen::add_text(const char* s, int32_t x, int32_t* y, Handle font, int32_t step) {
+  auto* t = new ztwod::Text;          // 0x005a15f0: the text, the font, then x and y as they are
+  t->set_text_plain(s);
+  t->set_font(font);
+  t->x = x;
+  t->y = *y;
+  texts.push_back(t);
+  *y += step;
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x0047cce0
+ztwod::Text* DebriefScreen::add_number(int32_t v, int32_t x, int32_t* y, Handle font, int32_t step) {
+  char b[16];
+  std::snprintf(b, sizeof b, "%d", v);
+  return add_text(b, x, y, font, step);
+}
+
+// Mech3.exe 1.2 @ 0x0047cd70: 0 shows message 0x183.
+ztwod::Text* DebriefScreen::add_points(int32_t v, int32_t x, int32_t* y, Handle font, int32_t step) {
+  if (v) return add_number(v, x, y, font, step);
+  const char* m = engine().message(0x183);
+  return add_text(m ? m : "", x, y, font, step);
+}
+
+// Mech3.exe 1.2 @ 0x0047baf0..0x0047c84b (inlined in 0x0047b430): the lance
+// on the cards, the objectives and bonuses with their points, the score and
+// the rank (campaign.md section 3, The results).
+void DebriefScreen::results(int32_t kind) {
+  Engine& e = engine();
+  struct Record {
+    const char* name = nullptr;
+    int32_t kills = 0, slot = -1;
+  } recs[4];
+  int32_t bonus[3] = {};              // the lance's points for mechs, vehicles, turrets, when clean
+  int32_t count = 1;
+  const uint32_t allies = e.player_allies();
+  for (const Engine::LanceMech& m : e.debrief_lance()) {
+    if (count >= 4) break;
+    if ((!m.player && !(m.team & allies)) || m.type == -1) continue;
+    const int32_t slot = m.player ? 0 : count;
+    const int32_t kills = m.stats[0], vehicles = m.stats[1];  // +0x3f4 mechs, +0x3f8 vehicles destroyed
+    if (clean)
+      for (int i = 0; i < 3; ++i) bonus[i] += m.stats[3 + i];
+    LanceCard& card = cards[slot];
+    card.show_for(-1.0f);
+    card.set_vehicle(m.mech);
+    if (kind == kCampaign) {
+      // Which lancemate's record: by the pilot's name (messages 0xe14,
+      // 0xe15, 0xe01), the player's own 0.
+      Record& r = recs[slot];
+      r.name = m.name;
+      r.kills = kills;
+      r.slot = -1;
+      if (slot == 0) {
+        r.slot = 0;
+      } else {
+        static const int32_t kNames[] = {0xe14, 0xe15, 0xe01};
+        for (int i = 0; i < 3; ++i) {
+          const char* n = e.message(kNames[i]);
+          if (n && m.name && std::strcmp(m.name, n) == 0) {
+            r.slot = i + 1;
+            break;
+          }
+        }
+      }
+    }
+    ztwod::Text* l5 = label(card, 5);
+    if (ztwod::Text* l = label(card, 0)) l->set_text_plain(m.name);
+    if (ztwod::Text* l = label(card, 4)) l->hide();
+    if (l5) l5->set_text("%d", kills + vehicles);
+    if (ztwod::Text* l = label(card, 6)) l->set_text("%d", kills);
+    if (ztwod::Text* l = label(card, 7)) l->set_text("%d", vehicles);
+    if (l5) {
+      // The card's line, from x 100 to 5 left of the total's text.
+      const int32_t y = l5->get_y() + 6;
+      if (l5->needs_render) l5->render();
+      const int32_t x = l5->get_x() - 5 - l5->width;
+      card.line.show_for(-1.0f);
+      card.line.set(100, y, x, y);
+      card.line.color = 0xffff;
+    }
+    if (!m.player) ++count;
+  }
+  g_lance_count = count;
+  for (int32_t i = count; i < 4; ++i) {
+    cards[i].set_vehicle(0);
+    cards[i].hide();
+  }
+
+  ztwod::Host& h = ztwod::host();
+  const Handle large = h.font_find("lab_large_white"), large_r = h.font_find("lab_large_whiteR");
+  const Handle red = h.font_find("lab_small_red"), white = h.font_find("lab_small_white");
+  const Handle green = h.font_find("lab_small_green"), red_r = h.font_find("lab_small_redR");
+  const Handle white_r = h.font_find("lab_small_whiteR"), green_r = h.font_find("lab_small_greenR");
+  int32_t y = kTop + kRow + kHeader;
+  int32_t points = 0, primary = 0, secondary = 0;
+  if (kind == kInstantAction) {
+    // A thousand a wave, and a hundred for each round left at each wave.
+    int32_t mode = 0, rounds = 0, waves = 0;
+    e.action_rounds(&mode, &rounds, &waves);
+    if (mode != 1 && mode != 2) {
+      points = 1000;
+    } else {
+      if (!e.mission_ended() || e.mission_failed()) --rounds;
+      points = waves * 1000;
+      for (int32_t i = 0, step = rounds * 100; i < waves; ++i, step -= 100) points += step;
+    }
+    add_text(e.message(0x16d), kX, &y, white, kHeader);
+  } else if (kind == kCampaign) {
+    // The objectives shown, each 2500 when done (green) or 0 (red); a long
+    // line moves the next down by its extra height.
+    auto list = [&](int32_t which, int32_t* sum) {
+      for (const Engine::Objective& o : e.debrief_objectives(which)) {
+        if (!o.shown || !e.objective_text(o.obj)) continue;
+        ztwod::Text* t = add_text(e.objective_text(o.obj), kX + kIndent, &y, o.done ? green : red, 0);
+        const int32_t v = static_cast<int32_t>(o.done ? 2500.0f : 0.0f);
+        *sum += v;
+        add_points(v, kX + kRight, &y, o.done ? green_r : red_r, kRow);
+        const int32_t th = t->text_height();
+        if (th > kRow) y += th - kRow;
+      }
+    };
+    if (!e.debrief_objectives(0).empty()) {
+      add_text(e.message(0x16d), kX, &y, white, kHeader);
+      list(0, &primary);
+    }
+    y += kHeader - kRow;
+    add_text(e.message(0x16e), kX, &y, white, kHeader);
+    list(1, &secondary);
+  }
+  secondary += bonus[0];
+  if (bonus[0]) {
+    add_text(e.message(0xfab), kX + kIndent, &y, green, 0);
+    add_number(bonus[0], kX + kRight, &y, green_r, kRow);
+  }
+  int32_t top = 0;
+  if (kind == kCampaign) {
+    for (int i = 1; i < 3; ++i) {
+      if (!bonus[i]) continue;
+      add_text(e.message(i == 1 ? 0xfac : 0xfad), kX + kIndent, &y, green, 0);
+      add_number(bonus[i], kX + kRight, &y, green_r, kRow);
+    }
+    // The mission's total; the score is the campaign's, with the total
+    // added when the mission counts.
+    points += primary + secondary + bonus[1] + bonus[2];
+    score = e.campaign_score();
+    if (!e.mission_failed() && clean) score += points;
+    y = kTotals;
+    add_text(e.message(0x171), kX, &y, large, 0);
+    add_number(score, kX + kRight, &y, large_r, kHeader);
+    lines[1].set(kX, y, kX + kRight, y);
+    lines[1].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
+    add(&lines[1]);
+    y += 5;
+    add_text(e.message(0x170), kX, &y, white, 0);
+    add_number(points, kX + kRight, &y, white_r, kHeader);
+    y += 10;
+    add_text(e.message(0x169), kX + kIndent, &y, white, kRow);
+    // Each lancemate's record: its campaign total and this mission's kills.
+    for (int32_t i = 0; i < g_lance_count; ++i) {
+      const Record& r = recs[i];
+      if (!r.name || r.slot == -1) continue;
+      lance_scores[i] = e.campaign_record(r.slot) + r.kills;
+      add_text(r.name, kX + kIndent + 10, &y, white, 0);
+      add_number(lance_scores[i], kX + kRight, &y, white_r, kRow);
+    }
+    top = score;
+  } else {
+    points += primary + secondary;
+    top = points;
+  }
+  y = kTop;
+  add_text(e.message(0x170), kX, &y, large, 0);
+  add_number(points, kX + kRight, &y, large_r, kHeader);
+  lines[0].set(kX, y, kX + kRight, y);
+  lines[0].color = zvid::pack_bytes(0xdc, 0xdc, 0xdc);
+  add(&lines[0]);
+  for (ztwod::Text* t : texts) add(t);
+  rank.set_rank(top);
 }
 
 // Mech3.exe 1.2 @ 0x0047c920

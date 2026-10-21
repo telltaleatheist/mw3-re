@@ -236,6 +236,14 @@ struct Dump {
     r("bgr", p->bg_rect);
     kv("mouse", p->mouse);
   }
+  void line(ztwod::Line2D* p) {
+    base(p);
+    kv("end", p->end_x);
+    kv("end_y", p->end_y);
+    kv("color", p->color);
+    kv("clipped", p->clipped);
+    kv("dash", p->dash);
+  }
   void image(ztwod::Image* p) {
     base(p);
     kv("owned", p->owned);
@@ -439,6 +447,7 @@ inline void dump_dialog(ztwod::Dialog& d, Dump& out) {
     else if (dynamic_cast<ztwod::Text*>(p)) k = 'T';
     else if (dynamic_cast<ztwod::CheckButton*>(p)) k = 'K';
     else if (dynamic_cast<ztwod::Control*>(p)) k = 'C';
+    else if (dynamic_cast<ztwod::Line2D*>(p)) k = 'N';
     out.o << k << ' ';
     switch (k) {
       case 'T': out.text(static_cast<ztwod::Text*>(p)); break;
@@ -450,6 +459,7 @@ inline void dump_dialog(ztwod::Dialog& d, Dump& out) {
       case 'Z': out.textbox(static_cast<ztwod::TextBox*>(p)); break;
       case 'F': out.fonttext(static_cast<ztwod::FontText*>(p)); break;
       case 'B': out.base(p); break;  // an object that is not an image (the test dumps the rest)
+      case 'N': out.line(static_cast<ztwod::Line2D*>(p)); break;
       default: out.image(static_cast<ztwod::Image*>(p)); break;
     }
     out.o << '\n';

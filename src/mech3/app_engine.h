@@ -106,6 +106,9 @@ class GameEngine : public Engine {
   void load_state_enter() override;
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
+  std::vector<LanceMech> debrief_lance() override;     // the ported mechs
+  uint32_t player_allies() override;
+  void win_keep_scores(Handle screen, int32_t n) override;  // into the ported campaign
   void briefing_script_start(Handle s) override;
   void briefing_init(Handle s) override;
   void briefing_start(Handle s) override;

@@ -366,6 +366,10 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     std::string section_first;
     bool launch_enabled = false, lab_disabled = false, playing = false, debrief_seen = false, continue_help = false;
     int32_t second_number = 0;
+    mech3::Handle debrief_handle = 0;
+    bool debrief_freed = false, player_card = false, rank_text = false;
+    int32_t debrief_score = -1;
+    size_t debrief_texts = 0;
     size_t second_steps = 0;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
@@ -395,6 +399,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
       } else if (stage == 3 && app.current() == &mech3::states().core) {
         if (++core_frames == 30) {
           mech3::launched_mech(&mech);
+          if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
+            cg->c4 = 123456;  // a score so far, to see it carried through the results
           // Won (campaign.md section 1): Exit Mission brings the end screen's
           // fade to the debriefing's Win State.
           mech3::missions().ended = 1;
@@ -406,12 +412,18 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         if (!d) return;
         debrief_seen = true;
         continue_help = !d->continue_btn.help.empty() && d->continue_btn.help[0]->text[0] != 0;
+        debrief_handle = mech3::states().end_win.screen_;
+        debrief_score = d->score;
+        debrief_texts = d->texts.size();
+        player_card = d->cards[0].vehicle != 0 && mech3::debrief_lance_count() >= 1;
+        rank_text = !d->rank.labels.empty() && d->rank.labels[0]->text[0] != 0;
         d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
         stage = 5;
       } else if (stage == 5 && app.current() == &mech3::states().load) {
         mech3::BriefingScreen* b = mech3::briefing_screen();
         if (!b || !b->loaded) return;
         second_number = engine.launch().number;
+        debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
         stage = 6;
       }
@@ -422,6 +434,10 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(stage == 6);
     EXPECT(debrief_seen);   // the ported debriefing
     EXPECT(continue_help);  // its texts (Mech3Msg.dll's)
+    EXPECT(debrief_freed);  // the Win State's leave freed it (shell_clear on 0x006099a0)
+    // The results: the campaign's score (nothing scored in 30 frames), the
+    // player's card, the lines, the rank (123456: rank 1).
+    EXPECT(debrief_score == 123456 && debrief_texts > 4 && player_card && rank_text);
     EXPECT(second_number == 2 && second_steps > 2);  // c1 mission 2's briefing, its script
     EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);
@@ -429,6 +445,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::Pilot* rec = mech3::find_pilot("Recruit");
     mech3::CampaignGame* c = rec ? rec->campaign() : nullptr;
     EXPECT(c && c->operation() == 1 && c->mission_number() == 2);  // the Win State's save made it current
+    EXPECT(c && c->c4 == 123456);  // the Win State's copy of the score, into the ported campaign
     EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
     // A game whose Load state is not ported (Instant Action): no mission
     // left over from the campaign, back to the main menu.
