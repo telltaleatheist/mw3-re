@@ -833,8 +833,15 @@ craters, the AI's firing (the planner 0x004b1170).
 - The AI's weapon planner 0x4b1170..0x4b1860 (ai.md 17.7; the HUD's three,
   0x4b1bd0, 0x4b1c70 and 0x4b1cd0, are ported in `mech3/weapon_planner`).
 - The glow objects 0x5869d0 / 0x586a30 / 0x586af0 (the game's freeze and heat
-  effects, called from 0x4accb7..0x4ad4b5), and the startup 0x583750's network
-  registration.
+  effects, called from 0x4accb7..0x4ad4b5: the vehicles', vehicles.md), and the
+  startup 0x583750's network registration (0x5a8a20 with 0x583850, only in
+  the network mode 0x583740).
+- Ported 2026-10-21: the startup 0x583750 (`zwep::startup`: the globals
+  back to their first values, the definitions and pool emptied; it returns
+  0, the start's "zWepInit: PASSED"), the network mode 0x583740, and the
+  mission cleanup's 0x584fe0 (`kill_every_shot`: every definition's live
+  shots killed through 0x584fb0); the fire test plants a shot before its
+  cleanup and finds none after.
 - The engine pieces zWeapon calls, hooked here: cls_di.c's queries (ported
   separately), the crater module (0x4ff920 / 0x4ffaa0 / 0x5020f0 / 0x502110),
   object3d and the animations.

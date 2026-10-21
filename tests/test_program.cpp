@@ -1560,7 +1560,25 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     };
     CountingPump pump;
     pump.limit = 700;
+    // The cleanup at the quit kills every live shot (0x00584fe0).
+    int live_before = 0, live_after = 0;
+    auto live = [] {
+      int k = 0;
+      for (zwep::WeaponDef& d : zwep::state().defs)
+        for (zwep::Projectile* q = d.active; q; q = q->next) ++k;
+      return k;
+    };
+    pump.on_quit = [&] {
+      // One shot in flight, as a weapon's spawn leaves it (pool_take, then
+      // onto its definition's active list).
+      if (zwep::WeaponDef* d = zwep::find_def("LRM10"))
+        if (zwep::Projectile* q = zwep::pool_take(d)) q->next = d->active, d->active = q;
+      live_before = live();
+      mech3::missions().cleanup(false);
+      live_after = live();
+    };
     app.run(pump);
+    EXPECT(live_before > 0 && live_after == 0);
     EXPECT(seen.frames >= 200);
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit

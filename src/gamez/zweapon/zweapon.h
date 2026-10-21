@@ -262,6 +262,15 @@ struct RunState {
 };
 RunState& run_state();
 
+// The startup (0x00583750): zWeapon's globals back to their first values,
+// the definitions and the pool emptied; with the network mode (0x00583740,
+// [0x005f1e5c]) the network's handler would be registered (not ported).
+// Returns 0, which the start's report reads as passed.
+int32_t startup();
+void set_network(int32_t on);  // 0x00583740
+// The mission cleanup's 0x00584fe0: every definition's live shots killed.
+void kill_every_shot();
+
 // The projectiles (zwep_shot.cpp).
 Projectile* pool_take(WeaponDef* def);                                     // 0x00584df0
 void pool_release(WeaponDef* def, Projectile* p);                          // 0x00584e60

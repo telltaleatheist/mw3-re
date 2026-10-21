@@ -589,6 +589,7 @@ struct WiredMissionHooks : MissionHooks {
   // every playing voice snapshotted, stopped and the snapshot freed
   // (0x0056eb10, 0x0056f0a0, 0x0056f190), as Core's leave does.
   void fn_570410() override { zsnd::stop_queue(1); }
+  void fn_584fe0() override { zwep::kill_every_shot(); }  // 0x00584fe0: the live shots killed
   Handle sounds_bank() override { return e->sound_listener(); }
   void sounds_stop(Handle bank) override { e->sound_stop_all(bank); }
   void sounds_free(Handle bank) override { e->sound_release_all(bank); }
@@ -1079,6 +1080,9 @@ void GameEngine::pilot_update(Handle p, float) {
   float pos[3];
   if (mech && mech_world_position(mech, pos)) zeff::anim_set_player(pos);
 }
+
+int32_t GameEngine::weapons_init() { return zwep::startup(); }
+void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
 
 void GameEngine::timer_update() {
   ztimer::update();

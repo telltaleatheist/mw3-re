@@ -524,4 +524,41 @@ void attach_fire(WeaponDef* def, Handle node, const void* offset) {
   def->fire.attach_offset = offset;
 }
 
+namespace {
+int32_t g_network = 0;  // [0x005f1e5c]
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00583740
+void set_network(int32_t on) { g_network = on; }
+
+// Mech3.exe 1.2 @ 0x00583750. [0x009a0ef4] and [0x009a1780], also cleared,
+// have no reader the port has found.
+int32_t startup() {
+  HitState& h = hit_state();
+  h.splash_enabled = 1, h.record_shot = 1;
+  h.killed = nullptr, h.killed_at = nullptr, h.pre_hit = nullptr;
+  h.hits = 0, h.counted = nullptr;
+  h.tether_ceiling = 30.0f;  // 0x41f00000
+  FireState& f = fire_state();
+  f.beam_ground_fx = 1;
+  f.lock_flag = nullptr, f.lock_target = nullptr;
+  f.damage_scale = f.beam_range_scale = 1.0f;
+  f.track_scale[0] = f.track_scale[1] = 1.0f;
+  f.terrain_follow = 0;
+  State& st = state();
+  st.world = nullptr, st.tick = nullptr;
+  st.defs.clear(), st.pool.clear();
+  st.free_list = nullptr;
+  st.max_crater_radius = 30.0f;
+  run_state().pool_objects = 0;
+  // With the network mode: 0x005a8a20(0x00583850, 1000, 0), the shots'
+  // network messages (not ported).
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00584fe0
+void kill_every_shot() {
+  for (WeaponDef& d : state().defs) kill_all(&d);
+}
+
 }  // namespace zwep

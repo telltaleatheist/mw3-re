@@ -880,3 +880,9 @@ view's ground, the anim lookups 0x50b450 (92).
   trucks and 2 APCs (and turret files in c1); the basic vehicle class is
   ~40 functions (~2,000 lines), AI-driven in its frame. Proposed split
   sent to mac 1; went on to item 3 meanwhile.
+- Item 3, zWeapon's left that c1m1 reaches: the startup 0x00583750
+  (zwep::startup), the network mode 0x00583740, the cleanup's 0x00584fe0
+  (kill_every_shot), wired (GameEngine weapons_init / weapons_set_mode,
+  MissionHooks fn_584fe0). The rest of weapons.md's list is the AI's planner,
+  the vehicles' glow objects and the network. The fire test plants a shot
+  before the cleanup; with 0x00584fe0 unwired it stays.
