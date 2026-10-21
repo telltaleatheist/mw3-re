@@ -1774,7 +1774,7 @@ From the option and credits screens, 0x004379f0, 0x00438f60, 0x004289a0
 - **The "Other Voices" heading is out of line.** Its position in the credits
   file has one number instead of two, so it borrows the position of the name
   above it: it is indented like a name, with no gap, unlike every other
-  heading (likely a typo).
+  heading (likely a typo). The rebuild places it as the other headings.
 - **Accepting the game options resets your vertical mouse sensitivity** to
   1.3 (or -1.3 with Invert Mouse Y), whatever it was set to before. The
   rebuild keeps your sensitivity and only flips its direction.

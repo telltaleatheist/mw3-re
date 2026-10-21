@@ -639,6 +639,33 @@ TEST(fix_inverted_mouse_keeps_sensitivity) {
   zfix::options().bugs = true;
 }
 
+namespace mech3 {
+void credit_line_offset(zrdr::Node* line, int32_t off[2]);  // credits.h (its Handle clashes with mech.h's here)
+}
+
+// The credits' "Other Voices" heading, `"offset" (20)` (0x00429200): the exe
+// keeps the line above's (30 0); fixed, the headings' (20 20).
+TEST(fix_credits_other_voices_offset) {
+  char key[] = "offset";
+  zrdr::Node one[2], line[3];
+  one[0].type = zrdr::Int, one[0].i = 2;
+  one[1].type = zrdr::Int, one[1].i = 20;
+  line[0].type = zrdr::Int, line[0].i = 3;
+  line[1].type = zrdr::String, line[1].s = key;
+  line[2].type = zrdr::List, line[2].list = one;
+  zrdr::Node node;
+  node.type = zrdr::List, node.list = line;
+  int32_t off[2] = {30, 0};
+  zfix::options().bugs = true;
+  mech3::credit_line_offset(&node, off);
+  EXPECT(off[0] == 20 && off[1] == 20);
+  zfix::options().bugs = false;
+  off[0] = 30, off[1] = 0;
+  mech3::credit_line_offset(&node, off);
+  EXPECT(off[0] == 30 && off[1] == 0);
+  zfix::options().bugs = true;
+}
+
 TEST(fix_hud_timer_past_an_hour) {
   struct Clock : mech3::HudHooks {
     float mission_time(bool) override { return 3700.25f; }

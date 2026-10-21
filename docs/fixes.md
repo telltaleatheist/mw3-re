@@ -47,6 +47,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | The fade's stills, 0x579500 / 0x55b1f0 / 0x517cc0 (the fade state 0x48f0b0) | A DirectDraw surface copied to an image; the image blitted back; the image freed | (A) DirectDraw | `GameEngine` (app_engine.cpp): a copy of the 16-bit buffer, copied back whole (game-loop.md, The fade state); the colour is the ported tint (render-frame.md) |
 | The HUD's timer, 0x43c390 | Seconds are the time less the minutes alone (`floor(t - 60 * minutes)`), the hours never taken off | (bug) past an hour the seconds run into the thousands: 3700 s shows 01:01:3640 | The hours taken off too, behind `zfix` bugs (hud.md section 14) |
 | The game options' invert box, ACCEPT 0x00438100 | MouseAccelY set to -1.3 checked, 1.3 not | (bug) the player's mouse sensitivity (the registry's MouseAccelY, any size) is lost each time the options are accepted | The size kept, only the sign set (a zero one takes 1.3); `mouse_y_accel` in options_menu, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the kept size (Owen 2026-10-20, Decided) |
+| The credits' "Other Voices" line, read by 0x00429200 | `"offset" (20)`, one number, so the line keeps the name above's (30 0) | (bug) a typo in dlgCredits.zrd: the heading sits indented like a name with no gap | The one-number offset gets the headings' (20 20) (x 20 is the headings'; all 46 are (20 20)); `credit_line_offset`, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the fixed one |
 | The lead point, 0x41d940 (TARGET's lead circle) | Reads the selected group's current weapon (+0x10) through the group pointer, which is null with no group selected (+0x28 = -1) | (bug) a crash: a mech with a targeting computer whose groups are all gone, with a target on screen | No group, no lead point (hud.md section 14) |
 | A world point on the screen, 0x53cf10 (TARGET's tracking) | Behind the near plane the outcode is 8 ORed with the low bits of the input point's address (with the identity on the stack, an unset local) | (bug) the caller (TARGET's tracking 0x440b00) tests those bits, so which way the arrow goes for a target behind the zoom camera depends on where a buffer sits | 8 alone (hud.md section 14) |
 | The back buffer's lock in Direct3D, 0x577590 / 0x577600 under 0x576d00 / 0x576d60 | DirectDraw Lock of the back buffer: the 2D code (HUD, the fade's still) draws into the 3D picture | (A) DirectDraw; a GPU frame cannot be locked cheaply | The lock hands out the 16-bit layer filled with the key 0xf81f; the unlock lays the changed pixels over the frame (`Screen2D::overlay_16`); Render3D keeps one back-buffer texture a frame. 2D code that reads the screen sees the key (nothing ported does). Alpha blends (the HUD's images: compass, reticle) record each pixel's coverage and colour while the layer is locked (`zrndr::LayerCover`), and the overlay draws them with that alpha, instead of mixing them with the key (magenta fringes) (render-frame.md) |
@@ -339,7 +340,12 @@ To do, in the specialists' queues:
 - Cosmetic slips in the data (spelling, a credits heading's `"offset" (20)`
   missing its second number, so it borrows the line above's): fix them
   (Owen: "we can fix little cosmetic things like spelling errors").
-  FIX (bug), each listed here and in CHANGES.md.
+  FIX (bug), each listed here and in CHANGES.md. Done for the credits'
+  heading (the table above). The credits file's other offsets and
+  fonts are consistent (headings (20 20), names (30 0)); a spelling pass
+  over the message table (Mech3Msg.dll) is not done yet. The HUD's `hud_othererrow_*` images are misspelled
+  but are names the code looks up, not text shown, so they stay; a credits
+  name has a trailing space, which does not show.
 - Resolution: 16:9 as the shape either way (today's monitors); limit the
   size to 1920x1080 if larger sizes are a problem.
 

@@ -12,6 +12,10 @@
 // mech3\mech_data.cpp, before the option screens.
 namespace mech3 {
 
+// A credits line's "offset" into `off`, kept from the line before without
+// two numbers (0x00429200; credits.cpp for the fix).
+void credit_line_offset(zrdr::Node* line, int32_t off[2]);
+
 // The exe's std::vector<T> by value (HP STL): its copies and its growth kept,
 // since every element copy copies a GDI font (0x005a0200).
 template <class T>
