@@ -850,6 +850,11 @@ Network HUD pieces skipped as ordered.
   reported, not freed twice (fixes.md, CHANGES.md).
 - Test: sdl_host_image_release_counts_and_frees (shared count, fresh copy
   after 0, a grab released twice); it crashes with the guard taken out.
-- Stopped here at Owen's pause (lead, 2026-10-21). Next when work resumes:
-  #8 (weapon recharge on the HUD), then #13 with #7 folded in (the HUD keys
-  reaching the unwired HUD-command hook; keypad 0 the zoom).
+- Stopped here at Owen's pause (lead, 2026-10-21). Next when work resumes,
+  in order: (1) rerun the mech lab step 4 breaks (scratchpad
+  lab/breaks4.py against test_lab_screen.py) on main, keeping the output;
+  report the real count and fix the test for any break still missed (the
+  only saved run, 09:30 before the commit, caught 20/28; the commit's
+  28/29 was not kept); (2) #8 (weapon recharge on the HUD); (3) #13 with
+  #7 folded in (the HUD keys reaching the unwired HUD-command hook; keypad
+  0 the zoom).
