@@ -27,8 +27,8 @@ struct Edge {
   float box[4] = {};               // +0x18 min x, +0x1c min y, +0x24 max x, +0x28 max y
   uint32_t unk_20 = 0;             // +0x20
   uint32_t unk_2c = 0;             // +0x2c
-  Crossing* crossing = nullptr;    // +0x30
-  float* mark = nullptr;           // +0x34
+  Crossing* start = nullptr;       // +0x30  a crossing at a
+  Crossing* end = nullptr;         // +0x34  a crossing at b
   Contour* contour = nullptr;      // +0x38  set on a ring's first edge
 };
 
@@ -39,9 +39,15 @@ struct Contour {
   int32_t count = 0;               // +0x08  edges, once counted (0x00513390)
 };
 
-// A crossing of two edges, 0x30 bytes (filled by 0x00510250, part 3b).
+// A crossing of the region's and the polygon's outlines, 0x30 bytes (made
+// by 0x00513f20 and the walk). Edges divided at it point at `point`.
 struct Crossing {
-  uint32_t raw[12] = {};
+  float point[3] = {};             // +0x00
+  // The edges meeting there (0x00510da0's last pass): +0x0c R ending, +0x10
+  // R2 ending, +0x14 R starting, +0x18 R2 starting, +0x1c P ending, +0x20
+  // P2 ending, +0x24 P starting, +0x28 P2 starting.
+  Edge* links[8] = {};
+  uint32_t type = 0;               // +0x2c
 };
 
 // The exe's growable buffers (0x14 bytes: element size, capacity, count,
@@ -171,6 +177,28 @@ int split_pair(Weiler& w, Edge* e1, Edge* e2, float* point, uint32_t f1, uint32_
 // within 1e-5 of the other's line) merged: the shared part kept once, in
 // the polygon's rings, with both edges' flags. 0 on failure.
 int weed_out(Weiler& w);                                             // 0x00510250
+
+// How segment C D meets A B: 0 apart, else a type from the table at
+// 0x005ec348 by the four ends' sides (touching ends judged by a point just
+// past them against the region, 0x00513cf0).
+uint32_t crossing_type(const float a[2], const float b[2], const float c[2], const float d[2],
+                       const Weiler& w);                             // 0x00514280 ECX a, EDX b
+// The crossing of A B and C D as a new record (*out; none for types 0..3,
+// 10, 11 and parallel lines) and its type.
+uint32_t intersect(Weiler& w, const float a[3], const float b[3], const float c[3], const float d[3],
+                   Crossing** out);                                  // 0x00513f20 ECX w, EDX out
+// e divided at x (or, when its end is within 0.001 of x, the next edge
+// taken); with `at_end` x is e's end crossing and the piece's start
+// crossing, else the piece starts with none.
+int divide(Weiler& w, Crossing* x, Edge* e, int at_end);             // 0x00513860 EDX x
+// Edges e1, e2 meeting at a corner against e3: 0 not a corner, 1 or 2 the
+// corner's turn when both ends are on one side of e3, 7 across it.
+int corner_side(const Edge* e1, const Edge* e2, const Edge* e3);     // 0x00514730 ECX e1, EDX e2
+// Two corners (e1 e2 and e3 e4) at one point: 0 not corners, else 3..9.
+int corner_pair(const Edge* e1, const Edge* e2, const Edge* e3, const Edge* e4);  // 0x00514840 ECX e1, EDX e2
+// The crossings of the region (R, R2) and the polygon (P, P2) found, the
+// edges divided at them and linked; the or of the types (1 an error).
+uint32_t walk(Weiler& w);                                            // 0x00510da0
 
 // Point q against a closed polygon: 1 inside, -1 outside, 0 on its outline.
 int point_in_polygon(const float q[2], int32_t n, const float* poly);  // 0x00513cf0 ECX q, EDX n

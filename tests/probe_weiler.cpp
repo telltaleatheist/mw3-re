@@ -34,11 +34,13 @@ void sink(int level, const char*, int line, const char*) { u32(0x70), u32(static
 
 // A point pointer as (array, index): 1 the caller's points, 2 the region
 // copy, 3 the polygon.
-void point_ref(const zgeo::Weiler& w, const float* p) {
+void point_ref(zgeo::Weiler& w, const float* p) {
   auto in = [&](const float* base, int n) { return base && p >= base && p < base + 3 * n; };
   if (in(g_caller, g_caller_n)) return u32(1), u32(static_cast<uint32_t>((p - g_caller) / 3));
   if (in(w.region.data(), w.region_count)) return u32(2), u32(static_cast<uint32_t>((p - w.region.data()) / 3));
   if (in(w.poly, w.poly_count)) return u32(3), u32(static_cast<uint32_t>((p - w.poly) / 3));
+  const int32_t x = w.crossings.index_of(reinterpret_cast<const zgeo::Crossing*>(p));
+  if (x >= 0) return u32(4), u32(static_cast<uint32_t>(x));
   u32(p ? 9 : 0), u32(0);
 }
 uint32_t edge_ref(zgeo::Weiler& w, const zgeo::Edge* e) {
@@ -149,6 +151,39 @@ extern "C" int probe_weiler_weed(float* region, int nr, float* poly, int np, uin
   zgeo::side_tables(*w);
   u32(static_cast<uint32_t>(zgeo::weed_out(*w)));
   dump(*w);
+  zgeo::weiler_free(w);
+  return finish(out, cap);
+}
+
+uint32_t crossing_ref(zgeo::Weiler& w, const zgeo::Crossing* c) {
+  const int32_t i = w.crossings.index_of(c);
+  return i >= 0 ? static_cast<uint32_t>(i) : c ? 0xfffe : 0xffff;
+}
+
+// The crossing case up to the walk: reset, the polygon's rings, the side
+// tables, the weed-out and the walk; the state and the crossings after.
+extern "C" int probe_weiler_walk(float* region, int nr, float* poly, int np, uint8_t* out, int cap) {
+  g_out.clear();
+  zerr::set_sink(sink);
+  g_caller = region, g_caller_n = nr;
+  zgeo::Weiler* w = zgeo::weiler_new(region, nr, 0);
+  w->poly = poly, w->poly_count = np;
+  zgeo::reset(*w);
+  zgeo::add_rings(*w, poly, np, 2);
+  zgeo::side_tables(*w);
+  u32(static_cast<uint32_t>(zgeo::weed_out(*w)));
+  u32(zgeo::walk(*w));
+  dump(*w);
+  u32(static_cast<uint32_t>(w->crossings.count));
+  for (int32_t i = 0; i < w->crossings.count; ++i) {
+    zgeo::Crossing& c = w->crossings.at(i);
+    floats(c.point, 3), u32(c.type);
+    for (zgeo::Edge* e : c.links) u32(edge_ref(*w, e));
+  }
+  for (int32_t i = 0; i < w->edges.count; ++i) {
+    zgeo::Edge& e = w->edges.at(i);
+    u32(crossing_ref(*w, e.start)), u32(crossing_ref(*w, e.end)), u32(static_cast<uint32_t>(e.divided));
+  }
   zgeo::weiler_free(w);
   return finish(out, cap);
 }

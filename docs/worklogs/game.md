@@ -363,3 +363,33 @@ Newest last. One short entry per item: what, commits, what to remember.
   branch hit (scratch/cov_weed.py hooks the branch addresses). Regions up to
   150 points in the build test. 3,200 runs identical; BREAK=1..6 fail.
 - Next: 3c, the walk 0x510da0 (926 lines) and the rest, then the driver.
+
+## 2026-10-20 — craters part 3c, first half: the walk (branch mac2/weiler3)
+
+- Ported (zgeo_weiler): walk 0x510da0, intersect 0x513f20, crossing_type
+  0x514280 (table 0x5ec348, nudge constants 0x5cdd60/64 = -1e-5 / -0.99999),
+  divide 0x513860, corner_side 0x514730, corner_pair 0x514840. Edge +0x30 /
+  +0x34 are `start` / `end` crossings (renamed from crossing/mark); Crossing
+  = point[3], links[8], type. Edge points may point into crossing records
+  (probe point_ref kind 4).
+- The pseudocode of 0x510da0 matched the asm where checked (type 3, 4/5,
+  sub 10); only the 514730/514840 call registers are missing from it:
+  514730 types 13/16 (P.prev, P, R2), 19 (P, P.next, R), 22 (P, P.next,
+  R2), 6/7 (R.prev, R, P/P2), 8/9 (R, R.next, P/P2); 514840 types 12
+  (P.prev, P, R.prev, R), 15 (P.prev, P, R2.prev, R2), 14/17 (P.prev, P,
+  R2, R2.next), 18/21 (P, P.next, R2.prev, R2), 20/23 (P, P.next, R2,
+  R2.next). In 0x514840 the last two tightness tests use e4.b (pseudocode
+  reuses the variable).
+- FIX (bug): the original loops forever on a polygon corner on a region
+  edge within float error (crossings re-made, links cycle). Port: step
+  guard per region edge, zerr line 0, returns 1. fixes.md + CHANGES.md
+  (crashes). The test spots the guard (GAVE_UP marker) and checks the
+  original under a 20M-instruction budget instead (walk_hang).
+- Test test_weiler.py `walk` (1,200 cases: crater rings vs crossing
+  triangles/quads, grid pairs, corners on region points/edges, edges through
+  region points); every type and type-3 sub-case reached
+  (scratch/cov_walk.py). Corner results 4/6 rare or not reached.
+- Next (3c second half): the contour merge 0x5129f0 + validate 0x5154d0,
+  contour count 0x513390 (+0x514710), output 0x513480 / 0x5135a0, the
+  driver 0x50faf0; then the whole clip end to end (also from zgeo_model's
+  0x50f120 / 0x50f7b0 later in part 5).

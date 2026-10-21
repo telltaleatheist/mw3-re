@@ -89,7 +89,7 @@ void ring(Edge* first, float* points, int32_t n, uint32_t flags) {
     e->flags = flags;
     e->a = points + 3 * i;
     e->b = points + 3 * (i + 1);
-    e->crossing = nullptr, e->mark = nullptr, e->contour = nullptr;
+    e->start = nullptr, e->end = nullptr, e->contour = nullptr;
   }
   first->prev = first + n - 1;
   Edge* last = first + n - 1;
@@ -237,9 +237,9 @@ int split_pair(Weiler& w, Edge* e1, Edge* e2, float* point, uint32_t f1, uint32_
     n->next = e->next;
     n->flags = e->flags | f;
     n->a = point;
-    n->crossing = nullptr;
+    n->start = nullptr;
     n->b = e->b;
-    n->mark = e->mark;
+    n->end = e->end;
     n->contour = nullptr;
     edge_box(*n);
     e->next->prev = n;
@@ -406,6 +406,435 @@ int weed_out(Weiler& w) {
     }
   }
   return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00514280
+uint32_t crossing_type(const float a[2], const float b[2], const float c[2], const float d[2], const Weiler& w) {
+  static const uint8_t kTypes[81] = {  // 0x005ec348, by the signs of s1..s4 (0 -, 1 zero, 2 +)
+      0, 0, 0, 0, 2, 0, 0, 0, 0, 0,  2,  2, 14, 2, 2, 8, 23, 2, 0, 2, 2, 13, 2, 2, 5,  22, 0,
+      0, 18, 6, 2, 2, 15, 2, 2, 0, 0, 2,  2, 2,  3, 2, 2, 2, 0, 0, 2, 2, 12, 2, 2, 7, 21, 0,
+      0, 19, 4, 2, 2, 16, 2, 2, 0, 2, 20, 9, 2,  2, 17, 2, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0};
+  const float dx = d[0] - c[0], dy = d[1] - c[1];
+  float s1 = (a[0] - c[0]) * dy - (a[1] - c[1]) * dx;  // a and b against c d
+  float s2 = (b[0] - c[0]) * dy - (b[1] - c[1]) * dx;
+  if ((s1 < 0.0f && s2 < 0.0f) || (s1 > 0.0f && s2 > 0.0f)) return 0;
+  const float ex = b[0] - a[0], ey = b[1] - a[1];
+  float s3 = (c[0] - a[0]) * ey - (c[1] - a[1]) * ex;  // c and d against a b
+  float s4 = (d[0] - a[0]) * ey - (d[1] - a[1]) * ex;
+  if ((s3 < 0.0f && s4 < 0.0f) || (s3 > 0.0f && s4 > 0.0f)) return 0;
+  if ((s1 == 0.0f) + (s2 == 0.0f) + (s3 == 0.0f) + (s4 == 0.0f) == 2) {
+    // Two ends touch: a point just inside c d from the touching end, in the
+    // region or not, settles which side the touch counts on.
+    const float k = s3 == 0.0f ? -9.999999747378752e-06f : -0.9999899864196777f;  // 0x005cdd60 / 64
+    const float q[2] = {c[0] - dx * k, c[1] - dy * k};
+    const float s = s3 == 0.0f ? s4 : s3;
+    const int in = point_in_polygon(q, w.region_count, w.region.data());
+    if (s > 0.0f ? in > 0 : in < 0) {
+      s1 = -s1, s2 = -s2;
+      if (s3 == 0.0f) s4 = -s4;
+      else s3 = -s3;
+    }
+  }
+  auto cls = [](float v) { return v < 0.0f ? 0 : v == 0.0f ? 1 : 2; };
+  return kTypes[27 * cls(s1) + 9 * cls(s2) + 3 * cls(s3) + cls(s4)];
+}
+
+// Mech3.exe 1.2 @ 0x00513f20. The points come by value (12 floats).
+uint32_t intersect(Weiler& w, const float a[3], const float b[3], const float c[3], const float d[3],
+                   Crossing** out) {
+  const uint32_t t = crossing_type(a, b, c, d, w);
+  Crossing* x = nullptr;
+  switch (t) {
+    case 4:
+    case 5: {
+      const float u = c[0] - d[0], v = c[1] - d[1];
+      const float ex = b[0] - a[0], ey = b[1] - a[1];
+      const float det = v * ex - u * ey;
+      if (det == 0.0f) {
+        *out = nullptr;
+        return 0;
+      }
+      x = w.crossings.alloc(1);
+      const float inv = 1.0f / det;
+      const float s = (c[0] - a[0]) * (v * inv) + (c[1] - a[1]) * -(u * inv);
+      x->point[0] = ex * s + a[0];
+      const float y = ey * s + a[1];
+      x->point[1] = y;
+      const float cd = c[0] - d[0];
+      if (cd != 0.0f) x->point[2] = (d[2] - c[2]) * ((c[0] - x->point[0]) / cd) + c[2];
+      else x->point[2] = (d[2] - c[2]) * ((c[1] - y) / (c[1] - d[1])) + c[2];
+      break;
+    }
+    case 6:
+    case 7:
+      x = w.crossings.alloc(1), std::memcpy(x->point, a, 12);
+      break;
+    case 8:
+    case 9:
+      x = w.crossings.alloc(1), std::memcpy(x->point, b, 12);
+      break;
+    case 12: case 13: case 14: case 15: case 16: case 17:
+      x = w.crossings.alloc(1), std::memcpy(x->point, c, 12);
+      break;
+    case 18: case 19: case 20: case 21: case 22: case 23:
+      x = w.crossings.alloc(1), std::memcpy(x->point, d, 12);
+      break;
+    default:
+      break;
+  }
+  if (x) x->type = t;
+  *out = x;
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x00513860
+int divide(Weiler& w, Crossing* x, Edge* e, int at_end) {
+  Edge* n;
+  if (points_near(e->b, x->point, 0.001f)) {
+    n = e->next;
+  } else {
+    n = w.edges.alloc(1);
+    n->a = x->point;
+    n->b = e->b;
+    e->b = x->point;
+    n->next = e->next;
+    n->prev = e;
+    e->next->prev = n;
+    e->next = n;
+    n->flags = e->flags;
+    n->contour = nullptr;
+    n->end = e->end;
+    n->divided = e->divided = 1;
+  }
+  if (at_end) {
+    e->end = x;
+    n->start = x;
+  } else {
+    n->start = nullptr;
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00514730
+int corner_side(const Edge* e1, const Edge* e2, const Edge* e3) {
+  const float* v = e1->b;
+  if (v != e2->a) return 0;
+  const float *a = e1->a, *c = e2->b, *p = e3->a;
+  const float dy = e3->b[1] - p[1], dx = e3->b[0] - p[0];
+  const float s1 = (a[0] - p[0]) * dy - (a[1] - p[1]) * dx;
+  const float s2 = (c[0] - p[0]) * dy - (c[1] - p[1]) * dx;
+  if ((0.0f <= s1 && 0.0f <= s2) || (s1 <= 0.0f && s2 <= 0.0f))
+    return (v[1] - a[1]) * (c[0] - a[0]) - (c[1] - a[1]) * (v[0] - a[0]) <= 0.0f ? 2 : 1;
+  return 7;
+}
+
+// Mech3.exe 1.2 @ 0x00514840
+int corner_pair(const Edge* e1, const Edge* e2, const Edge* e3, const Edge* e4) {
+  const float* v1 = e1->b;
+  const float* v2 = e2->a;
+  if (v1 != v2) return 0;
+  const float* v3 = e3->b;
+  const float* q = e4->a;
+  if (v3 != q) return 0;
+  const float* a = e1->a;
+  const float* p = e3->a;
+  const float fx = v3[0] - p[0], fy = v3[1] - p[1];
+  const float* r = e4->b;
+  auto side_q = [&](const float* u) { return (u[0] - q[0]) * (r[1] - q[1]) - (u[1] - q[1]) * (r[0] - q[0]) < 0.0f; };
+  auto side_p = [&](const float* u) { return (u[0] - p[0]) * fy - (u[1] - p[1]) * fx; };
+  const float rr = (r[1] - p[1]) * fx - (r[0] - p[0]) * fy;
+  int s1;
+  bool neg = side_q(a);
+  if (0.0f <= side_p(a)) s1 = neg && rr < 0.0f ? 1 : -1;
+  else s1 = neg || rr < 0.0f ? 1 : -1;
+  const float* c = e2->b;
+  neg = side_q(c);
+  int s2;
+  if (0.0f <= side_p(c)) s2 = neg && rr < 0.0f ? 1 : -1;
+  else s2 = neg || rr < 0.0f ? 1 : -1;
+  auto cross = [](const float* o, const float* u, const float* t) {
+    return (u[0] - o[0]) * (t[1] - o[1]) - (u[1] - o[1]) * (t[0] - o[0]);
+  };
+  const bool tight = cross(a, p, v1) < 0.0f && cross(v2, p, c) < 0.0f && cross(a, r, v1) < 0.0f &&
+                     cross(v2, r, c) < 0.0f;
+  if (s1 == -1 && s2 == -1) return tight ? 6 : 5;
+  if (s1 == 1 && s2 == 1) return tight ? 4 : 3;
+  return 9 - (s1 != 1);
+}
+
+// Mech3.exe 1.2 @ 0x00510da0. R and R2 step round the region's two rings,
+// P and P2 round the polygon's (by their links, so pieces split off are
+// visited too, except the one just made when `skip`).
+uint32_t walk(Weiler& w) {
+  Edge* const r_first = w.contours.at(0).edge;
+  Edge* r = r_first;
+  Edge* r2 = w.contours.at(1).edge;
+  Edge* p = w.contours.at(2).edge;
+  Edge* p2 = w.contours.at(3).edge;
+  uint32_t result = 0;
+  bool skip = false;
+  Crossing* x = nullptr;
+  auto at_end = [&](Edge* e) { e->next->start = x, e->end = x; };      // x at e's end
+  auto at_start = [&](Edge* e) { e->prev->end = x, e->start = x; };    // x at e's start
+  auto shares = [](const Crossing* c, const Edge* e1, const Edge* e2) {
+    return c && (c == e1->start || c == e1->end || c == e2->start || c == e2->end);
+  };
+  auto near = [](const float* u, const float* v) {
+    return std::fabs(u[0] - v[0]) <= kSame && std::fabs(u[1] - v[1]) <= kSame;
+  };
+  do {
+    Edge* const p_first = p;
+    float* ra = r->a;
+    float* rb = r->b;
+    int32_t steps = 0;
+    do {
+      // FIX (bug): a polygon corner on a region edge to within a float's
+      // error makes a new crossing each pass and the pieces' links cycle
+      // past the ring's start: the exe loops (and allocates) forever. Give up
+      // as its intersection errors do.
+      if (++steps > 64 + 16 * w.edges.count) {
+        zerr::report(0x100, kFile, 0, "Weiler walk gave up: the ring does not close");
+        return 1;
+      }
+      float* pb = p->b;
+      float* pa = p->a;
+      if (r->divided) edge_box(*r);
+      if (p->divided) edge_box(*p);
+      if (p->box[2] < r->box[0] || r->box[2] < p->box[0] || p->box[3] < r->box[1] || r->box[3] < p->box[1] ||
+          shares(p->start, r, r2) || shares(p->end, r, r2) || shares(p2->start, r, r2) || shares(p2->end, r, r2)) {
+        p = p->next, p2 = p2->next;
+        continue;
+      }
+      const uint32_t t = intersect(w, ra, rb, pa, pb, &x);
+      if (t == 1) {
+        zerr::report(0x100, kFile, 0x72b, "weilerIntersect Error: %s");
+        return 1;
+      }
+      if (t != 0) {
+        if (x) std::memset(x->links, 0, sizeof x->links);
+        int s;
+        switch (t) {
+          case 3: {  // the two run along each other
+            const int code = within_segment(ra, pa, pb) << 3 | within_segment(rb, pa, pb) << 2 |
+                             within_segment(pa, ra, rb) << 1 | within_segment(pb, ra, rb);
+            if (code == 5 || code == 6 || code == 9 || code == 10) {
+              x = w.crossings.alloc(1);
+              std::memset(x->links, 0, sizeof x->links);
+            }
+            if (code == 5) {
+              if (p != p->next && near(p->b, p->next->a)) x->type = 0x14, p2->end = x, r->end = x;
+              else x->type = 0x17, p->end = x, r2->end = x;
+              std::memcpy(x->point, rb, 12);
+            } else if (code == 6) {
+              x->type = 0x11;
+              std::memcpy(x->point, rb, 12);
+              p2->start = x, r2->end = x;
+            } else if (code == 9) {
+              x->type = 0x15;
+              std::memcpy(x->point, pb, 12);
+              p2->end = x, r2->start = x;
+            } else if (code == 10) {
+              if (p != p->prev && near(p->a, p->prev->b)) x->type = 0xc, p2->start = x, r->start = x;
+              else x->type = 0xf, p->start = x, r2->start = x;
+              std::memcpy(x->point, ra, 12);
+            }
+            break;
+          }
+          case 4:
+          case 5:  // across
+            divide(w, x, r, 1), divide(w, x, r2, 1), divide(w, x, p, 1), divide(w, x, p2, 1);
+            rb = r->b;
+            skip = true;
+            break;
+          case 6:
+            divide(w, x, p, 1), divide(w, x, p2, 0);
+            skip = true;
+            switch (corner_side(r->prev, r, p)) {
+              case 0: r2->start = x, r->start = x; break;
+              case 1: x->type = 10, at_end(p), at_start(r), r->flags |= 3, r->prev->flags |= 3; break;
+              case 2: x->type = 10, at_end(p), at_start(r2), r->flags |= 3, r->prev->flags |= 3; break;
+              case 7: x->type = 4, at_end(p2), at_start(r2), at_start(r); break;
+            }
+            break;
+          case 7:
+            divide(w, x, p, 0), divide(w, x, p2, 1);
+            skip = true;
+            switch (corner_side(r->prev, r, p2)) {
+              case 0: r2->start = x, r->start = x; break;
+              case 1: x->type = 0xb, at_end(p2), at_start(r); break;
+              case 2: x->type = 0xb, at_end(p2), at_start(r2); break;
+              case 7: x->type = 5, at_end(p), at_start(r2), at_start(r); break;
+            }
+            break;
+          case 8:
+            divide(w, x, p, 1), divide(w, x, p2, 0);
+            skip = true;
+            switch (corner_side(r, r->next, p)) {
+              case 0: r2->end = x, r->end = x; break;
+              case 1: x->type = 10, at_end(p), at_end(r), r->flags |= 3, r->next->flags |= 3; break;
+              case 2: x->type = 10, at_end(p), at_end(r2), r->flags |= 3, r->next->flags |= 3; break;
+              case 7: x->type = 5, at_end(p2), at_end(r2), at_end(r); break;
+            }
+            break;
+          case 9:
+            divide(w, x, p, 0), divide(w, x, p2, 1);
+            skip = true;
+            switch (corner_side(r, r->next, p2)) {
+              case 0: r2->end = x, r->end = x; break;
+              case 1: x->type = 0xb, at_end(p2), at_end(r); break;
+              case 2: x->type = 0xb, at_end(p2), at_end(r2); break;
+              case 7: x->type = 4, at_end(p), at_end(r2), at_end(r); break;
+            }
+            break;
+          case 12:
+            switch (s = corner_pair(p->prev, p, r->prev, r)) {
+              case 0: p2->start = x, r->start = x; break;
+              case 3: x->type = 0x18, at_start(p2), at_start(r); break;
+              case 4: x->type = 0x18, at_start(p), at_start(r); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_start(r2), at_start(r), at_start(p2), at_start(p);
+                break;
+            }
+            break;
+          case 13:
+            divide(w, x, r, 1), divide(w, x, r2, 0);
+            switch (corner_side(p->prev, p, r2)) {
+              case 0: p2->start = x, p->start = x; break;
+              case 1: x->type = 0x18, at_end(r), at_start(p); break;
+              case 2: x->type = 0x18, at_end(r), at_start(p2); break;
+              case 7: x->type = 5, at_end(r2), at_start(p2), at_start(p); break;
+            }
+            rb = r->b;
+            break;
+          case 14:
+            switch (s = corner_pair(p->prev, p, r2, r2->next)) {
+              case 0: p->start = x, r->end = x; break;
+              case 3: x->type = 0x18, at_start(p2), at_end(r); break;
+              case 4: x->type = 0x18, at_start(p), at_end(r); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_end(r2), at_end(r), at_start(p2), at_start(p);
+                break;
+            }
+            break;
+          case 15:
+            switch (s = corner_pair(p->prev, p, r2->prev, r2)) {
+              case 0: p->start = x, r2->start = x; break;
+              case 5: x->type = 0x19, at_start(p2), at_start(r2); break;
+              case 6: x->type = 10, at_start(p), at_start(r2), r->flags |= 2, r->prev->flags |= 2; break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_start(r2), at_start(r), at_start(p2), at_start(p);
+                break;
+            }
+            break;
+          case 16:
+            divide(w, x, r, 0), divide(w, x, r2, 1);
+            switch (corner_side(p->prev, p, r2)) {
+              case 0: p2->start = x, p->start = x; break;
+              case 1: x->type = 0x19, at_end(r2), at_start(p); break;
+              case 2: x->type = 0x19, at_end(r2), at_start(p2); break;
+              case 7: x->type = 4, at_end(r), at_start(p2), at_start(p); break;
+            }
+            rb = r->b;
+            break;
+          case 17:
+            switch (s = corner_pair(p->prev, p, r2, r2->next)) {
+              case 0: p2->start = x, r2->end = x; break;
+              case 5: case 6: x->type = 0x19, at_end(r2), at_start(p2); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_end(r2), at_end(r), at_start(p2), at_start(p);
+                break;
+            }
+            break;
+          case 18:
+            switch (s = corner_pair(p, p->next, r2->prev, r2)) {
+              case 0: p->end = x, r->start = x; break;
+              case 3: x->type = 0x18, at_end(p2), at_start(r); break;
+              case 4: x->type = 0x18, at_end(p), at_start(r); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_start(r2), at_start(r), at_end(p2), at_end(p);
+                break;
+            }
+            break;
+          case 19:
+            divide(w, x, r, 1), divide(w, x, r2, 0);
+            switch (corner_side(p, p->next, r)) {
+              case 0: p2->end = x, p->end = x; break;
+              case 1: x->type = 0x18, at_end(r), at_end(p); break;
+              case 2: x->type = 0x18, at_end(r), at_end(p2); break;
+              case 7: x->type = 4, at_end(r2), at_end(p2), at_end(p); break;
+            }
+            rb = r->b;
+            break;
+          case 20:
+            switch (s = corner_pair(p, p->next, r2, r2->next)) {
+              case 0: p2->end = x, r->end = x; break;
+              case 3: x->type = 0x18, at_end(p2), at_end(r); break;
+              case 4: x->type = 0x18, at_end(p), at_end(r); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_end(r2), at_end(r), at_end(p2), at_end(p);
+                break;
+            }
+            break;
+          case 21:
+            switch (s = corner_pair(p, p->next, r2->prev, r2)) {
+              case 0: p2->end = x, r2->start = x; break;
+              case 3: x->type = 0x18, at_end(p2), at_start(r); break;
+              case 4: x->type = 0x18, at_end(p), at_start(r); break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_start(r2), at_start(r), at_end(p2), at_end(p);
+                break;
+            }
+            break;
+          case 22:
+            divide(w, x, r, 0), divide(w, x, r2, 1);
+            switch (corner_side(p, p->next, r2)) {
+              case 0: p2->end = x, p->end = x; break;
+              case 1: x->type = 0x19, at_end(r2), at_end(p); break;
+              case 2: x->type = 0x19, at_end(r2), at_end(p2); break;
+              case 7: x->type = 5, at_end(r), at_end(p2), at_end(p); break;
+            }
+            rb = r->b;
+            break;
+          case 23:
+            switch (s = corner_pair(p, p->next, r2, r2->next)) {
+              case 0: p->end = x, r2->end = x; break;
+              case 5: x->type = 0x19, at_end(r2), at_end(p2); break;
+              case 6: x->type = 10, at_end(r2), at_end(p), r->flags |= 2, r->next->flags |= 2; break;
+              case 8: case 9:
+                x->type = s == 8 ? 5 : 4, at_end(r2), at_end(r), at_end(p2), at_end(p);
+                break;
+            }
+            break;
+          default:
+            break;
+        }
+        if (skip) p = p->next, p2 = p2->next, skip = false;
+      }
+      result |= t;
+      p = p->next, p2 = p2->next;
+    } while (p != p_first);
+    r = r->next, r2 = r2->next;
+  } while (r != r_first);
+  if (w.crossings.count != 0) {
+    Edge* e = r_first;
+    do {
+      if (e->start) e->start->links[2] = e;
+      if (e->end) e->end->links[0] = e;
+      if (r2->start) r2->start->links[3] = r2;
+      if (r2->end) r2->end->links[1] = r2;
+      r2 = r2->next, e = e->next;
+    } while (e != r_first);
+    Edge* const p_first = p;
+    e = p;
+    do {
+      if (e->start) e->start->links[6] = e;
+      if (e->end) e->end->links[4] = e;
+      if (p2->start) p2->start->links[7] = p2;
+      if (p2->end) p2->end->links[5] = p2;
+      p2 = p2->next, e = e->next;
+    } while (e != p_first);
+  }
+  return result;
 }
 
 // Mech3.exe 1.2 @ 0x00513cf0. Counts the polygon's crossings of the ray
