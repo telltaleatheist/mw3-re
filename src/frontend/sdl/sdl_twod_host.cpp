@@ -296,6 +296,13 @@ ztwod::MouseState SdlTwodHost::mouse() {
   ztwod::MouseState m{};
   static_assert(sizeof m == sizeof(zin::MouseInfo), "the same 15 dwords");
   std::memcpy(&m, zin::mouse_info(), sizeof m);
+  // MW3_TRACE_MOUSE=1 (ours): the menus' mouse, once every 30 reads.
+  static const bool trace = std::getenv("MW3_TRACE_MOUSE") != nullptr;
+  static int reads = 0;
+  if (trace && (++reads % 30 == 0 || zin::mouse_info()->left || zin::mouse_info()->right)) {
+    const zin::MouseInfo& i = *zin::mouse_info();
+    std::fprintf(stderr, "mw3: mouse %d,%d d %d,%d buttons %u %u\n", i.x, i.y, i.dx, i.dy, i.left, i.right);
+  }
   return m;
 }
 void SdlTwodHost::input_reset() { zin::reset(); }  // 0x0051b1c0

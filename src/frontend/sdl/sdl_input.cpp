@@ -147,7 +147,10 @@ int32_t SdlInput::mouse_state(platform::MouseState* out) {
   if (!opened_[kMouse] || !acquired_[kMouse]) return lost_[kMouse] ? kInputLost : kNotAcquired;
   out->x = static_cast<int32_t>(dx_), out->y = static_cast<int32_t>(dy_), out->z = static_cast<int32_t>(dz_);
   dx_ -= out->x, dy_ -= out->y, dz_ -= out->z;  // the fractions carry over
-  std::memcpy(out->buttons, buttons_, 4);
+  // FIX (A): DirectInput's device state caught a click shorter than a frame
+  // through its buffer; SDL's events can press and release between two reads,
+  // so a press stays down for the read after it.
+  for (int i = 0; i < 4; ++i) out->buttons[i] = buttons_[i] | latched_[i], latched_[i] = 0;
   return 0;
 }
 
@@ -259,6 +262,7 @@ void SdlInput::on_event(const SDL_Event& e) {
       if (b < 0) break;
       const bool down = e.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
       buttons_[b] = down ? 0x80 : 0;
+      if (down) latched_[b] = 0x80;
       if (b < 3) mouse_buttons = down ? mouse_buttons | (1u << b) : mouse_buttons & ~(1u << b);
       mouse_x = e.button.x, mouse_y = e.button.y;
       break;

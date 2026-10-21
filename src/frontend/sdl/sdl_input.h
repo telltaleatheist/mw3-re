@@ -72,6 +72,7 @@ class SdlInput : public platform::Input {
   float dx_ = 0, dy_ = 0, dz_ = 0;
   float raw_dx_ = 0, raw_dy_ = 0;
   uint8_t buttons_[4] = {};
+  uint8_t latched_[4] = {};  // a press not yet read (FIX (A): a click inside one frame)
   SDL_Joystick* joy_ = nullptr;
 };
 
