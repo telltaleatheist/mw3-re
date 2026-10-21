@@ -249,6 +249,14 @@ Noted but not yet ported:
 
 Bugs whose intent is clear, fixed as the port reaches the code:
 
+- A deleted wreck stays other mechs' attacker (Instant Action; mac 2,
+  2026-10-21): when 0x41e140 deletes a wreck at 180 s, 0x4aa6b0 clears the
+  targets and contacts that point at it, but no mech's attacker (+0x664). A
+  mech that wreck hit and that then dies (a fall, its own ammo) credits the
+  kill to it: its vt+0x80 on freed memory, a crash. Fix when the AI's
+  forget (0x4aa6b0's side) is ported and the port deletes wrecks again:
+  clear every mech's +0x664 that names the wreck (damage.md, After death).
+
 - Data typos, fixed by the importer (the readers stay as written, the patched
   data goes through them):
   - Firefly skin 5 is labelled `MSG_SKIN_VARIANTD`; should be `VARIANTE`
