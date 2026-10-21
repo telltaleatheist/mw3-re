@@ -137,6 +137,83 @@ Material* material_add(Material& m) {
   return t.last;
 }
 
+Material& default_material() {
+  static Material m{};
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x00536a70. The exe keeps flag bits 3..7 of whatever the
+// material held (callers pass an uninitialised one on the stack); 0 here.
+void material_init(Material& m) {
+  m.cycle = nullptr;
+  m.texture = nullptr;
+  m.alpha = 0xff;
+  m.flags &= 0xf8;
+  m.r = m.g = m.b = 255.0f;
+  m.unk_14[0] = 0, m.unk_14[1] = 0.5f, m.unk_14[2] = 0.5f;
+  m.rgb = 0x7fff;
+  m.soil = 0;
+}
+
+// Mech3.exe 1.2 @ 0x005375c0
+int material_set_soil(Material* m, uint32_t soil) {
+  if (!m) return 0;
+  m->soil = soil;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x005375d0
+int cycle_create(Material& m, int32_t count) {
+  if (&m == &default_material()) return 0;
+  m.flags |= 5;
+  if (m.cycle && count <= static_cast<int32_t>(m.cycle->texture_count)) return 0;
+  // The exe reallocs the cycle and drops its old texture list.
+  auto* c = static_cast<Cycle*>(std::realloc(m.cycle, sizeof(Cycle)));
+  *c = Cycle{};
+  c->speed = 15.0f;
+  c->texture_count = static_cast<uint32_t>(count);
+  c->textures = static_cast<zimg::TextureEntry**>(std::malloc(count > 0 ? count * sizeof(void*) : 1));
+  for (int32_t i = 0; i < count; ++i) c->textures[i] = zimg::default_entry();
+  m.cycle = c;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00537680
+int cycle_add(Material& m, zimg::TextureEntry* t) {
+  if (!(m.flags & 4)) return 0;
+  Cycle* c = m.cycle;
+  if (!c->textures || c->added >= c->texture_count) return 0;
+  c->textures[c->added++] = t;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x005377a0
+int cycle_set_loop(Material* m, uint32_t v) {
+  if (!m) return 0;
+  if ((m->flags & 4) && m->cycle) return m->cycle->looping = v, 1;
+  zerr::report(0x200, kFile, 0x727, "SetCycleTextureLoop:  Texture not cycled");
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x005377e0
+int cycle_set_speed(Material* m, float v) {
+  if (!m) return 0;
+  if ((m->flags & 4) && m->cycle) return m->cycle->speed = v, 1;
+  zerr::report(0x200, kFile, 0x73b, "SetCycleTextureSpeed:  Texture not cycled");
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00537be0
+Material* material_find_texture(zimg::TextureEntry* t) {
+  if (!t) return nullptr;
+  MaterialTable& tb = g_table;
+  for (int32_t i = tb.used_head; i >= 0; i = tb.at(i).next) {
+    Material& m = tb.at(i);
+    if (m.texture == t) return m.flags |= 0x10, &m;
+  }
+  return nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x00537830. The exe writes through null for a null
 // material; every caller passes one.
 Material* material_copy(const Material& m) { return new_material(m); }
@@ -191,7 +268,7 @@ int read_materials(std::FILE* f) {
       if (std::fread(raw, 0x1c, 1, f) != 1) return -1;
       c->looping = at<uint32_t>(raw, 0), c->frame = at<uint32_t>(raw, 4);
       c->index = at<float>(raw, 8), c->speed = at<float>(raw, 0xc);
-      c->texture_count = at<uint32_t>(raw, 0x10), c->unk_14 = at<uint32_t>(raw, 0x14);
+      c->texture_count = at<uint32_t>(raw, 0x10), c->added = at<uint32_t>(raw, 0x14);
       c->textures = static_cast<zimg::TextureEntry**>(std::malloc(c->texture_count * sizeof(void*)));
       for (uint32_t k = 0; k < c->texture_count; ++k) {
         int32_t idx;

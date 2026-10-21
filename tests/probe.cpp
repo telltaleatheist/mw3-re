@@ -562,7 +562,7 @@ int probe_materials(const char* path, long offset, int rb, int gb, int bb, uint8
     if (!(m.flags & 4)) continue;
     const zmod::Cycle* c = m.cycle;
     put_bytes(b, &c->looping, 4), put_bytes(b, &c->frame, 4), put_bytes(b, &c->index, 4);
-    put_bytes(b, &c->speed, 4), put_bytes(b, &c->texture_count, 4), put_bytes(b, &c->unk_14, 4);
+    put_bytes(b, &c->speed, 4), put_bytes(b, &c->texture_count, 4), put_bytes(b, &c->added, 4);
     for (uint32_t k = 0; k < c->texture_count; ++k) {
       const int32_t idx = c->textures[k] ? static_cast<int32_t>(c->textures[k] - zimg::textures().entries) : -1;
       put_bytes(b, &idx, 4);

@@ -88,6 +88,7 @@ for t in \
     mech_build \
     ai_brain \
     ai_orders \
+    zdec_init \
     ai_gates \
     ai_valves \
     ai_targets \
