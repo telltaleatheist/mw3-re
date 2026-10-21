@@ -189,6 +189,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | AI order stack, 0x4e9100 | Searching the orders for a net, the loop steps past a full last block of the deque into the map (the push takes its next block only when it needs one) | (bug) reads past an 8-byte heap block: a crash or garbage when no order is on the net and the orders fill a block exactly (13, 39, ... of them) | The search stops at the last order: no order on the net; `test_ai_orders.py` counts the case apart |
 | AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
 | Quicksand texture, declient.zrd read 0x501ab0 | One frame: adds the name past the list's end (frames[1]) and drops the texture; no `DEFAULT_TEXTURE`: reads the last mission's freed name list, or a null one | (bug) a crash or a random texture at mission load | One frame: that frame, set as the material's texture; no `DEFAULT_TEXTURE`: untextured ("Quick sand will NOT be textured"). No shipped file reaches either; `test_zdec_init.py` runs them on the port alone (craters.md) |
+| Placing a mech, 0x4161c0 | The ground pick is given y + 10 as its step, so it reaches 2y + 10: below sea level nothing is in reach and the lowest surface is taken, high up a surface up to y + 10 above can be | (bug) a mech re-placed where it stands (a mech swap, 0x4783c0) can drop under a bridge or land on a roof; the other callers pass a constant | A step of 10 (Owen 2026-10-20, `zfix bugs`). Every shipped place checked both ways (`placements_on_every_campaign_mission_headless` with `MW3_PLACE_POINTS`): 195 campaign placements and 768 aiv.zrd records, none moves; `fix_place_steps_ten_above`; test_place.py checks the exe's path |
 
 Notes on the fixes:
 
@@ -314,11 +315,8 @@ Resolved (2026-10-21):
 
 To do, in the specialists' queues:
 
-- Placing a mech (0x4161c0): fix to the likely intent, a step of 10 above
-  the spot as every other caller uses. Owen: the designers gave every map a
-  specific landing place, so whatever the fix, every shipped mech must still
-  end up there: check every mission's placements before and after, and
-  look at each one that moves. `zfix bugs`.
+- Placing a mech (0x4161c0): done (mac2/place-fix): a step of 10; no
+  shipped place moves (mission-start.md section 11, "The step fix").
 - Valves that update themselves round a loop: add the guard (a valve's
   reactions are not re-entered while they run). Owen may make his own
   missions later. FIX (bug).

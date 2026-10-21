@@ -280,6 +280,7 @@ add_executable(mw3tests
   tests/test_controls_cfg.cpp
   tests/test_pilot_names.cpp
   tests/test_program.cpp
+  tests/place_survey.cpp
 )
 target_link_libraries(mw3tests PRIVATE mw3core)
 # Tests that read the player's install skip themselves when it is not there.

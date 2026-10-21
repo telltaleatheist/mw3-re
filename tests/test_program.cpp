@@ -2144,3 +2144,91 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
   mech3::options() = mech3::Options{};
 }
 
+
+void place_survey_begin(const char* points);
+void place_survey_leg(int leg, const char* world);
+int place_survey_end(std::FILE* f, const char* const* leg_names, int* moved, int* points, int* point_moves);
+
+// Every campaign mission's mech placements (0x004161c0) with the original
+// step (y + 10) and the fixed one (10): where each lands either way, and the
+// polygons under it. MW3_PLACE_REPORT=<file> writes the list;
+// MW3_PLACE_POINTS=<file> adds every aiv.zrd record's place in every reader
+// archive (campaign, instant action, multiplayer), from
+// tools/analysis/aiv_points.py (docs/mission-start.md section 11).
+TEST(placements_on_every_campaign_mission_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("placements_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  static const char* const kDir[] = {"c1", "c2", "c3", "c4", "c4b", "t1"};
+  struct Leg {
+    int32_t index, number;
+    int frames = 0;
+  };
+  std::vector<Leg> legs;
+  const int first[] = {1, 1, 1, 1, 4, 1}, last[] = {4, 4, 6, 3, 6, 4};
+  for (int d = 0; d < 6; ++d)
+    for (int n = first[d]; n <= last[d]; ++n) legs.push_back({d, n});
+  std::vector<std::string> names;
+  for (const Leg& g : legs) names.push_back(std::string(kDir[g.index]) + " m" + std::to_string(g.number));
+  std::vector<const char*> cnames;
+  for (const std::string& n : names) cnames.push_back(n.c_str());
+  place_survey_begin(std::getenv("MW3_PLACE_POINTS"));
+  place_survey_leg(0, kDir[legs[0].index]);
+  size_t leg = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = legs[0].index, l.number = legs[0].number;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || leg >= legs.size()) return;
+      if (++legs[leg].frames < 2) return;
+      if (++leg >= legs.size()) return;
+      place_survey_leg(static_cast<int>(leg), kDir[legs[leg].index]);
+      mech3::missions().cleanup(false);
+      mech3::GameEngine::Launch next;
+      next.index = legs[leg].index, next.number = legs[leg].number;
+      engine.set_launch(next);
+      app.replace(&mech3::states().load, 0);
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  int moved = 0, points = 0, point_moves = 0;
+  const char* report = std::getenv("MW3_PLACE_REPORT");
+  std::FILE* f = report ? std::fopen(report, "w") : nullptr;
+  const int placed = place_survey_end(f, cnames.data(), &moved, &points, &point_moves);
+  if (f) std::fclose(f);
+  for (const Leg& g : legs) EXPECT(g.frames >= 2);  // every mission reached play
+  EXPECT(placed > static_cast<int>(legs.size()));   // the player and the AI mechs placed
+  EXPECT(moved == 0);  // the step fix moves no campaign mech (Owen's condition)
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
