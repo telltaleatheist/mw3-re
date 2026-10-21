@@ -517,8 +517,11 @@ mac 4's group getters (`weapon_planner.h`), its target contact (TARGET's
 slot is the mech's `target`, +0x6c) and the contact's mech and distance
 (zai_target); "kind 7" is the target Pilot's roster index, the Elemental,
 and +0x3cc its ECM count. "Over TARGET's box" (0x00440a30) waits for
-TARGET's tracking (0x00440b00), so the program never locks yet; the aimed
-node's object (0x0040e920) is not ported either (no "over" image from it).
+TARGET's tracking (0x00440b00), so the program never locks yet. The aimed
+node's object is mac 2's `node_entity` (0x0040e920, app_weapons.cpp); its
++8 byte is ZEntity's active flag, read from a mech (another object's is
+logged as unported, 0); the node's +0xbc is its damage callbacks' record
+(zwep_damage), "above 1" meaning it has one.
 mw3tests `mission_c1m1_hud_weapon_lines_and_lock_headless` forces "over"
 (`program_hud_force_over`) with the Owens as the target and the LRM group:
 acquiring, waiting, locked 0.6 s later.

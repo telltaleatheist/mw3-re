@@ -689,3 +689,12 @@ fix_campaign_save_after_the_question covers both answers, fix on and off
 (two quick breaks caught). fixes.md row moved from "still to fix" into the
 table; CHANGES.md and discoveries updated. Also the 6c review comments
 (most 0 → height 0 via inf/NaN; mech_lance_armor's guards as departures).
+
+## 2026-10-21 HUD: the aimed node's object (branch mac3/save-fix)
+
+app_hud's node_object now calls mac 2's node_entity (0x0040e920); the
+stub that answered none is gone. object_byte8 (+8, ZEntity's active) reads
+a mech's `active` (entity_is_mech in app_mech.cpp), any other object is
+logged unported; node_bc (+0xbc) is the node's damage callbacks' record
+(a typed field in the port, the raw bytes there are stale): has one = 2.
+test_hud 20/20 (its probe keeps the hooks), mw3tests 107/0.

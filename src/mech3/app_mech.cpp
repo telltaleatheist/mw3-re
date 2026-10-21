@@ -800,6 +800,12 @@ bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[1
   }
   return true;
 }
+bool entity_is_mech(const void* o) {
+  if (!o) return false;
+  for (const ai::Handle h : ai::entity_list())
+    if (g_w.object_of(g_w.engine, h) == o) return true;
+  return false;
+}
 uint32_t mech_player_allies() { return world().mission_player ? world().mission_player->allies : 0; }
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   Mech* m = static_cast<Mech*>(mech);

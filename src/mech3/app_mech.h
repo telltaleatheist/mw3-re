@@ -121,6 +121,7 @@ void update_mech(void* mech, float dt);
 void update_entities(float dt);                                   // 0x004a1140: every other entity's frame
 void* node_owner(void* node);                                     // 0x0040e9d0 (app_weapons.cpp)
 void* node_entity(void* node);                                    // 0x0040e920 (app_weapons.cpp)
+bool entity_is_mech(const void* o);                              // one of zEntity's list's mechs
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
