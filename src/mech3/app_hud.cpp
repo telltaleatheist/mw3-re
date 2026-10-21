@@ -8,8 +8,10 @@
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/ztwod/twod.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "mech3/app_mech.h"
@@ -22,6 +24,7 @@
 #include "mech3/mech_skis.h"
 #include "gamez/zmodel/gmod_screen.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_parts.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
 #include "mech3/weapon.h"
@@ -183,8 +186,58 @@ struct ProgramHudHooks : HudHooks {
     }
   }
   float mech_jump_fuel(Mech* m) override { return m->jet_fuel; }  // vt+0x148
-  void mech_radar_dir(Mech* m, float out[3]) override { mech_forward(m, out); }  // 0x0041cdf0 (radar, item 7)
+  void mech_radar_dir(Mech* m, float out[3]) override {  // 0x0041cdf0: the torso's flat front (+0x39c, +0x16c)
+    if (!m->torso) return mech_forward(m, out);
+    out[0] = m->torso->flat_front.x, out[1] = m->torso->flat_front.y, out[2] = m->torso->flat_front.z;
+  }
   float mission_time(bool) override { return mech_game_time(); }
+  // The radar (hud.md section 15): the mission map is not ported (no map
+  // mode), nor the nav route's polylines (no points), the network's marker
+  // or the landmines. Contacts resolve to mechs only (contact_mech); the
+  // other vehicle classes' blips (their vt+0x3c) wait for those vehicles.
+  float normalize(float v[3]) override {
+    zmth::Vec3 d{v[0], v[1], v[2]};
+    const float len = zmth::normalize(d);
+    v[0] = d.x, v[1] = d.y, v[2] = d.z;
+    return len;
+  }
+  void* radar_map() override { return nullptr; }
+  float mech_sensor_range(Mech* m) override { return m->sensor_range; }
+  uint8_t mech_bc(Mech* m) override { return m->xbc; }
+  void mech_orientation(Mech* m, float q[4]) override { std::memcpy(q, m->orientation, sizeof m->orientation); }
+  int32_t mech_contact_count(Mech* m) override { return static_cast<int32_t>(m->contacts.size()); }
+  void* mech_contact(Mech* m, int32_t i) override { return m->contacts[static_cast<size_t>(i)]; }
+  bool contact_on_radar(void* c) override { return (static_cast<ai::Contact*>(c)->flags & 1) != 0; }
+  bool contact_same(void* a, void* b) override {
+    return static_cast<ai::Contact*>(a)->entity == static_cast<ai::Contact*>(b)->entity;
+  }
+  void object_position(void* o, float out[3]) override { entity_position(o, out); }
+  void* object_blip(void* o, int32_t kind) override {
+    if (!o) return nullptr;
+    if (!mech_radar_blip(0)) mech_radar_blips_create();  // our addition: made when first needed (0x00413e60's part)
+    return mech_radar_blip(kind);
+  }
+  void blip_place(void* b, int32_t x, int32_t y) override {
+    static_cast<ztwod::Image*>(b)->set_pos(x, y);
+    blip_at[0] = x, blip_at[1] = y;
+  }
+  void blip_draw(void* b) override {
+    static_cast<ztwod::Image*>(b)->draw();
+    ++blips;
+  }
+  int32_t blips = 0, blip_at[2] = {};  // for program_hud_report
+  void* network_marker() override { return nullptr; }
+  bool radar_shot(int32_t i, float out[3], bool* friendly) override {
+    auto& l = radar_blips();
+    auto it = l.begin();
+    for (int32_t k = 0; k < i && it != l.end(); ++k) ++it;
+    if (it == l.end()) return false;
+    const zwep::Vec3f3& p = (*it)->shot->position;
+    out[0] = p.x, out[1] = p.y, out[2] = p.z;
+    *friendly = (*it)->friendly;
+    return true;
+  }
+  int32_t mine_count() override { return 0; }
   // 0x0040e920 (a node's game object) is not ported: the aim's node gives
   // none, and its +0xbc none either (hud.md section 12, Left).
   void* node_object(void*) override { return nullptr; }
@@ -229,6 +282,7 @@ void wire_hud() {
 
 void unwire_hud() {
   set_hud_hooks(nullptr);
+  mech_radar_blips_destroy();
   update_calls().player_frame = nullptr;
   mech_hud_calls() = MechHudCalls{};
 }
@@ -269,6 +323,16 @@ bool program_hud_report(HudReport* r) {
   if (h->target.shape1.xform) h->target.shape1.transform();
   r->apex_y = h->target.shape1.pts[0][1], r->base_y = h->target.shape1.pts[1][1];
   r->shape_x = h->target.shape1.translation[0];
+  r->radar_shown = !(h->radar.flags & ztwod::kHidden);
+  r->radar_r = h->radar.radius, r->radar_x = h->radar.get_x(), r->radar_y = h->radar.get_y();
+  r->blips = g_hooks.blips, r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
+  g_hooks.blips = 0;
+  r->sensor_range = m->sensor_range;
+  for (ai::Contact* c : m->contacts) {
+    ++r->contacts;
+    r->on_radar += c->flags & 1;
+    r->vehicles += g_hooks.contact_vehicle(c) != nullptr;
+  }
   return true;
 }
 

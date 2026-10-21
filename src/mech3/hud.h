@@ -265,10 +265,11 @@ class HudRadar : public ztwod::FilledBox {
   void select_sound();               // 0x0043da00 (part: 0x00458590 not ported)
   void set_fov(float radians);       // 0x0043f0c0
   void set_dir(const float* v);      // 0x0043f130: the cone's edges from the view direction
-  void update(float dt) override;    // +0x24  0x0043dd00: hooked (radar_update)
+  void update(float dt) override;    // +0x24  0x0043dd00 (part 1: the radar; the contacts part 2)
+  void update_contacts(float dt, float noise_px);  // 0x0043dd00 from 0x0043e445: the contacts, the projectiles, the network's
   uint16_t x58 = 0;                  // +0x58
   uint16_t zoomed = 0;               // +0x5a
-  uint8_t active = 0;                // +0x5c
+  uint8_t active = 0;                // +0x5c the mission map shown (the radar over it)
   uint8_t changed = 0;               // +0x5d
   int32_t cx[2] = {}, cy[2] = {}, r[2] = {};  // +0x60, +0x68, +0x70 by zoom
   int32_t to_r = 0, to_x = 0, to_y = 0;      // +0x78 the size moved to
@@ -280,9 +281,9 @@ class HudRadar : public ztwod::FilledBox {
   HudText text1;                     // +0x1a4
   HudText text2;                     // +0x654
   HudLight light{3};                 // +0xb04 green, yellow, red
-  uint32_t xbd4 = 0, xbd8 = 0;       // +0xbd4
+  uint32_t xbd4 = 0, xbd8 = 0;       // +0xbd4 the polylines' point counts (drawn from 4)
   ztwod::PolyLine polys[2];          // +0xbdc
-  uint32_t xdb4 = 0, xdb8 = 0;       // +0xdb4
+  uint32_t xdb4 = 0, xdb8 = 0;       // +0xdb4 their point lists (vt+0xc(i): an item, its vt+0x18 its place)
   void* source = nullptr;            // +0xdbc the HUD it shows
 };
 
@@ -585,15 +586,13 @@ class HudHooks : public zgame::Unported {
   // The HUD frame's pieces not ported yet: the debug overlays (0x0043c820's
   // first part: the mech's numbers into five debug texts, while the debug
   // text 0x005fc378 shows, toggled by 0x0040dc34 and [0x005f4d6c]; its flags
-  // are [0x005fc384]), the radar's update
-  // (0x0043dd00), whether the reticle's point is over TARGET's shape or
+  // are [0x005fc384]), whether the reticle's point is over TARGET's shape or
   // circle while a live target is in range (0x00440a30), the reticle's aim
   // state from it (0x00443d20, HudReticle::aim_state), the nav list's update (its vt+0x24), the
   // network's (0x00479ed0 while [0x00609980]).
   virtual void hud_debug(void* hud) {
     if (!(unported("peek32", {0x5fc384}) >> 4 & 1)) unported("0x0043c820.debug", {id(hud)});
   }
-  virtual void radar_update(void* radar, float dt) { unported("0x0043dd00", {id(radar), zgame::bits(dt)}); }
   virtual bool reticle_over_target(void* target, int32_t x, int32_t y);  // 0x00440a30 (HudTarget::over)
   virtual void reticle_aim_state(void* reticle, bool over);  // 0x00443d20 (HudReticle::aim_state)
   // The aim state's outside (0x00443d20). The weapon manager's selected
@@ -709,8 +708,8 @@ class HudHooks : public zgame::Unported {
   virtual float mech_f(Mech* m, uint32_t off) { return zgame::from_bits(unported("peek32", {id(m) + off})); }
   virtual float mech_jump_fuel(Mech* m) { return zgame::from_bits(unported("mech.vt+0x148", {id(m)})); }
   virtual void radar_view_dir(float out[3]) { vec3_at(unported("0x00522170", {}), out); }  // the view camera's +0x20
-  virtual void normalize(float v[3]) {  // 0x004020d0, in place
-    unported("0x004020d0", {zgame::bits(v[0]), zgame::bits(v[1]), zgame::bits(v[2])});
+  virtual float normalize(float v[3]) {  // 0x004020d0, in place; the length
+    return zgame::from_bits(unported("0x004020d0", {zgame::bits(v[0]), zgame::bits(v[1]), zgame::bits(v[2])}));
   }
   virtual void radar_heading(void* radar, Mech* m) { unported("0x0043f2d0", {id(radar), id(m) + 0x24}); }
   virtual void mech_radar_dir(Mech* m, float out[3]) { vec3_at(unported("0x0041cdf0", {id(m)}), out); }
@@ -732,6 +731,88 @@ class HudHooks : public zgame::Unported {
   }
   virtual float mission_time(bool network) {
     return zgame::from_bits(unported("peek32", {network ? 0x609920u : 0x60991cu}));
+  }
+  // The radar's outside (0x0043dd00): the mission map (0x00491c80 on
+  // 0x006098d0; its +0xd4 scale, +0xd8 rect, a world point on it 0x004586e0,
+  // drawn by its +0x24), the mech's sensor range (+0x9c), +0xbc flags and
+  // orientation (+0x48, a quaternion), the polylines' lists.
+  virtual void* radar_map() { return ptr(unported("0x00491c80", {})); }
+  virtual const ztwod::Rect* map_rect(void* map) {  // +0xd8 (none: 0)
+    const uint32_t a = unported("peek32", {id(map) + 0xd8});
+    if (!a) return nullptr;
+    static ztwod::Rect r;
+    r = {static_cast<int32_t>(unported("peek32", {a})), static_cast<int32_t>(unported("peek32", {a + 4})),
+         static_cast<int32_t>(unported("peek32", {a + 8})), static_cast<int32_t>(unported("peek32", {a + 12}))};
+    return &r;
+  }
+  virtual float map_scale(void* map) { return zgame::from_bits(unported("peek32", {id(map) + 0xd4})); }
+  virtual bool map_point(void* map, const float p[3], int32_t out[2]) {
+    const uint32_t ok = unported("0x004586e0", {id(map), zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2])});
+    out[0] = static_cast<int32_t>(unported("0x004586e0.x", {}));
+    out[1] = static_cast<int32_t>(unported("0x004586e0.y", {}));
+    return (ok & 0xff) != 0;
+  }
+  virtual void map_update(void* map, float dt) { unported("map.vt+0x24", {id(map), zgame::bits(dt)}); }
+  virtual float mech_sensor_range(Mech* m) { return zgame::from_bits(unported("peek32", {id(m) + 0x9c})); }
+  virtual uint8_t mech_bc(Mech* m) { return static_cast<uint8_t>(unported("peek8", {id(m) + 0xbc})); }
+  virtual void mech_orientation(Mech* m, float q[4]) {
+    for (int i = 0; i < 4; ++i) q[i] = zgame::from_bits(unported("peek32", {id(m) + 0x48 + 4u * i}));
+  }
+  virtual void radar_point(uint32_t list, int32_t i, float out[3]) {
+    vec3_at(unported("item.vt+0x18", {unported("list.vt+0xc", {list, static_cast<uint32_t>(i)})}), out);
+  }
+  // The radar's contacts (0x0043dd00 from 0x0043e445): the mech's contacts
+  // (+0xac..+0xb0, pointers), one on the radar (+0x2c bit 0), two the same
+  // (their +8 and vtable), an object's place (0x005a85e0) and blip by kind
+  // (vt+0x3c: 0 ally, 1 enemy, 2 other; the Mech's mech_radar_blip), a blip
+  // placed (vt+0xc) and drawn (vt+4). The network's marker: the player's
+  // element ([0x00609980]'s 0x0058b060 by its +0x20), its image by its +0xc
+  // ([0x00608bac] set, else [0x00608ba8]), place (vt+0x18) and name (+0x28).
+  // The weapons' radar list (std::list at 0x0060b228, weapon.h radar_blips:
+  // a shot's place its +0x48, friendly); the landmines (0x00604e48's vector
+  // +4..+8 of 16 bytes: armed, the place).
+  virtual int32_t mech_contact_count(Mech* m) {
+    return static_cast<int32_t>((unported("peek32", {id(m) + 0xb0}) - unported("peek32", {id(m) + 0xac})) / 4);
+  }
+  virtual void* mech_contact(Mech* m, int32_t i) {
+    return ptr(unported("peek32", {unported("peek32", {id(m) + 0xac}) + 4u * i}));
+  }
+  virtual bool contact_on_radar(void* c) { return (unported("peek8", {id(c) + 0x2c}) & 1) != 0; }
+  virtual bool contact_same(void* a, void* b) {
+    return unported("peek32", {id(a) + 8}) == unported("peek32", {id(b) + 8}) &&
+           unported("peek32", {id(a)}) == unported("peek32", {id(b)});
+  }
+  virtual void object_position(void* o, float out[3]) { vec3_at(unported("0x005a85e0", {id(o)}), out); }
+  virtual void* object_blip(void* o, int32_t kind) { return ptr(unported("obj.vt+0x3c", {id(o), static_cast<uint32_t>(kind)})); }
+  virtual void blip_place(void* b, int32_t x, int32_t y) { unported("blip.vt+0xc", {id(b), static_cast<uint32_t>(x), static_cast<uint32_t>(y)}); }
+  virtual void blip_draw(void* b) { unported("blip.vt+0x4", {id(b)}); }
+  virtual void* network_marker() {
+    const uint32_t net = unported("peek32", {0x609980});
+    if (!net) return nullptr;
+    return ptr(unported("0x0058b060", {net, unported("peek32", {net + 0x20})}));
+  }
+  virtual void* marker_image(void* e) {
+    return ptr(unported("peek32", {unported("peek8", {id(e) + 0xc}) & 0xff ? 0x608bacu : 0x608ba8u}));
+  }
+  virtual void marker_position(void* e, float out[3]) { vec3_at(unported("marker.vt+0x18", {id(e)}), out); }
+  virtual uint32_t marker_name(void* e) { return unported("peek32", {id(e) + 0x28}); }
+  virtual bool radar_shot(int32_t i, float out[3], bool* friendly) {
+    const uint32_t head = unported("peek32", {0x60b22c});
+    uint32_t n = unported("peek32", {head});
+    for (int32_t k = 0; k < i && n != head; ++k) n = unported("peek32", {n});
+    if (n == head) return false;
+    const uint32_t b = unported("peek32", {n + 8});
+    vec3_at(unported("peek32", {b}) + 0x48, out);
+    *friendly = (unported("peek8", {b + 4}) & 0xff) != 0;
+    return true;
+  }
+  virtual int32_t mine_count() {
+    return static_cast<int32_t>((unported("peek32", {0x604e50}) - unported("peek32", {0x604e4c})) / 16);
+  }
+  virtual bool mine(int32_t i, float out[3]) {
+    const uint32_t m = unported("peek32", {0x604e4c}) + 16u * i;
+    vec3_at(m + 4, out);
+    return (unported("peek8", {m}) & 0xff) != 0;
   }
   // The lead point's outside (0x0041d940, mech3/mech_hud lead_point): a
   // group's current weapon (+0x10); a weapon's projectile speed (def +0x2c)
@@ -785,7 +866,8 @@ class HudHooks : public zgame::Unported {
   virtual int32_t weapon_ammo(void* w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {id(w)})); }
 };
 HudHooks& hud_hooks();
-ztwod::Rect& triangle_rect();  // [0x005e39d8] TARGET's triangle's clip (0x00440510)
+ztwod::Rect& triangle_rect();
+ztwod::Rect& radar_rect();     // [0x005e39c8] the radar's polylines' clip (0x0043dd00)  // [0x005e39d8] TARGET's triangle's clip (0x00440510)
 void set_hud_hooks(HudHooks* h);
 
 // The timer (+0x18410): a FontText "00:00:00.00" at (0x244, 0x0f) in

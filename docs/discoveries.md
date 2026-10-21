@@ -1976,3 +1976,28 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   switch toggles it, and which key or option reaches that switch is not
   traced yet.
 
+- **Your current target is a triangle on the radar,** not a blip: blue for
+  an ally, red for an enemy, green otherwise. It shows even when its
+  contact is not on the radar (the others need their radar flag), and a
+  contact past your sensor range sits on the radar's rim instead of
+  vanishing.
+- **PPC-type static scrambles the radar:** while the HUD shows ZAPS static,
+  every blip, shot and mine on the radar is thrown up to 100 metres either
+  way on each axis, freshly every frame, so the radar jitters.
+- **Missiles in flight show on the radar** as single pixels (only weapons
+  marked to show on radar, which is also what anti-missile systems can
+  shoot down), and **armed landmines within 100 metres** show as small red
+  X marks.
+- **In multiplayer your radar marks a player with a distance readout:**
+  in kilometres with two decimals past 1000 m, else in whole metres
+  (rounded up).
+- **The radar's range readout** under the circle shows your sensor range
+  in kilometres with one decimal; the small light beside it is green,
+  yellow while an enemy sees you, and red while someone has you targeted.
+- **Over the mission map (the map key), the radar draws on the map:** its
+  circle grows to your sensor range at the map's scale, and the blips sit
+  at their map places.
+- **A powered-down mech is invisible on the radar:** only contacts in
+  sight get a blip, and a shut-down mech is not in sight, so an ambush of
+  sleeping mechs (like the Owens at the start of the first mission) shows
+  nothing until they power up.

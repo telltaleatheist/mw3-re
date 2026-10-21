@@ -332,6 +332,13 @@ the set-up reads: item 1a's test).
 - The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
   0x004b1cd0 stay recorded hooks: mac 4, the planner (they sit in the AI
   weapon planner's range 0x004b1170..0x004b1d7f).
+- The radar in the program (section 15): the mission map (its map mode),
+  the nav route's polylines (+0xbd4.. lists), the network marker
+  (0x0058b060) and the landmines (0x00413560's list) are not ported and
+  answer none. Contacts resolve to mechs only (the program's contact_mech),
+  so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
+  the Mobile HQ, turrets) wait for those vehicles; until then their contacts
+  show nothing.
 
 ## 10. The aim (the reticle's world point)
 
@@ -454,7 +461,8 @@ equivalent, set_alpha (0x0043a9d0) making 0xfe and up opaque.
 In the program, `hud_handoff` runs the frame (`Hud::update`) inside the Core
 frame's 2D layer, and the Direct3D pass (`Hud::draw3d`) at the view
 target's vt+0xe4; the hooks the program does not implement answer 0 (no
-debug overlay, no radar, the aim state left alone, no nav list).
+debug overlay, the aim state left alone, no nav list; the radar's outside
+as section 15 and Left say).
 
 Test: `test_hud.py` runs, after the build and the aim, a random sequence of
 frames (dt 0 to 2.5 s) with changes between them (the HUD on or off, the
@@ -673,3 +681,92 @@ The pieces, ported in order (the lead's plan, 2026-10-20):
    base, the gauges' setters stubbed): 100/100; breaking it 9 of 10 caught
    (the radar's view direction with the radar active, which the test never
    sets: the radar's item).
+
+## 15. The radar's update (0x0043dd00)
+
+Run by the HUD's frame each frame. In order:
+
+1. **A changed mode** (+0x5d, cleared at the end; set by the show, hide,
+   zoom and attach): over the mission map (+0x5c) the polylines hide and the
+   box and its three lines clip to the map's rect (the mission map from
+   0x00491c80, its +0xd8), else the polylines show when they hold more than
+   three points.
+2. **Size and place**: over the map the radius is the mech's sensor range
+   (+0x9c) x the map's scale (+0xd4) and the place the mech's on the map
+   (0x004586e0: -(dx, dz) x the scale from the map's origin, a report when
+   it falls off 0..640); else they step toward the target size and place by
+   the step sizes (0x0043dce0 clamps each step). A radius of 0 hides it.
+3. Nothing more while the HUD is off or the radar hidden. Moved: over the
+   map the light marks the mech; else the range text and the light sit at
+   the radar's lower right (0.714 of the radius, the light 14 right and 10
+   up), and the cone's edges are worked out again (0x0043f130).
+4. **The range text** "%.1fkm" of the sensor range (over the map the map
+   draws itself instead, its +0x24); **the light** green, yellow or red by
+   the mech's +0xbc (bit 1 yellow, bit 0 red), over the map drawn only
+   inside the map's rect.
+5. **The polylines** (+0xbd4 / +0xbd8 points from the lists +0xdb4 /
+   +0xdb8, each item's place by its vt+0x18; likely the nav route): each
+   point relative to the mech, scaled by radius over range, turned into the
+   mech's frame (its orientation +0x48, conjugated, 0x00525580 / 0x00525740),
+   closed back to the first, cut to the radar's circle (clip [0x005e39c8],
+   the radar's square, set when it moves).
+6. The box (the FilledBox with its static), the cone's two edges, over the
+   map the third line; then, with a radius, the contacts (below) and the
+   mode flag cleared.
+
+**The contacts** (from 0x0043e445, `HudRadar::update_contacts`). Every
+place below is first thrown by the radar's static: x and z each up to
+noise x 100 metres either way (two `rand()`s, 1/32767 [0x005c00e4]), so a
+jammed radar's blips jump about. Off the map a place becomes a point in the
+circle by its distance times radius over range, turned into the mech's frame
+(the conjugated orientation's matrix, x and z kept), from the radar's centre.
+
+- **The mech's contacts** (its +0xac..+0xb0): the one TARGET holds (the same
+  pointer, or the same entity +8 and class) always, the rest only while on
+  the radar (+0x2c bit 0). The distance is the contact's own (0x004e7030),
+  held to the radius, so a contact out of range sits on the rim. The blip is
+  the vehicle's vt+0x3c by side: 0 ally (its team +0xc0 in the mech's allies
+  +0xc4), 1 enemy (+0xc8), 2 other; a mech's are three shared images,
+  hud_mech_ally_sm, _enemy_sm and _other_sm (made with the mechs,
+  0x00413e60; `mech_radar_blip` 0x0041ec60). TARGET's own contact is drawn
+  instead as a small triangle (a Shape scaled 5.77, clipped to the screen
+  0x00579880) in blue, red or the HUD green by the same sides.
+- **The network player's marker** ([0x00609980]'s element for the player,
+  0x0058b060): its image by its +0xc ([0x00608bac] / [0x00608ba8]), placed
+  like a contact but by its own distance (held to 0..radius), and the
+  second text: message 0x228 with its name (+0x28) and the distance in km
+  ("%.2f") past 1000 m, else 0x229 with the metres rounded up.
+- **The shots in the air** (the weapons' radar list, weapon.h
+  `radar_blips`: the missiles, SHOW_ON_RADAR): a pixel each (Pixel2D,
+  0x005a6b80) inside the circle, red for the shots marked friendly, the HUD
+  green for the rest (as coded; whether "friendly" is the player's side is
+  weapons.md's question); over the map only where the map takes the point.
+- **The landmines** (0x00604e48, landmines.zrd): every armed one within
+  100 m (the squared distance against 10000 [0x005c00f0]) and inside the
+  circle, a red X of two 3-pixel lines.
+
+Over the map each place goes through the map (0x004586e0) instead; the
+contacts and the marker ignore its answer, the shots and the mines are left
+out when it says no.
+
+The exe's data starts the radar's and TARGET's clip rects at (1, 1, 639,
+479), the port too. Ported whole (`HudRadar::update`, `update_contacts`), the outside on
+HudHooks (the map, the mech's range, flags and orientation, the polylines'
+lists, the contacts and their vehicles, the marker, the shots and mines
+read-only). Test: test_hud.py, ops 21-24 (the polylines' counts and lists,
+the map mode and the changed flag), the map with a rect and scale; the
+mech's contacts (TARGET's, one the same by entity, others on and off the
+radar), blips or none, a marker near and far, shots and mines; the
+marker's message arguments logged on both sides. Breaking it: 35 of 36
+caught; the miss (TEXT2 shown again each frame) cannot show, nothing hides
+it.
+
+In the program the radar reads the mech's sensor range, flags,
+orientation and contacts, the torso's flat front for the cone (0x0041cdf0:
+the torso +0x16c), and the weapons' radar list; the mechs' blip images are
+made when first needed (the original makes them with the mechs,
+0x00413e60) and freed when the HUD is unwired. mw3tests'
+mission_c1m1_hud_weapon_lines_and_lock_headless checks it in c1m1: the
+radar shown, no blip while the Owens is powered down (not in sight), its
+blip 150 m straight ahead once awake (8 px out of the wanted 7.5), and the
+triangle instead once targeted.

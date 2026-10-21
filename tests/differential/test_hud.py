@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Replay, Trace, compare, load_probe, rnd  # noqa: E402
-from twod_world import IAT, READER, ROOT, TwodWorld, entries, parse_node, write_node  # noqa: E402
+from twod_world import IAT, READER, ROOT, TwodWorld, c_format, entries, parse_node, write_node  # noqa: E402
 from test_twod_msgbox import archive  # noqa: E402
 import random  # noqa: E402
 from ai_world import FLOOR, FTOL, IAT_FLOOR, IAT_FTOL  # noqa: E402
@@ -100,7 +100,9 @@ def synthetic(seed):
 # index), 16 an image set (IMAGES index | shared light << 8: the weapon
 # list's three, then the equipment's), 17 the Direct3D pass 0x0043c6b0 (dt),
 # 18 TARGET's tracking 0x00440b00 (dt), 19 the lead point 0x0041d940 on the
-# lead mech (its address), 20 the HUD's data update 0x0043c390 (dt).
+# lead mech (its address), 20 the HUD's data update 0x0043c390 (dt), 21 the
+# radar's polylines' counts (first | second << 8) and lists, 22 the radar's
+# map and changed flags (map | changed << 1), 23 and 24 its lists (addresses).
 OPS = list(range(1, 20))
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
@@ -122,7 +124,7 @@ CHILDREN = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998, 0xe48, 0xf88, 0x10c8, 0x12
             + [0x1508 + o for o in (0x180, 0x630, 0x700, 0x754)] + ['view'])
 FOCUS = [CHILDREN.index('view'), CHILDREN.index(0x17964 + 0x5d4)] + [CHILDREN.index(0x188c0 + 0x38 + 0xa40 * i)
                                                                     for i in range(4)]
-TOGGLED = [0xdd4, 0x1da8, 0x3434, 0x410c, 0x6520, 0x17964, 0x188c0, 0x144c]
+TOGGLED = [0xdd4, 0x1da8, 0x3434, 0x410c, 0x6520, 0x17964, 0x188c0, 0x144c, 0x14]
 CLIP = (0.0, 0.0, 0.5, 640.0, 480.0, 1000.0)  # zRender's clip volume, both sides
 
 
@@ -155,7 +157,7 @@ class Original:
         self.seed = seed
 
     def run(self):
-        e, w = self.e, self.w
+        e, w, t = self.e, self.w, self.t
         r0 = rnd(self.seed, 'setup')
         # hud.zrd: the shipped one, a crafted one, or none.
         kind = r0.choice(['shipped', 'shipped', 'synthetic', 'none'])
@@ -190,8 +192,12 @@ class Original:
         e.stub(0x47eb60, spec='c,s0,s1,s2,s3,s4')
         w.answers['mech.vt+0xa0'] = lambda rr, n, a: rr.choice([0, 0, 1])
         r = rnd(self.seed, 'world')
-        entry = e.world_alloc(0x100)
+        entry = e.object('map', size=0x100, slots={0x24: ('c,s0', 4)})  # the mission map (the radar's, part 1)
         e.cpu.write(entry + 0xd0, struct.pack('<f', r.choice([0.0, 1.0, -1.0])))
+        e.cpu.write(entry + 0xd4, struct.pack('<f', r.choice([0.05, 0.1, -0.08, 0.0])))  # its scale (0: no radius, hidden)
+        mrect = e.world_alloc(16)
+        e.cpu.write(mrect, struct.pack('<4i', 40, 30, 600, 450))
+        e.w32(entry + 0xd8, mrect)  # (the radar's light test reads it unchecked in map mode)
         w.answers['0x00491c80'] = lambda rr, n, a: entry if self.flip else 0
         self.flip = r.random() < 0.5
         w.answers['@entry+0xd0'] = struct.unpack('<I', bytes(e.cpu.read(entry + 0xd0, 4)))[0]
@@ -250,7 +256,18 @@ class Original:
             e.w32(box, rect)
             e.w32(g, box)
         # Mech3Msg.dll's messages: "msg<id>" into the buffer (s0), or none.
-        e.stub(0x575ff0, spec='s1,s2')
+        def msg(emu, key, a, pop):  # the radar marker's (0x228, 0x229) arguments logged too
+            buf, size, mid, va = a
+            got = t.handle(key, (size, mid))
+            if mid == 0x228:
+                text = emu.cstr(emu.r32(va + 4))
+                t.handle(key + '.args', (emu.r32(va), len(text)))
+                for ch in text.encode('latin1'):
+                    t.handle(key + '.ch', (ch,))
+            elif mid == 0x229:
+                t.handle(key + '.args', (emu.r32(va), emu.r32(va + 4)))
+            emu._ret(got, pop)
+        e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
         has_msgs = r.random() < 0.8
 
         def message(rr, n, a):
@@ -261,6 +278,7 @@ class Original:
             return len(t)
         w.answers['0x00575ff0'] = message
         e.cpu.import_code(IAT_FLOOR, FLOOR)
+        e.cpu.import_code(0x5bb61c, FLOOR.replace(bytes.fromhex('660d0004'), bytes.fromhex('660d0008')))  # ceil: rounding up
         e.cpu.import_code(IAT_FTOL, FTOL)
         e.cpu.write(0x72f348, struct.pack('<I', r.choice([0, 1])))  # the render path: software, Direct3D
         self.hud = e.world_alloc(HUD_SIZE)
@@ -284,10 +302,14 @@ class Original:
         flags it reads, zRender's 2D draws stubbed and logged."""
         e, w, t = self.e, self.w, self.t
         e.w32(0x5fc384, 0x10)  # the debug text hidden: its overlays not run
-        e.w32(0x609980, r.choice([0, 0, 1]))
+        e.w32(0x609980, 0)  # the network's radar marker (part 2) not set up yet
+        lhead = e.world_alloc(16)  # the weapons' radar list (0x0060b22c): empty
+        e.w32(lhead, lhead)
+        e.w32(lhead + 4, lhead)
+        e.w32(0x60b22c, lhead)
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
         e.w32(0x605f88, r.choice([0, 1]))
-        for a, spec in ((0x43dd00, 'c,s0'), (0x479ed0, '')):
+        for a, spec in ((0x479ed0, ''),):
             e.stub(a, spec=spec)
 
         # The aim state 0x00443d20 runs; its outside stubbed (hud.md section 12):
@@ -391,7 +413,7 @@ class Original:
             emu.cpu.write(a[0], struct.pack('<3f', *CLIP[:3]))
             emu.cpu.write(a[1], struct.pack('<3f', *CLIP[3:]))
             emu._ret(0, pop)
-        for a, spec, fn in ((0x562940, 'c,d,s0,s1,s2', plain), (0x562c80, 'c,d,s0,s1,s2,s3', plain),
+        for a, spec, fn in ((0x562940, 'c,d,s0,s1,s2', plain), (0x5630a0, 'c,d,s0', plain), (0x562c80, 'c,d,s0,s1,s2,s3', plain),
                             (0x562cb0, 'c,d,s0,s1', lst),
                             (0x5630c0, 'c,d,s0,s1,s2', clipped), (0x563440, 'c,d,s0,s1,s2,s3', clipped),
                             (0x562970, 'c,d,s0,s1,s2,s3,s4', clipped), (0x55d010, 'c,d,s0', polygon),
@@ -403,7 +425,7 @@ class Original:
         contact = e.world_alloc(0x40)
         e.w32(self.slots[0], contact)
         obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0), 0x68: ('c,s0', 4), 0xc: ('c', 0),
-                                     0x28: ('c', 0), 0xbc: ('c', 0), 0xa4: ('c', 0)})
+                                     0x28: ('c', 0), 0xbc: ('c', 0), 0xa4: ('c', 0), 0x3c: ('c,s0', 4)})
         names = [e.world_string('Owens'), 0]
         w.answers['obj.vt+0xa4'] = lambda rr, n, a: rr.choice(names)
         if self.mech and r.random() < 0.5:  # the player's target (the set-up's TARGET slot, 0x00441800)
@@ -412,7 +434,10 @@ class Original:
         e.w32(obj + 4, e.world_alloc(0x10))  # its node
         e.stub(0x4e6fe0, spec='c')
         # the live contact's vehicle is there (the triangle reads it unchecked); others at random
-        w.answers['0x004e6fe0'] = lambda rr, n, a: obj if a[0] == contact or rr.random() < 0.8 else 0
+        # (and the radar's contacts': it reads theirs unchecked too)
+        self.contact, self.obj = contact, obj
+        self.radar_contacts = [contact]
+        w.answers['0x004e6fe0'] = lambda rr, n, a: obj if a[0] in self.radar_contacts or rr.random() < 0.8 else 0
         w.answers['obj.vt+0xa8'] = lambda rr, n, a: rr.choice([0, 0, 1])
         w.answers['obj.vt+0x50'] = lambda rr, n, a: rr.choice([0, 0x2c000000])
         # The lead point (0x0041d940, op 19): a second mech with a contact in
@@ -442,6 +467,7 @@ class Original:
         self.text = e.world_string('88 TXT')
         if self.mech:
             self.data_world(r)
+            self.radar_world(r)
         self.ops = []
         if not self.mech:
             return
@@ -491,6 +517,13 @@ class Original:
             self.ops.append((0, f32(fr.choice([0.0, 0.016, 0.033, 0.1, 0.35, 1.0, 2.5]))))
             if fr.random() < 0.5:  # TARGET's tracking as the data update runs it each frame
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
+            if fr.random() < 0.15:  # the radar's mode
+                self.ops.append((22, fr.choice([0, 1, 2, 3] if self.flip else [0, 2])))  # map mode needs the map
+            if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
+                self.ops.append((25, f32(fr.choice([0.0, 0.05, 0.3, 1.5]))))
+            if fr.random() < 0.15:  # its polylines: their lists, then their counts
+                self.ops += [(23, self.radar_lists[0]), (24, self.radar_lists[1]),
+                             (21, fr.choice([0, 2, 3, 3, 4, 5, 8]) | fr.choice([0, 3, 4, 6, 8]) << 8)]  # 3: shown, not drawn
             if fr.random() < 0.4:  # the data update (0x0043c390)
                 self.ops.append((20, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.2 and self.lead_ok():
@@ -599,11 +632,12 @@ class Original:
         e.stub(0x522170, '0x00522170', 'c,d', None, view_dir)
         w.answers['0x00522170'] = vecs
 
-        def normalize(emu, key, a, pop):  # 0x004020d0 in place (as stubbed: unchanged)
-            t.handle(key, tuple(emu.r32(a[0] + 4 * i) for i in range(3)))
-            emu.w32(fbuf, 0x3f800000)
+        def normalize(emu, key, a, pop):  # 0x004020d0 (as stubbed: the vector unchanged, its length answered)
+            emu.w32(fbuf, t.handle(key, tuple(emu.r32(a[0] + 4 * i) for i in range(3))))
             emu._ret(0, pop, then=fthunk)
         e.stub(0x4020d0, '0x004020d0', 'c', None, normalize)
+        w.answers['0x004020d0'] = lambda rr, n, a: f32(math.sqrt(sum(struct.unpack('<f', struct.pack('<I', x))[0] ** 2
+                                                                     for x in a)))
         e.stub(0x41cdf0, spec='c')
         w.answers['0x0041cdf0'] = vecs + 12
 
@@ -616,6 +650,119 @@ class Original:
                          (0x441850, 'c'), (0x448320, 'c,s0'), (0x4424b0, 'c,s0'), (0x446900, 'c,s0'),
                          (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
             e.stub(a2, spec=spec)
+
+    def radar_world(self, r):
+        """The radar's update (0x0043dd00, part 1; hud.md section 15): the
+        mech's sensor range and orientation, the map's point (0x004586e0)
+        answered, the polylines' lists (op 21)."""
+        e, w, t = self.e, self.w, self.t
+        m = self.mech
+        e.cpu.write(m + 0x9c, struct.pack('<f', r.choice([400.0, 1000.0, 2500.0, -500.0])))
+        a_ = r.uniform(-math.pi, math.pi)
+        e.cpu.write(m + 0x48, struct.pack('<4f', math.cos(a_ / 2), 0.0, math.sin(a_ / 2), 0.0))
+
+        def map_point(emu, key, a, pop):  # 0x004586e0: ECX the map, the point, out ints
+            mp, pp, out = a
+            ok = t.handle(key, (mp,) + tuple(emu.r32(pp + 4 * i) for i in range(3)))
+            emu.w32(out, t.handle('0x004586e0.x', ()))
+            emu.w32(out + 4, t.handle('0x004586e0.y', ()))
+            emu._ret(ok, pop)
+        e.stub(0x4586e0, '0x004586e0', 'c,s0,s1', None, map_point)
+
+        def sprintf(emu, key, a, pop):  # the range text (the port's snprintf, untraced)
+            buf, fmt = a
+            va = emu.uc.reg_read(UC_X86_REG_ESP) + 12
+            f = emu.cstr(fmt)
+            if '%.1f' in f or '%.2f' in f:  # the range text, the marker's distance: one double
+                text = (f % struct.unpack('<d', bytes(emu.cpu.read(va, 8)))).encode('latin1')
+            else:
+                text = c_format(emu, f, va).encode('latin1')
+            emu.cpu.write(buf, text + b'\0')
+            emu._ret(len(text), 0)
+        e.import_stub(IAT['sprintf'], '@sprintf', 's0,s1', 0, sprintf)
+        w.answers['0x004586e0'] = lambda rr, n, a: rr.choice([1, 1, 0])
+        w.answers['0x004586e0.x'] = lambda rr, n, a: rr.choice([rr.randrange(-20, 660), 40, 41]) & 0xffffffff
+        w.answers['0x004586e0.y'] = lambda rr, n, a: rr.choice([rr.randrange(-20, 500), 30, 31]) & 0xffffffff  # the map rect's edges
+        items = []
+        for _ in range(3):
+            it = e.object('item', size=0x20, slots={0x18: ('c', 0)})
+            items.append(it)
+        pts = e.world_alloc(12 * 8)
+        e.cpu.write(pts, struct.pack('<24f', *(r.uniform(-1500, 1500) for _ in range(24))))
+        w.answers['item.vt+0x18'] = lambda rr, n, a: pts + 12 * rr.randrange(8)
+        self.radar_lists = [e.object('list', size=0x20, slots={0xc: ('c,s0', 4)}) for _ in range(2)]
+        w.answers['list.vt+0xc'] = lambda rr, n, a: rr.choice(items)
+        self.contacts_world(r)
+
+    def contacts_world(self, r):
+        """The radar's contacts (0x0043dd00 from 0x0043e445, part 2): the mech's
+        contacts (TARGET's, one the same by entity and vtable, others), their
+        blips (vt+0x3c) or none; the network's marker; the weapons' radar list
+        of shots; the landmines; the selected target's triangle clipped to the
+        screen (0x00579880)."""
+        e, w, t = self.e, self.w, self.t
+        m, contact = self.mech, self.contact
+        vt = e.world_alloc(0x10)
+        e.w32(contact, vt)
+        for _ in range(r.choice([0, 1, 3, 5])):
+            c = e.world_alloc(0x40)
+            same = r.random() < 0.3
+            e.w32(c, vt if same or r.random() < 0.5 else e.world_alloc(0x10))
+            e.w32(c + 8, e.r32(contact + 8) if same else e.world_alloc(0x20))
+            e.cpu.write(c + 0x2c, bytes([r.choice([0, 1, 3])]))
+            self.radar_contacts.append(c)
+        e.cpu.write(contact + 0x2c, bytes([r.choice([0, 1])]))
+        r.shuffle(self.radar_contacts)
+        cv = e.world_alloc(4 * len(self.radar_contacts) + 4)
+        for i, c in enumerate(self.radar_contacts):
+            e.w32(cv + 4 * i, c)
+        e.w32(m + 0xac, cv)
+        e.w32(m + 0xb0, cv + 4 * len(self.radar_contacts))
+        blips = [e.object(f'blip', size=0x40, slots={0xc: ('c,s0,s1', 8), 0x4: ('c', 0)}) for _ in range(2)]
+        w.answers['obj.vt+0x3c'] = lambda rr, n, a: rr.choice(blips + [blips[0], 0])
+        srect = e.world_alloc(16)
+        e.cpu.write(srect, struct.pack('<4i', 0, 0, 640, 480))
+        e.stub(0x579880, spec='')
+        w.answers['0x00579880'] = srect
+        # the network's marker: the player's element, its image by its +0xc
+        if r.random() < 0.5:
+            net = e.world_alloc(0x40)
+            e.w32(net + 0x20, r.randrange(4))
+            mk = e.object('marker', size=0x40, slots={0x18: ('c', 0)})
+            e.cpu.write(mk + 0xc, bytes([r.choice([0, 1])]))
+            e.w32(mk + 0x28, e.world_string('Kerensky'))
+            mpos = [e.world_alloc(12) for _ in range(3)]
+            for v, d in zip(mpos, (300.0, 900.0, 2500.0)):
+                a_ = r.uniform(-math.pi, math.pi)
+                e.cpu.write(v, struct.pack('<3f', d * math.cos(a_), r.uniform(-20, 20), d * math.sin(a_)))
+            w.answers['marker.vt+0x18'] = lambda rr, n, a: rr.choice(mpos)
+            e.stub(0x58b060, spec='c,s0')
+            w.answers['0x0058b060'] = lambda rr, n, a: rr.choice([mk, mk, 0])
+            e.w32(0x608ba8, r.choice([blips[0], 0]))
+            e.w32(0x608bac, r.choice([blips[1], blips[0]]))
+            e.w32(0x609980, net)
+        # the weapons' radar list: {shot, friendly}, a shot's place its +0x48
+        head = e.r32(0x60b22c)
+        prev = head
+        for _ in range(r.choice([0, 2, 4])):
+            nd, b, shot = e.world_alloc(12), e.world_alloc(8), e.world_alloc(0x60)
+            e.cpu.write(shot + 0x48, struct.pack('<3f', *(r.uniform(-600, 600) for _ in range(3))))
+            e.w32(b, shot)
+            e.cpu.write(b + 4, bytes([r.choice([0, 1])]))
+            e.w32(nd + 8, b)
+            e.w32(nd + 4, prev)
+            e.w32(prev, nd)
+            e.w32(nd, head)
+            e.w32(head + 4, nd)
+            prev = nd
+        # the landmines: 16 bytes each, armed and the place
+        n = r.choice([0, 2, 5])
+        mv = e.world_alloc(16 * n + 16)
+        for i in range(n):
+            e.cpu.write(mv + 16 * i, bytes([r.choice([0, 1, 1])]))
+            e.cpu.write(mv + 16 * i + 4, struct.pack('<3f', *(r.uniform(-350, 350) for _ in range(3))))
+        e.w32(0x604e4c, mv)
+        e.w32(0x604e50, mv + 16 * n)
 
     def lead_ok(self):
         """A group selected on the lead mech's manager (0x0041d940 reads it unchecked)."""
@@ -667,6 +814,20 @@ class Original:
                 e.call(0x43c6b0, ecx=h, stack=(v,))
             elif k == 20:
                 e.call(0x43c390, ecx=h, stack=(v,))
+            elif k == 21:
+                rd = h + 0x14
+                e.w32(rd + 0xbd4, v & 0xff)
+                e.w32(rd + 0xbd8, v >> 8)
+                # their clip, the radar's square (in play set as the radar first moves)
+                e.w32(rd + 0xcc0, 0x5e39c8)
+                e.w32(rd + 0xdac, 0x5e39c8)
+            elif k in (23, 24):
+                e.w32(h + 0x14 + (0xdb4 if k == 23 else 0xdb8), v)
+            elif k == 25:
+                e.call(0x43dc70, ecx=h + 0x14, stack=(v,))
+            elif k == 22:
+                rd = h + 0x14
+                e.cpu.write(rd + 0x5c, bytes([v & 1, v >> 1 & 1]))
             elif k == 18:
                 e.call(0x440b00, ecx=h + 0x410c, stack=(v,))
             elif k == 19:

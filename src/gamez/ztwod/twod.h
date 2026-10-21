@@ -562,6 +562,7 @@ class Frame : public Object2D {
   Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
   void draw() override;              // +0x04  0x005a3b00
   bool contains(int32_t px, int32_t py) const;  // 0x005a3b30: inside the circle
+  virtual void set_clip(const Rect* r);  // +0x70  0x00409dd0: the rect copied, none: [0x0063d880] (zero)
   int32_t radius = 0;                // +0x34
   int32_t radius_sq = 0;             // +0x38
   uint32_t color = 0;                // +0x3c  a pixel
@@ -591,6 +592,14 @@ class Line2D : public Object2D {
   int32_t clipped = 0;               // +0x40
   const Rect* clip = nullptr;        // +0x44
   int32_t dash = 0;                  // +0x48
+};
+
+// One pixel (vtable 0x005d07e0), 0x38 bytes: the radar's shots.
+class Pixel2D : public Object2D {
+ public:
+  Pixel2D(int32_t px, int32_t py, uint32_t c);  // 0x005a6b80
+  void draw() override;              // +0x04  0x005a6bb0
+  uint32_t color = 0;                // +0x34  a pixel
 };
 
 // A HUD line with static (vtable 0x005d0760), 0x50 bytes: drawn thrown about

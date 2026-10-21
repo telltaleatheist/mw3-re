@@ -25,6 +25,8 @@ std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 bool g_lock_shown = false;
 std::string g_leads;  // op 19's lines
+ztwod::Rect g_map_rect{};     // the mission map's rect as map_rect hands it out
+uint32_t g_map_rect_at = 0;   // its address in the emulator (the dumps print that)
 
 struct Hooks : mech3::HudHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
@@ -125,6 +127,14 @@ struct Hooks : mech3::HudHooks {
     g_strings.push_back(n);
     return g_strings.back().c_str();
   }
+  const ztwod::Rect* map_rect(void* map) override {  // +0xd8, kept so the dump can name it
+    const uint32_t a = call("peek32", {id(map) + 0xd8});
+    if (!a) return nullptr;
+    g_map_rect = {static_cast<int32_t>(call("peek32", {a})), static_cast<int32_t>(call("peek32", {a + 4})),
+                  static_cast<int32_t>(call("peek32", {a + 8})), static_cast<int32_t>(call("peek32", {a + 12}))};
+    g_map_rect_at = a;
+    return &g_map_rect;
+  }
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
   // emulator's own handles) as it is.
@@ -148,6 +158,24 @@ Hooks g_hooks;
 // zRender's 2D draws as test_hud.py's stubs log them.
 struct HudHost : RecordingHost {
   static uint32_t u(int32_t v) { return static_cast<uint32_t>(v); }
+  void pixel(int32_t x, int32_t y, uint32_t p) override { call("0x005630a0", {x, y, p}); }
+  // The radar marker's texts (0x228 its name and "%.2f" km, 0x229 its name and metres): the arguments too.
+  uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+    va_list c;
+    va_copy(c, args);
+    const uint32_t n = RecordingHost::format_message(buf, size, id, args);
+    if (id == 0x228) {
+      const uint32_t name = va_arg(c, uint32_t);
+      const char* text = va_arg(c, const char*);
+      call("0x00575ff0.args", {name, static_cast<uint32_t>(std::strlen(text))});
+      for (const char* q = text; *q; ++q) call("0x00575ff0.ch", {static_cast<uint8_t>(*q)});
+    } else if (id == 0x229) {
+      const uint32_t name = va_arg(c, uint32_t);
+      call("0x00575ff0.args", {name, va_arg(c, uint32_t)});
+    }
+    va_end(c);
+    return n;
+  }
   void line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t p, int32_t d) override {
     call("0x00562c80", {x0, y0, x1, y1, p, d});
   }
@@ -240,7 +268,8 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 7: {
       const std::pair<uint32_t, ztwod::Object2D*> at[] = {
           {0xdd4, &h.compass}, {0x1da8, &h.gauges}, {0x3434, &h.mfd}, {0x410c, &h.target},
-          {0x6520, &h.weapons}, {0x17964, &h.objectives}, {0x188c0, &h.equipment}, {0x144c, &h.reticle}};
+          {0x6520, &h.weapons}, {0x17964, &h.objectives}, {0x188c0, &h.equipment}, {0x144c, &h.reticle},
+          {0x14, &h.radar}};
       for (auto& [off, o] : at)
         if (off == v) o->flags ^= ztwod::kHidden;
       break;
@@ -256,13 +285,22 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
       for (uint32_t i = 0; ztwod::Object2D* o = child(h, i); ++i) o->flags = k == 13 ? o->flags | 4 : o->flags & ~0x10u;
       if (k == 14)
         for (ztwod::Object2D* o : std::initializer_list<ztwod::Object2D*>{
-                 &h.compass, &h.gauges, &h.mfd, &h.target, &h.weapons, &h.objectives, &h.equipment, &h.reticle})
+                 &h.compass, &h.gauges, &h.mfd, &h.target, &h.weapons, &h.objectives, &h.equipment, &h.reticle,
+                 &h.radar})
           o->flags &= ~0x10u;
       break;
     case 15: ftext(h, v)->set_text_plain("88 TXT"); break;
     case 17: h.draw3d(zgame::from_bits(v)); break;
     case 18: h.target.track(zgame::from_bits(v)); break;
     case 20: h.data_update(zgame::from_bits(v)); break;
+    case 21:
+      h.radar.xbd4 = v & 0xff, h.radar.xbd8 = v >> 8;
+      h.radar.polys[0].clip = h.radar.polys[1].clip = &mech3::radar_rect();
+      break;
+    case 23: h.radar.xdb4 = v; break;
+    case 24: h.radar.xdb8 = v; break;
+    case 25: h.radar.set_fade(zgame::from_bits(v)); break;
+    case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
       float o[3] = {};
       const bool ok = mech3::lead_point(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(v)), o);
@@ -344,7 +382,8 @@ void poly(Dump& d, ztwod::PolyLine* p) {
     for (int32_t v : pt) d.kv("p", v);
   d.kv("count", p->count);
   d.kv("color", p->color);
-  d.kv("dl", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->clip)));
+  d.kv("dl", p->clip == &mech3::radar_rect() ? 0x5e39c8u  // the original's global
+                                             : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p->clip)));
   d.kv("tf", p->round);
 }
 
@@ -522,9 +561,9 @@ void dump_hud(Dump& d) {
     ztwod::ClipLine2D& l = rd.lines[i];
     d.o << "rline" << i << ' ';
     d.base(&l);
+    const uint32_t clip = l.clip == &g_map_rect ? g_map_rect_at : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip));
     for (uint32_t v : {static_cast<uint32_t>(l.end_x), static_cast<uint32_t>(l.end_y), l.color, static_cast<uint32_t>(l.clipped),
-                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(l.clip)), static_cast<uint32_t>(l.dash),
-                      zgame::bits(l.noise)})
+                      clip, static_cast<uint32_t>(l.dash), zgame::bits(l.noise)})
       d.kv("l", v);
     d.o << "\n";
   }
@@ -810,6 +849,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   g_lock_shown = false;
   g_leads.clear();
   crt::msvc_srand(1);  // test_hud.py's MsvcRand(1)
+  mech3::radar_rect() = mech3::triangle_rect() = {1, 1, 639, 479};  // as each run's fresh exe holds them
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);

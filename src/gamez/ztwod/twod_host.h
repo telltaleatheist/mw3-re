@@ -118,6 +118,7 @@ class Host : public zgame::Unported {
   // (0x00562cb0), a circle (0x005630c0), one with static (0x00563440), a line
   // with static (0x00562970), a filled polygon with its winding ([0x0074a3c8],
   // 0x0055d010; vertices x, y every 12 bytes).
+  virtual void pixel(int32_t x, int32_t y, uint32_t pixel);  // 0x005630a0
   virtual void line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, int32_t dash);
   virtual void line_list(const int32_t* points, int32_t count, const Rect* clip, uint32_t pixel);
   virtual void circle(int32_t cx, int32_t cy, int32_t r, uint32_t pixel, const Rect* clip);

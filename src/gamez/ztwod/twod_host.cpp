@@ -126,6 +126,7 @@ void Host::line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel) 
 namespace {
 const int32_t* ints(const Rect* r) { return r ? &r->left : nullptr; }
 }  // namespace
+void Host::pixel(int32_t x, int32_t y, uint32_t pixel) { zrndr::pixel16(x, y, static_cast<uint16_t>(pixel)); }
 void Host::line_dashed(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t pixel, int32_t dash) {
   zrndr::line16_dashed(x0, y0, x1, y1, static_cast<uint16_t>(pixel), dash);
 }
