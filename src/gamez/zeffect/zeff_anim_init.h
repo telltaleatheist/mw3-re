@@ -93,6 +93,7 @@ struct AnimHooks {
   void* (*create_puffer)();                                // 0x0054a710, gmod_puff
   void* (*find_sound)(const char* name);                   // 0x0056f6f0, zSound
   int32_t (*effect_index)(const char* name);               // 0x0050d9e0, zEffect
+  void (*register_entities)() = nullptr;                   // 0x005a8a20 x3 in 0x00508fc0
 };
 AnimHooks& anim_hooks();
 
@@ -105,5 +106,9 @@ int32_t anim_light_index(AnimDef* def, const char* name); // 0x005091e0
 int32_t anim_sound_index(AnimDef* def, const char* name); // 0x00509160
 Node* anim_find_node(AnimDef* def, const char* name);     // 0x00509640
 AnimDef* anim_find(const char* name);                     // 0x0050b450
+void anim_free(AnimDef* def, bool instances);             // 0x0050b0e0
+int32_t anim_free_all();                                  // 0x0050b380
+int32_t anim_shutdown();                                  // 0x0050b430
+int32_t anim_init();                                      // 0x00508fc0
 
 }  // namespace zeff

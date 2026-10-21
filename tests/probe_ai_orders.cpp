@@ -9,6 +9,7 @@
 
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
+#include "mech3/zai_target.h"
 #include "probe_app.h"
 
 namespace {
@@ -57,6 +58,7 @@ class FakeNet : public ai::CompiledNet {
  public:
   FakeNet(int32_t id, bool compiled) : CompiledNet(id, 0), compiled_(compiled) {}
   ai::AiNet* as_compiled() override { return compiled_ ? this : nullptr; }
+  bool allows_attack() override { return compiled_; }
   ai::NetPart* make_part(ai::Order& o) override { return new FakePart(&o, this, get_id()); }
   bool compiled_;
 };
@@ -84,10 +86,30 @@ FakeBehaviour* beh_of(int32_t id) {
   return nullptr;
 }
 
+// The gates' world (test_ai_gates.py): the owner at a made-up address,
+// its position and contacts, the game time.
+constexpr uint32_t kOwner = 0x2c7f0000;
+float g_now = 0, g_pos[3] = {}, g_home[3] = {};
+ai::AiTarget g_target;
+ai::Contact g_contacts[2];
+float fl(uint32_t u) {
+  float f;
+  std::memcpy(&f, &u, 4);
+  return f;
+}
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
   ai::Behaviour* default_behaviour() override { return beh_of(100); }
+  float now() override { return g_now; }
+  float health(zgame::Handle v) override { return fl(call("owner.vt+0x98", {v})); }
+  void position(zgame::Handle v, float out[3]) override {
+    call("0x005a85e0", {v});
+    std::memcpy(out, g_pos, 12);
+  }
+  ai::AiTarget* targetable(zgame::Handle v) override { return v == kOwner ? &g_target : nullptr; }
+  ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
 };
 Hooks g_hooks;
 
@@ -114,7 +136,7 @@ void probe_ao_new() {
   for (int32_t i = 1; i <= 4; ++i) g_nets.push_back(std::make_unique<FakeNet>(i, true));
   g_nets.push_back(std::make_unique<FakeNet>(5, false));
   g_nets.push_back(std::make_unique<FakeNet>(100, true));
-  for (int32_t i : {1, 2, 3, 4, 100}) g_behs.push_back(std::make_unique<FakeBehaviour>(i));
+  for (int32_t i : {1, 2, 3, 4, 100, 88, 98}) g_behs.push_back(std::make_unique<FakeBehaviour>(i));
   ai::AiParams rec;
   g_brain = std::make_unique<ai::Brain>(net_of(1), rec);
   g_brain->orders.clear();
@@ -188,6 +210,40 @@ int32_t probe_ao_stack(uint32_t* out, int32_t cap) {
     std::memcpy(w + 10, o.x24, 12);
   }
   return n;
+}
+
+// The gates' fields and world: the brain's +0x04..+0xcf, +0x22c, the home
+// point (has[0]), +0xe8, +0x230, +0xf4; the time, the owner's position, its
+// contacts at +0x80 and +0x98 by squared distance (has[1], has[2]).
+void probe_ao_gate_set(const uint8_t* raw, uint32_t x22c, const uint32_t* f, const int32_t* has) {
+  ai::Brain& b = *g_brain;
+  std::memcpy(b.params.raw + 4, raw + 4, 0xcc);
+  b.x22c = static_cast<uint8_t>(x22c);
+  std::memcpy(g_home, f, 12);
+  b.xe4 = has[0] ? g_home : nullptr;
+  b.xe8 = fl(f[3]), b.x230 = fl(f[4]), b.xf4 = fl(f[5]);
+  g_now = fl(f[6]);
+  std::memcpy(g_pos, f + 7, 12);
+  g_contacts[0].dist2 = fl(f[10]), g_contacts[1].dist2 = fl(f[11]);
+  g_target.nearest_lance = has[1] ? &g_contacts[0] : nullptr;
+  g_target.player_contact = has[2] ? &g_contacts[1] : nullptr;
+}
+
+// One gate: 0 may_engage (the net by id, the current state or none), 1
+// must_break_off, 2 p6_clear, 3 sees_target, 4 manoeuvre. out: the answer,
+// +0x22c, +0xf4.
+void probe_ao_gate(int32_t op, int32_t net, int32_t with_state, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  const zgame::Handle owner = kOwner;
+  uint32_t r = 0;
+  switch (op) {
+    case 0: r = b.may_engage(owner, net_of(net), with_state ? b.current().state.get() : nullptr); break;
+    case 1: r = b.must_break_off(owner); break;
+    case 2: r = b.p6_clear(); break;
+    case 3: r = b.sees_target(owner); break;
+    case 4: b.manoeuvre(); break;
+  }
+  out[0] = r, out[1] = b.x22c, out[2] = bits(b.xf4);
 }
 
 }  // extern "C"

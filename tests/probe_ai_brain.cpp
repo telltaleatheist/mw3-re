@@ -158,7 +158,7 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   o.skip(at + 0xd0, 12);  // the orders, pilot and voice: their copies are compared apart
   o.f(at + 0xdc, b.xdc);
   o.u(at + 0xe0, vbptr);
-  o.u(at + 0xe4, static_cast<uint32_t>(b.xe4));
+  o.p(at + 0xe4, b.xe4);
   o.f(at + 0xe8, b.xe8), o.f(at + 0xec, b.xec);
   o.u(at + 0xf0, static_cast<uint32_t>(b.xf0));
   o.f(at + 0xf4, b.xf4);
@@ -193,7 +193,7 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   o.u(q + 0x30, self);
   order_image(o, at + 0x194, b.order, 0x005cd8e8, self + 0x194);
   o.b8(at + 0x22c, b.x22c);
-  o.u(at + 0x230, static_cast<uint32_t>(b.x230));
+  o.f(at + 0x230, b.x230);
   o.p(at + 0x234, b.x234), o.p(at + 0x238, b.x238), o.p(at + 0x23c, b.x23c);
   o.u(at + 0x240, 0x005cc290);
   o.skip(at + 0x244, 1);  // bit 0 cleared, the rest the heap's

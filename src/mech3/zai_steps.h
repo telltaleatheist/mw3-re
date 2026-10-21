@@ -33,6 +33,8 @@ struct Pilot {
 enum class StepKind : uint32_t {
   Behaviour = 0x5cb278,     // 0x004c8750, the default behaviour (0x00604068)
   Shared = 0x5cbe18,        // 0x004cbe10, the shared behaviour (0x0060b460)
+  Manoeuvre = 0x5bcaf8,     // 0x00410650, at 0x00604088 (its state 0x004caae0, flag 0)
+  Manoeuvre2 = 0x5bcbb0,    // 0x00410680, at 0x00604098 (its state 0x004cabe0, flag 1)
   Null = 0x5bc8d0,          // 0x004105d0, the null step (0x00603fa0)
   Speed = 0x5cb488,         // 0x004c9eb0
   WaitInterval = 0x5cb560,  // 0x004c9f80
@@ -210,6 +212,7 @@ class CompiledNet : public AiNet {
   ~CompiledNet() override;
   AiNet* as_compiled() override { return this; }
   NetPart* make_part(Order& o) override;  // +0x5c 0x004c0070 (zai_brain.cpp)
+  bool allows_attack() override { return true; }  // +0x54 0x00499270
   bool mark(bool on);  // 0x004c0e70: the path finder's mark (+0x18 bit 0)
   Behaviour* step(int32_t i) const {
     znet::Element* e = elem(i);

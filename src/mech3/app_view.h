@@ -28,6 +28,7 @@ void* program_view_target();                // its target mech
 bool program_view_positions(float camera[3], float torso[3]);
 PlayerView* program_view();
 void program_view_make(void* camera_node);  // 0x0040aca0
+void program_view_free();                   // the view deleted (the mission unload's operator delete)
 void program_view_attach(Mech& m);          // the mech's 0x0041ce30
 void program_view_set_camera(int32_t id);   // 0x0040ae70
 void* program_cameras(int32_t roster);       // 0x00430e70

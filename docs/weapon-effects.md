@@ -124,13 +124,9 @@ impact (`weapon_fx_log`, ours). Breaks caught: the priority bias, the fade,
 the tie rule, the NaN compare, the surface angles, the impact animations
 unset, the common set not loaded.
 
-**A second mission in one run keeps the first one's animations.** The
-mission unload (0x490480) frees them (0x50b380), with the effect table
-(0x50d570), zWeapon and zClass; it is not ported, and `anim_load` (0x50ae60)
-returns early while the old block is marked loaded, so the next mission's
-animations point at freed nodes. The program does not run a second mission
-yet (no campaign flow); mw3tests clears zEffect's state between its
-missions as a new process would (`reset_effects`).
+**A second mission in one run** gets its own animations: the mission
+unload (0x00490480, `mission-load.md` section 6) frees them (0x0050b380),
+with the effect table, zWeapon, zClass and the textures.
 
 `mw3 --mission c1m1 --fire N [--fire-group G]` (ours, for checking) holds
 the fire command from the N-th frame shown, with group G (else the first

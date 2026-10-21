@@ -1,4 +1,6 @@
 #include "mech3/app_engine.h"
+
+#include "gamez/zeffect/zeff_init.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_hud.h"
 
@@ -343,6 +345,11 @@ void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
 // mission's animations and the scripts' ticks.
 void GameEngine::lists_update() { zcls::run_action_lists(); }
 void GameEngine::classes_shutdown() { zcls::classes_reset(); }
+int32_t GameEngine::effects_init() {
+  zeff::effects_init();
+  return 0;
+}
+void GameEngine::effects_shutdown() { zeff::effects_shutdown(); }
 void GameEngine::missions_shutdown() { mech3::mech_types_close(); }
 // 0x00576cf0: the 3D window cleared before the Core state draws (the sky
 // colour of the debug viewer: the window's clear colour is not traced).

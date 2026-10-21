@@ -42,6 +42,8 @@ class AiNet : public znet::Object {
   virtual const char* name();                       // +0x4c 0x004d52a0: "net_%02d" of the id
   // +0x5c: what the net builds in an order (zai_brain.h; the caller owns it).
   virtual NetPart* make_part(Order& o) { (void)o; return nullptr; }
+  // +0x54: whether a pilot on it may break off to attack (yes for compiled nets).
+  virtual bool allows_attack() { return false; }
   void link_pass();                                 // +0x30 0x004d53f0
 };
 

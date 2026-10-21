@@ -158,3 +158,25 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Ran: mw3tests 89/89, mw3sdltests 6/6, test_matrix, test_place,
   test_modeldraw, test_entity_walk, test_command, test_weapons_run,
   test_weapons_hit, test_anim_run, test_collide, test_update: all pass.
+
+## 2026-10-20: the mission unload (branch mac2/unload)
+
+- Ported 0x00490480 (`Missions::unload`, hooks in `MissionHooks`, wired in
+  app_mission.cpp), zEffect's start/end (0x0050d270, 0x0050d570,
+  0x0050d2b0, the anim start 0x00508fc0, free 0x0050b0e0 / 0x0050b380 /
+  0x0050b430), the textures' free 0x00518b70 with 0x00518b30, the library
+  close-all 0x005186b0. Docs: mission-load.md section 6.
+- zSound's `initialized`: the exe's (never cleared). mw3tests'
+  `reset_process_state` resets it and the texture libraries per app;
+  `reset_effects` is gone (the app's start/end free zEffect now).
+- Fixed on the way: the debug launch's cached slot held a freed config on a
+  second launch (`slot_ = 0` in set_launch); the texture stand-in's mounts
+  piled up across missions (each load now replaces the last one's); the
+  stand-in no longer clears the library lists (0x005184e0 does not).
+- mw3tests: a crash handler printing a backtrace, MW3_TEST takes a list,
+  MW3_TEST_TRACE prints each test's start. Mac 3's left_button test lacked
+  the zSound reset (aborted the full run after the fire test); fixed here.
+- Test: c1m1, c1m2, c2m1 in one process. Breaks caught: no unload, no anim
+  free, no texture free. No differential test (the unload has no logic of
+  its own beyond the call order).
+- Next: craters and quicksand (zdeclient).

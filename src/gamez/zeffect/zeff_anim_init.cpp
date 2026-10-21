@@ -1,6 +1,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 
 #include <cstring>
+#include <ctime>
 #include <type_traits>
 #include <vector>
 
@@ -14,6 +15,10 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zweapon/zwep_damage.h"
+#include "gamez/zweapon/zweapon.h"
+#include "crt/msvc_rand.h"
+#include "gamez/zclass/cls_util.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 
 namespace zeff {
 
@@ -558,6 +563,88 @@ AnimDef* anim_find(const char* name) {
     if (d.raw[0x98] != 5 && std::strcmp(d.name(), name) == 0) return &d;
   }
   return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x0050b0e0 (EDX: the instances too). The def's object
+// node released, its damage handlers off its root (kinds 0..2), every list
+// freed and counted 0, a copied tree destroyed.
+void anim_free(AnimDef* d, bool instances) {
+  if (d->object) {
+    zcls::node_set_action(d->object, nullptr);
+    zcls::node_release(d->object);
+  }
+  const uint8_t kind = d->raw[0x99];
+  if (kind == 0 || kind == 1 || kind == 2) zwep::remove_handlers(d->root);  // 0x00583400
+  delete[] d->reset_events;
+  d->reset_events = nullptr;
+  d->put<int32_t>(0x104, 0);
+  for (int i = 0; i < d->count(0x108); ++i) delete[] d->seqs[i].events;
+  d->raw[0x108] = 0;
+  delete[] d->seqs, d->seqs = nullptr;
+  delete[] d->objects, d->objects = nullptr, d->raw[0x109] = 0;
+  delete[] d->nodes, d->nodes = nullptr, d->raw[0x10a] = 0;
+  delete[] d->lights, d->lights = nullptr, d->raw[0x10b] = 0;
+  delete[] d->puffers, d->puffers = nullptr, d->raw[0x10c] = 0;
+  delete[] d->sounds, d->sounds = nullptr, d->raw[0x10d] = 0;
+  delete[] d->static_sounds, d->static_sounds = nullptr, d->raw[0x10e] = 0;
+  delete[] d->effects, d->effects = nullptr, d->raw[0x10f] = 0;
+  delete[] d->prereqs, d->prereqs = nullptr, d->raw[0x110] = 0;
+  delete[] d->anim_refs, d->anim_refs = nullptr, d->raw[0x112] = 0;
+  if (d->get<uint32_t>(0x94) & 0x20000) {
+    zcls::tree_destroy(d->node);  // 0x004f9050
+    d->put<uint32_t>(0x94, d->get<uint32_t>(0x94) & ~0x20000u);
+  }
+  if (instances && d->instance) {
+    anim_free(d->instance, true);
+    delete d->instance;
+    d->instance = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0050b380: every def (with its instances), the defs and
+// messages, the animation log (0x0050b650), the block marked unread, the
+// puffers (0x005495a0).
+int32_t anim_free_all() {
+  AnimState& a = g_anim;
+  a.block.put<int32_t>(0x04, 0);  // 0x0073f724: the source list, dropped at the read (none kept)
+  a.block.put<int32_t>(0x08, 0);
+  for (int32_t i = 0; i < a.def_count(); ++i) anim_free(&a.defs[i], true);
+  delete[] a.defs;
+  a.defs = nullptr;
+  a.block.put<int16_t>(0x0a, 0);
+  delete[] a.messages;
+  a.messages = nullptr;
+  a.block.put<int32_t>(0x10, 0);
+  anim_log().records = {};  // 0x0050b650 with 0x0050b640
+  anim_log().count = 0;
+  a.block.put<int32_t>(0x00, 0);
+  zmod::puff_shutdown();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0050b430
+int32_t anim_shutdown() {
+  if (g_anim.block.get<int32_t>(0) != 0) anim_free_all();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00508fc0: zEffect's start (and its reset from the effect
+// table's 0x0050d270): what was loaded freed, the state cleared, gravity
+// -9.8, the random table filled from a seed of the time. The anim entity
+// classes' registration with zEntity (0x005a8a20, types 0x32..0x34, when
+// [0x005ebcc0]) is the hooks'.
+int32_t anim_init() {
+  AnimState& a = g_anim;
+  if (a.block.get<int32_t>(0) != 0) anim_free_all();
+  a.path[0] = 0;
+  for (int off : {0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x20, 0x24, 0x28}) a.block.put<int32_t>(off, 0);
+  a.defs = nullptr, a.messages = nullptr, a.world = nullptr, a.player_node = nullptr;
+  a.block.put<int32_t>(0x3c, 1);
+  a.block.put<float>(0x1c, -9.8f);  // 0xc11ccccd
+  crt::msvc_srand(static_cast<uint32_t>(std::time(nullptr)));
+  for (float& r : a.random) r = static_cast<float>(crt::msvc_rand()) * 3.051851e-05f;
+  if (g_hooks.register_entities) g_hooks.register_entities();
+  return 0;
 }
 
 }  // namespace zeff
