@@ -123,8 +123,16 @@ zimg::Texture* SdlTwodHost::image_release(zimg::Texture* image) {
 // ';'-separated directory under every read root joins the mounts, once.
 void SdlTwodHost::image_path(const char* path) {
   if (!path) return;
+  // The roots are the install and asset folders: not the folders added here,
+  // nor a mission's zbd folders (or each call would nest zbd/zbd/...).
+  static std::vector<std::string> added;
   std::vector<std::string>& read = zutl::mounts().read;
-  const std::vector<std::string> roots = read;
+  std::vector<std::string> roots;
+  for (const std::string& r : read) {
+    if (std::find(added.begin(), added.end(), r) != added.end()) continue;
+    if (r.find("/zbd") != std::string::npos) continue;
+    roots.push_back(r);
+  }
   std::string dirs = path;
   for (size_t at = 0; at <= dirs.size();) {
     size_t end = dirs.find(';', at);
@@ -135,7 +143,7 @@ void SdlTwodHost::image_path(const char* path) {
     if (d.empty()) continue;
     for (const std::string& r : roots) {
       const std::string m = r + "/" + d;
-      if (std::find(read.begin(), read.end(), m) == read.end()) zutl::mount(m);
+      if (std::find(read.begin(), read.end(), m) == read.end()) zutl::mount(m), added.push_back(m);
     }
   }
 }
