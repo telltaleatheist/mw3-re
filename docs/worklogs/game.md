@@ -858,3 +858,15 @@ view's ground, the anim lookups 0x50b450 (92).
   identical (dead_update 300, dead_step 600; BREAK=14, 15); the Owens test
   checks the dead list after the fall; ASan clean. Find: IA wrecks vanish
   at 180 s. Stopped here (mac 1's order).
+
+## 2026-10-21: mac 1's order (teardown leftovers, vehicles, zWeapon left)
+
+1. The cockpit's removal 0x0041ce10, the +0x378 object, the rest of 0x0049dc40.
+2. Vehicles and turrets if c1m1/c1m2 have any: builder 0x004b4660, damage,
+   salvage 0x00472ec0, without the AI; else note and skip.
+3. zWeapon's left (mines, homing, beams) as c1m1's weapons use.
+
+- Dead list review (mac 1): IA wrecks are hidden, not deleted, until
+  0x004aa6b0's AI side is ported (FIX (A), interim; no CHANGES line);
+  dead_hide's `player &&` noted; dt is capped at 1/8 s (ztimer), so
+  1 - 3dt stays positive.
