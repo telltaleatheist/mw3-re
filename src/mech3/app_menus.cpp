@@ -207,7 +207,19 @@ void GameEngine::delete_screens() {
   screens_.clear();
 }
 
+namespace {
+// The ported shell states by address, the end screen's Win State too.
+ShellState* shell_state_at(Handle state) {
+  States& st = states();
+  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage};
+  for (ShellState* s : shells)
+    if (s->addr() == state) return s;
+  return nullptr;
+}
+}  // namespace
+
 Handle GameEngine::state_screen(Handle state) {
+  if (ShellState* s = shell_state_at(state)) return s->screen_;
   if (MenuState* st = menu_state_of(state)) return st->screen_;
   if (MenuState* st = popup_state_of(state)) return st->screen_;
   return Engine::state_screen(state);
@@ -234,13 +246,9 @@ void GameEngine::twod_set_cursor(uint32_t v) { ztwod::set_page_flip(v != 0); }
 
 // 0x0048ee00 on the state the address names.
 void GameEngine::shell_clear(uint32_t state) {
-  States& st = states();
-  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.salvage};
-  for (ShellState* s : shells) {
-    if (s->addr() == state) {
-      s->clear_screen();
-      return;
-    }
+  if (ShellState* s = shell_state_at(state)) {
+    s->clear_screen();
+    return;
   }
   MenuState* m = menu_state_of(state);
   if (!m) m = popup_state_of(state);

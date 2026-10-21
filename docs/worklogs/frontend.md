@@ -561,3 +561,11 @@ ported debriefing, CONTINUE, c1m2's briefing loaded with its script; no
 0x00479440 or 0x0047b430 unported. Breaks: scratch/briefing/breaks7.py 4/5
 (the operation only matters at Op 4). Left: 6b (results, scores into the
 ported campaign's +0xb4/+0xc4), 6c (lance cards), item 8 (salvage), 9.
+
+## 2026-10-21 Item 7 review fix (branch mac3/debrief-results, off main f8cfa9e)
+
+shell_clear and state_screen now know the end Win State (shell_state_at:
+main, pause, load, win, end_win, salvage); before, WinState::leave on
+0x006099a0 fell to the unported stub and the debriefing leaked each mission
+end. The campaign test checks the screen is freed after CONTINUE (caught
+with end_win removed from the list).

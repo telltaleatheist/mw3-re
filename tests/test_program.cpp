@@ -366,6 +366,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     std::string section_first;
     bool launch_enabled = false, lab_disabled = false, playing = false, debrief_seen = false, continue_help = false;
     int32_t second_number = 0;
+    mech3::Handle debrief_handle = 0;
+    bool debrief_freed = false;
     size_t second_steps = 0;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
@@ -406,12 +408,14 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         if (!d) return;
         debrief_seen = true;
         continue_help = !d->continue_btn.help.empty() && d->continue_btn.help[0]->text[0] != 0;
+        debrief_handle = mech3::states().end_win.screen_;
         d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
         stage = 5;
       } else if (stage == 5 && app.current() == &mech3::states().load) {
         mech3::BriefingScreen* b = mech3::briefing_screen();
         if (!b || !b->loaded) return;
         second_number = engine.launch().number;
+        debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
         stage = 6;
       }
@@ -422,6 +426,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(stage == 6);
     EXPECT(debrief_seen);   // the ported debriefing
     EXPECT(continue_help);  // its texts (Mech3Msg.dll's)
+    EXPECT(debrief_freed);  // the Win State's leave freed it (shell_clear on 0x006099a0)
     EXPECT(second_number == 2 && second_steps > 2);  // c1 mission 2's briefing, its script
     EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);
