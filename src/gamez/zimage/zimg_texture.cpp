@@ -262,4 +262,43 @@ int32_t load_group_0() {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x00518b30 (ECX the entry): a loaded one's image and
+// record freed, a waiting one forgotten; others (reload) left as they are.
+static void entry_free(TextureEntry& e) {
+  if (e.state == 1) {
+    if (e.image) {
+      if (e.image != &default_image()) free_texture(static_cast<Texture*>(e.image));  // 0x005185f0
+      e.image = nullptr;
+    }
+    if (e.surface) {
+      if (g_hooks.release) g_hooks.release(e.surface);
+      e.surface = nullptr;
+    }
+  } else if (e.state != 2) {
+    return;
+  }
+  e.state = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00518b70. The default image's own record ([0x005ecbfc],
+// on Direct3D) and the block at [0x00638518] are not kept by the port.
+int32_t textures_free() {
+  TextureTable& t = textures();
+  for (int32_t i = 0; i < t.count; ++i) {
+    entry_free(t.entries[i]);
+    t.entries[i].group = 0;
+  }
+  t.count = 0;
+  t.group = 0;
+  if (g_hooks.release_all) g_hooks.release_all();
+  for (uint16_t*& p : state().palettes) {
+    std::free(p);
+    p = nullptr;
+  }
+  state().palettes.clear();
+  free_all(0);
+  close_all(1);
+  return 0;
+}
+
 }  // namespace zimg

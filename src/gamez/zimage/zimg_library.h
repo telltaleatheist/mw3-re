@@ -83,6 +83,7 @@ int32_t register_image_library(int32_t on);  // 0x005184c0: "image" (rimage.zbd)
 void open_all(int list);                     // 0x00518670 (0x005187c0 on each)
 void close_all(int list);                    // 0x00518630 (0x00518600 on each)
 void close(Library& lib);                    // 0x00518600: the file only; the entries stay
+void free_all(int list);                     // 0x005186b0: closed, their entries (0x00518760) and themselves freed
 Texture* find_in_list(int list, const char* name);  // 0x00518d60: the first library that has it
 void resolve_name(Library& lib);                                        // 0x00518a30
 bool open(Library& lib);                                                // 0x005187c0

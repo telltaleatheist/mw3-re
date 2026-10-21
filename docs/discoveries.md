@@ -665,6 +665,14 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   the shipped files use only 0, 1 and 2.
 - **The release exe calls itself "PRODUCTION"**: the loading text reads
   "MechWarrior3 (PRODUCTION) (1.2)", a build marker left in.
+- **Missions in the same operation share one world load.** Going from
+  c1m1 to c1m2 keeps the whole world in memory (terrain, animations,
+  textures); only moving to another operation's world unloads it and loads
+  the new one. The unload frees the animations twice over, harmlessly.
+- **The sound system never forgets it was started.** Its shutdown leaves
+  the "initialised" flag set, so the game could not restart sound without
+  restarting the program; it only shuts sound down on exit, so it never
+  matters.
 
 ## Playing a mission
 

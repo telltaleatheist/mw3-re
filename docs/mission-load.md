@@ -158,13 +158,52 @@ mission 2, no fallback animation, the sounds swapped, the loaded flag after
 the abort check, the reader block ignoring instant action, the budget
 keeping the larger.
 
+## 6. The unload, 0x00490480
+
+Called only from the world load when a different world is asked for (and the
+same world is kept: c1m1 to c1m2 never unloads, the c1 world stays with its
+animations and textures). In order, each step a port or a hook of
+`MissionHooks` (`Missions::unload`, the program's in `app_mission.cpp`):
+
+1. The camera's flag cleared (0x004f3430(view +4, 0)).
+2. The AI's lists 0x004e7b80, 0x00414000, the mech types 0x004318e0, the
+   mechlib and the mech definitions 0x004844b0, the interp's 0x005964c0(1).
+3. The stealth object deleted (vtable +0, 1), [0x00609a2c] = 0.
+4. 0x0056f530 on app +0x14c ([0x00608dd4]): never written, so nothing.
+5. zEffect: the effect table 0x0050d570 (it re-runs the effects' start
+   0x0050d270, whose animation start 0x00508fc0 frees a loaded block), then
+   the animations 0x0050b380 (each def by 0x0050b0e0 with its instances, the
+   log, the puffers' shutdown); then the decals 0x00502020.
+6. zWeapon's shutdown 0x00584a60 with 0x004b0090 freeing each weapon type.
+7. The render, display and camera targets to 0; the view's window (+0x08)
+   and the view deleted, [0x005f4c8c] = 0; [0x00608c84] deleted, = 0.
+8. zClass 0x004f8fb0, the models 0x00526920 (with the materials 0x005372c0),
+   the textures 0x00516f30 (0x00518b70: each entry's image and surface,
+   the palettes, library list 0 closed and freed, list 1 closed).
+9. The HUD's 25 lines cleared; +0x60 = -1.
+
+The animations are freed twice over (step 5's first call already empties
+the block); harmless. zSound is not touched: the exe never clears its
+`initialized` (0x0072c2c0) and its shutdown 0x00570510 runs only at the
+app's exit, so mw3tests resets zSound for each new app as a new process
+would (`reset_process_state`).
+
+Tested by `missions_c1m1_c1m2_then_c2m1_in_one_process_headless`: c1m1,
+c1m2 (same world, kept) and c2m1 in one process, 60 frames each, no
+"Multiple parents" or unknown-node reports, c2's animations read anew, c2's
+directory mounted instead of c1's, the texture libraries back to one
+mission's. Breaks caught: no unload (crash), no animation free (c1's
+animations kept), no texture free (crash). No differential test: the unload
+is a list of calls into other modules, nothing of its own to compare.
+
 ## Open
 
 - What each hooked step does: effects 0x0050d2c0, decals 0x00501ab0, the
   HUD 0x0040f7f0, stealth 0x004a4de0, the launch's line-ups (mech-build.md
   section 13),
   the AI (0x004c3b80, 0x004d2e20.., ai.md), objectives 0x0045c2d0, the start
-  animation 0x0050b450, the unload 0x00490480 (the cleanup 0x00491780 is
-  ported: mission-frame.md).
+  animation 0x0050b450 (the cleanup 0x00491780 is ported: mission-frame.md).
+- The unload's unported steps: the AI lists 0x004e7b80, 0x00414000, the
+  interp's 0x005964c0, the decals 0x00502020, [0x00608c84].
 - InstallOptions bits 2 and 4 (the 16-bit mech textures installed, likely).
 - The window's clear colour (the port clears to the debug viewer's sky).

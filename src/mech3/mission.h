@@ -117,7 +117,23 @@ class MissionHooks : public zgame::Unported {
     unported("0x0049bfd0", {level, file, line, fmt, arg});
   }
   virtual void cleanup(int32_t v) { unported("0x00491780", {v}); }
-  virtual void unload() { unported("0x00490480", {}); }
+  // The mission unload: the port (Missions::unload) unless a test stands in.
+  virtual void unload();
+  // What Missions::unload (0x00490480) frees.
+  virtual void camera_flag_off(Handle camera) { unported("0x004f3430", {camera, 0}); }
+  virtual void ai_lists_free() { unported("0x004e7b80", {}); }
+  virtual void mech_types_clear() { unported("0x004318e0", {}); }
+  virtual void mech_defs_clear() { unported("0x004844b0", {}); }
+  virtual void sound_set_unload_608dd4() { unported("0x0056f530", {0x608dd4}); }
+  virtual void effects_free() { unported("0x0050d570", {}); }
+  virtual void anims_free() { unported("0x0050b380", {}); }
+  virtual void decals_free() { unported("0x00502020", {}); }
+  virtual void weapons_free() { unported("0x00584a60", {0x4b0090}); }
+  virtual void view_free(Handle view) { unported("operator delete", {view}); }
+  virtual void delete_608c84(Handle o) { unported("vt+0x04(1)", {o}); }
+  virtual void classes_free() { unported("0x004f8fb0", {}); }
+  virtual void models_free() { unported("0x00526920", {}); }
+  virtual void textures_free() { unported("0x00516f30", {}); }
   // zReader.
   virtual void reader_open(const char* path, int32_t current) { unported("0x00557320", {path, current}); }
   virtual void reader_set_path(const char* path) { unported("0x005561a0", {path}); }
@@ -293,6 +309,7 @@ struct Missions {
   void end_screen();                       // 0x00491bf0
   void on_command(int32_t cmd);            // 0x0048f440, bound to 0x71 and 0x72
   bool cleanup(bool unload);               // 0x00491780
+  bool unload();                           // 0x00490480: the world and all it brought
 };
 
 // The command handler 0x0048f400 binds (MISSION_COMPLETE 0x71 and 0x72).
