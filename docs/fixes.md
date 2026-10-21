@@ -68,6 +68,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | 2D blit, 0x55b3c0 | The bottom clip keeps a last row equal to the height (`jbe`) | (bug) an image whose bottom lands exactly one row past the buffer writes that row beyond it | Clipped at the last row; everything else pixel-identical on 3,000 random blits (`test_twod_blit.py`) |
 | 2D blit, 0x55b3c0, palettised paths | The row loops count the width up from minus itself to 0 | (bug) a zero-width source rectangle on a palettised image counts from 0 past 2^32 and faults | Nothing drawn |
 | 2D blit, 0x55b3c0, any source rectangle | The source rectangle is taken as given; only the screen clips | (B) the menu screens draw their still background (a mission's Options, FastMenu) with the screen's size as the rectangle of the 1280x960 image (menus.md, The background at other sizes): on a screen taller than 960 lines or wider than 1280 it reads past the image, the likely cause of the pause screen's Options crash above ~1000 lines (community-issues.md); the port, which has no 640x480 mode switch yet and will run up to 4K, would read past it at any larger window | The rectangle is cut at the image's edges (a negative left or top moves the draw instead); identical for every rectangle inside the image (`test_twod_blit.py`); `tests/test_menus.cpp` checks the cut and the menus' still background on a tall screen |
+| Screen modes, 0x0040d810, 0x004ab860, 0x0043a470 | 640x480 .. 1600x1200 (5..10); a card offers 5..7 by a video-memory estimate; 8..10 only through the registry | (B) today's screens are wider and larger; the estimate means nothing on a modern card | With `zfix` any_resolution, also modes 11..15 (1280x720, 1600x900, 1920x1080, 2560x1440, 3840x2160) and 16, the player's ScreenWidth x ScreenHeight (clamped to 640x480 .. `kMaxScreen`). A card offers 5..16 and RESOLUTION lists 8..16. Off in the probes; `test_resolution.cpp` (resolution.md section 5) |
+| Camera's horizontal angle, 0x0040d590 | vertical x render width / height, linear in the angle | (B) at 16:9 that is 106.7 degrees, squeezing the picture to 77% of the original's shape | For a shape that is not 4:3: tan(h/2) = tan(v/2) x w/h x k, which keeps the vertical angle and the original's 4:3 look (k = 1.090, 96.4 degrees at 16:9). 4:3 keeps the original's expression, which the new rule equals there to the bit anyway. `test_resolution.cpp` |
 | Credits background, 0x004289a0 | Reads the main menu's background through [0x00609854] unchecked | (bug) a null read without a main menu (unreachable: the credits open only from it) | No image, still (`MenuScreen::borrow_background`) |
 | Credits text, 0x00429200 | Each line's messages are `strcat`ed into a 256-byte stack buffer | (bug) a longer line overruns the stack (no shipped line comes near) | Cut at 255 characters |
 | The briefing map's circles, 0x00407ea0 | Shrink max(20 x dt, 1) pixels a frame | (B) a pixel a frame above 20 fps: faster the higher the frame rate | 30 pixels a second (the 30 fps frame's pixel), the fraction carried, behind `zfix` per_second; `test_briefing.py` checks the exe's |
@@ -412,7 +414,10 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   [0x0060b878] is never set, so they never show (docs/sound.md). An option
   could turn them on (`mech3::subtitles_on()`); left off as in the exe.
 
-- Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
+- Resolution and aspect (Owen, 2026-10-20: wanted, as a setting; mapped
+  and its first step done 2026-10-21, resolution.md: the modes, the list
+  and the 16:9 camera, in the table above; the window, the mode switch,
+  the HUD and the menus follow resolution.md section 4): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
   original 640x480 4:3. The game's projection and clipping work from the
   video mode's width and height; the mode list (640x480, 800x600,

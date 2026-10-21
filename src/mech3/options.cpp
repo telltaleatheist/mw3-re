@@ -1,9 +1,12 @@
 #include "mech3/options.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <string>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 
 namespace mech3 {
 
@@ -328,6 +331,15 @@ void rect_set_size(Rect& r, int32_t w, int32_t h) {
   r.y_last = r.y_end - 1;
 }
 
+// FIX (B) (resolution.md section 3): the horizontal angle for a w x h view
+// that is not 4:3, keeping the vertical one and the original's 4:3 look
+// (the linear rule's 4:3 angle, about 9% wider than square pixels).
+float wide_fov(float vfov, int32_t w, int32_t h) {
+  const double t = std::tan(double{vfov} * 0.5);
+  const double k = std::tan(double{vfov} * (2.0 / 3.0)) / (t * (4.0 / 3.0));
+  return static_cast<float>(2.0 * std::atan(t * static_cast<double>(w) / static_cast<double>(h) * k));
+}
+
 // Mech3.exe 1.2 @ 0x0040d590: the horizontal field of view follows the vertical
 // one and the render size's aspect.
 void set_camera(Handle cam) {
@@ -336,7 +348,8 @@ void set_camera(Handle cam) {
   float fx = 0, fy = 0;
   g_hooks->camera_get_fov(cam, &fx, &fy);
   const Rect& r = g_options.render;
-  const float x = static_cast<float>(static_cast<double>(r.w) * fy / static_cast<double>(r.h));
+  float x = static_cast<float>(static_cast<double>(r.w) * fy / static_cast<double>(r.h));
+  if (zfix::options().any_resolution && r.w * 3 != r.h * 4 && r.h > 0) x = wide_fov(fy, r.w, r.h);
   g_hooks->camera_set_fov(g_options.camera.camera, x, fy);
 }
 // Mech3.exe 1.2 @ 0x0040d5e0
@@ -414,22 +427,39 @@ void set_vmode(int32_t mode) {
   set_window_origin(0, 0);
   set_display_origin(0, 0);
   set_display_depth(16);
-  static const int32_t kSizes[][2] = {{640, 480},  {800, 600},   {1024, 768},
-                                      {1152, 864}, {1280, 1024}, {1600, 1200}};
+  int32_t w = 0, h = 0;
   if (mode == 3) {
     set_render_size(320, 240);
     set_window_size(640, 480);
     set_display_size(640, 480);
     set_pixel_double(1);
-  } else if (mode >= 5 && mode <= 10) {
-    const int32_t w = kSizes[mode - 5][0], h = kSizes[mode - 5][1];
+  } else if (vmode_size(mode, &w, &h)) {
     set_render_size(w, h);
     set_window_size(w, h);
     set_display_size(w, h);
     set_pixel_double(0);
   }
-  const int32_t h = display_h();
-  g_hooks->input_set_screen(display_w(), h);
+  g_hooks->input_set_screen(display_w(), display_h());
+}
+
+bool vmode_size(int32_t mode, int32_t* w, int32_t* h) {
+  static const int32_t kSizes[][2] = {{640, 480},   {800, 600},   {1024, 768},  {1152, 864},
+                                      {1280, 1024}, {1600, 1200}, {1280, 720},  {1600, 900},
+                                      {1920, 1080}, {2560, 1440}, {3840, 2160}};
+  if (mode == 3) {
+    *w = 640, *h = 480;
+    return true;
+  }
+  const int32_t last = zfix::options().any_resolution ? kLastVMode : 10;
+  if (mode < 5 || mode > last) return false;
+  if (mode == kCustomVMode) {  // FIX (B): the player's own size, kept inside the cap
+    *w = std::clamp(g_options.screen_w, 640, kMaxScreen[0]);
+    *h = std::clamp(g_options.screen_h, 480, kMaxScreen[1]);
+    return true;
+  }
+  *w = std::min(kSizes[mode - 5][0], kMaxScreen[0]);
+  *h = std::min(kSizes[mode - 5][1], kMaxScreen[1]);
+  return true;
 }
 // Mech3.exe 1.2 @ 0x0040d9d0
 int32_t vmode() { return g_options.vmode; }
@@ -633,6 +663,10 @@ int32_t load_options(const char* path) {
   make("Render", zreg::kBlock, &o.render, sizeof o.render, zreg::kNotSaved);
   make("Display", zreg::kBlock, &o.display, sizeof o.display, zreg::kNotSaved);
   make("Window", zreg::kBlock, &o.window, sizeof o.window, zreg::kNotSaved);
+  if (zfix::options().any_resolution) {  // FIX (B): mode 16's size (resolution.md)
+    if (make("ScreenWidth", kDword, &o.screen_w)) o.screen_w = 1920;
+    if (make("ScreenHeight", kDword, &o.screen_h)) o.screen_h = 1080;
+  }
   if (make("VMode", kDword, &o.vmode, 0, zreg::kNotSaved)) set_vmode(d("VMode", 5));
   // The mode a mission starts in: saved, and read as any number, so 8..10
   // (1152x864, 1280x1024, 1600x1200, which the menu does not offer) work.

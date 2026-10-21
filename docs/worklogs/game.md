@@ -909,3 +909,23 @@ view's ground, the anim lookups 0x50b450 (92).
   - AiTarget +0xcc is a `ShadowCaster*`, freed by `release_shadow`
     (0x4d58fc);
   - test_program checks c1m1's shadows, with three breaks.
+
+## Resolution and the PM exe parameter (mac 1's order, 2026-10-21)
+
+- Resolution mapped in resolution.md: every reader of the video mode's
+  rects, the HUD's per-mode blocks, the menus' 640x480 frames, the mode
+  list and its range, the platform's stretch, a porting order.
+- Step 1 (headless) done:
+  - modes 11..16 (16:9 presets and the player's own size) behind `zfix`
+    any_resolution;
+  - a card offers 5..16, and RESOLUTION lists 8..16;
+  - for any shape that is not 4:3 the camera keeps the original's 4:3
+    look (k = 1.090);
+  - 0x004f3ee0 is ported, and the options' fov hooks are wired.
+  - test_resolution.cpp, 6 tests with breaks (the 4:3 guard is not
+    breakable: the rule equals the original there).
+- original.py takes the exe: `EXES` (mw3, pm), `select()`, `Original(exe=)`
+  and `MW3_EXE`. calltrace decodes `ret` from the selected exe off MW3, and
+  twod_world reads it. test_exe_select.py (in run_all) checks the choice,
+  with a break. CLAUDE.md's "original.py checks one exe's SHA-256" is now
+  out of date (the lead's file).

@@ -652,6 +652,15 @@ int camera_set_fov_angles(Node* node, float h, float v) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f3ee0: the angles 0x004f3d90 set (+0xe0, +0xe4).
+int camera_get_fov_angles(Node* node, float* h, float* v) {
+  if (int r = check_class(node, 1, kFile, 0x6a8)) return r;
+  const Camera* c = cam_of(node);
+  *h = c->get<float>(0xe0);
+  *v = c->get<float>(0xe4);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f33a0
 int camera_add_child(Node* node, Node* child) {
   if (!node) return zerr::report(0x400, kFile, 0x2e3, "Null node pointer."), 5;

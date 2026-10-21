@@ -53,6 +53,8 @@ struct Options {
   int32_t vmode = 5;                  // [0x005f4d0c] VMode
   int32_t in_game_vmode = 5;          // [0x005f4d10] InGameVMode
   int32_t vstride = 1;                // [0x005f4d14] VStride
+  // FIX (B) (resolution.md): mode 16's size, saved as ScreenWidth / ScreenHeight.
+  int32_t screen_w = 1920, screen_h = 1080;
   CameraEntry camera;                 // [0x005f4d18] Camera
   Rect render, display, window;       // [0x005f4d1c] Render, [0x005f4d20] Display, [0x005f4d24] Window
   float mouse_accel[2] = {1.3f, 1.3f};  // [0x005f4d2c] MouseAccelX, [0x005f4d30] Y
@@ -215,6 +217,7 @@ void render_to_screen(float p[2]);          // 0x0040da30: a render-target point
 void rect_set_origin(Rect& r, int32_t x, int32_t y);  // 0x0040d4e0
 void rect_set_size(Rect& r, int32_t w, int32_t h);    // 0x0040d510
 void set_camera(Handle camera);             // 0x0040d590
+float wide_fov(float vfov, int32_t w, int32_t h);  // FIX (B): set_camera's angle for a shape not 4:3
 Handle camera();                            // 0x0040d5e0
 void set_render_size(int32_t w, int32_t h);   // 0x0040d600
 void set_render_origin(int32_t x, int32_t y); // 0x0040d630
@@ -234,6 +237,12 @@ int32_t window_h();                         // 0x0040d7c0
 void set_window_size(int32_t w, int32_t h);   // 0x0040d7d0
 void set_window_origin(int32_t x, int32_t y); // 0x0040d7f0
 void set_vmode(int32_t mode);               // 0x0040d810
+// A mode's size: the original's 3 (drawn 320x240) and 5..10, and with
+// zfix's any_resolution 11..15 (1280x720 .. 3840x2160) and 16 the player's
+// own; false for a mode that keeps the sizes it had (resolution.md).
+constexpr int32_t kLastVMode = 16, kCustomVMode = 16;
+constexpr int32_t kMaxScreen[2] = {3840, 2160};  // lower to 1920x1080 if larger sizes are trouble
+bool vmode_size(int32_t mode, int32_t* w, int32_t* h);
 int32_t vmode();                            // 0x0040d9d0
 void set_sound_frequency(float v);             // 0x0040da80
 float sound_frequency();                       // 0x0040daa0
