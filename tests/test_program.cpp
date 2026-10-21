@@ -4,6 +4,7 @@
 // through InitInstance and the original main loop to the main menu's state.
 #include <cmath>
 #include <algorithm>
+#include <map>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -1364,6 +1365,14 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     EXPECT(seen.feet);
     EXPECT(seen.off_ground < 0.1f);  // 0.024 m at most on c1m1's shore
     EXPECT(std::fabs(seen.turned.yaw_sin - seen.walked.yaw_sin) > 0.05f);
+    // The feet's outside calls (PartCalls, docs/movement-ground.md): each
+    // plant plays the soil's step sound, on dry ground leaves a print, in
+    // the shallows starts the wake.
+    std::map<std::string, int> fx;
+    for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
+    EXPECT(fx["step"] > 20);
+    EXPECT(fx["print"] > 0 || fx["wake"] > 0);
+    EXPECT(fx["pilot"] > 0);  // the engine and walk loops (Mech::movement_sounds)
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1501,6 +1510,94 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::options() = mech3::Options{};
+}
+
+// A survey, not a check (run with MW3_SURVEY=1): c1 mission 1 played for
+// 600 Core frames, the player walking forward and firing, then every
+// unported call the run reached with its count (the c1m1 backlog,
+// docs/worklogs/game.md).
+TEST(mission_c1m1_unported_survey_headless) {
+  if (!have_game() || !std::getenv("MW3_SURVEY")) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_survey_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    uint32_t up = 0, fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        up = zin::key1_of(0x18) & 0xff, fire = zin::key1_of(0x3d) & 0xff;
+        keys.key(up, true);
+      } else if (frames == 40) {
+        keys.key(up, false);
+        keys.key(fire, true);
+      } else if (frames == 400) {
+        keys.key(fire, false);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    std::vector<std::pair<uint32_t, std::string>> list;
+    for (const auto& [k, n] : engine.unported_counts()) list.push_back({n, k});
+    std::sort(list.rbegin(), list.rend());
+    std::map<std::string, int> parts;
+    for (const std::string& e : mech3::mech_parts_fx_log()) ++parts[e];
+    for (const auto& [k, n] : parts) std::printf("  parts %5d %s\n", n, k.c_str());
+    std::printf("survey: %d core frames, %zu unported calls\n", frames, list.size());
+    for (const auto& [n, k] : list) std::printf("  %8u %s\n", n, k.c_str());
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
   mech3::options() = mech3::Options{};
 }
 

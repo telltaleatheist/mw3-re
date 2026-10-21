@@ -325,6 +325,12 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   the ground under your torso, or a splash when that ground's material is
   water; nothing when there is no ground within 50 m below.
 
+- **The radio has subtitles nobody can turn on.** `sounds.zrd` gives 40
+  radio lines (the lance mates' calls for help, the answers to your orders)
+  a subtitle message, and the sound code would print it in the message
+  panel, but the switch that allows it is never set anywhere in the game,
+  so they never appear.
+
 ## Weapons
 
 From the weapon code (weapons.md).
@@ -389,7 +395,8 @@ From the weapon code (weapons.md).
   been made, it would not trap anything: the pit is covered by a moving lid
   at ground level that mechs walk on like any ground (its soil is none the
   game knows, so it counts as default ground), with the texture repeated
-  4.5 times across it.
+  4.5 times across it. `player.zrd` even sets a gravity for quicksand
+  (and one for water), but the game never uses either.
 - **One crater setting is ignored.** Every world's `declient.zrd` has a
   `TEXTURE_PARMS (1.0 1.0)` line that the game never reads.
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the

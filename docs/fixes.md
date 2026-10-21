@@ -388,6 +388,11 @@ Kept:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
+- Radio subtitles (mac 2, 2026-10-21): 40 radio lines in sounds.zrd carry a
+  SUBTITLE the sound code would print in the message panel, but the switch
+  [0x0060b878] is never set, so they never show (docs/sound.md). An option
+  could turn them on (`mech3::subtitles_on()`); left off as in the exe.
+
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
   original 640x480 4:3. The game's projection and clipping work from the

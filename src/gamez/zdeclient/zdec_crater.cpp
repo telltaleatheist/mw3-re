@@ -350,7 +350,10 @@ int32_t crater_make(const zwep::CraterOrder* order) {
 }
 
 // Mech3.exe 1.2 @ 0x00500760. The cell is found through the node's first
-// parent (the world).
+// parent (the world). The touched set is left (0x00500af0 empties it); it
+// only ever holds ground nodes (flag 0x10000), which are re-read, never the
+// crater nodes deleted below (object3d's 0x0108001c plus 0x8000 and 0x20000:
+// kept clear, never cut), so a second reset reads only live nodes.
 void craters_reset() {
   for (zcls::Node* node : g_craters.touched) {
     if (!node) continue;
@@ -383,7 +386,9 @@ int32_t history_clear() {
 int32_t decals_free() {
   history_clear();
   State& s = state();
-  s.frames = nullptr;  // the port's names live in the reader tree (zdec_init)
+  // The exe frees the frame-name array [0x0060bff4] here; the port's never
+  // owned one (zdec_init: the names lived in the reader tree, FIX (A)).
+  s.frames = nullptr;
   std::free(s.textures);
   s.textures = nullptr;
   s.quicksand_on = 0;

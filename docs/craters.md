@@ -116,7 +116,9 @@ mech, lava, silt and noslip, so the lid reads as game soil 0. Movement
 reads soil only for water (splashes), noslip (no slope slide) and lava
 (heat), and for footprints and step sounds (movement-ground.md, Soils).
 The lid sits at the ground's height and is solid, so a mech walks across
-the pit as on flat ground. The pit is only a picture.
+the pit as on flat ground. The pit is only a picture. player.zrd's `qsd_gravity` (and
+`wat_gravity`) are read into 0x00609a10 / 0x00609a0c at the mission start
+(0x0049e8be..0x0049e901) and nothing reads them back.
 
 ## 4. Bookkeeping (ported, part 7)
 

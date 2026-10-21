@@ -30,6 +30,15 @@
 #include "mech3/app_hud.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_skis.h"
+#include "mech3/mech_wake.h"
+#include "mech3/sound_extra.h"
+#include "mech3/player_view.h"
+#include "mech3/weapon.h"
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zsound/zsnd.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_lib.h"
@@ -262,6 +271,132 @@ void wire_mech_frame() {
   k.view_camera = program_view_set_camera;                                                  // 0x0040ae70
   k.set_view_option = program_set_mouse_mode;                                              // [[0x005f4d44]]
 }
+
+// The mech's world position (0x005a85e0).
+Vec3 mech_position(Mech& m) {
+  if (skis_calls().position) return *skis_calls().position(m);
+  return m.transform ? Vec3{m.transform[9], m.transform[10], m.transform[11]} : Vec3{0, 0, 0};
+}
+
+// A node's handler word (+0xbc) above 1 with a touch (slot 1, +0x0c).
+bool handler_touchable(Handle n) {
+  const zwep::RunHooks& rh = zwep::run_hooks();
+  const uintptr_t h = n && rh.handler ? rh.handler(n) : 0;
+  return h > 1 && reinterpret_cast<const zwep::NodeHandlers*>(h)->slot[1].fn != nullptr;
+}
+
+// What the parts log as they play (ours, for the headless tests): "step
+// <sound>", "print <effect>", "wake <level>", "pilot <sound>".
+std::vector<std::string> g_parts_fx;
+void note_part(const char* what, const std::string& name) { g_parts_fx.push_back(std::string(what) + " " + name); }
+std::string sound_name(const void* s) {
+  const auto* o = static_cast<const zsnd::Object*>(s);
+  if (!o) return "-";
+  return o->kind == 0 ? static_cast<const zsnd::Sound*>(o)->name : static_cast<const zsnd::Group*>(o)->name;
+}
+
+// pilot_sound with the parts log's "pilot <sound>" line.
+Sound pilot_play(Mech& m, int id, float volume, const Vec3* at) {
+  if (!m.pilot) return nullptr;
+  note_part("pilot", sound_name(m.pilot->sounds[id]));
+  return pilot_sound(*m.pilot, id, volume, at ? &at->x : nullptr, nullptr);
+}
+
+// The parts' outside calls in the game (PartCalls, mech_parts.h; the parts'
+// share of DamageCalls; the collider's touch): the engine's ports.
+void wire_mech_parts() {
+  PartCalls& pc = part_calls();
+  pc = PartCalls{};
+  pc.register_part = [](Mech& m, MechPart& p) { m.parts.push_back(&p); };  // 0x0041b8d0
+  pc.foot_effect = []() -> Handle {                                         // 0x0045f980
+    return foot_wake_new(world_hooks().world, "mech_leg_wake01", "mech_leg_wake02", "mech_leg_wake03");
+  };
+  pc.effect_playing = [](Handle e) { return foot_wake_playing(static_cast<FootWake*>(e)); };   // 0x0045fb80
+  pc.effect_start = [](Handle e, float t) {                                                    // 0x0045faf0
+    auto* w = static_cast<FootWake*>(e);
+    const int32_t before = w->level;
+    foot_wake_start(w, t);
+    if (w->level != before) note_part("wake", std::to_string(w->level));
+  };
+  pc.effect_place = [](Handle e, float x, float y, float z) {                                  // 0x004fc0b0
+    zcls::object3d_set_translation(static_cast<FootWake*>(e)->node, x, y, z);
+  };
+  pc.step_on = [](const Vec3& at, GroundHit& hit, float force) {  // 0x005836b0 with the contact as the record
+    if (!handler_touchable(hit.node)) return;
+    zwep::HitRecord r;
+    r.point = {hit.x, hit.height, hit.z};
+    r.material = hit.material, r.node = hit.node;
+    const zwep::Vec3f3 from{at.x, at.y, at.z};
+    zwep::touch(&from, &r, force);
+  };
+  pc.play_at = [](Handle s, const Vec3* at, float volume) {                                    // 0x0056e7e0(.., 0)
+    note_part("step", sound_name(s));
+    if (s) zsnd::play_at(static_cast<zsnd::Object*>(s), &at->x, volume, nullptr);
+  };
+  pc.look_limits = [](Mech& m, float* max_yaw, float* max_pitch, float* min_pitch) {
+    // vt+0x10c(1): the cockpit camera; its vt+0x1c (0x004d2a70) is itself.
+    auto* list = m.pilot ? static_cast<CameraList*>(m.pilot->cameras) : nullptr;
+    auto* cam = list ? static_cast<MechCamera*>(list->find(1)) : nullptr;
+    if (!cam) return;
+    *max_yaw = cam->look_left, *max_pitch = cam->look_up, *min_pitch = cam->look_down;  // +0x68, +0x74, +0x70
+  };
+  pc.aim_point = [](Mech& m, Vec3* at) {  // +0xd4 (the weapons): +0x18 an aim, +0x0c the point
+    const auto* wm = static_cast<const WeaponManager*>(m.ammo);
+    if (!wm || !wm->aim_valid) return false;
+    *at = Vec3{wm->aim.x, wm->aim.y, wm->aim.z};
+    return true;
+  };
+  pc.ground_at = [](float x, float y, float z, void* hits) {  // 0x004edab0 on [0x00608c84] +4
+    if (zcls::Node* w = world_hooks().world) zcls::ground_point(w, x, y, z, static_cast<zcls::GroundHits*>(hits));
+  };
+  DamageCalls& d = damage_calls();
+  d.spawn_effect = [](Handle effect, Handle node, const float args[9]) -> Handle {  // 0x00508aa0
+    if (!effect) return nullptr;
+    auto* a = static_cast<zeff::AnimDef*>(effect);
+    note_part("print", a->name());
+    return zeff::anim_start_at(a, zn(node), args, args + 3, args + 6);
+  };
+  d.spawn_effect_at = [](Handle effect, Handle node, float x, float y, float z) -> Handle {  // 0x00508c10
+    return effect ? zeff::anim_start(static_cast<zeff::AnimDef*>(effect), zn(node), x, y, z) : nullptr;
+  };
+  d.node_set_active = [](Handle n, int on) { zcls::node_set_active(zn(n), on); };          // 0x004eb170
+  d.node_set_name = [](Handle n, const char* name) { zcls::node_set_name(zn(n), name); };  // 0x004eb300
+  d.stop_foot_effect = [](Handle e) { foot_wake_stop(static_cast<FootWake*>(e)); };       // 0x0045fb50
+  // The pilot's sounds (0x00432990 on +0x684, through the sounds' EXTRA
+  // records, sound_extra.cpp): unplaced, or at the mech where the exe passes
+  // its position.
+  pc.sound = [](Mech& m, int id, float volume) -> void* { return pilot_play(m, id, volume, nullptr); };
+  MoveCalls& mv = move_calls();
+  mv.pilot_sound = [](Mech& m, int id, float volume, float) -> Sound {  // the fifth argument is not read
+    const Vec3 at = mech_position(m);
+    return pilot_play(m, id, volume, &at);
+  };
+  mv.fade_sound = [](Sound s) -> Sound {  // 0x00571d20(s, 1, 0)
+    return s ? zsnd::fade(static_cast<zsnd::VoiceBase*>(s), 1, 0.0f) : nullptr;
+  };
+  mv.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };  // 0x00506ca0
+  mv.weapons_enable = [](Mech& m, int on) {                                                    // 0x004b0bf0 on +0xd4
+    if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->set_online(on != 0);
+  };
+  HeatCalls& hc = heat_calls();
+  hc.throttle = [](Mech& m) { return m.controls ? m.controls->throttle : 0.0f; };  // +0x37c GetThrottle
+  hc.play_sound = [](Mech& m, int id) -> Sound { return pilot_play(m, id, 1.0f, nullptr); };
+  hc.play_sound_at = [](Mech& m, int id) -> Sound {
+    const Vec3 at = mech_position(m);
+    return pilot_play(m, id, 1.0f, &at);
+  };
+  hc.stop_sound = [](Sound s) { if (s) zsnd::stop(static_cast<zsnd::VoiceBase*>(s)); };  // 0x0056e9f0
+  CollideCalls& c = collide_calls();
+  c.node_touchable = [](Handle n) { return handler_touchable(n); };  // node +0xbc above 1 with slot 1 (0x004230a0)
+  c.touch = [](Handle n, const Vec3* from, const CollisionHit& h, float damage) {  // 0x005836b0
+    zwep::HitRecord r;
+    std::memcpy(&r.normal, h.hit.normal, 12);
+    std::memcpy(&r.point, h.hit.point, 12);
+    r.material = h.hit.material, r.node = n;
+    const zwep::Vec3f3 f{from->x, from->y, from->z};
+    return zwep::touch(&f, &r, damage);
+  };
+}
 }  // namespace
 
 void wire_mech_build(const MechWiring* w) {
@@ -273,6 +408,11 @@ void wire_mech_build(const MechWiring* w) {
     controls_calls().ai_brain = nullptr;
     update_calls().moved = nullptr;
     command_calls() = CommandCalls{};
+    part_calls() = PartCalls{};
+    move_calls() = MoveCalls{};
+    heat_calls().throttle = nullptr, heat_calls().play_sound = nullptr, heat_calls().play_sound_at = nullptr;
+    heat_calls().stop_sound = nullptr;
+    collide_calls().touch = nullptr, collide_calls().node_touchable = nullptr;
     unwire_hud();
     unwire_weapons();
     set_mech_build_hooks(nullptr);
@@ -288,6 +428,7 @@ void wire_mech_build(const MechWiring* w) {
   // (weapon.h); the program's managers are all mechs' so far.
 
   wire_mech_frame();
+  wire_mech_parts();
   wire_hud();
   wire_weapons([](const char* key) { return g_w.unported ? g_w.unported(g_w.engine, key, {}) : 0u; });
   WeaponCalls& c = weapon_calls();
@@ -306,6 +447,8 @@ void mech_types_open() {
 void mech_types_refresh() { mech_data_refresh(); }
 void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
+
+std::vector<std::string>& mech_parts_fx_log() { return g_parts_fx; }
 
 bool launched_mech(LaunchedMech* out) { return describe_mech(mech3::launched_mech(), out); }
 

@@ -126,6 +126,8 @@ add_library(mw3core STATIC
   src/mech3/mech_names.cpp
   src/mech3/mech_parts.cpp
   src/mech3/mech_part_update.cpp
+  src/mech3/mech_wake.cpp
+  src/mech3/sound_extra.cpp
   src/mech3/mech_pose.cpp
   src/mech3/mech_move.cpp
   src/mech3/mech_skis.cpp
@@ -260,6 +262,7 @@ add_library(mw3probe SHARED
   tests/probe_convexify.cpp
   tests/probe_gmod_add.cpp
   tests/probe_crater.cpp
+  tests/probe_sound_extra.cpp
   tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
