@@ -2305,3 +2305,10 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **The message panel holds four lines** and slides up when a message comes
   with a time; a newer, longer time extends its stay. The objectives list
   sits on top of it and rides up and down with it.
+
+- **Losing a Mobile Field Base costs you gear on the spot.** Each field base
+  is room for 300 tons and 2 mechs of what your unit carries (3 bases: 900
+  tons and 6 mechs). When one is destroyed in a campaign mission, the game
+  immediately cuts what you carry: to 70% with two bases left, 50% with one,
+  removing random mechs and random gear until you are under the new limit.
+  Your salvage pool is not touched.

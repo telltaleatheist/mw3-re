@@ -86,3 +86,23 @@ mech. The update loop logs a skipped entity as the unported "entity vt+0x34"
 until vehicles have their own update. `test_program`'s c1m1 death run puts a
 stranger entry in the list and checks it is skipped (treating every entry
 as a mech crashes that run).
+
+## A mobile field base lost (0x004590b0, found 2026-10-21)
+
+Run when a field base dies (it starts with the basic vehicle's death
+0x004ad2d0). In a campaign (0x00479440) the campaign's +0xa8, the field
+bases, goes down by one: +0xa8 is the base count (3 at the start, reset to 3
+after Op 1 Mission 1 and Op 4 Mission 4), and each base is the 300 t and 2
+mechs of room the briefing's split allows (campaign.md section 9). With
+bases left, what the player carries (the game's store +0x08) is cut on the
+spot to a fraction: 0.7 with two bases left, 0.5 with one (1.0 otherwise):
+- mechs: the store's mechs counted (up to 64); if at least as many as the
+  bases, random ones are removed until ceil(fraction x count), capped at 2
+  per base, remain; a message 0xf05 for each, 0xf07 once;
+- the rest by weight: random items taken out until the store's tons are
+  fraction x tons, capped at 300 t per base, each moved to the campaign's
+  +0x78 (vt+0) and removed from the store (vt+0x14); message 0xf06 with the
+  tons lost ("%f").
+With no base left nothing is cut here. Not ported (the field base waits on
+the AI vehicle controls). No sign in 0x00458xxx..0x0045bxxx of repairs
+looking at the mechs carried: the store is touched only here.
