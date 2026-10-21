@@ -118,6 +118,30 @@ int add_child(zmod::Model* m, int32_t n, const float* points, const zmod::Model&
               const zmod::Polygon& p);  // 0x0050f4e0 ECX m, EDX n
 int copy_polygon(zmod::Model* m, const zmod::Model& src, const zmod::Polygon& p);  // 0x0050f640 ECX m, EDX src
 
+// The clip (craters part 5b). The outline is in the plane (ClipPolygon).
+// The new crater node for a cell: zone from the first clipped ground node
+// with one, flag 0x20000 (no later crater cuts it), a new model, added under
+// the world. Null on failure (*node too).
+zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node);  // 0x0050e950 ECX cell, EDX world
+// The outline's points snapped (within 0.1) onto the node's polygons near
+// it; 1 when any moved.
+int snap_outline(ClipPolygon& c, zcls::Node* node);   // 0x0050ea50 ECX c, EDX node
+// 1 when no polygon of m overlaps the outline (Weiler's region-only list).
+int clear_of(ClipPolygon& c, zmod::Model* m);         // 0x0050f7b0 ECX c, EDX m
+// m clipped against the outline into a new model (*out; null when no
+// polygon changed): pieces outside kept (convexified), whole ones copied,
+// a polygon around the outline cut as a ring of triangles. Cut points join
+// the outline. 0 on failure.
+int clip_model(ClipPolygon& c, zmod::Model* m, zmod::Model** out);  // 0x0050f120 ECX c, EDX m
+// A node by its flags: 0x20000 must be clear of the outline, 0x10000 is
+// clipped (*out its new model). 1 unless that fails.
+int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out);  // 0x0050ef70 ECX c, EDX node
+// The outline (n points) against the cell's and the world's own ground
+// nodes (flag 4): a new CellClip in `set` with each changed node and its
+// new model, and the outline as the clip left it. The count of changed
+// nodes, 0 when none or a node refused, -1 on bad input.
+int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& set);  // 0x0050ec10 ECX n, EDX points
+
 struct Hooks {
   // zModel's add-a-polygon (not ported yet).
   int (*model_add)(zmod::Model* m, int32_t n, const float* points, const float* normals, const float* uvs,
@@ -129,6 +153,8 @@ struct Hooks {
   int (*node_set_model)(zcls::Node* node, zmod::Model* model);        // 0x004eb370
   int (*model_release)(zmod::Model* m);                               // 0x00539150
   void (*weiler_free)(void* polygon) = nullptr;                       // 0x0050fab0
+  zmod::Model* (*model_alloc)();                                      // 0x00538fe0
+  zcls::Node* (*world_node)();                                        // zDEClient's 0x005020b0
   Hooks();
 };
 Hooks& hooks();

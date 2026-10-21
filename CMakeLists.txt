@@ -52,6 +52,7 @@ add_library(mw3core STATIC
   src/gamez/zclass/sound.cpp
   src/gamez/zclass/window.cpp
   src/gamez/zdeclient/zdec_init.cpp
+  src/gamez/zdeclient/zdec_crater.cpp
   src/gamez/zgeometry/zgeo_model.cpp
   src/gamez/zgeometry/zgeo_weiler.cpp
   src/gamez/zgeometry/zgeo_convexify.cpp
@@ -253,6 +254,7 @@ add_library(mw3probe SHARED
   tests/probe_weiler.cpp
   tests/probe_convexify.cpp
   tests/probe_gmod_add.cpp
+  tests/probe_crater.cpp
   tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

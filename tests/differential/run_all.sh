@@ -93,6 +93,7 @@ for t in \
     weiler \
     convexify \
     gmod_add \
+    crater \
     ai_gates \
     ai_frame \
     ai_vlist \

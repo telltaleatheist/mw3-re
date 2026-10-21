@@ -106,7 +106,8 @@ void set_vertex_precision(float v);            // 0x00538060
 // colinear points go, or the model full), 2 added as a fan of triangles
 // (not planar to 0.005) or in pieces (more than 48 points).
 int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 ECX m, EDX n
-int drop_colinear(int32_t* n, float* points);  // 0x0053a530 ECX n, EDX points
+// `kept` (optional) loses the index of each point dropped.
+int drop_colinear(int32_t* n, float* points, std::vector<int32_t>* kept = nullptr);  // 0x0053a530 ECX n, EDX points
 int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80
 int32_t find_morph_vertex(Model& m, const float p[3], const float to[3]);  // 0x00539ec0
 int32_t find_normal(Model& m, const float p[3]);                     // 0x0053a070
@@ -116,5 +117,8 @@ void flatten_uvs(Model& m, int32_t index);                           // 0x0053bd
 void uv_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float s0, float s1, float s2,
                  float out[2]);                                      // 0x0053c270
 void snap_uvs(int32_t n, float* uv);                                 // 0x0053af50
+
+// Strip polygons (flag 0x400) into triangles, on a model whose +0 is 0.
+void expand_strips(Model& m);                                        // 0x00553160 ECX m
 
 }  // namespace zmod
