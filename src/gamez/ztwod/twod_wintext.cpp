@@ -338,6 +338,9 @@ void FontText::set_text_plain(const char* s) {
   changed_text();
 }
 
+// Mech3.exe 1.2 @ 0x00409c40
+void FontText::set_message(uint32_t id) { set_text_plain(host().message_text(id)); }
+
 // Mech3.exe 1.2 @ 0x005a0710
 void FontText::create_font(const char* face, int32_t h, int32_t weight, int32_t w, uint32_t italic,
                            uint32_t charset, uint32_t pitch) {

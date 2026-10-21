@@ -264,6 +264,10 @@ int32_t SdlTwodHost::cd_find(const char* name) { return zsnd_cd::cue_track(name 
 int32_t SdlTwodHost::cd_play(int32_t track, int32_t mode) { return zsnd_cd::play_track(track, mode) ? 1 : 0; }
 void SdlTwodHost::cd_stop() { zsnd_cd::stop(); }
 const char* SdlTwodHost::message(const char* key) { return zutl::localize(key); }
+const char* SdlTwodHost::message_text(uint32_t id) {  // 0x00576040
+  auto* f = zutl::messages().get_text;
+  return f ? f(static_cast<int32_t>(id)) : nullptr;
+}
 
 // zInput's mouse (0x0051b7b0): its 15 dwords as zInput integrated them.
 ztwod::MouseState SdlTwodHost::mouse() {

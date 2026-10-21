@@ -105,6 +105,7 @@ class Host : public zgame::Unported {
   virtual void cd_stop();                                             // 0x00572c30
   // zUtil's messages, zInput.
   virtual const char* message(const char* key);                       // 0x00575fb0: ECX key
+  virtual const char* message_text(uint32_t id);                      // 0x00576040: ECX id
   virtual MouseState mouse();                                         // 0x0051b7b0
   virtual void input_reset();                                         // 0x0051b1c0
   // 0x0051a9a0 (ECX, EDX): zInput's text callback, null to clear. Ported:

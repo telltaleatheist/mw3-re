@@ -1980,6 +1980,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   marker of the voice. A waypoint finds its nav point by its label: the
   file's "name" key is never read. The circles shrink a pixel a frame, so on
   a fast computer they snap into place almost at once.
+- **The debriefing's mission time goes wrong past an hour**, as the HUD's
+  timer does: 3700 seconds shows 01:01:3640.
+- **After a failed (or cheated) campaign mission, CONTINUE replays it:** your
+  lancemates are put back as they were and the same briefing comes again.
+  ABORT saves the pilot and goes to the main menu. A cheat also takes away
+  the debriefing's REPLAY button and its salvage.
+- **The lance cards on the debriefing ignore the mouse**; only CONTINUE,
+  REPLAY and ABORT react.
 - **A click on the briefing's loading bar moves it** to where you clicked;
   it then creeps on towards the real progress from there. The bar creeps 0.005
   a frame, so it filled faster on faster computers (the rebuild: 0.15 a

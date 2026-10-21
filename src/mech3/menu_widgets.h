@@ -383,13 +383,20 @@ class FileList : public ShellButton {
 };
 
 // The mech lab's list of a store's items (0x0048d880, vtable 0x005c5ec0),
-// the briefing's REALLOC_LIST. Only its making and unmaking are ported (the
-// briefing's shell holds one); its reader, rows and refill (0x0048db30..
-// 0x0048e180) come with the reallocation list (campaign.md section 7).
+// the briefing's REALLOC_LIST and the debriefing's SALVAGE_LIST. Its refill
+// (the store's items as rows, 0x0048dbe0 and the mech lab's names) is a hook
+// until the mech lab (campaign.md section 7).
 class StoreList : public FileList {
  public:
   StoreList(Engine& e, Handle store, int32_t kinds);  // 0x0048d880
   ~StoreList() override = default;   // 0x0048d930: the title, then the list
+  void update(float dt) override;    // +0x24  0x0048df90: the title with the list's +0x20d
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0048db30
+  void after_bind() override;        // +0x88  0x0048db70
+  bool can_light(int32_t i) override;   // +0x90  0x0048df00: an item with a value
+  bool can_choose(int32_t i) override { return can_light(i); }  // +0x94  0x0048df50
+  void layout() override;            // +0xa4  0x0048ccf0: the rows of items without value in TITLE_FONT
+  virtual void refill();             // +0xa8  0x0048dbe0: the store's items as rows (a hook)
 
   int32_t x200 = 0;                  // +0x200
   uint8_t kinds[4] = {};             // +0x204  which kinds it lists (0x0048df60; 5: all)
@@ -399,6 +406,7 @@ class StoreList : public FileList {
   Handle store;                      // +0x214  (0x0040a760 sets it, then refills)
   int32_t x218 = 0;                  // +0x218
   ztwod::FontText title{nullptr, 0, 0};  // +0x21c
+  Handle title_font = 0;             // +0x6cc  STATIC_FONT
 };
 
 // An edit bar of the game's screens (the controls file's, the pilot's, the

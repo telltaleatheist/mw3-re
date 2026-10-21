@@ -1,0 +1,437 @@
+"""The debriefing screen's shell and press (docs/campaign.md section 3) against the original x86.
+
+    cmake --build build && .venv/bin/python -P tests/differential/test_debriefing.py [runs] [first] [--verbose]
+
+The original builds the screen 0x0047b430 from dlgWin.zrd's WINMENU (or a
+synthetic one, odd runs: buttons moved or missing) for a game whose kind,
+operation and mission, Instant Action name and record come from the run's
+setup, the mission's flags (failed [0x00609926], a cheat [0x00609994]), time
+[0x0060991c] and salvage store [0x00609990] too, and the Win State's "won"
+byte. Then a plan: frames (the mouse over the buttons and cards), presses
+0x0047d030 of every id, the buttons' left-up, enter and leave, dumps; the
+destructor. The port (tests/probe_debriefing.cpp) runs the same plan.
+Compared: every call out (the states, the cleanup, the pilot's save, the
+lancemates' reset, the fade, the voice, the hooks of later items) and a dump
+of the dialog, the buttons' help, the cards, the salvage list and the game's
+fields the press writes. The x87 runs at 24 bits.
+
+Item 6a: the results block 0x0047baf0..0x0047c84b (with the rank) is a
+hook: a code hook records it and jumps over it. Stubbed: a card's mech
+display 0x0047e840 (a fake object), the salvage list's refill 0x0048dbe0, the
+pilot's file opened 0x00478ce0 (closed: nothing written).
+"""
+import ctypes
+import os
+import random
+import re
+import struct
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from calltrace import Replay, compare, load_probe, Trace  # noqa: E402
+from original import ROOT  # noqa: E402
+from twod_world import IAT, READER, TwodWorld, c_format, entries, find, parse_node, write_node  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
+import test_twod  # noqa: E402
+from test_twod import canonical, fbits  # noqa: E402
+from test_twod_msgbox import archive  # noqa: E402
+from test_menus import MECH3, SIZES, mutate_buttons  # noqa: E402
+
+probe = load_probe()
+probe.probe_app_set_callback.argtypes = [ctypes.c_void_p]
+probe.probe_debriefing_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+                                       ctypes.c_int]
+
+SIZE = 0x13bf4
+CTOR, PRESS = 0x47b430, 0x47d030
+ICONS = [0x112a8, 0x11424, 0x115a0]  # CONTINUE REPLAY ABORT
+CARDS = [0x1171c + 0x6a0 * i for i in range(4)]
+RANK, TITLE, SALVAGE = 0x1319c, 0x133b0, 0x134fc
+PARTS = ICONS + CARDS + [RANK]
+CURRENT, FAILED, CHEAT, TIME, SALVAGE_STORE, IA_ROUND = 0x60861c, 0x609926, 0x609994, 0x60991c, 0x609990, 0x60587c
+RESULTS_FROM, RESULTS_TO = 0x47baf0, 0x47c850
+FLOOR = bytes.fromhex('83ec04 d93c24 668b0424 6625fff3 660d0004 6689442402 d96c2402 dd442408 d9fc d92c24 83c404 c3')
+IAT_FLOOR = 0x5bb66c
+WIN_STATE = 0x608e70
+
+test_twod.VT_KIND.update({0x5c0e00: 'C', 0x5c39b0: 'C', 0x5c3bd0: 'C', 0x5c11c0: 'C', 0x5c3b20: 'C',
+                          0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c5e30: 'C', 0x5c5da0: 'C'})
+
+
+def i32(v):
+    return struct.unpack('<i', struct.pack('<I', v & 0xffffffff))[0]
+
+
+# ---- the files ----
+
+def synthetic(seed, tree):
+    r = random.Random(f'debriefing:{seed}')
+    body = [list(x) if isinstance(x, list) else x for x in find(tree, 'WINMENU')]
+    out = []
+    for i in range(0, len(body) - 1, 2):
+        k, v = body[i], body[i + 1]
+        if k == 'BUTTONS':
+            nb = []
+            for j in range(0, len(v) - 1, 2):
+                name, entry = v[j], v[j + 1]
+                # The icons' HELP and WIN_TITLE's labels are read unchecked
+                # (the exe crashes without them; the port does not): kept.
+                if name in ('ICON_CONTINUE', 'ICON_ABORT', 'ICON_REPLAY', 'WIN_TITLE'):
+                    e = [list(x) if isinstance(x, list) else x for x in entry]
+                    if 'POSITION' in e and r.random() < 0.3:
+                        e[e.index('POSITION') + 1] = [r.randrange(20, 500), r.randrange(20, 400)]
+                    nb += [name, e]
+                elif name == 'SALVAGE_LIST' or name.startswith('ICON_PLAYER'):
+                    e = [list(x) if isinstance(x, list) else x for x in entry]
+                    if 'POSITION' in e and r.random() < 0.3:
+                        e[e.index('POSITION') + 1] = [r.randrange(20, 500), r.randrange(20, 400)]
+                    nb += [name, e]
+                else:
+                    nb += mutate_buttons(r, [name, entry], None)
+            v = nb
+        out += [k, v]
+    return [['WINMENU', out]]
+
+
+def spots_of(tree):
+    out = [(320, 240)]
+    body = find(tree, 'WINMENU') or []
+    bl = find(body, 'BUTTONS') or []
+    for i in range(0, len(bl) - 1, 2):
+        p = find(bl[i + 1], 'POSITION')
+        if p:
+            out.append(tuple(p))
+    return out
+
+
+# ---- the plan ----
+
+def mouse_line(r, spots, state):
+    sx, sy = r.choice(spots)
+    if r.random() < 0.85:
+        x, y = sx + r.randrange(-4, 50), sy + r.randrange(-4, 40)
+    else:
+        x, y = r.randrange(-20, 660), r.randrange(-20, 500)
+    if state['down'] == 0:
+        left = 1 if r.random() < 0.15 else 0
+    elif state['down'] in (1, 2):
+        left = 2 if r.random() < 0.6 else 4
+    else:
+        left = 0
+    state['down'] = left
+    dt = r.choice([0.0, 1 / 60, 1 / 30, 0.03, 0.05, 0.2])
+    m = [x & 0xffffffff, y & 0xffffffff, 0, fbits(0.0), fbits(0.0), fbits(0.0), 0, 0, 0,
+         fbits(0.0), fbits(0.0), fbits(0.0), left, r.choice([0, 0, 0, 1, 4]), 0]
+    return 'F ' + ' '.join(f'{v:x}' for v in [fbits(dt)] + m)
+
+
+def make_plan(seed, spots):
+    r = random.Random(f'plan:{seed}')
+    state = {'down': 0}
+    lines = ['S']
+    for _ in range(r.randrange(20, 70)):
+        roll = r.random()
+        if roll < 0.06:
+            lines.append(f'B {r.choice([0, 1, 2, 3]):x}')
+        elif roll < 0.12:
+            lines.append(f'P {r.randrange(len(PARTS)):x}')
+        elif roll < 0.2:
+            lines.append(f'{r.choice("NO")} {r.randrange(len(PARTS)):x}')
+        elif roll < 0.23:
+            lines.append('E')
+        lines.append(mouse_line(r, spots, state))
+    if r.random() < 0.5:
+        lines += [f'B {r.choice([0, 0, 2]):x}', mouse_line(r, spots, state)]
+    lines += ['E', 'U']
+    return lines
+
+
+# ---- the original ----
+
+class Original:
+    def __init__(self, seed, data, start, cfg):
+        self.t = Trace(seed=seed)
+        w = self.w = TwodWorld(self.t, seed)
+        e = self.e = w.emu
+        t = self.t
+        self.cfg = cfg
+        tree = w.read_tree(data, start)
+        e.stub(0x556740, '@zrdr_load', 'c,d', None, lambda emu, key, a, pop: emu._ret(tree, pop))
+        e.stub(0x556820, '@zrdr_free', 'c')
+        for addr, spec in MECH3.items():
+            if addr not in (0x4ac150, 0x482970, 0x590250):
+                e.stub(addr, f'{addr:#010x}', spec)
+        e.cpu.import_code(IAT_FLOOR, FLOOR)
+
+        # MFC's CString: a pointer to the text (test_pilot.py).
+        empty = e.world_string('')
+        e.stub(0x5abdb0, '@cs', 'c', 0, lambda emu, k, a, p: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
+        e.stub(0x5abda4, '@cs~', '', 0, lambda emu, k, a, p: emu._ret(0, 0))
+
+        def cs_format(emu, key, a, pop):
+            va = emu.uc.reg_read(UC_X86_REG_ESP) + 12
+            emu.w32(a[0], emu.world_string(c_format(emu, emu.cstr(a[1]), va)))
+            emu._ret(a[0], 0)
+        e.stub(0x5abdaa, '@cs.format', 's0,s1', 0, cs_format)
+
+        # The current game and the mission (memory the screen reads; silent).
+        pilot, game, vt = e.world_alloc(0x84), e.world_alloc(0xd0), e.world_alloc(0x60)
+        self.game = game
+        e.w32(game, vt)
+        e.w32(pilot + 0x6c, game)
+        e.w32(pilot + 0x10, 0xffffffff)  # the pilot's file, closed
+        e.w32(CURRENT, pilot)
+        for off, v in ((0x2c, cfg['kind']), (0x48, cfg['op']), (0x4c, cfg['mission'])):
+            e.w32(vt + off, e.new_stub(f'@vt{off:x}', '', 0, lambda emu, k, a, p, v=v: emu._ret(v, 0)))
+
+        def ia_name(emu, k, a, p):
+            emu._ret(e.world_string('Arena') if t.handle('game.vt', (0xc,)) else 0, 0)
+        e.w32(vt + 0xc, e.new_stub('@game.c', '', 0, ia_name))
+        e.w32(game + 0x44, cfg['ia44'])
+        e.w32(game + 0xb0, cfg['b0'])
+        e.w32(IA_ROUND, cfg['round'])
+        e.cpu.write(FAILED, bytes([cfg['failed']]))
+        e.cpu.write(CHEAT, bytes([cfg['cheat']]))
+        e.wf(TIME, cfg['time'])
+        e.w32(SALVAGE_STORE, cfg['salvage'])
+        self.won = e.world_alloc(4)
+        e.cpu.write(self.won, bytes([cfg['won']]))
+
+        def replace(emu, key, a, pop):
+            s = a[0]
+            t.handle(key, (s & 0xff if s >> 24 == 0x77 else s,))
+            emu._ret(0, pop)
+        e.stub(0x482970, '@state', 's0', None, lambda emu, k, a, p: emu._ret(0x77000000 | a[0], p))
+        e.stub(0x590250, '0x00590250', 's0,s1', None, replace)
+
+        def fmt(emu, key, a, pop):
+            buf, size, mid, n, s = a
+            text = emu.cstr(s) if s else ''
+            v = t.handle(key, (mid, i32(n), text))
+            out = f'F{mid:x}:{i32(n)},{text}'[:size - 1] if v else ''
+            emu.cpu.write(buf, out.encode('latin1') + b'\0')
+            emu._ret(len(out), 0)
+        e.stub(0x575fd0, '0x00575fd0', 's0,s1,s2,s3,s4', 0, fmt)
+
+        def msg(emu, key, a, pop):  # Mech3Msg.dll's messages: "msg<id>:<first two numbers>", or none
+            buf, size, mid, va = a
+            got = t.handle(key, (size, mid))
+            text = f'msg{mid}:{i32(emu.r32(va))},{i32(emu.r32(va + 4))}'
+            if got:
+                emu.cpu.write(buf, text.encode()[:size - 1] + b'\0')
+            emu._ret(len(text) if got else 0, pop)
+        e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
+
+        # A card's display (a fake object: its frame and deleting destructor logged).
+        def display(emu, key, a, pop):
+            d = 0
+            if t.handle(key, tuple(i32(x) & 0xffffffff for x in a)):
+                d = e.world_alloc(0x10)
+                dvt = e.world_alloc(0x30)
+                e.w32(d, dvt)
+                e.w32(dvt + 0x24, e.new_stub('display.vt+0x24', 'c,s0', 4))
+                e.w32(dvt + 0x00, e.new_stub('display.vt+0x00', 'c', 4))
+                t.override(key, d)  # the rebuild gets the object, not the script's yes
+            emu._ret(d, pop)
+        e.stub(0x47e840, '0x0047e840', 's0,s1,s2,s3,s4', None, display)
+        e.stub(0x48dbe0, '0x0048dbe0', 'c', None,
+               lambda emu, k, a, p: (t.handle(k, (emu.r32(a[0] + 0x214),)), emu._ret(0, p)))
+        plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x48ef00: 'c,d', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
+                 0x50ad60: '', 0x47b210: 'c,s0', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
+        for addr, spec in plain.items():
+            e.stub(addr, f'{addr:#010x}', spec)
+        w.answers.update({
+            '0x0040cec0': cfg['fast'],
+            '0x0040ce90': cfg['fast'],
+            '0x0040d760': cfg['size'][0], '0x0040d770': cfg['size'][1],
+            '0x00576040': lambda rr, k, a: e.world_string(f'M{a[0]:x}'),
+            '0x0047e840': lambda rr, k, a: rr.choice([0, 1, 1]),
+            'game.vt': lambda rr, k, a: rr.choice([0, 1, 1]),
+            '0x00575fd0': lambda rr, k, a: rr.choice([0, 1, 1]),
+            '0x00575ff0': lambda rr, k, a: rr.choice([1, 1, 0]),
+        })
+
+        def skip(uc, address, size, user):
+            t.handle('0x0047baf0', ())
+            uc.reg_write(UC_X86_REG_EIP, RESULTS_TO)
+        e.uc.hook_add(UC_HOOK_CODE, skip, begin=RESULTS_FROM, end=RESULTS_FROM)
+
+        # FIX (bug), as the port's FileList: an empty list's rectangle ends at its top.
+        def empty_rect(uc, address, size, user):
+            esp = uc.reg_read(UC_X86_REG_ESP)
+            if i32(e.r32(esp + 0x10)) <= 0:
+                e.w32(esp + 0x30, e.r32(esp + 0x1c))
+        e.uc.hook_add(UC_HOOK_CODE, empty_rect, begin=0x48d06d, end=0x48d06d)
+
+        def copy_rect(emu, key, a, pop):
+            emu.cpu.write(a[0], emu.cpu.read(a[1], 16))
+            emu._ret(1, 8)
+        e.import_stub(IAT['CopyRect'], '@CopyRect', 's0,s1', 8, copy_rect)
+
+        def strdup(emu, key, a, pop):
+            s = emu.cpu.read(a[0], 256).split(b'\0')[0] if a[0] else b''
+            p = emu.alloc(len(s) + 1)
+            emu.cpu.write(p, s + b'\0')
+            emu._ret(p if a[0] else 0, 0)
+        e.import_stub(IAT['_strdup'], '@_strdup', 's0', 0, strdup)
+        self.m = 0
+        self.snapshot = None
+
+    def vcall(self, obj, slot, stack=()):
+        return self.e.call(self.e.r32(self.e.r32(obj) + slot), ecx=obj, stack=stack)
+
+    def run(self, plan):
+        e, w, cfg = self.e, self.w, self.cfg
+        dump = ''
+        for line in plan:
+            p = line.split()
+            op = p[0]
+            pv = [int(x, 16) for x in p[1:]]
+            m = self.m
+            if op == 'S':
+                self.snapshot = e.snapshot()
+                self.m = self.d = m = e.alloc(SIZE)
+                e.call(CTOR, ecx=m, stack=(WIN_STATE, cfg['op'], cfg['mission'], self.won))
+            elif not m:
+                continue
+            elif op == 'F':
+                w.mouse_frames.append(pv[1:])
+                self.vcall(m, 0x00, (pv[0],))
+                w.frame += 1
+            elif op == 'B':
+                self.vcall(m, 0x14, (pv[0], 0, 0))
+            elif op == 'P':
+                self.vcall(m + PARTS[pv[0]], 0x30)
+            elif op == 'N':
+                self.vcall(m + PARTS[pv[0]], 0x3c)
+            elif op == 'O':
+                self.vcall(m + PARTS[pv[0]], 0x40)
+            elif op == 'E':
+                dump += test_twod.Original.dump(self) + self.dump_screen()
+            elif op == 'U':
+                self.vcall(m, 0x08, (1,))
+                self.m = 0
+                dump += self.dump_game()
+        return dump
+
+    def dump_game(self):
+        e, g = self.e, self.game
+        return f'game b0={e.r8(g + 0xb0)} x6c={i32(e.r32(g + 0x6c))} x70={i32(e.r32(g + 0x70))}\n'
+
+    # The dump probe_debriefing.cpp writes, from the emulator's memory.
+    def dump_screen(self):
+        e, m = self.e, self.m
+        objs = []
+        p = e.r32(m + 8)
+        while p:
+            objs.append(p)
+            p = e.r32(p + 4)
+
+        def ref(a):
+            return f'o{objs.index(a) if a in objs else -1}'
+        out = [f'screen won={e.r8(self.won)} store={e.r32(m + SALVAGE + 0x214):x} '
+               f'x218={e.r32(m + SALVAGE + 0x218):x} font={e.r32(m + SALVAGE + 0x6cc):x}\n']
+        for name, off in zip(['CONTINUE', 'REPLAY', 'ABORT', 'RANK'], ICONS + [RANK]):
+            b = m + off
+            first, last = e.r32(b + 0x170), e.r32(b + 0x174)
+            hl = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+            out.append(f'{name} id={i32(e.r32(b + 0x150))} en={e.r32(b + 0xc4)} blink={e.r8(b + 0x159)} '
+                       f'help=' + ','.join(ref(x) for x in hl) + '\n')
+        for i, c in enumerate(CARDS):
+            b = m + c
+            d = e.r32(b + 0x650)
+            out.append(f'card{i} mech={i32(e.r32(b + 0x17c))} veh={e.r32(b + 0x64c):x} display={1 if d else 0} '
+                       f'name={ref(b + 0x180)}\n')
+        out.append(self.dump_game())
+        return ''.join(out)
+
+
+def run_case(seed, path, data, start, cfg, plan, verbose):
+    orig = Original(seed, data, start, cfg)
+    dump_o = orig.run(plan)
+    rep = Replay(orig.t, orig.e, orig.snapshot)
+    probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
+    c = ' '.join(f'{v:x}' for v in (cfg['kind'], cfg['op'], cfg['mission'], cfg['failed'], cfg['cheat'],
+                                     fbits(cfg['time']), cfg['salvage'], cfg['won'], cfg['ia44'], cfg['b0'],
+                                     cfg['round']))
+    buf = ctypes.create_string_buffer(1 << 23)
+    n = probe.probe_debriefing_run(str(path).encode(), c.encode(), '\n'.join(plan).encode(), buf, len(buf))
+    assert n >= 0, 'probe failed'
+    dump_r = buf.value.decode('latin1')
+    stubbed = orig.w.stub_textures
+    to, do = canonical(orig.t.log, dump_o, stubbed)
+    tr, dr = canonical(rep.log, dump_r, stubbed)
+    do, dr = (re.sub(r'face=".*?" height=', 'height=', x, flags=re.S) for x in (do, dr))
+    ok = compare(f'debriefing seed {seed}', to, tr)
+    if do != dr:
+        ok = False
+        for a, b in zip(do.split('\n'), dr.split('\n')):
+            if a != b:
+                print(f'debriefing seed {seed}: dumps differ')
+                ta, tb = a.split(' '), b.split(' ')
+                print('  original:', ' '.join(x for x in ta if x not in tb)[:400])
+                print('  rebuild: ', ' '.join(x for x in tb if x not in ta)[:400])
+                print('  in:', a[:200])
+                break
+        else:
+            print(f'debriefing seed {seed}: dumps differ in length')
+    if verbose and ok:
+        print(f'debriefing seed {seed}: {len(to)} calls')
+    return ok, to
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    runs = int(args[0]) if args else 24
+    first = int(args[1]) if len(args) > 1 else 0
+    verbose = '--verbose' in sys.argv
+    data = READER.read_bytes()
+    start = next(s for n, s, _ in entries(data) if n.lower() == 'dlgwin.zrd')
+    tree, _ = parse_node(data, start)
+    synth_path = ROOT / 'build' / 'debriefing_synth.zbd'
+    passed = calls = 0
+    stats = {}
+    for seed in range(first, first + runs):
+        if verbose:
+            print('seed', seed, flush=True)
+        r = random.Random(f'cfg:{seed}')
+        op, mission = r.choice([(1, 1), (1, 2), (2, 4), (4, 4), (4, 4), (4, 6)])
+        cfg = {'kind': r.choice([0, 1, 1, 1, 2, 4]), 'op': op, 'mission': mission,
+               'failed': r.choice([0, 0, 1]), 'cheat': r.choice([0, 0, 0, 1]),
+               'time': r.choice([0.0, 59.5, 754.25, 3599.9, 3700.0, 9000.75]),
+               'salvage': r.choice([0, 0x5e900000]), 'won': r.choice([0, 0, 1]),
+               'ia44': r.choice([1, 2, 3]), 'b0': r.choice([0, 1]), 'round': r.randrange(5),
+               'fast': r.choice([0, 0, 1]), 'size': r.choice(SIZES)}
+        if seed % 2:
+            t = synthetic(seed, tree)
+            blob = write_node(t)
+            synth_path.write_bytes(archive([('dlgWin.zrd', blob)]))
+            path, fdata, fstart, here = synth_path, blob, 0, t
+        else:
+            path, fdata, fstart, here = READER, data, start, tree
+        plan = make_plan(seed, spots_of(here))
+        ok, trace = run_case(seed, path, fdata, fstart, cfg, plan, verbose)
+        passed += ok
+        calls += len(trace)
+        for k, _ in trace:
+            if k in ('0x00590250', '0x00491780', '0x00478ce0', '0x00435240', '0x0050ad60', '0x0047abe0',
+                     '0x0048ef00', '0x0047baf0', '0x0047e840', '0x0048dbe0', 'display.vt+0x24', 'game.vt',
+                     '0x00575fd0'):
+                stats[k] = stats.get(k, 0) + 1
+    print(f'debriefing: {passed}/{runs} runs identical ({calls} calls; ' +
+          ', '.join(f'{k} x{v}' for k, v in sorted(stats.items())) + ')')
+    return 0 if passed == runs else 1
+
+
+if __name__ == '__main__':
+    code = 1
+    try:
+        code = main()
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

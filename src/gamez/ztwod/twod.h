@@ -321,7 +321,7 @@ class FontText : public TextBase {
   virtual void set_text_id_v(uint32_t id, va_list args);  // +0x9c  0x00409bf0: a message as the format
   virtual void set_text_v(const char* format, va_list args);  // +0xa0  0x005a1250
   virtual void set_text_plain(const char* s);   // +0xa4  0x005a12f0
-  // +0xa8 0x00409c40 (a message id): not ported.
+  virtual void set_message(uint32_t id);  // +0xa8  0x00409c40: a message's text, plain
   virtual void render();             // +0xac  0x005a0790
 
   void delete_font();                // 0x005a0610
