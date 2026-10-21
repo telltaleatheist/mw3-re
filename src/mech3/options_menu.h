@@ -27,6 +27,9 @@ class CameraCycle : public CycleButton {
 };
 
 // The game options (vtable 0x005bee60), 0x1407c bytes.
+// The game options' MouseAccelY for the invert box (0x00438100's ACCEPT).
+float mouse_y_accel(float current, bool inverted);
+
 class GameOptionsScreen : public MenuScreen {
  public:
   GameOptionsScreen(Engine& e, Handle state);  // 0x004379f0

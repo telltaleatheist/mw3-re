@@ -621,6 +621,24 @@ TEST(fix_lead_point_without_a_group) {
 
 // FIX (bug): the HUD's timer (0x0043c390) past an hour: 3700.25 s is
 // 01:01:40, not the original's 01:01:3640.
+namespace mech3 {
+float mouse_y_accel(float current, bool inverted);  // options_menu.h (its Handle clashes with mech.h's here)
+}
+
+// The game options' invert box (0x00438100): the exe writes -1.3 or 1.3
+// over MouseAccelY; fixed, the player's sensitivity keeps its size.
+TEST(fix_inverted_mouse_keeps_sensitivity) {
+  zfix::options().bugs = true;
+  EXPECT(mech3::mouse_y_accel(2.5f, true) == -2.5f);
+  EXPECT(mech3::mouse_y_accel(-2.5f, false) == 2.5f);
+  EXPECT(mech3::mouse_y_accel(-0.7f, true) == -0.7f);
+  EXPECT(mech3::mouse_y_accel(0.0f, true) == -1.3f);
+  zfix::options().bugs = false;
+  EXPECT(mech3::mouse_y_accel(2.5f, true) == -1.3f);
+  EXPECT(mech3::mouse_y_accel(-2.5f, false) == 1.3f);
+  zfix::options().bugs = true;
+}
+
 TEST(fix_hud_timer_past_an_hour) {
   struct Clock : mech3::HudHooks {
     float mission_time(bool) override { return 3700.25f; }
