@@ -929,3 +929,10 @@ view's ground, the anim lookups 0x50b450 (92).
   twod_world reads it. test_exe_select.py (in run_all) checks the choice,
   with a break. CLAUDE.md's "original.py checks one exe's SHA-256" is now
   out of date (the lead's file).
+- Both merged (2026-10-21). Waiting. The next resolution steps
+  (resolution.md section 4) need Owen's eyes:
+  - step 2, the window's shape (or pillarbox) and the mouse scale from the
+    display size instead of 640;
+  - then the mode switch 0x4ab6b0 and Shift+V 0x4ab910;
+  - the HUD by anchors;
+  - the pillarboxed menus.
