@@ -51,7 +51,7 @@ class SdlTwodHost : public ztwod::Host {
   Handle render_target(int32_t* w, int32_t* h, int32_t* depth, int32_t* pitch) override;
   void render_set_target(Handle, const ztwod::Rect*, Handle, Handle) override {}
   Handle video_get(uint32_t addr) override { return addr; }
-  void input_poll(uint8_t) override {}
+  void input_poll(uint8_t a) override;  // FIX (A): the window's events pumped first (the message box's loop)
   void timer_update() override;
   float frame_dt() override;
   void video_flip(const ztwod::Rect* a, const ztwod::Rect* b, int32_t c, int32_t d) override;

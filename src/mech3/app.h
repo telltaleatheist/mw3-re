@@ -99,6 +99,7 @@ class Mech3App : public zgame::App {
 };
 
 Mech3App& app();             // the one at 0x00608c88
+Mech3App* app_if_any();      // null before set_app
 void set_app(Mech3App* app);
 
 }  // namespace mech3

@@ -12,6 +12,7 @@
 #include "platform/platform.h"
 
 namespace zvid { struct Surface; }
+namespace ztwod { class MessageBox; }
 
 namespace platform {
 class Render3D;
@@ -262,6 +263,9 @@ class GameEngine : public Engine {
   int32_t pick_video_device(int32_t, int32_t) override { return 0; }
   const char* message_format(int32_t id, const char* arg) override;
   uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t arg = 0) override;
+  uint32_t game_message_box(int32_t style, int32_t caption, const std::string& text);  // 0x004ac150
+  void pump_events();                // FIX (A): the window's events, inside the box's loop
+  ztwod::MessageBox* message_box_open() const { return box_; }  // the box being answered, or null
 
   // The app's objects.
   Handle script_new() override;
@@ -394,6 +398,7 @@ class GameEngine : public Engine {
   uint32_t cursor_ = 1;
   zutl::MessageDll dll_;
   std::string formatted_;
+  ztwod::MessageBox* box_ = nullptr;  // the message box being answered (0x004ac150)
   std::vector<void*> objects_;           // handle - 0x00100000 - 1
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;

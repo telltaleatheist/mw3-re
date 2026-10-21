@@ -273,6 +273,11 @@ Handle SdlTwodHost::render_target(int32_t* w, int32_t* h, int32_t* depth, int32_
   return mech3::GameEngine::kBackBuffer;
 }
 void SdlTwodHost::timer_update() { ztimer::update(); }
+void SdlTwodHost::input_poll(uint8_t a) {
+  if (!engine_) return;
+  engine_->pump_events();
+  engine_->input_poll(a);
+}
 float SdlTwodHost::frame_dt() { return ztimer::state().dt; }
 // 0x00558dd0, ported (zrndr::ripple): on the finish target, which video_lock
 // points at the program's 16-bit buffer, so the ring moves what the menu drew

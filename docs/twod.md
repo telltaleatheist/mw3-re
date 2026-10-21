@@ -376,6 +376,16 @@ The game opens a box through 0x004ac150 (style, caption id, format id, ...):
 the text formatted by FormatMessage (0x00575ff0) into 0x0060a8e8, the box
 built and run, FastMenu set around it (0x0040ce90), destroyed.
 
+In the program (`GameEngine::game_message_box`, playtest #2) every engine
+message box goes through this: delete pilot, "Replace existing game?",
+discard changes, salvage on Launch, Quit and the rest. It is the ported
+box over the current screen, run in its own loop; the answer is the box's
+(IDOK 1, IDCANCEL 2). FIX (A): the loop's input poll also pumps the
+window's events (`GameEngine::pump_events` through the app's message pump),
+since the program's mouse and keys arrive as window events where the
+exe's came from DirectInput; a quit ends the box with no answer and is
+posted again. Before, the program showed the platform's native alert.
+
 ### The HUD's primitives
 
 zRender's 2D side draws them into the locked 16-bit target (the 3D lock's

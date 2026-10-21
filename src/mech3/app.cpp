@@ -16,6 +16,7 @@ Mech3App* g_app = nullptr;
 
 AppGlobals& globals() { return g_globals; }
 Mech3App& app() { return *g_app; }
+Mech3App* app_if_any() { return g_app; }
 void set_app(Mech3App* a) { g_app = a; }
 
 int32_t Mech3App::cd_track() const {
