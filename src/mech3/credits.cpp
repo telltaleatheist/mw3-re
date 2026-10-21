@@ -4,6 +4,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -16,6 +17,15 @@ void CreditsScroll::update(float dt) {
   Object2D::update(dt);
   for (CreditSection& s : sections)
     for (CreditLine& l : s.lines) l.text.update(dt);
+}
+
+// A credits line's "offset" (dx dy) into `off`, which keeps the line
+// before's when the line has no two numbers (0x00429200 reads it into the
+// same stack slot). FIX (bug): the one shipped line with one number, "Other
+// Voices" `(20)`, gets the headings' (20 20) it evidently meant (fixes.md).
+void credit_line_offset(zrdr::Node* line, int32_t off[2]) {
+  if (zrdr::get_ivec2(line, "offset", off) || !zfix::options().bugs) return;
+  if (zrdr::get_int(line, "offset", &off[0])) off[1] = 20;
 }
 
 // Mech3.exe 1.2 @ 0x00429200: RECT ((left top) (right bottom)) from the
@@ -52,9 +62,7 @@ bool CreditsScroll::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
         std::strncat(text, s ? s : "", sizeof text - 1 - std::strlen(text));
       }
       tmp.text.set_text("%s", text);
-      // A line without a two-number "offset" keeps the one before: the
-      // original reads it into the same stack slot each time (docs/menus.md).
-      zrdr::get_ivec2(&sec[j], "offset", off);
+      credit_line_offset(&sec[j], off);
       tmp.dx = off[0];
       tmp.dy = off[1];
       if (const char* f = zrdr::get_string(&sec[j], "font")) tmp.text.set_font(ztwod::host().font_find(f));

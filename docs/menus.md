@@ -163,8 +163,9 @@ same speed at any frame rate (it goes by time).
 A line whose "offset" is not two numbers keeps the one read before: the
 original reads each into the same stack slot. The shipped "Other Voices"
 heading has `(20)`, so it takes the name above's (30 0): indented like a
-name with no gap (fixes.md, Candidates). The port keeps the offset across
-lines the same way.
+name with no gap. The port keeps the offset across lines the same way, and
+gives that one-number line the headings' (20 20) behind zfix bugs
+(`credit_line_offset`; every other line at x 20, 46 headings, is (20 20)).
 
 ## 4. The game options (0x004379f0, vtable 0x005bee60)
 

@@ -297,3 +297,13 @@ behind zfix bugs. test_menus.py options 30/30 (the exe's path);
 fix_inverted_mouse_keeps_sensitivity. Remember: test_fixes.cpp cannot
 include options_menu.h (its Handle clashes with mech.h's); declare instead.
 Next: the credits' "Other Voices" offset and other data slips.
+
+## 2026-10-20 Data slips: the credits' "Other Voices" (branch mac3/data-slips)
+
+dlgCredits.zrd's "Other Voices" line has `"offset" (20)`; the exe keeps the
+line above's (30 0). `credit_line_offset` gives a one-number offset the
+headings' (20 20) behind zfix bugs (all 46 headings are (20 20) in
+lab_large_grey; this one is in the names' ia_dark_grey, left as is).
+test_menus.py credits 30/30 (the exe's path); fix_credits_other_voices_offset.
+Dump a reader file: tools/analysis/zrd.py game/mw3-1.2/zbd/reader.zbd
+dlgCredits.zrd. Not done: a spelling pass over Mech3Msg.dll's messages.
