@@ -498,3 +498,49 @@ the_briefing_headless (NEW CAMPAIGN, pilot "Recruit": the pilots list stays
 between tests, so "Ace" from the start test had c1m2 newest; ACCEPT, the
 briefing loaded with its script and map, LAUNCH enabled and MECHLAB grey,
 LAUNCH, 30 Core frames, the mech built). Breaks: scratch/briefing/breaks5.py 4/4 (the script's start needed its own check). Owen's try: build/mw3 -nofmv.
+
+## 2026-10-21 Campaign item 6: the debriefing (branch mac3/debriefing, off mac3/campaign-program d190607) — in progress
+
+Reading 0x0047b430 (WINMENU of dlgWin.zrd; new(0x13bf4); args state, campaign,
+mission, state+0x10): base MenuScreen-like (0x0059ec40 Dialog, 0x00438cc0
+the screen base, vtable 0x5bc190 then 0x5c3b00); parts: ICON_CONTINUE/REPLAY/
+ABORT 3 HelpButtons (0x17c, ids 0, 1? 2 by +0x150 writes) at +0x112a8, +0x11404,
++0x115a0; 4 player panels 0x6a0 (ctor 0x0047af70, dtor 0x0047b180) at
++0x1171c; ICON_RANK HelpButton subclass (vtable 0x5c3bd0) +0x1319c; two
+Line2D; WIN_TITLE Control (vtable 0x5c11c0) +0x133b0; SALVAGE_LIST StoreList
+(0x0048d880(0,5), vtable 0x5c3b20) +0x134fc; +0x13bcc byte (game type check),
++0x13bdc = arg 4. Reads the zEntity list (0x0073655c..), each vehicle's
+vt+0x2c/+0x50 (its mech), team masks, damage vt+0x98, kills +0x3f4..; mission
+time [0x0060991c]; [0x00609926] failed flag; salvage [0x00609990]. Press
+0x0047d030. Plan: the shell first (layout, buttons, press), the lance panels
+and stats through hooks the test answers.
+Decided split (6a now): the shell 0x0047b430 up to 0x0047baf0 + its tail
+(texts vector into the dialog, rank 0x0047b2f0 as a hook in 6a), the press
+0x0047d030, the icons (plain HelpButtons via 0x0044c310), WIN_TITLE (Control),
+the cards' shell (0x0047af70 base 0x0044a770: HelpButton + mech 0x13 at
++0x17c + Text at +0x180; read_control 0x0047b070, update 0x0047b2b0), the
+StoreList's read_control 0x0048db30 / after_bind 0x0048db70; hooks: the
+results block 0x0047baf0..0x0047c84b (6b), the cards' mech display 0x0047b210
+(6c), the StoreList refill 0x0048dbe0 (6c/8). Then item 7 before 6b/6c.
+Mission time 0x0047b750: seconds = t - minutes*60 (the HUD timer's slip):
+FIX (bug) as fix_hud_timer_past_an_hour. Labels of WIN_TITLE: [1] result
+(0x180 failed / 0x181), [2] "Op %1 Mission %2" 0x177 (IA: 0xdc0 formatted,
+else the IA game's vt+0xc name), [3] the time; CONTINUE help 0x174 (won,
+no cheat [0x00609994]) else 0x173, 0xfb8 when the campaign is won
+(state+0x10); IA: ABORT help 0xdbf, label[1] 0x176, CONTINUE help 0x173.
+FontText +0xa8 (0x00409c40: plain text of a message id) needs porting.
+6a done (code): mech3/debriefing.{h,cpp} (DebriefScreen, MechButton, LanceCard,
+RankIcon, WinTitle), StoreList's read_control/after_bind/update/layout/
+can_light/refill (menu_widgets), FontText::set_message (0x00409c40) and
+Host::message_text (0x00576040; SdlTwodHost answers it), Engine hooks
+(mission_failed/cheated/time/salvage_store, exchange_fast_menu,
+debrief_results, lance_display_*, store_list_refill, mech_name_of,
+message_format_is, fade_to_state (IA abort: ECX the IA Dummy State), pilot_save_now,
+campaign_reset_lancemates, anim_reset, replace_state_at, campaign_set_b0,
+action_next_round). +0x13bcc is the texts vector's allocator byte (a stray
+stack byte), not a flag. Cards, the rank and the title have no rollover; the
+cards no press. test_debriefing.py + probe_debriefing.cpp 40/40 (the results
+block skipped by a code hook; the synthetic file keeps the icons and the
+title: the exe reads their labels unchecked). Breaks: scratch/briefing/
+breaks6.py 19/24 (unobservable here: the salvage list already shown, a card's update, the title's rollover, the store list's title flag and row fonts with no rows). Not yet wired into the program (the Win State constructs
+0x47b430 by address): with item 7.

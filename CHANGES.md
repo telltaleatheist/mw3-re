@@ -94,6 +94,7 @@ it is clear what the designers meant.
   short of the end of the list. No shipped mission was affected.
 - **A smoke fade-in typo is fixed:** smoke set to fade in near the camera
   vanished instead.
+- The debriefing's mission time keeps its seconds under 60 past the first hour, as the HUD's timer.
 - The HUD's mission timer keeps its seconds under 60 past the first hour (the original showed an hour and 40 seconds as 01:01:3640).
 - The credits' "Other Voices" heading sits where the other headings do (a typo in the credits file gave it one number of its two, so it hung indented under the line above).
 - TARGET's distance past 1 km reads " (1.23km)" like the " (500m)" below it; the original ran the kilometres straight on after the loadout's name.
@@ -110,6 +111,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- An edited debriefing dialog missing its buttons' help or its title's lines no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the

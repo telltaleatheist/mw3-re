@@ -110,6 +110,10 @@ int32_t Host::cd_play(int32_t track, int32_t mode) {
   return static_cast<int32_t>(unported("0x00572af0", {track, mode}));
 }
 void Host::cd_stop() { unported("0x00572c30", {}); }
+const char* Host::message_text(uint32_t id) {
+  unported("0x00576040", {id});
+  return nullptr;
+}
 const char* Host::message(const char* key) {
   unported("0x00575fb0", {key});
   return key;

@@ -63,6 +63,7 @@ class SdlTwodHost : public ztwod::Host {
   int32_t cd_play(int32_t track, int32_t mode) override;
   void cd_stop() override;
   const char* message(const char* key) override;
+  const char* message_text(uint32_t id) override;
   ztwod::MouseState mouse() override;
   void input_reset() override;
 

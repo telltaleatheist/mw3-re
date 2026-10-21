@@ -674,6 +674,55 @@ class Engine : public zgame::AppHooks {
   virtual void replace_state(int32_t n) { unported("0x00590250", {n}); }
   // The current campaign's salvage merged (0x00434cb0): the ported pilot's.
   virtual void campaign_merge_salvage();
+  // The debriefing's (mech3/debriefing, campaign.md section 3): the mission's
+  // flags and time (memory in the original: [0x00609926] failed, [0x00609994]
+  // a cheat, [0x0060991c] seconds, [0x00609990] the salvage store).
+  virtual bool mission_failed();
+  virtual bool mission_cheated();
+  virtual float mission_time();
+  virtual Handle mission_salvage_store() { return 0; }
+  // 0x0040ce90: FastMenu set, the old value back.
+  virtual int32_t exchange_fast_menu(int32_t on) {
+    const int32_t old = fast_menu();
+    set_fast_menu(on);
+    return old;
+  }
+  // Its parts not ported yet: the results (0x0047baf0..0x0047c84b, 6b), a
+  // lance card's mech display (0x0047e840 and its calls, 6c), the mech lab's
+  // store list's rows (0x0048dbe0), a mech's name (0x00484650).
+  virtual void debrief_results(MenuScreen* s) {
+    (void)s;
+    unported("0x0047baf0", {});
+  }
+  virtual Handle lance_display_new(int32_t x, int32_t y, int32_t height, int32_t width, int32_t space) {
+    return unported("0x0047e840", {x, y, height, width, space});
+  }
+  virtual void lance_display_update(Handle d, float dt) { unported("display.vt+0x24", {d, zgame::bits(dt)}); }
+  virtual void lance_display_delete(Handle d) { unported("display.vt+0x00", {d}); }
+  virtual void lance_display_show(Handle d, Handle vehicle) { unported("0x0047b210", {d, vehicle}); }
+  virtual void store_list_refill(Handle store) { unported("0x0048dbe0", {store}); }
+  virtual const char* mech_name_of(int32_t mech) {
+    unported("0x00484650", {mech});
+    return "";
+  }
+  // 0x00575fd0 with a number and a string.
+  virtual std::string message_format_is(int32_t id, int32_t a, const char* s) {
+    unported("0x00575fd0", {id, a, s});
+    return std::string();
+  }
+  // Its press's: Instant Action's fade out (0x0048ef00: ECX the IA Dummy
+  // State 0x00608bd0, EDX 0, then 1, 2, [0x005e7274], 0, 0, 0), the pilot's file written (the inline open,
+  // header and vt+0x04), the lancemates reset (0x00435240(0)), the
+  // animations' reset (0x0050ad60), a state by address replacing this one
+  // (0x00590250: the Win Movie State), the campaign's +0xb0 cleared, Instant
+  // Action's next round (its +0x6c and +0x70).
+  virtual void fade_to_state(Handle next, uint32_t arg) { unported("0x0048ef00", {next, arg}); }
+  virtual void pilot_save_now();
+  virtual void campaign_reset_lancemates();
+  virtual void anim_reset() { unported("0x0050ad60", {}); }
+  virtual void replace_state_at(Handle state) { unported("0x00590250", {state}); }
+  virtual void campaign_set_b0(uint8_t v);
+  virtual void action_next_round() { unported("ia.next_round", {}); }
   virtual uint32_t list_head(Handle list) { return unported("0x0049ccb0", {list}); }
   virtual void format(const char* fmt, std::initializer_list<Arg> args, char* out, int size);  // CString::Format
 

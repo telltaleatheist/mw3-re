@@ -140,18 +140,47 @@ A waypoint follows its nav point while a world is up. The objects are kept
 
 ## 3. The debriefing (0x0047b430, new(0x13bf4))
 
-dlgWin.zrd's WINMENU: WIN_BACKGROUND, ICON_ABORT, ICON_REPLAY,
-ICON_CONTINUE, ICON_PLAYER0..3 (the lance), WIN_TITLE, SALVAGE_LIST,
-ICON_RANK. The title is message 0xdc0 with the operation and mission; the
-lance's kills and damage, the objectives and the salvage are drawn as text
-columns at fixed places (the globals 0x005e5ae4..0x005e5af8). The press
-0x0047d030: 0 CONTINUE (section 1), 1 REPLAY plays the `c<op>m<n>win`
-voice again (0x0047abe0), 2 ABORT.
+dlgWin.zrd's WINMENU: WIN_BACKGROUND, ICON_ABORT (2), ICON_REPLAY (1),
+ICON_CONTINUE (0) (the mech lab's help buttons), ICON_PLAYER0..3 (lance cards:
+the mech lab's mech button 0x0044a770 with a mech display at HTAL's place,
+0x0047e840; no rollover, no press), WIN_TITLE (labels: [1] the result,
+[2] "Operation %1 Mission %2" 0x177, [3] the mission's time), ICON_RANK,
+SALVAGE_LIST (the mech lab's store list over the mission's salvage
+[0x00609990]). By the game:
 
-The Win State's enter: the kept results (0x0047ae10(0, ..): every mech of
-the player's team, or only the player's, put in the salvage store
-0x00472f00) and the record +0xb4/+0xc4 from the screen; a failed mission
-0x0047ae10(1, ..) merges the salvage only.
+- A campaign: the result 0x181, or 0x180 when it failed ([0x00609926]);
+  CONTINUE's help 0x174 when won without a cheat ([0x00609994]), else 0x173,
+  0xfb8 when the campaign is over (the Win State's +0x10); won: the salvage
+  list shown and filled, REPLAY shown unless a cheat was on; failed: both
+  hidden.
+- Instant Action: the title is message 0xdc0 formatted with the operation
+  and the game's name (or the name alone), ABORT's help 0xdbf, the result
+  0x176, CONTINUE's help 0x173, the salvage list shown, no REPLAY.
+
+The mission's time is `%02d:%02d:%02d` of [0x0060991c]; the seconds are the
+time less the minutes only, so past an hour 01:01:3640 (FIX (bug), as the
+HUD's timer). Then the results (0x0047baf0..0x0047c84b): the lance on the
+cards from zEntity's list, the kills and damage, the objectives' points
+([0x0060994c], [0x00609950]), the score into +0x13be0 and each lancemate's
+into +0x13be4 (the Win State copies them to the campaign's +0xc4 and +0xb4),
+text columns at fixed places (0x005e5ae4..), the rank 0x0047b2f0.
+
+The press 0x0047d030: CONTINUE: a campaign over goes to the Win Movie
+State 0x00608be8; passed (and clean): cleanup(0), the Load state (the next
+briefing: the Win State's save made it current); failed or cheated: the
+lancemates reset (0x00435240(0)), cleanup (the world unloaded only at a
+mission 1 or Op 4 Mission 4), the animations reset (0x0050ad60), the campaign's +0xb0 cleared, the Load state
+(the same mission). Instant Action: its next round (+0x6c, +0x70), cleanup,
+the Load state. The Mech Lab game: cleanup, Load. ABORT: a campaign saves
+the pilot (failed or cheated: the lancemates reset first), cleanup(1),
+the main menu; Instant Action fades to the IA Dummy State (0x0048ef00 with
+0x00608bd0). REPLAY: the mission's voice again (0x0047abe0).
+
+Ported (6a, `mech3/debriefing`): the screen, its texts and buttons, the
+press, the cards' and the salvage list's shells (`MechButton`, `LanceCard`,
+`StoreList`'s reader, layout and update); hooks: the results (6b), the
+cards' mech display (6c), the store list's rows (the mech lab), the
+Win Movie and IA Dummy states.
 
 ## 4. The campaign's progress
 
@@ -226,7 +255,10 @@ need the menus' one scale or a centred 640x480 frame.
    the real launch: `mw3` start -> New Campaign -> pilot -> briefing ->
    Launch -> c1m1 (program.md, A campaign from the menus;
    `test_program.cpp` campaign_menus_to_c1m1_through_the_briefing_headless).
-6. The debriefing screen 0x0047b430 and its press 0x0047d030.
+6. The debriefing screen 0x0047b430 and its press 0x0047d030, in three:
+   6a (Done) the shell and the press; 6b the results 0x0047baf0..0x0047c84b
+   and the rank 0x0047b2f0; 6c the lance cards' mech display (0x0047e840,
+   0x0047b210, the mech lab's).
 7. The Win State's results 0x0047ae10 and the end screen's fade to it:
    c1m1 -> debriefing -> c1m2's briefing.
 8. The salvage screen 0x0047d3b0 and its state; with it the briefing's

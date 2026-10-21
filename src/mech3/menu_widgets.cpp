@@ -803,6 +803,51 @@ StoreList::StoreList(Engine& e, Handle s, int32_t k) : FileList(e, -1), store(s)
   }
 }
 
+// Mech3.exe 1.2 @ 0x0048df90
+void StoreList::update(float dt) {
+  FileList::update(dt);
+  if (x20d) title.show_for(-1.0f);
+  else title.hide();
+  title.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0048db30
+bool StoreList::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  const bool r = FileList::read_control(node, dialog);
+  title_font = ztwod::host().font_find(zrdr::get_string(node, "STATIC_FONT"));
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0048db70: filled, its title under the DOWN arrow.
+void StoreList::after_bind() {
+  FileList::after_bind();
+  refill();
+  if (font_normal && down) {
+    title.set_font(font_normal);
+    title.set_pos(get_x(), down->get_y() + 0xc);
+  }
+  title.hide();
+}
+
+// Mech3.exe 1.2 @ 0x0048df00
+bool StoreList::can_light(int32_t i) {
+  return i >= 0 && i < item_count() && items[static_cast<size_t>(i)]->value != 0;
+}
+
+// Mech3.exe 1.2 @ 0x0048ccf0
+void StoreList::layout() {
+  FileList::layout();
+  const size_t n = title_font && !rows.empty() ? rows.size() : 0;
+  for (size_t i = 0; i < n; ++i) {
+    FileRow* r = rows[i];
+    if (r->flags & ztwod::kHidden) continue;
+    r->set_font(can_light(r->index) ? font_normal : title_font);
+  }
+}
+
+// 0x0048dbe0: the mech lab's rows of the store (not ported).
+void StoreList::refill() { e_.store_list_refill(store); }
+
 // Mech3.exe 1.2 @ 0x0048c250
 FileList::~FileList() {
   clear_items();
