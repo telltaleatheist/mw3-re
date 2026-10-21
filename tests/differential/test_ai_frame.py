@@ -10,7 +10,7 @@ vt+0xa0 hit lately), its own order (+0x194, vt+0x04), three contacts with
 the objects they see and those objects' vehicles (vt+0xd8 their own nets,
 +0xa4 their ranges), the vehicle's vt+0xa0 (powered down) and weapon
 manager (+0xd4: its ammo value 0x4b4ed0 an x87 return), and stubs for
-what later items port: steering 0x4cec80, the radio's
+what later items port: the radio's
 lines 0x4e6d50, the firing's reset 0x4e9590 and run 0x4e9fb0, the target's
 behaviour 0x4c0e10 and the attack 0x4e9ca0; the pick 0x4d6b90 and rand are
 answered from the trace. Each case runs frames from one order with random
@@ -109,7 +109,8 @@ class Original(tg.Original):
         e.w32(self.radio + 0x28, 10)
         self.manager = e.world_alloc(0x100)
         # The stubs of the later items.
-        e.stub(0x4cec80, '0x004cec80', 's0,s1', 8)
+        # The steering's defaults (0x4ce620): +0x34 20, +0x38 cos(pi/4).
+        e.cpu.write(b + 0x284, struct.pack('<ff', 20.0, 0.70710677))
         e.stub(0x4d6b90, '0x004d6b90', 'c,s0', 4, self.pick)
         e.stub(0x4e6d50, '0x004e6d50', 'c', 4)
         e.stub(0x4e9590, '0x004e9590', '', 0)
@@ -124,6 +125,14 @@ class Original(tg.Original):
         for addr in COVER:
             e.uc.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, u: REACHED.add(ad), begin=addr, end=addr)
         self.seen_vehicle = [0, 0, 0]
+        # The start-up's cosines (0x4ce5b0..0x4ce610): cos 45, 10, 20, 135 degrees.
+        import math as _m
+        for addr, ang in ((0x60b4a0, 0.7853981633975001), (0x60b4a4, 0.17453292519944444),
+                          (0x60b49c, 0.3490658503988), (0x60b494, 2.3561944901919)):
+            e.cpu.write(addr, struct.pack('<f', _m.cos(ang)))
+        # MSVCRT's _copysign (two doubles, cdecl; the steering's): fld x; fabs;
+        # the sign of y's top byte; fchs.
+        e.cpu.import_code(0x5bb5ac, bytes.fromhex('dd442404 d9e1 f644241380 7402 d9e0 c3'))
 
     def state_call(self, e, key, a, pop):
         this = a[0]

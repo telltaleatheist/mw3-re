@@ -72,7 +72,14 @@ bool BrainHooks::ammo_value(zgame::Handle v, float* out) {
   *out = 1.0f;
   return unported("0x004b4ed0", {v}) != 0;
 }
-void BrainHooks::steer(Brain& b, zgame::Handle v, float dt) { unported("0x004cec80", {low(&b), v, bits(dt)}); }
+const std::vector<Contact*>* BrainHooks::contacts(zgame::Handle v) {
+  AiTarget* t = targetable(v);
+  return t ? &t->contacts : nullptr;
+}
+void BrainHooks::forward(zgame::Handle e, float* x, float* z) {
+  unported("entity+0x24", {e});
+  *x = *z = 0;
+}
 void BrainHooks::radio_line(Brain& b, int32_t event) { unported("0x004e6d50", {low(&b), event}); }
 float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
@@ -200,6 +207,142 @@ Firing::~Firing() {
 
 // Mech3.exe 1.2 @ 0x004ce620
 Steer::Steer() : x38(cos_quarter_pi()) {}
+static_assert(sizeof(Steer) == 0x48, "the brain's +0x250 block");
+
+namespace {
+// [0x0060b494] = cos(3 pi / 4), from the start-up's 0x004ce610 (the double at
+// 0x005cc548); [0x0060b4c0] beside it is never written: 0.
+float cos_three_quarter_pi() { return static_cast<float>(std::cos(2.3561944901919)); }
+constexpr float kKeepNear = 30.0f;  // 0x005e8bd0 / 0x005e8bc8
+constexpr float kBand = 10.0f;      // 0x005e8bd4
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ceb00: p from the carrot, along the segment and to
+// its side.
+void Steer::project(const float p[3], float out[2]) const {
+  const float dx = p[0] - start[0], dz = p[2] - start[2];
+  out[0] = dx * dir[0] + dz * dir[1];
+  out[1] = dx * dir[1] - dz * dir[0];
+  out[0] = out[0] - along_at;
+  out[1] = out[1] - across;
+}
+
+// Mech3.exe 1.2 @ 0x004ce6f0
+void Steer::carrot(float out[3]) const {
+  out[0] = dir[0] * along_at + start[0];
+  out[1] = 0 + start[1];
+  out[2] = dir[1] * along_at + start[2];
+  if (across < 0 || across > 0) {  // the x87's C3: 0 or a NaN adds nothing
+    out[0] = across * dir[1] + out[0];
+    out[2] = out[2] - across * dir[0];
+  }
+}
+
+// The distance from the segment 0x004ce6a0 and 0x004ceb50 measure: to the
+// side, plus how far before its start or past its end.
+float Steer::distance_off() const {
+  float m = std::fabs(side);
+  if (!(along >= 0)) m = m - along;  // the x87's unordered compares as written
+  else if (along > length) m = (along - length) + m;
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x004ce6a0
+bool Steer::near() const { return !(distance_off() >= near_dist); }
+
+// Mech3.exe 1.2 @ 0x004ce780 / 0x004ce7d0 / 0x004ce9f0 / 0x004ce860 over the
+// vehicle's contacts, nearest first, while within (30 + along)^2 + 10^2: a
+// contact ahead of the vehicle, behind the carrot and within 10 of its line
+// pushes the carrot ahead by the room left, and the more head-on it faces
+// (its forward against the segment's back, cos 135 at full), the more of
+// that to the side away from it.
+void Steer::push_by_contacts(zgame::Handle owner, float dt) {
+  (void)dt;  // the context keeps it; nothing reads it
+  BrainHooks& h = brain_hooks();
+  const std::vector<Contact*>* cs = h.contacts(owner);
+  if (!cs) return;
+  const float a = along > 0 ? kKeepNear + along : kKeepNear;
+  const float limit = kBand * kBand + a * a;
+  for (const Contact* c : *cs) {
+    if (c->dist2 > limit) break;  // 0x004ce7d0 (a NaN distance is taken)
+    const zgame::Handle e = h.contact_entity(c);
+    if (!e) continue;
+    float p[3], l[2];
+    h.position(e, p);
+    project(p, l);
+    if (l[0] >= along || -kKeepNear >= l[0]) continue;
+    const float d = l[1] - side;
+    if (std::fabs(d) >= kBand) continue;
+    const float room = (kKeepNear + l[0]) - std::fabs(d);
+    if (!(room > 0)) continue;
+    float da = room, ds = 0;
+    float fx, fz;
+    h.forward(e, &fx, &fz);
+    const float dot = -dir[0] * fx + -dir[1] * fz;
+    float f = (dot - 0.0f) / (cos_three_quarter_pi() - 0.0f);
+    if (!(0 >= f)) {
+      if (f > 1.0f) f = 1.0f;
+      const float w = f * room;
+      da = da - w;
+      ds = ds - static_cast<float>(std::copysign(static_cast<double>(w), static_cast<double>(d)));
+    }
+    shift(da, ds);  // 0x004ce820
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004ceb50: the vehicle measured; the carrot kept within
+// 30 of it (less its distance to the side); near the segment, the contacts.
+void Steer::measure(zgame::Handle owner, float dt) {
+  BrainHooks& h = brain_hooks();
+  float p[3];
+  h.position(owner, p);
+  float l[2];
+  project(p, l);
+  along = l[0], side = l[1];
+  float room = kKeepNear - std::fabs(side);
+  if (!(room >= 0)) room = 0;
+  const float over = std::fabs(along) - room;
+  if (over > 0) advance(static_cast<float>(std::copysign(static_cast<double>(over), static_cast<double>(along))));
+  if (near()) push_by_contacts(owner, dt);
+}
+
+// Mech3.exe 1.2 @ 0x004cec80: the side offset eases to its target at 2 a
+// second (snapped within 0.05), the carrot falls back at its rate down to
+// along_min, then the measure.
+void Steer::update(float dt, zgame::Handle owner) {
+  const float to = across_to;
+  const float n = (to - across) * 2.0f * dt + across;
+  across = n;
+  if (!(std::fabs(to - n) >= 0.05)) across = to;
+  const float a = along_at - rate * dt;
+  along_at = a;
+  if (!(a >= along_min)) along_at = along_min;
+  measure(owner, dt);
+}
+
+// Mech3.exe 1.2 @ 0x004cea30 (with 0x004ce530 for the direction).
+void Steer::set(const float to[3], const float from[3], float r, zgame::Handle owner) {
+  dir[0] = to[0] - from[0];
+  dir[1] = to[2] - from[2];
+  const float len = std::sqrt(dir[1] * dir[1] + dir[0] * dir[0]);
+  if (len != 0) {
+    dir[0] = (1.0f / len) * dir[0];
+    dir[1] = (1.0f / len) * dir[1];
+  } else {
+    dir[0] = dir[0] * 0.0f;
+    dir[1] = dir[1] * 0.0f;
+  }
+  along_at = length = len;
+  along_min = 0, across = 0, across_to = 0;
+  rate = r;
+  start[0] = from[0], start[1] = from[1], start[2] = from[2];
+  BrainHooks& h = brain_hooks();
+  float p[3], l[2];
+  h.position(owner, p);
+  project(p, l);
+  along = l[0], side = l[1];
+  push_by_contacts(owner, 0.0f);
+}
 
 // Mech3.exe 1.2 @ 0x004e7c40, each sound through 0x004e7dc0.
 const char* const Radio::kEvents[16] = {
@@ -553,7 +696,7 @@ bool Brain::frame(BrainControls& c, float dt) {
   }
   const zgame::Handle owner = c.vehicle();
   const bool down = h.powered_down(owner) == 1;
-  h.steer(*this, owner, dt);
+  steer.update(dt, owner);  // 0x004cec80
   if (!x2a4 && down) {
     c.stop();
     c.smooth(dt);

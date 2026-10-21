@@ -77,3 +77,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   must clear the brain's borrowed radio and vlist before destroying it.
 - I misread the heat jump at first: re-check `je` targets against the
   set label, not only the flags.
+
+## 2026-10-20 Item 6: steering (mac4/steering)
+
+- Ported 0x4ce530..0x4cec80 as Steer (set/update/measure/near/carrot/
+  project/advance/shift, the contacts' push). Steering never touches the
+  controls: the walking states (node state 0x4cf140, via 0x4cecf0) do. The
+  Owens can't walk until items 7-8.
+- Emulator needs the start-up's cosines ([0x60b494] cos 135 etc.) and
+  MSVCRT _copysign (0x5bb5ac): set in test_ai_frame.Original.
+- x87 compares: check each branch's NaN side (C0/C3 with test ah,1/0x41/0x40).
+- Queued from Owen (via the lead): the allied attack pick (zfix bugs), the
+  valve re-entry guard, c4b m6's missing boundary regions.

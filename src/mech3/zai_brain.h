@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <deque>
+#include <vector>
 #include <memory>
 
 #include "gamez/zgame/unported.h"
@@ -79,7 +80,12 @@ class BrainHooks : public zgame::Unported {
   // without a manager.
   virtual bool ammo_value(zgame::Handle v, float* out);
   // Not ported yet, each an item of the porting order (ai.md 17.9).
-  virtual void steer(Brain& b, zgame::Handle v, float dt);     // 0x004cec80 on +0x250 (item 6)
+  // Steering's questions: a vehicle's contacts (+0xac..+0xb0, nearest
+  // first); what a contact sees as an entity (0x004e6fe0: its +0x04's
+  // vt+0x2c; 0 for none) and an entity's flat forward (+0x24, +0x2c).
+  virtual const std::vector<Contact*>* contacts(zgame::Handle v);
+  virtual zgame::Handle contact_entity(const Contact* c) { return unported("0x004e6fe0", {low(c)}); }
+  virtual void forward(zgame::Handle e, float* x, float* z);
   virtual void radio_line(Brain& b, int32_t event);            // 0x004e6d50(1.0) on the radio's line (item 14)
   // The vlist triggers' questions (0x004d8e70): the vehicle's heat (vt+0x9c,
   // the Mech's +0x554), a clear line to what a contact sees (0x004d5980 on
@@ -240,19 +246,43 @@ struct Firing {
   Aim* aim = nullptr;      // +0x54
 };
 
-// 0x004ce620 (0x48 bytes at the brain's +0x250): steering toward a point
-// (likely: 0x004ce6a0 tests a distance against +0x34).
+// The brain's steering (+0x250, 0x48 bytes, 0x004ce620; docs/ai.md 17.4):
+// a path segment from `start` along `dir` (x, z), and a carrot on it
+// `along_at` ahead of the start and `across` to its side, which the
+// vehicle's position is measured from (`along`, `side`). The states set the
+// segment (0x004cea30) and steer the controls by it; each frame
+// 0x004cec80 eases the carrot and keeps it near, and the contacts in the
+// way push it aside.
 struct Steer {
-  float x00[3] = {};   // +0x00  0x0063d870
-  uint32_t x0c = 0;    // +0x0c  [0x0060b4b8], never written: 0
-  uint32_t x10 = 0;    // +0x10  [0x0060b4bc], the same
-  uint32_t x14[6] = {};  // +0x14..+0x28
-  uint32_t x2c = 0;    // +0x2c  [0x0060b4b8]
-  uint32_t x30 = 0;    // +0x30  [0x0060b4bc]
-  float x34 = 20.0f;   // +0x34  0x005e8bb4
-  float x38;           // +0x38  [0x0060b4a0]: cos(pi/4), set at start-up (0x004ce5b0)
-  uint32_t x3c = 0, x40 = 0, x44 = 0;  // +0x3c..+0x44
+  float start[3] = {};   // +0x00  0x0063d870
+  float dir[2] = {};     // +0x0c  x, z; [0x0060b4b8] / [0x0060b4bc] at first: never written, 0
+  float along_min = 0;   // +0x14  how far back the carrot may fall
+  float length = 0;      // +0x18  the segment's
+  float along_at = 0;    // +0x1c  the carrot's distance along
+  float across = 0;      // +0x20  its offset to the side, eased toward
+  float across_to = 0;   // +0x24
+  float rate = 0;        // +0x28  how fast the carrot falls back, a second
+  float along = 0;       // +0x2c  the vehicle from the carrot, along the segment
+  float side = 0;        // +0x30  and across
+  float near_dist = 20.0f;  // +0x34  0x005e8bb4: near the segment within this
+  float x38;             // +0x38  [0x0060b4a0]: cos(pi/4), set at start-up (0x004ce5b0)
+  uint32_t x3c = 0, x40 = 0, x44 = 0;  // +0x3c..+0x44  (0x004ce690 clears +0x3c and +0x44)
   Steer();
+
+  // 0x004cea30: a new segment from `from` toward `to`, the carrot falling
+  // back at `rate`; the vehicle measured and the contacts let push.
+  void set(const float to[3], const float from[3], float rate, zgame::Handle owner);
+  void update(float dt, zgame::Handle owner);         // 0x004cec80
+  void measure(zgame::Handle owner, float dt);        // 0x004ceb50
+  bool near() const;                                   // 0x004ce6a0
+  void carrot(float out[3]) const;                    // 0x004ce6f0
+  void project(const float p[3], float out[2]) const;  // 0x004ceb00
+  void advance(float d) { along_at += d, along -= d; }  // 0x004ce800
+  void shift(float da, float ds) { along -= da, side -= ds, along_at += da, across += ds; }  // 0x004ce820
+
+ private:
+  float distance_off() const;  // the measure 0x004ce6a0 and 0x004ceb50 compare with near_dist
+  void push_by_contacts(zgame::Handle owner, float dt);
 };
 
 // 0x004e7c40 (0x40 bytes): the lancemate radio, sixteen zSound lookups of

@@ -1463,13 +1463,71 @@ measured from the origin.
 
 ### 17.4 Steering (+0x250, 0x4ce620..0x4cec80)
 
-Each frame 0x4cec80: +0x20 eases toward +0x24 at 2.0 a second (snapped
-within 0.05), +0x1c falls by +0x28 a second down to +0x14; then 0x4ceb50:
-the heading to the target point (+0x2c, 0x4ceb00 from the vehicle's
-position), a turn when it is off by more than 30 less the sideways part
-(0x4ce800), and under +0x34 (20) the contacts (owner +0xac..+0xb0) for one
-in the way (0x4ce780, 0x4ce7d0). The node state, the attack and the
-manoeuvre set the point and speeds.
+Steering does not touch the controls. It is a path segment and a carrot on
+it that the vehicle is measured from; the states that walk (the node state
+0x4cf140 and the others that call 0x4cea30 / 0x4cecf0, items 7-11) set the
+segment and turn and throttle the controls toward the carrot.
+
+| Field | What |
+|---|---|
+| +0x00, +0x0c | the segment's start and its flat unit direction (x, z) |
+| +0x18 | its length |
+| +0x1c / +0x14 | the carrot's distance along it and how far back it may fall |
+| +0x20 / +0x24 | the carrot's offset to the side and the offset it eases to |
+| +0x28 | how fast the carrot falls back, a second |
+| +0x2c / +0x30 | the vehicle from the carrot, along the segment and to its side |
+| +0x34 | 20: the vehicle is near the segment within this |
+
+- **0x4cea30** (to, from, rate, vehicle): the segment from `from` toward
+  `to` (0x4ce530 normalises), the carrot at its far end, no side offset,
+  the vehicle measured (0x4ceb00), then the contacts' push.
+- **0x4cec80** (each frame, from the brain's frame): the side offset eases
+  to its target at 2 a second (snapped within 0.05), the carrot falls back
+  by the rate times dt but not past +0x14; then **0x4ceb50**: the vehicle
+  measured; the carrot moved along (0x4ce800) to stay within 30 m of it
+  less its distance to the side; when the vehicle is near the segment
+  (0x4ce6a0: its distance to the side, plus how far before the start or
+  past the end, under +0x34) the contacts' push.
+- **The contacts' push** (0x4ce780, 0x4ce7d0, 0x4ce9f0, 0x4ce860): the
+  vehicle's contacts, nearest first, while within (30 + along)^2 + 10^2
+  (a NaN distance counts): one ahead of the vehicle and behind the carrot,
+  within 10 m of the line, pushes the carrot ahead by the room left (30 +
+  its distance along, less its distance to the side), and the more head-on
+  it faces (its flat forward against the segment's backward, a full push
+  at cos 135 degrees), the more of that push goes to the side away from it
+  instead (0x4ce820).
+- **0x4ce6f0**: the carrot's point in the world; **0x4ce690**: clears +0x3c
+  and +0x44 (the brain's destructor).
+
+**Ported** (2026-10-20, `mech3/zai_brain` `Steer`: `set`, `update`,
+`measure`, `near`, `carrot`, `project`, `advance`, `shift`); the brain's
+frame runs `update`. The vehicle's contacts, a contact's entity (0x4e6fe0:
+vt+0x2c only, no vt+0x40) and its flat forward (+0x24, +0x2c) are
+`BrainHooks`; [0x60b494] (cos 135 degrees, the start-up's 0x4ce610) and
+[0x60b4c0] (never written, 0) are the port's constants. The x87's
+unordered compares are kept as written (a NaN distance is near, a NaN room
+pushes nothing).
+
+Test `test_ai_steer.py` (probe `tests/probe_ai_orders.cpp`, over
+test_ai_frame.py's brain and vehicle; the emulator given the start-up's
+cosines and MSVCRT's `_copysign`): segments, the vehicle near them and up
+to six contacts around them on entities facing them or away, some out of
+reach, NaNs among the numbers; 200 cases of 150 calls (sets, updates with
+random times, rates and side targets, near tests, carrots, the block
+loaded at random): 4583 sets, 17,410 updates, 3644 near tests and 3489
+carrots, the answers, every call and the 0x48 bytes identical, all 14
+marked branches reached. Breaking the port showed it catches it, 14 of 14:
+the side eased at 1 a second, no snap, the carrot below its floor, the side
+measured the other way, the room not floored, past the end not counted,
+the far contacts read on, the reach without the vehicle's distance, the
+band at 20, head-on unclamped, the side push toward the contact, the
+carrot set at the start, the carrot's side the other way, no push at a set.
+The carrot's point skips a side offset of 0 or a NaN (the x87's C3), which
+the test's NaNs caught.
+
+In the program the Owens' brain runs the steering each frame, but nothing
+sets a segment yet (the states that do are items 7-8), so it does not move:
+its segment stays at the origin with no direction.
 
 ### 17.5 The vlist triggers (0x4d8e70)
 
@@ -1593,7 +1651,7 @@ goes through a hooks struct the test stubs the same on both sides.
 4. **The brain's frame** 0x4e9710 / 0x4e96f0: done (17.1), with the
    Mech's health 0x41ba40 and the controls' stop 0x428490.
 5. **The vlist triggers** 0x4d9290, 0x4d8e70, 0x4e94f0: done (17.5).
-6. **Steering** 0x4ce620..0x4cec80.
+6. **Steering** 0x4ce620..0x4cec80: done (17.4).
 7. **The plain states**: 0x4c8660, 0x4c8700, 0x4c8790, 0x4c88c0, 0x4c8940,
    0x4c8a30 and the shared 0x4cbe50.
 8. **The node state** 0x4ced40 (with backup and deploy).
