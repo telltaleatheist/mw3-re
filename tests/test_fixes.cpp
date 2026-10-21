@@ -23,6 +23,7 @@
 #include "mech3/zrdrvalve.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
+#include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
 
@@ -642,4 +643,39 @@ TEST(fix_hud_timer_past_an_hour) {
   hud->~Hud();
   ::operator delete(storage);
   mech3::set_hud_hooks(nullptr);
+}
+
+// A mech placed at y -50 on a bridge over a canyon floor at -100: the exe's
+// step of y + 10 reaches only -90, so it takes the floor; the fixed step of
+// 10 keeps it on the bridge (0x004161c0, mission-start.md section 11).
+static float place_on_bridge(bool fix) {
+  zfix::options().bugs = fix;
+  static mech3::Mech m;
+  static mech3::PlayerControls c;
+  static mech3::Skis s;
+  m = mech3::Mech{}, c = mech3::PlayerControls{}, s = mech3::Skis{};
+  static float matrix[12];
+  c.owner = &m, m.controls = &c, s.mech = &m, m.skis = &s, m.transform = matrix;
+  static float placed_y;
+  mech3::place_calls().ground = [](float, float, float, zcls::GroundHits* out) {
+    *out = zcls::GroundHits{};
+    out->count = 2;
+    out->hit[0].height = -100.0f, out->hit[1].height = -50.0f;
+    return 0;
+  };
+  mech3::place_calls().attach = [](mech3::Handle) {};
+  mech3::collide_calls().set_position = [](mech3::Mech&, const mech3::Vec3* p) { placed_y = p->y; };
+  mech3::update_calls().moved = [](mech3::Mech&) {};
+  const float pos[3] = {0.0f, -50.0f, 0.0f};
+  m.place(pos, 0.0f);
+  mech3::place_calls() = mech3::PlaceCalls{};
+  mech3::collide_calls().set_position = nullptr;
+  mech3::update_calls().moved = nullptr;
+  zfix::options().bugs = true;
+  return placed_y;
+}
+
+TEST(fix_place_steps_ten_above) {
+  EXPECT(std::fabs(place_on_bridge(false) - -99.99f) < 1e-3f);  // the exe: under the bridge
+  EXPECT(std::fabs(place_on_bridge(true) - -49.99f) < 1e-3f);   // fixed: on it
 }

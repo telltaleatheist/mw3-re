@@ -330,13 +330,41 @@ starts with the reactor coming on as the screen fades in; the power key
   placed below 0 takes the lowest surface, one placed high may take a
   surface up to y + 10 + y above it. `test_place.py` finds such places on
   the shipped worlds (237 of 3600 placements over stacked polygons).
-  Kept: fixes.md, Candidates.
+  Fixed (below).
 - c1m1: the Owens' place (-1767.7 3 -1229, yaw 30 degrees) is flat ground
   at 3, so it stands at 3.01; the Mad Cat starts at (-3200.9 -35.85
   -1225.1), 1433 m from it, beyond its 1000 m sensors, **on the seabed
   under 4.86 m of the ocean** (`ocean67` at -31 above the ground at
   -35.86; the pick leaves water out): the campaign opens with a wade
   ashore.
+
+**The step fix** (FIX (bug), Owen 2026-10-20, `zfix bugs`): the pick gets
+a step of 10, as its other callers' constants. Owen's condition: every
+shipped mech still lands where the designers put it. Checked with
+`placements_on_every_campaign_mission_headless` (mw3tests):
+
+- the 195 placements the 24 campaign missions make (c1 m1-4, c2 m1-4, c3
+  m1-6, c4 m1-3, c4b m4-6, t1 m1-4: the player and every AI mech), each
+  query's polygons picked both ways at the query;
+- with `MW3_PLACE_POINTS` (from `tools/analysis/aiv_points.py`), every
+  record of every aiv.zrd in every reader archive (campaign, Instant
+  Action, multiplayer: 768, mechs, vehicles and the player's start), on
+  its world before any mech joins it.
+
+None moves. 55 of them stand under other ground (bridges, roofs: c2 m3's
+champion and m4's player and Mobile HQs about 50 m under one structure,
+c3 m2's Shadow Cat 34 m under one, c4b m5's player at -69 with a surface
+88 m above, t1 m1's first place 27 m under one): the exe's reach is either
+below the overhead surface (y > 0 small) or reaches nothing and takes the
+lowest polygon, which on every shipped place is the ground the record
+names. The fix matters for a place that is not a designer's: the mech
+swap 0x004783c0 re-places a mech where it stands (at its own height), and
+the exe's reach would drop one standing on a bridge below sea level to the
+lowest surface, or lift one standing high to a roof up to y + 10 above.
+`MW3_PLACE_REPORT=<file>` writes the list (each place, both heights, the
+polygons under it). `fix_place_steps_ten_above` (test_fixes.cpp) checks
+Mech::place both ways on a bridge over a canyon; test_place.py, with the
+fixes off, still checks the exe's path.
 
 **FIX (A)**: a model test past the record's 32nd slot would write past it
 in the exe (only the walk's entry checks); the port stops at 32. No shipped

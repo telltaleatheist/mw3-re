@@ -727,7 +727,11 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   surface no more than 10 m above the spot, but a slip in the code makes
   that "the spot's height plus 10, plus the spot's height again". A spot
   below zero over a bridge puts the mech under the bridge; a high spot can
-  take a surface well above it.
+  take a surface well above it. It never shows in the shipped missions:
+  every one of the game's 768 starting spots (campaign, Instant Action and
+  multiplayer) lands on the same ground either way, including the 55 that
+  sit under a bridge or a roof. It could only bite when a mech is put
+  back down where it stands (a mech swap). The rebuild fixes it.
 - **Your mech starts every mission powered down, and the fade-in powers it
   up.** The game puts you in the world with the reactor off; the moment
   the opening fade ends it switches the reactor on, while the "power up"

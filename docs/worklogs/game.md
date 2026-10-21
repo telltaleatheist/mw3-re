@@ -193,3 +193,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   unobservable on comparable files). FIX (bug): one-frame / missing
   quicksand texture.
 - Next: part 2, zgeo_model's buffers and partitions.
+
+## 2026-10-20: the placement step fix (branch mac2/place-fix)
+
+- Owen's decision: 0x4161c0's pick gets a step of 10 (zfix bugs). His
+  condition checked: placements_on_every_campaign_mission_headless lists
+  every place both ways: 195 live placements in the 24 campaign missions
+  and, with MW3_PLACE_POINTS (tools/analysis/aiv_points.py), all 768
+  aiv.zrd records of every reader archive on their worlds. None moves; 55
+  stand under other ground and land on the same surface both ways. The
+  fix only matters for the mech swap 0x4783c0 (re-placed where it stands).
+- fix_place_steps_ten_above checks Mech::place both ways; test_place.py
+  (fixes off) unchanged.
+- Next: TAG (ms timing, homing on the marked unit), then craters part 2.
