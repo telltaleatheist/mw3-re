@@ -14,6 +14,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -408,7 +409,8 @@ void model_box(uint8_t* h, const float* vertices, const Light* lights, const flo
 
 namespace {
 float g_precision = 0.001f;                        // 0x005ee3e0
-constexpr double kPlanar = 0.005;                  // 0x005ee3d0 (0x00538070 sets it; nothing calls that)
+constexpr double kPlanar = 0.005;                  // 0x005ee3d0 (the debug console sets it and 0x5ee3d8 through
+                                                   // 0x00538070 / 0x00538080, not ported)
 constexpr double kColinear = 0.001;                // 0x005ee3d8
 constexpr int32_t kMaxVerts = 48;                  // 0x005ee3e4
 constexpr double kMaxModelVerts = 921.6;           // 0x005ce180, 0.9 x 1024
@@ -501,7 +503,7 @@ int32_t find_normal(Model& m, const float p[3]) {
 // lying on the line of its neighbours (unit cross product under 0.001 on
 // every axis) is dropped from the caller's points, from the start again
 // each time; 1 when any was.
-int drop_colinear(int32_t* n, float* p) {
+int drop_colinear(int32_t* n, float* p, std::vector<int32_t>* kept) {
   int dropped = 0;
   for (bool again = true; again;) {
     again = false;
@@ -521,6 +523,7 @@ int drop_colinear(int32_t* n, float* p) {
       x = inv * x, y = inv * y, z = inv * z;
       if (!(std::fabs(x) >= kColinear) && !(std::fabs(y) >= kColinear) && !(std::fabs(z) >= kColinear)) {
         std::memmove(p + 3 * i, p + 3 * (i + 1), 12 * static_cast<size_t>(count - 1 - i));
+        if (kept) kept->erase(kept->begin() + i);
         --*n;
         dropped = again = true;
         break;
@@ -535,6 +538,8 @@ int drop_colinear(int32_t* n, float* p) {
 // record stays, uncounted).
 int add_record(Model& m, int32_t n, const PolygonAdd& a) {
   const int32_t count = count_at(m, 0x10);
+  // new[] for the exe's realloc: its "Error adding poly to model3d" (line
+  // 0x10f7) for a failed realloc has no counterpart.
   Polygon* grown = new Polygon[static_cast<size_t>(count) + 1]{};
   for (int32_t i = 0; i < count; ++i) grown[i] = m.polygons[i];
   delete[] m.polygons;
@@ -715,11 +720,33 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     return 1;
   }
   int32_t k = n;
-  if (drop_colinear(&k, a.points) && k < 3) {
+  std::vector<int32_t> kept(static_cast<size_t>(n));
+  for (int32_t i = 0; i < n; ++i) kept[static_cast<size_t>(i)] = i;
+  if (drop_colinear(&k, a.points, &kept) && k < 3) {
     zerr::report(0x100, kFile, 0x120f,
                  format("Discarding Polygon: (%d of %d) verts after 'check_colinearity()'", k, n).c_str());
     return 1;
   }
+  // FIX (bug): the exe drops colinear points from the points only, so every
+  // UV, colour and normal after one belongs to the next point (a crater's
+  // cut ground pieces have such points). zfix bugs: they go too.
+  std::vector<float> nrm, uv, col, mp, muv;
+  PolygonAdd fixed = a;
+  if (k < n && zfix::options().bugs) {
+    auto take = [&](const float* src, int width, std::vector<float>& to) -> const float* {
+      if (!src) return nullptr;
+      for (int32_t i : kept) to.insert(to.end(), src + width * i, src + width * (i + 1));
+      return to.data();
+    };
+    fixed.normals = take(a.normals, 3, nrm);
+    if (a.material->flags & 1) fixed.uvs = take(a.uvs, 2, uv);
+    fixed.colors = take(a.colors, 3, col);
+    if (a.morph) {
+      fixed.morph_points = take(a.morph_points, 3, mp);
+      if (a.material->flags & 1) fixed.morph_uvs = take(a.morph_uvs, 2, muv);
+    }
+  }
+  const PolygonAdd& use = fixed;
   if (k > 3) {
     const float* p = a.points;
     float nx = 0.0f, ny = 0.0f, nz = 0.0f, sx = 0.0f, sy = 0.0f, sz = 0.0f;
@@ -743,16 +770,16 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
       if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > kPlanar) {
         zerr::report(0x100, kFile, 0x121c,
                      format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
-        add_fan(*m, k, a);
+        add_fan(*m, k, use);
         return 2;
       }
     }
   }
   if (k > kMaxVerts) {
-    add_pieces(*m, k, a, kMaxVerts);
+    add_pieces(*m, k, use, kMaxVerts);
     return 2;
   }
-  add_record(*m, k, a);
+  add_record(*m, k, use);
   int full = 0;
   std::string text;
   if (kMaxModelVerts < count_at(*m, 0x14)) {
@@ -768,7 +795,66 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
     full = 1;
   }
   if (full) return 1;
-  return fill_record(*m, k, a);
+  return fill_record(*m, k, use);
+}
+
+// Mech3.exe 1.2 @ 0x00553160 (source file unknown, after gmod_cookie.cpp).
+// A model's strip polygons (flag 0x400; no shipped world has any) each
+// become triangles: the strip's first three points stay in it, and from its
+// end back each further point k (with the points (n - 2) | 1 and
+// (n - 1) & ~1 as n counts down) makes a new triangle appended to the
+// model. Only models with +0 = 0.
+void expand_strips(Model& m) {
+  if (count_at(m, 0) != 0) return;
+  const int32_t total = count_at(m, 0x10);
+  for (int32_t i = 0; i < total; ++i) {
+    if (!(m.polygons[i].flags & 0x400)) continue;
+    m.polygons[i].flags &= ~0x400u;
+    uint32_t n = m.polygons[i].flags & 0xff;
+    if (n != 3) {
+      for (int32_t k = static_cast<int32_t>(n) - 3; k > 0; --k, --n) {
+        const int32_t count = count_at(m, 0x10);
+        Polygon* grown = new Polygon[static_cast<size_t>(count) + 1]{};
+        for (int32_t j = 0; j < count; ++j) grown[j] = m.polygons[j];
+        delete[] m.polygons;
+        m.polygons = grown;
+        put_count(m, 0x10, count + 1);
+        const Polygon& s = m.polygons[i];
+        Polygon& t = m.polygons[count];
+        const uint32_t a = static_cast<uint32_t>(k), b = (n - 2) | 1, c = (n - 1) & ~1u;
+        // FIX (bug): the exe keeps the new record's other flag bits from the
+        // uninitialised realloc'd memory; here they are 0.
+        t.flags = 3 | (s.flags & 0x200);
+        t.priority = s.priority;
+        t.vertex_indices = static_cast<uint32_t*>(std::malloc(12));
+        t.vertex_indices[0] = s.vertex_indices[a], t.vertex_indices[1] = s.vertex_indices[b];
+        t.vertex_indices[2] = s.vertex_indices[c];
+        if (t.flags & 0x200) {
+          t.normal_indices = static_cast<uint32_t*>(std::malloc(12));
+          t.normal_indices[0] = s.normal_indices[a], t.normal_indices[1] = s.normal_indices[b];
+          t.normal_indices[2] = s.normal_indices[c];
+        }
+        if (s.material && (s.material->flags & 1)) {
+          t.uvs = static_cast<float*>(std::malloc(24));
+          std::memcpy(t.uvs, s.uvs + 2 * a, 8), std::memcpy(t.uvs + 2, s.uvs + 2 * b, 8);
+          std::memcpy(t.uvs + 4, s.uvs + 2 * c, 8);
+        }
+        t.colors = static_cast<float*>(std::malloc(36));
+        std::memcpy(t.colors, s.colors + 3 * a, 12), std::memcpy(t.colors + 3, s.colors + 3 * b, 12);
+        std::memcpy(t.colors + 6, s.colors + 3 * c, 12);
+        t.scratch = static_cast<uint32_t*>(std::malloc(12));
+        t.material = s.material;
+        t.zone_set = s.zone_set;
+      }
+    }
+    Polygon& s = m.polygons[i];
+    s.flags = (s.flags & 0xffffff03u) | 3;
+    s.vertex_indices = static_cast<uint32_t*>(std::realloc(s.vertex_indices, 12));
+    if (s.flags >> 9 & 1) s.normal_indices = static_cast<uint32_t*>(std::realloc(s.normal_indices, 12));
+    if (s.material && (s.material->flags & 1)) s.uvs = static_cast<float*>(std::realloc(s.uvs, 24));
+    s.colors = static_cast<float*>(std::realloc(s.colors, 36));
+    s.scratch = static_cast<uint32_t*>(std::realloc(s.scratch, 12));
+  }
 }
 
 }  // namespace zmod

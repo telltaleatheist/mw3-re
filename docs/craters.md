@@ -375,6 +375,63 @@ port's compares are written to fail the same way.
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.
 
+### The clip and the crater, part 5b
+
+zDEClient (`zdec_crater`): 0x004ffaa0 asks the veto (multiplayer's), then
+0x004ff940 sets the vertex merge distance to 0.005 and builds the record
+(0x004ffad0 / 0x004ffe80: the order copied, the texture entry whose ground
+is the hit's material, else the defaults; the cell under the centre
+(0x004f1fe0, 0x00502090), refused when it is outside the grid or holds the
+partition's limit (+0x4c) of craters; the centre pushed back inside the
+cell by the radius and 1 m; the ring at sin/cos steps of 2 pi / n; refused
+when its box comes within 5 m of a ZDEC_FEATURE node's (another crater's)
+in the cell). zGeometry's colour cache starts at the order (0x0050da90).
+
+The clip (0x004fff20 -> 0x0050ec10): the outline into the plane; the
+ground nodes (flag 4) of the world's own children and then the cell's,
+split into keep-clear (0x20000) and cut (0x10000) lists; the outline
+snapped to within 0.1 of the cut nodes' points and edges (0x0050ea50,
+0x00515410); a Weiler region of it; every keep-clear node's polygons must
+not meet it (0x0050f7b0: Weiler with the region-only list; any overlap
+refuses the crater); every cut node's model is clipped (0x0050f120) into a
+new model: polygons apart copied, inside dropped, cut ones convexified
+(their first inside contour's points joining the outline, the Weiler
+remade from it before the next polygon of that model), a polygon round
+the whole outline cut into the ring of triangles (part 4). Strip polygons
+are expanded first (0x00553160). The new models and the outline as the
+clip left it go in a ClipSet; the record's ring becomes that outline.
+0x0050ef70 also refreshes the node's expiry frame.
+
+The tessellation (0x004fff80): a crater node (0x0050e950: an object3d,
+flag 0x8000, the first cut node's zone, flag 0x20000 so no later crater
+cuts it, a new model, under the world), named ZDEC_FEATURE with the
+record at +0x40; the record's height lowered by the depth; for each ring
+point a slope quad (it, the next, and their points half way to the centre
+one depth lower) and a floor triangle from the centre (two depths below
+the hit), textured over the radius (UV 0..1) with the cut ground's colours
+(0x0050dbc0, else 0.8 grey), normals up, each through 0x0050dea0. Then
+the history entry (0x00500850), the touched nodes (0x00500600), the commit
+(0x0050e850), the merge distance back, and the dust at the crater.
+
+zModel's 0x00553160 (strips into triangles, file unknown) came with it;
+0x00539cc0 sets a model's +0 (the new model's 0).
+
+FIX (bug, fixes.md): the record is freed while the crater node points at
+it, so the next crater's 5 m test reads freed memory; the port keeps each
+crater node's type and box. A crater ordered without texture flags writes
+the floor centre's UV through null (the original crashes; the port makes
+it). Colinear points dropped by the polygon add take their UVs, colours
+and normals with them (zfix bugs; real craters hit it about once in 200
+polygons). The changed-node list grows instead of overrunning; strip
+triangles' stray flag bits are 0.
+
+`test_crater.py` makes 40 craters on each of the six worlds on both
+sides (from the original's 0x4ff520 and the port's loaders) and compares
+everything that changed: 246 craters identical, 158 made. In those, the
+Weiler merge saw types 4, 5 and 10 only; 83 refusals were clip failures
+(mostly no ground node changed, 7 a keep-clear node in the way, 3 failed
+crossing validations); no build refusals came up.
+
 ## 6. Porting order
 
 1. **declient.zrd** (0x00501ab0, 0x00501fa0, the world setters, the
@@ -391,7 +448,8 @@ lines of pseudocode, five times the first estimate.
    come with the crater (step 5).
 4. **Convexify**.
 5. **The crater** (0x004ffad0, 0x004fff20, 0x004fff80, 0x004ff940, the
-   history and the set): differential test making craters on the worlds.
+   history and the set): differential test making craters on the worlds. Done
+   (part 5b, `test_crater.py`); wired into the game in part 5c.
 6. **Quicksand** (0x00502230 .. 0x005026c0).
 7. **Reset and restore** (0x00500760, 0x00500c20) with gamez.zbd's re-read
    path; the program's wiring (zWeapon's crater hooks, the mission hooks).

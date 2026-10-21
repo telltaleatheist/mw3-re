@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from ai_world import FLOOR, IAT_FLOOR  # noqa: E402
 from test_weiler import BUF, CAP, Emulated, P, farr, got, probe  # noqa: E402
 
-probe.probe_gadd_begin.argtypes = [ctypes.c_float]
+probe.probe_gadd_begin.argtypes = [ctypes.c_float, ctypes.c_int]
 probe.probe_gadd.argtypes = [ctypes.c_int, P, P, P, ctypes.c_int, P, P, ctypes.c_int, ctypes.c_int, ctypes.c_uint32,
                              P, P, P, ctypes.c_int]
 PRECISION = 0x5ee3e0
@@ -145,7 +145,7 @@ def main():
     for model in range(150):
         precision = rng.choice((0.001, 0.005))
         morph = 1 if rng.random() < 0.15 else 0
-        probe.probe_gadd_begin(precision)
+        probe.probe_gadd_begin(precision, 0)
         emu.begin_model(precision)
         shared = []  # earlier polygons' points, reused so vertices merge
         for _ in range(rng.randint(1, 14)):
@@ -181,6 +181,50 @@ def main():
             theirs = emu.add(n, pts, normals, uvs, morph, mpts, muvs, 1 if textured else 0, priority, flag, zone,
                              colors)
             check(kind, mine, theirs)
+
+    # The FIX (zfix bugs): with colinear points the port, given the raw
+    # arrays, must build what the original builds from arrays with those
+    # points already taken out (which ones: the original's own 0x53a530).
+    for _ in range(300):
+        precision = 0.001
+        pts = polygon(rng, rng.choice(('colinear', 'colinear', 'line', 'flat')))
+        n = len(pts) // 3
+        textured = rng.random() < 0.8
+        normals = [rng.choice((0.0, 1.0, 0.70710677)) for _ in range(3 * n)] if rng.random() < 0.4 else None
+        uvs = [rng.uniform(-3, 5) for _ in range(2 * n)] if textured else None
+        colors = [float(rng.randint(0, 255)) for _ in range(3 * n)]
+        zone = [rng.randint(0, 255) for _ in range(4)]
+        emu.begin_model(precision)
+        cnt = emu.alloc(4)
+        pp = emu.put(farr(pts))
+        emu.cpu.write(cnt, struct.pack('<i', n))
+        emu.call(0x53a530, ecx=cnt, edx=pp)
+        k = struct.unpack('<i', emu.cpu.read(cnt, 4))[0]
+        left = [list(struct.unpack('<3f', emu.cpu.read(pp + 12 * i, 12))) for i in range(k)]
+        orig = [list(struct.unpack('<3f', struct.pack('<3f', *pts[3 * i:3 * i + 3]))) for i in range(n)]
+        kept, j = [], 0
+        for i in range(n):
+            if j < k and orig[i] == left[j]:
+                kept.append(i)
+                j += 1
+        if k < 3:  # refused either way (the original fed 2 points says so differently)
+            continue
+        take = lambda v, w: None if v is None else [x for i in kept for x in v[w * i:w * i + w]]
+        theirs = emu.add(k, [x for i in kept for x in orig[i]], take(normals, 3), take(uvs, 2), 0, None, None,
+                         1 if textured else 0, 0, 0, zone, take(colors, 3))
+        probe.probe_gadd_begin(precision, 1)
+        c = lambda v, t=ctypes.c_float: ctypes.cast((t * len(v))(*v), P) if v is not None else None
+        pbuf = (ctypes.c_float * len(pts))(*pts)
+        mine = got(probe.probe_gadd(n, ctypes.cast(pbuf, P), c(normals), c(uvs), 0, None, None, 1 if textured else 0,
+                                    0, 0, c(zone, ctypes.c_uint8), c(colors), BUF, CAP))
+        # The caller's points are left as each side had them; compare the model.
+        def model_part(b, count):
+            at = 0
+            while b[at:at + 4] == b'\x70\0\0\0':
+                at += 12
+            return b[:at + 4] + b[at + 4 + 12 * count:]
+        check('fix_colinear', model_part(mine, n), model_part(theirs, k))
+        probe.probe_gadd_begin(precision, 0)
 
     if fails:
         print(f'{fails} of {runs} runs differ')

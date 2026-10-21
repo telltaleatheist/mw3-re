@@ -1,12 +1,15 @@
 #include "gamez/zgeometry/zgeo_model.h"
 
 #include <cmath>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
 #include "crt/msvc_rand.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zgeometry/zgeo_convexify.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zgeometry/zgeo_weiler.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -48,11 +51,25 @@ ColorCache& colors() {
   return c;
 }
 Hooks::Hooks()
-    : material_add(zmod::material_add),
+    : model_add([](zmod::Model* m, int32_t n, const float* points, const float* normals, const float* uvs, uint32_t a,
+                   uint32_t b, uint32_t c, zmod::Material* material, int32_t priority, uint32_t flag,
+                   const uint8_t zone[4], const float* colors) {
+        zmod::PolygonAdd add;
+        // 0x0053c6c0 drops colinear points from the caller's buffer in place.
+        add.points = const_cast<float*>(points), add.normals = normals, add.uvs = uvs;
+        add.morph = static_cast<int32_t>(a), add.morph_points = reinterpret_cast<const float*>(static_cast<uintptr_t>(b));
+        add.morph_uvs = reinterpret_cast<const float*>(static_cast<uintptr_t>(c));
+        add.material = material, add.priority = priority, add.flag = flag, add.zone = zone, add.colors = colors;
+        return zmod::model_add_polygon(m, n, add);
+      }),
+      material_add(zmod::material_add),
       rand(crt::msvc_rand),
       node_model(zgeo::node_model),
       node_set_model(zcls::node_set_model),
-      model_release(zmod::model_release) {}
+      model_release(zmod::model_release),
+      weiler_free([](void* w) { zgeo::weiler_free(static_cast<Weiler*>(w)); }),
+      model_alloc(zmod::model_alloc),
+      world_node(nullptr) {}
 Hooks& hooks() {
   static Hooks h;
   return h;
@@ -376,6 +393,280 @@ int copy_polygon(zmod::Model* m, const zmod::Model& src, const zmod::Polygon& p)
   return hooks().model_add(m, n, points.empty() ? nullptr : points.data(), normals.empty() ? nullptr : normals.data(),
                            p.uvs, 0, 0, 0, p.material, p.priority, p.flags >> 8 & 1,
                            reinterpret_cast<const uint8_t*>(&p.zone_set), colors.empty() ? nullptr : colors.data());
+}
+
+namespace {
+void report_text(int level, int line, const char* format, ...) {
+  char text[256];
+  va_list ap;
+  va_start(ap, format);
+  std::vsnprintf(text, sizeof text, format, ap);
+  va_end(ap);
+  zerr::report(level, kFile, line, text);
+}
+float nodef(const zcls::Node* node, int off) { return node->get<float>(off); }
+// A node with a box (flag 0x200) away from the outline's box by more than
+// 1 (the node's z is the plane's -y).
+bool box_away(const ClipPolygon& c, const zcls::Node* node) {
+  return c.box[2] - -1.0f < nodef(node, 0x8c) || nodef(node, 0x98) < c.box[0] - 1.0f ||
+         -nodef(node, 0x94) < c.box[1] - 1.0f || c.box[3] - -1.0f < -nodef(node, 0xa0);
+}
+Weiler* weiler_of(ClipPolygon& c) { return static_cast<Weiler*>(c.weiler); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0050e950
+zmod::Model* crater_node(const CellClip& cell, zcls::Node* world, zcls::Node** node) {
+  zcls::Node* n = zcls::object3d_create();
+  if (!n) {
+    if (node) *node = nullptr;
+    return nullptr;
+  }
+  n->set_flags(n->flags() | 0x8000);
+  if (node) *node = n;
+  zcls::node_set_zone(n, 0xff);
+  for (const NodeModel& nm : cell.nodes) {
+    if (!(nm.node->flags() & 0x10000)) continue;
+    const uint8_t zone = nm.node->raw[0x30];  // 0x004eb6a0
+    if (zone != 0xff) {
+      zcls::node_set_zone(n, zone);
+      break;
+    }
+  }
+  zcls::node_set_clip_to(n, 1);
+  zmod::Model* m = hooks().model_alloc();
+  if (!m) {
+    if (node) *node = nullptr;
+    zcls::node_release(n);  // 0x004f3390
+    return nullptr;
+  }
+  zcls::node_add_child(world, n);
+  hooks().node_set_model(n, m);
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x0050ea50. A skipped polygon's report gives the last
+// polygon's count, not its own.
+int snap_outline(ClipPolygon& c, zcls::Node* node) {
+  if (!node) return 0;
+  zmod::Model* m = node->model;
+  if (!m) return 0;
+  if ((node->flags() & 0x200) && box_away(c, node)) return 0;
+  int snapped = 0;
+  uint32_t last = 0;
+  std::vector<float> pts;
+  for (uint32_t i = 0; i < m->count(0x10); ++i) {
+    const zmod::Polygon& p = m->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+    if (n < 3) {
+      report_text(0x400, 0x447, "Skipping clip of polygon with (%d) verts", last);
+      continue;
+    }
+    polygon_points(*m, p, pts);
+    to_plane(pts.data(), n);
+    float box[4];
+    box_of(box, pts.data(), n);
+    if (boxes_touch(box, c.box) && snap(pts.data(), n, c.points.data(), c.count, 0.1f, 0.1f)) snapped = 1;
+    last = static_cast<uint32_t>(n);
+  }
+  return snapped;
+}
+
+// Mech3.exe 1.2 @ 0x0050f7b0
+int clear_of(ClipPolygon& c, zmod::Model* m) {
+  if (!m) return 0;
+  int ok = 1;
+  std::vector<float> pts;
+  for (uint32_t i = 0; i < m->count(0x10) && ok; ++i) {
+    const zmod::Polygon& p = m->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+    if (n < 3) {
+      report_text(0x400, 0x6b0, "Skipping clip of polygon with (%d) verts", n);
+      continue;
+    }
+    polygon_points(*m, p, pts);
+    to_plane(pts.data(), n);
+    float box[4];
+    box_of(box, pts.data(), n);
+    Result r;
+    const int code = boxes_touch(box, c.box) ? clip(*weiler_of(c), 4, pts.data(), n, &r) : 1;
+    if (code == 0) {
+      report_text(0x200, 0x6cf, "Weiler algorithm clip error occurred.");
+      ok = 0;
+    } else if (code == 2) {
+      if (r.count(2) == 0) report_text(0x200, 0x6d7, "Intersection found, no polygons...");
+      ok = 0;
+    } else if (code == 3 || code == 4) {
+      ok = 0;
+    }
+    free_result(r);
+  }
+  return ok;
+}
+
+// Mech3.exe 1.2 @ 0x0050f120. The Weiler is made again from the outline
+// before the next polygon once cut points joined it (within this model
+// only: the flag starts at 0 for each).
+int clip_model(ClipPolygon& c, zmod::Model* src, zmod::Model** out) {
+  if (!src) return 1;
+  zmod::Model* m = hooks().model_alloc();
+  if (!m) return 0;
+  std::memset(m->header, 0, 4);   // 0x00539cc0(m, 0)
+  zmod::expand_strips(*src);      // 0x00553160
+  int changed = 0, renew = 0;
+  std::vector<float> pts;
+  for (uint32_t i = 0; i < src->count(0x10); ++i) {
+    const zmod::Polygon& p = src->polygons[i];
+    const int32_t n = static_cast<int32_t>(p.flags & 0xff);
+    if (n < 3) {
+      report_text(0x400, 0x5b8, "Skipping clip of polygon with (%d) verts", n);
+      continue;
+    }
+    polygon_points(*src, p, pts);
+    to_plane(pts.data(), n);
+    float box[4];
+    box_of(box, pts.data(), n);
+    Result r;
+    int code = 1;
+    if (boxes_touch(box, c.box)) {
+      if (renew) {
+        Weiler* w = weiler_of(c);
+        weiler_renew(&w, c.points.data(), c.count);
+        c.weiler = w;
+        renew = 0;
+      }
+      code = clip(*weiler_of(c), 3, pts.data(), n, &r);
+    }
+    switch (code) {
+      case 0:
+        hooks().model_release(m);
+        return 0;
+      case 1:
+        copy_polygon(m, *src, p);
+        break;
+      case 2: {
+        changed = 1;
+        // The exe reads the first inside contour unchecked; the clip always
+        // leaves one with code 2.
+        if (r.count(0) && insert_points(c, &r.points[static_cast<size_t>(r.lists[0][0].start)], r.lists[0][0].count))
+          renew = 1;
+        Convex cv;
+        if (convexify(r.lists[1].data(), r.count(1), r.point_count(), r.points.data(), cv)) {
+          from_plane(cv.points.data(), static_cast<int32_t>(cv.points.size() / 3));
+          size_t k = 0;  // the exe steps on only past pieces of 3 or more
+          for (size_t j = 0; j < cv.polys.size(); ++j) {
+            const ResultContour& piece = cv.polys[k];
+            if (piece.count < 3) continue;
+            add_child(m, piece.count, &cv.points[static_cast<size_t>(piece.start)], *src, p);
+            ++k;
+          }
+        }
+        break;
+      }
+      case 3:
+        changed = 1;
+        break;
+      case 4: {
+        if (r.count(1) == 0) {
+          zerr::report(0x100, kFile, 0x629, "\nWEILER_CLIP_IN_SUBJ\n\tclip.outside.num_polys = 0\n");
+          hooks().model_release(m);
+          return 0;
+        }
+        changed = 1;
+        Weiler* w = weiler_of(c);
+        const int32_t nr = w->region_count;
+        RingTriangles ring = ring_triangles(n, pts.data(), nr, w->region.data());
+        if (insert_points(c, w->region.data(), nr)) renew = 1;
+        if (ring.count < n + nr) {
+          hooks().model_release(m);
+          return 0;
+        }
+        for (int32_t t = 0; t < ring.count; ++t) {
+          float* tri = &ring.points[9 * static_cast<size_t>(t)];
+          face_up(tri, 3, 1);
+          from_plane(tri, 3);
+          add_child(m, 3, tri, *src, p);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    free_result(r);
+  }
+  if (!changed) {
+    hooks().model_release(m);
+    m = nullptr;
+  }
+  *out = m;
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0050ef70
+int clip_node(ClipPolygon& c, zcls::Node* node, zmod::Model** out) {
+  if (!node || !node->model) return 1;
+  const uint32_t flags = node->flags();
+  if ((flags & 0x200) && box_away(c, node)) return 1;
+  if (flags & 0x20000) {
+    *out = nullptr;
+    return clear_of(c, node->model);
+  }
+  if (flags & 0x10000) {
+    const int r = clip_model(c, node->model, out);
+    zcls::Frames& f = zcls::frames();
+    if (r && node->get<uint32_t>(0xc4) <= f.frame) {
+      f.expiry = f.frame + 0xa0;
+      zcls::set_expiry(node);
+    }
+    return r;
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x0050ec10. The world's own children come before the
+// cell's nodes.
+int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& set) {
+  if (!cell || !points) {
+    report_text(0x100, 0x48b, "Null Area Partition (0x%08x) or null Outline (0x%08x) passed to ClipPatch", 0u, 0u);
+    return -1;
+  }
+  ClipPolygon* c = clip_polygon_new(points, n);
+  set.cells.emplace_back();
+  CellClip& cc = set.cells.back();
+  cc.cell = cell;
+  const int16_t cell_nodes = cell->get<int16_t>(0x3a);
+  // FIX (bug): the exe sizes the changed-node list by the cell's node
+  // count only, though the world's own ground nodes may add to it.
+  cc.nodes.reserve(static_cast<size_t>(cell_nodes));
+  std::vector<zcls::Node*> keep, cut;  // flag 0x20000, 0x10000 (both need 4)
+  auto sort = [&](zcls::Node* node) {
+    const uint32_t f = node->flags();
+    if (!(f & 4)) return;
+    if (f & 0x20000) keep.push_back(node);
+    if (f & 0x10000) cut.push_back(node);
+  };
+  zcls::Node* world = hooks().world_node();
+  for (int32_t i = 0; i < world->child_count(); ++i) sort(world->children[i]);
+  for (int16_t i = 0; i < cell_nodes; ++i) sort(cell->nodes[i]);
+  for (zcls::Node* node : cut)
+    if (snap_outline(*c, node)) box_of(c->box, c->points.data(), c->count);
+  c->weiler = weiler_new(c->points.data(), c->count, 0);
+  int ok = 1;
+  zmod::Model* unused = nullptr;
+  for (size_t i = 0; i < keep.size() && ok; ++i) ok = clip_node(*c, keep[i], &unused);
+  for (size_t i = 0; i < cut.size() && ok; ++i) {
+    NodeModel nm{cut[i], nullptr};
+    ok = clip_node(*c, cut[i], &nm.model);
+    if (nm.model) cc.nodes.push_back(nm);
+  }
+  int32_t count = static_cast<int32_t>(cc.nodes.size());
+  if (count == 0 || !ok) {
+    set.cells.pop_back();
+    count = 0;
+  } else {
+    clip_polygon_out(*c, &set.point_count, set.points);
+  }
+  clip_polygon_free(c);
+  return count;
 }
 
 }  // namespace zgeo

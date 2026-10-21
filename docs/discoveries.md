@@ -334,7 +334,26 @@ From the weapon code (weapons.md).
   its edge, and puts in a sloped ring and a floor, textured to match the
   ground it hit (beach, road, sand and mud each have their own crater
   texture, set per world in `declient.zrd`). Each patch of ground only
-  takes so many craters, and none are made right next to certain buildings.
+  takes so many craters, a crater is not made within 5 m of an earlier
+  one in the same patch, and none cut ground that must stay whole (nodes
+  marked so, among them the craters themselves: a crater never cuts
+  another). The crater's ring is the ground around it at the hit's height,
+  the slope runs down to points half way to the centre one crater depth
+  lower, and the floor's centre sits two depths below the hit.
+- **The overlap test reads a crater the game already threw away.** The
+  record a crater keeps for the 5 m test is freed as soon as the crater is
+  finished, so the next crater in that patch compares itself with whatever
+  the memory holds by then: sometimes the old crater, sometimes the new
+  one (refusing it), sometimes junk. The rebuild keeps the outlines.
+- **Cut ground can have its texture slid by one corner.** When a crater's
+  cut leaves a piece with a corner on a straight edge, the game drops that
+  corner from the shape but not from the texture coordinates or colours,
+  so the rest of that piece is textured and shaded as if shifted along by
+  one corner (about 1 polygon in 200 that a crater adds). Fixed in the
+  rebuild.
+- **An untextured crater would crash the game.** The crater code writes the
+  floor's texture position even when the crater has no texture. Every
+  shipped crater has its texture flags, so it never happens.
   The cut ground is rebuilt from triangles and four-sided pieces: whatever
   is left of a ground polygon around the hole is split into convex pieces,
   and a crater that lands wholly inside one big ground polygon gets the
@@ -354,11 +373,12 @@ From the weapon code (weapons.md).
   third case, close to the second, writes points without end instead (a
   crash). The rebuild stops each one: the piece of ground is left uncut, or
   in the third case is cut correctly.
-- **Unused: rainbow craters.** A crater that cuts untextured ground, or one
-  made without its texture flags, gets pieces of random colour, a leftover
-  debug fallback (whose colours are even packed from the wrong bits). Every
-  shipped world's diggable ground is textured and every crater keeps its
-  flags, so it never shows.
+- **Unused: rainbow craters.** A crater that cuts untextured ground gets
+  pieces of random colour, a leftover debug fallback (whose colours are even
+  packed from the wrong bits); one made without its texture flags would
+  crash the game before it got that far (see above). Every shipped world's
+  diggable ground is textured and every crater keeps its flags, so neither
+  shows.
 - **Unused: quicksand weapons.** The same system can sink an animated
   quicksand pit (seven frames, looping, with its own soil type) where a
   shot lands, for a weapon with the `QUICKSAND` flag. Every world sets the

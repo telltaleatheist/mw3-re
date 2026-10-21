@@ -8,6 +8,7 @@
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zutil/zfix.h"
 
 namespace {
 std::vector<uint8_t> g_out;
@@ -29,7 +30,9 @@ int32_t cnt(int off) { return static_cast<int32_t>(g_model.count(off)); }
 }  // namespace
 
 // A fresh model; materials 0 (untextured) and 1 (textured).
-extern "C" void probe_gadd_begin(float precision) {
+// `fixes`: the colinear drop's FIX (zfix bugs) on.
+extern "C" void probe_gadd_begin(float precision, int fixes) {
+  zfix::options().bugs = fixes != 0;
   zerr::set_sink(sink);
   std::memset(g_model.header, 0, sizeof g_model.header);
   g_model.polygons = nullptr, g_model.vertices = nullptr, g_model.normals = nullptr, g_model.morphs = nullptr;

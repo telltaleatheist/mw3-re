@@ -493,3 +493,34 @@ Newest last. One short entry per item: what, commits, what to remember.
   0x50f120, 0x50f7b0, 0x4eb6a0) and the crater (zDEClient 0x4ff940 ..
   0x500850, 0x500600 / 0x500da0), wired defaults (model_add hook →
   model_add_polygon), end-to-end on the worlds (test_scenewalk loader).
+
+## 2026-10-21 — craters part 5b: the clip and the crater (branch mac2/crater)
+
+- Ported: zgeo_model crater_node 0x50e950, snap_outline 0x50ea50,
+  clip_cell 0x50ec10, clip_node 0x50ef70, clip_model 0x50f120, clear_of
+  0x50f7b0 (+0x4eb6a0 inline, 0x539cc0 inline); gmod_const expand_strips
+  0x553160; new zdec_crater: crater_make 0x4ffaa0, crater_instance
+  0x4ff940, crater_build 0x4ffad0, record_new/free 0x4ffe80/0x4ff8f0,
+  crater_clip 0x4fff20, crater_tessellate 0x4fff80, history_push 0x500850,
+  note_touched 0x500600 (std::set), world_node 0x5020b0, cell_at 0x502090.
+  zgeo Hooks gained model_alloc and world_node; model_add defaults to
+  zmod::model_add_polygon, weiler_free to zgeo::weiler_free.
+- Finds: ZDEC_FEATURE is the crater node's own name (record at +0x40):
+  the 5 m test is crater-vs-crater (discoveries corrected). The record is
+  freed while the node points at it (FIX bug: features kept). Untextured
+  order → null UV write crash (FIX bug; test confirms the crash). The
+  normals argument 0x5eb910 is 4 up vectors. The floor centre is 2 depths
+  below the hit. The changed-node list overrun (FIX bug, vector).
+- 5a review follow-ups (mac 1): colinear drop FIX (bug) behind zfix bugs
+  (other arrays compacted; real craters: 37 drops with UVs in 8,166 adds);
+  test_gmod_add's fix_colinear section compares the port with the fix on
+  against the original fed cleaned arrays (233 identical); kPlanar
+  comment (the debug console's 0x538070 / 0x538080); add_record's
+  new[] note; the planarity sum already in x87 order.
+- Test test_crater.py (run_all): 40 craters per world on the six worlds
+  (test_di.World loader; stubs memmove, sprintf "%s", 0x500850 history,
+  0x500600 set, 0x508aa0 dust), plus an untextured crater per world that
+  must crash the original. 246 identical (158 made). BREAK=1/2 fail.
+  Real craters hit Weiler merge types 4, 5, 10 only (scratch/cov_crater.py).
+- Next: 5c, wiring crater_make into zwep (app_weapons r.crater_make), the
+  veto, the dust anim, and a c1m1 run.
