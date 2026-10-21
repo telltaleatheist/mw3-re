@@ -166,6 +166,12 @@ struct ProgramHudHooks : HudHooks {
     entity_position(v, out);
   }
   uint32_t object_team(void* o) override { return o ? mech_of(o)->team : 0; }
+  // 0x0043da50's click (0x00432990 on the source HUD's mech): radar_up (0x10)
+  // into +0x5f8 growing, radar_down (0x11) into +0x5fc shrinking.
+  void radar_zoom_sound(void* source, bool zoomed) override {
+    Mech* m = static_cast<Hud*>(source)->mech;
+    if (m && heat_calls().play_sound) m->sounds[zoomed ? 16 : 17] = heat_calls().play_sound(*m, zoomed ? 0x10 : 0x11);
+  }
   uint32_t mech_allies(Mech* m) override { return m->allies; }
   uint32_t mech_enemies(Mech* m) override { return m->enemies; }
   uint32_t project(const float in[3], float out[3]) override {  // 0x0053cf10
@@ -393,6 +399,36 @@ namespace {
 // 0x00430aa0 on the pilot (+0x684): its HUD, made when first asked.
 Hud* hud_of(Mech& m) { return m.pilot ? pilot_hud(*m.pilot) : nullptr; }
 Hud* hud_of(Handle owner) { return owner ? hud_of(*static_cast<Mech*>(owner)) : nullptr; }
+
+// Mech3.exe 1.2 @ 0x0041be80's HUD cases (Mech::command's hud hook, on the
+// view's HUD; docs/keybindings.md).
+void hud_command(void* s, int32_t cmd) {
+  auto* h = static_cast<Hud*>(s);
+  // FIX (bug): keypad 0 with no HUD (the view's mech without one) ran
+  // 0x00442e00 on address 0x1508, a crash; nothing here.
+  if (!h) return;
+  switch (cmd) {
+    case 0x15: h->reticle.zoom.toggle_lock(); break;  // keypad 0
+    case 0x43:  // F12: the objectives' vt+0x60(-1) when hidden, else vt+0x64
+      if (h->objectives.flags & ztwod::kHidden) h->objectives.show_for(-1.0f);
+      else h->objectives.hide();
+      break;
+    case 0x49: program_hud_target_set(h->mech); break;  // the target set (0x0041d890's HUD part)
+    case 0x68: h->radar.toggle_zoom(); break;         // R
+    case 0x6b: h->set_active(h->active == 0); break;  // H: vt+4
+    case 0x74: h->mfd.cycle_mode(); break;            // D (0x0043d240)
+    case 0x75: h->target.cycle_mode(); break;         // Ctrl+D (0x0043d250)
+    case 0xa5: h->radar.toggle_map(); break;          // Shift+R
+    default: break;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041ded0 (the mech's vt+0xb8, after Alt+R): the view's
+// HUD's radar amber while the radar is passive (+0xbc bit 2).
+void radar_light(Mech& m) {
+  if (&m != program_view_target()) return;
+  if (Hud* h = hud_of(m)) h->radar.set_amber((m.xbc >> 2 & 1) != 0);
+}
 }  // namespace
 
 void wire_hud() {
@@ -403,6 +439,18 @@ void wire_hud() {
   // 0x004464c0 (+0x11438 = 1) and the weapon it highlights (+0x1795c).
   heat_calls().screen = [](Mech& m) -> void* { return hud_of(m); };
   command_calls().hud_weapon = [](void* s) -> void* { return static_cast<Hud*>(s)->weapons.next_weapon; };
+  // The HUD's keys (playtest #13, #20): the commands', and the zoom key held
+  // (the controls' update: the zoom window +0x1508, its flags +0x1514 and
+  // its lock +0x167c), its show and hide every frame.
+  command_calls().hud = hud_command;
+  command_calls().hud_aimed_node = [](void* s) -> void* { return static_cast<Hud*>(s)->reticle.hit.node; };
+  controls_calls().screen_busy = [](void* s) { return static_cast<Hud*>(s)->reticle.zoom.x174; };
+  controls_calls().zoom = [](void* s, bool in) {
+    HudZoomWindow& z = static_cast<Hud*>(s)->reticle.zoom;
+    if (in) z.show_for(-1.0f);
+    else z.hide();
+  };
+  part_calls().screen_flags = [](void* s) { return static_cast<Hud*>(s)->reticle.zoom.flags; };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
   WeaponCalls& wc = weapon_calls();
@@ -418,9 +466,13 @@ void wire_hud() {
   update_calls().player_frame = [](Mech& m, float) { player_frame(m); };  // 0x0041ce60
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
   mech_hud_calls().cockpit = make_cockpit;  // 0x00430ad0's second half (playtest #4)
-  command_calls().other = [](Mech&, int32_t cmd) {
+  command_calls().other = [](Mech& m, int32_t cmd) {
     if (cmd == 0xa6) {
       if (message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key
+      return;
+    }
+    if (cmd == 0x69) {
+      radar_light(m);
       return;
     }
     // The rest stay unported, recorded as the handler would (docs/keybindings.md).
@@ -438,6 +490,9 @@ void unwire_hud() {
   set_hud_hooks(nullptr);
   heat_calls().screen = nullptr;
   command_calls().hud_weapon = nullptr;
+  command_calls().hud = nullptr, command_calls().hud_aimed_node = nullptr;
+  controls_calls().screen_busy = nullptr, controls_calls().zoom = nullptr;
+  part_calls().screen_flags = nullptr;
   update_calls().hud_weapons = nullptr;
   damage_calls().hud_weapons = nullptr;
   WeaponCalls& wc = weapon_calls();
@@ -459,6 +514,31 @@ void program_hud_force_over(bool on) { g_hooks.force_over = on; }
 void program_hud_data(float dt) {
   Mech* m = static_cast<Mech*>(program_view_target());
   if (Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr) h->data_update(dt);
+}
+
+namespace {
+int g_count_id = 0;
+int* g_count = nullptr;
+Sound (*g_count_play)(Mech&, int) = nullptr;
+void* (*g_count_part)(Mech&, int, float) = nullptr;
+}  // namespace
+
+void program_count_sounds(int id, int* count) {
+  if (!count) {
+    if (g_count) heat_calls().play_sound = g_count_play, part_calls().sound = g_count_part;
+    g_count = nullptr;
+    return;
+  }
+  g_count_id = id, g_count = count;
+  g_count_play = heat_calls().play_sound, g_count_part = part_calls().sound;
+  heat_calls().play_sound = [](Mech& m, int i) -> Sound {
+    *g_count += i == g_count_id;
+    return g_count_play ? g_count_play(m, i) : nullptr;
+  };
+  part_calls().sound = [](Mech& m, int i, float v) -> void* {
+    *g_count += i == g_count_id;
+    return g_count_part ? g_count_part(m, i, v) : nullptr;
+  };
 }
 
 bool program_hud_report(HudReport* r) {
@@ -496,6 +576,12 @@ bool program_hud_report(HudReport* r) {
   for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
   for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];
   r->target_mode = h->target.shown_mode();
+  r->zoom_shown = !(h->reticle.zoom.flags & ztwod::kHidden);
+  r->zoom_locked = h->reticle.zoom.x174;
+  r->radar_large = h->radar.zoomed, r->radar_map = h->radar.active, r->radar_amber = h->radar.x58;
+  r->mfd_mode = h->mfd.mode, r->target_mode_set = h->target.mode;
+  r->objectives_shown = !(h->objectives.flags & ztwod::kHidden);
+  r->hud_on = h->active;
   for (const HudEquipLine& l : h->equipment.lines) r->equip_lines += !(l.flags & ztwod::kHidden);
   if (h->equipment.flags & ztwod::kHidden) r->equip_lines = 0;
   for (int32_t k : {0, 12, 3, 8, 14, 6, 7, 4}) r->equip_wanted += std::max(0, m->equipment[k]);
@@ -519,12 +605,16 @@ bool program_hud_report(HudReport* r) {
 }
 
 // Mech3.exe 1.2 @ 0x0041d890's HUD part (the mech's vt+0xc0 after AiTarget's
-// 0x004d5e40): the view's mech's TARGET turned on for its new target (its
-// target sound 0x00432990 with 0x18 not ported here).
+// 0x004d5e40): the view's mech's TARGET turned on for its new target, and
+// the target sound (0x18) played on the new target's mech, kept at its +0x618.
 void program_hud_target_set(void* mech) {
   Mech* m = static_cast<Mech*>(mech);
   if (!m || m != program_view_target() || !m->pilot) return;
-  if (Hud* h = pilot_hud(*m->pilot)) h->target.set_shown(true);
+  Hud* h = pilot_hud(*m->pilot);
+  if (!h) return;
+  h->target.set_shown(true);
+  Mech* tm = m->target && collide_calls().contact_mech ? collide_calls().contact_mech(m->target) : nullptr;
+  if (tm && heat_calls().play_sound) tm->sounds[24] = heat_calls().play_sound(*tm, 0x18);
 }
 
 int program_hud_lock_on(void* mech, bool* target_set) {

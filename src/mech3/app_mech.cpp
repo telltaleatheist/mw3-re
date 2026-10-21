@@ -297,6 +297,22 @@ void wire_mech_frame() {
   CommandCalls& k = command_calls();
   k.unported = [](const char* key, int32_t cmd) { return g_w.unported(g_w.engine, key, {cmd}); };
   k.handle = [](Mech& m) { return g_w.handle_of(g_w.engine, &m); };
+  // Z and Q's aimed object (0x0040eee0) by its handle: a mech's team and no
+  // refusal (0x004d7290), a targets.zrd object's by its zoom_select /
+  // reticule_select (0x004d3360, 0x004d3370); anything else (the vehicles,
+  // not ported) refuses nothing and has no team.
+  k.node_entity = [](void* n) { return n ? g_w.handle_of(g_w.engine, node_entity(n)) : 0u; };
+  k.entity_team = [](uint32_t e) -> uint32_t {
+    if (Mech* m = entity_mech(e)) return m->team;
+    for (const ai::CZAiTarget* t : ai::target_list())
+      if (t->self == e) return t->team;
+    return 0;
+  };
+  k.entity_refuses = [](uint32_t e, bool zoom) {
+    for (const ai::CZAiTarget* t : ai::target_list())
+      if (t->self == e) return !(t->desc.flags & (zoom ? 8 : 4));
+    return false;
+  };
   k.view_camera = program_view_set_camera;                                                  // 0x0040ae70
   k.set_view_option = program_set_mouse_mode;                                              // [[0x005f4d44]]
 }

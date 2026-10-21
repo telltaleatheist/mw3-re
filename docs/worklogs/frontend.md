@@ -894,3 +894,36 @@ caught message sound / fix sort (traces differ)
 MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
 27 caught
 ```
+
+## 2026-10-21 Playtest #20 with #13 and #7: the HUD keys (branch mac3/hud-keys)
+
+- #20's cause: the controls' update (0x00427d60) clicks the zoom whenever
+  the zoom window's hidden bit (+0x1514 bit 4) disagrees with the held key,
+  then shows or hides it every frame. None of ControlsCalls::screen_busy /
+  zoom or PartCalls::screen_flags was wired in the program: the flags read
+  0 ("shown") with the key up, so the click played every frame and the
+  window never opened. Wired to the zoom window (HUD +0x1508); one click
+  per change now. screen_flags also turns on the torso's slow turn while
+  zoomed.
+- #13: the HUD keys through CommandCalls::hud, answered by app_hud.cpp's
+  hud_command (keypad 0 0x00442e00, F12, T's TARGET part, R 0x0043da40, H,
+  D / Ctrl+D 0x00442440, Shift+R 0x0043dc10) and Alt+R's light 0x0041ded0;
+  Z and Q's pick (0x0041c1ab.., 0x004a7b40) ported into Mech::command with
+  hooks for the aimed node, its object, team and refusals; 0x0041d890's
+  HUD part now plays the target's own sound (slot 24, mech_<name>: none
+  ships). R's radar_up / radar_down wired. 0x0043da00 was misnamed
+  select_sound: it picks the mission map ("small"/"large", 0x00458590,
+  not ported: the program answers none, so Shift+R turns itself off).
+- FIX (bug): keypad 0 with no HUD ran 0x00442e00 on 0x1508 (fixes.md,
+  CHANGES.md).
+- #7's watch: nothing exploitable; Q targets allies, Z/Q over an unlisted
+  object drop the target (community-issues.md, discoveries).
+- Tests: test_hud.py ops 34..38 (100 seeds), test_command.py with the pick
+  run for real (6096), mw3tests playtest_hud_keys_zoom_radar_mfd_headless.
+  Breaks (scratchpad hudkeys/breaks.py, every test capped): 27/28 caught;
+  the miss (the MFD's save when 0) cannot show. The first run's Alt+R check
+  missed an inverted light (it pressed until amber); now two presses with
+  the range checked.
+- Left: F12's text (0x00446ad0, the objectives' lines), the mission maps'
+  list (0x00458590), targets.zrd objects' node binding (0x0040eaa0) so Z/Q
+  find buildings.
