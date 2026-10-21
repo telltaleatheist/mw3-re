@@ -34,6 +34,7 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_fog.h"
+#include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
@@ -694,6 +695,7 @@ struct WiredMissionHooks : MissionHooks {
     zimg::texture_load() = zimg::TextureLoad{};
     zimg::texture_hooks() = zimg::TextureHooks{};
     zimg::texture_hooks().release = [](void* s) { zvid::release_texture(static_cast<zvid::D3DTexture*>(s)); };  // 0x0057bb00
+    zimg::texture_hooks().projected = zmod::mark_is_map;  // 0x00542710: a mark image stays a software image
     zvid::set_pixel_format(5, 6, 5);
     zvid::channel_masks() = {0xf800, 0x07e0, 0x001f};
     zvid::set_render3d(e->platform_parts().render);

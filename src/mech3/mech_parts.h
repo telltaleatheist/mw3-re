@@ -75,8 +75,11 @@ struct FlyCalls {
   void (*clear_ids)(Handle node) = nullptr;            // 0x00462000: +0x28, +0x40, +0xbc down the tree
   void (*set_node)(MechPart& p, Handle node) = nullptr;  // vt+0x0c, 0x00460190 (part_set_node)
   void (*mark)(MechPart& p, int32_t id) = nullptr;     // 0x00460050(id, 0): part_mark_nodes
-  void (*fade)(Handle node) = nullptr;                 // instant action: 0x004fbb90(1), 0x004fba20(1.0)
   bool (*instant_action)() = nullptr;                  // 0x00479460
+  bool (*opacity_used)(Handle node) = nullptr;         // 0x004fbb10
+  void (*use_opacity)(Handle node, int32_t on) = nullptr;  // 0x004fbb90
+  float (*opacity)(Handle node) = nullptr;             // 0x004fbaa0
+  void (*set_opacity)(Handle node, float v) = nullptr;     // 0x004fba20
 };
 FlyCalls& fly_calls();
 // The end callback a part's effects get (0x00508f00 with 0x00461c90, ECX the

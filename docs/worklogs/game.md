@@ -751,3 +751,21 @@ view's ground, the anim lookups 0x50b450 (92).
   identical seeds 1/2, BREAK=7 (side), 8 (world matrix) fail. The Owens
   death test blows its left arm off first: one flying node, in the world,
   the stub in its place.
+- Item 4 review (mac 1): fly_away now reads the old id before set_node and
+  the side off the new node's id after marking (as 0x00461ece / 0x00461f07);
+  the mech lookups' node fallback noted as unneeded (every port part has
+  its mech). The purge (0x00413cb0 / 0x00413c30) ported as
+  Mech::fade_debris and wired: the IA fade follows the mech's opacity;
+  0x00413c30 returns 0 by `xor al, al`, so the list never shrinks by
+  design: at most four nodes per mech, not a per-frame leak. object3d
+  0x004fbb10 ported (object3d_opacity_used).
+- Item 5, surface marks: dead in the shipped game. Only WriteTextureSetMap
+  (0x005426b0, interp) turns [0x0074a2ac] on, and no MW3 or PM script uses
+  it (grep of interp.zbd); init 0x00526515 clears it. Ported the state:
+  mark_set_type/set_map/on/set_uv/enable/is_map (gmod_hit.cpp,
+  0x005426a0..0x00542710), wired to the interp commands, the weapons'
+  impact type and the texture loader's projected hook; 0x00542060 logs
+  unported only if a modded script turns marks on. FIX (bug): a type past 2
+  is ignored in set_map.
+- test_deaths: fade (200) and marks (300) added: 3,153 identical; BREAK=9
+  (map), 10 (IA) fail.

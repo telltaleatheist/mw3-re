@@ -8,6 +8,8 @@
 // (zclass/cls_di.c calls these per node). Original file unknown: the code
 // sits between zModel\gmod_puff.cpp and zReader\zreader.cpp; named gmod_hit
 // here.
+namespace zimg { struct TextureEntry; }
+
 namespace zmod {
 
 // ECX node, EDX its model; the probes (x, y, z each), their mask (0 skips a
@@ -58,13 +60,25 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
 // them), one-sided; the slot's material is 0.
 int32_t box_segment(const float corners[8][3], zcls::LineHit* slot, const float a[3], const float b[3]);  // 0x0054d2f0
 
-// The texture coordinates of the last crossing of a textured polygon, kept
-// while `on` is set (0x0074a2ac, set by 0x00542700; read with 0x005426d0).
+// The surface marks' state (0x005426a0..0x00542710, the gmod_const region;
+// the file is unknown): the texture coordinates of the last crossing of a
+// textured polygon, kept while `on` is set, and the mark images a weapon's
+// impact type picks. Only the script command WriteTextureSetMap turns it on,
+// and no shipped script uses it, so no mark is ever painted
+// (docs/weapon-effects.md).
 struct UvCapture {
   int32_t on = 0;                // 0x0074a2ac
+  int32_t type = 0;              // 0x0074a2b0  the impact type (a weapon's IMPACT_TYPE)
+  zimg::TextureEntry* maps[3] = {};  // 0x0074a2b4  WriteTextureSetMap's images by type
   float uv[2] = {};              // 0x0074a2c0, 0x0074a2c4 (0x005426e0)
 };
 UvCapture& uv_capture();
+void mark_set_type(int32_t type);              // 0x005426a0
+void mark_set_map(zimg::TextureEntry* image);  // 0x005426b0: the type's image, and on
+int32_t mark_on();                             // 0x005426d0
+void mark_set_uv(float u, float v);            // 0x005426e0
+void mark_enable(int32_t on);                  // 0x00542700, never called
+bool mark_is_map(const zimg::TextureEntry* e); // 0x00542710: one of the three (kept as an image when loaded)
 
 // ECX node, EDX its model; the segments (from, to each), their mask, count
 // and records. Each polygon a segment crosses from its front (either side

@@ -37,8 +37,8 @@ TextureEntry* texture_at(int index);                  // 0x00518080
 // ones do nothing (and return null / false).
 struct TextureHooks {
   Texture* (*fallback)(const char* name) = nullptr;  // [0x00638520], never set in 1.2
-  // 0x00542710: the entry is one of the three at 0x0074a2b4 (gmod_const
-  // region, the projected-light textures), kept as an image only.
+  // 0x00542710: the entry is one of the three surface-mark images at
+  // 0x0074a2b4 (zmod::mark_is_map), kept as an image only.
   bool (*projected)(const TextureEntry* entry) = nullptr;
   // [0x0072f374] = 0x0057baa0: copy a new image into an existing record (state 3).
   void (*reload)(void* surface, Texture* image) = nullptr;

@@ -159,6 +159,11 @@ From the port of the damage code, checked in an emulator against the original
 - **The ejection seat ignores which way the mech faces.** Its offset from the
   hip (for the Owens 3.6 m up and 1.46 m along the world's z axis) is added
   in the world's directions, not turned with the mech.
+- **Shots were meant to leave marks on walls.** The engine can paint a mark
+  image into the texture wherever a weapon hits, picked by the weapon's
+  impact type, but only once a mission script hands it the images with
+  `WriteTextureSetMap`, and no mission in MechWarrior 3 or Pirate's Moon
+  does, so the feature never shows.
 - **Kill points come from a weight class that ignores tonnage.** A mech kill
   scores 300, 400, 500 or 700 by the class the roster gives it, and that
   class is often off: the 100-ton Annihilator scores as a heavy (500), the

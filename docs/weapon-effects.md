@@ -86,8 +86,19 @@ copied (0x4f9b50(node, 1, 1); `AnimHooks::copy_tree`).
 - Craters and quicksand: the crater module (zdeclient: 0x4ff920 defaults,
   0x4ffaa0 make, 0x5020f0 / 0x502110 quicksand), ~1,700 lines; 16 weapons
   have `CRATER`.
-- Surface marks: 0x542060 with the decal module around it (gmod region,
-  ~5,000 lines) and its impact type 0x5426a0.
+- Surface marks: the painting 0x542060. Its state is ported (`gmod_hit`,
+  0x5426a0..0x542710): a weapon's `IMPACT_TYPE` (0x5426a0) picks one of
+  three mark images that the script command `WriteTextureSetMap` (0x5426b0)
+  gives, which also turns the marks on ([0x74a2ac]; 0x542700 is never
+  called); the ray queries keep the hit's texture coordinates while they
+  are on (0x5426e0), and a mark image stays a software image when loaded
+  (0x542710). **No shipped script (MW3 or Pirate's Moon) uses the command**,
+  so the marks are never on and 0x542060 returns at once in the game. When
+  on, it would blend the image (an alpha byte per pixel: 565 or 555 by the
+  pixel format [0x74a738], or a colour-keyed copy) into the hit material's
+  texture centred on the coordinates (wrapped to 0..1), locking the
+  texture through [0x72f368] and reloading it ([0x72f36c], [0x72f374](0)).
+  The port logs `0x00542060` if a modded script turns them on.
 - The lens-flare list (0x567420, 0x5674e0, 0x5675e0) and the software
   renderer's pixel plot 0x562d90.
 - zEffect's table entries and spawn (0x50d2c0's records, 0x50d650): never

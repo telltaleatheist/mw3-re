@@ -24,6 +24,7 @@
 #include "gamez/zclass/light.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app_view.h"
@@ -242,10 +243,9 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   r.world_remove_light = [](zwep::Handle l) {
     if (qworld()) zcls::world_remove_light(qworld(), zn(l));
   };
-  // The decal module's impact type (0x005426a0: [0x0074a2b0]) is read only
-  // by the surface marks (0x00542060), not ported. Craters and quicksand are
-  // zDEClient's.
-  r.impact_type = [](int32_t) { unported("0x005426a0"); };
+  // The surface marks' impact type ([0x0074a2b0]), read only by 0x00542060.
+  // Craters and quicksand are zDEClient's.
+  r.impact_type = zmod::mark_set_type;  // 0x005426a0
   r.crater_defaults = zdec::crater_defaults;        // 0x004ff920
   r.crater_make = zdec::crater_make;                // 0x004ffaa0
   r.quicksand_defaults = zdec::quicksand_defaults;  // 0x005020f0
@@ -331,7 +331,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return zwep::quicksand(d, hit, soil, p), 0;
   };
   h.impact_effect = [](int32_t e, const zwep::Vec3f3*) { zeff::effect_spawn(e); };        // 0x0050d650
-  h.surface_mark = [](zwep::HitRecord*) { unported("0x00542060"); };
+  // 0x00542060: nothing unless a script gave a mark image (none ships); the
+  // painting into the hit texture is not ported (weapon-effects.md).
+  h.surface_mark = [](zwep::HitRecord*) {
+    if (zmod::mark_on()) unported("0x00542060");
+  };
   h.soil = [](zwep::Handle m) { return m ? static_cast<int32_t>(static_cast<zmod::Material*>(m)->soil) : 0; };
   h.node_intersect = [](zwep::Handle n) { return (zn(n)->flags() & 0x10) != 0; };
   h.set_intersect = [](zwep::Handle n, int32_t on) { zcls::node_set_intersect(zn(n), on); };

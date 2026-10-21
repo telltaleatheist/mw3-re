@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ESP  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
@@ -31,6 +31,8 @@ probe.probe_canned_free.argtypes = [P, I]
 probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, P, I]
 probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
 probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, P, I]
+probe.probe_fade.argtypes = [I, I, I, F, P, I]
+probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
 BUF = ctypes.create_string_buffer(CAP)
@@ -294,6 +296,75 @@ class Emulated:
         self.logf(k + 0x3f4, 6)
         return bytes(self.out)
 
+    # --- the flown parts' fade 0x413cb0 ---
+    def fade(self, count, ia, used, value):
+        cpu = self.cpu
+        if not hasattr(self, 'fd_setup'):
+            self.fd_setup = True
+            cpu.stub_function(0x479460, lambda c: self.fd_ia)
+            def used_(c):
+                self.log(0x51, 0x6000 if c.ecx == self.fd_mnode else c.ecx)
+                cpu.u32(c.edx, self.fd_used)
+                return 0
+            cpu.stub_function(0x4fbb10, used_)
+            cpu.stub_function(0x4fbb90, lambda c: self.log(0x52, self.fd_map(c.ecx), c.edx))
+            def val(c):
+                self.log(0x53, 0x6000 if c.ecx == self.fd_mnode else c.ecx)
+                cpu.write(c.edx, struct.pack('<f', self.fd_value))
+                return 0
+            cpu.stub_function(0x4fbaa0, val)
+            cpu.stub_function(0x4fba20, lambda c: (self.log(0x54, self.fd_map(c.ecx)), self.logf(cpu.uc.reg_read(UC_X86_REG_ESP) + 4))[0], 4)
+        self.out = bytearray()
+        self.fd_ia, self.fd_used, self.fd_value = ia, used, value
+        m = self.zalloc(0x6d8)
+        self.fd_mnode = self.zalloc(0x100)
+        cpu.u32(m + 4, self.fd_mnode)
+        head = self.zalloc(12)
+        items = []
+        prev = head
+        self.fd_nodes = {}
+        for i in range(count):
+            it = self.zalloc(12)
+            nd = self.zalloc(0x100)
+            self.fd_nodes[nd] = 0x7000 + 0x10 * i
+            cpu.u32(it + 8, nd)
+            items.append(it)
+        ring = [head] + items
+        for i, it in enumerate(ring):
+            cpu.u32(it, ring[(i + 1) % len(ring)])
+            cpu.u32(it + 4, ring[i - 1])
+        cpu.u32(m + 0x6d0, head)
+        cpu.u32(m + 0x6d4, count)
+        cpu.call(0x413cb0, ecx=m, stack_args=(fb(1.0 / 30),))
+        self.log(0xf, self.r32(m + 0x6d4))
+        return bytes(self.out)
+
+    def fd_map(self, v):
+        return self.fd_nodes.get(v, v)
+
+    # --- the surface marks' setters ---
+    def marks(self, ops):
+        self.out = bytearray()
+        cpu = self.cpu
+        for a in (0x74a2ac, 0x74a2b0, 0x74a2b4, 0x74a2b8, 0x74a2bc, 0x74a2c0, 0x74a2c4):
+            cpu.u32(a, 0)
+        for op, a, b in ops:
+            if op == 1:
+                cpu.call(0x5426a0, ecx=a)
+            elif op == 2:
+                cpu.call(0x5426b0, ecx=a)
+            elif op == 3:
+                cpu.call(0x5426e0, stack_args=(a, b))
+            elif op == 4:
+                cpu.call(0x542700, ecx=a)
+            else:
+                cpu.call(0x542710, ecx=a)
+                self.log(1 if cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff else 0)
+            self.logf(0x74a2ac, 7)
+            cpu.call(0x5426d0)
+            self.log(1 if cpu.uc.reg_read(UC_X86_REG_EAX) else 0)
+        return bytes(self.out)
+
     # --- a part flying off ---
     def fly_setup(self):
         cpu = self.cpu
@@ -535,6 +606,32 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # The flown parts' fade.
+    for _ in range(200):
+        count, ia, used = rng.randint(0, 4), rng.randint(0, 1), rng.randint(0, 1)
+        value = rng.choice((0.0, 1.0, 0.5, rng.uniform(0, 1), -0.25))
+        n = probe.probe_fade(count, (1 - ia) if brk == 10 else ia, used, value, BUF, CAP)
+        check('fade', BUF.raw[:n], emu.fade(count, ia, used, value))
+
+    # The surface marks' setters (types 0..2: past them the exe writes on; the
+    # rebuild's FIX (bug) ignores them).
+    for _ in range(300):
+        ops = []
+        for _ in range(rng.randint(1, 10)):
+            op = rng.randint(1, 5)
+            if op == 1:
+                ops.append((1, rng.randint(0, 2), 0))
+            elif op == 3:
+                ops.append((3, fb(rng.uniform(-2, 2)), fb(rng.uniform(-2, 2))))
+            elif op == 4:
+                ops.append((4, rng.choice((0, 1, 7)), 0))
+            else:
+                ops.append((op, rng.choice((0, 0x1000, 0x2000, 0x3000)), 0))
+        mine = [(o, a + 1 if brk == 9 and o == 2 and a else a, b) for o, a, b in ops]
+        flat = [x for t in mine for x in t]
+        n = probe.probe_marks(arr(U, flat), len(mine), BUF, CAP)
+        check('marks', BUF.raw[:n], emu.marks(ops))
 
     # A part flying off.
     def rot(rng):
