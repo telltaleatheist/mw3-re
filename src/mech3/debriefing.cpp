@@ -254,6 +254,7 @@ void LanceDisplay::layout(const Engine::LanceArmor& a) {
     if (most <= a.armor[i]) most = a.armor[i];
   const int32_t half = width >> 1;
   scale = static_cast<float>(height) / static_cast<float>(most);  // the x87 at 24 bits (CLAUDE.md)
+  // (No armor at all: most 0, scale inf, armor x scale NaN, ftol's low dword 0: height 0, as the exe.)
   const int32_t step = (half & ~1) > 4 ? half >> 1 : 2;
   left = x;
   top = y;

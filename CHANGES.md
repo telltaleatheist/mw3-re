@@ -14,6 +14,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
 - **Lava heats the same at any frame rate.** The original added heat on
   every frame a foot touched lava, so a faster computer cooked you faster
   (1.5 heat a second at 30 fps, over 7 at 144). It is now 1.5 a second

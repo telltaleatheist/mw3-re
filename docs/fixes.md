@@ -73,6 +73,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | The briefing map's circles, 0x00407ea0 | Shrink max(20 x dt, 1) pixels a frame | (B) a pixel a frame above 20 fps: faster the higher the frame rate | 30 pixels a second (the 30 fps frame's pixel), the fraction carried, behind `zfix` per_second; `test_briefing.py` checks the exe's |
 | The briefing's SOUND, inline in 0x00405230 | MARKERS read unchecked | (bug) a crash: a briefing's SOUND without MARKERS (none ships) | No map steps: the voice and its end only |
 | The debriefing's parts, 0x0047b430 | The buttons' HELP labels, WIN_TITLE's, the lance cards' (the results) and ICON_RANK's (0x0047b2f0) labels read unchecked; a card's HTAL keys missing leave the stack's values; Instant Action's title passed as a printf format | (bug) a crash or garbage with an edited dlgWin.zrd (none ships), a `%` in a message | Checked; 0; printed as text |
+| Saved game replaced before the question, 0x478f10 / 0x434e00 | The next mission's world is written by zSave (0x5a8a70, CREATE_ALWAYS) inside next_mission, before record_mission asks "Replace existing game?" | (bug) No keeps the old entry in the list, but its file already holds the new world | Behind `zfix` bugs: next_mission leaves the save to record_mission, which writes it once the game is filed (new, or Yes) and not on No; `test_pilot.py` checks the exe's order with bugs off, `fix_campaign_save_after_the_question` both |
 | A loadout copied out of a store, 0x00424010 | The items cut to nothing are unlinked from the copy but never deleted | (A) a memory leak each time (the port's loadouts own their items) | Deleted; nothing reads them |
 | Salvage of a mech's weapons, 0x00472da0 | A weapon slot's def read unchecked (its WeaponType through +0x2c +0x1f0) | (bug) a null read for a weapon without a def (none is built without one) | The slot is skipped |
 | The briefing's debug lines, 0x00405120 | A load line passed to the text box as its printf format | (bug) a `%` in a line reads arguments that are not there | The line printed as text (`"%s"`) |
@@ -246,12 +247,6 @@ Noted but not yet ported:
 ## Original bugs still to fix
 
 Bugs whose intent is clear, fixed as the port reaches the code:
-
-- Saved game replaced before the question, 0x478f10 / 0x434e00 (campaign.md
-  4): after a mission the next mission's saved game is written by zSave
-  (0x5a8a70, CREATE_ALWAYS) before the pilot asks "Replace existing game?";
-  No keeps the old entry but its file already holds the new world. Fix when
-  zSave is wired: write the world after the answer, and not on No.
 
 - Data typos, fixed by the importer (the readers stay as written, the patched
   data goes through them):

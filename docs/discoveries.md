@@ -2004,7 +2004,8 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   mission you already won asks whether to replace the saved game of the
   next mission. The new save's world is written to that file before the
   question, so No keeps the old entry in the list but its file already holds
-  the new one (to be fixed in the rebuild, `fixes.md`).
+  the new one (fixed in the rebuild: the world is written after the answer,
+  and not on No).
 - **The briefing screen has keyboard shortcuts:** once the mission has
   loaded, L launches and M opens the Mech Lab; Space or S stops the briefing
   voice at any time.

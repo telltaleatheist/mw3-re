@@ -322,8 +322,10 @@ Ported (item 1): `mech3::Pilot::record_mission`, `CampaignGame::next_mission`,
 loadout's copy and free-slot count (`Config::copy_of`, `Config::recount`,
 mechdef-configs.md). Found: the next mission's saved game is written (zSave
 0x005a8a70, CREATE_ALWAYS) before the "overwrite?" question, so No keeps the
-old entry but its file already holds the new world (fixes.md, to fix when
-zSave is wired).
+old entry but its file already holds the new world. FIX (bug), behind
+`zfix` bugs: next_mission leaves the save to record_mission, which writes it
+once the game is filed and not on No (fixes.md; `fix_campaign_save_after_
+the_question` in test_pilot_names.cpp; test_pilot.py keeps the exe's order).
 
 ## 5. What is ported, what is a hook
 

@@ -257,9 +257,13 @@ bool Pilot::select_campaign(int32_t i) {
 // settled, without `next`) filed among the saved ones, replacing one of the
 // same mission when the player says so (message 0xfb3), and made current;
 // then the pilot saved. True when there is no next game: the campaign is over.
+// FIX (bug), behind `bugs`: the exe wrote the next game's world (zSave, in
+// next_mission) before asking, so No kept the old entry over the new world;
+// here the world is written once filed, and not on No (fixes.md).
 bool Pilot::record_mission(bool next) {
   if (!current || current->type() != kCampaign) return false;
-  CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next);
+  const bool fix = zfix::options().bugs;
+  CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next, !fix);
   if (g && g != current) {
     const int32_t m = g->mission_number(), op = g->operation();
     auto it = campaigns.begin();
@@ -268,6 +272,7 @@ bool Pilot::record_mission(bool next) {
       auto* c = static_cast<CampaignGame*>(*it);
       if (c->operation() == op && c->mission_number() == m) break;
     }
+    bool filed = true;
     if (it == campaigns.end()) {
       campaigns.push_back(g);
     } else if (pilot_hooks().message_box(1, 7, 0xfb3) == 1) {
@@ -277,7 +282,9 @@ bool Pilot::record_mission(bool next) {
     } else {
       delete g;
       g = static_cast<CampaignGame*>(*it);
+      filed = false;
     }
+    if (fix && filed) pilot_hooks().save_world(g->path(), 2);
     current = g;
   }
   save();

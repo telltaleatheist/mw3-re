@@ -181,7 +181,8 @@ class CampaignGame : public Game {
   void merge_salvage();              // 0x00434cb0, at the end of load
   int32_t operation() const { return campaign; }  // vt+0x48  0x00437870
   int32_t mission_number() const { return mission; }  // vt+0x4c  0x00437880
-  CampaignGame* next_mission(bool next);  // vt+0x24  0x00434e00
+  // `save` false: the world's save left to the caller (record_mission's FIX).
+  CampaignGame* next_mission(bool next, bool save = true);  // vt+0x24  0x00434e00
   GameSlot* slot_at(int32_t i);      // vt+0x34  0x00435110: 0 the player's, then the lancemates
   int32_t slot_count() const;        // vt+0x38  0x00435180 (vt+0x3c 0x00437820 the same)
   void reset_lancemates(bool del);   // 0x00435240

@@ -677,3 +677,15 @@ recorded as test_hud does; CString += stubbed); breaks 20/23 (3
 unshowable). With it, the 8c review items: has_config's compare is the
 exe's (other vs the loadout, never equal), give_config returns
 add_config's result, the dropped items' delete has its fixes.md row.
+
+## 2026-10-21 Save-before-question fix (branch mac3/save-fix)
+
+Confirmed in the asm: 0x00478f10 calls next_mission (vt+0x24, 0x00478f3c),
+which runs zSave 0x005a8a70 (0x00434f42) before the question at
+0x00478fc8. FIX (bug) behind `bugs`: next_mission(next, save=false), and
+record_mission saves the world after filing (new or Yes), not on No.
+test_pilot.py (bugs off) still matches the exe; new C++ test
+fix_campaign_save_after_the_question covers both answers, fix on and off
+(two quick breaks caught). fixes.md row moved from "still to fix" into the
+table; CHANGES.md and discoveries updated. Also the 6c review comments
+(most 0 → height 0 via inf/NaN; mech_lance_armor's guards as departures).
