@@ -10,7 +10,7 @@ vt+0xa0 hit lately), its own order (+0x194, vt+0x04), three contacts with
 the objects they see and those objects' vehicles (vt+0xd8 their own nets,
 +0xa4 their ranges), the vehicle's vt+0xa0 (powered down) and weapon
 manager (+0xd4: its ammo value 0x4b4ed0 an x87 return), and stubs for
-what later items port: steering 0x4cec80, the vlist 0x4e9550, the radio's
+what later items port: steering 0x4cec80, the radio's
 lines 0x4e6d50, the firing's reset 0x4e9590 and run 0x4e9fb0, the target's
 behaviour 0x4c0e10 and the attack 0x4e9ca0; the pick 0x4d6b90 and rand are
 answered from the trace. Each case runs frames from one order with random
@@ -112,7 +112,6 @@ class Original(tg.Original):
         e.stub(0x4cec80, '0x004cec80', 's0,s1', 8)
         e.stub(0x4d6b90, '0x004d6b90', 'c,s0', 4, self.pick)
         e.stub(0x4e6d50, '0x004e6d50', 'c', 4)
-        e.stub(0x4e9550, '0x004e9550', 's0', 0xc)
         e.stub(0x4e9590, '0x004e9590', '', 0)
         e.stub(0x4e9fb0, '0x004e9fb0', 's0', 4)
         e.stub(0x4c0e10, '0x004c0e10', 'c', 0, self.abeh)

@@ -14,8 +14,9 @@ namespace mech3::ai {
 
 class Region;
 
-// One "vlist" entry, 0x20 bytes, the defaults at 0x005e8da0 (0x004d8d30): an
-// order the vehicle follows when its valve opens (docs/ai.md).
+// One "vlist" entry, 0x20 bytes, the defaults at 0x005e8da0 (0x004d8d30): a
+// trigger that sets its valve each frame its conditions hold (docs/ai.md
+// 17.5; the brain's 0x004d8e70 reads the flags' bits 2-7).
 struct VListEntry {
   float f00 = 0.25f;           // +0x00  item 3
   float f04 = 0.1f;            // +0x04  item 6

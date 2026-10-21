@@ -1424,6 +1424,12 @@ are all "puffers": emitters that drop little textured squares.
   and whoever is attacking it is out of range, an AI mech skips its whole
   update for the frame: it neither moves nor animates until something
   comes into sight (a cheap way to idle distant enemies).
+- **Mission switches tripped by a pilot's own state.** Each AI vehicle's
+  record can carry triggers that flip a mission switch (a valve) the moment
+  its pilot is hit, runs hot, drops below a health or ammo level, has an
+  enemy within some range (one needs a clear line of sight too), or enters
+  or leaves an area. That is how a mission can react to, say, an escort
+  taking damage (`ai.md` 17.5).
 - **Pilots stand down when the mission ends.** One switch turns every
   pilot's thinking on when the mission starts and off in the cleanup; off,
   they only stop and settle (`ai.md` 17.8).

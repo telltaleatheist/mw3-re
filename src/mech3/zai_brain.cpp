@@ -9,6 +9,8 @@
 #include "gamez/zsound/zsnd.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_valve.h"
+#include "mech3/zainet_region.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -72,10 +74,9 @@ bool BrainHooks::ammo_value(zgame::Handle v, float* out) {
 }
 void BrainHooks::steer(Brain& b, zgame::Handle v, float dt) { unported("0x004cec80", {low(&b), v, bits(dt)}); }
 void BrainHooks::radio_line(Brain& b, int32_t event) { unported("0x004e6d50", {low(&b), event}); }
-void BrainHooks::vlist(Brain& b, zgame::Handle v, bool* picked, Contact** target) {
-  (void)picked, (void)target;
-  unported("0x004e9550", {low(&b), v});
-}
+float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
+bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
+bool BrainHooks::region_inside(Region* r, const float* p) { return r->inside(p); }
 void BrainHooks::firing_reset(Brain& b) { unported("0x004e9590", {low(&b)}); }
 void BrainHooks::firing_run(Brain& b, float dt) { unported("0x004e9fb0", {low(&b), bits(dt)}); }
 AiNet* BrainHooks::vehicle_net(zgame::Handle v) {
@@ -596,7 +597,7 @@ bool Brain::frame(BrainControls& c, float dt) {
       if (!(ammo >= 0.1f)) h.radio_line(*this, 10);        // out_of_ammo (radio +0x28)
       else if (!(ammo >= 0.25f)) h.radio_line(*this, 9);   // low_ammo (+0x24)
     }
-    h.vlist(*this, owner, &picked, &enemy);
+    vlist(c, owner, &picked, &enemy);
     // Hit lately: the firing starts again and the pilot may manoeuvre (+0x9c).
     if (xf0 == 0 && params.get<int32_t>(0x9c) && h.now() > x100 && c.hit_lately() && may_fire()) {
       x100 = params.get<float>(0xb0) + h.now();
@@ -651,6 +652,71 @@ bool Brain::frame(BrainControls& c, float dt) {
   }
   if (x22c != 2) params.raw[0xcc] = static_cast<uint8_t>((params.raw[0xcc] & ~4u) | (x22c ? 4u : 0u));
   return answer;
+}
+
+// --- the vlist triggers (docs/ai.md 17.5) ------------------------------------
+
+namespace {
+// Mech3.exe 1.2 @ 0x004d8e70: the conditions in order, the first that holds
+// wins (flags +0x18: bit 3 hit lately, 5 the heat at +0x08 or more, 4 the health
+// at most +0x04, 2 the ammo's value at most +0x00; then the nearest enemy,
+// picked once: bit 7 nearer than sqrt(+0x10), bit 6 nearer than sqrt(+0x0c)
+// with a clear line; failing those, the region +0x14 by +0x19: bit 0 inside,
+// bit 1 outside, both either). The x87's unordered compares hold.
+bool vlist_holds(const VListEntry& e, BrainControls& c, zgame::Handle owner, bool* picked, Contact** target) {
+  BrainHooks& h = brain_hooks();
+  const uint8_t f = e.flags;
+  if ((f & 8) && c.hit_lately()) return true;
+  if ((f & 0x20) && h.heat(owner) >= e.f08) return true;
+  if ((f & 0x10) && !(h.health(owner) > e.f04)) return true;
+  if (f & 4) {
+    float a;
+    if (!h.ammo_value(owner, &a)) a = 1.0f;  // IControls vt+0x9c (0x004aed10): 1 without a manager
+    if (!(a > e.f00)) return true;
+  }
+  if (!*picked) {
+    *picked = true;
+    *target = h.pick(owner, kEnemy);
+  }
+  const Contact* t = *target;
+  if (t) {
+    if ((f & 0x80) && !(t->dist2 >= e.f10)) return true;
+    if ((f & 0x40) && !(t->dist2 >= e.f0c) && h.clear_line(owner, t->seen)) return true;
+  }
+  const uint8_t f2 = e.flags2;
+  if (!e.region || !(f2 & 3)) return false;
+  if ((f2 & 3) == 3) return true;
+  float p[3];
+  h.position(owner, p);
+  return h.region_inside(e.region, p) ? (f2 & 1) : (f2 >> 1 & 1);
+}
+
+// Mech3.exe 1.2 @ 0x004d8e70: a trigger whose valve is not yet at its value
+// (+0x18 bit 1) sets it there when its conditions hold.
+void vlist_entry(const VListEntry& e, BrainControls& c, zgame::Handle owner, bool* picked, Contact** target) {
+  if (!e.valve) return;
+  const int32_t want = e.flags >> 1 & 1;
+  if ((e.valve->get() != 0) == (want != 0)) return;
+  if (vlist_holds(e, c, owner, picked, target)) e.valve->set(want);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004d9290
+void vlist_run(const AiParams& p, BrainControls& c, zgame::Handle owner, bool* picked, Contact** target) {
+  if (!p.vlist) return;
+  for (const VListEntry& e : *p.vlist) vlist_entry(e, c, owner, picked, target);
+}
+
+// Mech3.exe 1.2 @ 0x004e9550
+void Brain::vlist(BrainControls& c, zgame::Handle owner, bool* picked, Contact** target) {
+  vlist_run(params, c, owner, picked, target);
+}
+
+// Mech3.exe 1.2 @ 0x004e94f0
+void Brain::pilot_tick(BrainControls& c) {
+  bool picked = false;
+  Contact* target = nullptr;
+  vlist(c, c.vehicle(), &picked, &target);
 }
 
 }  // namespace mech3::ai

@@ -1741,10 +1741,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       return at(seen.counts1) - at(seen.counts0);
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
-    // Awake (the player in sight) each tick: the vlist, the hit test before
-    // the firing's reset, the current order's state (the shared behaviour's
+    // Awake (the player in sight) each tick: the hit test before the
+    // firing's reset, the current order's state (the shared behaviour's
     // 0x004cbeb0), the brain's own order and the firing ran each time.
-    for (const char* k : {"0x004cec80", "0x004e9550", "0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
+    for (const char* k : {"0x004cec80", "0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
       EXPECT(ran(k) >= 190);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
