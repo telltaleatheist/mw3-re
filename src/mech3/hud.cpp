@@ -620,9 +620,31 @@ void HudRadar::hide() {
   changed = 1;
 }
 
-// Mech3.exe 1.2 @ 0x0043da00: with the radar active, the sound for the zoom.
-void HudRadar::select_sound() {
-  if (active) g_hooks->unported("0x0043da00", {g_hooks->id(this), zoomed});
+// Mech3.exe 1.2 @ 0x0043da00: over the mission map, the map named for the
+// size ("large" zoomed, else "small"), else any.
+uint32_t HudRadar::select_map() {
+  if (!active) return 0;
+  HudHooks& k = *g_hooks;
+  uint32_t m = k.map_find(zoomed == 1 ? "large" : "small");
+  if (!m) m = k.map_find(nullptr);
+  k.set_radar_map(m);
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x0043da40
+void HudRadar::toggle_zoom() { set_zoom(zoomed == 0); }
+
+// Mech3.exe 1.2 @ 0x0043dc10: turned back off when no map is found; off,
+// straight to the size and place it steps toward.
+void HudRadar::toggle_map() {
+  active = !active;
+  if (active && !select_map()) active = !active;
+  if (!active) {
+    radius = to_r;
+    radius_sq = to_r * to_r;
+    set_pos(to_x, to_y);
+  }
+  changed = 1;
 }
 
 // Mech3.exe 1.2 @ 0x0043da50: the size to move to and the steps there.
@@ -635,7 +657,7 @@ void HudRadar::set_zoom(bool on) {
   y_steps = std::abs((to_y - get_y()) / kRadarStep);
   r_steps = std::abs((to_r - radius) / kRadarStep);
   if (source) g_hooks->radar_zoom_sound(source, zoomed != 0);
-  select_sound();
+  select_map();
   changed = 1;
 }
 
@@ -813,6 +835,30 @@ void HudDamageView::update_levels() {
     int32_t section;
   } kFrom[8] = {{0x3a4, 0}, {0x39c, 1}, {0x39c, 2}, {0x39c, 0}, {0x394, 0}, {0x398, 0}, {0x38c, 0}, {0x390, 0}};
   for (int i = 0; i < 8; ++i) parts[i].set_level(h.part_internal(mech, kFrom[i].part, kFrom[i].section));
+}
+
+// Mech3.exe 1.2 @ 0x00442420
+void HudMfd::set_mode(int32_t m) {
+  mode = m;
+  if (m) g_hooks->save_mfd_mode(m);
+}
+
+// Mech3.exe 1.2 @ 0x00442440: the next of the 3D view, the damage and the nav
+// list, only while the mode is the one shown (TARGET without a live target
+// shows none); at pixel doubling straight to the nav list.
+void HudMfd::cycle_mode() {
+  if (pixel_double()) {
+    mode = 3;
+    return;
+  }
+  const int32_t m = mode;
+  if (m != shown_mode()) return;
+  switch (m) {
+    case 0: case 3: set_mode(1); break;
+    case 1: set_mode(2); break;
+    case 2: set_mode(3); break;
+    default: break;
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004424b0
@@ -1087,6 +1133,13 @@ void HudZoomWindow::hide() {
 void HudZoomWindow::show_for(float seconds) {
   HudZoomView::show_for(seconds);
   text.hide();
+}
+
+// Mech3.exe 1.2 @ 0x00442e00
+void HudZoomWindow::toggle_lock() {
+  x174 = !x174;
+  if (x174) show_for(-1.0f);
+  else hide();
 }
 
 // Mech3.exe 1.2 @ 0x004438f0

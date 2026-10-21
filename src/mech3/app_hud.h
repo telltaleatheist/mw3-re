@@ -35,8 +35,16 @@ struct HudReport {
   int equip_lines = 0, equip_wanted = 0, throttle_up = 0, fuel_shown = 0, heat_unlit = 0;
   float speed_kmh = 0.0f;
   float sensor_range = 0.0f;
+  // The HUD keys' state: the zoom window shown and locked, the radar large,
+  // over the map and amber, the MFD's and TARGET's modes, the objectives
+  // shown, the HUD on.
+  int zoom_shown = 0, zoom_locked = 0, radar_large = 0, radar_map = 0, radar_amber = 0;
+  int mfd_mode = 0, target_mode_set = 0, objectives_shown = 0, hud_on = 0;
 };
 bool program_hud_report(HudReport* r);
+// Tests only: the mech sounds of `id` played from now on (both the cockpit's
+// 0x00432990 paths) counted into `*count`; (0, null) puts the hooks back.
+void program_count_sounds(int id, int* count);
 // Tests only: the player's target set to its contact on `mech` (TARGET given
 // it, as the targeting keys would) and TARGET's mode set; false without one.
 bool program_hud_target(void* mech, int mode);

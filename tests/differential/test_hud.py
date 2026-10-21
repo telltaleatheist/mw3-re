@@ -104,7 +104,10 @@ def synthetic(seed):
 # lead mech (its address), 20 the HUD's data update 0x0043c390 (dt), 21 the
 # radar's polylines' counts (first | second << 8) and lists, 22 the radar's
 # map and changed flags (map | changed << 1), 23 and 24 its lists (addresses),
-# 33 the zoom window's show_for (0x004438d0, seconds).
+# 33 the zoom window's show_for (0x004438d0, seconds), the HUD keys
+# (Mech::command's): 34 keypad 0's lock (0x00442e00), 35 R's radar size
+# (0x0043da40), 36 D's MFD mode (0x0043d240), 37 Ctrl+D's TARGET mode
+# (0x0043d250), 38 Shift+R's radar map (0x0043dc10).
 OPS = list(range(1, 20))
 # The message panel's messages and times (ops 27, 28; probe_hud.cpp the same).
 MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
@@ -242,6 +245,15 @@ class Original:
         w.answers['0x00576040'] = lambda rr, n, a: titles.get(a[0], 0)
         e.stub(0x4f34c0, spec='c,d')
         e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
+        # R's zoom sound on the source HUD's mech (0x00432990: 0x10 in, 0x11 out),
+        # Shift+R's mission maps (one only where the radar has its map).
+        e.stub(0x432990, '0x0043da50.sound', 's0', 0x14,
+               lambda emu, key, a, pop: emu._ret(emu.t.handle(key, [self.hud, int(a[0] == 0x10)]), pop))
+
+        def map_find(emu, key, a, pop):
+            emu._ret(emu.t.handle(key, [emu.cstr(a[0]) if a[0] else '']), pop)
+        e.stub(0x458590, '0x00458590', 'c', None, map_find)
+        w.answers['0x00458590'] = lambda rr, n, a: rr.choice([0, entry, entry]) if self.flip else 0
         e.w32(0x60598c, r.choice([0, 1, 2, 2, 3]))  # TARGET's (2: its damage view)
         # The player view: its camera node, the node's data, the field of view.
         p_cam, node, data = e.world_alloc(0x80), e.world_alloc(0x40), e.world_alloc(0x100)
@@ -609,6 +621,8 @@ class Original:
                 self.ops.append((28, fr.randrange(len(MESSAGES))))
             if fr.random() < 0.12:  # the zoom window shown through its show_for (0x004438d0)
                 self.ops.append((33, f32(fr.choice([-1.0, 0.0, 0.5, 3.0]))))
+            if fr.random() < 0.25:  # the HUD keys
+                self.ops.append((fr.choice([34, 35, 36, 36, 37, 37, 38]), 0))
             if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
                 self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
@@ -935,6 +949,12 @@ class Original:
                 e.call(0x40f8d0)
             elif k == 33:
                 e.call(e.r32(e.r32(zoom) + 0x60), ecx=zoom, stack=(v,))
+            elif k == 34:
+                e.call(0x442e00, ecx=zoom)
+            elif k in (35, 38):
+                e.call(0x43da40 if k == 35 else 0x43dc10, ecx=h + 0x14)
+            elif k in (36, 37):
+                e.call(0x43d240 if k == 36 else 0x43d250, ecx=h)
             elif k == 26:
                 e.w32(self.mech + 0x3d8, v)
             elif k == 25:
@@ -1581,7 +1601,8 @@ class Original:
             kv('py', e.r32(DAMAGE + 0x20 * p + 0x18))
         out.append(' '.join(line) + ' ')
         shown = e.r8(e.r32(self.mech + 0xd4) + 0x88) if self.mech else 0
-        return '\n'.join(out + self.aim_lines + self.lead_lines) + f'\nlockshown {shown:x}\n'
+        saved = ' '.join(f'{e.r32(a):x}' for a in (0x605988, 0x60598c, 0x60998c))
+        return '\n'.join(out + self.aim_lines + self.lead_lines) + f'\nlockshown {shown:x}\nsaved {saved}\n'
 
 
 def test_twod_fnv(b):

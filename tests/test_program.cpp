@@ -3532,3 +3532,125 @@ TEST(playtest_hud_images_the_data_lacks) {
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   zimg::state() = zimg::State{};
 }
+
+// Playtest #20, #13: the HUD keys in a c1m1 mission. Keypad 0 locks the zoom
+// window open with one click (it used to click every frame and show
+// nothing), again closes it; Z held shows it, let go hides it, one click each
+// way; R the large radar, D the MFD's next mode, F12 the objectives, Alt+R
+// at 1000 m to passive (amber) and back to 500 m (green), H the HUD off.
+TEST(playtest_hud_keys_zoom_radar_mfd_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("hud_keys_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    // A bound key with its modifiers (zinput.h: 0x100 Alt, 0x200 Ctrl, 0x400 Shift) down then up.
+    auto press = [&](int32_t cmd, bool down) {
+      const uint32_t k = zin::key1_of(cmd);
+      const uint32_t mods[3][2] = {{zin::kAlt, 0x38}, {zin::kCtrl, 0x1d}, {zin::kShift, 0x2a}};
+      for (auto& m : mods)
+        if (k & m[0] && down) keys.key(m[1], true);
+      keys.key(k & 0xff, down);
+      for (auto& m : mods)
+        if (k & m[0] && !down) keys.key(m[1], false);
+    };
+    auto tap = [&](int32_t cmd) { press(cmd, true), press(cmd, false); };
+    struct At {
+      mech3::HudReport r;
+      int clicks = 0;
+    };
+    std::map<int, At> at;
+    int zoom_clicks = 0, radar_clicks = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) mech3::program_count_sounds(0x17, &zoom_clicks);  // the zoom's click
+      if (frames == 81) {  // then radar_up's
+        mech3::program_count_sounds(0, nullptr);
+        mech3::program_count_sounds(0x10, &radar_clicks);
+      }
+      static const std::map<int, int32_t> taps = {{12, 0x15}, {42, 0x15}, {82, 0x68}, {92, 0x74}, {102, 0x43},
+                                                  {112, 0x6b}, {122, 0x69}, {142, 0x69}};
+      if (auto it = taps.find(frames); it != taps.end()) tap(it->second);
+      if (frames == 52) press(0x14, true);
+      if (frames == 72) press(0x14, false);
+      if (frames % 10 == 0 && frames <= 160) {
+        mech3::program_hud_report(&at[frames].r);
+        at[frames].clicks = frames <= 80 ? zoom_clicks : radar_clicks;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    mech3::program_count_sounds(0, nullptr);
+    EXPECT(frames >= 160);
+    auto& a = at;
+    std::printf("hud keys: clicks %d %d %d %d %d %d %d, mfd %d -> %d, radar %.0f -> %.0f -> %.0f\n", a[10].clicks,
+                a[20].clicks, a[40].clicks, a[50].clicks, a[60].clicks, a[70].clicks, a[80].clicks, a[90].r.mfd_mode,
+                a[100].r.mfd_mode, a[120].r.sensor_range, a[130].r.sensor_range, a[150].r.sensor_range);
+    EXPECT(!a[10].r.zoom_shown && a[10].clicks == 0);                       // no click while nothing happens
+    EXPECT(a[20].r.zoom_shown && a[20].r.zoom_locked && a[20].clicks == 1);  // keypad 0: open, one click
+    EXPECT(a[40].r.zoom_shown && a[40].clicks == 1);                        // stays open, no more clicks
+    EXPECT(!a[50].r.zoom_shown && !a[50].r.zoom_locked && a[50].clicks == 2);  // keypad 0 again: closed
+    EXPECT(a[60].r.zoom_shown && a[70].r.zoom_shown && a[70].clicks == 3);  // Z held: open, one click
+    EXPECT(!a[80].r.zoom_shown && a[80].clicks == 4);                       // let go: closed, one click
+    EXPECT(!a[80].r.radar_large && a[90].r.radar_large && a[90].clicks == 1);  // R, radar_up once
+    EXPECT(a[100].r.mfd_mode != a[90].r.mfd_mode);                          // D
+    EXPECT(a[110].r.objectives_shown != a[100].r.objectives_shown);         // F12
+    EXPECT(a[110].r.hud_on && !a[120].r.hud_on);                            // H
+    EXPECT(a[120].r.sensor_range == 1000.0f && !a[120].r.radar_amber);     // Alt+R: active at the top,
+    EXPECT(a[130].r.sensor_range == 500.0f && a[130].r.radar_amber);       // then passive, amber,
+    EXPECT(a[150].r.sensor_range == 500.0f && !a[150].r.radar_amber);      // then 500 m active, green
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}

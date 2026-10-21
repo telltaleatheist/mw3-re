@@ -34,11 +34,14 @@ probe.probe_heat_key.restype = I
 COMMAND, OVERRIDE, FLUSH, MECH_VT = 0x41be80, 0x419190, 0x419e60, 0x5bcef8
 VIEW, OPTION, LANCE, PILOT = 0x5f4c8c, 0x5f4d44, 0x609980, 0x60861c
 HUD, PLAY, MECH_SOUND, CAMERA, OTHER = 0x1000, 0x1001, 0x1002, 0x1003, 0x1004
+TEAM, REFUSES = 0x2001, 0x2002  # the aimed object's vt+0x28 (its team) and vt+0xac / vt+0xb0
+ELSE = 0x7f00  # a contact's seen object that is none of the aimed ones
 
 # The scenario's fields, in probe_command.cpp's In order.
 FIELDS = ['cmd', 'active', 'viewed', 'screen', 'powered', 'crouched', 'ams', 'xbc', 'range', 'eq6', 'eq12', 'masc',
           'target', 'saved', 'view', 'mode', 'group', 'current', 'select', 'jettison', 'hud_weapon',
-          'hud_weapon_group', 'lance_busy']
+          'hud_weapon_group', 'lance_busy', 'allies', 'aim', 'entity', 'team', 'refuse', 'ncontacts',
+          'seen0', 'seen1', 'seen2', 'seen3']
 # The commands the player's keys send (0x426ce0) and the second switch's.
 COMMANDS = [0x24, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x1a, 0x25, 0x26, 0x27, 0x2a, 0x2b,
             0x28, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x39, 0x06, 0x07, 0x3b, 0x3a,
@@ -64,6 +67,11 @@ class Emulated:
         self.option, self.lance, self.lancevt, self.screenvt, self.zoom, self.zoomvt = a(4), a(0x10), a(0x80), \
             a(0x10), a(0x10), a(0x80)
         self.sound, self.new_ctl, self.other_view = 0x7700, a(0x80), a(0x10)
+        # Z and Q: the reticle's hit record (+0x24 its node), the aimed objects
+        # (their vtables: vt+0x28 the object with +0xc0 its team, vt+0xac,
+        # vt+0xb0) and the mech's contacts (+4 the seen object), 0x004a7b40 run.
+        self.rec, self.node, self.contacts, self.carr = a(0x40), a(0x40), [a(0x30) for _ in range(4)], a(0x10)
+        self.ents, self.teams = [a(0x10) for _ in range(3)], [a(0x100) for _ in range(3)]
 
         def vstub(slot_addr, fn, pop):
             f = cpu.code(b'\xc3')
@@ -80,11 +88,18 @@ class Emulated:
         vstub(self.screenvt + 4, lambda c: self.log(HUD, c.ecx, 0x6b), 4)
         vstub(self.zoomvt + 0x60, lambda c: self.log(HUD, c.ecx - 0x17964, 0x43), 4)
         vstub(self.zoomvt + 0x64, lambda c: self.log(HUD, c.ecx - 0x17964, 0x43), 0)
+        for ent, team in zip(self.ents, self.teams):
+            evt = a(0x100)
+            cpu.u32(ent, evt)
+            vstub(evt + 0x28, lambda c, team=team: self.log(TEAM, c.ecx, 0) or team, 0)
+            vstub(evt + 0xac, lambda c: self.log(REFUSES, c.ecx, 1) or self.s['refuse'] & 1, 0)
+            vstub(evt + 0xb0, lambda c: self.log(REFUSES, c.ecx, 0) or self.s['refuse'] >> 1 & 1, 0)
         wm = lambda addr, pop, arg=False: (lambda c: self.log(addr, c.ecx, c.arg(0) if arg else 0), pop)  # noqa: E731
         stubs = {
             0x430aa0: (lambda c: self.screen if self.s['screen'] else 0, 0),
             0x442e00: (lambda c: self.log(HUD, c.ecx - 0x1508, 0x15), 0),
-            0x444330: (lambda c: self.log(HUD, c.ecx - 0x144c, 0x48 if self.s['cmd'] == 0x48 else 0x14), 4),
+            0x444330: (lambda c: self.log(HUD, c.ecx - 0x144c, 0x48 if self.s['cmd'] == 0x48 else 0x14) or self.rec, 4),
+            0x40eee0: (lambda c: self.aimed(struct.unpack('<I', cpu.read(c.ecx, 4))[0]), 0),
             0x43da40: (lambda c: self.log(HUD, c.ecx - 0x14, 0x68), 0),
             0x43d240: (lambda c: self.log(HUD, c.ecx, 0x74), 0),
             0x43d250: (lambda c: self.log(HUD, c.ecx, 0x75), 0),
@@ -137,8 +152,17 @@ class Emulated:
         self.events.extend([3, code, a & 0xffffffff, b & 0xffffffff])
         return 0
 
+    def aimed(self, node):
+        self.log(0x40eee0, node, 0)
+        return self.ents[self.s['entity'] - 1] if node and self.s['entity'] else 0
+
+    def seen(self, k):
+        v = self.s[f'seen{k}']
+        return self.ents[v - 1] if v else ELSE
+
     def tokens(self):
-        return [self.wm, self.weapon] + self.groups + [self.screen, self.current, self.mech, self.sound, self.new_ctl]
+        return [self.wm, self.weapon] + self.groups + [self.screen, self.current, self.mech, self.sound,
+                                                        self.new_ctl, self.node] + self.contacts + self.ents
 
     def run(self, s):
         cpu, m = self.cpu, self.mech
@@ -146,7 +170,16 @@ class Emulated:
         cpu.write(m, bytes(0x700))
         cpu.u32(m, self.mvt)
         cpu.write(m + 8, bytes([s['active']]))
-        cpu.u32(m + 0x6c, s['target'])
+        cpu.u32(m + 0x6c, self.contacts[s['target']] if s['target'] >= 0 else 0)
+        cpu.u32(m + 0xc4, s['allies'])
+        for k, ct in enumerate(self.contacts):
+            cpu.u32(ct + 4, self.seen(k))
+            cpu.u32(self.carr + 4 * k, ct)
+        cpu.u32(m + 0xac, self.carr)
+        cpu.u32(m + 0xb0, self.carr + 4 * s['ncontacts'])
+        cpu.u32(self.rec + 0x24, self.node if s['aim'] else 0)
+        for team in self.teams:
+            cpu.u32(team + 0xc0, s['team'])
         cpu.u32(m + 0x78, s['saved'])
         cpu.u32(m + 0x9c, s['range'])
         cpu.write(m + 0xbc, bytes([s['xbc']]))
@@ -227,11 +260,14 @@ def scenario(rng):
         'powered': int(r() < 0.3), 'crouched': int(r() < 0.3), 'ams': rng.randrange(3), 'xbc': rng.randrange(256),
         'range': f2u(pick(rng, 250.0, 500.0, 999.0, 1000.0, 1500.0, 2000.0, 4000.0, rng.uniform(0, 3000))),
         'eq6': pick(rng, 0, 0, 1, 2, -1), 'eq12': pick(rng, 0, 1, 1, -1),
-        'masc': f2u(pick(rng, 0.0, 0.0, 1.5, -0.0)), 'target': pick(rng, 0, 0x6100, 0x6200),
+        'masc': f2u(pick(rng, 0.0, 0.0, 1.5, -0.0)), 'target': pick(rng, -1, -1, 0, 1, 2, 3),
         'saved': pick(rng, 0, 0x6300), 'view': rng.randrange(5), 'mode': rng.randrange(3),
         'group': rng.randrange(-1, 5), 'current': int(r() < 0.7), 'select': int(r() < 0.6),
         'jettison': int(r() < 0.5), 'hud_weapon': int(r() < 0.7), 'hud_weapon_group': rng.randrange(-1, 5),
         'lance_busy': int(r() < 0.3), 'zoom_flags': rng.choice((0, 0x10, 0x30)), 'screen4': rng.randrange(2),
+        'allies': pick(rng, 0, 2, 6, 0x1e), 'aim': int(r() < 0.85), 'entity': rng.randrange(4),
+        'team': pick(rng, 1, 2, 4, 8), 'refuse': rng.choice((0, 0, 0, 1, 2, 3)), 'ncontacts': rng.randrange(5),
+        **{f'seen{k}': rng.randrange(4) for k in range(4)},
     }
 
 

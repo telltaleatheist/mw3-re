@@ -16,20 +16,20 @@ the briefing's load freeze (5a55624).
 | 4 | The mech isn't visible: a couple of odd polygons where the cockpit view should be | view modes, the cockpit model (MechData +0x228, 0x00430ad0) | mac 2 | fixed 144681c: the program could not tell the cockpit view (handle reads it never answered), so it drew the player's own mech around the camera and no cockpit; now the mech is hidden for the world, the cockpit model (0x430ad0) and arms drawn in passes of their own (0x4f73f0) |
 | 5 | X doesn't switch views (should start inside, X to third person) | view modes | mac 2 | fixed 258364d: the app's keys (0x40db60) bound and the camera option wired; starts in the cockpit, X: cockpit → zipper → tether (keybindings.md) |
 | 6 | Enter doesn't cycle the weapon groups | controls → weapons | mac 2 | fixed 258364d: the HUD bridged to the mech and weapons; Enter is the HUD list's next weapon, ] / [ the groups (keybindings.md) |
-| 7 | Numpad 0 doesn't show the zoom reticle | HUD zoom window | mac 3 | open |
+| 7 | Numpad 0 doesn't show the zoom reticle | HUD zoom window | mac 3 | fixed with #20 (hud.md section 19); exploit watch: none found (community-issues.md), Owen to check |
 | 8 | Weapons stay green on the HUD: no recharge shown | HUD weapon lines | mac 3 | open |
 | 9 | "Shutting down" plays but the mech never shuts down; then the speed locks, no slowing, firing or manual shutdown | heat shutdown, the action queue | mac 2 | fixed 5e05304: the power-down's Stop (0x426c10) was never called, so the throttle stayed; heat.md |
 | 10 | HUD images not found in the mission: dmg_*_blk, hud_othererrow_* | the image library after the mission load | mac 3 | as the original (9ff2c4c): the 12 images were never shipped (hud.md section 16); reported once per name; fill-in art is a candidate (fixes.md) |
 | 11 | Trucks, APCs and mobile HQs fail to build | vehicles (AI controls) | AI area | waiting |
 | 12 | Every key binding checked: does each command do what it should? | controls, all 0xa7 commands | mac 2 | audited 258364d (keybindings.md); every default key fires; 1..0, Backspace and Ctrl+Q fixed; the rest below |
-| 13 | HUD keys reach no HUD command: Z, keypad 0, F12, Q, T, R, Shift+R, D, Ctrl+D; Alt+R's radar light | the HUD's commands (0x43da40 ..), 0x41ded0 | mac 3 | open |
+| 13 | HUD keys reach no HUD command: Z, keypad 0, F12, Q, T, R, Shift+R, D, Ctrl+D; Alt+R's radar light | the HUD's commands (0x43da40 ..), 0x41ded0 | mac 3 | fixed (hud.md section 19), Owen to check. Left: F12's box text (0x446ad0), Shift+R's mission maps (0x458590) |
 | 14 | Look keys, torso mode (Ctrl+keypad 0) and centring (/, Shift+/) do nothing | views 0x426780, 0x40b310, 0x502da0, 0x41ca30/60; torso 0x465a00, 0x464ac0 | mac 2 | open |
 | 15 | Keypad 1..9 don't target a part | 0x41d810 | mac 2 | open |
 | 16 | N, Shift+N, Ctrl+N don't change the op point | [0x609980] vt+0x60..0x68 | mac 2 | open |
 | 17 | \ switches the fire mode silently | cockpit sound 0x41e770 | mac 2 | open |
 | 18 | Lance orders (F6..F11) and Order MFB (M) | 0x469930, 0x47a910 | AI area | waiting |
 | 19 | The cockpit shows bullet holes from the start; they should appear only when the cockpit is hit | cockpit model (0x00430ad0's damage textures / the cockpit explosion restart), cpit_ani* cycled textures "no GFX data" | mac 2 | open |
-| 20 | Zoom (keypad 0) doesn't show, but its sound plays over and over | HUD zoom window, #13 | mac 3 | open |
+| 20 | Zoom (keypad 0) doesn't show, but its sound plays over and over | HUD zoom window, #13 | mac 3 | fixed: the controls' zoom hooks were never wired, so the window's flags read "shown" with the key up and the click played every frame; now one click per change (hud.md section 19), Owen to check |
 | 21 | One message box path still unported: 0x0048dfe0 (dlgMessage MESSAGEBOX), seen late in a run (quitting via the pause menu?) | message box | mac 3 | open |
 
 ### #12, the key binding audit (Owen, 2026-10-21)

@@ -339,6 +339,11 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 32: mech3::message_panel()->slide(zgame::from_bits(v)); break;
     case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
     case 33: z.show_for(zgame::from_bits(v)); break;
+    case 34: z.toggle_lock(); break;
+    case 35: h.radar.toggle_zoom(); break;
+    case 36: h.mfd.cycle_mode(); break;
+    case 37: h.target.cycle_mode(); break;
+    case 38: h.radar.toggle_map(); break;
     case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
       float o[3] = {};
@@ -912,7 +917,10 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);
-  const std::string s = d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n";
+  char saved[64];
+  std::snprintf(saved, sizeof saved, "saved %x %x %x\n", call("peek32", {0x605988}), call("peek32", {0x60598c}),
+                call("peek32", {0x60998c}));
+  const std::string s = d.o.str() + aims + g_leads + "lockshown " + (g_lock_shown ? "1" : "0") + "\n" + saved;
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.c_str(), s.size() + 1);
   zrdr::close_archives(true);

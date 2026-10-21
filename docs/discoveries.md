@@ -2257,6 +2257,34 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **TARGET shows only the 3D view for targets that are not mechs:** its
   damage and nav modes fall back to the view, and with no live target it
   shows nothing.
+- **The zoom key also picks a target.** Pressing Z (or keypad 0) makes
+  whatever the reticle is over your target, unless it is an ally, as long
+  as your sensors have it among their contacts. Q does the same without
+  skipping allies, so Q can target a lancemate. Over something your sensors
+  have not picked up, either key drops your current target instead; over
+  open ground or sky nothing changes. Buildings and other mission objects
+  can each be set to accept or ignore the zoom key and Q separately.
+- **Keypad 0 locks the zoom window open** with a single click, and the zoom
+  key then leaves it alone until keypad 0 closes it again. The torso's
+  slow turn (30%) applies whenever the window is open, locked or held.
+- **D and Ctrl+D step the MFD and TARGET through their views** (your mech
+  in 3D, its damage, the armor display), but only from the view actually
+  showing: with no live target Ctrl+D does nothing, and on a building or
+  other non-mech target one press moves the setting off the 3D view and
+  then it sticks (TARGET keeps showing the 3D view) until a mech is
+  targeted. At the 320x240 pixel-doubled resolution both keys jump straight
+  to the armor display.
+- **Shift+R lays the radar over the mission map**, picking a map named for
+  the radar's size ("small" or "large") or any map; with no map it turns
+  itself straight back off. Turned off, the radar snaps to its size and
+  place instead of sliding.
+- **Alt+R turns the radar amber** once it reaches passive mode, and back to
+  green when you leave it.
+- **Targeting a mech was meant to play a sound of that mech's own:** every
+  new target asks the target's sound slot named `mech_<its name>` (such as
+  `mech_owens`). No such sound ships, so it stays silent.
+- **R's radar size change clicks:** `radar_up` growing, `radar_down`
+  shrinking.
 - **The equipment list stops at the first hidden line:** lines after a
   hidden one are not drawn even if they are shown.
 - **In Direct3D the equipment list's green panel needs the weapon list:**
