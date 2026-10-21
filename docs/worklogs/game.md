@@ -688,3 +688,31 @@ view's ground, the anim lookups 0x50b450 (92).
   (start_single_player_m<n>, MissionHooks anim_start / anim_run) was
   unwired too: wired, and the walk test checks c1m1's ran to its end
   (status 3). Still unported: zrdrvalve's anim_find (the AI's, on hold).
+- Item 2 (deaths): ported the death's preparation 0x0041d070 (the eject),
+  the canned effects 0x00432830 and their node copies' free 0x00431800,
+  last_hit 0x0041d130 (zEntity's target node, 0x005a8680 / 0x005a8500 split
+  out of entity_moved), the effects' end callback 0x00461c90, zEffect's
+  0x00506ae0 / 0x00506b60 / 0x00506bc0. Wired in the game: death_prep,
+  death_anim (death_fall), stop_action, blend_anim (the limp), on_effect_end,
+  weapons stop / part lost / critical, the player's loss (Missions::lose),
+  view_mode, view_camera (was misnamed mission_failed: 0x0040ae70 is the
+  view's camera mode), position, the part's node update and world matrix
+  (the torso jolt read the identity before), MoveCalls pilot_effect (the
+  jump jets' flames), MissionHooks fn_431800.
+- test_deaths.py (in run_all): 1,553 identical, seeds 1/2, BREAK=1..4 fail.
+  mission_c1m1_owens_dies_headless: the woken Owens killed: dead, deadmech,
+  a slow fall (7/8) that plays ~4.4 s, one eject seat copy, freed at cleanup.
+- Finds: the eject sound is cut by Die in the same call (never heard;
+  fixes.md candidate); the eject seat's offset is in world axes; the slow
+  death's left/right alternates for all mechs together.
+- Left from DamageCalls: OnKill 0x0041b420 (kill credit), fly_off (part
+  vtable +0x60), node_unlink 0x004e66a0, stats, net, controls_hit/stop,
+  player_died_hud, damage decals, equip voices.
+- Test harness: with the start animation now running, the tests that called
+  missions().cleanup after app.run hit freed zSound sets (run's
+  ExitInstance shuts zSound down first; the cleanup's anim_stop_all turns a
+  running animation's sounds off): heap corruption, a SIGTRAP two tests
+  later (ASan: zsnd::unlock after close_device). CountingPump now cleans the
+  mission up at the quit, before ExitInstance (the bramps test, which checks
+  the cleanup itself, opts out). The game never cleans up after
+  ExitInstance, so no port change.

@@ -58,6 +58,8 @@ void mech_types_close();
 // As a new process starts: no mech type cached (the exe clears them only at
 // a mission's unload, 0x004318e0 in 0x00490480, which the program has not).
 void mech_types_forget();
+void mech_canned_nodes_free();
+void mission_lose();  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies
 
 // What the last launch built (0x00491150), for the program's log and its tests.
 struct LaunchedMech {
@@ -88,9 +90,14 @@ struct LaunchedMech {
   int32_t anim_state = 0;  // +0x578
   bool blocked[4] = {};    // +0x374  the last collide: vehicle, mech or bump, ceiling, wall or touch
   const void* attacker = nullptr;  // the last mech to hit it
+  int32_t action = 0;      // the action queue's front (0 none; 7, 8 the slow death falls)
+  bool deadmech = false;   // the node renamed "deadmech" (the death)
+  bool aim_torso = false;  // zEntity's target node (+0x10) is the torso's (0x0041d130)
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
+void mech_kill(void* mech);  // for the tests: its centre torso destroyed (Destroy(0, 1), 0x00465f40)
+int32_t canned_nodes_count();  // for the tests: the canned effects' node copies (the eject seats)
 
 // player.cpp's AI mechs (mission-start.md section 4): 0x00414150 on a
 // controller the program made (a MechControls), the definition's skin

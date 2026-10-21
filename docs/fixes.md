@@ -17,6 +17,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Pools: models, nodes, list items (`gmod_const`, `cls_node`, `list`) | Fixed-size slots holding 32-bit pointers, in blocks reached through a `realloc`ed pointer array | (A) pointers are 64-bit on modern systems, so the file's slot layout cannot hold them | Each slot keeps its bytes as read; the pointers the exe writes over them live in typed fields; blocks are owned arrays. Emulator-verified identical, pointers compared as indices |
 | Engine abort, 0x4eada0 | Leaves the DirectDraw mode, `MessageBoxA`, prints, `ExitProcess(0)` | (A) Win32 | `platform::Alert` shows the message, then the same prints and `exit(0)` |
 | Mech definition dtor, 0x46b9b0 | Saves the player's loadouts (0x424f60) with no check that any exist | (bug) a mech file with a bad or missing `version` stops the read before the loadouts are made, and the save then crashes the game (emulator: 0x424f9b) | The save is skipped when there are no loadouts; the file simply fails to load. Decided with Owen 2026-10-20 |
+| Canned effects' node copies, 0x431800 | Takes each copy off its first parent until it has none | (bug) a removal the node refuses would loop for ever (none does in the shipped data) | Stops at a refused removal (`mech_data.cpp` node_free) |
 | Animation prerequisites, 0x50aaa3 | The search for a prerequisite animation stops one short of the list | (bug) the mission's last animation can never be waited for | The whole list is searched. No shipped mission names the last one, so all six still match the original exactly |
 | Missing animation object, 0x50a0e0 | One node prerequisite naming an object not in the level sets the def's prerequisite count to 0 | (bug) the animation then fires without waiting for any of its conditions | Only the broken entry is dropped; the count to meet comes down only if fewer counting entries are left. Decided with Owen 2026-10-20. No shipped mission reaches it (all six checked); `anim().fix_prerequisites = false` keeps the exe's path, which test_anim.py compares exactly, plus a doctored c2 file showing both |
 | Saved loadouts, item list 0x471540 | Counts a damaged item count down past the file's end, reading nothing | (bug) a corrupted `configs\<mech>.mw3` can hang the game at load for up to 4 billion reads | Stops at the end of the file; the same items result (emulator-checked by making the original stop there too) |
@@ -387,6 +388,11 @@ Kept:
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
+
+- The eject sound (mac 2, 2026-10-21, damage.md, The death): a destroyed
+  mech's pilot ejects with `mech_eject`, but Die stops every mech sound in
+  the same call (0x0041b0d0), so it is never heard. Keeping it playing
+  (leaving +0x5e0 alone in Die) is a guess that it was meant to be heard.
 
 - Radio subtitles (mac 2, 2026-10-21): 40 radio lines in sounds.zrd carry a
   SUBTITLE the sound code would print in the message panel, but the switch

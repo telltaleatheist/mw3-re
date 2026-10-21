@@ -104,6 +104,15 @@ void Mech::entity_moved() {
   auto* n = static_cast<zcls::Node*>(node);
   if (!n || n->parent_count() == 0) return;
   zcls::object3d_set_matrix(n, transform);
+  refresh_markers();
+  x18 = {-transform[6], -transform[7], -transform[8]};  // 0x005a86b0
+  zmth::Vec3 f{-transform[6], 0.0f, -transform[8]};     // 0x005a86e0
+  zmth::normalize(f);
+  forward = {f.x, f.y, f.z};
+}
+
+// Mech3.exe 1.2 @ 0x005a8500
+void Mech::refresh_markers() {
   zmth::Mat34 buf;
   zmth::push(&buf);
   zmth::load_identity();
@@ -111,10 +120,13 @@ void Mech::entity_moved() {
   zmth::load_identity();
   zcls::node_to_world(static_cast<zcls::Node*>(centroid), 3);
   zmth::pop();
-  x18 = {-transform[6], -transform[7], -transform[8]};  // 0x005a86b0
-  zmth::Vec3 f{-transform[6], 0.0f, -transform[8]};     // 0x005a86e0
-  zmth::normalize(f);
-  forward = {f.x, f.y, f.z};
+}
+
+// Mech3.exe 1.2 @ 0x005a8680, then 0x005a85c0 as its callers do.
+void Mech::set_target_node(Handle n) {
+  target_node = n;
+  refresh_markers();
+  moved(*this);
 }
 
 }  // namespace mech3

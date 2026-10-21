@@ -4,6 +4,9 @@
 
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zclass/cls_util.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zreader/zreader.h"
@@ -25,6 +28,7 @@ constexpr uint32_t kActionFrames = 20;  // 0x14, passed and unused (0x00421120)
 MechDataHooks g_default_hooks;
 MechDataHooks* g_hooks = &g_default_hooks;
 std::list<Pilot*> g_cache;  // 0x00605704, count 0x00605708
+std::list<Handle> g_canned_nodes;  // 0x00605714, count 0x00605718: canned_effect's node copies
 
 const MechDfn* dfn_of(Pilot& p) { return g_calls.dfn ? g_calls.dfn(p) : g_hooks->dfn(p.roster); }
 
@@ -44,6 +48,23 @@ void MechDataHooks::node_set_intersect(Handle node, int32_t on) {
   zcls::node_set_intersect(static_cast<zcls::Node*>(node), on);
 }
 const MechDfn* MechDataHooks::dfn(int32_t roster) { return mech_dfn(roster); }
+Handle MechDataHooks::node_copy(Handle node) { return hh(zcls::tree_copy(static_cast<zcls::Node*>(node), 0, 0)); }
+void MechDataHooks::node_place(Handle node, float x, float y, float z) {
+  zcls::object3d_set_translation(static_cast<zcls::Node*>(node), x, y, z);
+}
+Handle MechDataHooks::effect_start(Handle effect, Handle node, const float args[9]) {
+  return effect ? hh(zeff::anim_start_at(static_cast<zeff::AnimDef*>(effect), static_cast<zcls::Node*>(node), args,
+                                         args + 3, args + 6))
+                : nullptr;
+}
+void MechDataHooks::node_free(Handle h) {
+  auto* node = static_cast<zcls::Node*>(h);
+  // FIX (bug): the exe loops until the parents are gone; a refused removal would hang it.
+  while (node->parent_count() != 0)
+    if (zcls::node_remove_child(node->parents[0], node) != 0) break;
+  zeff::anim_stop_using(node, 1, 1);
+  zcls::tree_destroy(node);
+}
 Handle MechDataHooks::sound_find(const char* name) { return hh(zsnd::find(name)); }
 Handle MechDataHooks::node_named(int32_t list, const char* name) { return hh(zcls::list_find_by_name(list, name)); }
 void MechDataHooks::animations(Pilot& p) { load_animations(p); }
@@ -220,10 +241,42 @@ void mech_data_free(Pilot* p) {
   delete p;
 }
 
-// Mech3.exe 1.2 @ 0x004318e0. Then 0x00431800 takes down the copies of the
-// canned effects' nodes that 0x00432830 made (not ported: there are none).
+// Mech3.exe 1.2 @ 0x004318e0
 void mech_data_clear() {
   while (!g_cache.empty()) mech_data_free(g_cache.front());
+  canned_nodes_free();
+}
+
+// Mech3.exe 1.2 @ 0x00432830. The offset is in the world's axes, not the
+// node's: the eject seat starts the same way whichever way the mech faces.
+Handle canned_effect(Pilot& p, int32_t slot, Handle node, const float* at, const float* vel) {
+  static const float kZero[3] = {};  // 0x0063d870
+  const Pilot::Canned& c = p.canned[slot];
+  const float* a = at ? at : kZero;
+  const float* v = vel ? vel : kZero;
+  const float pos[3] = {c.offset[0] + a[0], c.offset[1] + a[1], c.offset[2] + a[2]};
+  if (!node) {
+    if (c.node) {
+      node = g_hooks->node_copy(c.node);
+      if (!node) return nullptr;
+      g_canned_nodes.push_back(node);
+    }
+    if (!node) return nullptr;
+  }
+  if (at) g_hooks->node_place(node, pos[0], pos[1], pos[2]);
+  const float args[9] = {pos[0], pos[1], pos[2], v[0], v[1], v[2], 0, 0, 0};
+  return g_hooks->effect_start(c.effect, node, args);
+}
+
+int32_t canned_nodes_count() { return static_cast<int32_t>(g_canned_nodes.size()); }
+
+// Mech3.exe 1.2 @ 0x00431800
+void canned_nodes_free() {
+  for (Handle& n : g_canned_nodes) {
+    g_hooks->node_free(n);
+    n = nullptr;
+  }
+  g_canned_nodes.clear();
 }
 
 // Mech3.exe 1.2 @ 0x004319a0 with 0x004319f0 on each: a new mission's

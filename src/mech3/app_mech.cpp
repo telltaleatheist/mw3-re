@@ -366,6 +366,46 @@ void wire_mech_parts() {
   d.node_set_active = [](Handle n, int on) { zcls::node_set_active(zn(n), on); };          // 0x004eb170
   d.node_set_name = [](Handle n, const char* name) { zcls::node_set_name(zn(n), name); };  // 0x004eb300
   d.stop_foot_effect = [](Handle e) { foot_wake_stop(static_cast<FootWake*>(e)); };       // 0x0045fb50
+  // The deaths and damage reactions (c1m1 item 2, docs/damage.md).
+  d.death_prep = [](Mech& m) { m.death_prep(); };                 // 0x0041d070
+  d.death_anim = [](Mech& m, int anim) { m.death_fall(anim); };   // 0x0041b760
+  d.stop_action = [](Handle a) { if (a) static_cast<MechAction*>(a)->stop(); };  // 0x00421060
+  d.blend_anim = [](Handle base, Handle limp) -> Handle {         // 0x0041ff30
+    return make_blend(static_cast<MechAnim*>(base), static_cast<MechAnim*>(limp));
+  };
+  d.on_effect_end = [](Handle e, MechPart& p) {                   // 0x00508f00 with 0x00461c90
+    zeff::anim_set_callback(
+        static_cast<zeff::AnimDef*>(e),
+        [](zeff::AnimDef* def, void* part, int32_t v) { part_effect_ended(def, *static_cast<MechPart*>(part), v); },
+        &p);
+  };
+  d.weapons_stop = [](Mech& m) {                                   // 0x004b1110 on +0xd4
+    if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->destroy_all();
+  };
+  d.weapons_lost = [](Mech& m, int part) {                         // 0x004b1040 on +0xd4
+    if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->part_lost(part);
+  };
+  d.weapons_critical = [](Mech& m, int part, int ammo) {           // 0x004b0de0 on +0xd4
+    auto* wm = static_cast<WeaponManager*>(m.ammo);
+    return wm && wm->critical(part, ammo != 0);
+  };
+  d.mission_player_died = mission_lose;                            // 0x0048f9e0 on 0x006098d0
+  d.view_mode = [] { return static_cast<int>(program_view_mode_id()); };  // [0x005f4c8c] +0x58 +4
+  d.view_camera = [](int mode) { program_view_set_camera(mode); };  // 0x0040ae70
+  d.position = [](Mech& m) -> const Vec3* {                         // 0x005a85e0
+    static Vec3 at;
+    at = mech_position(m);
+    return &at;
+  };
+  d.node_update = [](MechPart& p) {                                 // 0x004ed530 on the part's node
+    float at[3];
+    if (p.node) zcls::node_world_position(zn(p.node), at);
+  };
+  d.node_matrix = [](MechPart& p) -> const float* {                 // its world 3x4 (object3d +0x60)
+    static const float kIdentity[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+    zcls::Node* n = zn(p.node);
+    return n && n->cls() == 5 ? static_cast<zcls::Object3d*>(n->data)->floats(0x60) : kIdentity;
+  };
   // The pilot's sounds (0x00432990 on +0x684, through the sounds' EXTRA
   // records, sound_extra.cpp): unplaced, or at the mech where the exe passes
   // its position.
@@ -386,6 +426,9 @@ void wire_mech_parts() {
     if (v && at && v->kind == 0) zsnd::update_3d(static_cast<zsnd::Voice*>(v), &at->x, nullptr, 0);
   };
   mv.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };  // 0x00506ca0
+  mv.pilot_effect = [](Mech& m, int slot, Handle node) {  // 0x00432830(slot, node, zero, zero): the jets' flames
+    return canned_effect(*m.pilot, slot, node, nullptr, nullptr);
+  };
   mv.weapons_enable = [](Mech& m, int on) {                                                    // 0x004b0bf0 on +0xd4
     if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->set_online(on != 0);
   };
@@ -458,6 +501,8 @@ void mech_types_open() {
 void mech_types_refresh() { mech_data_refresh(); }
 void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
+void mech_canned_nodes_free() { canned_nodes_free(); }
+void mech_kill(void* mech) { static_cast<Mech*>(mech)->torso->destroy(0, 1); }
 
 std::vector<std::string>& mech_parts_fx_log() { return g_parts_fx; }
 
@@ -492,6 +537,9 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.anim_state = m->anim_state;
   for (int i = 0; i < 4; ++i) s.blocked[i] = m->blocked[i];
   s.attacker = m->attacker;
+  s.action = m->actions.empty() ? 0 : m->actions.front();
+  if (auto* n = zn(m->node)) s.deadmech = std::strcmp(n->name(), "deadmech") == 0;
+  s.aim_torso = m->torso && m->target_node == m->torso->node;
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;

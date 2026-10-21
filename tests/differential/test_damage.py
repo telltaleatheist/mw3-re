@@ -66,7 +66,7 @@ NAMES = {1: 'controls_hit', 2: 'stats_hit', 3: 'damage_decal', 4: 'last_hit', 5:
          12: 'mech_sound', 13: 'equip_voice', 14: 'voice', 15: 'fly_off', 16: 'spawn_effect', 17: 'spawn_effect_at',
          18: 'on_effect_end', 19: 'node_unlink', 20: 'node_set_active', 21: 'node_set_name', 22: 'stop_foot_effect',
          23: 'free_part', 24: 'node_update', 25: 'anim_ok', 26: 'hip_reset', 27: 'death_prep', 28: 'death_anim',
-         29: 'stop_action', 30: 'blend_anim', 31: 'anim_speed', 32: 'gait_speed', 33: 'stats', 34: 'mission_failed',
+         29: 'stop_action', 30: 'blend_anim', 31: 'anim_speed', 32: 'gait_speed', 33: 'stats', 34: 'view_camera',
          35: 'mission_player_died', 36: 'stop_sound', 37: 'controls_stop', 38: 'killer_notify', 391: 'hud_view_off',
          392: 'hud_442e00', 393: 'screen_vt4'}
 

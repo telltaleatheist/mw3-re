@@ -95,6 +95,7 @@ for t in \
     gmod_add \
     crater \
     sound_extra \
+    deaths \
     ai_gates \
     ai_frame \
     ai_vlist \

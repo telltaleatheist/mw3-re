@@ -151,6 +151,17 @@ From the port of the damage code, checked in an emulator against the original
   without the screen static that torso, arm and head hits give you.
 - **XL engines have no damage rule.** The `xl` setting changes only the
   engine's weight in the mech lab; nothing in combat reads it.
+- **Pilots eject when their mech is destroyed** (unless it explodes, or was
+  already lying on the ground): an ejection seat effect starts at the hip,
+  the mech sags at the waist as it starts to fall, and the eject sound is
+  played, then cut off in the same instant by the code that silences a dead
+  mech, so nobody has ever heard it.
+- **The ejection seat ignores which way the mech faces.** Its offset from the
+  hip (for the Owens 3.6 m up and 1.46 m along the world's z axis) is added
+  in the world's directions, not turned with the mech.
+- **A slow death alternates between falling left and right** for all mechs
+  together: one shared switch flips at each death below 50 km/h, so two
+  mechs dying one after another fall to opposite sides.
 
 ## Movement
 

@@ -10,11 +10,14 @@
 #include "mech3/mech.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_names.h"
+#include "gamez/zclass/class.h"
+#include "mech3/mech_collide.h"
+#include "mech3/mech_parts.h"
 
 namespace mech3 {
 
 namespace {
-constexpr int kDead = 10;
+constexpr int kDead = 10, kFallenBack = 12, kFallenFront = 13;
 constexpr int kNetDeath = 0x13;
 constexpr int kMessageNuke = 0x305;    // Mech3Msg.dll: the NUKE's name
 
@@ -108,7 +111,33 @@ void Mech::mark_narc(bool on) {
 void Mech::note_hit() {
   last_hit_time = world().time;
   last_hit_part = torso;
-  if (calls().last_hit) calls().last_hit(*this);  // 0x0041d130
+  if (calls().last_hit) calls().last_hit(*this);  // test hook
+  else aim_at_last_hit();
+}
+
+// Mech3.exe 1.2 @ 0x0041d130. note_hit always names the torso, so after the
+// first hit (and a second into the mission, hit_timeout) others aim at the
+// torso's node instead of the marker 0.65 up (docs/damage.md).
+void Mech::aim_at_last_hit() { set_target_node(last_hit_part ? last_hit_part->node : xe8); }
+
+// Mech3.exe 1.2 @ 0x0041d070, as the torso's destruction starts the fall:
+// the pilot ejects (the canned "eject" effect at the hip), the hip sinks,
+// the eject sound plays. A mech lying down does neither.
+void Mech::death_prep() {
+  x634 &= ~1u;  // 0x0041ca60(0)
+  if (anim_state == kFallenBack || anim_state == kFallenFront) return;
+  Vec3 at{};
+  if (part_calls().world_position) part_calls().world_position(hip->node, &at);  // 0x004ed530
+  else zcls::node_world_position(static_cast<zcls::Node*>(hip->node), &at.x);
+  const Handle eject = calls().canned ? calls().canned(*this, 0, nullptr, &at.x, nullptr)
+                                     : canned_effect(*pilot, 0, nullptr, &at.x, nullptr);
+  if (eject) {
+    if (collide_calls().crouch) collide_calls().crouch(*hip, 0.75f);
+    else hip->duck(0.75f);
+    // Stopped again by Die at once, with every mech sound (0x0041b0d0).
+    if (detail & 1) sounds[10] = heat_calls().play_sound ? heat_calls().play_sound(*this, 10) : nullptr;
+  }
+  if (this == world().mission_player && calls().mission_player_died) calls().mission_player_died();  // 0x0048f9e0
 }
 
 // Mech3.exe 1.2 @ 0x0041b0d0 (Mech vtable +0x70)
@@ -132,7 +161,7 @@ void Mech::die() {
   velocity = vec_58;
   vec_3c = vec_58;
   if (c.weapons_stop) c.weapons_stop(*this);
-  if (this == w.player && c.view_mode && c.view_mode() == 1 && c.mission_failed) c.mission_failed(2);
+  if (this == w.player && c.view_mode && c.view_mode() == 1 && c.view_camera) c.view_camera(2);
   for (Sound& s : sounds) {
     if (s) {
       if (heat_calls().stop_sound) heat_calls().stop_sound(s);

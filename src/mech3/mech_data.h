@@ -63,6 +63,11 @@ class MechDataHooks : public zgame::Unported {
   virtual bool reader_vec3(Handle node, const char* key, float out[3]);  // 0x005570b0
   virtual const char* reader_string(Handle node, const char* key);       // 0x005569f0
   virtual const char* reader_value(Handle node);  // a found list's first item, read inline
+  // The canned effects (0x00432830, 0x00431800); the defaults run the ports.
+  virtual Handle node_copy(Handle node);                          // 0x004f9af0(node, 0, 0): zcls::tree_copy
+  virtual void node_place(Handle node, float x, float y, float z);  // 0x004fc0b0
+  virtual Handle effect_start(Handle effect, Handle node, const float args[9]);  // 0x00508aa0: zeff::anim_start_at
+  virtual void node_free(Handle node);  // 0x00431800 on each: off its parents, its animations stopped, destroyed
 };
 void set_mech_data_hooks(MechDataHooks* h);  // null: the defaults
 MechDataHooks& mech_data_hooks();
@@ -78,6 +83,15 @@ Pilot* mech_data_new(int32_t roster);          // 0x004303d0: init, load, onto t
 bool mech_data_load(Pilot& p);                 // 0x004308a0
 void mech_data_free(Pilot* p);                 // 0x00430580 and the delete
 void mech_data_clear();                        // 0x004318e0, at the mission's unload
+
+// A canned effect (Pilot::canned: 0 eject, 1 jump jets, 2 narc) started at
+// `node` at its offset plus `at`; with no node, at a copy of the slot's node
+// (kept for canned_nodes_free), none when the slot has no node. `at` and
+// `vel` null stand for the exe's zero vector 0x0063d870, and a null `at`
+// leaves the copy where it is. 0x00432830 (ECX +0x684).
+Handle canned_effect(Pilot& p, int32_t slot, Handle node, const float* at, const float* vel);
+void canned_nodes_free();  // 0x00431800: the copies, at the mission's unload
+int32_t canned_nodes_count();  // 0x00605718
 void mech_data_refresh();                      // 0x004319a0, at each mission's load: 0x004319f0 on each
 void load_ranges(Pilot& p);                    // 0x00430840
 void load_sounds(Pilot& p);                    // 0x004306d0

@@ -719,6 +719,38 @@ int32_t anim_stop_all(int32_t keep_elapsed) {
 
 void anim_keep_stopped_elapsed(int32_t on) { A().stopped_elapsed = on; }
 
+// Mech3.exe 1.2 @ 0x00506ae0 (ECX def, EDX node)
+bool anim_uses_node(const AnimDef* def, const Node* node) {
+  if (def->node == node || def->root == node) return true;
+  for (int i = 0; i < def->count(0x109); ++i)
+    if (def->objects[i].node == node) return true;
+  for (int i = 0; i < def->count(0x10a); ++i)
+    if (def->nodes[i].node == node) return true;
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x00506b60
+void anim_forget_nodes(AnimDef* def) {
+  for (int i = 0; i < def->count(0x109); ++i) def->objects[i].node = nullptr;
+  for (int i = 0; i < def->count(0x10a); ++i) def->nodes[i].node = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00506bc0
+int32_t anim_stop_using(const Node* node, int32_t keep_elapsed, int32_t forget) {
+  if (!node) return -1;
+  const int32_t saved = A().stopped_elapsed;  // 0x00502d30
+  anim_keep_stopped_elapsed(keep_elapsed);
+  for (int32_t j = 1; j < A().def_count(); ++j) {
+    for (AnimDef* d = &A().defs[j]; d; d = d->instance) {
+      if (!anim_uses_node(d, node)) continue;
+      anim_stop(d);
+      if (forget) anim_forget_nodes(d);
+    }
+  }
+  anim_keep_stopped_elapsed(saved);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x00502df0. Damage over the threshold (+0xb4) comes off
 // the health; at 0 or below (also with no damage done, so a def with health
 // 0 fires on any hit) the anim starts. Returns the health.
