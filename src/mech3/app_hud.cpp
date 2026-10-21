@@ -42,6 +42,8 @@
 #include "mech3/zai_target.h"
 
 namespace mech3 {
+const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
+
 
 namespace {
 zcls::Node* camera_node() {
@@ -276,9 +278,12 @@ struct ProgramHudHooks : HudHooks {
     return t ? t : "";
   }
   bool mech_remote(void* m) override { return mech_of(m)->remote; }
-  // vt+0xa4 (0x0041df30): the player's pilot's name, else the brain's
-  // (0x004aee70, not ported): none here (hud.md, Left).
-  const char* mech_object_name(void*) override { return nullptr; }
+  // vt+0xa4 (0x0041df30): the player's pilot's name (program_pilot_name,
+  // app_menus.cpp), else the brain's (0x004aee70); "" ([0x005f4c90]) when none.
+  const char* mech_object_name(void* m) override {
+    const char* n = m == mech_mission_player() ? program_pilot_name() : mech_brain_name(m);
+    return n ? n : "";
+  }
   const char* mech_config_name(void* m) override {
     const Config* c = mech_of(m)->config;
     return c ? c->name : nullptr;

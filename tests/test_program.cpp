@@ -2231,6 +2231,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int first[4] = {0, 0, 0, 0};  // the first frame of lock states 1..3
       bool target_set = false;
       int prev = 0, waiting = 0;
+      int ai_named = 0;  // AI mechs whose brain gives a name
       int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
       float blip_d = 0.0f, blip_want = 0.0f;
       mech3::HudReport gauges;  // frame 10's (hud.md section 17)
@@ -2275,6 +2276,13 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
         seen.weapons = r.weapons, seen.lines = r.lines, seen.names_ok = r.named, seen.bracketed = r.bracketed;
         seen.gauges = r;
+        // A mech's own name (0x0041df30): the AI's from its brain's record (0x004aee70).
+        int32_t n = 0;
+        const mech3::AiMechMade* made = mech3::mission_ai_mechs(&n);
+        for (int32_t i = 0; i < n; ++i) {
+          const char* nm = mech3::mech_brain_name(made[i].mech);
+          if (nm && *nm) ++seen.ai_named;
+        }
         keys.key(zin::key1_of(0x1b) & 0xff, true);  // THROTTLE1: back to 0% for the lock
         keys.key(zin::key1_of(0x1b) & 0xff, false);
       } else if (seen.frames > 10 && seen.frames < 20 && mech3::program_hud_report(&r)) {
@@ -2330,6 +2338,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     // The MFD's armor display (mode 3, the ported LanceDisplay): laid out for
     // the player's mech when the HUD was given it (0x004423c0 → 0x0047eba0).
     EXPECT(seen.gauges.mfd_armor_most > 0 && seen.gauges.mfd_armor_w > 0);
+    EXPECT(seen.ai_named > 0);
     EXPECT(seen.radar_frames == 9 && seen.blips_asleep == 0 && seen.blip_frames >= 8);
     EXPECT(std::abs(seen.blip_d - seen.blip_want) <= 1.5f && seen.blip_off <= 1);  // straight ahead
     EXPECT(seen.blips_locked == 0);

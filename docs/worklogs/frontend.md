@@ -698,3 +698,17 @@ a mech's `active` (entity_is_mech in app_mech.cpp), any other object is
 logged unported; node_bc (+0xbc) is the node's damage callbacks' record
 (a typed field in the port, the raw bytes there are stale): has one = 2.
 test_hud 20/20 (its probe keeps the hooks), mw3tests 107/0.
+
+## 2026-10-21 HUD leftovers (branch mac3/save-fix)
+
+- The MFD's/TARGET's "nav list" (0x0047e840) is the armor display: moved
+  to armor_display.h + lance_armor.h, 0x0047eb60 place ported, the
+  program's HUD hooks run it (c1m1 HUD test checks it is laid out).
+- The zoom window's show_for 0x004438d0 (view's, then text hidden);
+  test_hud.py op 33 (break caught).
+- A mech's own name 0x0041df30 / 0x004aee70: player's pilot name
+  (program_pilot_name, app_menus.cpp) or the brain's AiParams pilot
+  (mech_brain_name, app_mech.cpp); HUD TARGET's third text and the
+  debriefing's lancemate names use it. Open question for the lead: the
+  6b guard (keep a card's +0xb4 without a record line) could go now.
+Network HUD pieces skipped as ordered.

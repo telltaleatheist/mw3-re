@@ -445,8 +445,13 @@ void GameEngine::mission_results(uint8_t a, uint8_t b) {
   else mech_lance_salvage(c->store64, b != 0);
 }
 
-// The results' lance from the ported mechs. A lancemate's name (its brain's,
-// 0x004aee70) is not ported: "" ([0x005f4c90]), so no record line yet.
+// The results' lance from the ported mechs; a lancemate's name is its
+// brain's (0x004aee70), "" ([0x005f4c90]) without one.
+const char* program_pilot_name() {
+  Pilot* p = current_pilot();
+  return p ? p->name : nullptr;
+}
+
 std::vector<Engine::LanceMech> GameEngine::debrief_lance() {
   std::vector<LanceMech> r;
   for (const DebriefMech& d : mech_debrief_lance()) {
@@ -456,7 +461,8 @@ std::vector<Engine::LanceMech> GameEngine::debrief_lance() {
     m.team = d.team;
     m.type = d.type;
     for (int i = 0; i < 6; ++i) m.stats[i] = d.stats[i];
-    m.name = d.player && current_pilot() ? current_pilot()->name : "";  // 0x0041df30
+    const char* n = d.player ? program_pilot_name() : mech_brain_name(d.mech);  // 0x0041df30
+    m.name = n ? n : "";
     r.push_back(m);
   }
   return r;

@@ -437,7 +437,7 @@ class HudTarget : public HudMfd {
 class HudZoomWindow : public HudZoomView {
  public:
   HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00442ac0
-  // +0x60 show_for 0x004438d0: not ported yet.
+  void show_for(float seconds) override;  // +0x60  0x004438d0: the view's, its text hidden
   void hide() override;              // +0x64  0x00443880
   void update(float dt) override;    // +0x24  0x00442e30: the scale grows (shown) or shrinks
   void set_rect(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004438f0: scaled by the zoom, kept on screen

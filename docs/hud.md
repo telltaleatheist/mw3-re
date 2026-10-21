@@ -331,7 +331,9 @@ the set-up reads: item 1a's test).
   0x00441660 with a target, the radar's zoom sound (0x0043da50 with a
   source, 0x0043da00), the weapon line's refresh 0x00445dc0 with a weapon,
   the equipment's and weapons' readers 0x00448200 / 0x00446120 with a HUD.
-- The show_for overrides 0x0043db70 (radar), 0x004438d0 (zoom window),
+- (Done) The zoom window's show_for 0x004438d0: the zoom view's (0x0043fc10),
+  then its text hidden; test_hud.py op 33 shows it.
+- The show_for overrides 0x0043db70 (radar),
   0x00441560 (TARGET), and the objectives' and weapons' parts of theirs
   (0x00446ad0, 0x00446520).
 - TextBox's own message-id setters 0x005a1cd0 / 0x005a1cf0 (FontText's run).
@@ -345,9 +347,9 @@ the set-up reads: item 1a's test).
   so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
   the Mobile HQ, turrets) wait for those vehicles; until then their contacts
   show nothing.
-- TARGET's third text in the program: a mech's own name (vt+0xa4,
-  0x0041df30: the player's pilot's, else its brain's 0x004aee70) is not
-  ported, so it stays empty.
+- (Done) TARGET's third text in the program: a mech's own name (vt+0xa4,
+  0x0041df30): the player's pilot's, else its brain's (0x004aee70: the
+  brain's vehicle record's pilot, AiParams +0xd4), "" without one.
 
 ## 10. The aim (the reticle's world point)
 
@@ -839,7 +841,8 @@ parts' 0x194..0x19a, then literal names for the hands, calves, feet and
 hip), the loadout's name from the mech's Config, the aimed part from +0xf8
 and the weapons' part_by_id, the ally contact from the AI's saved_or_ally.
 A mech's own name (vt+0xa4 0x0041df30: the player's pilot's name, else the
-brain's 0x004aee70) is not ported: the third text stays empty (Left).
+brain's 0x004aee70, its vehicle record's pilot) is wired in the program
+(`mech_brain_name`); the c1m1 HUD test checks the AI mechs have one.
 mw3tests' mission_c1m1_player_aims_with_the_reticle_headless puts TARGET on
 the Owens in mode 2 and fires: the hits wear a torso section's internal to
 0.899 and its silhouette part changes image (at frame 89), the rest stay
