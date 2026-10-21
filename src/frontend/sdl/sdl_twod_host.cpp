@@ -105,7 +105,10 @@ zimg::Texture* SdlTwodHost::image_get(const char* name) {
   }
   zimg::Texture* t = zimg::fetch_image(name);
   if (!t) {
-    std::fprintf(stderr, "mw3: image %s not found\n", name);
+    // The original misses silently (0x005179d0 returns 0). Reported once per
+    // name: the HUD asks for 12 names no shipped library has, every mission
+    // (dmg_*_blk, hud_othererrow_*; hud.md, Images the data lacks).
+    if (missing_.insert(name).second) std::fprintf(stderr, "mw3: image %s not found\n", name);
     return nullptr;
   }
   images_[name] = {t, 1};

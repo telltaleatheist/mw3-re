@@ -36,6 +36,7 @@
 #include "gamez/zeffect/zeff_init.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
@@ -3479,4 +3480,41 @@ TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// Playtest #10 (docs/playtest.md, hud.md, Images the data lacks): the HUD
+// asks for 52 images; the 40 the game ships load, and the 12 the original
+// asks for too are in no shipped library (MW3 1.2 or Pirate's Moon), so they
+// stay null as in the original (0x005179d0 returns 0): a destroyed part's
+// black silhouette and the arrows to a target that is neither ally nor enemy.
+TEST(playtest_hud_images_the_data_lacks) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  zimg::state() = zimg::State{};
+  zimg::state().display_format = 6;
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zimg::register_image_library(1);
+  const char* const parts[] = {"head", "ltorso", "rtorso", "ctorso", "larm", "rarm", "lleg", "rleg"};
+  const char* const dirs[] = {"left", "right", "up", "down"};
+  int found = 0, missing = 0;
+  auto check = [&](const std::string& n, bool shipped) {
+    const bool got = zimg::fetch_image(n.c_str()) != nullptr;
+    if (got != shipped) std::printf("  %s: %s\n", n.c_str(), got ? "found" : "missing");
+    EXPECT(got == shipped);
+    (got ? found : missing) += 1;
+  };
+  for (const char* p : parts) {
+    for (const char* c : {"blue", "grn", "yel", "red"}) check(std::string("dmg_") + p + "_" + c, true);
+    check(std::string("dmg_") + p + "_blk", false);
+  }
+  for (const char* d : dirs) {
+    check(std::string("hud_enarrow_") + d, true);
+    check(std::string("hud_allyarrow_") + d, true);
+    check(std::string("hud_othererrow_") + d, false);
+  }
+  EXPECT(found == 40 && missing == 12);
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zimg::state() = zimg::State{};
 }

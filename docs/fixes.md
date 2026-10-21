@@ -406,6 +406,13 @@ Kept:
   export goes to `export\` and the import takes the next file in
   `import\` (one a press, renamed `.done`). A file picker in the SDL front
   end would be closer to the original.
+- The HUD's missing images (mac 3, 2026-10-21, playtest #10, hud.md
+  section 16): a destroyed part's `dmg_<part>_blk` and the "other" target
+  arrows `hud_othererrow_*` were never shipped, so a destroyed part leaves
+  the damage silhouette and a target neither ally nor enemy gets no arrow.
+  Kept as the original. Possible: draw a destroyed part in a dark tint of
+  its red image, and use `hud_navarrow_*` (shipped, unused) for the "other"
+  arrows; both are guesses at the art the designers meant.
 - The import goes into the shown mech's list (mac 3, 2026-10-21): Ctrl+I
   adds the read loadout to the list of the mech on the shown slot
   (0x00448bfd), whatever mech the file is for. Using the loadout's own

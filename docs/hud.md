@@ -793,6 +793,18 @@ structure 0..1: exactly 1.0 the first (intact), above 0.7 the second, above
 0.4 the third, above 0 the fourth (the band above 0.2 and the one below it
 share it, as coded), 0 or less the fifth (destroyed). Armor plays no part.
 
+**Images the data lacks** (playtest #10): of the 52 images the HUD asks
+for here and for TARGET's arrows, 12 are in no shipped library, in MW3 1.2
+or Pirate's Moon: `dmg_<part>_blk` for the eight parts and
+`hud_othererrow_left/right/up/down`. Only the exe names them. zImage's
+lookup (0x005179d0) returns 0 for them without a report, so a destroyed
+part's image is null (nothing drawn: the part leaves the silhouette) and so
+is TARGET's arrow for a target that is neither ally nor enemy (team 2,
+section 14). The port does the same; the SDL host reports each missing name
+once. rimage.zbd does hold `hud_navarrow_*` and `hud_mfbarrow_*`, which no
+HUD code asks for (fixes.md, Candidates). Test:
+`playtest_hud_images_the_data_lacks`.
+
 **The view's levels** (0x00447a50, `HudDamageView::update_levels`): with a
 mech, its parts' internal (Part vt+0x48, `get_internal`) into the eight
 images: the head (+0x3a4), the torso's sections 1, 2 and 0 (right, left,

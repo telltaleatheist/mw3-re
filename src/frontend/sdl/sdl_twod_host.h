@@ -1,5 +1,6 @@
 #pragma once
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -129,6 +130,7 @@ class SdlTwodHost : public ztwod::Host {
     int refs;
   };
   std::map<std::string, Cached> images_;
+  std::set<std::string> missing_;  // the names already reported
   uint32_t buttons_ = 0;
   bool ttf_ok_ = false;
 };
