@@ -34,6 +34,7 @@ probe = ctypes.CDLL(str(LIB))
 P = ctypes.c_void_p
 probe.probe_weiler_new.argtypes = [P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_case.argtypes = [P, ctypes.c_int, P, ctypes.c_int, ctypes.c_uint32, P, ctypes.c_int]
+probe.probe_weiler_weed.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_leaf.argtypes = [ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int, ctypes.c_float, ctypes.c_float,
                                     ctypes.c_int, P, ctypes.c_int]
 
@@ -145,6 +146,18 @@ class Emulated:
         for i in range(ccount):
             c = cbase + 0xc * i
             self.log(self.u32(c), eref(self.u32(c + 4)))
+        for i in range(ccount):
+            first = e = self.u32(cbase + 0xc * i + 4)
+            for _ in range(200):
+                if not e:
+                    break
+                self.log(eref(e), self.u32(e + 8))
+                self.point_ref(w, self.u32(e + 0xc)), self.point_ref(w, self.u32(e + 0x10))
+                self.raw(e + 0x18, 8), self.raw(e + 0x24, 8)
+                e = self.u32(e + 4)
+                if e == first:
+                    break
+            self.log(0xeeee)
 
     def weiler_new(self, points):
         self.begin()
@@ -201,6 +214,20 @@ class Emulated:
         nr = self.u32(w + 0x14)
         self.raw(w + 0xc0, 4 * np_ * (nr + 1))
         self.raw(w + 0x14c0, 4 * nr * (np_ + 1))
+        return bytes(self.out)
+
+    def weed(self, region, poly):
+        self.begin()
+        nr, np_ = len(region) // 3, len(poly) // 3
+        self.caller, self.caller_n = self.put(farr(region)), nr
+        w = self.call(0x50f960, ecx=self.caller, edx=nr, stack=(0,))
+        pp = self.put(farr(poly))
+        self.cpu.write(w + 0x28, struct.pack('<II', np_, pp))
+        self.call(0x514d10, ecx=w)
+        self.call(0x50fe70, ecx=w, edx=pp, stack=(np_, 2))
+        self.call(0x513750, ecx=w)
+        self.log(self.call(0x510250, ecx=w) & 0xff)
+        self.dump(w)
         return bytes(self.out)
 
     def leaf(self, op, a, b, eps1=0.0, eps2=0.0, code=0):
@@ -280,6 +307,39 @@ def polygon(rng, region, kind):
     return ring(rng, cx + r * rng.uniform(0.6, 1.2), cy + rng.uniform(-r, r) * 0.3, r * rng.uniform(0.5, 1.2), n, 5)
 
 
+def weed_case(rng):
+    """A region and a polygon on a grid: rectangles (or diamonds) sharing,
+    overlapping or reversing each other's sides."""
+    g = rng.choice((1.0, 2.0, 0.5))
+    ox, oy = rng.randint(-50, 50) * g, rng.randint(-50, 50) * g
+
+    def rect(x0, y0, x1, y1, z):
+        pts = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        if rng.random() < 0.5:
+            pts.reverse()
+        k = rng.randrange(4)
+        pts = pts[k:] + pts[:k]
+        if rng.random() < 0.3:  # an extra point along a side
+            i = rng.randrange(4)
+            a, b = pts[i], pts[(i + 1) % 4]
+            pts.insert(i + 1, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
+        return [v for x, y in pts for v in (ox + x * g, oy + y * g, z)]
+    if rng.random() < 0.2:
+        d = rng.randint(1, 4)
+        region = [v for x, y in ((0, -d), (d, 0), (0, d), (-d, 0)) for v in (ox + x * g, oy + y * g, 1.0)]
+        e = rng.randint(1, 4)
+        sx, sy = rng.randint(-2, 2), rng.randint(-2, 2)
+        poly = [v for x, y in ((sx, sy - e), (sx + e, sy), (sx, sy + e), (sx - e, sy)) for v in
+                (ox + x * g, oy + y * g, 2.0)]
+    else:
+        w0, h0 = rng.randint(1, 6), rng.randint(1, 6)
+        region = rect(0, 0, w0, h0, 1.0)
+        x0, y0 = rng.randint(-3, w0 + 2), rng.randint(-3, h0 + 2)
+        x0 = rng.choice((x0, 0, w0, -rng.randint(1, 3)))
+        poly = rect(x0, y0, x0 + rng.randint(1, 6), y0 + rng.randint(1, 6), 3.0)
+    return region, poly
+
+
 def main():
     rng = random.Random(int(os.environ.get('SEED', '1')))
     brk = int(os.environ.get('BREAK', '0'))
@@ -300,16 +360,16 @@ def main():
                 print('  port    ', mine[max(0, i - 16):i + 32].hex())
                 print('  original', theirs[max(0, i - 16):i + 32].hex())
 
-    def region_of(rng):
+    def region_of(rng, big=False):
         far = rng.random() < 0.2
         cx = rng.choice((70000.0, -90000.5)) if far else rng.uniform(-500, 500)
         cy = rng.uniform(-500, 500) if not far or rng.random() < 0.5 else 80000.25
-        return ring(rng, cx, cy, rng.uniform(3, 30), rng.randint(3, 16), 2.0, rng.choice((0, 0.05, 0.2)),
-                    rng.choice((0, 0, 1, 3)))
+        n = rng.randint(100, 150) if big and rng.random() < 0.1 else rng.randint(3, 16)
+        return ring(rng, cx, cy, rng.uniform(3, 30), n, 2.0, rng.choice((0, 0.05, 0.2)), rng.choice((0, 0, 1, 3)))
 
     # weiler_new and reset.
     for _ in range(300):
-        region = region_of(rng)
+        region = region_of(rng, big=True)
         mine_region = list(region)
         if brk == 1:
             mine_region[0] += 0.001
@@ -333,6 +393,18 @@ def main():
         mine = got(probe.probe_weiler_case(ctypes.cast(fbuf(region), P), nr, ctypes.cast(fbuf(mine_poly), P), np_,
                                            want, BUF, CAP))
         check('case_' + kind, mine, emu.case(region, poly, want))
+
+    # Shared edges: rectangles and diamonds on a grid, the polygon sharing,
+    # overlapping or reversing the region's sides.
+    for _ in range(800):
+        region, poly = weed_case(rng)
+        mine_poly = list(poly)
+        if brk == 6:
+            mine_poly[3] += 1e-3
+        nr, np_ = len(region) // 3, len(poly) // 3
+        mine = got(probe.probe_weiler_weed(ctypes.cast(fbuf(region), P), nr, ctypes.cast(fbuf(mine_poly), P), np_,
+                                           BUF, CAP))
+        check('weed', mine, emu.weed(region, poly))
 
     # Leaves.
     for _ in range(1500):

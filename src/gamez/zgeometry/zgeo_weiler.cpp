@@ -227,6 +227,187 @@ void side_tables(Weiler& w) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00513930
+int split_pair(Weiler& w, Edge* e1, Edge* e2, float* point, uint32_t f1, uint32_t f2) {
+  Edge* e = e1;
+  uint32_t f = f1;
+  for (int k = 0; k < 2; ++k) {
+    Edge* n = w.edges.alloc(1);
+    n->prev = e;
+    n->next = e->next;
+    n->flags = e->flags | f;
+    n->a = point;
+    n->crossing = nullptr;
+    n->b = e->b;
+    n->mark = e->mark;
+    n->contour = nullptr;
+    edge_box(*n);
+    e->next->prev = n;
+    e->next = n;
+    e = e2, f = f2;
+  }
+  return 1;
+}
+
+// Mech3.exe 1.2 @ 0x00510250 ("WeedOut"). Region edge R (and its twin R2 in
+// the second ring) against polygon edge P (P2), walked in ring order over the
+// edges as built (pieces split off are not visited). The case is which ends
+// lie within the other edge: R.a on P (8), R.b on P (4), P.a on R (2), P.b
+// on R (1). `back`: the two run opposite ways in x or in y.
+int weed_out(Weiler& w) {
+  const int32_t nr = w.region_count, np = w.poly_count;
+  Edge* r = w.contours.at(0).edge;
+  Edge* r2 = w.contours.at(1).edge;
+  Edge* const p_first = w.contours.at(2).edge;
+  Edge* const p2_first = w.contours.at(3).edge;
+  const float* side_poly = w.side_poly.data();
+  auto far = [](const float* u, const float* v) {
+    return std::fabs(u[0] - v[0]) > kSame || std::fabs(u[1] - v[1]) > kSame;
+  };
+  for (int32_t i = 0; i < nr; ++i, ++r, ++r2, ++side_poly) {
+    const float* side_region = w.side_region.data() + i;
+    float* ra = r->a;
+    float* rb = r->b;
+    Edge* p = p_first;
+    Edge* p2 = p2_first;
+    for (int32_t j = 0; j < np; ++j, ++p, ++p2, side_region += nr + 1, ++side_poly) {
+      float* pa = p->a;
+      float* pb = p->b;
+      if (!(std::fabs(side_region[0]) < kTie) || !(std::fabs(side_region[1]) < kTie) ||
+          !(std::fabs(side_poly[0]) < kTie) || !(std::fabs(side_poly[1]) < kTie))
+        continue;
+      const int code = within_segment(ra, pa, pb) << 3 | within_segment(rb, pa, pb) << 2 |
+                       within_segment(pa, ra, rb) << 1 | within_segment(pb, ra, rb);
+      const bool back = ((rb[0] < ra[0] || pb[0] < pa[0]) && (ra[0] < rb[0] || pa[0] < pb[0])) ||
+                        ((rb[1] < ra[1] || pb[1] < pa[1]) && (ra[1] < rb[1] || pa[1] < pb[1]));
+      switch (code) {
+        case 3:  // P within R
+          if (!back) {
+            split_pair(w, r, r2, pb, 0, 0);
+            r2->b = pa, rb = pa, r->b = pa;
+            p->flags |= r->flags, p2->flags |= r2->flags;
+          } else {
+            split_pair(w, r, r2, pa, 0, 0);
+            rb = pb, r2->b = pb, r->b = pb;
+            p->flags |= r2->flags, p2->flags |= r->flags;
+          }
+          edge_box(*r);
+          break;
+        case 5:
+          if (far(rb, pb)) {
+            split_pair(w, r, r2, pb, p2->flags, p->flags);
+            r2->b = pb, r->b = pb;
+            p2->b = rb, p->b = rb;
+            rb = r->b;
+            edge_box(*r), edge_box(*p);
+          }
+          break;
+        case 6:
+          if (far(rb, pa)) {
+            split_pair(w, p, p2, rb, 0, 0);
+            p2->b = rb, p->b = rb;
+            rb = pa;
+            r2->b = pa, r->b = pa;
+            p->flags |= r->flags, p2->flags |= r2->flags;
+            edge_box(*r), edge_box(*p);
+          }
+          break;
+        case 7:
+          if (!back) {
+            rb = pb, r2->b = pb, r->b = pb;
+            p->flags |= r2->flags, p2->flags |= r->flags;
+          } else {
+            rb = pa, r2->b = pa, r->b = pa;
+            p->flags |= r->flags, p2->flags |= r2->flags;
+          }
+          edge_box(*r);
+          break;
+        case 9:
+          if (far(ra, pb)) {
+            split_pair(w, r, r2, pb, 0, 0);
+            r2->b = pb, r->b = pb;
+            p2->b = ra;
+            rb = pb;
+            p->b = ra;
+            r->flags |= p->flags, r2->flags |= p2->flags;
+            edge_box(*r), edge_box(*p);
+          }
+          break;
+        case 10:
+          if (far(ra, pa)) {
+            split_pair(w, r, r2, pa, 0, 0);
+            r2->b = pa, r->b = pa;
+            p2->a = ra, p->a = ra;
+            r->flags |= p2->flags;
+            ra = pa;
+            r2->flags |= p->flags;
+            edge_box(*r), edge_box(*p);
+          }
+          break;
+        case 11:
+          if (!back) {
+            ra = pb, r2->a = pb, r->a = pb;
+            p->flags |= r->flags, p2->flags |= r2->flags;
+          } else {
+            ra = pa, r2->a = pa, r->a = pa;
+            p->flags |= r2->flags, p2->flags |= r->flags;
+          }
+          edge_box(*r);
+          break;
+        case 12:  // R within P
+          if (!back) {
+            split_pair(w, p, p2, rb, 0, 0);
+            p2->b = ra, p->b = ra;
+          } else {
+            split_pair(w, p, p2, ra, 0, 0);
+            p2->b = rb, p->b = rb;
+          }
+          r->flags |= p->flags, r2->flags |= p2->flags;
+          edge_box(*p);
+          break;
+        case 13:
+          if (!back) {
+            p2->b = ra, p->b = ra;
+            r->flags |= p->flags, r2->flags |= p2->flags;
+          } else {
+            p2->b = rb, p->b = rb;
+            r->flags |= p2->flags, r2->flags |= p->flags;
+          }
+          edge_box(*p);
+          break;
+        case 14:
+          if (!back) {
+            p2->a = rb, p->a = rb;
+            r->flags |= p->flags, r2->flags |= p2->flags;
+          } else {
+            p2->a = ra, p->a = ra;
+            r->flags |= p2->flags, r2->flags |= p->flags;
+          }
+          edge_box(*p);
+          break;
+        case 15:  // the same edge: the polygon's pair taken out of its rings
+          if (!back) {
+            r->flags |= p->flags, r2->flags |= p2->flags;
+          } else {
+            r2->flags |= p->flags, r->flags |= p2->flags;
+          }
+          if (p == p_first) {
+            w.contours.at(2).edge = p->next;
+            w.contours.at(3).edge = p2->next;
+            p->next->contour = &w.contours.at(2);
+            p2->next->contour = &w.contours.at(3);
+          }
+          p->prev->next = p->next, p->next->prev = p->prev;
+          p2->prev->next = p2->next, p2->next->prev = p2->prev;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  return 1;
+}
+
 // Mech3.exe 1.2 @ 0x00513cf0. Counts the polygon's crossings of the ray
 // from q towards +x.
 int point_in_polygon(const float q[2], int32_t n, const float* poly) {

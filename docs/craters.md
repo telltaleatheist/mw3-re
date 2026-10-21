@@ -114,7 +114,7 @@ commit. Who calls it: zWeapon 0x005824b0 for a weapon with the
 | File | Functions | Pseudocode lines | What |
 |---|---|---|---|
 | zgeo_model.cpp 0x0050da90..0x0050f950 | 31 | 1,425 | area partitions, polygon buffers, node building (0x0050dea0 add a polygon), the clip driver 0x0050ec10 / 0x0050ea50 |
-| zgeo_weiler.cpp 0x0050f950..0x005158c0 | 46 | 3,794 | Weiler–Atherton polygon clipping (0x0050faf0 the entry, 0x00510250 the crossings, 0x00510da0 the walk, 926 lines) |
+| zgeo_weiler.cpp 0x0050f950..0x005158c0 | 46 | 3,794 | Weiler–Atherton polygon clipping (0x0050faf0 the entry, 0x00510250 shared edges, 0x00510da0 the crossings and the walk, 926 lines) |
 | zgeo_convexify.cpp 0x005158c0..0x005166c0 | 13 | 724 | splitting the clipped (concave) polygons into convex ones |
 
 ### zgeo_model, ported (part 2)
@@ -202,10 +202,28 @@ rightmost points. Fixed (FIX (bug), fixes.md): the buffers grow by realloc
 while edges keep pointers into them (past 128 entries the clip reads freed
 memory), and the side tables are 1,280 floats each, overrun past that.
 
-Left: part 3b, the crossings (0x00510250, 0x00513860 divide, 0x00513930);
-part 3c, the walk (0x00510da0, 0x00513f20, 0x00514280, 0x00514730,
-0x00514840), the contour merge and output (0x005129f0, 0x005154d0,
-0x00513390, 0x00513480, 0x005135a0) and the driver 0x0050faf0.
+### Weiler–Atherton, part 3b: shared edges
+
+0x00510250 ("WeedOut", its error text) is not the crossing search: it
+merges edges of the region and the polygon that lie on each other (each
+end within 1e-5 of the other's line, from the side tables 0x00513750).
+For every region edge R against every polygon edge P, in ring order over the
+edges as built: the case is which ends lie within the other edge (R.a on P
+8, R.b on P 4, P.a on R 2, P.b on R 1, 0x00514f80), and whether the two run
+opposite ways in x or y. The shared part is kept once, in the polygon's
+rings, with both edges' flags or-ed in; the region's edge is cut back to
+the rest (0x00513930 splits an edge and its twin at a point); a polygon
+edge equal to a region edge is unlinked from its rings (the contour moved
+on when it was the first). Codes 4 and 8 and those below 3 do nothing.
+`test_weiler.py` builds region and polygon pairs on a grid (rectangles and
+diamonds sharing, overlapping and reversing sides) and reaches every branch.
+
+The real crossing search is in the walk, 0x00510da0 (with 0x00513860, which
+divides an edge at a crossing).
+
+Left: part 3c, the walk (0x00510da0, 0x00513860, 0x00513f20, 0x00514280,
+0x00514730, 0x00514840), the contour merge and output (0x005129f0,
+0x005154d0, 0x00513390, 0x00513480, 0x005135a0) and the driver 0x0050faf0.
 
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.

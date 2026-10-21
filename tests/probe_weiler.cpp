@@ -42,14 +42,12 @@ void point_ref(const zgeo::Weiler& w, const float* p) {
   u32(p ? 9 : 0), u32(0);
 }
 uint32_t edge_ref(zgeo::Weiler& w, const zgeo::Edge* e) {
-  for (int32_t i = 0; i < static_cast<int32_t>(w.edges.items.size()); ++i)
-    if (&w.edges.at(i) == e) return static_cast<uint32_t>(i);
-  return e ? 0xfffe : 0xffff;
+  const int32_t i = w.edges.index_of(e);
+  return i >= 0 ? static_cast<uint32_t>(i) : e ? 0xfffe : 0xffff;
 }
 uint32_t contour_ref(zgeo::Weiler& w, const zgeo::Contour* c) {
-  for (int32_t i = 0; i < static_cast<int32_t>(w.contours.items.size()); ++i)
-    if (&w.contours.at(i) == c) return static_cast<uint32_t>(i);
-  return c ? 0xfffe : 0xffff;
+  const int32_t i = w.contours.index_of(c);
+  return i >= 0 ? static_cast<uint32_t>(i) : c ? 0xfffe : 0xffff;
 }
 void dump(zgeo::Weiler& w) {
   u32(w.want), u32(static_cast<uint32_t>(w.axes)), u32(static_cast<uint32_t>(w.region_count));
@@ -68,6 +66,16 @@ void dump(zgeo::Weiler& w) {
   for (int32_t i = 0; i < w.contours.count; ++i) {
     zgeo::Contour& c = w.contours.at(i);
     u32(c.flags), u32(edge_ref(w, c.edge));
+  }
+  // Each contour's ring by its links, from its edge.
+  for (int32_t i = 0; i < w.contours.count; ++i) {
+    zgeo::Edge* e = w.contours.at(i).edge;
+    for (int k = 0; e && k < 200; ++k) {
+      u32(edge_ref(w, e)), u32(e->flags), point_ref(w, e->a), point_ref(w, e->b), floats(e->box, 4);
+      e = e->next;
+      if (e == w.contours.at(i).edge) break;
+    }
+    u32(0xeeee);
   }
 }
 void dump_result(const zgeo::Result& r) {
@@ -124,6 +132,23 @@ extern "C" int probe_weiler_case(float* region, int nr, float* poly, int np, uin
   zgeo::side_tables(*w);
   floats(w->side_region.data(), w->side_region.size());
   floats(w->side_poly.data(), w->side_poly.size());
+  zgeo::weiler_free(w);
+  return finish(out, cap);
+}
+
+// The crossing-case set-up as 0x0050faf0 runs it (reset, the polygon's
+// rings, the side tables) and the weed-out; the state after it.
+extern "C" int probe_weiler_weed(float* region, int nr, float* poly, int np, uint8_t* out, int cap) {
+  g_out.clear();
+  zerr::set_sink(sink);
+  g_caller = region, g_caller_n = nr;
+  zgeo::Weiler* w = zgeo::weiler_new(region, nr, 0);
+  w->poly = poly, w->poly_count = np;
+  zgeo::reset(*w);
+  zgeo::add_rings(*w, poly, np, 2);
+  zgeo::side_tables(*w);
+  u32(static_cast<uint32_t>(zgeo::weed_out(*w)));
+  dump(*w);
   zgeo::weiler_free(w);
   return finish(out, cap);
 }
