@@ -52,6 +52,11 @@ class MenuState;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
 void wire_pilot_hooks(GameEngine* e);    // the pilot module's calls out (app_menus.cpp)
 
+// The briefing screen open ([0x005f4c80]) hears the mission load's fraction
+// (0x004050d0) and lines (0x00405120); none open, nothing (app_menus.cpp).
+void program_briefing_progress(float f);
+void program_briefing_line(const char* s);
+
 class GameEngine : public Engine {
  public:
   // A mission started from the command line (our addition, docs/program.md):
@@ -64,6 +69,11 @@ class GameEngine : public Engine {
     bool have_pos = false;  // the camera placed (--pos/--look): there is no mech to follow yet
     float eye[3] = {}, yaw = 0, pitch = 0;
     bool active = false;
+    // A debug start goes on to the Core state as soon as the mission is
+    // loaded (in place of the briefing's LAUNCH); from the menus the
+    // briefing's LAUNCH does (campaign.md section 7, item 5).
+    bool auto_launch = true;
+    Handle config = 0;  // the slot's loadout (the pilot's game's), else the mech's first
   };
   void set_launch(const Launch& l);
   const Launch& launch() const { return launch_; }
@@ -82,6 +92,23 @@ class GameEngine : public Engine {
   void fade(int32_t a, int32_t b, int32_t c, uint32_t d, int32_t e, int32_t f, int32_t g) override;
   Handle pilot_game(Handle p) override;
   uint32_t pilot_campaign_number(Handle p) override;  // 0x00479420: the launch's mission
+  // The briefing (mech3/briefing, campaign.md section 7, item 5): the Load
+  // state's game from the pilot the pilot screen chose, the ported screen's
+  // calls into the ported mission, launch, states and zSound.
+  void load_state_enter() override;
+  void briefing_script_start(Handle s) override;
+  void briefing_init(Handle s) override;
+  void briefing_start(Handle s) override;
+  void briefing_map_image(ztwod::Dialog* screen, zrdr::Node* section) override;
+  bool missions_loaded() override;
+  bool mission_launch() override;
+  void mission_cleanup(int32_t unload) override;
+  void replace_state(int32_t n) override;
+  Handle voice_play(Handle s, float v) override;
+  int32_t voice_status(Handle v) override;
+  void sound_cue_briefing(Handle s) override;
+  uint8_t app_flag_1ba() override;
+  Handle mission_navs() override;
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
   void view_reset(Handle view) override;  // 0x0040ad90, the port's on the program's view
   // The menu screens that are ported (app_menus.cpp): the shell states hold a

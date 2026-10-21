@@ -973,6 +973,7 @@ void PauseState::escape() { a().pop(6); }
 // mission has one (0x0040a820).
 bool LoadState::enter() {
   Engine& en = e();
+  en.load_state_enter();
   ShellState::enter();
   build_ = 1;
   const Handle game = en.pilot_game(en.pilot());
@@ -1023,9 +1024,7 @@ bool LoadState::update() {
   en.sounds_load(en.app_sounds(), "briefing menu", 1);
   en.briefing_init(screen_);
   en.screen_refresh(screen_);
-  const Handle list = screen_ + 0x11220;
-  en.set_field8(list, 0x10, 1);
-  en.set_field32(list, 0xc, en.list_head(list));
+  en.briefing_script_start(screen_);
   en.missions_start(0x6098d0);
   en.briefing_start(screen_);
   build_ = 0;

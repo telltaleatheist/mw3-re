@@ -221,10 +221,11 @@ need the menus' one scale or a centred 640x480 frame.
    the voice 0x00405e10 with its cue markers 0x00405ed0, the map steps
    0x00405db0 and the objects' show/hide 0x00405d50/0x00405d90.
 4. (Done) The briefing map: 0x00406650's reader and its objects.
-5. The program: the Campaign state's path wired (movies skipped while
+5. (Done) The program: the Campaign state's path wired (movies skipped while
    zFMV is not ported), the Load state's hooks to the port, LAUNCH to
    the real launch: `mw3` start -> New Campaign -> pilot -> briefing ->
-   Launch -> c1m1.
+   Launch -> c1m1 (program.md, A campaign from the menus;
+   `test_program.cpp` campaign_menus_to_c1m1_through_the_briefing_headless).
 6. The debriefing screen 0x0047b430 and its press 0x0047d030.
 7. The Win State's results 0x0047ae10 and the end screen's fade to it:
    c1m1 -> debriefing -> c1m2's briefing.

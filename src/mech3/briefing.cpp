@@ -280,7 +280,7 @@ BriefingScreen::BriefingScreen(Engine& e, const char* name)
     section = zrdr::find(mp_tree, "briefing");
   }
   if (!section) section = zrdr::find(tree, "default");
-  e.briefing_map_image(section);
+  e.briefing_map_image(this, section);
   load_node(tree, section, true);
   add(&lines);
   zrdr::Node* dlg = zrdr::find(tree, "BRIEFINGDIALOG");

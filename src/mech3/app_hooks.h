@@ -7,7 +7,7 @@
 
 namespace zcls { struct Node; }
 namespace zimg { struct Texture; }
-namespace ztwod { class Object2D; }
+namespace ztwod { class Object2D; class Dialog; }
 namespace zrdr { struct Node; }
 
 // What the game's app and states call in code not ported yet (docs/game-loop.md).
@@ -597,6 +597,16 @@ class Engine : public zgame::AppHooks {
   virtual void sounds_load(Handle s, const char* name, int32_t a) { unported("0x0040baf0", {s, name, a}); }
   virtual void briefing_play_movie(uint32_t state) { unported("0x00409320", {state}); }
   virtual void debrief_voice_play(uint32_t state) { unported("0x0047abe0", {state}); }
+  // Our addition: the Load state is entered (its 0x004091e0 reads the
+  // pilot's game first). The program fills its game from the chosen pilot.
+  virtual void load_state_enter() {}
+  // The Load state's start of the briefing's script (inline in 0x00409440:
+  // the list +0x11220's playing byte set, its current entry the first).
+  virtual void briefing_script_start(Handle s) {
+    const Handle list = s + 0x11220;
+    set_field8(list, 0x10, 1);
+    set_field32(list, 0xc, list_head(list));
+  }
   virtual void briefing_init(Handle s) { unported("0x00409ec0", {s}); }
   virtual void briefing_start(Handle s) { unported("0x00409eb0", {s}); }
   virtual void briefing_refresh(Handle s) { unported("0x00408bd0", {s}); }
@@ -616,7 +626,8 @@ class Engine : public zgame::AppHooks {
   // lancemates' loadouts once loaded (0x00408c30), the mech lab with its
   // store (0x00408b40, 0x00448830), the Salvage State (0x0047d2f0), a
   // multiplayer launch's preparation (0x0046ceb0).
-  virtual void briefing_map_image(zrdr::Node* section) {
+  virtual void briefing_map_image(ztwod::Dialog* screen, zrdr::Node* section) {
+    (void)screen;
     unported("0x00405160", {section ? 1u : 0u});
   }
   // The briefing map's reads of the game and the mission (mech3/briefing,

@@ -52,6 +52,7 @@
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
 #include "mech3/pilot.h"
+#include "mech3/briefing.h"
 #include "mech3/pilot_menu.h"
 #include "mech3/player.h"
 #include "mech3/sensors.h"
@@ -327,6 +328,94 @@ TEST(program_starts_like_the_game_to_the_main_state) {
   reset_process_state();  // as a new process: zSound not yet initialised
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+}
+
+// The campaign from the menus (campaign.md section 7, item 5): the main
+// menu's NEW CAMPAIGN, a new pilot accepted, the Load state's ported
+// briefing (brief_c11: its script, its map, the buttons once the load ends),
+// LAUNCH, and c1 mission 1's Core frames with the pilot's own mech.
+TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("campaign_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0, core_frames = 0, briefing_frames = 0;
+    size_t steps = 0, objects = 0;
+    std::string section_first;
+    bool launch_enabled = false, lab_disabled = false, playing = false;
+    mech3::LaunchedMech mech;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // NEW CAMPAIGN
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Recruit");  // (the pilots stay between tests: a new name)
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        mech3::BriefingScreen* b = mech3::briefing_screen();
+        if (!b || app.current() != &mech3::states().load) return;
+        if (++briefing_frames == 1) {
+          playing = b->script.playing != 0;  // the Load state started it
+          steps = b->script.steps.size();
+          objects = b->objects.size();
+        }
+        if (!b->loaded) return;
+        launch_enabled = b->launch_btn.enabled != 0;
+        lab_disabled = b->lab_btn.enabled == 0;  // Op 1 Mission 1
+        b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+        stage = 3;
+      } else if (stage == 3 && app.current() == &mech3::states().core) {
+        if (++core_frames == 30) {
+          mech3::launched_mech(&mech);
+          stage = 4;
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    EXPECT(stage == 4);
+    EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
+    EXPECT(launch_enabled && lab_disabled);
+    EXPECT(core_frames >= 30 && mech.parts > 0);
+    mech3::Pilot* rec = mech3::find_pilot("Recruit");
+    mech3::CampaignGame* c = rec ? rec->campaign() : nullptr;
+    EXPECT(c && c->operation() == 1 && c->mission_number() == 1);
+    EXPECT(mech3::missions().current == 0);  // c1's world
+    EXPECT(engine.unported_counts().count("0x00405230") == 0);  // the briefing is the port
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
   mech3::options() = mech3::Options{};
 }
 
