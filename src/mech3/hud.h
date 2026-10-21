@@ -223,7 +223,7 @@ class HudGauges : public ztwod::Object2D {
   void set_speed(float v);           // 0x004453a0: m/s, shown in km/h, red backwards
   void set_throttle(float v);        // 0x00445450: -1..1, backwards shorter and red
   void set_heat(float level, float rate);  // 0x004455e0: the bar by the level, the toggler by level + rate
-  void set_coolant(float v);         // 0x004456f0: eased toward it, 10% a call
+  void set_coolant(float v, float dt);  // 0x004456f0: eased toward it, 10% a call (a 30 fps frame with per_second)
   void set_jump(bool jets, float fuel);  // 0x00445520: the fuel frame and bar shown with jets
   float speed = 0.0f;                // +0x34 km/h
   ztwod::FontText coolant_text;      // +0x38   message 0x1d5

@@ -859,8 +859,8 @@ Run by the HUD's data update each frame (section 14 part 4).
   the bar moved down by the unlit height).
 - Coolant (0x004456f0): eased a tenth of the way toward the value each call,
   that is each frame, in one value for every HUD ([0x005e3a14], 1 at
-  start): the bar settles faster at higher frame rates (a display matter;
-  fixes.md Candidates).
+  start): the bar settles faster at higher frame rates; the rebuild eases
+  a tenth per 1/30 s behind zfix per_second (fixes.md).
 - Jump jets (0x00445520): the fuel frame and bar shown with jets, hidden
   without; the bar by the fuel (clamped 0..1).
 

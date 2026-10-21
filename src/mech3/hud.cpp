@@ -1467,8 +1467,12 @@ void HudGauges::set_heat(float level, float rate) {
 }
 
 // Mech3.exe 1.2 @ 0x004456f0: a tenth of the way there each call (each frame).
-void HudGauges::set_coolant(float v) {
-  g_coolant_shown = g_coolant_shown - (v - g_coolant_shown) * -0.1f;  // [0x005c0144]
+// FIX (B): per second, at the 30 fps frame's tenth (fixes.md).
+void HudGauges::set_coolant(float v, float dt) {
+  if (zfix::options().per_second)
+    g_coolant_shown = v + (g_coolant_shown - v) * std::pow(0.9f, zfix::frame_steps(dt));
+  else
+    g_coolant_shown = g_coolant_shown - (v - g_coolant_shown) * -0.1f;  // [0x005c0144]
   bar_level(coolant_bar, g_coolant_shown);
 }
 
@@ -2732,7 +2736,7 @@ void Hud::data_update(float dt) {
     const float heat = h.mech_f(mech, 0x554);
     const float level = heat > 1.5f ? 1.0f : heat * 0.6666667f;  // [0x005c0084], [0x005c0088]
     gauges.set_heat(level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
-    gauges.set_coolant(h.mech_f(mech, 0x56c));
+    gauges.set_coolant(h.mech_f(mech, 0x56c), dt);
     const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
     gauges.set_jump(jets, h.mech_jump_fuel(mech));
     target.data_text();

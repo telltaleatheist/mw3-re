@@ -2033,7 +2033,8 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   little toggler beside it your heat plus how fast it is changing, so it
   leads the bar when you are heating up and trails when cooling.
 - **The coolant gauge glides** a tenth of the way to the real value each
-  frame, so it moves faster on a faster computer.
+  frame, so it moves faster on a faster computer. The rebuild glides it at
+  the 30 fps pace at any frame rate.
 - **The equipment list blinks green for one frame** whenever a line changes
   to a different item: the rename sets the green font over its yellow or
   grey state until the next frame.

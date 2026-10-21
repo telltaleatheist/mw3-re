@@ -700,6 +700,29 @@ TEST(fix_target_distance_km_spaced) {
   mech3::set_hud_hooks(nullptr);
 }
 
+// The coolant gauge's easing (0x004456f0): a tenth of the way each call in
+// the exe; fixed, a tenth per 1/30 s, so two 60 fps frames make one 30 fps step.
+TEST(fix_coolant_gauge_per_second) {
+  mech3::set_hud_hooks(nullptr);
+  void* storage = ::operator new(sizeof(mech3::Hud));
+  std::memset(storage, 0, sizeof(mech3::Hud));
+  auto* hud = new (storage) mech3::Hud(nullptr);
+  zfix::options().per_second = true;
+  mech3::coolant_shown() = 1.0f;
+  hud->gauges.set_coolant(0.0f, 1.0f / 60.0f);
+  hud->gauges.set_coolant(0.0f, 1.0f / 60.0f);
+  EXPECT(std::fabs(mech3::coolant_shown() - 0.9f) < 1e-5f);
+  zfix::options().per_second = false;
+  mech3::coolant_shown() = 1.0f;
+  hud->gauges.set_coolant(0.0f, 1.0f / 60.0f);
+  hud->gauges.set_coolant(0.0f, 1.0f / 60.0f);
+  EXPECT(std::fabs(mech3::coolant_shown() - 0.81f) < 1e-5f);
+  zfix::options().per_second = true;
+  mech3::coolant_shown() = 1.0f;
+  hud->~Hud();
+  ::operator delete(storage);
+}
+
 TEST(fix_hud_timer_past_an_hour) {
   struct Clock : mech3::HudHooks {
     float mission_time(bool) override { return 3700.25f; }

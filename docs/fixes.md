@@ -48,6 +48,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | The HUD's timer, 0x43c390 | Seconds are the time less the minutes alone (`floor(t - 60 * minutes)`), the hours never taken off | (bug) past an hour the seconds run into the thousands: 3700 s shows 01:01:3640 | The hours taken off too, behind `zfix` bugs (hud.md section 14) |
 | The game options' invert box, ACCEPT 0x00438100 | MouseAccelY set to -1.3 checked, 1.3 not | (bug) the player's mouse sensitivity (the registry's MouseAccelY, any size) is lost each time the options are accepted | The size kept, only the sign set (a zero one takes 1.3); `mouse_y_accel` in options_menu, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the kept size (Owen 2026-10-20, Decided) |
 | TARGET's distance past 1 km, 0x00441850 | `"%.2fkm"` appended with no space or bracket ("Owens: Standard1.23km"), where under 1 km it reads " (500m)" | (bug) a cosmetic text slip | " (1.23km)", behind `zfix` bugs (Owen's cosmetic-slips rule, decided through the lead 2026-10-20); `test_hud.py` checks the exe's |
+| The coolant gauge's easing, 0x004456f0 | A tenth of the way to the value each call, that is each frame | (B) it settles faster the higher the frame rate | A tenth per 1/30 s (0.9 to the power of the frame's 30 fps steps), behind `zfix` per_second (Owen's frame-rate rule); `test_hud.py` checks the exe's |
 | The credits' "Other Voices" line, read by 0x00429200 | `"offset" (20)`, one number, so the line keeps the name above's (30 0) | (bug) a typo in dlgCredits.zrd: the heading sits indented like a name with no gap | The one-number offset gets the headings' (20 20) (x 20 is the headings'; all 46 are (20 20)); `credit_line_offset`, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the fixed one |
 | The lead point, 0x41d940 (TARGET's lead circle) | Reads the selected group's current weapon (+0x10) through the group pointer, which is null with no group selected (+0x28 = -1) | (bug) a crash: a mech with a targeting computer whose groups are all gone, with a target on screen | No group, no lead point (hud.md section 14) |
 | A world point on the screen, 0x53cf10 (TARGET's tracking) | Behind the near plane the outcode is 8 ORed with the low bits of the input point's address (with the identity on the stack, an unset local) | (bug) the caller (TARGET's tracking 0x440b00) tests those bits, so which way the arrow goes for a target behind the zoom camera depends on where a buffer sits | 8 alone (hud.md section 14) |
@@ -360,10 +361,6 @@ Kept:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- The coolant bar's easing (0x004456f0): a tenth of the way to the value
-  each frame, so it settles faster at higher frame rates (at 30 fps about
-  a second to 95%). Display only; the per_second rule would scale it to a
-  30 fps frame (hud.md section 17).
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
   original 640x480 4:3. The game's projection and clipping work from the
