@@ -499,7 +499,7 @@ class Original:
         for i, o in enumerate(objs):
             k = 'U' if o == c else VT_KIND.get(e.r32(o), '?')
             {'T': text, 'C': control, 'K': check, 'L': slider, 'X': listbox, 'Y': item,
-             'Z': textbox, 'F': fonttext}.get(k, image)(o)
+             'Z': textbox, 'F': fonttext, 'B': base}.get(k, image)(o)
             flush(f'o{i} {k}')
         return '\n'.join(out) + '\n'
 

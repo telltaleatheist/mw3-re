@@ -460,3 +460,22 @@ until then). Correction: the destructor's virtual list destroy (0x00409910)
 is the +0x12e60 list's; the script's entries are plain deletes. Test:
 test_briefing.py now runs the SOUND block, ops Y (start) and C (cue).
 Breaks: scratch/briefing/breaks3.py, 12/12 (the marker compare needed a scripted cue run in the plan).
+
+## 2026-10-20 Campaign item 4: the briefing map (branch mac3/briefing-map, off mac3/briefing-script 9a84a1c)
+
+BriefingScreen::read_object 0x00406650 (every kind), MapText 0x5bc030
+(set_pos 0x00407cf0), MapCircle 0x5bbfb0 (set_pos 0x004080a0, set_radius
+0x00408050, show 0x00407e40, update/shrink 0x00407ea0 FIX (B) per_second),
+MapWaypoint 0x5bbeb0 (update 0x004081a0), MapTriangle 0x5bbe30 (ctor
+0x005a31e0 inline, erase 0x00408470, show 0x004084b0, update 0x004084f0),
+MapLine 0x5bbdb0 (update 0x00408600); objects list +0x12e60 deleted first in
+the destructor. Engine hooks: game_text, mission_navs, nav_find, mission_map,
+nav_position, map_project, map_image, world_up, report (silent: 0x0049bfd0 is
+empty). zTwoD gained Frame::hit (0x00409db0) and Shape::hit/get_x/get_y
+(0x00409e40, 0x00409e20/30), slots the port had missed. Test: real map
+objects; stubs for nav points, map, projection (0x004586e0 answers x, y and
+the result packed), game texts, 0x00575ff0 (message 0x200's argument
+logged), 0x00579880, the 2D circle 0x005630c0 and line 0x00562940; dump kind
+'B' (base only) added to test_twod.py and probe_twod.h; synthetic objects
+of every kind, a synthetic brief_zz with fixed cases (a skipped point mid-line, a label with no message, a circle under the mouse, a text with no AT). 40/40. Breaks: scratch/briefing/
+breaks4.py, 25/27: the triangle's erase (no background is ever set) and the line's per-frame dirty (redrawn anyway) cannot show.

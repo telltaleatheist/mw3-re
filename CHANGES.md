@@ -98,6 +98,7 @@ it is clear what the designers meant.
 - The credits' "Other Voices" heading sits where the other headings do (a typo in the credits file gave it one number of its two, so it hung indented under the line above).
 - TARGET's distance past 1 km reads " (1.23km)" like the " (500m)" below it; the original ran the kilometres straight on after the loadout's name.
 - **The message panel slides up at any frame rate.** The original moved it a whole number of pixels a frame, which above 60 fps is none: on a fast computer the in-mission messages never came into view.
+- The circles on the briefing map shrink at the same speed at any frame rate (the original shrank them a pixel a frame above 20 fps).
 - The briefing's loading bar creeps at the same speed at any frame rate (the original moved it 0.005 a frame).
 - The coolant gauge glides at the same speed at any frame rate (the original eased it a tenth of the way each frame).
 - **Accepting the game options keeps your mouse sensitivity.** The original reset the vertical mouse sensitivity to 1.3 (or -1.3 with Invert Mouse Y) every time; now the invert box only flips its direction.

@@ -1950,6 +1950,12 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   voice file carries markers; as the voice reaches one, the next step of the
   map (circles, waypoints, pictures, labels) appears. Without the voice file
   every step shows at once. Replay hides them and starts over.
+- **The briefing map is drawn from a list in briefing.zrd:** circles that
+  shrink into place with a sound, waypoints sitting on the mission's real
+  nav points (labelled "Nav ..."), pictures, texts and lines, each tied to a
+  marker of the voice. A waypoint finds its nav point by its label: the
+  file's "name" key is never read. The circles shrink a pixel a frame, so on
+  a fast computer they snap into place almost at once.
 - **A click on the briefing's loading bar moves it** to where you clicked;
   it then creeps on towards the real progress from there. The bar creeps 0.005
   a frame, so it filled faster on faster computers (the rebuild: 0.15 a

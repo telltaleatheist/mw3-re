@@ -62,6 +62,69 @@ class BriefingShow : public BriefingStep {
   ztwod::Object2D* obj;              // +0x04
 };
 
+// ---- the briefing map's objects (0x00406650 reads them; campaign.md 2) ----
+
+// A text of the map (vtable 0x005bc030), 0x4b0 bytes, made hidden.
+class MapText : public ztwod::FontText {
+ public:
+  MapText();                         // 0x00407c90
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x00407cf0: its old place erased first
+};
+
+// A circle (vtable 0x005bbfb0), 0x50c bytes: shown with its sound, it
+// shrinks from its first radius to its last, a label at its lower right.
+class MapCircle : public ztwod::Frame {
+ public:
+  MapCircle(Engine& e, int32_t px, int32_t py, int32_t r, uint32_t color);  // inline in 0x00406650
+  void erase() override {}           // +0x08  0x00405d40
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x004080a0: the label follows
+  void update(float dt) override;    // +0x24  0x00407ea0
+  void show_for(float seconds) override;  // +0x60  0x00407e40
+  void set_radius(int32_t r);        // 0x00408050: and the label
+  void shrink(float dt);             // the body of 0x00407ea0 (and of 0x004081a0)
+
+  MapText label;                     // +0x54
+  Handle sound = 0;                  // +0x504
+  int32_t end_radius = 3;            // +0x508
+
+ protected:
+  Engine& e_;
+  float owed_ = 0.0f;                // FIX (B): pixels owed (not in the original)
+};
+
+// A waypoint (vtable 0x005bbeb0), 0x514 bytes: a circle at a nav point of
+// the mission, placed on the mission's map and labelled.
+class MapWaypoint : public MapCircle {
+ public:
+  using MapCircle::MapCircle;
+  void update(float dt) override;    // +0x24  0x004081a0: kept on its nav point once a world is up
+
+  Handle map = 0;                    // +0x50c  the mission's map (0x00491c80)
+  Handle nav = 0;                    // +0x510
+};
+
+// A triangle (vtable 0x005bbe30), 300 bytes.
+class MapTriangle : public ztwod::Shape {
+ public:
+  MapTriangle(Engine& e, int32_t px, int32_t py, int32_t size, uint32_t color);  // 0x005a31e0 inline
+  void erase() override;             // +0x08  0x00408470
+  void update(float dt) override;    // +0x24  0x004084f0
+  void show_for(float seconds) override;  // +0x60  0x004084b0
+
+  Handle sound = 0;                  // +0x124
+  float end = 5.0f;                  // +0x128  height's second value (read by nothing)
+
+ private:
+  Engine& e_;
+};
+
+// A line through points (vtable 0x005bbdb0), 0xf0 bytes: drawn every frame.
+class MapLine : public ztwod::PolyLine {
+ public:
+  void update(float dt) override;    // +0x24  0x00408600
+  float xec = 1.0f;                  // +0xec
+};
+
 // The script (+0x11220): a list, the entry playing and whether it plays.
 struct BriefingScript {
   explicit BriefingScript(Engine& e);  // inline in 0x00405230: the voice stopped
@@ -101,6 +164,7 @@ class BriefingScreen : public MenuScreen {
   void progress(float f) { target = f; }  // 0x004050d0 on [0x005f4c80]
   void log(const char* s);           // 0x00405120 on [0x005f4c80]: a line in the debug lines
   void read_script(zrdr::Node* section);  // inline in 0x00405230: SOUND, its MARKERS' objects
+  ztwod::Object2D* read_object(zrdr::Node* entry);  // 0x00406650: a map object, kept (+0x12e60)
 
   Store realloc_store;               // +0x111ec  what the mech lab left over (0x00408bd0)
   Store lab_store;                   // +0x11200  the mech lab's (0x00408b40)
@@ -114,7 +178,7 @@ class BriefingScreen : public MenuScreen {
   ztwod::Text version;               // +0x1216c  "<message 7> <version>", at the bottom right
   ShellButton realloc_ok;            // +0x12638  REALLOC_OK (7)
   StoreList realloc_list;            // +0x12790  REALLOC_LIST (not bound yet: a later item)
-  // +0x12e60 a list the map uses: a later item.
+  std::list<ztwod::Object2D*> objects;  // +0x12e60  the map's, deleted with the screen
 };
 
 // [0x005f4c80] the briefing screen, while the Load state has one.

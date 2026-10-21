@@ -115,6 +115,29 @@ Ported: `BriefingVoice`, `BriefingMarker`, `BriefingShow`, `read_script`,
 `voice_status`, `sound_cue_briefing`), the objects' reader
 `briefing_map_object` (null until item 4).
 
+### The map's objects (item 4)
+
+0x00406650 reads a MARKERS entry `(kind (keys ...))`; FONT (else
+brief_grey) and COLOR (else white) are read for every kind, AT defaults to
+(320, 240):
+
+| Kind | Object | Keys |
+|---|---|---|
+| circle | 0x005bbfb0: zTwoD's circle with a label (+0x54) and SOUND (+0x504) | at, radius (first, last; 10 3) |
+| text | 0x005bc030: a FontText (its move erases its old place) | at (else none), string (a message name) |
+| game_type, db_name, scenario_name, scenario_desc | the same, shown at once | at; the text is the game's vt+0x04 .. +0x10 (multiplayer's) |
+| bitmap | an image (0x005bbf30) | at, image |
+| waypoint | 0x005bbeb0: a circle on a nav point of the mission ([0x00609980], made by the Load state's 0x00490720), placed on the mission's map (0x00491c80, 0x004586e0), labelled with message 0x200 | label (the nav point's name and the label: NAME is not read), radius, color |
+| triangle | 0x005bbe30: zTwoD's triangle | at, height (size; the second value is kept, unused), sound |
+| line | 0x005bbdb0: a polyline drawn every frame | points |
+
+Anything else is reported ("Failed to create locator", an empty function in
+this build) and skipped. The objects start hidden; the script shows them.
+A circle shrinks from its first radius to its last by max(20 x dt, 1) pixels
+a frame, so a pixel a frame above 20 fps (FIX (B) per_second: 30 a second).
+A waypoint follows its nav point while a world is up. The objects are kept
+(+0x12e60) and deleted with the screen.
+
 ## 3. The debriefing (0x0047b430, new(0x13bf4))
 
 dlgWin.zrd's WINMENU: WIN_BACKGROUND, ICON_ABORT, ICON_REPLAY,
@@ -197,7 +220,7 @@ need the menus' one scale or a centred 640x480 frame.
 3. (Done) The briefing's script and REPLAY (+0x11220): the SOUND block,
    the voice 0x00405e10 with its cue markers 0x00405ed0, the map steps
    0x00405db0 and the objects' show/hide 0x00405d50/0x00405d90.
-4. The briefing map: 0x00406650's reader and its drawing.
+4. (Done) The briefing map: 0x00406650's reader and its objects.
 5. The program: the Campaign state's path wired (movies skipped while
    zFMV is not ported), the Load state's hooks to the port, LAUNCH to
    the real launch: `mw3` start -> New Campaign -> pilot -> briefing ->
@@ -214,8 +237,10 @@ need the menus' one scale or a centred 640x480 frame.
 
 Item 2: `test_briefing.py` (40/40 runs; the original skips the
 REALLOC_LIST bind with a code hook, stubs the later items' calls; since
-item 3 it reads SOUND too, with 0x00406650 stubbed to no object, and the
-plan starts the script, sends cue markers and replays);
+item 3 it reads SOUND too and the plan starts the script, sends cue markers
+and replays; since item 4 the map objects are built for real, with the nav
+points, the mission's map, its projection and the game's texts stubbed, and
+the synthetic file adds objects of every kind);
 `test_mainmenu.cpp` checks the per_second bar. Breaks: scratch/briefing/
 breaks.py.
 

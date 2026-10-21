@@ -619,12 +619,34 @@ class Engine : public zgame::AppHooks {
   virtual void briefing_map_image(zrdr::Node* section) {
     unported("0x00405160", {section ? 1u : 0u});
   }
-  // A MARKERS entry's map object (0x00406650: circle, waypoint, bitmap ...),
-  // none when not ported.
-  virtual ztwod::Object2D* briefing_map_object(zrdr::Node* entry) {
-    (void)entry;
-    unported("0x00406650", {});
+  // The briefing map's reads of the game and the mission (mech3/briefing,
+  // campaign.md section 2): the current game's texts (vt+0x04 game type,
+  // +0x08 db name, +0x0c scenario name, +0x10 its description; multiplayer's),
+  // the mission's nav points ([0x00609980], made by 0x00490720) and one by
+  // name (0x00479be0), the mission's map (0x00491c80), a nav point's place
+  // (its vt+0x18), a place on the map in pixels (0x004586e0; false when off
+  // it), the map's image (its +0x3c) and whether a world is up
+  // ([0x0060bf48], 0x004f8f50).
+  virtual const char* game_text(int32_t slot) {
+    unported("game.vt", {slot});
     return nullptr;
+  }
+  virtual Handle mission_navs() { return 0; }
+  virtual Handle nav_find(Handle navs, const char* name) { return unported("0x00479be0", {navs, name}); }
+  virtual Handle mission_map() { return unported("0x00491c80", {}); }
+  virtual Handle nav_position(Handle nav) { return unported("nav.vt+0x18", {nav}); }
+  virtual bool map_project(Handle map, Handle pos, int32_t xy[2]) {
+    xy[0] = xy[1] = 0;
+    return unported("0x004586e0", {map, pos}) != 0;
+  }
+  virtual zimg::Texture* map_image(Handle map) {
+    unported("map+0x3c", {map});
+    return nullptr;
+  }
+  virtual bool world_up() { return unported("0x004f8f50", {}) != 0; }
+  // 0x0049bfd0: the game's report, an empty function in the release build.
+  virtual void report(int32_t level, const char* file, int32_t line, const char* text, const char* arg) {
+    (void)level, (void)file, (void)line, (void)text, (void)arg;
   }
   virtual void briefing_realloc(int32_t show) { unported("0x00404ae0", {show}); }
   virtual void briefing_lance_loadouts() { unported("0x00408c30", {}); }
