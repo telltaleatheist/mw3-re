@@ -2661,6 +2661,7 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       bool player_ok = false;          // the mission's player is the pilot's own mech
       bool player_cleared = false;     // and gone after the cleanup (0x004782c0(0))
       size_t voices = 0, voices_left = 99;  // playing before and after the cleanup
+      bool tick_freed = false;              // the player's tick object released
     };
     auto playing = [] {  // the voices zSound's snapshot (0x0056eb10) finds playing
       zsnd::Snapshot* s = zsnd::snapshot();
@@ -2699,6 +2700,7 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
         mech3::missions().cleanup(false);
         g.left = mech3::mechs_alive();
         g.voices_left = playing();
+        g.tick_freed = mech3::player_state().tick == 0;  // 0x0049dc40's [0x00609a00]
         g.player_cleared = mech3::mission_player_mech() == nullptr && engine.field32(engine.pilot(), 0x14) == 0;
         mech3::GameEngine::Launch next;
         next.index = legs[leg].index, next.number = legs[leg].number;
@@ -2716,7 +2718,7 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     for (const Leg& g : legs) EXPECT(g.player_ok);  // never a stale or an AI mech
     // The cleanup's sounds (0x00570410, 0x0056eb10, 0x0056f0a0, 0x0056f190):
     // what played (the engines, the start animation's) is stopped.
-    for (int i = 0; i < 2; ++i) EXPECT(legs[i].voices > 0 && legs[i].voices_left == 0);
+    for (int i = 0; i < 2; ++i) EXPECT(legs[i].voices > 0 && legs[i].voices_left == 0 && legs[i].tick_freed);
     EXPECT(legs[2].alive > 0 && mech3::mechs_alive() == 0);
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
     EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them

@@ -447,5 +447,15 @@ controls_delete. Checked: the parts' destructors in `test_deaths.py`
 (release, 400 cases, BREAK=11); the whole teardown by
 `missions_c1m1_c1m2_then_c2m1_in_one_process_headless`, which finds no mech
 alive after each cleanup (`mechs_alive`), and by an ASan run of the suite.
-Left: the cockpit's removal (0x0041ce10), the +0x378 object, 0x00402560
-and [0x00609a00] in 0x0049dc40.
+The leftovers (2026-10-21): the cockpit's removal 0x0041ce10 is
+`Torso::set_cockpit` (0x00464580: the type's cockpit node, MechData +0x228
+[1], off the torso node with its ids, and with `on` back under it as part
+1's), wired for the teardown and the view; it acts once the block
+0x00430ad0 makes is ported (null till then). The +0x378 object is
+multiplayer's: commands 0x76 / 0x77 (0x0041e4e0) make it (0x0041e5a0, a
+zTwoD panel, vtable 0x005bd070) only when networked, so the teardown's
+0x0041e580 stays unwired with the network. In 0x0049dc40, the player's tick
+object [0x00609a00] loses its action and is released (0x004eb450,
+0x004f3390 -> 0x004eb050); 0x00402560 frees the AI nets 0x00402170 made (the
+AI's, logged). Checked: `test_deaths.py` cockpit (200, BREAK=16); the
+three-mission test finds the tick object gone after each cleanup.

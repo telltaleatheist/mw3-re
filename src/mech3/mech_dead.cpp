@@ -95,17 +95,26 @@ void dead_hide(Mech& m, bool show) {
     Mech* player = world().mission_player;
     const int32_t kills = static_cast<int32_t>(m.x3f4[0]);
     if (m.pilot && m.pilot->roster != -1 && kills != 0) {
+      // `player &&`: the exe reads the player's +0xc4 unchecked (there is
+      // always one in instant action).
       const int32_t field = &m == player ? 0x4c : (player && (m.team & player->allies)) ? 0x50 : 0x54;
       if (g_calls.ia_tally) g_calls.ia_tally(field, kills);
       m.x3f4[0] = 0;
     }
   }
   if (g_calls.sensors_forget) g_calls.sensors_forget(m);
-  if (g_calls.free) g_calls.free(m);
+  // FIX (A), interim: the exe deletes the wreck here, after 0x004aa6b0 has
+  // every other vehicle drop it (targets, contacts, weapon locks, the
+  // brains: 0x004aa4d0, 0x004aeec0, the AI's). Until that is ported the
+  // wreck stays, hidden and off the dead list, and goes with the mission's
+  // cleanup, so nothing is left holding a freed mech. Not in CHANGES.md: the
+  // free comes back with the AI.
+  if (g_calls.free && g_calls.sensors_forgets) g_calls.free(m);
 }
 
 // Mech3.exe 1.2 @ 0x00419ef0: a dead mech's frame. No impulse; while still,
-// its speeds forward and sideways run down (x(1 - 3 dt), zero below 0.05),
+// its speeds forward and sideways run down (x(1 - 3 dt), zero below 0.05;
+// the frame clock caps dt at 1/8 s, 0x00575a00, so the factor stays positive),
 // it stops turning, follows the ground, moves and its flown parts fade.
 void Mech::dead_update(float dt) {
   impulse = {0, 0, 0};  // 0x0063d870

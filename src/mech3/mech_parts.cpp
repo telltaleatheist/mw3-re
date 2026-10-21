@@ -735,6 +735,21 @@ void Torso::release() {
   MechPart::release();
 }
 
+// Mech3.exe 1.2 @ 0x00464580
+void Torso::set_cockpit(bool on) {
+  FreeCalls& f = g_free;
+  const Handle cockpit = f.cockpit_node ? f.cockpit_node(*mech->pilot) : nullptr;
+  if (!cockpit) return;
+  if (f.is_child && f.is_child(node, cockpit)) {
+    if (f.remove_child) f.remove_child(f.first_parent ? f.first_parent(cockpit) : nullptr, cockpit);
+    if (f.clear_ids) f.clear_ids(cockpit);
+  }
+  if (on && !(f.first_parent && f.first_parent(cockpit))) {
+    if (f.add_child) f.add_child(node, cockpit);
+    if (f.mark) f.mark(*this, 1, cockpit);
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00463740
 void Leg::release() {
   part_delete(calf);

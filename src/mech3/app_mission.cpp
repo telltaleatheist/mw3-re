@@ -583,8 +583,8 @@ WiredTargetHooks g_target_hooks;
 struct WiredMissionHooks : MissionHooks {
   // The cleanup's deletes: the pilot's mech (its vt+0), then 0x0049dc40's
   // 0x005a8280 on zEntity's list: each entity's vt+0x30 (a mech's 0x004b3d30
-  // does nothing) and its delete, the first each time. The rest of 0x0049dc40
-  // (0x00402560, [0x00609a00]) is not ported.
+  // does nothing) and its delete, the first each time; the AI nets' free
+  // (0x00402560) is the AI's; the player's tick object goes.
   // The cleanup's sounds (0x00491780): the queue stopped (0x00570410(1)),
   // every playing voice snapshotted, stopped and the snapshot freed
   // (0x0056eb10, 0x0056f0a0, 0x0056f190), as Core's leave does.
@@ -612,7 +612,13 @@ struct WiredMissionHooks : MissionHooks {
       // loop always ends and nothing is deleted twice.
       if (list.size() == before && !list.empty() && list.front() == h) list.erase(list.begin());
     }
-    e->unported("0x00402560", {});
+    e->unported("0x00402560", {});  // the AI nets 0x00402170 made (the AI's)
+    PlayerState& ps = player_state();  // [0x00609a00], the player's tick object
+    if (ps.tick) {
+      zcls::node_set_action(static_cast<zcls::Node*>(e->object_of(ps.tick)), nullptr);  // 0x004eb450(0)
+      zcls::node_release(static_cast<zcls::Node*>(e->object_of(ps.tick)));              // 0x004f3390 -> 0x004eb050
+      ps.tick = 0;
+    }
   }
   void pilot_set_vehicle(Handle v) override {  // 0x004782c0 on the pilot
     const Handle p = e->pilot();

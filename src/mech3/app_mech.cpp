@@ -476,6 +476,16 @@ void wire_mech_parts() {
   fr.decals_free = [](Handle d) { delete static_cast<Skin*>(d); };  // 0x00473f40
   fr.viewed = [](Mech& m) { return program_view_target() == static_cast<void*>(&m); };
   fr.view_detach = [] { if (PlayerView* v = program_view()) v->attach(nullptr, nullptr); };  // 0x0040adf0(0, 0)
+  fr.torso_cockpit_off = [](Mech& m) { if (m.torso) m.torso->set_cockpit(false); };  // 0x0041ce10(0)
+  fr.is_child = [](Handle p, Handle c) {  // 0x004600e0(c, 0, 0): a direct child
+    for (int32_t i = 0; p && i < zn(p)->child_count(); ++i)
+      if (zn(p)->children[i] == zn(c)) return true;
+    return false;
+  };
+  fr.first_parent = [](Handle n) -> Handle { return zn(n)->parent_count() > 0 ? zn(n)->parents[0] : nullptr; };
+  fr.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };
+  fr.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };
+  fr.mark = [](MechPart& p, int32_t id, Handle n) { part_mark_nodes(p, id, n); };
   fr.handlers_off = [](Mech& m) {  // the other model under the node while its handlers go
     zcls::Node* other = zn(m.x690 == 0 ? m.lod_node : m.model_node);
     zcls::node_add_child(zn(m.node), other);
