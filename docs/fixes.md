@@ -426,3 +426,11 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   name suggests a slowing or sinking effect that was cut or never wired.
   Options: keep it as a picture (the original as played), or give soil 3
   an effect (a guess at intent: how much slowing, whether it sinks).
+- Enemy mechs silent while you move (found 2026-10-21, movement.md, Level
+  of detail): the level of detail 0x41e810/0x41e870 spends its one-mech
+  "budget" whenever the player's throttle isn't 0, and detail bit 0 gates
+  the AI mechs' footsteps, engine, power and eject sounds. With the throttle
+  up no other mech is heard; standing still, the first within 250 m is. It
+  reads as a 1999 limit on sound channels or CPU. Options: keep it (the
+  original as played), or lift the budget on modern machines (every mech
+  within 250 m heard; a (B)-like change that alters how a fight sounds).
