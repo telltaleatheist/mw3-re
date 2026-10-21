@@ -435,3 +435,30 @@ Newest last. One short entry per item: what, commits, what to remember.
   ring's triangles between two rings, with the globals 0x60d458 (points),
   0x60d460 (triangles), 0x610460 (count), 0x610468 (plane, 0x515f10)).
 
+
+## 2026-10-21 — craters part 4: convexify (branch mac2/convexify, from main 5d43014)
+
+- Ported (new zgeo_convexify): convexify 0x5162d0 (quads by hand: the
+  first corner p_k p_k+1 p_k+2 turning > 0 is reflex, (k+1)%4 odd cuts
+  1-3, even 0-2), triangulate 0x5166c0 (index records of stride 3, or 2
+  with flag 1; the 3-vertex top call returns identity indices), split
+  0x516a50 (leftmost vertex; y from rec[1] for the search and range, from
+  x+1 in the inside tests), ring_triangles 0x515be0 with 0x5158c0 /
+  0x515990 / 0x515aa0 / 0x515ae0 / 0x515b30 (the "o1 + o2 + k != 3" skip),
+  plane_of 0x515f10 (bit-trick sqrt), plane_z 0x5160e0, reverse 0x516120,
+  face_up 0x516190. Globals (0x60d458 points, 0x60d460 triangles,
+  0x610460 count, 0x610468 plane) are locals/arguments in the port.
+- The normal's square sum is x² + y² + z² by the FPU stack (pseudocode
+  shows z² first): changed the last bit in 54/400 planes until fixed.
+- FIX (A): 0x515be0's 32-int edge list on the stack → vector.
+- Test test_convexify.py (in run_all): 1,500 lists of 1..4 star/grid
+  polygons (2..14 points, both ways round) and 800 ground polygon + crater
+  ring pairs (sloped, 4..40 ring points, each triangle face_up'd). Seeds
+  1/2 identical (2,300 runs); BREAK=1..3 fail; every branch reached
+  (scratch/cov_cvx.py: quad convex/odd/even, all four recursion paths,
+  inside found / not, the sum-3 skip). Ring triangulation never came out
+  short of np + nr in 3,000 random cases.
+- Next: part 5, the crater (0x4ffaa0 / 0x4ffad0 / 0x4fff20 / 0x4fff80 /
+  0x4ff940, history, set), zgeo_model's clip 0x50f120 / 0x50ec10 /
+  0x50ea50 / 0x50f7b0, wired so a missed shot cuts craters in c1m1; then
+  report which merge types (6–9, 13, 16, 19, 22) real craters hit.

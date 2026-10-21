@@ -305,6 +305,42 @@ region past 65,536 m from the origin (or swapped axes) the caller's
 polygon is left moved. The game's worlds are smaller and every caller
 passes axes 0, so it never shows.
 
+### Convexify, part 4
+
+zgeo_model's clip (0x0050f120) sends each clipped piece list (code 2's
+outside list) to 0x005162d0 ("convexify"): pieces under 3 points are
+skipped, triangles kept, a quad kept whole when convex, else cut along the
+diagonal away from its first reflex corner (found by the turn of each
+corner p_k, p_k+1, p_k+2), larger pieces triangulated by 0x005166c0: the
+polygon is cut in two at its leftmost vertex (0x00516a50: to the nearest
+vertex inside that corner's triangle, else across the corner) and each
+half recursed until triangles remain. Vertices there are index records
+(3 ints, x/y/z float indices) so the same code runs on 2-int records;
+the leftmost search takes y from the record, the inside tests from the
+float after x.
+
+When the crater fell wholly inside one ground polygon (code 4), 0x00515be0
+cuts the ring between them into triangles: the region's z is put on the
+polygon's plane (0x00515f10, Newell's normal scaled by a bit-trick square
+root: the float's bits halved plus 0x1fc00000; written back into the
+caller's region), both outlines become edges, every polygon-to-region
+bridge that crosses no edge is added (0x005158c0 / 0x00515990), then at
+each point every pair of usable edges whose far ends are joined makes a
+triangle, each edge used once (outline) or twice (bridge). The triangle on
+points 0, 1, 2 is never made: 0x00515b30 tests their index sum against 3.
+The clip then turns each triangle up (0x00516190, reversing 0x00516120)
+and fails the crater if fewer than np + nr came out (never in 3,000 random
+cases).
+
+FIX (A, fixes.md): 0x00515be0 lists a point's edges in 32 ints on the
+stack; a polygon corner that sees more than 30 ring points (a ring of
+some 60 points or more inside a small polygon) writes past them. The
+shipped craters' rings are smaller (to be checked in part 5); the port
+lists them in a vector.
+
+The pseudocode sums the plane normal's squares as z² + y² + x²; the asm
+(by its FPU stack) does x² + y² + z², which changes the last bit.
+
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.
 

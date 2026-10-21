@@ -223,6 +223,7 @@ unusual happens.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.
 - A crater whose outline passes exactly through a corner of the ground's polygons no longer freezes the game; that piece of ground is left uncut.
 - A crater whose outline runs exactly along an edge of the ground's polygons and touches one at a corner no longer freezes or crashes the game; that piece of ground is left uncut.
+- A crater dug inside one large ground polygon can no longer overrun the memory used to cut the ground around it into triangles.
 
 
 ## Copy protection removed

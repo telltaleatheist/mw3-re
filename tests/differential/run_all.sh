@@ -91,6 +91,7 @@ for t in \
     zdec_init \
     zgeo_model \
     weiler \
+    convexify \
     ai_gates \
     ai_frame \
     ai_vlist \
