@@ -180,3 +180,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   free, no texture free. No differential test (the unload has no logic of
   its own beyond the call order).
 - Next: craters and quicksand (zdeclient).
+
+## 2026-10-20: craters and quicksand, part 1 (branch mac2/craters)
+
+- Mapped zDEClient (docs/craters.md): 40 functions (~2,700 lines) plus the
+  zGeometry clipper it needs (zgeo_model, Weiler–Atherton, convexify:
+  ~5,900 lines), so ~8,600 lines, not 1,700. Porting order in seven parts.
+- Part 1 done: declient.zrd (0x00501ab0 with 0x00501fa0, 0x00502070,
+  0x00501f90, the defaults 0x004ff920 / 0x005020f0) and seven gmod_matl
+  helpers; wired (decals_load, decals_set_mode, zWeapon's defaults).
+  test_zdec_init.py: 322 runs identical, 7 of 8 breaks caught (the 8th is
+  unobservable on comparable files). FIX (bug): one-frame / missing
+  quicksand texture.
+- Next: part 2, zgeo_model's buffers and partitions.

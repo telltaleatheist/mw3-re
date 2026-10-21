@@ -21,6 +21,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zclass/cls_util.h"
+#include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zeffect/zeff_init.h"
@@ -768,6 +769,8 @@ struct WiredMissionHooks : MissionHooks {
   }
   void anim_load(const char*) override { zeff::anim_load(); }
   void anim_cleanup() override { zeff::anim_stop_all(1); }  // 0x0050ace0(1)
+  // 0x00501ab0: declient.zrd's crater and quicksand settings (craters.md).
+  void decals_load(Handle world, int32_t) override { zdec::init(mission_node(*e, world)); }
   // 0x0050d2c0: zEffect's table from effects.zrd (an empty list in both games).
   void effects_load(Handle, Handle, const char* file) override {
     zeff::EffectHooks& h = zeff::effect_hooks();
@@ -787,7 +790,7 @@ struct WiredMissionHooks : MissionHooks {
   // by 0x004b0020, mech3/weapon), the projectile pool, its nodes and the
   // impact lights, the weapon_tick object (priority 3, its action
   // zwep::tick). The animations are the mission's (0x0050b450), the effects
-  // zEffect's table; the crater module's defaults (0x004ff920) are not ported.
+  // zEffect's table, the crater defaults zDEClient's (read just before).
   void weapons_load(Handle world, const char* file, int32_t a, uint32_t callback) override {
     zwep::InitHooks& w = zwep::init_hooks();
     w = zwep::InitHooks{};
@@ -796,8 +799,10 @@ struct WiredMissionHooks : MissionHooks {
     w.effect = zeff::effect_find;                                    // 0x0050d9e0
     w.anim = [](const char* n) -> zwep::Handle { return zeff::anim_find(n); };  // 0x0050b450
     w.lights_init = []() { zwep::lights_init(); };                    // 0x00586970
-    w.crater_defaults = [](zwep::Crater*) {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x004ff920", {});
+    w.crater_defaults = [](zwep::Crater* out) {  // 0x004ff920
+      const zwep::CraterOrder& c = zdec::state().crater;
+      *out = zwep::Crater{};
+      out->x00 = c.x00, out->points = c.points, out->x08[1] = c.x0c, out->depth = c.depth, out->radius = c.radius;
     };
     w.set_intersect_surface = [](zwep::Handle n, int32_t on) {        // 0x004eb6d0
       zcls::node_set_intersect(static_cast<zcls::Node*>(n), on);

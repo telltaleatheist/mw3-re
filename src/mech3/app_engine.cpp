@@ -1,5 +1,6 @@
 #include "mech3/app_engine.h"
 
+#include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zeffect/zeff_init.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_hud.h"
@@ -350,6 +351,7 @@ int32_t GameEngine::effects_init() {
   return 0;
 }
 void GameEngine::effects_shutdown() { zeff::effects_shutdown(); }
+void GameEngine::decals_set_mode(int32_t v) { zdec::set_mode(static_cast<uint32_t>(v)); }
 void GameEngine::missions_shutdown() { mech3::mech_types_close(); }
 // 0x00576cf0: the 3D window cleared before the Core state draws (the sky
 // colour of the debug viewer: the window's clear colour is not traced).

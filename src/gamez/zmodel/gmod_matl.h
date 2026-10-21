@@ -17,7 +17,7 @@ struct Cycle {                     // 0x1c bytes
   float index;                     // +0x08
   float speed;                     // +0x0c
   uint32_t texture_count;          // +0x10
-  uint32_t unk_14;                 // +0x14
+  uint32_t added;                  // +0x14  slots filled by cycle_add
   zimg::TextureEntry** textures;   // +0x18
 };
 
@@ -65,6 +65,18 @@ Material* material_copy(const Material& m);  // 0x00537830: always a new one
 int material_differs(Material& entry, Material& m);  // 0x00536f10 ECX entry, EDX m
 // Flag 2 or 4, or a cycle: a material each copy of a model must own.
 int material_changes(const Material& m);     // 0x00536ab0
+
+Material& default_material();                // 0x0063fb98
+void material_init(Material& m);             // 0x00536a70: white, opaque, untextured
+int material_set_soil(Material* m, uint32_t soil);  // 0x005375c0
+// 0x005375d0: makes m cycled (flags 5) with `count` slots of the default
+// texture; 0 for the default material or a cycle already that long.
+int cycle_create(Material& m, int32_t count);
+int cycle_add(Material& m, zimg::TextureEntry* t);  // 0x00537680: the next slot
+int cycle_set_loop(Material* m, uint32_t v);        // 0x005377a0
+int cycle_set_speed(Material* m, float v);          // 0x005377e0
+// 0x00537be0: the used material showing texture t, marked referenced.
+Material* material_find_texture(zimg::TextureEntry* t);
 
 // The soil names a material's +0x20 indexes (0x005edbc0, count 0x005edbb8,
 // at most 100): the engine's six, then the mission script's `LoadSoils
