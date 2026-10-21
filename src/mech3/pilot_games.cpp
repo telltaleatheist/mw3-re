@@ -523,7 +523,7 @@ void CampaignGame::merge_salvage() {
 // record and lancemates carried over, the mission's salvage its +0x3c, the
 // world saved into its file; this one's salvage then merged. Without, this one
 // settled in place: the slots' mechs and loadouts listed in +0x50 (docs/campaign.md 4).
-CampaignGame* CampaignGame::next_mission(bool next_one) {
+CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   PilotHooks& h = pilot_hooks();
   int32_t m = mission_number(), op = operation();
   const bool over = campaign_advance(op, m);
@@ -539,7 +539,7 @@ CampaignGame* CampaignGame::next_mission(bool next_one) {
     g->a8 = (m == 1 || (op == 4 && m == 4)) ? 3 : a8;
     g->c4 = c4;
     g->copy_lancemates(*this);
-    h.save_world(g->path(), 2);
+    if (save) h.save_world(g->path(), 2);
     b0 = 0;
     g->b0 = 1;
     merge_salvage();

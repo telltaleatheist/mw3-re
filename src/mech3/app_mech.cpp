@@ -782,6 +782,9 @@ void mech_lance_salvage(Store& own, bool team) {
 
 }
 
+// Departures: a mech without a pilot (+0x684), a loadout (+0x3ec) or one of
+// the parts reads as type -1, no armor, nothing left, where the exe would
+// read through null.
 bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[11]) {
   auto* m = static_cast<Mech*>(mech);
   if (!m) return false;
