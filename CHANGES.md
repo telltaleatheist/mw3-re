@@ -98,6 +98,7 @@ it is clear what the designers meant.
 - The credits' "Other Voices" heading sits where the other headings do (a typo in the credits file gave it one number of its two, so it hung indented under the line above).
 - TARGET's distance past 1 km reads " (1.23km)" like the " (500m)" below it; the original ran the kilometres straight on after the loadout's name.
 - **The message panel slides up at any frame rate.** The original moved it a whole number of pixels a frame, which above 60 fps is none: on a fast computer the in-mission messages never came into view.
+- The briefing's loading bar creeps at the same speed at any frame rate (the original moved it 0.005 a frame).
 - The coolant gauge glides at the same speed at any frame rate (the original eased it a tenth of the way each frame).
 - **Accepting the game options keeps your mouse sensitivity.** The original reset the vertical mouse sensitivity to 1.3 (or -1.3 with Invert Mouse Y) every time; now the invert box only flips its direction.
 - **TAG is the same at every frame rate, and its airstrike follows the target.** The one-second hold is a true second, and the beam lasts what it did at 30 fps, so you always have about 67 ms to slip (the original gave two frames at 30 fps and one at 60 or 144). The four missiles now home on the mech you marked instead of the spot it stood on seven seconds earlier, so a moving mech is hit too. TAG still fires only from a full charge.
@@ -108,6 +109,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the
   word in memory before the game's soil table; the type is just left out.
 - A shot passing through more than 32 objects no longer writes past the end

@@ -152,6 +152,39 @@ class SlideButton : public ShellButton {
   void read_ripple(zrdr::Node* node);  // the shared tail of +0x84: RADIUS, MAXRADIUS
 };
 
+// The game's slider (vtable 0x005bbc90, destructor 0x00406110 with the
+// briefing): a click sets it from the mouse. The briefing's progress bar and
+// the controls' AXIS_VALUE.
+class ShellSlider : public ztwod::Slider {
+ public:
+  void on_left_up() override { set_from_mouse(); }  // +0x30  0x0059e2f0
+  void set_raw(float v) override { set_value(v); }   // +0x8c  0x0059e350
+};
+
+// The mech lab's push button (0x0044aaf0, vtable 0x005c0e00; the briefing's
+// subclass 0x00406070, vtable 0x005bbd20, differs only in its destructor),
+// 0x17c bytes: under the mouse it blinks between its normal and ACTIVATE
+// images every 0.05 s and shows its HELP labels. Original file unknown:
+// 0x0044aaf0..0x0044af60, in the mech lab's code (with 0x0040a910).
+class HelpButton : public ShellButton {
+ public:
+  HelpButton(Engine& e, int32_t id);  // 0x0044aaf0
+  ~HelpButton() override;            // 0x0044ab80: the HELP labels deleted
+  void update(float dt) override;    // +0x24  0x0040a910
+  void on_enter() override;          // +0x3c  0x0044ae80
+  void on_leave() override;          // +0x40  0x0044aee0
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0044ac90
+  void set_blink(bool on);           // 0x0044ae10: off shows the image for its state
+  void blink(float dt);              // 0x0044af20
+
+  uint8_t selected = 0;              // +0x158  the mech lab's chosen one: no blink, ACTIVATE's image
+  uint8_t blinking = 0;              // +0x159
+  float period = 0.05f;              // +0x15c
+  float timer = 0.0f;                // +0x160
+  int32_t glow[2] = {};              // +0x164  GLOW_OFFSET (read by nothing here)
+  std::vector<ztwod::Text*> help;    // +0x170  (+0x16c its allocator byte) HELP's labels, in the dialog
+};
+
 // A choice stepped through with two arrows (vtable 0x005c5ba0, "cycle button"
 // by its destructor's text), 0x424 bytes: TOGGLE_LEFT and TOGGLE_RIGHT are
 // controls of their own, the choice shows in the first LABEL. The option
@@ -347,6 +380,25 @@ class FileList : public ShellButton {
   float repeat_rate = 0.15f;         // +0x1f8  then a step each
   uint8_t repeating = 0;             // +0x1fc
   uint8_t no_repeat = 0;             // +0x1fd  (nothing sets it)
+};
+
+// The mech lab's list of a store's items (0x0048d880, vtable 0x005c5ec0),
+// the briefing's REALLOC_LIST. Only its making and unmaking are ported (the
+// briefing's shell holds one); its reader, rows and refill (0x0048db30..
+// 0x0048e180) come with the reallocation list (campaign.md section 7).
+class StoreList : public FileList {
+ public:
+  StoreList(Engine& e, Handle store, int32_t kinds);  // 0x0048d880
+  ~StoreList() override = default;   // 0x0048d930: the title, then the list
+
+  int32_t x200 = 0;                  // +0x200
+  uint8_t kinds[4] = {};             // +0x204  which kinds it lists (0x0048df60; 5: all)
+  uint8_t all = 0;                   // +0x208
+  uint8_t x209 = 1, x20a = 1, x20b = 0, x20c = 0, x20d = 0;  // +0x209..+0x20d (0x0040a780..0x0040a7c0)
+  int32_t x210 = 3;                  // +0x210
+  Handle store;                      // +0x214  (0x0040a760 sets it, then refills)
+  int32_t x218 = 0;                  // +0x218
+  ztwod::FontText title{nullptr, 0, 0};  // +0x21c
 };
 
 // An edit bar of the game's screens (the controls file's, the pilot's, the

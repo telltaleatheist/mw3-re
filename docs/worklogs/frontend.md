@@ -416,3 +416,35 @@ each copy: the test resets the emulator heap between loads; mech_dfn_slot
 added for the probe). Breaks: scratch/campaign/breaks.py SEEDS [names].
 Found: No to "replace saved game" still overwrites the file (zSave writes
 first): fixes.md "still to fix", for when zSave is wired.
+Merged into main (06a6f86). Next: campaign item 2 on mac3/briefing, the
+briefing screen's shell (0x00405230 without the map; buttons and their
+enabling 0x00408ef0/0x00404ae0; the frame 0x00406440; ABORT 0x00405050;
+LAUNCH 0x00404f70), the progress bar's +0.005 a frame per_second at the
+30 fps reference (lead: no candidate). Start by reading those five in
+analysis-output/decomp and the Load state's hooks in app_states.
+
+## 2026-10-20 Campaign item 2: the briefing shell (branch mac3/briefing, off main 06a6f86)
+
+`mech3/briefing.{h,cpp}`: BriefingScreen 0x00405230 (dtor 0x00406170,
+frame 0x00406440 with the bar per_second, set_loaded 0x00408ef0, presses
+0x00404c30, abort 0x00405050, launch 0x00404f70, progress 0x004050d0, log
+0x00405120 FIX (bug) "%s"), BriefingScript (list + stop 0x004063e0; entries
+are item 3), globals briefing_reached [0x5e043c], briefing_voice [0x5f4c84],
+briefing_screen [0x5f4c80]. In menu_widgets: HelpButton (0x0044aaf0, the
+mech lab's blinking button with HELP labels), ShellSlider (vtable 0x5bbc90,
+was controls' AxisSlider, now an alias), StoreList (0x0048d880 ctor only,
+REALLOC_LIST unbound). Control::enable (0x00409e60) in twod.h. Engine hooks
+in app_hooks.h: game_kind/game_campaign/game_salvage_left/
+game_multiplayer_kind (defaults on the ported pilot, briefing.cpp),
+app_flag_1ba, briefing_map_image, briefing_realloc, briefing_lance_loadouts,
+briefing_lab_store, mech_lab_open, salvage_open, multiplayer_launch_prep,
+missions_loaded, mission_launch, mission_cleanup, replace_state,
+campaign_merge_salvage. Not wired yet: LoadState still constructs 0x405230
+by address (item 5). Test: test_briefing.py + probe_briefing.cpp (40/40;
+skips SOUND block 0x40583d->0x405bc8 and REALLOC_LIST bind in the original;
+the original's never-set script iterator counts as the end). Unit:
+test_mainmenu.cpp fix_briefing_bar_per_second. Breaks: scratch/briefing/
+breaks.py (32). Debug helpers scratch/briefing/dbg2.py (first differing dump
+after each op), dbg3.py (first differing canonical call with its frame).
+Lead (night): go on through items 3-7 without waiting, branch from main if
+merged else from the previous branch; then stop.

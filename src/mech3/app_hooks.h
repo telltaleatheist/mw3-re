@@ -594,6 +594,39 @@ class Engine : public zgame::AppHooks {
   virtual void briefing_start(Handle s) { unported("0x00409eb0", {s}); }
   virtual void briefing_refresh(Handle s) { unported("0x00408bd0", {s}); }
   virtual void briefing_show(Handle s, int32_t a) { unported("0x00404ae0", {s, a}); }
+  // The ported briefing screen's (mech3/briefing, docs/campaign.md section 2).
+  // The current game as it reads it (memory in the original; the ported
+  // pilot's by default, briefing.cpp): its kind, a campaign's operation and
+  // mission, a campaign's unclaimed salvage (+0x3c not empty), and
+  // multiplayer's vt+0x4c (+0x94; 0 for another game).
+  virtual int32_t game_kind();
+  virtual bool game_campaign(int32_t* operation, int32_t* mission);
+  virtual bool game_salvage_left();
+  virtual int32_t game_multiplayer_kind();
+  virtual uint8_t app_flag_1ba() { return static_cast<uint8_t>(unported("0x0040a810", {})); }
+  // Its calls not ported yet: the map's image (0x00405160 on the briefing's
+  // section), the reallocation list shown or not (0x00404ae0), the
+  // lancemates' loadouts once loaded (0x00408c30), the mech lab with its
+  // store (0x00408b40, 0x00448830), the Salvage State (0x0047d2f0), a
+  // multiplayer launch's preparation (0x0046ceb0).
+  virtual void briefing_map_image(zrdr::Node* section) {
+    unported("0x00405160", {section ? 1u : 0u});
+  }
+  virtual void briefing_realloc(int32_t show) { unported("0x00404ae0", {show}); }
+  virtual void briefing_lance_loadouts() { unported("0x00408c30", {}); }
+  virtual Handle briefing_lab_store() { return unported("0x00408b40", {}); }
+  virtual void mech_lab_open(Handle store, int32_t a) { unported("0x00448830", {store, a}); }  // ECX the pilot
+  virtual void salvage_open() { unported("0x0047d2f0", {}); }
+  virtual void multiplayer_launch_prep() { unported("0x0046ceb0", {}); }
+  // The missions object [0x006098d0]: loaded (0x00490930), the launch
+  // (0x00491150, true with the player's mech), the cleanup (0x00491780).
+  virtual bool missions_loaded() { return unported("0x00490930", {}) != 0; }
+  virtual bool mission_launch() { return unported("0x00491150", {}) != 0; }
+  virtual void mission_cleanup(int32_t unload) { unported("0x00491780", {unload}); }
+  // Replace(state(n), 0) (0x00482970, 0x00590250).
+  virtual void replace_state(int32_t n) { unported("0x00590250", {n}); }
+  // The current campaign's salvage merged (0x00434cb0): the ported pilot's.
+  virtual void campaign_merge_salvage();
   virtual uint32_t list_head(Handle list) { return unported("0x0049ccb0", {list}); }
   virtual void format(const char* fmt, std::initializer_list<Arg> args, char* out, int size);  // CString::Format
 

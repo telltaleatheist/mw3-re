@@ -197,6 +197,13 @@ class Control : public Image {
   virtual void refresh();            // +0x80  0x0059c790: the enabled look
   virtual bool read_control(zrdr::Node* node, Dialog* dialog);  // +0x84  0x0059cdc0
   virtual void after_bind() {}       // +0x88  0x0049bfd0
+  // 0x00409e60 (inline, with the briefing): returns the old value.
+  int32_t enable(int32_t on) {
+    const int32_t old = enabled;
+    enabled = on;
+    refresh();
+    return old;
+  }
 };
 
 // A two-state button (vtable 0x005cfaa8), 0x164 bytes.

@@ -373,6 +373,81 @@ void SlideButton::restart_ripple() {
   rippling = e_.fast_menu() ? 0 : 1;
 }
 
+// ---- the mech lab's button with help ----
+
+// Mech3.exe 1.2 @ 0x0044aaf0
+HelpButton::HelpButton(Engine& e, int32_t id) : ShellButton(e, id) {}
+
+// Mech3.exe 1.2 @ 0x0044ab80
+HelpButton::~HelpButton() {
+  for (ztwod::Text*& t : help) {
+    delete t;
+    t = nullptr;
+  }
+  help.clear();
+}
+
+// Mech3.exe 1.2 @ 0x0040a910
+void HelpButton::update(float dt) {
+  blink(dt);
+  ShellButton::update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0044ae80
+void HelpButton::on_enter() {
+  if (selected || !enabled) return;
+  Control::on_enter();
+  set_blink(true);
+  for (ztwod::Text* t : help) t->show_for(-1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x0044aee0
+void HelpButton::on_leave() {
+  Control::on_leave();
+  for (ztwod::Text* t : help) t->hide();
+  set_blink(false);
+}
+
+// Mech3.exe 1.2 @ 0x0044ac90: HELP's labels join the dialog, hidden.
+bool HelpButton::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  reading = 1;
+  const bool r = Control::read_control(node, dialog);
+  reading = 0;
+  zrdr::get_ivec2(node, "GLOW_OFFSET", glow);
+  if (zrdr::Node* h = zrdr::find(node, "HELP")) {
+    int32_t count = 0;
+    ztwod::Text** texts = ztwod::read_labels(dialog, h, &count, &base_x);
+    if (count) {
+      for (int32_t i = 0; i < count; ++i) {
+        dialog->add(texts[i]);
+        help.push_back(texts[i]);
+      }
+      for (ztwod::Text* t : help) t->hide();
+    }
+  }
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0044ae10
+void HelpButton::set_blink(bool on) {
+  blinking = on ? 1 : 0;
+  dirty();
+  if (on) return;
+  if (selected) set_image(img_activate);
+  else if (enabled) set_image(img_normal);
+  else set_image(img_disabled);
+}
+
+// Mech3.exe 1.2 @ 0x0044af20: the time between swaps is in seconds already.
+void HelpButton::blink(float dt) {
+  if (!blinking) return;
+  timer -= dt;
+  if (timer > 0.0f) return;
+  timer = period;
+  set_image(image == img_normal ? img_activate : img_normal);
+  dirty();
+}
+
 // ---- the cycle button ----
 
 // Mech3.exe 1.2 @ 0x0048b280: the ShellButton's id stays -1; `id` is the cycle's.
@@ -717,6 +792,16 @@ void FileListArrow::on_left_up() {
 
 // Mech3.exe 1.2 @ 0x0048c0e0
 FileList::FileList(Engine& e, int32_t i) : ShellButton(e, i) {}
+
+// Mech3.exe 1.2 @ 0x0048d880, with 0x0048def0 (no kinds) and 0x0048df60.
+StoreList::StoreList(Engine& e, Handle s, int32_t k) : FileList(e, -1), store(s) {
+  if (k == 5) {
+    for (uint8_t& b : kinds) b = 1;
+    all = 1;
+  } else {
+    kinds[k] = 1;
+  }
+}
 
 // Mech3.exe 1.2 @ 0x0048c250
 FileList::~FileList() {

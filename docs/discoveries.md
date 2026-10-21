@@ -1921,6 +1921,23 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   next mission. The new save's world is written to that file before the
   question, so No keeps the old entry in the list but its file already holds
   the new one (to be fixed in the rebuild, `fixes.md`).
+- **The briefing screen has keyboard shortcuts:** once the mission has
+  loaded, L launches and M opens the Mech Lab; Space or S stops the briefing
+  voice at any time.
+- **At Op 1 Mission 1 the briefing's Mech Lab and Salvage buttons stay grey.**
+  Instant Action's briefing has no Salvage or Replay button, training's no
+  Mech Lab either, and a multiplayer briefing shows only Launch and launches
+  by itself the moment the mission has loaded.
+- **Launching with salvage you have not looked at asks first.** In a
+  campaign, if the last mission left salvage and you have not pressed Salvage
+  on this briefing, Launch asks before it goes.
+- **A click on the briefing's loading bar moves it** to where you clicked;
+  it then creeps on towards the real progress from there. The bar creeps 0.005
+  a frame, so it filled faster on faster computers (the rebuild: 0.15 a
+  second at any frame rate).
+- **The briefing has a hidden debug log:** a box of the load's lines at the
+  top, shown only with a debug switch of the app, and the game's version in
+  the bottom right corner in the debug font.
 - **The game crashes** if you press DELETE before any pilot exists (the
   rebuild does nothing), and on a `pilots\` file whose name is 64 characters
   or longer (the rebuild skips it).
