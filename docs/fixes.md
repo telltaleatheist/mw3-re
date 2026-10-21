@@ -360,6 +360,10 @@ Kept:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
+- The coolant bar's easing (0x004456f0): a tenth of the way to the value
+  each frame, so it settles faster at higher frame rates (at 30 fps about
+  a second to 95%). Display only; the per_second rule would scale it to a
+  30 fps frame (hud.md section 17).
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
   original 640x480 4:3. The game's projection and clipping work from the

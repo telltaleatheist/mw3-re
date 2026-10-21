@@ -123,6 +123,7 @@ struct Hooks : mech3::HudHooks {
   }
   const char* mech_display_name(int32_t kind) override { return estr(call("0x00484670", {kind})); }
   const char* part_display_name(int32_t part) override { return estr(call("0x00484d70", {part})); }
+  const char* equipment_name(int32_t kind) override { return estr(call("0x00484980", {kind})); }
   const char* message_arg(int32_t msg, const char* arg) override {
     call("0x00575fd0", {0x40u, msg});
     for (const char* q = arg; *q; ++q) call("0x00575fd0.ch", {static_cast<uint8_t>(*q)});
@@ -325,6 +326,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 23: h.radar.xdb4 = v; break;
     case 24: h.radar.xdb8 = v; break;
     case 25: h.radar.set_fade(zgame::from_bits(v)); break;
+    case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
     case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
       float o[3] = {};
@@ -705,8 +707,8 @@ void dump_hud(Dump& d) {
   mech3::HudGauges& g = h.gauges;
   d.o << "gauges ";
   d.base(&g);
-  const std::pair<const char*, int32_t> ks[] = {{"x143c", g.x143c}, {"x1440", g.x1440}, {"x1444", g.x1444},
-      {"hw", g.heat_w}, {"hh", g.heat_h}, {"hb", g.heat_bottom}, {"ty", g.toggler_y}};
+  const std::pair<const char*, int32_t> ks[] = {{"x143c", g.x143c}, {"x1440", g.heat_src.left}, {"x1444", g.heat_src.top},
+      {"hw", g.heat_src.right}, {"hh", g.heat_src.bottom}, {"hb", g.heat_bottom}, {"ty", g.toggler_y}};
   for (auto& [k, v] : ks) d.kv(k, v);
   d.o << "\n";
   const std::pair<const char*, ztwod::FontText*> texts[] = {
@@ -875,6 +877,7 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   g_leads.clear();
   crt::msvc_srand(1);  // test_hud.py's MsvcRand(1)
   mech3::radar_rect() = mech3::triangle_rect() = {1, 1, 639, 479};  // as each run's fresh exe holds them
+  mech3::coolant_shown() = 1.0f;
   for (int i = 0; i < nops; ++i) apply_op(*g_hud, ops[2 * i], ops[2 * i + 1]);
   Dump d;
   dump_hud(d);

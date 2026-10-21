@@ -2025,3 +2025,15 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   for an enemy; the first line green for anyone else; the silhouette's
   background and the target view's frame follow (a target with no vehicle
   gets a yellow-brown frame).
+- **The speed readout is in km/h** (the game's metres a second x 3.6) and
+  turns red when you walk backwards.
+- **The throttle bar shows reverse at about half scale:** full reverse fills
+  0.525 of the bar's height, downward and in red.
+- **The heat gauge's pointer looks ahead:** the bar shows your heat now, the
+  little toggler beside it your heat plus how fast it is changing, so it
+  leads the bar when you are heating up and trails when cooling.
+- **The coolant gauge glides** a tenth of the way to the real value each
+  frame, so it moves faster on a faster computer.
+- **The equipment list blinks green for one frame** whenever a line changes
+  to a different item: the rename sets the green font over its yellow or
+  grey state until the next frame.

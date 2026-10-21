@@ -15,6 +15,7 @@ share.
 import ctypes
 import math
 import os
+import re
 import struct
 import sys
 from pathlib import Path
@@ -233,6 +234,7 @@ class Original:
         w.answers['0x00479480'] = lambda rr, n, a: rr.choice([0, 0x51000000])
         e.stub(0x576040, spec='c')
         titles = {i: e.world_string(f'title {i:x}') for i in (0xdbe, 0xfbb)}
+        titles[0x1d7] = e.world_string('km/h')  # the speed's unit (0x004453a0)
         w.answers['0x00576040'] = lambda rr, n, a: titles.get(a[0], 0)
         e.stub(0x4f34c0, spec='c,d')
         e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
@@ -308,6 +310,15 @@ class Original:
         e.w32(lhead + 4, lhead)
         e.w32(0x60b22c, lhead)
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
+        # the message panel's point (0x0040fed0: [0x00603d7c] +0x4e8), under which the objectives sit
+        mp = e.world_alloc(0x500)
+        e.w32(mp + 0x4e8, r.randrange(0, 400))
+        e.w32(mp + 0x4ec, r.randrange(0, 300))
+        e.w32(0x603d7c, mp)
+        # the equipment's item names (0x00484980)
+        inames = [e.world_string(x) for x in ('ECM', 'Beagle', 'AMS')]
+        e.stub(0x484980, spec='c')
+        w.answers['0x00484980'] = lambda rr, n, a: inames[a[0] % 3]
         e.w32(0x605f88, r.choice([0, 1]))
         for a, spec in ((0x479ed0, ''),):
             e.stub(a, spec=spec)
@@ -584,6 +595,8 @@ class Original:
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.15:  # the radar's mode
                 self.ops.append((22, fr.choice([0, 1, 2, 3] if self.flip else [0, 2])))  # map mode needs the map
+            if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
+                self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
                 self.ops.append((25, f32(fr.choice([0.0, 0.05, 0.3, 1.5]))))
             if fr.random() < 0.15:  # its polylines: their lists, then their counts
@@ -679,9 +692,9 @@ class Original:
         mvt = e.r32(m)
         e.w32(mvt + 0x148, e.new_stub('mech.vt+0x148', 'c', 0, lambda emu, key, a, pop: (
             emu.w32(fbuf, t.handle(key, tuple(a))), emu._ret(0, pop, then=fthunk))))
-        w.answers['mech.vt+0x148'] = lambda rr, n, a: f32(rr.choice([0.0, 0.4, 1.0]))
+        w.answers['mech.vt+0x148'] = lambda rr, n, a: f32(rr.choice([0.0, 0.4, 1.0, 1.3, -0.2]))
         for off, v in ((0x518, r.uniform(5, 25)), (0x528, r.uniform(0.2, 1.0)), (0x554, r.choice([0.0, 0.8, 1.45, 1.7])),
-                       (0x558, r.uniform(0, 0.1)), (0x55c, r.uniform(0, 0.1)), (0x56c, r.uniform(0, 1))):
+                       (0x558, r.uniform(0, 0.1)), (0x55c, r.uniform(0, 0.6)), (0x56c, r.uniform(0, 1))):
             e.cpu.write(m + off, struct.pack('<f', v))
         a_ = r.uniform(-math.pi, math.pi)
         e.cpu.write(m + 0x24, struct.pack('<3f', math.sin(a_), 0.0, -math.cos(a_)))
@@ -706,13 +719,7 @@ class Original:
         e.stub(0x41cdf0, spec='c')
         w.answers['0x0041cdf0'] = vecs + 12
 
-        def jump(emu, key, a, pop):  # 0x00445520: the bool pushed as a dword with stack garbage above
-            g, jets, fuel = a
-            t.handle(key, (g, jets & 0xff, fuel))
-            emu._ret(0, pop)
-        e.stub(0x445520, '0x00445520', 'c,s0,s1', None, jump)
-        for a2, spec in ((0x4453a0, 'c,s0'), (0x445450, 'c,s0'), (0x4455e0, 'c,s0,s1'), (0x4456f0, 'c,s0'),
-                         (0x448320, 'c,s0'), (0x446900, 'c,s0'),
+        for a2, spec in (
                          (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
             e.stub(a2, spec=spec)
 
@@ -738,8 +745,19 @@ class Original:
             buf, fmt = a
             va = emu.uc.reg_read(UC_X86_REG_ESP) + 12
             f = emu.cstr(fmt)
-            if '%.1f' in f or '%.2f' in f:  # the range text, the marker's distance: one double
-                text = (f % struct.unpack('<d', bytes(emu.cpu.read(va, 8)))).encode('latin1')
+            if re.search(r'%[-0-9.]*f', f):  # doubles among the arguments: %s, %d, %f in order
+                out, k, i = '', va, 0
+                for m in re.finditer(r'%([-0-9.]*)([sdf])', f):
+                    out += f[i:m.start()]
+                    i = m.end()
+                    if m.group(2) == 'f':
+                        out += ('%' + m.group(1) + 'f') % struct.unpack('<d', bytes(emu.cpu.read(k, 8)))[0]
+                        k += 8
+                    else:
+                        v = emu.r32(k)
+                        k += 4
+                        out += (emu.cstr(v) if v else '(null)') if m.group(2) == 's' else str(struct.unpack('<i', struct.pack('<I', v))[0])
+                text = (out + f[i:]).encode('latin1')
             else:
                 text = c_format(emu, f, va).encode('latin1')
             emu.cpu.write(buf, text + b'\0')
@@ -888,6 +906,8 @@ class Original:
                 e.w32(rd + 0xdac, 0x5e39c8)
             elif k in (23, 24):
                 e.w32(h + 0x14 + (0xdb4 if k == 23 else 0xdb8), v)
+            elif k == 26:
+                e.w32(self.mech + 0x3d8, v)
             elif k == 25:
                 e.call(0x43dc70, ecx=h + 0x14, stack=(v,))
             elif k == 22:
@@ -1029,8 +1049,16 @@ class Original:
         wm = e.world_alloc(0x100)  # +0x88: the lock shown (the aim state)
         e.w32(m + 0xd4, wm)
         e.w32(wm + 0x24, r.randrange(0, 12))
+        none = r.random() < 0.15  # no equipment: the list hides (0x00448320)
         for i in range(16):
-            e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
+            e.w32(m + 0x3ac + 4 * i, (0 if none and i != 11 else r.choice([0, 1, 2, 3, -1])) & 0xffffffff)
+        # the equipment's (0x00447e40): the +0x3f0 record (on, a count) or none, +0x574
+        if r.random() < 0.7:
+            rec = e.world_alloc(0x20)
+            e.cpu.write(rec, bytes([r.choice([0, 1])]))
+            e.w32(rec + 0x18, r.randrange(0, 40))
+            e.w32(m + 0x3f0, rec)
+        e.cpu.write(m + 0x574, struct.pack('<f', r.choice([0.0, 0.0, 0.5, 3.5])))
         self.weapon_owner = m
         self.weapon_groups(wm)
         self.give_parts(m)

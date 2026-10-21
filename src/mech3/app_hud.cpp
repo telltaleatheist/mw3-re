@@ -187,6 +187,7 @@ struct ProgramHudHooks : HudHooks {
       case 0x558: return m->heat_added;
       case 0x55c: return m->heat_dissipation;
       case 0x56c: return m->coolant;
+      case 0x574: return m->masc_time;
       default: return 0.0f;
     }
   }
@@ -243,6 +244,22 @@ struct ProgramHudHooks : HudHooks {
     return true;
   }
   int32_t mine_count() override { return 0; }
+  // The objectives' place: the message panel (0x0040f3a0.., [0x00603d7c]) is
+  // not ported. STAND-IN: its starting point, centred 320 wide at the
+  // display's bottom, without its text's height or its slide (hud.md, Left).
+  void message_panel_point(int32_t out[2]) override {
+    out[0] = (display_w() - 0x140) / 2;
+    out[1] = display_h() + 1;
+  }
+  bool mech_ams(Mech* m, bool* on, int32_t* count) override {
+    if (!m->ams) return false;
+    *on = m->ams->on;
+    *count = m->ams->rounds;
+    return true;
+  }
+  const char* equipment_name(int32_t kind) override {  // 0x00484980
+    return kind >= 0 && kind < 15 ? message(0x1c6 + kind) : "none";
+  }
   // The damage displays and TARGET's text (hud.md section 16) on the ported
   // parts, configurations and Mech3Msg.dll's messages.
   float part_internal(void* mech, uint32_t part, int32_t section) override {
@@ -382,6 +399,14 @@ bool program_hud_report(HudReport* r) {
   for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
   for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];
   r->target_mode = h->target.shown_mode();
+  for (const HudEquipLine& l : h->equipment.lines) r->equip_lines += !(l.flags & ztwod::kHidden);
+  if (h->equipment.flags & ztwod::kHidden) r->equip_lines = 0;
+  for (int32_t k : {0, 12, 3, 8, 14, 6, 7, 4}) r->equip_wanted += std::max(0, m->equipment[k]);
+  r->equip_wanted = std::min(r->equip_wanted, 16);
+  r->speed_kmh = h->gauges.speed;
+  r->throttle_up = static_cast<int>(h->gauges.speed_bar.pts[1][1] - h->gauges.speed_bar.pts[0][1]);
+  r->fuel_shown = !(h->gauges.fuel_bar.flags & ztwod::kHidden);
+  r->heat_unlit = h->gauges.heat_src.top;
   r->target_internal = 2.0f;
   if (Mech* t = static_cast<Mech*>(h->target.damage.mech))
     for (uint32_t part : {0x38cu, 0x390u, 0x394u, 0x398u, 0x3a4u})
