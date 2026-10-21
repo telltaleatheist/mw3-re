@@ -828,3 +828,14 @@ view's ground, the anim lookups 0x50b450 (92).
   checks far (no bits, low model) and near while walking (0x1c, full model);
   with vt+0xd0 back to the stub it fails. Find: AI mechs are silent while
   the player's throttle is not 0 (discoveries). Stopped here (mac 1).
+
+## 2026-10-21: mac 1's order (brain refresh, zSound and music, one more)
+
+1. The AI's brain refresh 0x004aedd0, only if thin.
+2. zSound and music in c1m1: CD track calls, music state changes, sound
+   paths the survey shows unported.
+3. One more non-AI, non-GPU, non-network survey item.
+
+- Item 1: 0x004aedd0 is controls vt+0x140 -> brain vt+0x54 -> vt+0x08, and
+  vt+0x08 is 0x005ac5c0 (`ret`) in every brain-like vtable: a no-op. The
+  log is gone, the evidence in ai.md 17.8a. No behaviour code needed.
