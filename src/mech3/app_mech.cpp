@@ -20,6 +20,11 @@
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zmodel/gmod_init.h"
+#include "gamez/zmodel/gmod_light.h"
+#include "gamez/zvideo/zvid_format.h"
+#include "mech3/app_shadows.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/app_view.h"
@@ -944,6 +949,62 @@ void* mech_mission_player() { return world().mission_player; }
 bool entity_is_mech(const void* o) { return o && mech_objects().count(o) != 0; }
 
 void mech_entities_forget() { mech_objects().clear(); }
+
+const void* mech_shadow(const void* mech) {
+  return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->shadow : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004814e0, on the program's mechs: within 100 m of the
+// player (the player's own always, 64x64; others 32x32) a mech keeps a caster
+// (+0xcc), redrawn along the sun onto its centre ski's ground; further away it
+// is freed. Entries that are not mechs are skipped until vehicles are ported
+// (they cast in the exe; docs/vehicles.md).
+void update_mech_shadows() {
+  if (!zmod::shadows_on()) return;  // 0x00526a80
+  auto* sun = static_cast<zcls::Node*>(mission_sun());
+  if (!sun || !sun->data) return;
+  auto* light = static_cast<zcls::Light*>(sun->data);
+  Mech* player = world().mission_player;
+  for (ai::Handle h : ai::entity_list()) {
+    Mech* m = entity_mech(h);
+    if (!m) continue;
+    const Vec3* pos = entity_position(*m);
+    if (!pos) continue;
+    float fade = 1.0f;
+    if (m != player) {
+      const Vec3* p = player ? entity_position(*player) : nullptr;
+      if (!p) {
+        fade = 0.0f;  // no player to measure from (the exe always has one)
+      } else {
+        const float dx = p->x - pos->x, dy = p->y - pos->y, dz = p->z - pos->z;
+        const float xx = dx * dx, yy = dy * dy, zz = dz * dz;
+        const float xy = xx + yy;  // 0x0051dfa0's order
+        fade = shadow_fade(xy + zz);
+      }
+    }
+    if (!(fade > 0.0f)) {
+      m->release_shadow();
+      continue;
+    }
+    if (!m->shadow) {
+      const int32_t size = m != player ? 32 : 64;
+      m->shadow = zmod::shadow_new();
+      zmod::shadow_set_size(m->shadow, size, size);
+      zmod::shadow_set_node(m->shadow, zn(m->node));
+      zmod::shadow_enable(m->shadow, 1);
+    }
+    const float clouds = zmod::clouds_at(pos->x, pos->z);
+    const uint8_t g = shadow_grey(*light->floats(0xa0) * clouds, *light->floats(0x9c) * clouds,
+                                  *light->floats(0x88), fade);
+    zmod::shadow_set_color(m->shadow, zvid::pack_bytes(g, g, g));
+    // vt+0x50 is the mech itself: its skis' +0x13c, the centre probe's ground.
+    const float ground = m->skis ? m->skis->ground[6] : pos->y;
+    const float at[3] = {pos->x, pos->y, pos->z};
+    zmod::shadow_set_position(m->shadow, at);
+    zmod::shadow_draw(m->shadow, light->floats(0x84), ground);
+    zmod::shadow_upload(m->shadow);
+  }
+}
 
 namespace {
 // A zEntity entry's mech (vt+0x2c then vt+0x50), none for other entities.

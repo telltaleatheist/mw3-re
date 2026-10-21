@@ -136,6 +136,11 @@ void* node_owner(void* node);                                     // 0x0040e9d0 
 void* node_entity(void* node);                                    // 0x0040e920 (app_weapons.cpp)
 bool entity_is_mech(const void* o);  // a program mech (zEntity's entry answering vt+0x50 with itself); others and freed ones not
 void mech_entities_forget();         // the mechs' registry emptied with zEntity's list
+// 0x004814e0 on the program's mechs: each one's projected shadow kept, drawn
+// along the mission's sun (app_states' update_shadows is the handle version).
+void update_mech_shadows();
+void* mission_sun();                 // the mission's "sunlight" node ([0x006098d4] +4), or null
+const void* mech_shadow(const void* mech);  // its caster (+0xcc, a zmod::ShadowCaster), for the tests
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4

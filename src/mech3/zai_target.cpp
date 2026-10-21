@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "mech3/zrdraiv.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -420,6 +421,14 @@ CZAiTarget::CZAiTarget(Handle s, Handle n, TargetDesc& d, TargetRec* rec, bool i
   }
 }
 
+// Mech3.exe 1.2 @ 0x004d58fc (inside 0x004d58a0, zEntity3d's base end).
+void AiTarget::release_shadow() {
+  if (!shadow) return;
+  zmod::shadow_release_texture(shadow);  // 0x00542e40
+  zmod::shadow_delete(shadow);           // 0x00542ca0
+  shadow = nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x004d2aa0 (0x004d30d0 a trap's first detaches the same
 // way), 0x004d81e0, 0x004d58a0.
 CZAiTarget::~CZAiTarget() {
@@ -441,7 +450,7 @@ CZAiTarget::~CZAiTarget() {
     h.entity_unlist(self);
   }
   net = 0;
-  if (xcc) h.light_end(xcc);
+  release_shadow();
   h.entity_end(self);
 }
 

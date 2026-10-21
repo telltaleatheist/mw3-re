@@ -12,6 +12,10 @@
 // CZAiTarget, a scored object of targets.zrd (0x004d2960) with its damage,
 // its health_below triggers and its destruction. AiTarget's own file is not
 // known; it sits after ZAiTarget.cpp, before ZRdrAiNet.cpp.
+namespace zmod {
+struct ShadowCaster;
+}
+
 namespace mech3::ai {
 
 using zgame::Handle;
@@ -69,7 +73,7 @@ struct AiTarget {
   uint32_t team = 1;                 // +0xc0  one bit per team (team 0: bit 0)
   uint32_t allies = 0;               // +0xc4  the same bits but bit 0
   uint32_t enemies = 0xfffffffe;     // +0xc8  every other bit but bit 0
-  uint32_t xcc = 0;                  // +0xcc
+  zmod::ShadowCaster* shadow = nullptr;  // +0xcc  its projected shadow (0x004814e0 keeps it)
   Handle net = 0;                    // +0xd0  a net of its own, made on first ask (0x004d70f0)
 
   // The masks from a 5-bit team in each 5 bits (0x004d56e0, 0x004d2960):
@@ -94,6 +98,7 @@ struct AiTarget {
   void save_target() { saved_target = target; }      // 0x004d7220
   Contact* saved_or_ally() const { return saved_target ? saved_target : ally_target; }  // 0x004d7240
   void clear_contacts();             // 0x004a7be0: the contacts deleted (and +0x7c, +0x94)
+  void release_shadow();             // 0x004d58fc: the caster's texture and the caster freed
 
  private:
   Handle vehicle_of(const Contact* c) const;         // 0x004d6fe0's 0x004e6fe0
@@ -258,7 +263,6 @@ class TargetHooks : public zgame::Unported {
   virtual void node_offset(Handle node, const float v[3]) {
     unported("0x004fc1b0", {node, zgame::bits(v[0]), zgame::bits(v[1]), zgame::bits(v[2])});
   }
-  virtual void light_end(Handle xcc) { unported("0x00542e40", {xcc}); }  // with 0x00542ca0
   // translate_to_anim_root (0x004d28e0 and the zModel matrix calls after it).
   virtual uint8_t anim_root_moved(Handle anim) { return static_cast<uint8_t>(unported("0x004d28e0", {anim})); }
   virtual void node_set_matrix(Handle node) { unported("0x004fc300", {node}); }

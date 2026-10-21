@@ -899,3 +899,13 @@ view's ground, the anim lookups 0x50b450 (92).
   last section); every mech-reading use of the list asks it first.
   test_program's c1m1 run adds a non-mech entry and checks it is skipped;
   break (every entry a mech) segfaults. mw3tests 107/0.
+- Render piece: the lens flares turned out to be software-only (the
+  Direct3D frame 0x481790 clears the list and never draws it), so in c1m1's
+  Direct3D frames there is nothing to see; recorded in render.md,
+  discoveries.md and as a fixes.md candidate, not ported. Took instead the
+  shadows' entity side, which c1m1 was missing: the program had no mech
+  shadows, because `update_shadows` reads raw engine memory. Now:
+  - `update_mech_shadows` runs on the program's mechs, with the sums shared;
+  - AiTarget +0xcc is a `ShadowCaster*`, freed by `release_shadow`
+    (0x4d58fc);
+  - test_program checks c1m1's shadows, with three breaks.

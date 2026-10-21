@@ -19,6 +19,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_blit.h"
@@ -844,6 +845,100 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
   reset_process_state();  // as a new process: zSound not yet initialised
   mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
   mech3::mech_types_forget();             // and no mech type cached
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's Direct3D frames keep the mechs' projected shadows (0x004814e0,
+// docs/render-shadows.md): the player's mech a 64x64 caster drawn along the
+// sun onto its centre ski's ground, every other mech one only within 100 m.
+TEST(mission_c1m1_mechs_cast_shadows_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_shadows_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, mechs = 0, wrong = 0;
+      bool sun = false, player = false, player_drawn = false, others_32 = true;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      seen.sun = mech3::mission_sun() != nullptr;
+      void* player = mech3::mech_mission_player();
+      float at[3] = {};
+      if (!player || !mech3::mech_world_position(player, at)) return;
+      for (const auto h : mech3::ai::entity_list()) {
+        void* m = engine.object_of(h);
+        if (!mech3::entity_is_mech(m)) continue;
+        ++seen.mechs;
+        const auto* c = static_cast<const zmod::ShadowCaster*>(mech3::mech_shadow(m));
+        float pos[3] = {};
+        mech3::mech_world_position(m, pos);
+        const float dx = at[0] - pos[0], dy = at[1] - pos[1], dz = at[2] - pos[2];
+        const bool near = m == player || dx * dx + dy * dy + dz * dz < 10000.0f;
+        if ((c != nullptr) != near) ++seen.wrong;
+        if (!c) continue;
+        const auto* img = static_cast<const zimg::Texture*>(c->image);
+        if (!img || !c->enabled) {
+          ++seen.wrong;
+          continue;
+        }
+        if (m != player) {
+          seen.others_32 = seen.others_32 && img->width == 32 && img->height == 32;
+          continue;
+        }
+        seen.player = img->width == 64 && img->height == 64 && c->node;
+        // Something of the mech drawn: pixels other than the corner's.
+        const auto* px = static_cast<const uint16_t*>(img->pixels);
+        int shaded = 0;
+        for (int i = 0; px && i < 64 * 64; ++i) shaded += px[i] != px[0];
+        seen.player_drawn = shaded > 100;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 200;
+    app.run(pump);
+    EXPECT(seen.frames > 10);
+    EXPECT(seen.sun);
+    EXPECT(seen.mechs > 0);
+    EXPECT(seen.wrong == 0);
+    EXPECT(seen.player);
+    EXPECT(seen.player_drawn);
+    EXPECT(seen.others_32);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  EXPECT(zmod::caster_list() == nullptr);  // every caster freed with its mech
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
 }
 

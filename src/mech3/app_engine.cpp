@@ -282,6 +282,7 @@ void GameEngine::sound_shutdown_groups(uint32_t callback) {
 }
 void GameEngine::sound_shutdown() { zsnd::shutdown(); }
 void GameEngine::light_init() { Engine::light_init(); }
+void GameEngine::update_shadows() { update_mech_shadows(); }
 
 // zInput, ported (gamez/zinput, docs/input.md) on the platform's input.
 void GameEngine::input_init(int32_t commands, const char* map) { zin::init(commands, map); }
