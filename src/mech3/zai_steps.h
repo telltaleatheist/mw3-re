@@ -35,6 +35,8 @@ enum class StepKind : uint32_t {
   Shared = 0x5cbe18,        // 0x004cbe10, the shared behaviour (0x0060b460)
   Manoeuvre = 0x5bcaf8,     // 0x00410650, at 0x00604088 (its state 0x004caae0, flag 0)
   Manoeuvre2 = 0x5bcbb0,    // 0x00410680, at 0x00604098 (its state 0x004cabe0, flag 1)
+  Stand = 0x5bc988,         // 0x00410610, at 0x00604058 (its state 0x004c8940)
+  Hold = 0x5bca40,          // 0x00410630, at 0x00604028 (its state 0x004c88c0)
   Null = 0x5bc8d0,          // 0x004105d0, the null step (0x00603fa0)
   Speed = 0x5cb488,         // 0x004c9eb0
   WaitInterval = 0x5cb560,  // 0x004c9f80

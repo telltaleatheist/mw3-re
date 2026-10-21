@@ -403,6 +403,7 @@ AiControls::AiControls(Mech* o, ai::AiNet* net, const ai::AiParams& rec) {
   owner = o;
   init();
   brain = std::make_unique<ai::Brain>(net, rec);
+  brain->controls = this;
 }
 
 // Mech3.exe 1.2 @ 0x004d8c00 -> 0x004d8c40: the brain's destructor

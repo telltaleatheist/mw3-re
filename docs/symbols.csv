@@ -889,3 +889,8 @@ address,name,source,notes
 0x004ce860,AiSteer::ContactPush,asm,"ported; Steer::push_by_contacts"
 0x004ce6f0,AiSteer::Carrot,asm,"ported; Steer::carrot"
 0x004ce6a0,AiSteer::Near,asm,"ported; Steer::near"
+0x004c8690,AiState::Run,asm,"ported; the base state's run: stop, fire 0"
+0x004c87f0,AiDefaultState::Run,asm,"ported; the nearest step in its place"
+0x004cbeb0,AiSharedState::Run,asm,"ported; lancemates form up or follow; others to the nearest step"
+0x004c8940,AiStandState::Ctor,asm,"ported; 0x00604058's"
+0x004c88c0,AiHoldState::Ctor,asm,"ported; 0x00604028's"

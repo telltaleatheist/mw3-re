@@ -1675,7 +1675,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       mech3::LaunchedMech asleep, woke, owens_end;
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
-      bool ai_on = false, orders_ok = true;
+      bool ai_on = false, orders_ok = true, node_order = false;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
     } seen;
@@ -1708,6 +1708,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.off_ground = std::max(seen.off_ground, std::fabs(o.pos[1] - g));
       } else if (seen.frames == 200) {
         seen.counts1 = engine.unported_counts();
+        if (seen.brain)
+          for (const mech3::ai::Order& r : seen.brain->orders)
+            if (r.state && r.state->from && r.state->from->kind == mech3::ai::StepKind::Node) seen.node_order = true;
         seen.owens_end = o;
         // 30 m west of the Owens, facing east (+x), walking at it.
         const float x = o.pos[0] - 30.0f, z = o.pos[2];
@@ -1742,10 +1745,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset, the current order's state (the shared behaviour's
-    // 0x004cbeb0), the brain's own order and the firing ran each time.
-    for (const char* k : {"0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
+    // firing's reset, the brain's own order and the firing ran each time.
+    for (const char* k : {"0x004aed40", "0x004e81a0", "0x004e9fb0"})
       EXPECT(ran(k) >= 190);
+    // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
+    // nearest the Owens on its order: a node step.
+    EXPECT(seen.node_order);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
     app.stop_game();
@@ -2093,6 +2098,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       int frames = 0;
       int32_t world = -1;
       const void* anims = nullptr;
+      std::string anim_path;  // and what was read: the address may come round again
+      int32_t anim_defs = 0;
       bool c1_mounted = false;
       size_t libraries = 0;
       mech3::LaunchedMech mech;
@@ -2109,6 +2116,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
           });
         g.world = mech3::missions().current;
         g.anims = zeff::anim().defs;
+        g.anim_path = zeff::anim().path;
+        g.anim_defs = zeff::anim().def_count();
         g.libraries = zimg::library_list(0).size();
         for (const std::string& m : zutl::mounts().read) g.c1_mounted |= m.find("/zbd/c1") != std::string::npos;
       }
@@ -2128,8 +2137,10 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     app.run(pump);
     for (const Leg& g : legs) EXPECT(g.frames >= 60 && g.mech.parts > 0);  // each built its mech and ran
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
-    EXPECT(legs[1].anims == legs[0].anims);           // the same world keeps its animations
-    EXPECT(legs[2].anims != legs[0].anims);           // c2 read its own (0x0050b380 freed c1's)
+    EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them
+    // c2 read its own (0x0050b380 freed c1's). Not by address: the allocator
+    // may hand c1's freed block to c2's table (it did in the full run).
+    EXPECT(legs[2].anim_path != legs[0].anim_path && legs[2].anim_defs != legs[0].anim_defs);
     EXPECT(legs[0].c1_mounted && !legs[2].c1_mounted);  // c2's files, not c1's
     EXPECT(legs[2].libraries == legs[0].libraries);     // c1's texture libraries gone (0x00518b70)
     EXPECT(s_bad == 0);                               // nothing of c1 left in c2

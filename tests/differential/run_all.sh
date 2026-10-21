@@ -93,6 +93,7 @@ for t in \
     ai_frame \
     ai_vlist \
     ai_steer \
+    ai_states \
     mech_health \
     ai_valves \
     ai_targets \

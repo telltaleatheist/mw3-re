@@ -62,6 +62,24 @@ class BrainHooks : public zgame::Unported {
   virtual float health(zgame::Handle v);
   virtual void position(zgame::Handle v, float out[3]);
   virtual AiTarget* targetable(zgame::Handle v) { (void)v; return nullptr; }
+  // The plain states' questions (docs/ai.md 17.2): a net's nearest step to a
+  // point (0x004d51d0 then vt+0x74; the port's nearest_step), a vehicle's
+  // AiTarget +0xbc, the player's pilot's lance state ([0x0060861c] +0x6c:
+  // vt+0x48, then vt+0x2c; -1 without a pilot), the formation net
+  // 0x00603fb8, the player's vehicle (the pilot's +0x14) and a vehicle's
+  // own net's follow behaviour (0x004c0de0, item 10).
+  virtual Behaviour* nearest(AiNet* n, const float p[3]);
+  virtual uint8_t vehicle_flags(zgame::Handle v);
+  virtual int32_t player_lance_state() { return static_cast<int32_t>(unported("[0x0060861c]+0x6c", {})) - 1; }
+  virtual AiNet* formation_net() {
+    unported("0x00603fb8", {});
+    return nullptr;
+  }
+  virtual zgame::Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
+  virtual Behaviour* follow_behaviour(AiNet* vehicle_net) {
+    unported("0x004c0de0", {low(vehicle_net)});
+    return nullptr;
+  }
   // The manoeuvres at 0x00604098 (0) and 0x00604088 (1), class 0x004ca440.
   virtual Behaviour* manoeuvre_behaviour(int32_t which);
 
@@ -154,7 +172,7 @@ class BehaviourState {
   virtual void suspend() {}                             // +0x0c 0x0049bfd0
   virtual void resume() {}                              // +0x10 0x0049bfd0
   virtual void run(float dt);                           // +0x14 0x004c8690 (not ported)
-  virtual Behaviour* behaviour() const { return from; } // +0x18
+  virtual Behaviour* behaviour() const { return nullptr; }  // +0x18 0x0040bae0 for the base
 
   Order* order = nullptr;  // +0x04
   Behaviour* from = nullptr;
@@ -169,7 +187,14 @@ class SharedState : public BehaviourState {
   bool may_break_in() const override { return false; }  // 0x004d72a0
   bool may_fire() const override { return false; }      // 0x004d7290
   void run(float dt) override;                          // 0x004cbeb0
+  Behaviour* behaviour() const override;                // 0x004cbea0: 0x0060b460
 };
+
+// The two plain behaviours made at start-up: 0x00604058 (0x00410610, vtable
+// 0x005bc988; the formation net 0x00603fb8 and a vehicle's own net are made
+// of it) and 0x00604028 (0x00410630, 0x005bca40).
+Behaviour* stand_behaviour();
+Behaviour* hold_behaviour();
 
 // The shared behaviour at 0x0060b460, made at start-up.
 Behaviour* shared_behaviour();
@@ -310,6 +335,7 @@ struct BrainControls {
   virtual void stop() = 0;                // IControls vt+0x14 (0x00428490)
   virtual void smooth(float dt) = 0;      // the brain's vt+0x04 (the mech's 0x004d89f0 -> 0x00426960)
   virtual bool hit_lately() = 0;          // IControls vt+0xa0 (0x004aed40)
+  virtual void fire(bool on) = 0;         // IControls vt+0x10 (0x00428580: +0x34)
 };
 
 // The brain (0x004cf330, 0x2ac bytes and, when it is the most derived
@@ -350,6 +376,10 @@ class Brain {
   bool push_object(znet::Object* o);               // 0x004e8960
   bool clear_if_object(znet::Object* o);           // 0x004e9100
   void push_order();  // 0x004e9d80 -> 0x004e9d90: a new order without parts (the template's)
+
+  // The controls it is a base of in the exe (set by the frame and by the AI
+  // controls): what its orders' states steer.
+  BrainControls* controls = nullptr;
 
   // Mech3.exe 1.2 @ 0x004e9710: the frame (0x004e96f0 answers it): the
   // targets set and the controls smoothed (ai.md 17.1).

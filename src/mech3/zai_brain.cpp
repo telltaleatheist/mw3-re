@@ -7,6 +7,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
+#include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
@@ -44,6 +45,11 @@ void set_brain_hooks(BrainHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 znet::Object* BrainHooks::net_find(int32_t id) { return znet::find(id); }
 void* BrainHooks::sound_find(const char* name) { return zsnd::find(name); }
 Behaviour* BrainHooks::default_behaviour() { return mech3::ai::default_behaviour(); }
+Behaviour* BrainHooks::nearest(AiNet* n, const float p[3]) { return nearest_step(*n, p); }
+uint8_t BrainHooks::vehicle_flags(zgame::Handle v) {
+  AiTarget* t = targetable(v);
+  return t ? t->xbc : 0;
+}
 float BrainHooks::now() { return fbits(unported("[0x0060991c]", {})); }
 float BrainHooks::health(zgame::Handle v) { return fbits(unported("vehicle.vt+0x98", {v})); }
 void BrainHooks::position(zgame::Handle v, float out[3]) {
@@ -147,14 +153,63 @@ NetPart* CompiledNet::make_part(Order& o) { return new NetLink(&o, this, false);
 NetPart* BuiltinNet::make_part(Order& o) { return new NetLink(&o, this, true); }
 
 namespace {
-// The default behaviour's state (0x004c8770 -> 0x004c8790, vtable
-// 0x005cb330). Its run 0x004c87f0 is not ported.
+// The pilot's controls stopped and the fire let go (the base run 0x004c8690).
+void stop_and_hold(Brain& b) {
+  b.controls->stop();        // IControls vt+0x14
+  b.controls->fire(false);   // IControls vt+0x10(0)
+}
+
+// The default behaviour's state (0x004c8770 -> 0x004c8790, vtable 0x005cb330).
 class DefaultState : public BehaviourState {
  public:
   using BehaviourState::BehaviourState;
   bool may_break_in() const override { return false; }  // 0x004d72a0
   bool may_fire() const override { return false; }      // 0x004d7290
-  void run(float dt) override { brain_hooks().unported("0x004c87f0", {BrainHooks::low(order), bits(dt)}); }
+  void run(float dt) override;                          // 0x004c87f0
+  Behaviour* behaviour() const override { return default_behaviour(); }  // 0x004c87e0: 0x00604068
+};
+
+// Mech3.exe 1.2 @ 0x004c87f0: stopped; the net's step nearest the vehicle
+// becomes this order's behaviour (this state goes), and the order runs again.
+void DefaultState::run(float dt) {
+  (void)dt;
+  Order* o = order;
+  Brain& b = *o->owner;
+  BrainHooks& h = brain_hooks();
+  const zgame::Handle v = b.controls->vehicle();
+  stop_and_hold(b);
+  if (!v || !o->net) return;
+  AiNet* n = o->net->net();
+  if (!n) return;
+  float p[3];
+  h.position(v, p);
+  Behaviour* step = h.nearest(n, p);
+  if (!step) return;
+  o->set_behaviour(step);  // 0x004e8120: this state destroyed
+  b.x104 = 1;
+}
+
+// 0x004c8700 (vtable 0x005cb258): the null step's.
+class NullStepState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  Behaviour* behaviour() const override { return null_step(); }  // 0x004106c0
+};
+
+// 0x004c8940 (vtable 0x005cb370) for 0x00604058: the base's run.
+class StandState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override { BehaviourState::run(dt); }  // 0x004c89a0
+  Behaviour* behaviour() const override { return stand_behaviour(); }  // 0x004c8960
+};
+
+// 0x004c88c0 (vtable 0x005cb350) for 0x00604028: nothing a frame.
+class HoldState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override { (void)dt; }  // 0x004bf620
+  Behaviour* behaviour() const override { return hold_behaviour(); }  // 0x004c88e0
 };
 
 // 0x004cbe10 (vtable 0x005cbe18), made at start-up into 0x0060b460.
@@ -164,26 +219,77 @@ struct SharedBehaviour : Behaviour {
 };
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004c8620 (the base, the step base) and 0x004c8770 (the
-// default behaviour). The other behaviours' own states come with their ports
-// (docs/ai.md 17.9); until then they get the base's.
+// Mech3.exe 1.2 @ 0x004c8620 (the base, the step base), 0x004c8770 (the
+// default behaviour), 0x004c86e0 (the null step), 0x004c8920 / 0x004c88a0
+// (0x00604058 / 0x00604028). The other behaviours' own states come with
+// their ports (docs/ai.md 17.9); until then they get the base's.
 BehaviourState* Behaviour::make_state(Order& o) {
-  if (kind == StepKind::Behaviour) return new DefaultState(&o, this);
-  return new BehaviourState(&o, this);
+  switch (kind) {
+    case StepKind::Behaviour: return new DefaultState(&o, this);
+    case StepKind::Null: return new NullStepState(&o, this);
+    case StepKind::Stand: return new StandState(&o, this);
+    case StepKind::Hold: return new HoldState(&o, this);
+    default: return new BehaviourState(&o, this);
+  }
 }
 
-// Mech3.exe 1.2 @ 0x004c8690 (not ported: the controls' stop and IControls
-// vt+0x10(0)).
-void BehaviourState::run(float dt) { brain_hooks().unported("0x004c8690", {BrainHooks::low(order), bits(dt)}); }
+// Mech3.exe 1.2 @ 0x004c8690
+void BehaviourState::run(float dt) {
+  (void)dt;
+  stop_and_hold(*order->owner);
+}
 
 Behaviour* shared_behaviour() {
   static SharedBehaviour b;
   return &b;
 }
+Behaviour* stand_behaviour() {
+  static Behaviour b(StepKind::Stand);
+  return &b;
+}
+Behaviour* hold_behaviour() {
+  static Behaviour b(StepKind::Hold);
+  return &b;
+}
 
 // Mech3.exe 1.2 @ 0x004cbe50
 SharedState::SharedState(Order* o) : BehaviourState(o, shared_behaviour()) {}
-void SharedState::run(float dt) { brain_hooks().unported("0x004cbeb0", {BrainHooks::low(order), bits(dt)}); }
+Behaviour* SharedState::behaviour() const { return shared_behaviour(); }
+
+// Mech3.exe 1.2 @ 0x004cbeb0: stopped; a lancemate the player commands
+// (+0xbc bit 4) forms up on the formation net when the player's lance state
+// is 4, else follows the player's vehicle's own net; any other pilot goes on
+// to the step of its net nearest it, the place kept (brain +0x298, the
+// order's +0x24).
+void SharedState::run(float dt) {
+  (void)dt;
+  Order* o = order;
+  Brain& b = *o->owner;
+  BrainHooks& h = brain_hooks();
+  const zgame::Handle v = b.controls->vehicle();
+  stop_and_hold(b);
+  if (!v) return;
+  if (h.vehicle_flags(v) & 0x10) {
+    if (h.player_lance_state() == 4) {
+      if (AiNet* f = h.formation_net()) b.push_net(f);  // 0x004e86a0; the port has no 0x00603fb8 yet
+      return;
+    }
+    const zgame::Handle pv = h.player_vehicle();
+    if (!pv) return;
+    AiNet* vn = h.vehicle_net(pv);
+    if (!vn) return;
+    b.push(vn, h.follow_behaviour(vn));  // 0x004e87c0
+    return;
+  }
+  if (!o->net) return;
+  AiNet* n = o->net->net();
+  if (!n) return;
+  float p[3];
+  h.position(v, p);
+  Behaviour* step = h.nearest(n, p);
+  for (int i = 0; i < 3; ++i) b.x298[i] = p[i], o->x24[i] = p[i];
+  b.push_behaviour(step);  // 0x004e88c0
+}
 
 // Mech3.exe 1.2 @ 0x004b6570, with the fire plan 0x004b6390 and the aim
 // 0x004b7060 (`new(0x24)`).
@@ -694,6 +800,7 @@ bool Brain::frame(BrainControls& c, float dt) {
     c.smooth(dt);
     return true;
   }
+  controls = &c;
   const zgame::Handle owner = c.vehicle();
   const bool down = h.powered_down(owner) == 1;
   steer.update(dt, owner);  // 0x004cec80

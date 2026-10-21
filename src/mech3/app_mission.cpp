@@ -343,6 +343,10 @@ struct WiredBrainHooks : ai::BrainHooks {
   void count_awake() override { e->poke32(0x6099c0, e->peek32(0x6099c0) + 1); }
   float intensity() override { return options().intensity[0]; }
   bool ammo_value(Handle v, float* out) override { return mech_ammo_value(mech(v), out); }
+  Handle player_vehicle() override {
+    const Handle p = e->pilot();
+    return p ? e->field32(p, 0x14) : 0;
+  }
 };
 WiredBrainHooks g_brain_hooks;
 
