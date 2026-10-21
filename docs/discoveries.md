@@ -1067,6 +1067,11 @@ From the render path (render.md).
   degrees, but at 16:9 it would be 106.7 degrees, squeezing everything to
   three quarters of its width. The rebuild widens the view the correct way
   instead (96.4 degrees at 16:9).
+- **A heat spike can be outrun.** When "shutting down" sounds, the mech's
+  throttle is cut and it only switches off once it has come to a stand.
+  If the heat drops back to 90% before then (it takes a running mech
+  several seconds to stop), the shutdown is called off. Only sustained
+  heat shuts down a running mech.
 - **The sun's lens flare only shows in software mode.** Every map has a
   light flagged for a lens flare (two on the third campaign's maps), and
   the maps load four flare pictures. In the software renderer the flare
