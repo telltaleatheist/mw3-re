@@ -830,3 +830,12 @@ Network HUD pieces skipped as ordered.
 - Left: the SDL host's image_release does not free an uncached image
   (0x00517b10 frees it through 0x005185f0): grabs (bake, pause backdrop)
   leak until it does.
+## 2026-10-21 Playtest #10, the HUD's missing images (branch mac3/hud-images)
+
+- Not a port bug: dmg_<part>_blk (8) and hud_othererrow_* (4) are named only
+  by the exe (MW3 1.2 and Pirate's Moon); no shipped library has them.
+  0x005179d0 returns 0 silently, as the port does. The suspected zimg reset
+  in app_mission.cpp is not involved (the other 40 HUD images load).
+- The SDL host reports a missing image once per name. Test:
+  playtest_hud_images_the_data_lacks (40 found, 12 missing). hud.md section
+  16, discoveries (Playing a mission), fixes.md candidate (fill-in art).

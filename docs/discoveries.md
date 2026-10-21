@@ -845,6 +845,18 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   sound plays.
 - **The campaign starts underwater.** In Operation 1's first mission your
   Mad Cat stands on the seabed under almost 5 m of ocean and wades ashore.
+- **A destroyed section vanishes from the damage diagram instead of turning
+  black.** The diagram colours each section blue, green, yellow or red as it
+  takes damage, and asks for a black picture once the section is gone. No
+  black pictures were ever shipped (not in MechWarrior 3, not in Pirate's
+  Moon), so a destroyed arm or leg simply disappears from the outline.
+- **No arrow points to an off-screen target that is neither friend nor
+  foe.** The target display has arrows for an enemy and for an ally at the
+  edge of the screen, and asks for a third set for anything else (a
+  building, a neutral unit); that art was never shipped either ("othererrow"
+  as the code spells it), so such a target gets no arrow. The game does
+  ship arrows for nav points and mobile field bases that this display never
+  uses.
 
 ## Multiplayer
 
