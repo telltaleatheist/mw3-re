@@ -53,6 +53,10 @@ class FakeState : public ai::BehaviourState {
   void suspend() override { call("state.vt+0xc", {serial}); }
   void resume() override { call("state.vt+0x10", {serial}); }
   void run(float dt) override;
+  ai::Behaviour* behaviour() const override {
+    call("state.vt+0x18", {serial});
+    return from;
+  }
   int32_t beh_id;
   uint32_t serial;
 };
@@ -135,6 +139,9 @@ std::vector<ai::Contact> g_steer_store(8);
 std::vector<ai::Contact*> g_steer_contacts;
 std::vector<int32_t> g_contact_entity;
 
+bool g_pilot = false;
+zgame::Handle g_player_vehicle = 0;
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
@@ -149,6 +156,20 @@ struct Hooks : ai::BrainHooks {
   }
   ai::AiTarget* targetable(zgame::Handle v) override { return v == kOwner ? &g_target : nullptr; }
   ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
+  ai::Behaviour* nearest(ai::AiNet* n, const float*) override {
+    return beh_of(static_cast<int32_t>(call("0x004d51d0", {n ? n->get_id() : 0})));
+  }
+  uint8_t vehicle_flags(zgame::Handle v) override { return v == kOwner ? g_target.xbc : 0; }
+  int32_t player_lance_state() override {
+    if (!g_pilot) return -1;
+    call("lance.vt+0x48", {});
+    return static_cast<int32_t>(call("lance.vt+0x2c", {}));
+  }
+  ai::AiNet* formation_net() override { return net_of(200); }
+  zgame::Handle player_vehicle() override { return g_pilot ? g_player_vehicle : 0; }
+  ai::Behaviour* follow_behaviour(ai::AiNet* n) override {
+    return beh_of(static_cast<int32_t>(call("0x004c0de0", {n ? n->get_id() : 0})));
+  }
   bool ai_on() override { return g_ai_on; }
   int32_t powered_down(zgame::Handle v) override { return static_cast<int32_t>(call("owner.vt+0xa0", {v})); }
   ai::Contact* pick(zgame::Handle v, int32_t side) override { return contact_of(call("0x004d6b90", {v, side})); }
@@ -196,6 +217,7 @@ struct FakeControls : ai::BrainControls {
   void stop() override { call("ictl.vt+0x14", {}); }
   void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
   bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
+  void fire(bool on) override { call("ictl.vt+0x10", {on ? 1u : 0u}); }
 };
 FakeControls g_controls;
 Hooks g_hooks;
@@ -223,6 +245,7 @@ void probe_ao_new() {
   for (int32_t i = 1; i <= 4; ++i) g_nets.push_back(std::make_unique<FakeNet>(i, true));
   g_nets.push_back(std::make_unique<FakeNet>(5, false));
   g_nets.push_back(std::make_unique<FakeNet>(100, true));
+  g_nets.push_back(std::make_unique<FakeNet>(200, true));  // the formation net 0x00603fb8
   for (int32_t i : {1, 2, 3, 4, 100, 88, 98}) g_behs.push_back(std::make_unique<FakeBehaviour>(i));
   ai::AiParams rec;
   g_brain = std::make_unique<ai::Brain>(net_of(1), rec);
@@ -451,5 +474,68 @@ void probe_ao_steer(int32_t op, const uint32_t* f, uint32_t* out) {
 
 // The steering block set outright (0x48 bytes).
 void probe_ao_steer_load(const uint8_t* b) { std::memcpy(&g_brain->steer, b, 0x48); }
+
+// The plain states' test (test_ai_states.py): the vehicle's +0xbc, the
+// player's pilot and vehicle; then the current order's state made by one
+// of the port's own behaviours (0 default, 1 shared, 2 null step, 3 stand,
+// 4 hold) and run, or asked: op 0 make, 1 run(dt), 2 may break in, 3 may
+// fire, 4 its behaviour (0 none, 1..5 those, -1 another).
+void probe_ao_state_world(uint32_t xbc, int32_t pilot, uint32_t player_vehicle) {
+  g_target.xbc = static_cast<uint8_t>(xbc);
+  g_pilot = pilot != 0;
+  g_player_vehicle = player_vehicle;
+}
+int32_t probe_ao_state(int32_t op, int32_t which, uint32_t dt) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  ai::Behaviour* bs[5] = {ai::default_behaviour(), ai::shared_behaviour(), ai::null_step(), ai::stand_behaviour(),
+                          ai::hold_behaviour()};
+  ai::Order& o = b.current();
+  switch (op) {
+    case 0: return o.set_behaviour(bs[which]);
+    case 1: o.state->run(fl(dt)); return 0;
+    case 2: return o.state->may_break_in();
+    case 3: return o.state->may_fire();
+    case 4: {
+      const ai::Behaviour* x = o.state->behaviour();
+      if (!x) return 0;
+      for (int i = 0; i < 5; ++i)
+        if (x == bs[i]) return i + 1;
+      return -1;
+    }
+  }
+  return -2;
+}
+
+// The stack as test_ai_states.py compares it: per order its part's serial
+// and net id, its state (a fake's serial, else the exe's vtable of the real
+// one), +0x24..+0x2f; then the brain's +0x104 and +0x298. 8 words an order.
+int32_t probe_ao_state_snapshot(uint32_t* out, int32_t cap) {
+  ai::Brain& b = *g_brain;
+  int32_t n = 0;
+  for (const ai::Order& o : b.orders) {
+    if ((n + 1) * 8 + 4 > cap) return -1;
+    uint32_t* w = out + 8 * n++;
+    const auto* p = dynamic_cast<const FakePart*>(o.net.get());
+    w[0] = p ? p->serial : 0, w[1] = p ? static_cast<uint32_t>(p->net_id) : 0;
+    const ai::BehaviourState* s = o.state.get();
+    uint32_t code = 0;
+    if (const auto* f = dynamic_cast<const FakeState*>(s)) code = f->serial;
+    else if (dynamic_cast<const ai::SharedState*>(s)) code = 0x5cbed0;
+    else if (s) {
+      const ai::Behaviour* x = s->behaviour();
+      code = x == ai::default_behaviour() ? 0x5cb330 : x == ai::null_step() ? 0x5cb258
+             : x == ai::stand_behaviour() ? 0x5cb370 : x == ai::hold_behaviour() ? 0x5cb350 : 0x5cb238;
+    }
+    w[2] = code;
+    w[3] = o.x04;
+    std::memcpy(w + 4, o.x24, 12);
+    w[7] = o.owner == &b;
+  }
+  uint32_t* t = out + 8 * n;
+  t[0] = b.x104;
+  std::memcpy(t + 1, b.x298, 12);
+  return n;
+}
 
 }  // extern "C"

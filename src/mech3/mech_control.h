@@ -103,6 +103,7 @@ struct AiControls : MechControls, ai::BrainControls {
   void stop() override { MechControls::stop(); }
   void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
   bool hit_lately() override;      // IControls vt+0xa0 0x004aed40
+  void fire(bool on) override { MechControls::fire = on; }  // IControls vt+0x10 0x00428580
 };
 
 // Mech3.exe 1.2 @ 0x00427280: the player's controls, made once in `mode`

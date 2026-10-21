@@ -136,7 +136,7 @@ class Original(tg.Original):
 
     def state_call(self, e, key, a, pop):
         this = a[0]
-        r = self.t.handle(key, [e.r32(this + 4)] + list(a[1:]))
+        r = self.t.handle(key, [e.r32(this + 0xc)] + list(a[1:]))
         if key == 'state.vt+0x18':
             r = e.r32(this + 8)
         if key == 'state.vt+0x14' and r & 1:

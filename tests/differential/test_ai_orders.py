@@ -102,10 +102,11 @@ class Original:
         e._ret(place, pop)
 
     def make_state(self, e, key, a, pop):
-        place = a[0]
+        place, order = a[0], a[1]
         beh = e.uc.reg_read(UC_X86_REG_ECX)
         self.serial += 1
-        e.cpu.write(place, struct.pack('<III', self.state_vt, self.serial, beh))
+        # As the real states: the order at +0x04 (0x4c87f0 reads it back through a new state).
+        e.cpu.write(place, struct.pack('<IIII', self.state_vt, order, beh, self.serial))
         self.t.handle(key, [e.r32(beh + 4), self.serial])
         e._ret(place, pop)
 
@@ -123,7 +124,7 @@ class Original:
 
     def state_call(self, e, key, a, pop):
         this = a[0]
-        r = self.t.handle(key, [e.r32(this + 4)] + list(a[1:]))
+        r = self.t.handle(key, [e.r32(this + 0xc)] + list(a[1:]))
         if key == 'state.vt+0x18':
             r = e.r32(this + 8)
         e._ret(r, pop)
@@ -152,7 +153,7 @@ class Original:
             assert part in (0, o + 0x30) and state in (0, o + 0x54), 'parts not in place'
             row = [e.cpu.read(o + 4, 1)[0], int(e.r32(o + 8) == self.brain),
                    e.r32(part + 4) if part else 0, e.r32(e.r32(part + 8) + 4) if part else 0,
-                   e.r32(state + 4) if state else 0, e.r32(e.r32(state + 8) + 4) if state else 0]
+                   e.r32(state + 0xc) if state else 0, e.r32(e.r32(state + 8) + 4) if state else 0]
             row += [e.r32(o + 0x14 + 4 * i) for i in range(7)]
             rows.append(row)
         return rows

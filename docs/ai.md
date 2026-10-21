@@ -1407,6 +1407,43 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700 |
 | 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
 
+**The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
+state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
+fire go (vt+0x10 with 0); the null step's 0x4c8700 and 0x604058's
+(0x4c8940, run 0x4c89a0) run the same; 0x604028's (0x4c88c0) does
+nothing. The default behaviour's (0x4c87f0) stops too, then gives its order
+the step of its net nearest the vehicle (0x4d51d0; the port's
+`nearest_step`) in its own place (0x4e8120: the state is destroyed while it
+runs; the exe reads the order back through the new state's +0x04) and has
+the order run again (+0x104). The shared one's (0x4cbeb0) stops, then for a
+lancemate the player commands (+0xbc bit 4) pushes the formation net
+0x603fb8 when the player's lance state ([0x60861c] +0x6c: vt+0x48 then
+vt+0x2c) is 4, else the player's vehicle's own net with its follow
+behaviour (0x4c0de0); for any other pilot it keeps the vehicle's place
+(brain +0x298, the order's +0x24) and pushes the nearest step of its net
+on it (0x4e88c0, the default behaviour when there is none). Each class's
+vt+0x18 answers its own behaviour (the base's 0). The 0x4c8a30 base (three
+cleared words, no break-in, no fire) waits for the states built on it
+(items 9-10). The formation net, the lance state, a vehicle's own net and
+its follow behaviour are `BrainHooks` until items 10 and 14; the program
+answers the player's vehicle.
+
+Test `test_ai_states.py` (over test_ai_frame.py's brain and fakes, the fake
+states now laid out as the real ones with the order at +0x04): the real
+behaviours in the emulator, the formation net as a fake, the pilot and its
+lance object, the nearest step and the follow behaviour answered from the
+trace; 200 cases of 80 calls: 4054 states made, 4800 runs, 4791 slots asked,
+the answers, the calls, every order and the brain's +0x104 / +0x298
+identical, all 8 marked branches reached. Breaking the port showed it
+catches it, 11 of 11: the stop without the fire, the fire without the stop,
+the default not run again, the default replaced by none (a crash), the
+formation at lance state 3, the place not kept, the lancemate on bit 5, the
+player's net without its follow, the hold running the base, the null step
+answering no behaviour, the shared one breaking in. In the program the
+Owens' first order now pushes the step of net 4 nearest it (`mw3tests`
+`mission_c1m1_owens_runs_its_frames_headless`); that step's own state (the
+node state) is item 8, so it still stands.
+
 **The vehicle's own net** (vt+0xd8 of a vehicle; 0x4c0810, 0x1c bytes):
 the behaviours to use against or with that vehicle: 0x4c0de0 (follow,
 likely: the lancemates on the player's), 0x4c0e10 (attack it), 0x4c0e40
@@ -1652,8 +1689,9 @@ goes through a hooks struct the test stubs the same on both sides.
    Mech's health 0x41ba40 and the controls' stop 0x428490.
 5. **The vlist triggers** 0x4d9290, 0x4d8e70, 0x4e94f0: done (17.5).
 6. **Steering** 0x4ce620..0x4cec80: done (17.4).
-7. **The plain states**: 0x4c8660, 0x4c8700, 0x4c8790, 0x4c88c0, 0x4c8940,
-   0x4c8a30 and the shared 0x4cbe50.
+7. **The plain states**: done (17.2): 0x4c8660, 0x4c8700, 0x4c8790,
+   0x4c88c0, 0x4c8940 and the shared 0x4cbe50; 0x4c8a30 waits for its
+   derived states.
 8. **The node state** 0x4ced40 (with backup and deploy).
 9. **The property states**: speed, waits, valve, scan / canleave, sound,
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);

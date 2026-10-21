@@ -1675,7 +1675,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       mech3::LaunchedMech asleep, woke, owens_end;
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
-      bool ai_on = false, orders_ok = true;
+      bool ai_on = false, orders_ok = true, node_order = false;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
     } seen;
@@ -1708,6 +1708,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.off_ground = std::max(seen.off_ground, std::fabs(o.pos[1] - g));
       } else if (seen.frames == 200) {
         seen.counts1 = engine.unported_counts();
+        if (seen.brain)
+          for (const mech3::ai::Order& r : seen.brain->orders)
+            if (r.state && r.state->from && r.state->from->kind == mech3::ai::StepKind::Node) seen.node_order = true;
         seen.owens_end = o;
         // 30 m west of the Owens, facing east (+x), walking at it.
         const float x = o.pos[0] - 30.0f, z = o.pos[2];
@@ -1742,10 +1745,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset, the current order's state (the shared behaviour's
-    // 0x004cbeb0), the brain's own order and the firing ran each time.
-    for (const char* k : {"0x004aed40", "0x004cbeb0", "0x004e81a0", "0x004e9fb0"})
+    // firing's reset, the brain's own order and the firing ran each time.
+    for (const char* k : {"0x004aed40", "0x004e81a0", "0x004e9fb0"})
       EXPECT(ran(k) >= 190);
+    // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
+    // nearest the Owens on its order: a node step.
+    EXPECT(seen.node_order);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
     app.stop_game();

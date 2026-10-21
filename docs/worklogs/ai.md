@@ -89,3 +89,14 @@ Newest last. One short entry per item: what, commits, what to remember.
 - x87 compares: check each branch's NaN side (C0/C3 with test ah,1/0x41/0x40).
 - Queued from Owen (via the lead): the allied attack pick (zfix bugs), the
   valve re-entry guard, c4b m6's missing boundary regions.
+
+## 2026-10-20 Item 7: the plain states (mac4/states)
+
+- Ported the base, null step, 0x604058 (stand), 0x604028 (hold), default and
+  shared states; Brain::controls (set by the frame and AiControls) gives
+  states the controls; BrainControls::fire added. The base state's vt+0x18
+  answers null: every behaviour's own class answers its own.
+- The exe's default run reads its order back through the NEW state's +0x04:
+  the fake states in test_ai_orders now keep the order at +0x04 (serial at
+  +0x0c).
+- 0x4c8a30 (a base with three cleared words) waits for items 9-10.
