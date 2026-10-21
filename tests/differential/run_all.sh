@@ -90,6 +90,7 @@ for t in \
     ai_orders \
     zdec_init \
     zgeo_model \
+    weiler \
     ai_gates \
     ai_frame \
     ai_vlist \

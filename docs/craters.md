@@ -114,7 +114,7 @@ commit. Who calls it: zWeapon 0x005824b0 for a weapon with the
 | File | Functions | Pseudocode lines | What |
 |---|---|---|---|
 | zgeo_model.cpp 0x0050da90..0x0050f950 | 31 | 1,425 | area partitions, polygon buffers, node building (0x0050dea0 add a polygon), the clip driver 0x0050ec10 / 0x0050ea50 |
-| zgeo_weiler.cpp 0x0050f950..0x005158c0 | 46 | 3,794 | Weiler–Atherton polygon clipping (0x00515410 the entry, 0x00510da0 the core, 926 lines) |
+| zgeo_weiler.cpp 0x0050f950..0x005158c0 | 46 | 3,794 | Weiler–Atherton polygon clipping (0x0050faf0 the entry, 0x00510250 the crossings, 0x00510da0 the walk, 926 lines) |
 | zgeo_convexify.cpp 0x005158c0..0x005166c0 | 13 | 724 | splitting the clipped (concave) polygons into convex ones |
 
 ### zgeo_model, ported (part 2)
@@ -164,6 +164,48 @@ whose flags are 0x100c.
 Left for parts 3 and 5: the clip itself (0x0050e950 the crater's node,
 0x0050ea50 / 0x0050ef70 / 0x0050f7b0 / 0x0050f120 per node, 0x0050ec10 the
 driver), which need Weiler–Atherton.
+
+### Weiler–Atherton, part 3a
+
+`src/gamez/zgeometry/zgeo_weiler` (`test_weiler.py`, identical on 2,400
+made-up runs at 24-bit x87). A Weiler (0x28cc bytes, 0x0050f960) holds the
+clip region, the crater's outline: its points with repeats within 0.01
+dropped (0x00515360, in the caller's buffer too), moved to the origin when
+its first point is past 65,536 m (0x00514c40; back 0x00514dd0), and kept
+as rings of edges. Every polygon is two rings over the same points (0x3c-byte
+edges: prev, next, flags, the two points, a box, the crossing, the contour;
+0x0050fe70 / 0x005146a0), the first flagged 1 (the region) or 2 (the clipped
+polygon), the second 4, each with a 0x0c-byte contour record (0x005129a0).
+
+0x0050faf0 clips a polygon (+0x28 count, +0x2c points, the caller's
+buffer, changed in place and back) into a 0x20-byte result: three lists of
+contours (point count, first float) over one point array. Its first steps,
+ported: the case by the boxes (0x0050ff70): 1 apart; 2 the region inside the
+polygon, 3 the polygon inside the region (every point inside, 0x00510180
+by the crossing count 0x00513cf0); 4 the two the same (every point within
+0.001); 0 they cross. The whole-polygon results: 0x005139e0 (the polygon or
+the region as the inside list's one contour), 0x00513a90 (the polygon with
+the region as a hole, joined between their rightmost points, 0x00515040 the
+bridge), the results' z from the plane through the polygon's first three
+points (0x00514e40). For the crossing case (part 3b): the reset 0x00514d10
+and each polygon's points against the other's edges (0x00513750).
+
+The snap 0x00515410 (from 0x0050ea50, not the clip's entry) moves the
+outline's points onto the terrain polygon's points within 0.1, else onto its
+edges (0x00515170).
+
+Quirks kept: the axes swap (0x00513680) runs before the axes are stored, so
+it always swaps x and z (every caller passes 0); the first rings point into
+the caller's buffer (0x0050faf0 rebuilds them first); the bridge check
+(0x00515040) only ever tests the region's closing edge, harmless from the
+rightmost points. Fixed (FIX (bug), fixes.md): the buffers grow by realloc
+while edges keep pointers into them (past 128 entries the clip reads freed
+memory), and the side tables are 1,280 floats each, overrun past that.
+
+Left: part 3b, the crossings (0x00510250, 0x00513860 divide, 0x00513930);
+part 3c, the walk (0x00510da0, 0x00513f20, 0x00514280, 0x00514730,
+0x00514840), the contour merge and output (0x005129f0, 0x005154d0,
+0x00513390, 0x00513480, 0x005135a0) and the driver 0x0050faf0.
 
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.

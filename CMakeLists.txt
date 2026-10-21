@@ -247,6 +247,7 @@ add_library(mw3probe SHARED
   tests/probe_ai.cpp
   tests/probe_zdec.cpp
   tests/probe_zgeo.cpp
+  tests/probe_weiler.cpp
   tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

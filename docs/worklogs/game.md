@@ -319,3 +319,30 @@ Newest last. One short entry per item: what, commits, what to remember.
   The crater order's flags are always the defaults' 0x100c (0x5825b0 sets
   only points, depth, radius), so 0x4fff80's random path never runs either.
 - Next: craters part 3, Weiler–Atherton (0x0050f950..0x005158c0).
+
+## 2026-10-20 — craters part 3a: Weiler's state and leaves (branch mac2/weiler1)
+
+- Weiler is split 3a/3b/3c (craters.md section 5, "Weiler–Atherton, part
+  3a"). 3a ported in `src/gamez/zgeometry/zgeo_weiler`: the state (0x28cc;
+  region +0xc pool, polygon +0x28/+0x2c, edge/contour/crossing pools
+  +0x34/+0x48/+0x5c, result pools +0x70/+0x84/+0x98/+0xac, side tables
+  +0xc0/+0x14c0, offset +0x28c0..c8), weiler_new 0x50f960 / renew 0x50fa70 /
+  free 0x50fab0 / region 0x50f950, drop_repeats 0x515360, swap_axes
+  0x513680, recenter/uncenter 0x514c40/0x514dd0, rings and contours
+  0x50fe70/0x5146a0/0x5129a0/0x514680/0x5136f0, reset 0x514d10, side
+  tables 0x513750, the case 0x50ff70 + 0x510180 + point-in-polygon
+  0x513cf0, results 0x5139e0 / 0x513a90 (+ bridge 0x515040), plane z
+  0x514e40, leaves 0x514f80 / 0x515170 / 0x515410 (the snap from 0x50ea50;
+  NOT the clip entry, which is 0x50faf0).
+- Edge layout: +0 prev, +4 next, +8 flags, +0xc/+0x10 points, +0x14
+  divided, box +0x18/+0x1c/+0x24/+0x28, +0x30 crossing, +0x34 mark, +0x38
+  contour. Result (0x20): three {count, ResultContour*} lists + point
+  count/points; ResultContour = {points, first float index}.
+- FIX (bug): pools are deques (the exe reallocs under live pointers), side
+  tables sized to need (the exe's 1,280-float tables overrun). fixes.md +
+  CHANGES.md (crashes heading).
+- Test `test_weiler.py` (run_all), probe `tests/probe_weiler.cpp`: 2,400 runs
+  identical; BREAK=1..5 fail. The original side replays the driver's prelude
+  (0x5128e0 x4 for the result pools, the out struct) and calls the pieces;
+  sizes must come from the state after drop_repeats (+0x14).
+- Next: 3b, the crossings 0x510250 (321 lines) with 0x513860 / 0x513930.
