@@ -406,6 +406,15 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::Pilot* rec = mech3::find_pilot("Recruit");
     mech3::CampaignGame* c = rec ? rec->campaign() : nullptr;
     EXPECT(c && c->operation() == 1 && c->mission_number() == 1);
+    EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
+    // A game whose Load state is not ported (Instant Action): no mission
+    // left over from the campaign, back to the main menu.
+    if (rec) {
+      rec->select_game(mech3::kInstantAction);
+      engine.load_state_enter();
+      EXPECT(!engine.launch().active);
+      rec->select_game(mech3::kCampaign);
+    }
     EXPECT(mech3::missions().current == 0);  // c1's world
     EXPECT(engine.unported_counts().count("0x00405230") == 0);  // the briefing is the port
     mech3::missions().cleanup(false);

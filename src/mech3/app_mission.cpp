@@ -1036,11 +1036,15 @@ void GameEngine::set_launch(const Launch& l) {
   launch_ = l;
   launch_.active = true;
   slot_ = 0;  // made again for this launch's mech: a mission unload frees the last one's types
-  pilot_ = alloc_block(0x100);
-  game_ = alloc_block(0x100);
+  // The blocks are made once and reused; the chosen pilot's handle is kept.
+  const Handle real = peek32(0x60861c);
+  if (!stub_pilot_) stub_pilot_ = alloc_block(0x100);
+  if (!game_) game_ = alloc_block(0x100);
+  if (!mech_block_) mech_block_ = alloc_block(0x700);
+  pilot_ = l.keep_pilot && real ? real : stub_pilot_;
   poke32(0x60861c, pilot_);
   poke32(pilot_ + 0x6c, game_);
-  poke32(pilot_ + 0x14, alloc_block(0x700));
+  poke32(pilot_ + 0x14, mech_block_);
 }
 Handle GameEngine::pilot_game(Handle p) { return p == pilot_ && pilot_ ? game_ : Engine::pilot_game(p); }
 uint32_t GameEngine::pilot_campaign_number(Handle p) {
@@ -1071,7 +1075,7 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
                                            : debug_slot_config(launch_.mech, this, [](void* p, const void* o) {
                                                return static_cast<GameEngine*>(p)->handle_of(const_cast<void*>(o));
                                              }));
-          poke32(slot_ + 0x10, 0);
+          poke32(slot_ + 0x10, static_cast<uint32_t>(launch_.skin));
         }
         return slot_;
       case 0x4c: return static_cast<uint32_t>(launch_.number);
