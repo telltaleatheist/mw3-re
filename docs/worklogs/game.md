@@ -875,3 +875,8 @@ view's ground, the anim lookups 0x50b450 (92).
   null in the game); +0x378 is multiplayer's (0x0041e4e0/0x0041e5a0):
   skipped; 0x0049dc40's tick object released; 0x00402560 is the AI's.
   test_deaths 5,753 (cockpit 200, BREAK=16).
+- fixes.md: the stale +0x664 attacker of a deleted IA wreck (mac 1).
+- Item 2 scoped (docs/vehicles.md): c1m1 has 3 mobile field bases, 2
+  trucks and 2 APCs (and turret files in c1); the basic vehicle class is
+  ~40 functions (~2,000 lines), AI-driven in its frame. Proposed split
+  sent to mac 1; went on to item 3 meanwhile.
