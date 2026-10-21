@@ -317,6 +317,16 @@ struct WiredPlayerHooks : PlayerHooks {
   void clear_6099c0() override { e->poke32(0x6099c0, 0); }
 };
 WiredPlayerHooks g_player_hooks;
+}  // namespace
+
+// A mech's controls when the mech goes (Mech::release, the controls' vt+0x18):
+// the AI's, which the vehicle builder made here; the player's stay.
+void mission_controls_free(void* controls) {
+  const Handle h = g_player_hooks.e ? g_player_hooks.e->handle_of(controls) : 0;
+  if (h && g_player_hooks.controls.count(h)) g_player_hooks.controls_delete(h);
+}
+
+namespace {
 
 // The brain's calls out (mech3/zai_brain): the player's vehicle is the
 // pilot's +0x14 (none until the launch makes it).
@@ -570,6 +580,24 @@ struct WiredTargetHooks : ai::TargetHooks {
 WiredTargetHooks g_target_hooks;
 
 struct WiredMissionHooks : MissionHooks {
+  // The cleanup's deletes: the pilot's mech (its vt+0), then 0x0049dc40's
+  // 0x005a8280 on zEntity's list: each entity's vt+0x30 (a mech's 0x004b3d30
+  // does nothing) and its delete, the first each time. The rest of 0x0049dc40
+  // (0x00402560, [0x00609a00]) is not ported.
+  void delete_object(Handle obj) override {
+    if (!mech_free(e->object_of(obj))) MissionHooks::delete_object(obj);
+  }
+  void fn_49dc40() override {
+    auto& list = ai::entity_list();
+    while (!list.empty()) {
+      const Handle h = list.front();
+      if (!mech_free(e->object_of(h))) {
+        e->unported("entity vt+0x0", {h, 1});
+        list.erase(list.begin());
+      }
+    }
+    e->unported("0x00402560", {});
+  }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out
   void fn_40f0b0(uint8_t v) override { if (message_panel()) message_panel_set(v != 0); }  // slid in or out
@@ -981,7 +1009,7 @@ void wire_mission_hooks(GameEngine* e) {
 void GameEngine::missions_start(uint32_t list) {
   if (list != 0x6098d0) return Engine::missions_start(list);
   Missions& m = missions();
-  ai::entity_list().clear();  // zEntity's list: the last mission's mechs are gone (no destructor ported)
+  ai::entity_list().clear();  // zEntity's list: emptied by the last cleanup (0x0049dc40); a debug start's own
   m.start();
   mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");

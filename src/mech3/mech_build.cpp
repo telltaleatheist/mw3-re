@@ -1,4 +1,5 @@
 #include "mech3/mech_build.h"
+#include "mech3/mech_parts.h"
 
 #include <cstdio>
 #include <cstring>
@@ -10,6 +11,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_data.h"
+#include "mech3/mech_move.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
@@ -132,11 +134,81 @@ Mech* mech_create(int32_t index, MechControls* ctl, int32_t config, const char* 
 }
 
 // Mech3.exe 1.2 @ 0x004140c0
+namespace {
+int32_t g_alive = 0;  // ours: the mechs made and not yet deleted
+}  // namespace
+int32_t mechs_alive() { return g_alive; }
+
 Mech* mech_new(Pilot* data, MechControls* ctl, Config* cfg, const char* name) {
   if (!cfg || !data || !ctl) return nullptr;
   Mech* m = made(0x6d8, new Mech());
+  ++g_alive;
   mech_construct(*m, data, ctl, cfg, name);
   return m;
+}
+
+// Mech3.exe 1.2 @ 0x00414f20 (vtable +0, 1)
+void mech_delete(Mech* m) {
+  if (!m) return;
+  m->release();
+  delete m;
+  --g_alive;
+}
+
+// Mech3.exe 1.2 @ 0x004152d0, the destructor, with its body 0x00414f40 and
+// the bases' (0x004aeb50). What the mech made goes, in the exe's order: the
+// flown parts, the decals, the cockpit, the view, the contacts, the sounds,
+// the node's handlers, the weapons, the parts, the skis, the AMS, the
+// motions, the type's data (when no other mech holds it), the controls,
+// the node and its models, and zEntity's entry.
+void Mech::release() {
+  FreeCalls& f = free_calls();
+  if (this == world().mission_player && f.player_object_free) f.player_object_free(*this);  // 0x0041e580
+  for (Handle d : x6d0)  // 0x00413db0
+    if (d && f.debris_free) f.debris_free(d);
+  if (decals) {
+    if (f.decals_free) f.decals_free(decals);
+    decals = nullptr;
+  }
+  if (f.torso_cockpit_off) f.torso_cockpit_off(*this);  // 0x0041ce10(0)
+  if (f.viewed && f.viewed(*this) && f.view_detach) f.view_detach();  // 0x0040adf0(0, 0)
+  clear_contacts();  // 0x004a7be0
+  for (Sound& s : sounds) {
+    if (s && heat_calls().stop_sound) heat_calls().stop_sound(s);  // 0x0056e9f0
+    s = nullptr;
+  }
+  for (int i = 0; i < 30; ++i)  // 0x0041e7a0(i, 0)
+    if (update_calls().stop_cockpit_sound) update_calls().stop_cockpit_sound(i);
+  if (node && f.handlers_off) f.handlers_off(*this);
+  delete static_cast<WeaponManager*>(ammo);  // 0x004b01d0
+  ammo = nullptr;
+  part_delete(hip), hip = nullptr;
+  part_delete(torso), torso = nullptr;
+  part_delete(legs[0]), legs[0] = nullptr;
+  part_delete(legs[1]), legs[1] = nullptr;
+  part_delete(arms[0]), arms[0] = nullptr;
+  part_delete(arms[1]), arms[1] = nullptr;
+  delete skis, skis = nullptr;  // 0x00476460
+  part_delete(head), head = nullptr;
+  delete ams, ams = nullptr;    // 0x005ac5c0
+  for (MechAnim*& a : anims) delete a, a = nullptr;             // 0x004152c0 -> 0x005a9dc0
+  for (MechAction*& a : action_objects) delete a, a = nullptr;  // +0x458, nine in the exe
+  if (pilot && --pilot->refs <= 0) {  // 0x00430e30
+    pilot->refs = 0;
+    mech_data_free(pilot);  // 0x00430580 and the delete
+  }
+  pilot = nullptr;
+  parts.clear();
+  if (x68c && f.ref_delete) f.ref_delete(x68c);
+  x68c = nullptr;
+  if (controls && f.controls_free) f.controls_free(controls);  // when its vt+0x18 says the mech owns it
+  controls = nullptr;
+  if (node) {
+    if (f.node_free) f.node_free(*this);
+    if (f.entity_free) f.entity_free(*this);  // vt+0x04(0, 0, 0, 0), 0x005a7f70
+    node = nullptr;
+  }
+  x6d0.clear(), x678.clear(), actions.clear();
 }
 
 namespace {

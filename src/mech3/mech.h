@@ -261,6 +261,7 @@ struct Mech : ai::AiTarget {
   void aim_at_last_hit();             // 0x0041d130
   void on_kill(Handle victim);        // vtable +0x80, 0x0041b420: the kill credit
   void fade_debris(float dt);         // 0x00413cb0 (mech_parts.cpp)
+  void release();                     // 0x004152d0 with 0x00414f40: the destructor's body (mech_build.cpp)
   void death_prep();                  // 0x0041d070
   void hit_timeout();                 // vtable +0x14c, 0x0041d190
   void movement_sounds();             // 0x0041a843..0x0041aa61, in Update

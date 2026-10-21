@@ -403,3 +403,46 @@ stubbed (CString emulated), the port on a Replay: 32,824 calls, every
 result and the cache's order, and 550 live data and soils blocks laid over
 field by field identical. Sessions that refresh keep every definition (the
 exe crashes otherwise, above).
+
+## 15. Taking a mech down (ported 2026-10-21)
+
+The cleanup (0x00491780) deletes the pilot's mech (its vtable +0 with 1),
+then 0x0049dc40 runs zEntity's 0x005a8280: each entity's vt+0x30 (a mech's
+0x004b3d30 returns 1 and does nothing), then deletes the first entity
+until the list is empty (each one's destructor takes it off, 0x005a7f70).
+
+The Mech's destructor 0x004152d0 (`Mech::release`, then the delete in
+`mech_delete`): for the pilot's mech the +0x378 object (0x0041e580); then
+the body 0x00414f40: the flown parts' nodes off their parents and destroyed
+(0x00413db0), the decals (+0x3e8, 0x00473f40), the cockpit off the torso
+(0x0041ce10(0)), the view let go when it looks at this mech (0x0040adf0(0,
+0)), the contacts (0x004a7be0), the 25 sounds stopped, the 30 cockpit
+sounds (0x0041e7a0), the node's handlers removed with the other model
+briefly under it (0x004eb9b0, 0x00583400, 0x004ebb40), the weapon manager
+(0x004b01d0), the parts by vt+0 in the order hip, torso, legs, arms, then
+the skis (+0x41c, 0x00476460), the head, the AMS (+0x3f0), +0x94, the 13
+motions and 9 actions (0x005a9dc0), the type's data when no other mech holds
+it (0x00430e30's count, 0x00430580), the parts list, +0x68c (vt+0), the
+controls when their vt+0x18 says so, and with a node: out of the world (one
+parent), the two models off it, renamed `deletedmech` (0x005a84c0), the
+three trees destroyed (0x004f9050), vt+0x04(0, 0, 0, 0) and 0x005a7f70. A
+mech without a node is never taken off zEntity's list by it.
+
+The parts (`part_delete`: release, then the delete): the base 0x0045fd40
+stops the trail and debris effects, frees the node reference +0x68
+(0x004e66a0, 0x005ac5c0), renames the node `deletedpart`, clears its +0x2c
+bits 5 and 6 and its ids and owners down the tree (0x004600b0); the torso
+(0x00464250) stops its death effects first; the thigh (0x00463740) deletes
+its calf and foot; the arm (0x00466380) its hand; the foot (0x004628c0)
+stops and frees its wake and frees the toe arrays.
+
+In the port the C++ destructors stay empty (the tests build parts on the
+stack); `release` is the exe's body. The program wires the outside calls in
+`app_mech.cpp` (FreeCalls) and the deletes in `app_mission.cpp`
+(delete_object, fn_49dc40); the AI's controls go through the player hooks'
+controls_delete. Checked: the parts' destructors in `test_deaths.py`
+(release, 400 cases, BREAK=11); the whole teardown by
+`missions_c1m1_c1m2_then_c2m1_in_one_process_headless`, which finds no mech
+alive after each cleanup (`mechs_alive`), and by an ASan run of the suite.
+Left: the cockpit's removal (0x0041ce10), the +0x378 object, 0x00402560
+and [0x00609a00] in 0x0049dc40.

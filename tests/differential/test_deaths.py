@@ -32,6 +32,7 @@ probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, P, I]
 probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
 probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, P, I]
 probe.probe_fade.argtypes = [I, I, I, F, P, I]
+probe.probe_release.argtypes = [I, P, P, I]
 probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
@@ -294,6 +295,50 @@ class Emulated:
         cpu.call(0x41b420, ecx=k, stack_args=(victim,))
         self.log(0xf, self.r32(k + 0xf8))
         self.logf(k + 0x3f4, 6)
+        return bytes(self.out)
+
+    # --- the parts' destructors ---
+    def release(self, kind, w):
+        cpu = self.cpu
+        if not hasattr(self, 'rl_setup'):
+            self.rl_setup = True
+            cpu.stub_function(0x506ca0, lambda c: self.log(0x60, c.ecx))
+            cpu.stub_function(0x4e66a0, lambda c: self.log(0x61, c.ecx, c.arg(0)), 4)
+            cpu.stub_function(0x5ac5c0, lambda c: 0)
+            def rename(c):
+                self.log(0x62, c.ecx, len(cpu.read(c.edx, 32).split(b'\0')[0]))
+            cpu.stub_function(0x4eb300, rename)
+            cpu.stub_function(0x4eb8a0, lambda c: self.log(0x63, 5, c.edx))
+            cpu.stub_function(0x4eb8e0, lambda c: self.log(0x63, 6, c.edx))
+            cpu.stub_function(0x4600b0, lambda c: self.log(0x64, c.ecx))
+            cpu.stub_function(0x45fb50, lambda c: self.log(0x66, c.ecx))
+            cpu.stub_function(0x45fab0, lambda c: self.log(0x67, c.ecx))
+            cpu.stub_import(0x5bb65c, lambda c: 0)
+            self.rl_vt = {}
+            for cid in (9, 11, 13):
+                vt = self.zalloc(8)
+                cpu.u32(vt, self.vstub(lambda c, i=cid: self.log(0x65, i), 4))
+                self.rl_vt[cid] = vt
+        self.out = bytearray()
+        part = self.zalloc(0x1b4)
+        cpu.write(part + 0x68, struct.pack('<III', w[2], w[1], w[0]))
+        cpu.u32(part + 8, w[3])
+        def child(cid):
+            b = self.zalloc(0x10)
+            cpu.u32(b, self.rl_vt[cid])
+            return b
+        fn = {0: 0x45fd40, 1: 0x464250, 2: 0x463740, 3: 0x466380, 4: 0x4628c0}[kind]
+        if kind == 1:
+            cpu.write(part + 0x74, struct.pack('<II', w[4], w[5]))
+        elif kind == 2:
+            cpu.write(part + 0x74, struct.pack('<II', child(11) if w[6] else 0, child(13) if w[7] else 0))
+        elif kind == 3:
+            cpu.u32(part + 0x74, child(9) if w[6] else 0)
+        elif kind == 4:
+            cpu.u32(part + 0xe4, w[8])
+            cpu.write(part + 0xa4, struct.pack('<II', 0x1234 if w[9] else 0, 0x5678 if w[9] else 0))
+        cpu.call(fn, ecx=part)
+        self.log(0xf)
         return bytes(self.out)
 
     # --- the flown parts' fade 0x413cb0 ---
@@ -606,6 +651,20 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # The parts' destructors.
+    for _ in range(400):
+        kind = rng.randint(0, 4)
+        w = [rng.choice((0, 0x1100)), rng.choice((0, 0x1200)), rng.choice((0, 0, 0x1300)), rng.choice((0, 0x5000, 0x5000)),
+             rng.choice((0, 0x1400)), rng.choice((0, 0x1500)), rng.randint(0, 1), rng.randint(0, 1),
+             rng.choice((0, 0x1600)), rng.randint(0, 1)]
+        if kind == 0:
+            w[4] = w[5] = 0
+        mine = list(w)
+        if brk == 11:
+            mine[0], mine[1] = mine[1], mine[0]
+        n = probe.probe_release(kind, arr(U, mine), BUF, CAP)
+        check('release', BUF.raw[:n], emu.release(kind, w))
 
     # The flown parts' fade.
     for _ in range(200):

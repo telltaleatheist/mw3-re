@@ -156,6 +156,8 @@ MechBuildState& mech_build_state();
 
 Mech* mech_create(int32_t index, MechControls* ctl, int32_t config, const char* name);  // 0x00414150
 Mech* mech_new(Pilot* data, MechControls* ctl, Config* cfg, const char* name);        // 0x004140c0
+int32_t mechs_alive();      // ours, for the tests: mech_new's not yet deleted
+void mech_delete(Mech* m);  // vtable +0 with 1 (0x00414f20): release, then the delete
 void mech_construct(Mech& m, Pilot* data, MechControls* ctl, Config* cfg, const char* name);  // 0x004149f0
 bool mech_model(Mech& m, const char* name);   // 0x00415b00
 bool mech_parts(Mech& m);                     // 0x00415e40

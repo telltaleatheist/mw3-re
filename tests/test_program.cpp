@@ -1468,6 +1468,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
       void* attacker = nullptr;
     } seen;
     void* player = nullptr;
+    void* player_node = nullptr;
     void* owens = nullptr;
     uint32_t fire = 0;
     engine.on_present = [&](int) {
@@ -1475,6 +1476,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
       ++seen.frames;
       if (seen.frames == 3) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        player_node = mech3::mech_node(player);  // read now: the cleanup at the quit frees the mech
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
         owens = made == 1 ? ai[0].mech : nullptr;
@@ -1515,7 +1517,7 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
     EXPECT(seen.hits_after > seen.hits_before);                // through the Owens' damage handler
-    EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
+    EXPECT(seen.attacker == player_node);                      // by the Mad Cat's shots
     EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
     EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
     // What the shots showed and played (docs/weapon-effects.md): the machine
@@ -1706,6 +1708,7 @@ TEST(mission_c1m1_left_button_fires_after_focus_headless) {
       void* attacker = nullptr;
     } seen;
     void* player = nullptr;
+    void* player_node = nullptr;
     void* owens = nullptr;
     uint32_t fire = 0;
     // The message loop: 40 passes after the first frame the window comes to
@@ -1735,6 +1738,7 @@ TEST(mission_c1m1_left_button_fires_after_focus_headless) {
       ++seen.frames;
       if (seen.frames == 3) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        player_node = mech3::mech_node(player);  // read now: the cleanup at the quit frees the mech
         int32_t made = 0;
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
         owens = made == 1 ? ai[0].mech : nullptr;
@@ -1779,7 +1783,7 @@ TEST(mission_c1m1_left_button_fires_after_focus_headless) {
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_before.armor);  // hit
     EXPECT(seen.hits_after > seen.hits_before);                // through the Owens' damage handler
-    EXPECT(seen.attacker == mech3::mech_node(player));         // by the Mad Cat's shots
+    EXPECT(seen.attacker == player_node);                      // by the Mad Cat's shots
     EXPECT(seen.hot_group >= 0 && seen.hot_fired);             // the selected group fired
     EXPECT(seen.player_peak.heat > seen.player_before.heat);   // firing heats
     mech3::missions().cleanup(false);
@@ -2594,6 +2598,7 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       bool c1_mounted = false;
       size_t libraries = 0;
       mech3::LaunchedMech mech;
+      int32_t alive = 0, left = -1;  // mechs up, then after the cleanup
     };
     Leg legs[3] = {{0, 1}, {0, 2}, {1, 1}};
     int leg = 0;
@@ -2614,9 +2619,11 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       }
       if (g.frames == 60) {
         mech3::launched_mech(&g.mech);
+        g.alive = mech3::mechs_alive();
         if (++leg > 2) return;
         // The mission over: its cleanup, then the next through the Load state.
         mech3::missions().cleanup(false);
+        g.left = mech3::mechs_alive();
         mech3::GameEngine::Launch next;
         next.index = legs[leg].index, next.number = legs[leg].number;
         engine.set_launch(next);
@@ -2627,6 +2634,10 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     pump.limit = 1800;
     app.run(pump);
     for (const Leg& g : legs) EXPECT(g.frames >= 60 && g.mech.parts > 0);  // each built its mech and ran
+    // The cleanup deletes every mech (the pilot's, then zEntity's list):
+    // none carried into the next mission, none left at the end.
+    for (int i = 0; i < 2; ++i) EXPECT(legs[i].alive > 0 && legs[i].left == 0);
+    EXPECT(legs[2].alive > 0 && mech3::mechs_alive() == 0);
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
     EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them
     // c2 read its own (0x0050b380 freed c1's). Not by address: the allocator

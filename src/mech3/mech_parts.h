@@ -82,6 +82,32 @@ struct FlyCalls {
   void (*set_opacity)(Handle node, float v) = nullptr;     // 0x004fba20
 };
 FlyCalls& fly_calls();
+
+// A part deleted, the exe's vtable +0 with 1: release, then the delete.
+void part_delete(MechPart* p);
+
+// What tearing a part or a mech down calls outside the mech code (the
+// destructors 0x0045fd40.., 0x00414f40, 0x004152d0); unset ones do nothing.
+struct FreeCalls {
+  void (*stop_effect)(Handle effect) = nullptr;                // 0x00506ca0
+  void (*ref_free)(Handle ref, Handle node) = nullptr;         // +0x68: 0x004e66a0, then 0x005ac5c0 and the delete
+  void (*rename)(Handle node, const char* name) = nullptr;     // 0x004eb300
+  void (*set_flags2c)(Handle node, int32_t bit, int32_t on) = nullptr;  // 0x004eb8a0 (5), 0x004eb8e0 (6)
+  void (*clear_ids)(Handle node) = nullptr;                    // 0x004600b0: +0x28, +0x40 down the tree
+  // The mech's.
+  void (*debris_free)(Handle node) = nullptr;                  // 0x00413db0 on each: off its parent, destroyed
+  void (*decals_free)(Handle decals) = nullptr;                // 0x00473f40 and the delete
+  void (*torso_cockpit_off)(Mech& m) = nullptr;                // 0x0041ce10(0)
+  bool (*viewed)(Mech& m) = nullptr;                           // [0x005f4c8c] +0x64 is the mech
+  void (*view_detach)() = nullptr;                             // 0x0040adf0(0, 0) on the view
+  void (*handlers_off)(Mech& m) = nullptr;                     // the other model added, 0x00583400, removed again
+  void (*ref_delete)(Handle x68c) = nullptr;                   // +0x68c, vt+0 (1)
+  void (*controls_free)(Handle controls) = nullptr;               // +0x37c when its vt+0x18 says so, vt+0 (1)
+  void (*node_free)(Mech& m) = nullptr;                        // the node out of the world, its models off, "deletedmech", the three trees destroyed
+  void (*entity_free)(Mech& m) = nullptr;                      // vt+0x04(0, 0, 0, 0) and 0x005a7f70: off zEntity's list
+  void (*player_object_free)(Mech& m) = nullptr;               // 0x0041e580: +0x378, vt+0 (1), for the pilot's mech
+};
+FreeCalls& free_calls();
 // The end callback a part's effects get (0x00508f00 with 0x00461c90, ECX the
 // effect, EDX the part): on the stop (value 0) the handle holding it clears.
 void part_effect_ended(Handle effect, MechPart& p, int32_t value);
@@ -135,6 +161,10 @@ class MechPart {
   Handle trail_effect = nullptr;   // +0x70
 
   virtual ~MechPart() = default;
+  // The exe's destructor body (base 0x0045fd40; torso 0x00464250, thigh
+  // 0x00463740, arm 0x00466380, foot 0x004628c0): part_delete runs it, then
+  // the delete. The C++ destructor stays empty for the tests' stack parts.
+  virtual void release();
   virtual bool setup();          // +0x04, 0x0045fdd0 (hip 0x00462130, leg 0x004637b0, foot 0x00462860, arm 0x004663e0, hand 0x00466e80)
   virtual bool init(const Config* cfg);  // +0x08, 0x0045fe00: armor and structure (mech_part_build.cpp)
   virtual void update(float dt); // +0x10, 0x00461730 (torso 0x00464e80, hip 0x004623a0, leg 0x00463ee0, foot 0x00463110, arm 0x00466510)
@@ -212,6 +242,7 @@ class Torso : public MechPart {
   int32_t centring = 0;            // +0x1b0  CMD_CENTER_TORSO 1, CMD_CENTER_LEGS 2 (docs/movement-ground.md)
 
   void set_pose(const Vec3* pos, const float* q) override;  // 0x00464600
+  void release() override;                                  // 0x00464250: the death effects stopped
   bool init(const Config* cfg) override;                    // 0x004644b0
   void update(float dt) override;                           // 0x00464e80
   void node_changed() override;                             // 0x004659c0
@@ -267,6 +298,7 @@ class Leg : public MechPart {
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00463b40
   void destroy(int variant, int fly) override;              // 0x00463f70
   Handle fly_away(Vec3* velocity, bool stub) override;       // 0x00466fe0
+  void release() override;                                   // 0x00463740: the calf and the foot deleted
   bool critical(int kind, int section) override;            // 0x00463ef0
 };
 
@@ -293,6 +325,7 @@ class Arm : public MechPart {    // vtable 0x005c2a48, 0xd0 bytes
   void apply_impact(Vec3* impulse, float force) override;   // 0x00466c30
   void destroy(int variant, int fly) override;              // 0x00466c50
   Handle fly_away(Vec3* velocity, bool stub) override;       // 0x00467100
+  void release() override;                                   // 0x00466380: the hand deleted
 };
 
 class Head : public MechPart {   // vtable 0x005c2b80, 0x74 bytes
@@ -347,7 +380,7 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   Handle effect = nullptr;       // +0xe4
   int32_t soil = 0;              // +0xe8  docs/structs.md: 8 is lava
 
-  ~Foot() override;              // 0x004628c0: the splash stopped and freed, the toe arrays
+  void release() override;       // 0x004628c0: the splash stopped and freed, the toe arrays
   Leg* leg() const;              // 0x00462d80
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00462980
   void destroy(int variant, int fly) override;              // 0x004629f0

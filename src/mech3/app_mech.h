@@ -60,6 +60,10 @@ void mech_types_close();
 void mech_types_forget();
 void mech_canned_nodes_free();
 void mission_lose();
+void mission_controls_free(void* controls);  // app_mission.cpp: an AI mech's controls (and brain) deleted
+// A mech (one on zEntity's list) deleted (vtable +0 with 1); false for anything else.
+bool mech_free(void* obj);
+int32_t mechs_alive();  // mech_build.cpp: made and not yet deleted
 int mission_game_type();  // app_mission.cpp: the pilot's game's vt+0x2c (gametypes.md)  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies
 
 // What the last launch built (0x00491150), for the program's log and its tests.

@@ -403,3 +403,76 @@ int probe_fade(int32_t count, int32_t ia, int32_t used, float value, uint8_t* ou
 }
 
 }  // extern "C"
+
+// --- the parts' destructors (0x0045fd40 and the subclasses') ---
+namespace {
+struct LogCalf : Calf {
+  void release() override { u32(0x65), u32(11); }
+};
+struct LogFoot : Foot {
+  void release() override { u32(0x65), u32(13); }
+};
+struct LogHand : Hand {
+  void release() override { u32(0x65), u32(9); }
+};
+}  // namespace
+
+extern "C" {
+
+// kind 0 base, 1 torso, 2 thigh, 3 arm, 4 foot; w: trail, debris, x68,
+// node, death effect 1, 2, child a (calf / hand), child b (foot), the foot's
+// effect, its toe arrays (0/1).
+int probe_release(int32_t kind, const uint32_t* w, uint8_t* out, int cap) {
+  g_out.clear();
+  FreeCalls& f = free_calls();
+  DamageCalls& dc = damage_calls();
+  PartCalls& pc = part_calls();
+  const FreeCalls f0 = f;
+  const DamageCalls d0 = dc;
+  const PartCalls p0 = pc;
+  f = FreeCalls{};
+  f.stop_effect = [](Handle e) { u32(0x60), u32(u(e)); };
+  f.ref_free = [](Handle r, Handle n) { u32(0x61), u32(u(r)), u32(u(n)); };
+  f.rename = [](Handle n, const char* s) { u32(0x62), u32(u(n)), u32(static_cast<uint32_t>(std::strlen(s))); };
+  f.set_flags2c = [](Handle, int32_t bit, int32_t on) { u32(0x63), u32(static_cast<uint32_t>(bit)), u32(static_cast<uint32_t>(on)); };
+  f.clear_ids = [](Handle n) { u32(0x64), u32(u(n)); };
+  dc.stop_foot_effect = [](Handle e) { u32(0x66), u32(u(e)); };
+  pc.effect_free = [](Handle e) { u32(0x67), u32(u(e)); };
+  MechPart* p;
+  switch (kind) {
+    case 1: {
+      auto* t = new Torso;
+      t->death_effect = h(w[4]), t->death_effect2 = h(w[5]);
+      p = t;
+      break;
+    }
+    case 2: {
+      auto* l = new Leg;
+      l->calf = w[6] ? new LogCalf : nullptr;
+      l->foot = w[7] ? new LogFoot : nullptr;
+      p = l;
+      break;
+    }
+    case 3: {
+      auto* a = new Arm;
+      a->hand = w[6] ? new LogHand : nullptr;
+      p = a;
+      break;
+    }
+    case 4: {
+      auto* ft = new Foot;
+      ft->effect = h(w[8]);
+      if (w[9]) ft->toe_nodes = new Handle[2](), ft->toe_q = new float[2][4]();
+      p = ft;
+      break;
+    }
+    default: p = new Torso;  // the base's body only: a torso without death effects
+  }
+  p->trail_effect = h(w[0]), p->debris_effect = h(w[1]), p->x68 = h(w[2]), p->node = h(w[3]);
+  part_delete(p);
+  u32(0xf);
+  f = f0, dc = d0, pc = p0;
+  return finish(out, cap);
+}
+
+}  // extern "C"

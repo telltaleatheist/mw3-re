@@ -25,6 +25,7 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_skin.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_command.h"
 #include "mech3/app_hud.h"
@@ -451,6 +452,54 @@ void wire_mech_parts() {
   f.set_opacity = [](Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };  // 0x004fba20
 
   f.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460
+  // Tearing parts and mechs down (mech_parts.cpp release, Mech::release).
+  FreeCalls& fr = free_calls();
+  fr.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };  // 0x00506ca0
+  fr.rename = [](Handle n, const char* name) { zcls::node_set_name(zn(n), name); };            // 0x004eb300
+  fr.set_flags2c = fly_calls().set_flags2c;
+  fr.clear_ids = [](Handle n) {  // 0x004600b0: +0x28 and +0x40, not the handlers
+    struct Clear {
+      static void run(zcls::Node* x) {
+        x->put<uint32_t>(0x28, 0);
+        x->owner = nullptr;
+        for (int32_t i = 0; i < x->child_count(); ++i) run(x->children[i]);
+      }
+    };
+    Clear::run(zn(n));
+  };
+  fr.debris_free = [](Handle n) {  // 0x00413db0
+    if (zn(n)->parent_count() != 0) zcls::node_remove_child(zn(n)->parents[0], zn(n));
+    zcls::tree_destroy(zn(n));
+  };
+  fr.decals_free = [](Handle d) { delete static_cast<Skin*>(d); };  // 0x00473f40
+  fr.viewed = [](Mech& m) { return program_view_target() == static_cast<void*>(&m); };
+  fr.view_detach = [] { if (PlayerView* v = program_view()) v->attach(nullptr, nullptr); };  // 0x0040adf0(0, 0)
+  fr.handlers_off = [](Mech& m) {  // the other model under the node while its handlers go
+    zcls::Node* other = zn(m.x690 == 0 ? m.lod_node : m.model_node);
+    zcls::node_add_child(zn(m.node), other);
+    zwep::remove_handlers(m.node);  // 0x00583400
+    zcls::node_remove_child(zn(m.node), other);
+  };
+  fr.controls_free = mission_controls_free;
+  fr.node_free = [](Mech& m) {
+    zcls::Node* n = zn(m.node);
+    if (n->parent_count() == 1) zcls::node_remove_child(n->parents[0], n);
+    for (int32_t i = 0; i < n->child_count(); ++i) {  // as the exe: a removal moves the next one into i
+      zcls::Node* c = n->children[i];
+      if (c == zn(m.model_node) || c == zn(m.lod_node)) zcls::node_remove_child(n, c);
+    }
+    zcls::node_set_name(n, "deletedmech");  // 0x005a84c0
+    zcls::tree_destroy(n);
+    zcls::tree_destroy(zn(m.model_node));
+    zcls::tree_destroy(zn(m.lod_node));
+    m.model_node = m.lod_node = nullptr;
+  };
+  fr.entity_free = [](Mech& m) {  // 0x005a7f70: off zEntity's list
+    auto& list = ai::entity_list();
+    for (auto it = list.begin(); it != list.end();)
+      it = g_w.object_of(g_w.engine, *it) == &m ? list.erase(it) : std::next(it);
+  };
+
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
@@ -578,6 +627,11 @@ void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
 void mech_destroy_part(void* mech, int32_t id) { static_cast<Mech*>(mech)->destroy_part(id); }
+bool mech_free(void* obj) {
+  for (const ai::Handle h : ai::entity_list())
+    if (g_w.object_of(g_w.engine, h) == obj) return mech_delete(static_cast<Mech*>(obj)), true;
+  return false;
+}
 void mech_kill(void* mech, void* killer) {
   auto* m = static_cast<Mech*>(mech);
   if (killer) m->attacker = killer;
