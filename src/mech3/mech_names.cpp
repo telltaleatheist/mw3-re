@@ -138,6 +138,14 @@ bool weapon_uses_ammo(int32_t weapon) {
   return weapon >= 0 && weapon < weapon_count() && kUses[weapon];
 }
 
+// Mech3.exe 1.2 @ 0x00484940: the techs a weapon comes in (1 Clan, 2 Inner
+// Sphere); the table's 37 rows (TAG none), the plain PPC's row 2 (see below).
+bool weapon_has_tech(int32_t weapon, int32_t tech) {
+  static const uint8_t kTech[38] = {2, 2, 2, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 3, 1, 3, 3,
+                                    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 0, 1, 3, 1, 1, 2};
+  return weapon >= 0 && weapon < weapon_count() && (kTech[weapon] & tech) != 0;
+}
+
 // Mech3.exe 1.2 @ 0x00484900
 const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < weapon_count() ? kWeapons[weapon] : "noweapon"; }
 

@@ -35,6 +35,8 @@
 #include "mech3/mech_lib.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
+#include "mech3/mech_salvage.h"
+#include "crt/msvc_rand.h"
 #include "mech3/mission_launch.h"
 #include "mech3/mission_world.h"
 #include "gamez/zentity/zent_manager.h"
@@ -412,6 +414,97 @@ std::vector<DebriefMech> mech_debrief_lance() {
   }
   return r;
 }
+namespace {
+// 0x0041d510, as app_weapons.cpp's (kept there in its own unnamed namespace).
+const MechPart* salvage_part(const Mech& m, int32_t id) {
+  switch (id) {
+    case 1: case 7: case 8: return m.torso;
+    case 2: return m.arms[0];
+    case 3: return m.arms[1];
+    case 4: return m.legs[0];
+    case 5: return m.legs[1];
+    case 6: return m.head;
+    case 9: return m.arms[0] ? m.arms[0]->hand : nullptr;
+    case 10: return m.arms[1] ? m.arms[1]->hand : nullptr;
+    case 11: return m.legs[0] ? m.legs[0]->calf : nullptr;
+    case 12: return m.legs[1] ? m.legs[1]->calf : nullptr;
+    case 13: return m.legs[0] ? m.legs[0]->foot : nullptr;
+    case 14: return m.legs[1] ? m.legs[1]->foot : nullptr;
+    case 15: return m.hip;
+    default: return nullptr;
+  }
+}
+
+// A ported mech as 0x00472f00 reads it.
+SalvageMech salvage_view(Mech& m) {
+  SalvageMech v;
+  v.has_data = m.pilot != nullptr;
+  v.type = m.pilot ? m.pilot->roster : -1;
+  v.tech = mech_tech(v.type);  // 0x0041df10
+  v.torso_gone = m.torso && m.torso->destroyed;
+  v.head_gone = m.head && m.head->destroyed;
+  for (int i = 0; i < 2; ++i) v.leg_gone[i] = m.legs[i] && m.legs[i]->destroyed;
+  if (const auto* wm = static_cast<const WeaponManager*>(m.ammo)) {
+    v.has_manager = true;
+    std::vector<const AmmoBin*> bins;
+    for (uint32_t i = 0; i < wm->count && i < 16; ++i) {
+      SalvageWeapon w;
+      const Weapon* x = wm->weapons[i];
+      if (x) {
+        w.present = true;
+        w.type = x->def && x->def->type ? x->def->type->id : -1;
+        w.has_item = x->item != nullptr;
+        w.item_tech = x->item ? x->item->tech : 0;
+        w.beam = x->is_beam();
+        if (x->bin) {
+          size_t k = 0;
+          while (k < bins.size() && bins[k] != x->bin) ++k;
+          if (k == bins.size()) {
+            bins.push_back(x->bin);
+            v.bins.push_back(x->bin->left());
+          }
+          w.bin = static_cast<int32_t>(k);
+        }
+      }
+      v.weapons.push_back(w);
+    }
+    v.owner_bins.assign(bins.begin(), bins.end());
+  }
+  v.config = m.config;
+  for (int id = 0; id < 16; ++id) {
+    const MechPart* p = salvage_part(m, id);
+    v.parts[id] = p ? (p->destroyed ? 2 : 1) : 0;
+  }
+  v.sink_tech = m.heat_sinks.tech;
+  v.sinks = m.heat_sinks.count;
+  v.doubles = m.heat_sinks.doubles;
+  return v;
+}
+}  // namespace
+
+void mech_lance_salvage(Store& own, bool team) {
+  std::vector<SalvageEntity> list;
+  Mech* player = world().mission_player;
+  for (const ai::Handle h : ai::entity_list()) {
+    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    SalvageEntity e;
+    if (m) {
+      e.mech = true;
+      e.player = m == player;
+      e.team = m->team;
+      e.m = salvage_view(*m);
+    }
+    list.push_back(std::move(e));
+  }
+  SalvageCalls c;
+  c.rand = [] { return static_cast<int32_t>(crt::msvc_rand()); };
+  c.empty_bin = [](const SalvageMech& v, int32_t bin) {
+    const_cast<AmmoBin*>(static_cast<const AmmoBin*>(v.owner_bins[bin]))->set_amount(0);
+  };
+  lance_salvage(mission_salvage(), own, list, player ? player->allies : 0, team, c);
+
+}
+
 uint32_t mech_player_allies() { return world().mission_player ? world().mission_player->allies : 0; }
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   Mech* m = static_cast<Mech*>(mech);

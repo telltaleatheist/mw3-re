@@ -149,6 +149,37 @@ AmmoItem* Store::add_ammo(int32_t weapon, int32_t n) {
   return a;
 }
 
+// Mech3.exe 1.2 @ 0x00471a20. Kind 1's tech is always 3 (any).
+EquipmentItem* Store::add_equipment(int32_t kind, int32_t tech, int32_t n) {
+  if (kind == 1) tech = 3;
+  EquipmentItem probe;
+  probe.count = 1, probe.equipment = kind, probe.tech = tech;
+  if (auto* found = static_cast<EquipmentItem*>(find_like(&probe))) {
+    found->count += n;
+    if (found->count < 0) found->count = 0;
+    return found;
+  }
+  auto* e = new EquipmentItem;
+  e->count = n, e->equipment = kind, e->tech = tech;
+  items.push_back(e);
+  return e;
+}
+
+// Mech3.exe 1.2 @ 0x00471840: one more, its place cleared.
+WeaponItem* Store::add_weapon(int32_t weapon, int32_t tech) {
+  WeaponItem probe;
+  probe.count = 1, probe.weapon = weapon, probe.tech = tech;
+  if (auto* found = static_cast<WeaponItem*>(find_like(&probe))) {
+    if (++found->count < 0) found->count = 0;
+    found->part = -1;
+    return found;
+  }
+  auto* w = new WeaponItem;
+  w->count = 1, w->weapon = weapon, w->tech = tech;
+  items.push_back(w);
+  return w;
+}
+
 // Mech3.exe 1.2 @ 0x00471d20. A store's own (b10) items are never taken.
 bool Store::remove(ConfigItem* item, int32_t n) {
   if (!item || n <= 0) return false;

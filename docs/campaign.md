@@ -340,9 +340,12 @@ need the menus' one scale or a centred 640x480 frame.
    answers vt+0x48 (the operation) and vt+0x38 (the campaign's slots), and
    0x00479440 gives it; since 6b the Win State's copy of the scores goes
    into the pilot's ported campaign (`GameEngine::win_keep_scores`).
-8. The salvage screen 0x0047d3b0 and its state; with it the briefing's
-   loadouts (0x00408b40, 0x00408bd0, 0x00408c30) and the reallocation
-   list (REALLOC_LIST, the store list 0x0048db30.., 0x00404ae0).
+8. Salvage, in three: 8a (Done) a won mission's salvage, 0x0047ae10's
+   won path with 0x00472f00, 0x00472da0, 0x00472ec0 and the store's adds
+   0x00471840, 0x00471a20 (section 9); 8b the store list's rows 0x0048dbe0
+   (the debriefing's salvage list, the briefing's REALLOC_LIST with
+   0x00404ae0, 0x00408bd0, 0x00408b40); 8c the lancemates' loadouts
+   0x00408c30. The salvage screen 0x0047d3b0 and its state after.
 9. The Win Movie and IA Dummy states.
 
 ## 8. Testing
@@ -395,3 +398,64 @@ mission alone, No taken as yes, the result, the store's mech merge and
 engine's slots, the head's fixed slots, unplaced items counted, a weapon
 without a firepoint, the modified and player-made flags, the six-slot
 parts.
+
+## 9. Salvage (item 8a, `mech3/mech_salvage`)
+
+The missions object's constructor 0x0048f290 makes a store (flag 1) at its
++0xc0, [0x00609990]: the mission's salvage. The launch 0x00491150 empties
+it; the kill credit 0x0041b420 adds each mech killed (0x00472f00) and each
+other vehicle (0x00472ec0); salvage objectives add loadouts (0x00472cf0 at
+0x0045e2a6, 0x0045ec82); the debriefing's and the salvage screen's store
+lists show it; the next mission's game takes it as its +0x3c.
+
+**0x0047ae10, won** (CL 0; DL from the Win State: 1, or 0 at Op 4
+Mission 4): over zEntity's list, the player's mission mech goes into the
+campaign's +0x64 store (which the next mission's game adds to its own
+store, section 4), and with DL every mech of the player's allies (vt+0x28
++0xc0 & the player's +0xc4) into the salvage store. Failed (CL 1): the
+campaign's salvage merged back (0x00434cb0).
+
+**0x00472f00, a mech's salvage** (on a store; none for a mech without its
+data +0x684, or an Elemental, type 7):
+
+- the mech itself (0x00471c10) when its torso stands or its head is gone
+  (a head shot leaves a whole mech); with a leg off, only on a coin (rand
+  & 1);
+- its weapons (0x00472da0 with the definition's tech, 0x0041df10): each
+  slot of the weapon manager (+0xd4: +0x24 count, +0x40 slots) but TAG
+  (0x20), in its loadout item's tech (+0x90 +0x18) or the mech's; a tech
+  the weapon is not made in (the table 0x005e6500 through 0x00484940) is
+  swapped (anything but Clan becomes Clan, Clan becomes Inner Sphere), and
+  a weapon made in neither (TAG) is left. Added through the store's vt+0x10
+  (0x00471840: one, its place cleared). A weapon that is not a beam with a
+  bin holding rounds (not 0, not infinite) adds those rounds as ammo
+  (vt+0x08, 0x00471940) and empties the bin (0x004b4d10(0)); bins are
+  shared by type, so a type's rounds come once;
+- its loadout's (+0x3ec) equipment (kind 3) but heat sinks (9, 10), each
+  by its count (0x00472630), unless it sits on a part (0x0041d510 by its
+  place) that is destroyed;
+- the heat sinks past the engine's ten (+0x65c - 10), single or double
+  (+0x660), in the sinks' tech (+0x658), through vt+0x0c (0x00471a20: kind
+  1's tech is always 3).
+
+**0x00472ec0, another vehicle**: on a coin its weapons, Clan tech first.
+
+Ported: `add_salvage`, `add_weapons`, `add_vehicle_salvage` and
+`lance_salvage` over a `SalvageMech` (what 0x00472f00 reads; the program
+fills it from a ported Mech in app_mech.cpp, the probe from the test's
+setup); `Store::add_weapon` and `Store::add_equipment`; `weapon_has_tech`
+(mech_names). In the program 0x0047ae10's won path runs on the ported
+mechs into the pilot's campaign and `mission_salvage()`, which the launch
+empties and the next mission's game takes. The kill credit's calls wait
+for the kill credit's port.
+
+Test: `test_salvage.py` (200/200): test_pilot.py's emulator, the store
+filled through its own adds and add_copy, 0x0047ae10 over fake mechs
+(parts standing, destroyed or missing, weapons of every type and tech,
+beams, shared, empty and infinite bins, loadouts, sinks), the campaign's
++0x64 store real; compared: both stores' items, the bins, rand's calls.
+`test_program.cpp`'s loop checks the player's mech reaching the next
+mission's store. Breaks 19 of 21 (`scratch/briefing/breaks9.py`, 80 runs,
+200 for three); the two left cannot show: TAG's skip and the skip after
+the tech swap (only TAG is made in neither tech).
+

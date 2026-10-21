@@ -1998,6 +1998,22 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   campaign's running score plus the Mission Total, but only when the
   mission succeeded and no cheat was used. Objectives hidden from you
   are not listed or scored.
+- **What a wrecked mech leaves for salvage:** the whole mech only if its
+  centre torso is still standing, or if it was killed by a head shot (so
+  head shots are the way to capture mechs); if a leg was shot off as well,
+  it is a coin flip. Elementals never leave anything. Its weapons are
+  salvaged even when the mech is not (except TAG), each with whatever
+  ammunition was left in its bin, its equipment unless the part it sat in
+  was destroyed, and any heat sinks beyond the engine's ten.
+- **Salvaged weapons can change tech:** a weapon is salvaged in the tech of
+  its owner's loadout; if that weapon does not exist in that tech, it comes
+  out as the other side's version (an Inner Sphere-only weapon on a Clan
+  mech arrives as Inner Sphere, and the other way round).
+- **Your lancemates' mechs go to the salvage pool after a win**, under the
+  same rules (except at Operation 4 Mission 4), and your own mech is put
+  back into your stores the same way, coin flip for a missing leg included
+  (whether a lost flip costs you the mech depends on the mech lab's slots,
+  not traced yet).
 - **Your rank is the Campaign Total in steps of 100,000:** Sergeant below
   100,000, then Master Sergeant, Captain, Major, and Colonel from 400,000
   on.

@@ -115,6 +115,7 @@ unusual happens.
 
 - An edited debriefing dialog missing its buttons' help, its title's, its lance cards' or its rank's lines no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
+- Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
 - A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the
   word in memory before the game's soil table; the type is just left out.

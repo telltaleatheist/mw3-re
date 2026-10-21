@@ -75,6 +75,8 @@ class Store {
   Store& operator=(const Store&) = delete;
   ConfigItem* add_copy(const ConfigItem* item, int32_t n);  // vt+0x00  0x00472630
   AmmoItem* add_ammo(int32_t weapon, int32_t n);            // vt+0x08  0x00471940
+  EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // vt+0x0c  0x00471a20
+  WeaponItem* add_weapon(int32_t weapon, int32_t tech);     // vt+0x10  0x00471840: one
   bool remove(ConfigItem* item, int32_t n);                 // vt+0x14  0x00471d20
   void remove_mech(int32_t mech);                           // 0x00472a30: one of the mech
   ConfigItem* find(const ConfigItem* item);   // 0x00471460: the item itself, else one like it
