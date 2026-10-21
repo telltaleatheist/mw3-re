@@ -309,59 +309,41 @@ Resolved (2026-10-21):
   does (`test_weapons_zrd.py`: LoadSoils on 41 files and the fourteen-kind read
   against the original). No FIX.
 
+## Decided (Owen, 2026-10-20 afternoon)
+
+To do, in the specialists' queues:
+
+- Placing a mech (0x4161c0): fix to the likely intent, a step of 10 above
+  the spot as every other caller uses. Owen: the designers gave every map a
+  specific landing place, so whatever the fix, every shipped mech must still
+  end up there: check every mission's placements before and after, and
+  look at each one that moves. `zfix bugs`.
+- Valves that update themselves round a loop: add the guard (a valve's
+  reactions are not re-entered while they run). Owen may make his own
+  missions later. FIX (bug).
+- c4b mission 6's boundary: make the valve trip when the player leaves the
+  area (the region names the player's orders give do not exist; find the
+  pair the mission's geometry means). FIX (bug).
+- TAG: keep it hard to use (a balance choice) but the same at any frame
+  rate, timed in milliseconds rather than frames (the hold and the beam's
+  charge by time, the same slack at every rate); the strike homes on the
+  unit that was marked, so it hits a moving target too, directly. Whether a
+  part-charged TAG may fire again is still open (letting go early already
+  refills from what was left). `zfix bugs`.
+- Allied pilots fight the target they are told to, then pick their own
+  targets after it (the attack 0x4e9710's "nearest enemy when none is
+  selected", which never happens as written). `zfix bugs`.
+- Resolution: 16:9 as the shape either way (today's monitors); limit the
+  size to 1920x1080 if larger sizes are a problem.
+
+Kept:
+
+- The AI's health floor (only pilots already hurt at their first check are
+  held back; pilots leave a fight as they always have).
+
 ## Candidates for Owen
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
-
-- Placing a mech (0x4161c0, mission-start.md section 11) gives the ground
-  pick y + 10 as its step where every other caller passes a constant, so
-  the highest surface up to 2y + 10 is taken, not up to y + 10: a mech
-  placed below 0 over stacked surfaces (a bridge, a roof) lands on the
-  lowest, one placed high may land up to y above where intended. A step of
-  10 is the likely intent; it changes where some mechs start (test_place.py
-  finds such places on the shipped worlds), so it is kept.
-
-- A valve that updates itself, directly or round a loop of `update` actions
-  and any/all conditions (ai.md section 13), recurses until the stack runs
-  out, in the exe as in the port. No shipped mission has such a loop; a
-  guard (each valve's reactions not re-entered while they run) would only
-  matter to hand-made missions.
-
-- TAG (weapons.md, "TAG, end to end"; numbers from the emulator,
-  `test_tag.py`). It works as coded, but three things make it look broken;
-  none is a clear bug, so all are kept:
-  1. The hold has no room: the beam lasts 32 frames at 30 fps and the
-     strike needs 30 on the target; at 60 and 144 fps it needs every frame
-     but one (61 of 62, 145 of 146). A frame on the ground costs two, a
-     frame on the sky starts it over, letting go wastes the charge. Options:
-     (a) keep; (b) have a frame off the target pause the timer instead of
-     counting it down or resetting it; (c) let the charge last a little
-     longer than DESIGNATE's time (U_FIRE_TIME 1.2, a data change: about 7
-     frames of slack at 30 fps, 13 at 60); (d) compare the timer with 1.0 less a
-     small epsilon, so 60 frames do at 60 fps (it only removes the float
-     shortfall, one frame).
-  2. The strike only hits a target that stands still: the missiles start at
-     zero speed (ACCELERATION 60, VELOCITY 400) and take 7.2 s, homing on the
-     fixed point the beam touched; a mech moving faster than about 8 m/s
-     (30 kph) is untouched, only a standing one takes the direct hits.
-     Options: (a) keep (an artillery strike on a position, buildings and
-     parked targets); (b) home on the designated thing (the lock has room
-     for an entity and its velocity; the strike passes none); (c) launch at
-     full speed (about 3.9 s instead of 7.2); (d) both.
-  3. A press from a partial charge does nothing, so after letting go early
-     TAG is dead for up to a minute with no sign why. Options: (a) keep;
-     (b) let a press fire from a partial charge (lasting what is left);
-     (c) make sure the HUD shows the charge (not checked: the HUD is not
-     ported).
-
-- c4b mission 6's boundary: the player's orders (aiv.zrd `player` vlist)
-  name the regions `reg_inside_c4m7` / `reg_outside_c4m7`, but the
-  mission's archive has `reg_inside_c4bm6/7` and `reg_outside_c4bm6/7`, so
-  the valve `outside_c4m7` that fails the mission for leaving its area
-  (objectives.zrd `m6`) is never set and the map has no boundary to draw
-  (ai.md section 8). Pointing the orders at the `c4bm7` pair (the mission's
-  valves say m7) or the `c4bm6` pair would restore it; which one the
-  designers meant is a guess (compare the two areas on the map first).
 
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
@@ -397,17 +379,3 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   flipping only the sign would be the evident intent; it changes the feel
   for players who tuned it.
 
-- The AI's health floor (aiv.zrd p2 bit 2 with +0x50, 0x4e8f10 and the
-  brain's frame 0x4e9710): the brain clears the bit the first time the
-  check finds the pilot above the floor, so the floor never applies again;
-  only pilots already hurt when they first weigh a fight are held back.
-  Re-checking it every frame (keeping the bit) would match the setting's
-  likely intent; it would make damaged pilots break off fights mid-mission,
-  a balance change.
-
-- The AI brain's attack (0x4e9710): a pilot without a selected target
-  (Vehicle +0x6c) attacks the nearest enemy only when no enemy was picked
-  earlier in the frame; with p8's +0x88 and +0x8c at 0 the sight check
-  always picks first, so such pilots attack only what is selected for them.
-  Using the enemy already picked would be the evident intent; it would
-  change who the AI fights.
