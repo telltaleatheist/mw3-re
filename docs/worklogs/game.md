@@ -589,3 +589,25 @@ Newest last. One short entry per item: what, commits, what to remember.
   identical (170 restores).
 - Craters (parts 2..7) are complete. Open: the in-game c1m1 check (GPU,
   waits for Owen).
+
+## 2026-10-21 — c1m1 toward playable: the order (branch mac2/c1m1-survey, from main a5a0f35)
+
+Order (by what a player notices first; from a headless survey,
+`MW3_SURVEY=1 build/mw3tests mission_c1m1_unported_survey_headless`: 600
+Core frames walking and firing, 155 unported calls; the front end's, the
+HUD's, the renderer's and the network's left to their owners, the AI on
+hold):
+1. The mech parts' outside calls (`PartCalls`, mech_parts.h) are not wired
+   in the game at all (null calls are skipped silently, so the survey does
+   not list them): footstep sounds, footprints and splashes, what a foot
+   steps on, the arms' aim at the target, the cockpit's look limits.
+2. Surface marks: the impact type 0x5426a0 and the marks 0x542060
+   (gmod_cookie) where shots hit (632 calls in the survey).
+3. The mechs' level of detail 0x41e870 (detail bits by camera distance,
+   1,536 calls) or the pilot's update 0x4783a0, whichever shows more.
+Later: 0x5a85c0 zEntity3d's refresh (1,536), 0x41e3f0, 0x4edab0 on the
+view's ground, the anim lookups 0x50b450 (92).
+
+- Side find: player.zrd's qsd_gravity (and wat_gravity) are written at
+  0x49e8be..0x49e901 and never read: no gravity change in quicksand or
+  water (craters.md section 3).

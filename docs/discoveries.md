@@ -389,7 +389,8 @@ From the weapon code (weapons.md).
   been made, it would not trap anything: the pit is covered by a moving lid
   at ground level that mechs walk on like any ground (its soil is none the
   game knows, so it counts as default ground), with the texture repeated
-  4.5 times across it.
+  4.5 times across it. `player.zrd` even sets a gravity for quicksand
+  (and one for water), but the game never uses either.
 - **One crater setting is ignored.** Every world's `declient.zrd` has a
   `TEXTURE_PARMS (1.0 1.0)` line that the game never reads.
 - **The plain PPC can't be mounted.** `weapons.zrd` defines a `PPC`, but the
