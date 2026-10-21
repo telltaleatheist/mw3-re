@@ -413,6 +413,7 @@ void DebriefScreen::results(int32_t kind) {
       const Record& r = recs[i];
       if (!r.name || r.slot == -1) continue;
       lance_scores[i] = e.campaign_record(r.slot) + r.kills;
+      lance_scored[i] = true;
       add_text(r.name, kX + kIndent + 10, &y, white, 0);
       add_number(lance_scores[i], kX + kRight, &y, white_r, kRow);
     }

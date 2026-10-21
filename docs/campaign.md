@@ -208,7 +208,10 @@ Inlined at the end of 0x0047b430 (`DebriefScreen::results`):
   name and the mechs that pilot has destroyed in the campaign (+0xb4 of
   that record, plus this mission's +0x3f4; into +0x13be4). The Win State copies these
   into the campaign (0x0047ac20, `Engine::win_keep_scores`) when the
-  mission counts.
+  mission counts, by card: card i's number into +0xb4 + 4i, though it was
+  read from the record its name matched. They agree while the lancemates
+  stand in the list in record order; otherwise one pilot's kills land on
+  another's record (a quirk, kept).
 - **The top.** At y 0x46: "Mission Total" 0x170 (large) with the mission's points
   (Instant Action's, or the campaign's total) and a grey line, then every
   text joins the dialog.
@@ -225,7 +228,9 @@ In the program the lance is the ported mechs (`mech_debrief_lance`), the
 score and records the pilot's ported campaign (`CampaignGame::c4`, `b4`),
 and the Win State's copy goes into the same campaign. Not yet: a
 lancemate's name (0x004aee70, the AI's) is "", so no record matches and
-the lancemates' lines stay out; the objective lists ([0x0060994c],
+the lancemates' lines stay out (and until it is, the Win State's copy
+keeps a card's +0xb4 when the card had no record line: the exe would write
+0 there, wiping the career kills on every win in the port); the objective lists ([0x0060994c],
 [0x00609950]: objectives.zrd's objects are not ported) are empty; Instant
 Action's +0x44, +0x6c, +0x70 are not mapped on the ported `ActionGame`
 (scored as mode 0, 1000).
