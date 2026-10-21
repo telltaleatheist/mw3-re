@@ -1352,6 +1352,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     };
     CountingPump pump;
     pump.limit = 900;
+    mech3::mech_parts_fx_log().clear();  // capped at 4,096 lines for the whole run
     app.run(pump);
     EXPECT(seen.frames >= 360);
     EXPECT(mech3::spawn_updates() > 0);  // the spawn's step (0x004782f0) ran the frame
@@ -1370,7 +1371,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     // the shallows starts the wake.
     std::map<std::string, int> fx;
     for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
-    EXPECT(fx["step"] > 20);
+    EXPECT(fx["step"] > 8);  // 13: ten seconds at a walk
     EXPECT(fx["print"] > 0 || fx["wake"] > 0);
     EXPECT(fx["pilot"] > 0);  // the engine and walk loops (Mech::movement_sounds)
     mech3::missions().cleanup(false);
@@ -1581,6 +1582,7 @@ TEST(mission_c1m1_unported_survey_headless) {
     };
     CountingPump pump;
     pump.limit = 900;
+    mech3::mech_parts_fx_log().clear();  // capped at 4,096 lines for the whole run
     app.run(pump);
     std::vector<std::pair<uint32_t, std::string>> list;
     for (const auto& [k, n] : engine.unported_counts()) list.push_back({n, k});

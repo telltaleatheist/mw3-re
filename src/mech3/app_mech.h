@@ -39,7 +39,7 @@ bool mech_select_group(void* mech, int32_t g);
 std::string mech_group_names(void* mech, int32_t g);
 std::vector<std::string>& weapon_fx_log();
 // Ours: what the mechs' parts played ("step <sound>", "print <effect>", "wake <level>").
-std::vector<std::string>& mech_parts_fx_log();  // ours: "anim <name>" and "sound <name>" as the weapons start them  // the weapons' names, for the debug start  // the manager's 0x004b0730, as F1..F5
+std::vector<std::string>& mech_parts_fx_log();  // the first 4,096
 // For the program's tests: hits the mechs' damage handler took (and the last
 // shooter node), a mech's node, whether a group's weapons are firing or reloading.
 int32_t mech_hits_taken(void** attacker_node);

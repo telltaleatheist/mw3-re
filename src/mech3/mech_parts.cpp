@@ -563,6 +563,18 @@ void Foot::set_internal(float v, int s) {
   if (Leg* l = leg()) l->set_internal(v, s);
 }
 
+// Mech3.exe 1.2 @ 0x004628c0. Then MechPart's (0x0045fd90). Nothing deletes a
+// mech's feet yet: the mech's destructor is not ported (movement.md, Left).
+Foot::~Foot() {
+  if (effect) {
+    stop_effect();
+    if (part_calls().effect_free) part_calls().effect_free(effect);
+    effect = nullptr;
+  }
+  delete[] toe_nodes;
+  delete[] toe_q;
+}
+
 // Mech3.exe 1.2 @ 0x00463100
 void Foot::stop_effect() {
   if (effect && g_calls.stop_foot_effect) g_calls.stop_foot_effect(effect);
