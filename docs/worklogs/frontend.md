@@ -732,6 +732,31 @@ Network HUD pieces skipped as ordered.
   0x0057a3c0; its hook renamed video_set_clear from video_set_gamma); update's result is never
   set; Ctrl+X / Ctrl+I export/import loadouts (discoveries).
 
+## 2026-10-21 Lab step 4 (branch mac3/lab-configs)
+
+- CONFIG_LIST real (read, show/hide, select 0x00449c40, fill 0x00449fb0,
+  0x00449e10, 0x00449d40, 0x0044a1f0), CONFIG_EDIT's rename start/finish
+  0x0044a2f0 / 0x0044a3a0 with Enter/Escape, presses 14/15/16, the import's
+  add (0x00448c1d). Hooks for the lists and loadouts on handles (the probe
+  models the lists: the exe edits them in its memory); GameEngine on the
+  ported ConfigList (remove 0x00425090 ported) and Config.
+  Store::has_config gained a loadout-as-other overload (0x004735f0 as the
+  lab calls it).
+- FIX (A) Ctrl+X / Ctrl+I: export\ and import\ (lab_export_config,
+  lab_import_config; the read name is the new loadout's, 0x00423d00);
+  FIX (trap) no checksum on import. Config's dup is null-safe as _strdup.
+- The lead's FIX (bug) items: the tonnage text (printed as text) and the
+  name sort (by name), behind bugs; fix_lab_sort_by_name. The skin item is
+  not a bug: the mission start (0x0049e5e0) paints the whole lance with
+  slot 0's scheme, so the lab's one list is the lance's.
+- test_lab_screen: loadout sessions in the plan (rows, SAVE, RENAME,
+  DELETE, typed names, Enter/Escape).
+- Breaks 28/29 (the tonnage FIX's: same text with numbers). The test's
+  0x00433df0 stub now gives the slot its loadout (both sides), the
+  synthetic dialogs add CONFIG_ADD, a quarter of the stores are full.
+- Confirmed the speedrun item duplication (community-issues.md): 0x004735f0
+  checks each item alone against the store, never the loadout's sum.
+
 ## 2026-10-21 Lab step 3 (branch mac3/lab-chassis)
 
 - CHASSIS_LIST real: refill 0x00449250 (VC6 std::sort written out:

@@ -162,6 +162,13 @@ struct ConfigList {                // 0x18 bytes
   bool load_saved();                        // 0x00424b70, configs\<mech>.mw3
   bool save_all();                          // 0x00424f60, the player's own (+0x1c) only
   Config* find(const char* name) const;     // 0x00424e90: by name (strcmp), null when none
+  bool remove(const Config* c);             // 0x00425090: the player's own only (not deleted)
 };
+
+// FIX (A) for the mech lab's Ctrl+X / Ctrl+I (0x00426180, 0x00426300; no
+// Windows file dialogs): export\\<mech>_<loadout>.m3c in the write dir, and
+// the next import\\*.m3c (renamed *.m3c.done once read); null when none.
+bool lab_export_config(const Config& c);
+Config* lab_import_config();
 
 }  // namespace mech3

@@ -14,6 +14,8 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
+- **The mech lab prints a mech's tonnage as text.** The chosen row's number was handed to the text as a format string; harmless with numbers, now printed as plain text.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
 - **Lava heats the same at any frame rate.** The original added heat on
@@ -244,13 +246,16 @@ unusual happens.
   the intro.
 - Hand-edited saved loadouts load if they follow the mech lab's rules
   (weight, slots, jump jets, armor). They still get the original's
-  checksum, so the original game can read them.
+  checksum, so the original game can read them. The same goes for a
+  loadout imported in the mech lab (Ctrl+I).
 
 Details: [`docs/protection.md`](docs/protection.md).
 
 ## Running on modern machines
 
 These change how the game talks to the computer, not how it plays.
+
+- The mech lab's hidden loadout export and import keys (Ctrl+X, Ctrl+I) opened Windows file dialogs. Ctrl+X now writes the loadout to the `export` folder (named as the dialog suggested, `<mech>_<loadout>.m3c`), and Ctrl+I reads the next `.m3c` file from the `import` folder, then marks it done.
 
 - The main menu's water ripple around a button builds its ring in a buffer
   as large as the screen; the original's held 1024x768, enough for its

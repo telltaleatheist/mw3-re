@@ -701,6 +701,30 @@ class Engine : public zgame::AppHooks {
     std::string name;
   };
   virtual void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out);
+  // The loadouts page's (step 4): a definition's list of loadouts (+0x20),
+  // its loadouts (+0x0c..+0x10), added at the end (0x0049ccc0), taken out
+  // (0x00425090: a player's own only), found by name (0x00424e90) and
+  // written (0x00424f60, configs\<mech>.mw3); a loadout copied (0x00424010
+  // with no store), deleted (0x00424350), renamed, its bytes +0x1c (the
+  // player's own) and +0x1e (training's); the store's check (0x004735f0)
+  // and its +0x10 (full).
+  virtual Handle lab_dfn_configs(Handle dfn) { return field32(dfn, 0x20); }
+  virtual std::vector<Handle> lab_list_configs(Handle list);
+  virtual void lab_list_append(Handle list, Handle config) { unported("0x0049ccc0", {list, config}); }
+  virtual bool lab_list_remove(Handle list, Handle config) { return unported("0x00425090", {list, config}) != 0; }
+  virtual Handle lab_list_find(Handle list, const char* name);
+  virtual void lab_list_save(Handle list) { unported("0x00424f60", {list}); }
+  virtual Handle lab_config_copy(const char* name, Handle config) {
+    return unported("0x00424010", {name, config, 0, 0});
+  }
+  virtual void lab_config_delete(Handle config) { unported("0x00424350", {config}); }
+  virtual void lab_config_set_name(Handle config, const char* name) { unported("lab.config_name", {config, name}); }
+  virtual void lab_config_set_modified(Handle config, uint8_t v) { set_field8(config, 0x1f, v); }
+  virtual uint8_t lab_config_byte(Handle config, uint32_t off) { return field8(config, off); }
+  virtual bool lab_store_has_config(Handle store, int32_t mech, Handle other, Handle config) {
+    return unported("0x004735f0", {store, mech, other, config}) != 0;
+  }
+  virtual uint8_t lab_store_full(Handle store) { return field8(store, 0x10); }
   virtual void lab_model_skin(Handle model, int32_t skin) { unported("0x0044fd90", {model, skin}); }
   virtual uint32_t message_box2(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2) {
     return unported("0x004ac150", {a, caption, text, s1, s2});
@@ -737,7 +761,6 @@ class Engine : public zgame::AppHooks {
   virtual void config_export(Handle config) { unported("0x00426180", {config, 1}); }
   virtual Handle config_import() { return unported("0x00426300", {}); }
   virtual Handle mech_dfn_handle(int32_t mech) { return unported("0x004846a0", {mech}); }
-  virtual void config_list_add_import(Handle list, Handle config) { unported("lab.import", {list, config}); }
   virtual void node_frame_update() { unported("0x004f7f70", {}); }
   virtual void model_purge(int32_t a, int32_t b) { unported("0x005394c0", {a, b}); }
   // The lab screen's (lab_screen.cpp): the Lab State's part pick
@@ -751,7 +774,12 @@ class Engine : public zgame::AppHooks {
   // Store's and GameSlot's.
   virtual void lab_store_remove(Handle store, int32_t mech);
   virtual void lab_store_add(Handle store, int32_t mech);
-  virtual void lab_slot_drop_config(Handle slot, Handle store) { unported("0x00433df0", {slot, 0, store, 1}); }
+  virtual void lab_slot_drop_config(Handle slot, Handle store) { lab_slot_set_config(slot, 0, store); }
+  // 0x00433df0(config, store, 1): the old loadout's items back to the store,
+  // a copy of `config` taken from it.
+  virtual void lab_slot_set_config(Handle slot, Handle config, Handle store) {
+    unported("0x00433df0", {slot, config, store, 1});
+  }
   virtual void lab_slot_set_mech(Handle slot, int32_t mech) { set_field32(slot, 0x04, static_cast<uint32_t>(mech)); }
   virtual void lab_groups_refresh() { unported("0x0044dcf0", {}); }
   virtual void salvage_open() { unported("0x0047d2f0", {}); }

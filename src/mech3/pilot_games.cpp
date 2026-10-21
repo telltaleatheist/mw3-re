@@ -275,6 +275,23 @@ bool Store::has_config(int32_t mech, const Store* other, const Config* c) {
   return true;
 }
 
+// The same with a loadout as `other` (the mech lab's 0x00449fb0 passes the
+// slot's: its items count as the store's, as the exe reads both item lists
+// at +0x08 alike); the same loadout is always there.
+bool Store::has_config(int32_t mech, const Config* other, const Config* c) {
+  if (!c || full || other == c) return true;
+  if (mech != -1 && !has_mech(mech)) return false;
+  for (const ConfigItem* it : c->items) {
+    if (!it) continue;
+    int32_t have = count_like(it);
+    if (other)
+      for (const ConfigItem* o : other->items)
+        if (same_item(o, it)) have += o->count;
+    if (have < it->count) return false;
+  }
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00473440
 bool Store::take_config(int32_t mech, const Config* c) {
   if (full) return true;
@@ -293,7 +310,7 @@ bool Store::give_config(int32_t mech, const Config* c) {
 Config* config_copy_store(const char* name, const Config& c, Store* store, bool take) {
   return Config::copy_of(name, c, [&](Config& d) {
     if (!store) return;
-    if (!store->has_config(-1, nullptr, &d)) {
+    if (!store->has_config(-1, static_cast<const Store*>(nullptr), &d)) {
       // Each item cut to what the store holds, from the first again after
       // each cut; then the emptied ones dropped.
       for (bool again = true; again;) {

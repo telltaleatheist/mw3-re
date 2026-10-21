@@ -73,8 +73,14 @@ class LabEditBar : public ShellEditBar {
  public:
   explicit LabEditBar(Engine& e) : ShellEditBar(e) { set_size(0x11); }  // 0x005a4ec0, 0x005a5280(0x11)
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0044a710
-  uint32_t x38c = 0;                 // +0x38c
-  uint8_t x390 = 0;                  // +0x390
+  void on_return() override;         // +0x90  0x0044a6e0: the name taken
+  void on_cancel() override;         // +0x94  0x0044f4b0
+  // 0x0044a2f0: the list's chosen loadout's name typed over its row
+  // (`rename` true: RENAME; false: SAVE's copy under a taken name).
+  void start(class LabConfigList& list, bool rename);
+  bool finish(bool cancel);          // 0x0044a3a0: false while the bar stays up
+  uint32_t x38c = 0;                 // +0x38c  the loadout being named (0: none)
+  uint8_t x390 = 0;                  // +0x390  renaming (1) or naming SAVE's copy (0)
 };
 
 // SKIN_LIST (vtable 0x005c1448): the player's (slot 0's) skin, whichever
@@ -126,16 +132,22 @@ class LabChassisList : public StoreList {
   int32_t sort = 0;                  // +0x6d0
 };
 
-// CONFIG_LIST (vtable 0x005c1588) with CONFIG_ADD, CONFIG_DELETE,
-// CONFIG_RENAME, CONFIG_SAVE (ids 13, 15, 14, 16) inside it; step 4's.
-class LabConfigList : public FileList, public LabLater {
+// CONFIG_LIST (vtable 0x005c1588): the shown slot's mech's loadouts, those
+// the lab store cannot fill marked (message 0x23e); CONFIG_ADD (never
+// enabled), CONFIG_DELETE, CONFIG_RENAME, CONFIG_SAVE (ids 13, 15, 14, 16)
+// inside it.
+class LabConfigList : public FileList {
  public:
   explicit LabConfigList(Engine& e)
       : FileList(e, -1), add(e, 0xd), del(e, 0xf), rename(e, 0xe), save(e, 0x10) {}
-  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044f390
-  void after_bind() override;        // +0x88
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x0044f390
   void show_for(float seconds) override;  // +0x60  0x0044f400
   void hide() override;              // +0x64  0x0044f460
+  void select(int32_t index) override;  // +0x98  0x00449c40: the slot's loadout
+  void fill();                       // 0x00449fb0
+  void select_config(Handle config); // 0x00449d40: its row by name, none when modified
+  void enable_buttons();             // 0x0044a1f0
+  Handle value_at(int32_t i) const;  // 0x0044edc0: a row's loadout, 0 out of range
   LabButton add;                     // +0x200
   LabButton del;                     // +0x358
   LabButton rename;                  // +0x4b0
@@ -221,9 +233,14 @@ class LabMessage : public ztwod::FontText {
   LabMessage() : ztwod::FontText(nullptr, 0, 0) {}
   bool read(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x78  0x0044e700: SOUND
   void set_text(const char* format, ...) override;  // +0x7c  0x0044e740: with the sound
+  void set_text_id(uint32_t id, ...) override;      // +0x98  0x0044e770: likewise
   uint32_t x4b0 = 0;                 // +0x4b0
   float x4b4 = 1.0f;                 // +0x4b4
 };
+
+// 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
+// the exe compares the mechs' numbers) or 1 the tonnage, then the number.
+bool chassis_before(Engine& e, int32_t by, int32_t ma, int32_t mb);
 
 // The screen (vtable 0x005c1110), 0x1b468 bytes.
 class LabScreen : public MenuScreen {
@@ -235,6 +252,10 @@ class LabScreen : public MenuScreen {
   void show_slots(int32_t slot);     // 0x0044ce90: the lance's buttons, `slot` chosen
   void refresh();                    // 0x0044cf50: the page for the shown slot's loadout
   void refresh(Handle config);       // 0x0044cf70
+  void edit_name(bool start, bool rename);  // 0x0044dca0
+  // 0x00449e10: a slot without a loadout gets the first its mech's list
+  // has that the store can fill (else the first).
+  void default_config(Handle slot, Handle store);
   void show_page(int32_t page, bool show);  // 0x0044ca50
   HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
   static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90

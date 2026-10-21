@@ -78,3 +78,55 @@ TEST(fix_campaign_save_after_the_question) {
   zfix::options().bugs = true;
   mech3::set_pilot_hooks(nullptr);
 }
+
+// The mech lab's SORT_CHASSISNAME (0x004496c0, docs/fixes.md): with the fix
+// by the names shown, without by the mechs' numbers as the exe.
+#include "mech3/lab_screen.h"
+namespace {
+struct NameEngine : mech3::Engine {
+  uint32_t unported(const char*, std::initializer_list<mech3::Arg>) override { return 0; }
+  const char* message(int32_t id) override { return id == 0xd82 + 3 ? "Avatar" : id == 0xd82 + 1 ? "Zeus" : "X"; }
+};
+}  // namespace
+TEST(fix_lab_sort_by_name) {
+  NameEngine e;
+  for (const bool fix : {true, false}) {
+    zfix::options().bugs = fix;
+    EXPECT(mech3::chassis_before(e, 0, 3, 1) == fix);   // Avatar (3) before Zeus (1) by name
+    EXPECT(mech3::chassis_before(e, 0, 1, 3) == !fix);  // the exe: 1 before 3
+    EXPECT(!mech3::chassis_before(e, 2, 1, 3));         // no other order
+  }
+  zfix::options().bugs = true;
+}
+
+// FIX (A) for the mech lab's Ctrl+X / Ctrl+I (docs/fixes.md): a loadout
+// written to export\, put in import\, read back once, its checksum checked.
+#include <cstdio>
+#include "mech3/mech_config.h"
+namespace mech3 {
+const char* mech_name(int32_t mech);
+}
+TEST(fix_lab_loadout_export_import) {
+  zutl::mounts().read.clear();
+  const std::string dir = std::string(MW3_TEST_TMP) + "/test_lab_files";
+  zutl::set_write_dir(dir);
+  mech3::Config c(3, "Mine");
+  EXPECT(mech3::lab_export_config(c));
+  const std::string out = zutl::write_path((std::string("export\\") + mech3::mech_name(3) + "_Mine.m3c").c_str());
+  std::FILE* f = std::fopen(out.c_str(), "rb");
+  EXPECT(f != nullptr);
+  std::string bytes;
+  for (int ch; f && (ch = std::fgetc(f)) != EOF;) bytes += static_cast<char>(ch);
+  if (f) std::fclose(f);
+  std::FILE* g = zutl::open("import\\mine.m3c", "wb");
+  EXPECT(g != nullptr);
+  if (g) {
+    std::fwrite(bytes.data(), 1, bytes.size(), g);
+    std::fclose(g);
+  }
+  mech3::Config* in = mech3::lab_import_config();
+  EXPECT(in && in->mech == 3 && in->name && std::strcmp(in->name, "Mine") == 0);
+  delete in;
+  EXPECT(mech3::lab_import_config() == nullptr);  // read once: renamed .done
+  EXPECT(zutl::exists("import\\mine.m3c.done"));
+}

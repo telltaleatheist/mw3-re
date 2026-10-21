@@ -247,6 +247,53 @@ Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
   one taken out). Before this, the program's new campaigns started with
   an empty store, so the briefing's lance fit cleared slot 0.
 
+### The loadouts page (step 4)
+
+- **CONFIG_LIST** (vtable 0x005c1588).
+  - It binds CONFIG_ADD, CONFIG_DELETE, CONFIG_SAVE and CONFIG_RENAME
+    inside itself (0x0044f390), and shows and hides them with itself.
+  - The fill 0x00449fb0 lists the shown slot's mech's loadouts
+    (definition +0x20). It leaves out training's (+0x1e), and the player's
+    own in the multiplayer lab (flag set).
+  - Each row is the loadout's name, plus message 0x23e when the lab
+    store can't fill it (0x004735f0 with the slot's loadout counted in;
+    `Store::has_config` with a loadout as `other`).
+  - A slot without a loadout first gets one (0x00449e10): the first the
+    store can fill, else the list's first.
+  - The row of the slot's loadout is chosen by name (0x00449d40). There is
+    no row when it is modified.
+  - The buttons (0x0044a1f0): ADD is never enabled. RENAME and DELETE work
+    on the player's own (+0x1c). SAVE works with a loadout, outside the
+    multiplayer lab.
+  - A row pressed (0x00449c40) asks to finish a rename first. A modified
+    loadout asks 0x137 / 0x1ed. Then the slot takes that loadout from the
+    store (0x00433df0) and the page redraws.
+- **The presses.**
+  - 14 RENAME types over the chosen row (0x0044dca0 -> 0x0044a2f0).
+  - 15 DELETE takes the player's own loadout out of its list (0x00425090),
+    deletes it and writes the list (0x00424f60).
+  - 16 SAVE finishes a rename under way; otherwise it copies the slot's
+    loadout (0x00424010, no store) to the list's end. When the name was
+    taken, the name is typed over it.
+  - 17 (CONFIG_EDIT's own) and 13 (ADD) do nothing.
+- **CONFIG_EDIT's finish 0x0044a3a0.** Enter is 0x0044a6e0, Escape is
+  0x0044f4b0 (cancel).
+  - A name taken by another loadout:
+    - if that one is the game's, message 0xfb2 and the bar stays;
+    - if it is the player's, the question 0x137 / 0xdcb; yes renames the
+      slot's loadout and the edited one, removes and deletes the old one,
+      and writes the list.
+  - A free name renames both and writes the list.
+  - Escape or an empty name on SAVE's copy throws the copy away.
+  - The bar hides and the page redraws.
+- **Ctrl+X / Ctrl+I.**
+  - The exe exports with 0x00426180 (the name, then the loadout, 0x00426090,
+    in a .m3c file) and imports with 0x00426300 / 0x004260c0.
+  - An import goes to the end of the *shown* mech's list, renamed with
+    rand() when its name is taken (0x00448c1d, ported in mech_lab.cpp).
+  - FIX (A): the export\ and import\ folders instead of the dialogs, and
+    no checksum check (FIX (trap)).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
