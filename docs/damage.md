@@ -330,8 +330,12 @@ goes under the old parent (0x4eb9b0), becomes the part's (vt+0x0c,
 0x460190), gets the old local matrix and the base node update (0x460180)
 and the old id down its tree (0x460050); the old tree loses its ids, owners
 and damage handlers (0x462000) and joins the mech's list +0x6d0 (0x413bb0;
-in instant action with opacity 1, which 0x413c30 fades each frame; its
-answer is masked to a byte of 0, so nothing is ever taken off the list).
+in instant action with opacity 1). Each update (0x413cb0, Mech::Update's
+purge) runs 0x413c30 on each: in instant action, while the mech's node uses
+an opacity (0x4fbb10), the flown node takes it when above 0, so the parts
+fade with the dead mech. 0x413c30 always answers 0 (`xor al, al`), so
+nothing leaves the list; it holds at most one node per arm and thigh, and
+the nodes go with the world at the mission's end.
 The velocity: (1, 0, 0) (0x5eda60), x -1 for the left arm and thigh (ids
 2, 4), turned by the world matrix (0x5226e0), its y + 0.1, times 20
 (0x5e4f00), plus 0.75 x the mech's +0x30. Finally 0x41b5f0 on the part. The
@@ -698,8 +702,7 @@ behaviour.
 - Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
   0x5829b0); for projectiles it is [0] (likely, above).
 - The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
-- Unported here: the flying parts' fade in instant action (0x413cb0, 0x413c30),
-  0x4e66a0 (a part's node off the mech), the statistics, the
+- Unported here: 0x4e66a0 (a part's node off the mech), the statistics, the
   network events, the controls' hit and stop, the cockpit HUD's death and the
   damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`
   wire_mech_parts) the death's preparation and fall, the limp's blend, the

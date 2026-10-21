@@ -260,6 +260,7 @@ struct Mech : ai::AiTarget {
   void update(float dt);              // vtable +0x34, 0x00419fc0: the frame (mech_update.cpp)
   void aim_at_last_hit();             // 0x0041d130
   void on_kill(Handle victim);        // vtable +0x80, 0x0041b420: the kill credit
+  void fade_debris(float dt);         // 0x00413cb0 (mech_parts.cpp)
   void death_prep();                  // 0x0041d070
   void hit_timeout();                 // vtable +0x14c, 0x0041d190
   void movement_sounds();             // 0x0041a843..0x0041aa61, in Update

@@ -437,10 +437,18 @@ void wire_mech_parts() {
   };
   f.set_node = [](MechPart& p, Handle n) { part_set_node(p, n); };          // vt+0x0c, 0x00460190
   f.mark = [](MechPart& p, int32_t id) { part_mark_nodes(p, id, nullptr); };  // 0x00460050(id, 0)
-  f.fade = [](Handle n) {  // 0x004fbb90(1), 0x004fba20(1.0)
-    zcls::object3d_use_opacity(zn(n), 1);
-    zcls::object3d_set_opacity(zn(n), 1.0f);
+  f.opacity_used = [](Handle n) {  // 0x004fbb10
+    uint32_t on = 0;
+    return zcls::object3d_opacity_used(zn(n), &on) == 0 && on != 0;
   };
+  f.use_opacity = [](Handle n, int32_t on) { zcls::object3d_use_opacity(zn(n), on); };  // 0x004fbb90
+  f.opacity = [](Handle n) {                                                              // 0x004fbaa0
+    float v = 0.0f;
+    zcls::object3d_get_opacity(zn(n), &v);
+    return v;
+  };
+  f.set_opacity = [](Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };  // 0x004fba20
+
   f.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
@@ -482,6 +490,7 @@ void wire_mech_parts() {
   mv.fade_sound = [](Sound s) -> Sound {  // 0x00571d20(s, 1, 0)
     return s ? zsnd::fade(static_cast<zsnd::VoiceBase*>(s), 1, 0.0f) : nullptr;
   };
+  update_calls().purge = [](Mech& m, float dt) { m.fade_debris(dt); };  // 0x00413cb0
   update_calls().set_volume = [](Sound s, float v) {  // 0x0056f370
     if (s) zsnd::set_voice_volume(static_cast<zsnd::VoiceBase*>(s), v);
   };
@@ -525,7 +534,7 @@ void wire_mech_build(const MechWiring* w) {
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
     controls_calls().ai_brain = nullptr;
-    update_calls().moved = nullptr, update_calls().set_volume = nullptr, update_calls().set_position = nullptr;
+    update_calls().moved = nullptr, update_calls().purge = nullptr, update_calls().set_volume = nullptr, update_calls().set_position = nullptr;
     command_calls() = CommandCalls{};
     part_calls() = PartCalls{};
     move_calls() = MoveCalls{};

@@ -13,6 +13,7 @@ int object3d_get_translation(Node* node, float* x, float* y, float* z);  // 0x00
 int object3d_set_translation(Node* node, float x, float y, float z);     // 0x004fc0b0
 int object3d_set_opacity(Node* node, float v);                    // 0x004fba20  data +4
 int object3d_get_opacity(Node* node, float* out);                 // 0x004fbaa0
+int object3d_opacity_used(Node* node, uint32_t* out);             // 0x004fbb10  data flag 2
 int object3d_use_opacity(Node* node, int on);                     // 0x004fbb90  data flag 2
 int object3d_set_scale(Node* node, float x, float y, float z);    // 0x004fbc10
 int object3d_get_scale(Node* node, float* x, float* y, float* z); // 0x004fbd20  no class check

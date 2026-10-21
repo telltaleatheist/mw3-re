@@ -146,6 +146,13 @@ int object3d_get_opacity(Node* node, float* out) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004fbb10
+int object3d_opacity_used(Node* node, uint32_t* out) {
+  if (int r = check_class(node, 5, kFile, 0x280)) return r;
+  *out = static_cast<Object3d*>(node->data)->get<uint32_t>(0) >> 1 & 1;
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004fbb90
 int object3d_use_opacity(Node* node, int on) {
   if (int r = check_class(node, 5, kFile, 0x29b)) return r;

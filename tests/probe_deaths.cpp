@@ -317,7 +317,7 @@ int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t st
   pc.node_set = [](Handle, const float*) { u32(0x3c); };
   f.mark = [](MechPart&, int32_t i) { u32(0x3d), u32(static_cast<uint32_t>(i)); };
   f.clear_ids = [](Handle n) { u32(0x3e), u32(u(n)); };
-  f.instant_action = nullptr, f.fade = nullptr;
+  f.instant_action = nullptr;
   Vec3 vel{9, 9, 9}, from{}, xx{};
   const size_t before = m.x6d0.size();
   const Handle r = x.fly_off(&from, &xx, &vel, stub);
@@ -331,6 +331,74 @@ int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t st
   m.pilot = nullptr, m.torso = nullptr;
   for (auto& a : m.arms) a = nullptr;
   for (auto& l : m.legs) l = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"
+
+#include "gamez/zmodel/gmod_hit.h"
+
+extern "C" {
+
+// The surface marks' setters (0x005426a0..0x00542710) over a run of ops:
+// 1 set_type(a), 2 set_map(a), 3 set_uv(a, b bits), 4 enable(a),
+// 5 is_map(a). Out after each: on, type, the three maps, u, v (and the
+// answer of 5).
+int probe_marks(const uint32_t* ops, int32_t n, uint8_t* out, int cap) {
+  g_out.clear();
+  zmod::UvCapture keep = zmod::uv_capture();
+  zmod::uv_capture() = zmod::UvCapture{};
+  for (int32_t i = 0; i < n; ++i) {
+    const uint32_t op = ops[3 * i], a = ops[3 * i + 1], b = ops[3 * i + 2];
+    auto* e = static_cast<zimg::TextureEntry*>(h(a));
+    switch (op) {
+      case 1: zmod::mark_set_type(static_cast<int32_t>(a)); break;
+      case 2: zmod::mark_set_map(e); break;
+      case 3: {
+        float fu, fv;
+        std::memcpy(&fu, &a, 4), std::memcpy(&fv, &b, 4);
+        zmod::mark_set_uv(fu, fv);
+        break;
+      }
+      case 4: zmod::mark_enable(static_cast<int32_t>(a)); break;
+      default: u32(zmod::mark_is_map(e) ? 1 : 0); break;
+    }
+    const zmod::UvCapture& c = zmod::uv_capture();
+    u32(static_cast<uint32_t>(c.on)), u32(static_cast<uint32_t>(c.type));
+    for (auto* m : c.maps) u32(u(m));
+    f32(c.uv[0]), f32(c.uv[1]);
+    u32(zmod::mark_on() ? 1 : 0);
+  }
+  zmod::uv_capture() = keep;
+  return finish(out, cap);
+}
+
+}  // extern "C"
+
+extern "C" {
+
+// 0x00413cb0 on a mech whose list holds `count` nodes: instant action or
+// not, the mech's node's opacity flag and value. Out: the calls, then the
+// list's length.
+int probe_fade(int32_t count, int32_t ia, int32_t used, float value, uint8_t* out, int cap) {
+  g_out.clear();
+  static int32_t s_ia, s_used;
+  static float s_value;
+  s_ia = ia, s_used = used, s_value = value;
+  Mech m;
+  m.node = h(0x6000);
+  for (int32_t i = 0; i < count; ++i) m.x6d0.push_back(h(0x7000 + 0x10 * static_cast<uint32_t>(i)));
+  FlyCalls& f = fly_calls();
+  const FlyCalls f0 = f;
+  f.instant_action = [] { return s_ia != 0; };
+  f.opacity_used = [](Handle n) { u32(0x51), u32(u(n)); return s_used != 0; };
+  f.use_opacity = [](Handle n, int32_t on) { u32(0x52), u32(u(n)), u32(static_cast<uint32_t>(on)); };
+  f.opacity = [](Handle n) { u32(0x53), u32(u(n)); return s_value; };
+  f.set_opacity = [](Handle n, float v) { u32(0x54), u32(u(n)), f32(v); };
+  m.fade_debris(1.0f / 30);
+  u32(0xf), u32(static_cast<uint32_t>(m.x6d0.size()));
+  f = f0;
+  m.node = nullptr;
   return finish(out, cap);
 }
 

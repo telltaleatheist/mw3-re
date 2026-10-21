@@ -198,7 +198,7 @@ Handle MechPart::fly_off(Vec3* from, Vec3* x, Vec3* velocity, int flag) {
 // the part's frame, plus 3/4 of the mech's +0x30 (docs/damage.md).
 Handle MechPart::fly_away(Vec3* velocity, bool stub) {
   FlyCalls& f = g_fly;
-  Mech& m = *mech;
+  Mech& m = *mech;  // the exe looks it up from the node when unset (0x00460000); every port part has it
   if (g_calls.node_update) g_calls.node_update(*this);  // 0x00461cf0
   float world_m[12];
   std::memcpy(world_m, matrix(*this), sizeof world_m);
@@ -223,16 +223,20 @@ Handle MechPart::fly_away(Vec3* velocity, bool stub) {
   if (f.attach) f.attach(old);
   if (f.set_flags2c) f.set_flags2c(old, 5, 0), f.set_flags2c(old, 6, 0);
   if (f.set_pose) f.set_pose(old, world_m);
+  const int32_t old_id = node ? id : -1;  // the old node's +0x28 (0x00461ece reads it off the node)
   if (f.add_child) f.add_child(parent, fresh);
   if (f.set_node) f.set_node(*this, fresh);
   std::memcpy(rotation, local, sizeof local);
   MechPart::node_changed();  // 0x00460180, not the torso's override
-  const int32_t old_id = id;  // the old node's +0x28, as part_mark_nodes gave it
   if (f.mark) f.mark(*this, old_id);
   if (f.clear_ids) f.clear_ids(old);
   m.x6d0.push_back(old);  // 0x00413bb0: in instant action it fades
-  if (f.instant_action && f.instant_action() && f.fade) f.fade(old);
-  zmth::Vec3 side{(old_id == 2 || old_id == 4) ? -1.0f : 1.0f, 0.0f, 0.0f};  // 0x005eda60: (1, 0, 0)
+  if (f.instant_action && f.instant_action()) {
+    if (f.use_opacity) f.use_opacity(old, 1);
+    if (f.set_opacity) f.set_opacity(old, 1.0f);
+  }
+  const int32_t now_id = node ? id : -1;  // the new node's, as marked (none: -1)
+  zmth::Vec3 side{(now_id == 2 || now_id == 4) ? -1.0f : 1.0f, 0.0f, 0.0f};  // 0x005eda60: (1, 0, 0)
   zmth::Vec3 out{};
   zmth::Mat34 top;
   std::memcpy(&top, world_m, sizeof top);
@@ -247,10 +251,25 @@ Handle MechPart::fly_away(Vec3* velocity, bool stub) {
   return old;
 }
 
+// Mech3.exe 1.2 @ 0x00413cb0 with 0x00413c30 on each (Mech::Update's
+// purge): in instant action the flown parts take the mech's opacity while
+// its node uses one, so they fade out with it. 0x00413c30 answers 0 every
+// time: nothing ever leaves the list (at most one node per arm and thigh).
+void Mech::fade_debris(float) {
+  FlyCalls& f = g_fly;
+  for (Handle d : x6d0) {
+    if (!(f.instant_action && f.instant_action())) continue;
+    if (!(f.opacity_used && f.opacity_used(node))) continue;
+    if (f.use_opacity) f.use_opacity(d, 1);
+    const float v = f.opacity ? f.opacity(node) : 0.0f;
+    if (v > 0.0f && f.set_opacity) f.set_opacity(d, v);  // 0x005bcd3c
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00466fe0. The calf's and foot's weapons go too; on the
 // Blackhawk and the Owens the arm on the same side is destroyed with it.
 Handle Leg::fly_away(Vec3* velocity, bool stub) {
-  Mech& m = *mech;
+  Mech& m = *mech;  // set at construction (the exe's lookup through the node, 0x0040ef30, is never needed)
   m.on_part_destroyed(calf);
   m.on_part_destroyed(foot);
   const int32_t roster = m.pilot->roster;
@@ -264,7 +283,7 @@ Handle Leg::fly_away(Vec3* velocity, bool stub) {
 
 // Mech3.exe 1.2 @ 0x00467100: the hand's weapons first.
 Handle Arm::fly_away(Vec3* velocity, bool stub) {
-  mech->on_part_destroyed(hand);
+  mech->on_part_destroyed(hand);  // mech: as Leg's
   return MechPart::fly_away(velocity, stub);
 }
 

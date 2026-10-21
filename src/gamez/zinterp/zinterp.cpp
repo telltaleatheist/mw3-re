@@ -25,6 +25,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zutl_path.h"
@@ -91,6 +92,8 @@ Engine make_engine() {
   e.find_texture = zimg::find_texture;
   e.pack_rgb = zvid::pack_rgb;
   e.clouds_on = zmod::clouds_set_on;
+  e.write_texture_type = [](int t) { return zmod::mark_set_type(t), 0; };         // 0x005426a0
+  e.write_texture_map = [](zimg::TextureEntry* m) { return zmod::mark_set_map(m), 0; };  // 0x005426b0
   e.clouds_period = zmod::clouds_set_period;
   e.clouds_wavelength = zmod::clouds_set_wavelength;
   e.clouds_level = zmod::clouds_set_level;

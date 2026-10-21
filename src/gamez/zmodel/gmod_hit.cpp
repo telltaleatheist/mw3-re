@@ -213,6 +213,32 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
 
 UvCapture& uv_capture() { return g_uv; }
 
+// Mech3.exe 1.2 @ 0x005426a0
+void mark_set_type(int32_t type) { g_uv.type = type; }
+
+// Mech3.exe 1.2 @ 0x005426b0. FIX (bug): a type past 2 is ignored; the exe
+// writes over the coordinates (3, 4) and the globals after them.
+void mark_set_map(zimg::TextureEntry* image) {
+  g_uv.on = 1;
+  if (g_uv.type >= 0 && g_uv.type < 3) g_uv.maps[g_uv.type] = image;
+}
+
+// Mech3.exe 1.2 @ 0x005426d0
+int32_t mark_on() { return g_uv.on; }
+
+// Mech3.exe 1.2 @ 0x005426e0
+void mark_set_uv(float u, float v) { g_uv.uv[0] = u, g_uv.uv[1] = v; }
+
+// Mech3.exe 1.2 @ 0x00542700
+void mark_enable(int32_t on) { g_uv.on = on; }
+
+// Mech3.exe 1.2 @ 0x00542710. A null entry matches an empty slot.
+bool mark_is_map(const zimg::TextureEntry* e) {
+  for (const zimg::TextureEntry* m : g_uv.maps)
+    if (m == e) return true;
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x0054e2b0
 int32_t polygon_segments(zcls::Node* node, zcls::SegmentHits* out, const float* segs, const int32_t* mask,
                          int32_t count, const float* verts, const Polygon& poly, int32_t* all) {
