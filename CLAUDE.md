@@ -83,7 +83,7 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   the plan is to diff its exe against MW3 1.2 function by function (match by
   bytes and structure, then by call graph), port only what changed, and run
   the existing differential tests against the PM exe too (`original.py`
-  checks one exe's SHA-256 today: make the exe a parameter). mech3ax reads PM
+  takes the exe: `MW3_EXE=pm` or `Original(exe='pm')`). mech3ax reads PM
   formats, as a cross-check. Both games in one program (Owen): a small
   launcher (our addition, not original code) picks MW3 or Pirate's Moon,
   then that game's own startup runs; shared code once, the functions the
