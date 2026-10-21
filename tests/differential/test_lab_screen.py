@@ -57,7 +57,9 @@ PARTS = [0x18880, 0x189f0, 0x18b60, 0x18cd0, 0x18e40, 0x18fb0, 0x19120]
 PANELS = [0x112ac, 0x11374, 0x1143c]
 # The pages' controls' vtables and the slots left to their steps.
 LATER = {v: (0x84, 0x88, 0x60, 0x64) + ((0xb8,) if v in (0x5c1d68, 0x5c1fe0) else ())
-         for v in (0x5c0f18, 0x5c1588, 0x5c1d68, 0x5c1fe0, 0x5c1300, 0x5c1250, 0x5c1130)}
+         for v in (0x5c0f18, 0x5c1d68, 0x5c1fe0, 0x5c1300, 0x5c1250, 0x5c1130)}
+CONFIGS, EDIT = 0x17548, 0x17ca8
+NAMES = ['Stock', 'Mine', 'Raider', 'Hunter', '']
 POPS = {0x84: 8, 0x88: 0, 0x60: 4, 0x64: 0, 0xb8: 0}
 CHASSIS, SKINS, CURRENT = 0x16e74, 0x1803c, 0x1a774
 MODEL = 0x605a24
@@ -65,7 +67,7 @@ ITEM_VT = {0: 0x5bc160, 1: 0x5c0fc0}
 
 test_twod.VT_KIND.update({0x5c0e98: 'I', 0x5c0e00: 'C', 0x5c0d70: 'C', 0x5c14f0: 'C', 0x5c1448: 'C',
                           0x5c1630: 'C', 0x5c13b0: 'K', 0x5c11c0: 'C', 0x5c1740: 'F', 0x5c0cc0: 'C', 0x5c5e30: 'C',
-                          0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C'})
+                          0x5c5da0: 'C', 0x5bc230: 'C', 0x5c5cf8: 'C', 0x5c1588: 'C'})
 
 
 def i32(v):
@@ -93,6 +95,11 @@ def synthetic(seed, tree):
                     nb += [name, e]
                 else:
                     nb += mutate_buttons(r, [name, entry], None)
+                if name == 'CONFIG_SAVE':  # CONFIG_ADD, which the shipped dialog leaves out
+                    e2 = [list(x) if isinstance(x, list) else x for x in entry]
+                    if 'POSITION' in e2:
+                        e2[e2.index('POSITION') + 1] = [r.randrange(20, 500), r.randrange(20, 400)]
+                    nb += ['CONFIG_ADD', e2]
                 if name == 'ICON_CHASSIS':  # the tabs the shipped dialog leaves out, as the code expects them
                     for extra in ('ICON_WEAPONS', 'ICON_EQUIPMENT', 'ICON_MISSIONDATA'):
                         e2 = [list(x) if isinstance(x, list) else x for x in entry]
@@ -106,27 +113,32 @@ def synthetic(seed, tree):
 
 def make_plan(seed, accept=True):
     r = random.Random(f'plan:{seed}')
-    lines = ['S', 'E'] + (['X 1', 'R', 'E', 'X 0'] if accept and r.random() < 0.3 else [])
+    # (A rename under way is started for real: RENAME, 14.)
+    lines = ['S', 'E'] + (['B e', 'R', 'E'] if accept and r.random() < 0.3 else [])
     for _ in range(r.randrange(2, 12)):
         if r.random() < 0.15:
             lines.append(f'M {r.randrange(0, 600):x} {r.randrange(0, 400):x}')
-        if r.random() < 0.1:
-            lines.append(f'X {r.choice([0, 0, 1]):x}')
-            if accept and r.random() < 0.5:
-                lines.append('R')  # a refresh during a rename: no skin arrows
+        if accept and r.random() < 0.1:
+            lines += ['B e', 'R']  # a refresh during a rename: no skin arrows
         if accept and r.random() < 0.15:  # a chassis chosen for the shown slot (0x00449010; step 3 calls it)
             lines.append(f'C {r.choice([0, 3, 7, 18]):x}')
         if r.random() < 0.5:
             # ACCEPT reads the shown slot unchecked: only with one shown (as
             # in play: entering the lab shows slot 0 first).
             # The pages refresh from the shown slot, read unchecked too.
-            ids = [8, 9, 10, 11, 8, 9, -1, 7, 12, 13, 16, 19, 31, 32, 31, 32] + ([0, 1, 2, 3, 4, 5, 6] if accept else [])
+            ids = [8, 9, 10, 11, 8, 9, -1, 7, 12, 13, 19, 31, 32, 31, 32] + \
+                ([0, 1, 2, 3, 4, 5, 6, 14, 15, 16, 14, 15, 16, 0] if accept else [])
             lines.append(f'B {r.choice(ids) & 0xffffffff:x}')
             for _ in range(2):
                 if accept and r.random() < 0.5:  # a chassis row pressed (with a slot shown, as in play)
                     lines.append(f'L {r.randrange(-1, 12) & 0xffffffff:x}')
             if accept and r.random() < 0.3:
                 lines.append('Q')  # the row of the slot's own loadout's chassis
+            if accept and r.random() < 0.4:
+                lines.append(f'Y {r.randrange(-1, 6) & 0xffffffff:x}')  # a loadout row pressed
+            if accept and r.random() < 0.4:  # a name typed into CONFIG_EDIT, then Enter or Escape
+                lines.append('T ' + r.choice(NAMES + ['Stock1', 'Mine2', 'New']).encode().hex())
+                lines.append(r.choice(['N', 'N', 'Z']))
             if r.random() < 0.2:
                 lines.append(f'K {r.randrange(-1, 5) & 0xffffffff:x}')   # a skin chosen
             if accept and r.random() < 0.2:
@@ -137,6 +149,15 @@ def make_plan(seed, accept=True):
         lines.append(f'G {r.randrange(-1, 8) & 0xffffffff:x} {r.choice([0, 1, 1]):x}')
         if r.random() < 0.4:
             lines.append('E')
+    if accept:  # a loadout session: the chassis page, a row, then SAVE / RENAME / DELETE with names
+        lines += ['B 0', 'E']
+        for _ in range(r.randrange(3, 10)):
+            lines.append(f'Y {r.randrange(0, 3):x}')
+            lines.append(f'B {r.choice([14, 14, 14, 15, 16, 16]):x}')
+            lines.append('T ' + r.choice(NAMES[:4] * 3 + ['', 'Stock1', 'Mine2', 'New', 'Raider3']).encode().hex())
+            lines.append(r.choice(['N', 'N', 'N', 'Z']))
+            if r.random() < 0.5:
+                lines.append('E')
     lines += ['E', 'U']
     return lines
 
@@ -176,6 +197,7 @@ class Original:
                 co = e.world_alloc(0xd8)
                 e.w32(co + 0x14, c['mech'] & 0xffffffff)
                 e.w32(co + 0x18, e.world_string(c['name']))
+                e.cpu.write(co + 0x1c, bytes([1]))
                 e.cpu.write(co + 0x1f, bytes([c['modified']]))
                 e.w32(s + 8, co)
             slots.append(s)
@@ -188,7 +210,10 @@ class Original:
         self.dfns = {}
         rr = random.Random(f'dfn:{seed}')
         for mech in range(-1, 19):
-            if rr.random() < 0.15:
+            # (No definition only for mechs no slot, loadout or store item can
+            # be: the exe reads those mechs' definitions unchecked.)
+            if rr.random() < 0.15 and mech not in (0, 3, 7, 18) and mech not in cfg['mechs'] and \
+                    mech not in [x['id'] for x in cfg['store'] if x['kind'] == 0]:
                 self.dfns[mech] = 0
                 continue
             d, st = e.world_alloc(0x40), e.world_alloc(0x14)
@@ -201,6 +226,24 @@ class Original:
             e.w32(st + 4, arr)
             e.w32(st + 8, arr + 4 * len(names))
             e.w32(d + 0x1c, st)  # (every definition has its set: none crashes the exe)
+            # Its loadouts (+0x20, a vector at +0x0c): the game's and the player's.
+            lst = e.world_alloc(0x18)
+            cfgs = []
+            for k in range(rr.choice([0, 1, 2, 3, 4])):
+                co = e.world_alloc(0xd8)
+                e.w32(co + 0x14, mech & 0xffffffff)
+                e.w32(co + 0x18, e.world_string(rr.choice(NAMES[:4]) + ('' if rr.random() < 0.6 else str(k))))
+                e.cpu.write(co + 0x1c, bytes([rr.choice([0, 1, 1])]))
+                e.cpu.write(co + 0x1e, bytes([1 if rr.random() < 0.15 else 0]))
+                e.cpu.write(co + 0x1f, bytes([1 if rr.random() < 0.2 else 0]))
+                cfgs.append(co)
+            arr = e.world_alloc(4 * max(1, len(cfgs)))
+            for k, co in enumerate(cfgs):
+                e.w32(arr + 4 * k, co)
+            e.w32(lst + 0xc, arr if cfgs else 0)
+            e.w32(lst + 0x10, arr + 4 * len(cfgs) if cfgs else 0)
+            e.w32(lst + 0x14, arr + 4 * len(cfgs) if cfgs else 0)
+            e.w32(d + 0x20, lst)
             self.dfns[mech] = d
 
         def dfn(emu, key, a, pop):
@@ -251,15 +294,29 @@ class Original:
         e.stub(0x44dcf0, '0x0044dcf0', '', 0)
         for addr, spec, pop in ((0x479440, 'c', 0), (0x425bd0, 'c', 0), (0x4254d0, 'c,s0', 4), (0x457940, 'c,s0', 4),
                                 (0x457330, 'c,s0', 4), (0x450e00, 'c,s0', 4), (0x44fd90, 'c,s0', 4),
-                                (0x4ac150, 's0,s1,s2,zs3,zs4', 0)):
+                                ):
             e.stub(addr, f'{addr:#010x}', spec, pop)
+
+        def box(emu, key, a, pop):  # (cdecl) the 0x1ed question has the mech's and loadout's names
+            esp = emu.uc.reg_read(UC_X86_REG_ESP)
+            args = tuple(a)
+            if a[2] == 0x1ed:
+                args += tuple(emu.cstr(emu.r32(esp + 0x10 + 4 * i)) for i in range(2))
+            v = t.handle(key, args)
+            emu._ret(v, pop)
+        e.stub(0x4ac150, '0x004ac150', 's0,s1,s2', 0, box)
         e.stub(0x44b230, '0x0044b230', 'c,s0', 4, self.later)
+        e.stub(0x424010, '0x00424010', 'zc,d,s0,s1', 8, self.copy_config)
+        e.stub(0x424350, '0x00424350', 'c', 0)
+        e.stub(0x424f60, '0x00424f60', 'c', 0)
+        e.stub(0x4735f0, '0x004735f0', 'c,s0,s1,s2', 12)
         e.stub(0x44b4b0, '0x0044b4b0', 'c,s0', 4, self.later)
-        e.stub(0x449fb0, '0x00449fb0', 'c', 0, self.later)
         e.stub(0x472a30, '0x00472a30', 'c,s0', 4)
         e.stub(0x471c10, '0x00471c10', 'c,s0', 4)
-        e.stub(0x433df0, '0x00433df0', 'c,s0,s1,s2', 12)
-        e.stub(0x44a3a0, '0x0044a3a0', 's0', 4)
+        # The slot takes the loadout (the exe takes a copy; the loadout itself
+        # here, its name the same): the emulator's slot, and the probe's poke.
+        e.stub(0x433df0, '0x00433df0', 'c,s0,s1,s2', 12,
+               lambda emu, k, a, p: (t.handle(k, a), emu.w32(a[0] + 8, a[1]), emu._ret(1, p)))
 
         def sprintf(emu, key, a, pop):
             esp = emu.uc.reg_read(UC_X86_REG_ESP)
@@ -277,11 +334,11 @@ class Original:
             emu._ret(len(text) if got else 0, pop)
         e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
 
-        def press(uc, address, size, user):  # the pages' own presses 14..30: their steps
+        def press(uc, address, size, user):  # the pages' own presses 18..30: their steps
             esp = uc.reg_read(UC_X86_REG_ESP)
             pid = i32(e.r32(esp + 0x24))
-            if not 14 <= pid <= 30:
-                return  # 31, 32 the sorts; the rest the exe ignores
+            if not 18 <= pid <= 30:
+                return  # 14..16 the loadouts', 17 nothing, 31, 32 the sorts; the rest the exe ignores
             t.handle('lab.press', (pid,))
             ret = e.r32(esp + 0x20)
             uc.reg_write(UC_X86_REG_ESP, esp + 0x24 + 0xc)
@@ -295,6 +352,8 @@ class Original:
         empty = e.world_string('')
         e.stub(0x5abdb0, '@cs', 'c', 0, lambda emu, k, a, p: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
         e.stub(0x5abda4, '@cs~', '', 0, lambda emu, k, a, p: emu._ret(0, 0))
+        e.stub(0x5abe04, '@cs(s)', 'c,s0', 4, lambda emu, k, a, p: (
+            emu.w32(a[0], emu.world_string(emu.cstr(a[1]) if a[1] else '')), emu._ret(a[0], 4)))
         e.stub(0x5abe5e, '@cs+=', 'c,s0', 4, lambda emu, k, a, p: (
             emu.w32(a[0], emu.world_string(emu.cstr(emu.r32(a[0])) + (emu.cstr(a[1]) if a[1] else ''))),
             emu._ret(a[0], 4)))
@@ -330,10 +389,10 @@ class Original:
             '0x0040d760': 640, '0x0040d770': 480,
             '0x00576040': lambda rr, k, a: e.world_string(f'M{a[0]:x}'),
             '0x00484650': lambda rr, k, a: rr.choice([1, 1, 1, 0]),
-            '0x0044a3a0': lambda rr, k, a: rr.choice([0, 1]),
             '0x00479440': lambda rr, k, a: rr.choice([0, 1]),
             '0x004254d0': lambda rr, k, a: rr.choice([0, 1, 1, 1]),
             '0x004ac150': lambda rr, k, a: rr.choice([0, 1, 1, 2]),
+            '0x004735f0': lambda rr, k, a: rr.choice([0, 1, 1]),
         })
         self.m = 0
         self.snapshot = None
@@ -348,6 +407,7 @@ class Original:
         e.w32(st, 0x5c36e0)
         e.w32(st + 8, head)
         e.w32(st + 0xc, len(self.cfg['store']))
+        e.cpu.write(st + 0x10, bytes([self.cfg['full']]))  # (Instant Action's: everything)
         prev = head
         for it in self.cfg['store']:
             o = e.world_alloc(0x1c)
@@ -366,6 +426,28 @@ class Original:
             e.w32(head + 4, node)
             prev = node
         self.store = st
+
+    def wstring(self, s):  # a string a stub makes: the rebuild reads it through peek
+        e = self.e
+        b = s.encode('latin1') + b'\0'
+        b += b'\0' * (-len(b) % 4)
+        a = e.world_alloc(len(b))
+        for i in range(0, len(b), 4):
+            e.world_w32(a + i, int.from_bytes(b[i:i + 4], 'little'))
+        return a
+
+    # 0x00424010 (ECX the name, EDX the loadout; no store): a player's copy.
+    def copy_config(self, emu, key, a, pop):
+        e = self.e
+        self.t.handle(key, a)
+        co = e.world_alloc(0xd8)
+        for off in range(0, 0x20, 4):
+            e.world_w32(co + off, 0)
+        e.world_w32(co + 0x14, e.r32(a[1] + 0x14))
+        e.world_w32(co + 0x18, self.wstring(a[0] if isinstance(a[0], str) else ''))  # ('zc': the name)
+        e.world_w32(co + 0x1c, 1)
+        self.t.override(key, co)
+        emu._ret(co, pop)
 
     def fake_panel(self):
         e, w = self.e, self.w
@@ -432,6 +514,16 @@ class Original:
                 k = self.config_row()
                 if k >= 0:
                     self.vcall(m + CHASSIS, 0x98, (k,))
+            elif op == 'Y':  # (with a loadout on the shown slot, as whenever the list has rows in play)
+                sh = i32(e.r32(SLOT))
+                if 0 <= sh < len(self.slots) and e.r32(self.slots[sh] + 8):
+                    self.vcall(m + CONFIGS, 0x98, (pv[0],))
+            elif op == 'T':
+                e.call(0x5a52a0, ecx=m + EDIT, stack=(e.world_string(bytes.fromhex(p[1]).decode() if len(p) > 1 else ''),))
+            elif op == 'N':
+                self.vcall(m + EDIT, 0x90)
+            elif op == 'Z':
+                self.vcall(m + EDIT, 0x94)
             elif op == 'K':
                 self.vcall(m + SKINS, 0xa0, (pv[0],))
             elif op == 'R':
@@ -496,6 +588,27 @@ class Original:
             if t:
                 out.append(f'row{i} tons {i32(e.r32(t + 0x14))},{i32(e.r32(t + 0x18))} flags={e.r32(t + 0xc):x} '
                            f'"{e.cstr(t + 0x34)}" named={e.r32(t + 0x4ac):x} sel={1 if t == sel_att else 0}\n')
+        cf = m + CONFIGS
+        first, last = e.r32(cf + 0x15c), e.r32(cf + 0x160)
+        its = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        out.append(f'configs sel={i32(e.r32(cf + 0x17c))} items=' +
+                   '|'.join(f'{e.cstr(e.r32(x))}={e.r32(x + 4):x}' for x in its) + '\n')
+        ed = m + EDIT
+        out.append(f'edit cfg={e.r32(ed + 0x38c):x} rename={e.r8(ed + 0x390)} focus={e.r8(ed + 0x374)} '
+                   f'flags={e.r32(ed + 0xc):x} text="{e.cstr(e.r32(ed + 0x14c + 8))}"\n')
+        for s_ in self.slots:
+            c = e.r32(s_ + 8)
+            if c:
+                out.append(f'slotcfg {c:x} "{e.cstr(e.r32(c + 0x18)) if e.r32(c + 0x18) else ""}" mod={e.r8(c + 0x1f)}\n')
+        for mech in sorted(self.dfns):
+            d = self.dfns[mech]
+            if not d:
+                continue
+            lst = e.r32(d + 0x20)
+            first, last = e.r32(lst + 0xc), e.r32(lst + 0x10)
+            cs = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+            out.append(f'list{mech} ' + ','.join(f'{c:x}:{e.cstr(e.r32(c + 0x18)) if e.r32(c + 0x18) else ""}'
+                                                  f':{e.r8(c + 0x1f)}' for c in cs) + '\n')
         sk = m + SKINS
         first, last = e.r32(sk + 0x15c), e.r32(sk + 0x160)
         its = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
@@ -513,7 +626,8 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
     buf = ctypes.create_string_buffer(1 << 23)
     setup = ' '.join(f'{v & 0xffffffff:x}' for v in [cfg['slots'], orig.e.r32(PILOT), orig.store, cfg['shown'],
                                                        cfg['flag'], len(orig.slots)] + orig.slots +
-                     [orig.e.r32(MODEL), len(cfg['store'])] +
+                     [len(orig.dfns)] + [v for mech in sorted(orig.dfns) for v in (mech, orig.dfns[mech])] +
+                     [cfg['full'], orig.e.r32(MODEL), len(cfg['store'])] +
                      [v for x in cfg['store'] for v in (x['addr'], x['kind'], x['id'], x['n'])])
     n = probe.probe_lab_run(str(path).encode(), setup.encode(), '\n'.join(plan).encode(), buf, len(buf))
     assert n >= 0, 'probe failed'
@@ -560,7 +674,7 @@ def main():
         store = [{'kind': 0, 'id': m, 'n': r.choice([1, 1, 2])} for m in mechs]
         for _ in range(r.choice([0, 1, 3])):
             store.insert(r.randrange(len(store) + 1), {'kind': 1, 'id': r.randrange(30), 'n': 1})
-        cfg = {'store': store, 'model': r.choice([0, 1]),
+        cfg = {'store': store, 'model': r.choice([0, 1]), 'full': r.choice([0, 0, 0, 1]),
                'configs': [None if r.random() < 0.3 else
                            {'mech': r.choice([0, 3, 7, 18]), 'name': r.choice(['Stock', 'Mine']),
                             'modified': r.choice([0, 0, 1])} for _ in range(n)],
@@ -579,11 +693,14 @@ def main():
         ok, trace = run_case(seed, path, fdata, fstart, cfg, plan, verbose)
         passed += ok
         calls += len(trace)
-        for k, _ in trace:
+        for k, a_ in trace:
+            if k == '0x004ac150':
+                stats[f'box {a_[2]:x}'] = stats.get(f'box {a_[2]:x}', 0) + 1
             if k.startswith('lab.') or k.startswith('vt+') or k in ('0x004504d0', '0x0044dcf0', '0x00472a30',
                                                                       '0x00471c10', '0x00433df0', '0x004846a0', '0x0044fd90',
                                                                       '0x004ac150', '0x00425bd0', '0x004254d0',
-                                                                      '0x00479440', '0x00575ff0',
+                                                                      '0x00479440', '0x00575ff0', '0x00424010',
+                                                                      '0x00424350', '0x00424f60', '0x004735f0',
                                                                       '0x005905a0', '0x0044a3a0', '0x00449b00'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'lab screen: {passed}/{runs} runs identical ({calls} calls; ' +

@@ -1,5 +1,6 @@
 #include "mech3/mech_config.h"
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
 #include <cstdlib>
@@ -16,6 +17,7 @@ namespace mech3 {
 namespace {
 // _strdup: the name is malloc'd, as the loader's read_string makes it.
 char* dup(const char* s) {
+  if (!s) return nullptr;  // as _strdup (0x004260c0 makes a loadout with no name)
   char* d = static_cast<char*>(std::malloc(std::strlen(s) + 1));
   std::strcpy(d, s);
   return d;
@@ -620,11 +622,65 @@ bool ConfigList::save_all() {
 
 namespace mech3 {
 
+// Mech3.exe 1.2 @ 0x00425090
+bool ConfigList::remove(const Config* c) {
+  if (!c || !c->player_made) return false;
+  configs.erase(std::remove(configs.begin(), configs.end(), c), configs.end());
+  return true;
+}
+
 // Mech3.exe 1.2 @ 0x00424e90
 Config* ConfigList::find(const char* name) const {
   if (!name) return nullptr;
   for (Config* c : configs)
     if (c && c->name && std::strcmp(c->name, name) == 0) return c;
+  return nullptr;
+}
+
+}  // namespace mech3
+
+#include <cstdio>
+#include <string>
+
+#include "gamez/zutil/zutl_path.h"
+
+namespace mech3 {
+
+const char* mech_name(int32_t mech);
+
+// FIX (A) for 0x00426180 (Ctrl+X in the mech lab): the file dialog's
+// default name in the write dir's export folder; the file is 0x00426090's.
+bool lab_export_config(const Config& c) {
+  char name[300];
+  std::snprintf(name, sizeof name, "export\\%s_%s.m3c", mech_name(c.mech), c.name ? c.name : "");
+  std::FILE* f = zutl::open(name, "wb");
+  if (!f) return false;
+  zutl_zar::write_string(f, c.name ? c.name : "");
+  const_cast<Config&>(c).save(f);
+  std::fclose(f);
+  return true;
+}
+
+// FIX (A) for 0x00426300 (Ctrl+I): the next import\\*.m3c in place of the
+// open dialog, read as 0x004260c0 (the name first, then the loadout), then
+// renamed *.m3c.done so it is read once.
+Config* lab_import_config() {
+  for (const std::string& file : zutl::list("import\\*.m3c")) {
+    const std::string path = "import\\" + file;
+    std::FILE* f = zutl::open(path.c_str(), "rb");
+    if (!f) continue;
+    char* name = nullptr;  // the loadout made with it (0x00423d00(-1, name)), then freed
+    zutl_zar::read_string(f, &name);
+    auto* c = new Config(-1, name);
+    std::free(name);
+    // FIX (trap): the exe also drops a loadout whose checksum (0x004255b0)
+    // is not its +0x88, as the saved ones' (docs/protection.md).
+    const bool ok = c->load(f);
+    std::fclose(f);
+    std::rename(zutl::write_path(path.c_str()).c_str(), zutl::write_path((path + ".done").c_str()).c_str());
+    if (ok) return c;
+    delete c;
+  }
   return nullptr;
 }
 

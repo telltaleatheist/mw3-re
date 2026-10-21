@@ -11,6 +11,8 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app.h"
@@ -574,6 +576,62 @@ void GameEngine::lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) {
   if (!d || !d->skins) return;
   for (Skin* s : d->skins->skins) out->push_back({handle_of(s), s && s->name, s && s->name ? s->name : ""});
 }
+Handle GameEngine::lab_dfn_configs(Handle dfn) {
+  const auto* d = static_cast<const MechDfn*>(object_of(dfn));
+  return d ? handle_of(d->configs) : 0;
+}
+std::vector<Handle> GameEngine::lab_list_configs(Handle list) {
+  std::vector<Handle> out;
+  if (const auto* l = static_cast<const ConfigList*>(object_of(list)))
+    for (Config* c : l->configs) out.push_back(handle_of(c));
+  return out;
+}
+void GameEngine::lab_list_append(Handle list, Handle config) {
+  if (auto* l = static_cast<ConfigList*>(object_of(list))) l->configs.push_back(static_cast<Config*>(object_of(config)));
+}
+bool GameEngine::lab_list_remove(Handle list, Handle config) {
+  auto* l = static_cast<ConfigList*>(object_of(list));
+  return l && l->remove(static_cast<const Config*>(object_of(config)));
+}
+void GameEngine::lab_list_save(Handle list) {
+  if (auto* l = static_cast<ConfigList*>(object_of(list))) l->save_all();
+}
+Handle GameEngine::lab_config_copy(const char* name, Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? handle_of(config_copy_store(name, *c, nullptr, false)) : 0;
+}
+void GameEngine::lab_config_delete(Handle config) { delete static_cast<Config*>(object_of(config)); }
+void GameEngine::lab_config_set_name(Handle config, const char* name) {
+  if (auto* c = static_cast<Config*>(object_of(config))) {
+    std::free(c->name);
+    c->name = name ? strdup(name) : nullptr;
+  }
+}
+void GameEngine::lab_config_set_modified(Handle config, uint8_t v) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->modified = v;
+}
+uint8_t GameEngine::lab_config_byte(Handle config, uint32_t off) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  if (!c) return 0;
+  return off == 0x1c ? c->player_made : off == 0x1e ? c->training : off == 0x1f ? c->modified : 0;
+}
+bool GameEngine::lab_store_has_config(Handle store, int32_t mech, Handle other, Handle config) {
+  Store* s = store_of(store);
+  return s && s->has_config(mech, static_cast<const Config*>(object_of(other)),
+                            static_cast<const Config*>(object_of(config)));
+}
+uint8_t GameEngine::lab_store_full(Handle store) {
+  const Store* s = store_of(store);
+  return s ? s->full : 0;
+}
+void GameEngine::lab_slot_set_config(Handle slot, Handle config, Handle store) {
+  if (auto* s = static_cast<GameSlot*>(object_of(slot)))
+    s->set_config(static_cast<const Config*>(object_of(config)), store_of(store), true);
+}
+void GameEngine::config_export(Handle config) {
+  if (const auto* c = static_cast<const Config*>(object_of(config))) lab_export_config(*c);
+}
+Handle GameEngine::config_import() { return handle_of(lab_import_config()); }
 void GameEngine::lab_page_refresh(Handle screen) {
   if (LabScreen* s = lab_screen(screen)) s->refresh();
 }

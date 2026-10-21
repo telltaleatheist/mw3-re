@@ -95,6 +95,7 @@ class Store {
   // and every item of the loadout by count; a full store or no loadout:
   // true (the exe's `other` == loadout test never holds).
   bool has_config(int32_t mech, const Store* other, const Config* c);
+  bool has_config(int32_t mech, const Config* other, const Config* c);  // the slot's loadout as `other`
   bool take_config(int32_t mech, const Config* c);  // 0x00473440: the mech and the items out (not a full store)
   bool give_config(int32_t mech, const Config* c);  // 0x00473400: back in
   void clear();                             // the items deleted, the list emptied

@@ -251,6 +251,19 @@ void Engine::lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) {
     out->push_back({skin, name != 0, peek_string(name)});
   }
 }
+std::vector<Handle> Engine::lab_list_configs(Handle list) {
+  std::vector<Handle> out;
+  const Handle first = field32(list, 0x0c), last = field32(list, 0x10);
+  for (Handle p = first; first && p < last; p += 4) out.push_back(peek32(p));
+  return out;
+}
+// Mech3.exe 1.2 @ 0x00424e90 (on handles): the first with that name.
+Handle Engine::lab_list_find(Handle list, const char* name) {
+  if (!name) return 0;
+  for (Handle c : lab_list_configs(list))
+    if (c && lab_config_name(c) == name) return c;
+  return 0;
+}
 void Engine::lab_store_remove(Handle store, int32_t mech) {
   if (Store* s = store_of(store)) s->remove_mech(mech);
 }

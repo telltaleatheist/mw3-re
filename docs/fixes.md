@@ -9,6 +9,8 @@ Each change is also marked `FIX` in the code next to the original address.
 
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
+| The mech lab's Ctrl+X / Ctrl+I, 0x00426180 / 0x00426300 (mechlab.md section 1) | A loadout written to or read from a file chosen in Windows' save and open dialogs ("Mech3 Configurations", *.m3c) | (A) no Windows dialogs | Ctrl+X writes `export\<mech>_<loadout>.m3c` in the write dir (the dialog's default name); Ctrl+I reads the next `import\*.m3c` and renames it `*.m3c.done` (`lab_export_config`, `lab_import_config`); `fix_lab_loadout_export_import`. The file is the exe's (0x00426090: the name, then 0x00424480) |
+| The mech lab's import, 0x004260c0 | A read loadout whose checksum (0x004255b0) is not its +0x88 is dropped | (trap) hand-edited loadouts refused, as the saved ones (protection.md) | Not checked |
 | Span routines, 0x564080, 0x56cb40 | ESP pointed at the pixels, written with PUSH | (A) x86-only; fragile anywhere, since anything using the stack meanwhile writes into the picture | Same writes in the same order through a pointer; emulator-verified identical |
 | Frame clock, 0x575a00 | Float seconds from `GetTickCount()`, ms since boot | (B) after ~10 days of uptime a float can only step 64 ms, so frames quantise and the game stutters | Ticks counted from game start; the float arithmetic is unchanged and emulator-verified identical |
 | CD music, zsnd_cd.cpp | MCI `cdaudio` playing CD tracks | (A) no MCI, and machines have no CD drive | Same API and track numbers; `music/trackNN.(ogg\|flac\|wav\|mp3)` stands in for each track |
@@ -77,6 +79,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | The briefing's SOUND, inline in 0x00405230 | MARKERS read unchecked | (bug) a crash: a briefing's SOUND without MARKERS (none ships) | No map steps: the voice and its end only |
 | The debriefing's parts, 0x0047b430 | The buttons' HELP labels, WIN_TITLE's, the lance cards' (the results) and ICON_RANK's (0x0047b2f0) labels read unchecked; a card's HTAL keys missing leave the stack's values; Instant Action's title passed as a printf format | (bug) a crash or garbage with an edited dlgWin.zrd (none ships), a `%` in a message | Checked; 0; printed as text |
 | Saved game replaced before the question, 0x478f10 / 0x434e00 | The next mission's world is written by zSave (0x5a8a70, CREATE_ALWAYS) inside next_mission, before record_mission asks "Replace existing game?" | (bug) No keeps the old entry in the list, but its file already holds the new world | Behind `zfix` bugs: next_mission leaves the save to record_mission, which writes it once the game is filed (new, or Yes) and not on No; `test_pilot.py` checks the exe's order with bugs off, `fix_campaign_save_after_the_question` both |
+| The mech lab's chassis tonnages, 0x00449760 | The chosen row's tonnage ("%.1f") is passed to the text as its format | (bug) harmless with numbers, but the text is a format string | Behind `zfix` bugs: printed as text ("%s"); test_lab_screen.py checks the exe's call |
+| SORT_CHASSISNAME, 0x004496c0 | Both mechs' names are looked up (0x00484670), then the mechs' numbers compared | (bug) "sort by name" sorts by the game's own mech order | Behind `zfix` bugs: by the names (strcmp), ties by the number; test_lab_screen.py checks the exe's order |
 | Lancemates' career kills, 0x0047ac20 (the Win State's copy of the debriefing's +0x13be4) | Each card's number is written into the campaign's +0xb4 + 4 i by card, 0 for a card without a record line | (bug) a lancemate not on that card (or not matched by name) loses their career mech kills on every win | Behind `zfix` bugs: a card without a record line leaves the record as it is (`GameEngine::win_keep_scores`); the campaign loop test checks both (7 kept, 0 with bugs off) |
 | A loadout copied out of a store, 0x00424010 | The items cut to nothing are unlinked from the copy but never deleted | (A) a memory leak each time (the port's loadouts own their items) | Deleted; nothing reads them |
 | Salvage of a mech's weapons, 0x00472da0 | A weapon slot's def read unchecked (its WeaponType through +0x2c +0x1f0) | (bug) a null read for a weapon without a def (none is built without one) | The slot is skipped |
@@ -395,6 +399,15 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- Ctrl+X / Ctrl+I's folders (mac 3, 2026-10-21): with no file dialogs, the
+  export goes to `export\` and the import takes the next file in
+  `import\` (one a press, renamed `.done`). A file picker in the SDL front
+  end would be closer to the original.
+- The import goes into the shown mech's list (mac 3, 2026-10-21): Ctrl+I
+  adds the read loadout to the list of the mech on the shown slot
+  (0x00448bfd), whatever mech the file is for. Using the loadout's own
+  mech is a guess that it was meant.
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 

@@ -5,6 +5,8 @@
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
 
+#include <cstdio>
+
 namespace mech3 {
 
 // Mech3.exe 1.2 @ 0x00448830
@@ -102,7 +104,14 @@ bool LabState::update() {
       const Handle dfn = en.mech_dfn_handle(en.config_mech(config));
       const Handle list = dfn ? en.field32(dfn, 0x20) : 0;
       if (read && list) {
-        en.config_list_add_import(list, read);
+        // 0x00448c1d..: a taken name gets a random number (CString "%s%d"
+        // with rand()); then it goes at the end of the shown mech's list.
+        if (en.lab_list_find(list, en.lab_config_name(read).c_str())) {
+          char b[300];
+          std::snprintf(b, sizeof b, "%s%d", en.lab_config_name(read).c_str(), static_cast<int>(en.rand()));
+          en.lab_config_set_name(read, b);
+        }
+        en.lab_list_append(list, read);
         if (lab_screen_) en.lab_page_refresh(lab_screen_);
       }
     }

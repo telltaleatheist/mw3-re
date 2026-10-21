@@ -142,6 +142,25 @@ class GameEngine : public Engine {
   }
   void lab_page_part(Handle screen, Handle) override { lab_page_refresh(screen); }  // 0x0044cf40
   void lab_page_refresh(Handle screen) override;  // 0x0044cf50
+  // The loadouts page's (step 4): the ported lists, loadouts and store.
+  Handle lab_dfn_configs(Handle dfn) override;
+  std::vector<Handle> lab_list_configs(Handle list) override;
+  void lab_list_append(Handle list, Handle config) override;
+  bool lab_list_remove(Handle list, Handle config) override;
+  void lab_list_save(Handle list) override;
+  Handle lab_config_copy(const char* name, Handle config) override;
+  void lab_config_delete(Handle config) override;
+  void lab_config_set_name(Handle config, const char* name) override;
+  void lab_config_set_modified(Handle config, uint8_t v) override;
+  uint8_t lab_config_byte(Handle config, uint32_t off) override;
+  bool lab_store_has_config(Handle store, int32_t mech, Handle other, Handle config) override;
+  uint8_t lab_store_full(Handle store) override;
+  void lab_slot_set_config(Handle slot, Handle config, Handle store) override;
+  // FIX (A): Ctrl+X / Ctrl+I without Windows' file dialogs (0x00426180,
+  // 0x00426300): export\<mech>_<loadout>.m3c in the write dir, and the next
+  // import\*.m3c (renamed *.m3c.done once read).
+  void config_export(Handle config) override;
+  Handle config_import() override;
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;

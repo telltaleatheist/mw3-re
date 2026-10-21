@@ -1255,10 +1255,27 @@ From the mech definitions (mechdef-head.md).
   not when you leave the mech lab (as far as traced).
 - **The mech lab has two hidden keys for sharing loadouts.** In the lab
   opened from a briefing, **Ctrl+X** saves the shown mech's loadout to a
-  file of your choice ("Mech3 Configurations" dialog), and **Ctrl+I** loads
-  one from a file into that mech's list of loadouts; if a loadout with the
-  same name is already there, the loaded one gets a random number added to
-  its name. They only work while the mech shown has a loadout.
+  `.m3c` file of your choice ("Mech3 Configurations" dialog), and **Ctrl+I**
+  loads one from a file into the shown mech's list of loadouts (even a
+  loadout of another mech); if a loadout with the same name is already
+  there, the loaded one gets a random number added to its name. They only
+  work while the mech shown has a loadout. (In the rebuild the files are
+  the `export` and `import` folders.)
+- **The mech lab's loadout buttons.** "Add" is never enabled (its press
+  does nothing anyway); Rename and Delete only for your own loadouts.
+  Saving copies the shown loadout to the end of the list; if its name is
+  taken you type a new one over it, and pressing Escape then throws the
+  copy away. Renaming onto another of your loadouts asks to overwrite it;
+  onto one of the game's own it refuses ("can't overwrite"). Loadouts the
+  lab's store can't fill are marked in the list.
+- **The mech lab's item duplication** (the speedrunners' trick): the lab
+  checks that the store has each item of a loadout, one item at a time,
+  not how many of it the loadout needs. A loadout with two of the same
+  weapon passes with one in the store, and choosing it gives you both:
+  the store just runs out at 0. (Kept as in the original.)
+- **The mech lab writes your loadout file only on rename and delete**:
+  saving a copy adds it to the list, and the file is written when the game
+  frees the mech data (at exit) or on the next rename or delete.
 - **The mech lab was built with three more tabs.** Its code still handles
   WEAPONS, EQUIPMENT and MISSION DATA tabs (it hides the first two and
   MISSION DATA on every page and disables MISSION DATA as it opens), but the
@@ -1266,11 +1283,12 @@ From the mech definitions (mechdef-head.md).
   CRITICALS page instead.
 - **"Sort by name" in the mech lab sorts by the mech's number** in the
   game's own list of 19 mechs, not by the name you see: the comparison
-  looks the names up and then ignores them. "Sort by mass" sorts by
-  maximum tonnage, ties by that number.
-- **The mech lab's paint scheme list is always the player's.** It reads
-  and sets lance slot 0's skin whichever lance member is shown, so your
-  lancemates keep their default paint.
+  looks the names up and then ignores them (fixed in the rebuild). "Sort
+  by mass" sorts by maximum tonnage, ties by that number.
+- **The paint scheme you pick in the mech lab is the whole lance's.** The
+  lab's list always reads and sets your own (slot 0's) scheme whichever
+  lance member is shown, and the mission start paints every lancemate with
+  that same scheme (0x0049e5e0).
 - **For a lancemate the chassis list starts with an empty entry**
   (message 0x23d) in a campaign, to leave that slot without a mech.
 - **The mech lab never leaves on its own:** its frame's "done" value is

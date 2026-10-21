@@ -3,6 +3,7 @@
 // zTwoD, the Lab State's globals and the game's slots read from the
 // emulator, then a plan of page switches; every call out recorded through
 // the calltrace callback, the screen dumped as text.
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -55,6 +56,10 @@ struct LabEngine : mech3::Engine {
   void pop_state(uint32_t arg) override { call("0x005905a0", {arg}); }
   void lab_store_remove(Handle store, int32_t mech) override { call("0x00472a30", {store, mech}); }
   void lab_store_add(Handle store, int32_t mech) override { call("0x00471c10", {store, mech}); }
+  void lab_slot_set_config(Handle slot, Handle config, Handle store) override {
+    call("0x00433df0", {slot, config, store, 1});
+    poke32(slot + 8, config);  // as the test's stub
+  }
   mech3::LabScreen* screen = nullptr;
   mech3::LabScreen* lab_screen(Handle) override { return screen; }
   // The lab's store, its items by their emulator address.
@@ -71,9 +76,37 @@ struct LabEngine : mech3::Engine {
     auto f = item_at.find(h);
     return f == item_at.end() ? nullptr : f->second;
   }
+  // The loadout lists as the exe changes them in its memory (read from it
+  // first), and the names given (its _strdup'd strings).
+  std::map<Handle, std::vector<Handle>> lists;
+  std::map<Handle, std::string> names;
+  std::vector<Handle> lab_list_configs(Handle list) override {
+    auto f = lists.find(list);
+    if (f == lists.end()) f = lists.emplace(list, mech3::Engine::lab_list_configs(list)).first;
+    return f->second;
+  }
+  void lab_list_append(Handle list, Handle config) override {
+    lab_list_configs(list);
+    lists[list].push_back(config);
+  }
+  bool lab_list_remove(Handle list, Handle config) override {
+    if (!config || !lab_config_byte(config, 0x1c)) return false;
+    lab_list_configs(list);
+    auto& v = lists[list];
+    v.erase(std::remove(v.begin(), v.end(), config), v.end());
+    return true;
+  }
+  void lab_config_set_name(Handle config, const char* name) override { names[config] = name ? name : ""; }
+  std::string lab_config_name(Handle config) override {
+    auto f = names.find(config);
+    return f != names.end() ? f->second : mech3::Engine::lab_config_name(config);
+  }
+  std::vector<std::pair<int32_t, Handle>> dfns;
 };
 
 std::vector<uint32_t> g_slots;  // the game's slots, by their address in the emulator
+struct LabEngine;
+LabEngine* g_engine = nullptr;
 
 uint32_t hex(std::istringstream& ls) {
   uint32_t v = 0;
@@ -132,6 +165,32 @@ void dump_screen(mech3::LabScreen& s, Dump& d) {
     o << "row" << i << " tons " << t->x << ',' << t->y << " flags=" << std::hex << t->flags << " \"" << t->text
       << "\" named=" << t->named << std::dec << " sel=" << (t == sel ? 1 : 0) << '\n';
   }
+  o << "configs sel=" << s.configs.selected << " items=";
+  for (size_t i = 0; i < s.configs.items.size(); ++i)
+    o << (i ? "|" : "") << (s.configs.items[i]->text ? s.configs.items[i]->text : "") << '=' << std::hex
+      << static_cast<uint32_t>(s.configs.items[i]->value) << std::dec;
+  o << '\n';
+  o << "edit cfg=" << std::hex << s.config_edit.x38c << std::dec << " rename=" << int(s.config_edit.x390)
+    << " focus=" << int(s.config_edit.focus) << " flags=" << std::hex << s.config_edit.flags << std::dec
+    << " text=\"" << s.config_edit.get_text() << "\"\n";
+  for (uint32_t slot : g_slots) {
+    const uint32_t c = call("peek32", {slot + 8});
+    if (c)
+      o << "slotcfg " << std::hex << c << std::dec << " \"" << g_engine->lab_config_name(c) << "\" mod="
+        << int(call("peek8", {c + 0x1f})) << '\n';
+  }
+  for (const auto& d : g_engine->dfns) {
+    if (!d.second) continue;
+    const uint32_t lst = call("peek32", {d.second + 0x20});
+    o << "list" << d.first << ' ';
+    bool first = true;
+    for (uint32_t c : g_engine->lab_list_configs(lst)) {
+      o << (first ? "" : ",") << std::hex << c << std::dec << ':' << g_engine->lab_config_name(c) << ':'
+        << int(call("peek8", {c + 0x1f}));
+      first = false;
+    }
+    o << '\n';
+  }
   o << "skins arrows=" << s.skins.prev.enabled << ',' << s.skins.next.enabled << " index=" << s.skins.index
     << " items=";
   for (size_t i = 0; i < s.skins.items.size(); ++i)
@@ -151,6 +210,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
   ztwod::set_host(&host);
   reset();
   LabEngine engine;
+  g_engine = &engine;
   std::unique_ptr<mech3::Mech3App> app;
   {
     probe_app::Mute mute;
@@ -165,8 +225,16 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     ss >> std::hex >> slots >> pilot >> store >> shown >> flag >> n;
     g_slots.assign(n, 0);
     for (uint32_t& a : g_slots) ss >> a;
-    uint32_t model = 0, items = 0;
-    ss >> model >> items;
+    uint32_t ndfn = 0;
+    ss >> ndfn;
+    for (uint32_t i = 0; i < ndfn; ++i) {
+      uint32_t mech = 0, dfn = 0;
+      ss >> mech >> dfn;
+      engine.dfns.emplace_back(static_cast<int32_t>(mech), dfn);
+    }
+    uint32_t full = 0, model = 0, items = 0;
+    ss >> full >> model >> items;
+    engine.store.full = static_cast<uint8_t>(full);
     engine.store_addr = store;
     for (uint32_t i = 0; i < items; ++i) {
       uint32_t addr = 0, kind = 0, id = 0, count = 0;
@@ -240,6 +308,20 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
           }
         }
       }
+    } else if (op == "Y") {
+      const int32_t sh = mech3::states().lab.slot_;
+      const uint32_t i = hex(ls);
+      if (sh >= 0 && sh < static_cast<int32_t>(g_slots.size()) && call("peek32", {g_slots[static_cast<size_t>(sh)] + 8}))
+        s->configs.select(static_cast<int32_t>(i));
+    } else if (op == "T") {
+      std::string h, t;
+      ls >> h;
+      for (size_t i = 0; i + 1 < h.size(); i += 2) t += static_cast<char>(std::stoi(h.substr(i, 2), nullptr, 16));
+      s->config_edit.set_text(t.c_str());
+    } else if (op == "N") {
+      s->config_edit.on_return();
+    } else if (op == "Z") {
+      s->config_edit.on_cancel();
     } else if (op == "K") {
       s->skins.select(static_cast<int32_t>(hex(ls)));
     } else if (op == "R") {
