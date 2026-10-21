@@ -77,7 +77,7 @@ int32_t set_frequency(VoiceBase* voice, float t) {
 int32_t set_voice_volume(VoiceBase* voice, float v) {
   if (voice->kind != 0) return 0;
   auto* vc = static_cast<Voice*>(voice);
-  vc->volume = volume_db(*state().volume * v);
+  vc->volume = volume_db(state().master() * v);
   return update_3d(vc, nullptr, nullptr, 0);
 }
 

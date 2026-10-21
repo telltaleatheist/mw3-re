@@ -440,7 +440,7 @@ const char* probe_snd_dump() {
   out(" prim%d %d %d %d %d %d", st.primary, f.channels, f.samples_per_sec, f.avg_bytes_per_sec, f.block_align,
       f.bits_per_sample);
   out(" sos%08x %08x lis%d search %s muted %d vol%08x\n", ub(st.speed_of_sound), ub(st.inv_speed_of_sound),
-      st.listener_set, st.has_search ? st.search.c_str() : "-", st.muted, ub(*st.volume));
+      st.listener_set, st.has_search ? st.search.c_str() : "-", st.muted, ub(st.master()));
   for (size_t i = 0; i < st.sets.size(); ++i) {
     const zsnd::Set* set = st.sets[i];
     out("set %zu %s %d %zu subs", i, set->name.c_str(), set->loaded, set->sounds.size());

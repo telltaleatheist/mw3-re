@@ -93,7 +93,7 @@ int32_t init(uint32_t window) {
   st.cue_sound = nullptr, st.cue_voice = nullptr, st.cue_index = 0, st.cue_limit = 999;
   st.volume_default = 1.0f;
   st.volume = g_hooks.find_var ? static_cast<float*>(g_hooks.find_var("SoundVolume")) : nullptr;
-  if (!st.volume) st.volume = &st.volume_default;
+  // null: the State's own volume_default (master())
   st.voices_on = 1;
   st.queue = new std::list<Queued*>;
   st.queued = nullptr;

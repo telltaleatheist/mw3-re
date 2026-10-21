@@ -200,7 +200,12 @@ struct State {
   int32_t* mute = &mute_default;  // 0x0072c490  -> MuteSound
   int32_t muted = 0;           // 0x0072c494  *mute when initialised
   float volume_default = 1.0f; // 0x0072c49c
-  float* volume = &volume_default;  // 0x0072c4a0  -> SoundVolume, the master volume
+  // 0x0072c4a0 -> SoundVolume, the master volume; null: volume_default (the
+  // exe's static start value). Not a pointer into this State: a copy of one
+  // (state() = State{}) would keep pointing at the copied-from object.
+  float* volume = nullptr;
+  float& master() { return volume ? *volume : volume_default; }
+  float master() const { return volume ? *volume : volume_default; }
   int32_t voices_on = 1;       // 0x0072c4a4  voice-flagged sounds play
   Sound* cue_sound = nullptr;  // 0x0072c4ac  the sound whose cues are followed
   Voice* cue_voice = nullptr;  // 0x0072c4b0
