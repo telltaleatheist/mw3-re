@@ -82,6 +82,20 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   show, Owen 2026-10-20). Correction:
   0x51fee0 sums column 2 and the translation's z in another order
   (`zmth::multiply` now bit-exact).
+- Lens flares (0x567420 .. 0x567dc0, `zrndr_draw.c` .. `zsnd_parm.cpp`;
+  not ported): a model light with +0x3c joins a list (0x567420, at most
+  650; cleared by 0x567570). The software frames (0x481290, 0x481a10, and
+  0x443320 when not Direct3D) pick the ones that flare (0x5675e0) and draw
+  them by 0x567dc0. A flare's size comes from its depth (0x73fb80 / rhw)
+  between the light's +0x44 (full) and +0x48 (gone). It is drawn as four
+  quads through 0x567b90 / 0x567720: one at the light and three on the line
+  through the screen centre, with the textures `LensFlareTexture` 0..3 set
+  (0x5676d0; every world's .gw sets lflare1..4). 0x567720 has a Direct3D
+  branch ([0x72f3c0] / [0x72f3bc] with texture +4), but the Direct3D frame
+  0x481790 only clears the list (0x567570) and never draws it, so lens
+  flares are software-renderer only. Each world has one flaring light (c3
+  two; 5 / 30 / 5000 at +0x40..+0x48, likely the sun). Restoring them in
+  Direct3D is a candidate in fixes.md.
 - The frame around the scene: the back buffer's lock for 2D on top
   (0x576d00 / 0x576d60 over 0x577590 / 0x577600), the scene nesting
   (0x579af0 / 0x579b10), the colour quad (0x57dd80, [0x72f3ec] = 0x57e380,

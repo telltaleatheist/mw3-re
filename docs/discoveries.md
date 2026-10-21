@@ -1056,6 +1056,14 @@ From the render path (render.md).
   drawn (normally your own mech's, on the first frame). On a video card
   without the blend the shadows need, shadows stay off, and so would the
   fog.
+- **The sun's lens flare only shows in software mode.** Every map has a
+  light flagged for a lens flare (two on the third campaign's maps), and
+  the maps load four flare pictures. In the software renderer the flare
+  appears as four glows: one at the light and three on the line through
+  the middle of the screen, full size up close and shrinking with
+  distance. The Direct3D renderer collects the same flares every frame and
+  then throws them away without drawing them, although the flare code can
+  draw in Direct3D. So hardware-mode players never saw it.
 - **Mechs never shadow themselves**, and shadows only land on lit, solid,
   textured surfaces: not on foliage with see-through textures, not on the
   fake black shadow polygons.

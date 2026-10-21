@@ -22,7 +22,8 @@ the caster lists inside `test_scenewalk.py`.
 | 0x55d010 the flat polygon filler, 0x557f90 its target | `zrndr::fill_polygon`, `set_target`, `soft_target` | `zrender/zrndr_span` (zreader.cpp .. zrndr_draw.c) |
 | 0x522ab0 box corners | `zmth::box_corners` (was inside class.cpp) | `zmath/zmth_matrix` |
 | 0x57baa0 reload ([0x72f374]), 0x57bb00 release ([0x72f378]), 0x579b70 caps | `zvid::reload_texture`, `release_texture`, `has_caps` | `zvideo/zvid_ddd3d` |
-| 0x4814e0 the per-mech upkeep | `mech3::update_shadows` (`Engine::update_shadows`, was the hook `hw_frame_effects`) | `mech3/app_states` (beside 0x481790) |
+| 0x4814e0 the per-mech upkeep | `mech3::update_shadows` (`Engine::update_shadows`, was the hook `hw_frame_effects`); on the program's mechs `mech3::update_mech_shadows` (`GameEngine::update_shadows`), the two sums shared (`app_shadows.h`) | `mech3/app_states`, `mech3/app_mech` |
+| 0x4d58fc / 0x4d5907 in zEntity3d's base end 0x4d58a0: the caster freed | `AiTarget::release_shadow`, from `Mech::release` and `~CZAiTarget` | `mech3/zai_target` |
 
 `zvid::install_model_draw_table` now fills the five entries too
 (`zmod::DrawTable::shadowed*`, `projected`, `projected_shadowed`). The
@@ -487,6 +488,28 @@ shade up to 52 m, the shade by diffuse, the ground always the mech's own.
   0x40 (CULLCCW, if the base is right) **[unverified]**; the 1 it returns
   when 0x8026e0 is 0 is odd. Without them shadows stay off and, per the fog
   quirk, hardware fog never comes on. The port's `zvid::Display` has them set.
-- The entity side: 0x5a85e0 and the node handle (`Engine::entity_position`,
-  `node_of`) and the mech destructor's release (0x4d58fc) wait for the
-  entities' port.
+- The entity side (2026-10-21): the program runs the upkeep on its own
+  mechs. `GameEngine::update_shadows` calls `update_mech_shadows`, which is
+  0x4814e0 over zEntity's list with the program's types:
+  - the mechs come from the registry (vehicles.md);
+  - the sun is the mission's "sunlight" node ([0x6098d4] = the mission's
+    +4), and its light is the node's `zcls::Light` (+0x84 the direction,
+    +0x9c diffuse, +0xa0 ambient);
+  - the position is 0x5a85e0 (`entity_position`);
+  - the ground is the mech's skis' +0x13c (`ground[6]`), since vt+0x50 of
+    a mech is the mech itself;
+  - the caster is AiTarget +0xcc, now a `zmod::ShadowCaster*`.
+
+  The fade and grey sums are shared with the handle version, which
+  test_shadow_image still checks against the exe. The caster is freed where
+  the exe frees it, in zEntity3d's base end (0x4d58a0: 0x542e40, then
+  0x542ca0). `test_program`'s `mission_c1m1_mechs_cast_shadows_headless`
+  runs c1m1's Direct3D frames and checks four things:
+  - the player's 64x64 caster is drawn (more than 100 pixels shaded);
+  - every other mech has one exactly while within 100 m;
+  - those others are 32x32;
+  - the list is empty after the cleanup.
+
+  Breaks: without the upkeep, without the release, and with the sizes
+  swapped, the test fails. Vehicles are skipped until they are ported;
+  they cast in the exe.

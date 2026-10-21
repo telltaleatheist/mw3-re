@@ -1,4 +1,5 @@
 #include "mech3/app_states.h"
+#include "mech3/app_shadows.h"
 
 #include "crt/msvc_math.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -436,6 +437,27 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   return false;
 }
 
+// 0x004814e0's two sums (app_shadows.h).
+float shadow_fade(float d2) {
+  if (d2 >= 10000.0f) return 0.0f;  // x87 "below": NaN goes on
+  if (!(d2 > 2500.0f)) return 1.0f;
+  return (10000.0f - d2) * (1.0f / (10000.0f - 2500.0f));
+}
+
+uint8_t shadow_grey(float ambient, float diffuse, float dir_y, float fade) {
+  float t;  // the ambient share
+  if (!(ambient < 0.0f || ambient > 0.0f)) {
+    t = 0.0f;
+  } else {
+    const float lit = ambient - dir_y * diffuse;  // direction y: below 0 from above
+    t = !(lit < 0.0f || lit > 0.0f) ? ambient : ambient / lit;
+  }
+  int32_t grey = crt::msvc_ftol(255.5f - (1.0f - t) * fade * 255.0f);
+  if (grey > 255) grey = 255;
+  else if (grey < 0) grey = 0;
+  return static_cast<uint8_t>(grey);
+}
+
 // Mech3.exe 1.2 @ 0x004814e0. For each object in the list at 0x0073655c: the
 // player's mech, or one within 100 m of it, keeps a caster (mech +0xcc; 64x64
 // for the player's, 32x32 others), redrawn every frame along the sun
@@ -461,10 +483,7 @@ void update_shadows(Engine& en) {
       const float dx = f(p) - f(pos), dy = f(p + 4) - f(pos + 4), dz = f(p + 8) - f(pos + 8);
       const float xx = dx * dx, yy = dy * dy, zz = dz * dz;
       const float xy = xx + yy;
-      const float d2 = xy + zz;
-      if (d2 >= 10000.0f) fade = 0.0f;  // x87 "below": NaN goes on
-      else if (!(d2 > 2500.0f)) fade = 1.0f;
-      else fade = (10000.0f - d2) * (1.0f / (10000.0f - 2500.0f));
+      fade = shadow_fade(xy + zz);
     }
     Handle caster = en.field32(mech, 0xcc);
     if (!(fade > 0.0f)) {
@@ -485,18 +504,7 @@ void update_shadows(Engine& en) {
       en.shadow_enable(caster, 1);
     }
     const float clouds = en.clouds_at(f(pos), f(pos + 8));
-    const float ambient = f(light + 0xa0) * clouds, diffuse = f(light + 0x9c) * clouds;
-    float t;  // the ambient share
-    if (!(ambient < 0.0f || ambient > 0.0f)) {
-      t = 0.0f;
-    } else {
-      const float lit = ambient - f(light + 0x88) * diffuse;  // direction y: below 0 from above
-      t = !(lit < 0.0f || lit > 0.0f) ? ambient : ambient / lit;
-    }
-    int32_t grey = crt::msvc_ftol(255.5f - (1.0f - t) * fade * 255.0f);
-    if (grey > 255) grey = 255;
-    else if (grey < 0) grey = 0;
-    const auto g = static_cast<uint8_t>(grey);
+    const uint8_t g = shadow_grey(f(light + 0xa0) * clouds, f(light + 0x9c) * clouds, f(light + 0x88), fade);
     en.shadow_set_color(caster, zvid::pack_bytes(g, g, g));
     // The ground: the mech's +0x50 object's +0x41c +0x13c, else its own height.
     const Handle owner = en.vcall(mech, 0x50, {});

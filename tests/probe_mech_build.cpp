@@ -313,7 +313,7 @@ void mech_image(Img& o, const m3::Mech& m) {
   o.b8(0xa8, m.xa8);
   for (int k = 0; k < 3; ++k) o.u(0xac + 4 * k, 0);  // the contacts: none
   o.p(0xb8, m.touching);
-  o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.xcc), o.u(0xd0, m.net);
+  o.u(0xc0, m.team), o.u(0xc4, m.allies), o.u(0xc8, m.enemies), o.u(0xcc, m.shadow ? 1u : 0u), o.u(0xd0, m.net);
   o.p(0xd4, m.ammo), o.p(0xd8, m.net_collision);
   o.b8(0xdc, m.power_down_pending), o.b8(0xdd, m.heat_shutdown), o.b8(0xde, m.powered_down);
   o.f(0xe0, m.last_hit_time), o.p(0xe4, m.last_hit_part), o.p(0xe8, m.xe8), o.i(0xf8, m.xf8);

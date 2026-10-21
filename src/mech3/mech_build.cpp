@@ -160,7 +160,7 @@ void mech_delete(Mech* m) {
 // flown parts, the decals, the cockpit, the view, the contacts, the sounds,
 // the node's handlers, the weapons, the parts, the skis, the AMS, the
 // motions, the type's data (when no other mech holds it), the controls,
-// the node and its models, and zEntity's entry.
+// the node and its models, zEntity's entry, and the shadow.
 void Mech::release() {
   FreeCalls& f = free_calls();
   if (this == world().mission_player && f.player_object_free) f.player_object_free(*this);  // 0x0041e580
@@ -208,6 +208,7 @@ void Mech::release() {
     if (f.entity_free) f.entity_free(*this);  // vt+0x04(0, 0, 0, 0), 0x005a7f70
     node = nullptr;
   }
+  release_shadow();  // the bases' 0x004d58a0
   x6d0.clear(), x678.clear(), actions.clear();
 }
 
@@ -237,7 +238,7 @@ void vehicle_base(Mech& m) {
   m.xbc &= 0xf0;
   m.team = 1, m.allies = 0, m.enemies = 0xfffffffe;  // team 0
   player_clear_60b56c();  // [0x0060b56c]
-  m.xcc = 0, m.net = 0;
+  m.shadow = nullptr, m.net = 0;
   m.ammo = nullptr, m.net_collision = nullptr;  // Vehicle
 }
 

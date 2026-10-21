@@ -995,6 +995,7 @@ const AiMechMade* mission_ai_mechs(int32_t* count) {
 }
 
 void mission_lose() { missions().lose(); }
+void* mission_sun() { return missions().world.sun ? missions().world.sun->node : nullptr; }
 int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
 
 void wire_mission_hooks(GameEngine* e) {
