@@ -73,7 +73,13 @@ class GameEngine : public Engine {
     // loaded (in place of the briefing's LAUNCH); from the menus the
     // briefing's LAUNCH does (campaign.md section 7, item 5).
     bool auto_launch = true;
-    Handle config = 0;  // the slot's loadout (the pilot's game's), else the mech's first
+    // The slot's loadout and skin (the pilot's game's; the Config is the
+    // slot's own, alive while the pilot's game is), else the mech's first.
+    Handle config = 0;
+    int32_t skin = 0;
+    // The chosen pilot's handle stays in [0x0060861c] (a debug start puts a
+    // stand-in there).
+    bool keep_pilot = false;
   };
   void set_launch(const Launch& l);
   const Launch& launch() const { return launch_; }
@@ -324,6 +330,7 @@ class GameEngine : public Engine {
   Launch launch_;
   Handle pilot_ = 0, game_ = 0, view_ = 0, camera_ = 0;
   std::map<int32_t, Handle> view_modes_;  // the view's camera ids' blocks (sync_view)
+  Handle stub_pilot_ = 0, mech_block_ = 0;  // the stand-ins' blocks, made once
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;

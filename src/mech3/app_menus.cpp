@@ -331,10 +331,10 @@ void GameEngine::load_state_enter() {
   if (launch_.active && launch_.auto_launch) return;
   Pilot* p = current_pilot();
   Game* g = p ? p->current : nullptr;
-  if (!g) return;
   Launch l;
   l.auto_launch = false;
-  l.type = g->type();
+  l.keep_pilot = true;
+  l.type = g ? g->type() : -1;
   if (auto* c = dynamic_cast<CampaignGame*>(g)) {
     l.number = c->mission_number();
     l.index = campaign_dir(*c);
@@ -342,11 +342,19 @@ void GameEngine::load_state_enter() {
     l.number = t->mission;
     l.index = 5;  // t1
   } else {
+    l.index = -1;
+  }
+  if (l.index < 0) {
+    // Not ported (Instant Action, multiplayer), or no game: back to the
+    // main menu rather than a mission left from before.
     unported("the Load state of this game", {l.type});
+    launch_.active = false;
+    replace_state(2);
     return;
   }
   l.mech = g->slot.mech;
-  l.config = g->slot.config ? handle_of(g->slot.config) : 0;
+  l.config = g->slot.config ? handle_of(g->slot.config) : 0;  // the slot's, alive while its game is
+  l.skin = g->slot.skin;
   set_launch(l);
 }
 
