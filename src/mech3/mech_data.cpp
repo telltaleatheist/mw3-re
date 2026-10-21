@@ -58,7 +58,9 @@ void MechDataHooks::node_set_name(Handle node, const char* name) {
   zcls::node_set_name(static_cast<zcls::Node*>(node), name);
 }
 void MechDataHooks::node_set_flag8(Handle node, int32_t on) { zcls::node_set_flag8(static_cast<zcls::Node*>(node), on); }
-void MechDataHooks::anim_restart(Handle anim) { zeff::anim_restart(static_cast<zeff::AnimDef*>(anim)); }
+void MechDataHooks::anim_restart(Handle anim, Handle node) {
+  zeff::anim_restart(static_cast<zeff::AnimDef*>(anim), static_cast<zcls::Node*>(node));
+}
 Handle MechDataHooks::effect_start(Handle effect, Handle node, const float args[9]) {
   return effect ? hh(zeff::anim_start_at(static_cast<zeff::AnimDef*>(effect), static_cast<zcls::Node*>(node), args,
                                          args + 3, args + 6))
@@ -254,7 +256,9 @@ void make_cockpit(MechData& p) {
   h.node_place(c->node, 0.0f, 0.0f, 0.0f);  // [0x0063d870], the zero vector
   h.node_set_intersect(c->node, 0);
   h.node_set_flag8(c->node, 0);
-  if (p.cockpit_explosion) h.anim_restart(p.cockpit_explosion);
+  // The explosion is moved onto this cockpit and reset: its cracks and dings
+  // hidden until the head is hit (docs/cockpit-damage.md).
+  if (p.cockpit_explosion) h.anim_restart(p.cockpit_explosion, c->node);
 }
 
 // Mech3.exe 1.2 @ 0x00430580 and the delete: off the cache, then what it

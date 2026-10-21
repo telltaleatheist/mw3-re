@@ -476,7 +476,11 @@ void use_ported() {
   // LoadSoils (zmod::load_soils) stays recorded: it reads reader.zbd, not mounted here.
   const size_t keep[] = {offsetof(Engine, read_zbd), offsetof(Engine, delete_file), offsetof(Engine, make_dir),
                          offsetof(Engine, load_soils),
-                         offsetof(Engine, print)};
+                         offsetof(Engine, print),
+                         // Recorded too: the texture table and the model cycles (test_cycle.py).
+                         offsetof(Engine, get_model), offsetof(Engine, texture_add),
+                         offsetof(Engine, cycle_set_on), offsetof(Engine, cycle_set_map),
+                         offsetof(Engine, cycle_set_looping), offsetof(Engine, cycle_set_speed)};
   for (size_t i = 0; i < n; ++i) {
     bool k = false;
     for (size_t o : keep) k |= o == i * sizeof(Fn);

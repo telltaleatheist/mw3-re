@@ -1006,3 +1006,30 @@ view's ground, the anim lookups 0x50b450 (92).
 - make_cockpit has no emulator test of its own (it is all calls into ported
   pieces); the headless test checks its result.
 - Paused (Owen, 2026-10-21): #14..#17 wait.
+
+## Playtest #19: the cockpit's cracks and screens (2026-10-21)
+
+- Cause of the holes: the cracks and dings (crack01..03, ding01..03) are
+  active in mechlib's `mech_<name>_hud.flt`; the mission animation
+  `cpit_effects_explosion` hides them in its reset. 0x00430ad0 restarts it
+  with the cockpit's node in EDX (0x00508460 -> 0x00508490 -> the reset
+  0x00508310, which binds it there), but `zeff::anim_restart` took no node,
+  so the reset ran on gamez's `dummy_hud.flt` and our cockpit kept every
+  mark. The head hit (0x00460bff, 0x00508da0 with the explosion and the
+  cockpit node) was unwired too.
+- Fixed: `anim_restart` / `anim_reset_logged` take the node;
+  `MechDataHooks::anim_restart(anim, node)`; `DamageCalls::head_hit_hud
+  (explosion, cockpit)` wired in app_hud to `anim_start_connector`;
+  `mech_hit_part` for the tests.
+- Cause of "no GFX data": the interp's engine had no `get_model`,
+  `texture_add` or model-cycle calls, and the launch's texture load was
+  unwired. Ported the wrappers 0x0053bc30 / 0x0053bcd0 / 0x0053bcf0 /
+  0x0053bd10 (gmod_const), defaults in zinterp; LaunchHooks `textures_load`
+  in app_mech. `cycle_create` keeps the frame on a re-made cycle, as the exe
+  does (test_cycle found the difference).
+- Tests: test_cycle.py (new, 400 sequences), test_anim_run (restarts with a
+  node, and c1's explosion onto the dummy cockpit), test_damage (ECX/EDX of
+  the head hit), two headless tests (cracks on a head hit in the Mad Cat,
+  the Owens' screens cycling). Breaks listed in docs/cockpit-damage.md.
+- Left: 0x0046dde0's respawn passes the cockpit node too (a hook still);
+  `cpit_effects_reset` is never called by the code.

@@ -442,19 +442,20 @@ void anim_wait_tick(Node* object) {
   if (!not_above(fld(def, 0xa8), fld(def, 0xa4))) anim_reset_logged(def);
 }
 
-// Mech3.exe 1.2 @ 0x00508460
-int32_t anim_restart(AnimDef* def) {
+// Mech3.exe 1.2 @ 0x00508460. A node (EDX) moves the def onto it before the
+// reset, as the cockpit's explosion is moved onto the cockpit (0x00430c05).
+int32_t anim_restart(AnimDef* def, Node* node) {
   if (!def) return -1;
   if (status(def) == 6) status(def) = 2;
   else if (status(def) == 4) status(def) = 3;
-  return anim_reset_logged(def);
+  return anim_reset_logged(def, node);
 }
 
 // Mech3.exe 1.2 @ 0x00508490
-int32_t anim_reset_logged(AnimDef* def) {
+int32_t anim_reset_logged(AnimDef* def, Node* node) {
   if (!def) return -1;
-  const int32_t r = anim_reset(def, nullptr, 1);
-  log_reset(def, nullptr);
+  const int32_t r = anim_reset(def, node, 1);
+  log_reset(def, node);
   return r;
 }
 

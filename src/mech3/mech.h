@@ -370,7 +370,7 @@ struct DamageCalls {
   void (*damage_decal)(Handle x1c, Handle decals, Collision*, float damage) = nullptr;  // 0x00474d90
   void (*last_hit)(Mech&) = nullptr;                 // 0x0041d130
   void (*zaps_hud)(void* screen, float a, int kind, float b) = nullptr;  // 0x0043be70
-  void (*head_hit_hud)() = nullptr;                  // 0x00508da0(0, 0, 0)
+  void (*head_hit_hud)(Handle explosion, Handle cockpit) = nullptr;  // 0x00508da0(ECX, EDX; 0, 0, 0): the cracks
   void (*hud_weapons)(void* screen) = nullptr;       // 0x00446520 on screen +0x6520
   void (*equip_voice)(int kind) = nullptr;           // 0x00485390: the callout for an equipment kind
   void (*voice)(int index) = nullptr;                // 0x00485370

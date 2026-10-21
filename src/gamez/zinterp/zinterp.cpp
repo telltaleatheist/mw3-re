@@ -90,6 +90,18 @@ Engine make_engine() {
   e.world_set_fog_range = zcls::world_set_fog_range;
   e.world_get_fog_range = zcls::world_get_fog_range;
   e.find_texture = zimg::find_texture;
+  // 0x004eb420: the node's model (+0x3c); a null node reports and gives 5.
+  // FIX (bug): a null out pointer (scroll_off's) is skipped, not written.
+  e.get_model = [](Node* n, Model** out) {
+    if (!n) return 5;
+    if (out) *out = n->model;
+    return 0;
+  };
+  e.texture_add = zimg::add_texture;
+  e.cycle_set_on = zmod::cycle_set_on;
+  e.cycle_set_map = zmod::cycle_set_map;
+  e.cycle_set_looping = [](Model* m, int on) { return zmod::cycle_set_looping(m, static_cast<uint32_t>(on)); };
+  e.cycle_set_speed = zmod::cycle_set_speed;
   e.pack_rgb = zvid::pack_rgb;
   e.clouds_on = zmod::clouds_set_on;
   e.write_texture_type = [](int t) { return zmod::mark_set_type(t), 0; };         // 0x005426a0
@@ -728,7 +740,7 @@ void scroll_list_init() {
 
 // Mech3.exe 1.2 @ 0x00596370. The exe asks for the node's model with a null
 // out pointer, which crashes it for any real node (no shipped script turns a
-// scroll off). Kept: node_get_model is not ported, and its port must allow it.
+// scroll off). Kept: the default node_get_model skips the write.
 bool scroll_off(Node* node) {
   if (node) call(g_engine.get_model, node, static_cast<Model**>(nullptr));
   return false;

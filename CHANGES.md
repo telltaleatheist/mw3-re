@@ -118,6 +118,7 @@ None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
+- A script that cycles the textures of a model with no material, or turns a scroll off, no longer crashes (neither happens with the shipped scripts).
 - An edited debriefing dialog missing its buttons' help, its title's, its lance cards' or its rank's lines no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.

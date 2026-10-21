@@ -167,9 +167,14 @@ int cycle_create(Material& m, int32_t count) {
   if (&m == &default_material()) return 0;
   m.flags |= 5;
   if (m.cycle && count <= static_cast<int32_t>(m.cycle->texture_count)) return 0;
-  // The exe reallocs the cycle and drops its old texture list.
+  // The exe reallocs the cycle and drops its old texture list. It sets every
+  // field but the frame (+0x04): a cycle made again keeps it (a new one gets
+  // realloc's leftovers; here 0), so it steps once a frame all the same.
+  const bool fresh = m.cycle == nullptr;
   auto* c = static_cast<Cycle*>(std::realloc(m.cycle, sizeof(Cycle)));
+  const uint32_t frame = fresh ? 0 : c->frame;
   *c = Cycle{};
+  c->frame = frame;
   c->speed = 15.0f;
   c->texture_count = static_cast<uint32_t>(count);
   c->textures = static_cast<zimg::TextureEntry**>(std::malloc(count > 0 ? count * sizeof(void*) : 1));

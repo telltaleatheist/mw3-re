@@ -216,6 +216,7 @@ add_library(mw3probe SHARED
   tests/probe_matrix.cpp
   tests/probe_screen.cpp
   tests/probe_ripple.cpp
+  tests/probe_cycle.cpp
   tests/probe_world.cpp
   tests/probe_modeldraw.cpp
   tests/probe_bake.cpp

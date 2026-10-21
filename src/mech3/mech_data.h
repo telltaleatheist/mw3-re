@@ -73,7 +73,7 @@ class MechDataHooks : public zgame::Unported {
   virtual Handle object3d_create();                               // 0x004fb740
   virtual void node_set_name(Handle node, const char* name);      // 0x004eb300
   virtual void node_set_flag8(Handle node, int32_t on);           // 0x004eb620
-  virtual void anim_restart(Handle anim);                         // 0x00508460: zeff::anim_restart
+  virtual void anim_restart(Handle anim, Handle node);            // 0x00508460 (EDX node): zeff::anim_restart
 };
 void set_mech_data_hooks(MechDataHooks* h);  // null: the defaults
 MechDataHooks& mech_data_hooks();

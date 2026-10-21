@@ -52,6 +52,10 @@ action lists, the setters and the world's child/light/sound lists. Check:
   takes time; 0x508170 then takes the node out of the world, switches the
   lights, puffers and sounds off, stops the anims it called, clears the tick,
   status 1 (4 from 6) and refills the health.
+- **Restart** (0x508460, from status 6/4, then 0x508490): EDX is a node
+  the reset first moves the def onto (0x509eb0; 0 for none). The cockpit's
+  explosion is moved onto the mech's cockpit this way (cockpit-damage.md;
+  the port had dropped EDX, playtest #19).
 
 ## The events
 
