@@ -916,8 +916,17 @@ int merge_contours(Weiler& w) {
         break;
       default: break;
     }
-    if (!ok) {
-      std::fprintf(stderr, "%s %d: _merge_contours failed to receive new contour.\n", kFile, 0xcbb);
+    if (!ok) {  // the exe's line for each case (new_contour never fails here)
+      static const int16_t kLine[26] = {0,     0,     0,     0,     0xcbb, 0xcd6, 0xe1e, 0xe33, 0xe48,
+                                        0xe5d, 0xe83, 0xeaa, 0xd8b, 0xceb, 0xd9d, 0xdaf, 0xd00, 0xdc1,
+                                        0xdd3, 0xd15, 0xde5, 0xdf7, 0xd2a, 0xe09, 0xd50, 0xd78};
+      const uint32_t type = w.crossings.at(i).type;
+      int line = kLine[type];
+      if (type == 10 && L[1]) line = 0xe73;
+      if (type == 11 && L[1]) line = 0xe9a;
+      if (type == 24 && L[5]) line = 0xd40;
+      if (type == 25 && L[5]) line = 0xd67;
+      std::fprintf(stderr, "%s %d: _merge_contours failed to receive new contour.\n", kFile, line);
       return 0;
     }
   }
@@ -977,9 +986,12 @@ int count_contours(Weiler& w) {
   return 1;
 }
 
-// Mech3.exe 1.2 @ 0x005135a0. The exe writes the ring's points (the first
-// edge's a, then each b up to the edge before its prev) into room for
-// c.count: the same number when the ring is whole.
+// Mech3.exe 1.2 @ 0x005135a0. The exe reserves c.count points (the result's
+// point count moves on by that) and writes the ring's points into them: the
+// first edge's a, then each b up to the edge before its prev, the same
+// number when the ring is whole. The resize keeps the port's count the
+// exe's whatever the ring held (a longer write lands in the exe's spare
+// room and is overwritten by the next contour).
 int output_contour(Weiler& w, int list, const Contour& c) {
   Result& out = *w.out;
   const Edge* e = c.edge;
@@ -1017,8 +1029,9 @@ int output_contours(Weiler& w) {
   return 1;
 }
 
-// Mech3.exe 1.2 @ 0x0050fe10. The exe frees the buffers and leaves the
-// counts.
+// Mech3.exe 1.2 @ 0x0050fe10. The exe frees the buffers and nulls their
+// pointers but leaves the counts; nothing reads a freed Result (the clip
+// returns 0 and the caller frees it again), so the port empties the lists.
 void free_result(Result& out) {
   for (auto& l : out.lists) l.clear();
   out.points.clear();
