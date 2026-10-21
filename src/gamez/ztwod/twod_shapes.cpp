@@ -31,6 +31,15 @@ Line2D::Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c) : Obj
   dash = 0;
 }
 
+// Mech3.exe 1.2 @ 0x005a6b80
+Pixel2D::Pixel2D(int32_t px, int32_t py, uint32_t c) : Object2D(px, py), color(c) {}
+
+// Mech3.exe 1.2 @ 0x005a6bb0
+void Pixel2D::draw() {
+  erase();
+  host().pixel(x, y, color);
+}
+
 // Mech3.exe 1.2 @ 0x005a6880
 void Line2D::set(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
   set_pos(x0, y0);
@@ -104,6 +113,9 @@ bool Shape::contains(int32_t px, int32_t py) {
   if (!(d > 0.0f)) return false;  // [0x005cffd8]
   return !(d * 0.57735097f < std::fabs(static_cast<float>(px) - translation[0]));  // [0x005cffdc]
 }
+
+// Mech3.exe 1.2 @ 0x00409dd0
+void Frame::set_clip(const Rect* r) { clip = r ? *r : Rect{}; }
 
 // Mech3.exe 1.2 @ 0x005a3b30
 bool Frame::contains(int32_t px, int32_t py) const {

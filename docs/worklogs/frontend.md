@@ -268,3 +268,21 @@ original asks twice in a row); the fake mech's vtable needs +0x148; the
 jump-jets bool is pushed with stack garbage above it (masked in the stub);
 the torso pitch springs back when the key is let go (the c1m1 test holds
 it around the triangle's middle).
+
+## 2026-10-20 The radar, parts 1-2 (branch mac3/radar)
+
+Part 1: HudRadar::update 0x0043dd00 up to the contacts (the map mode, the
+size and place steps 0x0043dce0, the range text, the light, the polylines).
+Part 2: update_contacts (from 0x0043e445): the mech's contacts with their
+blips (vt+0x3c; the Mech's ported, mech_hud mech_radar_blip 0x0041ec60 and
+the blips' create/destroy from 0x00413e60 / 0x00414000), TARGET's triangle,
+the network marker (hook, 0x0058b060), the shots (Pixel2D 0x005a6b80, new),
+the landmines. Remember: the exe's data starts the radar's and TARGET's
+clip rects at (1, 1, 639, 479) (the probe resets them per run); the
+original clears +0x5d only at the end; map mode without a map or a map
+without a rect crashes the original; normalize 0x004020d0 is stubbed (the
+vector kept, its true length answered); ceil comes in as FLOOR's code with
+the rounding bits 0x0800; the marker's message arguments are logged on
+both sides. Never edit src while breaks.py runs (it restores its copy).
+Next: part 3, the program wiring and the c1m1 radar check; then inverted
+mouse Y (Owen's decided fix) and item 6's remainder.

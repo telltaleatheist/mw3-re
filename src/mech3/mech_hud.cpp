@@ -5,11 +5,13 @@
 #include "mech3/hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
+#include "gamez/ztwod/twod.h"
 
 namespace mech3 {
 
 namespace {
 MechHudCalls g_calls;
+ztwod::Image* g_blips[3];  // [0x00605618]
 
 Hud* viewed_hud(Mech& m) {
   if (!g_calls.is_view_target || !g_calls.is_view_target(m) || !m.pilot) return nullptr;
@@ -102,5 +104,23 @@ bool aim_at_point(Mech& m, const float p[3], bool check) {
   uint8_t torso[12];
   return m.aim_at(reinterpret_cast<const Vec3*>(p), torso, check);
 }
+
+// Mech3.exe 1.2 @ 0x00413ecb (part of 0x00413e60, the mechs' set-up)
+void mech_radar_blips_create() {
+  g_blips[0] = new ztwod::Image("hud_mech_ally_sm", 0, 0, 1);  // [0x005e2094]
+  g_blips[1] = new ztwod::Image("hud_mech_enemy_sm", 0, 0, 1);
+  g_blips[2] = new ztwod::Image("hud_mech_other_sm", 0, 0, 1);
+}
+
+// Mech3.exe 1.2 @ 0x0041406a (part of 0x00414000)
+void mech_radar_blips_destroy() {
+  for (ztwod::Image*& b : g_blips) {
+    delete b;
+    b = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0041ec60 (the Mech's vt+0x3c)
+ztwod::Image* mech_radar_blip(int32_t kind) { return g_blips[kind]; }
 
 }  // namespace mech3

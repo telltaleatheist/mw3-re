@@ -1541,8 +1541,351 @@ void HudWeaponLine::update(float dt) {
   mark.update(dt);
 }
 
-// Mech3.exe 1.2 @ 0x0043dd00
-void HudRadar::update(float dt) { hud_hooks().radar_update(this, dt); }
+namespace {
+// 0x0043dce0: `v` kept within -steps..steps.
+void clamp_step(int32_t& v, int32_t steps) {
+  if (steps < v) v = steps;
+  else if (v < -steps) v = -steps;
+}
+ztwod::Rect g_radar_rect{1, 1, 639, 479};  // [0x005e39c8] the polylines' clip: the radar's square (the exe's start)
+}  // namespace
+ztwod::Rect& radar_rect() { return g_radar_rect; }
+
+// Mech3.exe 1.2 @ 0x0043dd00: the radar each frame (hud.md section 15).
+// Its size and place step toward the zoomed or small ones, or over the
+// mission map follow the mech; the range text, the mech's light (green,
+// yellow, red by its +0xbc), the polylines' points turned by the mech into
+// the radar, the box and cone drawn. Then the contacts (part 2).
+void HudRadar::update(float dt) {
+  HudHooks& h = *g_hooks;
+  Hud* hd = static_cast<Hud*>(source);
+  bool moved = false;
+  if (changed) {
+    moved = true;
+    bool mapped = false;
+    const ztwod::Rect* rect = nullptr;
+    if (active) {
+      rect = h.map_rect(h.radar_map());
+      mapped = rect != nullptr;
+      polys[0].hide();
+      polys[1].hide();
+    } else {
+      if (xbd4 > 3) polys[0].show_for(-1.0f);
+      if (xbd8 > 3) polys[1].show_for(-1.0f);
+    }
+    clipped = mapped;
+    set_clip(rect);  // vt+0x70
+    for (ztwod::ClipLine2D& l : lines) {
+      l.clipped = mapped;
+      l.clip = rect;
+    }
+  }
+  if (active) {
+    void* map = h.radar_map();
+    const float range = h.mech_sensor_range(hd->mech);
+    radius = crt::msvc_ftol(std::fabs(static_cast<float>(crt::msvc_ftol(h.map_scale(map) * range))));
+    radius_sq = radius * radius;
+    moved = true;
+  } else if (int32_t d = radius - to_r) {
+    clamp_step(d, r_steps);
+    radius -= d;
+    radius_sq = radius * radius;
+    moved = true;
+  }
+  if (active) {
+    float p[3];
+    h.mech_position(hd->mech, p);
+    int32_t pt[2];
+    h.map_point(h.radar_map(), p, pt);
+    set_pos(pt[0], pt[1]);
+    moved = true;
+  } else {
+    int32_t dx = get_x() - to_x;
+    int32_t dy = get_y() - to_y;
+    if (dx || dy) {
+      clamp_step(dx, x_steps);
+      clamp_step(dy, y_steps);
+      const int32_t py = get_y() - dy;
+      set_pos(get_x() - dx, py);
+      moved = true;
+    }
+  }
+  if (radius == 0) Object2D::hide();  // 0x0059ff50
+  if (!hd->active || (flags & ztwod::kHidden)) return;
+  const float static_px = noise * 100.0f;  // 0x005a3ba0, [0x005c00d0]: the contacts' throw (part 2)
+  (void)static_px;
+  if (moved) {
+    if (active) {
+      light.set_pos(get_x(), get_y());
+    } else {
+      const int32_t k = crt::msvc_ftol(static_cast<double>(radius) * 0.714178);  // [0x005c00d8]
+      const int32_t ty = get_y() + k;
+      text1.set_pos(get_x() + k, ty);
+      const int32_t ly = get_y() + k - 10;
+      light.set_pos(get_x() + k + 0xe, ly);
+    }
+    set_dir(nullptr);
+  }
+  Mech* m = hd->mech;
+  const float range = h.mech_sensor_range(m);
+  void* map = active ? h.radar_map() : nullptr;
+  if (active && map) {
+    h.map_update(h.radar_map(), dt);
+  } else {
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "%.1fkm", static_cast<double>(range * 0.001f));  // [0x005e3ec4], [0x005c00e0]
+    text1.set_text("%s", buf);
+    text1.update(dt);
+  }
+  const uint8_t bc = h.mech_bc(m);
+  light.select(bc & 1 ? 2 : bc & 2 ? 1 : 0);
+  bool light_drawn = true;
+  if (active && h.radar_map()) {
+    const ztwod::Rect* r = h.map_rect(h.radar_map());
+    const zimg::Texture* li = light.image;
+    light_drawn = r && light.get_x() > r->left && light.get_x() + (li ? li->width : 0) < r->right &&
+                  light.get_y() > r->top && light.get_y() + (li ? li->height : 0) < r->bottom;
+  }
+  if (light_drawn) light.update(dt);
+  if ((xbd4 > 3 || xbd8 > 3) && radius > 0 && !active) {
+    float q[4], qc[4], mtx[9];
+    h.mech_orientation(m, q);
+    zmth::quat_conjugate(*reinterpret_cast<const zmth::Quat*>(q), *reinterpret_cast<zmth::Quat*>(qc));
+    zmth::quat_matrix(qc, mtx);
+    const float k = static_cast<float>(radius) / range;
+    if (moved) {
+      g_radar_rect = {get_x() - radius, get_y() - radius, get_x() + radius, get_y() + radius};
+      polys[0].clip = polys[1].clip = &g_radar_rect;
+    }
+    const uint32_t counts[2] = {xbd4, xbd8}, lists[2] = {xdb4, xdb8};
+    for (int p = 0; p < 2; ++p) {
+      for (uint32_t i = 0; i < counts[p]; ++i) {
+        float wp[3], me[3];
+        h.radar_point(lists[p], static_cast<int32_t>(i), wp);
+        h.mech_position(m, me);
+        float d[3] = {wp[0] - me[0], wp[1] - me[1], wp[2] - me[2]};
+        d[0] = d[0] * k, d[1] = d[1] * k, d[2] = d[2] * k;
+        const float rx = d[0] * mtx[0] + d[1] * mtx[3] + d[2] * mtx[6];
+        const float rz = d[0] * mtx[2] + d[1] * mtx[5] + d[2] * mtx[8];
+        const int32_t py = crt::msvc_ftol(static_cast<float>(get_y()) + rz);
+        const int32_t px = crt::msvc_ftol(static_cast<float>(get_x()) + rx);
+        polys[p].set_point(static_cast<int32_t>(i), px, py);
+        if (i == 0) {
+          const int32_t qy = crt::msvc_ftol(static_cast<float>(get_y()) + rz);
+          const int32_t qx = crt::msvc_ftol(static_cast<float>(get_x()) + rx);
+          polys[p].set_point(static_cast<int32_t>(counts[p]), qx, qy);
+        }
+      }
+    }
+    polys[0].round = 1;
+    polys[1].round = 1;
+    polys[0].update(dt);
+    polys[1].update(dt);
+  }
+  Object2D::update(dt);  // 0x0059ffb0: the box
+  lines[0].update(dt);
+  lines[1].update(dt);
+  if (active) {
+    lines[2].show_for(-1.0f);
+    lines[2].update(dt);
+  }
+  if (radius > 0) update_contacts(dt, static_px);
+  changed = 0;  // 0x0043f0a7 (not on the early returns above)
+}
+
+namespace {
+// The contacts' static: each place thrown up to `px` either way on x and z.
+void radar_jitter(float p[3], float px) {
+  if (px == 0.0f) return;
+  const float a = static_cast<float>(crt::msvc_rand()) * 3.0518509e-05f;  // [0x005c00e4]
+  p[0] = (a + a - 1.0f) * px + p[0];
+  const float b = static_cast<float>(crt::msvc_rand()) * 3.0518509e-05f;
+  p[2] = (b + b - 1.0f) * px + p[2];
+}
+// A vector turned into the mech's frame (the matrix by rows, x and z kept).
+void radar_turn(const float d[3], const float m[9], float out[3]) {
+  out[0] = d[0] * m[0] + d[1] * m[3] + d[2] * m[6];
+  out[1] = d[0] * m[1] + d[1] * m[4] + d[2] * m[7];
+  out[2] = d[0] * m[2] + d[1] * m[5] + d[2] * m[8];
+}
+int32_t radar_px(int32_t base, float off) { return crt::msvc_ftol(static_cast<float>(base) + off); }
+}  // namespace
+
+// The contacts' part of 0x0043dd00 (from 0x0043e445; hud.md section 15): the
+// mech's contacts, the network player's marker, the shots in the air, the
+// landmines, each placed by its distance in the mech's frame (over the map:
+// on the map).
+void HudRadar::update_contacts(float dt, float static_px) {
+  HudHooks& h = *g_hooks;
+  Hud* hd = static_cast<Hud*>(source);
+  Mech* m = hd->mech;
+  const float k = static_cast<float>(radius) / h.mech_sensor_range(m);
+  float mtx[9] = {};
+  if (!active) {
+    float q[4], qc[4];
+    h.mech_orientation(m, q);
+    zmth::quat_conjugate(*reinterpret_cast<const zmth::Quat*>(q), *reinterpret_cast<zmth::Quat*>(qc));
+    zmth::quat_matrix(qc, mtx);
+  }
+  auto offset = [&](const float p[3], float scale, float v[3]) {  // p from the mech, scaled, turned
+    float me[3];
+    h.mech_position(m, me);
+    float d[3] = {p[0] - me[0], p[1] - me[1], p[2] - me[2]};
+    const float len = h.normalize(d);
+    const float sd[3] = {scale * d[0], scale * d[1], scale * d[2]};
+    radar_turn(sd, mtx, v);
+    return len;
+  };
+  for (int32_t i = 0; i < h.mech_contact_count(m); ++i) {
+    void* c = h.mech_contact(m, i);
+    void* o = h.contact_vehicle(c);
+    bool selected = false;
+    if (hd->target.target) {
+      void* t = h.slot_contact(hd->target.target);
+      selected = t == c || (t && c && h.contact_same(t, c));
+    }
+    if (!selected && !h.contact_on_radar(c)) continue;
+    float p[3];
+    h.object_position(o, p);
+    radar_jitter(p, static_px);
+    float v[3] = {};
+    if (!active) {
+      float s = h.contact_distance(c) * k;
+      if (s > static_cast<float>(radius)) s = static_cast<float>(radius);
+      offset(p, s, v);
+    }
+    void* blip;
+    uint16_t colour;
+    if (h.object_team(o) & h.mech_allies(m)) {
+      blip = h.object_blip(o, 0);
+      colour = zvid::pack_bytes(0, 0, 0xff);
+    } else if (h.object_team(o) & h.mech_enemies(m)) {
+      blip = h.object_blip(o, 1);
+      colour = zvid::pack_bytes(0xff, 0, 0);
+    } else {
+      blip = h.object_blip(o, 2);
+      colour = zvid::pack_bytes(1, 0xa2, 0x1f);
+    }
+    int32_t pt[2];
+    if (!selected) {
+      if (!blip) continue;
+      if (active) {
+        h.map_point(h.radar_map(), p, pt);
+      } else {
+        pt[1] = radar_px(get_y(), v[2]);
+        pt[0] = radar_px(get_x(), v[0]);
+      }
+      h.blip_place(blip, pt[0], pt[1]);
+      h.blip_draw(blip);
+      continue;
+    }
+    // The selected target: a triangle instead (made for the frame).
+    ztwod::Shape tri;
+    static ztwod::Rect screen;  // [0x0072f328]
+    screen = ztwod::host().screen_rect();
+    tri.clip = &screen;
+    if (active) {
+      h.map_point(h.radar_map(), p, pt);
+    } else {
+      pt[1] = radar_px(get_y(), v[2]);
+      pt[0] = radar_px(get_x(), v[0]);
+    }
+    tri.set_pos(pt[0], pt[1]);
+    tri.color = colour;
+    tri.set_scale(5.773503f);  // 0x40b8c08e
+    tri.update(dt);
+  }
+  // The network player's marker, with its name and distance in TEXT2.
+  if (void* e = h.network_marker()) {
+    void* img = h.marker_image(e);
+    float p[3];
+    h.marker_position(e, p);
+    radar_jitter(p, static_px);
+    float me[3];
+    h.mech_position(m, me);
+    float d[3] = {p[0] - me[0], p[1] - me[1], p[2] - me[2]};
+    const float len = h.normalize(d);
+    if (active) {
+      if (img) {
+        int32_t pt[2];
+        h.map_point(h.radar_map(), p, pt);
+        h.blip_place(img, pt[0], pt[1]);
+        h.blip_draw(img);
+      }
+    } else {
+      float s = len * k;
+      if (s > static_cast<float>(radius)) s = static_cast<float>(radius);
+      else if (s < 0.0f) s = 0.0f;
+      const float sd[3] = {s * d[0], s * d[1], s * d[2]};
+      float v[3];
+      radar_turn(sd, mtx, v);
+      if (img) {
+        const int32_t py = radar_px(get_y(), v[2]);
+        h.blip_place(img, radar_px(get_x(), v[0]), py);
+        h.blip_draw(img);
+      }
+    }
+    if (len > 1000.0f) {  // [0x005c00ec]
+      char buf[32];
+      std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(len) * 0.001f);  // [0x005e3ebc]
+      text2.set_text_id(0x228, h.marker_name(e), buf);
+    } else {
+      text2.set_text_id(0x229, h.marker_name(e), crt::msvc_ftol(std::ceil(static_cast<double>(len))));
+    }
+    text2.show_for(-1.0f);
+    text2.update(dt);
+  }
+  // The shots in the air: a pixel each, red the friendly side's (as coded).
+  float p[3];
+  bool friendly;
+  for (int32_t i = 0; h.radar_shot(i, p, &friendly); ++i) {
+    ztwod::Pixel2D px(0, 0, 0);
+    radar_jitter(p, static_px);
+    if (active) {
+      int32_t pt[2];
+      if (!h.map_point(h.radar_map(), p, pt)) continue;
+      px.x = pt[0], px.y = pt[1];
+      px.dirty();
+    } else {
+      float me[3];
+      h.mech_position(m, me);
+      const float d[3] = {(p[0] - me[0]) * k, (p[1] - me[1]) * k, (p[2] - me[2]) * k};
+      const float dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      if (static_cast<float>(radius * radius) < dd) continue;
+      float v[3];
+      radar_turn(d, mtx, v);
+      const int32_t py = radar_px(get_y(), v[2]);
+      px.x = radar_px(get_x(), v[0]), px.y = py;
+      px.dirty();
+    }
+    px.color = friendly ? zvid::pack_bytes(0xff, 0, 0) : zvid::pack_bytes(1, 0xa2, 0x1f);
+    px.update(dt);
+  }
+  // The armed landmines within 100 m: a red X each.
+  for (int32_t i = 0, n = h.mine_count(); i < n; ++i) {
+    if (!h.mine(i, p)) continue;
+    radar_jitter(p, static_px);
+    float me[3];
+    h.mech_position(m, me);
+    float d[3] = {p[0] - me[0], p[1] - me[1], p[2] - me[2]};
+    if (d[0] * d[0] + d[1] * d[1] + d[2] * d[2] > 10000.0f) continue;  // [0x005c00f0]
+    d[0] *= k, d[1] *= k, d[2] *= k;
+    if (static_cast<float>(radius * radius) < d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) continue;
+    int32_t pt[2];
+    if (active) {
+      if (!h.map_point(h.radar_map(), p, pt)) continue;
+    } else {
+      float v[3];
+      radar_turn(d, mtx, v);
+      pt[0] = radar_px(get_x(), v[0]);
+      pt[1] = radar_px(get_y(), v[2]);
+    }
+    ztwod::Line2D a(pt[0] - 1, pt[1] - 1, pt[0] + 1, pt[1] + 1, zvid::pack_bytes(0xff, 0, 0));
+    ztwod::Line2D b(pt[0] + 1, pt[1] - 1, pt[0] - 1, pt[1] + 1, zvid::pack_bytes(0xff, 0, 0));
+    a.update(dt);
+    b.update(dt);
+  }
+}
 
 // Mech3.exe 1.2 @ 0x0043f620
 void HudCompass::update(float dt) {
@@ -1763,7 +2106,7 @@ void HudMfd::draw3d(float dt) {
 // --- TARGET's tracking (hud.md section 14) ---
 
 namespace {
-ztwod::Rect g_triangle_rect{};  // [0x005e39d8] the zoom window's or the window's rect
+ztwod::Rect g_triangle_rect{1, 1, 639, 479};  // [0x005e39d8] the zoom window's or the window's rect (the exe's start)
 }  // namespace
 ztwod::Rect& triangle_rect() { return g_triangle_rect; }
 namespace {

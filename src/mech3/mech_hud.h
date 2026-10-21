@@ -5,6 +5,10 @@
 // mech_data.cpp 0x00430aa0 / 0x00430ad0): the reticle placed from the
 // player's look each frame, then the weapons aimed at its world point
 // (docs/hud.md section 10).
+namespace ztwod {
+class Image;
+}
+
 namespace mech3 {
 
 struct Mech;
@@ -26,5 +30,12 @@ bool aim_at_point(Mech& m, const float p[3], bool check);  // 0x0041bd80
 // meets the target (TARGET's lead circle, hud.md section 14); false
 // without a target or a weapon, or when the target outruns the shot.
 bool lead_point(Mech* m, float out[3]);
+// The mechs' radar blips ([0x00605618..0x00605620]: hud_mech_ally_sm,
+// _enemy_sm, _other_sm, centred images): made and freed by the mechs'
+// set-up and tear-down (0x00413e60 from 0x00413ecb, 0x00414000 from
+// 0x0041406a); a mech's is its vt+0x3c by kind, 0 ally, 1 enemy, 2 other.
+void mech_radar_blips_create();
+void mech_radar_blips_destroy();
+ztwod::Image* mech_radar_blip(int32_t kind);  // 0x0041ec60
 
 }  // namespace mech3
