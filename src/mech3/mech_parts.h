@@ -57,6 +57,28 @@ struct PartCalls {
   uint32_t (*material_soil)(Handle material) = nullptr;     // +0x20; unset: zmod::Material::soil
 };
 PartCalls& part_calls();
+
+// The engine's side of a part flying off (0x00461d80); unset ones do nothing
+// (`copy` and `create` give none, so the part stays).
+struct FlyCalls {
+  Handle (*copy)(Handle stub) = nullptr;               // 0x004f9af0(stub, 0, 0)
+  Handle (*create)() = nullptr;                        // 0x004fb740, an empty object3d
+  void (*report)(const char* mech, int32_t id) = nullptr;  // 0x0049bfd0(0x400, .., 0x4a4, "Failed to copy stub for %s partId %d")
+  void (*rename)(Handle node, Handle from) = nullptr;  // 0x004eb300 with `from`'s name
+  Handle (*parent)(Handle node) = nullptr;             // its first parent (+0x58), none without (+0x54)
+  void (*set_flag8)(Handle node, int32_t on) = nullptr;  // 0x004eb620
+  void (*remove_child)(Handle parent, Handle child) = nullptr;  // 0x004ebb40
+  void (*attach)(Handle node) = nullptr;               // [0x00608c84] vt+0: under the world
+  void (*set_flags2c)(Handle node, int32_t bit, int32_t on) = nullptr;  // +0x2c bit 5 (0x004eb8a0), 6 (0x004eb8e0)
+  void (*set_pose)(Handle node, const float m[12]) = nullptr;  // 0x00461d30: m's translation, its angles (0x00523bc0)
+  void (*add_child)(Handle parent, Handle child) = nullptr;    // 0x004eb9b0
+  void (*clear_ids)(Handle node) = nullptr;            // 0x00462000: +0x28, +0x40, +0xbc down the tree
+  void (*set_node)(MechPart& p, Handle node) = nullptr;  // vt+0x0c, 0x00460190 (part_set_node)
+  void (*mark)(MechPart& p, int32_t id) = nullptr;     // 0x00460050(id, 0): part_mark_nodes
+  void (*fade)(Handle node) = nullptr;                 // instant action: 0x004fbb90(1), 0x004fba20(1.0)
+  bool (*instant_action)() = nullptr;                  // 0x00479460
+};
+FlyCalls& fly_calls();
 // The end callback a part's effects get (0x00508f00 with 0x00461c90, ECX the
 // effect, EDX the part): on the stop (value 0) the handle holding it clears.
 void part_effect_ended(Handle effect, MechPart& p, int32_t value);
@@ -131,7 +153,12 @@ class MechPart {
   void detach();                 // vtable +0x0c with no node, 0x00460190
   void lose_contents();          // 0x004617f0
   bool has_equipment(int kind);  // 0x00460cc0
-  Handle fly_off(Vec3* from, Vec3* x, Vec3* velocity, int flag);  // vtable +0x60
+  // vtable +0x60: DamageCalls::fly_off when set (a test's), else fly_away.
+  Handle fly_off(Vec3* from, Vec3* x, Vec3* velocity, int flag);
+  // 0x00461d80 (thigh 0x00466fe0, arm 0x00467100; `from` and `x` unread):
+  // the part's node goes into the world at its pose, a stub (with `stub`)
+  // or an empty node in its place; the flying node, with its velocity.
+  virtual Handle fly_away(Vec3* velocity, bool stub);
   int base_take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) {
     return MechPart::take_hit(def, coll, damage, impulse);
   }
@@ -236,6 +263,7 @@ class Leg : public MechPart {
 
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00463b40
   void destroy(int variant, int fly) override;              // 0x00463f70
+  Handle fly_away(Vec3* velocity, bool stub) override;       // 0x00466fe0
   bool critical(int kind, int section) override;            // 0x00463ef0
 };
 
@@ -261,6 +289,7 @@ class Arm : public MechPart {    // vtable 0x005c2a48, 0xd0 bytes
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00466ba0
   void apply_impact(Vec3* impulse, float force) override;   // 0x00466c30
   void destroy(int variant, int fly) override;              // 0x00466c50
+  Handle fly_away(Vec3* velocity, bool stub) override;       // 0x00467100
 };
 
 class Head : public MechPart {   // vtable 0x005c2b80, 0x74 bytes

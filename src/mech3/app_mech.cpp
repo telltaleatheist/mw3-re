@@ -36,6 +36,7 @@
 #include "mech3/weapon.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zweapon/zweapon.h"
@@ -394,6 +395,53 @@ void wire_mech_parts() {
     auto* wm = static_cast<WeaponManager*>(m.ammo);
     return wm && wm->critical(part, ammo != 0);
   };
+  // A part flying off (0x00461d80, mech_parts.cpp) on zClass.
+  FlyCalls& f = fly_calls();
+  f.copy = [](Handle stub) -> Handle { return zcls::tree_copy(zn(stub), 0, 0); };  // 0x004f9af0
+  f.create = []() -> Handle { return zcls::object3d_create(); };                   // 0x004fb740
+  f.report = [](const char* mech, int32_t id) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "Failed to copy stub for %s partId %d", mech ? mech : "", id);
+    zerr::report(0x400, "C:\\zipper\\Mech3\\mech_parts.cpp", 0x4a4, msg);
+  };
+  f.rename = [](Handle n, Handle from) { zcls::node_set_name(zn(n), zn(from)->name()); };  // 0x004eb300
+  f.parent = [](Handle n) -> Handle { return zn(n)->parent_count() > 0 ? zn(n)->parents[0] : nullptr; };
+  f.set_flag8 = [](Handle n, int32_t on) { zcls::node_set_flag8(zn(n), on); };          // 0x004eb620
+  f.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };  // 0x004ebb40
+  f.attach = [](Handle n) {                                                              // [0x00608c84] vt+0
+    if (zcls::Node* w = world_hooks().world) zcls::node_add_child(w, zn(n));
+  };
+  f.set_flags2c = [](Handle n, int32_t bit, int32_t on) {  // 0x004eb8a0, 0x004eb8e0
+    const uint32_t v = zn(n)->get<uint32_t>(0x2c);
+    zn(n)->put<uint32_t>(0x2c, (v & ~(1u << bit)) | (static_cast<uint32_t>(on & 1) << bit));
+  };
+  f.set_pose = [](Handle n, const float m[12]) {  // 0x00461d30
+    zmth::Mat34 mat;
+    std::memcpy(&mat, m, sizeof mat);
+    float a[3];
+    zmth::matrix_to_euler(mat, a);  // 0x00523bc0
+    zcls::object3d_set_translation(zn(n), m[9], m[10], m[11]);
+    zcls::object3d_set_rotation(zn(n), a[0], a[1], a[2]);
+  };
+  f.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };  // 0x004eb9b0
+  f.clear_ids = [](Handle n) {  // 0x00462000
+    struct Clear {
+      static void run(zcls::Node* x) {
+        x->put<uint32_t>(0x28, 0);
+        x->owner = nullptr;
+        x->damage = nullptr;
+        for (int32_t i = 0; i < x->child_count(); ++i) run(x->children[i]);
+      }
+    };
+    Clear::run(zn(n));
+  };
+  f.set_node = [](MechPart& p, Handle n) { part_set_node(p, n); };          // vt+0x0c, 0x00460190
+  f.mark = [](MechPart& p, int32_t id) { part_mark_nodes(p, id, nullptr); };  // 0x00460050(id, 0)
+  f.fade = [](Handle n) {  // 0x004fbb90(1), 0x004fba20(1.0)
+    zcls::object3d_use_opacity(zn(n), 1);
+    zcls::object3d_set_opacity(zn(n), 1.0f);
+  };
+  f.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
@@ -519,6 +567,7 @@ void mech_types_refresh() { mech_data_refresh(); }
 void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
+void mech_destroy_part(void* mech, int32_t id) { static_cast<Mech*>(mech)->destroy_part(id); }
 void mech_kill(void* mech, void* killer) {
   auto* m = static_cast<Mech*>(mech);
   if (killer) m->attacker = killer;
@@ -562,6 +611,10 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   if (auto* n = zn(m->node)) s.deadmech = std::strcmp(n->name(), "deadmech") == 0;
   s.aim_torso = m->torso && m->target_node == m->torso->node;
   for (int i = 0; i < 6; ++i) s.kills[i] = m->x3f4[i];
+  s.debris = static_cast<int32_t>(m->x6d0.size());
+  s.debris_in_world = !m->x6d0.empty();
+  for (Handle d : m->x6d0)
+    if (!(zn(d)->parent_count() > 0 && zn(d)->parents[0] == world_hooks().world)) s.debris_in_world = false;
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;

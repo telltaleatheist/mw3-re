@@ -30,6 +30,7 @@ probe.probe_canned.argtypes = [I, U, P, P, P, U, P, I]
 probe.probe_canned_free.argtypes = [P, I]
 probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, P, I]
 probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
+probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
 BUF = ctypes.create_string_buffer(CAP)
@@ -47,17 +48,19 @@ def arr(t, vals):
 
 
 class Emulated:
-    def __init__(self, stub_canned):
+    def __init__(self, stub_canned, fly=False):
         cpu = self.cpu = Original()
         cpu.import_code(IAT_FTOL, FTOL)
         cpu.fpu_control(0x007f)
         assert cpu.read(ZERO, 12) == bytes(12), 'the zero vector'
         cpu.stub_function(OP_NEW, lambda c: self.zalloc(c.arg(0)))
         cpu.stub_function(OP_DELETE, lambda c: 0)
-        cpu.stub_function(0x4f9af0, self.copy, 4)
+        if not fly:  # the fly cases stand these in their own way
+            cpu.stub_function(0x4f9af0, self.copy, 4)
         cpu.stub_function(0x4fc0b0, self.place, 0xc)
         cpu.stub_function(0x508aa0, self.start, 0x24)
-        cpu.stub_function(0x4ebb40, self.unparent)
+        if not fly:
+            cpu.stub_function(0x4ebb40, self.unparent)
         cpu.stub_function(0x506bc0, self.anims_off, 4)
         cpu.stub_function(0x4f9050, self.destroy)
         cpu.stub_function(0x4ed530, self.world_pos)
@@ -291,6 +294,126 @@ class Emulated:
         self.logf(k + 0x3f4, 6)
         return bytes(self.out)
 
+    # --- a part flying off ---
+    def fly_setup(self):
+        cpu = self.cpu
+        m = self.map_node
+        def world(c):
+            self.log(0x30)
+            self.cpu.write(c.arg(0), struct.pack('<12f', *self.f_world))
+        cpu.stub_function(0x461cf0, world, 4)
+        cpu.stub_function(0x4f9af0, lambda c: (self.log(0x31, c.ecx), self.f_copy)[1], 4)
+        cpu.stub_function(0x4fb740, lambda c: (self.log(0x32), self.f_create)[1])
+        def report(c):
+            name = self.cpu.read(c.arg(4), 16).split(b'\0')[0]
+            self.log(0x33, len(name), c.arg(5))
+        cpu.stub_function(0x49bfd0, report)
+        cpu.stub_function(0x4eb300, lambda c: self.log(0x34, c.ecx, m(c.edx)))
+        cpu.stub_function(0x4eb620, lambda c: self.log(0x35, m(c.ecx), c.edx))
+        cpu.stub_function(0x4ebb40, lambda c: self.log(0x36, m(c.ecx), m(c.edx)))
+        cpu.stub_function(0x4eb8a0, lambda c: self.log(0x38, 5, c.edx))
+        cpu.stub_function(0x4eb8e0, lambda c: self.log(0x38, 6, c.edx))
+        def pose(c):
+            self.log(0x39, m(c.edx))
+            self.logf(c.ecx, 12)
+        cpu.stub_function(0x461d30, pose, 8)
+        cpu.stub_function(0x4eb9b0, lambda c: self.log(0x3a, m(c.ecx), c.edx))
+        cpu.stub_function(0x460180, lambda c: self.log(0x3c))
+        cpu.stub_function(0x460050, lambda c: self.log(0x3d, c.arg(0)), 8)
+        cpu.stub_function(0x462000, lambda c: self.log(0x3e, m(c.ecx)))
+        cpu.stub_function(0x413bb0, lambda c: self.f_debris.append(m(c.arg(0))), 4)
+        cpu.stub_function(0x4b1040, lambda c: self.log(0x40, c.arg(0)), 4)
+        ov = self.zalloc(8)
+        cpu.u32(ov, self.vstub(lambda c: self.log(0x37, m(c.arg(0))), 4))
+        o = self.zalloc(8)
+        cpu.u32(o, ov)
+        cpu.u32(0x608c84, o)
+        def set_node(c):
+            self.log(0x3b, c.arg(0))
+            self.cpu.u32(c.ecx + 0x14, self.f_newbuf)
+        self.f_set_node = self.vstub(set_node, 4)
+        self.f_arm_vt = []
+        for side in (0, 1):
+            vt = self.zalloc(0x80)
+            cpu.u32(vt + 0xc, self.f_set_node)
+            cpu.u32(vt + 0x20, self.vstub(lambda c, s=side: self.log(0x41, s, c.arg(0), c.arg(1)), 8))
+            cpu.u32(vt + 0x3c, self.vstub(lambda c, s=side: self.log(0x42, s, c.arg(0), c.arg(1)), 8))
+            self.f_arm_vt.append(vt)
+        self.f_leg_vt = self.zalloc(0x80)
+        cpu.u32(self.f_leg_vt + 0xc, self.f_set_node)
+        self.f_torso_vt = self.zalloc(0x80)
+        cpu.u32(self.f_torso_vt + 0x20, self.vstub(lambda c: self.log(0x43, c.arg(0), c.arg(1)), 8))
+
+    def map_node(self, v):
+        return {self.f_node: 0x5000, self.f_parent: 0x5100}.get(v, v)
+
+    def fly(self, kind, side, roster, nid, stub, stubs, copy, create, world, local, parent, mech_vel):
+        cpu = self.cpu
+        if not hasattr(self, 'f_set_node'):
+            self.f_node = self.f_parent = -1
+            self.fly_setup()
+        self.out = bytearray()
+        self.f_world, self.f_copy, self.f_create, self.f_debris = world, copy, create, []
+        self.f_newbuf = self.zalloc(48)
+        def block(n, vt=0):
+            b = self.zalloc(n)
+            if vt:
+                cpu.u32(b, vt)
+            return b
+        def node(i):
+            nd = block(0x100)
+            cpu.u32(nd + 0x28, i)
+            return nd
+        mech = block(0x6d8)
+        pl = block(0x234)
+        nm = block(8)
+        cpu.write(nm, b'owens\0')
+        cpu.u32(pl + 0xc, roster)
+        cpu.u32(pl + 0x10, nm)
+        if stubs:
+            cpu.u32(pl + 0x210, 0x710)
+            for i in range(4):
+                cpu.u32(pl + 0x214 + 4 * i, 0x700 + i)
+        cpu.u32(mech + 0x684, pl)
+        cpu.write(mech + 0x30, struct.pack('<3f', *mech_vel))
+        cpu.u32(mech + 0xd4, block(0x100))
+        torso = block(0x1b4, self.f_torso_vt)
+        cpu.u32(mech + 0x39c, torso)
+        parts = {}
+        for i in (0, 1):
+            a = block(0xd0, self.f_arm_vt[i])
+            hd = block(0x80)
+            cpu.u32(hd + 4, mech), cpu.u32(hd + 8, node(9 + i))
+            cpu.u32(a + 4, mech), cpu.u32(a + 8, node(2 + i)), cpu.u32(a + 0x74, hd)
+            lg = block(0xd4, self.f_leg_vt)
+            cf, ft = block(0x80), block(0xec)
+            cpu.u32(cf + 4, mech), cpu.u32(cf + 8, node(11 + i))
+            cpu.u32(ft + 4, mech), cpu.u32(ft + 8, node(13 + i))
+            cpu.u32(lg + 4, mech), cpu.u32(lg + 8, node(4 + i)), cpu.u32(lg + 0x74, cf), cpu.u32(lg + 0x78, ft)
+            cpu.u32(mech + 0x394 + 4 * i, a), cpu.u32(mech + 0x38c + 4 * i, lg)
+            parts[(1, i)], parts[(2, i)] = a, lg
+        x = parts[(kind, side)]
+        self.f_node = node(nid)
+        self.f_parent = block(0x100)
+        arr_ = block(8)
+        cpu.u32(arr_, self.f_parent)
+        cpu.write(self.f_node + 0x54, struct.pack('<II', 1 if parent else 0, arr_))
+        cpu.u32(x + 8, self.f_node)
+        own = block(48)
+        cpu.write(own, struct.pack('<12f', *local))
+        cpu.u32(x + 0x14, own)
+        vel = block(12)
+        cpu.write(vel, struct.pack('<3f', 9, 9, 9))
+        fn = 0x467100 if kind == 1 else 0x466fe0
+        cpu.call(fn, ecx=x, stack_args=(block(12), block(12), vel, stub))
+        r = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+        for d in self.f_debris:
+            self.log(0x3f, d)
+        self.log(0xf, self.map_node(r))
+        self.logf(vel, 3)
+        self.logf(self.f_newbuf, 12)
+        return bytes(self.out)
+
     def anim_nodes(self, node, root, objects, nodes, queries):
         self.out = bytearray()
         d = self.zalloc(0x13c)
@@ -319,6 +442,7 @@ def main():
     brk = int(os.environ.get('BREAK', '0'))
     emu = Emulated(False)
     dying = Emulated(True)
+    flying = Emulated(False, fly=True)
     runs = fails = 0
     kinds = {}
 
@@ -326,7 +450,7 @@ def main():
         nonlocal runs, fails
         runs += 1
         kinds[kind] = kinds.get(kind, 0) + 1
-        for e in (emu, dying):
+        for e in (emu, dying, flying):
             if e.bad:
                 print(f'FAIL {kind}: the original called out wrongly ({e.bad})')
                 e.bad = None
@@ -411,6 +535,33 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # A part flying off.
+    def rot(rng):
+        import math
+        a, b = rng.uniform(-3.1, 3.1), rng.uniform(-1.5, 1.5)
+        ca, sa, cb, sb = math.cos(a), math.sin(a), math.cos(b), math.sin(b)
+        return [ca, 0, -sa, sa * sb, cb, ca * sb, sa * cb, -sb, ca * cb]
+    for _ in range(500):
+        kind, side = rng.randint(1, 2), rng.randint(0, 1)
+        roster = rng.choice((2, 11, 11, 9, 7, 0))
+        nid = rng.choice(((2 + side) if kind == 1 else (4 + side),) * 3 + (1, 0, 6, 3, 5))
+        stub, stubs = rng.choice((0, 1, 1, 0x100)), rng.randint(0, 1)
+        copy, create = rng.choice((0x900, 0x900, 0)), rng.choice((0xa00, 0xa00, 0))
+        world = rot(rng) + [rng.uniform(-500, 500), rng.uniform(0, 30), rng.uniform(-500, 500)]
+        local = [rng.uniform(-1, 1) for _ in range(9)] + [rng.uniform(-3, 3) for _ in range(3)]
+        parent = rng.choice((1, 1, 0))
+        mech_vel = [rng.uniform(-20, 20), rng.uniform(-3, 3), rng.uniform(-20, 20)]
+        mine_side = side
+        if brk == 7 and roster in (2, 11) and kind == 2:
+            mine_side = 1 - side
+        mine_world = list(world)
+        if brk == 8:
+            mine_world[0] = -mine_world[0]
+        n = probe.probe_fly(kind, mine_side, roster, nid, stub, stubs, copy, create, arr(F, mine_world), arr(F, local),
+                            parent, arr(F, mech_vel), BUF, CAP)
+        check('fly', BUF.raw[:n], flying.fly(kind, side, roster, nid, stub, stubs, copy, create, world, local, parent,
+                                          mech_vel))
 
     if fails:
         print(f'{fails} of {runs} runs differ')

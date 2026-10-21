@@ -1,8 +1,10 @@
 #include "mech3/mech_parts.h"
 
+#include <cstring>
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
 #include "mech3/weapon.h"
@@ -20,6 +22,7 @@ constexpr int kMechSoundAmmo = 15, kMechSoundCritical = 3;
 constexpr int kNetSection = 0x15;         // docs/network-messages.md
 
 DamageCalls g_calls;
+FlyCalls g_fly;
 
 float rand_unit() { return static_cast<float>(crt::msvc_rand()) * kRandUnit; }
 int game_type() { return heat_calls().game_type ? heat_calls().game_type() : 0; }
@@ -78,6 +81,7 @@ std::vector<EquipmentItem*> equipment_in(Mech& m, int part) {
 }  // namespace
 
 DamageCalls& damage_calls() { return g_calls; }
+FlyCalls& fly_calls() { return g_fly; }
 
 // Mech3.exe 1.2 @ 0x00460970. Docs: damage.md, the hit path.
 int MechPart::take_hit(WeaponDef* def, Collision*, float damage, Vec3* impulse) {
@@ -184,7 +188,84 @@ void MechPart::detach() {
 }
 
 Handle MechPart::fly_off(Vec3* from, Vec3* x, Vec3* velocity, int flag) {
-  return g_calls.fly_off ? g_calls.fly_off(*this, from, x, velocity, flag) : nullptr;
+  if (g_calls.fly_off) return g_calls.fly_off(*this, from, x, velocity, flag);
+  return fly_away(velocity, static_cast<uint8_t>(flag) != 0);  // the flag is a byte
+}
+
+// Mech3.exe 1.2 @ 0x00461d80. The flying node keeps its world pose; the
+// stub (or empty node) takes the part's old local matrix and its id. It
+// flies out to its own side (left arm and thigh -x) at 20 m/s, 2 m/s up in
+// the part's frame, plus 3/4 of the mech's +0x30 (docs/damage.md).
+Handle MechPart::fly_away(Vec3* velocity, bool stub) {
+  FlyCalls& f = g_fly;
+  Mech& m = *mech;
+  if (g_calls.node_update) g_calls.node_update(*this);  // 0x00461cf0
+  float world_m[12];
+  std::memcpy(world_m, matrix(*this), sizeof world_m);
+  float local[12];
+  std::memcpy(local, rotation, sizeof local);
+  Handle model = nullptr;
+  if (stub) {
+    const int32_t pid = node ? id : -1;
+    if (pid == 1) model = m.pilot->x210;
+    else if (pid >= 2 && pid <= 5) model = m.pilot->stubs[pid - 2];
+  }
+  const Handle fresh = model ? (f.copy ? f.copy(model) : nullptr) : (f.create ? f.create() : nullptr);
+  if (!fresh) {
+    if (f.report) f.report(m.pilot->name, node ? id : -1);
+    return nullptr;
+  }
+  if (f.rename) f.rename(fresh, node);
+  const Handle old = node;
+  const Handle parent = f.parent ? f.parent(old) : nullptr;
+  if (f.set_flag8) f.set_flag8(old, 0);
+  if (f.remove_child) f.remove_child(parent, old);
+  if (f.attach) f.attach(old);
+  if (f.set_flags2c) f.set_flags2c(old, 5, 0), f.set_flags2c(old, 6, 0);
+  if (f.set_pose) f.set_pose(old, world_m);
+  if (f.add_child) f.add_child(parent, fresh);
+  if (f.set_node) f.set_node(*this, fresh);
+  std::memcpy(rotation, local, sizeof local);
+  MechPart::node_changed();  // 0x00460180, not the torso's override
+  const int32_t old_id = id;  // the old node's +0x28, as part_mark_nodes gave it
+  if (f.mark) f.mark(*this, old_id);
+  if (f.clear_ids) f.clear_ids(old);
+  m.x6d0.push_back(old);  // 0x00413bb0: in instant action it fades
+  if (f.instant_action && f.instant_action() && f.fade) f.fade(old);
+  zmth::Vec3 side{(old_id == 2 || old_id == 4) ? -1.0f : 1.0f, 0.0f, 0.0f};  // 0x005eda60: (1, 0, 0)
+  zmth::Vec3 out{};
+  zmth::Mat34 top;
+  std::memcpy(&top, world_m, sizeof top);
+  zmth::push(&top);
+  zmth::rotate_points_to(&side, &out, 1);
+  zmth::pop();
+  const float k = 20.0f;  // 0x005e4f00
+  const Vec3 push{k * out.x, k * (out.y - -0.1f), k * out.z};  // 0x005c27b8
+  *velocity = {m.velocity.x * 0.75f, m.velocity.y * 0.75f, m.velocity.z * 0.75f};  // 0x005c27bc
+  *velocity = {push.x + velocity->x, push.y + velocity->y, push.z + velocity->z};
+  if (mech) m.on_part_destroyed(this);  // its weapons again (0x0041b5f0)
+  return old;
+}
+
+// Mech3.exe 1.2 @ 0x00466fe0. The calf's and foot's weapons go too; on the
+// Blackhawk and the Owens the arm on the same side is destroyed with it.
+Handle Leg::fly_away(Vec3* velocity, bool stub) {
+  Mech& m = *mech;
+  m.on_part_destroyed(calf);
+  m.on_part_destroyed(foot);
+  const int32_t roster = m.pilot->roster;
+  if (roster == 2 || roster == 11) {
+    Arm* arm = m.arms[this != m.legs[0] ? 1 : 0];
+    arm->destroy(0, 0);
+    arm->set_internal(0.0f, 0);
+  }
+  return MechPart::fly_away(velocity, stub);
+}
+
+// Mech3.exe 1.2 @ 0x00467100: the hand's weapons first.
+Handle Arm::fly_away(Vec3* velocity, bool stub) {
+  mech->on_part_destroyed(hand);
+  return MechPart::fly_away(velocity, stub);
 }
 
 // Mech3.exe 1.2 @ 0x00460cc0 / 0x00460c10. A destroyed item still counts.

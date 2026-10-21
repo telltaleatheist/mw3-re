@@ -737,3 +737,17 @@ view's ground, the anim lookups 0x50b450 (92).
   now has the player as killer: 1 mech, 400 points, salvage grows.
 - Finds: the kill points' weight class ignores tonnage; only the lance's
   kills go to the salvage.
+- Item 3 review (mac 1): the victim_view fallback's note; the player and
+  the Owens are both in zEntity's list in c1m1 (the death test checks);
+  the attacker discovery (only the player's tick clears +0x664, 0x0041aba0).
+- Item 4, fly_off: MechPart::fly_away 0x00461d80 (virtual), Leg 0x00466fe0
+  (calf, foot; the Blackhawk's and Owens' same-side arm), Arm 0x00467100
+  (hand); FlyCalls wired to zClass in app_mech (copy, create, rename,
+  parent, flag 8, remove, attach, +0x2c bits, the pose, add, clear ids,
+  set node, mark, the IA fade). The flying nodes go to Mech::x6d0. Left:
+  the IA fade's per-frame 0x00413cb0 (purge hook).
+- test_deaths: fly added (500 cases: kinds, sides, rosters 2/11/9/7/0, ids,
+  stub flag, stub models, failing copy/create, parent or not): 2,653
+  identical seeds 1/2, BREAK=7 (side), 8 (world matrix) fail. The Owens
+  death test blows its left arm off first: one flying node, in the world,
+  the stub in its place.
