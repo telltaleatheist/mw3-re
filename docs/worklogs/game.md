@@ -796,3 +796,8 @@ view's ground, the anim lookups 0x50b450 (92).
   during the frames. The three-mission test checks mechs_alive() == 0
   after each cleanup (BREAK: the zEntity deletes off fails it); ASan clean.
 - Next (mac 1): mech.h's Pilot vs pilot.h's Pilot (ODR): rename after item 2.
+- mech.h's `struct Pilot` (the mech type's data, +0x684) renamed MechData:
+  pilot.h's career `class Pilot` shared the name in mech3 (an ODR clash;
+  mac 1). The exe names only the file (mech_data.cpp). zai_steps' is
+  mech3::ai::Pilot, untouched; mech_hud.h's forward declaration was the
+  mech type's and is MechData now.

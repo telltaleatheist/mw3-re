@@ -102,8 +102,8 @@ void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
 
 void MechBuildHooks::controls_set_owner(MechControls* c, Mech& m) { c->owner = &m; }
 
-MechAnim* MechBuildHooks::gait_copy(Pilot& p, int32_t i) { return mech3::gait_copy(p, i); }
-MechAction* MechBuildHooks::action_copy(Pilot& p, int32_t i) { return mech3::action_copy(p, i); }
+MechAnim* MechBuildHooks::gait_copy(MechData& p, int32_t i) { return mech3::gait_copy(p, i); }
+MechAction* MechBuildHooks::action_copy(MechData& p, int32_t i) { return mech3::action_copy(p, i); }
 MechAnim* MechBuildHooks::make_blend(MechAnim* a, MechAnim* b) { return mech3::make_blend(a, b); }
 void MechBuildHooks::part_setup(MechPart& p) { p.setup(); }
 void MechBuildHooks::part_init(MechPart& p, Config* cfg) { p.init(cfg); }
@@ -126,7 +126,7 @@ void MechBuildHooks::weapons_select(WeaponManager* wm, int32_t group) { wm->sele
 // configuration's index (the first configuration when that one is missing).
 Mech* mech_create(int32_t index, MechControls* ctl, int32_t config, const char* name) {
   if (!ctl) return nullptr;
-  Pilot* data = g_hooks->mech_data(index, 1);
+  MechData* data = g_hooks->mech_data(index, 1);
   if (!data) return nullptr;
   Config* cfg = mech_data_config(*data, config);
   if (!cfg) cfg = mech_data_config(*data, 0);
@@ -139,7 +139,7 @@ int32_t g_alive = 0;  // ours: the mechs made and not yet deleted
 }  // namespace
 int32_t mechs_alive() { return g_alive; }
 
-Mech* mech_new(Pilot* data, MechControls* ctl, Config* cfg, const char* name) {
+Mech* mech_new(MechData* data, MechControls* ctl, Config* cfg, const char* name) {
   if (!cfg || !data || !ctl) return nullptr;
   Mech* m = made(0x6d8, new Mech());
   ++g_alive;
@@ -260,7 +260,7 @@ void collider_init(Mech& m) {
 
 // Mech3.exe 1.2 @ 0x004149f0. `data` is the mech type (+0x684), `cfg` its
 // loadout, `name` the entity's (null: <mech><nn>).
-void mech_construct(Mech& m, Pilot* data, MechControls* ctl, Config* cfg, const char* name) {
+void mech_construct(Mech& m, MechData* data, MechControls* ctl, Config* cfg, const char* name) {
   MechBuildHooks& h = *g_hooks;
   vehicle_base(m);
   m.power_down_pending = m.heat_shutdown = m.powered_down = false;
@@ -537,7 +537,7 @@ void MechBuildHooks::set_command_callback(int32_t cmd) { zin::set_callback(cmd, 
 
 // Mech3.exe 1.2 @ 0x00430c60: a copy of the model's first child, and the
 // skins' decal state for it (when the definition has skins).
-Handle mech_data_model(Pilot& p, Handle* decals) {
+Handle mech_data_model(MechData& p, Handle* decals) {
   MechBuildHooks& h = *g_hooks;
   *decals = nullptr;
   const Handle node = h.node_clone(h.node_child(p.model, 0));
@@ -547,7 +547,7 @@ Handle mech_data_model(Pilot& p, Handle* decals) {
 }
 
 // Mech3.exe 1.2 @ 0x00430c20: a copy of model i's grandchild (i = 1: the low-detail model).
-Handle mech_data_lod(Pilot& p, int32_t i) {
+Handle mech_data_lod(MechData& p, int32_t i) {
   MechBuildHooks& h = *g_hooks;
   Handle n = p.models[i];
   n = n ? h.node_child(h.node_child(n, 0), 0) : nullptr;
@@ -555,7 +555,7 @@ Handle mech_data_lod(Pilot& p, int32_t i) {
 }
 
 // Mech3.exe 1.2 @ 0x00432950
-Config* mech_data_config(Pilot& p, int32_t i) {
+Config* mech_data_config(MechData& p, int32_t i) {
   const ConfigList* cl = g_hooks->dfn(p.roster)->configs;  // 0x00432940
   const uint32_t n = static_cast<uint32_t>(cl->configs.size());
   return static_cast<uint32_t>(i) < n && i >= 0 ? cl->configs[i] : nullptr;

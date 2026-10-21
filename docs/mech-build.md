@@ -324,7 +324,7 @@ the structure table one row off.
 
 ## 14. The mech types' data (mech_data.cpp, ported 2026-10-20)
 
-One 0x234-byte object per mech type (`Pilot`, mech.h), in a cache
+One 0x234-byte object per mech type (`MechData`, mech.h), in a cache
 (0x00605704, a `std::list`, count 0x00605708):
 
 - **0x00430d10 (ECX roster, EDX create)**: the cached type, else with

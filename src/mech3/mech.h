@@ -35,7 +35,7 @@ enum : uint32_t {
 // mech_data.cpp, docs/mech-build.md section 14): its models, sounds,
 // animations and the effects its parts and death use (docs/damage.md). One
 // per type, cached and shared by every mech of it.
-struct Pilot {
+struct MechData {
   float range_sq[2] = {};        // +0x000  the definition's +0x14c and +0x150, squared
   int32_t refs = 0;              // +0x008  the mechs (and lookups) holding it
   int32_t roster = 0;            // +0x00c  index in the mech roster; 7 is the Elemental
@@ -183,7 +183,7 @@ struct Mech : ai::AiTarget {
   Handle attacker = nullptr;  // +0x664  the last to hit it
   std::list<Handle> x678;    // +0x678, count +0x67c (an empty list)
   uint32_t x680 = 0;         // +0x680
-  Pilot* pilot = nullptr;    // +0x684
+  MechData* pilot = nullptr;    // +0x684
   Handle x68c = nullptr;     // +0x68c  updated last each frame (0x004e6480)
   uint32_t detail;           // +0x688  level-of-detail bits by distance (docs/movement.md): 0 sounds, 1 toes, 2 turn pivot, 3 landing effects, 4 full gait, 5 lean
   uint32_t x690 = 0;         // +0x690

@@ -8,7 +8,7 @@
 
 // The HUD (docs/hud.md). File unknown: the code between mech3\mech_data.cpp
 // and mech3\mech_map.cpp (0x0043a7c0..0x00448880); named after what it is.
-// One HUD per mech type (Pilot +0x224), a zTwoD Layer holding its pieces;
+// One HUD per mech type (MechData +0x224), a zTwoD Layer holding its pieces;
 // each piece is built here on the ported zTwoD classes. The comments give
 // each member's offset in the original's 0x22e40-byte object.
 namespace mech3 {

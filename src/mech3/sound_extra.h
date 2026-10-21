@@ -44,8 +44,8 @@ zsnd::VoiceBase* sound_extra_play(SoundExtra& r, zsnd::Object* obj, float volume
                                   const float* vel, float fade_to);  // 0x004e6cd0 ECX record
 zsnd::VoiceBase* sound_play(zsnd::Object* obj, const float* pos, float volume, const float* vel,
                             float fade_to);                           // 0x004e6d80 ECX object, EDX pos
-// A mech type's sound by slot (`sounds` is mech.h's Pilot::sounds,
-// mech_data.cpp; pilot.h's career Pilot shares the name, so it is not
+// A mech type's sound by slot (`sounds` is mech.h's MechData::sounds,
+// mech_data.cpp; pilot.h's career MechData shares the name, so it is not
 // named here): no fade (0x00432990 on +0x684: the fifth argument is ignored).
 zsnd::VoiceBase* pilot_sound(void* const* sounds, int32_t id, float volume, const float* pos, const float* vel);
 

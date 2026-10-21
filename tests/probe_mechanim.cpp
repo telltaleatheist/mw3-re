@@ -18,7 +18,7 @@ using namespace mech3;
 
 namespace {
 std::vector<MechAnim*> g_objs;
-Pilot* g_pilot = nullptr;
+MechData* g_pilot = nullptr;
 
 void put(std::vector<uint8_t>& b, const void* p, size_t n) {
   const auto* c = static_cast<const uint8_t*>(p);
@@ -167,7 +167,7 @@ int probe_mdata_load(const char* path, long offset, int roster, const char* name
   static zrdr::Node roots[19];
   static mech3::MechDfn* dfns[19] = {};
   static std::vector<int32_t> events;
-  static Pilot pilots[19];
+  static MechData pilots[19];
   events.clear();
   if (!dfns[roster]) {
     std::FILE* f = std::fopen(path, "rb");
@@ -180,14 +180,14 @@ int probe_mdata_load(const char* path, long offset, int roster, const char* name
   }
   static mech3::MechDfn* cur;
   cur = dfns[roster];
-  mech_data_calls().dfn = [](Pilot&) -> const mech3::MechDfn* { return cur; };
-  mech_data_calls().canned = [](Pilot&, zrdr::Node*, int i) {
+  mech_data_calls().dfn = [](MechData&) -> const mech3::MechDfn* { return cur; };
+  mech_data_calls().canned = [](MechData&, zrdr::Node*, int i) {
     events.push_back(1), events.push_back(i);
     return true;
   };
   zerr::set_sink([](int, const char*, int line, const char*) { events.push_back(2), events.push_back(line); });
-  Pilot& p = pilots[roster];
-  p = Pilot{};
+  MechData& p = pilots[roster];
+  p = MechData{};
   p.roster = roster;
   p.name = name;
   p.limp_speed = limp;

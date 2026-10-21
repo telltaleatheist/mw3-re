@@ -74,7 +74,7 @@ struct Contact {
 struct State {
   Mech m;
   MechControls c;
-  Pilot pilot;
+  MechData pilot;
   Skis skis;
   LTorso torso;
   LHead head;
@@ -83,7 +83,7 @@ struct State {
   Foot feet[2];
   Vec3 foot_pos;
   Mech others[2];
-  Pilot other_pilot[2];
+  MechData other_pilot[2];
   LTorso other_torso[2];
   int32_t other_remote[2] = {};
   Node nodes[12];
@@ -350,7 +350,7 @@ extern "C" {
 int32_t probe_collider_setup(uint8_t* mech, int32_t roster, float half, float, const float* foot, const float* box) {
   static Mech m;
   static Skis skis;
-  static Pilot pilot;
+  static MechData pilot;
   static Leg leg;
   static Foot ft;
   static Vec3 fpos;

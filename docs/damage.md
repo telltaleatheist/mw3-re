@@ -655,7 +655,7 @@ above) and `src/mech3/mech_damage.cpp` (the Mech's side: `take_damage`,
 `die`, `on_part_destroyed`, `destroy_part`, `start_limp`, `fall`,
 `knocked_down`, `set_max_speed`, `scale_knockdown`, `mark_narc`,
 `note_hit`, `aim_at_last_hit`, `death_prep`). The Mech struct grew the fields these use (`mech.h`); the
-pilot side (+0x684) is `Pilot`. Calls into unported code (nodes, effects,
+pilot side (+0x684) is `MechData`. Calls into unported code (nodes, effects,
 weapons, HUD, sounds, statistics, network, animation) go through
 `DamageCalls`; the heat code's torso destruction now calls the port when no
 hook is set.

@@ -66,7 +66,7 @@ struct LogHip : Hip {
 struct State {
   Mech m;
   MechControls c;
-  Pilot pilot;
+  MechData pilot;
   Skis skis;
   LogPart torso;
   LogHip hip;
@@ -162,7 +162,7 @@ void probe_update(uint8_t* mech, uint8_t* ctl, uint8_t* torso, uint32_t torso_ad
   controls_io(g->c, ctl, false);
   m.controls = &g->c;
   g->c.owner = &m;
-  g->pilot = Pilot{};
+  g->pilot = MechData{};
   g->pilot.roster = roster;
   m.pilot = &g->pilot;
   g->skis = Skis{};

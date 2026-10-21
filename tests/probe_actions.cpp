@@ -60,7 +60,7 @@ struct TestAction : MechAction {
 struct State {
   Mech m;
   MechControls c;
-  Pilot pilot;
+  MechData pilot;
   LogLeg legs[2];
   Foot feet[2];
   Head head;

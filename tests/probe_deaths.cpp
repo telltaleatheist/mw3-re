@@ -52,7 +52,7 @@ struct Hooks : MechDataHooks {
   void node_free(Handle node) override { u32(4), u32(u(node)); }
 } g_hooks;
 
-Pilot g_pilot;
+MechData g_pilot;
 }  // namespace
 
 extern "C" {
@@ -75,7 +75,7 @@ int probe_effect_ended(int32_t has_node, int32_t id, const uint32_t* handles, ui
 
 // The pilot's canned slots: per slot effect, ofs[3] (float bits), node.
 void probe_canned_setup(const uint32_t* slots) {
-  g_pilot = Pilot{};
+  g_pilot = MechData{};
   for (int i = 0; i < 5; ++i) {
     const uint32_t* s = slots + 5 * i;
     g_pilot.canned[i].effect = h(s[0]);
@@ -193,7 +193,7 @@ int probe_on_kill(int32_t roster, uint32_t allies, int32_t xf8, const uint32_t* 
                   uint32_t player_team, int32_t game, uint32_t info, int32_t has_mech, int32_t victim_roster,
                   uint32_t vehicle, uint32_t building, uint8_t* out, int cap) {
   g_out.clear();
-  Pilot kp, pp, vp;
+  MechData kp, pp, vp;
   kp.roster = roster, vp.roster = victim_roster;
   Mech k, p, v;
   k.pilot = &kp, k.allies = allies, k.xf8 = xf8;
@@ -259,7 +259,7 @@ int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t st
               uint8_t* out, int cap) {
   g_out.clear();
   s_world = world_m, s_copy = copy, s_create = create;
-  Pilot p;
+  MechData p;
   p.roster = roster, p.name = "owens";
   p.x210 = stubs ? h(0x710) : nullptr;
   for (int i = 0; i < 4; ++i) p.stubs[i] = stubs ? h(0x700 + i) : nullptr;

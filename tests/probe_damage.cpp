@@ -37,7 +37,7 @@ struct Script {
 struct State {
   Mech mech;
   Mech other;  // the player when it is not this mech
-  Pilot pilot;
+  MechData pilot;
   int32_t x228[2] = {};
   std::unique_ptr<MechPart> parts[kParts];
   bool freed[kParts] = {};
@@ -309,7 +309,7 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
     g->nodes[i] = g->parts[i]->node;
   }
   // pilot: roster, effects [6][3], death[4], cockpit explosion (+0x200), water, x228 present, x228[1]
-  Pilot& p = g->pilot;
+  MechData& p = g->pilot;
   p.roster = pilot[0];
   for (int i = 0; i < 18; ++i) p.part_effects[i / 3][i % 3] = h(static_cast<uint32_t>(pilot[1 + i]));
   for (int i = 0; i < 4; ++i) p.death_effects[i] = h(static_cast<uint32_t>(pilot[19 + i]));

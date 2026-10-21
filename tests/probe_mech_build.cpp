@@ -75,7 +75,7 @@ T* obj_at(uint32_t a) {
 uint32_t g_missions = 0, g_pilot = 0, g_view = 0, g_interp = 0, g_rec = 0;
 uint8_t g_record[0xd0];
 bool g_have_record = false;
-std::vector<std::unique_ptr<m3::Pilot>> g_pilots;
+std::vector<std::unique_ptr<m3::MechData>> g_pilots;
 std::vector<std::unique_ptr<int32_t[]>> g_blocks;
 std::vector<std::unique_ptr<m3::AiControls>> g_ctls;
 std::map<const m3::MechControls*, uint32_t> g_ictl;  // a fake controller's IControls base
@@ -104,8 +104,8 @@ struct Hooks : m3::MechBuildHooks {
   }
   void on_calloc(uint32_t n, uint32_t size, const void* p) override { bind(p, call("calloc", {n, size})); }
   Handle alloc(uint32_t size) override { return hd(call("new", {size})); }
-  m3::Pilot* mech_data(int32_t index, int32_t create) override {
-    return obj_at<m3::Pilot>(call("0x00430d10", {index, create}));
+  m3::MechData* mech_data(int32_t index, int32_t create) override {
+    return obj_at<m3::MechData>(call("0x00430d10", {index, create}));
   }
   const m3::MechDfn* dfn(int32_t roster) override { return obj_at<m3::MechDfn>(call("0x004846a0", {roster})); }
   int32_t node_box(Handle node, float box[6]) override {
@@ -154,10 +154,10 @@ struct Hooks : m3::MechBuildHooks {
     auto it = g_ictl.find(c);
     return it != g_ictl.end() ? it->second : addr_of(c) + 0x14c;
   }
-  m3::MechAnim* gait_copy(m3::Pilot& p, int32_t i) override {
+  m3::MechAnim* gait_copy(m3::MechData& p, int32_t i) override {
     return obj_at<m3::MechAnim>(call("0x00431fb0", {addr_of(&p), i}));
   }
-  m3::MechAction* action_copy(m3::Pilot& p, int32_t i) override {
+  m3::MechAction* action_copy(m3::MechData& p, int32_t i) override {
     return obj_at<m3::MechAction>(call("0x00432030", {addr_of(&p), i}));
   }
   m3::MechAnim* make_blend(m3::MechAnim* a, m3::MechAnim* b) override {
@@ -685,7 +685,7 @@ void* probe_mb_dfn_skins(int roster, void* skins) {
 // the cockpit block (x228 at `block`, its [1] the node) or none.
 void probe_mb_pilot(uint32_t addr, int roster, uint32_t model, uint32_t lod0, uint32_t lod1, uint32_t block,
                     uint32_t cockpit_node, uint32_t name_addr) {
-  auto p = std::make_unique<m3::Pilot>();
+  auto p = std::make_unique<m3::MechData>();
   p->roster = roster;
   p->name = cstr(name_addr);
   p->model = hd(model);

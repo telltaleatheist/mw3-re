@@ -38,7 +38,7 @@ class MechBuildHooks : public zgame::Unported {
   virtual Handle alloc(uint32_t size) { return h(unported("new", {size})); }
 
   // The mech data (mech_data.cpp) and definitions (mech_reader.cpp).
-  virtual Pilot* mech_data(int32_t index, int32_t create) {
+  virtual MechData* mech_data(int32_t index, int32_t create) {
     unported("0x00430d10", {index, create});
     return nullptr;
   }
@@ -106,8 +106,8 @@ class MechBuildHooks : public zgame::Unported {
   virtual uint8_t skins_apply(Handle skins, Mech& m, Handle skin) {
     return static_cast<uint8_t>(unported("0x004757f0", {ref(skins), ref(&m), ref(skin)}));
   }
-  virtual MechAnim* gait_copy(Pilot& p, int32_t i);       // 0x00431fb0
-  virtual MechAction* action_copy(Pilot& p, int32_t i);   // 0x00432030
+  virtual MechAnim* gait_copy(MechData& p, int32_t i);       // 0x00431fb0
+  virtual MechAction* action_copy(MechData& p, int32_t i);   // 0x00432030
   virtual MechAnim* make_blend(MechAnim* a, MechAnim* b); // 0x0041ff30
 
   // Ported code the build calls (the defaults run it).
@@ -155,10 +155,10 @@ struct MechBuildState {
 MechBuildState& mech_build_state();
 
 Mech* mech_create(int32_t index, MechControls* ctl, int32_t config, const char* name);  // 0x00414150
-Mech* mech_new(Pilot* data, MechControls* ctl, Config* cfg, const char* name);        // 0x004140c0
+Mech* mech_new(MechData* data, MechControls* ctl, Config* cfg, const char* name);        // 0x004140c0
 int32_t mechs_alive();      // ours, for the tests: mech_new's not yet deleted
 void mech_delete(Mech* m);  // vtable +0 with 1 (0x00414f20): release, then the delete
-void mech_construct(Mech& m, Pilot* data, MechControls* ctl, Config* cfg, const char* name);  // 0x004149f0
+void mech_construct(Mech& m, MechData* data, MechControls* ctl, Config* cfg, const char* name);  // 0x004149f0
 bool mech_model(Mech& m, const char* name);   // 0x00415b00
 bool mech_parts(Mech& m);                     // 0x00415e40
 void mech_motions(Mech& m);                   // 0x00415ca0
@@ -168,9 +168,9 @@ void mech_control_mode(Mech& m, uint32_t mode);  // 0x0041cf30
 void mech_firepoints(const MechDfn& dfn, Mech& m);  // 0x0046cb80 (mech_reader.cpp)
 
 // The mech data's model copies (mech_data.cpp).
-Handle mech_data_model(Pilot& p, Handle* decals);   // 0x00430c60
-Handle mech_data_lod(Pilot& p, int32_t i);      // 0x00430c20
-Config* mech_data_config(Pilot& p, int32_t i);      // 0x00432950 (0x00432940: the definition's configurations)
+Handle mech_data_model(MechData& p, Handle* decals);   // 0x00430c60
+Handle mech_data_lod(MechData& p, int32_t i);      // 0x00430c20
+Config* mech_data_config(MechData& p, int32_t i);      // 0x00432950 (0x00432940: the definition's configurations)
 
 // The parts' constructors (mech_parts.cpp).
 void part_construct(MechPart& p, Mech& m, const PartSlot& slot);  // 0x0045fbe0

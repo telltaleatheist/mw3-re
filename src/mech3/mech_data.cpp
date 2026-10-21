@@ -27,12 +27,12 @@ constexpr uint32_t kActionFrames = 20;  // 0x14, passed and unused (0x00421120)
 
 MechDataHooks g_default_hooks;
 MechDataHooks* g_hooks = &g_default_hooks;
-std::list<Pilot*> g_cache;  // 0x00605704, count 0x00605708
+std::list<MechData*> g_cache;  // 0x00605704, count 0x00605708
 std::list<Handle> g_canned_nodes;  // 0x00605714, count 0x00605718: canned_effect's node copies
 
-const MechDfn* dfn_of(Pilot& p) { return g_calls.dfn ? g_calls.dfn(p) : g_hooks->dfn(p.roster); }
+const MechDfn* dfn_of(MechData& p) { return g_calls.dfn ? g_calls.dfn(p) : g_hooks->dfn(p.roster); }
 
-const Config* first_config(Pilot& p) {
+const Config* first_config(MechData& p) {
   const MechDfn* d = dfn_of(p);
   if (!d || !d->configs || d->configs->configs.empty()) return nullptr;  // 0x00432950(0): 0, then a crash
   return d->configs->configs.front();
@@ -67,7 +67,7 @@ void MechDataHooks::node_free(Handle h) {
 }
 Handle MechDataHooks::sound_find(const char* name) { return hh(zsnd::find(name)); }
 Handle MechDataHooks::node_named(int32_t list, const char* name) { return hh(zcls::list_find_by_name(list, name)); }
-void MechDataHooks::animations(Pilot& p) { load_animations(p); }
+void MechDataHooks::animations(MechData& p) { load_animations(p); }
 Handle MechDataHooks::reader_find(Handle node, const char* key) {
   return hh(zrdr::find(static_cast<zrdr::Node*>(node), key));
 }
@@ -81,13 +81,13 @@ const char* MechDataHooks::reader_value(Handle node) { return static_cast<zrdr::
 
 void set_mech_data_hooks(MechDataHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 MechDataHooks& mech_data_hooks() { return *g_hooks; }
-std::list<Pilot*>& mech_data_cache() { return g_cache; }
+std::list<MechData*>& mech_data_cache() { return g_cache; }
 
 // Mech3.exe 1.2 @ 0x00430490. The gaits' default throttle bounds (stand 0 to
 // 0.01, step to 0.04, walk 0.02 to 0.45, trot 0.41 to 0.85, run 0.75 to 1)
 // and the limps' stride speed 13.
-void mech_data_init(Pilot& p) {
-  p = Pilot{};
+void mech_data_init(MechData& p) {
+  p = MechData{};
   p.roster = -1;
   p.trans[2][1] = 0.01f;   // 0x3c23d70a
   p.trans[3][1] = 0.04f;   // 0x3d23d70a
@@ -97,8 +97,8 @@ void mech_data_init(Pilot& p) {
 }
 
 // Mech3.exe 1.2 @ 0x004303d0
-Pilot* mech_data_new(int32_t roster) {
-  auto* p = new Pilot;
+MechData* mech_data_new(int32_t roster) {
+  auto* p = new MechData;
   g_hooks->on_new(0x234, p);
   mech_data_init(*p);
   p->roster = roster;
@@ -111,9 +111,9 @@ Pilot* mech_data_new(int32_t roster) {
 
 // Mech3.exe 1.2 @ 0x00430d10. The exe also builds and destroys an empty one
 // on the stack around the lookup, which leaves no trace.
-Pilot* mech_data(int32_t roster, int32_t create) {
-  Pilot* p = nullptr;
-  for (Pilot* c : g_cache)
+MechData* mech_data(int32_t roster, int32_t create) {
+  MechData* p = nullptr;
+  for (MechData* c : g_cache)
     if (c->roster == roster) {
       p = c;
       break;
@@ -125,7 +125,7 @@ Pilot* mech_data(int32_t roster, int32_t create) {
 
 // Mech3.exe 1.2 @ 0x00430840: the definition's two ranges (+0x14c, +0x150)
 // squared (times [0x005e2928] = 1).
-void load_ranges(Pilot& p) {
+void load_ranges(MechData& p) {
   const MechDfn* d = g_hooks->dfn(p.roster);
   if (!d) return;
   const float a = d->get<float>(0x14c) * 1.0f, b = d->get<float>(0x150) * 1.0f;
@@ -146,7 +146,7 @@ const int kSoundOrder[24] = {0, 1, 2, 7, 8, 4, 9, 11, 12, 10, 16, 17, 14, 3, 15,
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x004306d0. Slot 24 is the mech's own, mech_<name>.
-void load_sounds(Pilot& p) {
+void load_sounds(MechData& p) {
   for (int k : kSoundOrder) p.sounds[k] = g_hooks->sound_find(kSounds[k]);
   char name[64];
   std::snprintf(name, sizeof name, "mech_%s", p.name);
@@ -155,7 +155,7 @@ void load_sounds(Pilot& p) {
 
 // Mech3.exe 1.2 @ 0x004320b0. Instant action and multiplayer use their own
 // ("m") disable and destroy effects, except for the Elemental.
-void load_effects(Pilot& p) {
+void load_effects(MechData& p) {
   const bool m = (g_hooks->game_multiplayer() != 0 || g_hooks->game_instant_action() != 0) && p.roster != 7;
   char name[96];
   auto find = [&](const char* fmt) {
@@ -194,8 +194,8 @@ const char* soil_name(int32_t i) {
 // Mech3.exe 1.2 @ 0x00432670 with the constructor 0x004326d0: by soil, the
 // step sound and footprint named <name><Soil> (the soil capitalised), the
 // missing ones soil<Soil>; grass prints at 0.9.
-void load_soils(Pilot& p) {
-  auto* s = new Pilot::Soils;
+void load_soils(MechData& p) {
+  auto* s = new MechData::Soils;
   g_hooks->on_new(0xb0, s);
   for (int i = 0; i < 11; ++i) {
     char soil[16];
@@ -217,11 +217,11 @@ void load_soils(Pilot& p) {
 
 // Mech3.exe 1.2 @ 0x00431750 with the names of 0x004317d0: the effect named
 // first in the block, its offset ("ofs"), and the node ("node") on list 6.
-bool load_canned(Pilot& p, Handle canned, int i) {
+bool load_canned(MechData& p, Handle canned, int i) {
   const char* const names[3] = {"eject", "jumpjets", "narc"};
   Handle n = g_hooks->reader_find(canned, i >= 0 && i < 3 ? names[i] : "unknown");
   if (!n) return false;
-  Pilot::Canned& c = p.canned[i];
+  MechData::Canned& c = p.canned[i];
   c.effect = g_hooks->anim_find(g_hooks->reader_value(n));
   g_hooks->reader_vec3(n, "ofs", c.offset);
   if (const char* node = g_hooks->reader_string(n, "node")) c.node = g_hooks->node_named(6, node);
@@ -230,7 +230,7 @@ bool load_canned(Pilot& p, Handle canned, int i) {
 
 // Mech3.exe 1.2 @ 0x00430580 and the delete: off the cache, then what it
 // owns. The block at +0x228 is 0x00430ad0's (not ported) and stays.
-void mech_data_free(Pilot* p) {
+void mech_data_free(MechData* p) {
   if (!p) return;
   g_cache.remove(p);
   if (p->hud) g_hooks->hud_free(p->hud);
@@ -249,9 +249,9 @@ void mech_data_clear() {
 
 // Mech3.exe 1.2 @ 0x00432830. The offset is in the world's axes, not the
 // node's: the eject seat starts the same way whichever way the mech faces.
-Handle canned_effect(Pilot& p, int32_t slot, Handle node, const float* at, const float* vel) {
+Handle canned_effect(MechData& p, int32_t slot, Handle node, const float* at, const float* vel) {
   static const float kZero[3] = {};  // 0x0063d870
-  const Pilot::Canned& c = p.canned[slot];
+  const MechData::Canned& c = p.canned[slot];
   const float* a = at ? at : kZero;
   const float* v = vel ? vel : kZero;
   const float pos[3] = {c.offset[0] + a[0], c.offset[1] + a[1], c.offset[2] + a[2]};
@@ -283,7 +283,7 @@ void canned_nodes_free() {
 // sounds and effects. The soils are made again, the canned effects read
 // from the definition's "animations" block (its "canned").
 void mech_data_refresh() {
-  for (Pilot* p : g_cache) {
+  for (MechData* p : g_cache) {
     delete p->soils;
     p->soils = nullptr;
     const MechDfn* d = g_hooks->dfn(p->roster);
@@ -300,7 +300,7 @@ void mech_data_refresh() {
 // Mech3.exe 1.2 @ 0x004308a0. Both mechlib trees (the intersection flag set
 // on each), the definition; then each step in turn while +0x20 holds. The
 // soils load whatever happened; a failure shows the error box with no name.
-bool mech_data_load(Pilot& p) {
+bool mech_data_load(MechData& p) {
   p.x20 = 0;
   for (int v = 0; v < 2; ++v) {
     p.models[v] = g_hooks->mech_model(p.roster, v);
@@ -360,7 +360,7 @@ float engine_speed(int32_t engine, float mass) {
   return rating / mass * 1.5f * 10.8f * 0.2778f;  // 0x005bec10, 0x005bec04
 }
 
-float config_speed(Pilot& p, bool roster_mass) {
+float config_speed(MechData& p, bool roster_mass) {
   const Config* c = first_config(p);
   if (!c) return 0.0f;
   return engine_speed(c->engine, max_mass(roster_mass ? p.roster : c->mech));
@@ -370,7 +370,7 @@ float config_speed(Pilot& p, bool roster_mass) {
 // gait's block names one ("anim"); "trans" replaces the throttle bounds.
 // Stand and step keep no hip velocity; the limps run at their own stride
 // speed, the right one the left mirrored.
-bool load_gait(Pilot& p, zrdr::Node* motion, int i) {
+bool load_gait(MechData& p, zrdr::Node* motion, int i) {
   float pair[2] = {p.trans[i][0], p.trans[i][1]};
   const char* g = gait_name(i);
   zrdr::Node* n = zrdr::find(motion, g);
@@ -395,7 +395,7 @@ bool load_gait(Pilot& p, zrdr::Node* motion, int i) {
 // Mech3.exe 1.2 @ 0x004315d0. The one-shots run at 20 frames a second; the
 // collapses at 15, the left one the right mirrored, and a mech without a
 // collapse falls backwards (fallb at 20) instead.
-bool load_action_motion(Pilot& p, int i) {
+bool load_action_motion(MechData& p, int i) {
   float fps = 20.0f;
   char name[128];
   std::snprintf(name, sizeof name, "%s_%s", p.name, action_name(i == 7 ? 8 : i));
@@ -419,7 +419,7 @@ bool load_action_motion(Pilot& p, int i) {
 // and walk.lo forced, a report where a gait's bounds do not overlap the
 // next's, the footfalls, and the step turned so its left footfall falls on
 // the walk's key; then the one-shots.
-void load_animations(Pilot& p) {
+void load_animations(MechData& p) {
   const MechDfn* d = dfn_of(p);
   zrdr::Node* anims = zrdr::find(d ? d->reader : nullptr, "animations");
   zrdr::Node* canned = zrdr::find(anims, "canned");
@@ -461,7 +461,7 @@ void load_animations(Pilot& p) {
 }
 
 // Mech3.exe 1.2 @ 0x00431fb0
-MechAnim* gait_copy(const Pilot& p, int i) {
+MechAnim* gait_copy(const MechData& p, int i) {
   if (!p.anims[i]) return nullptr;
   auto* a = new MechAnim;
   a->copy_from(*p.anims[i]);
@@ -469,7 +469,7 @@ MechAnim* gait_copy(const Pilot& p, int i) {
 }
 
 // Mech3.exe 1.2 @ 0x00432030 (0x00420e60)
-MechAction* action_copy(const Pilot& p, int i) {
+MechAction* action_copy(const MechData& p, int i) {
   if (!p.actions[i]) return nullptr;
   auto* a = new MechAction;
   a->copy_from(*p.actions[i]);
@@ -478,7 +478,7 @@ MechAction* action_copy(const Pilot& p, int i) {
 }
 
 // Mech3.exe 1.2 @ 0x004329c0
-void scale_gaits(Pilot& p, float gait[13][2], float max_speed) {
+void scale_gaits(MechData& p, float gait[13][2], float max_speed) {
   const float k = config_speed(p, true) / max_speed;
   for (int i = 0; i < 13; ++i) {
     gait[i][0] = k * p.trans[i][0];

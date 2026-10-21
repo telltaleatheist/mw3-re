@@ -74,11 +74,11 @@ class WiredData : public MechDataHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
-  Handle cameras(Pilot& p) override { return program_cameras(p.roster); }      // 0x00430e70
+  Handle cameras(MechData& p) override { return program_cameras(p.roster); }      // 0x00430e70
   void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
   Handle anim_find(const char* name) override { return zeff::anim_find(name); }  // 0x0050b450, the mission's
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
-  void animations(Pilot& p) override {
+  void animations(MechData& p) override {
     if (open_motions("zbd/motion.zbd")) load_animations(p);
   }
 };
@@ -91,7 +91,7 @@ class WiredBuild : public MechBuildHooks {
   // 0x005833b0(mech, node, 1, 0x004161a0): hits on the mech's node go to
   // Mech::TakeDamage (app_weapons.cpp).
   void touch_handler(Mech& m, Handle) override { mech_set_damage_handler(&m); }
-  Pilot* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
+  MechData* mech_data(int32_t index, int32_t create) override { return mech3::mech_data(index, create); }
   Handle node_find(Handle root, const char* name) override { return zcls::node_find_in_tree(zn(root), name); }
   // Each mech its own tree: the models and their materials copied.
   Handle node_clone(Handle node) override { return zcls::tree_copy(zn(node), 1, 1); }
