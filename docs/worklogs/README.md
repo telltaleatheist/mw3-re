@@ -46,5 +46,7 @@ compaction by reading it.
 - Commit on your branch and never push or merge to main. Report to "mw3 mac
   1" with SendMessage: the commits, what is ported (by address), the test
   results, the findings, the fixes and what is left. Keep the report short.
+- Owen compacts each specialist after every major feature (`/compact`), so
+  keep the log current enough to pick up from it alone.
 - After reporting, append a few lines to your log (the item, its commits,
   and what you would need to remember), then wait for the next item.
