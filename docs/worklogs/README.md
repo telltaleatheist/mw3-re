@@ -33,6 +33,9 @@ compaction by reading it.
     processes can hang at exit on this Mac, in a state nothing can kill.
     Run long tests in the background with their output going to a file in
     `scratch/`, then read the file, so a hang never blocks the session.
+  - After two failed attempts at the same fix or mismatch, stop retrying:
+    go back to the assembly and the callers and work out what is really
+    happening before the third try.
 - Never kill processes by name (`pkill -f mw3tests` and the like): the
   other sessions run the same programs. Kill only a pid you started.
 - A `CHANGES.md` line goes under its heading (bug fixes that change play,
