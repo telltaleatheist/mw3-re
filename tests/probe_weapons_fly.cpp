@@ -113,8 +113,8 @@ void tick_cb(Projectile* p) { call(51, {ptok(p)}); }
 // The handler tables the port made (to dump them), and two touch handlers.
 std::vector<zwep::NodeHandlers*> g_tables;
 HitRecord g_touch_rec;
-void touch_a(Handle obj, float dmg) { call(83, {1, u(obj), fb(dmg)}); }
-void touch_b(Handle obj, float dmg) { call(83, {2, u(obj), fb(dmg)}); }
+float touch_a(Handle obj, float dmg) { return call(83, {1, u(obj), fb(dmg)}), 0.0f; }
+float touch_b(Handle obj, float dmg) { return call(83, {2, u(obj), fb(dmg)}), 0.0f; }
 uint32_t damage_a(Handle, zwep::WeaponDef*, HitRecord*, float) { return 0; }
 int32_t fn_tok(void (*f)()) {
   if (!f) return 0;

@@ -24,7 +24,7 @@ void quicksand_words(const zwep::QuicksandOrder& o, uint32_t out[11]) {
   out[2] = material_word(o.cycle), out[3] = material_word(o.still), out[4] = o.x10;
   out[5] = bits(o.depth), out[6] = bits(o.radius);
   out[7] = bits(o.at.x), out[8] = bits(o.at.y), out[9] = bits(o.at.z);
-  out[10] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o.owner));
+  out[10] = 0;  // the shooter: order_words' FIX (A)
 }
 
 // Mech3.exe 1.2 @ 0x005025e0. With texture flags and no material of its

@@ -4,6 +4,7 @@
 // through InitInstance and the original main loop to the main menu's state.
 #include <cmath>
 #include <algorithm>
+#include <map>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -1337,6 +1338,14 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     EXPECT(seen.feet);
     EXPECT(seen.off_ground < 0.1f);  // 0.024 m at most on c1m1's shore
     EXPECT(std::fabs(seen.turned.yaw_sin - seen.walked.yaw_sin) > 0.05f);
+    // The feet's outside calls (PartCalls, docs/movement-ground.md): each
+    // plant plays the soil's step sound, on dry ground leaves a print, in
+    // the shallows starts the wake.
+    std::map<std::string, int> fx;
+    for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
+    EXPECT(fx["step"] > 20);
+    EXPECT(fx["print"] > 0 || fx["wake"] > 0);
+    EXPECT(fx["pilot"] > 0);  // the engine and walk loops (Mech::movement_sounds)
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1549,6 +1558,9 @@ TEST(mission_c1m1_unported_survey_headless) {
     std::vector<std::pair<uint32_t, std::string>> list;
     for (const auto& [k, n] : engine.unported_counts()) list.push_back({n, k});
     std::sort(list.rbegin(), list.rend());
+    std::map<std::string, int> parts;
+    for (const std::string& e : mech3::mech_parts_fx_log()) ++parts[e];
+    for (const auto& [k, n] : parts) std::printf("  parts %5d %s\n", n, k.c_str());
     std::printf("survey: %d core frames, %zu unported calls\n", frames, list.size());
     for (const auto& [n, k] : list) std::printf("  %8u %s\n", n, k.c_str());
     mech3::missions().cleanup(false);

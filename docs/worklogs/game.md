@@ -611,3 +611,52 @@ view's ground, the anim lookups 0x50b450 (92).
 - Side find: player.zrd's qsd_gravity (and wat_gravity) are written at
   0x49e8be..0x49e901 and never read: no gravity change in quicksand or
   water (craters.md section 3).
+
+## 2026-10-21 — c1m1 item 1: the mechs' outside calls (branch mac2/c1m1-survey)
+
+- Found: the mech code's call tables were mostly unwired in the game
+  (null calls skip silently, so the survey never showed them): PartCalls
+  entirely, MoveCalls, most of HeatCalls (the heat model's throttle was 0
+  in the game!), DamageCalls' effects, CollideCalls' touch.
+- Ported: the foot's wake (mech_wake: 0x0045f980 / 0x0045fa00 /
+  0x0045fa70 / 0x0045faf0 / 0x0045fb50 / 0x0045fb80 / 0x0045fab0; three
+  mech_leg_wake anims by |throttle| 0.2 / 0.5) and the sounds' EXTRA
+  records (sound_extra: 0x004e6b00, 0x004e6a60/0x004e6aa0, 0x004e6be0,
+  0x004e69a0, 0x004e6cd0, 0x004e6d80, 0x00432990), now zSound's load and
+  free callbacks (GameEngine::sound_load / sound_shutdown_groups).
+- Wired (app_mech wire_mech_parts): PartCalls (register_part = the part
+  list, wake, step sounds, prints, step_on = zwep::touch on a touchable
+  contact, look limits from the cockpit camera +0x68/+0x74/+0x70 (its
+  vt+0x1c 0x004d2a70 returns itself), aim from the weapons' +0x0c/+0x18,
+  ground_at = zcls::ground_point, sound); DamageCalls spawn_effect(_at),
+  node_set_active/name, stop_foot_effect; MoveCalls pilot_sound (at the
+  mech), fade_sound, stop_effect, weapons_enable; HeatCalls throttle,
+  play_sound(_at), stop_sound; CollideCalls node_touchable (handler > 1
+  with slot 1) and touch. zwep::TouchFn now returns the handler's float
+  (the health left: 0x004d26d0, 0x00502df0), as the collider reads it.
+- Find: the subtitle switch [0x0060b878] is never set: radio subtitles
+  never show (discoveries, fixes.md candidate). player.zrd's quicksand and
+  water gravities are never read.
+- Tests: the walk test now checks step sounds (>20), prints or wake, and
+  pilot sounds (engine loops); mw3tests 105/105. Not differential: the
+  wake and the records are small; the records' parsing runs on the real
+  sounds.zrd in every headless mission test.
+- Left from this table: the HUD's zoom flags (screen_flags, mac 3's HUD),
+  the jump jets' flames 0x00432830, force feedback, the death/damage
+  DamageCalls (death_prep, death_anim, ...), the fall cameras.
+- test_sound_extra.py (in run_all): the EXTRA load 0x4e6b00 on made-up
+  lists (reader nodes in emulator memory), the gated play 0x4e6cd0 (NaN
+  times and delays included, 0x571cc0 / 0x40fe50 stood in), the wake
+  0x45faf0 / 0x45fb50 (0x508da0 / 0x506ca0 / 0x4eb170 stood in): 1,200
+  identical, seeds 1/2; BREAK=1..3 fail. test_weapons_fly agrees after
+  TouchFn's change (287 sessions).
+- Part-7 review notes (mac 1): quicksand's shooter word 0; decals_free's
+  frames note; the touched set only ever holds ground nodes (crater nodes
+  are 0x0108001c | 0x8000 | 0x20000: kept clear, never cut), so a second
+  reset reads live nodes only: no fix.
+- Order revised: item 2 is the mechs' deaths and damage reactions (the
+  death fall Mech::death_fall 0x41b760, stop_action, blend_anim are ported
+  but unwired; death_prep 0x41d070, last_hit 0x41d130 not), more visible
+  than the surface marks, which become item 3 (they paint the hit
+  texture's pixels at the shot's UV: the renderer has to re-upload).
+

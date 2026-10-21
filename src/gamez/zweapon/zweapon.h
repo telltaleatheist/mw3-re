@@ -21,7 +21,7 @@ struct NodeHandlers {
 using DamageFn = uint32_t (*)(Handle object, WeaponDef* def, HitRecord* hit, float damage);
 // EDX is left holding the hit's point.z when the shot line is recorded, else
 // the record (0x005836b0): not an argument.
-using TouchFn = void (*)(Handle object, float damage);
+using TouchFn = float (*)(Handle object, float damage);  // the health left (0x004d26d0, 0x00502df0)
 
 // What a crater or a quicksand pit is made from (the crater module's
 // 0x004ffaa0 and 0x00502110 take them): the module's defaults (0x004ff920
@@ -163,7 +163,7 @@ Handle damage_object(Handle node, DamageFn* fn);
 // DESIGNATE's hold reached (in 0x005814b0); FIX (bug) in whole ms.
 bool designate_held(float timer, float hold);
 void handler_clear(Handle node, uintptr_t h);                                        // 0x00583440
-void touch(const Vec3f3* from, HitRecord* hit, float damage);                        // 0x005836b0
+float touch(const Vec3f3* from, HitRecord* hit, float damage);                       // 0x005836b0: the handler's result
 void quicksand(WeaponDef* def, HitRecord* hit, int32_t soil, Projectile* p);         // 0x005824b0
 inline void set_health_after(float h) { hit_state().health_after = h; }           // 0x00583730
 

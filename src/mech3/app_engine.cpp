@@ -2,6 +2,7 @@
 #include "mech3/message_panel.h"
 
 #include "gamez/zdeclient/zdec_crater.h"
+#include "mech3/sound_extra.h"
 #include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zeffect/zeff_init.h"
 #include "mech3/app_mech.h"
@@ -271,13 +272,14 @@ int32_t GameEngine::sound_init(uint32_t window) {
   return zsnd::init(window);
 }
 void GameEngine::sound_set_mode(int32_t v) { zsnd::set_archives(v); }
-// 0x004e6b00, the callback that gives each sound its zClass object, is not
-// ported: the sounds load without it.
+// 0x004e6b00: each sound's EXTRA record (its repeat delay and subtitle),
+// freed again by 0x004e6be0 when the groups shut down.
 void GameEngine::sound_load(uint32_t window, const char* name, uint32_t callback, uint32_t a) {
-  if (callback) unported("0x004e6b00", {});
-  zsnd::load(window, name, nullptr, static_cast<int32_t>(a));
+  zsnd::load(window, name, callback ? mech3::sound_extra_load : nullptr, static_cast<int32_t>(a));
 }
-void GameEngine::sound_shutdown_groups(uint32_t) { zsnd::close_device(nullptr); }
+void GameEngine::sound_shutdown_groups(uint32_t callback) {
+  zsnd::close_device(callback ? mech3::sound_extra_free : nullptr);
+}
 void GameEngine::sound_shutdown() { zsnd::shutdown(); }
 void GameEngine::light_init() { Engine::light_init(); }
 

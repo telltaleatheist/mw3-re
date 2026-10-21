@@ -325,6 +325,12 @@ From the gait, the controls, the ground probes, the jump jets and the falls
   the ground under your torso, or a splash when that ground's material is
   water; nothing when there is no ground within 50 m below.
 
+- **The radio has subtitles nobody can turn on.** `sounds.zrd` gives 40
+  radio lines (the lance mates' calls for help, the answers to your orders)
+  a subtitle message, and the sound code would print it in the message
+  panel, but the switch that allows it is never set anywhere in the game,
+  so they never appear.
+
 ## Weapons
 
 From the weapon code (weapons.md).

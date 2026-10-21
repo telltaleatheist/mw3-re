@@ -255,3 +255,20 @@ kept 1 s longer, a group's status not asking its voices. Not caught: the
   ported but untested until the movie player is.
 - The sound node destructor 0x4fd370 and 0x4fd440 (need the node free).
 - An emulator test of the sound nodes.
+
+## The sounds' EXTRA records (sound_extra.cpp)
+
+sounds.zrd's per-sound EXTRA list goes to zSound's load callback 0x004e6b00:
+`MINDELAY` (the first value: seconds before the sound may play again) and
+`SUBTITLE` (a message name, its text through 0x00575fb0) make a 0x0c-byte
+record (subtitle, delay, next time) kept as the object's user data (0x004e6a60,
+0x004e6aa0, the list 0x0060b814 / 0x0060b818, freed by 0x004e6be0 when the
+groups shut down). 20 sounds have MINDELAY and 40 a SUBTITLE, all radio
+lines (the lance mates' calls, the commands' answers). Sounds without one
+use the zeroed record 0x0060b800. 0x004e6cd0 plays a sound once its delay
+has passed (the game time [0x0060991c]) through zsnd's 0x00571cc0, and
+shows the subtitle in the message panel (0x0040fe50) when [0x0060b878] is
+set; 0x004e6d80 finds the record; 0x00432990 plays the pilot's slot (the
+fifth argument unread, no fade). Nothing in the exe writes [0x0060b878]:
+the subtitles never show (a candidate in fixes.md).
+

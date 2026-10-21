@@ -94,6 +94,7 @@ for t in \
     convexify \
     gmod_add \
     crater \
+    sound_extra \
     ai_gates \
     ai_frame \
     ai_vlist \
