@@ -23,6 +23,7 @@ using mech3::Arg;
 
 struct Setup {
   int32_t kind = 1, op = 1, mission = 1, mp = 1, salvage = 0;
+  uint32_t screen = 0, game = 0;      // the original's screen and game (the stores' handles)
   float dt = 0.0f;
   uint32_t navs = 0;
 };
@@ -48,6 +49,8 @@ struct BrHost : RecordingHost {
   }
 };
 
+mech3::BriefingScreen* g_screen = nullptr;
+
 struct BrEngine : mech3::Engine {
   Setup c;
   uint32_t unported(const char* key, std::initializer_list<Arg> args) override { return call(key, args); }
@@ -68,7 +71,28 @@ struct BrEngine : mech3::Engine {
     *mission = c.mission;
     return true;
   }
-  bool game_salvage_left() override { return c.kind == 1 && c.salvage != 0; }
+  bool game_salvage_left() override { return c.kind == 1 && salvage_store_.count() != 0; }
+  // The game's stores (empty: the salvage's count is the setup's alone), and
+  // their handles as the original's addresses: the screen's two by their
+  // offsets in BriefingScreen, the game's +0x08 and +0x3c.
+  mech3::Store game_store_{0}, salvage_store_{0};
+  mech3::Store* game_store() override { return &game_store_; }
+  mech3::Store* campaign_salvage() override { return c.kind == 1 ? &salvage_store_ : nullptr; }
+  int32_t campaign_units() override { return 3; }
+  Handle store_handle(mech3::Store* s) override {
+    if (s == &game_store_) return c.game + 0x08;
+    if (s == &salvage_store_) return c.game + 0x3c;
+    const auto off = [](mech3::Store mech3::BriefingScreen::* m) {
+      return reinterpret_cast<std::uintptr_t>(&(reinterpret_cast<mech3::BriefingScreen*>(0x10000)->*m)) - 0x10000;
+    };
+    const auto at = reinterpret_cast<std::uintptr_t>(s);
+    if (mech3::BriefingScreen* b = g_screen) {
+      if (at == reinterpret_cast<std::uintptr_t>(b) + off(&mech3::BriefingScreen::lab_store)) return c.screen + 0x11200;
+      if (at == reinterpret_cast<std::uintptr_t>(b) + off(&mech3::BriefingScreen::realloc_store)) return c.screen + 0x111ec;
+    }
+    // During the constructor: the realloc store's (the only one it asks for).
+    return c.screen + 0x111ec;
+  }
   int32_t game_multiplayer_kind() override { return c.kind == 3 ? c.mp : 0; }
   void pilot_record_mission(Handle, int32_t a) override { call("0x00478f10", {a}); }
   void campaign_merge_salvage() override { call("0x00434cb0", {}); }
@@ -203,6 +227,9 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
     ss >> engine.c.kind >> engine.c.op >> engine.c.mission >> engine.c.mp >> engine.c.salvage;
     engine.c.dt = fhex(ss);
     engine.c.navs = hex(ss);
+    engine.c.screen = hex(ss);
+    engine.c.game = hex(ss);
+    for (int32_t i = 0; i < engine.c.salvage; ++i) engine.salvage_store_.add_mech(i);
   }
   std::unique_ptr<mech3::Mech3App> app;
   {
@@ -237,7 +264,9 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
     } else if (op == "S") {
       std::string a;
       ls >> a;
+      g_screen = nullptr;
       s = std::make_unique<mech3::BriefingScreen>(engine, unhex(a).c_str());
+      g_screen = s.get();
       mech3::briefing_screen() = s.get();
       g_kind[&s->bar] = 'L';
       g_kind[&s->lines] = 'Z';
@@ -270,6 +299,9 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
       s->script.start();
     } else if (op == "L") {
       s->set_loaded(hex(ls) != 0);
+    } else if (op == "X") {
+      s->refresh();
+      s->show_realloc(true);
     } else if (op == "A") {
       s->abort();
     } else if (op == "Q") {
@@ -287,11 +319,13 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
       dump += d.o.str();
     } else if (op == "U") {
       s.reset();
+      g_screen = nullptr;
       dump += "gone reached=" + std::to_string(mech3::briefing_reached()) + " voice=" +
               hex_s(mech3::briefing_voice()) + "\n";
     }
   }
   s.reset();
+  g_screen = nullptr;
   zrdr::close_archives(true);
   zfix::options().per_second = per_second;
   zfix::options().bugs = bugs;

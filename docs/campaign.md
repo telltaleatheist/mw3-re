@@ -490,3 +490,50 @@ selects a row and refills. Breaks 16 of 18 (`scratch/briefing/breaks10.py`,
 40 runs); the two left cannot show: refill passes only the kind it
 lists, so the kinds check in 0x0048d9a0 always holds, and ammo rows use
 their own messages, not the label.
+
+### The briefing's reallocation (item 8b, second half)
+
+A campaign's mech lab works on one store built by 0x00408b40: the game's
+store (+0x08) and the campaign's salvage (+0x3c) together (any other
+game's lab opens on the game's store). Back from the lab the Load state
+calls 0x00408bd0 and then 0x00404ae0(1):
+
+- **0x00408bd0 / 0x00408850, the split.** The room is the campaign's +0xa8
+  (3 in practice, section 4) times 300 t (0x00470cc0) and 2 mechs
+  (0x00470cd0). Out of the lab's store (0x00408690, "take"): first each of
+  the game's old items, as many as the lab still has, while they fit the
+  room (a mech by count, anything else by its weight for n, n - 1, ...);
+  then each of the salvage's old items, as many as the lab has, with no
+  limit. Those become the game's store and the salvage. What is left in the
+  lab's store (new combinations, merged items) goes item by item to the
+  game while it fits, the rest to the salvage. What went to the salvage is
+  also the briefing's +0x111ec, the reallocation list's store.
+- **0x00404ae0, the list shown** only when that store has something: the
+  six buttons off, REALLOC_LIST (no headers, +0x20a set) and REALLOC_OK on;
+  OK (button 7) hides them again (0x00404ae0(0)).
+
+`store_take` copies an item the lab's store refuses to give up (the
+store's own, b10) all the same, as the exe does. A mech short of room
+counts its shortfall as left over: with +0xa8 at 0 the first take has no
+limit, the game keeps every mech, and the salvage then gains the game's
+excess on top of the lab's mechs (more mechs than there were). +0xa8 is
+never 0 in play (section 4); kept, and the test runs it.
+
+Ported (briefing.cpp): `store_tons` 0x00409fd0, `store_mechs` 0x00472970,
+`store_count_like` 0x00473510, `store_take` 0x00408690, `store_reallocate`
+0x00408850, `lab_store_build` (0x00408b40, with 0x00408660),
+`BriefingScreen::build_lab_store`, `refresh`, `show_realloc`; REALLOC_LIST
+bound. Engine hooks: `game_store`, `campaign_salvage`, `campaign_units`,
+`store_handle` (stores and items get handles from a table by default). The
+program's Load state calls the ported refresh and show on the briefing.
+
+Tests: `test_salvage.py` runs 0x00408b40, the lab's edits (adds and
+removals through the exe's store functions) and 0x00408bd0 on a fake
+briefing over a campaign or another game (weapons' tons from weapons.zrd's
+MASS, as test_mechsave.py), compared on the game's store, the salvage,
+the reallocation store and the lab's (200/200; about a third leave
+something over). Breaks 16 of 18 (`scratch/briefing/breaks11.py`, 40
+runs): the two left cannot show (the take's two limits always come from
+one count; +0x20a is read by nothing ported). `test_briefing.py` binds REALLOC_LIST for real now (no
+skip), runs 0x00408b40 on the mech lab's button over a campaign with
+salvage, and a plan step for the lab's return (0x00408bd0, 0x00404ae0(1)).

@@ -14,7 +14,11 @@ shared and empty bins, infinite ones, missing slots and items), its loadout
 its sinks; 0x0041df10 (the definition's tech) is stubbed, rand answers from
 the plan. The port (tests/probe_salvage.cpp: the ported store adds,
 `lance_salvage`) runs the same. Compared: the store's items, the bins left,
-the rand calls used. The player's mech goes into the campaign's +0x64
+the rand calls used. Since 8b2 also the briefing's reallocation: 0x00408b40
+and 0x00408bd0 on a fake briefing over a campaign (or another game) whose
+store and salvage the plan fills, with the mech lab's edits between
+(weapons' tons from weapons.zrd's MASS, test_mechsave.py's); compared: the
+four stores. The player's mech goes into the campaign's +0x64
 store (a real store at the fake game's +0x64), its allies' into [0x00609990].
 """
 import ctypes
@@ -29,8 +33,14 @@ from calltrace import load_probe  # noqa: E402
 from twod_world import IAT  # noqa: E402
 from test_pilot import FS, KIND_SIZE, KIND_VT, SALVAGE, Emulated, i32  # noqa: E402
 
+from test_mechsave import WEAPON_NAMES, WEAPONS, weapon_labs  # noqa: E402
+from test_zreader import READER  # noqa: E402
+
 probe = load_probe()
 probe.probe_salvage_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+probe.probe_realloc_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+LAB_BUILD, LAB_REFRESH, REMOVE_ITEM, ADD_COPY_ITEM, FIND_WEAPON = 0x408b40, 0x408bd0, 0x471d20, 0x472630, 0x581ed0
 
 RESULTS, MECH_TECH = 0x47ae10, 0x41df10
 ADD_MECH, ADD_WEAPON, ADD_AMMO, ADD_EQUIP = 0x471c10, 0x471840, 0x471940, 0x471a20
@@ -199,6 +209,104 @@ def store_text(text):
     return f'store{{{parts[2]} {parts[3] if len(parts) > 3 else ""}}}'
 
 
+class Realloc(Salvage):
+    """The briefing's reallocation: 0x00408b40 builds the mech lab's store,
+    the plan edits it as the lab would, 0x00408bd0 splits it back."""
+
+    def __init__(self, seed, labs):
+        Salvage.__init__(self, seed)
+        cpu = self.cpu
+        self.weapons = {}
+        for name, lab in zip(WEAPON_NAMES, labs):
+            if lab is None:
+                continue
+            obj, blk = self.alloc(0x200), self.alloc(0x40)
+            cpu.write(blk + 0x1c, struct.pack('<fi', lab[0], lab[2]))
+            cpu.write(blk + 0x28, struct.pack('<fi', lab[1], lab[3]))
+            cpu.write(blk + 0x34, struct.pack('<f', lab[4]))
+            cpu.u32(obj + 0x1f0, blk)
+            self.weapons[name] = obj
+        cpu.stub_function(FIND_WEAPON, lambda c: self.weapons.get(self.cstr(c.ecx).encode(), 0))
+
+    def items_of(self, st):
+        head = self.r32(st + 8)
+        out, n = [], self.r32(head)
+        while n != head:
+            out.append(self.r32(n + 8))
+            n = self.r32(n)
+        return out
+
+    def fill(self, st, ops):
+        for op in ops:
+            if op[0] == 'mech':
+                self.call(ADD_MECH, ecx=st, stack=(op[1] & 0xffffffff,))
+            elif op[0] == 'weapon':
+                self.call(ADD_WEAPON, ecx=st, stack=(op[1], op[2]))
+            elif op[0] == 'ammo':
+                self.call(ADD_AMMO, ecx=st, stack=(op[1], op[2] & 0xffffffff))
+            elif op[0] == 'equip':
+                self.call(ADD_EQUIP, ecx=st, stack=(op[1], op[2], op[3] & 0xffffffff))
+            elif op[0] == 'remove':  # the i-th item (mod the count), n of it
+                its = self.items_of(st)
+                if its:
+                    self.call(REMOVE_ITEM, ecx=st, stack=(its[op[1] % len(its)], op[2]))
+
+    def run_realloc(self, cfg):
+        cpu = self.cpu
+        b = self.alloc(0x12e6c)
+        for off in (0x111ec, 0x11200):
+            self.call(0x470ce0, ecx=b + off, stack=(0,))
+        game, gvt = self.alloc(0xd0), self.alloc(0x40)
+        cpu.u32(game, gvt)
+        cpu.u32(gvt + 0x2c, self.fn('b8%02x000000c3' % cfg['kind']))
+        for off in (0x8, 0x3c):
+            self.call(0x470ce0, ecx=game + off, stack=(0,))
+        cpu.u32(game + 0xa8, cfg['units'] & 0xffffffff)
+        pilot = self.alloc(0x84)
+        cpu.u32(pilot + 0x6c, game)
+        cpu.u32(CURRENT, pilot)
+        self.fill(game + 8, cfg['game'])
+        self.fill(game + 0x3c, cfg['salvage'])
+        lab = self.call(LAB_BUILD, ecx=b)
+        self.fill(lab, cfg['edits'])
+        self.call(LAB_REFRESH, ecx=b)
+        return '\n'.join(store_text(self.store(n, a)).replace('store', n, 1) for n, a in (
+            ('game', game + 8), ('salvage', game + 0x3c), ('realloc', b + 0x111ec), ('lab', b + 0x11200))) + \
+            f"\nlab_is {'lab' if lab == b + 0x11200 else 'game' if lab == game + 8 else hex(lab)}\n"
+
+
+def store_ops(r, n, removes=False):
+    ops = []
+    for _ in range(n):
+        k = r.choice(['mech', 'mech', 'weapon', 'weapon', 'ammo', 'equip'] + (['remove'] * 3 if removes else []))
+        if k == 'mech':
+            ops.append(('mech', r.choice([0, 3, 5, 9, 13, 18])))
+        elif k == 'weapon':
+            ops.append(('weapon', r.choice([0, 3, 6, 7, 9, 12, 19, 25, 35]), r.choice([1, 2, 3])))
+        elif k == 'ammo':
+            ops.append(('ammo', r.choice([0, 3, 9, 19, 35]), r.choice([1, 20, 60, 200, 2000])))
+        elif k == 'equip':
+            ops.append(('equip', r.choice([0, 1, 2, 3, 9, 10, 11]), r.choice([1, 2]), r.choice([1, 2, 10, 40, 300])))
+        else:
+            ops.append(('remove', r.randrange(16), r.choice([1, 2, 5])))
+    return ops
+
+
+def make_realloc(seed):
+    r = random.Random(f'realloc:{seed}')
+    return {'kind': r.choice([1, 1, 1, 2]), 'units': r.choice([0, 1, 1, 2, 3, 8]),
+            'game': store_ops(r, r.randrange(0, 20)), 'salvage': store_ops(r, r.randrange(0, 20)),
+            'edits': store_ops(r, r.randrange(0, 8), True)}
+
+
+def realloc_setup(cfg):
+    out = [f"kind {cfg['kind']} {cfg['units']}"]
+    for where in ('game', 'salvage', 'edits'):
+        for op in cfg[where]:
+            out.append(where + ' ' + ' '.join(str(x) for x in op))
+    return '\n'.join(out)
+
+
 def make_cfg(seed):
     r = random.Random(f'salvage:{seed}')
     fill = []
@@ -291,6 +399,35 @@ def run_case(seed, verbose):
     return True, cfg
 
 
+def set_labs():
+    labs = weapon_labs(READER.read_bytes())
+    table = (ctypes.c_float * (WEAPONS * 5))()
+    present = (ctypes.c_uint8 * WEAPONS)()
+    for i, lab in enumerate(labs):
+        if lab:
+            present[i] = 1
+            table[5 * i:5 * i + 5] = [lab[0], lab[1], 0, 0, lab[4]]
+            ctypes.memmove(ctypes.addressof(table) + 20 * i + 8, struct.pack('<ii', lab[2], lab[3]), 8)
+    probe.probe_set_weapon_labs(table, present)
+    return labs
+
+
+def run_realloc(seed, labs, verbose):
+    cfg = make_realloc(seed)
+    em = Realloc(seed, labs)
+    want = em.run_realloc(cfg)
+    buf = ctypes.create_string_buffer(1 << 16)
+    n = probe.probe_realloc_run(realloc_setup(cfg).encode(), buf, len(buf))
+    assert n >= 0, 'probe failed'
+    got = buf.value.decode()
+    if got.replace(' }', '}') != want.replace(' }', '}'):
+        print(f'realloc seed {seed}: differ\n  original: {want}\n  rebuild:  {got}')
+        return False
+    if verbose:
+        print(f'realloc seed {seed}: {want[:300]}')
+    return True
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     runs = int(args[0]) if args else 200
@@ -302,7 +439,10 @@ def main():
         passed += ok
         mechs += len(cfg['ents'])
     print(f'salvage: {passed}/{runs} runs identical ({mechs} entities)')
-    return 0 if passed == runs else 1
+    labs = set_labs()
+    rpassed = sum(run_realloc(seed, labs, verbose) for seed in range(first, first + runs))
+    print(f'realloc: {rpassed}/{runs} runs identical')
+    return 0 if passed == runs and rpassed == runs else 1
 
 
 if __name__ == '__main__':

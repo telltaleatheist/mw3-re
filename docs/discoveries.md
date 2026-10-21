@@ -2014,6 +2014,12 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   back into your stores the same way, coin flip for a missing leg included
   (whether a lost flip costs you the mech depends on the mech lab's slots,
   not traced yet).
+- **The mech lab has a weight and mech limit in a campaign:** 300 tons and
+  2 mechs per step of the campaign's capacity, which is 3 in practice, so
+  900 tons and 6 mechs. When you leave the mech lab, what you owned before
+  is kept first (as much as fits), then anything new; whatever does not
+  fit goes back into the salvage pool, and the briefing shows it in its
+  reallocation list until you press OK.
 - **Your rank is the Campaign Total in steps of 100,000:** Sergeant below
   100,000, then Master Sergeant, Captain, Major, and Colonel from 400,000
   on.

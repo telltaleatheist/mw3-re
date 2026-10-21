@@ -165,6 +165,9 @@ class BriefingScreen : public MenuScreen {
   void log(const char* s);           // 0x00405120 on [0x005f4c80]: a line in the debug lines
   void read_script(zrdr::Node* section);  // inline in 0x00405230: SOUND, its MARKERS' objects
   ztwod::Object2D* read_object(zrdr::Node* entry);  // 0x00406650: a map object, kept (+0x12e60)
+  Store* build_lab_store();          // 0x00408b40: the store the mech lab opens on
+  void refresh();                    // 0x00408bd0: the lab's store reallocated
+  void show_realloc(bool on);        // 0x00404ae0: REALLOC_LIST and REALLOC_OK, the others off
 
   Store realloc_store;               // +0x111ec  what the mech lab left over (0x00408bd0)
   Store lab_store;                   // +0x11200  the mech lab's (0x00408b40)
@@ -177,9 +180,26 @@ class BriefingScreen : public MenuScreen {
   HelpButton abort_btn, launch_btn, lab_btn, replay_btn, salvage_btn, loading;  // +0x11884, 0x17c each
   ztwod::Text version;               // +0x1216c  "<message 7> <version>", at the bottom right
   ShellButton realloc_ok;            // +0x12638  REALLOC_OK (7)
-  StoreList realloc_list;            // +0x12790  REALLOC_LIST (not bound yet: a later item)
+  StoreList realloc_list;            // +0x12790  REALLOC_LIST (what did not fit)
   std::list<ztwod::Object2D*> objects;  // +0x12e60  the map's, deleted with the screen
 };
+
+// The stores' sums: tons (0x00409fd0, each weight(-1) added as a float),
+// mechs (0x00472970), the count of the items like `item` (0x00473510).
+float store_tons(const Store& s);
+int32_t store_mechs(const Store& s);
+int32_t store_count_like(const Store& s, const ConfigItem* item);
+// 0x00408690 (ECX from, EDX owner): of each of owner's items as many as
+// `from` has like it moved from `from` into `out`, with a limit (tons or
+// mechs not 0) only what fits beside what `out` holds.
+void store_take(Store& from, const Store& owner, Store& out, float tons, int32_t mechs);
+// 0x00408850: the mech lab's store split back into the game's (what fits in
+// `units` x 300 t and x 2 mechs, its own first) and the salvage (the rest,
+// also into `realloc` when given).
+void store_reallocate(Store& lab, Store& game, Store& salvage, Store* realloc, int32_t units);
+// 0x00408b40's work: a campaign's (`salvage` given) lab store is the game's
+// and the salvage together; otherwise the game's own store is the lab's.
+Store* lab_store_build(Store& lab, Store* game, Store* salvage);
 
 // [0x005f4c80] the briefing screen, while the Load state has one.
 BriefingScreen*& briefing_screen();

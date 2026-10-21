@@ -5,6 +5,7 @@
 #include "mech3/pilot.h"
 
 #include <cstdlib>
+#include <map>
 #include <cstring>
 
 #include "gamez/zimage/zimg_library.h"
@@ -849,10 +850,33 @@ void StoreList::layout() {
   }
 }
 
-// The engine's defaults: no stores or items known (the program's are its
-// objects, app_menus.cpp).
-Store* Engine::store_of(Handle) { return nullptr; }
-Handle Engine::item_handle(const ConfigItem*) { return 0; }
+// The engine's defaults: stores and items get handles from a table of their
+// own (0x5f000000 up), as the exe's pointers would be.
+namespace {
+std::map<const void*, Handle>& handles() {
+  static std::map<const void*, Handle> m;
+  return m;
+}
+std::map<Handle, const void*>& objects() {
+  static std::map<Handle, const void*> m;
+  return m;
+}
+Handle handle_for(const void* p) {
+  if (!p) return 0;
+  auto f = handles().find(p);
+  if (f != handles().end()) return f->second;
+  const Handle h = 0x5f000000u + static_cast<Handle>(handles().size()) * 0x10u;
+  handles()[p] = h;
+  objects()[h] = p;
+  return h;
+}
+}  // namespace
+Store* Engine::store_of(Handle h) {
+  auto f = objects().find(h);
+  return f == objects().end() ? nullptr : static_cast<Store*>(const_cast<void*>(f->second));
+}
+Handle Engine::store_handle(Store* s) { return handle_for(s); }
+Handle Engine::item_handle(const ConfigItem* it) { return handle_for(it); }
 
 // Mech3.exe 1.2 @ 0x0048d950 (0x0048d960 on the selected index)
 Handle StoreList::selected_value() {

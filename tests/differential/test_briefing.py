@@ -60,14 +60,15 @@ SEEN, TARGET, LOADED, SCRIPT = 0x11214, 0x11218, 0x1121c, 0x11220
 CUE = 0x405ed0
 STEP_KINDS = {0x5bbc50: 'V', 0x5bbc40: 'M', 0x5bbc30: 'S'}
 REACHED, VOICE, SCREEN, CURRENT, FRAME_DT = 0x5e043c, 0x5f4c84, 0x5f4c80, 0x60861c, 0x72c52c
-SKIPS = {0x405c1e: 0x405c3d}  # a later item (the docstring)
+SKIPS = {}
 KEYS = (0x26, 0x32, 0x39, 0x1f)
 SECTIONS = ['brief_zz', 'brief_zz', 'brief_c11', 'brief_c12', 'brief_c14', 'brief_c24', 'brief_c36', 'brief_c4b6', 'brief_t13', 'brief_iac21',
             'brief_mpc11', 'default', 'brief_none']
 LINES_TEXT = ['Loading world', 'Ready To Launch', '', 'Textures 12/40', 'a much longer line of the load ' * 3]
 
 test_twod.VT_KIND.update({0x5bbd20: 'C', 0x5bc230: 'C', 0x5bbc90: 'L', 0x5bc1b0: 'I', 0x5bc030: 'F', 0x5bbf30: 'I',
-                          0x5bbfb0: 'B', 0x5bbeb0: 'B', 0x5bbe30: 'B', 0x5bbdb0: 'B'})
+                          0x5bbfb0: 'B', 0x5bbeb0: 'B', 0x5bbe30: 'B', 0x5bbdb0: 'B',
+                          0x5c5ec0: 'C', 0x5c5e30: 'C', 0x5c5da0: 'C'})  # REALLOC_LIST, its arrows
 MAP_KINDS = {0x5bbfb0: 'circle', 0x5bbeb0: 'waypoint', 0x5bc030: 'text', 0x5bbf30: 'bitmap', 0x5bbe30: 'triangle',
              0x5bbdb0: 'line'}
 NAVS, WORLD_UP = 0x609980, 0x60bf48
@@ -247,7 +248,7 @@ def make_plan(seed, spots):
         elif roll < 0.26:
             lines.append(f'L {r.choice([0, 1, 1]):x}')
         elif roll < 0.28:
-            lines.append(r.choice(['A', 'Q']))
+            lines.append(r.choice(['A', 'Q', 'X']))
         elif roll < 0.33:
             lines.append(f'G {fbits(r.choice([0.0, 0.1, 0.33, 0.5, 0.9, 1.0, 1.5])):x}')
         elif roll < 0.36:
@@ -295,7 +296,12 @@ class Original:
         e.w32(game, vt)
         e.w32(pilot + 0x6c, game)
         e.w32(CURRENT, pilot)
-        e.w32(game + 0x3c + 0xc, cfg['salvage'])
+        self.game = game
+        for off in (0x08, 0x3c):  # the stores (empty; the salvage's count alone set)
+            e.call(0x470ce0, ecx=game + off, stack=(0,))
+        for i in range(cfg['salvage']):  # that many mechs of different kinds
+            e.call(0x471c10, ecx=game + 0x3c, stack=(i,))
+        e.w32(game + 0xa8, 3)
         k4c = cfg['mission'] if cfg['kind'] == 1 else cfg['mp']
         for off, v in ((0x2c, cfg['kind']), (0x48, cfg['op']), (0x4c, k4c)):
             e.w32(vt + off, e.new_stub(f'@vt{off:x}', '', 0, lambda emu, k, a, p, v=v: emu._ret(v, 0)))
@@ -356,7 +362,7 @@ class Original:
         e.stub(0x590250, '0x00590250', 's0,s1', None, replace)
         e.stub(0x405160, '0x00405160', 's0', None,
                lambda emu, k, a, p: emu._ret(t.handle(k, (1 if a[0] else 0,)), p))
-        plain = {0x40a810: '', 0x40ce90: 'c', 0x404ae0: 's0', 0x408c30: '', 0x408b40: '', 0x448830: 'd,s0',
+        plain = {0x40a810: '', 0x40ce90: 'c', 0x408c30: '', 0x448830: 'd,s0',
                  0x47d2f0: '', 0x46ceb0: '', 0x490930: '', 0x491150: '', 0x491780: 's0', 0x434cb0: '',
                  0x478f10: 's0', 0x56dfb0: 'c,d', 0x576ea0: 'c,d,s0,s1', 0x51a9b0: 'c', 0x51a300: '',
                  0x56e8e0: 'c', 0x56f3e0: 'c', 0x491c80: '', 0x4f8f50: ''}
@@ -371,7 +377,6 @@ class Original:
             '0x0051a9b0': lambda rr, k, a: rr.choice([1, 2, 3]) if rr.random() < cfg['keys'] else 0,
             '0x00490930': lambda rr, k, a: 1 if rr.random() < cfg['load'] else 0,
             '0x00491150': lambda rr, k, a: 1 if rr.random() < 0.7 else 0,
-            '0x00408b40': lambda rr, k, a: 0x5e600000 + k,
             '0x00491c80': lambda rr, k, a: self.map,  # (made when missing: never none)
             '0x004f8f50': lambda rr, k, a: rr.choice([0, 1, 1]),
             '0x00479be0': lambda rr, k, a: rr.choice(self.navs + [0]),
@@ -400,6 +405,7 @@ class Original:
             emu._ret(1, 8)
         e.import_stub(IAT['CopyRect'], '@CopyRect', 's0,s1', 8, copy_rect)
         self.m = 0
+        self.screen_addr = 0
         self.snapshot = None
 
     def vcall(self, obj, slot, stack=()):
@@ -422,6 +428,7 @@ class Original:
             elif op == 'S':
                 self.snapshot = e.snapshot()
                 self.m = self.d = m = e.alloc(SIZE)
+                self.screen_addr = self.screen_addr or m
                 name = bytes.fromhex(p[1]).decode('latin1') if p[1] != '-' else ''
                 e.call(CTOR, ecx=m, stack=(e.world_string(name),))
                 e.w32(SCREEN, m)
@@ -441,6 +448,9 @@ class Original:
                 self.vcall(m + BUTTONS[pv[0]], 0x40)
             elif op == 'L':
                 e.call(SET_LOADED, ecx=m, stack=(pv[0],))
+            elif op == 'X':  # back from the mech lab (the Load state): reallocated, the list shown
+                e.call(0x408bd0, ecx=m)
+                e.call(0x404ae0, ecx=m, stack=(1,))
             elif op == 'Y':  # the Load state's start of the script
                 e.w8(m + SCRIPT + 0x10, 1)
                 e.w32(m + SCRIPT + 0xc, e.r32(e.r32(m + SCRIPT + 4)))
@@ -540,7 +550,7 @@ def run_case(seed, path, files, cfg, plan, verbose):
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     c = (f'{cfg["kind"]} {cfg["op"]} {cfg["mission"]} {cfg["mp"]} {cfg["salvage"]} {fbits(cfg["dt"]):x} '
-         f'{cfg["navs"]:x}')
+         f'{cfg["navs"]:x} {orig.screen_addr:x} {orig.game:x}')
     buf = ctypes.create_string_buffer(1 << 23)
     n = probe.probe_briefing_run(str(path).encode(), c.encode(), '\n'.join(plan).encode(), buf, len(buf))
     assert n >= 0, 'probe failed'

@@ -6,11 +6,14 @@
 // bins left, the rand calls used.
 #include <cstdint>
 #include <cstring>
+#include <iterator>
+#include <utility>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "mech3/mech_config.h"
+#include "mech3/briefing.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
 
@@ -149,6 +152,80 @@ extern "C" int probe_salvage_run(const char* setup, char* out, int size) {
     for (int32_t b : e.m.bins) o << ' ' << b;
   o << "\nrand " << used << '\n';
   for (Config* c : configs) delete c;
+  const std::string s = o.str();
+  if (static_cast<int>(s.size()) >= size) return -1;
+  std::memcpy(out, s.data(), s.size() + 1);
+  return static_cast<int>(s.size());
+}
+
+// test_salvage.py's reallocation: the game's store and the salvage filled
+// by the plan through the ported adds, the lab's store built
+// (lab_store_build, 0x00408b40), the lab's edits, then 0x00408bd0's
+// store_reallocate for a campaign.
+extern "C" int probe_realloc_run(const char* setup, char* out, int size) {
+  std::istringstream ss(setup);
+  Store game(0), salvage(0), lab(0), realloc(0);
+  int32_t kind = 1, units = 0;
+  std::string where;
+  ss >> where >> kind >> units;
+  Store* target = nullptr;
+  bool built = false;
+  auto build = [&] {
+    if (built) return;
+    built = true;
+    target = lab_store_build(lab, &game, kind == 1 ? &salvage : nullptr);
+  };
+  std::string line;
+  std::getline(ss, line);
+  while (std::getline(ss, line)) {
+    std::istringstream ls(line);
+    std::string op;
+    ls >> where >> op;
+    Store* s = &game;
+    if (where == "salvage") s = &salvage;
+    if (where == "edits") {
+      build();
+      s = target;
+    }
+    if (op == "mech") {
+      int32_t t;
+      ls >> t;
+      s->add_mech(t);
+    } else if (op == "weapon") {
+      int32_t t, tech;
+      ls >> t >> tech;
+      s->add_weapon(t, tech);
+    } else if (op == "ammo") {
+      int32_t t, n;
+      ls >> t >> n;
+      s->add_ammo(t, n);
+    } else if (op == "equip") {
+      int32_t k, tech, n;
+      ls >> k >> tech >> n;
+      s->add_equipment(k, tech, n);
+    } else if (op == "remove") {
+      int32_t i, n;
+      ls >> i >> n;
+      if (!s->items.empty()) {
+        auto it = s->items.begin();
+        std::advance(it, i % static_cast<int32_t>(s->items.size()));
+        s->remove(*it, n);
+      }
+    }
+  }
+  build();
+  if (kind == 1) store_reallocate(lab, game, salvage, &realloc, units);
+  std::ostringstream o;
+  const std::pair<const char*, Store*> stores[] = {{"game", &game}, {"salvage", &salvage}, {"realloc", &realloc},
+                                                   {"lab", &lab}};
+  bool first = true;
+  for (const auto& [name, st] : stores) {
+    o << (first ? "" : "\n") << name << "{n" << st->count() << ' ';
+    for (const ConfigItem* it : st->items) o << item_text(it);
+    o << '}';
+    first = false;
+  }
+  o << "\nlab_is " << (target == &lab ? "lab" : "game") << '\n';
   const std::string s = o.str();
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.data(), s.size() + 1);

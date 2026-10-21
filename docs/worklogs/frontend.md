@@ -630,3 +630,19 @@ test_debriefing's salvage list now refills from a real store; an 'R' plan
 step varies the list's settings. Breaks 16/18 (2 unshowable). Also the
 8a review nit: app_mech.cpp's tech lookup noted (MechDfn +0 is the roster
 index).
+
+## 2026-10-21 Campaign item 8b2: the briefing's reallocation (branch mac3/salvage)
+
+Ported in briefing.cpp: store_tons 0x00409fd0, store_mechs 0x00472970,
+store_count_like 0x00473510, store_take 0x00408690, store_reallocate
+0x00408850, lab_store_build (0x00408b40 / 0x00408660), refresh 0x00408bd0,
+show_realloc 0x00404ae0; REALLOC_LIST bound. Room: +0xa8 x (300 t, 2 mechs).
+Engine hooks game_store, campaign_salvage, campaign_units, store_handle;
+the defaults give stores and items handles from a table (menu_widgets.cpp),
+GameEngine's own store_of/item_handle dropped for it; the Load state's
+briefing_refresh/briefing_show reach the ported screen. Removed hooks:
+briefing_realloc, briefing_lab_store. Tests: test_salvage.py's realloc
+part (200/200, weapon labs from weapons.zrd), test_briefing.py with the
+bind unskipped, real stores in the fake game, an 'X' plan step (40/40).
+Breaks 16/18 (2 unshowable). Quirk kept: +0xa8 = 0 lets the split mint
+mechs. Next: 8c, the lancemates' loadouts 0x00408c30.
