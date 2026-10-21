@@ -2660,6 +2660,13 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       int32_t alive = 0, left = -1;  // mechs up, then after the cleanup
       bool player_ok = false;          // the mission's player is the pilot's own mech
       bool player_cleared = false;     // and gone after the cleanup (0x004782c0(0))
+      size_t voices = 0, voices_left = 99;  // playing before and after the cleanup
+    };
+    auto playing = [] {  // the voices zSound's snapshot (0x0056eb10) finds playing
+      zsnd::Snapshot* s = zsnd::snapshot();
+      const size_t n = s->size() - 1;  // the master volume's record first
+      zsnd::free_snapshot(s);
+      return n;
     };
     Leg legs[3] = {{0, 1}, {0, 2}, {1, 1}};
     int leg = 0;
@@ -2681,12 +2688,17 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       if (g.frames == 60) {
         mech3::launched_mech(&g.mech);
         g.alive = mech3::mechs_alive();
+        // A voice nothing else owns (the radio's com_failed), which only the
+        // cleanup's snapshot stop reaches.
+        if (zsnd::Object* o = zsnd::find("com_failed")) zsnd::play(o, 1.0f);
+        g.voices = playing();
         g.player_ok = mech3::mission_player_mech() != nullptr &&
                       mech3::mission_player_mech() == engine.object_of(engine.field32(engine.pilot(), 0x14));
         if (++leg > 2) return;
         // The mission over: its cleanup, then the next through the Load state.
         mech3::missions().cleanup(false);
         g.left = mech3::mechs_alive();
+        g.voices_left = playing();
         g.player_cleared = mech3::mission_player_mech() == nullptr && engine.field32(engine.pilot(), 0x14) == 0;
         mech3::GameEngine::Launch next;
         next.index = legs[leg].index, next.number = legs[leg].number;
@@ -2702,6 +2714,9 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     // none carried into the next mission, none left at the end.
     for (int i = 0; i < 2; ++i) EXPECT(legs[i].alive > 0 && legs[i].left == 0 && legs[i].player_cleared);
     for (const Leg& g : legs) EXPECT(g.player_ok);  // never a stale or an AI mech
+    // The cleanup's sounds (0x00570410, 0x0056eb10, 0x0056f0a0, 0x0056f190):
+    // what played (the engines, the start animation's) is stopped.
+    for (int i = 0; i < 2; ++i) EXPECT(legs[i].voices > 0 && legs[i].voices_left == 0);
     EXPECT(legs[2].alive > 0 && mech3::mechs_alive() == 0);
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
     EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them

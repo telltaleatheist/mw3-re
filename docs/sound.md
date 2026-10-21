@@ -272,3 +272,16 @@ set; 0x004e6d80 finds the record; 0x00432990 plays the pilot's slot (the
 fifth argument unread, no fade). Nothing in the exe writes [0x0060b878]:
 the subtitles never show (a candidate in fixes.md).
 
+
+## In a mission (c1m1, 2026-10-21)
+
+The mission's music: the Core start (0x00480df0) plays its track through
+0x004ac290 (mode 6), Core's suspend and resume pause and resume the CD
+(0x00482330, 0x00482430), its leave stops it (0x00481fc0), and the main
+loop's notify keeps a looping track going (0x00572bf0); all ported and wired,
+playing `music/trackNN.*` (zsnd_cd). Nothing else in the exe changes the
+music during a mission. The mission's cleanup (0x00491780) stops zSound's
+queue (0x00570410(1)) and, as Core's leave, snapshots every playing voice,
+stops them and frees the snapshot (0x0056eb10, 0x0056f0a0, 0x0056f190);
+wired 2026-10-21. The three-mission test plays a stray voice before each
+cleanup and finds none playing after.

@@ -584,6 +584,13 @@ struct WiredMissionHooks : MissionHooks {
   // 0x005a8280 on zEntity's list: each entity's vt+0x30 (a mech's 0x004b3d30
   // does nothing) and its delete, the first each time. The rest of 0x0049dc40
   // (0x00402560, [0x00609a00]) is not ported.
+  // The cleanup's sounds (0x00491780): the queue stopped (0x00570410(1)),
+  // every playing voice snapshotted, stopped and the snapshot freed
+  // (0x0056eb10, 0x0056f0a0, 0x0056f190), as Core's leave does.
+  void fn_570410() override { zsnd::stop_queue(1); }
+  Handle sounds_bank() override { return e->sound_listener(); }
+  void sounds_stop(Handle bank) override { e->sound_stop_all(bank); }
+  void sounds_free(Handle bank) override { e->sound_release_all(bank); }
   void delete_object(Handle obj) override {
     if (!mech_free(e->object_of(obj))) MissionHooks::delete_object(obj);
   }

@@ -839,3 +839,12 @@ view's ground, the anim lookups 0x50b450 (92).
 - Item 1: 0x004aedd0 is controls vt+0x140 -> brain vt+0x54 -> vt+0x08, and
   vt+0x08 is 0x005ac5c0 (`ret`) in every brain-like vtable: a no-op. The
   log is gone, the evidence in ai.md 17.8a. No behaviour code needed.
+- Item 2, zSound and music: the survey's sound gaps were the cleanup's
+  four calls (stop_queue 0x00570410, snapshot / stop / free 0x0056eb10,
+  0x0056f0a0, 0x0056f190), ported in zSound but unwired in the mission
+  hooks: wired. The music's in-mission calls (Core's start, suspend,
+  resume, leave, the loop notify) were already wired; nothing else changes
+  the music in a mission (callers of 0x004ac290 and zsnd_cd listed in
+  sound.md). Test: a stray com_failed voice before each cleanup is gone
+  after (fails with sounds_stop unwired). 0x00576270 is the reader's
+  string list, not sound.
