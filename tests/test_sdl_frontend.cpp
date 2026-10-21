@@ -13,6 +13,7 @@
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -240,4 +241,42 @@ TEST(sdl_host_ripple_moves_the_ring_on_the_screen) {
   EXPECT(right == 0);
   EXPECT(left > 1000);
   zrndr::set_finish_target(nullptr, 0, 0, 0);
+}
+
+// zImage's release (0x00517b10) as the host does it: a named image is shared
+// and counted, a fresh copy read once the count is back to 0; a grab is
+// freed on its release, and a second release of it is caught (FIX (bug))
+// instead of freeing it twice.
+TEST(sdl_host_image_release_counts_and_frees) {
+  if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/rimage.zbd")) return;
+  zutl::Mounts saved = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zimg::register_image_library(1);
+  {
+    sdlfe::SdlTwodHost h(nullptr, nullptr, nullptr);
+    zimg::Texture* a = h.image_get("dmg_head_blue");
+    zimg::Texture* b = h.image_get("dmg_head_blue");
+    EXPECT(a && a == b);  // one image, counted twice
+    EXPECT(h.image_release(a) == nullptr);
+    EXPECT(h.image_get("dmg_head_blue") == a);  // still held once: the same
+    h.image_release(a);
+    h.image_release(a);  // the count at 0: freed
+    zimg::Texture* c = h.image_get("dmg_head_blue");
+    EXPECT(c && c->width > 0 && c->pixels);  // a fresh copy, readable
+    h.image_release(c);
+
+    std::vector<uint16_t> buf(8 * 4, 0x1234);
+    zrndr::Target2D& t = zrndr::target2d();
+    const zrndr::Target2D keep = t;
+    t.base = reinterpret_cast<uint8_t*>(buf.data()), t.width = 8, t.height = 4, t.pitch = 16;
+    zimg::Texture* g = h.screen_grab(1);
+    EXPECT(g && g->width == 8 && static_cast<uint16_t*>(g->pixels)[5] == 0x1234);
+    h.image_release(g);  // a grab: freed now
+    h.image_release(g);  // again: reported, not freed twice
+    t = keep;
+  }
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  zutl::mounts() = saved;
 }

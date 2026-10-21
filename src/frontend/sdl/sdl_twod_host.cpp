@@ -112,16 +112,39 @@ zimg::Texture* SdlTwodHost::image_get(const char* name) {
     return nullptr;
   }
   images_[name] = {t, 1};
-  return t;
+  return made(t);
 }
 
+// 0x00517b10: a named image's count down, the image freed at 0 (0x00517760);
+// one not in the list (a screen grab) freed at once (0x005185f0). The
+// library reads a new copy for every first get, so nothing else holds it.
+// FIX (bug): an image released again after it was freed is reported and
+// left alone (the original would free it twice).
 zimg::Texture* SdlTwodHost::image_release(zimg::Texture* image) {
+  if (!image) return nullptr;
   for (auto it = images_.begin(); it != images_.end(); ++it) {
     if (it->second.image != image) continue;
-    if (--it->second.refs <= 0) images_.erase(it);  // the library keeps the image
-    break;
+    if (--it->second.refs <= 0) {
+      images_.erase(it);
+      free_image(image);
+    }
+    return nullptr;
   }
+  if (freed_.count(image)) {
+    std::fprintf(stderr, "mw3: image %p released after it was freed\n", static_cast<void*>(image));
+    return nullptr;
+  }
+  free_image(image);
   return nullptr;
+}
+
+void SdlTwodHost::free_image(zimg::Texture* image) {
+  texture_free(image);
+  freed_.insert(image);
+}
+zimg::Texture* SdlTwodHost::made(zimg::Texture* image) {
+  freed_.erase(image);  // the address may come back for a new image
+  return image;
 }
 
 // 0x00516f50 (zImage's texture directory, "zbd" for the shell): FIX (A), each
@@ -235,7 +258,7 @@ zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
     if (w > 0 && h > 0 && shown.size() == static_cast<size_t>(w) * h) {
       zimg::Texture* img = new_image(w, h);
       std::memcpy(img->pixels, shown.data(), shown.size() * 2);
-      return img;
+      return made(img);
     }
   }
   const zrndr::Target2D& t = zrndr::target2d();
@@ -243,7 +266,7 @@ zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
   zimg::Texture* img = new_image(static_cast<int>(t.width), static_cast<int>(t.height));
   for (uint32_t y = 0; y < t.height; ++y)
     std::memcpy(static_cast<uint16_t*>(img->pixels) + y * t.width, t.base + y * t.pitch, t.width * 2);
-  return img;
+  return made(img);
 }
 
 zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Texture* into) {
@@ -262,7 +285,7 @@ zimg::Texture* SdlTwodHost::screen_grab_rect(int32_t, ztwod::Rect* r, zimg::Text
     std::memcpy(static_cast<uint16_t*>(img->pixels) + y * img->width, t.base + (c.top + y) * t.pitch + c.left * 2,
                 static_cast<size_t>(w) * 2);
   *r = c;
-  return img;
+  return made(img);
 }
 
 Handle SdlTwodHost::image_dc(zimg::Texture* image) {
