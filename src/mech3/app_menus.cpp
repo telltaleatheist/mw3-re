@@ -488,6 +488,11 @@ bool GameEngine::mission_launch() {
   return ok;
 }
 Handle GameEngine::mission_salvage_store() { return handle_of(&mission_salvage()); }
+Store* GameEngine::store_of(Handle h) { return h == handle_of(&mission_salvage()) ? &mission_salvage() : static_cast<Store*>(object_of(h)); }
+Handle GameEngine::item_handle(const ConfigItem* it) { return handle_of(const_cast<ConfigItem*>(it)); }
+std::string GameEngine::message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) {
+  return has_n ? zutl::format_message(id, {s, std::to_string(n).c_str()}) : zutl::format_message(id, s);
+}
 void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
 void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }
 

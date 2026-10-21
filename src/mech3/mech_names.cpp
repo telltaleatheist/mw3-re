@@ -146,6 +146,22 @@ bool weapon_has_tech(int32_t weapon, int32_t tech) {
   return weapon >= 0 && weapon < weapon_count() && (kTech[weapon] & tech) != 0;
 }
 
+// Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table.
+int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < 19 ? 0xd82 + mech : -1; }
+
+// Mech3.exe 1.2 @ 0x00484920. The ids skip 0x2e6 (LB-10X AC is 0xe6, an
+// older message with the same text) and 0x2ee; the plain PPC's would be 0x2fd.
+int32_t weapon_name_message(int32_t weapon) {
+  static const int16_t kIds[38] = {0x2d7, 0x2d8, 0x2d9, 0x2da, 0x2db, 0x2dc, 0x2dd, 0x2de, 0x2df, 0x2e0,
+                                   0x2e1, 0x2e2, 0x2e3, 0x2e4, 0x2e5, 0x0e6, 0x2e7, 0x2e8, 0x2e9, 0x2ea,
+                                   0x2eb, 0x2ec, 0x2ed, 0x2ef, 0x2f0, 0x2f1, 0x2f2, 0x2f3, 0x2f4, 0x2f5,
+                                   0x2f6, 0x2f7, 0x2f8, 0x2f9, 0x2fa, 0x2fb, 0x2fc, 0x2fd};
+  return weapon >= 0 && weapon < weapon_count() ? kIds[weapon] : -1;
+}
+
+// Mech3.exe 1.2 @ 0x00484980: 0x1c6.. by equipment kind.
+int32_t equip_name_message(int32_t kind) { return kind >= 0 && kind < 15 ? 0x1c6 + kind : -1; }
+
 // Mech3.exe 1.2 @ 0x00484900
 const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < weapon_count() ? kWeapons[weapon] : "noweapon"; }
 

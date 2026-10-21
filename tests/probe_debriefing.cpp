@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -17,6 +18,8 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/app.h"
 #include "mech3/debriefing.h"
+#include "mech3/mech_config.h"
+#include "mech3/pilot.h"
 #include "probe_twod.h"
 
 namespace {
@@ -28,6 +31,8 @@ struct Setup {
            round = 0, x6c = 0, x70 = 0, c4 = 0, b4[4] = {}, ended = 0, allies = 0;
   std::vector<mech3::Engine::LanceMech> lance;
   std::vector<mech3::Engine::Objective> objectives[2];
+  mech3::Store store{0};
+  std::map<const mech3::ConfigItem*, uint32_t> item_addr;
 };
 const char* const kNames[] = {"", "Me14", "Me15", "Me01", "Kobra"};
 
@@ -41,10 +46,16 @@ struct DbHost : RecordingHost {
   uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
     va_list c;
     va_copy(c, args);
-    const int32_t a = va_arg(c, int32_t), b = va_arg(c, int32_t);
+    std::string text = "msg" + std::to_string(id) + ":";
+    if (id == 0x299) {  // the tonnage, a string
+      const char* t = va_arg(c, const char*);
+      text += t ? t : "";
+    } else {
+      const int32_t a = va_arg(c, int32_t), b = va_arg(c, int32_t);
+      text += std::to_string(a) + "," + std::to_string(b);
+    }
     va_end(c);
     const uint32_t n = call("0x00575ff0", {size, id});
-    const std::string text = "msg" + std::to_string(id) + ":" + std::to_string(a) + "," + std::to_string(b);
     std::snprintf(buf, size, "%s", n ? text.c_str() : "");
     return n;
   }
@@ -94,6 +105,14 @@ struct DbEngine : mech3::Engine {
   const char* objective_text(Handle obj) override {
     if (!call("0x0045e080", {obj})) return nullptr;
     return keep("obj" + hex_s(obj));
+  }
+  mech3::Store* store_of(Handle h) override { return h && h == c.salvage ? &c.store : nullptr; }
+  Handle item_handle(const mech3::ConfigItem* it) override {
+    auto f = c.item_addr.find(it);
+    return f == c.item_addr.end() ? 0 : f->second;
+  }
+  std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override {
+    return message_format_is(id, has_n ? n : 0, s);
   }
   int32_t campaign_score() override { return static_cast<int32_t>(c.c4); }
   int32_t campaign_record(int32_t i) override { return static_cast<int32_t>(c.b4[i & 3]); }
@@ -146,6 +165,11 @@ void dump_screen(mech3::DebriefScreen& s, const DbEngine& e, Dump& d) {
   std::ostringstream& o = d.o;
   o << "screen won=" << int(*s.won) << std::hex << " store=" << s.salvage.store
     << " x218=" << s.salvage.x218 << " font=" << s.salvage.title_font << std::dec << '\n';
+  o << "salvage sel=" << s.salvage.selected << " title=" << s.salvage.title.text << " items=";
+  for (size_t i = 0; i < s.salvage.items.size(); ++i)
+    o << (i ? "|" : "") << (s.salvage.items[i]->text ? s.salvage.items[i]->text : "") << '=' << std::hex
+      << static_cast<uint32_t>(s.salvage.items[i]->value) << std::dec;
+  o << '\n';
   mech3::HelpButton* bs[] = {&s.continue_btn, &s.replay_btn, &s.abort_btn, &s.rank};
   const char* names[] = {"CONTINUE", "REPLAY", "ABORT", "RANK"};
   for (int i = 0; i < 4; ++i) {
@@ -198,6 +222,33 @@ int probe_debriefing_run(const char* reader, const char* setup, const char* plan
       for (int k = 0; k < 6; ++k) m.stats[k] = static_cast<int32_t>(st[k]);
       m.name = kNames[name % 5];
       c.lance.push_back(m);
+    }
+    ss >> n;
+    for (uint32_t i = 0; i < n; ++i) {
+      uint32_t addr = 0, kind = 0, id = 0, extra = 0, count = 0, own = 0;
+      ss >> addr >> kind >> id >> extra >> count >> own;
+      mech3::ConfigItem* it = nullptr;
+      if (kind == 0) {
+        auto* b = new mech3::BaseItem;
+        b->value = static_cast<int32_t>(id);
+        it = b;
+      } else if (kind == 1) {
+        auto* w = new mech3::WeaponItem;
+        w->weapon = static_cast<int32_t>(id), w->tech = static_cast<int32_t>(extra);
+        it = w;
+      } else if (kind == 2) {
+        auto* a = new mech3::AmmoItem;
+        a->weapon = static_cast<int32_t>(id);
+        it = a;
+      } else {
+        auto* q = new mech3::EquipmentItem;
+        q->equipment = static_cast<int32_t>(id), q->tech = static_cast<int32_t>(extra);
+        it = q;
+      }
+      it->count = static_cast<int32_t>(count);
+      it->b10 = static_cast<uint8_t>(own);
+      c.store.items.push_back(it);
+      c.item_addr[it] = addr;
     }
     for (auto& list : c.objectives) {
       ss >> n;
@@ -254,6 +305,15 @@ int probe_debriefing_run(const char* reader, const char* setup, const char* plan
       if (op == "P") parts[k]->on_left_up();
       else if (op == "N") parts[k]->on_enter();
       else parts[k]->on_leave();
+    } else if (op == "R") {
+      const uint32_t kinds = hex(ls), x209 = hex(ls), x20d = hex(ls), x210 = hex(ls), sel = hex(ls);
+      for (int i = 0; i < 4; ++i) s->salvage.kinds[i] = static_cast<uint8_t>((kinds >> i) & 1);
+      s->salvage.x209 = static_cast<uint8_t>(x209);
+      s->salvage.x20d = static_cast<uint8_t>(x20d);
+      s->salvage.x210 = static_cast<int32_t>(x210);
+      s->salvage.store = engine.c.salvage;
+      s->salvage.select(static_cast<int32_t>(sel));
+      s->salvage.refill();
     } else if (op == "E") {
       Dump d;
       dump_dialog(*s, d);

@@ -1,5 +1,7 @@
 #include "mech3/mech_salvage.h"
 
+#include <cstdio>
+
 #include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
 #include "mech3/pilot.h"
@@ -68,6 +70,76 @@ void lance_salvage(Store& salvage, Store& own, std::vector<SalvageEntity>& list,
     if (!e.mech) continue;
     if (e.player) add_salvage(own, e.m, c);
     else if (team && (allies & e.team)) add_salvage(salvage, e.m, c);
+  }
+}
+
+namespace {
+const char* text_of(const MessageText& msg, int32_t id, const char* none) {
+  if (id < 0) return none;
+  const char* t = msg(id);
+  return t ? t : "(null)";
+}
+std::string printf_s(const char* fmt, const std::string& a, int32_t n) {
+  char b[512];
+  std::snprintf(b, sizeof b, fmt, a.c_str(), n);
+  return b;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004738f0 (a mech), 0x00473900 (a weapon, " (CLAN)" for
+// Clan tech), 0x004739c0 (ammo: its weapon's), 0x00473960 (equipment).
+std::string item_name(const ConfigItem& it, const MessageText& msg) {
+  switch (it.kind()) {
+    case 0: return text_of(msg, mech_name_message(it.id()), "notmech");
+    case 1: {
+      std::string s = text_of(msg, weapon_name_message(it.id()), "noweapon");
+      if (static_cast<const WeaponItem&>(it).tech == 1) s += " (CLAN)";
+      return s;
+    }
+    case 2: return text_of(msg, weapon_name_message(it.id()), "noweapon");
+    case 3: {
+      auto& e = static_cast<const EquipmentItem&>(it);
+      std::string s = text_of(msg, equip_name_message(e.equipment), "none");
+      if (e.tech == 1) s += " (CLAN)";
+      return s;
+    }
+    default: return std::string();
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00473700 (a mech), 0x00473740 (a weapon): "name (n)"
+// unless one or the store's own; 0x00473860 (ammo): "name (n rounds)";
+// 0x00473780 (equipment): armor as tons ("name (2.5 tons)"), else "name (n)".
+std::string item_label(const ConfigItem& it, const MessageText& msg) {
+  switch (it.kind()) {
+    case 0:
+    case 1: {
+      const std::string name = item_name(it, msg);
+      if (!it.b10 && it.count != 1) return printf_s("%s (%d)", name, it.count);
+      return name;
+    }
+    case 2: {
+      if (it.b10) return item_name(it, msg);
+      const std::string rounds = text_of(msg, 0xfc2, "");  // asked before the name
+      char b[512];
+      std::snprintf(b, sizeof b, "%s (%d %s)", item_name(it, msg).c_str(), it.count, rounds.c_str());
+      return b;
+    }
+    case 3: {
+      if (it.b10) return item_name(it, msg);
+      const int32_t kind = static_cast<const EquipmentItem&>(it).equipment;
+      if (kind == 1 || kind == 2) {
+        char tons[16], b[512];
+        std::snprintf(tons, sizeof tons, "%.1f", static_cast<double>(static_cast<float>(it.count) * 0.5f));
+        const std::string unit = text_of(msg, 0xf38, "");  // asked before the name
+        std::snprintf(b, sizeof b, "%s (%s %s)", item_name(it, msg).c_str(), tons, unit.c_str());
+        return b;
+      }
+      const std::string name = item_name(it, msg);
+      if (it.count > 1) return printf_s("%s (%d)", name, it.count);
+      return name;
+    }
+    default: return std::string();
   }
 }
 

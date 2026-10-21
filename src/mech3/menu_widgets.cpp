@@ -1,5 +1,9 @@
 #include "mech3/menu_widgets.h"
 
+#include "mech3/mech_config.h"
+#include "mech3/mech_salvage.h"
+#include "mech3/pilot.h"
+
 #include <cstdlib>
 #include <cstring>
 
@@ -845,8 +849,73 @@ void StoreList::layout() {
   }
 }
 
-// 0x0048dbe0: the mech lab's rows of the store (not ported).
-void StoreList::refill() { e_.store_list_refill(store); }
+// The engine's defaults: no stores or items known (the program's are its
+// objects, app_menus.cpp).
+Store* Engine::store_of(Handle) { return nullptr; }
+Handle Engine::item_handle(const ConfigItem*) { return 0; }
+
+// Mech3.exe 1.2 @ 0x0048d950 (0x0048d960 on the selected index)
+Handle StoreList::selected_value() {
+  if (selected < 0 || selected >= item_count()) return 0;
+  return static_cast<Handle>(items[static_cast<size_t>(selected)]->value);
+}
+
+// Mech3.exe 1.2 @ 0x0048d9a0: an item of `kind` the list takes (its kind
+// listed, the filter's yes, a weapon's or equipment's tech in +0x210) as a
+// row: its label, ammo "name (n rounds)" or "(unlimited)" for the store's
+// own. The row of the item selected before the refill is kept in `found`.
+void StoreList::add_row(const ConfigItem* item, int32_t kind, Handle previous, int32_t* found) {
+  Engine& e = e_;
+  const int32_t k = item->kind();
+  const Handle h = e.item_handle(item);
+  if (k < 0 || k > 4 || !kinds_or_all(k)) return;
+  if (x200 && !e.store_list_filter(x200, h)) return;
+  if (kind != 5 && k != kind) return;
+  if (k == 1 && !(static_cast<const WeaponItem*>(item)->tech & x210)) return;
+  if (k == 3 && !(static_cast<const EquipmentItem*>(item)->tech & x210)) return;
+  auto msg = [&e](int32_t id) { return e.message(id); };
+  std::string text;
+  if (k == 2) {
+    const std::string name = item_name(*item, msg);
+    text = item->b10 ? e.message_format_sd(0x1c3, name.c_str(), 0, false)
+                     : e.message_format_sd(0x1c4, name.c_str(), item->count, true);
+  } else {
+    text = item_label(*item, msg);
+  }
+  const int32_t i = add_item(text.c_str(), static_cast<int32_t>(h));
+  if (h == previous) *found = i;
+}
+
+// Mech3.exe 1.2 @ 0x0048dbe0: the rows again, the selection kept on its item
+// (else on its index).
+void StoreList::refill() {
+  Engine& e = e_;
+  const Handle previous = selected_value();
+  const int32_t old = selected;
+  clear_items();
+  layout();
+  Store* s = store ? e.store_of(store) : nullptr;
+  if (!s) return;
+  int32_t found = -1;
+  for (int32_t k = 0; k < 4; ++k) {
+    if (!kinds[k]) continue;
+    if (x209) {
+      const char* h = e.message(0x294 + k);
+      add_item(h ? h : "", 0);
+    }
+    for (const ConfigItem* it : s->items) add_row(it, k, previous, &found);
+  }
+  if (found == -1) found = old;
+  if (x20d) {
+    // The tonnage, summed in a float as the x87 stores it each time.
+    float tons = 0.0f;
+    for (const ConfigItem* it : s->items) tons = static_cast<float>(it->weight(-1) + tons);
+    char b[32];
+    std::snprintf(b, sizeof b, "%.2f", static_cast<double>(tons));
+    title.set_text_id(0x299, b);
+  }
+  select(found);
+}
 
 // Mech3.exe 1.2 @ 0x0048c250
 FileList::~FileList() {

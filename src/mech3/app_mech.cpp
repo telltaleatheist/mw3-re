@@ -583,7 +583,10 @@ SalvageMech salvage_view(Mech& m) {
   SalvageMech v;
   v.has_data = m.pilot != nullptr;
   v.type = m.pilot ? m.pilot->roster : -1;
-  v.tech = mech_tech(v.type);  // 0x0041df10
+  // 0x0041df10: mech_tech of the definition's +0x00, which is its roster
+  // index (MechDfn::index, the cache 0x004846a0 is by roster); a built
+  // mech's definition is already loaded, so the cache's lazy load is moot.
+  v.tech = mech_tech(v.type);
   v.torso_gone = m.torso && m.torso->destroyed;
   v.head_gone = m.head && m.head->destroyed;
   for (int i = 0; i < 2; ++i) v.leg_gone[i] = m.legs[i] && m.legs[i]->destroyed;

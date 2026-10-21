@@ -617,3 +617,16 @@ skipped (exe null read). Test: test_salvage.py 200/200 on test_pilot's
 emulator; breaks 19/21 (2 unshowable). Left for 8b: the store list's rows
 0x0048dbe0 (debriefing salvage list, REALLOC_LIST, 0x00404ae0,
 0x00408bd0/0x00408b40); 8c: 0x00408c30.
+
+## 2026-10-21 Campaign item 8b1: the store list's rows (branch mac3/salvage)
+
+8b split: 8b1 the rows (StoreList::refill 0x0048dbe0, add_row 0x0048d9a0,
+the items' names and labels 0x00473700..0x004739c0 in mech_salvage.cpp,
+the shown-name message tables in mech_names); 8b2 the briefing's
+reallocation (REALLOC_LIST bound, 0x00404ae0, 0x00408b40, 0x00408bd0 with
+0x00408850 and 0x00408690: 300 t and 2 mechs per +0xa8 unit). Order
+found: the armor and ammo labels ask for "tons" / "rounds" before the name.
+test_debriefing's salvage list now refills from a real store; an 'R' plan
+step varies the list's settings. Breaks 16/18 (2 unshowable). Also the
+8a review nit: app_mech.cpp's tech lookup noted (MechDfn +0 is the roster
+index).

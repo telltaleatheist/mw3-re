@@ -459,3 +459,34 @@ mission's store. Breaks 19 of 21 (`scratch/briefing/breaks9.py`, 80 runs,
 200 for three); the two left cannot show: TAG's skip and the skip after
 the tech swap (only TAG is made in neither tech).
 
+
+### The store list's rows (item 8b, first half)
+
+`StoreList::refill` 0x0048dbe0 (the mech lab's list, the debriefing's
+SALVAGE_LIST, the briefing's REALLOC_LIST): the old rows freed, then for
+each kind listed (+0x204: mechs, weapons, ammo, equipment) a header
+(messages 0x294..0x297, with +0x209) and a row for each of the store's
+items of that kind (0x0048d9a0): one the list's +0x200 filter (a function,
+set by nothing ported) takes, a weapon or equipment whose tech is in
++0x210. A row's text is the item's label (vt+0x1c): "name (n)" unless one
+or the store's own, ammo "name (n rounds)" (0x1c4) or "name (unlimited)"
+for the store's own (0x1c3), armor "name (2.5 tons)" (half a ton each).
+Names (vt+0x20) are Mech3Msg.dll's by table (mechs 0xd82.., weapons
+0x2d7.. with LB-10X AC at 0xe6 and 0x2ee skipped, equipment 0x1c6..),
+" (CLAN)" after a Clan weapon or piece of equipment. The row's value is the
+item; the selection stays on the item it was on, else on its index. With
++0x20d the tonnage (each item's weight summed as floats, "%.2f") goes into
+the title, message 0x299.
+
+Ported: `StoreList::refill`, `add_row`, `selected_value`; `item_name`,
+`item_label` (mech_salvage.cpp, the original's file for 0x00473700..);
+`mech_name_message`, `weapon_name_message`, `equip_name_message`
+(mech_names). Engine hooks: `store_of`, `item_handle`, `store_list_filter`,
+`message_format_sd`. Test: `test_debriefing.py` refills its salvage list
+from a real store in the emulator (items with the exe's vtables; sprintf
+on c_format, which now has %f); the dump lists the rows, their values and
+the title; a plan step sets the list's kinds, header, tonnage and techs,
+selects a row and refills. Breaks 16 of 18 (`scratch/briefing/breaks10.py`,
+40 runs); the two left cannot show: refill passes only the kind it
+lists, so the kinds check in 0x0048d9a0 always holds, and ammo rows use
+their own messages, not the label.
