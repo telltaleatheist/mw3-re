@@ -107,6 +107,9 @@ class GameEngine : public Engine {
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
   void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
+  Store* store_of(Handle h) override;
+  Handle item_handle(const ConfigItem* it) override;
+  std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;
   void win_keep_scores(Handle screen, int32_t n) override;  // into the ported campaign

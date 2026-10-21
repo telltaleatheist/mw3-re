@@ -383,9 +383,9 @@ class FileList : public ShellButton {
 };
 
 // The mech lab's list of a store's items (0x0048d880, vtable 0x005c5ec0),
-// the briefing's REALLOC_LIST and the debriefing's SALVAGE_LIST. Its refill
-// (the store's items as rows, 0x0048dbe0 and the mech lab's names) is a hook
-// until the mech lab (campaign.md section 7).
+// the briefing's REALLOC_LIST and the debriefing's SALVAGE_LIST: the items
+// by kind (mechs, weapons, ammo, equipment), a header for each with +0x209,
+// the tonnage under it with +0x20d (campaign.md section 9).
 class StoreList : public FileList {
  public:
   StoreList(Engine& e, Handle store, int32_t kinds);  // 0x0048d880
@@ -396,13 +396,16 @@ class StoreList : public FileList {
   bool can_light(int32_t i) override;   // +0x90  0x0048df00: an item with a value
   bool can_choose(int32_t i) override { return can_light(i); }  // +0x94  0x0048df50
   void layout() override;            // +0xa4  0x0048ccf0: the rows of items without value in TITLE_FONT
-  virtual void refill();             // +0xa8  0x0048dbe0: the store's items as rows (a hook)
+  virtual void refill();             // +0xa8  0x0048dbe0: the store's items as rows by kind
+  void add_row(const struct ConfigItem* item, int32_t kind, Handle previous, int32_t* found);  // 0x0048d9a0
+  Handle selected_value();           // 0x0048d950: the selected item's value, 0 none
+  uint8_t kinds_or_all(int32_t k) const { return k < 4 ? kinds[k] : all; }  // +0x204 + kind
 
-  int32_t x200 = 0;                  // +0x200
+  Handle x200 = 0;                   // +0x200  a filter on the items (a function; 0 none)
   uint8_t kinds[4] = {};             // +0x204  which kinds it lists (0x0048df60; 5: all)
   uint8_t all = 0;                   // +0x208
   uint8_t x209 = 1, x20a = 1, x20b = 0, x20c = 0, x20d = 0;  // +0x209..+0x20d (0x0040a780..0x0040a7c0)
-  int32_t x210 = 3;                  // +0x210
+  int32_t x210 = 3;                  // +0x210  the techs listed (weapons' and equipment's)
   Handle store;                      // +0x214  (0x0040a760 sets it, then refills)
   int32_t x218 = 0;                  // +0x218
   ztwod::FontText title{nullptr, 0, 0};  // +0x21c

@@ -22,7 +22,9 @@ mech; their kills and points), fake objective lists ([0x0060994c],
 score and records and Instant Action's mode, rounds and waves; the probe
 gets the same through its setup. Stubbed: a card's set_vehicle 0x0047b210
 as far as the port has it (the display's show, item 6c), a card's mech
-display 0x0047e840 (a fake object), the salvage list's refill 0x0048dbe0,
+display 0x0047e840 (a fake object). Since 8b the salvage list refills
+(0x0048dbe0) from a real store of items with the exe's own vtables (their
+names through Mech3Msg.dll's stub and sprintf, a stub on c_format);
 the pilot's file opened 0x00478ce0 (closed: nothing written).
 """
 import ctypes
@@ -147,6 +149,10 @@ def make_plan(seed, spots):
             lines.append(f'{r.choice("NO")} {r.randrange(len(PARTS)):x}')
         elif roll < 0.23:
             lines.append('E')
+        elif roll < 0.31:
+            lines.append(f'R {r.randrange(16):x} {r.choice([0, 1]):x} {r.choice([0, 1]):x} '
+                         f'{r.choice([0, 1, 2, 3]):x} {r.choice([-1, 0, 1, 2, 4]) & 0xffffffff:x}')
+            lines.append('E')
         lines.append(mouse_line(r, spots, state))
     if r.random() < 0.5:
         lines += [f'B {r.choice([0, 0, 2]):x}', mouse_line(r, spots, state)]
@@ -211,7 +217,8 @@ class Original:
         e.cpu.write(FAILED, bytes([cfg['failed']]))
         e.cpu.write(CHEAT, bytes([cfg['cheat']]))
         e.wf(TIME, cfg['time'])
-        e.w32(SALVAGE_STORE, cfg['salvage'])
+        self.store_setup()
+        e.w32(SALVAGE_STORE, self.store)
         self.won = e.world_alloc(4)
         e.cpu.write(self.won, bytes([cfg['won']]))
 
@@ -224,6 +231,8 @@ class Original:
 
         def fmt(emu, key, a, pop):
             buf, size, mid, n, s = a
+            if mid in (0x1c3, 0x1c4):  # the store rows' ammo: a name, then a number
+                s, n = n, (s if mid == 0x1c4 else 0)
             text = emu.cstr(s) if s else ''
             v = t.handle(key, (mid, i32(n), text))
             out = f'F{mid:x}:{i32(n)},{text}'[:size - 1] if v else ''
@@ -235,7 +244,8 @@ class Original:
         def msg(emu, key, a, pop):  # Mech3Msg.dll's messages: "msg<id>:<first two numbers>", or none
             buf, size, mid, va = a
             got = t.handle(key, (size, mid))
-            text = f'msg{mid}:{i32(emu.r32(va))},{i32(emu.r32(va + 4))}'
+            text = f'msg{mid}:{i32(emu.r32(va))},{i32(emu.r32(va + 4))}' if mid != 0x299 else \
+                f'msg{mid}:{emu.cstr(emu.r32(va))}'  # the tonnage, a string
             if got:
                 emu.cpu.write(buf, text.encode()[:size - 1] + b'\0')
             emu._ret(len(text) if got else 0, pop)
@@ -268,8 +278,13 @@ class Original:
             v = t.handle(key, (a[0],))
             emu._ret(e.world_string(f'obj{a[0]:x}') if v else 0, pop)
         e.stub(0x45e080, '0x0045e080', 'c', None, objective_text)
-        e.stub(0x48dbe0, '0x0048dbe0', 'c', None,
-               lambda emu, k, a, p: (t.handle(k, (emu.r32(a[0] + 0x214),)), emu._ret(0, p)))
+
+        def sprintf(emu, key, a, pop):
+            esp = emu.uc.reg_read(UC_X86_REG_ESP)
+            text = c_format(emu, emu.cstr(a[1]), esp + 12)
+            emu.cpu.write(a[0], text.encode('latin1') + b'\0')
+            emu._ret(len(text), 0)
+        e.import_stub(0x5bb658, '@sprintf', 's0,s1', 0, sprintf)
         plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
                  0x50ad60: '', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
         for addr, spec in plain.items():
@@ -376,6 +391,47 @@ class Original:
                 prev = node
             e.w32(where, lst)
 
+    # The salvage store: a store (0x14 bytes) whose list holds items with the
+    # exe's own vtables (test_pilot.py's layout), or none.
+    def store_setup(self):
+        e = self.e
+        self.store = 0
+        if self.cfg['store'] is None:
+            return
+        st = e.world_alloc(0x14)
+        head = e.world_alloc(0xc)
+        e.w32(head, head)
+        e.w32(head + 4, head)
+        e.w32(st, 0x5c36e0)
+        e.w32(st + 8, head)
+        e.w32(st + 0xc, len(self.cfg['store']))
+        vt = {0: 0x5bc160, 1: 0x5c0fc0, 2: 0x5bd150, 3: 0x5bd180}
+        size = {0: 0x18, 1: 0x1c, 2: 0x18, 3: 0x20}
+        prev = head
+        for it in self.cfg['store']:
+            k, ident, extra, n, own = it['kind'], it['id'], it['extra'], it['n'], it['own']
+            o = e.world_alloc(size[k])
+            e.w32(o, vt[k])
+            e.w32(o + 4, n & 0xffffffff)
+            e.w32(o + 0xc, 0xffffffff)
+            e.cpu.write(o + 0x10, bytes([own]))
+            if k == 3:
+                e.w32(o + 0x18, ident)
+                e.w32(o + 0x1c, extra)
+            else:
+                e.w32(o + 0x14, ident & 0xffffffff)
+                if k == 1:
+                    e.w32(o + 0x18, extra)
+            it['addr'] = o
+            node = e.world_alloc(0xc)
+            e.w32(node, head)
+            e.w32(node + 4, prev)
+            e.w32(node + 8, o)
+            e.w32(prev, node)
+            e.w32(head + 4, node)
+            prev = node
+        self.store = st
+
     def vcall(self, obj, slot, stack=()):
         return self.e.call(self.e.r32(self.e.r32(obj) + slot), ecx=obj, stack=stack)
 
@@ -405,6 +461,16 @@ class Original:
                 self.vcall(m + PARTS[pv[0]], 0x3c)
             elif op == 'O':
                 self.vcall(m + PARTS[pv[0]], 0x40)
+            elif op == 'R':  # the salvage list's settings, its store, a selection, a refill
+                kinds, x209, x20d, x210, sel = pv
+                sl = m + SALVAGE
+                e.cpu.write(sl + 0x204, bytes([(kinds >> i) & 1 for i in range(4)]))
+                e.cpu.write(sl + 0x209, bytes([x209]))
+                e.cpu.write(sl + 0x20d, bytes([x20d]))
+                e.w32(sl + 0x210, x210)
+                e.w32(sl + 0x214, self.store)
+                self.vcall(sl, 0x98, (sel & 0xffffffff,))
+                self.vcall(sl, 0xa8)
             elif op == 'E':
                 dump += test_twod.Original.dump(self) + self.dump_screen()
             elif op == 'U':
@@ -430,6 +496,10 @@ class Original:
             return f'o{objs.index(a) if a in objs else -1}'
         out = [f'screen won={e.r8(self.won)} store={e.r32(m + SALVAGE + 0x214):x} '
                f'x218={e.r32(m + SALVAGE + 0x218):x} font={e.r32(m + SALVAGE + 0x6cc):x}\n']
+        first, last = e.r32(m + SALVAGE + 0x15c), e.r32(m + SALVAGE + 0x160)
+        its = [e.r32(first + 4 * i) for i in range((last - first) // 4)] if first else []
+        out.append(f'salvage sel={i32(e.r32(m + SALVAGE + 0x17c))} title={e.cstr(m + SALVAGE + 0x21c + 0x34)} items=' +
+                   '|'.join(f'{e.cstr(e.r32(x))}={e.r32(x + 4):x}' for x in its) + '\n')
         for name, off in zip(['CONTINUE', 'REPLAY', 'ABORT', 'RANK'], ICONS + [RANK]):
             b = m + off
             first, last = e.r32(b + 0x170), e.r32(b + 0x174)
@@ -454,13 +524,17 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
     c = ' '.join(f'{v:x}' for v in (cfg['kind'], cfg['op'], cfg['mission'], cfg['failed'], cfg['cheat'],
-                                     fbits(cfg['time']), cfg['salvage'], cfg['won'], cfg['ia44'], cfg['b0'],
+                                     fbits(cfg['time']), orig.store, cfg['won'], cfg['ia44'], cfg['b0'],
                                      cfg['round'], cfg['x6c'], cfg['x70'], cfg['c4'], *cfg['b4'], cfg['ended'],
                                      cfg['allies']))
     ents = [x for x in cfg['lance'] if x['mech'] and not x.get('hidden')]
     c += f' {len(ents):x} ' + ' '.join(
         ' '.join(f'{v & 0xffffffff:x}' for v in [x['addr'], x['player'], x['team'], x['type'], *x['stats'], x['name']])
         for x in ents)
+    items = cfg['store'] or []
+    c += f' {len(items):x} ' + ' '.join(
+        f"{x['addr']:x} {x['kind']:x} {x['id'] & 0xffffffff:x} {x['extra']:x} {x['n'] & 0xffffffff:x} {x['own']:x}"
+        for x in items)
     for objs in (cfg['primary'], cfg['secondary']):
         objs = objs or []
         c += f' {len(objs):x} ' + ' '.join(f"{o['addr']:x} {o['done']:x} {o['shown']:x}" for o in objs)
@@ -509,13 +583,19 @@ def main():
         cfg = {'kind': r.choice([0, 1, 1, 1, 2, 4]), 'op': op, 'mission': mission,
                'failed': r.choice([0, 0, 1]), 'cheat': r.choice([0, 0, 0, 1]),
                'time': r.choice([0.0, 59.5, 754.25, 3599.9, 3700.0, 9000.75]),
-               'salvage': r.choice([0, 0x5e900000]), 'won': r.choice([0, 0, 1]),
+               'won': r.choice([0, 0, 1]),
                'ia44': r.choice([1, 2, 3]), 'b0': r.choice([0, 1]), 'round': r.randrange(5),
                'fast': r.choice([0, 0, 1]), 'size': r.choice(SIZES),
                'x6c': r.randrange(-1, 6), 'x70': r.choice([0, 0, 1, 2, 3, 7]),
                'c4': r.choice([0, 1234, 99999, 100000, 250000, 399999, 400000, 900000, -5]),
                'b4': [r.choice([0, 0, 3, 17, 250]) for _ in range(4)], 'ended': r.choice([0, 1]),
                'allies': r.choice([0, 1, 3, 3, 0x13])}
+        cfg['store'] = None if r.random() < 0.25 else [
+            {'kind': (k := r.choice([0, 1, 1, 2, 2, 3, 3])),
+             'id': r.choice([0, 3, 18, 19, -1]) if k == 0 else (r.choice([0, 1, 2, 9, 14, 15]) if k == 3
+                                                                 else r.choice([0, 15, 21, 36, 37, -1])),
+             'extra': r.choice([1, 2, 3]), 'n': r.choice([1, 1, 2, 5, 0, 40]), 'own': r.choice([0, 0, 1])}
+            for _ in range(r.choice([0, 1, 3, 6, 10]))]
         cfg['lance'] = []
         player_at = r.choice([0, 0, 1, 2, 3, None])
         for i in range(r.choice([0, 1, 2, 3, 4, 5, 6, 7, 7])):

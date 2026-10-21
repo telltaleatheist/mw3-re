@@ -738,7 +738,17 @@ class Engine : public zgame::AppHooks {
   virtual void lance_display_update(Handle d, float dt) { unported("display.vt+0x24", {d, zgame::bits(dt)}); }
   virtual void lance_display_delete(Handle d) { unported("display.vt+0x00", {d}); }
   virtual void lance_display_show(Handle d, Handle vehicle) { unported("0x0047b210", {d, vehicle}); }
-  virtual void store_list_refill(Handle store) { unported("0x0048dbe0", {store}); }
+  // A store list's reads (0x0048dbe0): its store by handle, a store item's
+  // handle (the row's value: the item itself in the exe), its +0x200 filter
+  // (a function on the item; set by nothing ported), 0x00575fd0 with a name
+  // and maybe a number (the ammo rows' 0x1c3 / 0x1c4).
+  virtual class Store* store_of(Handle store);
+  virtual Handle item_handle(const struct ConfigItem* item);
+  virtual bool store_list_filter(Handle fn, Handle item) { return unported("store_list +0x200", {fn, item}) != 0; }
+  virtual std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) {
+    unported("0x00575fd0", {id, s, n, has_n ? 1u : 0u});
+    return std::string();
+  }
   virtual const char* mech_name_of(int32_t mech) {
     unported("0x00484650", {mech});
     return "";

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 
 // C:\zipper\Mech3\mech_salvage.cpp (func2file: 0x00472da0..0x00472ec0 sit
@@ -11,6 +12,7 @@ namespace mech3 {
 
 class Store;
 struct Config;
+struct ConfigItem;
 
 // A weapon slot of the mech's weapon manager (+0xd4: +0x24 count, +0x40
 // slots), as 0x00472da0 reads it.
@@ -70,6 +72,14 @@ struct SalvageEntity {
 // list's order.
 void lance_salvage(Store& salvage, Store& own, std::vector<SalvageEntity>& list, uint32_t allies, bool team,
                    const SalvageCalls& c);
+
+// The store items' texts (their vt+0x20 name and vt+0x1c label,
+// 0x004738f0..0x004739c0 and 0x00473700..0x004738b0), with Mech3Msg.dll's
+// messages through `msg` (null as MSVC's sprintf shows it). An engine item's
+// (0x004738b0, 0x004739d0) is not ported: no store list shows engines.
+using MessageText = std::function<const char*(int32_t)>;
+std::string item_name(const ConfigItem& it, const MessageText& msg);
+std::string item_label(const ConfigItem& it, const MessageText& msg);
 
 // The missions object's salvage store (+0xc0, [0x00609990]).
 Store& mission_salvage();

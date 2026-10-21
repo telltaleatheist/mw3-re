@@ -78,7 +78,7 @@ def h32(s):
 
 
 def c_format(emu, fmt, va):
-    """printf for the formats the messages can hold: %s %d %i %u %x %c %%."""
+    """printf for the formats the messages can hold: %s %d %i %u %x %c %f %%."""
     out = []
     i = 0
     ap = va
@@ -88,7 +88,7 @@ def c_format(emu, fmt, va):
             out.append(c)
             i += 1
             continue
-        m = re.match(r'%([-+ #0]*)(\d*)(?:\.(\d+))?([lh]?)([sdiuxXc%])', fmt[i:])
+        m = re.match(r'%([-+ #0]*)(\d*)(?:\.(\d+))?([lh]?)([sdiuxXcf%])', fmt[i:])
         if not m:
             out.append(c)
             i += 1
@@ -97,6 +97,11 @@ def c_format(emu, fmt, va):
         i += m.end()
         if conv == '%':
             out.append('%')
+            continue
+        if conv == 'f':  # a double on the stack
+            d = struct.unpack('<d', struct.pack('<II', emu.r32(ap), emu.r32(ap + 4)))[0]
+            ap += 8
+            out.append(f'{d:.{int(prec) if prec else 6}f}')
             continue
         v = emu.r32(ap)
         ap += 4
