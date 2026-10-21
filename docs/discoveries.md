@@ -2081,7 +2081,10 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **The debriefing keeps a career kill count for each pilot:** under
   "'Mechs Defeated" every pilot in the lance (you, Dominic Paine, Epona Rhi,
   Alan Mattila) shows the mechs they have destroyed over the whole
-  campaign, this mission's included. Lancemates are recognised by their
+  campaign, this mission's included. After a win the original copies these
+  back by card position and writes 0 for a card without a matching pilot,
+  so a lancemate missing from their card loses the whole tally (fixed in
+  the rebuild). Lancemates are recognised by their
   names. Each lance card shows that pilot's mechs and vehicles destroyed
   this mission and their sum.
 - **Instant Action's score:** 1,000 flat, or in its wave modes 1,000 a wave

@@ -14,6 +14,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
 - **Lava heats the same at any frame rate.** The original added heat on
   every frame a foot touched lava, so a faster computer cooked you faster

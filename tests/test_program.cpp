@@ -55,6 +55,7 @@
 #include "mech3/options.h"
 #include "mech3/pilot.h"
 #include "mech3/briefing.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/debriefing.h"
 #include "mech3/pilot_menu.h"
 #include "mech3/player.h"
@@ -348,6 +349,10 @@ TEST(program_starts_like_the_game_to_the_main_state) {
 // LAUNCH, and c1 mission 1's Core frames with the pilot's own mech.
 TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   if (!have_game()) return;
+  // Twice: with zfix bugs on (the rebuild) and off around the win (the exe's
+  // b4 copy; off for the whole run the exe's own crashes come back).
+  for (const bool fix : {true, false}) {
+  const char* pilot_name = fix ? "Recruit" : "Recruit2";  // (the pilots stay between tests: new names)
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3_GAME_DIR);
@@ -389,7 +394,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
       } else if (stage == 1) {
         auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
         if (!ps || !ps->screen) return;
-        ps->screen->new_bar.set_text("Recruit");  // (the pilots stay between tests: a new name)
+        ps->screen->new_bar.set_text(pilot_name);  // (the pilots stay between tests: a new name)
         ps->screen->new_bar.on_return();
         ps->screen->on_button(0x18, 0, 0);  // ACCEPT
         stage = 2;
@@ -412,17 +417,23 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
           if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
           {
             cg->c4 = 123456, cg->b4[1] = 7;  // a score and a lancemate's kills, carried through
+            // A lancemate's slot (no mech: c1m1 has no lancemate on a card), so
+            // the Win State copies two cards' numbers: card 1 has no record line.
+            cg->lancemates.push_back(new mech3::GameSlot(-1));
+            cg->x9c = 2;
             for (const mech3::ConfigItem* it : cg->store.items) mechs_before += it->kind() == 0 ? it->count : 0;
           }
           // Won (campaign.md section 1): Exit Mission brings the end screen's
           // fade to the debriefing's Win State.
           mech3::missions().ended = 1;
+          zfix::options().bugs = fix;  // the Win State's copy of the scores
           mech3::missions().on_command(0x71);
           stage = 4;
         }
       } else if (stage == 4 && app.current() == &mech3::states().end_win) {
         auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
         if (!d) return;
+        zfix::options().bugs = true;  // (the Win State has copied them)
         debrief_seen = true;
         continue_help = !d->continue_btn.help.empty() && d->continue_btn.help[0]->text[0] != 0;
         debrief_handle = mech3::states().end_win.screen_;
@@ -458,11 +469,13 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);
     EXPECT(core_frames >= 30 && mech.parts > 0);
-    mech3::Pilot* rec = mech3::find_pilot("Recruit");
+    mech3::Pilot* rec = mech3::find_pilot(pilot_name);
     mech3::CampaignGame* c = rec ? rec->campaign() : nullptr;
     EXPECT(c && c->operation() == 1 && c->mission_number() == 2);  // the Win State's save made it current
     EXPECT(c && c->c4 == 123456);  // the Win State's copy of the score, into the ported campaign
-    EXPECT(c && c->b4[1] == 7);    // a lancemate without a record line keeps its kills
+    // A card without a record line: the exe writes its 0 over the record;
+    // FIX (bug), behind bugs, it keeps the lancemate's career kills.
+    EXPECT(c && c->b4[1] == (fix ? 7 : 0));
     // 0x0047ae10's won path: the player's mech (whole) into the campaign's
     // +0x64 store, which the next mission's game adds to its own store.
     int32_t mechs_after = 0;
@@ -491,6 +504,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+  }
+  zfix::options().bugs = true;
 }
 
 // The debug launch of c1 mission 1 without a window (docs/mission-start.md):

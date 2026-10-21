@@ -10,6 +10,7 @@
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app.h"
@@ -482,11 +483,11 @@ void GameEngine::win_keep_scores(Handle screen, int32_t n) {
   if (!d || !c) return Engine::win_keep_scores(screen, n);
   // n is the campaign's slots, at most the lance's four cards (+0x13be4 has
   // four). The exe writes every card's number, 0 for a card without a
-  // record; here a card without one keeps the campaign's count, since a
-  // lancemate's name (0x004aee70) is not ported yet and no record would
-  // match: the career kills would be wiped on every win.
+  // record line. FIX (bug), behind `bugs`: a card without one keeps the
+  // record, else a lancemate not on that card loses their career kills.
+  const bool fix = zfix::options().bugs;
   for (int32_t i = 0; i < n && i < 4; ++i)
-    if (d->lance_scored[i]) c->b4[i] = d->lance_scores[i];
+    if (!fix || d->lance_scored[i]) c->b4[i] = d->lance_scores[i];
   c->c4 = d->score;
 }
 
