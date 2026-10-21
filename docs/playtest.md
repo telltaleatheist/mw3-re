@@ -21,3 +21,22 @@ the briefing's load freeze (5a55624).
 | 9 | "Shutting down" plays but the mech never shuts down; then the speed locks, no slowing, firing or manual shutdown | heat shutdown, the action queue | mac 2 | open |
 | 10 | HUD images not found in the mission: dmg_*_blk, hud_othererrow_* | the image library after the mission load | mac 3 | open |
 | 11 | Trucks, APCs and mobile HQs fail to build | vehicles (AI controls) | AI area | waiting |
+| 12 | Every key binding checked: does each command do what it should? | controls, all 0xa7 commands | mac 2 | open |
+
+### #12, the key binding audit (Owen, 2026-10-21)
+
+One table in `docs/keybindings.md`: every command (0xa7 of them), its
+default key and mouse/joystick binding (0x00411150, `controls.md` "The
+defaults"), its handler (the mech's commands 0x0041be80, the HUD's, the
+app's), whether the program reaches it, and what it should do (the readmes,
+`game/mw3-1.2/readme.txt` and `README-1.0.TXT`; the manual and the Quick
+Reference Card if they can be found online, e.g. archive.org). Each command
+not reached, or doing something else, becomes a row above. A headless test
+presses each default key and checks its command fires.
+
+Already known from the readmes: Zoom Reticle Window is keypad 0 (missing
+from the reference card); Ctrl-[ / Ctrl-] select the previous / next weapon
+in a group (the 1.0 and 1.2 readmes swap them); Shift-N / Ctrl-N the
+previous / nearest op point; Ctrl-P screenshot removed; keypad Ctrl-0 torso
+mode; L freelook; Ctrl-D enemy damage display; F9 Stop replaces Ctrl-F10 /
+Ctrl-F11; keypad * the chat window; Left/Right Ctrl can't be bound.
