@@ -681,6 +681,13 @@ class Engine : public zgame::AppHooks {
     return static_cast<int32_t>(vcall(field32(pilot, 0x6c), 0x3c, {}));
   }
   virtual Handle lab_slot(Handle pilot, int32_t i) { return vcall(field32(pilot, 0x6c), 0x34, {i}); }
+  virtual int32_t lab_slot_mech(Handle slot) { return static_cast<int32_t>(field32(slot, 0x04)); }
+  // The lab's screen behind the Lab State's handle (null: not the port's).
+  virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }
+  virtual class LabScreen* lab_screen(Handle screen) {
+    (void)screen;
+    return nullptr;
+  }
   virtual void lab_slot_release(Handle pilot, int32_t i) { set_field32(lab_slot(pilot, i), 0x0c, 0); }
   // A slot's loadout (+0x08; the slot asked for twice, as the exe does) and
   // a loadout's mech (+0x14).
@@ -708,6 +715,20 @@ class Engine : public zgame::AppHooks {
   virtual void config_list_add_import(Handle list, Handle config) { unported("lab.import", {list, config}); }
   virtual void node_frame_update() { unported("0x004f7f70", {}); }
   virtual void model_purge(int32_t a, int32_t b) { unported("0x005394c0", {a, b}); }
+  // The lab screen's (lab_screen.cpp): the Lab State's part pick
+  // (0x004504d0, ECX the state) and the weapon groups' refresh (0x0044dcf0,
+  // ECX the screen).
+  virtual void lab_part_pick(int32_t part) { unported("0x004504d0", {part}); }
+  // The slot switch's (0x00448f80, 0x00449010): a mech out of the lab's store
+  // (0x00472a30) and into it (0x00471c10), a slot's loadout given back
+  // (0x00433df0(0, store, 1)) and its mech set (0x005a2ba0, a +0x04 setter
+  // the linker shares with other classes). The program's are the ported
+  // Store's and GameSlot's.
+  virtual void lab_store_remove(Handle store, int32_t mech);
+  virtual void lab_store_add(Handle store, int32_t mech);
+  virtual void lab_slot_drop_config(Handle slot, Handle store) { unported("0x00433df0", {slot, 0, store, 1}); }
+  virtual void lab_slot_set_mech(Handle slot, int32_t mech) { set_field32(slot, 0x04, static_cast<uint32_t>(mech)); }
+  virtual void lab_groups_refresh() { unported("0x0044dcf0", {}); }
   virtual void salvage_open() { unported("0x0047d2f0", {}); }
   virtual void multiplayer_launch_prep() { unported("0x0046ceb0", {}); }
   // The missions object [0x006098d0]: loaded (0x00490930), the launch

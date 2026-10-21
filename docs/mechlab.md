@@ -31,10 +31,13 @@ range between mech_anim.cpp and mech_data.cpp).
     then the first slot (0x00448f80(0)) and the first page (0x0044ce30(0))).
   - update 0x00448a80: input (0x0051b360), the cursor, the scene's node
     update (0x004f7f70), the 3D view's frame (0x00450810, 0x00450800). When
-    +0x38 holds a node (0x13 means none) the part showing it is looked up in
-    the +0x20 vector (0x004507c0: each part's +0x08 is its node; 0x00448e20
+    +0x38 holds a mech to show (the slot switch 0x00449010 puts the slot's
+    mech there; 0x13, the 19 mechs, means none) its entry is looked up in
+    the +0x20 vector (0x004507c0: each entry's +0x08 is its mech; 0x00448e20
     checks the index), kept in +0x2c and handed to the page (0x0044cf40,
     which ignores it and redraws the page), then +0x38 goes back to 0x13.
+    (Item 1 first read +0x38 as a node pointed at in the 3D view; the slot
+    switch shows it is the mech.)
     The frame (0x00448f10: the screen's vt+0 under the 3D lock or the 2D
     one, by +0x6c), 0x00450690 with [0x0072c52c], and the flip (0x00576ea0).
     Its result is [0x00605a88], which nothing writes: the lab never leaves
@@ -101,6 +104,102 @@ sinks, the armor, the sorts; to be detailed with their items).
 The screen (vtable 0x005c1110, new(0x1b468), destructor 0x0044c2f0) is a
 MenuScreen like the briefing's; its page is +0x111ec.
 
+### The screen's making (0x0044b920, step 2)
+
+Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
+
+- It is a menu screen without a state (+0x10fec stays 0); its page
+  (+0x111ec) starts at -1.
+- **The members, in the order they are made.** TEMP_BACKGROUND, then the
+  three panels, then LOADOUT_LIST and ICON_GLOW. Then the seven tabs
+  (help buttons, ids 0..6 set at binding) and PILOT_GLOW. Then **twelve**
+  mech buttons, of which only the first four are bound (ICON_MECH1..4,
+  ids 8..11). Then CHASSIS_LIST, CONFIG_LIST (with its four buttons
+  inside it) and CONFIG_EDIT (17 characters). Then SKIN_LIST, the two
+  sorts (ids 31, 32) and the eight parts. Then UNASSIGNED_LIST (four
+  SELECT_* check buttons, ids 0x19, 0x17, 0x18, 0x1a, four sorts, ids
+  0x1b..0x1e, and ALIST_TITLES). Then ASSIGNED_LIST, the two weapon
+  lists, CURRENT_CHASSIS, ENGINE_TABLE (seven rows and four buttons, ids
+  0x13..0x16) and MESSAGE_AREA. Last come three panels made with new:
+  CHASSIS_DATA (0x00457600), MECH_DATA (0x00456cd0) and ARMOR_TITLES
+  (inline: a button, eleven toggles 0x0044fab0, a button 0x0044fad0).
+- **The panels** (PANEL_LEFT/RIGHT/CENTER, 0x0044b010) have three looks
+  read from "single", "double" and "double2". The destructor gives back
+  only the first two images: "double2"'s is never released.
+- **The part buttons.** PART_HEAD is made by 0x0044ed40 and the others by
+  0x0044f290, but the constructor overwrites the head's vtable, so all
+  eight are one class (0x005c13b0). They read as plain check buttons, with
+  id 0x12 and their part's number at +0x16c. The numbers are: head 6,
+  torso 1, left torso 7, right torso 8, left leg 4, right leg 5, left arm
+  2, right arm 3. The order of binding is head, torso, left and right
+  torso, legs, arms.
+- **MESSAGE_AREA** (0x0044e6d0) reads a SOUND and plays it with every
+  text it is given (0x0044e740). At the end of making it shows message
+  0xdcc.
+- **The end of the constructor.** All 7 pages are hidden (0x0044ca50(i,
+  0)). ICON_MISSIONDATA is disabled for good. The mech buttons past the
+  lance's slot count are hidden.
+- **The page switch 0x0044ca50(page, show).**
+  - Every call does three things. It asks for the shown slot's mech's
+    tech (0x00484720) and drops the answer. It shows MECH_DATA with its
+    arrows off (+0x188 vt+0x98(0, 0)). It shows CURRENT_CHASSIS.
+  - Page 0 (chassis and loadouts, panels "double", text 0x18c) shows or
+    hides CHASSIS_LIST, CONFIG_LIST, CHASSIS_DATA, LOADOUT_LIST, the two
+    sorts and SKIN_LIST. SKIN_LIST is never shown in multiplayer (game
+    type 3).
+  - Page 3 (criticals, "single", text 0x1aa) turns MECH_DATA's arrows on
+    while the flag [0x00605a84] is clear. It always hides ARMOR_TITLES.
+    It shows or hides ASSIGNED_LIST, the eight parts and UNASSIGNED_LIST.
+    Hidden, it drops the part pick (0x004504d0(-1)).
+  - Page 4 (weapon groups, "single", text 0x18d) refreshes the groups
+    (0x0044dcf0) and shows or hides the two weapon lists.
+  - The text goes to CURRENT_CHASSIS's first label (taken unchecked).
+  - The glow goes to the page's tab (0x0044af90). The tab shows its
+    ACTIVATE image and stops blinking, and ICON_GLOW moves to the tab's
+    GLOW_OFFSET.
+  - Pages 1, 2, 5 and 6 have no controls of their own here. Their
+    contents come from the page refresh (0x0044cf50, later steps).
+
+### The press, the pages and the slots (step 2)
+
+- **The press 0x0044d4d0.**
+  - While a rename is under way (CONFIG_EDIT's +0x38c), any press but
+    CONFIG_SAVE (16) first asks the bar to finish it (0x0044a3a0, step 4).
+    If that fails, the press is dropped.
+  - Ids 0..6 go to 0x0044ce30 and 8..11 to the slot switch (id - 8).
+  - Ids 14..32 are the pages' own (a jump table at 0x0044dc34; steps 3..8).
+  - Anything else, CONFIG_ADD's 13 among them, does nothing.
+- **0x0044ce30(page).**
+  - ACCEPT (6) takes the shown slot's mech back out of the lab's store
+    (0x00472a30) and calls the state's 0x00448870, which pops it with 4.
+  - Any other page hides the old one's controls (0x0044ca50(old, 0)),
+    shows the new one's and redraws it (0x0044cf50, the pages' contents,
+    later steps).
+- **The slot switch 0x00448f80(slot), on the state.**
+  - A slot the game lacks is refused.
+  - Another slot takes the old slot's mech out of the lab's store
+    (0x00472a30) and puts the new slot's in (0x00471c10). Then it sets
+    the chassis (0x00449010) and shows the lance's buttons (0x0044ce90).
+- **0x00449010(mech).** A chassis different from the slot's gives the
+  slot's loadout back to the store (0x00433df0(0, store, 1)). It sets the
+  slot's mech (0x005a2ba0, a +0x04 setter the linker shares with zTwoD's
+  window), shows it on the slot's button and selects it in CHASSIS_LIST
+  (0x00449b00, step 3). Either way +0x38 asks the 3D view for it.
+- **0x0044ce90(slot).**
+  - Every lance button gets its slot's mech (0x0044a890; -1 for an empty
+    slot): icons green, grey and red, by 0x0044a9b0.
+  - The given button is chosen, with PILOT_GLOW at its GLOW_OFFSET.
+  - CHASSIS_LIST gets the lab's store and refills (0x00449220), selects
+    the mech, and the page redraws.
+- **0x0044a890** shows the mech's name under the button only when the name
+  is already showing (the name's own hidden flag, +0x18c).
+- **In the program.**
+  - MECHLAB opens the real screen, and ACCEPT on it comes back to the
+    briefing (the campaign test).
+  - The pages' contents are still empty: their controls are made, and
+    their reading and showing wait for their steps (unported
+    "lab.vt+<slot>").
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
@@ -134,7 +233,10 @@ not ported yet are hooks (`Engine::lab_*`). The Ctrl+I read's add to the
 list (0x00448c1d..0x00448dfa) is a hook too: the test keeps its read or
 its list empty.
 
-Not ported: the rest of section 1 and section 2; the second saved-loadout
+Step 2 (`mech3/lab_screen.{h,cpp}`, `test_lab_screen.py`): the screen's
+making, destructor, page and slot switches and the press's shell (above).
+
+Not ported: the pages' contents (steps 3..8); the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 

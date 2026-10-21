@@ -46,6 +46,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
+#include "mech3/lab_screen.h"
 #include "mech3/app_view.h"
 #include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
@@ -387,6 +388,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     size_t debrief_texts = 0;
     size_t second_steps = 0;
     bool lab_up = false, lab_left = false;
+    int32_t lab_mechs = -99;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
@@ -452,12 +454,27 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         second_number = engine.launch().number;
         debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
+        // The player's slot has no mech in this headless flow (the debug
+        // launch keeps its own): one for the lab to show and take from the store.
+        if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
+          cg->slot.mech = 3;
         b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);  // the Lab State (mechlab.md item 1)
         stage = 6;
       } else if (stage == 6 && app.current() == &mech3::states().lab) {
         const mech3::LabState& lab = mech3::states().lab;
-        lab_up = lab.pilot_ == engine.pilot() && lab.store_ != 0 && lab.slots_ >= 1 && lab.slot_ == -1;
-        mech3::states().lab.accept();  // ACCEPT (the screen's press is item 2)
+        mech3::LabScreen* ls = engine.lab_screen(lab.lab_screen_);
+        // The real screen (mechlab.md step 2): slot 0 shown, its mech put in
+        // the lab's store, the chassis page up, the lance's buttons bound.
+        lab_up = lab.pilot_ == engine.pilot() && lab.store_ != 0 && lab.slots_ >= 1 && lab.slot_ == 0 && ls &&
+                 ls->page == 0 && ls->tabs[6].id == 6 && ls->mechs[0].id == 8 && ls->mechs[0].mech == 3;
+        auto mechs_in = [&](const mech3::Store* st) {
+          int32_t n = 0;
+          for (const mech3::ConfigItem* it : st->items) n += it->kind() == 0 ? it->count : 0;
+          return n;
+        };
+        if (mech3::Store* st = engine.store_of(lab.store_)) lab_mechs = mechs_in(st);
+        if (ls) ls->on_button(6, 0, 0);  // ACCEPT
+        if (mech3::Store* st = engine.store_of(lab.store_)) lab_mechs -= mechs_in(st);
         stage = 7;
       } else if (stage == 7 && app.current() == &mech3::states().load) {
         lab_left = mech3::states().lab.pilot_ == 0 && mech3::states().lab.store_ == 0;
@@ -468,7 +485,9 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     pump.limit = 1500;
     app.run(pump);
     EXPECT(stage == 8);
-    EXPECT(lab_up && lab_left);  // MECHLAB opened the ported Lab State, ACCEPT came back
+    EXPECT(lab_up && lab_left);  // MECHLAB opened the ported Lab State and screen, ACCEPT came back
+    EXPECT(lab_mechs == 1);      // ACCEPT took the shown slot's mech back out of the lab's store
+    EXPECT(engine.unported_counts().count("0x0044b920") == 0);  // the screen is the port
     EXPECT(engine.unported_counts().count("0x00448830") == 0);
     EXPECT(debrief_seen);   // the ported debriefing
     EXPECT(continue_help);  // its texts (Mech3Msg.dll's)

@@ -19,6 +19,7 @@
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
 #include "mech3/debriefing.h"
+#include "mech3/lab_screen.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
 #include "mech3/mainmenu.h"
@@ -125,6 +126,11 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       const uint8_t* won = st == ss.end_win.addr() ? &ss.end_win.campaign_won_ : &ss.win.campaign_won_;
       const Handle h = alloc_block(0x13bf4);
       screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
+      return h;
+    }
+    case 0x44b920: {  // the mech lab's screen, new(0x1b468): the lance's slot count
+      const Handle h = alloc_block(0x1b468);
+      screens_[h] = {new LabScreen(*this, static_cast<int32_t>(a0)), 0x1b468};
       return h;
     }
     case 0x405230: {  // the briefing, new(0x12e6c): its section's name
@@ -513,6 +519,21 @@ int32_t GameEngine::lab_slot_count(Handle) { return game_slot_count(); }
 Handle GameEngine::lab_slot(Handle, int32_t i) { return handle_of(game_slot(i)); }
 void GameEngine::lab_slot_release(Handle, int32_t i) {
   if (GameSlot* s = game_slot(i)) s->x0c = 0;
+}
+LabScreen* GameEngine::lab_screen(Handle h) { return dynamic_cast<LabScreen*>(screen_of(h)); }
+void GameEngine::lab_show_slot(Handle, int32_t slot) { states().lab.show_slot(slot); }
+void GameEngine::lab_page(Handle h, int32_t page) {
+  if (LabScreen* s = lab_screen(h)) s->switch_page(page);
+}
+int32_t GameEngine::lab_slot_mech(Handle slot) {
+  const auto* s = static_cast<const GameSlot*>(object_of(slot));
+  return s ? s->mech : -1;
+}
+void GameEngine::lab_slot_drop_config(Handle slot, Handle store) {
+  if (auto* s = static_cast<GameSlot*>(object_of(slot))) s->set_config(nullptr, store_of(store), true);
+}
+void GameEngine::lab_slot_set_mech(Handle slot, int32_t mech) {
+  if (auto* s = static_cast<GameSlot*>(object_of(slot))) s->mech = mech;
 }
 Handle GameEngine::lab_slot_config(Handle, int32_t i) {
   GameSlot* s = game_slot(i);

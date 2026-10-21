@@ -731,3 +731,24 @@ Network HUD pieces skipped as ordered.
   Found: the lab's +0x64 is the frame clear's flag ([0x008026f0] through
   0x0057a3c0; its hook renamed video_set_clear from video_set_gamma); update's result is never
   set; Ctrl+X / Ctrl+I export/import loadouts (discoveries).
+
+## 2026-10-21 Lab step 2 (branch mac3/lab-shell)
+
+- 2a: LabScreen (mech3/lab_screen.{h,cpp}) 0x0044b920 / 0x0044c600: every
+  control made in the original's order (tabs and the 12 mech buttons in
+  place, InPlace<>), the screen's own controls bound and checked; the pages'
+  controls (CHASSIS/CONFIG/UNASSIGNED/ASSIGNED/weapon lists, ENGINE_TABLE,
+  LOADOUT_LIST) made but their read/after-bind/show/hide/refill hooked
+  ("lab.vt+<slot>" with their offset; the test patches those slots in their
+  own vtables), the three new'd panels faked (construct 0x00457600,
+  0x00456cd0, ARMOR_TITLES jumped over at 0x0044bd8e). Page switch 0x0044ca50.
+- 2b: the press 0x0044d4d0's shell (rename guard, pages, slots, "lab.press"
+  for 14..32), 0x0044ce30 (ACCEPT), the Lab State's 0x00448f80 / 0x00449010,
+  0x0044ce90, MechButton::set_mech 0x0044a890. Program: construct(0x44b920)
+  makes the screen; MECHLAB -> real screen -> ACCEPT back (campaign test).
+- test_lab_screen.py 60/60 (synthetic dialogs on odd seeds). Item 1 fixed:
+  +0x38 is the mech to show (mech_, kNoMech), +0x20 the per-mech entries.
+- Found: PART_HEAD is the parts' class (vtable overwritten); "double2" panel
+  image never released; MISSION DATA tab always disabled (discoveries);
+  CONFIG_ADD (13) has no press; 0x005a2ba0 is a shared +4 setter (not
+  stubbable); MESSAGE_AREA plays its SOUND with every text.

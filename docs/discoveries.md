@@ -1219,6 +1219,8 @@ From the mech definitions (mechdef-head.md).
   one from a file into that mech's list of loadouts; if a loadout with the
   same name is already there, the loaded one gets a random number added to
   its name. They only work while the mech shown has a loadout.
+- **The mech lab's MISSION DATA tab is always greyed out.** The lab
+  disables it as it opens, and nothing in the game turns it back on.
 - **The mech lab never leaves on its own:** its frame's "done" value is
   never set, so ACCEPT is the only way out (Escape does nothing there).
 - **A mod with a wrong `version` in a mech file crashes the game** instead of

@@ -231,6 +231,12 @@ void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
   }
 }
 void Engine::pop_state(uint32_t arg) { app().pop(arg); }
+void Engine::lab_store_remove(Handle store, int32_t mech) {
+  if (Store* s = store_of(store)) s->remove_mech(mech);
+}
+void Engine::lab_store_add(Handle store, int32_t mech) {
+  if (Store* s = store_of(store)) s->add_mech(mech);
+}
 // The double as its two dwords on the stack, low first.
 void Engine::screen_tint(uint16_t colour, Handle rect, double alpha) {
   uint64_t q;

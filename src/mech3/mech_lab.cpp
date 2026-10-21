@@ -3,6 +3,7 @@
 // between mech_data.cpp and mech_map.cpp (0x00448830..0x004561ff).
 #include "mech3/app.h"
 #include "mech3/app_states.h"
+#include "mech3/lab_screen.h"
 
 namespace mech3 {
 
@@ -36,7 +37,7 @@ bool LabState::enter() {
   }
   slots_ = en.lab_slot_count(pilot_);
   slot_ = -1;
-  node_ = kNoNode;
+  mech_ = kNoMech;
   en.geometry_init("..\\data\\common\\images\\lab;zbd");
   const uint8_t fast = static_cast<uint8_t>(en.exchange_fast_menu(0));
   const bool loaded = en.lab_world_load(addr());
@@ -59,8 +60,8 @@ void LabState::leave() {
   en.model_purge(1, 1);
 }
 
-// Mech3.exe 1.2 @ 0x00448a80. A part pointed at in the 3D view shows its
-// page. Two developer keys work only with the flag clear (from the briefing):
+// Mech3.exe 1.2 @ 0x00448a80. A mech chosen for the slot (+0x38, set by
+// 0x00449010) brings its model to the 3D view and redraws the page. Two developer keys work only with the flag clear (from the briefing):
 // Ctrl+X writes the slot's loadout to a file, Ctrl+I reads one into its mech's
 // list (Windows file dialogs; mechlab.md section 1). The result [0x00605a88]
 // is never set, so the lab never leaves by its update.
@@ -75,11 +76,11 @@ bool LabState::update() {
   en.node_frame_update();
   en.lab_view_begin(addr());
   en.lab_view_end(addr());
-  if (node_ != kNoNode) {
-    const int32_t i = part_index(node_);
-    part_ = part_valid(i) ? parts_[static_cast<size_t>(i)] : 0;
-    en.lab_page_part(lab_screen_, part_);
-    node_ = kNoNode;
+  if (mech_ != kNoMech) {
+    const int32_t i = model_index(mech_);
+    model_ = model_valid(i) ? models_[static_cast<size_t>(i)] : 0;
+    en.lab_page_part(lab_screen_, model_);
+    mech_ = kNoMech;
   }
   draw(en.frame_dt());
   en.lab_world_frame(addr(), en.frame_dt());
@@ -114,20 +115,57 @@ bool LabState::update() {
 bool LabState::accept() {
   Engine& en = e();
   for (int32_t i = 0; i < slots_; ++i) en.lab_slot_release(pilot_, i);
-  a().pop(4);
+  en.pop_state(4);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00448f80: another slot shown. The old one's mech goes
+// back out of the lab's store, the new one's in; false for a slot the game
+// does not have.
+bool LabState::show_slot(int32_t slot) {
+  Engine& en = e();
+  const Handle old = en.lab_slot(pilot_, slot_);
+  const Handle now = en.lab_slot(pilot_, slot);
+  if (!now) return false;
+  if (old == now) return true;
+  if (old) en.lab_store_remove(store_, en.lab_slot_mech(old));
+  slot_ = slot;
+  const int32_t mech = en.lab_slot_mech(en.lab_slot(pilot_, slot));
+  en.lab_store_add(store_, mech);
+  set_mech(mech);
+  if (LabScreen* s = en.lab_screen(lab_screen_)) s->show_slots(slot_);
+  else en.lab_show_slots(lab_screen_, slot_);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00449010: the shown slot's chassis. A new one drops the
+// slot's loadout back into the store and shows on the slot's button and in
+// CHASSIS_LIST; either way the 3D view shows it next frame (+0x38).
+bool LabState::set_mech(int32_t mech) {
+  Engine& en = e();
+  en.lab_slot(pilot_, slot_);  // asked, unused
+  if (en.lab_slot_mech(en.lab_slot(pilot_, slot_)) != mech) {
+    en.lab_slot_drop_config(en.lab_slot(pilot_, slot_), store_);
+    en.lab_slot_set_mech(en.lab_slot(pilot_, slot_), mech);
+    if (LabScreen* s = en.lab_screen(lab_screen_)) {
+      s->mechs[slot_].set_mech(mech, true, &s->pilot_glow);
+      s->chassis.select_mech(mech);
+    }
+  }
+  mech_ = mech;
   return true;
 }
 
 // Mech3.exe 1.2 @ 0x00448e20
-bool LabState::part_valid(int32_t i) const {
-  return !parts_.empty() && i >= 0 && static_cast<size_t>(i) < parts_.size();
+bool LabState::model_valid(int32_t i) const {
+  return !models_.empty() && i >= 0 && static_cast<size_t>(i) < models_.size();
 }
 
 // Mech3.exe 1.2 @ 0x004507c0
-int32_t LabState::part_index(Handle node) {
+int32_t LabState::model_index(int32_t mech) {
   Engine& en = e();
-  for (size_t i = 0; i < parts_.size(); ++i)
-    if (en.field32(parts_[i], 0x08) == node) return static_cast<int32_t>(i);
+  for (size_t i = 0; i < models_.size(); ++i)
+    if (static_cast<int32_t>(en.field32(models_[i], 0x08)) == mech) return static_cast<int32_t>(i);
   return -1;
 }
 

@@ -199,10 +199,10 @@ void build_fields() {
   const uint32_t L = l.addr();
   f(L + 0x8, 4, &l.cursor_);
   f(L + 0xc, 4, &l.screen_);
-  f(L + 0x2c, 4, &l.part_);
+  f(L + 0x2c, 4, &l.model_);
   f(L + 0x30, 4, &l.slot_);
   f(L + 0x34, 4, &l.slots_);
-  f(L + 0x38, 4, &l.node_);
+  f(L + 0x38, 4, &l.mech_);
   f(L + 0x60, 4, &l.lab_screen_);
   f(L + 0x64, 4, &l.clear_);
   f(L + 0x6c, 4, &l.world_);
@@ -286,8 +286,7 @@ void probe_states_construct() {
 }
 
 // The Lab State's parts (+0x20): the handles the test put in the original's vector.
-void probe_states_lab_parts(const uint32_t* parts, int32_t n) { mech3::states().lab.parts_.assign(parts, parts + n); }
-int32_t probe_states_lab_part_count() { return static_cast<int32_t>(mech3::states().lab.parts_.size()); }
+void probe_states_lab_parts(const uint32_t* parts, int32_t n) { mech3::states().lab.models_.assign(parts, parts + n); }
 // The third argument of 0x00448830 (its byte flag).
 uint32_t g_arg3 = 0;
 void probe_states_arg3(uint32_t v) { g_arg3 = v; }
@@ -416,8 +415,8 @@ int32_t probe_states_call(uint32_t addr, uint32_t arg, uint32_t arg2, uint32_t* 
       case 0x448a80: r = s.lab.update(); break;
       case 0x448a20: s.lab.leave(); break;
       case 0x448870: r = s.lab.accept(); break;
-      case 0x448e20: r = s.lab.part_valid(static_cast<int32_t>(arg)); break;
-      case 0x4507c0: r = static_cast<uint32_t>(s.lab.part_index(arg)); break;
+      case 0x448e20: r = s.lab.model_valid(static_cast<int32_t>(arg)); break;
+      case 0x4507c0: r = static_cast<uint32_t>(s.lab.model_index(static_cast<int32_t>(arg))); break;
       case 0x448e70: s.lab.make_screen(); break;
       case 0x448ef0: s.lab.delete_screen(); break;
       case 0x448f10: s.lab.draw(zgame::from_bits(arg)); break;

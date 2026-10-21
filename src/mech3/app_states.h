@@ -208,19 +208,21 @@ class LabState : public ShellState {
   uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
   void escape() override {}           // 0x0049bfd0
   bool accept();                      // 0x00448870: ACCEPT, the slots let go and the state popped
-  bool part_valid(int32_t i) const;   // 0x00448e20
-  int32_t part_index(Handle node);    // 0x004507c0: the part showing `node`, or -1
+  bool model_valid(int32_t i) const;  // 0x00448e20
+  int32_t model_index(int32_t mech);  // 0x004507c0: the entry of `mech`, or -1
+  bool show_slot(int32_t slot);       // 0x00448f80: the lance's slot shown, its mech out of the store
+  bool set_mech(int32_t mech);        // 0x00449010: the shown slot's chassis
   void make_screen();                 // 0x00448e70
   void delete_screen();               // 0x00448ef0
   void draw(float dt);                // 0x00448f10
 
-  static constexpr Handle kNoNode = 0x13;  // +0x38 when nothing is pointed at
+  static constexpr int32_t kNoMech = 0x13;  // +0x38 when no mech is waiting (the 19 mechs)
 
-  std::vector<Handle> parts_;         // +0x20  the 3D view's parts (each +0x08 its node)
-  Handle part_ = 0;                   // +0x2c  the part last pointed at
+  std::vector<Handle> models_;        // +0x20  the 3D view's mechs (each +0x08 its mech)
+  Handle model_ = 0;                  // +0x2c  the one shown
   int32_t slot_ = -1;                 // +0x30  the slot shown [0x00605a28]
   int32_t slots_ = 0;                 // +0x34  the game's slot count
-  Handle node_ = 0;                   // +0x38  the node pointed at; kNoNode from enter on
+  int32_t mech_ = 0;                  // +0x38  the mech to show next; kNoMech none (from enter on)
   Handle lab_screen_ = 0;             // +0x60  [0x00605a58]
   int32_t clear_ = 0;                 // +0x64  the frame clear's flag to put back (0x0057a3c0), kept by 0x0044ffc0
   uint32_t world_ = 0;                // +0x6c  the 3D world is up (set by 0x0044ffc0)

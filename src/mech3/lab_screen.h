@@ -1,0 +1,263 @@
+#pragma once
+#include <cstdint>
+#include <new>
+#include <vector>
+
+#include "mech3/controls_menu.h"
+#include "mech3/debriefing.h"
+#include "mech3/menu_widgets.h"
+
+// The mech lab's screen (docs/mechlab.md section 2): the Lab State's
+// (new(0x1b468), 0x0044b920), dlgMechLabII.zrd's LABMENU. Original file
+// unknown: 0x00448830..0x004561ff, between mech_data.cpp and mech_map.cpp.
+// Step 2 of mechlab.md section 5: the screen, its own controls and the page
+// and slot switches. The pages' controls are made as the original makes
+// them; what they read, lay out and show is theirs, hooked until their steps
+// (Engine::unported "lab.vt+<slot>" with the control's offset).
+namespace mech3 {
+
+class LabScreen;
+
+// N objects made in place in order and destroyed in reverse, as the
+// original's eh vector constructor (0x005ac2a0) and destructor (0x005ac160).
+template <typename T, int N>
+class InPlace {
+ public:
+  template <typename... A>
+  explicit InPlace(A&... args) {
+    for (int i = 0; i < N; ++i) new (&buf_[i]) T(args...);
+  }
+  ~InPlace() {
+    for (int i = N - 1; i >= 0; --i) (*this)[i].~T();
+  }
+  InPlace(const InPlace&) = delete;
+  InPlace& operator=(const InPlace&) = delete;
+  T& operator[](int i) { return *reinterpret_cast<T*>(&buf_[i]); }
+  static constexpr int size() { return N; }
+
+ private:
+  struct alignas(T) Slot { unsigned char b[sizeof(T)]; };
+  Slot buf_[N];
+};
+
+// A control whose reading and showing belong to a later step: its calls go
+// out as "lab.vt+<slot>" with its offset in the screen.
+struct LabLater {
+  Engine* e = nullptr;
+  uint32_t at = 0;                   // the offset in the original's screen
+  void call(uint32_t slot, std::initializer_list<Arg> args = {}) const;
+  void call_fn(const char* key, std::initializer_list<Arg> args = {}) const;  // a function of its own
+};
+
+// PANEL_LEFT, PANEL_RIGHT, PANEL_CENTER (0x0044b010, vtable 0x005c0e98): an
+// image with three looks, "single", "double" and "double2" (0x0044b100).
+class LabPanel : public ztwod::Image {
+ public:
+  LabPanel() : ztwod::Image(0) {}    // 0x0044b010
+  ~LabPanel() override;              // 0x0044b070: "double2"'s is not given back
+  bool read(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x78  0x0044b100
+  void show_look(int32_t look);      // 0x0044b180: 1 single, 2 double, 3 double2
+
+  zimg::Texture* single = nullptr;   // +0xbc
+  zimg::Texture* twice = nullptr;    // +0xc0  "double"
+  zimg::Texture* twice2 = nullptr;   // +0xc4  "double2"
+};
+
+// The lab's push buttons (vtable 0x005c1630; 0x0044f260, or 0x0040a5d0 with
+// the vtable set after): CONFIG_*, SORT_CHASSIS*, the engine's.
+using LabButton = ShellButton;
+
+// CONFIG_EDIT (vtable 0x005c14f0): the bar placed at its label's offset,
+// the label where the bar is asked to go (0x0044a710).
+class LabEditBar : public ShellEditBar {
+ public:
+  explicit LabEditBar(Engine& e) : ShellEditBar(e) { set_size(0x11); }  // 0x005a4ec0, 0x005a5280(0x11)
+  void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0044a710
+  uint32_t x38c = 0;                 // +0x38c
+  uint8_t x390 = 0;                  // +0x390
+};
+
+// SKIN_LIST (vtable 0x005c1448): its select (0x0044b1c0) is step 3's.
+class LabSkinList : public CycleButton {
+ public:
+  explicit LabSkinList(Engine& e) : CycleButton(e, -1) {}
+};
+
+// PART_HEAD..PART_RLEG (vtable 0x005c13b0; PART_HEAD made by 0x0044ed40(0x12)
+// and the rest by 0x0044f290, all the same class after): check buttons with
+// id 0x12 and the part's number at +0x16c. Their press and check are step 6's.
+class LabPart : public InvertCheck {
+ public:
+  LabPart() { id = 0x12; }
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override {  // +0x84  0x00456980
+    return ztwod::CheckButton::read_control(node, dialog);
+  }
+  int32_t part = 0;                  // +0x16c
+};
+
+// LOADOUT_LIST (0x0044b210, vtable 0x005c0f18): step 8's.
+class LabLoadoutList : public FileList, public LabLater {
+ public:
+  explicit LabLoadoutList(Engine& e) : FileList(e, -1) {}
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60
+  void hide() override;              // +0x64
+};
+
+// CHASSIS_LIST (0x004490d0, vtable 0x005c0cc0): a store list of mechs; step 3's.
+class LabChassisList : public StoreList, public LabLater {
+ public:
+  explicit LabChassisList(Engine& e) : StoreList(e, 0, 0) { x209 = 0; }
+  ~LabChassisList() override;        // 0x00449180: the rows' attachments deleted
+  void refill() override { call(0xa8); }  // +0xa8  0x00449250
+  void set_store(Handle s);          // 0x00449220: no choice, the store's mechs
+  void select_mech(int32_t mech) { call_fn("0x00449b00", {mech}); }  // 0x00449b00 (step 3)
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60
+  void hide() override;              // +0x64
+  uint32_t x6d0 = 0;                 // +0x6d0
+};
+
+// CONFIG_LIST (vtable 0x005c1588) with CONFIG_ADD, CONFIG_DELETE,
+// CONFIG_RENAME, CONFIG_SAVE (ids 13, 15, 14, 16) inside it; step 4's.
+class LabConfigList : public FileList, public LabLater {
+ public:
+  explicit LabConfigList(Engine& e)
+      : FileList(e, -1), add(e, 0xd), del(e, 0xf), rename(e, 0xe), save(e, 0x10) {}
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044f390
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60  0x0044f400
+  void hide() override;              // +0x64  0x0044f460
+  LabButton add;                     // +0x200
+  LabButton del;                     // +0x358
+  LabButton rename;                  // +0x4b0
+  LabButton save;                    // +0x608
+};
+
+// SELECT_WEAPON/AMMO/EQUIP/ARMOR in the unassigned list (vtable 0x005c1f48).
+class LabSelect : public InvertCheck {
+ public:
+  explicit LabSelect(int32_t i) { id = i; }
+};
+
+// The item lists' base (0x00451b40, vtable 0x005c1b70; destructor
+// 0x00451ce0): a push button with the rows, the items and the pieces its
+// reading makes. ASSIGNED_LIST (0x004552e0, vtable 0x005c1fe0) is one.
+class LabItemList : public ShellButton, public LabLater {
+ public:
+  explicit LabItemList(Engine& e) : ShellButton(e, -1) {}
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60
+  void hide() override;              // +0x64
+};
+
+// UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes; step 5's.
+class LabUnassignedList : public LabItemList {
+ public:
+  explicit LabUnassignedList(Engine& e)
+      : LabItemList(e), sort_item(e, 0x1b), sort_qty(e, 0x1c), sort_mass(e, 0x1d), sort_crit(e, 0x1e) {}
+  LabSelect weapon{0x19};            // +0x244
+  LabSelect ammo{0x17};              // +0x3b0
+  LabSelect equip{0x18};             // +0x51c
+  LabSelect armor{0x1a};             // +0x688
+  ShellButton sort_item;             // +0x7f4  (vtable 0x005c1eb8)
+  ShellButton sort_qty;              // +0x94c
+  ShellButton sort_mass;             // +0xaa4
+  ShellButton sort_crit;             // +0xbfc
+  uint8_t xd54 = 0;                  // +0xd54
+  int32_t xd58 = 1;                  // +0xd58
+  int32_t xd5c = 0;                  // +0xd5c
+  ztwod::Control titles;             // +0xd60  ALIST_TITLES (vtable 0x005c1e28)
+};
+
+// WEAPONS_UNGROUPED and WEAPONS_GROUPED (vtables 0x005c1300, 0x005c1250;
+// destructor 0x0044dee0); step 7's.
+class LabWeaponList : public FileList, public LabLater {
+ public:
+  explicit LabWeaponList(Engine& e) : FileList(e, -1) {}
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044df70
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60
+  void hide() override;              // +0x64
+};
+
+// A row of a data panel (vtable 0x005c18b8), 0x960 bytes: a label and its value.
+class LabRow : public ztwod::FontText {
+ public:
+  LabRow() : ztwod::FontText(nullptr, 0, 0) {}
+  ztwod::FontText value{nullptr, 0, 0};  // +0x4b0
+};
+
+// ENGINE_TABLE (0x004569c0's panel, vtable 0x005c1130), 0x6e8 bytes: seven
+// rows and the engine's four buttons (ids 19..22); step 8's.
+class LabEngineTable : public ztwod::Control, public LabLater {
+ public:
+  explicit LabEngineTable(Engine& e);  // 0x004569c0, the buttons, 0x0044f040(7)
+  bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84  0x0044b830
+  void after_bind() override;        // +0x88
+  void show_for(float seconds) override;  // +0x60  0x0044b770
+  void hide() override;              // +0x64  0x0044b7e0
+  struct Rows : std::vector<LabRow*> {  // +0x174 (+0x184 points at it)
+    ~Rows();                         // 0x0044ef90: after the buttons
+  } rows;
+  LabButton faster;                  // +0x188  id 0x13
+  LabButton b2e0, b438, b590;        // +0x2e0, +0x438, +0x590  ids 0x14..0x16
+};
+
+// MESSAGE_AREA (0x0044e6d0, vtable 0x005c1740).
+class LabMessage : public ztwod::FontText {
+ public:
+  LabMessage() : ztwod::FontText(nullptr, 0, 0) {}
+  bool read(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x78  0x0044e700: SOUND
+  void set_text(const char* format, ...) override;  // +0x7c  0x0044e740: with the sound
+  uint32_t x4b0 = 0;                 // +0x4b0
+  float x4b4 = 1.0f;                 // +0x4b4
+};
+
+// The screen (vtable 0x005c1110), 0x1b468 bytes.
+class LabScreen : public MenuScreen {
+ public:
+  LabScreen(Engine& e, int32_t slots);  // 0x0044b920: the lance's slot count
+  ~LabScreen() override;             // 0x0044c600 (deleting 0x0044c2f0)
+  void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x0044d4d0
+  void switch_page(int32_t page);    // 0x0044ce30: 6 is ACCEPT
+  void show_slots(int32_t slot);     // 0x0044ce90: the lance's buttons, `slot` chosen
+  void show_page(int32_t page, bool show);  // 0x0044ca50
+  HelpButton* tab(int32_t page);     // 0x0044ca20: null out of 0..6
+  static void lab_tab_glow(HelpButton& t, bool on, ztwod::Image* glow);  // 0x0044af90
+  void bind_later(Handle panel, const char* name);  // 0x0059f8b0 on a panel of a later step
+
+  int32_t page = -1;                 // +0x111ec
+  ztwod::Image temp_background{0};   // +0x111f0  TEMP_BACKGROUND
+  LabPanel panel_center;             // +0x112ac
+  LabPanel panel_left;               // +0x11374
+  LabPanel panel_right;              // +0x1143c
+  Handle mech_data = 0;              // +0x11504  MECH_DATA (new(0x5ac), 0x00456cd0; step 8)
+  LabLoadoutList loadouts;           // +0x11508
+  ztwod::Image icon_glow{0};         // +0x11708  ICON_GLOW
+  InPlace<HelpButton, 7> tabs;       // +0x117c4  ICON_CHASSIS..ICON_ACCEPT, 0x17c each
+  ztwod::Image pilot_glow{0};        // +0x12228  PILOT_GLOW
+  InPlace<MechButton, 12> mechs;     // +0x122e4  0x64c each, ICON_MECH1..4 the first four
+  LabChassisList chassis;            // +0x16e74
+  LabConfigList configs;             // +0x17548
+  LabEditBar config_edit;            // +0x17ca8
+  LabSkinList skins;                 // +0x1803c
+  LabButton sort_name;               // +0x18460  id 0x1f
+  LabButton sort_mass;               // +0x185b8  id 0x20
+  LabPart part_head;                 // +0x18710
+  LabPart parts[7];                  // +0x18880..+0x19120
+  LabUnassignedList unassigned;      // +0x19290
+  LabItemList assigned;              // +0x1a13c
+  LabWeaponList ungrouped;           // +0x1a36c
+  LabWeaponList grouped;             // +0x1a570
+  WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)
+  Handle armor_titles = 0;           // +0x1a8c0  ARMOR_TITLES (new(0x31e0); step 8)
+  Handle chassis_data = 0;           // +0x1a8c4  CHASSIS_DATA (new(0x188), 0x00457600; step 8)
+  LabEngineTable engine_table;             // +0x1a8c8
+  LabMessage message;                // +0x1afb0  MESSAGE_AREA
+};
+
+}  // namespace mech3
