@@ -106,6 +106,21 @@ void dump_screen(mech3::BriefingScreen& s, Dump& d) {
     for (ztwod::Text* t : b.help) o << 'o' << ref(d, t) << ',';
     o << '\n';
   }
+  int32_t at = -1, i = 0;
+  for (auto it = s.script.steps.begin(); it != s.script.steps.end(); ++it, ++i)
+    if (it == s.script.at) at = i;
+  o << "script at=" << at;
+  for (mech3::BriefingStep* st : s.script.steps) {
+    if (auto* v = dynamic_cast<mech3::BriefingVoice*>(st)) {
+      o << " V\"" << std::string(v->name, strnlen(v->name, sizeof v->name)) << "\"," << std::hex
+        << zgame::bits(v->volume) << std::dec << ',' << int(v->cues) << ',' << v->x5c;
+    } else if (auto* m = dynamic_cast<mech3::BriefingMarker*>(st)) {
+      o << " M" << m->marker;
+    } else if (auto* sh = dynamic_cast<mech3::BriefingShow*>(st)) {
+      o << " So" << ref(d, sh->obj);
+    }
+  }
+  o << '\n';
   o << "REALLOC_OK id=" << s.realloc_ok.id << std::hex << " en=" << s.realloc_ok.enabled << std::dec << '\n';
 }
 
@@ -152,6 +167,8 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
     ls >> op;
     if (op == "V") {
       mech3::briefing_voice() = hex(ls);
+    } else if (op == "C") {
+      mech3::briefing_cue(static_cast<int32_t>(hex(ls)));
     } else if (op == "R") {
       mech3::briefing_reached() = static_cast<int32_t>(hex(ls));
     } else if (op == "S") {
@@ -182,6 +199,8 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
       if (k >= 6) continue;
       if (op == "N") bs[k]->on_enter();
       else bs[k]->on_leave();
+    } else if (op == "Y") {
+      s->script.start();
     } else if (op == "L") {
       s->set_loaded(hex(ls) != 0);
     } else if (op == "A") {

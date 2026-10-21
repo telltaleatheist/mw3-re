@@ -1,5 +1,7 @@
 #include "mech3/briefing.h"
 
+#include <cstring>
+
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/zfix.h"
@@ -58,6 +60,47 @@ void Engine::campaign_merge_salvage() {
 }
 
 // ---- the script ----
+
+// Mech3.exe 1.2 @ 0x00405ed0
+void briefing_cue(int32_t marker) { briefing_reached() = marker; }
+
+BriefingVoice::BriefingVoice(Engine& en, const char* sound) : e(en) {
+  std::strncpy(name, sound, sizeof name);
+}
+
+// Mech3.exe 1.2 @ 0x00405e10
+bool BriefingVoice::step(float) {
+  const Handle sound = e.sound_find(name);
+  if (briefing_voice()) {
+    e.voice_stop(briefing_voice());
+    briefing_voice() = 0;
+  }
+  if (!cues) {
+    if (sound) briefing_voice() = e.voice_play(sound, volume);
+  } else if (!sound) {
+    briefing_reached() = 999;
+  } else {
+    e.sound_cue_briefing(sound);
+    briefing_voice() = e.voice_play(sound, volume);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00405db0
+bool BriefingMarker::step(float) {
+  if (marker == -1) return e.voice_status(briefing_voice()) == 0;
+  return briefing_reached() >= marker;
+}
+
+// Mech3.exe 1.2 @ 0x00405d50
+bool BriefingShow::step(float) {
+  obj->show_for(-1.0f);
+  obj->dirty();
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00405d90
+void BriefingShow::reset() { obj->hide(); }
 
 BriefingScript::BriefingScript(Engine& e) {
   briefing_reached() = -1;
@@ -137,7 +180,7 @@ BriefingScreen::BriefingScreen(Engine& e, const char* name)
   add(&version);
   if (section) {
     bind_button(&bar, "TRANSPORT_PROGRESS");
-    // SOUND: the script of voices and map steps (0x00406650), later items.
+    read_script(section);
   }
   if (e.app_flag_1ba()) lines.show_for(-1.0f);
   else lines.hide();
@@ -317,6 +360,32 @@ void BriefingScreen::launch() {
   } else {
     e.replace_state(5);
   }
+}
+
+// Inline in 0x00405230: SOUND ("voice" ... MARKERS ((name (..) ...) ...)):
+// the voice, then for each marker its step and the objects shown at it
+// (0x00406650 reads each), then the end of the voice.
+void BriefingScreen::read_script(zrdr::Node* section) {
+  zrdr::Node* sound = zrdr::find(section, "SOUND");
+  if (!sound) return;
+  Engine& e = engine();
+  script.steps.push_back(new BriefingVoice(e, sound->list[1].s));
+  zrdr::Node* markers = zrdr::find(sound, "MARKERS");
+  // FIX (bug): no MARKERS crashed (read unchecked); here, no map steps.
+  const int32_t n = markers ? markers->list[0].i - 1 : 0;
+  for (int32_t i = 0; i < n; ++i) {
+    script.steps.push_back(new BriefingMarker(e, i));
+    zrdr::Node* objs = markers->list[i + 1].list;
+    const int32_t m = (objs[0].i - 1) / 2;
+    for (int32_t j = 0; j < m; ++j) {
+      ztwod::Object2D* o = e.briefing_map_object(&objs[1 + 2 * j]);
+      if (!o) continue;
+      o->set_background(static_bg, nullptr);
+      script.steps.push_back(new BriefingShow(o));
+      add(o);
+    }
+  }
+  script.steps.push_back(new BriefingMarker(e, -1));
 }
 
 // Mech3.exe 1.2 @ 0x00405120. FIX (bug): the line went in as the format

@@ -96,6 +96,25 @@ slider (`ShellSlider`) and the store list's making (`StoreList`) in
 mech lab 0x00408b40/0x00448830, the Salvage State 0x0047d2f0. The Load state
 still builds the original's screen by address (item 5 wires the port).
 
+### The script (item 3)
+
+SOUND in the briefing's section is `("briefing_c1m1" MARKERS (step0 step1
+...))`, each step a list of map objects `(circle (..) text (..) ...)`. The
+script (+0x11220, a list with its current entry +0x0c and playing +0x10)
+is: the voice (vtable 0x005bbc50: zsnd's sound by name, played at 1.0 with
+its cue markers calling 0x00405ed0, which sets the step reached [0x005e043c];
+no such sound sets 999, every step at once), then for each step a marker
+(0x005bbc40, done once [0x005e043c] >= its index) and its objects
+(0x005bbc30, shown when reached; 0x00406650 reads them, item 4), then the
+end marker (-1, done once the voice has stopped). The Load state starts it
+(+0x10 = 1, +0x0c = the first entry); a frame steps the current entry and
+moves on when it is done. REPLAY stops the voice, hides the objects (+0x08)
+and starts again; ABORT, MECHLAB, SALVAGE, Space and S stop it.
+Ported: `BriefingVoice`, `BriefingMarker`, `BriefingShow`, `read_script`,
+`briefing_cue`; the voice's calls are Engine hooks (`voice_play`,
+`voice_status`, `sound_cue_briefing`), the objects' reader
+`briefing_map_object` (null until item 4).
+
 ## 3. The debriefing (0x0047b430, new(0x13bf4))
 
 dlgWin.zrd's WINMENU: WIN_BACKGROUND, ICON_ABORT, ICON_REPLAY,
@@ -175,7 +194,9 @@ need the menus' one scale or a centred 640x480 frame.
 2. (Done) The briefing screen's shell: 0x00405230 without the map, the
    buttons and their enabling 0x00408ef0, the frame 0x00406440, ABORT
    0x00405050 and LAUNCH 0x00404f70.
-3. The briefing's sound list and REPLAY (+0x11220).
+3. (Done) The briefing's script and REPLAY (+0x11220): the SOUND block,
+   the voice 0x00405e10 with its cue markers 0x00405ed0, the map steps
+   0x00405db0 and the objects' show/hide 0x00405d50/0x00405d90.
 4. The briefing map: 0x00406650's reader and its drawing.
 5. The program: the Campaign state's path wired (movies skipped while
    zFMV is not ported), the Load state's hooks to the port, LAUNCH to
@@ -191,8 +212,10 @@ need the menus' one scale or a centred 640x480 frame.
 
 ## 8. Testing
 
-Item 2: `test_briefing.py` (40/40 runs; the original skips the SOUND block
-and the REALLOC_LIST bind with a code hook, stubs the later items' calls);
+Item 2: `test_briefing.py` (40/40 runs; the original skips the
+REALLOC_LIST bind with a code hook, stubs the later items' calls; since
+item 3 it reads SOUND too, with 0x00406650 stubbed to no object, and the
+plan starts the script, sends cue markers and replays);
 `test_mainmenu.cpp` checks the per_second bar. Breaks: scratch/briefing/
 breaks.py.
 
