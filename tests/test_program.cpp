@@ -2098,6 +2098,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
       int frames = 0;
       int32_t world = -1;
       const void* anims = nullptr;
+      std::string anim_path;  // and what was read: the address may come round again
+      int32_t anim_defs = 0;
       bool c1_mounted = false;
       size_t libraries = 0;
       mech3::LaunchedMech mech;
@@ -2114,6 +2116,8 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
           });
         g.world = mech3::missions().current;
         g.anims = zeff::anim().defs;
+        g.anim_path = zeff::anim().path;
+        g.anim_defs = zeff::anim().def_count();
         g.libraries = zimg::library_list(0).size();
         for (const std::string& m : zutl::mounts().read) g.c1_mounted |= m.find("/zbd/c1") != std::string::npos;
       }
@@ -2133,8 +2137,10 @@ TEST(missions_c1m1_c1m2_then_c2m1_in_one_process_headless) {
     app.run(pump);
     for (const Leg& g : legs) EXPECT(g.frames >= 60 && g.mech.parts > 0);  // each built its mech and ran
     EXPECT(legs[0].world == 0 && legs[1].world == 0 && legs[2].world == 1);
-    EXPECT(legs[1].anims == legs[0].anims);           // the same world keeps its animations
-    EXPECT(legs[2].anims != legs[0].anims);           // c2 read its own (0x0050b380 freed c1's)
+    EXPECT(legs[1].anims == legs[0].anims && legs[1].anim_path == legs[0].anim_path);  // the same world keeps them
+    // c2 read its own (0x0050b380 freed c1's). Not by address: the allocator
+    // may hand c1's freed block to c2's table (it did in the full run).
+    EXPECT(legs[2].anim_path != legs[0].anim_path && legs[2].anim_defs != legs[0].anim_defs);
     EXPECT(legs[0].c1_mounted && !legs[2].c1_mounted);  // c2's files, not c1's
     EXPECT(legs[2].libraries == legs[0].libraries);     // c1's texture libraries gone (0x00518b70)
     EXPECT(s_bad == 0);                               // nothing of c1 left in c2

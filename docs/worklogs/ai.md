@@ -100,3 +100,20 @@ Newest last. One short entry per item: what, commits, what to remember.
   the fake states in test_ai_orders now keep the order at +0x04 (serial at
   +0x0c).
 - 0x4c8a30 (a base with three cleared words) waits for items 9-10.
+
+## 2026-10-20 The c1m1/c1m2/c2m1 check, then on hold (mac4/states)
+
+- After merging main, the lead's full run failed
+  `missions_c1m1_c1m2_then_c2m1_in_one_process_headless` at
+  `legs[2].anims != legs[0].anims`. It compared heap addresses: c2's
+  animation table is a fresh read (zbd\c2\anim.zbd, 1422 defs against c1's
+  1770) and may land in c1's freed block, which any change in allocation
+  order makes likely. Nothing carried over from item 7. The check now
+  compares the file read and the def count; 3 full runs 93/93 here.
+- On hold (Owen pacing usage until Friday). Next when back: item 8, the node
+  state 0x4ced40 (run 0x4cf140, resume 0x4c9700, with backup 0x4cfa80 and
+  deploy 0x4d0040; the context 0x4cecf0; steering's set 0x4cea30), ending
+  with the headless walking check (the Owens turning and walking toward its
+  node under its own controls). Then Owen's three: the allied attack pick
+  (zfix bugs, lancemate test), the valve re-entry guard, c4b m6's missing
+  boundary regions.
