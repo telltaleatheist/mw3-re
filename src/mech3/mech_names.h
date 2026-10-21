@@ -30,6 +30,7 @@ int32_t mech_name_message(int32_t mech);
 int32_t weapon_name_message(int32_t weapon);
 int32_t equip_name_message(int32_t kind);
 float max_mass(int32_t mech);              // 0x004846e0, 10 when out of range
+int32_t weight_class(int32_t mech);        // 0x00484700: 0..3 (the roster's +0x2c), 0 when out of range
 // 0x00485400 / 0x00485430 / 0x00485460 / 0x00485490: the internal structure
 // points by tonnage (0x005e6998), column 1 centre torso, 2 side torso, 3 arm, 4 leg.
 int32_t internal_points(int32_t mech, int32_t column);

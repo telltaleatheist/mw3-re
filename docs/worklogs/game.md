@@ -716,3 +716,24 @@ view's ground, the anim lookups 0x50b450 (92).
   mission up at the quit, before ExitInstance (the bramps test, which checks
   the cleanup itself, opts out). The game never cleans up after
   ExitInstance, so no port change.
+
+## 2026-10-21: items 3-5 (mac 1: kill credit, fly_off, surface marks)
+
+- Item 2 review (mac 1): node_matrix's cls()==5 guard dropped (a part's
+  node is an object3d, as the exe assumes); world_clear (0x00491d80) only
+  frees the weather, the sun and the fluctuation, never the tree, so the
+  canned copies' free after it touches live nodes: no fix.
+- Item 3, the kill credit: Mech::on_kill 0x0041b420 ported (mech_damage),
+  weight_class 0x00484700 (mech_names, the roster's +0x2c). Wired: the
+  attacker (0x0040eee0 → node_entity 0x0040e920 on the hit's shooter node:
+  weapon kills had no attacker before), killer_notify (a mech killer's
+  on_kill; other killers logged), salvage_mech (0x00472f00 into the
+  mission's store through mac 3's add_salvage), heat_calls().game_type
+  (unwired before; its other readers only test for multiplayer). Left:
+  the vehicles' salvage 0x00472ec0 (no vehicles ported), the controls'
+  notice (AI), the HUD's node_object could use node_entity (mac 3).
+- test_deaths: on_kill added (600 runs; 0x0041d810, 0x00484700, ftol run
+  real): 2,153 identical seeds 1/2, BREAK=5,6 fail. The Owens death test
+  now has the player as killer: 1 mech, 400 points, salvage grows.
+- Finds: the kill points' weight class ignores tonnage; only the lance's
+  kills go to the salvage.

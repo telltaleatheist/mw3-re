@@ -18,6 +18,7 @@ namespace mech3 {
 
 namespace {
 constexpr int kDead = 10, kFallenBack = 12, kFallenFront = 13;
+constexpr int kElemental = 7;  // roster index
 constexpr int kNetDeath = 0x13;
 constexpr int kMessageNuke = 0x305;    // Mech3Msg.dll: the NUKE's name
 
@@ -113,6 +114,51 @@ void Mech::note_hit() {
   last_hit_part = torso;
   if (calls().last_hit) calls().last_hit(*this);  // test hook
   else aim_at_last_hit();
+}
+
+// Mech3.exe 1.2 @ 0x0041b420 (vtable +0x80, from the victim's Die): a mech
+// killed scores 300, 400, 500 or 700 by its weight class (100 for an
+// Elemental killer), a vehicle 75, a building 200. In the campaign the
+// player's or a lancemate's kill goes to the mission's salvage.
+void Mech::on_kill(Handle victim) {
+  DamageCalls& c = calls();
+  auto view = [&](Handle v, int slot) -> Handle {
+    if (c.victim_view) return c.victim_view(v, slot);
+    return slot == 0x48 ? nullptr : v;  // a mech's 0x004d2a70 (itself) and 0x0040bae0 (0)
+  };
+  if (!victim) return;
+  const Handle info = view(victim, 0x2c);
+  if (!info) return;
+  bool credit = false;
+  if (heat_calls().game_type && heat_calls().game_type() == 1) {
+    Mech* player = world().mission_player;
+    credit = this == player || (player->team & allies) != 0;  // its vt+0x28 is itself
+  }
+  const Handle mech = view(info, 0x50);
+  const Handle vehicle = view(info, 0x40);
+  const Handle building = view(info, 0x48);
+  if (c.controls_killed) c.controls_killed(*this, info);
+  if (mech) {
+    xf8 = -1;  // 0x0041d810(-1): no part targeted (0x0041d6f0 then does nothing)
+    if (credit && c.salvage_mech) c.salvage_mech(mech);
+    ++x3f4[0];
+    int32_t points = 0;
+    if (pilot->roster == kElemental) {
+      points = 10;
+    } else {
+      static const int32_t kPoints[4] = {30, 40, 50, 70};
+      const uint32_t k = static_cast<uint32_t>(weight_class(static_cast<Mech*>(mech)->pilot->roster));
+      if (k <= 3) points = kPoints[k];
+    }
+    x3f4[3] += static_cast<uint32_t>(points * 10);  // fild, fmul 10.0 (0x005bcd54), ftol
+  } else if (vehicle) {
+    if (credit && c.salvage_vehicle) c.salvage_vehicle(vehicle);
+    ++x3f4[1];
+    x3f4[4] += 75;
+  } else if (building) {
+    ++x3f4[2];
+    x3f4[5] += 200;
+  }
 }
 
 // Mech3.exe 1.2 @ 0x0041d130. note_hit always names the torso, so after the

@@ -118,6 +118,21 @@ void* node_owner(void* n) {
   return nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x0040e920 (0x0040eee0's target): the game object a node
+// belongs to, by its +0x28 bits: 16, 18, then a vehicle's or a part's
+// (0x0040e9d0), 19, 17, 20, 21, 22 have their owner at +0x40.
+void* node_entity(void* n) {
+  zcls::Node* z = zn(n);
+  if (!z) return nullptr;
+  const uint32_t id = z->get<uint32_t>(0x28);
+  auto bit = [&](int b) { return (id >> b & 1) != 0; };
+  if (bit(16) || bit(18)) return z->owner;  // 0x0040e960 tests 18 first of its own
+  if (void* o = node_owner(n)) return o;
+  for (int b : {19, 17, 20, 21, 22})
+    if (bit(b)) return z->owner;
+  return nullptr;
+}
+
 std::vector<std::string>& weapon_fx_log() { return g_fx; }
 
 void wire_weapons(uint32_t (*log)(const char* key)) {
@@ -345,6 +360,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return z && (z->get<uint32_t>(0x28) & 0xff) ? static_cast<MechPart*>(z->owner) : nullptr;
   };
   d.node_owner = node_owner;
+  d.attacker = [] { return node_entity(zwep::hit_state().attacker); };  // 0x0040eee0 on [0x009a0edc]
 
   UpdateCalls& u = update_calls();
   u.weapons_fire = [](Mech& m, uint8_t fire) {  // 0x004b0c20 on +0xd4
@@ -424,6 +440,7 @@ void unwire_weapons() {
   heat_calls().heat_option = nullptr;
   damage_calls().node_part = nullptr;
   damage_calls().node_owner = nullptr;
+  damage_calls().attacker = nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x005833b0(mech, node, 1, 0x004161a0): the mech's node

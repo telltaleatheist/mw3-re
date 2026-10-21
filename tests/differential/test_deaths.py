@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from original import ROOT, Original  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
@@ -30,6 +30,7 @@ probe.probe_canned.argtypes = [I, U, P, P, P, U, P, I]
 probe.probe_canned_free.argtypes = [P, I]
 probe.probe_death_prep.argtypes = [I, U, U, I, P, U, U, P, I]
 probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
+probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
 BUF = ctypes.create_string_buffer(CAP)
 ZERO = 0x63d870
@@ -48,6 +49,7 @@ def arr(t, vals):
 class Emulated:
     def __init__(self, stub_canned):
         cpu = self.cpu = Original()
+        cpu.import_code(IAT_FTOL, FTOL)
         cpu.fpu_control(0x007f)
         assert cpu.read(ZERO, 12) == bytes(12), 'the zero vector'
         cpu.stub_function(OP_NEW, lambda c: self.zalloc(c.arg(0)))
@@ -217,6 +219,78 @@ class Emulated:
         self.log(0xf, self.r32(m + 0x634), self.r32(m + 0x5e0))
         return bytes(self.out)
 
+    # --- the kill credit 0x41b420 ---
+    def vstub(self, fn, pop=0):
+        a = self.cpu.code(b'\xc3')
+        self.cpu.stub_function(a, fn, pop)
+        return a
+
+    def kill_setup(self):
+        cpu = self.cpu
+        cpu.stub_function(0x472f00, lambda c: self.log(0x22, 1 if c.arg(0) == self.k_vmech else 0), 4)
+        cpu.stub_function(0x472ec0, lambda c: self.log(0x23, c.arg(0)), 4)
+        # One vtable for the victim, its views and the player: +0x2c, +0x50,
+        # +0x40, +0x48, +0x28 by what ECX is.
+        vt = self.zalloc(0x200)
+        def view(slot):
+            def f(c):
+                if slot == 0x28:
+                    return c.ecx
+                if slot == 0x2c:
+                    return self.k_info_block if self.k_info else 0
+                return {0x50: self.k_vmech, 0x40: self.k_vehicle, 0x48: self.k_building}[slot]
+            return f
+        for slot in (0x28, 0x2c, 0x40, 0x48, 0x50):
+            cpu.u32(vt + slot, self.vstub(view(slot)))
+        self.k_vt = vt
+        gvt = self.zalloc(0x40)
+        cpu.u32(gvt + 0x2c, self.vstub(lambda c: self.k_game))
+        go = self.zalloc(8)
+        cpu.u32(go, gvt)
+        cpu.u32(self.game + 0x6c, go)
+        cvt = self.zalloc(0x100)
+        cpu.u32(cvt + 0xb4, self.vstub(lambda c: self.log(0x21, self.k_info if c.arg(0) == self.k_info_block else 0xdead), 4))
+        self.k_cvt = cvt
+
+    def on_kill(self, roster, allies, xf8, counters, killer_is_player, player_team, game, info, has_mech,
+                victim_roster, vehicle, building):
+        cpu = self.cpu
+        if not hasattr(self, 'k_vt'):
+            self.kill_setup()
+        self.out = bytearray()
+        def mech(r):
+            m = self.zalloc(0x6d8)
+            pl = self.zalloc(0x234)
+            cpu.u32(pl + 0xc, r)
+            cpu.u32(m + 0x684, pl)
+            cpu.u32(m, self.k_vt)
+            return m
+        k = mech(roster)
+        cpu.u32(k + 0xc4, allies)
+        cpu.u32(k + 0xf8, xf8)
+        cpu.write(k + 0x3f4, struct.pack('<6I', *counters))
+        ctl = self.zalloc(0x40)
+        vb = self.zalloc(8)
+        cpu.u32(vb + 4, 0x10)
+        cpu.u32(ctl + 4, vb)
+        cpu.u32(ctl + 4 + 0x10, self.k_cvt)
+        cpu.u32(k + 0x37c, ctl)
+        p = k
+        if not killer_is_player:
+            p = mech(0)
+            cpu.u32(p + 0xc0, player_team)
+        cpu.u32(self.game + 0x14, p)
+        self.k_game, self.k_info, self.k_vehicle, self.k_building = game, info, vehicle, building
+        self.k_info_block = self.zalloc(8)
+        cpu.u32(self.k_info_block, self.k_vt)
+        self.k_vmech = mech(victim_roster) if has_mech else 0
+        victim = self.zalloc(8)
+        cpu.u32(victim, self.k_vt)
+        cpu.call(0x41b420, ecx=k, stack_args=(victim,))
+        self.log(0xf, self.r32(k + 0xf8))
+        self.logf(k + 0x3f4, 6)
+        return bytes(self.out)
+
     def anim_nodes(self, node, root, objects, nodes, queries):
         self.out = bytearray()
         d = self.zalloc(0x13c)
@@ -317,6 +391,26 @@ def main():
         n = probe.probe_anim_nodes(node, root, arr(U, objects), len(objects), arr(U, nodes), len(nodes),
                                    arr(U, mine_q), len(mine_q), BUF, CAP)
         check('anim_nodes', BUF.raw[:n], emu.anim_nodes(node, root, objects, nodes, queries))
+
+    # The kill credit.
+    for _ in range(600):
+        roster = rng.choice((7, 9, 11, 0, 6, 15))
+        allies, team = rng.choice((0, 1, 2, 3)), rng.choice((0, 1, 2))
+        xf8 = rng.choice((-1, 3, 7))
+        counters = [rng.randint(0, 5) for _ in range(3)] + [rng.randint(0, 3000) for _ in range(3)]
+        killer_is_player, game = rng.randint(0, 1), rng.choice((1, 1, 2, 3, 4, 0))
+        info = rng.choice((0, 0x4401, 0x4401, 0x4401))
+        has_mech = rng.randint(0, 1)
+        victim_roster = rng.randint(-1, 19)
+        vehicle, building = rng.choice((0, 0x5501)), rng.choice((0, 0x6601))
+        mine_roster = victim_roster
+        if brk == 5 and has_mech:
+            mine_roster = {9: 10, 10: 9}.get(victim_roster, victim_roster)
+        mine_allies = allies ^ 1 if brk == 6 else allies
+        n = probe.probe_on_kill(roster, mine_allies, xf8, arr(U, counters), killer_is_player, team, game, info,
+                                has_mech, mine_roster, vehicle, building, BUF, CAP)
+        check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
+                                                  has_mech, victim_roster, vehicle, building))
 
     if fails:
         print(f'{fails} of {runs} runs differ')

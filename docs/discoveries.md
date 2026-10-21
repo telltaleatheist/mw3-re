@@ -159,6 +159,15 @@ From the port of the damage code, checked in an emulator against the original
 - **The ejection seat ignores which way the mech faces.** Its offset from the
   hip (for the Owens 3.6 m up and 1.46 m along the world's z axis) is added
   in the world's directions, not turned with the mech.
+- **Kill points come from a weight class that ignores tonnage.** A mech kill
+  scores 300, 400, 500 or 700 by the class the roster gives it, and that
+  class is often off: the 100-ton Annihilator scores as a heavy (500), the
+  75-ton Mad Cat as a medium (400), the 35-ton Owens and Puma as mediums too.
+  An Elemental scores 100 for any mech it kills; a vehicle is worth 75 and a
+  building 200.
+- **Only your lance's kills fill the salvage.** In the campaign a mech
+  killed by you or a lancemate goes to the mission's salvage; one finished
+  off by anyone else (or with no attacker, such as a heat death) does not.
 - **A slow death alternates between falling left and right** for all mechs
   together: one shared switch flips at each death below 50 km/h, so two
   mechs dying one after another fall to opposite sides.
