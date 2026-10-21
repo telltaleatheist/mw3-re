@@ -1,8 +1,11 @@
 // The main menu's pieces (mech3/menu_widgets, docs/mainmenu.md) where the
 // differential test cannot look: the frame-rate fix (FIX (B), fixes.md).
+#include <cmath>
+
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/briefing.h"
 #include "mech3/menu_widgets.h"
 
 namespace {
@@ -60,4 +63,26 @@ TEST(main_menu_moves_per_second) {
   const MenuMotion raw = menu_motion(144.0f, false);
   EXPECT(raw.scrolled == 144 && raw.slid == 288);
   EXPECT(raw.ripple_seconds > 17.5f / 144.0f && raw.ripple_seconds < 18.5f / 144.0f);
+}
+
+// The briefing's transport bar (0x00406440): 0.005 a frame towards the load;
+// fixed, 0.15 a second.
+TEST(fix_briefing_bar_per_second) {
+  struct Quiet : mech3::Engine {
+    uint32_t unported(const char*, std::initializer_list<mech3::Arg>) override { return 0; }
+    const char* message(int32_t) override { return ""; }
+    int32_t game_kind() override { return mech3::kCampaign; }
+    float frame_dt() override { return 0.0f; }
+  } e;
+  float value[2];
+  for (int fix = 0; fix < 2; ++fix) {
+    zfix::options().per_second = fix != 0;
+    mech3::BriefingScreen s(e, "brief_c11");
+    s.progress(1.0f);
+    for (int i = 0; i < 120; ++i) s.update(1.0f / 120.0f);  // a second at 120 fps
+    value[fix] = s.bar.value;
+  }
+  zfix::options().per_second = true;
+  EXPECT(std::fabs(value[1] - 0.15f) < 1e-3f);
+  EXPECT(std::fabs(value[0] - 0.6f) < 1e-3f);  // the exe's: 120 frames of 0.005
 }

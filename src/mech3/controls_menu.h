@@ -197,12 +197,8 @@ class InvertCheck : public ztwod::CheckButton {
   uint8_t active = 1;                // +0x168
 };
 
-// AXIS_VALUE (vtable 0x005bbc90): a slider showing the source's reading.
-class AxisSlider : public ztwod::Slider {
- public:
-  void on_left_up() override { set_from_mouse(); }  // +0x30  0x0059e2f0
-  void set_raw(float v) override { set_value(v); }   // +0x8c  0x0059e350
-};
+// AXIS_VALUE: a slider showing the source's reading (menu_widgets.h).
+using AxisSlider = ShellSlider;
 
 // The axis popup (0x0042da80, vtable 0x005be408), 0x12194 bytes.
 class AxisPopupScreen : public MenuScreen {

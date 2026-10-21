@@ -55,13 +55,46 @@ text) and a list of sounds (+0x11220) played one after another. Buttons
 | 5 | LOADING | shown while the load runs |
 | 7 | (from the load) | 0x00404ae0: the buttons disabled |
 
-Each frame (0x00406440): the load polled (0x00490930) into 0x00408ef0,
-which on the change enables the buttons by game type (a campaign: all
-but two at Op 1 Mission 1; Instant Action: two fewer; training: three
-fewer; multiplayer: none, and it launches by itself as soon as the load
-ends; which flag reaches which part is checked in item 2); the progress bar TRANSPORT_PROGRESS creeps up by 0.005 a
-frame towards the load's fraction (1.0 once loaded; a per-frame step, so
-a per_second candidate under Owen's rule); mouse buttons stop the sounds.
+Built (item 2 corrected the map): the briefing's own section of
+briefing.zrd (`brief_c11` from "brief_%s%d"; multiplayer's `briefing` of
+mpinfo.zrd when the game's vt+0x4c, +0x94, is over 2), else `default`, is the
+dialog (images, fonts, TRANSPORT_PROGRESS, CURSOR); the buttons always come
+from BRIEFINGDIALOG. Besides the buttons: a debug text box of the load's
+lines (+0x113bc at (300, 12), `debug_font`, shown only with the app's
++0x1ba; 0x00405120 writes it), the version line "<message 7> <version>" at
+the bottom right, REALLOC_OK (7) and REALLOC_LIST (the mech lab's store
+list 0x0048d880). The six buttons are the mech lab's (0x0044aaf0): under the
+mouse they blink between the normal and ACTIVATE images every 0.05 s and
+show their HELP labels. Built, the screen is drawn once at once.
+
+Each frame (0x00406440): the script's current entry steps (item 3);
+the load polled (0x00490930) into 0x00408ef0, which on a change sets the
+buttons by the game:
+
+| Game | ABORT | MECHLAB | SALVAGE | REPLAY | LAUNCH |
+|---|---|---|---|---|---|
+| 0 Mech Lab / dev | loaded | loaded | loaded | loaded | loaded |
+| 1 campaign | loaded | loaded, not Op 1 Mission 1 | as MECHLAB | loaded | loaded |
+| 2 Instant Action | loaded | loaded | hidden | hidden | loaded |
+| 3 multiplayer | hidden | hidden | hidden | hidden | loaded, and launches itself |
+| 4 training | loaded | hidden | hidden | hidden | loaded |
+
+Loaded, the cursor shows, LOADING hides and the lancemates' loadouts are
+made (0x00408c30); a campaign forgets that SALVAGE was pressed. The bar
+TRANSPORT_PROGRESS (the shared slider 0x005bbc90: a click sets it from the
+mouse) creeps 0.005 a frame towards the load's fraction (0x004050d0; FIX
+(B) per_second: 0.15 a second), 1.0 once loaded. Keys: L (LAUNCH) and M
+(MECHLAB) press the buttons once loaded, Space or S stop the voice
+(0x0051a300 clears the keys).
+
+Ported (item 2, `mech3/briefing`): the screen 0x00405230 with its
+destructor, the frame, the enabling, the presses, ABORT, LAUNCH, the
+fraction and the lines; the mech lab's button (`HelpButton`), the shared
+slider (`ShellSlider`) and the store list's making (`StoreList`) in
+`menu_widgets`. The calls of later items are Engine hooks: the map's image
+0x00405160, the reallocation list 0x00404ae0, the loadouts 0x00408c30, the
+mech lab 0x00408b40/0x00448830, the Salvage State 0x0047d2f0. The Load state
+still builds the original's screen by address (item 5 wires the port).
 
 ## 3. The debriefing (0x0047b430, new(0x13bf4))
 
@@ -139,9 +172,9 @@ need the menus' one scale or a centred 640x480 frame.
    ways), 0x00435240, 0x00478f10 with its question, on the pilot module
    (test_pilot.py's harness). The launch's and the Win State's hooks
    then call the port.
-2. The briefing screen's shell: 0x00405230 without the map, the buttons
-   and their enabling (0x00408ef0, 0x00404ae0), the frame 0x00406440,
-   ABORT 0x00405050 and LAUNCH 0x00404f70.
+2. (Done) The briefing screen's shell: 0x00405230 without the map, the
+   buttons and their enabling 0x00408ef0, the frame 0x00406440, ABORT
+   0x00405050 and LAUNCH 0x00404f70.
 3. The briefing's sound list and REPLAY (+0x11220).
 4. The briefing map: 0x00406650's reader and its drawing.
 5. The program: the Campaign state's path wired (movies skipped while
@@ -151,10 +184,17 @@ need the menus' one scale or a centred 640x480 frame.
 6. The debriefing screen 0x0047b430 and its press 0x0047d030.
 7. The Win State's results 0x0047ae10 and the end screen's fade to it:
    c1m1 -> debriefing -> c1m2's briefing.
-8. The salvage screen 0x0047d3b0 and its state.
+8. The salvage screen 0x0047d3b0 and its state; with it the briefing's
+   loadouts (0x00408b40, 0x00408bd0, 0x00408c30) and the reallocation
+   list (REALLOC_LIST, the store list 0x0048db30.., 0x00404ae0).
 9. The Win Movie and IA Dummy states.
 
 ## 8. Testing
+
+Item 2: `test_briefing.py` (40/40 runs; the original skips the SOUND block
+and the REALLOC_LIST bind with a code hook, stubs the later items' calls);
+`test_mainmenu.cpp` checks the per_second bar. Breaks: scratch/briefing/
+breaks.py.
 
 Item 1: `test_pilot.py` (pilot.md section 7; 100/100) and
 `test_mechsave.py` (the loadout copy, 553 copies). In the program the
