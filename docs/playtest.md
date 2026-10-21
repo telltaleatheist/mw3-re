@@ -11,7 +11,7 @@ the briefing's load freeze (5a55624).
 | # | Seen | Area | Owner | State |
 |---|---|---|---|---|
 | 1 | No ripple on the main menu buttons on hover | 2D render, 0x00558dd0 | mac 2 | fixed (74b15e3), Owen to check |
-| 2 | "Ok to delete pilot?" is a native OS alert, not the game's box | message box 0x004ac150 | mac 3 | fixed (c717d71), Owen to check |
+| 2 | "Ok to delete pilot?" is a native OS alert, not the game's box | message box 0x004ac150 | mac 3 | fixed (d1f7f8b), Owen to check |
 | 3 | Escape in a mission turns the screen purple instead of the pause menu | pause menu, the frame clear | mac 3 | open |
 | 4 | The mech isn't visible: a couple of odd polygons where the cockpit view should be | view modes, the cockpit model (MechData +0x228, 0x00430ad0) | mac 2 | open |
 | 5 | X doesn't switch views (should start inside, X to third person) | view modes | mac 2 | open |
