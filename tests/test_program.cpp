@@ -363,7 +363,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     int stage = 0, core_frames = 0, briefing_frames = 0;
     size_t steps = 0, objects = 0;
     std::string section_first;
-    bool launch_enabled = false, lab_disabled = false;
+    bool launch_enabled = false, lab_disabled = false, playing = false;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
@@ -380,6 +380,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         mech3::BriefingScreen* b = mech3::briefing_screen();
         if (!b || app.current() != &mech3::states().load) return;
         if (++briefing_frames == 1) {
+          playing = b->script.playing != 0;  // the Load state started it
           steps = b->script.steps.size();
           objects = b->objects.size();
         }
@@ -399,7 +400,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     pump.limit = 900;
     app.run(pump);
     EXPECT(stage == 4);
-    EXPECT(briefing_frames > 0 && steps > 2 && objects > 0);  // the voice, the markers, the map
+    EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);
     EXPECT(core_frames >= 30 && mech.parts > 0);
     mech3::Pilot* rec = mech3::find_pilot("Recruit");

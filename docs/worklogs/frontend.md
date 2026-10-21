@@ -497,4 +497,4 @@ Pilot clashes). Program check: test_program campaign_menus_to_c1m1_through_
 the_briefing_headless (NEW CAMPAIGN, pilot "Recruit": the pilots list stays
 between tests, so "Ace" from the start test had c1m2 newest; ACCEPT, the
 briefing loaded with its script and map, LAUNCH enabled and MECHLAB grey,
-LAUNCH, 30 Core frames, the mech built). Owen's try: build/mw3 -nofmv.
+LAUNCH, 30 Core frames, the mech built). Breaks: scratch/briefing/breaks5.py 4/4 (the script's start needed its own check). Owen's try: build/mw3 -nofmv.
