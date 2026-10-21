@@ -741,12 +741,19 @@ class Engine : public zgame::AppHooks {
   // The Win State's copy of the debriefing's scores into the campaign
   // (0x0047ac20: +0x13be4 into +0xb4 for n lancemates, +0x13be0 into +0xc4).
   virtual void win_keep_scores(Handle screen, int32_t n);
-  virtual Handle lance_display_new(int32_t x, int32_t y, int32_t height, int32_t width, int32_t space) {
-    return unported("0x0047e840", {x, y, height, width, space});
+  // A lance card's vehicle as its display reads it (0x0047eba0, 0x0047ef10,
+  // 0x0047b260): its type (+0x684 +0xc), its loadout's armor (+0x3ec +0x38,
+  // eleven) and its parts' armor left (vt+0x44 of 0x0041d510's part) in the
+  // display's bar order (head; torso 1, 4, 0, 3, 2, 5; the arms; the legs).
+  struct LanceArmor {
+    int32_t type = -1;
+    int32_t armor[11] = {};
+    float left[11] = {};
+  };
+  virtual bool vehicle_armor(Handle v, LanceArmor* out) {
+    (void)v, (void)out;
+    return false;
   }
-  virtual void lance_display_update(Handle d, float dt) { unported("display.vt+0x24", {d, zgame::bits(dt)}); }
-  virtual void lance_display_delete(Handle d) { unported("display.vt+0x00", {d}); }
-  virtual void lance_display_show(Handle d, Handle vehicle) { unported("0x0047b210", {d, vehicle}); }
   // A store list's reads (0x0048dbe0): its store by handle, a store item's
   // handle (the row's value: the item itself in the exe), its +0x200 filter
   // (a function on the item; set by nothing ported), 0x00575fd0 with a name

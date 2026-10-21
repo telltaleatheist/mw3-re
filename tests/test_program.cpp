@@ -377,7 +377,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     bool launch_enabled = false, lab_disabled = false, playing = false, debrief_seen = false, continue_help = false;
     int32_t second_number = 0;
     mech3::Handle debrief_handle = 0;
-    bool debrief_freed = false, player_card = false, rank_text = false;
+    bool debrief_freed = false, player_card = false, rank_text = false, player_armor = false;
     int32_t debrief_score = -1, mechs_before = 0;
     size_t debrief_texts = 0;
     size_t second_steps = 0;
@@ -429,6 +429,8 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         debrief_score = d->score;
         debrief_texts = d->texts.size();
         player_card = d->cards[0].vehicle != 0 && mech3::debrief_lance_count() >= 1;
+        // The card's armor display (6c), from the ported mech's loadout.
+        player_armor = d->cards[0].display && d->cards[0].display->most > 0;
         rank_text = !d->rank.labels.empty() && d->rank.labels[0]->text[0] != 0;
         d->on_button(mech3::DebriefScreen::kContinue, 0, 0);
         stage = 5;
@@ -451,6 +453,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     // The results: the campaign's score (nothing scored in 30 frames), the
     // player's card, the lines, the rank (123456: rank 1).
     EXPECT(debrief_score == 123456 && debrief_texts > 4 && player_card && rank_text);
+    EXPECT(player_armor);
     EXPECT(second_number == 2 && second_steps > 2);  // c1 mission 2's briefing, its script
     EXPECT(briefing_frames > 0 && steps > 2 && objects > 0 && playing);  // the voice, the markers, the map
     EXPECT(launch_enabled && lab_disabled);

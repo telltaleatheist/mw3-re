@@ -252,7 +252,8 @@ ConfigItem* Store::has_mech(int32_t mech) {
 
 // Mech3.exe 1.2 @ 0x004735f0. The shortfall is logged (0x0049bfd0, a no-op).
 bool Store::has_config(int32_t mech, const Store* other, const Config* c) {
-  if (!c || full || other == this) return true;
+  // The exe compares `other` with the loadout (0x00473614), never equal.
+  if (!c || full || static_cast<const void*>(other) == static_cast<const void*>(c)) return true;
   if (mech != -1 && !has_mech(mech)) return false;
   for (const ConfigItem* it : c->items) {
     if (!it) continue;
@@ -274,8 +275,7 @@ bool Store::take_config(int32_t mech, const Config* c) {
 bool Store::give_config(int32_t mech, const Config* c) {
   if (full) return true;
   if (mech != -1) add_mech(mech);
-  add_config(c);
-  return c != nullptr;
+  return add_config(c);
 }
 
 // Mech3.exe 1.2 @ 0x00424010
@@ -300,7 +300,7 @@ Config* config_copy_store(const char* name, const Config& c, Store* store, bool 
       }
       for (auto i = d.items.begin(); i != d.items.end();) {
         if (*i && (*i)->count == 0) {
-          delete *i;  // (the exe leaks it)
+          delete *i;  // the exe leaks it (fixes.md)
           i = d.items.erase(i);
         } else {
           ++i;
@@ -318,9 +318,10 @@ Config* config_copy_store(const char* name, const Config& c, Store* store, bool 
 }
 
 // Mech3.exe 1.2 @ 0x00472cf0
-void Store::add_config(const Config* c) {
-  if (!c) return;
+bool Store::add_config(const Config* c) {
+  if (!c) return false;
   for (ConfigItem* i : c->items) add_copy(i, i->count);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x00471790 -> 0x004717a0

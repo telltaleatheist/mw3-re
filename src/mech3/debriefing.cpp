@@ -2,8 +2,10 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
+#include "crt/msvc_math.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zimage/zimg_library.h"
@@ -89,8 +91,7 @@ LanceCard::LanceCard(Engine& e) : MechButton(e) {}
 // Mech3.exe 1.2 @ 0x0047b180
 LanceCard::~LanceCard() {
   vehicle = 0;
-  if (display) e_.lance_display_delete(display);
-  display = 0;
+  display.reset();
 }
 
 // Mech3.exe 1.2 @ 0x0047b2b0: Object2D's update (no blink), then the line's
@@ -99,7 +100,7 @@ void LanceCard::update(float dt) {
   if (flags & ztwod::kHidden) return;
   Object2D::update(dt);
   line.update(dt);
-  if (display) e_.lance_display_update(display, dt);
+  if (display) display->update(dt);
 }
 
 // Mech3.exe 1.2 @ 0x0047b070: HTAL places the mech's display (pos from the
@@ -115,7 +116,7 @@ bool LanceCard::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
     zrdr::get_int(h, "height", &height);
     zrdr::get_int(h, "width", &width);
     zrdr::get_int(h, "space", &space);
-    display = e_.lance_display_new(pos[0], pos[1], height, width, space);
+    display = std::make_unique<LanceDisplay>(e_, pos[0], pos[1], height, width, space);
   }
   return r;
 }
@@ -133,10 +134,166 @@ void RankIcon::set_rank(int32_t score) {
   if (!labels.empty()) labels[0]->set_text_plain(e_.message(0x1d8 + r));
 }
 
-// Mech3.exe 1.2 @ 0x0047b210: the display shows the vehicle (6c).
+// Mech3.exe 1.2 @ 0x0047b210: the display laid out for the vehicle and
+// filled, the card's image its mech's (green).
 void LanceCard::set_vehicle(Handle v) {
   vehicle = v;
-  if (v && display) e_.lance_display_show(display, v);
+  if (!v || !display) return;
+  Engine::LanceArmor a;
+  e_.vehicle_armor(v, &a);
+  display->layout(a);
+  display->fill(a);
+  set_mech_image(a.type, 1);
+}
+
+// Mech3.exe 1.2 @ 0x0047b260
+void LanceCard::set_mech_image(int32_t m, int32_t color) {
+  zimg::Texture* old = img_normal;
+  img_normal = set_image(static_cast<zimg::Texture*>(nullptr));
+  ztwod::host().image_release(old);  // 0x00517b10, none or not
+  zimg::Texture* t = set_image(mech_icon(e_, m, color));
+  mech = m;
+  img_normal = t;
+}
+
+// Mech3.exe 1.2 @ 0x0044a9b0
+zimg::Texture* mech_icon(Engine& e, int32_t m, int32_t color) {
+  const char* name = e.mech_name_of(m);  // 0x00484650
+  std::string s = std::string("icon_") + (name ? name : "(null)") + "_";
+  static const char* const kColors[] = {"red", "green", "yellow", "grey"};
+  if (color >= 0 && color < 4) s += kColors[color];
+  return ztwod::host().image_get(s.c_str());
+}
+
+// ---- the lance card's armor display (0x0047e520..0x0047f140) ----
+
+namespace {
+// 0x005ac340 on the x87's product (truncated).
+int32_t ftol(double v) { return crt::msvc_ftol(v); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0047e520: the bar at (px, py), w wide and h tall,
+// all standing (the lost part an empty box for now); the rear's dimmer.
+void LanceDisplay::Bar::place(int32_t px, int32_t py, int32_t w, int32_t h, bool dim) {
+  full.set_pos(px, py);
+  width = w;
+  height = h;
+  x = px;
+  y = py;
+  const float fx = static_cast<float>(px), fy = static_cast<float>(py);
+  const float fx1 = static_cast<float>(px + w + 1), fy1 = static_cast<float>(py + h);
+  full.set_point(0, fx, fy);
+  full.set_point(1, fx, fy1);
+  full.set_point(2, fx1, fy1);
+  full.set_point(3, fx1, fy);
+  full_h = h;
+  full_w = w;
+  lost.set_point(0, 0.0f, 0.0f);
+  lost.set_point(1, 0.0f, 0.0f);
+  lost.set_point(2, 1.0f, 0.0f);
+  lost.set_point(3, 1.0f, 0.0f);
+  lost_h = 0;
+  lost_w = 0;
+  full.color = zvid::pack_bytes(0, dim ? 0xaa : 0xff, 0);
+  lost.color = zvid::pack_bytes(dim ? 0xaa : 0xff, 0, 0);
+}
+
+// Mech3.exe 1.2 @ 0x0047e680 (its first argument, the display's scale, unused).
+void LanceDisplay::Bar::fill(float left) {
+  int32_t n = ftol(std::floor(static_cast<float>(height) * left));  // single precision, as in play
+  if (n > height) n = height;
+  else if (n < 0) n = 0;
+  const float fx = static_cast<float>(x), fx1 = static_cast<float>(x + width + 1);
+  full.set_point(0, fx, static_cast<float>(y));
+  full.set_point(1, fx, static_cast<float>(y + n));
+  full.set_point(2, fx1, static_cast<float>(y + n));
+  full.set_point(3, fx1, static_cast<float>(y));
+  full_w = width;
+  full_h = n;
+  const int32_t rest = height - n, y2 = y + n;
+  lost.set_point(0, fx, static_cast<float>(y2));
+  lost.set_point(1, fx, static_cast<float>(y2 + rest));
+  lost.set_point(2, fx1, static_cast<float>(y2 + rest));
+  lost.set_point(3, fx1, static_cast<float>(y2));
+  lost_h = rest;
+  lost_w = width;
+}
+
+// Mech3.exe 1.2 @ 0x0047e810
+void LanceDisplay::Bar::update(float dt) {
+  full.Object2D::update(dt);
+  lost.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0047e840
+LanceDisplay::LanceDisplay(Engine& e, int32_t x0, int32_t y0, int32_t h, int32_t w, int32_t sp)
+    : Line2D(0, 0, 0, 0, 0), height(h), width(w), space(sp) {
+  px = x0;
+  py = y0;
+  const Handle font = ztwod::host().font_find("hud_htal");
+  for (ztwod::FontText& l : labels) l.set_font(font);
+  for (int i = 0; i < 4; ++i) labels[i].set_text_plain(e.message(0xf3b + i));  // H, T, A, L
+  line.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+}
+
+// Mech3.exe 1.2 @ 0x0047f0e0
+void LanceDisplay::update(float dt) {
+  for (Bar& b : bars) b.update(dt);
+  line.update(dt);
+  for (ztwod::FontText& l : labels) l.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x0047eba0: the bars side by side: the head, the torso's
+// six (front and rear of each side and the centre; half wide), the arms,
+// the legs, scaled to the most armor any vehicle shown had.
+void LanceDisplay::layout(const Engine::LanceArmor& a) {
+  int32_t x = px;
+  const int32_t y = py;
+  const int32_t label_y = y - labels[0].text_height();
+  for (int i = 0; i < 11; ++i)
+    if (most <= a.armor[i]) most = a.armor[i];
+  const int32_t half = width >> 1;
+  scale = static_cast<float>(height) / static_cast<float>(most);  // the x87 at 24 bits (CLAUDE.md)
+  const int32_t step = (half & ~1) > 4 ? half >> 1 : 2;
+  left = x;
+  top = y;
+  bottom = y + height;
+  auto h = [&](int i) { return ftol(static_cast<float>(a.armor[i]) * scale); };
+  bars[6].place(x, y, width, h(6), false);  // (the quotient still on the x87: the same at 24 bits)
+  labels[0].set_pos(x, label_y);
+  x += space + width;
+  bars[1].place(x, y, half, h(1), false);
+  const int32_t sh = step + half;
+  x += sh;
+  bars[4].place(x, y, half, h(4), true);
+  x += sh;
+  bars[0].place(x, y, half, h(0), false);
+  x += sh;
+  labels[1].set_pos(x, label_y);
+  bars[3].place(x, y, half, h(3), true);
+  x += sh;
+  bars[2].place(x, y, half, h(2), false);
+  x += sh;
+  bars[5].place(x, y, half, h(5), true);
+  x += half + space;
+  bars[7].place(x, y, width, h(7), false);
+  labels[2].set_pos(half + x, label_y);
+  x += step + width;
+  bars[8].place(x, y, width, h(8), false);
+  x += space + width;
+  bars[9].place(x, y, width, h(9), false);
+  labels[3].set_pos(half + x, label_y);
+  x += step + width;
+  bars[10].place(x, y, width, h(10), false);
+  x += width;
+  right = x;
+  line.set(left, top, x, top);
+  ++right;
+}
+
+// Mech3.exe 1.2 @ 0x0047ef10: each bar's standing armor.
+void LanceDisplay::fill(const Engine::LanceArmor& a) {
+  for (int i = 0; i < 11; ++i) bars[i].fill(a.left[i]);
 }
 
 // ---- the screen ----

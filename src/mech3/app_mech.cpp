@@ -773,6 +773,21 @@ void mech_lance_salvage(Store& own, bool team) {
 
 }
 
+bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[11]) {
+  auto* m = static_cast<Mech*>(mech);
+  if (!m) return false;
+  *type = m->pilot ? m->pilot->roster : -1;
+  if (m->config)
+    for (int i = 0; i < 11; ++i) armor[i] = m->config->armor[i];
+  // Bar k: part, section (0x0047ef10's order).
+  static const int8_t kParts[11][2] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5},
+                                       {6, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}};
+  for (int k = 0; k < 11; ++k) {
+    const MechPart* p = salvage_part(*m, kParts[k][0]);
+    left[k] = p ? p->get_armor(kParts[k][1]) : 0.0f;
+  }
+  return true;
+}
 uint32_t mech_player_allies() { return world().mission_player ? world().mission_player->allies : 0; }
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   Mech* m = static_cast<Mech*>(mech);

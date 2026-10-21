@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "mech3/menu_widgets.h"
@@ -9,9 +10,8 @@
 // Original file unknown: 0x0047af70..0x0047d2c0, between the Win State
 // (0x0047ab10..) and the Salvage State (0x0047d2f0..), named after them.
 // The screen, its texts by the game and the result, the buttons and their
-// press, the results (the lance, the points, the score, the rank). The
-// cards' mech display (0x0047b210, 0x0047e840) and the salvage list's refill
-// (0x0048dbe0) are hooks (campaign.md section 7, items 6c, 8).
+// press, the results (the lance, the points, the score, the rank), the
+// cards' armor displays (0x0047e840..0x0047f140) and the salvage list.
 namespace mech3 {
 
 // The mech lab's mech button (0x0044a770, vtable 0x005c0d70): the help
@@ -26,6 +26,39 @@ class MechButton : public HelpButton {
   ztwod::Text name;                  // +0x180
 };
 
+// The lance card's armor display (0x0047e840, vtable 0x005c3de8), 0x2fb8
+// bytes, from HTAL: a bar for each armor section, its standing part green
+// over the lost red (the rear torso's dimmer), "H" "T" "A" "L" over the head,
+// torso, arms and legs, a line under them (campaign.md section 3).
+class LanceDisplay : public ztwod::Line2D {
+ public:
+  // A bar (0x290 bytes, vtable 0x005c3e68): two polygons (vtable 0x005c0c10).
+  struct Bar {
+    ztwod::Polygon full, lost;       // +0x000, +0x140
+    int32_t full_h = 0, full_w = 0;  // +0x138, +0x13c (the polygons' own)
+    int32_t lost_h = 0, lost_w = 0;  // +0x278, +0x27c
+    int32_t height = 0, width = 0;   // +0x280, +0x284
+    int32_t x = 0, y = 0;            // +0x288, +0x28c
+    void place(int32_t px, int32_t py, int32_t w, int32_t h, bool dim);  // 0x0047e520
+    void fill(float left);           // 0x0047e680: the standing part
+    void update(float dt);           // +0x24  0x0047e810
+  };
+
+  LanceDisplay(Engine& e, int32_t px, int32_t py, int32_t height, int32_t width, int32_t space);  // 0x0047e840
+  void update(float dt) override;    // +0x24  0x0047f0e0: the bars, the line, the labels
+  void layout(const Engine::LanceArmor& a);  // 0x0047eba0
+  void fill(const Engine::LanceArmor& a);    // 0x0047ef10
+
+  Bar bars[11];                      // +0x4c  by armor section
+  int32_t px = 0, py = 0;            // +0x1c7c
+  int32_t left = 0, top = 0, right = 0, bottom = 0;  // +0x1c84
+  int32_t height, x1c98 = 0, width, space;  // +0x1c94, +0x1c98, +0x1c9c, +0x1ca0
+  int32_t most = 0;                  // +0x1ca4  the most armor seen (kept between vehicles)
+  float scale = 0.0f;                // +0x1ca8  height / most
+  ztwod::FontText labels[4]{{nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}, {nullptr, 0, 0}};  // +0x1cac
+  ztwod::Line2D line{0, 0, 0, 0, 0};  // +0x2f6c
+};
+
 // A lance member's card (0x0047af70, vtable 0x005c39b0), 0x6a0 bytes: its
 // mech button with the mech's display (0x0047e840, HTAL's place) and a line.
 class LanceCard : public MechButton {
@@ -38,9 +71,10 @@ class LanceCard : public MechButton {
   void on_enter() override {}        // +0x3c  0x0049bfd0
   void on_leave() override {}        // +0x40  0x0049bfd0
   void set_vehicle(Handle v);        // 0x0047b210
+  void set_mech_image(int32_t mech, int32_t color);  // 0x0047b260
 
   Handle vehicle = 0;                // +0x64c
-  Handle display = 0;                // +0x650  (not ported: a hook's handle)
+  std::unique_ptr<LanceDisplay> display;  // +0x650
   ztwod::Line2D line{0, 0, 0, 0, 0};  // +0x654
 };
 
@@ -92,5 +126,8 @@ class DebriefScreen : public MenuScreen {
 
 // [0x00608bf8]: the lance's count the last results found (cards used).
 int32_t& debrief_lance_count();
+// 0x0044a9b0 (the mech lab's): a mech's icon, "icon_<name>_" and red,
+// green, yellow or grey by `color` (0..3; else none added).
+zimg::Texture* mech_icon(Engine& e, int32_t mech, int32_t color);
 
 }  // namespace mech3

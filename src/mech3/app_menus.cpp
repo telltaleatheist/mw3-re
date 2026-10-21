@@ -462,6 +462,11 @@ std::vector<Engine::LanceMech> GameEngine::debrief_lance() {
   return r;
 }
 uint32_t GameEngine::player_allies() { return mech_player_allies(); }
+bool GameEngine::vehicle_armor(Handle v, LanceArmor* a) {
+  return mech_lance_armor(object_of(v), &a->type, a->armor, a->left);
+}
+const char* mech_name(int32_t mech);  // 0x00484650 (mech_names.h, whose engine table clashes with Engine)
+const char* GameEngine::mech_name_of(int32_t mech) { return mech_name(mech); }
 
 // 0x0047ac20's copy, from the ported screen into the pilot's campaign.
 void GameEngine::win_keep_scores(Handle screen, int32_t n) {

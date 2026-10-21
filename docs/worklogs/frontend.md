@@ -661,3 +661,19 @@ test_pilot's emulator stubs 0x00424010/0x00425bd0/0x00424350, so the
 lance test keeps them native. Breaks 17/19 (2 unshowable; the "clamp"
 break hangs the probe's cut loop and was killed, counted caught).
 Next: 6c (the lance cards' mech display 0x0047e840, 0x0047b210).
+
+## 2026-10-21 Campaign item 6c: the lance cards' armor display (branch mac3/salvage)
+
+LanceDisplay (0x0047e840..0x0047f140) ported in debriefing.cpp: eleven
+bars of two Polygons each, H/T/A/L labels (hud_htal), a line; layout
+0x0047eba0 (scale = height / the most armor seen on that card), fill
+0x0047ef10 (part vt+0x44 by section), update 0x0047f0e0; set_vehicle
+0x0047b210, set_mech_image 0x0047b260, mech_icon 0x0044a9b0. No mech-lab
+boundary hit: 0x0044a9b0 is a small icon lookup. Single-precision maths
+(the x87 at 24 bits; at 53 bits exact multiples come out a pixel short).
+Engine hook vehicle_armor (GameEngine: mech_lance_armor in app_mech.cpp),
+GameEngine::mech_name_of. Test: test_debriefing.py natively (polygon fills
+recorded as test_hud does; CString += stubbed); breaks 20/23 (3
+unshowable). With it, the 8c review items: has_config's compare is the
+exe's (other vs the loadout, never equal), give_config returns
+add_config's result, the dropped items' delete has its fixes.md row.

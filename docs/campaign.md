@@ -220,6 +220,47 @@ Inlined at the end of 0x0047b430 (`DebriefScreen::results`):
   released) and the label message 0x1d8 + rank: Sergeant, Master
   Sergeant, Captain, Major, Colonel.
 
+### The lance cards' armor display (item 6c)
+
+Each card's HTAL key builds a display (0x0047e840, new(0x2fb8), vtable
+0x005c3de8, a Line2D): eleven bars (0x290 bytes each: two polygons, the
+standing armor green over the lost red; the rear torso's three dimmer,
+0xaa), the labels "H" "T" "A" "L" (messages 0xf3b..0xf3e, font hud_htal),
+a line (1, 0xa2, 0x1f) under the bars. `set_vehicle` 0x0047b210 lays it out
+for the vehicle (0x0047eba0), fills it (0x0047ef10) and puts the mech's
+icon on the card (0x0047b260 with 0x0044a9b0: `icon_<name>_green`).
+
+- **The layout.** The bars stand at the display's place, `height` tall at
+  the most: the scale is height / the most armor any section had (kept
+  between vehicles on the same card; each card has its own). Head (width
+  wide), then the torso's six half-width bars (right, right rear, centre,
+  centre rear, left, left rear: armor 1, 4, 0, 3, 2, 5) a step apart (half
+  of the half width when over 4, else 2), the arms, the legs (width wide).
+  The labels sit over the head, the centre torso, between the arms and
+  between the legs; the line runs under the tops from the head to the last
+  leg's end.
+- **The fill.** Each bar's green part is ⌊its height x the part's armor
+  left⌋ (part vt+0x44 by section: head; torso sections 1, 4, 0, 3, 2, 5;
+  the arms; the legs), the rest red below it.
+
+The products and the scale are single precision, as the x87 runs in play
+(CLAUDE.md, FPU precision); at 53 bits a bar at exactly its section's most
+would come out a pixel shorter.
+
+Ported (debriefing.cpp): `LanceDisplay` with `Bar::place` 0x0047e520,
+`Bar::fill` 0x0047e680, `Bar::update` 0x0047e810, `layout` 0x0047eba0,
+`fill` 0x0047ef10, `update` 0x0047f0e0; `LanceCard::set_vehicle`,
+`set_mech_image`; `mech_icon` (0x0044a9b0, the mech lab's). Engine hook:
+`vehicle_armor` (the program reads a ported Mech's loadout armor and parts).
+Test: `test_debriefing.py` builds the displays natively, the lance's fake
+mechs carry a loadout's armor and parts whose vt+0x44 answers from a
+table; the polygon fills (0x0055d010) are recorded and every display is
+dumped (bars' points and colours, labels, line); out-of-range fractions
+try the clamps. `test_program.cpp`'s loop checks the player's card display
+reads the ported mech. Breaks 20 of 23 (`scratch/briefing/breaks13.py`, 12
+runs); the three left cannot show: the fill always rewrites the points the
+placing sets, and a card shows one vehicle per screen (the kept "most").
+
 The texts are new Texts (0x0047cab0: 0x005a15f0 sets the text, the font,
 then x and y; kept at +0x13bd0, deleted by the destructor), numbers through
 0x0047cce0 ("%d") and 0x0047cd70 (0 shows message 0x183).
@@ -328,8 +369,8 @@ need the menus' one scale or a centred 640x480 frame.
 6. The debriefing screen 0x0047b430 and its press 0x0047d030, in three:
    6a (Done) the shell and the press; 6b (Done) the results
    0x0047baf0..0x0047c84b and the rank 0x0047b2f0, the scores into the
-   ported campaign; 6c the lance cards' mech display (0x0047e840,
-   0x0047b210, the mech lab's).
+   ported campaign; 6c (Done) the lance cards' armor display (0x0047e840,
+   0x0047b210, the icon 0x0044a9b0).
 7. (Done) The Win State's results 0x0047ae10 and the end screen's fade to it:
    c1m1 -> debriefing -> c1m2's briefing. The end screen's fade
    (0x0048ef00 on 0x006099a0) is the ported fade_replace to the second Win
