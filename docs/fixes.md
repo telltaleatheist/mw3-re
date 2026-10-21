@@ -9,6 +9,7 @@ Each change is also marked `FIX` in the code next to the original address.
 
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
+| The message box's loop, 0x005a7280 (twod.md, The message box) | Its frames poll zInput (DirectInput), never the window's messages | (A) the program's input comes as window events: unpumped, no click would reach the box | The loop's input poll pumps the app's message pump first (`GameEngine::pump_events`); a quit ends the box (no answer) and is posted again; `playtest_delete_pilot_through_the_games_message_box_headless` |
 | The mech lab's Ctrl+X / Ctrl+I, 0x00426180 / 0x00426300 (mechlab.md section 1) | A loadout written to or read from a file chosen in Windows' save and open dialogs ("Mech3 Configurations", *.m3c) | (A) no Windows dialogs | Ctrl+X writes `export\<mech>_<loadout>.m3c` in the write dir (the dialog's default name); Ctrl+I reads the next `import\*.m3c` and renames it `*.m3c.done` (`lab_export_config`, `lab_import_config`); `fix_lab_loadout_export_import`. The file is the exe's (0x00426090: the name, then 0x00424480) |
 | The mech lab's import, 0x004260c0 | A read loadout whose checksum (0x004255b0) is not its +0x88 is dropped | (trap) hand-edited loadouts refused, as the saved ones (protection.md) | Not checked |
 | Span routines, 0x564080, 0x56cb40 | ESP pointed at the pixels, written with PUSH | (A) x86-only; fragile anywhere, since anything using the stack meanwhile writes into the picture | Same writes in the same order through a pointer; emulator-verified identical |

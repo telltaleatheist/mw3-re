@@ -1,5 +1,6 @@
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "mech3/app.h"
 #include "mech3/message_panel.h"
 
 #include "gamez/zdeclient/zdec_crater.h"
@@ -20,6 +21,8 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/ztwod/twod.h"
+#include "platform/platform.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zsound/zsnd_cd.h"
@@ -196,26 +199,53 @@ const char* GameEngine::message_format(int32_t id, const char* arg) {
   return formatted_.c_str();
 }
 
-// 0x004ac150, the game's message box (zTwoD's dlgMessage.zrd, not ported): the
-// platform's box with the same texts. OK answers 1 as the game's does.
+// Mech3.exe 1.2 @ 0x004ac150: the game's message box, dlgMessage.zrd's
+// MESSAGEBOX (the ported zTwoD box) over the screen, run in its own loop until
+// a button answers; FastMenu off meanwhile. The text is formatted by the
+// callers (0x00575ff0 with their arguments); the answer is the box's (IDOK 1,
+// IDCANCEL 2, IDYES 6 ...).
+uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std::string& text) {
+  video_begin_3d();
+  video_end_3d();
+  const int32_t fast = exchange_fast_menu(0);
+  int32_t r = 0;
+  {
+    ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", false);
+    box_ = &box;
+    const char* cap = message(caption);
+    r = box.run(text.c_str(), cap ? cap : "", static_cast<uint32_t>(style));
+    box_ = nullptr;
+  }
+  exchange_fast_menu(fast & 0xff);
+  return static_cast<uint32_t>(r);
+}
+
+// FIX (A): the box's loop (0x005a7280) polls zInput only; the program's input
+// arrives through the window's events, so the loop pumps them. A quit ends
+// the box (no answer) and is posted again for the app's loop.
+void GameEngine::pump_events() {
+  zgame::App* a = app_if_any();
+  platform::MessagePump* p = a ? a->message_pump() : nullptr;
+  if (!p) return;
+  while (p->peek()) {
+    if (!p->pump()) {
+      p->post_quit();
+      if (box_) box_->frames = 0;
+      return;
+    }
+  }
+}
+
 uint32_t GameEngine::message_box(int32_t a, int32_t caption, int32_t text, int32_t arg) {
   char buf[16];
   std::snprintf(buf, sizeof buf, "%d", arg);
-  const std::string body = zutl::format_message(text, buf);
-  const std::string title = message(caption);
-  unported("0x004ac150", {a, caption, text});
-  if (!p_.alert) return 0;
-  return p_.alert->message_box(body, title, static_cast<uint32_t>(a) & 0xf) == 1 ? 1 : 0;
+  return game_message_box(a, caption, zutl::format_message(text, buf));
 }
 
 // 0x004ac150 with three strings (the controls screen's reassignment questions).
 uint32_t GameEngine::message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
                                   const char* s3) {
-  const std::string body = zutl::format_message(text, {s1, s2, s3});
-  const std::string title = message(caption);
-  unported("0x004ac150", {a, caption, text});
-  if (!p_.alert) return 0;
-  return p_.alert->message_box(body, title, static_cast<uint32_t>(a) & 0xf) == 1 ? 1 : 0;
+  return game_message_box(a, caption, zutl::format_message(text, {s1, s2, s3}));
 }
 
 Handle GameEngine::joy_state() { return handle_of(zin::joy_state()); }

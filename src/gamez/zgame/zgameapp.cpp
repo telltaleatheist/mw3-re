@@ -74,6 +74,7 @@ bool App::pump_message(platform::MessagePump& pump) { return pump.pump(); }
 // MsgWaitForMultipleObjects. FIX (A): the Windows calls go through the pump;
 // the SEH catch-all around it (a "fatal error" message box and exit) is left out.
 int App::run(platform::MessagePump& pump) {
+  pump_ = &pump;
   pump.raise_priority();  // FIX (A): SetThreadPriority(thread, THREAD_PRIORITY_HIGHEST)
   for (;;) {
     uint32_t first_idle = 1;

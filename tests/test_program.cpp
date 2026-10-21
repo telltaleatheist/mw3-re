@@ -60,6 +60,8 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/debriefing.h"
 #include "mech3/pilot_menu.h"
+#include "gamez/ztwod/twod.h"
+#include "gamez/ztwod/twod_host.h"
 #include "mech3/player.h"
 #include "mech3/sensors.h"
 #include "mech3/zai_brain.h"
@@ -3058,4 +3060,94 @@ TEST(placements_on_every_campaign_mission_headless) {
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
+}
+
+// Playtest #2 (docs/playtest.md): the game's own message box (0x004ac150,
+// dlgMessage.zrd's MESSAGEBOX) answers the pilot screen's "Ok to delete
+// pilot?", run in its own loop with frames presented. A zTwoD host that
+// forwards the box's loop to the engine, as the SDL one does.
+namespace {
+struct BoxHost : ztwod::Host {
+  mech3::GameEngine* e = nullptr;
+  void input_poll(uint8_t a) override {
+    e->pump_events();
+    e->input_poll(a);
+  }
+  void timer_update() override { e->timer_update(); }
+  float frame_dt() override { return e->frame_dt(); }
+  void video_lock() override { e->video_lock(); }
+  void video_unlock() override {}
+  void video_flip(const ztwod::Rect*, const ztwod::Rect*, int32_t, int32_t) override { e->video_flip(0, 0, 0, 0); }
+  uint32_t show_cursor(uint32_t on) override { return e->video_show_cursor(on); }
+};
+}  // namespace
+
+TEST(playtest_delete_pilot_through_the_games_message_box_headless) {
+  if (!have_game()) return;
+  for (const bool yes : {true, false}) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("msgbox_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      BoxHost host;
+      host.e = &engine;
+      ztwod::set_host(&host);
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      const char* name = yes ? "DoomedYes" : "DoomedNo";
+      int stage = 0, box_frames = 0;
+      bool asked = false;
+      engine.on_present = [&](int) {
+        if (ztwod::MessageBox* box = engine.message_box_open()) {  // inside the box's own loop
+          asked = true;
+          if (++box_frames == 3) box->buttons[yes ? 0 : 1].on_left_up();  // OK or CANCEL
+          return;
+        }
+        if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // NEW CAMPAIGN
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+          if (!ps || !ps->screen) return;
+          ps->screen->new_bar.set_text(name);
+          ps->screen->new_bar.on_return();
+          stage = 2;
+        } else if (stage == 2) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+          if (!ps || !ps->screen || !ps->screen->chosen) return;
+          ps->screen->on_button(0x19, 0, 0);  // DELETE: the box runs here
+          stage = 3;
+        }
+      };
+      CountingPump pump;
+      pump.limit = 400;
+      app.run(pump);
+      EXPECT(stage == 3 && asked && box_frames >= 3);
+      EXPECT((mech3::find_pilot(name) == nullptr) == yes);  // OK deletes, CANCEL keeps
+      EXPECT(alert.shown.empty());                          // no native alert
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+      ztwod::set_host(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
 }

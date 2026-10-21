@@ -70,6 +70,9 @@ class App {
   int pending() const { return static_cast<int>(pending_.size()); }
   bool active() const { return active_ != 0; }
   State* stack(int i) const { return stack_[i]; }
+  // The pump run() drives (null outside it): the message box's own loop
+  // pumps it too (FIX (A), docs/twod.md, The message box).
+  platform::MessagePump* message_pump() const { return pump_; }
 
   struct Pending {
     Command type;
@@ -101,6 +104,7 @@ class App {
   uint32_t active_ = 0;            // +0x0d0
   State* stack_[kMaxDepth] = {};   // +0x0d8
   std::deque<Pending> pending_;    // +0x120..+0x148, an MSVC std::deque
+  platform::MessagePump* pump_ = nullptr;  // (ours)
 };
 
 }  // namespace zgame
