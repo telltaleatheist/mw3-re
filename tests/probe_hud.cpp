@@ -262,6 +262,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 15: ftext(h, v)->set_text_plain("88 TXT"); break;
     case 17: h.draw3d(zgame::from_bits(v)); break;
     case 18: h.target.track(zgame::from_bits(v)); break;
+    case 20: h.data_update(zgame::from_bits(v)); break;
     case 19: {
       float o[3] = {};
       const bool ok = mech3::lead_point(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(v)), o);

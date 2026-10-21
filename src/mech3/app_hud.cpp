@@ -12,12 +12,15 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
+#include "mech3/mech_skis.h"
+#include "gamez/zmodel/gmod_screen.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
@@ -88,7 +91,9 @@ struct ProgramHudHooks : HudHooks {
   // 0x00440a30 (the reticle over TARGET's box) waits for TARGET's tracking
   // (0x00440b00, hud.md section 7 item 6): none, unless a test forces it.
   bool force_over = false;
-  bool reticle_over_target(void*, int32_t, int32_t) override { return force_over; }
+  bool reticle_over_target(void* t, int32_t x, int32_t y) override {
+    return force_over || HudHooks::reticle_over_target(t, x, y);
+  }
   static Weapon* wp(void* p) { return static_cast<Weapon*>(p); }
   void* mech_weapons(Mech* m) override { return m ? m->ammo : nullptr; }
   int32_t weapons_count(void* w) override { return w ? static_cast<int32_t>(wm(w)->count) : 0; }
@@ -108,6 +113,78 @@ struct ProgramHudHooks : HudHooks {
     return me->pilot ? me->pilot->roster : 0;  // +0x684 +0xc: 7 the Elemental
   }
   int32_t mech_3cc(void* m) override { return static_cast<Mech*>(m)->equipment[8]; }  // ECM
+  // TARGET's tracking, the lead point and the data update (hud.md section
+  // 14) on the player's mech and its target's mech: a contact's entity,
+  // vehicle and seen object are the contact's mech here.
+  static Mech* mech_of(void* p) { return static_cast<Mech*>(p); }
+  static void mech_pos(Mech* m, float out[3]) {  // 0x005a85e0
+    Vec3 v{0, 0, 0};
+    if (skis_calls().position) v = *skis_calls().position(*m);
+    else if (m->transform) v = {m->transform[9], m->transform[10], m->transform[11]};
+    out[0] = v.x, out[1] = v.y, out[2] = v.z;
+  }
+  void contact_dir(void* c, float out[3]) override {
+    const ai::Contact* k = static_cast<ai::Contact*>(c);
+    out[0] = k->dir[0], out[1] = k->dir[1], out[2] = k->dir[2];
+  }
+  void* contact_entity(void* c) override { return contact_mech(c); }
+  void* contact_vehicle(void* c) override { return contact_mech(c); }
+  void* object_seen(void* c) override { return contact_mech(c); }
+  void* target_object(void* slot) override {
+    ai::Contact* c = slot ? *static_cast<ai::Contact**>(slot) : nullptr;
+    return c ? contact_mech(c) : nullptr;
+  }
+  bool object_a8(void*) override { return false; }
+  bool object_mech(void* o) override { return o != nullptr; }
+  void* object_mech_ptr(void* o) override { return o; }
+  const char* object_name(void*) override { return nullptr; }
+  float contact_size(void* c) override {  // 0x004e7070: its vehicle's +0x68, else 5
+    Mech* m = mech_of(contact_mech(c));
+    return m ? m->height : 5.0f;
+  }
+  void entity_position(void* e, float out[3]) override {
+    if (e) mech_pos(mech_of(e), out);
+    else out[0] = out[1] = out[2] = 0.0f;
+  }
+  void vehicle_center(void* v, float out[3]) override {  // vt+0xbc: the node's place here (hud.md, Left)
+    entity_position(v, out);
+  }
+  uint32_t object_team(void* o) override { return o ? mech_of(o)->team : 0; }
+  uint32_t mech_allies(Mech* m) override { return m->allies; }
+  uint32_t mech_enemies(Mech* m) override { return m->enemies; }
+  uint32_t project(const float in[3], float out[3]) override {  // 0x0053cf10
+    zmth::Vec3 o;
+    const uint32_t code = zmod::project_point(reinterpret_cast<const zmth::Vec3*>(in), &o);
+    out[0] = o.x, out[1] = o.y, out[2] = o.z;
+    return code;
+  }
+  int32_t mech_part_count(Mech* m, int32_t i) override { return m ? m->equipment[i] : 0; }
+  float mech_narc(void* m) override { return mech_of(m)->narc_time; }
+  void* group_current_weapon(void* g) override { return static_cast<WeaponGroup*>(g)->current_weapon; }
+  float weapon_speed(void* w) override { return wp(w)->def ? wp(w)->def->velocity : 0.0f; }
+  uint32_t weapon_def_flags(void* w) override { return wp(w)->def ? wp(w)->def->flags : 0; }
+  bool mech_aim_point(Mech*, float*) override { return false; }  // +0xec / +0xf8 not modelled (hud.md, Left)
+  void mech_position(Mech* m, float out[3]) override { mech_pos(m, out); }
+  void vehicle_position(void* v, float out[3]) override { entity_position(v, out); }
+  void mech_velocity(Mech* m, float out[3]) override { out[0] = m->velocity.x, out[1] = m->velocity.y, out[2] = m->velocity.z; }
+  void vehicle_velocity(void* v, float out[3]) override { mech_velocity(mech_of(v), out); }
+  float controls_throttle(Mech* m) override { return m->controls ? m->controls->throttle : 0.0f; }
+  float controls_throttle_target(Mech* m) override { return m->controls ? m->controls->throttle_target : 0.0f; }
+  void mech_forward(Mech* m, float out[3]) override { out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z; }
+  float mech_f(Mech* m, uint32_t off) override {
+    switch (off) {
+      case 0x518: return m->max_speed;
+      case 0x528: return m->speed_factor;
+      case 0x554: return m->heat;
+      case 0x558: return m->heat_added;
+      case 0x55c: return m->heat_dissipation;
+      case 0x56c: return m->coolant;
+      default: return 0.0f;
+    }
+  }
+  float mech_jump_fuel(Mech* m) override { return m->jet_fuel; }  // vt+0x148
+  void mech_radar_dir(Mech* m, float out[3]) override { mech_forward(m, out); }  // 0x0041cdf0 (radar, item 7)
+  float mission_time(bool) override { return mech_game_time(); }
   // 0x0040e920 (a node's game object) is not ported: the aim's node gives
   // none, and its +0xbc none either (hud.md section 12, Left).
   void* node_object(void*) override { return nullptr; }
@@ -162,6 +239,13 @@ void program_hud_update(float dt) {
 
 void program_hud_force_over(bool on) { g_hooks.force_over = on; }
 
+// Mech3.exe 1.2 @ 0x0040f8d0's HUD part: the view target's HUD's data update
+// (the message panel's slide before it is not ported).
+void program_hud_data(float dt) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  if (Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr) h->data_update(dt);
+}
+
 bool program_hud_report(HudReport* r) {
   Mech* m = static_cast<Mech*>(program_view_target());
   Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
@@ -179,7 +263,22 @@ bool program_hud_report(HudReport* r) {
   r->bracketed = !(h->weapons.poly.flags & ztwod::kHidden);
   r->lock = h->reticle.lock;
   r->lock_timer = h->reticle.lock_timer;
+  r->target_hidden = (h->target.flags & ztwod::kHidden) != 0;
+  r->shape_hidden = (h->target.shape1.flags & ztwod::kHidden) != 0;
+  r->rx = h->reticle.get_x(), r->ry = h->reticle.get_y();
+  if (h->target.shape1.xform) h->target.shape1.transform();
+  r->apex_y = h->target.shape1.pts[0][1], r->base_y = h->target.shape1.pts[1][1];
+  r->shape_x = h->target.shape1.translation[0];
   return true;
+}
+
+// Mech3.exe 1.2 @ 0x0041d890's HUD part (the mech's vt+0xc0 after AiTarget's
+// 0x004d5e40): the view's mech's TARGET turned on for its new target (its
+// target sound 0x00432990 with 0x18 not ported here).
+void program_hud_target_set(void* mech) {
+  Mech* m = static_cast<Mech*>(mech);
+  if (!m || m != program_view_target() || !m->pilot) return;
+  if (Hud* h = pilot_hud(*m->pilot)) h->target.set_shown(true);
 }
 
 int program_hud_lock_on(void* mech, bool* target_set) {
@@ -195,6 +294,12 @@ int program_hud_lock_on(void* mech, bool* target_set) {
       m->target = c;
       *target_set = true;
     }
+  if (*target_set) {
+    // TARGET follows the target set (0x0041d890), as the targeting keys' path
+    // would: shown, then turned on.
+    if (Hud* h = m->pilot ? pilot_hud(*m->pilot) : nullptr) h->target.set_target(&m->target);
+    program_hud_target_set(m);
+  }
   return found;
 }
 

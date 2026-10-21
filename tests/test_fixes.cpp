@@ -617,3 +617,29 @@ TEST(fix_lead_point_without_a_group) {
   EXPECT(out[0] == 1 && out[1] == 2 && out[2] == 3);
   mech3::set_hud_hooks(nullptr);
 }
+
+// FIX (bug): the HUD's timer (0x0043c390) past an hour: 3700.25 s is
+// 01:01:40, not the original's 01:01:3640.
+TEST(fix_hud_timer_past_an_hour) {
+  struct Clock : mech3::HudHooks {
+    float mission_time(bool) override { return 3700.25f; }
+  } hooks;
+  zfix::options().bugs = true;
+  mech3::set_hud_hooks(&hooks);
+  void* storage = ::operator new(sizeof(mech3::Hud));
+  std::memset(storage, 0, sizeof(mech3::Hud));
+  auto* hud = new (storage) mech3::Hud(nullptr);
+  hud->mech = reinterpret_cast<mech3::Mech*>(&hooks);  // only passed back to the hooks
+  hud->active = 0;
+  hud->target.hide();  // no tracking
+  hud->data_update(0.033f);
+  EXPECT(std::strcmp(hud->timer.text, "01:01:40") == 0);
+  zfix::options().bugs = false;
+  hud->data_update(0.033f);
+  EXPECT(std::strcmp(hud->timer.text, "01:01:3640") == 0);
+  zfix::options().bugs = true;
+  hud->mech = nullptr;
+  hud->~Hud();
+  ::operator delete(storage);
+  mech3::set_hud_hooks(nullptr);
+}

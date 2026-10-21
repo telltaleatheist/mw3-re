@@ -2086,6 +2086,59 @@ void Hud::draw3d(float dt) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x0043c390: the game's numbers into the pieces each
+// frame, from the camera update (0x0040f8d0) for the view's target. With the
+// HUD on: the radar's positions, the compass's heading (the mech's flat
+// forward), the gauges, TARGET's text, the equipment and MFD; always the
+// mission timer (H:M:S), the objectives, TARGET's tracking.
+void Hud::data_update(float dt) {
+  if (!mech) return;
+  HudHooks& h = hud_hooks();
+  const float thr = h.controls_throttle(mech) * h.mech_f(mech, 0x528);  // speed_factor
+  const float speed = h.mech_f(mech, 0x518) * thr * (thr > 0.0f ? 1.0f : -1.0f);  // max_speed, [0x005c0080]
+  h.gauges_speed(&gauges, speed);
+  if (active) {
+    float v[3];
+    if (radar.active) {
+      h.radar_view_dir(v);
+      v[1] = 0.0f;
+      h.normalize(v);
+      radar.set_dir(v);
+      h.radar_heading(&radar, mech);
+    } else {
+      h.mech_radar_dir(mech, v);
+      radar.set_dir(v);
+    }
+    float fwd[3];
+    h.mech_forward(mech, fwd);
+    compass.set_heading(std::atan2(fwd[0], -fwd[2]));
+    h.gauges_throttle(&gauges, h.controls_throttle_target(mech));
+    const float heat = h.mech_f(mech, 0x554);
+    const float level = heat > 1.5f ? 1.0f : heat * 0.6666667f;  // [0x005c0084], [0x005c0088]
+    h.gauges_heat(&gauges, level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
+    h.gauges_coolant(&gauges, h.mech_f(mech, 0x56c));
+    const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
+    h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
+    h.target_text(&target);
+    if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
+    h.mfd_update(&mfd, dt);
+  }
+  float t = h.mission_time(h.multiplayer_game() != 0);
+  const bool negative = t < 0.0f;
+  if (negative) t = -t;
+  const float minutes = t * 0.016666668f;  // [0x005c0098]
+  float hours = std::floor(minutes * 0.016666668f);
+  const float mins = std::floor(minutes - hours * 60.0f);  // [0x005c009c]
+  // FIX (bug): the original's seconds are t less the minutes alone, so past
+  // an hour they run on into the thousands ("01:01:3640"); the hours too here.
+  const float secs = zfix::options().bugs ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
+  if (negative) hours = -hours;
+  timer.set_text("%02d:%02d:%02d", crt::msvc_ftol(hours), crt::msvc_ftol(mins), crt::msvc_ftol(secs));  // [0x005e3d88]
+  h.objectives_update(&objectives, dt);
+  target.track(dt);
+  h.network_data(active, dt);
+}
+
 // Mech3.exe 1.2 @ 0x0043c820: the debug overlays (hooked), the layer's own
 // objects, the timer, the objectives and the radar; the reticle's aim state
 // while it is 5 (none set this frame), then the reticle.

@@ -18,6 +18,8 @@ void program_hud_update(float dt);  // 0x0040fac0's first call: the view target'
 struct HudReport {
   int weapons = 0, lines = 0, named = 0, bracketed = 0, lock = 0;
   float lock_timer = 0.0f;
+  int target_hidden = 0, shape_hidden = 0, rx = 0, ry = 0, apex_y = 0, base_y = 0;  // TARGET and the reticle
+  float shape_x = 0.0f;
 };
 bool program_hud_report(HudReport* r);
 // Tests only: the first group that locks selected and the player's target
@@ -26,7 +28,9 @@ int program_hud_lock_on(void* mech, bool* target_set);
 // Tests only: the reticle counted over TARGET's box, so the lock can run
 // before TARGET's tracking (0x00440b00, 0x00440a30) is ported.
 void program_hud_force_over(bool on);
-void program_hud_draw3d(float dt);  // the view target's vt+0xe4, 0x0041cd90: the HUD's Direct3D pass
+void program_hud_draw3d(float dt);
+void program_hud_data(float dt);
+void program_hud_target_set(void* mech);  // 0x0041d890's HUD part: the view mech's TARGET on for its new target  // 0x0040f8d0's HUD part: the view target's HUD data update (0x0043c390)  // the view target's vt+0xe4, 0x0041cd90: the HUD's Direct3D pass
 bool program_hud_aim(int32_t reticle[2], float point[3], bool* hit);
 // For the tests: the player's controls' look (-1..1 of the display's half
 // size; PlayerControls +0x140), as the mouse would set it.

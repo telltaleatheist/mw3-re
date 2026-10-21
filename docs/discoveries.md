@@ -1926,6 +1926,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   an ally, green for anything else; it starts large when you pick a new
   target and shrinks onto it. Off screen, an arrow in the same colour points
   to it from the edge.
+- **The mission timer breaks after an hour:** the HUD's clock works out the
+  seconds without taking the hours off, so an hour and 40 seconds in it
+  reads 01:01:3640 (the rebuild shows 01:01:40).
 - **A hidden debug readout:** the HUD fills five debug texts every frame
   (the mech's gait, speeds and more) while a debug text is shown; a debug
   switch toggles it, and which key or option reaches that switch is not
