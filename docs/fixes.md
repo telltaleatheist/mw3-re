@@ -406,3 +406,10 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   for 8..10 (1152x864, 1280x1024, 1600x1200) are never used, and ACCEPT
   writes the chosen mode over a registry-set 8..10.
 
+- Quicksand that does nothing (found 2026-10-21, craters.md section 3):
+  a quicksand pit's lid is solid ground at the hit's height in zModel soil
+  3, named "quicksand", but the game's soil table has no quicksand entry,
+  so it reads as soil 0 and a mech walks over it as on flat ground. The
+  name suggests a slowing or sinking effect that was cut or never wired.
+  Options: keep it as a picture (the original as played), or give soil 3
+  an effect (a guess at intent: how much slowing, whether it sinks).
