@@ -255,6 +255,8 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The pause menu's background is the battlefield as you left it. The original copied the screen; the rebuild draws the 3D world on the graphics card, so it reads the last frame back from it.
+
 - The game's question boxes ("Ok to delete pilot?", "Replace existing game?" and the rest) keep reading the mouse and keyboard while they wait: the original's box read DirectInput directly, the rebuild's also handles the window's events while it waits.
 
 - The mech lab's hidden loadout export and import keys (Ctrl+X, Ctrl+I) opened Windows file dialogs. Ctrl+X now writes the loadout to the `export` folder (named as the dialog suggested, `<mech>_<loadout>.m3c`), and Ctrl+I reads the next `.m3c` file from the `import` folder, then marks it done.

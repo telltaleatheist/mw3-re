@@ -2027,6 +2027,33 @@ From the box Export, Import and "save changes?" open, 0x0042e890 (details:
 - **Each opening of the box leaves a Windows file search open** (the game
   never closes it, FindClose is not even imported): harmless, a handle a time.
 
+### The pause screen
+
+- **Escape is not the same as RESUME.** Both close the pause screen, but
+  only the RESUME button restarts the sounds that pausing stopped and gives
+  back the sound groups that were playing (the game's multi-part,
+  repeating sounds). Leaving with Escape skips both, so whatever was
+  sounding when you paused stays silent until the game plays it again.
+  Found in the code (0x492d70 against the Pause State's escape 0x493250),
+  not yet heard in play.
+- **REPLAY on the pause menu is an instant mission failure.** It does not
+  restart anything by itself: it ends the mission as lost on the spot,
+  without the "mission failed" voice, the red flash or the usual 8-second
+  wait, and the end-of-mission screen follows, from where you replay. It
+  only appears in a campaign or Instant Action, not in training or
+  multiplayer.
+- **Quitting a campaign mission from the pause menu is a clean retreat.**
+  Gear a lost field base cut comes back, and your lancemates are reset, as
+  after a failed mission; then you are back at the main menu. Quitting
+  Instant Action instead fades to its results screen, and quitting training
+  brings the training menu back up.
+- **An unused switch hides the pause menu's OPTIONS button.** The pause
+  screen checks a flag that would remove Options, but nothing in the game
+  ever sets it: perhaps a leftover from a demo or a multiplayer plan.
+- **The pause menu keeps the mission's screen size.** Unlike the main menus,
+  pausing does not switch to 640x480: the 640x480 dialog sits in the top
+  left corner of a still of the battlefield at the mission's resolution.
+
 ### Pilots and the pilot screen
 
 The screen INSTANT ACTION, NEW CAMPAIGN, TRAINING and MULTIPLAYER open

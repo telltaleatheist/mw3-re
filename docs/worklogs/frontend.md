@@ -799,3 +799,34 @@ Network HUD pieces skipped as ordered.
   image never released; MISSION DATA tab always disabled (discoveries);
   CONFIG_ADD (13) has no press; 0x005a2ba0 is a shared +4 setter (not
   stubbable); MESSAGE_AREA plays its SOUND with every text.
+
+## 2026-10-21 Playtest #2, the game's message box (branch mac3/msgbox, merged)
+
+- GameEngine::game_message_box ports 0x004ac150 on ztwod::MessageBox
+  (dlgMessage.zrd's MESSAGEBOX) over the current screen; message_box and
+  message_box3 go through it. Its loop pumps the app's MessagePump
+  (pump_events: a quit ends the box and is posted again). FIX (A) row in
+  fixes.md. Test: playtest_delete_pilot_through_the_games_message_box_headless
+  (yes and no).
+
+## 2026-10-21 Playtest #3, the pause screen (branch mac3/pause)
+
+- PauseScreen (mech3/pause_menu.{h,cpp}): ctor 0x00492750, dtor 0x00492ae0,
+  press 0x00492d70 (RESUME, QUIT by game kind, OPTIONS, REPLAY), menus.md
+  section 11. Engine hooks: zSound's resume and group stash (0x0056f130,
+  0x005732f0, 0x00573300, 0x00573350), mission_abort (0x0048fa80, ported as
+  Missions::abort_now), set_reopen_training (0x0047fe00); GameEngine's
+  fade_to_state handles 0x006099a0; menu_vcall routes a shell state's +0x28.
+- The purple: the program's 2D buffer after a 3D frame is the layer over
+  its key colour. FIX (A): the zTwoD host's screen_grab reads the shown frame
+  back (GameEngine::shown_frame) after a 3D frame.
+- test_menus.py pause 60/60 (all four screens 60/60); breaks 23/23 caught
+  (sound order, grab, backdrop, REPLAY's kinds, bind order, the OPTIONS
+  flag, flags, the release, every press's calls);
+  playtest_escape_pauses_the_mission_and_resume_returns_headless.
+- Found: Escape on the pause screen skips RESUME's sound calls (sounds stay
+  stopped, groups lost); REPLAY is an instant silent loss; [0x006099c4]
+  (hide OPTIONS) is never written; no mode switch on pause.
+- Left: the SDL host's image_release does not free an uncached image
+  (0x00517b10 frees it through 0x005185f0): grabs (bake, pause backdrop)
+  leak until it does.

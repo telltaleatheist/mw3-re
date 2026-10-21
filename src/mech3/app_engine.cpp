@@ -33,6 +33,8 @@
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/mech3_interp.h"
+#include "mech3/app_states.h"
+#include "mech3/mission.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_control.h"
 #include "mech3/music.h"
@@ -391,6 +393,7 @@ void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
   if ((scene_drawn_ || layer_drawn_) && p_.render) p_.render->present();
   else if (p_.screen) p_.screen->present_16(buffer_.data(), width_, height_, width_ * 2, true);
   last_drew_scene_ = scene_drawn_;
+  last_via_render_ = (scene_drawn_ || layer_drawn_) && p_.render;
   scene_drawn_ = layer_drawn_ = false;
   ++frames_presented;
   if (on_present) on_present(frames_presented);
@@ -427,25 +430,34 @@ uint32_t GameEngine::video_show_cursor(uint32_t on) {
 // screen is the GPU's back buffer, read back and scaled to the game's 16-bit
 // size (the exe's Lock read the DirectDraw surface); without a readback, the
 // 16-bit buffer (the menus' screens, drawn there in full).
+namespace {
+// The read-back frame scaled to the buffer's size, in the buffer's format.
+bool read_frame(platform::Render3D* r, int width, int height, std::vector<uint16_t>* out) {
+  std::vector<uint32_t> px;
+  int w = 0, ht = 0;
+  if (!r || !r->read_back(&px, &w, &ht) || w <= 0 || ht <= 0) return false;
+  out->assign(static_cast<size_t>(width) * height, 0);
+  for (int y = 0; y < height; ++y) {
+    const uint32_t* row = px.data() + static_cast<size_t>(y * ht / height) * w;
+    for (int x = 0; x < width; ++x) {
+      const uint32_t c = row[x * w / width];
+      (*out)[static_cast<size_t>(y) * width + x] = zvid::pack_bytes(c >> 16 & 0xff, c >> 8 & 0xff, c & 0xff);
+    }
+  }
+  return true;
+}
+}  // namespace
+
 Handle GameEngine::video_grab(int32_t) {
   Handle h = kGrabs;
   while (grabs_.count(h)) h += 0x10;
-  std::vector<uint32_t> px;
-  int w = 0, ht = 0;
-  if (video_mode() != 0 && p_.render && p_.render->read_back(&px, &w, &ht) && w > 0 && ht > 0) {
-    std::vector<uint16_t> still(static_cast<size_t>(width_) * height_);
-    for (int y = 0; y < height_; ++y) {
-      const uint32_t* row = px.data() + static_cast<size_t>(y * ht / height_) * w;
-      for (int x = 0; x < width_; ++x) {
-        const uint32_t c = row[x * w / width_];
-        still[static_cast<size_t>(y) * width_ + x] = zvid::pack_bytes(c >> 16 & 0xff, c >> 8 & 0xff, c & 0xff);
-      }
-    }
-    grabs_[h] = std::move(still);
-  } else {
-    grabs_[h] = buffer_;
-  }
+  std::vector<uint16_t> still;
+  if (video_mode() != 0 && read_frame(p_.render, width_, height_, &still)) grabs_[h] = std::move(still);
+  else grabs_[h] = buffer_;
   return h;
+}
+bool GameEngine::shown_frame(std::vector<uint16_t>* out) {
+  return last_via_render_ && read_frame(p_.render, width_, height_, out);
 }
 // 0x0055b1f0: the fade's still back over the buffer, whole, at 0, 0.
 void GameEngine::image_draw(Handle image, int32_t x, int32_t y, int32_t key, Handle rect) {
@@ -537,6 +549,34 @@ void GameEngine::sound_play(Handle s, float v) {
 Handle GameEngine::sound_listener() { return handle_of(zsnd::snapshot()); }
 void GameEngine::sound_stop_all(Handle s) {
   if (auto* o = static_cast<zsnd::Snapshot*>(object_of(s))) zsnd::stop_snapshot(o);
+}
+void GameEngine::sound_resume_all(Handle s) {
+  if (auto* o = static_cast<zsnd::Snapshot*>(object_of(s))) zsnd::resume_snapshot(o);
+}
+Handle GameEngine::sound_take_playing() { return handle_of(zsnd::take_playing()); }
+// The list is zSound's again (or freed) after either: its handle goes.
+void GameEngine::sound_restore_playing(Handle l) {
+  if (auto* o = static_cast<std::list<zsnd::GroupVoice*>*>(object_of(l))) {
+    handles_.erase(o);
+    objects_[l - 0x00100001u] = nullptr;
+    zsnd::restore_playing(o);
+  }
+}
+void GameEngine::sound_free_playing(Handle l) {
+  if (auto* o = static_cast<std::list<zsnd::GroupVoice*>*>(object_of(l))) {
+    handles_.erase(o);
+    objects_[l - 0x00100001u] = nullptr;
+    zsnd::free_playing(o);
+  }
+}
+void GameEngine::mission_abort() { missions().abort_now(); }
+void GameEngine::set_reopen_training(uint8_t v) { app().set_reopen_training(v); }
+// 0x0048ef00 on the missions object's +0xd0 (the pause screen's QUIT in
+// Instant Action): the debriefing's Win State after the fade.
+void GameEngine::fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+                               uint8_t r, uint8_t g, uint8_t b) {
+  if (next == 0x6099a0) fade_replace(&states().end_win, arg, direction, buffer, seconds, r, g, b);
+  else Engine::fade_to_state(next, arg, direction, buffer, seconds, r, g, b);
 }
 void GameEngine::sound_release_all(Handle s) {
   if (auto* o = static_cast<zsnd::Snapshot*>(object_of(s))) {

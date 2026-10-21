@@ -222,7 +222,19 @@ void SdlTwodHost::video_lock() {
 }
 void SdlTwodHost::video_unlock() {}
 
+// FIX (A): after a 3D frame the buffer holds only the 2D layer over its key
+// colour, so the frame shown is read back (the pause screen's backdrop).
 zimg::Texture* SdlTwodHost::screen_grab(int32_t) {
+  std::vector<uint16_t> shown;
+  if (engine_ && engine_->shown_frame(&shown)) {
+    const zrndr::Target2D& t = zrndr::target2d();
+    const int w = t.base ? static_cast<int>(t.width) : 0, h = t.base ? static_cast<int>(t.height) : 0;
+    if (w > 0 && h > 0 && shown.size() == static_cast<size_t>(w) * h) {
+      zimg::Texture* img = new_image(w, h);
+      std::memcpy(img->pixels, shown.data(), shown.size() * 2);
+      return img;
+    }
+  }
   const zrndr::Target2D& t = zrndr::target2d();
   if (!t.base) return nullptr;
   zimg::Texture* img = new_image(static_cast<int>(t.width), static_cast<int>(t.height));

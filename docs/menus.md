@@ -734,7 +734,59 @@ multiplayer page, the network left on, the campaign's pop; missed, as rare
 in the plan: the opening movie on another mission, the Instant Action flag
 kept.
 
-## 11. Left
+## 11. The pause screen (0x00492750, vtable 0x005c6110)
+
+Escape in a mission: the Core state's frame (0x00481f70) pushes the Pause
+State (0x00608f48), whose enter (0x00493040) hides the cursor, waits a short
+busy loop and makes the screen (new 0x11b20, `mech3/pause_menu`). Playtest
+#3: without it the program showed the mission's 2D layer as it was, its key
+colour all over (the purple).
+
+- The constructor: zSound's snapshot of the sounds playing (0x0056eb10,
+  +0x11b18) stopped (0x0056f0a0), the playing sound groups taken away
+  (0x005732f0, +0x11b1c), the render target as the main menu's, then a still
+  of the screen (0x00579500, buffer 1) at 0, 0 as the first object
+  (+0x11a5c). dlgPause.zrd's PAUSEDIALOG, read without FastMenu's bake:
+  PAUSETEXT (a marquee, +0x1199c), QUIT, RESUME, OPTIONS, and REPLAY only in
+  a campaign or Instant Action (the game's vt+0x2c, asked twice when it is
+  not a campaign). A byte at [0x006099c4] would hide and disable OPTIONS,
+  but nothing in the exe writes it.
+- The buttons are plain SlideButtons (vtable 0x005bd888) with ids 0..3; a
+  press reaches the screen's +0x14 (0x00492d70):
+  - RESUME (0): the state's +0x28 (the Pause State's escape, pop(6)), the
+    snapshot resumed (0x0056f130) and freed (0x0056f190), the groups given
+    back ahead of any started since (0x00573300). Escape does the same pop
+    without the sound calls: the paused snapshot and the groups stay where
+    the screen keeps them until its destructor, which does not free them.
+  - QUIT (1): the snapshot and the groups freed (0x0056f190, 0x00573350),
+    pop(0), then by the game's kind: a campaign merges back what a lost
+    field base cut (0x00434cb0) and resets the lancemates (0x00435240(0)),
+    then the Main state replaces the stack (state(2)) and the mission is
+    cleaned up (0x00491780(1)); Instant Action fades out to the debriefing's
+    Win State (0x0048ef00 on 0x006099a0, 2 s, black) and does no cleanup
+    here; training sets the app's reopen flag (0x0047fe00(1): the training
+    menu opens again) and goes to Main; any other kind goes to Main.
+  - OPTIONS (2): the three option objects made again (0x00438be0,
+    0x0043a640, 0x0042d9d0 into [0x00609868..0x00609870]; the Pause State's
+    leave deletes them) and the game options pushed.
+  - REPLAY (3): pop(0), then 0x0048fa80 on the missions object: unless in
+    multiplayer, the mission ended now as lost (+0x55 and +0x56 set, +0x58 the
+    delay 0), so its next update goes to the end screen. The loss's voice
+    and red flash (0x0048f9e0) do not play.
+- The destructor (0x00492ae0) releases the still (0x00517b10) and the members.
+
+FIX (A): after a 3D frame the program's 2D buffer holds only the HUD layer
+over its key colour (the GPU has the scene), so the zTwoD host's screen grab
+reads the frame shown back from Render3D (`GameEngine::shown_frame`), as the
+fade state's grab already did; menus keep the buffer. Tested by
+`test_menus.py pause` (the screen against the original: construction,
+frames, every press in every game kind, the flag, the destructor; 23 of
+23 planted breaks caught) and
+`playtest_escape_pauses_the_mission_and_resume_returns_headless` (Escape,
+RESUME, Escape again, Escape on the screen; the backdrop from the shown
+frame). Not yet: the Pause State's enter and leave in a differential case.
+
+## 12. Left
 
 - The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists
   (0x0044b215..0x0044bc5c), on the same widgets; the file list's layout with
@@ -745,10 +797,6 @@ kept.
   0x00494920, 0x0049cb20, 0x0049b660); the campaign and training go on to the
   briefing (the Load State, ported), which reaches the pilot's game through
   the module-memory handle at [0x0060861c] (not yet bridged, pilot.md).
-- The pause screen (0x00492750) and its Options press (0x00492d70), which
-  make and push the option objects from a mission; another of its buttons
-  fades out to the campaign's sequence (0x00492ede: the fade state's
-  replace entry, ported as `mech3::fade_replace`, game-loop.md).
 - The menu objects' constructors and destructors run in the program but are
   not in a differential case (their calls are the screen's construct and
   delete, compared through the screens' tests).
