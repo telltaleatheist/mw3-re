@@ -103,6 +103,11 @@ spot to a fraction: 0.7 with two bases left, 0.5 with one (1.0 otherwise):
   fraction x tons, capped at 300 t per base, each moved to the campaign's
   +0x78 (vt+0) and removed from the store (vt+0x14); message 0xf06 with the
   tons lost ("%f").
+  The +0x78 store (`CampaignGame::store78`) is not lost for good: 0x00434cb0
+  adds it (and +0x50) back to the store when the mission fails or is aborted
+  and when the next mission's game is made, and resets +0xa8 to +0xac, the
+  bases the mission started with (campaign.md section 9). So a lost base
+  only cuts what the player carries for the rest of that mission.
 With no base left nothing is cut here. Not ported (the field base waits on
 the AI vehicle controls). No sign in 0x00458xxx..0x0045bxxx of repairs
 looking at the mechs carried: the store is touched only here.
