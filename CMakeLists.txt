@@ -52,6 +52,8 @@ add_library(mw3core STATIC
   src/gamez/zclass/sound.cpp
   src/gamez/zclass/window.cpp
   src/gamez/zdeclient/zdec_init.cpp
+  src/gamez/zgeometry/zgeo_model.cpp
+  src/gamez/zgeometry/zgeo_weiler.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
   src/gamez/zentity/zent_manager.cpp
   src/gamez/zeffect/zeff_anim_puffer.cpp
@@ -243,6 +245,7 @@ add_library(mw3probe SHARED
   tests/probe_ctlcfg.cpp
   tests/probe_ai.cpp
   tests/probe_zdec.cpp
+  tests/probe_zgeo.cpp
   tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
