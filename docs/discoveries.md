@@ -2330,3 +2330,13 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   immediately cuts what you carry: to 70% with two bases left, 50% with one,
   removing random mechs and random gear until you are under the new limit.
   Your salvage pool is not touched.
+
+- **Salvage you leave behind is gone after the next mission.** A won
+  mission's salvage is offered in the next briefing's mech lab next to what
+  you carry. Whatever you move into your carried gear (up to 300 tons and 2
+  mechs per field base) stays with you; what you leave in the salvage only
+  lasts until you win the next mission, when the new mission's salvage
+  replaces it. That is what Launch's "You have not allocated salvage from
+  the last mission. Continue?" warns about. Your own mech always comes back.
+  Gear cut when a field base dies is lost on a win, returned on a failed or
+  restarted mission (with the field bases).

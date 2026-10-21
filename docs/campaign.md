@@ -452,6 +452,14 @@ other vehicle (0x00472ec0); salvage objectives add loadouts (0x00472cf0 at
 0x0045e2a6, 0x0045ec82); the debriefing's and the salvage screen's store
 lists show it; the next mission's game takes it as its +0x3c.
 
+At the next mission's game (0x00434e00, asm 0x434e89..0x434ed5) the new
++0x08 gets the old +0x08 and the old +0x64, and the new +0x3c only the
+mission's salvage [0x00609990]: the old +0x3c (what the player left in the
+salvage at the last briefing) is not carried and is lost. 0x00434cb0 (failed,
+aborted, and after the next game is made) adds +0x50 and +0x78 (gear cut by a
+lost field base, 0x004590b0) back to the store and resets +0xa8 to +0xac, the
+bases the mission started with.
+
 **0x0047ae10, won** (CL 0; DL from the Win State: 1, or 0 at Op 4
 Mission 4): over zEntity's list, the player's mission mech goes into the
 campaign's +0x64 store (which the next mission's game adds to its own
