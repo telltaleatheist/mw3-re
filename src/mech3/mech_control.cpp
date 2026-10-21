@@ -491,6 +491,28 @@ void register_player_commands() {
   for (const int32_t cmd : kCommands) mech_build_hooks().set_command_callback(cmd);
 }
 
+// Mech3.exe 1.2 @ 0x004274d0
+void PlayerControls::command(int32_t cmd) {
+  if (!owner || owner->is_powered_down()) return;  // the vehicle's vt+0x50, then vt+0xa0
+  if (cmd == 0x1a) {  // THROTTLE_REV
+    if (throttle_target != 0.0f) set_throttle(-throttle_target);  // IControls +0x2c, +0x20
+    else reverse = !reverse;
+    return;
+  }
+  if (cmd == 0x1b) {  // THROTTLE1: 0
+    set_throttle(0.0f);
+    joy_throttle_set = false;
+    throttle_held = true;
+    return;
+  }
+  static const float kSteps[] = {0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};  // 0x1c..0x24
+  if (cmd < 0x1c || cmd > 0x24) return;
+  const float v = kSteps[cmd - 0x1c];
+  set_throttle(reverse ? -v : v);  // IControls +0x18 IsReverse
+  throttle_held = true;
+  joy_throttle_set = false;
+}
+
 // Mech3.exe 1.2 @ 0x00426cb0
 void player_command(int32_t cmd) {
   MechBuildHooks& h = mech_build_hooks();

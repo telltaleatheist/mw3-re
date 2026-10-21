@@ -742,6 +742,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   if (const auto* wm = static_cast<const WeaponManager*>(m->ammo)) {
     s.weapons = static_cast<int32_t>(wm->count);
     s.group = wm->group;
+    if (const WeaponGroup* g = wm->group >= 0 && wm->group < 5 ? wm->groups[wm->group] : nullptr) s.weapon = g->current_weapon;
   }
   s.jets = m->equipment[11];
   s.jets_firing = m->jump_jets_firing;
@@ -1036,6 +1037,10 @@ bool mech_hold_throttle(void* mech, float v) {
   m->controls->throttle_target = v;
   m->controls->throttle_held = true;
   return true;
+}
+float mech_throttle_target(void* mech) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  return m && m->controls ? m->controls->throttle_target : 0.0f;
 }
 bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered_down(); }
 ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }

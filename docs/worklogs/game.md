@@ -959,3 +959,24 @@ view's ground, the anim lookups 0x50b450 (92).
   emulated object). The c1m1 headless test holds the heat at 1.6: down at
   frame 248, still for 30 frames, up at 278. Break (no Stop): it still
   moves while "down". test_power and test_heat are unchanged.
+
+## Playtest #12: the key binding audit, with #5 and #6 (2026-10-21)
+
+- docs/keybindings.md: every command, its default key, its handler and what
+  the program does. It comes from test_program's
+  `mission_c1m1_default_keys_fire_headless`, which presses every default key
+  in c1m1 and records callbacks, held state and the unported calls reached
+  (MW3_KEYS_OUT for the raw table).
+- Fixed:
+  - Enter: `wire_hud` bridges heat/command/update/damage/weapon calls to the
+    pilot's Hud (0x430aa0) and its weapons list (0x446240, 0x446520,
+    0x4464c0, +0x1143c);
+  - X: the app's keys 0x40db60 / 0x40dba0 ported (`app_keys`), and the view's
+    camera option wired to 0x40ce10;
+  - 1..0 and Backspace: 0x4274d0 ported (`PlayerControls::command`,
+    test_throttle_keys.py 4,000 identical);
+  - Ctrl+Q bound;
+  - the program's `other` records what it skips.
+- Breaks caught: the HUD weapon unwired, the camera option unwired, the app
+  keys unbound, the throttle command a no-op, Ctrl+Q unbound, and 2 at 10%.
+- New playtest rows 13..18 for the rest (HUD keys to mac 3).

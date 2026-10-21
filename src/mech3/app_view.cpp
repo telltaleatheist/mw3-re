@@ -29,6 +29,7 @@ std::unique_ptr<PlayerView> g_view;
 zcls::Node* zn(void* p) { return static_cast<zcls::Node*>(p); }
 
 struct ProgramViewHooks : ViewHooks {
+  void set_camera_option(int32_t m) override { program_camera_set(m); }  // 0x0040ce10 (the camera key, playtest #5)
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg>) override {
     return g_wired && g_p.unported ? g_p.unported(g_p.ctx, key) : 0;
   }

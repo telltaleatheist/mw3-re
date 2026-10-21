@@ -84,6 +84,11 @@ struct PlayerControls : MechControls {
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
   void construct(uint32_t mode);   // 0x00427320 with the base 0x004265a0
   int update(float dt) override;   // 0x00427d60
+  // 0x004274d0 (primary vt+0x1c): the throttle keys. Backspace reverses the
+  // target (or, at 0, the direction); 1 stops; 2..0 set 0.2, 0.3 .. 0.9, 1.0
+  // (2 is labelled 10%), negative in reverse, and hold it. Not while
+  // powered down or without a mech.
+  void command(int32_t cmd);
   const float* look_position() override { return &look_x; }  // 0x00428800
   // 0x00427870: the joystick and mouse axes into the frame's inputs.
   void read_axes(float dt, float* throttle, float* turn, float* pitch, float* twist, float* look_pitch,

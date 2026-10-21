@@ -173,6 +173,21 @@ void probe_controls_halt(uint8_t* ctl) {
   ctl[0x34] = c.fire, ctl[0x3c] = c.joy_throttle_set, ctl[0x3d] = c.jump_held;
 }
 
+// The player's controls' command 0x004274d0: owner 0 none, 1 a mech, 2 a
+// powered-down mech (a vehicle that is no mech is as none).
+void probe_player_command(uint8_t* ctl, int32_t owner, int32_t cmd) {
+  static Mech m;
+  m.powered_down = owner == 2;
+  m.power_down_pending = false;
+  PlayerControls c;
+  controls_io(c, ctl, false);
+  c.joy_throttle_set = ctl[0x3c] != 0, c.throttle_held = ctl[0x3e] != 0;
+  c.owner = owner ? &m : nullptr;
+  c.command(cmd);
+  controls_io(c, ctl, true);
+  ctl[0x3c] = c.joy_throttle_set, ctl[0x3e] = c.throttle_held;
+}
+
 void probe_controls_set_throttle(uint8_t* ctl, float v) {
   MechControls c;
   controls_io(c, ctl, false);

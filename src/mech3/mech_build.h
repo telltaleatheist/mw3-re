@@ -128,7 +128,7 @@ class MechBuildHooks : public zgame::Unported {
   virtual void controls_brain_init(PlayerControls& c) {        // 0x004d9840 on +0x5c (the AI's base)
     unported("0x004d9840", {ref(&c) + 0x5c});
   }
-  virtual void controls_command(MechControls* c, int32_t cmd) { unported("0x004274d0", {ref(c), cmd}); }
+  virtual void controls_command(MechControls* c, int32_t cmd);  // 0x004274d0, ported (PlayerControls::command)
   virtual void view_target_command(Handle target, int32_t cmd) { unported("0x0041be80", {low(target), cmd}); }
   virtual Handle view_target(Handle view) { (void)view; return nullptr; }  // silent: its +0x64
   virtual bool joy_present();                                  // 0x0051dc10
