@@ -136,5 +136,5 @@ cockpit switch 0x0041ce10.
 - The wall pull-in 0x0040b310 (segment queries 0x004efcd0, 0x004a3290).
 - The world queries the checks use (0x004edab0, 0x004abd90, 0x004eed90) and
   the zone set 0x004f6c80, 0x005a80d0.
-- The torso's cockpit switch 0x0041ce10 (0x00464580) and the HUD's camera
-  calls.
+- The HUD's camera calls. (The torso's cockpit switch 0x0041ce10 acts now
+  that the cockpit block is made: playtest #4, 2026-10-21.)

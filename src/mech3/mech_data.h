@@ -68,9 +68,22 @@ class MechDataHooks : public zgame::Unported {
   virtual void node_place(Handle node, float x, float y, float z);  // 0x004fc0b0
   virtual Handle effect_start(Handle effect, Handle node, const float args[9]);  // 0x00508aa0: zeff::anim_start_at
   virtual void node_free(Handle node);  // 0x00431800 on each: off its parents, its animations stopped, destroyed
+  // The cockpit (0x00430ad0's second half, make_cockpit); the defaults run the ports.
+  virtual Handle hud_model(int32_t roster);                       // 0x004847e0: mech3::hud_model
+  virtual Handle object3d_create();                               // 0x004fb740
+  virtual void node_set_name(Handle node, const char* name);      // 0x004eb300
+  virtual void node_set_flag8(Handle node, int32_t on);           // 0x004eb620
+  virtual void anim_restart(Handle anim);                         // 0x00508460: zeff::anim_restart
 };
 void set_mech_data_hooks(MechDataHooks* h);  // null: the defaults
 MechDataHooks& mech_data_hooks();
+
+// Mech3.exe 1.2 @ 0x00430ad0, after the HUD: the cockpit block at +0x228, the
+// type's cockpit model (mech_<name>_hud.flt) or an empty object3d named
+// "null_hud_cage". A model with a "hud" block in the definition is put at the
+// origin, left out of the queries and flag 8 cleared, and the cockpit's
+// explosion (+0x200) restarted.
+void make_cockpit(MechData& p);
 
 // The mech types' data (0x00605704, a std::list, count 0x00605708).
 std::list<MechData*>& mech_data_cache();

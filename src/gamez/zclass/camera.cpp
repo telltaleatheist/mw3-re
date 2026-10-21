@@ -1112,6 +1112,59 @@ void horizon_follow() {
   if (moved && update_hooks().frame_update) update_hooks().frame_update(update_hooks().ctx);
 }
 
+// Mech3.exe 1.2 @ 0x004f73f0. render_world's set-up without the zones, then
+// only `node` walked (0x004f5910 with 2: never culled alone), from its
+// parent's world matrix when it has one parent.
+int render_subtree(Node* camera_node, Node* node, int32_t hw) {
+  if (!node || !camera_node) return 1;
+  zmth::Mat34 local;
+  zmth::push(&local);
+  Camera* cam = cam_of(camera_node);
+  g_walk.camera = cam;
+  Node* world = camera_world(camera_node);
+  if (g_walk.lod_dynamic) {
+    if (ztimer::state().dt > g_walk.lod_target)
+      g_walk.lod_factor = g_walk.lod_factor - g_walk.lod_step;
+    else
+      g_walk.lod_factor = g_walk.lod_factor + g_walk.lod_step;
+    if (g_walk.lod_factor > 1.0f) g_walk.lod_factor = 1.0f;
+    else if (g_walk.lod_factor < g_walk.lod_min) g_walk.lod_factor = g_walk.lod_min;
+    camera_set_lod_scale(camera_node, g_walk.lod_factor);
+  }
+  zmod::world_build_lights(world, (cam->get<uint32_t>(0x10) >> 3) & 1);
+  camera_update(camera_node);
+  horizon_follow();
+  zmod::set_camera(g_walk.camera);
+  zmod::world_update_lights(world);
+  if (g_hooks.world_sounds) g_hooks.world_sounds(g_hooks.ctx, world);
+  if (zmod::shadows_on()) {
+    zmod::CullHooks& h = zmod::cull_hooks();
+    if (h.collect_casters) h.collect_casters(h.ctx);
+    if (h.caster_directions) h.caster_directions(h.ctx);
+    zmod::use_all_casters();
+  }
+  g_walk.lod_level = 0;
+  if (!hw) {  // the software renderer's pass (0x00564500 ..), not ported
+    zmth::pop();
+    return 0;
+  }
+  std::memcpy(zmod::zones().list, cam->raw + 0x1e4, 4);
+  if (g_hooks.begin_scene) g_hooks.begin_scene(g_hooks.ctx);
+  zmod::mask_top() = 0x3f;
+  zmth::Mat34 m;
+  zmth::push(&m);
+  zmth::load_identity();
+  if (node->parent_count() == 1) node_to_world(node->parents[0], 1);
+  render_node(node, 2);
+  zmth::pop();
+  if (g_hooks.flush_transparent) g_hooks.flush_transparent(g_hooks.ctx);
+  if (g_hooks.flush_overlay) g_hooks.flush_overlay(g_hooks.ctx);
+  if (g_hooks.draw_quad) g_hooks.draw_quad(g_hooks.ctx);
+  if (g_hooks.end_scene) g_hooks.end_scene(g_hooks.ctx);
+  zmth::pop();
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f7030 (ECX camera node, EDX: after the flush, 0x005a67c0).
 // The Direct3D frame's 3D part: LoD scale, lights, camera, horizon,
 // viewport, zones, then the scene walk between BeginScene and EndScene.

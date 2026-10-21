@@ -52,6 +52,13 @@ Handle MechDataHooks::node_copy(Handle node) { return hh(zcls::tree_copy(static_
 void MechDataHooks::node_place(Handle node, float x, float y, float z) {
   zcls::object3d_set_translation(static_cast<zcls::Node*>(node), x, y, z);
 }
+Handle MechDataHooks::hud_model(int32_t roster) { return hh(mech3::hud_model(roster)); }
+Handle MechDataHooks::object3d_create() { return hh(zcls::object3d_create()); }
+void MechDataHooks::node_set_name(Handle node, const char* name) {
+  zcls::node_set_name(static_cast<zcls::Node*>(node), name);
+}
+void MechDataHooks::node_set_flag8(Handle node, int32_t on) { zcls::node_set_flag8(static_cast<zcls::Node*>(node), on); }
+void MechDataHooks::anim_restart(Handle anim) { zeff::anim_restart(static_cast<zeff::AnimDef*>(anim)); }
 Handle MechDataHooks::effect_start(Handle effect, Handle node, const float args[9]) {
   return effect ? hh(zeff::anim_start_at(static_cast<zeff::AnimDef*>(effect), static_cast<zcls::Node*>(node), args,
                                          args + 3, args + 6))
@@ -228,12 +235,35 @@ bool load_canned(MechData& p, Handle canned, int i) {
   return true;
 }
 
+// Mech3.exe 1.2 @ 0x00430ad0, its second half (the first makes the HUD).
+void make_cockpit(MechData& p) {
+  MechDataHooks& h = *g_hooks;
+  const Handle model = h.hud_model(p.roster);  // ECX = +0x0c
+  auto* c = new CockpitModel;
+  h.on_new(8, c);
+  if (model) {
+    c->node = model;
+  } else {
+    c->node = h.object3d_create();
+    h.node_set_name(c->node, "null_hud_cage");
+  }
+  p.cockpit_model = c;
+  const MechDfn* d = h.dfn(p.roster);  // 0x004846a0 on +0x0c, then its reader (+0x08)
+  const Handle hud = d ? h.reader_find(d->reader, "hud") : nullptr;
+  if (!model || !hud) return;
+  h.node_place(c->node, 0.0f, 0.0f, 0.0f);  // [0x0063d870], the zero vector
+  h.node_set_intersect(c->node, 0);
+  h.node_set_flag8(c->node, 0);
+  if (p.cockpit_explosion) h.anim_restart(p.cockpit_explosion);
+}
+
 // Mech3.exe 1.2 @ 0x00430580 and the delete: off the cache, then what it
-// owns. The block at +0x228 is 0x00430ad0's (not ported) and stays.
+// owns: the HUD, the cockpit block (its node stays: mechlib's), the motions.
 void mech_data_free(MechData* p) {
   if (!p) return;
   g_cache.remove(p);
   if (p->hud) g_hooks->hud_free(p->hud);
+  delete p->cockpit_model;
   for (MechAnim*& a : p->anims) delete a, a = nullptr;
   for (MechAction*& a : p->actions) delete a, a = nullptr;
   if (p->cameras) g_hooks->cameras_free(p->cameras);

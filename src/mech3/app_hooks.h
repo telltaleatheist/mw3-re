@@ -530,6 +530,11 @@ class Engine : public zgame::AppHooks {
   virtual void lists_update() { unported("0x004f7d80", {}); }
   virtual void view_reset(Handle view) { unported("0x0040ad90", {view}); }
   virtual void view_draw_node(Handle cam, Handle node, Handle world) { unported("0x004f73f0", {cam, node, world}); }
+  // The vehicle's nodes the cockpit frame reads: its node (+0x04), its type's
+  // cockpit model (+0x684 +0x228 +0x04) and an arm's node (+0x394 / +0x398, +0x08).
+  virtual Handle vehicle_node(Handle veh) { return field32(veh, 0x4); }
+  virtual Handle cockpit_node(Handle veh) { return field32(field32(field32(veh, 0x684), 0x228), 0x4); }
+  virtual Handle arm_node(Handle veh, int32_t off) { return field32(field32(veh, off), 0x8); }
   virtual void view_draw_hud(Handle view) { unported("0x004b51f0", {view}); }
   virtual void node_set_active(Handle node, int32_t on) { unported("0x004eb170", {node, on}); }
   virtual void node_set_shadow(Handle node, int32_t on) { unported("0x004eb6d0", {node, on}); }

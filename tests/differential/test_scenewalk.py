@@ -42,6 +42,7 @@ probe.sw_globals.argtypes = [ctypes.c_uint32, ctypes.c_float] + [ctypes.c_int] *
 probe.sw_casters.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
                              ctypes.POINTER(ctypes.c_float), ctypes.c_int]
 probe.sw_render.argtypes = [ctypes.c_void_p, ctypes.c_int]
+probe.sw_render_subtree.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.sw_hull.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_int]
 probe.sw_set_lod_scale.argtypes = [ctypes.c_float]
 probe.sw_clear_flags.argtypes = [ctypes.c_int, ctypes.c_uint32]
@@ -55,6 +56,7 @@ COPYSIGN = bytes.fromhex('8b442410 2500000080 8b4c2408 81e1ffffff7f 0bc8 894c240
 IAT_FLOOR, IAT_ASIN, IAT_COPYSIGN = 0x5bb66c, 0x5bb5f4, 0x5bb5ac
 
 RENDER_WORLD, SET_ROT, SET_POS, SET_FOV, SET_CLIP, SET_HORIZON = 0x4f7030, 0x4f36b0, 0x4f3870, 0x4f3b90, 0x4f3a70, 0x4f4090
+RENDER_SUBTREE = 0x4f73f0
 BOX_CORNERS, SPHERE, HULL, SET_LOD_SCALE = 0x4ebdb0, 0x4f9c40, 0x4f5a90, 0x4f3ff0
 NODE_BLOCKS, NODE_BLOCK_SIZE = 0x60bf38, 0x5ea830
 CAMERA_LIST = 0x5ea6d0 + 4 * 8   # list 8's head pointer slot
@@ -85,6 +87,7 @@ class Walk(Emulated):
         cpu.stub_import(0x74a2e0, self.draw)
         cpu.stub_import(0x72f3e4, lambda c: 0)
         cpu.stub_import(0x72f3e8, lambda c: 0)
+        cpu.stub_import(0x72f3ec, lambda c: 0)  # the quad, called by the subtree pass 0x4f73f0
         for a in (0x579af0, 0x579b10, 0x5496c0):
             cpu.stub_function(a, lambda c: 0)
         cpu.stub_function(0x53d750, self.hse, 4)
@@ -234,6 +237,14 @@ class Walk(Emulated):
                           for k in range(n)])
         return self.events, cam, view, rings
 
+    def render_subtree(self, node):
+        """0x4f73f0 (the cockpit pass) on one node, the Direct3D path."""
+        self.events = []
+        self.cpu.call(RENDER_SUBTREE, ecx=self.camera, edx=node, stack_args=(1,), count=2_000_000_000)
+        cam = self.cpu.read(self.u32(self.camera + 0x38), 0x1e8)
+        view = self.cpu.read(0x73fbc0, 48)
+        return self.events, cam, view, []
+
 
 def parse_port(raw):
     ev, i = [], 0
@@ -267,6 +278,8 @@ def parse_port(raw):
     i += 0x1e8 + 48
     rings = []
     for _ in range(50):
+        if i >= len(raw):  # a subtree pass has no rings
+            break
         n, = struct.unpack_from('<I', raw, i)
         i += 4
         rings.append([struct.unpack_from('<iiiI', raw, i + 16 * k) for k in range(n)])
@@ -408,11 +421,13 @@ def main():
     emu = Walk()
     rng = random.Random(1234)
     crng = random.Random(4321)
+    srng = random.Random(7310)  # the subtree passes' own, so the frames stay as before
     buf = ctypes.create_string_buffer(64 << 20)
     total_frames = total_draws = total_hse = 0
     cover = dict(wrapped=0, cells=0, casters=0, cell_casters=0, full_lists=0, far_kept=0, near=0, sides=0, zone_frames=0, clamped=0,
                  hidden=0, faded=0, overlay=0)
     boxes = 0
+    subtree_draws = 0
     for wname in WORLDS:
         path = ZBD / wname / 'gamez.zbd'
         emu.load(path)
@@ -522,6 +537,19 @@ def main():
             err = compare(f'{what} at {pos} rot {rot}', want, got)
             if err:
                 raise SystemExit(err)
+            # The cockpit pass, 0x4f73f0: one object (and its children) after the frame.
+            seen = sorted({e[1] for e in want[0] if e[0] == 1})  # drawn this frame: in view
+            sub_i = srng.choice(seen) if seen and k % 4 else srng.choice(objs)
+            want_s = emu.render_subtree(emu.node_ptr(sub_i))
+            n = probe.sw_render_subtree(sub_i, 1, buf, len(buf))
+            if n < 0:
+                raise SystemExit(f'{what}: port trace too long')
+            got_s = parse_port(buf.raw[:n])
+            got_s = (got_s[0], got_s[1], got_s[2], [])
+            err = compare(f'{what} subtree {sub_i}', want_s, got_s)
+            if err:
+                raise SystemExit(err)
+            subtree_draws += sum(1 for e in want_s[0] if e[0] == 1)
             last = want[0]
             frames += 1
             draws += sum(1 for e in want[0] if e[0] == 1)
@@ -549,6 +577,9 @@ def main():
         total_draws += draws
         print(f'{wname}: {frames} frames, {draws} model draws identical')
     print('covered:', ', '.join(f'{k} {v}' for k, v in cover.items()))
+    print(f'subtree passes (0x4f73f0): {subtree_draws} model draws identical')
+    if subtree_draws < 50:
+        raise SystemExit('coverage: too few subtree draws')
     print(f'ok: {total_frames} frames on {len(WORLDS)} worlds, {total_draws} model draws (node, mask, '
           f'matrix, state) and {total_hse} hidden-surface calls in order; {boxes} box/sphere and {hulls} hull '
           f'checks bit-exact')

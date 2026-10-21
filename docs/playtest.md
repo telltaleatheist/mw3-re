@@ -13,7 +13,7 @@ the briefing's load freeze (5a55624).
 | 1 | No ripple on the main menu buttons on hover | 2D render, 0x00558dd0 | mac 2 | fixed (74b15e3), Owen to check |
 | 2 | "Ok to delete pilot?" is a native OS alert, not the game's box | message box 0x004ac150 | mac 3 | open |
 | 3 | Escape in a mission turns the screen purple instead of the pause menu | pause menu, the frame clear | mac 3 | open |
-| 4 | The mech isn't visible: a couple of odd polygons where the cockpit view should be | view modes, the cockpit model (MechData +0x228, 0x00430ad0) | mac 2 | open |
+| 4 | The mech isn't visible: a couple of odd polygons where the cockpit view should be | view modes, the cockpit model (MechData +0x228, 0x00430ad0) | mac 2 | fixed COCKPIT: the program could not tell the cockpit view (handle reads it never answered), so it drew the player's own mech around the camera and no cockpit; now the mech is hidden for the world, the cockpit model (0x430ad0) and arms drawn in passes of their own (0x4f73f0) |
 | 5 | X doesn't switch views (should start inside, X to third person) | view modes | mac 2 | fixed 258364d: the app's keys (0x40db60) bound and the camera option wired; starts in the cockpit, X: cockpit → zipper → tether (keybindings.md) |
 | 6 | Enter doesn't cycle the weapon groups | controls → weapons | mac 2 | fixed 258364d: the HUD bridged to the mech and weapons; Enter is the HUD list's next weapon, ] / [ the groups (keybindings.md) |
 | 7 | Numpad 0 doesn't show the zoom reticle | HUD zoom window | mac 3 | open |

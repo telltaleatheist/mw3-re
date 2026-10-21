@@ -901,6 +901,8 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
     struct Seen {
       int frames = 0, mechs = 0, wrong = 0;
       bool sun = false, player = false, player_drawn = false, others_32 = true;
+      bool cockpit = false, cockpit_parented = false;
+      int view_id = -1;
     } seen;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
@@ -909,6 +911,11 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
       void* player = mech3::mech_mission_player();
       float at[3] = {};
       if (!player || !mech3::mech_world_position(player, at)) return;
+      if (auto* c = static_cast<zcls::Node*>(mech3::mech_cockpit_node(player))) {
+        seen.cockpit = true;
+        seen.cockpit_parented = c->parent_count() > 0;
+      }
+      seen.view_id = mech3::program_view_mode_id();
       for (const auto h : mech3::ai::entity_list()) {
         void* m = engine.object_of(h);
         if (!mech3::entity_is_mech(m)) continue;
@@ -947,6 +954,13 @@ TEST(mission_c1m1_mechs_cast_shadows_headless) {
     EXPECT(seen.player);
     EXPECT(seen.player_drawn);
     EXPECT(seen.others_32);
+    // Playtest #4: in the cockpit view (camera id 1) the type's cockpit model
+    // (0x00430ad0) hangs under the torso, and the frame's cockpit passes ran
+    // (0x004f73f0, 0x004eb170) on the program's objects instead of the hooks.
+    EXPECT(seen.cockpit && seen.cockpit_parented);
+    EXPECT(seen.view_id == 1);
+    EXPECT(engine.unported_counts().count("0x004f73f0") == 0);
+    EXPECT(engine.unported_counts().count("0x004eb170") == 0);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

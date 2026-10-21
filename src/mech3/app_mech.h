@@ -155,7 +155,12 @@ float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: the throttle target set and held, as a throttle key held to v would.
 bool mech_hold_throttle(void* mech, float v);
-float mech_throttle_target(void* mech);  // for the tests: the controls' +0x44, 0 without
+float mech_throttle_target(void* mech);
+// The cockpit frame's nodes (app_states' vehicle_node, cockpit_node, arm_node): the
+// mech's node, its type's cockpit model (0x00430ad0) and an arm's (0 left, 1 right).
+void* mech_node_of(void* mech);
+void* mech_cockpit_node(void* mech);
+void* mech_arm_node(void* mech, int side);  // for the tests: the controls' +0x44, 0 without
 bool mech_powered_down(void* mech);              // vt+0xa0, 0x0041cc10
 ai::AiTarget* mech_ai_target(void* mech);        // the Mech's AiTarget base
 // 0x004b4ed0 on the mech's weapon manager (+0xd4): the ammo's value against
