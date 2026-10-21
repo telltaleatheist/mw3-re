@@ -342,6 +342,46 @@ animation 1 (fallf) / effect 2; below 50 km/h either way, animation 7 or 8
 (collapsel/collapser), alternating through the global 0x605cc0; backwards
 faster than that, animation 2 (fallb) / effect 3.
 
+Before the fall, 0x41d070 (the death's preparation): +0x634 bit 0 cleared
+(0x41ca60(0)); unless the mech lies on its back or front (states 12, 13), the
+hip's world position (0x4ed530) and the pilot's canned effect 0, "eject"
+(0x432830, below) at it: when that starts, the hip sinks 0.75 of its crouch
+depth at once (0x4622a0) and, with detail bit 0, the eject sound (slot 10,
+`mech_eject`) plays into +0x5e0; for the mission's player, 0x48f9e0 (the
+loss; Die calls it again, a no-op the second time). Die then stops every
+sound at +0x5b8, +0x5e0 among them, in the same call: the eject is never
+heard.
+
+The canned effects (0x432830 on the pilot, `(slot, node, at, vel)`): slot 0
+eject, 1 jump jets, 2 narc (`mechdef`'s `canned`: an effect, `ofs` and a
+`node` by name on list 6). The position is the slot's offset plus `at`, in
+the world's axes (the offset is never turned with the mech). With no node
+given, a copy of the slot's node (0x4f9af0(node, 0, 0)) is made and kept on
+a list (0x605714, count 0x605718); none and no effect when the slot has no
+node. Unless `at` is the zero vector's address 0x63d870, the node is moved
+there (0x4fc0b0); the effect starts at the node with the position and `vel`
+(0x508aa0). The jump jets pass their jet node and the zero vector for both
+(the flames sit at the offset on the node). The copies go at the mission's
+end (0x431800, from the cleanup and from 0x4318e0): each off all its
+parents, every animation using it stopped and forgotten (0x506bc0(node, 1,
+1): 0x506ae0 checks the def's node, root, objects and nodes; 0x506b60 clears
+the objects' and nodes' pointers), then destroyed (0x4f9050).
+
+The end callback the parts' effects get (0x508f00 with 0x461c90, ECX the
+effect, EDX the part): when the effect stops (value 0) the handle holding it
+is cleared, the trail (+0x70), the debris (+0x6c), or on the torso (its
+node's id word +0x28 is 1) the second and first death effects (+0x78,
++0x74).
+
+`Mech::NoteHit` (0x41d170) stamps the time and names the torso as the part
+last hit; 0x41d130 then makes that part's node zEntity's target node
+(+0x10, 0x5a8680, which refreshes the target and centroid nodes' world
+matrices 0x5a8500, then 0x5a85c0), or the marker 0.65 up (+0xe8) when no
+part is named. The hit timeout (0x41d190, every frame) calls NoteHit again
+once a second has passed since the last, so from a second into a mission
+every mech's target node is its torso's. 0x5a8630 reads that node's world
+position.
+
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);
 a mission script's `Mech::DestroyPart` (0x41cfa0, called from zrdrvalve.cpp
@@ -560,7 +600,7 @@ leg, arm, head, hip, foot, calf and hand classes with the vtable methods
 above) and `src/mech3/mech_damage.cpp` (the Mech's side: `take_damage`,
 `die`, `on_part_destroyed`, `destroy_part`, `start_limp`, `fall`,
 `knocked_down`, `set_max_speed`, `scale_knockdown`, `mark_narc`,
-`note_hit`). The Mech struct grew the fields these use (`mech.h`); the
+`note_hit`, `aim_at_last_hit`, `death_prep`). The Mech struct grew the fields these use (`mech.h`); the
 pilot side (+0x684) is `Pilot`. Calls into unported code (nodes, effects,
 weapons, HUD, sounds, statistics, network, animation) go through
 `DamageCalls`; the heat code's torso destruction now calls the port when no
@@ -584,6 +624,18 @@ CASE ignored, one sink lost per part, difficulty for every mech, the AI limp
 chance, the torso floor, area damage to the rear, knockback when dead) fails
 each time.
 
+`tests/differential/test_deaths.py` (probe `tests/probe_deaths.cpp`): the
+effect-end callback 0x461c90 on random handles, ids and values; the canned
+effects 0x432830 on random slots (with and without nodes, `at` and `vel`
+real or the zero vector, the copy failing) and their free 0x431800 (copies
+with up to two parents); the death's preparation 0x41d070 over the states,
+detail bits, the player or not; zEffect's 0x506ae0 and 0x506b60. 1,553 runs
+identical (seeds 1 and 2); BREAK=1..4 fail. In the game,
+`mission_c1m1_owens_dies_headless` destroys the woken Owens' centre torso:
+dead, renamed `deadmech`, a slow fall queued (7 or 8) that plays out over
+about 4.4 s, its eject seat copied, the player untouched, the copy freed at
+the cleanup.
+
 Fixes: the heat-sink critical's callout plays when a sink is lost, and the
 equipment critical's out-of-range pick takes the last candidate (`fixes.md`).
 The test runs the original with 0x45fbc0 reporting a lost sink, the fix's
@@ -596,9 +648,14 @@ behaviour.
 - Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
   0x5829b0); for projectiles it is [0] (likely, above).
 - The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
-- Unported here: `Weapons::CriticalPick` 0x4b0de0, the part destruction's
-  weapon side 0x4b1040, `Mech::OnKill` 0x41b420, the death animations
-  (0x41d070, 0x41b760) and the effects they start.
+- Unported here: `Mech::OnKill` 0x41b420 (the kill credit), the parts' fly-off
+  (vtable +0x60), 0x4e66a0 (a part's node off the mech), the statistics, the
+  network events, the controls' hit and stop, the cockpit HUD's death and the
+  damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`
+  wire_mech_parts) the death's preparation and fall, the limp's blend, the
+  action stop, the weapons' side (0x4b1110, 0x4b1040, 0x4b0de0), the effects'
+  end callback, the part's world matrix, the view's camera and the player's
+  loss are wired.
 
 Resolved by the port: the front/rear choice (emulator, above), what
 `ApplyImpact` does (the torso's jolt), and the `xl` flag (no damage rule).

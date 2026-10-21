@@ -221,6 +221,8 @@ struct Mech : ai::AiTarget {
   void set_place(const float pos[3], float yaw);  // vtable +0xdc, 0x00418f30
   void reset_at(const float pos[3]);              // 0x00418e90: at rest at pos
   void entity_moved();
+  void refresh_markers();               // 0x005a8500: the target and centroid nodes' world matrices
+  void set_target_node(Handle n);       // 0x005a8680: what others aim at (zEntity +0x10), then 0x005a85c0
   // The weapons' aim (mech.cpp): the HUD's reticle point each frame (0x0041cd40).
   bool aim_at(const Vec3* at, void* torso_out, bool check);  // 0x0041bc20
   // 0x005a85c0 with vtable +0x1c 0x005a85a0: the node's matrix and +0x18, +0x24 again
@@ -256,6 +258,8 @@ struct Mech : ai::AiTarget {
   void turn(float dt);                // vtable +0x170, 0x00418fc0
   Leg* pivot_leg() const;             // 0x00418e00
   void update(float dt);              // vtable +0x34, 0x00419fc0: the frame (mech_update.cpp)
+  void aim_at_last_hit();             // 0x0041d130
+  void death_prep();                  // 0x0041d070
   void hit_timeout();                 // vtable +0x14c, 0x0041d190
   void movement_sounds();             // 0x0041a843..0x0041aa61, in Update
   bool collide();                     // 0x004225c0 (mech_collide.cpp), true when blocked
@@ -341,7 +345,7 @@ struct DamageCalls {
   void (*stats_hit)(int weapon, const Vec3* impulse, float force) = nullptr;  // 0x00433720
   bool (*networked)() = nullptr;                     // 0x00479480 on [0x0060861c]
   int (*view_mode)() = nullptr;                      // [0x005f4c8c] +0x58 +4, -1 without a view
-  void (*mission_failed)(int why) = nullptr;         // 0x0040ae70
+  void (*view_camera)(int mode) = nullptr;           // 0x0040ae70: the view to camera mode 2, outside
   void (*mission_player_died)() = nullptr;           // 0x0048f9e0 on 0x006098d0
   void (*player_died_hud)(void* screen) = nullptr;   // 0x0041b263..0x0041b30c: the cockpit HUD shuts off
   Handle (*roster_x1c)(Mech&) = nullptr;             // 0x00414370
@@ -370,6 +374,7 @@ struct DamageCalls {
   bool (*anim_ok)(Mech&, int kind, int arg) = nullptr;        // 0x00416780; test hook, unset runs Mech::queue_action
   void (*hip_reset)(MechPart& hip, const Vec3* v) = nullptr;  // test hook (0x004621f0): unset runs Hip::set_crouch
   void (*death_prep)(Mech&) = nullptr;                        // 0x0041d070
+  Handle (*canned)(Mech&, int slot, Handle node, const float* at, const float* vel) = nullptr;  // test hook (0x00432830 on +0x684): unset runs canned_effect
   void (*death_anim)(Mech&, int anim) = nullptr;              // 0x0041b760
   void (*stop_action)(Handle obj) = nullptr;                  // 0x00421060
   Handle (*blend_anim)(Handle base, Handle limp) = nullptr;   // 0x0041ff30

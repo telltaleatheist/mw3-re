@@ -84,6 +84,11 @@ void anim_set_player(const float pos[3]);              // 0x00502d40
 void anim_set_zone(const uint8_t zone[4]);             // 0x00502d70, ignored if an id is 0xff
 void anim_keep_stopped_elapsed(int32_t on);            // 0x00502d20
 int32_t anim_stop_all(int32_t keep_elapsed);           // 0x0050ace0: every def and instance, at the mission's end
+bool anim_uses_node(const AnimDef* def, const Node* node);  // 0x00506ae0: its node, root, objects or nodes
+void anim_forget_nodes(AnimDef* def);                  // 0x00506b60: its objects' and nodes' node pointers cleared
+// 0x00506bc0 (ECX node, EDX keep_elapsed): every def and instance using the
+// node stopped, with `forget` its node pointers cleared. -1 for no node.
+int32_t anim_stop_using(const Node* node, int32_t keep_elapsed, int32_t forget);
 
 // The damage callbacks registered at load (zwep_damage). ECX def.
 float anim_on_collide(AnimDef* def, float damage);                       // 0x00502df0

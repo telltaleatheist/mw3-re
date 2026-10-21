@@ -263,6 +263,7 @@ add_library(mw3probe SHARED
   tests/probe_gmod_add.cpp
   tests/probe_crater.cpp
   tests/probe_sound_extra.cpp
+  tests/probe_deaths.cpp
   tests/probe_ai_net.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

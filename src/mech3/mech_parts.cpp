@@ -583,6 +583,16 @@ MechPart* part_by_id(Mech& m, int32_t id) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00461c90. The torso is told by its node's id (+0x28, 1).
+void part_effect_ended(Handle effect, MechPart& p, int32_t value) {
+  if (value != 0) return;
+  Torso* torso = p.node && p.id == 1 ? static_cast<Torso*>(&p) : nullptr;
+  if (effect == p.trail_effect) p.trail_effect = nullptr;
+  else if (effect == p.debris_effect) p.debris_effect = nullptr;
+  else if (torso && effect == torso->death_effect2) torso->death_effect2 = nullptr;
+  else if (torso && effect == torso->death_effect) torso->death_effect = nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x004628c0. Then MechPart's (0x0045fd90). Nothing deletes a
 // mech's feet yet: the mech's destructor is not ported (movement.md, Left).
 Foot::~Foot() {

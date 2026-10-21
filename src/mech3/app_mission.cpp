@@ -574,6 +574,7 @@ struct WiredMissionHooks : MissionHooks {
   // The loading screen is the briefing's ([0x005f4c80]: 0x004050d0, 0x00405120);
   // its lines also go to the log.
   void progress(float f) override { program_briefing_progress(f); }
+  void fn_431800() override { mech3::mech_canned_nodes_free(); }  // the canned effects' node copies
   // The mission's start animation (start_single_player_m<n>, else without the
   // number): found 0x0050b450, run at the load's end 0x00508c10(anim, 0, 0, 0, 0).
   Handle anim_start(const char* name) override { return e->handle_of(zeff::anim_find(name)); }
@@ -925,6 +926,8 @@ const AiMechMade* mission_ai_mechs(int32_t* count) {
   if (count) *count = static_cast<int32_t>(g_ai_mechs.size());
   return g_ai_mechs.data();
 }
+
+void mission_lose() { missions().lose(); }
 
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;

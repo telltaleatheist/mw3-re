@@ -231,6 +231,7 @@ unusual happens.
 - A crater whose outline runs exactly along an edge of the ground's polygons and touches one at a corner no longer freezes or crashes the game; that piece of ground is left uncut.
 - A crater dug inside one large ground polygon can no longer overrun the memory used to cut the ground around it into triangles.
 - A crater without its texture flags no longer crashes the game (the original wrote the crater floor's texture position through a null pointer; every shipped crater has the flags).
+- Clearing a mission's ejection seats can no longer hang if one of them will not come off what holds it (none does in the shipped game).
 
 
 ## Copy protection removed

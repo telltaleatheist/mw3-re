@@ -183,7 +183,7 @@ void install_hooks() {
   c.stats_hit = [](int id, const Vec3* i, float f) { log({2, id, fbits(i->x), fbits(i->y), fbits(i->z), fbits(f)}); };
   c.networked = [] { return g->s.networked != 0; };
   c.view_mode = [] { return g->s.view; };
-  c.mission_failed = [](int why) { log({34, why}); };
+  c.view_camera = [](int mode) { log({34, mode}); };
   c.mission_player_died = [] { log({35}); };
   c.player_died_hud = [](void*) {
     if (!g->s.hud167c) log({391});
@@ -259,6 +259,8 @@ extern "C" {
 
 // A fresh mech with all thirteen parts; emu[] are their emulator addresses.
 void probe_damage_reset(const uint32_t* emu, uint32_t emu_mech_addr) {
+  if (g)  // the feet's effects are stand-in handles: not the destructor's to stop
+    for (int k = 7; k <= 8; ++k) static_cast<Foot*>(g->parts[k].get())->effect = nullptr;
   delete g;
   g = new State;
   g->emu_mech = emu_mech_addr;

@@ -213,8 +213,16 @@ struct FakeScreen : platform::Screen2D {
 struct CountingPump : platform::MessagePump {
   int passes = 0, limit = 200;
   bool quit = false;
+  std::function<void()> on_quit;  // unset: the mission's cleanup
   bool peek() override { return ++passes > limit; }
-  bool pump() override { return false; }
+  // The quit: a mission still up is cleaned up first, as a debriefing would,
+  // while zSound is still there (ExitInstance shuts it down next; a running
+  // animation's sounds would be stopped after it).
+  bool pump() override {
+    if (on_quit) on_quit();
+    else mech3::missions().cleanup(false);
+    return false;
+  }
   void wait(uint32_t) override {}
   void post_quit() override { quit = true; }
 };
@@ -884,19 +892,26 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
     };
     CountingPump pump;
     pump.limit = 1200;
+    // The cleanup, checked at the quit (before ExitInstance): the valves end,
+    // the game time goes back to 0.
+    bool loaded = false, cleaned = false, cleared = false, timers_done = false, time_copy = false;
+    pump.on_quit = [&] {
+      time_copy = mech3::mech_game_time() == mech3::missions().time;  // the ports' copy of [0x0060991c]
+      timers_done = mech3::ai::valve_timers() == nullptr;               // both done, the list gone
+      loaded = mech3::missions().loaded == 1;
+      cleaned = mech3::missions().cleanup(false);
+      cleared = valve_find("bramp") == nullptr && mech3::missions().time == 0.0f;
+    };
     app.run(pump);
     EXPECT(seen.frames > 200);
     EXPECT(seen.start >= 0 && seen.woke);
     EXPECT(seen.time_steps);
-    EXPECT(mech3::mech_game_time() == mech3::missions().time);  // the ports' copy of [0x0060991c]
+    EXPECT(time_copy);
     // Each fired on the frame its time was first past, not before.
     EXPECT(seen.truck > seen.start + 18.0f && !(seen.truck_before > seen.start + 18.0f));
     EXPECT(seen.dialogue > seen.start + 22.0f && !(seen.dialogue_before > seen.start + 22.0f));
-    EXPECT(mech3::ai::valve_timers() == nullptr);  // both done, the list gone
-    // The cleanup: the valves end, the game time goes back to 0.
-    EXPECT(mech3::missions().loaded == 1);
-    EXPECT(mech3::missions().cleanup(false));
-    EXPECT(valve_find("bramp") == nullptr && mech3::missions().time == 0.0f);
+    EXPECT(timers_done);
+    EXPECT(loaded && cleaned && cleared);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -2023,6 +2038,109 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.node_order);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's Owens destroyed (its centre torso, Destroy(0, 1)) once
+// woken and standing (docs/damage.md, The death): dead, the slow death fall
+// queued, the node renamed "deadmech", the pilot's eject seat out (a copy of
+// its node, 0x00432830 from 0x0041d070), the mission's player untouched; the
+// fall plays out over the next frames and the copies go with the mission.
+TEST(mission_c1m1_owens_dies_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_death_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      mech3::LaunchedMech woke, killed, later, player;
+      int32_t ejected = 0;
+      bool lost = false;
+    } seen;
+    void* owens = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
+      } else if (seen.frames == 60 && owens) {
+        mech3::describe_mech(owens, &seen.woke);
+        mech3::mech_kill(owens);
+        mech3::describe_mech(owens, &seen.killed);
+        seen.ejected = mech3::canned_nodes_count();
+      } else if (seen.frames == 420 && owens) {
+        mech3::describe_mech(owens, &seen.later);
+        void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        mech3::describe_mech(player, &seen.player);
+        seen.lost = mech3::missions().aborting != 0;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    app.run(pump);
+    EXPECT(seen.frames >= 420);
+    EXPECT(seen.woke.anim_state != 10 && !seen.woke.deadmech);
+    EXPECT(seen.killed.anim_state == 10 && seen.killed.deadmech);
+    EXPECT(seen.killed.action == 7 || seen.killed.action == 8);  // standing still: a slow fall
+    EXPECT(seen.ejected == 1);
+    // The fall played out (about 4.4 s), then the dead mech's updates stop.
+    EXPECT(seen.later.anim_state == 10 && seen.later.action == 0 && seen.later.alive - seen.killed.alive > 3.0f);
+    EXPECT(seen.player.anim_state != 10 && !seen.lost);
+    mech3::missions().cleanup(false);
+    EXPECT(mech3::canned_nodes_count() == 0);  // 0x00431800 at the cleanup
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

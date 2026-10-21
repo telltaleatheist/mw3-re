@@ -57,6 +57,9 @@ struct PartCalls {
   uint32_t (*material_soil)(Handle material) = nullptr;     // +0x20; unset: zmod::Material::soil
 };
 PartCalls& part_calls();
+// The end callback a part's effects get (0x00508f00 with 0x00461c90, ECX the
+// effect, EDX the part): on the stop (value 0) the handle holding it clears.
+void part_effect_ended(Handle effect, MechPart& p, int32_t value);
 
 // The weapon a hit comes from: the zWeapon definition and its MW3 half
 // (mech3/weapon.h, docs/weapons.md).
