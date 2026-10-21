@@ -389,5 +389,6 @@ struct AimCalls {
 AimCalls& aim_calls();
 
 void update_heat(Mech& m, float dt);  // 0x004192f0
+MechPart* part_by_id(Mech& m, int32_t id);  // 0x0041d510: 1, 7, 8 the torso .. 15 the hip
 
 }  // namespace mech3

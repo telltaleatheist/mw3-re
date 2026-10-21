@@ -41,6 +41,7 @@ struct PartCalls {
   void (*tree_update)(Handle node) = nullptr;               // 0x004f7db0 on the mech's node (the leg setup)
   Handle (*foot_effect)() = nullptr;                        // 0x0045f980(0x5e5000, 0x5e5010, 0x5e5020): the splash
   bool (*effect_playing)(Handle effect) = nullptr;          // 0x0045fb80
+  void (*effect_free)(Handle effect) = nullptr;             // 0x0045fab0 and the delete: out of the world
   void (*effect_start)(Handle effect, float throttle) = nullptr;  // 0x0045faf0
   void (*effect_place)(Handle effect, float x, float y, float z) = nullptr;  // 0x004fc0b0 on the effect's node (+0x04)
   void (*step_on)(const Vec3& at, GroundHit& hit, float force) = nullptr;   // 0x005836b0: the node's handler (+0xbc +0x0c)
@@ -311,6 +312,7 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   Handle effect = nullptr;       // +0xe4
   int32_t soil = 0;              // +0xe8  docs/structs.md: 8 is lava
 
+  ~Foot() override;              // 0x004628c0: the splash stopped and freed, the toe arrays
   Leg* leg() const;              // 0x00462d80
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00462980
   void destroy(int variant, int fly) override;              // 0x004629f0

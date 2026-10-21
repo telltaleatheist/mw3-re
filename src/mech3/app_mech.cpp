@@ -74,6 +74,7 @@ class WiredData : public MechDataHooks {
   }
   Handle cameras(Pilot& p) override { return program_cameras(p.roster); }      // 0x00430e70
   void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
+  Handle anim_find(const char* name) override { return zeff::anim_find(name); }  // 0x0050b450, the mission's
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
   void animations(Pilot& p) override {
     if (open_motions("zbd/motion.zbd")) load_animations(p);
@@ -288,7 +289,9 @@ bool handler_touchable(Handle n) {
 // What the parts log as they play (ours, for the headless tests): "step
 // <sound>", "print <effect>", "wake <level>", "pilot <sound>".
 std::vector<std::string> g_parts_fx;
-void note_part(const char* what, const std::string& name) { g_parts_fx.push_back(std::string(what) + " " + name); }
+void note_part(const char* what, const std::string& name) {
+  if (g_parts_fx.size() < 4096) g_parts_fx.push_back(std::string(what) + " " + name);  // as weapon_fx_log: bounded in play
+}
 std::string sound_name(const void* s) {
   const auto* o = static_cast<const zsnd::Object*>(s);
   if (!o) return "-";
@@ -311,6 +314,7 @@ void wire_mech_parts() {
   pc.foot_effect = []() -> Handle {                                         // 0x0045f980
     return foot_wake_new(world_hooks().world, "mech_leg_wake01", "mech_leg_wake02", "mech_leg_wake03");
   };
+  pc.effect_free = [](Handle e) { foot_wake_free(static_cast<FootWake*>(e), world_hooks().world); };  // 0x0045fab0
   pc.effect_playing = [](Handle e) { return foot_wake_playing(static_cast<FootWake*>(e)); };   // 0x0045fb80
   pc.effect_start = [](Handle e, float t) {                                                    // 0x0045faf0
     auto* w = static_cast<FootWake*>(e);
@@ -374,6 +378,13 @@ void wire_mech_parts() {
   mv.fade_sound = [](Sound s) -> Sound {  // 0x00571d20(s, 1, 0)
     return s ? zsnd::fade(static_cast<zsnd::VoiceBase*>(s), 1, 0.0f) : nullptr;
   };
+  update_calls().set_volume = [](Sound s, float v) {  // 0x0056f370
+    if (s) zsnd::set_voice_volume(static_cast<zsnd::VoiceBase*>(s), v);
+  };
+  update_calls().set_position = [](Sound s, const Vec3* at) {  // 0x00571f30(at, 0, 0): a group's voice is skipped there
+    auto* v = static_cast<zsnd::VoiceBase*>(s);
+    if (v && at && v->kind == 0) zsnd::update_3d(static_cast<zsnd::Voice*>(v), &at->x, nullptr, 0);
+  };
   mv.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };  // 0x00506ca0
   mv.weapons_enable = [](Mech& m, int on) {                                                    // 0x004b0bf0 on +0xd4
     if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->set_online(on != 0);
@@ -406,7 +417,7 @@ void wire_mech_build(const MechWiring* w) {
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
     controls_calls().ai_brain = nullptr;
-    update_calls().moved = nullptr;
+    update_calls().moved = nullptr, update_calls().set_volume = nullptr, update_calls().set_position = nullptr;
     command_calls() = CommandCalls{};
     part_calls() = PartCalls{};
     move_calls() = MoveCalls{};
@@ -558,26 +569,6 @@ std::vector<DebriefMech> mech_debrief_lance() {
   return r;
 }
 namespace {
-// 0x0041d510, as app_weapons.cpp's (kept there in its own unnamed namespace).
-const MechPart* salvage_part(const Mech& m, int32_t id) {
-  switch (id) {
-    case 1: case 7: case 8: return m.torso;
-    case 2: return m.arms[0];
-    case 3: return m.arms[1];
-    case 4: return m.legs[0];
-    case 5: return m.legs[1];
-    case 6: return m.head;
-    case 9: return m.arms[0] ? m.arms[0]->hand : nullptr;
-    case 10: return m.arms[1] ? m.arms[1]->hand : nullptr;
-    case 11: return m.legs[0] ? m.legs[0]->calf : nullptr;
-    case 12: return m.legs[1] ? m.legs[1]->calf : nullptr;
-    case 13: return m.legs[0] ? m.legs[0]->foot : nullptr;
-    case 14: return m.legs[1] ? m.legs[1]->foot : nullptr;
-    case 15: return m.hip;
-    default: return nullptr;
-  }
-}
-
 // A ported mech as 0x00472f00 reads it.
 SalvageMech salvage_view(Mech& m) {
   SalvageMech v;
@@ -618,7 +609,7 @@ SalvageMech salvage_view(Mech& m) {
   }
   v.config = m.config;
   for (int id = 0; id < 16; ++id) {
-    const MechPart* p = salvage_part(m, id);
+    const MechPart* p = part_by_id(m, id);
     v.parts[id] = p ? (p->destroyed ? 2 : 1) : 0;
   }
   v.sink_tech = m.heat_sinks.tech;

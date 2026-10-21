@@ -37,6 +37,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
@@ -1352,6 +1353,7 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     };
     CountingPump pump;
     pump.limit = 900;
+    mech3::mech_parts_fx_log().clear();  // capped at 4,096 lines for the whole run
     app.run(pump);
     EXPECT(seen.frames >= 360);
     EXPECT(mech3::spawn_updates() > 0);  // the spawn's step (0x004782f0) ran the frame
@@ -1370,8 +1372,11 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     // the shallows starts the wake.
     std::map<std::string, int> fx;
     for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
-    EXPECT(fx["step"] > 20);
-    EXPECT(fx["print"] > 0 || fx["wake"] > 0);
+    // The mission's start animation (mission-load.md) ran to its end (status 3).
+    const zeff::AnimDef* start = zeff::anim_find("start_single_player_m1");
+    EXPECT(start && start->raw[0x98] == 3);
+    EXPECT(fx["step"] > 8);  // 13: ten seconds at a walk
+    EXPECT(fx["print"] > 0 && fx["wake"] > 0);  // 2 and 6 on c1m1's shore
     EXPECT(fx["pilot"] > 0);  // the engine and walk loops (Mech::movement_sounds)
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -1581,6 +1586,7 @@ TEST(mission_c1m1_unported_survey_headless) {
     };
     CountingPump pump;
     pump.limit = 900;
+    mech3::mech_parts_fx_log().clear();  // capped at 4,096 lines for the whole run
     app.run(pump);
     std::vector<std::pair<uint32_t, std::string>> list;
     for (const auto& [k, n] : engine.unported_counts()) list.push_back({n, k});

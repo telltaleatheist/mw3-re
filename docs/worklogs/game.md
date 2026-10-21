@@ -660,3 +660,31 @@ view's ground, the anim lookups 0x50b450 (92).
   than the surface marks, which become item 3 (they paint the hit
   texture's pixels at the shot's UV: the renderer has to re-upload).
 
+
+## 2026-10-21: item 1's review fixes, then item 2 (deaths)
+
+- Review (mac 1, Sonnet): UpdateCalls set_volume (0x0056f370) and
+  set_position (0x00571f30, plain voices only, as there) wired: the walk,
+  wade and limp loops follow the throttle and the mech. The Foot's
+  destructor 0x004628c0 ported (the wake stopped and freed through
+  PartCalls effect_free 0x0045fab0, the toe arrays); nothing deletes feet
+  yet, as the mech's destructor is not ported (backlog: Mech's dtor and
+  its parts'; the port's mechs live until the process ends).
+- The touch handlers are registered: targets and animations go through
+  zwep::register_collide (zwep_damage.cpp, 0x005833f0's second port, the
+  same node->damage table zwep::touch reads), not set_touch_handler.
+  Duplicate ports of 0x005833b0/0x005833f0 noted (zweapon.cpp and
+  zwep_damage.cpp), same storage.
+- Mission unload stops the loops: Core's leave (0x00481fc0) snapshots and
+  stops every playing voice (zsnd::snapshot walks every set's voices).
+- The parts log is capped at 4,096 lines (as weapon_fx_log); the walk
+  test clears it first. Its old "> 20 steps" counted earlier tests' steps
+  (mw3tests runs every test whatever the argument): the walk alone makes 13.
+- Found while porting the eject: the mech data's anim_find (0x0050b450)
+  was unported in the game (WiredData), so every mech effect looked up by
+  name was null: footprints, the death and disable effects, the canned
+  eject/jump-jet/narc effects, the splashes. Wired to zeff::anim_find; the
+  walk test now sees prints and wake both. The mission's start animation
+  (start_single_player_m<n>, MissionHooks anim_start / anim_run) was
+  unwired too: wired, and the walk test checks c1m1's ran to its end
+  (status 3). Still unported: zrdrvalve's anim_find (the AI's, on hold).
