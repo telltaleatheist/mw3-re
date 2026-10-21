@@ -544,3 +544,20 @@ block skipped by a code hook; the synthetic file keeps the icons and the
 title: the exe reads their labels unchecked). Breaks: scratch/briefing/
 breaks6.py 19/24 (unobservable here: the salvage list already shown, a card's update, the title's rollover, the store list's title flag and row fonts with no rows). Not yet wired into the program (the Win State constructs
 0x47b430 by address): with item 7.
+
+## 2026-10-21 Campaign item 7: the loop c1m1 -> debriefing -> c1m2 (branch mac3/campaign-loop, off mac3/debriefing 7a3a7b6)
+
+WinState takes its address; States::end_win at 0x006099a0 (the missions
+object's +0xd0), the end screen's fade's next. WiredMissionHooks::fade_out
+(0x006099a0) is fade_replace(&end_win, 0, 1, 2, 2 s, black). GameEngine:
+construct(0x47b430) makes DebriefScreen (won = the matching WinState's
+campaign_won_), pilot_campaign = the launch's game, vcall game 0x48 (Launch.op)
+and 0x38 (program_slot_count), mission_results 0x0047ae10 (failed: merge;
+won: the lance's salvage logged, item 8). Host::message_text's default is
+zutl's (ported). 6a review follow-up: fade_to_state carries 0x0048ef00's
+stack arguments (1, 2, [0x5e7274] = 2 s, 0, 0, 0). Program check: the
+campaign test goes on: Exit Mission after a win, the end Win State's
+ported debriefing, CONTINUE, c1m2's briefing loaded with its script; no
+0x00479440 or 0x0047b430 unported. Breaks: scratch/briefing/breaks7.py 4/5
+(the operation only matters at Op 4). Left: 6b (results, scores into the
+ported campaign's +0xb4/+0xc4), 6c (lance cards), item 8 (salvage), 9.

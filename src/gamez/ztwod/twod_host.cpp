@@ -8,6 +8,7 @@
 
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zutl_msg.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zrender/zrndr_prim2d.h"
 #include "gamez/zrender/zrndr_span.h"
@@ -110,9 +111,10 @@ int32_t Host::cd_play(int32_t track, int32_t mode) {
   return static_cast<int32_t>(unported("0x00572af0", {track, mode}));
 }
 void Host::cd_stop() { unported("0x00572c30", {}); }
+// 0x00576040: Mech3Msg.dll's text (zutl's, ported).
 const char* Host::message_text(uint32_t id) {
-  unported("0x00576040", {id});
-  return nullptr;
+  auto* f = zutl::messages().get_text;
+  return f ? f(static_cast<int32_t>(id)) : nullptr;
 }
 const char* Host::message(const char* key) {
   unported("0x00575fb0", {key});

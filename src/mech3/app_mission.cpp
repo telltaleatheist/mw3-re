@@ -574,6 +574,12 @@ struct WiredMissionHooks : MissionHooks {
   // The loading screen is the briefing's ([0x005f4c80]: 0x004050d0, 0x00405120);
   // its lines also go to the log.
   void progress(float f) override { program_briefing_progress(f); }
+  // 0x0048ef00 of the end screen: the debriefing's Win State (the missions
+  // object's +0xd0) after a 2 s fade; training's sequence is not ported.
+  void fade_out(Handle seq) override {
+    if (seq == 0x6099a0) fade_replace(&states().end_win, 0, 1, 2, kFadeSeconds, 0, 0, 0);
+    else MissionHooks::fade_out(seq);
+  }
   void progress_text(const char* s) override {
     program_briefing_line(s);
     if (s && *s && !e->quiet) std::printf("mw3: load: %s\n", s);
@@ -1090,6 +1096,8 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
         }
         return slot_;
       case 0x4c: return static_cast<uint32_t>(launch_.number);
+      case 0x48: return static_cast<uint32_t>(launch_.op);
+      case 0x38: return program_slot_count();  // the pilot's campaign's (the Win State's records)
       case 0x54: return static_cast<uint32_t>(launch_.index);
       case 0x28: return 0;
       default: break;

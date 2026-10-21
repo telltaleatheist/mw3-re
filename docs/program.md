@@ -50,6 +50,10 @@ game, through the launch's stand-in (`GameEngine::load_state_enter`); its
 briefing's other buttons (Mech Lab, Salvage, the reallocation list) and the
 map's background picture's mission map object are hooks. `build/mw3 -nofmv`
 from the repo root after a build; `--window 1280x960` is the default.
+Once a mission is won, Exit Mission (Ctrl+Q) fades to the debriefing (the
+ported screen: CONTINUE, REPLAY, ABORT; its results, lance cards and
+salvage rows are hooks, campaign.md section 3), and CONTINUE goes on to the
+next mission's briefing.
 
 ## Debug starts (our addition)
 

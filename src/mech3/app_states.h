@@ -170,7 +170,9 @@ class LoadState : public ShellState {
 // 9 "Win State" (0x00608e70, vtable 0x005c3980): the debriefing.
 class WinState : public ShellState {
  public:
-  WinState() : ShellState("Win State", 0x608e70) {}
+  // The state table's (state 9, 0x00608e70) and the missions object's
+  // +0xd0 (0x006099a0), the end screen's fade's next (campaign.md section 1).
+  explicit WinState(Handle addr = 0x608e70) : ShellState("Win State", addr) {}
   bool enter() override;              // 0x0047ac20
   bool update() override;             // 0x0047aed0
   void leave() override;              // 0x0047af20
@@ -243,6 +245,7 @@ struct States {
   PreLabState pre_lab;
   SalvageState salvage;
   WinState win;
+  WinState end_win{0x6099a0};  // the missions object's (0x006098d0 +0xd0)
   KeyListState key_list;
   FadeState fade;
 };

@@ -56,6 +56,7 @@ void wire_pilot_hooks(GameEngine* e);    // the pilot module's calls out (app_me
 // (0x004050d0) and lines (0x00405120); none open, nothing (app_menus.cpp).
 void program_briefing_progress(float f);
 void program_briefing_line(const char* s);
+uint32_t program_slot_count();  // the chosen pilot's campaign's slot count (0x00435180), 0 without one
 
 class GameEngine : public Engine {
  public:
@@ -77,6 +78,7 @@ class GameEngine : public Engine {
     // slot's own, alive while the pilot's game is), else the mech's first.
     Handle config = 0;
     int32_t skin = 0;
+    int32_t op = 1;  // a campaign's operation (the game's vt+0x48)
     // The chosen pilot's handle stays in [0x0060861c] (a debug start puts a
     // stand-in there).
     bool keep_pilot = false;
@@ -102,6 +104,8 @@ class GameEngine : public Engine {
   // state's game from the pilot the pilot screen chose, the ported screen's
   // calls into the ported mission, launch, states and zSound.
   void load_state_enter() override;
+  Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
+  void mission_results(uint8_t a, uint8_t b) override;  // 0x0047ae10
   void briefing_script_start(Handle s) override;
   void briefing_init(Handle s) override;
   void briefing_start(Handle s) override;
