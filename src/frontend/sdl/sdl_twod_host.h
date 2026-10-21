@@ -131,6 +131,9 @@ class SdlTwodHost : public ztwod::Host {
   };
   std::map<std::string, Cached> images_;
   std::set<std::string> missing_;  // the names already reported
+  std::set<zimg::Texture*> freed_;   // freed through image_release, until the address is reused
+  void free_image(zimg::Texture* image);
+  zimg::Texture* made(zimg::Texture* image);
   uint32_t buttons_ = 0;
   bool ttf_ok_ = false;
 };

@@ -839,3 +839,17 @@ Network HUD pieces skipped as ordered.
 - The SDL host reports a missing image once per name. Test:
   playtest_hud_images_the_data_lacks (40 found, 12 missing). hud.md section
   16, discoveries (Playing a mission), fixes.md candidate (fill-in art).
+
+## 2026-10-21 The image_release leak (branch mac3/image-release)
+
+- The SDL host's image_release kept every image ("the library keeps it"),
+  but zImage's library reads a new copy for every first get: named images
+  leaked at a count of 0, and grabs (bake, the pause backdrop) were never
+  freed. Now as 0x00517b10: freed at 0 (0x00517760) and at once when not in
+  the list (0x005185f0). FIX (bug) guard: a release after the free is
+  reported, not freed twice (fixes.md, CHANGES.md).
+- Test: sdl_host_image_release_counts_and_frees (shared count, fresh copy
+  after 0, a grab released twice); it crashes with the guard taken out.
+- Stopped here at Owen's pause (lead, 2026-10-21). Next when work resumes:
+  #8 (weapon recharge on the HUD), then #13 with #7 folded in (the HUD keys
+  reaching the unwired HUD-command hook; keypad 0 the zoom).
