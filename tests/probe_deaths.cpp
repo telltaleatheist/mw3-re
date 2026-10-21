@@ -3,6 +3,7 @@
 // the death's preparation, zEffect's node checks.
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <vector>
 
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -226,6 +227,110 @@ int probe_on_kill(int32_t roster, uint32_t allies, int32_t xf8, const uint32_t* 
   dc = d0, hc = h0;
   w.mission_player = keep;
   k.pilot = p.pilot = v.pilot = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"
+
+// --- a part flying off (0x00461d80, thigh 0x00466fe0, arm 0x00467100) ---
+namespace {
+struct LogArm : Arm {
+  int side = 0;
+  void destroy(int a, int b) override { u32(0x41), u32(side), u32(a), u32(b); }
+  void set_internal(float v, int s) override { u32(0x42), u32(side), f32(v), u32(s); }
+};
+struct LogTorso : Torso {
+  void destroy(int a, int b) override { u32(0x43), u32(a), u32(b); }
+};
+const float* s_world;
+uint32_t s_copy, s_create;
+float* s_new_matrix;
+}  // namespace
+
+extern "C" {
+
+// kind 1 an arm, 2 a thigh, of `side`; the part's node id; the stub flag and
+// whether the pilot has stub models; what the copy and create give; the
+// node's world matrix and the part's local one; whether it has a parent; the
+// mech's velocity. Out: the calls, then the result, the velocity and the
+// matrix the new node holds.
+int probe_fly(int32_t kind, int32_t side, int32_t roster, int32_t id, int32_t stub, int32_t stubs, uint32_t copy,
+              uint32_t create, const float* world_m, const float* local, int32_t parent, const float* mech_vel,
+              uint8_t* out, int cap) {
+  g_out.clear();
+  s_world = world_m, s_copy = copy, s_create = create;
+  Pilot p;
+  p.roster = roster, p.name = "owens";
+  p.x210 = stubs ? h(0x710) : nullptr;
+  for (int i = 0; i < 4; ++i) p.stubs[i] = stubs ? h(0x700 + i) : nullptr;
+  Mech m;
+  m.pilot = &p;
+  m.velocity = {mech_vel[0], mech_vel[1], mech_vel[2]};
+  LogArm arms[2];
+  Hand hands[2];
+  Leg legs[2];
+  Calf calves[2];
+  Foot feet[2];
+  LogTorso torso;
+  m.torso = &torso;
+  for (int i = 0; i < 2; ++i) {
+    arms[i].side = i, arms[i].mech = &m, arms[i].hand = &hands[i], arms[i].id = 2 + i;
+    hands[i].mech = &m, hands[i].id = 9 + i;
+    legs[i].mech = &m, legs[i].calf = &calves[i], legs[i].foot = &feet[i], legs[i].id = 4 + i;
+    calves[i].mech = &m, calves[i].id = 11 + i;
+    feet[i].mech = &m, feet[i].id = 13 + i;
+    m.arms[i] = &arms[i], m.legs[i] = &legs[i];
+  }
+  MechPart& x = kind == 1 ? static_cast<MechPart&>(arms[side]) : static_cast<MechPart&>(legs[side]);
+  x.id = id;
+  x.node = h(0x5000);
+  float own[12], fresh[12] = {};
+  std::memcpy(own, local, sizeof own);
+  x.rotation = own;
+  s_new_matrix = fresh;
+  static int32_t s_parent;
+  s_parent = parent;
+  FlyCalls& f = fly_calls();
+  DamageCalls& dc = damage_calls();
+  PoseCalls& pc = pose_calls();
+  const FlyCalls f0 = f;
+  const DamageCalls d0 = dc;
+  const PoseCalls p0 = pc;
+  dc.node_update = [](MechPart&) { u32(0x30); };
+  dc.node_matrix = [](MechPart&) -> const float* { return s_world; };
+  dc.weapons_lost = [](Mech&, int part) { u32(0x40), u32(static_cast<uint32_t>(part)); };
+  f.copy = [](Handle s) -> Handle { u32(0x31), u32(u(s)); return h(s_copy); };
+  f.create = []() -> Handle { u32(0x32); return h(s_create); };
+  f.report = [](const char* mech, int32_t i) { u32(0x33), u32(static_cast<uint32_t>(std::strlen(mech))), u32(static_cast<uint32_t>(i)); };
+  f.rename = [](Handle n, Handle from) { u32(0x34), u32(u(n)), u32(u(from)); };
+  f.parent = [](Handle) -> Handle { return s_parent ? h(0x5100) : nullptr; };
+  f.set_flag8 = [](Handle n, int32_t on) { u32(0x35), u32(u(n)), u32(static_cast<uint32_t>(on)); };
+  f.remove_child = [](Handle p, Handle c) { u32(0x36), u32(u(p)), u32(u(c)); };
+  f.attach = [](Handle n) { u32(0x37), u32(u(n)); };
+  f.set_flags2c = [](Handle, int32_t bit, int32_t on) { u32(0x38), u32(static_cast<uint32_t>(bit)), u32(static_cast<uint32_t>(on)); };
+  f.set_pose = [](Handle n, const float mm[12]) {
+    u32(0x39), u32(u(n));
+    for (int i = 0; i < 12; ++i) f32(mm[i]);
+  };
+  f.add_child = [](Handle p, Handle c) { u32(0x3a), u32(u(p)), u32(u(c)); };
+  f.set_node = [](MechPart& q, Handle n) { u32(0x3b), u32(u(n)); q.rotation = s_new_matrix; };
+  pc.node_set = [](Handle, const float*) { u32(0x3c); };
+  f.mark = [](MechPart&, int32_t i) { u32(0x3d), u32(static_cast<uint32_t>(i)); };
+  f.clear_ids = [](Handle n) { u32(0x3e), u32(u(n)); };
+  f.instant_action = nullptr, f.fade = nullptr;
+  Vec3 vel{9, 9, 9}, from{}, xx{};
+  const size_t before = m.x6d0.size();
+  const Handle r = x.fly_off(&from, &xx, &vel, stub);
+  for (auto it = std::next(m.x6d0.begin(), static_cast<long>(before)); it != m.x6d0.end(); ++it) u32(0x3f), u32(u(*it));
+  u32(0xf), u32(u(r)), f32(vel.x), f32(vel.y), f32(vel.z);
+  for (float v : fresh) f32(v);
+  f = f0, dc = d0, pc = p0;
+  for (auto& a : arms) a.mech = nullptr, a.hand = nullptr;
+  for (auto& l : legs) l.mech = nullptr, l.calf = nullptr, l.foot = nullptr;
+  x.node = nullptr, x.rotation = nullptr;
+  m.pilot = nullptr, m.torso = nullptr;
+  for (auto& a : m.arms) a = nullptr;
+  for (auto& l : m.legs) l = nullptr;
   return finish(out, cap);
 }
 

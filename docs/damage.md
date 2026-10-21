@@ -312,6 +312,32 @@ armor at 0. Feet, calves and hands forward `SetInternal` to their thigh or arm.
 - 0x41b5f0: weapons on the part again; on the Elemental, any part loss calls
   torso `Destroy(1, 1)` (death).
 
+**Flying off** (vtable +0x60; base 0x461d80, thigh 0x466fe0, arm 0x467100;
+the `from` and `x` arguments are never read). The arm first loses its hand's
+weapons (0x41b5f0 on +0x74); the thigh its calf's and foot's, and on the
+**Blackhawk and the Owens** (rosters 2, 11) the arm on the same side is
+destroyed with it (vt+0x20(0, 0), vt+0x3c(0, 0)). Then the base: the part's
+node's world matrix (0x461cf0) and its local one (+0x14) are kept; with the
+stub flag a copy of the pilot's stub for the node's id (+0x20c + 4 x id: 1
+the never-set +0x210, 2..5 `larm/rarm/lleg/rleg_stub01.flt`; 0x4f9af0(stub,
+0, 0)), else an empty object3d (0x4fb740); none of either and the error
+"Failed to copy stub for %s partId %d" (0x4a4), the part staying. The new
+node takes the old one's name (0x4eb300). The old node: flag 8 off
+(0x4eb620), off its first parent (0x4ebb40), under the world ([0x608c84]
+vt+0), +0x2c bits 5 and 6 cleared (0x4eb8a0, 0x4eb8e0), placed at its
+world pose (0x461d30: the translation and 0x523bc0's angles). The new node
+goes under the old parent (0x4eb9b0), becomes the part's (vt+0x0c,
+0x460190), gets the old local matrix and the base node update (0x460180)
+and the old id down its tree (0x460050); the old tree loses its ids, owners
+and damage handlers (0x462000) and joins the mech's list +0x6d0 (0x413bb0;
+in instant action with opacity 1, which 0x413c30 fades each frame; its
+answer is masked to a byte of 0, so nothing is ever taken off the list).
+The velocity: (1, 0, 0) (0x5eda60), x -1 for the left arm and thigh (ids
+2, 4), turned by the world matrix (0x5226e0), its y + 0.1, times 20
+(0x5e4f00), plus 0.75 x the mech's +0x30. Finally 0x41b5f0 on the part. The
+old node is returned: the destruction effect plays on it with that
+velocity, which carries it away.
+
 Per part:
 
 | Part | Destroy | Effect |
@@ -654,7 +680,7 @@ effects 0x432830 on random slots (with and without nodes, `at` and `vel`
 real or the zero vector, the copy failing) and their free 0x431800 (copies
 with up to two parents); the death's preparation 0x41d070 over the states,
 detail bits, the player or not; zEffect's 0x506ae0 and 0x506b60. 1,553 runs
-identical (2,153 with the kill credit; seeds 1 and 2); BREAK=1..6 fail. In the game,
+identical (2,653 with the kill credit and the fly-off; seeds 1 and 2); BREAK=1..8 fail. In the game,
 `mission_c1m1_owens_dies_headless` destroys the woken Owens' centre torso:
 dead, renamed `deadmech`, a slow fall queued (7 or 8) that plays out over
 about 4.4 s, its eject seat copied, the player untouched, the copy freed at
@@ -672,8 +698,8 @@ behaviour.
 - Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
   0x5829b0); for projectiles it is [0] (likely, above).
 - The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
-- Unported here: the parts' fly-off
-  (vtable +0x60), 0x4e66a0 (a part's node off the mech), the statistics, the
+- Unported here: the flying parts' fade in instant action (0x413cb0, 0x413c30),
+  0x4e66a0 (a part's node off the mech), the statistics, the
   network events, the controls' hit and stop, the cockpit HUD's death and the
   damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`
   wire_mech_parts) the death's preparation and fall, the limp's blend, the

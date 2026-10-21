@@ -197,7 +197,7 @@ struct Mech : ai::AiTarget {
   float frame_dt = 0;        // +0x6b0  dt accumulated until a full update
   uint32_t x6b4 = 0;         // +0x6b4
   float knockdown[5] = {};   // +0x6b8  base, x 0.8, x 80, threshold, slope (0x414c71, 0x417a10)
-  std::list<Handle> x6d0;    // +0x6d0, count +0x6d4 (an empty list)
+  std::list<Handle> x6d0;    // +0x6d0, count +0x6d4: the nodes of parts that flew off (0x00413bb0), never taken off
 
   Sound* loops() { return sounds; }                 // +0x5b8, three: stopped on power-down
   Sound& servo() { return sounds[4]; }              // +0x5c8  the torso's twist

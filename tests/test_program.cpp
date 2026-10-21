@@ -2103,8 +2103,8 @@ TEST(mission_c1m1_owens_dies_headless) {
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
-      mech3::LaunchedMech woke, killed, later, player;
-      int32_t ejected = 0, salvage0 = 0, salvage1 = 0;
+      mech3::LaunchedMech woke, killed, later, player, armed, armless;
+      int32_t ejected = 0, salvage0 = 0, salvage1 = 0, listed = 0;
       bool lost = false;
     } seen;
     void* owens = nullptr;
@@ -2116,6 +2116,14 @@ TEST(mission_c1m1_owens_dies_headless) {
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
         owens = made == 1 ? ai[0].mech : nullptr;
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
+        // Both mechs are zEntity's, which the kill credit looks killers up in.
+        void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        for (const auto h : mech3::ai::entity_list())
+          seen.listed += engine.object_of(h) == owens || engine.object_of(h) == player;
+      } else if (seen.frames == 40 && owens) {
+        mech3::describe_mech(owens, &seen.armed);
+        mech3::mech_destroy_part(owens, 2);  // the left arm flies off (0x00467100)
+        mech3::describe_mech(owens, &seen.armless);
       } else if (seen.frames == 60 && owens) {
         mech3::describe_mech(owens, &seen.woke);
         seen.salvage0 = mech3::mission_salvage_items();
@@ -2134,7 +2142,12 @@ TEST(mission_c1m1_owens_dies_headless) {
     pump.limit = 900;
     app.run(pump);
     EXPECT(seen.frames >= 420);
+    EXPECT(seen.listed == 2);
     EXPECT(seen.woke.anim_state != 10 && !seen.woke.deadmech);
+    // The left arm flew off: its node in the world, a stub in its place (the
+    // Owens has no hand nodes).
+    EXPECT(seen.armless.debris == 1 && seen.armless.debris_in_world);
+    EXPECT(seen.armed.debris == 0 && seen.armless.parts == seen.armed.parts);  // the stub keeps the arm's place
     EXPECT(seen.killed.anim_state == 10 && seen.killed.deadmech);
     EXPECT(seen.killed.action == 7 || seen.killed.action == 8);  // standing still: a slow fall
     EXPECT(seen.ejected == 1);

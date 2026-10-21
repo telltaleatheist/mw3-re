@@ -95,11 +95,14 @@ struct LaunchedMech {
   bool deadmech = false;   // the node renamed "deadmech" (the death)
   bool aim_torso = false;  // zEntity's target node (+0x10) is the torso's (0x0041d130)
   uint32_t kills[6] = {};  // the kill credit (+0x3f4): mechs, vehicles, buildings, then their points
+  int32_t debris = 0;      // nodes of parts that flew off (+0x6d0)
+  bool debris_in_world = false;  // each of them under the world node
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
 void mech_kill(void* mech, void* killer = nullptr);  // for the tests: its centre torso destroyed (Destroy(0, 1), 0x00465f40), `killer` its last attacker
-int32_t mission_salvage_items();  // for the tests: the items in the mission's salvage store
+int32_t mission_salvage_items();
+void mech_destroy_part(void* mech, int32_t id);  // for the tests: Mech::DestroyPart (0x0041cfa0)  // for the tests: the items in the mission's salvage store
 int32_t canned_nodes_count();  // for the tests: the canned effects' node copies (the eject seats)
 
 // player.cpp's AI mechs (mission-start.md section 4): 0x00414150 on a

@@ -168,6 +168,16 @@ From the port of the damage code, checked in an emulator against the original
 - **Only your lance's kills fill the salvage.** In the campaign a mech
   killed by you or a lancemate goes to the mission's salvage; one finished
   off by anyone else (or with no attacker, such as a heat death) does not.
+- **Blown-off arms and legs fly out sideways**, away from the mech's own
+  side, at 20 m/s plus three quarters of the mech's speed, with a little
+  lift; an empty stump model is left in their place. In Instant Action the
+  wreckage fades out.
+- **A Blackhawk or Owens that loses a leg loses the arm on that side too.**
+  No other mech does.
+- **An AI mech remembers who hit it last forever.** Only the player's own
+  mech forgets its attacker each frame, so an enemy that later dies from a
+  fall, heat or its own ammo still gives the kill (and the salvage) to
+  whoever hit it last.
 - **A slow death alternates between falling left and right** for all mechs
   together: one shared switch flips at each death below 50 km/h, so two
   mechs dying one after another fall to opposite sides.

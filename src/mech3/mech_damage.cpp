@@ -124,7 +124,8 @@ void Mech::on_kill(Handle victim) {
   DamageCalls& c = calls();
   auto view = [&](Handle v, int slot) -> Handle {
     if (c.victim_view) return c.victim_view(v, slot);
-    return slot == 0x48 ? nullptr : v;  // a mech's 0x004d2a70 (itself) and 0x0040bae0 (0)
+    // A mech's 0x004d2a70 (itself) and 0x0040bae0 (0): killer_notify gives only mechs.
+    return slot == 0x48 ? nullptr : v;
   };
   if (!victim) return;
   const Handle info = view(victim, 0x2c);
