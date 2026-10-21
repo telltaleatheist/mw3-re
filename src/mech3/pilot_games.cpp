@@ -227,6 +227,96 @@ BaseItem* Store::add_mech(int32_t mech) {
   return b;
 }
 
+// Mech3.exe 1.2 @ 0x00473510: the counts of the items like `item`.
+int32_t Store::count_like(const ConfigItem* item) const {
+  if (!item) return 0;
+  int32_t n = 0;
+  for (const ConfigItem* it : items)
+    if (same_item(it, item)) n += it->count;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00472d40
+bool Store::remove_config(const Config* c) {
+  if (!c) return false;
+  for (ConfigItem* it : c->items) remove(it, it->count);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00409f00
+ConfigItem* Store::has_mech(int32_t mech) {
+  BaseItem probe;
+  probe.count = 1, probe.value = mech;
+  return find_like(&probe);
+}
+
+// Mech3.exe 1.2 @ 0x004735f0. The shortfall is logged (0x0049bfd0, a no-op).
+bool Store::has_config(int32_t mech, const Store* other, const Config* c) {
+  if (!c || full || other == this) return true;
+  if (mech != -1 && !has_mech(mech)) return false;
+  for (const ConfigItem* it : c->items) {
+    if (!it) continue;
+    int32_t have = count_like(it);
+    if (other) have += other->count_like(it);
+    if (have < it->count) return false;
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00473440
+bool Store::take_config(int32_t mech, const Config* c) {
+  if (full) return true;
+  if (mech != -1) remove_mech(mech);
+  return remove_config(c);
+}
+
+// Mech3.exe 1.2 @ 0x00473400
+bool Store::give_config(int32_t mech, const Config* c) {
+  if (full) return true;
+  if (mech != -1) add_mech(mech);
+  add_config(c);
+  return c != nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00424010
+Config* config_copy_store(const char* name, const Config& c, Store* store, bool take) {
+  return Config::copy_of(name, c, [&](Config& d) {
+    if (!store) return;
+    if (!store->has_config(-1, nullptr, &d)) {
+      // Each item cut to what the store holds, from the first again after
+      // each cut; then the emptied ones dropped.
+      for (bool again = true; again;) {
+        again = false;
+        for (ConfigItem* it : d.items) {
+          if (!it) continue;
+          const int32_t have = store->count_like(it);
+          if (have < it->count) {
+            it->count = it->count + (have - it->count);
+            if (it->count < 0) it->count = 0;
+            again = true;
+            break;
+          }
+        }
+      }
+      for (auto i = d.items.begin(); i != d.items.end();) {
+        if (*i && (*i)->count == 0) {
+          delete *i;  // (the exe leaks it)
+          i = d.items.erase(i);
+        } else {
+          ++i;
+        }
+      }
+      d.modified = 1;
+      const int32_t sink_tech = c.sink_tech;
+      const uint8_t doubles = c.double_sinks;
+      d.sinks = d.sink_items() + 10;
+      d.sink_tech = sink_tech;
+      d.double_sinks = doubles;
+    }
+    if (take) store->take_config(-1, &d);
+  });
+}
+
 // Mech3.exe 1.2 @ 0x00472cf0
 void Store::add_config(const Config* c) {
   if (!c) return;
@@ -261,6 +351,19 @@ void GameSlot::copy_from(const GameSlot& s) {
     config->modified = 1;
     pilot_hooks().config_recount(*config);
   }
+}
+
+// Mech3.exe 1.2 @ 0x00433df0
+bool GameSlot::set_config(const Config* c, Store* store, bool take) {
+  if (config == c) return true;
+  if (c && c->mech != mech) return false;
+  if (store && !store->full && take) {
+    if (config) store->give_config(-1, config);
+    delete config;
+    config = c ? config_copy_store(c->name, *c, store, take) : nullptr;
+    return true;
+  }
+  return set_config(c);
 }
 
 // Mech3.exe 1.2 @ 0x00433df0 with no store (the copy's only caller): the

@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import load_probe  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 from twod_world import IAT  # noqa: E402
 from test_pilot import FS, KIND_SIZE, KIND_VT, SALVAGE, Emulated, i32  # noqa: E402
 
@@ -40,6 +41,8 @@ probe = load_probe()
 probe.probe_salvage_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_realloc_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
 probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+probe.probe_lance_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+LANCE, CONFIG_CTOR, CONFIG_ADD, DFN_CACHE = 0x408c30, 0x423d00, 0x4723c0, 0x5e60b0
 LAB_BUILD, LAB_REFRESH, REMOVE_ITEM, ADD_COPY_ITEM, FIND_WEAPON = 0x408b40, 0x408bd0, 0x471d20, 0x472630, 0x581ed0
 
 RESULTS, MECH_TECH = 0x47ae10, 0x41df10
@@ -227,6 +230,7 @@ class Realloc(Salvage):
             cpu.u32(obj + 0x1f0, blk)
             self.weapons[name] = obj
         cpu.stub_function(FIND_WEAPON, lambda c: self.weapons.get(self.cstr(c.ecx).encode(), 0))
+        cpu.stub_import(IAT['_strdup'], lambda c: self.string(self.cstr(c.arg(0))) if c.arg(0) else 0, 0)
 
     def items_of(self, st):
         head = self.r32(st + 8)
@@ -273,6 +277,184 @@ class Realloc(Salvage):
         return '\n'.join(store_text(self.store(n, a)).replace('store', n, 1) for n, a in (
             ('game', game + 8), ('salvage', game + 0x3c), ('realloc', b + 0x111ec), ('lab', b + 0x11200))) + \
             f"\nlab_is {'lab' if lab == b + 0x11200 else 'game' if lab == game + 8 else hex(lab)}\n"
+
+
+def fake_parts(mech):
+    """The stand-in definitions' firepoints' parts (test_mechsave.py's)."""
+    return [((i * 5 + mech) % 10) - 1 for i in range(8)]
+
+
+class Lance(Realloc):
+    """0x00408c30 over a campaign's slots, with stand-in definitions in
+    0x004846a0's cache (firepoints and a first loadout)."""
+
+    # test_pilot.py's emulator stands in for the loadouts' copy, recount and
+    # destructor; here they run as they are.
+    NATIVE = (0x424010, 0x425bd0, 0x424350)
+
+    def __init__(self, seed, labs):
+        import original
+        keep = original.Original.stub_function
+
+        def stub_function(cpu, addr, fn, pop_bytes=0):
+            if addr not in Lance.NATIVE:
+                keep(cpu, addr, fn, pop_bytes)
+        original.Original.stub_function = stub_function
+        try:
+            Realloc.__init__(self, seed, labs)
+        finally:
+            original.Original.stub_function = keep
+        from twod_world import c_format
+
+        def sprintf(c):
+            esp = c.uc.reg_read(UC_X86_REG_ESP)
+            text = c_format(self, self.cstr(c.arg(1)), esp + 12)
+            c.write(c.arg(0), text.encode('latin1') + b'\0')
+            return len(text)
+        self.cpu.stub_import(0x5bb658, sprintf, 0)
+
+    def config(self, mech, name, items):
+        cpu = self.cpu
+        c = self.alloc(0xd8)
+        nm = self.string(name)
+        self.call(CONFIG_CTOR, ecx=c, stack=(mech & 0xffffffff, nm))
+        for k, ident, extra, part, n in items:
+            it = self.item(k, ident, extra)
+            cpu.u32(it + 0xc, part & 0xffffffff)
+            self.call(CONFIG_ADD, ecx=c, stack=(it, n))
+        return c
+
+    def config_text(self, c):
+        if not c:
+            return 'none'
+        head = self.r32(c + 8)
+        its, n = [], self.r32(head)
+        while n != head:
+            its.append(self.r32(n + 8))
+            n = self.r32(n)
+        return (f'cfg{{m{i32(self.r32(c + 0x14))} "{self.cstr(self.r32(c + 0x18))}" mod{self.r8(c + 0x1f)} '
+                f's{i32(self.r32(c + 0x64))},{i32(self.r32(c + 0x68))},{self.r8(c + 0x6c)} '
+                f'free{i32(self.r32(c + 0x8c))} ' + ''.join(self.item_text(x) for x in its) + '}')
+
+    def run_lance(self, cfg):
+        cpu = self.cpu
+        for m in range(19):
+            fps = []
+            for part in fake_parts(m):
+                f = self.alloc(0x20)
+                cpu.u32(f + 0xc, part & 0xffffffff)
+                fps.append(f)
+            arr, vec, dfn = self.alloc(4 * len(fps)), self.alloc(0x10), self.alloc(0x1a8)
+            for i, f in enumerate(fps):
+                cpu.u32(arr + 4 * i, f)
+            cpu.u32(vec + 4, arr)
+            cpu.u32(vec + 8, arr + 4 * len(fps))
+            cpu.u32(dfn + 0x24, vec)
+            cl = self.alloc(0x18)
+            d = cfg['dfns'][m]
+            if d is not None:
+                c = self.config(m, f'dfn{m}', d)
+                a = self.alloc(4)
+                cpu.u32(a, c)
+                cpu.u32(cl + 0xc, a)
+                cpu.u32(cl + 0x10, a + 4)
+            cpu.u32(dfn + 0x20, cl)
+            cpu.u32(DFN_CACHE + 0x3c * m, dfn)
+        b = self.alloc(0x12e6c)
+        for off in (0x111ec, 0x11200):
+            self.call(0x470ce0, ecx=b + off, stack=(0,))
+        game, gvt = self.alloc(0xd0), self.alloc(0x60)
+        cpu.u32(game, gvt)
+        slots = []
+        for sl in cfg['slots']:
+            o = self.alloc(0x18)
+            cpu.u32(o, 0x5bec38)
+            cpu.u32(o + 4, sl['mech'] & 0xffffffff)
+            if sl['config'] is not None:
+                cm, items = sl['config']
+                cpu.u32(o + 8, self.config(cm, f'slot{len(slots)}', items))
+            slots.append(o)
+        arr = self.alloc(4 * max(1, len(slots)))
+        for i, o in enumerate(slots):
+            cpu.u32(arr + 4 * i, o)
+        for off, v in ((0x2c, 1), (0x48, cfg['op']), (0x4c, cfg['mission']), (0x3c, len(slots))):
+            cpu.u32(gvt + off, self.fn('b8' + struct.pack('<I', v).hex() + 'c3'))
+        # vt+0x34(i): the i-th slot (8b 44 24 04 = mov eax,[esp+4]; 8b 04 85 arr = mov eax,[eax*4+arr]; c2 04 00)
+        cpu.u32(gvt + 0x34, self.fn('8b442404' + '8b0485' + struct.pack('<I', arr).hex() + 'c20400'))
+        for off in (0x8, 0x3c):
+            self.call(0x470ce0, ecx=game + off, stack=(0,))
+        cpu.u32(game + 0xa8, cfg['units'] & 0xffffffff)
+        pilot = self.alloc(0x84)
+        cpu.u32(pilot + 0x6c, game)
+        cpu.u32(CURRENT, pilot)
+        self.fill(game + 8, cfg['game'])
+        self.fill(game + 0x3c, cfg['salvage'])
+        self.call(LANCE, ecx=b)
+        out = [f"slot m{i32(self.r32(o + 4))} {self.config_text(self.r32(o + 8))}" for o in slots]
+        out += [store_text(self.store(n, a)).replace('store', n, 1) for n, a in (
+            ('game', game + 8), ('salvage', game + 0x3c), ('realloc', b + 0x111ec), ('lab', b + 0x11200))]
+        return '\n'.join(out) + '\n'
+
+
+def config_items(r):
+    out = []
+    for _ in range(r.choice([0, 1, 2, 4, 6])):
+        k = r.choice([1, 1, 2, 3, 3])
+        if k == 1:
+            out.append((1, r.choice([0, 3, 9, 12, 19, 25]), r.choice([1, 2]), r.randrange(8), 1))
+        elif k == 2:
+            out.append((2, r.choice([0, 3, 9, 19]), 0, -1, r.choice([10, 20, 60])))
+        else:
+            out.append((3, r.choice([0, 1, 9, 10, 11, 3]), r.choice([1, 2, 3]), -1, r.choice([1, 2, 8])))
+    return out
+
+
+def make_lance(seed):
+    r = random.Random(f'lance:{seed}')
+    dfns = [config_items(r) if r.random() < 0.85 else None for _ in range(19)]
+    slots = []
+    for _ in range(r.choice([1, 2, 3, 4])):
+        mech = r.choice([-1, 0, 3, 5, 9, 13, 18])
+        config = None
+        if r.random() < 0.6:
+            config = (mech if r.random() < 0.8 else r.choice([0, 3, 9]), config_items(r))
+        slots.append({'mech': mech, 'config': config})
+    op, mission = r.choice([(1, 1), (2, 3), (4, 6), (4, 6)])
+    return {'dfns': dfns, 'slots': slots, 'op': op, 'mission': mission, 'units': r.choice([1, 2, 3, 3]),
+            'game': store_ops(r, r.randrange(0, 20)), 'salvage': store_ops(r, r.randrange(0, 20))}
+
+
+def lance_setup(cfg):
+    def items(its):
+        return f'{len(its)} ' + ' '.join(' '.join(str(x) for x in it) for it in its)
+    out = [f"op {cfg['op']} {cfg['mission']} {cfg['units']}"]
+    for m, d in enumerate(cfg['dfns']):
+        if d is not None:
+            out.append(f'dfn {m} {items(d)}')
+    for sl in cfg['slots']:
+        if sl['config'] is None:
+            out.append(f"slot {sl['mech']} -2")
+        else:
+            out.append(f"slot {sl['mech']} {sl['config'][0]} {items(sl['config'][1])}")
+    for where in ('game', 'salvage'):
+        for op in cfg[where]:
+            out.append(where + ' ' + ' '.join(str(x) for x in op))
+    return '\n'.join(out)
+
+
+def run_lance(seed, labs, verbose):
+    cfg = make_lance(seed)
+    want = Lance(seed, labs).run_lance(cfg)
+    buf = ctypes.create_string_buffer(1 << 17)
+    n = probe.probe_lance_run(lance_setup(cfg).encode(), buf, len(buf))
+    assert n >= 0, 'probe failed'
+    got = buf.value.decode()
+    if got.replace(' }', '}') != want.replace(' }', '}'):
+        print(f'lance seed {seed}: differ\n  original: {want}\n  rebuild:  {got}')
+        return False
+    if verbose:
+        print(f'lance seed {seed}: {want[:300]}')
+    return True
 
 
 def store_ops(r, n, removes=False):
@@ -442,7 +624,9 @@ def main():
     labs = set_labs()
     rpassed = sum(run_realloc(seed, labs, verbose) for seed in range(first, first + runs))
     print(f'realloc: {rpassed}/{runs} runs identical')
-    return 0 if passed == runs and rpassed == runs else 1
+    lpassed = sum(run_lance(seed, labs, verbose) for seed in range(first, first + runs))
+    print(f'lance: {lpassed}/{runs} runs identical')
+    return 0 if passed == runs and rpassed == runs and lpassed == runs else 1
 
 
 if __name__ == '__main__':

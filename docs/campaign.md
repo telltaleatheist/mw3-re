@@ -345,7 +345,8 @@ need the menus' one scale or a centred 640x480 frame.
    0x00471840, 0x00471a20 (section 9); 8b the store list's rows 0x0048dbe0
    (the debriefing's salvage list, the briefing's REALLOC_LIST with
    0x00404ae0, 0x00408bd0, 0x00408b40); 8c the lancemates' loadouts
-   0x00408c30. The salvage screen 0x0047d3b0 and its state after.
+   0x00408c30 (Done, all three). The salvage screen 0x0047d3b0 and its
+   state after.
 9. The Win Movie and IA Dummy states.
 
 ## 8. Testing
@@ -537,3 +538,44 @@ runs): the two left cannot show (the take's two limits always come from
 one count; +0x20a is read by nothing ported). `test_briefing.py` binds REALLOC_LIST for real now (no
 skip), runs 0x00408b40 on the mech lab's button over a campaign with
 salvage, and a plan step for the lab's return (0x00408bd0, 0x00404ae0(1)).
+
+### The lance's loadouts (item 8c, 0x00408c30)
+
+When the briefing's load ends (`set_loaded`), each slot of the game (vt+0x3c
+the count, vt+0x34 one: the player's first, then the lancemates) is fitted
+to the mech lab's store (0x00408b40), then the split runs (0x00408bd0):
+
+- The slot's mech must be in the store (0x00409f00); if not, the next mech
+  by roster number (round the 19) that is; none: the slot is emptied (mech
+  -1, no loadout). A slot whose mech has no definition is emptied too.
+- A loadout of another mech goes back into the store (0x00433df0 with the
+  store: 0x00473400 gives the old one's items back) and the slot has none.
+- No loadout: the definition's first (its ConfigList's [0]), copied out of
+  the store (0x00424010 with the store and `take`: the copy cut to the
+  items the store holds when it lacks some (0x004735f0, each item cut, the
+  emptied dropped, marked modified, the sinks recounted), then taken out
+  of it (0x00473440)). A loadout: copied once cut to the store, then that
+  copy copied out of the store into the slot.
+- The mech itself is taken out of the store (0x00472a30).
+- At Operation 4 Mission 6 the lancemates (not the player) keep their mechs
+  and loadouts as they are, the store untouched.
+
+Ported: `lance_slot` and `BriefingScreen::lance_loadouts` (briefing.cpp);
+`config_copy_store` (0x00424010 whole), `GameSlot::set_config` with a
+store (0x00433df0 whole), `Store::has_config` 0x004735f0, `take_config`
+0x00473440, `give_config` 0x00473400, `remove_config` 0x00472d40,
+`has_mech` 0x00409f00, `count_like` 0x00473510 (pilot_games.cpp);
+`Config::copy_of` takes a step before the recount. Engine hooks:
+`game_slot_count`, `game_slot`. Test: `test_salvage.py`'s lance part, on
+stand-in definitions (firepoints as test_mechsave's, a first loadout or
+none, built with the exe's 0x00423d00 and 0x004723c0), up to four slots
+with or without loadouts (some of another mech), the stores filled, Op 4
+Mission 6 or not; compared: each slot's mech and loadout (items, modified,
+sinks, free slots) and the four stores (200/200; the probe runs the
+port's own loop, `lance_fit` with `lance_keeps`). test_briefing.py runs
+0x00408c30 for real with no slots. Breaks 17 of 19
+(`scratch/briefing/breaks12.py`, 60 runs); the two left cannot show here:
+0x004735f0's second store and 0x00473400's mech are passed only by the
+mech lab. test_salvage.py keeps test_pilot.py's emulator but lets the
+loadouts' copy, recount and destructor run as they are, with sprintf and
+_strdup stubbed.

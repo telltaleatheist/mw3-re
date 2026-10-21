@@ -303,7 +303,8 @@ class Original:
             e.call(0x471c10, ecx=game + 0x3c, stack=(i,))
         e.w32(game + 0xa8, 3)
         k4c = cfg['mission'] if cfg['kind'] == 1 else cfg['mp']
-        for off, v in ((0x2c, cfg['kind']), (0x48, cfg['op']), (0x4c, k4c)):
+        # vt+0x3c: no slots (0x00408c30's slots are test_salvage.py's)
+        for off, v in ((0x2c, cfg['kind']), (0x48, cfg['op']), (0x4c, k4c), (0x3c, 0)):
             e.w32(vt + off, e.new_stub(f'@vt{off:x}', '', 0, lambda emu, k, a, p, v=v: emu._ret(v, 0)))
         # The game's texts (multiplayer's vt+0x04 .. +0x10): a string or none.
         for off in (4, 8, 0xc, 0x10):
@@ -362,7 +363,7 @@ class Original:
         e.stub(0x590250, '0x00590250', 's0,s1', None, replace)
         e.stub(0x405160, '0x00405160', 's0', None,
                lambda emu, k, a, p: emu._ret(t.handle(k, (1 if a[0] else 0,)), p))
-        plain = {0x40a810: '', 0x40ce90: 'c', 0x408c30: '', 0x448830: 'd,s0',
+        plain = {0x40a810: '', 0x40ce90: 'c', 0x448830: 'd,s0',
                  0x47d2f0: '', 0x46ceb0: '', 0x490930: '', 0x491150: '', 0x491780: 's0', 0x434cb0: '',
                  0x478f10: 's0', 0x56dfb0: 'c,d', 0x576ea0: 'c,d,s0,s1', 0x51a9b0: 'c', 0x51a300: '',
                  0x56e8e0: 'c', 0x56f3e0: 'c', 0x491c80: '', 0x4f8f50: ''}

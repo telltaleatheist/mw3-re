@@ -659,7 +659,10 @@ class Engine : public zgame::AppHooks {
   virtual void report(int32_t level, const char* file, int32_t line, const char* text, const char* arg) {
     (void)level, (void)file, (void)line, (void)text, (void)arg;
   }
-  virtual void briefing_lance_loadouts() { unported("0x00408c30", {}); }
+  // The current game's slots (vt+0x3c the count, vt+0x34 one: 0 the
+  // player's, then the lancemates), for 0x00408c30.
+  virtual int32_t game_slot_count();
+  virtual struct GameSlot* game_slot(int32_t i);
   // The stores the briefing's reallocation reads (0x00408b40, 0x00408bd0):
   // the current game's (+0x6c, its +0x08), a campaign's salvage (+0x3c, none
   // when not a campaign) and its +0xa8 (the lab's room in units of 300 t and

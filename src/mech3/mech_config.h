@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <cstdio>
 #include <list>
 #include <vector>
@@ -122,6 +123,8 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   // 0x00424010 with no store (ECX the name, EDX the loadout): a copy (0x00423e00)
   // under `name`, not modified, its slots counted.
   static Config* copy_of(const char* name, const Config& c);
+  // The same with a step before the recount (0x00424010's store work).
+  static Config* copy_of(const char* name, const Config& c, const std::function<void(Config&)>& before_recount);
   void recount();                          // 0x00425bd0: free_slots and free_in
 
   // The saved-loadout side (docs/mechdef-head.md).

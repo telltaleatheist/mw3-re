@@ -106,7 +106,9 @@ ConfigItem* Config::add_item(ConfigItem* item, int32_t n) {
 // with no store. The items are added one by one (add_equipment recounting
 // the sinks), each keeping its place, then the fields copied over; it is
 // player made and not modified, its checksum 0.
-Config* Config::copy_of(const char* new_name, const Config& c) {
+Config* Config::copy_of(const char* new_name, const Config& c) { return copy_of(new_name, c, nullptr); }
+
+Config* Config::copy_of(const char* new_name, const Config& c, const std::function<void(Config&)>& before_recount) {
   auto* d = new Config(c.mech, "");
   d->player_made = 1;
   d->armor_tech = 0, d->sink_tech = 3, d->sinks = 0;
@@ -133,6 +135,7 @@ Config* Config::copy_of(const char* new_name, const Config& c) {
   std::free(d->name);
   d->name = new_name ? dup(new_name) : nullptr;
   d->modified = 0;
+  if (before_recount) before_recount(*d);
   d->recount();
   return d;
 }

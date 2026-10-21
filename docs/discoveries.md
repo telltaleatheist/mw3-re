@@ -2038,6 +2038,13 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   is kept first (as much as fits), then anything new; whatever does not
   fit goes back into the salvage pool, and the briefing shows it in its
   reallocation list until you press OK.
+- **Lancemates' mechs come out of your inventory before each mission:**
+  when a briefing loads, each lancemate's mech must be in your stores; if
+  it is not, the lancemate gets the next mech type you do have (in the
+  game's internal order of mechs), or none at all. Their loadouts are cut
+  down to the weapons and ammo you actually have, and those items leave
+  your inventory while they are equipped. At Operation 4 Mission 6 this is
+  skipped: your lancemates keep whatever they had.
 - **Your rank is the Campaign Total in steps of 100,000:** Sergeant below
   100,000, then Master Sergeant, Captain, Major, and Colonel from 400,000
   on.

@@ -8,6 +8,7 @@
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "mech3/mech_reader.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -460,7 +461,7 @@ void BriefingScreen::set_loaded(bool on) {
   replay_btn.enable(replay);
   loaded = on ? 1 : 0;
   if (loaded) loading.hide();
-  if (loaded) e.briefing_lance_loadouts();
+  if (loaded) lance_loadouts();
   if (auto_launch) launch();
 }
 
@@ -670,13 +671,7 @@ int32_t store_mechs(const Store& s) {
 }
 
 // Mech3.exe 1.2 @ 0x00473510
-int32_t store_count_like(const Store& s, const ConfigItem* item) {
-  if (!item) return 0;
-  int32_t n = 0;
-  for (const ConfigItem* it : s.items)
-    if (same_item(it, item)) n += it->count;
-  return n;
-}
+int32_t store_count_like(const Store& s, const ConfigItem* item) { return s.count_like(item); }
 
 // Mech3.exe 1.2 @ 0x00408690. A store's own (b10) items are not taken from
 // `from` (0x00471d20 refuses), but still copied: kept.
@@ -782,6 +777,76 @@ void BriefingScreen::show_realloc(bool on) {
   realloc_list.enable(show ? 1 : 0);
   realloc_ok.enable(show ? 1 : 0);
   dirty_all();
+}
+
+// ---- the lance's loadouts (0x00408c30) ----
+
+int32_t Engine::game_slot_count() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? c->slot_count() : 0;
+}
+GameSlot* Engine::game_slot(int32_t i) {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? c->slot_at(i) : nullptr;
+}
+
+void lance_slot(GameSlot& s, Store& store, bool keep) {
+  int32_t mech = s.mech;
+  if (mech == -1) return;
+  const Config* cfg = s.config;
+  if (!keep) {
+    while (!store.has_mech(mech)) {  // 0x00409f00
+      mech = (mech + 1) % 19;
+      if (mech == s.mech) {
+        mech = -1;
+        break;
+      }
+    }
+  }
+  const MechDfn* dfn = mech_dfn(mech);  // 0x004846a0: none for -1
+  if (!dfn || mech == -1) {
+    s.mech = -1;  // 0x005a2ba0
+    s.set_config(nullptr);
+    return;
+  }
+  if (cfg && cfg->mech != mech) {
+    s.set_config(nullptr, &store, true);
+    cfg = s.config;
+  }
+  s.mech = mech;
+  if (!cfg) {
+    const Config* first = dfn->configs && !dfn->configs->configs.empty() ? dfn->configs->configs[0] : nullptr;
+    if (keep) s.set_config(first);
+    else s.set_config(first, &store, true);
+  } else if (keep) {
+    s.set_config(cfg);
+  } else {
+    Config* copy = config_copy_store(cfg->name, *cfg, &store, false);  // 0x00424010(store, 0)
+    s.set_config(nullptr);
+    s.set_config(copy, &store, true);
+    delete copy;
+  }
+  if (!keep) store.remove_mech(mech);
+}
+
+// Mech3.exe 1.2 @ 0x00408c30, when the load ends (set_loaded): the lance as
+// the lab's store allows, then the split (0x00408bd0).
+void BriefingScreen::lance_loadouts() {
+  Engine& e = engine();
+  Store* store = build_lab_store();
+  int32_t op = 0, mission = 0;
+  const bool campaign = e.game_campaign(&op, &mission);
+  std::vector<GameSlot*> slots;
+  for (int32_t i = 0, n = e.game_slot_count(); i < n; ++i) slots.push_back(e.game_slot(i));
+  if (store) lance_fit(*store, slots, lance_keeps(campaign, op, mission));
+  refresh();
+}
+
+bool lance_keeps(bool campaign, int32_t op, int32_t mission) { return campaign && op == 4 && mission == 6; }
+
+void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep) {
+  for (size_t i = 0; i < slots.size(); ++i)
+    if (slots[i]) lance_slot(*slots[i], store, i > 0 && keep);
 }
 
 }  // namespace mech3
