@@ -29,7 +29,7 @@ action lists, the setters and the world's child/light/sound lists. Check:
   BY_ZONE (8) or flag 4 (the root was drawn: node flag 0x80000000, cleared
   here) test that, then skip 1..10 frames (+0x9b, a counter shared round
   robin) before testing again. Range: the squared distance from the root to
-  the player position (0x502d40) within [+0x9c, +0xa0); zone: the zone list
+  the player position (0x502d40, set each Core frame by the pilot update 0x4783a0 from its mech's world position 0x5a85e0; until set, a ranged def does not tick at all) within [+0x9c, +0xa0); zone: the zone list
   (0x502d70) against the root's zone byte (0x53cdc0). Then the clock
   advances by the frame time and every sequence in state 0 or 1 runs with
   the frame's time (block +0x40). An error sets status 5. When none is

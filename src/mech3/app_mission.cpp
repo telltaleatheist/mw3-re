@@ -1050,6 +1050,16 @@ void GameEngine::ai_on() { ai::ai_switch_on(); }
 // Mech3.exe 1.2 @ 0x00575a00 (ztimer::update), once a frame from zGameApp::Run:
 // the step [0x0072c52c] is one global in the exe, so its copies in the mech,
 // weapon and zWeapon modules are set with it.
+// Mech3.exe 1.2 @ 0x004783a0 (ECX the pilot), each Core frame: its mech's
+// world position (0x005a85e0) is the player the mission animations' range
+// tests measure from (0x00502d40). The exe has no check for a pilot without
+// a mech.
+void GameEngine::pilot_update(Handle p, float) {
+  void* mech = p ? object_of(field32(p, 0x14)) : nullptr;
+  float pos[3];
+  if (mech && mech_world_position(mech, pos)) zeff::anim_set_player(pos);
+}
+
 void GameEngine::timer_update() {
   ztimer::update();
   sync_frame_step(ztimer::state().dt);

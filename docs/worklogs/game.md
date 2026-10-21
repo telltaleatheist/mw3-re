@@ -811,3 +811,12 @@ view's ground, the anim lookups 0x50b450 (92).
   null). The three-mission test checks the player cleared after each
   cleanup and the pilot's own mech as the player in each mission; ASan
   clean.
+- Item 3 (the survey's top non-AI, non-GPU): the pilot update 0x004783a0
+  (GameEngine::pilot_update): the pilot's mech's world position (0x005a85e0,
+  entity_position) into zEffect's anim_set_player (0x00502d40) each Core
+  frame. Before it the mission animations that run only near the player
+  (flag 2) never ticked: their tick returns without a player. The walk test
+  checks the player set (within 1 m of the mech) and a flag-2 def's clock
+  moving; with the update off both fail. Survey 2026-10-21: 182 unported
+  calls; per frame the rest are drawing (GPU), the AI's (0x0041e810) and
+  network (0x00588930), then the level of detail 0x0041e870 (next).

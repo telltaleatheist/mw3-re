@@ -1336,6 +1336,12 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
       float off_ground = 0;
       mech3::LaunchedMech start, walked, turned;
       bool feet = true;
+      // The mission animations that run only near the player (flag 2): their
+      // clocks (+0xa8) at frame 3 and 300, and the player the tests measure from.
+      std::vector<std::pair<int32_t, float>> ranged;
+      int32_t ranged_moved = 0;
+      bool player_set = false;
+      float player_gap = 1e9f;
     } seen;
     void* player = nullptr;
     uint32_t up = 0, left = 0;
@@ -1346,6 +1352,9 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
         up = zin::key1_of(0x18) & 0xff, left = zin::key1_of(2) & 0xff;  // throttle up, turn left
         mech3::describe_mech(player, &seen.start);
+        const zeff::AnimState& a = zeff::anim();
+        for (int32_t i = 1; i < a.def_count(); ++i)
+          if (a.defs[i].get<uint32_t>(0x94) & 2) seen.ranged.push_back({i, a.defs[i].get<float>(0xa8)});
       } else if (seen.frames == 3) {
         // Powered up: the spawn's +0xde cleared by Core's resume(7) through
         // the port (0x0041cc30 never logged).
@@ -1361,6 +1370,17 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
         const float g = ground_under(m.pos[0], m.pos[1] + 20.0f, m.pos[2]);
         seen.off_ground = std::max(seen.off_ground, std::fabs(m.pos[1] - g));
       } else if (seen.frames == 300) {
+        const zeff::AnimState& a = zeff::anim();
+        for (const auto& [i, t] : seen.ranged) seen.ranged_moved += a.defs[i].get<float>(0xa8) != t;
+        seen.player_set = a.block.get<int32_t>(0x24) == 1;
+        mech3::LaunchedMech now;
+        mech3::describe_mech(player, &now);
+        float d2 = 0;
+        for (int k = 0; k < 3; ++k) {
+          const float d = a.block.get<float>(0x2c + 4 * k) - now.pos[k];
+          d2 += d * d;
+        }
+        seen.player_gap = std::sqrt(d2);
         keys.key(up, false);
         mech3::describe_mech(player, &seen.walked);
         keys.key(left, true);
@@ -1390,6 +1410,10 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     // the shallows starts the wake.
     std::map<std::string, int> fx;
     for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
+    // The pilot's update (0x004783a0) gives zEffect the player each frame, so
+    // the animations that run only near the player tick (they froze before).
+    EXPECT(seen.player_set && seen.player_gap < 1.0f);
+    EXPECT(!seen.ranged.empty() && seen.ranged_moved > 0);
     // The mission's start animation (mission-load.md) ran to its end (status 3).
     const zeff::AnimDef* start = zeff::anim_find("start_single_player_m1");
     EXPECT(start && start->raw[0x98] == 3);

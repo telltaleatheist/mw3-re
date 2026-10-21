@@ -94,6 +94,7 @@ class GameEngine : public Engine {
   // Core's resume(7) on the pilot's mech: the HUD's fall flag, then the
   // power-up (the spawn left it powered down).
   void mech_set_mode_a(Handle mech, int32_t a) override;  // 0x0041ca30
+  void pilot_update(Handle p, float dt) override;  // 0x004783a0
   void timer_update() override;                  // 0x00575a00, then the step's copies (sync_frame_step)
   void weapons_shutdown() override;               // 0x00583870: zwep::shutdown, no per-def callback (0x00584920)
   void mech_set_mode_b(Handle mech, int32_t a) override;  // 0x0041cc30 (Mech::power)
