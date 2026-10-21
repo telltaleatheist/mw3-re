@@ -26,6 +26,9 @@ from test_weiler import BUF, CAP, Emulated, P, farr, fbuf, got, probe, ring  # n
 
 probe.probe_convexify.argtypes = [P, ctypes.c_int, ctypes.c_int, P, P, ctypes.c_int]
 probe.probe_ring.argtypes = [ctypes.c_int, P, ctypes.c_int, P, P, ctypes.c_int]
+probe.probe_plane.argtypes = [ctypes.c_int, P, P]
+probe.probe_face_up.argtypes = [P, ctypes.c_int, ctypes.c_int, P, ctypes.c_int]
+NAN = float('nan')
 
 
 class Original(Emulated):
@@ -51,6 +54,20 @@ class Original(Emulated):
         npts = self.u32(c + 8)
         self.log(npts)
         self.raw(self.u32(c + 12), 12 * npts)
+        return bytes(self.out)
+
+    def plane(self, poly):
+        self.begin()
+        pp, dst = self.put(farr(poly)), self.alloc(16)
+        self.call(0x515f10, ecx=len(poly) // 3, edx=pp, stack=(dst,))
+        self.raw(dst, 16)
+        return bytes(self.out)
+
+    def face_up(self, pts, turn):
+        self.begin()
+        pp = self.put(farr(pts))
+        self.log(self.call(0x516190, ecx=len(pts) // 3, edx=pp, stack=(turn,)))
+        self.raw(pp, len(pts) * 4)
         return bytes(self.out)
 
     def ring(self, poly, region):
@@ -96,6 +113,15 @@ def star(rng, n, cx=0.0, cy=0.0, grid=False, ccw=None):
     return [v for x, y in pts for v in (float(x), float(y), rng.uniform(-2, 2))]
 
 
+def canon(b):
+    """NaNs as one value: the x87's default NaN is negative, ARM's positive
+    (the exe then flips the sign with fchs); which NaN comes out does not
+    matter in play."""
+    words = list(struct.unpack(f'<{len(b) // 4}I', b[:len(b) // 4 * 4]))
+    words = [0x7fc00000 if (w & 0x7f800000) == 0x7f800000 and w & 0x7fffff else w for w in words]
+    return struct.pack(f'<{len(words)}I', *words) + b[len(b) // 4 * 4:]
+
+
 def main():
     rng = random.Random(int(os.environ.get('SEED', '1')))
     brk = int(os.environ.get('BREAK', '0'))
@@ -105,6 +131,7 @@ def main():
 
     def check(kind, mine, theirs):
         nonlocal runs, fails
+        mine, theirs = canon(mine), canon(theirs)
         runs += 1
         kinds[kind] = kinds.get(kind, 0) + 1
         if mine != theirs:
@@ -169,12 +196,41 @@ def main():
         rmax = min(math.hypot(x - mx, y - my) for x, y in zip(xs, ys)) * 0.35
         region = ring(rng, mx + rng.uniform(-0.2, 0.2) * rmax, my + rng.uniform(-0.2, 0.2) * rmax,
                       rmax * rng.uniform(0.3, 1.0), rng.choice((4, 6, 8, 12, 16, 24, 40)), 5.0, rng.choice((0, 0.1)))
+        if rng.random() < 0.15:  # a repeated point (a zero-length edge) or a midpoint (collinear)
+            j = 3 * rng.randrange(len(region) // 3)
+            q = region[j:j + 3] if rng.random() < 0.5 else \
+                [(region[j + i] + region[(j + 3 + i) % len(region)]) / 2 for i in range(3)]
+            region = region[:j + 3] + q + region[j + 3:]
         mine_region = list(region)
         if brk == 3:
             mine_region[0] += 0.5
         rb = fbuf(mine_region)
         mine = got(probe.probe_ring(k, ctypes.cast(fbuf(poly), P), len(region) // 3, ctypes.cast(rb, P), BUF, CAP))
         check('ring', mine, emu.ring(poly, region))
+
+    # The plane and the facing test on their own: degenerate polygons (one
+    # point repeated, all on a line), NaN coordinates, either turn, 3..6
+    # points (more reverse after the first).
+    for _ in range(400):
+        n = rng.randint(3, 6)
+        pts = star(rng, n, rng.uniform(-20, 20), rng.uniform(-20, 20))
+        kind = rng.choice(('plain', 'plain', 'point', 'line', 'nan'))
+        if kind == 'point':
+            pts = pts[:3] * n
+        elif kind == 'line':
+            pts = [v for j in range(n) for v in (pts[0] + j, pts[1] + 2 * j, pts[2])]
+        elif kind == 'nan':
+            pts[rng.randrange(len(pts))] = NAN
+        mine_pts = list(pts)
+        if brk == 4:
+            mine_pts[0] += 1.0
+        out = (ctypes.c_float * 4)()
+        probe.probe_plane(n, ctypes.cast(fbuf(mine_pts), P), ctypes.cast(out, P))
+        check('plane_' + kind, bytes(out), emu.plane(pts))
+        turn = rng.randint(0, 1)
+        fb = fbuf(mine_pts)
+        mine = got(probe.probe_face_up(ctypes.cast(fb, P), n, turn, BUF, CAP))
+        check('face_up_' + kind, mine, emu.face_up(pts, turn))
 
     if fails:
         print(f'{fails} of {runs} runs differ')

@@ -13,6 +13,9 @@ struct RingEdge {
   int32_t a, b, uses;
 };
 
+// The exe's "equal to 0" tests (fcom, test ah, 0x40) take NaN as 0.
+bool zeroish(float v) { return !(v < 0.0f || v > 0.0f); }
+
 // Mech3.exe 1.2 @ 0x00515990. A B and C D cross strictly inside both.
 int segments_cross(const float* a, const float* b, const float* c, const float* d) {
   const float den = (c[1] - d[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - d[0]);
@@ -58,14 +61,14 @@ void plane_of(const float* p, int32_t n, float plane[4]) {
     sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
   }
   float len = 0.0f;
-  if (nz != 0.0f || ny != 0.0f || nx != 0.0f) {
+  if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) {
     const float sq = nx * nx + ny * ny + nz * nz;
     int32_t bits;
     std::memcpy(&bits, &sq, 4);
     bits = (bits >> 1) + 0x1fc00000;
     std::memcpy(&len, &bits, 4);
   }
-  const float inv = len == 0.0f ? 0.0f : 1.0f / len;
+  const float inv = zeroish(len) ? 0.0f : 1.0f / len;
   plane[0] = inv * nx, plane[1] = inv * ny, plane[2] = inv * nz;
   const float dot = sx * nx + sy * ny + sz * nz;
   plane[3] = -(dot / (static_cast<float>(n) * len));
@@ -94,7 +97,7 @@ void reverse_points(float* p, int32_t n) {
 int face_up(float* p, int32_t n, int turn) {
   const float ux = p[3] - p[0], uy = p[4] - p[1];
   const float vx = p[6] - p[3], vy = p[7] - p[4];
-  if (ux * vy - uy * vx <= 0.0f) {
+  if (!(ux * vy - uy * vx > 0.0f)) {  // NaN too, as the exe's test ah, 0x41
     if (!turn) return 0;
     reverse_points(p, n);
   }
@@ -125,10 +128,10 @@ RingTriangles ring_triangles(int32_t np, const float* poly, int32_t nr, float* r
   for (int32_t i = np + 1; i < n; ++i) edges.push_back({i - 1, i, 1});
   for (int32_t i = 0; i < np; ++i)
     for (int32_t j = 0; j < nr; ++j) add_bridge({i, np + j, 2}, edges, pts);
-  // FIX (A): the exe lists a point's edges in 32 ints on the stack (0x00515aa0
-  // writes past them for a point with more).
+  // FIX (bug): the exe lists a point's edges in 32 ints on the stack
+  // (0x00515aa0 writes past them for a point with more).
   std::vector<int32_t> at;
-  std::vector<int32_t> tris;
+  std::vector<int32_t> tris;  // the exe's holds 1,024 triangles; a ring makes np + nr, far fewer
   for (int32_t k = 0; k < n; ++k) {
     at.clear();
     for (size_t e = 0; e < edges.size(); ++e)  // 0x00515aa0

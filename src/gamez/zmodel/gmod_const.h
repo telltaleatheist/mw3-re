@@ -83,4 +83,38 @@ void model_box(uint8_t* header, const float* vertices, const Light* lights, cons
                float box[6]);              // 0x0053b4e0 ECX model, EDX box (0x0053b680 the extent)
 inline void model_box(Model* m, float box[6]) { model_box(m->header, m->vertices, m->lights, m->morphs, box); }
 
+// Adding a polygon to a model (gmod_const.c, the crater's polygons;
+// docs/craters.md section 5). The arguments 0x0053c6c0 takes on the stack.
+struct PolygonAdd {
+  float* points = nullptr;              // the caller's: colinear points are dropped in place
+  const float* normals = nullptr;       // optional (polygon flag 0x200)
+  const float* uvs = nullptr;           // 2 floats a point, read when the material is textured
+  int32_t morph = 0;                    // with morph points (0x00539ec0)
+  const float* morph_points = nullptr;
+  const float* morph_uvs = nullptr;
+  Material* material = nullptr;         // its flag 0x100: textured
+  int32_t priority = 0;
+  uint32_t flag = 0;                    // bit 0: polygon flag 0x100
+  const uint8_t* zone = nullptr;        // 4 bytes, the polygon's +0x20
+  const float* colors = nullptr;        // 3 floats a point; null: white
+};
+// The vertex merge distance (0x005ee3e0, 0.001; a crater sets 0.005 while
+// it is made).
+float vertex_precision();                      // 0x00538050
+void set_vertex_precision(float v);            // 0x00538060
+// 0 added, 1 refused (fewer than 3 points, more than 57, fewer than 3 once
+// colinear points go, or the model full), 2 added as a fan of triangles
+// (not planar to 0.005) or in pieces (more than 48 points).
+int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 ECX m, EDX n
+int drop_colinear(int32_t* n, float* points);  // 0x0053a530 ECX n, EDX points
+int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80
+int32_t find_morph_vertex(Model& m, const float p[3], const float to[3]);  // 0x00539ec0
+int32_t find_normal(Model& m, const float p[3]);                     // 0x0053a070
+int add_record(Model& m, int32_t n, const PolygonAdd& a);           // 0x0053c370
+int fill_record(Model& m, int32_t n, const PolygonAdd& a);          // 0x0053c500
+void flatten_uvs(Model& m, int32_t index);                           // 0x0053bdc0
+void uv_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float s0, float s1, float s2,
+                 float out[2]);                                      // 0x0053c270
+void snap_uvs(int32_t n, float* uv);                                 // 0x0053af50
+
 }  // namespace zmod

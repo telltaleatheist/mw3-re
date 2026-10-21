@@ -462,3 +462,34 @@ Newest last. One short entry per item: what, commits, what to remember.
   0x4ff940, history, set), zgeo_model's clip 0x50f120 / 0x50ec10 /
   0x50ea50 / 0x50f7b0, wired so a missed shot cuts craters in c1m1; then
   report which merge types (6–9, 13, 16, 19, 22) real craters hit.
+
+## 2026-10-21 — craters part 5a: zModel's polygon add (branch mac2/crater, from mac2/convexify b3aa624)
+
+- Ported into gmod_const (gmod_const.c in the exe): model_add_polygon
+  0x53c6c0, drop_colinear 0x53a530, add_fan 0x53a930, add_pieces 0x53ac10,
+  add_record 0x53c370, find_vertex / find_morph_vertex / find_normal
+  0x539d80 / 0x539ec0 / 0x53a070, fill_record 0x53c500, flatten_uvs
+  0x53bdc0, uv_gradient 0x53c270, snap_uvs 0x53af50, the merge precision
+  0x538050 / 0x538060 (0x5ee3e0). Constants: planarity 0.005 (double
+  0x5ee3d0), colinear 0.001 (0x5ee3d8), 48 verts (0x5ee3e4), 57.6 / 921.6
+  limits. 0x50da70 = zerr level ECX (1) with the 0x73f780 text.
+- Pseudocode traps: the colinear square sum is x²+y²+z² (pseudocode shows
+  z first); the Material's "textured" is its byte +1 bit 0 (the exe reads
+  it as a ushort & 0x100).
+- Test test_gmod_add.py (in run_all): 150 models built by 1..14 adds each
+  (flat, tilted, bent, grid, colinear, repeated, line, wall, 46..60-point,
+  under-3), textured or not, normals, colours, morphs, both precisions;
+  model dumped after each add. Seeds 1/2 identical (1,180 / 1,074);
+  BREAK=1/2 fail; every branch reached (scratch/cov_gadd.py: fan, pieces,
+  drop, discard, morph, normals, all three UV axes).
+- Part-4 review follow-ups (mac 1): the ring's edge list is FIX (bug); the
+  1,024-triangle array note; NaN compares as the exe's (zeroish() for
+  `test ah,0x40`, !(x > 0) for `test ah,0x41`) in plane_of / face_up and
+  in the new gmod code; test_convexify gained plane / face_up cases
+  (degenerate, NaN, turn 0, 3..6 points) and rings with zero-length or
+  collinear edges (3,100 runs identical; NaNs compared as one value:
+  x87's default NaN is negative, ARM's positive).
+- Next: 5b, zgeo_model's clip (0x50e950, 0x50ea50, 0x50ec10, 0x50ef70,
+  0x50f120, 0x50f7b0, 0x4eb6a0) and the crater (zDEClient 0x4ff940 ..
+  0x500850, 0x500600 / 0x500da0), wired defaults (model_add hook →
+  model_add_polygon), end-to-end on the worlds (test_scenewalk loader).

@@ -1,14 +1,19 @@
 #include "gamez/zmodel/gmod_const.h"
 
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zvideo/zvid_format.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -397,6 +402,373 @@ void model_box(uint8_t* h, const float* vertices, const Light* lights, const flo
   std::memcpy(&bits, &r2, 4);
   bits = static_cast<uint32_t>((static_cast<int32_t>(bits) >> 1) + 0x1fc00000);
   std::memcpy(h + 0x54, &bits, 4);
+}
+
+// --- Adding polygons (craters, docs/craters.md section 5) -----------------
+
+namespace {
+float g_precision = 0.001f;                        // 0x005ee3e0
+constexpr double kPlanar = 0.005;                  // 0x005ee3d0 (0x00538070 sets it; nothing calls that)
+constexpr double kColinear = 0.001;                // 0x005ee3d8
+constexpr int32_t kMaxVerts = 48;                  // 0x005ee3e4
+constexpr double kMaxModelVerts = 921.6;           // 0x005ce180, 0.9 x 1024
+
+// The exe's "equal to 0" tests (fcom, test ah, 0x40) take NaN as 0.
+bool zeroish(float v) { return !(v < 0.0f || v > 0.0f); }
+
+void put_count(Model& m, int off, int32_t v) { std::memcpy(m.header + off, &v, 4); }
+int32_t count_at(const Model& m, int off) { return static_cast<int32_t>(m.count(off)); }
+
+// 0x0050da70: zGeometry's report of the shared text buffer (0x0073f780).
+void report_buffer(int level, const std::string& text) { zerr::report(level, "C:\\zipper\\GameZMech3\\zGeometry\\zgeo_model.cpp", 0x23, text.c_str()); }
+std::string format(const char* f, ...) {
+  char text[0x400];
+  va_list ap;
+  va_start(ap, f);
+  std::vsnprintf(text, sizeof text, f, ap);
+  va_end(ap);
+  return text;
+}
+}  // namespace
+
+float vertex_precision() { return g_precision; }      // 0x00538050
+void set_vertex_precision(float v) { g_precision = v; }  // 0x00538060
+
+// Mech3.exe 1.2 @ 0x00539d80. The vertex within the precision on every axis,
+// else a new one (-1 when the model is near full).
+int32_t find_vertex(Model& m, const float p[3]) {
+  const int32_t n = count_at(m, 0x14);
+  for (int32_t i = 0; i < n; ++i) {
+    const float* v = m.vertices + 3 * i;
+    if (std::fabs(v[0] - p[0]) <= g_precision && std::fabs(v[1] - p[1]) <= g_precision &&
+        std::fabs(v[2] - p[2]) <= g_precision)
+      return i;
+  }
+  if (kMaxModelVerts < n) {
+    report_buffer(1, format("%s: Line %d: WARNING: Model vertex count = %d\n         Approaching max allowable: %d\n",
+                            kFile, 0x816, n, 0x400));
+    return -1;
+  }
+  m.vertices = static_cast<float*>(std::realloc(m.vertices, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.vertices + 3 * n, p, 12);
+  put_count(m, 0x14, n + 1);
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00539ec0. With morphs: the vertex equal to p whose
+// morph moves it to `to` exactly, else a new one (its morph `to` - p).
+int32_t find_morph_vertex(Model& m, const float p[3], const float to[3]) {
+  const float d[3] = {to[0] - p[0], to[1] - p[1], to[2] - p[2]};
+  const int32_t n = count_at(m, 0x14);
+  for (int32_t i = 0; i < n; ++i) {
+    const float* v = m.vertices + 3 * i;
+    const float* t = m.morphs + 3 * i;
+    if (v[0] == p[0] && v[1] == p[1] && v[2] == p[2] && t[0] == d[0] && t[1] == d[1] && t[2] == d[2]) return i;
+  }
+  m.vertices = static_cast<float*>(std::realloc(m.vertices, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.vertices + 3 * n, p, 12);
+  m.morphs = static_cast<float*>(std::realloc(m.morphs, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.morphs + 3 * n, d, 12);
+  put_count(m, 0x14, n + 1), put_count(m, 0x1c, n + 1);
+  if (kMaxModelVerts < n + 1) {
+    report_buffer(1, format("%s: Line %d: WARNING: Model vertex count = %d\n         Approaching max allowable: %d\n",
+                            kFile, 0x887, n + 1, 0x400));
+    return -1;
+  }
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x0053a070. The normal within 0.0001, else a new one.
+int32_t find_normal(Model& m, const float p[3]) {
+  const int32_t n = count_at(m, 0x18);
+  for (int32_t i = 0; i < n; ++i) {
+    const float* v = m.normals + 3 * i;
+    if (std::fabs(v[0] - p[0]) < 0.0001 && std::fabs(v[1] - p[1]) < 0.0001 && std::fabs(v[2] - p[2]) < 0.0001)
+      return i;
+  }
+  m.normals = static_cast<float*>(std::realloc(m.normals, 12 * static_cast<size_t>(n + 1)));
+  std::memcpy(m.normals + 3 * n, p, 12);
+  put_count(m, 0x18, n + 1);
+  if (kMaxModelVerts < n + 1) {
+    report_buffer(1, format("%s: Line %d: WARNING: Model normal count = %d\n         Approaching max allowable: %d\n",
+                            kFile, 0x8d3, n + 1, 0x400));
+    return -1;
+  }
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x0053a530 ECX n, EDX points. Each point but the first
+// lying on the line of its neighbours (unit cross product under 0.001 on
+// every axis) is dropped from the caller's points, from the start again
+// each time; 1 when any was.
+int drop_colinear(int32_t* n, float* p) {
+  int dropped = 0;
+  for (bool again = true; again;) {
+    again = false;
+    const int32_t count = *n;
+    if (count < 2) break;
+    for (int32_t i = 1, c = 2; i <= count - 1; ++i, c = (c + 1) % count) {
+      const float* a = p + 3 * (i - 1);
+      const float* b = p + 3 * i;
+      const float* q = p + 3 * c;
+      const float u0 = a[0] - b[0], u1 = a[1] - b[1], u2 = a[2] - b[2];
+      const float v0 = q[0] - b[0], v1 = q[1] - b[1], v2 = q[2] - b[2];
+      float x = u2 * v1 - u1 * v2, y = u0 * v2 - u2 * v0, z = u1 * v0 - u0 * v1;
+      float len = 0.0f;
+      if (std::fabs(x) > kColinear || std::fabs(y) > kColinear || std::fabs(z) > kColinear)
+        len = std::sqrt(x * x + y * y + z * z);
+      const float inv = !(std::fabs(len) > kColinear) ? 0.0f : 1.0f / len;
+      x = inv * x, y = inv * y, z = inv * z;
+      if (!(std::fabs(x) >= kColinear) && !(std::fabs(y) >= kColinear) && !(std::fabs(z) >= kColinear)) {
+        std::memmove(p + 3 * i, p + 3 * (i + 1), 12 * static_cast<size_t>(count - 1 - i));
+        --*n;
+        dropped = again = true;
+        break;
+      }
+    }
+  }
+  return dropped;
+}
+
+// Mech3.exe 1.2 @ 0x0053c370. The next polygon record (count + 1, zeroed)
+// with its vertex and normal indices; 1 when the model is full (the
+// record stays, uncounted).
+int add_record(Model& m, int32_t n, const PolygonAdd& a) {
+  const int32_t count = count_at(m, 0x10);
+  Polygon* grown = new Polygon[static_cast<size_t>(count) + 1]{};
+  for (int32_t i = 0; i < count; ++i) grown[i] = m.polygons[i];
+  delete[] m.polygons;
+  m.polygons = grown;
+  Polygon& q = m.polygons[count];
+  q.priority = a.priority;
+  q.flags = static_cast<uint32_t>(n & 0xff) | (a.flag & 1) << 8 | (a.normals ? 0x200u : 0u);
+  q.vertex_indices = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(n)));
+  if (a.normals) q.normal_indices = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(n)));
+  for (int32_t i = 0; i < n; ++i) {
+    const int32_t v = a.morph ? find_morph_vertex(m, a.points + 3 * i, a.morph_points + 3 * i)
+                              : find_vertex(m, a.points + 3 * i);
+    q.vertex_indices[i] = static_cast<uint32_t>(v);
+    if (v < 0) return 1;
+    if (a.normals) {
+      const int32_t k = find_normal(m, a.normals + 3 * i);
+      q.normal_indices[i] = static_cast<uint32_t>(k);
+      if (k < 0) return 1;
+    }
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0053c270. The gradient (along a, along b) of s over the
+// triangle (a0, b0) (a1, b1) (a2, b2); 0, 0 when it has no area.
+void uv_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float s0, float s1, float s2,
+                 float out[2]) {
+  float d = (b2 - b1) * (a0 - a1) - (a2 - a1) * (b0 - b1);
+  if (zeroish(d)) {
+    out[0] = out[1] = 0.0f;
+    return;
+  }
+  d = 1.0f / d;
+  out[0] = -(((s2 - s1) * (b0 - b1) - (b2 - b1) * (s0 - s1)) * d);
+  out[1] = -(((a2 - a1) * (s0 - s1) - (s2 - s1) * (a0 - a1)) * d);
+}
+
+// Mech3.exe 1.2 @ 0x0053bdc0 ECX m, EDX polygon. A textured polygon of more
+// than 3 points gets its later UVs from the first three's gradient in the
+// plane its normal is most along (so the texture lies flat).
+void flatten_uvs(Model& m, int32_t index) {
+  Polygon& q = m.polygons[index];
+  const int32_t n = static_cast<int32_t>(q.flags & 0xff);
+  if (!((q.material->flags & 1)) || n <= 3) return;
+  float uv[2 * 0x40];
+  std::memcpy(uv, q.uvs, 8 * static_cast<size_t>(n));
+  auto P = [&](int32_t k) { return m.vertices + 3 * q.vertex_indices[k]; };
+  float normal[3];
+  zmth::poly_normal(P(0), P(1), P(2), normal);
+  normalize(normal);
+  const float ax = std::fabs(normal[0]), ay = std::fabs(normal[1]), az = std::fabs(normal[2]);
+  int a, b;  // the two axes the gradients run along
+  if (ax < ay || ax < az) {
+    if (ay < ax || ay < az) a = 0, b = 1;  // mostly z: x, y
+    else a = 2, b = 0;                     // mostly y: z, x
+  } else {
+    a = 1, b = 2;                          // mostly x: y, z
+  }
+  float gu[2], gv[2];
+  uv_gradient(P(0)[a], P(0)[b], P(1)[a], P(1)[b], P(2)[a], P(2)[b], uv[0], uv[2], uv[4], gu);
+  uv_gradient(P(0)[a], P(0)[b], P(1)[a], P(1)[b], P(2)[a], P(2)[b], uv[1], uv[3], uv[5], gv);
+  for (int32_t k = 3; k < n; ++k) {
+    const float da = P(k)[a] - P(0)[a], db = P(k)[b] - P(0)[b];
+    q.uvs[2 * k] = db * gu[1] + da * gu[0] + uv[0];
+    q.uvs[2 * k + 1] = db * gv[1] + da * gv[0] + uv[1];
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0053af50 ECX n, EDX uvs. Each UV to a 256th (rounded
+// down from half a step up), then shifted so the smallest u and v lie in
+// [0, 1).
+void snap_uvs(int32_t n, float* uv) {
+  for (int32_t i = 0; i < 2 * n; ++i) uv[i] = static_cast<float>(crt::msvc_ftol((uv[i] - -0.001953125f) * 256.0f)) * 0.00390625f;
+  float mu = uv[0], mv = uv[1];
+  for (int32_t i = 1; i < n; ++i) {
+    if (uv[2 * i] < mu) mu = uv[2 * i];
+    if (uv[2 * i + 1] < mv) mv = uv[2 * i + 1];
+  }
+  const float fu = static_cast<float>(std::floor(static_cast<double>(mu)));
+  const float fv = static_cast<float>(std::floor(static_cast<double>(mv)));
+  for (int32_t i = 0; i < n; ++i) uv[2 * i] = uv[2 * i] - fu, uv[2 * i + 1] = uv[2 * i + 1] - fv;
+}
+
+// Mech3.exe 1.2 @ 0x0053c500. The record's UVs (shifted near 0, then
+// flattened and snapped), colours (white without), scratch, material and
+// zone; the polygon counted.
+int fill_record(Model& m, int32_t n, const PolygonAdd& a) {
+  const int32_t index = count_at(m, 0x10);
+  Polygon& q = m.polygons[index];
+  if ((a.material->flags & 1)) {
+    q.uvs = static_cast<float*>(std::malloc(8 * static_cast<size_t>(n)));
+    std::memcpy(q.uvs, a.uvs, 8 * static_cast<size_t>(n));
+    float mu = q.uvs[0], mv = q.uvs[1];
+    for (int32_t i = 1; i < n; ++i) {
+      if (q.uvs[2 * i] < mu) mu = q.uvs[2 * i];
+      if (q.uvs[2 * i + 1] < mv) mv = q.uvs[2 * i + 1];
+    }
+    const double fu = std::floor(static_cast<double>(mu)), fv = std::floor(static_cast<double>(mv));
+    for (int32_t i = 0; i < n; ++i) {
+      q.uvs[2 * i] = q.uvs[2 * i] - static_cast<float>(fu);
+      q.uvs[2 * i + 1] = q.uvs[2 * i + 1] - static_cast<float>(fv);
+    }
+  }
+  q.colors = static_cast<float*>(std::malloc(12 * static_cast<size_t>(n)));
+  for (int32_t i = 0; i < 3 * n; ++i) q.colors[i] = a.colors ? a.colors[i] : 255.0f;
+  q.scratch = static_cast<uint32_t*>(std::malloc(4 * static_cast<size_t>(q.flags & 0xff)));
+  q.material = a.material;
+  flatten_uvs(m, index);
+  if ((a.material->flags & 1)) snap_uvs(n, q.uvs);
+  std::memcpy(&q.zone_set, a.zone, 4);
+  put_count(m, 0x10, index + 1);
+  return 0;
+}
+
+namespace {
+// Mech3.exe 1.2 @ 0x0053a930. A non-planar polygon as the fan of triangles
+// from its first point, each added on its own.
+void add_fan(Model& m, int32_t n, const PolygonAdd& a) {
+  const bool textured = (a.material->flags & 1);
+  for (int32_t k = 1; k + 1 < n; ++k) {
+    float pts[9], nrm[9], uv[6], mp[9], muv[6], col[9];
+    const int32_t at[3] = {0, k, k + 1};
+    for (int i = 0; i < 3; ++i) {
+      std::memcpy(pts + 3 * i, a.points + 3 * at[i], 12);
+      if (a.normals) std::memcpy(nrm + 3 * i, a.normals + 3 * at[i], 12);
+      if (textured) std::memcpy(uv + 2 * i, a.uvs + 2 * at[i], 8);
+      if (a.colors) std::memcpy(col + 3 * i, a.colors + 3 * at[i], 12);
+      if (a.morph) {
+        std::memcpy(mp + 3 * i, a.morph_points + 3 * at[i], 12);
+        if (textured) std::memcpy(muv + 2 * i, a.morph_uvs + 2 * at[i], 8);
+      }
+    }
+    PolygonAdd t = a;
+    t.points = pts, t.normals = a.normals ? nrm : nullptr, t.uvs = uv, t.morph_points = mp, t.morph_uvs = muv;
+    t.colors = a.colors ? col : nullptr;
+    model_add_polygon(&m, 3, t);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0053ac10. A polygon past the vertex limit as fans of at
+// most `piece` (capped at 4) points from its first point.
+void add_pieces(Model& m, int32_t n, const PolygonAdd& a, int32_t piece) {
+  const bool textured = (a.material->flags & 1);
+  if (piece > 4) piece = 4;
+  for (int32_t i = 1; i < n - 1; i += piece - 2) {
+    if (n + 1 < i + piece) piece = n - i + 1;
+    float pts[12], nrm[12], uv[8], mp[12], muv[8], col[12];
+    for (int32_t k = 0; k < piece; ++k) {
+      const int32_t at = k == 0 ? 0 : i + k - 1;
+      std::memcpy(pts + 3 * k, a.points + 3 * at, 12);
+      if (a.normals) std::memcpy(nrm + 3 * k, a.normals + 3 * at, 12);
+      if (textured) std::memcpy(uv + 2 * k, a.uvs + 2 * at, 8);
+      if (a.colors) std::memcpy(col + 3 * k, a.colors + 3 * at, 12);
+      if (a.morph) {
+        std::memcpy(mp + 3 * k, a.morph_points + 3 * at, 12);
+        if (textured) std::memcpy(muv + 2 * k, a.morph_uvs + 2 * at, 8);
+      }
+    }
+    if (piece < 3) zerr::report(0x400, kFile, 0xb42, format("Attempting to add polygon with only %d verts", piece).c_str());
+    PolygonAdd t = a;
+    t.points = pts, t.normals = a.normals ? nrm : nullptr, t.uvs = uv, t.morph_points = mp, t.morph_uvs = muv;
+    t.colors = a.colors ? col : nullptr;
+    model_add_polygon(&m, piece, t);
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0053c6c0. 0 added, 1 refused, 2 added in pieces. The
+// caller's points lose their colinear ones in place (the other arrays do
+// not follow, as in the exe).
+int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
+  if (n < 3) {
+    zerr::report(0x200, kFile, 0x11e7, format("ERROR: You're trying to add a Polygon with only (%d) verts", n).c_str());
+    return 1;
+  }
+  if (57.6 < n) {
+    zerr::report(0x200, kFile, 0x11f1, format("Poly vertex count approaching limit (%d / %d)", n, 0x40).c_str());
+    return 1;
+  }
+  int32_t k = n;
+  if (drop_colinear(&k, a.points) && k < 3) {
+    zerr::report(0x100, kFile, 0x120f,
+                 format("Discarding Polygon: (%d of %d) verts after 'check_colinearity()'", k, n).c_str());
+    return 1;
+  }
+  if (k > 3) {
+    const float* p = a.points;
+    float nx = 0.0f, ny = 0.0f, nz = 0.0f, sx = 0.0f, sy = 0.0f, sz = 0.0f;
+    for (int32_t i = 0; i < k; ++i) {
+      const float* c = p + 3 * i;
+      const float* q = p + 3 * ((i + 1) % k);
+      nx = (c[1] - q[1]) * (q[2] + c[2]) + nx;
+      ny = (c[2] - q[2]) * (q[0] + c[0]) + ny;
+      nz = (c[0] - q[0]) * (q[1] + c[1]) + nz;
+      sx = sx + c[0], sy = sy + c[1], sz = sz + c[2];
+    }
+    float len = 0.0f;
+    if (!zeroish(nx) || !zeroish(ny) || !zeroish(nz)) len = std::sqrt(nx * nx + ny * ny + nz * nz);
+    const float inv = zeroish(len) ? 0.0f : 1.0f / len;
+    const float ux = inv * nx, uy = inv * ny, uz = inv * nz;
+    const float nlen = static_cast<float>(k) * len;
+    const float dot = sx * nx + sy * ny + sz * nz;
+    const float d = -(dot / nlen);
+    for (int32_t i = 0; i < k; ++i) {
+      const float* c = p + 3 * i;
+      if (std::fabs(uz * c[2] + c[0] * ux + c[1] * uy + d) > kPlanar) {
+        zerr::report(0x100, kFile, 0x121c,
+                     format("Attempting to add non-planar polygon (%d verts), triangulating...", k).c_str());
+        add_fan(*m, k, a);
+        return 2;
+      }
+    }
+  }
+  if (k > kMaxVerts) {
+    add_pieces(*m, k, a, kMaxVerts);
+    return 2;
+  }
+  add_record(*m, k, a);
+  int full = 0;
+  std::string text;
+  if (kMaxModelVerts < count_at(*m, 0x14)) {
+    text = format("%s: Line %d: WARNING: Model vertex count = %d\n         Approaching max allowable: %d\n", kFile,
+                  0x1193, count_at(*m, 0x14), 0x400);
+    report_buffer(1, text);
+    full = 1;
+  }
+  if (kMaxModelVerts < count_at(*m, 0x18)) {
+    text += format("%s: Line %d: WARNING: Model normal count = %d\n         Approaching max allowable: %d\n", kFile,
+                   0x11a0, count_at(*m, 0x18), 0x400);
+    report_buffer(1, text);
+    full = 1;
+  }
+  if (full) return 1;
+  return fill_record(*m, k, a);
 }
 
 }  // namespace zmod

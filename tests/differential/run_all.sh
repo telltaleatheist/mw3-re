@@ -92,6 +92,7 @@ for t in \
     zgeo_model \
     weiler \
     convexify \
+    gmod_add \
     ai_gates \
     ai_frame \
     ai_vlist \

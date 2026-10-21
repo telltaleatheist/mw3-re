@@ -59,3 +59,11 @@ extern "C" int probe_ring(int np, const float* poly, int nr, float* region, uint
 
 // The plane 0x00515f10 of n points (4 floats).
 extern "C" void probe_plane(int n, const float* points, float* plane) { zgeo::plane_of(points, n, plane); }
+
+// face_up 0x00516190 on n points with `turn`: the result and the points.
+extern "C" int probe_face_up(float* points, int n, int turn, uint8_t* out, int cap) {
+  g_out.clear();
+  u32(static_cast<uint32_t>(zgeo::face_up(points, n, turn)));
+  floats(points, 3 * static_cast<size_t>(n));
+  return finish(out, cap);
+}
