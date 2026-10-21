@@ -59,6 +59,8 @@
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/app_view.h"
+#include "mech3/app_keys.h"
+#include "gamez/zinput/zinput.h"
 #include "mech3/player_view.h"
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
@@ -588,6 +590,7 @@ struct WiredMissionHooks : MissionHooks {
   // The cleanup's sounds (0x00491780): the queue stopped (0x00570410(1)),
   // every playing voice snapshotted, stopped and the snapshot freed
   // (0x0056eb10, 0x0056f0a0, 0x0056f190), as Core's leave does.
+  void fn_40db60() override { register_app_keys(); }  // the app's keys (playtest #5: X)
   void fn_570410() override { zsnd::stop_queue(1); }
   void fn_584fe0() override { zwep::kill_every_shot(); }  // 0x00584fe0: the live shots killed
   Handle sounds_bank() override { return e->sound_listener(); }
@@ -957,7 +960,11 @@ struct WiredMissionHooks : MissionHooks {
     ai::valves_tick(missions().time);
   }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
-  void bind_command(int32_t cmd, uint32_t handler) override { unported("0x0051d2f0", {cmd, handler}); }
+  // 0x0051d2f0 with 0x0048f440: Exit Mission (Ctrl+Q) and 0x72 to the missions' handler.
+  void bind_command(int32_t cmd, uint32_t handler) override {
+    if (handler != kMissionCommand) return (void)unported("0x0051d2f0", {cmd, handler});
+    zin::set_callback(cmd, [](int32_t c) { missions().on_command(c); });
+  }
   uint8_t app_network() override { return options().multiplayer; }
   int32_t invincible() override { return mech3::invincible(); }
   int32_t infinite_ammo() override { return mech3::infinite_ammo(); }
@@ -1004,6 +1011,18 @@ void wire_mission_hooks(GameEngine* e) {
   g_player_hooks.forget();  // a new engine numbers its handles afresh
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
+  AppKeyCalls& keys = app_key_calls();
+  keys = AppKeyCalls{};
+  if (e) {
+    keys.cycle_camera = [] {  // 0x0040aed0 on [0x005f4c8c]
+      if (PlayerView* v = program_view()) v->cycle_camera();
+    };
+    keys.message_toggle = [] {  // 0x0040f070
+      if (message_panel()) message_panel_toggle();
+    };
+    keys.vmode_cycle = [] { g_mission_engine->unported("0x004ab910", {}); };  // resolution.md step 3
+    keys.debug_7e = [] { g_mission_engine->unported("0x004abbc0", {}); };
+  }
   set_player_hooks(e ? &g_player_hooks : nullptr);
   g_brain_hooks.e = e;
   ai::set_brain_hooks(e ? &g_brain_hooks : nullptr);

@@ -94,6 +94,7 @@ struct LaunchedMech {
   float armor = 0;         // armor and structure left, summed over the parts (fractions)
   float heat = 0;          // +0x554
   int32_t group = -1;      // the manager's selected group (+0x28), -1 without one
+  const void* weapon = nullptr;  // that group's current weapon (+0x10)
   int32_t jets = 0;        // jump jets installed (equipment[11])
   int32_t jets_firing = 0; // +0x580
   bool crouched = false;   // +0x586
@@ -154,6 +155,7 @@ float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: the throttle target set and held, as a throttle key held to v would.
 bool mech_hold_throttle(void* mech, float v);
+float mech_throttle_target(void* mech);  // for the tests: the controls' +0x44, 0 without
 bool mech_powered_down(void* mech);              // vt+0xa0, 0x0041cc10
 ai::AiTarget* mech_ai_target(void* mech);        // the Mech's AiTarget base
 // 0x004b4ed0 on the mech's weapon manager (+0xd4): the ammo's value against

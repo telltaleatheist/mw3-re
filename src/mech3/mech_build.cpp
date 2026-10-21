@@ -533,6 +533,9 @@ void mech_control_mode(Mech& m, uint32_t mode) {
 bool MechBuildHooks::joy_present() { return zin::joy_present(); }
 int32_t MechBuildHooks::torso_auto_return() { return mech3::torso_auto_return(); }
 void MechBuildHooks::set_command_callback(int32_t cmd) { zin::set_callback(cmd, player_command); }
+void MechBuildHooks::controls_command(MechControls* c, int32_t cmd) {
+  if (c) static_cast<PlayerControls*>(c)->command(cmd);
+}
 
 // --- mech_data.cpp: the type's models ------------------------------------------
 

@@ -388,17 +388,59 @@ struct ProgramHudHooks : HudHooks {
 ProgramHudHooks g_hooks;
 }  // namespace
 
+namespace {
+// 0x00430aa0 on the pilot (+0x684): its HUD, made when first asked.
+Hud* hud_of(Mech& m) { return m.pilot ? pilot_hud(*m.pilot) : nullptr; }
+Hud* hud_of(Handle owner) { return owner ? hud_of(*static_cast<Mech*>(owner)) : nullptr; }
+}  // namespace
+
 void wire_hud() {
   set_hud_hooks(&g_hooks);
+  // The mech's, the weapons' and the damage's calls on the HUD (playtest #6:
+  // with no screen, Enter (0x27) and every HUD key found none): the screen,
+  // the weapons list's layout 0x00446240, refresh 0x00446520, the fire mark
+  // 0x004464c0 (+0x11438 = 1) and the weapon it highlights (+0x1795c).
+  heat_calls().screen = [](Mech& m) -> void* { return hud_of(m); };
+  command_calls().hud_weapon = [](void* s) -> void* { return static_cast<Hud*>(s)->weapons.next_weapon; };
+  update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
+  damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
+  WeaponCalls& wc = weapon_calls();
+  wc.screen = [](Handle o) { return hud_of(o) != nullptr; };
+  wc.hud_screen = [](Handle o) -> Handle { return hud_of(o); };
+  wc.hud_groups = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.layout(); };
+  wc.hud_weapons = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.refresh_all(); };
+  wc.hud_fire = [](Handle o) { if (Hud* h = hud_of(o)) h->weapons.shown = 1; };
+  wc.hud_highlight = [](Handle o) -> Weapon* {
+    Hud* h = hud_of(o);
+    return h ? static_cast<Weapon*>(h->weapons.next_weapon) : nullptr;
+  };
   update_calls().player_frame = [](Mech& m, float) { player_frame(m); };  // 0x0041ce60
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
   command_calls().other = [](Mech&, int32_t cmd) {
-    if (cmd == 0xa6 && message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key
+    if (cmd == 0xa6) {
+      if (message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key
+      return;
+    }
+    // The rest stay unported, recorded as the handler would (docs/keybindings.md).
+    const char* key = cmd >= 0x36 && cmd <= 0x38 ? "[0x00609980] vtable +0x60..+0x68"
+                      : cmd == 0x3e              ? "0x0041d070"
+                      : cmd == 0x69              ? "vtable +0xb8"
+                      : cmd == 0x73              ? "0x0047a910"
+                      : cmd == 0x76 || cmd == 0x77 ? "0x0041e4e0"
+                                                 : "mech command (other)";
+    if (command_calls().unported) command_calls().unported(key, cmd);
   };
 }
 
 void unwire_hud() {
   set_hud_hooks(nullptr);
+  heat_calls().screen = nullptr;
+  command_calls().hud_weapon = nullptr;
+  update_calls().hud_weapons = nullptr;
+  damage_calls().hud_weapons = nullptr;
+  WeaponCalls& wc = weapon_calls();
+  wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
+  wc.hud_fire = nullptr, wc.hud_highlight = nullptr;
   mech_radar_blips_destroy();
   update_calls().player_frame = nullptr;
   mech_hud_calls() = MechHudCalls{};

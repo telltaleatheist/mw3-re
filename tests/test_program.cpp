@@ -2243,6 +2243,197 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest #12 (docs/keybindings.md): in c1 mission 1, each command's default
+// key (0x00411150) pressed in turn, its modifiers first. A command fires when
+// its callback runs (the mech's 0x00426cb0, the app's 0x0040dba0, the
+// mission's 0x0048f440) or, with none, when zInput shows it held (the
+// movement keys the player's controls read). Ctrl+Q (Exit Mission) and
+// Alt+F4 end the run, so they are only checked bound. MW3_KEYS_OUT names a
+// file for the audit's table: command, key, callback, fired, what was
+// unported in the press.
+namespace {
+zin::CommandCallback g_key_cb[0x100];
+int g_key_ran[0x100];
+void key_count(int32_t cmd) {
+  ++g_key_ran[cmd & 0xff];
+  if (g_key_cb[cmd & 0xff]) g_key_cb[cmd & 0xff](cmd);
+}
+}  // namespace
+
+TEST(mission_c1m1_default_keys_fire_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_keys_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  struct Row {
+    int32_t cmd = 0;
+    uint32_t key = 0;
+    bool callback = false, pressed = false, held = false;
+    int ran = 0;
+    std::string unported;
+  };
+  std::vector<Row> rows;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    size_t next = 0;
+    int phase = 0;  // 0 press, 1 look, 2 release
+    std::map<std::string, uint32_t> before, idle;
+    std::set<std::string> noise;
+    int view_before = -1, view_after_x = -1;
+    mech3::LaunchedMech enter_before, enter_after;
+    float throttles[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    auto mods = [](uint32_t key, std::vector<uint32_t>* out) {
+      if (key & 0x100) out->push_back(0x38);  // Alt
+      if (key & 0x200) out->push_back(0x1d);  // Ctrl
+      if (key & 0x400) out->push_back(0x2a);  // Shift
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 10) {  // the mission is up: every command's bindings and callbacks
+        zin::CmdMap* m = zin::current_map();
+        for (int32_t c = 1; c < m->count && c < 0x100; ++c) {
+          const uint32_t k = static_cast<uint32_t>(zin::key_of(c));
+          Row r;
+          r.cmd = c, r.key = k, r.callback = m->callbacks[c] != nullptr;
+          if (r.callback) g_key_cb[c] = m->callbacks[c], m->callbacks[c] = key_count;
+          if (k || r.callback) rows.push_back(r);
+        }
+      }
+      if (frames == 14) idle = engine.unported_counts();
+      if (frames == 19)  // what is unported every frame anyway
+        for (const auto& [k, n] : engine.unported_counts())
+          if (!idle.count(k) || idle[k] != n) noise.insert(k);
+      if (frames < 20 || next >= rows.size()) return;
+      Row& r = rows[next];
+      std::vector<uint32_t> held;
+      mods(r.key, &held);
+      const uint32_t dik = r.key & 0xff;
+      if (!r.key || r.cmd == 0x71 || r.cmd == 1) {  // no key, or one that ends the run
+        ++next;
+        return;
+      }
+      if (phase == 0) {
+        before = engine.unported_counts();
+        if (r.cmd == 0x61) view_before = mech3::program_view_mode_id();
+        if (r.cmd == 0x27) mech3::describe_mech(mech3::mech_mission_player(), &enter_before);
+        for (uint32_t k : held) keys.key(k, true);
+        keys.key(dik, true);
+        r.pressed = true;
+        phase = 1;
+      } else if (phase == 1) {
+        r.held = zin::command(r.cmd) != 0;
+        keys.key(dik, false);
+        for (uint32_t k : held) keys.key(k, false);
+        phase = 2;
+      } else {
+        r.ran = g_key_ran[r.cmd];
+        if (r.cmd == 0x61) view_after_x = mech3::program_view_mode_id();
+        if (r.cmd == 0x27) mech3::describe_mech(mech3::mech_mission_player(), &enter_after);
+        if (r.cmd >= 0x1b && r.cmd <= 0x24) throttles[r.cmd - 0x1b] = mech3::mech_throttle_target(mech3::mech_mission_player());
+        for (const auto& [k, n] : engine.unported_counts()) {
+          auto it = before.find(k);
+          if ((it == before.end() || it->second != n) && !noise.count(k))
+            r.unported += (r.unported.empty() ? "" : " ") + k;
+        }
+        phase = 0;
+        ++next;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2000;
+    pump.stop = [&] { return frames > 20 && next >= rows.size(); };
+    app.run(pump);
+    std::string missing;
+    for (const Row& r : rows) {
+      if (!r.pressed) continue;
+      if (!(r.ran > 0 || r.held)) missing += (missing.empty() ? "" : " ") + std::to_string(r.cmd);
+    }
+    if (const char* out = std::getenv("MW3_KEYS_OUT")) {
+      if (FILE* f = std::fopen(out, "w")) {
+        char name[128];
+        for (const Row& r : rows) {
+          zin::command_name(r.cmd, name, sizeof name);
+          char kn[64];
+          zin::key_name(r.key, kn, sizeof kn);
+          std::fprintf(f, "%#x\t%s\t%s\t%d\t%d\t%d\t%d\t%s\n", r.cmd, name, r.key ? kn : "-", r.callback, r.pressed,
+                       r.ran, r.held, r.unported.c_str());
+        }
+        std::fclose(f);
+      }
+    }
+    if (!missing.empty()) std::fprintf(stderr, "keys that fired nothing: %s\n", missing.c_str());
+    EXPECT(rows.size() > 90);
+    bool exit_bound = false;  // Ctrl+Q: bound by the mission's start (0x0048f400), acts once it is over
+    for (const Row& r : rows) exit_bound |= r.cmd == 0x71 && r.callback;
+    EXPECT(exit_bound);
+    EXPECT(missing.empty());
+    EXPECT(view_before == 1 && view_after_x == 2);
+    // 1..0: the throttle (0x004274d0); 2 is 0.2 though labelled 10%.
+    const float want[10] = {0.0f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
+    for (int i = 0; i < 10; ++i) EXPECT(std::fabs(throttles[i] - want[i]) < 1e-6f);
+    // Enter: the weapon after the current one in the HUD's list, its group selected.
+    EXPECT(enter_before.weapon && enter_after.weapon && enter_after.weapon != enter_before.weapon);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "enter: group %d -> %d, weapon %p -> %p\n", enter_before.group, enter_after.group,
+                   enter_before.weapon, enter_after.weapon);  // in the cockpit (CameraMode 1); X: the zipper cam (0x0040aed0)
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (auto& cb : g_key_cb) cb = nullptr;
+  for (int& n : g_key_ran) n = 0;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
 // Playtest #9 (docs/playtest.md): c1 mission 1's player walking at full
 // throttle when the heat passes 1.5. "Shutting down" asks the mech to power
 // down (0x0041cc30), whose Stop (the controls' vt+0x4c, 0x00426c10) zeroes the
