@@ -47,6 +47,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | The fade's stills, 0x579500 / 0x55b1f0 / 0x517cc0 (the fade state 0x48f0b0) | A DirectDraw surface copied to an image; the image blitted back; the image freed | (A) DirectDraw | `GameEngine` (app_engine.cpp): a copy of the 16-bit buffer, copied back whole (game-loop.md, The fade state); the colour is the ported tint (render-frame.md) |
 | The HUD's timer, 0x43c390 | Seconds are the time less the minutes alone (`floor(t - 60 * minutes)`), the hours never taken off | (bug) past an hour the seconds run into the thousands: 3700 s shows 01:01:3640 | The hours taken off too, behind `zfix` bugs (hud.md section 14) |
 | The game options' invert box, ACCEPT 0x00438100 | MouseAccelY set to -1.3 checked, 1.3 not | (bug) the player's mouse sensitivity (the registry's MouseAccelY, any size) is lost each time the options are accepted | The size kept, only the sign set (a zero one takes 1.3); `mouse_y_accel` in options_menu, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the kept size (Owen 2026-10-20, Decided) |
+| TARGET's distance past 1 km, 0x00441850 | `"%.2fkm"` appended with no space or bracket ("Owens: Standard1.23km"), where under 1 km it reads " (500m)" | (bug) a cosmetic text slip | " (1.23km)", behind `zfix` bugs (Owen's cosmetic-slips rule, decided through the lead 2026-10-20); `test_hud.py` checks the exe's |
 | The credits' "Other Voices" line, read by 0x00429200 | `"offset" (20)`, one number, so the line keeps the name above's (30 0) | (bug) a typo in dlgCredits.zrd: the heading sits indented like a name with no gap | The one-number offset gets the headings' (20 20) (x 20 is the headings'; all 46 are (20 20)); `credit_line_offset`, behind `zfix` bugs; `test_menus.py` checks the exe's, `test_fixes.cpp` the fixed one |
 | The lead point, 0x41d940 (TARGET's lead circle) | Reads the selected group's current weapon (+0x10) through the group pointer, which is null with no group selected (+0x28 = -1) | (bug) a crash: a mech with a targeting computer whose groups are all gone, with a target on screen | No group, no lead point (hud.md section 14) |
 | A world point on the screen, 0x53cf10 (TARGET's tracking) | Behind the near plane the outcode is 8 ORed with the low bits of the input point's address (with the identity on the stack, an unset local) | (bug) the caller (TARGET's tracking 0x440b00) tests those bits, so which way the arrow goes for a target behind the zoom camera depends on where a buffer sits | 8 alone (hud.md section 14) |
@@ -345,7 +346,8 @@ To do, in the specialists' queues:
   fonts are consistent (headings (20 20), names (30 0)); a spelling pass
   over the message table (Mech3Msg.dll) is not done yet. The HUD's `hud_othererrow_*` images are misspelled
   but are names the code looks up, not text shown, so they stay; a credits
-  name has a trailing space, which does not show.
+  name has a trailing space, which does not show. Also done: TARGET's
+  distance past 1 km, " (1.23km)" (the table above).
 - Resolution: 16:9 as the shape either way (today's monitors); limit the
   size to 1920x1080 if larger sizes are a problem.
 

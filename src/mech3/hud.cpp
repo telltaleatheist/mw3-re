@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
+#include <string>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
@@ -788,6 +789,38 @@ HudMfd::HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool t) : Object2D(
   if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;  // 0x00441d90
 }
 
+// Mech3.exe 1.2 @ 0x004475c0: two bands (above 0.2, above 0) share the
+// fourth image; the fifth only at 0 or below.
+void HudDamagePart::set_level(float v) {
+  if (v == 1.0f) set_image(images->image[0]);
+  else if (v > 0.7f) set_image(images->image[1]);  // [0x005e3a20]
+  else if (v > 0.4f) set_image(images->image[2]);  // [0x005e3a24]
+  else if (v > 0.2f) set_image(images->image[3]);  // [0x005e3a28]
+  else if (v > 0.0f) set_image(images->image[3]);
+  else set_image(images->image[4]);
+}
+
+// Mech3.exe 1.2 @ 0x00447a50: head, the torso's right, left and centre,
+// the arms, the legs, into the parts in their order.
+void HudDamageView::update_levels() {
+  if (!mech) return;
+  HudHooks& h = *g_hooks;
+  static constexpr struct {
+    uint32_t part;
+    int32_t section;
+  } kFrom[8] = {{0x3a4, 0}, {0x39c, 1}, {0x39c, 2}, {0x39c, 0}, {0x394, 0}, {0x398, 0}, {0x38c, 0}, {0x390, 0}};
+  for (int i = 0; i < 8; ++i) parts[i].set_level(h.part_internal(mech, kFrom[i].part, kFrom[i].section));
+}
+
+// Mech3.exe 1.2 @ 0x004424b0
+void HudMfd::data_update(float) {
+  switch (shown_mode()) {
+    case 2: damage.update_levels(); break;
+    case 3: hud_hooks().nav_list_target(nav, hud ? static_cast<Hud*>(hud)->mech : nullptr); break;
+    default: break;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00447c00
 bool HudDamageView::set_mech(void* m) {
   mech = m;
@@ -883,6 +916,94 @@ void HudTarget::set_shown(bool on) {
   }
   x240c = 0.0f;
   update_texts(true);
+}
+
+namespace {
+// A text's two colours set, re-rendered only on a change.
+void text_colour(HudText& t, uint32_t c) {
+  if (t.color_top == c && t.color_bottom == c) return;
+  t.color_top = t.color_bottom = c;
+  t.needs_render = 1;
+}
+// CString::Format's %s of none.
+const char* or_null(const char* s) { return s ? s : "(null)"; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00441850 (from the HUD's data update): the second text
+// is "mech: loadout" (a network mech's only its mech, a vehicle its name), its
+// distance and the player's aimed part; the third the player's saved or ally
+// target's mech; the texts, the view's box and the silhouette's background
+// coloured by the target's side (hud.md section 16).
+void HudTarget::data_text() {
+  HudHooks& h = *g_hooks;
+  if (!h.target_valid(target)) {
+    hide();
+    update_texts(true);
+    return;
+  }
+  show_for(-1.0f);
+  update_texts(false);
+  void* c = h.slot_contact(target);
+  const float dist = h.contact_distance(c);
+  void* m = h.contact_mech(c);
+  std::string a;
+  char buf[128];
+  if (!m) {
+    const char* n = h.object_name(h.contact_vehicle(c));
+    a = n ? n : "";
+  } else if (!h.mech_remote(m)) {
+    const char* config = h.mech_config_name(m);
+    std::snprintf(buf, sizeof buf, "%s: %s", or_null(h.mech_display_name(h.mech_kind_of(m))), or_null(config));  // [0x005e4024]
+    a = buf;
+  } else {
+    const char* n = h.mech_display_name(h.mech_kind_of(m));
+    a = n ? n : "";
+  }
+  if (dist > 1000.0f) {  // [0x005c00ec]
+    // FIX (bug): " (1.23km)" as " (500m)" below; the exe runs "1.23km" straight on (fixes.md).
+    std::snprintf(buf, sizeof buf, zfix::options().bugs ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
+                  static_cast<double>(dist * 0.001f));  // [0x005c0120]
+  } else {
+    std::snprintf(buf, sizeof buf, " (%dm)", crt::msvc_ftol(std::ceil(static_cast<double>(dist))));  // [0x005e4014]
+  }
+  a += buf;
+  void* v = h.contact_vehicle(c);
+  Mech* me = static_cast<Hud*>(hud)->mech;
+  const int32_t part = h.mech_aim_part(me);
+  if (h.part_by_id(me, part)) {
+    std::snprintf(buf, sizeof buf, "[%s]", or_null(h.part_display_name(part)));  // [0x005e400c]
+    a += buf;
+  }
+  texts[1].set_text_plain(a.c_str());
+  void* sc = h.saved_or_ally(me);
+  void* sm = sc ? h.contact_mech(sc) : nullptr;
+  const char* sn = sm ? h.mech_object_name(sm) : nullptr;
+  const char* t2 = sn ? h.message_arg(0xdd4, sn) : nullptr;
+  texts[2].set_text_plain(t2 ? t2 : "");
+  zimg::Texture* bg;
+  if (!v) {
+    view->box.color = zvid::pack_bytes(0xc3, 0xad, 3);
+    bg = g_damage.bg[2];
+  } else if (h.object_team(v) & h.mech_allies(me)) {
+    view->box.color = zvid::pack_bytes(0, 0, 0xff);
+    text_colour(texts[0], 0xff0000);  // COLORREFs: blue
+    text_colour(texts[1], 0xff0000);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[0];
+  } else if (h.object_team(v) & h.mech_enemies(me)) {
+    view->box.color = zvid::pack_bytes(0xff, 0, 0);
+    text_colour(texts[0], 0xff);
+    text_colour(texts[1], 0xff);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[1];
+  } else {
+    view->box.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+    text_colour(texts[0], 0xff00);
+    text_colour(texts[1], 0xff);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[2];
+  }
+  damage.bg.set_image(bg);
 }
 
 // Mech3.exe 1.2 @ 0x00441660: with a live target, its mech into the damage
@@ -1827,7 +1948,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
     }
     if (len > 1000.0f) {  // [0x005c00ec]
       char buf[32];
-      std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(len) * 0.001f);  // [0x005e3ebc]
+      std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(len * 0.001f));  // [0x005e3ebc]
       text2.set_text_id(0x228, h.marker_name(e), buf);
     } else {
       text2.set_text_id(0x229, h.marker_name(e), crt::msvc_ftol(std::ceil(static_cast<double>(len))));
@@ -2376,7 +2497,7 @@ void HudTarget::track(float dt) {
     default: break;
   }
   const int32_t mode = shown_mode();
-  if (mode == 2) h.damage_view_target(&damage);
+  if (mode == 2) damage.update_levels();
   else if (mode == 3) h.nav_list_target(nav, h.contact_mech(h.slot_contact(target)));
 }
 
@@ -2462,9 +2583,9 @@ void Hud::data_update(float dt) {
     h.gauges_coolant(&gauges, h.mech_f(mech, 0x56c));
     const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
     h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
-    h.target_text(&target);
+    target.data_text();
     if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
-    h.mfd_update(&mfd, dt);
+    mfd.data_update(dt);
   }
   float t = h.mission_time(h.multiplayer_game() != 0);
   const bool negative = t < 0.0f;

@@ -339,6 +339,9 @@ the set-up reads: item 1a's test).
   so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
   the Mobile HQ, turrets) wait for those vehicles; until then their contacts
   show nothing.
+- TARGET's third text in the program: a mech's own name (vt+0xa4,
+  0x0041df30: the player's pilot's, else its brain's 0x004aee70) is not
+  ported, so it stays empty.
 
 ## 10. The aim (the reticle's world point)
 
@@ -770,3 +773,66 @@ mission_c1m1_hud_weapon_lines_and_lock_headless checks it in c1m1: the
 radar shown, no blip while the Owens is powered down (not in sight), its
 blip 150 m straight ahead once awake (8 px out of the wanted 7.5), and the
 triangle instead once targeted.
+
+## 16. The damage displays and TARGET's text
+
+**A part's image** (0x004475c0, `HudDamagePart::set_level`): five images
+per part (the silhouette sets, section 4), picked by the part's internal
+structure 0..1: exactly 1.0 the first (intact), above 0.7 the second, above
+0.4 the third, above 0 the fourth (the band above 0.2 and the one below it
+share it, as coded), 0 or less the fifth (destroyed). Armor plays no part.
+
+**The view's levels** (0x00447a50, `HudDamageView::update_levels`): with a
+mech, its parts' internal (Part vt+0x48, `get_internal`) into the eight
+images: the head (+0x3a4), the torso's sections 1, 2 and 0 (right, left,
+centre; +0x39c), the arms (+0x394, +0x398), the legs (+0x38c, +0x390). The
+player's view and a target's differ only in where each image sits (the
+target's mirrored, section 4's orders).
+
+**The MFD's data update** (0x004424b0, `HudMfd::data_update`, from the HUD's
+data update): mode 2 the damage view's levels, mode 3 the nav list given
+the HUD's mech (0x0047ef10, hooked). TARGET runs its view's levels from its
+tracking (section 14) while in mode 2.
+
+**TARGET's text** (0x00441850, `HudTarget::data_text`, from the HUD's data
+update). Without a live target: hidden, the texts cleared (0x00441660).
+Else shown, then:
+
+- The second text: for a mech "mech: loadout" (the mech's display name by
+  kind, 0x00484670: message 0xd82 + kind, and its loadout's name, the
+  Config +0x3ec's +0x18), a network mech
+  (vt+0x5c) its mech's name only, any other vehicle its own name (vt+0xa4);
+  then the distance, " (500m)" (metres rounded up) to 1000 m, "%.2fkm" past
+  it, run straight on with no space or bracket ("Owens: Standard1.23km", a
+  slip; the rebuild writes " (1.23km)" behind zfix bugs, fixes.md); then "[part]" when the player has a
+  part aimed at (+0xf8, 0x0041d510; its name 0x00484d70).
+- The third text: message 0xdd4 with the name of the mech the player's
+  saved or ally contact holds (0x004d7240), else empty.
+- By the target's side (its team +0xc0 against the player's allies +0xc4,
+  enemies +0xc8): the 3D view's box blue, red or the HUD green (none: a
+  yellow-brown 0xc3, 0xad, 3); the texts all blue for an ally; red, red, blue
+  for an enemy; green, red, blue otherwise; the silhouette's background the
+  blue, red or green one.
+
+Ported whole; the outside on HudHooks (the contact's distance and mech, the
+names, the aimed part, the ally contact, the message). Test: test_hud.py,
+the fake mechs with parts answering their internal and a vtable (network
+flag, name), a pilot, the names by kind and part, MFC's CString as a
+pointer to a copy of the text (untraced), the message's argument logged. 100
+seeds match. Breaking it: 13 of 14 caught in TARGET's text and 11 of 11
+in the damage displays; the miss (the box's colour for a target with no
+vehicle) is out of the test's reach, since the tracking reads the vehicle
+unchecked, so the test always answers one.
+
+In the program the damage views read the ported parts' get_internal, the
+names come from Mech3Msg.dll (a mech kind's message 0xd82 + kind; the
+parts' 0x194..0x19a, then literal names for the hands, calves, feet and
+hip), the loadout's name from the mech's Config, the aimed part from +0xf8
+and the weapons' part_by_id, the ally contact from the AI's saved_or_ally.
+A mech's own name (vt+0xa4 0x0041df30: the player's pilot's name, else the
+brain's 0x004aee70) is not ported: the third text stays empty (Left).
+mw3tests' mission_c1m1_player_aims_with_the_reticle_headless puts TARGET on
+the Owens in mode 2 and fires: the hits wear a torso section's internal to
+0.899 and its silhouette part changes image (at frame 89), the rest stay
+intact. Headless runs load no 2D images, so the test gives the silhouette
+set distinct stand-ins first.

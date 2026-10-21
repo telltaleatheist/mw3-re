@@ -39,6 +39,7 @@
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
+#include "mech3/hud.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -115,6 +116,7 @@ struct SavedMounts {
 void reset_process_state() {
   if (!zsnd::state().open) zsnd::state() = zsnd::State{};
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  mech3::damage_set() = mech3::DamageSet{};  // the HUD's silhouettes, loaded once a process (0x0043afc0)
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -1961,6 +1963,13 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
+    // The HUD's silhouettes as distinct stand-ins (headless runs load no 2D
+    // images), set before the HUD is made, so TARGET's picks can be told apart.
+    static zimg::Texture stand_in[8][5];
+    mech3::DamageSet& ds = mech3::damage_set();
+    for (int i = 0; i < 8; ++i)
+      for (int k = 0; k < 5; ++k) ds.parts[i].image[k] = &stand_in[i][k];
+    ds.loaded = true;
     mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
@@ -1974,6 +1983,9 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
       int locked = 0;
       bool pitching = false;
       mech3::LaunchedMech owens_at_lock;
+      bool targeted = false;  // TARGET on the Owens, showing its damage (hud.md section 16)
+      int damaged_at_start = -1, damaged_max = 0, damage_mode = 0, first_damaged = 0;
+      float lowest = 2.0f;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1998,6 +2010,7 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
         mech3::describe_mech(player, &seen.player_before);
       } else if (seen.frames == 6) {
         keys.key(fire, true);
+        seen.targeted = mech3::program_hud_target(owens, 2);
       } else if (seen.frames == 120) {
         // The first group (the machine guns) makes no heat: one that does.
         seen.hot_group = mech3::mech_select_hot_group(player);
@@ -2030,6 +2043,14 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
         if (ps.flying > seen.flying_max) seen.flying_max = ps.flying;
         mech3::LaunchedMech m;
         if (mech3::describe_mech(player, &m) && m.heat > seen.player_peak.heat) seen.player_peak = m;
+        mech3::HudReport hr;
+        if (mech3::program_hud_report(&hr)) {
+          if (seen.damaged_at_start < 0) seen.damaged_at_start = hr.target_damaged;
+          if (hr.target_damaged > seen.damaged_max) seen.damaged_max = hr.target_damaged;
+          if (hr.target_damaged > seen.damaged_at_start && !seen.first_damaged) seen.first_damaged = seen.frames;
+          seen.damage_mode = hr.target_mode;
+          seen.lowest = std::min(seen.lowest, hr.target_internal);
+        }
       } else if (seen.frames == 400) {
         keys.key(fire, false);
         mech3::describe_mech(owens, &seen.owens_after);
@@ -2046,6 +2067,10 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
     EXPECT(seen.locked > 0 && seen.locked < 300);               // its ray found the Owens
     EXPECT(seen.flying_max > 0);                                // shots in the air
     EXPECT(seen.owens_after.armor < seen.owens_at_lock.armor);  // hit there, by the reticle's aim alone
+    std::printf("  TARGET on the Owens %d (mode %d): parts showing damage %d at the start, up to %d (first at frame %d), lowest internal %.3f\n",
+                seen.targeted, seen.damage_mode, seen.damaged_at_start, seen.damaged_max, seen.first_damaged, seen.lowest);
+    EXPECT(seen.targeted && seen.damage_mode == 2);
+    EXPECT(seen.damaged_at_start == 0 && seen.damaged_max > 0);  // the silhouette follows the hits
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

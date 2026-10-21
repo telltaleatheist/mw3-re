@@ -24,9 +24,15 @@ struct HudReport {
   // report and the last one's place, the sensor range.
   int radar_shown = 0, radar_r = 0, radar_x = 0, radar_y = 0, blips = 0, blip_x = 0, blip_y = 0;
   int contacts = 0, on_radar = 0, vehicles = 0;  // the player's contacts, those on the radar, with a vehicle
+  // The damage displays: the parts not showing intact, TARGET's and the MFD's.
+  int target_damaged = 0, mfd_damaged = 0, target_mode = 0;
+  float target_internal = 1.0f;  // the lowest internal of TARGET's mech's parts (2: no mech)
   float sensor_range = 0.0f;
 };
 bool program_hud_report(HudReport* r);
+// Tests only: the player's target set to its contact on `mech` (TARGET given
+// it, as the targeting keys would) and TARGET's mode set; false without one.
+bool program_hud_target(void* mech, int mode);
 // Tests only: the first group that locks selected and the player's target
 // set to its contact on `mech`; the group, -1 for none.
 int program_hud_lock_on(void* mech, bool* target_set);

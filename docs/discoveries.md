@@ -2009,3 +2009,19 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   sight get a blip, and a shut-down mech is not in sight, so an ambush of
   sleeping mechs (like the Owens at the start of the first mission) shows
   nothing until they power up.
+- **The damage display shows only internal structure, not armor:** a part
+  keeps its undamaged picture until its internal structure is touched at
+  all (exactly 100%), then steps down above 70%, above 40%, and once more
+  above 0% (the 0-20% band looks the same as 20-40%); it shows destroyed
+  only at 0. Armor hits never change the silhouette.
+- **TARGET names a mech and its loadout** ("Mad Cat: <loadout>"; a
+  network player's mech shows its type only) and its distance: "(500m)" up to
+  1 km, but past 1 km the kilometres run straight on after the name with
+  no space ("...1.23km"), a slip in the game's text. The rebuild writes
+  " (1.23km)".
+- **TARGET shows the part you aim at** in brackets ("[Left Arm]") after the
+  distance, and its third line names what your saved or ally target is.
+- **TARGET's colours tell the side:** all blue for an ally; the name red
+  for an enemy; the first line green for anyone else; the silhouette's
+  background and the target view's frame follow (a target with no vehicle
+  gets a yellow-brown frame).

@@ -667,6 +667,39 @@ TEST(fix_credits_other_voices_offset) {
   zfix::options().bugs = true;
 }
 
+// TARGET's distance past 1 km (0x00441850): the exe runs "1.50km" straight
+// on after the name; fixed, " (1.50km)" as " (500m)" under it.
+TEST(fix_target_distance_km_spaced) {
+  struct Far : mech3::HudHooks {
+    int turret = 0;
+    bool ready = false;  // no target while the HUD is built
+    bool target_valid(void*) override { return ready; }
+    void* slot_contact(void*) override { return &turret; }
+    float contact_distance(void*) override { return 1500.0f; }
+    void* contact_mech(void*) override { return nullptr; }
+    void* contact_vehicle(void*) override { return &turret; }
+    const char* object_name(void*) override { return "Turret"; }
+  } hooks;
+  mech3::set_hud_hooks(&hooks);
+  void* storage = ::operator new(sizeof(mech3::Hud));
+  std::memset(storage, 0, sizeof(mech3::Hud));
+  auto* hud = new (storage) mech3::Hud(nullptr);
+  hud->mech = reinterpret_cast<mech3::Mech*>(&hooks);  // only passed back to the hooks
+  hud->target.hud = hud;
+  hooks.ready = true;
+  zfix::options().bugs = true;
+  hud->target.data_text();
+  EXPECT(std::strcmp(hud->target.texts[1].text, "Turret (1.50km)") == 0);
+  zfix::options().bugs = false;
+  hud->target.data_text();
+  EXPECT(std::strcmp(hud->target.texts[1].text, "Turret1.50km") == 0);
+  zfix::options().bugs = true;
+  hud->mech = nullptr;
+  hud->~Hud();
+  ::operator delete(storage);
+  mech3::set_hud_hooks(nullptr);
+}
+
 TEST(fix_hud_timer_past_an_hour) {
   struct Clock : mech3::HudHooks {
     float mission_time(bool) override { return 3700.25f; }

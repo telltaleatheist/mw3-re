@@ -104,6 +104,31 @@ struct Hooks : mech3::HudHooks {
     g_lock_shown = on;
     call("poke8", {id(wm) + 0x88, on ? 1u : 0u});
   }
+  // A C string in the emulator's memory (none at 0), kept for the run.
+  const char* estr(uint32_t a) {
+    if (!a) return nullptr;
+    std::string n;
+    for (uint32_t i = 0; i < 64; ++i) {
+      const char c = static_cast<char>(call("peek8", {a + i}));
+      if (!c) break;
+      n += c;
+    }
+    g_strings.push_back(n);
+    return g_strings.back().c_str();
+  }
+  // TARGET's text (0x00441850), as test_hud.py answers it.
+  const char* mech_object_name(void* m) override { return estr(call("cmech.vt+0xa4", {id(m)})); }
+  const char* mech_config_name(void* m) override {
+    return estr(call("peek32", {call("peek32", {id(m) + 0x3ec}) + 0x18}));
+  }
+  const char* mech_display_name(int32_t kind) override { return estr(call("0x00484670", {kind})); }
+  const char* part_display_name(int32_t part) override { return estr(call("0x00484d70", {part})); }
+  const char* message_arg(int32_t msg, const char* arg) override {
+    call("0x00575fd0", {0x40u, msg});
+    for (const char* q = arg; *q; ++q) call("0x00575fd0.ch", {static_cast<uint8_t>(*q)});
+    g_strings.push_back("msg" + std::to_string(msg) + ":" + arg);
+    return g_strings.back().c_str();
+  }
   const char* object_name(void* o) override {  // obj.vt+0xa4: a C string in the emulator, or none
     const uint32_t a = call("obj.vt+0xa4", {id(o)});
     if (!a) return nullptr;

@@ -342,6 +342,7 @@ class HudMfdView : public HudZoomView {
 class HudDamagePart : public ztwod::FlashImage {
  public:
   HudDamagePart(DamageImages* images, int32_t px, int32_t py);  // 0x00447460
+  void set_level(float internal);    // 0x004475c0: the image by the part's internal 0..1
   DamageImages* images = nullptr;    // +0xd8
 };
 
@@ -358,6 +359,7 @@ class HudDamageView : public ztwod::Object2D {
   void* mech = nullptr;              // +0x7d0 (not set by the constructor)
   ztwod::Rect rect{};                // +0x7d4 the background's
   bool set_mech(void* m);            // 0x00447c00: shown with one
+  void update_levels();              // 0x00447a50: each part's image from the mech's parts
   void move(int32_t px, int32_t py);  // 0x004479a0
 };
 
@@ -373,6 +375,7 @@ class HudMfd : public ztwod::Object2D {
   void update(float dt) override;    // +0x24  0x00442540: by the mode, then the title
   virtual int32_t shown_mode() { return mode; }  // +0x80  0x004487d0: 1 the 3D view, 2 the damage, 3 the nav list
   void update_mode(float dt);        // the shared middle of 0x00442540 and 0x00441490
+  void data_update(float dt);        // 0x004424b0: the damage view's levels (mode 2) or the nav list's mech (3)
   // 0x004425d0: the shown piece's rect by the mode (asked again): 1 the 3D
   // view's, 2 the damage view's (0x00447bf0), 3 the nav list's (+0x1c84 of
   // it, hooked); else none.
@@ -397,6 +400,7 @@ class HudTarget : public HudMfd {
   void set_target(void* t);          // 0x00441800: shown with a live target
   void set_shown(bool on);           // 0x00441780: a new target's pulse, the reticle reset
   void update_texts(bool clear);     // 0x00441660: the damage view's mech, the mode, the nav list, the name
+  void data_text();                  // 0x00441850: the name, distance, aimed part, the ally's target; colours by side
   bool over(int32_t px, int32_t py); // 0x00440a30: a NARCed target, or the point on the shape or the circle
   void place(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x00440110 (TARGET in hud.zrd)
   void attach(void* hud);            // 0x00441760
@@ -690,8 +694,43 @@ class HudHooks : public zgame::Unported {
   virtual void camera_set_angles(uint32_t cam, const float a[3]) {
     unported("0x004f36b0", {cam, zgame::bits(a[0]), zgame::bits(a[1]), zgame::bits(a[2])});
   }
-  virtual void damage_view_target(void* view) { unported("0x00447a50", {id(view)}); }
   virtual void nav_list_target(uint32_t nav, void* mech) { unported("0x0047ef10", {nav, id(mech)}); }
+  // TARGET's text (0x00441850): a mech's network flag (vt+0x5c), name
+  // (vt+0xa4), loadout's name (its Config +0x3ec, +0x18) and display name by kind
+  // (0x00484670); the player's aimed part (+0xf8, 0x0041d510 on the mech,
+  // its name 0x00484d70); its saved or ally contact (0x004d7240); message
+  // 0xdd4 with a name (0x00575fd0).
+  virtual bool mech_remote(void* m) { return unported("cmech.vt+0x5c", {id(m)}) != 0; }
+  virtual const char* mech_object_name(void* m) {
+    unported("cmech.vt+0xa4", {id(m)});
+    return nullptr;
+  }
+  virtual const char* mech_config_name(void* m) {
+    unported("peek32", {unported("peek32", {id(m) + 0x3ec}) + 0x18});
+    return nullptr;
+  }
+  virtual const char* mech_display_name(int32_t kind) {
+    unported("0x00484670", {static_cast<uint32_t>(kind)});
+    return nullptr;
+  }
+  virtual int32_t mech_aim_part(Mech* m) { return static_cast<int32_t>(unported("peek32", {id(m) + 0xf8})); }
+  virtual bool part_by_id(Mech* m, int32_t part) { return unported("0x0041d510", {id(m), static_cast<uint32_t>(part)}) != 0; }
+  virtual const char* part_display_name(int32_t part) {
+    unported("0x00484d70", {static_cast<uint32_t>(part)});
+    return nullptr;
+  }
+  virtual void* saved_or_ally(Mech* m) { return ptr(unported("0x004d7240", {id(m)})); }
+  virtual const char* message_arg(int32_t msg, const char* arg) {
+    unported("0x00575fd0", {static_cast<uint32_t>(msg)});
+    (void)arg;
+    return nullptr;
+  }
+  // The damage view's (0x00447a50): a mech's part (+0x38c legs, +0x394 arms,
+  // +0x39c torso, +0x3a4 head) and its internal 0..1 by section (vt+0x48,
+  // Part::get_internal).
+  virtual float part_internal(void* mech, uint32_t part, int32_t section) {
+    return zgame::from_bits(unported("part.vt+0x48", {unported("peek32", {id(mech) + part}), static_cast<uint32_t>(section)}));
+  }
   // The HUD's data update's outside (0x0043c390): the mech's controls'
   // throttle and its target (IControls vt+0x1c, vt+0x2c on +0x37c), its
   // forward (+0x24), the radar's positions (0x0041cdf0, or with the radar
@@ -722,9 +761,7 @@ class HudHooks : public zgame::Unported {
   virtual void gauges_jump(void* g, bool jets, float fuel) {
     unported("0x00445520", {id(g), jets ? 1u : 0u, zgame::bits(fuel)});
   }
-  virtual void target_text(void* target) { unported("0x00441850", {id(target)}); }
   virtual void equipment_update(void* e, float dt) { unported("0x00448320", {id(e), zgame::bits(dt)}); }
-  virtual void mfd_update(void* mfd, float dt) { unported("0x004424b0", {id(mfd), zgame::bits(dt)}); }
   virtual void objectives_update(void* o, float dt) { unported("0x00446900", {id(o), zgame::bits(dt)}); }
   virtual void network_data(int32_t active, float dt) {
     if (unported("peek32", {0x609980})) unported("0x00479ef0", {static_cast<uint32_t>(active), zgame::bits(dt)});

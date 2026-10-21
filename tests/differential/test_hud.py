@@ -236,7 +236,7 @@ class Original:
         w.answers['0x00576040'] = lambda rr, n, a: titles.get(a[0], 0)
         e.stub(0x4f34c0, spec='c,d')
         e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
-        e.w32(0x60598c, r.choice([0, 0, 1, 2, 3]))
+        e.w32(0x60598c, r.choice([0, 1, 2, 2, 3]))  # TARGET's (2: its damage view)
         # The player view: its camera node, the node's data, the field of view.
         p_cam, node, data = e.world_alloc(8), e.world_alloc(0x40), e.world_alloc(0x100)
         e.w32(0x5f4c8c, p_cam)
@@ -324,18 +324,83 @@ class Original:
         e.stub(0x4b1bd0, '0x004b1bd0', 'c', None, fret)
         e.stub(0x4e7030, '0x004e7030', 'c', None, fret)
         w.answers['0x004b1bd0'] = lambda rr, n, a: f32(rr.choice([0.0, 60.0, 250.0, 900.0, 900.0, 900.0]))
-        w.answers['0x004e7030'] = lambda rr, n, a: f32(rr.choice([10.0, 200.0, 700.0]))
+        w.answers['0x004e7030'] = lambda rr, n, a: f32(rr.choice([10.0, 200.0, 700.0, 999.6, 1000.0, 1500.0, 2345.6]))
         for a_, spec in ((0x4b1c70, 'c'), (0x4b1cd0, 'c'), (0x4e6ff0, 'c'), (0x41e800, 'c'), (0x41e770, 'c')):
             e.stub(a_, spec=spec)
         mechs = []
+        self.target_mech = 0
+        # TARGET's text (0x00441850): a mech's network flag and name, its
+        # pilot, the names by kind and part, the player's saved or ally contact.
+        cvt = e.world_alloc(0x100)
+        e.w32(cvt + 0x5c, e.new_stub('cmech.vt+0x5c', 'c', 0))
+        e.w32(cvt + 0xa4, e.new_stub('cmech.vt+0xa4', 'c', 0))
+        cnames = [e.world_string(x) for x in ('Owens', 'Mad Cat', 'notmech', 'Left Arm', 'Kerensky')]
+        w.answers['cmech.vt+0x5c'] = lambda rr, n, a: rr.choice([0, 0, 1])
+        w.answers['cmech.vt+0xa4'] = lambda rr, n, a: rr.choice([cnames[0], cnames[4], 0])
+        for a_, spec in ((0x484670, 'c'), (0x484d70, 'c'), (0x41d510, 'c,s0'), (0x4d7240, 'c')):
+            e.stub(a_, spec=spec)
+        w.answers['0x00484670'] = lambda rr, n, a: rr.choice(cnames[:3])
+        w.answers['0x00484d70'] = cnames[3]
+        w.answers['0x0041d510'] = lambda rr, n, a: rr.choice([0, 1])
+        ally_c = e.world_alloc(0x40)  # its mech from 0x004e6ff0, as any contact's
+        w.answers['0x004d7240'] = lambda rr, n, a: rr.choice([0, ally_c, ally_c])
+
+        def msg_arg(emu, key, a, pop):  # 0x00575fd0: the message with one name, "msg<id>:<name>"
+            buf, size, mid, arg = a
+            name = emu.cstr(arg)
+            t.handle(key, (size, mid))
+            for ch in name.encode('latin1'):
+                t.handle(key + '.ch', (ch,))
+            emu.cpu.write(buf, f'msg{mid}:{name}'.encode('latin1') + b'\0')
+            emu._ret(1, pop)
+        e.stub(0x575fd0, '0x00575fd0', 's0,s1,s2,s3', None, msg_arg)
+        # MFC's CString (0x00441850's texts), untraced: a pointer to a copy of the text.
+        def cs_new(text):
+            b = e.world_alloc(0x100)
+            e.cpu.write(b, text.encode('latin1')[:0xff] + b'\0')
+            return b
+
+        def cs_text(emu, cs):
+            return emu.cstr(emu.r32(cs))
+
+        def cs_format(emu, key, a, pop):  # cdecl (this, format, ...): %s (none: "(null)") and %d
+            esp = emu.uc.reg_read(UC_X86_REG_ESP)
+            cs, fmt = emu.r32(esp + 4), emu.cstr(emu.r32(esp + 8))
+            out, i, k = '', 0, 0
+            while i < len(fmt):
+                if fmt[i] == '%' and i + 1 < len(fmt):
+                    v = emu.r32(esp + 12 + 4 * k)
+                    k += 1
+                    out += (emu.cstr(v) if v else '(null)') if fmt[i + 1] == 's' else str(struct.unpack('<i', struct.pack('<I', v))[0])
+                    i += 2
+                else:
+                    out += fmt[i]
+                    i += 1
+            emu.w32(cs, cs_new(out))
+            emu._ret(0, 0)
+        empty = cs_new('')
+        e.stub(0x5abdb0, 'cs.ctor', 'c', 0, lambda emu, key, a, pop: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
+        e.stub(0x5abda4, 'cs.dtor', 'c', 0, lambda emu, key, a, pop: emu._ret(0, 0))
+        e.stub(0x5abdaa, 'cs.format', '', 0, cs_format)
+        e.stub(0x5abdbc, 'cs.set', 'c,s0', 4,
+               lambda emu, key, a, pop: (emu.w32(a[0], cs_new(emu.cstr(a[1]))), emu._ret(a[0], 4)))
+        e.stub(0x5abe4c, 'cs.add', 'c,s0', 4,
+               lambda emu, key, a, pop: (emu.w32(a[0], cs_new(cs_text(emu, a[0]) + cs_text(emu, a[1]))), emu._ret(a[0], 4)))
         for _ in range(2):
             m = e.world_alloc(0x600)
+            e.w32(m, cvt)
+            pilot = e.world_alloc(0x20)
+            e.w32(pilot + 0x18, r.choice([cnames[4], cnames[0]]))
+            e.w32(m + 0x3ec, pilot)
+            self.give_parts(m)
             e.cpu.write(m + 0x570, struct.pack('<f', r.choice([0.0, 0.0, 12.0])))  # the NARC timer (0x00440a30)
             kind = e.world_alloc(0x20)
             e.w32(kind + 0xc, r.choice([7, 2, 1, 1]))
             e.w32(m + 0x684, kind)
             e.w32(m + 0x3cc, r.choice([0, 0, 2]))
             mechs.append(m)
+            self.target_mech = self.target_mech or m
+        self.cmechs = mechs
         w.answers['0x004b1c70'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         w.answers['0x004b1cd0'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         contact_mechs = {}  # one answer per contact for the run (the original asks twice in a row)
@@ -439,7 +504,7 @@ class Original:
         self.radar_contacts = [contact]
         w.answers['0x004e6fe0'] = lambda rr, n, a: obj if a[0] in self.radar_contacts or rr.random() < 0.8 else 0
         w.answers['obj.vt+0xa8'] = lambda rr, n, a: rr.choice([0, 0, 1])
-        w.answers['obj.vt+0x50'] = lambda rr, n, a: rr.choice([0, 0x2c000000])
+        w.answers['obj.vt+0x50'] = lambda rr, n, a: rr.choice([0, self.target_mech, self.target_mech])  # TARGET's damage view reads its parts
         # The lead point (0x0041d940, op 19): a second mech with a contact in
         # its +0x6c, the first's weapon manager, an aim point or none;
         # positions and velocities as pointers to vectors.
@@ -560,7 +625,7 @@ class Original:
         e.cpu.write(centre, struct.pack('<3f', *(r.uniform(-400, 400) for _ in range(3))))
         w.answers['obj.vt+0x28'] = team
         w.answers['obj.vt+0xbc'] = centre
-        for a_, spec in ((0x4f3870, 'c,s0,s1,s2'), (0x4f36b0, 'c,s0,s1,s2'), (0x4ed280, 'c,d'), (0x447a50, 'c'),
+        for a_, spec in ((0x4f3870, 'c,s0,s1,s2'), (0x4f36b0, 'c,s0,s1,s2'), (0x4ed280, 'c,d'),
                          (0x47ef10, 'c,s0')):
             e.stub(a_, spec=spec)
         fbuf = e.world_alloc(8)
@@ -647,7 +712,7 @@ class Original:
             emu._ret(0, pop)
         e.stub(0x445520, '0x00445520', 'c,s0,s1', None, jump)
         for a2, spec in ((0x4453a0, 'c,s0'), (0x445450, 'c,s0'), (0x4455e0, 'c,s0,s1'), (0x4456f0, 'c,s0'),
-                         (0x441850, 'c'), (0x448320, 'c,s0'), (0x4424b0, 'c,s0'), (0x446900, 'c,s0'),
+                         (0x448320, 'c,s0'), (0x446900, 'c,s0'),
                          (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
             e.stub(a2, spec=spec)
 
@@ -926,6 +991,27 @@ class Original:
         vals += [e.r32(z + 0x50 + 4 * i) for i in range(4)] + [e.r32(z + 0x14), e.r32(z + 0x18)]
         return 'aim ' + ' '.join(f'{v:x}' for v in vals) + ' '
 
+    def give_parts(self, m):
+        """The parts the damage view reads (0x00447a50): legs +0x38c, arms
+        +0x394, torso +0x39c, head +0x3a4 (+0x3a0 the hip), each answering its
+        internal by section (vt+0x48, a float on the x87)."""
+        e, w, t = self.e, self.w, self.t
+        if not hasattr(self, 'part_vt'):
+            pbuf = e.world_alloc(8)
+            pthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', pbuf) + b'\xc2\x04\x00')  # fld; ret 4
+
+            def pret(emu, key, a, pop):
+                emu.w32(pbuf, t.handle(key, tuple(a)))
+                emu._ret(0, pop, then=pthunk)
+            self.part_vt = e.world_alloc(0x60)
+            e.w32(self.part_vt + 0x48, e.new_stub('part.vt+0x48', 'c,s0', 4, pret))
+            w.answers['part.vt+0x48'] = lambda rr, n, a: f32(rr.choice(
+                [1.0, 1.0, 0.99, 0.75, 0.7, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, -0.25]))
+        for off in range(0x38c, 0x3a8, 4):
+            part = e.world_alloc(0x40)
+            e.w32(part, self.part_vt)
+            e.w32(m + off, part)
+
     def fake_mech(self, r):
         """The fields the set-up reads: vt+0xa0, +0x6c (empty), +0xbc, the
         weapon manager's count, the parts' equipment counts."""
@@ -947,6 +1033,7 @@ class Original:
             e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
         self.weapon_owner = m
         self.weapon_groups(wm)
+        self.give_parts(m)
         return m
 
     def weapon_groups(self, wm):

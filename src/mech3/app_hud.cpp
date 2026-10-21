@@ -1,7 +1,9 @@
 #include "mech3/app_hud.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_data.h"
@@ -14,6 +16,9 @@
 #include "gamez/ztwod/twod.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zutil/zutl_msg.h"
+#include "gamez/zutil/zutl_msgdll.h"
+#include "mech3/mech_config.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
@@ -238,6 +243,52 @@ struct ProgramHudHooks : HudHooks {
     return true;
   }
   int32_t mine_count() override { return 0; }
+  // The damage displays and TARGET's text (hud.md section 16) on the ported
+  // parts, configurations and Mech3Msg.dll's messages.
+  float part_internal(void* mech, uint32_t part, int32_t section) override {
+    Mech* m = mech_of(mech);
+    const MechPart* p = part == 0x38c ? static_cast<MechPart*>(m->legs[0])
+                        : part == 0x390 ? static_cast<MechPart*>(m->legs[1])
+                        : part == 0x394 ? static_cast<MechPart*>(m->arms[0])
+                        : part == 0x398 ? static_cast<MechPart*>(m->arms[1])
+                        : part == 0x39c ? static_cast<MechPart*>(m->torso)
+                                        : static_cast<MechPart*>(m->head);
+    return p ? p->get_internal(section) : 1.0f;
+  }
+  const char* message(int32_t id) override {  // 0x00576040
+    const zutl::Messages& ms = zutl::messages();
+    const char* t = ms.get_text ? ms.get_text(id) : nullptr;
+    return t ? t : "";
+  }
+  bool mech_remote(void* m) override { return mech_of(m)->remote; }
+  // vt+0xa4 (0x0041df30): the player's pilot's name, else the brain's
+  // (0x004aee70, not ported): none here (hud.md, Left).
+  const char* mech_object_name(void*) override { return nullptr; }
+  const char* mech_config_name(void* m) override {
+    const Config* c = mech_of(m)->config;
+    return c ? c->name : nullptr;
+  }
+  const char* mech_display_name(int32_t kind) override {  // 0x00484670
+    return kind >= 0 && kind < 19 ? message(0xd82 + kind) : "notmech";
+  }
+  int32_t mech_aim_part(Mech* m) override { return m->xf8; }
+  bool part_by_id(Mech* m, int32_t part) override {  // 0x0041d510
+    return weapon_calls().part_by_id && weapon_calls().part_by_id(m, part) != nullptr;
+  }
+  const char* part_display_name(int32_t part) override {  // 0x00484d70
+    static constexpr int32_t kMsg[9] = {0, 0x194, 0x197, 0x198, 0x199, 0x19a, 0x193, 0x196, 0x195};
+    static const char* const kNames[7] = {"Left Hand", "Right Hand", "Left Calf", "Right Calf", "Left Foot",
+                                          "Right Foot", "Hip"};
+    if (part >= 1 && part <= 8) return message(kMsg[part]);
+    if (part >= 9 && part <= 15) return kNames[part - 9];
+    return "none";
+  }
+  void* saved_or_ally(Mech* m) override { return m->saved_or_ally(); }
+  const char* message_arg(int32_t msg, const char* arg) override {  // 0x00575fd0
+    formatted = zutl::format_message(msg, arg);
+    return formatted.c_str();
+  }
+  std::string formatted;
   // 0x0040e920 (a node's game object) is not ported: the aim's node gives
   // none, and its +0xbc none either (hud.md section 12, Left).
   void* node_object(void*) override { return nullptr; }
@@ -328,6 +379,15 @@ bool program_hud_report(HudReport* r) {
   r->blips = g_hooks.blips, r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
   g_hooks.blips = 0;
   r->sensor_range = m->sensor_range;
+  for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
+  for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];
+  r->target_mode = h->target.shown_mode();
+  r->target_internal = 2.0f;
+  if (Mech* t = static_cast<Mech*>(h->target.damage.mech))
+    for (uint32_t part : {0x38cu, 0x390u, 0x394u, 0x398u, 0x3a4u})
+      r->target_internal = std::min(r->target_internal, g_hooks.part_internal(t, part, 0));
+  if (Mech* t = static_cast<Mech*>(h->target.damage.mech))
+    for (int sec = 0; sec < 3; ++sec) r->target_internal = std::min(r->target_internal, g_hooks.part_internal(t, 0x39c, sec));
   for (ai::Contact* c : m->contacts) {
     ++r->contacts;
     r->on_radar += c->flags & 1;
@@ -365,6 +425,21 @@ int program_hud_lock_on(void* mech, bool* target_set) {
     program_hud_target_set(m);
   }
   return found;
+}
+
+bool program_hud_target(void* mech, int mode) {
+  Mech* m = static_cast<Mech*>(program_view_target());
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  if (!h) return false;
+  for (ai::Contact* c : m->contacts)
+    if (collide_calls().contact_mech && collide_calls().contact_mech(c) == mech) {
+      m->target = c;
+      h->target.set_target(&m->target);
+      program_hud_target_set(m);
+      h->target.set_mode(mode);
+      return true;
+    }
+  return false;
 }
 
 // Mech3.exe 1.2 @ 0x0041cd90: the view target's HUD, its Direct3D pass.
