@@ -11,6 +11,7 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_init.h"
@@ -453,6 +454,12 @@ void wire_hud() {
   part_calls().screen_flags = [](void* s) { return static_cast<Hud*>(s)->reticle.zoom.flags; };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
+  // A hit on the player's head (playtest #19): the cockpit's explosion run on
+  // the cockpit, a crack or a ding shown (0x00460bff, docs/cockpit-damage.md).
+  damage_calls().head_hit_hud = [](Handle explosion, Handle cockpit) {
+    zeff::anim_start_connector(static_cast<zeff::AnimDef*>(explosion), static_cast<zcls::Node*>(cockpit), nullptr,
+                               nullptr, nullptr);
+  };
   WeaponCalls& wc = weapon_calls();
   wc.screen = [](Handle o) { return hud_of(o) != nullptr; };
   wc.hud_screen = [](Handle o) -> Handle { return hud_of(o); };
@@ -495,6 +502,7 @@ void unwire_hud() {
   part_calls().screen_flags = nullptr;
   update_calls().hud_weapons = nullptr;
   damage_calls().hud_weapons = nullptr;
+  damage_calls().head_hit_hud = nullptr;
   WeaponCalls& wc = weapon_calls();
   wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
   wc.hud_fire = nullptr, wc.hud_highlight = nullptr;

@@ -48,7 +48,7 @@ probe.ar_stub_update.argtypes = [ctypes.c_int]
 probe.ar_frame.argtypes = [ctypes.c_float]
 probe.ar_start.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float]
 probe.ar_start_at.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
-probe.ar_restart.argtypes = [ctypes.c_int]
+probe.ar_restart.argtypes = [ctypes.c_int, ctypes.c_int]
 probe.ar_stop.argtypes = [ctypes.c_int]
 probe.ar_invalidate.argtypes = [ctypes.c_int]
 probe.ar_collide.argtypes = [ctypes.c_int, ctypes.c_float]
@@ -342,9 +342,17 @@ class Emu(WorldEmu):
                       stack_args=tuple(f2u(v) for v in nine))
         self.build_ids()
 
-    def restart(self, d):
-        self.cpu.call(0x508460, ecx=self.defp(d))
+    def restart(self, d, node=-1):
+        self.cpu.call(0x508460, ecx=self.defp(d), edx=self.node_ptr(node) if node >= 0 else 0)
         self.build_ids()
+
+    def find_node(self, name):
+        bs = self.i32(0x5ea830)
+        for b, base in enumerate(self.blocks()):
+            for k in range(bs):
+                if self.cpu.read(base + k * 0xd4, len(name) + 1) == name + b'\0':
+                    return b * bs + k
+        return -1
 
     def stop(self, d):
         self.cpu.call(0x506ca0, ecx=self.defp(d))
@@ -659,8 +667,8 @@ class Port:
     def start_at(self, d, node, nine):
         probe.ar_start_at(d, node, struct.pack('<9f', *nine))
 
-    def restart(self, d):
-        probe.ar_restart(d)
+    def restart(self, d, node=-1):
+        probe.ar_restart(d, node)
 
     def stop(self, d):
         probe.ar_stop(d)
@@ -762,6 +770,21 @@ def run_mission(mission, frames, seed, cmp, stats):
     x1, z1 = struct.unpack('<f', emu.cpu.read(wd + 0x44, 4))[0], struct.unpack('<f', emu.cpu.read(wd + 0x48, 4))[0]
     roots = [emu.index(emu.u(base + 0x13c * i + 0x64)) for i in range(1, count)]
     both = (emu, port)
+    # A reset with a node (EDX) moves the def onto it first. Its own stream,
+    # so the other calls stay as they were.
+    nrng = random.Random(seed ^ 0x508460)
+    # c1's cockpit explosion, onto the world's dummy cockpit as 0x00430ad0
+    # moves it onto the mech's: its cracks and dings hidden (cockpit-damage.md).
+    names = {emu.cpu.read(base + 0x13c * i, 0x20).split(b'\0')[0]: i for i in range(1, count)}
+    cockpit = names.get(b'cpit_effects_explosion')
+    if cockpit:
+        hud = emu.find_node(b'dummy_hud.flt')
+        for s in both:
+            s.restart(cockpit, hud)
+        node = emu.index(emu.u(base + 0x13c * cockpit + 0x40))
+        assert node == hud, (node, hud)
+        cmp(f'{mission} cockpit reset', emu.dump(True), port.dump(True))
+        stats['reset_cockpit'] += 1
     for f in range(frames):
         for _ in range(rng.choice((0, 0, 1, 1, 2, 4))):
             k = rng.random()
@@ -783,9 +806,10 @@ def run_mission(mission, frames, seed, cmp, stats):
                     s.start(d, node, 0.0, 0.0, 0.0)
                 stats['start_node'] += 1
             elif k < 0.6:
+                node = nrng.choice(roots) if nrng.random() < 0.3 else -1
                 for s in both:
-                    s.restart(d)
-                stats['reset'] += 1
+                    s.restart(d, node)
+                stats['reset' if node < 0 else 'reset_node'] += 1
             elif k < 0.68:
                 for s in both:
                     s.stop(d)
@@ -844,7 +868,8 @@ def main():
     frames = int(args.pop(0)) if args and args[0].isdigit() else 60
     missions = args or WORLDS
     cmp = Compare()
-    stats = {k: 0 for k in ('frames', 'start', 'start_at', 'start_node', 'reset', 'stop', 'invalidate', 'ram',
+    stats = {k: 0 for k in ('frames', 'start', 'start_at', 'start_node', 'reset', 'reset_node', 'reset_cockpit',
+                            'stop', 'invalidate', 'ram',
                             'hit', 'player', 'zone', 'running_end')}
     for i, m in enumerate(missions):
         run_mission(m, frames, 1000 + i, cmp, stats)

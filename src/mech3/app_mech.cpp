@@ -191,6 +191,9 @@ class WiredLaunch : public LaunchHooks {
   void interp_set_cycle_node(Handle, Handle node) override {  // the script object's +0xb8
     if (zint::Interp* in = mech3::interp()) in->current = zn(node);
   }
+  // The cockpit screens' cycled textures, added by the scripts, loaded
+  // (playtest #19: unloaded, they drew with no surface).
+  void textures_load() override { zimg::load_group_0(); }
   uint8_t interp_source(Handle, const char* path) override {
     zint::Interp* in = mech3::interp();
     return in && zint::source(*in, path) ? 1 : 0;
@@ -1047,6 +1050,15 @@ bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;
   static_cast<Mech*>(mech)->heat = heat;
   return true;
+}
+bool mech_hit_part(void* mech, int32_t id, float damage) {
+  if (!entity_is_mech(mech)) return false;
+  for (MechPart* p : static_cast<Mech*>(mech)->parts)
+    if (p && p->id == id) {
+      p->take_hit(nullptr, nullptr, damage, nullptr);
+      return true;
+    }
+  return false;
 }
 bool mech_hold_throttle(void* mech, float v) {
   Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;

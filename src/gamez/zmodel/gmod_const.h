@@ -72,6 +72,12 @@ int model_changes(const Model& m);            // 0x0053b3c0
 // it is 0). No cycle: nothing.
 void cycle_reset(Model* m);                   // 0x0053bc10
 void cycle_set_frame(Model* m, int32_t n);    // 0x0053bc90
+// The interp's CycleTexture* commands on a model (docs/cockpit-damage.md):
+// each works on the first polygon's material; a null model does nothing.
+int cycle_set_on(Model* m, int32_t count);         // 0x0053bc30: count slots (cycle_create)
+int cycle_set_looping(Model* m, uint32_t on);      // 0x0053bcd0
+int cycle_set_speed(Model* m, float speed);        // 0x0053bcf0
+int cycle_set_map(Model* m, zimg::TextureEntry* t);  // 0x0053bd10: the next slot (cycle_add)
 
 // A model's box (min xyz, max xyz) over its vertices, its lights' points
 // and its fully morphed vertices, then its bounding centre (+0x48) and

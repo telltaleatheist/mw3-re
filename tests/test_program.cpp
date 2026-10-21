@@ -20,6 +20,7 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_blit.h"
@@ -2526,6 +2527,187 @@ TEST(mission_c1m1_heat_shutdown_stops_the_mech_headless) {
     EXPECT(seen.down && seen.down - seen.asked < 600);
     EXPECT(seen.moved_down >= 0.0f && seen.moved_down < 0.01f);  // still while down
     EXPECT(seen.up > seen.down);         // cooled and powered up again
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #19: the Mad Cat's cockpit (mech_madcat_hud.flt) holds three
+// cracks and three dings, active in the file. Its explosion animation is
+// moved onto the cockpit and reset when the cockpit is made (0x00430c05, the
+// node in EDX), which hides them; a hit on the head runs it there
+// (0x00460bff), showing one (docs/cockpit-damage.md).
+TEST(mission_c1m1_cockpit_cracks_on_a_head_hit_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_cracks_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, cockpit = 0, shown_before = -1, shown_after = 0, window_before = -1, hit = 0;
+    } seen;
+    static const char* const kMarks[] = {"crack01", "crack02", "crack03", "ding01", "ding02", "ding03"};
+    static const char* const kWindow[] = {"hcrack01", "hcrack02"};
+    const auto active = [](zcls::Node* root, const char* const* names, int n) {
+      int on = 0;
+      for (int i = 0; i < n; ++i)
+        if (zcls::Node* k = zcls::node_find_in_tree(root, names[i])) on += (k->flags() >> 2) & 1;
+      return on;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      void* m = mech3::mech_mission_player();
+      auto* c = m ? static_cast<zcls::Node*>(mech3::mech_cockpit_node(m)) : nullptr;
+      if (!c) return;
+      ++seen.cockpit;
+      if (seen.frames == 20) {
+        seen.shown_before = active(c, kMarks, 6);
+        seen.window_before = active(c, kWindow, 2);
+        seen.hit = mech3::mech_hit_part(m, 6, 1.0f);
+      }
+      if (seen.frames > 20) seen.shown_after = std::max(seen.shown_after, active(c, kMarks, 6));
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return seen.frames >= 80; };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "cracks: cockpit %d frames, shown %d before the hit, window %d, hit %d, %d after\n",
+                   seen.cockpit, seen.shown_before, seen.window_before, seen.hit, seen.shown_after);
+    EXPECT(seen.cockpit > 20);
+    EXPECT(seen.shown_before == 0);   // none at the start
+    EXPECT(seen.window_before == 2);  // the whole panes they replace shown
+    EXPECT(seen.hit);
+    EXPECT(seen.shown_after > 0);     // the head hit shows one
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #19: the Owens' cockpit has animated screens (cpit_ania..c), each
+// cycled by its support\cpit_cycle<A..C>.gw at the launch (0x00491150):
+// CycleTextureSetOn makes the first material cycled, CycleTextureSetMap fills
+// its slots, the launch loads the textures. Before the interp's model calls
+// were wired every one reported "no GFX data" and stayed still.
+TEST(mission_c1m1_owens_cockpit_screens_cycle_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_screens_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    l.mech = 11;                  // the Owens
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, screens = 0, cycled = 0, slots = 0, loaded = 0, named = 0;
+      float index0[3] = {-1, -1, -1};
+      int moved = 0;
+    } seen;
+    static const char* const kScreens[] = {"cpit_ania", "cpit_anib", "cpit_anic"};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      void* m = mech3::mech_mission_player();
+      auto* c = m ? static_cast<zcls::Node*>(mech3::mech_cockpit_node(m)) : nullptr;
+      if (!c) return;
+      for (int i = 0; i < 3; ++i) {
+        zcls::Node* n = zcls::node_find_in_tree(c, kScreens[i]);
+        zmod::Model* model = n ? n->model : nullptr;
+        zmod::Material* mat = model && model->polygons ? model->polygons[0].material : nullptr;
+        zmod::Cycle* cy = mat && (mat->flags & 4) ? mat->cycle : nullptr;
+        if (seen.frames == 5) {
+          seen.screens += n != nullptr;
+          if (!cy) continue;
+          ++seen.cycled;
+          for (uint32_t k = 0; k < cy->texture_count; ++k) {
+            const zimg::TextureEntry* t = cy->textures[k];
+            ++seen.slots;
+            seen.loaded += t && t->image != nullptr;
+            seen.named += t && std::strncmp(t->name, "cpit_ani_", 9) == 0;
+          }
+          seen.index0[i] = cy->index;
+          if (std::getenv("MW3_SURVEY"))
+            std::fprintf(stderr, "screen %s: count %u added %u speed %.1f looping %u index %.2f frame %u\n", kScreens[i],
+                         cy->texture_count, cy->added, cy->speed, cy->looping, cy->index, cy->frame);
+        }
+        if (seen.frames > 5 && cy && seen.index0[i] >= 0 && cy->index != seen.index0[i]) {
+          ++seen.moved;
+          seen.index0[i] = -1;  // counted once
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return seen.frames >= 60; };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "screens: %d found, %d cycled, %d slots, %d loaded, %d named cpit_ani_, %d moved\n",
+                   seen.screens, seen.cycled, seen.slots, seen.loaded, seen.named, seen.moved);
+    EXPECT(seen.screens > 0);
+    EXPECT(seen.cycled == seen.screens);
+    EXPECT(seen.slots > 0 && seen.loaded == seen.slots && seen.named == seen.slots);
+    EXPECT(seen.moved > 0);  // a drawn one runs on (0x005376c0 steps a cycle only when drawn)
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

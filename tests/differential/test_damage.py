@@ -172,7 +172,7 @@ class Emulated:
             0x474d90: (lambda c: self.log(3, c.ecx, c.arg(0), c.arg(2)), 0xc),
             0x41d130: (lambda c: self.log(4), 0),
             0x43be70: (lambda c: self.log(5, c.ecx, c.arg(0), c.arg(1), c.arg(2)), 0xc),
-            0x508da0: (lambda c: self.log(6), 0xc),
+            0x508da0: (lambda c: self.log(6, c.ecx, c.edx), 0xc),
             0x4b1040: (lambda c: self.log(8, s32(c.arg(0))), 4),
             0x4b0de0: (lambda c: self.log(9, s32(c.arg(0)), c.arg(1)) or self.sc['wcrit'], 8),
             0x4b1110: (lambda c: self.log(10), 0),
@@ -411,8 +411,9 @@ def gen(rng):
     roster = rng.choice([0, 3, 7, 7, 11, 18, rng.randrange(19)])
     effects = [rng.choice([0, 0x6800 + i]) for i in range(18)]
     death = [rng.choice([0, 0x6900 + i]) for i in range(4)]
-    pilot = [roster] + effects + death + [rng.choice([0, 1]), rng.choice([0, 0x6a00]), rng.choice([0, 1]),
-                                         rng.choice([0, 1])]
+    # the cockpit explosion (+0x200), +0x20c, the cockpit block present, its node
+    pilot = [roster] + effects + death + [rng.choice([0, 0x6b00]), rng.choice([0, 0x6a00]), rng.choice([0, 1]),
+                                         rng.choice([0, 0x6c00])]
     # items: (kind, count, group, part, id, tech)
     items = []
     for _ in range(rng.randrange(0, 18)):

@@ -70,8 +70,8 @@ int32_t anim_lights_off(AnimDef* def);                 // 0x005069b0
 int32_t anim_puffers_off(AnimDef* def);                // 0x00506a20
 int32_t anim_sounds_off(AnimDef* def);                 // 0x00506a70
 int32_t anim_seq_restart(SeqDef* seq);                 // 0x00506f40
-int32_t anim_restart(AnimDef* def);                    // 0x00508460, from status 6/4
-int32_t anim_reset_logged(AnimDef* def);               // 0x00508490
+int32_t anim_restart(AnimDef* def, zcls::Node* node = nullptr);       // 0x00508460, from status 6/4; EDX node
+int32_t anim_reset_logged(AnimDef* def, zcls::Node* node = nullptr);  // 0x00508490; EDX node
 void anim_invalidate(AnimDef* def);                    // 0x005084c0
 int32_t anim_prepare(AnimDef* def);                    // 0x005084f0
 int32_t anim_prerequisites(AnimDef* def);              // 0x00508950, 1 when met

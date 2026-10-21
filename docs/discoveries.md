@@ -1315,6 +1315,21 @@ From the mech definitions (mechdef-head.md).
 
 From the animation files (anim.md).
 
+- **Your cockpit glass cracks one mark per head hit, from six.** Every
+  cockpit carries three cracks and three dings, hidden until the head is
+  hit. Each hit on the head shows one of the six, each about one time in six
+  (the game draws a new random number for each of five tests: 16%, 20%, 25%,
+  33%, 50%, then the last). A crack also hides the whole pane under it and
+  plays the cockpit crack sound at its spot; a ding just appears. The
+  effect is one of the mission's animations, aimed at a stand-in cockpit
+  stored in every mission world until your mech's own cockpit is built and
+  takes it over (cockpit-damage.md).
+- **Most cockpits have little animated screens.** Every cockpit but the
+  Mad Cat's among those checked has one to three panels (cpit_ania..c)
+  whose pictures flip through a loop of frames (15 and 8 on the Owens' two),
+  set up by three small scripts when you launch. A screen only moves on
+  frames it is drawn.
+
 - **Copies of the same effect find their own object in order.** When several
   animations in a row are meant for objects with the same name (up to 58 in
   a row on c1), the game hooks the first to the first such object, the

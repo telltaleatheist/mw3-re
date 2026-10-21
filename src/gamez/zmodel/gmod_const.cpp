@@ -316,6 +316,28 @@ void cycle_set_frame(Model* m, int32_t n) {
   c->index = static_cast<float>(n);
 }
 
+// Mech3.exe 1.2 @ 0x0053bc30. A null model reports and gives -1.
+int cycle_set_on(Model* m, int32_t count) {
+  if (!m) {
+    std::fprintf(stderr, "%s(%d): ERROR setting model cycle texture. Model 3D pointer is NULL.\n",
+                 "C:\\zipper\\GameZMech3\\zModel\\gmod_const.c", 0xedb);
+    return -1;
+  }
+  Material* mat = m->polygons[0].material;
+  // FIX (bug): without a material the exe clears flag 0x400 at address 0.
+  if (mat) cycle_create(*mat, count);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x0053bcd0
+int cycle_set_looping(Model* m, uint32_t on) { return m ? cycle_set_loop(m->polygons[0].material, on) : 0; }
+
+// Mech3.exe 1.2 @ 0x0053bcf0
+int cycle_set_speed(Model* m, float speed) { return m ? zmod::cycle_set_speed(m->polygons[0].material, speed) : 0; }
+
+// Mech3.exe 1.2 @ 0x0053bd10
+int cycle_set_map(Model* m, zimg::TextureEntry* t) { return m ? cycle_add(*m->polygons[0].material, t) : 0; }
+
 namespace {
 // One point into the box. The x87 compares differ per side, so a NaN
 // coordinate lands only on some (0x0053b733..0x0053b7d2 for the lights).

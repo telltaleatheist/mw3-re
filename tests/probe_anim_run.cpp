@@ -417,7 +417,10 @@ void ar_start_at(int def, int node, const float* nine) {
   zeff::anim_start_at(&zeff::anim().defs[def], node >= 0 ? zcls::node_at(node) : nullptr, nine, nine + 3, nine + 6);
   build_ids();
 }
-void ar_restart(int def) { zeff::anim_restart(&zeff::anim().defs[def]); build_ids(); }
+void ar_restart(int def, int node) {
+  zeff::anim_restart(&zeff::anim().defs[def], node >= 0 ? zcls::node_at(node) : nullptr);
+  build_ids();
+}
 void ar_stop(int def) { zeff::anim_stop(&zeff::anim().defs[def]); build_ids(); }
 void ar_invalidate(int def) { zeff::anim_invalidate(&zeff::anim().defs[def]); }
 void ar_collide(int def, float damage) { zeff::anim_on_collide(&zeff::anim().defs[def], damage); build_ids(); }

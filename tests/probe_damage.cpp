@@ -196,7 +196,7 @@ void install_hooks() {
   };
   c.last_hit = [](Mech&) { log({4}); };
   c.zaps_hud = [](void* s, float a, int k, float b) { log({5, static_cast<int32_t>(u(s)), fbits(a), k, fbits(b)}); };
-  c.head_hit_hud = [] { log({6}); };
+  c.head_hit_hud = [](Handle e, Handle n) { log({6, static_cast<int32_t>(u(e)), static_cast<int32_t>(u(n))}); };
   c.hud_weapons = [](void* s) { log({11, static_cast<int32_t>(u(s))}); };
   c.equip_voice = [](int k) { log({13, k}); };
   c.voice = [](int i) { log({14, i}); };

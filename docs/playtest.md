@@ -28,7 +28,7 @@ the briefing's load freeze (5a55624).
 | 16 | N, Shift+N, Ctrl+N don't change the op point | [0x609980] vt+0x60..0x68 | mac 2 | open |
 | 17 | \ switches the fire mode silently | cockpit sound 0x41e770 | mac 2 | open |
 | 18 | Lance orders (F6..F11) and Order MFB (M) | 0x469930, 0x47a910 | AI area | waiting |
-| 19 | The cockpit shows bullet holes from the start; they should appear only when the cockpit is hit | cockpit model (0x00430ad0's damage textures / the cockpit explosion restart), cpit_ani* cycled textures "no GFX data" | mac 2 | open |
+| 19 | The cockpit shows bullet holes from the start; they should appear only when the cockpit is hit | cockpit model (0x00430ad0's damage textures / the cockpit explosion restart), cpit_ani* cycled textures "no GFX data" | mac 2 | fixed c6722e4 |
 | 20 | Zoom (keypad 0) doesn't show, but its sound plays over and over | HUD zoom window, #13 | mac 3 | fixed: the controls' zoom hooks were never wired, so the window's flags read "shown" with the key up and the click played every frame; now one click per change (hud.md section 19), Owen to check |
 | 21 | One message box path still unported: 0x0048dfe0 (dlgMessage MESSAGEBOX), seen late in a run (quitting via the pause menu?) | message box | mac 3 | open |
 
