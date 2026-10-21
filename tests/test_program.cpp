@@ -217,7 +217,8 @@ struct CountingPump : platform::MessagePump {
   int passes = 0, limit = 200;
   bool quit = false;
   std::function<void()> on_quit;  // unset: the mission's cleanup
-  bool peek() override { return ++passes > limit; }
+  std::function<bool()> stop;     // set: quits as soon as it says so
+  bool peek() override { return ++passes > limit || (stop && stop()); }
   // The quit: a mission still up is cleaned up first, as a debriefing would,
   // while zSound is still there (ExitInstance shuts it down next; a running
   // animation's sounds would be stopped after it).
@@ -2239,6 +2240,93 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #9 (docs/playtest.md): c1 mission 1's player walking at full
+// throttle when the heat passes 1.5. "Shutting down" asks the mech to power
+// down (0x0041cc30), whose Stop (the controls' vt+0x4c, 0x00426c10) zeroes the
+// throttle, so the mech slows to a stand and the power-down finishes
+// (0x0041cac0: standing, state 1); powered down it cools three times as fast
+// and powers up again at 0.4 (docs/heat.md). The heat is held at 1.6 until
+// then: cooled to 0.9 first, the shutdown is called off (as in the exe).
+TEST(mission_c1m1_heat_shutdown_stops_the_mech_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_heat_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, asked = 0, down = 0, up = 0;
+      float walked = 0, moved_down = -1;
+      float at_down[3] = {};
+    } seen;
+    float last[3] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      void* m = mech3::mech_mission_player();
+      mech3::LaunchedMech d;
+      if (!m || !mech3::describe_mech(m, &d)) return;
+      if (seen.frames == 5) mech3::mech_hold_throttle(m, 1.0f);
+      if (seen.frames == 60) seen.walked = std::hypot(d.pos[0] - last[0], d.pos[2] - last[2]);
+      if (seen.frames >= 60 && !seen.down) mech3::mech_set_heat(m, 1.6f);  // held there, as by firing, until down
+      if (seen.frames > 60 && !seen.asked && d.powering_down) seen.asked = seen.frames;
+      if (seen.asked && !seen.down && d.powered_down) {
+        seen.down = seen.frames;
+        std::copy(d.pos, d.pos + 3, seen.at_down);
+      }
+      if (seen.down && seen.frames == seen.down + 30)
+        seen.moved_down = std::hypot(d.pos[0] - seen.at_down[0], d.pos[2] - seen.at_down[2]);
+      if (seen.down && !seen.up && !d.powering_down) seen.up = seen.frames;
+      std::copy(d.pos, d.pos + 3, last);
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return seen.up != 0; };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "heat: walked %.3f/frame, asked %d, down %d, moved %.3f in 30 frames down, up %d\n",
+                   seen.walked, seen.asked, seen.down, seen.moved_down, seen.up);
+    EXPECT(seen.walked > 0.01f);         // walking before
+    EXPECT(seen.asked > 60);             // "shutting down" asked for the power-down
+    EXPECT(seen.down > seen.asked);      // and it finished: the mech came to a stand
+    EXPECT(seen.down && seen.down - seen.asked < 600);
+    EXPECT(seen.moved_down >= 0.0f && seen.moved_down < 0.01f);  // still while down
+    EXPECT(seen.up > seen.down);         // cooled and powered up again
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
 }
 

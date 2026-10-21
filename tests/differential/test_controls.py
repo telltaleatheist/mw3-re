@@ -25,8 +25,10 @@ LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 probe.probe_controls_update.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_float]
 probe.probe_controls_set_throttle.argtypes = [ctypes.c_char_p, ctypes.c_float]
+probe.probe_controls_halt.argtypes = [ctypes.c_char_p]
 
-UPDATE, SET_THROTTLE = 0x426960, 0x426b60
+UPDATE, SET_THROTTLE, STOP = 0x426960, 0x426b60, 0x426c10
+ICONTROLS_VTABLE = 0x5bd428  # MechControls' IControls vtable, at +0x60
 CTL_SIZE, MECH_SIZE = 0x74, 0x6d8
 # The fields the two functions touch; the rest of the image must stay as it was.
 FLOATS = [0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x44, 0x48, 0x4c]
@@ -51,18 +53,23 @@ class Emulated:
         cpu.write(self.ctl, ctl)
         cpu.u32(self.ctl + 4, self.vbt)
         cpu.u32(self.vbt + 4, 0x5c)   # vbtable: the virtual base is at +0x60
+        cpu.u32(self.ctl + 0x60, ICONTROLS_VTABLE)  # Stop calls the setters through it
         cpu.u32(self.ctl + 0x70, self.mech)
         cpu.write(self.mech, mech)
 
     def image(self):
         b = bytearray(self.cpu.read(self.ctl, CTL_SIZE))
         b[4:8] = bytes(4)
+        b[0x60:0x64] = bytes(4)
         b[0x70:0x74] = bytes(4)
         return bytes(b)
 
     def update(self, dt):
         self.cpu.call(UPDATE, ecx=self.ctl + 0x60, stack_args=(f2u(dt),))
         return self.cpu.uc.reg_read(UC_X86_REG_EAX)
+
+    def stop(self):
+        self.cpu.call(STOP, ecx=self.ctl + 0x60, stack_args=(1,))
 
     def set_throttle(self, v):
         self.cpu.call(SET_THROTTLE, ecx=self.ctl + 0x60, stack_args=(f2u(v),))
@@ -77,7 +84,7 @@ def main():
     emu = Emulated()
     rng = random.Random(3025)
     runs, frames, calls = 400, 120, 0
-    snapped = moved = 0
+    snapped = moved = stops = 0
     for run in range(runs):
         ctl = bytearray(rng.randbytes(CTL_SIZE))   # untouched fields keep their bytes
         for off in FLOATS:
@@ -90,7 +97,7 @@ def main():
             mech[off:off + 4] = struct.pack('<f', f32(rng.choice([0.5, 1.0, 1.5, 2.0, 3.0, 4.5,
                                                                   rng.uniform(0, 10)])))
         dt = f32(rng.choice([1 / 30, 1 / 60, 1 / 85, 0.1, rng.uniform(0.001, 0.25)]))
-        ctl[4:8] = ctl[0x70:0x74] = bytes(4)
+        ctl[4:8] = ctl[0x5c:0x60] = ctl[0x60:0x64] = ctl[0x70:0x74] = bytes(4)  # +0x5c: the thunks' vtordisp, 0
         image = bytes(ctl)
         emu.load(image, bytes(mech))
         for frame in range(frames):
@@ -104,6 +111,17 @@ def main():
                     raise SystemExit(f'run {run} frame {frame}: SetThrottle({v}) differs')
                 image = want
                 calls += 1
+            if rng.random() < 0.03:  # Stop, as Mech::Power powering down or up
+                emu.stop()
+                port = ctypes.create_string_buffer(image, CTL_SIZE)
+                probe.probe_controls_halt(port)
+                want = emu.image()
+                if want != port.raw:
+                    diffs = [hex(o) for o in range(0, CTL_SIZE, 4) if want[o:o + 4] != port.raw[o:o + 4]]
+                    raise SystemExit(f'run {run} frame {frame}: Stop differs at {diffs}')
+                image = want
+                calls += 1
+                stops += 1
             if rng.random() < 0.1:
                 for off in (0x48, 0x4c):
                     v = random_value(rng)
@@ -126,8 +144,10 @@ def main():
             calls += 1
     if snapped < 100 or moved - snapped < 1000:
         raise SystemExit(f'coverage: {moved} moves, {snapped} snaps')
+    if stops < 100:
+        raise SystemExit(f'coverage: {stops} stops')
     print(f'ok: {runs} runs x {frames} frames, {calls} calls identical bit for bit '
-          f'({moved} axis moves, {snapped} snapped to the target)')
+          f'({moved} axis moves, {snapped} snapped to the target, {stops} stops)')
 
 
 if __name__ == '__main__':

@@ -18,6 +18,6 @@ the briefing's load freeze (5a55624).
 | 6 | Enter doesn't cycle the weapon groups | controls → weapons | mac 2 | open |
 | 7 | Numpad 0 doesn't show the zoom reticle | HUD zoom window | mac 3 | open |
 | 8 | Weapons stay green on the HUD: no recharge shown | HUD weapon lines | mac 3 | open |
-| 9 | "Shutting down" plays but the mech never shuts down; then the speed locks, no slowing, firing or manual shutdown | heat shutdown, the action queue | mac 2 | open |
+| 9 | "Shutting down" plays but the mech never shuts down; then the speed locks, no slowing, firing or manual shutdown | heat shutdown, the action queue | mac 2 | fixed (mac2/heat-shutdown): the power-down's Stop (0x426c10) was never called, so the throttle stayed; heat.md |
 | 10 | HUD images not found in the mission: dmg_*_blk, hud_othererrow_* | the image library after the mission load | mac 3 | open |
 | 11 | Trucks, APCs and mobile HQs fail to build | vehicles (AI controls) | AI area | waiting |

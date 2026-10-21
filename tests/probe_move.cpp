@@ -165,6 +165,14 @@ int32_t probe_controls_update(uint8_t* ctl, uint8_t* owner, float dt) {
   return r;
 }
 
+void probe_controls_halt(uint8_t* ctl) {
+  MechControls c;
+  controls_io(c, ctl, false);
+  c.halt();
+  controls_io(c, ctl, true);
+  ctl[0x34] = c.fire, ctl[0x3c] = c.joy_throttle_set, ctl[0x3d] = c.jump_held;
+}
+
 void probe_controls_set_throttle(uint8_t* ctl, float v) {
   MechControls c;
   controls_io(c, ctl, false);

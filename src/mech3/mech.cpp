@@ -74,6 +74,12 @@ bool HeatSinks::lose(int32_t n) {
 // Mech3.exe 1.2 @ 0x0041cc10
 bool Mech::is_powered_down() const { return power_down_pending || powered_down; }
 
+// +0x37c's vt+0x4c, Stop (0x00426c10): the hook when set (the tests), else the port.
+void Mech::stop_controls(int arg) {
+  if (g_calls.stop_controls) g_calls.stop_controls(*this, arg);
+  else if (controls) controls->halt();
+}
+
 // Mech3.exe 1.2 @ 0x0041cc30. Ignored during a heat shutdown; a power-down
 // only asks, and finish_power_down completes it when the mech can stop.
 void Mech::power(int power_down) {
@@ -81,11 +87,11 @@ void Mech::power(int power_down) {
   if (power_down) {
     if (no_power_down) return;
     power_down_pending = true;
-    if (g_calls.stop_controls) g_calls.stop_controls(*this, power_down);
+    stop_controls(power_down);
     return;
   }
   if (!is_powered_down()) return;
-  if (g_calls.stop_controls) g_calls.stop_controls(*this, 0);
+  stop_controls(0);
   void* screen = this == g_world.player && g_calls.screen ? g_calls.screen(*this) : nullptr;
   if (screen && g_calls.screen_power_up) g_calls.screen_power_up(screen, hud_saved);
   if ((detail & 1) && g_calls.play_sound_at) power_up_sound() = g_calls.play_sound_at(*this, 7);
