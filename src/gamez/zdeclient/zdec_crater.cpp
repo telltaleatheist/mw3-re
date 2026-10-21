@@ -65,60 +65,52 @@ void record_free(CraterRecord* r) {
   delete r;
 }
 
-// Mech3.exe 1.2 @ 0x004ffad0. The centre is pushed back inside its cell
-// (by the radius and 1 m), then the ring is laid out round it; a crater
-// within 5 m (by box) of another crater node in the cell is refused.
-CraterRecord* crater_build(const zwep::CraterOrder* order) {
-  CraterRecord* r = record_new(order);
+// The placement 0x004ffad0 and 0x00502230 share: the cell under the centre
+// (refused outside the grid or full), the centre pushed back inside it by
+// the radius and 1 m, the ring at sin/cos steps of 2 pi / n round it, its
+// box, and refused within 5 m (by box) of another crater node in the cell.
+bool place_ring(int32_t points, float radius, zwep::Vec3f3& at, std::vector<float>& ring, float box[4],
+                zcls::Partition*& cell) {
   zcls::Node* world = world_node();
   zcls::World* w = static_cast<zcls::World*>(world->data);
   int32_t cx, cz, x, z, inside;
-  if (!w || zcls::world_cell_wrapped(world, &cx, order->at.x, order->at.z, &cz, &x, &z, &inside) != 0 || !inside) {
-    record_free(r);
-    return nullptr;
-  }
-  zcls::Partition* cell = cell_at(x, z);
-  r->cell = cell;
-  if (!cell || cell->raw[0x39] >= w->raw[0x4c]) {
-    record_free(r);
-    return nullptr;
-  }
-  zwep::CraterOrder& o = r->order;
-  const float dx = o.at.x - cell->get<float>(8);
-  const float dz = o.at.z - cell->get<float>(0xc);
+  if (!w || zcls::world_cell_wrapped(world, &cx, at.x, at.z, &cz, &x, &z, &inside) != 0 || !inside) return false;
+  cell = cell_at(x, z);
+  if (!cell || cell->raw[0x39] >= w->raw[0x4c]) return false;
+  const float dx = at.x - cell->get<float>(8);
+  const float dz = at.z - cell->get<float>(0xc);
   const float size_x = w->get<float>(0x64), low_z = w->get<float>(0x68);
-  const float right = dx + o.radius;
-  if (right > size_x) o.at.x = o.at.x - ((right - size_x) - -1.0f);
-  else if (!(dx - o.radius >= 0.0f)) o.at.x = ((o.radius - dx) + o.at.x) - -1.0f;
-  const float bottom = dz - o.radius;
+  const float right = dx + radius;
+  if (right > size_x) at.x = at.x - ((right - size_x) - -1.0f);
+  else if (!(dx - radius >= 0.0f)) at.x = ((radius - dx) + at.x) - -1.0f;
+  const float bottom = dz - radius;
   if (!(bottom >= low_z)) {
-    o.at.z = ((low_z - bottom) + o.at.z) - -1.0f;
-  } else if (0.0f < dz + o.radius) {
-    o.at.z = o.at.z - ((dz + o.radius) - -1.0f);
+    at.z = ((low_z - bottom) + at.z) - -1.0f;
+  } else if (0.0f < dz + radius) {
+    at.z = at.z - ((dz + radius) - -1.0f);
   }
-  const int32_t n = order->points;
-  const float step = static_cast<float>(6.28318530718 / static_cast<double>(n));
+  const float step = static_cast<float>(6.28318530718 / static_cast<double>(points));
   float angle = 0.0f;
-  for (int32_t i = 0; i < n; ++i) {
-    float* p = &r->ring[3 * static_cast<size_t>(i)];
+  for (int32_t i = 0; i < points; ++i) {
+    float* p = &ring[3 * static_cast<size_t>(i)];
     p[0] = static_cast<float>(std::sin(static_cast<double>(angle)));
     p[2] = static_cast<float>(std::cos(static_cast<double>(angle)));
-    p[0] = p[0] * o.radius;
-    p[2] = o.radius * p[2];
-    p[0] = p[0] + o.at.x;
-    p[1] = o.at.y;
-    p[2] = o.at.z + p[2];
+    p[0] = p[0] * radius;
+    p[2] = radius * p[2];
+    p[0] = p[0] + at.x;
+    p[1] = at.y;
+    p[2] = at.z + p[2];
     angle = step + angle;
   }
-  const float* p = r->ring.data();
-  r->box[0] = r->box[2] = p[0];
-  r->box[1] = r->box[3] = p[2];
-  for (int32_t i = 1; i < n; ++i) {
+  const float* p = ring.data();
+  box[0] = box[2] = p[0];
+  box[1] = box[3] = p[2];
+  for (int32_t i = 1; i < points; ++i) {
     const float* q = p + 3 * i;
-    if (r->box[0] > q[0]) r->box[0] = q[0];
-    if (r->box[2] < q[0]) r->box[2] = q[0];
-    if (r->box[1] > q[2]) r->box[1] = q[2];
-    if (r->box[3] < q[2]) r->box[3] = q[2];
+    if (box[0] > q[0]) box[0] = q[0];
+    if (box[2] < q[0]) box[2] = q[0];
+    if (box[1] > q[2]) box[1] = q[2];
+    if (box[3] < q[2]) box[3] = q[2];
   }
   if (cell->raw[0x39] != 0) {
     const int16_t count = cell->get<int16_t>(0x3a);
@@ -127,12 +119,27 @@ CraterRecord* crater_build(const zwep::CraterOrder* order) {
       if (std::strcmp(node->name(), kFeature) != 0 || !node->owner) continue;
       const Feature& f = *static_cast<const Feature*>(node->owner);
       if (f.type != 1 && f.type != 3) continue;
-      if (r->box[0] < f.box[2] - -5.0f && f.box[0] - 5.0f < r->box[2] && r->box[1] < f.box[3] - -5.0f &&
-          f.box[1] - 5.0f < r->box[3]) {
-        record_free(r);
-        return nullptr;
-      }
+      if (box[0] < f.box[2] - -5.0f && f.box[0] - 5.0f < box[2] && box[1] < f.box[3] - -5.0f &&
+          f.box[1] - 5.0f < box[3])
+        return false;
     }
+  }
+  return true;
+}
+
+// The crater node's name and record (+0x40): here its type and box.
+void mark_feature(zcls::Node* node, int32_t type, const float box[4]) {
+  zcls::node_set_name(node, kFeature);
+  g_craters.features.push_back(Feature{type, {box[0], box[1], box[2], box[3]}});
+  node->owner = &g_craters.features.back();
+}
+
+// Mech3.exe 1.2 @ 0x004ffad0
+CraterRecord* crater_build(const zwep::CraterOrder* order) {
+  CraterRecord* r = record_new(order);
+  if (!place_ring(order->points, r->order.radius, r->order.at, r->ring, r->box, r->cell)) {
+    record_free(r);
+    return nullptr;
   }
   return r;
 }
@@ -156,11 +163,9 @@ int32_t crater_clip(CraterRecord* r) {
 int32_t crater_tessellate(CraterRecord* r) {
   zcls::Node* node = nullptr;
   zmod::Model* m = zgeo::crater_node(r->set->cells[0], world_node(), &node);
-  if (node) {
-    zcls::node_set_name(node, kFeature);
-    g_craters.features.push_back(Feature{r->type, {r->box[0], r->box[1], r->box[2], r->box[3]}});
-    node->owner = &g_craters.features.back();
-  }
+  // As in the exe, a node made without a model is still named and marked
+  // (the exe leaves it in the world; harmless).
+  if (node) mark_feature(node, r->type, r->box);
   if (!m) return -1;
   zwep::CraterOrder& o = r->order;
   const int32_t n = o.points;
@@ -310,7 +315,8 @@ int32_t crater_instance(const zwep::CraterOrder* order, int dust) {
   note_touched(*r->set);
   zgeo::commit(*r->set);
   zmod::set_vertex_precision(precision);
-  // An untextured crater has no entry; the exe reads through null here.
+  // FIX (bug, fixes.md "Untextured crater"): an untextured crater has no
+  // texture entry; the exe reads the dust through null here.
   if (dust && r->texture && r->texture->anim && g_hooks.play_anim) {
     const float at[3] = {r->order.at.x, r->order.at.y, r->order.at.z};
     g_hooks.play_anim(r->texture->anim, at);

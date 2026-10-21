@@ -9,6 +9,7 @@
 
 namespace zcls { struct Node; struct Partition; }
 namespace zgeo { struct ClipSet; }
+namespace zmod { struct Material; }
 
 // zDEClient's craters (zdec_crater.cpp; docs/craters.md, section 2): a ring
 // on the ground where a shot lands, the ground under it clipped away and a
@@ -24,6 +25,19 @@ struct CraterRecord {
   zcls::Partition* cell = nullptr;   // +0x40
   zgeo::ClipSet* set = nullptr;      // +0x44
   CraterTexture* texture = nullptr;  // +0x4c  the ground's crater material and dust
+};
+
+// A quicksand pit being made (0x50 bytes, 0x005025e0; freed by 0x005020c0):
+// the crater's record one word on (its order is 11 words).
+struct QuicksandRecord {
+  int32_t type = 3;                  // +0x00
+  zwep::QuicksandOrder order;        // +0x04..+0x2c
+  zmod::Material* cycle = nullptr;   // +0x0c  (order +0x08) the animated material, zDEClient's by default
+  zmod::Material* still = nullptr;   // +0x10  (order +0x0c) its first frame
+  std::vector<float> ring;           // +0x30
+  float box[4] = {};                 // +0x34
+  zcls::Partition* cell = nullptr;   // +0x44
+  zgeo::ClipSet* set = nullptr;      // +0x48
 };
 
 // What a crater node (named ZDEC_FEATURE) keeps of its record for the next
@@ -44,6 +58,7 @@ struct CraterState {
   std::vector<HistoryEntry> history;                      // 0x0060bf94..0x0060bf9c
   std::set<zcls::Node*> touched;                          // 0x0060bfa0  nodes whose models craters replaced
   std::deque<Feature> features;                           // the port's: the crater nodes' records (FIX, see .cpp)
+  int (*quicksand_veto)(const zwep::QuicksandOrder* order) = nullptr;  // 0x0060c0c8
 };
 CraterState& craters();
 
@@ -55,6 +70,10 @@ struct CraterHooks {
 CraterHooks& crater_hooks();
 
 zcls::Node* world_node();                                   // 0x005020b0
+// Shared by crater and quicksand: see zdec_crater.cpp.
+bool place_ring(int32_t points, float radius, zwep::Vec3f3& at, std::vector<float>& ring, float box[4],
+                zcls::Partition*& cell);
+void mark_feature(zcls::Node* node, int32_t type, const float box[4]);
 zcls::Partition* cell_at(int32_t x, int32_t z);             // 0x00502090 ECX x, EDX z
 
 // The order's crater, unless the veto says no (then -1).
@@ -72,6 +91,17 @@ int32_t crater_tessellate(CraterRecord* r);                 // 0x004fff80 ECX r:
 // The order as the exe's dwords (pointers as their low 32 bits).
 void order_words(const zwep::CraterOrder& o, uint32_t out[10]);
 int32_t history_push(int32_t type, const uint32_t* words);   // 0x00500850 ECX type, EDX order
+void quicksand_words(const zwep::QuicksandOrder& o, uint32_t out[11]);
+
+// The quicksand pit (zdec_qsand.cpp): the crater's steps with its own
+// tessellation; only while declient.zrd's quicksand is on (0x0060bfe8). No
+// shipped weapon orders one.
+int32_t quicksand_make(const zwep::QuicksandOrder* order);       // 0x00502110 ECX order
+QuicksandRecord* quicksand_record_new(const zwep::QuicksandOrder* order);  // 0x005025e0 ECX order
+void quicksand_record_free(QuicksandRecord* r);                 // 0x005020c0 ECX r
+QuicksandRecord* quicksand_build(const zwep::QuicksandOrder* order);  // 0x00502230 ECX order
+int32_t quicksand_clip(QuicksandRecord* r);                     // 0x00502660 ECX r
+int32_t quicksand_tessellate(QuicksandRecord* r);               // 0x005026c0 ECX r: 0, or -1
 void note_touched(const zgeo::ClipSet& set);                // 0x00500600 ECX set
 
 }  // namespace zdec
