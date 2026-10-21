@@ -62,11 +62,15 @@ STEP_KINDS = {0x5bbc50: 'V', 0x5bbc40: 'M', 0x5bbc30: 'S'}
 REACHED, VOICE, SCREEN, CURRENT, FRAME_DT = 0x5e043c, 0x5f4c84, 0x5f4c80, 0x60861c, 0x72c52c
 SKIPS = {0x405c1e: 0x405c3d}  # a later item (the docstring)
 KEYS = (0x26, 0x32, 0x39, 0x1f)
-SECTIONS = ['brief_c11', 'brief_c12', 'brief_c24', 'brief_c36', 'brief_c4b6', 'brief_t13', 'brief_iac21',
+SECTIONS = ['brief_zz', 'brief_zz', 'brief_c11', 'brief_c12', 'brief_c14', 'brief_c24', 'brief_c36', 'brief_c4b6', 'brief_t13', 'brief_iac21',
             'brief_mpc11', 'default', 'brief_none']
 LINES_TEXT = ['Loading world', 'Ready To Launch', '', 'Textures 12/40', 'a much longer line of the load ' * 3]
 
-test_twod.VT_KIND.update({0x5bbd20: 'C', 0x5bc230: 'C', 0x5bbc90: 'L', 0x5bc1b0: 'I'})
+test_twod.VT_KIND.update({0x5bbd20: 'C', 0x5bc230: 'C', 0x5bbc90: 'L', 0x5bc1b0: 'I', 0x5bc030: 'F', 0x5bbf30: 'I',
+                          0x5bbfb0: 'B', 0x5bbeb0: 'B', 0x5bbe30: 'B', 0x5bbdb0: 'B'})
+MAP_KINDS = {0x5bbfb0: 'circle', 0x5bbeb0: 'waypoint', 0x5bc030: 'text', 0x5bbf30: 'bitmap', 0x5bbe30: 'triangle',
+             0x5bbdb0: 'line'}
+NAVS, WORLD_UP = 0x609980, 0x60bf48
 
 
 def i32(v):
@@ -78,6 +82,38 @@ def hx(s):
 
 
 # ---- the files ----
+
+def random_object(r):
+    kind = r.choice(['circle', 'text', 'waypoint', 'waypoint', 'bitmap', 'line', 'line', 'triangle', 'triangle', 'triangle',
+                     'game_type', 'db_name',
+                     'scenario_name', 'scenario_desc', 'label', 'nonsense'])
+    at = ['at', [r.randrange(-20, 660), r.randrange(-20, 500)]]
+    opt = []
+    if r.random() < 0.5:
+        opt += ['color', [r.randrange(256), r.randrange(256), r.randrange(256)]]
+    if r.random() < 0.3:
+        opt += ['font', [r.choice(['brief_grey', 'lab_small_white', 'no_font'])]]
+    if r.random() < 0.4:
+        opt += ['sound', [r.choice(['sndCircle', 'no_sound'])]]
+    if kind in ('circle', 'waypoint'):
+        if r.random() < 0.7:
+            opt += ['radius', [r.randrange(0, 40), r.randrange(-2, 12)]]
+    if kind == 'waypoint':
+        opt += ['label', [r.choice(['Able', 'Baker', 'Charlie', 'Dog', 'Easy', 'Easy', 'Fox', 'Nowhere', 'Nav7'])]]
+    elif kind == 'text':
+        opt += ['string', [r.choice(['MSG_NAV', 'Hello'])]]
+    elif kind == 'bitmap':
+        opt += ['image', [r.choice(['map_pic', 'nav_icon'])]]
+    elif kind == 'triangle':
+        opt += ['height', [r.randrange(1, 30), r.randrange(0, 9)]]
+    elif kind == 'line':
+        pts = [[r.randrange(0, 640), r.randrange(0, 480)] for _ in range(r.randrange(0, 6))]
+        if r.random() < 0.3:
+            pts.insert(r.randrange(len(pts) + 1), [r.randrange(9)])  # one number: not a point, skipped
+        opt += ['points', pts]
+    body = (at if r.random() < 0.9 else []) + opt
+    return [kind, body]
+
 
 def synthetic(seed, tree):
     """briefing.zrd with BRIEFINGDIALOG's buttons moved or missing, sections
@@ -104,12 +140,22 @@ def synthetic(seed, tree):
             si = v.index('SOUND') + 1
             snd = [x for x in v[si]]
             roll = r.random()
+            if k in SECTIONS and roll < 0.6:
+                roll = 0.6 + roll / 2  # the sections the plans open: mostly new objects
             if roll < 0.2:
                 snd[0] = r.choice(['no_such_voice', 'briefing_c2m3'])
             elif roll < 0.5 and 'MARKERS' in snd:
                 mi = snd.index('MARKERS') + 1
                 marks = list(snd[mi])
                 snd[mi] = marks[:r.randrange(0, len(marks) + 1)] + marks[:r.randrange(0, 3)]
+            elif 'MARKERS' in snd:  # objects of every kind
+                mi = snd.index('MARKERS') + 1
+                marks = [list(x) for x in snd[mi]]
+                for _ in range(r.randrange(2, 9)):
+                    if not marks:
+                        marks.append([])
+                    marks[r.randrange(len(marks))] += random_object(r)
+                snd[mi] = marks
             elif roll < 0.6:
                 del v[si - 1:si + 1]  # no SOUND
                 snd = None
@@ -122,6 +168,19 @@ def synthetic(seed, tree):
             b = v.index('BUTTONS')
             del v[b:b + 2]  # no TRANSPORT_PROGRESS
         out += [k, v]
+    # A briefing of map objects of every kind (the plans open it often).
+    dflt = find(tree, 'default') or []
+    marks = []
+    for _ in range(r.randrange(3, 6)):
+        step = []
+        for _ in range(r.randrange(3, 9)):
+            step += random_object(r)
+        marks.append(step)
+    marks[0] += ['line', ['points', [[10, 20], [3], [30, 40], [50, 60]]],  # a point skipped in the middle
+                 'waypoint', ['label', ['Easy'], 'radius', [12, 4]],  # a label with no message
+                 'circle', ['at', [330, 250], 'radius', [60, 50]],  # under the mouse's spot (320, 240)
+                 'text', ['string', ['MSG_NAV']]]  # no AT: no text
+    out += ['brief_zz', [x for x in dflt] + ['SOUND', [r.choice(['briefing_c1m1', 'no_voice']), 'MARKERS', marks]]]
     files = [('briefing.zrd', write_node([out]))]
     if r.random() < 0.7:
         dflt = find(tree, 'default') or []
@@ -168,13 +227,15 @@ def make_plan(seed, spots):
     if r.random() < 0.3:
         lines.append(f'V {r.choice([0x77700001, 0x77700002]):x}')
     state = {'down': 0}
-    lines.append(f'S {hx(r.choice(SECTIONS))}')
+    lines.append(f'S {hx("brief_zz" if seed % 2 and r.random() < 0.5 else r.choice(SECTIONS))}')
     if r.random() < 0.7:
         lines.append('Y')
         if r.random() < 0.6:  # the voice, then its markers one cue at a time
             for c in range(r.randrange(1, 5)):
                 lines += [mouse_line(r, spots, state), f'C {c:x}', mouse_line(r, spots, state), 'E']
             state['cue'] = c
+            if r.random() < 0.6:  # every step at once
+                lines += [f'C {999:x}', mouse_line(r, spots, state), mouse_line(r, spots, state), 'E']
     for _ in range(r.randrange(30, 110)):
         roll = r.random()
         if roll < 0.08:
@@ -238,6 +299,53 @@ class Original:
         k4c = cfg['mission'] if cfg['kind'] == 1 else cfg['mp']
         for off, v in ((0x2c, cfg['kind']), (0x48, cfg['op']), (0x4c, k4c)):
             e.w32(vt + off, e.new_stub(f'@vt{off:x}', '', 0, lambda emu, k, a, p, v=v: emu._ret(v, 0)))
+        # The game's texts (multiplayer's vt+0x04 .. +0x10): a string or none.
+        for off in (4, 8, 0xc, 0x10):
+            def gtext(emu, k, a, p, off=off):
+                emu._ret(e.world_string(f'G{off:x}') if t.handle('game.vt', (off,)) else 0, 0)
+            e.w32(vt + off, e.new_stub(f'@game{off:x}', '', 0, gtext))
+        # The mission's nav points, its map and the projection onto it.
+        self.map = e.world_alloc(0x40)
+        e.world_w32(self.map + 0x3c, w.fake_texture(400, 300))
+        self.pos = e.world_alloc(16)
+        self.navs = []
+        for i in range(3):
+            nv, nvt = e.world_alloc(8), e.world_alloc(0x20)
+            e.w32(nv, nvt)
+            e.w32(nvt + 0x18, e.new_stub('nav.vt+0x18', 'c', 0))
+            self.navs.append(nv)
+        e.w32(NAVS, cfg['navs'])
+        e.stub(0x479be0, '0x00479be0', 'c,zs0')
+
+        def project(emu, k, a, pop):
+            v = t.handle(k, (a[0], a[1]))
+            emu.w32(a[2], v & 0x3ff)
+            emu.w32(a[2] + 4, (v >> 10) & 0x3ff)
+            emu._ret((v >> 20) & 1, pop)
+        e.stub(0x4586e0, '0x004586e0', 'c,s0,s1', None, project)
+        # Mech3Msg.dll's messages: "msg<id>" into the buffer, or none; a
+        # waypoint's (0x200) argument, its name, logged.
+        def msg(emu, key, a, pop):
+            buf, size, mid, va = a
+            got = t.handle(key, (size, mid))
+            if mid == 0x200:
+                t.handle(key + '.s', (emu.cstr(emu.r32(va)),))
+            if got:
+                emu.cpu.write(buf, f'msg{mid}'.encode()[:size - 1] + b'\0')
+            emu._ret(len(f'msg{mid}') if got else 0, pop)
+        e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
+        # zRender's 2D circle and line (the map's circles and lines).
+        def circle(emu, key, a, pop):
+            c = a[-1]
+            t.handle(key, tuple(a[:-1]) + (tuple(i32(emu.r32(c + 4 * i)) & 0xffffffff for i in range(4)) if c else ()))
+            emu._ret(0, pop)
+        e.stub(0x5630c0, '0x005630c0', 'c,d,s0,s1,s2', None, circle)
+        e.stub(0x562940, '0x00562940', 'c,d,s0,s1,s2')
+        screen = e.world_alloc(16)
+        for i, v in enumerate((0, 0, 640, 480)):
+            e.world_w32(screen + 4 * i, v)
+        w.answers['0x00579880'] = screen
+        e.stub(0x579880, '0x00579880', '')
         e.stub(0x4af290, '@version', '', None, lambda emu, k, a, p: emu._ret(e.world_string('1.2'), p))
         e.wf(FRAME_DT, cfg['dt'])
 
@@ -251,7 +359,7 @@ class Original:
         plain = {0x40a810: '', 0x40ce90: 'c', 0x404ae0: 's0', 0x408c30: '', 0x408b40: '', 0x448830: 'd,s0',
                  0x47d2f0: '', 0x46ceb0: '', 0x490930: '', 0x491150: '', 0x491780: 's0', 0x434cb0: '',
                  0x478f10: 's0', 0x56dfb0: 'c,d', 0x576ea0: 'c,d,s0,s1', 0x51a9b0: 'c', 0x51a300: '',
-                 0x406650: '', 0x56e8e0: 'c', 0x56f3e0: 'c'}
+                 0x56e8e0: 'c', 0x56f3e0: 'c', 0x491c80: '', 0x4f8f50: ''}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)
         w.answers.update({
@@ -264,7 +372,13 @@ class Original:
             '0x00490930': lambda rr, k, a: 1 if rr.random() < cfg['load'] else 0,
             '0x00491150': lambda rr, k, a: 1 if rr.random() < 0.7 else 0,
             '0x00408b40': lambda rr, k, a: 0x5e600000 + k,
-            '0x00406650': 0,
+            '0x00491c80': lambda rr, k, a: self.map,  # (made when missing: never none)
+            '0x004f8f50': lambda rr, k, a: rr.choice([0, 1, 1]),
+            '0x00479be0': lambda rr, k, a: rr.choice(self.navs + [0]),
+            'nav.vt+0x18': lambda rr, k, a: self.pos,
+            '0x004586e0': lambda rr, k, a: rr.randrange(1 << 21),
+            'game.vt': lambda rr, k, a: rr.choice([1, 1, 0]),
+            '0x00575ff0': lambda rr, k, a: rr.choice([1, 1, 0]),
             '0x0056e8e0': lambda rr, k, a: rr.choice([0, 1, 1, 0xffffffff]),
         })
 
@@ -386,6 +500,35 @@ class Original:
                 o = e.r32(v + 4)
                 out.append(f' {k}o{objs.index(o) if o in objs else -1}')
         out.append('\n')
+        lst = m + 0x12e60
+        hd, nds, n = e.r32(lst + 4), [], None
+        n = e.r32(hd)
+        while n != hd:
+            nds.append(e.r32(n + 8))
+            n = e.r32(n)
+        for o in nds:
+            k = MAP_KINDS.get(e.r32(o), '?')
+            line = [f'map o{objs.index(o) if o in objs else -1} {k}']
+            if k in ('circle', 'waypoint'):
+                lb = o + 0x54
+                line.append(f'r={i32(e.r32(o + 0x34))} r2={i32(e.r32(o + 0x38))} col={e.r32(o + 0x3c):x} '
+                            f'clip={e.r8(o + 0x40)},' + ','.join(str(i32(e.r32(o + 0x44 + 4 * i))) for i in range(4)) +
+                            f' snd={e.r32(o + 0x504):x} end={i32(e.r32(o + 0x508))} '
+                            f'label="{e.cstr(lb + 0x34).replace(" ", "_")}",{e.r32(lb + 0xc):x},'
+                            f'{i32(e.r32(lb + 0x14))},{i32(e.r32(lb + 0x18))},'
+                            + ','.join(str(i32(e.r32(lb + 0x20 + 4 * i))) for i in range(4)))
+                if k == 'waypoint':
+                    line.append(f'map={e.r32(o + 0x50c):x} nav={e.r32(o + 0x510):x}')
+            elif k in ('triangle', 'line'):
+                cnt = i32(e.r32(o + 0xdc))
+                line.append(f'n={cnt} col={e.r32(o + 0xe0):x} pts=' +
+                            ','.join(str(i32(e.r32(o + 0x34 + 4 * i))) for i in range(2 * max(0, min(cnt, 21)))))
+                if k == 'triangle':
+                    line.append(f'xf={e.r32(o + 0xec)} ' + ','.join(f'{e.r32(o + 0xf0 + 4 * i):x}' for i in range(13)) +
+                                f' snd={e.r32(o + 0x124):x} end={e.r32(o + 0x128):x}')
+                else:
+                    line.append(f'xec={e.r32(o + 0xec):x}')
+            out.append(' '.join(line) + '\n')
         ok = m + REALLOC_OK
         out.append(f'REALLOC_OK id={i32(e.r32(ok + 0x150))} en={e.r32(ok + 0xc4)}\n')
         return ''.join(out)
@@ -396,7 +539,8 @@ def run_case(seed, path, files, cfg, plan, verbose):
     dump_o = orig.run(plan)
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
-    c = (f'{cfg["kind"]} {cfg["op"]} {cfg["mission"]} {cfg["mp"]} {cfg["salvage"]} {fbits(cfg["dt"]):x}')
+    c = (f'{cfg["kind"]} {cfg["op"]} {cfg["mission"]} {cfg["mp"]} {cfg["salvage"]} {fbits(cfg["dt"]):x} '
+         f'{cfg["navs"]:x}')
     buf = ctypes.create_string_buffer(1 << 23)
     n = probe.probe_briefing_run(str(path).encode(), c.encode(), '\n'.join(plan).encode(), buf, len(buf))
     assert n >= 0, 'probe failed'
@@ -441,7 +585,7 @@ def main():
         r = random.Random(f'cfg:{seed}')
         kind = r.choice([0, 1, 1, 1, 2, 3, 4])
         op, mission = r.choice([(1, 1), (1, 1), (1, 2), (2, 4), (4, 6)])
-        cfg = {'kind': kind, 'op': op, 'mission': mission, 'mp': r.choice([1, 1, 2, 3, 4]),
+        cfg = {'navs': r.choice([0, 0x5e700000, 0x5e700000]), 'kind': kind, 'op': op, 'mission': mission, 'mp': r.choice([1, 1, 2, 3, 4]),
                'salvage': r.choice([0, 1, 3]), 'dt': r.choice([1 / 30, 1 / 60, 0.1]),
                'fast': r.choice([0, 0, 1]), 'size': r.choice(SIZES), 'lines': r.choice([0, 0, 1]),
                'keys': r.choice([0.0, 0.03, 0.1]), 'load': r.choice([0.02, 0.1, 0.5, 1.0])}
@@ -462,7 +606,8 @@ def main():
         for k, _ in trace:
             if k in ('0x00590250', '0x004ac150', '0x00491150', '0x00491780', '0x00478f10', '0x00434cb0',
                      '0x00448830', '0x0047d2f0', '0x0046ceb0', '0x00408c30', '0x0056e9f0', '0x0051a300',
-                     '0x0056e3d0', '0x0056f3e0', '0x0056e8e0', '0x00406650'):
+                     '0x0056e3d0', '0x0056f3e0', '0x0056e8e0', '0x005630c0', '0x00562940', '0x004586e0',
+                     '0x00479be0', 'game.vt', '0x00575ff0.s', 'nav.vt+0x18', '0x004f8f50'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'briefing: {passed}/{runs} runs identical ({calls} calls; ' +
           ', '.join(f'{k} x{v}' for k, v in sorted(stats.items())) + ')')

@@ -24,6 +24,7 @@ using mech3::Arg;
 struct Setup {
   int32_t kind = 1, op = 1, mission = 1, mp = 1, salvage = 0;
   float dt = 0.0f;
+  uint32_t navs = 0;
 };
 
 std::string hex_s(uint32_t v) {
@@ -31,6 +32,21 @@ std::string hex_s(uint32_t v) {
   std::snprintf(b, sizeof b, "%x", v);
   return b;
 }
+
+struct BrHost : RecordingHost {
+  void circle(int32_t cx, int32_t cy, int32_t r, uint32_t p, const ztwod::Rect* c) override {
+    if (c) call("0x005630c0", {cx, cy, r, p, c->left, c->top, c->right, c->bottom});
+    else call("0x005630c0", {cx, cy, r, p});
+  }
+  uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+    va_list c;
+    va_copy(c, args);
+    const uint32_t n = RecordingHost::format_message(buf, size, id, args);
+    if (id == 0x200) call("0x00575ff0.s", {va_arg(c, const char*)});
+    va_end(c);
+    return n;
+  }
+};
 
 struct BrEngine : mech3::Engine {
   Setup c;
@@ -56,6 +72,18 @@ struct BrEngine : mech3::Engine {
   int32_t game_multiplayer_kind() override { return c.kind == 3 ? c.mp : 0; }
   void pilot_record_mission(Handle, int32_t a) override { call("0x00478f10", {a}); }
   void campaign_merge_salvage() override { call("0x00434cb0", {}); }
+  Handle mission_navs() override { return c.navs; }
+  const char* game_text(int32_t slot) override {
+    if (!call("game.vt", {slot})) return nullptr;
+    return keep("G" + hex_s(static_cast<uint32_t>(slot)));
+  }
+  bool map_project(Handle map, Handle pos, int32_t xy[2]) override {
+    const uint32_t v = call("0x004586e0", {map, pos});
+    xy[0] = static_cast<int32_t>(v & 0x3ff);
+    xy[1] = static_cast<int32_t>((v >> 10) & 0x3ff);
+    return (v >> 20) & 1;
+  }
+  zimg::Texture* map_image(Handle map) override { return tex(call("peek32", {map + 0x3c})); }
   uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t) override {
     return call("0x004ac150", {a, caption, text});
   }
@@ -93,8 +121,7 @@ void dump_screen(mech3::BriefingScreen& s, Dump& d) {
   std::ostringstream& o = d.o;
   o << std::hex << "screen seen=" << int(s.salvage_seen) << " target=" << zgame::bits(s.target)
     << " loaded=" << int(s.loaded) << " playing=" << int(s.script.playing)
-    << " at_end=" << (s.script.at == s.script.steps.end() ? 1 : 0) << " steps=" << s.script.steps.size()
-    << std::dec << " reached=" << mech3::briefing_reached() << std::hex << " voice=" << mech3::briefing_voice()
+    << " at_end=" << (s.script.at == s.script.steps.end() ? 1 : 0) << std::dec << " steps=" << s.script.steps.size() << " reached=" << mech3::briefing_reached() << std::hex << " voice=" << mech3::briefing_voice()
     << " bar=" << zgame::bits(s.bar.value) << std::dec << '\n';
   const char* names[] = {"ABORT", "LAUNCH", "MECHLAB", "REPLAY", "SALVAGE", "LOADING"};
   mech3::HelpButton* bs[] = {&s.abort_btn, &s.launch_btn, &s.lab_btn, &s.replay_btn, &s.salvage_btn, &s.loading};
@@ -121,6 +148,41 @@ void dump_screen(mech3::BriefingScreen& s, Dump& d) {
     }
   }
   o << '\n';
+  for (ztwod::Object2D* ob : s.objects) {
+    o << "map o" << ref(d, ob) << ' ';
+    auto rect = [&](const ztwod::Rect& r) { o << r.left << ',' << r.top << ',' << r.right << ',' << r.bottom; };
+    if (auto* c = dynamic_cast<mech3::MapCircle*>(ob)) {
+      auto* w = dynamic_cast<mech3::MapWaypoint*>(ob);
+      o << (w ? "waypoint" : "circle") << " r=" << c->radius << " r2=" << c->radius_sq << std::hex << " col="
+        << c->color << std::dec << " clip=" << int(c->clipped) << ',';
+      rect(c->clip);
+      std::string lt = c->label.text;
+      for (char& ch : lt)
+        if (ch == ' ') ch = '_';
+      o << std::hex << " snd=" << c->sound << std::dec << " end=" << c->end_radius << " label=\"" << lt << "\","
+        << std::hex << c->label.flags << std::dec << ',' << c->label.x << ',' << c->label.y << ',';
+      rect(c->label.bg_rect);
+      if (w) o << std::hex << " map=" << w->map << " nav=" << w->nav << std::dec;
+    } else if (auto* pl = dynamic_cast<ztwod::PolyLine*>(ob)) {
+      auto* t = dynamic_cast<mech3::MapTriangle*>(ob);
+      o << (t ? "triangle" : "line") << " n=" << pl->count << std::hex << " col=" << pl->color << std::dec << " pts=";
+      const int32_t n = pl->count < 0 ? 0 : pl->count > 21 ? 21 : pl->count;
+      for (int32_t i = 0; i < n; ++i) o << (i ? "," : "") << pl->pts[i][0] << ',' << pl->pts[i][1];
+      if (t) {
+        o << " xf=" << t->xform << ' ' << std::hex;
+        for (int i = 0; i < 3; ++i) o << zgame::bits(t->translation[i]) << ',';
+        for (int i = 0; i < 9; ++i) o << zgame::bits(t->points[i]) << ',';
+        o << zgame::bits(t->scale) << " snd=" << t->sound << " end=" << zgame::bits(t->end) << std::dec;
+      } else if (auto* l = dynamic_cast<mech3::MapLine*>(ob)) {
+        o << std::hex << " xec=" << zgame::bits(l->xec) << std::dec;
+      }
+    } else if (dynamic_cast<mech3::MapText*>(ob)) {
+      o << "text";
+    } else {
+      o << "bitmap";
+    }
+    o << '\n';
+  }
   o << "REALLOC_OK id=" << s.realloc_ok.id << std::hex << " en=" << s.realloc_ok.enabled << std::dec << '\n';
 }
 
@@ -132,7 +194,7 @@ extern "C" {
 // ("kind op mission mp salvage dt-bits"), runs `plan` (test_briefing.py's
 // lines) and dumps into `out`. Returns the dump's length, or -1.
 int probe_briefing_run(const char* reader, const char* setup, const char* plan, char* out, int size) {
-  RecordingHost host;
+  BrHost host;
   ztwod::set_host(&host);
   reset();
   BrEngine engine;
@@ -140,6 +202,7 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
     std::istringstream ss(setup);
     ss >> engine.c.kind >> engine.c.op >> engine.c.mission >> engine.c.mp >> engine.c.salvage;
     engine.c.dt = fhex(ss);
+    engine.c.navs = hex(ss);
   }
   std::unique_ptr<mech3::Mech3App> app;
   {
@@ -178,6 +241,10 @@ int probe_briefing_run(const char* reader, const char* setup, const char* plan, 
       mech3::briefing_screen() = s.get();
       g_kind[&s->bar] = 'L';
       g_kind[&s->lines] = 'Z';
+      for (ztwod::Object2D* ob : s->objects) {
+        if (dynamic_cast<mech3::MapText*>(ob)) g_kind[ob] = 'F';
+        else if (!dynamic_cast<ztwod::Image*>(ob)) g_kind[ob] = 'B';
+      }
     } else if (!s) {
       continue;
     } else if (op == "F") {

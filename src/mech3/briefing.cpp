@@ -5,6 +5,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zvideo/zvid_format.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -124,6 +125,132 @@ void BriefingScript::step(float dt) {
   if ((*at)->step(dt)) ++at;
 }
 
+// ---- the map's objects ----
+
+namespace {
+uint16_t pack(const int32_t c[3]) {  // 0x00579370
+  return zvid::pack_bytes(static_cast<uint8_t>(c[0]), static_cast<uint8_t>(c[1]), static_cast<uint8_t>(c[2]));
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00407c90
+MapText::MapText() : FontText(nullptr, 0, 0) { hide(); }
+
+// Mech3.exe 1.2 @ 0x00407cf0
+void MapText::set_pos(int32_t px, int32_t py) {
+  if (needs_render) render();  // 0x00409c60: the width
+  ztwod::Rect r{x, y, x + width, y + text_height()};
+  set_bg_rect(&r);
+  erase();
+  x = px;
+  y = py;
+}
+
+MapCircle::MapCircle(Engine& e, int32_t px, int32_t py, int32_t r, uint32_t color)
+    : Frame(px, py, r, color, [] {
+        static ztwod::Rect screen;
+        screen = ztwod::host().screen_rect();
+        return &screen;
+      }()),
+      e_(e) {
+  hide();
+  label.hide();
+}
+
+// Mech3.exe 1.2 @ 0x004080a0
+void MapCircle::set_pos(int32_t px, int32_t py) {
+  Object2D::set_pos(px, py);
+  set_radius(radius);
+}
+
+// Mech3.exe 1.2 @ 0x00408050
+void MapCircle::set_radius(int32_t r) {
+  radius = r;  // 0x00409d80
+  radius_sq = r * r;
+  label.set_pos(x + r, y + r);
+}
+
+// Mech3.exe 1.2 @ 0x00407e40
+void MapCircle::show_for(float seconds) {
+  if (sound) ztwod::host().sound_play(static_cast<int32_t>(sound), 1.0f);
+  Object2D::show_for(seconds);
+}
+
+// Mech3.exe 1.2 @ 0x00407ea0
+void MapCircle::update(float dt) { shrink(dt); }
+
+// From the first radius to the last, max(20 x dt, 1) pixels a frame: a pixel
+// a frame above 20 fps. FIX (B): with zfix's per_second, 30 pixels a second
+// (the 30 fps frame's pixel), the fraction carried.
+void MapCircle::shrink(float dt) {
+  if (flags & ztwod::kHidden) return;
+  bg_rect = {x - radius, y - radius, x + 1 + radius, y + 1 + radius};
+  if (end_radius < radius) {
+    int32_t step;
+    if (zfix::options().per_second) {
+      owed_ += zfix::frame_steps(dt);
+      step = static_cast<int32_t>(owed_);
+      owed_ -= static_cast<float>(step);
+    } else {
+      float f = static_cast<float>(static_cast<double>(dt) * 20.0);
+      if (f < 1.0f) f = 1.0f;
+      step = static_cast<int32_t>(f);
+    }
+    set_radius(radius - step);
+  }
+  if (radius < end_radius) set_radius(end_radius);
+  Object2D::update(dt);
+  dirty();
+  label.update(dt);
+}
+
+// Mech3.exe 1.2 @ 0x004081a0
+void MapWaypoint::update(float dt) {
+  if ((flags & ztwod::kHidden) || !nav || !e_.mission_map() || !e_.world_up()) return;
+  int32_t xy[2];
+  e_.map_project(map, e_.nav_position(nav), xy);
+  set_pos(xy[0], xy[1]);
+  shrink(dt);
+}
+
+// 0x005a31e0 (the zTwoD triangle's sized constructor) with the subclass's fields.
+MapTriangle::MapTriangle(Engine& e, int32_t px, int32_t py, int32_t size, uint32_t c) : e_(e) {
+  Shape::set_pos(px, py);
+  set_scale(static_cast<float>(size) * 1.154701f);
+  color = c;
+  transform();
+  hide();
+}
+
+// Mech3.exe 1.2 @ 0x00408470: the background at the rectangle's corner.
+void MapTriangle::erase() {
+  if (background) ztwod::host().blit(background, bg_rect.left, bg_rect.top, 0, &bg_rect);
+}
+
+// Mech3.exe 1.2 @ 0x004084b0
+void MapTriangle::show_for(float seconds) {
+  if (sound) ztwod::host().sound_play(static_cast<int32_t>(sound), 1.0f);
+  Object2D::show_for(seconds);
+}
+
+// Mech3.exe 1.2 @ 0x004084f0
+void MapTriangle::update(float dt) {
+  if (flags & ztwod::kHidden) return;
+  const float fx = static_cast<float>(get_x()), fy = static_cast<float>(get_y());
+  bg_rect.left = static_cast<int32_t>(fx - scale);
+  bg_rect.top = static_cast<int32_t>(fy - scale);
+  bg_rect.right = static_cast<int32_t>(fx + scale + 1.0f);
+  bg_rect.bottom = static_cast<int32_t>(fy + scale + 1.0f);
+  Shape::update(dt);
+  dirty();
+}
+
+// Mech3.exe 1.2 @ 0x00408600
+void MapLine::update(float dt) {
+  Object2D::update(dt);
+  dirty();
+}
+
 // ---- the screen ----
 
 // Mech3.exe 1.2 @ 0x00405230. The dialog is the briefing's own section of
@@ -214,6 +341,11 @@ BriefingScreen::~BriefingScreen() {
   }
   script.stop(e);  // the list's own destructor (0x004063e0 again)
   script.steps.clear();
+  for (ztwod::Object2D*& o : objects) {
+    delete o;
+    o = nullptr;
+  }
+  objects.clear();
   if (briefing_screen() == this) briefing_screen() = nullptr;
 }
 
@@ -378,7 +510,7 @@ void BriefingScreen::read_script(zrdr::Node* section) {
     zrdr::Node* objs = markers->list[i + 1].list;
     const int32_t m = (objs[0].i - 1) / 2;
     for (int32_t j = 0; j < m; ++j) {
-      ztwod::Object2D* o = e.briefing_map_object(&objs[1 + 2 * j]);
+      ztwod::Object2D* o = read_object(&objs[1 + 2 * j]);
       if (!o) continue;
       o->set_background(static_bg, nullptr);
       script.steps.push_back(new BriefingShow(o));
@@ -386,6 +518,113 @@ void BriefingScreen::read_script(zrdr::Node* section) {
     }
   }
   script.steps.push_back(new BriefingMarker(e, -1));
+}
+
+// Mech3.exe 1.2 @ 0x00406650. `entry` is a MARKERS step's name, its list
+// after it. Texts take FONT (else brief_grey), the shapes COLOR (else white).
+ztwod::Object2D* BriefingScreen::read_object(zrdr::Node* entry) {
+  Engine& e = engine();
+  ztwod::Host& h = ztwod::host();
+  int32_t at[2] = {320, 240};
+  int32_t color[3] = {255, 255, 255};
+  const char* kind = entry->s;
+  zrdr::Node* v = entry + 1;
+  ztwod::Object2D* made = nullptr;
+  const char* font_name = zrdr::get_string(v, "font");
+  const Handle font = h.font_find(font_name ? font_name : "brief_grey");
+  zrdr::get_ivec3(v, "color", color);
+  static const char* const kGameTexts[] = {"game_type", "db_name", "scenario_name", "scenario_desc"};
+  int32_t game_text = -1;
+  for (int32_t i = 0; i < 4; ++i)
+    if (!std::strcmp(kind, kGameTexts[i])) game_text = i;
+  if (!std::strcmp(kind, "circle")) {
+    int32_t radius[2] = {10, 3};
+    zrdr::get_ivec2(v, "at", at);
+    zrdr::get_ivec2(v, "radius", radius);
+    auto* c = new MapCircle(e, at[0], at[1], radius[0], pack(color));
+    c->set_radius(radius[0]);
+    c->end_radius = radius[1];
+    if (const char* snd = zrdr::get_string(v, "sound")) c->sound = static_cast<Handle>(h.sound_find(snd));
+    made = c;
+  } else if (!std::strcmp(kind, "text")) {
+    if (zrdr::get_ivec2(v, "at", at)) {
+      const char* text = h.message(zrdr::get_string(v, "string"));
+      auto* t = new MapText();
+      t->set_pos(at[0], at[1]);
+      t->set_font(font);
+      t->set_text_plain(text);
+      made = t;
+    }
+  } else if (game_text >= 0) {
+    if (zrdr::get_ivec2(v, "at", at)) {
+      const char* text = e.game_text(4 + 4 * game_text);  // the game's vt+0x04 .. +0x10
+      auto* t = new MapText();
+      t->set_pos(at[0], at[1]);
+      t->set_font(font);
+      t->set_text_plain(text);
+      t->show_for(-1.0f);
+      made = t;
+    }
+  } else if (!std::strcmp(kind, "bitmap")) {
+    if (zrdr::get_ivec2(v, "at", at)) {
+      auto* b = new ztwod::Image(zrdr::get_string(v, "image"), at[0], at[1], 0);  // vtable 0x005bbf30
+      b->hide();
+      made = b;
+    }
+  } else if (!std::strcmp(kind, "waypoint")) {
+    // The nav point is looked up by LABEL, which also names it (NAME is not read).
+    int32_t radius[2] = {10, 3};
+    const char* name = zrdr::get_string(v, "label");
+    const char* text = h.message(zrdr::get_string(v, "label"));
+    if (const Handle navs = e.mission_navs()) {
+      if (const Handle nav = e.nav_find(navs, name)) {
+        zrdr::get_ivec2(v, "radius", radius);
+        zrdr::get_ivec3(v, "color", color);
+        if (!text) text = name;
+        const Handle map = e.mission_map();
+        auto* w = new MapWaypoint(e, 0, 0, 0, pack(color));
+        w->map = map;
+        w->nav = nav;
+        int32_t xy[2];
+        e.map_project(map, e.nav_position(nav), xy);
+        w->set_radius(radius[0]);
+        w->end_radius = radius[1];
+        w->label.set_text_id(0x200, text);  // (with no text, 0x0040a930's: never, text is the name then)
+        w->label.show_for(-1.0f);
+        w->label.set_font(font);
+        w->label.set_background(e.map_image(map), nullptr);
+        w->Object2D::set_pos(xy[0], xy[1]);  // 0x00409a40
+        w->radius_sq = w->radius * w->radius;
+        w->label.set_pos(w->x + w->radius, w->y + w->radius);
+        made = w;
+      }
+    }
+  } else if (!std::strcmp(kind, "triangle")) {
+    int32_t height[2] = {10, 3};
+    zrdr::get_ivec2(v, "at", at);
+    zrdr::get_ivec2(v, "height", height);
+    auto* t = new MapTriangle(e, at[0], at[1], height[0], pack(color));
+    if (const char* snd = zrdr::get_string(v, "sound")) t->sound = static_cast<Handle>(h.sound_find(snd));
+    t->set_scale(static_cast<float>(height[0]));
+    t->end = static_cast<float>(height[1]);
+    made = t;
+  } else if (!std::strcmp(kind, "line")) {
+    if (zrdr::Node* pts = zrdr::find(v, "points")) {
+      auto* l = new MapLine();
+      l->hide();
+      const int32_t n = pts->list[0].i - 1;
+      int32_t k = 0;
+      for (int32_t i = 0; i < n; ++i) {
+        int32_t p[2];
+        if (zrdr::get_ivec2(&pts->list[i + 1], p)) l->set_point(k++, p[0], p[1]);
+      }
+      l->color = pack(color);  // 0x00409e00
+      made = l;
+    }
+  }
+  if (!made) e.report(0x200, "C:\\zipper\\Mech3\\Briefing.cpp", 0x499, "Failed to create locator (%s)", kind);
+  else objects.push_back(made);
+  return made;
 }
 
 // Mech3.exe 1.2 @ 0x00405120. FIX (bug): the line went in as the format

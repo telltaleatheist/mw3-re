@@ -449,6 +449,7 @@ inline void dump_dialog(ztwod::Dialog& d, Dump& out) {
       case 'Y': out.item(static_cast<ztwod::ListItem*>(p)); break;
       case 'Z': out.textbox(static_cast<ztwod::TextBox*>(p)); break;
       case 'F': out.fonttext(static_cast<ztwod::FontText*>(p)); break;
+      case 'B': out.base(p); break;  // an object that is not an image (the test dumps the rest)
       default: out.image(static_cast<ztwod::Image*>(p)); break;
     }
     out.o << '\n';

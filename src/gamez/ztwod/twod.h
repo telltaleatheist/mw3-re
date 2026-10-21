@@ -569,6 +569,7 @@ class Frame : public Object2D {
   Frame(int32_t px, int32_t py, int32_t r, uint32_t c, const Rect* clip);  // 0x005a3a60
   void draw() override;              // +0x04  0x005a3b00
   bool contains(int32_t px, int32_t py) const;  // 0x005a3b30: inside the circle
+  int32_t hit(int32_t px, int32_t py) override { return contains(px, py) ? 1 : 0; }  // +0x5c  0x00409db0
   virtual void set_clip(const Rect* r);  // +0x70  0x00409dd0: the rect copied, none: [0x0063d880] (zero)
   int32_t radius = 0;                // +0x34
   int32_t radius_sq = 0;             // +0x38
@@ -672,6 +673,9 @@ class Shape : public PolyLine {
   void update(float dt) override;    // +0x24  0x005a3550: the points first when pending
   void transform();                  // 0x005a3270
   bool contains(int32_t px, int32_t py);  // 0x005a3440: below the apex, above the base, within its slope
+  int32_t hit(int32_t px, int32_t py) override { return contains(px, py) ? 1 : 0; }  // +0x5c  0x00409e40
+  int32_t get_x() override { return static_cast<int32_t>(translation[0]); }  // +0x68  0x00409e20
+  int32_t get_y() override { return static_cast<int32_t>(translation[1]); }  // +0x6c  0x00409e30
   uint32_t xform = 0;                // +0xec  1 moved, 2 scaled (pending)
   float translation[3] = {};         // +0xf0
   float points[9] = {};              // +0xfc  the three corners worked out
