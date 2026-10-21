@@ -5,8 +5,10 @@
 // plan of frames, presses and the buttons' calls; every call out recorded
 // through the calltrace callback, the screen dumped as text.
 #include <cstdarg>
+#include <cstdlib>
 #include <cstdint>
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -33,6 +35,7 @@ struct Setup {
   std::vector<mech3::Engine::Objective> objectives[2];
   mech3::Store store{0};
   std::map<const mech3::ConfigItem*, uint32_t> item_addr;
+  std::map<uint32_t, mech3::Engine::LanceArmor> armor;  // by the fake mech's address
 };
 const char* const kNames[] = {"", "Me14", "Me15", "Me01", "Kobra"};
 
@@ -58,6 +61,10 @@ struct DbHost : RecordingHost {
     const uint32_t n = call("0x00575ff0", {size, id});
     std::snprintf(buf, size, "%s", n ? text.c_str() : "");
     return n;
+  }
+  void polygon(const float* v, int32_t n, uint32_t color, int32_t winding) override {
+    call("0x0055d010", {n, color, winding});
+    for (int32_t i = 0; i < n; ++i) call("0x0055d010.v", {zgame::bits(v[3 * i]), zgame::bits(v[3 * i + 1])});
   }
   const char* message_text(uint32_t id) override {
     if (!call("0x00576040", {id})) return nullptr;
@@ -105,6 +112,16 @@ struct DbEngine : mech3::Engine {
   const char* objective_text(Handle obj) override {
     if (!call("0x0045e080", {obj})) return nullptr;
     return keep("obj" + hex_s(obj));
+  }
+  bool vehicle_armor(Handle v, LanceArmor* out) override {
+    auto f = c.armor.find(v);
+    if (f == c.armor.end()) return false;
+    *out = f->second;
+    return true;
+  }
+  const char* mech_name_of(int32_t mech) override {
+    if (!call("0x00484650", {mech})) return nullptr;
+    return keep("mech" + std::to_string(mech));
   }
   mech3::Store* store_of(Handle h) override { return h && h == c.salvage ? &c.store : nullptr; }
   Handle item_handle(const mech3::ConfigItem* it) override {
@@ -160,6 +177,31 @@ std::string game_line(const DbEngine& e) {
   return "game b0=" + std::to_string(e.b0) + " x6c=" + std::to_string(e.x6c) + " x70=" + std::to_string(e.x70) + "\n";
 }
 
+std::string poly(const ztwod::Polygon& p) {
+  std::ostringstream o;
+  o << p.x << ',' << p.y << " n" << p.count << " c" << std::hex << p.color << " [";
+  for (int k = 0; k < std::min(p.count, 4); ++k)
+    o << (k ? "," : "") << zgame::bits(p.pts[k][0]) << '/' << zgame::bits(p.pts[k][1]);
+  o << std::dec << ']';
+  return o.str();
+}
+
+std::string dump_display(int i, const mech3::LanceDisplay& d) {
+  std::ostringstream o;
+  o << "display" << i << " most=" << d.most << " scale=" << std::hex << zgame::bits(d.scale) << std::dec
+    << " box=" << d.left << ',' << d.top << ',' << d.right << ',' << d.bottom << '\n';
+  for (int k = 0; k < 11; ++k) {
+    const auto& b = d.bars[k];
+    o << " bar" << k << ' ' << poly(b.full) << ' ' << b.full_h << '/' << b.full_w << " | " << poly(b.lost) << ' '
+      << b.lost_h << '/' << b.lost_w << ' ' << b.height << ' ' << b.width << ' ' << b.x << ' ' << b.y << '\n';
+  }
+  for (int k = 0; k < 4; ++k)
+    o << " label" << k << " \"" << d.labels[k].text << "\" " << d.labels[k].x << ',' << d.labels[k].y << '\n';
+  o << " line " << d.line.x << ',' << d.line.y << ' ' << d.line.end_x << ',' << d.line.end_y << " c" << std::hex
+    << d.line.color << std::dec << '\n';
+  return o.str();
+}
+
 // The dump test_debriefing.py builds from the emulator's memory.
 void dump_screen(mech3::DebriefScreen& s, const DbEngine& e, Dump& d) {
   std::ostringstream& o = d.o;
@@ -182,6 +224,8 @@ void dump_screen(mech3::DebriefScreen& s, const DbEngine& e, Dump& d) {
     }
     o << '\n';
   }
+  for (int i = 0; i < 4; ++i)
+    if (s.cards[i].display) o << dump_display(i, *s.cards[i].display);
   for (int i = 0; i < 4; ++i) {
     const mech3::LanceCard& c = s.cards[i];
     o << "card" << i << " mech=" << c.mech << std::hex << " veh=" << c.vehicle << std::dec
@@ -221,6 +265,15 @@ int probe_debriefing_run(const char* reader, const char* setup, const char* plan
       m.type = static_cast<int32_t>(type);
       for (int k = 0; k < 6; ++k) m.stats[k] = static_cast<int32_t>(st[k]);
       m.name = kNames[name % 5];
+      mech3::Engine::LanceArmor a;
+      a.type = m.type;
+      for (int k = 0; k < 11; ++k) ss >> a.armor[k];
+      for (int k = 0; k < 11; ++k) {
+        uint32_t bits = 0;
+        ss >> bits;
+        a.left[k] = zgame::from_bits(bits);
+      }
+      c.armor[m.mech] = a;
       c.lance.push_back(m);
     }
     ss >> n;

@@ -90,13 +90,13 @@ class Store {
   void add_all(const Store& from);          // 0x004732b0: each of its items, by count
   void assign(const Store& from);           // 0x00473300: emptied, then add_all
   BaseItem* add_mech(int32_t mech);         // 0x00471c10: one of the mech (not -1 or 0x13)
-  void add_config(const Config* c);         // 0x00472cf0: each item of the loadout, by count
+  bool add_config(const Config* c);         // 0x00472cf0: each item of the loadout, by count (false: none)
   bool remove_config(const Config* c);      // 0x00472d40: each item of the loadout, by count
   ConfigItem* has_mech(int32_t mech);       // 0x00409f00: the mech's item, or none
   int32_t count_like(const ConfigItem* item) const;  // 0x00473510
   // 0x004735f0: the store (and `other`'s, given) holds the mech (unless -1)
-  // and every item of the loadout by count; a full store, none or the same
-  // store as `other`: true.
+  // and every item of the loadout by count; a full store or no loadout:
+  // true (the exe's `other` == loadout test never holds).
   bool has_config(int32_t mech, const Store* other, const Config* c);
   bool take_config(int32_t mech, const Config* c);  // 0x00473440: the mech and the items out (not a full store)
   bool give_config(int32_t mech, const Config* c);  // 0x00473400: back in

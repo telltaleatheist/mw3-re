@@ -2027,6 +2027,11 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   down to the weapons and ammo you actually have, and those items leave
   your inventory while they are equipped. At Operation 4 Mission 6 this is
   skipped: your lancemates keep whatever they had.
+- **The debriefing's armor bars are scaled per card:** each lance card's
+  little H-T-A-L display scales its bars to that mech's own thickest armor
+  section, so a full bar on a light mech and on an assault mech mean
+  different amounts; the bars only compare sections within one card. The
+  rear torso bars are drawn darker.
 - **Your rank is the Campaign Total in steps of 100,000:** Sergeant below
   100,000, then Master Sergeant, Captain, Major, and Colonel from 400,000
   on.

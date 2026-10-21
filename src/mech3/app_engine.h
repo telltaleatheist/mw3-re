@@ -112,6 +112,8 @@ class GameEngine : public Engine {
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;
+  bool vehicle_armor(Handle v, LanceArmor* a) override;
+  const char* mech_name_of(int32_t mech) override;
   void win_keep_scores(Handle screen, int32_t n) override;  // into the ported campaign
   void briefing_script_start(Handle s) override;
   void briefing_init(Handle s) override;

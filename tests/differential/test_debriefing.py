@@ -181,6 +181,9 @@ class Original:
         empty = e.world_string('')
         e.stub(0x5abdb0, '@cs', 'c', 0, lambda emu, k, a, p: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
         e.stub(0x5abda4, '@cs~', '', 0, lambda emu, k, a, p: emu._ret(0, 0))
+        e.stub(0x5abe5e, '@cs+=', 'c,s0', 4, lambda emu, k, a, p: (
+            emu.w32(a[0], emu.world_string(emu.cstr(emu.r32(a[0])) + (emu.cstr(a[1]) if a[1] else ''))),
+            emu._ret(a[0], 4)))
         e.stub(0x5abdbc, '@cs=', 'c,s0', 4, lambda emu, k, a, p: (
             emu.w32(a[0], emu.world_string(emu.cstr(a[1]) if a[1] else '')), emu._ret(a[0], 4)))
 
@@ -251,28 +254,20 @@ class Original:
             emu._ret(len(text) if got else 0, pop)
         e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
 
-        # A card's display (a fake object: its frame and deleting destructor logged).
-        def display(emu, key, a, pop):
-            d = 0
-            if t.handle(key, tuple(i32(x) & 0xffffffff for x in a)):
-                d = e.world_alloc(0x10)
-                dvt = e.world_alloc(0x30)
-                e.w32(d, dvt)
-                e.w32(dvt + 0x24, e.new_stub('display.vt+0x24', 'c,s0', 4))
-                e.w32(dvt + 0x00, e.new_stub('display.vt+0x00', 'c', 4))
-                t.override(key, d)  # the rebuild gets the object, not the script's yes
-            emu._ret(d, pop)
-        e.stub(0x47e840, '0x0047e840', 's0,s1,s2,s3,s4', None, display)
-
-        # A card's set_vehicle as the port has it so far (6c ports the rest).
-        def set_vehicle(emu, key, a, pop):
-            card, v = a
-            emu.w32(card + 0x64c, v)
-            d = emu.r32(card + 0x650)
-            if v and d:
-                t.handle(key, (d, v))
+        # The bars' fills (0x0055d010, the polygon filler): recorded, as test_hud.py.
+        def polygon(emu, key, a, pop):
+            v, n, color = a
+            t.handle(key, (n, color, emu.r32(0x74a3c8)))
+            for i in range(n):
+                t.handle(key + '.v', (emu.r32(v + 12 * i), emu.r32(v + 12 * i + 4)))
             emu._ret(0, pop)
-        e.stub(0x47b210, '0x0047b210', 'c,s0', None, set_vehicle)
+        e.stub(0x55d010, '0x0055d010', 'c,d,s0', None, polygon)
+
+        # A mech's name (0x00484650): "mech<n>", or none.
+        def mech_name(emu, key, a, pop):
+            v = t.handle(key, (i32(a[0]),))
+            emu._ret(e.world_string(f'mech{i32(a[0])}') if v else 0, pop)
+        e.stub(0x484650, '0x00484650', 'c', None, mech_name)
 
         def objective_text(emu, key, a, pop):
             v = t.handle(key, (a[0],))
@@ -286,7 +281,7 @@ class Original:
             emu._ret(len(text), 0)
         e.import_stub(0x5bb658, '@sprintf', 's0,s1', 0, sprintf)
         plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
-                 0x50ad60: '', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
+                 0x50ad60: '', 0x562940: 'c,d,s0,s1,s2'}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)
         w.answers.update({
@@ -294,7 +289,7 @@ class Original:
             '0x0040ce90': cfg['fast'],
             '0x0040d760': cfg['size'][0], '0x0040d770': cfg['size'][1],
             '0x00576040': lambda rr, k, a: e.world_string(f'M{a[0]:x}'),
-            '0x0047e840': lambda rr, k, a: rr.choice([0, 1, 1]),
+            '0x00484650': lambda rr, k, a: rr.choice([1, 1, 1, 0]),
             'game.vt': lambda rr, k, a: rr.choice([0, 1, 1]),
             '0x00575fd0': lambda rr, k, a: rr.choice([0, 1, 1]),
             '0x00575ff0': lambda rr, k, a: rr.choice([1, 1, 0]),
@@ -341,6 +336,21 @@ class Original:
             e.w32(vt + 0x98, e.cpu.code(bytes.fromhex('d905') + struct.pack('<I', hp) + b'\xc3'))
             name = e.world_string(NAMES[ent['name']])
             e.w32(vt + 0xa4, e.cpu.code(b'\xb8' + struct.pack('<I', name) + b'\xc3'))
+            # The display's reads: the loadout's armor, the parts' armor left
+            # (vt+0x44 by section, from a table).
+            cf = e.world_alloc(0xd8)
+            for i, v in enumerate(ent['armor']):
+                e.w32(cf + 0x38 + 4 * i, v)
+            e.w32(m + 0x3ec, cf)
+            for off, vals in ((0x39c, ent['torso']), (0x3a4, [ent['left'][6]]), (0x394, [ent['left'][7]]),
+                              (0x398, [ent['left'][8]]), (0x38c, [ent['left'][9]]), (0x390, [ent['left'][10]])):
+                part, pvt, tbl = e.world_alloc(0x80), e.world_alloc(0x50), e.world_alloc(0x20)
+                for i, v in enumerate(vals):
+                    e.wf(tbl + 4 * i, v)
+                e.w32(part, pvt)
+                e.w32(pvt + 0x44, e.cpu.code(bytes.fromhex('8b442404d90485') + struct.pack('<I', tbl) +
+                                             bytes.fromhex('c20400')))
+                e.w32(m + off, part)
             e.w32(m + 0xc0, ent['team'])
             e.w32(m + 0xc4, cfg['allies'])
             for i, v in enumerate(ent['stats']):
@@ -479,6 +489,28 @@ class Original:
                 dump += self.dump_game()
         return dump
 
+    def dump_display(self, i, d):
+        e = self.e
+
+        def poly(p):
+            n = e.r32(p + 0x130)
+            pts = ','.join(f'{e.r32(p + 0x34 + 12 * k):x}/{e.r32(p + 0x38 + 12 * k):x}' for k in range(min(n, 4)))
+            return f'{i32(e.r32(p + 0x14))},{i32(e.r32(p + 0x18))} n{n} c{e.r32(p + 0x134):x} [{pts}]'
+        out = [f'display{i} most={i32(e.r32(d + 0x1ca4))} scale={e.r32(d + 0x1ca8):x} '
+               f'box={",".join(str(i32(e.r32(d + 0x1c84 + 4 * k))) for k in range(4))}']
+        for k in range(11):
+            b = d + 0x4c + 0x290 * k
+            out.append(f' bar{k} {poly(b)} {i32(e.r32(b + 0x138))}/{i32(e.r32(b + 0x13c))} | {poly(b + 0x140)} '
+                       f'{i32(e.r32(b + 0x278))}/{i32(e.r32(b + 0x27c))} '
+                       + ' '.join(str(i32(e.r32(b + o))) for o in (0x280, 0x284, 0x288, 0x28c)))
+        for k in range(4):
+            lb = d + 0x1cac + 0x4b0 * k
+            out.append(f' label{k} "{e.cstr(lb + 0x34)}" {i32(e.r32(lb + 0x14))},{i32(e.r32(lb + 0x18))}')
+        ln = d + 0x2f6c
+        out.append(f' line {i32(e.r32(ln + 0x14))},{i32(e.r32(ln + 0x18))} {i32(e.r32(ln + 0x34))},'
+                   f'{i32(e.r32(ln + 0x38))} c{e.r32(ln + 0x3c):x}')
+        return '\n'.join(out) + '\n'
+
     def dump_game(self):
         e, g = self.e, self.game
         return f'game b0={e.r8(g + 0xb0)} x6c={i32(e.r32(g + 0x6c))} x70={i32(e.r32(g + 0x70))}\n'
@@ -507,6 +539,10 @@ class Original:
             out.append(f'{name} id={i32(e.r32(b + 0x150))} en={e.r32(b + 0xc4)} blink={e.r8(b + 0x159)} '
                        f'help=' + ','.join(ref(x) for x in hl) + '\n')
         for i, c in enumerate(CARDS):
+            d = e.r32(m + c + 0x650)
+            if d:
+                out.append(self.dump_display(i, d))
+        for i, c in enumerate(CARDS):
             b = m + c
             d = e.r32(b + 0x650)
             out.append(f'card{i} mech={i32(e.r32(b + 0x17c))} veh={e.r32(b + 0x64c):x} display={1 if d else 0} '
@@ -529,7 +565,8 @@ def run_case(seed, path, data, start, cfg, plan, verbose):
                                      cfg['allies']))
     ents = [x for x in cfg['lance'] if x['mech'] and not x.get('hidden')]
     c += f' {len(ents):x} ' + ' '.join(
-        ' '.join(f'{v & 0xffffffff:x}' for v in [x['addr'], x['player'], x['team'], x['type'], *x['stats'], x['name']])
+        ' '.join(f'{v & 0xffffffff:x}' for v in [x['addr'], x['player'], x['team'], x['type'], *x['stats'], x['name'],
+                                                   *x['armor'], *[fbits(f) for f in x['left']]])
         for x in ents)
     items = cfg['store'] or []
     c += f' {len(items):x} ' + ' '.join(
@@ -598,12 +635,18 @@ def main():
             for _ in range(r.choice([0, 1, 3, 6, 10]))]
         cfg['lance'] = []
         player_at = r.choice([0, 0, 1, 2, 3, None])
+        fracs = [0.0, 1.0, 1.0, 0.5, 0.25, 0.75, 0.1, 0.9, 0.33, 1.5, -0.25]  # (out of 0..1: the clamps)
         for i in range(r.choice([0, 1, 2, 3, 4, 5, 6, 7, 7])):
             cfg['lance'].append({
                 'mech': r.random() < 0.9, 'player': i == player_at, 'team': r.choice([0, 1, 1, 2, 4, 0x10, 3]),
                 'type': r.choice([3, 8, 13, 0, -1, 5]), 'name': r.randrange(len(NAMES)),
                 'stats': [r.choice([0, 0, 1, 2, 5]), r.choice([0, 0, 1, 3]), r.choice([0, 7]),
-                          r.choice([0, 0, 150, 1000]), r.choice([0, 0, 250]), r.choice([0, 0, 500])]})
+                          r.choice([0, 0, 150, 1000]), r.choice([0, 0, 250]), r.choice([0, 0, 500])],
+                'armor': [r.choice([1, 8, 12, 20, 33, 40, 0]) for _ in range(11)],
+                'torso': [r.choice(fracs) for _ in range(6)],
+                'left': [r.choice(fracs) for _ in range(11)]})
+            cfg['lance'][-1]['armor'][r.randrange(11)] = r.choice([20, 40, 45])  # (some armor: no 0 / 0 scale)
+            cfg['lance'][-1]['left'][:6] = cfg['lance'][-1]['torso']
 
         def objectives():
             if r.random() < 0.15:
@@ -624,7 +667,7 @@ def main():
         calls += len(trace)
         for k, _ in trace:
             if k in ('0x00590250', '0x00491780', '0x00478ce0', '0x00435240', '0x0050ad60', '0x0047abe0',
-                     '0x0048ef00', '0x0047b210', '0x0047e840', '0x0048dbe0', 'display.vt+0x24', 'game.vt',
+                     '0x0048ef00', '0x00484650', '0x0048dbe0', 'game.vt',
                      '0x00575fd0', '0x0045e080', '0x005179d0'):
                 stats[k] = stats.get(k, 0) + 1
     print(f'debriefing: {passed}/{runs} runs identical ({calls} calls; ' +

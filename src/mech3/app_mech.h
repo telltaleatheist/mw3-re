@@ -134,6 +134,9 @@ struct DebriefMech {
 };
 std::vector<DebriefMech> mech_debrief_lance();
 uint32_t mech_player_allies();
+// A lance card's armor display's read (0x0047eba0, 0x0047ef10): the mech's
+// type, its loadout's armor and its parts' armor left in the bars' order.
+bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[11]);
 // 0x0047ae10's won path on the ported mechs: the player's mech into `own`
 // (the campaign's +0x64), its allies' into the mission's salvage store
 // (mech_salvage.h).
