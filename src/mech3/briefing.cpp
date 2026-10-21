@@ -1,5 +1,7 @@
 #include "mech3/briefing.h"
 
+#include <algorithm>
+
 #include <cstring>
 
 #include "gamez/zreader/zreader.h"
@@ -312,9 +314,9 @@ BriefingScreen::BriefingScreen(Engine& e, const char* name)
   if (e.app_flag_1ba()) lines.show_for(-1.0f);
   else lines.hide();
   if (dlg) {
-    // REALLOC_LIST (the mech lab's store list, 0x0048d880): a later item.
+    ztwod::bind_button(this, dlg, &realloc_list, "REALLOC_LIST");
     ztwod::bind_button(this, dlg, &realloc_ok, "REALLOC_OK");
-    e.briefing_realloc(0);
+    show_realloc(false);
   }
   dirty_all();
   set_flags_all(0);
@@ -387,7 +389,7 @@ void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
     case kBtnMechLab:
       script.stop(e);
       lab_btn.on_leave();
-      e.mech_lab_open(e.briefing_lab_store(), 0);
+      e.mech_lab_open(e.store_handle(build_lab_store()), 0);
       break;
     case kBtnReplay:  // every entry back to its start, then played from the first
       script.stop(e);
@@ -402,7 +404,7 @@ void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
       salvage_seen = 1;
       break;
     case kBtnReallocOk:
-      e.briefing_realloc(0);
+      show_realloc(false);
       break;
     default: break;
   }
@@ -631,4 +633,156 @@ ztwod::Object2D* BriefingScreen::read_object(zrdr::Node* entry) {
 // (a '%' in it read arguments that are not there).
 void BriefingScreen::log(const char* s) { lines.set_text("%s", s); }
 
+// ---- the reallocation (0x00408660..0x00408bd0, 0x00404ae0) ----
+
+// The engine's defaults: the ported pilot's games.
+Store* Engine::game_store() {
+  Pilot* p = current_pilot();
+  return p && p->current ? &p->current->store : nullptr;
+}
+Store* Engine::campaign_salvage() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? &c->store3c : nullptr;
+}
+int32_t Engine::campaign_units() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? c->a8 : 0;
+}
+
+namespace {
+constexpr float kTonsPerUnit = 300.0f;  // 0x00470cc0
+constexpr int32_t kMechsPerUnit = 2;    // 0x00470cd0
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00409fd0
+float store_tons(const Store& s) {
+  float t = 0.0f;
+  for (const ConfigItem* it : s.items) t = static_cast<float>(it->weight(-1) + t);
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x00472970
+int32_t store_mechs(const Store& s) {
+  int32_t n = 0;
+  for (const ConfigItem* it : s.items)
+    if (it->kind() == 0) n += it->count;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00473510
+int32_t store_count_like(const Store& s, const ConfigItem* item) {
+  if (!item) return 0;
+  int32_t n = 0;
+  for (const ConfigItem* it : s.items)
+    if (same_item(it, item)) n += it->count;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x00408690. A store's own (b10) items are not taken from
+// `from` (0x00471d20 refuses), but still copied: kept.
+void store_take(Store& from, const Store& owner, Store& out, float tons, int32_t mechs) {
+  const bool limited = !(mechs == 0 && tons == 0.0f);
+  float have_tons = store_tons(out);
+  int32_t have_mechs = store_mechs(out);
+  for (ConfigItem* it : owner.items) {
+    if (!it) continue;
+    const int32_t n = it->count;
+    int32_t k = std::min(store_count_like(from, it), n);
+    const float room = tons - have_tons;
+    if (k <= 0) continue;
+    if (limited) {
+      if (it->kind() == 0) {
+        k = std::min(k, mechs - have_mechs);
+      } else {
+        while (k > 0 && it->weight(k) > static_cast<double>(room)) --k;
+      }
+    }
+    if (k <= 0) continue;
+    out.add_copy(it, k);
+    from.remove(it, k);
+    have_tons = store_tons(out);
+    have_mechs = store_mechs(out);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00408850. A mech short of room counts its shortfall as
+// over: with +0xa8 at 0 (never in play) the salvage gains more mechs than
+// there were (campaign.md section 9).
+void store_reallocate(Store& lab, Store& game, Store& salvage, Store* realloc, int32_t units) {
+  const float tons = static_cast<float>(kTonsPerUnit * static_cast<float>(units));
+  const int32_t mechs = units * kMechsPerUnit;
+  Store fit(0), over(0);
+  store_take(lab, game, fit, tons, mechs);
+  store_take(lab, salvage, over, 0.0f, 0);
+  game.assign(fit);
+  salvage.assign(over);
+  fit.clear();
+  over.clear();
+  for (const ConfigItem* it : lab.items) {
+    const float used = static_cast<float>(store_tons(fit) + store_tons(game));
+    const float room = tons - used;
+    const int32_t n = it->count;
+    int32_t k = 0;
+    if (it->kind() == 0) {
+      const int32_t free = mechs - (store_mechs(game) + store_mechs(fit));
+      k = free < n ? free : n;
+    } else {
+      k = n;
+      while (k > 0 && it->weight(k) > static_cast<double>(room)) --k;
+    }
+    const int32_t rest = n - k;
+    if (k > 0) fit.add_copy(it, k);
+    if (rest > 0) over.add_copy(it, rest);
+  }
+  if (realloc) realloc->assign(over);
+  game.add_all(fit);
+  salvage.add_all(over);
+}
+
+// Mech3.exe 1.2 @ 0x00408b40: a campaign's lab store is the game's store and
+// the salvage together; any other game's lab works on the game's store.
+Store* lab_store_build(Store& lab, Store* game, Store* salvage) {
+  lab.clear();
+  if (!salvage) return game;
+  if (game) lab.assign(*game);  // 0x00408660
+  lab.add_all(*salvage);
+  return &lab;
+}
+Store* BriefingScreen::build_lab_store() {
+  Engine& e = engine();
+  return lab_store_build(lab_store, e.game_store(), e.campaign_salvage());
+}
+
+// Mech3.exe 1.2 @ 0x00408bd0
+void BriefingScreen::refresh() {
+  Engine& e = engine();
+  Store* salvage = e.campaign_salvage();
+  Store* game = e.game_store();
+  if (!salvage || !game) return;
+  store_reallocate(lab_store, *game, *salvage, &realloc_store, e.campaign_units());
+}
+
+// Mech3.exe 1.2 @ 0x00404ae0: shown only with something left over; the six
+// buttons off while it is.
+void BriefingScreen::show_realloc(bool on) {
+  Engine& e = engine();
+  const bool show = on && realloc_store.count() != 0;  // 0x0040a0c0
+  HelpButton* bs[] = {&abort_btn, &launch_btn, &lab_btn, &replay_btn, &salvage_btn, &loading};
+  for (HelpButton* b : bs) b->enable(show ? 0 : 1);
+  realloc_list.x209 = 0;  // 0x0040a780 .. 0x0040a7c0
+  realloc_list.x20a = 1;
+  realloc_list.x20b = 0;
+  realloc_list.x20c = 0;
+  realloc_list.x20d = 0;
+  realloc_list.x218 = 0;  // 0x0040a760
+  realloc_list.store = e.store_handle(&realloc_store);
+  realloc_list.refill();
+  if (show) realloc_list.show_for(-1.0f), realloc_ok.show_for(-1.0f);  // 0x00409a90
+  else realloc_list.hide(), realloc_ok.hide();
+  realloc_list.enable(show ? 1 : 0);
+  realloc_ok.enable(show ? 1 : 0);
+  dirty_all();
+}
+
 }  // namespace mech3
+

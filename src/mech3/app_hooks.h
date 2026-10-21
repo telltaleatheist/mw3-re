@@ -659,9 +659,15 @@ class Engine : public zgame::AppHooks {
   virtual void report(int32_t level, const char* file, int32_t line, const char* text, const char* arg) {
     (void)level, (void)file, (void)line, (void)text, (void)arg;
   }
-  virtual void briefing_realloc(int32_t show) { unported("0x00404ae0", {show}); }
   virtual void briefing_lance_loadouts() { unported("0x00408c30", {}); }
-  virtual Handle briefing_lab_store() { return unported("0x00408b40", {}); }
+  // The stores the briefing's reallocation reads (0x00408b40, 0x00408bd0):
+  // the current game's (+0x6c, its +0x08), a campaign's salvage (+0x3c, none
+  // when not a campaign) and its +0xa8 (the lab's room in units of 300 t and
+  // two mechs); a store's handle for the mech lab's call.
+  virtual class Store* game_store();
+  virtual class Store* campaign_salvage();
+  virtual int32_t campaign_units();
+  virtual Handle store_handle(class Store* s);
   virtual void mech_lab_open(Handle store, int32_t a) { unported("0x00448830", {store, a}); }  // ECX the pilot
   virtual void salvage_open() { unported("0x0047d2f0", {}); }
   virtual void multiplayer_launch_prep() { unported("0x0046ceb0", {}); }
