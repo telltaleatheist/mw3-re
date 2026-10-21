@@ -1,14 +1,19 @@
 #include "gamez/zdeclient/zdec_crater.h"
 
 #include <cmath>
+#include <cstdlib>
+#include <cstdio>
 #include <cstring>
 
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_world.h"
+#include "gamez/zclass/cls_zbd.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zgeometry/zgeo_model.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -26,6 +31,9 @@ zcls::World* world_data() { return static_cast<zcls::World*>(state().world); }
 }  // namespace
 
 CraterState& craters() { return g_craters; }
+bool CraterState::ByIndex::operator()(const zcls::Node* a, const zcls::Node* b) const {
+  return zcls::node_index_of(a) < zcls::node_index_of(b);
+}
 CraterHooks& crater_hooks() { return g_hooks; }
 
 // Mech3.exe 1.2 @ 0x005020b0
@@ -247,6 +255,16 @@ int32_t crater_tessellate(CraterRecord* r) {
   return 0;
 }
 
+uint32_t material_word(const void* material) {
+  if (!material) return 0xffffffffu;
+  const int32_t i = zmod::materials().index_of(static_cast<const zmod::Material*>(material));
+  return static_cast<uint32_t>(i);
+}
+zmod::Material* word_material(uint32_t word) {
+  const int32_t i = static_cast<int32_t>(word);
+  return i >= 0 && i < zmod::materials().count ? &zmod::materials().at(i) : nullptr;
+}
+
 void order_words(const zwep::CraterOrder& o, uint32_t out[10]) {
   auto bits = [](float f) {
     uint32_t b;
@@ -254,10 +272,10 @@ void order_words(const zwep::CraterOrder& o, uint32_t out[10]) {
     return b;
   };
   out[0] = o.x00, out[1] = static_cast<uint32_t>(o.points);
-  out[2] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o.material));
+  out[2] = material_word(o.material);
   out[3] = o.x0c, out[4] = bits(o.depth), out[5] = bits(o.radius);
   out[6] = bits(o.at.x), out[7] = bits(o.at.y), out[8] = bits(o.at.z);
-  out[9] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o.owner));
+  out[9] = 0;
 }
 
 // Mech3.exe 1.2 @ 0x00500850. A crater's entry leaves its 12th word as
@@ -329,6 +347,116 @@ int32_t crater_instance(const zwep::CraterOrder* order, int dust) {
 int32_t crater_make(const zwep::CraterOrder* order) {
   if (g_craters.veto && !g_craters.veto(order)) return -1;
   return crater_instance(order, 1);
+}
+
+// Mech3.exe 1.2 @ 0x00500760. The cell is found through the node's first
+// parent (the world).
+void craters_reset() {
+  for (zcls::Node* node : g_craters.touched) {
+    if (!node) continue;
+    zcls::reread(node, 1);  // 0x004ff730
+    const int32_t x = node->get<int32_t>(0x4c), z = node->get<int32_t>(0x50);
+    if (x < 0 || z < 0) continue;
+    zcls::Node* world = node->parents[0];
+    zcls::World* w = world ? static_cast<zcls::World*>(world->data) : nullptr;
+    if (w) w->rows[z][x].raw[0x39] = 0;  // 0x004f22f0
+  }
+  while (zcls::Node* node = zcls::list_find_by_name(6, kFeature)) {
+    while (node->parent_count() > 0) zcls::node_remove_child(node->parents[0], node);
+    if (zmod::Model* m = node->model) {  // 0x004eb420
+      zgeo::hooks().node_set_model(node, nullptr);
+      zgeo::hooks().model_release(m);
+    }
+    zcls::node_delete(node);
+  }
+  g_craters.features.clear();
+}
+
+// Mech3.exe 1.2 @ 0x00500af0
+int32_t history_clear() {
+  g_craters.history.clear();
+  g_craters.touched.clear();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00502020
+int32_t decals_free() {
+  history_clear();
+  State& s = state();
+  s.frames = nullptr;  // the port's names live in the reader tree (zdec_init)
+  std::free(s.textures);
+  s.textures = nullptr;
+  s.quicksand_on = 0;
+  g_craters.features.clear();  // the port's; the crater nodes go with the world
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00500c60
+void history_each(void (*crater)(const uint32_t* order), void (*quicksand)(const uint32_t* order)) {
+  for (const HistoryEntry& e : g_craters.history) {
+    if (e.type == 1) {
+      if (crater) crater(e.words);
+    } else if (e.type == 3 && quicksand) {
+      quicksand(e.words);
+    }
+  }
+}
+
+namespace {
+// A history entry as zEntity's 0x34-byte record: type, the order's words
+// and the reset flag.
+struct Record {
+  uint32_t words[13] = {};
+};
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00500b50. The "Dummy" record's other words are the
+// exe's stack; here 0.
+void history_save(void* context) {
+  if (!g_hooks.write_record) return;
+  Record dummy;
+  dummy.words[12] = 1;
+  g_hooks.write_record(context, "Dummy", dummy.words, 0x34);
+  int32_t craters = 0, pits = 0;
+  for (const HistoryEntry& e : g_craters.history) {
+    char name[0x40];
+    if (e.type == 1) std::snprintf(name, sizeof name, "Crater%d", craters++);
+    else if (e.type == 3) std::snprintf(name, sizeof name, "QSand%d", pits++);
+    else continue;
+    Record r;
+    r.words[0] = static_cast<uint32_t>(e.type);
+    std::memcpy(r.words + 1, e.words, sizeof e.words);
+    r.words[12] = 0;
+    g_hooks.write_record(context, name, r.words, 0x34);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00500c20 (stdcall, 3 arguments; only the record is
+// read). Materials come back from their indices (order_words' FIX).
+void history_restore(const uint32_t* record) {
+  if (record[12] != 0) {
+    craters_reset();
+    history_clear();
+    return;
+  }
+  auto f = [](uint32_t b) {
+    float v;
+    std::memcpy(&v, &b, 4);
+    return v;
+  };
+  const uint32_t* w = record + 1;
+  if (record[0] == 1) {
+    zwep::CraterOrder o;
+    o.x00 = w[0], o.points = static_cast<int32_t>(w[1]), o.material = word_material(w[2]), o.x0c = w[3];
+    o.depth = f(w[4]), o.radius = f(w[5]), o.at = {f(w[6]), f(w[7]), f(w[8])}, o.owner = nullptr;
+    crater_instance(&o, 0);
+  } else if (record[0] == 3) {
+    zwep::QuicksandOrder q;
+    q.x00 = w[0], q.points = static_cast<int32_t>(w[1]), q.cycle = word_material(w[2]), q.still = word_material(w[3]);
+    q.x10 = w[4];
+    q.depth = f(w[5]), q.radius = f(w[6]), q.at = {f(w[7]), f(w[8]), f(w[9])}, q.owner = nullptr;
+    quicksand_make(&q);
+  }
 }
 
 }  // namespace zdec

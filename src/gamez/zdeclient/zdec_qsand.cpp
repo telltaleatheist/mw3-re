@@ -21,7 +21,7 @@ void quicksand_words(const zwep::QuicksandOrder& o, uint32_t out[11]) {
     return b;
   };
   out[0] = o.x00, out[1] = static_cast<uint32_t>(o.points);
-  out[2] = o.x08[0], out[3] = o.x08[1], out[4] = o.x08[2];
+  out[2] = material_word(o.cycle), out[3] = material_word(o.still), out[4] = o.x10;
   out[5] = bits(o.depth), out[6] = bits(o.radius);
   out[7] = bits(o.at.x), out[8] = bits(o.at.y), out[9] = bits(o.at.z);
   out[10] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o.owner));
@@ -34,7 +34,9 @@ QuicksandRecord* quicksand_record_new(const zwep::QuicksandOrder* order) {
   r->order = *order;
   r->ring.assign(3 * static_cast<size_t>(order->points), 0.0f);
   r->set = zgeo::clip_set_new();
-  if ((r->order.x00 & 0x1008) && r->order.x08[0] == 0) {
+  r->cycle = static_cast<zmod::Material*>(r->order.cycle);
+  r->still = static_cast<zmod::Material*>(r->order.still);
+  if ((r->order.x00 & 0x1008) && !r->order.cycle) {
     r->cycle = state().quicksand_cycle;
     r->still = state().quicksand_still;
   }
@@ -100,7 +102,8 @@ int32_t quicksand_tessellate(QuicksandRecord* r) {
   const float cx = o.at.x, cz = o.at.z;
   const float floor_y = o.at.y - o.depth, top_y = o.at.y + o.depth;
   // FIX (bug, fixes.md "Untextured crater"): as the crater's, the exe writes
-  // the centre's UV through null when untextured.
+  // the centre's UV through null when untextured. (The port's buffers free
+  // themselves on the failure returns below, where the exe's leak.)
   if (textured) uv[4 * static_cast<size_t>(n)] = inv * radius, uv[4 * static_cast<size_t>(n) + 1] = inv * radius;
   for (int32_t k = 0; k < n; ++k) {
     const float* p = ring + 3 * k;
@@ -211,6 +214,7 @@ int32_t quicksand_make(const zwep::QuicksandOrder* order) {
   note_touched(*r->set);
   zgeo::commit(*r->set);
   zmod::set_vertex_precision(precision);
+  // The pit's nodes keep their Feature copies (FIX, fixes.md "Crater record").
   quicksand_record_free(r);
   return 0;
 }

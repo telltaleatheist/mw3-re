@@ -369,7 +369,10 @@ From the weapon code (weapons.md).
   error. The other happens when the crater's outline runs exactly along a
   ground polygon's edge and touches it at a corner. In both the game hangs
   while digging the crater. A shot landing on a slope or a bank, where
-  crater outlines meet the ground's corners, is the likeliest trigger. A
+  crater outlines meet the ground's corners, is the likeliest trigger. In
+  multiplayer the host sends every crater to a player who joins, whose game
+  rebuilds them one by one; in testing, two in about 300 such replays hit
+  one of these loops. A
   third case, close to the second, writes points without end instead (a
   crash). The rebuild stops each one: the piece of ground is left uncut, or
   in the third case is cut correctly.

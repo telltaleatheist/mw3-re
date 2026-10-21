@@ -561,3 +561,31 @@ Newest last. One short entry per item: what, commits, what to remember.
   model-less node noted.
 - Test: test_crater.py mixes quicksand pits (a quarter) with the craters
   (veto 0, switch on, cycle/still materials set on both sides).
+
+## 2026-10-21 — craters part 7: reset and restore (branch mac2/crater-reset, from mac2/quicksand 6d6f00e)
+
+- The gamez.zbd re-read path was already ported (zcls::reread /
+  reread_node / zmod::reread_model, 2026-10-20).
+- Ported (zdec_crater): craters_reset 0x500760 (reread with children, the
+  cell count through parents[0] / 0x4f22f0, ZDEC_FEATURE nodes on list 6
+  detached, model released, node_delete), history_clear 0x500af0,
+  decals_free 0x502020 (wired to the mission's decals_free and the app's
+  decals_shutdown), history_each 0x500c60, zEntity's history_save 0x500b50
+  ("Dummy" with the reset flag, "Crater%d"/"QSand%d", write_record hook for
+  0x5a8a50) and history_restore 0x500c20. The touched set orders by pool
+  index (the exe's by address = pool order).
+- FIX (A): materials in history entries and records are table indices
+  (the exe's 32-bit pointers), the shooter 0; restore maps them back.
+  QuicksandOrder's x08[3] became cycle / still handles and x10 (mac 1's
+  part-6 review item 1); probes zdec / weapons_fly adapted.
+- Part-6 review items: the Feature-copy note at the pit's free, the
+  buffers-free-themselves note.
+- Test: test_crater.py runs the original's history/set code for real
+  (static ctor 0x500670; new/delete/_Lockit/atexit stubbed), reads the
+  history from 0x60bf94; per world after the craters: zEntity save
+  (0x5a8a50 stubbed collecting), restore of the Dummy (the reset: re-read
+  models in full, crater nodes gone, cells 0) and of every record. The
+  crater entry's 12th word (exe stack garbage) is masked. Seed 1: 422
+  identical (170 restores).
+- Craters (parts 2..7) are complete. Open: the in-game c1m1 check (GPU,
+  waits for Owen).

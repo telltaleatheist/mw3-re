@@ -111,7 +111,7 @@ extern "C" int probe_zdec_init(const uint8_t* file, int len, const char* texture
   const zwep::CraterOrder& c = s.crater;
   u32(c.x00), u32(c.points), u32(0), u32(c.x0c), f32(c.depth), f32(c.radius);
   const zwep::QuicksandOrder& q = s.quicksand;
-  u32(q.x00), u32(q.points), u32(q.x08[0]), u32(q.x08[1]), u32(q.x08[2]), f32(q.depth), f32(q.radius);
+  u32(q.x00), u32(q.points), u32(q.cycle ? 1u : 0u), u32(q.still ? 1u : 0u), u32(q.x10), f32(q.depth), f32(q.radius);
   u32(s.texture_count);
   for (int32_t i = 0; i < s.texture_count; ++i) {
     const zdec::CraterTexture& e = s.textures[i];
