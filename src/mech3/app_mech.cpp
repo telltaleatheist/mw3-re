@@ -53,6 +53,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_brain.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -800,6 +801,12 @@ bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[1
   }
   return true;
 }
+const char* mech_brain_name(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  auto* c = m ? dynamic_cast<AiControls*>(m->controls) : nullptr;  // vt+0x140, then vt+0x54
+  return c && c->brain ? c->brain->params.pilot : nullptr;
+}
+void* mech_mission_player() { return world().mission_player; }
 bool entity_is_mech(const void* o) {
   if (!o) return false;
   for (const ai::Handle h : ai::entity_list())

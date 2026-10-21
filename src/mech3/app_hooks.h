@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "mech3/lance_armor.h"
+
 #include "gamez/zgame/zgameapp.h"
 
 namespace zcls { struct Node; }
@@ -741,15 +743,8 @@ class Engine : public zgame::AppHooks {
   // The Win State's copy of the debriefing's scores into the campaign
   // (0x0047ac20: +0x13be4 into +0xb4 for n lancemates, +0x13be0 into +0xc4).
   virtual void win_keep_scores(Handle screen, int32_t n);
-  // A lance card's vehicle as its display reads it (0x0047eba0, 0x0047ef10,
-  // 0x0047b260): its type (+0x684 +0xc), its loadout's armor (+0x3ec +0x38,
-  // eleven) and its parts' armor left (vt+0x44 of 0x0041d510's part) in the
-  // display's bar order (head; torso 1, 4, 0, 3, 2, 5; the arms; the legs).
-  struct LanceArmor {
-    int32_t type = -1;
-    int32_t armor[11] = {};
-    float left[11] = {};
-  };
+  // A lance card's vehicle as its display reads it (lance_armor.h).
+  using LanceArmor = ::mech3::LanceArmor;
   virtual bool vehicle_armor(Handle v, LanceArmor* out) {
     (void)v, (void)out;
     return false;

@@ -338,6 +338,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 31: mech3::message_panel_reset(); break;
     case 32: mech3::message_panel()->slide(zgame::from_bits(v)); break;
     case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
+    case 33: z.show_for(zgame::from_bits(v)); break;
     case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
       float o[3] = {};

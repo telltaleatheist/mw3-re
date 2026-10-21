@@ -1083,6 +1083,12 @@ void HudZoomWindow::hide() {
   x174 = 0;
 }
 
+// Mech3.exe 1.2 @ 0x004438d0
+void HudZoomWindow::show_for(float seconds) {
+  HudZoomView::show_for(seconds);
+  text.hide();
+}
+
 // Mech3.exe 1.2 @ 0x004438f0
 void HudZoomWindow::set_rect(int32_t px, int32_t py, int32_t w, int32_t h) {
   int32_t sw = crt::msvc_ftol(static_cast<float>(w) * zoom);

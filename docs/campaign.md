@@ -268,10 +268,10 @@ then x and y; kept at +0x13bd0, deleted by the destructor), numbers through
 In the program the lance is the ported mechs (`mech_debrief_lance`), the
 score and records the pilot's ported campaign (`CampaignGame::c4`, `b4`),
 and the Win State's copy goes into the same campaign. Not yet: a
-lancemate's name (0x004aee70, the AI's) is "", so no record matches and
-the lancemates' lines stay out (and until it is, the Win State's copy
-keeps a card's +0xb4 when the card had no record line: the exe would write
-0 there, wiping the career kills on every win in the port); the objective lists ([0x0060994c],
+lancemate's name is now its brain's (0x004aee70, AiParams +0xd4), so its
+record matches by name (the Win State's copy still keeps a card's +0xb4
+when the card had no record line, where the exe writes 0: a decision for
+the lead, now that the names are wired); the objective lists ([0x0060994c],
 [0x00609950]: objectives.zrd's objects are not ported) are empty; Instant
 Action's +0x44, +0x6c, +0x70 are not mapped on the ported `ActionGame`
 (scored as mode 0, 1000).

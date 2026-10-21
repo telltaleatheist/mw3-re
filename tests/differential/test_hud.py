@@ -103,7 +103,8 @@ def synthetic(seed):
 # 18 TARGET's tracking 0x00440b00 (dt), 19 the lead point 0x0041d940 on the
 # lead mech (its address), 20 the HUD's data update 0x0043c390 (dt), 21 the
 # radar's polylines' counts (first | second << 8) and lists, 22 the radar's
-# map and changed flags (map | changed << 1), 23 and 24 its lists (addresses).
+# map and changed flags (map | changed << 1), 23 and 24 its lists (addresses),
+# 33 the zoom window's show_for (0x004438d0, seconds).
 OPS = list(range(1, 20))
 # The message panel's messages and times (ops 27, 28; probe_hud.cpp the same).
 MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
@@ -606,6 +607,8 @@ class Original:
                 self.ops.append((27, fr.randrange(len(MESSAGES)) | fr.randrange(4) << 8))
             if fr.random() < 0.15:
                 self.ops.append((28, fr.randrange(len(MESSAGES))))
+            if fr.random() < 0.12:  # the zoom window shown through its show_for (0x004438d0)
+                self.ops.append((33, f32(fr.choice([-1.0, 0.0, 0.5, 3.0]))))
             if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
                 self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
@@ -930,6 +933,8 @@ class Original:
             elif k == 32:
                 e.w32(0x72c52c, v)  # the frame's seconds
                 e.call(0x40f8d0)
+            elif k == 33:
+                e.call(e.r32(e.r32(zoom) + 0x60), ecx=zoom, stack=(v,))
             elif k == 26:
                 e.w32(self.mech + 0x3d8, v)
             elif k == 25:

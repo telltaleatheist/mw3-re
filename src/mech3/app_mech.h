@@ -151,6 +151,11 @@ struct DebriefMech {
 };
 std::vector<DebriefMech> mech_debrief_lance();
 uint32_t mech_player_allies();
+// 0x004aee70: an AI mech's name, its brain's vehicle record's pilot (AiParams
+// +0xd4); none for the player's or a mech without a brain.
+const char* mech_brain_name(void* mech);
+// The mission's player mech (0x0060861c +0x14), for 0x0041df30's test.
+void* mech_mission_player();
 // A lance card's armor display's read (0x0047eba0, 0x0047ef10): the mech's
 // type, its loadout's armor and its parts' armor left in the bars' order.
 bool mech_lance_armor(void* mech, int32_t* type, int32_t armor[11], float left[11]);
