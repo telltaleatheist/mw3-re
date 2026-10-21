@@ -60,6 +60,7 @@ struct Recording : mech3::Engine {
   int32_t window_h() override { return static_cast<int32_t>(call("0x0040d7c0", {})); }
   void set_use_joystick(int32_t v) override { call("0x0040d070", {v}); }
   void set_fast_menu(int32_t v) override { call("0x0040ce90", {v}); }
+  int32_t exchange_fast_menu(int32_t v) override { return static_cast<int32_t>(call("0x0040ce90", {v})); }
   void options_apply_all() override { call("0x0040cb30", {}); }
   void light_init() override { call("0x00542bb0", {}); }
   void update_shadows() override { call("0x004814e0", {}); }
@@ -194,6 +195,22 @@ void build_fields() {
   f(0x608f18 + 0x18, 4, &s.load.movie_);
   f(0x608e70 + 0x10, 1, &s.win.campaign_won_);
   f(0x608e70 + 0x14, 4, &s.win.movie_);
+  LabState& l = s.lab;
+  const uint32_t L = l.addr();
+  f(L + 0x8, 4, &l.cursor_);
+  f(L + 0xc, 4, &l.screen_);
+  f(L + 0x2c, 4, &l.part_);
+  f(L + 0x30, 4, &l.slot_);
+  f(L + 0x34, 4, &l.slots_);
+  f(L + 0x38, 4, &l.node_);
+  f(L + 0x60, 4, &l.lab_screen_);
+  f(L + 0x64, 4, &l.clear_);
+  f(L + 0x6c, 4, &l.world_);
+  for (int i = 0; i < 4; ++i) f(L + 0x70 + 4 * static_cast<uint32_t>(i), 4, &l.sounds_[i]);
+  f(L + 0x84, 4, &l.pilot_);
+  f(L + 0x88, 4, &l.store_);
+  f(L + 0x8c, 1, &l.flag_);
+  f(L + 0x90, 4, &l.result_);
   for (MenuState* m : g_menus) {
     f(m->addr() + 0x8, 4, &m->cursor_);
     f(m->addr() + 0xc, 4, &m->screen_);
@@ -267,6 +284,13 @@ void probe_states_construct() {
   mech3::set_app(g_app);
   build_fields();
 }
+
+// The Lab State's parts (+0x20): the handles the test put in the original's vector.
+void probe_states_lab_parts(const uint32_t* parts, int32_t n) { mech3::states().lab.parts_.assign(parts, parts + n); }
+int32_t probe_states_lab_part_count() { return static_cast<int32_t>(mech3::states().lab.parts_.size()); }
+// The third argument of 0x00448830 (its byte flag).
+uint32_t g_arg3 = 0;
+void probe_states_arg3(uint32_t v) { g_arg3 = v; }
 
 int32_t probe_states_field_count() { return static_cast<int32_t>(g_fields.size()); }
 void probe_states_field_info(int32_t i, uint32_t* addr, int32_t* size) {
@@ -387,6 +411,16 @@ int32_t probe_states_call(uint32_t addr, uint32_t arg, uint32_t arg2, uint32_t* 
       case 0x47af20: s.win.leave(); break;
       case 0x47d310: r = s.salvage.enter(); break;
       case 0x47d390: s.salvage.leave(); break;
+      case 0x448830: r = mech_lab_open(arg, arg2, static_cast<uint8_t>(g_arg3)); break;
+      case 0x448960: r = s.lab.enter(); break;
+      case 0x448a80: r = s.lab.update(); break;
+      case 0x448a20: s.lab.leave(); break;
+      case 0x448870: r = s.lab.accept(); break;
+      case 0x448e20: r = s.lab.part_valid(static_cast<int32_t>(arg)); break;
+      case 0x4507c0: r = static_cast<uint32_t>(s.lab.part_index(arg)); break;
+      case 0x448e70: s.lab.make_screen(); break;
+      case 0x448ef0: s.lab.delete_screen(); break;
+      case 0x448f10: s.lab.draw(zgame::from_bits(arg)); break;
       case 0x438c90:
       case 0x42da50: r = g_this->enter(); break;
       case 0x42da70: g_this->resume(arg); break;

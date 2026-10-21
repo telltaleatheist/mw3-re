@@ -712,3 +712,22 @@ test_hud 20/20 (its probe keeps the hooks), mw3tests 107/0.
   debriefing's lancemate names use it. Open question for the lead: the
   6b guard (keep a card's +0xb4 without a record line) could go now.
 Network HUD pieces skipped as ordered.
+
+## 2026-10-21 b4 FIX, the mech lab map, lab item 1 (branch mac3/mechlab)
+
+- b4 guard behind `bugs` (e26e40d): off follows the exe (a card without a
+  record line writes 0), on keeps it; the campaign loop test runs both
+  (b4[1] 7 / 0), with a GameSlot(-1) lancemate and x9c = 2.
+- docs/mechlab.md (c6d67f7): way in and out, LABMENU's controls and ids,
+  what the briefing and debriefing need, what is ported, a 10-item order.
+- Item 1: `LabState` (app_states.h, mech3/mech_lab.cpp): 0x00448830,
+  enter/update/leave, ACCEPT 0x00448870, the screen's make/delete, the
+  frame 0x00448f10, the part lookup 0x004507c0/0x00448e20. Hooks
+  (`Engine::lab_*`, config_export/import, model_purge, node_frame_update)
+  for the 3D world, the screen's pages and slots, the loadout files.
+  test_app_states.py `lab` cases (11 functions); the Ctrl+I add's tail is
+  a hook the test keeps out of reach. GameEngine opens the ported lab from
+  MECHLAB, its slots from the ported campaign, the world load passing.
+  Found: the lab's +0x64 is the frame clear's flag ([0x008026f0] through
+  0x0057a3c0; its hook renamed video_set_clear from video_set_gamma); update's result is never
+  set; Ctrl+X / Ctrl+I export/import loadouts (discoveries).

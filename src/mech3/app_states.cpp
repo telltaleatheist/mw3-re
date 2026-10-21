@@ -213,7 +213,7 @@ void CoreState::start_mission() {
   en.timer_update();
   en.debug_mark("Dummy Frame");
   en.video_show_cursor(1);
-  en.video_set_gamma(0);
+  en.video_set_clear(0);
   en.input_poll(0);
   en.input_reset();
   en.input_center_mouse();

@@ -30,16 +30,32 @@ range between mech_anim.cpp and mech_data.cpp).
     the screen's making (0x00448e70: new(0x1b468), 0x0044b920(slot count),
     then the first slot (0x00448f80(0)) and the first page (0x0044ce30(0))).
   - update 0x00448a80: input (0x0051b360), the cursor, the scene's node
-    update (0x004f7f70), the 3D view's picking (0x00450810, 0x00450800,
-    0x004507c0, 0x00448e20: a part clicked on the mech shows its page),
-    the frame (0x00448f10, 0x00450690 with [0x0072c52c]) and the screen's
-    flip (0x00576ea0). Developer keys while [0x00605a84] is clear: one
-    writes the slot's loadout out (0x00426180(1)), another renames it at
-    random (0x00426300, 0x00424e90) — both reachable only with the flag
-    clear, which the briefing never leaves (it passes 0).
-  - leave 0x00448a20: the scene's objects freed (0x0056f530), the 3D world
-    unloaded (0x00450390), the screen deleted (0x00448ef0), the input given
-    back, the pilot and store cleared, 0x005394c0.
+    update (0x004f7f70), the 3D view's frame (0x00450810, 0x00450800). When
+    +0x38 holds a node (0x13 means none) the part showing it is looked up in
+    the +0x20 vector (0x004507c0: each part's +0x08 is its node; 0x00448e20
+    checks the index), kept in +0x2c and handed to the page (0x0044cf40,
+    which ignores it and redraws the page), then +0x38 goes back to 0x13.
+    The frame (0x00448f10: the screen's vt+0 under the 3D lock or the 2D
+    one, by +0x6c), 0x00450690 with [0x0072c52c], and the flip (0x00576ea0).
+    Its result is [0x00605a88], which nothing writes: the lab never leaves
+    by its update, only by ACCEPT.
+  - **Two hidden keys** while [0x00605a84] is clear (the briefing passes 0)
+    and the shown slot has a loadout: **Ctrl+X** (0x22d) writes the loadout
+    to a file through a Windows save dialog, "Mech3 Configurations"
+    (0x00426180(1)); **Ctrl+I** (0x217) reads one through an open dialog
+    (0x00426300), and when its mech's definition has a loadout list
+    (0x004846a0, +0x20) adds it there: renamed to its name plus a random
+    number when the list already has that name (0x00424e90, "%s%d" with
+    rand()), pushed on the list's end, the page redrawn (0x0044cf50). The
+    dialogs make this FIX (A) when it is ported (the screen's item 4).
+  - leave 0x00448a20: the MECHLAB sounds released (0x0056f530) and their
+    handles cleared, the 3D world unloaded (0x00450390), the screen deleted
+    (0x00448ef0), the frame clear's flag ([0x008026f0], 0x0057a3c0) set back
+    from +0x64 (which the 3D world's load keeps), the pilot and store
+    cleared (the flag stays), the input reset, the model cache purged
+    (0x005394c0(1, 1)).
+  - The state's message handler returns 1 (0x0042a130); suspend and resume
+    are empty (0x004bf620); Escape does nothing (0x0049bfd0).
 - **ACCEPT** (the screen's ICON_ACCEPT, id 6, 0x0044ce30(6)): the shown
   slot's mech is taken back out of the store (0x0044e6c0, 0x00472a30), then
   the state's 0x00448870: each slot (game vt+0x34(i)) has its +0x0c cleared
@@ -109,7 +125,16 @@ MenuScreen like the briefing's; its page is +0x111ec.
 - The mech definitions and their configs (mech_reader), the engine table,
   the names and techs (mech_names).
 
-Not ported: everything in section 1 and 2 above; the second saved-loadout
+Ported in item 1 (`mech3/mech_lab.cpp`, `LabState` in app_states.h):
+0x00448830, the state's enter, update, leave, ACCEPT's 0x00448870, the
+screen's making and deleting (0x00448e70, 0x00448ef0) and the frame
+(0x00448f10), the part lookup (0x004507c0, 0x00448e20); emulator-checked
+in `test_app_states.py` (the `lab` cases). The calls they make into code
+not ported yet are hooks (`Engine::lab_*`). The Ctrl+I read's add to the
+list (0x00448c1d..0x00448dfa) is a hook too: the test keeps its read or
+its list empty.
+
+Not ported: the rest of section 1 and section 2; the second saved-loadout
 loader 0x004260c0; the 3D lab world (labworld, labwindow, Blabcam:
 0x0044ffc0, 0x00450390, 0x00450690, 0x004507c0..0x00450810).
 

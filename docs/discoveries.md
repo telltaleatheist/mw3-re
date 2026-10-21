@@ -1213,6 +1213,14 @@ From the mech definitions (mechdef-head.md).
   makes it ask for 4 GB of memory. (Both fixed in the rebuild.)
 - Your loadouts are written when the game frees the mech data (at exit),
   not when you leave the mech lab (as far as traced).
+- **The mech lab has two hidden keys for sharing loadouts.** In the lab
+  opened from a briefing, **Ctrl+X** saves the shown mech's loadout to a
+  file of your choice ("Mech3 Configurations" dialog), and **Ctrl+I** loads
+  one from a file into that mech's list of loadouts; if a loadout with the
+  same name is already there, the loaded one gets a random number added to
+  its name. They only work while the mech shown has a loadout.
+- **The mech lab never leaves on its own:** its frame's "done" value is
+  never set, so ACCEPT is the only way out (Escape does nothing there).
 - **A mod with a wrong `version` in a mech file crashes the game** instead of
   skipping the mech. (Fixed in the rebuild: the mech is skipped.)
 - Seventeen of the mech files carry a developer comment that the build tool

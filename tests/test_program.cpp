@@ -386,6 +386,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     int32_t debrief_score = -1, mechs_before = 0;
     size_t debrief_texts = 0;
     size_t second_steps = 0;
+    bool lab_up = false, lab_left = false;
     mech3::LaunchedMech mech;
     engine.on_present = [&](int) {
       if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
@@ -451,13 +452,24 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         second_number = engine.launch().number;
         debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
+        b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);  // the Lab State (mechlab.md item 1)
         stage = 6;
+      } else if (stage == 6 && app.current() == &mech3::states().lab) {
+        const mech3::LabState& lab = mech3::states().lab;
+        lab_up = lab.pilot_ == engine.pilot() && lab.store_ != 0 && lab.slots_ >= 1 && lab.slot_ == -1;
+        mech3::states().lab.accept();  // ACCEPT (the screen's press is item 2)
+        stage = 7;
+      } else if (stage == 7 && app.current() == &mech3::states().load) {
+        lab_left = mech3::states().lab.pilot_ == 0 && mech3::states().lab.store_ == 0;
+        stage = 8;
       }
     };
     CountingPump pump;
     pump.limit = 1500;
     app.run(pump);
-    EXPECT(stage == 6);
+    EXPECT(stage == 8);
+    EXPECT(lab_up && lab_left);  // MECHLAB opened the ported Lab State, ACCEPT came back
+    EXPECT(engine.unported_counts().count("0x00448830") == 0);
     EXPECT(debrief_seen);   // the ported debriefing
     EXPECT(continue_help);  // its texts (Mech3Msg.dll's)
     EXPECT(debrief_freed);  // the Win State's leave freed it (shell_clear on 0x006099a0)

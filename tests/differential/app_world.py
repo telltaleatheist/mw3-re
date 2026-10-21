@@ -72,6 +72,10 @@ CALLS = {
     0x48e2d0: 'c', 0x48ee70: 'c,d,s0,s1,s2,s3,s4', 0x40a7d0: '', 0x40a800: '',
     0x40a830: '', 0x40a820: '', 0x4a5bc0: 'c,s0', 0x40baf0: 'c,zs0,s1', 0x409320: 'c',
     0x47abe0: 'c', 0x409ec0: 'c', 0x409eb0: 'c', 0x408bd0: 'c', 0x404ae0: 'c,s0',
+    # The mech lab's (mech_lab.cpp): its 3D world, screen and loadout files.
+    0x44ffc0: 'c', 0x450390: 'c', 0x450810: 'c', 0x450800: 'c', 0x450690: 'c,s0',
+    0x448f80: 'c,s0', 0x44ce30: 'c,s0', 0x44cf40: 'c,s0', 0x44cf50: 'c', 0x426180: 'c,s0',
+    0x426300: '', 0x4846a0: 'c', 0x5394c0: 'c,d', 0x4f7f70: '',
 }
 # Functions that return a string: the probe returns "<tag><answer>".
 STRINGS = {0x576040: 'msg', 0x4af280: 'ver', 0x4af290: 'num', 0x484c50: 'dir'}
@@ -79,7 +83,7 @@ STRINGS = {0x576040: 'msg', 0x4af280: 'ver', 0x4af290: 'num', 0x484c50: 'dir'}
 CTORS = {0x410700: '', 0x433090: '', 0x486260: 's0', 0x48a6c0: '', 0x488910: '', 0x48aef0: '',
          0x48b120: '', 0x438be0: '', 0x43a640: '', 0x42d9d0: '', 0x49c900: '', 0x4295e0: '',
          0x492750: 's0', 0x4289a0: 's0', 0x405230: 'zs0', 0x47b430: 's0,s1,s2,s3', 0x47d3b0: 's0',
-         0x48dfe0: 'zs0,zs1', 0x598cc0: 's0,s1,s2', 0x590920: 'zs0'}
+         0x48dfe0: 'zs0,zs1', 0x598cc0: 's0,s1,s2', 0x590920: 'zs0', 0x44b920: 's0'}
 # Imports by IAT slot: (key, spec, pop).
 IMPORTS = {
     0x5bb0ec: ('Sleep', 's0', 4), 0x5bb6dc: ('SystemParametersInfoA', 's0,s1', 16),
