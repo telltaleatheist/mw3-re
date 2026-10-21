@@ -103,25 +103,6 @@ uint32_t mech_damage(zwep::Handle object, zwep::WeaponDef* def, zwep::HitRecord*
   return static_cast<uint32_t>(static_cast<Mech*>(object)->take_damage(def, &c, damage));
 }
 
-// Mech3.exe 1.2 @ 0x0041d510: a part by its id (docs/structs.md, Parts).
-MechPart* part_by_id(Mech& m, int32_t id) {
-  switch (id) {
-    case 1: case 7: case 8: return m.torso;
-    case 2: return m.arms[0];
-    case 3: return m.arms[1];
-    case 4: return m.legs[0];
-    case 5: return m.legs[1];
-    case 6: return m.head;
-    case 9: return m.arms[0] ? m.arms[0]->hand : nullptr;
-    case 10: return m.arms[1] ? m.arms[1]->hand : nullptr;
-    case 11: return m.legs[0] ? m.legs[0]->calf : nullptr;
-    case 12: return m.legs[1] ? m.legs[1]->calf : nullptr;
-    case 13: return m.legs[0] ? m.legs[0]->foot : nullptr;
-    case 14: return m.legs[1] ? m.legs[1]->foot : nullptr;
-    case 15: return m.hip;
-    default: return nullptr;
-  }
-}
 
 uint32_t g_zone;  // the spawn's zone word: the entity's +0x64 byte
 }  // namespace

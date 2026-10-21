@@ -568,26 +568,6 @@ std::vector<DebriefMech> mech_debrief_lance() {
   return r;
 }
 namespace {
-// 0x0041d510, as app_weapons.cpp's (kept there in its own unnamed namespace).
-const MechPart* salvage_part(const Mech& m, int32_t id) {
-  switch (id) {
-    case 1: case 7: case 8: return m.torso;
-    case 2: return m.arms[0];
-    case 3: return m.arms[1];
-    case 4: return m.legs[0];
-    case 5: return m.legs[1];
-    case 6: return m.head;
-    case 9: return m.arms[0] ? m.arms[0]->hand : nullptr;
-    case 10: return m.arms[1] ? m.arms[1]->hand : nullptr;
-    case 11: return m.legs[0] ? m.legs[0]->calf : nullptr;
-    case 12: return m.legs[1] ? m.legs[1]->calf : nullptr;
-    case 13: return m.legs[0] ? m.legs[0]->foot : nullptr;
-    case 14: return m.legs[1] ? m.legs[1]->foot : nullptr;
-    case 15: return m.hip;
-    default: return nullptr;
-  }
-}
-
 // A ported mech as 0x00472f00 reads it.
 SalvageMech salvage_view(Mech& m) {
   SalvageMech v;
@@ -625,7 +605,7 @@ SalvageMech salvage_view(Mech& m) {
   }
   v.config = m.config;
   for (int id = 0; id < 16; ++id) {
-    const MechPart* p = salvage_part(m, id);
+    const MechPart* p = part_by_id(m, id);
     v.parts[id] = p ? (p->destroyed ? 2 : 1) : 0;
   }
   v.sink_tech = m.heat_sinks.tech;
