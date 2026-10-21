@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
+#include <string>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
@@ -915,6 +916,93 @@ void HudTarget::set_shown(bool on) {
   }
   x240c = 0.0f;
   update_texts(true);
+}
+
+namespace {
+// A text's two colours set, re-rendered only on a change.
+void text_colour(HudText& t, uint32_t c) {
+  if (t.color_top == c && t.color_bottom == c) return;
+  t.color_top = t.color_bottom = c;
+  t.needs_render = 1;
+}
+// CString::Format's %s of none.
+const char* or_null(const char* s) { return s ? s : "(null)"; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00441850 (from the HUD's data update): the second text
+// is "mech: pilot" (a network mech's only its mech, a vehicle its name), its
+// distance and the player's aimed part; the third the player's saved or ally
+// target's mech; the texts, the view's box and the silhouette's background
+// coloured by the target's side. Past 1000 m the distance runs straight on
+// ("...1.23km"), under it " (500m)", as coded (hud.md section 16).
+void HudTarget::data_text() {
+  HudHooks& h = *g_hooks;
+  if (!h.target_valid(target)) {
+    hide();
+    update_texts(true);
+    return;
+  }
+  show_for(-1.0f);
+  update_texts(false);
+  void* c = h.slot_contact(target);
+  const float dist = h.contact_distance(c);
+  void* m = h.contact_mech(c);
+  std::string a;
+  char buf[128];
+  if (!m) {
+    const char* n = h.object_name(h.contact_vehicle(c));
+    a = n ? n : "";
+  } else if (!h.mech_remote(m)) {
+    const char* pilot = h.mech_pilot_name(m);
+    std::snprintf(buf, sizeof buf, "%s: %s", or_null(h.mech_display_name(h.mech_kind_of(m))), or_null(pilot));  // [0x005e4024]
+    a = buf;
+  } else {
+    const char* n = h.mech_display_name(h.mech_kind_of(m));
+    a = n ? n : "";
+  }
+  if (dist > 1000.0f) {  // [0x005c00ec]
+    std::snprintf(buf, sizeof buf, "%.2fkm", static_cast<double>(dist * 0.001f));  // [0x005e401c], [0x005c0120]
+  } else {
+    std::snprintf(buf, sizeof buf, " (%dm)", crt::msvc_ftol(std::ceil(static_cast<double>(dist))));  // [0x005e4014]
+  }
+  a += buf;
+  void* v = h.contact_vehicle(c);
+  Mech* me = static_cast<Hud*>(hud)->mech;
+  const int32_t part = h.mech_aim_part(me);
+  if (h.part_by_id(me, part)) {
+    std::snprintf(buf, sizeof buf, "[%s]", or_null(h.part_display_name(part)));  // [0x005e400c]
+    a += buf;
+  }
+  texts[1].set_text_plain(a.c_str());
+  void* sc = h.saved_or_ally(me);
+  void* sm = sc ? h.contact_mech(sc) : nullptr;
+  const char* sn = sm ? h.mech_object_name(sm) : nullptr;
+  const char* t2 = sn ? h.message_arg(0xdd4, sn) : nullptr;
+  texts[2].set_text_plain(t2 ? t2 : "");
+  zimg::Texture* bg;
+  if (!v) {
+    view->box.color = zvid::pack_bytes(0xc3, 0xad, 3);
+    bg = g_damage.bg[2];
+  } else if (h.object_team(v) & h.mech_allies(me)) {
+    view->box.color = zvid::pack_bytes(0, 0, 0xff);
+    text_colour(texts[0], 0xff0000);  // COLORREFs: blue
+    text_colour(texts[1], 0xff0000);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[0];
+  } else if (h.object_team(v) & h.mech_enemies(me)) {
+    view->box.color = zvid::pack_bytes(0xff, 0, 0);
+    text_colour(texts[0], 0xff);
+    text_colour(texts[1], 0xff);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[1];
+  } else {
+    view->box.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+    text_colour(texts[0], 0xff00);
+    text_colour(texts[1], 0xff);
+    text_colour(texts[2], 0xff0000);
+    bg = g_damage.bg[2];
+  }
+  damage.bg.set_image(bg);
 }
 
 // Mech3.exe 1.2 @ 0x00441660: with a live target, its mech into the damage
@@ -1859,7 +1947,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
     }
     if (len > 1000.0f) {  // [0x005c00ec]
       char buf[32];
-      std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(len) * 0.001f);  // [0x005e3ebc]
+      std::snprintf(buf, sizeof buf, "%.2f", static_cast<double>(len * 0.001f));  // [0x005e3ebc]
       text2.set_text_id(0x228, h.marker_name(e), buf);
     } else {
       text2.set_text_id(0x229, h.marker_name(e), crt::msvc_ftol(std::ceil(static_cast<double>(len))));
@@ -2494,7 +2582,7 @@ void Hud::data_update(float dt) {
     h.gauges_coolant(&gauges, h.mech_f(mech, 0x56c));
     const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
     h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
-    h.target_text(&target);
+    target.data_text();
     if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
     mfd.data_update(dt);
   }

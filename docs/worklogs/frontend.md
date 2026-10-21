@@ -307,3 +307,15 @@ lab_large_grey; this one is in the names' ia_dark_grey, left as is).
 test_menus.py credits 30/30 (the exe's path); fix_credits_other_voices_offset.
 Dump a reader file: tools/analysis/zrd.py game/mw3-1.2/zbd/reader.zbd
 dlgCredits.zrd. Not done: a spelling pass over Mech3Msg.dll's messages.
+
+## 2026-10-20 Item 6's remainder: damage displays and TARGET's text (branch mac3/hud-damage)
+
+Part 1: HudDamagePart::set_level 0x004475c0, HudDamageView::update_levels
+0x00447a50, HudMfd::data_update 0x004424b0. Part 2: HudTarget::data_text
+0x00441850 (the texts, colours, background). Remember: a float-returning
+thiscall stub with a stack argument needs its thunk to `ret 4` (`_ret`
+with then= leaves the return to the thunk); MFC CString stubs at
+0x5abdb0/da4/daa/dbc/e4c are import thunks (give pop); answer strings must
+be made before the snapshot for the probe's peeks; `names` is reused later
+in test_hud's world (mine are cnames). Next: part 3 (program, c1m1 damage
+check, GPU shot).

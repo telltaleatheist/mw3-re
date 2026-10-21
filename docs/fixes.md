@@ -358,6 +358,11 @@ Kept:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
+- TARGET's distance past 1 km (0x00441850): "%.2fkm" is appended with
+  no space or bracket ("Owens: Kerensky1.23km"), where under 1 km it
+  reads " (500m)". Likely meant " (1.23km)"; a cosmetic text slip (the
+  decided policy for data slips), but the wording is a guess, so asked
+  first (hud.md section 16).
 - Resolution and aspect (Owen, 2026-10-20: wanted, as a setting): any
   window size up to 4K, 1920x1080 and 16:9 included, defaulting to the
   original 640x480 4:3. The game's projection and clipping work from the

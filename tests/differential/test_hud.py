@@ -324,13 +324,74 @@ class Original:
         e.stub(0x4b1bd0, '0x004b1bd0', 'c', None, fret)
         e.stub(0x4e7030, '0x004e7030', 'c', None, fret)
         w.answers['0x004b1bd0'] = lambda rr, n, a: f32(rr.choice([0.0, 60.0, 250.0, 900.0, 900.0, 900.0]))
-        w.answers['0x004e7030'] = lambda rr, n, a: f32(rr.choice([10.0, 200.0, 700.0]))
+        w.answers['0x004e7030'] = lambda rr, n, a: f32(rr.choice([10.0, 200.0, 700.0, 999.6, 1000.0, 1500.0, 2345.6]))
         for a_, spec in ((0x4b1c70, 'c'), (0x4b1cd0, 'c'), (0x4e6ff0, 'c'), (0x41e800, 'c'), (0x41e770, 'c')):
             e.stub(a_, spec=spec)
         mechs = []
         self.target_mech = 0
+        # TARGET's text (0x00441850): a mech's network flag and name, its
+        # pilot, the names by kind and part, the player's saved or ally contact.
+        cvt = e.world_alloc(0x100)
+        e.w32(cvt + 0x5c, e.new_stub('cmech.vt+0x5c', 'c', 0))
+        e.w32(cvt + 0xa4, e.new_stub('cmech.vt+0xa4', 'c', 0))
+        cnames = [e.world_string(x) for x in ('Owens', 'Mad Cat', 'notmech', 'Left Arm', 'Kerensky')]
+        w.answers['cmech.vt+0x5c'] = lambda rr, n, a: rr.choice([0, 0, 1])
+        w.answers['cmech.vt+0xa4'] = lambda rr, n, a: rr.choice([cnames[0], cnames[4], 0])
+        for a_, spec in ((0x484670, 'c'), (0x484d70, 'c'), (0x41d510, 'c,s0'), (0x4d7240, 'c')):
+            e.stub(a_, spec=spec)
+        w.answers['0x00484670'] = lambda rr, n, a: rr.choice(cnames[:3])
+        w.answers['0x00484d70'] = cnames[3]
+        w.answers['0x0041d510'] = lambda rr, n, a: rr.choice([0, 1])
+        ally_c = e.world_alloc(0x40)  # its mech from 0x004e6ff0, as any contact's
+        w.answers['0x004d7240'] = lambda rr, n, a: rr.choice([0, ally_c, ally_c])
+
+        def msg_arg(emu, key, a, pop):  # 0x00575fd0: the message with one name, "msg<id>:<name>"
+            buf, size, mid, arg = a
+            name = emu.cstr(arg)
+            t.handle(key, (size, mid))
+            for ch in name.encode('latin1'):
+                t.handle(key + '.ch', (ch,))
+            emu.cpu.write(buf, f'msg{mid}:{name}'.encode('latin1') + b'\0')
+            emu._ret(1, pop)
+        e.stub(0x575fd0, '0x00575fd0', 's0,s1,s2,s3', None, msg_arg)
+        # MFC's CString (0x00441850's texts), untraced: a pointer to a copy of the text.
+        def cs_new(text):
+            b = e.world_alloc(0x100)
+            e.cpu.write(b, text.encode('latin1')[:0xff] + b'\0')
+            return b
+
+        def cs_text(emu, cs):
+            return emu.cstr(emu.r32(cs))
+
+        def cs_format(emu, key, a, pop):  # cdecl (this, format, ...): %s (none: "(null)") and %d
+            esp = emu.uc.reg_read(UC_X86_REG_ESP)
+            cs, fmt = emu.r32(esp + 4), emu.cstr(emu.r32(esp + 8))
+            out, i, k = '', 0, 0
+            while i < len(fmt):
+                if fmt[i] == '%' and i + 1 < len(fmt):
+                    v = emu.r32(esp + 12 + 4 * k)
+                    k += 1
+                    out += (emu.cstr(v) if v else '(null)') if fmt[i + 1] == 's' else str(struct.unpack('<i', struct.pack('<I', v))[0])
+                    i += 2
+                else:
+                    out += fmt[i]
+                    i += 1
+            emu.w32(cs, cs_new(out))
+            emu._ret(0, 0)
+        empty = cs_new('')
+        e.stub(0x5abdb0, 'cs.ctor', 'c', 0, lambda emu, key, a, pop: (emu.w32(a[0], empty), emu._ret(a[0], 0)))
+        e.stub(0x5abda4, 'cs.dtor', 'c', 0, lambda emu, key, a, pop: emu._ret(0, 0))
+        e.stub(0x5abdaa, 'cs.format', '', 0, cs_format)
+        e.stub(0x5abdbc, 'cs.set', 'c,s0', 4,
+               lambda emu, key, a, pop: (emu.w32(a[0], cs_new(emu.cstr(a[1]))), emu._ret(a[0], 4)))
+        e.stub(0x5abe4c, 'cs.add', 'c,s0', 4,
+               lambda emu, key, a, pop: (emu.w32(a[0], cs_new(cs_text(emu, a[0]) + cs_text(emu, a[1]))), emu._ret(a[0], 4)))
         for _ in range(2):
             m = e.world_alloc(0x600)
+            e.w32(m, cvt)
+            pilot = e.world_alloc(0x20)
+            e.w32(pilot + 0x18, r.choice([cnames[4], cnames[0]]))
+            e.w32(m + 0x3ec, pilot)
             self.give_parts(m)
             e.cpu.write(m + 0x570, struct.pack('<f', r.choice([0.0, 0.0, 12.0])))  # the NARC timer (0x00440a30)
             kind = e.world_alloc(0x20)
@@ -339,6 +400,7 @@ class Original:
             e.w32(m + 0x3cc, r.choice([0, 0, 2]))
             mechs.append(m)
             self.target_mech = self.target_mech or m
+        self.cmechs = mechs
         w.answers['0x004b1c70'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         w.answers['0x004b1cd0'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         contact_mechs = {}  # one answer per contact for the run (the original asks twice in a row)
@@ -650,7 +712,7 @@ class Original:
             emu._ret(0, pop)
         e.stub(0x445520, '0x00445520', 'c,s0,s1', None, jump)
         for a2, spec in ((0x4453a0, 'c,s0'), (0x445450, 'c,s0'), (0x4455e0, 'c,s0,s1'), (0x4456f0, 'c,s0'),
-                         (0x441850, 'c'), (0x448320, 'c,s0'), (0x446900, 'c,s0'),
+                         (0x448320, 'c,s0'), (0x446900, 'c,s0'),
                          (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
             e.stub(a2, spec=spec)
 
