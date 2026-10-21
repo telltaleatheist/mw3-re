@@ -1,3 +1,4 @@
+#include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
 #include "mech3/message_panel.h"
 
@@ -290,6 +291,14 @@ void GameEngine::sound_shutdown_groups(uint32_t callback) {
 }
 void GameEngine::sound_shutdown() { zsnd::shutdown(); }
 void GameEngine::light_init() { Engine::light_init(); }
+
+// Mech3.exe 1.2 @ 0x00516e90: zImage's start, which registers the image
+// library (rimage.zbd: the menus' backgrounds, cursors and buttons) and, with
+// ECX set, reads the bitmap fonts (0x00519e50, not ported).
+void GameEngine::fonts_init(const char* name, int32_t fonts) {
+  zimg::register_image_library(1);
+  if (fonts) unported("0x00519e50", {name});
+}
 void GameEngine::update_shadows() { update_mech_shadows(); }
 
 // zInput, ported (gamez/zinput, docs/input.md) on the platform's input.

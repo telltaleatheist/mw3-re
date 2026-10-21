@@ -268,6 +268,7 @@ class GameEngine : public Engine {
   void sound_shutdown_groups(uint32_t callback) override;
   void sound_shutdown() override;
   void light_init() override;
+  void fonts_init(const char* name, int32_t fonts) override;  // 0x00516e90: zImage's start
   void update_shadows() override;  // 0x004814e0 on the program's mechs (app_mech)
   // zInput (gamez/zinput, docs/input.md).
   void input_init(int32_t commands, const char* map) override;

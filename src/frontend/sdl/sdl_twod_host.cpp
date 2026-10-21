@@ -1,3 +1,6 @@
+#include <vector>
+#include <string>
+#include <algorithm>
 #include "frontend/sdl/sdl_twod_host.h"
 
 #include <SDL3_ttf/SDL_ttf.h>
@@ -116,7 +119,26 @@ zimg::Texture* SdlTwodHost::image_release(zimg::Texture* image) {
   return nullptr;
 }
 
-void SdlTwodHost::image_path(const char*) {}  // the mounts and the image library find them
+// 0x00516f50 (zImage's texture directory, "zbd" for the shell): FIX (A), each
+// ';'-separated directory under every read root joins the mounts, once.
+void SdlTwodHost::image_path(const char* path) {
+  if (!path) return;
+  std::vector<std::string>& read = zutl::mounts().read;
+  const std::vector<std::string> roots = read;
+  std::string dirs = path;
+  for (size_t at = 0; at <= dirs.size();) {
+    size_t end = dirs.find(';', at);
+    if (end == std::string::npos) end = dirs.size();
+    std::string d = dirs.substr(at, end - at);
+    for (char& c : d) if (c == '\\') c = '/';
+    at = end + 1;
+    if (d.empty()) continue;
+    for (const std::string& r : roots) {
+      const std::string m = r + "/" + d;
+      if (std::find(read.begin(), read.end(), m) == read.end()) zutl::mount(m);
+    }
+  }
+}
 
 // The fonts.zrd WINDOWS_FONTS entries: face, height, color (r g b) or two of
 // them, shadow "true", align "right" / "center", weight.
