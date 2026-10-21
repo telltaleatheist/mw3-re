@@ -524,3 +524,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   Real craters hit Weiler merge types 4, 5, 10 only (scratch/cov_crater.py).
 - Next: 5c, wiring crater_make into zwep (app_weapons r.crater_make), the
   veto, the dust anim, and a c1m1 run.
+
+## 2026-10-21 — craters part 5c: wiring (branch mac2/crater)
+
+- zwep's crater hook (app_weapons r.crater_make) is zdec::crater_make;
+  the mission's decals_load (app_mission) sets zgeo's world_node to
+  zdec::world_node and the dust to zeff::anim_start_at (0x508aa0: no
+  node, zero rotation). The veto (multiplayer) stays null. clip_cell
+  guards a missing world node.
+- Not run in the game: mw3 needs the GPU (SDL GPU even --hidden), and
+  Owen's standing rule is no GPU use while he streams without asking.
+  Asked mac 1 to clear a c1m1 run (`mw3 --mission c1m1 --fire N --frames
+  N --shot`); test_crater covers the pipeline on the real worlds.
+- Next: part 6, quicksand (0x502110 ..), with the movement question
+  (does the soil slow or sink a mech).

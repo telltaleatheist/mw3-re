@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -246,11 +247,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     if (qworld()) zcls::world_remove_light(qworld(), zn(l));
   };
   // The decal module's impact type (0x005426a0: [0x0074a2b0]) is read only
-  // by the surface marks (0x00542060), not ported; making craters and quicksand
-  // (0x004ffaa0, 0x00502110) neither (craters.md).
+  // by the surface marks (0x00542060), not ported; nor quicksand (0x00502110,
+  // craters.md). Craters are zDEClient's.
   r.impact_type = [](int32_t) { unported("0x005426a0"); };
   r.crater_defaults = zdec::crater_defaults;        // 0x004ff920
-  r.crater_make = [](const zwep::CraterOrder*) { return unported("0x004ffaa0"), 1; };
+  r.crater_make = zdec::crater_make;                // 0x004ffaa0
   r.quicksand_defaults = zdec::quicksand_defaults;  // 0x005020f0
   r.quicksand_make = [](const zwep::QuicksandOrder*) { unported("0x00502110"); };
   r.pool_live = []() { return !zcls::nodes().blocks.empty(); };                            // 0x004f8f50: [0x0060bf48]
