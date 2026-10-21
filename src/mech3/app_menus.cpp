@@ -20,6 +20,8 @@
 #include "mech3/briefing.h"
 #include "mech3/debriefing.h"
 #include "mech3/lab_screen.h"
+#include "mech3/mech_reader.h"
+#include "mech3/mech_skin.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
 #include "mech3/mainmenu.h"
@@ -534,6 +536,46 @@ void GameEngine::lab_slot_drop_config(Handle slot, Handle store) {
 }
 void GameEngine::lab_slot_set_mech(Handle slot, int32_t mech) {
   if (auto* s = static_cast<GameSlot*>(object_of(slot))) s->mech = mech;
+}
+int32_t GameEngine::lab_slot_skin(Handle slot) {
+  const auto* s = static_cast<const GameSlot*>(object_of(slot));
+  return s ? s->skin : 0;
+}
+void GameEngine::lab_slot_set_skin(Handle slot, int32_t skin) {
+  if (auto* s = static_cast<GameSlot*>(object_of(slot))) s->skin = skin;
+}
+Handle GameEngine::lab_slot_cfg(Handle slot) {
+  const auto* s = static_cast<const GameSlot*>(object_of(slot));
+  return s ? handle_of(s->config) : 0;
+}
+int32_t GameEngine::config_mech(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->mech : -1;
+}
+uint8_t GameEngine::lab_config_modified(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->modified : 0;
+}
+std::string GameEngine::lab_config_name(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c && c->name ? c->name : "";
+}
+void GameEngine::lab_config_recount(Handle config) {
+  if (auto* c = static_cast<Config*>(object_of(config))) c->recount();
+}
+bool GameEngine::lab_config_valid(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c && c->validate(false);
+}
+Handle GameEngine::mech_dfn_handle(int32_t mech) { return handle_of(mech3::mech_dfn(mech)); }
+void GameEngine::lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) {
+  out->clear();
+  const auto* d = static_cast<const MechDfn*>(object_of(dfn));
+  if (!d || !d->skins) return;
+  for (Skin* s : d->skins->skins) out->push_back({handle_of(s), s && s->name, s && s->name ? s->name : ""});
+}
+void GameEngine::lab_page_refresh(Handle screen) {
+  if (LabScreen* s = lab_screen(screen)) s->refresh();
 }
 Handle GameEngine::lab_slot_config(Handle, int32_t i) {
   GameSlot* s = game_slot(i);

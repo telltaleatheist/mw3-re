@@ -124,6 +124,22 @@ class GameEngine : public Engine {
   int32_t lab_slot_mech(Handle slot) override;
   void lab_slot_drop_config(Handle slot, Handle store) override;  // 0x00433df0 on the ported slot
   void lab_slot_set_mech(Handle slot, int32_t mech) override;
+  // The chassis page's (step 3): the ported slots, loadouts and definitions.
+  int32_t lab_slot_skin(Handle slot) override;
+  void lab_slot_set_skin(Handle slot, int32_t skin) override;
+  Handle lab_slot_cfg(Handle slot) override;
+  int32_t config_mech(Handle config) override;
+  uint8_t lab_config_modified(Handle config) override;
+  std::string lab_config_name(Handle config) override;
+  void lab_config_recount(Handle config) override;
+  bool lab_config_valid(Handle config) override;
+  Handle mech_dfn_handle(int32_t mech) override;
+  void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;
+  uint32_t message_box2(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2) override {
+    return message_box3(a, caption, text, s1, s2, nullptr);
+  }
+  void lab_page_part(Handle screen, Handle) override { lab_page_refresh(screen); }  // 0x0044cf40
+  void lab_page_refresh(Handle screen) override;  // 0x0044cf50
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;

@@ -454,10 +454,6 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         second_number = engine.launch().number;
         debrief_freed = engine.screen_of(debrief_handle) == nullptr && mech3::states().end_win.screen_ == 0;
         second_steps = b->script.steps.size();
-        // The player's slot has no mech in this headless flow (the debug
-        // launch keeps its own): one for the lab to show and take from the store.
-        if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
-          cg->slot.mech = 3;
         b->on_button(mech3::BriefingScreen::kBtnMechLab, 0, 0);  // the Lab State (mechlab.md item 1)
         stage = 6;
       } else if (stage == 6 && app.current() == &mech3::states().lab) {
@@ -512,7 +508,10 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     int32_t mechs_after = 0;
     if (c)
       for (const mech3::ConfigItem* it : c->store.items) mechs_after += it->kind() == 0 ? it->count : 0;
-    EXPECT(mechs_after == mechs_before + 1);
+    // ... and mission 2's briefing fits the lance to it: the player's slot
+    // (mech 3 from the campaign's start, 0x004733b0) takes it back out.
+    EXPECT(mechs_after == mechs_before);
+    EXPECT(c && c->slot.mech == 3 && c->slot.config);
     EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
     // A game whose Load state is not ported (Instant Action): no mission
     // left over from the campaign, back to the main menu.

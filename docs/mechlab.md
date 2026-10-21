@@ -200,6 +200,53 @@ Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
     their reading and showing wait for their steps (unported
     "lab.vt+<slot>").
 
+### The chassis page and the page refresh (step 3)
+
+- **CHASSIS_LIST** (vtable 0x005c0cc0).
+  - It takes every row (0x0045b6e0).
+  - The refill 0x00449250 lists the store's mechs by name (0x00484670).
+    For a lancemate in a campaign, an empty entry (message 0x23d) comes
+    first.
+  - It sorts with the exe's inlined std::sort (VC98's insertion sort up to
+    16 items, median-of-three introsort above). The comparator 0x004496c0
+    uses the mech's number for SORT_CHASSISNAME (0): it looks both names
+    up and ignores them. SORT_CHASSISMASS (1) uses the tonnage, then the
+    number. The sorts' presses 31 and 32 call 0x00449160.
+  - The row of the shown slot's mech is chosen by its place *before* the
+    sort.
+  - The layout 0x0044f4c0 / 0x00449760 puts each mech's maximum tonnage
+    ("%.1f") 175 pixels right of its row: lab_large_greenR for the rows,
+    and the chosen row's in lab_large_redR (font set after showing, its
+    text used as the format). The list's selected-row object shares that
+    text.
+  - A row pressed (0x00449b30) asks to finish a rename first. The same
+    chassis does nothing. A modified loadout asks 0x137 / 0x1ed with the
+    mech's and the loadout's names. Then it plays the select sound,
+    selects the row and sets the slot's chassis (0x00449010).
+- **SKIN_LIST.**
+  - Its select 0x0044b1c0 skins the 3D model when one is up (0x0044fd90)
+    and sets lance slot 0's skin (+0x10), whichever slot is shown.
+  - The refresh fills it from the mech definition's skin set (+0x1c). It
+    chooses slot 0's skin, clamped to 0..count (count itself is one past
+    the end). The arrows go on unless a rename is under way.
+- **The page refresh 0x0044cf70 (0x0044cf50 with the shown slot's
+  loadout).**
+  - It empties CONFIG_LIST and refills SKIN_LIST.
+  - With a loadout, it recounts it (0x00425bd0) and writes CURRENT_CHASSIS's
+    second label, "mech: loadout" (or message 0xdcd when it is modified).
+    Then it refreshes the data panels (0x00457940, 0x00457330,
+    0x0044b230), the item lists (+0xb8), ARMOR_TITLES (0x00450e00),
+    ENGINE_TABLE (0x0044b4b0) and the groups (0x0044dcf0).
+  - Without one, the label gets message 0x249.
+  - CRITICALS and WEAPON GROUPS are enabled only with a loadout.
+  - WEAPONS, EQUIPMENT and MISSION DATA are hidden.
+  - ACCEPT is enabled only while every slot's loadout passes 0x004254d0.
+- **The campaign's starting mech** (0x004733b0, ported here as the pilot
+  hook's default, with ConfigList::find 0x00424e90). A new campaign's
+  store gets mech 3 with its loadout named by message 0xf20 (added twice,
+  one taken out). Before this, the program's new campaigns started with
+  an empty store, so the briefing's lance fit cleared slot 0.
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
