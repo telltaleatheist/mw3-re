@@ -221,9 +221,38 @@ diamonds sharing, overlapping and reversing sides) and reaches every branch.
 The real crossing search is in the walk, 0x00510da0 (with 0x00513860, which
 divides an edge at a crossing).
 
-Left: part 3c, the walk (0x00510da0, 0x00513860, 0x00513f20, 0x00514280,
-0x00514730, 0x00514840), the contour merge and output (0x005129f0,
-0x005154d0, 0x00513390, 0x00513480, 0x005135a0) and the driver 0x0050faf0.
+### Weiler–Atherton, part 3c (first half): the walk
+
+0x00510da0 steps the region's two rings (R, R2) and, for each edge, the
+polygon's (P, P2) by their links, so pieces split off are visited too. A
+pair is skipped when their boxes are apart or they already share a
+crossing. 0x00513f20 types the meeting (0x00514280: the four ends' sides
+of the other edge, indexed into the 81-entry table at 0x005ec348; when two
+ends touch, a point just past the touching end is tested against the
+region (0x00513cf0) to say which side the touch counts on) and makes the
+crossing record (0x30 bytes: the point, eight edge links, the type): 4/5
+across (the point solved from the two lines, z along the polygon's edge),
+6/7 at R.a, 8/9 at R.b, 12..17 at P.a, 18..23 at P.b, 3 along each other
+(the case by which ends lie on the other edge), others none. Then by type:
+edges divided at the crossing (0x00513860; an edge whose end is within
+0.001 of it is not cut, its next edge takes the crossing), or the corners
+judged (0x00514730 one corner against an edge, 0x00514840 two corners at
+one point) and the crossing linked as the end of one edge and the start of
+the next (+0x34 / +0x30). A last pass writes each crossing's eight links
+(which R, R2, P, P2 edges end and start there). The or of the types is
+returned.
+
+FIX (bug, fixes.md): with a polygon corner on a region edge to within a
+float's error, each pass makes a new crossing a bit off the last and the
+divided pieces link into a cycle that never reaches the ring's first edge:
+the exe loops forever, allocating crossings (`test_weiler.py` confirms the
+original never returns on those inputs). The port gives up after
+64 + 16 x the edge count steps for one region edge, as the walk's
+intersection errors do (returns 1).
+
+Left (part 3c, second half): the contour merge and output (0x005129f0,
+0x005154d0, 0x00513390, 0x00513480, 0x005135a0, 0x00514710) and the driver
+0x0050faf0.
 
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.

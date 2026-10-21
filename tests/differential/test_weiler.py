@@ -35,12 +35,14 @@ P = ctypes.c_void_p
 probe.probe_weiler_new.argtypes = [P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_case.argtypes = [P, ctypes.c_int, P, ctypes.c_int, ctypes.c_uint32, P, ctypes.c_int]
 probe.probe_weiler_weed.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
+probe.probe_weiler_walk.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_leaf.argtypes = [ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int, ctypes.c_float, ctypes.c_float,
                                     ctypes.c_int, P, ctypes.c_int]
 
 IAT_MALLOC, IAT_CALLOC, IAT_FREE, IAT_REALLOC, IAT_MEMMOVE = 0x5bb664, 0x5bb60c, 0x5bb65c, 0x5bb610, 0x5bb584
 ZERR = 0x49bfd0
 CAP = 1 << 20
+GAVE_UP = struct.pack('<III', 0x70, 0x100, 0)  # the port's walk giving up (zerr line 0)
 
 
 def fb(v):
@@ -114,6 +116,9 @@ class Emulated:
                               (3, self.u32(w + 0x2c), self.u32(w + 0x28))):
             if base and base <= p < base + 12 * n:
                 return self.log(kind, (p - base) // 12)
+        xb = self.u32(w + 0x68)
+        if xb and xb <= p < xb + 0x30 * self.u32(w + 0x60) and (p - xb) % 0x30 == 0:
+            return self.log(4, (p - xb) // 0x30)
         self.log(9 if p else 0, 0)
 
     def dump(self, w):
@@ -230,6 +235,44 @@ class Emulated:
         self.dump(w)
         return bytes(self.out)
 
+    def walk(self, region, poly, budget=50_000_000):
+        self.begin()
+        nr, np_ = len(region) // 3, len(poly) // 3
+        self.caller, self.caller_n = self.put(farr(region)), nr
+        w = self.call(0x50f960, ecx=self.caller, edx=nr, stack=(0,))
+        pp = self.put(farr(poly))
+        self.cpu.write(w + 0x28, struct.pack('<II', np_, pp))
+        self.call(0x514d10, ecx=w)
+        self.call(0x50fe70, ecx=w, edx=pp, stack=(np_, 2))
+        self.call(0x513750, ecx=w)
+        self.log(self.call(0x510250, ecx=w) & 0xff)
+        self.cpu.call(0x510da0, w, 0, (), count=budget)
+        self.log(self.cpu.uc.reg_read(UC_X86_REG_EAX))
+        self.dump(w)
+        ebase, ecap = self.u32(w + 0x40), self.u32(w + 0x38)
+        xb, xcap, xcount = self.u32(w + 0x68), self.u32(w + 0x60), self.u32(w + 0x64)
+
+        def eref(p):
+            if not p:
+                return 0xffff
+            return (p - ebase) // 0x3c if ebase <= p < ebase + 0x3c * ecap else 0xfffe
+
+        def xref(p):
+            if not p:
+                return 0xffff
+            return (p - xb) // 0x30 if xb <= p < xb + 0x30 * xcap else 0xfffe
+        self.log(xcount)
+        for i in range(xcount):
+            c = xb + 0x30 * i
+            self.raw(c, 12)
+            self.log(self.u32(c + 0x2c))
+            for k in range(8):
+                self.log(eref(self.u32(c + 0xc + 4 * k)))
+        for i in range(self.u32(w + 0x3c)):
+            e = ebase + 0x3c * i
+            self.log(xref(self.u32(e + 0x30)), xref(self.u32(e + 0x34)), self.u32(e + 0x14))
+        return bytes(self.out)
+
     def leaf(self, op, a, b, eps1=0.0, eps2=0.0, code=0):
         self.begin()
         pa = self.put(farr(a) or bytes(12))
@@ -290,7 +333,7 @@ def polygon(rng, region, kind):
     n = rng.randint(3, 6)
     if kind == 'apart':
         d = r * rng.uniform(2.5, 5)
-        a = rng.uniform(0, 2 * math.pi)
+        a = rng.choice((0.0, math.pi / 2, rng.uniform(0, 2 * math.pi)))
         return ring(rng, cx + d * math.cos(a), cy + d * math.sin(a), r * rng.uniform(0.3, 1), n, 5, 0.1)
     if kind == 'around':
         return ring(rng, cx + rng.uniform(-r, r) * 0.2, cy + rng.uniform(-r, r) * 0.2, r * rng.uniform(2.2, 4), n, 5)
@@ -405,6 +448,49 @@ def main():
         mine = got(probe.probe_weiler_weed(ctypes.cast(fbuf(region), P), nr, ctypes.cast(fbuf(mine_poly), P), np_,
                                            BUF, CAP))
         check('weed', mine, emu.weed(region, poly))
+
+    # The walk: crater rings against triangles and quads crossing them, and
+    # the grid pairs (touching ends, shared corners, collinear runs).
+    for _ in range(1200):
+        if rng.random() < 0.5:
+            region, poly = weed_case(rng)
+        else:
+            region = ring(rng, rng.uniform(-50, 50), rng.uniform(-50, 50), rng.uniform(3, 20), rng.randint(3, 12), 1.0,
+                          rng.choice((0, 0.1)))
+            poly = polygon(rng, region, rng.choice(('cross', 'cross', 'boxin', 'around')))
+            if rng.random() < 0.25:  # a polygon edge through a region point
+                i = rng.randrange(len(region) // 3)
+                a = rng.choice((0.0, math.pi / 2, rng.uniform(0, 2 * math.pi)))
+                dx, dy, k = round(math.cos(a), 6), round(math.sin(a), 6), rng.choice((1.0, 2.0, 0.5))
+                poly[0], poly[1] = region[3 * i] + k * dx, region[3 * i + 1] + k * dy
+                poly[3], poly[4] = region[3 * i] - k * dx, region[3 * i + 1] - k * dy
+            elif rng.random() < 0.3:  # a polygon corner on a region point or edge
+                i = rng.randrange(len(region) // 3)
+                j = (i + 1) % (len(region) // 3)
+                t = rng.choice((0.0, 0.5, rng.random()))
+                poly[0] = region[3 * i] + t * (region[3 * j] - region[3 * i])
+                poly[1] = region[3 * i + 1] + t * (region[3 * j + 1] - region[3 * i + 1])
+        mine_poly = list(poly)
+        if brk == 7:
+            mine_poly[1] += 0.01
+        nr, np_ = len(region) // 3, len(poly) // 3
+        mine = got(probe.probe_weiler_walk(ctypes.cast(fbuf(region), P), nr, ctypes.cast(fbuf(mine_poly), P), np_,
+                                           BUF, CAP))
+        if GAVE_UP in mine:
+            # The port's FIX: the original loops here; confirm it never returns.
+            try:
+                emu.walk(region, poly, budget=20_000_000)
+                check('walk_hang', mine, b'original returned')
+            except Exception:
+                kinds['walk_hang'] = kinds.get('walk_hang', 0) + 1
+                emu = Emulated()
+            continue
+        try:
+            theirs = emu.walk(region, poly, budget=20_000_000)
+        except Exception:  # the original looped where the port did not give up
+            theirs = b'original never returned'
+            emu = Emulated()
+        check('walk', mine, theirs)
 
     # Leaves.
     for _ in range(1500):
