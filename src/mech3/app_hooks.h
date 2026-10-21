@@ -711,12 +711,16 @@ class Engine : public zgame::AppHooks {
     return std::string();
   }
   // Its press's: Instant Action's fade out (0x0048ef00: ECX the IA Dummy
-  // State 0x00608bd0, EDX 0, then 1, 2, [0x005e7274], 0, 0, 0), the pilot's file written (the inline open,
+  // State 0x00608bd0, EDX 0 (kept in [0x006098bc]), then direction 1, buffer
+  // 2, [0x005e7274] seconds and black, as fade_replace takes them), the pilot's file written (the inline open,
   // header and vt+0x04), the lancemates reset (0x00435240(0)), the
   // animations' reset (0x0050ad60), a state by address replacing this one
   // (0x00590250: the Win Movie State), the campaign's +0xb0 cleared, Instant
   // Action's next round (its +0x6c and +0x70).
-  virtual void fade_to_state(Handle next, uint32_t arg) { unported("0x0048ef00", {next, arg}); }
+  virtual void fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds,
+                             uint8_t r, uint8_t g, uint8_t b) {
+    unported("0x0048ef00", {next, arg, direction, buffer, zgame::bits(seconds), r, g, b});
+  }
   virtual void pilot_save_now();
   virtual void campaign_reset_lancemates();
   virtual void anim_reset() { unported("0x0050ad60", {}); }

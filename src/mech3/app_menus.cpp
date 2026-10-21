@@ -17,6 +17,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "mech3/briefing.h"
+#include "mech3/debriefing.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
 #include "mech3/mainmenu.h"
@@ -111,6 +112,19 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kTraining, h); });
     case 0x49c900:
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kMultiplayer, h); });
+    case 0x47b430: {  // the debriefing, new(0x13bf4): the Win State, operation, mission, its +0x10
+      const Handle st = a0;
+      int32_t op = 0, mission = 0;
+      if (args.size() >= 3) {
+        op = static_cast<int32_t>(args.begin()[1].v);
+        mission = static_cast<int32_t>(args.begin()[2].v);
+      }
+      States& ss = states();
+      const uint8_t* won = st == ss.end_win.addr() ? &ss.end_win.campaign_won_ : &ss.win.campaign_won_;
+      const Handle h = alloc_block(0x13bf4);
+      screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
+      return h;
+    }
     case 0x405230: {  // the briefing, new(0x12e6c): its section's name
       const char* name = args.size() && args.begin()->s ? args.begin()->s : "default";
       const Handle h = alloc_block(0x12e6c);
@@ -337,6 +351,7 @@ void GameEngine::load_state_enter() {
   l.type = g ? g->type() : -1;
   if (auto* c = dynamic_cast<CampaignGame*>(g)) {
     l.number = c->mission_number();
+    l.op = c->operation();
     l.index = campaign_dir(*c);
   } else if (auto* t = dynamic_cast<TrainingGame*>(g)) {
     l.number = t->mission;
@@ -395,8 +410,28 @@ void GameEngine::briefing_map_image(ztwod::Dialog* d, zrdr::Node* section) {
 void program_briefing_progress(float f) {
   if (BriefingScreen* b = briefing_screen()) b->progress(f);
 }
+uint32_t program_slot_count() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? static_cast<uint32_t>(c->slot_count()) : 0;
+}
 void program_briefing_line(const char* s) {
   if (BriefingScreen* b = briefing_screen()) b->log(s);
+}
+
+// 0x00479440 on the pilot the launch filled: its game's stand-in.
+Handle GameEngine::pilot_campaign(Handle p) {
+  if (p && p == pilot_ && launch_.type == kCampaign) return game_;
+  return Engine::pilot_campaign(p);
+}
+
+// Mech3.exe 1.2 @ 0x0047ae10 (CL a, DL b): a failed mission's salvage merged
+// back (0x00434cb0); a won one's lance put in the salvage store, the whole
+// team with b (zEntity's list, 0x00472f00 each: not ported, item 8).
+void GameEngine::mission_results(uint8_t a, uint8_t b) {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  if (!c) return;
+  if (a) c->merge_salvage();
+  else unported("0x0047ae10 (the lance into the salvage store)", {b});
 }
 
 bool GameEngine::missions_loaded() { return missions().finished(); }

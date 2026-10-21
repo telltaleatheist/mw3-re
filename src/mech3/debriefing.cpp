@@ -224,7 +224,7 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
   }
   if (id == kAbort) {
     if (kind == kInstantAction) {
-      e.fade_to_state(kIaDummyState, 0);
+      e.fade_to_state(kIaDummyState, 0, 1, 2, 2.0f, 0, 0, 0);  // [0x005e7274]: 2 s
       return;
     }
     if (kind != kCampaign) return;

@@ -214,6 +214,7 @@ class Original:
             emu.cpu.write(buf, out.encode('latin1') + b'\0')
             emu._ret(len(out), 0)
         e.stub(0x575fd0, '0x00575fd0', 's0,s1,s2,s3,s4', 0, fmt)
+        e.stub(0x48ef00, '0x0048ef00', 'c,d,s0,s1,s2,s3,s4,s5')
 
         def msg(emu, key, a, pop):  # Mech3Msg.dll's messages: "msg<id>:<first two numbers>", or none
             buf, size, mid, va = a
@@ -238,7 +239,7 @@ class Original:
         e.stub(0x47e840, '0x0047e840', 's0,s1,s2,s3,s4', None, display)
         e.stub(0x48dbe0, '0x0048dbe0', 'c', None,
                lambda emu, k, a, p: (t.handle(k, (emu.r32(a[0] + 0x214),)), emu._ret(0, p)))
-        plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x48ef00: 'c,d', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
+        plain = {0x40ce90: 'c', 0x47abe0: 'c', 0x435240: 's0', 0x478ce0: '', 0x491780: 's0',
                  0x50ad60: '', 0x47b210: 'c,s0', 0x484650: 'c', 0x562940: 'c,d,s0,s1,s2'}
         for addr, spec in plain.items():
             e.stub(addr, f'{addr:#010x}', spec)

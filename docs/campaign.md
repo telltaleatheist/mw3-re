@@ -173,8 +173,8 @@ mission 1 or Op 4 Mission 4), the animations reset (0x0050ad60), the campaign's 
 (the same mission). Instant Action: its next round (+0x6c, +0x70), cleanup,
 the Load state. The Mech Lab game: cleanup, Load. ABORT: a campaign saves
 the pilot (failed or cheated: the lancemates reset first), cleanup(1),
-the main menu; Instant Action fades to the IA Dummy State (0x0048ef00 with
-0x00608bd0). REPLAY: the mission's voice again (0x0047abe0).
+the main menu; Instant Action fades to the IA Dummy State (0x0048ef00:
+ECX 0x00608bd0, EDX 0, then 1, 2, [0x005e7274] (2 s), 0, 0, 0). REPLAY: the mission's voice again (0x0047abe0).
 
 Ported (6a, `mech3/debriefing`): the screen, its texts and buttons, the
 press, the cards' and the salvage list's shells (`MechButton`, `LanceCard`,
@@ -259,8 +259,16 @@ need the menus' one scale or a centred 640x480 frame.
    6a (Done) the shell and the press; 6b the results 0x0047baf0..0x0047c84b
    and the rank 0x0047b2f0; 6c the lance cards' mech display (0x0047e840,
    0x0047b210, the mech lab's).
-7. The Win State's results 0x0047ae10 and the end screen's fade to it:
-   c1m1 -> debriefing -> c1m2's briefing.
+7. (Done) The Win State's results 0x0047ae10 and the end screen's fade to it:
+   c1m1 -> debriefing -> c1m2's briefing. The end screen's fade
+   (0x0048ef00 on 0x006099a0) is the ported fade_replace to the second Win
+   State (`States::end_win`, the missions object's +0xd0); the Win State
+   builds the ported debriefing; 0x0047ae10's failed path merges the salvage
+   back (0x00434cb0), its won path (the lance into the salvage store,
+   0x00472f00 for each of zEntity's list) is item 8's. The launch's game
+   answers vt+0x48 (the operation) and vt+0x38 (the campaign's slots), and
+   0x00479440 gives it, so the Win State's records land in the stand-in
+   until 6b writes the scores into the ported campaign.
 8. The salvage screen 0x0047d3b0 and its state; with it the briefing's
    loadouts (0x00408b40, 0x00408bd0, 0x00408c30) and the reallocation
    list (REALLOC_LIST, the store list 0x0048db30.., 0x00404ae0).
