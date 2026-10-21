@@ -350,16 +350,14 @@ All of the above is merged. The HUD porting order (hud.md section 7): items
 1-7 and 9 done, with 4 (gauges) and 6 (MFD/TARGET texts, damage) complete;
 item 8 (reticle and zoom window: 0x004441a0, 0x00444230, 0x00442ac0..,
 0x004436c0, 0x00442df0) partly; item 10's frame entries ported. Open:
-the message panel (0x0040f3a0.. on [0x00603d7c], 0x0040f8d0's slide,
-0x0040fb30 its draw, 0x0040fed0 its point; the objectives use a stand-in
-for its point in app_hud), the zoom window's show_for 0x004438d0, the debug
+the zoom window's show_for 0x004438d0, the debug
 overlays (0x0043c820's first part), a mech's own name (0x0041df30 /
 0x004aee70), the network's HUD pieces (0x00479ed0, 0x00479ef0, the marker
 0x0058b060), the nav list 0x0047e840.
 
-Current item (lead): on mac3/message-panel, first the coolant easing per
-second (HudGauges::set_coolant, zfix per_second, fixes.md table row,
-CHANGES.md, drop the candidate), then the message panel if it is small.
+Since then the coolant easing and the message panel are done and merged
+(next entry); the objectives' stand-in is gone. No current item: waiting
+for the lead's next one.
 
 How I work here:
 - test_hud.py N (ops, worlds, dumps) against tests/probe_hud.cpp; run
@@ -392,3 +390,7 @@ command_calls().other (0xa6) wired. Remember: the panel is a process global
 (the probe destroys it under probe_app::Mute each run); within a frame the
 test's ops run slide, switches, then messages, so a switch is followed by
 a message before the next slide; headless text has no height.
+Merged into main (lead, 2026-10-20, cb750d0). The slide speed stays 60 px/s
+(the lead: the panel's speed field is per second by design; 30 px/s was the
+accident of a 30 fps frame). Next: waiting for the lead's item; the HUD's
+open pieces are listed under Where things stand.
