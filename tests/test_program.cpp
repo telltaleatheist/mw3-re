@@ -400,7 +400,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
         if (++core_frames == 30) {
           mech3::launched_mech(&mech);
           if (mech3::CampaignGame* cg = mech3::current_pilot() ? mech3::current_pilot()->campaign() : nullptr)
-            cg->c4 = 123456;  // a score so far, to see it carried through the results
+            cg->c4 = 123456, cg->b4[1] = 7;  // a score and a lancemate's kills, carried through
           // Won (campaign.md section 1): Exit Mission brings the end screen's
           // fade to the debriefing's Win State.
           mech3::missions().ended = 1;
@@ -446,6 +446,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
     mech3::CampaignGame* c = rec ? rec->campaign() : nullptr;
     EXPECT(c && c->operation() == 1 && c->mission_number() == 2);  // the Win State's save made it current
     EXPECT(c && c->c4 == 123456);  // the Win State's copy of the score, into the ported campaign
+    EXPECT(c && c->b4[1] == 7);    // a lancemate without a record line keeps its kills
     EXPECT(engine.peek32(0x60861c) == engine.handle_of(rec));  // the chosen pilot, not a stand-in
     // A game whose Load state is not ported (Instant Action): no mission
     // left over from the campaign, back to the main menu.

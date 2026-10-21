@@ -87,6 +87,7 @@ class DebriefScreen : public MenuScreen {
   int32_t score = 0;                 // +0x13be0  the campaign's +0xc4, with this mission's
   int32_t lance_scores[4] = {};      // +0x13be4  each pilot's mechs destroyed in the campaign (into +0xb4)
   uint8_t clean = 0;                 // no cheat ([0x00609994] clear; a local of 0x0047b430)
+  bool lance_scored[4] = {};         // (ours) the record line written: lance_scores[i] is real
 };
 
 // [0x00608bf8]: the lance's count the last results found (cards used).
