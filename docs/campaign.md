@@ -159,11 +159,76 @@ SALVAGE_LIST (the mech lab's store list over the mission's salvage
 
 The mission's time is `%02d:%02d:%02d` of [0x0060991c]; the seconds are the
 time less the minutes only, so past an hour 01:01:3640 (FIX (bug), as the
-HUD's timer). Then the results (0x0047baf0..0x0047c84b): the lance on the
-cards from zEntity's list, the kills and damage, the objectives' points
-([0x0060994c], [0x00609950]), the score into +0x13be0 and each lancemate's
-into +0x13be4 (the Win State copies them to the campaign's +0xc4 and +0xb4),
-text columns at fixed places (0x005e5ae4..), the rank 0x0047b2f0.
+HUD's timer). Then the results.
+
+### The results (0x0047baf0..0x0047c84b, item 6b)
+
+Inlined at the end of 0x0047b430 (`DebriefScreen::results`):
+
+- **The lance.** zEntity's list in its order ([0x0073655c..]), each
+  entity's vehicle (vt+0x2c) and mech (vt+0x50): the player's mech
+  ([0x0060861c] +0x14) or one of its allies (vt+0x28's +0xc0 against the
+  player's +0xc4), with a type (+0x684 +0xc not -1). The player takes card
+  0, the others cards 1, 2, 3 in order; the loop stops when card 3 is
+  used, so a fourth ally before the player in the list would leave the
+  player off. A card: shown, its vehicle set (0x0047b210), labels [0] the
+  pilot's name (vt+0xa4: the player's name, else the brain's 0x004aee70),
+  [4] hidden, [5] mechs and vehicles destroyed (+0x3f4 + +0x3f8, the kill
+  credit 0x0041b420's counts), [6] the mechs, [7] the vehicles, and a white
+  line (0xffff) from x 100 to 5 left of [5]'s text,
+  6 under it. The health (vt+0x98 x 100, floored) is read and dropped.
+  The cards left over are emptied and hidden; the count goes to
+  [0x00608bf8] (read nowhere else). Without a cheat the lance's points for
+  mechs (+0x400), vehicles (+0x404) and turrets (+0x408) are summed (the
+  kill credit adds them; +0x3fc counts the turrets).
+- **The campaign's records.** Each card's pilot is matched to a record by
+  name: the player 0, Dominic Paine (0xe14) 1, Epona Rhi (0xe15) 2, Alan
+  Mattila (0xe01) 3, anyone else none.
+- **The lines.** Columns at x 0xe1 (an indent of 0xf) and the numbers at
+  0xe1 + 0xbd; rows of 14, headers of 16 ([0x005e5ae4..0x005e5b04], never
+  written). From y 100: a campaign's primary objectives (header 0x16d, when
+  [0x0060994c] has any), 2 px, the secondary header 0x16e and its
+  objectives ([0x00609950]). Each objective shown (+0x30) with a line
+  (0x0045e080(0)): green and 2500 when done (+0x08), red and 0 (message
+  0x183 "Failed") when not; a line taller than a row pushes the next down.
+  Instant Action has the header 0x16d "Primary Objectives" and nothing
+  under it. Then the lance's points, green: "Mechs Defeated" 0xfab (any
+  game), "Vehicles Destroyed" 0xfac and "Turrets Destroyed" 0xfad (a
+  campaign only).
+- **The points.** Instant Action: 1000, or in modes 1 and 2 (the game's
+  +0x44) 1000 a wave (+0x70) plus a hundred for each round left
+  (+0x6c, one less unless the mission ended won: [0x00609925] and not
+  [0x00609926]) at each wave: waves x 1000 + sum over the waves of
+  (rounds - i) x 100. A campaign: the objectives and the lance's three.
+- **A campaign's totals.** The score (+0x13be0) is the campaign's +0xc4,
+  plus the mission's points when it did not fail and no cheat was on. At y
+  0xf0: "Campaign Total" 0x171 (large) and the score, a grey line (0xdc
+  0xdc 0xdc) under it, 5 px, "Mission Total" 0x170 and the points, 10 px,
+  the header "'Mechs Defeated" 0x169 and each record's line: the pilot's
+  name and the mechs that pilot has destroyed in the campaign (+0xb4 of
+  that record, plus this mission's +0x3f4; into +0x13be4). The Win State copies these
+  into the campaign (0x0047ac20, `Engine::win_keep_scores`) when the
+  mission counts.
+- **The top.** At y 0x46: "Mission Total" 0x170 (large) with the mission's points
+  (Instant Action's, or the campaign's total) and a grey line, then every
+  text joins the dialog.
+- **The rank** 0x0047b2f0: the campaign's score (Instant Action: its
+  points) / 100,000, 0 to 4: the icon `icon_rank%d_green` (the old one
+  released) and the label message 0x1d8 + rank: Sergeant, Master
+  Sergeant, Captain, Major, Colonel.
+
+The texts are new Texts (0x0047cab0: 0x005a15f0 sets the text, the font,
+then x and y; kept at +0x13bd0, deleted by the destructor), numbers through
+0x0047cce0 ("%d") and 0x0047cd70 (0 shows message 0x183).
+
+In the program the lance is the ported mechs (`mech_debrief_lance`), the
+score and records the pilot's ported campaign (`CampaignGame::c4`, `b4`),
+and the Win State's copy goes into the same campaign. Not yet: a
+lancemate's name (0x004aee70, the AI's) is "", so no record matches and
+the lancemates' lines stay out; the objective lists ([0x0060994c],
+[0x00609950]: objectives.zrd's objects are not ported) are empty; Instant
+Action's +0x44, +0x6c, +0x70 are not mapped on the ported `ActionGame`
+(scored as mode 0, 1000).
 
 The press 0x0047d030: CONTINUE: a campaign over goes to the Win Movie
 State 0x00608be8; passed (and clean): cleanup(0), the Load state (the next
@@ -176,11 +241,11 @@ the pilot (failed or cheated: the lancemates reset first), cleanup(1),
 the main menu; Instant Action fades to the IA Dummy State (0x0048ef00:
 ECX 0x00608bd0, EDX 0, then 1, 2, [0x005e7274] (2 s), 0, 0, 0). REPLAY: the mission's voice again (0x0047abe0).
 
-Ported (6a, `mech3/debriefing`): the screen, its texts and buttons, the
-press, the cards' and the salvage list's shells (`MechButton`, `LanceCard`,
-`StoreList`'s reader, layout and update); hooks: the results (6b), the
-cards' mech display (6c), the store list's rows (the mech lab), the
-Win Movie and IA Dummy states.
+Ported (6a, 6b, `mech3/debriefing`): the screen, its texts and buttons,
+the press, the results and the rank, the cards' and the salvage list's
+shells (`MechButton`, `LanceCard`, `StoreList`'s reader, layout and
+update); hooks: the cards' mech display (6c), the store list's rows (the
+mech lab), the Win Movie and IA Dummy states.
 
 ## 4. The campaign's progress
 
@@ -256,8 +321,9 @@ need the menus' one scale or a centred 640x480 frame.
    Launch -> c1m1 (program.md, A campaign from the menus;
    `test_program.cpp` campaign_menus_to_c1m1_through_the_briefing_headless).
 6. The debriefing screen 0x0047b430 and its press 0x0047d030, in three:
-   6a (Done) the shell and the press; 6b the results 0x0047baf0..0x0047c84b
-   and the rank 0x0047b2f0; 6c the lance cards' mech display (0x0047e840,
+   6a (Done) the shell and the press; 6b (Done) the results
+   0x0047baf0..0x0047c84b and the rank 0x0047b2f0, the scores into the
+   ported campaign; 6c the lance cards' mech display (0x0047e840,
    0x0047b210, the mech lab's).
 7. (Done) The Win State's results 0x0047ae10 and the end screen's fade to it:
    c1m1 -> debriefing -> c1m2's briefing. The end screen's fade
@@ -267,8 +333,8 @@ need the menus' one scale or a centred 640x480 frame.
    back (0x00434cb0), its won path (the lance into the salvage store,
    0x00472f00 for each of zEntity's list) is item 8's. The launch's game
    answers vt+0x48 (the operation) and vt+0x38 (the campaign's slots), and
-   0x00479440 gives it, so the Win State's records land in the stand-in
-   until 6b writes the scores into the ported campaign.
+   0x00479440 gives it; since 6b the Win State's copy of the scores goes
+   into the pilot's ported campaign (`GameEngine::win_keep_scores`).
 8. The salvage screen 0x0047d3b0 and its state; with it the briefing's
    loadouts (0x00408b40, 0x00408bd0, 0x00408c30) and the reallocation
    list (REALLOC_LIST, the store list 0x0048db30.., 0x00404ae0).
@@ -284,6 +350,28 @@ points, the mission's map, its projection and the game's texts stubbed, and
 the synthetic file adds objects of every kind);
 `test_mainmenu.cpp` checks the per_second bar. Breaks: scratch/briefing/
 breaks.py.
+
+Items 6a, 6b: `test_debriefing.py` (40/40 runs): dlgWin.zrd or a
+synthetic one, every game kind, failed, cheated, won, the time; since 6b
+the results run in the original on a fake zEntity list (the player's mech,
+allies by team, other mechs, typeless ones and entities without a mech;
+up to seven, so every card count from 1 to 4 shows), fake objective lists
+(none, empty, done, shown, without a line), the campaign's score and
+records and Instant Action's mode, rounds and waves; the dump has the
+dialog (the texts and the grey lines, a `N` kind for Line2D in
+test_twod.py and probe_twod.h), the score, the records' numbers, the card
+count and the texts. `test_program.cpp`'s loop checks the score carried
+from the campaign through the results into the next mission's game, the
+player's card, the lines and the rank. Breaking the results showed the
+test catches it, 35 of 35 (`scratch/briefing/breaks8.py`, 12 runs; the
+type filter, the clean-only score and the grey line's colour need 40):
+the lance's team and type filters, the stop at four cards, the player's
+card, the clean-only bonuses, the records' names, the card's labels and
+line, the spare cards, the count, Instant Action's points (flat, rounds,
+waves), the primary header and the gap, shown and done objectives, their
+points, fonts and tall lines, "Failed" for 0, the mechs' points in any
+game, the totals' place, the records' numbers and names, the top number,
+the rank's argument, step, release and label, the texts' place.
 
 Item 1: `test_pilot.py` (pilot.md section 7; 100/100) and
 `test_mechsave.py` (the loadout copy, 553 copies). In the program the

@@ -8,11 +8,10 @@
 // (new(0x13bf4), 0x0047b430, its press 0x0047d030), dlgWin.zrd's WINMENU.
 // Original file unknown: 0x0047af70..0x0047d2c0, between the Win State
 // (0x0047ab10..) and the Salvage State (0x0047d2f0..), named after them.
-// Item 6a: the screen, its texts by the game and the result, the buttons and
-// their press, the lance cards' and the salvage list's shells. The results
-// (0x0047baf0..0x0047c84b with the rank 0x0047b2f0), the cards' mech display
-// (0x0047b210, 0x0047e840) and the salvage list's refill (0x0048dbe0) are
-// hooks (campaign.md section 7, items 6b, 6c).
+// The screen, its texts by the game and the result, the buttons and their
+// press, the results (the lance, the points, the score, the rank). The
+// cards' mech display (0x0047b210, 0x0047e840) and the salvage list's refill
+// (0x0048dbe0) are hooks (campaign.md section 7, items 6c, 8).
 namespace mech3 {
 
 // The mech lab's mech button (0x0044a770, vtable 0x005c0d70): the help
@@ -52,6 +51,7 @@ class RankIcon : public HelpButton {
   explicit RankIcon(Engine& e) : HelpButton(e, -1) {}
   void on_enter() override {}
   void on_leave() override {}
+  void set_rank(int32_t score);      // 0x0047b2f0
 };
 class WinTitle : public ztwod::Control {
  public:
@@ -70,6 +70,10 @@ class DebriefScreen : public MenuScreen {
   ~DebriefScreen() override;         // 0x0047c920 (deleting 0x0047c8d0)
   void update(float dt) override;    // +0x00  0x0042efe0: the window's
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x0047d030
+  void results(int32_t kind);        // 0x0047baf0..0x0047c84b, inlined in 0x0047b430
+  ztwod::Text* add_text(const char* s, int32_t x, int32_t* y, Handle font, int32_t step);    // 0x0047cab0
+  ztwod::Text* add_number(int32_t v, int32_t x, int32_t* y, Handle font, int32_t step);      // 0x0047cce0
+  ztwod::Text* add_points(int32_t v, int32_t x, int32_t* y, Handle font, int32_t step);      // 0x0047cd70
 
   ztwod::Image background{0};        // +0x111ec  WIN_BACKGROUND
   HelpButton continue_btn, replay_btn, abort_btn;  // +0x112a8, +0x11424, +0x115a0 (0x0044c310)
@@ -78,11 +82,14 @@ class DebriefScreen : public MenuScreen {
   ztwod::Line2D lines[2]{{0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}};  // +0x13318, +0x13364
   WinTitle title;                    // +0x133b0  WIN_TITLE
   StoreList salvage;                 // +0x134fc  SALVAGE_LIST (vtable 0x005c3b20: only its destructor its own)
-  std::vector<ztwod::Text*> texts;   // +0x13bd0  the results' texts (6b; +0x13bcc its allocator byte)
+  std::vector<ztwod::Text*> texts;   // +0x13bd0  the results' texts (+0x13bcc its allocator byte)
   const uint8_t* won;                // +0x13bdc  the Win State's +0x10
-  int32_t score = 0;                 // +0x13be0  the campaign's +0xc4 (6b)
-  int32_t lance_scores[4] = {};      // +0x13be4  each lancemate's +0xb4 (6b)
+  int32_t score = 0;                 // +0x13be0  the campaign's +0xc4, with this mission's
+  int32_t lance_scores[4] = {};      // +0x13be4  each pilot's mechs destroyed in the campaign (into +0xb4)
   uint8_t clean = 0;                 // no cheat ([0x00609994] clear; a local of 0x0047b430)
 };
+
+// [0x00608bf8]: the lance's count the last results found (cards used).
+int32_t& debrief_lance_count();
 
 }  // namespace mech3

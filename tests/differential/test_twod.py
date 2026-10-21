@@ -39,7 +39,7 @@ DIALOG_CTOR, LOAD_FROM, BIND_BUTTON, BIND_PRIMITIVE = 0x59ec40, 0x59f050, 0x59f8
 CLASSES = {'C': (0x59bbe0, 0x14c, ()), 'K': (0x59d870, 0x164, ()), 'I': (0x59b970, 0xbc, (0,)),
            'T': (0x5a15a0, 0x4cc, ())}
 VT_KIND = {0x5cf8c8: 'I', 0x5cf948: 'C', 0x5cfaa8: 'K', 0x5cf9d8: 'T', 0x5cfc88: 'U', 0x5d0da0: 'U',
-           0x5cfb38: 'L', 0x5be308: 'X', 0x5cfbc8: 'Y', 0x5cfe00: 'Z', 0x5cfd28: 'F'}
+           0x5cfb38: 'L', 0x5d06e0: 'N', 0x5be308: 'X', 0x5cfbc8: 'Y', 0x5cfe00: 'Z', 0x5cfd28: 'F'}
 TEXTURE_ARGS = {'0x0055b1f0': (0,), '0x00517b10': (0,), '0x00517cc0': (0,), '[0x0072f394]': (0,),
                 '[0x0072f398]': (0,), '0x00579660': (5,)}
 
@@ -347,6 +347,14 @@ class Original:
             rc('bgr', o + 0x20)
             kv('mouse', e.r32(o + 0x30) & 0xffff)
 
+        def line2d(o):
+            base(o)
+            kv('end', e.r32(o + 0x34))
+            kv('end_y', e.r32(o + 0x38))
+            kv('color', e.r32(o + 0x3c))
+            kv('clipped', e.r32(o + 0x40))
+            kv('dash', e.r32(o + 0x48))
+
         def image(o):
             base(o)
             kv('owned', e.r32(o + 0x34))
@@ -499,7 +507,7 @@ class Original:
         for i, o in enumerate(objs):
             k = 'U' if o == c else VT_KIND.get(e.r32(o), '?')
             {'T': text, 'C': control, 'K': check, 'L': slider, 'X': listbox, 'Y': item,
-             'Z': textbox, 'F': fonttext, 'B': base}.get(k, image)(o)
+             'Z': textbox, 'F': fonttext, 'B': base, 'N': line2d}.get(k, image)(o)
             flush(f'o{i} {k}')
         return '\n'.join(out) + '\n'
 

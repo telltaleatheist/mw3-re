@@ -1077,12 +1077,7 @@ bool WinState::enter() {
     en.mission_results(0, (campaign == 4 && mission == 4) ? 0 : 1);
     const int32_t n = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x38, {}));
     en.pilot_record_mission(en.pilot(), 1);
-    for (int32_t i = 0; i < n; ++i) {
-      const uint32_t v = en.field32(screen_, 0x13be4 + 4 * i);
-      en.set_field32(en.pilot_campaign(en.pilot()), 0xb4 + 4 * i, v);
-    }
-    const uint32_t v = en.field32(screen_, 0x13be0);
-    en.set_field32(en.pilot_campaign(en.pilot()), 0xc4, v);
+    en.win_keep_scores(screen_, n);
     if (a().no_voices() == 0) {
       en.format("c%dm%dwin", {campaign, mission}, voice_, sizeof voice_);
       en.voice_start(voice_);

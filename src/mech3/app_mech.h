@@ -122,6 +122,17 @@ ai::AiTarget* mech_ai_target(void* mech);        // the Mech's AiTarget base
 bool mech_ammo_value(void* mech, float* out);
 void mech_set_game_time(float t);
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v);
+// The debriefing's lance (0x0047baf0's loop over zEntity's list): every
+// mech, the mission's player's or not, its team, type and +0x3f4..+0x408.
+struct DebriefMech {
+  void* mech = nullptr;
+  bool player = false;
+  uint32_t team = 0;
+  int32_t type = -1;
+  int32_t stats[6] = {};
+};
+std::vector<DebriefMech> mech_debrief_lance();
+uint32_t mech_player_allies();  // the mission's player mech's +0xc4, 0 without one
 
 // The AI mechs player.cpp built this mission (app_mission.cpp, our record of
 // them for the log and the tests): each mech (a Mech*) and its controller (an

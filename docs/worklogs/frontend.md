@@ -569,3 +569,29 @@ main, pause, load, win, end_win, salvage); before, WinState::leave on
 0x006099a0 fell to the unported stub and the debriefing leaked each mission
 end. The campaign test checks the screen is freed after CONTINUE (caught
 with end_win removed from the list).
+
+## 2026-10-21 Campaign item 6b: the debriefing's results (branch mac3/debrief-results)
+
+Branch off main f8cfa9e; its first commit ded0581 is item 7's review fix
+(end_win in shell_clear/state_screen). Ported 0x0047baf0..0x0047c84b as
+`DebriefScreen::results` with add_text 0x0047cab0 / add_number 0x0047cce0 /
+add_points 0x0047cd70 and `RankIcon::set_rank` 0x0047b2f0 (campaign.md
+section 3, The results). The lance filter is in the port (the hook gives
+every entity with a mech: player flag, team, type, +0x3f4..+0x408, name;
+`player_allies` the player's +0xc4). +0x3f4/+0x3f8/+0x3fc are the kill
+credit's mechs/vehicles/turrets counts, +0x400.. their points; +0xb4 the
+pilots' career mech kills (header "'Mechs Defeated"). An early misread
+(the top line double-counting) was wrong: the top is the mission total.
+Hooks added: debrief_lance, player_allies, debrief_objectives,
+objective_text (0x0045e080), campaign_score/record, mission_ended,
+action_rounds, win_keep_scores (the Win State's copy; the default keeps
+the field32 calls test_app_states replays). Program: `mech_debrief_lance`
+(app_mech.cpp) from the ported mechs, the score and records from the
+pilot's ported campaign, `GameEngine::win_keep_scores` into it. Not yet:
+a lancemate's name (0x004aee70, AI) is "", objectives.zrd's lists, IA's
++0x44/+0x6c/+0x70 on ActionGame.
+Test: test_debriefing.py 40/40 (fake zEntity list and objective lists,
+the results' dump; CString operator= 0x5abdbc stubbed; ICON_RANK's labels
+kept in the synthetic file as the exe reads them unchecked); Line2D got a
+dump kind `N` (test_twod.py, probe_twod.h). test_program's loop checks the
+score through to the next game. Breaks: scratch/briefing/breaks8.py.
