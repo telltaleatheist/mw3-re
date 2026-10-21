@@ -111,6 +111,7 @@ for t in \
     destroy \
     tree_copy \
     mech_data_load \
+    exe_select \
     ; do
   .venv/bin/python "tests/differential/test_$t.py" | tail -1
 done

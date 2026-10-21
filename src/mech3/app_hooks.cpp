@@ -10,6 +10,7 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/app.h"
 #include "mech3/app_states.h"
 #include "mech3/controls_cfg.h"
@@ -229,6 +230,8 @@ void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
       if (free < frames * 960000) *hi = 5;
     }
   }
+  // FIX (B) (resolution.md): a card offers every size; today's have the memory.
+  if (device >= 0 && zfix::options().any_resolution) *hi = kLastVMode;
 }
 void Engine::pop_state(uint32_t arg) { app().pop(arg); }
 void Engine::lab_store_remove(Handle store, int32_t mech) {

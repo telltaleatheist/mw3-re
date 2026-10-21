@@ -34,7 +34,7 @@ namespace {
 // MW3_FPU53=1 keeps the 53-bit rounding, to compare with the original run at
 // full precision (MW3_X87=64).
 const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
-                          zfix::options().deep_water = false,
+                          zfix::options().deep_water = false, zfix::options().any_resolution = false,
                           zfix::options().fpu53 = std::getenv("MW3_FPU53") && *std::getenv("MW3_FPU53") == '1', true);
 struct ProbeClock : platform::Clock {
   uint32_t now = 0;

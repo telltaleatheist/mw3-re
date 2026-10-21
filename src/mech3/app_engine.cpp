@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "gamez/zclass/camera.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinput/zinput.h"
@@ -50,6 +51,13 @@ struct WiredOptionsHooks : OptionsHooks {
   }
   void model_set_global_light(int32_t on) override { zmod::set_shadows(on); }  // 0x00526a70
   void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
+  void camera_get_fov(Handle cam, float* x, float* y) override {  // 0x004f3ee0
+    *x = *y = 1.0f;
+    if (g_engine) zcls::camera_get_fov_angles(static_cast<zcls::Node*>(g_engine->object_of(cam)), x, y);
+  }
+  void camera_set_fov(Handle cam, float x, float y) override {  // 0x004f3d90
+    if (g_engine) zcls::camera_set_fov_angles(static_cast<zcls::Node*>(g_engine->object_of(cam)), x, y);
+  }
   int32_t video_mode() override { return g_engine ? static_cast<int32_t>(g_engine->peek32(0x72f348)) : 0; }
   const char* message(int32_t id) override { return g_engine ? g_engine->message(id) : ""; }  // 0x00576040
   void controls_set_defaults() override { mech3::controls_set_defaults(); }        // 0x00411150

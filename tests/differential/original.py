@@ -2,6 +2,12 @@
 
 Only self-contained code works here: anything that calls Windows or DirectX has
 no emulated system to call into. That covers the logic the rebuild ports.
+
+The exe is MW3 1.2's by default. Pirate's Moon's (game/pm) is the alternative,
+for the function-by-function diff (CLAUDE.md): pass `Original(exe='pm')`, or
+set MW3_EXE=pm (or a path to either exe) to run any test against it. The
+tests' addresses are MW3 1.2's, so a test runs against PM only where the
+function sits at the same place.
 """
 import hashlib
 import os
@@ -14,8 +20,34 @@ from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, U
                                 UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES)
 
 ROOT = Path(__file__).resolve().parents[2]
-EXE = ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe'
-SHA256 = '95bc2c114c9b2e5c5ada8e40ca78cc79470f862e45313ffad0d1e8e6d4d916bf'
+# The exes the tests know: name -> (path, SHA-256, what it is).
+EXES = {
+    'mw3': (ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe',
+            '95bc2c114c9b2e5c5ada8e40ca78cc79470f862e45313ffad0d1e8e6d4d916bf', 'Mech3.exe 1.2'),
+    'pm': (ROOT / 'game' / 'pm' / 'Mech3.exe',
+           '57cd2ee74bafda3eeb9e9353c7c78a8b7c213a81f3040f1be7c2a164c505ddd9', "Pirate's Moon 1.0 Mech3.exe"),
+}
+
+
+def select(choice=None):
+    """The exe to run: a name in EXES or a path to one of them; by default
+    MW3_EXE's, else MW3 1.2's. Returns (name, path, sha256, description)."""
+    choice = choice or os.environ.get('MW3_EXE') or 'mw3'
+    if str(choice) in EXES:
+        name = str(choice)
+    else:
+        path = Path(choice).resolve()
+        name = next((k for k, v in EXES.items() if v[0].resolve() == path), None)
+        if name is None:
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            name = next((k for k, v in EXES.items() if v[1] == digest), None)
+            if name is None:
+                raise SystemExit(f'{choice} is neither Mech3.exe 1.2 nor Pirate\'s Moon\'s')
+            return (name, path) + EXES[name][1:]
+    return (name,) + EXES[name]
+
+
+GAME, EXE, SHA256, _ = select()
 IMAGE_BASE = 0x400000
 STACK_TOP = 0x30000000
 RETURN = 0x2fff0000   # a mapped address nothing executes; emulation stops there
@@ -32,10 +64,11 @@ IAT_FTOL = 0x5bb644
 
 
 class Original:
-    def __init__(self, exe=EXE):
-        data = Path(exe).read_bytes()
-        if hashlib.sha256(data).hexdigest() != SHA256:
-            raise SystemExit(f'{exe} is not Mech3.exe 1.2')
+    def __init__(self, exe=None):
+        self.game, self.exe, sha, what = select(exe)
+        data = Path(self.exe).read_bytes()
+        if hashlib.sha256(data).hexdigest() != sha:
+            raise SystemExit(f'{self.exe} is not {what}')
         self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
         pe = struct.unpack_from('<I', data, 0x3c)[0]
         count = struct.unpack_from('<H', data, pe + 6)[0]

@@ -301,6 +301,7 @@ add_executable(mw3tests
   tests/test_zsnd_cd.cpp
   tests/test_zrndr_span.cpp
   tests/test_fixes.cpp
+  tests/test_resolution.cpp
   tests/test_zreader.cpp
   tests/test_controls_cfg.cpp
   tests/test_pilot_names.cpp

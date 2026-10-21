@@ -1056,6 +1056,17 @@ From the render path (render.md).
   drawn (normally your own mech's, on the first frame). On a video card
   without the blend the shadows need, shadows stay off, and so would the
   fog.
+- **The original's 3D view is about 8% narrower than it should be.** The
+  camera sees 80 degrees across and 60 up and down, but on a 4:3 screen
+  that crams a little more width in than square pixels would hold: round
+  things are drawn about 8% thinner than tall. Every player saw it this
+  way, so the rebuild keeps it.
+- **The hidden big resolutions would have squeezed a wide screen.** The
+  game sets its sideways view angle by simple proportion: the up-down
+  angle times width over height. At 4:3 that gives the intended 80
+  degrees, but at 16:9 it would be 106.7 degrees, squeezing everything to
+  three quarters of its width. The rebuild widens the view the correct way
+  instead (96.4 degrees at 16:9).
 - **The sun's lens flare only shows in software mode.** Every map has a
   light flagged for a lens flare (two on the third campaign's maps), and
   the maps load four flare pictures. In the software renderer the flare

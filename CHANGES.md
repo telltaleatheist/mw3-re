@@ -252,6 +252,14 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- More screen sizes: besides the original 640x480 to 1600x1200 (all six
+  now offered on a 3D card, not only the first three), 1280x720, 1600x900,
+  1920x1080, 2560x1440, 3840x2160 and a size of your own (ScreenWidth and
+  ScreenHeight in the settings). On a wide screen the view widens to the
+  sides instead of stretching, keeping the original's look; 640x480 is
+  exactly as before. The window, the HUD and the menus at those sizes come
+  in later steps (docs/resolution.md).
+
 - The craters a host sends to a player joining a multiplayer game name their ground and texture by material number instead of by the host's memory addresses, which meant nothing on the joining machine (and do not fit a 64-bit program).
 
 - A developer's leftover debug message ("haha", whenever an object named

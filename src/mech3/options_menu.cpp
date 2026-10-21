@@ -5,6 +5,7 @@
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
+#include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -165,6 +166,14 @@ void ResolutionCycle::rebuild(int32_t dev) {
   } kModes[] = {{3, 0x41}, {5, 0x42}, {6, 0x43}, {7, 0x44}, {8, 0xfda}, {9, 0xfdb}, {10, 0xfdc}};
   for (const auto& m : kModes)
     if (lo <= m.mode && hi >= m.mode) add_item(e_.message(m.message), m.mode);
+  // FIX (B) (resolution.md): the new sizes, by their size (no message names them).
+  for (int32_t mode = 11; zfix::options().any_resolution && mode <= kLastVMode; ++mode) {
+    int32_t w = 0, h = 0;
+    if (lo > mode || hi < mode || !vmode_size(mode, &w, &h)) continue;
+    char label[24];
+    std::snprintf(label, sizeof label, "%dx%d", w, h);
+    add_item(label, mode);
+  }
   if (cur < lo) select_value(lo);
   else if (cur > hi) select_value(hi);
   else select_value(cur);

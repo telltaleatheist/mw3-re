@@ -17,6 +17,7 @@ struct Options {
   // the 24-bit result Direct3D 6's FPU setting would (CLAUDE.md, FPU precision).
   bool fpu53 = true;
   bool deep_water = true;  // FIX (bug): the gait's wading slowdown as a continuous curve (movement.md)
+  bool any_resolution = true;  // FIX (B): any screen size and 16:9 (resolution.md)
 };
 
 inline Options& options() {
