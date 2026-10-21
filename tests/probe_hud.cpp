@@ -326,6 +326,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 23: h.radar.xdb4 = v; break;
     case 24: h.radar.xdb8 = v; break;
     case 25: h.radar.set_fade(zgame::from_bits(v)); break;
+    case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
     case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
       float o[3] = {};

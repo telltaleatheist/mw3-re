@@ -1825,6 +1825,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int prev = 0, waiting = 0;
       int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
       float blip_d = 0.0f, blip_want = 0.0f;
+      mech3::HudReport gauges;  // frame 10's (hud.md section 17)
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1847,11 +1848,17 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         pitch = zin::key1_of(5) & 0xff;  // CMD_PITCH_DOWN
         mech3::program_hud_report(&r);  // the blip count from here
       } else if (seen.frames > 3 && seen.frames < 10 && mech3::program_hud_report(&r)) {
+        // the throttle opened for a few frames, so the gauges move (hud.md section 17)
+        if (seen.frames == 4) keys.key(zin::key1_of(0x18) & 0xff, true);
+        if (seen.frames == 8) keys.key(zin::key1_of(0x18) & 0xff, false);
         seen.blips_asleep += r.blips;  // the Owens powered down: not in sight, no blip
         if (seen.frames == 9)
           if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
       } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
         seen.weapons = r.weapons, seen.lines = r.lines, seen.names_ok = r.named, seen.bracketed = r.bracketed;
+        seen.gauges = r;
+        keys.key(zin::key1_of(0x1b) & 0xff, true);  // THROTTLE1: back to 0% for the lock
+        keys.key(zin::key1_of(0x1b) & 0xff, false);
       } else if (seen.frames > 10 && seen.frames < 20 && mech3::program_hud_report(&r)) {
         // The Owens awake 150 m ahead: one blip a frame, 150 m x radius / range from the centre.
         seen.radar_frames += r.radar_shown && r.radar_r > 0;
@@ -1905,6 +1912,11 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     EXPECT(seen.radar_frames == 9 && seen.blips_asleep == 0 && seen.blip_frames >= 8);
     EXPECT(std::abs(seen.blip_d - seen.blip_want) <= 1.5f && seen.blip_off <= 1);  // straight ahead
     EXPECT(seen.blips_locked == 0);
+    const mech3::HudReport& g = seen.gauges;
+    std::printf("  equipment %d lines (%d wanted), speed %.1f km/h, throttle bar %d up, fuel %d, heat unlit %d\n",
+                g.equip_lines, g.equip_wanted, g.speed_kmh, g.throttle_up, g.fuel_shown, g.heat_unlit);
+    EXPECT(g.equip_lines == g.equip_wanted);  // a line for each part, by kind (none: hidden)
+    EXPECT(g.throttle_up > 0 && g.speed_kmh > 0.0f);  // the bar up from its bottom, the speed in km/h
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

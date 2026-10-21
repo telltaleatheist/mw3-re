@@ -27,6 +27,12 @@ struct HudReport {
   // The damage displays: the parts not showing intact, TARGET's and the MFD's.
   int target_damaged = 0, mfd_damaged = 0, target_mode = 0;
   float target_internal = 1.0f;  // the lowest internal of TARGET's mech's parts (2: no mech)
+  // The gauges and lists (hud.md section 17): the equipment lines shown and the
+  // count the mech's parts call for (up to 16), the speed shown (km/h), the
+  // throttle bar's top above its bottom, the fuel gauge shown, the heat bar's
+  // unlit height.
+  int equip_lines = 0, equip_wanted = 0, throttle_up = 0, fuel_shown = 0, heat_unlit = 0;
+  float speed_kmh = 0.0f;
   float sensor_range = 0.0f;
 };
 bool program_hud_report(HudReport* r);

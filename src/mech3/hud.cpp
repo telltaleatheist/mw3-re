@@ -1501,9 +1501,9 @@ void HudObjectives::place_above(int32_t px, int32_t py) {
   panel.set_pos(get_x() - 4, y);
 }
 
-// Mech3.exe 1.2 @ 0x00447e40: kind 0 (the +0x3f0 record) red and grey
-// without one, else green or yellow by its flag, with its count; kind 12
-// green or yellow by the mech's +0x574; others green, no value. A new kind
+// Mech3.exe 1.2 @ 0x00447e40: kind 0 (the AMS, +0x3f0) red and grey
+// without one, else green or yellow by its on flag, with its rounds; kind 12
+// (MASC) green or yellow by the mech's MASC time +0x574; others green, no value. A new kind
 // renames the line and sets the green font over the one just set.
 void HudEquipLine::set_item(Mech* m, int32_t kind) {
   if (kind == -1) {
@@ -1517,7 +1517,7 @@ void HudEquipLine::set_item(Mech* m, int32_t kind) {
     case 0: {
       bool on;
       int32_t count;
-      if (!h.mech_record_3f0(m, &on, &count)) {
+      if (!h.mech_ams(m, &on, &count)) {
         light.set_image(e.light[0]);
         set_named_font(e.font_grey, false);
         break;

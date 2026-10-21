@@ -329,3 +329,14 @@ the test). The name tables came from running 0x00484670 / 0x00484d70 in
 Unicorn (objdump mis-decodes that stretch; no capstone in the venv).
 No GPU shot: the MFD and TARGET modes cannot be set from the command line,
 and headless covers it.
+
+## 2026-10-20 Gauges, objectives, equipment (branch mac3/hud-gauges)
+
+HudGauges::set_speed/throttle/heat/coolant/jump (0x004453a0..0x004456f0),
+HudObjectives::data_update/place_above (0x00446900/0x004468b0),
+HudEquipment::data_update and HudEquipLine::set_item (0x00448320/0x00447e40).
+The heat bar's source is one Rect at +0x1440 now. The coolant's eased level
+is a process global ([0x005e3a14]; the probe resets it). Remember: never
+`open(p,'w').write(open(p).read())` (it truncates first: test_hud.py was
+restored from git); the item names came from 0x00484980 run in Unicorn;
+op 26 pokes the jets' count through the replay's memory model.

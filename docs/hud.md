@@ -339,6 +339,9 @@ the set-up reads: item 1a's test).
   so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
   the Mobile HQ, turrets) wait for those vehicles; until then their contacts
   show nothing.
+- The message panel (0x0040f3a0.., [0x00603d7c]): not ported. The
+  objectives sit above a stand-in point in the program, the panel's
+  starting place without its text's height or its slide.
 - TARGET's third text in the program: a mech's own name (vt+0xa4,
   0x0041df30: the player's pilot's, else its brain's 0x004aee70) is not
   ported, so it stays empty.
@@ -836,3 +839,56 @@ the Owens in mode 2 and fires: the hits wear a torso section's internal to
 0.899 and its silhouette part changes image (at frame 89), the rest stay
 intact. Headless runs load no 2D images, so the test gives the silhouette
 set distinct stand-ins first.
+
+## 17. The gauges' setters, the objectives' place, the equipment's update
+
+Run by the HUD's data update each frame (section 14 part 4).
+
+**The gauges** (`HudGauges`):
+
+- Speed (0x004453a0): the mech's speed x 3.6 ([0x005c013c], m/s to km/h)
+  kept at +0x34; the text "%0.1f\n%s" ([0x005e4154]) with message 0x1d7
+  (the unit), the result used as the text's format in turn; green
+  (0x1fa201) from 0 up, red going backwards.
+- Throttle (0x00445450): clamped to -1..1, backwards x 0.525 ([0x005c0140])
+  and red, else the yellow-brown (0xc3, 0xad, 3); the bar's top (its points
+  0 and 3) its height x the level (rounded up) above its bottom (point 1).
+- Heat (0x004455e0): the toggler on the meter at level + rate (clamped
+  0..1; the rate is the heat's change a second less the cooling), the bar's
+  lit part the level of its image from the bottom (its source rect +0x1440,
+  the bar moved down by the unlit height).
+- Coolant (0x004456f0): eased a tenth of the way toward the value each call,
+  that is each frame, in one value for every HUD ([0x005e3a14], 1 at
+  start): the bar settles faster at higher frame rates (a display matter;
+  fixes.md Candidates).
+- Jump jets (0x00445520): the fuel frame and bar shown with jets, hidden
+  without; the bar by the fuel (clamped 0..1).
+
+**The objectives** (0x00446900 / 0x004468b0): shown, they sit their
+panel's height above the message panel's point ([0x00603d7c] +0x4e8,
+0x0040fed0), the panel 4 to their left.
+
+**The equipment** (0x00448320): a line for each part the mech has of the
+kinds 0, 12, 3, 8, 14, 6, 7, 4 in that order ([0x005e3a30]; the counts
++0x3ac), up to 16; none hides the list; the rest hidden; the panel 11 a line
+tall. A line (0x00447e40): kind 0, the AMS, reads the mech's +0x3f0 (none:
+the red light and grey font; else green or yellow by its on flag, with its
+rounds +0x18 as the value), kind 12, MASC, green or yellow by the mech's
+MASC time +0x574, any other green with no value; the names are message
+0x1c6 + kind (0x00484980); a new kind renames the line (0x00484980) and
+sets the green font over the one just set, so for one frame the line is
+green whatever its state.
+
+Ported (`HudGauges::set_*`, `HudObjectives::data_update`,
+`HudEquipment::data_update`, `HudEquipLine::set_item`). Test: test_hud.py,
+the fake mech with an AMS record and a MASC time, the message panel's point,
+the item names stubbed; the speed text's double formatted in the sprintf
+stub; op 26 changes the jump jets' count mid-run. 100 seeds match;
+breaking it: 26 of 26 caught.
+
+In the program: the AMS (Ams on/rounds), the MASC time, the item names
+(message 0x1c6 + kind), and a stand-in for the message panel's point
+(Left). mw3tests' mission_c1m1_hud_weapon_lines_and_lock_headless opens the
+throttle for a few frames: the throttle bar stands 3 pixels up and the speed
+reads 0.1 km/h at frame 10; the player's mech has no equipment and no jump
+jets, so the list and the fuel gauge are hidden, as the counts call for.

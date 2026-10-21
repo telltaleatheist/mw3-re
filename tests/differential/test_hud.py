@@ -595,6 +595,8 @@ class Original:
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.15:  # the radar's mode
                 self.ops.append((22, fr.choice([0, 1, 2, 3] if self.flip else [0, 2])))  # map mode needs the map
+            if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
+                self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
                 self.ops.append((25, f32(fr.choice([0.0, 0.05, 0.3, 1.5]))))
             if fr.random() < 0.15:  # its polylines: their lists, then their counts
@@ -690,9 +692,9 @@ class Original:
         mvt = e.r32(m)
         e.w32(mvt + 0x148, e.new_stub('mech.vt+0x148', 'c', 0, lambda emu, key, a, pop: (
             emu.w32(fbuf, t.handle(key, tuple(a))), emu._ret(0, pop, then=fthunk))))
-        w.answers['mech.vt+0x148'] = lambda rr, n, a: f32(rr.choice([0.0, 0.4, 1.0]))
+        w.answers['mech.vt+0x148'] = lambda rr, n, a: f32(rr.choice([0.0, 0.4, 1.0, 1.3, -0.2]))
         for off, v in ((0x518, r.uniform(5, 25)), (0x528, r.uniform(0.2, 1.0)), (0x554, r.choice([0.0, 0.8, 1.45, 1.7])),
-                       (0x558, r.uniform(0, 0.1)), (0x55c, r.uniform(0, 0.1)), (0x56c, r.uniform(0, 1))):
+                       (0x558, r.uniform(0, 0.1)), (0x55c, r.uniform(0, 0.6)), (0x56c, r.uniform(0, 1))):
             e.cpu.write(m + off, struct.pack('<f', v))
         a_ = r.uniform(-math.pi, math.pi)
         e.cpu.write(m + 0x24, struct.pack('<3f', math.sin(a_), 0.0, -math.cos(a_)))
@@ -904,6 +906,8 @@ class Original:
                 e.w32(rd + 0xdac, 0x5e39c8)
             elif k in (23, 24):
                 e.w32(h + 0x14 + (0xdb4 if k == 23 else 0xdb8), v)
+            elif k == 26:
+                e.w32(self.mech + 0x3d8, v)
             elif k == 25:
                 e.call(0x43dc70, ecx=h + 0x14, stack=(v,))
             elif k == 22:
@@ -1045,15 +1049,16 @@ class Original:
         wm = e.world_alloc(0x100)  # +0x88: the lock shown (the aim state)
         e.w32(m + 0xd4, wm)
         e.w32(wm + 0x24, r.randrange(0, 12))
+        none = r.random() < 0.15  # no equipment: the list hides (0x00448320)
         for i in range(16):
-            e.w32(m + 0x3ac + 4 * i, r.choice([0, 1, 2, 3, -1]) & 0xffffffff)
+            e.w32(m + 0x3ac + 4 * i, (0 if none and i != 11 else r.choice([0, 1, 2, 3, -1])) & 0xffffffff)
         # the equipment's (0x00447e40): the +0x3f0 record (on, a count) or none, +0x574
         if r.random() < 0.7:
             rec = e.world_alloc(0x20)
             e.cpu.write(rec, bytes([r.choice([0, 1])]))
             e.w32(rec + 0x18, r.randrange(0, 40))
             e.w32(m + 0x3f0, rec)
-        e.cpu.write(m + 0x574, struct.pack('<f', r.choice([0.0, 0.0, 3.5])))
+        e.cpu.write(m + 0x574, struct.pack('<f', r.choice([0.0, 0.0, 0.5, 3.5])))
         self.weapon_owner = m
         self.weapon_groups(wm)
         self.give_parts(m)
