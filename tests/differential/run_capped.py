@@ -6,7 +6,9 @@
 macOS does not enforce `ulimit -v`, so this polls the child's resident size
 (ps) twice a second and kills its process group past either limit. With
 --log, the size is written every 10 s, to see where a run grows. Exit code:
-the child's, or 124 on timeout, 125 over the memory cap.
+the child's (128 + N when signal N killed it), or 124 on timeout, 125 over
+the memory cap. Ctrl+C, SIGTERM or SIGHUP to the wrapper kill the child's
+group too, and anything the child leaves in its group is killed at the end.
 """
 import os
 import signal
@@ -18,6 +20,10 @@ import time
 def rss_kb(pid):
     out = subprocess.run(['ps', '-o', 'rss=', '-g', str(os.getpgid(pid))], capture_output=True, text=True).stdout
     return sum(int(x) for x in out.split() if x.isdigit())
+
+
+def stop(signum, frame):
+    raise KeyboardInterrupt
 
 
 def main():
@@ -33,7 +39,28 @@ def main():
         elif flag == '--log':
             log = open(val, 'a')
     cmd = argv[1:]
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, stop)
     child = subprocess.Popen(cmd, start_new_session=True)
+    started = time.time()
+    try:
+        code, t0, peak = watch(child, mem_gb, secs, log)
+    except KeyboardInterrupt:
+        code, t0, peak = 130, started, 0
+        print('run_capped: interrupted, killing the test', file=sys.stderr, flush=True)
+    finally:
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        child.wait()
+    if code < 0:
+        code = 128 - code
+    print(f'run_capped: exit {code}, {time.time() - t0:.0f} s, peak {peak / 1048576:.2f} GB', file=sys.stderr)
+    return code
+
+
+def watch(child, mem_gb, secs, log):
     t0 = last_log = time.time()
     peak = 0
     code = None
@@ -58,8 +85,7 @@ def main():
             os.killpg(child.pid, signal.SIGKILL)
             child.wait()
             code = why
-    print(f'run_capped: exit {code}, {time.time() - t0:.0f} s, peak {peak / 1048576:.2f} GB', file=sys.stderr)
-    return code
+    return code, t0, peak
 
 
 if __name__ == '__main__':
