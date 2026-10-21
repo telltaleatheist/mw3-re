@@ -878,3 +878,8 @@ address,name,source,notes
 0x00428490,MechControls::Stop,asm,"ported; IControls +0x14"
 0x004ea740,ai_switch_on,asm,"ported; [0x0060b938] = 1 (Engine::ai_on)"
 0x004ea750,ai_switch_off,asm,"ported; [0x0060b938] = 0 (the cleanup)"
+0x004d8e70,AiVlist::Check,asm,"ported; the trigger's conditions and set (ai.md 17.5)"
+0x004d9290,AiVlist::Run,asm,"ported; vlist_run"
+0x004e9550,AiPilot::Vlist,asm,"ported; Brain::vlist"
+0x004e94f0,AiControls::PilotTick,asm,"ported; Brain::pilot_tick (IControls +0xa4)"
+0x004d8990,PlayerControls::PilotTick,asm,"mapped: the player's vlist at +0x12c (ai.md 17.5), not ported"

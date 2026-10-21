@@ -144,7 +144,7 @@ with any of them is reported. Where each lands in AiParams:
 | +0xcc bit 6 / bit 7 | p13 / can_configure | |
 | +0xc8 | skin | |
 | +0xcd bits 0-1 | lancemate | |
-| +0xd0 | vlist | a list of 0x20-byte orders: three floats, two squared ranges, a region by name (0x4c5c00), flags from the 0/1 items, a valve |
+| +0xd0 | vlist | a list of 0x20-byte triggers (17.5): three floats, two squared ranges, a region by name (0x4c5c00), flags from the 0/1 items, a valve |
 | +0xd4 / +0xd8 | pilot / sound_tag | sound_tag defaults to dom / alan / epona for exactly "Dominic_Paine", "Alan_Mattila", "Epona_Rhi" |
 
 The defaults (0x5e8dc0) are stored squared; the reader takes them back to
@@ -1473,12 +1473,49 @@ manoeuvre set the point and speeds.
 
 ### 17.5 The vlist triggers (0x4d8e70)
 
-The aiv.zrd `vlist` entries (section 3) are triggers, not orders: each
-frame each one tests its conditions (flags +0x18: bit 3 powered down, bit
-5 owner vt+0x9c under +0x08, bit 4 vt+0x98 over +0x04, bit 2 the distance
-to +0x00, bits 6 and 7 the nearest enemy within the squared ranges +0x0c /
-+0x10, the region +0x14 inside or outside by +0x19) and sets its valve
-(0x4d3c00) by the result, with its bit 1 as the sense.
+The aiv.zrd `vlist` entries (section 3) are triggers, not orders. Each
+frame the brain (0x4e9550 -> 0x4d9290) runs each entry in turn (0x4d8e70):
+an entry whose valve (item 16) already holds its value (flags bit 1, item
+1: 1 or 0) does nothing; otherwise the first of these that holds sets the
+valve to that value (0x4d3c00, its reactions firing):
+
+| Flag (item) | Holds when |
+|---|---|
+| bit 3 (4) | the pilot was hit within the last second (IControls vt+0xa0) |
+| bit 5 (7) | the vehicle's heat (vt+0x9c, the Mech's +0x554) is at +0x08 (item 8) or more |
+| bit 4 (5) | its health (vt+0x98) is at most +0x04 (item 6) |
+| bit 2 (2) | its ammo's value (IControls vt+0x9c: 0x4b4ed0 on the manager, 1 without one) is at most +0x00 (item 3) |
+| bit 7 (13) | the nearest enemy (picked once per frame, shared with the brain's frame) is nearer than sqrt(+0x10) (item 14) |
+| bit 6 (11) | it is nearer than sqrt(+0x0c) (item 12) and there is a clear line to it (0x4d5980, not ported) |
+| region (10) | none of the above: the vehicle (0x5a85e0) inside the region (0x4c57d0) for +0x19 bit 0 (item 9), outside for bit 1 (item 17), anywhere with both |
+
+A NaN health, ammo or distance holds; a NaN heat does not. Bit 0 (item 15)
+is not read here. The player's controls run their own vlist the same way
+(0x4d8990 on their +0x12c, IControls +0xa4: `ControlsCalls::pilot_tick`,
+not ported: the player's AI settings base 0x4d9840 is not); the AI
+controls' IControls +0xa4 is 0x4e94f0, the brain's with nothing picked.
+
+**Ported** (2026-10-20, `mech3/zai_brain` `vlist_run`, `Brain::vlist`,
+`Brain::pilot_tick`; the brain's frame runs it). The heat, the clear line
+and the region test are `BrainHooks` (the region's default is the port's
+`Region::inside`; the clear line is recorded in the program until cls_di's
+segment query is ported); the valves are the ported ones.
+
+Test `test_ai_vlist.py` (probe `tests/probe_ai_orders.cpp`, over
+test_ai_frame.py's brain and vehicle; the exe's own IControls vt+0x9c
+0x4aed10): the exe's std::list built in its memory, fake valves (value and
+set) beside the port's real ones, two regions and the clear line answered
+from the trace; 200 cases of 50 lists of 0 to 6 random entries (flags,
+values, ranges, regions, valves or none, NaNs) with random valve values, a
+picked flag and target: 10,000 lists, 5,681 valves set, the calls, the
+picked flag and target after and the four valves identical, all 14
+marked branches reached. Breaking the port showed it catches it, 12 of 12:
+the heat below, hit lately skipped, the health's equal and NaN not
+holding, no ammo without a manager, a pick for every entry, the near range
+from +0x0c, the clear line not asked, both region bits never, inside and
+outside swapped, the valve's value from bit 0, a valve at its value set
+again, only the first entry run. My first reading had the heat the other
+way round (the jump is to the set): the test caught it.
 
 ### 17.6 The radio and the player's orders
 
@@ -1555,7 +1592,7 @@ goes through a hooks struct the test stubs the same on both sides.
 3. **The gates**: done (17.3).
 4. **The brain's frame** 0x4e9710 / 0x4e96f0: done (17.1), with the
    Mech's health 0x41ba40 and the controls' stop 0x428490.
-5. **The vlist triggers** 0x4d9290, 0x4d8e70 (and 0x4e94f0).
+5. **The vlist triggers** 0x4d9290, 0x4d8e70, 0x4e94f0: done (17.5).
 6. **Steering** 0x4ce620..0x4cec80.
 7. **The plain states**: 0x4c8660, 0x4c8700, 0x4c8790, 0x4c88c0, 0x4c8940,
    0x4c8a30 and the shared 0x4cbe50.

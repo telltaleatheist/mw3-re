@@ -30,6 +30,7 @@ class BehaviourState;
 struct Behaviour;
 struct AiTarget;
 struct Contact;
+class Region;
 
 // What the brain calls outside it. The defaults run the ports.
 class BrainHooks : public zgame::Unported {
@@ -80,7 +81,12 @@ class BrainHooks : public zgame::Unported {
   // Not ported yet, each an item of the porting order (ai.md 17.9).
   virtual void steer(Brain& b, zgame::Handle v, float dt);     // 0x004cec80 on +0x250 (item 6)
   virtual void radio_line(Brain& b, int32_t event);            // 0x004e6d50(1.0) on the radio's line (item 14)
-  virtual void vlist(Brain& b, zgame::Handle v, bool* picked, Contact** target);  // 0x004e9550 (item 5)
+  // The vlist triggers' questions (0x004d8e70): the vehicle's heat (vt+0x9c,
+  // the Mech's +0x554), a clear line to what a contact sees (0x004d5980 on
+  // the vehicle, not ported), a region's inside test (0x004c57d0).
+  virtual float heat(zgame::Handle v);
+  virtual bool clear_line(zgame::Handle v, zgame::Handle seen);
+  virtual bool region_inside(Region* r, const float* p);
   virtual void firing_reset(Brain& b);                         // 0x004e9590 -> 0x004b6700 (item 12)
   virtual void firing_run(Brain& b, float dt);                 // 0x004e9fb0 -> 0x004b5b80 (item 12)
   virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004c0810, item 10)
@@ -305,6 +311,10 @@ class Brain {
   void unwind_to(Order* o);                        // 0x004e8990
   bool stop();                                     // vt+0x40 0x004ea4e0
   bool may_fire();                                 // 0x004e9070
+  // The vlist triggers (docs/ai.md 17.5): 0x004e9550 -> 0x004d9290 over the
+  // settings' list, the nearest enemy picked once between them and the frame.
+  void vlist(BrainControls& c, zgame::Handle owner, bool* picked, Contact** target);
+  void pilot_tick(BrainControls& c);               // IControls vt+0xa4 0x004e94f0: the same, nothing picked yet
   // From the IControls side, given a znet object (its vt+0x34 cast).
   bool pop_if_object(znet::Object* o);             // 0x004e8660
   bool push_object(znet::Object* o);               // 0x004e8960
@@ -386,6 +396,10 @@ struct AiVehicleControls {
   uint8_t xcbc = 0;         // +0xcbc
   void* owner = nullptr;    // +0xcd4
 };
+
+// Mech3.exe 1.2 @ 0x004d9290: each trigger of a settings' vlist, in order
+// (0x004d8e70); the player's controls run their own (0x004d8990, not ported).
+void vlist_run(const AiParams& p, BrainControls& c, zgame::Handle owner, bool* picked, Contact** target);
 
 // The default net for a vehicle without its own: znet's object of the
 // record's first item, as a compiled net (vt+0x28, vt+0x34), else the

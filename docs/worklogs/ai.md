@@ -64,3 +64,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   range without a vehicle crashes the exe (FIX (bug)).
 - Tests: test_ai_frame.py (on test_ai_gates.Original), test_mech_health.py
   (on test_damage's mechs, probe_damage op 6).
+
+## 2026-10-20 Item 5: the vlist triggers (mac4/vlist)
+
+- Ported 0x4d8e70, 0x4d9290, 0x4e9550, 0x4e94f0; the frame runs the real
+  vlist (the frame test no longer stubs 0x4e9550). Hooks: heat (vt+0x9c),
+  clear_line (0x4d5980), region_inside (default Region::inside).
+- The player's copy 0x4d8990 (PlayerControls +0x12c, base 0x4d9840) uses
+  the same vlist_run once the player's AI settings base is ported.
+- Test test_ai_vlist.py (on test_ai_frame.Original): the exe's std::list in
+  memory, fake valves beside the port's real Valves. Careful: the probe
+  must clear the brain's borrowed radio and vlist before destroying it.
+- I misread the heat jump at first: re-check `je` targets against the
+  set label, not only the flags.

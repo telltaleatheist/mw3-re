@@ -90,6 +90,7 @@ for t in \
     ai_orders \
     ai_gates \
     ai_frame \
+    ai_vlist \
     mech_health \
     ai_valves \
     ai_targets \

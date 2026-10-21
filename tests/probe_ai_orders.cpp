@@ -4,12 +4,15 @@
 // order they are made, as the emulator's fakes do.
 #include <cstdint>
 #include <cstring>
+#include <list>
 #include <memory>
 #include <vector>
 
 #include "mech3/zai_brain.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_valve.h"
+#include "mech3/zainet_region.h"
 #include "probe_app.h"
 
 namespace {
@@ -152,7 +155,6 @@ struct Hooks : ai::BrainHooks {
   }
   void steer(ai::Brain&, zgame::Handle v, float dt) override { call("0x004cec80", {bits(dt), v}); }
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
-  void vlist(ai::Brain&, zgame::Handle v, bool*, ai::Contact**) override { call("0x004e9550", {v}); }
   void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
   void firing_run(ai::Brain&, float dt) override { call("0x004e9fb0", {bits(dt)}); }
   ai::AiNet* vehicle_net(zgame::Handle v) override { return net_of(static_cast<int32_t>(call("vehicle.vt+0xd8", {v}))); }
@@ -161,6 +163,9 @@ struct Hooks : ai::BrainHooks {
   }
   bool attack(ai::Brain&, ai::AiNet* n) override { return call("0x004e9ca0", {n ? n->get_id() : 0}) & 1; }
   void own_order_run(ai::Brain&, float dt) override { call("own.vt+0x4", {bits(dt)}); }
+  float heat(zgame::Handle v) override { return fl(call("owner.vt+0x9c", {v})); }
+  bool clear_line(zgame::Handle v, zgame::Handle seen) override { return call("0x004d5980", {v, seen, 0u}) & 0xff; }
+  bool region_inside(ai::Region* r, const float*) override { return call("0x004c57d0", {r->get_id()}) & 1; }
 };
 
 // The brain's controls: the AI mech controls' calls.
@@ -205,6 +210,7 @@ void probe_ao_new() {
 
 void probe_ao_done() {
   probe_app::Mute mute;
+  if (g_brain) g_brain->radio = nullptr, g_brain->params.vlist = nullptr;  // the probe's, not the brain's
   g_brain.reset();
   ai::set_brain_hooks(nullptr);
 }
@@ -339,6 +345,44 @@ void probe_ao_frame(uint32_t dt, uint32_t* out) {
   out[4] = bits(b.xdc), out[5] = bits(b.xe8), out[6] = bits(b.xf4), out[7] = bits(b.x100), out[8] = bits(b.x230);
   out[9] = b.x22c, out[10] = b.x104;
   b.radio = nullptr;
+}
+
+// The vlist test's (test_ai_vlist.py): valves 1..4, regions 1..2, and the
+// list. rows: f00..f10 (5 floats), region (0, 1, 2), flags, flags2, valve
+// (0, 1..4); 9 words each. values: the four valves' values. seen: what the
+// contacts see.
+std::vector<std::unique_ptr<ai::Valve>> g_valves;
+std::vector<std::unique_ptr<ai::Region>> g_regions;
+std::list<ai::VListEntry> g_vlist;
+void probe_ao_vlist_set(const uint32_t* rows, int32_t n, const int32_t* values, const uint32_t* seen) {
+  if (g_valves.empty()) {
+    for (int i = 1; i <= 4; ++i) g_valves.push_back(std::make_unique<ai::Valve>("v"));
+    for (int i = 1; i <= 2; ++i) g_regions.push_back(std::make_unique<ai::Region>("r", i, 0));
+  }
+  for (int i = 0; i < 4; ++i) g_valves[static_cast<size_t>(i)]->value->set(values[i]);
+  for (int i = 0; i < 3; ++i) g_seen[i].seen = seen[i];
+  g_vlist.clear();
+  for (int r = 0; r < n; ++r) {
+    const uint32_t* w = rows + 9 * r;
+    ai::VListEntry e;
+    e.f00 = fl(w[0]), e.f04 = fl(w[1]), e.f08 = fl(w[2]), e.f0c = fl(w[3]), e.f10 = fl(w[4]);
+    e.region = w[5] ? g_regions[w[5] - 1].get() : nullptr;
+    e.flags = static_cast<uint8_t>(w[6]), e.flags2 = static_cast<uint8_t>(w[7]);
+    e.valve = w[8] ? g_valves[w[8] - 1].get() : nullptr;
+    g_vlist.push_back(e);
+  }
+  g_brain->params.vlist = n >= 0 ? &g_vlist : nullptr;
+}
+
+// 0x004e9550 with the picked flag and target given; out: picked, the target
+// (a contact 1..3 or 0), the four valves' values.
+void probe_ao_vlist(int32_t picked, int32_t target, int32_t* out) {
+  bool p = picked != 0;
+  ai::Contact* t = contact_of(static_cast<uint32_t>(target));
+  g_brain->vlist(g_controls, kOwner, &p, &t);
+  out[0] = p, out[1] = contact_index(t);
+  for (int i = 0; i < 4; ++i) out[2 + i] = g_valves[static_cast<size_t>(i)]->get();
+  g_brain->params.vlist = nullptr;
 }
 
 }  // extern "C"
