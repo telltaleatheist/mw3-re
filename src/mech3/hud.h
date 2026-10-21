@@ -696,7 +696,7 @@ class HudHooks : public zgame::Unported {
   }
   virtual void nav_list_target(uint32_t nav, void* mech) { unported("0x0047ef10", {nav, id(mech)}); }
   // TARGET's text (0x00441850): a mech's network flag (vt+0x5c), name
-  // (vt+0xa4), pilot's name ([+0x3ec] +0x18) and display name by kind
+  // (vt+0xa4), loadout's name (its Config +0x3ec, +0x18) and display name by kind
   // (0x00484670); the player's aimed part (+0xf8, 0x0041d510 on the mech,
   // its name 0x00484d70); its saved or ally contact (0x004d7240); message
   // 0xdd4 with a name (0x00575fd0).
@@ -705,7 +705,7 @@ class HudHooks : public zgame::Unported {
     unported("cmech.vt+0xa4", {id(m)});
     return nullptr;
   }
-  virtual const char* mech_pilot_name(void* m) {
+  virtual const char* mech_config_name(void* m) {
     unported("peek32", {unported("peek32", {id(m) + 0x3ec}) + 0x18});
     return nullptr;
   }

@@ -319,3 +319,13 @@ with then= leaves the return to the thunk); MFC CString stubs at
 be made before the snapshot for the probe's peeks; `names` is reused later
 in test_hud's world (mine are cnames). Next: part 3 (program, c1m1 damage
 check, GPU shot).
+Part 3: the program (app_hud: part_internal on the parts, the names from
+Mech3Msg.dll, loadout, aimed part, saved_or_ally, format_message), the km
+text fixed (" (1.23km)", zfix bugs; fix_target_distance_km_spaced), the c1m1
+aim test with TARGET in mode 2 (a torso part's image changes at frame 89).
+Remember: the silhouette set loads once a process (0x0043afc0's flag);
+reset_process_state clears it; headless runs load no 2D images (stand-ins in
+the test). The name tables came from running 0x00484670 / 0x00484d70 in
+Unicorn (objdump mis-decodes that stretch; no capstone in the venv).
+No GPU shot: the MFD and TARGET modes cannot be set from the command line,
+and headless covers it.

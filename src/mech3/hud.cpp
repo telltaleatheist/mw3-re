@@ -930,11 +930,10 @@ const char* or_null(const char* s) { return s ? s : "(null)"; }
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x00441850 (from the HUD's data update): the second text
-// is "mech: pilot" (a network mech's only its mech, a vehicle its name), its
+// is "mech: loadout" (a network mech's only its mech, a vehicle its name), its
 // distance and the player's aimed part; the third the player's saved or ally
 // target's mech; the texts, the view's box and the silhouette's background
-// coloured by the target's side. Past 1000 m the distance runs straight on
-// ("...1.23km"), under it " (500m)", as coded (hud.md section 16).
+// coloured by the target's side (hud.md section 16).
 void HudTarget::data_text() {
   HudHooks& h = *g_hooks;
   if (!h.target_valid(target)) {
@@ -953,15 +952,17 @@ void HudTarget::data_text() {
     const char* n = h.object_name(h.contact_vehicle(c));
     a = n ? n : "";
   } else if (!h.mech_remote(m)) {
-    const char* pilot = h.mech_pilot_name(m);
-    std::snprintf(buf, sizeof buf, "%s: %s", or_null(h.mech_display_name(h.mech_kind_of(m))), or_null(pilot));  // [0x005e4024]
+    const char* config = h.mech_config_name(m);
+    std::snprintf(buf, sizeof buf, "%s: %s", or_null(h.mech_display_name(h.mech_kind_of(m))), or_null(config));  // [0x005e4024]
     a = buf;
   } else {
     const char* n = h.mech_display_name(h.mech_kind_of(m));
     a = n ? n : "";
   }
   if (dist > 1000.0f) {  // [0x005c00ec]
-    std::snprintf(buf, sizeof buf, "%.2fkm", static_cast<double>(dist * 0.001f));  // [0x005e401c], [0x005c0120]
+    // FIX (bug): " (1.23km)" as " (500m)" below; the exe runs "1.23km" straight on (fixes.md).
+    std::snprintf(buf, sizeof buf, zfix::options().bugs ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
+                  static_cast<double>(dist * 0.001f));  // [0x005c0120]
   } else {
     std::snprintf(buf, sizeof buf, " (%dm)", crt::msvc_ftol(std::ceil(static_cast<double>(dist))));  // [0x005e4014]
   }

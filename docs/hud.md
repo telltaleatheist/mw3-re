@@ -339,6 +339,9 @@ the set-up reads: item 1a's test).
   so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
   the Mobile HQ, turrets) wait for those vehicles; until then their contacts
   show nothing.
+- TARGET's third text in the program: a mech's own name (vt+0xa4,
+  0x0041df30: the player's pilot's, else its brain's 0x004aee70) is not
+  ported, so it stays empty.
 
 ## 10. The aim (the reticle's world point)
 
@@ -795,12 +798,13 @@ tracking (section 14) while in mode 2.
 update). Without a live target: hidden, the texts cleared (0x00441660).
 Else shown, then:
 
-- The second text: for a mech "mech: pilot" (the mech's display name by
-  kind, 0x00484670, and its pilot's name, +0x3ec +0x18), a network mech
+- The second text: for a mech "mech: loadout" (the mech's display name by
+  kind, 0x00484670: message 0xd82 + kind, and its loadout's name, the
+  Config +0x3ec's +0x18), a network mech
   (vt+0x5c) its mech's name only, any other vehicle its own name (vt+0xa4);
   then the distance, " (500m)" (metres rounded up) to 1000 m, "%.2fkm" past
-  it, run straight on with no space or bracket ("Owens: Kerensky1.23km", as
-  coded: a slip, fixes.md Candidates); then "[part]" when the player has a
+  it, run straight on with no space or bracket ("Owens: Standard1.23km", a
+  slip; the rebuild writes " (1.23km)" behind zfix bugs, fixes.md); then "[part]" when the player has a
   part aimed at (+0xf8, 0x0041d510; its name 0x00484d70).
 - The third text: message 0xdd4 with the name of the mech the player's
   saved or ally contact holds (0x004d7240), else empty.
@@ -819,3 +823,16 @@ seeds match. Breaking it: 13 of 14 caught in TARGET's text and 11 of 11
 in the damage displays; the miss (the box's colour for a target with no
 vehicle) is out of the test's reach, since the tracking reads the vehicle
 unchecked, so the test always answers one.
+
+In the program the damage views read the ported parts' get_internal, the
+names come from Mech3Msg.dll (a mech kind's message 0xd82 + kind; the
+parts' 0x194..0x19a, then literal names for the hands, calves, feet and
+hip), the loadout's name from the mech's Config, the aimed part from +0xf8
+and the weapons' part_by_id, the ally contact from the AI's saved_or_ally.
+A mech's own name (vt+0xa4 0x0041df30: the player's pilot's name, else the
+brain's 0x004aee70) is not ported: the third text stays empty (Left).
+mw3tests' mission_c1m1_player_aims_with_the_reticle_headless puts TARGET on
+the Owens in mode 2 and fires: the hits wear a torso section's internal to
+0.899 and its silhouette part changes image (at frame 89), the rest stay
+intact. Headless runs load no 2D images, so the test gives the silhouette
+set distinct stand-ins first.

@@ -118,7 +118,7 @@ struct Hooks : mech3::HudHooks {
   }
   // TARGET's text (0x00441850), as test_hud.py answers it.
   const char* mech_object_name(void* m) override { return estr(call("cmech.vt+0xa4", {id(m)})); }
-  const char* mech_pilot_name(void* m) override {
+  const char* mech_config_name(void* m) override {
     return estr(call("peek32", {call("peek32", {id(m) + 0x3ec}) + 0x18}));
   }
   const char* mech_display_name(int32_t kind) override { return estr(call("0x00484670", {kind})); }
