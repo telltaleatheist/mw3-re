@@ -644,8 +644,8 @@ int clip_cell(const float* points, int32_t n, zcls::Partition* cell, ClipSet& se
     if (f & 0x20000) keep.push_back(node);
     if (f & 0x10000) cut.push_back(node);
   };
-  zcls::Node* world = hooks().world_node();
-  for (int32_t i = 0; i < world->child_count(); ++i) sort(world->children[i]);
+  zcls::Node* world = hooks().world_node ? hooks().world_node() : nullptr;
+  for (int32_t i = 0; world && i < world->child_count(); ++i) sort(world->children[i]);
   for (int16_t i = 0; i < cell_nodes; ++i) sort(cell->nodes[i]);
   for (zcls::Node* node : cut)
     if (snap_outline(*c, node)) box_of(c->box, c->points.data(), c->count);

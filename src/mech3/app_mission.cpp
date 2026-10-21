@@ -21,7 +21,9 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zclass/cls_util.h"
+#include "gamez/zdeclient/zdec_crater.h"
 #include "gamez/zdeclient/zdec_init.h"
+#include "gamez/zgeometry/zgeo_model.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zeffect/zeff_init.h"
@@ -782,7 +784,16 @@ struct WiredMissionHooks : MissionHooks {
   void anim_load(const char*) override { zeff::anim_load(); }
   void anim_cleanup() override { zeff::anim_stop_all(1); }  // 0x0050ace0(1)
   // 0x00501ab0: declient.zrd's crater and quicksand settings (craters.md).
-  void decals_load(Handle world, int32_t) override { zdec::init(mission_node(*e, world)); }
+  // The craters' ties: zGeometry finds the world through zDEClient, and the
+  // dust is an animation at the crater (0x00508aa0, no node, unturned).
+  void decals_load(Handle world, int32_t) override {
+    zdec::init(mission_node(*e, world));
+    zgeo::hooks().world_node = zdec::world_node;
+    zdec::crater_hooks().play_anim = [](zeff::AnimDef* a, const float at[3]) {
+      static const float zero[3] = {0, 0, 0};
+      zeff::anim_start_at(a, nullptr, at, zero, zero);
+    };
+  }
   // 0x0050d2c0: zEffect's table from effects.zrd (an empty list in both games).
   void effects_load(Handle, Handle, const char* file) override {
     zeff::EffectHooks& h = zeff::effect_hooks();
