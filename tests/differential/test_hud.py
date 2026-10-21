@@ -598,14 +598,14 @@ class Original:
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.15:  # the radar's mode
                 self.ops.append((22, fr.choice([0, 1, 2, 3] if self.flip else [0, 2])))  # map mode needs the map
-            if fr.random() < 0.35:  # the message panel: a slide frame, messages, its switches
-                self.ops.append((32, f32(fr.choice([0.016, 0.033, 0.1, 0.5]))))
-            if fr.random() < 0.12:
-                self.ops.append((27, fr.randrange(len(MESSAGES)) | fr.randrange(4) << 8))
-            if fr.random() < 0.08:
-                self.ops.append((28, fr.randrange(len(MESSAGES))))
-            if fr.random() < 0.06:
+            if fr.random() < 0.45:  # the message panel: a slide frame, messages, its switches
+                self.ops.append((32, f32(fr.choice([0.016, 0.033, 0.1, 0.5, 1.0]))))
+            if fr.random() < 0.15:  # (before the messages: a hidden panel set in, then a message)
                 self.ops.append(fr.choice([(29, 0), (30, 0), (30, 1), (31, 0)]))
+            if fr.random() < 0.15:
+                self.ops.append((27, fr.randrange(len(MESSAGES)) | fr.randrange(4) << 8))
+            if fr.random() < 0.15:
+                self.ops.append((28, fr.randrange(len(MESSAGES))))
             if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
                 self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')

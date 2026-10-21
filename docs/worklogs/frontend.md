@@ -377,3 +377,18 @@ How I work here:
   mission_c1m1_player_aims_with_the_reticle_headless.
 - Program wiring: src/mech3/app_hud.cpp (ProgramHudHooks), tests helpers
   in app_hud.h (program_hud_report, program_hud_target, program_hud_lock_on).
+
+## 2026-10-20 Coolant per second; the message panel (branch mac3/message-panel)
+
+dc046fe: the coolant easing per second (FIX (B), Owen's rule; the candidate
+dropped). 3e8cf3b + this commit: mech3/message_panel (0x0040f410
+create, 0x0040f7d0 free, the class 0x005bc7a0: 0x0040f6b0, 0x0040f680,
+0x0040f5d0, 0x0040fa90; the slide from 0x0040f8d0; 0x0040f040/070/0a0/0b0;
+0x0040fe20/0x0040fe50; 0x0040fb30; 0x0040fed0). FIX (B): the slide's
+truncated step (0 above 60 fps) carries its fraction. The objectives now
+use the real point (stand-in gone). Hooks renamed message_panel_init /
+message_panel_free; WiredMissionHooks fn_40f040 / fn_40f0b0 and
+command_calls().other (0xa6) wired. Remember: the panel is a process global
+(the probe destroys it under probe_app::Mute each run); within a frame the
+test's ops run slide, switches, then messages, so a switch is followed by
+a message before the next slide; headless text has no height.

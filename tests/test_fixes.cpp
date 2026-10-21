@@ -15,6 +15,7 @@
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/ztimer.h"
 #include "mech3/hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/mech_hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
@@ -721,6 +722,28 @@ TEST(fix_coolant_gauge_per_second) {
   mech3::coolant_shown() = 1.0f;
   hud->~Hud();
   ::operator delete(storage);
+}
+
+// The message panel's slide (0x0040f8d0): ftol(60 x the frame's seconds)
+// pixels a frame, 0 above 60 fps; fixed, the fraction carried (60 a second).
+TEST(fix_message_panel_slides_above_60fps) {
+  mech3::set_hud_hooks(nullptr);
+  mech3::message_panel_destroy();
+  mech3::message_panel_create();
+  mech3::MessagePanel* p = mech3::message_panel();
+  p->on_y = p->off_y - 100;  // room to slide (no fonts here: the text has no height)
+  const int32_t start = p->y;
+  zfix::options().per_second = true;
+  mech3::message_panel_add_for(5.0f, "%s", "Objective complete");
+  for (int i = 0; i < 30; ++i) p->slide(1.0f / 120.0f);  // a quarter second
+  EXPECT(start - p->y >= 14 && start - p->y <= 15);
+  mech3::message_panel_reset();
+  zfix::options().per_second = false;
+  mech3::message_panel_add_for(5.0f, "%s", "Objective complete");
+  for (int i = 0; i < 30; ++i) p->slide(1.0f / 120.0f);
+  EXPECT(p->y == start);  // the exe's: 0 a frame
+  zfix::options().per_second = true;
+  mech3::message_panel_destroy();
 }
 
 TEST(fix_hud_timer_past_an_hour) {
