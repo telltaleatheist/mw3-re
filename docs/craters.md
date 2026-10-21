@@ -250,9 +250,60 @@ original never returns on those inputs). The port gives up after
 64 + 16 x the edge count steps for one region edge, as the walk's
 intersection errors do (returns 1).
 
-Left (part 3c, second half): the contour merge and output (0x005129f0,
-0x005154d0, 0x00513390, 0x00513480, 0x005135a0, 0x00514710) and the driver
-0x0050faf0.
+### Weiler–Atherton, part 3c (second half): contours and the driver
+
+0x005129f0 ("contourMerge") first checks every crossing (0x005154d0,
+"validateXing"): each type needs some of its eight links (all eight for
+4/5; for 10/11 it depends on whether an R2 edge ends there, for 24/25 on
+P2), else the clip fails. Then it rejoins the rings at each crossing by its
+type, setting next/prev of the R, R2, P and P2 edges meeting there (the
+twins run the other way, so some joins are next-to-next), and gives one or
+two of those edges a contour record (0x005129a0). The pseudocode hides
+which edges: the asm passes, per type, 4/5/6/8 P end and P start, 7 P2 end
+and P start, 9 R end and P2 start, 10/11 R2 end and R2 start (R2 present)
+or R end and R start, 12/18 R start, 13/19 R end and R start, 14/20 R end,
+15 P start, 16 R2 end and P start, 17 R2 end, 21 R2 start, 22 P end and P2
+start, 23 P end, 24/25 P2 end and P2 start (P2 present) or P end and P
+start.
+
+0x00513390 then walks each contour by its links with 0x00514710 (the next
+edge, turned to follow when it runs the other way: prev and next, a and b
+swapped), counting its edges and or-ing their flags; contour records met on
+the way are dropped (only the first of a merged ring keeps one). A contour
+that starts on a twin (4) edge is turned round at its first region or
+polygon edge and counted again. Flags 3 (region and polygon edges, the part
+inside) clear the `untouched` byte (+0x28c9). 0x00513480 sends contours by
+their flags to the wanted lists: 3 to the first (inside), 2 or 6 (the
+polygon's) to the second (outside), 1 or 5 (the region's) to the third;
+0x005135a0 writes a ring's points (its first edge's a, then each b).
+
+The driver 0x0050faf0 ("weiler_clip", ECX the Weiler, EDX the lists
+wanted, then points, count, Result): the polygon is swapped and moved into
+the clip's axes and origin in the caller's buffer, the Result pointed at
+four new buffers, then the case (0x0050ff70): 1 apart returns 1 at once; 4
+equal gives the polygon whole (3). Otherwise the rings, side tables,
+weed-out and walk run; with crossings, merge, count and, unless
+`untouched` (and the region is not inside the polygon), output: code 2.
+Without crossings (or untouched) the trivial case decides: 2 the polygon
+with the region as a hole and the region (code 4), 3 the polygon whole (3),
+else 1. Every exit but the first moves the polygon back; codes 2..4 set the
+results' z on the polygon's plane (0x00514e40). Failures free the Result
+(0x0050fe10) and return 0.
+
+FIX (bug, fixes.md): when the polygon shares an edge with the region and
+touches it at a corner (grid shapes), a merged contour's links can cycle
+without returning to its first edge and 0x00513390 loops forever
+(`test_weiler.py` confirms the original never returns). The port gives up
+after as many steps as there are edges and the clip fails (code 0), so
+that piece of ground stays uncut. 0x005135a0 writes until it reaches the
+first edge's prev, which can be off the ring (the first edge was turned
+before its neighbours): the exe writes on forever; the port stops after
+one lap, the whole contour, and the cut is made.
+
+Quirk kept: "apart" returns before the polygon is moved back, so for a
+region past 65,536 m from the origin (or swapped axes) the caller's
+polygon is left moved. The game's worlds are smaller and every caller
+passes axes 0, so it never shows.
 
 zDEClient itself is 40 functions, ~2,700 lines. So craters are about 8,600
 lines of pseudocode, five times the first estimate.
@@ -268,7 +319,9 @@ lines of pseudocode, five times the first estimate.
    Weiler.
 3. **Weiler–Atherton** (two or three parts: the vertex lists, the
    intersections, the walk): differential tests on made-up polygon pairs
-   (touching edges, shared vertices, holes) and on the worlds' cells.
+   (touching edges, shared vertices, holes) and on the worlds' cells. Done:
+   all of zgeo_weiler (parts 3a..3c, `test_weiler.py`); the worlds' cells
+   come with the crater (step 5).
 4. **Convexify**.
 5. **The crater** (0x004ffad0, 0x004fff20, 0x004fff80, 0x004ff940, the
    history and the set): differential test making craters on the worlds.

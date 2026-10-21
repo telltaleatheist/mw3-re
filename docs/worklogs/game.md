@@ -393,3 +393,45 @@ Newest last. One short entry per item: what, commits, what to remember.
   contour count 0x513390 (+0x514710), output 0x513480 / 0x5135a0, the
   driver 0x50faf0; then the whole clip end to end (also from zgeo_model's
   0x50f120 / 0x50f7b0 later in part 5).
+
+## 2026-10-20 — craters part 3c, second half: contours and the driver (branch mac2/weiler4, from main 1c2bd1e)
+
+- Ported (zgeo_weiler): validate_crossings 0x5154d0 (needed links per
+  type as bit masks, from the asm; jump table 0x515864), merge_contours
+  0x5129f0 (jump table 0x513330; the new_contour edges per type are only in
+  the asm, listed in craters.md), next_edge 0x514710, count_contours
+  0x513390 (+0x28c9 renamed `untouched`), output_contours 0x513480,
+  output_contour 0x5135a0, free_result 0x50fe10, clip 0x50faf0 (ECX w, EDX
+  want, stack points, n, Result).
+- Driver asm checked against the pseudocode: matches. Quirk kept: code 1
+  (apart) returns before uncenter/swap back (craters.md).
+- The exe's fprintf(stderr) lines are std::fprintf in the port (not zerr);
+  the test stubs IAT 0x5bb62c.
+- Test test_weiler.py `clip`: 1,500 cases, each one or two polygons in turn
+  through one Weiler (walk_case() / trivial_case()), want 1..7; compared:
+  code, the Result lists and points (unless 0), the polygon buffer after,
+  the contours (flags, count, has edge) and `untouched`. ONLY=<section>
+  runs one section. BREAK=8 (polygon z), 9 (want).
+- FIX (bug), second freeze: 0x513390 loops forever when a merged contour's
+  links cycle without returning to its first edge (grid shapes: a shared
+  edge plus a touching corner). Port: steps > edges.count (reset on the
+  turn-round) → zerr line 0, count_contours returns 0, clip fails. And
+  0x5135a0 writes on forever when the first edge's prev is off the ring;
+  the port stops after one lap (unless the lap ends at `last`, which is
+  legitimate when prev == first) and reports, the result kept (the whole
+  contour). Both use the GAVE_UP marker; the test checks the original
+  never returns (5M-instruction budget for clips).
+- Coverage (scratch/cov_clip.py): merge types 4, 5, 10, 11, 12, 14, 15,
+  17, 18, 20, 21, 23, 24, 25 and both 24/25 branches reached; 6..9, 13,
+  16, 19, 22 never: the walk rewrites those types after judging corners
+  and keeps them only for a "not a corner" result (transcribed from the
+  asm only). Validation failures (clip 0) occur (~3%).
+- Results: test_weiler.py seeds 1/2/3 identical (5,846 / 5,843 / 5,835 runs;
+  seed 1: clip 0/1/2/3/4 = 45/351/705/163/192, 44 clip hangs, 10 walk
+  hangs); BREAK=1..9 all fail; mw3tests 102/102, mw3sdltests 6/6.
+- Next: part 4, convexify 0x5158c0..0x5166c0 (driver 0x5162d0: 3- and
+  4-point polygons by hand, more through the recursive triangulator
+  0x5166c0 / 0x516a50 (leftmost-vertex diagonal); 0x515be0 the crater
+  ring's triangles between two rings, with the globals 0x60d458 (points),
+  0x60d460 (triangles), 0x610460 (count), 0x610468 (plane, 0x515f10)).
+

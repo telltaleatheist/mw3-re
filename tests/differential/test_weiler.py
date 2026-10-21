@@ -1,11 +1,14 @@
-"""Weiler–Atherton, part 3a, against the original x86 (docs/craters.md,
-section 5): the state 0x50f960 builds (repeats dropped 0x515360, axes
-0x513680, far regions moved 0x514c40, the rings and contours 0x50fe70 /
-0x5146a0 / 0x5129a0 / 0x514680 / 0x5136f0) and its reset 0x514d10; the
-driver's first steps as 0x50faf0 takes them (the case 0x50ff70 / 0x510180 /
-0x513cf0, the whole-polygon results 0x5139e0 / 0x513a90 / 0x515040, the
-results' z 0x514e40, the offset back 0x514dd0) and the side tables
-0x513750; the leaves 0x514f80, 0x515170, 0x515410.
+"""Weiler–Atherton (parts 3a..3c) against the original x86 (docs/craters.md,
+section 5). Whole clips 0x50faf0 (two polygons in turn through one Weiler,
+every result list wanted or not: the merge 0x5129f0 / 0x5154d0, the count
+0x513390 / 0x514710, the output 0x513480 / 0x5135a0); the walk 0x510da0 and
+the shared edges 0x510250 on their own; and part 3a: the state 0x50f960
+builds (repeats dropped 0x515360, axes 0x513680, far regions moved 0x514c40,
+the rings and contours 0x50fe70 / 0x5146a0 / 0x5129a0 / 0x514680 / 0x5136f0)
+and its reset 0x514d10; the driver's first steps as 0x50faf0 takes them (the
+case 0x50ff70 / 0x510180 / 0x513cf0, the whole-polygon results 0x5139e0 /
+0x513a90 / 0x515040, the results' z 0x514e40, the offset back 0x514dd0) and
+the side tables 0x513750; the leaves 0x514f80, 0x515170, 0x515410.
 
     cmake --build build && .venv/bin/python tests/differential/test_weiler.py
 
@@ -36,10 +39,13 @@ probe.probe_weiler_new.argtypes = [P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_case.argtypes = [P, ctypes.c_int, P, ctypes.c_int, ctypes.c_uint32, P, ctypes.c_int]
 probe.probe_weiler_weed.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_weiler_walk.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
+probe.probe_weiler_clip.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int, ctypes.c_uint32, P,
+                                    ctypes.c_int]
 probe.probe_weiler_leaf.argtypes = [ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int, ctypes.c_float, ctypes.c_float,
                                     ctypes.c_int, P, ctypes.c_int]
 
 IAT_MALLOC, IAT_CALLOC, IAT_FREE, IAT_REALLOC, IAT_MEMMOVE = 0x5bb664, 0x5bb60c, 0x5bb65c, 0x5bb610, 0x5bb584
+IAT_FPRINTF = 0x5bb62c
 ZERR = 0x49bfd0
 CAP = 1 << 20
 GAVE_UP = struct.pack('<III', 0x70, 0x100, 0)  # the port's walk giving up (zerr line 0)
@@ -64,6 +70,7 @@ class Emulated:
         cpu.stub_import(IAT_REALLOC, self.realloc)
         cpu.stub_import(IAT_FREE, lambda c: 0)
         cpu.stub_import(IAT_MEMMOVE, self.memmove)
+        cpu.stub_import(IAT_FPRINTF, lambda c: 0)
         cpu.stub_function(ZERR, lambda c: self.log(0x70, c.arg(0), c.arg(2)), 0)
         self.mark = cpu.heap_next
 
@@ -273,6 +280,35 @@ class Emulated:
             self.log(xref(self.u32(e + 0x30)), xref(self.u32(e + 0x34)), self.u32(e + 0x14))
         return bytes(self.out)
 
+    def clip(self, region, polys, want, budget=50_000_000):
+        self.begin()
+        nr = len(region) // 3
+        self.caller, self.caller_n = self.put(farr(region)), nr
+        w = self.call(0x50f960, ecx=self.caller, edx=nr, stack=(0,))
+        for poly in polys:
+            np_ = len(poly) // 3
+            pp = self.put(farr(poly))
+            out = self.alloc(0x20)
+            self.cpu.call(0x50faf0, w, want, (pp, np_, out), count=budget)
+            code = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+            self.log(code)
+            if code:
+                for k in range(3):
+                    cnt = self.u32(out + 8 * k)
+                    self.log(cnt)
+                    self.raw(self.u32(out + 8 * k + 4), 8 * cnt)
+                npts = self.u32(out + 0x18)
+                self.log(npts)
+                self.raw(self.u32(out + 0x1c), 12 * npts)
+            self.raw(pp, 12 * np_)
+            cb, cn = self.u32(w + 0x54), self.u32(w + 0x50)
+            self.log(cn)
+            for i in range(cn):
+                c = cb + 0xc * i
+                self.log(self.u32(c), self.u32(c + 8), self.u32(c + 4) != 0)
+            self.log(self.cpu.read(w + 0x28c9, 1)[0])
+        return bytes(self.out)
+
     def leaf(self, op, a, b, eps1=0.0, eps2=0.0, code=0):
         self.begin()
         pa = self.put(farr(a) or bytes(12))
@@ -383,9 +419,38 @@ def weed_case(rng):
     return region, poly
 
 
+def walk_case(rng):
+    """A region and a polygon that cross: grid pairs, or a crater ring and a
+    triangle or quad across it, some with an edge through a region point or
+    a corner on a region point or edge."""
+    if rng.random() < 0.5:
+        return weed_case(rng)
+    region = ring(rng, rng.uniform(-50, 50), rng.uniform(-50, 50), rng.uniform(3, 20), rng.randint(3, 12), 1.0,
+                  rng.choice((0, 0.1)))
+    poly = polygon(rng, region, rng.choice(('cross', 'cross', 'boxin', 'around')))
+    if rng.random() < 0.25:  # a polygon edge through a region point
+        i = rng.randrange(len(region) // 3)
+        a = rng.choice((0.0, math.pi / 2, rng.uniform(0, 2 * math.pi)))
+        dx, dy, k = round(math.cos(a), 6), round(math.sin(a), 6), rng.choice((1.0, 2.0, 0.5))
+        poly[0], poly[1] = region[3 * i] + k * dx, region[3 * i + 1] + k * dy
+        poly[3], poly[4] = region[3 * i] - k * dx, region[3 * i + 1] - k * dy
+    elif rng.random() < 0.3:  # a polygon corner on a region point or edge
+        i = rng.randrange(len(region) // 3)
+        j = (i + 1) % (len(region) // 3)
+        t = rng.choice((0.0, 0.5, rng.random()))
+        poly[0] = region[3 * i] + t * (region[3 * j] - region[3 * i])
+        poly[1] = region[3 * i + 1] + t * (region[3 * j + 1] - region[3 * i + 1])
+    return region, poly
+
+
+def trivial_case(rng, region):
+    return region, polygon(rng, region, rng.choice(('apart', 'around', 'inside', 'same', 'boxin', 'cross')))
+
+
 def main():
     rng = random.Random(int(os.environ.get('SEED', '1')))
     brk = int(os.environ.get('BREAK', '0'))
+    only = os.environ.get('ONLY')  # one section: new, case, weed, walk, clip, leaf
     emu = Emulated()
     runs = fails = 0
     kinds = {}
@@ -411,7 +476,7 @@ def main():
         return ring(rng, cx, cy, rng.uniform(3, 30), n, 2.0, rng.choice((0, 0.05, 0.2)), rng.choice((0, 0, 1, 3)))
 
     # weiler_new and reset.
-    for _ in range(300):
+    for _ in range(300 if only in (None, 'new') else 0):
         region = region_of(rng, big=True)
         mine_region = list(region)
         if brk == 1:
@@ -422,7 +487,7 @@ def main():
         check('new', mine, emu.weiler_new(region))
 
     # The driver's first steps.
-    for _ in range(600):
+    for _ in range(600 if only in (None, 'case') else 0):
         region = region_of(rng)
         kind = rng.choice(('apart', 'around', 'inside', 'same', 'boxin', 'cross'))
         poly = polygon(rng, region, kind)
@@ -439,7 +504,7 @@ def main():
 
     # Shared edges: rectangles and diamonds on a grid, the polygon sharing,
     # overlapping or reversing the region's sides.
-    for _ in range(800):
+    for _ in range(800 if only in (None, 'weed') else 0):
         region, poly = weed_case(rng)
         mine_poly = list(poly)
         if brk == 6:
@@ -451,25 +516,8 @@ def main():
 
     # The walk: crater rings against triangles and quads crossing them, and
     # the grid pairs (touching ends, shared corners, collinear runs).
-    for _ in range(1200):
-        if rng.random() < 0.5:
-            region, poly = weed_case(rng)
-        else:
-            region = ring(rng, rng.uniform(-50, 50), rng.uniform(-50, 50), rng.uniform(3, 20), rng.randint(3, 12), 1.0,
-                          rng.choice((0, 0.1)))
-            poly = polygon(rng, region, rng.choice(('cross', 'cross', 'boxin', 'around')))
-            if rng.random() < 0.25:  # a polygon edge through a region point
-                i = rng.randrange(len(region) // 3)
-                a = rng.choice((0.0, math.pi / 2, rng.uniform(0, 2 * math.pi)))
-                dx, dy, k = round(math.cos(a), 6), round(math.sin(a), 6), rng.choice((1.0, 2.0, 0.5))
-                poly[0], poly[1] = region[3 * i] + k * dx, region[3 * i + 1] + k * dy
-                poly[3], poly[4] = region[3 * i] - k * dx, region[3 * i + 1] - k * dy
-            elif rng.random() < 0.3:  # a polygon corner on a region point or edge
-                i = rng.randrange(len(region) // 3)
-                j = (i + 1) % (len(region) // 3)
-                t = rng.choice((0.0, 0.5, rng.random()))
-                poly[0] = region[3 * i] + t * (region[3 * j] - region[3 * i])
-                poly[1] = region[3 * i + 1] + t * (region[3 * j + 1] - region[3 * i + 1])
+    for _ in range(1200 if only in (None, 'walk') else 0):
+        region, poly = walk_case(rng)
         mine_poly = list(poly)
         if brk == 7:
             mine_poly[1] += 0.01
@@ -492,8 +540,47 @@ def main():
             emu = Emulated()
         check('walk', mine, theirs)
 
+    # Whole clips, two polygons in turn through one Weiler: every case above,
+    # crater rings far out too, and every result list wanted or not.
+    for _ in range(1500 if only in (None, 'clip') else 0):
+        region, p1 = walk_case(rng) if rng.random() < 0.6 else trivial_case(rng, region_of(rng))
+        polys = [p1]
+        if rng.random() < 0.5:
+            polys.append(polygon(rng, region, rng.choice(('cross', 'apart', 'inside', 'boxin'))))
+        want = rng.choice((1, 2, 3, 4, 5, 7))
+        mine_polys = [list(p) for p in polys]
+        if brk == 8:
+            mine_polys[0][2] += 0.5
+        mine_want = want ^ 4 if brk == 9 else want
+        bufs = [fbuf(p) for p in mine_polys] + [fbuf([])]
+        n2 = len(polys[1]) // 3 if len(polys) > 1 else 0
+        mine = got(probe.probe_weiler_clip(ctypes.cast(fbuf(region), P), len(region) // 3, ctypes.cast(bufs[0], P),
+                                           len(p1) // 3, ctypes.cast(bufs[1], P), n2, mine_want, BUF, CAP))
+        if GAVE_UP in mine:
+            try:
+                emu.clip(region, polys, want, budget=5_000_000)
+                check('clip_hang', mine, b'original returned')
+                if os.environ.get('SHOW'):
+                    print('case', region, polys, want)
+            except Exception:
+                kinds['clip_hang'] = kinds.get('clip_hang', 0) + 1
+                emu = Emulated()
+            continue
+        try:
+            theirs = emu.clip(region, polys, want, budget=5_000_000)
+        except Exception:
+            theirs = b'original never returned'
+            emu = Emulated()
+        if os.environ.get('SHOW') and mine != theirs:
+            print('case', region, polys, want)
+        at = 0
+        while mine[at:at + 4] == b'\x70\0\0\0':  # error reports come first
+            at += 12
+        code = struct.unpack_from('<I', mine, at)[0] if len(mine) >= at + 4 else 9
+        check(f'clip_{code}', mine, theirs)
+
     # Leaves.
-    for _ in range(1500):
+    for _ in range(1500 if only in (None, 'leaf') else 0):
         op = rng.randrange(6)
         if op in (0, 1):
             poly = ring(rng, 0, 0, rng.uniform(2, 10), rng.randint(3, 9), 0, 0.3)

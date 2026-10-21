@@ -339,6 +339,16 @@ From the weapon code (weapons.md).
   vertex colours of the ground they cut: each crater vertex copies a cut
   ground vertex within half a metre of it (else the first one cut), so a
   crater dug in a shadow stays dark and one in the open stays bright.
+- **Two ways a crater can freeze the game.** The crater's cutter (a
+  Weiler–Atherton polygon clipper) has two endless loops. One happens when a
+  ground polygon's corner sits on the crater's outline to within a float's
+  error. The other happens when the crater's outline runs exactly along a
+  ground polygon's edge and touches it at a corner. In both the game hangs
+  while digging the crater. A shot landing on a slope or a bank, where
+  crater outlines meet the ground's corners, is the likeliest trigger. A
+  third case, close to the second, writes points without end instead (a
+  crash). The rebuild stops each one: the piece of ground is left uncut, or
+  in the third case is cut correctly.
 - **Unused: rainbow craters.** A crater that cuts untextured ground, or one
   made without its texture flags, gets pieces of random colour, a leftover
   debug fallback (whose colours are even packed from the wrong bits). Every
