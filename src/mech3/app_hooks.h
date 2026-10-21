@@ -315,7 +315,7 @@ class Engine : public zgame::AppHooks {
   virtual void video_flip(int32_t a, int32_t b, int32_t c, int32_t d) { unported("0x00576ea0", {a, b, c, d}); }
   virtual void video_set_frame_mode(int32_t a) { unported("0x00579250", {a}); }
   virtual uint32_t video_show_cursor(uint32_t on) { return unported("0x00579840", {on}); }
-  virtual void video_set_gamma(int32_t a) { unported("0x0057a3c0", {a}); }
+  virtual void video_set_clear(int32_t on) { unported("0x0057a3c0", {on}); }  // [0x008026f0] the frame clear, the old back
   virtual void video_restore() { unported("0x00577cb0", {}); }
   virtual void video_begin_scene() { unported("0x00579af0", {}); }
   virtual void video_draw_3d() { unported("[0x0072f3ec]", {}); }
@@ -674,6 +674,40 @@ class Engine : public zgame::AppHooks {
   virtual int32_t campaign_units();
   virtual Handle store_handle(class Store* s);
   virtual void mech_lab_open(Handle store, int32_t a) { unported("0x00448830", {store, a}); }  // ECX the pilot
+  // The Lab State's (mech_lab.cpp, docs/mechlab.md section 1). The pilot's
+  // game's slots (+0x6c vt+0x3c, vt+0x34 and its 0x00433ee0(0)); the program
+  // answers them from the ported campaign.
+  virtual int32_t lab_slot_count(Handle pilot) {
+    return static_cast<int32_t>(vcall(field32(pilot, 0x6c), 0x3c, {}));
+  }
+  virtual Handle lab_slot(Handle pilot, int32_t i) { return vcall(field32(pilot, 0x6c), 0x34, {i}); }
+  virtual void lab_slot_release(Handle pilot, int32_t i) { set_field32(lab_slot(pilot, i), 0x0c, 0); }
+  // A slot's loadout (+0x08; the slot asked for twice, as the exe does) and
+  // a loadout's mech (+0x14).
+  virtual Handle lab_slot_config(Handle pilot, int32_t i) {
+    return lab_slot(pilot, i) ? field32(lab_slot(pilot, i), 0x08) : 0;
+  }
+  virtual int32_t config_mech(Handle config) { return static_cast<int32_t>(field32(config, 0x14)); }
+  // Not ported yet (mechlab.md section 5): the 3D world (0x0044ffc0 its load,
+  // 0x00450390, the frame's 0x00450810 / 0x00450800 / 0x00450690), the
+  // screen's (0x00448f80 the slot shown, 0x0044ce30 a page, 0x0044cf40 /
+  // 0x0044cf50 the page refreshed) and the loadout files (0x00426180 write,
+  // 0x00426300 read, then the read one added to its mech's list).
+  virtual bool lab_world_load(Handle state) { return unported("0x0044ffc0", {state}) != 0; }
+  virtual void lab_world_unload(Handle state) { unported("0x00450390", {state}); }
+  virtual void lab_view_begin(Handle state) { unported("0x00450810", {state}); }
+  virtual void lab_view_end(Handle state) { unported("0x00450800", {state}); }
+  virtual void lab_world_frame(Handle state, float dt) { unported("0x00450690", {state, zgame::bits(dt)}); }
+  virtual void lab_show_slot(Handle state, int32_t slot) { unported("0x00448f80", {state, slot}); }
+  virtual void lab_page(Handle screen, int32_t page) { unported("0x0044ce30", {screen, page}); }
+  virtual void lab_page_part(Handle screen, Handle part) { unported("0x0044cf40", {screen, part}); }
+  virtual void lab_page_refresh(Handle screen) { unported("0x0044cf50", {screen}); }
+  virtual void config_export(Handle config) { unported("0x00426180", {config, 1}); }
+  virtual Handle config_import() { return unported("0x00426300", {}); }
+  virtual Handle mech_dfn_handle(int32_t mech) { return unported("0x004846a0", {mech}); }
+  virtual void config_list_add_import(Handle list, Handle config) { unported("lab.import", {list, config}); }
+  virtual void node_frame_update() { unported("0x004f7f70", {}); }
+  virtual void model_purge(int32_t a, int32_t b) { unported("0x005394c0", {a, b}); }
   virtual void salvage_open() { unported("0x0047d2f0", {}); }
   virtual void multiplayer_launch_prep() { unported("0x0046ceb0", {}); }
   // The missions object [0x006098d0]: loaded (0x00490930), the launch

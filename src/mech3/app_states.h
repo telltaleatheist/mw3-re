@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 #include "gamez/zgame/zgameapp.h"
 #include "mech3/app_hooks.h"
@@ -192,6 +193,48 @@ class SalvageState : public ShellState {
   void escape() override {}           // 0x0049bfd0
 };
 
+// "Lab State" (0x006059f8, vtable 0x005c0c90; mech_lab.cpp, docs/mechlab.md):
+// the mech lab, over the shell base but with its own screen (+0x60) and a 3D
+// view of the mech. Its file's globals [0x00605a28..0x00605a88] are its fields.
+class LabState : public ShellState {
+ public:
+  LabState() : ShellState("Lab State", 0x6059f8) {}  // 0x004488b0
+  ~LabState() override;               // 0x00448930
+  bool enter() override;              // 0x00448960
+  bool update() override;             // 0x00448a80
+  void leave() override;              // 0x00448a20
+  void suspend(uint32_t) override {}  // 0x004bf620, empty
+  void resume(uint32_t) override {}   // 0x004bf620
+  uint32_t message(uint32_t, uint32_t) override { return 1; }  // 0x0042a130
+  void escape() override {}           // 0x0049bfd0
+  bool accept();                      // 0x00448870: ACCEPT, the slots let go and the state popped
+  bool part_valid(int32_t i) const;   // 0x00448e20
+  int32_t part_index(Handle node);    // 0x004507c0: the part showing `node`, or -1
+  void make_screen();                 // 0x00448e70
+  void delete_screen();               // 0x00448ef0
+  void draw(float dt);                // 0x00448f10
+
+  static constexpr Handle kNoNode = 0x13;  // +0x38 when nothing is pointed at
+
+  std::vector<Handle> parts_;         // +0x20  the 3D view's parts (each +0x08 its node)
+  Handle part_ = 0;                   // +0x2c  the part last pointed at
+  int32_t slot_ = -1;                 // +0x30  the slot shown [0x00605a28]
+  int32_t slots_ = 0;                 // +0x34  the game's slot count
+  Handle node_ = 0;                   // +0x38  the node pointed at; kNoNode from enter on
+  Handle lab_screen_ = 0;             // +0x60  [0x00605a58]
+  int32_t clear_ = 0;                 // +0x64  the frame clear's flag to put back (0x0057a3c0), kept by 0x0044ffc0
+  uint32_t world_ = 0;                // +0x6c  the 3D world is up (set by 0x0044ffc0)
+  Handle sounds_[4] = {};             // +0x70  select, move, rollover, error
+  Handle pilot_ = 0;                  // +0x84  [0x00605a7c]
+  Handle store_ = 0;                  // +0x88  [0x00605a80]
+  uint8_t flag_ = 0;                  // +0x8c  [0x00605a84] 0 from the briefing
+  uint32_t result_ = 0;               // +0x90  [0x00605a88] update's result, never set
+};
+
+// Mech3.exe 1.2 @ 0x00448830: the lab opened on the pilot's game with `store`;
+// false without either.
+bool mech_lab_open(Handle pilot, Handle store, uint8_t flag);
+
 // "Fade State" (0x00609888, vtable 0x005c6088; constructor 0x0048f1b0): a still
 // of the screen grabbed when it is queued, faded from or to a colour over a
 // time, then the stack moves on by mode (docs/game-loop.md, The fade state).
@@ -248,6 +291,7 @@ struct States {
   WinState end_win{0x6099a0};  // the missions object's (0x006098d0 +0xd0)
   KeyListState key_list;
   FadeState fade;
+  LabState lab;
 };
 States& states();
 void reset_states();

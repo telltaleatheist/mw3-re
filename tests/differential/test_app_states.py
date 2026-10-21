@@ -104,7 +104,7 @@ def build_world(seed, t, case):
     for i in range(0x19):
         e.w32(0x5fc848 + i * 0x4b0, vt)
     # Pilot, game, mech, view, vehicle.
-    game = w.obj({0x2c: 0, 0x34: 1, 0x38: 0, 0x48: 0, 0x4c: 0, 0x50: 1})
+    game = w.obj({0x2c: 0, 0x34: 1, 0x38: 0, 0x3c: 0, 0x48: 0, 0x4c: 0, 0x50: 1})
     cfg = w.obj(fields={0x4: r.randrange(3), 0x8: 0x77})
     torso = w.obj()
     vdata = w.obj(fields={0x228: w.obj(fields={0x4: torso}), 0xc: r.randrange(3)})
@@ -148,6 +148,7 @@ def build_world(seed, t, case):
         '0x005700f0': lambda rr, n, a: rr.choice([0, 1, 2]),
         '0x0056f6f0': lambda rr, n, a: rr.choice([0, w.obj()]),
         '@cursor_x': 17, '@cursor_y': 23,
+        '0x0040ce90': lambda rr, n, a: rr.choice([0, 1]),
         '0x00575f30': 1,  # Mech3Msg.dll loads (the rebuild has no other path, FIX (A))
     })
     w.renderers = []
@@ -178,6 +179,10 @@ def field_values(probe, seed):
             v = 0x1234  # a mission's message box, the menus' screens: always there
         elif addr in (0x608ec0 + 0x14, 0x608f00 + 0x14, APP + 0x1cc, APP + 0x1d0, APP + 0x1d4):
             v = fbits(r.choice([0.0, 1.0, 0.04, 30.0, -0.5]))
+        elif addr == APP + 0x190:  # the input mode: 8 in 0xc makes the cursor follow
+            v = r.choice([0, 1, 5, 8, 9, 0xc])
+        elif LAB <= addr < LAB + 0x94:
+            v = lab_field(r, addr - LAB, size)
         elif size == 1:
             v = 1 if r.random() < 0.4 else 0
         else:
@@ -197,6 +202,8 @@ def place_fields(w, probe, values, with_handles):
             v = frame
         if addr == 0x608f74 and v:
             v = w.dv
+        if addr == LAB + 0x84 and v == PILOT:
+            v = w.emu.r32(0x60861c)
         if v == 0x1234 and size == 4 and with_handles:
             v = w.make('handle')
         if addr == 0x608ec0 + 0x1c:
@@ -221,6 +228,67 @@ def read_fields(w, probe, values):
         a.append((addr, ev))
         b.append((addr, probe.probe_states_field_get(i)))
     return a, b
+
+
+# The Lab State (0x006059f8, mech_lab.cpp): its fields by offset; PILOT stands
+# for the world's pilot.
+LAB = 0x6059f8
+PILOT = 0x5151
+
+
+def lab_field(r, off, size):
+    if size == 1:
+        return 1 if r.random() < 0.4 else 0
+    if off == 0x30:
+        return r.choice([-1, 0, 1, 2, 3]) & 0xffffffff
+    if off == 0x34:
+        return r.randrange(5)
+    if off in (0x60, 0x08, 0x0c):
+        return 0x1234  # the screen: the update and draw use it unchecked
+    if off == 0x64:
+        return r.randrange(3)
+    if off == 0x84:
+        return r.choice([0, PILOT, PILOT])
+    if off in (0x6c, 0x90):
+        return r.choice([0, 0, 1])
+    return r.choice([0, 0x1234])
+
+
+def lab_world(w, probe, name, values, seed):
+    """The lab's 3D parts (+0x20, each +0x08 its node), the node pointed at
+    (+0x38), the game's slot and the answers its developer keys get."""
+    r = rnd(seed, 'lab')
+    e = w.emu
+    n = r.randrange(4)
+    parts = [w.obj(fields={0x8: w.obj()}) for _ in range(n)]
+    begin = e.world_alloc(4 * n) if n else 0
+    for i, p in enumerate(parts):
+        e.w32(begin + 4 * i, p)
+    for off, v in ((0x20, begin), (0x24, begin + 4 * n), (0x28, begin + 4 * n)):
+        e.w32(LAB + off, v)
+    probe.probe_states_lab_parts((ctypes.c_uint32 * max(n, 1))(*parts), n)
+    node = r.choice([LabNoNode, LabNoNode, w.obj()] + [e.r32(p + 8) for p in parts])
+    for i, addr, size, _ in values:
+        if addr == LAB + 0x38:
+            e.w32(addr, node)
+            probe.probe_states_field_set(i, node)
+        if addr == LAB + 0x84 and name not in ('lab open', 'lab enter') and not e.r32(addr):
+            e.w32(addr, e.r32(0x60861c))  # the update, leave and ACCEPT run with one
+            probe.probe_states_field_set(i, e.r32(0x60861c))
+    # The slot (vt+0x34): always one, its loadout (+0x08) or none; the loadout's
+    # mech (+0x14). The read loadout or its mech's list stays empty: the add
+    # after it (0x00448c1d..) is not ported yet (mechlab.md section 5).
+    config = r.choice([0, w.obj(fields={0x14: r.randrange(19)})])
+    slot = w.obj(fields={0x8: config, 0xc: 5})
+    w.answers['vt+0x34'] = slot
+    w.answers['vt+0x3c'] = lambda rr, n_, a: rr.randrange(5)
+    mode = r.randrange(3)
+    w.answers['0x00426300'] = 0 if mode == 0 else w.obj()
+    w.answers['0x004846a0'] = 0 if mode == 1 else w.obj(fields={0x20: 0 if mode == 2 else w.obj()})
+    w.answers['0x0051a9b0'] = lambda rr, n_, a: rr.choice([0, 0, 1, 1, 2])
+
+
+LabNoNode = 0x13
 
 
 # (name, probe address, emulator address, ecx, args builder) — args builder
@@ -299,14 +367,28 @@ CASES = [
     ('options escape', 0x438c80, 0x438c80, 'gfx', none),
     ('credits enter', 0x429600, 0x429600, 'credits', none),
     ('credits leave', 0x429670, 0x429670, 'credits', none),
+    ('lab open', 0x448830, 0x448830, 'pilot', lambda r: (lambda p, st, f: (p, st, (f,), st))(
+        r.choice([0, 0x7000, 0x7100]), r.choice([0, 0x7200]), r.choice([0, 1, 0x101]))),
+    ('lab enter', 0x448960, 0x448960, LAB, none),
+    ('lab update', 0x448a80, 0x448a80, LAB, none),
+    ('lab leave', 0x448a20, 0x448a20, LAB, none),
+    ('lab accept', 0x448870, 0x448870, LAB, none),
+    ('lab part_valid', 0x448e20, 0x448e20, LAB, lambda r: (lambda v: (v, 0, (v,), 0))(
+        r.choice([-1 & 0xffffffff, 0, 1, 2, 3, 0x80000000]))),
+    ('lab part_index', 0x4507c0, 0x4507c0, LAB, none),
+    ('lab make_screen', 0x448e70, 0x448e70, LAB, none),
+    ('lab delete_screen', 0x448ef0, 0x448ef0, LAB, none),
+    ('lab draw', 0x448f10, 0x448f10, LAB, lambda r: (lambda v: (v, 0, (v,), 0))(
+        fbits(r.choice([0.0, 0.033, 0.5])))),
 ]
 # Results compared as booleans (functions returning bool / BOOL / a byte).
 BOOL_RESULT = {0x438c90, 0x42da50, 0x429600, 0x482a20, 0x480570, 0x480970, 0x480000, 0x482330, 0x482430, 0x482070,
                0x482170, 0x482060, 0x480b30, 0x480b60, 0x480c70, 0x481f70, 0x481e70,
                0x482520, 0x48ebf0, 0x48ed30, 0x486990, 0x486d40, 0x493040, 0x4091e0,
-               0x409440, 0x47ac20, 0x47aed0, 0x47d310}
+               0x409440, 0x47ac20, 0x47aed0, 0x47d310, 0x448830, 0x448960, 0x448a80,
+               0x448870, 0x448e20}
 IGNORE = [(0x608c88, 0x608f6c), (0x608f6c, 0x608fb0), (0x6040b0, 0x6040b4),
-          (0x5f4c98, 0x5f4d50)]
+          (0x5f4c98, 0x5f4d50), (LAB, LAB + 0x94)]
 
 
 def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
@@ -315,16 +397,26 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
     t.script = Script(make_script(seed, w))
     probe.probe_states_reset()
     probe.probe_states_set_menus(*(MENU[k] for k in MENU_VTABLES))
-    if isinstance(ecx, str):
+    if ecx == 'pilot':
+        pass
+    elif isinstance(ecx, str):
         ecx = MENU[ecx]
         probe.probe_states_this(ecx)
     probe.probe_states_set_command_line(w.command_line.encode())
     values = field_values(probe, seed)
     if paddr == 0x47f7a0:  # static objects start zeroed, before their constructors
-        values = [(i, a, s, 0) for i, a, s, _ in values]
+        values = [(i, a, s, 0xffffffff if a == LAB + 0x30 else 0) for i, a, s, _ in values]  # (the lab's, 0x004488b0)
     place_fields(w, probe, values, paddr != 0x47f7a0)
     r = rnd(seed, 'args')
     parg, parg2, stack, edx = args(r)
+    if name.startswith('lab'):
+        lab_world(w, probe, name, values, seed)
+    if paddr == 0x448830:  # ECX the pilot, EDX the store, the flag on the stack
+        ecx = parg
+        probe.probe_states_arg3(stack[0])
+    if paddr == 0x4507c0:  # a node of the parts, none (0x13) or another
+        parg = w.emu.r32(LAB + 0x38)
+        stack = (parg,)
     if paddr == 0x4803f0:
         pass
     snap = w.emu.snapshot()
@@ -354,7 +446,7 @@ def run_case(probe, name, paddr, eaddr, ecx, args, seed, verbose=False):
         p = pret.value
         if paddr in BOOL_RESULT:
             e, p = (e & 0xff) != 0, p != 0
-        elif paddr == 0x482970:
+        elif paddr in (0x482970, 0x4507c0):
             pass
         else:
             e = p = 0

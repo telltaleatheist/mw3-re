@@ -10,6 +10,7 @@
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app.h"
@@ -482,11 +483,11 @@ void GameEngine::win_keep_scores(Handle screen, int32_t n) {
   if (!d || !c) return Engine::win_keep_scores(screen, n);
   // n is the campaign's slots, at most the lance's four cards (+0x13be4 has
   // four). The exe writes every card's number, 0 for a card without a
-  // record; here a card without one keeps the campaign's count, since a
-  // lancemate's name (0x004aee70) is not ported yet and no record would
-  // match: the career kills would be wiped on every win.
+  // record line. FIX (bug), behind `bugs`: a card without one keeps the
+  // record, else a lancemate not on that card loses their career kills.
+  const bool fix = zfix::options().bugs;
   for (int32_t i = 0; i < n && i < 4; ++i)
-    if (d->lance_scored[i]) c->b4[i] = d->lance_scores[i];
+    if (!fix || d->lance_scored[i]) c->b4[i] = d->lance_scores[i];
   c->c4 = d->score;
 }
 
@@ -504,6 +505,18 @@ void GameEngine::briefing_refresh(Handle) {
 }
 void GameEngine::briefing_show(Handle, int32_t a) {
   if (BriefingScreen* b = briefing_screen()) b->show_realloc(a != 0);
+}
+void GameEngine::mech_lab_open(Handle store, int32_t a) {
+  mech3::mech_lab_open(pilot(), store, static_cast<uint8_t>(a));
+}
+int32_t GameEngine::lab_slot_count(Handle) { return game_slot_count(); }
+Handle GameEngine::lab_slot(Handle, int32_t i) { return handle_of(game_slot(i)); }
+void GameEngine::lab_slot_release(Handle, int32_t i) {
+  if (GameSlot* s = game_slot(i)) s->x0c = 0;
+}
+Handle GameEngine::lab_slot_config(Handle, int32_t i) {
+  GameSlot* s = game_slot(i);
+  return s ? handle_of(s->config) : 0;
 }
 std::string GameEngine::message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) {
   return has_n ? zutl::format_message(id, {s, std::to_string(n).c_str()}) : zutl::format_message(id, s);

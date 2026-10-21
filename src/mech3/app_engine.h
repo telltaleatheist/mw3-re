@@ -110,6 +110,14 @@ class GameEngine : public Engine {
   Handle mission_salvage_store() override;              // [0x00609990], the ported store
   void briefing_refresh(Handle s) override;             // 0x00408bd0 on the ported briefing
   void briefing_show(Handle s, int32_t a) override;     // 0x00404ae0
+  // The mech lab (mech_lab.cpp): opened on the ported Lab State, its slots the
+  // ported campaign's; no 3D world yet (mechlab.md item 9), so its load passes.
+  void mech_lab_open(Handle store, int32_t a) override;
+  int32_t lab_slot_count(Handle pilot) override;
+  Handle lab_slot(Handle pilot, int32_t i) override;
+  void lab_slot_release(Handle pilot, int32_t i) override;
+  Handle lab_slot_config(Handle pilot, int32_t i) override;
+  bool lab_world_load(Handle) override { return true; }
   std::string message_format_sd(int32_t id, const char* s, int32_t n, bool has_n) override;
   std::vector<LanceMech> debrief_lance() override;     // the ported mechs
   uint32_t player_allies() override;
