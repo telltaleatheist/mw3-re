@@ -332,6 +332,13 @@ the set-up reads: item 1a's test).
 - The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
   0x004b1cd0 stay recorded hooks: mac 4, the planner (they sit in the AI
   weapon planner's range 0x004b1170..0x004b1d7f).
+- The radar in the program (section 15): the mission map (its map mode),
+  the nav route's polylines (+0xbd4.. lists), the network marker
+  (0x0058b060) and the landmines (0x00413560's list) are not ported and
+  answer none. Contacts resolve to mechs only (the program's contact_mech),
+  so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
+  the Mobile HQ, turrets) wait for those vehicles; until then their contacts
+  show nothing.
 
 ## 10. The aim (the reticle's world point)
 
@@ -454,7 +461,8 @@ equivalent, set_alpha (0x0043a9d0) making 0xfe and up opaque.
 In the program, `hud_handoff` runs the frame (`Hud::update`) inside the Core
 frame's 2D layer, and the Direct3D pass (`Hud::draw3d`) at the view
 target's vt+0xe4; the hooks the program does not implement answer 0 (no
-debug overlay, no radar, the aim state left alone, no nav list).
+debug overlay, the aim state left alone, no nav list; the radar's outside
+as section 15 and Left say).
 
 Test: `test_hud.py` runs, after the build and the aim, a random sequence of
 frames (dt 0 to 2.5 s) with changes between them (the HUD on or off, the
@@ -749,4 +757,16 @@ read-only). Test: test_hud.py, ops 21-24 (the polylines' counts and lists,
 the map mode and the changed flag), the map with a rect and scale; the
 mech's contacts (TARGET's, one the same by entity, others on and off the
 radar), blips or none, a marker near and far, shots and mines; the
-marker's message arguments logged on both sides.
+marker's message arguments logged on both sides. Breaking it: 35 of 36
+caught; the miss (TEXT2 shown again each frame) cannot show, nothing hides
+it.
+
+In the program the radar reads the mech's sensor range, flags,
+orientation and contacts, the torso's flat front for the cone (0x0041cdf0:
+the torso +0x16c), and the weapons' radar list; the mechs' blip images are
+made when first needed (the original makes them with the mechs,
+0x00413e60) and freed when the HUD is unwired. mw3tests'
+mission_c1m1_hud_weapon_lines_and_lock_headless checks it in c1m1: the
+radar shown, no blip while the Owens is powered down (not in sight), its
+blip 150 m straight ahead once awake (8 px out of the wanted 7.5), and the
+triangle instead once targeted.

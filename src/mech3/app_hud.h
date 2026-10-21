@@ -20,6 +20,11 @@ struct HudReport {
   float lock_timer = 0.0f;
   int target_hidden = 0, shape_hidden = 0, rx = 0, ry = 0, apex_y = 0, base_y = 0;  // TARGET and the reticle
   float shape_x = 0.0f;
+  // The radar: shown, its radius and centre, the blips drawn since the last
+  // report and the last one's place, the sensor range.
+  int radar_shown = 0, radar_r = 0, radar_x = 0, radar_y = 0, blips = 0, blip_x = 0, blip_y = 0;
+  int contacts = 0, on_radar = 0, vehicles = 0;  // the player's contacts, those on the radar, with a vehicle
+  float sensor_range = 0.0f;
 };
 bool program_hud_report(HudReport* r);
 // Tests only: the first group that locks selected and the player's target

@@ -1966,3 +1966,7 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **Over the mission map (the map key), the radar draws on the map:** its
   circle grows to your sensor range at the map's scale, and the blips sit
   at their map places.
+- **A powered-down mech is invisible on the radar:** only contacts in
+  sight get a blip, and a shut-down mech is not in sight, so an ambush of
+  sleeping mechs (like the Owens at the start of the first mission) shows
+  nothing until they power up.

@@ -284,5 +284,7 @@ without a rect crashes the original; normalize 0x004020d0 is stubbed (the
 vector kept, its true length answered); ceil comes in as FLOOR's code with
 the rounding bits 0x0800; the marker's message arguments are logged on
 both sides. Never edit src while breaks.py runs (it restores its copy).
-Next: part 3, the program wiring and the c1m1 radar check; then inverted
+Part 3: the program hooks (app_hud), the cone from the torso's flat front
+(0x0041cdf0), the c1m1 check (the Owens is powered down, so not in sight,
+until the bramp valve; mw3tests has no filter, it runs all). Next: inverted
 mouse Y (Owen's decided fix) and item 6's remainder.

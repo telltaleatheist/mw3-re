@@ -1794,6 +1794,8 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int first[4] = {0, 0, 0, 0};  // the first frame of lock states 1..3
       bool target_set = false;
       int prev = 0, waiting = 0;
+      int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
+      float blip_d = 0.0f, blip_want = 0.0f;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1814,11 +1816,24 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
         pitch = zin::key1_of(5) & 0xff;  // CMD_PITCH_DOWN
+        mech3::program_hud_report(&r);  // the blip count from here
+      } else if (seen.frames > 3 && seen.frames < 10 && mech3::program_hud_report(&r)) {
+        seen.blips_asleep += r.blips;  // the Owens powered down: not in sight, no blip
+        if (seen.frames == 9)
+          if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
       } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
         seen.weapons = r.weapons, seen.lines = r.lines, seen.names_ok = r.named, seen.bracketed = r.bracketed;
+      } else if (seen.frames > 10 && seen.frames < 20 && mech3::program_hud_report(&r)) {
+        // The Owens awake 150 m ahead: one blip a frame, 150 m x radius / range from the centre.
+        seen.radar_frames += r.radar_shown && r.radar_r > 0;
+        seen.blip_frames += r.blips == 1;
+        seen.blip_d = std::hypot(static_cast<float>(r.blip_x - r.radar_x), static_cast<float>(r.blip_y - r.radar_y));
+        seen.blip_want = 150.0f * static_cast<float>(r.radar_r) / r.sensor_range;
+        seen.blip_off = std::abs(r.blip_x - r.radar_x);
       } else if (seen.frames == 20) {
         seen.lock_group = mech3::program_hud_lock_on(owens, &seen.target_set);
       } else if (seen.frames > 20 && mech3::program_hud_report(&r)) {
+        if (seen.frames > 21) seen.blips_locked += r.blips;  // the target is a triangle instead (frame 20's blip came first)
         if (r.lock >= 1 && r.lock <= 3 && !seen.first[r.lock]) seen.first[r.lock] = seen.frames;
         if (r.lock == 2 && seen.prev != 2 && !seen.first[3]) seen.waiting = seen.frames;  // the last wait before the lock
         seen.prev = r.lock;
@@ -1847,6 +1862,9 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
                 " (the last wait from %d)\n",
                 seen.weapons, seen.lines, seen.names_ok, seen.bracketed, seen.lock_group, seen.target_set,
                 seen.first[1], seen.first[2], seen.first[3], seen.waiting);
+    std::printf("  radar shown %d/9 frames, %d blips asleep, the Owens's blip %d/9 awake, %.1f px out (%.1f wanted, %d across),"
+                " %d blips once targeted\n", seen.radar_frames, seen.blips_asleep, seen.blip_frames, seen.blip_d,
+                seen.blip_want, seen.blip_off, seen.blips_locked);
     EXPECT(seen.weapons > 0);
     EXPECT(seen.lines == seen.weapons);    // one shown line a weapon
     EXPECT(seen.names_ok == seen.lines);   // named by the weapon's DESC
@@ -1855,6 +1873,9 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     EXPECT(seen.first[1] > 0 && seen.first[2] > seen.first[1] && seen.first[3] > seen.first[2]);
     // 0.6 s waiting, on the fake clock's 1/60 s frames: about 36 frames from 2 to 3
     EXPECT(seen.first[3] - seen.waiting >= 33 && seen.first[3] - seen.waiting <= 39);
+    EXPECT(seen.radar_frames == 9 && seen.blips_asleep == 0 && seen.blip_frames >= 8);
+    EXPECT(std::abs(seen.blip_d - seen.blip_want) <= 1.5f && seen.blip_off <= 1);  // straight ahead
+    EXPECT(seen.blips_locked == 0);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
