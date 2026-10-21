@@ -382,6 +382,30 @@ once a second has passed since the last, so from a second into a mission
 every mech's target node is its torso's. 0x5a8630 reads that node's world
 position.
 
+**The kill credit** (`Mech::OnKill` 0x41b420, Mech vtable +0x80, from the
+victim's Die on its last attacker +0x664): the victim's vt+0x2c gives an
+object whose +0x50, +0x40 and +0x48 say what it was (a mech's are 0x4d2a70,
+itself, and 0x40bae0, none: a mech is a mech). The credit goes to the
+salvage when the game is the campaign (game vt+0x2c 1) and the killer is the
+player ([0x60861c] +0x14) or counts the player's team (its vt+0x28, itself,
++0xc0) among its allies (+0xc4). The killer's controls hear of it (+0x37c's
+second base, vt+0xb4). Then:
+
+| Killed | Salvage (credit only) | Count | Points |
+|---|---|---|---|
+| a mech (+0x50) | 0x472f00 on [0x609990] | +0x3f4 | +0x400 += 10 x (30, 40, 50, 70 by its weight class, 0x484700; 10 for an Elemental killer) |
+| a vehicle (+0x40) | 0x472ec0 | +0x3f8 | +0x404 += 75 |
+| a building (+0x48) | | +0x3fc | +0x408 += 200 |
+
+A mech kill also clears the killer's targeted part (0x41d810(-1): +0xf8 =
+-1). The weight classes (the roster's +0x2c) are not the tonnage's: 0 the
+Elemental and Firefly; 1 Blackhawk, Bushwacker, Mad Cat, Owens, Puma,
+Shadowcat, Strider; 2 Annihilator, Avatar, Cauldron, Champion, Orion, Thor,
+Vulture; 3 Daishi, Sunder, Supernova. A weapon kill's attacker is the
+shooter's node's object (0x40eee0 → 0x40e920: the node's +0x28 bits 16, 18,
+a vehicle's (0xf000) or part's (low byte) owner, 19, 17, 20, 21, 22, the
+owner at +0x40).
+
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);
 a mission script's `Mech::DestroyPart` (0x41cfa0, called from zrdrvalve.cpp
@@ -630,7 +654,7 @@ effects 0x432830 on random slots (with and without nodes, `at` and `vel`
 real or the zero vector, the copy failing) and their free 0x431800 (copies
 with up to two parents); the death's preparation 0x41d070 over the states,
 detail bits, the player or not; zEffect's 0x506ae0 and 0x506b60. 1,553 runs
-identical (seeds 1 and 2); BREAK=1..4 fail. In the game,
+identical (2,153 with the kill credit; seeds 1 and 2); BREAK=1..6 fail. In the game,
 `mission_c1m1_owens_dies_headless` destroys the woken Owens' centre torso:
 dead, renamed `deadmech`, a slow fall queued (7 or 8) that plays out over
 about 4.4 s, its eject seat copied, the player untouched, the copy freed at
@@ -648,7 +672,7 @@ behaviour.
 - Which end of `[0x9a0ec4]` is the shooter's for beams and splash (0x582e89,
   0x5829b0); for projectiles it is [0] (likely, above).
 - The torso jolt's decay (0x464ce0) and the knockback stagger (0x417a80).
-- Unported here: `Mech::OnKill` 0x41b420 (the kill credit), the parts' fly-off
+- Unported here: the parts' fly-off
   (vtable +0x60), 0x4e66a0 (a part's node off the mech), the statistics, the
   network events, the controls' hit and stop, the cockpit HUD's death and the
   damage decals (0x474d90). In the game (c1m1 item 2, `app_mech.cpp`

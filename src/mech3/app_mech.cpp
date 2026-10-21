@@ -200,6 +200,11 @@ WiredLaunch g_launch;
 }  // namespace
 
 namespace {
+SalvageMech salvage_view(Mech& m);
+const SalvageCalls& salvage_calls();
+}  // namespace
+
+namespace {
 // Mech3.exe 1.2 @ 0x005a85e0: the entity's node's world position, its world
 // matrix refreshed first when stale (0x0051e9d0, 0x0051fde0, 0x004ed280, 0x0051ea00).
 const Vec3* entity_position(Mech& m) {
@@ -389,6 +394,17 @@ void wire_mech_parts() {
     auto* wm = static_cast<WeaponManager*>(m.ammo);
     return wm && wm->critical(part, ammo != 0);
   };
+  // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
+  // other killers (the AI's vehicles and turrets) are not ported.
+  d.killer_notify = [](Handle killer, Mech& victim) {
+    for (const ai::Handle h : ai::entity_list())
+      if (g_w.object_of(g_w.engine, h) == killer) return static_cast<Mech*>(killer)->on_kill(&victim);
+    if (g_w.unported) g_w.unported(g_w.engine, "killer vt+0x80", {});
+  };
+  d.salvage_mech = [](Handle m) {  // 0x00472f00 on the mission's store
+    SalvageMech v = salvage_view(*static_cast<Mech*>(m));
+    add_salvage(mission_salvage(), v, salvage_calls());
+  };
   d.mission_player_died = mission_lose;                            // 0x0048f9e0 on 0x006098d0
   d.view_mode = [] { return static_cast<int>(program_view_mode_id()); };  // [0x005f4c8c] +0x58 +4
   d.view_camera = [](int mode) { program_view_set_camera(mode); };  // 0x0040ae70
@@ -401,10 +417,10 @@ void wire_mech_parts() {
     float at[3];
     if (p.node) zcls::node_world_position(zn(p.node), at);
   };
-  d.node_matrix = [](MechPart& p) -> const float* {                 // its world 3x4 (object3d +0x60)
-    static const float kIdentity[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
-    zcls::Node* n = zn(p.node);
-    return n && n->cls() == 5 ? static_cast<zcls::Object3d*>(n->data)->floats(0x60) : kIdentity;
+  // Its world 3x4, object3d +0x60 (0x00461cf0 copies node +0x38 +0x60); a
+  // part's node is always an object3d, as the exe assumes.
+  d.node_matrix = [](MechPart& p) -> const float* {
+    return static_cast<zcls::Object3d*>(zn(p.node)->data)->floats(0x60);
   };
   // The pilot's sounds (0x00432990 on +0x684, through the sounds' EXTRA
   // records, sound_extra.cpp): unplaced, or at the mech where the exe passes
@@ -433,6 +449,7 @@ void wire_mech_parts() {
     if (auto* wm = static_cast<WeaponManager*>(m.ammo)) wm->set_online(on != 0);
   };
   HeatCalls& hc = heat_calls();
+  hc.game_type = mission_game_type;  // [0x0060861c] +0x6c, vt+0x2c
   hc.throttle = [](Mech& m) { return m.controls ? m.controls->throttle : 0.0f; };  // +0x37c GetThrottle
   hc.play_sound = [](Mech& m, int id) -> Sound { return pilot_play(m, id, 1.0f, nullptr); };
   hc.play_sound_at = [](Mech& m, int id) -> Sound {
@@ -464,7 +481,7 @@ void wire_mech_build(const MechWiring* w) {
     command_calls() = CommandCalls{};
     part_calls() = PartCalls{};
     move_calls() = MoveCalls{};
-    heat_calls().throttle = nullptr, heat_calls().play_sound = nullptr, heat_calls().play_sound_at = nullptr;
+    heat_calls().throttle = nullptr, heat_calls().game_type = nullptr, heat_calls().play_sound = nullptr, heat_calls().play_sound_at = nullptr;
     heat_calls().stop_sound = nullptr;
     collide_calls().touch = nullptr, collide_calls().node_touchable = nullptr;
     unwire_hud();
@@ -502,7 +519,11 @@ void mech_types_refresh() { mech_data_refresh(); }
 void mech_types_close() { close_mechlib(); }
 void mech_types_forget() { mech_data_clear(); }
 void mech_canned_nodes_free() { canned_nodes_free(); }
-void mech_kill(void* mech) { static_cast<Mech*>(mech)->torso->destroy(0, 1); }
+void mech_kill(void* mech, void* killer) {
+  auto* m = static_cast<Mech*>(mech);
+  if (killer) m->attacker = killer;
+  m->torso->destroy(0, 1);
+}
 
 std::vector<std::string>& mech_parts_fx_log() { return g_parts_fx; }
 
@@ -540,6 +561,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.action = m->actions.empty() ? 0 : m->actions.front();
   if (auto* n = zn(m->node)) s.deadmech = std::strcmp(n->name(), "deadmech") == 0;
   s.aim_torso = m->torso && m->target_node == m->torso->node;
+  for (int i = 0; i < 6; ++i) s.kills[i] = m->x3f4[i];
   s.sinks = m->heat_sinks.count;
   s.height = m->height;
   s.max_speed = m->max_speed;
@@ -618,6 +640,19 @@ std::vector<DebriefMech> mech_debrief_lance() {
 }
 namespace {
 // A ported mech as 0x00472f00 reads it.
+// The salvage's own calls on the ported mechs.
+const SalvageCalls& salvage_calls() {
+  static const SalvageCalls c = [] {
+    SalvageCalls k;
+    k.rand = [] { return static_cast<int32_t>(crt::msvc_rand()); };
+    k.empty_bin = [](const SalvageMech& v, int32_t bin) {
+      const_cast<AmmoBin*>(static_cast<const AmmoBin*>(v.owner_bins[bin]))->set_amount(0);
+    };
+    return k;
+  }();
+  return c;
+}
+
 SalvageMech salvage_view(Mech& m) {
   SalvageMech v;
   v.has_data = m.pilot != nullptr;
@@ -681,12 +716,7 @@ void mech_lance_salvage(Store& own, bool team) {
     }
     list.push_back(std::move(e));
   }
-  SalvageCalls c;
-  c.rand = [] { return static_cast<int32_t>(crt::msvc_rand()); };
-  c.empty_bin = [](const SalvageMech& v, int32_t bin) {
-    const_cast<AmmoBin*>(static_cast<const AmmoBin*>(v.owner_bins[bin]))->set_amount(0);
-  };
-  lance_salvage(mission_salvage(), own, list, player ? player->allies : 0, team, c);
+  lance_salvage(mission_salvage(), own, list, player ? player->allies : 0, team, salvage_calls());
 
 }
 

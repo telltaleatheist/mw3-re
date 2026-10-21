@@ -171,6 +171,13 @@ const char* weapon_name(int32_t weapon) { return weapon >= 0 && weapon < weapon_
 // 0x2fd, family 3 (as ERPPC), tech 2 (Inner Sphere, as the plain lasers), no ammo.
 int32_t weapon_count() { return zfix::options().bugs ? 38 : 37; }
 
+// Mech3.exe 1.2 @ 0x00484700. Not the tonnage's class: the Annihilator is 2,
+// the Mad Cat, Owens and Puma 1 (discoveries.md).
+int32_t weight_class(int32_t mech) {
+  static const int32_t kClass[19] = {2, 2, 1, 1, 2, 2, 3, 0, 0, 1, 2, 1, 1, 1, 1, 3, 3, 2, 2};  // 0x005e60a4
+  return mech >= 0 && mech < 19 ? kClass[mech] : 0;
+}
+
 // Mech3.exe 1.2 @ 0x004846e0
 float max_mass(int32_t mech) { return mech >= 0 && mech < 19 ? kMaxMass[mech] : 10.0f; }
 

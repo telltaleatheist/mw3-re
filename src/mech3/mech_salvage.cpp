@@ -143,6 +143,8 @@ std::string item_label(const ConfigItem& it, const MessageText& msg) {
   }
 }
 
+int32_t mission_salvage_items() { return mission_salvage().count(); }  // app_mech.h, for the tests
+
 Store& mission_salvage() {
   static Store store(1);
   return store;

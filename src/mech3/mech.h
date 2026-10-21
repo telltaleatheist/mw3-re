@@ -114,7 +114,7 @@ struct Mech : ai::AiTarget {
   Handle decals = nullptr;   // +0x3e8  the skins' decal state (0x00475a80)
   Config* config = nullptr;  // +0x3ec
   Ams* ams = nullptr;        // +0x3f0  the anti-missile system (weapon.h)
-  uint32_t x3f4[6] = {};     // +0x3f4
+  uint32_t x3f4[6] = {};     // +0x3f4  the kill credit: mechs, vehicles, buildings killed, then their points
   float x40c = 1.0f;         // +0x40c  health() cached
   bool damaged = false;      // +0x410  health() to work out again
   bool killed_by_nuke = false;  // +0x411
@@ -259,6 +259,7 @@ struct Mech : ai::AiTarget {
   Leg* pivot_leg() const;             // 0x00418e00
   void update(float dt);              // vtable +0x34, 0x00419fc0: the frame (mech_update.cpp)
   void aim_at_last_hit();             // 0x0041d130
+  void on_kill(Handle victim);        // vtable +0x80, 0x0041b420: the kill credit
   void death_prep();                  // 0x0041d070
   void hit_timeout();                 // vtable +0x14c, 0x0041d190
   void movement_sounds();             // 0x0041a843..0x0041aa61, in Update
@@ -340,7 +341,14 @@ struct DamageCalls {
   void (*controls_hit)(Mech&, WeaponDef*, Collision*, float damage, Handle attacker) = nullptr;  // +0x37c vtable +0x94
   void (*controls_stop)(Mech&) = nullptr;            // +0x37c vtable +0xa8
   void (*net_event)(Mech&, int kind, intptr_t arg) = nullptr;  // vtable +0x168, 0x0046f160
-  void (*killer_notify)(Handle killer, Mech& victim) = nullptr;  // the killer's vtable +0x80
+  void (*killer_notify)(Handle killer, Mech& victim) = nullptr;  // the killer's vtable +0x80 (a mech's: on_kill)
+  // The kill credit's reads of the victim (on_kill): its vtable +0x2c, then
+  // that object's +0x50 (a mech), +0x40 (a vehicle), +0x48 (a building).
+  // Unset: the victim is a mech (itself, itself, itself, none).
+  Handle (*victim_view)(Handle victim, int slot) = nullptr;
+  void (*controls_killed)(Mech& killer, Handle victim) = nullptr;  // +0x37c's second base, vt+0xb4
+  void (*salvage_mech)(Handle mech) = nullptr;        // 0x00472f00 on the mission's store [0x00609990]
+  void (*salvage_vehicle)(Handle vehicle) = nullptr;  // 0x00472ec0 on it
   void (*stats)(uint32_t fn, int arg) = nullptr;     // [0x00608620] statistics, method fn
   void (*stats_hit)(int weapon, const Vec3* impulse, float force) = nullptr;  // 0x00433720
   bool (*networked)() = nullptr;                     // 0x00479480 on [0x0060861c]

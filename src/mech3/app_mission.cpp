@@ -928,6 +928,7 @@ const AiMechMade* mission_ai_mechs(int32_t* count) {
 }
 
 void mission_lose() { missions().lose(); }
+int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
 
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;

@@ -59,7 +59,8 @@ void mech_types_close();
 // a mission's unload, 0x004318e0 in 0x00490480, which the program has not).
 void mech_types_forget();
 void mech_canned_nodes_free();
-void mission_lose();  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies
+void mission_lose();
+int mission_game_type();  // app_mission.cpp: the pilot's game's vt+0x2c (gametypes.md)  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies
 
 // What the last launch built (0x00491150), for the program's log and its tests.
 struct LaunchedMech {
@@ -93,10 +94,12 @@ struct LaunchedMech {
   int32_t action = 0;      // the action queue's front (0 none; 7, 8 the slow death falls)
   bool deadmech = false;   // the node renamed "deadmech" (the death)
   bool aim_torso = false;  // zEntity's target node (+0x10) is the torso's (0x0041d130)
+  uint32_t kills[6] = {};  // the kill credit (+0x3f4): mechs, vehicles, buildings, then their points
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
-void mech_kill(void* mech);  // for the tests: its centre torso destroyed (Destroy(0, 1), 0x00465f40)
+void mech_kill(void* mech, void* killer = nullptr);  // for the tests: its centre torso destroyed (Destroy(0, 1), 0x00465f40), `killer` its last attacker
+int32_t mission_salvage_items();  // for the tests: the items in the mission's salvage store
 int32_t canned_nodes_count();  // for the tests: the canned effects' node copies (the eject seats)
 
 // player.cpp's AI mechs (mission-start.md section 4): 0x00414150 on a
@@ -114,6 +117,7 @@ bool is_launched_mech(const void* mech);                           // the pilot'
 void update_mech(void* mech, float dt);
 void update_entities(float dt);                                   // 0x004a1140: every other entity's frame
 void* node_owner(void* node);                                     // 0x0040e9d0 (app_weapons.cpp)
+void* node_entity(void* node);                                    // 0x0040e920 (app_weapons.cpp)
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4

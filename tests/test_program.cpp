@@ -2104,7 +2104,7 @@ TEST(mission_c1m1_owens_dies_headless) {
     struct Seen {
       int frames = 0;
       mech3::LaunchedMech woke, killed, later, player;
-      int32_t ejected = 0;
+      int32_t ejected = 0, salvage0 = 0, salvage1 = 0;
       bool lost = false;
     } seen;
     void* owens = nullptr;
@@ -2118,7 +2118,9 @@ TEST(mission_c1m1_owens_dies_headless) {
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
       } else if (seen.frames == 60 && owens) {
         mech3::describe_mech(owens, &seen.woke);
-        mech3::mech_kill(owens);
+        seen.salvage0 = mech3::mission_salvage_items();
+        mech3::mech_kill(owens, engine.object_of(engine.field32(engine.pilot(), 0x14)));  // the player's kill
+        seen.salvage1 = mech3::mission_salvage_items();
         mech3::describe_mech(owens, &seen.killed);
         seen.ejected = mech3::canned_nodes_count();
       } else if (seen.frames == 420 && owens) {
@@ -2139,6 +2141,10 @@ TEST(mission_c1m1_owens_dies_headless) {
     // The fall played out (about 4.4 s), then the dead mech's updates stop.
     EXPECT(seen.later.anim_state == 10 && seen.later.action == 0 && seen.later.alive - seen.killed.alive > 3.0f);
     EXPECT(seen.player.anim_state != 10 && !seen.lost);
+    // The kill credit (0x0041b420): one mech for the player, the Owens' weight
+    // class 1 is 400 points, and in the campaign it goes to the salvage.
+    EXPECT(seen.player.kills[0] == 1 && seen.player.kills[3] == 400);
+    EXPECT(seen.salvage1 > seen.salvage0);
     mech3::missions().cleanup(false);
     EXPECT(mech3::canned_nodes_count() == 0);  // 0x00431800 at the cleanup
     app.stop_game();

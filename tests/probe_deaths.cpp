@@ -175,3 +175,58 @@ int probe_anim_nodes(uint32_t node, uint32_t root, const uint32_t* objects, int3
 }
 
 }  // extern "C"
+
+namespace {
+uint32_t s_info, s_vehicle, s_building;
+int32_t s_victim_roster, s_game;
+Mech* s_victim_mech;
+}  // namespace
+
+extern "C" {
+
+// 0x0041b420 on a killer: its roster, allies, +0xf8 and counters; the
+// player (the killer, or another with `player_team`); the victim's views
+// (info 0: none; has_mech: a mech of `victim_roster`); the game type.
+// Out: the calls, then +0xf8 and the six counters.
+int probe_on_kill(int32_t roster, uint32_t allies, int32_t xf8, const uint32_t* counters, int32_t killer_is_player,
+                  uint32_t player_team, int32_t game, uint32_t info, int32_t has_mech, int32_t victim_roster,
+                  uint32_t vehicle, uint32_t building, uint8_t* out, int cap) {
+  g_out.clear();
+  Pilot kp, pp, vp;
+  kp.roster = roster, vp.roster = victim_roster;
+  Mech k, p, v;
+  k.pilot = &kp, k.allies = allies, k.xf8 = xf8;
+  for (int i = 0; i < 6; ++i) k.x3f4[i] = counters[i];
+  p.pilot = &pp, p.team = player_team;
+  v.pilot = &vp;
+  s_info = info, s_vehicle = vehicle, s_building = building, s_game = game;
+  s_victim_mech = has_mech ? &v : nullptr;
+  World& w = world();
+  Mech* keep = w.mission_player;
+  w.mission_player = killer_is_player ? &k : &p;
+  DamageCalls& dc = damage_calls();
+  HeatCalls& hc = heat_calls();
+  const DamageCalls d0 = dc;
+  const HeatCalls h0 = hc;
+  dc.victim_view = [](Handle, int slot) -> Handle {
+    switch (slot) {
+      case 0x2c: return h(s_info);
+      case 0x50: return s_victim_mech;
+      case 0x40: return h(s_vehicle);
+      default: return h(s_building);
+    }
+  };
+  dc.controls_killed = [](Mech&, Handle o) { u32(0x21), u32(u(o)); };
+  dc.salvage_mech = [](Handle m) { u32(0x22), u32(m == s_victim_mech ? 1 : 0); };
+  dc.salvage_vehicle = [](Handle o) { u32(0x23), u32(u(o)); };
+  hc.game_type = [] { return static_cast<int>(s_game); };
+  k.on_kill(h(0x9999));
+  u32(0xf), u32(static_cast<uint32_t>(k.xf8));
+  for (int i = 0; i < 6; ++i) u32(k.x3f4[i]);
+  dc = d0, hc = h0;
+  w.mission_player = keep;
+  k.pilot = p.pilot = v.pilot = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"
