@@ -2340,3 +2340,11 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   the last mission. Continue?" warns about. Your own mech always comes back.
   Gear cut when a field base dies is lost on a win, returned on a failed or
   restarted mission (with the field bases).
+
+- **Losing all three field bases is not the worst case: it lifts the limit.**
+  The first base lost cuts what you carry to 70%, the second to 50% of what
+  is left (at most 300 tons and 2 mechs); the third cuts nothing. With no
+  base left the next briefing's room is 0, and the split treats a room of 0
+  as no limit at all: everything you take in the mech lab is kept. (The
+  count goes back to 3 only after Op 1 Mission 1 and Op 4 Mission 4.) Not
+  yet checked: how many field bases a mission gives you when the count is 0.
