@@ -9,6 +9,11 @@
 // anim_run_events, one handler per event type (zeff_anim_events.cpp).
 // 0x00508310..0x005090e0 sit between this file and zeff_anim_init.c and are
 // kept here.
+namespace zwep {
+struct WeaponDef;
+struct HitRecord;
+}  // namespace zwep
+
 namespace zeff {
 
 // A sequence (the reset one at def +0xc8, the others at +0xc4): +0x20 state
@@ -90,9 +95,10 @@ void anim_forget_nodes(AnimDef* def);                  // 0x00506b60: its object
 // node stopped, with `forget` its node pointers cleared. -1 for no node.
 int32_t anim_stop_using(const Node* node, int32_t keep_elapsed, int32_t forget);
 
-// The damage callbacks registered at load (zwep_damage). ECX def.
-float anim_on_collide(AnimDef* def, float damage);                       // 0x00502df0
-int32_t anim_on_weapon_hit(AnimDef* def, const void* hit, int32_t unknown, float damage);  // 0x00502e60
+// The damage callbacks registered at load (zweapon's set_touch_handler and
+// set_damage_handler), as a TouchFn and a DamageFn. ECX the def.
+float anim_on_collide(void* def, float damage);                       // 0x00502df0
+uint32_t anim_on_weapon_hit(void* def, zwep::WeaponDef* weapon, zwep::HitRecord* hit, float damage);  // 0x00502e60
 
 // Per-def lookups that add a ref when the name is missing (zeff_anim_init.c).
 int32_t anim_light_ref(AnimDef& def, const char* name);  // 0x00509400

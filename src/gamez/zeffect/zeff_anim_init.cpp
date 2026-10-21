@@ -14,7 +14,6 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_puff.h"
-#include "gamez/zweapon/zwep_damage.h"
 #include "gamez/zweapon/zweapon.h"
 #include "crt/msvc_rand.h"
 #include "gamez/zclass/cls_util.h"
@@ -505,14 +504,12 @@ int32_t anim_load() {
     std::snprintf(buf, sizeof buf, "_%s", d->name());
     zcls::node_set_name(d->object, buf);
     zcls::node_set_priority(d->object, d->raw[0x9a]);
-    if (d->raw[0x99] == 1) zwep::register_collide(d, d->root, reinterpret_cast<void*>(&anim_on_collide));
-    if (d->raw[0x99] == 0)
-      zwep::register_weapon_hit(d, d->root, (d->get<uint32_t>(0x94) >> 20) & 1,
-                                reinterpret_cast<void*>(&anim_on_weapon_hit));
+    const int32_t near = (d->get<uint32_t>(0x94) >> 20) & 1;
+    if (d->raw[0x99] == 1) zwep::set_touch_handler(d, d->root, &anim_on_collide);
+    if (d->raw[0x99] == 0) zwep::set_damage_handler(d, d->root, &anim_on_weapon_hit, near);
     if (d->raw[0x99] == 2) {
-      zwep::register_collide(d, d->root, reinterpret_cast<void*>(&anim_on_collide));
-      zwep::register_weapon_hit(d, d->root, (d->get<uint32_t>(0x94) >> 20) & 1,
-                                reinterpret_cast<void*>(&anim_on_weapon_hit));
+      zwep::set_touch_handler(d, d->root, &anim_on_collide);
+      zwep::set_damage_handler(d, d->root, &anim_on_weapon_hit, near);
     }
   }
   for (int32_t i = 1; i < a.def_count(); ++i) {

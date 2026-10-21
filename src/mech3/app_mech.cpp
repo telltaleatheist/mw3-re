@@ -309,7 +309,7 @@ std::string sound_name(const void* s) {
 Sound pilot_play(Mech& m, int id, float volume, const Vec3* at) {
   if (!m.pilot) return nullptr;
   note_part("pilot", sound_name(m.pilot->sounds[id]));
-  return pilot_sound(*m.pilot, id, volume, at ? &at->x : nullptr, nullptr);
+  return pilot_sound(m.pilot->sounds, id, volume, at ? &at->x : nullptr, nullptr);
 }
 
 // The parts' outside calls in the game (PartCalls, mech_parts.h; the parts'

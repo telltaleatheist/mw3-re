@@ -48,7 +48,6 @@
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
-#include "gamez/zweapon/zwep_damage.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zweapon/zweapon.h"
@@ -429,13 +428,14 @@ WiredValveHooks g_valve_hooks;
 
 // targets.zrd's objects (mech3/zai_target) on what the program has: the
 // reader's files, zClass's walk of list 6, zEffect's animations, zWeapon's
-// damage records; zEntity3d, the radar's node map and the HUD's markers are
-// not ported (logged). zWeapon's hit code is not ported either, so nothing
-// calls the callbacks yet.
-int32_t target_weapon_hit(void* owner, const void* hit, int32_t, float damage) {
-  return static_cast<int32_t>(static_cast<ai::CZAiTarget*>(owner)->on_hit(0, 0, damage)) + (hit ? 0 : 0);
+// handler tables; zEntity3d, the radar's node map and the HUD's markers are
+// not ported (logged). The handlers as zWeapon calls them (0x004d26b0,
+// 0x004d26d0).
+uint32_t target_weapon_hit(zwep::Handle owner, zwep::WeaponDef* def, zwep::HitRecord* hit, float damage) {
+  (void)def, (void)hit;  // read by nothing in 0x004d2c00
+  return static_cast<ai::CZAiTarget*>(owner)->on_hit(0, 0, damage);
 }
-float target_collide(void* owner, float damage) { return static_cast<ai::CZAiTarget*>(owner)->on_collide(damage); }
+float target_collide(zwep::Handle owner, float damage) { return static_cast<ai::CZAiTarget*>(owner)->on_collide(damage); }
 
 struct WiredTargetHooks : ai::TargetHooks {
   GameEngine* e = nullptr;
@@ -519,40 +519,45 @@ struct WiredTargetHooks : ai::TargetHooks {
   void anim_run(Handle a) override {
     if (zeff::AnimDef* d = def(a)) zeff::anim_start(d, nullptr, 0, 0, 0);
   }
-  // zWeapon's records: the callbacks as the exe's addresses for the checks.
-  Handle node_handlers(Handle n) override { return node(n) ? e->handle_of(zwep::record_of(node(n))) : 0; }
+  // zWeapon's handler tables (zweapon.h): the callbacks as the exe's
+  // addresses for the checks.
+  void remove_handlers(Handle n) override { zwep::remove_handlers(node(n)); }  // 0x00583400
+  void hit_killed() override { zwep::note_kill(reinterpret_cast<zwep::Handle>(1), nullptr); }  // 0x00583710
+  void hit_health(float fraction) override { zwep::set_health_after(fraction); }              // 0x00583730
+  Handle node_handlers(Handle n) override { return node(n) ? e->handle_of(zwep::handlers_of(node(n))) : 0; }
   uint32_t handler_word(Handle t, int32_t i) override {
-    auto* r = static_cast<zwep::DamageRecord*>(e->object_of(t));
+    auto* r = static_cast<zwep::NodeHandlers*>(e->object_of(t));
     if (!r) return 0;
-    const zwep::DamageRecord::Slot& s = r->slot[i / 2];
-    if (i % 2 == 0) return e->handle_of(s.owner);
-    if (!s.callback) return 0;
-    if (s.callback == reinterpret_cast<void*>(&zeff::anim_on_weapon_hit)) return 0x502e60;
-    if (s.callback == reinterpret_cast<void*>(&zeff::anim_on_collide)) return 0x502df0;
-    if (s.callback == reinterpret_cast<void*>(&target_weapon_hit)) return 0x4d26b0;
-    if (s.callback == reinterpret_cast<void*>(&target_collide)) return 0x4d26d0;
-    return e->handle_of(s.callback);
+    const zwep::NodeHandlers::Slot& s = r->slot[i / 2];
+    if (i % 2 == 0) return e->handle_of(s.object);
+    if (!s.fn) return 0;
+    if (s.fn == reinterpret_cast<void (*)()>(&zeff::anim_on_weapon_hit)) return 0x502e60;
+    if (s.fn == reinterpret_cast<void (*)()>(&zeff::anim_on_collide)) return 0x502df0;
+    if (s.fn == reinterpret_cast<void (*)()>(&target_weapon_hit)) return 0x4d26b0;
+    if (s.fn == reinterpret_cast<void (*)()>(&target_collide)) return 0x4d26d0;
+    return e->handle_of(reinterpret_cast<void*>(s.fn));
   }
-  static void* callback_of(uint32_t v) {
-    if (v == 0x4d26b0) return reinterpret_cast<void*>(&target_weapon_hit);
-    if (v == 0x4d26d0) return reinterpret_cast<void*>(&target_collide);
+  static void (*callback_of(uint32_t v))() {
+    if (v == 0x4d26b0) return reinterpret_cast<void (*)()>(&target_weapon_hit);
+    if (v == 0x4d26d0) return reinterpret_cast<void (*)()>(&target_collide);
     return nullptr;
   }
   void set_handler_word(Handle t, int32_t i, uint32_t v) override {
-    auto* r = static_cast<zwep::DamageRecord*>(e->object_of(t));
+    auto* r = static_cast<zwep::NodeHandlers*>(e->object_of(t));
     if (!r) return;
-    if (i % 2 == 0) r->slot[i / 2].owner = e->object_of(v);
-    else r->slot[i / 2].callback = callback_of(v);
+    if (i % 2 == 0) r->slot[i / 2].object = e->object_of(v);
+    else r->slot[i / 2].fn = callback_of(v);
   }
   uint32_t handlers_own(Handle n) override {
     zcls::Node* nd = node(n);
-    return nd && zwep::record_of(nd) ? static_cast<uint32_t>(zwep::owns_record(nd, zwep::record_of(nd))) : 0;
+    const uintptr_t h = nd ? reinterpret_cast<uintptr_t>(zwep::handlers_of(nd)) : 0;
+    return h && zwep::handler_owned(nd, h) ? 1u : 0u;
   }
-  int32_t set_weapon_handler(Handle self, Handle n, uint32_t fn) override {
-    return zwep::register_weapon_hit(e->object_of(self), node(n), 1, callback_of(fn));
+  int32_t set_weapon_handler(Handle self, Handle n, uint32_t fn) override {  // 0x005833b0(.., 1, fn)
+    return zwep::set_damage_handler(e->object_of(self), node(n), reinterpret_cast<zwep::DamageFn>(callback_of(fn)), 1);
   }
-  int32_t set_collide_handler(Handle self, Handle n, uint32_t fn) override {
-    return zwep::register_collide(e->object_of(self), node(n), callback_of(fn));
+  int32_t set_collide_handler(Handle self, Handle n, uint32_t fn) override {  // 0x005833f0
+    return zwep::set_touch_handler(e->object_of(self), node(n), reinterpret_cast<zwep::TouchFn>(callback_of(fn)));
   }
   void valve_set(void* valve, int32_t v) override {
     if (valve) static_cast<ai::Valve*>(valve)->set(v);

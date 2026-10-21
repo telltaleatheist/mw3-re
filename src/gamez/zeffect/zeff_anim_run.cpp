@@ -19,7 +19,6 @@
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_puff.h"
 #include "gamez/zutil/ztimer.h"
-#include "gamez/zweapon/zwep_damage.h"
 #include "gamez/zweapon/zweapon.h"
 
 namespace zeff {
@@ -754,7 +753,8 @@ int32_t anim_stop_using(const Node* node, int32_t keep_elapsed, int32_t forget) 
 // Mech3.exe 1.2 @ 0x00502df0. Damage over the threshold (+0xb4) comes off
 // the health; at 0 or below (also with no damage done, so a def with health
 // 0 fires on any hit) the anim starts. Returns the health.
-float anim_on_collide(AnimDef* def, float damage) {
+float anim_on_collide(zwep::Handle object, float damage) {
+  AnimDef* def = static_cast<AnimDef*>(object);
   if (def->raw[0x99] == 1 || def->raw[0x99] == 2) {
     const float d = damage - fld(def, 0xb4);
     if (!not_above(d, 0.0f)) fld(def, 0xb0) = fld(def, 0xb0) - d;
@@ -769,10 +769,9 @@ float anim_on_collide(AnimDef* def, float damage) {
 // Mech3.exe 1.2 @ 0x00502e60. ECX def, EDX the hit (its +0x6c flag 0x400
 // ignores it). A kill tells the weapon code (0x00583710); otherwise it gets
 // the health left as a fraction (0x00583730).
-int32_t anim_on_weapon_hit(AnimDef* def, const void* hit, int32_t, float damage) {
-  uint32_t hf;
-  std::memcpy(&hf, static_cast<const uint8_t*>(hit) + 0x6c, 4);
-  if (hf & 0x400) return 0;
+uint32_t anim_on_weapon_hit(zwep::Handle object, zwep::WeaponDef* weapon, zwep::HitRecord*, float damage) {
+  AnimDef* def = static_cast<AnimDef*>(object);
+  if (weapon->flags & zwep::kFreeze) return 0;  // +0x6c 0x400: FREEZE weapons leave animations alone
   if (def->raw[0x99] != 0 && def->raw[0x99] != 2) return 0;
   const float d = damage - fld(def, 0xb4);
   if (!not_above(d, 0.0f)) fld(def, 0xb0) = fld(def, 0xb0) - d;

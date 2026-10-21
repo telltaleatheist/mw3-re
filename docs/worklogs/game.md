@@ -769,3 +769,21 @@ view's ground, the anim lookups 0x50b450 (92).
   is ignored in set_map.
 - test_deaths: fade (200) and marks (300) added: 3,153 identical; BREAK=9
   (map), 10 (IA) fail.
+
+## 2026-10-21: mac 1's next order (one at a time)
+
+1. Merge the two ports of the 0x005833f0 handler table, callers on one.
+2. The Mech destructor and its parts', mechs freed at mission cleanup; the
+   campaign loop test checks no leak.
+3. Re-run MW3_SURVEY on c1m1; the top non-AI, non-GPU item.
+
+- Item 1: zwep_damage.{h,cpp} deleted. zweapon.cpp's tables (0x00583220..
+  0x00583440) are the one port: with no run hooks they work on zClass
+  nodes (+0xbc damage, parents, children; the proximity flag through
+  node_set_proximity), so zEffect's post-load and the AI targets register
+  through set_damage_handler / set_touch_handler. zeff's callbacks now have
+  zWeapon's DamageFn / TouchFn signatures; anim_on_weapon_hit read the
+  weapon's flags as raw bytes at +0x6c of the port's WeaponDef (a wrong
+  read on the port's struct): now weapon->flags & kFreeze. The AI targets'
+  hit_killed / hit_health / remove_handlers hooks wired (0x00583710,
+  0x00583730, 0x00583400; they were logged as unported).
