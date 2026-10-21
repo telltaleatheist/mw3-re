@@ -8,15 +8,20 @@
 #include <cstdio>
 #include <vector>
 
+#include "gamez/zreader/zreader.h"
+#include "gamez/zsound/zsnd.h"
 #include "gamez/ztwod/twod.h"
+#include "gamez/ztwod/twod_host.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_states.h"
+#include "mech3/briefing.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
+#include "mech3/mission.h"
 #include "mech3/options_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
@@ -106,6 +111,14 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kTraining, h); });
     case 0x49c900:
       return state([](Handle h) -> MenuState* { return new GameMenuState(GameMenuState::kMultiplayer, h); });
+    case 0x405230: {  // the briefing, new(0x12e6c): its section's name
+      const char* name = args.size() && args.begin()->s ? args.begin()->s : "default";
+      const Handle h = alloc_block(0x12e6c);
+      auto* b = new BriefingScreen(*this, name);
+      screens_[h] = {b, 0x12e6c};
+      briefing_screen() = b;
+      return h;
+    }
     default:
       return Engine::construct(ctor, args);
   }
@@ -291,5 +304,108 @@ void wire_pilot_hooks(GameEngine* e) {
 uint32_t GameEngine::message_box1(int32_t a, int32_t caption, int32_t text, const char* s) {
   return message_box3(a, caption, text, s, "", "");
 }
+
+// ---- the briefing (mech3/briefing, campaign.md section 7, item 5) ----
+
+bool launch_player();  // 0x00491150 (mech3/mission_launch.h, whose mech headers clash with pilot.h)
+
+namespace {
+BriefingScreen* briefing_of(const GameEngine& e, Handle s) { return dynamic_cast<BriefingScreen*>(e.screen_of(s)); }
+
+// 0x00435350 (a campaign's vt+0x54): the mission directory, c4b past Op 4 Mission 3.
+int32_t campaign_dir(const CampaignGame& c) {
+  switch (c.operation()) {
+    case 1: return 0;
+    case 2: return 1;
+    case 3: return 2;
+    case 4: return (3 < c.mission_number()) + 3;
+    default: return -1;
+  }
+}
+}  // namespace
+
+// The Load state from the menus: its game is the chosen pilot's (the
+// launch's stand-in filled from it; a debug start keeps its own). Only a
+// campaign's and training's missions for now.
+void GameEngine::load_state_enter() {
+  if (launch_.active && launch_.auto_launch) return;
+  Pilot* p = current_pilot();
+  Game* g = p ? p->current : nullptr;
+  if (!g) return;
+  Launch l;
+  l.auto_launch = false;
+  l.type = g->type();
+  if (auto* c = dynamic_cast<CampaignGame*>(g)) {
+    l.number = c->mission_number();
+    l.index = campaign_dir(*c);
+  } else if (auto* t = dynamic_cast<TrainingGame*>(g)) {
+    l.number = t->mission;
+    l.index = 5;  // t1
+  } else {
+    unported("the Load state of this game", {l.type});
+    return;
+  }
+  l.mech = g->slot.mech;
+  l.config = g->slot.config ? handle_of(g->slot.config) : 0;
+  set_launch(l);
+}
+
+void GameEngine::briefing_script_start(Handle s) {
+  if (BriefingScreen* b = briefing_of(*this, s)) b->script.start();
+  else Engine::briefing_script_start(s);
+}
+
+// Mech3.exe 1.2 @ 0x00409ec0 / 0x00409eb0: no cursor while built, then the screen's own.
+void GameEngine::briefing_init(Handle s) {
+  if (BriefingScreen* b = briefing_of(*this, s)) b->set_cursor(nullptr);
+  else Engine::briefing_init(s);
+}
+void GameEngine::briefing_start(Handle s) {
+  if (BriefingScreen* b = briefing_of(*this, s)) b->set_cursor(&b->cursor_obj);
+  else Engine::briefing_start(s);
+}
+
+// 0x00405160 stood in for: the briefing's MAP image (images\maps) as the
+// dialog's first image, at the origin behind the rest. The mission's map
+// object it also makes (0x004582a0 into [0x006098d0]+0xbc, the waypoints'
+// and the radar's) is not ported.
+void GameEngine::briefing_map_image(ztwod::Dialog* d, zrdr::Node* section) {
+  ztwod::Host& h = ztwod::host();
+  h.image_path("..\\data\\common\\images\\maps");
+  const char* name = zrdr::get_string(section, "MAP");
+  zimg::Texture* t = name ? h.image_get(name) : nullptr;
+  if (!d || !t) return;
+  ztwod::Image& im = d->images[0];
+  d->add(&im);
+  im.show_for(-1.0f);
+  im.set_pos(0, 0);
+  im.set_image(t);
+  im.flags = ztwod::kManaged | (im.flags & ztwod::kHidden);  // 0x00409ac0(2)
+  im.dirty();
+}
+
+void program_briefing_progress(float f) {
+  if (BriefingScreen* b = briefing_screen()) b->progress(f);
+}
+void program_briefing_line(const char* s) {
+  if (BriefingScreen* b = briefing_screen()) b->log(s);
+}
+
+bool GameEngine::missions_loaded() { return missions().finished(); }
+bool GameEngine::mission_launch() { return launch_player(); }
+void GameEngine::mission_cleanup(int32_t unload) { missions().cleanup(unload != 0); }
+void GameEngine::replace_state(int32_t n) { app().replace(app().state(n), 0); }
+
+Handle GameEngine::voice_play(Handle s, float v) {
+  auto* o = static_cast<zsnd::Object*>(object_of(s));
+  return o ? handle_of(zsnd::play(o, v)) : 0;
+}
+int32_t GameEngine::voice_status(Handle v) { return zsnd::status(static_cast<zsnd::VoiceBase*>(object_of(v))); }
+void GameEngine::sound_cue_briefing(Handle s) {
+  if (auto* o = static_cast<zsnd::Object*>(object_of(s)))
+    zsnd::set_cue_fn(o, [](uint32_t marker, zsnd::Sound*) { briefing_cue(static_cast<int32_t>(marker)); });
+}
+uint8_t GameEngine::app_flag_1ba() { return app().byte_at(0x1ba); }
+Handle GameEngine::mission_navs() { return missions().stations; }
 
 }  // namespace mech3

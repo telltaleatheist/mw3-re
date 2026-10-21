@@ -38,8 +38,18 @@ engine start (the `zXxxInit: PASSED` lines), the Intro state (movies hooked,
 so it moves on at once), then the Main state and its main menu (ported,
 mainmenu.md: the background, the buttons and their ripples' state, the
 logo, the hotkeys; the ripple's zRender drawing 0x00558dd0 is a hook, so no
-ring shows). Its buttons reach the menus they open, which are hooks, so
-only Quit (its question, then the Exit state) does something.
+ring shows). Its buttons reach the menus they open.
+
+**A campaign from the menus** (campaign.md section 7, item 5): NEW CAMPAIGN
+opens the pilot screen (type a name, Enter, ACCEPT); the Load state then
+builds the ported briefing (brief_c11: the voice, its map, the buttons) and
+loads the mission (at once: FIX (A), mission-load.md); LAUNCH (or L) builds
+the pilot's mech with its own loadout and goes on to the Core state, c1
+mission 1. The Load state's game is the chosen pilot's campaign (or training)
+game, through the launch's stand-in (`GameEngine::load_state_enter`); its
+briefing's other buttons (Mech Lab, Salvage, the reallocation list) and the
+map's background picture's mission map object are hooks. `build/mw3 -nofmv`
+from the repo root after a build; `--window 1280x960` is the default.
 
 ## Debug starts (our addition)
 
@@ -105,6 +115,7 @@ Hooks wired to ports by `mech3::GameEngine` (`src/mech3/app_engine`):
 | zTwoD's outside calls (`ztwod::Host`) | `SdlTwodHost` (below) |
 | the settings store 0x00598210, 0x00597d80, the loader 0x0040c420, the save 0x0040cb20 and the store's free 0x00598270 (the app's destructor 0x0047fab0, `Mech3App::destroy`) | `zreg`, `mech3::load_options` (settings.md); the registry is the write dir's `settings.reg` (`platform::RegFile`) |
 | the mission load 0x00490880, 0x00490ab0, 0x0048faf0 (and 0x004902a0, 0x00490630, 0x00484c50) | `mech3::Missions` (mission-load.md); its hooks in `app_mission.cpp`: zInterp, the options, zImage, zClass's and zModel's resets, node lookups, animations, world.zrd, the readers, sounds; the view's camera run is the scene walk |
+| the briefing screen 0x00405230 (the Load state's) and its calls: the load's fraction and lines 0x004050d0 / 0x00405120, the script's start, its cursor 0x00409ec0 / 0x00409eb0, the voice's play, state and cue markers, LAUNCH's 0x00491150, the cleanup 0x00491780, Replace, the nav points [0x00609980]; 0x00405160's MAP image stood in for (the image only) | `mech3::BriefingScreen` (campaign.md section 2) in `app_menus.cpp`; the pilot's game into the launch's stand-in (`load_state_enter`), its loadout the slot's |
 | the save after a mission 0x00478f10 (the Win State's, the launch's) | `mech3::Pilot::record_mission` on the pilot the pilot screen chose (`program_record_mission`; a debug start's stand-in is logged); the pilot module's message box is the engine's (`wire_pilot_hooks`), zSave's world save 0x005a8a70 logged (campaign.md) |
 | the sensors 0x004a8cd0 (each Core frame) and the entity sort 0x004d5ca0 (the mission start's resume 7) | `mech3/sensors` (ai.md section 15) over `app_sensors.cpp`: zEntity's list is the port's, the mechs put on it by the build's 0x005a7f50; the Core state's mission-start fade (0x0048ee70) runs the ported fade state, whose end gives resume(7) |
 | the fade state's screen calls: the grab 0x00579500, the draw 0x0055b1f0, the free 0x00517cc0; the colour 0x00558540 | `GameEngine` (`app_engine.cpp`): the still is a copy of the 16-bit buffer, drawn back whole (FIX (A)); the colour is the port (`zrndr::tint`) |

@@ -479,3 +479,22 @@ logged), 0x00579880, the 2D circle 0x005630c0 and line 0x00562940; dump kind
 'B' (base only) added to test_twod.py and probe_twod.h; synthetic objects
 of every kind, a synthetic brief_zz with fixed cases (a skipped point mid-line, a label with no message, a circle under the mouse, a text with no AT). 40/40. Breaks: scratch/briefing/
 breaks4.py, 25/27: the triangle's erase (no background is ever set) and the line's per-frame dirty (redrawn anyway) cannot show.
+
+## 2026-10-21 Campaign item 5: the program to c1m1 (branch mac3/campaign-program, off mac3/briefing-map a80d985)
+
+GameEngine (app_menus.cpp): construct(0x405230) makes the ported
+BriefingScreen (briefing_screen() set); load_state_enter (our hook, the Load
+state's enter) fills the launch stand-in from current_pilot()'s game
+(campaign: number, dir 0x00435350, slot mech + its Config handle; training:
+t1); Launch gained auto_launch (debug starts only) and config (vcall 0x34's
++8). briefing_script_start replaces the Load state's pokes (Engine default
+keeps them); briefing_init/start set the cursor; 0x00405160 stood in (MAP
+image only); missions_loaded/mission_launch/mission_cleanup/replace_state/
+voice_play/voice_status/sound_cue_briefing/app_flag_1ba/mission_navs wired;
+the load's progress and lines go to the briefing (program_briefing_progress/
+line, free functions: app_mission.cpp cannot include briefing.h, mech.h's
+Pilot clashes). Program check: test_program campaign_menus_to_c1m1_through_
+the_briefing_headless (NEW CAMPAIGN, pilot "Recruit": the pilots list stays
+between tests, so "Ace" from the start test had c1m2 newest; ACCEPT, the
+briefing loaded with its script and map, LAUNCH enabled and MECHLAB grey,
+LAUNCH, 30 Core frames, the mech built). Owen's try: build/mw3 -nofmv.

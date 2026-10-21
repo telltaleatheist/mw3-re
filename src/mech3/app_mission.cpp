@@ -569,10 +569,12 @@ struct WiredMissionHooks : MissionHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
-  // The loading screen is the briefing's (not ported): its lines go to the log.
-  void progress(float) override {}
+  // The loading screen is the briefing's ([0x005f4c80]: 0x004050d0, 0x00405120);
+  // its lines also go to the log.
+  void progress(float f) override { program_briefing_progress(f); }
   void progress_text(const char* s) override {
-    if (s && *s) std::printf("mw3: load: %s\n", s);
+    program_briefing_line(s);
+    if (s && *s && !e->quiet) std::printf("mw3: load: %s\n", s);
   }
   int32_t game_mission_index() override { return e->launch().index; }
   int32_t game_type() override { return e->launch().type; }
@@ -951,7 +953,7 @@ void GameEngine::missions_start(uint32_t list) {
     zcls::camera_set_rotation(cam, -launch_.pitch, launch_.yaw + 3.14159265f, 0.0f);
     zcls::camera_set_position(cam, launch_.eye[0], launch_.eye[1], launch_.eye[2]);
   }
-  if (launch_.active && !m.failed) {
+  if (launch_.active && launch_.auto_launch && !m.failed) {
     // The briefing's Launch (0x0040500a): the player's mech (0x00491150).
     LaunchedMech s;
     if (!launch_player() || !launched_mech(&s)) {
@@ -1065,9 +1067,10 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
         if (!slot_) {
           slot_ = alloc_block(0x20);
           poke32(slot_ + 4, static_cast<uint32_t>(launch_.mech));
-          poke32(slot_ + 8, debug_slot_config(launch_.mech, this, [](void* p, const void* o) {
-            return static_cast<GameEngine*>(p)->handle_of(const_cast<void*>(o));
-          }));
+          poke32(slot_ + 8, launch_.config ? launch_.config
+                                           : debug_slot_config(launch_.mech, this, [](void* p, const void* o) {
+                                               return static_cast<GameEngine*>(p)->handle_of(const_cast<void*>(o));
+                                             }));
           poke32(slot_ + 0x10, 0);
         }
         return slot_;
