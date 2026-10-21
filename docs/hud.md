@@ -319,8 +319,14 @@ the set-up reads: item 1a's test).
 - The zoom views' drawing and camera work, with the render work: the zView
   and window creation (0x004b5150, 0x004b5440) and the camera setters stay
   recorded hooks until then (lead, 2026-10-20).
-- The nav list 0x0047e840 (its own 0x2fb8-byte object, mech3's mission
-  side) stays a recorded hook.
+- (Done) What this doc calls "the nav list" (0x0047e840, 0x2fb8 bytes) is
+  the armor display the debriefing's lance cards use: eleven armor bars with
+  H/T/A/L labels (campaign.md section 3, `LanceDisplay` in
+  armor_display.h / debriefing.cpp). The HUD keeps its hooks (test_hud.py
+  records them); the program's (app_hud.cpp) build, place (0x0047eb60),
+  lay out (0x0047eba0, from the player's mech), fill (0x0047ef10, the
+  target's) and update the ported display; mw3tests'
+  `mission_c1m1_hud_weapon_lines_and_lock_headless` checks it is laid out.
 - The paths with a target or a mech: TARGET's 0x00441800 / 0x00441780 /
   0x00441660 with a target, the radar's zoom sound (0x0043da50 with a
   source, 0x0043da00), the weapon line's refresh 0x00445dc0 with a weapon,

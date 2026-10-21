@@ -116,7 +116,7 @@ bool LanceCard::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
     zrdr::get_int(h, "height", &height);
     zrdr::get_int(h, "width", &width);
     zrdr::get_int(h, "space", &space);
-    display = std::make_unique<LanceDisplay>(e_, pos[0], pos[1], height, width, space);
+    display = std::make_unique<LanceDisplay>([this](int32_t id) { return e_.message(id); }, pos[0], pos[1], height, width, space);
   }
   return r;
 }
@@ -226,14 +226,24 @@ void LanceDisplay::Bar::update(float dt) {
 }
 
 // Mech3.exe 1.2 @ 0x0047e840
-LanceDisplay::LanceDisplay(Engine& e, int32_t x0, int32_t y0, int32_t h, int32_t w, int32_t sp)
+LanceDisplay::LanceDisplay(const std::function<const char*(int32_t)>& message, int32_t x0, int32_t y0, int32_t h,
+                           int32_t w, int32_t sp)
     : Line2D(0, 0, 0, 0, 0), height(h), width(w), space(sp) {
   px = x0;
   py = y0;
   const Handle font = ztwod::host().font_find("hud_htal");
   for (ztwod::FontText& l : labels) l.set_font(font);
-  for (int i = 0; i < 4; ++i) labels[i].set_text_plain(e.message(0xf3b + i));  // H, T, A, L
+  for (int i = 0; i < 4; ++i) labels[i].set_text_plain(message(0xf3b + i));  // H, T, A, L
   line.color = zvid::pack_bytes(1, 0xa2, 0x1f);
+}
+
+// Mech3.exe 1.2 @ 0x0047eb60
+void LanceDisplay::place(int32_t x, int32_t y, int32_t h, int32_t w, int32_t sp) {
+  px = x;
+  py = y;
+  height = h;
+  width = w;
+  space = sp;
 }
 
 // Mech3.exe 1.2 @ 0x0047f0e0
@@ -246,7 +256,7 @@ void LanceDisplay::update(float dt) {
 // Mech3.exe 1.2 @ 0x0047eba0: the bars side by side: the head, the torso's
 // six (front and rear of each side and the centre; half wide), the arms,
 // the legs, scaled to the most armor any vehicle shown had.
-void LanceDisplay::layout(const Engine::LanceArmor& a) {
+void LanceDisplay::layout(const LanceArmor& a) {
   int32_t x = px;
   const int32_t y = py;
   const int32_t label_y = y - labels[0].text_height();
@@ -293,7 +303,7 @@ void LanceDisplay::layout(const Engine::LanceArmor& a) {
 }
 
 // Mech3.exe 1.2 @ 0x0047ef10: each bar's standing armor.
-void LanceDisplay::fill(const Engine::LanceArmor& a) {
+void LanceDisplay::fill(const LanceArmor& a) {
   for (int i = 0; i < 11; ++i) bars[i].fill(a.left[i]);
 }
 

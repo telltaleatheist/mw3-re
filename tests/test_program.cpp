@@ -2327,6 +2327,9 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     EXPECT(seen.first[1] > 0 && seen.first[2] > seen.first[1] && seen.first[3] > seen.first[2]);
     // 0.6 s waiting, on the fake clock's 1/60 s frames: about 36 frames from 2 to 3
     EXPECT(seen.first[3] - seen.waiting >= 33 && seen.first[3] - seen.waiting <= 39);
+    // The MFD's armor display (mode 3, the ported LanceDisplay): laid out for
+    // the player's mech when the HUD was given it (0x004423c0 → 0x0047eba0).
+    EXPECT(seen.gauges.mfd_armor_most > 0 && seen.gauges.mfd_armor_w > 0);
     EXPECT(seen.radar_frames == 9 && seen.blips_asleep == 0 && seen.blip_frames >= 8);
     EXPECT(std::abs(seen.blip_d - seen.blip_want) <= 1.5f && seen.blip_off <= 1);  // straight ahead
     EXPECT(seen.blips_locked == 0);

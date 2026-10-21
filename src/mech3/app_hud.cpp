@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <memory>
+#include <map>
 
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_data.h"
@@ -20,6 +22,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "mech3/mech_config.h"
 #include "mech3/app_mech.h"
+#include "mech3/armor_display.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech.h"
@@ -301,6 +304,42 @@ struct ProgramHudHooks : HudHooks {
     return formatted.c_str();
   }
   std::string formatted;
+  // The MFD's and TARGET's armor display (mode 3): the ported LanceDisplay
+  // (debriefing.cpp, 0x0047e840..0x0047f140), by a handle of ours.
+  std::map<uint32_t, std::unique_ptr<LanceDisplay>> navs;
+  uint32_t next_nav = 0x4e000000;
+  LanceDisplay* nav_of(uint32_t h) {
+    auto f = navs.find(h);
+    return f == navs.end() ? nullptr : f->second.get();
+  }
+  uint32_t nav_list_new(int32_t x, int32_t y, int32_t h, int32_t w, int32_t sp) override {
+    const uint32_t id = next_nav += 0x10;
+    navs[id] = std::make_unique<LanceDisplay>([this](int32_t m) { return message(m); }, x, y, h, w, sp);
+    return id;
+  }
+  void nav_list_place(uint32_t nav, int32_t x, int32_t y, int32_t h, int32_t w, int32_t sp) override {
+    if (LanceDisplay* d = nav_of(nav)) d->place(x, y, h, w, sp);  // 0x0047eb60
+  }
+  static bool armor_of(void* m, LanceArmor* a) {
+    return m && mech_lance_armor(m, &a->type, a->armor, a->left);
+  }
+  void nav_list_attach(uint32_t nav, Mech* m) override {  // 0x0047eba0
+    LanceArmor a;
+    if (LanceDisplay* d = nav_of(nav); d && armor_of(m, &a)) d->layout(a);
+  }
+  void nav_list_target(uint32_t nav, void* m) override {  // 0x0047ef10
+    LanceArmor a;
+    if (LanceDisplay* d = nav_of(nav); d && armor_of(m, &a)) d->fill(a);
+  }
+  void nav_list_update(uint32_t nav, float dt) override {
+    if (LanceDisplay* d = nav_of(nav)) d->update(dt);
+  }
+  const ztwod::Rect* nav_rect(uint32_t nav) override {  // +0x1c84
+    static ztwod::Rect r;
+    const LanceDisplay* d = nav_of(nav);
+    r = d ? ztwod::Rect{d->left, d->top, d->right, d->bottom} : ztwod::Rect{};
+    return &r;
+  }
   // The aimed node's game object (0x0040e920, app_weapons.cpp's node_entity)
   // and its +8 byte, ZEntity's active flag: a mech's; any other object's is
   // not ported (logged, read as 0). The node's +0xbc is its damage
@@ -386,6 +425,10 @@ bool program_hud_report(HudReport* r) {
     ++r->lines;
     auto* w = static_cast<Weapon*>(line.weapon);
     if (w && w->def && w->def->desc && std::strcmp(line.name.text, w->def->desc) == 0) ++r->named;
+  }
+  if (const LanceDisplay* d = g_hooks.nav_of(h->mfd.nav)) {
+    r->mfd_armor_most = d->most;
+    r->mfd_armor_w = d->right - d->left;
   }
   r->bracketed = !(h->weapons.poly.flags & ztwod::kHidden);
   r->lock = h->reticle.lock;
