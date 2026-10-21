@@ -71,6 +71,7 @@ class GameEngine : public Engine {
   void missions_reset(uint32_t list) override;   // 0x00490720: only the mission number is kept
   void sensors_update() override;                // 0x004a8cd0: mech3::ai::sensors_update
   void entities_sort() override;                 // 0x004d5ca0: mech3::ai::entities_sort
+  void ai_on() override;                         // 0x004ea740: mech3::ai::ai_switch_on
   // Core's resume(7) on the pilot's mech: the HUD's fall flag, then the
   // power-up (the spawn left it powered down).
   void mech_set_mode_a(Handle mech, int32_t a) override;  // 0x0041ca30

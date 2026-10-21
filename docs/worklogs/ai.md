@@ -47,3 +47,20 @@ Newest last. One short entry per item: what, commits, what to remember.
   value; the brain's vbase (+0xe0) table for the owner lookup.
 - Quirk: the health floor bit clears the first time the pilot is found
   above it (fixes.md candidate).
+
+## 2026-10-20 Item 4: the brain's frame (mac4/brain-frame)
+
+- Ported 0x4e9710 (Brain::frame), 0x4e96f0 (AiControls::update with
+  BrainControls), 0x428490 (MechControls::stop), 0x41ba40 (Mech::health in
+  mac 2's mech_damage.cpp), the AI switch 0x4ea740 / 0x4ea750. The
+  front end's Engine hook `classes_reset` was 0x4ea740: renamed ai_on.
+- Program: WiredBrainHooks (app_mission) over void* helpers in app_mech
+  (mech_health, mech_powered_down, mech_ai_target, mech_ammo_value,
+  mech_world_position): app_mission must not include mech.h (Handle
+  types differ).
+- The later items' calls are BrainHooks recorded by the engine; the
+  headless test counts them to show the frame runs each tick.
+- Quirks: the attack ignores the picked enemy (candidate); a NaN attack
+  range without a vehicle crashes the exe (FIX (bug)).
+- Tests: test_ai_frame.py (on test_ai_gates.Original), test_mech_health.py
+  (on test_damage's mechs, probe_damage op 6).

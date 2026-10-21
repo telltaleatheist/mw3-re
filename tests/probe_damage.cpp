@@ -407,6 +407,15 @@ int probe_damage_op(int op, const int32_t* a, int32_t* result, int32_t* out, int
     case 3: r = m.start_limp(a[0], a[1] != 0); break;
     case 4: r = m.knocked_down(a[0]); break;
     case 5: r = m.torso->hit_section(world().shot); break;
+    case 6: {  // the health 0x0041ba40 (test_mech_health.py): +0x40c and +0x410 given
+      std::memcpy(&m.x40c, &a[0], 4);
+      m.damaged = a[1] != 0;
+      const float hv = m.health();
+      std::memcpy(&r, &hv, 4);
+      out[0] = m.damaged;
+      *result = r;
+      return 1;
+    }
     default: break;
   }
   *result = r;

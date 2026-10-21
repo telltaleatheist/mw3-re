@@ -1231,7 +1231,7 @@ state's (the mech's 0x4b6370 swaps +0x138, 0x4b6350 returns 0), +0x20 to
   awake = true
   +0x88 == 0: target = the nearest enemy contact 0x4d6b90(1) when +0x8c == 0,
               else the owner's +0x98 (its attacker's contact, section 15)
-              awake = target and target distance (+0x0c) < the sight range +0x1c
+              with a target: awake = its distance (+0x0c) < the sight range +0x1c (no target: awake)
   awake:
     [0x6099c0] += 1 (a count of awake pilots this frame; Mech::Update counts too)
     a radio, a weapon manager (owner +0xd4) and its ammo value 0x4b4ed0 under 0.25:
@@ -1242,7 +1242,8 @@ state's (the mech's 0x4b6370 swaps +0x138, 0x4b6350 returns 0), +0x20 to
       reset (0x4e9590 -> 0x4b6700), vt+0x1c(IControls +0x0c), 0x4e96b0
     the current order's net may engage (net vt+0x54) and its state (vt+0x04),
       and 0x4e8f10 allows it (17.3):
-        target = the owner's +0x6c, else the nearest enemy; its vehicle (contact
+        target = the owner's +0x6c, else the nearest enemy only when none was picked yet
+        this frame (one the sight check picked is not used); its vehicle (contact
         +0x04 vt+0x2c, vt+0x40) and distance; under the attack range +0x20:
           the target vehicle's own net (vt+0xd8) and its attack behaviour
           (0x4c0e10): attack (0x4e9ca0), +0x230 = owner vt+0x98 - +0xb4,
@@ -1259,6 +1260,54 @@ state's (the mech's 0x4b6370 swaps +0x138, 0x4b6350 returns 0), +0x20 to
 0x4e96b0 (the manoeuvre): by +0xa4 (p8 17), 0 pushes the behaviour at
 0x604098, 1 the one at 0x604088 (both class 0x4ca440, 17.2), other values
 nothing; either resets +0xf4.
+
+**Ported** (2026-10-20, `mech3/zai_brain` `Brain::frame`, `AiControls::update`
+0x4e96f0, `MechControls::stop` 0x428490, `Mech::health` 0x41ba40 in
+`mech_damage.cpp`). The brain asks its controls (`BrainControls`: the
+vehicle, the stop, the smoothing, "hit lately" IControls vt+0xa0) and
+`BrainHooks` for the rest; what later items port is a hook each, recorded
+in the program until then: steering 0x4cec80 (item 6), the vlist triggers
+0x4e9550 (5), the radio's lines 0x4e6d50 (14), the firing's reset 0x4e9590
+and run 0x4e9fb0 (12), the target vehicle's own net vt+0xd8, its attack
+behaviour 0x4c0e10, the attack 0x4e9ca0 and the brain's own order 0x4e81a0
+(10), and "hit lately" (IControls +0x04, a time the hit code 0x4aec90 sets,
+not ported: the program answers no). The brain's vt+0x1c call (the
+firing's, with IControls +0x0c) does nothing for the mechs' and the
+vehicles' brains (0x4b6350 / 0x58b380) and is left out. Two edges: a NaN
+attack range with no target vehicle calls through null in the exe (FIX
+(bug): no attack); the attack does not reuse the enemy the sight check
+picked (as written, fixes.md candidates).
+
+The AI switch [0x60b938] is `ai::ai_switch()` (0x4ea740 on from the Core
+state's start, `Engine::ai_on`; 0x4ea750 off in the cleanup). In the
+program (`app_mission.cpp` WiredBrainHooks, `app_mech.cpp` helpers) the
+time, health, position, AiTarget, power-down, contacts' vehicles, ranges,
+the awake count, GameIntensity and the ammo value 0x4b4ed0 are the ports'.
+
+Test `test_ai_frame.py` (probe `tests/probe_ai_orders.cpp`, over
+test_ai_gates.py's brain, fakes and vehicle): the brain's own vtable, its
+IControls, its own order, three contacts with what they see and two
+vehicles, the weapon manager's ammo value as an x87 `fld` thunk, the later
+items' functions as stubs; 200 cases of 60 frames with random settings,
+timers, contacts, the switch and the time at 24-bit x87: 12,000 frames,
+the answers, the awake count, the ten fields the frame writes, 111,211
+calls and the stack identical, all 18 marked branches reached.
+Breaking the port showed it catches it, 20 of 20: steering with the AI off,
+the power-down ignoring +0x2a4, the engaging delay kept, a NaN distance
+blind, the player contact for the pick, the asleep pilot never stopped,
+the two ammo lines swapped, the firing reset without the hit, its timer
+from +0xb4, no manoeuvre when hit, the picked enemy reused, the attack
+range from +0x24, the attack's end without the intensity, the give-up
+health without +0xb4, the wait's bounds swapped, the wait kept after an
+attack, the order run once, the own order on +0x80 0, the firing when
+powered down, the hurt bit kept. `test_mech_health.py` (over test_damage.py's mechs):
+400 mechs, 6847 health checks (hurt, dead, invincible, cached) bit for bit;
+5 of 5 breaks caught (the cache ignored, the arms weighed 0.5, the side
+torsos read as the centre, dead as whole, the flag left set). In the program, `mw3tests`
+`mission_c1m1_owens_runs_its_frames_headless`: after bramp the Owens'
+brain runs its frame every tick, awake (the vlist, the hit test, its
+order's state, its own order and the firing each frame), its orders never
+empty, the AI switch on in the mission and off after the cleanup.
 
 ### 17.2 The orders and the behaviours
 
@@ -1504,8 +1553,8 @@ goes through a hooks struct the test stubs the same on both sides.
 2. **The order stack**: done (17.2), but 0x4d88a0 / 0x4d88d0 (with the
    net 0x603fb8, item 10).
 3. **The gates**: done (17.3).
-4. **The brain's frame** 0x4e9710 / 0x4e96f0 with everything below as
-   hooks; replaces `controls_calls().ai_brain`.
+4. **The brain's frame** 0x4e9710 / 0x4e96f0: done (17.1), with the
+   Mech's health 0x41ba40 and the controls' stop 0x428490.
 5. **The vlist triggers** 0x4d9290, 0x4d8e70 (and 0x4e94f0).
 6. **Steering** 0x4ce620..0x4cec80.
 7. **The plain states**: 0x4c8660, 0x4c8700, 0x4c8790, 0x4c88c0, 0x4c8940,

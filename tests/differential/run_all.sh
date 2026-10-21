@@ -89,6 +89,8 @@ for t in \
     ai_brain \
     ai_orders \
     ai_gates \
+    ai_frame \
+    mech_health \
     ai_valves \
     ai_targets \
     sensors \

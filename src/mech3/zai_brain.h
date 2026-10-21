@@ -29,6 +29,7 @@ class NetPart;
 class BehaviourState;
 struct Behaviour;
 struct AiTarget;
+struct Contact;
 
 // What the brain calls outside it. The defaults run the ports.
 class BrainHooks : public zgame::Unported {
@@ -46,6 +47,11 @@ class BrainHooks : public zgame::Unported {
   virtual AiNet* builtin_net() { return nullptr; }
   // The default behaviour at 0x00604068 (zai_steps): an order's without one.
   virtual Behaviour* default_behaviour();
+  // The handle the hooks know a vehicle by (the program's object table).
+  virtual zgame::Handle vehicle_handle(void* vehicle) { return low(vehicle); }
+  // IControls vt+0xa0 (0x004aed40 -> 0x004aec40(1.0)): hit within the last
+  // second (IControls +0x04 a time; what sets it is not ported).
+  virtual bool hit_lately(zgame::Handle v) { return unported("0x004aed40", {v}) != 0; }
   // The game time [0x0060991c].
   virtual float now();
   // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98
@@ -56,6 +62,31 @@ class BrainHooks : public zgame::Unported {
   virtual AiTarget* targetable(zgame::Handle v) { (void)v; return nullptr; }
   // The manoeuvres at 0x00604098 (0) and 0x00604088 (1), class 0x004ca440.
   virtual Behaviour* manoeuvre_behaviour(int32_t which);
+
+  // The brain's frame (0x004e9710, docs/ai.md 17.1). The AI switch
+  // [0x0060b938] (0x004ea740 on, 0x004ea750 off).
+  virtual bool ai_on();
+  virtual int32_t powered_down(zgame::Handle v);               // vt+0xa0 == 1 (the Mech's 0x0041cc10)
+  virtual Contact* pick(zgame::Handle v, int32_t side);        // 0x004d6b90 on the vehicle
+  // A contact's vehicle: 0x004e6fe0 (its +0x04's vt+0x2c), then vt+0x40.
+  virtual zgame::Handle contact_vehicle(const Contact* c);
+  virtual float contact_range2(zgame::Handle v);               // a vehicle's AiTarget +0xa4
+  virtual void count_awake();                                  // [0x006099c0] += 1
+  virtual float intensity();                                   // GameIntensity [0x00608e54]
+  virtual int32_t rand();                                      // MSVC's rand (0x005bb668)
+  // The vehicle's weapon manager's ammo value 0x004b4ed0 (+0xd4); false
+  // without a manager.
+  virtual bool ammo_value(zgame::Handle v, float* out);
+  // Not ported yet, each an item of the porting order (ai.md 17.9).
+  virtual void steer(Brain& b, zgame::Handle v, float dt);     // 0x004cec80 on +0x250 (item 6)
+  virtual void radio_line(Brain& b, int32_t event);            // 0x004e6d50(1.0) on the radio's line (item 14)
+  virtual void vlist(Brain& b, zgame::Handle v, bool* picked, Contact** target);  // 0x004e9550 (item 5)
+  virtual void firing_reset(Brain& b);                         // 0x004e9590 -> 0x004b6700 (item 12)
+  virtual void firing_run(Brain& b, float dt);                 // 0x004e9fb0 -> 0x004b5b80 (item 12)
+  virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004c0810, item 10)
+  virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10 (item 10)
+  virtual bool attack(Brain& b, AiNet* current_net);           // 0x004e9ca0 (item 10)
+  virtual void own_order_run(Brain& b, float dt);              // the brain's own order's vt+0x04, 0x004e81a0 (item 10)
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
   // The player's vehicle ([0x0060861c] +0x14) and its allies (+0xc4, the
   // AiTarget masks); false when there is no pilot or no vehicle. Silent.
@@ -68,6 +99,11 @@ class BrainHooks : public zgame::Unported {
   virtual void vehicle_controls_gone(void* owner) { unported("0x004ac800", {low(owner)}); }
 };
 BrainHooks& brain_hooks();
+// The AI switch [0x0060b938]: on at the end of the mission start
+// (0x004ea740), off in the cleanup (0x004ea750).
+bool& ai_switch();
+inline void ai_switch_on() { ai_switch() = true; }    // 0x004ea740
+inline void ai_switch_off() { ai_switch() = false; }  // 0x004ea750
 void set_brain_hooks(BrainHooks* h);
 
 // What a net builds in an order (its vt+0x5c, in place at the order's
@@ -230,6 +266,16 @@ struct BrainStep {
   BrainStep();
 };
 
+// What the brain asks of the controls it is a base of (the exe's through
+// its virtual base +0xe0): the AI mech controls' 0x004d8750 family.
+struct BrainControls {
+  virtual ~BrainControls() = default;
+  virtual zgame::Handle vehicle() = 0;    // IControls +0x10: the vehicle
+  virtual void stop() = 0;                // IControls vt+0x14 (0x00428490)
+  virtual void smooth(float dt) = 0;      // the brain's vt+0x04 (the mech's 0x004d89f0 -> 0x00426960)
+  virtual bool hit_lately() = 0;          // IControls vt+0xa0 (0x004aed40)
+};
+
 // The brain (0x004cf330, 0x2ac bytes and, when it is the most derived
 // object, an IControls base at +0x2b0; it never is: the AI controls derive
 // from it). Offsets in the comments are the brain's.
@@ -265,6 +311,10 @@ class Brain {
   bool clear_if_object(znet::Object* o);           // 0x004e9100
   void push_order();  // 0x004e9d80 -> 0x004e9d90: a new order without parts (the template's)
 
+  // Mech3.exe 1.2 @ 0x004e9710: the frame (0x004e96f0 answers it): the
+  // targets set and the controls smoothed (ai.md 17.1).
+  bool frame(BrainControls& c, float dt);
+
   // The gates (docs/ai.md 17.3), given the pilot's vehicle.
   bool may_engage(zgame::Handle owner, AiNet* net, BehaviourState* state);  // 0x004e8f10
   bool must_break_off(zgame::Handle owner);                                 // 0x004e8dd0
@@ -282,7 +332,7 @@ class Brain {
   float xf4 = 3.4028235e38f;  // +0xf4
   uint8_t xf8 = 0;            // +0xf8
   int32_t xfc = 0;            // +0xfc
-  int32_t x100 = 0;           // +0x100  the fire timer (ai.md section 4)
+  float x100 = 0;             // +0x100  when a hit may start the firing again (0x004e9710)
   uint8_t x104 = 0;           // +0x104  the order asks to run again
   Firing firing;              // +0x108
   // +0x160: a std::deque<Order> (0x004e82a0: allocator byte, two

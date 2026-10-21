@@ -164,7 +164,7 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   o.f(at + 0xf4, b.xf4);
   o.b8(at + 0xf8, b.xf8);
   o.u(at + 0xfc, static_cast<uint32_t>(b.xfc));
-  o.u(at + 0x100, static_cast<uint32_t>(b.x100));
+  o.f(at + 0x100, b.x100);
   o.b8(at + 0x104, b.x104);
   const uint32_t fi = at + 0x108;
   const ai::Firing& f = b.firing;

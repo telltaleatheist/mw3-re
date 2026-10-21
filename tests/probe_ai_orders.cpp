@@ -49,10 +49,15 @@ class FakeState : public ai::BehaviourState {
   bool may_fire() const override { return call("state.vt+0x8", {serial}) & 0xff; }
   void suspend() override { call("state.vt+0xc", {serial}); }
   void resume() override { call("state.vt+0x10", {serial}); }
-  void run(float dt) override { call("state.vt+0x14", {serial, bits(dt)}); }
+  void run(float dt) override;
   int32_t beh_id;
   uint32_t serial;
 };
+
+std::unique_ptr<ai::Brain>& brain_ptr();
+void FakeState::run(float dt) {
+  if (call("state.vt+0x14", {serial, bits(dt)}) & 1) brain_ptr()->x104 = 1;  // asks to run again
+}
 
 class FakeNet : public ai::CompiledNet {
  public:
@@ -74,6 +79,7 @@ struct FakeBehaviour : ai::Behaviour {
 std::vector<std::unique_ptr<FakeNet>> g_nets;
 std::vector<std::unique_ptr<FakeBehaviour>> g_behs;
 std::unique_ptr<ai::Brain> g_brain;
+std::unique_ptr<ai::Brain>& brain_ptr() { return g_brain; }
 
 FakeNet* net_of(int32_t id) {
   for (auto& n : g_nets)
@@ -98,6 +104,23 @@ float fl(uint32_t u) {
   return f;
 }
 
+// The frame's world (test_ai_frame.py): the switch, the counter, the
+// intensity, the weapon manager, contacts 1..3 with their vehicles.
+bool g_ai_on = true, g_has_manager = false;
+uint32_t g_awake = 0;
+float g_intensity = 0;
+ai::Contact g_seen[3];
+zgame::Handle g_seen_vehicle[3] = {};
+float g_vehicle_range2[2] = {};
+constexpr uint32_t kVehicles = 0x2c7f2000;  // + 0x100 each
+
+ai::Contact* contact_of(uint32_t i) { return i >= 1 && i <= 3 ? &g_seen[i - 1] : nullptr; }
+int32_t contact_index(const ai::Contact* c) {
+  for (int i = 0; i < 3; ++i)
+    if (c == &g_seen[i]) return i + 1;
+  return 0;
+}
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
@@ -110,7 +133,44 @@ struct Hooks : ai::BrainHooks {
   }
   ai::AiTarget* targetable(zgame::Handle v) override { return v == kOwner ? &g_target : nullptr; }
   ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
+  bool ai_on() override { return g_ai_on; }
+  int32_t powered_down(zgame::Handle v) override { return static_cast<int32_t>(call("owner.vt+0xa0", {v})); }
+  ai::Contact* pick(zgame::Handle v, int32_t side) override { return contact_of(call("0x004d6b90", {v, side})); }
+  zgame::Handle contact_vehicle(const ai::Contact* c) override {
+    const int32_t i = contact_index(c);
+    return i ? g_seen_vehicle[i - 1] : 0;
+  }
+  float contact_range2(zgame::Handle v) override { return g_vehicle_range2[(v - kVehicles) / 0x100]; }
+  void count_awake() override { ++g_awake; }
+  float intensity() override { return g_intensity; }
+  int32_t rand() override { return static_cast<int32_t>(call("rand", {})); }
+  bool ammo_value(zgame::Handle v, float* out) override {
+    if (!g_has_manager) return false;
+    *out = fl(call("0x004b4ed0", {}));
+    (void)v;
+    return true;
+  }
+  void steer(ai::Brain&, zgame::Handle v, float dt) override { call("0x004cec80", {bits(dt), v}); }
+  void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
+  void vlist(ai::Brain&, zgame::Handle v, bool*, ai::Contact**) override { call("0x004e9550", {v}); }
+  void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
+  void firing_run(ai::Brain&, float dt) override { call("0x004e9fb0", {bits(dt)}); }
+  ai::AiNet* vehicle_net(zgame::Handle v) override { return net_of(static_cast<int32_t>(call("vehicle.vt+0xd8", {v}))); }
+  ai::Behaviour* attack_behaviour(ai::AiNet* n) override {
+    return beh_of(static_cast<int32_t>(call("0x004c0e10", {n ? n->get_id() : 0})));
+  }
+  bool attack(ai::Brain&, ai::AiNet* n) override { return call("0x004e9ca0", {n ? n->get_id() : 0}) & 1; }
+  void own_order_run(ai::Brain&, float dt) override { call("own.vt+0x4", {bits(dt)}); }
 };
+
+// The brain's controls: the AI mech controls' calls.
+struct FakeControls : ai::BrainControls {
+  zgame::Handle vehicle() override { return kOwner; }
+  void stop() override { call("ictl.vt+0x14", {}); }
+  void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
+  bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
+};
+FakeControls g_controls;
 Hooks g_hooks;
 
 ai::Order* order_at(int32_t i) {
@@ -244,6 +304,41 @@ void probe_ao_gate(int32_t op, int32_t net, int32_t with_state, uint32_t* out) {
     case 4: b.manoeuvre(); break;
   }
   out[0] = r, out[1] = b.x22c, out[2] = bits(b.xf4);
+}
+
+// The frame's state: w[0] AI on, [1] a manager, [2] the intensity, [3..5]
+// contacts' squared distances, [6..8] their vehicles (0 none, 1, 2), [9, 10]
+// the vehicles' ranges, [11] the target (+0x6c: a contact 1..3 or 0), [12]
+// +0x2a4, [13] +0xdc, [14] +0xf0, [15] +0x100, [16] a radio (+0x2a8).
+void probe_ao_frame_set(const uint32_t* w) {
+  ai::Brain& b = *g_brain;
+  g_ai_on = w[0] != 0, g_has_manager = w[1] != 0, g_intensity = fl(w[2]);
+  for (int i = 0; i < 3; ++i) {
+    g_seen[i].dist2 = fl(w[3 + i]);
+    g_seen_vehicle[i] = w[6 + i] ? kVehicles + 0x100 * (w[6 + i] - 1) : 0;
+  }
+  g_vehicle_range2[0] = fl(w[9]), g_vehicle_range2[1] = fl(w[10]);
+  g_target.target = contact_of(w[11]);
+  g_target.player_contact = contact_of(w[17]);  // the gates set it; the frame's own choice
+  b.x2a4 = static_cast<uint8_t>(w[12]);
+  b.xdc = fl(w[13]);
+  b.xf0 = static_cast<int32_t>(w[14]);
+  b.x100 = fl(w[15]);
+  static ai::Radio radio;
+  b.radio = w[16] ? &radio : nullptr;
+}
+
+// One frame: out the answer, the awake count, +0x3c, +0xcc, +0xdc, +0xe8,
+// +0xf4, +0x100, +0x230, +0x22c, +0x104.
+void probe_ao_frame(uint32_t dt, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  g_awake = 0;
+  out[0] = b.frame(g_controls, fl(dt));
+  out[1] = g_awake;
+  out[2] = b.params.get<uint32_t>(0x3c), out[3] = b.params.raw[0xcc];
+  out[4] = bits(b.xdc), out[5] = bits(b.xe8), out[6] = bits(b.xf4), out[7] = bits(b.x100), out[8] = bits(b.x230);
+  out[9] = b.x22c, out[10] = b.x104;
+  b.radio = nullptr;
 }
 
 }  // extern "C"

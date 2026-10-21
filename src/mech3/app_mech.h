@@ -12,6 +12,7 @@
 // as plain functions, so this header has neither of the two Handle types
 // (app_hooks.h's numbers, mech.h's pointers).
 namespace mech3 {
+namespace ai { struct AiTarget; }
 
 struct MechWiring {
   void* engine = nullptr;
@@ -110,6 +111,13 @@ uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v);
 void* mech_controls_of(void* mech);              // +0x37c (a MechControls*)
 float mech_game_time();                          // [0x0060991c]
+bool mech_world_position(void* mech, float out[3]);  // 0x005a85e0; false (0, 0, 0) without a node
+float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
+bool mech_powered_down(void* mech);              // vt+0xa0, 0x0041cc10
+ai::AiTarget* mech_ai_target(void* mech);        // the Mech's AiTarget base
+// 0x004b4ed0 on the mech's weapon manager (+0xd4): the ammo's value against
+// its most, 1 before it has any; false without a manager.
+bool mech_ammo_value(void* mech, float* out);
 void mech_set_game_time(float t);
 bool mech_get_mask(const void* mech, uint32_t off, uint32_t* v);
 

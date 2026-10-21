@@ -706,7 +706,7 @@ void CoreState::resume(uint32_t arg) {
     }
     if (en.peek8(0x60b56c) == 0) en.entities_sort();
     en.shadows_reset();
-    en.classes_reset();
+    en.ai_on();
   }
 }
 
