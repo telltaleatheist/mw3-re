@@ -102,6 +102,14 @@ the player's team, or only the player's, put in the salvage store
   Called by the Win State (1, a mission passed), the launch (0) and the
   briefing's ABORT (0).
 
+Ported (item 1): `mech3::Pilot::record_mission`, `CampaignGame::next_mission`,
+`campaign_advance` and the copies they make (pilot.md section 7), with the
+loadout's copy and free-slot count (`Config::copy_of`, `Config::recount`,
+mechdef-configs.md). Found: the next mission's saved game is written (zSave
+0x005a8a70, CREATE_ALWAYS) before the "overwrite?" question, so No keeps the
+old entry but its file already holds the new world (fixes.md, to fix when
+zSave is wired).
+
 ## 5. What is ported, what is a hook
 
 Ported: the main menu and the pilot screen (menus.md 10); the pilot and
@@ -112,8 +120,7 @@ load and unload (mission-load.md), the launch 0x00491150 (mech-build.md
 
 Hooks: the briefing screen 0x00405230 and its calls (0x0040a820,
 0x00409ec0, 0x00409eb0, the movie 0x00409320), the debriefing 0x0047b430,
-the salvage screen 0x0047d3b0, 0x00478f10 (`pilot_record_mission`,
-`LaunchHooks::pilot_478f10`), 0x0047ae10 (`mission_results`), the Win
+the salvage screen 0x0047d3b0, 0x0047ae10 (`mission_results`), the Win
 Movie and IA Dummy states, the end screen's fade target, the movies
 (zFMV), the mech lab. The program's `--mission` start queues Core in
 place of LAUNCH (program.md).
@@ -128,7 +135,7 @@ need the menus' one scale or a centred 640x480 frame.
 
 ## 7. Porting order
 
-1. The campaign's progress: 0x00484840, 0x00484870, 0x00434e00 (both
+1. (Done) The campaign's progress: 0x00484840, 0x00484870, 0x00434e00 (both
    ways), 0x00435240, 0x00478f10 with its question, on the pilot module
    (test_pilot.py's harness). The launch's and the Win State's hooks
    then call the port.
@@ -146,3 +153,23 @@ need the menus' one scale or a centred 640x480 frame.
    c1m1 -> debriefing -> c1m2's briefing.
 8. The salvage screen 0x0047d3b0 and its state.
 9. The Win Movie and IA Dummy states.
+
+## 8. Testing
+
+Item 1: `test_pilot.py` (pilot.md section 7; 100/100) and
+`test_mechsave.py` (the loadout copy, 553 copies). In the program the
+Win State's 0x00478f10(1) and the launch's 0x00478f10(0) run the port on
+the pilot the pilot screen chose (a debug start's stand-in pilot is still
+logged); `test_program.cpp` checks the save after a mission on a pilot
+made at the pilot screen. Breaking the port showed the tests catch it, 33
+of 33 (`scratch/campaign/breaks.py`, 30 runs): the advance at the count,
+the end at operation 4, the +0xa8 rule, the +0x64 store, the record +0xb4,
+the salvage into +0x50, +0xc4, the +0xb0 flags, the merge after, the world
+save's kind, the settled mechs and +0xac, the slot count's minimum, the
+slot's +0x0c, the modified loadout's recount, another mech's loadout
+refused, the lancemates' reset field, the game filed first, matched by
+mission alone, No taken as yes, the result, the store's mech merge and
+0x13; the loadout's item merging, its group, a weapon's place, the XL
+engine's slots, the head's fixed slots, unplaced items counted, a weapon
+without a firepoint, the modified and player-made flags, the six-slot
+parts.

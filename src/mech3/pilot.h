@@ -46,8 +46,19 @@ class PilotHooks : public zgame::Unported {
   virtual const char* message(int32_t id);  // 0x00576040, Mech3Msg.dll's text
   // 0x00575fd0: message `id` with FormatMessage's %1!d!, %2!d! ... filled.
   virtual std::string format_ints(int32_t id, std::initializer_list<int32_t> args);
-  virtual int32_t campaign_missions(int32_t campaign) {  // 0x00484840
-    return static_cast<int32_t>(unported("0x00484840", {campaign}));
+  virtual int32_t campaign_missions(int32_t campaign);  // 0x00484840, ported
+  // A slot's configuration copied (0x00424010(store 0, flag 0): ECX the
+  // name, EDX the configuration) and its free slots counted again
+  // (0x00425bd0): the ported Config's by default.
+  virtual Config* config_copy(const Config& c);
+  virtual void config_recount(Config& c);
+  // The mission's salvage ([0x00609990], a store the mission fills).
+  virtual class Store* mission_salvage() { return nullptr; }
+  // 0x005a8a70: zSave writes the world into a saved game (`kind` 2 here).
+  virtual void save_world(const char* path, int32_t kind) { unported("0x005a8a70", {path, kind}); }
+  // 0x004ac150: the game's message box; 1 for yes.
+  virtual int32_t message_box(int32_t type, int32_t caption, int32_t text) {
+    return static_cast<int32_t>(unported("0x004ac150", {type, caption, text}));
   }
 };
 void set_pilot_hooks(PilotHooks* h);
@@ -69,6 +80,9 @@ class Store {
   ConfigItem* find(const ConfigItem* item);   // 0x00471460: the item itself, else one like it
   ConfigItem* find_like(const ConfigItem* item);  // 0x004714c0: by vt+0x24
   void add_all(const Store& from);          // 0x004732b0: each of its items, by count
+  void assign(const Store& from);           // 0x00473300: emptied, then add_all
+  BaseItem* add_mech(int32_t mech);         // 0x00471c10: one of the mech (not -1 or 0x13)
+  void add_config(const Config* c);         // 0x00472cf0: each item of the loadout, by count
   void clear();                             // the items deleted, the list emptied
   uint32_t save(std::FILE* f) const;        // 0x00471790 -> 0x004717a0
   void load(std::FILE* f);                  // 0x00471530 -> 0x00471540
@@ -89,6 +103,8 @@ struct GameSlot {
   GameSlot& operator=(const GameSlot&) = delete;
   void save(Pilot& p);               // vt+0x00  0x00433ef0
   void load(Pilot& p);               // vt+0x04  0x00433f80
+  void copy_from(const GameSlot& s); // 0x00433d90
+  bool set_config(const Config* c);  // 0x00433df0(c, 0, 0): a copy of c, or none
 
   int32_t mech;                      // +0x04
   Config* config = nullptr;          // +0x08
@@ -145,6 +161,11 @@ class CampaignGame : public Game {
   void merge_salvage();              // 0x00434cb0, at the end of load
   int32_t operation() const { return campaign; }  // vt+0x48  0x00437870
   int32_t mission_number() const { return mission; }  // vt+0x4c  0x00437880
+  CampaignGame* next_mission(bool next);  // vt+0x24  0x00434e00
+  GameSlot* slot_at(int32_t i);      // vt+0x34  0x00435110: 0 the player's, then the lancemates
+  int32_t slot_count() const;        // vt+0x38  0x00435180 (vt+0x3c 0x00437820 the same)
+  void reset_lancemates(bool del);   // 0x00435240
+  void copy_lancemates(const CampaignGame& from);  // 0x00434300
 
   uint8_t b38 = 0;                   // +0x38
   Store store3c, store50, store64, store78;  // +0x3c, +0x50, +0x64, +0x78
@@ -247,6 +268,7 @@ class Pilot {
   bool delete_files();               // 0x004781e0: the campaigns' saved games, then its own
   void select_game(int32_t type);    // 0x00478250
   bool select_campaign(int32_t i);   // 0x00478ed0
+  bool record_mission(bool next);    // 0x00478f10: true when the campaign is over
   Store* store();                    // 0x00479430: the current game's
   CampaignGame* campaign();          // 0x00479440: the current game when a campaign
   ActionGame* action();              // 0x00479460
@@ -282,5 +304,8 @@ bool delete_pilot(const char* name);  // 0x00477f50: and its files
 void load_pilots();                  // 0x00478560: every pilots\*.mw3
 void delete_other_pilots();          // 0x004785f0: all but the current one
 Pilot* debug_start_campaign(int32_t campaign, int32_t mission);  // 0x00478a40, "DefaultPlayer"
+// Mech3.exe 1.2 @ 0x00484870: the next mission, past the operation's last
+// the next operation's first; true when the operation reaches 5 (the end).
+bool campaign_advance(int32_t& operation, int32_t& mission);
 
 }  // namespace mech3

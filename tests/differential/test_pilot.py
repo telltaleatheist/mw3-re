@@ -53,6 +53,8 @@ SELECT, SELECT_CAMPAIGN, OTHERS, OPEN, HEADER, DEBUG = 0x478250, 0x478ed0, 0x478
 NEW_CAMPAIGN, SLOT_CTOR = 0x4345a0, 0x433cc0
 ADD_COPY, ADD_AMMO, REMOVE, REMOVE_MECH = 0x472630, 0x471940, 0x471d20, 0x472a30
 PILOTS, COUNT, CURRENT = 0x60860c, 0x608610, 0x60861c
+RECORD, LANCE_RESET, STORE_CTOR, SALVAGE = 0x478f10, 0x435240, 0x470ce0, 0x609990
+CONFIG_COPY, RECOUNT, SAVE_WORLD, MESSAGE_BOX = 0x424010, 0x425bd0, 0x5a8a70, 0x4ac150
 ITEMS_KIND_READ, ITEM_LOAD_ID, MATES_LOOP, CAMPAIGNS_LOOP = 0x4715af, 0x472b21, 0x434244, 0x479366
 HEADER_READS = [(0x478ce0, 0x478ed0), (0x478700, 0x4788b0)]
 VT_KIND = {0x5bc160: 0, 0x5c0fc0: 1, 0x5bd150: 2, 0x5bd180: 3, 0x5c3700: 4}
@@ -361,6 +363,14 @@ class Emulated(Files):
         cpu.stub_function(0x4242a0, self.config_load)
         cpu.stub_function(0x424480, self.config_save, 4)
         cpu.stub_function(0x424350, lambda c: 0)
+        cpu.stub_function(CONFIG_COPY, self.config_copy, 8)
+        cpu.stub_function(RECOUNT, lambda c: self.log.append(f'recount {i32(self.r32(c.ecx))}') or 0)
+        cpu.stub_function(SAVE_WORLD, lambda c: self.log.append(f'save_world {self.cstr(c.ecx)} {c.edx}') or 1)
+        cpu.stub_function(MESSAGE_BOX, self.message_box)
+        self.answers = []
+        self.salvage = self.alloc(0x14)
+        cpu.call(STORE_CTOR, ecx=self.salvage, stack_args=(0,))
+        cpu.u32(SALVAGE, self.salvage)
         cpu.stub_import(IAT['strncmp'], self.strncmp, 0)
         cpu.stub_import(IAT['free'], lambda c: 0, 0)
         cpu.call(LIST_INIT)
@@ -413,9 +423,17 @@ class Emulated(Files):
         self.log.append(f'config_load {k}')
         if n != 4:
             return 0
-        o = self.alloc(8)
-        self.cpu.u32(o, k)
-        return o
+        return self.fake_config(k)
+
+    def config_copy(self, c):
+        k = i32(self.r32(c.edx))
+        self.log.append(f'config_copy {k}')
+        return self.fake_config(k)
+
+    def message_box(self, c):
+        a = self.answers.pop(0) if self.answers else 1
+        self.log.append(f'ask {c.arg(0)} {c.arg(1)} {c.arg(2)} {a}')
+        return a
 
     def config_save(self, c):
         k = self.r32(c.ecx)
@@ -475,8 +493,25 @@ class Emulated(Files):
         return o
 
     def fake_config(self, k):
-        o = self.alloc(8)
-        self.cpu.u32(o, k)
+        """A stand-in configuration: its key at +0, as its mech too (+0x14), +0x1f modified."""
+        o = self.alloc(0x20)
+        self.cpu.write(o, bytes(0x20))
+        self.cpu.u32(o, k & 0xffffffff)
+        self.cpu.u32(o + 0x14, k & 0xffffffff)
+        head = self.alloc(0xc)  # its items, as probe_pilot.cpp's fake_config: a weapon and its ammo
+        self.cpu.u32(head, head)
+        self.cpu.u32(head + 4, head)
+        self.cpu.u32(o + 8, head)
+        w = abs(k) % 4 * (1 if k >= 0 else -1)  # C's %
+        for it in (self.item(1, w & 0xffffffff, 1), self.item(2, w & 0xffffffff, 0)):
+            self.cpu.u32(it + 4, 1 if VT_KIND[self.r32(it)] == 1 else 10 + (k & 0xff))
+            node, last = self.alloc(0xc), self.r32(head + 4)
+            self.cpu.u32(node, head)
+            self.cpu.u32(node + 4, last)
+            self.cpu.u32(node + 8, it)
+            self.cpu.u32(last, node)
+            self.cpu.u32(head + 4, node)
+        self.cpu.u32(o + 0xc, 2)
         return o
 
     def run(self, plan):
@@ -595,6 +630,31 @@ class Emulated(Files):
                 if g:
                     k = int(p[4])
                     self.cpu.u32(g + 0x28, self.fake_config(k) if k else 0)
+            elif op == 'P':  # the save after a mission, with the overwrite question's answer
+                pl = self.find(unhx(p[1]))
+                if pl:
+                    self.answers = [int(p[3])]
+                    r = self.call(RECORD, ecx=pl, stack=(int(p[2]),))
+                    self.log.append(f'recorded {r & 0xff}')
+            elif op == 'l':
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 1, int(p[2])) if pl else 0
+                if g:
+                    self.call(LANCE_RESET, ecx=g, stack=(int(p[3]),))
+            elif op == 's':  # an item in the mission's salvage
+                kind, n, ident, extra, group, part = (int(x) for x in p[1:7])
+                it = self.item(kind, ident & 0xffffffff, extra & 0xffffffff)
+                self.cpu.u32(it + 8, group & 0xffffffff)
+                self.cpu.u32(it + 0xc, part & 0xffffffff)
+                self.call(ADD_COPY, ecx=self.salvage, stack=(it, n & 0xffffffff))
+            elif op == 'f':  # every configuration of a campaign marked modified
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 1, int(p[2])) if pl else 0
+                if g:
+                    for sl in [g + 0x20] + self.vec(g + 0x90):
+                        cfg = self.r32(sl + 8)
+                        if cfg:
+                            self.cpu.write(cfg + 0x1f, b'\x01')
             elif op == 'E':
                 dump.append(self.dump())
         return '\n'.join(self.log) + '\n--\n' + ''.join(dump)
@@ -804,6 +864,45 @@ def mutate(r, name):
     return lines
 
 
+def campaign_steps(r, n):
+    """A campaign played on: its stores, lancemates and loadouts set, the
+    mission's salvage, then the save after the mission (0x00478f10)."""
+    c, m = r.choice([(1, 1), (1, 3), (1, 4), (2, 4), (3, 6), (4, 3), (4, 4), (4, 6), (5, 1), (0, 9)])
+    i = r.randrange(3)
+    lines = [f'C {hx(n)}', f'I {hx(n)} 0', f'V {hx(n)} 1 0 a4 {c & 0xffffffff:x}',
+             f'V {hx(n)} 1 0 a0 {m & 0xffffffff:x}']
+    if r.random() < 0.5:  # a saved game of the next mission already there
+        nc, nm = (c, m + 1) if m + 1 <= c + 3 else (c + 1, 1)
+        lines.append(f'N {hx(n)} {nc} {nm}')
+    for _ in range(r.randrange(0, 6)):
+        lines.append(f'A {hx(n)} 1 0 {r.choice([8, 0x3c, 0x50, 0x64, 0x78]):x} {r.randrange(5)} '
+                     f'{r.choice([1, 2, 5])} {r.randrange(3)} {r.choice([1, 3])} {r.randrange(3)} {r.choice([-1, 2])}')
+    for _ in range(r.randrange(0, 3)):
+        mech = r.choice([3, 3, 0x13, r.randrange(20)])  # the player's mech again, and 0x13, which is never listed
+        lines.append(f'T {hx(n)} 0 {mech} {r.randrange(3)} {r.randrange(4)} {r.choice([0, mech, mech, 77])}')
+    if r.random() < 0.6:
+        mech = r.choice([3, 5])
+        lines += [f'V {hx(n)} 1 0 24 {mech:x}', f'K {hx(n)} 1 0 {r.choice([mech, mech, 0, 9])}']
+    if r.random() < 0.7:
+        lines.append(f'V {hx(n)} 1 0 9c {r.choice([0, 1, 2, 5, 0xffffffff]):x}')
+    for off in (0xa8, 0xac, 0xb4, 0xb8, 0xbc, 0xc0, 0xc4, 0xb0, 0x2c, 0x34):  # the fields the next game takes or not
+        if r.random() < 0.5:
+            lines.append(f'V {hx(n)} 1 0 {off:x} {r.choice([0, 1, 2, 5, 9, 0x101]):x}')
+    if r.random() < 0.4:
+        lines.append(f'f {hx(n)} 0')
+    for _ in range(r.randrange(0, 4)):
+        lines.append(f's {r.randrange(5)} {r.choice([1, 2, 5])} {r.randrange(3)} {r.choice([1, 3])} {r.randrange(3)} -1')
+    if r.random() < 0.2:
+        lines.append(f'l {hx(n)} 0 {r.randrange(2)}')
+    if r.random() < 0.2:
+        lines.append(f'X {hx(n)}')
+    lines.append(f'P {hx(n)} {int(r.random() < 0.6)} {int(r.random() < 0.6)}')
+    if r.random() < 0.3:
+        lines.append(f'P {hx(n)} {int(r.random() < 0.5)} {int(r.random() < 0.5)}')
+    lines.append('E')
+    return lines
+
+
 def initial_files(r):
     lines = []
     for _ in range(r.choice([0, 0, 1, 2])):
@@ -866,6 +965,8 @@ def make_plan(seed):
                 plan.append(f'A {hx(n)} 1 1 {r.choice([8, 0x3c, 0x50, 0x64, 0x78]):x} {r.randrange(5)} '
                             f'{r.choice([1, 2, 5])} {r.randrange(3)} {r.choice([1, 3])} {r.randrange(3)} -1')
             plan += [f'V {hx(n)} 1 1 a8 {r.randrange(9):x}', f'V {hx(n)} 1 1 ac {r.randrange(9):x}', 'E', 'Z', 'L', 'E']
+        elif roll < 0.96:
+            plan += campaign_steps(r, n)
         elif roll < 0.97:
             plan.append('E')
     plan += ['E', 'Z', 'E']

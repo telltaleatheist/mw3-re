@@ -279,6 +279,20 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       s.new_bar.on_return();
       EXPECT(s.pilots.item_count() == 1 && s.chosen != nullptr && s.chosen == mech3::find_pilot("Ace"));
       EXPECT(zutl::exists("pilots\\Ace.mw3"));
+      // The save after a mission (campaign.md 4, the Win State's 0x00478f10(1))
+      // on the chosen pilot: Op 1 Mission 2's game filed and current, zSave's
+      // world save still a hook.
+      mech3::Pilot* ace = mech3::find_pilot("Ace");
+      mech3::Pilot* was = mech3::current_pilot();
+      mech3::current_pilot() = ace;
+      ace->select_game(mech3::kCampaign);
+      const int32_t n = ace->campaign_count();
+      engine.pilot_record_mission(engine.pilot(), 1);
+      mech3::CampaignGame* next = ace->campaign();
+      EXPECT(ace->campaign_count() == n + 1 && next && next->operation() == 1 && next->mission_number() == 2);
+      EXPECT(next && next->b0 == 1 && next->store.count() == ace->campaigns[0]->store.count());
+      EXPECT(engine.unported_counts().count("0x005a8a70") == 1);
+      mech3::current_pilot() = was;
     }
     // The controls screen (menus.md section 6) is made with its state: the
     // shipped dialog, group 0's commands, the seven groups, the axis popup.

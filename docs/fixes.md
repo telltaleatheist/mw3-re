@@ -182,6 +182,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | Pilot name, 0x477b20 / 0x478560 | `strcpy` of the name into 64 bytes | (bug) a pilots\ file name of 64 characters or more overruns the record into the games' vector: a crash at the pilot screen | Such files are not listed; a name is cut to 63 characters |
 | Current pilot, 0x477f50 | Deleting a pilot leaves [0x0060861c] pointing at it when it is the current one | (bug) a dangling pointer (the pilot screen's DELETE on the pilot chosen before; a lobby launch then took it for a pilot) | Cleared (the test clears the original's the same way, 0x477f56) |
 | Pilot names, 0x478be0 / 0x477fe0 (pilot.md) | Names are compared with case (strncmp) while the file names are not, and a rename never checks the new name is free | (bug) "BOB" made over "bob", or a rename onto another pilot's name, shares one file: both are listed and whichever is saved last decides what it holds | Names match without case (ASCII and the Windows-1252 letters), so "BOB" finds bob; a rename onto another pilot's name is refused (Owen 2026-10-20); `zfix::options().bugs`, off in the probes; `tests/test_pilot_names.cpp` |
+| Loadout free slots, 0x425bd0 (mechdef-configs.md) | Each item's slots come off the table entry of its part, +0x90 + 4 * part, unchecked | (bug) an item placed in a part outside 0..8 (a damaged saved loadout) writes past the table into the loadout | Only parts 0..8 are counted per part; the total still drops |
+| Loadout copy, 0x423e00 | The item added for each copied one is used without a check, and a new engine item is never made | (bug) copying a loadout with an engine item (a hand-made saved file) writes through null: a crash | The item is skipped |
 | Pilot screen DELETE, 0x487e30 | With no pilot chosen the question formats the name at address 0x18 | (bug) a crash: DELETE pressed before any pilot exists | Nothing happens |
 | Pilot list item, 0x488770 | The item's value is the pilot's address (read by nothing) | (A) a 64-bit pointer | 0 |
 | Sensors' C3 merge, 0x4a9fd0 | The union of the master's and a member's contacts is written into the scratch vector [0x609a5c], sized to zEntity's list (at least 32) | (bug) targets.zrd objects count as contacts too, so a big enough union writes past the heap block | The union goes into a vector of its own that grows; the same contacts result. `mech3/sensors`, test_sensors.py (the original's path: unions within the scratch) |
@@ -223,6 +225,12 @@ Noted but not yet ported:
 ## Original bugs still to fix
 
 Bugs whose intent is clear, fixed as the port reaches the code:
+
+- Saved game replaced before the question, 0x478f10 / 0x434e00 (campaign.md
+  4): after a mission the next mission's saved game is written by zSave
+  (0x5a8a70, CREATE_ALWAYS) before the pilot asks "Replace existing game?";
+  No keeps the old entry but its file already holds the new world. Fix when
+  zSave is wired: write the world after the answer, and not on No.
 
 - Data typos, fixed by the importer (the readers stay as written, the patched
   data goes through them):

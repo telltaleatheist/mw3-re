@@ -1910,6 +1910,17 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   refused (`fixes.md`).
 - **A pilot file of another version is not refused:** its header is simply
   rewritten and the rest read as if it were this version's.
+- **The campaign is four operations of 4, 4, 6 and 6 missions.** When a
+  mission is won, the next one's saved game is made at once (before the
+  debriefing screen): the mechs and parts you own, the salvage the mission
+  left, your mech and loadout and your lancemates are carried into it, and
+  it becomes the save you play. Winning the last mission of Operation 4
+  makes no save: the campaign is over.
+- **"Replace existing game?" No still replaces the file.** Replaying a
+  mission you already won asks whether to replace the saved game of the
+  next mission. The new save's world is written to that file before the
+  question, so No keeps the old entry in the list but its file already holds
+  the new one (to be fixed in the rebuild, `fixes.md`).
 - **The game crashes** if you press DELETE before any pilot exists (the
   rebuild does nothing), and on a `pilots\` file whose name is 64 characters
   or longer (the rebuild skips it).

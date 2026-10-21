@@ -205,6 +205,10 @@ unusual happens.
   crashes the pilot screen; it is not listed.
 - DELETE on the pilot screen before any pilot exists no longer crashes the
   game; it does nothing.
+- Copying a saved loadout that holds an engine item (only a hand-made file
+  can) no longer crashes the game after a mission; the item is left out. A
+  damaged loadout with an item in a part that does not exist no longer
+  corrupts the loadout when its free slots are counted.
 - Deleting the pilot you had chosen before no longer leaves the game holding
   the deleted pilot (it could be taken for the player's in a lobby game).
 - A weapon group with no weapons in it (or none selected) reads as having no ammo; the original's answer depended on where its weapons list sat in memory.

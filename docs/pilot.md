@@ -249,14 +249,41 @@ copied, the debug clamp, a rename to the same name saving. Missed, and
 unobservable: a slot's configuration kept on reading (the slots read are
 always new, with none).
 
-## 7. Left
+## 7. After a mission (ported)
 
-- 0x00478f10 (the campaign saved after a mission) and 0x004782c0 /
-  0x004782f0 / 0x004783c0 (the pilot's mech in a mission), with the mission.
+`Pilot::record_mission` (0x00478f10), `CampaignGame::next_mission`
+(vt+0x24, 0x00434e00), `campaign_advance` (0x00484870, the counts
+0x00484840), the slot copy (0x00433d90, 0x00433df0), the lancemates'
+copy and reset (0x00434300, 0x00435240), the store's 0x00473300,
+0x00471c10 and 0x00472cf0; the flow is docs/campaign.md section 4. Hooks
+(PilotHooks): the loadout's copy and recount (the ported Config's by
+default), the mission's salvage store [0x00609990], zSave's world save
+0x005a8a70 and the message box 0x004ac150.
+
+Found: the next mission's saved game is written (zSave, CREATE_ALWAYS)
+before the pilot asks whether to replace the one already there, so
+answering No keeps the old entry in the list but its file already holds the
+new mission's world. Left as the exe does while zSave is a hook
+(docs/campaign.md).
+
+`test_pilot.py` adds campaigns played on: their stores, lancemates (some
+with a loadout of their own mech), the slot's loadout, +0x9c, the loadouts
+marked modified, the mission's salvage, then the save after the mission
+with and without `next`, a saved game of the next mission there or not, the
+question answered yes or no, and the lancemates' reset. The loadout's copy
+and recount, the world save and the question are stubs on both sides (the
+stand-in loadouts carry a weapon and its ammo, so the stores take their
+items). 100/100 identical.
+
+Breaking it: see docs/campaign.md section 8.
+
+## 8. Left
+
+- 0x004782c0 / 0x004782f0 / 0x004783c0 (the pilot's mech in a mission),
+  with the mission.
 - The store fill 0x00470e30 and a new campaign's mechs 0x004733b0 (the mech
-  lab's tables and the dfn loadouts); the games' other virtuals (the
-  campaign's next mission 0x00434e00, the training's mission names are
-  ported as ids, 0x00437060 / 0x004370d0).
+  lab's tables and the dfn loadouts); the training's mission names are
+  ported as ids (0x00437060 / 0x004370d0).
 - The bridge to the mission side: the mission code still reaches the pilot
   through [0x0060861c] as a module-memory handle (GameEngine sets it to the
   pilot's handle when the screen chooses one), not through `mech3::Pilot`.

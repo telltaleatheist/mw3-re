@@ -170,6 +170,11 @@ class WiredLaunch : public LaunchHooks {
     if (m.transform) std::memcpy(g_spawn_pos, m.transform + 9, sizeof g_spawn_pos);
     m.update(dt);
   }
+  // 0x00478f10(0) at a campaign's launch: the pilot the screen chose, settled
+  // and saved (pilot.md section 7); a debug start's stand-in is logged.
+  void pilot_478f10(Handle p) override {
+    if (!program_record_mission(false)) LaunchHooks::pilot_478f10(p);
+  }
   uint8_t cheat_invincible() override { return static_cast<uint8_t>(g_w.peek32(g_w.engine, 0x608e40)); }
   int32_t option_invincible() override { return mech3::invincible(); }  // options.h (not includable with mech.h)
   // The missions' list at +0xc0 is not in the program's memory.

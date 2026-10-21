@@ -1572,6 +1572,38 @@ int probe_config_blob(const char* name, const uint8_t* blob, int n, uint8_t* out
   return finish(b, out, cap);
 }
 
+// Config(-1, name) + Load, then Config::copy_of as the slot copy makes it,
+// over stand-in dfns whose firepoints' parts test_mechsave.py's fake_parts gives.
+int probe_config_copy(const char* name, const uint8_t* blob, int n, uint8_t* out, int cap) {
+  static std::vector<mech3::Firepoint> fps[19];
+  static std::vector<mech3::Firepoint*> ptrs[19];
+  static mech3::MechDfn* dfns[19] = {};
+  for (int m = 0; m < 19; ++m) {
+    if (!dfns[m]) {
+      for (int i = 0; i < 8; ++i) fps[m].push_back(mech3::Firepoint{nullptr, 0, 0, ((i * 5 + m) % 10) - 1});
+      for (auto& f : fps[m]) ptrs[m].push_back(&f);
+      dfns[m] = static_cast<mech3::MechDfn*>(::operator new(sizeof(mech3::MechDfn)));
+      std::memset(static_cast<void*>(dfns[m]), 0, sizeof(mech3::MechDfn));
+      dfns[m]->firepoints = &ptrs[m];
+    }
+    mech3::mech_dfn_slot(m) = dfns[m];
+  }
+  std::FILE* f = std::tmpfile();
+  std::fwrite(blob, 1, static_cast<size_t>(n), f);
+  std::rewind(f);
+  mech3::Config c(-1, name);
+  c.load(f);
+  std::fclose(f);
+  mech3::Config* d = mech3::Config::copy_of(c.name, c);
+  std::vector<uint8_t> b;
+  put_config(b, d);
+  put_i32(b, d->free_slots);
+  for (int32_t v : d->free_in) put_i32(b, v);
+  delete d;
+  for (int m = 0; m < 19; ++m) mech3::mech_dfn_slot(m) = nullptr;
+  return finish(b, out, cap);
+}
+
 // ConfigList(mech, 0).load_saved() with the working directory at `dir`.
 int probe_load_saved(const char* dir, int mech, uint8_t* out, int cap) {
   char was[1024];

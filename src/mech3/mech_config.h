@@ -18,6 +18,7 @@ struct ConfigItem {                // the shared head of every item
   virtual ~ConfigItem() = default;
   virtual double weight(int32_t n) const = 0; // vt+0x00, n = -1 for the item's count; x87 st0
   void set_part(int32_t p) { part = p; }       // vt+0x04, 0x00409f50
+  virtual int32_t location(int32_t mech) const { (void)mech; return part; }  // vt+0x08, 0x00409f40
   virtual int kind() const = 0;                // vt+0x0c
   virtual void set_id(int32_t id) = 0;         // vt+0x10
   virtual int32_t id() const = 0;              // vt+0x14
@@ -43,6 +44,7 @@ struct WeaponItem : ConfigItem {   // vtable 0x005c0fc0, 0x1c bytes
   void set_id(int32_t v) override { weapon = v; }
   int32_t id() const override { return weapon; }
   int32_t slots() const override;          // 0x004731b0
+  int32_t location(int32_t mech) const override;  // 0x00473220: its firepoint's part
   uint32_t save(std::FILE* f) const override;  // 0x00472bc0
   void load(std::FILE* f) override;        // 0x00472b90
 };
@@ -106,6 +108,8 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   float decel_rate;                // +0x80
   float turn_accel;                // +0x84
   uint32_t crc = 0;                // +0x88  CRC of the packed form, set by load and save
+  int32_t free_slots = 0;          // +0x8c  the critical slots left, all parts (recount)
+  int32_t free_in[9] = {};         // +0x90  by part; part 0 never set (heap garbage in the exe)
   Config(int32_t mech, const char* name);                       // 0x00423d00
   ~Config();                                                    // 0x00424350
   Config(const Config&) = delete;
@@ -115,6 +119,10 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   int32_t sink_items() const;                                   // 0x00425f30
   void set_engine(int32_t rating);                              // 0x00432ea0
   int32_t item_count() const { return static_cast<int32_t>(items.size()); }
+  // 0x00424010 with no store (ECX the name, EDX the loadout): a copy (0x00423e00)
+  // under `name`, not modified, its slots counted.
+  static Config* copy_of(const char* name, const Config& c);
+  void recount();                          // 0x00425bd0: free_slots and free_in
 
   // The saved-loadout side (docs/mechdef-head.md).
   bool load(std::FILE* f);                 // 0x00424600, false when invalid
@@ -130,6 +138,12 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   int32_t jump_jet_limit() const;          // 0x00425fb0
   static Config* from_file(const char* name, std::FILE* f);  // 0x004242a0
 };
+
+// vt+0x24 of the item kinds: 0x00409f60 (base, ammo, engine), 0x0044ece0
+// (weapons: the tech too), 0x00473480 (equipment). `in` is the listed item.
+bool same_item(const ConfigItem* in, const ConfigItem* probe);
+// 0x00471460 on the item list: the item itself, else one like it (0x004714c0).
+ConfigItem* find_item(const std::list<ConfigItem*>& items, const ConfigItem* item);
 
 // The item list of the loadouts' and the stores' shared base (0x00470ce0):
 // 0x004717a0 writes it (none when `base_flag`), 0x00471540 reads it.

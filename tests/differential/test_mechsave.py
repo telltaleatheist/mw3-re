@@ -56,6 +56,14 @@ probe.probe_set_weapon_labs.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 probe.probe_config_blob.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.probe_load_saved.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 probe.probe_load_and_save.argtypes = [ctypes.c_char_p, ctypes.c_int]
+probe.probe_config_copy.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+COPY = 0x424010  # the slot copy's (ECX the name, EDX the loadout; no store, flag 0)
+DFN_CACHE = 0x5e60b0  # 0x004846a0's table, 0x3c apart
+
+
+def fake_parts(mech):
+    """The firepoints' parts of the stand-in dfns both sides get for the copy's recount."""
+    return [((i * 5 + mech) % 10) - 1 for i in range(8)]
 
 
 def weapon_labs(data):
@@ -351,6 +359,46 @@ class Emulated(DfnEmu):
         cpu.heap_next = mark
         return bytes(out)
 
+    def seed_dfns(self):
+        """Stand-in dfns in 0x004846a0's cache: only their firepoints' parts are read."""
+        cpu = self.cpu
+        for m in range(19):
+            fps = []
+            for part in fake_parts(m):
+                f = cpu.alloc(0x20)
+                cpu.write(f, bytes(0x20))
+                cpu.u32(f + 0xc, part & 0xffffffff)
+                fps.append(f)
+            arr, vec, dfn = cpu.alloc(4 * len(fps)), cpu.alloc(0x10), cpu.alloc(0x40)
+            for i, f in enumerate(fps):
+                cpu.u32(arr + 4 * i, f)
+            cpu.u32(vec + 4, arr)
+            cpu.u32(vec + 8, arr + 4 * len(fps))
+            cpu.write(dfn, bytes(0x40))
+            cpu.u32(dfn + 0x24, vec)
+            cpu.u32(DFN_CACHE + 0x3c * m, dfn)
+
+    def copy(self, name, blob):
+        """What probe_config_copy reports: the loadout loaded, then copied as a slot's is."""
+        cpu = self.cpu
+        mark = cpu.heap_next
+        p = cpu.alloc(len(name) + 1)
+        cpu.write(p, name + b'\0')
+        c = cpu.alloc(0xd8)
+        cpu.write(c, bytes(0xd8))
+        cpu.call(CONFIG_CTOR, ecx=c, stack_args=(0xffffffff, p))
+        saved = self.data, self.pos
+        self.data, self.pos = blob, 0
+        cpu.call(LOAD, ecx=c, stack_args=(HANDLE,))
+        self.data, self.pos = saved
+        self.seed_dfns()  # on this call's heap: the loads before reuse it
+        cpu.call(COPY, ecx=self.u32(c + 0x18), edx=c, stack_args=(0, 0))
+        d = cpu.uc.reg_read(UC_X86_REG_EAX)
+        out = self.dump_config(d) + cpu.read(d + 0x8c, 0x28)
+        self.unpatch()
+        cpu.heap_next = mark
+        return bytes(out)
+
     def load_and_save(self, mech, arch):
         """LoadSaved on the file, then SaveAll: the file it writes."""
         cpu = self.cpu
@@ -477,7 +525,7 @@ def main():
     buf = ctypes.create_string_buffer(1 << 20)
     rng = random.Random(7)
     (DIR / 'configs').mkdir(parents=True, exist_ok=True)
-    blobs = valid = files = saves = 0
+    blobs = valid = files = saves = copies = 0
     stats = {}
     dfns = [(n, s) for n, s, _ in entries(data) if n.startswith('dfn_')]
     for name, start in dfns:
@@ -521,6 +569,11 @@ def main():
                     probe.probe_config_blob(cname, blob, len(blob), buf, len(buf)), buf)
             blobs += 1
             valid += want[0]
+            if label == 'stock' or label in [m for m, _ in MUTATIONS] or label == 'kind 0 item':
+                # a copied engine item (kinds 4) writes through null in the exe; damaged ones are not copied in play
+                compare_blob(f'{name} {cname.decode()} ({label}) copied', emu.copy(cname, blob),
+                             probe.probe_config_copy(cname, blob, len(blob), buf, len(buf)), buf)
+                copies += 1
             if '--stats' in sys.argv:
                 key = label.split(' at ')[0]
                 stats.setdefault(key, [0, 0, set()])
@@ -558,7 +611,7 @@ def main():
         print(k, v)
     print(f'ok: {blobs} saved loadouts load identically ({valid} accepted: checksum, weights, slots, jump jets '
           f'and armor agree); {files} configs\\<mech>.mw3 files identical; '
-          f'{saves} written back identically')
+          f'{saves} written back identically; {copies} copied identically (slots counted)')
 
 
 if __name__ == '__main__':
