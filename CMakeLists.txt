@@ -102,6 +102,7 @@ add_library(mw3core STATIC
   src/gamez/zrender/zrndr_fog.cpp
   src/gamez/zrender/zrndr_span.cpp
   src/gamez/zrender/zrndr_tint.cpp
+  src/gamez/zrender/zrndr_ripple.cpp
   src/gamez/zrender/zrndr_prim2d.cpp
   src/gamez/zrender/zrndr_blit.cpp
   src/gamez/ztwod/twod_control.cpp
@@ -212,6 +213,7 @@ add_library(mw3probe SHARED
   tests/probe_drawtable.cpp
   tests/probe_matrix.cpp
   tests/probe_screen.cpp
+  tests/probe_ripple.cpp
   tests/probe_world.cpp
   tests/probe_modeldraw.cpp
   tests/probe_bake.cpp

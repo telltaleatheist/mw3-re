@@ -55,6 +55,8 @@ class SdlTwodHost : public ztwod::Host {
   void timer_update() override;
   float frame_dt() override;
   void video_flip(const ztwod::Rect* a, const ztwod::Rect* b, int32_t c, int32_t d) override;
+  void ripple(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase,
+              const ztwod::Rect* clip) override;
 
   int32_t sound_find(const char* name) override;
   int32_t sound_play(int32_t sound, float volume) override;

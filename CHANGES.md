@@ -252,6 +252,10 @@ Details: [`docs/protection.md`](docs/protection.md).
 
 These change how the game talks to the computer, not how it plays.
 
+- The main menu's water ripple around a button builds its ring in a buffer
+  as large as the screen; the original's held 1024x768, enough for its
+  640x480 menus but not for menus at today's sizes.
+
 - More screen sizes: besides the original 640x480 to 1600x1200 (all six
   now offered on a 3D card, not only the first three), 1280x720, 1600x900,
   1920x1080, 2560x1440, 3840x2160 and a size of your own (ScreenWidth and

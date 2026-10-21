@@ -936,3 +936,15 @@ view's ground, the anim lookups 0x50b450 (92).
   - then the mode switch 0x4ab6b0 and Shift+V 0x4ab910;
   - the HUD by anchors;
   - the pillarboxed menus.
+
+## The main menu's ripple (mac 1's order, 2026-10-21)
+
+- zRender 0x00558dd0 ported (`zrndr/zrndr_ripple`, render-ripple.md). The
+  exe builds the ring in a 1.5 MB scratch (0x005581c0) and copies the
+  square back, with two quirks kept: the copy-back tests absolute
+  coordinates against ±inner, and stale scratch shows at clipped edges.
+  The scratch grows to the screen (FIX (B)).
+- test_ripple.py: 600 ripples identical at 24 and 53 bits, breaks below.
+- SdlTwodHost::ripple draws it on the finish target (the program's
+  16-bit buffer, which `video_lock` sets and `video_flip` presents);
+  mw3sdltests' check, 7/0.

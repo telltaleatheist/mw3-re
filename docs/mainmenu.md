@@ -78,10 +78,10 @@ back.
 
 The Ripple (zTwoD, vtable 0x005d04a8, in the render overlay layer's range)
 draws through zRender's 0x00558dd0 (x, y, inner, outer, amplitude,
-wavelength, phase, clip): every pixel of the ring is copied from the
-render target 2 (0x00558290's buffers) shifted along the radius by a sine of
-the distance, the inside left alone. Hooked (`ztwod::Host::ripple`), not
-ported.
+wavelength, phase, clip): every pixel of the ring is copied from the screen
+shifted along the radius by a sine of the distance, the inside left alone.
+Ported (`zrndr::ripple`, render-ripple.md); the SDL host draws it, zTwoD's
+base `Host::ripple` stays a recorded call for the tests.
 
 MainMenuButton (0x005c4f90) adds the line to its label (+0x1ec, AUXBITMAP
 ("name" dx dy), read raw: list items 1..3, placed at the button's position

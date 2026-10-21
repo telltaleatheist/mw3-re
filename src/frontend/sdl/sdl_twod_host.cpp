@@ -11,6 +11,8 @@
 #include <cstring>
 
 #include "frontend/sdl/sdl_input.h"
+#include "gamez/zutil/zfix.h"
+#include "gamez/zrender/zrndr_ripple.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
@@ -272,6 +274,15 @@ Handle SdlTwodHost::render_target(int32_t* w, int32_t* h, int32_t* depth, int32_
 }
 void SdlTwodHost::timer_update() { ztimer::update(); }
 float SdlTwodHost::frame_dt() { return ztimer::state().dt; }
+// 0x00558dd0, ported (zrndr::ripple): on the finish target, which video_lock
+// points at the program's 16-bit buffer, so the ring moves what the menu drew
+// this frame before it, as the exe's moved the locked back buffer.
+void SdlTwodHost::ripple(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength,
+                         float phase, const ztwod::Rect* clip) {
+  const int32_t c[4] = {clip ? clip->left : 0, clip ? clip->top : 0, clip ? clip->right : 0, clip ? clip->bottom : 0};
+  zrndr::ripple(x, y, inner, outer, amplitude, wavelength, phase, clip ? c : nullptr,
+                zfix::options().fpu53 ? zrndr::X87::k53 : zrndr::X87::k24);
+}
 void SdlTwodHost::video_flip(const ztwod::Rect*, const ztwod::Rect*, int32_t, int32_t) {
   if (engine_) engine_->video_flip(0, 0, 0, 0);
 }
