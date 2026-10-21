@@ -1042,6 +1042,7 @@ void GameEngine::missions_start(uint32_t list) {
   if (list != 0x6098d0) return Engine::missions_start(list);
   Missions& m = missions();
   ai::entity_list().clear();  // zEntity's list: emptied by the last cleanup (0x0049dc40); a debug start's own
+  mech_entities_forget();
   m.start();
   mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");

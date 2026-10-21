@@ -2205,9 +2205,11 @@ TEST(mission_c1m1_owens_dies_headless) {
       int frames = 0;
       mech3::LaunchedMech woke, killed, later, player, armed, armless;
       int32_t ejected = 0, salvage0 = 0, salvage1 = 0, listed = 0;
+      bool stranger_skipped = false;  // a non-mech entity on zEntity's list
       bool lost = false;
     } seen;
     void* owens = nullptr;
+    mech3::Handle stranger = 0;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
@@ -2220,7 +2222,17 @@ TEST(mission_c1m1_owens_dies_headless) {
         void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
         for (const auto h : mech3::ai::entity_list())
           seen.listed += engine.object_of(h) == owens || engine.object_of(h) == player;
+      } else if (seen.frames == 20) {
+        // An entity that is not a mech (a vehicle's place, here a bare block)
+        // joins zEntity's list: every mech path must pass it by.
+        static char stranger_object[0x200] = {};  // zeroed: any field read as a mech's would be 0
+        stranger = engine.handle_of(stranger_object);
+        mech3::ai::entity_list().push_back(stranger);
       } else if (seen.frames == 40 && owens) {
+        mech3::LaunchedMech sm;
+        seen.stranger_skipped = engine.object_of(stranger) != nullptr && !mech3::entity_is_mech(engine.object_of(stranger)) &&
+                                !mech3::describe_mech(engine.object_of(stranger), &sm) &&
+                                engine.unported_counts().count("entity vt+0x34") != 0;
         mech3::describe_mech(owens, &seen.armed);
         mech3::mech_destroy_part(owens, 2);  // the left arm flies off (0x00467100)
         mech3::describe_mech(owens, &seen.armless);
@@ -2243,6 +2255,7 @@ TEST(mission_c1m1_owens_dies_headless) {
     app.run(pump);
     EXPECT(seen.frames >= 420);
     EXPECT(seen.listed == 2);
+    EXPECT(seen.stranger_skipped);
     EXPECT(seen.woke.anim_state != 10 && !seen.woke.deadmech);
     // The left arm flew off: its node in the world, a stub in its place (the
     // Owens has no hand nodes).

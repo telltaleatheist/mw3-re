@@ -69,3 +69,20 @@ base is needed first.
    death, the kill credit's salvage 0x472ec0. It stands where placed.
 2. Its frame with the controls (the AI's; on hold).
 3. The mobile field base, then the turrets (turret.cpp, 903 lines).
+
+## Telling a mech from another entity (2026-10-21)
+
+zEntity's list holds every entity, mechs and vehicles alike. The exe tells
+them apart through the entity's own vtable: vt+0x2c, then vt+0x50 returns the
+mech (a mech returns itself; the basic vehicle, vtable 0x5c88e8, returns 0).
+The program keeps no vtables, so `app_mech.cpp` keeps the same answer as a
+registry: `entity_register` adds each mech the program builds, its free
+removes it, `missions_start` clears it, and `entity_is_mech` /
+`entity_mech(handle)` ask it. Every place that treated a list entry as a mech
+(sensors' `mech()`, `mech_free`, `killer_notify`, contacts, the player's
+target, the update loop, debrief and salvage, `describe_mech`) asks first and
+skips anything else, so a vehicle can join the list without being read as a
+mech. The update loop logs a skipped entity as the unported "entity vt+0x34"
+until vehicles have their own update. `test_program`'s c1m1 death run puts a
+stranger entry in the list and checks it is skipped (treating every entry
+as a mech crashes that run).
