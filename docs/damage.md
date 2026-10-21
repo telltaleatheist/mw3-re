@@ -436,6 +436,25 @@ shooter's node's object (0x40eee0 → 0x40e920: the node's +0x28 bits 16, 18,
 a vehicle's (0xf000) or part's (low byte) owner, 19, 17, 20, 21, 22, the
 owner at +0x40).
 
+**After death** (`mech3/mech_dead`). Once a dead mech is still (its fall
+over, +0x08 off), its update adds it to the dead mechs' list (0x41e350 on
+0x605510; +0x6b4 the time) and returns early from then on. The player's
+tick runs the list each frame (0x41e3f0): each gets 0x419ef0 (no impulse,
+its forward and sideways speeds +0x3c / +0x44 run down by x(1 - 3 dt) and
+stop below 0.05, no turn, the skis' ground step 0x4162c0, zEntity3d's move
+0x5a8000, the flown parts' fade), then 0x41e220 decides: in the campaign it
+stays; in instant action it fades from 170 s ((180 - t) / 10, 0x41e060) and
+at 180 s is hidden (0x41e140), its mech kills (+0x3f4) added to the match
+(the player's +0x4c, an ally's +0x50, the others' +0x54 of the game), the
+sensors forget it (0x4aa6b0) and it is deleted; in multiplayer the
+network's update (vt+0x158), the fade over 7.1 s when the game's +0x8c is
+set, and for the dead player at 7.1 s the respawn's answer (0x46dde0). The
+cleanup's 0x414000 empties the list. Checked: `test_deaths.py`
+(dead_update 300, dead_step 600 over the three game kinds; BREAK=14, 15);
+the c1m1 Owens is on the list after its fall, not before. Not ported: the
+instant action game's tallies and the sensors' forget (logged), the
+network's update and respawn.
+
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);
 a mission script's `Mech::DestroyPart` (0x41cfa0, called from zrdrvalve.cpp

@@ -25,6 +25,7 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_dead.h"
 #include "mech3/mech_lod.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_collide.h"
@@ -518,6 +519,22 @@ void wire_mech_parts() {
   lc.stop_effect = [](Handle e) { if (e) zeff::anim_stop(static_cast<zeff::AnimDef*>(e)); };
   lc.jets_effect = [](Mech& m) { return canned_effect(*m.pilot, 1, nullptr, nullptr, nullptr); };
 
+  // The dead mechs (mech_dead.cpp).
+  update_calls().add_dead = [](Mech& m) { dead_add(m); };  // 0x0041e350 on 0x00605510
+  DeadCalls& dc = dead_calls();
+  dc.networked = [] { return mission_game_type() == 3; };       // 0x00479480
+  dc.instant_action = [] { return mission_game_type() == 2; };  // 0x00479460
+  dc.node_set_active = [](Handle n, int32_t on) { zcls::node_set_active(zn(n), on); };
+  dc.use_opacity = [](Handle n, int32_t on) { zcls::object3d_use_opacity(zn(n), on); };
+  dc.set_opacity = [](Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };
+  dc.ia_tally = [](int32_t field, int32_t kills) {  // the instant action game is not the program's
+    if (g_w.unported) g_w.unported(g_w.engine, "ia game +0x4c..+0x54", {field, kills});
+  };
+  dc.sensors_forget = [](Mech& m) {  // the AI's (0x004d5100, 0x004aa4a0)
+    if (g_w.unported) g_w.unported(g_w.engine, "0x004aa6b0", {g_w.handle_of(g_w.engine, &m)});
+  };
+  dc.free = [](Mech& m) { mech_delete(&m); };
+
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
@@ -602,7 +619,7 @@ void wire_mech_build(const MechWiring* w) {
     skis_calls() = SkisCalls{};
     collide_calls() = CollideCalls{};
     controls_calls().ai_brain = nullptr;
-    update_calls().moved = nullptr, update_calls().purge = nullptr, update_calls().set_volume = nullptr, update_calls().set_position = nullptr;
+    update_calls().moved = nullptr, update_calls().purge = nullptr, update_calls().add_dead = nullptr, update_calls().set_volume = nullptr, update_calls().set_position = nullptr;
     command_calls() = CommandCalls{};
     part_calls() = PartCalls{};
     move_calls() = MoveCalls{};
@@ -659,6 +676,9 @@ bool mech_player_release(void* mech, int32_t* fire_mode) {
 
 void* mission_player_mech() { return world().mission_player; }
 
+void mech_dead_tick(float dt) { dead_tick(dt); }
+void mech_dead_clear() { dead_mechs().clear(); }
+
 bool mech_free(void* obj) {
   if (!obj) return false;
   for (const ai::Handle h : ai::entity_list())
@@ -709,6 +729,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   s.aim_torso = m->torso && m->target_node == m->torso->node;
   for (int i = 0; i < 6; ++i) s.kills[i] = m->x3f4[i];
   s.detail = m->detail, s.lod = m->x690;
+  for (const Mech* d : dead_mechs()) s.dead_listed |= d == m;
   s.debris = static_cast<int32_t>(m->x6d0.size());
   s.debris_in_world = !m->x6d0.empty();
   for (Handle d : m->x6d0)

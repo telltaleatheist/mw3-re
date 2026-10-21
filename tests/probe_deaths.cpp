@@ -583,3 +583,83 @@ int probe_part_lod(int32_t kind, const uint32_t* w, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+// --- the dead mechs (0x00419ef0, 0x0041e220, 0x0041e060, 0x0041e140) ---
+#include "mech3/mech_dead.h"
+
+extern "C" {
+
+// 0x00419ef0 on a mech: active, +0x3c, +0x58, +0x594, dt. Out: the calls
+// (ground, entity step, fade with dt), then +0x3c, +0x58, +0x594.
+int probe_dead_update(int32_t active, const float* v3c, const float* v58, const float* imp, float dt,
+                      uint8_t* out, int cap) {
+  g_out.clear();
+  Mech m;
+  m.active = active != 0;
+  m.vec_3c = {v3c[0], v3c[1], v3c[2]}, m.vec_58 = {v58[0], v58[1], v58[2]}, m.impulse = {imp[0], imp[1], imp[2]};
+  DeadCalls& d = dead_calls();
+  const DeadCalls d0 = d;
+  d.ground_step = [](Mech&, float t) { u32(0x80), f32(t); };
+  d.entity_step = [](Mech&, float t) { u32(0x81), f32(t); };
+  d.fade_debris = [](Mech&, float t) { u32(0x82), f32(t); };
+  m.dead_update(dt);
+  u32(0xf);
+  f32(m.vec_3c.x), f32(m.vec_3c.y), f32(m.vec_3c.z), f32(m.vec_58.x), f32(m.vec_58.y), f32(m.vec_58.z);
+  f32(m.impulse.x), f32(m.impulse.y), f32(m.impulse.z);
+  d = d0;
+  return finish(out, cap);
+}
+
+// 0x0041e220 on a dead mech. w: 0 game (0 campaign, 2 IA, 3 network), 1
+// active, 2 now bits, 3 dead time bits, 4 is the player, 5 the network's
+// fade flag, 6 respawn's answer, 7 kills (+0x3f4), 8 roster, 9 its team,
+// 10 the player's allies. Out: the calls, the tallies, +0x3f4, the answer.
+int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
+  g_out.clear();
+  static uint32_t s_game, s_net_fade, s_respawn;
+  static int32_t s_tally[3];
+  s_game = w[0], s_net_fade = w[5], s_respawn = w[6];
+  s_tally[0] = s_tally[1] = s_tally[2] = 0;
+  auto f = [](uint32_t b) { float v; std::memcpy(&v, &b, 4); return v; };
+  MechData data;
+  data.roster = static_cast<int32_t>(w[8]);
+  Mech m, other;
+  m.pilot = &data;
+  m.active = w[1] != 0;
+  m.node = h(0x6100);
+  m.dead_time = f(w[3]);
+  m.x3f4[0] = w[7];
+  m.team = w[9];
+  Mech* pl = w[4] ? &m : &other;
+  other.allies = w[10];
+  if (w[4]) m.allies = w[10];
+  World& wd = world();
+  Mech* keep = wd.mission_player;
+  const float keep_t = wd.time;
+  wd.mission_player = pl;
+  wd.time = f(w[2]);
+  DeadCalls& d = dead_calls();
+  const DeadCalls d0 = d;
+  d = DeadCalls{};
+  d.networked = [] { return s_game == 3; };
+  d.instant_action = [] { return s_game == 2; };
+  d.update = [](Mech&, float t) { u32(0x83), f32(t); };
+  d.net_update = [](Mech&, float t) { u32(0x8a), f32(t); };
+  d.net_fade = [] { return s_net_fade != 0; };
+  d.respawn = [](Mech&) { u32(0x8b); return s_respawn != 0; };
+  d.node_set_active = [](Handle n, int32_t on) { u32(0x86), u32(u(n)), u32(static_cast<uint32_t>(on)); };
+  d.use_opacity = [](Handle n, int32_t on) { u32(0x84), u32(u(n)), u32(static_cast<uint32_t>(on)); };
+  d.set_opacity = [](Handle n, float v) { u32(0x85), u32(u(n)), f32(v); };
+  d.ia_tally = [](int32_t field, int32_t kills) { s_tally[(field - 0x4c) / 4] += kills; };
+  d.sensors_forget = [](Mech&) { u32(0x88); };
+  d.free = [](Mech&) { u32(0x89); };
+  const bool gone = dead_step(m, 0.05f);
+  u32(0xf), u32(static_cast<uint32_t>(s_tally[0])), u32(static_cast<uint32_t>(s_tally[1])),
+      u32(static_cast<uint32_t>(s_tally[2])), u32(m.x3f4[0]), u32(gone ? 1 : 0);
+  d = d0;
+  wd.mission_player = keep, wd.time = keep_t;
+  m.pilot = nullptr, m.node = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"

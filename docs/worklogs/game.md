@@ -848,3 +848,13 @@ view's ground, the anim lookups 0x50b450 (92).
   sound.md). Test: a stray com_failed voice before each cleanup is gone
   after (fails with sounds_stop unwired). 0x00576270 is the reader's
   string list, not sound.
+- Item 3 (the survey's next non-AI, non-GPU, non-network): the dead mechs
+  (mech_dead.{h,cpp}): dead_add 0x0041e350, dead_tick 0x0041e3f0,
+  dead_step 0x0041e220, dead_fade 0x0041e060, dead_hide 0x0041e140,
+  Mech::dead_update 0x00419ef0, Mech::entity_step 0x005a8000 (+0x6b4 is
+  dead_time); wired: add_dead, the player tick's 0x0041e3f0, the cleanup's
+  0x00414000 (the list). The tick-order test counted player ticks by the
+  unported 0x0041e3f0 log: now player_tick_count(). test_deaths 5,553
+  identical (dead_update 300, dead_step 600; BREAK=14, 15); the Owens test
+  checks the dead list after the fall; ASan clean. Find: IA wrecks vanish
+  at 180 s. Stopped here (mac 1's order).

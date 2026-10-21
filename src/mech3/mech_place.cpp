@@ -111,6 +111,28 @@ void Mech::entity_moved() {
   forward = {f.x, f.y, f.z};
 }
 
+// Mech3.exe 1.2 @ 0x005a8000 (zEntity3d): turned by +0x58 over dt (a half
+// angle's quaternion), the velocity +0x30 the orientation's turn of +0x3c,
+// the node moved by it, the matrix from the orientation, then 0x005a85c0.
+void Mech::entity_step(float dt) {
+  const float h = dt * 0.5f;  // 0x005d0ee4
+  const zmth::Vec3 v{h * vec_58.x, vec_58.y * h, vec_58.z * h};
+  zmth::Quat e, p, n;
+  zmth::quat_exp(v, e);
+  const zmth::Quat o{orientation[0], orientation[1], orientation[2], orientation[3]};
+  zmth::quat_mul(e, o, p);
+  zmth::quat_normalize(p, n);
+  orientation[0] = n.w, orientation[1] = n.x, orientation[2] = n.y, orientation[3] = n.z;
+  zmth::Vec3 wv;
+  zmth::quat_rotate(n, {vec_3c.x, vec_3c.y, vec_3c.z}, wv);
+  velocity = {wv.x, wv.y, wv.z};
+  const float mx = velocity.x * dt, my = velocity.y * dt, mz = velocity.z * dt;
+  if (update_calls().translate) update_calls().translate(node, mx, my, mz);  // 0x004fc1b0
+  else zcls::object3d_translate(static_cast<zcls::Node*>(node), mx, my, mz);
+  zmth::quat_matrix(orientation, transform);  // 0x00525740
+  moved(*this);
+}
+
 // Mech3.exe 1.2 @ 0x005a8500
 void Mech::refresh_markers() {
   zmth::Mat34 buf;

@@ -195,7 +195,7 @@ struct Mech : ai::AiTarget {
   float voice_time;          // +0x6a8
   uint32_t x6ac = 0;         // +0x6ac
   float frame_dt = 0;        // +0x6b0  dt accumulated until a full update
-  uint32_t x6b4 = 0;         // +0x6b4
+  float dead_time = 0;       // +0x6b4  when it joined the dead mechs' list (0x0041e350)
   float knockdown[5] = {};   // +0x6b8  base, x 0.8, x 80, threshold, slope (0x414c71, 0x417a10)
   std::list<Handle> x6d0;    // +0x6d0, count +0x6d4: the nodes of parts that flew off (0x00413bb0), never taken off
 
@@ -261,6 +261,8 @@ struct Mech : ai::AiTarget {
   void aim_at_last_hit();             // 0x0041d130
   void on_kill(Handle victim);        // vtable +0x80, 0x0041b420: the kill credit
   void fade_debris(float dt);         // 0x00413cb0 (mech_parts.cpp)
+  void dead_update(float dt);         // 0x00419ef0 (mech_dead.cpp)
+  void entity_step(float dt);         // 0x005a8000: zEntity3d's turn and move by +0x58 / +0x3c (mech_place.cpp)
   void release();                     // 0x004152d0 with 0x00414f40: the destructor's body (mech_build.cpp)
   void death_prep();                  // 0x0041d070
   void hit_timeout();                 // vtable +0x14c, 0x0041d190

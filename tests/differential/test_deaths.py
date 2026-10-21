@@ -35,6 +35,8 @@ probe.probe_fade.argtypes = [I, I, I, F, P, I]
 probe.probe_release.argtypes = [I, P, P, I]
 probe.probe_lod.argtypes = [P, P, I]
 probe.probe_part_lod.argtypes = [I, P, P, I]
+probe.probe_dead_update.argtypes = [I, P, P, P, F, P, I]
+probe.probe_dead_step.argtypes = [P, P, I]
 probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
@@ -297,6 +299,83 @@ class Emulated:
         cpu.call(0x41b420, ecx=k, stack_args=(victim,))
         self.log(0xf, self.r32(k + 0xf8))
         self.logf(k + 0x3f4, 6)
+        return bytes(self.out)
+
+    # --- the dead mechs ---
+    def dead_setup(self, step):
+        cpu = self.cpu
+        if not step:
+            cpu.stub_function(0x4162c0, lambda c: self.log(0x80, c.arg(0)), 4)
+            cpu.stub_function(0x5a8000, lambda c: self.log(0x81, c.arg(0)), 4)
+            cpu.stub_function(0x413cb0, lambda c: self.log(0x82, c.arg(0)), 4)
+            self.dd_vt = 1
+            return
+        cpu.stub_function(0x419ef0, lambda c: self.log(0x83, c.arg(0)), 4)
+        cpu.stub_function(0x479480, lambda c: self.dd_net)
+        cpu.stub_function(0x479460, lambda c: self.dd_ia)
+        cpu.stub_function(0x46dde0, lambda c: (self.log(0x8b), self.dd_respawn)[1])
+        cpu.stub_function(0x4eb170, lambda c: self.log(0x86, self.dd_map(c.ecx), c.edx))
+        cpu.stub_function(0x4fbb90, lambda c: self.log(0x84, self.dd_map(c.ecx), c.edx))
+        cpu.stub_function(0x4fba20, lambda c: self.log(0x85, self.dd_map(c.ecx), c.arg(0)), 4)
+        cpu.stub_function(0x4aa6b0, lambda c: self.log(0x88))
+        vt = self.zalloc(0x200)
+        cpu.u32(vt, self.vstub(lambda c: self.log(0x89), 4))
+        cpu.u32(vt + 0x28, self.vstub(lambda c: c.ecx))
+        cpu.u32(vt + 0x158, self.vstub(lambda c: self.log(0x8a, c.arg(0)), 4))
+        self.dd_vt = vt
+
+    def dd_map(self, v):
+        return 0x6100 if v == self.dd_node else v
+
+    def dead_update(self, active, v3c, v58, imp, dt):
+        cpu = self.cpu
+        if not hasattr(self, 'dd_vt'):
+            self.dead_setup(False)
+        self.out = bytearray()
+        m = self.zalloc(0x6d8)
+        cpu.write(m + 8, bytes([1 if active else 0]))
+        cpu.write(m + 0x3c, struct.pack('<3f', *v3c))
+        cpu.write(m + 0x58, struct.pack('<3f', *v58))
+        cpu.write(m + 0x594, struct.pack('<3f', *imp))
+        cpu.call(0x419ef0, ecx=m, stack_args=(fb(dt),))
+        self.log(0xf)
+        self.logf(m + 0x3c, 3), self.logf(m + 0x58, 3), self.logf(m + 0x594, 3)
+        return bytes(self.out)
+
+    def dead_step(self, w):
+        cpu = self.cpu
+        if not hasattr(self, 'dd_vt'):
+            self.dead_setup(True)
+        self.out = bytearray()
+        game_block = self.zalloc(0x100)
+        cpu.write(game_block + 0x8c, bytes([1 if w[5] else 0]))
+        self.dd_net = game_block if w[0] == 3 else 0
+        self.dd_ia = game_block if w[0] == 2 else 0
+        self.dd_respawn = w[6]
+        m = self.zalloc(0x6d8)
+        cpu.u32(m, self.dd_vt)
+        self.dd_node = self.zalloc(0x100)
+        cpu.u32(m + 4, self.dd_node)
+        cpu.write(m + 8, bytes([1 if w[1] else 0]))
+        cpu.u32(m + 0x6b4, w[3])
+        cpu.u32(m + 0x3f4, w[7])
+        cpu.u32(m + 0xc0, w[9])
+        data = self.zalloc(0x234)
+        cpu.u32(data + 0xc, w[8])
+        cpu.u32(m + 0x684, data)
+        pl = m
+        if not w[4]:
+            pl = self.zalloc(0x6d8)
+            cpu.u32(pl, self.dd_vt)
+        cpu.u32(pl + 0xc4, w[10])
+        cpu.u32(self.game + 0x14, pl)
+        cpu.u32(0x60991c, w[2])
+        functor = self.zalloc(8)
+        cpu.u32(functor, fb(0.05))
+        cpu.call(0x41e220, ecx=functor, stack_args=(m,))
+        r = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+        t = struct.unpack('<3i', cpu.read(game_block + 0x4c, 12))
+        self.log(0xf, *t, self.r32(m + 0x3f4), 1 if r else 0)
         return bytes(self.out)
 
     # --- the level of detail ---
@@ -666,6 +745,7 @@ def main():
     dying = Emulated(True)
     flying = Emulated(False, fly=True)
     lodding = Emulated(False, fly=True)  # its own stubs for 0x4ebb40 and 0x4eb9b0
+    dupd, dstep = Emulated(False, fly=True), Emulated(False, fly=True)  # 0x419ef0 itself, and stood in
     runs = fails = 0
     kinds = {}
 
@@ -673,7 +753,7 @@ def main():
         nonlocal runs, fails
         runs += 1
         kinds[kind] = kinds.get(kind, 0) + 1
-        for e in (emu, dying, flying, lodding):
+        for e in (emu, dying, flying, lodding, dupd, dstep):
             if e.bad:
                 print(f'FAIL {kind}: the original called out wrongly ({e.bad})')
                 e.bad = None
@@ -758,6 +838,31 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # The dead mechs.
+    for _ in range(300):
+        active = rng.random() < 0.15
+        v3c = [rng.choice((0.0, 0.04, -0.06, rng.uniform(-20, 20))), rng.uniform(-3, 3), rng.choice((0.0, 0.049, rng.uniform(-20, 20)))]
+        v58 = [rng.uniform(-1, 1) for _ in range(3)]
+        imp = [rng.uniform(-5, 5) for _ in range(3)]
+        dt = rng.choice((1 / 30, 0.05, 0.1, 0.33))
+        mine = list(v3c)
+        if brk == 14:
+            mine[0] += 0.5
+        n2 = probe.probe_dead_update(active, arr(F, mine), arr(F, v58), arr(F, imp), dt, BUF, CAP)
+        check('dead_update', BUF.raw[:n2], dupd.dead_update(active, v3c, v58, imp, dt))
+    for _ in range(600):
+        game = rng.choice((0, 2, 2, 3, 3))
+        dead_t = rng.uniform(0, 500)
+        now = dead_t + rng.choice((0.5, 5.0, 9.0, 10.5, 50.0, 169.0, 171.0, 175.0, 179.9, 180.5, 300.0, rng.uniform(0, 400)))
+        w = [game, 1 if rng.random() < 0.1 else 0, fb(now), fb(dead_t), rng.randint(0, 1), rng.randint(0, 1),
+             rng.randint(0, 1), rng.choice((0, 0, 2, 5)), rng.choice((-1, 3, 11)), rng.choice((1, 2, 4)),
+             rng.choice((0, 1, 3))]
+        mine = list(w)
+        if brk == 15:
+            mine[2] = fb(now + 1.0)
+        n2 = probe.probe_dead_step(arr(U, mine), BUF, CAP)
+        check('dead_step', BUF.raw[:n2], dstep.dead_step(w))
 
     # The level of detail.
     for _ in range(800):

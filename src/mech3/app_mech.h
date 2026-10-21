@@ -63,6 +63,8 @@ void mission_lose();
 void mission_controls_free(void* controls);  // app_mission.cpp: an AI mech's controls (and brain) deleted
 // A mech (one on zEntity's list) deleted (vtable +0 with 1); false for anything else.
 bool mech_free(void* obj);
+void mech_dead_tick(float dt);  // 0x0041e3f0, the player tick's: the dead mechs' frame
+void mech_dead_clear();         // 0x00414000's list: emptied at the mission's cleanup
 // 0x004782c0(0): the pilot's mech let go: its fire mode out (false without
 // weapons), the mech globals cleared.
 bool mech_player_release(void* mech, int32_t* fire_mode);
@@ -107,6 +109,7 @@ struct LaunchedMech {
   bool debris_in_world = false;  // each of them under the world node
   uint32_t detail = 0;     // +0x688  the level of detail's bits (mech_lod.cpp)
   uint32_t lod = 0;        // +0x690  0 the full model, 1 the low-detail one
+  bool dead_listed = false;  // on the dead mechs' list (0x00605510)
 };
 bool launched_mech(LaunchedMech* out);  // false when the launch made none
 bool describe_mech(const void* mech, LaunchedMech* out);  // the same of any mech (a Mech*)
