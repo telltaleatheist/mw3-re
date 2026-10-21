@@ -469,6 +469,11 @@ From the weapon code (weapons.md).
   - On a fast PC the original's TAG recharges slower, and above about 166 fps
     (or at 144 fps when running hot) it never recharges after its first
     use. The rebuild recharges it at its 30 fps pace at any frame rate.
+  - The rebuild keeps TAG hard but fair: the beam lasts what it did at 30
+    fps (1.07 s) and the hold is a true second at every frame rate, so you
+    always have about 67 ms to spare, and the airstrike homes on the mech
+    you marked. Flown by the original's own missile code, all four hit a
+    mech walking, crossing or running at 20 m/s.
 - **The ERPPC's HUD static lasts 2 seconds** in the data, but the original
   read the first number twice and held it 0.5 s; the rebuild uses the 2 s.
 - **Unused weapon features**: zWeapon supports mines that bounce, lie in wait

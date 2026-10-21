@@ -26,6 +26,7 @@
 #include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
+#include "gamez/zweapon/zweapon.h"
 
 namespace {
 
@@ -723,4 +724,91 @@ static float place_on_bridge(bool fix) {
 TEST(fix_place_steps_ten_above) {
   EXPECT(std::fabs(place_on_bridge(false) - -99.99f) < 1e-3f);  // the exe: under the bridge
   EXPECT(std::fabs(place_on_bridge(true) - -49.99f) < 1e-3f);   // fixed: on it
+}
+
+// TAG (weapons.md "TAG, end to end"; Owen 2026-10-20). The frames the hold
+// needs on the target at a frame rate: the exe's float sum takes 61 at 60
+// fps and 145 at 144; in whole milliseconds, one second exactly.
+static int tag_hold_frames(int fps, bool fix) {
+  zfix::options().bugs = fix;
+  float t = 0;
+  int n = 0;
+  do t = static_cast<float>(1.0 / fps) + t, ++n;
+  while (!zwep::designate_held(t, 1.0f));
+  zfix::options().bugs = true;
+  return n;
+}
+
+// The frames a TAG beam is cast, held from a full charge (the start frame
+// and each update until the one that stops it): the exe's 32 / 62 / 146 at
+// 30 / 60 / 144 fps; fixed, 1.067 s at any rate.
+static int tag_beam_frames(int fps, bool fix) {
+  zfix::options().bugs = fix;
+  static mech3::WeaponType t;
+  static mech3::WeaponManager m(nullptr);
+  zwep::WeaponDef def{};
+  t.fire_time = 1.0f;
+  def.type = &t, def.period = 10000.0f, def.flags = zwep::kDesignate;
+  mech3::weapon_calls().beam_stop = [](mech3::Handle) {};
+  int frames = 0;
+  {
+    mech3::BeamWeapon w(&def, nullptr, &m);
+    w.bin->amount -= 1;  // the trigger's
+    w.firing = true;
+    const float dt = static_cast<float>(1.0 / fps);
+    for (frames = 1; frames < 10 * fps; ++frames) {
+      w.update(dt);
+      if (!w.firing) break;
+    }
+  }
+  mech3::weapon_calls().beam_stop = nullptr;
+  zfix::options().bugs = true;
+  return frames;
+}
+
+TEST(fix_tag_hold_and_beam_in_milliseconds) {
+  const int fps[3] = {30, 60, 144};
+  const int exe_hold[3] = {30, 61, 145}, exe_beam[3] = {32, 62, 146};
+  for (int i = 0; i < 3; ++i) {
+    EXPECT(tag_hold_frames(fps[i], false) == exe_hold[i]);
+    EXPECT(tag_beam_frames(fps[i], false) == exe_beam[i]);
+    EXPECT(tag_hold_frames(fps[i], true) == fps[i]);  // one second
+    const int beam = tag_beam_frames(fps[i], true);
+    // 1.067 s (the exe's at 30 fps) to within a frame: ~67 ms of slack at any rate
+    EXPECT(std::fabs(beam * 1000.0 / fps[i] - 1066.7) < 1000.0 / fps[i]);
+    EXPECT(std::fabs((beam - fps[i]) * 1000.0 / fps[i] - 66.7) < 1000.0 / fps[i]);
+  }
+}
+
+// The strike homes on the marked mech: fixed, the missiles' lock is the
+// unit's live position and velocity; the exe's, the point it stood on.
+TEST(fix_tag_strike_homes_on_the_unit) {
+  static const zwep::Vec3f3 unit_at{5, 0, -300}, unit_vel{0, 0, -10};
+  static const zwep::Vec3f3* seen_at;
+  static const zwep::Vec3f3* seen_vel;
+  mech3::WeaponCalls& c = mech3::weapon_calls();
+  c.strike_target = [](mech3::Handle, zwep::LockRef* out) {
+    out->entity = reinterpret_cast<mech3::Handle>(0x1234), out->at = &unit_at, out->velocity = &unit_vel;
+    return true;
+  };
+  c.spawn = [](zwep::WeaponDef*, mech3::Handle, mech3::Handle, const mech3::Vec3f*, const mech3::Vec3f*,
+               const mech3::Vec3f*, int32_t, int32_t, bool) -> mech3::Handle {
+    const zwep::LockRef* l = zwep::fire_state().lock_target;
+    seen_at = l ? l->at : nullptr, seen_vel = l ? l->velocity : nullptr;
+    return nullptr;
+  };
+  mech3::WeaponType t;
+  zwep::WeaponDef missile{};
+  missile.type = &t;
+  t.strike_weapon = &missile;
+  const zwep::Vec3f3 dir{0, 0, -1}, at{0, 0, -300};
+  for (int fix = 0; fix < 2; ++fix) {
+    zfix::options().bugs = fix != 0;
+    seen_at = seen_vel = nullptr;
+    t.strike(nullptr, dir, at, reinterpret_cast<mech3::Handle>(0x99));
+    if (fix) EXPECT(seen_at == &unit_at && seen_vel == &unit_vel);
+    else EXPECT(seen_at == &t.strike_point && seen_vel == nullptr);
+  }
+  zfix::options().bugs = true;
+  c.strike_target = nullptr, c.spawn = nullptr;
 }

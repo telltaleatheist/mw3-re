@@ -221,3 +221,13 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Open: an optimized (RelWithDebInfo) ASan build of mw3tests stops in
   Mech3App::init_instance on a stack address cut to 32 bits; a Debug ASan
   build runs both tests clean. Not chased yet.
+## 2026-10-20: TAG, hard but consistent (branch mac2/tag-fix)
+
+- Owen's decision, zfix bugs: the hold in whole ms (zwep::designate_held),
+  the beam's time its 30 fps one (1.067 s; BeamWeapon::fired_time), the
+  strike locked on the marked mech (WeaponCalls::strike_target via
+  zwep::damage_object; wired in app_weapons for mechs).
+- fix_tag_hold_and_beam_in_milliseconds, fix_tag_strike_homes_on_the_unit;
+  TAG_UNIT=1 test_tag.py flies the unit lock with the original's homing:
+  4/4 hits in every case. test_tag.py (the exe's path) unchanged.
+- Next: craters part 2 (zgeo_model).

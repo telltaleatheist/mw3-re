@@ -192,6 +192,9 @@ Each change is also marked `FIX` in the code next to the original address.
 | AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
 | Quicksand texture, declient.zrd read 0x501ab0 | One frame: adds the name past the list's end (frames[1]) and drops the texture; no `DEFAULT_TEXTURE`: reads the last mission's freed name list, or a null one | (bug) a crash or a random texture at mission load | One frame: that frame, set as the material's texture; no `DEFAULT_TEXTURE`: untextured ("Quick sand will NOT be textured"). No shipped file reaches either; `test_zdec_init.py` runs them on the port alone (craters.md) |
 | Placing a mech, 0x4161c0 | The ground pick is given y + 10 as its step, so it reaches 2y + 10: below sea level nothing is in reach and the lowest surface is taken, high up a surface up to y + 10 above can be | (bug) a mech re-placed where it stands (a mech swap, 0x4783c0) can drop under a bridge or land on a roof; the other callers pass a constant | A step of 10 (Owen 2026-10-20, `zfix bugs`). Every shipped place checked both ways (`placements_on_every_campaign_mission_headless` with `MW3_PLACE_POINTS`): 195 campaign placements and 768 aiv.zrd records, none moves; `fix_place_steps_ten_above`; test_place.py checks the exe's path |
+| TAG's hold, 0x5814b0 | The time on the target adds each frame's dt in float and must reach DESIGNATE's 1.0 | (bug) 60 x (1/60) and 144 x (1/144) fall just short, so the hold takes a frame more at those rates | Compared in whole milliseconds: one second at any rate (Owen 2026-10-20, `zfix bugs`); `fix_tag_hold_and_beam_in_milliseconds`; test_tag.py checks the exe's path |
+| TAG's beam, 0x4b4230 | The charge drains ftol(10000 dt) a frame and the beam stops at the update after it empties | (bug) the beam lasts 32 frames at 30 fps (1.067 s), 62 at 60 (1.033), 146 at 144 (1.014): the slack over the one-second hold is 2, 1 and 1 frames | The beam lasts its 30 fps time, 1.067 s, at any rate (stopped at the first update at or past it, the charge drained evenly meanwhile): about 67 ms of slack everywhere (2, 4, 10 frames). It still fires only from a full charge, and letting go keeps what was left (Owen). `zfix bugs` |
+| TAG's strike, 0x4afed0 | The four missiles lock on the point the beam touched (no entity, no velocity) | (bug) they arrive 7 s later where the target stood: a mech walking at 30 kph or more is not touched | When the marked thing is a mech, the lock is the mech's live position and velocity (`WeaponCalls::strike_target`, the hit node's damage handler); anything else keeps the point. `zfix bugs`. `TAG_UNIT=1 test_tag.py` flies it with the original's homing: four hits at 30, 60 and 144 fps, standing, walking, crossing and running at 20 m/s; `fix_tag_strike_homes_on_the_unit` |
 
 Notes on the fixes:
 
@@ -325,12 +328,9 @@ To do, in the specialists' queues:
 - c4b mission 6's boundary: make the valve trip when the player leaves the
   area (the region names the player's orders give do not exist; find the
   pair the mission's geometry means). FIX (bug).
-- TAG: keep it hard to use (a balance choice) but the same at any frame
-  rate, timed in milliseconds rather than frames (the hold and the beam's
-  charge by time, the same slack at every rate); the strike homes on the
-  unit that was marked, so it hits a moving target too, directly. It fires only
-  from a full charge, as now (Owen: anything less would be useless);
-  letting go early already refills from what was left. `zfix bugs`.
+- TAG: done (mac2/tag-fix): the hold in whole milliseconds, the beam's
+  time its 30 fps one, the strike on the marked unit (weapons.md, "TAG,
+  end to end", The fix).
 - Allied pilots fight the target they are told to, then pick their own
   targets after it (the attack 0x4e9710's "nearest enemy when none is
   selected", which never happens as written). `zfix bugs`.

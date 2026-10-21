@@ -704,7 +704,29 @@ second was up (the beam stops and the charge is gone for 22..67 s); or the
 next try came before the minute-long recharge was full (a trigger from a
 partial charge does nothing at all).
 
-What could change is listed in fixes.md, Candidates for Owen (TAG).
+**The fix** (Owen 2026-10-20: hard but consistent; `zfix bugs`, off in the
+probes, so the parts above stay the exe's):
+
+- The hold compares the time on the target in whole milliseconds
+  (`zwep::designate_held`): 30, 60 and 144 frames at 30, 60 and 144 fps.
+- The beam lasts its 30 fps time in the exe, (ceil((charge - 1) /
+  ftol(rate / 30)) + 1) / 30 = 1.067 s for TAG, at any rate: it stops at the
+  first update at or past it (in whole ms), the charge drained evenly
+  meanwhile (`BeamWeapon::fired_time`). 32, 64 and 154 frames: 67, 67 and
+  69 ms of slack. Only from a full charge, as before; let go and what was
+  left stays.
+- The strike locks on the marked unit when it is a mech: the hit node's
+  damage handler (`zwep::damage_object`) is a mech's, so the lock is its
+  live position and velocity (`WeaponCalls::strike_target`); a building or
+  anything else keeps the point. Flown with the original's own homing
+  (`TAG_UNIT=1 test_tag.py`, the missiles' lock pointed at the walking
+  capsule): all four hit, 72 damage, at 30, 60 and 144 fps, standing,
+  walking away or crossing at 10 m/s and running at 20, arriving after
+  7.2..7.7 s.
+
+Checked: `fix_tag_hold_and_beam_in_milliseconds` (the exe's 30/61/145 and
+32/62/146 frames with the fix off, a second and 1.067 s with it),
+`fix_tag_strike_homes_on_the_unit`; test_tag.py unchanged.
 
 ## Discoveries
 

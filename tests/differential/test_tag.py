@@ -350,6 +350,8 @@ class TagFly(fly.Fly):
         self.op_seed = seed
         self.rand = fly.MsvcRand(seed)
         orig()
+        if getattr(self, 'orig_only', False):
+            return self.events['orig']
         self.rand = fly.MsvcRand(seed)
         probe.probe_fly_seed(seed)
         port(seed)
@@ -479,6 +481,16 @@ def fly_strike(f, fps, speed, heading, dist=300.0, max_s=30.0):
     dt = f32(1.0 / fps)
     k = designate(f, fps, 'T' * 200, dist)
     assert k is not None
+    unit = None
+    if getattr(f, 'orig_only', False):
+        # The fix's lock: the missiles home on the mech's live position and
+        # velocity (the exe's homing, flown by the original's code).
+        unit = f.zalloc(0x18)
+        for i in f.live_slots():
+            b = f.pool_base + 0x5d8 * i
+            f.cpu.u32(b + 0x6c, 1)
+            f.cpu.u32(b + 0x70, unit)
+            f.cpu.u32(b + 0x74, unit + 12)
     spawned = {i: {'start': pos, 'path': [pos]} for i, pos, _ in f.missiles()}
     damage = []
     t = 0.0
@@ -491,6 +503,9 @@ def fly_strike(f, fps, speed, heading, dist=300.0, max_s=30.0):
             c[2] += speed * heading[1] * dt
         if BREAK == 4:
             f.target['port'][2] = f.target['orig'][2] - 2.0
+        if unit:
+            c = f.target['orig']
+            f.cpu.write(unit, struct.pack('<6f', c[0], 0.0, c[2], speed * heading[0], 0.0, speed * heading[1]))
         ev = f.tick(dt)
         for e in ev:
             if e[0] == 44 and (e[1] & 0xffffffff) == f.hd:
@@ -553,7 +568,33 @@ def part23(stats, beam_frames):
                       f'ends at {tuple(round(x, 1) for x in r0["at"])}')
 
 
+def unit_strike():
+    """TAG_UNIT=1: the strike's FIX (bug) measured with the original's own flight code:
+    the four missiles' lock moved from the marked point to the mech's live position
+    and velocity (what the port's fixed strike gives them), the mech walking."""
+    print('the strike locked on the unit (the fix; flown by the original 0x5823c0 / 0x585900 / 0x585cc0)')
+    f = TagFly()
+    f.stats = {'p1': {}, 'hot': {}, 'need': {}, 'strike': {}, 'calls': 0, 'near': 0}
+    f.setup(random.Random(5))
+    f.orig_only = True
+    for fps in FPS:
+        for name, speed, heading in (('standing', 0.0, (0.0, -1.0)), ('walking away at 10 m/s', 10.0, (0.0, -1.0)),
+                                     ('crossing at 10 m/s', 10.0, (1.0, 0.0)),
+                                     ('running away at 20 m/s', 20.0, (0.0, -1.0))):
+            k, sp, dmg, start = fly_strike(f, fps, speed, heading)
+            ends = [r.get('end') for r in sp.values() if r.get('end')]
+            direct = sum(1 for _, _, d in dmg if d == 18.0)
+            print(f'   {fps:3d} fps, {name}: {len(ends)} of {len(sp)} land after {min(ends, default=0):.2f}..'
+                  f'{max(ends, default=0):.2f} s; {len(dmg)} hits, {direct} direct, {sum(d for _, _, d in dmg):.1f} damage')
+            if len(dmg) < 4 or sum(d for _, _, d in dmg) < 4 * 18.0 * 0.99:
+                raise SystemExit(f'{fps} fps, {name}: not every missile hit the marked mech')
+    print('ok: every missile hits the marked mech, standing or moving')
+
+
 def main():
+    if os.environ.get('TAG_UNIT') == '1':
+        unit_strike()
+        return
     stats = {'p1': {}, 'hot': {}, 'need': {}, 'strike': {}, 'calls': 0, 'near': 0}
     if os.environ.get('TAG_PARTS', '123') != '23':
         part1(stats)

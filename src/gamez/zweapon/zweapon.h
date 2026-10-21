@@ -155,6 +155,11 @@ int32_t set_handler(Handle object, Handle node, void (*fn)(), int32_t slot);    
 int32_t set_damage_handler(Handle object, Handle node, DamageFn fn, int32_t flag);   // 0x005833b0 (flag, then fn on the stack)
 int32_t set_touch_handler(Handle object, Handle node, TouchFn fn);                   // 0x005833f0
 int32_t remove_handlers(Handle node);                                                // 0x00583400
+// The rebuild's: the object and function of the damage handler a node has
+// (its own or handed down), null when none (the TAG strike's fix).
+Handle damage_object(Handle node, DamageFn* fn);
+// DESIGNATE's hold reached (in 0x005814b0); FIX (bug) in whole ms.
+bool designate_held(float timer, float hold);
 void handler_clear(Handle node, uintptr_t h);                                        // 0x00583440
 void touch(const Vec3f3* from, HitRecord* hit, float damage);                        // 0x005836b0
 void quicksand(WeaponDef* def, HitRecord* hit, int32_t soil, Projectile* p);         // 0x005824b0
