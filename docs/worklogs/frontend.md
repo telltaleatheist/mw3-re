@@ -858,3 +858,39 @@ Network HUD pieces skipped as ordered.
   28/29 was not kept); (2) #8 (weapon recharge on the HUD); (3) #13 with
   #7 folded in (the HUD keys reaching the unwired HUD-command hook; keypad
   0 the zoom).
+
+## 2026-10-21 Resumed: test_debriefing's hang, lab step 4 breaks on main
+
+- test_debriefing.py (Owen killed it after 11 h at 193 GB, after its
+  "24/24 runs identical (326147 calls" line): not reproduced at a95c56b.
+  Six runs under the cap (system and .venv Python) all exit 0 in 21 s at
+  0.27-0.28 GB peak, with the same 326147 calls. No threads in the probe;
+  the script ends in os._exit right after that print, so no Python runs
+  after it: the growth was in the exit itself (the Mac's stuck-at-exit
+  state, project-ue-hangs) or in another process. New:
+  tests/differential/run_capped.py (memory cap, time limit, RSS log), now
+  the rule for every differential and break run (worklogs/README.md).
+- Lab step 4 breaks (lab/breaks4b.py: breaks4.py with each test run
+  capped) against main a95c56b, test_lab_screen.py 40: 27/28 caught. The
+  only miss, "fix tons", is an equivalent mutant: the chosen row's tonnage
+  ("%.1f") never holds a '%', so the exe's set_text(b) and the FIX's
+  set_text("%s", b) show the same text. The FIX could never change
+  anything: removed (the exe's call kept), with its fixes.md row and
+  CHANGES.md line. The 09:30 run's other misses are all caught now.
+  Output kept:
+
+```
+caught fill training / fill unavailable / fill full / fill other /
+  default first / default check / select modified / select name
+  (traces differ)
+caught add enabled / rename own / save flag (dumps differ)
+caught row question / row config / start rename flag (traces differ)
+caught start pos (dumps differ)
+caught taken same / stock refuse / overwrite q / overwrite delete /
+  rename modified / cancel copy / save existing / delete own /
+  delete save (traces differ)
+caught edit arrows (dumps differ)
+caught message sound / fix sort (traces differ)
+MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
+27 caught
+```

@@ -272,9 +272,8 @@ void LabChassisList::layout() {
     t->set_pos(r->get_x() + 175, r->get_y());
     char b[32];
     std::snprintf(b, sizeof b, "%.1f", static_cast<double>(max_mass(it->id())));
-    // FIX (bug): the chosen row's text was its own format (a '%' would be
-    // read as one); as text with zfix bugs, the exe's call without.
-    if (chosen && !zfix::options().bugs) t->set_text(b);
+    // The chosen row's number is its own format: harmless, "%.1f" never prints a '%'.
+    if (chosen) t->set_text(b);
     else t->set_text("%s", b);
   };
   const Handle green = ztwod::host().font_find("lab_large_greenR");
