@@ -891,3 +891,11 @@ view's ground, the anim lookups 0x50b450 (92).
   controls: +0x330, +0x70, the +0x764 block, IControls vt+0x14 / 0x18 /
   0x0c); written in vehicles.md with the second-entity-kind question. Order
   done; waiting.
+
+## The entity kind and a render piece (mac 1's order, 2026-10-21)
+
+- Entity kind: the program's mechs are told from other zEntity entries by a
+  registry standing in for the exe's vt+0x2c / vt+0x50 test (vehicles.md,
+  last section); every mech-reading use of the list asks it first.
+  test_program's c1m1 run adds a non-mech entry and checks it is skipped;
+  break (every entry a mech) segfaults. mw3tests 107/0.

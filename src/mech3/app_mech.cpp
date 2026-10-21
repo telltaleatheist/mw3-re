@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <unordered_set>
 #include <memory>
 #include <string>
 
@@ -64,6 +65,17 @@ namespace mech3 {
 int32_t invincible();  // 0x0040cf20, mech3/options.h
 
 namespace {
+// The program's mechs (ours): what a zEntity entry's vt+0x2c then vt+0x50
+// answers in the exe (a mech itself; the basic vehicle, a turret or a target
+// 0). zEntity's list holds handles of any entity; only these are Mechs.
+std::unordered_set<const void*>& mech_objects() {
+  static std::unordered_set<const void*> s;
+  return s;
+}
+Mech* entity_mech(ai::Handle h);
+}  // namespace
+
+namespace {
 int32_t g_spawn_updates = 0;  // the spawn's update steps run (0x004782f0)
 float g_spawn_pos[3] = {};    // where the placement left the mech, before that step
 
@@ -109,7 +121,10 @@ class WiredBuild : public MechBuildHooks {
   void node_set_action(Handle node, uint32_t) override { zcls::node_set_action(zn(node), nullptr); }
   void node_set_flag8(Handle node, int32_t on) override { zcls::node_set_flag8(zn(node), on); }
   // 0x005a7f50: onto zEntity's list, the port's (mech3/sensors).
-  void entity_register(Mech& m) override { ai::entity_list().push_back(g_w.handle_of(g_w.engine, &m)); }
+  void entity_register(Mech& m) override {  // 0x005a7f50
+    ai::entity_list().push_back(g_w.handle_of(g_w.engine, &m));
+    mech_objects().insert(&m);
+  }
   void node_set_active(Handle node, int32_t on) override { zcls::node_set_active(zn(node), on); }
   void node_set_name(Handle node, const char* name) override { zcls::node_set_name(zn(node), name); }
   void node_add_child(Handle parent, Handle child) override {
@@ -265,9 +280,7 @@ void wire_mech_frame() {
   c.contact = [](Mech& m, int32_t i) -> Handle { return m.contacts[i]; };
   c.contact_mech = [](Handle ct) -> Mech* {  // 0x004e6ff0
     const ai::Handle s = static_cast<ai::Contact*>(ct)->seen;
-    for (const ai::Handle e : ai::entity_list())
-      if (s && e == s) return static_cast<Mech*>(g_w.object_of(g_w.engine, s));
-    return nullptr;
+    return s ? entity_mech(s) : nullptr;
   };
   c.contact_target = [](Handle) { return false; };
   c.contact_dist2 = [](Handle ct) { return static_cast<ai::Contact*>(ct)->dist2; };
@@ -507,6 +520,7 @@ void wire_mech_parts() {
     m.model_node = m.lod_node = nullptr;
   };
   fr.entity_free = [](Mech& m) {  // 0x005a7f70: off zEntity's list
+    mech_objects().erase(&m);
     auto& list = ai::entity_list();
     for (auto it = list.begin(); it != list.end();)
       it = g_w.object_of(g_w.engine, *it) == &m ? list.erase(it) : std::next(it);
@@ -516,9 +530,7 @@ void wire_mech_parts() {
   LodCalls& lc = lod_calls();
   lc.player_target = [](Mech& player) -> Mech* {  // 0x004e6ff0 on +0x6c: the contact's vehicle, a mech
     const ai::Handle seen = player.target ? player.target->seen : 0;
-    for (const ai::Handle h : ai::entity_list())
-      if (h == seen) return static_cast<Mech*>(g_w.object_of(g_w.engine, h));
-    return nullptr;
+    return seen ? entity_mech(seen) : nullptr;
   };
   lc.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };
   lc.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };
@@ -548,8 +560,7 @@ void wire_mech_parts() {
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
   // other killers (the AI's vehicles and turrets) are not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
-    for (const ai::Handle h : ai::entity_list())
-      if (g_w.object_of(g_w.engine, h) == killer) return static_cast<Mech*>(killer)->on_kill(&victim);
+    if (entity_is_mech(killer)) return static_cast<Mech*>(killer)->on_kill(&victim);
     if (g_w.unported) g_w.unported(g_w.engine, "killer vt+0x80", {});
   };
   d.salvage_mech = [](Handle m) {  // 0x00472f00 on the mission's store
@@ -690,10 +701,10 @@ void mech_dead_tick(float dt) { dead_tick(dt); }
 void mech_dead_clear() { dead_mechs().clear(); }
 
 bool mech_free(void* obj) {
-  if (!obj) return false;
-  for (const ai::Handle h : ai::entity_list())
-    if (g_w.object_of(g_w.engine, h) == obj) return mech_delete(static_cast<Mech*>(obj)), true;
-  return false;
+  if (!entity_is_mech(obj)) return false;
+  mech_delete(static_cast<Mech*>(obj));
+  mech_objects().erase(obj);  // a mech without a node keeps its zEntity entry (as the exe's)
+  return true;
 }
 void mech_kill(void* mech, void* killer) {
   auto* m = static_cast<Mech*>(mech);
@@ -706,8 +717,8 @@ std::vector<std::string>& mech_parts_fx_log() { return g_parts_fx; }
 bool launched_mech(LaunchedMech* out) { return describe_mech(mech3::launched_mech(), out); }
 
 bool describe_mech(const void* mech, LaunchedMech* out) {
+  if (!entity_is_mech(mech)) return false;  // not a mech (or gone): nothing to read
   const Mech* m = static_cast<const Mech*>(mech);
-  if (!m) return false;
   LaunchedMech s;
   s.roster = m->pilot->roster;
   const MechPart* parts[] = {m->hip, m->torso, m->head, m->arms[0], m->arms[1], m->legs[0], m->legs[1]};
@@ -788,8 +799,12 @@ void update_mech(void* mech, float dt) {
 // player's +0x09 clear, so its frame is the player tick's alone.
 void update_entities(float dt) {
   zent::budget().update_all(ai::entity_list(), [dt](ai::Handle h) {
-    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
-    if (m && m->x09) m->update(dt);  // vt+0x34
+    Mech* m = entity_mech(h);
+    if (!m) {  // another entity's vt+0x34: none is the port's yet
+      if (g_w.unported) g_w.unported(g_w.engine, "entity vt+0x34", {h});
+      return;
+    }
+    if (m->x09) m->update(dt);  // vt+0x34
   });
 }
 // Mech3.exe 1.2 @ 0x0041ca30: the player's mech takes the value, any other 1.
@@ -808,7 +823,7 @@ uint32_t mech_allies(const void* mech) { return mech ? static_cast<const Mech*>(
 std::vector<DebriefMech> mech_debrief_lance() {
   std::vector<DebriefMech> r;
   for (const ai::Handle h : ai::entity_list()) {
-    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    Mech* m = entity_mech(h);
     if (!m) continue;
     DebriefMech d;
     d.mech = m;
@@ -888,7 +903,7 @@ void mech_lance_salvage(Store& own, bool team) {
   std::vector<SalvageEntity> list;
   Mech* player = world().mission_player;
   for (const ai::Handle h : ai::entity_list()) {
-    auto* m = static_cast<Mech*>(g_w.object_of(g_w.engine, h));
+    Mech* m = entity_mech(h);
     SalvageEntity e;
     if (m) {
       e.mech = true;
@@ -926,12 +941,17 @@ const char* mech_brain_name(void* mech) {
   return c && c->brain ? c->brain->params.pilot : nullptr;
 }
 void* mech_mission_player() { return world().mission_player; }
-bool entity_is_mech(const void* o) {
-  if (!o) return false;
-  for (const ai::Handle h : ai::entity_list())
-    if (g_w.object_of(g_w.engine, h) == o) return true;
-  return false;
+bool entity_is_mech(const void* o) { return o && mech_objects().count(o) != 0; }
+
+void mech_entities_forget() { mech_objects().clear(); }
+
+namespace {
+// A zEntity entry's mech (vt+0x2c then vt+0x50), none for other entities.
+Mech* entity_mech(ai::Handle h) {
+  void* o = h ? g_w.object_of(g_w.engine, h) : nullptr;
+  return entity_is_mech(o) ? static_cast<Mech*>(o) : nullptr;
 }
+}  // namespace
 uint32_t mech_player_allies() { return world().mission_player ? world().mission_player->allies : 0; }
 bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
   Mech* m = static_cast<Mech*>(mech);

@@ -35,11 +35,11 @@ uint32_t log_unported(const char* key, std::initializer_list<zgame::Arg> args) {
 uint32_t handle(const void* p) { return p && g_w.handle_of ? g_w.handle_of(g_w.engine, p) : 0; }
 void* object(uint32_t h) { return h && g_w.object_of ? g_w.object_of(g_w.engine, h) : nullptr; }
 
-// The mechs are the entities on zEntity's list; the targets are targets.zrd's.
+// The mechs are zEntity's entries that are mechs (entity_is_mech, the exe's
+// vt+0x2c then vt+0x50); the targets are targets.zrd's.
 Mech* mech(uint32_t h) {
-  for (zgame::Handle e : ai::entity_list())
-    if (e == h) return static_cast<Mech*>(object(h));
-  return nullptr;
+  void* o = object(h);
+  return entity_is_mech(o) ? static_cast<Mech*>(o) : nullptr;
 }
 ai::CZAiTarget* target(uint32_t h) {
   for (ai::CZAiTarget* t : ai::target_list())
@@ -99,7 +99,7 @@ struct ProgramSensors : ai::SensorHooks {
       }
     } else if (slot == 0x54) {  // the controls' brain (IControls vt+0x54)
       for (zgame::Handle e : ai::entity_list()) {
-        Mech* m = static_cast<Mech*>(object(e));
+        Mech* m = mech(e);
         if (m && handle(m->controls) == o) return handle(brain_of(m));
       }
       return 0;
