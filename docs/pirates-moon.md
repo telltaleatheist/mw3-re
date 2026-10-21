@@ -113,3 +113,15 @@ From `strings` on both exes (only in PM):
   matching functions by bytes and call graph, as planned in CLAUDE.md), to
   see which MW3 functions PM changed: changed functions are often fixed
   bugs, which would confirm or question our FIX (bug) choices.
+
+## Running the differential tests on PM's exe (2026-10-21)
+
+`tests/differential/original.py` knows both exes (`EXES`: MW3 1.2 and PM
+1.0, each by its SHA-256). MW3 is the default. `Original(exe='pm')` or
+`MW3_EXE=pm` (or a path to either exe) runs PM's instead, and any other
+file is refused. `calltrace.py` decodes a function's `ret` from the selected
+exe when it is not MW3's, since `mech3.asm` is MW3's listing.
+`twod_world.py` reads the selected exe's imports. The tests' addresses are
+MW3's, so a test runs on PM only where the function sits at the same
+address. The function-by-function diff that maps PM's addresses comes
+later. `test_exe_select.py` checks the choice.

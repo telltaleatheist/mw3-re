@@ -25,7 +25,7 @@ from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, U
                                 UC_X86_REG_ESP)
 
 sys.path.insert(0, str(Path(__file__).parent))
-from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
+from original import EXE, FTOL, GAME, IAT_FTOL, ROOT, Original  # noqa: E402
 
 ASM = ROOT / 'analysis-output' / 'mech3.asm'
 _ret_cache = {}
@@ -75,10 +75,12 @@ def ret_pop(addr):
     starts = _starts()
     j = bisect.bisect_right(starts, addr)
     end = starts[j] if j < len(starts) else addr + 0x10000
-    if addr not in index:  # mech3.asm lost sync around a jump table: decode this one
+    # mech3.asm lost sync around a jump table, or is MW3's listing while
+    # another exe runs (original.select): decode this one from the exe.
+    if addr not in index or GAME != 'mw3':
         import subprocess
         out = subprocess.run(['objdump', '-d', '--no-show-raw-insn', '--x86-asm-syntax=intel', f'--start-address={addr:#x}',
-                              f'--stop-address={end:#x}', str(ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe')],
+                              f'--stop-address={end:#x}', str(EXE)],
                              capture_output=True, text=True).stdout
         lines = out.split('\n')
         index = {addr: 0}

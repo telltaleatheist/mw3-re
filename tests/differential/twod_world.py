@@ -14,9 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Emu, Trace, rnd  # noqa: E402
-from original import ROOT  # noqa: E402
+from original import EXE, ROOT  # noqa: E402
 
-EXE = ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe'
 READER = ROOT / 'game' / 'mw3-1.2' / 'zbd' / 'reader.zbd'
 READ_NODE = 0x557180
 
