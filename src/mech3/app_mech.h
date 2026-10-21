@@ -32,6 +32,8 @@ void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once
 void unwire_weapons();
 void sync_frame_step(float dt);
+// 0x00478f10 on the pilot the pilot screen chose (app_menus.cpp); false when none is.
+bool program_record_mission(bool next);
 int32_t mech_select_hot_group(void* mech);
 bool mech_select_group(void* mech, int32_t g);
 std::string mech_group_names(void* mech, int32_t g);

@@ -50,6 +50,7 @@ class GameEngine;
 class MenuScreen;
 class MenuState;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
+void wire_pilot_hooks(GameEngine* e);    // the pilot module's calls out (app_menus.cpp)
 
 class GameEngine : public Engine {
  public:
@@ -107,6 +108,7 @@ class GameEngine : public Engine {
   void credits_restart(Handle screen) override;
   void pilot_state_set_mode(Handle state, int32_t mode) override;
   void pilot_chosen(Pilot* p) override;
+  void pilot_record_mission(Handle p, int32_t a) override;
   void pilots_delete() override;
   void pilot_delete(const char* name) override;
   uint32_t message_box1(int32_t a, int32_t caption, int32_t text, const char* s) override;

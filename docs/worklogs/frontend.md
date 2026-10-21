@@ -394,3 +394,25 @@ Merged into main (lead, 2026-10-20, cb750d0). The slide speed stays 60 px/s
 (the lead: the panel's speed field is per second by design; 30 px/s was the
 accident of a 30 fps frame). Next: waiting for the lead's item; the HUD's
 open pieces are listed under Where things stand.
+
+## 2026-10-20 The campaign flow (branch mac3/campaign-map)
+
+New area from the lead: the campaign from the pilot screen to a mission
+and back. 5c278dd: docs/campaign.md, the map and a 9-item porting order
+(lead agreed; the briefing's progress bar goes per_second in item 2, no
+candidate). Item 1, the campaign's progress: Pilot::record_mission
+0x00478f10, CampaignGame::next_mission 0x00434e00 (+ slot_at, slot_count,
+reset_lancemates, copy_lancemates), campaign_advance 0x00484870 with the
+counts 0x00484840 now ported as the hook's default, GameSlot::copy_from /
+set_config, Store::assign / add_mech / add_config; and the loadout copy
+(Config::copy_of 0x00424010/0x00423e00, add_item 0x004723c0 for every kind,
+recount 0x00425bd0 into new fields free_slots/free_in, WeaponItem::location
+0x00473220 via mech_dfn). New PilotHooks: config_copy, config_recount,
+mission_salvage, save_world, message_box. Tests: test_pilot.py ops P (record,
+with the question's answer), l, s (salvage), f (modified); campaign_steps in
+the plan; fake loadouts now carry a weapon and its ammo on both sides.
+test_mechsave.py copies every undamaged loadout (stand-in dfns seeded inside
+each copy: the test resets the emulator heap between loads; mech_dfn_slot
+added for the probe). Breaks: scratch/campaign/breaks.py SEEDS [names].
+Found: No to "replace saved game" still overwrites the file (zSave writes
+first): fixes.md "still to fix", for when zSave is wired.

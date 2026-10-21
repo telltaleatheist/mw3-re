@@ -141,7 +141,26 @@ sentinel linked to itself, +0xc = 0, +0x10 = (arg != 0), vtable 0x5c36e0).
 | +0x7c | float | 0.5 | top-level `accel_rate` |
 | +0x80 | float | 1.3 | top-level `decel_rate` |
 | +0x84 | float | 3.0 | top-level `turn_accel_factor` (default 1.5 in the head) |
-| +0x88..+0xd7 | | not written | +0x88 is the saved loadout's CRC-32 checksum (`mechdef-head.md`); the rest not traced |
+| +0x88..+0xd7 | | not written | +0x88 is the saved loadout's CRC-32 checksum (`mechdef-head.md`); +0x8c..+0xb0 the free critical slots (below); the rest not traced |
+
+**The free slots** (0x00425bd0, run by the copy and the mech lab): +0x8c all
+parts, +0x90 + 4 * part each part (part 0 is never set: heap garbage). Each
+part starts at its size (0x00425db0: 12 for parts 1, 2, 3, 7, 8; 6 for 4, 5,
+6; 78 in all), less each item's slots (vt+0x18) in its part (vt+0x08:
+equipment and ammo their +0x0c, a weapon its firepoint's part from the dfn,
+0x00473220; unplaced items count nowhere), less the fixed equipment (part 1
+10, parts 2 and 3 two each, 4 and 5 four each, 6 five, 21 in all), and an XL
+engine 3 more in parts 7 and 8 (2 for a Clan mech).
+
+**The copy** (0x00424010 with ECX the name and EDX the loadout; the slot
+copy passes no store): the copy constructor 0x00423e00 adds the items one
+by one (0x004723c0: base and engine items merge with one like them, weapons
+and ammo are always new, equipment through 0x00471fb0; a new engine item is
+not made, and the copy then writes through null), each keeping its place,
+then copies the fields (not the checksum; player made is set), names it,
+clears the modified flag and counts the free slots. Ported as
+`Config::copy_of` and `Config::recount`; `test_mechsave.py` copies every
+undamaged saved loadout (553) and compares the copy and its counts.
 
 Armor points, from the reader's stores: +0x38 `torso`[0] (centre front),
 +0x44 `torso`[1] (centre rear), +0x3c and +0x40 both `torsolr`[0], +0x48 and

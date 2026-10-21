@@ -353,6 +353,8 @@ MechDfn* mech_dfn(int32_t mech) {
   return g_dfns[mech];
 }
 
+MechDfn*& mech_dfn_slot(int32_t mech) { return g_dfns[mech]; }
+
 // The loop of 0x004844b0.
 void free_dfns() {
   for (MechDfn*& d : g_dfns) {

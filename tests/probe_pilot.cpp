@@ -28,6 +28,19 @@ struct Log {
 };
 Log g_log;
 
+// test_pilot.py's stand-in configuration: its key as its mech, a weapon and its ammo.
+Config* fake_config(int32_t k) {
+  auto* c = new Config(-1, "temp");
+  c->mech = k;
+  auto* w = new WeaponItem;
+  w->count = 1, w->weapon = k % 4, w->tech = 1;
+  auto* a = new AmmoItem;
+  a->count = 10 + (k & 0xff), a->weapon = k % 4;
+  c->items.push_back(w);
+  c->items.push_back(a);
+  return c;
+}
+
 // The original's stubs (test_pilot.py) answer the same.
 struct ProbeHooks : PilotHooks {
   void store_fill(Store&, int32_t game) override { g_log.add("store_fill " + std::to_string(game)); }
@@ -40,9 +53,7 @@ struct ProbeHooks : PilotHooks {
     const size_t n = std::fread(&k, 1, 4, f);
     g_log.add("config_load " + std::to_string(n == 4 ? k : -1));
     if (n != 4) return nullptr;
-    auto* c = new Config(-1, "temp");
-    c->mech = k;
-    return c;
+    return fake_config(k);
   }
   void config_save(Config* c, std::FILE* f) override {
     g_log.add("config_save " + std::to_string(c->mech));
@@ -63,7 +74,23 @@ struct ProbeHooks : PilotHooks {
     g_log.add("missions " + std::to_string(c));
     return c + 3;
   }
+  Config* config_copy(const Config& c) override {
+    g_log.add("config_copy " + std::to_string(c.mech));
+    return fake_config(c.mech);
+  }
+  void config_recount(Config& c) override { g_log.add("recount " + std::to_string(c.mech)); }
+  Store* mission_salvage() override { return &salvage; }
+  void save_world(const char* path, int32_t kind) override {
+    g_log.add(std::string("save_world ") + path + " " + std::to_string(kind));
+  }
+  int32_t message_box(int32_t type, int32_t caption, int32_t text) override {
+    g_log.add("ask " + std::to_string(type) + " " + std::to_string(caption) + " " + std::to_string(text) + " " +
+              std::to_string(answer));
+    return answer;
+  }
   std::string text_;
+  Store salvage;
+  int32_t answer = 1;
 };
 ProbeHooks g_hooks;
 
@@ -319,6 +346,7 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
   zutl::mounts().write = dir;
   set_pilot_hooks(&g_hooks);
   g_log.out.clear();
+  g_hooks.salvage.clear();
   current_pilot() = nullptr;
   action_setup() = ActionSetup{};
   Dump d;
@@ -427,10 +455,7 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
       if (!g) continue;
       auto* s = new GameSlot(mech, nullptr, skin);
       s->x14 = x14;
-      if (k) {
-        s->config = new Config(-1, "temp");
-        s->config->mech = k;
-      }
+      if (k) s->config = fake_config(k);
       g->lancemates.push_back(s);
     } else if (op == "K") {  // a game's own slot's configuration
       int g = 0, i = 0, k = 0;
@@ -440,9 +465,31 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
       if (!x) continue;
       delete x->slot.config;
       x->slot.config = nullptr;
-      if (k) {
-        x->slot.config = new Config(-1, "temp");
-        x->slot.config->mech = k;
+      if (k) x->slot.config = fake_config(k);
+    } else if (op == "P") {  // the save after a mission, with the overwrite question's answer
+      int next = 0;
+      ls >> a >> next >> g_hooks.answer;
+      if (Pilot* p = named(a)) g_log.add("recorded " + std::to_string(p->record_mission(next != 0)));
+    } else if (op == "l") {
+      int c = 0, del = 0;
+      ls >> a >> c >> del;
+      Pilot* p = named(a);
+      if (auto* g = p ? dynamic_cast<CampaignGame*>(game_of(p, 1, c)) : nullptr) g->reset_lancemates(del != 0);
+    } else if (op == "s") {  // an item in the mission's salvage
+      int kind = 0, n = 0, id = 0, extra = 0, group = 0, part = 0;
+      ls >> kind >> n >> id >> extra >> group >> part;
+      ConfigItem* probe = make_item(kind, id, extra);
+      probe->count = n, probe->group = group, probe->part = part;
+      g_hooks.salvage.add_copy(probe, n);
+      delete probe;
+    } else if (op == "f") {  // every configuration of a campaign marked modified
+      int c = 0;
+      ls >> a >> c;
+      Pilot* p = named(a);
+      if (auto* g = p ? dynamic_cast<CampaignGame*>(game_of(p, 1, c)) : nullptr) {
+        if (g->slot.config) g->slot.config->modified = 1;
+        for (GameSlot* s : g->lancemates)
+          if (s->config) s->config->modified = 1;
       }
     } else if (op == "E") {
       dump_all(d);

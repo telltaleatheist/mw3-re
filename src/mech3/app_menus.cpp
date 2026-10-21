@@ -11,6 +11,7 @@
 #include "gamez/ztwod/twod.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_states.h"
 #include "mech3/controls_menu.h"
 #include "mech3/credits.h"
@@ -254,6 +255,38 @@ void GameEngine::pilots_delete() {
   delete_other_pilots();
 }
 void GameEngine::pilot_delete(const char* name) { delete_pilot(name); }
+
+// 0x00478f10 on the pilot the screen chose (the Win State passes 1, the launch
+// 0); with none (a debug start's stand-in), the call is logged.
+void GameEngine::pilot_record_mission(Handle p, int32_t a) {
+  if (!program_record_mission(a != 0)) Engine::pilot_record_mission(p, a);
+}
+
+bool program_record_mission(bool next) {
+  Pilot* pl = current_pilot();
+  if (pl) pl->record_mission(next);
+  return pl != nullptr;
+}
+
+namespace {
+// The pilot module's calls out in the program: the message box is the
+// engine's; the loadouts are the ported Config's; zSave stays logged.
+struct ProgramPilotHooks : PilotHooks {
+  GameEngine* engine = nullptr;
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return engine ? engine->unported(key, args) : 0;
+  }
+  int32_t message_box(int32_t type, int32_t caption, int32_t text) override {
+    return engine ? static_cast<int32_t>(engine->message_box(type, caption, text)) : 0;
+  }
+};
+ProgramPilotHooks g_pilot_hooks;
+}  // namespace
+
+void wire_pilot_hooks(GameEngine* e) {
+  g_pilot_hooks.engine = e;
+  set_pilot_hooks(e ? &g_pilot_hooks : nullptr);
+}
 
 uint32_t GameEngine::message_box1(int32_t a, int32_t caption, int32_t text, const char* s) {
   return message_box3(a, caption, text, s, "", "");

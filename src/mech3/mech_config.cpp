@@ -9,6 +9,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_reader.h"
 
 namespace mech3 {
 
@@ -54,14 +55,145 @@ Config::~Config() {
   items.clear();
 }
 
-// Mech3.exe 1.2 @ 0x004723c0. Only equipment (kind 3) comes from the reader;
-// the other kinds copy items in the mech lab and are not ported yet.
+// Mech3.exe 1.2 @ 0x004723c0. Base and engine items merge with one like them;
+// weapons and ammo are always new, equipment goes through add_equipment. A new
+// engine item is not made (null).
 ConfigItem* Config::add_item(ConfigItem* item, int32_t n) {
   if (!item) return nullptr;
+  ConfigItem* found = find_item(items, item);
   modified = 1;
-  if (item->kind() != 3) zcls::gamez_abort("Config::add_item: copying weapons and ammo is not ported yet");
-  const auto* e = static_cast<const EquipmentItem*>(item);
-  return add_equipment(e->equipment, e->tech, n);
+  const int k = item->kind();
+  if (found && k != 1 && k != 3 && k != 2) {
+    found->count += n;
+    if (found->count < 0) found->count = 0;
+    return found;
+  }
+  ConfigItem* made = nullptr;
+  switch (k) {
+    case 0: {
+      auto* b = new BaseItem;  // 0x0044ec90
+      b->count = n, b->value = item->id();
+      made = b;
+      break;
+    }
+    case 1: {
+      auto* w = new WeaponItem;
+      w->count = n;
+      w->weapon = static_cast<const WeaponItem*>(item)->weapon;
+      w->tech = static_cast<const WeaponItem*>(item)->tech;
+      made = w;
+      break;
+    }
+    case 2: {
+      auto* a = new AmmoItem;
+      a->count = n, a->weapon = static_cast<const AmmoItem*>(item)->weapon;
+      made = a;
+      break;
+    }
+    case 3: {
+      const auto* e = static_cast<const EquipmentItem*>(item);
+      return add_equipment(e->equipment, e->tech, n);
+    }
+    default: break;
+  }
+  if (!made) return nullptr;
+  made->group = item->group;
+  items.push_back(made);
+  return made;
+}
+
+// Mech3.exe 1.2 @ 0x00423e00 (the copy constructor) and 0x00424010's path
+// with no store. The items are added one by one (add_equipment recounting
+// the sinks), each keeping its place, then the fields copied over; it is
+// player made and not modified, its checksum 0.
+Config* Config::copy_of(const char* new_name, const Config& c) {
+  auto* d = new Config(c.mech, "");
+  d->player_made = 1;
+  d->armor_tech = 0, d->sink_tech = 3, d->sinks = 0;
+  for (const ConfigItem* i : c.items) {
+    ConfigItem* m = d->add_item(const_cast<ConfigItem*>(i), i->count);
+    if (!m) continue;  // a new engine item: the exe writes through null here
+    m->part = i->kind() == 1 ? i->part : i->location(-1);
+  }
+  d->armor_tons = c.armor_tons;
+  d->ferro = c.ferro;
+  d->armor_tech = c.armor_tech;
+  std::memcpy(d->armor, c.armor, sizeof d->armor);
+  d->sink_tech = c.sink_tech;
+  d->sinks = c.sinks;
+  d->double_sinks = c.double_sinks;
+  d->mech = c.mech;
+  d->g70 = c.g70, d->turn_rate = c.turn_rate, d->g78 = c.g78;
+  d->accel_rate = c.accel_rate, d->decel_rate = c.decel_rate, d->turn_accel = c.turn_accel;
+  d->endo_steel = c.endo_steel;
+  d->engine = c.engine;
+  d->xl = c.xl;
+  d->training = c.training;
+  d->b1d = c.b1d;
+  std::free(d->name);
+  d->name = new_name ? dup(new_name) : nullptr;
+  d->modified = 0;
+  d->recount();
+  return d;
+}
+
+// Mech3.exe 1.2 @ 0x00425bd0. Each part's critical slots (0x00425db0: 12 in
+// the arms, legs and side torsos, 6 in the head and the two centre parts; 78
+// in all), less what the items there take and the fixed equipment (the
+// cockpit, engine, actuators); an XL engine takes 2 or 3 more in each side
+// torso. 0x00425d80 follows, its answer unused.
+void Config::recount() {
+  auto slots_of = [](int32_t part) {
+    switch (part) {
+      case 1: case 2: case 3: case 7: case 8: return 12;
+      case 4: case 5: case 6: return 6;
+      case -1: return 0x4e;
+      default: return 0;
+    }
+  };
+  for (int32_t p : {2, 3, 7, 8, 1, 6, 4, 5}) free_in[p] = slots_of(p);
+  free_slots = slots_of(-1);
+  for (const ConfigItem* i : items) {
+    const int32_t at = i->location(mech);
+    if (at == -1) continue;
+    const int32_t n = i->slots();
+    // FIX (bug): a part outside 0..8 (a damaged file) wrote past the table.
+    if (at >= 0 && at < 9) free_in[at] -= n;
+    free_slots -= n;
+  }
+  free_in[2] -= 2, free_in[3] -= 2, free_in[1] -= 10, free_in[6] -= 5;
+  free_in[4] -= 4, free_in[5] -= 4, free_slots -= 0x15;
+  if (xl) {
+    const int32_t k = (mech_tech(mech) != 1) + 2;
+    free_in[7] -= k, free_in[8] -= k;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00471460
+ConfigItem* find_item(const std::list<ConfigItem*>& items, const ConfigItem* item) {
+  for (ConfigItem* i : items)
+    if (i == item) return i;
+  for (ConfigItem* i : items)
+    if (same_item(i, item)) return i;
+  return nullptr;
+}
+
+bool same_item(const ConfigItem* in, const ConfigItem* probe) {
+  if (in->kind() == 3) return static_cast<const EquipmentItem*>(in)->same_as(*probe);
+  if (probe->kind() != in->kind() || probe->id() != in->id()) return false;
+  if (in->kind() == 1)
+    return static_cast<const WeaponItem*>(probe)->tech == static_cast<const WeaponItem*>(in)->tech;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00473220: the part of the mech's firepoint the weapon is on,
+// -1 when there is none.
+int32_t WeaponItem::location(int32_t m) const {
+  const MechDfn* d = mech_dfn(m);
+  if (!d || !d->firepoints) return -1;
+  const auto n = static_cast<int32_t>(d->firepoints->size());
+  const Firepoint* f = part >= 0 && part < n ? (*d->firepoints)[static_cast<size_t>(part)] : nullptr;
+  return f ? f->part : -1;
 }
 
 // Mech3.exe 1.2 @ 0x00471fb0. Armor (kinds 1, 2) is one item counting half

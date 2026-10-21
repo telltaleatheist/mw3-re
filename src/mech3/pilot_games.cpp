@@ -19,16 +19,6 @@ void wr(std::FILE* f, const void* p, size_t n) {
   if (f) std::fwrite(p, 1, n, f);
 }
 
-// vt+0x24 of the item kinds: 0x00409f60 (base, ammo, engine), 0x0044ece0
-// (weapons: the tech too), 0x00473480 (equipment). `in` is the listed item.
-bool same_item(const ConfigItem* in, const ConfigItem* probe) {
-  if (in->kind() == 3) return static_cast<const EquipmentItem*>(in)->same_as(*probe);
-  if (probe->kind() != in->kind() || probe->id() != in->id()) return false;
-  if (in->kind() == 1)
-    return static_cast<const WeaponItem*>(probe)->tech == static_cast<const WeaponItem*>(in)->tech;
-  return true;
-}
-
 class DefaultPilotHooks : public PilotHooks {};
 DefaultPilotHooks g_default_hooks;
 PilotHooks* g_hooks = &g_default_hooks;
@@ -53,6 +43,17 @@ std::string PilotHooks::format_ints(int32_t id, std::initializer_list<int32_t> a
   return zutl::format_message_ints(id, args);
 }
 
+// Mech3.exe 1.2 @ 0x00484840: operations 1 and 2 have four missions, 3 and 4 six.
+int32_t PilotHooks::campaign_missions(int32_t campaign) {
+  switch (campaign) {
+    case 1: case 2: return 4;
+    case 3: case 4: return 6;
+    default: return 0;
+  }
+}
+Config* PilotHooks::config_copy(const Config& c) { return Config::copy_of(c.name, c); }
+void PilotHooks::config_recount(Config& c) { c.recount(); }
+
 // ---- the store ----
 
 // Mech3.exe 1.2 @ 0x00470ce0
@@ -76,11 +77,7 @@ ConfigItem* Store::find_like(const ConfigItem* item) {
 }
 
 // Mech3.exe 1.2 @ 0x00471460
-ConfigItem* Store::find(const ConfigItem* item) {
-  for (ConfigItem* i : items)
-    if (i == item) return i;
-  return find_like(item);
-}
+ConfigItem* Store::find(const ConfigItem* item) { return find_item(items, item); }
 
 // Mech3.exe 1.2 @ 0x00472630. A copy of `item`'s kind, id, tech and group
 // with `n` of it, or `n` more of the one like it (its place reset: 0 for a
@@ -177,6 +174,34 @@ void Store::add_all(const Store& from) {
   for (ConfigItem* i : from.items) add_copy(i, i->count);
 }
 
+// Mech3.exe 1.2 @ 0x00473300
+void Store::assign(const Store& from) {
+  clear();
+  add_all(from);
+}
+
+// Mech3.exe 1.2 @ 0x00471c10. Merged with one like it (its place kept, unlike
+// add_copy's); none for -1 or 0x13.
+BaseItem* Store::add_mech(int32_t mech) {
+  if (mech == -1 || mech == 0x13) return nullptr;
+  BaseItem probe;
+  probe.count = 1, probe.value = mech;
+  if (auto* found = static_cast<BaseItem*>(find_like(&probe))) {
+    if (++found->count < 0) found->count = 0;
+    return found;
+  }
+  auto* b = new BaseItem;
+  b->count = 1, b->value = mech;
+  items.push_back(b);
+  return b;
+}
+
+// Mech3.exe 1.2 @ 0x00472cf0
+void Store::add_config(const Config* c) {
+  if (!c) return;
+  for (ConfigItem* i : c->items) add_copy(i, i->count);
+}
+
 // Mech3.exe 1.2 @ 0x00471790 -> 0x004717a0
 uint32_t Store::save(std::FILE* f) const { return save_item_list(items, full, f); }
 
@@ -192,6 +217,30 @@ GameSlot::GameSlot(int32_t m, Config* c, int32_t s) : mech(m), config(c), skin(s
 GameSlot::~GameSlot() {
   delete config;
   config = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00433d90. A modified loadout stays marked modified in the copy.
+void GameSlot::copy_from(const GameSlot& s) {
+  mech = s.mech;
+  skin = s.skin;
+  x0c = 0;
+  x14 = s.x14;
+  set_config(s.config);
+  if (config && s.config && s.config->modified) {
+    config->modified = 1;
+    pilot_hooks().config_recount(*config);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00433df0 with no store (the copy's only caller): the
+// slot's loadout replaced by a copy of `c`, or by none; a loadout of another
+// mech is refused (false) and the old one kept.
+bool GameSlot::set_config(const Config* c) {
+  if (config == c) return true;
+  if (c && c->mech != mech) return false;
+  delete config;
+  config = c ? pilot_hooks().config_copy(*c) : nullptr;
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x00433ef0
@@ -332,6 +381,85 @@ void CampaignGame::merge_salvage() {
   store50.clear();
   store64.clear();
   store78.clear();
+}
+
+// Mech3.exe 1.2 @ 0x00434e00 (vt+0x24). With `next`, the game of the mission
+// after this one (null when the campaign is over): this one's stores, slot,
+// record and lancemates carried over, the mission's salvage its +0x3c, the
+// world saved into its file; this one's salvage then merged. Without, this one
+// settled in place: the slots' mechs and loadouts listed in +0x50 (docs/campaign.md 4).
+CampaignGame* CampaignGame::next_mission(bool next_one) {
+  PilotHooks& h = pilot_hooks();
+  int32_t m = mission_number(), op = operation();
+  const bool over = campaign_advance(op, m);
+  if (next_one) {
+    if (over) return nullptr;
+    auto* g = new CampaignGame(pilot, op, m);
+    g->store.assign(store);
+    g->store.add_all(store64);
+    std::memcpy(g->b4, b4, sizeof b4);
+    if (Store* salvage = h.mission_salvage()) g->store3c.assign(*salvage);
+    else g->store3c.clear();  // [0x00609990] is always set in the exe
+    g->slot.copy_from(slot);
+    g->a8 = (m == 1 || (op == 4 && m == 4)) ? 3 : a8;
+    g->c4 = c4;
+    g->copy_lancemates(*this);
+    h.save_world(g->path(), 2);
+    b0 = 0;
+    g->b0 = 1;
+    merge_salvage();
+    return g;
+  }
+  store64.clear();
+  store50.clear();
+  for (int32_t i = 0; i < slot_count(); ++i) {
+    GameSlot* s = slot_at(i);
+    if (s && s->mech != -1) {
+      store50.add_mech(s->mech);
+      store50.add_config(s->config);
+    }
+  }
+  ac = a8;
+  store78.clear();
+  b0 = 0;
+  return this;
+}
+
+// Mech3.exe 1.2 @ 0x00435110
+GameSlot* CampaignGame::slot_at(int32_t i) {
+  if (i == 0) return &slot;
+  const auto n = static_cast<uint32_t>(lancemates.size());
+  if (n != 0 && i > 0 && static_cast<uint32_t>(i) <= n) return lancemates[static_cast<size_t>(i) - 1];
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00435180: the player and the lance's first +0x9c
+// lancemates (unsigned: a negative +0x9c takes them all).
+int32_t CampaignGame::slot_count() const {
+  const auto n = static_cast<uint32_t>(lancemates.size());
+  const auto want = static_cast<uint32_t>(x9c);
+  return static_cast<int32_t>((n < want ? n : want) + 1);
+}
+
+// Mech3.exe 1.2 @ 0x00435240: with `del` the lancemates deleted (0x00434270),
+// else their +0x14 cleared.
+void CampaignGame::reset_lancemates(bool del) {
+  if (!del) {
+    for (GameSlot* s : lancemates) s->x14 = 0;
+    return;
+  }
+  for (GameSlot*& s : lancemates) delete s, s = nullptr;
+  lancemates.clear();
+}
+
+// Mech3.exe 1.2 @ 0x00434300: the old ones deleted, a copy of each (0x00433cf0).
+void CampaignGame::copy_lancemates(const CampaignGame& from) {
+  reset_lancemates(true);
+  for (const GameSlot* s : from.lancemates) {
+    auto* c = new GameSlot(-1, nullptr, 0);
+    c->copy_from(*s);
+    lancemates.push_back(c);
+  }
 }
 
 // Mech3.exe 1.2 @ 0x00434950

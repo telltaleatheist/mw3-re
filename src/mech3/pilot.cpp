@@ -253,6 +253,37 @@ bool Pilot::select_campaign(int32_t i) {
   return true;
 }
 
+// Mech3.exe 1.2 @ 0x00478f10. For a campaign: its next game (or itself
+// settled, without `next`) filed among the saved ones, replacing one of the
+// same mission when the player says so (message 0xfb3), and made current;
+// then the pilot saved. True when there is no next game: the campaign is over.
+bool Pilot::record_mission(bool next) {
+  if (!current || current->type() != kCampaign) return false;
+  CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next);
+  if (g && g != current) {
+    const int32_t m = g->mission_number(), op = g->operation();
+    auto it = campaigns.begin();
+    for (; it != campaigns.end(); ++it) {
+      if ((*it)->type() != kCampaign) continue;
+      auto* c = static_cast<CampaignGame*>(*it);
+      if (c->operation() == op && c->mission_number() == m) break;
+    }
+    if (it == campaigns.end()) {
+      campaigns.push_back(g);
+    } else if (pilot_hooks().message_box(1, 7, 0xfb3) == 1) {
+      Game* old = *it;
+      *it = g;
+      delete old;
+    } else {
+      delete g;
+      g = static_cast<CampaignGame*>(*it);
+    }
+    current = g;
+  }
+  save();
+  return g == nullptr;
+}
+
 // Mech3.exe 1.2 @ 0x00479430
 Store* Pilot::store() { return current ? &current->store : nullptr; }
 
@@ -381,6 +412,15 @@ Pilot* debug_start_campaign(int32_t campaign, int32_t mission) {
     c->campaign = campaign;
   }
   return p;
+}
+
+bool campaign_advance(int32_t& operation, int32_t& mission) {
+  ++mission;
+  if (mission > pilot_hooks().campaign_missions(operation)) {
+    ++operation;
+    mission = 1;
+  }
+  return operation == 5;
 }
 
 }  // namespace mech3

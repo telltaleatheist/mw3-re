@@ -88,6 +88,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   zsnd_cd::set_backend(p_.files, p_.music, "music");
   set_options_hooks(&g_options_hooks);
   wire_mission_hooks(this);
+  wire_pilot_hooks(this);
   wire_frame_hooks(this);
   static ViewProgram vp;
   vp.ctx = this;
@@ -103,6 +104,7 @@ GameEngine::~GameEngine() {
     g_engine = nullptr;
     set_options_hooks(nullptr);
     wire_mission_hooks(nullptr);
+    wire_pilot_hooks(nullptr);
     wire_frame_hooks(nullptr);
     wire_view(nullptr);
   }
