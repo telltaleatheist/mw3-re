@@ -788,6 +788,38 @@ HudMfd::HudMfd(int32_t px, int32_t py, int32_t w, int32_t h, bool t) : Object2D(
   if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;  // 0x00441d90
 }
 
+// Mech3.exe 1.2 @ 0x004475c0: two bands (above 0.2, above 0) share the
+// fourth image; the fifth only at 0 or below.
+void HudDamagePart::set_level(float v) {
+  if (v == 1.0f) set_image(images->image[0]);
+  else if (v > 0.7f) set_image(images->image[1]);  // [0x005e3a20]
+  else if (v > 0.4f) set_image(images->image[2]);  // [0x005e3a24]
+  else if (v > 0.2f) set_image(images->image[3]);  // [0x005e3a28]
+  else if (v > 0.0f) set_image(images->image[3]);
+  else set_image(images->image[4]);
+}
+
+// Mech3.exe 1.2 @ 0x00447a50: head, the torso's right, left and centre,
+// the arms, the legs, into the parts in their order.
+void HudDamageView::update_levels() {
+  if (!mech) return;
+  HudHooks& h = *g_hooks;
+  static constexpr struct {
+    uint32_t part;
+    int32_t section;
+  } kFrom[8] = {{0x3a4, 0}, {0x39c, 1}, {0x39c, 2}, {0x39c, 0}, {0x394, 0}, {0x398, 0}, {0x38c, 0}, {0x390, 0}};
+  for (int i = 0; i < 8; ++i) parts[i].set_level(h.part_internal(mech, kFrom[i].part, kFrom[i].section));
+}
+
+// Mech3.exe 1.2 @ 0x004424b0
+void HudMfd::data_update(float) {
+  switch (shown_mode()) {
+    case 2: damage.update_levels(); break;
+    case 3: hud_hooks().nav_list_target(nav, hud ? static_cast<Hud*>(hud)->mech : nullptr); break;
+    default: break;
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00447c00
 bool HudDamageView::set_mech(void* m) {
   mech = m;
@@ -2376,7 +2408,7 @@ void HudTarget::track(float dt) {
     default: break;
   }
   const int32_t mode = shown_mode();
-  if (mode == 2) h.damage_view_target(&damage);
+  if (mode == 2) damage.update_levels();
   else if (mode == 3) h.nav_list_target(nav, h.contact_mech(h.slot_contact(target)));
 }
 
@@ -2464,7 +2496,7 @@ void Hud::data_update(float dt) {
     h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
     h.target_text(&target);
     if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
-    h.mfd_update(&mfd, dt);
+    mfd.data_update(dt);
   }
   float t = h.mission_time(h.multiplayer_game() != 0);
   const bool negative = t < 0.0f;
