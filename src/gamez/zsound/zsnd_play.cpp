@@ -224,7 +224,7 @@ VoiceBase* play_at(Object* obj, const float* pos, float volume, const float* vel
   if (!(s->flags & kLoaded)) return nullptr;
   s->cue_offset = 0.0f;
   if (st.can_play_hook && !st.can_play_hook(s->subtitle)) return nullptr;
-  const float v = s->volume * *st.volume * volume;
+  const float v = s->volume * st.master() * volume;
   if (s->flags & kQueue) {
     if (s->flags & kLooped) {
       char msg[128];
@@ -293,7 +293,7 @@ Snapshot* snapshot() {
   State& st = state();
   auto* l = new Snapshot;
   Record r;
-  r.master = *st.volume;
+  r.master = st.master();
   l->push_back(r);
   for (int32_t i = 0; i < set_count(); ++i) {
     Set* set = set_at(i);
@@ -330,7 +330,7 @@ int32_t stop_snapshot(Snapshot* l) {
 // FIX (bug): only the voices that were playing resume, each once and from where
 // it stopped (the exe replays every voice of the sound, finished ones from the start).
 int32_t resume_snapshot(Snapshot* l) {
-  const float delta = *state().volume - l->front().master;
+  const float delta = state().master() - l->front().master;
   if (zfix::options().bugs) {
     std::vector<Voice*> done;
     for (auto it = std::next(l->begin()); it != l->end(); ++it) {
@@ -358,7 +358,7 @@ bool muted() {
 
 // Mech3.exe 1.2 @ 0x0056f260
 float set_volume(float v) {
-  if (state().volume) *state().volume = v;
+  state().master() = v;
   return v;
 }
 

@@ -168,7 +168,7 @@ int unpause_plays(bool fix) {
   s.dups.push_back(&dup);
   zsnd::Snapshot snap;
   zsnd::Record first;
-  first.master = *zsnd::state().volume;
+  first.master = zsnd::state().master();
   snap.push_back(first);
   zsnd::Record r;
   r.voice = &s.voice, r.sound = &s;

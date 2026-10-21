@@ -27,7 +27,7 @@ float from_bits(uint32_t u) {
 // 0x00571830 (0x00571810): a fade of the voice to `level` of its sound's volume.
 void fade_init(Fade* f, Voice* v, float level, int32_t stop) {
   f->voice = v;
-  f->target = static_cast<float>(volume_db(v->sound->volume * level * *state().volume));
+  f->target = static_cast<float>(volume_db(v->sound->volume * level * state().master()));
   int32_t cur = static_cast<int32_t>(bits(level));  // GetVolume's slot is the argument's
   out()->get_volume(v->buffer, &cur);
   f->current = static_cast<float>(cur);

@@ -231,3 +231,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   TAG_UNIT=1 test_tag.py flies the unit lock with the original's homing:
   4/4 hits in every case. test_tag.py (the exe's path) unchanged.
 - Next: craters part 2 (zgeo_model).
+
+## 2026-10-20: the "32-bit truncation" at start-up (branch mac2/trunc-fix)
+
+- Not a truncation: zsnd::State held `float* volume = &volume_default`, a
+  pointer into itself. `zsnd::state() = zsnd::State{}` (mw3tests'
+  reset_process_state, probe_sound) copied a temporary's self-pointer, so
+  state().volume pointed at a dead stack slot and the options load's
+  set_volume(0.5f) wrote 0x3f000000 there: in the optimized ASan build that
+  was load_options' saved x22 (init_instance's `e`), giving 0x3f000000_xxxxxxxx.
+  Found by watching the saved register's slot in lldb.
+- Fix: volume defaults to null; State::master() is *volume or
+  volume_default (the exe's static start value). The optimized ASan build
+  runs the multi-mission pair clean; test_sound.py, mw3tests 100/100,
+  mw3sdltests 6/6.
