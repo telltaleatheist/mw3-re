@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include <deque>
+#include <memory>
 #include <vector>
 
 // zGeometry's Weiler–Atherton polygon clipping (zGeometry\zgeo_weiler.cpp,
@@ -47,23 +47,52 @@ struct Crossing {
 // The exe's growable buffers (0x14 bytes: element size, capacity, count,
 // base, cursor; 0x005128e0 / 0x00512940 / 0x00512910 / 0x00514dc0).
 // FIX (bug): the exe reallocs them while edges hold pointers into them (past
-// 128 entries the clip reads freed memory); a deque keeps them in place.
-// Count resets keep the old entries, as the exe's do.
+// 128 entries the clip reads freed memory). Here entries never move: each
+// allocation is one contiguous run (rings are walked by stepping a pointer),
+// in chunks that are never freed until the Weiler is. Count resets keep the
+// old entries, as the exe's do.
 template <typename T>
 struct Pool {
-  std::deque<T> items;
+  static constexpr int32_t kChunk = 256;
+  std::vector<std::unique_ptr<T[]>> chunks;
+  int32_t chunk_used = 0;
+  std::vector<T*> slots;           // each logical entry
   int32_t count = 0;
   T* alloc(int32_t n) {
-    while (static_cast<int32_t>(items.size()) < count + n) items.emplace_back();
-    T* first = &items[static_cast<size_t>(count)];
+    bool reuse = count + n <= static_cast<int32_t>(slots.size());
+    for (int32_t k = 1; reuse && k < n; ++k) reuse = slots[count + k] == slots[count] + k;
+    if (!reuse) {
+      if (chunks.empty() || chunk_used + n > chunk_size.back()) {
+        chunk_size.push_back(n > kChunk ? n : kChunk);
+        chunks.emplace_back(new T[static_cast<size_t>(chunk_size.back())]());
+        chunk_used = 0;
+      }
+      if (static_cast<int32_t>(slots.size()) < count + n) slots.resize(static_cast<size_t>(count + n));
+      for (int32_t k = 0; k < n; ++k) slots[count + k] = chunks.back().get() + chunk_used + k;
+      chunk_used += n;
+    }
+    T* first = slots[count];
     count += n;
     return first;
   }
-  T& at(int32_t i) { return items[static_cast<size_t>(i)]; }
+  T& at(int32_t i) { return *slots[static_cast<size_t>(i)]; }
+  int32_t index_of(const T* p) const {
+    for (size_t i = 0; i < slots.size(); ++i)
+      if (slots[i] == p) return static_cast<int32_t>(i);
+    return -1;
+  }
   void reset(int32_t n) {  // 0x00514dc0
-    while (static_cast<int32_t>(items.size()) < n) items.emplace_back();
+    if (static_cast<int32_t>(slots.size()) < n) {
+      const int32_t keep = count;
+      count = static_cast<int32_t>(slots.size());
+      alloc(n - count);
+      count = keep;
+    }
     count = n;
   }
+
+ private:
+  std::vector<int32_t> chunk_size;
 };
 
 // A list of result contours: point count and first float in Result::points.
@@ -134,6 +163,14 @@ int new_contour(Weiler& w, Edge* e);                                 // 0x005129
 int add_rings(Weiler& w, float* points, int32_t n, uint32_t flags);
 void reset(Weiler& w);                                               // 0x00514d10
 void side_tables(Weiler& w);                                         // 0x00513750
+// Edge e1 and its twin e2 each split at `point`: a new edge from the point
+// to the old end goes in after each (flags or-ed with f1, f2); the callers
+// move the old ends.
+int split_pair(Weiler& w, Edge* e1, Edge* e2, float* point, uint32_t f1, uint32_t f2);  // 0x00513930 EDX e1
+// Edges of the region and the polygon that lie on each other (every end
+// within 1e-5 of the other's line) merged: the shared part kept once, in
+// the polygon's rings, with both edges' flags. 0 on failure.
+int weed_out(Weiler& w);                                             // 0x00510250
 
 // Point q against a closed polygon: 1 inside, -1 outside, 0 on its outline.
 int point_in_polygon(const float q[2], int32_t n, const float* poly);  // 0x00513cf0 ECX q, EDX n

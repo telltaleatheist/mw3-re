@@ -346,3 +346,20 @@ Newest last. One short entry per item: what, commits, what to remember.
   (0x5128e0 x4 for the result pools, the out struct) and calls the pieces;
   sizes must come from the state after drop_repeats (+0x14).
 - Next: 3b, the crossings 0x510250 (321 lines) with 0x513860 / 0x513930.
+
+## 2026-10-20 — craters part 3b: shared edges (branch mac2/weiler2)
+
+- 0x510250 is WeedOut (shared/collinear edges), not the crossing search; the
+  crossings are found in the walk 0x510da0 (3c, with 0x513860 divide).
+  Ported weed_out 0x510250 and split_pair 0x513930 from the asm (the
+  pseudocode swaps several branches): registers edi R, [esp+0x14] R2, esi P,
+  [esp+0x10] P2, [esp+0x48]/[esp+0x4c] the cached R.a/R.b (updated by the
+  cases), jump table 0x510d64 (codes 3..15; 4 and 8 nothing).
+- Pool reworked: 3a's deque did not keep a ring contiguous across its
+  blocks, but the exe walks rings by stepping a pointer (510250 does). Now
+  each alloc(n) is one contiguous run in never-freed chunks, logical indices
+  in `slots`; Pool::index_of for the probes.
+- Test: test_weiler.py `weed` (800 grid pairs via weed_case()); every case
+  branch hit (scratch/cov_weed.py hooks the branch addresses). Regions up to
+  150 points in the build test. 3,200 runs identical; BREAK=1..6 fail.
+- Next: 3c, the walk 0x510da0 (926 lines) and the rest, then the driver.
