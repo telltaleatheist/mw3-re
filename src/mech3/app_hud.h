@@ -40,6 +40,10 @@ struct HudReport {
   // shown, the HUD on.
   int zoom_shown = 0, zoom_locked = 0, radar_large = 0, radar_map = 0, radar_amber = 0;
   int mfd_mode = 0, target_mode_set = 0, objectives_shown = 0, hud_on = 0;
+  // The weapon lines' bars (playtest #8): the lowest value shown, the lines
+  // below full, the lowest recycle fraction of the manager's weapons.
+  float bar_min = 1.0f, recycle_min = 1.0f;
+  int bars_partial = 0;
 };
 bool program_hud_report(HudReport* r);
 // Tests only: the mech sounds of `id` played from now on (both the cockpit's

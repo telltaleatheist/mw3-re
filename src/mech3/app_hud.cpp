@@ -590,6 +590,14 @@ bool program_hud_report(HudReport* r) {
   r->mfd_mode = h->mfd.mode, r->target_mode_set = h->target.mode;
   r->objectives_shown = !(h->objectives.flags & ztwod::kHidden);
   r->hud_on = h->active;
+  for (HudWeaponLine& line : h->weapons.lines) {
+    if (line.flags & ztwod::kHidden) continue;
+    r->bar_min = std::min(r->bar_min, line.value);
+    r->bars_partial += line.value < 1.0f;
+  }
+  for (WeaponGroup* g : wm->groups)
+    for (uint32_t i = 0; g && i < g->count; ++i)
+      if (auto* w = static_cast<Weapon*>(g->weapons[i])) r->recycle_min = std::min(r->recycle_min, w->ready());
   for (const HudEquipLine& l : h->equipment.lines) r->equip_lines += !(l.flags & ztwod::kHidden);
   if (h->equipment.flags & ztwod::kHidden) r->equip_lines = 0;
   for (int32_t k : {0, 12, 3, 8, 14, 6, 7, 4}) r->equip_wanted += std::max(0, m->equipment[k]);

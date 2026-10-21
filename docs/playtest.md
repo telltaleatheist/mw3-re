@@ -17,7 +17,7 @@ the briefing's load freeze (5a55624).
 | 5 | X doesn't switch views (should start inside, X to third person) | view modes | mac 2 | fixed 258364d: the app's keys (0x40db60) bound and the camera option wired; starts in the cockpit, X: cockpit → zipper → tether (keybindings.md) |
 | 6 | Enter doesn't cycle the weapon groups | controls → weapons | mac 2 | fixed 258364d: the HUD bridged to the mech and weapons; Enter is the HUD list's next weapon, ] / [ the groups (keybindings.md) |
 | 7 | Numpad 0 doesn't show the zoom reticle | HUD zoom window | mac 3 | fixed with #20 (hud.md section 19); exploit watch: none found (community-issues.md), Owen to check |
-| 8 | Weapons stay green on the HUD: no recharge shown | HUD weapon lines | mac 3 | open |
+| 8 | Weapons stay green on the HUD: no recharge shown | HUD weapon lines | mac 3 | fixed by 258364d (after this run): the list's per-frame refresh waits for a shot's mark (WeaponCalls::hud_fire), unwired before; checked in both 2D paths through the SDL host (hud.md section 13). Also found: the line's destructor 0x00445970 was missing (a crash freeing a HUD under the SDL host). Owen to check |
 | 9 | "Shutting down" plays but the mech never shuts down; then the speed locks, no slowing, firing or manual shutdown | heat shutdown, the action queue | mac 2 | fixed 5e05304: the power-down's Stop (0x426c10) was never called, so the throttle stayed; heat.md |
 | 10 | HUD images not found in the mission: dmg_*_blk, hud_othererrow_* | the image library after the mission load | mac 3 | as the original (9ff2c4c): the 12 images were never shipped (hud.md section 16); reported once per name; fill-in art is a candidate (fixes.md) |
 | 11 | Trucks, APCs and mobile HQs fail to build | vehicles (AI controls) | AI area | waiting |

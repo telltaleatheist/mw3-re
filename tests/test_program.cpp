@@ -3836,3 +3836,91 @@ TEST(playtest_hud_keys_zoom_radar_mfd_headless) {
   reset_process_state();
   mech3::options() = mech3::Options{};
 }
+
+// Playtest #8: in c1m1, F2's ER Laser (S) (a beam: its bar is its charge)
+// fired, its line's bar follows the recharge down and back to full. It
+// stayed full while WeaponCalls::hud_fire was unwired (before 258364d): the
+// list only refreshes every frame once a shot marks it (hud.md section 13).
+// The drawing is mw3sdltests' (sdl_program_weapon_list_shows_the_recharge).
+TEST(playtest_hud_weapon_bars_recharge_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("hud_bars_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, partial_at = 0, full_again = 0;
+    float bar_low = 1.0f, recycle_low = 1.0f;
+    uint32_t fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 6) keys.key(zin::key1_of(0x2d) & 0xff, true), keys.key(zin::key1_of(0x2d) & 0xff, false);  // F2
+      if (frames == 10) fire = zin::key1_of(0x3d) & 0xff, keys.key(fire, true);
+      if (frames == 13) keys.key(fire, false);
+      mech3::HudReport r;
+      if (frames < 10 || !mech3::program_hud_report(&r)) return;
+      recycle_low = std::min(recycle_low, r.recycle_min);
+      bar_low = std::min(bar_low, r.bar_min);
+      if (!partial_at && r.bars_partial) partial_at = frames;
+      if (partial_at && !full_again && !r.bars_partial) full_again = frames;
+    };
+    CountingPump pump;
+    pump.limit = 500;
+    app.run(pump);
+    std::printf("bars: recycle low %.3f, bar low %.3f, partial at %d, full again at %d\n", recycle_low, bar_low,
+                partial_at, full_again);
+    EXPECT(recycle_low < 0.5f);                          // firing drains the laser's charge
+    EXPECT(bar_low == recycle_low && partial_at > 0);    // the bar shows it
+    EXPECT(full_again > partial_at + 100);               // and fills back up over seconds
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}

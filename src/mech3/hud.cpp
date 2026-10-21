@@ -331,6 +331,16 @@ HudWeaponLine::HudWeaponLine() : light(0), mark(0) {
   flags &= ztwod::kHidden;
 }
 
+// Mech3.exe 1.2 @ 0x00445970: the bar's fill and empty images are the two
+// texts' own, freed with the texts; set to none here, before the Slider's
+// destructor (0x0059e170) would release them again.
+HudWeaponLine::~HudWeaponLine() {
+  fill = nullptr;
+  dirty();
+  empty = nullptr;
+  dirty();
+}
+
 // Mech3.exe 1.2 @ 0x00445ba0
 void HudWeaponLine::place(int32_t px, int32_t py, int32_t col) {
   Image::set_pos(px, py);

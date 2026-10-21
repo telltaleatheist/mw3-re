@@ -16,6 +16,26 @@
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_format.h"
+#include "gamez/ztwod/twod_host.h"
+#include "gamez/zreader/zreader.h"
+#include "gamez/zinput/zinput.h"
+#include "gamez/zsound/zsnd.h"
+#include "mech3/app.h"
+#include "mech3/app_engine.h"
+#include "mech3/app_hud.h"
+#include "mech3/app_mech.h"
+#include "mech3/app_states.h"
+#include "mech3/mech_control.h"
+#include "mech3/mission.h"
+#include "mech3/options.h"
+#include "mech3/pilot.h"
+#include "platform/platform.h"
+#include "platform/render3d.h"
+#include "platform/silent_sound.h"
+#include "mech3/hud.h"
+
+#include <cstdio>
+#include <map>
 
 TEST(sdl_input_scancodes_map_to_dik_codes) {
   using sdlfe::dik_from_scancode;
@@ -279,4 +299,222 @@ TEST(sdl_host_image_release_counts_and_frees) {
   }
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   zutl::mounts() = saved;
+}
+
+// Playtest #8: a HUD weapon line through the SDL host with the game's fonts.
+// Half recharged, the bar's left half is the name in wepstring_green and the
+// right half the name in wepstring_red (hud.md section 13).
+TEST(sdl_host_hud_weapon_line_shows_the_recharge) {
+  if (!have_fonts()) return;
+  Mounted m;
+  zvid::set_pixel_format(5, 6, 5);
+  zrdr::init();
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));  // fonts.zrd
+  sdlfe::SdlTwodHost h(nullptr, nullptr, nullptr);
+  ztwod::set_host(&h);
+  {
+    mech3::HudWeaponLine line;
+    line.red = 0;
+    EXPECT(line.set_look(true, false));  // live with ammo: the name red, the rest green
+    line.name.set_text_plain("ER LARGE LASER");
+    line.text2.set_text_plain("ER LARGE LASER");
+    line.set_pos(100, 100);
+    line.show_for(-1.0f);
+    line.update(0.0f);
+    EXPECT(line.fill != nullptr && line.empty != nullptr);
+    std::vector<uint16_t> buf(640 * 480, 0);
+    zrndr::Target2D& t = zrndr::target2d();
+    const zrndr::Target2D saved = t;
+    t.base = reinterpret_cast<uint8_t*>(buf.data()), t.width = 640, t.height = 480, t.pitch = 1280;
+    if (line.fill && line.empty) {
+      line.set_value(0.5f);
+      line.draw();
+      const int cut = 100 + line.fill_src.right;
+      std::map<uint16_t, int> left, right;
+      for (int y = 100; y < 100 + line.fill->height; ++y)
+        for (int x = 100; x < 100 + line.empty->width; ++x)
+          if (uint16_t p = buf[static_cast<size_t>(y) * 640 + x]) ++(x < cut ? left : right)[p];
+      auto top = [](const std::map<uint16_t, int>& c) {
+        uint16_t best = 0;
+        int n = 0;
+        for (auto [p, k] : c)
+          if (k > n) best = p, n = k;
+        return best;
+      };
+      std::printf("weapon line: fill %dx%d cut %d, left %04x x%zu, right %04x x%zu\n", line.fill->width,
+                  line.fill->height, line.fill_src.right, top(left), left.size(), top(right), right.size());
+      EXPECT(!left.empty() && !right.empty());
+      EXPECT(top(left) != top(right));  // green filled, red still to fill
+    }
+    t = saved;
+  }
+  ztwod::set_host(nullptr);
+  zrdr::close_archives(true);
+}
+
+namespace {
+// The program's platform without a window (test_program.cpp's fakes), the
+// presented 16-bit frame kept.
+struct NoWindow : platform::Window {
+  uint32_t create(const std::string&, int, int) override { return 0x1234; }
+  void set_title(const std::string&) override {}
+  void show() override {}
+  void client_size(int* w, int* h) override { *w = 640, *h = 480; }
+};
+struct NoAlert : platform::Alert {
+  void abort_message(const std::string&) override {}
+};
+struct StepClock : platform::Clock {
+  uint32_t now = 0;
+  uint32_t ticks_ms() override { return now += 16; }
+};
+struct KeepScreen : platform::Screen2D {
+  std::vector<uint16_t> last;  // the 2D frame shown, or the layer laid over the 3D frame
+  void keep(const uint16_t* px, int w, int h, int pitch) {
+    if (w != 640 || h != 480) return;
+    last.resize(640 * 480);
+    for (int y = 0; y < h; ++y) std::copy(px + y * (pitch / 2), px + y * (pitch / 2) + w, last.begin() + y * w);
+  }
+  void present_16(const uint16_t* px, int w, int h, int pitch, bool) override { keep(px, w, h, pitch); }
+  void overlay_16(const uint16_t* px, int w, int h, int pitch, bool, uint16_t, const uint8_t*,
+                  const uint16_t*) override {
+    keep(px, w, h, pitch);
+  }
+};
+// A Direct3D device that draws nothing (test_program's pause test).
+struct NoGpu : platform::Render3D {
+  int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+  void release_texture(int32_t) override {}
+  void update_texture(int32_t, int, int, const uint8_t*) override {}
+  void set_viewport(int, int, int, int) override {}
+  void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+  void begin_scene() override {}
+  void end_scene() override {}
+  void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+  void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+  void present() override {}
+  bool read_back(std::vector<uint32_t>* argb, int* w, int* h) override {
+    argb->assign(320 * 240, 0xff000000u);
+    *w = 320, *h = 240;
+    return true;
+  }
+};
+struct Passes : platform::MessagePump {
+  int passes = 0, limit = 200;
+  bool peek() override { return ++passes > limit; }
+  bool pump() override { return mech3::missions().cleanup(false), false; }
+  void wait(uint32_t) override {}
+  void post_quit() override {}
+};
+struct FireKey : platform::Input {
+  std::vector<platform::KeyEvent> queue;
+  uint32_t t = 0;
+  void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+  bool open(Device d) override { return d == kKeyboard; }
+  void close(Device) override {}
+  int32_t acquire(Device) override { return 0; }
+  int32_t unacquire(Device) override { return 0; }
+  int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+    const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+    std::copy(queue.begin(), queue.begin() + n, out);
+    queue.erase(queue.begin(), queue.begin() + n);
+    *count = n;
+    return 0;
+  }
+  int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+  int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+};
+}  // namespace
+
+// Playtest #8 end to end: c1m1 with the SDL host's 2D (no window; the
+// software path, or a Direct3D device that draws nothing with the layer laid
+// over it), fire, and the weapon list shows red (the bars still to refill)
+// for a while, then all green again.
+struct BarRun {
+  int max_red = 0, red_frames = 0, green_before = 0, red_before = 0, red_end = -1;
+};
+void weapon_list_run(bool d3d, BarRun& out) {
+  Mounted m;
+  zutl::set_write_dir(std::string(MW3_TEST_TMP) + "/sdl_bars_write");
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  mech3::damage_set() = mech3::DamageSet{};
+  mech3::weapon_set() = mech3::WeaponSet{};  // its fonts are the host's handles: a new host each run
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FireKey keys;
+  NoWindow window;
+  NoAlert alert;
+  StepClock clock;
+  KeepScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  NoGpu gpu;
+  if (d3d) p.render = &gpu;
+  int& max_red = out.max_red;
+  int& red_frames = out.red_frames;
+  int& green_before = out.green_before;
+  int& red_before = out.red_before;
+  int& red_end = out.red_end;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    sdlfe::SdlTwodHost host(&engine, nullptr, &window);
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    const uint16_t red = zvid::pack_bytes(235, 0, 0), green = zvid::pack_bytes(0, 235, 0);
+    int frames = 0;
+    uint32_t fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || screen.last.empty()) return;
+      ++frames;
+      int r = 0, g = 0;
+      for (int y = 28; y < 130; ++y)  // the weapon list's ten lines: (530, 30), 10 pixels a line
+        for (int x = 500; x < 640; ++x) {
+          const uint16_t px = screen.last[static_cast<size_t>(y) * 640 + x];
+          r += px == red, g += px == green;
+        }
+      if (frames == 9) green_before = g, red_before = r;
+      if (frames == 10) fire = zin::key1_of(0x3d) & 0xff, keys.key(fire, true);
+      if (frames == 13) keys.key(fire, false);
+      if (frames > 10) max_red = std::max(max_red, r), red_frames += r > 0;
+      if (frames == 120) red_end = r;
+    };
+    Passes pump;
+    pump.limit = 300;
+    app.run(pump);
+    std::printf("weapon list (%s): before %d green %d red; after firing red up to %d px over %d frames; at the end "
+                "%d red\n",
+                d3d ? "Direct3D" : "software", green_before, red_before, max_red, red_frames, red_end);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+}
+
+TEST(sdl_program_weapon_list_shows_the_recharge) {
+  if (!have_fonts()) return;
+  for (bool d3d : {false, true}) {
+    BarRun r;
+    weapon_list_run(d3d, r);
+    EXPECT(r.green_before > 100 && r.red_before == 0);  // full bars: green
+    EXPECT(r.max_red > 20 && r.red_frames >= 5);        // firing: the bars empty to red and refill
+    EXPECT(r.red_end == 0);                             // full again
+  }
 }
