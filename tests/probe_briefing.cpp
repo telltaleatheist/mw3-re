@@ -79,6 +79,7 @@ struct BrEngine : mech3::Engine {
   mech3::Store* game_store() override { return &game_store_; }
   mech3::Store* campaign_salvage() override { return c.kind == 1 ? &salvage_store_ : nullptr; }
   int32_t campaign_units() override { return 3; }
+  int32_t game_slot_count() override { return 0; }
   Handle store_handle(mech3::Store* s) override {
     if (s == &game_store_) return c.game + 0x08;
     if (s == &salvage_store_) return c.game + 0x3c;

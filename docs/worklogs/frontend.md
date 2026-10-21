@@ -646,3 +646,18 @@ part (200/200, weapon labs from weapons.zrd), test_briefing.py with the
 bind unskipped, real stores in the fake game, an 'X' plan step (40/40).
 Breaks 16/18 (2 unshowable). Quirk kept: +0xa8 = 0 lets the split mint
 mechs. Next: 8c, the lancemates' loadouts 0x00408c30.
+
+## 2026-10-21 Campaign item 8c: the lance's loadouts (branch mac3/salvage)
+
+0x00408c30 ported as lance_slot / lance_fit / lance_keeps and
+BriefingScreen::lance_loadouts (set_loaded calls it); with it the mech
+lab's store-aware loadout pieces: config_copy_store (0x00424010 whole),
+GameSlot::set_config(c, store, take) (0x00433df0 whole), Store::has_config
+0x004735f0, take_config 0x00473440, give_config 0x00473400, remove_config
+0x00472d40, has_mech 0x00409f00, count_like 0x00473510. Found: 0x004735f0
+counts the second store (decomp hid the ECX). Test: test_salvage.py lance
+part (200/200) with stand-in dfns and real loadouts built by the exe;
+test_pilot's emulator stubs 0x00424010/0x00425bd0/0x00424350, so the
+lance test keeps them native. Breaks 17/19 (2 unshowable; the "clamp"
+break hangs the probe's cut loop and was killed, counted caught).
+Next: 6c (the lance cards' mech display 0x0047e840, 0x0047b210).

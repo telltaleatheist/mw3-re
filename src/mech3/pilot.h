@@ -67,6 +67,12 @@ PilotHooks& pilot_hooks();
 // The store (0x00470ce0, vtable 0x005c36e0), 0x14 bytes: a list of items
 // (the loadouts' kinds, mech_config.h) with their counts. A `full` store is
 // the mech lab's everything (store_fill) and saves as no items.
+class Store;
+// 0x00424010 (ECX the name, EDX the loadout, then the store and `take`): a
+// copy; with a store, cut to the items it holds (then modified, the sinks
+// recounted) and with `take` taken out of it.
+Config* config_copy_store(const char* name, const Config& c, Store* store, bool take);
+
 class Store {
  public:
   explicit Store(uint8_t flag = 0);  // 0x00470ce0
@@ -85,6 +91,15 @@ class Store {
   void assign(const Store& from);           // 0x00473300: emptied, then add_all
   BaseItem* add_mech(int32_t mech);         // 0x00471c10: one of the mech (not -1 or 0x13)
   void add_config(const Config* c);         // 0x00472cf0: each item of the loadout, by count
+  bool remove_config(const Config* c);      // 0x00472d40: each item of the loadout, by count
+  ConfigItem* has_mech(int32_t mech);       // 0x00409f00: the mech's item, or none
+  int32_t count_like(const ConfigItem* item) const;  // 0x00473510
+  // 0x004735f0: the store (and `other`'s, given) holds the mech (unless -1)
+  // and every item of the loadout by count; a full store, none or the same
+  // store as `other`: true.
+  bool has_config(int32_t mech, const Store* other, const Config* c);
+  bool take_config(int32_t mech, const Config* c);  // 0x00473440: the mech and the items out (not a full store)
+  bool give_config(int32_t mech, const Config* c);  // 0x00473400: back in
   void clear();                             // the items deleted, the list emptied
   uint32_t save(std::FILE* f) const;        // 0x00471790 -> 0x004717a0
   void load(std::FILE* f);                  // 0x00471530 -> 0x00471540
@@ -107,6 +122,9 @@ struct GameSlot {
   void load(Pilot& p);               // vt+0x04  0x00433f80
   void copy_from(const GameSlot& s); // 0x00433d90
   bool set_config(const Config* c);  // 0x00433df0(c, 0, 0): a copy of c, or none
+  // 0x00433df0 with a store: the old loadout's items given back, the new
+  // one copied out of the store (`take`), cut to what it holds.
+  bool set_config(const Config* c, Store* store, bool take);
 
   int32_t mech;                      // +0x04
   Config* config = nullptr;          // +0x08

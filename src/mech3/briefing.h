@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <list>
+#include <vector>
 
 #include "mech3/menu_widgets.h"
 #include "mech3/pilot.h"
@@ -168,6 +169,7 @@ class BriefingScreen : public MenuScreen {
   Store* build_lab_store();          // 0x00408b40: the store the mech lab opens on
   void refresh();                    // 0x00408bd0: the lab's store reallocated
   void show_realloc(bool on);        // 0x00404ae0: REALLOC_LIST and REALLOC_OK, the others off
+  void lance_loadouts();             // 0x00408c30: every slot's mech and loadout out of the lab's store
 
   Store realloc_store;               // +0x111ec  what the mech lab left over (0x00408bd0)
   Store lab_store;                   // +0x11200  the mech lab's (0x00408b40)
@@ -200,6 +202,15 @@ void store_reallocate(Store& lab, Store& game, Store& salvage, Store* realloc, i
 // 0x00408b40's work: a campaign's (`salvage` given) lab store is the game's
 // and the salvage together; otherwise the game's own store is the lab's.
 Store* lab_store_build(Store& lab, Store* game, Store* salvage);
+// 0x00408c30's work on one slot: its mech the first from it on (round the
+// 19) the store holds, its loadout (the definition's first when none) cut
+// to the store and taken out of it, the mech too; `keep` (a lancemate at Op
+// 4 Mission 6) leaves the slot as it is, the store untouched.
+void lance_slot(GameSlot& s, Store& store, bool keep);
+// 0x00408c30's loop: every slot fitted; with `keep` the lancemates (not the
+// player, slot 0) are left as they are. `keep` is Op 4 Mission 6's.
+void lance_fit(Store& store, const std::vector<GameSlot*>& slots, bool keep);
+bool lance_keeps(bool campaign, int32_t op, int32_t mission);
 
 // [0x005f4c80] the briefing screen, while the Load state has one.
 BriefingScreen*& briefing_screen();

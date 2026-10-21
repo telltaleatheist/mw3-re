@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <tuple>
 #include <utility>
 #include <sstream>
 #include <string>
@@ -14,6 +15,7 @@
 
 #include "mech3/mech_config.h"
 #include "mech3/briefing.h"
+#include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
 
@@ -226,6 +228,140 @@ extern "C" int probe_realloc_run(const char* setup, char* out, int size) {
     first = false;
   }
   o << "\nlab_is " << (target == &lab ? "lab" : "game") << '\n';
+  const std::string s = o.str();
+  if (static_cast<int>(s.size()) >= size) return -1;
+  std::memcpy(out, s.data(), s.size() + 1);
+  return static_cast<int>(s.size());
+}
+
+namespace {
+using namespace mech3;
+
+std::vector<std::tuple<int32_t, int32_t, int32_t, int32_t, int32_t>> read_items(std::istringstream& ls) {
+  int32_t n = 0;
+  ls >> n;
+  std::vector<std::tuple<int32_t, int32_t, int32_t, int32_t, int32_t>> v;
+  for (int32_t i = 0; i < n; ++i) {
+    int32_t k, id, extra, part, count;
+    ls >> k >> id >> extra >> part >> count;
+    v.emplace_back(k, id, extra, part, count);
+  }
+  return v;
+}
+
+// A loadout as the test's 0x00423d00 + 0x004723c0 build it.
+Config* make_config(int32_t mech, const std::string& name,
+                    const std::vector<std::tuple<int32_t, int32_t, int32_t, int32_t, int32_t>>& items) {
+  auto* c = new Config(mech, name.c_str());
+  for (const auto& [k, id, extra, part, count] : items) {
+    if (k == 1) {
+      WeaponItem w;
+      w.weapon = id, w.tech = extra, w.part = part;
+      c->add_item(&w, count);
+    } else if (k == 2) {
+      AmmoItem a;
+      a.weapon = id, a.part = part;
+      c->add_item(&a, count);
+    } else {
+      EquipmentItem e;
+      e.equipment = id, e.tech = extra, e.part = part;
+      c->add_item(&e, count);
+    }
+  }
+  return c;
+}
+
+std::string config_text(const Config* c) {
+  if (!c) return "none";
+  std::ostringstream o;
+  o << "cfg{m" << c->mech << " \"" << (c->name ? c->name : "") << "\" mod" << int(c->modified) << " s" << c->sink_tech
+    << ',' << c->sinks << ',' << int(c->double_sinks) << " free" << c->free_slots << ' ';
+  for (const ConfigItem* it : c->items) o << item_text(it);
+  o << '}';
+  return o.str();
+}
+}  // namespace
+
+// test_salvage.py's lance: stand-in definitions (firepoints as test_mechsave's
+// fake_parts, a first loadout or none), the slots, the stores; then
+// 0x00408c30's loop over lance_slot and the split.
+extern "C" int probe_lance_run(const char* setup, char* out, int size) {
+  std::istringstream ss(setup);
+  static std::vector<Firepoint> fps[19];
+  static std::vector<Firepoint*> ptrs[19];
+  MechDfn* dfns[19] = {};
+  for (int m = 0; m < 19; ++m) {
+    if (fps[m].empty()) {
+      for (int i = 0; i < 8; ++i) fps[m].push_back(Firepoint{nullptr, 0, 0, ((i * 5 + m) % 10) - 1});
+      for (auto& f : fps[m]) ptrs[m].push_back(&f);
+    }
+    dfns[m] = static_cast<MechDfn*>(::operator new(sizeof(MechDfn)));
+    std::memset(static_cast<void*>(dfns[m]), 0, sizeof(MechDfn));
+    dfns[m]->firepoints = &ptrs[m];
+    dfns[m]->configs = new ConfigList(m, 0);
+    mech_dfn_slot(m) = dfns[m];
+  }
+  Store game(0), salvage(0), lab(0), realloc(0);
+  std::vector<GameSlot*> slots;
+  int32_t op = 0, mission = 0, units = 0;
+  std::string line;
+  while (std::getline(ss, line)) {
+    std::istringstream ls(line);
+    std::string what;
+    ls >> what;
+    if (what == "op") {
+      ls >> op >> mission >> units;
+    } else if (what == "dfn") {
+      int32_t m;
+      ls >> m;
+      dfns[m]->configs->configs.push_back(make_config(m, "dfn" + std::to_string(m), read_items(ls)));
+    } else if (what == "slot") {
+      int32_t mech, cm;
+      ls >> mech >> cm;
+      auto* s = new GameSlot(mech);
+      if (cm != -2) s->config = make_config(cm, "slot" + std::to_string(slots.size()), read_items(ls));
+      slots.push_back(s);
+    } else {
+      std::string op2;
+      ls >> op2;
+      Store* s = what == "salvage" ? &salvage : &game;
+      if (op2 == "mech") {
+        int32_t t;
+        ls >> t;
+        s->add_mech(t);
+      } else if (op2 == "weapon") {
+        int32_t t, tech;
+        ls >> t >> tech;
+        s->add_weapon(t, tech);
+      } else if (op2 == "ammo") {
+        int32_t t, n;
+        ls >> t >> n;
+        s->add_ammo(t, n);
+      } else if (op2 == "equip") {
+        int32_t k, tech, n;
+        ls >> k >> tech >> n;
+        s->add_equipment(k, tech, n);
+      }
+    }
+  }
+  Store* target = lab_store_build(lab, &game, &salvage);
+  lance_fit(*target, slots, lance_keeps(true, op, mission));
+  store_reallocate(lab, game, salvage, &realloc, units);
+  std::ostringstream o;
+  for (GameSlot* s : slots) o << "slot m" << s->mech << ' ' << config_text(s->config) << '\n';
+  const std::pair<const char*, Store*> stores[] = {{"game", &game}, {"salvage", &salvage}, {"realloc", &realloc},
+                                                   {"lab", &lab}};
+  for (const auto& [name, st] : stores) {
+    o << name << "{n" << st->count() << ' ';
+    for (const ConfigItem* it : st->items) o << item_text(it);
+    o << "}\n";
+  }
+  for (GameSlot* s : slots) delete s;
+  for (int m = 0; m < 19; ++m) {
+    delete dfns[m]->configs;
+    ::operator delete(dfns[m]);
+    mech_dfn_slot(m) = nullptr;
+  }
   const std::string s = o.str();
   if (static_cast<int>(s.size()) >= size) return -1;
   std::memcpy(out, s.data(), s.size() + 1);
