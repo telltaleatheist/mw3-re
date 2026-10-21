@@ -13,6 +13,7 @@
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -1494,7 +1495,7 @@ void HudGauges::set_jump(bool jets, float fuel) {
 void HudObjectives::data_update(float) {
   if (flags & ztwod::kHidden) return;
   int32_t p[2];
-  hud_hooks().message_panel_point(p);
+  message_panel_point(p);
   place_above(p[0], p[1]);
 }
 
@@ -2695,7 +2696,7 @@ void Hud::draw3d(float dt) {
       if (!(weapons.flags & ztwod::kHidden)) weapons.panel.draw_quad();
       if (!(weapons.flags & ztwod::kHidden) && !(equipment.flags & ztwod::kHidden)) equipment.panel.draw_quad();
     }
-    h.message_panel_draw();
+    message_panel_draw();
     if (!(objectives.flags & ztwod::kHidden)) objectives.panel.draw_quad();
     h.flush_transparent();
     h.scene_end();

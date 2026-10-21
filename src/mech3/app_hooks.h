@@ -245,7 +245,9 @@ class Engine : public zgame::AppHooks {
   virtual Handle network_game_new() { return unported("0x00433090", {}); }  // new(0x34)
   virtual void network_game_delete(Handle g) { unported("0x004333f0", {g}); }
   virtual void network_game_start(Handle g, int32_t a) { unported("0x004338a0", {g, a}); }
-  virtual void mechs_init(Handle display, Handle window) { unported("0x0040f410", {display, window}); }
+  // 0x0040f410: the message panel made (ECX, EDX the display and window
+  // rects, unused; mech3/message_panel).
+  virtual void message_panel_init(Handle display, Handle window) { unported("0x0040f410", {display, window}); }
   virtual void maps_init(const char* name) { unported("0x004583b0", {name}); }
   virtual void clock_init() { unported("0x005759a0", {}); }
   virtual void cd_init(int32_t a) { unported("0x00575d00", {a}); }
@@ -264,7 +266,7 @@ class Engine : public zgame::AppHooks {
   virtual void mechs_shutdown() { unported("0x00414000", {}); }
   virtual void missions_shutdown() { unported("0x004844b0", {}); }
   virtual void mech_data_shutdown() { unported("0x004584e0", {}); }
-  virtual void world_shutdown() { unported("0x0040f7d0", {}); }
+  virtual void message_panel_free() { unported("0x0040f7d0", {}); }  // the message panel deleted
   virtual void span_shutdown() { unported("0x005646d0", {}); }
   virtual void network_shutdown() { unported("0x00586c20", {}); }
   virtual void decals_shutdown() { unported("0x00502020", {}); }

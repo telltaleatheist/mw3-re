@@ -23,9 +23,11 @@
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech.h"
+#include "mech3/mech_command.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/mech_skis.h"
 #include "gamez/zmodel/gmod_screen.h"
 #include "mech3/mech_move.h"
@@ -244,13 +246,6 @@ struct ProgramHudHooks : HudHooks {
     return true;
   }
   int32_t mine_count() override { return 0; }
-  // The objectives' place: the message panel (0x0040f3a0.., [0x00603d7c]) is
-  // not ported. STAND-IN: its starting point, centred 320 wide at the
-  // display's bottom, without its text's height or its slide (hud.md, Left).
-  void message_panel_point(int32_t out[2]) override {
-    out[0] = (display_w() - 0x140) / 2;
-    out[1] = display_h() + 1;
-  }
   bool mech_ams(Mech* m, bool* on, int32_t* count) override {
     if (!m->ams) return false;
     *on = m->ams->on;
@@ -346,6 +341,9 @@ void wire_hud() {
   set_hud_hooks(&g_hooks);
   update_calls().player_frame = [](Mech& m, float) { player_frame(m); };  // 0x0041ce60
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
+  command_calls().other = [](Mech&, int32_t cmd) {
+    if (cmd == 0xa6 && message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key
+  };
 }
 
 void unwire_hud() {

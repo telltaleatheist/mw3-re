@@ -49,6 +49,7 @@
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zweapon/zweapon.h"
+#include "mech3/message_panel.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
@@ -562,6 +563,8 @@ WiredTargetHooks g_target_hooks;
 
 struct WiredMissionHooks : MissionHooks {
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
+  void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out
+  void fn_40f0b0(uint8_t v) override { if (message_panel()) message_panel_set(v != 0); }  // slid in or out
   GameEngine* e = nullptr;
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);

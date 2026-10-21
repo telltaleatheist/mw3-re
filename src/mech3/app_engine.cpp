@@ -1,4 +1,5 @@
 #include "mech3/app_engine.h"
+#include "mech3/message_panel.h"
 
 #include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zeffect/zeff_init.h"
@@ -414,7 +415,13 @@ void GameEngine::image_free(Handle image) {
 // The Direct3D frame (render-frame.md): the ported lock, scene nesting, quad
 // and finish. FIX (A): the back buffer's Lock gives the 16-bit layer, filled
 // with kLayerKey; its Unlock lays what the 2D code drew over the 3D frame.
-void GameEngine::camera_update() { program_hud_data(frame_dt()); }
+// 0x0040f8d0: the message panel's slide, then the view target's HUD data.
+void GameEngine::camera_update() {
+  if (MessagePanel* p = message_panel()) p->slide(frame_dt());
+  program_hud_data(frame_dt());
+}
+void GameEngine::message_panel_init(Handle, Handle) { mech3::message_panel_create(); }
+void GameEngine::message_panel_free() { mech3::message_panel_destroy(); }
 void GameEngine::video_begin_3d() { zvid::lock_3d(); }
 void GameEngine::video_end_3d() { zvid::unlock_3d(); }
 void GameEngine::video_begin_scene() { zvid::scene_begin(); }

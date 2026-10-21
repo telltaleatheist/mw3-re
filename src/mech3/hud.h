@@ -663,7 +663,6 @@ class HudHooks : public zgame::Unported {
          static_cast<int32_t>(unported("peek32", {nav + 0x1c8c})), static_cast<int32_t>(unported("peek32", {nav + 0x1c90}))};
     return &r;
   }
-  virtual void message_panel_draw() { unported("0x0040fb30", {}); }
   virtual void zview_render(void* view, float dt) { unported("0x00442870", {id(view), zgame::bits(dt)}); }
   virtual void object_view_flag(void* o, int32_t on) { unported("obj.vt+0x68", {id(o), on}); }
   virtual uint32_t object_node(void* o) { return unported("peek32", {id(o) + 4}); }
@@ -762,14 +761,8 @@ class HudHooks : public zgame::Unported {
   }
   virtual void radar_heading(void* radar, Mech* m) { unported("0x0043f2d0", {id(radar), id(m) + 0x24}); }
   virtual void mech_radar_dir(Mech* m, float out[3]) { vec3_at(unported("0x0041cdf0", {id(m)}), out); }
-  // The objectives' place: the message panel's point ([0x00603d7c] +0x4e8,
-  // 0x0040fed0). The equipment's: the mech's AMS (+0x3f0: on, rounds +0x18),
+  // The equipment's: the mech's AMS (+0x3f0: on, rounds +0x18),
   // an item kind's name (0x00484980: message 0x1c6 + kind).
-  virtual void message_panel_point(int32_t out[2]) {
-    const uint32_t p = unported("peek32", {0x603d7c});
-    out[0] = static_cast<int32_t>(unported("peek32", {p + 0x4e8}));
-    out[1] = static_cast<int32_t>(unported("peek32", {p + 0x4ec}));
-  }
   virtual bool mech_ams(Mech* m, bool* on, int32_t* count) {
     const uint32_t r = unported("peek32", {id(m) + 0x3f0});
     if (!r) return false;
