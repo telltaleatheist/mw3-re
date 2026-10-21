@@ -886,3 +886,8 @@ view's ground, the anim lookups 0x50b450 (92).
   MissionHooks fn_584fe0). The rest of weapons.md's list is the AI's planner,
   the vehicles' glow objects and the network. The fire test plants a shot
   before the cleanup; with 0x00584fe0 unwired it stays.
+- 2.1 stopped at the AI boundary: the basic vehicle's construction,
+  placement and setup run through its controls (0x004ac750 / AI vehicle
+  controls: +0x330, +0x70, the +0x764 block, IControls vt+0x14 / 0x18 /
+  0x0c); written in vehicles.md with the second-entity-kind question. Order
+  done; waiting.

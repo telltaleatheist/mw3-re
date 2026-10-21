@@ -44,6 +44,24 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
 The repair stations; their own class. Their repair and the objective tie-in
 are separate items.
 
+## Why 2.1 waits for the AI (2026-10-21)
+
+Even standing still, the basic vehicle lives through its controls (+0xe4):
+when none is given, its constructor makes its own (0x4ac860 then 0x4ae270
+over 0x4ac750, 0xa70 bytes: the basic vehicle controls, the same family as
+`ai::AiVehicleControls`), else it hands itself to the given one (vt+0x08).
+Its placement (vt+0xdc, 0x4a3630) writes the controls' +0x330 and +0x70 and
+the +0x764 block's per-point table (+0x84 count, +0x14c), and calls their
+IControls vt+0x14; 0x49f660 (after the setup) calls their vt+0x18 and fills
+their +0x160 points from the +0x764 block's (+0x194); the setup (vt+0x158)
+ends in their vt+0x0c; the frame and the damage go through vt+0x1c and the
+IControls base. So the vehicle object cannot be ported apart from the AI's
+vehicle controls (mac 4's `zai_brain` / `AiVehicleControls`, data side only so
+far). Also open: the vehicle as a second kind of entity, since the program's
+sensors, kill credit and teardown take every zEntity entry to be a Mech
+(app_sensors `mech()`, `mech_free`, killer_notify): a kind tag or a common
+base is needed first.
+
 ## A split
 
 1. The basic vehicle as an object: construction, placement (vt+0xdc), the
