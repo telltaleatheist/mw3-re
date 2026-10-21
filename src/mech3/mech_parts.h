@@ -165,6 +165,7 @@ class MechPart {
   // 0x00463740, arm 0x00466380, foot 0x004628c0): part_delete runs it, then
   // the delete. The C++ destructor stays empty for the tests' stack parts.
   virtual void release();
+  virtual void switch_lod(int32_t lod);  // +0x5c, 0x00467290 (foot 0x004672f0; mech_lod.cpp)
   virtual bool setup();          // +0x04, 0x0045fdd0 (hip 0x00462130, leg 0x004637b0, foot 0x00462860, arm 0x004663e0, hand 0x00466e80)
   virtual bool init(const Config* cfg);  // +0x08, 0x0045fe00: armor and structure (mech_part_build.cpp)
   virtual void update(float dt); // +0x10, 0x00461730 (torso 0x00464e80, hip 0x004623a0, leg 0x00463ee0, foot 0x00463110, arm 0x00466510)
@@ -381,6 +382,7 @@ class Foot : public MechPart {   // vtable 0x005c2910, 0xec bytes
   int32_t soil = 0;              // +0xe8  docs/structs.md: 8 is lava
 
   void release() override;       // 0x004628c0: the splash stopped and freed, the toe arrays
+  void switch_lod(int32_t lod) override;  // 0x004672f0
   Leg* leg() const;              // 0x00462d80
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00462980
   void destroy(int variant, int fly) override;              // 0x004629f0

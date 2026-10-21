@@ -476,3 +476,110 @@ int probe_release(int32_t kind, const uint32_t* w, uint8_t* out, int cap) {
 }
 
 }  // extern "C"
+
+// --- the level of detail (0x0041e870, 0x0041e9f0, 0x00467290, 0x004672f0) ---
+#include "mech3/mech_lod.h"
+#include "mech3/weapon.h"
+
+namespace {
+struct FakeWeapon : Weapon {
+  bool firing = false;
+  explicit FakeWeapon(WeaponManager* m) : Weapon(nullptr, nullptr, m, true) {}
+  bool is_firing() const override { return firing; }
+};
+struct LodPart : Torso {
+  int idx = 0;
+  void switch_lod(int32_t lod) override { u32(0x70), u32(static_cast<uint32_t>(idx)), u32(static_cast<uint32_t>(lod)); }
+};
+}  // namespace
+
+extern "C" {
+
+// w: 0 is_player, 1 has contact, 2 dist2 bits, 3 player has target, 4 the
+// target is this mech, 5 x690, 6 model0, 7 model1, 8 range0 bits, 9 range1
+// bits, 10 weapons (0..3), 11..13 firing, 14 jet effect, 15 spent, 16 answer.
+// Out: the calls, then detail, spent, x690, jet node, jet effect, result.
+int probe_lod(const uint32_t* w, uint8_t* out, int cap) {
+  g_out.clear();
+  static uint32_t s_answer;
+  static Mech* s_target;
+  s_answer = w[16];
+  auto f = [](uint32_t b) { float v; std::memcpy(&v, &b, 4); return v; };
+  Mech m, player;
+  MechData data;
+  data.range_sq[0] = f(w[8]), data.range_sq[1] = f(w[9]);
+  m.pilot = &data;
+  m.node = h(0x8000);
+  m.x690 = w[5];
+  m.detail = 0;
+  m.model_node = h(w[6]), m.lod_node = h(w[7]);
+  ai::Contact contact, tgt;
+  contact.dist2 = f(w[2]);
+  m.player_contact = w[1] ? &contact : nullptr;
+  World& wd = world();
+  Mech* keep = wd.mission_player;
+  Mech* pl = w[0] ? &m : &player;
+  wd.mission_player = pl;
+  player.target = w[3] ? &tgt : nullptr;
+  s_target = w[4] ? &m : &player;
+  auto* wm = new WeaponManager(&m);
+  for (uint32_t i = 0; i < w[10]; ++i) {
+    auto* fw = new FakeWeapon(wm);
+    fw->firing = w[11 + i] != 0;
+    wm->weapons[wm->count++] = fw;
+  }
+  m.ammo = wm;
+  m.jet_effect = h(w[14]);
+  LodPart parts[2];
+  for (int i = 0; i < 2; ++i) parts[i].idx = i, m.parts.push_back(&parts[i]);
+  lod_spent() = static_cast<int32_t>(w[15]);
+  LodCalls& c = lod_calls();
+  const LodCalls c0 = c;
+  c = LodCalls{};
+  c.player_target = [](Mech&) { return s_target; };
+  c.controls_answer = [](Mech&) { return static_cast<int>(s_answer); };
+  c.remove_child = [](Handle p, Handle ch) { u32(0x71), u32(u(p)), u32(u(ch)); };
+  c.add_child = [](Handle p, Handle ch) { u32(0x72), u32(u(p)), u32(u(ch)); };
+  c.find = [](Handle n, const char* name) -> Handle { u32(0x73), u32(u(n)), u32(static_cast<uint32_t>(std::strlen(name))); return h(0x8300); };
+  c.stop_effect = [](Handle e) { u32(0x74), u32(u(e)); };
+  c.jets_effect = [](Mech&) -> Handle { u32(0x75); return h(0x8400); };
+  const int r = lod_update(m);
+  u32(0xf), u32(m.detail), u32(static_cast<uint32_t>(lod_spent())), u32(m.x690), u32(u(m.jet_node)),
+      u32(u(m.jet_effect)), u32(static_cast<uint32_t>(r));
+  c = c0;
+  wd.mission_player = keep;
+  m.parts.clear();
+  m.ammo = nullptr, m.pilot = nullptr, m.node = nullptr, m.player_contact = nullptr;
+  m.model_node = m.lod_node = nullptr, m.jet_node = m.jet_effect = nullptr;
+  player.target = nullptr;
+  return finish(out, cap);
+}
+
+// A part's switch: kind 0 a torso (the base), 1 a foot; w: 0 destroyed, 1
+// node, 2 found, 3 lod, 4 lod index, 5 x98, 6 x9c. Out: the calls, then the
+// node and the foot's toe count.
+int probe_part_lod(int32_t kind, const uint32_t* w, uint8_t* out, int cap) {
+  g_out.clear();
+  Torso t;
+  Foot ft;
+  MechPart& p = kind == 1 ? static_cast<MechPart&>(ft) : static_cast<MechPart&>(t);
+  float rot[12] = {};
+  p.destroyed = w[0] != 0, p.node = h(w[1]), p.found = h(w[2]), p.lod = h(w[3]);
+  p.rotation = rot;
+  static const float* s_rot;
+  s_rot = rot;
+  ft.x98 = w[5], ft.x9c = w[6];
+  LodCalls& c = lod_calls();
+  const LodCalls c0 = c;
+  c = LodCalls{};
+  c.node_set_active = [](Handle n, int32_t on) { u32(0x76), u32(u(n)), u32(static_cast<uint32_t>(on)); };
+  c.node_set_matrix = [](Handle n, const float* m) { u32(0x77), u32(u(n)), u32(m == s_rot ? 1 : 0); };
+  c.set_node = [](MechPart& q, Handle n) { u32(0x78), u32(u(n)); q.node = n; };
+  p.switch_lod(static_cast<int32_t>(w[4]));
+  u32(0xf), u32(u(p.node)), u32(kind == 1 ? ft.toe_count : 0);
+  c = c0;
+  p.node = p.found = p.lod = nullptr, p.rotation = nullptr;
+  return finish(out, cap);
+}
+
+}  // extern "C"

@@ -33,6 +33,8 @@ probe.probe_anim_nodes.argtypes = [U, U, P, I, P, I, P, I, P, I]
 probe.probe_fly.argtypes = [I, I, I, I, I, I, U, U, P, P, I, P, P, I]
 probe.probe_fade.argtypes = [I, I, I, F, P, I]
 probe.probe_release.argtypes = [I, P, P, I]
+probe.probe_lod.argtypes = [P, P, I]
+probe.probe_part_lod.argtypes = [I, P, P, I]
 probe.probe_marks.argtypes = [P, I, P, I]
 probe.probe_on_kill.argtypes = [I, U, I, P, I, U, I, U, I, I, U, U, P, I]
 CAP = 1 << 16
@@ -297,6 +299,110 @@ class Emulated:
         self.logf(k + 0x3f4, 6)
         return bytes(self.out)
 
+    # --- the level of detail ---
+    def lod_setup(self):
+        cpu = self.cpu
+        cpu.stub_function(0x4e6ff0, lambda c: self.ld_target)
+        cpu.stub_function(0x4aee40, lambda c: self.ld_answer)
+        cpu.stub_function(0x4ebb40, lambda c: self.log(0x71, self.ld_map(c.ecx), c.edx))
+        cpu.stub_function(0x4eb9b0, lambda c: self.log(0x72, self.ld_map(c.ecx), c.edx))
+        def find(c):
+            self.log(0x73, self.ld_map(c.ecx), len(cpu.read(c.edx, 16).split(b'\0')[0]))
+            return 0x8300
+        cpu.stub_function(0x4f9d60, find)
+        cpu.stub_function(0x506ca0, lambda c: self.log(0x74, c.ecx))
+        def jets(c):
+            if (c.arg(0), c.arg(1), c.arg(2), c.arg(3)) != (1, 0, ZERO, ZERO):
+                self.bad = 'jets args'
+            self.log(0x75)
+            return 0x8400
+        cpu.stub_function(0x432830, jets, 0x10)
+        cpu.stub_function(0x4eb170, lambda c: self.log(0x76, c.ecx, c.edx))
+        cpu.stub_function(0x4fc300, lambda c: self.log(0x77, c.ecx, 1 if c.edx == self.ld_rot else 0))
+        def set_node(c):
+            self.log(0x78, c.arg(0))
+            cpu.u32(c.ecx + 8, c.arg(0))
+        self.ld_part_vt = self.zalloc(0x80)
+        cpu.u32(self.ld_part_vt + 0xc, self.vstub(set_node, 4))
+        self.ld_wvt = []
+        for flag in (0, 1):
+            vt = self.zalloc(0x20)
+            cpu.u32(vt + 0xc, self.vstub(lambda c, f=flag: f))
+            self.ld_wvt.append(vt)
+        self.ld_lvt = []
+        for i in (0, 1):
+            vt = self.zalloc(0x80)
+            cpu.u32(vt + 0x5c, self.vstub(lambda c, i=i: self.log(0x70, i, c.arg(0)), 4))
+            self.ld_lvt.append(vt)
+
+    def ld_map(self, v):
+        return 0x8000 if v == self.ld_node else v
+
+    def lod(self, w):
+        cpu = self.cpu
+        if not hasattr(self, 'ld_part_vt'):
+            self.lod_setup()
+        self.out = bytearray()
+        m = self.zalloc(0x6d8)
+        self.ld_node = self.zalloc(0x100)
+        cpu.u32(m + 4, self.ld_node)
+        player = m if w[0] else self.zalloc(0x6d8)
+        cpu.u32(self.game + 0x14, player)
+        cpu.u32(player + 0x6c, self.zalloc(0x40) if w[3] else 0)
+        self.ld_target = m if w[4] else player
+        if w[1]:
+            con = self.zalloc(0x40)
+            cpu.u32(con + 0xc, w[2])
+            cpu.u32(m + 0x98, con)
+        data = self.zalloc(0x234)
+        cpu.write(data, struct.pack('<II', w[8], w[9]))
+        cpu.u32(m + 0x684, data)
+        cpu.write(m + 0x690, struct.pack('<III', w[5], w[6], w[7]))
+        wm = self.zalloc(0x94)
+        cpu.u32(wm + 0x24, w[10])
+        for i in range(w[10]):
+            wp = self.zalloc(0x10)
+            cpu.u32(wp, self.ld_wvt[1 if w[11 + i] else 0])
+            cpu.u32(wm + 0x40 + 4 * i, wp)
+        cpu.u32(m + 0xd4, wm)
+        cpu.u32(m + 0x620, w[14])
+        head = self.zalloc(12)
+        items = []
+        for i in (0, 1):
+            pt = self.zalloc(0x80)
+            cpu.u32(pt, self.ld_lvt[i])
+            it = self.zalloc(12)
+            cpu.u32(it + 8, pt)
+            items.append(it)
+        ring = [head] + items
+        for i, it in enumerate(ring):
+            cpu.u32(it, ring[(i + 1) % 3])
+            cpu.u32(it + 4, ring[i - 1])
+        cpu.u32(m + 0x384, head)
+        cpu.u32(0x605634, w[15])
+        self.ld_answer = w[16]
+        cpu.call(0x41e870, ecx=m)
+        r = cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff
+        self.log(0xf, self.r32(m + 0x688), self.r32(0x605634), self.r32(m + 0x690), self.r32(m + 0x3a8),
+                 self.r32(m + 0x620), r)
+        return bytes(self.out)
+
+    def part_lod(self, kind, w):
+        cpu = self.cpu
+        if not hasattr(self, 'ld_part_vt'):
+            self.lod_setup()
+        self.out = bytearray()
+        p = self.zalloc(0xec)
+        cpu.u32(p, self.ld_part_vt)
+        cpu.write(p + 8, struct.pack('<III', w[1], w[2], w[3]))
+        self.ld_rot = self.zalloc(48)
+        cpu.u32(p + 0x14, self.ld_rot)
+        cpu.write(p + 0x48, bytes([1 if w[0] else 0]))
+        cpu.write(p + 0x98, struct.pack('<II', w[5], w[6]))
+        cpu.call(0x4672f0 if kind == 1 else 0x467290, ecx=p, stack_args=(w[4],))
+        self.log(0xf, self.r32(p + 8), self.r32(p + 0xa0) if kind == 1 else 0)
+        return bytes(self.out)
+
     # --- the parts' destructors ---
     def release(self, kind, w):
         cpu = self.cpu
@@ -559,6 +665,7 @@ def main():
     emu = Emulated(False)
     dying = Emulated(True)
     flying = Emulated(False, fly=True)
+    lodding = Emulated(False, fly=True)  # its own stubs for 0x4ebb40 and 0x4eb9b0
     runs = fails = 0
     kinds = {}
 
@@ -566,7 +673,7 @@ def main():
         nonlocal runs, fails
         runs += 1
         kinds[kind] = kinds.get(kind, 0) + 1
-        for e in (emu, dying, flying):
+        for e in (emu, dying, flying, lodding):
             if e.bad:
                 print(f'FAIL {kind}: the original called out wrongly ({e.bad})')
                 e.bad = None
@@ -651,6 +758,31 @@ def main():
                                 has_mech, mine_roster, vehicle, building, BUF, CAP)
         check('on_kill', BUF.raw[:n], emu.on_kill(roster, allies, xf8, counters, killer_is_player, team, game, info,
                                                   has_mech, victim_roster, vehicle, building))
+
+    # The level of detail.
+    for _ in range(800):
+        dist = rng.choice((1000.0, 5624.0, 5625.0, 30000.0, 62500.0, 300000.0, 640000.0, 900000.0, rng.uniform(0, 1e6)))
+        r0, r1 = rng.choice((90000.0, 250000.0, 1e6)), rng.choice((40000.0, 90000.0))
+        n = rng.randint(0, 3)
+        w = [1 if rng.random() < 0.1 else 0, rng.randint(0, 1), fb(dist), rng.randint(0, 1), rng.randint(0, 1),
+             rng.randint(0, 1), rng.choice((0x8100, 0x8100, 0)), rng.choice((0x8200, 0x8200, 0)), fb(r0), fb(r1), n,
+             rng.random() < 0.2, rng.random() < 0.2, rng.random() < 0.2, rng.choice((0, 0x8500)), rng.randint(0, 1),
+             rng.randint(0, 1)]
+        w = [int(x) for x in w]
+        mine = list(w)
+        if brk == 12:
+            mine[15] = 1 - mine[15]
+        n2 = probe.probe_lod(arr(U, mine), BUF, CAP)
+        check('lod', BUF.raw[:n2], lodding.lod(w))
+    for _ in range(300):
+        kind = rng.randint(0, 1)
+        w = [rng.randint(0, 1), rng.choice((0, 0x9100, 0x9200)), rng.choice((0, 0x9100)), rng.choice((0, 0x9200)),
+             rng.randint(0, 1), rng.randint(0, 5), rng.randint(0, 5)]
+        mine = list(w)
+        if brk == 13:
+            mine[4] = 1 - mine[4]
+        n2 = probe.probe_part_lod(kind, arr(U, mine), BUF, CAP)
+        check('part_lod', BUF.raw[:n2], lodding.part_lod(kind, w))
 
     # The parts' destructors.
     for _ in range(400):

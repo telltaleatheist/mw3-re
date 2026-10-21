@@ -272,6 +272,40 @@ feedback, what a foot steps on (0x005836b0), the other mechs and vehicles
 as collision targets (`collide_calls().node_mech` / `node_entity`, so they
 count as walls), the AI mechs' own frames (their entities' ticks).
 
+## Level of detail (ported 2026-10-21, `mech3/mech_lod`)
+
+Each frame the sensors call every vehicle's vt+0xc8 while they gather the
+records, then vt+0xd0 on each when they finish. A mech's vt+0xc8
+(0x0041e810) tells its brain (0x004aedd0, the AI's) and resets the frame's
+budget of fully detailed mechs ([0x00605634]): 0 while the player's
+throttle (controls vt+0x1c) is 0, else 1, against a limit of 1 (0x005e2034).
+Its vt+0xd0 (0x0041e870) sets the detail bits +0x688 from the squared
+distance of its contact on the player (+0x98 +0x0c; 800 m with none):
+
+| Distance | Bits | With the budget |
+|---|---|---|
+| under 75 m | 0x1c | -1 (all) |
+| under 250 m | 0x1c | 0x1d |
+| under 800 m, or the player's target | 0x10 | |
+| beyond | 0 | |
+
+The bits: 0 sounds (engine, walk, steps, power, eject), 1 toes, 2 the turn
+pivot, 3 landing effects, 4 the full gait and arm aim, 5 the lean. So an AI
+mech is heard only while the player's throttle is at 0, and then only the
+first one within 250 m in the sensors' order. The player's own mech keeps
+its bits. Then the model: past the type's first range (MechData +0x00,
+the definition's +0x14c squared) the low-detail model (+0x698), back inside
+the second (+0x04) or when it is the player's target; 0x0041e9f0 switches
+only when no weapon is firing (vt+0x0c), stops the jets' flame, has every
+part follow (vt+0x5c: 0x00467290 moves the pose to the other model's node,
+a destroyed part's copy is hidden; the foot's 0x004672f0 also takes that
+model's toe count +0x98 / +0x9c), swaps the models under the node, finds
+the jet node ("butt") and restarts the flame with no node (0x00432830(1,
+0, ..): a copy of the canned node, not the jet node). The answer is the
+controls' (0x004aee40). Checked: `test_deaths.py` (lod 800, part_lod 300;
+BREAK=12, 13); in c1m1 the Owens at 1.4 km has no bits and the low model,
+at 30 m with the player walking 0x1c and the full model.
+
 ## Left
 
 1. The torso's setup 0x464290 (the def's shake and limits, its box). The
