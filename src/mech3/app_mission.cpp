@@ -157,6 +157,11 @@ struct WiredPlayerHooks : PlayerHooks {
   std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
   std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
   std::set<Handle> mechs;          // the AI mechs made
+  // Handles are by address and kept for good (GameEngine::handle_of), so an
+  // object made where a dead one lived gets its handle: these sets hold this
+  // mission's objects only, or a new mech is taken for an old brain's
+  // settings (set_field32 then writes AiParams offsets into it).
+  void forget() { controls.clear(), params.clear(), mechs.clear(); }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
@@ -835,6 +840,7 @@ struct WiredMissionHooks : MissionHooks {
   // 0x0049e810: the mission's vehicles (mech3/player).
   void player_setup(uint8_t full) override {
     player_setup_ran = true;
+    g_player_hooks.forget();  // the last mission's AI is gone
     mech3::player_setup(full != 0);
   }
   bool player_setup_ran = false;
@@ -892,6 +898,7 @@ const AiMechMade* mission_ai_mechs(int32_t* count) {
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;
   g_player_hooks.e = e;
+  g_player_hooks.forget();  // a new engine numbers its handles afresh
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
   set_player_hooks(e ? &g_player_hooks : nullptr);
