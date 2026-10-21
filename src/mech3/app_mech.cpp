@@ -74,6 +74,7 @@ class WiredData : public MechDataHooks {
   }
   Handle cameras(Pilot& p) override { return program_cameras(p.roster); }      // 0x00430e70
   void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
+  Handle anim_find(const char* name) override { return zeff::anim_find(name); }  // 0x0050b450, the mission's
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
   void animations(Pilot& p) override {
     if (open_motions("zbd/motion.zbd")) load_animations(p);

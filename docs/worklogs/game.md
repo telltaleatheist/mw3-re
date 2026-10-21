@@ -680,3 +680,11 @@ view's ground, the anim lookups 0x50b450 (92).
 - The parts log is capped at 4,096 lines (as weapon_fx_log); the walk
   test clears it first. Its old "> 20 steps" counted earlier tests' steps
   (mw3tests runs every test whatever the argument): the walk alone makes 13.
+- Found while porting the eject: the mech data's anim_find (0x0050b450)
+  was unported in the game (WiredData), so every mech effect looked up by
+  name was null: footprints, the death and disable effects, the canned
+  eject/jump-jet/narc effects, the splashes. Wired to zeff::anim_find; the
+  walk test now sees prints and wake both. The mission's start animation
+  (start_single_player_m<n>, MissionHooks anim_start / anim_run) was
+  unwired too: wired, and the walk test checks c1m1's ran to its end
+  (status 3). Still unported: zrdrvalve's anim_find (the AI's, on hold).

@@ -37,6 +37,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
@@ -1371,8 +1372,11 @@ TEST(mission_c1m1_player_walks_and_turns_headless) {
     // the shallows starts the wake.
     std::map<std::string, int> fx;
     for (const std::string& e : mech3::mech_parts_fx_log()) ++fx[e.substr(0, e.find(' '))];
+    // The mission's start animation (mission-load.md) ran to its end (status 3).
+    const zeff::AnimDef* start = zeff::anim_find("start_single_player_m1");
+    EXPECT(start && start->raw[0x98] == 3);
     EXPECT(fx["step"] > 8);  // 13: ten seconds at a walk
-    EXPECT(fx["print"] > 0 || fx["wake"] > 0);
+    EXPECT(fx["print"] > 0 && fx["wake"] > 0);  // 2 and 6 on c1m1's shore
     EXPECT(fx["pilot"] > 0);  // the engine and walk loops (Mech::movement_sounds)
     mech3::missions().cleanup(false);
     app.stop_game();

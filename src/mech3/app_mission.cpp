@@ -574,6 +574,12 @@ struct WiredMissionHooks : MissionHooks {
   // The loading screen is the briefing's ([0x005f4c80]: 0x004050d0, 0x00405120);
   // its lines also go to the log.
   void progress(float f) override { program_briefing_progress(f); }
+  // The mission's start animation (start_single_player_m<n>, else without the
+  // number): found 0x0050b450, run at the load's end 0x00508c10(anim, 0, 0, 0, 0).
+  Handle anim_start(const char* name) override { return e->handle_of(zeff::anim_find(name)); }
+  void anim_run(Handle a) override {
+    if (auto* d = static_cast<zeff::AnimDef*>(e->object_of(a))) zeff::anim_start(d, nullptr, 0, 0, 0);
+  }
   // 0x0048ef00 of the end screen: the debriefing's Win State (the missions
   // object's +0xd0) after a 2 s fade; training's sequence is not ported.
   void fade_out(Handle seq) override {
