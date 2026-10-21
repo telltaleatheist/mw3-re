@@ -31,6 +31,7 @@
 #include "mech3/mission.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
+#include "mech3/pause_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
 
@@ -132,6 +133,8 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       screens_[h] = {new DebriefScreen(*this, st, op, mission, won), 0x13bf4};
       return h;
     }
+    case 0x492750:  // the pause screen, new(0x11b20)
+      return screen(0x11b20, [](GameEngine& e, Handle s) -> MenuScreen* { return new PauseScreen(e, s); });
     case 0x44b920: {  // the mech lab's screen, new(0x1b468): the lance's slot count
       const Handle h = alloc_block(0x1b468);
       screens_[h] = {new LabScreen(*this, static_cast<int32_t>(a0)), 0x1b468};
@@ -150,8 +153,24 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   }
 }
 
+namespace {
+// The ported shell states by address, the end screen's Win State too.
+ShellState* shell_state_at(Handle state) {
+  States& st = states();
+  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage};
+  for (ShellState* s : shells)
+    if (s->addr() == state) return s;
+  return nullptr;
+}
+}  // namespace
+
 bool GameEngine::menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out) {
   const uint32_t a0 = args.size() ? args.begin()->v : 0;
+  if (ShellState* sh = shell_state_at(obj); sh && slot == 0x28) {  // the pause screen's RESUME
+    *out = 0;
+    sh->escape();
+    return true;
+  }
   MenuState* st = menu_state_of(obj);
   if (!st) st = popup_state_of(obj);
   if (st) {
@@ -219,16 +238,6 @@ void GameEngine::delete_screens() {
   screens_.clear();
 }
 
-namespace {
-// The ported shell states by address, the end screen's Win State too.
-ShellState* shell_state_at(Handle state) {
-  States& st = states();
-  ShellState* const shells[] = {&st.main, &st.pause, &st.load, &st.win, &st.end_win, &st.salvage};
-  for (ShellState* s : shells)
-    if (s->addr() == state) return s;
-  return nullptr;
-}
-}  // namespace
 
 Handle GameEngine::state_screen(Handle state) {
   if (ShellState* s = shell_state_at(state)) return s->screen_;

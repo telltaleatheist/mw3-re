@@ -225,6 +225,10 @@ class GameEngine : public Engine {
   void missions_shutdown() override;  // 0x004844b0: mech3::close_mechlib
   std::function<void(int frame)> on_present;  // after each frame shown (the 2D or the 3D)
   bool drew_scene() const { return last_drew_scene_; }  // the frame just shown was the 3D scene
+  // FIX (A): the frame just shown, when it went through the 3D path (the
+  // scene, or the 2D layer over it), read back at the buffer's size; false
+  // otherwise (the buffer is the frame then). The pause screen's grab.
+  bool shown_frame(std::vector<uint16_t>* out);
   int frames_presented = 0;
 
   GameEngine(const Platform& p, std::string command_line);
@@ -364,6 +368,14 @@ class GameEngine : public Engine {
   Handle sound_listener() override;
   void sound_stop_all(Handle s) override;
   void sound_release_all(Handle s) override;
+  void sound_resume_all(Handle s) override;
+  Handle sound_take_playing() override;
+  void sound_restore_playing(Handle l) override;
+  void sound_free_playing(Handle l) override;
+  void mission_abort() override;
+  void set_reopen_training(uint8_t v) override;
+  void fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds, uint8_t r,
+                     uint8_t g, uint8_t b) override;
   void sound_reset() override;
   void voice_start(const char* name) override;   // 0x0056f520: zsnd::load_set
   void voice_stop(Handle s) override;            // 0x0056e9f0: zsnd::stop
@@ -407,6 +419,7 @@ class GameEngine : public Engine {
   Handle slot_ = 0;  // the debug launch's game slot (vt+0x34): the mech, its configuration, its skin
   Handle next_block_ = 0x01000000;
   bool scene_drawn_ = false, last_drew_scene_ = false, layer_drawn_ = false;
+  bool last_via_render_ = false;  // the frame just shown went through Render3D
   std::unordered_map<void*, Handle> handles_;
   struct OpenScreen {
     MenuScreen* screen;

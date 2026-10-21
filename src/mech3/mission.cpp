@@ -550,6 +550,15 @@ void Missions::lose() {
   if (const Handle scr = cockpit(h)) h.screen_flash(scr + 0x17964, -1.0f);
 }
 
+// Mech3.exe 1.2 @ 0x0048fa80: the pause screen's REPLAY. The loss without its
+// sound or flash and with no delay: the end screen comes on the next update.
+void Missions::abort_now() {
+  if (g_hooks->multiplayer()) return;
+  end_delay = 0.0f;
+  ended = 1;
+  aborting = 1;
+}
+
 // Mech3.exe 1.2 @ 0x00491bf0 (also through 0x00491c70): the debriefing's
 // fade (0x0048ef00 on the campaign's sequence 0x006099a0 or training's
 // 0x006098c8); multiplayer and other games get none.

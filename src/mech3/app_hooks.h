@@ -464,6 +464,12 @@ class Engine : public zgame::AppHooks {
   virtual Handle sound_listener() { return unported("0x0056eb10", {}); }
   virtual void sound_stop_all(Handle s) { unported("0x0056f0a0", {s}); }
   virtual void sound_release_all(Handle s) { unported("0x0056f190", {s}); }
+  // The pause screen's (0x00492750, 0x00492d70): the paused sounds resumed,
+  // and zSound's playing groups taken away, given back or freed.
+  virtual void sound_resume_all(Handle s) { unported("0x0056f130", {s}); }
+  virtual Handle sound_take_playing() { return unported("0x005732f0", {}); }
+  virtual void sound_restore_playing(Handle l) { unported("0x00573300", {l}); }
+  virtual void sound_free_playing(Handle l) { unported("0x00573350", {l}); }
   virtual void sound_reset() { unported("0x005716a0", {}); }
   virtual void voice_start(const char* name) { unported("0x0056f520", {name}); }
   virtual void voice_stop(Handle s) { unported("0x0056e9f0", {s}); }
@@ -789,6 +795,10 @@ class Engine : public zgame::AppHooks {
   virtual bool missions_loaded() { return unported("0x00490930", {}) != 0; }
   virtual bool mission_launch() { return unported("0x00491150", {}) != 0; }
   virtual void mission_cleanup(int32_t unload) { unported("0x00491780", {unload}); }
+  // The mission ended now as a failure (0x0048fa80; not in multiplayer).
+  virtual void mission_abort() { unported("0x0048fa80", {}); }
+  // The app's +0x1be (0x0047fe00): the training menu opens again after the mission.
+  virtual void set_reopen_training(uint8_t v) { unported("0x0047fe00", {v}); }
   // Replace(state(n), 0) (0x00482970, 0x00590250).
   virtual void replace_state(int32_t n) { unported("0x00590250", {n}); }
   // The current campaign's salvage merged (0x00434cb0): the ported pilot's.

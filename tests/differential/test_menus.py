@@ -1,11 +1,13 @@
-"""The credits and option screens against the original x86 (docs/menus.md, Testing).
+"""The credits, option and pause screens against the original x86 (docs/menus.md, Testing).
 
-    cmake --build build && .venv/bin/python tests/differential/test_menus.py [runs] [credits|options|gfx]
+    cmake --build build && .venv/bin/python tests/differential/test_menus.py [runs] [credits|options|gfx|pause]
 
 The original builds a screen (the credits 0x004289a0, the game options
 0x004379f0, the graphics and audio options 0x00438f60) from its dialog
 (dlgCredits.zrd's CREDITSDIALOG, dlgOptions.zrd's GAME_OPTION_DIALOG and
-GFX_AUDIO_OPTIONDIALOG), then runs a plan: frames of mouse input over the
+GFX_AUDIO_OPTIONDIALOG; the pause screen 0x00492750 from dlgPause.zrd's
+PAUSEDIALOG, menus.md section 11, its presses 0x00492d70 in every game kind),
+then runs a plan: frames of mouse input over the
 buttons and the cycles' arrows through the screen's update (the credits'
 scroll 0x00429030, the window 0x005a2bb0), presses (+0x30 of every button,
 cycle and slider: the options read and written, pushes, pops, the restart
@@ -51,7 +53,8 @@ CYCLE_VTS = [0x5bf500, 0x5bf458, 0x5bf3b0, 0x5bf308, 0x5bf260, 0x5bf1b8, 0x5bf11
              0x5bfe78, 0x5bfdd0, 0x5bfd28, 0x5bfc80, 0x5bfbd8, 0x5bfb30, 0x5bfa88, 0x5bf9e0, 0x5bf938]
 ALERT_VTS = {0x5bf3b0, 0x5bf308, 0x5bf260}
 test_twod.VT_KIND.update({v: 'C' for v in SLIDE_VTS + CYCLE_VTS + [0x5bd758]})
-test_twod.VT_KIND.update({0x5bffb0: 'L', 0x5bff20: 'L', 0x5bc1b0: 'I'})
+test_twod.VT_KIND.update({0x5bffb0: 'L', 0x5bff20: 'L', 0x5bc1b0: 'I', 0x5bd988: 'I', 0x5bd888: 'C'})
+# 0x5bd988 the marquee, 0x5bd888 a plain SlideButton (the pause screen's)
 
 # kind, constructor, size, file, dialog, slide buttons, cycles, other controls
 SCREENS = {
@@ -68,6 +71,8 @@ SCREENS = {
              (0x12594, 'VIDEO_DEVICE'), (0x129b8, 'TEXTURES'), (0x12ddc, 'SOUND_QUALITY'),
              (0x13200, 'OBJECT_DETAIL'), (0x13624, 'SPECIAL_EFFECTS')],
             [(0x111ec, 'MUSICSLIDER'), (0x11378, 'SFXSLIDER')]),
+    'pause': (3, 0x492750, 0x11b20, 'dlgPause.zrd', 'PAUSEDIALOG',
+              [(0x111ec, 'RESUME'), (0x113d8, 'QUIT'), (0x115c4, 'OPTIONS'), (0x117b0, 'REPLAY')], [], []),
 }
 SIZES = [(640, 480), (640, 480), (800, 600), (1024, 768), (1280, 1024), (1600, 1200)]
 
@@ -84,6 +89,12 @@ MECH3 = {0x40cec0: '', 0x40d760: '', 0x40d770: '', 0x576db0: '', 0x576da0: '', 0
          0x40d1c0: 'c', 0x40cbf0: 'c', 0x40d3f0: 'c', 0x40d3d0: 'c', 0x40d310: 'c', 0x40d2a0: 'c', 0x40d1f0: 'c',
          0x40d240: 'c', 0x40d430: 'c', 0x40dab0: 's0', 0x40da80: 's0'}
 FLOAT_GETTERS = (0x40dae0, 0x40daa0)
+# The pause screen's: zSound's pause and groups, the mission's end, the
+# campaign's calls (0x00479440 is quiet: the port asks the pilot), the fade,
+# the training flag and the option menus' constructors.
+PAUSE = {0x56eb10: '', 0x56f0a0: 'c', 0x5732f0: '', 0x56f130: 'c', 0x56f190: 'c', 0x573300: 'c', 0x573350: 'c',
+         0x48fa80: '', 0x434cb0: '', 0x435240: 's0', 0x47fe00: 's0', 0x48ef00: 'c,d,s0,s1,s2,s3,s4,s5',
+         0x491780: 's0', 0x438be0: '', 0x43a640: '', 0x42d9d0: ''}
 
 
 def i32(v):
@@ -167,7 +178,7 @@ def make_plan(seed, kind, n_slides, n_cycles, n_others, spots, bound):
     (an unbound button has no owner, and the presses read through it)."""
     r = random.Random(f'plan:{seed}')
     lines = ['N']
-    if kind != 0 and r.random() < 0.9:
+    if kind in (1, 2) and r.random() < 0.9:
         lines.append('R 0')  # the state's enter reads the options
     spots = list(spots) or [(100, 100)]
     down = 0
@@ -190,7 +201,7 @@ def make_plan(seed, kind, n_slides, n_cycles, n_others, spots, bound):
             lines.append(f'E {r.randrange(n_cycles)} {r.randrange(2)}')
         elif roll < 0.27 and n_cycles:
             lines.append(f'W {r.randrange(n_cycles)} {r.randrange(2)} {r.randrange(2)} {r.randrange(2)}')
-        elif roll < 0.30 and kind != 0:
+        elif roll < 0.30 and kind in (1, 2):
             lines.append(f'R {r.randrange(2)}')
         elif roll < 0.31 and kind == 2:
             lines.append(f'G {r.choice([-1, 0, 1, 2])}')
@@ -256,6 +267,21 @@ class Original:
         e.stub(ZRDR_LOAD, '@zrdr_load', 'c,d', None, lambda emu, key, a, pop: emu._ret(tree, pop))
         for addr, spec in MECH3.items():
             e.stub(addr, f'{addr:#010x}', spec)
+        if kind_name == 'pause':
+            for addr, spec in PAUSE.items():
+                e.stub(addr, f'{addr:#010x}', spec)
+            e.stub(0x479440, '@campaign', '', None, lambda emu, key, a, pop: emu._ret(0x5c000000, pop))
+            game = w.emu.object('game', slots={0x2c: ('', 0)})
+            pilot = e.world_alloc(0x100)
+            e.w32(pilot + 0x6c, game)
+            e.w32(0x60861c, pilot)
+            e.w8(0x6099c4, cfg['no_options'])
+            w.answers.update({
+                'game.vt+0x2c': cfg['kind'],
+                '0x0056eb10': lambda rr, k, a: rr.choice([0, 0x5d000010, 0x5d000020]),
+                '0x005732f0': lambda rr, k, a: rr.choice([0, 0x5d000100, 0x5d000200]),
+                '0x00438be0': 0x5b000000, '0x0043a640': 0x5b000010, '0x0042d9d0': 0x5b000020,
+            })
         def strdup(emu, key, a, pop):  # the cycles' choices
             s = emu.cpu.read(a[0], 256).split(b'\0')[0] if a[0] else b''
             p = emu.alloc(len(s) + 1)
@@ -576,6 +602,10 @@ class Original:
                     fonttext(ln)
                     kv('dx', e.r32(ln + 0x4b0))
                     kv('dy', e.r32(ln + 0x4b4))
+        if kind == 3:
+            out.append('\npause ')
+            kv('sounds', e.r32(m + 0x11b18))
+            kv('groups', e.r32(m + 0x11b1c))
         if kind == 2:
             out.append('\ngfx ')
             kv('dev', e.r32(m + 0x13f98))
@@ -642,6 +672,8 @@ def main():
                    'devices': r.choice([0, 1, 2, 3]), 'vram': r.choice([(0, 0), (8 << 20, 1 << 20), (3 << 20, 1 << 20),
                                                                       (2 << 20, 0)]),
                    'card_mb': r.choice([1, 2, 4, 8, 16])}
+            cfg['kind'] = r.choice([0, 1, 1, 2, 2, 3, 4, 4])
+            cfg['no_options'] = 1 if r.random() < 0.15 else 0  # never set in the exe
             if kind_name == 'credits':
                 cfg['main'] = r.random() < 0.95 or seed % 2 == 0  # the credits read it unchecked
             if seed % 2:
@@ -663,7 +695,9 @@ def main():
             passed += ok
             calls += len(trace)
             for k, _ in trace:
-                if k in ('0x00590400', '0x005905a0', '0x00590250', 'vt+0x28', 'vt+0x10', '0x004ac150', '0x00597a60'):
+                if k in ('0x00590400', '0x005905a0', '0x00590250', 'vt+0x28', 'vt+0x10', '0x004ac150', '0x00597a60',
+                         '0x0048fa80', '0x00491780', '0x0048ef00', '0x0047fe00', '0x00434cb0', '0x00573300',
+                         '0x00573350'):
                     stats[k] = stats.get(k, 0) + 1
         print(f'{kind_name}: {passed}/{runs} runs identical ({calls} calls; ' +
               ', '.join(f'{k} x{v}' for k, v in sorted(stats.items())) + ')')

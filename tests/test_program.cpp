@@ -55,6 +55,7 @@
 #include "mech3/mission.h"
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
+#include "mech3/pause_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/briefing.h"
 #include "gamez/zutil/zfix.h"
@@ -3150,4 +3151,141 @@ TEST(playtest_delete_pilot_through_the_games_message_box_headless) {
     reset_process_state();
     mech3::options() = mech3::Options{};
   }
+}
+
+// Playtest #3 (docs/playtest.md): Escape in a mission pushes the Pause State,
+// whose screen (0x00492750) is made over a grab of the frame shown; RESUME
+// (0x00492d70) goes back through the state's +0x28, and so does Escape on the
+// pause screen. The frame behind is the 3D one read back (FIX (A)), not the 2D
+// layer's key colour (the purple Owen saw).
+TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("pause_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    void set_cooperative_level(Device, uint32_t) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  // A GPU whose frame reads back as one colour.
+  struct OneColour : platform::Render3D {
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+    bool read_back(std::vector<uint32_t>* argb, int* w, int* h) override {
+      argb->assign(320 * 240, 0xff3366ccu);
+      *w = 320, *h = 240;
+      return true;
+    }
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  p.render = &gpu;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    struct GrabHost : BoxHost {
+      bool shown = false;  // the grab found the 3D frame
+      zimg::Texture* screen_grab(int32_t) override {
+        std::vector<uint16_t> v;
+        shown = e->shown_frame(&v) && !v.empty() && v[0] == zvid::pack_bytes(0x33, 0x66, 0xcc);
+        return nullptr;
+      }
+    } host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::States& st = mech3::states();
+    int core = 0, paused = 0, pauses = 0, resumes = 0, stage = 0;
+    bool bound = false, grabbed = false, sounds = false;
+    zgame::State* last = nullptr;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (now == &st.pause && last != &st.pause) ++pauses, paused = 0;
+      if (now == &st.core && last == &st.pause) ++resumes, core = 0;
+      last = now;
+      if (now == &st.core) {
+        ++core;
+        if (core == 5 && stage < 2) keys.key(1, true);  // Escape
+        if (core == 6 && stage < 2) keys.key(1, false);
+      } else if (now == &st.pause) {
+        ++paused;
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (!ps) return;
+        if (paused == 1) {
+          bound = ps->resume.owner && ps->quit.owner && ps->options.owner;
+          grabbed = host.shown;
+          sounds = ps->sounds != 0;
+        }
+        if (stage == 0 && paused == 4) {
+          ps->on_button(mech3::PauseScreen::kResume, 0, 0);  // RESUME
+          stage = 1;
+        } else if (stage == 1 && paused == 4) {
+          keys.key(1, true);  // Escape on the pause screen
+        } else if (stage == 1 && paused == 5) {
+          keys.key(1, false);
+          stage = 2;
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;
+    pump.stop = [&] { return stage == 2 && resumes == 2 && core >= 5; };
+    app.run(pump);
+    std::printf("  pauses %d, resumes %d, bound %d, grab of the 3D frame %d\n", pauses, resumes, bound, grabbed);
+    EXPECT(pauses == 2 && resumes == 2);  // Escape pauses; RESUME, then Escape, return
+    EXPECT(bound);                          // dlgPause.zrd's buttons
+    EXPECT(grabbed);                        // the backdrop is the frame shown
+    EXPECT(sounds);                         // zSound's snapshot taken (0x0056eb10)
+    EXPECT(app.current() == &st.core);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }

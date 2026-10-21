@@ -1,6 +1,6 @@
 // Probe for test_menus.py (docs/menus.md, Testing): the credits, the game
-// options and the graphics and audio options built from their dialogs (or
-// synthetic ones) on the ported zTwoD, then a plan of frames, presses and
+// options, the graphics and audio options and the pause screen built from
+// their dialogs (or synthetic ones) on the ported zTwoD, then a plan of frames, presses and
 // screen calls; every call out recorded through the calltrace callback
 // (zTwoD's through the shared RecordingHost, the game's through a recording
 // mech3::Engine), the screen dumped as text.
@@ -17,6 +17,7 @@
 #include "mech3/app.h"
 #include "mech3/credits.h"
 #include "mech3/options_menu.h"
+#include "mech3/pause_menu.h"
 #include "probe_twod.h"
 
 namespace {
@@ -108,6 +109,15 @@ struct MenuEngine : mech3::Engine {
   void pop_state(uint32_t arg) override { call("0x005905a0", {arg}); }
   void replace_with_exit() override {
     const uint32_t s = call("0x00482970", {4});
+    call("0x00590250", {s, 0});
+  }
+  // The pause screen's: the game's kind ([0x0060861c] +0x6c, vt+0x2c), its
+  // campaign's calls (0x00479440 then each) and Replace(state(n), 0).
+  int32_t game_kind() override { return i32("game.vt+0x2c"); }
+  void campaign_merge_salvage() override { call("0x00434cb0", {}); }
+  void campaign_reset_lancemates() override { call("0x00435240", {0}); }
+  void replace_state(int32_t n) override {
+    const uint32_t s = call("0x00482970", {static_cast<uint32_t>(n)});
     call("0x00590250", {s, 0});
   }
 };
@@ -222,6 +232,11 @@ void dump_screen(mech3::MenuScreen& m, Parts& p, Dump& d) {
       }
     }
   }
+  if (auto* p = dynamic_cast<mech3::PauseScreen*>(&m)) {
+    d.o << "\npause ";
+    d.kv("sounds", p->sounds);
+    d.kv("groups", p->groups);
+  }
   if (auto* g = dynamic_cast<mech3::GfxAudioScreen*>(&m)) {
     d.o << "\ngfx ";
     d.kv("dev", g->device_on_entry);
@@ -237,7 +252,7 @@ void dump_screen(mech3::MenuScreen& m, Parts& p, Dump& d) {
 extern "C" {
 
 // Opens `reader` as zReader's archive, builds screen `kind` (0 credits, 1 game
-// options, 2 graphics and audio) for `state`, runs `plan` (lines, as
+// options, 2 graphics and audio, 3 pause) for `state`, runs `plan` (lines, as
 // test_menus.py writes them), dumps it into `out`, then destroys it. Returns
 // the dump's length, or -1.
 int probe_menus_run(const char* reader, int kind, uint32_t state, const char* plan, char* out, int size) {
@@ -281,6 +296,10 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
         parts.slides = {&g->accept, &g->back, &g->gfx_audio, &g->controls};
         parts.cycles = {&g->difficulty, &g->camera, &g->invincible, &g->infinite_ammo, &g->heat,
                         &g->torso, &g->throttle, &g->jump_jets, &g->invert_y};
+      } else if (kind == 3) {
+        auto* p = new mech3::PauseScreen(engine, state);
+        menu.reset(p);
+        parts.slides = {&p->resume, &p->quit, &p->options, &p->replay};
       } else {
         auto* g = new mech3::GfxAudioScreen(engine, state);
         menu.reset(g);
