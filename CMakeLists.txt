@@ -64,7 +64,6 @@ add_library(mw3core STATIC
   src/gamez/zeffect/zeff_anim_run.cpp
   src/gamez/zeffect/zeff_anim_save.cpp
   src/gamez/zeffect/zeff_init.cpp
-  src/gamez/zweapon/zwep_damage.cpp
   src/gamez/zimage/zimg_library.cpp
   src/gamez/zinterp/zinterp.cpp
   src/gamez/zinterp/zinterp_parse.cpp

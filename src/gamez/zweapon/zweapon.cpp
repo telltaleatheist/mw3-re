@@ -4,6 +4,7 @@
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_rand.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_draw.h"
 
@@ -181,14 +182,24 @@ void quicksand(WeaponDef* def, HitRecord* rec, int32_t soil, Projectile* p) {
   if (rh.quicksand_make) rh.quicksand_make(&q);
 }
 
+// The handler tables live at node +0xbc (zcls::Node::damage); a test's run
+// hooks may stand in for the nodes.
 namespace {
-uintptr_t handler_of(Handle n) { return run_hooks().handler ? run_hooks().handler(n) : 0; }
+zcls::Node* zn(Handle n) { return static_cast<zcls::Node*>(n); }
+uintptr_t handler_of(Handle n) {
+  return run_hooks().handler ? run_hooks().handler(n) : reinterpret_cast<uintptr_t>(zn(n)->damage);
+}
 void put_handler(Handle n, uintptr_t h) {
   if (run_hooks().set_handler) run_hooks().set_handler(n, h);
+  else zn(n)->damage = reinterpret_cast<void*>(h);
 }
-int32_t parent_count(Handle n) { return run_hooks().parent_count ? run_hooks().parent_count(n) : 0; }
-int32_t child_count(Handle n) { return run_hooks().child_count ? run_hooks().child_count(n) : 0; }
+int32_t parent_count(Handle n) { return run_hooks().parent_count ? run_hooks().parent_count(n) : zn(n)->parent_count(); }
+int32_t child_count(Handle n) { return run_hooks().child_count ? run_hooks().child_count(n) : zn(n)->child_count(); }
+Handle parent_at(Handle n, int32_t i) { return run_hooks().parent ? run_hooks().parent(n, i) : zn(n)->parents[i]; }
+Handle child_at(Handle n, int32_t i) { return run_hooks().child ? run_hooks().child(n, i) : zn(n)->children[i]; }
 }  // namespace
+
+NodeHandlers* handlers_of(Handle node) { return node ? reinterpret_cast<NodeHandlers*>(handler_of(node)) : nullptr; }
 
 // Mech3.exe 1.2 @ 0x00583220: no parent (up to the first null one) has the
 // same table: the node owns it.
@@ -196,7 +207,7 @@ bool handler_owned(Handle node, uintptr_t h) {
   const int32_t n = parent_count(node);
   int32_t i = 0;
   for (; i < n; ++i) {
-    Handle p = run_hooks().parent(node, i);
+    Handle p = parent_at(node, i);
     if (!p || handler_of(p) == h) break;
   }
   return i >= n;
@@ -224,7 +235,7 @@ void handler_set_slot(NodeHandlers* t, uintptr_t old, Handle object, Handle node
 // Mech3.exe 1.2 @ 0x005832a0
 void handler_hand_down(Handle node, NodeHandlers* t, uintptr_t old) {
   if (handler_of(node) != old) return;
-  for (int32_t i = 0; i < child_count(node); ++i) handler_hand_down(run_hooks().child(node, i), t, old);
+  for (int32_t i = 0; i < child_count(node); ++i) handler_hand_down(child_at(node, i), t, old);
   put_handler(node, reinterpret_cast<uintptr_t>(t));
 }
 
@@ -250,7 +261,10 @@ int32_t set_handler(Handle object, Handle node, void (*fn)(), int32_t slot) {
 // Mech3.exe 1.2 @ 0x005833b0
 int32_t set_damage_handler(Handle object, Handle node, DamageFn fn, int32_t flag) {
   const int32_t r = set_handler(object, node, reinterpret_cast<void (*)()>(fn), 0);
-  if (r && flag && run_hooks().set_flag_4eb790) run_hooks().set_flag_4eb790(node, 1);
+  if (r && flag) {
+    if (run_hooks().set_flag_4eb790) run_hooks().set_flag_4eb790(node, 1);
+    else zcls::node_set_proximity(zn(node), 1);  // near misses count (0x40)
+  }
   return r;
 }
 
@@ -271,7 +285,7 @@ int32_t remove_handlers(Handle node) {
 
 // Mech3.exe 1.2 @ 0x00583440
 void handler_clear(Handle node, uintptr_t h) {
-  for (int32_t i = 0; i < child_count(node); ++i) handler_clear(run_hooks().child(node, i), h);
+  for (int32_t i = 0; i < child_count(node); ++i) handler_clear(child_at(node, i), h);
   if (handler_of(node) == h) put_handler(node, 0);
 }
 

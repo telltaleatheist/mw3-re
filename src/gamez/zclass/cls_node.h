@@ -25,7 +25,7 @@ struct Node {                      // 0xd4-byte pool slot
   void* action = nullptr;          // +0x48  callback (a NodeAction)
   void* owner = nullptr;           // +0x40  set by its user (an animation's def for its
                                    // own object, zeff_anim_run)
-  void* damage = nullptr;          // +0xbc  the damage callbacks' record (zwep_damage)
+  void* damage = nullptr;          // +0xbc  the damage and touch handlers (zwep::NodeHandlers)
   Node** parents = nullptr;        // +0x58
   Node** children = nullptr;       // +0x60
   ListItem* changed = nullptr;     // +0xcc  its item on list 7

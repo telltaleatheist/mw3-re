@@ -2,7 +2,7 @@
 
 Mech3.exe 1.2, 2026-10-19 (subagent draft); ported 2026-10-20: every piece
 below (`zeff_anim_init.cpp` anim_load, `zeff_anim_run.*`, `zeff_anim_events.*`,
-`zweapon/zwep_damage.*`, the zClass helpers) and checked with the frames
+the handler tables in `zweapon.cpp`, the zClass helpers) and checked with the frames
 after it in `tests/differential/test_anim_run.py`; the runtime is
 `anim-run.md`. Follows `docs/anim.md`: the def
 record (0x13c) offsets below are the ones in its table; "def+X" is an offset

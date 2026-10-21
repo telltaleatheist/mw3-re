@@ -149,6 +149,9 @@ void note_kill(Handle killed, HitRecord* at);                                   
 void step(WeaponDef* def, Projectile* p, Vec3f3* move);                            // 0x00585cc0
 int32_t crater(WeaponDef* def, HitRecord* hit, Projectile* p);                       // 0x005825b0
 // The node handler slots (0x00583220..0x00583440) and the touch 0x005836b0.
+// One table for every node in the game: mechs, animations and targets
+// register through set_damage_handler / set_touch_handler.
+NodeHandlers* handlers_of(Handle node);  // the node's table (+0xbc), its own or handed down; null without
 bool handler_owned(Handle node, uintptr_t h);                                       // 0x00583220
 bool own_handler(Handle node);                                                       // 0x00583250
 void handler_set_slot(NodeHandlers* t, uintptr_t old, Handle object, Handle node, void (*fn)(), int32_t slot);  // 0x00583270

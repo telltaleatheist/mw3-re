@@ -90,8 +90,8 @@ zsnd::VoiceBase* sound_play(zsnd::Object* obj, const float* pos, float volume, c
 }
 
 // Mech3.exe 1.2 @ 0x00432990
-zsnd::VoiceBase* pilot_sound(Pilot& p, int32_t id, float volume, const float* pos, const float* vel) {
-  return sound_play(static_cast<zsnd::Object*>(p.sounds[id]), pos, volume, vel, -1.0f);
+zsnd::VoiceBase* pilot_sound(void* const* sounds, int32_t id, float volume, const float* pos, const float* vel) {
+  return sound_play(static_cast<zsnd::Object*>(sounds[id]), pos, volume, vel, -1.0f);
 }
 
 }  // namespace mech3

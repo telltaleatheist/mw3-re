@@ -30,7 +30,7 @@
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_format.h"
-#include "gamez/zweapon/zwep_damage.h"
+#include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zweapon.h"
 
 namespace {
@@ -99,8 +99,8 @@ int32_t action_id(const void* a) {
 
 int32_t callback_id(const void* cb) {
   if (!cb) return 0;
-  if (cb == reinterpret_cast<void*>(&zeff::anim_on_collide)) return 1;
-  if (cb == reinterpret_cast<void*>(&zeff::anim_on_weapon_hit)) return 2;
+  if (cb == reinterpret_cast<const void*>(&zeff::anim_on_collide)) return 1;
+  if (cb == reinterpret_cast<const void*>(&zeff::anim_on_weapon_hit)) return 2;
   return 3;
 }
 
@@ -422,9 +422,9 @@ void ar_stop(int def) { zeff::anim_stop(&zeff::anim().defs[def]); build_ids(); }
 void ar_invalidate(int def) { zeff::anim_invalidate(&zeff::anim().defs[def]); }
 void ar_collide(int def, float damage) { zeff::anim_on_collide(&zeff::anim().defs[def], damage); build_ids(); }
 void ar_hit(int def, uint32_t hit_flags, float damage) {
-  uint8_t hit[0x80] = {};
-  std::memcpy(hit + 0x6c, &hit_flags, 4);
-  zeff::anim_on_weapon_hit(&zeff::anim().defs[def], hit, 0, damage);
+  zwep::WeaponDef weapon;
+  weapon.flags = hit_flags;  // +0x6c
+  zeff::anim_on_weapon_hit(&zeff::anim().defs[def], &weapon, nullptr, damage);
   build_ids();
 }
 void ar_player(float x, float y, float z) {
@@ -493,10 +493,11 @@ int ar_dump(int full, uint32_t* out, int cap) {
   }
   // Damage records: for each record (first seen in pool order) its slots.
   wi(static_cast<int32_t>(g_records.size()));
-  std::vector<const zwep::DamageRecord*> recs(g_records.size());
-  for (auto& kv : g_records) recs[kv.second] = static_cast<const zwep::DamageRecord*>(kv.first);
-  for (const zwep::DamageRecord* r : recs)
-    for (const auto& s : r->slot) wi(did(static_cast<const AnimDef*>(s.owner))), wi(callback_id(s.callback));
+  std::vector<const zwep::NodeHandlers*> recs(g_records.size());
+  for (auto& kv : g_records) recs[kv.second] = static_cast<const zwep::NodeHandlers*>(kv.first);
+  for (const zwep::NodeHandlers* r : recs)
+    for (const auto& s : r->slot)
+      wi(did(static_cast<const AnimDef*>(s.object))), wi(callback_id(reinterpret_cast<const void*>(s.fn)));
   const zeff::AnimLog& log = zeff::anim_log();
   wi(log.count);
   for (int32_t i = 0; i < log.count; ++i) {

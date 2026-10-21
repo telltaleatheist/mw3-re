@@ -5,7 +5,7 @@ Mech3.exe 1.2, 2026-10-20. Follows `anim.md` (the file) and `anim-postload.md`
 ticks, reset, start, stop), `zeff_anim_events.*` (the handlers),
 `zeff_anim_save.*` (the call log), `zeff_anim_init.cpp` (0x50ae60, the
 instances, the on-demand light and sound refs), `zeff_anim_puffer.*` (event
-42, earlier), `zweapon/zwep_damage.*` (the damage records), and in zClass the
+42, earlier), the handler tables (`zweapon.cpp` set_damage_handler / set_touch_handler, one port shared with the mechs and targets), and in zClass the
 action lists, the setters and the world's child/light/sound lists. Check:
 `tests/differential/test_anim_run.py` (probe `tests/probe_anim_run.cpp`).
 
