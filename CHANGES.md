@@ -94,6 +94,7 @@ it is clear what the designers meant.
   short of the end of the list. No shipped mission was affected.
 - **A smoke fade-in typo is fixed:** smoke set to fade in near the camera
   vanished instead.
+- The HUD's mission timer keeps its seconds under 60 past the first hour (the original showed an hour and 40 seconds as 01:01:3640).
 
 ## Crashes and broken data that no longer break the game
 

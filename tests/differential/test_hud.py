@@ -100,7 +100,7 @@ def synthetic(seed):
 # index), 16 an image set (IMAGES index | shared light << 8: the weapon
 # list's three, then the equipment's), 17 the Direct3D pass 0x0043c6b0 (dt),
 # 18 TARGET's tracking 0x00440b00 (dt), 19 the lead point 0x0041d940 on the
-# lead mech (its address).
+# lead mech (its address), 20 the HUD's data update 0x0043c390 (dt).
 OPS = list(range(1, 20))
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
@@ -287,9 +287,8 @@ class Original:
         e.w32(0x609980, r.choice([0, 0, 1]))
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
         e.w32(0x605f88, r.choice([0, 1]))
-        for a, spec in ((0x43dd00, 'c,s0'), (0x440a30, 'c,s0,s1'), (0x479ed0, '')):
+        for a, spec in ((0x43dd00, 'c,s0'), (0x479ed0, '')):
             e.stub(a, spec=spec)
-        w.answers['0x00440a30'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1])
 
         # The aim state 0x00443d20 runs; its outside stubbed (hud.md section 12):
         # the weapon group (float range on the x87 stack), the contact's mech
@@ -308,7 +307,8 @@ class Original:
             e.stub(a_, spec=spec)
         mechs = []
         for _ in range(2):
-            m = e.world_alloc(0x400)
+            m = e.world_alloc(0x600)
+            e.cpu.write(m + 0x570, struct.pack('<f', r.choice([0.0, 0.0, 12.0])))  # the NARC timer (0x00440a30)
             kind = e.world_alloc(0x20)
             e.w32(kind + 0xc, r.choice([7, 2, 1, 1]))
             e.w32(m + 0x684, kind)
@@ -316,7 +316,13 @@ class Original:
             mechs.append(m)
         w.answers['0x004b1c70'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
         w.answers['0x004b1cd0'] = lambda rr, n, a: rr.choice([0, 1, 1, 1, 1, 1])
-        w.answers['0x004e6ff0'] = lambda rr, n, a: rr.choice([0, mechs[0], mechs[1]])
+        contact_mechs = {}  # one answer per contact for the run (the original asks twice in a row)
+
+        def contact_mech(rr, n, a):
+            if a[0] not in contact_mechs:
+                contact_mechs[a[0]] = rr.choice([0, mechs[0], mechs[1]])
+            return contact_mechs[a[0]]
+        w.answers['0x004e6ff0'] = contact_mech
         w.answers['0x0041e800'] = lambda rr, n, a: rr.choice([0, 1])
         objs = []
         for _ in range(2):
@@ -397,7 +403,11 @@ class Original:
         contact = e.world_alloc(0x40)
         e.w32(self.slots[0], contact)
         obj = e.object('obj', slots={0xa8: ('c', 0), 0x50: ('c', 0), 0x68: ('c,s0', 4), 0xc: ('c', 0),
-                                     0x28: ('c', 0), 0xbc: ('c', 0)})
+                                     0x28: ('c', 0), 0xbc: ('c', 0), 0xa4: ('c', 0)})
+        names = [e.world_string('Owens'), 0]
+        w.answers['obj.vt+0xa4'] = lambda rr, n, a: rr.choice(names)
+        if self.mech and r.random() < 0.5:  # the player's target (the set-up's TARGET slot, 0x00441800)
+            e.w32(self.mech + 0x6c, contact)
         self.track_world(r, contact, obj)
         e.w32(obj + 4, e.world_alloc(0x10))  # its node
         e.stub(0x4e6fe0, spec='c')
@@ -430,6 +440,8 @@ class Original:
         w.answers['mech.vt+0xc'] = lambda rr, n, a: rr.choice([slow, vecs[0]])
         w.answers['obj.vt+0xc'] = lambda rr, n, a: rr.choice([slow, vecs[1], slow])
         self.text = e.world_string('88 TXT')
+        if self.mech:
+            self.data_world(r)
         self.ops = []
         if not self.mech:
             return
@@ -479,6 +491,8 @@ class Original:
             self.ops.append((0, f32(fr.choice([0.0, 0.016, 0.033, 0.1, 0.35, 1.0, 2.5]))))
             if fr.random() < 0.5:  # TARGET's tracking as the data update runs it each frame
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
+            if fr.random() < 0.4:  # the data update (0x0043c390)
+                self.ops.append((20, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.2 and self.lead_ok():
                 self.ops.append((19, self.lead_mech))
 
@@ -541,6 +555,68 @@ class Original:
         rng = MsvcRand(1)
         e.import_stub(0x5bb668, '@rand', '', 0, lambda emu, key, a, pop: emu._ret(rng(), pop))
 
+    def data_world(self, r):
+        """The HUD's data update (0x0043c390, op 20; hud.md section 14 part 4):
+        the mech's controls (IControls through the virtual base at +0x37c),
+        speed, heat, coolant and forward fields, the mission time; its
+        unported calls stubbed (floats on the x87 by a thunk)."""
+        e, w, t = self.e, self.w, self.t
+        m = self.mech
+        fbuf = e.world_alloc(8)
+        fthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', fbuf) + b'\xc3')
+
+        def fret(emu, key, a, pop):
+            emu.w32(fbuf, t.handle(key, ()))
+            emu._ret(0, pop, then=fthunk)
+        c, vb = e.world_alloc(0x100), e.world_alloc(0x10)
+        e.w32(m + 0x37c, c)
+        e.w32(c + 4, vb)
+        e.w32(vb + 4, 0x20)  # the IControls at c + 4 + 0x20
+        vt = e.world_alloc(0x40)
+        e.w32(c + 0x24, vt)
+        e.w32(vt + 0x1c, e.new_stub('controls.vt+0x1c', '', 0, fret))
+        e.w32(vt + 0x2c, e.new_stub('controls.vt+0x2c', '', 0, fret))
+        w.answers['controls.vt+0x1c'] = lambda rr, n, a: f32(rr.choice([0.0, 0.5, 1.0, -0.4]))
+        w.answers['controls.vt+0x2c'] = lambda rr, n, a: f32(rr.choice([0.0, 0.7, -1.0]))
+        mvt = e.r32(m)
+        e.w32(mvt + 0x148, e.new_stub('mech.vt+0x148', 'c', 0, lambda emu, key, a, pop: (
+            emu.w32(fbuf, t.handle(key, tuple(a))), emu._ret(0, pop, then=fthunk))))
+        w.answers['mech.vt+0x148'] = lambda rr, n, a: f32(rr.choice([0.0, 0.4, 1.0]))
+        for off, v in ((0x518, r.uniform(5, 25)), (0x528, r.uniform(0.2, 1.0)), (0x554, r.choice([0.0, 0.8, 1.45, 1.7])),
+                       (0x558, r.uniform(0, 0.1)), (0x55c, r.uniform(0, 0.1)), (0x56c, r.uniform(0, 1))):
+            e.cpu.write(m + off, struct.pack('<f', v))
+        a_ = r.uniform(-math.pi, math.pi)
+        e.cpu.write(m + 0x24, struct.pack('<3f', math.sin(a_), 0.0, -math.cos(a_)))
+        e.cpu.write(0x60991c, struct.pack('<f', r.choice([0.0, 59.9, 125.5, 3700.25, -42.0, -3700.5])))
+        e.cpu.write(0x609920, struct.pack('<f', r.choice([0.0, 600.0])))
+        vecs = e.world_alloc(36)
+        e.cpu.write(vecs, struct.pack('<9f', *(r.uniform(-1, 1) for _ in range(9))))
+
+        def view_dir(emu, key, a, pop):  # 0x00522170: ECX the camera's +0x20, EDX the out vector
+            at = t.handle(key, ())
+            emu.cpu.write(a[1], bytes(emu.cpu.read(at, 12)))
+            emu._ret(0, pop)
+        e.stub(0x522170, '0x00522170', 'c,d', None, view_dir)
+        w.answers['0x00522170'] = vecs
+
+        def normalize(emu, key, a, pop):  # 0x004020d0 in place (as stubbed: unchanged)
+            t.handle(key, tuple(emu.r32(a[0] + 4 * i) for i in range(3)))
+            emu.w32(fbuf, 0x3f800000)
+            emu._ret(0, pop, then=fthunk)
+        e.stub(0x4020d0, '0x004020d0', 'c', None, normalize)
+        e.stub(0x41cdf0, spec='c')
+        w.answers['0x0041cdf0'] = vecs + 12
+
+        def jump(emu, key, a, pop):  # 0x00445520: the bool pushed as a dword with stack garbage above
+            g, jets, fuel = a
+            t.handle(key, (g, jets & 0xff, fuel))
+            emu._ret(0, pop)
+        e.stub(0x445520, '0x00445520', 'c,s0,s1', None, jump)
+        for a2, spec in ((0x4453a0, 'c,s0'), (0x445450, 'c,s0'), (0x4455e0, 'c,s0,s1'), (0x4456f0, 'c,s0'),
+                         (0x441850, 'c'), (0x448320, 'c,s0'), (0x4424b0, 'c,s0'), (0x446900, 'c,s0'),
+                         (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
+            e.stub(a2, spec=spec)
+
     def lead_ok(self):
         """A group selected on the lead mech's manager (0x0041d940 reads it unchecked)."""
         e = self.e
@@ -589,6 +665,8 @@ class Original:
                 e.w32(a + 0xc, e.r32(a + 0xc) ^ v >> 16)
             elif k == 17:
                 e.call(0x43c6b0, ecx=h, stack=(v,))
+            elif k == 20:
+                e.call(0x43c390, ecx=h, stack=(v,))
             elif k == 18:
                 e.call(0x440b00, ecx=h + 0x410c, stack=(v,))
             elif k == 19:
@@ -692,10 +770,13 @@ class Original:
         weapon manager's count, the parts' equipment counts."""
         e = self.e
         m = e.world_alloc(0x400)
-        vt = e.world_alloc(0x100)
+        vt = e.world_alloc(0x200)  # to +0x148 (the jump fuel)
         e.w32(m, vt)
         e.w32(m + 4, e.world_alloc(0x40))  # its node
         e.w32(vt + 0xa0, e.new_stub('mech.vt+0xa0', 'c', 0))
+        e.w32(vt + 0xc, e.new_stub('mech.vt+0xc', 'c', 0))  # its velocity (the lead point)
+        e.w32(m + 0xf8, r.choice([-1, -1, 0]) & 0xffffffff)
+        e.cpu.write(m + 0xec, struct.pack('<3f', r.uniform(-300, 300), r.uniform(0, 30), r.uniform(-300, 300)))
         # +0x6c: no target (a target's path is TARGET's item, hud.md section 9)
         e.cpu.write(m + 0xbc, bytes([r.randrange(256)]))
         wm = e.world_alloc(0x100)  # +0x88: the lock shown (the aim state)

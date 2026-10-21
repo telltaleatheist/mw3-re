@@ -852,39 +852,80 @@ void HudTarget::set_mode(int32_t m) {
   if (m && m != g_hooks->saved_target_mode()) g_hooks->save_target_mode(m);
 }
 
-// Mech3.exe 1.2 @ 0x00441800 (a target whose +0 is set: shown; not ported
-// yet). Targets are read as the original's objects (hud.md).
+// Mech3.exe 1.2 @ 0x00441560
+void HudTarget::show_for(float seconds) {
+  Object2D::show_for(seconds);
+  for (auto& l : lines) l.show_for(-1.0f);
+  for (int i = 0; i < 3; ++i) texts[i].show_for(-1.0f);
+}
+
+// Mech3.exe 1.2 @ 0x00441800: the slot TARGET reads (the mech's +0x6c).
 void HudTarget::set_target(void* t) {
   target = t;
   if (g_hooks->target_valid(t)) {
-    g_hooks->unported("0x00441800", {g_hooks->id(this), g_hooks->id(t)});
+    show_for(-1.0f);
+    set_shown(true);
     return;
   }
   hide();
   set_shown(false);
 }
 
-// Mech3.exe 1.2 @ 0x00441780
+// Mech3.exe 1.2 @ 0x00441780: with a live target, the triangle's pulse
+// (0.3 s) and the reticle reset.
 void HudTarget::set_shown(bool on) {
-  if (on && g_hooks->target_valid(target)) {
-    g_hooks->unported("0x00441780", {g_hooks->id(this), 1});
+  shown = on && g_hooks->target_valid(target);
+  if (shown) {
+    x240c = 0.3f;  // 0x3e99999a
+    static_cast<Hud*>(hud)->reticle.reset();
+    update_texts(false);
     return;
   }
-  shown = 0;
   x240c = 0.0f;
   update_texts(true);
 }
 
-// Mech3.exe 1.2 @ 0x00441660 (the clear path; with a target, not ported yet)
+// Mech3.exe 1.2 @ 0x00441660: with a live target, its mech into the damage
+// view and the nav list and the saved (or default) mode; a dead one's none;
+// the first text the target's name.
 void HudTarget::update_texts(bool clear) {
-  if (!clear && g_hooks->target_valid(target)) {
-    g_hooks->unported("0x00441660", {g_hooks->id(this), 0});
-    return;
+  HudHooks& h = *g_hooks;
+  const char* name = nullptr;
+  if (!clear && h.target_valid(target)) {
+    void* o = h.target_object(target);  // 0x004e6fe0
+    if (!h.object_a8(o)) {
+      if (mode == 0) {
+        mode = h.saved_target_mode();  // 0x0043fca0
+        if (!mode) mode = ztwod::host().video_mode() != 0 ? 1 : 3;  // 0x00441d90
+      }
+      damage.set_mech(h.object_mech_ptr(o));
+      set_mode(mode);  // vt+0x7c
+      if (nav) h.nav_list_attach(nav, static_cast<Mech*>(h.object_mech_ptr(o)));
+    } else {
+      set_mode(0);
+      damage.set_mech(nullptr);
+    }
+    name = h.object_name(o);
+  } else {
+    set_mode(0);
+    damage.set_mech(nullptr);
   }
-  set_mode(0);
-  damage.set_mech(nullptr);
-  texts[0].set_text_plain("");  // [0x005f4c90]
+  texts[0].set_text_plain(name ? name : "");  // [0x005f4c90]
 }
+
+// Mech3.exe 1.2 @ 0x00440a30: a NARCed target counts as under the reticle
+// wherever it is; else the point on TARGET's shape or circle.
+bool HudTarget::over(int32_t px, int32_t py) {
+  HudHooks& h = *g_hooks;
+  bool narc = false;
+  if (h.target_valid(target) && h.contact_mech(h.slot_contact(target)))
+    narc = h.mech_narc(h.contact_mech(h.slot_contact(target))) > 0.0f;
+  if (narc) return true;
+  if (!(shape1.flags & ztwod::kHidden) && shape1.contains(px, py)) return true;
+  return !(frame.flags & ztwod::kHidden) && frame.contains(px, py);
+}
+
+bool HudHooks::reticle_over_target(void* t, int32_t x, int32_t y) { return static_cast<HudTarget*>(t)->over(x, y); }
 
 // Mech3.exe 1.2 @ 0x00442ac0
 HudZoomWindow::HudZoomWindow(int32_t px, int32_t py, int32_t w, int32_t h) : HudZoomView(px, py, w, h) {
@@ -2043,6 +2084,59 @@ void Hud::draw3d(float dt) {
     target.draw3d(dt);
     mfd.draw3d(dt);
   }
+}
+
+// Mech3.exe 1.2 @ 0x0043c390: the game's numbers into the pieces each
+// frame, from the camera update (0x0040f8d0) for the view's target. With the
+// HUD on: the radar's positions, the compass's heading (the mech's flat
+// forward), the gauges, TARGET's text, the equipment and MFD; always the
+// mission timer (H:M:S), the objectives, TARGET's tracking.
+void Hud::data_update(float dt) {
+  if (!mech) return;
+  HudHooks& h = hud_hooks();
+  const float thr = h.controls_throttle(mech) * h.mech_f(mech, 0x528);  // speed_factor
+  const float speed = h.mech_f(mech, 0x518) * thr * (thr > 0.0f ? 1.0f : -1.0f);  // max_speed, [0x005c0080]
+  h.gauges_speed(&gauges, speed);
+  if (active) {
+    float v[3];
+    if (radar.active) {
+      h.radar_view_dir(v);
+      v[1] = 0.0f;
+      h.normalize(v);
+      radar.set_dir(v);
+      h.radar_heading(&radar, mech);
+    } else {
+      h.mech_radar_dir(mech, v);
+      radar.set_dir(v);
+    }
+    float fwd[3];
+    h.mech_forward(mech, fwd);
+    compass.set_heading(std::atan2(fwd[0], -fwd[2]));
+    h.gauges_throttle(&gauges, h.controls_throttle_target(mech));
+    const float heat = h.mech_f(mech, 0x554);
+    const float level = heat > 1.5f ? 1.0f : heat * 0.6666667f;  // [0x005c0084], [0x005c0088]
+    h.gauges_heat(&gauges, level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
+    h.gauges_coolant(&gauges, h.mech_f(mech, 0x56c));
+    const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
+    h.gauges_jump(&gauges, jets, h.mech_jump_fuel(mech));
+    h.target_text(&target);
+    if (!(weapons.flags & ztwod::kHidden)) h.equipment_update(&equipment, dt);
+    h.mfd_update(&mfd, dt);
+  }
+  float t = h.mission_time(h.multiplayer_game() != 0);
+  const bool negative = t < 0.0f;
+  if (negative) t = -t;
+  const float minutes = t * 0.016666668f;  // [0x005c0098]
+  float hours = std::floor(minutes * 0.016666668f);
+  const float mins = std::floor(minutes - hours * 60.0f);  // [0x005c009c]
+  // FIX (bug): the original's seconds are t less the minutes alone, so past
+  // an hour they run on into the thousands ("01:01:3640"); the hours too here.
+  const float secs = zfix::options().bugs ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
+  if (negative) hours = -hours;
+  timer.set_text("%02d:%02d:%02d", crt::msvc_ftol(hours), crt::msvc_ftol(mins), crt::msvc_ftol(secs));  // [0x005e3d88]
+  h.objectives_update(&objectives, dt);
+  target.track(dt);
+  h.network_data(active, dt);
 }
 
 // Mech3.exe 1.2 @ 0x0043c820: the debug overlays (hooked), the layer's own

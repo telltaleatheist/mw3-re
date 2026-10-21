@@ -5,6 +5,7 @@
 // code. What the mech's slots do beyond the sensors (the HUD's lock 0x0041d890,
 // the level of detail 0x0041e870, the brain's refresh 0x0041e810) is logged.
 #include "mech3/app_sensors.h"
+#include "mech3/app_hud.h"
 
 #include <cmath>
 
@@ -130,7 +131,7 @@ struct ProgramSensors : ai::SensorHooks {
     if (!a) return;
     a->set_target(c, keep);
     if (!keep && mech(x) && g_w.view && x == g_w.peek32(g_w.engine, g_w.view(g_w.engine) + 0x64))
-      log_unported("0x0041d890", {x});  // the HUD's lock on the view's mech
+      program_hud_target_set(mech(x));  // 0x0041d890's HUD part: TARGET on for the view mech's new target
   }
   uint8_t brain_lancemate(zgame::Handle b) override {
     const auto* p = static_cast<const ai::Brain*>(object(b));

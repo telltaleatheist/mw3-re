@@ -618,3 +618,58 @@ The pieces, ported in order (the lead's plan, 2026-10-20):
    clip's end test at equality) need a target in the player mech's own slot,
    which the set-up only takes once set_target (0x00441800) is ported:
    part 3 reruns them.
+3. **A target given to TARGET** (0x00441800, `set_target`, with the slot the
+   set-up hands it: the mech's own +0x6c): with a live contact TARGET shows
+   with its three lines and texts (0x00441560) and turns on (0x00441780: the
+   triangle's 0.3 s pulse, the reticle reset); its texts (0x00441660): the
+   target's mech into the damage view and the nav list, the mode the saved
+   one (else 1 in Direct3D, 3 in software), the first text the target's
+   name (vt+0xa4); a target whose vt+0xa8 answers (dead) gets mode 0 and no
+   mech. **Over the target** (0x00440a30, `over`, the lock's "over"): a
+   NARCed target (its mech's +0x570 above 0) always; else the reticle's
+   point inside TARGET's triangle shape (zTwoD 0x005a3440: below its apex,
+   above its base, within 0.577 of the depth either side, after the shape's
+   points are worked out, 0x005a3270, also on its update 0x005a3550) or
+   inside the lead circle (0x005a3b30). Test: test_hud.py with a target in
+   the fake mech's own slot half the time, the original 0x00440a30 in the
+   frames, contact mechs with NARC timers: 100/100. Breaking parts 2 and 3
+   together: of the 17 left from part 2 and new here, 11 caught; the misses:
+   the ECM colour's blue 4 (the same 565 pixel as 0), TARGET's shape never
+   drawn by TARGET's update (its transform matters only to the hit test),
+   the circle's and the shape's edges only at equality, the round clip's
+   end at equality, and the dead target's mode (rarely reached).
+4. **The HUD's data update** (0x0043c390, `Hud::data_update`, each frame
+   from the camera update 0x0040f8d0 for the view's target): the speed bar
+   (the controls' throttle, IControls vt+0x1c, x the speed factor +0x528 x
+   the top speed +0x518, made positive); with the HUD on, the radar's
+   direction (the mech's 0x0041cdf0, or with the radar active the view
+   camera's +0x20 flattened and normalised, then 0x0043f2d0), the compass
+   heading (atan2 of the mech's flat forward +0x24: x against -z), the
+   throttle target (vt+0x2c), the heat gauge (heat +0x554 over 1.5, capped
+   at 1; its rate: +0x558 a second less +0x55c), the coolant (+0x56c), the
+   jump jets (equipment kind 11, +0x3d8, and the fuel, vt+0x148), TARGET's
+   text (0x00441850), the equipment list (while the weapons show), the MFD;
+   always the mission timer ("%02d:%02d:%02d" of the game time, a network
+   game's own), the objectives, TARGET's tracking, the network's. Hooked:
+   the gauges' setters, the radar's parts, TARGET's text, the equipment,
+   MFD and objectives updates (items 4, 6, 7, 9 of section 7). FIX (bug):
+   the timer's seconds past an hour (`fix_hud_timer_past_an_hour`). In the
+   program the camera update (GameEngine::camera_update) runs it for the
+   view's mech; the message panel's slide before it is not ported.
+   In the program (`app_hud`) the tracking's and the lead point's outside
+   is the player's and the target's mechs: positions from their nodes, the
+   contact's direction and distance, the mech's height as the contact's
+   size, teams from AiTarget, `zmod::project_point` for the projection; the
+   targeting key path turns TARGET on through `program_hud_target_set` (the
+   HUD part of the mech's set_target 0x0041d890). Left: the target's centre
+   (vt+0xbc) is taken as its node's place, the mech's own aim point
+   (+0xec / +0xf8) is not modelled, the target's name (vt+0xa4) and the
+   TARGET and zoom cameras (0x004f3870 / 0x004f36b0, the render work).
+   mw3tests `mission_c1m1_hud_weapon_lines_and_lock_headless`: the Owens
+   targeted with the LRM group, the player turned to it and the torso
+   pitched to keep the reticle in TARGET's triangle: acquiring, waiting,
+   locked 37 frames (0.6 s) later, nothing forced. test_hud.py's op 20 runs
+   the original 0x0043c390 (the controls through the IControls virtual
+   base, the gauges' setters stubbed): 100/100; breaking it 9 of 10 caught
+   (the radar's view direction with the radar active, which the test never
+   sets: the radar's item).

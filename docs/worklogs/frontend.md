@@ -252,3 +252,19 @@ unchecked); TARGET's triangle rect is the original's global 0x005e39d8.
 Next: part 3 (set_target 0x00441800 / 0x00441780 / 0x00441660 with a
 target, 0x00440a30, the hit tests), then give the fake mech a target in
 +0x6c and rerun part 2's six missed breaks.
+
+## 2026-10-20 TARGET's tracking, parts 3-4 (branch mac3/target-track)
+
+Part 3: set_target 0x00441800 / set_shown 0x00441780 / texts 0x00441660 /
+show_for 0x00441560 with a target, over 0x00440a30 (NARC: always), zTwoD's
+Shape transform/update/contains 0x005a3270/0x005a3550/0x005a3440, Frame's
+contains 0x005a3b30. Part 4: Hud::data_update 0x0043c390 (FIX (bug): the
+timer past an hour), GameEngine::camera_update runs it; ProgramHudHooks for
+the tracking and lead point on the mechs; program_hud_target_set for the
+HUD part of 0x0041d890. Asked the lead: the sensors' set_target in
+app_sensors.cpp (mac 4's) should call program_hud_target_set where it logs
+0x0041d890. Remember: 0x004e6ff0 must answer the same per contact (the
+original asks twice in a row); the fake mech's vtable needs +0x148; the
+jump-jets bool is pushed with stack garbage above it (masked in the stub);
+the torso pitch springs back when the key is let go (the c1m1 test holds
+it around the triangle's middle).

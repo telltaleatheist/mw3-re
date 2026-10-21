@@ -1739,9 +1739,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
 // c1m1 on the real mech (hud.md sections 12, 13): the player's HUD lists the
 // Mad Cat's weapons, one shown line each with the weapon's DESC, the current
 // group bracketed; then, with the Owens in the player's target slot and a
-// group that locks, the lock goes through acquiring, waiting and locked.
-// "Over TARGET's box" is forced (program_hud_force_over): 0x00440a30 needs
-// TARGET's tracking 0x00440b00, not ported yet (the next item).
+// group that locks, the lock goes through acquiring, waiting and locked:
+// the reticle (centred, the cockpit view) over TARGET's triangle around the
+// Owens straight ahead (TARGET's tracking 0x00440b00, nothing forced).
 TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1753,6 +1753,24 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
   mech3::missions() = mech3::Missions{};
   mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {  // the pitch key (as the aim test)
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
   FakeWindow window;
   FakeAlert alert;
   FakeClock clock;
@@ -1761,6 +1779,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
@@ -1774,10 +1793,13 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int frames = 0, weapons = 0, lines = 0, names_ok = 0, bracketed = 0, lock_group = -1;
       int first[4] = {0, 0, 0, 0};  // the first frame of lock states 1..3
       bool target_set = false;
+      int prev = 0, waiting = 0;
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
     mech3::HudReport r;
+    uint32_t pitch = 0;
+    bool pitching = false;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
@@ -1791,22 +1813,40 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         const float x = o.pos[0] - 150.0f, z = o.pos[2];
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
+        pitch = zin::key1_of(5) & 0xff;  // CMD_PITCH_DOWN
       } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
         seen.weapons = r.weapons, seen.lines = r.lines, seen.names_ok = r.named, seen.bracketed = r.bracketed;
       } else if (seen.frames == 20) {
         seen.lock_group = mech3::program_hud_lock_on(owens, &seen.target_set);
-        mech3::program_hud_force_over(true);
       } else if (seen.frames > 20 && mech3::program_hud_report(&r)) {
         if (r.lock >= 1 && r.lock <= 3 && !seen.first[r.lock]) seen.first[r.lock] = seen.frames;
+        if (r.lock == 2 && seen.prev != 2 && !seen.first[3]) seen.waiting = seen.frames;  // the last wait before the lock
+        seen.prev = r.lock;
+        // The torso pitched down until the reticle lies inside TARGET's
+        // triangle (the Owens projects below it), then held.
+        // (The pitch springs back when the key is let go: held around the
+        // triangle's middle.)
+        const bool low = r.ry > r.apex_y + (r.base_y - r.apex_y) / 2;
+        if (!low && !pitching) keys.key(pitch, true), pitching = true;
+        if (low && pitching) keys.key(pitch, false), pitching = false;
+        // The Owens walks: the player turned toward it while it is off centre
+        // (yaw -pi/2 faces +x; the turn resets the torso, so not while pitching).
+        if (std::abs(r.shape_x - static_cast<float>(r.rx)) > 4.0f && !pitching) {
+          mech3::LaunchedMech o, me;
+          mech3::describe_mech(owens, &o);
+          mech3::describe_mech(player, &me);
+          mech3::move_mech(player, me.pos, std::atan2(-(o.pos[0] - me.pos[0]), -(o.pos[2] - me.pos[2])));
+        }
       }
     };
     CountingPump pump;
-    pump.limit = 300;
+    pump.limit = 900;
     app.run(pump);
     mech3::program_hud_force_over(false);
-    std::printf("  %d weapons, %d lines shown (%d named), bracket %d; group %d, target %d, lock 1/2/3 at %d/%d/%d\n",
+    std::printf("  %d weapons, %d lines shown (%d named), bracket %d; group %d, target %d, lock 1/2/3 at %d/%d/%d"
+                " (the last wait from %d)\n",
                 seen.weapons, seen.lines, seen.names_ok, seen.bracketed, seen.lock_group, seen.target_set,
-                seen.first[1], seen.first[2], seen.first[3]);
+                seen.first[1], seen.first[2], seen.first[3], seen.waiting);
     EXPECT(seen.weapons > 0);
     EXPECT(seen.lines == seen.weapons);    // one shown line a weapon
     EXPECT(seen.names_ok == seen.lines);   // named by the weapon's DESC
@@ -1814,7 +1854,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     EXPECT(seen.lock_group >= 0 && seen.target_set);
     EXPECT(seen.first[1] > 0 && seen.first[2] > seen.first[1] && seen.first[3] > seen.first[2]);
     // 0.6 s waiting, on the fake clock's 1/60 s frames: about 36 frames from 2 to 3
-    EXPECT(seen.first[3] - seen.first[2] >= 33 && seen.first[3] - seen.first[2] <= 39);
+    EXPECT(seen.first[3] - seen.waiting >= 33 && seen.first[3] - seen.waiting <= 39);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
