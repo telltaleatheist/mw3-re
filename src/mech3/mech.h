@@ -35,6 +35,11 @@ enum : uint32_t {
 // mech_data.cpp, docs/mech-build.md section 14): its models, sounds,
 // animations and the effects its parts and death use (docs/damage.md). One
 // per type, cached and shared by every mech of it.
+// The cockpit block 0x00430ad0 makes (8 bytes: vtable 0x005bd2f4, +4 the node).
+struct CockpitModel {
+  Handle node = nullptr;  // +0x04  the type's cockpit model, or a "null_hud_cage" object3d
+};
+
 struct MechData {
   float range_sq[2] = {};        // +0x000  the definition's +0x14c and +0x150, squared
   int32_t refs = 0;              // +0x008  the mechs (and lookups) holding it
@@ -71,7 +76,7 @@ struct MechData {
   Handle x210 = nullptr;         // +0x210  cleared, not set
   Handle stubs[4] = {};          // +0x214  larm, rarm, lleg, rleg _stub01.flt
   Handle hud = nullptr;          // +0x224  the HUD's model object (0x00430aa0, made when first asked)
-  int32_t* x228 = nullptr;       // +0x228  a block whose [1] is read: the cockpit's node (the launch)
+  CockpitModel* cockpit_model = nullptr;  // +0x228  0x00430ad0's cockpit block (deleted by 0x00430580)
 };
 
 struct Mech : ai::AiTarget {

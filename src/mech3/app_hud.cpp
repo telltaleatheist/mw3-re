@@ -30,6 +30,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
+#include "mech3/mech_data.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_skis.h"
 #include "gamez/zmodel/gmod_screen.h"
@@ -416,6 +417,7 @@ void wire_hud() {
   };
   update_calls().player_frame = [](Mech& m, float) { player_frame(m); };  // 0x0041ce60
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
+  mech_hud_calls().cockpit = make_cockpit;  // 0x00430ad0's second half (playtest #4)
   command_calls().other = [](Mech&, int32_t cmd) {
     if (cmd == 0xa6) {
       if (message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key

@@ -182,6 +182,13 @@ class GameEngine : public Engine {
   uint8_t app_flag_1ba() override;
   Handle mission_navs() override;
   uint32_t vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) override;
+  // The cockpit view's frame on the program's objects (playtest #4).
+  Handle vehicle_node(Handle veh) override;
+  Handle cockpit_node(Handle veh) override;
+  Handle arm_node(Handle veh, int32_t off) override;
+  void node_set_active(Handle node, int32_t on) override;   // 0x004eb170
+  void node_set_shadow(Handle node, int32_t on) override;   // 0x004eb6d0
+  void view_draw_node(Handle cam, Handle node, Handle world) override;  // 0x004f73f0
   void view_reset(Handle view) override;  // 0x0040ad90, the port's on the program's view
   // The menu screens that are ported (app_menus.cpp): the shell states hold a
   // handle, a block of the module memory standing for the object, whose

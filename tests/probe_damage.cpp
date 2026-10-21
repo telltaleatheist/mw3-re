@@ -38,7 +38,7 @@ struct State {
   Mech mech;
   Mech other;  // the player when it is not this mech
   MechData pilot;
-  int32_t x228[2] = {};
+  CockpitModel cockpit;
   std::unique_ptr<MechPart> parts[kParts];
   bool freed[kParts] = {};
   uint32_t emu[kParts] = {};
@@ -315,8 +315,8 @@ void probe_damage_load(const uint8_t* mech_img, const uint8_t* part_imgs, const 
   for (int i = 0; i < 4; ++i) p.death_effects[i] = h(static_cast<uint32_t>(pilot[19 + i]));
   p.cockpit_explosion = h(static_cast<uint32_t>(pilot[23]));
   p.water_death = h(static_cast<uint32_t>(pilot[24]));
-  g->x228[1] = pilot[26];
-  p.x228 = pilot[25] ? g->x228 : nullptr;
+  g->cockpit.node = h(static_cast<uint32_t>(pilot[26]));
+  p.cockpit_model = pilot[25] ? &g->cockpit : nullptr;
   for (ConfigItem* it : g->items) delete it;
   g->items.clear();
   g->config = std::make_unique<Config>(0, "test");

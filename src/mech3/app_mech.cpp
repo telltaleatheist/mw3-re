@@ -504,6 +504,7 @@ void wire_mech_parts() {
   fr.remove_child = [](Handle p, Handle c) { zcls::node_remove_child(zn(p), zn(c)); };
   fr.add_child = [](Handle p, Handle c) { zcls::node_add_child(zn(p), zn(c)); };
   fr.mark = [](MechPart& p, int32_t id, Handle n) { part_mark_nodes(p, id, n); };
+  fr.cockpit_node = [](MechData& p) -> Handle { return p.cockpit_model ? p.cockpit_model->node : nullptr; };  // +0x228 +4
   fr.handlers_off = [](Mech& m) {  // the other model under the node while its handlers go
     zcls::Node* other = zn(m.x690 == 0 ? m.lod_node : m.model_node);
     zcls::node_add_child(zn(m.node), other);
@@ -1041,6 +1042,15 @@ bool mech_hold_throttle(void* mech, float v) {
 float mech_throttle_target(void* mech) {
   Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
   return m && m->controls ? m->controls->throttle_target : 0.0f;
+}
+void* mech_node_of(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->node : nullptr; }
+void* mech_cockpit_node(void* mech) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  return m && m->pilot && m->pilot->cockpit_model ? m->pilot->cockpit_model->node : nullptr;
+}
+void* mech_arm_node(void* mech, int side) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  return m && m->arms[side & 1] ? m->arms[side & 1]->node : nullptr;
 }
 bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered_down(); }
 ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }

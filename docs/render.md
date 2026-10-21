@@ -177,7 +177,9 @@ zGameApp::Run 0x58fd70                      main loop, state stack (architecture
 3. HUD/2D: 0x4a8cd0 (the sensors, not drawing: ai.md 15), 0x48f470, 0x4783a0, 0x40f8d0, 0x5a6790/0x5a67c0,
    0x579af0 BeginScene, `[0x72f3ec]` (0x57e380, one queued 4-vertex quad),
    0x579b10 EndScene.
-4. If draw_cockpit: three more `0x4f73f0(camera, subtree, hw)` passes, each a
+4. If draw_cockpit (ported 2026-10-21 as `zcls::render_subtree`, the Direct3D
+   path, checked in test_scenewalk.py: 173 subtree draws identical on the six
+   worlds): three more `0x4f73f0(camera, subtree, hw)` passes, each a
    full BeginScene..flush..EndScene of its own: the pilot's cockpit node
    (`mech+0x684 +0x228 -> +4`) and `mech+0x394 / +0x398 -> +8`
    **[unverified: likely the arm/weapon models seen from the cockpit]**, with

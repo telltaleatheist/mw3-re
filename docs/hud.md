@@ -19,7 +19,9 @@ porting order is section 7. Status: mapped, nothing ported yet.
   object3d (0x004fb740) when it has none; with a `cockpit` reader node it is
   placed at the origin, made non-intersecting and flagged (0x004eb6d0,
   0x004eb620). The Core frame draws the cockpit part through the view (camera
-  id 1; game-loop.md, the Core frame).
+  id 1; game-loop.md, the Core frame). Ported 2026-10-21 (playtest #4):
+  `mech3::make_cockpit` (mech_data.cpp), run by `pilot_hud` with the HUD.
+  MechData +0x228 is a `CockpitModel` (its node); 0x00430580 deletes it.
 - **Set-up for a mech** (0x0043bb80): from the mech's view attach (0x0041ce30)
   and 0x0041cdc0; reads hud.zrd (section 3).
 - **Each frame**, three entries:

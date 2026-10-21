@@ -220,6 +220,18 @@ int sw_render(uint8_t* out, int cap) {
   return static_cast<int>(g_out.size());
 }
 
+// 0x4f73f0 on one node (the cockpit pass): its draws, the camera and view.
+int sw_render_subtree(int index, int hw, uint8_t* out, int cap) {
+  g_out.clear();
+  zcls::render_subtree(camera_node(), zcls::node_at(index), hw);
+  u32(0xffffffff);
+  put(static_cast<zcls::Camera*>(camera_node()->data)->raw, 0x1e8);
+  put(zmth::view().view.m, 48);
+  if (static_cast<int>(g_out.size()) > cap) return -1;
+  std::memcpy(out, g_out.data(), g_out.size());
+  return static_cast<int>(g_out.size());
+}
+
 // A node's sphere and flags after a frame.
 int sw_node(int index, uint8_t* out) {
   zcls::Node* n = zcls::node_at(index);

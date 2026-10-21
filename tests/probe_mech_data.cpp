@@ -130,7 +130,7 @@ void image_data(Img& o, const m3::MechData& p) {
   o.h(0x1fc, p.x1fc), o.h(0x200, p.cockpit_explosion);
   o.h(0x204, p.landing_dust), o.h(0x208, p.landing_splash), o.h(0x20c, p.water_death), o.h(0x210, p.x210);
   for (int i = 0; i < 4; ++i) o.h(0x214 + 4 * i, p.stubs[i]);
-  o.h(0x224, p.hud), o.h(0x228, p.x228);
+  o.h(0x224, p.hud), o.h(0x228, p.cockpit_model);
   o.f(0x22c, p.limp_speed);
   o.h(0x230, p.soils);
 }

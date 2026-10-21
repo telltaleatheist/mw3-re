@@ -1192,8 +1192,38 @@ void GameEngine::view_reset(Handle view) {
   Engine::view_reset(view);
 }
 
+// The cockpit view (playtest #4): the mech hidden for the world, then its
+// cockpit model and arms drawn in passes of their own (app_states).
+Handle GameEngine::vehicle_node(Handle veh) {
+  void* m = object_of(veh);
+  return entity_is_mech(m) ? handle_of(mech_node_of(m)) : Engine::vehicle_node(veh);
+}
+Handle GameEngine::cockpit_node(Handle veh) {
+  void* m = object_of(veh);
+  return entity_is_mech(m) ? handle_of(mech_cockpit_node(m)) : Engine::cockpit_node(veh);
+}
+Handle GameEngine::arm_node(Handle veh, int32_t off) {
+  void* m = object_of(veh);
+  return entity_is_mech(m) ? handle_of(mech_arm_node(m, off == 0x398 ? 1 : 0)) : Engine::arm_node(veh, off);
+}
+void GameEngine::node_set_active(Handle node, int32_t on) {
+  if (zcls::Node* n = mission_node(*this, node)) zcls::node_set_active(n, on);
+}
+void GameEngine::node_set_shadow(Handle node, int32_t on) {
+  if (zcls::Node* n = mission_node(*this, node)) zcls::node_set_intersect(n, on);
+}
+void GameEngine::view_draw_node(Handle, Handle node, Handle) {
+  zcls::Node* cam = mission_node(*this, camera_);
+  zcls::Node* n = mission_node(*this, node);
+  if (!cam || !n) return;
+  zcls::render_subtree(cam, n, 1);  // the Direct3D path
+  scene_drawn_ = true;
+}
+
 uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args) {
   uint32_t r = 0;
+  // A mech answers vt+0x50 with itself (vehicles.md, Telling a mech).
+  if (obj && slot == 0x50 && entity_is_mech(object_of(obj))) return obj;
   if (menu_vcall(obj, slot, args, &r)) return r;
   if (obj && obj == game_) {
     switch (slot) {

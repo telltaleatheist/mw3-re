@@ -980,3 +980,29 @@ view's ground, the anim lookups 0x50b450 (92).
 - Breaks caught: the HUD weapon unwired, the camera option unwired, the app
   keys unbound, the throttle command a no-op, Ctrl+Q unbound, and 2 at 10%.
 - New playtest rows 13..18 for the rest (HUD keys to mac 3).
+
+## Playtest #4: the cockpit view (2026-10-21)
+
+- Cause: the Core frame decides "cockpit" and finds the mech's node, the
+  cockpit model and the arms through engine handle reads (vt+0x50, +0x04,
+  +0x684 +0x228 +0x04, +0x394/+0x398 +0x08) that the program never answered,
+  and its node switch and subtree draw were unported hooks. So the mech
+  stayed in the world render around the camera (Owen's "odd polygons") and
+  no cockpit was drawn. The cockpit block itself (0x00430ad0's second half)
+  was not made either.
+- Fixed:
+  - `make_cockpit` (mech_data; MechData +0x228 is now a `CockpitModel`,
+    freed as 0x00430580 does);
+  - `zcls::render_subtree` (0x004f73f0, Direct3D path; test_scenewalk 173
+    subtree draws identical);
+  - Engine hooks `vehicle_node` / `cockpit_node` / `arm_node` (their defaults
+    are the exe's reads; test_app_states identical), answered by GameEngine
+    along with vt+0x50, `node_set_active`, `node_set_shadow` and
+    `view_draw_node`;
+  - the torso's `cockpit_node` and the HUD's `cockpit` wired.
+- Headless: in c1m1's cockpit view the model exists under the torso and the
+  passes run on the port. Breaks: the hook unwired, `view_draw_node`
+  unported, no parent matrix.
+- make_cockpit has no emulator test of its own (it is all calls into ported
+  pieces); the headless test checks its result.
+- Paused (Owen, 2026-10-21): #14..#17 wait.

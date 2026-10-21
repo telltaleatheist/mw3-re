@@ -123,8 +123,8 @@ bool launch_player() {
   h.set_camera_mode(h.camera_mode());
   const int32_t type = h.game_type(game);
   // The cockpit's animated parts: each cpit_ani<x> node found runs its cycle script.
-  if (const int32_t* cockpit = m->pilot->x228) {
-    const Handle root = h.h(static_cast<uint32_t>(cockpit[1]));
+  if (const CockpitModel* cockpit = m->pilot->cockpit_model) {
+    const Handle root = cockpit->node;
     static const char* const kNodes[3] = {"cpit_ania", "cpit_anib", "cpit_anic"};
     static const char* const kScripts[3] = {"support\\cpit_cycleA.gw", "support\\cpit_cycleB.gw",
                                             "support\\cpit_cycleC.gw"};

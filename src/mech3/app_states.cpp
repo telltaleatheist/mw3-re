@@ -246,14 +246,14 @@ void CoreState::start_mission() {
     const Handle cam = en.field32(en.player_view(), 0x58);
     cockpit = cam && en.field32(cam, 0x4) == 1;
   }
-  if (cockpit) en.node_set_active(en.field32(veh, 0x4), 0);
+  if (cockpit) en.node_set_active(en.vehicle_node(veh), 0);
   en.view_reset(en.player_view());
   en.vcall(en.player_view(), 0x08, {zgame::bits(dt)});
   en.vcall(en.player_view(), 0x04, {});
   if (cockpit) {
-    en.node_set_active(en.field32(veh, 0x4), 1);
+    en.node_set_active(en.vehicle_node(veh), 1);
     const Handle v = en.player_view();
-    const Handle part = en.field32(en.field32(en.field32(veh, 0x684), 0x228), 0x4);
+    const Handle part = en.cockpit_node(veh);
     en.view_draw_node(en.field32(v, 0x4), part, en.field32(v, 0x14));
   }
   en.ai_reset(0x604038);
@@ -357,10 +357,8 @@ void draw_part(Engine& en, Handle part) {
   const Handle v = en.player_view();
   en.view_draw_node(en.field32(v, 0x4), part, en.field32(v, 0x14));
 }
-Handle mech_part(Engine& en, Handle veh, int off) { return en.field32(en.field32(veh, off), 0x8); }
-Handle mech_torso(Engine& en, Handle veh) {
-  return en.field32(en.field32(en.field32(veh, 0x684), 0x228), 0x4);
-}
+Handle mech_part(Engine& en, Handle veh, int off) { return en.arm_node(veh, off); }
+Handle mech_torso(Engine& en, Handle veh) { return en.cockpit_node(veh); }
 // The HUD update and the overlay (0x0040fac0, 0x0040e4b0, then the debug view or
 // 0x0041ab90 on the pilot's mech).
 void hud(Engine& en) {
@@ -401,13 +399,13 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   const Handle a = en.video_back_buffer();
   const Handle b = en.display_depth();
   en.render_set_target(en.video_target(), render, b, a);
-  if (flag) en.node_set_active(en.field32(veh, 0x4), 0);
+  if (flag) en.node_set_active(en.vehicle_node(veh), 0);
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   en.scene_draw(scene);
   if (veh) ai_tick(en, veh);
   if (en.key_state(1) & 3) {
-    if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
+    if (flag && veh) en.node_set_active(en.vehicle_node(veh), 1);
     return true;
   }
   world_tick(en);
@@ -418,7 +416,7 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   en.render_finish();
   en.video_unlock();
   if (flag) {
-    en.node_set_active(en.field32(veh, 0x4), 1);
+    en.node_set_active(en.vehicle_node(veh), 1);
     draw_part(en, mech_part(en, veh, 0x394));
     draw_part(en, mech_part(en, veh, 0x398));
     draw_part(en, mech_torso(en, veh));
@@ -527,12 +525,12 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   const Handle b = en.display_depth();
   en.render_set_target(en.video_target(), render, b, a);
   en.scene_begin_3d();
-  if (flag) en.node_set_active(en.field32(veh, 0x4), 0);
+  if (flag) en.node_set_active(en.vehicle_node(veh), 0);
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   if (veh) ai_tick(en, veh);
   if (en.key_state(1) & 3) {
-    if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
+    if (flag && veh) en.node_set_active(en.vehicle_node(veh), 1);
     return true;
   }
   world_tick(en);
@@ -544,7 +542,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   en.video_draw_3d();
   en.video_end_scene();
   if (flag) {
-    en.node_set_active(en.field32(veh, 0x4), 1);
+    en.node_set_active(en.vehicle_node(veh), 1);
     const int32_t light = en.model_global_light();
     en.model_set_global_light(0);
     draw_part(en, mech_torso(en, veh));
@@ -617,16 +615,16 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
   const Handle b = en.video_front_buffer();
   const Handle r = en.field32(en.player_view(), 0x8) + 0x8;
   en.render_set_target(en.video_buffer_ca0(), r, b, a);
-  if (flag) en.node_set_active(en.field32(veh, 0x4), 0);
+  if (flag) en.node_set_active(en.vehicle_node(veh), 0);
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   en.scene_draw(scene);
   if (en.key_state(1) & 3) {
-    if (flag && veh) en.node_set_active(en.field32(veh, 0x4), 1);
+    if (flag && veh) en.node_set_active(en.vehicle_node(veh), 1);
     return true;
   }
   if (flag) {
-    en.node_set_active(en.field32(veh, 0x4), 1);
+    en.node_set_active(en.vehicle_node(veh), 1);
     draw_part(en, mech_part(en, veh, 0x394));
     en.scene_draw(scene);
     draw_part(en, mech_part(en, veh, 0x398));

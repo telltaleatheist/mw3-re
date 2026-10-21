@@ -123,6 +123,10 @@ int render_cells(Node* world, Node* camera_node, Camera* camera);  // 0x004f6720
 int render_world_children(Node* world);            // 0x004f6c00
 int render_scene(Node* world, Node* camera_node, Camera* camera);  // 0x004f6c50
 void horizon_follow();                             // 0x004f6d40
+// 0x004f73f0 (ECX camera node, EDX node; hw): one subtree through the camera,
+// in a scene of its own (the cockpit and the arms over the world). The
+// Direct3D path; the software one (hw 0) is not ported and draws nothing.
+int render_subtree(Node* camera_node, Node* node, int32_t hw);
 int render_world(Node* camera_node, int32_t after);  // 0x004f7030 ECX camera node, EDX
 
 }  // namespace zcls

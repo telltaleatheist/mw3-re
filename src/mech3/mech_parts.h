@@ -107,8 +107,8 @@ struct FreeCalls {
   void (*node_free)(Mech& m) = nullptr;                        // the node out of the world, its models off, "deletedmech", the three trees destroyed
   void (*entity_free)(Mech& m) = nullptr;                      // vt+0x04(0, 0, 0, 0) and 0x005a7f70: off zEntity's list
   void (*player_object_free)(Mech& m) = nullptr;               // 0x0041e580: +0x378, vt+0 (1), for the pilot's mech
-  // The cockpit (Torso::set_cockpit): the type's cockpit node (+0x228 [1];
-  // 0x00430ad0 makes the block, not ported), whether it is the torso node's
+  // The cockpit (Torso::set_cockpit): the type's cockpit node (+0x228 +4;
+  // 0x00430ad0 makes the block, mech_data's make_cockpit), whether it is the torso node's
   // child (0x004600e0), its first parent, and the node calls.
   Handle (*cockpit_node)(MechData& data) = nullptr;
   bool (*is_child)(Handle parent, Handle child) = nullptr;

@@ -76,7 +76,7 @@ uint32_t g_missions = 0, g_pilot = 0, g_view = 0, g_interp = 0, g_rec = 0;
 uint8_t g_record[0xd0];
 bool g_have_record = false;
 std::vector<std::unique_ptr<m3::MechData>> g_pilots;
-std::vector<std::unique_ptr<int32_t[]>> g_blocks;
+std::vector<std::unique_ptr<m3::CockpitModel>> g_blocks;
 std::vector<std::unique_ptr<m3::AiControls>> g_ctls;
 std::map<const m3::MechControls*, uint32_t> g_ictl;  // a fake controller's IControls base
 std::set<const m3::MechPart*> g_inited;               // parts whose vt+0x08 took a configuration
@@ -691,9 +691,9 @@ void probe_mb_pilot(uint32_t addr, int roster, uint32_t model, uint32_t lod0, ui
   p->model = hd(model);
   p->models[0] = hd(lod0), p->models[1] = hd(lod1);
   if (block) {
-    g_blocks.emplace_back(new int32_t[2]{0, static_cast<int32_t>(cockpit_node)});
-    p->x228 = g_blocks.back().get();
-    bind(p->x228, block);
+    g_blocks.emplace_back(new m3::CockpitModel{hd(cockpit_node)});
+    p->cockpit_model = g_blocks.back().get();
+    bind(p->cockpit_model, block);
   }
   bind(p.get(), addr);
   g_pilots.push_back(std::move(p));
