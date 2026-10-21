@@ -232,8 +232,10 @@ class GameEngine : public Engine {
   void image_free(Handle image) override;
   // The Direct3D frame: zvid's lock (0x00576d00 / 0x00576d60), scene nesting
   // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
-  // 0x0040f8d0: the message panel's slide (not ported), then the view target's HUD data update.
+  // 0x0040f8d0: the message panel's slide, then the view target's HUD data update.
   void camera_update() override;
+  void message_panel_init(Handle, Handle) override;  // 0x0040f410
+  void message_panel_free() override;                // 0x0040f7d0
   void video_begin_3d() override;
   void video_end_3d() override;
   void video_begin_scene() override;

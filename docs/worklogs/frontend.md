@@ -340,3 +340,55 @@ is a process global ([0x005e3a14]; the probe resets it). Remember: never
 `open(p,'w').write(open(p).read())` (it truncates first: test_hud.py was
 restored from git); the item names came from 0x00484980 run in Unicorn;
 op 26 pokes the jets' count through the replay's memory model.
+Merged into main (lead, 2026-10-20). The coolant easing: Owen's standing
+rule applies (per-frame steps go per second at the 30 fps reference), so it
+gets zfix per_second in the next item and leaves fixes.md's Candidates.
+
+## Where things stand (2026-10-20, before a compaction)
+
+All of the above is merged. The HUD porting order (hud.md section 7): items
+1-7 and 9 done, with 4 (gauges) and 6 (MFD/TARGET texts, damage) complete;
+item 8 (reticle and zoom window: 0x004441a0, 0x00444230, 0x00442ac0..,
+0x004436c0, 0x00442df0) partly; item 10's frame entries ported. Open:
+the message panel (0x0040f3a0.. on [0x00603d7c], 0x0040f8d0's slide,
+0x0040fb30 its draw, 0x0040fed0 its point; the objectives use a stand-in
+for its point in app_hud), the zoom window's show_for 0x004438d0, the debug
+overlays (0x0043c820's first part), a mech's own name (0x0041df30 /
+0x004aee70), the network's HUD pieces (0x00479ed0, 0x00479ef0, the marker
+0x0058b060), the nav list 0x0047e840.
+
+Current item (lead): on mac3/message-panel, first the coolant easing per
+second (HudGauges::set_coolant, zfix per_second, fixes.md table row,
+CHANGES.md, drop the candidate), then the message panel if it is small.
+
+How I work here:
+- test_hud.py N (ops, worlds, dumps) against tests/probe_hud.cpp; run
+  `.venv/bin/python -P -u -X faulthandler tests/differential/test_hud.py 100
+  > scratch/hud/x.txt 2>&1` in the background.
+- Breaks: scratch/hud/breaks.py SEEDS "name,name" (entries in its B0 lists,
+  prefixed by item: r radar, c/m/s/x contacts, d damage, t TARGET text,
+  g/o/e gauges); never edit src while it runs (it restores its copy).
+- Coverage counters: scratch/hud/count_*.py (Original(seed).run(), t.log).
+- Running an exe function in Unicorn for a table: tests/differential
+  original.Original, stub_function(0x576040, ...), call(addr, ecx=...),
+  EAX via uc.reg_read.
+- mw3tests has no filter: it runs all (about 5 minutes); the c1m1 HUD tests
+  are mission_c1m1_hud_weapon_lines_and_lock_headless and
+  mission_c1m1_player_aims_with_the_reticle_headless.
+- Program wiring: src/mech3/app_hud.cpp (ProgramHudHooks), tests helpers
+  in app_hud.h (program_hud_report, program_hud_target, program_hud_lock_on).
+
+## 2026-10-20 Coolant per second; the message panel (branch mac3/message-panel)
+
+dc046fe: the coolant easing per second (FIX (B), Owen's rule; the candidate
+dropped). 3e8cf3b + this commit: mech3/message_panel (0x0040f410
+create, 0x0040f7d0 free, the class 0x005bc7a0: 0x0040f6b0, 0x0040f680,
+0x0040f5d0, 0x0040fa90; the slide from 0x0040f8d0; 0x0040f040/070/0a0/0b0;
+0x0040fe20/0x0040fe50; 0x0040fb30; 0x0040fed0). FIX (B): the slide's
+truncated step (0 above 60 fps) carries its fraction. The objectives now
+use the real point (stand-in gone). Hooks renamed message_panel_init /
+message_panel_free; WiredMissionHooks fn_40f040 / fn_40f0b0 and
+command_calls().other (0xa6) wired. Remember: the panel is a process global
+(the probe destroys it under probe_app::Mute each run); within a frame the
+test's ops run slide, switches, then messages, so a switch is followed by
+a message before the next slide; headless text has no height.

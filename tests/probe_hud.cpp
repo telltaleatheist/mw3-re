@@ -11,6 +11,7 @@
 #include "crt/msvc_rand.h"
 #include "mech3/hud.h"
 #include "mech3/mech_hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/options.h"
 #include "probe_twod.h"
 
@@ -21,6 +22,10 @@ uint32_t g_hud_addr = 0;
 uint32_t g_utab = 0, g_stab = 0;  // the aim's answers in the emulator (test_hud.py aim_world)
 int g_unprojects = 0, g_segments = 0;
 bool g_have_zrd = false;
+// The message panel's messages and times (test_hud.py's MESSAGES, MESSAGE_TIMES).
+const char* const kMessages[] = {"Objective complete", "Nav Alpha reached",
+                                 "Lancemate destroyed: the rest of the lance falls back"};
+const float kMessageTimes[] = {0.0f, 0.5f, 2.0f, 6.0f};
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 bool g_lock_shown = false;
@@ -326,6 +331,12 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 23: h.radar.xdb4 = v; break;
     case 24: h.radar.xdb8 = v; break;
     case 25: h.radar.set_fade(zgame::from_bits(v)); break;
+    case 27: mech3::message_panel_add_for(kMessageTimes[v >> 8], "%s", kMessages[v & 0xff]); break;
+    case 28: mech3::message_panel_add("%s", kMessages[v]); break;
+    case 29: mech3::message_panel_toggle(); break;
+    case 30: mech3::message_panel_set(v != 0); break;
+    case 31: mech3::message_panel_reset(); break;
+    case 32: mech3::message_panel()->slide(zgame::from_bits(v)); break;
     case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
     case 22: h.radar.active = v & 1, h.radar.changed = v >> 1 & 1; break;
     case 19: {
@@ -541,7 +552,21 @@ void dump_hud(Dump& d) {
   textbox(d, &ob.scores, "scores");
   d.o << "ofonts ";
   for (uint32_t f : {ob.font_title, ob.font_complete, ob.font_incomplete, ob.font_scores}) d.kv("font", f);
-  d.o << "\nequipment ";
+  d.o << "\n";
+  if (mech3::MessagePanel* mp = mech3::message_panel()) {  // hud.md section 18
+    textbox(d, mp, "mpanel");
+    d.o << "mpfields ";
+    d.kv("timer", zgame::bits(mp->timer));
+    d.kv("speed", zgame::bits(mp->speed));
+    d.kv("width", mp->width);
+    d.kv("onx", mp->on_x), d.kv("ony", mp->on_y), d.kv("offx", mp->off_x), d.kv("offy", mp->off_y);
+    d.kv("x", mp->x), d.kv("y", mp->y);
+    d.kv("font", mp->font), d.kv("fontb", mp->font_bright);
+    d.kv("in", mp->sliding_in);
+    panel(d, &mp->panel);
+    d.o << "\n";
+  }
+  d.o << "equipment ";
   mech3::HudEquipment& eq = h.equipment;
   d.base(&eq);
   d.kv("hud", g_hooks.id(eq.hud));
@@ -867,7 +892,12 @@ int probe_hud_build(uint32_t hud_addr, uint32_t mech, const char* zbd, const flo
   void* storage = ::operator new(sizeof(mech3::Hud));
   std::memset(storage, 0, sizeof(mech3::Hud));
   g_hud = static_cast<mech3::Hud*>(storage);
+  {
+    probe_app::Mute quiet;  // a process global, the last run's; the exe's run starts without one
+    mech3::message_panel_destroy();
+  }
   new (g_hud) mech3::Hud(reinterpret_cast<mech3::Mech*>(static_cast<uintptr_t>(mech)));
+  mech3::message_panel_create();
   std::string aims;
   for (int i = 0; i < nplaces; ++i) {
     g_hud->reticle.place(places[2 * i], places[2 * i + 1]);

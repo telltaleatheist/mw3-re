@@ -40,6 +40,7 @@
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
 #include "mech3/hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -1826,6 +1827,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
       float blip_d = 0.0f, blip_want = 0.0f;
       mech3::HudReport gauges;  // frame 10's (hud.md section 17)
+      int panel_made = 0, panel_up = 0, panel_down = 0;  // the message panel (hud.md section 18)
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -1835,6 +1837,15 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
+      if (mech3::MessagePanel* mp = mech3::message_panel()) {
+        // a message held a second at frame 12: up to its place, then down and hidden
+        if (seen.frames == 12) {
+          seen.panel_made = mp->y == mp->off_y && (mp->flags & ztwod::kHidden);
+          mech3::message_panel_add_for(1.0f, "%s", "Nav Alpha reached");
+        }
+        if (seen.frames > 12 && mp->y == mp->on_y && !seen.panel_up) seen.panel_up = seen.frames;
+        if (seen.panel_up && (mp->flags & ztwod::kHidden) && !seen.panel_down) seen.panel_down = seen.frames;
+      }
       if (seen.frames == 3) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
         int32_t made = 0;
@@ -1915,6 +1926,9 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     const mech3::HudReport& g = seen.gauges;
     std::printf("  equipment %d lines (%d wanted), speed %.1f km/h, throttle bar %d up, fuel %d, heat unlit %d\n",
                 g.equip_lines, g.equip_wanted, g.speed_kmh, g.throttle_up, g.fuel_shown, g.heat_unlit);
+    std::printf("  message panel made %d, up at frame %d, down and hidden at %d\n", seen.panel_made, seen.panel_up,
+                seen.panel_down);
+    EXPECT(seen.panel_made && seen.panel_up > 12 && seen.panel_down > seen.panel_up + 50);
     EXPECT(g.equip_lines == g.equip_wanted);  // a line for each part, by kind (none: hidden)
     EXPECT(g.throttle_up > 0 && g.speed_kmh > 0.0f);  // the bar up from its bottom, the speed in km/h
     mech3::missions().cleanup(false);

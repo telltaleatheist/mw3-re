@@ -105,6 +105,9 @@ def synthetic(seed):
 # radar's polylines' counts (first | second << 8) and lists, 22 the radar's
 # map and changed flags (map | changed << 1), 23 and 24 its lists (addresses).
 OPS = list(range(1, 20))
+# The message panel's messages and times (ops 27, 28; probe_hud.cpp the same).
+MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
+MESSAGE_TIMES = [0.0, 0.5, 2.0, 6.0]
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
           + [0x6520 + 0x130 + 0x1120 * i + 0xae8 for i in range(4)]
@@ -240,8 +243,8 @@ class Original:
         e.w32(0x605988, r.choice([0, 0, 1, 2, 3]))
         e.w32(0x60598c, r.choice([0, 1, 2, 2, 3]))  # TARGET's (2: its damage view)
         # The player view: its camera node, the node's data, the field of view.
-        p_cam, node, data = e.world_alloc(8), e.world_alloc(0x40), e.world_alloc(0x100)
-        e.w32(0x5f4c8c, p_cam)
+        p_cam, node, data = e.world_alloc(0x80), e.world_alloc(0x40), e.world_alloc(0x100)
+        e.w32(0x5f4c8c, p_cam)  # (+0x64 no view target: 0x0040f8d0's HUD part skipped)
         e.w32(p_cam + 4, node)
         e.w32(node + 0x38, data)
         e.wf(data + 0xe8, r.choice([1.0471976, 0.87266463, 1.5707964]))
@@ -289,6 +292,7 @@ class Original:
         self.frame_world(rnd(self.seed, 'frame world'))
         self.snapshot = e.snapshot()
         e.call(0x43b190, ecx=self.hud, stack=(self.mech,))
+        e.call(0x40f410)  # the message panel
         # The reticle placed where the player looks (0x004445f0), a few times.
         self.aim_lines = []
         if self.mech:
@@ -310,11 +314,10 @@ class Original:
         e.w32(lhead + 4, lhead)
         e.w32(0x60b22c, lhead)
         e.cpu.write(0x609994, bytes([r.choice([0, 1])]))
-        # the message panel's point (0x0040fed0: [0x00603d7c] +0x4e8), under which the objectives sit
-        mp = e.world_alloc(0x500)
-        e.w32(mp + 0x4e8, r.randrange(0, 400))
-        e.w32(mp + 0x4ec, r.randrange(0, 300))
-        e.w32(0x603d7c, mp)
+        # the message panel (made after the HUD, 0x0040f410; hud.md section 18): its messages
+        e.w32(0x603d7c, 0)
+        self.msg_fmt = e.world_string('%s')
+        self.msgs = [e.world_string(m) for m in MESSAGES]
         # the equipment's item names (0x00484980)
         inames = [e.world_string(x) for x in ('ECM', 'Beagle', 'AMS')]
         e.stub(0x484980, spec='c')
@@ -445,7 +448,7 @@ class Original:
             t.handle('0x0057bf80', (colour, alpha, *v))
             emu._ret(0, pop)
         e.stub(0x576ce0, '0x00576ce0', 'c', None, dirty)
-        for a, spec in ((0x579af0, ''), (0x579b10, ''), (0x40fb30, '')):
+        for a, spec in ((0x579af0, ''), (0x579b10, '')):
             e.stub(a, spec=spec)
 
         def view_call(emu, key, a, pop):  # the views by name: 1 the MFD's, 2 TARGET's (new'd, probe_hud.cpp)
@@ -595,6 +598,14 @@ class Original:
                 self.ops.append((18, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.15:  # the radar's mode
                 self.ops.append((22, fr.choice([0, 1, 2, 3] if self.flip else [0, 2])))  # map mode needs the map
+            if fr.random() < 0.45:  # the message panel: a slide frame, messages, its switches
+                self.ops.append((32, f32(fr.choice([0.016, 0.033, 0.1, 0.5, 1.0]))))
+            if fr.random() < 0.15:  # (before the messages: a hidden panel set in, then a message)
+                self.ops.append(fr.choice([(29, 0), (30, 0), (30, 1), (31, 0)]))
+            if fr.random() < 0.15:
+                self.ops.append((27, fr.randrange(len(MESSAGES)) | fr.randrange(4) << 8))
+            if fr.random() < 0.15:
+                self.ops.append((28, fr.randrange(len(MESSAGES))))
             if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
                 self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
@@ -906,6 +917,19 @@ class Original:
                 e.w32(rd + 0xdac, 0x5e39c8)
             elif k in (23, 24):
                 e.w32(h + 0x14 + (0xdb4 if k == 23 else 0xdb8), v)
+            elif k == 27:
+                e.call(0x40fe20, stack=(f32(MESSAGE_TIMES[v >> 8]), self.msg_fmt, self.msgs[v & 0xff]))
+            elif k == 28:
+                e.call(0x40fe50, stack=(self.msg_fmt, self.msgs[v]))
+            elif k == 29:
+                e.call(0x40f070)
+            elif k == 30:
+                e.call(0x40f0b0, ecx=v)
+            elif k == 31:
+                e.call(0x40f040)
+            elif k == 32:
+                e.w32(0x72c52c, v)  # the frame's seconds
+                e.call(0x40f8d0)
             elif k == 26:
                 e.w32(self.mech + 0x3d8, v)
             elif k == 25:
@@ -1268,6 +1292,16 @@ class Original:
         for off in (0xa9c, 0xaa0, 0xaa4, 0xaa8):
             kv('font', e.r32(o + off))
         flush('ofonts')
+        mp = e.r32(0x603d7c)  # the message panel (hud.md section 18)
+        if mp:
+            textbox(mp, 'mpanel')
+            for k, off in (('timer', 0x4c8), ('speed', 0x4cc), ('width', 0x4d0), ('onx', 0x4d8), ('ony', 0x4dc),
+                           ('offx', 0x4e0), ('offy', 0x4e4), ('x', 0x4e8), ('y', 0x4ec), ('font', 0x5f8),
+                           ('fontb', 0x5fc)):
+                kv(k, e.r32(mp + off))
+            kv('in', e.r8(mp + 0x4d4))
+            panel(mp + 0x4f0)
+            flush('mpfields')
         o = h + 0x188c0
         base(o)
         kv('hud', e.r32(o + 0x34))

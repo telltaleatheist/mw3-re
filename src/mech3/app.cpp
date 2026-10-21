@@ -280,7 +280,7 @@ bool Mech3App::start_game(uint32_t window) {
     if (e.force_feedback_present()) e.set_network_game(e.network_game_new());
   }
   const Handle win = e.window_rect();
-  e.mechs_init(e.display_rect(), win);
+  e.message_panel_init(e.display_rect(), win);
   e.maps_init("maps.zrd");
   e.clock_init();
   e.cd_init(1);
@@ -357,7 +357,7 @@ void Mech3App::stop_game() {
   if (Handle game = e.network_game()) e.network_game_delete(game);
   const bool fatal = e.fatal_error() != 0;
   if (!fatal) {
-    e.world_shutdown();
+    e.message_panel_free();
     if (e.fatal_error() == 0) e.span_shutdown();
   }
   e.network_shutdown();

@@ -2042,7 +2042,16 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   little toggler beside it your heat plus how fast it is changing, so it
   leads the bar when you are heating up and trails when cooling.
 - **The coolant gauge glides** a tenth of the way to the real value each
-  frame, so it moves faster on a faster computer.
+  frame, so it moves faster on a faster computer. The rebuild glides it at
+  the 30 fps pace at any frame rate.
 - **The equipment list blinks green for one frame** whenever a line changes
   to a different item: the rename sets the green font over its yellow or
   grey state until the next frame.
+- **On a fast computer the original never shows its mission messages:**
+  the message panel slides up 60 pixels a second, rounded down to whole
+  pixels each frame, so above 60 frames a second it moves 0 pixels a frame
+  and stays under the screen's edge (at 30 fps it crawls at half speed).
+  The rebuild carries the fraction: 60 pixels a second at any rate.
+- **The message panel holds four lines** and slides up when a message comes
+  with a time; a newer, longer time extends its stay. The objectives list
+  sits on top of it and rides up and down with it.

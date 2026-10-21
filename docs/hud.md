@@ -339,9 +339,6 @@ the set-up reads: item 1a's test).
   so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
   the Mobile HQ, turrets) wait for those vehicles; until then their contacts
   show nothing.
-- The message panel (0x0040f3a0.., [0x00603d7c]): not ported. The
-  objectives sit above a stand-in point in the program, the panel's
-  starting place without its text's height or its slide.
 - TARGET's third text in the program: a mech's own name (vt+0xa4,
   0x0041df30: the player's pilot's, else its brain's 0x004aee70) is not
   ported, so it stays empty.
@@ -859,8 +856,8 @@ Run by the HUD's data update each frame (section 14 part 4).
   the bar moved down by the unlit height).
 - Coolant (0x004456f0): eased a tenth of the way toward the value each call,
   that is each frame, in one value for every HUD ([0x005e3a14], 1 at
-  start): the bar settles faster at higher frame rates (a display matter;
-  fixes.md Candidates).
+  start): the bar settles faster at higher frame rates; the rebuild eases
+  a tenth per 1/30 s behind zfix per_second (fixes.md).
 - Jump jets (0x00445520): the fuel frame and bar shown with jets, hidden
   without; the bar by the fuel (clamped 0..1).
 
@@ -892,3 +889,53 @@ In the program: the AMS (Ams on/rounds), the MASC time, the item names
 throttle for a few frames: the throttle bar stands 3 pixels up and the speed
 reads 0.1 km/h at frame 10; the player's mech has no equipment and no jump
 jets, so the list and the fuel gauge are hidden, as the counts call for.
+
+## 18. The message panel (0x0040f410.., [0x00603d7c])
+
+The in-mission messages ("Objective complete" and the like): a text box of
+four lines on a see-through panel (the HUD green and opacity, 4 pixels
+left of the text, sized to it), 320 wide, centred, in the hud_messages font
+(hud_messages_bright made too). Ported as `mech3/message_panel`.
+
+- **Made** once at start-up (0x0040f410, before the maps and the clock; the
+  program's set-up calls it, ECX and EDX unused), freed at the end
+  (0x0040f7d0). It starts hidden just under the display's bottom edge (y =
+  display height + 1); shown, it sits its text's height above the bottom.
+- **A message** (0x0040fe20: with a time; 0x0040fe50: without) adds a line;
+  with a time over 0 (show_for 0x0040f5d0), a hidden panel or one going out
+  starts coming in, holding for that time; one already in keeps the longer
+  time. Callers: the objectives (0x0045a270, 0x0045e110), salvage
+  (0x00470490), the debug keys (0x0040db60), the player (0x004a50e0), the
+  AI's valves (0x004e6cxx).
+- **Each frame** (0x0040f8d0's first part, before the HUD's data update):
+  the time runs down and, at 0, the panel turns round; it moves 60 pixels a
+  second toward its place (in: shown, up to its height above the bottom;
+  out: down to its hidden place, then cleared and hidden). The step is the
+  frame's 60 x seconds truncated: 3 a frame at 20 fps (60 a second), 2 at
+  25 (50), 1 from 30 to 60 fps (30 to 60 a second), 0 above 60 fps, so on
+  a faster machine the panel never moves (FIX (B): the fraction carried,
+  the 60 a second the panel's speed says, behind zfix per_second,
+  fixes.md).
+- **Switches**: the panel key (mech command 0xa6, 0x0040f070) turns it
+  round; the mission sets it out (0x0040f0b0) and resets it (0x0040f040:
+  cleared, out, at its hidden place) at a mission's start.
+- **Drawn** in the HUD's Direct3D pass (0x0040fb30, its quad while shown);
+  its point (0x0040fed0) places the objectives above it (section 17), so
+  they ride up and down with it.
+
+Test: test_hud.py makes the panel after the HUD (0x0040f410) and runs ops
+27-32 (a message with a time, one without, the toggle, set, reset, a slide
+frame through 0x0040f8d0 with no view target); the panel's text, places,
+time and quad in both dumps. 100 seeds match. Breaking it: 15 of 18 caught;
+the misses cannot show (the time only runs while sliding in, so its turn
+is always outward; the reset's x is the same hidden or shown; the panel's
+and the text's draw order is not traced).
+
+In the program GameEngine makes and frees it (the hooks
+message_panel_init / message_panel_free, once misnamed mechs_init and
+world_shutdown), slides it each frame before the HUD's data update, the
+mission's hooks reset and set it, and command 0xa6 toggles it.
+mw3tests' c1m1 HUD test adds a message held a second at frame 12: the panel
+is up at frame 14 and down and hidden at 76 (headless text has no height,
+so its travel is short); fix_message_panel_slides_above_60fps checks the
+step at 120 fps.

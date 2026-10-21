@@ -13,6 +13,7 @@
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_hud.h"
+#include "mech3/message_panel.h"
 #include "mech3/options.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -1467,8 +1468,12 @@ void HudGauges::set_heat(float level, float rate) {
 }
 
 // Mech3.exe 1.2 @ 0x004456f0: a tenth of the way there each call (each frame).
-void HudGauges::set_coolant(float v) {
-  g_coolant_shown = g_coolant_shown - (v - g_coolant_shown) * -0.1f;  // [0x005c0144]
+// FIX (B): per second, at the 30 fps frame's tenth (fixes.md).
+void HudGauges::set_coolant(float v, float dt) {
+  if (zfix::options().per_second)
+    g_coolant_shown = v + (g_coolant_shown - v) * std::pow(0.9f, zfix::frame_steps(dt));
+  else
+    g_coolant_shown = g_coolant_shown - (v - g_coolant_shown) * -0.1f;  // [0x005c0144]
   bar_level(coolant_bar, g_coolant_shown);
 }
 
@@ -1490,7 +1495,7 @@ void HudGauges::set_jump(bool jets, float fuel) {
 void HudObjectives::data_update(float) {
   if (flags & ztwod::kHidden) return;
   int32_t p[2];
-  hud_hooks().message_panel_point(p);
+  message_panel_point(p);
   place_above(p[0], p[1]);
 }
 
@@ -2691,7 +2696,7 @@ void Hud::draw3d(float dt) {
       if (!(weapons.flags & ztwod::kHidden)) weapons.panel.draw_quad();
       if (!(weapons.flags & ztwod::kHidden) && !(equipment.flags & ztwod::kHidden)) equipment.panel.draw_quad();
     }
-    h.message_panel_draw();
+    message_panel_draw();
     if (!(objectives.flags & ztwod::kHidden)) objectives.panel.draw_quad();
     h.flush_transparent();
     h.scene_end();
@@ -2732,7 +2737,7 @@ void Hud::data_update(float dt) {
     const float heat = h.mech_f(mech, 0x554);
     const float level = heat > 1.5f ? 1.0f : heat * 0.6666667f;  // [0x005c0084], [0x005c0088]
     gauges.set_heat(level, h.mech_f(mech, 0x558) / dt - h.mech_f(mech, 0x55c));
-    gauges.set_coolant(h.mech_f(mech, 0x56c));
+    gauges.set_coolant(h.mech_f(mech, 0x56c), dt);
     const bool jets = h.mech_part_count(mech, 11) > 0;  // +0x3d8
     gauges.set_jump(jets, h.mech_jump_fuel(mech));
     target.data_text();
