@@ -151,6 +151,7 @@ std::vector<ai::Contact*> g_steer_contacts;
 std::vector<int32_t> g_contact_entity;
 
 bool g_pilot = false;
+bool g_real_formation = false;  // test_ai_lance.py: the port's formation net and vehicle nets' follow
 zgame::Handle g_player_vehicle = 0;
 
 // The node state's test (test_ai_node.py): the owner's flat forward, its
@@ -346,9 +347,13 @@ struct Hooks : ai::BrainHooks {
     call("lance.vt+0x48", {});
     return static_cast<int32_t>(call("lance.vt+0x2c", {}));
   }
-  ai::AiNet* formation_net() override { return net_of(200); }
+  // The formation net: a numbered fake, or the port's (the lance test's).
+  ai::AiNet* formation_net() override { return g_real_formation ? ai::BrainHooks::formation_net() : net_of(200); }
+  bool refit(ai::Brain&) override { return call("0x004ea260", {}) & 0xff; }
   zgame::Handle player_vehicle() override { return g_pilot ? g_player_vehicle : 0; }
   ai::Behaviour* follow_behaviour(ai::AiNet* n) override {
+    if (g_real_formation)  // the lance test's: a vehicle net's own (0x004c0de0, run by the exe)
+      if (auto* vn = dynamic_cast<ai::VehicleNet*>(n)) return vn->follow();
     return beh_of(static_cast<int32_t>(call("0x004c0de0", {n ? n->get_id() : 0})));
   }
   bool ai_on() override { return g_ai_on; }
@@ -379,6 +384,7 @@ struct Hooks : ai::BrainHooks {
     }
     for (size_t i = 0; i < g_steer_contacts.size(); ++i)
       if (g_steer_contacts[i] == c) return g_entity[g_contact_entity[i]].handle;
+    if (const int32_t i = contact_index(c)) return g_seen_vehicle[i - 1];  // the attack and lance tests' three
     return 0;
   }
   void forward(zgame::Handle e, float* x, float* z) override {
@@ -502,6 +508,7 @@ extern "C" {
 
 // A brain with no orders (its constructor's first order dropped unseen).
 void probe_ao_new() {
+  g_real_formation = false;  // the lance test sets it again
   ai::set_brain_hooks(&g_hooks);
   probe_app::Mute mute;
   g_brain.reset();
@@ -755,6 +762,20 @@ void probe_ao_lines(int32_t kind, const uint32_t* w) {
     g_brain->died();
   }
   g_brain->radio = nullptr;
+}
+
+// The lance orders (test_ai_lance.py): `order` 0..12 on contact k (1..3, 0
+// none), the radio on or off, the pilot's and the target's teams and
+// allies; the answer.
+int32_t probe_ao_lance(int32_t order, uint32_t k, int32_t radio, const uint32_t* teams) {
+  static ai::Radio r;
+  g_real_formation = true;
+  g_target.team = teams[0], g_target.allies = teams[1];
+  g_ent_target[1].team = teams[2], g_ent_target[1].allies = teams[3];
+  g_brain->radio = radio ? &r : nullptr;
+  const int32_t a = g_brain->lance_order(order, contact_of(k));
+  g_brain->radio = nullptr;
+  return a;
 }
 
 // The brain's steering (+0x250, 0x48 bytes) as the exe lays it out.
@@ -1441,6 +1462,7 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       w[18] = 4;
       std::memcpy(w + 20, &fs->turn, 4);
     }
+    if (dynamic_cast<const ai::FormationPart*>(o.net.get())) w[13] = 0x20000;  // its id the port's own
     if (const auto* fo = dynamic_cast<const ai::FollowState*>(o.state.get())) {
       w[18] = 5;
       w[19] = fo->pulled;

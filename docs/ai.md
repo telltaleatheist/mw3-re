@@ -2032,6 +2032,33 @@ my target (its net, 0x4c0de0, 0x4e87c0), +0x24 / +0x34 the same,
 enemy, +0x30 / +0x48 0x4ea3f0 only an ally, +0x3c 0x4ea260 (0x4d08d0's
 order), +0x40 0x4ea4e0 stop (back to the last unmarked order).
 
+**The brain's lance orders, ported** (2026-10-22, item L4a: `Brain::
+attack_target`, `form_on_me`, `enemy_only`, `ally_only`, `lance_order`;
+`FormationNet` / `FormationPart` in zai_attack; the refit a hook). The
+slots by vtable (0x5cc698, the mech brain's 0x5cd2c8 the same): +0x20
+0x4ea450 the contact's vehicle (0x4e6fe0) and its own net (vt+0xd8): the
+current order stopped (vt+0x40) and the net's follow (0x4c0de0) pushed on
+it (0x4e87c0; the follow state, 17.8b), 1; no vehicle or net, 0. +0x24 /
++0x34 0x4ea4a0 the same. +0x28 0x4ea4b0 stopped, then the formation net
+0x603fb8 pushed (0x4e86a0 == 1). +0x2c / +0x44 0x4ea390 the same as +0x20
+when the contact's vehicle is no ally (owner +0xc4 & its +0xc0), +0x30 /
++0x48 0x4ea3f0 when it is one; a contact that sees nothing is read through
+null there (FIX (bug): not taken). +0x38 0x58b380 0. +0x3c 0x4ea260 the
+refit (the repair behaviour 0x4d08d0..0x4d0920 when 0x45a000 counts bays
+and 0x47a780 allows; the `refit` hook, not ported). +0x40 0x4ea4e0 stop.
+The wrappers by the dispatcher's order number: 0 +0x20 (line follow,
+radio +0x30), 1 +0x28 (stop +0x34), 3 +0x2c, 4 +0x30, 5 +0x34, 6 +0x38,
+10 +0x44, 11 +0x48 (confirm_order +0x08), 7 / 12 +0x3c (confirm_refit
++0x0c), 8 +0x24 (follow), 9 +0x40 (disengages_order +0x14); each answers
+through 0x4e9fd0: with a radio, 0 says disregard_order (+0x10), 1 the
+order's line, anything else nothing. The formation net (0x4c0570 at
+start-up, vtable 0x5cab60): one step, the stand behaviour; attacks
+allowed; its id the first free from 10000; its part (0x4c07d0) only holds
+it. Test `test_ai_lance.py` (on test_ai_attack's world, the brain's
+vtable the exe's slots, the formation net built by the exe's 0x4c0570):
+3,608 orders (2,244 taken) and 5,546 runs after, the answers, calls,
+stacks and steering identical; 9 of 9 breaks.
+
 The radio's lines play through 0x4e6d50 -> 0x4e6c60: the line's record is
 the sound's zSound user data (0x56f430: the EXTRA's MINDELAY and SUBTITLE,
 sound_extra.cpp) or the default at 0x60b800; it plays (zSound's 2D play

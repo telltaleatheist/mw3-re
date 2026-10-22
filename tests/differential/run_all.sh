@@ -100,6 +100,7 @@ for t in \
     ai_frame \
     ai_vlist \
     ai_hits \
+    ai_lance \
     ai_steer \
     ai_states \
     ai_node \

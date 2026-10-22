@@ -122,6 +122,18 @@ AiNet* BrainHooks::vehicle_net(zgame::Handle v) {  // vt+0xd8: the Mech's 0x004d
   AiTarget* t = targetable(v);
   return t ? vehicle_net_of(*t, v) : nullptr;
 }
+// 0x00603fb8, made at start-up in the exe: here on first ask, and again
+// should znet have let it go.
+AiNet* BrainHooks::formation_net() {
+  static FormationNet* net = nullptr;
+  static int32_t id = -1;
+  if (!net || znet::find(id) != net) {
+    net = new FormationNet;
+    id = net->get_id();
+  }
+  return net;
+}
+
 Behaviour* BrainHooks::follow_behaviour(AiNet* n) {  // 0x004c0de0
   auto* vn = dynamic_cast<VehicleNet*>(n);
   return vn ? vn->follow() : nullptr;
@@ -879,6 +891,74 @@ void Brain::unwind_to(Order* o) {
 bool Brain::stop() {
   unwind_to(top_unmarked());
   return true;
+}
+
+// Mech3.exe 1.2 @ 0x004ea450 (and 0x004ea4a0): the vehicle the contact sees
+// (0x004e6fe0), its own net (vt+0xd8): stopped (vt+0x40), its follow
+// behaviour pushed on it (0x004c0de0, 0x004e87c0).
+bool Brain::attack_target(Contact* c) {
+  BrainHooks& h = brain_hooks();
+  const zgame::Handle e = c ? h.contact_entity(c) : 0;
+  if (!e) return false;
+  AiNet* net = h.vehicle_net(e);
+  if (!net) return false;
+  stop();
+  push(net, h.follow_behaviour(net));
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004ea4b0
+bool Brain::form_on_me() {
+  stop();
+  AiNet* f = brain_hooks().formation_net();
+  return f && push_net(f);  // 0x004e86a0 == 1
+}
+
+namespace {
+// 0x004ea390 / 0x004ea3f0's test: the contact's vehicle (0x004e6fe0, vt+0x28)
+// among the pilot's allies. FIX (bug): a contact that sees nothing is read
+// through null in the exe; here neither order takes it.
+int32_t ally_of(Brain& b, Contact* c) {
+  BrainHooks& h = brain_hooks();
+  const zgame::Handle e = c ? h.contact_entity(c) : 0;
+  const AiTarget* mine = h.targetable(b.controls->vehicle());
+  const AiTarget* theirs = e ? h.targetable(e) : nullptr;
+  if (!mine || !theirs) return -1;
+  return (mine->allies & theirs->team) ? 1 : 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ea390
+bool Brain::enemy_only(Contact* c) { return ally_of(*this, c) == 0 && attack_target(c); }
+
+// Mech3.exe 1.2 @ 0x004ea3f0
+bool Brain::ally_only(Contact* c) { return ally_of(*this, c) == 1 && attack_target(c); }
+
+// Mech3.exe 1.2 @ 0x004ea000..0x004ea230 with 0x004e9fd0 (the lines the
+// callbacks 0x004ea030 / 0x004ea0a0 / 0x004ea0e0 / 0x004ea1b0 / 0x004ea1f0
+// play: radio +0x30, +0x34, +0x08, +0x0c, +0x14).
+int32_t Brain::lance_order(int32_t order, Contact* c) {
+  int32_t r = 0, line = 2;  // confirm_order
+  switch (order) {
+    case 0: r = attack_target(c), line = 12; break;   // 0x004ea000 vt+0x20, follow
+    case 1: r = form_on_me(), line = 13; break;       // 0x004ea070 vt+0x28, stop
+    case 3: r = enemy_only(c); break;                 // 0x004ea0b0 vt+0x2c
+    case 4: r = ally_only(c); break;                  // 0x004ea0f0 vt+0x30
+    case 5: r = attack_target(c); break;              // 0x004ea120 vt+0x34
+    case 6: r = 0; break;                             // 0x004ea150 vt+0x38 (0x0058b380)
+    case 7:
+    case 12: r = brain_hooks().refit(*this), line = 3; break;  // 0x004ea180 vt+0x3c, confirm_refit
+    case 8: r = attack_target(c), line = 12; break;   // 0x004ea040 vt+0x24, follow
+    case 9: r = stop(), line = 5; break;              // 0x004ea1c0 vt+0x40, disengages_order
+    case 10: r = enemy_only(c); break;                // 0x004ea200 vt+0x44
+    case 11: r = ally_only(c); break;                 // 0x004ea230 vt+0x48
+    default: return 0;
+  }
+  if (radio) {  // 0x004e9fd0
+    if (r == 0) brain_hooks().radio_line(*this, 4);  // disregard_order (+0x10)
+    else if (r == 1) brain_hooks().radio_line(*this, line);
+  }
+  return r;
 }
 
 // Mech3.exe 1.2 @ 0x004e9070
