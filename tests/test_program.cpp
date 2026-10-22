@@ -64,6 +64,8 @@
 #include "mech3/mech_control.h"
 #include "mech3/mission.h"
 #include "mech3/mission_world.h"
+#include "mech3/pocket_panel.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/options.h"
 #include "mech3/mech_shade.h"
 #include "mech3/pause_menu.h"
@@ -1436,7 +1438,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     app.run(pump);
     EXPECT(fade_frames > 1);
     EXPECT(seen.frames >= 7);
-    EXPECT(seen.entities == 2 && seen.player_first && seen.sorted);
+    EXPECT(seen.entities == 3 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker
     EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
     EXPECT(seen.near_distance);
@@ -2592,6 +2594,185 @@ TEST(missions_c4b_m5_m6_fail_when_left_headless) {
 // firing. Then the player's hits on him for over 3 s turn him on the
 // player (0x004d5dc0): his enemies gain the player's team and his allies
 // lose it.
+TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1 mission 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      void* dominic = nullptr;
+      void* player = nullptr;
+      mech3::ai::Brain* brain = nullptr;
+      zgame::Handle dv = 0, pv = 0, marker = 0;
+      int frames = 0, follows_marker = 0;
+      bool mode = false, picked = false, placed = false, wired_pick = false, ordered = false;
+      float d0 = 0, closest = 1e9f;
+      uint32_t marker_team = 0, dominic_enemies = 0;
+    } seen;
+    static float spot[3];
+    static zgame::Handle ground;
+    auto dist_to_spot = [&]() {
+      mech3::LaunchedMech d;
+      mech3::describe_mech(seen.dominic, &d);
+      const float dx = d.pos[0] - spot[0], dz = d.pos[2] - spot[2];
+      return std::sqrt(dx * dx + dz * dz);
+    };
+    mech3::FrameCalls saved_frame;
+    mech3::ControlsCalls saved_controls;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        seen.player = mech3::mech_mission_player();
+        if (!seen.dominic || !seen.player) return;
+        seen.dv = engine.handle_of(seen.dominic), seen.pv = engine.handle_of(seen.player);
+        seen.marker = mech3::pocket_globals().marker;  // made at the mission's start (0x0046aaa0)
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);
+        mech3::LaunchedMech d;  // the spot: 200 m from Dominic, on the ground
+        mech3::describe_mech(seen.dominic, &d);
+        spot[0] = d.pos[0] + 200.0f, spot[2] = d.pos[2];
+        spot[1] = ground_under(spot[0], d.pos[1] + 100.0f, spot[2]);
+        ground = engine.handle_of(mech3::world_hooks().world);  // a node that is no entity's
+        // The player 40 m off Dominic: in sight, so his line shows (+0xbc bit 3).
+        const float px = d.pos[0] - 40.0f, pz = d.pos[2];
+        const float at[3] = {px, ground_under(px, d.pos[1] + 100.0f, pz), pz};
+        mech3::move_mech(seen.player, at, 1.5707964f);
+        return;
+      }
+      if (!seen.dominic || !seen.brain) return;
+      mech3::MechControls* pc = mech3::mech_controls(seen.player);
+      mech3::PocketControls* pocket = pc ? pc->pocket() : nullptr;
+      mech3::FrameCalls& f = mech3::frame_calls();
+      if (seen.frames == 60) {
+        mech3::player_command(0x4f);  // the command mode's key (lance order 2)
+        pc = mech3::mech_controls(seen.player);
+        seen.mode = pc && pc->pocket() && pc->pocket()->panel;
+      } else if (seen.frames == 62 && pocket) {
+        pocket->command(0x1b);  // the number key: lancemate 1
+        mech3::PocketUnit u[4];
+        const int32_t n = mech3::pocket_panel_units(*pocket, u, 4);
+        for (int32_t q = 0; q < n; ++q)
+          seen.picked |= u[q].picked && u[q].mech && engine.handle_of(u[q].mech) == seen.dv;
+      } else if (seen.frames == 64 && pocket) {
+        // The program's pick on the real HUD: the reticle's record, its node, its spot.
+        mech3::Mech& pm = *static_cast<mech3::Mech*>(seen.player);
+        const zgame::Handle hh = f.view_hud ? f.view_hud(pm) : 0;
+        auto* hud = static_cast<mech3::Hud*>(engine.object_of(hh));
+        if (hud && f.reticle_pick && f.record_node && f.reticle_place) {
+          const zgame::Handle rec = f.reticle_pick(hh);
+          float at[3] = {1, 2, 3};
+          f.reticle_place(hh, at);
+          seen.wired_pick = rec == engine.handle_of(&hud->reticle.hit) &&
+                            f.record_node(rec) == engine.handle_of(hud->reticle.hit.node) &&
+                            at[0] == hud->reticle.aim_point[0] && at[2] == hud->reticle.aim_point[2];
+        }
+        // Then the cursor on the bare spot for one frame, the trigger let go:
+        // the HUD's own aim ray is not what is under test here.
+        saved_frame = f, saved_controls = mech3::controls_calls();
+        f.reticle_pick = [](zgame::Handle) -> zgame::Handle { return 1; };
+        f.record_node = [](zgame::Handle) -> uint32_t { return ground; };
+        f.reticle_place = [](zgame::Handle, float out[3]) { std::memcpy(out, spot, 12); };
+        mech3::controls_calls().command = [](int cmd) -> uint32_t { return cmd == 0x3d ? 4u : 0u; };
+      } else if (seen.frames == 65) {
+        f = saved_frame;
+        mech3::controls_calls() = saved_controls;
+        const mech3::PocketMarker* k = mech3::program_pocket_marker(seen.marker);
+        seen.placed = k && k->active && mech3::pocket_globals().cursor == seen.marker;
+      } else if (seen.frames == 66 && pocket) {
+        seen.d0 = dist_to_spot();
+        mech3::player_command(0x54);  // "only an enemy" (order 10) on the cursor: the marker
+        pc = mech3::mech_controls(seen.player);
+        mech3::ai::Brain& b = *seen.brain;
+        auto* fo = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get());
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+        seen.ordered = !pc->pocket() && fo && vp && vp->target && vp->target->vehicle == seen.marker;
+        const mech3::ai::AiTarget* mt = mech3::ai::brain_hooks().targetable(seen.marker);
+        const mech3::ai::AiTarget* dt = mech3::ai::brain_hooks().targetable(seen.dv);
+        seen.marker_team = mt ? mt->team : 0;
+        seen.dominic_enemies = dt ? dt->enemies : 0;
+      } else if (seen.frames > 66) {
+        mech3::ai::Brain& b = *seen.brain;
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+        if (vp && vp->target && vp->target->vehicle == seen.marker) ++seen.follows_marker;
+        seen.closest = std::min(seen.closest, dist_to_spot());
+      }
+    };
+    CountingPump pump;
+    pump.limit = 1100;
+    app.run(pump);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "POCKET mode %d picked %d wired %d placed %d ordered %d team %x enemies %x follows %d d0 %g closest %g\n",
+                   seen.mode, seen.picked, seen.wired_pick, seen.placed, seen.ordered, seen.marker_team,
+                   seen.dominic_enemies, seen.follows_marker, seen.d0, seen.closest);
+    EXPECT(seen.marker != 0);
+    EXPECT(seen.mode && seen.picked && seen.wired_pick && seen.placed);
+    EXPECT(seen.ordered && (seen.marker_team & seen.dominic_enemies));
+    // He heads for it and stops at his reach of an enemy, as for any (exact:
+    // the run repeats with reset_process_state's fixed seed).
+    EXPECT(seen.follows_marker == 902 && std::fabs(seen.d0 - 199.349f) < 1e-3f);
+    EXPECT(std::fabs(seen.closest - 120.729f) < 1e-3f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
   if (!have_game()) return;
   SavedMounts keep;

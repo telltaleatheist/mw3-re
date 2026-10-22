@@ -27,6 +27,11 @@ struct MechWiring {
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
+// The pocket commander's program side (app_pocket.cpp), from wire_mech_build;
+// the marker a handle names, if it is the mission's.
+void wire_pocket(const MechWiring* w);
+struct PocketMarker;
+PocketMarker* program_pocket_marker(uint32_t h);
 // The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
 void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once
