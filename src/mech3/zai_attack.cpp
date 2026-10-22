@@ -156,7 +156,7 @@ void AttackReturnState::run(float) {
   h.forward(v, &fwd[0], &fwd[2]);  // the vehicle's +0x24: x and z
   float pulled[3] = {};
   float throttle;
-  if (h.inout_clamp(v, pulled)) {
+  if (h.inout_clamp(v, way, pulled)) {  // 0x004c3000 on the way point
     FlatWay w;
     flat_way(pos, pulled, &w);
     const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
@@ -204,7 +204,7 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
   float fwd[3] = {};
   h.forward(v, &fwd[0], &fwd[2]);  // the vehicle's +0x24: x and z
   float pulled[3] = {};
-  if (h.inout_clamp(v, pulled)) {  // 0x004c3000
+  if (h.inout_clamp(v, to, pulled)) {  // 0x004c3000
     FlatWay w;
     flat_way(from, pulled, &w);
     const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
@@ -331,7 +331,7 @@ void FollowState::run(float dt) {
   }
   float slack_along = 0, slack_side = 0;
   float at[3] = {to[0], to[1], to[2]};
-  if (h.inout_clamp(v, at)) {  // 0x004c3000: the boundary pulls the target's place
+  if (h.inout_clamp(v, to, at)) {  // 0x004c3000: the boundary pulls the target's place
     const Steer& s = b.steer;
     if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
     pulled = 1;

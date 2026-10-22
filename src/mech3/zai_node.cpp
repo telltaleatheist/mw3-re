@@ -522,7 +522,7 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
   s.carrot(to);
   bool reverse = unordered_or_less(s.along, 0);
   bool aimed = false;
-  if (!s.near() && h.inout_clamp(v, to)) {  // 0x004c3000: kept inside the mission's boundary
+  if (!s.near() && h.inout_clamp(v, to, to)) {  // 0x004c3000: kept inside the mission's boundary
     to[0] = to[0] - pos[0], to[1] = to[1] - pos[1], to[2] = to[2] - pos[2];
     to[1] = 0;
     normalize_flat(to);

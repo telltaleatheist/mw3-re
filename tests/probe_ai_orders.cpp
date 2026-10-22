@@ -420,9 +420,9 @@ struct Hooks : ai::BrainHooks {
   ai::Behaviour* path_next(ai::Brain&, ai::Behaviour* at) override {
     return elem_at(call("0x004c7cb0", {static_cast<uint32_t>(elem_id(at))}));
   }
-  bool inout_clamp(zgame::Handle v, float p[3]) override {
+  bool inout_clamp(zgame::Handle v, const float in[3], float out[3]) override {
     if (!(call("0x004c3000", {v}) & 0xff)) return false;
-    p[0] *= 0.5f, p[2] *= 0.5f;  // the test's boundary: halfway to the origin
+    out[0] = in[0] * 0.5f, out[1] = in[1], out[2] = in[2] * 0.5f;  // the test's boundary: halfway to the origin
     return true;
   }
   float vertical_speed(zgame::Handle) override { return g_vy; }

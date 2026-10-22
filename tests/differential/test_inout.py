@@ -106,6 +106,36 @@ class Inout(World):
             self.cpu.u32(c.arg(1), c.arg(0) + i if i else c.arg(0))
         return int(s[:i]) if i else 0
 
+    def polygons(self, a):
+        return [self.u32(pp) for pp in range(self.u32(a + 8), self.u32(a + 0xc), 4)]
+
+    def vertex_id(self, a, v):
+        if not v:
+            return 0
+        for i, p in enumerate(self.polygons(a)):
+            vb, ve = self.u32(p + 8), self.u32(p + 0xc)
+            if vb <= v < ve:
+                return ((i << 16) | (v - vb) // 0x1c) + 1
+        return 0xffffffff
+
+    def query_state(self, a, frm, to):
+        """The area's +0x14 as tests/probe_inout.cpp's put_query writes it."""
+        q = a + 0x14
+        polys = self.polygons(a)
+        out = bytearray()
+
+        def u32(v):
+            out.extend(struct.pack('<I', v & 0xffffffff))
+        for k in (0, 4):
+            p = self.u32(q + k)
+            u32(0 if not p else 1 if p == frm else 2 if p == to else -1)
+        p = self.u32(q + 8)
+        u32(0 if not p else polys.index(p) + 1 if p in polys else -1)
+        for k in (0xc, 0x10, 0x14, 0x18):
+            u32(self.vertex_id(a, self.u32(q + k)))
+        out.extend(self.cpu.read(q + 0x1c, 0x30))
+        return bytes(out)
+
     def method(self, value):
         return self.cpu.code(b'\xb8' + struct.pack('<I', value & 0xffffffff) + b'\xc3')
 
@@ -182,7 +212,7 @@ class Inout(World):
                     vb, ve = self.u32(p + 8), self.u32(p + 0xc)
                     u32((ve - vb) // 0x1c)
                     out.extend(cpu.read(vb, ve - vb))
-                out.extend(cpu.read(a + 0x14, 0x4c))
+                out.extend(self.query_state(a, 0, 0))
                 out.extend(cpu.read(a + 0x60, 24))
         u32(current)
         name = self.string(b'inout')

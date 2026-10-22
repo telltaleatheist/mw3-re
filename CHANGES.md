@@ -270,6 +270,7 @@ unusual happens.
 - A modded mission script that sets a surface-mark type above 2 no longer overwrites other settings (no shipped script uses surface marks).
 - A mission without an AI boundary (a multiplayer game, or a map without one) played after a campaign mission no longer leaves the AI using the previous mission's freed boundary.
 - A modded map whose boundary names a mission past its operation's last no longer writes past the game's list of boundaries; that one is ignored.
+- An AI pilot at a broken (NaN) position no longer reads leftover memory when the boundary looks for the way out.
 
 
 ## Copy protection removed

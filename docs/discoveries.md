@@ -1901,19 +1901,23 @@ are all "puffers": emitters that drop little textured squares.
 - **Empty weapon groups.** A weapon group with no weapons left in it (or none
   picked) gave the HUD a "has ammo" answer that depended on where the game
   happened to keep its weapon list in memory; the rebuild says no ammo.
-- **Each mission has its own hidden fence for the AI.** Every campaign map
-  file carries a separate invisible outline for each mission played on it
-  (so the same map has different AI limits from one mission to the next),
-  plus one for Instant Action that covers more ground (on Op 1's map 95
-  shapes against 23 to 40 per mission). They are flat red shapes in the
-  map; the game reads them as the mission loads and then deletes them, so
-  they are never seen. Bridges get yellow shapes of their own, and a few
-  missions (Op 2's second and fourth, the last two of Op 4) have a blue
-  one, wound the other way round. Training has its own outline;
-  multiplayer has one in the map files that the game never reads. The
-  corners are dropped onto the ground when read, and each gets a second
-  point 3 m off the outline. What the AI does with them comes next
-  (`ai.md` section 11).
+- **Each mission has hidden no-go zones for the AI.** Every campaign map
+  file carries, for each mission played on it, a set of invisible red
+  shapes (4 to 62 per mission) that the AI pilots keep out of, and a
+  larger set for Instant Action (49 to 139). They are flat shapes in the map; the game reads
+  them as the mission loads and then deletes them, so they are never seen.
+  A pilot whose way would cross one stops 3 m short of it, or goes round it
+  by the shorter side, corner by corner (each corner 3 m out from the
+  shape); a pilot standing inside one is sent to the nearest point 3 m
+  outside it. A few missions (Op 2's second and fourth, the last two of Op
+  4) also have one large blue shape that works the other way round: an
+  outer fence the AI keeps inside. Bridges, a drawbridge (`draw01`) and
+  gates (`portdoors`) have two sets under one name, red and yellow: the
+  yellow set is off at the start, and a message switches which set counts,
+  most likely as a bridge falls or a gate opens; which missions send it is
+  not yet known.
+  Training has its own set; multiplayer has one in the map files that the
+  game never reads. (`ai.md` section 11)
 
 ## The cameras
 
