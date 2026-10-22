@@ -50,10 +50,12 @@ int main() {
 #endif
   std::setvbuf(stdout, nullptr, _IOLBF, 0);  // a test that crashes still shows where
   // MW3_TEST=name runs only the tests whose names contain it; a,b,c any of them.
+  // MW3_SKIP=name (the same form) leaves those out: MW3_SKIP=headless skips the
+  // whole-mission runs, nearly all of the suite's time.
   const char* only = std::getenv("MW3_TEST");
-  auto wanted = [only](const char* name) {
-    if (!only) return true;
-    for (const char* p = only; *p;) {
+  const char* skip = std::getenv("MW3_SKIP");
+  auto any_in = [](const char* list, const char* name) {
+    for (const char* p = list; *p;) {
       const char* e = std::strchr(p, ',');
       const std::string part(p, e ? e - p : std::strlen(p));
       if (!part.empty() && std::strstr(name, part.c_str())) return true;
@@ -62,13 +64,19 @@ int main() {
     }
     return false;
   };
+  auto wanted = [&](const char* name) {
+    if (skip && any_in(skip, name)) return false;
+    return !only || any_in(only, name);
+  };
+  size_t ran = 0;
   for (const check::Test& t : check::registry()) {
     if (!wanted(t.name)) continue;
+    ++ran;
     if (std::getenv("MW3_TEST_TRACE")) std::fprintf(stderr, "start %s\n", t.name);
     const int before = check::failures;
     t.fn();
     std::printf("%s %s\n", check::failures == before ? "ok  " : "FAIL", t.name);
   }
-  std::printf("%zu tests, %d failed checks\n", check::registry().size(), check::failures);
+  std::printf("%zu tests, %d failed checks\n", ran, check::failures);
   return check::failures == 0 ? 0 : 1;
 }
