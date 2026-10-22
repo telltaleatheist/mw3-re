@@ -409,6 +409,11 @@ Kept:
 
 ## Candidates for Owen
 
+- The mechs' sun shading's lit level (mac 2, 2026-10-21, shade.md): a mech
+  in the open fades to diffuse 1.0 ([0x005e9cdc]), not to the sun's own
+  (c3 0.2, c4b and t1 0.7), so with "shadow parts" on, lit mechs outshine
+  the world on dim maps. Kept as the original. Possible: the sun's diffuse
+  as the lit target.
 - Objective rewards that lose parts (mac 2, 2026-10-21, objectives.md
   "Quirks"): the salvage reader 0x004711a0 takes weapons only as `(name
   tech)` lists and engines only under `engines`, so c1m2's 120 XL engine

@@ -55,6 +55,7 @@
 #include "mech3/cockpit_sound.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_objective.h"
+#include "mech3/mech_shade.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
 #include "mech3/app.h"
@@ -780,6 +781,7 @@ struct WiredMissionHooks : MissionHooks {
     e->set_field32(p, 0x14, v);
   }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
+  void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out
   void fn_40f0b0(uint8_t v) override { if (message_panel()) message_panel_set(v != 0); }  // slid in or out
   GameEngine* e = nullptr;

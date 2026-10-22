@@ -2547,3 +2547,11 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   distance and only comes back while it is your target. (The effects
   detail option counts the other way inside the game: High is level 2 of
   the mission animations' "if level" tests, Low is 0.)
+- **"Shadow parts" makes mechs darken in shadow, and brightens them on dim
+  maps.** With the option on, the game checks one mech a frame with a ray
+  from its middle towards the sun: if a building or a hill is in the way the
+  mech fades to black lighting over a second, in the open it fades back.
+  But "back" is always full light (1.0), not the map's own sunlight: on Op
+  3's night-like world (sun at 0.2) a mech in the open is drawn five times
+  brighter than the ground around it, on Op 4's second world and in
+  training (0.7) somewhat brighter. (docs/shade.md)

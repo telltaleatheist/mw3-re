@@ -227,6 +227,7 @@ const AiMechMade* mission_ai_mechs(int32_t* count);
 struct Objectives;
 class ObjectiveHooks;
 Objectives& mission_objectives();
+void* mech_shade_of(void* mech);  // its sun shade (+0x68c, mech_shade.h), for the tests
 ObjectiveHooks& mission_objective_hooks();
 
 // The debug launch's slot (our addition, mission-load.md section 4): the
