@@ -340,3 +340,15 @@ Newest last. One short entry per item: what, commits, what to remember.
 - c1m1: the own order is off (+0x80 0) for the bump window (it gives way
   otherwise); after the way home the player walks at the Owens: it swerves,
   backs off facing the player, lets go at 44.2 m.
+
+## 2026-10-22 Item 1-trace: how the allies fight (mac4/allytrace)
+
+- ai.md 17.8b: the firing (0x4b6790, scorer 0x4b79e0) picks any non-ally
+  in +0x30 as the target whatever the orders; allies never close on their
+  own (+0x3c off in every shipped ally record, no lance order writes it);
+  hits are radio only (0x4ea520 over 0x4aec90/0x4aec10), except the
+  player's 3-s run of hits on an ally (0x4d5dc0: everyone's enemy);
+  "attack my target" pushes the target net's follow (0x4d1870/0x4d1980,
+  pops when the target is gone), sets no target.
+- Headless c1m4 (Dominic woken, an enemy 60 m ahead): targets and fires,
+  no move; at 150 m aims only. Owen's rule listed as a candidate, not coded.

@@ -1668,6 +1668,23 @@ are all "puffers": emitters that drop little textured squares.
   checks it again, one already hurt stays out until repaired), a time limit on each attack, and how much damage it takes before
   giving an attack up. The time limit scales with the game's intensity
   setting (`ai.md` 17.3).
+- **Your lancemates shoot first, but never chase.** An allied pilot picks
+  its own target all the time: any enemy (or neutral) within its weapons'
+  reach, scored by distance, facing, damage and a clear line, whether or
+  not anyone has attacked. What it never does on its own is walk toward a
+  fight: every lancemate's file has the "may engage" switch off, and none
+  of your orders turns it on. "Attack my target" only makes it follow that
+  enemy, and it still shoots whatever scores best, usually that one once
+  it is the nearest. Being shot does not change any of this: a hit only
+  gets you a radio line ("friendly fire" when it came from your side).
+  Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
+  60 m in front of him draws his fire at once; at 150 m he aims at it and
+  stands there.
+- **Shoot your own lancemates for three seconds and the whole map turns on
+  you.** The game counts a run of hits from the same attacker (it restarts
+  after a 3-second pause). When you keep hitting an ally for more than 3
+  seconds, your team is made everyone's enemy, your lancemates' too, so
+  they turn their guns on you (and, as written, on each other).
 - **Pilots without a chosen target may not pick one to attack.** Read from
   the code: when an AI pilot weighs an attack and has no target selected,
   it takes the nearest enemy only if it has not already looked one up that

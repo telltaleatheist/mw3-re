@@ -422,6 +422,16 @@ Kept:
 
 ## Candidates for Owen
 
+- How the player's allies fight (mac 4, 2026-10-22, ai.md 17.8b; Owen's
+  proposal, a balance change, not coded): as the exe has it, allies shoot
+  any enemy within their weapons' reach on their own but never move to a
+  fight unless the player orders "attack my target" (engaging, +0x3c, is
+  off for every shipped ally, and nothing in play turns it on); being hit
+  changes nothing. Owen's rule: if anyone on the player's side is
+  attacked, every ally may engage (go to the fight); otherwise they wait
+  for orders unless an enemy is within range. The narrow attack-pick fix
+  (mac4/allied 0ec36b3, parked) is part of what that would need.
+
 - The vehicle net's mode 3 (mac 4, 2026-10-22, ai.md 17.2): the part
   0x4c0ba0 picks the behaviour for the pilot's mode (+0x40) by slot and
   keeps it only when the slot's +0x90 test says it is one of the net's own;
