@@ -1117,3 +1117,24 @@ view's ground, the anim lookups 0x50b450 (92).
   before the first frame is seen).
 - mw3tests 129/0, sdl 10/0, test_mech_build, test_view, test_ai_targets,
   test_deaths, test_parts, test_collide, test_update.
+
+## The skins on the mech's model (2026-10-21)
+
+- Ported mech_skin's run-time half: 0x00475780 / 0x00475a80 / 0x004757f0
+  (`SkinSet::apply_first`, `mech_skin`, `set_mech_skin`), the damage link
+  0x00475520 / 0x00474740, the copy 0x00475870 / 0x00474210 / 0x00473bb0,
+  the walks 0x004748b0 / 0x004749e0, find / index 0x00474bd0 / 0x00474b70,
+  the entry's load 0x00473d40, load_textures 0x00474430; `zimg::load_named`
+  (0x00518d10). Wired as the hooks' defaults (MechDataHooks::skins_apply,
+  MechBuildHooks::skins_decals / skins_apply); HOLES into
+  `skin_globals().damage_mode`.
+- The primary skin is the model's own textures, so play only changes for
+  other camos (a launch / aiv skin) and HOLES' per-mech copies. The hole
+  painting itself (0x00474d90) and zImage's cache (0x005179d0, the damage
+  skin's images) are not ported.
+- test_skins.py (new): 400 scenarios identical; 7 breaks caught. The size
+  check in 0x00474740 is unreachable in play (no entry has a texture at the
+  first link). `mission_c1m1_mech_wears_its_skin_headless`: the Mad Cat in
+  skin 1 wears `_b` textures on both models, all loaded.
+- test_mech_build keeps the two skin calls as calls (its probe overrides),
+  identical; test_mechdata, test_mechdef, test_deaths, mw3tests 130/0.

@@ -300,6 +300,53 @@ loaded", `zerr` 0x49bfd0 level 0x200), and 0x4748b0 / 0x4749e0, which walk a
 model's node tree and swap material textures for a skin's by index (0x474bd0
 finds a texture's slot, 0x474b70 its index).
 
+## The skins in play (ported 2026-10-21)
+
+`mech3/mech_skin.cpp`; checked by `test_skins.py` and
+`mission_c1m1_mech_wears_its_skin_headless`.
+
+- **The type's model** (0x00475780, from the mech data's load 0x00430ad0):
+  the damage skin linked (0x00475520), then the first skin's walk
+  (0x004748b0) over every polygon's material of the model tree. Each
+  material gets the soil "mech" (0x00535f20). Its texture, by name, finds the
+  first skin's entry. An entry without a texture takes the model's own
+  texture (with HOLES, or when it has no alternate name). Otherwise
+  (NOHOLES and an alternate name) the entry loads its texture
+  (0x00473d40(1, 1)), and the material takes it. With HOLES, a material
+  whose entry has a damage link is marked flag 2: each copy of the model
+  then owns that material (0x00536ab0).
+- **The mech's own skin** (0x00475a80, from the build 0x00415b00): skin 0
+  copied for this mech (0x00475870) and swapped onto its model tree
+  (0x004749e0). The copy shares the entries (one more reference each),
+  but with HOLES an entry that has a damage partner is copied
+  (0x00474210, 0x00473bb0), so its bullet holes can be painted into its
+  own texture (0x00474d90, not ported). The mech keeps the copy at +0x3e8.
+- **A skin chosen later** (0x004757f0: the launch's slot skin, aiv.zrd's
+  `skin`, 0x00414390): the chosen skin copied as above, swapped in on
+  the model (+0x694) and its low-detail copy (+0x698), from the old copy's
+  textures to the new one's by index, and the old copy deleted.
+- **The swap** (0x004749e0): a textured material's texture is found in the
+  old skin by name, else by alternate name (0x00474bd0); the same index in
+  the new skin (0x00474b70) gives the new texture, loaded first when it has
+  none (0x00473d40(1, NOHOLES)).
+- **The damage link** (0x00475520, once per set, with HOLES only): the
+  damage skin's textures from zImage's cache (0x005179d0, not ported, so
+  in the program every link reports "not loaded" and links nothing), then
+  every skin's entry j linked to damage entry j (0x00474740). Mismatched
+  image sizes refuse the link, but at the first link no skin entry has a
+  texture yet, so that check never runs in play.
+- **An entry's texture** (0x00473d40): by its alternate name with
+  `use_alt`, or always for `vult_d03_c` (0x005e5790). By name, a table entry
+  is found (0x00518220, only when the alternate name is used) or a new one
+  loaded in group 3 (0x00518d10). Not by name, zImage's cached image
+  (+0x04 set).
+
+The program sets HOLES from the mission load's decision ([0x006061cc],
+`set_holes`) into `skin_globals().damage_mode` too.
+
+Without HOLES the materials of every mech of a type are shared, so a skin
+swapped onto one mech is worn by all of them (discoveries.md).
+
 ## Discoveries
 
 Listed in `discoveries.md` (Mechs: camos).

@@ -212,6 +212,17 @@ void link_mips(TextureEntry& entry) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x00518d10
+TextureEntry* load_named(const char* name, int32_t group, int32_t free_pixels) {
+  TextureEntry* e = free_texture_entry();
+  if (!e) return default_entry();
+  set_entry_name(name, e->name);  // 0x00519210
+  e->state = 2;
+  e->group = group;
+  load_texture(e, free_pixels);
+  return e;
+}
+
 // Mech3.exe 1.2 @ 0x00518f70. A name no library has gets the default image
 // (and, on Direct3D, a record of its own made from it).
 void load_texture(TextureEntry* entry, int32_t free_pixels) {

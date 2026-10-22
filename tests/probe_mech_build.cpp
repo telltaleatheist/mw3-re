@@ -139,6 +139,11 @@ struct Hooks : m3::MechBuildHooks {
     return obj_at<void>(peek32(lo(n) + 0x40));
   }
   float peek_float(const float* p) override { return zgame::from_bits(peek32(addr_of(p))); }
+  // The skins (0x00475a80, 0x004757f0) stay calls out here: test_skins.py has them.
+  Handle skins_decals(Handle skins, Handle node) override { return hd(call("0x00475a80", {ref(skins), 0, lo(node)})); }
+  uint8_t skins_apply(Handle skins, m3::Mech& m, Handle skin) override {
+    return static_cast<uint8_t>(call("0x004757f0", {ref(skins), ref(&m), ref(skin)}));
+  }
   void entity_set_node(m3::Mech& m, Handle node, const char* name) override {
     call("0x004d6c90", {addr_of(&m), lo(node), name, 0, 0});
     m.node = node;

@@ -3,6 +3,7 @@
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
 #include "mech3/cockpit_sound.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "mech3/app_mech.h"
 
 #include <cstdio>
@@ -1094,6 +1095,24 @@ bool mech_ceiling_hit(void* mech, void* node, float out[7]) {
   out[4] = m->hip->offset.y;  // the duck (0x004622a0)
   out[5] = collide_calls().hit_box && collide_calls().hit_box(node) ? 1.0f : 0.0f;
   out[6] = m->crouch_depth;
+  return true;
+}
+bool mech_textures(void* mech, MechTextures* out) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  if (!m) return false;
+  auto walk = [&](auto& self, zcls::Node* n, std::vector<std::string>& names) -> void {
+    if (!n) return;
+    if (zmod::Model* md = n->model)
+      for (uint32_t k = 0; k < md->count(0x10); ++k)
+        if (const zmod::Material* mat = md->polygons[k].material; mat && (mat->flags & 1) && mat->texture) {
+          names.push_back(mat->texture->name);
+          out->loaded += mat->texture->image != nullptr;
+        }
+    for (int32_t k = 0; k < n->child_count(); ++k) self(self, n->children[k], names);
+  };
+  walk(walk, static_cast<zcls::Node*>(m->model_node), out->names);
+  walk(walk, static_cast<zcls::Node*>(m->lod_node), out->lod);
+  if (const auto* s = static_cast<const Skin*>(m->decals)) out->skin = s->name ? s->name : "";
   return true;
 }
 bool mech_marker_heights(void* mech, float out[4]) {

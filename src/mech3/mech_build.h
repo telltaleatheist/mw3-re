@@ -100,12 +100,8 @@ class MechBuildHooks : public zgame::Unported {
   virtual uint32_t controls_ref(MechControls* c) { return ref(c); }  // its IControls base
 
   // The mech's look (skins.cpp) and motions (mech_data.cpp, mech_anim.cpp).
-  virtual Handle skins_decals(Handle skins, Handle node) {
-    return h(unported("0x00475a80", {ref(skins), 0, low(node)}));
-  }
-  virtual uint8_t skins_apply(Handle skins, Mech& m, Handle skin) {
-    return static_cast<uint8_t>(unported("0x004757f0", {ref(skins), ref(&m), ref(skin)}));
-  }
+  virtual Handle skins_decals(Handle skins, Handle node);      // 0x00475a80(0, node): SkinSet::mech_skin
+  virtual uint8_t skins_apply(Handle skins, Mech& m, Handle skin);  // 0x004757f0: SkinSet::set_mech_skin
   virtual MechAnim* gait_copy(MechData& p, int32_t i);       // 0x00431fb0
   virtual MechAction* action_copy(MechData& p, int32_t i);   // 0x00432030
   virtual MechAnim* make_blend(MechAnim* a, MechAnim* b); // 0x0041ff30

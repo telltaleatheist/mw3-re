@@ -1108,6 +1108,16 @@ From the render path (render.md).
 From the mech definitions (mechdef-skins.md). The camo names are GUNMETAL,
 SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
 
+- **With bullet holes off, a camo change is shared by every mech of that
+  type.** A mech's camo is swapped onto the materials of its model. With
+  the bullet-hole detail on (enough texture memory), each mech gets its own
+  copies of the materials that can take holes. With it off, every mech of
+  the same type shares one set, so the camo given to the last one built
+  shows on all of them.
+- **Every surface of a mech counts as the "mech" soil.** When a mech type
+  loads, all its model's materials are set to the soil named "mech",
+  whatever their textures, so a hit anywhere on a mech uses the "mech"
+  soil's impact effects.
 - **The Firefly has two WASP camos and no SLATE.** Its fifth skin is
   labelled `MSG_SKIN_VARIANTD` instead of `VARIANTE`, so both the fourth and
   fifth skins are named WASP; the second one uses the `_e` (Slate) textures.
