@@ -4842,7 +4842,7 @@ TEST(mission_second_world_loads_headless) {
       ++frames;
       if (stage == 0 && frames == 20) {
         first_world = mech3::missions().current;
-        engine.mission_cleanup(0);  // the debriefing's CONTINUE (0x0047c... : 0x00491780(0))
+        engine.mission_cleanup(0);  // the debriefing's CONTINUE (0x0047d030: 0x00491780(0))
         mech3::GameEngine::Launch l;
         l.index = 1;  // c2, mission 1
         engine.set_launch(l);
