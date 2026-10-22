@@ -927,3 +927,27 @@ MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
 - Left: F12's text (0x00446ad0, the objectives' lines), the mission maps'
   list (0x00458590), targets.zrd objects' node binding (0x0040eaa0) so Z/Q
   find buildings.
+
+## 2026-10-21 Playtest #8: the weapon bars (branch mac3/recharge)
+
+- The timers, the refresh and the bar's draw were all right: c1m1's ER
+  Laser (S) (a beam: the bar is its 1250 charge) drains on a shot and
+  refills in about 3.2 s, the machine guns (period 0.25 s) in 16 frames, and
+  the line's value follows. The cause was the per-frame refresh: the list's
+  update runs the looks only after a shot marks it (0x004464c0, +0x11438),
+  through WeaponCalls::hud_fire, which the program wired in 258364d at
+  10:29, after Owen's run (row #8 written at 09:23). With it unwired the
+  bars stay at 1: checked by taking it out.
+- Found on the way: HudWeaponLine had no destructor. The original's
+  0x00445970 sets the bar's fill and empty (the texts' own images) to none
+  before the Slider's 0x0059e170 releases them; without it the SDL host
+  frees them twice when a HUD goes (malloc abort in the new SDL test).
+  Headless tests never saw it: the default host renders no text images.
+- Tests: mw3tests playtest_hud_weapon_bars_recharge_headless (F2's laser:
+  the bar follows the charge down and back over seconds);
+  mw3sdltests sdl_host_hud_weapon_line_shows_the_recharge (a real line with
+  the game's fonts half recharged: green left of the cut, red right) and
+  sdl_program_weapon_list_shows_the_recharge (c1m1 through the SDL host's
+  2D, software and Direct3D layer paths: green before, red after firing,
+  green again). The SDL tests reset weapon_set(): its fonts are one host's
+  handles. Breaks (scratchpad hudkeys/breaks8.py): 6/6.

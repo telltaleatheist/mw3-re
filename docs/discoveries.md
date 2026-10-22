@@ -2268,7 +2268,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   only comes on once it is full size.
 - **A weapon's recharge bar is its own name:** each line of the weapon list
   holds the weapon's name twice, in two fonts, and the second copy fills
-  over the first as the bar's value rises.
+  over the first as the bar's value rises. A ready weapon's name is all
+  green; just fired, it turns red and the green creeps back from the left
+  as it recharges. Out of ammo (or switched off) the whole name is yellow,
+  destroyed it is grey. For lasers and other beams the bar is the charge,
+  which a shot drains; for the rest it is the time to the next shot.
+- **The weapon list animates only after a shot.** A shot starts it
+  refreshing the bars every frame, and it stops once every bar is full;
+  otherwise they change only when the groups or weapons do.
 - **TARGET shows only the 3D view for targets that are not mechs:** its
   damage and nav modes fall back to the view, and with no live target it
   shows nothing.

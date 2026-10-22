@@ -569,8 +569,19 @@ weapons and the camera's look from outside (hud.md section 1).
   count its ammo (vt+0x14, "%3d"), the look red when it has ammo and is
   enabled (+0x74) and not destroyed, grey when destroyed (damage 1).
 
+- **The bar** (a Slider): the second text (the name in wepstring_green,
+  or the look's font) is the fill, drawn up to the value; the name (red,
+  yellow or grey) the rest, from the cut. Both are the texts' own images,
+  so the line's destructor (0x00445970) sets them to none before the
+  Slider's (0x0059e170) would release them.
+- **Every frame**: the list's update (0x00446680) runs the looks (and so
+  the refresh) only once +0x11438 is set, by a shot (0x004464c0, the
+  weapons' fire paths) and kept while any line recycles. In the program
+  that is `WeaponCalls::hud_fire`; wired in 258364d. Before it the bars
+  never moved: playtest #8.
+
 Ported (`HudWeapons::refresh_all/layout/looks`, `HudWeaponLine::set_weapon/
-refresh_line`); the manager and weapons read through HudHooks (weapon.h's
+refresh_line`, `~HudWeaponLine`); the manager and weapons read through HudHooks (weapon.h's
 WeaponManager and Weapon, read-only). The HUD's handles are pointers
 (`void*`): the program passes its own WeaponManager*, Weapon* and Mech*; the
 probe's are the emulator's 32-bit addresses, mapped back by `id()`. In c1m1

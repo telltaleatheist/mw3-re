@@ -162,6 +162,7 @@ WeaponSet& weapon_set();
 class HudWeaponLine : public ztwod::Slider {
  public:
   HudWeaponLine();                   // 0x00445760
+  ~HudWeaponLine() override;         // 0x00445970: the bar's images (the texts') let go first
   void place(int32_t px, int32_t py, int32_t column);  // 0x00445ba0
   void reset();                      // 0x00445a30
   bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
