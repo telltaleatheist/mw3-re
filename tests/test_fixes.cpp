@@ -443,6 +443,42 @@ TEST(fix_lone_delayed_update_keeps_the_next) {
   zfix::options().bugs = true;
 }
 
+// Valves that update themselves (FIX (bug), fixes.md, ai.md section 8): an
+// update of itself, or a loop of updates, recursed until the stack ran out
+// in the exe; here a valve firing inside its own reactions is skipped, so
+// each reaction round the loop runs once per set.
+namespace {
+struct CountFires : mech3::ai::Reaction {
+  int* n;
+  explicit CountFires(int* c) : n(c) {}
+  void fire(mech3::ai::Valve&) override { ++*n; }
+};
+}  // namespace
+
+TEST(fix_valves_that_update_themselves_fire_once) {
+  using namespace mech3::ai;
+  valves_end();
+  valve_reentries() = 0;
+  int na = 0, nb = 0, nc = 0;
+  Valve* a = valve_get("a");
+  Valve* b = valve_get("b");
+  Valve* c = valve_get("c");
+  a->add(new UpdateAction(a));  // itself
+  a->add(new CountFires(&na));
+  EXPECT(a->set(1) == 0 && na == 1 && !a->firing);
+  b->add(new UpdateAction(c));  // b -> c -> a -> b
+  c->add(new UpdateAction(a));
+  a->add(new UpdateAction(b));
+  b->add(new CountFires(&nb));
+  c->add(new CountFires(&nc));
+  na = 0;
+  EXPECT(b->set(1) == 0 && na == 1 && nb == 1 && nc == 1);
+  EXPECT(!a->firing && !b->firing && !c->firing && valve_reentries() == 3);
+  EXPECT(c->set(1) == 0 && na == 2 && nb == 2 && nc == 2);  // again from another valve
+  valves_end();
+  valve_reentries() = 0;
+}
+
 TEST(fix_foot_uses_its_middle_probe) {
   mech3::Skis s{};
   for (int i = 0; i < 6; ++i) s.local[i].z = (i % 3 - 1) * 6.0f;  // front -6, middle 0, back 6

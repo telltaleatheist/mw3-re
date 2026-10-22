@@ -484,6 +484,7 @@ address,name,source,notes
 0x004d5280,net_name,asm,"ported: zrdrainet"
 0x004c6bd0,NetNodeRec::Reset,asm,"ported: zainet_node"
 0x004d3c40,valve_get,asm,"ported: zai_valve"
+0x004d3bf0,Valve::Fire,asm,"ported: zai_valve; FIX (bug) re-entry guard"
 0x004d3e50,valve_find,asm,"ported: zai_valve"
 0x004d9ac0,AiParams::Reset,asm,"ported: zai_params"
 0x004d9b70,AiParams::Finish,asm,"ported: zai_params"

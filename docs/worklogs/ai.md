@@ -341,6 +341,30 @@ Newest last. One short entry per item: what, commits, what to remember.
   otherwise); after the way home the player walks at the Owens: it swerves,
   backs off facing the player, lets go at 44.2 m.
 
+## 2026-10-22 Owen's three: the split
+
+- 1 the allied attack pick (mac4/allied, held: no shipped ally has engaging
+  +0x3c on, so the frame never weighs an attack for them; Owen to choose a
+  narrow fix or a look at what a lancemate does after its told target);
+  2 the valve re-entry guard; 3a c4b m6's boundary pair (analysis); 3b its
+  fix behind zfix bugs (a candidate instead if 3a cannot show the pair).
+
+## 2026-10-22 Item 2: the valve re-entry guard (mac4/valveguard)
+
+- Valve::fire 0x4d3bf0 skips a valve firing inside its own reactions
+  (FIX (bug), unconditional: the update 0x4e3d90 is the only reaction that
+  re-fires at once, so any re-entry is an endless loop in the exe).
+  valve_reentries() counts the skips.
+- test_ai_valves.py: 352 cases identical, skips counted and asserted 0;
+  test_fixes: a self update and a ring of three, each reaction once per set.
+
+## 2026-10-22 Item 3a: c4b m6's boundary pair (mac4/c4bm6, docs only)
+
+- The pair is c4bm7 (hulls vs aiv positions: 9/9 inside; c4bm6 is two
+  small disjoint areas). Also: c4b m5's valve name slip (reg_outside_c4m5),
+  c4b m4's inverted entries (left). The player's vlist (0x4d8990 on
+  0x4d9840) is not wired, so 3b needs it first (3b1), then the names (3b2).
+
 ## 2026-10-22 Item 1-trace: how the allies fight (mac4/allytrace)
 
 - ai.md 17.8b: the firing (0x4b6790, scorer 0x4b79e0) picks any non-ally

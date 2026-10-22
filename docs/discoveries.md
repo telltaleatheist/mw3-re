@@ -1525,7 +1525,15 @@ are all "puffers": emitters that drop little textured squares.
   world the player's orders watch regions named `..._c4m7`, but
   the mission ships them as `..._c4bm6` and `..._c4bm7`, so the trigger that
   fails you for leaving the mission area never fires, and the map likely
-  shows no boundary there.
+  shows no boundary there. The pair it meant is `..._c4bm7`: every mech of
+  the mission starts inside it (the region files are numbered one mission
+  ahead; `..._c4bm6` is two small unrelated areas).
+- **Mission 5 on the c4b world can't be failed by leaving it either.** Its
+  boundary trigger sets a switch named after the region
+  (`reg_outside_c4m5`), while the failure watches `outside_c4m5`.
+- **Mission 4 on the c4b world fails you for entering a zone, not
+  leaving.** Its "outside" region is a place away from where everyone
+  starts, and its trigger fires when you are inside it.
 - **Four region files are dead.** In c1's first mission one region was
   saved as an AI path instead (`reg_firefly_02_go`) and its replacement
   file name is misspelt (`reg_friefly_02_go`, which calls itself
@@ -1584,6 +1592,12 @@ are all "puffers": emitters that drop little textured squares.
   list of others runs its actions every time one of them changes, even when
   its own any/all answer stays the same: a sound on it can play more than
   once.
+- **A trigger loop crashes the game.** A trigger told to update itself, or
+  triggers that update each other in a ring (an any/all trigger over one
+  it updates included), set each other off for ever until the game runs
+  out of stack and crashes. None of the shipped missions has one; a
+  hand-made mission could (the rebuild runs each trigger's actions once
+  per change).
 - **Operation 2 mission 2 can destroy you outright.** Its triggers
   `destroy_player` and `destroy_dominic` blow up your mech and Dominic's
   (likely the mission's scripted failure).

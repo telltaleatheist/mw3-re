@@ -31,6 +31,7 @@ import zrd  # noqa: E402
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 P = ctypes.c_void_p
+probe.probe_valves_reentries.restype = ctypes.c_int
 probe.probe_valves_world.argtypes = [P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int]
 probe.probe_valves_run.argtypes = [ctypes.c_char_p, P, ctypes.c_int, P, ctypes.c_int, P, ctypes.c_int, P,
                                    ctypes.c_int, P]
@@ -435,7 +436,7 @@ def main():
             vnames = sorted({k for k, _ in recs if isinstance(k, str)} | names)
             work.append((f'{path.parent.name}/{path.name}', files['valves.zrd'], vnames, sorted(names)))
     shipped = len(work)
-    crashes = 0
+    crashes = reentries = 0
     for k, recs in enumerate(BROKEN):
         flat = []
         for n, b in recs:
@@ -459,6 +460,7 @@ def main():
             emu = Emulated()
             continue
         port, plog = run_port(files, world, ops, words)
+        reentries += probe.probe_valves_reentries()
         for ev in mlog:
             if ev[0] in kinds:
                 seen[kinds[ev[0]]] = seen.get(kinds[ev[0]], 0) + 1
@@ -478,6 +480,10 @@ def main():
     if fails:
         raise SystemExit(f'ai valves: {fails} of {cases} cases differ')
     print('  ' + ', '.join(f'{k} {v}' for k, v in sorted(seen.items())))
+    # The re-entry guard (FIX (bug), Valve::fire) skips a valve firing again
+    # inside its own reactions, which the original survives nowhere: none here.
+    if reentries:
+        raise SystemExit(f'ai valves: the port re-entered a valve {reentries} times')
     if crashes != len(BROKEN):
         raise SystemExit(f'ai valves: the original read {len(BROKEN) - crashes} of the broken files')
     print(f'ai valves: {cases} cases identical ({shipped} shipped files, {n_made} made up; '

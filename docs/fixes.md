@@ -186,6 +186,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | An objective's further lines, 0x45e110 -> 0x40fe20 | The description's second and later lines are passed as a printf format | (bug) a `%` in a mission's objective text reads arguments that are not there | The line is shown as it is |
 | Valve scans, 0x4e3200 | A scan action keeps the vehicle's brain found at mission start and writes through it when it fires | (bug) a scan naming a vehicle that is missing or not AI-driven writes through null (a crash); no shipped mission has scans | Nothing is written |
 | Valve teleport, 0x4e3ba0 | The pilot's current order is read from the back of its deque without a check | (bug) a pilot with no order (a net that is not compiled) reads before the deque: a crash | Skipped |
+| Valve reactions, 0x4d3bf0 | A valve's reactions fire whatever runs them; an update (0x4e3d90) fires its target's whatever the value, so a valve updating itself, or a ring of updates and conditions, re-enters without end | (bug) the stack runs out and the game crashes; no shipped file has a loop (Owen 2026-10-20: he may make missions) | A valve firing while its own reactions run is skipped: each reaction round the loop runs once per set. Unconditional: the only reaction that re-fires at once is the update, so nothing the exe survives changes (`test_ai_valves.py` counts the skips: none in 352 cases; `test_fixes` fix_valves_that_update_themselves_fire_once) |
 | Delayed updates, 0x4d3d30 | A lone timer whose update starts another delayed update becomes a list of both as it runs; the slot is then cleared | (bug) the new timers are lost: c3 mission 2's `ambush_powerup_down_a` can lose three radio lines | The list stays (`zfix bugs`; off, as the exe, which the test checks) |
 | AI vehicle controls' destructor, 0x4ac800 | Calls its owner's vt+0xec with no check that it has one | (bug) a vehicle that fails to build deletes its controller before giving it an owner (mission-start.md section 5): a crash | The owner is asked only when there is one |
 | Firepoints, 0x46cb80 (mech-build.md section 12) | A definition's firepoint takes the part of its model node with no check that the node exists or a part owns it | (bug) a crash (it reads through a null part) for a model without one of its definition's firepoints; none ship | The firepoint keeps part -1 |
@@ -389,10 +390,17 @@ To do, in the specialists' queues:
   shipped place moves (mission-start.md section 11, "The step fix").
 - Valves that update themselves round a loop: add the guard (a valve's
   reactions are not re-entered while they run). Owen may make his own
-  missions later. FIX (bug).
+  missions later. FIX (bug). Done (the table above).
 - c4b mission 6's boundary: make the valve trip when the player leaves the
   area (the region names the player's orders give do not exist; find the
-  pair the mission's geometry means). FIX (bug).
+  pair the mission's geometry means). FIX (bug). The pair: `c4bm7`
+  (ai.md section 8: every m6 vehicle starts inside it; the `c4bm6` files
+  are two small unrelated areas). To do, behind `zfix bugs`, once the
+  player's vlist runs in the program. Found with it, for Owen: c4b m5's
+  outside entry sets `reg_outside_c4m5` where the objective watches
+  `outside_c4m5` (the same symptom, a clear slip: a candidate for the same
+  fix); c4b m4's entries are inverted (entering its "outside" region fails
+  the mission), possibly meant: left as is.
 - TAG: done (mac2/tag-fix): the hold in whole milliseconds, the beam's
   time its 30 fps one, the strike on the marked unit (weapons.md, "TAG,
   end to end", The fix).
