@@ -2115,6 +2115,63 @@ when their hooks are unset). 0x49e540 is the `lance_lost` hook (L4).
 Tests: `test_sound_extra.py` runs 0x4e6c60 (600 cases), `test_ai_hits.py`
 0x4ea630 and 0x4ea6b0 on its cases.
 
+### 17.6a The pocket commander (mech_pocket.cpp)
+
+The lance order 2 (key 0x4f) puts the player's controls in the "pocket
+commander" mode ("leftover pocket commander", the file's reports) and
+takes them out again. Ported (2026-10-22, item L4c1: `mech3/mech_pocket`,
+`PocketControls`, `pocket_enter`; the dispatcher's order 2 and its paths
+in the mode; `MechControls` gained the slots below):
+
+- **The controls** (0x4690d0, 0x1dc bytes, over the player's 0x427320
+  with mode 1; vtables 0x5c2fb0 / 0x5c2fa8 / IControls 0x5c2ef0): +0x150
+  the camera mode before (-1), +0x154 bit 0 lets the jumps and the trigger
+  be, +0x158 the old controls, +0x15c the player controls' instance
+  [0x6056ec] before, +0x160 the order 2, +0x168 the cursor's place, +0x178
+  the display's width less 0x8c and +0x17c 0x5f (the panel's place), +0x180
+  the panel, +0x188 a contact (the template 0x5e9d10), +0x1bc a network
+  game's element (0x58b060 of [0x609980] +0x20, 0 outside one); the old
+  controls' inputs are copied in (the throttle's state, the axes, the
+  trigger) and back out when it ends. [0x605f50] / [0x605f60] are cleared.
+- **In** (0x469940's order 2 when the controls' primary vt+0x08 answers
+  none): none without a mech; the instance taken, the mode made and made
+  the instance, its owner the mech (IControls vt+0x08 0x46a440: the old
+  panel freed, the cursor reset, the panel made (0x468250) and the HUD's
+  hold let go (0x4484b0(0): the weapons' and equipment's vt+0x64)), the
+  view's pocket on (0x4b5290(1)), the camera mode kept and set to 5 (the
+  area camera, 0x40ae70), the view state 2 (0x426780), the viewed HUD's
+  reticle flag (+0x144c +0x90c) on and its image `ret_on` (0x59bb50 on its
+  +0x920), [0x605f64] the mode. The controls the mech then uses.
+- **Its frame** (IControls vt+0x0c 0x46a360): the panel's (0x469d00, then
+  0x46b0a0; not ported, L4c2); unless +0x154 bit 0, no jump, no jump-jet
+  axes and the trigger off. The mech is not driven meanwhile (no 0x427d60).
+- **Its keys** (primary vt+0x1c 0x46a860; nothing while powered down):
+  0x1b..0x1e pick lancemates 1..4 (the panel's 0x469060: a unit's +0x30
+  bit 1 toggled, its vt+0x44 / +0x48), 0x1f..0x23 nothing, the rest the
+  player's (0x4274d0).
+- **Out**: the order 2 again, or any lance order given in the mode (it
+  goes to the lancemates picked, L4c3, then out), or the frame's end
+  (+0x38 set by 0x469d00; the mech's update then calls primary vt+0x04,
+  0x469cf0: the dispatcher on +0x160): the instance given back, the old
+  controls' owner the mech and their control mode set again (0x426650),
+  the view's pocket off, the camera mode back, the HUD's flag off, the
+  inputs copied back, the mode deleted (0x469310: the HUD's hold back,
+  0x4484b0(1); the panel freed, 0x468720).
+- **The mech's death** (IControls vt+0xa8 0x46abb0): out, then the old
+  controls are the mech's again (0x491120). **The mech going** (primary
+  vt+0x18 0x46ad80): out, the old controls asked the same; the exe deletes
+  the mode there and answers yes, so the mech, whose controls are still
+  the mode (SetOwner sets only their owner), deletes it again: FIX (bug),
+  the mode answers yes and the mech deletes it once.
+
+Test `test_pocket.py` (the exe's 0x469940 in and out on a made-up mech,
+view and HUD, the old controls built by its 0x427320; the panel, view,
+camera and HUD calls stubbed; the port on a real Mech,
+`tests/probe_pocket.cpp`): 400 cases (the inputs, the instance, viewed or
+not, a HUD or not, powered down, +0x154, keys) identical, the calls, the
+mode's fields and the inputs back; 8 of 8 breaks. `test_fixes`
+fix_pocket_commander_freed_once, `test_lance` the death.
+
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
 A state machine over +0x00, run until a step asks for no more: 1 / 6 pick a

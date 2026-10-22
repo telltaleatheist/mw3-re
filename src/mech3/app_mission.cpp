@@ -72,6 +72,7 @@
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mission_world.h"
@@ -332,6 +333,12 @@ WiredPlayerHooks g_player_hooks;
 // A mech's controls when the mech goes (Mech::release, the controls' vt+0x18):
 // the AI's, which the vehicle builder made here; the player's stay.
 void mission_controls_free(void* controls) {
+  // The pocket commander's (0x0046ad80): the mode left, the old controls
+  // asked the same; the mode deleted.
+  if (PocketControls* p = controls ? static_cast<MechControls*>(controls)->pocket() : nullptr) {
+    if (p->release()) delete p;
+    return;
+  }
   const Handle h = g_player_hooks.e ? g_player_hooks.e->handle_of(controls) : 0;
   if (h && g_player_hooks.controls.count(h)) g_player_hooks.controls_delete(h);
 }

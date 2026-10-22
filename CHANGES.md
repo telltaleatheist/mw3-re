@@ -207,6 +207,8 @@ unusual happens.
 - Leaving the mission area now fails operation 4b's missions 5 and 6, as
   their objectives say: their boundary triggers named a region and a
   switch that did not exist (behind the bug-fix switch).
+- Ending a mission while the lance command mode is open no longer frees
+  the mode twice (a possible crash in the original).
 - Starting a mission after another no longer runs the previous mission's
   player triggers against switches that were already thrown away.
 - A mission trigger that updates itself, directly or round a loop of

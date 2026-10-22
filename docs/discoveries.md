@@ -1704,6 +1704,11 @@ are all "puffers": emitters that drop little textured squares.
   Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
   60 m in front of him draws his fire at once; at 150 m behind a rise he
   aims and stands there, but on an open line he fires from 400 m and more.
+- **The lance command mode freezes your mech's legs and guns.** While it
+  is open (the command key), the game switches to the overhead "area"
+  camera, the number keys 1-4 pick lancemates, and your mech neither
+  jumps nor fires; it keeps the throttle and turn it had, and gets them
+  back as they were when you close the mode.
 - **A fallen lancemate's mission triggers become yours.** Some mission
   switches are thrown when a particular pilot reaches a place. When an
   allied pilot dies, the game hands every one of its place triggers to

@@ -17,7 +17,10 @@
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_hud.h"
+#include "mech3/lance_orders.h"
 #include "mech3/mech.h"
+#include "mech3/mech_control.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
 #include "mech3/zai_attack.h"
@@ -1039,4 +1042,34 @@ TEST(fix_ai_station_keeping_no_endless_phases) {
     b.order.net.reset();
   }
   set_brain_hooks(nullptr);
+}
+
+// The pocket commander's release (FIX (bug), fixes.md, ai.md 17.6a): when the
+// player's mech goes while the mode is up, the exe's 0x0046ad80 deletes the
+// mode and answers yes, and the mech (whose controls still are the mode)
+// deletes it again. Here the mode is left, answers yes, and is deleted once,
+// by the mech's side; the player's controls stay and are his again.
+TEST(fix_pocket_commander_freed_once) {
+  using namespace mech3;
+  pocket_calls() = PocketCalls{};
+  pocket_calls().view_state = [](PocketControls&, int32_t) {};  // no camera on a bare mech
+  Mech m;
+  auto* prev = new PlayerControls();
+  prev->construct(1);
+  prev->owner = &m;
+  m.controls = prev;
+  PlayerControls*& inst = player_controls_instance();
+  PlayerControls* const saved = inst;
+  inst = prev;
+  MechControls* c = lance_dispatch(prev, 2);
+  PocketControls* p = c ? c->pocket() : nullptr;
+  EXPECT(p && inst == p && pocket_globals().active == p);
+  m.controls = c;
+  const bool yes = p && p->release();  // 0x0041520b: then the mech deletes its controls
+  EXPECT(yes && inst == prev && prev->owner == &m && !pocket_globals().active);
+  if (yes) delete p;  // once (ASan: the exe's way frees it twice)
+  m.controls = nullptr;
+  inst = saved;
+  delete prev;
+  pocket_calls() = PocketCalls{};
 }
