@@ -2496,3 +2496,19 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   as no limit at all: everything you take in the mech lab is kept. (The
   count goes back to 3 only after Op 1 Mission 1 and Op 4 Mission 4.) Not
   yet checked: how many field bases a mission gives you when the count is 0.
+
+- **Some objective rewards in the mission files are never given.** An
+  objective can carry salvage you get for completing it. The game reads
+  weapons there only as a name with its tech (`("LRM20" "clan")`) and an
+  engine only under the key `engines`. Three rewards are written another
+  way and lose part of their contents: Op 1 Mission 2's primary objective
+  lists a 120 XL engine under `engine` (never given; its weapons, ammo and
+  equipment are), Op 2 Mission 2's secondary objective lists an ER PPC,
+  a large pulse laser, an Ultra AC/5, an LRM 10 and a Streak SRM 4 as plain
+  names (only their ammo is given), and Op 3 Mission 3's primary objective
+  does the same with an ER PPC, a Gauss rifle, an LRM 20 and a Streak SRM 6
+  (its two mechs, the TAG and the ammo are given). (docs/objectives.md)
+- **In a campaign the field bases are always a fail condition.** The
+  mission files never say so: the game adds a "Mobile Field Base
+  destroyed" condition to every campaign mission's fail list itself, made
+  of the field bases (`mobilehq_01` to `_03`) present in the mission.

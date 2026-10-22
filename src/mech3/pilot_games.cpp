@@ -176,6 +176,20 @@ EquipmentItem* Store::add_equipment(int32_t kind, int32_t tech, int32_t n) {
   return e;
 }
 
+// Mech3.exe 1.2 @ 0x00471b20: one more (the XL flag only for a new one).
+EngineItem* Store::add_engine(int32_t engine, uint8_t xl) {
+  EngineItem probe;
+  probe.count = 1, probe.engine = engine, probe.xl = xl;
+  if (auto* found = static_cast<EngineItem*>(find_like(&probe))) {
+    if (++found->count < 0) found->count = 0;
+    return found;
+  }
+  auto* e = new EngineItem;
+  e->count = 1, e->engine = engine, e->xl = xl;
+  items.push_back(e);
+  return e;
+}
+
 // Mech3.exe 1.2 @ 0x00471840: one more, its place cleared.
 WeaponItem* Store::add_weapon(int32_t weapon, int32_t tech) {
   WeaponItem probe;

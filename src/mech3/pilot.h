@@ -77,6 +77,7 @@ class Store {
   Store(const Store&) = delete;
   Store& operator=(const Store&) = delete;
   ConfigItem* add_copy(const ConfigItem* item, int32_t n);  // vt+0x00  0x00472630
+  EngineItem* add_engine(int32_t engine, uint8_t xl);       // vt+0x04  0x00471b20: one
   AmmoItem* add_ammo(int32_t weapon, int32_t n);            // vt+0x08  0x00471940
   EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // vt+0x0c  0x00471a20
   WeaponItem* add_weapon(int32_t weapon, int32_t tech);     // vt+0x10  0x00471840: one
