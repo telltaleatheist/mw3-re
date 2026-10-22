@@ -57,6 +57,7 @@ struct PartCalls {
   int (*flag8)(Handle node, int32_t* get, int set) = nullptr;  // 0x004eb660 (get) / 0x004eb620 (set); unset: zcls's
   void (*ground_at)(float x, float y, float z, void* hits) = nullptr;  // 0x004edab0 on [0x00608c84] +4 (a GroundHits)
   uint32_t (*material_soil)(Handle material) = nullptr;     // +0x20; unset: zmod::Material::soil
+  Handle (*find_in_tree)(Handle node, const char* name) = nullptr;  // 0x004f9d60; unset: zcls::node_find_in_tree
 };
 PartCalls& part_calls();
 
@@ -267,6 +268,7 @@ class Torso : public MechPart {
   void centre(int32_t how);              // 0x00465a00: CENTER_TORSO 1, CENTER_LEGS 2
   void set_mode(int32_t m);              // 0x00466190: +0x84 (2 when the mech's vt+0x5c says so: never), the servo stopped
   bool init(const Config* cfg) override;                    // 0x004644b0
+  bool setup() override;                                    // 0x00464290
   void update(float dt) override;                           // 0x00464e80
   void node_changed() override;                             // 0x004659c0
   bool steer(float dt, float* yaw, float* pitch, const float* yaw_in, float* pitch_in);  // 0x00464ce0: true when clamped

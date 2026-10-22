@@ -1072,3 +1072,19 @@ view's ground, the anim lookups 0x50b450 (92).
   (soil 1) are dropped only until the first other one is found (kept).
 - test_pull_in.py (new): 3000 identical; 6 of 7 breaks caught (the tie
   rule is not observable). test_view, mw3tests 125/0.
+
+## The torso's setup 0x00464290; the jets' flames checked (2026-10-21)
+
+- `Torso::setup` (0x00464290): the definition's shake (scales, freq, damp)
+  and turn limits, the half width / depth from `torso_polys`'s box (or the
+  torso node's), the cockpit off. `zcls::node_box` (0x004ec9c0). Before, the
+  torso kept its constructor's limits (100 / -12 / 20 degrees) and no box.
+- The jump jets' flames (0x00432830) were already the port (`canned_effect`,
+  wired as `pilot_effect`); movement.md's Left was stale. The Thor's jump
+  test now checks them started and put out.
+- Found: the program never wires `CollideCalls::hit_box`, so the collider's
+  box test (0x004236f5) is skipped in play; left for its own item.
+- Tests: test_parts op 23 (the torso's setup through its vtable, the def's
+  shake randomised, +0x7c/+0x80/+0x14c compared), 20000 identical; 5 breaks
+  caught. test_mech_build, test_collide, test_update, test_command,
+  test_pull_in, mw3tests 125/0.

@@ -309,8 +309,6 @@ the structure table one row off.
   model 0x00475780.
 - zEntity's node set-up 0x004d6c90 / 0x005a8390 and its list 0x005a7f50;
   the hit handler 0x005833b0.
-- The torso's set-up 0x00464290 (the definition's look limits, its half
-  width and depth, the death effects): the port's torso uses the base set-up.
 - The mech's destructor 0x00414f40 (its view attach 0x0041ce30 is ported:
   view.md), the AI side
   (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates

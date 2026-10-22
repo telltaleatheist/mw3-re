@@ -97,6 +97,7 @@ struct LaunchedMech {
   const void* weapon = nullptr;  // that group's current weapon (+0x10)
   int32_t jets = 0;        // jump jets installed (equipment[11])
   int32_t jets_firing = 0; // +0x580
+  bool jet_flame = false;  // +0x620: the jets' flame effect started (0x00432830)
   bool crouched = false;   // +0x586
   float alive = 0;         // +0x414  seconds of full updates
   int32_t anim_state = 0;  // +0x578

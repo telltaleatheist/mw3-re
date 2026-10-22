@@ -4,9 +4,11 @@
 #include <cmath>
 
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_reader.h"
 
@@ -193,6 +195,37 @@ bool Leg::setup() {
 bool Foot::setup() {
   const bool ok = MechPart::setup();
   effect = g_calls.foot_effect ? g_calls.foot_effect() : nullptr;
+  return ok;
+}
+
+// Mech3.exe 1.2 @ 0x00464290: the definition's shake (its scales, frequency
+// and damping) and turn limits; the half width and depth from the box of the
+// torso's `torso_polys` node (the torso's own without one); then the cockpit
+// off the torso (0x00464580(0)), whether or not the base set-up worked.
+bool Torso::setup() {
+  const bool ok = MechPart::setup();
+  if (ok) {
+    const MechDfn* d = dfn(*mech);
+    for (int k = 0; k < 3; ++k) jolt_scale[k] = d->get<float>(0x160 + 4 * k);
+    freq = d->get<float>(0x16c);
+    damp = d->get<float>(0x170);
+    max_yaw = d->get<float>(0x174);
+    max_pitch = d->get<float>(0x178);
+    min_pitch = d->get<float>(0x17c);
+    // (A missing +4 is found again from the node here too; part_construct
+    // always sets it.)
+    if (g_calls.tree_update) g_calls.tree_update(mech->node);
+    Handle polys = g_calls.find_in_tree ? g_calls.find_in_tree(node, "torso_polys")
+                                        : zcls::node_find_in_tree(static_cast<zcls::Node*>(node), "torso_polys");
+    if (!polys) polys = node;
+    const float* box = collide_calls().hit_box ? collide_calls().hit_box(polys)
+                                               : zcls::node_box(static_cast<zcls::Node*>(polys));
+    if (box) {
+      half_width = (box[3] - box[0]) * 0.5f;  // 0x005c2750
+      half_depth = (box[5] - box[2]) * 0.5f;
+    }
+  }
+  set_cockpit(false);
   return ok;
 }
 

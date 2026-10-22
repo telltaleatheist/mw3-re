@@ -2055,7 +2055,7 @@ TEST(mission_c1m1_player_commands_headless) {
       mech3::LaunchedMech start, f2, jump_start;
       float climb = 0;
       int32_t jets_firing = 0;
-      bool powering = false, stayed_down = true;
+      bool powering = false, stayed_down = true, flame = false, flame_after = false;
     } seen;
     void* player = nullptr;
     uint32_t f2 = 0, power = 0, jump = 0;
@@ -2085,10 +2085,13 @@ TEST(mission_c1m1_player_commands_headless) {
       } else if (seen.frames > 300 && seen.frames < 360) {
         seen.climb = std::max(seen.climb, m.pos[1] - seen.jump_start.pos[1]);
         seen.jets_firing = std::max(seen.jets_firing, m.jets_firing);
+        seen.flame |= m.jet_flame;  // the jets' flames (0x00432830 on the jet node)
       } else if (seen.frames == 360) {
         keys.key(jump, false);
         std::printf("commands: group %d -> %d, down at %d, up at %d, jets %d firing %d climb %.2f\n", seen.start.group,
                     seen.f2.group, seen.down_at, seen.up_at, m.jets, seen.jets_firing, seen.climb);
+      } else if (seen.frames == 400) {
+        seen.flame_after = m.jet_flame;
       }
     };
     CountingPump pump;
@@ -2099,6 +2102,7 @@ TEST(mission_c1m1_player_commands_headless) {
     EXPECT(seen.powering && seen.down_at > 0);            // the power key: down
     EXPECT(seen.stayed_down && seen.up_at > seen.down_at + 30);  // until pressed again, then up
     EXPECT(seen.jets_firing > 0 && seen.climb > 1.0f);    // the jump jets lift it
+    EXPECT(seen.flame && !seen.flame_after);              // their flames burn, then are put out
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

@@ -77,7 +77,7 @@ enum {
   kFlags, kScreenFlags, kTarget, kPosition = kTarget + 3, kMechMatrix = kPosition + 3,
   kEuler = kMechMatrix + 12, kLook = kEuler + 3, kSoil = kLook + 3, kSteps = kSoil + 12,
   kPrints = kSteps + 11, kPlaying = kPrints + 11, kWorld = kPlaying + 3, kDust = kWorld + 3 * kNodes,
-  kVmode = kDust + 5 + 16, kPartSel = kVmode + 1, kEnv = kPartSel + 1,
+  kVmode = kDust + 5 + 16, kPartSel = kVmode + 1, kTBox = kPartSel + 1, kEnv = kTBox + 7,
 };
 
 CameraMode* g_view_mode = nullptr;
@@ -168,6 +168,8 @@ void part_io(int k, uint8_t* b, bool store) {
     io.v3(0x10c, t.jolt_pos), io.q(0x118, t.turn_q), io.q(0x128, t.rot), io.f(0x138, t.pitch), io.f(0x13c, t.yaw);
     io.f(0x140, t.min_pitch), io.f(0x144, t.max_pitch), io.f(0x148, t.max_yaw), io.f(0x158, t.freq);
     io.f(0x15c, t.damp), io.v3(0x160, t.front), io.v3(0x16c, t.flat_front), io.i(0x1b0, t.centring);
+    io.f(0x7c, t.half_width), io.f(0x80, t.half_depth);
+    for (int j = 0; j < 3; ++j) io.f(0x14c + 4 * j, t.jolt_scale[j]);
   } else if (k == kArm0 || k == kArm1) {
     Arm& a = g->arms[k - kArm0];
     io.f(0x2c, a.x2c), io.f(0x34, a.recoil), io.f(0x78, a.length), io.f(0x7c, a.recoil_hold);
@@ -332,6 +334,17 @@ void hooks() {
     return 0;
   };
   collide_calls().contact_mech = [](Handle) -> Mech* { log({55}); return g->env[kPartSel] & 4 ? &g->m : nullptr; };
+  c.find_in_tree = [](Handle n, const char* name) -> Handle {
+    log({56, node_index(n), std::strcmp(name, "torso_polys") == 0 ? 1 : 0});
+    return g->env[kTBox] & 1 ? static_cast<Handle>(g->nodes[16]) : nullptr;
+  };
+  collide_calls().hit_box = [](Handle n) -> const float* {
+    log({57, node_index(n)});
+    static float box[6];
+    if (!(g->env[kTBox] & 2)) return nullptr;
+    for (int k = 0; k < 6; ++k) box[k] = flt(g->env[kTBox + 1 + k]);
+    return box;
+  };
   command_calls().seen_position = [](uint32_t s) -> const float* {
     log({53, static_cast<int32_t>(s)});
     static float at[3];
@@ -367,6 +380,7 @@ void unhook() {
   controls_calls().mouse_set = nullptr, controls_calls().mech_camera = nullptr;
   controls_calls().view_target = nullptr, controls_calls().view_mode = nullptr;
   collide_calls().contact_mech = nullptr, command_calls().seen_position = nullptr;
+  collide_calls().hit_box = nullptr;
   update_calls().turn = nullptr, update_calls().dfn = nullptr;
   skis_calls().position = nullptr, skis_calls().soil = nullptr;
   world().player = world().mission_player = nullptr;
@@ -477,6 +491,7 @@ float probe_parts_op(int op, const float* a) {
     }
     case 18: w.torso.centre(i + 1); break;
     case 19: w.torso.set_mode((a[2] > 0.0f ? 1 : 0) + i); break;
+    case 23: return w.torso.setup() ? 1.0f : 0.0f;
     case 21: w.m.target_part(static_cast<int32_t>(a[3] * 4 + 8) % 16); break;
     case 22: return w.m.aim_part() ? 1.0f : 0.0f;
     case 20: {
