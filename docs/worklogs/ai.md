@@ -357,3 +357,10 @@ Newest last. One short entry per item: what, commits, what to remember.
   valve_reentries() counts the skips.
 - test_ai_valves.py: 352 cases identical, skips counted and asserted 0;
   test_fixes: a self update and a ring of three, each reaction once per set.
+
+## 2026-10-22 Item 3a: c4b m6's boundary pair (mac4/c4bm6, docs only)
+
+- The pair is c4bm7 (hulls vs aiv positions: 9/9 inside; c4bm6 is two
+  small disjoint areas). Also: c4b m5's valve name slip (reg_outside_c4m5),
+  c4b m4's inverted entries (left). The player's vlist (0x4d8990 on
+  0x4d9840) is not wired, so 3b needs it first (3b1), then the names (3b2).

@@ -393,7 +393,14 @@ To do, in the specialists' queues:
   missions later. FIX (bug). Done (the table above).
 - c4b mission 6's boundary: make the valve trip when the player leaves the
   area (the region names the player's orders give do not exist; find the
-  pair the mission's geometry means). FIX (bug).
+  pair the mission's geometry means). FIX (bug). The pair: `c4bm7`
+  (ai.md section 8: every m6 vehicle starts inside it; the `c4bm6` files
+  are two small unrelated areas). To do, behind `zfix bugs`, once the
+  player's vlist runs in the program. Found with it, for Owen: c4b m5's
+  outside entry sets `reg_outside_c4m5` where the objective watches
+  `outside_c4m5` (the same symptom, a clear slip: a candidate for the same
+  fix); c4b m4's entries are inverted (entering its "outside" region fails
+  the mission), possibly meant: left as is.
 - TAG: done (mac2/tag-fix): the hold in whole milliseconds, the beam's
   time its 30 fps one, the strike on the marked unit (weapons.md, "TAG,
   end to end", The fix).
