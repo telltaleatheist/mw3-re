@@ -2984,6 +2984,154 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
 // c1 mission 4 Dominic, woken, with an enemy put 60 m in front of him and no
 // order given, takes it as his target and fires at it while he follows the
 // player (his own order), never closing in.
+TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      mech3::ai::Brain* brain = nullptr;
+      void* dominic = nullptr;
+      zgame::Handle dv = 0, hut = 0;
+      int frames = 0, on_target = 0, firing = 0, aiming = 0, target_contacts = 0;
+      float health0 = 0, health = 0;
+      std::string first_target;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i) {
+          const std::string n = ai[i].name ? ai[i].name : "";
+          if (n == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        }
+        if (!seen.dominic || !seen.brain) return;
+        seen.dv = engine.handle_of(seen.dominic);
+        // The enemy mechs taken 3 km off: the huts are the only enemies near.
+        for (int32_t i = 0; i < made; ++i) {
+          if (ai[i].mech == seen.dominic) continue;
+          mech3::LaunchedMech m;
+          mech3::describe_mech(ai[i].mech, &m);
+          const float x = m.pos[0] + 3000.0f, z = m.pos[2] + 3000.0f;
+          const float at[3] = {x, ground_under(x, m.pos[1] + 500.0f, z), z};
+          mech3::move_mech(ai[i].mech, at, 0.0f);
+        }
+        // Dominic 80 m west of the hut ghsD2 (targets.zrd, team 2), facing it,
+        // the player 30 m behind him (his own order follows the player).
+        mech3::ai::CZAiTarget* hut = nullptr;
+        for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())
+          if (t->node && std::string(static_cast<const zcls::Node*>(engine.object_of(t->node))->name()) == "ghsD2") hut = t;
+        if (!hut) return;
+        seen.hut = hut->self;
+        seen.health0 = hut->desc.health;
+        float hp[3] = {};
+        zcls::node_world_position(static_cast<zcls::Node*>(engine.object_of(hut->node)), hp);
+        const float dx = hp[0] - 80.0f, dz = hp[2];
+        const float at[3] = {dx, ground_under(dx, hp[1] + 100.0f, dz), dz};
+        mech3::move_mech(seen.dominic, at, 1.5707964f);
+        const float px = dx - 30.0f;
+        const float pat[3] = {px, ground_under(px, hp[1] + 100.0f, dz), dz};
+        mech3::move_mech(mech3::mech_mission_player(), pat, 1.5707964f);
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);  // he starts powered down
+        return;
+      }
+      if (!seen.brain || !seen.hut) return;
+      mech3::ai::Brain& b = *seen.brain;
+      const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(seen.dv);
+      if (t) {
+        for (const mech3::ai::Contact* c : t->contacts)
+          for (mech3::ai::CZAiTarget* x : mech3::ai::target_list())
+            if (c->seen == x->self) ++seen.target_contacts;
+        if (t->target)
+          for (mech3::ai::CZAiTarget* x : mech3::ai::target_list())
+            if (t->target->seen == x->self) {
+              ++seen.on_target;
+              if (seen.first_target.empty())
+                seen.first_target = static_cast<const zcls::Node*>(engine.object_of(x->node))->name();
+            }
+      }
+      if (b.firing.phase == 2 || b.firing.phase == 3) ++seen.aiming;
+      if (b.firing.phase == 4 || b.firing.phase == 7) ++seen.firing;
+      float lowest = 1e9f;  // the huts' lowest health
+      for (mech3::ai::CZAiTarget* x : mech3::ai::target_list()) {
+        const std::string n = x->node ? static_cast<const zcls::Node*>(engine.object_of(x->node))->name() : "";
+        if (n.rfind("ghsD", 0) == 0) lowest = std::min(lowest, x->desc.health);
+      }
+      seen.health = lowest;
+    };
+    CountingPump pump;
+    pump.limit = 900;  // 30 s
+    app.run(pump);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "TARGET %s: contacts %d on it %d aiming %d firing %d health %g -> %g frames %d\n",
+                   seen.first_target.c_str(), seen.target_contacts, seen.on_target, seen.aiming, seen.firing,
+                   seen.health0, seen.health, seen.frames);
+    // His sensors list the huts; the firing picks one (the contact's entity,
+    // 0x004e6fe0, a target too), lines up and fires until it is down
+    // (exact: the run repeats with reset_process_state's fixed seed).
+    EXPECT(seen.hut != 0 && seen.target_contacts == 1128 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 703 && seen.aiming == 47 && seen.firing == 654);
+    EXPECT(seen.health0 == 30.0f && seen.health == 0.0f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
   if (!have_game()) return;
   SavedMounts keep;

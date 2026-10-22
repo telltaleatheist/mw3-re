@@ -1028,6 +1028,37 @@ Left: the sensors and the entity sort are section 15's; the turrets' pick
 (0x4d72b0, 0x4d5980's line of sight), zEntity3d itself, the brain's use of
 the pick.
 
+### 14a The AI on the targets.zrd objects (2026-10-22)
+
+The sensors already listed targets.zrd objects in every vehicle's contacts;
+the program's brain hooks took every contact's entity to be a mech, so the
+AI never fired at them. The exe's two questions, kept apart:
+
+- **A contact's entity** (0x4e6fe0: the seen object's vt+0x2c): every
+  entity answers itself, the mechs, the targets (0x4d2a70) and the command
+  marker. The firing's volley pick, its track and its line check, the
+  orders (attack_target, ally_of) ask this.
+- **A contact's vehicle** (0x4e6ff0: then vt+0x40): a mech or vehicle
+  answers itself, a target and the plain AiTarget 0 (0x40bae0). The
+  brain's engaging (walking at an enemy) and the asleep attacker's range
+  ask this, so nobody walks at a building; the firing still shoots it.
+- The hooks a target meets: its AiTarget, its node's place, its lock
+  position (the record's "target" subnode, else the node), its centroid
+  (the "centroid" subnode), its +0x08, still, never powered down (vt+0xa0,
+  0x40bae0), its health the fraction (vt+0x98, 0x4d2b20); 0x4b6e30's
+  aim-at-last-hit only on a mech (the entity's vt+0x50, a target's 0).
+- **zEntity3d's node bind** (0x40eaa0 / 0x40ed00, ported for the targets
+  as `zcls::node_tree_bind` / `node_tree_unbind`, 0x40ea30 / 0x40ec20):
+  a target's node tree takes kind bit 21 (0x200000, 0x40ee10; a trap's bit
+  22, 0x40ee70) and the target as owner, so a node a shot or a pick hits
+  leads back to it (0x40e920); unbound only where the owner is still it.
+
+Test `mission_c1m4_dominic_fires_on_a_target_headless`: Dominic woken 80 m
+off the hut ghsD2 (team 2), the enemy mechs taken 3 km away: his contacts
+list the huts, his firing takes ghsD2 (703 frames on it), aims 47 frames
+and fires 654, and the hut goes from 30 health to 0 (exact, the fixed
+seed). Its checks fail with a target's entity answered as before.
+
 ## 15. The sensors and the entity sort
 
 Ported 2026-10-20: `mech3/sensors` (and MSVC's sort as a template,
