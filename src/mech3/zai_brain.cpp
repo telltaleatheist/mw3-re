@@ -257,6 +257,26 @@ void PassState::run(float dt) {
   order->set_behaviour(next);  // 0x004e8120: this state destroyed
 }
 
+// A scan or canleave step's state (0x004cbc30 -> 0x004cbc50, vtable
+// 0x005cbc88): each of the step's tests run on the brain, then the next.
+class ScanState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override;                                  // 0x004cbca0
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
+// Mech3.exe 1.2 @ 0x004cbca0. Each test is called on the brain plus the
+// entry's second word (0 in every step the net builds).
+void ScanState::run(float dt) {
+  (void)dt;
+  const auto* st = static_cast<const ScanStep*>(from);
+  Brain& b = *order->owner;
+  for (const auto& t : st->tests) b.scan_test(t.first);
+  b.x104 = 1;
+  order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
+}
+
 // 0x004cbe10 (vtable 0x005cbe18), made at start-up into 0x0060b460.
 struct SharedBehaviour : Behaviour {
   SharedBehaviour() : Behaviour(StepKind::Shared) {}
@@ -268,7 +288,8 @@ struct SharedBehaviour : Behaviour {
 // default behaviour), 0x004c86e0 (the null step), 0x004c8920 / 0x004c88a0
 // (0x00604058 / 0x00604028), 0x004c9150 (a node), 0x004cfa60 (a backup
 // node), 0x004d0020 (a deploy node), 0x004c9ed0 (a speed step),
-// 0x004ca1f0 (a valve step). The other behaviours' own
+// 0x004ca1f0 (a valve step), 0x004cbc30 (scan and canleave steps). The
+// other behaviours' own
 // states come with their ports (docs/ai.md 17.9); until then they get the
 // base's.
 BehaviourState* Behaviour::make_state(Order& o) {
@@ -282,6 +303,9 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::DeployNode: return new DeployState(&o, this);  // 0x004d0020
     case StepKind::Speed: return new SpeedState(&o, this);  // 0x004c9ed0
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
+    case StepKind::Scan:
+    case StepKind::CanLeave:
+    case StepKind::CanLeaveNot: return new ScanState(&o, this);  // 0x004cbc30
     default: return new BehaviourState(&o, this);
   }
 }
@@ -1019,6 +1043,25 @@ void Brain::pilot_tick(BrainControls& c) {
   bool picked = false;
   Contact* target = nullptr;
   vlist(c, c.vehicle(), &picked, &target);
+}
+
+// Mech3.exe 1.2 @ 0x004d9c20..0x004d9ca0: scan_aim (+0x98), scan_hit
+// (+0x9c), scan_time (+0xa0) on or off; canleave (+0x3c, may engage) on or
+// off with the engage delay's end (+0xdc) cleared.
+void Brain::scan_test(ScanTest t) {
+  switch (t) {
+    case ScanTest::AimOn: return params.put<int32_t>(0x98, 1);
+    case ScanTest::AimOff: return params.put<int32_t>(0x98, 0);
+    case ScanTest::HitOn: return params.put<int32_t>(0x9c, 1);
+    case ScanTest::HitOff: return params.put<int32_t>(0x9c, 0);
+    case ScanTest::TimeOn: return params.put<int32_t>(0xa0, 1);
+    case ScanTest::TimeOff: return params.put<int32_t>(0xa0, 0);
+    case ScanTest::CanLeave:
+    case ScanTest::CanLeaveNot:
+      params.put<int32_t>(0x3c, t == ScanTest::CanLeave ? 1 : 0);
+      xdc = 3.4028235e38f;
+      return;
+  }
 }
 
 }  // namespace mech3::ai

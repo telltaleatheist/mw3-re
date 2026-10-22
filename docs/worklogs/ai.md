@@ -155,3 +155,14 @@ Newest last. One short entry per item: what, commits, what to remember.
   phase 4. Coverage of backup's wait needed backup dead ends.
 - Next: the scan / canleave state 0x4cbc50 (run 0x4cbca0, the tests
   0x4d9c20..0x4d9ca0), where the c1m1 Owens stops.
+
+## 2026-10-22 Item 9a: scan / canleave (mac4/scan)
+
+- ScanState 0x4cbca0 and the tests 0x4d9c20..0x4d9ca0 (Brain::scan_test:
+  aiv +0x98/+0x9c/+0xa0, +0x3c with +0xdc FLT_MAX). Real scan steps in
+  test_ai_node.py's nets.
+- c1m1: the Owens passes the scan step and walks 119 m to its post, then
+  waits there on the valve firefly_retreat (by design). The walking check
+  now covers that third leg.
+- Next toward walk-and-fire: the firing (item 12, 0x4b5b80 with its plans
+  and aim), the planner's volley (item 13, with mac 2), the attack (item 10).

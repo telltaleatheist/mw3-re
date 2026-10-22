@@ -2283,8 +2283,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
 // speed step (its share 0.7), a valve step, then the next node 245 m off.
 // That node's state (0x004ced40) turns and throttles the Owens' own controls
 // along the steering segment; it walks there and, within its stopping
-// distance, goes on by one of that node's links (a scan step, item 9, where
-// it stops for now). MW3_WALK_LOG=1 prints the walk.
+// distance, goes on by one of that node's links: a scan step (0x004cbca0),
+// then its post, where it waits for the valve firefly_retreat. MW3_WALK_LOG=1
+// prints the walk.
 TEST(mission_c1m1_owens_walks_to_its_node_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -2328,6 +2329,8 @@ TEST(mission_c1m1_owens_walks_to_its_node_headless) {
       std::vector<Leg> legs;
       float max_throttle = 0, max_turn = 0, moved = 0, start_pos[3] = {};
       bool feet = true, started = false;
+      int32_t last_phase = -1;
+      std::string waits_on;  // the valve the last node's one link waits for
     } seen;
     void* owens = nullptr;
     mech3::AiControls* ctl = nullptr;
@@ -2372,6 +2375,11 @@ TEST(mission_c1m1_owens_walks_to_its_node_headless) {
       seen.max_turn = std::max(seen.max_turn, std::fabs(ctl->turn));
       const float mx = o.pos[0] - seen.start_pos[0], mz = o.pos[2] - seen.start_pos[2];
       seen.moved = std::max(seen.moved, std::sqrt(mx * mx + mz * mz));
+      if (ns) seen.last_phase = ns->phase;
+      if (ns && ns->from->link_count() == 1 && ns->from->link(0)->kind == mech3::ai::StepKind::Valve) {
+        auto* vs = static_cast<const mech3::ai::ValveStep*>(ns->from->link(0));
+        seen.waits_on = vs->valve && vs->valve->name ? vs->valve->name : "";
+      }
       if (log && seen.frames % 50 == 0)
         std::fprintf(stderr, "walk %4d pos %8.2f %8.2f thr %6.3f/%6.3f turn %6.3f/%6.3f state %#x legs %zu\n", seen.frames,
                      o.pos[0], o.pos[2], ctl->throttle, ctl->throttle_target, ctl->turn, ctl->turn_target,
@@ -2396,6 +2404,15 @@ TEST(mission_c1m1_owens_walks_to_its_node_headless) {
       // Walked there: on by its link once within its stopping distance (its
       // along and side from the carrot at the node, 0x004cf140).
       EXPECT(g.went_on && g.nearest <= g.slow && g.slow > 1.0f && g.slow < 30.0f);
+    }
+    // Past the scan step (0x004cbca0) to its post 119 m on, where it stands:
+    // the one way on waits for the valve firefly_retreat (0x004cf140's 5 s
+    // asks, phase 2).
+    EXPECT(seen.legs.size() == 3);
+    if (seen.legs.size() >= 3) {
+      const Leg& g = seen.legs[2];
+      EXPECT(g.start > 100.0f && g.face > 0.99f && g.nearest <= g.slow && !g.went_on);
+      EXPECT(seen.last_phase == 2 && seen.waits_on == "firefly_retreat");
     }
     EXPECT(seen.moved > 200.0f);
     EXPECT(seen.max_turn > 0.05f);                                     // its own controls turned
