@@ -1622,7 +1622,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4c88c0, 0x5cb350 | 0x5bca40 | nothing | |
 | 0x4c8940, 0x5cb370 | 0x5bc988 | 0x4c89a0 | |
 | 0x4c8a30, 0x5cb390 | made by 0x4c9750, 0x4cc290, 0x4d1320, 0x4d1650, 0x4d1870, 0x4d1cc0 | 0x4c8690 | a wait (likely) |
-| 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties; speed and valve ported (17.4a) |
+| 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties; speed and valve ported (17.4a); the waits ported (item 3, below) |
 | 0x4ca3b0, 0x5cb8a0 | 0x5cb7e8 (0x4ca370) | 0x4ca420 | resume 0x4ca410 |
 | 0x4caae0 (0x4ca440), 0x5cb8e8 / 0x5cb908 | 0x604088 / 0x604098 (0x5bcaf8 / 0x5bcbb0) | 0x4ca600 (223 lines) | the combat manoeuvre: lasts now + rand in [+0x6c, +0x70]; suspend 0x4ca5f0 |
 | 0x4cac20, 0x5cb928 | 0x5cd920 (the attack's first, 0x4e9ca0) | 0x4c8690 | resume 0x4cac80 |
@@ -1636,6 +1636,16 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | |
 | 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700; ported (17.4a) |
 | 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
+
+**The waits, ported** (2026-10-22, item 3a: `WaitState`). Made by the
+wait steps' vt+0x8c (0x4c9fa0, 0x4ca0c0) with the game time ([0x60991c],
++0x0c) and the pilot stopped (brain +0xe0's IControls vt+0x14); each run
+hands the order the step's next (+0x0c) through 0x4e8120 once the wait is
+over: wait_interval when start + the step's seconds (+0x10) is not at or
+past the time (a NaN ends it at once), wait_time once the time is past the
+step's value. Neither breaks in nor fires (the base's). Test: in
+`test_ai_node.py`'s chains (their values and the clock mostly on its 0.5 s
+steps, so the ends are met exactly; now and then a NaN), 9 of 9 breaks.
 
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
@@ -3039,9 +3049,9 @@ goes through a hooks struct the test stubs the same on both sides.
    derived states.
 8. **The node state** 0x4ced40: done (17.4a), with the speed and valve
    steps' states, backup 0x4cfa80 and deploy 0x4d0040.
-9. **The property states**: scan / canleave done (17.4a); waits, sound,
-   gate, shunt, valve union / assign, mcbwait (one or two a sitting);
-   jump 0x4cb330 alone.
+9. **The property states**: scan / canleave done (17.4a); the waits done
+   (item 3a); sound, gate, shunt, valve union / assign, mcbwait (in two
+   batches); jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
