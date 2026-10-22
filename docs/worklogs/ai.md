@@ -532,7 +532,7 @@ Newest last. One short entry per item: what, commits, what to remember.
   player is not the view's mech (crashes the emulator; the differential
   keeps him viewed, test_fixes covers it).
 - Found in my L4c1 port: 0x469cf0 is the dispatcher on +0x160 (mov edx,
-  [ecx+0x160]; jmp 0x469940), not only order 2: unwrap now dispatches the
+  [ecx+0x160]; jmp 0x469930: push 1; call 0x469940), not only order 2: unwrap now dispatches the
   order a line put there.
 - Program: the mission start / end in the load's listeners, the orders'
   keys from zInput. The HUD / map picks, names, places, marker making and
@@ -540,3 +540,18 @@ Newest last. One short entry per item: what, commits, what to remember.
 - test_pocket_frame.py: 200 runs identical, 11 branches; 16 of 16 breaks
   (three needed the full count or a wider world: the map's edges, a net
   element on the marker).
+
+## 2026-10-22 Item L4c2c: the pocket commander's own keys (mac4/keys)
+
+- PocketControls::keys (0x46b0a0) and mouse_look (0x46af30): 0x427d60's
+  driving without the axis table, with the mode's mouse look, twist keys
+  at 1, pitch / twist eased at 10/s; FIX (B) for the throttle step as the
+  player's. The update runs it after the frame. Program: the viewed HUD
+  for the zoom box (PocketCalls::view_screen; the zoom hooks were there).
+- The lead's note checked: 0x469cf0 jumps to 0x469930 (push 1; call
+  0x469940); that argument is read only in case 2, as the mode for
+  0x4690d0; both callers pass 1, as lance_dispatch's pocket_enter(c, 1).
+- original.py: a stub address deleted from `stubs` is skipped (the keys
+  test runs what test_pocket.py stubs).
+- test_pocket_keys.py: 2,000 cases identical, 9 branches; 12 of 13
+  breaks (the 13th equivalent).

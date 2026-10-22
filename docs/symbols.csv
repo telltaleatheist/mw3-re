@@ -1161,3 +1161,6 @@ address,name,source,notes
 0x00469d00,PocketFrame,asm,"ported: pocket_frame (FIX for an unviewed player)"
 0x00468820,PocketPanel::Route,asm,"ported: PocketPanel::route"
 0x0046a360,PocketControls::Update,asm,"ported: PocketControls::update"
+0x0046b0a0,PocketControls::Keys,asm,"ported: PocketControls::keys"
+0x0046af30,PocketControls::MouseLook,asm,"ported: PocketControls::mouse_look"
+0x00469930,LanceDispatchMode1,asm,"the dispatcher with its stack argument 1 (the mode for order 2): the command key 0x0041c684 and unwrap 0x00469cf0"

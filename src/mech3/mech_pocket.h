@@ -33,6 +33,9 @@ struct PocketCalls {
   void (*view_state)(PocketControls& p, int32_t v) = nullptr;
   void (*player_keys)(PocketControls& p, int32_t cmd) = nullptr;
   uint32_t (*net_element)() = nullptr;               // [0x00609980]'s 0x0058b060 by its +0x20: 0 outside a network game
+  // The mode's keys (0x0046b0a0): the HUD (0x00430aa0) when the mech is the
+  // view's (+0x64), for its zoom box (ControlsCalls::screen_busy, zoom).
+  void* (*view_screen)(Mech& m) = nullptr;
   // The panel (0x548 bytes, item L4c2): made by the mode's set_owner
   // (0x00468250 on the mode, its +0x178 / +0x17c, 0x0c), freed (0x00468720),
   // its frame (0x00469d00, then 0x0046b0a0), a lancemate picked or not
@@ -98,6 +101,12 @@ class PocketControls : public PlayerControls {
   // instance, view, camera and HUD restored, the inputs copied back. The
   // controls to use; this one deleted when `free_self`.
   MechControls* leave(bool free_self);
+  // Mech3.exe 1.2 @ 0x0046b0a0 (the update's second half): the mode's own
+  // driving, 0x00427d60's with the mouse look for the stick.
+  void keys(float dt);
+  // Mech3.exe 1.2 @ 0x0046af30: with the mouse on (+0x08 bit 0) its motion
+  // into the pitch and twist by the view state (+0x0c).
+  void mouse_look(float dt, float* pitch, float* twist);
 
   int32_t x148 = 0, x14c = 0;            // +0x148, +0x14c
   int32_t saved_camera = -1;             // +0x150  the camera mode at the start

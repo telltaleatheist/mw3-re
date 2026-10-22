@@ -2309,8 +2309,9 @@ camera 0x46b0a0, L4c2c) runs the panel. Ported (2026-10-22, item L4c2b:
   1): three frames (+0x14c), the view's pocket off (0x4b5290(0)), the
   jumps and trigger left alone again (+0x154 bit 0) and the camera mode
   back (0x40ae70), one frame, then +0x38: the mech's update unwraps
-  (0x469cf0: `mov edx, [ecx+0x160]; jmp 0x469940`, the dispatcher on the
-  order the line put in +0x160), so the order goes to the lancemates
+  (0x469cf0: `mov edx, [ecx+0x160]; jmp 0x469930`, which is `push 1; call
+  0x469940`: the dispatcher on the order the line put in +0x160, its
+  stack argument 1 the mode order 2 would make, read nowhere else), so the order goes to the lancemates
   picked (17.6a) and the mode ends.
 
 Program: the mission's start and end run through the load's listeners
@@ -2327,6 +2328,40 @@ frame hooks answer through the trace): 200 runs of frames with the mouse
 over the lines among the other ops identical in the calls and the dump of
 the panel and the mode, 11 branches reached; 16 of 16 breaks.
 `test_fixes` fix_pocket_frame_without_a_hud.
+
+### 17.6d The pocket commander's own keys (0x46b0a0, 0x46af30)
+
+The mode's update (0x46a360) drives the mech itself after the panel's frame
+(17.6c), in place of the player's controls (whose update 0x427d60 does not
+run meanwhile). Ported (2026-10-22, item L4c2c: `PocketControls::keys`,
+`mouse_look`). It is 0x427d60 with these differences:
+
+- No axis table (no joystick, no hat): the mouse look 0x46af30 instead,
+  only with the mouse on (+0x08 bit 0): by the view state (+0x0c) its
+  scaled motion (0x51b7b0 +0x24 / +0x28, times 1/dt and -0.26 / -0.16)
+  into the twist and pitch (view 1 at 1.5x, into the torso, not the free
+  look); view 2 keeps the pointer's place (+0x140 / +0x144) and its motion
+  (+0x138 / +0x13c) and gives none; view 3 holds the pointer there
+  (0x51b440). The other inputs are left as they were.
+- The keys: throttle 0x18 / 0x19 (0.025 a frame, clearing +0x3c / +0x3e;
+  FIX (B) per 1/30 s as the player's), turn 2 / 3, the jets 0xc..0x12 as
+  there, twist 8 / 9 at 1 (the player's 1.5), pitch 4 / 5, the trigger
+  0x3d; the viewed HUD's zoom box (+0x1508: vt+0x60(-1) held, vt+0x64 let
+  go, unless locked open, +0x167c) with no click sound.
+- The throttle as there, but the joystick's path calls SetThrottle (vt+0x20)
+  with the step (always 0 there: the keys clear +0x3c), and no free look.
+- Pitch and twist ease toward their inputs at 10/s (0x5e50b0; the player's
+  6/s), snapped within 0.05. Then the pilot's tick (vt+0xa4, 0x4d8990)
+  first, the smoothing (0x426960) last, as there.
+
+Test `test_pocket_keys.py` (0x46b0a0 on the mode the exe's dispatcher made,
+test_pocket.py's world plus the commands, the mouse, the jets, the HUD's
+zoom box; the port's `keys` on a PocketControls, `tests/probe_pocket.cpp`):
+2,000 cases identical in the calls and the fields after, 9 branches; 12 of
+13 breaks, the 13th (the joystick path's SetThrottle as a plain store) is
+the same behaviour, since that path only ever sees 0.
+
+The draws (0x468900, 0x467760) are L4c2d.
 
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 

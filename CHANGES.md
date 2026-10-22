@@ -32,7 +32,8 @@ it is clear what the designers meant.
 - **The throttle keys open the throttle at the same speed at any frame
   rate.** Each frame a key was held added a fixed step, so on a fast computer
   the throttle ran up several times faster. It now moves as it did at
-  30 fps: from stop to full in about 1.3 seconds.
+  30 fps: from stop to full in about 1.3 seconds (with the lance command
+  panel open too, which has its own copy of the keys).
 - **Lasers and TAG recharge at the same speed at any frame rate.** The
   original dropped the fraction of each frame's recharge, so the faster the
   game ran the slower beams came back: TAG took 67 seconds at 30 fps, 83 at

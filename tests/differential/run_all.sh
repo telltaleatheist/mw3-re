@@ -103,6 +103,7 @@ for t in \
     ai_lance \
     lance_dispatch \
     pocket \
+    pocket_keys \
     pocket_orders \
     pocket_panel \
     pocket_frame \
