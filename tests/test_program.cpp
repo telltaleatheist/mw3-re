@@ -2180,7 +2180,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
       int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, firing = 0, shooting = 0;
-      int32_t attacked = 0, home_done = 0, home_orders = 0;
+      int32_t attacked = 0, home_done = 0, home_orders = 0, own_on = 0;
       float home_way[3] = {}, home_start = -1.0f, home_last = 0, home_range = 0;
       float chase_from = 0, chase_to = 0, fight_min = 0;
       float fire_range = 0, fire_max = 0;
@@ -2243,6 +2243,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
               break;
             }
         }
+        // The brain's own order (0x004e81a0, its +0x80 1): the player within
+        // its +0x74 (40 m) gives the player's own net a part in it.
+        // (Its state, 0x004cc150, is not ported: asked for, none.)
+        if (!seen.own_on && engine.unported_counts().count("0x004cc150")) seen.own_on = seen.frames;
         if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
         seen.wall_block |= m.blocked[3];
@@ -2333,12 +2337,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset and the brain's own order ran each time. The firing
+    // firing's reset ran each time. The firing
     // (ai.md 17.7) picks a plan each tick: the player, 1.4 km off, is past
     // its range, so none, and its sensor range widened to aiv +0x30; it
     // rests in phase 5 with its look-around going.
-    for (const char* k : {"0x004aed40", "0x004e81a0"})
-      EXPECT(ran(k) >= 190);
+    EXPECT(ran("0x004aed40") >= 190);
     EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
     EXPECT(seen.fire_max > 0 && seen.fire_range == seen.fire_max);
     // 30 m off, the plan pick takes the player and the volley (0x004b1860)
@@ -2349,6 +2352,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
+    EXPECT(seen.own_on > 200);  // the own order built on the player once near (its state asked for)
     // Engaging on, the Owens attacks (0x004e9ca0): the end, rearm and way
     // home orders under the fight. The fight closes from 160 m to between
     // +0x2c (60 m, nearer it backs off) and +0x28 (80 m), then takes the

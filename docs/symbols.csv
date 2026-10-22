@@ -804,6 +804,7 @@ address,name,source,notes
 0x004ed9c0,zcls::SetFirstHit,asm,"ported as zcls::segment_options().first_hit ([0x0060b968])"
 0x004eda00,zcls::SetExclude,asm,"ported as zcls::segment_options().exclude ([0x0060b974])"
 0x004eb710,zcls::NodeIntersects,asm,"ported inline; node +0x24 bit 4 (the program's node_intersects)"
+0x004e81a0,AiBrain::RunOwnOrder,asm,"ported; Brain::run_own_order (its state 0x004cc150 item 10d)"
 0x004d1ca0,AiAttackBehaviour::MakeState,asm,"ported; the fight state (make_state for VehAttack)"
 0x004d1cc0,AiFightState::AiFightState,asm,"ported; FightState"
 0x004d1d10,AiFightState::Run,asm,"ported; FightState::run"

@@ -1528,8 +1528,36 @@ identical, 21 branches; 14 of 14 breaks caught) and in c1m1
 (`test_program`: engaging on and the mode 1 given, the player 160 m off:
 the Owens closes to 79.5 m, between its +0x2c 60 and +0x28 80, and takes
 the mode's behaviour; then, as above, its way home). In c1m1 the Owens'
-mode is 0, and a chase from 300 m was given up after about 130 m (likely
-its leash, +0xcc bit 0 and +0x24, or its time +0xe8; not checked).
+mode is 0. A chase from 300 m is given up by the **leash**: the Owens' flags
++0xcc are 0xeb (bit 0 on) and its +0x24 is 16900, so 0x4e8dd0 calls it off
+130 m from where the fight began (the vehicle part's home point; checked
+in play: 130.7 m at frame 928). Its time (+0xe8, set at the fight's start
+to now + +0x4c x the intensity: 10 s for the Owens, flag bit 1 on) would
+have ended it 10 s in had the leash not; it attacked again about 15 s
+later.
+
+**The brain's own order, ported** (2026-10-22, item 10c:
+`Brain::run_own_order`). The order at the brain's +0x194 runs each frame
+after the stack's (0x4e81a0, when params +0x80 is 1, [0x5e9d40]): with no
+state yet, the nearest contact of any side (0x4d6b90(3)); its vehicle
+(0x4e6fe0) and bearer (vt+0x40) within +0x74 (squared) give that vehicle's
+own net (vt+0xd8) a part in the order (in place at +0x30: the vehicle
+part, its home point on the brain's +0xe4) and the net's own-order
+behaviour (slot 5, 0x4c0e40) its state (+0x54; when it makes none the part
+is destroyed); then the part's run and the state's. The state (0x4cc150:
+0x4cc290 or 0x4cc240, vtables 0x5cbf10 / 0x5cbef0, runs 0x4cc3e0 of 354
+lines and 0x4cc020) keeps station on that vehicle (+0x78 x 0.9, sqrt(+0x74)
+x 1.1; likely the lancemates' and escorts' formation) and is item 10d: until
+then none (logged), so the order stays empty. c1m1's Owens has +0x80 1 and
++0x74 1600: within 40 m of the player it builds on the player's net. Its
+home point sits on the stack's (the attack's parts), and the two come off
+apart: an own part made during a fight keeps a pointer to the fight's home
+after that order is gone (in the exe a stale pointer into the deque, used as
+the leash's home if it is the top again). Test: `test_ai_attack.py` (1429
+own-order runs, 586 with a part, identical; 7 of 8 breaks caught, the one
+missed equivalent: the part's run only acts while it waits for a vehicle,
+and the order is built only with one) and in c1m1 (the build asked for once
+the player is near).
 
 So when the fight ends, the pilot walks back to the net it was on, to
 within +0x28 of its nearest step, then the timer is set and the net freed.
@@ -2185,8 +2213,9 @@ goes through a hooks struct the test stubs the same on both sides.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
-    0x4e81a0 (10c); the modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the
-    follow's (0x4d1870) later.
+    0x4e81a0: done (10c); its station-keeping states 0x4cc150 (10d); the
+    modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the follow's (0x4d1870)
+    later.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

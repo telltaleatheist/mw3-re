@@ -42,7 +42,7 @@ f2i = to.f2i
 def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
-COVER = {0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
+COVER = {0x4e81fb: 'own: in range', 0x4e8239: 'own: no state', 0x4e8253: 'own: the part run', 0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
          0x4c8c37: 'fight: backing off', 0x4c8c50: 'fight: arrived', 0x4c8c5f: 'fight: closing',
          0x4c8abd: 'fight: pulled in', 0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
          0x4cb0c4: 'home: capped', 0x4caf0f: 'home: pulled in', 0x4cb013: 'home: turning',
@@ -57,6 +57,8 @@ def script(seed):
     s['ictl.vt+0x1c'] = r('thr', [f2i(x) for x in (0.0, 0.3, 1.0, 0.8, 0.05)])
     s['vehicle.vt+0x12c'] = r('share', [f2i(x) for x in (0.0, 0.5, 1.0, 0.25, 0.9)])
     s['0x004c3000'] = r('pull', [0, 0, 0, 0, 1])
+    s['0x004d6b90'] = r('pick', [1, 2, 3, 0, 1])
+    s['own.state'] = r('ownst', [1, 1, 0])
     s['0x004d51d0'] = r('near', [1, 2, 3, 4, 1, 2])  # none: the exe reads through null (the port's FIX)
     return s
 
@@ -95,8 +97,21 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
+        e.stub(0x4cc150, 'own.state', 's0,s1', 8, self.own_state)  # 0x4cc150 may make none
         for maker in (0x4c9730, 0x4d1300, 0x4d1630, 0x4c89f0):
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
+        # The brain's own order (+0x194, its owner this brain), the pick's
+        # contacts, the target vehicle's bearer (vt+0x40) and own net
+        # (vt+0xd8, the Mech's 0x4d70f0).
+        e.w32(b + 0x194 + 8, b)
+        self.contacts = [e.world_alloc(0x30) for _ in range(3)]
+        self.contact_on = [0, 0, 0]
+        e.stub(0x4d6b90, '0x004d6b90', 'c,s0', None, self.pick)
+        e.stub(0x4e6fe0, '@0x004e6fe0', 'c', None, self.contact_vehicle)
+        tvt = e.world_alloc(0x200)
+        e.w32(self.target, tvt)
+        e.w32(tvt + 0x40, e.new_stub('@target.vt+0x40', 'c', 0, lambda emu, k, a, pop: emu._ret(a[0], pop)))
+        e.w32(tvt + 0xd8, 0x4d70f0)
         self.mark = e.world_alloc(0x10)
         self.step_on = {}
         for a in COVER:
@@ -121,6 +136,44 @@ class Original(to.Original):
             return
         self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
         e._ret(self.pos, pop)
+
+    def own_state(self, e, key, a, pop):
+        if self.t.handle(key, []):
+            self.make_state(e, 'beh.vt+0x8c', a, pop)
+        else:
+            e._ret(0, pop)
+
+    def pick(self, e, key, a, pop):
+        k = self.t.handle(key, [OWNER if a[0] == self.v else a[0], a[1]])
+        e._ret(self.contacts[k - 1] if 1 <= k <= 3 else 0, pop)
+
+    def contact_vehicle(self, e, key, a, pop):
+        k = self.contacts.index(a[0])
+        e._ret(self.target if self.contact_on[k] else 0, pop)
+
+    def own_world(self, w):
+        e = self.e
+        for k in range(3):
+            e.w32(self.contacts[k] + 0xc, w[2 * k])
+            self.contact_on[k] = w[2 * k + 1]
+        e.w32(self.brain + 0x74, w[6])
+
+    def own_row(self):
+        e, b = self.e, self.brain
+        o = b + 0x194
+        part, state = e.r32(o + 0xc), e.r32(o + 0x10)
+        out = [0] * 8
+        if part and e.r32(part) == VT_VPART:
+            out[0] = 1
+            out[1] = e.r32(e.r32(part + 0x18) + 4)
+            out[2:5] = [e.r32(part + 8 + 4 * k) for k in range(3)]
+            out[5] = self.home_code(e.r32(part + 0x14), self.orders())
+            out[6] = e.r8(part + 0x20)
+        elif part:
+            out[0] = 2
+        if state:
+            out[7] = e.r32(state + 0xc) if e.r32(state) == self.state_vt else 0xffffffff
+        return out
 
     def fight_world(self, pos, active, cc, r24, now, mode):
         e, b = self.e, self.brain
@@ -234,6 +287,9 @@ def setup_probe():
     probe.probe_ao_fight_world.argtypes = [ctypes.c_void_p, I, U, U, U, I]
     probe.probe_ao_fight_push.restype = I
     probe.probe_ao_set_now.argtypes = [U]
+    probe.probe_ao_own_world.argtypes = [ctypes.c_void_p]
+    probe.probe_ao_own.argtypes = [U]
+    probe.probe_ao_own_row.argtypes = [ctypes.c_void_p]
     return probe
 
 
@@ -379,6 +435,27 @@ def run_case(probe, seed, rounds):
             orig.op(7, 0, 0, 0)
             probe.probe_ao_op(7, 0, 0, 0)
             check(f'round {k} unwind')
+        # The brain's own order: picked, built and run now and then, with no
+        # attack parts on the stack (its home point would sit on theirs, and
+        # they come off apart: ai.md 17.2, the own order).
+        if rng.random() < 0.6:
+            ow = []
+            for _ in range(3):
+                ow += [f2i(rng.choice([100.0, 2500.0, 1e4, 4e4, rng.uniform(0, 5e4)])), int(rng.random() < 0.7)]
+            ow.append(f2i(rng.choice([1e4, 3e4, 0.0])))
+            orig.own_world(ow)
+            probe.probe_ao_own_world((U * 7)(*ow))
+            for _ in range(rng.randrange(1, 4)):
+                f = f2i(rng.choice([1 / 30, 0.25]))
+                orig.e.call(0x4e81a0, ecx=orig.brain + 0x194, stack=(f,))
+                probe.probe_ao_own(f)
+                check(f'round {k} own')
+                ob = (U * 8)()
+                probe.probe_ao_own_row(ob)
+                if orig.own_row() != list(ob):
+                    raise SystemExit(f'seed {seed} round {k} own: {orig.own_row()} vs {list(ob)}')
+                stats['own'] = stats.get('own', 0) + 1
+                stats['own built'] = stats.get('own built', 0) + (orig.own_row()[0] == 1)
     probe.probe_ao_done()
     return stats
 
@@ -394,7 +471,7 @@ def main():
     if never:
         raise SystemExit(f'branches never reached: {never}')
     print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("fights", 0)} fights, {total.get("run", 0)} runs, '
-          f'{total.get("pop", 0)} pops identical; {len(COVER)} branches reached')
+          f' {total.get("pop", 0)} pops, {total.get("own", 0)} own-order runs ({total.get("own built", 0)} with a part) identical; {len(COVER)} branches reached')
 
 
 if __name__ == '__main__':

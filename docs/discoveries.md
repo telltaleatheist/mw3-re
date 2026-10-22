@@ -1741,8 +1741,9 @@ are all "puffers": emitters that drop little textured squares.
   its pilot's attack range (80 m for c1m1's Owens), and if you are inside
   its minimum range (60 m for the Owens) it reverses away while facing
   you. Only then does it switch to its fighting style, if its pilot has
-  one. It also gives up a chase after a while: in a test the Owens gave up
-  after about 130 m (likely its leash from where it started)
+  one. It gives up a chase on a leash: c1m1's Owens turns back once it is
+  130 m from where the fight began, and any fight of its ends after 10
+  seconds (on medium difficulty); it attacks again some 15 seconds later
   (`ai.md` 17.2, "The fight").
 - **After a fight, enemies walk back to their patrol.** When an enemy
   breaks off, it heads back to the nearest point of the route it was

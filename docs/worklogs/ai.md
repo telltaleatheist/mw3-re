@@ -299,3 +299,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   Owens' own mode is 0; a 300 m chase was given up after ~130 m (leash or
   time, not checked).
 - Next: 10c, the brain's own order 0x4e81a0.
+
+## 2026-10-22 Item 10c: the brain's own order (mac4/own)
+
+- Brain::run_own_order 0x4e81a0 (BrainHooks::own_order_run defaults to it).
+  Its state (0x4cc150, station keeping) is a hook answering none (logged)
+  until 10d: the base state would stop the pilot every frame.
+- Test: test_ai_attack.py (own order after the unwind: its home point and
+  the stack's come off apart, a stale pointer in the exe); 7 of 8 breaks.
+- c1m1: the Owens' +0x80 1 / +0x74 40 m: its own order asks for the state
+  once the player is near. The 300 m give-up is the leash (+0xcc 0xeb,
+  +0x24 16900 = 130 m; the time +0xe8 10 s would follow).
+- Next proposed: 10d, the station-keeping states 0x4cc290 / 0x4cc240 with
+  their runs 0x4cc3e0 / 0x4cc020.
