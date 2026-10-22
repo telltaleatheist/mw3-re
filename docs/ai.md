@@ -1631,7 +1631,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | |
 | 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | ported (17.4a) |
 | 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
-| 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | |
+| 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | mcbwait, sound and gate ported (item 3b, below) |
 | 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | |
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | |
 | 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700; ported (17.4a) |
@@ -1646,6 +1646,21 @@ past the time (a NaN ends it at once), wait_time once the time is past the
 step's value. Neither breaks in nor fires (the base's). Test: in
 `test_ai_node.py`'s chains (their values and the clock mostly on its 0.5 s
 steps, so the ends are met exactly; now and then a NaN), 9 of 9 breaks.
+
+**Mcbwait, sound and gate, ported** (2026-10-22, item 3b). The mcbwait
+node's state (0x4ccce0 -> 0x4ccd00) stops the pilot there (IControls
+vt+0x14) and holds the order until the game time is past the node's +0x34
+(its link 0 then: vt+0x08(0), +0x60, +0x74) or, not past it (a NaN
+included), its valve (+0x2c) holds its value (+0x30: link 1); a link that
+is no behaviour leaves it waiting. The node is not walked to: the pilot
+waits where it stands. The sound step's (0x4cce50 -> 0x4cce70) plays its
+sound (+0x10) at the pilot's place (0x5a85e0, 0x56e7e0 at volume 1) and the
+gate step's (0x4cd560 -> 0x4cd640) only hands on; both set the brain's
++0x104 and give the order the next step. FIX (bug): an mcbwait record
+without a valve name reads 0, as the deploy node's. Test: in
+`test_ai_node.py` (the gate's state real now, the sound a numbered fake,
+mcbwait nodes among the nodes with times about the clock and now and then
+NaN), 83 branches, 11 of 11 breaks.
 
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
@@ -3050,8 +3065,8 @@ goes through a hooks struct the test stubs the same on both sides.
 8. **The node state** 0x4ced40: done (17.4a), with the speed and valve
    steps' states, backup 0x4cfa80 and deploy 0x4d0040.
 9. **The property states**: scan / canleave done (17.4a); the waits done
-   (item 3a); sound, gate, shunt, valve union / assign, mcbwait (in two
-   batches); jump 0x4cb330 alone.
+   (item 3a); mcbwait, sound, gate done (3b); shunt, valve union / assign
+   (3c); jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order

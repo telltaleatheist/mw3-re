@@ -46,23 +46,25 @@ import test_ai_orders as to  # noqa: E402
 import test_ai_steer as ts  # noqa: E402
 from calltrace import Trace  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 U, I = ctypes.c_uint32, ctypes.c_int32
 OWNER = ts.OWNER
 SET_BEHAVIOUR, TURN, TURN_BACK, TURN_INIT, PICK = 0x4e8120, 0x4cdd40, 0x4cdee0, 0x4c7900, 0x4ccf20
 NODE_VT, NODE_STATE_VT, NULL_STEP = 0x5cc6f0, 0x5cc5c0, 0x603fa0
 # The node kinds (0 node, 5 backup, 6 deploy) and their states' vtables.
-NODE_VTS = {0: NODE_VT, 5: 0x5cc7a8, 6: 0x5cc898}
+NODE_VTS = {0: NODE_VT, 5: 0x5cc7a8, 6: 0x5cc898, 11: 0x5cbf30}  # node, backup, deploy, mcbwait
 NODE_STATES = (NODE_STATE_VT, 0x5cc860, 0x5cc950)
 BACKUP_RUN, DEPLOY_STATE_VT = 0x4cfad0, 0x5cc950
 # The speed, valve, scan and two wait steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0, 0x4ca070, 0x4ca190).
-PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0)
+# Then the mcbwait, sound and gate states (0x4ccda0, 0x4ccec0, 0x4cd690).
+PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0, 0x5cbfe8, 0x5cc0c0, 0x5cc198)
 WAIT_VT = (0x5cb618, 0x5cb6f0)
 SCAN_VT = (0x5cbbd0, 0x5cbca8, 0x5cbd60)  # scan, canleave, canleave-not
 SCAN_FN = ((0x4d9c30, 0x4d9c20), (0x4d9c50, 0x4d9c40), (0x4d9c70, 0x4d9c60))  # aim, hit, time: off, on
 CANLEAVE_FN = {1: 0x4d9c80, 2: 0x4d9ca0}
-STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0, 8: 0x5cb560, 9: 0x5cb638}  # speed, valve, jump, gate, the waits
+STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0, 8: 0x5cb560, 9: 0x5cb638, 10: 0x5cc008}  # speed, valve, jump, gate, the waits, sound
+SOUND_BASE = 0x7000  # a sound step's fake sound: this plus its element's index
 f2i, fi = tf.f2i, ts.fi
 COVER = {
     0x4cf1bf: 'at the node: the pick', 0x4cf200: 'no link: stand', 0x4cf265: 'waiting', 0x4cf275: 'linked on',
@@ -86,7 +88,10 @@ COVER = {
     0x4d9c50: 'scan hit off', 0x4d9c60: 'scan time on', 0x4d9c70: 'scan time off', 0x4d9c80: 'canleave',
     0x4d9ca0: 'canleave not', 0x4c9fc0: 'a wait made', 0x4ca070: 'a wait_interval run',
     0x4ca08a: 'a wait_interval over', 0x4ca096: 'a wait_interval still on', 0x4ca190: 'a wait_time run',
-    0x4ca1a3: 'a wait_time over', 0x4ca1af: 'a wait_time still on', 0x4ca0e0: 'a wait_time made'}
+    0x4ca1a3: 'a wait_time over', 0x4ca1af: 'a wait_time still on', 0x4ca0e0: 'a wait_time made',
+    0x4ccd00: 'an mcbwait made', 0x4ccdb9: 'an mcbwait: its time past', 0x4ccdd9: 'an mcbwait: its valve tested',
+    0x4ccdf0: 'an mcbwait: its valve holds', 0x4cce13: 'an mcbwait: still waiting or on', 0x4cce17: 'an mcbwait: on',
+    0x4ccec0: 'a sound step run', 0x4cd690: 'a gate step run'}
 REACHED = set()
 
 
@@ -133,10 +138,10 @@ class Original(ts.Original):
         e.w32(0x60b444, vec)
         e.w32(0x60b44c, 0xfffff)
         e.w32(NULL_STEP, 0x5bc8d0)
-        # The jump and gate steps' states: fakes, numbered as the port's (the
-        # speed and valve steps' are real).
-        for vt in (STEP_VT[3], STEP_VT[4]):
-            e.w32(vt + 0x8c, e.new_stub('beh.vt+0x8c', 's0,s1', 8, self.step_state))
+        # The jump step's state: a fake, numbered as the port's (the others'
+        # are real); a sound step's sound played at a place (0x56e7e0).
+        e.w32(STEP_VT[3] + 0x8c, e.new_stub('beh.vt+0x8c', 's0,s1', 8, self.step_state))
+        e.stub(0x56e7e0, '0x0056e7e0', 'c,s0', 8, self.sound_at)
         # Three valves, the third "mcbdeploy" ([0x60b4a8], held at [0x60b4ac] 1):
         # their value holders the real 0x5cd558 (vt+0x04 its +0x04); the set
         # 0x4d3c00 stores the value.
@@ -203,6 +208,11 @@ class Original(ts.Original):
         out = [-2 & 0xffffffff if r == NULL_STEP else self.elem_id.get(r, 0 if r == 0 else -1) & 0xffffffff, n]
         return out + [e.r32(buf + 4 * k) for k in range(min(n, 8))]
 
+    def sound_at(self, e, key, a, pop):
+        pos = struct.unpack('<3I', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))
+        self.t.handle(key, [a[0], *pos, a[1]])
+        e._ret(0, pop)
+
     def step_state(self, e, key, a, pop):
         place, order = a[0], a[1]
         beh = e.uc.reg_read(to.UC_X86_REG_ECX)
@@ -227,6 +237,8 @@ class Original(ts.Original):
                     e.w32(arr + 4 * k, l)
                 e.cpu.write(a, struct.pack('<4I', NODE_VTS[r[0]], 0, 0, 0) + struct.pack('<3I', *r[1:4]) +
                             struct.pack('<4I', 0, arr, arr + 4 * len(links), arr + 0x10))
+                if r[0] == 11:  # the mcbwait node's valve, value and time
+                    e.cpu.write(a + 0x2c, struct.pack('<3I', self.valves[r[8] & 1], r[9], r[10]))
                 if r[0] == 6:  # the deploy node's valves, values and target
                     e.cpu.write(a + 0x2c, struct.pack('<5I', self.valves[r[8] & 1], r[9], self.valves[r[10] & 1], r[11],
                                                       at(r[12])))
@@ -243,6 +255,8 @@ class Original(ts.Original):
                 e.cpu.write(a, struct.pack('<4I', STEP_VT[r[0]], 0, 0, at(r[4])))
                 if r[0] in (1, 3, 8, 9):
                     e.w32(a + 0x10, r[1])
+                elif r[0] == 10:
+                    e.w32(a + 0x10, SOUND_BASE + self.elems.index(a))
                 elif r[0] == 2:
                     e.w32(a + 0x10, self.valves[r[1] & 1])
                     e.w32(a + 0x14, r[2])
@@ -347,9 +361,13 @@ def build_net(rng):
         nodes.append(p)
     rows = []
     for p in nodes:
-        kind = rng.choice([0, 0, 0, 5, 6, 6])
-        extra = [rng.randrange(2), rng.randrange(2), rng.randrange(2), rng.randrange(2), rng.randrange(n)] \
-            if kind == 6 else [0] * 5
+        kind = rng.choice([0, 0, 0, 5, 6, 6, 11])
+        if kind == 6:
+            extra = [rng.randrange(2), rng.randrange(2), rng.randrange(2), rng.randrange(2), rng.randrange(n)]
+        elif kind == 11:  # its valve, value, time (set against the clock later), two spare
+            extra = [rng.randrange(2), rng.randrange(2), 0, 0, 0]
+        else:
+            extra = [0] * 5
         rows.append([kind] + [f2i(x) for x in p] + [-1, -1, -1, -1] + extra)
     for k in range(n):
         links = []
@@ -364,7 +382,7 @@ def build_net(rng):
                 continue
             first = len(rows)
             for depth in range(rng.choice([1, 1, 2])):
-                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9])
+                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9, 10])
                 if kind == 8:  # wait_interval: seconds, mostly a clock step or two, now and then NaN
                     a = 0x7fc00000 if rng.random() < 0.04 else f2i(rng.uniform(1, 30) if rng.random() < 0.3 else
                                                              rng.choice([0.5, 2.0, 2.5, 4.0, 6.0]))
@@ -422,6 +440,8 @@ def run_case(probe, seed, calls, stats):
     for r in rows:  # a wait_time mostly a clock step or two past the clock: met exactly, at times
         if r[0] == 9 and rng.random() < 0.7:
             r[1] = f2i(fi(w[6]) + rng.choice([0.0, 0.5, 2.0, 2.5, 4.0, 6.0]))  # one or two clock steps on
+        if r[0] == 11:  # an mcbwait's time likewise, now and then NaN
+            r[10] = 0x7fc00000 if rng.random() < 0.05 else f2i(fi(w[6]) + rng.choice([-1.0, 0.0, 0.5, 2.0, 6.0, 30.0]))
     orig.net(rows)
     flat = [x & 0xffffffff for r in rows for x in r]
     probe.probe_ao_node_net((U * len(flat))(*flat), len(rows))

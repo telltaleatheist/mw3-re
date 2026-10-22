@@ -498,6 +498,47 @@ void WaitState::run(float dt) {
   if (on) order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
 }
 
+// Mech3.exe 1.2 @ 0x004ccd00
+McbWaitState::McbWaitState(Order* o, Behaviour* node) : BehaviourState(o, node) {
+  o->owner->controls->stop();  // IControls vt+0x14
+}
+
+// Mech3.exe 1.2 @ 0x004ccda0. A link that is no behaviour (+0x60, +0x74)
+// leaves the pilot waiting.
+void McbWaitState::run(float dt) {
+  (void)dt;
+  const auto* n = static_cast<const McbWaitNode*>(from);
+  Behaviour* l = nullptr;
+  if (brain_hooks().now() > n->time) {  // past it ([0x0060991c]; a NaN waits on the valve)
+    l = n->link(0);
+  } else if ((n->valve ? n->valve->get() : 0) == static_cast<int32_t>(n->b)) {
+    // FIX (bug): a record without a valve name has none, which the exe reads
+    // (a crash); it reads 0, as the deploy node's.
+    l = n->link(1);
+  } else {
+    return;
+  }
+  if (Behaviour* next = l ? l->as_behaviour() : nullptr) order->set_behaviour(next);  // 0x004e8120
+}
+
+// Mech3.exe 1.2 @ 0x004ccec0
+void SoundState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  float at[3];
+  brain_hooks().position(b.controls->vehicle(), at);  // 0x005a85e0
+  brain_hooks().sound_at(static_cast<const SoundStep*>(from)->sound, at, 1.0f);
+  b.x104 = 1;
+  order->set_behaviour(static_cast<const Step*>(from)->next);  // 0x004e8120: this state destroyed
+}
+
+// Mech3.exe 1.2 @ 0x004cd690
+void GateState::run(float dt) {
+  (void)dt;
+  order->owner->x104 = 1;
+  order->set_behaviour(static_cast<const Step*>(from)->next);  // 0x004e8120: this state destroyed
+}
+
 BehaviourState* Behaviour::make_state(Order& o) {
   switch (kind) {
     case StepKind::Behaviour: return new DefaultState(&o, this);
@@ -510,6 +551,9 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::Speed: return new SpeedState(&o, this);  // 0x004c9ed0
     case StepKind::WaitInterval: return new WaitState(&o, this, false);  // 0x004c9fa0
     case StepKind::WaitTime: return new WaitState(&o, this, true);       // 0x004ca0c0
+    case StepKind::McbWaitNode: return new McbWaitState(&o, this);      // 0x004ccce0
+    case StepKind::Sound: return new SoundState(&o, this);              // 0x004cce50
+    case StepKind::Gate: return new GateState(&o, this);                // 0x004cd560
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
     case StepKind::Scan:
     case StepKind::CanLeave:
