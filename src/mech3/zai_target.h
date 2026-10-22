@@ -74,7 +74,7 @@ struct AiTarget {
   uint32_t allies = 0;               // +0xc4  the same bits but bit 0
   uint32_t enemies = 0xfffffffe;     // +0xc8  every other bit but bit 0
   zmod::ShadowCaster* shadow = nullptr;  // +0xcc  its projected shadow (0x004814e0 keeps it)
-  Handle net = 0;                    // +0xd0  a net of its own, made on first ask (0x004d70f0)
+  class VehicleNet* net = nullptr;   // +0xd0  a net of its own, made on first ask (0x004d70f0; znet owns it)
 
   // The masks from a 5-bit team in each 5 bits (0x004d56e0, 0x004d2960):
   // team 0's bit 0 is no one's ally or enemy. [0x0060b56c] is cleared.

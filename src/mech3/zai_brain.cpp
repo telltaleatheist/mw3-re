@@ -110,13 +110,17 @@ bool BrainHooks::select_target(zgame::Handle v, Contact* c) {
   return t ? t->set_target(c, false) : false;  // vt+0xc0: 0x004d5e40 (the Mech's 0x0041d890 adds the player's HUD lock)
 }
 void BrainHooks::firing_run(Brain& b, float dt) { b.firing.run(dt); }  // 0x004e9fb0
-AiNet* BrainHooks::vehicle_net(zgame::Handle v) {
-  unported("vehicle.vt+0xd8", {v});
-  return nullptr;
+AiNet* BrainHooks::vehicle_net(zgame::Handle v) {  // vt+0xd8: the Mech's 0x004d70f0
+  AiTarget* t = targetable(v);
+  return t ? vehicle_net_of(*t, v) : nullptr;
 }
-Behaviour* BrainHooks::attack_behaviour(AiNet* n) {
-  unported("0x004c0e10", {low(n)});
-  return nullptr;
+Behaviour* BrainHooks::follow_behaviour(AiNet* n) {  // 0x004c0de0
+  auto* vn = dynamic_cast<VehicleNet*>(n);
+  return vn ? vn->follow() : nullptr;
+}
+Behaviour* BrainHooks::attack_behaviour(AiNet* n) {  // 0x004c0e10 (the exe calls it on the vehicle's net)
+  auto* vn = dynamic_cast<VehicleNet*>(n);
+  return vn ? vn->attack() : nullptr;
 }
 bool BrainHooks::attack(Brain& b, AiNet* n) { return unported("0x004e9ca0", {low(&b), low(n)}) != 0; }
 void BrainHooks::own_order_run(Brain& b, float dt) { unported("0x004e81a0", {low(&b), bits(dt)}); }
@@ -169,6 +173,104 @@ bool Order::set_behaviour(Behaviour* b) {
 NetPart* CompiledNet::make_part(Order& o) { return new NetLink(&o, this, false); }
 // Mech3.exe 1.2 @ 0x004c0520 -> 0x004c0540
 NetPart* BuiltinNet::make_part(Order& o) { return new NetLink(&o, this, true); }
+
+// Mech3.exe 1.2 @ 0x004c0090. The base (0x004bfbb0) reserves seven, the
+// list is grown to seven empty slots, then each is made (0x004c8600 and
+// its class's vtable).
+VehicleNet::VehicleNet(zgame::Handle v)
+    : CompiledNet(znet::alloc_id(300, 300, 400), 7), vehicle(v) {
+  static const StepKind kinds[7] = {StepKind::VehFollow, StepKind::VehAttack, StepKind::VehMode1,
+                                    StepKind::VehMode2,  StepKind::Manoeuvre, StepKind::VehOwn,
+                                    StepKind::VehMode4};
+  elems.assign(7, nullptr);
+  for (int i = 0; i < 7; ++i) {
+    elems[size_t(i)] = new Behaviour(kinds[i]);
+    brain_hooks().on_new(0xc, elems[size_t(i)]);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004c02f0
+NetPart* VehicleNet::make_part(Order& o) { return new VehiclePart(&o, this); }
+
+namespace {
+Behaviour* vehicle_slot(const VehicleNet& n, size_t i) {
+  znet::Element* e = i < n.elems.size() ? n.elems[i] : nullptr;
+  return e ? static_cast<AiElem*>(e)->as_behaviour() : nullptr;  // +0x60 then +0x74
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004c0de0, 0x004c0e10, 0x004c0e40
+Behaviour* VehicleNet::follow() const {
+  Behaviour* b = vehicle_slot(*this, 0);
+  return b ? b->as_vehicle_step() : nullptr;
+}
+Behaviour* VehicleNet::attack() const {
+  Behaviour* b = vehicle_slot(*this, 1);
+  return b ? b->as_attack() : nullptr;
+}
+Behaviour* VehicleNet::own_order() const {
+  Behaviour* b = vehicle_slot(*this, 5);
+  return b ? b->as_own_order() : nullptr;
+}
+
+Behaviour* Behaviour::as_vehicle_step() {
+  switch (kind) {
+    case StepKind::VehFollow:
+    case StepKind::VehAttack:
+    case StepKind::VehMode1:
+    case StepKind::VehMode2:
+    case StepKind::VehOwn:
+    case StepKind::VehMode4: return this;
+    default: return nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004d70f0
+VehicleNet* vehicle_net_of(AiTarget& t, zgame::Handle vehicle) {
+  if (!t.net) {
+    t.net = new VehicleNet(vehicle);
+    brain_hooks().on_new(0x20, t.net);
+  }
+  return t.net;
+}
+
+// Mech3.exe 1.2 @ 0x004c0ba0. The mode's slot by its +0x90 test: the
+// manoeuvre's (mode 3) answers none.
+VehiclePart::VehiclePart(Order* o, VehicleNet* n) : NetPart(o), target(n) {
+  Brain& b = *o->owner;
+  if (!b.controls || !b.controls->vehicle()) pending = true;
+  else push_home();
+  static const size_t slot[5] = {0, 2, 3, 4, 6};
+  const int32_t mode = b.params.get<int32_t>(0x40);
+  if (mode >= 1 && mode <= 4) {
+    Behaviour* s = vehicle_slot(*n, slot[mode]);
+    behaviour = s ? s->as_vehicle_step() : nullptr;
+  }
+}
+
+void VehiclePart::push_home() {
+  Brain& b = *order->owner;
+  prev = b.xe4;
+  brain_hooks().position(b.controls->vehicle(), home);  // 0x005a85e0
+  b.xe4 = home;
+}
+
+// Mech3.exe 1.2 @ 0x004c0dc0
+VehiclePart::~VehiclePart() { order->owner->xe4 = prev; }
+
+// Mech3.exe 1.2 @ 0x004c0d60
+void VehiclePart::run(float) {
+  if (!pending) return;
+  // FIX (bug): the exe takes the vehicle's position without asking whether
+  // the pilot has one by now (a crash); here it waits for one.
+  Brain& b = *order->owner;
+  if (!b.controls || !b.controls->vehicle()) return;
+  pending = false;
+  push_home();
+}
+
+// Mech3.exe 1.2 @ 0x0040a890
+AiNet* VehiclePart::net() const { return target; }
 
 namespace {
 // The pilot's controls stopped and the fire let go (the base run 0x004c8690).

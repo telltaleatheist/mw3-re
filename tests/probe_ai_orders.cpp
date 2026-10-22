@@ -425,7 +425,8 @@ struct Hooks : ai::BrainHooks {
 
 // The brain's controls: the AI mech controls' calls.
 struct FakeControls : ai::BrainControls {
-  zgame::Handle vehicle() override { return kOwner; }
+  zgame::Handle veh = kOwner;
+  zgame::Handle vehicle() override { return veh; }
   void stop() override { call("ictl.vt+0x14", {}); }
   void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
   bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
@@ -1213,6 +1214,58 @@ void probe_ao_line(const uint32_t* w, const float* at, int32_t* out) {
   out[0] = ai::clear_line(g_line[0].self, g_line[1].self, at);
   g_line_world = false;
   zmod::zones().mode = 1;
+}
+
+// The vehicle's own net (test_ai_vehnet.py): made twice on one AiTarget,
+// its steps and getters; then its part in an order of the brain with
+// `mode` (+0x40), a vehicle when made or not, run (with one by then when
+// `run`), then destroyed. prev: the brain's home point before (0 none).
+float g_prev_home[3] = {};
+int32_t vehnet_slot(const ai::VehicleNet& n, const ai::Behaviour* b) {
+  for (size_t i = 0; i < n.elems.size(); ++i)
+    if (b && n.elems[i] == b) return static_cast<int32_t>(i);
+  return -1;
+}
+void probe_ao_vehnet(int32_t mode, int32_t vehicle_at_make, int32_t run, int32_t prev, const float* pos,
+                     uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  std::memset(out, 0, 4 * 26);
+  ai::AiTarget t;
+  ai::VehicleNet* n = ai::vehicle_net_of(t, kOwner);
+  out[0] = ai::vehicle_net_of(t, kOwner) == n;
+  out[1] = static_cast<uint32_t>(n->get_id());
+  for (int i = 0; i < 7; ++i) out[2 + i] = static_cast<uint32_t>(static_cast<ai::Behaviour*>(n->elems[size_t(i)])->kind);
+  out[9] = static_cast<uint32_t>(vehnet_slot(*n, n->follow()));
+  out[10] = static_cast<uint32_t>(vehnet_slot(*n, n->attack()));
+  out[11] = static_cast<uint32_t>(vehnet_slot(*n, n->own_order()));
+  out[23] = n->vehicle == kOwner;
+  b.controls = &g_controls;
+  b.params.put<int32_t>(0x40, mode);
+  b.xe4 = prev ? g_prev_home : nullptr;
+  std::memcpy(g_pos, pos, 12);
+  auto home_code = [&](const ai::VehiclePart& p) { return b.xe4 == p.home ? 2u : b.xe4 == g_prev_home ? 1u : 0u; };
+  g_controls.veh = vehicle_at_make ? kOwner : 0;
+  {
+    ai::Order o;
+    o.owner = &b;
+    auto* part = static_cast<ai::VehiclePart*>(n->make_part(o));
+    out[12] = part->pending;
+    out[13] = static_cast<uint32_t>(vehnet_slot(*n, part->behaviour));
+    std::memcpy(out + 14, part->home, 12);
+    out[17] = home_code(*part);
+    if (run) {
+      g_controls.veh = kOwner;
+      part->run(0.1f);
+      out[18] = part->pending;
+      out[19] = home_code(*part);
+      std::memcpy(out + 20, part->home, 12);
+    }
+    delete part;
+    out[24] = b.xe4 == g_prev_home ? 1u : b.xe4 ? 2u : 0u;
+  }
+  g_controls.veh = kOwner;
+  b.xe4 = nullptr;
+  delete n;
 }
 
 }  // extern "C"

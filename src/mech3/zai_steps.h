@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "gamez/zgame/unported.h"
 #include "mech3/zainet.h"
 
 // The pieces a compiled AI net is made of (docs/ai.md, The compiled net):
@@ -22,6 +23,8 @@ class BehaviourState;
 class Brain;
 struct LinkWay;
 struct Order;
+struct AiTarget;
+class NetPart;
 
 // What a step asks of the pilot finding its way (in the exe its brain: the
 // vehicle at brain +0xf0 through the virtual base at +0xe0).
@@ -52,6 +55,15 @@ enum class StepKind : uint32_t {
   Gate = 0x5cc0e0,          // 0x004cd4a0
   Shunt = 0x5cc1b8,         // 0x004cd6e0
   ValveUnion = 0x5cc368,    // 0x004cda50
+  // A vehicle's own net's seven (0x004c0090; their states 0x004c89f0,
+  // 0x004d1ca0, 0x004c9730, 0x004d1300, 0x004cc150, 0x004d1630 are not
+  // ported: the base's here; slot 4 is a Manoeuvre).
+  VehFollow = 0x5caa38,     // slot 0, the follow behaviour (0x004c0de0)
+  VehAttack = 0x5ccaa8,     // slot 1, 0x004d1c80, the attack behaviour (0x004c0e10)
+  VehMode1 = 0x5ca980,      // slot 2, the pilot's mode 1 (+0x40)
+  VehMode2 = 0x5ca8c8,      // slot 3, mode 2
+  VehOwn = 0x5ca810,        // slot 5, the brain's own order (0x004c0e40)
+  VehMode4 = 0x5ca758,      // slot 6, mode 4
   ValveAssign = 0x5cc440,   // 0x004cdc20
   Node = 0x5cc6f0,          // 0x004cf820
   BackupNode = 0x5cc7a8,    // 0x004cfa00
@@ -83,6 +95,12 @@ struct Behaviour : AiElem {
   // picking from `from`, `w` measured (zai_node.cpp, docs/ai.md 17.4a).
   virtual float weight(Brain& b, const Behaviour* from, LinkWay* w);
   virtual void attach(CompiledNet* net) { (void)net; }        // +0x6c
+  // A vehicle's own net's type tests (0x004d2a70 "this", else 0x0040bae0):
+  // +0x90 one of its own (all but its manoeuvre), +0x94 its attack, +0x98
+  // its own-order behaviour.
+  Behaviour* as_vehicle_step();   // +0x90
+  Behaviour* as_attack() { return kind == StepKind::VehAttack ? this : nullptr; }  // +0x94
+  Behaviour* as_own_order() { return kind == StepKind::VehOwn ? this : nullptr; }  // +0x98
   // +0x8c: its state in an order (zai_brain.h; the caller owns it).
   virtual BehaviourState* make_state(Order& o);
   // +0xac 0x004cd490: whether `p` may go on here from `from`; yes but for
@@ -236,5 +254,24 @@ class CompiledNet : public AiNet {
 
   uint8_t x18 = 0;  // +0x18  bit 0 cleared by the ctor
 };
+
+// 0x004c0090 (0x20 bytes, vtable 0x005caaf0, over 0x004bfbb0(0, 7)): a
+// vehicle's own net, made on first ask (vt+0xd8, 0x004d70f0, kept at its
+// AiTarget +0xd0; znet's clear frees it). Its id is znet's first free in
+// [300, 400); its seven steps are the behaviours above. It does not allow
+// an attack (+0x54); its part (+0x5c 0x004c02f0) is a VehiclePart.
+class VehicleNet : public CompiledNet {
+ public:
+  explicit VehicleNet(zgame::Handle vehicle);
+  NetPart* make_part(Order& o) override;
+  bool allows_attack() override { return false; }
+  Behaviour* follow() const;      // 0x004c0de0: slot 0 by +0x90
+  Behaviour* attack() const;      // 0x004c0e10: slot 1 by +0x94
+  Behaviour* own_order() const;   // 0x004c0e40: slot 5 by +0x98
+
+  zgame::Handle vehicle = 0;  // +0x1c
+};
+// 0x004d70f0: the vehicle's own net (vt+0xd8), made the first time.
+VehicleNet* vehicle_net_of(AiTarget& t, zgame::Handle vehicle);
 
 }  // namespace mech3::ai

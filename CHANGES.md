@@ -242,6 +242,7 @@ unusual happens.
 - An AI pilot whose target disappears while it is lining up a shot no longer crashes the game; it gives the shot up.
 - An AI mech with no weapon group selected no longer crashes the game when it turns its torso toward a target.
 - An AI mech whose chosen weapon belongs to no weapon group no longer crashes the game when it picks what to fire.
+- An AI pilot given an order before it has a vehicle no longer crashes the game when the order first runs.
 - A world's `declient.zrd` with a one-frame quicksand texture, or a `QUICK_SAND` block without `DEFAULT_TEXTURE`, no longer crashes the mission load; the one frame is shown, or the quicksand is left untextured. No shipped file has either.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.
 - A crater whose outline passes exactly through a corner of the ground's polygons no longer freezes the game; that piece of ground is left uncut.

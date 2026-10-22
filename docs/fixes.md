@@ -228,6 +228,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | AI firing's drop, 0x4b6690 / 0x4b6700 | The weapon manager's aim is cleared (0x4b0bc0) through the vehicle's +0xd4 without a check | (bug) a vehicle without weapons that is hit (the brain's stand-down) crashes the game | Not cleared without a manager (`wm_clear_aim`) |
 | AI firing's shot, 0x4b5b80 | The weapon type's flight hold (0x4b4c90) goes through the weapon's def +0x1f0 when the def is null | (bug) a weapon without a definition crashes the shot | No hold (`weapon_hold_for_flight`) |
 | AI volley plan, 0x4b6fa0 / 0x4b6e10 | The plan's target slot (the vehicle's +0x6c) is read through without a check | (bug) a plan whose target was cleared (the contact gone) crashes the next firing pass | It counts as spent; its clear line asked of no entity |
+| AI vehicle net's part, 0x4c0d60 | A part made while the pilot had no vehicle takes the vehicle's position at its first run without asking whether it has one by then | (bug) a crash (0x5a85e0 on null) | It waits for a vehicle (`VehiclePart::run`) |
 | AI volley pick, 0x4b1860 | The vehicle's controls (vt+0x2c, vt+0x40, vt+0x140) are followed without a check after the first two; a candidate weapon in no group (+0x04 null) is selected through its group's index | (bug) a vehicle without a pilot chain, or an AI mech whose picked weapon has no group, crashes the game | Nothing is picked; the weapon is passed over (`weapon_planner` volley_pick) |
 | AI volley plan's track, 0x4b6e30 | The bearer's weapon manager (+0xd4) and its selected group (+0x28, -1 for none) are read through without a check | (bug) an AI mech with no group selected (or no weapons) crashes the game when it tracks a target | Nothing is tracked (`wm_group_weapon`) |
 | AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
@@ -416,6 +417,13 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- The vehicle net's mode 3 (mac 4, 2026-10-22, ai.md 17.2): the part
+  0x4c0ba0 picks the behaviour for the pilot's mode (+0x40) by slot and
+  keeps it only when the slot's +0x90 test says it is one of the net's own;
+  mode 3's slot is the combat manoeuvre (0x5bcaf8), whose test answers no,
+  so mode 3 gets none. What reads the choice is not found yet, so the
+  effect is unknown. Kept as the original.
 
 - The AI's alpha strikes (mac 4, 2026-10-22, ai.md 17.7 "The volley"): the
   volley pick 0x4b1860 sums its weapons' heat and damage to decide an alpha
