@@ -4636,11 +4636,14 @@ TEST(survey_c1m1_objectives_headless) {
     pump.limit = 2000;
     pump.stop = [&] { return frames >= 201; };
     app.run(pump);
+    mech3::missions().cleanup(true);  // the world unloaded (mechlib's trees too) for the next test
     for (const auto& [k, n] : engine.unported_counts())
       if (k.find("0x0045") == 0 || k.find("0x0040fe") == 0 || k.find("0x00479be0") == 0 || k.find("0x00446ad0") == 0)
         std::printf("unported %s x%u\n", k.c_str(), n);
   }
   mech3::set_app(nullptr);
+  mech3::reset_states();
+  reset_process_state();
 }
 
 // c1 mission 1 won and lost through its objectives (docs/objectives.md,
@@ -4863,6 +4866,7 @@ TEST(mission_c1m1_mech_sun_shading_headless) {
     pump.limit = 2000;
     pump.stop = [&] { return frames >= 61; };
     app.run(pump);
+    mech3::missions().cleanup(true);  // the world unloaded (mechlib's trees too) for the next test
     EXPECT(on);
     EXPECT(shaded_player);
     EXPECT(turns_seen > 1 || mech3::shade_globals().count == 1);
@@ -4875,16 +4879,20 @@ TEST(mission_c1m1_mech_sun_shading_headless) {
     mech3::set_shadow_parts(0);
   }
   mech3::set_app(nullptr);
+  mech3::reset_states();
+  reset_process_state();
 }
 
 // A survey (MW3_SURVEY=1): each campaign world's sun diffuse (the light's
 // +0x9c), which a lit mech's shade does not follow (docs/shade.md).
 TEST(survey_world_sun_diffuse_headless) {
   if (!have_game() || !std::getenv("MW3_SURVEY")) return;
-  // One world a process (MW3_SURVEY_WORLD, 0..5): a second world's load in
-  // the same process crashes in the model copy (not this survey's matter).
+  // One world (MW3_SURVEY_WORLD, 0..5) or the first n (MW3_SURVEY_WORLDS),
+  // each in an engine of its own, its mission cleaned up with the world.
   const char* only = std::getenv("MW3_SURVEY_WORLD");
-  for (int index = only ? std::atoi(only) : 0; index < (only ? std::atoi(only) + 1 : 1); ++index) {
+  const char* upto = std::getenv("MW3_SURVEY_WORLDS");  // several in one process (the material_copy repro)
+  for (int index = only ? std::atoi(only) : 0; index < (only ? std::atoi(only) + 1 : upto ? std::atoi(upto) : 1);
+       ++index) {
     SavedMounts keep;
     zutl::mounts() = zutl::Mounts{};
     zutl::mount(MW3_GAME_DIR);
@@ -4926,7 +4934,77 @@ TEST(survey_world_sun_diffuse_headless) {
       pump.stop = [&] { return frames >= 3; };
       app.run(pump);
       mech3::set_shadow_parts(0);
+      mech3::missions().cleanup(true);  // the world unloaded with its engine (mechlib's trees too)
+      app.stop_game();
+      app.exit_instance();
     }
     mech3::set_app(nullptr);
   }
+}
+
+// A second world in one process (the campaign's c1 to c2, Instant Action's
+// worlds): c1 mission 1 played a little and cleaned up as the debriefing's
+// CONTINUE does (the world kept), then the Load state with c2's first
+// mission, which unloads c1's world and must load and run.
+TEST(mission_second_world_loads_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_second_world"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.set_launch(mech3::GameEngine::Launch{});
+    app.post_intro_ = &mech3::states().load;
+    int stage = 0, frames = 0;
+    int32_t first_world = -1, second_world = -1;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (stage == 0 && frames == 20) {
+        first_world = mech3::missions().current;
+        engine.mission_cleanup(0);  // the debriefing's CONTINUE (0x0047d030: 0x00491780(0))
+        mech3::GameEngine::Launch l;
+        l.index = 1;  // c2, mission 1
+        engine.set_launch(l);
+        engine.replace_state(6);  // the Load state
+        stage = 1, frames = 0;
+      } else if (stage == 1 && frames == 20) {
+        second_world = mech3::missions().current;
+        stage = 2;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 4000;
+    pump.stop = [&] { return stage == 2; };
+    app.run(pump);
+    EXPECT(first_world == 0);
+    EXPECT(stage == 2 && second_world == 1);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }

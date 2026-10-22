@@ -1225,3 +1225,21 @@ view's ground, the anim lookups 0x50b450 (92).
   one world a process).
 - Nav points (mac 1's item 1): built by the AI's net builder (waynet files
   are version 107, the unported branch 0x004be690): left to the AI side.
+
+## The second-world "crash" (2026-10-21, night)
+
+- Not a game bug. In one engine, c1m1 cleaned up as the debriefing's
+  CONTINUE does (0x00491780(0)) and then c2m1 through the Load state loads
+  and runs, ASan-clean: `mission_second_world_loads_headless` (agrees with
+  mac 4's c1 -> c2 test).
+- What crashed was the tests' own pattern: a test that loads a mission and
+  ends without the mission's cleanup leaves mechlib's cached trees on the
+  node pool the next test's engine resets (`zcls::mechlib_find` on freed
+  nodes, ASan). My survey and `mission_c1m1_mech_sun_shading_headless` /
+  `survey_c1m1_objectives_headless` did that; they now clean up with the
+  world (`missions().cleanup(true)`). The whole mw3tests is ASan-clean
+  (build-asan, 136 tests).
+- Also seen (exe order, not changed): a Load straight from Core without the
+  cleanup unloads the world with the targets still listed, and the next
+  cleanup or entity lookup reads their freed nodes. No game path does that
+  (debriefing, pause menu and briefing all clean up first).
