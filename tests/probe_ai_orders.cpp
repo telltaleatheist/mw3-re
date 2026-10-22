@@ -387,7 +387,10 @@ struct Hooks : ai::BrainHooks {
   float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
   // The attack's test: the vehicle net's unported states as fakes (the
   // emulator's makers stubbed the same), by its behaviour's +0x04 (0).
-  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override { return new FakeState(&o, &b, 0); }
+  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override {
+    if (b.kind == ai::StepKind::VehOwn && !(call("own.state", {}) & 1)) return nullptr;  // 0x004cc150 may make none
+    return new FakeState(&o, &b, 0);
+  }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
   void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
@@ -422,7 +425,10 @@ struct Hooks : ai::BrainHooks {
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
   void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
   void firing_run(ai::Brain&, float dt) override { call("0x004e9fb0", {bits(dt)}); }
-  ai::AiNet* vehicle_net(zgame::Handle v) override { return net_of(static_cast<int32_t>(call("vehicle.vt+0xd8", {v}))); }
+  ai::AiNet* vehicle_net(zgame::Handle v) override {
+    if (v && v == ent_handle(1)) return ai::vehicle_net_of(g_ent_target[1], v);  // the attack test's target: its own net
+    return net_of(static_cast<int32_t>(call("vehicle.vt+0xd8", {v})));
+  }
   ai::Behaviour* attack_behaviour(ai::AiNet* n) override {
     return beh_of(static_cast<int32_t>(call("0x004c0e10", {n ? n->get_id() : 0})));
   }
@@ -502,6 +508,10 @@ void probe_ao_new() {
   g_brain->orders.clear();
   g_serial = 0;
   ai::attack_part_unstacked() = 0;
+  for (ai::AiTarget& t : g_ent_target) {  // the attack test's target nets, made again each case
+    delete t.net;
+    t.net = nullptr;
+  }
 }
 
 void probe_ao_done() {
@@ -1399,6 +1409,35 @@ void probe_ao_fight_world(const float* pos, int32_t active, uint32_t cc, uint32_
 int32_t probe_ao_fight_push() {
   ai::VehicleNet* vn = ai::vehicle_net_of(g_ent_target[1], ent_handle(1));
   return g_brain->push(vn, vn->attack());
+}
+
+// The brain's own order (test_ai_attack.py): contacts 1..3 at a squared
+// distance, on the target vehicle (entity 1) or none; the brain's +0x74 and
+// +0x80; then its run.
+void probe_ao_own_world(const uint32_t* w) {
+  for (int k = 0; k < 3; ++k) {
+    g_seen[k].dist2 = fl(w[2 * k]);
+    g_seen_vehicle[k] = w[2 * k + 1] ? ent_handle(1) : 0;
+  }
+  g_brain->params.put<uint32_t>(0x74, w[6]);
+}
+void probe_ao_own(uint32_t dt) { g_brain->run_own_order(fl(dt)); }
+// The own order: its part (0 none, 1 the vehicle net's) with its net id,
+// home point and the one under it, its state's serial (a fake's).
+void probe_ao_own_row(uint32_t* out) {
+  const ai::Order& o = g_brain->order;
+  std::memset(out, 0, 4 * 8);
+  if (const auto* vp = dynamic_cast<const ai::VehiclePart*>(o.net.get())) {
+    out[0] = 1;
+    out[1] = static_cast<uint32_t>(vp->target->get_id());
+    std::memcpy(out + 2, vp->home, 12);
+    out[5] = home_code(vp->prev);
+    out[6] = vp->pending;
+  } else if (o.net) {
+    out[0] = 2;
+  }
+  if (const auto* fs = dynamic_cast<const FakeState*>(o.state.get())) out[7] = fs->serial;
+  else if (o.state) out[7] = 0xffffffff;
 }
 
 }  // extern "C"

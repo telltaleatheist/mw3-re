@@ -94,7 +94,16 @@ float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported
 float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
-BehaviourState* BrainHooks::vehicle_step_state(Behaviour& b, Order& o) { return new BehaviourState(&o, &b); }
+BehaviourState* BrainHooks::vehicle_step_state(Behaviour& b, Order& o) {
+  // The own order's (0x004cc150: keeping station, item 10d) runs beside the
+  // orders every frame: a stand-in that stops the pilot would undo them, so
+  // none until it is ported (the exe's maker can answer none too).
+  if (b.kind == StepKind::VehOwn) {
+    unported("0x004cc150", {low(&b)});
+    return nullptr;
+  }
+  return new BehaviourState(&o, &b);
+}
 float BrainHooks::stop_share(zgame::Handle v, float d) { return fbits(unported("vehicle.vt+0x12c", {v, bits(d)})); }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return ai::clear_line(v, seen, nullptr); }
 bool BrainHooks::clear_line_at(zgame::Handle v, zgame::Handle e) {
@@ -127,7 +136,7 @@ Behaviour* BrainHooks::attack_behaviour(AiNet* n) {  // 0x004c0e10 (the exe call
   return vn ? vn->attack() : nullptr;
 }
 bool BrainHooks::attack(Brain& b, AiNet* n) { return ai::attack(b, n); }  // 0x004e9ca0
-void BrainHooks::own_order_run(Brain& b, float dt) { unported("0x004e81a0", {low(&b), bits(dt)}); }
+void BrainHooks::own_order_run(Brain& b, float dt) { b.run_own_order(dt); }
 
 Behaviour* BrainHooks::manoeuvre_behaviour(int32_t which) {
   // 0x00410650 / 0x00410680 at start-up; their state (0x004caae0, item 11)
@@ -152,6 +161,32 @@ void Order::run(float dt) {
 
 // Mech3.exe 1.2 @ 0x004e8170
 void Order::pop() { owner->pop(); }
+
+// Mech3.exe 1.2 @ 0x004e81a0. The exe asks the net for its own-order
+// behaviour (0x004c0e40) as a vehicle's own net, which vt+0xd8 always is.
+void Brain::run_own_order(float dt) {
+  BrainHooks& h = brain_hooks();
+  Order& o = order;
+  if (!o.state) {
+    const zgame::Handle v = controls ? controls->vehicle() : 0;
+    const Contact* c = v ? h.pick(v, kAny) : nullptr;  // 0x004d6b90(3)
+    const zgame::Handle cv = c ? h.contact_vehicle(c) : 0;  // 0x004e6fe0
+    const zgame::Handle bv = cv ? h.bearer(cv) : 0;          // vt+0x40
+    if (bv && !(c->dist2 >= params.get<float>(0x74))) {
+      if (AiNet* n = h.vehicle_net(bv)) {  // vt+0xd8
+        o.net.reset(n->make_part(o));     // vt+0x5c, in place at +0x30
+        if (o.net) {
+          auto* vn = dynamic_cast<VehicleNet*>(n);
+          Behaviour* own = vn ? vn->own_order() : nullptr;
+          o.state.reset(own ? own->make_state(o) : nullptr);  // vt+0x8c, at +0x54
+          if (!o.state) o.net.reset();
+        }
+      }
+    }
+  }
+  if (o.net) o.net->run(dt);
+  if (o.state) o.state->run(dt);
+}
 
 // Mech3.exe 1.2 @ 0x004e80b0: the old state and part destroyed, then the
 // net's part (the built-in net's for none) and the behaviour's state (the

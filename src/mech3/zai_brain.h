@@ -224,7 +224,7 @@ class BrainHooks : public zgame::Unported {
   virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004d70f0)
   virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10
   virtual bool attack(Brain& b, AiNet* current_net);           // 0x004e9ca0 (item 10)
-  virtual void own_order_run(Brain& b, float dt);              // the brain's own order's vt+0x04, 0x004e81a0 (item 10)
+  virtual void own_order_run(Brain& b, float dt);              // the brain's own order's vt+0x04: Brain::run_own_order
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
   // The player's vehicle ([0x0060861c] +0x14) and its allies (+0xc4, the
   // AiTarget masks); false when there is no pilot or no vehicle. Silent.
@@ -245,7 +245,7 @@ class BrainHooks : public zgame::Unported {
   virtual float stop_share(zgame::Handle v, float d);  // vt+0x12c, the Mech's 0x0041d240
   // The states a vehicle net's follow, mode and own-order behaviours make
   // (0x004c89f0, 0x004c9730, 0x004d1300, 0x004d1630, 0x004cc150: not ported):
-  // the base state.
+  // the base state; for the own order's none (logged).
   virtual BehaviourState* vehicle_step_state(Behaviour& b, Order& o);
   // The deploy state's: the vehicle's local vertical speed (+0x40) and its
   // placement (vt+0xdc, the Mech's set_place 0x00418f30).
@@ -508,6 +508,12 @@ class Brain {
   bool push_object(znet::Object* o);               // 0x004e8960
   bool clear_if_object(znet::Object* o);           // 0x004e9100
   void push_order();  // 0x004e9d80 -> 0x004e9d90: a new order without parts (the template's)
+  // 0x004e81a0 (the own order's vt+0x04, with params +0x80 at 1): with no
+  // state yet, the nearest contact of any side (0x004d6b90) within +0x74
+  // (squared) gives its vehicle's own net a part in the order and that net's
+  // own-order behaviour (slot 5) its state (both dropped when there is no
+  // state); then the part's and the state's runs.
+  void run_own_order(float dt);
 
   // The controls it is a base of in the exe (set by the frame and by the AI
   // controls): what its orders' states steer.
