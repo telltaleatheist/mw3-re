@@ -186,6 +186,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | An objective's further lines, 0x45e110 -> 0x40fe20 | The description's second and later lines are passed as a printf format | (bug) a `%` in a mission's objective text reads arguments that are not there | The line is shown as it is |
 | Valve scans, 0x4e3200 | A scan action keeps the vehicle's brain found at mission start and writes through it when it fires | (bug) a scan naming a vehicle that is missing or not AI-driven writes through null (a crash); no shipped mission has scans | Nothing is written |
 | Valve teleport, 0x4e3ba0 | The pilot's current order is read from the back of its deque without a check | (bug) a pilot with no order (a net that is not compiled) reads before the deque: a crash | Skipped |
+| c4b missions 5 and 6's boundaries, the aiv.zrd vlist reader 0x4dfb00 | m6's player entries name `reg_inside_c4m7` / `reg_outside_c4m7`, which no archive has (m6 ships `..._c4bm7`); m5's outside entry sets the valve `reg_outside_c4m5` where the fail objective watches `outside_c4m5` | (bug, `zfix bugs`, Owen 2026-10-20 and the lead 2026-10-22) leaving either mission's area never fails it | The reader takes m6's names as `..._c4bm7` (the pair every m6 vehicle starts in, ai.md section 8) and m5's valve as `outside_c4m5`; walking out of either fails it a frame later (`test_program` missions_c4b_m5_m6_fail_when_left; the exe's reading `test_ai_readers.py`). c4b m4's inverted entries stay (a candidate) |
 | The player's vlist, 0x4d8990 (controls made once, 0x427280) | The player's controls keep the last mission's aiv.zrd record; the next launch's placement update (0x4782f0) runs its vlist before the new record is given, over the valves the last mission's cleanup freed | (bug) a read of freed memory at every mission start after the first (a crash in the port, likely silent in the exe) | The settings cleared with the valves at the mission's end (the program's `valves_end`); `test_ai_vlist.py` checks the tick itself on the exe's path |
 | Valve reactions, 0x4d3bf0 | A valve's reactions fire whatever runs them; an update (0x4e3d90) fires its target's whatever the value, so a valve updating itself, or a ring of updates and conditions, re-enters without end | (bug) the stack runs out and the game crashes; no shipped file has a loop (Owen 2026-10-20: he may make missions) | A valve firing while its own reactions run is skipped: each reaction round the loop runs once per set. Unconditional: the only reaction that re-fires at once is the update, so nothing the exe survives changes (`test_ai_valves.py` counts the skips: none in 352 cases; `test_fixes` fix_valves_that_update_themselves_fire_once) |
 | Delayed updates, 0x4d3d30 | A lone timer whose update starts another delayed update becomes a list of both as it runs; the slot is then cleared | (bug) the new timers are lost: c3 mission 2's `ambush_powerup_down_a` can lose three radio lines | The list stays (`zfix bugs`; off, as the exe, which the test checks) |
@@ -396,12 +397,11 @@ To do, in the specialists' queues:
   area (the region names the player's orders give do not exist; find the
   pair the mission's geometry means). FIX (bug). The pair: `c4bm7`
   (ai.md section 8: every m6 vehicle starts inside it; the `c4bm6` files
-  are two small unrelated areas). To do, behind `zfix bugs`, once the
-  player's vlist runs in the program. Found with it, for Owen: c4b m5's
-  outside entry sets `reg_outside_c4m5` where the objective watches
-  `outside_c4m5` (the same symptom, a clear slip: a candidate for the same
-  fix); c4b m4's entries are inverted (entering its "outside" region fails
-  the mission), possibly meant: left as is.
+  are two small unrelated areas). Done (the table above), with c4b m5's
+  valve name (`reg_outside_c4m5` for `outside_c4m5`, the lead 2026-10-22),
+  both behind `zfix bugs`. c4b m4's entries are inverted (entering its
+  "outside" region fails the mission), possibly meant: left as is, a
+  candidate for Owen.
 - TAG: done (mac2/tag-fix): the hold in whole milliseconds, the beam's
   time its 30 fps one, the strike on the marked unit (weapons.md, "TAG,
   end to end", The fix).

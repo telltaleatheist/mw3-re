@@ -388,3 +388,12 @@ Newest last. One short entry per item: what, commits, what to remember.
   suite's second mission). Cleared with the valves.
 - test_ai_vlist.py: each list also run through the exe's 0x4d8990 on a
   fake player controls block; won/lost test: walking out of c1m1 fails it.
+
+## 2026-10-22 Item 3b2: c4b m5/m6 boundaries (mac4/c4bnames)
+
+- zrdraiv's vlist entries, behind bugs: m6's reg_*_c4m7 read as
+  reg_*_c4bm7, m5's valve reg_outside_c4m5 as outside_c4m5 (the names occur
+  nowhere else). Headless: walking out of m5 and m6 fails each a frame later.
+- A bugs-off launch after another crashes on the HUD's unset block (the
+  exe's uninitialised member, hud.cpp FIX); the headless test runs bugs on,
+  the exe's reading is test_ai_readers'.

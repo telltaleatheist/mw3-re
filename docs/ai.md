@@ -474,7 +474,11 @@ Two neighbours, found on the way:
   may be meant; left as it is.
 
 The player's own vlist, which these boundaries need, runs since item 3b1
-(17.5).
+(17.5). **Fixed** (item 3b2, behind `zfix bugs`): the vlist reader
+(`zrdraiv`, 0x4dfb00's entries) takes m6's `reg_inside_c4m7` /
+`reg_outside_c4m7` as the `..._c4bm7` files and m5's valve
+`reg_outside_c4m5` as `outside_c4m5`; no other shipped file has these
+names. Headless, walking out of either mission fails it the next frame.
 
 ## 9. The compiled net
 
