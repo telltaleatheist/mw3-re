@@ -436,13 +436,13 @@ void LabConfigList::select(int32_t index) {
   if (s) s->refresh();
 }
 
-bool LabItemList::read_control(zrdr::Node*, ztwod::Dialog*) {
+bool LabLaterList::read_control(zrdr::Node*, ztwod::Dialog*) {
   call(0x84);
   return true;
 }
-void LabItemList::after_bind() { call(0x88); }
-void LabItemList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabItemList::hide() { call(0x64); }
+void LabLaterList::after_bind() { call(0x88); }
+void LabLaterList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
+void LabLaterList::hide() { call(0x64); }
 
 bool LabWeaponList::read_control(zrdr::Node*, ztwod::Dialog*) {
   call(0x84);
@@ -840,10 +840,10 @@ void LabScreen::refresh(Handle config) {
     e.unported("0x00457330", {mech_data, cfg});
     loadouts.call_fn("0x0044b230", {cfg});
     unassigned.x224 = 0;
-    unassigned.x220 = lab.store_;
+    unassigned.store = lab.store_;
     unassigned.refill();
     assigned.x224 = cfg;
-    assigned.x220 = cfg;
+    assigned.store = cfg;
     assigned.refill();
     if (armor_titles) e.unported("0x00450e00", {armor_titles, cfg});
     engine_table.call_fn("0x0044b4b0", {cfg});

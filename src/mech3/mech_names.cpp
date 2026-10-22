@@ -266,4 +266,14 @@ int32_t weapon_slots(int32_t weapon, int32_t tech, bool none) {
   return t && !none ? t->lab[tech != kClan].slots : 0;
 }
 
+// Mech3.exe 1.2 @ 0x00484d70
+const char* part_display_name(int32_t part, const char* (*message)(void*, int32_t), void* ctx) {
+  static constexpr int32_t kMsg[9] = {0, 0x194, 0x197, 0x198, 0x199, 0x19a, 0x193, 0x196, 0x195};
+  static const char* const kNames[7] = {"Left Hand", "Right Hand", "Left Calf", "Right Calf", "Left Foot",
+                                        "Right Foot", "Hip"};
+  if (part >= 1 && part <= 8) return message(ctx, kMsg[part]);
+  if (part >= 9 && part <= 15) return kNames[part - 9];
+  return "none";
+}
+
 }  // namespace mech3

@@ -294,6 +294,61 @@ Ported in `mech3/lab_screen.{h,cpp}`, checked by `test_lab_screen.py`.
   - FIX (A): the export\ and import\ folders instead of the dialogs, and
     no checksum check (FIX (trap)).
 
+### The item lists' base (step 5a)
+
+UNASSIGNED_LIST and ASSIGNED_LIST share a base (0x00451b40, vtable
+0x005c1b70, 0x22c bytes; `LabItemList` in `mech3/lab_items.{h,cpp}`), a near
+copy of the pilot screen's FileList (menus.md) with its own row object.
+
+- **Items** (0x10 bytes): a name (strdup'd; null gives an empty row), the
+  store item, a count and a font. +0x90 adds by text, +0x94 by store item
+  (ammo, kind 2, is message 0xf59 with the item's name (vt+0x20); a count
+  of -1 takes the item's critical slots, vt+0x18), +0x98 by part (0x00484d70's
+  name, the part number as the "item"). Adding does not lay out; clearing
+  (0x00453420) does.
+- **Reading** (0x00451e60): SELECTED_FONT (else NORMAL_FONT), NORMAL_FONT,
+  LARGE_FONT, STATIC_FONT, MASS_FONT, COUNT_FONT, GREY_FONT, ROLLOVER_SOUND,
+  SELECT_SOUND, SPACING, OFFSET, SIZE (the rows' width and height), HEIGHT
+  (12: SIZE's height in rows), BAR (an image at its OFFSET from the selected
+  row), ITEMROLLOVER (an image beside the row under the mouse) and FONT, the
+  rollover colour, read from the list's own entry: the shipped lists keep it
+  inside ITEMROLLOVER, so it is never found and hovering does not recolour.
+  UP and DOWN (vtables 0x005c1cc0, 0x005c1c30) are placed from the list and
+  taken back out of the dialog; the list updates them. The list sits at its
+  position with its image's rectangle (0x00452bc0).
+- **Binding** (0x004522d0): the rows made (0x00453020) and a selected row
+  (never shown here), then the layout.
+- **The rows** (0x00451410, vtable 0x005c1ac0, 0x1490 bytes): a Text with the
+  name over a panel (`HudPanel`, 0xac by 13, (25, 25, 25)), the count
+  ("%02d", right-aligned, 0xac right), two texts at 0x93 and 0x7a and a green
+  line from the name's end to 0x89 (the subclasses'). A row hits on its text
+  rectangle 0xac wide and draws only for an item with a name.
+- **Layout** (0x00452780): rows from `top` down from OFFSET, SPACING.y + 13
+  apart while they fit SIZE's height (3 pixels over allowed); the selected
+  item's row in SELECTED_FONT with the BAR on it; the shown range's end
+  kept at +0x15c; the rectangle round the rows (as wide as the widest
+  panel) when the list has no image.
+- **The frame** (0x004523f0), hover (0x00452cb0), enter and leave, the
+  press (0x00452f40) and the hit (0x00452af0) are FileList's with small
+  differences: the arrows light by their hit alone (not their enabled
+  state), the hover does not tell the rows, a scroll (0x00452a90) refills
+  rather than lays out, select (0x00452a40) refuses -1 and does not scroll
+  into view, DOWN is enabled while the end is below the item count.
+- The base's own refill (0x00453540, the store's items through the filter
+  at +0x228) is reached by neither list: both have their own (steps 5b, 6).
+- `HudPanel`'s destructor (0x0043a890) was missing: the panel's image (its
+  colours and alpha) leaked with every HUD; now freed, as the original.
+
+Tested by `test_lab_list.py` (`tests/probe_lab_list.cpp`): the base list
+bound from LABMENU's UNASSIGNED_LIST or ASSIGNED_LIST entry (shipped or
+mutated) in a menu screen whose on_button is logged, with items by text,
+store item and part, a store refill, selects, scrolls, clears, show and hide
+and frames of the mouse over the rows and arrows; the dialog, list, items,
+rows, arrows and images dumped, then the destructor. 100 seeds match.
+Breaking it: 34 of 37 caught; the three left change nothing the original
+shows (a grey that packs to the same 565 pixel, the fill's font set twice
+as the exe does, the panel's alpha set just before its image is freed).
+
 ## 3. What the rest of the game needs from it
 
 - **The briefing**: MECHLAB opens it on the lab store (0x00408b40); after
@@ -353,8 +408,9 @@ One sitting each; each with its differential test and break tests.
 4. **The loadouts page**: CONFIG_LIST (0x00449c40), CONFIG_EDIT, rename,
    save (0x00424f60), delete (0x00425090), choosing a loadout for the slot
    (`set_config` with the store).
-5. **The item pages**: SELECT_WEAPON / AMMO / EQUIP / ARMOR, the
-   UNASSIGNED_LIST (0x005c1d68): adding and removing items between the
+5. **The item pages**, in two: 5a the item lists' base (0x00451b40, the
+   rows, the arrows; done, above), 5b SELECT_WEAPON / AMMO / EQUIP / ARMOR,
+   the UNASSIGNED_LIST (0x005c1d68): adding and removing items between the
    store and the loadout.
 6. **The criticals page**: ASSIGNED_LIST (0x005c1fe0) and the part
    buttons: placing items in parts' slots.

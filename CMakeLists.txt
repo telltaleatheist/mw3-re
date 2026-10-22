@@ -195,6 +195,7 @@ add_library(mw3core STATIC
   src/mech3/options_menu.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
+  src/mech3/lab_items.cpp
   src/mech3/controls_menu.cpp
   src/mech3/music.cpp
 )
@@ -243,6 +244,7 @@ add_library(mw3probe SHARED
   tests/probe_twod.cpp
   tests/probe_mainmenu.cpp
   tests/probe_menus.cpp
+  tests/probe_lab_list.cpp
   tests/probe_ctlscreen.cpp
   tests/probe_loadsave.cpp
   tests/probe_pilot.cpp

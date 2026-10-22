@@ -975,3 +975,33 @@ MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
   shipped MESSAGEBOX has no YES/NO/ABORT/RETRY/IGNORE; the original reports
   them too) print their format unfilled ("BindButton (%s) failed"): the
   report printer's, not looked at.
+
+## 2026-10-21 Lab step 5a: the item lists' base (branch mac3/lab5)
+
+- Split from step 5 (lead): the base both item lists share, 0x00451b40
+  (vtable 0x005c1b70), ported in mech3/lab_items.{h,cpp}: the items, the
+  reading (fonts, sounds, SPACING/OFFSET/SIZE/HEIGHT, BAR, ITEMROLLOVER,
+  FONT, UP/DOWN taken back out of the dialog), the rows (0x00451410, a Text
+  with a HudPanel, three more texts and a green line), the arrows
+  (0x004567c0..), the layout, frame, hover, press, hit, select, scroll and
+  the base refill (reached by neither list). A near copy of FileList; the
+  differences are in mechlab.md (The item lists' base).
+- The lab screen's two lists now derive from it through LabLaterList,
+  which keeps their own read/bind/show/hide/refill as "lab.vt+" hooks
+  until 5b and 6; test_lab_screen 40/40 unchanged.
+- HudPanel had no destructor: the original's 0x0043a890 frees the panel's
+  image (its colours and alpha); the port leaked it with every HUD.
+- The part names (0x00484d70) moved to mech_names (part_display_name),
+  shared by the HUD and Engine::part_text; new Engine hooks lab_item_kind,
+  lab_item_name, lab_item_slots (the store items' vt+0x0c, +0x20, +0x18).
+- Test: test_lab_list.py / probe_lab_list.cpp, 100 seeds. Took a menu
+  screen (0x0040a110) as the dialog so both sides build the same; CopyRect,
+  _strdup, floor's x87 code, FastMenu and the display size stubbed; an
+  empty font name finds no font. Breaks (scratchpad lab5/breaks5a.py):
+  first 30/37; the test then got arrow holds (the repeat's wait to exactly
+  0), row-edge spots, SIZE heights of 16k-3, an item-font op and a higher
+  SELECTED_FONT drop; now 34/37, the three left equivalent (a grey that
+  packs to the same 565 pixel, the fill's font set twice as the exe does,
+  the panel's alpha set just before its free).
+- Discoveries: the lists' hover colour is never found (FONT sits in
+  ITEMROLLOVER in the data), the arrows' hold-to-scroll timing.

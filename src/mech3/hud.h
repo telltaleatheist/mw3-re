@@ -70,6 +70,7 @@ float hud_opacity();                 // 0x0043a7c0
 class HudPanel : public ztwod::Image {
  public:
   HudPanel();                        // 0x0043a7e0
+  ~HudPanel() override;              // 0x0043a890: its image freed
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x0043a8f0
   void set_color(uint16_t c);        // 0x0043aaa0
   void set_alpha(uint8_t a);         // 0x0043a9d0: 0xfe and up opaque
