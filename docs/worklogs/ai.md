@@ -691,3 +691,10 @@ Newest last. One short entry per item: what, commits, what to remember.
 - test_ai_node.py: the gate's state real (the jump's still a fake), sound
   steps (kind 10) and mcbwait nodes (11); 83 branches, 11 of 11 breaks.
 - FIX (bug) extended: an mcbwait record without a valve name.
+
+## 2026-10-22 Item 3c: shunt, valve union, valve_assign (mac4/behaviours)
+
+- Shunt and valve union make the valve step's PassState; AssignState
+  (0x4cdcf0) sets its valve first. FIX (bug) extended to the assign.
+- test_ai_node.py: kinds 12-14 in the chains; 88 branches, 6 of 6 breaks.
+- The property steps are all done; the jump (item 4 on my list) is next.

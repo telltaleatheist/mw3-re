@@ -937,6 +937,17 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
       case 10:  // a sound step: its fake sound 0x7000 + its index
         g_elems.push_back(std::make_unique<ai::SoundStep>(reinterpret_cast<void*>(uintptr_t{0x7000} + uintptr_t(i))));
         break;
+      case 12: g_elems.push_back(std::make_unique<ai::Step>(ai::StepKind::Shunt)); break;
+      case 13: {  // a valve union: b entries, each (valve, count) two bits of a
+        ai::ValveUnion u;
+        for (uint32_t k = 0; k < r[2]; ++k)
+          u.valves.push_back({g_node_valves[r[1] >> (2 * k) & 1].get(), static_cast<int32_t>(r[1] >> (2 * k + 1) & 1)});
+        g_elems.push_back(std::make_unique<ai::UnionStep>(u));
+        break;
+      }
+      case 14: g_elems.push_back(std::make_unique<ai::AssignStep>(ai::ValveAssign{g_node_valves[r[1] & 1].get(),
+                                                                                   static_cast<int32_t>(r[2])}));
+        break;
       case 11: {  // an mcbwait node: its valve, value and time in the five
         const float p[3] = {fl(r[1]), fl(r[2]), fl(r[3])};
         g_elems.push_back(std::make_unique<ai::McbWaitNode>(p, nullptr, 0, nullptr, g_node_valves[r[8] & 1].get(),
@@ -1023,7 +1034,9 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
     if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve || x->kind == ai::StepKind::Scan ||
               x->kind == ai::StepKind::CanLeave || x->kind == ai::StepKind::CanLeaveNot ||
               x->kind == ai::StepKind::WaitInterval || x->kind == ai::StepKind::WaitTime ||
-              x->kind == ai::StepKind::McbWaitNode || x->kind == ai::StepKind::Sound || x->kind == ai::StepKind::Gate))
+              x->kind == ai::StepKind::McbWaitNode || x->kind == ai::StepKind::Sound || x->kind == ai::StepKind::Gate ||
+              x->kind == ai::StepKind::Shunt || x->kind == ai::StepKind::ValveUnion ||
+              x->kind == ai::StepKind::ValveAssign))
       o.state->run(fl(dt));
   }
   std::memset(out, 0, 4 * 46);

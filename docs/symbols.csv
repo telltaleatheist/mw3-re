@@ -1212,3 +1212,7 @@ address,name,source,notes
 0x004ccec0,sound_run,asm,"ported: SoundState::run (BrainHooks::sound_at)"
 0x004cd560,gate_make_state,asm,"ported: Behaviour::make_state (Gate)"
 0x004cd690,gate_run,asm,"ported: GateState::run"
+0x004cd700,shunt_make_state,asm,"ported: Behaviour::make_state (Shunt): PassState"
+0x004cdb60,valveunion_make_state,asm,"ported: Behaviour::make_state (ValveUnion): PassState"
+0x004cdc80,valve_assign_make_state,asm,"ported: Behaviour::make_state (ValveAssign)"
+0x004cdcf0,valve_assign_run,asm,"ported: AssignState::run"
