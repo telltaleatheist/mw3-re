@@ -212,6 +212,7 @@ void Mech::update(float dt) {
     if (controls->wrapped) {
       controls->wrapped = 0;
       if (g_calls.unwrap) controls = g_calls.unwrap(*controls);
+      else controls = controls->unwrap();  // primary vt+0x04
     }
     if (g_calls.x68c_update) g_calls.x68c_update(x68c, frame_dt);
     frame_dt = 0.0f;

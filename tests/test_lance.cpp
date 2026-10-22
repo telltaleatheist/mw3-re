@@ -3,7 +3,9 @@
 
 #include "check.h"
 #include "mech3/mech.h"
+#include "mech3/lance_orders.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/zai_params.h"
 
 // 0x0049e540 -> 0x0049e4e0 (the AI controls' death): a pilot of the
@@ -39,4 +41,29 @@ TEST(lance_dead_pilots_region_triggers_go_to_the_player) {
   EXPECT(pc.settings.vlist->size() == 4);
   world().mission_player = saved;
   player.controls = nullptr;
+}
+
+// The pocket commander's death (0x0046abb0, IControls vt+0xa8): the mode
+// left and deleted, the player's old controls his mech's again.
+TEST(lance_pocket_commander_left_on_death) {
+  using namespace mech3;
+  pocket_calls() = PocketCalls{};
+  pocket_calls().view_state = [](PocketControls&, int32_t) {};  // no camera on a bare mech
+  Mech m;
+  auto* prev = new PlayerControls();
+  prev->construct(1);
+  prev->owner = &m;
+  m.controls = prev;
+  PlayerControls*& inst = player_controls_instance();
+  PlayerControls* const saved = inst;
+  inst = prev;
+  MechControls* c = lance_dispatch(prev, 2);
+  EXPECT(c && c->pocket());
+  m.controls = c;
+  c->on_death();
+  EXPECT(m.controls == prev && prev->owner == &m && inst == prev && !pocket_globals().active);
+  m.controls = nullptr;
+  inst = saved;
+  delete prev;
+  pocket_calls() = PocketCalls{};
 }

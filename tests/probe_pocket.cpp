@@ -1,0 +1,117 @@
+// The pocket commander's controls (test_pocket.py): mech3/mech_pocket on a
+// real Mech and player controls, the view, HUD and panel stood in (logged).
+#include <cstdint>
+#include <cstring>
+#include <vector>
+
+#include "mech3/lance_orders.h"
+#include "mech3/mech.h"
+#include "mech3/mech_control.h"
+#include "mech3/mech_pocket.h"
+
+using namespace mech3;
+
+namespace {
+std::vector<uint32_t> g_log;
+const int32_t* g_in;
+int g_panels = 0;
+uint32_t fbits(float f) {
+  uint32_t u;
+  std::memcpy(&u, &f, 4);
+  return u;
+}
+void log2(uint32_t a, uint32_t b) { g_log.push_back(a), g_log.push_back(b); }
+bool viewed_hud() { return g_in[2] && g_in[3]; }
+// in: 0 screen height, 1 camera mode (-1 none), 2 the mech viewed, 3 a HUD,
+// 4 powered down, 5 the instance the controls (0) or another (1), 6 +0x154,
+// 7 the key count, 8.. the keys.
+void put_inputs(const MechControls& c) {
+  g_log.push_back(c.throttle_returns), g_log.push_back(c.throttle_held), g_log.push_back(fbits(c.throttle_target));
+  g_log.push_back(c.x5a), g_log.push_back(fbits(c.joy_throttle)), g_log.push_back(c.reverse);
+  g_log.push_back(fbits(c.throttle)), g_log.push_back(fbits(c.jump)), g_log.push_back(fbits(c.jj_forward));
+  g_log.push_back(fbits(c.jj_strafe)), g_log.push_back(fbits(c.turn)), g_log.push_back(fbits(c.pitch));
+  g_log.push_back(fbits(c.twist)), g_log.push_back(c.fire), g_log.push_back(c.joy_throttle_set);
+}
+}  // namespace
+
+extern "C" {
+
+int32_t probe_pocket_run(const int32_t* in, const float* inputs, uint32_t* out, int32_t cap) {
+  g_log.clear();
+  g_in = in;
+  g_panels = 0;
+  PocketCalls& pc = pocket_calls();
+  pc = PocketCalls{};
+  pc.view_pocket = [](bool on) { log2(1, on); };
+  pc.camera_mode = []() { return g_in[1]; };
+  pc.set_camera_mode = [](int32_t id) { log2(2, static_cast<uint32_t>(id)); };
+  pc.view_state = [](PocketControls&, int32_t v) { log2(3, static_cast<uint32_t>(v)); };
+  pc.hud_mode = [](Mech&, bool on) {
+    if (viewed_hud()) log2(4, on);
+  };
+  pc.hud_hold = [](Mech&, bool hold) {
+    if (viewed_hud()) log2(7, hold);
+  };
+  pc.display_width = []() { return g_in[0]; };
+  pc.net_element = []() { return 0u; };
+  pc.panel_make = [](PocketControls&) -> void* {
+    g_log.push_back(5);
+    return reinterpret_cast<void*>(static_cast<uintptr_t>(0x5000 + ++g_panels));
+  };
+  pc.panel_free = [](void*) { g_log.push_back(6); };
+  pc.panel_frame = [](PocketControls&, float) { g_log.push_back(10), g_log.push_back(11); };
+  pc.panel_pick = [](PocketControls&, int32_t unit) {
+    log2(8, static_cast<uint32_t>(unit));
+    return true;
+  };
+  pc.player_keys = [](PocketControls&, int32_t cmd) { log2(9, static_cast<uint32_t>(cmd)); };
+
+  Mech m;
+  m.powered_down = in[4] != 0;
+  auto* prev = new PlayerControls();
+  prev->construct(1);
+  const float* f = inputs;
+  prev->throttle_returns = f[0] != 0, prev->throttle_held = f[1] != 0, prev->throttle_target = f[2];
+  prev->x5a = f[3] != 0, prev->joy_throttle = f[4], prev->reverse = f[5] != 0, prev->throttle = f[6];
+  prev->jump = f[7], prev->jj_forward = f[8], prev->jj_strafe = f[9], prev->turn = f[10], prev->pitch = f[11];
+  prev->twist = f[12], prev->fire = static_cast<uint8_t>(f[13]), prev->joy_throttle_set = f[14] != 0;
+  prev->owner = &m;
+  m.controls = prev;
+  PlayerControls other;
+  PlayerControls*& inst = player_controls_instance();
+  PlayerControls* const saved_inst = inst;
+  inst = in[5] ? &other : prev;
+  auto id = [&](const void* p) -> uint32_t { return p == prev ? 1u : p == &other ? 2u : p ? 3u : 0u; };
+
+  MechControls* r = lance_dispatch(prev, 2);
+  PocketControls* p = r ? r->pocket() : nullptr;
+  g_log.push_back(0x20), g_log.push_back(p ? 1 : 0);
+  if (p) {
+    g_log.push_back(static_cast<uint32_t>(p->saved_camera)), g_log.push_back(id(p->prev));
+    g_log.push_back(id(p->prev_instance)), g_log.push_back(static_cast<uint32_t>(p->order));
+    g_log.push_back(static_cast<uint32_t>(p->panel_x)), g_log.push_back(static_cast<uint32_t>(p->panel_y));
+    g_log.push_back(p->panel ? 1 : 0), g_log.push_back(inst == p), g_log.push_back(pocket_globals().active == p);
+    put_inputs(*p);
+    p->x154 = static_cast<uint32_t>(in[6]);
+    for (int k = 0; k < in[7]; ++k) p->command(in[8 + k]);
+    g_log.push_back(0x21);
+    p->update(1.0f / 30);
+    g_log.push_back(0x22);
+    g_log.push_back(fbits(p->jump_target)), g_log.push_back(p->jump_held), g_log.push_back(fbits(p->jj_strafe));
+    g_log.push_back(fbits(p->jj_forward)), g_log.push_back(p->fire);
+    MechControls* back = lance_dispatch(p, 2);
+    g_log.push_back(0x23), g_log.push_back(id(back)), g_log.push_back(id(inst));
+    g_log.push_back(pocket_globals().active ? 1 : 0), g_log.push_back(prev->owner == &m);
+    put_inputs(*prev);
+  }
+  inst = saved_inst;
+  m.controls = nullptr;
+  delete prev;
+  pc = PocketCalls{};
+  const int32_t n = static_cast<int32_t>(g_log.size());
+  if (n > cap) return -1;
+  std::memcpy(out, g_log.data(), 4 * g_log.size());
+  return n;
+}
+
+}  // extern "C"

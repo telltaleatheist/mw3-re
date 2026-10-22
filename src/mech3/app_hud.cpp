@@ -27,6 +27,7 @@
 #include "mech3/cockpit_sound.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/mech.h"
 #include "mech3/mech_command.h"
 #include "mech3/mech_control.h"
@@ -46,6 +47,8 @@
 #include "mech3/zai_target.h"
 
 namespace mech3 {
+
+int32_t display_w();  // options.h (0x0040d760), not includable with mech.h
 const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
 
 
@@ -479,6 +482,28 @@ void wire_hud() {
   };
   update_calls().player_frame = [](Mech& m, float) { player_frame(m); };  // 0x0041ce60
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
+  // The pocket commander's (mech_pocket.cpp, docs/ai.md 17.6a): the camera,
+  // the viewed mech's HUD (its reticle's flag and image, the weapons' and
+  // equipment's hold); the view's pocket 0x004b5290 and the panel are not
+  // ported (L4c2).
+  PocketCalls& pk = pocket_calls();
+  pk.camera_mode = [] { return program_view_camera_id(); };
+  pk.set_camera_mode = [](int32_t id) { program_view_set_camera(id); };
+  pk.display_width = [] { return display_w(); };
+  pk.hud_mode = [](Mech& m, bool on) {
+    if (&m != program_view_target()) return;
+    if (Hud* h = hud_of(m)) {
+      h->reticle.locked = on;  // +0x144c +0x90c
+      if (on) h->reticle.set_image(h->reticle.img_x920);  // 0x0059bb50
+    }
+  };
+  pk.hud_hold = [](Mech& m, bool hold) {  // 0x004484b0
+    if (&m != program_view_target()) return;
+    if (Hud* h = hud_of(m)) {
+      if (hold) h->weapons.show_for(-1.0f), h->equipment.show_for(-1.0f);
+      else h->weapons.hide(), h->equipment.hide();
+    }
+  };
   mech_hud_calls().cockpit = make_cockpit;  // 0x00430ad0's second half (playtest #4)
   command_calls().other = [](Mech& m, int32_t cmd) {
     if (cmd == 0xa6) {

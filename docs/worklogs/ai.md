@@ -485,3 +485,16 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Found: headless walks are not bit-repeatable (Dominic's z differs by
   1e-4 m from ~2.5 s in; the player's handle varies by one): reported to
   the lead, the test asserts only what does not depend on it.
+
+## 2026-10-22 Item L4c1: the pocket commander's controls (mac4/command)
+
+- mech3/mech_pocket: PocketControls (0x4690d0, dtor 0x469310, set_owner
+  0x46a440, update 0x46a360, keys 0x46a860, unwrap 0x469cf0, release
+  0x46ad80 with a FIX for the exe's double free, death 0x46abb0),
+  pocket_enter; the dispatcher's order 2 and its in-mode paths (L4c3's
+  orders through PocketCalls::panel_order). MechControls: set_owner,
+  unwrap, pocket, release, command as virtuals; the mech's update unwraps.
+- The program: the camera (program_view_camera_id / set), the viewed HUD's
+  reticle flag and image, the weapons' and equipment's hold; the view's
+  pocket 0x4b5290 and the panel (L4c2) not ported.
+- test_pocket.py: 400 cases identical, 8 of 8 breaks.

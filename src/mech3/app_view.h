@@ -31,6 +31,7 @@ void program_view_make(void* camera_node);  // 0x0040aca0
 void program_view_free();                   // the view deleted (the mission unload's operator delete)
 void program_view_attach(Mech& m);          // the mech's 0x0041ce30
 void program_view_set_camera(int32_t id);   // 0x0040ae70
+int32_t program_view_camera_id();           // the view's +0x58 +0x04, -1 without one
 void program_view_look(int32_t look);       // [0x005f4c8c] +0x58 vt+0x10 (the free look)
 int32_t program_view_look_state();
 // For the tests: the camera put at (x, y, z), then the view's ground and water

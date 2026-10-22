@@ -3,6 +3,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_pocket.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
 
@@ -69,15 +70,43 @@ void to_target(Mech& player, int32_t order) {
 
 LanceCalls& lance_calls() { return g_calls; }
 
+// 0x00469400 / 0x00469650 in the pocket commander: the order to the
+// lancemates picked (0x00468f00, or 0x00468fa0 on the player's target's
+// entity (0x004e6fe0), else the panel's cursor's (its vt+0x2c)), then the
+// mode left (none without a mech: the mode kept).
+MechControls* in_pocket(PocketControls& p, int32_t order, bool on_target) {
+  PocketCalls& pc = pocket_calls();
+  Mech* player = p.owner;
+  if (player) {
+    uint32_t target = 0;
+    if (on_target) {
+      ai::BrainHooks& h = ai::brain_hooks();
+      target = player->target ? h.contact_entity(player->target) : pocket_globals().cursor;
+    }
+    if (!on_target || target) {
+      if (pc.panel_order) pc.panel_order(p, order, target);
+      else if (pc.unported) pc.unported(on_target ? "0x00468fa0" : "0x00468f00", static_cast<uint32_t>(order));
+    }
+  }
+  return p.leave(true);
+}
+
 // Mech3.exe 1.2 @ 0x00469940
 MechControls* lance_dispatch(MechControls* c, int32_t order) {
   if (!c) return nullptr;
   Mech* player = c->owner;  // IControls +0x10, vt+0x50
   if (!player) return c;
+  PocketControls* p = c->pocket();  // primary vt+0x08
   switch (order) {
-    case 0: case 1: case 7: case 8: case 9: case 12: to_follow(*player, order); break;
-    case 3: case 4: case 5: case 6: case 10: case 11: to_target(*player, order); break;
-    case 2: ai::brain_hooks().unported("0x004690d0", {order}); break;  // the command mode (item L4c)
+    case 0: case 1: case 7: case 8: case 9: case 12:
+      if (p) return in_pocket(*p, order, false);
+      to_follow(*player, order);
+      break;
+    case 3: case 4: case 5: case 6: case 10: case 11:
+      if (p) return in_pocket(*p, order, true);
+      to_target(*player, order);
+      break;
+    case 2: return p ? p->leave(true) : pocket_enter(c, 1);  // 0x00469930's mode, 1
     default: break;
   }
   return c;

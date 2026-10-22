@@ -281,6 +281,7 @@ bool program_view_find_water(float x0, float z0, float range, float out[4]) {
   return false;
 }
 int32_t program_view_look_state() { return g_view && g_view->mode ? g_view->mode->look_ : -1; }
+int32_t program_view_camera_id() { return g_view && g_view->mode ? g_view->mode->id : -1; }
 void program_view_set_camera(int32_t id) {
   if (!g_view) return;
   g_view->set_camera_mode(id);

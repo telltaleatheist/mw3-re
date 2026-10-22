@@ -102,6 +102,7 @@ for t in \
     ai_hits \
     ai_lance \
     lance_dispatch \
+    pocket \
     ai_steer \
     ai_states \
     ai_node \

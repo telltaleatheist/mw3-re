@@ -70,6 +70,15 @@ struct MechControls {
   // kill credit 0x0041b420): it killed `victim` (nothing but the AI's 0x004ea630).
   virtual void tick() {}
   virtual void on_death() { tick(); }
+  virtual void set_owner(Mech* m) { owner = m; }  // IControls vt+0x08 0x00428750
+  // The primary vtable's: +0x04 the controls an order wrapper leaves (the
+  // player's 0x004d2a70: themselves), +0x08 the pocket commander they are
+  // (none but its 0x004d2a70), +0x18 whether the mech that goes deletes them
+  // (the player's 0x004d7290: no), +0x1c a command (the player's 0x004274d0).
+  virtual MechControls* unwrap() { return this; }
+  virtual class PocketControls* pocket() { return nullptr; }
+  virtual bool release() { return false; }
+  virtual void command(int32_t cmd) { (void)cmd; }
   virtual void on_kill(void* victim) { (void)victim; }  // 0x004bf620
 
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
@@ -117,7 +126,7 @@ struct PlayerControls : MechControls {
   // target (or, at 0, the direction); 1 stops; 2..0 set 0.2, 0.3 .. 0.9, 1.0
   // (2 is labelled 10%), negative in reverse, and hold it. Not while
   // powered down or without a mech.
-  void command(int32_t cmd);
+  void command(int32_t cmd) override;
   const float* look_position() override { return &look_x; }  // 0x00428800
   // 0x00427870: the joystick and mouse axes into the frame's inputs.
   void read_axes(float dt, float* throttle, float* turn, float* pitch, float* twist, float* look_pitch,
