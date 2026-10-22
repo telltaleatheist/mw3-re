@@ -72,6 +72,8 @@
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
+#include "mech3/veh_basic.h"
+#include "mech3/zainet_inout.h"
 #include "mech3/zainet_region.h"
 #include "mech3/mech_pocket.h"
 #include "mech3/pocket_panel.h"
@@ -970,18 +972,22 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
   // The mission load's listeners (0x004e7b40: each one's slot +0x08, in
   // their registration order): the pocket commander's (0x0046aaa0, from
-  // 0x0046ab73) and the deploy state's "mcbdeploy" (0x004cfe40); the other
-  // three (registered by 0x004e78d0 from 0x004b4c53, 0x004c3c9a, 0x004d490f)
-  // are not ported, logged.
+  // 0x0046ab73), the deploy state's "mcbdeploy" (0x004cfe40) and the mission
+  // boundary's (0x004c3da0, from 0x004c3c9a; independent of the others, so
+  // its place in the order does not matter); the other two (registered by
+  // 0x004e78d0 from 0x004b4c53, 0x004d490f) are not ported, logged.
   void fn_4e7b40() override {
     pocket_mission_start();
     ai::deploy_mission_load();
+    ai::inout_mission_load();
     MissionHooks::fn_4e7b40();
   }
-  // Their slot +0x10 at the mission's end (0x004e7bc0): the pocket
-  // commander's (0x0046ab10); the others logged.
+  void inout_load() override { ai::inout_select(); }  // 0x004c3b80: the mission's boundary
+  // Their slot +0x10 at the mission's end (0x004e7bc0): the boundary's
+  // (0x004c3dd0) and the pocket commander's (0x0046ab10); the others logged.
   void fn_4e7bc0() override {
     pocket_mission_end();
+    ai::inout_mission_end();
     MissionHooks::fn_4e7bc0();
   }
   void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
@@ -1405,6 +1411,24 @@ void wire_mission_hooks(GameEngine* e) {
   ai::set_valve_hooks(e ? &g_valve_hooks : nullptr);
   g_target_hooks.e = e;
   ai::set_target_hooks(e ? &g_target_hooks : nullptr);
+  // The mission boundary's (zainet_inout): the launch's game, and the
+  // corners on the world's ground (0x004c4240).
+  ai::InOutHooks& io = ai::inout_hooks();
+  io = ai::InOutHooks{};
+  if (e) {
+    io.have_game = [] { return g_mission_engine != nullptr; };
+    io.game_type = [] { return g_mission_engine->launch().type; };
+    io.operation = [] { return g_mission_engine->launch().op; };
+    io.mission_number = [] { return g_mission_engine->launch().number; };
+    io.ground = [](float p[3]) {
+      zcls::Node* w = world_hooks().world;
+      static zcls::GroundHits hits;
+      if (!w || zcls::ground_point(w, p[0], p[1] + 100.0f, p[2], &hits) != 0 || hits.count == 0) return;
+      int32_t best, in_water;
+      float surface;
+      p[1] = ground_pick(hits, p[1], 20.0f, &best, 1, &in_water, &surface);  // 0x004abd90
+    };
+  }
   // The mech build and the launch (app_mech.cpp, docs/mech-build.md).
   if (!e) {
     wire_sensors(nullptr, nullptr);

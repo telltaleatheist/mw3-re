@@ -607,21 +607,105 @@ dropped. So a pilot re-plans only when a valve, gate or the like has shut
 its way, and the way is the shortest by straight lines between the nodes,
 whatever the ground between them (jump steps aside).
 
-## 11. Not ported: the mission boundary
+## 11. The mission boundary
 
-`ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0, 67 functions): at mission load
-(0x4c3b80 -> 0x4c36c0, 0x4c3930) the world's `inout` node is found, the
-variant for the game mode picked by name (render.md 6a), its polygons
-classed by their material colour (0x4c1ab0: four colours, inside or
-outside, the four constants at 0x5e8a20..0x5e8a58) and turned into lines
-with widths (0x4c11f0, "zero length segment in an inside/outside net"),
-then the `inout` subtree is deleted. In play the behaviours ask 0x4c3000
-(seven callers) to pull a destination back inside: 0x4c2b00 crosses the
-segment from the vehicle to the destination with the lines (0x4c1410,
-0x4c1770, 0x4c22c0) and moves the point to the nearest crossing or along
-the boundary. It reads the world's nodes and models (zModel polygons with
-their material colours, the node matrix 0x4c3520), so it belongs with the
-world's port; the next piece to take for the AI's movement.
+`ZAiNetMechInOut.cpp` (0x4c11f0..0x4c3ed0, 68 functions). The reader is
+ported (2026-10-22, `mech3/zainet_inout`); test
+`tests/differential/test_inout.py`: the original's load run on every world
+read into the emulator by its own 0x4ff520, 84 loads identical bit for bit
+at 24 bits. The query 0x4c3000 that pulls the AI's destinations back inside
+(seven callers) is the next item (B2), then the program's wiring of it (B3).
+
+**Where it is kept.** A listener at 0x60b338 (vtable 0x5cac78, registered
+at start-up through 0x4e78d0 from 0x4c3c9a, freed at exit by 0x4c3290):
+its load slot (vt+0x08, 0x4c3da0) reads the areas into its +4 ([0x60b33c],
+a vector of 0x88-byte areas, 0x4c3630), its end slot (vt+0x10, 0x4c3dd0)
+frees them. After the listeners the mission setup calls 0x4c3b80
+(0x490bde), which points [0x60b344] at the current mission's area.
+
+**The variant** (0x4c36c0, a 0x20-byte record on the stack), from the
+pilot's game ([0x60861c]+0x6c):
+
+| Game (vt+0x2c) | Name | Areas | Current |
+|---|---|---|---|
+| 1 campaign | `inoutm` + a number | the operation's missions (0x484840: 4, or 6 for operations 3 and 4) | the mission number (vt+0x4c) - 1 |
+| 2 Instant Action | `inoutia` | 1 | 0 |
+| 4 training | `inoutt` | 1 | 0 |
+| 3 multiplayer, others | none: no areas | | |
+
+A child matches (0x4c3850) by `_stricmp`, or for the campaign by
+`_strnicmp` on the prefix and `strtol` on the rest (the whole rest a number;
+area = number - 1).
+
+**The read** (0x4c3930): `inout` found by name (0x4f7fe0, list 6); with a
+pilot and a variant, each matching child's subtree (0x4c3b50 -> 0x4c3e50)
+is walked from the child's place in the world (a fresh matrix, 0x4ed280
+mode 3) by 0x4c3ed0: object3ds (5, active) through their matrices as the
+scene walk does them (cached world matrix with the tree-valid flag), LODs
+(6, active, range <= 0), the grouping classes' (1, 7..11) children; any
+other class is reported ("Unknown class type %d for node %s"). Each node
+with a model (0x4c3600 -> 0x4c3380): its vertices through the top of the
+stack (0x4c3520), each put on the ground with a world loaded (0x4c4240:
+0x41eb90 from 100 above, 0x4abd90 within 20, water not counted as
+ground; the flag 0x5e8a5c is 1), then every polygon of three corners
+or more without flag 0x400 (0x4c32c0) becomes an InOutPolygon (0x4c1ab0,
+0x40 bytes, width 3.0 from 0x5e8a18) in the child's area. Whatever was
+read, `inout` is then unlinked from each parent (0x4ebb40) and deleted with
+its subtree (0x4f9050), so none of it is ever drawn (render.md 6a).
+
+**A polygon** (0x4c1ab0). Its material's colour (exact floats) gives the kind:
+
+| Colour | Kind | +0x35 tested | +0x34 inverted | Corners |
+|---|---|---|---|---|
+| red 255,0,0 | 0 (also any other colour) | 1 | 0 | in the model's order |
+| yellow 255,255,0 | 1 | 0 | 0 | in order |
+| blue 0,0,255 | 2 | 1 | 1 | reversed |
+| cyan 0,255,255 | 3 | 0 | 1 | reversed |
+
+(The winding flags 0x60b394 = 0 and 0x5e8a1c = 1 are constants.) The
+corners are 0x1c bytes: the place, a pushed-out place, the side's length.
+0x4c1160 / 0x4c5210 walk them with the two before each, starting from
+(n-2, n-1); for each corner v (0x4c11f0) the box (+0x1c / +0x28) takes v,
+and the corner before it, c, gets: the length of its side c->v (+0x18,
+added to the perimeter +0x14; a length <= 0 reports "zero length segment in
+an inside/outside net"), and its pushed-out place (+0x0c): c plus the width
+times the normalized sum of the two sides' normals (dz, -dx), each
+normalized in x and z (0x4c1030); its y is 0. The name (+0x3c, strdup'd)
+is the node's past its first seven characters when it starts with `inout`
+and is longer than that.
+
+**An area** (0x4c26b0, 0x88 bytes, vtable 0x5cac70): its polygons (+0x04,
+a vector of pointers), the query's state (+0x14..+0x60, 19 dwords copied
+from the template at 0x60b348, which the start-up's 0x4c1a00 sets to zero
+but +0x20 = FLT_MAX; B2), a box (+0x60 FLT_MAX, +0x6c -FLT_MAX), the last
+answer (+0x78, +0x79, +0x7c; B2).
+
+**What the worlds hold** (polygons per area; all red but the yellow and
+blue counted):
+
+| World | Areas | Yellow | Blue |
+|---|---|---|---|
+| c1 (op 1) | m1 23, m2 34, m3 22, m4 40; ia 95 | m2 1, m3 2, m4 3; ia 5 (bridges: `lakbr`, `rivbrg`, `span04`, ..) | |
+| c2 (op 2) | 36, 15, 15, 6; ia 49 | m3 1 (`vbridge`) | m2 1, m4 1 |
+| c3 (op 3) | 18, 20, 26, 36, 59, 30; ia 145 | m3 2, m4 3, m5 3; ia 6 | |
+| c4 (op 4, m1..m3) | 62, 27, 42; ia 93 | m2 3 | |
+| c4b (op 4, m4..m6) | 12, 5, 5 | | m5 1, m6 1 |
+| t1 (training) | t 23 | | |
+
+No world has cyan. `inoutmp` (multiplayer) is never read; c4b and t1 have
+no `inoutia`. Polygons hold up to 242 corners.
+
+**Fixes** (fixes.md): a child numbered past the operation's missions is
+skipped (the exe writes it past the vector; an operation outside 1..4 makes
+no areas at all, so every child would); a mission number past them selects
+none (0x4c50e0 is unchecked); and [0x60b344] is cleared at the mission's
+end (the exe leaves it on the freed area, so a next mission without
+areas, multiplayer or a world without `inout`, would query freed memory).
+None happens with the shipped worlds and campaigns.
+
+**Not ported.** 0x4c3bd0 (from 0x4d4a92: commands 0x39..0x3c set an
+area's state, B2); the debug view 0x4c4730 (zaitarget.cpp: the boundary's
+polygons made into nodes).
 
 ## 12. The AI controls and the brain's data
 
