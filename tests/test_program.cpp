@@ -2418,6 +2418,109 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c4b missions 5 and 6 failed by leaving them (docs/ai.md section 8,
+// fixes.md, behind bugs): the player moved out of the area at core frame 5,
+// his own vlist trips the fail objective's valve (m6's regions read as
+// ..._c4bm7, m5's valve as outside_c4m5). The exe's reading of the same
+// records (no region, the other valve) is test_ai_readers.py's; a bugs-off
+// launch here would meet the HUD's unset block (hud.cpp) on the second.
+TEST(missions_c4b_m5_m6_fail_when_left_headless) {
+  struct Case {
+    int32_t number;
+    float out[2];  // x, z past the mission's outside region
+    const char* valve;
+  };
+  const Case cases[] = {{5, {2020.0f, 500.0f}, "outside_c4m5"}, {6, {1375.0f, -500.0f}, "outside_c4m7"}};
+  for (const Case& cs : cases) {
+    {
+
+      if (!have_game()) return;
+      SavedMounts keep;
+      zutl::mounts() = zutl::Mounts{};
+      zutl::mount(MW3_GAME_DIR);
+      zutl::set_write_dir(temp_dir("mission_c4b_out_write"));
+      mech3::reset_states();
+      reset_process_state();  // as a new process: zSound not yet initialised
+      mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+      mech3::mech_types_forget();             // and no mech type cached
+      mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+      mech3::options() = mech3::Options{};
+      struct Keys : platform::Input {
+        std::vector<platform::KeyEvent> queue;
+        uint32_t t = 0;
+        void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+        bool open(Device d) override { return d == kKeyboard; }
+        void close(Device) override {}
+        int32_t acquire(Device) override { return 0; }
+        int32_t unacquire(Device) override { return 0; }
+        int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+          const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+          std::copy(queue.begin(), queue.begin() + n, out);
+          queue.erase(queue.begin(), queue.begin() + n);
+          *count = n;
+          return 0;
+        }
+        int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+        int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+      } keys;
+      FakeWindow window;
+      FakeAlert alert;
+      FakeClock clock;
+      FakeScreen screen;
+      platform::SilentSoundOutput sound;
+      mech3::MountFiles files;
+      mech3::Platform p;
+      p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+      p.input = &keys;
+      {
+        mech3::GameEngine engine(p, "mech3.exe -nofmv");
+        engine.quiet = true;
+        mech3::Mech3App app(&engine);
+        mech3::set_app(&app);
+        EXPECT(app.init_instance());
+        mech3::GameEngine::Launch l;
+        l.index = 4;  // c4b
+        l.number = cs.number;
+        engine.set_launch(l);
+        app.post_intro_ = &mech3::states().load;
+        int frames = 0, ended_at = -1;
+        bool early = false, fail_done = false;
+        engine.on_present = [&](int) {
+          if (app.current() != &mech3::states().core) return;
+          ++frames;
+          if (frames == 5) {
+            early = mech3::missions().ended;  // not failed where it starts
+            const float at[3] = {cs.out[0], ground_under(cs.out[0], 2000.0f, cs.out[1]), cs.out[1]};
+            mech3::move_mech(mech3::mech_mission_player(), at, 0.0f);
+          }
+          if (mech3::missions().ended && ended_at < 0) {
+            ended_at = frames;
+            const mech3::Objectives& o = mech3::mission_objectives();
+            fail_done = o.fail && o.fail->done;
+          }
+        };
+        CountingPump pump;
+        pump.limit = 150;
+        pump.stop = [&] { return ended_at >= 0; };
+        app.run(pump);
+        if (std::getenv("MW3_SURVEY"))
+          std::printf("c4b m%d: frames %d ended at %d, the fail group (%s) done %d\n", cs.number, frames, ended_at,
+                      cs.valve, fail_done);
+        EXPECT(frames >= 5 && !early);
+        EXPECT(ended_at > 5 && ended_at < 10 && fail_done);
+        mech3::missions().cleanup(false);
+        app.stop_game();
+        app.exit_instance();
+        mech3::set_app(nullptr);
+      }
+      zrdr::close_archives(true);
+      mech3::reset_states();
+      reset_process_state();
+      mech3::options() = mech3::Options{};
+    }
+  }
+}
+
 // The player's allies fight only what comes in reach (docs/ai.md 17.8b): in
 // c1 mission 4 Dominic, woken, with an enemy put 60 m in front of him and no
 // order given, takes it as his target and fires at it, never closing in.

@@ -386,6 +386,15 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       e.f10 = word_f(s[14]);
       e.flags = with(fl, 0, nz(s, 15));
       const char* valve_name = text(s[16]);
+      // FIX (bug), behind bugs: two c4b boundaries name what is not there
+      // (docs/ai.md section 8): mission 6's regions ..._c4m7 ship as
+      // ..._c4bm7, mission 5's outside entry sets a valve named after its
+      // region where the fail objective watches outside_c4m5.
+      if (zfix::options().bugs) {
+        if (region_name && std::strcmp(region_name, "reg_inside_c4m7") == 0) region_name = "reg_inside_c4bm7";
+        if (region_name && std::strcmp(region_name, "reg_outside_c4m7") == 0) region_name = "reg_outside_c4bm7";
+        if (valve_name && std::strcmp(valve_name, "reg_outside_c4m5") == 0) valve_name = "outside_c4m5";
+      }
       e.region = region_name ? region(region_name) : nullptr;
       e.valve = valve_name ? valve_get(valve_name) : nullptr;
       if (!vlist) vlist = new std::list<VListEntry>;  // 0x004d9480

@@ -204,6 +204,9 @@ unusual happens.
 - A hand-edited mission trigger file (`valves.zrd`) with a number where a
   list or a name belongs, or a trigger that teleports or switches the scan
   of a pilot that is not there, no longer crashes the game.
+- Leaving the mission area now fails operation 4b's missions 5 and 6, as
+  their objectives say: their boundary triggers named a region and a
+  switch that did not exist (behind the bug-fix switch).
 - Starting a mission after another no longer runs the previous mission's
   player triggers against switches that were already thrown away.
 - A mission trigger that updates itself, directly or round a loop of

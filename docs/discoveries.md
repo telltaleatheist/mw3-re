@@ -1527,7 +1527,8 @@ are all "puffers": emitters that drop little textured squares.
   fails you for leaving the mission area never fires, and the map likely
   shows no boundary there. The pair it meant is `..._c4bm7`: every mech of
   the mission starts inside it (the region files are numbered one mission
-  ahead; `..._c4bm6` is two small unrelated areas).
+  ahead; `..._c4bm6` is two small unrelated areas). The rebuild reads it
+  so, and leaving fails the mission.
 - **Each mission starts by checking the last one's triggers.** Your own
   mech carries the mission's player triggers (the boundary, dialogue
   regions and the like), and the game keeps them from one mission to the
@@ -1537,7 +1538,8 @@ are all "puffers": emitters that drop little textured squares.
   risk in principle; the rebuild clears them at each mission's end.
 - **Mission 5 on the c4b world can't be failed by leaving it either.** Its
   boundary trigger sets a switch named after the region
-  (`reg_outside_c4m5`), while the failure watches `outside_c4m5`.
+  (`reg_outside_c4m5`), while the failure watches `outside_c4m5`. The
+  rebuild sets the one the failure watches.
 - **Mission 4 on the c4b world fails you for entering a zone, not
   leaving.** Its "outside" region is a place away from where everyone
   starts, and its trigger fires when you are inside it.
