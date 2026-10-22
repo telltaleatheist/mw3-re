@@ -86,6 +86,14 @@ struct MechControls {
 struct PlayerControls : MechControls {
   float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
+  // +0x5c: the pilot's AI settings (0x004d9840: the defaults, vtable
+  // 0x005cd348), the launch's aiv.zrd "player" record (IControls vt+0x88);
+  // only its vlist (+0x12c) is read, by the tick.
+  ai::AiParams settings;
+  void set_record(const ai::AiParams& r) { settings = r; }  // IControls vt+0x88 0x00428440 (0x004d99e0)
+  // 0x004d8990 (IControls vt+0xa4): the settings' vlist triggers run on the
+  // player's vehicle (0x004d9290), nothing picked yet (docs/ai.md 17.5).
+  void pilot_tick();
   void construct(uint32_t mode);   // 0x00427320 with the base 0x004265a0
   int update(float dt) override;   // 0x00427d60
   // 0x004274d0 (primary vt+0x1c): the throttle keys. Backspace reverses the
@@ -149,7 +157,7 @@ struct ControlsCalls {
   void (*mouse_set)(float x, float y) = nullptr; // 0x0051b440; unset: zin::mouse_set
   int (*camera_view)() = nullptr;                // [0x005f4c8c] +0x58 +0x40
   bool (*mw2_jets)() = nullptr;                  // 0x0040d1e0: the MW2JJets option ([0x005f4d04] bit 7)
-  void (*pilot_tick)(MechControls&) = nullptr;   // IControls +0xa4: 0x004d8990 (0x004d9290)
+  void (*pilot_tick)(MechControls&) = nullptr;   // IControls +0xa4: unset, PlayerControls::pilot_tick 0x004d8990
   uint8_t (*screen_busy)(void* screen) = nullptr;  // the HUD's +0x167c
   void (*zoom)(void* screen, bool in) = nullptr; // the HUD's +0x1508: vt +0x60(-1) held, vt +0x64 let go
   // The view (0x00426780): the mech's camera `id` (vt+0x10c), the view's

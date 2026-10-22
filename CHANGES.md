@@ -204,6 +204,8 @@ unusual happens.
 - A hand-edited mission trigger file (`valves.zrd`) with a number where a
   list or a name belongs, or a trigger that teleports or switches the scan
   of a pilot that is not there, no longer crashes the game.
+- Starting a mission after another no longer runs the previous mission's
+  player triggers against switches that were already thrown away.
 - A mission trigger that updates itself, directly or round a loop of
   triggers, no longer crashes the game: each trigger's actions run once
   for each change. No shipped mission has such a loop.

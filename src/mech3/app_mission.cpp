@@ -1220,7 +1220,14 @@ struct WiredMissionHooks : MissionHooks {
   // "Deleting AI Nets" (0x0058b290 on [0x00603fd8]): the mission's nets,
   // regions and waynets go before the valves their steps point at.
   void znet_free() override { znet::clear(); }
-  void valves_end() override { ai::valves_end(); }
+  // FIX (bug): the player's controls live for the game (0x00427280) and keep
+  // the last mission's aiv.zrd record, whose vlist names that mission's
+  // valves; the next launch's placement update runs it before the new record
+  // comes (a read of freed valves in the exe). Here it goes with the valves.
+  void valves_end() override {
+    ai::valves_end();
+    if (PlayerControls* pc = player_controls_instance()) pc->settings = ai::AiParams{};
+  }
   void targets_end() override { ai::targets_end(); }
   void fn_4d8270() override { ai::targets_delete_all(); }  // the targets and traps deleted (0x004d8360)
   void voice_release(const char* name) override { zsnd::unload_set(name); }

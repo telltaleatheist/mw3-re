@@ -65,6 +65,7 @@
 #include "mech3/mission_world.h"
 #include "gamez/zentity/zent_manager.h"
 #include "mech3/mech_control.h"
+#include "mech3/zrdraiv.h"
 #include "mech3/sensors.h"
 #include "mech3/zai_target.h"
 #include "mech3/weapon_planner.h"
@@ -326,6 +327,12 @@ class WiredLaunch : public LaunchHooks {
   // The cockpit screens' cycled textures, added by the scripts, loaded
   // (playtest #19: unloaded, they drew with no surface).
   void textures_load() override { zimg::load_group_0(); }
+  // IControls vt+0x88: the player's controls keep the record (0x00428440),
+  // whose vlist their tick runs (0x004d8990).
+  void controls_set_record(MechControls* c, const ai::AivRecord* rec) override {
+    if (auto* pc = dynamic_cast<PlayerControls*>(c); pc && rec) pc->set_record(*rec);
+    else LaunchHooks::controls_set_record(c, rec);
+  }
   uint8_t interp_source(Handle, const char* path) override {
     zint::Interp* in = mech3::interp();
     return in && zint::source(*in, path) ? 1 : 0;

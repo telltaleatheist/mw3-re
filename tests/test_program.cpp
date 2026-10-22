@@ -4808,8 +4808,9 @@ TEST(survey_c1m1_objectives_headless) {
 // piece 4), from the menus as campaign_menus_to_c1m1 plays it, to the
 // debriefing. Won: the comm centre's satdish destroyed (its health_below
 // sets comcntr_down), reach_mfb set as aiv.zrd's reg_mfb region would (the
-// regions are the AI's), Exit Mission. Lost: outside_c1m1 set (the mission
-// boundary's region), or the player's mech destroyed. The SRM emplacements
+// regions are the AI's), Exit Mission. Lost: the player moved out of the
+// mission's boundary (his own vlist sets outside_c1m1 from reg_outside_c1m1),
+// or the player's mech destroyed. The SRM emplacements
 // are aiTurrets.zrd's (0x004a76b0, not ported): never found, they count as
 // destroyed, as in the exe.
 TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
@@ -4874,7 +4875,10 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
                 if (n && std::strcmp(n->name(), "satdish") == 0) t->on_hit(0, 0, 1000.0f);
               }
             } else if (sc == kBoundary) {
-              mech3::ai::valve_get("outside_c1m1")->set(1);
+              // Out past reg_outside_c1m1 (x -5145..-358): the player's own
+              // vlist trips outside_c1m1 (0x004d8990, docs/ai.md 17.5).
+              const float at[3] = {-100.0f, ground_under(-100.0f, 600.0f, -1225.0f), -1225.0f};
+              mech3::move_mech(mech3::mech_mission_player(), at, 0.0f);
             } else {
               mech3::mech_kill(mech3::mech_mission_player());
             }

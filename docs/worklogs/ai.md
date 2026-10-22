@@ -364,3 +364,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   small disjoint areas). Also: c4b m5's valve name slip (reg_outside_c4m5),
   c4b m4's inverted entries (left). The player's vlist (0x4d8990 on
   0x4d9840) is not wired, so 3b needs it first (3b1), then the names (3b2).
+
+## 2026-10-22 Item 3b1: the player's vlist (mac4/playervlist)
+
+- PlayerControls::settings (+0x5c, 0x4d9840), set_record (vt+0x88
+  0x428440, the program's launch hook), pilot_tick (vt+0xa4 0x4d8990:
+  vlist_run on the settings, nothing picked); the update runs it unless
+  ControlsCalls::pilot_tick is set (probe_controls').
+- FIX (bug): the controls live for the game; the next launch's placement
+  update ran the last record's vlist over freed valves (a crash in the
+  suite's second mission). Cleared with the valves.
+- test_ai_vlist.py: each list also run through the exe's 0x4d8990 on a
+  fake player controls block; won/lost test: walking out of c1m1 fails it.
