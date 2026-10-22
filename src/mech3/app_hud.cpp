@@ -28,6 +28,7 @@
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech_pocket.h"
+#include "mech3/pocket_panel.h"
 #include "mech3/mech.h"
 #include "mech3/mech_command.h"
 #include "mech3/mech_control.h"
@@ -491,6 +492,18 @@ void wire_hud() {
   pk.set_camera_mode = [](int32_t id) { program_view_set_camera(id); };
   pk.display_width = [] { return display_w(); };
   pk.view_screen = [](Mech& m) -> void* { return &m == program_view_target() ? hud_of(m) : nullptr; };  // 0x0046b0a0's zoom box
+  // The panel's draws (0x00467760, 0x00468900): places, sizes, the screen and
+  // the projection as the HUD has them; the map's pixels and the node mark
+  // are not wired (the panel's cursor picks are not either).
+  DrawCalls& dc = draw_calls();
+  dc.entity_position = [](zgame::Handle e, float out[3]) { ai::brain_hooks().position(e, out); };  // 0x005a85e0
+  dc.entity_size = [](zgame::Handle e) {
+    const ai::AiTarget* t = ai::brain_hooks().targetable(e);
+    return t ? t->height : 0.0f;  // +0x68
+  };
+  dc.project = [](const float in[3], float out[3]) { return hud_hooks().project(in, out); };
+  dc.screen_rect = [](ztwod::Rect* r) { *r = hud_hooks().window_rect(); };
+  dc.view_prepare = [] { hud_hooks().view_prepare(); };
   pk.hud_mode = [](Mech& m, bool on) {
     if (&m != program_view_target()) return;
     if (Hud* h = hud_of(m)) {

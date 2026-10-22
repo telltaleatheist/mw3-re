@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zmath/zmth_matrix.h"
+#include "mech3/zai_brain.h"
 #include "mech3/mech.h"
 #include "mech3/mech_pocket.h"
 #include "mech3/pocket_panel.h"
@@ -70,7 +72,61 @@ uint32_t place_arg(const float* p) { return p == g_ctl->place ? 1u : p && p == g
 
 struct FrameHost : RecordingHost {
   const char* message_text(uint32_t id) override { return text_at(call("0x00576040", {id})); }
+  void line_list(const int32_t* points, int32_t count, const Rect* clip, uint32_t pixel) override {
+    call("0x00562cb0", {count, clip->left, clip->top, clip->right, clip->bottom, pixel});
+    for (int32_t i = 0; i <= count; ++i) call("pt", {points[2 * i], points[2 * i + 1]});
+  }
 };
+std::vector<uint32_t> g_vehicle_addr;  // each mate's vehicle (the exe's +0x4b8 of its line)
+struct DrawBrainHooks : ai::BrainHooks {
+  zgame::Handle vehicle_handle(void* v) override {
+    const int i = mate_index(static_cast<Mech*>(v));
+    return i >= 0 ? g_vehicle_addr[static_cast<size_t>(i)] : 0;
+  }
+};
+DrawBrainHooks g_draw_hooks;
+float peekf(uint32_t a) {
+  const uint32_t b = call("peek32", {a});
+  float f;
+  std::memcpy(&f, &b, 4);
+  return f;
+}
+void wire_draws() {
+  DrawCalls& d = draw_calls();
+  d = DrawCalls{};
+  d.entity_position = [](zgame::Handle e, float out[3]) {
+    const uint32_t node = call("peek32", {e + 0x14});
+    const uint32_t data = call("peek32", {node + 0x38});
+    if (call("peek8", {data}) & 0x20) call("0x004ed280", {node, 1});
+    for (uint32_t i = 0; i < 3; ++i) out[i] = peekf(data + 0x84 + 4 * i);
+  };
+  d.entity_size = [](zgame::Handle e) { return peekf(e + 0x68); };
+  d.project = [](const float in_[3], float out[3]) -> uint32_t {
+    // The cursor's place may be the emulator's (an entity's, the net's): read it there.
+    float in[3];
+    if (in_ == g_ctl->place || in_ == g_k_place || reinterpret_cast<uintptr_t>(in_) > 0xffffffffu) {
+      std::memcpy(in, in_, 12);
+    } else {
+      for (uint32_t i = 0; i < 3; ++i) in[i] = peekf(fake(in_) + 4 * i);
+    }
+    const uint32_t v = call("0x0053cf10", {zgame::bits(in[0]), zgame::bits(in[1]), zgame::bits(in[2])});
+    static const float kDepth[4] = {0.5f, 0.0f, 1.5f, 1.0f};
+    out[0] = static_cast<float>(v & 0x3ff), out[1] = static_cast<float>((v >> 10) & 0x3ff), out[2] = kDepth[(v >> 20) & 3];
+    return (v >> 24) & 0xff;
+  };
+  d.map_point = [](zgame::Handle map, const float in[3], int32_t out[2]) {
+    const uint32_t v = call("0x004586e0", {map, zgame::bits(in[0]), zgame::bits(in[1]), zgame::bits(in[2])});
+    out[0] = static_cast<int32_t>(v & 0xfff), out[1] = static_cast<int32_t>((v >> 12) & 0xfff);
+  };
+  d.screen_rect = [](ztwod::Rect* r) {
+    const uint32_t a = call("0x0040d7b0", {});
+    r->left = static_cast<int32_t>(call("peek32", {a})), r->top = static_cast<int32_t>(call("peek32", {a + 4}));
+    r->right = static_cast<int32_t>(call("peek32", {a + 8})), r->bottom = static_cast<int32_t>(call("peek32", {a + 12}));
+  };
+  d.node_marked = [](uint32_t node) { return call("0x0040ee50", {node}) != 0; };
+  d.view_prepare = [] { call("0x004b51f0", {}); };
+  ai::set_brain_hooks(&g_draw_hooks);
+}
 
 void wire_frame() {
   FrameCalls& f = frame_calls();
@@ -135,6 +191,7 @@ void dump_frame(PocketPanel& p, PocketControls& c, Dump& d) {
   d.kv("done", c.wrapped), d.kv("aim_o", c.aim.owner), d.kv("aim_e", c.aim.entity);
   d.kv("cursor", pocket_globals().cursor), d.kv("x50", pocket_globals().x50), d.kv("x60", pocket_globals().x60);
   d.kv("tgt", p.target_entity), d.kv("mk_on", g_marker_active);
+  d.r("clip", pocket_clip());
   d.o << '\n';
 }
 
@@ -179,6 +236,7 @@ int probe_pocket_panel_run(const char* plan, char* out, int size) {
   reset();
   g_mates.clear();
   g_mate_names.clear();
+  g_vehicle_addr.clear();
   g_handles.clear();
   PocketGlobals saved_globals = pocket_globals();
   pocket_globals() = PocketGlobals{};
@@ -226,9 +284,10 @@ int probe_pocket_panel_run(const char* plan, char* out, int size) {
       std::strncpy(r.name, n.c_str(), 0x3f);
       r.order = o;
     } else if (op == 'V') {  // an entity: its handle, its vehicle's active, +0xbc, allies
-      uint32_t h, act, xbc, allies;
+      uint32_t h, act, xbc, allies, veh = 0;
       std::string name;
-      ls >> std::hex >> h >> act >> xbc >> allies >> name;
+      ls >> std::hex >> h >> act >> xbc >> allies >> name >> veh;
+      g_vehicle_addr.push_back(veh);
       for (char& ch : name) if (ch == '_') ch = ' ';
       g_mate_names.push_back(name);
       auto m = std::make_unique<Mech>();
@@ -278,6 +337,7 @@ int probe_pocket_panel_run(const char* plan, char* out, int size) {
       g_marker_active = active != 0;
       controls.saved_camera = static_cast<int32_t>(saved_camera);
       wire_frame();
+      wire_draws();
       g_target = ai::Contact{};
       g_target.owner = owner, g_target.entity = entity;
       player.target = owner || entity ? &g_target : nullptr;
@@ -289,6 +349,17 @@ int probe_pocket_panel_run(const char* plan, char* out, int size) {
       player.target = owner || entity ? &g_target : nullptr;
     } else if (op == 'Y') {
       ls >> controls.x184;
+    } else if (op == 'Q') {  // the projection's fy (bits)
+      uint32_t b;
+      ls >> std::hex >> b;
+      std::memcpy(&zmth::projection().fy, &b, 4);
+    } else if (op == 'D') {  // the HUD's overlay pass (0x0046a410), the mode up
+      uint32_t dt;
+      ls >> std::hex >> dt;
+      controls.panel = panel.get();
+      pocket_globals().active = &controls;
+      pocket_draw(zgame::from_bits(dt));
+      pocket_globals().active = nullptr;
     } else if (op == 'F') {  // a frame: dt, then the mouse's 15 dwords
       uint32_t dt;
       ztwod::MouseState ms{};
@@ -326,7 +397,9 @@ int probe_pocket_panel_run(const char* plan, char* out, int size) {
   controls.panel = nullptr;
   player.target = nullptr;
   frame_calls() = FrameCalls{};
+  draw_calls() = DrawCalls{};
   pocket_calls() = PocketCalls{};
+  ai::set_brain_hooks(nullptr);
   text = d.o.str();
   panel.reset();
   controls.owner = nullptr;

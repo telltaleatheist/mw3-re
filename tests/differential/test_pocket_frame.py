@@ -32,7 +32,10 @@ from test_twod import canonical  # noqa: E402
 
 probe = tp.probe
 NODES = 0x2c3f0000
-COVER = {0x469e30: 'a map pick', 0x469e43: 'the reticle (map up, outside it)', 0x469eae: 'a pick with a node',
+COVER = {0x4678c5: 'a line: from the left edge (the unit inside the text)', 0x4678bf: 'a line: the right edge',
+         0x468a6d: 'the mark sized', 0x468ab2: 'the mark on the map', 0x468b66: 'the spot mark yellow',
+         0x468b79: 'the spot mark white', 0x46783b: 'a line drawn',
+         0x469e30: 'a map pick', 0x469e43: 'the reticle (map up, outside it)', 0x469eae: 'a pick with a node',
          0x469f37: 'a bare spot: the marker', 0x46a008: 'the target moved', 0x46a10a: 'the net: an entity',
          0x46a18f: 'the net: the marker', 0x46a2a9: 'the way out starts', 0x46a2e7: 'the camera back',
          0x46a336: 'done (+0x38)', 0x4688a9: 'a line clicked'}
@@ -177,6 +180,62 @@ class Original(tp.Original):
                 emu.w32(a[0] + 4 * i, v)
             emu._ret(0, pop)
         e.stub(0x51ba60, '0x0051b7b0', 'c', 0, mouse)
+        # The draws' world: every entity's and vehicle's node (+0x14: its data
+        # +0x38, flagged or not, its place +0x84) and size (+0x68), the
+        # projection's fy, the screen, the projections, the map's pixels.
+        def node_for(o):
+            n, dat = e.world_alloc(0x40), e.world_alloc(0x100)
+            ww(o + 0x14, n)
+            ww(n + 0x38, dat)
+            ww(dat, r.choice([0, 0x20]))
+            for i in range(3):
+                ww(dat + 0x84 + 4 * i, fbits(r.uniform(-900, 900)))
+            ww(o + 0x68, fbits(r.choice([2.5, 8.0, 15.0])))
+        for o in self.entities + [mk] + self.vehicles:
+            node_for(o)
+        ww(0x73fba0, fbits(r.choice([320.0, 412.5])))
+        screen = e.world_alloc(0x10)
+        for i, v in enumerate((0, 0, r.choice([640, 800]), r.choice([480, 600]))):
+            ww(screen + 4 * i, v)
+        e.stub(0x40d7b0, '0x0040d7b0', '', 0)
+        w.answers['0x0040d7b0'] = screen
+        e.stub(0x4ed280, '0x004ed280', 'c,d', 0)
+        for a in (0x51e9d0, 0x51fde0, 0x51ea00):
+            e.stub(a, f'@{a:x}', '', 0)
+        e.stub(0x40d4b0, '@pixel_double', '', 0)
+        w.answers['@pixel_double'] = 0  # not doubled (the port's options: 0)
+        e.stub(0x40da30, '@render_to_screen', '', 0)  # pixels not doubled: nothing (the port's the same)
+        e.stub(0x4b51f0, '0x004b51f0', '', 0)
+        e.stub(0x40ef40, '0x0040ee50', '*c', 0)
+        w.answers['0x0040ee50'] = lambda rr, k, a: rr.randrange(2)
+        depth = [0.5, 0.0, 1.5, 1.0]
+
+        def project(emu, key, a, pop):
+            p3 = [emu.r32(a[0] + 4 * i) for i in range(3)]
+            v = emu.t.handle(key, tuple(p3))
+            emu.cpu.write(a[1], struct.pack('<3f', float(v & 0x3ff), float((v >> 10) & 0x3ff), depth[(v >> 20) & 3]))
+            emu._ret((v >> 24) & 0xff, pop)
+        e.stub(0x53cf10, '0x0053cf10', 'c,d', 0, project)
+        w.answers['0x0053cf10'] = lambda rr, k, a: (rr.randrange(-40, 900) & 0x3ff | rr.randrange(0, 700) << 10
+                                                    | rr.randrange(4) << 20 | rr.choice([0, 0, 8]) << 24)
+
+        def map_point(emu, key, a, pop):
+            p3 = [emu.r32(a[1] + 4 * i) for i in range(3)]
+            v = emu.t.handle(key, (a[0], *p3))
+            emu.w32(a[2], v & 0xfff)
+            emu.w32(a[2] + 4, (v >> 12) & 0xfff)
+            emu._ret(1, pop)
+        e.stub(0x4586e0, '0x004586e0', 'c,s0,s1', 8, map_point)
+        w.answers['0x004586e0'] = lambda rr, k, a: rr.randrange(0, 600) | rr.randrange(0, 500) << 12
+        e.stub(0x562940, '0x00562940', 'c,d,s0,s1,s2', 0xc)
+
+        def line_list(emu, key, a, pop):
+            n, clip = a[1], a[2]
+            emu.t.handle(key, (n, *[emu.r32(clip + 4 * i) for i in range(4)], a[3]))
+            for i in range(n + 1):
+                emu.t.handle('pt', (emu.r32(a[0] + 8 * i), emu.r32(a[0] + 8 * i + 4)))
+            emu._ret(0, pop)
+        e.stub(0x562cb0, '0x00562cb0', 'c,d,s0,s1', 8, line_list)
         self.contacts = []
         for _ in range(3):
             q = e.world_alloc(0x40)
@@ -200,6 +259,11 @@ class Original(tp.Original):
             e.w32(c + 0x180, self.panel)
             e.call(0x469d00, ecx=c, stack=(vals[0],))
             w.frame += 1
+        elif a[0] == 'D':
+            e.w32(c + 0x180, self.panel)
+            e.w32(0x605f64, c)
+            e.call(0x46a410, stack=(int(a[1], 16),))
+            e.w32(0x605f64, 0)
         elif a[0] == 'X':
             self.out = self.dump() + self.dump_frame()
             e.call(tp.DTOR, ecx=self.panel)
@@ -232,6 +296,8 @@ class Original(tp.Original):
         kv('x60', e.r32(0x605f60))
         kv('tgt', e.r32(self.panel + 0x534))
         kv('mk_on', e.r8(self.marker + 8))
+        vals = [struct.unpack('<i', struct.pack('<I', e.r32(0x605ed8 + 4 * i)))[0] for i in range(4)]
+        out.append('clip=' + ','.join(str(v) for v in vals) + ' ')
         out.append('\n')
         return ''.join(out)
 
@@ -254,6 +320,8 @@ def make_plan(seed, cfg, fcfg):
             right = r.choice([0, 0, 4])
             m = [x, y, 0, fbits(0.0), fbits(0.0), fbits(0.0), 0, 0, 0, fbits(0.0), fbits(0.0), fbits(0.0), left, right, 0]
             lines.append('F ' + ' '.join(f'{v:x}' for v in [fbits(1 / 30)] + m))
+            if r.random() < 0.6:
+                lines.append(f'D {fbits(1 / 30):x}')
         elif roll < 0.65:
             lines.append(f'T {r.choice([0, 1, 2, 3])}')
         elif roll < 0.7:
@@ -282,6 +350,9 @@ def run_case(seed, verbose):
         return f'{orig.e.r32(q):x} {orig.e.r32(q + 8):x}'
     plan = [ln.replace('TARGET', '0 0') for ln in plan]
     pplan = [f'T {contact(int(ln.split()[1]))}' if ln.startswith('T ') else ln for ln in plan]
+    vi2 = iter(orig.vehicles)
+    pplan = [ln + f' {next(vi2):x}' if ln.startswith('V ') else ln for ln in pplan]
+    pplan.insert(0, f'Q {orig.e.r32(0x73fba0):x}')
     orig.plan = plan
     dump_o = orig.run()
     rep = Replay(orig.t, orig.e, orig.snapshot)

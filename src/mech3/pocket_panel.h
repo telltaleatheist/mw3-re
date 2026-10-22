@@ -107,6 +107,28 @@ struct FrameCalls {
 };
 FrameCalls& frame_calls();
 
+// What the draws (0x00467760, 0x00468900) reach outside zTwoD (unset: none).
+struct DrawCalls {
+  // An entity's node's world place (its +0x14's data +0x84, its matrix
+  // brought up to date first when flagged, 0x004ed280) and its size (+0x68).
+  void (*entity_position)(zgame::Handle e, float out[3]) = nullptr;
+  float (*entity_size)(zgame::Handle e) = nullptr;
+  uint32_t (*project)(const float in[3], float out[3]) = nullptr;  // 0x0053cf10: bit 3 off the screen
+  void (*map_point)(zgame::Handle map, const float in[3], int32_t out[2]) = nullptr;  // 0x004586e0
+  void (*screen_rect)(ztwod::Rect* out) = nullptr;                // 0x0040d7b0
+  bool (*node_marked)(uint32_t node) = nullptr;                   // 0x0040ee50: the node's +0x28 bit 21
+  void (*view_prepare)() = nullptr;                               // 0x004b51f0 on the view
+};
+DrawCalls& draw_calls();
+
+// [0x00605ed8]: the screen's rect less one pixel at the right and bottom, the
+// lines' and marks' clip (made by each panel draw).
+ztwod::Rect& pocket_clip();
+
+// Mech3.exe 1.2 @ 0x0046a410 (the HUD's overlay pass, 0x0040fac0): with the
+// mode up, the view prepared, the panel drawn (its vt+0x00, 0x0046a3f0) and
+// the mode's pending press (+0x184) cleared.
+void pocket_draw(float dt);
 // Mech3.exe 1.2 @ 0x00469d00 (the mode's update, 0x0046a360): the panel's
 // mouse (0x00468820), the cursor (the trigger let go: the reticle's or the
 // map's pick, the marker put on a bare spot; else the player's target, or a
@@ -136,6 +158,7 @@ class PocketItem : public ztwod::FontText {
 class PocketMateItem : public PocketItem {
  public:
   PocketMateItem(PocketPanel* panel, Mech* unit, const char* text, int32_t px, int32_t py);
+  void draw() override;        // +0x04  0x00467760: in its state's colour, then a line to its unit
   void on_press() override;    // +0x44  0x004676c0: picked
   void on_release() override;  // +0x48  0x00467710
   void refresh() override;     // +0xb0  0x004676a0
@@ -171,6 +194,7 @@ class PocketPanel : public ztwod::Window {
  public:
   PocketPanel(PocketControls* controls, int32_t px, int32_t py, int32_t line_h);  // 0x00468250
   ~PocketPanel() override;               // 0x00468720
+  void update(float dt) override;        // +0x00  0x00468900: the lines drawn, the cursor marked
   bool pick(int32_t unit);               // 0x00469060: the unit's line toggled, 1-based
   void route();                          // 0x00468820: the mouse over the lines
   void picked(int32_t delta, int32_t from);  // 0x004687e0: the count, the lines from `from` refreshed
