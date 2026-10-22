@@ -1527,6 +1527,11 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       std::memcpy(w + 22, cs->radial, 12);
       std::memcpy(w + 25, &cs->tangent[0], 4), std::memcpy(w + 26, &cs->tangent[2], 4);
     }
+    if (const auto* os = dynamic_cast<const ai::OrbitState*>(o.state.get())) {
+      w[18] = 7;
+      w[19] = os->x08;
+      std::memcpy(w + 20, &os->turn, 4), std::memcpy(w + 21, &os->share, 4), std::memcpy(w + 22, &os->way, 4);
+    }
     if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
     if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;
     if (const auto* rs = dynamic_cast<const ai::AttackReturnState*>(o.state.get())) {

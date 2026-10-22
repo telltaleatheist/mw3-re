@@ -1226,3 +1226,7 @@ address,name,source,notes
 0x004c9750,CircleState,asm,"ported: zai_attack CircleState"
 0x004c9880,circle_run,asm,"ported: CircleState::run (0x004c9894 is inside it)"
 0x0041d220,mech_stop_distance_at,asm,"used as stopping_distance(speed_at(share)) (vt+0x128)"
+0x004d1300,mode2_make_state,asm,"ported: Behaviour::make_state (VehMode2)"
+0x004d1320,OrbitState,asm,"ported: zai_attack OrbitState"
+0x004d13b0,orbit_resume,asm,"ported: OrbitState::resume"
+0x004d13c0,orbit_run,asm,"ported: OrbitState::run (its context 0x004d12a0)"
