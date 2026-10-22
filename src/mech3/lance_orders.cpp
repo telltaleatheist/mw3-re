@@ -76,14 +76,15 @@ LanceCalls& lance_calls() { return g_calls; }
 
 namespace {
 
-// Mech3.exe 1.2 @ 0x00468ca0 (the lancemate, the target): in a pick of the
-// target the panel's cursor last named ([0x00605f58]), "only an enemy"
-// (order 10, 0x004ea200) makes it the lancemate's enemy and "only an ally"
-// (11, 0x004ea230) its ally: its team the lowest bit of the lancemate's
-// enemies (+0xc8) or allies (+0xc4) (with the 5-bit packing's), its allies
-// that but bit 0, its enemies the rest, [0x0060b56c] cleared.
+// Mech3.exe 1.2 @ 0x00468ca0 (the lancemate, the target): when the target
+// is the command target marker ([0x00605f58], a spot on the ground), "only
+// an enemy" (order 10, 0x004ea200) makes it count as the lancemate's enemy
+// and "only an ally" (11, 0x004ea230) as its ally: its team the lowest bit
+// of the lancemate's enemies (+0xc8) or allies (+0xc4) (with the 5-bit
+// packing's), its allies that but bit 0, its enemies the rest, [0x0060b56c]
+// cleared.
 void retarget_team(Mech& mate, uint32_t target, int32_t order) {
-  if (!target || target != pocket_globals().last_unit || (order != 10 && order != 11)) return;
+  if (!target || target != pocket_globals().marker || (order != 10 && order != 11)) return;
   ai::AiTarget* t = ai::brain_hooks().targetable(target);
   if (!t) return;
   const uint32_t from = order == 10 ? mate.enemies : mate.allies;

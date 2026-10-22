@@ -168,7 +168,7 @@ int32_t probe_pocket_orders(const int32_t* in, const uint32_t* handles, const fl
     mechs[i].player_contact = in[6 + 4 * i] ? &g_upc[i] : nullptr;
     mechs[i].allies = static_cast<uint32_t>(in[20 + 2 * i]), mechs[i].enemies = static_cast<uint32_t>(in[21 + 2 * i]);
   }
-  pocket_globals().last_unit = in[19] ? handles[4] : 0x1234;
+  pocket_globals().marker = in[19] ? handles[4] : 0x1234;
   g_ohooks.g_target_t.team = static_cast<uint32_t>(in[28]);
   g_ohooks.g_target_t.allies = static_cast<uint32_t>(in[29]), g_ohooks.g_target_t.enemies = static_cast<uint32_t>(in[30]);
   for (int k = 0; k < 8; ++k) g_answers[k] = in[31 + k];
