@@ -352,12 +352,12 @@ bool Dialog::load_node(zrdr::Node* t, zrdr::Node* entry, bool no_draw) {
 // Mech3.exe 1.2 @ 0x0059f810
 bool bind_button(Dialog* d, zrdr::Node* entry, Control* c, const char* name) {
   if (!entry) {
-    zerr::report(0x200, kFile, 0x730, "BindButton (%s) failed");
+    zerr::reportf(0x200, kFile, 0x730, "BindButton (%s) failed", name);
     return false;
   }
   zrdr::Node* n = zrdr::find(zrdr::find(entry, "BUTTONS"), name);
   if (!n) {
-    zerr::report(0x200, kFile, 0x73c, "BindButton (%s) failed");
+    zerr::reportf(0x200, kFile, 0x73c, "BindButton (%s) failed", name);
     return false;
   }
   c->read_control(n, d);
@@ -377,7 +377,7 @@ bool Dialog::bind_primitive(Object2D* o, const char* name) {
   zrdr::Node* p = zrdr::find(node, "PRIMITIVES");
   zrdr::Node* n = p ? zrdr::find(p, name) : nullptr;
   if (!n) {
-    zerr::report(0x200, kFile, 0x752, "BindPrimitive (%s) failed");
+    zerr::reportf(0x200, kFile, 0x752, "BindPrimitive (%s) failed", name);
     return false;
   }
   add(o);

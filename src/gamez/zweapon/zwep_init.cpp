@@ -1,5 +1,6 @@
 #include "gamez/zweapon/zwep_init.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -129,7 +130,11 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
     return -1;
   }
   if (item(ver, 1).i != 2) {
-    if (g_hooks.error) g_hooks.error(0x400, 0xda, "Incorrect ZWEP version (found %d, wanted %d)");
+    if (g_hooks.error) {
+      char text[64];
+      std::snprintf(text, sizeof text, "Incorrect ZWEP version (found %d, wanted %d)", item(ver, 1).i, 2);
+      g_hooks.error(0x400, 0xda, text);
+    }
     return -1;
   }
   if (Node* n = zrdr::find(root, "LOCK_ON_WARNING")) s.lock_on_warning = sound(item(n, 1).s);

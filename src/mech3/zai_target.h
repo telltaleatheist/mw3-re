@@ -274,7 +274,12 @@ class TargetHooks : public zgame::Unported {
   virtual void matrix_pop() { unported("0x0051ea00", {}); }
   virtual int32_t node_child_count(Handle node) { (void)node; return 0; }  // +0x5c
   virtual Handle node_child(Handle node, int32_t i) { (void)node, (void)i; return 0; }  // +0x60
-  virtual void report(int32_t line, const char* fmt, Handle node) { unported("0x0049bfd0", {0x200, line, fmt, node}); }
+  // 0x0049bfd0 (0x200): `fmt` with the node's name, and the animation's
+  // (0x0050b620, empty in this build: the exe passes what EAX holds).
+  virtual void report(int32_t line, const char* fmt, Handle node, Handle anim = 0) {
+    (void)anim;
+    unported("0x0049bfd0", {0x200, line, fmt, node});
+  }
 };
 void set_target_hooks(TargetHooks* h);
 TargetHooks& target_hooks();

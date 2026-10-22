@@ -576,9 +576,12 @@ struct WiredTargetHooks : ai::TargetHooks {
   void valve_set(void* valve, int32_t v) override {
     if (valve) static_cast<ai::Valve*>(valve)->set(v);
   }
-  void report(int32_t line, const char* fmt, Handle n) override {
-    if (!e->quiet) std::fprintf(stderr, "mw3: report 0x200 ZAiTarget.cpp:%d %s (%s)\n", line, fmt,
-                                node(n) ? node(n)->name() : "?");
+  void report(int32_t line, const char* fmt, Handle n, Handle anim) override {
+    if (e->quiet) return;
+    char text[512];
+    const zeff::AnimDef* a = def(anim);
+    std::snprintf(text, sizeof text, fmt, node(n) ? node(n)->name() : "?", a ? a->name() : "?");
+    std::fprintf(stderr, "mw3: report 0x200 ZAiTarget.cpp:%d %s\n", line, text);
   }
 };
 WiredTargetHooks g_target_hooks;
