@@ -1729,6 +1729,13 @@ are all "puffers": emitters that drop little textured squares.
   within a metre, anything too steep and anything past its range are
   skipped. Finding nothing it widens its sensor range; finding something
   it narrows it to just past that target (`ai.md` 17.7).
+- **Enemies lead their shots.** An AI pilot aims where its target will be
+  when the shot arrives, from the target's speed and its own, for every
+  weapon but beams and instant-hit ones (those aim straight at it). On
+  the ground a mech's speed is judged from its throttle and facing, not
+  from how it actually moves; in the air from its real velocity. Its
+  torso then turns toward that point within its twist limits, and the
+  shot waits until the torso faces it closely enough (`ai.md` 17.7).
 - **Between bursts an AI mech looks around.** Resting after a burst, an
   enemy's torso sweeps: behind it for 5 s, to its left for 2.5 s, to its
   right for 5 s, and round again, until it picks its next shot.

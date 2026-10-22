@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 #include "crt/msvc_math.h"
@@ -448,7 +449,104 @@ FirePlan* volley_plan_pick(Firing& f) {
 // Mech3.exe 1.2 @ 0x004b6af0
 uint8_t VolleyPlan::in_reach(float arg) { return brain_hooks().bearer_in_reach(bearer, arg) == 1; }
 
-uint8_t VolleyPlan::track(float arg) { return brain_hooks().plan_track(*this, arg); }
+namespace {
+// The fast square root of the exe's lead (0x004d6fd5): the float's bits
+// halved (arithmetic shift) plus 0x1fc00000.
+float fast_sqrt(float x) {
+  int32_t i;
+  std::memcpy(&i, &x, 4);
+  i = (i >> 1) + 0x1fc00000;
+  float r;
+  std::memcpy(&r, &i, 4);
+  return r;
+}
+float dot3(const float a[3], const float b[3]) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004d6de0. A beam or a weapon whose def +0x6c has 0x800
+// or bit 1 (instant) aims at the entity itself; so does one of no speed.
+// Else the time t to meet solves (s^2 - v.v) t^2 + 2 d.v t + d.d = 0 for
+// the relative velocity v and the way d from the muzzle: one root when the
+// square term is 0 (t = d.d / (2 s d.v)), d / s when v is nearly still
+// (under 0.001, the point then the entity's own), else the smaller positive
+// root; t must come out above 0.
+bool lead_point(zgame::Handle bearer, const Contact& c, zgame::Handle w, float out[3]) {
+  BrainHooks& h = brain_hooks();
+  h.entity_lock_position(c.entity, out);  // 0x005a8630
+  float muzzle[3];
+  h.weapon_node_position(w, muzzle);  // 0x004ed530 on its +0x20
+  const uint32_t flags = h.weapon_flags(w);
+  const bool instant = (flags & 0x800) || (flags & 2) == 2;
+  const float speed = instant ? 3.4028235e38f : h.weapon_speed(w);
+  if (instant) return true;
+  if (speed == 0 || std::isnan(speed)) return true;  // the double 0x005ccfc8
+  const float d[3] = {out[0] - muzzle[0], out[1] - muzzle[1], out[2] - muzzle[2]};
+  float vs[3], vt[3];
+  h.velocity(bearer, vs);    // its vt+0x0c
+  h.velocity(c.entity, vt);
+  const float v[3] = {vt[0] - vs[0], vt[1] - vs[1], vt[2] - vs[2]};
+  const float vv = dot3(v, v), dd = dot3(d, d), dv = dot3(d, v);
+  const float a = speed * speed - vv;
+  const bool still = unordered_or_less(std::fabs(vv), 0.001f);  // the double 0x005ccfd0
+  float t;
+  bool solved = true;
+  if (a == 0 || std::isnan(a)) {
+    if (dv == 0 || std::isnan(dv)) solved = false;
+    else t = dd / (dv * speed + dv * speed);
+  } else if (still) {
+    t = fast_sqrt(dd) / speed;
+  } else {
+    const float disc = a * dd + dv * dv;
+    if (!(disc > 0)) {
+      if (unordered_or_less(disc, 0)) solved = false;
+      else t = -(dv / a);
+    } else {
+      const float root = fast_sqrt(disc);
+      const float inv = 1.0f / a;  // 0x005ccfb8
+      const float t1 = (root - dv) * inv;
+      const float t2 = (-dv - root) * inv;
+      t = t2 > 0 ? t2 : t1;
+    }
+  }
+  if (!solved || !(t > 0)) return false;
+  if (!still) out[0] = out[0] + t * v[0], out[1] = out[1] + t * v[1], out[2] = out[2] + t * v[2];
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004b6e30: the target's mech aims others at its last hit
+// part (0x0041d130); the lead point for the bearer's selected group's weapon
+// (vt+0x84), the way to it from the weapon's node (0x004ed530), unit,
+// turned by the bearer's matrix (+0x0c) and given the torso to aim along
+// (vt+0x154), clamped (vt+0x90). Its argument goes unread.
+uint8_t VolleyPlan::track(float arg) {
+  (void)arg;
+  BrainHooks& h = brain_hooks();
+  // FIX (bug): a target slot whose contact is gone, a bearer without a
+  // weapon manager or without a selected group are read through null in
+  // the exe; nothing is tracked.
+  Contact* c = *target;
+  const zgame::Handle e = c ? h.contact_entity(c) : 0;
+  if (e) h.mech_aim_at_last_hit(e);
+  const zgame::Handle wm = h.weapons(bearer);
+  const zgame::Handle w = wm ? h.wm_group_weapon(wm) : 0;
+  if (!c || !w) return 0;
+  float at[3];
+  const bool ok = lead_point(bearer, *c, w, at);
+  if (!ok) return 0;
+  h.weapon_node_position(w, aim);
+  aim[0] = at[0] - aim[0], aim[1] = at[1] - aim[1], aim[2] = at[2] - aim[2];
+  zmth::Vec3 n{aim[0], aim[1], aim[2]};
+  zmth::normalize(n);  // 0x004020d0
+  float m[9];
+  h.vehicle_matrix(bearer, m);
+  aim[0] = (n.x * m[0] + n.y * m[1]) + n.z * m[2];
+  aim[1] = (n.x * m[3] + n.y * m[4]) + n.z * m[5];
+  aim[2] = (n.x * m[6] + n.y * m[7]) + n.z * m[8];
+  float clamped[3];
+  h.bearer_aim_clamp(bearer, aim, clamped);  // its answer only feeds a dot the exe drops
+  h.bearer_set_aim(bearer, aim);
+  return 1;
+}
 
 // Mech3.exe 1.2 @ 0x004b6e10
 uint8_t VolleyPlan::ready() {

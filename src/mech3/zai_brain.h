@@ -153,8 +153,39 @@ class BrainHooks : public zgame::Unported {
   virtual int32_t volley_pick(zgame::Handle wm, Contact* c) {
     return static_cast<int32_t>(unported("0x004b1860", {wm, low(c)}));
   }
-  virtual uint8_t plan_track(FirePlan& p, float arg) {
-    return unported("0x004b6e30", {low(&p), zgame::bits(arg)}) & 0xff;
+  // The track's and the lead point's (0x004b6e30, 0x004d6de0): the target
+  // mech aiming others at its last hit part (vt+0x50's 0x0041d130), the
+  // selected group's weapon (+0x28, +0x2c[], its +0x10; 0 for none), a
+  // weapon's node position (0x004ed530 on +0x20), speed (def +0x2c) and
+  // flags (def +0x6c), an entity's position (0x005a8630), a vehicle's
+  // velocity (vt+0x0c) and matrix (+0x0c), the bearer's clamp (vt+0x90) and
+  // torso aim (vt+0x154).
+  virtual void mech_aim_at_last_hit(zgame::Handle e) { unported("0x0041d130", {e}); }
+  virtual zgame::Handle wm_group_weapon(zgame::Handle wm) { return unported("wm+0x28", {wm}); }
+  virtual void weapon_node_position(zgame::Handle w, float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    unported("0x004ed530", {w});
+  }
+  virtual float weapon_speed(zgame::Handle w) { return zgame::from_bits(unported("def+0x2c", {w})); }
+  virtual uint32_t weapon_flags(zgame::Handle w) { return unported("def+0x6c", {w}); }
+  virtual void entity_lock_position(zgame::Handle e, float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    unported("0x005a8630", {e});
+  }
+  virtual void velocity(zgame::Handle v, float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    unported("vehicle.vt+0xc", {v});
+  }
+  virtual void vehicle_matrix(zgame::Handle v, float m[9]) {
+    for (int i = 0; i < 9; ++i) m[i] = (i % 4 == 0) ? 1.0f : 0.0f;
+    unported("vehicle+0xc", {v});
+  }
+  virtual bool bearer_aim_clamp(zgame::Handle b, const float dir[3], float out[3]) {
+    out[0] = dir[0], out[1] = dir[1], out[2] = dir[2];
+    return unported("vehicle.vt+0x90", {b}) & 0xff;
+  }
+  virtual void bearer_set_aim(zgame::Handle b, const float dir[3]) {
+    unported("vehicle.vt+0x154", {b, zgame::bits(dir[0]), zgame::bits(dir[1]), zgame::bits(dir[2])});
   }
   virtual bool clear_line_at(zgame::Handle v, zgame::Handle e) { return unported("0x004d5980", {v, e, 1u}) & 0xff; }
   virtual void aim_track(Brain& b, Contact* target, zgame::Handle w) {

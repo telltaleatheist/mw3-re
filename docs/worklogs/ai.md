@@ -196,3 +196,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   volley (13), 0x4d5980 clear line (world line query, not AI).
 - Next: 12b2 (track 0x4b6e30, lead point 0x4d6de0, torso aims, aim
   0x4b72a0, lead 0x4b77e0), then 13.
+
+## 2026-10-22 Item 12b2a: the plan's track and the lead point (mac4/aim)
+
+- VolleyPlan::track 0x4b6e30 and lead_point 0x4d6de0 (zai_firing); the
+  torso's face_angles 0x465c70 / update_facing 0x465ad0 (+0x98 read inline
+  for 0x465bb0) and the Mech's can_face 0x41dc70, clamp_aim 0x41dca0,
+  faces_within 0x41dba0, set_torso_aim 0x41dbd0, lead_velocity 0x41d400
+  (mech_part_update, only new functions in mac 2's files).
+- Tests: test_parts ops 24-28, test_ai_plan op 4 (track) / op 5; the two
+  uncaught lead breaks are exact ties (double root, t == 0).
+- FIX (bug): no selected group / no manager / no contact in the track.
+- Split: 12b2b is the aim 0x4b72a0 (0x4b70b0, 0x4b71a0) and the lead
+  0x4b77e0 (0x4b74f0).
+- Logged, unported hooks now: aim 0x4b72a0 / lead 0x4b77e0 (12b2b), volley
+  0x4b1860 (13), clear line 0x4d5980 (mac 2).

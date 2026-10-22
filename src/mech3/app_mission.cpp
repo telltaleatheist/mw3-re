@@ -394,6 +394,19 @@ struct WiredBrainHooks : ai::BrainHooks {
   // flag (+0x08).
   Handle contact_entity(const ai::Contact* c) override { return contact_vehicle(c); }
   bool entity_active(Handle e) override { return mech_active(mech(e)); }
+  // The plan's track and the lead point (ai.md 17.7) on the mechs.
+  bool can_face(Handle v, const float dir[3]) override { return mech_can_face(mech(v), dir); }
+  uint8_t bearer_in_reach(Handle b, float c) override { return mech_faces_within(mech(b), c) ? 1 : 0; }
+  bool bearer_aim_clamp(Handle b, const float d[3], float out[3]) override { return mech_clamp_aim(mech(b), d, out); }
+  void bearer_set_aim(Handle b, const float d[3]) override { mech_set_torso_aim(mech(b), d); }
+  void mech_aim_at_last_hit(Handle e) override { mech3::mech_aim_at_last_hit(mech(e)); }
+  void velocity(Handle v, float out[3]) override { mech_lead_velocity(mech(v), out); }
+  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(mech(v), m); }
+  void entity_lock_position(Handle e, float out[3]) override { mech_target_position(mech(e), out); }
+  Handle wm_group_weapon(Handle wm) override { return e->handle_of(mech3::wm_group_weapon(e->object_of(wm))); }
+  void weapon_node_position(Handle w, float out[3]) override { mech3::weapon_node_position(e->object_of(w), out); }
+  float weapon_speed(Handle w) override { return mech3::weapon_speed(e->object_of(w)); }
+  uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);

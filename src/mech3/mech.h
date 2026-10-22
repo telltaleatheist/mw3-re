@@ -270,6 +270,12 @@ struct Mech : ai::AiTarget {
   Leg* pivot_leg() const;             // 0x00418e00
   void update(float dt);              // vtable +0x34, 0x00419fc0: the frame (mech_update.cpp)
   void aim_at_last_hit();             // 0x0041d130
+  // The torso's aim as the AI asks it (docs/ai.md 17.7, mech_part_update.cpp):
+  bool can_face(const Vec3& dir);                // vtable +0x8c, 0x0041dc70: the torso's limits allow it
+  bool clamp_aim(const Vec3& dir, Vec3* out);    // vtable +0x90, 0x0041dca0: false when clamped (out the clamped)
+  bool faces_within(float cosine);               // vtable +0x150, 0x0041dba0: the torso's aim cosine above it
+  void set_torso_aim(const Vec3* dir);           // vtable +0x154, 0x0041dbd0: the AI's aim (null: off)
+  void lead_velocity(Vec3* out) const;           // vtable +0x08, 0x0041d400 (+0x0c's): what others lead it by
   void on_kill(Handle victim);        // vtable +0x80, 0x0041b420: the kill credit
   void fade_debris(float dt);         // 0x00413cb0 (mech_parts.cpp)
   void dead_update(float dt);         // 0x00419ef0 (mech_dead.cpp)

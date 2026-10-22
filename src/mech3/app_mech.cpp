@@ -1241,6 +1241,63 @@ void weapon_hold_for_flight(void* w) {
   if (x && x->def && x->def->type) x->def->type->hold_for_flight();
 }
 bool mech_active(void* mech) { return mech && static_cast<Mech*>(mech)->active; }
+bool mech_can_face(void* mech, const float d[3]) {
+  auto* m = static_cast<Mech*>(mech);
+  return m && m->torso && m->can_face(Vec3{d[0], d[1], d[2]});
+}
+bool mech_clamp_aim(void* mech, const float d[3], float out[3]) {
+  auto* m = static_cast<Mech*>(mech);
+  Vec3 o{d[0], d[1], d[2]};
+  const bool r = m && m->torso ? m->clamp_aim(Vec3{d[0], d[1], d[2]}, &o) : true;
+  out[0] = o.x, out[1] = o.y, out[2] = o.z;
+  return r;
+}
+bool mech_faces_within(void* mech, float cosine) {
+  auto* m = static_cast<Mech*>(mech);
+  return m && m->torso && m->faces_within(cosine);
+}
+void mech_set_torso_aim(void* mech, const float d[3]) {
+  auto* m = static_cast<Mech*>(mech);
+  if (!m || !m->torso) return;
+  const Vec3 v{d[0], d[1], d[2]};
+  m->set_torso_aim(&v);
+}
+void mech_aim_at_last_hit(void* mech) {
+  if (mech) static_cast<Mech*>(mech)->aim_at_last_hit();
+}
+void mech_lead_velocity(void* mech, float out[3]) {
+  Vec3 v{};
+  if (auto* m = static_cast<Mech*>(mech); m && m->controls) m->lead_velocity(&v);
+  out[0] = v.x, out[1] = v.y, out[2] = v.z;
+}
+void mech_matrix(void* mech, float m9[9]) {
+  const float* t = mech ? static_cast<Mech*>(mech)->transform : nullptr;
+  for (int i = 0; i < 9; ++i) m9[i] = t ? t[i] : (i % 4 == 0 ? 1.0f : 0.0f);
+}
+void mech_target_position(void* mech, float out[3]) {
+  out[0] = out[1] = out[2] = 0;
+  if (auto* m = static_cast<Mech*>(mech); m && m->target_node)
+    zcls::node_world_position(static_cast<zcls::Node*>(m->target_node), out);
+}
+// The selected group's weapon (+0x28, +0x2c[], its +0x10). FIX (bug): the
+// exe's track reads it with no group selected through null; none here.
+void* wm_group_weapon(void* wm) {
+  auto* w = static_cast<WeaponManager*>(wm);
+  if (!w || w->group < 0 || w->group >= 5 || !w->groups[w->group]) return nullptr;
+  return w->groups[w->group]->current_weapon;
+}
+void weapon_node_position(void* w, float out[3]) {
+  out[0] = out[1] = out[2] = 0;
+  if (auto* x = static_cast<Weapon*>(w); x && x->node) zcls::node_world_position(static_cast<zcls::Node*>(x->node), out);
+}
+float weapon_speed(void* w) {
+  auto* x = static_cast<Weapon*>(w);
+  return x && x->def ? x->def->velocity : 0.0f;
+}
+uint32_t weapon_flags(void* w) {
+  auto* x = static_cast<Weapon*>(w);
+  return x && x->def ? x->def->flags : 0;
+}
 void mech_torso_centre(void* mech, int32_t how) {
   if (auto* m = static_cast<Mech*>(mech); m && m->torso) m->torso->centre(how);
 }

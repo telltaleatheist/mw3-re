@@ -1927,6 +1927,34 @@ the vehicle's target and the contacts' distances identical at 24-bit x87;
 23 branches. 31 of 31 breaks caught (one more, the bearer check, is
 equivalent: the volley asks the bearer again).
 
+**The plan's track and the lead point, ported** (2026-10-22, item 12b2a:
+`VolleyPlan::track`, `lead_point`; `Torso::face_angles`, `update_facing`,
+`Mech::can_face`, `clamp_aim`, `faces_within`, `set_torso_aim`,
+`lead_velocity`). The track (0x4b6e30, its argument unread): the target's
+mech aims others at its last hit part (0x41d130); the bearer's selected
+group's weapon (manager +0x28, +0x2c[], +0x10); its lead point (the
+bearer's vt+0x84, 0x4d6de0); the way to it from the weapon's node
+(0x4ed530), unit, turned by the bearer's matrix (+0x0c), clamped (vt+0x90,
+0x41dca0) and given the torso to aim along (vt+0x154, 0x41dbd0: the AI's
+aim in the world's frame, the facing again, 0x465ad0). The lead point
+aims a beam or an instant weapon (def +0x6c 0x800 or bit 1), or one of no
+speed, at the target's own target node (0x5a8630); else the time t to
+meet solves (s^2 - v.v) t^2 + 2 d.v t + d.d = 0 for the relative
+velocity v (each vehicle's vt+0x0c; a mech's 0x41d400: airborne its world
+velocity, else its forward at the throttle's share of its top speed) and
+the way d from the muzzle: d.d / (2 s d.v) with no square term, |d| / s
+when v is nearly still (v.v under 0.001: the point then the target's
+own), else the smaller positive root, through a fast square root (the
+float's bits halved plus 0x1fc00000); t must come out above 0, and the
+point is the target's plus t v. The torso's in-reach (vt+0x150, 0x41dba0)
+is its facing (+0x98) above the plan's argument; can-face (vt+0x8c,
+0x41dc70) is aim_angles of the direction turned by the mech's matrix
+(0x465c70). Tests: `test_parts.py` (the five mech and torso functions,
+ops 24-28: 20,000 trials identical, 11 of 11 breaks caught) and
+`test_ai_plan.py` (the track and the lead point on the real slot: 5235
+tracks identical, 32 branches; 14 of 16 breaks caught, the two not caught
+being exact ties: a double root and a time of exactly 0).
+
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):
 0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
@@ -1994,8 +2022,8 @@ goes through a hooks struct the test stubs the same on both sides.
     three states (0x4cac20, 0x4cace0, 0x4cadb0).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
-    volley plan pick 0x4b6790 (12b1); left (12b2) the plan's track
-    0x4b6e30 with the lead point 0x4d6de0 and the torso's aims, and the aim
+    volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the
+    lead point 0x4d6de0 and the torso's aims (12b2a); left (12b2b) the aim
     and lead 0x4b70b0..0x4b77e0.
 13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
     manager side: agree with mac 2).
