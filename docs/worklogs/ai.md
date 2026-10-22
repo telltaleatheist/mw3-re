@@ -717,3 +717,12 @@ Newest last. One short entry per item: what, commits, what to remember.
   0x4cf44a) and its maker 0x4cd790 sits only in its vtable 0x5cc290, which
   only the constructor names; no order is ever given it. Its run is
   0x4cdd40 inline (turn on the spot, then on). Documented in ai.md, skipped.
+
+## 2026-10-22 Item 3f: mode 1, circling (mac4/behaviours)
+
+- CircleState (0x4c9750, run 0x4c9880) in zai_attack, made for VehMode1.
+- test_ai_attack.py: mode 1 real (vt+0x128 / +0x120 real on the vehicle,
+  the brain's +0x44 / +0x48 / +0x94 and +0x534 in the world, negative
+  throttles, the target moving alone between runs, rows of 28 words);
+  the boundary's trace carries its point (EDX) in both tests now; 59
+  branches, 17 of 17 breaks.

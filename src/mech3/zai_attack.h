@@ -175,6 +175,29 @@ class FollowState : public BehaviourState {
   void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
 };
 
+// A vehicle net's mode 1 (slot 2) state: circling the target (0x004c9730 ->
+// 0x004c9750, 0x3c bytes, vtable 0x005cb3b0, over the waiting state
+// 0x004c8a30). Made with the flat way from the pilot to the target as the
+// radial (+0x1c) and its perpendicular (z, 0, -x) as the tangent (+0x28);
+// the circling way (+0x34, 1 the other way round) and the speed share
+// (+0x38, the brain's +0x94).
+class CircleState : public BehaviourState {
+ public:
+  CircleState(Order* o, Behaviour* b);  // 0x004c9750
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void run(float dt) override;          // 0x004c9880
+  Behaviour* behaviour() const override { return made_by; }  // 0x0040a890
+  uint32_t x08 = 0;          // +0x08  the waiting state's
+  float turn = 0;            // +0x0c
+  uint32_t x10 = 0;          // +0x10
+  Behaviour* made_by;        // +0x18
+  float radial[3] = {};      // +0x1c
+  float tangent[3] = {};     // +0x28
+  int32_t flip = 0;          // +0x34
+  float share = 1.0f;        // +0x38
+};
+
 // The brain's own order's state (docs/ai.md 17.2): keeping station on the
 // vehicle whose own net it is on. 0x004cc290 (0x30 bytes, vtable 0x005cbf10,
 // over the waiting state 0x004c8a30): +0x20 the throttle's way (-1 when

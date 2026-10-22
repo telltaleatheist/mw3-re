@@ -424,7 +424,7 @@ struct Hooks : ai::BrainHooks {
     return elem_at(call("0x004c7cb0", {static_cast<uint32_t>(elem_id(at))}));
   }
   bool inout_clamp(zgame::Handle v, const float in[3], float out[3]) override {
-    if (!(call("0x004c3000", {v}) & 0xff)) return false;
+    if (!(call("0x004c3000", {v, bits(in[0]), bits(in[1]), bits(in[2])}) & 0xff)) return false;
     out[0] = in[0] * 0.5f, out[1] = in[1], out[2] = in[2] * 0.5f;  // the test's boundary: halfway to the origin
     return true;
   }
@@ -1460,6 +1460,10 @@ void probe_ao_attack_world(const uint32_t* w) {
     g_step_pos_on[k] = q[0] != 0;
     for (int j = 0; j < 3; ++j) g_step_pos[k][j] = fl(q[1 + j]);
   }
+  b.params.put<uint32_t>(0x44, w[32]);
+  b.params.put<uint32_t>(0x48, w[33]);
+  b.params.put<uint32_t>(0x94, w[34]);
+  g_mech.throttle_down = fl(w[35]);
 }
 // The home point's stack top: 0 none, 1 the test's own, 100 + the order of
 // an attack part's, 2 else.
@@ -1476,16 +1480,16 @@ uint32_t home_code(const float* h) {
 }
 void probe_ao_attack_home(int32_t on) { g_brain->xe4 = on ? g_attack_home_mark : nullptr; }
 int32_t probe_ao_attack(int32_t net) { return ai::attack(*g_brain, net_of(net)); }
-// The stack, 22 words an order: test_ai_orders' 13, then for an attack
+// The stack, 28 words an order: test_ai_orders' 13, then for an attack
 // part its net's id (else 0), its home point and the one under it; for an
 // attack state its kind (1 end, 2 rearm, 3 return), the return's net id,
 // waypoint and turn.
 int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
   int32_t n = 0;
   for (const ai::Order& o : g_brain->orders) {
-    if ((n + 1) * 22 > cap) return -1;
-    uint32_t* w = out + 22 * n++;
-    std::memset(w, 0, 4 * 22);
+    if ((n + 1) * 28 > cap) return -1;
+    uint32_t* w = out + 28 * n++;
+    std::memset(w, 0, 4 * 28);
     const auto* p = dynamic_cast<const FakePart*>(o.net.get());
     const auto* s = dynamic_cast<const FakeState*>(o.state.get());
     w[0] = o.x04;
@@ -1515,6 +1519,13 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       w[19] = fo->pulled;
       std::memcpy(w + 20, &g_brain->steer.along_at, 4);
       std::memcpy(w + 21, &g_brain->steer.along_min, 4);
+    }
+    if (const auto* cs = dynamic_cast<const ai::CircleState*>(o.state.get())) {
+      w[18] = 6;
+      w[19] = static_cast<uint32_t>(cs->flip);
+      std::memcpy(w + 20, &cs->turn, 4), std::memcpy(w + 21, &cs->share, 4);
+      std::memcpy(w + 22, cs->radial, 12);
+      std::memcpy(w + 25, &cs->tangent[0], 4), std::memcpy(w + 26, &cs->tangent[2], 4);
     }
     if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
     if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;

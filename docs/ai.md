@@ -1704,6 +1704,28 @@ root of the summed squares at 24 bits on both sides; the local velocity,
 airborne and gravity in the world; jumps landing on nodes; 800 cases so
 every phase is met), 115 branches.
 
+**Mode 1, circling, ported** (2026-10-22, item 3f: `CircleState`). The
+vehicle net's mode 1 behaviour (slot 2), which the fight hands the order on
+arrival, makes 0x4c9730 -> 0x4c9750 (over the waiting state 0x4c8a30):
+the flat way from the pilot to the target (normalized, 0x4020d0) as the
+radial, its perpendicular (z, 0, -x) as the tangent, the way round 0 and
+the speed share the brain's +0x94. Each run (0x4c9880) gives up as the
+fight does (the target's place, the pilot's, active, 0x4e8dd0); then, with
+the flat way now: the radial error e = (way . radial x dist - R) / R (R the
+brain's +0x44); along = way . tangent x dist turns the way round past the
+brain's +0x48 (on below -P, off above +P; a NaN turns it on); e's sign is
+flipped when the throttle (IControls vt+0x1c) is under 0.1 going round the
+other way, or at most -0.1 otherwise; the steering way is e x radial +
+tangent (normalized), turned to as 0x4cdd40 inline (keep the last turn,
+the node state's settings), IControls vt+0x28; a look-ahead of the
+stopping distance at the share (vt+0x128) x 3, at most 10, backwards when
+going round the other way, from the pilot along the steering way is put to
+the boundary (0x4c3000), a pull turning the way round; the throttle is the
+share (negative the other way round) when facing within 60 degrees (the
+turn's dot at least 0.5), else 0. Test: `test_ai_attack.py` (mode 1 real;
+the boundary's trace carries the point now; the target moved alone between
+runs; negative throttles), 59 branches, 17 of 17 breaks.
+
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
 fire go (vt+0x10 with 0); the null step's 0x4c8700 and 0x604058's
@@ -3114,8 +3136,7 @@ goes through a hooks struct the test stubs the same on both sides.
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
     0x4e81a0: done (10c); its station-keeping states 0x4cc150 and the run
     0x4cc3e0: done (10d2, 10d3); the
-    modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the follow's (0x4d1870)
-    later.
+    modes' states: mode 1 0x4c9750 done (item 3f), 0x4d1320, 0x4d1650 next.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

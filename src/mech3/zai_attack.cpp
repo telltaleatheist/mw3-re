@@ -310,6 +310,89 @@ void FollowState::aim(Brain& b, zgame::Handle v, const float pos[3], const float
   if (unordered_or_less(s.along_at, s.along_min)) s.along_at = s.along_min;
 }
 
+// Mech3.exe 1.2 @ 0x004c9750. Without a part or target the exe reads
+// through null; the port leaves the directions 0.
+CircleState::CircleState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {
+  BrainHooks& h = brain_hooks();
+  Brain& br = *o->owner;
+  const zgame::Handle v = br.controls->vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(o->net.get());
+  if (!part || !part->target) return;
+  float to[3], pos[3];
+  h.position(part->target->vehicle, to);  // the net's vt+0x04
+  h.position(v, pos);                     // 0x005a85e0
+  share = br.params.get<float>(0x94);
+  flip = 0;
+  zmth::Vec3 r{to[0] - pos[0], 0.0f, to[2] - pos[2]};
+  zmth::normalize(r);  // 0x004020d0
+  radial[0] = r.x, radial[1] = r.y, radial[2] = r.z;
+  tangent[0] = r.z, tangent[1] = 0, tangent[2] = -r.x;
+}
+
+// Mech3.exe 1.2 @ 0x004c9880 (docs/ai.md 17.2). The radius is the brain's
+// +0x44, the way round turns past +0x48 along the tangent; the look-ahead
+// (the stopping distance at the share, x3, at most 10) pulled by the
+// boundary turns it too.
+void CircleState::run(float dt) {
+  (void)dt;
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(order->net.get());
+  if (!part || !part->target) {
+    order->pop();
+    return;
+  }
+  const zgame::Handle target = part->target->vehicle;
+  float to[3], from[3];
+  h.position(target, to);  // the net's vt+0x04
+  h.position(v, from);     // 0x005a85e0
+  if (!h.entity_active(target) || b.must_break_off(v)) {  // +0x08, 0x004e8dd0
+    order->pop();  // order vt+0x08
+    return;
+  }
+  FlatWay w;
+  flat_way(from, to, &w);  // 0x004ce230
+  const float R = b.params.get<float>(0x44);
+  const float r = (w.dir[0] * radial[0] + w.dir[1] * radial[1]) + w.dir[2] * radial[2];
+  const float e = (r * w.dist - R) / R;
+  const float t = (w.dir[0] * tangent[0] + w.dir[1] * tangent[1]) + w.dir[2] * tangent[2];
+  const float along = t * w.dist;
+  const float P = b.params.get<float>(0x48);
+  if (flip) {
+    if (along > P) flip = 0;
+  } else if (!(along >= -P)) {  // C0: below, or unordered
+    flip = 1;
+  }
+  const float thr = c.throttle_now();  // IControls vt+0x1c
+  float s = e;
+  if (flip) {
+    if (!(thr >= 0.1)) s = -e;  // 0x005cb0f0
+  } else if (!(thr > -0.1)) {   // 0x005cb0f8
+    s = -e;
+  }
+  zmth::Vec3 d{s * radial[0] + tangent[0], 0.0f, radial[2] * s + tangent[2]};
+  zmth::normalize(d);  // 0x004020d0
+  const float dir[3] = {d.x, d.y, d.z};
+  float fwd[3] = {0, 0, 0};
+  h.forward(v, &fwd[0], &fwd[2]);  // +0x24
+  float dot, cross;
+  turn = turn_toward(fwd, dir, &dot, &cross, turn, turn_params());  // 0x004cdd40, inline
+  c.set_turn(turn);  // IControls vt+0x28
+  float ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128
+  if (!(10.0f >= ahead)) ahead = 10.0f;
+  if (flip) ahead = -ahead;
+  const float step[3] = {ahead * dir[0], ahead * dir[1], ahead * dir[2]};
+  float look[3] = {from[0] + step[0], from[1] + step[1], from[2] + step[2]};
+  if (h.inout_clamp(v, look, look)) flip = flip == 0;  // 0x004c3000
+  if (!(dot >= 0.5)) {  // 0x005cb108
+    c.set_throttle(0.0f);
+    return;
+  }
+  c.set_throttle(flip ? -share : share);  // IControls vt+0x20
+}
+
 // Mech3.exe 1.2 @ 0x004d1980
 void FollowState::run(float dt) {
   BrainHooks& h = brain_hooks();
