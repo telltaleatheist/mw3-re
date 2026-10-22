@@ -56,7 +56,10 @@ NODE_VT, NODE_STATE_VT, NULL_STEP = 0x5cc6f0, 0x5cc5c0, 0x603fa0
 NODE_VTS = {0: NODE_VT, 5: 0x5cc7a8, 6: 0x5cc898}
 NODE_STATES = (NODE_STATE_VT, 0x5cc860, 0x5cc950)
 BACKUP_RUN, DEPLOY_STATE_VT = 0x4cfad0, 0x5cc950
-PASS_VT = (0x5cb540, 0x5cb7c8)  # the speed and valve steps' states (0x4c9f40, 0x4ca2e0)
+PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88)  # the speed, valve, scan steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0)
+SCAN_VT = (0x5cbbd0, 0x5cbca8, 0x5cbd60)  # scan, canleave, canleave-not
+SCAN_FN = ((0x4d9c30, 0x4d9c20), (0x4d9c50, 0x4d9c40), (0x4d9c70, 0x4d9c60))  # aim, hit, time: off, on
+CANLEAVE_FN = {1: 0x4d9c80, 2: 0x4d9ca0}
 STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0}  # speed, valve, jump, gate
 f2i, fi = tf.f2i, ts.fi
 COVER = {
@@ -76,7 +79,10 @@ COVER = {
     0x4d0218: 'deploy: closing in', 0x4d02af: 'deploy: not settled', 0x4d02f7: 'deploy: settled',
     0x4d03c4: 'deploy: turning', 0x4d040c: 'deploy: faced', 0x4d045d: 'deploy: sliding', 0x4d0529: 'deploy: placed',
     0x4d062d: 'deploy: holding', 0x4d06ab: 'deploy: its valve set', 0x4d06fb: 'deploy: holding on',
-    0x4d0766: 'deploy: on', 0x4d0864: 'deploy: waiting'}
+    0x4d0766: 'deploy: on', 0x4d0864: 'deploy: waiting', 0x4cbcb9: 'a scan step: its tests',
+    0x4cbcc7: 'a scan step: on', 0x4d9c20: 'scan aim on', 0x4d9c30: 'scan aim off', 0x4d9c40: 'scan hit on',
+    0x4d9c50: 'scan hit off', 0x4d9c60: 'scan time on', 0x4d9c70: 'scan time off', 0x4d9c80: 'canleave',
+    0x4d9ca0: 'canleave not'}
 REACHED = set()
 
 
@@ -205,7 +211,7 @@ class Original(ts.Original):
         e = self.e
         self.elems = []
         for r in rows:
-            size = 0x40 if r[0] in NODE_VTS else 0x18
+            size = 0x40 if r[0] in NODE_VTS else 0x20
             self.elems.append(e.world_alloc(size))
         at = lambda k: NULL_STEP if k == -2 else self.elems[k]  # noqa: E731
         self.elem_id = {a: k + 1 for k, a in enumerate(self.elems)}
@@ -220,6 +226,15 @@ class Original(ts.Original):
                 if r[0] == 6:  # the deploy node's valves, values and target
                     e.cpu.write(a + 0x2c, struct.pack('<5I', self.valves[r[8] & 1], r[9], self.valves[r[10] & 1], r[11],
                                                       at(r[12])))
+            elif r[0] == 7:  # a scan or canleave step: its tests (function, 0) at +0x14..+0x18
+                sub = r[1] % 3
+                fns = [CANLEAVE_FN[sub]] if sub else \
+                    [SCAN_FN[k][r[2] >> (2 * k + 1) & 1] for k in range(3) if r[2] >> (2 * k) & 1]
+                arr = e.world_alloc(0x20)
+                for k, fn in enumerate(fns):
+                    e.cpu.write(arr + 8 * k, struct.pack('<2I', fn, 0))
+                e.cpu.write(a, struct.pack('<4I', SCAN_VT[sub], 0, 0, at(r[4])) +
+                            struct.pack('<4I', 3, arr, arr + 8 * len(fns), arr + 0x18))
             else:
                 e.cpu.write(a, struct.pack('<4I', STEP_VT[r[0]], 0, 0, at(r[4])))
                 if r[0] in (1, 3):
@@ -245,7 +260,10 @@ class Original(ts.Original):
         e.cpu.write(b + 0x298, struct.pack('<3I', *w[14:17]))
         e.w32(e.r32(self.valves[2] + 4) + 4, w[17])
         e.w32(OWNER + 0x40, w[18])
-        e.w32(b + 0x238, self.finder if w[19] else 0)  # a way finder (its answers 0x4c7cb0's, from the trace)
+        e.w32(b + 0x238, self.finder if w[19] else 0)
+        for k, off in enumerate((0x98, 0x9c, 0xa0, 0x3c)):
+            e.w32(b + off, w[20 + k])
+        e.w32(b + 0xdc, w[24])  # a way finder (its answers 0x4c7cb0's, from the trace)
 
     def node(self, op, which, dt):
         e, b = self.e, self.brain
@@ -257,7 +275,7 @@ class Original(ts.Original):
             e.call(e.r32(e.r32(st) + (0x14 if op == 1 else 0x10)), ecx=st, stack=(dt,) if op == 1 else ())
         elif op == 1 and e.r32(st) in PASS_VT:
             e.call(e.r32(e.r32(st) + 0x14), ecx=st, stack=(dt,))
-        out = [0] * 40
+        out = [0] * 46
         cur = self.orders()[-1]
         st = e.r32(cur + 0x10)
         vt = e.r32(st)
@@ -277,6 +295,7 @@ class Original(ts.Original):
         if vt == DEPLOY_STATE_VT and out[1] >= 4:  # set on leaving phase 3
             out[32:35] = [e.r32(st + 0x2c + 4 * k) for k in range(3)]
         out[35:38] = [e.r32(e.r32(v + 4) + 4) for v in self.valves]
+        out[40:45] = [e.r32(b + off) for off in (0x98, 0x9c, 0xa0, 0x3c, 0xdc)]
         return out
 
     def turn(self, op, f, params):
@@ -339,9 +358,10 @@ def build_net(rng):
                 continue
             first = len(rows)
             for depth in range(rng.choice([1, 1, 2])):
-                kind = rng.choice([1, 2, 3, 4])
-                a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(2)
-                rows.append([kind, a, rng.choice([0, 1, 1]), 0, len(rows) + 1, -1, -1, -1, 0, 0, 0, 0, 0])
+                kind = rng.choice([1, 2, 3, 4, 7, 7])
+                a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(3) if kind == 7 else rng.randrange(2)
+                bb = rng.randrange(64) if kind == 7 else rng.choice([0, 1, 1])
+                rows.append([kind, a, bb, 0, len(rows) + 1, -1, -1, -1, 0, 0, 0, 0, 0])
             rows[-1][4] = target
             links.append(first)
         if k in near:
@@ -364,6 +384,7 @@ def world(rng, nodes):
     w += [rng.randrange(2), rng.choice([0, 0, 2, 4]), rng.randrange(2), rng.randrange(2)]
     w += [f2i(x) for x in pos] + [f2i(x) for x in last]
     w += [rng.choice([0, 1, 1]), f2i(rng.choice([0.0, 0.05, -0.08, 0.15, 0.5, -2.0])), int(rng.random() < 0.2)]
+    w += [rng.randrange(2) for _ in range(4)] + [f2i(rng.choice([3.4028235e38, 12.5, 0.0]))]
     return w
 
 
@@ -389,9 +410,9 @@ def run_case(probe, seed, calls, stats):
     probe.probe_ao_node_net((U * len(flat))(*flat), len(rows))
     w = world(rng, nodes)
     orig.node_world(w)
-    probe.probe_ao_node_world((U * 20)(*w))
+    probe.probe_ao_node_world((U * 25)(*w))
     node_rows = [k for k, r in enumerate(rows) if r[0] in NODE_VTS]
-    out = (U * 40)()
+    out = (U * 46)()
     state, last = 0, None
     for k in range(calls):
         r = rng.random()
@@ -433,7 +454,7 @@ def run_case(probe, seed, calls, stats):
                     ang = rng.uniform(-math.pi, math.pi)
                     w[0], w[2] = (f2i(math.sin(ang)), f2i(math.cos(ang))) if rng.random() > 0.15 else (0, 0)
                 orig.node_world(w)
-                probe.probe_ao_node_world((U * 20)(*w))
+                probe.probe_ao_node_world((U * 25)(*w))
             elif x < 0.72:  # the steering block loaded: the carrot near the node
                 blk = (U * 21)()
                 probe.probe_ao_steer(2, (U * 7)(), blk)
@@ -464,7 +485,7 @@ def run_case(probe, seed, calls, stats):
                         off = rng.choice([0.0, 0.01, 0.2, 0.7])
                         w[11:14] = [f2i(q[0] + off), f2i(q[1]), f2i(q[2] - off)]
                 orig.node_world(w)
-                probe.probe_ao_node_world((U * 20)(*w))
+                probe.probe_ao_node_world((U * 25)(*w))
             continue
         a = orig.node(op, which, dt)
         probe.probe_ao_node(op, which, dt, out)
@@ -477,7 +498,8 @@ def run_case(probe, seed, calls, stats):
         if a != b:
             names = ['state', 'phase', 'turn', 'x14', 'throttle', 'slow', 'inv_slow', 'retry'] + \
                 [f'steer+{4 * j:#x}' for j in range(18)] + ['x298.x', 'x298.y', 'x298.z', 'xec', 'x104', 'x80'] + \
-                ['face.x', 'face.y', 'face.z', 'valve1', 'valve2', 'mcbdeploy', '-', '-']
+                ['face.x', 'face.y', 'face.z', 'valve1', 'valve2', 'mcbdeploy', '-', '-',
+                 'scan_aim', 'scan_hit', 'scan_time', 'canleave', 'xdc']
             bad = [f'{n} {x:#x}/{fi(x)} vs {y:#x}/{fi(y)}' for n, x, y in zip(names, a, b) if x != y]
             raise SystemExit(f'seed {seed} call {k} op {op} which {which}: {bad}')
         state = a[0] if a[0] < 0x80000000 and a[0] != 0x1fffe else -1

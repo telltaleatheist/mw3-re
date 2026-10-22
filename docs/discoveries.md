@@ -1707,6 +1707,12 @@ are all "puffers": emitters that drop little textured squares.
   before going on. No shipped mission uses one, and the original turns
   toward a direction it never sets (whatever was left in memory); the
   rebuild uses the way the pilot came (`ai.md` 17.4a).
+- **Waypoints switch a pilot's habits.** The commonest marks on the AI
+  paths (over 5,000 of them) are "scan" and "canleave" points: passing one
+  turns a pilot's habits on or off for the rest of its walk: whether it may
+  break off its route to attack, and whether it dodges when hit or now and
+  then at random. So one enemy can patrol peacefully until it reaches a
+  certain spot and turn aggressive from there (`ai.md` 17.4a).
 - **AI pilots prefer to keep going straight.** At a waypoint with several
   ways on, a pilot picks one at random, weighted so that a way straight
   ahead is a hundred times likelier than one straight back the way it came

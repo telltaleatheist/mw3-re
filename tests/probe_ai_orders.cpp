@@ -630,6 +630,20 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
         g_elems.push_back(std::make_unique<ai::ValveStep>(g_node_valves[r[1] & 1].get(), static_cast<int32_t>(r[2])));
         break;
       case 3: g_elems.push_back(std::make_unique<TestStep<ai::ValueStep>>(id, ai::StepKind::Jump, r[1])); break;
+      case 7: {  // a scan (a 0) or canleave (1 on, 2 not) step; b the scan's tests, two bits each
+        static const ai::StepKind kinds[3] = {ai::StepKind::Scan, ai::StepKind::CanLeave, ai::StepKind::CanLeaveNot};
+        auto st = std::make_unique<ai::ScanStep>(kinds[r[1] % 3], 3);
+        if (r[1] % 3 == 1) st->tests.emplace_back(ai::ScanTest::CanLeave, 0);
+        else if (r[1] % 3 == 2) st->tests.emplace_back(ai::ScanTest::CanLeaveNot, 0);
+        else {
+          const ai::ScanTest on[3] = {ai::ScanTest::AimOn, ai::ScanTest::HitOn, ai::ScanTest::TimeOn};
+          const ai::ScanTest off[3] = {ai::ScanTest::AimOff, ai::ScanTest::HitOff, ai::ScanTest::TimeOff};
+          for (int k = 0; k < 3; ++k)
+            if (r[2] >> (2 * k) & 1) st->tests.emplace_back((r[2] >> (2 * k + 1) & 1) ? on[k] : off[k], 0);
+        }
+        g_elems.push_back(std::move(st));
+        break;
+      }
       default: g_elems.push_back(std::make_unique<TestStep<ai::GateStep>>(id, "g1")); break;
     }
   }
@@ -667,6 +681,8 @@ void probe_ao_node_world(const uint32_t* w) {
   g_vy = fl(w[18]);
   if (w[19] && !g_brain->path.finder) g_brain->path.finder = new ai::PathFinder;  // its answers the trace's
   if (!w[19]) g_brain->path.reset();
+  for (int k = 0; k < 4; ++k) g_brain->params.put<uint32_t>(k < 3 ? 0x98 + 4 * k : 0x3c, w[20 + k]);
+  g_brain->xdc = fl(w[24]);
 }
 
 // op 0: the current order given element `which` (0x004e8120); 1 its state
@@ -674,7 +690,8 @@ void probe_ao_node_world(const uint32_t* w) {
 // element's id for a node state, minus a fake's serial, else 0x10000 and
 // its behaviour's id), the node state's +0x0c..+0x24, the steering block,
 // +0x298, +0xec, +0x104 (then cleared), +0x80, a deploy state's +0x2c..
-// once set (phase 4 on), the three valves.
+// once set (phase 4 on), the three valves; +0x98, +0x9c, +0xa0, +0x3c, +0xdc
+// at 40.
 void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   ai::Brain& b = *g_brain;
   b.controls = &g_controls;
@@ -686,9 +703,11 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
     else ns->resume();
   } else if (op == 1 && o.state && !dynamic_cast<FakeState*>(o.state.get())) {
     const ai::Behaviour* x = o.state->behaviour();
-    if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve)) o.state->run(fl(dt));
+    if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve || x->kind == ai::StepKind::Scan ||
+              x->kind == ai::StepKind::CanLeave || x->kind == ai::StepKind::CanLeaveNot))
+      o.state->run(fl(dt));
   }
-  std::memset(out, 0, 4 * 40);
+  std::memset(out, 0, 4 * 46);
   ai::Order& cur = b.current();
   if (auto* ns = dynamic_cast<ai::NodeState*>(cur.state.get())) {
     out[0] = static_cast<uint32_t>(elem_id(ns->behaviour()));
@@ -708,6 +727,8 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   out[31] = b.params.get<uint32_t>(0x80);
   if (auto* ds = dynamic_cast<ai::DeployState*>(cur.state.get()); ds && ds->phase >= 4) std::memcpy(out + 32, ds->face, 12);
   for (int i = 0; i < 3; ++i) out[35 + i] = static_cast<uint32_t>(g_node_valves[static_cast<size_t>(i)]->get());
+  for (int k = 0; k < 4; ++k) out[40 + k] = b.params.get<uint32_t>(k < 3 ? 0x98 + 4 * k : 0x3c);
+  std::memcpy(out + 44, &b.xdc, 4);
 }
 
 // The link pick alone (0x004ccf20) at element `which` for heading h[3]:

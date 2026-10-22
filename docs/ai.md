@@ -1403,7 +1403,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cace0, 0x5cba00 | 0x4caca0 (0x5cb948) | 0x4c8690 | resume 0x4cad30 |
 | 0x4cadb0, 0x5cbad8 | 0x4cad70 (0x5cba20), given the target | 0x4cae90 (108) | resume 0x4cae10 |
 | 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | |
-| 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | |
+| 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | ported (17.4a) |
 | 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
 | 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | |
 | 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | |
@@ -1735,13 +1735,30 @@ step or length, facing the target, "mcbdeploy" ignored, the second valve
 inverted, the first not set, the wait ignoring the finder, a 2 degree fine
 dead zone. 8a's 38 breaks still caught on the extended test.
 
+**The scan and canleave steps' state** (0x4cbc30 -> 0x4cbc50, vtable
+0x5cbc88, run 0x4cbca0; scan_time 2796, canleave 2858 in the shipped nets):
+each of the step's tests (function, word) is called on the brain plus the
+word (always 0), then the order runs again (+0x104) on the next step. The
+tests (0x4d9c20..0x4d9ca0, `Brain::scan_test`) only set the pilot's aiv
+flags: scan_aim +0x98, scan_hit +0x9c (the frame's manoeuvre when hit,
+17.1), scan_time +0xa0 (the random-wait manoeuvre) on or off, and canleave
++0x3c (whether it may break off to engage, 17.3) on or off with the
+engage delay's end +0xdc set to FLT_MAX. Test: the scan steps in
+`test_ai_node.py`'s nets (the exe's layout, the real test functions), the
+five fields compared after every call: 300 cases identical, 67 branches;
+8 of 8 breaks caught (the tests not run, only the first, no run again,
+aim at +0x9c, hit off setting, time on clearing, the delay kept,
+canleave not inverted).
+
 **In the program** (`mission_c1m1_owens_walks_to_its_node_headless`): woken
 by bramp, the Owens is on the node of net 4 it stands on, goes on at once
 by its link (a speed step, share 0.7, and a valve step) to the next node
 237 m off, turns to face it (forward against the way there 1.000), walks
 there under its own controls (throttle up to 0.7) and, 14.6 m off, inside
-its 16.8 m stopping distance, goes on by that node's link: a scan step
-(item 9), where it stops for now. With the nets followed, the mission
+its 16.8 m stopping distance, goes on by that node's link: a scan step,
+then its post 119 m on, where it stands (phase 2, asking every 5 s): the
+node's one way on is a valve step waiting for `firefly_retreat`, which the
+mission sets later. With the nets followed, the mission
 cleanup's "Deleting AI Nets" (0x58b290, ported as `znet::clear`) is now
 wired: before it, a second mission in one process kept the first one's
 nets, whose valve steps pointed at freed valves (a crash in the suite).
@@ -1884,7 +1901,7 @@ goes through a hooks struct the test stubs the same on both sides.
    derived states.
 8. **The node state** 0x4ced40: done (17.4a), with the speed and valve
    steps' states, backup 0x4cfa80 and deploy 0x4d0040.
-9. **The property states**: waits, scan / canleave, sound,
+9. **The property states**: scan / canleave done (17.4a); waits, sound,
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);
    jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its

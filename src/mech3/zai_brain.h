@@ -408,6 +408,8 @@ class Brain {
   // The controls it is a base of in the exe (set by the frame and by the AI
   // controls): what its orders' states steer.
   BrainControls* controls = nullptr;
+  // A scan or canleave step's test on this brain (0x004d9c20..0x004d9ca0).
+  void scan_test(ScanTest t);
 
   // Mech3.exe 1.2 @ 0x004e9710: the frame (0x004e96f0 answers it): the
   // targets set and the controls smoothed (ai.md 17.1).
