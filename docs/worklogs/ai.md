@@ -473,3 +473,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   a dead pilot's region triggers go to the player's settings.
 - test_lance_dispatch.py (probe_lance.cpp): 3,000 cases identical, 7 of 7
   breaks (one at the full count); test_lance.cpp: the triggers.
+
+## 2026-10-22 Item L5: the lance end to end (mac4/lancecheck)
+
+- test_program mission_c1m4_dominic_takes_the_order_and_the_lance_turns:
+  the player selects Dominic, targets the enemy (400 m on a clear line),
+  player_command(0x54): the follow on the enemy's net, closes to ~60 m
+  firing; 6 s of the player's hits turn him (enemies + team, allies - team).
+- Found: the ground blocked the survey's 150 m line (not the range: he
+  fires from 600 m on a clear line); corrected in 17.8b and discoveries.
+- Found: headless walks are not bit-repeatable (Dominic's z differs by
+  1e-4 m from ~2.5 s in; the player's handle varies by one): reported to
+  the lead, the test asserts only what does not depend on it.

@@ -1702,8 +1702,8 @@ are all "puffers": emitters that drop little textured squares.
   gets you a radio line (a call for help when you are more than about 22 m
   away, "friendly fire" when it was you).
   Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
-  60 m in front of him draws his fire at once; at 150 m he aims at it and
-  stands there.
+  60 m in front of him draws his fire at once; at 150 m behind a rise he
+  aims and stands there, but on an open line he fires from 400 m and more.
 - **A fallen lancemate's mission triggers become yours.** Some mission
   switches are thrown when a particular pilot reaches a place. When an
   allied pilot dies, the game hands every one of its place triggers to
@@ -1725,6 +1725,9 @@ are all "puffers": emitters that drop little textured squares.
   zero too, so for the first second every mech counts as having been hit
   a moment ago. A pilot awake that early would dodge or fire triggers as
   if shot; in the shipped missions they all wake later.
+- **Your own lancemates' splash can save you.** The three-second count of
+  friendly fire starts again whenever someone else hits the same pilot,
+  his own missiles' splash on a close target included.
 - **Shoot your own lancemates for three seconds and the whole map turns on
   you.** The game counts a run of hits from the same attacker (it restarts
   after a 3-second pause). When you keep hitting an ally for more than 3
