@@ -407,6 +407,7 @@ def world(rng):
 
 def run_case(probe, seed, rounds):
     rng = random.Random(seed)
+    gone = random.Random(f'{seed}:gone')  # the direct inactive-target runs, apart from the main draws
     orig = Original(seed)
     # [0x60b478], the start-up 0x4c7900's turn settings: the port's (test_ai_node.py checks them).
     tp = (U * 4)()
@@ -444,6 +445,30 @@ def run_case(probe, seed, rounds):
             theirs = struct.unpack('<18I', bytes(orig.e.cpu.read(orig.brain + 0x250, 0x48)))
             raise SystemExit(f'seed {seed} {what}: steering\n  exe  {[hex(x) for x in theirs]}\n  port {[hex(x) for x in mine]}')
         return len(a)
+
+    def inactive_run(fight, label):
+        """Mode 2's or 4's state run once with its target gone inactive (the
+        frame drops such a fight before its state runs): its gate pops."""
+        tops = orig.orders()
+        if fight is None or not tops or gone.random() >= 0.25:
+            return
+        st = orig.e.r32(tops[-1] + 0x10)
+        if not st or orig.e.r32(st) not in (VT_ORBIT, VT_VEER):
+            return
+        vt = orig.e.r32(st)
+        off = (fight[0], 0) + fight[2:]
+        orig.fight_world(*off)
+        probe.probe_ao_set_now(off[4])
+        probe.probe_ao_fight_world((ctypes.c_float * 3)(*off[0]), *off[1:])
+        f = f2i(1 / 30)
+        orig.op(16, 0, 0, f)
+        probe.probe_ao_op(16, 0, 0, f)
+        check(f'{label} inactive')
+        key = {VT_ORBIT: 'inactive 2', VT_VEER: 'inactive 4'}[vt]
+        stats[key] = stats.get(key, 0) + 1
+        orig.fight_world(*fight)
+        probe.probe_ao_set_now(fight[4])
+        probe.probe_ao_fight_world((ctypes.c_float * 3)(*fight[0]), *fight[1:])
 
     for k in range(rounds):
         w = world(rng)
@@ -550,6 +575,7 @@ def run_case(probe, seed, rounds):
             stats[what] = stats.get(what, 0) + 1
             if check(f'round {k} step {step} {what}') <= 1:
                 break
+            inactive_run(fight, f'round {k} step {step}')
         # Back to one order for the next round.
         while len(orig.orders()) > 1:
             orig.op(7, 0, 0, 0)
@@ -609,7 +635,7 @@ def main():
     if never:
         raise SystemExit(f'branches never reached: {never}')
     print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("fights", 0)} fights, {total.get("follows", 0)} follows, {total.get("run", 0)} runs, '
-          f' {total.get("pop", 0)} pops, {total.get("own", 0)} own-order runs ({total.get("own built", 0)} with a part) identical; {len(COVER)} branches reached')
+          f' {total.get("pop", 0)} pops, {total.get("own", 0)} own-order runs ({total.get("own built", 0)} with a part), inactive-target runs {total.get("inactive 2", 0)} / {total.get("inactive 4", 0)} (modes 2, 4) identical; {len(COVER)} branches reached')
 
 
 if __name__ == '__main__':

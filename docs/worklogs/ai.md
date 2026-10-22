@@ -741,3 +741,7 @@ Newest last. One short entry per item: what, commits, what to remember.
 - test_ai_attack.py: mode 4 real, drawn more often, 300 cases; 72 branches.
   10 of 12 breaks; missed: the inactive target (dropped earlier by the
   brain's frame) and the facing threshold raised to 0.6.
+- Follow-up (lead): test_ai_attack.py runs mode 2's or 4's state once with
+  its target inactive after some steps (a separate generator, so the main
+  draws stay); both inactive-gate breaks caught. Mode 1 left out: its
+  flips' coverage depends on the main course.

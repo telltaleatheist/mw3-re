@@ -1734,9 +1734,12 @@ given up as the fight is; the way from the flat way (0x4ce230); the
 throttle the share when facing within 60 degrees (a NaN holds). With it
 `BrainHooks::vehicle_step_state` is gone: every state the vehicle net's
 behaviours make is ported. Test: `test_ai_attack.py` (mode 4 real, drawn
-more often, 300 cases), 72 branches; 10 of 12 breaks: the target going
-inactive is not met (the brain's frame drops it first, as for mode 2) and
-the facing threshold moved up to 0.6 is not (few dots between).
+more often, 300 cases), 72 branches; 11 of 12 breaks: the facing
+threshold moved up to 0.6 is not caught (few dots between). The target
+going inactive under a running state is rare through the frame (it drops
+such a fight first), so after a step with mode 2's or 4's state on top the
+test sometimes runs it once with the target inactive (its own generator):
+both gates' breaks are caught.
 
 **Mode 2, orbiting, ported** (2026-10-22, item 3g: `OrbitState`). Mode 2
 (slot 3) makes 0x4d1300 -> 0x4d1320: the speed share the brain's +0x94,
