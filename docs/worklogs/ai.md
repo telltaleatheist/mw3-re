@@ -340,3 +340,20 @@ Newest last. One short entry per item: what, commits, what to remember.
 - c1m1: the own order is off (+0x80 0) for the bump window (it gives way
   otherwise); after the way home the player walks at the Owens: it swerves,
   backs off facing the player, lets go at 44.2 m.
+
+## 2026-10-22 Owen's three: the split
+
+- 1 the allied attack pick (mac4/allied, held: no shipped ally has engaging
+  +0x3c on, so the frame never weighs an attack for them; Owen to choose a
+  narrow fix or a look at what a lancemate does after its told target);
+  2 the valve re-entry guard; 3a c4b m6's boundary pair (analysis); 3b its
+  fix behind zfix bugs (a candidate instead if 3a cannot show the pair).
+
+## 2026-10-22 Item 2: the valve re-entry guard (mac4/valveguard)
+
+- Valve::fire 0x4d3bf0 skips a valve firing inside its own reactions
+  (FIX (bug), unconditional: the update 0x4e3d90 is the only reaction that
+  re-fires at once, so any re-entry is an endless loop in the exe).
+  valve_reentries() counts the skips.
+- test_ai_valves.py: 352 cases identical, skips counted and asserted 0;
+  test_fixes: a self update and a ring of three, each reaction once per set.

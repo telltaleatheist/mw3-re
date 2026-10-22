@@ -77,9 +77,24 @@ Valve::~Valve() {
   delete value;
 }
 
-// Mech3.exe 1.2 @ 0x004d3bf0
+int32_t& valve_reentries() {
+  static int32_t n = 0;
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x004d3bf0. FIX (bug): a valve that fires again while its
+// reactions run (an update of itself, directly or round a loop of updates
+// and conditions) recursed until the stack ran out; here the inner fire is
+// skipped (docs/ai.md section 8).
 void Valve::fire() {
-  if (chain) chain->fire(*this);
+  if (!chain) return;
+  if (firing) {
+    ++valve_reentries();
+    return;
+  }
+  firing = true;
+  chain->fire(*this);
+  firing = false;
 }
 
 // Mech3.exe 1.2 @ 0x004d3c00
