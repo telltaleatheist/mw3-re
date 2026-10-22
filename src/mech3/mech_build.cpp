@@ -1,4 +1,6 @@
 #include "mech3/mech_build.h"
+
+#include "gamez/zentity/zent_init.h"
 #include "mech3/mech_parts.h"
 
 #include <cstdio>
@@ -91,13 +93,17 @@ void* MechBuildHooks::node_owner(Handle node) {
 }
 
 // 0x004d6c90 on a mech: zEntity's node (0x005a8390: its matrix, a centroid
-// and a target node made under it) and the node's entity. The entity side
-// is not ported: the program's stand-in keeps the node and its matrix.
+// and a target node found or made under it) and the node's entity. The
+// entity's record is not ported: the stand-in keeps the node, its matrix and
+// the two markers (zent::marker_nodes; before, both were the node itself).
 void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
   unported("0x004d6c90", {ref(&m), low(node), name, 0, 0});
   m.node = node;
   m.transform = node ? zcls::object3d_matrix(zn(node)) : nullptr;
-  m.target_node = m.centroid = node;
+  zcls::Node *centroid = nullptr, *target = nullptr;
+  zent::marker_nodes(zn(node), nullptr, nullptr, &centroid, &target);  // 0x004d6c90 passes 0, 0
+  m.centroid = centroid ? centroid : node;
+  m.target_node = target ? target : node;
 }
 
 void MechBuildHooks::controls_set_owner(MechControls* c, Mech& m) { c->owner = &m; }

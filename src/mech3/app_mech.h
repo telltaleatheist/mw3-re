@@ -159,6 +159,9 @@ bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head
 // For the tests: the throttle target set and held, as a throttle key held to v would.
 bool mech_hold_throttle(void* mech, float v);
 int32_t mech_controls_view(void* mech);
+// For the tests: the world y of the mech's node, target node (+0x10) and
+// centroid, and its height (0x005a8500 keeps the two markers' matrices).
+bool mech_marker_heights(void* mech, float out[4]);
 // For the tests: the mech's ceiling response (0x00423600) to `node` as the
 // ceiling crossed; the head's and torso's structure after it (6 floats: head,
 // torso sections 0..2, the hip's offset y, 1 when it had a box, the crouch depth).

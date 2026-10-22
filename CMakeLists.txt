@@ -58,6 +58,7 @@ add_library(mw3core STATIC
   src/gamez/zgeometry/zgeo_weiler.cpp
   src/gamez/zgeometry/zgeo_convexify.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
+  src/gamez/zentity/zent_init.cpp
   src/gamez/zentity/zent_manager.cpp
   src/gamez/zeffect/zeff_anim_puffer.cpp
   src/gamez/zeffect/zeff_anim_events.cpp

@@ -2857,6 +2857,103 @@ TEST(mission_c1m1_ceiling_crush_uses_the_box_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The view's ground and water check (0x0040af30) in the program: the ground
+// under the camera (0x004edab0) and the water in it (0x004abd90). An outside
+// camera put under the ground is lifted half a metre above it; one put under
+// a water surface gives the world the water's fog (0x0040b0e0), and back above
+// it the air's. Before, the program answered "no ground" and "no water".
+TEST(mission_c1m1_view_ground_and_water_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_ground_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0;
+      bool found = false, water = false, under = false, above_under = true;
+      float mech_y = 0, buried = 0, lifted = 0, water_at[4] = {};
+      float markers[4] = {};
+      bool markers_ok = false;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      // The first frame: the markers placed at the build (0x005a8500), the
+      // target 0.65 of the mech's height up, the centroid half.
+      if (++seen.frames == 1) seen.markers_ok = mech3::mech_marker_heights(mech3::mech_mission_player(), seen.markers);
+      if (seen.frames != 20) return;
+      void* m = mech3::mech_mission_player();
+      float at[3] = {};
+      if (!mech3::mech_world_position(m, at)) return;
+      mech3::program_view_set_camera(0);  // tether: an outside camera
+      seen.mech_y = at[1];
+      seen.buried = at[1] - 5.0f;
+      bool under = false;
+      seen.found = mech3::program_view_ground_probe(at[0], seen.buried, at[2], &seen.lifted, &under);
+      if (mech3::program_view_find_water(at[0], at[2], 600.0f, seen.water_at)) {
+        seen.water = true;
+        float y;
+        mech3::program_view_ground_probe(seen.water_at[0], seen.water_at[1] - 1.0f, seen.water_at[2], &y, &seen.under);
+        mech3::program_view_ground_probe(seen.water_at[0], seen.water_at[1] + 3.0f, seen.water_at[2], &y,
+                                         &seen.above_under);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return seen.frames >= 21; };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "ground: mech y %.2f, buried at %.2f, lifted to %.2f (found %d); water %d at (%.1f, %.2f, %.1f) "
+                   "ground %.2f, under %d, above it under %d\n", seen.mech_y, seen.buried, seen.lifted, seen.found,
+                   seen.water, seen.water_at[0], seen.water_at[1], seen.water_at[2], seen.water_at[3], seen.under,
+                   seen.above_under);
+    EXPECT(seen.found);                                              // 0x004edab0 finds the ground
+    EXPECT(seen.lifted > seen.buried + 4.0f);                         // lifted out of it
+    EXPECT(std::fabs(seen.lifted - seen.mech_y - 0.5f) < 1.0f);       // to about half a metre above
+    EXPECT(seen.water);                                               // c1 has water
+    EXPECT(seen.under && !seen.above_under);                          // its fog only below the surface
+    EXPECT(engine.unported_counts().count("0x004edab0") == 0);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "markers: node %.3f target %.3f centroid %.3f height %.3f\n", seen.markers[0], seen.markers[1],
+                   seen.markers[2], seen.markers[3]);
+    EXPECT(seen.markers_ok && seen.markers[3] > 1.0f);
+    EXPECT(std::fabs(seen.markers[1] - seen.markers[0] - 0.65f * seen.markers[3]) < 0.01f);
+    EXPECT(std::fabs(seen.markers[2] - seen.markers[0] - 0.5f * seen.markers[3]) < 0.01f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1's Owens destroyed (its centre torso, Destroy(0, 1)) once
 // woken and standing (docs/damage.md, The death): dead, the slow death fall
 // queued, the node renamed "deadmech", the pilot's eject seat out (a copy of

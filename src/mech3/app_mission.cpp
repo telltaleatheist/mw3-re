@@ -51,6 +51,7 @@
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zweapon/zweapon.h"
+#include "gamez/zentity/zent_init.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/message_panel.h"
 #include "mech3/app.h"
@@ -480,18 +481,17 @@ struct WiredTargetHooks : ai::TargetHooks {
     const ai::AiTarget* a = ai::sensor_hooks().fields(t);
     return a ? a->team : 0;
   }
-  // 0x005a8390 (zEntity, not ported): the record's target and centroid
-  // subnodes found by name, else the node itself; none are made.
+  // 0x005a8390: the record's centroid and target subnodes found by name,
+  // else made under its node (zent::marker_nodes); the record itself is not
+  // ported.
   void entity_set_node(Handle self, Handle n, Handle a, const char* centroid, const char* target,
                        Handle* target_node, Handle* centroid_node) override {
     unported("0x005a8390", {self, n, a, centroid, target});
     zcls::Node* nd = node(n);
-    auto find = [&](const char* name) {
-      zcls::Node* f = name && nd ? zcls::node_find_in_tree(nd, name) : nullptr;
-      return e->handle_of(f ? f : nd);
-    };
-    *target_node = nd ? find(target) : 0;
-    *centroid_node = nd ? find(centroid) : 0;
+    zcls::Node *c = nullptr, *t = nullptr;
+    zent::marker_nodes(nd, centroid, target, &c, &t);
+    *target_node = nd ? e->handle_of(t ? t : nd) : 0;
+    *centroid_node = nd ? e->handle_of(c ? c : nd) : 0;
   }
   bool have_pilot() override { return e->pilot() != 0; }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
