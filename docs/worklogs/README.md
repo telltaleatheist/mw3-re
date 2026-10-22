@@ -27,18 +27,20 @@ compaction by reading it.
   - Grep `analysis-output/decomp` and `mech3.asm` instead of reading whole
     files, and keep tool output short.
   - While iterating, run only the tests you touch.
-  - Before reporting (Owen, 2026-10-22: the whole suite is for checkpoints,
-    not every item): the item's own tests (its differential and breaks,
-    its new unit tests, and any headless mission test it adds or changes,
-    by name with `MW3_TEST=name`), the differentials of what it touches,
-    the fast units (`MW3_SKIP=headless ./build/mw3tests`, under a second)
-    and `mw3sdltests`. Not the whole `mw3tests`: its 39 headless missions
-    are nearly all of its ~3 minutes.
-  - The lead runs the full suite (every headless mission and every
-    differential, `tests/differential/run_all.sh`) in the background at
-    checkpoints: after a few merges, at the end of a feature, and before
-    the session stops. A failure there is bisected over the merges since
-    the last green checkpoint.
+  - Before reporting, run the related set, plus `mw3tests` and
+    `mw3sdltests` (about 3 minutes: fine, Owen 2026-10-22). While
+    iterating, `MW3_SKIP=headless ./build/mw3tests` runs the units in under
+    a second, and `MW3_TEST=name` runs one test by name.
+  - Keep each test run short (Owen, 2026-10-22: runs of 10 to 20+ minutes
+    slowed the night down). Break runs are where the time went: each break
+    reran a differential at its full count (lab step 5b2a: 28 breaks x 83 s
+    for 60 runs, 20 minutes). Run a break at the smallest count that
+    reaches its branch (10 to 20 runs, or the seeds known to reach it), and
+    rerun at the full count only a break that the short run misses. Aim to
+    keep a whole break pass under 5 minutes.
+  - A differential that takes over 3 minutes at its default count runs at a
+    reduced count in the related set; the full count runs at the lead's
+    checkpoints (`tests/differential/run_all.sh`, in the background).
   - End emulator tests with `sys.stdout.flush(); os._exit(code)`: Unicorn
     processes can hang at exit on this Mac, in a state nothing can kill.
     Run long tests in the background with their output going to a file in
