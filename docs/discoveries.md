@@ -1704,6 +1704,15 @@ are all "puffers": emitters that drop little textured squares.
   Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
   60 m in front of him draws his fire at once; at 150 m he aims at it and
   stands there.
+- **A fallen lancemate's mission triggers become yours.** Some mission
+  switches are thrown when a particular pilot reaches a place. When an
+  allied pilot dies, the game hands every one of its place triggers to
+  you, so the mission goes on when you get there instead.
+- **"Follow me" and "attack my target" aim at different things.** The lance
+  order keys either act on the lancemate's view of you (follow, form up,
+  stop) or on a fresh view from the lancemate to your current target
+  (attack and the like). The order goes to the lancemate you last
+  selected (your saved target, else your last ally picked).
 - **What your lancemates say, and when.** Their radio has sixteen lines;
   the game itself (not the mission scripts) uses: "low ammo" and "out of
   ammo"; a call for help when an enemy hits them and you are more than

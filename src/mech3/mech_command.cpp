@@ -5,6 +5,7 @@
 #include "gamez/zclass/class.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
+#include "mech3/lance_orders.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_move.h"
 #include "mech3/weapon.h"
@@ -260,8 +261,8 @@ void Mech::command(int32_t cmd) {
         const int32_t order = kOrder[cmd - 0x4f];
         if (g_calls.lance_order) {
           if (MechControls* c = g_calls.lance_order(*this, order)) controls = c;
-        } else {
-          record("0x00469930", order);
+        } else if (MechControls* c = lance_dispatch(controls, order)) {  // 0x00469930 -> 0x00469940
+          controls = c;
         }
         break;
       }

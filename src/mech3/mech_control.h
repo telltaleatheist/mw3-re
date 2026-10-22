@@ -129,6 +129,10 @@ struct PlayerControls : MechControls {
 // exe, ai::Brain), the IControls virtual base at +0x30c (its owner +0x31c).
 // Each frame the brain (0x004e9710, not ported) sets the targets and runs the
 // smoothing. Made without a record, it has no brain (the smoothing's tests).
+// 0x0049e540 -> 0x0049e4e0 (the AI controls' death): a dead pilot's region
+// triggers go to the player's settings when it was on his side.
+void player_takes_triggers(const ai::AiParams& dead);
+
 struct AiControls : MechControls, ai::BrainControls {
   AiControls() = default;
   AiControls(Mech* owner, ai::AiNet* net, const ai::AiParams& rec);  // 0x004d8750(owner, net, rec, 1)

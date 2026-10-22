@@ -66,9 +66,6 @@ class BrainHooks : public zgame::Unported {
   // 0x004d0920) pushed when the mission has repair bays (0x0045a000) and
   // 0x0047a780 allows; not ported.
   virtual bool refit(Brain& b) { return unported("0x004ea260", {low(&b)}) & 0xff; }
-  // 0x0049e540 (player.cpp, the AI mech controls' death 0x004d8a00): the
-  // player's lance list drops the dead pilot's vehicle (item L4).
-  virtual void lance_lost(zgame::Handle v) { unported("0x0049e540", {v}); }
   // The game time [0x0060991c].
   virtual float now();
   // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98
