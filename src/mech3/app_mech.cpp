@@ -664,6 +664,9 @@ void wire_mech_parts() {
   update_calls().stop_cockpit_sound = [](int i) { cockpit_sound_stop(i, 0); };
   CollideCalls& c = collide_calls();
   c.node_touchable = [](Handle n) { return handler_touchable(n); };  // node +0xbc above 1 with slot 1 (0x004230a0)
+  // The ceiling's crush (0x00423600): the box of what the mech stands under
+  // (0x004ec9c0). Unwired before, the crush never happened in play.
+  c.hit_box = [](Handle n) { return zcls::node_box(static_cast<zcls::Node*>(n)); };
   c.touch = [](Handle n, const Vec3* from, const CollisionHit& h, float damage) {  // 0x005836b0
     zwep::HitRecord r;
     std::memcpy(&r.normal, h.hit.normal, 12);
@@ -689,7 +692,7 @@ void wire_mech_build(const MechWiring* w) {
     heat_calls().throttle = nullptr, heat_calls().game_type = nullptr, heat_calls().play_sound = nullptr, heat_calls().play_sound_at = nullptr;
     heat_calls().stop_sound = nullptr, heat_calls().play_mech_sound = nullptr;
     update_calls().stop_cockpit_sound = nullptr;
-    collide_calls().touch = nullptr, collide_calls().node_touchable = nullptr;
+    collide_calls().touch = nullptr, collide_calls().node_touchable = nullptr, collide_calls().hit_box = nullptr;
     unwire_hud();
     unwire_weapons();
     set_mech_build_hooks(nullptr);
@@ -1078,6 +1081,19 @@ bool mech_hit_part(void* mech, int32_t id, float damage) {
       return true;
     }
   return false;
+}
+bool mech_ceiling_hit(void* mech, void* node, float out[7]) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  if (!m || !m->head || !m->torso || !m->hip) return false;
+  CollisionHit h{};
+  h.hit.node = static_cast<zcls::Node*>(node);
+  m->ceiling_response(h);
+  out[0] = m->head->get_internal(0);
+  for (int s = 0; s < 3; ++s) out[1 + s] = m->torso->get_internal(s);
+  out[4] = m->hip->offset.y;  // the duck (0x004622a0)
+  out[5] = collide_calls().hit_box && collide_calls().hit_box(node) ? 1.0f : 0.0f;
+  out[6] = m->crouch_depth;
+  return true;
 }
 int32_t mech_controls_view(void* mech) {
   Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;

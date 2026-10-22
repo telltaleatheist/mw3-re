@@ -14,6 +14,7 @@
 
 #include "check.h"
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
@@ -2742,6 +2743,107 @@ TEST(mission_c1m1_owens_cockpit_screens_cycle_headless) {
     EXPECT(seen.cycled == seen.screens);
     EXPECT(seen.slots > 0 && seen.loaded == seen.slots && seen.named == seen.slots);
     EXPECT(seen.moved > 0);  // a drawn one runs on (0x005376c0 steps a cycle only when drawn)
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
+// The ceiling's crush (0x00423600) in the program: the collider's box test
+// (0x004236f5) asks the box of the node crossed overhead (0x004ec9c0). The
+// program had left CollideCalls::hit_box unwired, so a mech walking under a
+// boxed object took no damage and did not duck. Here a boxed node of c1's
+// world, the smallest, stands for the ceiling the player's mech meets on foot.
+TEST(mission_c1m1_ceiling_crush_uses_the_box_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_crush_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      int frames = 0, boxed = 0;
+      bool ran = false;
+      zcls::Node* unboxed = nullptr;
+      float plain[7] = {};
+      float before[7] = {}, after[7] = {}, volume = 0;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++seen.frames != 20) return;
+      void* m = mech3::mech_mission_player();
+      // The smallest boxed node (flag 0x100, box at +0x74, read here from the
+      // node's bytes) of the world, and one without a box.
+      zcls::Node* pick = nullptr;
+      for (int32_t i = 0; i < zcls::nodes().capacity; ++i) {
+        zcls::Node* n = zcls::node_at(i);
+        if (!n || !n->name()[0]) continue;
+        if (!(n->flags() & 0x100)) {
+          if (!seen.unboxed) seen.unboxed = n;
+          continue;
+        }
+        const float* b = reinterpret_cast<const float*>(n->raw + 0x74);
+        const float v = (b[4] - b[1]) * (b[5] - b[2]) * (b[3] - b[0]);
+        if (!(v > 1.0f)) continue;
+        ++seen.boxed;
+        if (!pick || v < seen.volume) pick = n, seen.volume = v;
+      }
+      if (!pick) return;
+      float none[7];
+      mech3::mech_ceiling_hit(m, nullptr, none);  // no node: no box, nothing happens
+      std::copy(none, none + 7, seen.before);
+      if (seen.unboxed) mech3::mech_ceiling_hit(m, seen.unboxed, seen.plain);
+      seen.ran = mech3::mech_ceiling_hit(m, pick, seen.after);
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return seen.frames >= 21; };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "crush: %d boxed nodes, smallest volume %.2f; head %.3f -> %.3f, torso %.3f -> %.3f, crouch %.3f\n",
+                   seen.boxed, seen.volume, seen.before[0], seen.after[0], seen.before[1], seen.after[1],
+                   seen.after[4]);
+    EXPECT(seen.ran && seen.boxed > 0);
+    EXPECT(seen.before[5] == 0.0f && seen.after[5] == 1.0f);  // the program gives the box (0x004ec9c0)
+    EXPECT(seen.unboxed && seen.plain[5] == 0.0f);             // and none for a node without one
+    EXPECT(seen.after[0] < seen.before[0]);                   // the head takes 0.1 of it
+    for (int s = 1; s <= 3; ++s) EXPECT(seen.after[s] < seen.before[s]);  // the torso's three sections
+    EXPECT(seen.after[4] < 0.0f);                              // and the mech ducks (0x004622a0)
+    // By the box's volume, v = volume / 180 x 0.25 (0x005e24e8): the hip
+    // drops v (at most 1) times the crouch depth.
+    const float v = std::min(1.0f, seen.volume / 180.0f * 0.25f);
+    if (std::getenv("MW3_SURVEY"))
+      std::fprintf(stderr, "crush: duck %.6g, want %.6g\n", seen.after[4], -v * seen.after[6]);
+    EXPECT(std::fabs(seen.after[4] + v * seen.after[6]) <= 1e-5f * std::max(1.0f, seen.after[6]));
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

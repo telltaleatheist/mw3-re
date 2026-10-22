@@ -1088,3 +1088,11 @@ view's ground, the anim lookups 0x50b450 (92).
   shake randomised, +0x7c/+0x80/+0x14c compared), 20000 identical; 5 breaks
   caught. test_mech_build, test_collide, test_update, test_command,
   test_pull_in, mw3tests 125/0.
+
+## The collider's box test wired (2026-10-21)
+
+- `CollideCalls::hit_box` (0x004ec9c0, `zcls::node_box`) wired in app_mech:
+  the ceiling's crush on foot (0x00423600: head 0.1, torso 0.4, sides 0.25
+  of box volume / 720, and the duck) now happens in play.
+- `mission_c1m1_ceiling_crush_uses_the_box_headless` (the box read from the
+  node's bytes, the duck exact; a node without a box does nothing); 3 breaks.
