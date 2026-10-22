@@ -630,4 +630,20 @@ void probe_wm_planner(int32_t mode, int32_t group, int32_t* out) {
   m.mode = was_mode, m.group = was_group;
 }
 
+// The volley pick (test_weapon_planner.py): the pilot (or none), its hold
+// and alpha share, the target's distance squared (or none), the owner's
+// heat, the rolls. out: the answer and the rolls used.
+const int32_t* g_rolls = nullptr;
+int32_t g_rolls_used = 0;
+int32_t next_roll() { return g_rolls[g_rolls_used++]; }
+void probe_wm_volley(int32_t pilot, float hold, float chance, int32_t has_target, float dist2, float heat,
+                     const int32_t* rolls, int32_t* out) {
+  mech3::WeaponManager& m = *g_m;
+  const mech3::VolleyPilot p{hold, chance};
+  g_rolls = rolls, g_rolls_used = 0;
+  out[0] = mech3::volley_pick(m, pilot ? &p : nullptr, has_target ? &dist2 : nullptr, m.owner ? &heat : nullptr,
+                              next_roll);
+  out[1] = g_rolls_used;
+}
+
 }  // extern "C"

@@ -1736,6 +1736,16 @@ are all "puffers": emitters that drop little textured squares.
   from how it actually moves; in the air from its real velocity. Its
   torso then turns toward that point within its twist limits, and the
   shot waits until the torso faces it closely enough (`ai.md` 17.7).
+- **Enemies never alpha strike.** The AI was written to fire everything at
+  once when its pilot rolls for it and the total heat fits, but a slip in
+  the code (each weapon doubles a running total that starts at 0, instead
+  of adding to it) means the totals never grow, so that choice never comes
+  up. Instead an enemy nearly always fires a whole weapon group, any group
+  that is in range and within its heat budget, and fires a single weapon
+  only when no group qualifies. The hotter an enemy runs, the smaller its
+  heat budget for a burst, and past about two thirds of its heat scale it
+  holds fire altogether, even with weapons that make no heat (`ai.md`
+  17.7, "The volley").
 - **Enemy fire sweeps across you.** An AI pilot never aims dead on: it
   picks a point beside you, across its line of sight, and lets the aim
   drift back over you and out the other side, picking a new point when it

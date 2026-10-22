@@ -225,3 +225,23 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Headless: the c1m1 Owens still finds no plan (the player is out of its
   range), so the aim does not run there yet.
 - Logged, unported: volley 0x4b1860 (13), clear line 0x4d5980 (mac 2).
+
+## 2026-10-22 Item 13: the volley (mac4/volley)
+
+- weapon_planner: volley_pick 0x4b1860 with shot_of 0x4b1370, add_weapon
+  0x4b1470, group_out 0x4b1440, the kept groups 0x4b17d0; 0x4b1170's static
+  (0x60b240) is read by nothing: not kept. weapon.cpp untouched.
+- Quirks kept, candidates for Owen (fixes.md): the sums double (alpha never
+  picked), the group roll's threshold (group fire nearly always).
+- FIX (bug): no pilot chain; a candidate weapon in no group.
+- Program: WiredBrainHooks::volley_pick -> ai_volley_pick (app_mech: the
+  mech's AiControls brain +0x34 / +0x90, its heat).
+- Test: test_weapon_planner.py checks a volley after every operation on the
+  real managers (manager state and calls compared). Breaks: 17 of 20; the
+  three missed are equivalent or need data the shipped weapons lack (heat
+  cap 1.4: both budgets negative; instant speed: no instant weapon has
+  speed 0; roll scale 26214: only within 1 of the threshold).
+- Headless c1m1: 30 m off the Owens picks a group volley and tracks, but the
+  plan's ready (clear line 0x4d5980, mac 2) is 0, so it never fires; with
+  the clear line answered yes (an experiment, not kept) it fires (phase 4
+  157 of 300 frames).

@@ -407,6 +407,11 @@ struct WiredBrainHooks : ai::BrainHooks {
   void weapon_node_position(Handle w, float out[3]) override { mech3::weapon_node_position(e->object_of(w), out); }
   float weapon_speed(Handle w) override { return mech3::weapon_speed(e->object_of(w)); }
   uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
+  // The volley (ai.md 17.7, weapon_planner): the pilot behind the manager's
+  // mech (its AiControls' brain), the contact's distance, the mech's heat.
+  int32_t volley_pick(Handle wm, ai::Contact* c) override {
+    return mech3::ai_volley_pick(e->object_of(wm), c ? &c->dist2 : nullptr);
+  }
   // The aim (ai.md 17.7): the difficulty's error, the targeting aids.
   float aim_intensity() override { return options().intensity[1]; }
   bool targeting_aid(Handle v) override { return mech_targeting_aid(mech(v)); }

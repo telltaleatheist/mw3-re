@@ -170,6 +170,9 @@ void wm_clear_aim(void* wm);
 // control system (+0x3b8) aboard; the manager aimed at a point (+0x88 set,
 // then 0x004b0bc0).
 bool mech_targeting_aid(void* mech);
+// The volley pick (0x004b1860) for an AI mech's manager: its brain's +0x34
+// and +0x90, its heat; 0 without a manager or a brain.
+int32_t ai_volley_pick(void* wm, const float* dist2);
 void wm_aim_at(void* wm, const float at[3]);
 void wm_alpha_strike(void* wm, float seconds);
 bool weapon_type_ready(void* w);

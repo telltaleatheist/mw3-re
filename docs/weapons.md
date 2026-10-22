@@ -826,12 +826,13 @@ ported) heats it.
 Left on this path: the HUD (its reticle, the aim's source; the gauges), the
 mech's command handler (groups, the power key), the torso's aim 0x00465ea0,
 the target's part 0x0041d6f0, effects and sounds of shots and hits, the
-craters, the AI's firing (the planner 0x004b1170).
+craters.
 
 ## Left to port
 
-- The AI's weapon planner 0x4b1170..0x4b1860 (ai.md 17.7; the HUD's three,
-  0x4b1bd0, 0x4b1c70 and 0x4b1cd0, are ported in `mech3/weapon_planner`).
+- Ported 2026-10-22: the AI's volley pick 0x4b1860 with 0x4b1370..0x4b17d0
+  (`mech3/weapon_planner`, ai.md 17.7; with the HUD's three); 0x4b1170
+  builds a static nothing reads.
 - The glow objects 0x5869d0 / 0x586a30 / 0x586af0 (the game's freeze and heat
   effects, called from 0x4accb7..0x4ad4b5: the vehicles', vehicles.md), and the
   startup 0x583750's network registration (0x5a8a20 with 0x583850, only in
