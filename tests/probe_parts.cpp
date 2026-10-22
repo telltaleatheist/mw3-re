@@ -494,6 +494,25 @@ float probe_parts_op(int op, const float* a) {
     case 23: return w.torso.setup() ? 1.0f : 0.0f;
     case 21: w.m.target_part(static_cast<int32_t>(a[3] * 4 + 8) % 16); break;
     case 22: return w.m.aim_part() ? 1.0f : 0.0f;
+    case 24: return w.m.can_face(Vec3{a[2], a[3], a[0]}) ? 1.0f : 0.0f;  // vt+0x8c
+    case 25: {  // vt+0x90: the clamped direction logged
+      Vec3 out{};
+      const bool r = w.m.clamp_aim(Vec3{a[2], a[3], a[0]}, &out);
+      log({53, bits(out.x), bits(out.y), bits(out.z)});
+      return r ? 1.0f : 0.0f;
+    }
+    case 26: return w.m.faces_within(i ? w.torso.facing : a[2]) ? 1.0f : 0.0f;  // vt+0x150 (i: at its facing)
+    case 28: {  // vt+0x08: the velocity others lead it by, logged
+      Vec3 out{};
+      w.m.lead_velocity(&out);
+      log({54, bits(out.x), bits(out.y), bits(out.z)});
+      break;
+    }
+    case 27: {  // vt+0x154 (none when a3 < -1.5)
+      const Vec3 dir{a[2], a[3], a[0]};
+      w.m.set_torso_aim(a[3] < -1.5f ? nullptr : &dir);
+      break;
+    }
     case 20: {
       // The cockpit camera (vt+0x10c(1)) and the view's mode as in the emulator.
       static MechCamera cockpit(1), mode(0);

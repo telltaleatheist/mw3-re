@@ -173,6 +173,24 @@ int32_t weapon_ammo(void* w);
 void weapon_hold_for_flight(void* w);
 void mech_torso_centre(void* mech, int32_t how);
 bool mech_active(void* mech);                    // +0x08
+// The AI's aim and lead (docs/ai.md 17.7): the torso's limits (vt+0x8c,
+// vt+0x90), its aim cosine (vt+0x150) and aim (vt+0x154), the last-hit aim
+// point (0x0041d130), the velocity others lead it by (vt+0x08 0x0041d400),
+// its matrix (+0x0c), its target node's position (0x005a8630); the
+// manager's selected group's weapon, a weapon's node position (0x004ed530),
+// speed (def +0x2c) and flags (def +0x6c). Null-safe.
+bool mech_can_face(void* mech, const float dir[3]);
+bool mech_clamp_aim(void* mech, const float dir[3], float out[3]);
+bool mech_faces_within(void* mech, float cosine);
+void mech_set_torso_aim(void* mech, const float dir[3]);
+void mech_aim_at_last_hit(void* mech);
+void mech_lead_velocity(void* mech, float out[3]);
+void mech_matrix(void* mech, float m[9]);
+void mech_target_position(void* mech, float out[3]);
+void* wm_group_weapon(void* wm);
+void weapon_node_position(void* w, float out[3]);
+float weapon_speed(void* w);
+uint32_t weapon_flags(void* w);
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: a hit of `damage` on the part with that id (0x00460970, no weapon).
 bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head

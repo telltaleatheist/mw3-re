@@ -50,7 +50,13 @@ class VolleyPlan : public FirePlan, public FireSource {
   FirePlan* take(bool* spent) override;   // +0x00 0x004b6fa0
   float score = 0;                        // +0x08
   zgame::Handle bearer = 0;               // +0x14  the vehicle's vt+0x40 (a mech itself)
+  float aim[3] = {};                      // +0x18  the way to the lead point, in the bearer's frame
 };
+
+// 0x004d6de0 (the bearer's vt+0x84, AiTarget's): where to aim weapon `w` to
+// meet contact `c`'s entity, from the weapon's node, given both velocities;
+// false when no time to meet comes out (out then the entity's position).
+bool lead_point(zgame::Handle bearer, const Contact& c, zgame::Handle w, float out[3]);
 
 // 0x004b6790 (from the firing's phases 1 and 6): the best target among the
 // vehicle's contacts and a plan on it, or none; the sensor range narrowed

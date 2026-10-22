@@ -23,6 +23,7 @@ obstacle, the vehicle's target and the contacts' distances must match, at
 24-bit x87.
 """
 import ctypes
+import math
 import os
 import random
 import struct
@@ -35,6 +36,7 @@ import test_ai_frame as tf  # noqa: E402
 import test_ai_orders as to  # noqa: E402
 from calltrace import Trace  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EDX  # noqa: E402
 
 U, I = ctypes.c_uint32, ctypes.c_int32
 OWNER = tf.OWNER
@@ -48,7 +50,10 @@ COVER = {0x4b6a63: 'no contacts', 0x4b6a29: 'none taken: wider', 0x4b6a43: 'rang
          0x4b6beb: 'an ally', 0x4b6c05: 'within 40 m', 0x4b6c44: 'too steep', 0x4b6cef: 'near the obstacle',
          0x4b6cf5: 'the obstacle cleared', 0x4b6d5b: 'cannot face', 0x4b6dac: 'no clear line',
          0x4b68e7: 'removed', 0x4b7a5c: 'swapped', 0x4b5aa0: 'taken asked', 0x4b5a59: 'the volley',
-         0x4b6fdc: 'take: alive', 0x4b7000: 'take: tracked', 0x4b6e22: 'ready'}
+         0x4b6fdc: 'take: alive', 0x4b7000: 'take: tracked', 0x4b6e22: 'ready', 0x4b6e58: 'track: the last hit',
+         0x4b6e9c: 'track: a lead point', 0x4d6e81: 'lead: solving', 0x4d7033: 'lead: still', 0x4d7019: 'lead: no root',
+         0x4d7012: 'lead: the smaller root', 0x4d708e: 'lead: moved', 0x4d6e4a: 'lead: instant',
+         0x4d7058: 'lead: the square term 0'}
 COVER.pop(0x4b6aad)
 REACHED = set()
 
@@ -63,7 +68,7 @@ def script(seed):
     s['vehicle.vt+0x150'] = r('reach', [1, 1, 0, 2])
     s['0x004d5980'] = r('line', [1, 1, 0])
     s['0x004b1860'] = r('volley', [0, 1, 2, 3, 1])
-    s['0x004b6e30'] = r('track', [1, 1, 0])
+    s['vehicle.vt+0x90'] = r('clamp', [1, 0])
     return s
 
 
@@ -82,7 +87,27 @@ class Original(tf.Original):
         e.stub(0x4d5980, '0x004d5980', 'c,s0,s1', 8, self.line)
         e.stub(0x4b1860, '0x004b1860', 's0', 4, self.volley)
         e.stub(0x5a8630, '@0x005a8630', '', 0, self.lock_pos)
-        e.w32(PLAN_VT + 0x10, e.new_stub('0x004b6e30', 's0', 4, self.track))
+        # The track's world (0x4b6e30, the lead point 0x4d6de0): the bearer's
+        # velocity (vt+0x0c), matrix (+0x0c), clamp (vt+0x90) and torso aim
+        # (vt+0x154); the manager's selected group (+0x28, +0x2c[]) and its
+        # weapon (+0x10); weapons 1, 2 with a node (+0x20, its position
+        # 0x4ed530) and a def (+0x2c speed, +0x6c flags).
+        e.w32(ovt + 0xc, e.new_stub('@owner.vt+0xc', '', 0, self.velocity_of))
+        e.w32(ovt + 0x84, 0x4d6de0)  # the lead point (AiTarget's)
+        e.w32(ovt + 0x90, e.new_stub('vehicle.vt+0x90', 's0,s1', 8, self.clamp))
+        e.w32(ovt + 0x154, e.new_stub('vehicle.vt+0x154', 's0,s1', 8, self.set_aim))
+        self.owner_vel, self.owner_m = OWNER + 0xf40, OWNER + 0xf80
+        e.w32(OWNER + 0xc, self.owner_m)
+        self.weapons, self.nodes = [0], {}
+        for k in (1, 2):
+            w, node, d = e.world_alloc(0x40), e.world_alloc(0x40), e.world_alloc(0x200)
+            e.w32(w + 0x20, node)
+            e.w32(w + 0x2c, d)
+            self.weapons.append(w)
+            self.nodes[node] = k
+        self.group = e.world_alloc(0x20)
+        e.stub(0x4ed530, '0x004ed530', 'c', 0, self.node_position)
+        e.stub(0x41d130, '0x0041d130', 'c', 0, self.last_hit)
         # Entities 1..4: vtable +0x28 itself (0x4d2a70), +0x98 / +0x9c fld thunks.
         self.ents = [0]
         for k in range(1, 5):
@@ -90,6 +115,8 @@ class Original(tf.Original):
             vt = en + 0x200
             e.w32(en, vt)
             e.w32(vt + 0x28, 0x4d2a70)
+            e.w32(vt + 0x50, 0x4d2a70)  # its mech: itself
+            e.w32(vt + 0xc, e.new_stub('@ent.vt+0xc', '', 0, self.velocity_of))
             for slot, key, off in ((0x98, 'owner.vt+0x98', 0x300), (0x9c, 'owner.vt+0x9c', 0x320)):
                 thunk = en + off
                 e.cpu.write(thunk, b'\xd9\x05' + struct.pack('<I', en + off + 0x10) + b'\xc3')
@@ -107,6 +134,7 @@ class Original(tf.Original):
         self.seen_ent = [0] * 6
         self.vec = e.world_alloc(0x40)
         self.wm = e.world_alloc(0x100)
+        self.muzzle = e.world_alloc(0x40)
         self.has_bearer = 1
         e.stub(0x5a85e0, '0x005a85e0', 'c', 0, self.position)
         for addr in COVER:
@@ -151,8 +179,27 @@ class Original(tf.Original):
     def lock_pos(self, e, key, a, pop):
         e._ret(self.ecx() + 0x40, pop)
 
-    def track(self, e, key, a, pop):
-        e._ret(self.t.handle(key, [a[0]]), pop)
+    def velocity_of(self, e, key, a, pop):
+        o = self.ecx()
+        e._ret(self.owner_vel if o == OWNER else o + 0x60, pop)
+
+    def clamp(self, e, key, a, pop):
+        e.cpu.write(a[1], e.cpu.read(a[0], 12))
+        e._ret(self.t.handle(key, [e.r32(a[0] + 4 * k) for k in range(3)]), pop)
+
+    def set_aim(self, e, key, a, pop):
+        e._ret(self.t.handle(key, [e.r32(a[0] + 4 * k) for k in range(3)]), pop)
+
+    def node_position(self, e, key, a, pop):
+        k = self.nodes[self.ecx()]
+        self.t.handle(key, [k])
+        out = e.uc.reg_read(UC_X86_REG_EDX)
+        e.cpu.write(out, e.cpu.read(self.muzzle + 12 * k, 12))
+        e._ret(1, pop)
+
+    def last_hit(self, e, key, a, pop):
+        self.t.handle(key, [self.ents.index(self.ecx())])
+        e._ret(0, pop)
 
     def seen_entity(self, e, key, a, pop):
         k = self.seen.index(self.ecx())
@@ -187,10 +234,27 @@ class Original(tf.Original):
             e.cpu.write(ct + 0x10, struct.pack('<3I', *r[1:4]))
             e.w32(ct + 0x1c, f2i(-1.0))
             self.seen_ent[k] = r[4]
+            e.w32(ct + 8, self.ents[r[4]] if r[4] else 0)  # the entity seen, as the sensors keep it
             e.w32(self.vec + 4 * k, ct)
         e.w32(OWNER + 0xac, self.vec)
         e.w32(OWNER + 0xb0, self.vec + 4 * n)
         e.w32(OWNER + 0x6c, self.cts[v[11] - 1] if v[11] else 0)
+        t = c[1 + 5 * 6:]
+        g = t[0]
+        e.w32(self.wm + 0x28, g - 1 if g else 0xffffffff)
+        if g:
+            e.w32(self.wm + 0x2c + 4 * (g - 1), self.group)
+            e.w32(self.group + 0x10, self.weapons[g])
+        for k in (1, 2):
+            q = t[1 + 5 * (k - 1):6 + 5 * (k - 1)]
+            e.cpu.write(self.muzzle + 12 * k, struct.pack('<3I', *q[0:3]))
+            d = e.r32(self.weapons[k] + 0x2c)
+            e.w32(d + 0x2c, q[3])
+            e.w32(d + 0x6c, q[4])
+        e.cpu.write(self.owner_vel, struct.pack('<3I', *t[11:14]))
+        for k in range(1, 5):
+            e.cpu.write(self.ents[k] + 0x60, struct.pack('<3I', *t[11 + 3 * k:14 + 3 * k]))
+        e.cpu.write(self.owner_m, struct.pack('<9I', *t[26:35]) + bytes(12))
         e.w32(OWNER + 0xa0, v[8])  # the vehicle's sensor range as the firing's
         e.w32(OWNER + 0xa4, 0)
         self.plan = 0
@@ -214,6 +278,8 @@ class Original(tf.Original):
                 out[0] = e.call(e.r32(PLAN_VT + 4), ecx=p, stack=(f,)) & 0xff
             elif op == 2:
                 out[0] = e.call(e.r32(PLAN_VT + 0x18), ecx=p) & 0xff
+            elif op == 4:
+                out[0] = e.call(e.r32(PLAN_VT + 0x10), ecx=p, stack=(f,)) & 0xff
             else:
                 spent = self.vec + 0x30
                 e.cpu.write(spent, b'\0')
@@ -226,6 +292,7 @@ class Original(tf.Original):
             out[3] = e.r32(p + 8)
             out[4], out[5] = e.cpu.read(p + 0xc, 2)
             out[6], out[7] = e.r32(p + 0x10), e.r32(p + 0x14)
+            out[19:22] = [e.r32(p + 0x18 + 4 * k) for k in range(3)]
         f0 = b + 0x108
         out[8] = e.r32(f0 + 0x24)
         o = e.r32(f0 + 0x28)
@@ -250,7 +317,6 @@ def plan_world(rng):
     for _ in range(4):
         w += [int(rng.random() > 0.15), rng.choice([1, 2, 4, 2]), rf(-300, 300), rf(-5, 20), rf(-300, 300)]
     ang = rng.uniform(-3.14, 3.14)
-    import math
     w += [rng.choice([0, 1, 2, 3]), f2i(math.sin(ang)), f2i(math.cos(ang)), rf(-50, 50), rf(0, 10), rf(-50, 50),
           int(rng.random() > 0.1), int(rng.random() > 0.1), rf(50, 900), rng.choice([0, 0, 0, 1, 2, 3, 4]),
           f2i(rng.choice([1000.0, 600.0, 300.0])), 0]
@@ -263,6 +329,27 @@ def plan_world(rng):
         dist2 = sum(x * x for x in delta) if rng.random() > 0.05 else rng.choice([0.5, 1e9])
         w += [f2i(dist2)] + [f2i(x) for x in delta] + [rng.choice([0, 1, 2, 3, 4, 1, 2])]
     w[31] = rng.choice([0] + list(range(1, n + 1))) if n else 0
+    # The track's: the group's weapon, the two weapons, velocities, the matrix.
+    tr = [rng.choice([1, 2])]  # a selected group: without one the exe's track reads through null (the port's FIX)
+    for _ in range(2):
+        tr += [rf(-60, 60), rf(0, 12), rf(-60, 60), f2i(rng.choice([0.0, 120.0, 400.0, rng.uniform(20, 900), rng.uniform(2, 15)])),
+               rng.choice([0, 0, 0x800, 2, 0x10])]
+    for _ in range(5):
+        tr += [f2i(rng.choice([0.0, rng.uniform(-30, 30), 0.0005, rng.uniform(-80, 80)])) for _ in range(3)]
+    x = rng.random()
+    if x < 0.1:  # nearly still: |v.v| between 0.001 and 0.01 or under
+        for k in range(5):
+            tr[11 + 3 * k:14 + 3 * k] = [f2i(rng.choice([0.04, -0.06, 0.02, 0.0])) for _ in range(3)]
+    elif x < 0.2:  # moving exactly at the shot's speed: the square term 0
+        sp = rng.choice([5.0, 10.0, 8.0])
+        tr[4] = tr[9] = f2i(sp)
+        tr[5] = tr[10] = 0
+        tr[11:14] = [0, 0, 0]
+        for k in range(1, 5):
+            tr[11 + 3 * k:14 + 3 * k] = [f2i(sp), 0, 0]
+    a = rng.uniform(-3.14, 3.14)
+    tr += [f2i(x) for x in (math.cos(a), 0.0, math.sin(a), 0.0, 1.0, 0.0, -math.sin(a), 0.0, math.cos(a))]
+    w += tr
     ob = w[29]
     if ob and n and rng.random() < 0.6:  # the obstacle near the line to the first contact
         import struct as _s
@@ -290,9 +377,9 @@ def run_case(probe, seed, rounds, stats):
         w = plan_world(rng)
         orig.plan_set(w)
         probe.probe_ao_plan_set((U * len(w))(*w))
-        for op in [0] + [rng.choice([1, 2, 3, 3, 4]) for _ in range(rng.randrange(0, 6))]:
+        for op in [0] + [rng.choice([1, 2, 3, 3, 4, 4, 5]) for _ in range(rng.randrange(0, 7))]:
             f = f2i(rng.uniform(0, 500))
-            if op == 4:  # an entity dies or comes back between the plan's calls
+            if op == 5:  # an entity dies or comes back between the plan's calls
                 k, on = rng.randrange(1, 5), int(rng.random() < 0.3)
                 orig.e.cpu.write(orig.ents[k] + 8, bytes([on]))
                 probe.probe_ao_plan_entity(k, on)
@@ -309,7 +396,7 @@ def run_case(probe, seed, rounds, stats):
                                  f'{orig.t.log[start:i][-5:]}\n  exe  {orig.t.log[i:i + 4]}\n  port {port.log[i:i + 4]}')
             if a != b:
                 names = ['answer', 'plan', 'slot', 'score', 'quick', 'line', 'kind', 'bearer', 'range', 'obstacle',
-                         'v.range', 'v.range2', 'v.target'] + [f'dist{j}' for j in range(6)]
+                         'v.range', 'v.range2', 'v.target'] + [f'dist{j}' for j in range(6)] + ['aim.x', 'aim.y', 'aim.z']
                 bad = [f'{n} {x:#x} vs {y:#x}' for n, x, y in zip(names, a, b) if x != y]
                 raise SystemExit(f'seed {seed} round {k} op {op}: {bad}')
             stats[op] = stats.get(op, 0) + 1
@@ -329,7 +416,8 @@ def main():
     if never:
         raise SystemExit(f'branches never reached: {never}')
     print(f'ok: {cases} cases, {stats.get(0, 0)} picks ({stats.get("plans", 0)} plans), {stats.get(1, 0)} in reach, '
-          f'{stats.get(2, 0)} ready, {stats.get(3, 0)} takes identical; {len(COVER)} branches reached')
+          f'{stats.get(2, 0)} ready, {stats.get(3, 0)} takes, {stats.get(4, 0)} tracks identical; '
+          f'{len(COVER)} branches reached')
 
 
 if __name__ == '__main__':

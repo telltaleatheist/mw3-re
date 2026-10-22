@@ -523,6 +523,82 @@ bool Torso::aim_angles(const Vec3& dir, float* p, float* y) const {
   return !pc && !yc;
 }
 
+// Mech3.exe 1.2 @ 0x00465c70: a direction turned by the mech's matrix
+// (0x00460000's +0x0c), then aim_angles.
+bool Torso::face_angles(const Vec3& d, float* p, float* y) const {
+  const float* m = mech->transform;
+  const Vec3 dir{(d.x * m[0] + d.y * m[1]) + d.z * m[2], (d.x * m[3] + d.y * m[4]) + d.z * m[5],
+                 (d.x * m[6] + d.y * m[7]) + d.z * m[8]};
+  return aim_angles(dir, p, y);
+}
+
+// Mech3.exe 1.2 @ 0x00465ad0: the aim direction (turned by the mech's matrix
+// when aim_local) along the torso's forward.
+float Torso::update_facing() {
+  Vec3 dir = aim_dir;
+  if (aim_local) {
+    const float* m = mech->transform;
+    dir = {(dir.x * m[0] + dir.y * m[1]) + dir.z * m[2], (dir.x * m[3] + dir.y * m[4]) + dir.z * m[5],
+           (dir.x * m[6] + dir.y * m[7]) + dir.z * m[8]};
+  }
+  facing = (front.x * dir.x + front.y * dir.y) + front.z * dir.z;
+  return facing;
+}
+
+// Mech3.exe 1.2 @ 0x0041dc70
+bool Mech::can_face(const Vec3& dir) {
+  float p, y;
+  return torso->face_angles(dir, &p, &y);
+}
+
+// Mech3.exe 1.2 @ 0x0041dca0: a direction within the torso's limits as it
+// is; clamped, the limits' (sin yaw cos pitch, sin pitch, -cos yaw cos pitch).
+bool Mech::clamp_aim(const Vec3& dir, Vec3* out) {
+  float p, y;
+  if (torso->aim_angles(dir, &p, &y)) {
+    *out = dir;
+    return true;
+  }
+  out->y = static_cast<float>(std::sin(double{p}));
+  const float cp = static_cast<float>(std::cos(double{p}));
+  out->x = static_cast<float>(std::sin(double{y}));
+  out->z = static_cast<float>(std::cos(double{y}));
+  out->x = out->x * cp;
+  out->z = -(cp * out->z);
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x0041dba0 (the torso's 0x00465bb0: +0x98)
+bool Mech::faces_within(float cosine) { return torso->facing > cosine; }
+
+// Mech3.exe 1.2 @ 0x0041dbd0: the AI's aim in the world's frame, or off;
+// then the facing again.
+void Mech::set_torso_aim(const Vec3* dir) {
+  Torso& t = *torso;
+  if (dir) {
+    t.aim = 1;
+    t.aim_dir = *dir;
+    t.aim_local = 0;
+  } else {
+    t.aim = 0;
+  }
+  t.update_facing();
+}
+
+// Mech3.exe 1.2 @ 0x0041d400: airborne (vtable +0x144: +0x584) its world
+// velocity; on the ground its forward (+0x18) at the throttle's share of
+// its top speed (the controls' vt+0x1c).
+void Mech::lead_velocity(Vec3* out) const {
+  if (no_power_down) {
+    *out = velocity;
+    return;
+  }
+  const float k = max_speed * controls->throttle;
+  out->x = k * x18.x;
+  out->y = x18.y * k;
+  out->z = x18.z * k;
+}
+
 // Mech3.exe 1.2 @ 0x00465d10. The AI's aim direction (in the mech's frame
 // when aim_local), its cosine to the torso's forward, its angles; clamped,
 // the direction becomes the clamped angles' (sin yaw, sin pitch, -cos yaw).

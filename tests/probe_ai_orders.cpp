@@ -179,6 +179,9 @@ ai::AiTarget g_ent_target[5];
 bool g_ent_active[5] = {};
 int32_t g_contact_ent[6] = {};
 bool g_bearer = true;
+uint32_t g_group_weapon = 0;  // the selected group's weapon (1, 2; 0 none)
+float g_muzzle[3][3] = {}, g_wspeed[3] = {}, g_vel[5][3] = {}, g_owner_m[9] = {};
+uint32_t g_wflags[3] = {};
 uint32_t ent_handle(int32_t k) { return k ? kPlanEnt + 0x400 * static_cast<uint32_t>(k) : 0; }
 int32_t ent_index(uint32_t h) { return h >= kPlanEnt + 0x400 && h <= kPlanEnt + 0x1000 ? static_cast<int32_t>((h - kPlanEnt) / 0x400) : 0; }
 int32_t fire_contact_index(const ai::Contact* c) {
@@ -239,7 +242,29 @@ struct Hooks : ai::BrainHooks {
   int32_t volley_pick(zgame::Handle, ai::Contact* c) override {
     return static_cast<int32_t>(call("0x004b1860", {static_cast<uint32_t>(fire_contact_index(c))}));
   }
-  uint8_t plan_track(ai::FirePlan&, float arg) override { return call("0x004b6e30", {bits(arg)}) & 0xff; }
+  // The track's and lead point's world (test_ai_plan.py).
+  void mech_aim_at_last_hit(zgame::Handle e) override { call("0x0041d130", {static_cast<uint32_t>(ent_index(e))}); }
+  zgame::Handle wm_group_weapon(zgame::Handle) override { return g_group_weapon; }
+  void weapon_node_position(zgame::Handle w, float out[3]) override {
+    call("0x004ed530", {w});
+    std::memcpy(out, g_muzzle[w < 3 ? w : 0], 12);
+  }
+  float weapon_speed(zgame::Handle w) override { return g_wspeed[w < 3 ? w : 0]; }
+  uint32_t weapon_flags(zgame::Handle w) override { return g_wflags[w < 3 ? w : 0]; }
+  void entity_lock_position(zgame::Handle e, float out[3]) override {
+    out[0] = out[1] = out[2] = 0;
+    for (const Entity& en : g_entity)
+      if (en.handle && en.handle == e) std::memcpy(out, en.pos, 12);
+  }
+  void velocity(zgame::Handle v, float out[3]) override { std::memcpy(out, g_vel[v == kOwner ? 0 : ent_index(v)], 12); }
+  void vehicle_matrix(zgame::Handle, float m[9]) override { std::memcpy(m, g_owner_m, 36); }
+  bool bearer_aim_clamp(zgame::Handle, const float d[3], float out[3]) override {
+    std::memcpy(out, d, 12);
+    return call("vehicle.vt+0x90", {bits(d[0]), bits(d[1]), bits(d[2])}) & 0xff;
+  }
+  void bearer_set_aim(zgame::Handle, const float d[3]) override {
+    call("vehicle.vt+0x154", {bits(d[0]), bits(d[1]), bits(d[2])});
+  }
   ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
   ai::Behaviour* nearest(ai::AiNet* n, const float*) override {
     return beh_of(static_cast<int32_t>(call("0x004d51d0", {n ? n->get_id() : 0})));
@@ -996,10 +1021,23 @@ void probe_ao_plan_set(const uint32_t* w) {
       k.dist2 = fl(r[0]);
       for (int j = 0; j < 3; ++j) k.delta[j] = fl(r[1 + j]);
       g_contact_ent[i] = static_cast<int32_t>(r[4]);
+      k.entity = ent_handle(g_contact_ent[i]);
       g_fire_list.push_back(&k);
     }
   }
   g_target.target = v[11] ? &g_fire_contact[v[11] - 1] : nullptr;
+  // The track's: the group's weapon, per weapon 1, 2 its muzzle[3], speed,
+  // flags; velocities (the vehicle's, entities 1..4); the vehicle's matrix.
+  const uint32_t* t = c + 1 + 5 * 6;
+  g_group_weapon = t[0];
+  for (int k = 1; k <= 2; ++k) {
+    const uint32_t* q = t + 1 + 5 * (k - 1);
+    for (int j = 0; j < 3; ++j) g_muzzle[k][j] = fl(q[j]);
+    g_wspeed[k] = fl(q[3]), g_wflags[k] = q[4];
+  }
+  for (int k = 0; k < 5; ++k)
+    for (int j = 0; j < 3; ++j) g_vel[k][j] = fl(t[11 + 3 * k + j]);
+  for (int j = 0; j < 9; ++j) g_owner_m[j] = fl(t[26 + j]);
   g_target.range = fl(v[8]);
   g_target.range2 = 0;  // the test's emulator side writes 0 too
 }
@@ -1013,7 +1051,7 @@ int32_t slot_code(ai::Contact* const* slot) {
 }
 
 // op 0 the pick (0x004b6790), 1 the plan's in_reach(f), 2 its ready, 3 its
-// take. out: the answer, the plan (or 0: 1), its slot (0xff the vehicle's
+// take, 4 its track. out: the answer, the plan (or 0: 1), its slot (0xff the vehicle's
 // target, else a contact's number), score, quick, line, kind, bearer, the
 // firing's range and obstacle, the vehicle's range and range2 and target,
 // the contacts' distances.
@@ -1030,6 +1068,7 @@ void probe_ao_plan(int32_t op, uint32_t f, uint32_t* out) {
   } else if (g_plan) {
     if (op == 1) out[0] = g_plan->in_reach(fl(f));
     else if (op == 2) out[0] = g_plan->ready();
+    else if (op == 4) out[0] = g_plan->track(fl(f));
     else {
       bool spent = false;
       out[0] = g_plan->take(&spent) == g_plan ? 1u : 0u;
@@ -1042,6 +1081,7 @@ void probe_ao_plan(int32_t op, uint32_t f, uint32_t* out) {
     std::memcpy(out + 3, &g_plan->score, 4);
     out[4] = g_plan->quick, out[5] = g_plan->line_check;
     out[6] = static_cast<uint32_t>(g_plan->kind), out[7] = g_plan->bearer;
+    std::memcpy(out + 19, g_plan->aim, 12);
   }
   std::memcpy(out + 8, &b.firing.range, 4);
   out[9] = static_cast<uint32_t>(ent_index(b.firing.obstacle));

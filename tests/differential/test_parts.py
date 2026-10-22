@@ -465,6 +465,25 @@ class World:
         elif op == 22:
             cpu.call(0x41d6f0, ecx=self.mech)
             return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 24:  # the mech's vt+0x8c: may the torso face it
+            cpu.write(self.aim, struct.pack('<3f', a[2], a[3], a[0]))
+            cpu.call(0x41dc70, ecx=self.mech, stack_args=(self.aim,))
+            return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 25:  # vt+0x90: the direction clamped to the torso's limits, logged
+            cpu.write(self.aim, struct.pack('<3f', a[2], a[3], a[0]) + bytes(12))
+            cpu.call(0x41dca0, ecx=self.mech, stack_args=(self.aim, self.aim + 12))
+            self.log(53, *struct.unpack('<3I', cpu.read(self.aim + 12, 12)))
+            return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 26:  # vt+0x150: the torso's aim cosine above it (i: asked at its facing, +0x98)
+            c = struct.unpack('<I', cpu.read(p[TORSO] + 0x98, 4))[0] if i else u(a[2])
+            cpu.call(0x41dba0, ecx=self.mech, stack_args=(c,))
+            return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 27:  # vt+0x154: the AI's aim (none when a3 < -1.5)
+            cpu.write(self.aim, struct.pack('<3f', a[2], a[3], a[0]))
+            cpu.call(0x41dbd0, ecx=self.mech, stack_args=(0 if a[3] < -1.5 else self.aim, 0))
+        elif op == 28:  # vt+0x08: the velocity others lead it by, logged
+            cpu.call(0x41d400, ecx=self.mech, stack_args=(self.aim,))
+            self.log(54, *struct.unpack('<3I', cpu.read(self.aim, 12)))
         elif op == 14:
             ebp = STACK_TOP - 0x2000
             self.run_at(0x416d3a, 0x416e91, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: ebp - 0x640,
@@ -738,10 +757,12 @@ def compare(what, want, wlog, got, glog):
 
 
 OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14,
-       15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 23, 23, 23]
+       15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 23, 23, 23,
+       24, 24, 24, 25, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28]
 NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
          'duck', 'crouch target', 'landing dust', 'action dust', 'pitch lock', 'hold view', 'aim', 'centre',
-         'torso mode', 'view state', 'target part', 'part aim', 'torso setup']
+         'torso mode', 'view state', 'target part', 'part aim', 'torso setup', 'can face', 'clamp aim',
+         'faces within', 'torso aim', 'lead velocity']
 
 
 def main():

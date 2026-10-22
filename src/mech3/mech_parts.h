@@ -274,6 +274,8 @@ class Torso : public MechPart {
   bool steer(float dt, float* yaw, float* pitch, const float* yaw_in, float* pitch_in);  // 0x00464ce0: true when clamped
   bool aim_angles(const Vec3& dir, float* pitch, float* yaw) const;  // 0x00465bc0: false when clamped
   bool aim_view(Vec3* dir, float* pitch, float* yaw);       // 0x00465d10: true when clamped (dir then the clamped one)
+  bool face_angles(const Vec3& dir, float* pitch, float* yaw) const;  // 0x00465c70: aim_angles in the mech's frame
+  float update_facing();                                    // 0x00465ad0: facing again (+0x98)
   void shake_q(float out[4]) const;                         // 0x00465940
 
   int take_hit(WeaponDef* def, Collision* coll, float damage, Vec3* impulse) override;  // 0x00464720
