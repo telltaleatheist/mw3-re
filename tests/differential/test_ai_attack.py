@@ -38,6 +38,8 @@ ATTACK, OWNER = 0x4e9ca0, 0x2c7f0000  # the probe's kOwner, the vehicle's handle
 VT_PART, VT_END, VT_REARM, VT_RETURN = 0x5cac30, 0x5cb928, 0x5cba00, 0x5cbad8
 VT_VPART, VT_FIGHT, ENT1 = 0x5cac40, 0x5ccb60, 0x2c7f4400  # the probe's ent_handle(1): the target
 VT_FOLLOW = 0x5cca88  # the follow state 0x4d1870 (item L3)
+VT_CIRCLE = 0x5cb3b0  # mode 1's state 0x4c9750 (item 3e)
+ROW = 28  # words an order
 f2i = to.f2i
 
 
@@ -54,14 +56,19 @@ COVER = {0x4d1aea: 'follow: not pulled', 0x4d1a20: 'follow: pulled, set again', 
          0x4c8abd: 'fight: pulled in', 0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
          0x4cb0c4: 'home: capped', 0x4caf0f: 'home: pulled in', 0x4cb013: 'home: turning',
          0x4caff9: 'home: behind, full', 0x4cae57: 'resume: no position', 0x4cad45: 'rearm: off for good', 0x4cad57: 'rearm: a delay', 0x4cb049: 'home: dead ahead',
-         0x4c0b6c: 'part: the last home', 0x4c0b8e: 'part: stacked', 0x4caeed: 'home: the speed share'}
+         0x4c0b6c: 'part: the last home', 0x4c0b8e: 'part: stacked', 0x4caeed: 'home: the speed share',
+         0x4c9750: 'circle: made', 0x4c9880: 'circle: run', 0x4c9ce0: 'circle: given up',
+         0x4c99a2: 'circle: back the first way', 0x4c99bb: 'circle: the other way round',
+         0x4c99f0: 'circle: flipped, slow: in', 0x4c9a04: 'circle: backing: in', 0x4c9bf7: 'circle: look-ahead capped',
+         0x4c9c06: 'circle: look-ahead back', 0x4c9c60: 'circle: pulled: the other way', 0x4c9c7d: 'circle: not facing',
+         0x4c9ca2: 'circle: driving', 0x4c9919: 'circle: past the gate'}
 REACHED = set()
 
 
 def script(seed):
     s = to.script(seed)
     r = lambda salt, choices: (lambda n, args: random.Random(f'{seed}:{salt}:{n}').choice(choices))  # noqa: E731
-    s['ictl.vt+0x1c'] = r('thr', [f2i(x) for x in (0.0, 0.3, 1.0, 0.8, 0.05)])
+    s['ictl.vt+0x1c'] = r('thr', [f2i(x) for x in (0.0, 0.3, 1.0, 0.8, 0.05, -0.5, -1.0)])  # backing too (mode 1)
     s['vehicle.vt+0x12c'] = r('share', [f2i(x) for x in (0.0, 0.5, 1.0, 0.25, 0.9)])
     s['0x004c3000'] = r('pull', [0, 0, 0, 0, 1])
     s['0x004d6b90'] = r('pick', [1, 2, 3, 0, 1])
@@ -107,11 +114,15 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
-        for maker in (0x4c9730, 0x4d1300, 0x4d1630):  # the follow 0x4c89f0 is the port's (item L3)
+        for maker in (0x4d1300, 0x4d1630):  # the follow 0x4c89f0 and mode 1 0x4c9730 are the port's
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
         # The follow's speed: the Mech's vt+0x118 (0x41d1c0: its +0x518 x the
         # share); the probe's mech the same 12 m/s.
         e.w32(e.r32(self.v) + 0x118, 0x41d1c0)
+        # Mode 1's look-ahead: vt+0x128 (0x41d220) the stopping distance at a
+        # share, through vt+0x120 (0x41d210: over +0x534, the world's).
+        e.w32(e.r32(self.v) + 0x128, 0x41d220)
+        e.w32(e.r32(self.v) + 0x120, 0x41d210)
         e.cpu.write(self.v + 0x518, struct.pack('<f', 12.0))
         # The brain's steering as its constructor leaves it (0x4ce620: +0x34 20,
         # +0x38 cos 45) and the start-up's cosines the follow reads (0x4ce5b0).
@@ -241,7 +252,8 @@ class Original(to.Original):
         return e.call(to.F['push'], ecx=self.brain, stack=(vn, beh)) & 0xff
 
     def pull(self, e, key, a, pop):
-        r = self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
+        pt = struct.unpack('<3I', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))  # EDX: the point
+        r = self.t.handle(key, [OWNER if a[0] == self.v else a[0], *pt])
         if r & 0xff:  # EDX's point pulled to the port's hook's boundary: halfway to the origin
             x, y, z = struct.unpack('<3f', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))
             e.cpu.write(a[1], struct.pack('<3f', f32(x * 0.5), y, f32(z * 0.5)))
@@ -266,6 +278,9 @@ class Original(to.Original):
             q = w[16 + 4 * (k - 1):20 + 4 * (k - 1)]
             self.step_on[k] = q[0]
             e.cpu.write(self.beh_addr[k] + 0x10, struct.pack('<3I', *q[1:4]))
+        for off, x in zip((0x44, 0x48, 0x94), w[32:35]):  # mode 1's radius, turn-round, share
+            e.w32(b + off, x)
+        e.w32(self.v + 0x534, w[35])
 
     def home_mark(self, on):
         self.e.w32(self.brain + 0xe4, self.mark if on else 0)
@@ -287,21 +302,25 @@ class Original(to.Original):
         for o in orders:
             part, state = e.r32(o + 0xc), e.r32(o + 0x10)
             real_part = part and e.r32(part) in (VT_PART, VT_VPART)
-            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT, VT_FOLLOW)
+            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT, VT_FOLLOW, VT_CIRCLE)
             row = [e.cpu.read(o + 4, 1)[0], int(e.r32(o + 8) == self.brain),
                    e.r32(part + 4) if part and not real_part else 0,
                    e.r32(e.r32(part + 8) + 4) if part and not real_part else 0,
                    e.r32(state + 0xc) if state and not real_state else 0,
                    e.r32(e.r32(state + 8) + 4) if state and not real_state else 0]
             row += [e.r32(o + 0x14 + 4 * i) for i in range(7)]
-            row += [0] * 9
+            row += [0] * (ROW - 13)
             if real_part:
                 row[13] = e.r32(e.r32(part + 0x18) + 4) + (0x10000 if e.r32(part) == VT_VPART else 0)
                 row[14:17] = [e.r32(part + 8 + 4 * k) for k in range(3)]
                 row[17] = self.home_code(e.r32(part + 0x14), orders)
             if real_state:
                 vt = e.r32(state)
-                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4, VT_FOLLOW: 5}[vt]
+                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4, VT_FOLLOW: 5, VT_CIRCLE: 6}[vt]
+                if vt == VT_CIRCLE:  # its way round, turn, share, radial, tangent x and z
+                    row[19:22] = [e.r32(state + 0x34), e.r32(state + 0xc), e.r32(state + 0x38)]
+                    row[22:25] = [e.r32(state + 0x1c + 4 * k) for k in range(3)]
+                    row[25:27] = [e.r32(state + 0x28), e.r32(state + 0x30)]
                 if vt == VT_FOLLOW:  # its pulled byte, the steering's carrot and its floor
                     row[19] = e.cpu.read(state + 0x10, 1)[0]
                     row[20:22] = [e.r32(self.brain + 0x250 + 0x1c), e.r32(self.brain + 0x250 + 0x14)]
@@ -371,6 +390,10 @@ def world(rng):
         fx, fz = math.sin(a), math.cos(a)
         d = rng.choice([30.0, -30.0, 2.0, 0.0])
         w[16 + 4 * k:20 + 4 * k] = [1, f2i(px + fx * d), w[12], f2i(pz + fz * d)]
+    # Mode 1's radius (+0x44), turn-round distance (+0x48) and share (+0x94);
+    # the vehicle's +0x534 (its stopping distance's rate).
+    w += [rf(10, 150), f2i(rng.choice([rng.uniform(5, 80), 0.0])), f2i(rng.choice([1.0, 0.7, 0.4, 0.0])),
+          rf(1, 8)]
     return w
 
 
@@ -391,9 +414,9 @@ def run_case(probe, seed, rounds):
 
     def check(what):
         a, b = orig.attack_stack(), []
-        buf = (U * (22 * 400))()
-        n = probe.probe_ao_attack_stack(buf, 22 * 400)
-        b = [list(buf[22 * i:22 * i + 22]) for i in range(n)]
+        buf = (U * (ROW * 400))()
+        n = probe.probe_ao_attack_stack(buf, ROW * 400)
+        b = [list(buf[ROW * i:ROW * i + ROW]) for i in range(n)]
         br = (U * 14)()
         probe.probe_ao_attack_brain(br)
         if orig.t.log != port.log:
@@ -489,6 +512,13 @@ def run_case(probe, seed, rounds):
                     probe.probe_ao_set_now(fight[4])
                     probe.probe_ao_fight_world((ctypes.c_float * 3)(*tpos), *fight[1:])
                 what = 'world'
+            elif r < 0.33 and fight is not None:  # the target alone moves (mode 1's circling turns round past +0x48)
+                tp = [p + rng.uniform(-120, 120) if k != 1 else p for k, p in enumerate(fight[0])]
+                fight = ([f32(x) for x in tp],) + fight[1:]
+                orig.fight_world(*fight)
+                probe.probe_ao_set_now(fight[4])
+                probe.probe_ao_fight_world((ctypes.c_float * 3)(*fight[0]), *fight[1:])
+                what = 'target moved'
             else:
                 f = f2i(rng.choice([1 / 30, 0.25]))
                 if any(orig.e.r32(orig.e.r32(o + 0x10)) == VT_FOLLOW for o in orig.orders() if orig.e.r32(o + 0x10)):

@@ -1632,7 +1632,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | ported (17.4a) |
 | 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
 | 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | ported (items 3b, 3c, below) |
-| 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | |
+| 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | dead: the step is made by the brain's constructor (0x4cd770) and never given to an order (no other reference to +0x240, its vtable or its maker 0x4cd790); its run would turn the pilot on the spot toward the next step's place (0x4cdd40 inline) and hand on as the valve step. Not ported |
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | ported (item 3c, below) |
 | 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700; ported (17.4a) |
 | 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
@@ -1703,6 +1703,28 @@ Test: in `test_ai_node.py` (the jump's state real; the CRT's `_hypot` the
 root of the summed squares at 24 bits on both sides; the local velocity,
 airborne and gravity in the world; jumps landing on nodes; 800 cases so
 every phase is met), 115 branches.
+
+**Mode 1, circling, ported** (2026-10-22, item 3f: `CircleState`). The
+vehicle net's mode 1 behaviour (slot 2), which the fight hands the order on
+arrival, makes 0x4c9730 -> 0x4c9750 (over the waiting state 0x4c8a30):
+the flat way from the pilot to the target (normalized, 0x4020d0) as the
+radial, its perpendicular (z, 0, -x) as the tangent, the way round 0 and
+the speed share the brain's +0x94. Each run (0x4c9880) gives up as the
+fight does (the target's place, the pilot's, active, 0x4e8dd0); then, with
+the flat way now: the radial error e = (way . radial x dist - R) / R (R the
+brain's +0x44); along = way . tangent x dist turns the way round past the
+brain's +0x48 (on below -P, off above +P; a NaN turns it on); e's sign is
+flipped when the throttle (IControls vt+0x1c) is under 0.1 going round the
+other way, or at most -0.1 otherwise; the steering way is e x radial +
+tangent (normalized), turned to as 0x4cdd40 inline (keep the last turn,
+the node state's settings), IControls vt+0x28; a look-ahead of the
+stopping distance at the share (vt+0x128) x 3, at most 10, backwards when
+going round the other way, from the pilot along the steering way is put to
+the boundary (0x4c3000), a pull turning the way round; the throttle is the
+share (negative the other way round) when facing within 60 degrees (the
+turn's dot at least 0.5), else 0. Test: `test_ai_attack.py` (mode 1 real;
+the boundary's trace carries the point now; the target moved alone between
+runs; negative throttles), 59 branches, 17 of 17 breaks.
 
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
@@ -3114,8 +3136,7 @@ goes through a hooks struct the test stubs the same on both sides.
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
     0x4e81a0: done (10c); its station-keeping states 0x4cc150 and the run
     0x4cc3e0: done (10d2, 10d3); the
-    modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the follow's (0x4d1870)
-    later.
+    modes' states: mode 1 0x4c9750 done (item 3f), 0x4d1320, 0x4d1650 next.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

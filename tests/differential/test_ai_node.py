@@ -208,7 +208,8 @@ class Original(ts.Original):
         self.e.w32(self.tt_val, self.t.handle('ictl.vt+0x30', []))
 
     def inout(self, e, key, a, pop):
-        r = self.t.handle(key, a)
+        pt = struct.unpack('<3I', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))  # EDX: the point
+        r = self.t.handle(key, list(a) + list(pt))
         if r & 0xff:
             p = e.r32(e.uc.reg_read(UC_X86_REG_ESP) + 4)  # the point, its one stack argument
             for k in (0, 8):

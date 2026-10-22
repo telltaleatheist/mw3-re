@@ -1222,3 +1222,7 @@ address,name,source,notes
 0x004cb4b0,jump_run,asm,"ported: JumpState::run"
 0x0041d490,mech_jet_accel,asm,"ported inline: thrust x 8 + gravity (JumpState)"
 0x0041d4b0,mech_jet_thrust,asm,"ported inline: (accel - gravity) / 8 (JumpState)"
+0x004c9730,mode1_make_state,asm,"ported: Behaviour::make_state (VehMode1)"
+0x004c9750,CircleState,asm,"ported: zai_attack CircleState"
+0x004c9880,circle_run,asm,"ported: CircleState::run (0x004c9894 is inside it)"
+0x0041d220,mech_stop_distance_at,asm,"used as stopping_distance(speed_at(share)) (vt+0x128)"

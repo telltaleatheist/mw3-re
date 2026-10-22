@@ -1901,6 +1901,13 @@ are all "puffers": emitters that drop little textured squares.
 - **Empty weapon groups.** A weapon group with no weapons left in it (or none
   picked) gave the HUD a "has ammo" answer that depended on where the game
   happened to keep its weapon list in memory; the rebuild says no ammo.
+- **AI mechs can circle their target.** An enemy whose attack mode is 1
+  (a per-vehicle setting in the mission's AI files) closes in, then orbits
+  at its preferred distance, steering along the circle and correcting in or out. It turns
+  round to circle the other way when it drifts too far along the circle,
+  or when the point a few metres ahead would take it out of bounds (the
+  mission's no-go zones). It only throttles up while it faces within about
+  60 degrees of where it wants to go. (`ai.md`, mode 1)
 - **How AI pilots jump.** An AI jump is planned once, from where the pilot
   stands to the waypoint it lands on: a full-jets climb, a coast, a glide,
   a coast down and a full-jets landing burn, each timed from the height to

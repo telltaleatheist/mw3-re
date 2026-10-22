@@ -721,7 +721,7 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::VehAttack: return new FightState(&o, this);                                    // 0x004d1ca0
     case StepKind::VehOwn: return make_station_state(*this, o);  // 0x004cc150
     case StepKind::VehFollow: return new FollowState(&o, this);  // 0x004c89f0 -> 0x004d1870
-    case StepKind::VehMode1:
+    case StepKind::VehMode1: return new CircleState(&o, this);  // 0x004c9730
     case StepKind::VehMode2:
     case StepKind::VehMode4: return brain_hooks().vehicle_step_state(*this, o);
     case StepKind::AttackEnd: return new AttackEndState(&o, static_cast<AttackEnd*>(this));        // 0x004cac00
