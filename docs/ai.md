@@ -1470,11 +1470,50 @@ back by the dtor 0x4c0dc0); and +0x1c the behaviour for the pilot's mode
 none (fixes.md candidate); its reader is not found yet. Test:
 `test_ai_vehnet.py` (400 nets and parts identical, 12 of 12 breaks).
 
-**The attack** (0x4e9ca0): the current order remade on the vehicle's net,
-then a one-behaviour net of its own (0x4c0810, 0x1c bytes, vtable 0x5cabd0,
-the stand behaviour 0x604058) and three orders pushed on it, from the last
-run to the first: 0x4cad70 (given the target distance), 0x4caca0, the
-0x5cd920 behaviour (item 10b).
+**The attack, ported** (2026-10-22, item 10b: `mech3/zai_attack`). From the
+brain's frame (0x4e9710) when it engages, before it pushes the fight (the
+target's vehicle net's attack behaviour, slot 1; its state 0x4d1ca0 ->
+0x4d1cc0, run 0x4d1d10, is item 10b2). 0x4e9ca0(n, the pilot's current
+net): the current order remade on n (0x4e82e0), a net of the attack's own
+(0x4c0810: 0x1c bytes, vtable 0x5cabd0, over 0x4bfbb0(0, 1), its one step
+the stand behaviour 0x604058, which its dtor does not free; no attack
+(+0x54); its part 0x4c0a70 -> 0x4c0a90, 0x1c bytes, vtable 0x5cac30, a home
+point for the leash like the vehicle net's, whose dtor 0x4c0b50, with none
+under it, ends the attack: +0xe8 FLT_MAX, +0x230 0; else it counts
+[0x60b328], which nothing reads), then three orders on it, made from
+behaviours on its stack (their states copy what they need), bottom to top:
+
+1. 0x5cd920 (state 0x4cac00 -> 0x4cac20, +8 the attack's net): resumed
+   (0x4cac80), its order popped and the net freed.
+2. 0x4caca0 (0x5cb948; state 0x4cace0): resumed (0x4cad30), its order
+   popped; +0x60 set: +0xdc FLT_MAX and +0x3c (engaging) off; +0x5c set:
+   +0x3c off and +0xdc = now + +0x58 (the frame's re-engage delay).
+3. 0x4cad70 (0x5cba20, +0xc the old net; state 0x4cadb0, 0x1c bytes, +8 the
+   net, +0xc a waypoint, +0x18 the turn): **the way home**. Resumed
+   (0x4cae10), the old net's step nearest the pilot (0x4d51d0) gives its
+   position (vt+0x18) as the waypoint; none: the pilot stops and the order
+   ends. Run (0x4cae90): the flat way to the waypoint (0x4ce250); the turn
+   by the walking states' rule ([0x60b478]: behind, the last turn kept, 1
+   for none; past the 5 degree dead zone 0x4c8d10's gain); within +0x28
+   (params 5) the throttle 0 and the order ends; else the throttle that
+   still stops by the middle of +0x28 and +0x2c (the vehicle's vt+0x12c, the
+   Mech's 0x41d240: throttle_down x d / max_speed, 0..1), 0 while the
+   smoothed throttle (controls vt+0x1c) is above it, at most +0x84 (the
+   speed share +0xec when 0). When the boundary pulls (0x4c3000) it turns
+   toward the pull (0x4c8df0), full throttle only facing it within 0.9, and
+   the order ends.
+
+So when the fight ends, the pilot walks back to the net it was on, to
+within +0x28 of its nearest step, then the timer is set and the net freed.
+The waypoint is not set before the first resume (0x4cadb0 leaves the
+order slot's old bytes): the fight is always pushed on top at once, so
+it is never read unset. Tests: `test_ai_attack.py` (on test_ai_orders'
+stack: 200 cases, 1200 attacks, 7746 runs and 1571 pops identical, 14
+branches; 26 of 27 breaks caught, the one missed an equivalent: within the
+dead zone the side is too small to turn anyway), `test_parts.py` op 29 (the
+stop share; 3 of 3 breaks), and in c1m1 (`test_program`: engaging turned on,
+the Owens attacks; the fight ended and the Owens put 250 m off, it walks
+back and its order ends at 79.8 m, its +0x28 being 80).
 
 ### 17.3 The engage gate (0x4e8f10, 0x4e8dd0)
 
@@ -2116,8 +2155,9 @@ goes through a hooks struct the test stubs the same on both sides.
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);
    jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
-    0x4e9ca0 with its net 0x4c0810 and three states (0x4cac20, 0x4cace0,
-    0x4cadb0) (10b); the brain's own order 0x4e81a0 (10c).
+    0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
+    0x4d1ca0 / 0x4d1d10 with 0x4c8a70 (10b2); the brain's own order 0x4e81a0
+    (10c).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

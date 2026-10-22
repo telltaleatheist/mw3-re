@@ -82,7 +82,7 @@ ARM_F = BASE + F(0x2c) + F(0x34) + [(0x74, 'i')] + F(0x78, 5) + F(0x8c, 3) + F(0
     [(0xcc, 'b')]
 HAND_F = BASE + F(0x74, 4) + F(0x84, 3)
 FIELDS = [LEG, LEG, BASE, BASE, FOOT, FOOT, HIP_F, TORSO_F, ARM_F, ARM_F, HAND_F, HAND_F]
-MECH_FIELDS = F(0x24, 3) + F(0x30, 3) + F(0x3c, 3) + F(0x4bc) + F(0x508, 2) + F(0x518) + F(0x520) + \
+MECH_FIELDS = F(0x24, 3) + F(0x30, 3) + F(0x3c, 3) + F(0x4bc) + F(0x508, 2) + F(0x518) + F(0x520) + F(0x534) + \
     [(0x584, 'b'), (0x585, 'b'), (0x586, 'b'), (0x5c8, 'i'), (0x5e4, 'i'), (0x5e8, 'i'), (0x688, 'i'),
      (0xdc, 'b'), (0xde, 'b')] + F(0xec, 3) + [(0xf8, 'i')]
 CTL_FIELDS = [(0x08, 'i'), (0x0c, 'i')] + F(0x10, 2)
@@ -197,6 +197,10 @@ class World:
         s(0x4ec9c0, self.node_box)
         self.aim = a(24)
         self.world_obj = a(8)
+        # 0x41d240 (ECX the mech, ECX kept) on a distance, its st0 kept.
+        self.share_d = a(8)
+        self.share = cpu.code(b'\xff\x35' + struct.pack('<I', self.share_d) + b'\xb8' + struct.pack('<I', 0x41d240) +
+                              b'\xff\xd0\xd9\x1d' + struct.pack('<I', self.slot) + b'\xc3')
         # A thunk that pushes the ground update's 0 and keeps its st0.
         self.ground = cpu.code(b'\x6a\x00\xb8' + struct.pack('<I', 0x462a10) + b'\xff\xd0\xd9\x1d' +
                                struct.pack('<I', self.slot) + b'\xc3')
@@ -484,6 +488,10 @@ class World:
         elif op == 28:  # vt+0x08: the velocity others lead it by, logged
             cpu.call(0x41d400, ecx=self.mech, stack_args=(self.aim,))
             self.log(54, *struct.unpack('<3I', cpu.read(self.aim, 12)))
+        elif op == 29:  # vt+0x12c: the throttle share that stops within a distance
+            cpu.write(self.share_d, struct.pack('<f', f32(a[0] * 100.0)))
+            cpu.call(self.share, ecx=self.mech)
+            return struct.unpack('<f', cpu.read(self.slot, 4))[0]
         elif op == 14:
             ebp = STACK_TOP - 0x2000
             self.run_at(0x416d3a, 0x416e91, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: ebp - 0x640,
@@ -612,6 +620,7 @@ def scenario(rng, op):
     put(mech, 0x50c, 'f', rnd(rng, 0.5, 4))
     put(mech, 0x518, 'f', rnd(rng, 10, 40))
     put(mech, 0x520, 'f', rnd(rng, 0.5, 2))
+    put(mech, 0x534, 'f', rng.choice([rnd(rng, 1, 30), 0.0, -5.0, rnd(rng, 0.1, 2)]))
     put(mech, 0x584, 'b', rng.random() < 0.2)
     put(mech, 0x585, 'b', rng.random() < 0.3)
     put(mech, 0x5c8, 'i', rng.choice([0, 0, 5]))
@@ -758,11 +767,11 @@ def compare(what, want, wlog, got, glog):
 
 OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14,
        15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 23, 23, 23,
-       24, 24, 24, 25, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28]
+       24, 24, 24, 25, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28, 29, 29, 29]
 NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
          'duck', 'crouch target', 'landing dust', 'action dust', 'pitch lock', 'hold view', 'aim', 'centre',
          'torso mode', 'view state', 'target part', 'part aim', 'torso setup', 'can face', 'clamp aim',
-         'faces within', 'torso aim', 'lead velocity']
+         'faces within', 'torso aim', 'lead velocity', 'stop share']
 
 
 def main():

@@ -155,6 +155,7 @@ bool mech_world_position(void* mech, float out[3]);  // 0x005a85e0; false (0, 0,
 float mech_health(void* mech);                   // vt+0x98, 0x0041ba40
 float mech_speed_at(void* mech, float share);    // vt+0x118, 0x0041d1c0
 float mech_stopping_distance(void* mech, float speed);  // vt+0x120, 0x0041d210
+float mech_stop_share(void* mech, float d);      // vt+0x12c, 0x0041d240
 void mech_forward(void* mech, float out[3]);     // +0x24, the flat forward
 int32_t mech_jump_jets(void* mech);              // +0x3d8, the jump jets installed
 float mech_vertical_speed(void* mech);           // +0x40, the local velocity's y

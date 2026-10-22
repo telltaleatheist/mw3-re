@@ -306,6 +306,13 @@ struct Mech : ai::AiTarget {
   // speed carries while the throttle eases down (speed / decel_rate).
   float speed_at(float share) const { return max_speed * share; }
   float stopping_distance(float speed) const { return speed / throttle_down; }
+  // vt+0x12c 0x0041d240: the throttle share that still stops within `d`,
+  // 0..1 (a NaN 0).
+  float stop_share(float d) const {
+    const float x = throttle_down * d / max_speed;
+    if (x > 1.0f) return 1.0f;
+    return x < 0.0f || x != x ? 0.0f : x;
+  }
   void destroy_part(int id);          // 0x0041cfa0
   bool start_limp(int leg, bool fall);  // 0x0041d5f0
   void fall();                        // 0x0041b640

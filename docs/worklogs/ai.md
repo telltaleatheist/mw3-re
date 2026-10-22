@@ -270,3 +270,19 @@ Newest last. One short entry per item: what, commits, what to remember.
 - FIX (bug): the part's run without a vehicle. Candidate: mode 3 gets none.
 - Test: test_ai_vehnet.py (emulator runs the real ctors; znet registry
   via 0x4c7b80; 12 of 12 breaks).
+
+## 2026-10-22 Item 10b: the attack and the way home (mac4/attack)
+
+- zai_attack: attack 0x4e9ca0, AttackNet 0x4c0810 / AttackPart 0x4c0a90,
+  the end / rearm / return states (0x4cac20, 0x4cace0, 0x4cadb0 with
+  0x4cac80, 0x4cad30, 0x4cae10, 0x4cae90), turn_past 0x4c8d10, turn_hold
+  0x4c8df0, flat_way 0x4ce250; Mech::stop_share 0x41d240 (vt+0x12c).
+  BrainControls::throttle_now (vt+0x1c). BrainHooks::attack defaults to it.
+- 0x4cae90 is the walk back to the old net, not the approach; the chase is
+  the fight state 0x4d1d10 (10b2).
+- FIX (bug): no nearest step at the resume.
+- Tests: test_ai_attack.py (on test_ai_orders; the turn settings and the
+  stand behaviour's vtable written in; the uninitialised waypoint zeroed),
+  test_parts op 29; c1m1: engaging on, attack, fight popped, Owens moved
+  250 m off, walks back to 79.8 m (its +0x28 80).
+- Next: 10b2 (the fight 0x4d1ca0 / 0x4d1d10, 0x4c8a70), then 10c.
