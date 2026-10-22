@@ -158,6 +158,20 @@ float mech_stopping_distance(void* mech, float speed);  // vt+0x120, 0x0041d210
 void mech_forward(void* mech, float out[3]);     // +0x24, the flat forward
 int32_t mech_jump_jets(void* mech);              // +0x3d8, the jump jets installed
 float mech_vertical_speed(void* mech);           // +0x40, the local velocity's y
+// The AI firing's (docs/ai.md 17.7): the mech's weapon manager (+0xd4, a
+// WeaponManager*), its current weapon (0x004b04c0), the aim cleared
+// (0x004b0bc0(0)), an alpha strike (0x004b0a70); a weapon's type wait
+// (0x004b4ba0), reload (+0x30), ammo (vt+0x14) and its type's flight hold
+// (0x004b4c90); the torso recentred (0x00465a00). Null-safe.
+void* mech_weapon_manager(void* mech);
+void* wm_current_weapon(void* wm);
+void wm_clear_aim(void* wm);
+void wm_alpha_strike(void* wm, float seconds);
+bool weapon_type_ready(void* w);
+float weapon_reload(void* w);
+int32_t weapon_ammo(void* w);
+void weapon_hold_for_flight(void* w);
+void mech_torso_centre(void* mech, int32_t how);
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: a hit of `damage` on the part with that id (0x00460970, no weapon).
 bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head

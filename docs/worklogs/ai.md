@@ -166,3 +166,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   now covers that third leg.
 - Next toward walk-and-fire: the firing (item 12, 0x4b5b80 with its plans
   and aim), the planner's volley (item 13, with mac 2), the attack (item 10).
+
+## 2026-10-22 Item 12a: the firing state machine (mac4/firing)
+
+- zai_firing: Firing::run 0x4b5b80 (phases 8,1/6,2,3,4,7,5), drop 0x4b6690,
+  stand_down 0x4b6700, LookAround 0x4b63d0/0x4b63f0, the line cone
+  0x4b5860/0x4b5940; Brain::scan_aim 0x4d8930 (IControls vt+0x80).
+  FirePlan / FireSource abstract (their slots answer bytes).
+- Hooks: weapon manager and weapons (wired to WeaponManager/Weapon via
+  app_mech helpers, null-safe FIXes), torso_centre, fire_plan_pick,
+  aim_track, aim_lead (12b).
+- c1m1: the Owens rests in phase 5, looking around; the pick (12b) is
+  asked each tick and answers no plan.
+- Notes for 12b: scratch/firing_notes.md (my decoding).
+- Next: 12b1 the plan pick 0x4b6790 and the plan class (vtable 0x5c9460),
+  12b2 the aim 0x4b72a0 / lead 0x4b77e0, then 13 the volley 0x4b1860.

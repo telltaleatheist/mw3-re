@@ -1713,6 +1713,15 @@ are all "puffers": emitters that drop little textured squares.
   break off its route to attack, and whether it dodges when hit or now and
   then at random. So one enemy can patrol peacefully until it reaches a
   certain spot and turn aggressive from there (`ai.md` 17.4a).
+- **Enemies won't shoot through their friends.** Before each shot an AI
+  pilot checks its contacts, nearest first, for anything inside a cone
+  around its line of fire: 10 m wide out to 30 m, then narrowing to 10 m
+  at 200 m. The first thing in that cone blocks the shot unless it is the
+  target itself. The trigger is only pulled while the weapon has ammo, has
+  reloaded, and (for missiles) the last salvo has had time to fly.
+- **Between bursts an AI mech looks around.** Resting after a burst, an
+  enemy's torso sweeps: behind it for 5 s, to its left for 2.5 s, to its
+  right for 5 s, and round again, until it picks its next shot.
 - **AI pilots prefer to keep going straight.** At a waypoint with several
   ways on, a pilot picks one at random, weighted so that a way straight
   ahead is a hundred times likelier than one straight back the way it came

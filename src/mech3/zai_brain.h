@@ -6,6 +6,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/zai_params.h"
+#include "mech3/zai_firing.h"
 #include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 
@@ -112,8 +113,34 @@ class BrainHooks : public zgame::Unported {
   virtual float heat(zgame::Handle v);
   virtual bool clear_line(zgame::Handle v, zgame::Handle seen);
   virtual bool region_inside(Region* r, const float* p);
-  virtual void firing_reset(Brain& b);                         // 0x004e9590 -> 0x004b6700 (item 12)
-  virtual void firing_run(Brain& b, float dt);                 // 0x004e9fb0 -> 0x004b5b80 (item 12)
+  virtual void firing_reset(Brain& b);                         // 0x004e9590 -> Firing::stand_down
+  virtual void firing_run(Brain& b, float dt);                 // 0x004e9fb0 -> Firing::run
+  // The firing's questions (zai_firing, docs/ai.md 17.7): the vehicle's
+  // weapon manager (+0xd4, 0 for none), its current weapon (0x004b04c0), the
+  // aim cleared (0x004b0bc0(0)), the alpha strike (0x004b0a70); a weapon's
+  // type wait (0x004b4ba0), reload (+0x30), ammo (vt+0x14) and its type's
+  // flight hold (+0x2c's +0x1f0, 0x004b4c90); the torso recentred (the
+  // mech's vt+0x50, its torso's 0x00465a00(1)). The plan pick and the aim
+  // (items 12b, 13) are not ported yet.
+  virtual zgame::Handle weapons(zgame::Handle v) { return unported("vehicle+0xd4", {v}); }
+  virtual zgame::Handle wm_current(zgame::Handle wm) { return unported("0x004b04c0", {wm}); }
+  virtual void wm_clear_aim(zgame::Handle wm) { unported("0x004b0bc0", {wm, 0u}); }
+  virtual void wm_alpha(zgame::Handle wm, float seconds) { unported("0x004b0a70", {wm, zgame::bits(seconds)}); }
+  virtual bool weapon_type_ready(zgame::Handle w) { return unported("0x004b4ba0", {w}) & 0xff; }
+  virtual float weapon_reload(zgame::Handle w) { return zgame::from_bits(unported("weapon+0x30", {w})); }
+  virtual int32_t weapon_ammo(zgame::Handle w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {w})); }
+  virtual void weapon_hold_for_flight(zgame::Handle w) { unported("0x004b4c90", {w}); }
+  virtual void torso_centre(zgame::Handle v) { unported("0x00465a00", {v, 1u}); }
+  virtual FirePlan* fire_plan_pick(Brain& b) {
+    unported("0x004b6790", {low(&b)});
+    return nullptr;
+  }
+  virtual void aim_track(Brain& b, Contact* target, zgame::Handle w) {
+    unported("0x004b72a0", {low(&b), low(target), w});
+  }
+  virtual void aim_lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Handle wm) {
+    unported("0x004b77e0", {low(&b), zgame::bits(dt), low(target), w, wm});
+  }
   virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004c0810, item 10)
   virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10 (item 10)
   virtual bool attack(Brain& b, AiNet* current_net);           // 0x004e9ca0 (item 10)
@@ -263,39 +290,6 @@ struct Order {
   }
 };
 
-// 0x004b6390 (0x1c bytes, vtable 0x005c9458): a fire plan (ai.md section 1).
-struct FirePlan {
-  int32_t x04 = 0, x08 = 0;  // +0x04, +0x08
-  float x0c[3] = {};          // +0x0c
-  int32_t x18 = 0;            // +0x18
-};
-
-// 0x004b7060 (0x24 bytes, made by the firing state): aim (likely).
-struct Aim {
-  float x00[3] = {};              // +0x00  0x0063d870
-  float x0c[3] = {1.0f, 0, 0};    // +0x0c  0x005eda60
-  uint8_t x18 = 0;                // +0x18
-  int32_t x1c = 0;                // +0x1c
-  float x20 = 1.0f;               // +0x20
-};
-
-// 0x004b6570 (0x58 bytes at the brain's +0x108): the firing state the brain
-// runs each frame (0x004b5b80, not ported). Its first 11 words are the
-// defaults at 0x005e8868 (8, then zeros).
-struct Firing {
-  Firing();
-  ~Firing();  // 0x004b65f0
-  Firing(const Firing&) = delete;
-  Firing& operator=(const Firing&) = delete;
-
-  uint32_t x00[11];        // +0x00
-  Brain* brain = nullptr;  // +0x2c  0x004b6660
-  void* x30 = nullptr;     // +0x30
-  FirePlan plan;           // +0x34
-  void* x50 = nullptr;     // +0x50
-  Aim* aim = nullptr;      // +0x54
-};
-
 // The brain's steering (+0x250, 0x48 bytes, 0x004ce620; docs/ai.md 17.4):
 // a path segment from `start` along `dir` (x, z), and a carrot on it
 // `along_at` ahead of the start and `across` to its side, which the
@@ -364,6 +358,7 @@ struct BrainControls {
   virtual void set_throttle(float v) = 0; // IControls vt+0x20 (0x00426b60)
   virtual void set_turn(float v) = 0;     // IControls vt+0x28 (0x00426b10)
   virtual float turn_goal() = 0;          // IControls vt+0x30 (0x00426b00: +0x48)
+  virtual void aim_started() = 0;         // IControls vt+0x80 (the AI's 0x004d8930: Brain::scan_aim)
 };
 
 // The brain (0x004cf330, 0x2ac bytes and, when it is the most derived
@@ -410,6 +405,9 @@ class Brain {
   BrainControls* controls = nullptr;
   // A scan or canleave step's test on this brain (0x004d9c20..0x004d9ca0).
   void scan_test(ScanTest t);
+  // 0x004d8930 (the AI controls' IControls vt+0x80, as the firing starts to
+  // aim): not attacking, with scan_aim on, a manoeuvre each +0xa8 seconds.
+  bool scan_aim();
 
   // Mech3.exe 1.2 @ 0x004e9710: the frame (0x004e96f0 answers it): the
   // targets set and the controls smoothed (ai.md 17.1).
@@ -431,7 +429,7 @@ class Brain {
   int32_t xf0 = 0;            // +0xf0
   float xf4 = 3.4028235e38f;  // +0xf4
   uint8_t xf8 = 0;            // +0xf8
-  int32_t xfc = 0;            // +0xfc
+  float xfc = 0;              // +0xfc  when scan_aim may start a manoeuvre again (0x004d8930)
   float x100 = 0;             // +0x100  when a hit may start the firing again (0x004e9710)
   uint8_t x104 = 0;           // +0x104  the order asks to run again
   Firing firing;              // +0x108

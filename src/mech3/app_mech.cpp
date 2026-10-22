@@ -1221,6 +1221,28 @@ void mech_forward(void* mech, float out[3]) {
 }
 int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
 float mech_vertical_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.y; }
+void* mech_weapon_manager(void* mech) { return mech ? static_cast<Mech*>(mech)->ammo : nullptr; }
+void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
+// FIX (bug): the exe's firing clears a missing manager's aim through null
+// (a vehicle without weapons standing down).
+void wm_clear_aim(void* wm) {
+  if (wm) static_cast<WeaponManager*>(wm)->set_aim(nullptr);
+}
+void wm_alpha_strike(void* wm, float seconds) {
+  if (wm) static_cast<WeaponManager*>(wm)->alpha_strike(seconds);
+}
+bool weapon_type_ready(void* w) { return w && static_cast<Weapon*>(w)->type_ready(); }
+float weapon_reload(void* w) { return w ? static_cast<Weapon*>(w)->reload : 0.0f; }
+int32_t weapon_ammo(void* w) { return w ? static_cast<Weapon*>(w)->ammo() : 0; }
+// FIX (bug): a weapon without a definition (or a type) would be written
+// through null; it holds nothing.
+void weapon_hold_for_flight(void* w) {
+  auto* x = static_cast<Weapon*>(w);
+  if (x && x->def && x->def->type) x->def->type->hold_for_flight();
+}
+void mech_torso_centre(void* mech, int32_t how) {
+  if (auto* m = static_cast<Mech*>(mech); m && m->torso) m->torso->centre(how);
+}
 bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;
   static_cast<Mech*>(mech)->heat = heat;
