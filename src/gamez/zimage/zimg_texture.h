@@ -63,6 +63,10 @@ int32_t textures_free();
 TextureEntry* default_entry();  // 0x00518210: the entry naming default_image()
 
 TextureEntry* find_texture(const char* name);  // 0x00518220: case-sensitive, in-use entries
+// 0x00518d10 (ECX name, EDX group): a free entry (not a found one) named,
+// marked to load in `group` and loaded now; the default entry when the
+// table is full.
+TextureEntry* load_named(const char* name, int32_t group, int32_t free_pixels);
 TextureEntry* free_texture_entry();            // 0x00518cc0: the first free one, else one more (4096 at most)
 // A texture by file name: the one loaded under the name without its
 // extension, else a new entry to load (state 2, the current group), else

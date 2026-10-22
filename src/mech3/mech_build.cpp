@@ -108,6 +108,17 @@ void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
 
 void MechBuildHooks::controls_set_owner(MechControls* c, Mech& m) { c->owner = &m; }
 
+// The mech's own skin (+0x3e8): the definition's first, copied for it and put
+// on its model (0x00475a80), and a skin chosen later swapped in (0x004757f0).
+Handle MechBuildHooks::skins_decals(Handle skins, Handle node) {
+  return static_cast<SkinSet*>(skins)->mech_skin(0, node);
+}
+uint8_t MechBuildHooks::skins_apply(Handle skins, Mech& m, Handle skin) {
+  return static_cast<SkinSet*>(skins)->set_mech_skin(&m.decals, m.model_node, m.lod_node, static_cast<Skin*>(skin))
+             ? 1
+             : 0;
+}
+
 MechAnim* MechBuildHooks::gait_copy(MechData& p, int32_t i) { return mech3::gait_copy(p, i); }
 MechAction* MechBuildHooks::action_copy(MechData& p, int32_t i) { return mech3::action_copy(p, i); }
 MechAnim* MechBuildHooks::make_blend(MechAnim* a, MechAnim* b) { return mech3::make_blend(a, b); }

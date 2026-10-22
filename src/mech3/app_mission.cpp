@@ -679,7 +679,11 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4319a0() override { mech3::mech_types_refresh(); }    // 0x004319a0: the mech types' sounds again
   uint8_t app_rgb() override { return app().byte_at(0x1b9); }       // 0x00608e41
   uint8_t app_turrets() override { return app().byte_at(0x1b2); }   // 0x00608e3a
-  void set_holes(uint8_t on) override { e->poke8(0x6061cc, on); }
+  // [0x006061cc] (HOLES): the skins' damage mode (mech_skin), as the mission load decides.
+  void set_holes(uint8_t on) override {
+    e->poke8(0x6061cc, on);
+    skin_globals().damage_mode = on;
+  }
   void set_use_archive() override { zint::globals().use_archive = 1; }
   void clear_9a17c0() override { e->poke32(0x9a17c0, 0); }
   void set_view(Handle v) override { e->poke32(0x5f4c8c, v); }

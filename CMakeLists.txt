@@ -221,6 +221,7 @@ add_library(mw3probe SHARED
   tests/probe_ripple.cpp
   tests/probe_cycle.cpp
   tests/probe_cockpit_sound.cpp
+  tests/probe_skins.cpp
   tests/probe_world.cpp
   tests/probe_modeldraw.cpp
   tests/probe_bake.cpp

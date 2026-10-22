@@ -3,6 +3,12 @@
 #include <cstring>
 #include <string>
 
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
@@ -174,6 +180,208 @@ SkinSet* read_skins(zrdr::Node* dfn) {
     }
   }
   return set;
+}
+
+
+// ---------------------------------------------------------------------------
+// The skins on a mech's models (docs/mechdef-skins.md, The skins in play).
+
+namespace {
+zcls::Node* nd(void* n) { return static_cast<zcls::Node*>(n); }
+void* find_texture(const char* n) { return g_skins.find_texture ? g_skins.find_texture(n) : zimg::find_texture(n); }
+void* load_named(const char* n) {
+  return g_skins.load_named ? g_skins.load_named(n, 3, 0) : zimg::load_named(n, 3, 0);
+}
+int32_t soil_of(const char* n) { return g_skins.soil_index ? g_skins.soil_index(n) : zmod::soil_index(n); }
+// The polygons' materials of a node's model (0x24-byte polygons, +0x1c).
+template <typename F>
+void each_material(zcls::Node* n, F&& f) {
+  zmod::Model* m = n->model;
+  if (!m) return;
+  for (uint32_t k = 0; k < m->count(0x10); ++k)
+    if (zmod::Material* mat = m->polygons[k].material) f(*mat);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00473bb0
+SkinEntry::SkinEntry(const SkinEntry& from) {
+  b14 = 1;
+  name = dup(from.name);
+  alt = from.name != from.alt ? dup(from.alt) : name;
+  damage = from.damage;
+  g_skins.entries.push_back(this);
+  ++g_skins.entry_count;
+}
+
+// Mech3.exe 1.2 @ 0x00473d40
+bool SkinEntry::load(bool by_name, bool use_alt) {
+  if (texture) return true;
+  if (!name) return false;
+  const bool use = std::strcmp(name, "vult_d03_c") == 0 ? true : use_alt;  // 0x005e5790
+  const char* n = use ? alt : name;
+  if (!by_name) {
+    texture = g_skins.fetch_texture ? g_skins.fetch_texture(n) : nullptr;  // 0x005179d0
+    cached = 1;
+    return texture != nullptr;
+  }
+  if (use) texture = find_texture(n);
+  if (!texture) texture = load_named(n);
+  return texture != nullptr;
+}
+
+void* SkinEntry::image() const {
+  if (cached) return texture;
+  return texture ? static_cast<zimg::TextureEntry*>(texture)->image : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00474740. The images' width (+0x04) and height (+0x06)
+// must match; a damage entry not loaded, or a mismatch, links nothing.
+void SkinEntry::link_damage(SkinEntry* d) {
+  if (!d || !d->name) return;
+  if (!d->texture) {
+    zerr::reportf(0x200, "C:\\zipper\\Mech3\\mech_skin.cpp", 0xde, "Failed to link damage to texture %s %s%s", name,
+                 d->name, " not loaded");
+    damage = nullptr;
+    return;
+  }
+  if (const auto* a = static_cast<const zimg::Texture*>(image())) {
+    const auto* b = static_cast<const zimg::Texture*>(d->image());
+    if (a->width != b->width || a->height != b->height) {
+      zerr::reportf(0x200, "C:\\zipper\\Mech3\\mech_skin.cpp", 0xed, "Damage Skin size error: skin %dx%d damage %dx%d",
+                   a->width, a->height, b->width, b->height);
+      damage = nullptr;
+      return;
+    }
+  }
+  damage = d;
+}
+
+// Mech3.exe 1.2 @ 0x00474430
+bool Skin::load_textures(bool by_name, bool use_alt) {
+  if (entries.empty()) return false;
+  for (SkinEntry* e : entries) e->load(by_name, use_alt);
+  loaded = 1;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00474210
+void Skin::push(SkinEntry* e, bool copy) {
+  if (copy) e = new SkinEntry(*e);
+  else ++e->refs;
+  entries.push_back(e);
+}
+
+// Mech3.exe 1.2 @ 0x00474bd0
+SkinEntry* Skin::find(const char* n, bool by_alt) const {
+  for (SkinEntry* e : entries) {
+    if (!e) continue;
+    const char* k = by_alt ? e->alt : e->name;
+    if (k && std::strcmp(k, n) == 0) return e;
+  }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00474b70
+int32_t Skin::index_of(const SkinEntry* e) const {
+  if (entries.empty() || !e) return -1;
+  for (size_t k = 0; k < entries.size(); ++k)
+    if (entries[k] == e) return static_cast<int32_t>(k);
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x00475870
+Skin* Skin::clone(const Skin* d) const {
+  if (entries.empty()) return nullptr;
+  auto* out = new Skin(name, static_cast<uint32_t>(entries.size()));
+  for (size_t k = 0; k < entries.size(); ++k) {
+    const SkinEntry* de = d && k < d->entries.size() ? d->entries[k] : nullptr;
+    out->push(entries[k], g_skins.damage_mode && de && de->name);
+  }
+  return out;
+}
+
+// Mech3.exe 1.2 @ 0x004748b0
+bool Skin::apply_first(void* node) {
+  zcls::Node* n = nd(node);
+  if (!n) return false;
+  const bool holes = g_skins.damage_mode != 0;
+  each_material(n, [&](zmod::Material& mat) {
+    mat.soil = static_cast<uint32_t>(soil_of("mech"));  // 0x005e5840
+    zimg::TextureEntry* t = mat.texture;
+    SkinEntry* e = t ? find(t->name, false) : nullptr;
+    if (!e) return;
+    if (!e->texture) {
+      if (!holes && e->name != e->alt) {
+        e->load(true, true);
+        mat.texture = e->cached ? nullptr : static_cast<zimg::TextureEntry*>(e->texture);
+      } else {
+        e->texture = t;
+      }
+    }
+    if (holes && e->damage) mat.flags |= 2;
+  });
+  for (int32_t k = 0; k < n->child_count(); ++k) apply_first(n->children[k]);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004749e0
+void Skin::apply(void* node, Skin* to) const {
+  zcls::Node* n = nd(node);
+  if (!n) return;
+  const bool holes = g_skins.damage_mode != 0;
+  each_material(n, [&](zmod::Material& mat) {
+    if (!(mat.flags & 1) || !mat.texture) return;
+    SkinEntry* e = find(mat.texture->name, false);
+    if (!e) e = find(mat.texture->name, true);
+    if (!e) return;
+    const int32_t k = index_of(e);
+    SkinEntry* target = k >= 0 && k < static_cast<int32_t>(to->entries.size()) ? to->entries[k] : nullptr;
+    if (!target) return;
+    if (!(target->cached ? nullptr : target->texture)) target->load(true, !holes);
+    mat.texture = target->cached ? nullptr : static_cast<zimg::TextureEntry*>(target->texture);
+  });
+  for (int32_t k = 0; k < n->child_count(); ++k) apply(n->children[k], to);
+}
+
+// Mech3.exe 1.2 @ 0x00475520
+Skin* SkinSet::link_damage() {
+  if (!damage) return nullptr;
+  if (!g_skins.damage_mode) return nullptr;
+  if (!damage->loaded) {
+    damage->load_textures(false, false);
+    for (Skin* s : skins)
+      for (size_t j = 0; j < s->entries.size(); ++j)
+        s->entries[j]->link_damage(j < damage->entries.size() ? damage->entries[j] : nullptr);
+  }
+  return damage;
+}
+
+// Mech3.exe 1.2 @ 0x00475780
+void SkinSet::apply_first(void* node) {
+  Skin* first = skins.empty() ? nullptr : skins[0];
+  link_damage();
+  if (first) first->apply_first(node);
+}
+
+// Mech3.exe 1.2 @ 0x004757f0
+bool SkinSet::set_mech_skin(void** slot, void* model, void* lod_model, Skin* skin) {
+  auto* old = slot ? static_cast<Skin*>(*slot) : nullptr;
+  if (!old || !skin) return false;
+  Skin* made = skin->clone(link_damage());
+  if (!made) return false;
+  old->apply(model, made);
+  old->apply(lod_model, made);
+  *slot = made;
+  delete old;  // 0x00473f40, then the free
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00475a80
+Skin* SkinSet::mech_skin(int32_t index, void* node) {
+  Skin* s = index >= 0 && index < static_cast<int32_t>(skins.size()) ? skins[index] : nullptr;
+  Skin* made = s ? s->clone(link_damage()) : nullptr;
+  if (s && made) s->apply(node, made);
+  return made;
 }
 
 }  // namespace mech3

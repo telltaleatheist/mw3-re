@@ -1,4 +1,5 @@
 #include "mech3/mech_data.h"
+#include "mech3/mech_skin.h"
 
 #include <cstdio>
 
@@ -58,6 +59,9 @@ void MechDataHooks::node_set_name(Handle node, const char* name) {
   zcls::node_set_name(static_cast<zcls::Node*>(node), name);
 }
 void MechDataHooks::node_set_flag8(Handle node, int32_t on) { zcls::node_set_flag8(static_cast<zcls::Node*>(node), on); }
+void MechDataHooks::skins_apply(const void* skins, Handle node) {
+  const_cast<SkinSet*>(static_cast<const SkinSet*>(skins))->apply_first(node);
+}
 void MechDataHooks::anim_restart(Handle anim, Handle node) {
   zeff::anim_restart(static_cast<zeff::AnimDef*>(anim), static_cast<zcls::Node*>(node));
 }

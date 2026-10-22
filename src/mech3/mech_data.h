@@ -43,9 +43,7 @@ class MechDataHooks : public zgame::Unported {
     unported("0x0049bfd0", {level, file, line, fmt, arg});
   }
   virtual const MechDfn* dfn(int32_t roster);                 // 0x004846a0: mech_dfn
-  virtual void skins_apply(const void* skins, Handle node) {  // 0x00475780: the first skin's state on the tree
-    unported("0x00475780", {ref(skins), low(node)});
-  }
+  virtual void skins_apply(const void* skins, Handle node);  // 0x00475780: SkinSet::apply_first
   // 0x00430e70: the camera kinds (tether, attach, area, mcbtether, zippercam,
   // godseye) read from the definition into a list, not ported.
   virtual Handle cameras(MechData& p) { return h(unported("0x00430e70", {ref(&p)})); }

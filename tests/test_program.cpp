@@ -2954,6 +2954,81 @@ TEST(mission_c1m1_view_ground_and_water_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The skins on the mech's model (0x00475780 at the type's load, 0x00475a80
+// at the build, 0x004757f0 at the launch with the slot's skin): launched in
+// its second skin (variant B), the Mad Cat's model and low-detail copy wear
+// that skin's textures (`mcat01_b` for the primary's `mcat01`), loaded, and
+// the mech's own skin (+0x3e8) is it. Before, every hook was unported and
+// every mech wore its model's own textures (the primary skin's).
+TEST(mission_c1m1_mech_wears_its_skin_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_skin_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1, the Mad Cat
+    l.skin = 1;                   // its second skin
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::MechTextures t;
+    int frames = 0;
+    bool got = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 5) return;
+      got = mech3::mech_textures(mech3::mech_mission_player(), &t);
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    pump.stop = [&] { return frames >= 6; };
+    app.run(pump);
+    auto count_b = [](const std::vector<std::string>& v) {
+      int n = 0;
+      for (const std::string& s : v) n += s.size() > 2 && s.compare(s.size() - 2, 2, "_b") == 0;
+      return n;
+    };
+    const int b = count_b(t.names), lod_b = count_b(t.lod);
+    if (std::getenv("MW3_SURVEY")) {
+      std::fprintf(stderr, "skin: %s, %zu textured polygons (%d _b, %d loaded), lod %zu (%d _b)\n", t.skin.c_str(),
+                   t.names.size(), b, t.loaded, t.lod.size(), lod_b);
+      for (size_t k = 0; k < t.names.size() && k < 8; ++k) std::fprintf(stderr, "  %s\n", t.names[k].c_str());
+    }
+    EXPECT(got && !t.names.empty());
+    EXPECT(b > static_cast<int>(t.names.size()) / 2);       // the variant's textures on the model
+    EXPECT(t.lod.empty() || lod_b > static_cast<int>(t.lod.size()) / 2);  // and its low-detail copy
+    EXPECT(t.loaded == static_cast<int>(t.names.size() + t.lod.size()));  // every one with its image
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1's Owens destroyed (its centre torso, Destroy(0, 1)) once
 // woken and standing (docs/damage.md, The death): dead, the slow death fall
 // queued, the node renamed "deadmech", the pilot's eject seat out (a copy of
