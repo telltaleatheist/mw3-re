@@ -82,6 +82,7 @@
 #include "mech3/zai_attack.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
+#include "mech3/zainet_inout.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
@@ -143,6 +144,10 @@ void reset_process_state() {
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   mech3::damage_set() = mech3::DamageSet{};  // the HUD's silhouettes, loaded once a process (0x0043afc0)
   crt::rand_fixed_seed() = 1u;  // the clock seeds the game's rand: a fixed seed makes the runs repeat
+  // The mission animations' random cursor and range-test stagger: the
+  // exe's start (0x00508fc0) refills the table but neither, so they run on
+  // from mission to mission (0x0060c5f4, 0x0060c1d8: 0 in a new process).
+  zeff::anim().random_index = 0, zeff::anim().stagger = 0;
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -2253,6 +2258,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       bool dodged = false, alongside = false, backed = false;
       float gw_from[2] = {}, gw_closest = 1e9f, let_go_at = 0, gw_moved = 0, gw_close = 0, gw_range = 0;
       float home_way[3] = {}, home_start = -1.0f, home_last = 0, home_range = 0;
+      int32_t home_side = -1;
       float chase_from = 0, chase_to = 0, fight_min = 0;
       float fire_range = 0, fire_max = 0;
       mech3::ai::Brain* brain = nullptr;
@@ -2361,12 +2367,22 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
           seen.attacked = seen.frames;
           br.pop();  // the mode's behaviour (its state not ported yet) ended: the way home resumes
           // Its waypoint taken (the net's step nearest the Owens, within
-          // its +0x28 here), the Owens is put 250 m east of it, facing it.
+          // its +0x28 here), the Owens is put 250 m off it, facing it: east,
+          // else the first side whose straight way back the mission
+          // boundary leaves alone (ai.md section 11: a pulled way home ends
+          // the order at once).
           for (const auto& ord : br.orders)
             if (auto* r = dynamic_cast<const mech3::ai::AttackReturnState*>(ord.state.get())) {
-              const float x = r->way[0] + 250.0f, z = r->way[2];
+              const float sides[4][3] = {{1, 0, -1.5707964f}, {-1, 0, 1.5707964f}, {0, 1, 3.1415927f}, {0, -1, 0.0f}};
+              int side = 0;
+              for (mech3::ai::InOutArea* area = mech3::ai::inout().current; area && side < 3; ++side) {
+                const float from[3] = {r->way[0] + 250.0f * sides[side][0], r->way[1], r->way[2] + 250.0f * sides[side][1]};
+                if (area->query(from, r->way) == r->way) break;
+              }
+              seen.home_side = side;
+              const float x = r->way[0] + 250.0f * sides[side][0], z = r->way[2] + 250.0f * sides[side][1];
               const float at[3] = {x, ground_under(x, o.pos[1] + 120.0f, z), z};
-              mech3::move_mech(owens, at, 1.5707964f);
+              mech3::move_mech(owens, at, sides[side][2]);
             }
         }
         if (seen.attacked && !seen.home_done) {
@@ -2383,12 +2399,15 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
             seen.home_done = seen.frames;
             seen.home_orders = static_cast<int32_t>(br.orders.size());
             // The station keeping (0x004cc3e0): engaging off and the own
-            // order on (+0x80 1) again; the player 30 m west, walking at it.
+            // order on (+0x80 1) again; the player 30 m ahead of it, facing
+            // it, walking at it.
             br.params.put<int32_t>(0x3c, 0);
             br.params.put<int32_t>(0x80, 1);
-            const float x = o.pos[0] - 30.0f, z = o.pos[2];
+            float fx = 0, fz = 0;
+            mech3::ai::brain_hooks().forward(engine.handle_of(owens), &fx, &fz);
+            const float x = o.pos[0] + 30.0f * fx, z = o.pos[2] + 30.0f * fz;
             const float at[3] = {x, ground_under(x, o.pos[1] + 80.0f, z), z};
-            mech3::move_mech(player, at, -1.5707964f);
+            mech3::move_mech(player, at, 2.0f * std::asin(o.yaw_sin) + 3.1415927f);
             keys.key(up, true);
             seen.gw_from[0] = o.pos[0], seen.gw_from[1] = o.pos[2];
           }
@@ -2465,9 +2484,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // ends within its +0x28 (80 m), the attack's orders gone with it (end,
     // rearm resumed).
     if (std::getenv("MW3_HOME_LOG"))
-      std::fprintf(stderr, "HOME chase %g -> %g at %d; done %d orders %d farthest %g last %g range %g\n",
-                   seen.chase_from, seen.chase_to, seen.attacked, seen.home_done, seen.home_orders, seen.home_start,
-                   seen.home_last, seen.home_range);
+      std::fprintf(stderr, "HOME chase %g -> %g at %d; side %d done %d orders %d farthest %g last %g range %g\n",
+                   seen.chase_from, seen.chase_to, seen.attacked, seen.home_side, seen.home_done, seen.home_orders,
+                   seen.home_start, seen.home_last, seen.home_range);
     EXPECT(seen.chase_from > 150.0f && seen.chase_to <= seen.home_range + 1.0f && seen.chase_to >= seen.fight_min - 1.0f);
     EXPECT(seen.attacked > 0 && seen.home_done > seen.attacked);
     EXPECT(seen.home_start > seen.home_range && seen.home_last < seen.home_range + 2.0f);
@@ -2964,7 +2983,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     // only when the AI, the walk or the weapons do.
     if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
       EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
-      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 72.0886f) < 1e-3f);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 71.1886f) < 1e-3f);
       EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
       EXPECT(seen.on_player == 385);  // his next pick, once the player is 30 m off
       EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
@@ -3116,11 +3135,164 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
                    seen.first_target.c_str(), seen.target_contacts, seen.on_target, seen.aiming, seen.firing,
                    seen.health0, seen.health, seen.frames);
     // His sensors list the huts; the firing picks one (the contact's entity,
-    // 0x004e6fe0, a target too), lines up and fires until it is down
-    // (exact: the run repeats with reset_process_state's fixed seed).
-    EXPECT(seen.hut != 0 && seen.target_contacts == 1128 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 703 && seen.aiming == 47 && seen.firing == 654);
-    EXPECT(seen.health0 == 30.0f && seen.health == 0.0f);
+    // 0x004e6fe0, a target too), lines up and fires (exact: the run repeats
+    // with reset_process_state's fixed seed). His spot is in one of the
+    // mission boundary's no-go patches (ai.md section 11), so he walks out of
+    // it meanwhile: the hut is still up after the 30 s (2 of 30 after 60 s).
+    EXPECT(seen.hut != 0 && seen.target_contacts == 1565 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 764 && seen.aiming == 55 && seen.firing == 646);
+    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 9.04218f) < 1e-3f);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+TEST(mission_c1m4_dominic_stops_at_a_no_go_patch_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    // c1 m4's largest red patch of the mission boundary (ai.md section 11),
+    // about 500 m across: the player in its middle, Dominic 230 m east of
+    // it on open ground; his own order follows the player.
+    struct Seen {
+      mech3::ai::Brain* brain = nullptr;
+      void* dominic = nullptr;
+      const mech3::ai::InOutPolygon* patch = nullptr;
+      int frames = 0, inside = 0, first_in = 0, last_in = 0;
+      float d0 = 0, east = 0, west = 1e9f, last[3] = {};
+    } seen;
+    // Even-odd in x and z over the patch's corners.
+    auto in_patch = [&](const float* p) {
+      bool in = false;
+      const auto& v = seen.patch->verts;
+      for (size_t i = 0, j = v.size() - 1; i < v.size(); j = i++) {
+        const float* a = v[i].pos;
+        const float* b = v[j].pos;
+        if ((a[2] > p[2]) != (b[2] > p[2]) && p[0] < (b[0] - a[0]) * (p[2] - a[2]) / (b[2] - a[2]) + a[0]) in = !in;
+      }
+      return in;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        const mech3::ai::InOutArea* area = mech3::ai::inout().current;
+        if (!seen.dominic || !seen.brain || !area) return;
+        float best = 0;
+        for (const auto& q : area->polygons) {
+          if (!q->tested || q->inverted) continue;
+          float size = 0;  // its area (the shoelace sum)
+          for (size_t i = 0, j = q->verts.size() - 1; i < q->verts.size(); j = i++)
+            size += q->verts[j].pos[0] * q->verts[i].pos[2] - q->verts[i].pos[0] * q->verts[j].pos[2];
+          if (std::fabs(size) > best) best = std::fabs(size), seen.patch = q.get();
+        }
+        if (!seen.patch) return;
+        // The enemy mechs taken 3 km off.
+        for (int32_t i = 0; i < made; ++i) {
+          if (ai[i].mech == seen.dominic) continue;
+          mech3::LaunchedMech m;
+          mech3::describe_mech(ai[i].mech, &m);
+          const float x = m.pos[0] + 3000.0f, z = m.pos[2] + 3000.0f;
+          const float at[3] = {x, ground_under(x, m.pos[1] + 500.0f, z), z};
+          mech3::move_mech(ai[i].mech, at, 0.0f);
+        }
+        const float* lo = seen.patch->min;
+        const float* hi = seen.patch->max;
+        const float cx = (lo[0] + hi[0]) * 0.5f, cz = (lo[2] + hi[2]) * 0.5f;
+        const float pat[3] = {cx, ground_under(cx, hi[1] + 200.0f, cz), cz};
+        mech3::move_mech(mech3::mech_mission_player(), pat, 0.0f);
+        seen.east = hi[0];
+        const float dx = hi[0] + 230.0f;
+        const float at[3] = {dx, ground_under(dx, hi[1] + 200.0f, cz), cz};
+        mech3::move_mech(seen.dominic, at, -1.5707964f);  // facing west, the player
+        seen.d0 = dx - cx;
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);  // he starts powered down
+        return;
+      }
+      if (!seen.brain || !seen.patch) return;
+      mech3::LaunchedMech d;
+      mech3::describe_mech(seen.dominic, &d);
+      if (in_patch(d.pos)) {
+        if (!seen.inside) seen.first_in = seen.frames;
+        seen.last_in = seen.frames;
+        ++seen.inside;
+      }
+      seen.west = std::min(seen.west, d.pos[0]);
+      std::memcpy(seen.last, d.pos, 12);
+    };
+    CountingPump pump;
+    pump.limit = 1500;  // 50 s
+    app.run(pump);
+    const float east_gap = seen.last[0] - seen.east;
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "PATCH inside %d (frames %d..%d) of %d, d0 %g, west %g, last %g %g (east edge %g, gap %g)\n",
+                   seen.inside, seen.first_in, seen.last_in, seen.frames, seen.d0, seen.west, seen.last[0], seen.last[2],
+                   seen.east, east_gap);
+    EXPECT(seen.patch && seen.frames > 1000 && std::fabs(seen.d0 - 496.0f) < 1.0f);
+    // He walks at it, is pulled up 3 m short of the edge (the far point), runs
+    // on 17 m into the patch as he slows, is sent back out to its pushed-out
+    // outline (from inside: the nearest point) and stops there, 5.7 m east of
+    // the patch (exact: the run repeats with reset_process_state's fixed seed).
+    EXPECT(seen.inside == 287 && seen.first_in == 837 && seen.last_in == 1123);
+    EXPECT(std::fabs(seen.west - 1004.9f) < 0.05f && std::fabs(east_gap - 5.72693f) < 1e-3f);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -3279,10 +3451,12 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
       EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.firing > 300);
       EXPECT(seen.engage == 0 && seen.attacks == 0);
       EXPECT(seen.follows_player > 600 && seen.closest > 59.0f);
-      // Exact, the run repeating (reset_process_state's fixed seed).
+      // Exact, the run repeating (reset_process_state's fixed seed). The
+      // player is across a no-go patch of the mission boundary from him: the
+      // follow is pulled round its corner (ai.md section 11; 63.3 m without).
       EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 326 && seen.firing == 375);
       EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-      EXPECT(std::fabs(seen.moved - 63.3123f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+      EXPECT(std::fabs(seen.moved - 70.3761f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();

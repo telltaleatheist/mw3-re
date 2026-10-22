@@ -615,8 +615,12 @@ ported (2026-10-22, `mech3/zainet_inout`); test
 read into the emulator by its own 0x4ff520, 84 loads identical bit for bit
 at 24 bits. The query 0x4c3000 (seven callers) and the messages 0x4c3bd0
 are ported (B2); test `tests/differential/test_inout_query.py`: 10,000
-segments on every mission's area identical bit for bit at 24 bits. The
-program's wiring of it is B3.
+segments on every mission's area identical bit for bit at 24 bits. In the
+program (B3): WiredBrainHooks::inout_clamp from the vehicle's place
+(0x5a85e0); `mission_c1m4_dominic_stops_at_a_no_go_patch_headless`, Dominic
+following the player into c1 m4's largest patch: pulled up 3 m short of its
+edge, he runs 17 m into it as he slows, is sent back to its pushed-out
+outline and stops 5.7 m outside it.
 
 **What it is.** Not a fence round the map: an area's red shapes are
 patches the AI keeps out of (in c1 m1, 23 of them, most under 1,000 m^2,
