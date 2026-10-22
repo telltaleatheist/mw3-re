@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 
@@ -20,6 +21,7 @@ namespace mech3 {
 
 using zgame::Handle;
 class Store;
+class Objective;
 
 // The calls out of the reading, by the original's address.
 class ObjectiveHooks : public zgame::Unported {
@@ -52,6 +54,39 @@ class ObjectiveHooks : public zgame::Unported {
     unported("0x0049bfd0", {level, "C:\\zipper\\Mech3\\mech_objective.cpp", line, fmt, a, b});
   }
   virtual void default_point(float out[3]) { out[0] = out[1] = out[2] = 0.0f; }  // 0x0063d870
+
+  // The check and the completion (0x0045e540, 0x0045e110).
+  virtual Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
+  virtual void ask_voice(Handle sound, float priority) {  // 0x0048f6c0 on the missions object
+    unported("0x0048f6c0", {0x6098d0, sound, zgame::bits(priority)});
+  }
+  virtual void hud_message(float seconds, int32_t id, const char* text) {  // 0x0040fe70
+    unported("0x0040fe70", {zgame::bits(seconds), id, text});
+  }
+  virtual void hud_message_line(float seconds, const char* text) {  // 0x0040fe20
+    unported("0x0040fe20", {zgame::bits(seconds), text});
+  }
+  virtual Store* salvage_store();                                // [0x00609990]: mission_salvage()
+  virtual uint8_t node_active(Handle node) { return static_cast<uint8_t>(unported("node+0x24", {node})); }
+  virtual Handle view_vehicle() { return unported("[0x005f4c8c]+0x64", {}); }
+  virtual Handle mech_screen(Handle vehicle) { return unported("0x00430aa0", {vehicle}); }  // on +0x684
+  virtual void objectives_box_reset(Handle screen) { unported("0x00446ad0", {screen}); }    // its +0x17964
+  // A condition type's vt+0x04 (piece 4 ports them).
+  virtual uint8_t condition_check(Objective& o);
+  // Instant Action's game (0x00479460): its mode (+0x44) and number (+0x6c).
+  virtual int32_t ia_mode() { return static_cast<int32_t>(unported("ia+0x44", {})); }
+  virtual int32_t ia_number() { return static_cast<int32_t>(unported("ia+0x6c", {})); }
+  // 0x00575fd0 into 0x100 bytes, with one number or none.
+  virtual std::string message_number(int32_t id, bool has_n, int32_t n) {
+    unported("0x00575fd0", {0x100, id, n, has_n ? 1u : 0u});
+    return std::string();
+  }
+  // zEntity's list ([0x0073655c..0x00736560]), each entry's vt+0x2c object.
+  virtual std::vector<Handle> world_objects() { return {}; }
+  virtual uint8_t object_active(Handle o) { return static_cast<uint8_t>(unported("obj+0x08", {o})); }
+  // The player's vehicle's +0xc8 mask against the object's team (vt+0x28, +0xc0).
+  virtual bool object_hostile(Handle o) { return unported("obj.vt+0x28", {o}) != 0; }
+  virtual int32_t object_x48(Handle o) { return static_cast<int32_t>(unported("obj.vt+0x48", {o})); }
 };
 
 // A node_state entry of cond_salvage (0x0045e9f0), 0x0c bytes.
@@ -74,6 +109,9 @@ class Objective {
   Objective(const Objective&) = delete;
   Objective& operator=(const Objective&) = delete;
   void set_desc(const char* text);  // 0x0045f110
+  // vt+0x04: the base's is 0x0045f2a0 (done), a group's 0x0045f150, the
+  // types' through the hooks.
+  virtual uint8_t check(ObjectiveHooks& h);
 
   Kind kind;
   Handle nav = 0;                       // +0x04
@@ -103,6 +141,8 @@ class ObjectiveGroup : public Objective {
   // +0x40: a byte of whatever the stack holds (a pointer's low byte in
   // 0x0045bf60, unset locals elsewhere); nothing reads it.
   std::list<std::unique_ptr<Objective>> items;  // +0x44, count +0x48
+  uint8_t check(ObjectiveHooks& h) override { return check_group(h, 0); }  // 0x0045f150
+  uint8_t check_group(ObjectiveHooks& h, uint8_t announce);              // 0x0045e540
 };
 
 // destroy_entity (vtable 0x005c2668 over the named target 0x005c2680, 0x40 bytes).
@@ -163,5 +203,17 @@ void read_node_salvage(Objective& o, zrdr::Node* cond, ObjectiveHooks& h);      
 Handle find_node(zrdr::Node* args, ObjectiveHooks& h);                           // 0x0045c810 ("node")
 void objectives_free(Objectives& o, ObjectiveHooks& h);                          // 0x0045c1d0
 void objectives_delete(Objectives& o);                                           // 0x0045c250
+// Mech3.exe 1.2 @ 0x0045e110: done set; when it is newly true (with a player
+// vehicle) the voice, the message panel's lines, the salvage into the
+// mission's store, set_valve, the HUD's objectives box.
+void complete(Objective& o, uint8_t done, ObjectiveHooks& h);
+// Mech3.exe 1.2 @ 0x0045c180: each of primary, final and fail that is done
+// is visible (the cockpit's flash of the objectives).
+uint8_t objectives_visible(const ObjectiveGroup* primary, const ObjectiveGroup* final, const ObjectiveGroup* fail);
+// Mech3.exe 1.2 @ 0x0045c4a0: Instant Action's and multiplayer's "destroy
+// the enemies": a group of every active hostile object into primary
+// (secondary in multiplayer).
+void add_enemy_objectives(std::unique_ptr<ObjectiveGroup>& primary, std::unique_ptr<ObjectiveGroup>& secondary,
+                          ObjectiveHooks& h);
 
 }  // namespace mech3

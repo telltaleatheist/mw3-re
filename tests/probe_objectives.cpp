@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
+#include <vector>
 
 #include "gamez/zreader/zreader.h"
 #include "mech3/mech_config.h"
@@ -25,6 +27,12 @@ std::string hex(uint32_t v) {
   char b[16];
   std::snprintf(b, sizeof b, "%x", v);
   return b;
+}
+
+uint32_t bits(float f) {
+  uint32_t u;
+  std::memcpy(&u, &f, 4);
+  return u;
 }
 
 // The same fakes as test_objectives.py's stubs.
@@ -110,17 +118,76 @@ class Fake : public ObjectiveHooks {
     ev("zerr " + hex(level) + " " + hex(line));
   }
   void default_point(float out[3]) override { std::memcpy(out, pt, sizeof pt); }
+  // Piece 3's: the scenario's vehicle, view and screen, the scripted
+  // conditions, Instant Action's world.
+  uint32_t seed = 0;
+  Handle vehicle = 0, view = 0, screen = 0;
+  Store* store = nullptr;
+  int32_t mode = 0, number = 0;
+  struct Obj {
+    Handle id;
+    uint8_t active, hostile;
+    int32_t x48;
+  };
+  std::vector<Obj> objs;
+  std::map<const Objective*, std::pair<int, int>> order;
+
+  Handle player_vehicle() override { return vehicle; }
+  void ask_voice(Handle sound, float priority) override { ev("voice " + hex(sound) + " " + hex(bits(priority))); }
+  void hud_message(float seconds, int32_t id, const char* text) override {
+    ev("hud " + hex(bits(seconds)) + " " + hex(id) + " " + str(text));
+  }
+  void hud_message_line(float seconds, const char* text) override { ev("line " + hex(bits(seconds)) + " " + str(text)); }
+  Store* salvage_store() override { return store; }
+  uint8_t node_active(Handle node) override { return (node >> 5) & 1; }
+  Handle view_vehicle() override { return view; }
+  Handle mech_screen(Handle v) override {
+    ev("screen " + hex(v));
+    return screen;
+  }
+  void objectives_box_reset(Handle s) override { ev("box " + hex(s)); }
+  uint8_t condition_check(Objective& o) override {
+    auto it = order.find(&o);
+    if (it == order.end()) it = order.emplace(&o, std::make_pair(static_cast<int>(order.size()), 0)).first;
+    const int k = it->second.first, c = it->second.second++;
+    uint32_t h = seed * 2654435761u + static_cast<uint32_t>(k) * 40503u;
+    h ^= h >> 13;
+    h *= 0x5bd1e995u;
+    h ^= h >> 15;
+    const uint8_t r = k % 5 == 4 ? (c & 1) : c >= static_cast<int>(h % 4);
+    ev("cond " + hex(k) + " " + hex(c) + " " + hex(r));
+    return r;
+  }
+  int32_t ia_mode() override { return mode; }
+  int32_t ia_number() override { return number; }
+  std::string message_number(int32_t id, bool has_n, int32_t n) override {
+    ev("msgn " + hex(id) + (has_n ? " " + hex(n) : ""));
+    return "N" + hex(id) + (has_n ? ":" + std::to_string(n) : "");
+  }
+  std::vector<Handle> world_objects() override {
+    std::vector<Handle> v;
+    for (const Obj& o : objs) v.push_back(o.id);
+    return v;
+  }
+  const Obj& obj(Handle id) {
+    for (const Obj& o : objs)
+      if (o.id == id) return o;
+    return objs[0];
+  }
+  uint8_t object_active(Handle o) override { return obj(o).active; }
+  bool object_hostile(Handle o) override {
+    ev("team " + hex(o));
+    return obj(o).hostile;
+  }
+  int32_t object_x48(Handle o) override {
+    ev("x48 " + hex(o));
+    return obj(o).x48;
+  }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg>) override {
     ev(std::string("unported ") + key);
     return 0;
   }
 };
-
-uint32_t bits(float f) {
-  uint32_t u;
-  std::memcpy(&u, &f, 4);
-  return u;
-}
 
 void store_text(std::string& o, const Store* s) {
   if (!s) {
@@ -218,6 +285,49 @@ int probe_objectives_run(const char* archive, const char* file, const char* bloc
   zrdr::close_archives(true);
   if (put(text, out, cap) < 0 || put(h.log, log, logcap) < 0) return -1;
   return ok ? 1 : 0;
+}
+
+// Piece 3: the block read, Instant Action's group added (ia >= 0: its mode;
+// objs: id, active, hostile, x48 each), then `frames` frames of the
+// mission's checks: each group's 0x0045e540(1), then 0x0045c180.
+int probe_objective_check_run(const char* archive, const char* block, int type, const float* pt, uint32_t seed,
+                              int frames, uint32_t vehicle, uint32_t view, uint32_t screen, int ia, int number,
+                              const uint32_t* objs, int nobjs, char* out, int cap, char* log, int logcap) {
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  Fake h;
+  h.type = type;
+  std::memcpy(h.pt, pt, sizeof h.pt);
+  h.seed = seed, h.vehicle = vehicle, h.view = view, h.screen = screen, h.mode = ia, h.number = number;
+  for (int i = 0; i < nobjs; ++i)
+    h.objs.push_back({objs[4 * i], static_cast<uint8_t>(objs[4 * i + 1]), static_cast<uint8_t>(objs[4 * i + 2]),
+                      static_cast<int32_t>(objs[4 * i + 3])});
+  Store salvage(1);
+  h.store = &salvage;
+  Objectives o;
+  objectives_load("objectives.zrd", block, o, h);
+  if (ia >= 0) add_enemy_objectives(o.primary, o.secondary, h);
+  std::unique_ptr<ObjectiveGroup>* gs[] = {&o.secondary, &o.primary, &o.final, &o.fail};
+  for (int f = 0; f < frames; ++f) {
+    h.ev("frame " + hex(f));
+    for (int i = 0; i < 4; ++i)
+      if (*gs[i]) h.ev("check " + hex(i) + " " + hex((*gs[i])->check_group(h, 1)));
+    h.ev("visible " + hex(objectives_visible(o.primary.get(), o.final.get(), o.fail.get())));
+  }
+  std::string text = "desc " + opt(o.desc) + "\n";
+  const char* names[] = {"primary", "secondary", "final", "fail"};
+  const ObjectiveGroup* g4[] = {o.primary.get(), o.secondary.get(), o.final.get(), o.fail.get()};
+  for (int i = 0; i < 4; ++i) {
+    text += std::string(names[i]) + "\n";
+    if (g4[i]) obj_text(text, g4[i], 1);
+  }
+  text += "salvage";
+  store_text(text, &salvage);
+  text += "\n";
+  zrdr::close_archives(true);
+  if (put(text, out, cap) < 0 || put(h.log, log, logcap) < 0) return -1;
+  return 0;
 }
 
 }  // extern "C"

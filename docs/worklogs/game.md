@@ -1161,3 +1161,19 @@ view's ground, the anim lookups 0x50b450 (92).
 - test_salvage, test_pilot, mw3tests 130/0.
 - Next: piece 3 (0x0045c4a0 is Instant Action's "destroy the enemies"
   group, not a general start; 0x0045e540 / 0x0045e110 / 0x0045c180).
+
+## The objectives' check and completion, piece 3 (2026-10-21)
+
+- Ported 0x0045e540 / 0x0045f150 (group check), 0x0045e110 (completion:
+  voice, message panel lines, salvage lines, salvage into the mission's
+  store, set_valve, the HUD box), 0x0045ec40 / 0x0045ec60, 0x0045c180
+  (`objectives_visible`), 0x0045c4a0 (`add_enemy_objectives`, Instant
+  Action's / multiplayer's), and the engine item's texts (0x004739d0,
+  0x00432f00, 0x004738b0) in mech_salvage. The types' checks go through
+  `ObjectiveHooks::condition_check` until piece 4.
+- test_objective_check.py (new): 300 scenarios identical; 15 breaks, 14
+  caught ("in order" is unreachable: every group sets +0x34).
+  test_objectives (214 + 400), test_salvage, test_lab_list, mw3tests 130/0.
+- Found: c1m2 rewards each still-standing city building with ammo / heat
+  sinks, c4m1 a Mad Cat if seg2tkt is still active (discoveries.md).
+- Next: piece 4 (the five types' checks, node_state, wiring, c1m1 won/lost).

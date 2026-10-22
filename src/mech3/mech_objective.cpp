@@ -6,7 +6,9 @@
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_msg.h"
+#include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
+#include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
 
 namespace mech3 {
@@ -16,6 +18,11 @@ using zrdr::Node;
 zrdr::Node* ObjectiveHooks::load(const char* name) { return zrdr::load(name); }
 void ObjectiveHooks::free_tree(zrdr::Node* root) { zrdr::free_node(root); }
 const char* ObjectiveHooks::localize(const char* name) { return zutl::localize(name); }
+Store* ObjectiveHooks::salvage_store() { return &mission_salvage(); }
+uint8_t ObjectiveHooks::condition_check(Objective& o) {
+  unported("objective.vt+0x04", {static_cast<int32_t>(o.kind)});
+  return o.done;
+}
 
 NodeSalvage::NodeSalvage() = default;
 NodeSalvage::NodeSalvage(NodeSalvage&&) noexcept = default;
@@ -28,6 +35,8 @@ Objective::Objective(Kind k, const char* d) : kind(k) {
 
 // Mech3.exe 1.2 @ 0x0045bb00. The persist text (+0x2c) is never freed.
 Objective::~Objective() = default;
+
+uint8_t Objective::check(ObjectiveHooks& h) { return h.condition_check(*this); }
 
 // Mech3.exe 1.2 @ 0x0045f110
 void Objective::set_desc(const char* text) {
@@ -419,6 +428,129 @@ void objectives_free(Objectives& o, ObjectiveHooks& h) {
   // The pointers are cleared either way.
   o.primary.release(), o.secondary.release(), o.final.release(), o.fail.release();
   o.desc.reset();
+}
+
+namespace {
+
+// 0x00472cf0 on a store: each of its items, by count, into `to`.
+void add_items(Store& to, const Store& from) {
+  for (const ConfigItem* i : from.items) to.add_copy(i, i->count);
+}
+
+void show_items(const Store& s, ObjectiveHooks& h) {
+  for (const ConfigItem* i : s.items) {
+    const std::string label = item_label(*i, [&](int32_t id) { return h.message(id); });
+    h.hud_message(5.0f, 0x264, label.c_str());
+  }
+}
+
+// strtok(text, "\n") over a copy: the lines, empty ones skipped.
+std::vector<std::string> lines_of(const std::string& text) {
+  std::vector<std::string> out;
+  size_t i = 0;
+  while (i < text.size()) {
+    while (i < text.size() && text[i] == '\n') ++i;
+    if (i >= text.size()) break;
+    const size_t j = text.find('\n', i);
+    out.push_back(text.substr(i, j == std::string::npos ? std::string::npos : j - i));
+    i = j == std::string::npos ? text.size() : j;
+  }
+  return out;
+}
+
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0045e110
+void complete(Objective& o, uint8_t done, ObjectiveHooks& h) {
+  o.done = done;
+  if (!done) return;
+  const Handle vehicle = h.player_vehicle();
+  if (!vehicle) return;
+  if (!o.silent && o.sound) h.ask_voice(o.sound, 1.0f);
+  if (o.visible) {
+    if (o.desc) {
+      // The first line as message 0x263 ("Objective complete: %s"), the rest
+      // on lines of their own.
+      const std::vector<std::string> lines = lines_of(*o.desc);
+      h.hud_message(5.0f, 0x263, lines.empty() ? nullptr : lines[0].c_str());
+      for (size_t k = 1; k < lines.size(); ++k) h.hud_message_line(5.0f, lines[k].c_str());
+    }
+    if (o.salvage) show_items(*o.salvage, h);
+    for (const NodeSalvage& e : o.node_salvage)  // 0x0045ec40: the node in the state it names
+      if (e.salvage && h.node_active(e.node) == e.active) show_items(*e.salvage, h);
+  }
+  if (o.salvage) {
+    add_items(*h.salvage_store(), *o.salvage);
+    o.salvage.reset();
+  }
+  for (const NodeSalvage& e : o.node_salvage)  // 0x0045ec60
+    if (h.node_active(e.node) == e.active) add_items(*h.salvage_store(), *e.salvage);
+  o.node_salvage.clear();
+  if (o.valve) h.valve_set(o.valve, o.value);
+  if (o.visible && vehicle == h.view_vehicle())
+    if (const Handle screen = h.mech_screen(vehicle)) h.objectives_box_reset(screen);
+}
+
+// Mech3.exe 1.2 @ 0x0045e540. Without b34 the conditions count in order up
+// to the first not met; goal_count 0 means all. A simultaneous group that is
+// not complete clears its conditions again.
+uint8_t ObjectiveGroup::check_group(ObjectiveHooks& h, uint8_t announce) {
+  if (done) return 1;
+  int32_t n = 0;
+  for (auto& c : items) {
+    if (c->check(h)) {
+      ++n;
+    } else if (!b34) {
+      break;
+    }
+  }
+  if (n > x3c) {
+    x3c = n;
+    if (announce && !silent) h.ask_voice(0, 0.0f);  // the mission's own objective voice
+  }
+  complete(*this, goal_count ? n >= goal_count : n == static_cast<int32_t>(items.size()), h);
+  if (n > 0 && simultaneous && !done)
+    for (auto& c : items) complete(*c, 0, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045c180
+uint8_t objectives_visible(const ObjectiveGroup* primary, const ObjectiveGroup* final, const ObjectiveGroup* fail) {
+  uint8_t r = 1;
+  if (primary && primary->done) r = primary->visible & 1;
+  if (fail && fail->done) r &= fail->visible;
+  if (final && final->done) r &= final->visible;
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x0045c4a0
+void add_enemy_objectives(std::unique_ptr<ObjectiveGroup>& primary, std::unique_ptr<ObjectiveGroup>& secondary,
+                          ObjectiveHooks& h) {
+  std::string desc;
+  const int32_t mode = h.ia_mode();
+  if (mode == 1) {
+    desc = h.message_number(0x261, true, h.ia_number());
+  } else if (mode == 2) {
+    desc = h.message_number(0xdb1, true, h.ia_number());
+  } else {
+    desc = h.message_number(mode == 4 ? 0xdb9 : 0x262, false, 0);
+  }
+  auto g = std::make_unique<ObjectiveGroup>(desc.c_str());
+  for (const Handle obj : h.world_objects()) {
+    if (!h.object_active(obj) || !h.object_hostile(obj) || h.object_x48(obj) != 0) continue;
+    auto d = std::make_unique<DestroyObjective>(nullptr, nullptr, obj);
+    d->find_entity(h);
+    d->relabel(h);
+    g->items.push_back(std::move(d));
+  }
+  if (g->items.empty()) return;
+  // Modes 0..2 and 4 (Instant Action) into primary, 3 (multiplayer) into
+  // secondary; another mode leaves the group unattached (the exe reads through null).
+  const int32_t m = h.ia_mode();
+  std::unique_ptr<ObjectiveGroup>* to = m == 3 ? &secondary : (m >= 0 && m <= 4 ? &primary : nullptr);
+  if (!to) return;  // FIX (bug)
+  if (!*to) *to = std::make_unique<ObjectiveGroup>(nullptr);
+  (*to)->items.push_back(std::move(g));
 }
 
 }  // namespace mech3

@@ -75,8 +75,8 @@ void lance_salvage(Store& salvage, Store& own, std::vector<SalvageEntity>& list,
 
 // The store items' texts (their vt+0x20 name and vt+0x1c label,
 // 0x004738f0..0x004739c0 and 0x00473700..0x004738b0), with Mech3Msg.dll's
-// messages through `msg` (null as MSVC's sprintf shows it). An engine item's
-// (0x004738b0, 0x004739d0) is not ported: no store list shows engines.
+// messages through `msg` (null as MSVC's sprintf shows it); an engine's
+// 0x004739d0 / 0x004738b0.
 using MessageText = std::function<const char*(int32_t)>;
 std::string item_name(const ConfigItem& it, const MessageText& msg);
 std::string item_label(const ConfigItem& it, const MessageText& msg);

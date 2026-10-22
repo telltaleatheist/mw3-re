@@ -143,3 +143,46 @@ entity name, salvage entry or tech that is not a string, an empty `node` or
 engine list, an obj_list without `list`, a block `desc` that localizes to
 nothing. The exe reads through the wrong type or a null; the port passes
 the item over.
+
+## The check and the completion (piece 3, ported 2026-10-21)
+
+Checked by `tests/differential/test_objective_check.py` (probe entry
+`probe_objective_check_run`): 300 scenarios of made-up blocks, Instant
+Action's group over made-up worlds, 1..8 frames of every group's check and
+the flash test; the types' own checks (piece 4) answer from a script both
+sides share. Objects, the mission's salvage store and the calls match.
+
+- **A group's check** (0x0045e540; as a child, vt+0x04 0x0045f150 with no
+  announcement). Done stays done. It asks each condition in order and
+  counts those met; with +0x34 clear it stops at the first not met (every
+  group the reader makes sets +0x34, so in play all are asked; the test cannot reach the stop). A count
+  above the best so far (+0x3c) is remembered and, from the mission's own
+  check, plays the mission's objective voice (0x0048f6c0 with no sound)
+  unless the group is silent. The group is complete when the count
+  reaches goal_count (0: all). A simultaneous group that has some but not
+  all clears its conditions again (0x0045e110(0) on each), so they must
+  all be met in the same frame.
+- **The completion** (0x0045e110): +0x08 = the result; when true and the
+  player has a vehicle: the voice (+0x20 at priority 1, unless silent);
+  when visible, the description's lines in the message panel for 5 s
+  (the first as message 0x263 through 0x0040fe70, the rest through
+  0x0040fe20) and one line per salvage item (0x264 with the item's label;
+  cond_salvage's only where the node's active flag, +0x24 bit 2, matches
+  its state); then the salvage into the mission's store [0x00609990]
+  (0x00472cf0 per store) and the stores freed; set_valve's valve set; and,
+  when visible and the player's vehicle is the view's, the HUD's
+  objectives box reset (0x00446ad0 on the mech screen's +0x17964).
+- **0x0045c180** (called the announce in mission.h): 1 unless one of
+  primary, final or fail is done and not visible: whether the cockpit
+  flashes its objectives box.
+- **0x0045c4a0** is not a general start: it is Instant Action's and
+  multiplayer's "destroy the enemies" group (after the block is read, and
+  each new wave). Its description by the game's mode (Instant Action's
+  +0x44: 1 message 0x261 with +0x6c, 2 0xdb1 with +0x6c, 4 0xdb9, else
+  0x262); one destroy_entity for each object in zEntity's list that is
+  active, hostile to the player's vehicle (+0xc8 against its team's +0xc0)
+  and whose vt+0x48 is 0. It joins primary (secondary in multiplayer,
+  mode 3), made empty if missing. FIX (bug): a mode outside 0..4 reads
+  through a null in the exe; the port drops the group.
+- The engine item's store texts (0x004739d0, 0x00432f00, 0x004738b0) are
+  ported with it (`item_name` / `item_label`): "<maker> <rating>[ XL]".

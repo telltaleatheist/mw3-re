@@ -2512,3 +2512,17 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   mission files never say so: the game adds a "Mobile Field Base
   destroyed" condition to every campaign mission's fail list itself, made
   of the field bases (`mobilehq_01` to `_03`) present in the mission.
+- **Op 1 Mission 2 pays you for sparing the city.** When you complete the
+  "destroy the APCs" objective, each of ten city buildings
+  (`citybuild01`..`citybuild011`) whose intact model is still standing
+  adds a little to the objective's salvage: AC/10, LB-X, LRM and machine
+  gun ammo, and three of them a Clan heat sink. A building already wrecked
+  by then gives nothing. Op 4 Mission 1 does the same once: destroying the
+  train adds a Mad Cat to the salvage if the part `seg2tkt` is still
+  active at that moment (what that part is in the world is not yet
+  known). The salvage is decided at the moment the objective completes,
+  and only while you are in your mech. (docs/objectives.md)
+- **The objective messages.** A completed visible objective puts its
+  description in the message panel for 5 seconds (the first line as
+  "objective complete", the others below it) and then one line per item
+  of its salvage; a silent one completes without its voice line.
