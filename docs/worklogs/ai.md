@@ -710,3 +710,10 @@ Newest last. One short entry per item: what, commits, what to remember.
   sign match (0/0 from a zero share); 800 cases for every phase; 115
   branches; 16 of 17 breaks (the miss: a 1% band at the speed cap).
 - FIX (bug): a jump whose next step is no node does not turn.
+
+## 2026-10-22 Item 3e: the brain's step is dead (not ported)
+
+- 0x4cd7b0 / 0x4cd810: the brain's +0x240 step is made (0x4cd770, only from
+  0x4cf44a) and its maker 0x4cd790 sits only in its vtable 0x5cc290, which
+  only the constructor names; no order is ever given it. Its run is
+  0x4cdd40 inline (turn on the spot, then on). Documented in ai.md, skipped.
