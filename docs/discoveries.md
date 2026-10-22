@@ -1724,6 +1724,12 @@ are all "puffers": emitters that drop little textured squares.
   that spot instead. Pressing an order's line on the panel waits three
   frames, gives your camera back, then sends the order to every lancemate
   you picked and closes the panel.
+- **Your mech handles differently with the command panel open.** While
+  the lance command panel is up, the game drives your mech with its own
+  copy of the controls: the joystick is ignored (the mouse still looks
+  around), torso twist from the keys is slower (1 instead of 1.5) but
+  pitch and twist settle faster, and the zoom key opens the zoom box
+  without its click.
 - **The command panel only lists lancemates you have seen.** A lancemate
   under your orders gets a line on the command panel only once you have
   had it in your sensors at least once; until then its place is empty, and

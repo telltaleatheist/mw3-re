@@ -193,6 +193,8 @@ class Original:
         self.code_next += (len(code) + 0xf) & ~0xf
 
     def _stub_hit(self, uc, address, size, user_data):
+        if address not in self.stubs:  # unstubbed (a test that runs what another stubs)
+            return
         fn, pop_bytes = self.stubs[address]
         eax = fn(self)
         esp = uc.reg_read(UC_X86_REG_ESP)

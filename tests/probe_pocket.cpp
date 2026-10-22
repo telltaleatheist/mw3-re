@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 
+#include "gamez/zinput/zinput.h"
 #include "mech3/lance_orders.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
@@ -216,6 +217,78 @@ int32_t probe_pocket_orders(const int32_t* in, const uint32_t* handles, const fl
   pc = PocketCalls{};
   ai::set_brain_hooks(nullptr);
   for (Mech& m : mechs) m.player_contact = nullptr;
+  const int32_t n = static_cast<int32_t>(g_log.size());
+  if (n > cap) return -1;
+  std::memcpy(out, g_log.data(), 4 * g_log.size());
+  return n;
+}
+
+}  // extern "C"
+
+namespace {
+// The mode's own keys (test_pocket_keys.py).
+const int32_t kKeyCmds[17] = {0x18, 0x19, 2, 3, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x14, 8, 9, 4, 5, 0x3d};
+int32_t g_cmd_state[17];
+int32_t g_mw2, g_busy;
+zin::MouseInfo g_mouse_info;
+int g_screen_token;
+}  // namespace
+
+extern "C" {
+
+// in: powered down, jets, airborne, MW2 jets, a HUD, its zoom locked, flags,
+// view, joy set, jump held, throttle held, throttle returns, reverse, the
+// 17 commands' states; f: dt, the mouse fx fy fdx fdy, look x y dx dy,
+// throttle turn pitch twist jump, the three targets, joy throttle, the
+// mech's three rates. out: the log (0x31 tick, 0x32 zoom v, 0x33 mouse set
+// x y), 0x40, then the fields.
+int32_t probe_pocket_keys(const int32_t* in, const float* f, uint32_t* out, int32_t cap) {
+  g_log.clear();
+  ControlsCalls& k = controls_calls();
+  const ControlsCalls saved = k;
+  for (int i = 0; i < 17; ++i) g_cmd_state[i] = in[13 + i];
+  g_mw2 = in[3], g_busy = in[5];
+  k.command = [](int cmd) -> uint32_t {
+    for (int i = 0; i < 17; ++i)
+      if (kKeyCmds[i] == cmd) return static_cast<uint32_t>(g_cmd_state[i]);
+    return 0;
+  };
+  g_mouse_info = zin::MouseInfo{};
+  g_mouse_info.fx = f[1], g_mouse_info.fy = f[2], g_mouse_info.fdx = f[3], g_mouse_info.fdy = f[4];
+  k.mouse_info = []() -> const void* { return &g_mouse_info; };
+  k.mouse_set = [](float x, float y) { g_log.push_back(0x33), g_log.push_back(fbits(x)), g_log.push_back(fbits(y)); };
+  k.mw2_jets = [] { return g_mw2 != 0; };
+  k.pilot_tick = [](MechControls&) { g_log.push_back(0x31); };
+  k.screen_busy = [](void*) -> uint8_t { return static_cast<uint8_t>(g_busy); };
+  k.zoom = [](void*, bool in) { g_log.push_back(0x32), g_log.push_back(in ? 1 : 0); };
+  PocketCalls& pc = pocket_calls();
+  pc = PocketCalls{};
+  pc.view_state = [](PocketControls&, int32_t) {};
+  pc.view_screen = in[4] ? [](Mech&) -> void* { return &g_screen_token; } : nullptr;
+  Mech m;
+  m.powered_down = in[0] != 0;
+  m.power_down_pending = false;
+  m.equipment[11] = in[1];
+  m.no_power_down = in[2] != 0;
+  m.throttle_up = f[18], m.throttle_down = f[19], m.turn_accel = f[20];
+  PocketControls p(nullptr, nullptr, 2, 1);
+  p.owner = &m;
+  p.flags = static_cast<uint32_t>(in[6]), p.view = in[7];
+  p.joy_throttle_set = in[8] != 0, p.jump_held = in[9] != 0, p.throttle_held = in[10] != 0;
+  p.throttle_returns = in[11] != 0, p.reverse = in[12] != 0;
+  p.look_x = f[5], p.look_y = f[6], p.look_dx = f[7], p.look_dy = f[8];
+  p.throttle = f[9], p.turn = f[10], p.pitch = f[11], p.twist = f[12], p.jump = f[13];
+  p.throttle_target = f[14], p.turn_target = f[15], p.jump_target = f[16], p.joy_throttle = f[17];
+  p.keys(f[0]);
+  g_log.push_back(0x40);
+  for (float v : {p.throttle, p.turn, p.pitch, p.twist, p.jump, p.jj_strafe, p.jj_forward, p.throttle_target,
+                  p.turn_target, p.jump_target, p.look_x, p.look_y, p.look_dx, p.look_dy})
+    g_log.push_back(fbits(v));
+  g_log.push_back(p.fire), g_log.push_back(p.joy_throttle_set), g_log.push_back(p.throttle_held);
+  g_log.push_back(p.reverse);
+  p.owner = nullptr;
+  k = saved;
+  pc = PocketCalls{};
   const int32_t n = static_cast<int32_t>(g_log.size());
   if (n > cap) return -1;
   std::memcpy(out, g_log.data(), 4 * g_log.size());

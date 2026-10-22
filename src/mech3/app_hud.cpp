@@ -484,12 +484,13 @@ void wire_hud() {
   mech_hud_calls().is_view_target = [](const Mech& m) { return &m == program_view_target(); };
   // The pocket commander's (mech_pocket.cpp, docs/ai.md 17.6a): the camera,
   // the viewed mech's HUD (its reticle's flag and image, the weapons' and
-  // equipment's hold); the view's pocket 0x004b5290 and the panel are not
-  // ported (L4c2).
+  // equipment's hold), the HUD for the mode's zoom key; the view's pocket
+  // 0x004b5290 is not ported.
   PocketCalls& pk = pocket_calls();
   pk.camera_mode = [] { return program_view_camera_id(); };
   pk.set_camera_mode = [](int32_t id) { program_view_set_camera(id); };
   pk.display_width = [] { return display_w(); };
+  pk.view_screen = [](Mech& m) -> void* { return &m == program_view_target() ? hud_of(m) : nullptr; };  // 0x0046b0a0's zoom box
   pk.hud_mode = [](Mech& m, bool on) {
     if (&m != program_view_target()) return;
     if (Hud* h = hud_of(m)) {
