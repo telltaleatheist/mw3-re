@@ -94,6 +94,7 @@ float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported
 float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
+BehaviourState* BrainHooks::vehicle_step_state(Behaviour& b, Order& o) { return new BehaviourState(&o, &b); }
 float BrainHooks::stop_share(zgame::Handle v, float d) { return fbits(unported("vehicle.vt+0x12c", {v, bits(d)})); }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return ai::clear_line(v, seen, nullptr); }
 bool BrainHooks::clear_line_at(zgame::Handle v, zgame::Handle e) {
@@ -423,6 +424,12 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::Scan:
     case StepKind::CanLeave:
     case StepKind::CanLeaveNot: return new ScanState(&o, this);  // 0x004cbc30
+    case StepKind::VehAttack: return new FightState(&o, this);                                    // 0x004d1ca0
+    case StepKind::VehFollow:
+    case StepKind::VehMode1:
+    case StepKind::VehMode2:
+    case StepKind::VehMode4:
+    case StepKind::VehOwn: return brain_hooks().vehicle_step_state(*this, o);
     case StepKind::AttackEnd: return new AttackEndState(&o, static_cast<AttackEnd*>(this));        // 0x004cac00
     case StepKind::AttackRearm: return new AttackRearmState(&o, this);                            // 0x004cacc0
     case StepKind::AttackReturn: return new AttackReturnState(&o, static_cast<AttackReturn*>(this));  // 0x004cad90

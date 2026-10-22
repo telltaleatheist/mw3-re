@@ -1503,6 +1503,34 @@ behaviours on its stack (their states copy what they need), bottom to top:
    toward the pull (0x4c8df0), full throttle only facing it within 0.9, and
    the order ends.
 
+**The fight, ported** (2026-10-22, item 10b2: `FightState`, `drive_to`).
+What the target vehicle net's attack behaviour (slot 1) makes in the order
+the brain pushes on that net (0x4d1ca0 -> 0x4d1cc0, vtable 0x5ccb60, over
+the waiting state 0x4c8a30; +0x0c the turn, +0x18 its behaviour). It lets
+no order break in and answers no to may_fire (0x4d72a0, 0x4d7290: the
+hit-lately reset and the +0xa0 manoeuvre wait; the firing itself runs on).
+Run (0x4d1d10): the order's part, taken as the vehicle net's (its vt+0x0c),
+gives the target vehicle (its net's +0x1c) and the behaviour for the
+pilot's mode (+0x1c); the pilot gives up (its order popped) when either
+has no position (0x5a85e0), the target is not active (+0x08) or it must
+break off (0x4e8dd0: engaging off, the leash, hurt, the time); else it
+drives at the target (0x4c8a70, the way home's rule, with backing off):
+within +0x2c (params 6) it backs off at the speed share when facing it
+within 0.9, else holds; within +0x28 (params 5) it has arrived, and the
+order takes the mode's behaviour (0x4e8120; none for modes 0, 3 and past
+4, so the pilot keeps closing on the spot); farther, the speed for the
+distance past the middle of the two, as the way home. Those behaviours'
+states (0x4c9750, 0x4d1320, 0x4d1650, the follow's 0x4d1870) are not ported:
+the base state, through `BrainHooks::vehicle_step_state`. Tests:
+`test_ai_attack.py` (the fight pushed on a real vehicle net, 0x4d70f0 on a
+target vehicle, those states faked on both sides: 703 fights in 200 cases
+identical, 21 branches; 14 of 14 breaks caught) and in c1m1
+(`test_program`: engaging on and the mode 1 given, the player 160 m off:
+the Owens closes to 79.5 m, between its +0x2c 60 and +0x28 80, and takes
+the mode's behaviour; then, as above, its way home). In c1m1 the Owens'
+mode is 0, and a chase from 300 m was given up after about 130 m (likely
+its leash, +0xcc bit 0 and +0x24, or its time +0xe8; not checked).
+
 So when the fight ends, the pilot walks back to the net it was on, to
 within +0x28 of its nearest step, then the timer is set and the net freed.
 The waypoint is not set before the first resume (0x4cadb0 leaves the
@@ -2156,8 +2184,9 @@ goes through a hooks struct the test stubs the same on both sides.
    jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
-    0x4d1ca0 / 0x4d1d10 with 0x4c8a70 (10b2); the brain's own order 0x4e81a0
-    (10c).
+    0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
+    0x4e81a0 (10c); the modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the
+    follow's (0x4d1870) later.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

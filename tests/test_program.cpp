@@ -2182,6 +2182,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, firing = 0, shooting = 0;
       int32_t attacked = 0, home_done = 0, home_orders = 0;
       float home_way[3] = {}, home_start = -1.0f, home_last = 0, home_range = 0;
+      float chase_from = 0, chase_to = 0, fight_min = 0;
       float fire_range = 0, fire_max = 0;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
@@ -2252,19 +2253,36 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.owens_end.attacker = o.attacker;
         // The attack (docs/ai.md 17.2): the Owens' engaging is off in c1m1
         // (its +0x3c) until the mission's valves say; on here.
+        // The Owens' mode (+0x40) is 0 (no behaviour for it): 1 here, as an
+        // aiv record can give; the player 160 m east of it.
         if (seen.brain) {
           seen.brain->params.put<int32_t>(0x3c, 1);
+          seen.brain->params.put<int32_t>(0x40, 1);
           seen.home_range = seen.brain->params.get<float>(0x28);
+          seen.fight_min = seen.brain->params.get<float>(0x2c);
+          const float x = o.pos[0] + 160.0f, z = o.pos[2];
+          const float at[3] = {x, ground_under(x, o.pos[1] + 120.0f, z), z};
+          mech3::move_mech(player, at, -1.5707964f);
         }
       } else if (seen.frames > 500 && seen.brain) {
         auto& br = *seen.brain;
         // The attack's orders under the fight: end, rearm, the way home.
         const size_t n = br.orders.size();
-        if (!seen.attacked && n >= 4 && dynamic_cast<mech3::ai::AttackReturnState*>(br.orders[n - 2].state.get()) &&
-            dynamic_cast<mech3::ai::AttackRearmState*>(br.orders[n - 3].state.get()) &&
-            dynamic_cast<mech3::ai::AttackEndState*>(br.orders[n - 4].state.get())) {
+        const float pdx = m.pos[0] - o.pos[0], pdz = m.pos[2] - o.pos[2];
+        const float pd = std::sqrt(pdx * pdx + pdz * pdz);
+        const bool under = n >= 4 && dynamic_cast<mech3::ai::AttackReturnState*>(br.orders[n - 2].state.get()) &&
+                           dynamic_cast<mech3::ai::AttackRearmState*>(br.orders[n - 3].state.get()) &&
+                           dynamic_cast<mech3::ai::AttackEndState*>(br.orders[n - 4].state.get());
+        // The fight (0x004d1d10): the Owens closes on the player, then the
+        // order takes the behaviour for its mode (the vehicle net's slot 2).
+        if (!seen.chase_from && under && dynamic_cast<mech3::ai::FightState*>(br.orders[n - 1].state.get()))
+          seen.chase_from = pd;
+        const auto* top = n ? br.orders[n - 1].state.get() : nullptr;
+        if (!seen.attacked && under && top && !dynamic_cast<const mech3::ai::FightState*>(top) && top->from &&
+            top->from->kind == mech3::ai::StepKind::VehMode1) {
+          seen.chase_to = pd;
           seen.attacked = seen.frames;
-          br.pop();  // the fight ended (its state is item 10b2's): the way home resumes
+          br.pop();  // the mode's behaviour (its state not ported yet) ended: the way home resumes
           // Its waypoint taken (the net's step nearest the Owens, within
           // its +0x28 here), the Owens is put 250 m east of it, facing it.
           for (const auto& ord : br.orders)
@@ -2292,7 +2310,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       }
     };
     CountingPump pump;
-    pump.limit = 1500;  // the way home: 250 m
+    pump.limit = 2400;  // the chase (80 m) and the way home (250 m)
     app.run(pump);
     EXPECT(seen.frames >= 500);
     // The level of detail (0x0041e870): 1.4 km off, no detail bits and the
@@ -2332,13 +2350,17 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
     // Engaging on, the Owens attacks (0x004e9ca0): the end, rearm and way
-    // home orders under the fight. The fight ended and the Owens 250 m off,
+    // home orders under the fight. The fight closes from 160 m to between
+    // +0x2c (60 m, nearer it backs off) and +0x28 (80 m), then takes the
+    // mode's behaviour. That ended and the Owens 250 m off,
     // the way home (0x004cae90) drives it back to its net's nearest step and
     // ends within its +0x28 (80 m), the attack's orders gone with it (end,
     // rearm resumed).
     if (std::getenv("MW3_HOME_LOG"))
-      std::fprintf(stderr, "HOME attacked %d done %d orders %d farthest %g last %g range %g\n", seen.attacked,
-                   seen.home_done, seen.home_orders, seen.home_start, seen.home_last, seen.home_range);
+      std::fprintf(stderr, "HOME chase %g -> %g at %d; done %d orders %d farthest %g last %g range %g\n",
+                   seen.chase_from, seen.chase_to, seen.attacked, seen.home_done, seen.home_orders, seen.home_start,
+                   seen.home_last, seen.home_range);
+    EXPECT(seen.chase_from > 150.0f && seen.chase_to <= seen.home_range + 1.0f && seen.chase_to >= seen.fight_min - 1.0f);
     EXPECT(seen.attacked > 0 && seen.home_done > seen.attacked);
     EXPECT(seen.home_start > seen.home_range && seen.home_last < seen.home_range + 2.0f);
     EXPECT(seen.home_orders <= 2);

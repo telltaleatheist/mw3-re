@@ -385,6 +385,9 @@ struct Hooks : ai::BrainHooks {
   float speed_at(zgame::Handle, float share) override { return g_mech.speed_at(share); }
   float stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
   float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
+  // The attack's test: the vehicle net's unported states as fakes (the
+  // emulator's makers stubbed the same), by its behaviour's +0x04 (0).
+  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override { return new FakeState(&o, &b, 0); }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
   void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
@@ -1308,6 +1311,7 @@ uint32_t home_code(const float* h) {
   int32_t i = 0;
   for (const ai::Order& o : g_brain->orders) {
     if (const auto* p = dynamic_cast<const ai::AttackPart*>(o.net.get()); p && h == p->home) return 100u + uint32_t(i);
+    if (const auto* p = dynamic_cast<const ai::VehiclePart*>(o.net.get()); p && h == p->home) return 100u + uint32_t(i);
     ++i;
   }
   return 2;
@@ -1338,6 +1342,15 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       std::memcpy(w + 14, ap->home, 12);
       w[17] = home_code(ap->prev);
     }
+    if (const auto* vp = dynamic_cast<const ai::VehiclePart*>(o.net.get())) {
+      w[13] = 0x10000u + static_cast<uint32_t>(vp->target->get_id());
+      std::memcpy(w + 14, vp->home, 12);
+      w[17] = home_code(vp->prev);
+    }
+    if (const auto* fs = dynamic_cast<const ai::FightState*>(o.state.get())) {
+      w[18] = 4;
+      std::memcpy(w + 20, &fs->turn, 4);
+    }
     if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
     if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;
     if (const auto* rs = dynamic_cast<const ai::AttackReturnState*>(o.state.get())) {
@@ -1365,6 +1378,27 @@ void probe_ao_attack_brain(uint32_t* out) {
       std::memcpy(out + 7 + 2 * k, &rs->turn, 4);
       ++k;
     }
+}
+
+// The fight's world (test_ai_attack.py): the target vehicle (entity 1 of
+// the plan's world) at `pos`, active or not; the brain's +0xcc, +0x24 and
+// +0x22c, the time.
+void probe_ao_fight_world(const float* pos, int32_t active, uint32_t cc, uint32_t r24, uint32_t now, int32_t mode) {
+  g_brain->params.put<int32_t>(0x40, mode);
+  Entity& en = g_entity[1];
+  en.handle = ent_handle(1);
+  std::memcpy(en.pos, pos, 12);
+  g_ent_active[1] = active != 0;
+  g_brain->params.raw[0xcc] = static_cast<uint8_t>(cc);
+  g_brain->params.put<uint32_t>(0x24, r24);
+  g_brain->x22c = 0;
+  g_now = fl(now);
+}
+// The fight pushed as the brain's frame does: on the target's own net, its
+// attack behaviour (slot 1).
+int32_t probe_ao_fight_push() {
+  ai::VehicleNet* vn = ai::vehicle_net_of(g_ent_target[1], ent_handle(1));
+  return g_brain->push(vn, vn->attack());
 }
 
 }  // extern "C"

@@ -102,6 +102,35 @@ class AttackReturnState : public BehaviourState {
   float turn = 0;         // +0x18
 };
 
+// 0x004c8a70 (EDX the brain): drive the vehicle from `from` toward `to`
+// (*turn kept between calls, *throttle out) and set the controls' throttle
+// and turn: within +0x28 it has arrived (true); closer than +0x2c, with
+// `back`, it backs off at the speed share facing within 0.9, else holds;
+// pulled by the boundary it turns toward the pull and is done. The way home
+// (0x004cae90) is the same without backing off.
+bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3], float* turn, float* throttle,
+              bool back);
+
+// The fight (0x004d1ca0 -> 0x004d1cc0, vtable 0x005ccb60, over the waiting
+// state 0x004c8a30): what the target vehicle net's attack behaviour (slot 1)
+// makes in the order the brain pushes on that net. Run (0x004d1d10): the
+// pilot closes on the target vehicle (the net's +0x1c) to within +0x28,
+// backing off inside +0x2c, then the order takes the behaviour for its
+// mode (the net part's +0x1c); it gives up when either has no position,
+// the target is not active (+0x08) or the brain must break off (0x004e8dd0).
+// It lets no order break in and the pilot not fire (0x004d72a0, 0x004d7290).
+class FightState : public BehaviourState {
+ public:
+  FightState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {}
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void run(float dt) override;
+  uint32_t x08 = 0;          // +0x08  the waiting state's
+  float turn = 0;            // +0x0c
+  uint8_t x10 = 0;           // +0x10
+  Behaviour* made_by;        // +0x18
+};
+
 // Mech3.exe 1.2 @ 0x004e9ca0 (from the brain's frame, before it pushes the
 // fight): the current order remade on `n`, then the attack's net and its
 // three orders. False when the net cannot be made.
