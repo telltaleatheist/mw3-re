@@ -204,6 +204,9 @@ unusual happens.
 - A hand-edited mission trigger file (`valves.zrd`) with a number where a
   list or a name belongs, or a trigger that teleports or switches the scan
   of a pilot that is not there, no longer crashes the game.
+- A mission trigger that updates itself, directly or round a loop of
+  triggers, no longer crashes the game: each trigger's actions run once
+  for each change. No shipped mission has such a loop.
 - An AI vehicle that fails to be built no longer crashes the mission start
   as its driver is thrown away, and a made-up radio voice name of 15
   letters or more in a mission's vehicle file no longer overruns memory.

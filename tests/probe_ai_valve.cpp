@@ -245,6 +245,7 @@ int probe_valves_run(const char* archive, const uint32_t* ops, int nops, const u
   g_mem.clear();
   g_60b56c = 1;
   g_time = 0;
+  valve_reentries() = 0;
   zerr::set_sink(sink);
   set_valve_hooks(&g_hooks);
   rdr_hooks() = RdrHooks{};
@@ -297,5 +298,9 @@ int probe_valves_run(const char* archive, const uint32_t* ops, int nops, const u
   *nlog = static_cast<int>(g_log.size());
   return static_cast<int>(g_out.b.size());
 }
+
+// How many times the last run's valves fired again while their reactions
+// ran (the re-entry guard's skips: none where the original survives).
+int probe_valves_reentries() { return valve_reentries(); }
 
 }  // extern "C"

@@ -819,8 +819,13 @@ whatever they hold (a crash otherwise: FIX (bug), the six broken files of
 the test); a scan whose vehicle has no brain writes through null when it
 fires; a teleport of a pilot without an order reads before its deque; the
 lone timer above. A valve that updates itself, directly or round a loop of
-updates and conditions, recurses until the stack runs out, in the exe and
-in the port (a candidate, not fixed; no shipped file does it).
+updates and conditions, recurses until the stack runs out in the exe (the
+update action 0x4e3d90 fires its target's reactions whatever the value, so
+any such loop never ends). The port skips a valve firing while its own
+reactions run (`Valve::fire`, FIX (bug), Owen 2026-10-20: each reaction
+round the loop runs once per set). The only valve reaction that fires
+another at once is the update, so the guard changes nothing the exe
+survives: `test_ai_valves.py` counts the skips, none in any case.
 
 **The test** (`test_ai_valves.py`, probe `tests/probe_ai_valve.cpp`, the
 emulator side over `ai_world.py`'s): every mission's valves.zrd loaded,

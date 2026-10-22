@@ -1584,6 +1584,12 @@ are all "puffers": emitters that drop little textured squares.
   list of others runs its actions every time one of them changes, even when
   its own any/all answer stays the same: a sound on it can play more than
   once.
+- **A trigger loop crashes the game.** A trigger told to update itself, or
+  triggers that update each other in a ring (an any/all trigger over one
+  it updates included), set each other off for ever until the game runs
+  out of stack and crashes. None of the shipped missions has one; a
+  hand-made mission could (the rebuild runs each trigger's actions once
+  per change).
 - **Operation 2 mission 2 can destroy you outright.** Its triggers
   `destroy_player` and `destroy_dominic` blow up your mech and Dominic's
   (likely the mission's scripted failure).

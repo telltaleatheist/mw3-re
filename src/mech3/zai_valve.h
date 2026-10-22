@@ -58,6 +58,7 @@ struct Valve {           // 0x0c bytes, ctor 0x004d3b20, dtor 0x004d3b80
   char* name = nullptr;              // +0x00  strdup'd
   ValveValue* value = nullptr;       // +0x04  0x004e4460
   Reaction* chain = nullptr;         // +0x08
+  bool firing = false;               // not in the exe: the re-entry guard's (fire)
 
   explicit Valve(const char* name);  // 0x004d3b20
   ~Valve();                          // 0x004d3b80
@@ -86,5 +87,8 @@ void valve_timers_add(Reaction* r);   // 0x004d4480
 // ticked at the game time [0x0060991c] (dt is not used).
 void valves_tick(float now);
 void valves_end();                    // 0x004d3fa0: the timers deleted, then valves_clear
+// Not in the exe: how many times a valve fired while its own reactions ran
+// (the tests' count; the guard in fire skips each).
+int32_t& valve_reentries();
 
 }  // namespace mech3::ai
