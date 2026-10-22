@@ -315,6 +315,7 @@ class VehiclePart : public NetPart {
   VehicleNet* target = nullptr;   // +0x18
   Behaviour* behaviour = nullptr; // +0x1c  (its reader not found yet)
   bool pending = false;           // +0x20  no vehicle when made: the home point at the first run
+  bool pushed = false;            // its home on the brain's stack
 
  private:
   void push_home();
@@ -539,6 +540,20 @@ class Brain {
   float xdc = 3.4028235e38f;  // +0xdc  FLT_MAX (0x004d9bf0)
   // +0xe0: the virtual base pointer.
   const float* xe4 = nullptr;  // +0xe4  the home point the leash measures from (0x004e8f10)
+  // The home points the net parts stack on +0xe4 (the vehicle net's and the
+  // attack's): each live part's home and its "under" (the +0xe4 it found).
+  // FIX (bug): the exe keeps only the under pointers, so a part that goes
+  // before one stacked on it leaves that one's under pointing at freed
+  // memory (the own order's part, made during a fight, outliving the
+  // fight's); here a part going from the middle hands its under to the one
+  // above it. In stack order it is the exe's, word for word (docs/fixes.md).
+  struct HomeEntry {
+    const float* home;
+    const float** under;
+  };
+  std::vector<HomeEntry> homes;
+  void home_push(const float* home, const float** under);  // *under = +0xe4, +0xe4 = home
+  void home_pop(const float* home);                        // its entry gone: +0xe4 = *under if on top
   float xe8 = 3.4028235e38f;  // +0xe8
   float xec = 1.0f;           // +0xec
   int32_t xf0 = 0;            // +0xf0

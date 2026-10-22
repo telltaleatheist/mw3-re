@@ -1551,9 +1551,11 @@ x 1.1; likely the lancemates' and escorts' formation) and is item 10d: until
 then none (logged), so the order stays empty. c1m1's Owens has +0x80 1 and
 +0x74 1600: within 40 m of the player it builds on the player's net. Its
 home point sits on the stack's (the attack's parts), and the two come off
-apart: an own part made during a fight keeps a pointer to the fight's home
-after that order is gone (in the exe a stale pointer into the deque, used as
-the leash's home if it is the top again). Test: `test_ai_attack.py` (1429
+apart: in the exe an own part made during a fight keeps a pointer to the
+fight's home after that order is gone, a stale pointer into the deque, put
+back on +0xe4 as the leash's home when the own part goes (FIX (bug): the
+brain keeps the live homes, `Brain::homes`, and a part going from the
+middle hands its under to the one above; fixes.md). Test: `test_ai_attack.py` (1429
 own-order runs, 586 with a part, identical; 7 of 8 breaks caught, the one
 missed equivalent: the part's run only acts while it waits for a vehicle,
 and the order is built only with one) and in c1m1 (the build asked for once
