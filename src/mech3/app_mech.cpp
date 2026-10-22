@@ -2,6 +2,7 @@
 // section 9). Not original code: it stands where the exe's other modules
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
+#include "mech3/pocket_panel.h"
 #include "mech3/cockpit_sound.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "mech3/app_mech.h"
@@ -839,9 +840,13 @@ void wire_mech_build(const MechWiring* w) {
     damage_calls().node_unlink = nullptr;
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
+    panel_calls().entity_mech = nullptr;
     return;
   }
   g_w = *w;
+  // The pocket commander's panel (docs/ai.md 17.6b): zEntity's mechs. Its
+  // keys, names, cursor and marker come with its frame (item L4c2b).
+  panel_calls().entity_mech = entity_mech;
   set_shade_hooks(&g_shade_hooks);
   update_calls().x68c_update = [](Handle s, float dt) { shade_update(*static_cast<SunShade*>(s), dt); };
   free_calls().ref_free = [](Handle ref, Handle n) {  // 0x004e66a0, then the delete

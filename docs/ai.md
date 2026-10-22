@@ -2206,6 +2206,68 @@ and `LanceCalls`, `tests/probe_pocket.cpp`): 3,000 cases identical, the
 orders, contacts, answers and the target's teams; 7 of 7 breaks. The panel
 that fills the units is L4c2; until then the program has none.
 
+### 17.6b The pocket commander's panel (mech_pocket.cpp, pocket_panel.cpp)
+
+The mode's panel is a zTwoD window drawn at the top right (x the display's
+width less 0x8c, y 0x5f, lines 12 high), made by the mode's set_owner and
+freed with it. Ported (2026-10-22, item L4c2a: `mech3/pocket_panel`):
+
+- **The panel** (0x468250, 0x548 bytes, vtable 0x5c2e68 over the Window
+  0x5a2b50(1, 1)): +0x58 the mode, +0x5c..+0x68 the lines' box (its right
+  the widest line's, its bottom (+0x74 + the orders) lines down), +0x6c the
+  line height, +0x70 the lancemates counted (zEntity's list
+  [0x73655c..0x736560], each entry's vehicle (vt+0x2c) under orders, +0xbc
+  bit 4, and up, +0x08), +0x74 that or 3, +0x78 how many are picked, +0x7c
+  the target line, +0x53c the lines.
+- **The lines** (0x4bc bytes, a FontText (0x5a00c0) in `ia_small_grey`,
+  0x4674f0): +0x4b0 the state (bit 0 the mouse over it, bit 1 picked, bit
+  2 lit) picks the colour [0x605ee8 + 8 * state] (made once by the first
+  panel, 0x4686e0: grey for 0..3, green, olive, yellow, red; two more at
+  0x605cc8 / 0x605cd0 for the panel's draw), +0x4b4 the panel.
+  - The target line "   target" (0x467620, its unit none; state 7, red).
+  - One line per lancemate (0x467fa0): under orders, up, seen by the
+    player (+0xbc bit 3), of his side (its allies, +0xc4, share his team)
+    and named (vt+0xa4): "%3d %s", its place in the list and its name. The
+    list then holds +0x74 places (empty ones for the missing).
+  - One line per order the player has a key for (0x4680c0, 0x4679a0;
+    "%s %s", the key's name and the order's message), from the table at
+    0x605cd8 (0x54 bytes each, [0x605f54] of them, made at the mission's
+    start by 0x467d80 from 0x5e5050's six rows: the actions 84, 85, 82, 81,
+    86, 79 with the messages 2195, 2196, 2142, 2143, 2197, 2204 and the
+    orders 10, 11, 0, 1, 12, 2). Order 2 (the mode's own key) gets no line.
+- **Lit**: a lancemate always; an order (+0xb0, re-asked whenever the picks
+  change, 0x4687e0) by its kind: 0 / 1 / 8 when one is picked (0x46a7b0);
+  3 / 10 when one is picked and the cursor's entity (0x40eee0 on the mode's
+  +0x164) is the marker or not the player's ally (0x46a5a0); 4 / 11 the
+  marker or an ally (0x46a670); 5 / 9 a spot (the mode's +0x168, 0x46a740);
+  7 / 12 exactly one picked and a repair bay up (0x45a000, 0x46a810).
+- **The mouse**: over a line its bit 0 and the hover sound `pckt_rollover`
+  (0x4675e0); a lancemate pressed or the number key (0x469060 toggles the
+  line's +0x30 bit 1) picks it or lets it go (0x4676c0 / 0x467710: the
+  count, the orders re-lit, `pckt_select`, the mode's +0x184 = 2); a lit
+  order pressed (0x467c90) puts it in the mode's +0x160 and +0x184 = 1 (the
+  mode then leaves with it, 0x469d00, L4c2b), a dark one +0x184 = 2.
+- **The mission's start** (0x46aaa0): the seven sounds (0x46a930:
+  `sure_sir`, `right_away`, `solong`, `noway`, `cannot`, `pckt_select`,
+  `pckt_rollover`), the marker (0x468100, above), the orders' table. Its
+  end (0x46ab10 -> 0x46aa40): the sounds forgotten, a mode left up deleted,
+  [0x605f50], [0x605f60], the marker cleared.
+- The orders over the picked (17.6a) read the first +0x70 places: a
+  lancemate's line picked (+0x4b0 bit 1) and its unit (+0xb4, 0x467690).
+
+Not yet (L4c2b): the frame 0x469d00 (the cursor from the target or the
+world, the marker placed, the way out), the panel's draw 0x468900 and the
+lancemates' 0x467760 (L4c2c), and the program's keys, names, cursor and
+mission start; the program has only zEntity's mechs wired.
+
+Test `test_pocket_panel.py` (the exe's 0x468250 and the lines' virtuals
+on twod_world.py's zTwoD outside, a made-up mode, player, entity list,
+cursor, repair bays, sounds and colours; the port on the ported zTwoD,
+`tests/probe_pocket_panel.cpp`): 200 runs of the build and a random plan
+(picks, mouse calls, re-lights, the orders' draws, the count) identical in
+the calls out and the dump of the panel and every line; 0x467d80's tables
+identical on 200 random sets of bindings and messages; 16 of 16 breaks.
+
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
 A state machine over +0x00, run until a step asks for no more: 1 / 6 pick a

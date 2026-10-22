@@ -44,10 +44,14 @@ struct PocketCalls {
   bool (*panel_pick)(PocketControls& p, int32_t unit) = nullptr;
   // The panel's units (its +0x53c list, the first +0x70): each picked or
   // not (its +0x4b0 bit 1) and its mech (vt+0xb4, then vt+0x2c, vt+0x40).
-  // Unset: none (no panel yet, L4c2).
+  // Unset: the mode's PocketPanel's (pocket_panel_units).
   int32_t (*panel_units)(PocketControls& p, struct PocketUnit* out, int32_t cap) = nullptr;
 };
 PocketCalls& pocket_calls();
+
+struct PocketUnit;
+// The mode's panel's units: its first +0x70 lines (none for an empty place).
+int32_t pocket_panel_units(PocketControls& p, PocketUnit* out, int32_t cap);
 
 struct PocketUnit {
   bool picked = false;
@@ -65,6 +69,11 @@ struct PocketGlobals {
   uint32_t cursor = 0;               // 0x00605f5c
   uint32_t marker = 0;               // 0x00605f58
   uint32_t x50 = 0, x60 = 0;         // 0x00605f50, 0x00605f60
+  // The mode's sounds (0x0046a930, zSound's by name; [0x00605f2c] once).
+  bool sounds_loaded = false;        // 0x00605f2c
+  int32_t sure_sir = 0, right_away = 0, so_long = 0, no_way = 0, cannot = 0;  // 0x00605f30..0x00605f40
+  int32_t select = 0;                // 0x00605f48  pckt_select
+  int32_t rollover = 0;              // 0x00605f44  pckt_rollover
 };
 PocketGlobals& pocket_globals();
 

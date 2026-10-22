@@ -104,6 +104,7 @@ for t in \
     lance_dispatch \
     pocket \
     pocket_orders \
+    pocket_panel \
     ai_steer \
     ai_states \
     ai_node \

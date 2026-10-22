@@ -1716,6 +1716,11 @@ are all "puffers": emitters that drop little textured squares.
   marker, "enemy only" makes the spot count as that lancemate's enemy and
   "ally only" as its friend, so it heads for the place as it would for a
   real unit.
+- **The command panel only lists lancemates you have seen.** A lancemate
+  under your orders gets a line on the command panel only once you have
+  had it in your sensors at least once; until then its place is empty, and
+  the orders that need a pick stay dark. "Repair" lights only with exactly
+  one lancemate picked and a repair bay still standing.
 - **A fallen lancemate's mission triggers become yours.** Some mission
   switches are thrown when a particular pilot reaches a place. When an
   allied pilot dies, the game hands every one of its place triggers to
