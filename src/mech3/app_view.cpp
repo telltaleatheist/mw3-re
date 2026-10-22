@@ -244,6 +244,11 @@ void program_view_attach(Mech& m) {
   if (Hud* h = m.pilot ? pilot_hud(*m.pilot) : nullptr) h->setup(&m);
   sync();
 }
+void program_view_detach() {
+  if (!g_view) return;
+  g_view->attach(nullptr, nullptr);
+  sync();
+}
 // The look keys and FREELOOK's: the view's mode vt+0x10 (0 left, 1 right,
 // 2 ahead, 4 up, 5 down; 3 none).
 void program_view_look(int32_t look) {

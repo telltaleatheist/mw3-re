@@ -555,3 +555,27 @@ Newest last. One short entry per item: what, commits, what to remember.
   test runs what test_pocket.py stubs).
 - test_pocket_keys.py: 2,000 cases identical, 9 branches; 12 of 13
   breaks (the 13th equivalent).
+
+## 2026-10-22 Repeatability (mac4/repeat)
+
+- Cause: rand seeded from the clock at the mission's start (0x501ab0,
+  0x508fc0; the exe also 0x49aca0): the volley pick differs, so Dominic's
+  heat and speed cap. Traced in fresh processes with an in-update dump.
+- crt::rand_fixed_seed() for the tests (reset_process_state sets 1); the
+  game keeps time(). The ordered c1m4 test read the player's AiTarget
+  after the run (a use-after-free, found under MallocScribble): its team
+  is copied now. Both c1m4 tests assert their exact outcomes.
+- Second cause, a port-only gap (the exe frees them): the cleanup's
+  0x4c5fa0 (the regions freed) was not wired, so in the port every
+  mission after the first in a session found the earlier mission's
+  regions by name (region_find); in c1m4 after c1m1 the player's
+  `mission_start` trigger tested c1m1's region and never fired. Found by
+  bisecting the full mw3tests (the campaign test before c1m4). Wired with
+  the cleanup's other ported calls (mission-frame.md section 5);
+  mission_after_another_gets_its_own_regions_headless (fails unwired).
+- fix_pocket_frame_without_a_hud stubs the commands: since L4c2c the
+  mode's keys read zin::command, which crashed with no zInput map when
+  the test ran alone.
+- Left: GameEngine::handle_of gives a freed address's handle to a new
+  object, so handles can still differ between processes when tests share
+  one; nothing depends on their values here.

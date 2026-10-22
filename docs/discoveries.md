@@ -1730,6 +1730,12 @@ are all "puffers": emitters that drop little textured squares.
   around), torso twist from the keys is slower (1 instead of 1.5) but
   pitch and twist settle faster, and the zoom key opens the zoom box
   without its click.
+- **No two fights play out quite the same.** The game seeds its random
+  numbers from the clock when a mission starts, and the AI picks each
+  volley at random among the weapon groups that can reach. So the same
+  mission, played the same way, has the enemy fire different weapons,
+  run at different heat and so move at slightly different speeds each
+  time; small differences that grow over a long fight.
 - **The command panel only lists lancemates you have seen.** A lancemate
   under your orders gets a line on the command panel only once you have
   had it in your sensors at least once; until then its place is empty, and

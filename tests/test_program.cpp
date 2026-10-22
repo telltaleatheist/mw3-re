@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "crt/msvc_rand.h"
 #include "check.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/class.h"
@@ -52,6 +53,7 @@
 #include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
+#include "mech3/zainet_region.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -138,6 +140,7 @@ void reset_process_state() {
   if (!zsnd::state().open) zsnd::state() = zsnd::State{};
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   mech3::damage_set() = mech3::DamageSet{};  // the HUD's silhouettes, loaded once a process (0x0043afc0)
+  crt::rand_fixed_seed() = 1u;  // the clock seeds the game's rand: a fixed seed makes the runs repeat
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -561,6 +564,70 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
 // (p12's flag); the other vehicles are not ported (each constructor counted
 // once), so their controllers are made and deleted. The weapons load
 // (0x00583880) reads weapons.zrd and makes the weapon_tick object.
+// Two missions in one session (docs/mission-frame.md, The cleanup): c1
+// mission 1 started and cleaned up, then mission 4 played. The cleanup frees
+// the regions (0x004c5fa0); unfreed, mission 4's aiv records found mission
+// 1's regions by name, and the player's "mission_start" trigger (inside its
+// region) never fired.
+TEST(mission_after_another_gets_its_own_regions_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_twice_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch first;  // c1 mission 1
+    engine.set_launch(first);
+    mech3::missions().start();
+    EXPECT(!mech3::missions().failed && !mech3::ai::regions().empty());
+    mech3::missions().cleanup(false);
+    EXPECT(mech3::ai::regions().empty());  // freed with the mission
+    mech3::GameEngine::Launch second;  // then mission 4, played
+    second.number = 4;
+    engine.set_launch(second);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, set_at = -1;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      mech3::ai::Valve* v = mech3::ai::valve_find("mission_start");
+      if (set_at < 0 && v && v->get() == 1) set_at = frames;
+    };
+    CountingPump pump;
+    pump.limit = 200;
+    app.run(pump);
+    EXPECT(frames > 30);
+    EXPECT(set_at >= 1 && set_at <= 3);  // the player's trigger, on his first ticks
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -2586,6 +2653,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
       int fired_before = 0, fired_after = 0, on_player = 0, phases[9] = {}, on_enemy = 0;
       float d0 = 0, closest = 1e9f;
       uint32_t enemies_before = 0, enemies_after = 0, allies_after = 0;
+      uint32_t player_team = 0;  // copied: the mission's AiTargets are gone after the run
     } seen;
     auto dist = [](void* a, void* b) {
       mech3::LaunchedMech x, y;
@@ -2614,6 +2682,7 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
         seen.pv = engine.handle_of(seen.player);
         seen.dt = mech3::ai::brain_hooks().targetable(seen.dv), seen.pt = mech3::ai::brain_hooks().targetable(seen.pv);
         if (!seen.dt || !seen.pt) return;
+        seen.player_team = seen.pt->team;
         // The enemy (powered down) 400 m from Dominic, on a clear line (the
         // ground blocks others; MW3_LANCE_AT / MW3_LANCE_DIR move it).
         mech3::LaunchedMech d;
@@ -2707,10 +2776,18 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
     EXPECT(seen.frames >= 1750 && seen.brain);
     EXPECT(seen.lancemate && seen.order_taken && seen.follows_enemy);
     EXPECT(seen.fired_after > 300 && seen.closest < seen.d0 * 0.5f);
-    EXPECT(seen.pt && !(seen.enemies_before & seen.pt->team) && (seen.enemies_after & seen.pt->team));
-    // Allies no more (his next pick may take the player: logged; when it
-    // comes depends on the walk, whose last bits vary from run to run).
-    EXPECT(!(seen.allies_after & seen.pt->team));
+    EXPECT(seen.player_team && !(seen.enemies_before & seen.player_team) && (seen.enemies_after & seen.player_team));
+    EXPECT(!(seen.allies_after & seen.player_team));
+    // The run repeats bit for bit (reset_process_state's fixed seed: the
+    // game's own seed is the clock), so its outcome is exact: these change
+    // only when the AI, the walk or the weapons do.
+    if (!std::getenv("MW3_LANCE_AT") && !std::getenv("MW3_LANCE_DIR")) {
+      EXPECT(seen.fired_before == 53 && seen.fired_after == 1009 && seen.on_enemy == 1139);
+      EXPECT(std::fabs(seen.d0 - 399.597f) < 1e-3f && std::fabs(seen.closest - 72.0886f) < 1e-3f);
+      EXPECT(seen.enemies_before == 0xfffffffcu && seen.enemies_after == 0x7ffffffeu);
+      EXPECT(seen.on_player == 385);  // his next pick, once the player is 30 m off
+      EXPECT(seen.phases[2] == 2 && seen.phases[3] == 2 && seen.phases[4] == 1009 && seen.phases[5] == 126);
+    }
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -2873,6 +2950,10 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
       EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.firing > 300);
       EXPECT(seen.engage == 0 && seen.attacks == 0);
       EXPECT(seen.follows_player > 600 && seen.closest > 59.0f);
+      // Exact, the run repeating (reset_process_state's fixed seed).
+      EXPECT(seen.targeted == 764 && seen.on_enemy == 764 && seen.aiming == 326 && seen.firing == 375);
+      EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
+      EXPECT(std::fabs(seen.moved - 63.3123f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();

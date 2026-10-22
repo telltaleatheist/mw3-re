@@ -1061,6 +1061,9 @@ TEST(fix_pocket_frame_without_a_hud) {
   asked = 0;
   frame_calls().view_hud = [](Mech&) -> zgame::Handle { return 0; };  // not the view's
   frame_calls().hud_map_up = [](zgame::Handle) { return ++asked, true; };
+  const ControlsCalls saved_controls = controls_calls();
+  controls_calls().command = [](int) -> uint32_t { return 0; };  // the mode's keys: no zInput map here
+  controls_calls().pilot_tick = [](MechControls&) {};
   Mech m;
   auto* prev = new PlayerControls();
   prev->construct(1);
@@ -1083,6 +1086,7 @@ TEST(fix_pocket_frame_without_a_hud) {
   delete prev;
   frame_calls() = FrameCalls{};
   pocket_calls() = PocketCalls{};
+  controls_calls() = saved_controls;
 }
 
 TEST(fix_pocket_commander_freed_once) {

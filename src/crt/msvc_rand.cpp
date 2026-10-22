@@ -7,7 +7,12 @@ namespace {
 uint32_t g_seed = 1;
 }  // namespace
 
-void msvc_srand(uint32_t seed) { g_seed = seed; }
+std::optional<uint32_t>& rand_fixed_seed() {
+  static std::optional<uint32_t> s;
+  return s;
+}
+
+void msvc_srand(uint32_t seed) { g_seed = rand_fixed_seed() ? *rand_fixed_seed() : seed; }
 
 int msvc_rand() {
   g_seed = g_seed * 214013u + 2531011u;

@@ -136,6 +136,26 @@ set unloaded (`<dir><block>`, "c1m1", 0x0056f530), 0x00431800,
 what was kept, the purge again, and the game time 0. The two calls to
 0x005ac5c0 are an empty function.
 
+**In the program** (audited 2026-10-22): the calls with ports are wired
+(`WiredMissionHooks`): 0x004e7bc0 (the listeners' slot +0x10), the
+animations, zSound's, the player's vehicle, the targets, the AI switch
+off, znet, the valves, the targets' images, zClass's purge, the
+objectives, 0x00414000, the voice set, 0x00431800, and since this audit
+0x004eb040 / 0x004eb030 (zClass's delete mode), the view's 0x0040ae70(0)
+and 0x0040adf0(0, 0) (it lets go of the player's mech before it is
+deleted), the radar objects 0x004b4ae0, the regions 0x004c5fa0 (freed,
+else a later mission's region lookups by name found the earlier
+mission's: a port-only gap; `mission_after_another_gets_its_own_regions_headless`),
+the player controls' pilot record 0x00427300 and zReader's
+0x005573d0(0) (the mission's archives closed). Not ported, logged:
+CloseHandle / SetThreadPriority (no loader thread in the port), the map
+objects 0x004582c0 (+0xbc's list 0x00605acc), the stealth entity's
+0x005a89c0 / 0x005a8820, the landmines 0x00413770, 0x004a7970 ([0x00609a38]
+..[0x00609a44]), 0x0047a720 and 0x004d54f0 ([0x0060b544]), the waynets
+0x00479850, 0x004d71f0 (0x004add10), zEffect's 0x0050b2f0 (the
+mission-made animation instances, +0x94 bit 17), 0x005394c0(1, 1) and
+0x00576270; 0x004c3240 is empty.
+
 Callers (not ported): the briefing (0x0040501f, 0x004050b6), the debrief
 (0x0047cfda..0x0047d286), 0x00470717, 0x00491b99, 0x00492e6a, and the
 load's failure (0x0048fe17, mission-load.md).
