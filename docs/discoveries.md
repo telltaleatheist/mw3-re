@@ -1305,6 +1305,13 @@ From the mech definitions (mechdef-head.md).
   (message 0x23d) in a campaign, to leave that slot without a mech.
 - **The mech lab never leaves on its own:** its frame's "done" value is
   never set, so ACCEPT is the only way out (Escape does nothing there).
+- **The lab's item lists were meant to recolour the item under the mouse,**
+  but the shipped dialog puts that colour (`FONT`) inside the arrow
+  marker's entry, where the game never looks. So hovering an item only
+  shows the little arrow beside it and plays the rollover sound; the text
+  stays its colour.
+- **Holding the mouse on a lab list's up or down arrow scrolls it** after
+  half a second, then a row every 0.15 seconds.
 - **A mod with a wrong `version` in a mech file crashes the game** instead of
   skipping the mech. (Fixed in the rebuild: the mech is skipped.)
 - Seventeen of the mech files carry a developer comment that the build tool

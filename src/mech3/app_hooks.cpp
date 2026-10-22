@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_salvage.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinput/zinput.h"
@@ -343,6 +345,30 @@ void Engine::format(const char* fmt, std::initializer_list<Arg> args, char* out,
   }
   std::snprintf(out, static_cast<size_t>(size), "%s", s.c_str());
   unported("CString::Format", {out});
+}
+
+}  // namespace mech3
+
+namespace mech3 {
+
+const char* part_display_name(int32_t id, const char* (*message)(void* ctx, int32_t), void* ctx);  // mech_names.h
+
+// The lab's item lists' asks (app_hooks.h): a store item through item_of.
+int32_t Engine::lab_item_kind(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->kind() : 0;
+}
+std::string Engine::lab_item_name(Handle h) {
+  const ConfigItem* it = item_of(h);
+  if (!it) return std::string();
+  return item_name(*it, [this](int32_t id) { return message(id); });
+}
+int32_t Engine::lab_item_slots(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->slots() : 0;
+}
+const char* Engine::part_text(int32_t part) {
+  return part_display_name(part, [](void* c, int32_t id) { return static_cast<Engine*>(c)->message(id); }, this);
 }
 
 }  // namespace mech3

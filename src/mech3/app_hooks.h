@@ -743,6 +743,13 @@ class Engine : public zgame::AppHooks {
   }
   // A store item behind its handle (item_handle's other way).
   virtual const struct ConfigItem* item_of(Handle item);
+  // The lab's item lists' asks of a store item (lab_items.h): its kind
+  // (vt+0x0c), name (vt+0x20, 0x004738f0..0x004739d0) and critical slots
+  // (vt+0x18); and a part's name for the player (0x00484d70).
+  virtual int32_t lab_item_kind(Handle item);
+  virtual std::string lab_item_name(Handle item);
+  virtual int32_t lab_item_slots(Handle item);
+  virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }
   virtual class LabScreen* lab_screen(Handle screen) {

@@ -8,6 +8,9 @@ namespace mech3 {
 
 int32_t part_id(const char* name);   // 0x00484e40, -1 when unknown
 const char* part_name(int32_t id);   // 0x00484cc0, "none" when unknown
+// 0x00484d70: a part's name for the player, Mech3Msg.dll's for 1..8 (by
+// `message`), the exe's English for 9..15 (hands, calves, feet, hip), else "none".
+const char* part_display_name(int32_t id, const char* (*message)(void* ctx, int32_t), void* ctx);
 
 enum Tech : int32_t { kClan = 1, kInnerSphere = 2, kAnyTech = 3 };
 int32_t mech_tech(int32_t mech);           // 0x00484720

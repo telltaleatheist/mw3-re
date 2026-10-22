@@ -32,6 +32,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_hud.h"
+#include "mech3/mech_names.h"
 #include "mech3/mech_data.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_skis.h"
@@ -314,12 +315,8 @@ struct ProgramHudHooks : HudHooks {
     return weapon_calls().part_by_id && weapon_calls().part_by_id(m, part) != nullptr;
   }
   const char* part_display_name(int32_t part) override {  // 0x00484d70
-    static constexpr int32_t kMsg[9] = {0, 0x194, 0x197, 0x198, 0x199, 0x19a, 0x193, 0x196, 0x195};
-    static const char* const kNames[7] = {"Left Hand", "Right Hand", "Left Calf", "Right Calf", "Left Foot",
-                                          "Right Foot", "Hip"};
-    if (part >= 1 && part <= 8) return message(kMsg[part]);
-    if (part >= 9 && part <= 15) return kNames[part - 9];
-    return "none";
+    return mech3::part_display_name(
+        part, [](void* c, int32_t id) { return static_cast<decltype(this)>(c)->message(id); }, this);
   }
   void* saved_or_ally(Mech* m) override { return m->saved_or_ally(); }
   const char* message_arg(int32_t msg, const char* arg) override {  // 0x00575fd0

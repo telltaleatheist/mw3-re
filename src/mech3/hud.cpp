@@ -188,6 +188,13 @@ void HudPanel::set_opacity(float f) {
   set_alpha(static_cast<uint8_t>(crt::msvc_ftol(std::floor(static_cast<double>(f * 255.0f)))));
 }
 
+// Mech3.exe 1.2 @ 0x0043a890: the alpha set to 100, then its image (made by
+// set_size, owning its colours and alpha) freed.
+HudPanel::~HudPanel() {
+  set_alpha(100);
+  ztwod::host().texture_free(image);
+}
+
 // Mech3.exe 1.2 @ 0x0043ab10: the corners at the rect's place (Direct3D's
 // depth 0.9); a new image of the colour and alpha, or the old one resized.
 void HudPanel::set_size(int32_t w, int32_t h) {

@@ -5,6 +5,7 @@
 
 #include "mech3/controls_menu.h"
 #include "mech3/debriefing.h"
+#include "mech3/lab_items.h"
 #include "mech3/menu_widgets.h"
 
 // The mech lab's screen (docs/mechlab.md section 2): the Lab State's
@@ -160,25 +161,24 @@ class LabSelect : public InvertCheck {
   explicit LabSelect(int32_t i) { id = i; }
 };
 
-// The item lists' base (0x00451b40, vtable 0x005c1b70; destructor
-// 0x00451ce0): a push button with the rows, the items and the pieces its
-// reading makes. ASSIGNED_LIST (0x004552e0, vtable 0x005c1fe0) is one.
-class LabItemList : public ShellButton, public LabLater {
+// An item list (lab_items.h) whose own reading, showing and refill belong to
+// a later step (5b UNASSIGNED_LIST, 6 ASSIGNED_LIST: 0x004552e0, vtable
+// 0x005c1fe0): those slots go out as "lab.vt+<slot>".
+class LabLaterList : public LabItemList, public LabLater {
  public:
-  explicit LabItemList(Engine& e) : ShellButton(e, -1) {}
-  void refill() { call(0xb8, {x220, x224}); }  // +0xb8 (steps 5, 6)
-  Handle x220 = 0, x224 = 0;         // +0x220, +0x224  the store or loadout it lists
+  explicit LabLaterList(Engine& e) : LabItemList(e) {}
+  void refill() override { call(0xb8, {store, x224}); }  // +0xb8
   bool read_control(zrdr::Node*, ztwod::Dialog*) override;  // +0x84
   void after_bind() override;        // +0x88
   void show_for(float seconds) override;  // +0x60
   void hide() override;              // +0x64
 };
 
-// UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes; step 5's.
-class LabUnassignedList : public LabItemList {
+// UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes; step 5b's.
+class LabUnassignedList : public LabLaterList {
  public:
   explicit LabUnassignedList(Engine& e)
-      : LabItemList(e), sort_item(e, 0x1b), sort_qty(e, 0x1c), sort_mass(e, 0x1d), sort_crit(e, 0x1e) {}
+      : LabLaterList(e), sort_item(e, 0x1b), sort_qty(e, 0x1c), sort_mass(e, 0x1d), sort_crit(e, 0x1e) {}
   LabSelect weapon{0x19};            // +0x244
   LabSelect ammo{0x17};              // +0x3b0
   LabSelect equip{0x18};             // +0x51c
@@ -281,7 +281,7 @@ class LabScreen : public MenuScreen {
   LabPart part_head;                 // +0x18710
   LabPart parts[7];                  // +0x18880..+0x19120
   LabUnassignedList unassigned;      // +0x19290
-  LabItemList assigned;              // +0x1a13c
+  LabLaterList assigned;             // +0x1a13c
   LabWeaponList ungrouped;           // +0x1a36c
   LabWeaponList grouped;             // +0x1a570
   WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)
