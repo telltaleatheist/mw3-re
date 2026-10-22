@@ -1138,3 +1138,26 @@ view's ground, the anim lookups 0x50b450 (92).
   skin 1 wears `_b` textures on both models, all loaded.
 - test_mech_build keeps the two skin calls as calls (its probe overrides),
   identical; test_mechdata, test_mechdef, test_deaths, mw3tests 130/0.
+
+## The objectives' reading, pieces 1 and 2 (2026-10-21)
+
+- Ported mech_objective's reading: objectives_load 0x0045c2d0, the block
+  0x0045c340, a group 0x0045bf60, the campaign's field-base fail group
+  0x0045bc90, the parser 0x0045c920 for destroy_entity, node_change,
+  reach_area, valve_change and obj_list (+ the shared keys), the salvage
+  reader 0x004711a0 (with Store::add_engine 0x00471b20), cond_salvage
+  0x0045e9f0, the node lookup 0x0045c810, the free 0x0045c1d0 / 0x0045c250
+  (`src/mech3/mech_objective.{h,cpp}`, ObjectiveHooks). Not wired yet
+  (piece 4). Training's 14 types log `0x0045c920 <type>` as unported.
+- test_objectives.py (new, probe_objectives.cpp): all 214 shipped block
+  runs (c1..c4b as campaign and multiplayer, then freed; t1's unported
+  types each reported) and 400 made-up blocks identical, 19 branches
+  covered. 16 breaks: 15 caught; "group visible == 1 vs != 0" is
+  equivalent (the reader gives 0/1).
+- Found: three shipped objective rewards lose parts (c1m2's engine under
+  `engine`; c2m2's and c3m3's weapons as plain names), discoveries.md;
+  destroy_entity does not count sound/persist/an unfound nav before its
+  names (no shipped case).
+- test_salvage, test_pilot, mw3tests 130/0.
+- Next: piece 3 (0x0045c4a0 is Instant Action's "destroy the enemies"
+  group, not a general start; 0x0045e540 / 0x0045e110 / 0x0045c180).

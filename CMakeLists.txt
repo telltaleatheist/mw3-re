@@ -141,6 +141,7 @@ add_library(mw3core STATIC
   src/mech3/mech_place.cpp
   src/mech3/mech_command.cpp
   src/mech3/cockpit_sound.cpp
+  src/mech3/mech_objective.cpp
   src/mech3/veh_basic.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
@@ -222,6 +223,7 @@ add_library(mw3probe SHARED
   tests/probe_ripple.cpp
   tests/probe_cycle.cpp
   tests/probe_cockpit_sound.cpp
+  tests/probe_objectives.cpp
   tests/probe_skins.cpp
   tests/probe_world.cpp
   tests/probe_modeldraw.cpp
