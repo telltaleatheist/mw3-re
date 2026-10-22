@@ -374,7 +374,8 @@ struct DamageCalls {
   MechPart* (*node_part)(Handle node) = nullptr;     // 0x0040ef30: the part a node is, if any
   Handle (*node_owner)(Handle node) = nullptr;       // 0x0040ef10: the mech a node belongs to
   const char* (*message)(int id) = nullptr;          // 0x00576040, Mech3Msg.dll
-  void (*controls_hit)(Mech&, WeaponDef*, Collision*, float damage, Handle attacker) = nullptr;  // +0x37c vtable +0x94
+  // +0x37c vtable +0x94; unset: the controls' on_hit (0x004aec90, the AI's 0x004ea520).
+  void (*controls_hit)(Mech&, WeaponDef*, Collision*, float damage, Handle attacker) = nullptr;
   void (*controls_stop)(Mech&) = nullptr;            // +0x37c vtable +0xa8
   void (*net_event)(Mech&, int kind, intptr_t arg) = nullptr;  // vtable +0x168, 0x0046f160
   void (*killer_notify)(Handle killer, Mech& victim) = nullptr;  // the killer's vtable +0x80 (a mech's: on_kill)

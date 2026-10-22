@@ -1699,15 +1699,22 @@ are all "puffers": emitters that drop little textured squares.
   of your orders turns it on. "Attack my target" only makes it follow that
   enemy, and it still shoots whatever scores best, usually that one once
   it is the nearest. Being shot does not change any of this: a hit only
-  gets you a radio line ("friendly fire" when it came from your side).
+  gets you a radio line (a call for help when you are more than about 22 m
+  away, "friendly fire" when it was you).
   Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
   60 m in front of him draws his fire at once; at 150 m he aims at it and
   stands there.
+- **Everyone starts a mission "just hit".** The game remembers when each
+  mech was last hit, starting from zero, and the mission clock starts at
+  zero too, so for the first second every mech counts as having been hit
+  a moment ago. A pilot awake that early would dodge or fire triggers as
+  if shot; in the shipped missions they all wake later.
 - **Shoot your own lancemates for three seconds and the whole map turns on
   you.** The game counts a run of hits from the same attacker (it restarts
   after a 3-second pause). When you keep hitting an ally for more than 3
-  seconds, your team is made everyone's enemy, your lancemates' too, so
-  they turn their guns on you (and, as written, on each other).
+  seconds, your team is made the enemy of your allies (every allied unit
+  the game lists after you, your lancemates among them), so they turn
+  their guns on you (and, as written, on each other).
 - **Pilots without a chosen target may not pick one to attack.** Read from
   the code: when an AI pilot weighs an attack and has no target selected,
   it takes the nearest enemy only if it has not already looked one up that

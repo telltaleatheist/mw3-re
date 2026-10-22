@@ -90,7 +90,12 @@ class Original(tf.Original):
         vbt = e.world_alloc(0x10)
         e.w32(vbt + 4, 0x148)
         e.w32(self.pc + 4, vbt)
-        e.w32(self.pc + 0x14c, e.r32(OWNER + 0xc30))  # test_ai_frame's IControls (at +0xc30) vtable
+        # Its own vtable: test_ai_frame's IControls' (at +0xc30), with vt+0xa0
+        # the exe's 0x4aed40 over the hit record at +0x150 (IControls +0x04).
+        vt = e.world_alloc(0x100)
+        e.cpu.write(vt, bytes(e.cpu.read(e.r32(OWNER + 0xc30), 0x100)))
+        e.w32(vt + 0xa0, 0x4aed40)
+        e.w32(self.pc + 0x14c, vt)
         e.w32(self.pc + 0x14c + 0x10, OWNER)
         for addr in COVER:
             e.uc.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, u: REACHED.add(ad), begin=addr, end=addr)
@@ -145,8 +150,9 @@ class Original(tf.Original):
         return out
 
 
-    def player_vlist(self):
+    def player_vlist(self, hit):
         e, b = self.e, self.brain
+        e.cpu.write(self.pc + 0x150, struct.pack('<3I', *hit))
         e.w32(self.pc + 0x12c, e.r32(b + 0xd0))
         e.call(PLAYER_TICK, ecx=self.pc + 0x14c)
         e.w32(self.pc + 0x12c, 0)
@@ -158,7 +164,7 @@ def setup_probe():
     probe = tf.setup_probe()
     probe.probe_ao_vlist_set.argtypes = [ctypes.c_void_p, I, ctypes.c_void_p, ctypes.c_void_p]
     probe.probe_ao_vlist.argtypes = [I, I, ctypes.c_void_p]
-    probe.probe_ao_player_vlist.argtypes = [ctypes.c_void_p]
+    probe.probe_ao_player_vlist.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     return probe
 
 
@@ -213,9 +219,12 @@ def run_case(probe, seed, checks):
         probe.probe_ao_vlist_set((U * len(flat))(*flat), -1 if rows is None else len(rows), (I * 4)(*values),
                                  (U * 3)(*orig.seen))
         start = len(orig.t.log)
-        a = [x & 0xffffffff for x in orig.player_vlist()]
+        now = struct.unpack('<f', struct.pack('<I', f[6]))[0]
+        last = rng.choice([now, now - 0.5, now - 1.0, now - 2.0, 0.0, float('nan')])
+        hit = [tf.f2i(last), tf.f2i(last - 1.0), rng.choice([0, OWNER])]
+        a = [x & 0xffffffff for x in orig.player_vlist(hit)]
         out = (I * 4)()
-        probe.probe_ao_player_vlist(out)
+        probe.probe_ao_player_vlist((U * 3)(*hit), out)
         b = [x & 0xffffffff for x in out]
         if orig.t.log != port.log:
             i = next((j for j, (x, y) in enumerate(zip(orig.t.log, port.log)) if x != y),

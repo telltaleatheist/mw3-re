@@ -1003,6 +1003,44 @@ bool Brain::must_break_off(zgame::Handle owner) {
   return !engage_checks(*this, owner);
 }
 
+// Mech3.exe 1.2 @ 0x004aec10. The x87's below: a NaN time starts a run.
+void HitRecord::note(zgame::Handle attacker, float now) {
+  if (by != attacker || !(last - -3.0f >= now)) run_start = now;  // 0x005c8ea8
+  last = now;
+  by = attacker;
+}
+
+// Mech3.exe 1.2 @ 0x004aec40: now at most last + secs (a NaN holds).
+bool HitRecord::within(float secs, float now) const { return !(now > last + secs); }
+
+// Mech3.exe 1.2 @ 0x004aec90
+void controls_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
+  BrainHooks& h = brain_hooks();
+  r.note(attacker, h.now());
+  if (owner == attacker || !attacker) return;
+  const AiTarget* mine = h.targetable(owner);       // vt+0x28
+  const AiTarget* theirs = h.targetable(attacker);
+  if (mine && theirs && (theirs->allies & mine->team)) h.ally_hit(attacker, owner);
+}
+
+// Mech3.exe 1.2 @ 0x004ea520
+void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
+  BrainHooks& h = brain_hooks();
+  controls_hit(r, owner, attacker);
+  if (owner == attacker || !attacker) return;
+  const AiTarget* mine = h.targetable(owner);
+  const AiTarget* theirs = h.targetable(attacker);
+  if (!mine || !theirs) return;
+  if (!(mine->allies & theirs->team)) {
+    const Contact* p = mine->player_contact;  // +0x98
+    if (p && p->dist2 > 500.0f && radio) h.radio_line(*this, 0);  // 0x005e8e8c; call_help (radio +0x00)
+    return;
+  }
+  if (h.vehicle_mech(attacker) != h.player_vehicle()) return;
+  if (radio) h.radio_line(*this, 8);  // friendly_fire (radio +0x20)
+  if (r.run() > 3.0f) h.allies_turn();  // 0x005cd918
+}
+
 // Mech3.exe 1.2 @ 0x004e9640
 bool Brain::p6_clear() const { return params.get<int32_t>(0x54) == 0; }
 

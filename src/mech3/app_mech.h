@@ -136,6 +136,8 @@ void update_mech(void* mech, float dt);
 void update_entities(float dt);                                   // 0x004a1140: every other entity's frame
 void* node_owner(void* node);                                     // 0x0040e9d0 (app_weapons.cpp)
 void* node_entity(void* node);                                    // 0x0040e920 (app_weapons.cpp)
+struct MechControls;
+MechControls* mech_controls(void* mech);  // its +0x37c (vt+0x140's IControls)
 bool entity_is_mech(const void* o);  // a program mech (zEntity's entry answering vt+0x50 with itself); others and freed ones not
 void mech_entities_forget();         // the mechs' registry emptied with zEntity's list
 // 0x004814e0 on the program's mechs: each one's projected shadow kept, drawn

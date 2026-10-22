@@ -99,6 +99,7 @@ for t in \
     ai_gates \
     ai_frame \
     ai_vlist \
+    ai_hits \
     ai_steer \
     ai_states \
     ai_node \

@@ -357,7 +357,7 @@ struct PilotControls : ai::BrainControls {
   MechControls& m;
   explicit PilotControls(MechControls& c) : m(c) {}
   zgame::Handle vehicle() override { return ai::brain_hooks().vehicle_handle(m.owner); }
-  bool hit_lately() override { return ai::brain_hooks().hit_lately(vehicle()); }
+  bool hit_lately() override { return m.hit_lately(); }
   void stop() override {}
   void smooth(float) override {}
   void fire(bool) override {}
@@ -503,7 +503,26 @@ int AiControls::update(float dt) {
 }
 
 zgame::Handle AiControls::vehicle() { return ai::brain_hooks().vehicle_handle(owner); }
-bool AiControls::hit_lately() { return ai::brain_hooks().hit_lately(vehicle()); }
+// Mech3.exe 1.2 @ 0x004ea520; without a brain (the tests' controls) the base's.
+void AiControls::on_hit(void* attacker) {
+  ai::BrainHooks& h = ai::brain_hooks();
+  if (brain) brain->on_hit(hit, vehicle(), h.vehicle_handle(attacker));
+  else MechControls::on_hit(attacker);
+}
+
+// Mech3.exe 1.2 @ 0x004ea500
+void AiControls::hit_an_ally(void* victim) {
+  if (brain) brain->hit_an_ally(ai::brain_hooks().vehicle_handle(victim));
+}
+
+// Mech3.exe 1.2 @ 0x004aec90
+void MechControls::on_hit(void* attacker) {
+  ai::BrainHooks& h = ai::brain_hooks();
+  ai::controls_hit(hit, h.vehicle_handle(owner), h.vehicle_handle(attacker));
+}
+
+// Mech3.exe 1.2 @ 0x004aed40
+bool MechControls::hit_lately() const { return hit.within(1.0f, ai::brain_hooks().now()); }
 
 // Mech3.exe 1.2 @ 0x00426c10
 void MechControls::halt() {
