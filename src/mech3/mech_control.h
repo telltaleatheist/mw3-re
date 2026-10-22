@@ -54,7 +54,16 @@ struct MechControls {
   uint32_t last_pov = 1;       // +0x54  the joystick hat's last reading
   bool moves[2] = {true, true};  // +0x58, +0x59  either set: the gait or the actions run
   bool x5a = false;            // +0x5a
+  ai::HitRecord hit;           // +0x64  (IControls +0x04)
   Mech* owner = nullptr;       // +0x70  (IControls +0x10)
+
+  // IControls vt+0x94 (from Mech::take_damage 0x0041ac60): a hit from
+  // `attacker` (the base's 0x004aec90; the AI's 0x004ea520). vt+0x98: it hit
+  // an ally, `victim` (nothing but the AI's 0x004ea500). vt+0xa0
+  // (0x004aed40): hit within the last second.
+  virtual void on_hit(void* attacker);
+  virtual void hit_an_ally(void* victim) { (void)victim; }  // 0x004bf620
+  bool hit_lately() const;
 
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
   int smooth(float dt) { return MechControls::update(dt); }  // 0x00426960 whatever the class
@@ -123,7 +132,9 @@ struct AiControls : MechControls, ai::BrainControls {
   zgame::Handle vehicle() override;
   void stop() override { MechControls::stop(); }
   void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
-  bool hit_lately() override;      // IControls vt+0xa0 0x004aed40
+  bool hit_lately() override { return MechControls::hit_lately(); }  // IControls vt+0xa0 0x004aed40
+  void on_hit(void* attacker) override;       // IControls vt+0x94 0x004ea520
+  void hit_an_ally(void* victim) override;    // IControls vt+0x98 0x004ea500
   void fire(bool on) override { MechControls::fire = on; }  // IControls vt+0x10 0x00428580
   bool reversing() override { return reverse; }  // IControls vt+0x18 0x00428500
   float throttle_now() override { return MechControls::throttle; }  // IControls vt+0x1c 0x00428510

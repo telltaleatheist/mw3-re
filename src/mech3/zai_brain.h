@@ -53,9 +53,15 @@ class BrainHooks : public zgame::Unported {
   virtual Behaviour* default_behaviour();
   // The handle the hooks know a vehicle by (the program's object table).
   virtual zgame::Handle vehicle_handle(void* vehicle) { return low(vehicle); }
-  // IControls vt+0xa0 (0x004aed40 -> 0x004aec40(1.0)): hit within the last
-  // second (IControls +0x04 a time; what sets it is not ported).
-  virtual bool hit_lately(zgame::Handle v) { return unported("0x004aed40", {v}) != 0; }
+  // The hit handlers' questions (docs/ai.md 17.8b): a vehicle's mech
+  // (vt+0x50; a mech is its own); the attacker's controls told it hit an ally
+  // (vt+0x40, vt+0x140, IControls vt+0x98: the AI's 0x004ea500, nothing for
+  // the rest); everyone turning on the player (0x004d5dc0).
+  virtual zgame::Handle vehicle_mech(zgame::Handle v) { return unported("vehicle.vt+0x50", {v}); }
+  virtual void ally_hit(zgame::Handle attacker, zgame::Handle victim) {
+    unported("attacker.ictl.vt+0x98", {attacker, victim});
+  }
+  virtual void allies_turn() { unported("0x004d5dc0", {}); }
   // The game time [0x0060991c].
   virtual float now();
   // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98
@@ -460,6 +466,22 @@ struct BrainStep {
   BrainStep();
 };
 
+// IControls +0x04 (0x004aec00 zeroes it): the last hit's game time, when the
+// run of hits from one attacker began (a new attacker or a 3 s gap starts
+// another) and that attacker.
+struct HitRecord {
+  float last = 0;            // +0x00
+  float run_start = 0;       // +0x04
+  zgame::Handle by = 0;      // +0x08
+  void note(zgame::Handle attacker, float now);        // 0x004aec10
+  bool within(float secs, float now) const;            // 0x004aec40 (0x004aed40: 1 s, "hit lately")
+  float run() const { return last - run_start; }       // 0x004aec70
+};
+// Mech3.exe 1.2 @ 0x004aec90 (IControls vt+0x94, the base): the hit noted;
+// from an attacker that counts the vehicle an ally, the attacker's controls
+// are told (IControls vt+0x98).
+void controls_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker);
+
 // What the brain asks of the controls it is a base of (the exe's through
 // its virtual base +0xe0): the AI mech controls' 0x004d8750 family.
 struct BrainControls {
@@ -505,6 +527,17 @@ class Brain {
   Order* top_unmarked();                           // 0x004e8c60
   void unwind_to(Order* o);                        // 0x004e8990
   bool stop();                                     // vt+0x40 0x004ea4e0
+  // Mech3.exe 1.2 @ 0x004ea520 (the AI's IControls vt+0x94): the base's,
+  // then the radio: an enemy's hit with the player over sqrt(500) m off
+  // (call_help), the player's own (friendly_fire), and past 3 s of his hits
+  // in a run the lance turns on him (0x004d5dc0).
+  void on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker);
+  // 0x004ea500 -> 0x004b78d0 (IControls vt+0x98): it hit an ally: the firing
+  // passes over targets behind that one and stands down.
+  void hit_an_ally(zgame::Handle victim) {
+    firing.obstacle = victim;
+    firing.stand_down();
+  }
   bool may_fire();                                 // 0x004e9070
   // The vlist triggers (docs/ai.md 17.5): 0x004e9550 -> 0x004d9290 over the
   // settings' list, the nearest enemy picked once between them and the frame.

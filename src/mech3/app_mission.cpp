@@ -444,6 +444,17 @@ struct WiredBrainHooks : ai::BrainHooks {
     const Handle p = e->pilot();
     return p ? e->field32(p, 0x14) : 0;
   }
+  // The hit handlers' (docs/ai.md 17.8b): a mech is its own vehicle's mech
+  // (vt+0x50) and its controls are its +0x37c (vt+0x40, vt+0x140); what is
+  // not a program mech (a target or a turret) is logged.
+  Handle vehicle_mech(Handle v) override {
+    return entity_is_mech(mech(v)) ? v : ai::BrainHooks::vehicle_mech(v);
+  }
+  void ally_hit(Handle attacker, Handle victim) override {
+    if (!entity_is_mech(mech(attacker))) return ai::BrainHooks::ally_hit(attacker, victim);
+    if (MechControls* c = mech_controls(mech(attacker))) c->hit_an_ally(mech(victim));
+  }
+  void allies_turn() override { ai::allies_turn(); }  // 0x004d5dc0 (sensors.cpp)
 };
 WiredBrainHooks g_brain_hooks;
 

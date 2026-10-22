@@ -2313,21 +2313,25 @@ reach whether or not anyone attacked them. Each part, with the code:
 - **When an ally is hit.** The AI's IControls +0x94 (0x4ea520) first runs
   the base 0x4aec90: the hit's time and attacker kept (0x4aec10: a run of
   hits restarts with a new attacker or after 3 s), and when the attacker
-  is the victim's ally, the attacker's firing is told (IControls +0x98,
-  0x4ea500 -> 0x4b78d0: its +0x28, the obstacle the scorer passes over
-  targets behind, and the firing reset). Then only radio lines: an
-  enemy's hit from over [0x5e8e8c] away, "friendly fire" from an ally. It
-  writes neither +0x6c nor +0x3c. The frame's "hit lately" branch (17.1)
+  counts the victim an ally, the attacker's firing is told (IControls
+  +0x98, 0x4ea500 -> 0x4b78d0: its +0x28, the obstacle the scorer passes
+  over targets behind, and the firing's stand-down). Then only radio
+  lines: an enemy's hit while the victim's contact on the player is
+  farther than [0x5e8e8c] (500, squared: 22.4 m), call_help (radio +0x00);
+  the player's own hit, friendly_fire (+0x20). It writes neither +0x6c nor
+  +0x3c. The frame's "hit lately" branch (17.1)
   needs +0x9c (aiv p8 item 14), 0 for every shipped ally, and none of their
   vlist triggers has the hit flag (item 4). So being hit changes nothing:
   they shoot back only because the attacker is an enemy in reach, as they
   would anyway, and the hit does not make them move.
-- **The player hitting allies.** When the player is the attacker and his
-  run of hits on an ally passes 3 s (0x4aec70: now minus the run's start),
-  0x4d5dc0 makes the player's team everyone's enemy: each entity's enemies
-  (+0xc8) gain it and its allies (+0xc4) lose it, lancemates included. From
-  then on the scorer takes the player, and the lancemates each other, as
-  enemies (as written).
+- **The player hitting allies.** When the player is the attacker (his
+  mech, vt+0x50, is [0x60861c] +0x14) and his run of hits on an ally
+  passes 3 s ([0x5cd918]; 0x4aec70: the last hit less the run's start),
+  0x4d5dc0 makes the player's team an enemy of the allies after him in the
+  sorted entity list (sensors.cpp, [0x60b550, 0x60b548)): their enemies
+  (+0xc8) gain it and their allies (+0xc4) lose it. From then on their
+  scorer takes the player as an enemy, and, as written, each other too
+  where they share his team.
 - **"Attack my target".** The lance order (0x4ea450, by the command
   handler 0x469866..0x469910 for the selected lancemate, +0xbc bit 4)
   stops the current order (vt+0x40) and pushes the target vehicle's own
@@ -2354,6 +2358,24 @@ fires (697 of 765 frames); at 150 m and 300 m he takes it and aims for the
 whole 25 s but never fires and never moves (engaging off throughout, no
 attack). The hit handler, the lance orders and the follow
 state are not ported, so those parts are from the code alone.
+
+**The hits, ported** (2026-10-22, item L1: `ai::HitRecord` on
+`MechControls::hit` (IControls +0x04), `controls_hit` 0x4aec90 and
+`MechControls::on_hit` (vt+0x94, called by `Mech::take_damage`),
+`Brain::on_hit` 0x4ea520 and `hit_an_ally` 0x4ea500 for the AI controls,
+`hit_lately` 0x4aed40 from the record; the program's hooks give a mech's
+controls and `allies_turn`). Test `test_ai_hits.py`: the exe's 0x4aec90
+and 0x4ea520 on test_ai_frame's brain with four attackers, the teams,
+the player's vehicle, the radio and the record random (NaNs, runs either
+side of 3 s, a new attacker or the same): 10,000 hits, the calls and the
+record identical, 7 marked branches reached; 0x4ea500's obstacle each
+time. The radio's lines are still the `radio_line` hook (L2).
+
+The record starts at zero (0x4aec00) and the game time at 0 (0x48f400),
+so for the mission's first second every vehicle counts as hit lately: a
+pilot awake then (none in play; the c1m1 tests wake the Owens 0.1 s in and
+set its last hit back) runs the frame's hit branch (17.1, with +0x9c) and
+its vlist hit triggers at once.
 
 ### 17.9 Porting order
 

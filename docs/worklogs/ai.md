@@ -397,3 +397,33 @@ Newest last. One short entry per item: what, commits, what to remember.
 - A bugs-off launch after another crashes on the HUD's unset block (the
   exe's uninitialised member, hud.cpp FIX); the headless test runs bugs on,
   the exe's reading is test_ai_readers'.
+
+## 2026-10-22 Note: bugs-off launches after another mission
+
+- The Hud ctor (0x43b190) leaves +0x22e3c (block) unset, as the exe does
+  with bugs off (hud.cpp clears it only with bugs on): a second bugs-off
+  launch in one process may read heap garbage there and crash in
+  Hud::setup. Headless tests that need bugs off launch one mission, or run
+  with bugs on and leave the exe's path to the differential tests
+  (fixes.md, the HUD's mode block).
+
+## 2026-10-22 The lance port: the split
+
+- L1 hits (0x4aec10/40/70/90, 0x4aed40, 0x4ea500/520, wiring 0x4d5dc0);
+  L2 the radio's lines (0x4e6d50/0x4e6c60, target lost 0x4ea630, death
+  0x4ea6b0, low/out of ammo); L3 the follow state 0x4d1870/0x4d1980; L4 the
+  lance orders (0x469940, 0x4ea000..0x4ea230, 0x4e9fd0, 0x4ea260/390/3f0/
+  450/4b0); L5 headless c1m4 (order Dominic to attack; friendly fire 3 s).
+
+## 2026-10-22 Item L1: the hits (mac4/hits)
+
+- ai::HitRecord (IControls +0x04: last, run start, attacker), note
+  0x4aec10, within 0x4aec40, run 0x4aec70; controls_hit 0x4aec90;
+  MechControls::on_hit / hit_an_ally / hit_lately (vt+0x94/+0x98/+0xa0),
+  AiControls' 0x4ea520 / 0x4ea500 via Brain::on_hit / hit_an_ally.
+  take_damage calls on_hit when the controls_hit hook is unset (probe_damage
+  sets it). BrainHooks::hit_lately gone (the record answers).
+- The trace's 17.8b corrected: call_help is for the victim far (22.4 m)
+  from the player; the turn covers the allies after the player in the list.
+- test_ai_hits.py: 10,000 hits identical, 8 of 8 breaks; test_ai_vlist's
+  player case now runs the exe's 0x4aed40 on the same record.

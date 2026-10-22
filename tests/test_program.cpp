@@ -2208,6 +2208,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         mech3::describe_mech(owens, &seen.woke);
         seen.ai_on = mech3::ai::ai_switch();
         seen.brain = made == 1 ? static_cast<mech3::AiControls*>(ai[0].controls)->brain.get() : nullptr;
+        // Woken at once: not hit lately (the record's zero counts as a hit in
+        // the game's first second, 0x004aed40; play's bramp comes later).
+        if (made == 1) static_cast<mech3::AiControls*>(ai[0].controls)->hit.last = -10.0f;
         seen.counts0 = engine.unported_counts();
       } else if (seen.frames > 3 && seen.frames < 200) {
         // The Owens held still from frame 150 (it walks its net, ai.md
@@ -2358,19 +2361,13 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.mech_block && !seen.wall_block);             // the player blocked by it as a mech
     EXPECT(seen.closest > 3.0f);                             // not walked through
     EXPECT(seen.owens_end.attacker == player);               // the bump hit it (0x00423a20)
-    // The brain's frame ran on every tick since (its calls out not ported
-    // yet, counted below), the AI switch on, the orders kept.
-    auto ran = [&](const char* key) {
-      auto at = [&](const std::map<std::string, uint32_t>& m) { auto i = m.find(key); return i == m.end() ? 0u : i->second; };
-      return at(seen.counts1) - at(seen.counts0);
-    };
+    // The brain's frame ran on every tick since, the AI switch on, the
+    // orders kept.
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
-    // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset ran each time. The firing
+    // Awake (the player in sight) each tick. The firing
     // (ai.md 17.7) picks a plan each tick: the player, 1.4 km off, is past
     // its range, so none, and its sensor range widened to aiv +0x30; it
     // rests in phase 5 with its look-around going.
-    EXPECT(ran("0x004aed40") >= 190);
     EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
     EXPECT(seen.fire_max > 0 && seen.fire_range == seen.fire_max);
     // 30 m off, the plan pick takes the player and the volley (0x004b1860)
@@ -2730,6 +2727,10 @@ TEST(mission_c1m1_owens_walks_to_its_node_headless) {
         owens = made == 1 ? ai[0].mech : nullptr;
         ctl = made == 1 ? static_cast<mech3::AiControls*>(ai[0].controls) : nullptr;
         brain = ctl ? ctl->brain.get() : nullptr;
+        // Woken 0.1 s in, where play's bramp comes much later: the hit record
+        // starts at 0, so in the game's first second every pilot counts as hit
+        // lately (0x004aed40, as the exe); its last hit set long ago instead.
+        if (ctl) ctl->hit.last = -10.0f;
         if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
         return;
       }

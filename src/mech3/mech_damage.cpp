@@ -12,6 +12,7 @@
 #include "mech3/mech_names.h"
 #include "gamez/zclass/class.h"
 #include "mech3/mech_collide.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_parts.h"
 
 namespace mech3 {
@@ -43,6 +44,7 @@ int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
   World& w = world();
   attacker = c.attacker ? c.attacker() : nullptr;
   if (c.controls_hit) c.controls_hit(*this, def, coll, damage, attacker);
+  else if (controls) controls->on_hit(attacker);  // IControls vt+0x94
   WeaponType* type = def ? def->type : nullptr;
   float target_heat = 0.0f;
   Vec3 impulse{0, 0, 0};

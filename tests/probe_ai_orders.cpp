@@ -249,7 +249,6 @@ mech3::Mech* const kPlayerMech = reinterpret_cast<mech3::Mech*>(&g_now);  // the
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   zgame::Handle vehicle_handle(void* v) override { return v == kPlayerMech ? kOwner : low(v); }
-  bool hit_lately(zgame::Handle) override { return call("ictl.vt+0xa0", {}) & 1; }  // the player's IControls' 0x004aed40
   ai::AiNet* builtin_net() override { return net_of(100); }
   ai::Behaviour* default_behaviour() override { return beh_of(100); }
   float now() override { return g_now; }
@@ -426,6 +425,12 @@ struct Hooks : ai::BrainHooks {
     p->jump_jets = g_jump_jets;
   }
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
+  // The hit test's (test_ai_hits.py): the plan entities are their own mechs.
+  zgame::Handle vehicle_mech(zgame::Handle v) override { return v; }
+  void ally_hit(zgame::Handle attacker, zgame::Handle victim) override {
+    call("attacker.ictl.vt+0x98", {static_cast<uint32_t>(ent_index(attacker)), victim});
+  }
+  void allies_turn() override { call("0x004d5dc0", {}); }
   void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
   void firing_run(ai::Brain&, float dt) override { call("0x004e9fb0", {bits(dt)}); }
   ai::AiNet* vehicle_net(zgame::Handle v) override {
@@ -696,14 +701,51 @@ void probe_ao_vlist(int32_t picked, int32_t target, int32_t* out) {
 }
 
 // 0x004d8990: the player's controls' tick, their settings' vlist the list
-// above; out: the four valves' values.
-void probe_ao_player_vlist(int32_t* out) {
+// above, their hit record (IControls +0x04: last, run start, attacker);
+// out: the four valves' values.
+void probe_ao_player_vlist(const uint32_t* hit, int32_t* out) {
   mech3::PlayerControls pc;
   pc.owner = kPlayerMech;
+  pc.hit.last = fl(hit[0]), pc.hit.run_start = fl(hit[1]), pc.hit.by = hit[2];
   pc.settings.vlist = g_brain->params.vlist;
   pc.pilot_tick();
   pc.settings.vlist = nullptr;  // the probe's
   for (int i = 0; i < 4; ++i) out[i] = g_valves[static_cast<size_t>(i)]->get();
+}
+
+// The hit handlers (test_ai_hits.py): kind 0 the base 0x004aec90, 1 the
+// AI's 0x004ea520 on the brain. w: the owner's team and allies, a contact on
+// the player (0/1) and its dist2, the attacker (0 none, 1..4 an entity, 5
+// the owner), the entities' teams and allies (4 x 2), the player's vehicle
+// (0 none, 1..4), a radio (0/1), the record (last, run start, attacker), the
+// time. out: the record after.
+void probe_ao_hit(int32_t kind, const uint32_t* w, uint32_t* out) {
+  static ai::Radio radio;
+  static ai::Contact player;
+  g_target.team = w[0], g_target.allies = w[1];
+  player.dist2 = fl(w[3]);
+  g_target.player_contact = w[2] ? &player : nullptr;
+  const uint32_t attacker = w[4] == 5 ? kOwner : w[4] ? kPlanEnt + 0x400 * w[4] : 0;
+  for (int k = 1; k <= 4; ++k) g_ent_target[k].team = w[5 + 2 * (k - 1)], g_ent_target[k].allies = w[6 + 2 * (k - 1)];
+  g_pilot = true;
+  g_player_vehicle = w[13] ? kPlanEnt + 0x400 * w[13] : 0;
+  g_brain->radio = w[14] ? &radio : nullptr;
+  ai::HitRecord r;
+  r.last = fl(w[15]), r.run_start = fl(w[16]), r.by = w[17];
+  g_now = fl(w[18]);
+  if (kind) g_brain->on_hit(r, kOwner, attacker);
+  else ai::controls_hit(r, kOwner, attacker);
+  g_brain->radio = nullptr;
+  g_target.player_contact = nullptr;
+  out[0] = bits(r.last), out[1] = bits(r.run_start), out[2] = r.by;
+}
+
+// 0x004ea500 on the brain: the victim (an entity 1..4); out: the firing's
+// obstacle (+0x28) after.
+uint32_t probe_ao_hit_ally(uint32_t victim) {
+  g_brain->controls = &g_controls;  // the stand-down's (its weapon manager's aim)
+  g_brain->hit_an_ally(victim);
+  return g_brain->firing.obstacle;
 }
 
 // The steering test's world: n entities (handle, pos[3], fwd[2]: 6 words

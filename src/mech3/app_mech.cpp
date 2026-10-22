@@ -1439,6 +1439,7 @@ void* mech_arm_node(void* mech, int side) {
 }
 bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered_down(); }
 ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }
+MechControls* mech_controls(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 bool mech_ammo_value(void* mech, float* out) {
   const auto* m = static_cast<const WeaponManager*>(static_cast<Mech*>(mech)->ammo);
   if (!m) return false;
