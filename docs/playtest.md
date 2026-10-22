@@ -91,10 +91,10 @@ Ranked by what a player would notice (AI-area ones left out: lancemates
 | 3 | The skins on the mech's model | 0x00475780 (38), 0x004757f0 (29), 0x00475a80 (13) | Mechs keep the model's default textures; no damage decals on their hulls |
 | 4 | The mechs' HUD markers from world.zrd | 0x00459e80 (76) | Map and radar markers from the world's block missing (to confirm with mac 3) |
 | 5 | The HUD's text lines cleared | `hud_text_clear` vt+0x7c ×25, `hud_line_clear` ×25 | Old HUD message lines may stay up (mac 3's area; to confirm) |
-| 6 | The effects' detail level | 0x00508fb0 (11) | Animations that test the level ("IF level") take the wrong branch: some effects missing or extra |
+| 6 | The effects' detail level | 0x00508fb0 (11) | Animations that test the level ("IF level") take the wrong branch: some effects missing or extra; fixed by 125338b (wired to zeff::anim_set_level) |
 | 7 | A polygon the mech build adds | 0x004776d0 (19), 8 a mission | Something of each mech's model not made (to trace) |
-| 8 | The mechs' LOD scale | 0x00430440 (20) | Model detail switches at the default distances, whatever the option |
-| 9 | The shadows option | 0x004e6920 (14) | The shadows' on/off option is not applied |
+| 8 | The mechs' LOD scale | 0x00430440 (20) | Model detail switches at the default distances, whatever the option; fixed by 125338b (0x00430440 ported, mech_data) |
+| 9 | The shadows option | 0x004e6920 (14) | The shadows' on/off option is not applied; fixed by b058c6b (it is the mechs' sun shading, "shadow parts": mech_shade, docs/shade.md) |
 | 10 | The stealth set-up | 0x004a4de0 (72) | Stealth objects not made (none in c1m1; other missions) |
 
 Below that: the model priority 0x0053bb20 (21; draw order), the marker
