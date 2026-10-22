@@ -152,6 +152,11 @@ std::vector<int32_t> g_contact_entity;
 
 bool g_pilot = false;
 bool g_real_formation = false;  // test_ai_lance.py: the port's formation net and vehicle nets' follow
+// The manoeuvre's test (test_ai_manoeuvre.py): the real behaviours at
+// 0x00604088 / 0x00604098, the jets' fuel, the last attacker.
+bool g_real_manoeuvre = false;
+float g_fuel = 1;
+zgame::Handle g_attacker = 0;
 zgame::Handle g_player_vehicle = 0;
 
 // The node state's test (test_ai_node.py): the owner's flat forward, its
@@ -340,7 +345,19 @@ struct Hooks : ai::BrainHooks {
   void bearer_set_aim(zgame::Handle, const float d[3]) override {
     call("vehicle.vt+0x154", {bits(d[0]), bits(d[1]), bits(d[2])});
   }
-  ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
+  ai::Behaviour* manoeuvre_behaviour(int32_t which) override {
+    return g_real_manoeuvre ? BrainHooks::manoeuvre_behaviour(which) : beh_of(which == 0 ? 98 : 88);
+  }
+  float jump_fuel(zgame::Handle) override { return g_fuel; }
+  // The test's lead point: the target's place moved by (1.5, 0, -2.5) when
+  // the trace's 0x0041d940 says so.
+  bool lead_point(zgame::Handle, zgame::Handle t, float out[3]) override {
+    if (!g_target.target || g_target.target->seen != t) return false;
+    if (!(call("0x0041d940", {t}) & 1)) return false;
+    entity_lock_position(t, out);
+    out[0] += 1.5f, out[2] -= 2.5f;
+    return true;
+  }
   ai::Behaviour* nearest(ai::AiNet* n, const float*) override {
     return beh_of(static_cast<int32_t>(call("0x004d51d0", {n ? n->get_id() : 0})));
   }
@@ -475,6 +492,7 @@ struct FakeControls : ai::BrainControls {
   void set_jet_forward(float v) override { call("ictl.vt+0x3c", {bits(v)}); }
   float turn_goal() override { return fl(call("ictl.vt+0x30", {})); }
   void aim_started() override { call("ictl.vt+0x80", {}); }
+  zgame::Handle attacker() override { return g_attacker; }
 };
 FakeControls g_controls;
 Hooks g_hooks;
@@ -517,6 +535,7 @@ extern "C" {
 // A brain with no orders (its constructor's first order dropped unseen).
 void probe_ao_new() {
   g_real_formation = false;  // the lance test sets it again
+  g_real_manoeuvre = false;  // the manoeuvre test's world sets it
   ai::set_brain_hooks(&g_hooks);
   probe_app::Mute mute;
   g_brain.reset();
@@ -1637,6 +1656,79 @@ void probe_ao_own_row(uint32_t* out) {
     std::memcpy(out + 12, &st->turn, 4);
     out[13] = static_cast<uint16_t>(st->count);
   }
+}
+
+// The manoeuvre's world (test_ai_manoeuvre.py, over the node test's): the
+// jets' fuel, the last attacker, the owner's target (a contact 1..3, 0
+// none), the three contacts' seen objects, the places of the three objects
+// (w[21..23]), the brain's +0x6c, +0x70, +0x7c, +0xcc, +0xf8 and +0xa4.
+void probe_ao_man_world(const uint32_t* w) {
+  ai::Brain& b = *g_brain;
+  g_real_manoeuvre = true;
+  g_fuel = fl(w[0]);
+  g_attacker = w[1];
+  g_target.target = contact_of(w[2]);
+  for (int i = 0; i < 3; ++i) {
+    g_seen[i].seen = w[3 + i];
+    Entity& en = g_entity[static_cast<size_t>(5 + i)];
+    en.handle = w[21 + i];
+    for (int k = 0; k < 3; ++k) en.pos[k] = fl(w[6 + 3 * i + k]);
+  }
+  b.params.put<uint32_t>(0x6c, w[15]);
+  b.params.put<uint32_t>(0x70, w[16]);
+  b.params.put<uint32_t>(0x7c, w[17]);
+  b.params.raw[0xcc] = static_cast<uint8_t>(w[18]);
+  b.xf8 = static_cast<uint8_t>(w[19]);
+  b.params.put<int32_t>(0xa4, static_cast<int32_t>(w[20]));
+}
+
+// One manoeuvre call: 0 the current order given the behaviour at 0x00604098
+// (which 0), 0x00604088 (1) or 0x0060b450 (2); 1 its state run(dt), 2
+// resumed, 3 suspended (a manoeuvre's or its after state's only); 4 the
+// brain's manoeuvre (0x004e96b0); any other only reports. out: the state (1 a manoeuvre, 2 the
+// after state, a fake's -serial), its +0x08..+0x2c, its behaviour (the
+// exe's address), the brain's +0xf0, +0xf8, +0x104 (then cleared), the
+// orders.
+void probe_ao_man(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  ai::Order& o = b.current();
+  auto* ms = dynamic_cast<ai::ManoeuvreState*>(o.state.get());
+  auto* as = dynamic_cast<ai::AfterManoeuvreState*>(o.state.get());
+  if (op == 0) {
+    o.set_behaviour(which == 2 ? ai::after_manoeuvre_behaviour() : ai::brain_hooks().manoeuvre_behaviour(which));
+  } else if (op == 4) {
+    b.manoeuvre();
+  } else if ((ms || as) && op >= 1 && op <= 3) {
+    if (op == 1) o.state->run(fl(dt));
+    else if (op == 2) o.state->resume();
+    else o.state->suspend();
+  }
+  std::memset(out, 0, 4 * 24);
+  ai::Order& cur = b.current();
+  const ai::BehaviourState* st = cur.state.get();
+  if (const auto* m = dynamic_cast<const ai::ManoeuvreState*>(st)) {
+    out[0] = 1;
+    const uint32_t f[10] = {static_cast<uint32_t>(m->no_jets), bits(m->jump), static_cast<uint32_t>(m->phase),
+                            bits(m->turn), bits(m->until), m->x1c, bits(m->x20[0]), bits(m->x20[1]), bits(m->x20[2]),
+                            m->target};
+    std::memcpy(out + 1, f, 40);
+  } else if (dynamic_cast<const ai::AfterManoeuvreState*>(st)) {
+    out[0] = 2;
+  } else if (const auto* fs = dynamic_cast<const FakeState*>(st)) {
+    out[0] = static_cast<uint32_t>(-static_cast<int32_t>(fs->serial));
+  }
+  if (st && out[0] <= 2 && out[0]) {
+    const ai::Behaviour* x = st->behaviour();
+    out[11] = x == ai::after_manoeuvre_behaviour() ? 0x60b450u
+              : x == ai::brain_hooks().manoeuvre_behaviour(1) ? 0x604088u
+              : x == ai::brain_hooks().manoeuvre_behaviour(0) ? 0x604098u : 0xffffffffu;
+  }
+  out[12] = static_cast<uint32_t>(b.xf0);
+  out[13] = b.xf8;
+  out[14] = b.x104;
+  b.x104 = 0;
+  out[15] = static_cast<uint32_t>(b.orders.size());
 }
 
 }  // extern "C"

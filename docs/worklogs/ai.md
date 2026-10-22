@@ -745,3 +745,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   its target inactive after some steps (a separate generator, so the main
   draws stay); both inactive-gate breaks caught. Mode 1 left out: its
   flips' coverage depends on the main course.
+
+## 2026-10-22 Item 3i: the combat manoeuvre (mac4/behaviours)
+
+- ManoeuvreState (0x4caae0 / 0x4cabe0 over 0x4ca440, run 0x4ca600, suspend
+  0x4ca5f0, dtor 0x4ca570) and AfterManoeuvreState (0x4ca3b0, 0x60b450's) in
+  zai_attack; hooks jump_fuel (vt+0x148), lead_point (0x41d940 when the
+  vehicle's target sees it), BrainControls::attacker (the hit record's by);
+  wired in app_mission / app_mech.
+- New test_ai_manoeuvre.py (over test_ai_node's harness): 300 cases, 43
+  branches, 29 of 30 breaks (phase 1's turn store is dead).
+- test_program c1m4 Dominic: a manoeuvre at the start (hit lately in the
+  first second, the record at time 0): the hut falls within 40 s now; the
+  test runs 1200 frames with the new counts.
+- test_ai_lance.py's stack rows sized by test_ai_attack's ROW (broken since
+  3f's 28-word rows).

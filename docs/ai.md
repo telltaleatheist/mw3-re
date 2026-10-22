@@ -1623,8 +1623,8 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4c8940, 0x5cb370 | 0x5bc988 | 0x4c89a0 | |
 | 0x4c8a30, 0x5cb390 | made by 0x4c9750, 0x4cc290, 0x4d1320, 0x4d1650, 0x4d1870, 0x4d1cc0 | 0x4c8690 | a wait (likely) |
 | 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties; speed and valve ported (17.4a); the waits ported (item 3, below) |
-| 0x4ca3b0, 0x5cb8a0 | 0x5cb7e8 (0x4ca370) | 0x4ca420 | resume 0x4ca410 |
-| 0x4caae0 (0x4ca440), 0x5cb8e8 / 0x5cb908 | 0x604088 / 0x604098 (0x5bcaf8 / 0x5bcbb0) | 0x4ca600 (223 lines) | the combat manoeuvre: lasts now + rand in [+0x6c, +0x70]; suspend 0x4ca5f0 |
+| 0x4ca3b0, 0x5cb8a0 | 0x5cb7e8 (0x4ca370, at 0x60b450) | 0x4ca420: +0x104 set, pop | resume 0x4ca410: pop; a suspended manoeuvre's; ported (item 3i) |
+| 0x4caae0 (0x4ca440), 0x5cb8e8 / 0x5cb908 | 0x604088 / 0x604098 (0x5bcaf8 / 0x5bcbb0) | 0x4ca600 (223 lines) | the combat manoeuvre: lasts now + rand in [+0x6c, +0x70]; suspend 0x4ca5f0; ported (item 3i) |
 | 0x4cac20, 0x5cb928 | 0x5cd920 (the attack's first, 0x4e9ca0) | 0x4c8690 | resume 0x4cac80 |
 | 0x4cace0, 0x5cba00 | 0x4caca0 (0x5cb948) | 0x4c8690 | resume 0x4cad30 |
 | 0x4cadb0, 0x5cbad8 | 0x4cad70 (0x5cba20), given the target | 0x4cae90 (108) | resume 0x4cae10 |
@@ -1725,6 +1725,40 @@ share (negative the other way round) when facing within 60 degrees (the
 turn's dot at least 0.5), else 0. Test: `test_ai_attack.py` (mode 1 real;
 the boundary's trace carries the point now; the target moved alone between
 runs; negative throttles), 59 branches, 17 of 17 breaks.
+
+**The combat manoeuvre, ported** (2026-10-22, item 3i: `ManoeuvreState`,
+`AfterManoeuvreState`). The behaviours at 0x604088 (made by 0x4caac0) and
+0x604098 (0x4cabc0, given no jets) make 0x4caae0 over 0x4ca440 (0x30 bytes):
++0x08 no jets (given, or no vehicle, mech or jump jets), +0x0c the jets (1
+with them), +0x10 the phase, +0x14 the turn, +0x18 its end (now + the
+brain's +0x6c + (+0x70 - +0x6c) x rand / 32767), +0x2c its target; the
+brain's +0xf0 counts the live ones and IControls vt+0x14 stops the pilot as
+one is made and gone (0x4ca570). Both answer 0x604088 as their behaviour
+(0x4cab80). Each run (0x4ca600): the jets off below 10% fuel (vt+0x148,
+against a double 0.1) and on again past 60%; past its end the order pops;
+the throttle brakes against the speed (vt+0x114, or the forward speed
+negated while airborne): 0 within 1 m/s, else (speed -/+ 1) x 0.2 negated,
+at most 1. Phase 0 waits for the brake to be within 0.0001 of 0; phase 1
+picks the target once: the nearest enemy contact (0x4d6b90(1)), else the
+last attacker when hit within 1 s (the hit record 0x4aec80, +0x0c), else
+any contact (0x4d6b90(3)); none: it brakes on and asks again. With one it
+sets the brain's +0xf8 and goes on in the same call to phase 2: the lead
+point (0x41d940) when the vehicle's own target contact (+0x6c) sees it,
+else the target's place (0x5a8630), and 0x4c8df0's turn written out inline
+(a NaN dot counts as below on each test: a full turn; a turn of 0 behind
+takes 1); with the brain's +0xcc bit 0x40 and +0xf8 clear again (the
+firing clears it) it ends on the next run. Then the jets (IControls vt+0x34)
+while below the brain's +0x7c, the brake as the jets' forward thrust (vt+
+0x3c) while airborne, else the throttle (vt+0x20), and the turn (vt+0x28;
+phase 1's store of it is overwritten by phase 2 in the same call). Pushed
+under another order (suspend 0x4ca5f0) it is swapped for 0x60b450's state,
+which pops the order when it runs (+0x104 set: run again) or comes back on
+top. In the headless c1m4 run Dominic, counted as hit in the first second
+(the hit record starts at time 0, 0x4aec00), manoeuvres at once: the first
+hut falls within 40 s, not 30 (`test_program`). Test
+`test_ai_manoeuvre.py` (over test_ai_node.py's brain and vehicle: 300
+cases, 43 branches); 29 of 30 breaks caught (phase 1's turn store, always
+overwritten, is not observable).
 
 **Mode 4, ported** (2026-10-22, item 3h: `VeerState`). Mode 4 (slot 6)
 makes 0x4d1630 -> 0x4d1650: mode 2's layout, share and way round (resume
@@ -1996,8 +2030,9 @@ lance (owner +0x80) within the sight range +0x1c (squared).
 **Ported** (2026-10-20, `mech3/zai_brain`: `may_engage`, `must_break_off`,
 `p6_clear`, `sees_target`, `manoeuvre`). The vehicle comes in as a handle
 and the brain asks `BrainHooks` for its health, position, AiTarget and the
-game time; the manoeuvres' behaviours are placeholders (`StepKind::
-Manoeuvre`, `Manoeuvre2`) with the base state until item 11.
+game time; the manoeuvres' behaviours (`StepKind::Manoeuvre`,
+`Manoeuvre2`) make the real state since item 3i (17.2, the manoeuvre); the
+gates' test keeps fakes for them.
 
 Test `test_ai_gates.py` (probe `tests/probe_ai_orders.cpp`, over
 test_ai_orders.py's brain and fakes): the vehicle a fake (its health an x87
@@ -3170,7 +3205,8 @@ goes through a hooks struct the test stubs the same on both sides.
     0x4cc3e0: done (10d2, 10d3); the
     modes' states: modes 1, 2 and 4 (0x4c9750, 0x4d1320, 0x4d1650) done
     (items 3f, 3g, 3h).
-11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
+11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600): done
+    (item 3i), with 0x60b450's state 0x4ca3b0.
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the
     lead point 0x4d6de0 and the torso's aims (12b2a), the aim error

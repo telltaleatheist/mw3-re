@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "gamez/zmath/zmth_vector.h"
+#include "mech3/zai_target.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -721,6 +722,154 @@ bool attack(Brain& b, AiNet* n) {
   b.push(an, &rearm);
   b.push(an, &home);
   return true;
+}
+
+}  // namespace mech3::ai
+
+namespace mech3::ai {
+
+// --- the combat manoeuvre (docs/ai.md 17.2) ------------------------------------
+
+// Mech3.exe 1.2 @ 0x004caae0 over 0x004ca440 (the base's part first: the
+// jets, the count at +0xf0, the stop; then the time).
+ManoeuvreState::ManoeuvreState(Order* o, Behaviour* b, bool given) : BehaviourState(o, b) {
+  BrainHooks& h = brain_hooks();
+  Brain& br = *o->owner;
+  bool none = given;
+  if (!none) {
+    const zgame::Handle v = br.controls->vehicle();
+    Pilot p;
+    if (v) h.pilot_of(v, &p);  // vt+0x50's +0x3d8
+    none = !v || !(p.jump_jets > 0);
+  }
+  ++br.xf0;
+  no_jets = none ? 1 : 0;
+  jump = none ? 0.0f : 1.0f;
+  br.controls->stop();  // IControls vt+0x14
+  const float now = h.now(), lo = br.params.get<float>(0x6c), hi = br.params.get<float>(0x70);
+  until = (hi - lo) * 3.051851e-05f * static_cast<float>(h.rand()) + lo + now;  // 0x005cb128
+}
+
+// Mech3.exe 1.2 @ 0x004ca570
+ManoeuvreState::~ManoeuvreState() {
+  Brain& br = *order->owner;
+  br.controls->stop();
+  --br.xf0;
+}
+
+// Mech3.exe 1.2 @ 0x004ca5f0: this state gone for 0x0060b450's.
+void ManoeuvreState::suspend() { order->set_behaviour(after_manoeuvre_behaviour()); }
+
+// Mech3.exe 1.2 @ 0x004cab80: the one at 0x00604088 for the 0x00604098 one too.
+Behaviour* ManoeuvreState::behaviour() const { return brain_hooks().manoeuvre_behaviour(1); }
+
+namespace {
+// 0x004ca7c4..0x004ca900: 0x004c8df0's turn inlined, the x87's compares
+// as written: a NaN dot (no way to the target) counts as below on each
+// test, so the turn is full to a side.
+float manoeuvre_turn(const float fwd[3], const float dir[3], float keep) {
+  const TurnParams& p = turn_params();
+  const float dot = fwd[0] * dir[0] + fwd[2] * dir[2];
+  if (dot < -p.cos_dead) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;  // C3: equal or unordered
+  if (dot >= p.cos_dead) return 0.0f;
+  const float cross = fwd[2] * dir[0] - dir[2] * fwd[0];
+  if (!(dot >= 0.0f)) return !(cross >= 0.0f) ? -1.0f : 1.0f;
+  if (cross < -p.sin_dead) {
+    const float k = (p.sin_dead + cross) * p.gain;
+    if (k < -1.0) return -1.0f;
+    const float nl = -p.least;
+    return k > nl ? nl : k;
+  }
+  if (!(cross > p.sin_dead)) return 0.0f;
+  const float k = (cross - p.sin_dead) * p.gain;
+  if (k > 1.0) return 1.0f;
+  return k < p.least ? p.least : k;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ca600. The throttle brakes against the speed (the
+// forward speed negated while airborne, the jets' thrust then); the phases
+// run on in one call while each hands over.
+void ManoeuvreState::run(float) {
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  float pos[3];
+  h.position(v, pos);  // 0x005a85e0
+  float steer = 0;
+  if (!no_jets) {
+    const float fuel = h.jump_fuel(v);       // vt+0x148
+    if (!(double(fuel) >= 0.1)) jump = 0;    // 0x005cb0f0
+    else if (fuel > 0.6f) jump = 1;          // 0x005cb110
+  }
+  if (!(h.now() < until)) {
+    order->pop();  // order vt+0x08
+    return;
+  }
+  const float s = h.airborne(v) ? -h.forward_speed(v) : h.move_speed(v);  // vt+0x144: +0x44, else vt+0x114
+  float thr;
+  if (!(s >= -1.0f)) {
+    const float k = (s + 1.0f) * 0.2f;  // 0x005cb8dc
+    thr = !(k >= -1.0f) ? 1.0f : -k;
+  } else if (!(s > 1.0f)) {
+    thr = 0;
+  } else {
+    float k = (s - 1.0f) * 0.2f;
+    if (k > 1.0f) k = 1.0f;
+    thr = -k;
+  }
+  for (bool again = true; again;) {
+    again = false;
+    if (phase == 0) {
+      if (!(double(thr) < -0.0001) && double(thr) <= 0.0001) {  // 0x005cb118, 0x005cb120
+        phase = 1;
+        again = true;
+      }
+    } else if (phase == 1) {
+      if (!target) {
+        if (const Contact* k = h.pick(v, 1)) target = k->seen;  // 0x004d6b90: an enemy
+        if (!target && c.hit_lately()) target = c.attacker();   // 0x004aec80 on the hit record
+        if (!target)
+          if (const Contact* k = h.pick(v, 3)) target = k->seen;  // anyone
+      }
+      if (target) {
+        again = true;
+        b.xf8 = 1;
+        steer = turn;  // phase 2 sets it again in this call
+        ++phase;
+      }
+    } else if (phase == 2) {
+      float fwd[3] = {0, 0, 0}, at[3];
+      h.forward(v, &fwd[0], &fwd[2]);  // +0x24
+      if (!h.lead_point(v, target, at)) h.entity_lock_position(target, at);  // 0x005a8630
+      FlatWay w;
+      flat_way(pos, at, &w);  // 0x004ce230
+      turn = manoeuvre_turn(fwd, w.dir, turn);
+      steer = turn;
+      if ((b.params.raw[0xcc] & 0x40) && !b.xf8) until = 0;
+    }
+  }
+  c.set_jump(pos[1] < b.params.get<float>(0x7c) ? jump : 0.0f);  // IControls vt+0x34: below the brain's +0x7c
+  if (h.airborne(v))
+    c.set_jet_forward(thr);  // vt+0x3c
+  else
+    c.set_throttle(thr);  // vt+0x20
+  c.set_turn(steer);  // vt+0x28
+}
+
+// Mech3.exe 1.2 @ 0x004ca420
+void AfterManoeuvreState::run(float) {
+  order->owner->x104 = 1;  // run the order again
+  order->pop();
+}
+
+// Mech3.exe 1.2 @ 0x004ca3d0
+Behaviour* AfterManoeuvreState::behaviour() const { return after_manoeuvre_behaviour(); }
+
+Behaviour* after_manoeuvre_behaviour() {
+  static Behaviour b(StepKind::AfterManoeuvre);  // 0x0060b450 (0x004ca330)
+  return &b;
 }
 
 }  // namespace mech3::ai

@@ -285,4 +285,43 @@ BehaviourState* make_station_state(Behaviour& b, Order& o);
 // three orders. False when the net cannot be made.
 bool attack(Brain& b, AiNet* n);
 
+// The combat manoeuvre's state (docs/ai.md 17.2): 0x004ca440 under
+// 0x004caae0 (0x30 bytes, vtable 0x005cb8e8; the behaviour at 0x00604088,
+// made by 0x004caac0) and 0x004cabe0 (vtable 0x005cb908; at 0x00604098 by
+// 0x004cabc0, given no jets). It brakes to a stop, then turns to face a
+// target (the nearest enemy, else the last attacker within 1 s, else
+// anyone) and hops on the jets until its time is up. Both answer the
+// behaviour at 0x00604088 (0x004cab80).
+class ManoeuvreState : public BehaviourState {
+ public:
+  ManoeuvreState(Order* o, Behaviour* b, bool no_jets);  // 0x004caae0 over 0x004ca440
+  ~ManoeuvreState() override;                            // 0x004ca570
+  bool may_break_in() const override { return false; }   // 0x004d72a0
+  bool may_fire() const override { return false; }       // 0x004d7290
+  void suspend() override;                               // 0x004ca5f0
+  void run(float dt) override;                           // 0x004ca600
+  Behaviour* behaviour() const override;                 // 0x004cab80
+  int32_t no_jets = 0;        // +0x08  given, or no vehicle, mech or jump jets
+  float jump = 0;             // +0x0c  the jets: 1 with them, off below 10% fuel, on again past 60%
+  int32_t phase = 0;          // +0x10  0 braking, 1 picking the target, 2 facing it
+  float turn = 0;             // +0x14
+  float until = 3.4028235e38f;  // +0x18  now + the brain's +0x6c..+0x70 at random
+  uint32_t x1c = 0;           // +0x1c
+  float x20[3] = {};          // +0x20  0x0063d870
+  zgame::Handle target = 0;   // +0x2c
+};
+
+// What a suspended manoeuvre leaves in its order (0x004ca5f0): the
+// behaviour at 0x0060b450 (0x004ca370, vtable 0x005cb7e8, made at start-up
+// by 0x004ca330) and its state (0x004ca390 -> 0x004ca3b0, 8 bytes, vtable
+// 0x005cb8a0), which ends the order when it runs or comes back on top.
+class AfterManoeuvreState : public BehaviourState {
+ public:
+  AfterManoeuvreState(Order* o, Behaviour* b) : BehaviourState(o, b) {}
+  void resume() override { order->pop(); }  // 0x004ca410
+  void run(float dt) override;              // 0x004ca420
+  Behaviour* behaviour() const override;    // 0x004ca3d0
+};
+Behaviour* after_manoeuvre_behaviour();  // 0x0060b450
+
 }  // namespace mech3::ai
