@@ -1838,8 +1838,8 @@ trigger IControls vt+0x10(1), 0x4b4ba0 the type's wait, 0x4b5940 the
 contacts in the line), 5 the wait (0x4b63f0, the parts' 0x465a00), 7 the
 burst's end, 8 reset (0x4b6700 is the reset from the brain). The weapon
 manager's side (0x4b04c0, 0x4b0a70, 0x4b0bc0, 0x4b4ba0, 0x4b4c90) is
-ported (weapons.md); the planner's volley pick 0x4b1860 (with 0x4b1350,
-0x4b1470) and its start-up object 0x4b1170 are not.
+ported (weapons.md), and so is the planner's volley pick 0x4b1860 (below);
+its start-up object 0x4b1170 is read by nothing.
 
 **The machine, ported** (2026-10-22, `mech3/zai_firing`: `Firing::run`,
 `stand_down`, `LookAround`; item 12a). The firing (0x58 bytes at the
@@ -1981,6 +1981,37 @@ within 2% of the range (a 2 m circle at 100 m). Test: `test_ai_aim.py`
 (7079 tracks and 16072 leads identical over 300 cases; 10 branches, the
 re-pick's exact-zero offset not reached; 23 of 23 breaks caught).
 
+**The volley, ported** (2026-10-22, item 13: `mech3/weapon_planner`
+`volley_pick`). What the AI fires (0x4b1860, from 0x4b5a20 on the plan's
+target): the pilot is the brain behind the manager's vehicle (+0x84: vt+0x2c,
+vt+0x40, the controls vt+0x140, their brain vt+0x54), read for its +0x34
+(params 8: the seconds a burst holds the trigger, as the firing's phase 3
+waits) and +0x90 (p8 item 12: the alpha share). The heat budget is 0.9 less
+the owner mech's heat (+0x554) x 2/3, or less 1 above 1.5. Each weapon
+(0x4b1470 over the manager's list) makes a shot record (0x4b1370: its group,
+heat = the type's HEAT, times the hold for a timed-damage beam; damage =
++0x18 (damage a second) x the hold when ready (0x4b4ba0, 0x4b3a20) and the
+target's contact +0x0c (distance squared) is within its squared ranges
+0x4b3990 / 0x4b39e0); a record with damage, a speed (beams and instant
+weapons count as fast), in range and within the budget is a candidate; its
+group's record sums the heat and damage of every weapon in it either way.
+The roll r = rand(): below +0x90 x 32767, and with the summed heat below
+the budget and damage above 0, an alpha strike (3, single fire set), but the
+sums are doubled rather than added (0x4b17a9) and stay 0, so never; below
+that plus (1 - +0x90) x 26213 x 32767 (nearly always) a random group within
+the budget that deals damage (0x4b1440 / 0x4b17d0, in order; rand x n >>
+15), group fire set (+0x1c = 2) and the group selected (0x4b0730): 2; else
+a random candidate, single fire set, its group selected and the weapon in
+it (0x4b1de0): 1; nothing: 0 (fixes.md, two candidates). Test:
+`test_weapon_planner.py` (after every operation on test_weapons_run's real
+managers, 200 managers: 14378 volleys identical, the manager's state and
+calls included; 17 of 20 breaks caught, the other three equivalent on the
+shipped weapons: a heat cap of 1.4 (both budgets then below 0), an
+instant weapon's speed (none has speed 0), the group roll's 26213 (it
+matters only within 1 of the roll)). In c1m1, 30 m off, the Owens picks a
+group volley and tracks the player, but the plan's ready (the clear line
+0x4d5980, not ported) answers no, so it does not fire yet.
+
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):
 0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
@@ -2051,8 +2082,8 @@ goes through a hooks struct the test stubs the same on both sides.
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the
     lead point 0x4d6de0 and the torso's aims (12b2a), the aim error
     0x4b70b0..0x4b77e0 (12b2b).
-13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
-    manager side: agree with mac 2).
+13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170: done
+    (17.7, item 13).
 14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's
     orders** 0x4ea000..0x4ea230 and brain vt+0x20..+0x48; the IControls
     events 0x4ea520, 0x4ea630, 0x4ea6b0, 0x4ea700, 0x4e95b0.

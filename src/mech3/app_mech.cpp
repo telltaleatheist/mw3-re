@@ -67,6 +67,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
 #include "mech3/zai_target.h"
+#include "mech3/weapon_planner.h"
 #include "mech3/zai_brain.h"
 #include "mech3/weapon.h"
 
@@ -1227,6 +1228,17 @@ void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)-
 // (a vehicle without weapons standing down).
 void wm_clear_aim(void* wm) {
   if (wm) static_cast<WeaponManager*>(wm)->set_aim(nullptr);
+}
+int32_t ai_volley_pick(void* wm, const float* dist2) {
+  auto* m = static_cast<WeaponManager*>(wm);
+  if (!m) return 0;
+  auto* mech = static_cast<Mech*>(m->owner);
+  auto* ctl = mech ? dynamic_cast<AiControls*>(mech->controls) : nullptr;
+  ai::Brain* b = ctl ? ctl->brain.get() : nullptr;
+  VolleyPilot p;
+  if (b) p.hold = b->params.get<float>(0x34), p.chance = b->params.get<float>(0x90);
+  const float heat = mech ? mech->heat : 0.0f;
+  return volley_pick(*m, b ? &p : nullptr, dist2, mech ? &heat : nullptr, [] { return int32_t{crt::msvc_rand()}; });
 }
 bool mech_targeting_aid(void* mech) {
   auto* m = static_cast<Mech*>(mech);

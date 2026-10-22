@@ -228,6 +228,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | AI firing's drop, 0x4b6690 / 0x4b6700 | The weapon manager's aim is cleared (0x4b0bc0) through the vehicle's +0xd4 without a check | (bug) a vehicle without weapons that is hit (the brain's stand-down) crashes the game | Not cleared without a manager (`wm_clear_aim`) |
 | AI firing's shot, 0x4b5b80 | The weapon type's flight hold (0x4b4c90) goes through the weapon's def +0x1f0 when the def is null | (bug) a weapon without a definition crashes the shot | No hold (`weapon_hold_for_flight`) |
 | AI volley plan, 0x4b6fa0 / 0x4b6e10 | The plan's target slot (the vehicle's +0x6c) is read through without a check | (bug) a plan whose target was cleared (the contact gone) crashes the next firing pass | It counts as spent; its clear line asked of no entity |
+| AI volley pick, 0x4b1860 | The vehicle's controls (vt+0x2c, vt+0x40, vt+0x140) are followed without a check after the first two; a candidate weapon in no group (+0x04 null) is selected through its group's index | (bug) a vehicle without a pilot chain, or an AI mech whose picked weapon has no group, crashes the game | Nothing is picked; the weapon is passed over (`weapon_planner` volley_pick) |
 | AI volley plan's track, 0x4b6e30 | The bearer's weapon manager (+0xd4) and its selected group (+0x28, -1 for none) are read through without a check | (bug) an AI mech with no group selected (or no weapons) crashes the game when it tracks a target | Nothing is tracked (`wm_group_weapon`) |
 | AI brain's attack, 0x4e9710 | With no target vehicle the distance is FLT_MAX, compared with the attack range; a range past it (a NaN or infinite params 3) takes the attack branch and calls the null vehicle's vt+0xd8 | (bug) a crash on broken aiv.zrd data; no shipped record has one | No attack without a vehicle; `test_ai_frame.py` keeps the ranges finite |
 | Quicksand texture, declient.zrd read 0x501ab0 | One frame: adds the name past the list's end (frames[1]) and drops the texture; no `DEFAULT_TEXTURE`: reads the last mission's freed name list, or a null one | (bug) a crash or a random texture at mission load | One frame: that frame, set as the material's texture; no `DEFAULT_TEXTURE`: untextured ("Quick sand will NOT be textured"). No shipped file reaches either; `test_zdec_init.py` runs them on the port alone (craters.md) |
@@ -415,6 +416,23 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- The AI's alpha strikes (mac 4, 2026-10-22, ai.md 17.7 "The volley"): the
+  volley pick 0x4b1860 sums its weapons' heat and damage to decide an alpha
+  strike (all weapons at once), but each weapon doubles the sums instead of
+  adding to them (0x4b17a9: `sum += sum`), so they stay 0 and the alpha
+  strike is never picked; the firing's alpha branch (kind 3, 0x4b0a70 for
+  0.2 s) is dead. Kept as the original. A fix would add each candidate's
+  heat and damage: AI pilots would then fire everything at once when the
+  total is within their heat budget, by their +0x90 share of rolls, a big
+  change to how hard enemies hit.
+- The AI's group fire (same function): after the alpha roll, the group roll
+  is under t + (1 - share) x 26213 x 32767 (the constant 0x5c9060 is
+  -32767), so nearly always: an AI pilot fires a whole group whenever one
+  is within its heat budget and deals damage, and a single weapon only when
+  none is. 26213 / 32767 is 0.8, so the intent may have been an 80% share
+  of the rest (a multiply by 1/32767 or a constant mixed up). Kept as the
+  original.
 
 - The mechs' sun shading's lit level (mac 2, 2026-10-21, shade.md): a mech
   in the open fades to diffuse 1.0 ([0x005e9cdc]), not to the sun's own
