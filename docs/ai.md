@@ -880,7 +880,7 @@ port's `ai::AiTarget`, which `Mech` derives from):
 | +0xb8 | the nearest contact when within 8 m (64 squared) |
 | +0xbc | bit 0 someone has it targeted, bit 1 seen by an enemy, bit 2 passive radar (the radar mode key), bit 3 the player has seen it (never cleared), bit 4 a lancemate under the player's orders (0x4d5be0) |
 | +0xc0 / +0xc4 / +0xc8 | the team masks: a bit per 5-bit team in the value; allies the same bits but bit 0, enemies all the others but bit 0, so team 0 is no one's ally or enemy |
-| +0xd0 | a net of its own, made on first ask (0x4d70f0 over 0x4c0090) |
+| +0xd0 | a net of its own, made on first ask (0x4d70f0 over 0x4c0090; 17.2, ported) |
 
 **A contact** (made by the sensors, section 15, every frame anew): +0x00
 the vehicle seeing it, +0x04 what is seen (the entity's vt+0x24; its
@@ -1448,13 +1448,33 @@ Owens' first order now pushes the step of net 4 nearest it (`mw3tests`
 `mission_c1m1_owens_runs_its_frames_headless`); that step's own state (the
 node state) is item 8, so it still stands.
 
-**The vehicle's own net** (vt+0xd8 of a vehicle; 0x4c0810, 0x1c bytes):
-the behaviours to use against or with that vehicle: 0x4c0de0 (follow,
-likely: the lancemates on the player's), 0x4c0e10 (attack it), 0x4c0e40
-(the brain's own order). **The attack** (0x4e9ca0): the current order
-remade on that net, then three orders pushed on it, from the last run to
-the first: 0x4cad70 (given the target distance), 0x4caca0, the 0x5cd920
-behaviour.
+**The vehicle's own net, ported** (2026-10-22, item 10a: `VehicleNet`,
+`VehiclePart`, `vehicle_net_of`). A vehicle's vt+0xd8 (the Mech's
+0x4d70f0) makes it on first ask and keeps it at its AiTarget +0xd0 (znet's
+clear frees it): 0x4c0090 (0x20 bytes, vtable 0x5caaf0) over the compiled
+net's 0x4bfbb0(no list, 7), its id znet's first free in [300, 400), +0x1c
+the vehicle. Its seven steps are plain behaviours (0x4c8600, 0xc bytes)
+whose classes differ only in the state they make (vt+0x8c, not ported:
+the base's) and three type tests (0x4d2a70 "this", 0x40bae0 none): slot 0
+follow (0x5caa38), 1 attack (0x5ccaa8, made by 0x4d1c80), 2 and 3 modes 1
+and 2 (0x5ca980, 0x5ca8c8), 4 a combat manoeuvre (0x5bcaf8), 5 the brain's
+own order (0x5ca810), 6 mode 4 (0x5ca758). The getters are those tests on
+their slots: 0x4c0de0 slot 0 by +0x90 (one of the net's own, all but the
+manoeuvre), 0x4c0e10 slot 1 by +0x94, 0x4c0e40 slot 5 by +0x98. It allows
+no attack (+0x54). Its part (make_part 0x4c02f0 -> 0x4c0ba0, 0x24 bytes,
+vtable 0x5cac40): a home point for the leash, the pilot's position when
+made (0x5a85e0; when the pilot has no vehicle yet, at its first run
+0x4c0d60), stacked on the brain's +0xe4 (the old one kept at +0x14, put
+back by the dtor 0x4c0dc0); and +0x1c the behaviour for the pilot's mode
+(+0x40, p2): 1..4 slots 2, 3, 4, 6 by +0x90, so mode 3's manoeuvre answers
+none (fixes.md candidate); its reader is not found yet. Test:
+`test_ai_vehnet.py` (400 nets and parts identical, 12 of 12 breaks).
+
+**The attack** (0x4e9ca0): the current order remade on the vehicle's net,
+then a one-behaviour net of its own (0x4c0810, 0x1c bytes, vtable 0x5cabd0,
+the stand behaviour 0x604058) and three orders pushed on it, from the last
+run to the first: 0x4cad70 (given the target distance), 0x4caca0, the
+0x5cd920 behaviour (item 10b).
 
 ### 17.3 The engage gate (0x4e8f10, 0x4e8dd0)
 
@@ -2095,8 +2115,9 @@ goes through a hooks struct the test stubs the same on both sides.
 9. **The property states**: scan / canleave done (17.4a); waits, sound,
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);
    jump 0x4cb330 alone.
-10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its
-    three states (0x4cac20, 0x4cace0, 0x4cadb0).
+10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
+    0x4e9ca0 with its net 0x4c0810 and three states (0x4cac20, 0x4cace0,
+    0x4cadb0) (10b); the brain's own order 0x4e81a0 (10c).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

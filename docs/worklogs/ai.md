@@ -258,3 +258,15 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Test: test_ai_clearline.py (standalone emulator; 12 of 12 breaks).
 - Headless: the c1m1 Owens fires its two lasers at the player (beams use
   charge, not reload: watch is_firing / the bin, not +0x30).
+
+## 2026-10-22 Item 10a: the vehicle's own net (mac4/vehnet)
+
+- VehicleNet 0x4c0090 (seven behaviours by StepKind; their states the
+  base's), vehicle_net_of 0x4d70f0 (AiTarget +0xd0 now a VehicleNet*),
+  the getters 0x4c0de0 / 0x4c0e10 / 0x4c0e40 (type tests +0x90/+0x94/+0x98),
+  VehiclePart 0x4c0ba0 / 0x4c0d60 / 0x4c0dc0 (the leash's home point on
+  the brain's +0xe4; the mode's behaviour +0x1c, reader not found).
+- 0x4c0810 is the attack's own one-behaviour net: moved to 10b.
+- FIX (bug): the part's run without a vehicle. Candidate: mode 3 gets none.
+- Test: test_ai_vehnet.py (emulator runs the real ctors; znet registry
+  via 0x4c7b80; 12 of 12 breaks).

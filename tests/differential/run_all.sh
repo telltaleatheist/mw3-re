@@ -106,6 +106,7 @@ for t in \
     ai_plan \
     ai_aim \
     ai_clearline \
+    ai_vehnet \
     mech_health \
     ai_valves \
     ai_targets \

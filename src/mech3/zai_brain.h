@@ -78,10 +78,7 @@ class BrainHooks : public zgame::Unported {
     return nullptr;
   }
   virtual zgame::Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
-  virtual Behaviour* follow_behaviour(AiNet* vehicle_net) {
-    unported("0x004c0de0", {low(vehicle_net)});
-    return nullptr;
-  }
+  virtual Behaviour* follow_behaviour(AiNet* vehicle_net);  // 0x004c0de0 (on the vehicle's net)
   // The manoeuvres at 0x00604098 (0) and 0x00604088 (1), class 0x004ca440.
   virtual Behaviour* manoeuvre_behaviour(int32_t which);
 
@@ -224,8 +221,8 @@ class BrainHooks : public zgame::Unported {
   virtual void wm_aim_at(zgame::Handle wm, const float at[3]) {
     unported("0x004b0bc0", {wm, zgame::bits(at[0]), zgame::bits(at[1]), zgame::bits(at[2])});
   }
-  virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004c0810, item 10)
-  virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10 (item 10)
+  virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004d70f0)
+  virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10
   virtual bool attack(Brain& b, AiNet* current_net);           // 0x004e9ca0 (item 10)
   virtual void own_order_run(Brain& b, float dt);              // the brain's own order's vt+0x04, 0x004e81a0 (item 10)
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
@@ -293,6 +290,29 @@ class NetLink : public NetPart {
 
   AiNet* target = nullptr;  // +0x08
   bool builtin = false;     // the vtable
+};
+
+// A vehicle's own net's part (0x004c0ba0, 0x24 bytes, vtable 0x005cac40;
+// docs/ai.md 17.2): a home point for the leash, the pilot's position when
+// it is made (or at its first run when the pilot had no vehicle yet),
+// stacked on the brain's +0xe4 and taken off again when it goes; and the
+// behaviour for the pilot's mode (+0x40: 1 to 4 the net's slots 2, 3, 4,
+// 6, by their +0x90 test).
+class VehiclePart : public NetPart {
+ public:
+  VehiclePart(Order* o, VehicleNet* n);  // 0x004c0ba0
+  ~VehiclePart() override;               // 0x004c0dc0: the brain's +0xe4 back
+  void run(float dt) override;           // +0x04 0x004c0d60
+  AiNet* net() const override;           // +0x08 0x0040a890
+
+  float home[3] = {};             // +0x08
+  const float* prev = nullptr;    // +0x14  the brain's +0xe4 before
+  VehicleNet* target = nullptr;   // +0x18
+  Behaviour* behaviour = nullptr; // +0x1c  (its reader not found yet)
+  bool pending = false;           // +0x20  no vehicle when made: the home point at the first run
+
+ private:
+  void push_home();
 };
 
 // What a behaviour builds in an order (its vt+0x8c, in place at +0x54),
