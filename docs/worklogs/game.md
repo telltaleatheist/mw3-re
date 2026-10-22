@@ -1096,3 +1096,24 @@ view's ground, the anim lookups 0x50b450 (92).
   of box volume / 720, and the duck) now happens in play.
 - `mission_c1m1_ceiling_crush_uses_the_box_headless` (the box read from the
   node's bytes, the duck exact; a node without a box does nothing); 3 breaks.
+
+## The view's ground and water; the mechs' markers (2026-10-21)
+
+- app_view: `ground_query` runs `zcls::ground_point` (0x004edab0) on the
+  world and keeps the hits; `water_query` is `ground_pick` (0x004abd90) on
+  them. With the ported 0x0040af30 / 0x0040b0e0, an outside camera is lifted
+  out of the ground and under water the world takes the water's fog.
+- The markers: the program's zEntity stand-in used the mech's node as both
+  centroid and target, so the build's translations moved the node and
+  everything aiming at a mech aimed at its feet. `zent::marker_nodes`
+  (0x005a8390's nodes: "centroid" / "target" found or made under the node),
+  used by the mech build's and the AI targets' stand-ins; `entity_update`
+  wired to `Mech::refresh_markers` (0x005a8500).
+- `mission_c1m1_view_ground_and_water_headless`: the camera buried 5 m is
+  lifted to the ground + 0.5; c1's water found at (-2950.9, -31.0,
+  -1315.1), the fog under it and not above; the markers at 0.65 and 0.5 of
+  the height. Breaks: ground unwired, no water, markers the node (caught);
+  the build's refresh unwired is not (the frame's matrix walk redoes it
+  before the first frame is seen).
+- mw3tests 129/0, sdl 10/0, test_mech_build, test_view, test_ai_targets,
+  test_deaths, test_parts, test_collide, test_update.

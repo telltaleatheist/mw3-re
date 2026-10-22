@@ -107,6 +107,7 @@ class WiredData : public MechDataHooks {
 
 class WiredBuild : public MechBuildHooks {
  public:
+  void entity_update(Mech& m) override { m.refresh_markers(); }  // 0x005a8500
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
@@ -1093,6 +1094,16 @@ bool mech_ceiling_hit(void* mech, void* node, float out[7]) {
   out[4] = m->hip->offset.y;  // the duck (0x004622a0)
   out[5] = collide_calls().hit_box && collide_calls().hit_box(node) ? 1.0f : 0.0f;
   out[6] = m->crouch_depth;
+  return true;
+}
+bool mech_marker_heights(void* mech, float out[4]) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  if (!m || !m->node || !m->target_node || !m->centroid) return false;
+  float p[3];
+  zcls::node_world_position(static_cast<zcls::Node*>(m->node), p), out[0] = p[1];
+  zcls::node_world_position(static_cast<zcls::Node*>(m->target_node), p), out[1] = p[1];
+  zcls::node_world_position(static_cast<zcls::Node*>(m->centroid), p), out[2] = p[1];
+  out[3] = m->height;
   return true;
 }
 int32_t mech_controls_view(void* mech) {

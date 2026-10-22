@@ -128,9 +128,12 @@ state's reset reach it. The app code still reads the view by address: after
 each change its mode (a block whose +4 is the id) and target go into the
 view's block. The look keys reach the mode's free look (vt+0x10) and its
 calls on the torso, the controls and the mech are answered (look.md,
-playtest #14). Not wired yet (logged): the ground, water and weather queries
-(cls_di.c), the HUD's 0x0043bb80, the torso's
-cockpit switch 0x0041ce10.
+playtest #14). The ground and water check (0x0040af30) has its queries: the
+ground under the camera (0x004edab0, `zcls::ground_point`) and the water in
+it (0x004abd90, `ground_pick`), so an outside camera is lifted out of the
+ground and under water the world takes the water's fog (0x0040b0e0;
+`mission_c1m1_view_ground_and_water_headless`). Not wired yet (logged): the
+camera's zone 0x004f6c80, the weather query, the HUD's 0x0043bb80.
 
 ## 5. The wall pull-in (0x0040b310, 0x004a3290)
 

@@ -22,6 +22,7 @@
 #include "mech3/mech_parts.h"
 #include "mech3/mech_reader.h"
 #include "mech3/player_view.h"
+#include "mech3/veh_basic.h"
 
 namespace mech3 {
 
@@ -89,14 +90,17 @@ struct ProgramViewHooks : ViewHooks {
     static float none[3] = {};
     return n && n->data ? reinterpret_cast<const float*>(static_cast<const uint8_t*>(n->data) + 0x14) : none;
   }
-  bool ground_query(float, float, float) override {
-    unported("0x004edab0", {});
-    return true;
+  // The ground under the camera (0x004edab0 on the world, kept for the
+  // water check 0x004abd90): an outside camera is lifted out of the ground,
+  // and under water the world takes the water's fog (0x0040b0e0).
+  zcls::GroundHits ground{};
+  bool ground_query(float x, float y, float z) override {
+    ground.count = 0;
+    Node3 w = world_node();
+    return !w || zcls::ground_point(zn(w), x, y, z, &ground) != 0;
   }
-  float water_query(float, float, int32_t* index, uint8_t, int32_t* kind, float* level) override {
-    *index = *kind = 0;
-    *level = 0;
-    return 0;
+  float water_query(float y, float height, int32_t* index, uint8_t flag, int32_t* kind, float* level) override {
+    return ground_pick(ground, y, height, index, flag, kind, level);  // 0x004abd90
   }
   uint8_t water_flag() override { return 1; }
   void camera_zone(Node3, int32_t, Mech*) override { unported("0x004f6c80", {}); }
@@ -246,6 +250,35 @@ void program_view_look(int32_t look) {
   if (!g_view || !g_view->mode) return;
   g_view->mode->set_look(look);
   sync();
+}
+bool program_view_ground_probe(float x, float y, float z, float* y_after, bool* under) {
+  if (!g_view) return false;
+  zcls::camera_set_position(zn(g_view->camera), x, y, z);
+  const bool found = g_view->follow_ground();
+  float p[3];
+  zcls::node_world_position(zn(g_view->camera), p);
+  if (const float* c = g_hooks.camera_position(g_view->camera)) p[1] = c[1];
+  *y_after = p[1];
+  *under = g_view->underwater != 0;
+  return found;
+}
+bool program_view_find_water(float x0, float z0, float range, float out[4]) {
+  Node3 w = g_view ? g_hooks.world_node() : nullptr;
+  if (!w) return false;
+  zcls::GroundHits hits{};
+  for (float dz = -range; dz <= range; dz += 10.0f)
+    for (float dx = -range; dx <= range; dx += 10.0f) {
+      const float x = x0 + dx, z = z0 + dz;
+      if (zcls::ground_point(zn(w), x, 2000.0f, z, &hits) != 0) continue;
+      int32_t best = 0, in_water = 0;
+      float surface = -200.0f;
+      const float ground = ground_pick(hits, 2000.0f, 4000.0f, &best, 1, &in_water, &surface);  // water not ground, as the view
+      if (surface > ground + 2.0f) {
+        out[0] = x, out[1] = surface, out[2] = z, out[3] = ground;
+        return true;
+      }
+    }
+  return false;
 }
 int32_t program_view_look_state() { return g_view && g_view->mode ? g_view->mode->look_ : -1; }
 void program_view_set_camera(int32_t id) {

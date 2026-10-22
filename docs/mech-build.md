@@ -68,6 +68,14 @@ player's controls) and `mech3/mission_launch`; checked against the exe by
   the node and name (0x004d6c90: the node's matrix +0xc, a centroid +0x14
   and a target node +0x10 made under it, the node's entity) with the +0x68c
   object off its list meanwhile (null here), and keeps the target at +0xe8.
+  The markers (0x005a8390, `zent::marker_nodes`, 2026-10-21): the nodes
+  named "centroid" and "target" in the mech's tree (0x004eb0d0), else
+  object3ds of those names made under its node; the build then puts them at
+  half and 0.65 of the mech's height and refreshes their matrices (0x005a8500,
+  `Mech::refresh_markers`). Before, the program's stand-in used the mech's
+  node for both, so the build's two translations moved the node itself and
+  everything that aims at a mech aimed at its feet. The AI targets' set-up
+  (app_mission) uses the same function.
   0x005a7f50 puts the mech on zEntity's list (0x00736558). 0x00415ae0: the
   node's owner (+0x40) the mech and its id (+0x28) 0x1000.
 - **The parts** from the definition's slots (MechDfn +0x28, by part id): hip
@@ -307,8 +315,8 @@ the structure table one row off.
   model object 0x00430aa0 / 0x00430ad0, the canned effects' spawn 0x00432830
   (and so 0x00431800 has nothing to take down), the skins' state on the
   model 0x00475780.
-- zEntity's node set-up 0x004d6c90 / 0x005a8390 and its list 0x005a7f50;
-  the hit handler 0x005833b0.
+- zEntity's record (0x004d6c90 / 0x005a8390 beyond the markers) and its list
+  0x005a7f50; the hit handler 0x005833b0.
 - The mech's destructor 0x00414f40 (its view attach 0x0041ce30 is ported:
   view.md), the AI side
   (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates
