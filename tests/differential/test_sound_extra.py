@@ -29,6 +29,8 @@ P = ctypes.c_void_p
 probe.probe_sx_load.argtypes = [P, P, P, ctypes.c_int]
 probe.probe_sx_play.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_float,
                                 ctypes.c_float, ctypes.c_int, ctypes.c_float, P, ctypes.c_int]
+probe.probe_sx_say.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_int, ctypes.c_float,
+                               ctypes.c_float, P, ctypes.c_int]
 probe.probe_wake.argtypes = [P, ctypes.c_int, P, ctypes.c_int]
 CAP = 1 << 16
 BUF = ctypes.create_string_buffer(CAP)
@@ -51,6 +53,7 @@ class Emulated:
         cpu.stub_function(0x575fb0, lambda c: c.ecx)  # zLoc: the name itself, as the port's with no table
         cpu.stub_function(0x571cc0, self.play, 0x10)
         cpu.stub_function(0x40fe50, self.subtitle)
+        cpu.stub_function(0x56e3d0, self.play2d, 0x4)
         cpu.stub_function(0x508da0, self.start, 0xc)
         cpu.stub_function(0x506ca0, self.stop)
         cpu.stub_function(0x4eb170, self.set_active)
@@ -99,6 +102,10 @@ class Emulated:
         if pos:
             self.out += self.cpu.read(pos, 12)
         self.log(c.arg(0), 1 if c.arg(1) else 0, c.arg(2), c.arg(3))
+        return 0x7777
+
+    def play2d(self, c):
+        self.log(0x53, 1 if c.ecx else 0, c.arg(0))
         return 0x7777
 
     def subtitle(self, c):
@@ -165,6 +172,22 @@ class Emulated:
             pos = self.zalloc(12)
             self.cpu.write(pos, struct.pack('<3f', 1.5, -2.0, 30.25))
         self.cpu.call(0x4e6cd0, ecx=rec, stack_args=(0x9999, fb(volume), pos, 0, fb(fade)))
+        r = self.cpu.uc.reg_read(UC_X86_REG_EAX)
+        self.log(1 if r else 0)
+        self.logf(rec + 8)
+        return bytes(self.out)
+
+    def say_case(self, nxt, delay, subtitle, on, now, volume):
+        self.out = bytearray()
+        rec = self.zalloc(12)
+        sub = 0
+        if subtitle:
+            sub = self.zalloc(4)
+            self.cpu.write(sub, b'SUB\0')
+        self.cpu.write(rec, struct.pack('<Iff', sub, delay, nxt))
+        self.cpu.write(SUBTITLES, bytes([1 if on else 0]))
+        self.cpu.write(TIME, struct.pack('<f', now))
+        self.cpu.call(0x4e6c60, ecx=rec, stack_args=(0x9999, fb(volume)))
         r = self.cpu.uc.reg_read(UC_X86_REG_EAX)
         self.log(1 if r else 0)
         self.logf(rec + 8)
@@ -259,6 +282,15 @@ def main():
         mine_now = now + (1.0 if brk == 2 else 0.0)
         n = probe.probe_sx_play(nxt, delay, sub, on, mine_now, volume, placed, fade, BUF, CAP)
         check('play', BUF.raw[:n], emu.play_case(nxt, delay, sub, on, now, volume, placed, fade))
+
+    for _ in range(600):  # the radio's lines (0x4e6c60)
+        now = rng.choice((0.0, rng.uniform(0, 100), 10.0))
+        nxt = rng.choice((0.0, now, now + rng.uniform(-5, 5), float('nan')))
+        delay = rng.choice((0.0, rng.uniform(0, 30), -1.0, float('nan')))
+        sub, on = rng.randint(0, 1), rng.randint(0, 1)
+        volume = rng.choice((1.0, 0.3))
+        n = probe.probe_sx_say(nxt, delay, sub, on, now + (1.0 if brk == 4 else 0.0), volume, BUF, CAP)
+        check('say', BUF.raw[:n], emu.say_case(nxt, delay, sub, on, now, volume))
 
     for _ in range(300):
         ops = []

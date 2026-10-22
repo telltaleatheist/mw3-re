@@ -21,6 +21,7 @@ struct SoundExtra {                // 0x0c bytes (0x004e6a60)
 struct SoundExtraHooks {
   zsnd::VoiceBase* (*play_fading)(zsnd::Object* obj, const float* pos, float volume, const float* vel,
                                   float fade_to, int32_t stop) = nullptr;
+  zsnd::VoiceBase* (*play)(zsnd::Object* obj, float volume) = nullptr;  // 0x0056e3d0
   void (*subtitle)(const char* text) = nullptr;
 };
 SoundExtraHooks& sound_extra_hooks();
@@ -44,6 +45,10 @@ zsnd::VoiceBase* sound_extra_play(SoundExtra& r, zsnd::Object* obj, float volume
                                   const float* vel, float fade_to);  // 0x004e6cd0 ECX record
 zsnd::VoiceBase* sound_play(zsnd::Object* obj, const float* pos, float volume, const float* vel,
                             float fade_to);                           // 0x004e6d80 ECX object, EDX pos
+// The same with zSound's plain play (0x0056e3d0, no place): the radio's
+// lines (docs/ai.md 17.6).
+zsnd::VoiceBase* sound_extra_say(SoundExtra& r, zsnd::Object* obj, float volume);  // 0x004e6c60 ECX record
+zsnd::VoiceBase* sound_say(zsnd::Object* obj, float volume);                       // 0x004e6d50 ECX object
 // A mech type's sound by slot (`sounds` is mech.h's MechData::sounds,
 // mech_data.cpp; pilot.h's career MechData shares the name, so it is not
 // named here): no fade (0x00432990 on +0x684: the fifth argument is ignored).

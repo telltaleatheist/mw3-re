@@ -37,7 +37,7 @@ U, I = ctypes.c_uint32, ctypes.c_int32
 OWNER = tg.OWNER
 ENT = OWNER + 0x4000  # the probe's kPlanEnt: entity k at ENT + 0x400 k
 BASE, AI = 0x4aec90, 0x4ea520
-COVER = {0x4aec32: 'a run started', 0x4aecda: 'an ally hit it', 0x4ea58d: 'an enemy hit it',
+COVER = {0x4ea68c: 'last_shot', 0x4ea6ef: 'ejecting', 0x4aec32: 'a run started', 0x4aecda: 'an ally hit it', 0x4ea58d: 'an enemy hit it',
          0x4ea5b9: 'call_help', 0x4ea5cb: 'an ally attacker', 0x4ea5eb: 'friendly_fire',
          0x4ea61a: 'the lance turns'}
 REACHED = set()
@@ -66,7 +66,10 @@ class Original(tf.Original):
         e.w32(0x60861c, self.pilot)
         self.radio2 = e.world_alloc(0x40)
         e.w32(self.radio2 + 0x00, 0)  # call_help
+        e.w32(self.radio2 + 0x04, 1)  # last_shot
+        e.w32(self.radio2 + 0x18, 6)  # ejecting
         e.w32(self.radio2 + 0x20, 8)  # friendly_fire
+        e.w32(e.r32(OWNER + 0xc30) + 0xa4, e.new_stub('ictl.vt+0xa4', '', 0, self.logged))
         e.stub(0x4d5dc0, '0x004d5dc0', '', 0)
         self.stood_down = 0
         e.stub(0x4b6700, '@0x004b6700', '', 0, self.stand_down)
@@ -75,6 +78,21 @@ class Original(tf.Original):
 
     def this(self, e, key, a, pop):
         e._ret(e.uc.reg_read(to.UC_X86_REG_ECX), pop)
+
+    def lines(self, kind, w):
+        e, b = self.e, self.brain
+        e.w32(OWNER + 0xc0, w[0])
+        e.w32(OWNER + 0xc4, w[1])
+        for k in range(1, 5):
+            e.w32(ENT + 0x400 * k + 0xc0, w[5 + 2 * (k - 1)])
+            e.w32(ENT + 0x400 * k + 0xc4, w[6 + 2 * (k - 1)])
+        e.w32(b + 0x2a8, self.radio2 if w[14] else 0)
+        if kind == 2:
+            victim = ENT + 0x400 * w[4] if w[4] and w[4] != 5 else ENT + 0x400
+            e.call(0x4ea630, ecx=b + 0x2b0, stack=(victim,))
+        else:
+            e.call(0x4ea6b0, ecx=b + 0x2b0)
+        e.w32(b + 0x2a8, 0)
 
     def stand_down(self, e, key, a, pop):
         self.stood_down += 1
@@ -119,6 +137,7 @@ class Original(tf.Original):
 def setup_probe():
     probe = tf.setup_probe()
     probe.probe_ao_hit.argtypes = [I, ctypes.c_void_p, ctypes.c_void_p]
+    probe.probe_ao_lines.argtypes = [I, ctypes.c_void_p]
     probe.probe_ao_hit_ally.argtypes = [U]
     probe.probe_ao_hit_ally.restype = U
     return probe
@@ -171,6 +190,15 @@ def run_case(probe, seed, checks):
                              f'  port {port.log[i:i + 4]}\n  w {w}')
         if a != b:
             raise SystemExit(f'seed {seed} check {k} (kind {kind}): record exe {a}, port {b}\n  w {w}')
+        # 0x4ea630 (a kill) or 0x4ea6b0 (its death's line).
+        lk = rng.choice([2, 3])
+        if w[4] in (0, 5):
+            w[4] = 1
+        start = len(orig.t.log)
+        orig.lines(lk, w)
+        probe.probe_ao_lines(lk, (U * len(w))(*w))
+        if orig.t.log != port.log:
+            raise SystemExit(f'seed {seed} check {k} (line {lk}): exe {orig.t.log[start:]}, port {port.log[start:]}\n  w {w}')
         # 0x4ea500: it hit an ally (the firing's obstacle, then its stand-down).
         victim = ENT + 0x400 * rng.randrange(1, 5)
         obstacle, stood = orig.hit_ally(victim)

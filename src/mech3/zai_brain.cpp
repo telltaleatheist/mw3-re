@@ -9,6 +9,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
+#include "mech3/sound_extra.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
@@ -87,7 +88,10 @@ void BrainHooks::forward(zgame::Handle e, float* x, float* z) {
   unported("entity+0x24", {e});
   *x = *z = 0;
 }
-void BrainHooks::radio_line(Brain& b, int32_t event) { unported("0x004e6d50", {low(&b), event}); }
+// 0x004e6d50(1.0) on the radio's sound for `event` (Radio::kEvents).
+void BrainHooks::radio_line(Brain& b, int32_t event) {
+  if (b.radio && event >= 0 && event < 16) sound_say(static_cast<zsnd::Object*>(b.radio->sounds[event]), 1.0f);
+}
 float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
 Behaviour* BrainHooks::path_next(Brain& b, Behaviour* at) { return b.path.next(at); }
 float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported("vehicle.vt+0x118", {v, bits(share)})); }
@@ -1039,6 +1043,17 @@ void Brain::on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker) {
   if (h.vehicle_mech(attacker) != h.player_vehicle()) return;
   if (radio) h.radio_line(*this, 8);  // friendly_fire (radio +0x20)
   if (r.run() > 3.0f) h.allies_turn();  // 0x005cd918
+}
+
+// Mech3.exe 1.2 @ 0x004ea630 (the AI's IControls vt+0xb4, from the kill
+// credit 0x0041b420): a kill of what is not an ally, last_shot.
+void Brain::killed(zgame::Handle owner, zgame::Handle victim) {
+  BrainHooks& h = brain_hooks();
+  if (!radio) return;
+  const AiTarget* mine = h.targetable(owner);
+  const AiTarget* theirs = h.targetable(victim);  // vt+0x28
+  if (mine && theirs && (mine->allies & theirs->team)) return;
+  h.radio_line(*this, 1);  // last_shot (radio +0x04)
 }
 
 // Mech3.exe 1.2 @ 0x004e9640

@@ -2032,12 +2032,28 @@ my target (its net, 0x4c0de0, 0x4e87c0), +0x24 / +0x34 the same,
 enemy, +0x30 / +0x48 0x4ea3f0 only an ally, +0x3c 0x4ea260 (0x4d08d0's
 order), +0x40 0x4ea4e0 stop (back to the last unmarked order).
 
-The radio's lines play through 0x4e6d50 -> 0x4e6c60: a line plays when its
-repeat time has passed (+0x08 = now + +0x04), with a subtitle when
-[0x60b878] (0x4e6aa0 "MINDELAY SUBTITLE"). Callers: low ammo (above),
-hits taken (IControls 0x4ea520: an enemy's from over 500 m, "friendly
-fire" from an ally, the player's hits counted, 0x4d5dc0 past 3), the
-target lost (0x4ea630), death (0x4ea6b0), each order's answer.
+The radio's lines play through 0x4e6d50 -> 0x4e6c60: the line's record is
+the sound's zSound user data (0x56f430: the EXTRA's MINDELAY and SUBTITLE,
+sound_extra.cpp) or the default at 0x60b800; it plays (zSound's 2D play
+0x56e3d0, at volume 1) unless its next time is later than now, sets the
+next time when MINDELAY is above 0, and gives the panel its subtitle when
+[0x60b878] (never set). The radio's slots are Radio::kEvents. Callers:
+the frame's ammo (out_of_ammo +0x28, low_ammo +0x24, 17.1); the hits
+(IControls vt+0x94, 0x4ea520: call_help +0x00, friendly_fire +0x20, 17.8b);
+a kill (vt+0xb4, 0x4ea630, from the kill credit 0x41b420 with the victim:
+last_shot +0x04 unless it is an ally); its death (vt+0xa8: the AI mech
+controls' 0x4d8a00, the player's lance told (0x49e540), then 0x4ea6b0:
+the base 0x4aed50 (the controls' vt+0xa4 tick once more) and ejecting
++0x18); each order's answer (0x4e9fd0, item L4). The player's controls'
+vt+0xa8 is the base's (his vlist once more), vt+0xb4 nothing.
+
+**Ported** (2026-10-22, item L2: `sound_extra_say` 0x4e6c60, `sound_say`
+0x4e6d50, `BrainHooks::radio_line` on the radio's slot, `Brain::killed`,
+`Brain::died`, `MechControls::tick` / `on_death` / `on_kill` (vt+0xa4,
++0xa8, +0xb4) with the AI's, called from `Mech::die` and `Mech::on_kill`
+when their hooks are unset). 0x49e540 is the `lance_lost` hook (L4).
+Tests: `test_sound_extra.py` runs 0x4e6c60 (600 cases), `test_ai_hits.py`
+0x4ea630 and 0x4ea6b0 on its cases.
 
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
@@ -2344,9 +2360,9 @@ reach whether or not anyone attacked them. Each part, with the code:
 - **When the ordered target dies.** The follow pops (above); the sensors
   (0x4a9e70) drop the lost contact and make the nearest of the rest the
   target (0x4d6a80 with side 0: any non-ally), and the next plan picks
-  again anyway. "Target lost" (0x4ea630, a jump thunk from the brain's
-  vtables at 0x4d1f30 / 0x4e7810) and death (0x4ea6b0) are radio lines
-  only (0x4bf620 does nothing).
+  again anyway. Nothing else answers the target's death: 0x4ea630 (read
+  first as "target lost") is the kill line, the killer's last_shot (17.6),
+  and 0x4ea6b0 the dying pilot's ejecting.
 - **The player attacked or attacking.** Nothing reaches the allies from
   either, except the 3-second rule above and the lance orders.
 

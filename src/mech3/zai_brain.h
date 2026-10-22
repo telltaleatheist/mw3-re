@@ -62,6 +62,9 @@ class BrainHooks : public zgame::Unported {
     unported("attacker.ictl.vt+0x98", {attacker, victim});
   }
   virtual void allies_turn() { unported("0x004d5dc0", {}); }
+  // 0x0049e540 (player.cpp, the AI mech controls' death 0x004d8a00): the
+  // player's lance list drops the dead pilot's vehicle (item L4).
+  virtual void lance_lost(zgame::Handle v) { unported("0x0049e540", {v}); }
   // The game time [0x0060991c].
   virtual float now();
   // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98
@@ -532,6 +535,12 @@ class Brain {
   // (call_help), the player's own (friendly_fire), and past 3 s of his hits
   // in a run the lance turns on him (0x004d5dc0).
   void on_hit(HitRecord& r, zgame::Handle owner, zgame::Handle attacker);
+  // 0x004ea630 (IControls vt+0xb4): it killed `victim` (last_shot unless an
+  // ally). 0x004ea6b0's line (vt+0xa8, after the controls' tick): ejecting.
+  void killed(zgame::Handle owner, zgame::Handle victim);
+  void died() {
+    if (radio) brain_hooks().radio_line(*this, 6);  // ejecting (radio +0x18)
+  }
   // 0x004ea500 -> 0x004b78d0 (IControls vt+0x98): it hit an ally: the firing
   // passes over targets behind that one and stands down.
   void hit_an_ally(zgame::Handle victim) {

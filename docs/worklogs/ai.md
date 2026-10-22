@@ -427,3 +427,14 @@ Newest last. One short entry per item: what, commits, what to remember.
   from the player; the turn covers the allies after the player in the list.
 - test_ai_hits.py: 10,000 hits identical, 8 of 8 breaks; test_ai_vlist's
   player case now runs the exe's 0x4aed40 on the same record.
+
+## 2026-10-22 Item L2: the radio's lines (mac4/radio)
+
+- sound_extra_say 0x4e6c60 / sound_say 0x4e6d50 (zSound's 2D play, the
+  EXTRA record's delay and subtitle); BrainHooks::radio_line plays the
+  radio's slot. The kill line 0x4ea630 (vt+0xb4, from the kill credit, not
+  "target lost" as the trace first said: corrected) and the death's
+  0x4d8a00 / 0x4ea6b0 / 0x4aed50 (vt+0xa8: lance_lost hook, the tick, ejecting).
+  Mech::die and on_kill call the controls when their hooks are unset.
+- test_sound_extra.py: say 600 cases (break 4 caught); test_ai_hits: the
+  kill and death lines each case; 3 of 3 breaks.

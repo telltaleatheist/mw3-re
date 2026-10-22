@@ -510,6 +510,26 @@ void AiControls::on_hit(void* attacker) {
   else MechControls::on_hit(attacker);
 }
 
+// Mech3.exe 1.2 @ 0x004e94f0
+void AiControls::tick() {
+  if (brain) brain->pilot_tick(*this);
+}
+
+// Mech3.exe 1.2 @ 0x004d8a00: the player's lance told (0x0049e540 with the
+// mech's +0x04), then 0x004ea6b0: the base's (the tick once more) and the
+// radio's ejecting.
+void AiControls::on_death() {
+  ai::BrainHooks& h = ai::brain_hooks();
+  h.lance_lost(vehicle());
+  MechControls::on_death();  // 0x004aed50
+  if (brain) brain->died();
+}
+
+// Mech3.exe 1.2 @ 0x004ea630
+void AiControls::on_kill(void* victim) {
+  if (brain) brain->killed(vehicle(), ai::brain_hooks().vehicle_handle(victim));
+}
+
 // Mech3.exe 1.2 @ 0x004ea500
 void AiControls::hit_an_ally(void* victim) {
   if (brain) brain->hit_an_ally(ai::brain_hooks().vehicle_handle(victim));

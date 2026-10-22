@@ -740,6 +740,23 @@ void probe_ao_hit(int32_t kind, const uint32_t* w, uint32_t* out) {
   out[0] = bits(r.last), out[1] = bits(r.run_start), out[2] = r.by;
 }
 
+// 0x004ea630 (kind 2: it killed entity w[4]) and 0x004ea6b0's lines (kind
+// 3: the IControls' tick, then ejecting) with the teams and radio of
+// probe_ao_hit's w.
+void probe_ao_lines(int32_t kind, const uint32_t* w) {
+  static ai::Radio radio;
+  g_target.team = w[0], g_target.allies = w[1];
+  for (int k = 1; k <= 4; ++k) g_ent_target[k].team = w[5 + 2 * (k - 1)], g_ent_target[k].allies = w[6 + 2 * (k - 1)];
+  g_brain->radio = w[14] ? &radio : nullptr;
+  if (kind == 2) {
+    g_brain->killed(kOwner, w[4] ? kPlanEnt + 0x400 * w[4] : 0);
+  } else {
+    call("ictl.vt+0xa4", {});  // 0x004aed50
+    g_brain->died();
+  }
+  g_brain->radio = nullptr;
+}
+
 // 0x004ea500 on the brain: the victim (an entity 1..4); out: the firing's
 // obstacle (+0x28) after.
 uint32_t probe_ao_hit_ally(uint32_t victim) {
