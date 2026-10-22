@@ -1060,3 +1060,15 @@ view's ground, the anim lookups 0x50b450 (92).
   mode's sound). 12 breaks caught (look.md, cockpit-sounds.md).
 - Left: the wall pull-in 0x0040b310; multiplayer's stations; the rest of
   0x00413e60 (three network-dependent globals).
+
+## The wall pull-in 0x0040b310 (2026-10-21)
+
+- Ported `pull_in` (0x0040b310) and `nearest_hit` (0x004a3290) in
+  player_view; `ViewHooks::pull_in` runs the port (test_view's probe still
+  stands in for it), and the world's query is the new hook
+  `world_segments` (zcls::segment_query in the program).
+- The sides' nearest crossing is measured from the camera (ESI reloaded with
+  pos at 0x0040b488), the behind one's from the look point. Water crossings
+  (soil 1) are dropped only until the first other one is found (kept).
+- test_pull_in.py (new): 3000 identical; 6 of 7 breaks caught (the tie
+  rule is not observable). test_view, mw3tests 125/0.
