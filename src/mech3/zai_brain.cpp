@@ -7,6 +7,7 @@
 #include "crt/msvc_rand.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/zsound/zsnd.h"
+#include "mech3/zai_node.h"
 #include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
@@ -88,6 +89,11 @@ void BrainHooks::forward(zgame::Handle e, float* x, float* z) {
 }
 void BrainHooks::radio_line(Brain& b, int32_t event) { unported("0x004e6d50", {low(&b), event}); }
 float BrainHooks::heat(zgame::Handle v) { return fbits(unported("vehicle.vt+0x9c", {v})); }
+Behaviour* BrainHooks::path_next(Brain& b, Behaviour* at) { return b.path.next(at); }
+float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported("vehicle.vt+0x118", {v, bits(share)})); }
+float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
+  return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
+}
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
 bool BrainHooks::region_inside(Region* r, const float* p) { return r->inside(p); }
 void BrainHooks::firing_reset(Brain& b) { unported("0x004e9590", {low(&b)}); }
@@ -212,6 +218,45 @@ class HoldState : public BehaviourState {
   Behaviour* behaviour() const override { return hold_behaviour(); }  // 0x004c88e0
 };
 
+// A speed step's state (0x004c9ed0 -> 0x004c9ef0, vtable 0x005cb540): the
+// pilot's speed share (brain +0xec) set to the step's, then the next step.
+class SpeedState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override;                                  // 0x004c9f40
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
+// Mech3.exe 1.2 @ 0x004c9f40: the order run again (+0x104) on what follows.
+void SpeedState::run(float dt) {
+  (void)dt;
+  const auto* st = static_cast<const ValueStep*>(from);
+  Brain& b = *order->owner;
+  b.xec = fbits(st->value);
+  b.x104 = 1;
+  order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
+}
+
+// A valve step's state (0x004ca1f0 -> 0x004ca290, vtable 0x005cb7c8; shunt
+// and valve union states run the same 0x004ca2e0): the way finder's next
+// step, else the one that follows.
+class PassState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override;                                  // 0x004ca2e0
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
+// Mech3.exe 1.2 @ 0x004ca2e0
+void PassState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  Behaviour* next = brain_hooks().path_next(b, from);  // +0x238, 0x004c7cb0
+  if (!next) next = static_cast<const Step*>(from)->next;
+  b.x104 = 1;
+  order->set_behaviour(next);  // 0x004e8120: this state destroyed
+}
+
 // 0x004cbe10 (vtable 0x005cbe18), made at start-up into 0x0060b460.
 struct SharedBehaviour : Behaviour {
   SharedBehaviour() : Behaviour(StepKind::Shared) {}
@@ -221,14 +266,19 @@ struct SharedBehaviour : Behaviour {
 
 // Mech3.exe 1.2 @ 0x004c8620 (the base, the step base), 0x004c8770 (the
 // default behaviour), 0x004c86e0 (the null step), 0x004c8920 / 0x004c88a0
-// (0x00604058 / 0x00604028). The other behaviours' own states come with
-// their ports (docs/ai.md 17.9); until then they get the base's.
+// (0x00604058 / 0x00604028), 0x004c9150 (a node), 0x004c9ed0 (a speed step),
+// 0x004ca1f0 (a valve step). The other behaviours' own
+// states come with their ports (docs/ai.md 17.9); until then they get the
+// base's.
 BehaviourState* Behaviour::make_state(Order& o) {
   switch (kind) {
     case StepKind::Behaviour: return new DefaultState(&o, this);
     case StepKind::Null: return new NullStepState(&o, this);
     case StepKind::Stand: return new StandState(&o, this);
     case StepKind::Hold: return new HoldState(&o, this);
+    case StepKind::Node: return new NodeState(&o, this);  // 0x004c9150
+    case StepKind::Speed: return new SpeedState(&o, this);  // 0x004c9ed0
+    case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
     default: return new BehaviourState(&o, this);
   }
 }
@@ -491,8 +541,7 @@ AiNet* brain_net_for(const AiParams& rec) {
 }
 
 // Mech3.exe 1.2 @ 0x004cf630 (from the controls' destructors). The objects
-// at +0x23c and +0x238 (deleted through their slot 0 with 1) are never set
-// here.
+// at +0x23c and +0x238 (the way finder) go through their slot 0 with 1.
 Brain::~Brain() {
   BrainHooks& h = brain_hooks();
   if (radio) {  // 0x004e7df0 (0x004e7d80 clears it)

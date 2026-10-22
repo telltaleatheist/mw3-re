@@ -49,6 +49,7 @@
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech_objective.h"
+#include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
 #include "mech3/cockpit_sound.h"
@@ -2121,8 +2122,8 @@ TEST(mission_c1m1_player_commands_headless) {
 
 // c1 mission 1's Owens through the entity manager's frame (0x004a1140,
 // 0x005a8850; docs/ai.md, The AI mechs' frames): woken by bramp it powers up
-// and stands on its feet; the player walking into it is blocked by it as a
-// mech (the head-on probe's mech response), not as a wall.
+// and stands on its feet; held still, the player walking into it is blocked
+// by it as a mech (the head-on probe's mech response), not as a wall.
 TEST(mission_c1m1_owens_runs_its_frames_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -2201,6 +2202,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.brain = made == 1 ? static_cast<mech3::AiControls*>(ai[0].controls)->brain.get() : nullptr;
         seen.counts0 = engine.unported_counts();
       } else if (seen.frames > 3 && seen.frames < 200) {
+        // The Owens held still from frame 150 (it walks its net, ai.md
+        // 17.4a): its speed share (brain +0xec, which bounds the node
+        // state's throttle) 0, stopped by frame 200.
+        if (seen.frames == 150 && seen.brain) seen.brain->xec = 0.0f;
         // Its brain's frame each tick (ai.md 17.1), its orders never empty.
         if (seen.brain && seen.brain->orders.empty()) seen.orders_ok = false;
         // Its frames run, standing on the ground.
@@ -2262,6 +2267,140 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.node_order);
     mech3::missions().cleanup(false);
     EXPECT(!mech3::ai::ai_switch());                         // the cleanup turns it off
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's Owens walking its net (docs/ai.md 17.4a): woken by bramp,
+// its shared order puts it on the node of net 4 nearest it, where it
+// stands, so it is there at once and goes on by the node's one link: a
+// speed step (its share 0.7), a valve step, then the next node 245 m off.
+// That node's state (0x004ced40) turns and throttles the Owens' own controls
+// along the steering segment; it walks there and, within its stopping
+// distance, goes on by one of that node's links (a scan step, item 9, where
+// it stops for now). MW3_WALK_LOG=1 prints the walk.
+TEST(mission_c1m1_owens_walks_to_its_node_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_ai_walk_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  const bool log = std::getenv("MW3_WALK_LOG") != nullptr;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    // Each node it is sent to: how far it was at first, the nearest it came,
+    // the best it faced it (forward against the way there), whether the
+    // order went on from it.
+    struct Leg {
+      const mech3::ai::Behaviour* node = nullptr;
+      float start = -1, nearest = 1e9f, face = -2, slow = 0;
+      bool went_on = false;
+    };
+    struct Seen {
+      int frames = 0;
+      std::vector<Leg> legs;
+      float max_throttle = 0, max_turn = 0, moved = 0, start_pos[3] = {};
+      bool feet = true, started = false;
+    } seen;
+    void* owens = nullptr;
+    mech3::AiControls* ctl = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        ctl = made == 1 ? static_cast<mech3::AiControls*>(ai[0].controls) : nullptr;
+        brain = ctl ? ctl->brain.get() : nullptr;
+        if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
+        return;
+      }
+      if (seen.frames < 4 || !brain || brain->orders.empty()) return;
+      mech3::LaunchedMech o;
+      mech3::describe_mech(owens, &o);
+      if (!seen.started) {
+        seen.started = true;
+        for (int i = 0; i < 3; ++i) seen.start_pos[i] = o.pos[i];
+      }
+      if (!o.feet_down) seen.feet = false;
+      const mech3::ai::BehaviourState* st = brain->current().state.get();
+      auto* ns = dynamic_cast<const mech3::ai::NodeState*>(st);
+      if (!seen.legs.empty() && (!ns || ns->from != seen.legs.back().node)) seen.legs.back().went_on = true;
+      if (ns && (seen.legs.empty() || seen.legs.back().node != ns->from)) seen.legs.push_back(Leg{ns->from});
+      if (ns) {
+        Leg& g = seen.legs.back();
+        const float* q = ns->from->position();
+        float f[3];
+        mech3::mech_forward(owens, f);
+        const float dx = q[0] - o.pos[0], dz = q[2] - o.pos[2];
+        const float d = std::sqrt(dx * dx + dz * dz);
+        if (g.start < 0) g.start = d;
+        g.nearest = std::min(g.nearest, d);
+        g.slow = ns->slow;
+        if (d > 1.0f) g.face = std::max(g.face, (f[0] * dx + f[2] * dz) / d);
+      }
+      seen.max_throttle = std::max(seen.max_throttle, ctl->throttle);
+      seen.max_turn = std::max(seen.max_turn, std::fabs(ctl->turn));
+      const float mx = o.pos[0] - seen.start_pos[0], mz = o.pos[2] - seen.start_pos[2];
+      seen.moved = std::max(seen.moved, std::sqrt(mx * mx + mz * mz));
+      if (log && seen.frames % 50 == 0)
+        std::fprintf(stderr, "walk %4d pos %8.2f %8.2f thr %6.3f/%6.3f turn %6.3f/%6.3f state %#x legs %zu\n", seen.frames,
+                     o.pos[0], o.pos[2], ctl->throttle, ctl->throttle_target, ctl->turn, ctl->turn_target,
+                     st && st->from ? static_cast<unsigned>(st->from->kind) : 0u, seen.legs.size());
+    };
+    CountingPump pump;
+    pump.limit = 1500;
+    app.run(pump);
+    if (log)
+      for (const Leg& g : seen.legs)
+        std::fprintf(stderr, "leg: %.2f m off, nearest %.2f (stopping %.2f), faced %.3f, on %d\n", g.start, g.nearest,
+                     g.slow, g.face, g.went_on);
+    EXPECT(seen.frames > 1000);
+    EXPECT(seen.feet);
+    // The node it stands on, then the one 245 m off.
+    EXPECT(seen.legs.size() >= 2);
+    if (seen.legs.size() >= 2) {
+      EXPECT(seen.legs[0].start < 1.0f && seen.legs[0].went_on);  // there already: on at once
+      const Leg& g = seen.legs[1];
+      EXPECT(g.start > 200.0f);                    // the next node, far off
+      EXPECT(g.face > 0.99f);                      // turned to face it
+      // Walked there: on by its link once within its stopping distance (its
+      // along and side from the carrot at the node, 0x004cf140).
+      EXPECT(g.went_on && g.nearest <= g.slow && g.slow > 1.0f && g.slow < 30.0f);
+    }
+    EXPECT(seen.moved > 200.0f);
+    EXPECT(seen.max_turn > 0.05f);                                     // its own controls turned
+    EXPECT(seen.max_throttle > 0.65f && seen.max_throttle <= 0.7f);    // and throttled to the speed step's 0.7
+    mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

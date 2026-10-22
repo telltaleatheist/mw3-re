@@ -370,6 +370,21 @@ struct WiredBrainHooks : ai::BrainHooks {
   void count_awake() override { e->poke32(0x6099c0, e->peek32(0x6099c0) + 1); }
   float intensity() override { return options().intensity[0]; }
   bool ammo_value(Handle v, float* out) override { return mech_ammo_value(mech(v), out); }
+  // The walking states (docs/ai.md 17.4a). A contact's entity is a mech too.
+  float speed_at(Handle v, float share) override { return mech_speed_at(mech(v), share); }
+  float stopping_distance(Handle v, float speed) override { return mech_stopping_distance(mech(v), speed); }
+  void forward(Handle v, float* x, float* z) override {
+    float f[3] = {0, 0, 0};
+    if (void* m = mech(v)) mech_forward(m, f);
+    *x = f[0], *z = f[2];
+  }
+  void pilot_of(Handle v, ai::Pilot* p) override {
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; i < n; ++i)
+      if (m[i].mech == mech(v)) p->name = m[i].name;
+    p->jump_jets = mech(v) ? mech_jump_jets(mech(v)) : 0;
+  }
   Handle player_vehicle() override {
     const Handle p = e->pilot();
     return p ? e->field32(p, 0x14) : 0;
@@ -1139,6 +1154,9 @@ struct WiredMissionHooks : MissionHooks {
   // The cleanup (0x00491780): the valves end, the voice set of the mission
   // goes; the clean-ups of modules not ported are logged.
   void cleanup(int32_t unload) override { missions().cleanup(unload != 0); }
+  // "Deleting AI Nets" (0x0058b290 on [0x00603fd8]): the mission's nets,
+  // regions and waynets go before the valves their steps point at.
+  void znet_free() override { znet::clear(); }
   void valves_end() override { ai::valves_end(); }
   void targets_end() override { ai::targets_end(); }
   void fn_4d8270() override { ai::targets_delete_all(); }  // the targets and traps deleted (0x004d8360)

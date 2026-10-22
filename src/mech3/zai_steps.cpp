@@ -36,6 +36,13 @@ void Step::attach(CompiledNet* net) {
   unresolved = true;
 }
 
+// Mech3.exe 1.2 @ 0x004104d0, its +0x20 0x004104c0 the zero vector 0x0063d870.
+const float* Behaviour::way_point() const {
+  static const float kZero[3] = {0, 0, 0};
+  const float* p = position();
+  return p ? p : kZero;
+}
+
 // Mech3.exe 1.2 @ 0x004cb2c0 for jumps (the other value steps keep 0x004cd490).
 bool ValueStep::passable(const Pilot* p, const Behaviour*) const {
   if (kind != StepKind::Jump) return true;

@@ -194,7 +194,7 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   order_image(o, at + 0x194, b.order, 0x005cd8e8, self + 0x194);
   o.b8(at + 0x22c, b.x22c);
   o.f(at + 0x230, b.x230);
-  o.p(at + 0x234, b.x234), o.p(at + 0x238, b.x238), o.p(at + 0x23c, b.x23c);
+  o.p(at + 0x234, b.x234), o.p(at + 0x238, b.path.finder), o.p(at + 0x23c, b.x23c);
   o.u(at + 0x240, 0x005cc290);
   o.skip(at + 0x244, 1);  // bit 0 cleared, the rest the heap's
   o.u(at + 0x248, static_cast<uint32_t>(b.step.x08));

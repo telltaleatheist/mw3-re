@@ -6,9 +6,12 @@
 #include <cstring>
 #include <list>
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "mech3/mech.h"
 #include "mech3/zai_brain.h"
+#include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
@@ -142,6 +145,17 @@ std::vector<int32_t> g_contact_entity;
 bool g_pilot = false;
 zgame::Handle g_player_vehicle = 0;
 
+// The node state's test (test_ai_node.py): the owner's flat forward, its
+// speeds (a Mech's +0x518 and +0x534 through the ported vt+0x118 / +0x120),
+// its gate name and jump jets, the net's elements.
+float g_owner_fwd[3] = {};
+mech3::Mech g_mech;
+bool g_owner_gate = false;
+int32_t g_jump_jets = 0;
+
+int32_t elem_id(const ai::Behaviour* b);
+ai::Behaviour* elem_at(uint32_t id);
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
@@ -194,8 +208,23 @@ struct Hooks : ai::BrainHooks {
     return 0;
   }
   void forward(zgame::Handle e, float* x, float* z) override {
+    if (e == kOwner) *x = g_owner_fwd[0], *z = g_owner_fwd[2];
     for (const Entity& en : g_entity)
       if (en.handle && en.handle == e) *x = en.fwd[0], *z = en.fwd[1];
+  }
+  float speed_at(zgame::Handle, float share) override { return g_mech.speed_at(share); }
+  float stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
+  ai::Behaviour* path_next(ai::Brain&, ai::Behaviour* at) override {
+    return elem_at(call("0x004c7cb0", {static_cast<uint32_t>(elem_id(at))}));
+  }
+  bool inout_clamp(zgame::Handle v, float p[3]) override {
+    if (!(call("0x004c3000", {v}) & 0xff)) return false;
+    p[0] *= 0.5f, p[2] *= 0.5f;  // the test's boundary: halfway to the origin
+    return true;
+  }
+  void pilot_of(zgame::Handle, ai::Pilot* p) override {
+    p->name = g_owner_gate ? "g1" : "g2";
+    p->jump_jets = g_jump_jets;
   }
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
   void firing_reset(ai::Brain&) override { call("0x004e9590", {}); }
@@ -218,9 +247,34 @@ struct FakeControls : ai::BrainControls {
   void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
   bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
   void fire(bool on) override { call("ictl.vt+0x10", {on ? 1u : 0u}); }
+  void set_throttle(float v) override { call("ictl.vt+0x20", {bits(v)}); }
+  void set_turn(float v) override { call("ictl.vt+0x28", {bits(v)}); }
+  float turn_goal() override { return fl(call("ictl.vt+0x30", {})); }
 };
 FakeControls g_controls;
 Hooks g_hooks;
+
+// The non-node steps as the node test builds them: the real steps (their
+// weights and passable tests), their states fakes the trace numbers.
+template <class S>
+struct TestStep : S {
+  template <class... A>
+  explicit TestStep(int32_t i, A&&... a) : S(std::forward<A>(a)...), id(i) {}
+  ai::BehaviourState* make_state(ai::Order& o) override { return new FakeState(&o, this, id); }
+  int32_t id;
+};
+std::vector<std::unique_ptr<ai::Behaviour>> g_elems;
+std::vector<int32_t> g_elem_id;
+std::vector<std::unique_ptr<ai::Valve>> g_node_valves;
+ai::Behaviour* elem_at(uint32_t id) {
+  return id >= 1 && id <= g_elems.size() ? g_elems[id - 1].get() : nullptr;
+}
+int32_t elem_id(const ai::Behaviour* b) {
+  if (b == ai::null_step()) return -2;
+  for (size_t i = 0; i < g_elems.size(); ++i)
+    if (g_elems[i].get() == b) return static_cast<int32_t>(i) + 1;
+  return b ? -1 : 0;
+}
 
 ai::Order* order_at(int32_t i) {
   if (i < 0 || i >= static_cast<int32_t>(g_brain->orders.size())) return nullptr;
@@ -536,6 +590,130 @@ int32_t probe_ao_state_snapshot(uint32_t* out, int32_t cap) {
   t[0] = b.x104;
   std::memcpy(t + 1, b.x298, 12);
   return n;
+}
+
+// The node state's test (test_ai_node.py). The net: n rows of 8 words,
+// element i+1 each: kind (0 node, 1 speed, 2 valve, 3 jump, 4 gate), a, b,
+// c, then four links. A node's a..c its position and its links (-1 none, -2
+// the null step, else an element's index); a step's l0 what follows, a the
+// speed or jump's value, a valve's a its valve (0, 1) and b its value.
+void probe_ao_node_net(const uint32_t* rows, int32_t n) {
+  g_elems.clear();
+  g_node_valves.clear();
+  for (int i = 0; i < 2; ++i) {
+    g_node_valves.push_back(std::make_unique<ai::Valve>(i ? "v2" : "v1"));
+  }
+  for (int32_t i = 0; i < n; ++i) {
+    const uint32_t* r = rows + 8 * i;
+    const int32_t id = i + 1;
+    switch (r[0]) {
+      case 0: {
+        const float p[3] = {fl(r[1]), fl(r[2]), fl(r[3])};
+        g_elems.push_back(std::make_unique<ai::NodeStep>(ai::StepKind::Node, p, nullptr, 0));
+        break;
+      }
+      case 1: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::Speed, r[1])); break;
+      case 2:
+        g_elems.push_back(std::make_unique<ai::ValveStep>(g_node_valves[r[1] & 1].get(), static_cast<int32_t>(r[2])));
+        break;
+      case 3: g_elems.push_back(std::make_unique<TestStep<ai::ValueStep>>(id, ai::StepKind::Jump, r[1])); break;
+      default: g_elems.push_back(std::make_unique<TestStep<ai::GateStep>>(id, "g1")); break;
+    }
+  }
+  auto at = [](int32_t k) -> ai::Behaviour* { return k == -2 ? ai::null_step() : g_elems[static_cast<size_t>(k)].get(); };
+  for (int32_t i = 0; i < n; ++i) {
+    const uint32_t* r = rows + 8 * i;
+    ai::Behaviour* e = g_elems[static_cast<size_t>(i)].get();
+    if (r[0] == 0) {
+      auto* nd = static_cast<ai::NodeStep*>(e);
+      for (int k = 0; k < 4; ++k)
+        if (static_cast<int32_t>(r[4 + k]) != -1) nd->links.push_back(at(static_cast<int32_t>(r[4 + k])));
+      nd->attached = true;
+    } else {
+      static_cast<ai::Step*>(e)->next = at(static_cast<int32_t>(r[4]));
+    }
+  }
+}
+
+// The world: w = forward[3], the brain's +0xec, the mech's +0x518 and
+// +0x534, the game time, the gate name matching, the jump jets, the two
+// valves' values, the owner's position[3]; then +0x298[3].
+void probe_ao_node_world(const uint32_t* w) {
+  for (int i = 0; i < 3; ++i) g_owner_fwd[i] = fl(w[i]);
+  g_brain->xec = fl(w[3]);
+  g_mech.max_speed = fl(w[4]), g_mech.throttle_down = fl(w[5]);
+  g_now = fl(w[6]);
+  g_owner_gate = w[7] != 0;
+  g_jump_jets = static_cast<int32_t>(w[8]);
+  g_node_valves[0]->value->value = static_cast<int32_t>(w[9]);
+  g_node_valves[1]->value->value = static_cast<int32_t>(w[10]);
+  for (int i = 0; i < 3; ++i) g_pos[i] = fl(w[11 + i]), g_brain->x298[i] = fl(w[14 + i]);
+}
+
+// op 0: the current order given element `which` (0x004e8120); 1 its state
+// run(dt) (a node state's only); 2 its resume. out: the state (its
+// element's id for a node state, minus a fake's serial, else 0x10000 and
+// its behaviour's id), the node state's +0x0c..+0x24, the steering block,
+// +0x298, +0xec, +0x104 (then cleared).
+void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  ai::Order& o = b.current();
+  if (op == 0) {
+    o.set_behaviour(g_elems[static_cast<size_t>(which)].get());
+  } else if (auto* ns = dynamic_cast<ai::NodeState*>(o.state.get())) {
+    if (op == 1) ns->run(fl(dt));
+    else ns->resume();
+  } else if (op == 1 && o.state && !dynamic_cast<FakeState*>(o.state.get())) {
+    const ai::Behaviour* x = o.state->behaviour();
+    if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve)) o.state->run(fl(dt));
+  }
+  std::memset(out, 0, 4 * 32);
+  ai::Order& cur = b.current();
+  if (auto* ns = dynamic_cast<ai::NodeState*>(cur.state.get())) {
+    out[0] = static_cast<uint32_t>(elem_id(ns->behaviour()));
+    out[1] = static_cast<uint32_t>(ns->phase);
+    const float f[6] = {ns->turn, ns->x14, ns->throttle, ns->slow, ns->inv_slow, ns->retry_at};
+    std::memcpy(out + 2, f, 24);
+  } else if (auto* fs = dynamic_cast<FakeState*>(cur.state.get())) {
+    out[0] = static_cast<uint32_t>(-static_cast<int32_t>(fs->serial));
+  } else if (cur.state) {  // another real state: its behaviour
+    out[0] = 0x10000u | (static_cast<uint32_t>(elem_id(cur.state->behaviour())) & 0xffff);
+  }
+  std::memcpy(out + 8, &b.steer, 0x48);
+  std::memcpy(out + 26, b.x298, 12);
+  std::memcpy(out + 29, &b.xec, 4);
+  out[30] = b.x104;
+  b.x104 = 0;  // as the brain's frame clears it
+}
+
+// The link pick alone (0x004ccf20) at element `which` for heading h[3]:
+// out[0] the step picked (an element's id, -2 the null step, 0 none),
+// out[1] the links, then their running sums.
+void probe_ao_pick(int32_t which, const uint32_t* hd, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  const float heading[3] = {fl(hd[0]), fl(hd[1]), fl(hd[2])};
+  std::vector<float> sums;
+  ai::Behaviour* r = ai::pick_link(b, g_elems[static_cast<size_t>(which)].get(), heading, &sums);
+  out[0] = static_cast<uint32_t>(elem_id(r));
+  out[1] = static_cast<uint32_t>(sums.size());
+  for (size_t i = 0; i < sums.size() && i < 8; ++i) out[2 + i] = bits(sums[i]);
+}
+
+// [0x0060b478] as the port has it.
+void probe_ao_turn_params(uint32_t* out) { std::memcpy(out, &ai::turn_params(), 16); }
+
+// The walking pieces alone: 0 turn_toward, 1 turn_or_back (f: fwd[3],
+// to[3], keep); out the turn, dot, cross, reverse.
+void probe_ao_turn(int32_t op, const uint32_t* f, uint32_t* out) {
+  float a[7];
+  for (int i = 0; i < 7; ++i) a[i] = fl(f[i]);
+  float dot = 0, cross = 0;
+  bool rev = false;
+  const float t = op == 0 ? ai::turn_toward(a, a + 3, &dot, &cross, a[6], ai::turn_params())
+                          : ai::turn_or_back(a, a + 3, &dot, &cross, a[6], &rev, ai::turn_params());
+  out[0] = bits(t), out[1] = bits(dot), out[2] = bits(cross), out[3] = rev;
 }
 
 }  // extern "C"
