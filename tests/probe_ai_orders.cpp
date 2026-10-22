@@ -400,7 +400,6 @@ struct Hooks : ai::BrainHooks {
   float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
   // The attack's test: the vehicle net's unported states as fakes (the
   // emulator's makers stubbed the same), by its behaviour's +0x04 (0).
-  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override { return new FakeState(&o, &b, 0); }
   float move_speed(zgame::Handle v) override { return fl(call("vehicle.vt+0x114", {v})); }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
@@ -1526,6 +1525,11 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       std::memcpy(w + 20, &cs->turn, 4), std::memcpy(w + 21, &cs->share, 4);
       std::memcpy(w + 22, cs->radial, 12);
       std::memcpy(w + 25, &cs->tangent[0], 4), std::memcpy(w + 26, &cs->tangent[2], 4);
+    }
+    if (const auto* vs = dynamic_cast<const ai::VeerState*>(o.state.get())) {
+      w[18] = 8;
+      w[19] = vs->x08;
+      std::memcpy(w + 20, &vs->turn, 4), std::memcpy(w + 21, &vs->share, 4), std::memcpy(w + 22, &vs->way, 4);
     }
     if (const auto* os = dynamic_cast<const ai::OrbitState*>(o.state.get())) {
       w[18] = 7;

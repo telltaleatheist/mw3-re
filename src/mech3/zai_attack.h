@@ -218,6 +218,25 @@ class OrbitState : public BehaviourState {
   float way = 1.0f;          // +0x20
 };
 
+// A vehicle net's mode 4 (slot 6) state (0x004d1630 -> 0x004d1650, 0x24
+// bytes, vtable 0x005cca68): mode 2's layout and steering with neither the
+// boundary nor +0x08.
+class VeerState : public BehaviourState {
+ public:
+  VeerState(Order* o, Behaviour* b);    // 0x004d1650
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void run(float dt) override;          // 0x004d16f0
+  void resume() override { way = way * -1.0f; }  // 0x004d16e0 (0x005cc5a8)
+  Behaviour* behaviour() const override { return made_by; }  // 0x0040a890
+  uint32_t x08 = 0;          // +0x08
+  float turn = 0;            // +0x0c
+  uint32_t x10 = 0;          // +0x10
+  Behaviour* made_by;        // +0x18
+  float share = 1.0f;        // +0x1c  the brain's +0x94, at most its +0xec
+  float way = 1.0f;          // +0x20
+};
+
 // The brain's own order's state (docs/ai.md 17.2): keeping station on the
 // vehicle whose own net it is on. 0x004cc290 (0x30 bytes, vtable 0x005cbf10,
 // over the waiting state 0x004c8a30): +0x20 the throttle's way (-1 when

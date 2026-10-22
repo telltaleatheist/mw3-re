@@ -733,3 +733,11 @@ Newest last. One short entry per item: what, commits, what to remember.
 - test_ai_attack.py: mode 2 real; a fake order pushed and popped over the
   top (the resume); mode 2 drawn more often, the stopping rate from 0.2;
   68 branches, 11 of 11 breaks.
+
+## 2026-10-22 Item 3h: mode 4 (mac4/behaviours)
+
+- VeerState (0x4d1650, run 0x4d16f0, resume 0x4d16e0) in zai_attack:
+  mode 2 without the boundary. BrainHooks::vehicle_step_state removed.
+- test_ai_attack.py: mode 4 real, drawn more often, 300 cases; 72 branches.
+  10 of 12 breaks; missed: the inactive target (dropped earlier by the
+  brain's frame) and the facing threshold raised to 0.6.

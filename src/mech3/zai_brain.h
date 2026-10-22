@@ -257,10 +257,6 @@ class BrainHooks : public zgame::Unported {
   virtual float speed_at(zgame::Handle v, float share);
   virtual float stopping_distance(zgame::Handle v, float speed);
   virtual float stop_share(zgame::Handle v, float d);  // vt+0x12c, the Mech's 0x0041d240
-  // The states a vehicle net's follow, mode and own-order behaviours make
-  // (0x004c89f0, 0x004c9730, 0x004d1300, 0x004d1630: not ported): the base
-  // state. (The own order's is zai_attack's make_station_state.)
-  virtual BehaviourState* vehicle_step_state(Behaviour& b, Order& o);
   // The station keeping's (zai_attack): a vehicle's vt+0xf4 (0 for the
   // mechs, 0x0040bae0) and its speed (vt+0x114; its velocity is velocity()).
   virtual bool vehicle_xf4(zgame::Handle v) { return unported("vehicle.vt+0xf4", {v}) & 0xff; }
