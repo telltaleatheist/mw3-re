@@ -2059,6 +2059,39 @@ vtable the exe's slots, the formation net built by the exe's 0x4c0570):
 3,608 orders (2,244 taken) and 5,546 runs after, the answers, calls,
 stacks and steering identical; 9 of 9 breaks.
 
+**The dispatcher, ported** (2026-10-22, item L4b: `mech3/lance_orders`
+`lance_dispatch`, from the command handler's lance keys when its hook is
+unset). 0x469940 (ECX the controls, EDX the order, reached by 0x469930):
+none without controls; the controls' owner (IControls +0x10, vt+0x50)
+the player. Outside the command mode (the controls' vt+0x08 none):
+0x469400 for orders 0, 1, 7, 8, 9, 12 and 0x469650 for 3, 4, 5, 6, 10,
+11, both on the selected lancemate: the player's saved target or last
+ally (0x4d7240) when its mech (0x4e6ff0: what the contact sees, vt+0x2c,
+then vt+0x50) is a lancemate under orders (+0xbc bit 4), through its
+controls (vt+0x140) and brain (vt+0x54). 0x469400 gives the order on the
+lancemate's contact on the player (+0x98), so order 0 (vt+0x20, its line
+"follow") is "follow me". 0x469650 gives it on a contact made from the
+lancemate on the player's target (+0x6c, 0x4e6fe0): 0x4e6ee0, the
+template 0x5e9d10, the owner, the entity, what it sees (vt+0x24), the
+squared distance ((dx dx + dy dy) + dz dz) and the way; before it,
+0x468ca0 changes [0x605f58]'s team for orders 10 and 11 when that is the
+lancemate ([0x605f58] is the command mode's, L4c; left out). The
+dispatcher returns the controls. Order 2 (the command mode, 0x4690d0) and
+both dispatchers' command-mode paths (0x468f00 / 0x468fa0, then the
+controls given back) are L4c. Test `test_lance_dispatch.py` (the exe's
+0x469940 on made-up objects, the brain's wrappers stubbed; the port on
+real Mechs, `tests/probe_lance.cpp`): 3,000 cases, 492 orders given,
+identical, 4 branches; 7 of 7 breaks.
+
+**A dead pilot's triggers** (0x4d8a00 -> 0x49e540 -> 0x49e4e0, ported:
+`player_takes_triggers`): when an AI pilot dies, its vlist entries that
+watch a region (+0x14) are appended (0x49e4c0 -> 0x4d9480) to the
+player's own settings (his controls' vt+0x90), if it was on his side
+(+0x18 the same); no player or no controls: reported, nothing. So a
+mission's "a lancemate reaches the area" trigger fires when the player
+gets there instead. Test: `test_lance` lance_dead_pilots_region_
+triggers_go_to_the_player.
+
 The radio's lines play through 0x4e6d50 -> 0x4e6c60: the line's record is
 the sound's zSound user data (0x56f430: the EXTRA's MINDELAY and SUBTITLE,
 sound_extra.cpp) or the default at 0x60b800; it plays (zSound's 2D play

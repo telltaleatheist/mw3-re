@@ -462,3 +462,14 @@ Newest last. One short entry per item: what, commits, what to remember.
   vehicle nets' own follow; its contact_entity answers the three contacts.
 - L4 split: L4b the dispatchers 0x469400 / 0x469650 and the lance list;
   L5 headless; L4c the command mode (order 2) last.
+
+## 2026-10-22 Item L4b: the dispatcher (mac4/lance2)
+
+- mech3/lance_orders: lance_dispatch 0x469940 with 0x469400 / 0x469650's
+  own paths and the made contact 0x4e6ee0 (LanceCalls for the tests);
+  mech_command's lance keys use it when unset. Command mode (order 2 and
+  both paths' 0x468f00 / 0x468fa0) and 0x468ca0's [0x605f58] are L4c.
+- player_takes_triggers (0x49e540 / 0x49e4e0) replaces L2's lance_lost:
+  a dead pilot's region triggers go to the player's settings.
+- test_lance_dispatch.py (probe_lance.cpp): 3,000 cases identical, 7 of 7
+  breaks (one at the full count); test_lance.cpp: the triggers.
