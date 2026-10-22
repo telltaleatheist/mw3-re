@@ -54,3 +54,52 @@ in a group (the 1.0 and 1.2 readmes swap them); Shift-N / Ctrl-N the
 previous / nearest op point; Ctrl-P screenshot removed; keypad Ctrl-0 torso
 mode; L freelook; Ctrl-D enemy damage display; F9 Stop replaces Ctrl-F10 /
 Ctrl-F11; keypad * the chat window; Left/Right Ctrl can't be bound.
+
+## Unported in c1m1 (2026-10-21, census)
+
+`census_c1m1_unported_headless` (mw3tests; `MW3_CENSUS=1`,
+`MW3_CENSUS_SECONDS`, `MW3_CENSUS_OUT`) plays c1m1 through the program in
+the Thor for 180 s of game time (10,921 frames). It walks, turns, targets
+and fires each group, jumps, zooms, looks every way, presses the HUD keys,
+torso mode and the camera, then quits with Ctrl+Q. Every unported address
+the engine logs is counted; `tools/analysis/census.py` gives each its
+original file, its size (pseudocode lines of the entry function) and an AI
+mark. 163 distinct; the 20 s run finds the same 163.
+
+What the counts are:
+- **Every frame (16 keys).** Mostly the Core frame's plumbing, which the
+  program does its own way: the scene and camera draws (0x005674d0,
+  0x00567570, 0x004f7350), the software target (0x00557f90), zTwoD's
+  layer update (0x005a6790 / 0x005a67c0, misnamed as effects and particles
+  in app_hooks.h), the HUD's frame and 3D entries (0x0040fac0, 0x0040e4b0,
+  0x004b51f0, 0x00430aa0 +0x144c vt+0x28 the reticle's tick: mac 3's HUD
+  path covers them). Multiplayer only: DirectPlay's poll 0x00588930, the
+  MFB check 0x0045a270 (game type 3), the chat panel 0x0041ab90. AI: the
+  sensors' entity refresh 0x005a85c0. The one real gap is the view's ground
+  check 0x004edab0 (below).
+- **Once (mission start and quit).** About 130 start-up and shutdown calls.
+  Most are plumbing the program does elsewhere (video, render, input,
+  reader paths, zEntity's init and shutdown, the movie player, ~20 AI).
+
+Ranked by what a player would notice (AI-area ones left out: lancemates
+0x0049e5e0, the valves, targets and nets, the sensors):
+
+| # | What | Addresses (pseudocode lines) | What the player sees |
+|---|---|---|---|
+| 1 | The mission's objectives (mech_objective.cpp) | load 0x0045c2d0 (23), start 0x0045c4a0, check 0x0045e540, free 0x0045c1d0 (26); the region 0x0045c000..0x0045f800 is ~48 functions, ~3,100 lines | No objectives: c1m1 can be neither won nor lost, no "objective complete" lines |
+| 2 | The view's ground and water check | 0x004edab0 (148; ported as `zcls::ground_point`, only unwired in app_view), the water 0x004abd90, the water fog 0x0040b0e0 | Chase cameras sink into the ground; no water fog under water (the water hook answers "none" silently) |
+| 3 | The skins on the mech's model | 0x00475780 (38), 0x004757f0 (29), 0x00475a80 (13) | Mechs keep the model's default textures; no damage decals on their hulls |
+| 4 | The mechs' HUD markers from world.zrd | 0x00459e80 (76) | Map and radar markers from the world's block missing (to confirm with mac 3) |
+| 5 | The HUD's text lines cleared | `hud_text_clear` vt+0x7c ×25, `hud_line_clear` ×25 | Old HUD message lines may stay up (mac 3's area; to confirm) |
+| 6 | The effects' detail level | 0x00508fb0 (11) | Animations that test the level ("IF level") take the wrong branch: some effects missing or extra |
+| 7 | A polygon the mech build adds | 0x004776d0 (19), 8 a mission | Something of each mech's model not made (to trace) |
+| 8 | The mechs' LOD scale | 0x00430440 (20) | Model detail switches at the default distances, whatever the option |
+| 9 | The shadows option | 0x004e6920 (14) | The shadows' on/off option is not applied |
+| 10 | The stealth set-up | 0x004a4de0 (72) | Stealth objects not made (none in c1m1; other missions) |
+
+Below that: the model priority 0x0053bb20 (21; draw order), the marker
+refresh at build 0x005a8500 (14; `Mech::refresh_markers` is ported, only
+the hook is unwired), the launch's pilot calls 0x00478f10 (81) /
+0x004782c0 (16), the HUD's free 0x0043b860 (86) at the end, the maps'
+list 0x004583b0 (72; Shift+R), the app's sound set 0x0040a800 /
+0x0040baf0, the fog's apply [0x0072f3f0].

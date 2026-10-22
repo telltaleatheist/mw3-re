@@ -3867,6 +3867,147 @@ TEST(playtest_hud_images_the_data_lacks) {
 // nothing), again closes it; Z held shows it, let go hides it, one click each
 // way; R the large radar, D the MFD's next mode, F12 the objectives, Alt+R
 // at 1000 m to passive (amber) and back to 500 m (green), H the HUD off.
+// The unported census (docs/playtest.md, "Unported in c1m1"): c1m1 played
+// through the program for MW3_CENSUS_SECONDS of game time (default 180) in the
+// Thor (it has jump jets): walking, turning, targeting and firing each group,
+// jumping, zooming, every look, the HUD keys, torso mode, the camera, then
+// Ctrl+Q at the end. Every unported address the engine logs, with its count,
+// goes to MW3_CENSUS_OUT (tab separated, the most frequent first). Runs only
+// with MW3_CENSUS=1: it takes a while.
+TEST(census_c1m1_unported_headless) {
+  if (!have_game() || !std::getenv("MW3_CENSUS")) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("census_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  const int seconds = std::getenv("MW3_CENSUS_SECONDS") ? std::atoi(std::getenv("MW3_CENSUS_SECONDS")) : 180;
+  const int total = seconds * 60;  // FakeClock: 16 ms a frame, about 60 a second
+  std::map<std::string, uint32_t> counts;
+  int frames = 0, quit_at = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1
+    l.mech = 17;                  // the Thor: jump jets
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    auto press = [&](int32_t cmd, bool down) {
+      const uint32_t k = zin::key1_of(cmd);
+      if (!k) return;
+      const uint32_t mods[3][2] = {{zin::kAlt, 0x38}, {zin::kCtrl, 0x1d}, {zin::kShift, 0x2a}};
+      for (auto& m : mods)
+        if (k & m[0] && down) keys.key(m[1], true);
+      keys.key(k & 0xff, down);
+      for (auto& m : mods)
+        if (k & m[0] && !down) keys.key(m[1], false);
+    };
+    auto tap = [&](int32_t cmd) { press(cmd, true), press(cmd, false); };
+    // One 20 s cycle (1200 frames): at frame f of the cycle, (cmd, held frames; 0 a tap).
+    struct Step { int at; int32_t cmd; int hold; };
+    static const Step kCycle[] = {
+        {0, 0x24, 0},                                   // full throttle
+        {30, 0x02, 90}, {150, 0x03, 90},                // turn left, then right
+        {260, 0x46, 0},                                 // target the next enemy
+        {270, 0x2c, 0}, {275, 0x3d, 40}, {320, 0x2d, 0}, {325, 0x3d, 40}, {370, 0x2e, 0}, {375, 0x3d, 40},
+        {420, 0x2f, 0}, {425, 0x3d, 40}, {470, 0x30, 0}, {475, 0x3d, 40},  // each group fired
+        {520, 0x28, 0}, {530, 0x39, 0},                 // the fire mode, an alpha strike
+        {560, 0x0c, 70},                                // a jump
+        {660, 0x14, 40}, {710, 0x15, 0}, {740, 0x15, 0},  // the zoom, its lock on and off
+        {760, 0x62, 0}, {770, 0x63, 0}, {780, 0x64, 0}, {790, 0x65, 0}, {800, 0x67, 0}, {810, 0x66, 0},  // looks
+        {820, 0x16, 0}, {840, 0x16, 0}, {850, 0x17, 0}, {870, 0x17, 0},  // torso mode, free look
+        {880, 0x68, 0}, {890, 0x68, 0}, {900, 0x74, 0}, {910, 0x75, 0}, {920, 0x69, 0}, {930, 0x69, 0},
+        {940, 0x43, 0}, {960, 0x43, 0}, {970, 0x6b, 0}, {990, 0x6b, 0}, {1000, 0x48, 0}, {1010, 0x49, 0},
+        {1020, 0x07, 0}, {1030, 0x06, 0}, {1040, 0x59, 0}, {1050, 0x3a, 0},  // centring, a part, the AMS
+        {1060, 0x61, 0}, {1100, 0x61, 0}, {1140, 0x61, 0},  // the camera round to the cockpit
+        {1180, 0x1b, 0}};                               // stop
+    std::vector<std::pair<int, int32_t>> releases;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      for (auto it = releases.begin(); it != releases.end();) {
+        if (it->first == frames) press(it->second, false), it = releases.erase(it);
+        else ++it;
+      }
+      if (frames < total) {
+        const int c = frames % 1200;
+        for (const Step& s : kCycle) {
+          if (s.at != c) continue;
+          if (s.hold) press(s.cmd, true), releases.push_back({frames + s.hold, s.cmd});
+          else tap(s.cmd);
+        }
+      } else if (!quit_at) {
+        quit_at = frames;
+        tap(0x71);  // Ctrl+Q: the mission's quit box (0x0048dfe0)
+      } else if (frames == quit_at + 30) {
+        keys.key(0x1c, true), keys.key(0x1c, false);  // Enter on the box
+      }
+    };
+    CountingPump pump;
+    pump.limit = total + 2000;
+    pump.stop = [&] { return quit_at && frames > quit_at + 120; };
+    app.run(pump);
+    counts = engine.unported_counts();
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  std::vector<std::pair<uint32_t, std::string>> rows;
+  for (const auto& [k, n] : counts) rows.push_back({n, k});
+  std::sort(rows.rbegin(), rows.rend());
+  if (const char* out = std::getenv("MW3_CENSUS_OUT")) {
+    if (FILE* f = std::fopen(out, "w")) {
+      std::fprintf(f, "# c1m1, %d frames in the Core state (%d s asked), quit at %d\n", frames, seconds, quit_at);
+      for (const auto& [n, k] : rows) std::fprintf(f, "%u\t%s\n", n, k.c_str());
+      std::fclose(f);
+    }
+  }
+  std::fprintf(stderr, "census: %d frames, %zu distinct unported, quit at %d\n", frames, rows.size(), quit_at);
+  EXPECT(frames >= total);
+}
+
 TEST(playtest_hud_keys_zoom_radar_mfd_headless) {
   if (!have_game()) return;
   SavedMounts keep;
