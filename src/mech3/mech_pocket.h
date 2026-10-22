@@ -42,9 +42,17 @@ struct PocketCalls {
   void (*panel_free)(void* panel) = nullptr;
   void (*panel_frame)(PocketControls& p, float dt) = nullptr;
   bool (*panel_pick)(PocketControls& p, int32_t unit) = nullptr;
-  int32_t (*panel_order)(PocketControls& p, int32_t order, uint32_t target) = nullptr;  // target: an entity, 0 none
+  // The panel's units (its +0x53c list, the first +0x70): each picked or
+  // not (its +0x4b0 bit 1) and its mech (vt+0xb4, then vt+0x2c, vt+0x40).
+  // Unset: none (no panel yet, L4c2).
+  int32_t (*panel_units)(PocketControls& p, struct PocketUnit* out, int32_t cap) = nullptr;
 };
 PocketCalls& pocket_calls();
+
+struct PocketUnit {
+  bool picked = false;
+  Mech* mech = nullptr;
+};
 
 // The mode's globals: [0x00605f64] the mode while it is up, [0x00605f5c]
 // the panel's cursor (an entity), [0x00605f58] the unit last pointed at,
@@ -98,6 +106,13 @@ class PocketControls : public PlayerControls {
  private:
   void copy_inputs(const MechControls& from);  // 0x004690d0's and the way out's (the other way)
 };
+
+// Mech3.exe 1.2 @ 0x00468f00 (no target: on each lancemate's contact on the
+// player) / 0x00468fa0 (on a contact from it on `target`, an entity, with
+// 0x00468ca0 first): the lance order to the panel's units picked that have a
+// brain (lance_orders' give). 1 when one took it, else 0 when one refused,
+// else 2.
+int32_t pocket_order(PocketControls& p, int32_t order, uint32_t target, bool on_target);
 
 // Mech3.exe 1.2 @ 0x00469940's order 2 outside the mode: the mode started
 // over `c` (the player's controls); the controls to use.

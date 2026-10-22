@@ -103,6 +103,7 @@ for t in \
     ai_lance \
     lance_dispatch \
     pocket \
+    pocket_orders \
     ai_steer \
     ai_states \
     ai_node \

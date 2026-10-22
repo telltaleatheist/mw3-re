@@ -1709,6 +1709,13 @@ are all "puffers": emitters that drop little textured squares.
   camera, the number keys 1-4 pick lancemates, and your mech neither
   jumps nor fires; it keeps the throttle and turn it had, and gets them
   back as they were when you close the mode.
+- **In the command mode, "treat as enemy" really makes it an enemy.**
+  Orders given with the command mode open go to every lancemate you
+  picked at once. If you point the panel at a unit and order "enemy only"
+  (or "ally only"), the game does not just tell your lancemates: it moves
+  that unit to the other side outright, for everyone, so a friendly unit
+  ordered as an enemy becomes hostile, and an enemy ordered as an ally
+  stops being one.
 - **A fallen lancemate's mission triggers become yours.** Some mission
   switches are thrown when a particular pilot reaches a place. When an
   allied pilot dies, the game hands every one of its place triggers to

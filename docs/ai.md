@@ -2149,8 +2149,28 @@ in the mode; `MechControls` gained the slots below):
   0x1b..0x1e pick lancemates 1..4 (the panel's 0x469060: a unit's +0x30
   bit 1 toggled, its vt+0x44 / +0x48), 0x1f..0x23 nothing, the rest the
   player's (0x4274d0).
+- **The orders to those picked** (item L4c3, `pocket_order` in
+  `mech3/lance_orders`): any lance order but 2 given in the mode goes to
+  every unit on the panel (its +0x53c list, +0x70 of them) that is picked
+  (the unit's +0x4b0 bit 1) and has a mech (vt+0xb4, vt+0x2c, vt+0x40) and
+  a brain (vt+0x140, vt+0x54), each in turn, none skipped when one takes
+  it. Follow-like orders (0x468f00 over 0x468c00) go on each one's contact
+  on the player (+0x98; none: skipped); target orders (0x468fa0 over
+  0x468e20) on a contact made from each on the player's target, else the
+  panel's cursor [0x605f5c] (0x4e6ee0). The answer: 1 when any took it,
+  else 0 when any refused, else 2 (the record's flags +0xc / +0xd, made by
+  0x468bd0 / 0x468df0). Unused by the dispatcher, which leaves the mode
+  either way.
+- **The team change** (0x468ca0, before each target order): when the
+  target is the unit the panel last pointed at ([0x605f58]) and the order
+  is 10 (0x4ea200, only an enemy) or 11 (0x4ea230, only an ally), the
+  target's team (+0xc0) becomes the lowest bit of the lancemate's enemies
+  (+0xc8) or allies (+0xc4) (none: bit 31, through the 5-bit packing's
+  loop), its allies (+0xc4) that team but bit 0, its enemies (+0xc8) every
+  other bit but 0, and [0x60b56c] is cleared. So the order really moves
+  the target to the other side, for everyone.
 - **Out**: the order 2 again, or any lance order given in the mode (it
-  goes to the lancemates picked, L4c3, then out), or the frame's end
+  goes to the lancemates picked, above, then out), or the frame's end
   (+0x38 set by 0x469d00; the mech's update then calls primary vt+0x04,
   0x469cf0: the dispatcher on +0x160): the instance given back, the old
   controls' owner the mech and their control mode set again (0x426650),
@@ -2171,6 +2191,13 @@ camera and HUD calls stubbed; the port on a real Mech,
 not, a HUD or not, powered down, +0x154, keys) identical, the calls, the
 mode's fields and the inputs back; 8 of 8 breaks. `test_fixes`
 fix_pocket_commander_freed_once, `test_lance` the death.
+
+Test `test_pocket_orders.py` (the exe's 0x468f00 / 0x468fa0 on a made-up
+panel, units, mechs and target, the order wrappers stubbed with answers
+from a list; the port's `pocket_order` through `PocketCalls::panel_units`
+and `LanceCalls`, `tests/probe_pocket.cpp`): 3,000 cases identical, the
+orders, contacts, answers and the target's teams; 7 of 7 breaks. The panel
+that fills the units is L4c2; until then the program has none.
 
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
