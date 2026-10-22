@@ -18,19 +18,28 @@ using namespace mech3;
 namespace {
 
 // Codes for the calls that are hooks in the port (the rest log their address).
-enum : int32_t { kHud = 0x1000, kPlay = 0x1001, kMechSound = 0x1002, kCamera = 0x1003, kOther = 0x1004 };
+enum : int32_t {
+  kHud = 0x1000, kPlay = 0x1001, kMechSound = 0x1002, kCamera = 0x1003, kOther = 0x1004, kTeam = 0x2001,
+  kRefuses = 0x2002
+};
 
 enum In {
   kCmd, kActive, kViewed, kScreen, kPowered, kCrouched, kAms, kXbc, kRange, kEq6, kEq12, kMasc, kTarget, kSaved,
-  kView, kMode, kGroup, kCurrent, kSelect, kJettison, kHudWeapon, kHudWeaponGroup, kLanceBusy, kStations, kInCount
+  kView, kMode, kGroup, kCurrent, kSelect, kJettison, kHudWeapon, kHudWeaponGroup, kLanceBusy, kAllies, kAim,
+  kEntity, kTeamIn, kRefuse, kContacts, kSeen0, kStations = kSeen0 + 4, kInCount
 };
-enum Tok { tWm, tWeapon, tGroup0, tScreen = tGroup0 + 5, tCurrent, tMech, tSound, tControls, tTokCount };
+enum Tok {
+  tWm, tWeapon, tGroup0, tScreen = tGroup0 + 5, tCurrent, tMech, tSound, tControls, tNode, tContact0,
+  tEntity0 = tContact0 + 4, tTokCount = tEntity0 + 3
+};
+constexpr uint32_t kElse = 0x7f00;  // test_command.py's ELSE
 
 std::vector<int32_t> g_log;
 const int32_t* g_in;
 const uint32_t* g_tok;
 WeaponManager* g_wm;
 Weapon* g_weapon;
+ai::Contact g_contacts[4];
 MechControls* g_controls;
 
 void log(int32_t code, uintptr_t a, uintptr_t b) {
@@ -43,6 +52,8 @@ uintptr_t tok(uintptr_t v) {
   if (v == reinterpret_cast<uintptr_t>(g_weapon)) return g_tok[tWeapon];
   for (int k = 0; k < 5; ++k)
     if (v == reinterpret_cast<uintptr_t>(g_wm->groups[k])) return g_tok[tGroup0 + k];
+  for (int k = 0; k < 4; ++k)
+    if (v == reinterpret_cast<uintptr_t>(&g_contacts[k])) return g_tok[tContact0 + k];
   return v;
 }
 
@@ -87,7 +98,12 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   std::memcpy(&m.sensor_range, &in[kRange], 4);
   m.equipment[6] = in[kEq6], m.equipment[12] = in[kEq12];
   std::memcpy(&m.masc_time, &in[kMasc], 4);
-  m.target = ptr<ai::Contact>(static_cast<uint32_t>(in[kTarget]));
+  m.target = in[kTarget] >= 0 ? &g_contacts[in[kTarget]] : nullptr;
+  m.allies = static_cast<uint32_t>(in[kAllies]);
+  for (int k = 0; k < 4; ++k) {
+    g_contacts[k].seen = in[kSeen0 + k] ? t[tEntity0 + in[kSeen0 + k] - 1] : kElse;
+    if (k < in[kContacts]) m.contacts.push_back(&g_contacts[k]);
+  }
   m.saved_target = ptr<ai::Contact>(static_cast<uint32_t>(in[kSaved]));
   m.ammo = &wm;
   ams.on = in[kAms] == 2;
@@ -107,6 +123,22 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   c.set_view_option = [](int32_t v) { option = v; };
   c.hud = [](void* s, int32_t cmd) { log(kHud, reinterpret_cast<uintptr_t>(s), static_cast<uint32_t>(cmd)); };
   c.hud_weapon = [](void*) -> void* { return g_in[kHudWeapon] ? g_weapon : nullptr; };
+  c.hud_aimed_node = [](void* s) -> void* {
+    log(kHud, reinterpret_cast<uintptr_t>(s), g_in[kCmd] == 0x48 ? 0x48u : 0x14u);
+    return g_in[kAim] ? ptr<void>(g_tok[tNode]) : nullptr;
+  };
+  c.node_entity = [](void* node) -> uint32_t {
+    log(0x40eee0, reinterpret_cast<uintptr_t>(node), 0);
+    return node && g_in[kEntity] ? g_tok[tEntity0 + g_in[kEntity] - 1] : 0;
+  };
+  c.entity_team = [](uint32_t e) {
+    log(kTeam, e, 0);
+    return static_cast<uint32_t>(g_in[kTeamIn]);
+  };
+  c.entity_refuses = [](uint32_t e, bool zoom) {
+    log(kRefuses, e, zoom ? 1 : 0);
+    return ((zoom ? g_in[kRefuse] : g_in[kRefuse] >> 1) & 1) != 0;
+  };
   c.lance_order = [](Mech&, int32_t order) -> MechControls* {
     if (g_in[kLanceBusy]) return nullptr;
     log(0x469930, static_cast<uint32_t>(order), 0);
@@ -128,7 +160,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   m.command(in[kCmd]);
 
   out[0] = m.xbc;
-  out[1] = static_cast<int32_t>(reinterpret_cast<uintptr_t>(m.saved_target));
+  out[1] = static_cast<int32_t>(tok(reinterpret_cast<uintptr_t>(m.saved_target)));
   out[2] = ams.on;
   out[3] = wm.mode;
   out[4] = option;
@@ -137,6 +169,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
 
   // Nothing here is the mech's or the manager's to free.
   m.target = m.saved_target = nullptr;
+  m.contacts.clear();
   m.ams = nullptr, m.ammo = nullptr, m.controls = nullptr;
   m.sounds[23] = nullptr;
   command_calls() = saved_calls;

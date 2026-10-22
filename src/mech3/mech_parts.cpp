@@ -789,6 +789,9 @@ void Torso::aim_ahead(bool local) {
 // torso's update; the AI's aim is set ahead at once (or, with the controls'
 // flag 1 on the player, the mouse put back in the middle).
 void Torso::centre(int32_t how) {
+  // The exe re-finds a missing +4 from the node's first parent (0x0040ef30,
+  // 0x0040ef10, 0x00460000); the part's set-up (0x0045fbe0, part_construct)
+  // always sets it, so neither side reaches that.
   Mech* m = mech;
   if (!m || !node || m->is_powered_down()) return;
   centring = how;

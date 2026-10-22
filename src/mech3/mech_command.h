@@ -22,11 +22,20 @@ struct CommandCalls {
   void (*torso_center)(Mech&, int32_t how) = nullptr;  // 0x00465a00 on the torso (1, 2)
   void (*view_camera)(int32_t mode) = nullptr;        // [0x005f4c8c] +0x58 vtable +0x10
   void (*set_view_option)(int32_t v) = nullptr;        // [[0x005f4d44]] (MouseMode) = the controls' view state
-  // The HUD's keys on the view's screen (null for 0x15 off the view): 0x14 and
-  // 0x48 the object under the reticle (0x00444330, 0x0040eee0) to 0x004a7b40,
-  // 0x15 the zoom lock (0x00442e00), 0x43 the objectives, 0x49 the lock
-  // cleared (0x00441780), 0x68, 0x6b, 0x74, 0x75, 0xa5 (docs/controls.md).
+  // The HUD's keys on the view's screen (null for 0x15 off the view): 0x15 the
+  // zoom lock (0x00442e00), 0x43 the objectives, 0x49 the mech's target set
+  // (0x0041d890's HUD part: TARGET on, 0x00441780), 0x68, 0x6b, 0x74, 0x75,
+  // 0xa5 (docs/controls.md).
   void (*hud)(void* screen, int32_t cmd) = nullptr;
+  // Z and Q (0x14, 0x48): the node the reticle's aim hit (0x00444330 on the
+  // HUD's reticle, the record's +0x24), the game object it belongs to
+  // (0x0040eee0, as a handle; 0: none), its team (vt+0x28 +0xc0) and whether
+  // it refuses the pick (vt+0xac for Z, vt+0xb0 for Q: a mech never, a
+  // targets.zrd object without zoom_select / reticule_select).
+  void* (*hud_aimed_node)(void* screen) = nullptr;
+  uint32_t (*node_entity)(void* node) = nullptr;
+  uint32_t (*entity_team)(uint32_t entity) = nullptr;
+  bool (*entity_refuses)(uint32_t entity, bool zoom) = nullptr;
   void* (*hud_weapon)(void* screen) = nullptr;         // +0x1795c: the weapon the HUD highlights
   // 0x00479480 on [0x0060861c] (multiplayer: none) then 0x00469930 on +0x37c:
   // the controls an order makes, null when none.

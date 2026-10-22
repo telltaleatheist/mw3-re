@@ -150,8 +150,8 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x47 Target next ally | W | Mech::command 0x41be80 | yes | - |  |
 | 0x4e Target previous ally | ShiftW | Mech::command 0x41be80 | yes | - |  |
 | 0x4b Target nearest ally | Ctrl-W | Mech::command 0x41be80 | yes | - |  |
-| 0x48 Target object under reticule | Q | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
-| 0x49 Clear Target Selection | T | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
+| 0x48 Target object under reticule | Q | Mech::command 0x41be80 | yes | - | the object under the reticle as the target, allies too (hud.md section 19) |
+| 0x49 Clear Target Selection | T | Mech::command 0x41be80 | yes | - |  |
 | 0x59 Target Head | NUMPAD 8 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x5d Target Left Arm | NUMPAD 7 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x5e Target Right Arm | NUMPAD 9 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
@@ -161,15 +161,15 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x5f Target Left Leg | NUMPAD 1 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x60 Target Right Leg | NUMPAD 3 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | **Cockpit** | | | | | |
-| 0x14 Zoom Reticule | Z | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
-| 0x15 Lock Zoom reticule | NUMPAD 0 | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) | readme: zoom reticle window |
+| 0x14 Zoom Reticule | Z | Mech::command 0x41be80 | yes | - | held: the zoom window; pressed: the object under the reticle as the target, allies skipped |
+| 0x15 Lock Zoom reticule | NUMPAD 0 | Mech::command 0x41be80 | yes | - | readme: zoom reticle window |
 | 0x16 Toggle Torso Mode | Ctrl-NUMPAD 0 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) | readme: torso mode |
 | 0x17 Freelook | L | Mech::command 0x41be80 | yes | - | readme: freelook |
-| 0x74 Toggle Damage display | D | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
-| 0x75 Toggle Enemy Damage Display | Ctrl-D | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) | readme: enemy damage display |
-| 0x68 Toggle Radar size | R | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
-| 0x69 Toggle Radar mode | AltR | Mech::command 0x41be80 | yes | +0xb8 (?); vtable (?) |  |
-| 0xa5 Toggle Radar map | ShiftR | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
+| 0x74 Toggle Damage display | D | Mech::command 0x41be80 | yes | - | the MFD's next view |
+| 0x75 Toggle Enemy Damage Display | Ctrl-D | Mech::command 0x41be80 | yes | - | readme: enemy damage display; TARGET's next view, with a live target |
+| 0x68 Toggle Radar size | R | Mech::command 0x41be80 | yes | - |  |
+| 0x69 Toggle Radar mode | AltR | Mech::command 0x41be80 | yes | - |  |
+| 0xa5 Toggle Radar map | ShiftR | Mech::command 0x41be80 | yes | the mission maps (0x458590): turns itself back off |  |
 | 0x6b Toggle HUD on/off | H | Mech::command 0x41be80 | yes | - |  |
 | 0x3a Toggle AMS on/off | A | Mech::command 0x41be80 | yes | - |  |
 | **Communications** | | | | | |
@@ -188,7 +188,7 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x76 Send message to team | NUMPAD - | Mech::command 0x41be80 | yes | chat 0x41e4e0 (network) |  |
 | 0x77 Send message to all | NUMPAD * | Mech::command 0x41be80 | yes | chat 0x41e4e0 (network) | readme: the chat window |
 | **Mission** | | | | | |
-| 0x43 Mission Objectives | F12 | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
+| 0x43 Mission Objectives | F12 | Mech::command 0x41be80 | yes | the box's text (0x446ad0) |  |
 | 0x71 Exit Mission | Ctrl-Q | the missions, 0x48f440 | bound, not pressed | - |  |
 | 0x70 Message Window | ` | the app, 0x40dba0 | yes | - |  |
 | **(no group)** | | | | | |
@@ -198,9 +198,9 @@ like "next group". The program keeps the exe's bindings and behaviour.
 
 The "still unported" column is what each press reached and could not run:
 
-- HUD commands, mac 3: Z, keypad 0, F12, Q, T, R, Shift+R, D, Ctrl+D
-  (`CommandCalls::hud`, 0x43da40 / 0x43d240 / 0x43d250 / 0x43dc10 and
-  0x444330), and Alt+R's radar light (0x41ded0).
+- The HUD keys work (playtest #13, #20; hud.md section 19). Left: F12's
+  box shows without its text (0x446ad0), Shift+R finds no mission map (the
+  maps' list 0x458590 is not ported).
 - Done (#14..#17, mac 2): the look keys and torso mode, centring, keypad
   part targeting (needs a targeting computer, as in the exe), the op points
   (multiplayer's stations only: nothing in the campaign, as in the exe) and

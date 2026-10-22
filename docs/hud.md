@@ -330,8 +330,7 @@ the set-up reads: item 1a's test).
   target's) and update the ported display; mw3tests'
   `mission_c1m1_hud_weapon_lines_and_lock_headless` checks it is laid out.
 - The paths with a target or a mech: TARGET's 0x00441800 / 0x00441780 /
-  0x00441660 with a target, the radar's zoom sound (0x0043da50 with a
-  source, 0x0043da00), the weapon line's refresh 0x00445dc0 with a weapon,
+  0x00441660 with a target, the weapon line's refresh 0x00445dc0 with a weapon,
   the equipment's and weapons' readers 0x00448200 / 0x00446120 with a HUD.
 - (Done) The zoom window's show_for 0x004438d0: the zoom view's (0x0043fc10),
   then its text hidden; test_hud.py op 33 shows it.
@@ -342,6 +341,8 @@ the set-up reads: item 1a's test).
 - The weapon group calls of the lock (section 12): 0x004b1bd0, 0x004b1c70,
   0x004b1cd0 stay recorded hooks: mac 4, the planner (they sit in the AI
   weapon planner's range 0x004b1170..0x004b1d7f).
+- The mission maps' list (0x00458590 on [0x00605acc]) for Shift+R's map
+  mode (section 19).
 - The radar in the program (section 15): the mission map (its map mode),
   the nav route's polylines (+0xbd4.. lists), the network marker
   (0x0058b060) and the landmines (0x00413560's list) are not ported and
@@ -568,8 +569,19 @@ weapons and the camera's look from outside (hud.md section 1).
   count its ammo (vt+0x14, "%3d"), the look red when it has ammo and is
   enabled (+0x74) and not destroyed, grey when destroyed (damage 1).
 
+- **The bar** (a Slider): the second text (the name in wepstring_green,
+  or the look's font) is the fill, drawn up to the value; the name (red,
+  yellow or grey) the rest, from the cut. Both are the texts' own images,
+  so the line's destructor (0x00445970) sets them to none before the
+  Slider's (0x0059e170) would release them.
+- **Every frame**: the list's update (0x00446680) runs the looks (and so
+  the refresh) only once +0x11438 is set, by a shot (0x004464c0, the
+  weapons' fire paths) and kept while any line recycles. In the program
+  that is `WeaponCalls::hud_fire`; wired in 258364d. Before it the bars
+  never moved: playtest #8.
+
 Ported (`HudWeapons::refresh_all/layout/looks`, `HudWeaponLine::set_weapon/
-refresh_line`); the manager and weapons read through HudHooks (weapon.h's
+refresh_line`, `~HudWeaponLine`); the manager and weapons read through HudHooks (weapon.h's
 WeaponManager and Weapon, read-only). The HUD's handles are pointers
 (`void*`): the program passes its own WeaponManager*, Weapon* and Mech*; the
 probe's are the emulator's 32-bit addresses, mapped back by `id()`. In c1m1
@@ -965,3 +977,80 @@ mw3tests' c1m1 HUD test adds a message held a second at frame 12: the panel
 is up at frame 14 and down and hidden at 76 (headless text has no height,
 so its travel is short); fix_message_panel_slides_above_60fps checks the
 step at 120 fps.
+
+## 19. The HUD keys (playtest #7, #13, #20)
+
+The mech's command handler (0x0041be80, `Mech::command`) runs the player's
+HUD keys on the view's HUD (0x00430aa0, null off the view). In the port its
+HUD cases go through `CommandCalls::hud`, which the program answers in
+`app_hud.cpp` (`hud_command`):
+
+| Key | Command | The HUD's side |
+|---|---|---|
+| Z | 0x14 | none: the pick below (the zoom itself is the held key, below) |
+| keypad 0 | 0x15 | 0x00442e00 on the zoom window (HUD +0x1508): its lock (+0x174) flipped, then shown (vt+0x60, -1) or hidden (vt+0x64); the click 0x17 at the mech's +0x614; then Z's pick |
+| Q | 0x48 | the pick, without the side check |
+| T | 0x49 | the target cleared through the mech's vt+0xc0 (0x0041d890): TARGET's 0x00441780(1) |
+| F12 | 0x43 | the objectives (+0x17964): shown for good when hidden, else hidden |
+| R | 0x68 | 0x0043da40 on the radar: 0x0043da50 with the other size |
+| H | 0x6b | the HUD's vt+4 (0x0043baf0) with its +4 flipped |
+| D | 0x74 | 0x0043d240: 0x00442440 on the MFD (+0x3434) |
+| Ctrl+D | 0x75 | 0x0043d250: 0x00442440 on TARGET (+0x410c) |
+| Shift+R | 0xa5 | 0x0043dc10 on the radar |
+| Alt+R | 0x69 | the mech's range step, then vt+0xb8 (0x0041ded0): the radar amber (0x0043d630) while passive (+0xbc bit 2) |
+
+- **The pick** (Z, keypad 0, Q; 0x0041c1ab..0x0041c285): the node the
+  reticle's aim hit (0x00444330: the record at +0x928, its +0x24), its game
+  object (0x0040eee0); for Z one of the mech's allies (its vt+0x28 +0xc0
+  against the mech's +0xc4) is skipped; then the object's vt+0xac (Z) or
+  vt+0xb0 (Q) may refuse: a mech never (0x004d7290), a targets.zrd object
+  without zoom_select (bit 3 of its description's +0x14, 0x004d3360) or
+  reticule_select (bit 2, 0x004d3370). Then 0x004a7b40: already the target,
+  nothing; else the contact whose seen object (+4) it is becomes the target
+  (vt+0xc0), and with none among the contacts the target is cleared.
+- **The target set** (0x0041d890, the mech's vt+0xc0): AiTarget's
+  0x004d5e40, then on the view's mech TARGET's 0x00441780(1) and the
+  target sound (0x00432990 with 0x18) on the new target's mech, kept at its
+  +0x618 (`program_hud_target_set`).
+- **The held zoom key** (the controls' update 0x00427d60): with the window
+  not locked, the click whenever the window's hidden bit (+0x1514 bit 4)
+  says the opposite of the key, then vt+0x60(-1) held or vt+0x64 let go,
+  every frame. The program wires `ControlsCalls::screen_busy` (+0x167c, the
+  lock), `zoom` and `PartCalls::screen_flags` (+0x1514) to the zoom window.
+  Before, with none of them wired, the flags read 0 (shown) with the key up,
+  so the click played every frame and the window never opened: playtest
+  #20. `screen_flags` also gives the torso's slow turn while zoomed
+  (30% of the rate, `mech_part_update.cpp`).
+- **0x00442440** (the MFD's and TARGET's next mode): at pixel doubling
+  (0x0040d4b0) the mode set straight to 3; else only when the mode is the
+  one shown (vt+0x80), 0 or 3 to 1, 1 to 2, 2 to 3 through vt+0x7c (the
+  MFD's 0x00442420 keeps it at [0x00605988], TARGET's 0x004400f0 at
+  [0x0060598c]). TARGET shows none without a live target (0x004413a0), so
+  Ctrl+D does nothing then; for a target that is not a mech it shows 1
+  for any mode but 0, so one press from 1 leaves the mode at 2 and further
+  presses do nothing.
+- **0x0043dc10** (the radar over the mission map): +0x5c flipped; turned
+  on, 0x0043da00 looks for the map (0x00458590 on the map list
+  [0x00605acc]: the first with +0x3c set whose name +0xc0 holds "large"
+  when the radar is large, else "small", then any with +0x3c set; kept at
+  [0x0060998c]) and turns it back off when none; off, the radius and place
+  are set straight to the ones it was stepping toward. +0x5d set.
+  0x0043da00 also runs after every size change (0x0043da50).
+
+Ported in `hud.cpp` (`HudZoomWindow::toggle_lock`, `HudRadar::toggle_zoom`
+/ `toggle_map` / `select_map`, `HudMfd::set_mode` / `cycle_mode`) and
+`mech_command.cpp` (the pick, the target set). The mission maps' list
+(0x00458590) is not ported: the program answers none (recorded), so
+Shift+R turns itself back off. F12's box shows without its text: its
+fill 0x00446ad0 (the objectives' lines) is still Left.
+
+Tests: `test_hud.py` ops 34..38 (keypad 0's lock, R, D, Ctrl+D, Shift+R
+on the HUD in the emulator, with pixel doubling, the maps' answers and
+the saved modes in the dump; 100 seeds match); `test_command.py` runs the
+pick for real in the emulator (0x004a7b40 on contacts whose seen objects
+are the aimed one or not, the side check, the refusals) against the port
+(6096 commands match); mw3tests' `playtest_hud_keys_zoom_radar_mfd_headless`
+presses the keys in c1m1 (one click per keypad 0 press and per Z change,
+none between; R's radar_up once; D, F12, H; Alt+R amber in passive and
+green after). Breaking it: 27 of 28 caught; the miss (the MFD's mode kept
+even when 0) cannot show, the keys never set mode 0.

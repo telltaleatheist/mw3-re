@@ -66,7 +66,6 @@ int MechControls::update(float dt) {
   return 1;
 }
 
-// Mech3.exe 1.2 @ 0x00426b60
 // Mech3.exe 1.2 @ 0x00426780. Leaving 0 or 1 puts the mouse back in the
 // middle (and 1 the cockpit camera's look rate back to 6); 1 makes it 8 and,
 // outside the cockpit, becomes 2; 2 and 3 with the controls' flag 4 become 0.
@@ -118,6 +117,7 @@ void MechControls::set_view(int32_t v) {
   m->torso->hold_view(view == 1);
 }
 
+// Mech3.exe 1.2 @ 0x00426b60
 void MechControls::set_throttle(float v) {
   if (v > 0.0f) reverse = false;
   else if (v < 0.0f) reverse = true;

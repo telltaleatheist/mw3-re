@@ -136,6 +136,32 @@ void Mech::command(int32_t cmd) {
       return uintptr_t{0};
     });
   };
+  auto target_set = [&](ai::Contact* c) {  // vtable +0xc0 (0x0041d890): AiTarget's, then the HUD's
+    own(0x41d890, p(c), 0, [&] {
+      set_target(c, false);
+      if (screen) hud(screen, 0x49);
+      return uintptr_t{0};
+    });
+  };
+  // Z and Q: the object under the reticle becomes the target when it is among
+  // the contacts, else the target is cleared (0x004a7b40); Z skips allies.
+  auto pick_aimed = [&](bool zoom) {
+    void* node = nullptr;
+    if (g_calls.hud_aimed_node) node = g_calls.hud_aimed_node(screen);
+    else record("0x00444330", cmd);
+    const uint32_t e = g_calls.node_entity ? g_calls.node_entity(node) : 0;
+    if (!e) return;
+    if (zoom && ((g_calls.entity_team ? g_calls.entity_team(e) : 0) & allies)) return;
+    if (g_calls.entity_refuses && g_calls.entity_refuses(e, zoom)) return;
+    if (target && target->seen == e) return;  // 0x004a7b40
+    ai::Contact* found = nullptr;
+    for (ai::Contact* c : contacts)
+      if (c->seen == e) {
+        found = c;
+        break;
+      }
+    target_set(found);  // 0x004a7ba0
+  };
   if (active) {
     switch (cmd) {
       case 6:  // CENTER_TORSO, CENTER_LEGS
@@ -151,7 +177,7 @@ void Mech::command(int32_t cmd) {
         sounds[23] = hc.play_sound ? hc.play_sound(*this, kSoundZoom) : nullptr;
         [[fallthrough]];
       case 0x14:  // RETICULE_ZOOM
-        if (screen) hud(screen, 0x14);
+        if (screen) pick_aimed(true);
         break;
       case 0x25:
         own(0x4b0790, p(wm), 0, [&] { return wm->next_weapon(), uintptr_t{0}; });
@@ -227,7 +253,7 @@ void Mech::command(int32_t cmd) {
       case 0x4d: own(0x4d6260, 0, 0, [&] { return prev_enemy(0), uintptr_t{0}; }); break;     // Shift+E
       case 0x4e: own(0x4d5ee0, 0, 0, [&] { return prev_ally(0), uintptr_t{0}; }); break;      // Shift+W
       case 0x48:  // TARGET_CURSOR
-        if (screen) hud(screen, cmd);
+        if (screen) pick_aimed(false);
         break;
       case 0x4f: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: {  // lance orders
         static const int32_t kOrder[8] = {2, 0, 1, 0, 9, 0xa, 0xb, 0xc};  // by cmd - 0x4f (0x50 unused)
@@ -316,12 +342,8 @@ void Mech::command(int32_t cmd) {
     case 0x43:  // OBJECTIVES
       if (screen) hud(screen, cmd);
       break;
-    case 0x49:  // TARGET_NONE (vtable +0xc0, 0x0041d890: AiTarget's and the HUD's lock)
-      own(0x41d890, 0, 0, [&] {
-        set_target(nullptr, false);
-        if (screen) hud(screen, cmd);
-        return uintptr_t{0};
-      });
+    case 0x49:  // TARGET_NONE
+      target_set(nullptr);
       break;
     case 0xa6:
       other(*this, cmd, "0x0040f070");

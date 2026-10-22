@@ -850,6 +850,128 @@ Network HUD pieces skipped as ordered.
   reported, not freed twice (fixes.md, CHANGES.md).
 - Test: sdl_host_image_release_counts_and_frees (shared count, fresh copy
   after 0, a grab released twice); it crashes with the guard taken out.
-- Stopped here at Owen's pause (lead, 2026-10-21). Next when work resumes:
-  #8 (weapon recharge on the HUD), then #13 with #7 folded in (the HUD keys
-  reaching the unwired HUD-command hook; keypad 0 the zoom).
+- Stopped here at Owen's pause (lead, 2026-10-21). Next when work resumes,
+  in order: (1) rerun the mech lab step 4 breaks (scratchpad
+  lab/breaks4.py against test_lab_screen.py) on main, keeping the output;
+  report the real count and fix the test for any break still missed (the
+  only saved run, 09:30 before the commit, caught 20/28; the commit's
+  28/29 was not kept); (2) #8 (weapon recharge on the HUD); (3) #13 with
+  #7 folded in (the HUD keys reaching the unwired HUD-command hook; keypad
+  0 the zoom).
+
+## 2026-10-21 Resumed: test_debriefing's hang, lab step 4 breaks on main
+
+- test_debriefing.py (Owen killed it after 11 h at 193 GB, after its
+  "24/24 runs identical (326147 calls" line): not reproduced at a95c56b.
+  Six runs under the cap (system and .venv Python) all exit 0 in 21 s at
+  0.27-0.28 GB peak, with the same 326147 calls. No threads in the probe;
+  the script ends in os._exit right after that print, so no Python runs
+  after it: the growth was in the exit itself (the Mac's stuck-at-exit
+  state, project-ue-hangs) or in another process. New:
+  tests/differential/run_capped.py (memory cap, time limit, RSS log), now
+  the rule for every differential and break run (worklogs/README.md).
+- Lab step 4 breaks (lab/breaks4b.py: breaks4.py with each test run
+  capped) against main a95c56b, test_lab_screen.py 40: 27/28 caught. The
+  only miss, "fix tons", is an equivalent mutant: the chosen row's tonnage
+  ("%.1f") never holds a '%', so the exe's set_text(b) and the FIX's
+  set_text("%s", b) show the same text. The FIX could never change
+  anything: removed (the exe's call kept), with its fixes.md row and
+  CHANGES.md line. The 09:30 run's other misses are all caught now.
+  Output kept:
+
+```
+caught fill training / fill unavailable / fill full / fill other /
+  default first / default check / select modified / select name
+  (traces differ)
+caught add enabled / rename own / save flag (dumps differ)
+caught row question / row config / start rename flag (traces differ)
+caught start pos (dumps differ)
+caught taken same / stock refuse / overwrite q / overwrite delete /
+  rename modified / cancel copy / save existing / delete own /
+  delete save (traces differ)
+caught edit arrows (dumps differ)
+caught message sound / fix sort (traces differ)
+MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
+27 caught
+```
+
+## 2026-10-21 Playtest #20 with #13 and #7: the HUD keys (branch mac3/hud-keys)
+
+- #20's cause: the controls' update (0x00427d60) clicks the zoom whenever
+  the zoom window's hidden bit (+0x1514 bit 4) disagrees with the held key,
+  then shows or hides it every frame. None of ControlsCalls::screen_busy /
+  zoom or PartCalls::screen_flags was wired in the program: the flags read
+  0 ("shown") with the key up, so the click played every frame and the
+  window never opened. Wired to the zoom window (HUD +0x1508); one click
+  per change now. screen_flags also turns on the torso's slow turn while
+  zoomed.
+- #13: the HUD keys through CommandCalls::hud, answered by app_hud.cpp's
+  hud_command (keypad 0 0x00442e00, F12, T's TARGET part, R 0x0043da40, H,
+  D / Ctrl+D 0x00442440, Shift+R 0x0043dc10) and Alt+R's light 0x0041ded0;
+  Z and Q's pick (0x0041c1ab.., 0x004a7b40) ported into Mech::command with
+  hooks for the aimed node, its object, team and refusals; 0x0041d890's
+  HUD part now plays the target's own sound (slot 24, mech_<name>: none
+  ships). R's radar_up / radar_down wired. 0x0043da00 was misnamed
+  select_sound: it picks the mission map ("small"/"large", 0x00458590,
+  not ported: the program answers none, so Shift+R turns itself off).
+- FIX (bug): keypad 0 with no HUD ran 0x00442e00 on 0x1508 (fixes.md,
+  CHANGES.md).
+- #7's watch: nothing exploitable; Q targets allies, Z/Q over an unlisted
+  object drop the target (community-issues.md, discoveries).
+- Tests: test_hud.py ops 34..38 (100 seeds), test_command.py with the pick
+  run for real (6096), mw3tests playtest_hud_keys_zoom_radar_mfd_headless.
+  Breaks (scratchpad hudkeys/breaks.py, every test capped): 27/28 caught;
+  the miss (the MFD's save when 0) cannot show. The first run's Alt+R check
+  missed an inverted light (it pressed until amber); now two presses with
+  the range checked.
+- Left: F12's text (0x00446ad0, the objectives' lines), the mission maps'
+  list (0x00458590), targets.zrd objects' node binding (0x0040eaa0) so Z/Q
+  find buildings.
+
+## 2026-10-21 Playtest #8: the weapon bars (branch mac3/recharge)
+
+- The timers, the refresh and the bar's draw were all right: c1m1's ER
+  Laser (S) (a beam: the bar is its 1250 charge) drains on a shot and
+  refills in about 3.2 s, the machine guns (period 0.25 s) in 16 frames, and
+  the line's value follows. The cause was the per-frame refresh: the list's
+  update runs the looks only after a shot marks it (0x004464c0, +0x11438),
+  through WeaponCalls::hud_fire, which the program wired in 258364d at
+  10:29, after Owen's run (row #8 written at 09:23). With it unwired the
+  bars stay at 1: checked by taking it out.
+- Found on the way: HudWeaponLine had no destructor. The original's
+  0x00445970 sets the bar's fill and empty (the texts' own images) to none
+  before the Slider's 0x0059e170 releases them; without it the SDL host
+  frees them twice when a HUD goes (malloc abort in the new SDL test).
+  Headless tests never saw it: the default host renders no text images.
+- Tests: mw3tests playtest_hud_weapon_bars_recharge_headless (F2's laser:
+  the bar follows the charge down and back over seconds);
+  mw3sdltests sdl_host_hud_weapon_line_shows_the_recharge (a real line with
+  the game's fonts half recharged: green left of the cut, red right) and
+  sdl_program_weapon_list_shows_the_recharge (c1m1 through the SDL host's
+  2D, software and Direct3D layer paths: green before, red after firing,
+  green again). The SDL tests reset weapon_set(): its fonts are one host's
+  handles. Breaks (scratchpad hudkeys/breaks8.py): 6/6.
+
+## 2026-10-21 Playtest #21: the mission's quit box (branch mac3/msgbox21)
+
+- 0x0048dfe0's one caller is the Core state's start (0x00480c70): every
+  mission start made it (new 0x12688) and the program reported it unported,
+  which is what Owen saw late in a run. It is zTwoD's MessageBox with a
+  spare SlideButton (+0x12494, id -1, unused), OK and CANCEL shown, message
+  0xde1 and title 7; the frame updates it, and only a multiplayer stop
+  shows it (0x0048e2d0: the command on mouse button 1 unbound meanwhile),
+  0x0048e320 closes it, OK leaves the network game (0x0046d100,
+  0x0047fc40(0), the fade to 0x00609848, not ported), Cancel closes.
+- Ported: mech3/quit_box (QuitBox); GameEngine::message_box_new and
+  message_box_quit_prompt, its vt+0/+4/+8 through menu_vcall; the hook
+  Engine::network_leave (0x0046d100).
+- Test: test_menus.py quit (kind 4: the probe now holds any Dialog; new
+  ops M the prompt, L the close; the buttons pressed as 'O'; the message
+  box's button vtables added to VT_KIND; zVideo's screen rect, the cursor
+  show and the message formatter stubbed): 60/60, the other kinds still
+  60/60. Breaks (scratchpad hudkeys/breaks21.py): 19/19 (the backdrop's
+  hide caught once its flags joined the dump). mw3tests' HUD keys test checks c1m1 no longer reports 0x0048dfe0.
+- Seen on the way: the five BindButton reports at each mission start (the
+  shipped MESSAGEBOX has no YES/NO/ABORT/RETRY/IGNORE; the original reports
+  them too) print their format unfilled ("BindButton (%s) failed"): the
+  report printer's, not looked at.

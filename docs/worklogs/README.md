@@ -33,6 +33,11 @@ compaction by reading it.
     processes can hang at exit on this Mac, in a state nothing can kill.
     Run long tests in the background with their output going to a file in
     `scratch/`, then read the file, so a hang never blocks the session.
+  - Run every differential test, and every break run's test, under
+    `tests/differential/run_capped.py --mem-gb 4 --secs <limit> -- <cmd>`
+    (macOS ignores `ulimit -v`): it kills the run's process group over the
+    memory cap (exit 125) or the time limit (124) and prints the peak. A
+    test left alone once grew to 193 GB over 11 hours (2026-10-21).
   - After two failed attempts at the same fix or mismatch, stop retrying:
     go back to the assembly and the callers and work out what is really
     happening before the third try.

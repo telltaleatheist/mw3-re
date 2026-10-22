@@ -15,7 +15,6 @@ it is clear what the designers meant.
 ## Bug fixes that change play
 
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
-- **The mech lab prints a mech's tonnage as text.** The chosen row's number was handed to the text as a format string; harmless with numbers, now printed as plain text.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
 - **Lava heats the same at any frame rate.** The original added heat on
@@ -118,6 +117,7 @@ None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
+- Keypad 0 (the zoom lock) no longer crashes when the mech you are looking at has no HUD; it does nothing then.
 - A script that cycles the textures of a model with no material, or turns a scroll off, no longer crashes (neither happens with the shipped scripts).
 - An edited debriefing dialog missing its buttons' help, its title's, its lance cards' or its rank's lines no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.

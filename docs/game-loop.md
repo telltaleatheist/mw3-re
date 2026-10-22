@@ -154,8 +154,8 @@ otherwise), its voice unless +0x1c3, the screen (0x00405230), then the mission l
 Enter (0x00480c70): in a network game the system keys are locked
 (`SystemParametersInfo(SPI_SETSCREENSAVERRUNNING)`, Windows 9x); all options
 applied (0x0040cb30); without a pilot's mech, Replace with Main is queued; the
-in-game screen mode set; the drawing path picked; the message box
-(dlgMessage.zrd MESSAGEBOX) made hidden; the mission started (below); then
+in-game screen mode set; the drawing path picked; the quit box
+(dlgMessage.zrd MESSAGEBOX, menus.md section 12) made hidden; the mission started (below); then
 the fade in (below) unless the screen is pixel doubled (0x0040d4b0), where
 resume(7) runs at once; "mech_powerup" plays unless the pilot's +0x59;
 the mouse acceleration options applied.

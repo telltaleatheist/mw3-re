@@ -786,7 +786,43 @@ frames, every press in every game kind, the flag, the destructor; 23 of
 RESUME, Escape again, Escape on the screen; the backdrop from the shown
 frame). Not yet: the Pause State's enter and leave in a differential case.
 
-## 12. Left
+## 12. The mission's quit box (0x0048dfe0, vtable 0x005c5f70)
+
+zTwoD's message box (twod.md, The message box) as the Core state keeps it
+for the whole mission: its start (0x00480c70) makes it (new 0x12688, from
+dlgMessage.zrd's MESSAGEBOX, drawing deferred) and turns it off (vt+4, 0);
+the mission frame updates it (vt+0) and, when the frame asks to stop in a
+multiplayer game (the game's kind 3), shows it (0x0048e2d0); the state's
+leave deletes it (vt+8). Outside multiplayer it is never shown. Playtest
+#21 saw its construction reported as unported at every mission start.
+
+- Construction (0x0048dfe0): the message box (0x005a6e60, flag 1), a
+  SlideButton at +0x12494 (id -1; never bound, added or used), OK and
+  CANCEL shown for good, the other six buttons and the backdrop hidden, the
+  MESSAGE text message 0xde1 and the TITLE 7 by id (0x00409bd0), the
+  cursor's capture off (0x005a7860 on the Window's +0x10 cursor).
+- Shown (0x0048e2d0), when off: on, and the command on mouse button 1
+  (0x0051d270(1), kept at +0x12680) unbound while it shows: its button
+  (0x0051d230, +0x12684) noted and the command bound to button 0
+  (0x0051d2b0), so a click answers the box instead of firing.
+- Closed (0x0048e320), when on: the command bound back to its button,
+  then off.
+- OK (+0x10, 0x0048e390): the network session closed (0x0046d100), the
+  app's network off (0x0047fc40(0) on [0x00608c88]), a fade over 2 s to
+  the multiplayer side's state 0x00609848 (0x0048ef00, not ported), the
+  box's own OK (result 1), then closed. CANCEL (+0x14, 0x0048e3d0): the
+  box's own, then closed. The user button (+0x2c, 0x0048e3f0) jumps to the
+  box's. The destructor (0x0048e180 / 0x0048e1a0) only runs the members'.
+
+Ported in `quit_box.cpp` (`QuitBox`); GameEngine answers the Core state's
+`message_box_new` with one and routes its vt+0 / +4 / +8 and
+`message_box_quit_prompt`. Tested by `test_menus.py quit` (construction
+from the shipped and mutated boxes, frames, on and off, the prompt and the
+close with and without a command on the mouse, every bound button pressed,
+the destructor; 60 runs match; 19 of 19 planted breaks caught, once the
+dump took in the backdrop, which is not in the dialog's list).
+
+## 13. Left
 
 - The mech lab's bar (0x0044bae4, vtable 0x005c14f0) and its lists
   (0x0044b215..0x0044bc5c), on the same widgets; the file list's layout with

@@ -162,6 +162,7 @@ WeaponSet& weapon_set();
 class HudWeaponLine : public ztwod::Slider {
  public:
   HudWeaponLine();                   // 0x00445760
+  ~HudWeaponLine() override;         // 0x00445970: the bar's images (the texts') let go first
   void place(int32_t px, int32_t py, int32_t column);  // 0x00445ba0
   void reset();                      // 0x00445a30
   bool set_look(bool red, bool grey);  // 0x00445a60: the texts' fonts; false when unchanged
@@ -272,7 +273,9 @@ class HudRadar : public ztwod::FilledBox {
   void set_amber(bool on);           // 0x0043d630: amber instead of green
   void set_fade(float f);            // 0x0043dc70
   void set_zoom(bool zoomed);        // 0x0043da50
-  void select_sound();               // 0x0043da00 (part: 0x00458590 not ported)
+  void toggle_zoom();                // 0x0043da40: R, small or large
+  void toggle_map();                 // 0x0043dc10: Shift+R, over the mission map when there is one
+  uint32_t select_map();             // 0x0043da00: the mission map for the size, kept at [0x0060998c]
   void set_fov(float radians);       // 0x0043f0c0
   void set_dir(const float* v);      // 0x0043f130: the cone's edges from the view direction
   void update(float dt) override;    // +0x24  0x0043dd00 (part 1: the radar; the contacts part 2)
@@ -384,6 +387,8 @@ class HudMfd : public ztwod::Object2D {
   void attach(void* hud);            // 0x004423c0
   void update(float dt) override;    // +0x24  0x00442540: by the mode, then the title
   virtual int32_t shown_mode() { return mode; }  // +0x80  0x004487d0: 1 the 3D view, 2 the damage, 3 the nav list
+  virtual void set_mode(int32_t m);  // +0x7c  0x00442420: kept for the next MFD
+  void cycle_mode();                 // 0x00442440: D (the MFD), Ctrl+D (TARGET)
   void update_mode(float dt);        // the shared middle of 0x00442540 and 0x00441490
   void data_update(float dt);        // 0x004424b0: the damage view's levels (mode 2) or the nav list's mech (3)
   // 0x004425d0: the shown piece's rect by the mode (asked again): 1 the 3D
@@ -406,7 +411,7 @@ class HudTarget : public HudMfd {
   HudTarget(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x0043fcb0
   void hide() override;              // +0x64  0x004415f0
   void show_for(float seconds) override;  // +0x60  0x00441560: the lines and three texts too
-  virtual void set_mode(int32_t m);  // +0x7c  0x004400f0: kept for the next TARGET
+  void set_mode(int32_t m) override;  // +0x7c  0x004400f0: kept for the next TARGET
   void set_target(void* t);          // 0x00441800: shown with a live target
   void set_shown(bool on);           // 0x00441780: a new target's pulse, the reticle reset
   void update_texts(bool clear);     // 0x00441660: the damage view's mech, the mode, the nav list, the name
@@ -443,9 +448,10 @@ class HudZoomWindow : public HudZoomView {
   void set_rect(int32_t px, int32_t py, int32_t w, int32_t h);  // 0x004438f0: scaled by the zoom, kept on screen
   void set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h);  // 0x0043fa40: 2 pixels inside the display
   void follow(int32_t px, int32_t py);  // 0x00443660: centred on the reticle, when shown or scaled
+  void toggle_lock();                // 0x00442e00: keypad 0, the window locked open or closed
   uint8_t round = 0;                 // +0x16c a circle, not a box
   float zoom = 0.0f;                 // +0x170 the window's scale
-  uint8_t x174 = 0;                  // +0x174
+  uint8_t x174 = 0;                  // +0x174 locked open (keypad 0): the zoom key leaves it alone
   int32_t base_w = 0, base_h = 0;    // +0x178
   HudText text;                      // +0x180
   HudLight light{4};                 // +0x630 hud_zoomoff, on, over, cant
@@ -502,6 +508,12 @@ class HudHooks : public zgame::Unported {
   virtual int32_t saved_mfd_mode() { return static_cast<int32_t>(unported("peek32", {0x605988})); }
   virtual void save_target_mode(int32_t m) { unported("poke32", {0x60598c, m}); }
   virtual int32_t saved_target_mode() { return static_cast<int32_t>(unported("peek32", {0x60598c})); }
+  virtual void save_mfd_mode(int32_t m) { unported("poke32", {0x605988, m}); }
+  // The mission maps (0x00458590 on [0x00605acc]: the first with +0x3c set
+  // whose +0xc0 name holds `name`, or any with +0x3c set for none) and the
+  // one the radar shows ([0x0060998c]).
+  virtual uint32_t map_find(const char* name) { return unported("0x00458590", {name ? name : ""}); }
+  virtual void set_radar_map(uint32_t m) { unported("poke32", {0x60998c, m}); }
   virtual uint32_t window_node_new() { return unported("0x004f9e90", {}); }
   virtual uint32_t camera_node_new() { return unported("0x004f32e0", {}); }
   virtual void node_set_name(uint32_t node, const char* name) { unported("0x004eb300", {node, name}); }
