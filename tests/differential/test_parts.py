@@ -61,7 +61,8 @@ FLAGS, SCREEN_FLAGS, TARGET, POSITION, MECH_MATRIX, EULER, LOOK, SOIL, STEPS, PR
 DUST = WORLD + 3 * NNODES  # roster, dust, splash, the mech node's flag 8, hit count, 8 x (height, material)
 VMODE = DUST + 5 + 16  # the view's mode: bits 0..2 its id, bit 4 there at all
 PARTSEL = VMODE + 1  # the part aim: 1 a target, 2 it is seen, 4 it is a mech (this one), 8 a targeting computer
-ENV = PARTSEL + 1
+TBOX = PARTSEL + 1  # the torso's setup: 1 torso_polys found (node 16), 2 it has a box; then the box's 6 floats
+ENV = TBOX + 7
 WORLD_OBJ = 0x608c84
 
 
@@ -76,7 +77,7 @@ FOOT = BASE + F(0x74) + F(0x7c, 3) + [(0x78, 'i'), (0x88, 'b')] + F(0x8c, 2) + [
 HIP_F = BASE + F(0x74, 8) + F(0x94, 4) + F(0xa4, 3)
 TORSO_F = BASE + [(0x84, 'i'), (0x88, 'i')] + F(0x8c, 4) + [(0x9c, 'i'), (0xa0, 'b'), (0xa1, 'b'), (0xa2, 'b')] + \
     F(0xa4, 10) + F(0xd0, 2) + F(0xd8, 6) + F(0xf0, 4) + F(0x100, 6) + F(0x118, 4) + F(0x128, 4) + F(0x138, 5) + \
-    F(0x158, 2) + F(0x160, 6) + [(0x1b0, 'i')]
+    F(0x158, 2) + F(0x160, 6) + [(0x1b0, 'i')] + F(0x7c, 2) + F(0x14c, 3)
 ARM_F = BASE + F(0x2c) + F(0x34) + [(0x74, 'i')] + F(0x78, 5) + F(0x8c, 3) + F(0x98, 2) + F(0xa4, 4) + F(0xb4, 6) + \
     [(0xcc, 'b')]
 HAND_F = BASE + F(0x74, 4) + F(0x84, 3)
@@ -189,6 +190,11 @@ class World:
         s(0x4e6ff0, lambda c: self.log(55) or (self.mech if self.env[PARTSEL] & 4 else 0))
         s(0x5a8630, lambda c: self.log(53, c.ecx) or self.pos)
         s(0x4ed650, self.world_point)
+        # The torso's setup: torso_polys under its node (0x004f9d60), a node's box (0x004ec9c0).
+        s(0x4f9d60, lambda c: self.log(56, self.node_index(c.ecx), int(c.read(c.edx, 12) == b'torso_polys\0'))
+          or (self.nodes[16] if self.env[TBOX] & 1 else 0))
+        self.tbox = a(24)
+        s(0x4ec9c0, self.node_box)
         self.aim = a(24)
         self.world_obj = a(8)
         # A thunk that pushes the ground update's 0 and keeps its st0.
@@ -242,6 +248,14 @@ class World:
         c = self.cpu
         self.log(28, (c.edx - self.skis - 0x194) // 0x28, *struct.unpack('<3I', c.read(c.ecx, 12)), c.arg(0))
         uc.reg_write(UC_X86_REG_EIP, self.fldz_ret4)
+
+    def node_box(self, c):
+        self.log(57, self.node_index(c.ecx))
+        if not self.env[TBOX] & 2:
+            return 1
+        self.cpu.write(self.tbox, self.env_bytes(TBOX + 1, 6))
+        self.cpu.u32(c.edx, self.tbox)
+        return 0
 
     def world_point(self, c):
         i = self.node_index(c.ecx)
@@ -415,8 +429,8 @@ class World:
             cpu.call(0x464e80, ecx=p[TORSO], stack_args=(dt,))
         elif op == 6:
             cpu.call(vt(HAND0, 0x10), ecx=p[HAND0 + i], stack_args=(dt,))
-        elif op in (7, 8, 9):
-            k = {7: HIP, 8: LEG0 + i, 9: ARM0 + i}[op]
+        elif op in (7, 8, 9, 23):
+            k = {7: HIP, 8: LEG0 + i, 9: ARM0 + i, 23: TORSO}[op]
             cpu.call(vt(k, 4), ecx=p[k])
             return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
         elif op == 10:
@@ -615,6 +629,11 @@ def scenario(rng, op):
     env[SCREEN_FLAGS] = rng.choice([0, 0x10, 0xffffffff, 0xffffffef])
     env[VMODE] = rng.choice([0x10, 0x11, 0x11, 0x12, 0x13, 0x15])  # a view on a mech always has a mode
     env[PARTSEL] = rng.choice([0xf, 0xf, 0xf, 0xd, 0xb, 0x7, 0xe, 0x3, 0])
+    env[TBOX] = rng.choice([3, 3, 2, 1, 0])
+    lo = [rnd(rng, -6, 0) for _ in range(3)]
+    for k in range(3):
+        env[TBOX + 1 + k] = u(lo[k])
+        env[TBOX + 4 + k] = u(lo[k] + rnd(rng, 0, 8))
     put(mech, 0xf8, 'i', rng.choice([-1, -1, 1, 2, 6, 7, 8, 11, 13, 15, 3]))
     for k in range(3):
         put(mech, 0xec + 4 * k, 'f', rnd(rng, -9, 9))
@@ -663,6 +682,8 @@ def scenario(rng, op):
     put(mech, 0x5e8, 'i', rng.choice([0, 4]))
     dfn = bytearray(DEF_SIZE)
     put(dfn, 0x148, 'f', rng.choice([0.0, rnd(rng, 0.5, 3), rnd(rng, -2, -0.1)]))
+    for o in range(0x160, 0x174, 4):  # the shake's scales, frequency and damping (the torso's setup)
+        put(dfn, o, 'f', rnd(rng, 0, 4))
     for o in range(0x174, 0x1a4, 4):
         put(dfn, o, 'f', rnd(rng, -1.5, 1.5) if o != 0x18c else rnd(rng, 0, 10))
     put(dfn, 0x1a4, 'b', rng.random() < 0.3)
@@ -717,10 +738,10 @@ def compare(what, want, wlog, got, glog):
 
 
 OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14,
-       15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22]
+       15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 23, 23, 23]
 NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
          'duck', 'crouch target', 'landing dust', 'action dust', 'pitch lock', 'hold view', 'aim', 'centre',
-         'torso mode', 'view state', 'target part', 'part aim']
+         'torso mode', 'view state', 'target part', 'part aim', 'torso setup']
 
 
 def main():

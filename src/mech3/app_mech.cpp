@@ -784,6 +784,7 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
   }
   s.jets = m->equipment[11];
   s.jets_firing = m->jump_jets_firing;
+  s.jet_flame = m->jet_effect != nullptr;
   s.crouched = m->crouched;
   s.alive = m->alive_time;
   s.anim_state = m->anim_state;

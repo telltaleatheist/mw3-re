@@ -191,6 +191,13 @@ bool zero3(const float* p) {
 }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x004ec9c0 (ECX node, EDX where the box's address goes; 0,
+// 1 without a box, 5 and a report for a null node).
+const float* node_box(const Node* node) {
+  if (!node || !(node->flags() & 0x100)) return nullptr;
+  return reinterpret_cast<const float*>(node->raw + 0x74);
+}
+
 // Mech3.exe 1.2 @ 0x004ed650. 1 for a null node.
 int node_world_point(Node* node, float p[3]) {
   if (!node) return 1;

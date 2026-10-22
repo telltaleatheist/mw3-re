@@ -174,6 +174,22 @@ setup 0x466e80 keeps its own rest (+0x84), and the arm its length (+0x78);
 a hand that fails is deleted. Every setup starts with 0x45fdd0: a part with
 a mech and a node registers (0x41b8d0) and inits its armor (vt +0x08).
 
+Torso::Setup 0x464290 (ported 2026-10-21; before, the port's torso kept
+its constructor's limits of 100, -12 and 20 degrees and no box):
+- The definition's shake: `scale` (+0x14c..+0x154), `freq` (+0x158),
+  `damp_freq` (+0x15c).
+- Its turn limits: max yaw +0x148 (def +0x174), max pitch +0x144 (+0x178),
+  min pitch +0x140 (+0x17c).
+- The mech's node refreshed (0x4f7db0).
+- The box (0x4ec9c0: node +0x74 min, +0x80 max, when node flag 0x100) of
+  the torso node's `torso_polys` child (0x4f9d60), or of the torso node
+  itself, gives the half width (+0x7c, x) and half depth (+0x80, z).
+- Then the cockpit off the torso (0x464580(0)), even when the base setup
+  failed.
+
+The half width is what the part aim's side torsos use (look.md); the
+limits bound the torso's twist and pitch.
+
 ### Torso (0x464e80, mode +0x84)
 
 - Mode 0, the AI (when an aim is set, +0x9c): the aim direction (+0x8c, in

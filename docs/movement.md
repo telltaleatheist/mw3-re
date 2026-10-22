@@ -308,16 +308,19 @@ at 30 m with the player walking 0x1c and the full model.
 
 ## Left
 
-1. The torso's setup 0x464290 (the def's shake and limits, its box). The
-   calls the parts make outside are wired in the game (2026-10-21,
+1. The torso's setup 0x464290 is ported (movement-ground.md). The calls the
+   parts make outside are wired in the game (2026-10-21,
    `wire_mech_parts` in app_mech.cpp): the foot's wake (0x0045f980..
    0x0045fb80, `mech_wake`), step sounds, footprints, what a foot steps on
    (0x005836b0), the arms' aim (the weapons' +0x0c / +0x18), the cockpit
    camera's look limits, the ground point query; the pilot's sounds
    (0x00432990 through `sound_extra`) for the parts, the movement loops,
    the heat warnings; the heat model's throttle; the collider's touch.
-   Left: the HUD's zoom flags (+0x1514, the torso's slow turn), the
-   pilot's effects 0x00432830 (the jump jets' flames), force feedback.
+   The pilot's effects 0x00432830 (the jump jets' flames) run the port
+   (`canned_effect`); the Thor's jump in mission_c1m1_player_commands_headless
+   shows them started and put out. Left: the HUD's zoom flags (+0x1514, the
+   torso's slow turn), force feedback, and the collider's box test
+   (`CollideCalls::hit_box`, 0x004ec9c0) unwired in the program.
 2. The AI brain 0x4e9710 the AI's controls run (`ControlsCalls::ai_brain`;
    ai.md), the pilot's tick 0x4d9290 the player's run, mech3's controls
    setup that fills the commands and the axis table (input.md, Open).

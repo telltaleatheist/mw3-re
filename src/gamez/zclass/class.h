@@ -58,6 +58,8 @@ int node_world_position(Node* node, float out[3]);  // 0x004ed530
 // ECX node, EDX point: a point in the node's frame to the world, in place;
 // (0, 0, 0) gives the node's world position. 1 for a null node.
 int node_world_point(Node* node, float p[3]);       // 0x004ed650
+// 0x004ec9c0: the node's box (+0x74: min, max) when it has one (flag 0x100), else null.
+const float* node_box(const Node* node);
 int node_world_frame(Node* node, float p[3], float out[3]);  // 0x004ed6e0, also the angles
 
 }  // namespace zcls
