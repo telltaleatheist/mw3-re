@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include "gamez/zgame/unported.h"
+
 // The pilot's firing (docs/ai.md 17.7): the state machine the brain runs
 // each frame (0x004b5b80) over a fire plan, aiming, leading and firing the
 // vehicle's current weapon at its target, then resting while the torso looks
@@ -10,6 +12,7 @@ namespace mech3::ai {
 
 class Brain;
 struct Contact;
+struct Firing;
 
 // A fire plan (the volley pick's, 0x004b6790; item 12b): what to shoot at and
 // when. The machine asks its slots; the plan is freed when it is done.
@@ -34,6 +37,25 @@ class FireSource {
   virtual ~FireSource() = default;
   virtual FirePlan* take(bool* spent) = 0;  // +0x00
 };
+
+// The volley pick's plan (0x004b6790: 0x24 bytes, vtable 0x005c9460): a
+// target among the vehicle's contacts and the volley to fire at it. It is a
+// source too: its slot 0 hands it back while its target lives, the line is
+// clear and the volley still picks something (docs/ai.md 17.7).
+class VolleyPlan : public FirePlan, public FireSource {
+ public:
+  uint8_t in_reach(float arg) override;   // +0x04 0x004b6af0: the bearer's vt+0x150 == 1
+  uint8_t track(float arg) override;      // +0x10 0x004b6e30 (item 12b2)
+  uint8_t ready() override;               // +0x18 0x004b6e10: the line flag, asked again
+  FirePlan* take(bool* spent) override;   // +0x00 0x004b6fa0
+  float score = 0;                        // +0x08
+  zgame::Handle bearer = 0;               // +0x14  the vehicle's vt+0x40 (a mech itself)
+};
+
+// 0x004b6790 (from the firing's phases 1 and 6): the best target among the
+// vehicle's contacts and a plan on it, or none; the sensor range narrowed
+// or widened on the way.
+FirePlan* volley_plan_pick(Firing& f);
 
 // 0x004b6390 (0x1c bytes, vtable 0x005c9458), at the firing's +0x34: the
 // torso's look-around while the pilot rests between bursts.
@@ -77,7 +99,7 @@ struct Firing {
   float track_arg = 0;     // +0x1c
   float fire_arg = 0;      // +0x20
   float range = 0;         // +0x24  the vehicle's sensor range (+0xa0), set at the start
-  uint32_t x28 = 0;        // +0x28
+  zgame::Handle obstacle = 0;  // +0x28  something a target near the line to is passed over for (until one is not)
   Brain* brain = nullptr;  // +0x2c  0x004b6660
   FireSource* first = nullptr;   // +0x30
   LookAround look;         // +0x34

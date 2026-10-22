@@ -239,6 +239,7 @@ unusual happens.
 - An AI "backup" waypoint (none in the shipped game) turns the pilot toward the way it came, before backing in and again at the spot, instead of toward whatever direction happened to be left in memory.
 - An AI "deploy" waypoint without its switches named no longer crashes the game; the missing switches read as off.
 - An AI vehicle without weapons no longer crashes the game when it is hit (its pilot's firing stands down); neither does an AI weapon without a definition when it fires.
+- An AI pilot whose target disappears while it is lining up a shot no longer crashes the game; it gives the shot up.
 - A world's `declient.zrd` with a one-frame quicksand texture, or a `QUICK_SAND` block without `DEFAULT_TEXTURE`, no longer crashes the mission load; the one frame is shown, or the quicksand is left untextured. No shipped file has either.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.
 - A crater whose outline passes exactly through a corner of the ground's polygons no longer freezes the game; that piece of ground is left uncut.

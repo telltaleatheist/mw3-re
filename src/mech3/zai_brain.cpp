@@ -95,6 +95,11 @@ float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
 bool BrainHooks::region_inside(Region* r, const float* p) { return r->inside(p); }
 void BrainHooks::firing_reset(Brain& b) { b.firing.stand_down(); }    // 0x004e9590
+FirePlan* BrainHooks::fire_plan_pick(Brain& b) { return volley_plan_pick(b.firing); }
+bool BrainHooks::select_target(zgame::Handle v, Contact* c) {
+  AiTarget* t = targetable(v);
+  return t ? t->set_target(c, false) : false;  // vt+0xc0: 0x004d5e40 (the Mech's 0x0041d890 adds the player's HUD lock)
+}
 void BrainHooks::firing_run(Brain& b, float dt) { b.firing.run(dt); }  // 0x004e9fb0
 AiNet* BrainHooks::vehicle_net(zgame::Handle v) {
   unported("vehicle.vt+0xd8", {v});

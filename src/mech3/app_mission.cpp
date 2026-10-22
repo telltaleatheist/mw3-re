@@ -389,6 +389,11 @@ struct WiredBrainHooks : ai::BrainHooks {
   int32_t weapon_ammo(Handle w) override { return mech3::weapon_ammo(e->object_of(w)); }
   void weapon_hold_for_flight(Handle w) override { mech3::weapon_hold_for_flight(e->object_of(w)); }
   void torso_centre(Handle v) override { mech_torso_centre(mech(v), 1); }
+  // The volley pick's (ai.md 17.7): a contact's entity (0x004e6fe0, a mech
+  // answers itself; targets.zrd's objects are not mechs: 0) and its active
+  // flag (+0x08).
+  Handle contact_entity(const ai::Contact* c) override { return contact_vehicle(c); }
+  bool entity_active(Handle e) override { return mech_active(mech(e)); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);

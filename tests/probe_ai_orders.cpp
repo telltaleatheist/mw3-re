@@ -172,6 +172,15 @@ ai::Contact* g_target_slot[3] = {};
 uint32_t g_wm = 0;
 bool g_fire_world = false, g_has_mech = false;
 float g_reload[3] = {};
+// The plan pick's test (test_ai_plan.py): entities 1..4 at fixed handles
+// (the emulator's addresses), each contact's entity.
+constexpr uint32_t kPlanEnt = kOwner + 0x4000;  // + 0x400 each
+ai::AiTarget g_ent_target[5];
+bool g_ent_active[5] = {};
+int32_t g_contact_ent[6] = {};
+bool g_bearer = true;
+uint32_t ent_handle(int32_t k) { return k ? kPlanEnt + 0x400 * static_cast<uint32_t>(k) : 0; }
+int32_t ent_index(uint32_t h) { return h >= kPlanEnt + 0x400 && h <= kPlanEnt + 0x1000 ? static_cast<int32_t>((h - kPlanEnt) / 0x400) : 0; }
 int32_t fire_contact_index(const ai::Contact* c) {
   for (int i = 0; i < 6; ++i)
     if (c == &g_fire_contact[i]) return i + 1;
@@ -215,7 +224,22 @@ struct Hooks : ai::BrainHooks {
     for (const Entity& en : g_entity)
       if (en.handle && en.handle == v) std::memcpy(out, en.pos, 12);
   }
-  ai::AiTarget* targetable(zgame::Handle v) override { return v == kOwner ? &g_target : nullptr; }
+  ai::AiTarget* targetable(zgame::Handle v) override {
+    if (v == kOwner) return &g_target;
+    const int32_t k = ent_index(v);
+    return k ? &g_ent_target[k] : nullptr;
+  }
+  bool entity_active(zgame::Handle e) override { return g_ent_active[ent_index(e)]; }
+  zgame::Handle bearer(zgame::Handle v) override { return g_bearer ? v : 0; }
+  bool select_target(zgame::Handle, ai::Contact* c) override {  // taken: the vehicle's target, as 0x004d5e40 does
+    const bool ok = call("vehicle.vt+0xc0", {static_cast<uint32_t>(fire_contact_index(c))}) & 0xff;
+    if (ok) g_target.target = c;
+    return ok;
+  }
+  int32_t volley_pick(zgame::Handle, ai::Contact* c) override {
+    return static_cast<int32_t>(call("0x004b1860", {static_cast<uint32_t>(fire_contact_index(c))}));
+  }
+  uint8_t plan_track(ai::FirePlan&, float arg) override { return call("0x004b6e30", {bits(arg)}) & 0xff; }
   ai::Behaviour* manoeuvre_behaviour(int32_t which) override { return beh_of(which == 0 ? 98 : 88); }
   ai::Behaviour* nearest(ai::AiNet* n, const float*) override {
     return beh_of(static_cast<int32_t>(call("0x004d51d0", {n ? n->get_id() : 0})));
@@ -253,6 +277,10 @@ struct Hooks : ai::BrainHooks {
     return g_fire_world ? &g_fire_list : &g_steer_contacts;
   }
   zgame::Handle contact_entity(const ai::Contact* c) override {
+    if (g_fire_world) {
+      const int32_t i = fire_contact_index(c);
+      return i ? ent_handle(g_contact_ent[i - 1]) : 0;
+    }
     for (size_t i = 0; i < g_steer_contacts.size(); ++i)
       if (g_steer_contacts[i] == c) return g_entity[g_contact_entity[i]].handle;
     return 0;
@@ -850,7 +878,7 @@ void probe_ao_fire_set(const uint32_t* w) {
   f.time = fl(w[1]), f.quick_delay = fl(w[2]), f.delay = fl(w[3]), f.rest = fl(w[4]);
   f.free_for_test();
   f.reach_arg = fl(w[6]), f.track_arg = fl(w[7]), f.fire_arg = fl(w[8]), f.range = fl(w[9]);
-  f.x28 = w[10];
+  f.obstacle = w[10];
   f.first = w[11] ? new FakeSource(static_cast<int32_t>(w[11])) : nullptr;
   f.second = w[12] ? new FakeSource(static_cast<int32_t>(w[12])) : nullptr;
   f.look.owner = &f;
@@ -904,7 +932,7 @@ void probe_ao_fire(int32_t op, uint32_t dt, uint32_t* out) {
   out[5] = f.plan ? static_cast<uint32_t>(static_cast<FakePlan*>(f.plan)->id) : 0;
   const float a3[4] = {f.reach_arg, f.track_arg, f.fire_arg, f.range};
   std::memcpy(out + 6, a3, 16);
-  out[10] = f.x28;
+  out[10] = f.obstacle;
   out[11] = f.first ? static_cast<uint32_t>(static_cast<FakeSource*>(f.first)->id) : 0;
   out[12] = f.second ? static_cast<uint32_t>(static_cast<FakeSource*>(f.second)->id) : 0;
   std::memcpy(out + 13, &f.look.until, 4);
@@ -928,6 +956,110 @@ void probe_ao_fire_done() {
   delete f.second;
   f.first = f.second = nullptr;
   g_fire_world = false;
+}
+
+// The plan pick's test (test_ai_plan.py). w: per entity 1..4 (5 words):
+// active, team, pos[3]; the vehicle's allies, forward x, z, position[3],
+// the manager, the bearer, the firing's range and obstacle (an entity's
+// number), aiv +0x30, the vehicle's target (a contact's number); then n
+// and per contact (5 words) dist2, delta[3], its entity's number.
+void probe_ao_plan_set(const uint32_t* w) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  g_fire_world = true;
+  for (int k = 1; k <= 4; ++k) {
+    const uint32_t* e = w + 5 * (k - 1);
+    g_ent_active[k] = e[0] != 0;
+    g_ent_target[k].team = e[1];
+    Entity& en = g_entity[static_cast<size_t>(k)];
+    en.handle = ent_handle(k);
+    for (int j = 0; j < 3; ++j) en.pos[j] = fl(e[2 + j]);
+  }
+  const uint32_t* v = w + 20;
+  g_target.allies = v[0];
+  g_owner_fwd[0] = fl(v[1]), g_owner_fwd[2] = fl(v[2]);
+  for (int j = 0; j < 3; ++j) g_pos[j] = fl(v[3 + j]);
+  g_wm = v[6];
+  g_bearer = v[7] != 0;
+  b.firing.range = fl(v[8]);
+  b.firing.obstacle = ent_handle(static_cast<int32_t>(v[9]));
+  b.params.put<uint32_t>(0x30, v[10]);
+  const uint32_t* c = w + 32;
+  const uint32_t n = c[0];
+  g_fire_list.clear();
+  for (uint32_t i = 0; i < 6; ++i) {
+    ai::Contact& k = g_fire_contact[i];
+    k = ai::Contact{};
+    g_contact_ent[i] = 0;
+    if (i < n) {
+      const uint32_t* r = c + 1 + 5 * i;
+      k.dist2 = fl(r[0]);
+      for (int j = 0; j < 3; ++j) k.delta[j] = fl(r[1 + j]);
+      g_contact_ent[i] = static_cast<int32_t>(r[4]);
+      g_fire_list.push_back(&k);
+    }
+  }
+  g_target.target = v[11] ? &g_fire_contact[v[11] - 1] : nullptr;
+  g_target.range = fl(v[8]);
+  g_target.range2 = 0;  // the test's emulator side writes 0 too
+}
+
+ai::VolleyPlan* g_plan = nullptr;
+int32_t slot_code(ai::Contact* const* slot) {
+  if (slot == &g_target.target) return 0xff;
+  for (size_t i = 0; i < g_fire_list.size(); ++i)
+    if (slot == &g_fire_list[i]) return static_cast<int32_t>(i) + 1;
+  return slot ? -1 : 0;
+}
+
+// op 0 the pick (0x004b6790), 1 the plan's in_reach(f), 2 its ready, 3 its
+// take. out: the answer, the plan (or 0: 1), its slot (0xff the vehicle's
+// target, else a contact's number), score, quick, line, kind, bearer, the
+// firing's range and obstacle, the vehicle's range and range2 and target,
+// the contacts' distances.
+void probe_ao_plan(int32_t op, uint32_t f, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  std::memset(out, 0, 4 * 24);
+  if (op == 0) {
+    {
+      probe_app::Mute mute;
+      delete g_plan;
+    }
+    g_plan = static_cast<ai::VolleyPlan*>(ai::volley_plan_pick(b.firing));
+    out[0] = g_plan != nullptr;
+  } else if (g_plan) {
+    if (op == 1) out[0] = g_plan->in_reach(fl(f));
+    else if (op == 2) out[0] = g_plan->ready();
+    else {
+      bool spent = false;
+      out[0] = g_plan->take(&spent) == g_plan ? 1u : 0u;
+      out[0] |= spent ? 0x100u : 0u;
+    }
+  }
+  if (g_plan) {
+    out[1] = 1;
+    out[2] = static_cast<uint32_t>(slot_code(g_plan->target));
+    std::memcpy(out + 3, &g_plan->score, 4);
+    out[4] = g_plan->quick, out[5] = g_plan->line_check;
+    out[6] = static_cast<uint32_t>(g_plan->kind), out[7] = g_plan->bearer;
+  }
+  std::memcpy(out + 8, &b.firing.range, 4);
+  out[9] = static_cast<uint32_t>(ent_index(b.firing.obstacle));
+  std::memcpy(out + 10, &g_target.range, 4);
+  std::memcpy(out + 11, &g_target.range2, 4);
+  out[12] = static_cast<uint32_t>(fire_contact_index(g_target.target));
+  for (int i = 0; i < 6; ++i) std::memcpy(out + 13 + i, &g_fire_contact[i].dist, 4);
+}
+
+// An entity made active or not between the plan's calls.
+void probe_ao_plan_entity(int32_t k, int32_t active) { g_ent_active[k] = active != 0; }
+
+void probe_ao_plan_done() {
+  probe_app::Mute mute;
+  delete g_plan;
+  g_plan = nullptr;
+  g_fire_world = false;
+  for (int k = 1; k <= 4; ++k) g_entity[static_cast<size_t>(k)] = Entity{};
 }
 
 }  // extern "C"
