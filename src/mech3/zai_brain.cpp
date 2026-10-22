@@ -1,5 +1,7 @@
 #include "mech3/zai_brain.h"
 
+#include "mech3/zai_attack.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -92,6 +94,7 @@ float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported
 float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
+float BrainHooks::stop_share(zgame::Handle v, float d) { return fbits(unported("vehicle.vt+0x12c", {v, bits(d)})); }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return ai::clear_line(v, seen, nullptr); }
 bool BrainHooks::clear_line_at(zgame::Handle v, zgame::Handle e) {
   float at[3];
@@ -122,7 +125,7 @@ Behaviour* BrainHooks::attack_behaviour(AiNet* n) {  // 0x004c0e10 (the exe call
   auto* vn = dynamic_cast<VehicleNet*>(n);
   return vn ? vn->attack() : nullptr;
 }
-bool BrainHooks::attack(Brain& b, AiNet* n) { return unported("0x004e9ca0", {low(&b), low(n)}) != 0; }
+bool BrainHooks::attack(Brain& b, AiNet* n) { return ai::attack(b, n); }  // 0x004e9ca0
 void BrainHooks::own_order_run(Brain& b, float dt) { unported("0x004e81a0", {low(&b), bits(dt)}); }
 
 Behaviour* BrainHooks::manoeuvre_behaviour(int32_t which) {
@@ -420,6 +423,9 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::Scan:
     case StepKind::CanLeave:
     case StepKind::CanLeaveNot: return new ScanState(&o, this);  // 0x004cbc30
+    case StepKind::AttackEnd: return new AttackEndState(&o, static_cast<AttackEnd*>(this));        // 0x004cac00
+    case StepKind::AttackRearm: return new AttackRearmState(&o, this);                            // 0x004cacc0
+    case StepKind::AttackReturn: return new AttackReturnState(&o, static_cast<AttackReturn*>(this));  // 0x004cad90
     default: return new BehaviourState(&o, this);
   }
 }

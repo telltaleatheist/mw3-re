@@ -11,6 +11,7 @@
 
 #include "mech3/mech.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "mech3/zai_attack.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
@@ -79,9 +80,14 @@ class FakeNet : public ai::CompiledNet {
   bool compiled_;
 };
 
+// The attack's test (test_ai_attack.py): behaviours 1..4 have a position
+// (vt+0x18) when set.
+bool g_step_pos_on[5] = {};
+float g_step_pos[5][3] = {};
 struct FakeBehaviour : ai::Behaviour {
   explicit FakeBehaviour(int32_t i) : id(i) {}
   ai::BehaviourState* make_state(ai::Order& o) override { return new FakeState(&o, this, id); }
+  const float* position() const override { return id >= 1 && id <= 4 && g_step_pos_on[id] ? g_step_pos[id] : nullptr; }
   int32_t id;
 };
 
@@ -378,6 +384,7 @@ struct Hooks : ai::BrainHooks {
   }
   float speed_at(zgame::Handle, float share) override { return g_mech.speed_at(share); }
   float stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
+  float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
   void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
@@ -431,6 +438,7 @@ struct FakeControls : ai::BrainControls {
   void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
   bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
   void fire(bool on) override { call("ictl.vt+0x10", {on ? 1u : 0u}); }
+  float throttle_now() override { return fl(call("ictl.vt+0x1c", {})); }
   void set_throttle(float v) override { call("ictl.vt+0x20", {bits(v)}); }
   void set_turn(float v) override { call("ictl.vt+0x28", {bits(v)}); }
   float turn_goal() override { return fl(call("ictl.vt+0x30", {})); }
@@ -490,6 +498,7 @@ void probe_ao_new() {
   g_brain = std::make_unique<ai::Brain>(net_of(1), rec);
   g_brain->orders.clear();
   g_serial = 0;
+  ai::attack_part_unstacked() = 0;
 }
 
 void probe_ao_done() {
@@ -1266,6 +1275,96 @@ void probe_ao_vehnet(int32_t mode, int32_t vehicle_at_make, int32_t run, int32_t
   g_controls.veh = kOwner;
   b.xe4 = nullptr;
   delete n;
+}
+
+// The attack's world (test_ai_attack.py). w: the brain's +0x28, +0x2c,
+// +0x3c, +0x58, +0x5c, +0x60, +0x84, +0xec, +0xdc, +0xe8, +0x230; the
+// position, the forward x and z; per behaviour 1..4 a position (on, x, y, z).
+float g_attack_home_mark[3] = {};
+void probe_ao_attack_world(const uint32_t* w) {
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  b.params.put<uint32_t>(0x28, w[0]);
+  b.params.put<uint32_t>(0x2c, w[1]);
+  b.params.put<uint32_t>(0x3c, w[2]);
+  b.params.put<uint32_t>(0x58, w[3]);
+  b.params.put<uint32_t>(0x5c, w[4]);
+  b.params.put<uint32_t>(0x60, w[5]);
+  b.params.put<uint32_t>(0x84, w[6]);
+  b.xec = fl(w[7]), b.xdc = fl(w[8]), b.xe8 = fl(w[9]), b.x230 = fl(w[10]);
+  for (int j = 0; j < 3; ++j) g_pos[j] = fl(w[11 + j]);
+  g_owner_fwd[0] = fl(w[14]), g_owner_fwd[2] = fl(w[15]);
+  for (int k = 1; k <= 4; ++k) {
+    const uint32_t* q = w + 16 + 4 * (k - 1);
+    g_step_pos_on[k] = q[0] != 0;
+    for (int j = 0; j < 3; ++j) g_step_pos[k][j] = fl(q[1 + j]);
+  }
+}
+// The home point's stack top: 0 none, 1 the test's own, 100 + the order of
+// an attack part's, 2 else.
+uint32_t home_code(const float* h) {
+  if (!h) return 0;
+  if (h == g_attack_home_mark) return 1;
+  int32_t i = 0;
+  for (const ai::Order& o : g_brain->orders) {
+    if (const auto* p = dynamic_cast<const ai::AttackPart*>(o.net.get()); p && h == p->home) return 100u + uint32_t(i);
+    ++i;
+  }
+  return 2;
+}
+void probe_ao_attack_home(int32_t on) { g_brain->xe4 = on ? g_attack_home_mark : nullptr; }
+int32_t probe_ao_attack(int32_t net) { return ai::attack(*g_brain, net_of(net)); }
+// The stack, 22 words an order: test_ai_orders' 13, then for an attack
+// part its net's id (else 0), its home point and the one under it; for an
+// attack state its kind (1 end, 2 rearm, 3 return), the return's net id,
+// waypoint and turn.
+int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
+  int32_t n = 0;
+  for (const ai::Order& o : g_brain->orders) {
+    if ((n + 1) * 22 > cap) return -1;
+    uint32_t* w = out + 22 * n++;
+    std::memset(w, 0, 4 * 22);
+    const auto* p = dynamic_cast<const FakePart*>(o.net.get());
+    const auto* s = dynamic_cast<const FakeState*>(o.state.get());
+    w[0] = o.x04;
+    w[1] = o.owner == g_brain.get();
+    w[2] = p ? p->serial : 0, w[3] = p ? static_cast<uint32_t>(p->net_id) : 0;
+    w[4] = s ? s->serial : 0, w[5] = s ? static_cast<uint32_t>(s->beh_id) : 0;
+    w[6] = static_cast<uint32_t>(o.x14);
+    std::memcpy(w + 7, o.x18, 12);
+    std::memcpy(w + 10, o.x24, 12);
+    if (const auto* ap = dynamic_cast<const ai::AttackPart*>(o.net.get())) {
+      w[13] = static_cast<uint32_t>(ap->target->get_id());
+      std::memcpy(w + 14, ap->home, 12);
+      w[17] = home_code(ap->prev);
+    }
+    if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
+    if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;
+    if (const auto* rs = dynamic_cast<const ai::AttackReturnState*>(o.state.get())) {
+      w[18] = 3;
+      w[19] = static_cast<uint32_t>(rs->net ? rs->net->get_id() : 0);
+      std::memcpy(w + 20, rs->way, 8);  // x, y (z and the turn below)
+    }
+  }
+  return n;
+}
+// The brain after: the home point's top, +0xe8, +0x230, +0xdc, +0x3c, the
+// unstacked count, and each return state's waypoint z and turn.
+void probe_ao_attack_brain(uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  out[0] = home_code(b.xe4);
+  std::memcpy(out + 1, &b.xe8, 4);
+  std::memcpy(out + 2, &b.x230, 4);
+  std::memcpy(out + 3, &b.xdc, 4);
+  out[4] = b.params.get<uint32_t>(0x3c);
+  out[5] = static_cast<uint32_t>(ai::attack_part_unstacked());
+  int32_t k = 0;
+  for (const ai::Order& o : g_brain->orders)
+    if (const auto* rs = dynamic_cast<const ai::AttackReturnState*>(o.state.get()); rs && k < 4) {
+      std::memcpy(out + 6 + 2 * k, &rs->way[2], 4);
+      std::memcpy(out + 7 + 2 * k, &rs->turn, 4);
+      ++k;
+    }
 }
 
 }  // extern "C"

@@ -242,6 +242,7 @@ class BrainHooks : public zgame::Unported {
   virtual Behaviour* path_next(Brain& b, Behaviour* at);
   virtual float speed_at(zgame::Handle v, float share);
   virtual float stopping_distance(zgame::Handle v, float speed);
+  virtual float stop_share(zgame::Handle v, float d);  // vt+0x12c, the Mech's 0x0041d240
   // The deploy state's: the vehicle's local vertical speed (+0x40) and its
   // placement (vt+0xdc, the Mech's set_place 0x00418f30).
   virtual float vertical_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x40", {v})); }
@@ -458,6 +459,7 @@ struct BrainControls {
   virtual void smooth(float dt) = 0;      // the brain's vt+0x04 (the mech's 0x004d89f0 -> 0x00426960)
   virtual bool hit_lately() = 0;          // IControls vt+0xa0 (0x004aed40)
   virtual void fire(bool on) = 0;         // IControls vt+0x10 (0x00428580: +0x34)
+  virtual float throttle_now() = 0;       // IControls vt+0x1c (0x00428510: +0x10, smoothed)
   virtual void set_throttle(float v) = 0; // IControls vt+0x20 (0x00426b60)
   virtual void set_turn(float v) = 0;     // IControls vt+0x28 (0x00426b10)
   virtual float turn_goal() = 0;          // IControls vt+0x30 (0x00426b00: +0x48)

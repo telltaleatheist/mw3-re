@@ -64,6 +64,10 @@ enum class StepKind : uint32_t {
   VehMode2 = 0x5ca8c8,      // slot 3, mode 2
   VehOwn = 0x5ca810,        // slot 5, the brain's own order (0x004c0e40)
   VehMode4 = 0x5ca758,      // slot 6, mode 4
+  // The attack's three (0x004e9ca0, zai_attack).
+  AttackEnd = 0x5cd920,     // its net freed when resumed
+  AttackRearm = 0x5cb948,   // 0x004caca0: the re-engage timer
+  AttackReturn = 0x5cba20,  // 0x004cad70: the way home
   ValveAssign = 0x5cc440,   // 0x004cdc20
   Node = 0x5cc6f0,          // 0x004cf820
   BackupNode = 0x5cc7a8,    // 0x004cfa00

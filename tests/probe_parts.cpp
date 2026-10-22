@@ -191,7 +191,7 @@ void mech_io(uint8_t* b, bool store) {
   Mech& m = g->m;
   io.v3(0x24, m.forward), io.v3(0x30, m.velocity), io.v3(0x3c, m.vec_3c), io.f(0x4bc, m.gait[3][1]);
   io.f(0x508, m.hip_height), io.f(0x50c, m.crouch_depth);
-  io.f(0x518, m.max_speed), io.f(0x520, m.turn_rate), io.bo(0x584, m.no_power_down), io.bo(0x585, m.knee_back);
+  io.f(0x518, m.max_speed), io.f(0x520, m.turn_rate), io.f(0x534, m.throttle_down), io.bo(0x584, m.no_power_down), io.bo(0x585, m.knee_back);
   io.bo(0x586, m.crouched), io.h(0x5c8, m.servo()), io.h(0x5e4, m.sounds[11]), io.h(0x5e8, m.sounds[12]);
   io.u32(0x688, m.detail);
   io.bo(0xdc, m.power_down_pending), io.bo(0xde, m.powered_down);
@@ -495,6 +495,7 @@ float probe_parts_op(int op, const float* a) {
     case 21: w.m.target_part(static_cast<int32_t>(a[3] * 4 + 8) % 16); break;
     case 22: return w.m.aim_part() ? 1.0f : 0.0f;
     case 24: return w.m.can_face(Vec3{a[2], a[3], a[0]}) ? 1.0f : 0.0f;  // vt+0x8c
+    case 29: return w.m.stop_share(a[0] * 100.0f);  // vt+0x12c
     case 25: {  // vt+0x90: the clamped direction logged
       Vec3 out{};
       const bool r = w.m.clamp_aim(Vec3{a[2], a[3], a[0]}, &out);

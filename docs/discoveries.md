@@ -1736,6 +1736,12 @@ are all "puffers": emitters that drop little textured squares.
   from how it actually moves; in the air from its real velocity. Its
   torso then turns toward that point within its twist limits, and the
   shot waits until the torso faces it closely enough (`ai.md` 17.7).
+- **After a fight, enemies walk back to their patrol.** When an enemy
+  breaks off, it heads back to the nearest point of the route it was
+  walking, slowing so it can stop in time, and is done once it is within
+  its pilot's approach range of it (80 m for c1m1's Owens); only then does
+  its wait before the next fight start. If the mission boundary pushes it
+  back, it gives up the walk (`ai.md` 17.2, "The attack").
 - **Enemies never alpha strike.** The AI was written to fire everything at
   once when its pilot rolls for it and the total heat fits, but a slip in
   the code (each weapon doubles a running total that starts at 0, instead
