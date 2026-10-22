@@ -65,7 +65,11 @@ Reset/free: 0x508fc0 (anim system init, reached from `zeff_init` 0x50d2a9)
 calls 0x50b380 if loaded, clears 0x60c570 and the globals, sets gravity
 0x73f73c = -9.8 and 0x73f75c = 1, fills a 200-float random table at
 0x73f400..0x73f720 (`rand()` scaled by about 1/32768), and registers three savegame
-savers. 0x50b380 frees 0x73f724, every def (0x50b0e0: events, seq defs,
+savers. It leaves the table's cursor (0x60c5f4, read by the object motion's
+random direction and the "if" event's random test) and the range tests'
+stagger (0x60c1d8) as they were: both run on from one mission to the next
+in a process, so the same mission's debris flies differently the second
+time. The headless tests reset both as a new process starts. 0x50b380 frees 0x73f724, every def (0x50b0e0: events, seq defs,
 every ref list), 0x73f72c, 0x73f734.
 
 ## 0x50a0e0 `anim_read_zbd()` (no args; returns 0 or -1)

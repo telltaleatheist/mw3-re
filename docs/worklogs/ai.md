@@ -655,3 +655,21 @@ Newest last. One short entry per item: what, commits, what to remember.
 - The red shapes are no-go patches, not a fence (B1's discovery entry was
   wrong, corrected); blue is the fence where there is one. Bridges and
   gates have red and yellow sets under one name for the messages to swap.
+
+## 2026-10-22 The mission boundary, B3: in the program (mac4/boundary-wire)
+
+- WiredBrainHooks::inout_clamp: ai::inout_pull from position() (0x5a85e0).
+- New headless check: mission_c1m4_dominic_stops_at_a_no_go_patch_headless
+  (exact; the 17 m overshoot and the walk back out are the exe's pieces).
+- Five headless runs changed with the boundary acting: the order and the
+  unordered shot (pulled round a patch corner: new exact values), the target
+  (Dominic's spot is inside a patch: he walks out, the hut is at 9 of 30
+  after 30 s), the Owens' way home (pulled from the east: it now starts on
+  the first side whose way back is clear, south, and the give-way puts the
+  player ahead of it by its forward).
+- An order dependence turned up (the target run differed after another
+  mission): the animations' random cursor 0x60c5f4 runs on across missions
+  (the exe's start 0x508fc0 does not reset it; object motion's random
+  direction moved ghsD3's hidden debris, which the feet's ground probe hits).
+  The exe's own behaviour; reset_process_state now resets it and the
+  stagger as a new process would.

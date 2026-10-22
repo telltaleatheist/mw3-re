@@ -400,6 +400,12 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (ai::CZAiTarget* t = target(v)) return node_position(t->node, out);
     mech_world_position(mech(v), out);
   }
+  // 0x004c3000: the mission's boundary, from the vehicle's place (0x005a85e0).
+  bool inout_clamp(Handle v, const float in[3], float out[3]) override {
+    float pos[3];
+    position(v, pos);
+    return ai::inout_pull(pos, in, out);
+  }
   ai::AiTarget* targetable(Handle v) override {
     if (PocketMarker* k = marker(v)) return k;
     if (ai::CZAiTarget* t = target(v)) return t;
