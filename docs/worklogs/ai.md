@@ -602,3 +602,14 @@ Newest last. One short entry per item: what, commits, what to remember.
   elements, the repair bays, the view's pocket layer.
 - mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless: exact.
   The c1m1 sensors test counts the marker (3 entities).
+
+## 2026-10-22 Targeting the targets.zrd objects (mac4/targeting)
+
+- The entity sort (0x4d5ca0, 0x4d7360, 0x4d7a40, 0x4d7bc0) was already
+  ported (sensors.cpp); my map counted it as left by its tags.
+- The brain hooks: contact_entity (0x4e6fe0) for every entity,
+  contact_vehicle (0x4e6ff0) mechs only; a target's AiTarget, place, lock
+  and centroid nodes, active, health fraction; the aim-at-last-hit on
+  mechs only. zEntity3d's node bind for targets (0x40eaa0 / 0x40ed00 over
+  0x40ea30 / 0x40ec20).
+- mission_c1m4_dominic_fires_on_a_target_headless: exact.

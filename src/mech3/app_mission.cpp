@@ -368,6 +368,18 @@ struct WiredBrainHooks : ai::BrainHooks {
   // The pocket commander's marker (app_pocket.cpp) is the one entity here
   // that is not a mech: an AiTarget at its node's place, always up.
   static PocketMarker* marker(Handle v) { return program_pocket_marker(v); }
+  // A targets.zrd object (CZAiTarget, its handle its `self`).
+  static ai::CZAiTarget* target(Handle v) {
+    if (!v) return nullptr;
+    for (ai::CZAiTarget* t : ai::target_list())
+      if (t->self == v) return t;
+    return nullptr;
+  }
+  void node_position(Handle node, float out[3]) const {
+    out[0] = out[1] = out[2] = 0;
+    auto* n = static_cast<zcls::Node*>(e->object_of(node));
+    if (n && n->data && n->cls() == 5) zcls::node_world_position(n, out);
+  }
   static void marker_position(PocketMarker* k, float out[3]) {
     out[0] = out[1] = out[2] = 0;
     auto* n = static_cast<zcls::Node*>(k->node);
@@ -376,23 +388,30 @@ struct WiredBrainHooks : ai::BrainHooks {
   }
   Handle vehicle_handle(void* vehicle) override { return e->handle_of(vehicle); }
   float now() override { return mech_game_time(); }
-  float health(Handle v) override { return marker(v) ? 100.0f : mech_health(mech(v)); }
+  // A target's vt+0x98 is its health's fraction (0x004d2b20).
+  float health(Handle v) override {
+    if (ai::CZAiTarget* t = target(v)) return t->health_fraction();
+    return marker(v) ? 100.0f : mech_health(mech(v));
+  }
   void position(Handle v, float out[3]) override {
     if (PocketMarker* k = marker(v)) return marker_position(k, out);
+    if (ai::CZAiTarget* t = target(v)) return node_position(t->node, out);
     mech_world_position(mech(v), out);
   }
   ai::AiTarget* targetable(Handle v) override {
     if (PocketMarker* k = marker(v)) return k;
+    if (ai::CZAiTarget* t = target(v)) return t;
     return v ? mech_ai_target(mech(v)) : nullptr;
   }
-  int32_t powered_down(Handle v) override {  // 0x0041cc10
-    if (marker(v)) return 0;
+  int32_t powered_down(Handle v) override {  // 0x0041cc10; a target's vt+0xa0 is 0 (0x0040bae0)
+    if (marker(v) || target(v)) return 0;
     return mech_powered_down(mech(v)) ? 1 : 0;
   }
-  // 0x004e6fe0 then vt+0x40: a mech answers itself; targets.zrd's objects 0.
+  // 0x004e6ff0 (0x004e6fe0 then vt+0x40): a mech answers itself; the
+  // targets.zrd objects and the command marker (AiTarget's 0x0040bae0) 0.
   Handle contact_vehicle(const ai::Contact* c) override {
     for (const ai::Handle s : ai::entity_list())
-      if (c->seen && s == c->seen) return s;
+      if (c->seen && s == c->seen) return entity_is_mech(e->object_of(s)) ? s : 0;
     return 0;
   }
   float contact_range2(Handle v) override { return targetable(v)->range2; }
@@ -422,25 +441,39 @@ struct WiredBrainHooks : ai::BrainHooks {
   // The volley pick's (ai.md 17.7): a contact's entity (0x004e6fe0, a mech
   // answers itself; targets.zrd's objects are not mechs: 0) and its active
   // flag (+0x08).
-  Handle contact_entity(const ai::Contact* c) override { return contact_vehicle(c); }
-  bool entity_active(Handle e) override {
-    if (PocketMarker* k = marker(e)) return k->active != 0;
-    return mech_active(mech(e));
+  // 0x004e6fe0 (the seen object's vt+0x2c): every entity answers itself,
+  // the mechs, the targets.zrd objects and the marker.
+  Handle contact_entity(const ai::Contact* c) override {
+    if (!c || !c->seen) return 0;
+    if (target(c->seen) || marker(c->seen)) return c->seen;
+    return contact_vehicle(c);
+  }
+  bool entity_active(Handle v) override {
+    if (PocketMarker* k = marker(v)) return k->active != 0;
+    if (ai::CZAiTarget* t = target(v)) return t->active != 0;  // +0x08
+    return mech_active(mech(v));
   }
   // The plan's track and the lead point (ai.md 17.7) on the mechs.
   bool can_face(Handle v, const float dir[3]) override { return mech_can_face(mech(v), dir); }
   uint8_t bearer_in_reach(Handle b, float c) override { return mech_faces_within(mech(b), c) ? 1 : 0; }
   bool bearer_aim_clamp(Handle b, const float d[3], float out[3]) override { return mech_clamp_aim(mech(b), d, out); }
   void bearer_set_aim(Handle b, const float d[3]) override { mech_set_torso_aim(mech(b), d); }
-  void mech_aim_at_last_hit(Handle e) override { mech3::mech_aim_at_last_hit(mech(e)); }
+  // 0x004b6e30's: the entity's mech (vt+0x50; a target's and the marker's 0),
+  // then 0x0041d130.
+  void mech_aim_at_last_hit(Handle e) override {
+    if (entity_is_mech(mech(e))) mech3::mech_aim_at_last_hit(mech(e));
+  }
   void velocity(Handle v, float out[3]) override {
-    if (marker(v)) return void(out[0] = out[1] = out[2] = 0);
+    if (marker(v) || target(v)) return void(out[0] = out[1] = out[2] = 0);  // still
     mech_lead_velocity(mech(v), out);
   }
-  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(marker(v) ? nullptr : mech(v), m); }
-  void entity_lock_position(Handle e, float out[3]) override {
-    if (PocketMarker* k = marker(e)) return marker_position(k, out);
-    mech_target_position(mech(e), out);
+  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(marker(v) || target(v) ? nullptr : mech(v), m); }
+  // Where a weapon aims: a mech's target node; a target's record "target"
+  // subnode (+0x10), else its node.
+  void entity_lock_position(Handle v, float out[3]) override {
+    if (PocketMarker* k = marker(v)) return marker_position(k, out);
+    if (ai::CZAiTarget* t = target(v)) return node_position(t->target_node ? t->target_node : t->node, out);
+    mech_target_position(mech(v), out);
   }
   Handle wm_group_weapon(Handle wm) override { return e->handle_of(mech3::wm_group_weapon(e->object_of(wm))); }
   void weapon_node_position(Handle w, float out[3]) override { mech3::weapon_node_position(e->object_of(w), out); }
@@ -451,8 +484,18 @@ struct WiredBrainHooks : ai::BrainHooks {
   // The station keeping's (ai.md 17.2): a mech's vt+0xf4 is 0x0040bae0.
   bool vehicle_xf4(Handle) override { return false; }
   // The clear line (ai.md 17.7) on the mechs and the world's query.
-  Handle entity_node(Handle v) override { return e->handle_of(mech_node_of(mech(v))); }
-  Handle entity_centroid(Handle v) override { return e->handle_of(mech_centroid_of(mech(v))); }
+  // A target's node (+0x04) and centroid (the record's subnode, +0x14, else
+  // the node); the marker's node.
+  Handle entity_node(Handle v) override {
+    if (ai::CZAiTarget* t = target(v)) return t->node;
+    if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
+    return e->handle_of(mech_node_of(mech(v)));
+  }
+  Handle entity_centroid(Handle v) override {
+    if (ai::CZAiTarget* t = target(v)) return t->centroid_node ? t->centroid_node : t->node;
+    if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
+    return e->handle_of(mech_centroid_of(mech(v)));
+  }
   void node_world_cached(Handle n, float out[3]) override { mech3::node_world_cached(e->object_of(n), out); }
   bool node_intersect(Handle n) override { return node_intersects(e->object_of(n)); }
   void node_set_intersect(Handle n, bool on) override { node_intersect_set(e->object_of(n), on); }
@@ -595,6 +638,19 @@ struct WiredTargetHooks : ai::TargetHooks {
     rec[traps].reset();
   }
   Handle target_handle(ai::CZAiTarget* t) override { return e->handle_of(t); }
+  // zEntity3d's node bind (0x0040eaa0) and unbind (0x0040ed00) for a
+  // targets.zrd object: vt+0x60 (0x004d2a70, itself) then its vt+0xe4, a
+  // trap's (bit 22, 0x0040ee70) or vt+0xdc, a target's (bit 21, 0x0040ee10),
+  // over the node's tree; so the node a shot or a pick hits leads back to it
+  // (0x0040e920).
+  void node_bind(Handle n, Handle self) override {
+    auto* t = static_cast<ai::CZAiTarget*>(e->object_of(self));
+    if (t) zcls::node_tree_bind(node(n), t, t->trap ? 0x400000u : 0x200000u, 0);
+  }
+  void node_unbind(Handle n, Handle self) override {
+    auto* t = static_cast<ai::CZAiTarget*>(e->object_of(self));
+    if (t) zcls::node_tree_unbind(node(n), t, t->trap ? 0x400000u : 0x200000u, 0);
+  }
   // A contact's sight and teams (0x004e6fe0, vt+0x28): a mech's and a
   // target's vt+0x2c and vt+0x28 answer themselves.
   Handle seen_vehicle(Handle s) override { return s; }

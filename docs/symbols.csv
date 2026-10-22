@@ -1166,3 +1166,8 @@ address,name,source,notes
 0x00469930,LanceDispatchMode1,asm,"the dispatcher with its stack argument 1 (the mode for order 2): the command key 0x0041c684 and unwrap 0x00469cf0"
 0x0046a410,PocketDraw,asm,"ported: pocket_draw"
 0x0046a3f0,PocketControls::DrawPanel,asm,"ported: pocket_draw's"
+0x0040eaa0,EntityNodeBind,asm,"ported for targets: WiredTargetHooks::node_bind (zcls::node_tree_bind)"
+0x0040ea30,NodeTreeBind,asm,"ported: zcls::node_tree_bind"
+0x0040ec20,NodeTreeUnbind,asm,"ported: zcls::node_tree_unbind"
+0x0040ed00,EntityNodeUnbind,asm,"ported for targets: WiredTargetHooks::node_unbind"
+0x004e6ff0,ContactVehicle,asm,"the contact's entity's vt+0x40: mechs only (BrainHooks::contact_vehicle)"

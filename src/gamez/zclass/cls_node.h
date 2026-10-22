@@ -80,6 +80,11 @@ int node_set_tree_valid(Node* node, int on);  // 0x004ed8f0, 1 for a null node
 Node* node_root(Node* node);       // 0x004ed8b0, 0 at a node with several parents
 int node_link(Node* parent, Node* child);       // 0x004eba90
 int node_set_active(Node* node, int on);        // 0x004eb170
+// Mech3.exe 1.2 @ 0x0040ea30: a game object's kind bits (+0x28, replaced),
+// its owner (+0x40) and flags (+0x24, or'd) on the node and every child;
+// 0x0040ec20 takes them off where the owner is `owner`, the children first.
+void node_tree_bind(Node* node, void* owner, uint32_t kind, uint32_t flags);
+void node_tree_unbind(Node* node, void* owner, uint32_t kind, uint32_t flags);
 int node_set_name(Node* node, const char* name);  // 0x004eb300
 void node_touch_frame();                        // 0x004ed960
 Node* node_find_in_tree(Node* node, const char* name);  // 0x004f9d60

@@ -200,6 +200,26 @@ void node_touch_frame() {
   if (g_frames.frozen == 0) g_frames.update_frame = g_frames.frame + 1;
 }
 
+// Mech3.exe 1.2 @ 0x0040ea30
+void node_tree_bind(Node* node, void* owner, uint32_t kind, uint32_t flags) {
+  if (!node) return;
+  node->put<uint32_t>(0x28, kind);
+  node->owner = owner;
+  node->put<uint32_t>(0x24, node->get<uint32_t>(0x24) | flags);
+  for (int32_t i = 0; i < node->child_count(); ++i) node_tree_bind(node->children[i], owner, kind, flags);
+}
+
+// Mech3.exe 1.2 @ 0x0040ec20
+void node_tree_unbind(Node* node, void* owner, uint32_t kind, uint32_t flags) {
+  if (!node) return;
+  for (int32_t i = 0; i < node->child_count(); ++i) node_tree_unbind(node->children[i], owner, kind, flags);
+  if (node->owner == owner) {
+    node->put<uint32_t>(0x28, node->get<uint32_t>(0x28) & ~kind);
+    node->owner = nullptr;
+    node->put<uint32_t>(0x24, node->get<uint32_t>(0x24) & ~flags);
+  }
+}
+
 // Mech3.exe 1.2 @ 0x004eb170. Flag 4 is "active"; on is 1 or 0, anything
 // else leaves it.
 int node_set_active(Node* node, int on) {

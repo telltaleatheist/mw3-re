@@ -1736,6 +1736,11 @@ are all "puffers": emitters that drop little textured squares.
   mission, played the same way, has the enemy fire different weapons,
   run at different heat and so move at slightly different speeds each
   time; small differences that grow over a long fight.
+- **Your lancemates shoot buildings but never walk to them.** A lancemate
+  (or an enemy) fires on any hostile structure it can see and reach, a
+  hut, a tower, a satellite dish, but the AI only ever walks towards mechs
+  and vehicles: a building in sight but out of reach is ignored until the
+  pilot happens to come near it.
 - **The command panel only lists lancemates you have seen.** A lancemate
   under your orders gets a line on the command panel only once you have
   had it in your sensors at least once; until then its place is empty, and
