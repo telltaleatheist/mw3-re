@@ -268,6 +268,8 @@ unusual happens.
 - A crater without its texture flags no longer crashes the game (the original wrote the crater floor's texture position through a null pointer; every shipped crater has the flags).
 - Clearing a mission's ejection seats can no longer hang if one of them will not come off what holds it (none does in the shipped game).
 - A modded mission script that sets a surface-mark type above 2 no longer overwrites other settings (no shipped script uses surface marks).
+- A mission without an AI boundary (a multiplayer game, or a map without one) played after a campaign mission no longer leaves the AI using the previous mission's freed boundary.
+- A modded map whose boundary names a mission past its operation's last no longer writes past the game's list of boundaries; that one is ignored.
 
 
 ## Copy protection removed

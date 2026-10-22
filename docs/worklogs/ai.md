@@ -613,3 +613,28 @@ Newest last. One short entry per item: what, commits, what to remember.
   mechs only. zEntity3d's node bind for targets (0x40eaa0 / 0x40ed00 over
   0x40ea30 / 0x40ec20).
 - mission_c1m4_dominic_fires_on_a_target_headless: exact.
+
+## 2026-10-22 The mission boundary, B1: the reader (mac4/boundary)
+
+- Split sent to the lead: B1 the reader (this), B2 the query 0x4c3000
+  with its crossings and 0x4c3bd0, B3 the program's inout_clamp and the
+  headless edge stop.
+- zainet_inout: the variant, the match, the walk through the matrix
+  stack, the models (corners on the ground), the polygons and their
+  sides, the unlink and delete, the selection, the free. Wired on the
+  mission's listeners (app_mission.cpp) with the launch's game.
+- test_inout.py runs the original's listener load on each world read by
+  its own 0x4ff520 (test_di's World): 84 loads identical at 24 bits.
+  Needed stand-ins: std::numeric_limits<float>::max (0x5bb4fc) and
+  _CIsqrt (0x5bb5b8) as x87 code; the start-up's 0x4c19f0. Campaign
+  cases keep to each world's operation (c3 under op 1 writes m5/m6 past
+  the vector: the FIX).
+- Three FIX (bug): out-of-range children and mission numbers, the
+  current area cleared at the end (the exe leaves it dangling).
+- The shipped `inout` nodes are all at the identity (data flag 8), so the
+  test also moves `inout` and its children (some off the tree-valid path)
+  to run the vertices' transform and the walk's matrices.
+- Breaks: 14 of 19 caught; the other five are the same results (`<=` for
+  `<` in the box, a y the ground replaces, a sum reordered past a zero,
+  push for push_copy of an equal matrix) or unseen (the stale flag on a
+  subtree that is then deleted).

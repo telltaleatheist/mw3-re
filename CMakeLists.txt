@@ -181,6 +181,7 @@ add_library(mw3core STATIC
   src/mech3/zai_path.cpp
   src/mech3/zainet.cpp
   src/mech3/zainetedit.cpp
+  src/mech3/zainet_inout.cpp
   src/mech3/zainet_region.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
@@ -271,6 +272,7 @@ add_library(mw3probe SHARED
   tests/probe_salvage.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
+  tests/probe_inout.cpp
   tests/probe_place.cpp
   tests/probe_shotq.cpp
   tests/probe_command.cpp
