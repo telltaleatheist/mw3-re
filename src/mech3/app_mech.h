@@ -173,6 +173,15 @@ bool mech_targeting_aid(void* mech);
 // The volley pick (0x004b1860) for an AI mech's manager: its brain's +0x34
 // and +0x90, its heat; 0 without a manager or a brain.
 int32_t ai_volley_pick(void* wm, const float* dist2);
+// The clear line's world (0x004d5980, docs/ai.md 17.7): a mech's node and
+// centroid, a node's cached world position (redone when stale), its
+// INTERSECT flag, and the world's first-hit segment query past `exclude`
+// (the node: mech_node_of).
+void* mech_centroid_of(void* mech);
+void node_world_cached(void* node, float out[3]);
+bool node_intersects(void* node);
+void node_intersect_set(void* node, bool on);
+int32_t world_segment_first(const float from[3], const float to[3], uint32_t exclude, uint8_t* count);
 void wm_aim_at(void* wm, const float at[3]);
 void wm_alpha_strike(void* wm, float seconds);
 bool weapon_type_ready(void* w);

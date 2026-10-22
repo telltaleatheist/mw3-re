@@ -409,6 +409,15 @@ struct WiredBrainHooks : ai::BrainHooks {
   uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
   // The volley (ai.md 17.7, weapon_planner): the pilot behind the manager's
   // mech (its AiControls' brain), the contact's distance, the mech's heat.
+  // The clear line (ai.md 17.7) on the mechs and the world's query.
+  Handle entity_node(Handle v) override { return e->handle_of(mech_node_of(mech(v))); }
+  Handle entity_centroid(Handle v) override { return e->handle_of(mech_centroid_of(mech(v))); }
+  void node_world_cached(Handle n, float out[3]) override { mech3::node_world_cached(e->object_of(n), out); }
+  bool node_intersect(Handle n) override { return node_intersects(e->object_of(n)); }
+  void node_set_intersect(Handle n, bool on) override { node_intersect_set(e->object_of(n), on); }
+  int32_t segment_first(const float a[3], const float b[3], uint32_t exclude, uint8_t* count) override {
+    return world_segment_first(a, b, exclude, count);
+  }
   int32_t volley_pick(Handle wm, ai::Contact* c) override {
     return mech3::ai_volley_pick(e->object_of(wm), c ? &c->dist2 : nullptr);
   }

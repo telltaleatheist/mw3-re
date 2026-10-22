@@ -58,6 +58,18 @@ void zone_reset(uint8_t list[4]) {
   list[0] = 0, list[1] = list[2] = list[3] = 0xff;
 }
 
+// Mech3.exe 1.2 @ 0x0053cc90: two lists share a zone, or either is empty or
+// all (0xff), or the mode is off. As in 0x0053cdc0, at most three ids.
+int32_t zones_overlap(const uint8_t a[4], const uint8_t b[4]) {
+  if (g_zones.mode == 0 || a[0] == 0 || b[0] == 0) return 1;
+  for (int i = 0; i < a[0] && i < 3; ++i) {
+    if (a[1 + i] == 0xff) return 1;
+    for (int j = 0; j < b[0] && j < 3; ++j)
+      if (b[1 + j] == 0xff || a[1 + i] == b[1 + j]) return 1;
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x00541760. Order: near, the four sides, far. A plane the
 // sphere is wholly behind (d <= -r) rejects it; one it straddles (d < r)
 // stays in the mask for the children.

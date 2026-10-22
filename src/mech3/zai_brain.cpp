@@ -92,7 +92,12 @@ float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported
 float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
-bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
+bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return ai::clear_line(v, seen, nullptr); }
+bool BrainHooks::clear_line_at(zgame::Handle v, zgame::Handle e) {
+  float at[3];
+  entity_lock_position(e, at);
+  return ai::clear_line(v, e, at);
+}
 bool BrainHooks::region_inside(Region* r, const float* p) { return r->inside(p); }
 void BrainHooks::firing_reset(Brain& b) { b.firing.stand_down(); }    // 0x004e9590
 FirePlan* BrainHooks::fire_plan_pick(Brain& b) { return volley_plan_pick(b.firing); }

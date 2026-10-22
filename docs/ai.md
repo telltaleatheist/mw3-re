@@ -1148,8 +1148,8 @@ frame's sensors keep it selected. (The satellite dish, 2 km out and without
 1433 m from the Owens and does not sense it; the test moves it 300 m short
 with SetPlace first.)
 
-Left: the turrets' pick 0x4d72b0 and the line of sight 0x4d5980 (zClass's
-segment walk 0x4eed90 is not ported), the AI's friendly-fire handler that
+Left: the turrets' pick 0x4d72b0 (the line of sight 0x4d5980 is ported,
+17.7), the AI's friendly-fire handler that
 turns the allies, the mech's vt slots the sensors call (the HUD's lock
 0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),
 zEntity3d.
@@ -1778,7 +1778,7 @@ valve to that value (0x4d3c00, its reactions firing):
 | bit 4 (5) | its health (vt+0x98) is at most +0x04 (item 6) |
 | bit 2 (2) | its ammo's value (IControls vt+0x9c: 0x4b4ed0 on the manager, 1 without one) is at most +0x00 (item 3) |
 | bit 7 (13) | the nearest enemy (picked once per frame, shared with the brain's frame) is nearer than sqrt(+0x10) (item 14) |
-| bit 6 (11) | it is nearer than sqrt(+0x0c) (item 12) and there is a clear line to it (0x4d5980, not ported) |
+| bit 6 (11) | it is nearer than sqrt(+0x0c) (item 12) and there is a clear line to it (0x4d5980, 17.7) |
 | region (10) | none of the above: the vehicle (0x5a85e0) inside the region (0x4c57d0) for +0x19 bit 0 (item 9), outside for bit 1 (item 17), anywhere with both |
 
 A NaN health, ammo or distance holds; a NaN heat does not. Bit 0 (item 15)
@@ -1790,8 +1790,8 @@ controls' IControls +0xa4 is 0x4e94f0, the brain's with nothing picked.
 **Ported** (2026-10-20, `mech3/zai_brain` `vlist_run`, `Brain::vlist`,
 `Brain::pilot_tick`; the brain's frame runs it). The heat, the clear line
 and the region test are `BrainHooks` (the region's default is the port's
-`Region::inside`; the clear line is recorded in the program until cls_di's
-segment query is ported); the valves are the ported ones.
+`Region::inside`; the clear line is the port's, 17.7, since item 14); the
+valves are the ported ones.
 
 Test `test_ai_vlist.py` (probe `tests/probe_ai_orders.cpp`, over
 test_ai_frame.py's brain and vehicle; the exe's own IControls vt+0x9c
@@ -2011,6 +2011,26 @@ instant weapon's speed (none has speed 0), the group roll's 26213 (it
 matters only within 1 of the roll)). In c1m1, 30 m off, the Owens picks a
 group volley and tracks the player, but the plan's ready (the clear line
 0x4d5980, not ported) answers no, so it does not fire yet.
+
+**The clear line, ported** (2026-10-22, item 14: `zai_target`
+`clear_line`, `gmod_cull` `zones_overlap`). Whether vehicle A can see B
+(0x4d5980, ECX A; the point given, or B's centroid, +0x14, its data +0x84
+redone first when stale): not when their zone lists (+0x64: a count, then
+up to three ids, 0xff for all) share no zone (0x53cc90: the zone mode
+[0x5ea1d0] off, an empty list or an "all" passes); else both nodes (+0x04)
+are left out of the world's queries (INTERSECT, 0x4eb710 / 0x4eb6d0), the
+first-hit mode set (0x4ed9c0(1)) and nodes with flag 0x40000 excluded
+(0x4eda00), and the world's segment query (0x4eed90 on [0x608c84] +4)
+runs from A's centroid to the point; the flags put back, the mode cleared.
+Blocked when the query answers 0 with a crossing. Callers: the scorer, the
+plan's ready and take (take with the target's lock point, 0x5a8630), the
+vlist triggers' bit 6, and two outside the AI (0x401a0b, 0x4d72f4). The
+vehicles' zone lists are kept by zEntity3d (0x5a80f0, from the ground under
+them), not ported: the program's lists say "all". In the program the query
+is cls_di's `segment_list` on the world. Test: `test_ai_clearline.py` (6000
+lines identical, 3420 clear and 2580 blocked; 7 branches; 12 of 12 breaks
+caught). With it the c1m1 Owens fires at the player 30 m off: its two lasers
+fire as the burst starts, the charge drains and refills (`test_program`).
 
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):

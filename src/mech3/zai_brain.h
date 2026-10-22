@@ -186,7 +186,32 @@ class BrainHooks : public zgame::Unported {
   virtual void bearer_set_aim(zgame::Handle b, const float dir[3]) {
     unported("vehicle.vt+0x154", {b, zgame::bits(dir[0]), zgame::bits(dir[1]), zgame::bits(dir[2])});
   }
-  virtual bool clear_line_at(zgame::Handle v, zgame::Handle e) { return unported("0x004d5980", {v, e, 1u}) & 0xff; }
+  virtual bool clear_line_at(zgame::Handle v, zgame::Handle e);  // clear_line to e's lock position (0x005a8630)
+  // The clear line's (0x004d5980, zai_target): an entity's zone list (+0x64:
+  // a count, then ids, 0xff all; zEntity3d's 0x005a80f0 that keeps it is not
+  // ported, so count 0: every zone), its node (+0x04) and centroid (+0x14), a
+  // node's world position (its data +0x84, redone first when stale:
+  // 0x004ed280(1)), its INTERSECT flag (0x004eb710 / 0x004eb6d0) and the
+  // world's segment query (0x004eed90 on [0x00608c84] +4) with the first-hit
+  // mode and the exclude flags set for it (0x004ed9c0, 0x004eda00): its
+  // answer, and the crossings in *count.
+  virtual void zone_list(zgame::Handle e, uint8_t out[4]) {
+    (void)e;
+    out[0] = 0, out[1] = out[2] = out[3] = 0xff;
+  }
+  virtual zgame::Handle entity_node(zgame::Handle e) { return unported("entity+0x04", {e}); }
+  virtual zgame::Handle entity_centroid(zgame::Handle e) { return unported("entity+0x14", {e}); }
+  virtual void node_world_cached(zgame::Handle n, float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    unported("node+0x84", {n});
+  }
+  virtual bool node_intersect(zgame::Handle n) { return unported("0x004eb710", {n}) & 1; }
+  virtual void node_set_intersect(zgame::Handle n, bool on) { unported("0x004eb6d0", {n, on ? 1u : 0u}); }
+  virtual int32_t segment_first(const float from[3], const float to[3], uint32_t exclude, uint8_t* count) {
+    *count = 0;
+    return static_cast<int32_t>(unported("0x004eed90", {zgame::bits(from[0]), zgame::bits(from[1]), zgame::bits(from[2]),
+                                                       zgame::bits(to[0]), zgame::bits(to[1]), zgame::bits(to[2]), exclude}));
+  }
   // The firing's aim (0x004b72a0, 0x004b77e0: the firing's Aim) and its
   // questions: the difficulty's aim error ([0x00608e58]: 1.2, 1.0, 0.6),
   // whether the vehicle's mech (vt+0x50) has a targeting computer (+0x3e4)

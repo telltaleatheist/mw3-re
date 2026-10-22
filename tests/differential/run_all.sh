@@ -105,6 +105,7 @@ for t in \
     ai_firing \
     ai_plan \
     ai_aim \
+    ai_clearline \
     mech_health \
     ai_valves \
     ai_targets \

@@ -2178,7 +2178,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
-      int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, tracking = 0;
+      int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, firing = 0, shooting = 0;
       float fire_range = 0, fire_max = 0;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
@@ -2232,7 +2232,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         if (seen.brain) {
           const auto& f = seen.brain->firing;
           if (f.plan && f.plan->kind == 2) ++seen.group_volleys;
-          if (f.phase == 3) ++seen.tracking;
+          if (f.phase == 4) ++seen.firing;
+          for (int32_t g = 0; g < 5; ++g)
+            if (mech3::mech_group_reloading(owens, g)) {
+              ++seen.shooting;
+              break;
+            }
         }
         if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
@@ -2277,10 +2282,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
     EXPECT(seen.fire_max > 0 && seen.fire_range == seen.fire_max);
     // 30 m off, the plan pick takes the player and the volley (0x004b1860)
-    // a weapon group; the firing aims and tracks (phase 3), but the plan's
-    // ready (the clear line 0x004d5980, not ported) says no, so it never
-    // fires and picks again.
-    EXPECT(seen.group_volleys > 100 && seen.tracking > 100);
+    // a weapon group; the line clear (0x004d5980), the firing holds the
+    // trigger (phase 4) and the group's lasers fire (a beam running, or
+    // recharging after).
+    EXPECT(seen.group_volleys > 100 && seen.firing > 100 && seen.shooting > 0);
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
