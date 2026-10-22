@@ -2255,10 +2255,8 @@ freed with it. Ported (2026-10-22, item L4c2a: `mech3/pocket_panel`):
 - The orders over the picked (17.6a) read the first +0x70 places: a
   lancemate's line picked (+0x4b0 bit 1) and its unit (+0xb4, 0x467690).
 
-Not yet (L4c2b): the frame 0x469d00 (the cursor from the target or the
-world, the marker placed, the way out), the panel's draw 0x468900 and the
-lancemates' 0x467760 (L4c2c), and the program's keys, names, cursor and
-mission start; the program has only zEntity's mechs wired.
+The frame is 17.6c; the panel's draw 0x468900 and the lancemates' 0x467760
+are L4c2c.
 
 Test `test_pocket_panel.py` (the exe's 0x468250 and the lines' virtuals
 on twod_world.py's zTwoD outside, a made-up mode, player, entity list,
@@ -2267,6 +2265,68 @@ cursor, repair bays, sounds and colours; the port on the ported zTwoD,
 (picks, mouse calls, re-lights, the orders' draws, the count) identical in
 the calls out and the dump of the panel and every line; 0x467d80's tables
 identical on 200 random sets of bindings and messages; 16 of 16 breaks.
+
+### 17.6c The pocket commander's frame (0x469d00)
+
+Each frame of the mode (its update 0x46a360: this, then its own keys and
+camera 0x46b0a0, L4c2c) runs the panel. Ported (2026-10-22, item L4c2b:
+`pocket_frame`, `PocketPanel::route`):
+
+- **The mouse over the lines** (0x468820): the zInput mouse (0x51ba60)
+  into the panel's +0x14; a line under it entered (+0x30 bit 0, its
+  vt+0x3c) or hovered, a left click (bit 2) toggles its press (+0x30 bit
+  1, vt+0x44 / +0x48) then its left-up, a right click its right-up; a line
+  the mouse left is left.
+- **The map**: when the player is the view's mech (+0x64) his HUD
+  (0x430aa0); its +0x70 == 1 (the mission map shown) makes +0x1b8 the map
+  (0x491c80 on 0x6098d0), copied to [0x605f50] and [0x605f60]. FIX (bug):
+  the exe reads that +0x70 through null when the view is on another mech.
+- **The cursor** (skipped while an order's press is pending, +0x184):
+  - The trigger let go (command 0x3d, TRIGGER1; 0x467480 bit 2, released
+    this read, input.md): with the map
+    up and the mouse inside it (0x444670 on the reticle, the map's +0xd8
+    size) the map's pick (0x4587b0, the spot into +0x16c), else the
+    reticle's (0x444330(0), its spot +0x8fc into +0x16c). A pick with a
+    node makes it the cursor (+0x164, the place +0x168 = +0x16c, its entity
+    0x40eee0 into [0x605f5c] and the target line, "   %s" with its name
+    (vt+0xa4) or message 0x89d) and makes that entity the player's target
+    when he has a contact on it (0x4a7b40). A bare spot (no entity): the
+    marker [0x605f58] goes there (vt+0x18), is shown (0x4eb170(node, 1),
+    +0x08) and is the cursor; else the marker is hidden (even when it is
+    the cursor). No pick: nothing changes.
+  - Else the player's target contact (+0x6c), when it is not the one the
+    mode copied last (+0x188 / +0x190, its owner and entity): its entity
+    (0x4e6fe0) the cursor with its place (0x5a85e0), +0x1c0 = 0, +0x1c1 =
+    1, the marker hidden when it is another.
+  - Else, in a network game, a new element (0x58b060 of [0x609980]
+    +0x20, kept in +0x1bc; +0x1c0 = 1, +0x1c1 = 0): its +0x18's entity
+    (vt+0x2c) the cursor, else the marker at the element's place (vt+0x18).
+  - When the cursor moved (or no target), the orders' lines are re-lit
+    (0x4687e0(0)).
+- **The aim**: the player's target contact copied into +0x188 (none: the
+  template 0x5e9d10).
+- **The way out** (+0x148): when an order's line was pressed lit (+0x184 =
+  1): three frames (+0x14c), the view's pocket off (0x4b5290(0)), the
+  jumps and trigger left alone again (+0x154 bit 0) and the camera mode
+  back (0x40ae70), one frame, then +0x38: the mech's update unwraps
+  (0x469cf0: `mov edx, [ecx+0x160]; jmp 0x469940`, the dispatcher on the
+  order the line put in +0x160), so the order goes to the lancemates
+  picked (17.6a) and the mode ends.
+
+Program: the mission's start and end run through the load's listeners
+(0x4e7b40's slot +0x08, 0x4e7bc0's slot +0x10), and the orders' keys come
+from zInput (an action's first key and its name). Not wired yet (L4c2c):
+the HUD and map picks, the entities' names and places, the marker's
+making (0x468100) and moving, a network game's elements; unset, the mode
+runs without a cursor (its lines and the way out work).
+
+Test `test_pocket_frame.py` (the panel test's world plus the view, the
+HUD, the map, the pick records, four entities and the marker, the
+trigger, the target contacts, a network game's elements; the probe's
+frame hooks answer through the trace): 200 runs of frames with the mouse
+over the lines among the other ops identical in the calls and the dump of
+the panel and the mode, 11 branches reached; 16 of 16 breaks.
+`test_fixes` fix_pocket_frame_without_a_hud.
 
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 

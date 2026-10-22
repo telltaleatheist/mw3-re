@@ -73,6 +73,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_pocket.h"
+#include "mech3/pocket_panel.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mission_world.h"
@@ -869,13 +870,21 @@ struct WiredMissionHooks : MissionHooks {
     e->set_field32(p, 0x14, v);
   }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
-  // The mission load's listeners (0x004e7b40: each one's slot +0x08): the
-  // deploy state's "mcbdeploy" (0x004cfe40); the other four (registered by
-  // 0x004e78d0 from 0x0046ab73, 0x004b4c53, 0x004c3c9a, 0x004d490f) are not
-  // ported, logged.
+  // The mission load's listeners (0x004e7b40: each one's slot +0x08, in
+  // their registration order): the pocket commander's (0x0046aaa0, from
+  // 0x0046ab73) and the deploy state's "mcbdeploy" (0x004cfe40); the other
+  // three (registered by 0x004e78d0 from 0x004b4c53, 0x004c3c9a, 0x004d490f)
+  // are not ported, logged.
   void fn_4e7b40() override {
+    pocket_mission_start();
     ai::deploy_mission_load();
     MissionHooks::fn_4e7b40();
+  }
+  // Their slot +0x10 at the mission's end (0x004e7bc0): the pocket
+  // commander's (0x0046ab10); the others logged.
+  void fn_4e7bc0() override {
+    pocket_mission_end();
+    MissionHooks::fn_4e7bc0();
   }
   void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out

@@ -523,3 +523,20 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Left for L4c2b: the frame 0x469d00, the program's keys, names, cursor,
   marker and mission start wiring; L4c2c: 0x468900, 0x467760, 0x46b0a0,
   0x46af30.
+
+## 2026-10-22 Item L4c2b: the pocket commander's frame (mac4/frame)
+
+- mech3/pocket_panel: pocket_frame (0x469d00) with PocketPanel::route
+  (0x468820), FrameCalls for its world; the mode's update runs it by
+  default. FIX (bug): the exe reads the HUD's +0x70 through null when the
+  player is not the view's mech (crashes the emulator; the differential
+  keeps him viewed, test_fixes covers it).
+- Found in my L4c1 port: 0x469cf0 is the dispatcher on +0x160 (mov edx,
+  [ecx+0x160]; jmp 0x469940), not only order 2: unwrap now dispatches the
+  order a line put there.
+- Program: the mission start / end in the load's listeners, the orders'
+  keys from zInput. The HUD / map picks, names, places, marker making and
+  net elements wait for L4c2c.
+- test_pocket_frame.py: 200 runs identical, 11 branches; 16 of 16 breaks
+  (three needed the full count or a wider world: the map's edges, a net
+  element on the marker).

@@ -105,6 +105,7 @@ for t in \
     pocket \
     pocket_orders \
     pocket_panel \
+    pocket_frame \
     ai_steer \
     ai_states \
     ai_node \

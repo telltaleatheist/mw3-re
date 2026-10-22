@@ -21,6 +21,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_pocket.h"
+#include "mech3/pocket_panel.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
 #include "mech3/zai_attack.h"
@@ -1049,6 +1050,41 @@ TEST(fix_ai_station_keeping_no_endless_phases) {
 // mode and answers yes, and the mech (whose controls still are the mode)
 // deletes it again. Here the mode is left, answers yes, and is deleted once,
 // by the mech's side; the player's controls stay and are his again.
+// FIX (bug), pocket_frame: the exe reads the HUD's +0x70 (the map up)
+// through null when the player is not the view's mech; here no HUD is no map.
+TEST(fix_pocket_frame_without_a_hud) {
+  using namespace mech3;
+  pocket_calls() = PocketCalls{};
+  pocket_calls().view_state = [](PocketControls&, int32_t) {};
+  frame_calls() = FrameCalls{};
+  static int asked;
+  asked = 0;
+  frame_calls().view_hud = [](Mech&) -> zgame::Handle { return 0; };  // not the view's
+  frame_calls().hud_map_up = [](zgame::Handle) { return ++asked, true; };
+  Mech m;
+  auto* prev = new PlayerControls();
+  prev->construct(1);
+  prev->owner = &m;
+  m.controls = prev;
+  PlayerControls*& inst = player_controls_instance();
+  PlayerControls* const saved = inst;
+  inst = prev;
+  MechControls* c = lance_dispatch(prev, 2);
+  PocketControls* p = c ? c->pocket() : nullptr;
+  EXPECT(p && p->panel);
+  if (p) {
+    p->update(1.0f / 30);
+    EXPECT(asked == 0 && p->x1b8 == 0);
+    c = p->leave(true);
+  }
+  EXPECT(c == prev && inst == prev);
+  m.controls = nullptr;
+  inst = saved;
+  delete prev;
+  frame_calls() = FrameCalls{};
+  pocket_calls() = PocketCalls{};
+}
+
 TEST(fix_pocket_commander_freed_once) {
   using namespace mech3;
   pocket_calls() = PocketCalls{};

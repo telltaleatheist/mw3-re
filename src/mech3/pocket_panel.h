@@ -72,8 +72,48 @@ struct PanelCalls {
   // named, on the player's side; then its node switched off (0x004eb170)
   // and it inactive (+0x08).
   zgame::Handle (*make_marker)() = nullptr;
-  void (*marker_off)(zgame::Handle marker) = nullptr;
+  // The marker shown or not: its node (0x004eb170) and its +0x08.
+  void (*marker_on)(zgame::Handle marker, bool on) = nullptr;
 };
+
+// What the panel's frame (0x00469d00) reaches outside (unset: none).
+struct FrameCalls {
+  // 0x00430aa0 on the player's +0x684 when he is the view's (+0x64), else
+  // none; its +0x70 == 1 (the mission map up) and the map (0x00491c80 on
+  // 0x006098d0) with its size (+0xd8's +0x08, +0x0c).
+  zgame::Handle (*view_hud)(Mech& player) = nullptr;
+  bool (*hud_map_up)(zgame::Handle hud) = nullptr;
+  zgame::Handle (*map)() = nullptr;
+  void (*map_size)(zgame::Handle map, int32_t* w, int32_t* h) = nullptr;
+  // The cursor on the map (0x00444670 on the HUD's reticle, +0x144c) and
+  // the map's pick there (0x004587b0: the spot, the record's node +0x24).
+  void (*map_mouse)(zgame::Handle hud, int32_t* x, int32_t* y) = nullptr;
+  bool (*map_pick)(float x, float y, float place[3], uint32_t* node) = nullptr;
+  // The reticle's aim (0x00444330(0): a record, its node +0x24, none) and
+  // the spot it hit (the reticle's +0x8fc).
+  zgame::Handle (*reticle_pick)(zgame::Handle hud) = nullptr;
+  uint32_t (*record_node)(zgame::Handle record) = nullptr;
+  void (*reticle_place)(zgame::Handle hud, float place[3]) = nullptr;
+  uint32_t (*trigger)() = nullptr;                              // 0x00467480: command 0x3d's state (0x0051d300; 4 released)
+  zgame::Handle (*contact_entity)(void* contact) = nullptr;     // 0x004e6fe0
+  uint32_t (*entity_node)(zgame::Handle e) = nullptr;           // its +0x04
+  const float* (*entity_place)(zgame::Handle e) = nullptr;      // 0x005a85e0
+  const char* (*entity_name)(zgame::Handle e) = nullptr;        // vt+0xa4
+  void (*pick_target)(Mech& player, zgame::Handle e) = nullptr; // 0x004a7b40: its contact the target, else none
+  void (*marker_move)(zgame::Handle marker, const float* place) = nullptr;  // vt+0x18
+  zgame::Handle (*net_entity)(uint32_t net) = nullptr;          // its +0x18's vt+0x2c
+  const float* (*net_place)(uint32_t net) = nullptr;            // its vt+0x18
+  void (*route_mouse)(ztwod::MouseState* m) = nullptr;          // 0x0051ba60 (unset: the zTwoD host's)
+};
+FrameCalls& frame_calls();
+
+// Mech3.exe 1.2 @ 0x00469d00 (the mode's update, 0x0046a360): the panel's
+// mouse (0x00468820), the cursor (the trigger let go: the reticle's or the
+// map's pick, the marker put on a bare spot; else the player's target, or a
+// network game's element), the lines re-lit when it moved, the aim copied,
+// and the way out once an order's line was pressed (+0x148 / +0x14c: three
+// frames, the view's pocket off and the camera back, one frame, then +0x38).
+void pocket_frame(PocketControls& c, float dt);
 PanelCalls& panel_calls();
 
 // A line (0x4bc bytes, vtable 0x005c2be8; 0x004674f0): text in the font
@@ -132,6 +172,7 @@ class PocketPanel : public ztwod::Window {
   PocketPanel(PocketControls* controls, int32_t px, int32_t py, int32_t line_h);  // 0x00468250
   ~PocketPanel() override;               // 0x00468720
   bool pick(int32_t unit);               // 0x00469060: the unit's line toggled, 1-based
+  void route();                          // 0x00468820: the mouse over the lines
   void picked(int32_t delta, int32_t from);  // 0x004687e0: the count, the lines from `from` refreshed
 
   PocketControls* controls;              // +0x58
@@ -140,7 +181,8 @@ class PocketPanel : public ztwod::Window {
   int32_t mates = 0;                     // +0x70  lancemates under orders and up
   int32_t places = 0;                    // +0x74  that, 3 at least
   int32_t picked_count = 0;              // +0x78
-  PocketMateItem target;                 // +0x7c  "   target"
+  PocketMateItem target;                 // +0x7c  "   target"; its +0x4b8 below
+  zgame::Handle target_entity = 0;       // +0x534  the cursor's entity
   std::vector<PocketItem*> items;        // +0x53c
 };
 

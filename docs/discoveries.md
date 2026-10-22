@@ -1716,6 +1716,14 @@ are all "puffers": emitters that drop little textured squares.
   marker, "enemy only" makes the spot count as that lancemate's enemy and
   "ally only" as its friend, so it heads for the place as it would for a
   real unit.
+- **In the command mode your trigger points instead of firing.** With the
+  lance command panel open, a click of the fire button (on letting go) picks whatever is
+  under your reticle (or under the mouse on the mission map, when it is
+  shown): it becomes your target if you have it on sensors, and the panel
+  names it. Point at bare ground and the hidden command marker jumps to
+  that spot instead. Pressing an order's line on the panel waits three
+  frames, gives your camera back, then sends the order to every lancemate
+  you picked and closes the panel.
 - **The command panel only lists lancemates you have seen.** A lancemate
   under your orders gets a line on the command panel only once you have
   had it in your sensors at least once; until then its place is empty, and

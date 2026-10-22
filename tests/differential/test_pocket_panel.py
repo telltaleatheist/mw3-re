@@ -168,35 +168,40 @@ class Original:
     def run(self):
         e = self.e
         self.snapshot = e.snapshot()
-        p = self.panel = e.alloc(0x548)
-        c = self.ctl
-        dump = ''
+        self.panel = e.alloc(0x548)
+        self.out = ''
         for line in self.plan:
-            a = line.split()
-            op = a[0]
-            if op == 'K':
-                e.w32(c + 0x164, int(a[1], 16))
-                e.w32(c + 0x168, self.cursor_place if int(a[2], 16) else 0)
-            elif op == 'N':
-                e.call(CTOR, ecx=p, stack=(c, int(a[1]), int(a[2]), int(a[3])))
-            elif op == 'M':
-                e.w32(p + 0x14, int(a[1]) & 0xffffffff)
-                e.w32(p + 0x18, int(a[2]) & 0xffffffff)
-            elif op == 'p':
-                self.t.handle('pick', (e.call(PICK, ecx=p, stack=(int(a[1]),)) & 0xff and 1,))
-            elif op == 'u':
-                e.call(PICKED, ecx=p, stack=(int(a[1]) & 0xffffffff, e.r32(p + 0x74)))
-            elif op == 'X':
-                dump = self.dump()
-                e.call(DTOR, ecx=p)
+            if self.op(line.split()):
                 break
-            elif op in SLOT:
-                i = int(a[1])
-                items = self.items()
-                o = p + 0x7c if i < 0 else (items[i] if i < len(items) else 0)
-                if o:
-                    self.vcall(o, SLOT[op])
-        return dump
+        return self.out
+
+    def op(self, a):
+        """One plan line; True at its end ('X')."""
+        e, p, c = self.e, self.panel, self.ctl
+        op = a[0]
+        if op == 'K':
+            e.w32(c + 0x164, int(a[1], 16))
+            e.w32(c + 0x168, self.cursor_place if int(a[2], 16) else 0)
+        elif op == 'N':
+            e.call(CTOR, ecx=p, stack=(c, int(a[1]), int(a[2]), int(a[3])))
+        elif op == 'M':
+            e.w32(p + 0x14, int(a[1]) & 0xffffffff)
+            e.w32(p + 0x18, int(a[2]) & 0xffffffff)
+        elif op == 'p':
+            self.t.handle('pick', (e.call(PICK, ecx=p, stack=(int(a[1]),)) & 0xff and 1,))
+        elif op == 'u':
+            e.call(PICKED, ecx=p, stack=(int(a[1]) & 0xffffffff, e.r32(p + 0x74)))
+        elif op == 'X':
+            self.out = self.dump()
+            e.call(DTOR, ecx=p)
+            return True
+        elif op in SLOT:
+            i = int(a[1])
+            items = self.items()
+            o = p + 0x7c if i < 0 else (items[i] if i < len(items) else 0)
+            if o:
+                self.vcall(o, SLOT[op])
+        return False
 
     def dump(self):
         e, p = self.e, self.panel
