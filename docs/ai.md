@@ -2453,12 +2453,29 @@ Checked headless (`test_program` mission_c1m4_dominic_shoots_a_near_enemy_
 unordered_headless, MW3_LANCE_LOG=1, MW3_LANCE_AT=metres): in c1 mission 4,
 Dominic woken (`dominic_wakes`) with the powered-down blackhawk_01 put in
 front of him and no order given: at 60 m he takes it as his target and
-fires (697 of 765 frames); at 150 m and 300 m he takes it and aims for the
-whole 25 s but never fires (engaging off throughout, no attack). Since the
-follow state's port (L3) he walks after the player meanwhile (his own
-order, the follow on the player's vehicle, every frame), and never comes
-nearer the enemy than where it was put. The hit handler, the lance orders and the follow
-state are not ported, so those parts are from the code alone.
+fires (697 of 765 frames); at 150 m and 300 m in that direction he takes
+it and aims for the whole 25 s but never fires: the ground blocks the line
+there (the plan's ready, 0x4d5980), not the range; on a clear line (90
+degrees round) he fires from 150, 400 and 600 m alike. Engaging is off
+throughout, no attack. Since the follow state's port (L3) he walks after
+the player meanwhile (his own order, the follow on the player's vehicle,
+every frame), and never comes nearer the enemy than where it was put.
+
+**The lance end to end** (item L5, `test_program`
+mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless): the
+player selects Dominic (his saved target), targets the enemy 400 m from
+him on a clear line and presses the lance key 0x54 ("only an enemy",
+order 10, through `player_command` 0x426cb0 and the dispatcher): the
+order is taken, Dominic's current state is the follow on the enemy's own
+net, and he closes to about 60 m (from 400), firing all the way (he fired
+from 400 m before, too). Then the player's hits on him, one a frame for
+about 6 s (`on_hit` from the player), run past 3 s: 0x4d5dc0 makes the
+player's team his enemy and no longer his ally; put 30 m off, the player
+is then often his next target (when depends on the walk's last bits,
+which vary between runs: Dominic's place differs by 1e-4 m from about
+2.5 s into the walk, and the player's handle by one; not the AI's, found
+here). His own shots' splash at close range is another attacker and
+starts the run of hits again, so the test takes the enemy away first.
 
 **The hits, ported** (2026-10-22, item L1: `ai::HitRecord` on
 `MechControls::hit` (IControls +0x04), `controls_hit` 0x4aec90 and
