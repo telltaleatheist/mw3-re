@@ -268,6 +268,15 @@ class BrainHooks : public zgame::Unported {
   // The deploy state's: the vehicle's local vertical speed (+0x40) and its
   // placement (vt+0xdc, the Mech's set_place 0x00418f30).
   virtual float vertical_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x40", {v})); }
+  // The jump state's: the vehicle's (vt+0x50's) local forward speed (+0x44),
+  // its local velocity set (+0x3c..+0x44), whether it is airborne (vt+0x144,
+  // the Mech's +0x584), and the world's gravity ([0x005e5d34], WorldSetGravity).
+  virtual float forward_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x44", {v})); }
+  virtual void set_local_velocity(zgame::Handle v, float x, float y, float z) {
+    unported("vehicle+0x3c=", {v, zgame::bits(x), zgame::bits(y), zgame::bits(z)});
+  }
+  virtual bool airborne(zgame::Handle v) { return unported("vehicle.vt+0x144", {v}) & 0xff; }
+  virtual float gravity() { return zgame::from_bits(unported("[0x005e5d34]", {})); }
   virtual void place(zgame::Handle v, const float p[3], float yaw) {
     unported("vehicle.vt+0xdc", {v, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2]), zgame::bits(yaw)});
   }
@@ -503,6 +512,8 @@ struct BrainControls {
   virtual float throttle_now() = 0;       // IControls vt+0x1c (0x00428510: +0x10, smoothed)
   virtual void set_throttle(float v) = 0; // IControls vt+0x20 (0x00426b60)
   virtual void set_turn(float v) = 0;     // IControls vt+0x28 (0x00426b10)
+  virtual void set_jump(float v) = 0;     // IControls vt+0x34 (0x00426b40: the jets, no hold)
+  virtual void set_jet_forward(float v) = 0;  // IControls vt+0x3c (0x00428560: +0x28, the jets' forward thrust)
   virtual float turn_goal() = 0;          // IControls vt+0x30 (0x00426b00: +0x48)
   virtual void aim_started() = 0;         // IControls vt+0x80 (the AI's 0x004d8930: Brain::scan_aim)
 };

@@ -698,3 +698,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   (0x4cdcf0) sets its valve first. FIX (bug) extended to the assign.
 - test_ai_node.py: kinds 12-14 in the chains; 88 branches, 6 of 6 breaks.
 - The property steps are all done; the jump (item 4 on my list) is next.
+
+## 2026-10-22 Item 3d: the jump (mac4/behaviours)
+
+- JumpState and jump_plan (0x4cb330, 0x4cb120 / 0x4cb250, run 0x4cb4b0).
+  New hooks: forward_speed, set_local_velocity, airborne, gravity;
+  BrainControls set_jump (vt+0x34), set_jet_forward (vt+0x3c).
+- test_ai_node.py: the jump's state real; _hypot as x87 code (sqrt of the
+  squares at 24 bits, the port's too); world words 25-28 (velocity x/z,
+  airborne, gravity), out to 64 words; jumps land on nodes; NaNs of either
+  sign match (0/0 from a zero share); 800 cases for every phase; 115
+  branches; 16 of 17 breaks (the miss: a 1% band at the speed cap).
+- FIX (bug): a jump whose next step is no node does not turn.

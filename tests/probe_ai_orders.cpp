@@ -159,6 +159,9 @@ zgame::Handle g_player_vehicle = 0;
 // its gate name and jump jets, the net's elements.
 float g_owner_fwd[3] = {};
 float g_vy = 0;  // the vehicle's +0x40
+float g_vx = 0, g_vz = 0;  // its +0x3c, +0x44 (the local velocity)
+bool g_airborne = false;
+float g_gravity = 30.0f;
 mech3::Mech g_mech;
 bool g_owner_gate = false;
 int32_t g_jump_jets = 0;
@@ -426,6 +429,10 @@ struct Hooks : ai::BrainHooks {
     return true;
   }
   float vertical_speed(zgame::Handle) override { return g_vy; }
+  float forward_speed(zgame::Handle) override { return g_vz; }
+  void set_local_velocity(zgame::Handle, float x, float y, float z) override { g_vx = x, g_vy = y, g_vz = z; }
+  bool airborne(zgame::Handle) override { return g_airborne; }
+  float gravity() override { return g_gravity; }
   void pilot_of(zgame::Handle, ai::Pilot* p) override {
     p->name = g_owner_gate ? "g1" : "g2";
     p->jump_jets = g_jump_jets;
@@ -465,6 +472,8 @@ struct FakeControls : ai::BrainControls {
   float throttle_now() override { return fl(call("ictl.vt+0x1c", {})); }
   void set_throttle(float v) override { call("ictl.vt+0x20", {bits(v)}); }
   void set_turn(float v) override { call("ictl.vt+0x28", {bits(v)}); }
+  void set_jump(float v) override { call("ictl.vt+0x34", {bits(v)}); }
+  void set_jet_forward(float v) override { call("ictl.vt+0x3c", {bits(v)}); }
   float turn_goal() override { return fl(call("ictl.vt+0x30", {})); }
   void aim_started() override { call("ictl.vt+0x80", {}); }
 };
@@ -957,7 +966,7 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
       case 2:
         g_elems.push_back(std::make_unique<ai::ValveStep>(g_node_valves[r[1] & 1].get(), static_cast<int32_t>(r[2])));
         break;
-      case 3: g_elems.push_back(std::make_unique<TestStep<ai::ValueStep>>(id, ai::StepKind::Jump, r[1])); break;
+      case 3: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::Jump, r[1])); break;  // its state real
       case 7: {  // a scan (a 0) or canleave (1 on, 2 not) step; b the scan's tests, two bits each
         static const ai::StepKind kinds[3] = {ai::StepKind::Scan, ai::StepKind::CanLeave, ai::StepKind::CanLeaveNot};
         auto st = std::make_unique<ai::ScanStep>(kinds[r[1] % 3], 3);
@@ -1011,6 +1020,9 @@ void probe_ao_node_world(const uint32_t* w) {
   if (!w[19]) g_brain->path.reset();
   for (int k = 0; k < 4; ++k) g_brain->params.put<uint32_t>(k < 3 ? 0x98 + 4 * k : 0x3c, w[20 + k]);
   g_brain->xdc = fl(w[24]);
+  g_vx = fl(w[25]), g_vz = fl(w[26]);
+  g_airborne = (w[27] & 1) != 0;
+  g_gravity = fl(w[28]);
 }
 
 // op 0: the current order given element `which` (0x004e8120); 1 its state
@@ -1036,10 +1048,10 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
               x->kind == ai::StepKind::WaitInterval || x->kind == ai::StepKind::WaitTime ||
               x->kind == ai::StepKind::McbWaitNode || x->kind == ai::StepKind::Sound || x->kind == ai::StepKind::Gate ||
               x->kind == ai::StepKind::Shunt || x->kind == ai::StepKind::ValveUnion ||
-              x->kind == ai::StepKind::ValveAssign))
+              x->kind == ai::StepKind::ValveAssign || x->kind == ai::StepKind::Jump))
       o.state->run(fl(dt));
   }
-  std::memset(out, 0, 4 * 46);
+  std::memset(out, 0, 4 * 64);
   ai::Order& cur = b.current();
   if (auto* ns = dynamic_cast<ai::NodeState*>(cur.state.get())) {
     out[0] = static_cast<uint32_t>(elem_id(ns->behaviour()));
@@ -1062,6 +1074,14 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   for (int k = 0; k < 4; ++k) out[40 + k] = b.params.get<uint32_t>(k < 3 ? 0x98 + 4 * k : 0x3c);
   std::memcpy(out + 44, &b.xdc, 4);
   if (auto* ws = dynamic_cast<ai::WaitState*>(cur.state.get())) std::memcpy(out + 45, &ws->start, 4);
+  if (auto* js = dynamic_cast<ai::JumpState*>(cur.state.get())) {
+    out[46] = static_cast<uint32_t>(js->phase);
+    std::memcpy(out + 47, js->until, 20);
+    std::memcpy(out + 52, &js->speed, 4), std::memcpy(out + 53, &js->jet, 4), std::memcpy(out + 54, &js->turn, 4);
+    out[55] = js->steering;
+  }
+  const float vel[3] = {g_vx, g_vy, g_vz};
+  std::memcpy(out + 56, vel, 12);
 }
 
 // The link pick alone (0x004ccf20) at element `which` for heading h[3]:

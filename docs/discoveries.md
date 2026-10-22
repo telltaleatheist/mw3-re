@@ -1901,6 +1901,13 @@ are all "puffers": emitters that drop little textured squares.
 - **Empty weapon groups.** A weapon group with no weapons left in it (or none
   picked) gave the HUD a "has ammo" answer that depended on where the game
   happened to keep its weapon list in memory; the rebuild says no ammo.
+- **How AI pilots jump.** An AI jump is planned once, from where the pilot
+  stands to the waypoint it lands on: a full-jets climb, a coast, a glide,
+  a coast down and a full-jets landing burn, each timed from the height to
+  clear (the waypoint's clearance added on top) and the world's gravity. A
+  pilot too slow to cover the gap at the planned speed glides longer. The
+  pilot steers at the landing spot all the way until the landing burn, and
+  any phase ends early once its feet touch down. (`ai.md`, the jump)
 - **Each mission has hidden no-go zones for the AI.** Every campaign map
   file carries, for each mission played on it, a set of invisible red
   shapes (4 to 62 per mission) that the AI pilots keep out of, and a

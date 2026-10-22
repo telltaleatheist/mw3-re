@@ -1628,7 +1628,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cac20, 0x5cb928 | 0x5cd920 (the attack's first, 0x4e9ca0) | 0x4c8690 | resume 0x4cac80 |
 | 0x4cace0, 0x5cba00 | 0x4caca0 (0x5cb948) | 0x4c8690 | resume 0x4cad30 |
 | 0x4cadb0, 0x5cbad8 | 0x4cad70 (0x5cba20), given the target | 0x4cae90 (108) | resume 0x4cae10 |
-| 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | |
+| 0x4cb330, 0x5cbbb0 | jump (0x5cbaf8) | 0x4cb4b0 (170) | ported (item 3d, below) |
 | 0x4cbc50, 0x5cbc88 | scan, canleave, canleave-not | 0x4cbca0 | ported (17.4a) |
 | 0x4cbe50, 0x5cbed0 | the shared 0x60b460 (0x5cbe18), every first order | 0x4cbeb0: stop; a vehicle without +0xbc bit 4 finds the nearest node (as the default) and pushes its behaviour (0x4e88c0); with it (the player's lancemates, likely) pushes the net 0x603fb8 when the player's state is 4, and follows the player's vehicle's net (vt+0xd8, 0x4c0de0) | |
 | 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | ported (items 3b, 3c, below) |
@@ -1671,6 +1671,38 @@ valve's reactions firing), then does the same. FIX (bug): an assign whose
 valve is not found sets nothing (the exe sets through null). Test: in
 `test_ai_node.py`'s chains (unions of one or two valve counts, assigns on
 the test's valves), 88 branches, 6 of 6 breaks.
+
+**The jump, ported** (2026-10-22, item 3d: `JumpState`, `jump_plan`). The
+jump step's state (0x4cb310 -> 0x4cb330) plans the flight once (0x4cb120,
+0x4cb250) from the pilot's place to the next step's way point (vt+0x1c):
+the jets climb at 0x41d490(1) less gravity (8 a unit of thrust over the
+world's gravity [0x5e5d34], 30 unless a script sets it) and fall at
+gravity; the step's value is a clearance added to both the climb and the
+fall (whichever way the height goes); `k` = 2 / ((fall - climb accel) x
+ratio), ratio = climb / fall accel; the burn up sqrt(climb x k), the coast up
+-(burn x ratio), the coast down and burn down likewise from the fall; the
+speed needed is the flat distance (the CRT's `_hypot`) over their sum
+(FLT_MAX when that is not positive), and the pilot's top speed at its share
+(vt+0x118) caps it, a slower pilot adding a glide of dist / speed - total.
+The phases end at those times summed from now; the glide's jets are
+0x41d4b0(gravity) (the throttle the jets need to give gravity's
+acceleration, 0). Each run (0x4cb4b0) steers toward the next step's place
+while steering is on (0x4ce230, 0x4c8df0 with the node state's turn
+settings), sets the jets' forward thrust from the forward speed's error to
+the plan's ((|err| - 1) + 0.2, at most 1, against the error's sign:
+IControls vt+0x3c), then: the local velocity zeroed and the jets full until
+the burn up ends; jets off while coasting up and airborne; the velocity
+zeroed and the glide's jets while gliding and airborne; jets off coasting
+down; full jets braking, then steering off; the local velocity set to
+(0, -2, 0); jets off until the pilot is down (vt+0x144, the Mech's +0x584),
+then the next step. A phase passes as soon as its time is up or (but the
+first) the pilot is no longer airborne. [0x60b488] (+0x564 set to 1) is
+never written: dead. FIX (bug): a jump whose next step has no place (not a
+node) steers toward a null pointer in the exe (a crash); it does not turn.
+Test: in `test_ai_node.py` (the jump's state real; the CRT's `_hypot` the
+root of the summed squares at 24 bits on both sides; the local velocity,
+airborne and gravity in the world; jumps landing on nodes; 800 cases so
+every phase is met), 115 branches.
 
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
@@ -3076,7 +3108,7 @@ goes through a hooks struct the test stubs the same on both sides.
    steps' states, backup 0x4cfa80 and deploy 0x4d0040.
 9. **The property states**: scan / canleave done (17.4a); the waits done
    (item 3a); mcbwait, sound, gate done (3b); shunt, valve union / assign
-   done (3c); jump 0x4cb330 alone.
+   done (3c); the jump done (3d).
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order

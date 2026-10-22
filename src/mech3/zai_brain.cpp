@@ -515,6 +515,145 @@ void WaitState::run(float dt) {
   if (on) order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
 }
 
+// Mech3.exe 1.2 @ 0x004cb120 with 0x004cb250 (x87 at 24 bits: floats; the
+// flat distance through the CRT's _hypot, here the root of the squares)
+JumpPlan jump_plan(const float from[3], const float to[3], float up, float down, float margin, float speed) {
+  JumpPlan p;
+  const float d[3] = {to[0] - from[0], to[1] - from[1], to[2] - from[2]};
+  const float hyp = std::sqrt(d[0] * d[0] + d[2] * d[2]);  // the CRT's _hypot, at 24 bits
+  p.dist = hyp;
+  p.rise = d[1];
+  if (d[1] < 0.0f || std::isnan(d[1])) {  // C0: below, or unordered
+    p.rise = -d[1];
+    p.climb = margin;
+    p.fall = margin + p.rise;
+  } else {
+    p.climb = d[1] + margin;
+    p.fall = margin;
+  }
+  p.ratio = up / down;
+  p.t[2] = 0;
+  p.k = 2.0f / ((down - up) * p.ratio);
+  p.t[0] = std::sqrt(p.climb * p.k);
+  p.t[1] = -(p.t[0] * p.ratio);
+  p.t[4] = std::sqrt(p.fall * p.k);
+  p.t[3] = -(p.ratio * p.t[4]);
+  p.total = ((p.t[3] + p.t[4]) + p.t[1]) + p.t[0];
+  p.need = p.total > 0.0f ? hyp / p.total : 3.4028234663852886e38f;  // 0x7f7fffff
+  // 0x004cb250: no faster than needed; no glide without a speed.
+  if (speed > p.need) {
+    p.t[2] = 0, p.speed = p.need;
+  } else if (!(speed > 0.0f)) {
+    p.t[2] = 0, p.speed = speed;
+  } else {
+    p.t[2] = p.dist / speed - p.total;
+    p.speed = speed;
+  }
+  return p;
+}
+
+// Mech3.exe 1.2 @ 0x004cb330. The jets' climb is 0x0041d490(1) (8 a unit
+// of thrust, plus gravity) less gravity; the glide's jets 0x0041d4b0(gravity).
+JumpState::JumpState(Order* o, Behaviour* step) : BehaviourState(o, step) {
+  BrainHooks& h = brain_hooks();
+  Brain& b = *o->owner;
+  const zgame::Handle v = b.controls->vehicle();
+  const float g = h.gravity();
+  const Behaviour* next = static_cast<const Step*>(step)->next;
+  const float top = h.speed_at(v, b.xec);  // vt+0x118
+  const float up = (1.0f * 8.0f + g) - g;  // 0x005e1f8c
+  const float* to = next->way_point();     // vt+0x1c
+  float at[3];
+  h.position(v, at);  // 0x005a85e0
+  const JumpPlan p = jump_plan(at, to, up, -g, fbits(static_cast<const ValueStep*>(step)->value), top);
+  jet = (g - g) / 8.0f;
+  const float now = h.now();
+  float t = now;
+  for (int i = 0; i < 5; ++i) until[i] = t = t + p.t[i];
+  speed = p.speed;
+  phase = 0;
+}
+
+// Mech3.exe 1.2 @ 0x004cb4b0. [0x0060b488] (the vehicle's +0x564 set to 1)
+// is never set: left out. Each phase ends on its time, or (but the first)
+// when the vehicle is down.
+void JumpState::run(float dt) {
+  (void)dt;
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  Behaviour* next = static_cast<const Step*>(from)->next;
+  // FIX (bug): a jump whose next step has no place (vt+0x18 null: not a node)
+  // has the exe steer toward a null pointer (a crash); it does not turn.
+  const float* to = next ? next->position() : nullptr;
+  if (steering && to) {
+    float at[3];
+    h.position(v, at);  // 0x005a85e0
+    FlatWay w;
+    flat_way(at, to, &w);  // 0x004ce230, the next step's vt+0x18
+    float fwd[3] = {0, 0, 0};
+    h.forward(v, &fwd[0], &fwd[2]);  // +0x24
+    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    float cross;
+    turn = turn_hold(fwd, w.dir, &dot, &cross, turn, turn_params());  // 0x004c8df0 with [0x0060b478]
+  } else {
+    turn = 0;
+  }
+  c.set_turn(turn);
+  // The forward thrust toward the speed (0x0060b430..0x0060b43c: 1, 1, 0.2, 1).
+  const float diff = h.forward_speed(v) - speed;
+  float k = (std::fabs(diff) - 1.0f) * 1.0f + 0.2f;
+  if (k > 1.0f) k = 1.0f;
+  if (diff > 0.0f) k = -k;
+  c.set_jet_forward(k);
+  auto before = [&](int i) { return !(h.now() >= until[i]); };  // C0: before, or unordered
+  for (;;) {
+    switch (phase) {
+      case 0:
+        h.set_local_velocity(v, 0, 0, 0);
+        phase = 10;
+        [[fallthrough]];
+      case 10:
+        if (before(0)) return c.set_jump(1.0f);
+        phase = 1;
+        continue;
+      case 1:
+        if (before(1) && h.airborne(v)) return c.set_jump(0.0f);
+        phase = 2;
+        continue;
+      case 2:
+        h.set_local_velocity(v, 0, 0, 0);
+        phase = 11;
+        [[fallthrough]];
+      case 11:
+        if (before(2) && h.airborne(v)) return c.set_jump(jet);
+        phase = 3;
+        continue;
+      case 3:
+        if (before(3) && h.airborne(v)) return c.set_jump(0.0f);
+        phase = 4;
+        continue;
+      case 4:
+        if (before(4) && h.airborne(v)) return c.set_jump(1.0f);
+        phase = 5;
+        steering = 0;
+        continue;
+      case 5:
+        h.set_local_velocity(v, 0, -2.0f, 0);
+        phase = 6;
+        continue;
+      case 6:
+        if (h.airborne(v)) return c.set_jump(0.0f);
+        c.set_jump(0.0f);
+        order->set_behaviour(next);  // 0x004e8120: this state destroyed
+        return;
+      default:
+        return;
+    }
+  }
+}
+
 // Mech3.exe 1.2 @ 0x004ccd00
 McbWaitState::McbWaitState(Order* o, Behaviour* node) : BehaviourState(o, node) {
   o->owner->controls->stop();  // IControls vt+0x14
@@ -569,6 +708,7 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::WaitInterval: return new WaitState(&o, this, false);  // 0x004c9fa0
     case StepKind::WaitTime: return new WaitState(&o, this, true);       // 0x004ca0c0
     case StepKind::McbWaitNode: return new McbWaitState(&o, this);      // 0x004ccce0
+    case StepKind::Jump: return new JumpState(&o, this);                // 0x004cb310
     case StepKind::Sound: return new SoundState(&o, this);              // 0x004cce50
     case StepKind::Gate: return new GateState(&o, this);                // 0x004cd560
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
