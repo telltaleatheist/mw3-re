@@ -906,6 +906,7 @@ struct HomeControls : mech3::ai::BrainControls {
   void smooth(float) override {}
   bool hit_lately() override { return false; }
   void fire(bool) override {}
+  bool reversing() override { return false; }
   float throttle_now() override { return 0; }
   void set_throttle(float) override {}
   void set_turn(float) override {}

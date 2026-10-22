@@ -1544,11 +1544,28 @@ state yet, the nearest contact of any side (0x4d6b90(3)); its vehicle
 own net (vt+0xd8) a part in the order (in place at +0x30: the vehicle
 part, its home point on the brain's +0xe4) and the net's own-order
 behaviour (slot 5, 0x4c0e40) its state (+0x54; when it makes none the part
-is destroyed); then the part's run and the state's. The state (0x4cc150:
-0x4cc290 or 0x4cc240, vtables 0x5cbf10 / 0x5cbef0, runs 0x4cc3e0 of 354
-lines and 0x4cc020) keeps station on that vehicle (+0x78 x 0.9, sqrt(+0x74)
-x 1.1; likely the lancemates' and escorts' formation) and is item 10d: until
-then none (logged), so the order stays empty. c1m1's Owens has +0x80 1 and
+is destroyed); then the part's run and the state's. The state is the station keeping (item 10d2: `make_station_state`,
+`StationState`, `StationHoldState`). The maker 0x4cc150: none without the
+brain's vehicle, the order's part or its vehicle net's vehicle (the net's
+vt+0x58 cast, +0x1c); the other is that vehicle's bearer (vt+0x2c, vt+0x40:
+a mech itself). A pilot whose vehicle's vt+0xf4 says so (0x40bae0 for every
+mech: no mech) gets the hold 0x4cc240 unless the other says so too; else the
+station keeping 0x4cc290, but none for a lancemate (+0xbc bit 4) by another
+lancemate or by the player's vehicle (the exe reads a missing other's +0xbc:
+FIX (bug), none). 0x4cc290 (0x30 bytes, vtable 0x5cbf10, over the waiting
+state 0x4c8a30): +0x20 the throttle's way (-1 when reversing, IControls
+vt+0x18 0x428500), +0x24 +0x78 x 0.9, +0x28 sqrt(+0x74) x 1.1, +0x2c a count,
++0x2e a phase; no break-ins, no firing; its resume 0x4cc380 takes the three
+again (never called: the own order is not on the stack); its run 0x4cc3e0
+is item 10d3. The hold 0x4cc240 (vtable 0x5cbef0, run 0x4cc020): within
++0x28 of the other, phase 1 (and, under the byte [0x60b48c] nothing sets,
+the pilot stopped); farther, or no other, the order ends. The own order's
+pop (its vt+0x08, 0x4e8270) destroys its state, then its part: it is not
+the stack's pop (the port's `Order::own`). Test: `test_ai_attack.py`
+(1390 own-order runs, 540 with a part, the maker, both states and the hold
+on both sides; 10 of 11 breaks caught, the one missed an exact tie of the
+distance and +0x28) and in c1m1 (the Owens keeps station on the player
+within 40 m). c1m1's Owens has +0x80 1 and
 +0x74 1600: within 40 m of the player it builds on the player's net. Its
 home point sits on the stack's (the attack's parts), and the two come off
 apart: in the exe an own part made during a fight keeps a pointer to the
@@ -2215,7 +2232,8 @@ goes through a hooks struct the test stubs the same on both sides.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
-    0x4e81a0: done (10c); its station-keeping states 0x4cc150 (10d); the
+    0x4e81a0: done (10c); its station-keeping states 0x4cc150: done (10d2),
+    the run 0x4cc3e0 (10d3); the
     modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the follow's (0x4d1870)
     later.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).

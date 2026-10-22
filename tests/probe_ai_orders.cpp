@@ -387,10 +387,8 @@ struct Hooks : ai::BrainHooks {
   float stop_share(zgame::Handle, float d) override { return fl(call("vehicle.vt+0x12c", {bits(d)})); }
   // The attack's test: the vehicle net's unported states as fakes (the
   // emulator's makers stubbed the same), by its behaviour's +0x04 (0).
-  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override {
-    if (b.kind == ai::StepKind::VehOwn && !(call("own.state", {}) & 1)) return nullptr;  // 0x004cc150 may make none
-    return new FakeState(&o, &b, 0);
-  }
+  ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override { return new FakeState(&o, &b, 0); }
+  void station_run(ai::BehaviourState&, float dt) override { call("0x004cc3e0", {bits(dt)}); }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
   void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
@@ -447,6 +445,7 @@ struct FakeControls : ai::BrainControls {
   void smooth(float dt) override { call("brain.vt+0x4", {bits(dt)}); }
   bool hit_lately() override { return call("ictl.vt+0xa0", {}) & 1; }
   void fire(bool on) override { call("ictl.vt+0x10", {on ? 1u : 0u}); }
+  bool reversing() override { return call("ictl.vt+0x18", {}) & 1; }
   float throttle_now() override { return fl(call("ictl.vt+0x1c", {})); }
   void set_throttle(float v) override { call("ictl.vt+0x20", {bits(v)}); }
   void set_turn(float v) override { call("ictl.vt+0x28", {bits(v)}); }
@@ -1420,13 +1419,14 @@ void probe_ao_own_world(const uint32_t* w) {
     g_seen_vehicle[k] = w[2 * k + 1] ? ent_handle(1) : 0;
   }
   g_brain->params.put<uint32_t>(0x74, w[6]);
+  g_brain->params.put<uint32_t>(0x78, w[7]);
 }
 void probe_ao_own(uint32_t dt) { g_brain->run_own_order(fl(dt)); }
 // The own order: its part (0 none, 1 the vehicle net's) with its net id,
 // home point and the one under it, its state's serial (a fake's).
 void probe_ao_own_row(uint32_t* out) {
   const ai::Order& o = g_brain->order;
-  std::memset(out, 0, 4 * 8);
+  std::memset(out, 0, 4 * 12);
   if (const auto* vp = dynamic_cast<const ai::VehiclePart*>(o.net.get())) {
     out[0] = 1;
     out[1] = static_cast<uint32_t>(vp->target->get_id());
@@ -1438,6 +1438,15 @@ void probe_ao_own_row(uint32_t* out) {
   }
   if (const auto* fs = dynamic_cast<const FakeState*>(o.state.get())) out[7] = fs->serial;
   else if (o.state) out[7] = 0xffffffff;
+  // The station keeping (10d2): its kind (1, 2 the hold), way, speed,
+  // range, phase.
+  if (const auto* st = dynamic_cast<const ai::StationState*>(o.state.get())) {
+    out[7] = dynamic_cast<const ai::StationHoldState*>(st) ? 2u : 1u;
+    std::memcpy(out + 8, &st->way, 4);
+    std::memcpy(out + 9, &st->near_speed, 4);
+    std::memcpy(out + 10, &st->range, 4);
+    out[11] = static_cast<uint16_t>(st->phase);
+  }
 }
 
 }  // extern "C"

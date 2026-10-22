@@ -94,16 +94,7 @@ float BrainHooks::speed_at(zgame::Handle v, float share) { return fbits(unported
 float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
   return fbits(unported("vehicle.vt+0x120", {v, bits(speed)}));
 }
-BehaviourState* BrainHooks::vehicle_step_state(Behaviour& b, Order& o) {
-  // The own order's (0x004cc150: keeping station, item 10d) runs beside the
-  // orders every frame: a stand-in that stops the pilot would undo them, so
-  // none until it is ported (the exe's maker can answer none too).
-  if (b.kind == StepKind::VehOwn) {
-    unported("0x004cc150", {low(&b)});
-    return nullptr;
-  }
-  return new BehaviourState(&o, &b);
-}
+BehaviourState* BrainHooks::vehicle_step_state(Behaviour& b, Order& o) { return new BehaviourState(&o, &b); }
 float BrainHooks::stop_share(zgame::Handle v, float d) { return fbits(unported("vehicle.vt+0x12c", {v, bits(d)})); }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return ai::clear_line(v, seen, nullptr); }
 bool BrainHooks::clear_line_at(zgame::Handle v, zgame::Handle e) {
@@ -159,8 +150,16 @@ void Order::run(float dt) {
   state->run(dt);
 }
 
-// Mech3.exe 1.2 @ 0x004e8170
-void Order::pop() { owner->pop(); }
+// Mech3.exe 1.2 @ 0x004e8170; the brain's own order's 0x004e8270: its state
+// destroyed, then its part.
+void Order::pop() {
+  if (!own) {
+    owner->pop();
+    return;
+  }
+  state.reset();
+  net.reset();
+}
 
 // Mech3.exe 1.2 @ 0x004e81a0. The exe asks the net for its own-order
 // behaviour (0x004c0e40) as a vehicle's own net, which vt+0xd8 always is.
@@ -481,11 +480,11 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::CanLeave:
     case StepKind::CanLeaveNot: return new ScanState(&o, this);  // 0x004cbc30
     case StepKind::VehAttack: return new FightState(&o, this);                                    // 0x004d1ca0
+    case StepKind::VehOwn: return make_station_state(*this, o);  // 0x004cc150
     case StepKind::VehFollow:
     case StepKind::VehMode1:
     case StepKind::VehMode2:
-    case StepKind::VehMode4:
-    case StepKind::VehOwn: return brain_hooks().vehicle_step_state(*this, o);
+    case StepKind::VehMode4: return brain_hooks().vehicle_step_state(*this, o);
     case StepKind::AttackEnd: return new AttackEndState(&o, static_cast<AttackEnd*>(this));        // 0x004cac00
     case StepKind::AttackRearm: return new AttackRearmState(&o, this);                            // 0x004cacc0
     case StepKind::AttackReturn: return new AttackReturnState(&o, static_cast<AttackReturn*>(this));  // 0x004cad90
@@ -718,6 +717,7 @@ Brain::Brain(AiNet* net, const AiParams& rec) : params(rec) {
   // +0x190: the order stack's owner (the brain).
   set_net(net);
   order.set_owner(this);  // 0x004e8090
+  order.own = true;       // its vtable 0x005cd8e8
   firing.brain = this;    // 0x004b6660 (its IControls vt+0x10(0): nothing)
   make_radio();
 }

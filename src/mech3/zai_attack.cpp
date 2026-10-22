@@ -257,6 +257,65 @@ void FightState::run(float) {
   if (drive_to(b, v, from, to, &turn, &throttle, true) && mode) order->set_behaviour(mode);  // 0x004e8120
 }
 
+// Mech3.exe 1.2 @ 0x004cc150. The other is the vehicle's bearer (its vt+0x2c
+// then vt+0x40: a mech itself).
+BehaviourState* make_station_state(Behaviour& b, Order& o) {
+  BrainHooks& h = brain_hooks();
+  Brain* br = o.owner;
+  const zgame::Handle v = br && br->controls ? br->controls->vehicle() : 0;
+  if (!v || !o.net) return nullptr;
+  auto* vn = dynamic_cast<VehicleNet*>(o.net->net());  // vt+0x08, then the net's vt+0x58
+  if (!vn || !vn->vehicle) return nullptr;
+  const zgame::Handle other = h.bearer(vn->vehicle);
+  if (h.vehicle_xf4(v)) {
+    if (other && h.vehicle_xf4(other)) return nullptr;
+    return new StationHoldState(&o, &b);  // 0x004cc240
+  }
+  // FIX (bug): the exe reads a missing other's +0xbc (a crash); here none.
+  if (h.vehicle_flags(v) & 0x10) {
+    if (!other || (h.vehicle_flags(other) & 0x10) || h.player_vehicle() == other) return nullptr;
+  }
+  return new StationState(&o, &b);  // 0x004cc290
+}
+
+// Mech3.exe 1.2 @ 0x004cc290 (over 0x004c8a30)
+StationState::StationState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) { take_params(); }
+
+void StationState::take_params() {
+  Brain& br = *order->owner;
+  way = br.controls->reversing() ? -1.0f : 1.0f;  // IControls vt+0x18
+  near_speed = br.params.get<float>(0x78) * 0.9f;  // 0x005cb0d8
+  range = std::sqrt(br.params.get<float>(0x74)) * 1.1f;  // 0x005cb140, 1.1f as a double
+}
+
+// Mech3.exe 1.2 @ 0x004cc380
+void StationState::resume() { take_params(); }
+
+// 0x004cc3e0 (item 10d3)
+void StationState::run(float dt) { brain_hooks().station_run(*this, dt); }
+
+// Mech3.exe 1.2 @ 0x004cc020. The other vehicle through the order's part
+// (the vehicle net's, as always here).
+void StationHoldState::run(float) {
+  BrainHooks& h = brain_hooks();
+  Brain& br = *order->owner;
+  auto* vn = order->net ? dynamic_cast<VehicleNet*>(order->net->net()) : nullptr;
+  const zgame::Handle other = vn ? vn->vehicle : 0;
+  if (other) {
+    float a[3], t[3];
+    h.position(br.controls->vehicle(), a);  // 0x005a85e0
+    h.position(other, t);
+    const float dx = t[0] - a[0], dy = t[1] - a[1], dz = t[2] - a[2];
+    const float d = std::sqrt((dx * dx + dy * dy) + dz * dz);
+    if (!(d >= range)) {  // within (a NaN too)
+      // [0x0060b48c] (never set): the pilot stopped.
+      phase = 1;
+      return;
+    }
+  }
+  order->pop();
+}
+
 // Mech3.exe 1.2 @ 0x004e9ca0
 bool attack(Brain& b, AiNet* n) {
   b.remake(n);  // 0x004e82e0
