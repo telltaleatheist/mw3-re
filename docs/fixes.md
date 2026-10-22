@@ -405,6 +405,12 @@ Kept:
 
 ## Candidates for Owen
 
+- Objective rewards that lose parts (mac 2, 2026-10-21, objectives.md
+  "Quirks"): the salvage reader 0x004711a0 takes weapons only as `(name
+  tech)` lists and engines only under `engines`, so c1m2's 120 XL engine
+  (under `engine`) and c2m2's and c3m3's weapons (plain names) are never
+  given. Kept as the original. Possible: also read `engine` and plain
+  weapon names (with the weapon's default tech).
 - Ctrl+X / Ctrl+I's folders (mac 3, 2026-10-21): with no file dialogs, the
   export goes to `export\` and the import takes the next file in
   `import\` (one a press, renamed `.done`). A file picker in the SDL front
