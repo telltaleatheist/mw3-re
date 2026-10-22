@@ -89,6 +89,26 @@ zsnd::VoiceBase* sound_play(zsnd::Object* obj, const float* pos, float volume, c
   return sound_extra_play(r ? *r : g_default, obj, volume, pos, vel, fade_to);
 }
 
+// Mech3.exe 1.2 @ 0x004e6c60: 0x004e6cd0's tests, zSound's 2D play.
+zsnd::VoiceBase* sound_extra_say(SoundExtra& r, zsnd::Object* obj, float volume) {
+  const float now = world().time;
+  if (r.next > now) return nullptr;  // test ah, 0x41: NaN plays
+  if (r.min_delay > 0.0f) r.next = now + r.min_delay;
+  zsnd::VoiceBase* v = g_hooks.play ? g_hooks.play(obj, volume) : zsnd::play(obj, volume);
+  if (g_subtitles && r.subtitle) {
+    if (g_hooks.subtitle) g_hooks.subtitle(r.subtitle);
+    else message_panel_add(r.subtitle);
+  }
+  return v;
+}
+
+// Mech3.exe 1.2 @ 0x004e6d50
+zsnd::VoiceBase* sound_say(zsnd::Object* obj, float volume) {
+  if (!obj) return nullptr;
+  auto* r = static_cast<SoundExtra*>(zsnd::user_data(obj));  // 0x0056f430
+  return sound_extra_say(r ? *r : g_default, obj, volume);
+}
+
 // Mech3.exe 1.2 @ 0x00432990
 zsnd::VoiceBase* pilot_sound(void* const* sounds, int32_t id, float volume, const float* pos, const float* vel) {
   return sound_play(static_cast<zsnd::Object*>(sounds[id]), pos, volume, vel, -1.0f);

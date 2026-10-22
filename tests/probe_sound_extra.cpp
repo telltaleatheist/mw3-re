@@ -97,6 +97,27 @@ int probe_sx_play(float next, float delay, int subtitle, int on, float now, floa
   return finish(out, cap);
 }
 
+// 0x004e6c60, the same without a place: zSound's 2D play logged.
+int probe_sx_say(float next, float delay, int subtitle, int on, float now, float volume, uint8_t* out, int cap) {
+  g_out.clear();
+  mech3::SoundExtra r;
+  static char sub[] = "SUB";
+  r.subtitle = subtitle ? sub : nullptr, r.min_delay = delay, r.next = next;
+  mech3::subtitles_on() = on != 0;
+  mech3::world().time = now;
+  mech3::SoundExtraHooks& h = mech3::sound_extra_hooks();
+  h.play = [](zsnd::Object* obj, float vol) {
+    u32(0x53), u32(obj != nullptr), f32(vol);
+    return reinterpret_cast<zsnd::VoiceBase*>(0x7777);
+  };
+  h.subtitle = [](const char* t) { u32(0x52), str(t); };
+  static int obj_dummy;
+  zsnd::VoiceBase* v = mech3::sound_extra_say(r, reinterpret_cast<zsnd::Object*>(&obj_dummy), volume);
+  u32(v ? 1u : 0u), f32(r.next);
+  h = mech3::SoundExtraHooks{};
+  return finish(out, cap);
+}
+
 // The wake: each op a throttle to start at (float bits) or 0x7fffffff to
 // stop; the calls logged, then the level and whether it plays.
 int probe_wake(const int32_t* ops, int n, uint8_t* out, int cap) {

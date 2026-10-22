@@ -141,6 +141,7 @@ void Mech::on_kill(Handle victim) {
   const Handle vehicle = view(info, 0x40);
   const Handle building = view(info, 0x48);
   if (c.controls_killed) c.controls_killed(*this, info);
+  else if (controls) controls->on_kill(info);  // IControls vt+0xb4
   if (mech) {
     xf8 = -1;  // 0x0041d810(-1): no part targeted (0x0041d6f0 then does nothing)
     if (credit && c.salvage_mech) c.salvage_mech(mech);
@@ -218,6 +219,7 @@ void Mech::die() {
     }
   }
   if (c.controls_stop) c.controls_stop(*this);
+  else if (controls) controls->on_death();  // IControls vt+0xa8
   foot(0)->stop_effect();
   foot(1)->stop_effect();
   if (void* scr = this == w.player ? screen(*this) : nullptr; scr && c.player_died_hud) c.player_died_hud(scr);

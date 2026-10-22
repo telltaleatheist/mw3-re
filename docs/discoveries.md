@@ -1704,6 +1704,13 @@ are all "puffers": emitters that drop little textured squares.
   Checked in the rebuild with Dominic in operation 1 mission 4: an enemy
   60 m in front of him draws his fire at once; at 150 m he aims at it and
   stands there.
+- **What your lancemates say, and when.** Their radio has sixteen lines;
+  the game itself (not the mission scripts) uses: "low ammo" and "out of
+  ammo"; a call for help when an enemy hits them and you are more than
+  about 22 m away; "friendly fire" when you hit them; a kill line when
+  they destroy something that is not on your side; and "ejecting" when
+  they die. Each line can carry a minimum delay before it repeats. The
+  rest are answers to your orders.
 - **Everyone starts a mission "just hit".** The game remembers when each
   mech was last hit, starting from zero, and the mission clock starts at
   zero too, so for the first second every mech counts as having been hit

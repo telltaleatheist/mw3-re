@@ -64,6 +64,13 @@ struct MechControls {
   virtual void on_hit(void* attacker);
   virtual void hit_an_ally(void* victim) { (void)victim; }  // 0x004bf620
   bool hit_lately() const;
+  // vt+0xa4: the pilot's tick (the base's is _purecall; the player's
+  // 0x004d8990, the AI's 0x004e94f0). vt+0xa8 (Mech::die): the base's
+  // 0x004aed50 runs the tick once more; the AI's 0x004d8a00. vt+0xb4 (the
+  // kill credit 0x0041b420): it killed `victim` (nothing but the AI's 0x004ea630).
+  virtual void tick() {}
+  virtual void on_death() { tick(); }
+  virtual void on_kill(void* victim) { (void)victim; }  // 0x004bf620
 
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
   int smooth(float dt) { return MechControls::update(dt); }  // 0x00426960 whatever the class
@@ -103,6 +110,7 @@ struct PlayerControls : MechControls {
   // 0x004d8990 (IControls vt+0xa4): the settings' vlist triggers run on the
   // player's vehicle (0x004d9290), nothing picked yet (docs/ai.md 17.5).
   void pilot_tick();
+  void tick() override { pilot_tick(); }  // IControls vt+0xa4 0x00428720 -> 0x004d8990
   void construct(uint32_t mode);   // 0x00427320 with the base 0x004265a0
   int update(float dt) override;   // 0x00427d60
   // 0x004274d0 (primary vt+0x1c): the throttle keys. Backspace reverses the
@@ -135,6 +143,9 @@ struct AiControls : MechControls, ai::BrainControls {
   bool hit_lately() override { return MechControls::hit_lately(); }  // IControls vt+0xa0 0x004aed40
   void on_hit(void* attacker) override;       // IControls vt+0x94 0x004ea520
   void hit_an_ally(void* victim) override;    // IControls vt+0x98 0x004ea500
+  void tick() override;                       // IControls vt+0xa4 0x004e94f0
+  void on_death() override;                   // IControls vt+0xa8 0x004d8d00 -> 0x004d8a00
+  void on_kill(void* victim) override;        // IControls vt+0xb4 0x004ea630
   void fire(bool on) override { MechControls::fire = on; }  // IControls vt+0x10 0x00428580
   bool reversing() override { return reverse; }  // IControls vt+0x18 0x00428500
   float throttle_now() override { return MechControls::throttle; }  // IControls vt+0x1c 0x00428510
