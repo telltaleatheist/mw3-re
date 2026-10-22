@@ -147,6 +147,7 @@ void image_soils(Img& o, const m3::MechData::Soils& s) {
 extern "C" {
 
 void probe_md_reset() {
+  m3::lod_scale() = 1.0f;
   {
     probe_app::Mute mute;
     m3::set_mech_data_hooks(&g_hooks);
@@ -170,6 +171,7 @@ uint32_t probe_md_get(int32_t roster, int32_t create) {
   return addr_of(m3::mech_data(roster, create));
 }
 void probe_md_refresh() { m3::mech_data_refresh(); }
+void probe_md_scale(float s) { m3::set_lod_scale(s); }
 void probe_md_clear() { m3::mech_data_clear(); }
 
 // The cache's entries by address, in order; returns the count.

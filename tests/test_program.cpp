@@ -62,6 +62,7 @@
 #include "mech3/mission.h"
 #include "mech3/mission_world.h"
 #include "mech3/options.h"
+#include "mech3/mech_shade.h"
 #include "mech3/pause_menu.h"
 #include "mech3/pilot.h"
 #include "mech3/briefing.h"
@@ -4629,5 +4630,164 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
     mech3::reset_states();
     reset_process_state();
     mech3::options() = mech3::Options{};
+  }
+}
+
+namespace mech3 {
+float& lod_scale();  // mech_data.h (its Handle clashes with this file's)
+}
+
+// The options' effects detail and object detail (playtest census #6 and #8):
+// through the program's hooks, zEffect's "if" level (0x00508fb0, counted the
+// other way) and the mechs' range scale (0x00430440).
+TEST(options_effects_and_mech_detail_reach_their_modules) {
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  const int32_t level0 = zeff::anim().level;
+  const float scale0 = mech3::lod_scale();
+  const int32_t want_level[3] = {2, 1, 0};
+  const float want_scale[3] = {1.0f, 0.75f, 0.0f};
+  for (int v = 0; v < 3; ++v) {
+    mech3::set_effects_level(v);
+    EXPECT(zeff::anim().level == want_level[v]);
+    mech3::set_object_lod(v);
+    EXPECT(mech3::lod_scale() == want_scale[v]);
+  }
+  EXPECT(engine.unported_counts().count("0x00508fb0") == 0);
+  EXPECT(engine.unported_counts().count("0x00430440") == 0);
+  zeff::anim().level = level0;
+  mech3::lod_scale() = scale0;
+}
+
+// The options' "shadow parts" (census #9, docs/shade.md): c1 mission 1 with
+// it on. The mission start applies it (0x004e6900): the shading is on with
+// the sun, every mech has its shade, the turn goes round, and the scene
+// walk's calls leave the sun's diffuse as it was after each frame.
+TEST(mission_c1m1_mech_sun_shading_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_shade"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.set_launch(mech3::GameEngine::Launch{});
+    app.post_intro_ = &mech3::states().load;
+    mech3::set_shadow_parts(1);
+    int frames = 0, turns_seen = 0, last_turn = -1;
+    bool on = false, shaded_player = false, diffuse_kept = true;
+    float sun_diffuse = -1, player_level = -1;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      const mech3::ShadeGlobals& g = mech3::shade_globals();
+      if (frames == 3) {
+        on = g.on && g.sun;
+        sun_diffuse = mech3::shade_hooks().sun_diffuse(g.sun);
+      }
+      if (frames > 3 && g.sun && mech3::shade_hooks().sun_diffuse(g.sun) != sun_diffuse) diffuse_kept = false;
+      if (g.turn != last_turn) ++turns_seen, last_turn = g.turn;
+      if (frames == 60) {
+        if (auto* m = static_cast<mech3::SunShade*>(mech3::mech_shade_of(mech3::mech_mission_player()))) {
+          shaded_player = true;
+          player_level = m->level.current;
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2000;
+    pump.stop = [&] { return frames >= 61; };
+    app.run(pump);
+    EXPECT(on);
+    EXPECT(shaded_player);
+    EXPECT(turns_seen > 1 || mech3::shade_globals().count == 1);
+    EXPECT(diffuse_kept);  // each draw's swap is undone after it
+    EXPECT(engine.unported_counts().count("0x004e6900") == 0);
+    EXPECT(engine.unported_counts().count("0x004e6480") == 0);
+    if (std::getenv("MW3_SURVEY"))
+      std::printf("  sun diffuse %g, shades %d, the player's level %g\n", sun_diffuse, mech3::shade_globals().count,
+                  player_level);
+    mech3::set_shadow_parts(0);
+  }
+  mech3::set_app(nullptr);
+}
+
+// A survey (MW3_SURVEY=1): each campaign world's sun diffuse (the light's
+// +0x9c), which a lit mech's shade does not follow (docs/shade.md).
+TEST(survey_world_sun_diffuse_headless) {
+  if (!have_game() || !std::getenv("MW3_SURVEY")) return;
+  // One world a process (MW3_SURVEY_WORLD, 0..5): a second world's load in
+  // the same process crashes in the model copy (not this survey's matter).
+  const char* only = std::getenv("MW3_SURVEY_WORLD");
+  for (int index = only ? std::atoi(only) : 0; index < (only ? std::atoi(only) + 1 : 1); ++index) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("survey_sun"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      if (!app.init_instance()) continue;
+      mech3::GameEngine::Launch l;
+      l.index = index;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      mech3::set_shadow_parts(1);
+      int frames = 0;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core || ++frames != 3) return;
+        const mech3::ShadeGlobals& g = mech3::shade_globals();
+        std::printf("world %d: sun %s, diffuse %g\n", index, g.sun ? "yes" : "no",
+                    g.sun ? mech3::shade_hooks().sun_diffuse(g.sun) : 0.0f);
+      };
+      CountingPump pump;
+      pump.limit = 2000;
+      pump.stop = [&] { return frames >= 3; };
+      app.run(pump);
+      mech3::set_shadow_parts(0);
+    }
+    mech3::set_app(nullptr);
   }
 }

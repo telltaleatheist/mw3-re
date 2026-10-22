@@ -105,6 +105,9 @@ void canned_nodes_free();  // 0x00431800: the copies, at the mission's unload
 int32_t canned_nodes_count();  // 0x00605718
 void mech_data_refresh();                      // 0x004319a0, at each mission's load: 0x004319f0 on each
 void load_ranges(MechData& p);                    // 0x00430840
+// [0x005e2928], 1 at start: the options' mech detail scale on the ranges.
+float& lod_scale();
+void set_lod_scale(float s);                     // 0x00430440: stored, each cached type's ranges again
 void load_sounds(MechData& p);                    // 0x004306d0
 void load_effects(MechData& p);                   // 0x004320b0
 void load_soils(MechData& p);                     // 0x00432670 with 0x004326d0

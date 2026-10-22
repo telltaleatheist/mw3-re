@@ -2541,3 +2541,17 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   description in the message panel for 5 seconds (the first line as
   "objective complete", the others below it) and then one line per item
   of its salvage; a silent one completes without its voice line.
+- **Object detail "Low" puts every mech on its low-detail model.** The
+  option scales each mech type's two switching distances (Medium by 0.75,
+  Low by 0): at Low a mech switches to its low-detail model at any
+  distance and only comes back while it is your target. (The effects
+  detail option counts the other way inside the game: High is level 2 of
+  the mission animations' "if level" tests, Low is 0.)
+- **"Shadow parts" makes mechs darken in shadow, and brightens them on dim
+  maps.** With the option on, the game checks one mech a frame with a ray
+  from its middle towards the sun: if a building or a hill is in the way the
+  mech fades to black lighting over a second, in the open it fades back.
+  But "back" is always full light (1.0), not the map's own sunlight: on Op
+  3's night-like world (sun at 0.2) a mech in the open is drawn five times
+  brighter than the ground around it, on Op 4's second world and in
+  training (0.7) somewhat brighter. (docs/shade.md)

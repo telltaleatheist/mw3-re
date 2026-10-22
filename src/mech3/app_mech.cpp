@@ -54,6 +54,9 @@
 #include "mech3/mech_config.h"
 #include "mech3/mech_data.h"
 #include "mech3/mech_lib.h"
+#include "mech3/mech_shade.h"
+#include "gamez/zclass/camera.h"
+#include "gamez/zmodel/gmod_draw.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
@@ -106,8 +109,132 @@ class WiredData : public MechDataHooks {
   }
 };
 
+// The mechs' sun shading (mech_shade.cpp, docs/shade.md) on the program's
+// ports: the mission's sun, the mechs' nodes and parts, zClass's queries and
+// flags, the scene walk's before and after calls, the model draw's bake.
+class WiredShade : public ShadeHooks {
+ public:
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
+  }
+  static uint32_t id(const void* p) { return p ? g_w.handle_of(g_w.engine, p) : 0; }
+  static void* obj(uint32_t h) { return h ? g_w.object_of(g_w.engine, h) : nullptr; }
+  static zcls::Node* node(uint32_t h) { return static_cast<zcls::Node*>(obj(h)); }
+  static zcls::Light* light(uint32_t h) { return static_cast<zcls::Light*>(obj(h)); }
+  zgame::Handle world_sun() override {
+    auto* sun = static_cast<zcls::Node*>(mission_sun());
+    return sun && sun->data ? id(sun->data) : 0;
+  }
+  float sun_diffuse(zgame::Handle s) override { return light(s) ? light(s)->get<float>(0x9c) : 1.0f; }
+  void set_sun_diffuse(zgame::Handle s, float v) override {
+    if (light(s)) light(s)->put<float>(0x9c, v);
+  }
+  void sun_direction(zgame::Handle s, float out[3]) override {
+    for (int i = 0; i < 3; ++i) out[i] = light(s) ? light(s)->get<float>(0x84 + 4 * i) : 0.0f;
+  }
+  zgame::Handle entity_node(zgame::Handle e) override {
+    auto* m = static_cast<Mech*>(obj(e));
+    return m ? id(m->node) : 0;
+  }
+  zgame::Handle entity_centroid(zgame::Handle e) override {
+    auto* m = static_cast<Mech*>(obj(e));
+    return m ? id(m->centroid) : 0;
+  }
+  void node_world_cached(zgame::Handle h, float out[3]) override {
+    out[0] = out[1] = out[2] = 0;
+    zcls::Node* n = node(h);
+    if (!n || !n->data) return;
+    auto* d = static_cast<uint8_t*>(n->data);
+    if (d[0] & 0x20) zcls::node_to_world(n, 1);  // its world matrix redone (0x004ed280(1))
+    std::memcpy(out, d + 0x84, 12);
+  }
+  void node_world_position(zgame::Handle h, float out[3]) override {
+    if (zcls::Node* n = node(h)) zcls::node_world_position(n, out);
+  }
+  void node_intersect(zgame::Handle h, int32_t on) override {
+    if (zcls::Node* n = node(h)) zcls::node_set_intersect(n, on);
+  }
+  void query_mode(int32_t on) override { zcls::segment_options().first_hit = on; }
+  void query_exclude(uint32_t mask) override { zcls::segment_options().exclude = mask; }
+  int32_t segment(const float a[3], const float b[3], uint8_t* first) override {
+    static zcls::LineHits r;
+    zcls::Node* w = world_hooks().world;
+    if (!w) return *first = 0, 1;
+    const int32_t res = zcls::segment_list(w, a, b, &r);
+    *first = r.count;
+    return res;
+  }
+  void node_flags(zgame::Handle h, uint8_t on) override {  // 0x004eb8a0, 0x004eb8e0: bits 5 and 6
+    zcls::Node* n = node(h);
+    if (!n) return;
+    const uint32_t v = n->get<uint32_t>(0x2c) & ~0x60u;
+    n->put<uint32_t>(0x2c, v | (on & 1 ? 0x60u : 0u));
+  }
+  int32_t frame() override { return static_cast<int32_t>(zcls::frames().frame); }
+  void walk_callbacks(bool on) override {
+    zcls::scene_walk().pre = on ? [](zcls::Node* n) { shade_before(id(n)); } : nullptr;
+    zcls::scene_walk().post = on ? [](zcls::Node* n) { shade_after(id(n)); } : nullptr;
+  }
+  void static_lights(int32_t on) override { zmod::draw_state().static_lights = on; }
+  void stamps_frozen(int32_t on) override { zcls::frames().frozen = on; }
+  // 0x0040ef30 / 0x0040ef10 on the node: a part's +0x68, else its owner's +0x68c.
+  ShadeLevel* part_level(zgame::Handle h) override {
+    zcls::Node* n = node(h);
+    if (!n || !(n->get<uint32_t>(0x28) & 0xff)) return nullptr;
+    auto* p = static_cast<MechPart*>(n->owner);
+    return p ? static_cast<ShadeLevel*>(p->x68) : nullptr;
+  }
+  ShadeLevel* mech_level(zgame::Handle h) override {
+    auto* m = static_cast<Mech*>(node_owner(node(h)));
+    return m && m->x68c ? &static_cast<SunShade*>(m->x68c)->level : nullptr;
+  }
+  int32_t part_count(SunShade& sh) override {
+    auto* m = static_cast<Mech*>(obj(sh.mech));
+    return m ? static_cast<int32_t>(m->parts.size()) : 0;
+  }
+  ShadeLevel* part(SunShade& sh, int32_t i, zgame::Handle* n) override {
+    auto* m = static_cast<Mech*>(obj(sh.mech));
+    *n = 0;
+    if (!m) return nullptr;
+    auto it = m->parts.begin();
+    std::advance(it, i);
+    if (!*it) return nullptr;
+    *n = id((*it)->node);
+    return static_cast<ShadeLevel*>((*it)->x68);
+  }
+  int32_t entity_count() override { return static_cast<int32_t>(ai::entity_list().size()); }
+  SunShade* entity_shade(int32_t i) override {
+    Mech* m = entity_mech(ai::entity_list()[static_cast<size_t>(i)]);
+    return m ? static_cast<SunShade*>(m->x68c) : nullptr;
+  }
+  float game_time() override { return mech_game_time(); }
+};
+WiredShade g_shade_hooks;
+
 class WiredBuild : public MechBuildHooks {
  public:
+  // new(0x24) the mech's shade, new(0xc) a part's level (mech_shade.h).
+  Handle alloc(uint32_t size) override {
+    if (size == 0x24) return new SunShade;
+    if (size == 0xc) return new ShadeLevel;
+    return MechBuildHooks::alloc(size);
+  }
+  Handle x68c_init(Handle mem, Mech& m) override {  // 0x004e61e0(mech, &mech+0x380)
+    auto* s = static_cast<SunShade*>(mem);
+    const uint32_t me = g_w.handle_of(g_w.engine, &m);
+    shade_init(*s, me, me);
+    return s;
+  }
+  void x68c_unlink(Handle x68c) override { shade_reset(*static_cast<SunShade*>(x68c)); }  // 0x004e67c0
+  Handle node_ref_init(Handle mem) override {  // 0x004e6250
+    auto* l = static_cast<ShadeLevel*>(mem);
+    *l = ShadeLevel{};
+    shade_level_reset(*l, 0);
+    return l;
+  }
+  void node_ref_set(Handle ref, Handle n) override {  // 0x004e66a0
+    shade_level_reset(*static_cast<ShadeLevel*>(ref), WiredShade::id(n));
+  }
   void entity_update(Mech& m) override { m.refresh_markers(); }  // 0x005a8500
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
@@ -698,11 +825,25 @@ void wire_mech_build(const MechWiring* w) {
     unwire_hud();
     unwire_weapons();
     set_mech_build_hooks(nullptr);
+    set_shade_hooks(nullptr);
+    update_calls().x68c_update = nullptr;
+    free_calls().ref_free = nullptr, free_calls().ref_delete = nullptr;
+    damage_calls().node_unlink = nullptr;
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
     return;
   }
   g_w = *w;
+  set_shade_hooks(&g_shade_hooks);
+  update_calls().x68c_update = [](Handle s, float dt) { shade_update(*static_cast<SunShade*>(s), dt); };
+  free_calls().ref_free = [](Handle ref, Handle n) {  // 0x004e66a0, then the delete
+    shade_level_reset(*static_cast<ShadeLevel*>(ref), WiredShade::id(n));
+    delete static_cast<ShadeLevel*>(ref);
+  };
+  free_calls().ref_delete = [](Handle s) { delete static_cast<SunShade*>(s); };  // vt+0 (0x004e6220)
+  damage_calls().node_unlink = [](Handle ref, Handle n) {                        // 0x004e66a0
+    shade_level_reset(*static_cast<ShadeLevel*>(ref), WiredShade::id(n));
+  };
   set_mech_build_hooks(&g_build);
   set_mech_data_hooks(&g_data);
   set_launch_hooks(&g_launch);
@@ -994,6 +1135,8 @@ void* mech_mission_player() { return world().mission_player; }
 bool entity_is_mech(const void* o) { return o && mech_objects().count(o) != 0; }
 
 void mech_entities_forget() { mech_objects().clear(); }
+
+void* mech_shade_of(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->x68c : nullptr; }
 
 const void* mech_shadow(const void* mech) {
   return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->shadow : nullptr;

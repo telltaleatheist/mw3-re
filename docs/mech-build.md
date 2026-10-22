@@ -465,3 +465,12 @@ object [0x00609a00] loses its action and is released (0x004eb450,
 0x004f3390 -> 0x004eb050); 0x00402560 frees the AI nets 0x00402170 made (the
 AI's, logged). Checked: `test_deaths.py` cockpit (200, BREAK=16); the
 three-mission test finds the tick object gone after each cleanup.
+
+## The detail scale (0x00430440, ported 2026-10-21)
+
+The options' object detail (0x0040d310) gives the mechs a scale (High 1,
+Medium 0.75, Low 0) in [0x005e2928]; 0x00430440 stores it and redoes every
+cached type's ranges (0x00430840: each range times the scale, squared, at
+the game's 24-bit x87). `mech3::set_lod_scale`, checked in
+test_mech_data_load.py (scale changes between the sessions' gets, at 24
+bits; at 53 bits the unrounded product differs in the last bit).

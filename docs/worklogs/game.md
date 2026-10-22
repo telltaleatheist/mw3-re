@@ -1202,3 +1202,26 @@ view's ground, the anim lookups 0x50b450 (92).
   test_mission_frame, test_mission_load.
 - Left: training's types (piece 5); nav points, the HUD's objectives box
   (mac 3), Instant Action's enemies, aiTurrets and the other aiv vehicles.
+
+## Census #6, #8, #9 (2026-10-21)
+
+- #6: the options' effects detail reaches zEffect's level
+  (`zeff::anim_set_level`, 0x00508fb0) through the options' and the app's
+  hooks. #8: 0x00430440 ported (`set_lod_scale`, [0x005e2928]; load_ranges
+  scales); test_mech_data_load.py takes scale changes, at 24-bit x87 (152
+  sessions; 2 breaks caught). Headless:
+  `options_effects_and_mech_detail_reach_their_modules`.
+- #9: the "shadow parts" option is the mechs' sun shading, a subsystem
+  (0x004e61e0..0x004e6990): ported as `mech_shade` (test_shade.py: 500
+  scripts identical, 13 breaks caught), wired (WiredShade in app_mech.cpp,
+  the build's +0x68c / +0x68, the update, the frees, the options, Core's
+  0x004e6900, the cleanup's 0x004e6910);
+  `mission_c1m1_mech_sun_shading_headless`.
+- Found: a lit mech fades to diffuse 1.0, not the sun's (c3 0.2, c4b/t1
+  0.7): candidate for Owen (fixes.md), discoveries.md. Object detail Low
+  puts every untargeted mech on its low-detail model.
+- Seen, not this item's: a second world's mission load in one process
+  crashes in zmod::material_copy (survey_world_sun_diffuse_headless, hence
+  one world a process).
+- Nav points (mac 1's item 1): built by the AI's net builder (waynet files
+  are version 107, the unported branch 0x004be690): left to the AI side.

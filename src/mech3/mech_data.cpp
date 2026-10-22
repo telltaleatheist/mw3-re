@@ -137,13 +137,24 @@ MechData* mech_data(int32_t roster, int32_t create) {
 }
 
 // Mech3.exe 1.2 @ 0x00430840: the definition's two ranges (+0x14c, +0x150)
-// squared (times [0x005e2928] = 1).
+// times the scale, squared.
 void load_ranges(MechData& p) {
   const MechDfn* d = g_hooks->dfn(p.roster);
   if (!d) return;
-  const float a = d->get<float>(0x14c) * 1.0f, b = d->get<float>(0x150) * 1.0f;
+  const float a = d->get<float>(0x14c) * lod_scale(), b = d->get<float>(0x150) * lod_scale();
   p.range_sq[0] = a * a;
   p.range_sq[1] = b * b;
+}
+
+float& lod_scale() {
+  static float s = 1.0f;  // 0x005e2928
+  return s;
+}
+
+// Mech3.exe 1.2 @ 0x00430440
+void set_lod_scale(float s) {
+  lod_scale() = s;
+  for (MechData* p : g_cache) load_ranges(*p);
 }
 
 namespace {
