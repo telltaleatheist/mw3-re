@@ -136,6 +136,11 @@ class GameEngine : public Engine {
   uint8_t lab_config_modified(Handle config) override;
   std::string lab_config_name(Handle config) override;
   void lab_config_recount(Handle config) override;
+  int32_t lab_config_slots_left(Handle config) override;
+  int32_t lab_config_ferro_slots(Handle config) override;
+  int32_t lab_config_endo_slots(Handle config) override;
+  int32_t lab_config_sink_items(Handle config) override;
+  int32_t lab_config_sink_limit(Handle config) override;
   bool lab_config_valid(Handle config) override;
   Handle mech_dfn_handle(int32_t mech) override;
   void lab_dfn_skins(Handle dfn, std::vector<LabSkin>* out) override;

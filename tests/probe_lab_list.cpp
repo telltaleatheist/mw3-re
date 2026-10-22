@@ -158,7 +158,7 @@ struct ListDump {
     line.push_back("\n   mass");
     base(&r->mass);
     line.push_back("\n   crit");
-    base(&r->crit);
+    base(&r->qty);
     line.push_back("\n   line");
     base(&r->line);
     kv("end", r->line.end_x);

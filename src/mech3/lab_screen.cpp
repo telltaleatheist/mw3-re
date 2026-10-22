@@ -441,8 +441,274 @@ bool LabLaterList::read_control(zrdr::Node*, ztwod::Dialog*) {
   return true;
 }
 void LabLaterList::after_bind() { call(0x88); }
-void LabLaterList::show_for(float seconds) { call(0x60, {zgame::bits(seconds)}); }
-void LabLaterList::hide() { call(0x64); }
+// (Its hidden flag kept as the list's own show and hide leave it: the refill reads it.)
+void LabLaterList::show_for(float seconds) {
+  call(0x60, {zgame::bits(seconds)});
+  flags &= ~ztwod::kHidden;
+}
+void LabLaterList::hide() {
+  call(0x64);
+  flags |= ztwod::kHidden;
+}
+
+// Mech3.exe 1.2 @ 0x0044f2c0
+int32_t LabCheck::set_checked(int32_t on) {
+  const int32_t old = ztwod::CheckButton::set_checked(on);
+  for (ztwod::Text* t : labels) {
+    if (on) t->hide();
+    else t->show_for(-1.0f);
+  }
+  return old;
+}
+
+// ---------------------------------------------------------------------------
+// UNASSIGNED_LIST (docs/mechlab.md, The unassigned list)
+
+namespace {
+// Mech3.exe 1.2 @ 0x00453770 and 0x00454580 (`armour` true): the tab's kind,
+// and armour (equipment 1 armor, 2 armorff) only on the armour tab.
+bool tab_item(Engine& e, Handle h, bool armour) {
+  const LabScreen* s = e.lab_screen(states().lab.lab_screen_);
+  const int32_t want = s ? s->unassigned.kind : 0;  // FIX (bug): read unchecked by the exe
+  const int32_t kind = e.lab_item_kind(h);
+  bool is_armour = false;
+  if (e.lab_item_kind(h) == 3 && h) {
+    e.lab_item_kind(h);
+    const int32_t k = e.lab_item_equipment(h);
+    is_armour = k == 1 || k == 2;
+  }
+  return kind == want && is_armour == armour;
+}
+bool kind_item(Engine& e, Handle h) { return tab_item(e, h, false); }
+bool armour_item(Engine& e, Handle h) { return tab_item(e, h, true); }
+
+// Mech3.exe 1.2 @ 0x004564a0: the sort's order, `by` 1 the mass (ammo by
+// id), 2 the store's count (unlimited by id), 3 the slots; ties by id.
+bool unassigned_before(Engine& e, int32_t by, const LabItem* a, const LabItem* b) {
+  const Handle ia = a->object, ib = b->object;
+  const int32_t ida = e.lab_item_id(ia), idb = e.lab_item_id(ib);
+  switch (by) {
+    case 1: {
+      if (e.lab_item_kind(ia) == 2 || e.lab_item_kind(ib) == 2) break;
+      const float wa = e.lab_item_mass(ia);
+      const float wb = e.lab_item_mass(ib);
+      if (!(wb < wa || wb > wa)) break;  // (fcomp: unordered as equal)
+      const float wa2 = e.lab_item_mass(ia);  // both asked again
+      return e.lab_item_mass(ib) > wa2;
+    }
+    case 2:
+      if (!e.lab_item_unlimited(ia) && !e.lab_item_unlimited(ib)) {
+        const int32_t ca = e.lab_item_count(ia), cb = e.lab_item_count(ib);
+        if (ca != cb) return ca < cb;
+      }
+      break;
+    case 3:
+      if (a->count != b->count) return a->count < b->count;
+      break;
+    default:  // 0; nothing sets another
+      break;
+  }
+  return ida < idb;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004535d0
+LabUnassignedList::LabUnassignedList(Engine& e)
+    : LabItemList(e), sort_item(e, 0x1b), sort_qty(e, 0x1c), sort_mass(e, 0x1d), sort_crit(e, 0x1e) {
+  filter = kind_item;
+}
+
+bool LabUnassignedList::call_bool(uint32_t slot, int32_t index) const {
+  char key[24];
+  std::snprintf(key, sizeof key, "lab.vt+0x%x", slot);
+  return (e->unported(key, {at, index}) & 0xff) != 0;
+}
+
+// Mech3.exe 1.2 @ 0x00454db0
+void LabUnassignedList::show_for(float seconds) {
+  LabItemList::show_for(seconds);
+  titles.show_for(seconds);
+  weapon.show_for(seconds);
+  ammo.show_for(seconds);
+  equip.show_for(seconds);
+  armor.show_for(seconds);
+  sort_item.show_for(seconds);
+  sort_mass.show_for(seconds);
+  sort_qty.show_for(seconds);
+  sort_crit.show_for(seconds);
+  set_tab(kind, armor_tab != 0);
+}
+
+// Mech3.exe 1.2 @ 0x00454e70: the engine's table goes too.
+void LabUnassignedList::hide() {
+  LabItemList::hide();
+  titles.hide();
+  for (LabSelect* b : {&weapon, &ammo, &equip, &armor}) b->set_checked(0);
+  for (LabSelect* b : {&weapon, &ammo, &equip, &armor}) b->hide();
+  sort_item.hide();
+  sort_mass.hide();
+  sort_qty.hide();
+  sort_crit.hide();
+  if (LabScreen* s = e_.lab_screen(states().lab.lab_screen_)) s->engine_table.hide();
+}
+
+// Mech3.exe 1.2 @ 0x00454fc0: the base's reading, SHORT_SIZE, then its buttons.
+bool LabUnassignedList::read_control(zrdr::Node* node, ztwod::Dialog* dialog) {
+  const bool r = LabItemList::read_control(node, dialog);
+  zrdr::get_ivec2(node, "SHORT_SIZE", short_size);
+  long_size[0] = size[0];
+  long_size[1] = size[1];
+  down_dy = down->get_y() - size[1];
+  dialog->bind_button(&weapon, "SELECT_WEAPON");
+  dialog->bind_button(&ammo, "SELECT_AMMO");
+  dialog->bind_button(&equip, "SELECT_EQUIP");
+  dialog->bind_button(&armor, "SELECT_ARMOR");
+  dialog->bind_button(&sort_item, "SORT_ITEM");
+  dialog->bind_button(&sort_qty, "SORT_QTY");
+  dialog->bind_button(&sort_mass, "SORT_MASS");
+  dialog->bind_button(&sort_crit, "SORT_CRIT");
+  dialog->bind_button(&titles, "ALIST_TITLES");
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x00454f60: the base's, in NORMAL_FONT.
+int32_t LabUnassignedList::add_object(Handle item, int32_t n) {
+  const int32_t i = LabItemList::add_object(item, n);
+  if (i >= 0 && i < item_count()) items[static_cast<size_t>(i)]->font = font_normal;
+  // (else the exe writes the font to address 0xc; add never fails)
+  return i;
+}
+
+// Mech3.exe 1.2 @ 0x004550d0: a tab's button checked; the equipment and
+// armour tabs take SHORT_SIZE (the engine's table under the equipment's).
+void LabUnassignedList::set_tab(int32_t k, bool arm) {
+  LabScreen* s = e_.lab_screen(states().lab.lab_screen_);
+  if (kind != k || arm) top = 0;
+  kind = k;
+  armor_tab = arm ? 1 : 0;
+  if ((flags & ztwod::kHidden) || !s) return;
+  for (LabSelect* b : {&weapon, &ammo, &equip, &armor}) b->set_checked(0);
+  const int32_t* use = long_size;
+  if (k == 1) {
+    weapon.set_checked(1);
+  } else if (k == 2) {
+    ammo.set_checked(1);
+  } else if (k == 3) {
+    equip.set_checked(armor_tab == 0);
+    armor.set_checked(armor_tab);
+    use = short_size;
+  } else {
+    return;
+  }
+  size[0] = use[0];
+  size[1] = use[1];
+  if (down) down->set_pos(down->get_x(), size[1] + down_dy);
+  if (k == 3 && !armor_tab) s->engine_table.show_for(-1.0f);
+  else s->engine_table.hide();
+  s->panel_right.show_look(1);
+}
+
+// Mech3.exe 1.2 @ 0x00453f00
+void LabUnassignedList::set_sort(int32_t by) {
+  sort = by;
+  refill();
+}
+
+// Mech3.exe 1.2 @ 0x00453f20: ALIST_TITLES's slot counts, the tab's items
+// sorted, each row's mass and count (greyed when +0xa4 says it cannot go
+// on), then the screen's controls for the tab: the armour tab hides the
+// assigned list and the parts for ARMOR_TITLES.
+void LabUnassignedList::refill() {
+  Engine& en = e_;
+  const LabState& lab = states().lab;
+  const Handle cfg = en.lab_slot(lab.pilot_, lab.slot_) ? en.lab_slot_cfg(en.lab_slot(lab.pilot_, lab.slot_)) : 0;
+  if (!(flags & ztwod::kHidden)) {
+    const int32_t left = cfg ? en.lab_config_slots_left(cfg) : 0;
+    const int32_t ferro = cfg ? en.lab_config_ferro_slots(cfg) : 0;
+    const int32_t endo = cfg ? en.lab_config_endo_slots(cfg) : 0;
+    // FIX (bug): a missing label is a call through null in the exe (a broken dialog file).
+    auto label = [&](size_t i) { return i < titles.labels.size() ? titles.labels[i] : nullptr; };
+    if (ztwod::Text* t = label(0)) t->set_text_id(0xf5b, left);
+    size_t i = 1;
+    if (endo) {
+      if (ztwod::Text* t = label(1)) t->set_text_id(0x24c, endo);
+      if (ztwod::Text* t = label(1)) t->show_for(-1.0f);
+      i = 2;
+    }
+    if (ferro) {
+      if (ztwod::Text* t = label(i)) t->set_text_id(0x24d, ferro);
+      if (ztwod::Text* t = label(i)) t->show_for(-1.0f);
+      ++i;
+    }
+    for (; i < 3; ++i)
+      if (ztwod::Text* t = label(i)) t->hide();
+  }
+  set_tab(kind, armor_tab != 0);
+  if ((flags & ztwod::kHidden) || !store) return;
+  filter = armor_tab ? armour_item : kind_item;
+  clear();
+  if (Store* st = en.store_of(store))
+    for (const ConfigItem* it : st->items) {
+      const Handle h = en.item_handle(it);
+      if (!filter || filter(en, h)) add_object(h, -1);
+    }
+  // Never true: the engine holds 10 sinks and the test is fewer than none
+  // (docs/discoveries.md); it would list the store's sinks with no slots.
+  if (en.lab_config_sink_limit(cfg) - 10 > en.lab_config_sink_items(cfg) && !armor_tab && kind == 3) {
+    for (LabItem* it : items) {
+      const Handle h = it->object;
+      if (!h || en.lab_item_kind(h) != 3) continue;
+      en.lab_item_kind(h);
+      const int32_t k = en.lab_item_equipment(h);
+      if (k == 9 || k == 10) it->count = 0;
+    }
+  }
+  vc6_sort(items.begin(), items.end(), [&](LabItem* a, LabItem* b) { return unassigned_before(en, sort, a, b); });
+  layout();
+  for (LabItemRow* row : rows) {
+    if (row->flags & ztwod::kHidden) continue;
+    const int32_t i = row->index;
+    Handle grey = 0;
+    if (!can_light(i)) {
+      grey = font_grey;
+      row->set_font(font_grey);
+    }
+    const Handle h = object_at(i);
+    if (en.lab_item_kind(h) == 2) {
+      en.lab_item_kind(h);
+      row->mass.set_text_plain("1.0");  // a ton of ammo
+    } else {
+      char b[32];
+      std::snprintf(b, sizeof b, "%.1f", static_cast<double>(en.lab_item_mass(h)));
+      row->mass.set_text("%s", b);
+    }
+    row->mass.set_font(grey ? font_count : font_mass);
+    row->mass.show_for(-1.0f);
+    if (!en.lab_item_unlimited(h)) {
+      row->qty.set_text("%d", en.lab_item_count(h));
+      row->qty.set_font(grey ? font_count : font_mass);
+      row->qty.show_for(-1.0f);
+    }
+    if (grey) row->count.set_font(font_count);
+  }
+  LabScreen* s = en.lab_screen(lab.lab_screen_);
+  if (!s) return;  // FIX (bug): read unchecked by the exe
+  LabLaterList& as = s->assigned;
+  if ((as.flags & ztwod::kHidden) && !armor_tab) {
+    as.show_for(-1.0f);
+    as.refill();
+  } else if (armor_tab) {
+    en.lab_part_pick(-1);
+    as.hide();
+  }
+  for (LabPart* p : {&s->part_head, &s->parts[0], &s->parts[1], &s->parts[2], &s->parts[3], &s->parts[4],
+                     &s->parts[5], &s->parts[6]}) {
+    if (armor_tab) p->hide();
+    else p->show_for(-1.0f);
+  }
+  if (armor_tab) en.vcall(s->armor_titles, 0x60, {zgame::bits(-1.0f)});
+  else en.vcall(s->armor_titles, 0x64, {});
+}
 
 bool LabWeaponList::read_control(zrdr::Node*, ztwod::Dialog*) {
   call(0x84);
@@ -753,9 +1019,22 @@ void LabScreen::on_button(int32_t id, int32_t a, int32_t b) {
     chassis.set_sort(id - 31);
     return;
   }
-  // 18..30 the pages' own (steps 5..8); 17 (CONFIG_EDIT's) and any other id
+  if (id >= 23 && id <= 26) {  // SELECT_AMMO, _EQUIP, _WEAPON, _ARMOR: the tab, from the top
+    static const int32_t kKind[] = {2, 3, 1, 3};
+    unassigned.kind = kKind[id - 23];
+    unassigned.armor_tab = id == 26 ? 1 : 0;
+    unassigned.top = 0;
+    unassigned.refill();
+    return;
+  }
+  if (id >= 27 && id <= 30) {  // SORT_ITEM, SORT_QTY, SORT_MASS, SORT_CRIT
+    static const int32_t kSort[] = {0, 2, 1, 3};
+    unassigned.set_sort(kSort[id - 27]);
+    return;
+  }
+  // 18..22 the pages' own (steps 6..8); 17 (CONFIG_EDIT's) and any other id
   // the exe ignores (its jump table covers 14..32).
-  if (id >= 18 && id <= 30) e.unported("lab.press", {id});
+  if (id >= 18 && id <= 22) e.unported("lab.press", {id});
 }
 
 // Mech3.exe 1.2 @ 0x0044ce30: ACCEPT takes the shown slot's mech back out of

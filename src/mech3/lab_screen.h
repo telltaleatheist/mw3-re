@@ -92,15 +92,22 @@ class LabSkinList : public CycleButton {
   void select(int32_t i) override;   // +0xa0  0x0044b1c0
 };
 
-// PART_HEAD..PART_RLEG (vtable 0x005c13b0; PART_HEAD made by 0x0044ed40(0x12)
-// and the rest by 0x0044f290, all the same class after): check buttons with
-// id 0x12 and the part's number at +0x16c. Their press and check are step 6's.
-class LabPart : public InvertCheck {
+// The lab's check buttons (PART_*, SELECT_*): CheckButton's reading
+// (0x00456980), their labels shown only while unchecked (0x0044f2c0).
+class LabCheck : public InvertCheck {
  public:
-  LabPart() { id = 0x12; }
   bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override {  // +0x84  0x00456980
     return ztwod::CheckButton::read_control(node, dialog);
   }
+  int32_t set_checked(int32_t on) override;  // +0x8c  0x0044f2c0
+};
+
+// PART_HEAD..PART_RLEG (vtable 0x005c13b0; PART_HEAD made by 0x0044ed40(0x12)
+// and the rest by 0x0044f290, all the same class after): check buttons with
+// id 0x12 and the part's number at +0x16c. Their press is step 6's.
+class LabPart : public LabCheck {
+ public:
+  LabPart() { id = 0x12; }
   int32_t part = 0;                  // +0x16c
 };
 
@@ -155,8 +162,9 @@ class LabConfigList : public FileList {
   LabButton save;                    // +0x608
 };
 
-// SELECT_WEAPON/AMMO/EQUIP/ARMOR in the unassigned list (vtable 0x005c1f48).
-class LabSelect : public InvertCheck {
+// SELECT_WEAPON/AMMO/EQUIP/ARMOR in the unassigned list (vtable 0x005c1f48):
+// InvertCheck's press, reporting its id to the screen.
+class LabSelect : public LabCheck {
  public:
   explicit LabSelect(int32_t i) { id = i; }
 };
@@ -174,11 +182,31 @@ class LabLaterList : public LabItemList, public LabLater {
   void hide() override;              // +0x64
 };
 
-// UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes; step 5b's.
-class LabUnassignedList : public LabLaterList {
+// UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68), 0xeac bytes: the lab
+// store's items of one tab (SELECT_WEAPON 25 kind 1, SELECT_AMMO 23 kind 2,
+// SELECT_EQUIP 24 kind 3, SELECT_ARMOR 26 kind 3's armour), sorted by
+// SORT_ITEM/QTY/MASS/CRIT (27..30), each row greyed when it cannot go on
+// the mech, with its mass and how many the store has. Its +0xa8 (may an
+// item go on, 0x00453840) and +0xac (put it on, 0x00454600) are step 5b2's:
+// "lab.vt+0xa8" / "lab.vt+0xac" (docs/mechlab.md, The unassigned list).
+class LabUnassignedList : public LabItemList, public LabLater {
  public:
-  explicit LabUnassignedList(Engine& e)
-      : LabLaterList(e), sort_item(e, 0x1b), sort_qty(e, 0x1c), sort_mass(e, 0x1d), sort_crit(e, 0x1e) {}
+  explicit LabUnassignedList(Engine& e);  // 0x004535d0
+  void show_for(float seconds) override;  // +0x60  0x00454db0
+  void hide() override;              // +0x64  0x00454e70
+  bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x00454fc0
+  int32_t add_object(Handle item, int32_t n) override;  // +0x94  0x00454f60: NORMAL_FONT
+  bool can_light(int32_t index) override { return can_xa8(index); }  // +0xa4  0x00453830
+  bool can_xa8(int32_t index) override { return call_bool(0xa8, index); }  // +0xa8  0x00453840 (5b2)
+  void select(int32_t index) override { call(0xac, {index}); }  // +0xac  0x00454600 (5b2)
+  void refill() override;            // +0xb8  0x00453f20
+  void set_tab(int32_t kind, bool armor);  // 0x004550d0
+  void set_sort(int32_t by);         // 0x00453f00: 0 id, 1 mass, 2 count, 3 slots
+  bool call_bool(uint32_t slot, int32_t index) const;
+
+  int32_t short_size[2] = {};        // +0x22c  SHORT_SIZE: the equipment and armour tabs'
+  int32_t long_size[2] = {};         // +0x234  SIZE kept
+  int32_t down_dy = 0;               // +0x23c  DOWN below the rows
   LabSelect weapon{0x19};            // +0x244
   LabSelect ammo{0x17};              // +0x3b0
   LabSelect equip{0x18};             // +0x51c
@@ -187,10 +215,10 @@ class LabUnassignedList : public LabLaterList {
   ShellButton sort_qty;              // +0x94c
   ShellButton sort_mass;             // +0xaa4
   ShellButton sort_crit;             // +0xbfc
-  uint8_t xd54 = 0;                  // +0xd54
-  int32_t xd58 = 1;                  // +0xd58
-  int32_t xd5c = 0;                  // +0xd5c
-  ztwod::Control titles;             // +0xd60  ALIST_TITLES (vtable 0x005c1e28)
+  uint8_t armor_tab = 0;             // +0xd54
+  int32_t kind = 1;                  // +0xd58  the tab's item kind
+  int32_t sort = 0;                  // +0xd5c
+  ztwod::Control titles;             // +0xd60  ALIST_TITLES (vtable 0x005c1e28): the slots left
 };
 
 // WEAPONS_UNGROUPED and WEAPONS_GROUPED (vtables 0x005c1300, 0x005c1250;
@@ -281,7 +309,7 @@ class LabScreen : public MenuScreen {
   LabPart part_head;                 // +0x18710
   LabPart parts[7];                  // +0x18880..+0x19120
   LabUnassignedList unassigned;      // +0x19290
-  LabLaterList assigned;             // +0x1a13c
+  LabLaterList assigned;             // +0x1a13c  (step 6)
   LabWeaponList ungrouped;           // +0x1a36c
   LabWeaponList grouped;             // +0x1a570
   WinTitle current_chassis;          // +0x1a774  CURRENT_CHASSIS (vtable 0x005c11c0)

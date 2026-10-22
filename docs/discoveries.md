@@ -1322,6 +1322,21 @@ From the mech definitions (mechdef-head.md).
   stays its colour.
 - **Holding the mouse on a lab list's up or down arrow scrolls it** after
   half a second, then a row every 0.15 seconds.
+- **The lab meant to show the first ten heat sinks as taking no space.**
+  On the equipment tab the supply list has code to show heat sinks with no
+  critical slots while the mech has fewer sinks than its engine holds (ten,
+  BattleTech's engine-mounted sinks), but the test subtracts the ten before
+  comparing, so it asks whether the mech has fewer than none. It never
+  fires, and sinks always show their slots. (Kept as in the original.)
+- **Ammunition in the lab always weighs "1.0"**: the supply list prints a
+  plain 1.0 for every ammo row (you buy it by the ton) instead of asking
+  the weight. So "sort by mass" on the ammunition tab does the same as
+  "sort by item": the game's own weapon order. Sorting by quantity puts the
+  unlimited items (Instant Action's store) in that order too.
+- **The armour tab borrows the criticals page.** Choosing it hides the
+  mech's parts and the list of what is fitted, and shows the armour panel
+  instead; the engine's table shows only with the equipment tab, where the
+  supply list is shortened to make room for it.
 - **A mod with a wrong `version` in a mech file crashes the game** instead of
   skipping the mech. (Fixed in the rebuild: the mech is skipped.)
 - Seventeen of the mech files carry a developer comment that the build tool

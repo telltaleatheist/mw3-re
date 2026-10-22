@@ -320,8 +320,9 @@ copy of the pilot screen's FileList (menus.md) with its own row object.
   (never shown here), then the layout.
 - **The rows** (0x00451410, vtable 0x005c1ac0, 0x1490 bytes): a Text with the
   name over a panel (`HudPanel`, 0xac by 13, (25, 25, 25)), the count
-  ("%02d", right-aligned, 0xac right), two texts at 0x93 and 0x7a and a green
-  line from the name's end to 0x89 (the subclasses'). A row hits on its text
+  ("%02d", right-aligned, 0xac right), two texts at 0x93 and 0x7a (the
+  mass and the store's count, set by the subclasses) and a green line from
+  the name's end to 0x89 (the subclasses'). A row hits on its text
   rectangle 0xac wide and draws only for an item with a name.
 - **Layout** (0x00452780): rows from `top` down from OFFSET, SPACING.y + 13
   apart while they fit SIZE's height (3 pixels over allowed); the selected
@@ -348,6 +349,69 @@ rows, arrows and images dumped, then the destructor. 100 seeds match.
 Breaking it: 34 of 37 caught; the three left change nothing the original
 shows (a grey that packs to the same 565 pixel, the fill's font set twice
 as the exe does, the panel's alpha set just before its image is freed).
+
+### The unassigned list (step 5b1)
+
+UNASSIGNED_LIST (0x004535d0, vtable 0x005c1d68, 0xeac bytes;
+`LabUnassignedList` in `mech3/lab_screen.{h,cpp}`): the lab store's items
+of one tab, on the criticals page.
+
+- **Its controls**: SELECT_WEAPON, SELECT_AMMO, SELECT_EQUIP, SELECT_ARMOR
+  (vtable 0x005c1f48, ids 25, 23, 24, 26), SORT_ITEM, SORT_QTY, SORT_MASS,
+  SORT_CRIT (ids 27..30) and ALIST_TITLES (+0xd60), bound by its reading
+  (0x00454fc0) after the base's, which also reads SHORT_SIZE (+0x22c) and
+  keeps SIZE (+0x234) and DOWN's distance below the rows (+0x23c). The
+  selects and the part buttons share a class (`LabCheck`): CheckButton's
+  reading (0x00456980), and their labels shown only while unchecked
+  (0x0044f2c0); the selects press as InvertCheck, reporting their id.
+- **The tab** (0x004550d0, kind +0xd58, armour +0xd54): a new kind or the
+  armour tab goes back to the top; the tab's button checked; weapons and
+  ammo take SIZE, equipment and armour SHORT_SIZE, DOWN moved under the
+  rows; ENGINE_TABLE shown on the equipment tab only; PANEL_RIGHT's single
+  look. The screen's presses 23..26 set the kind (2, 3, 1, 3 with armour),
+  the top to 0 and refill; 27..30 sort (0x00453f00: 0 the item's id, 2 the
+  store's count, 1 the mass, 3 the slots) and refill.
+- **Refill** (0x00453f20): ALIST_TITLES's labels with the shown loadout's
+  critical slots left (message 0xf5b, 0x00425d80), then endo steel's
+  (0x24c, 0x00425e80) and ferro-fibrous's (0x24d, 0x00425e40) when it has
+  them, the unused labels hidden; the tab; the store's items through the
+  filter (0x00453770 the tab's kind without armour, 0x00454580 armour:
+  equipment 1 and 2), each in NORMAL_FONT (0x00454f60) with its slots as
+  its count; a sink rule that never fires (below); VC98's std::sort with
+  0x004564a0 (mass: ammo by id, the weights compared twice; count:
+  unlimited items by id; ties by id); the layout; each shown row greyed
+  (GREY_FONT) unless +0xa4 (= +0xa8, step 5b2's "may it go on") allows it,
+  its mass ("1.0" for ammo, else "%.1f" of one's weight) and, unless
+  unlimited, the store's count, in COUNT_FONT when greyed and MASS_FONT
+  otherwise. Then the screen: off the armour tab ASSIGNED_LIST is shown
+  and refilled if hidden, the eight part buttons shown and ARMOR_TITLES
+  hidden; on it the part pick is dropped (0x004504d0(-1)), ASSIGNED_LIST
+  and the parts hidden and ARMOR_TITLES shown.
+- **The sink rule**: with fewer sink items (0x00425f30) than the engine's
+  sinks (0x00426070, always 10) less 10, on the equipment tab, sinks would
+  list with no slots. 10 - 10 > n never holds (discoveries.md).
+- Show (0x00454db0) and hide (0x00454e70) carry the controls; hide unchecks
+  the selects and hides ENGINE_TABLE too.
+- The loadout's slot helpers are `Config`'s now: 0x00425d80 (slots left:
+  the free count less ferro-fibrous's, endo steel's and the engine's),
+  0x00425e40 (14, 7 with Clan armour), 0x00425e80 (14, 7 on a Clan mech),
+  0x00425e60 / 0x00432f70 (an XL engine 12, 10 on a Clan mech, else 6),
+  0x00426070 (10), 0x00425e20 (a part's free slots).
+
+Left to 5b2: +0xa8 (0x00453840, whether an item may go on) and +0xac
+(0x00454600, putting it on), "lab.vt+0xa8" / "lab.vt+0xac".
+
+Tested in `test_lab_screen.py` (`tests/probe_lab.cpp`): the store now has
+ammo and equipment (armour, sinks, unlimited items) and the weapons'
+tons from weapons.zrd (test_mechsave.py's table) on both sides; the plans
+press the tabs and sorts on a shown criticals page; the list, its items,
+rows (name, slots, mass, count with flags and fonts) and ALIST_TITLES
+dumped, with its arrows' places; a scroll op; ALIST_TITLES's messages
+carry their count; ASSIGNED_LIST's stand-in keeps its hidden flag as its
+own show and hide would; the slot helpers stubbed with random answers (so
+the sink rule's other side runs too) and checked themselves in
+`test_mechsave.py` on every saved loadout. 60 seeds match. Breaking it:
+43 of 43 caught (the list is in the frontend worklog).
 
 ## 3. What the rest of the game needs from it
 
@@ -408,10 +472,11 @@ One sitting each; each with its differential test and break tests.
 4. **The loadouts page**: CONFIG_LIST (0x00449c40), CONFIG_EDIT, rename,
    save (0x00424f60), delete (0x00425090), choosing a loadout for the slot
    (`set_config` with the store).
-5. **The item pages**, in two: 5a the item lists' base (0x00451b40, the
-   rows, the arrows; done, above), 5b SELECT_WEAPON / AMMO / EQUIP / ARMOR,
-   the UNASSIGNED_LIST (0x005c1d68): adding and removing items between the
-   store and the loadout.
+5. **The item pages**, in three: 5a the item lists' base (0x00451b40, the
+   rows, the arrows; done, above), 5b1 the UNASSIGNED_LIST's shell
+   (0x005c1d68: the tabs, sorts, refill; done, above), 5b2 its rules:
+   whether an item may go on (0x00453840) and putting it on (0x00454600),
+   with the Config helpers they ask.
 6. **The criticals page**: ASSIGNED_LIST (0x005c1fe0) and the part
    buttons: placing items in parts' slots.
 7. **The weapon groups page**: WEAPONS_UNGROUPED / WEAPONS_GROUPED.

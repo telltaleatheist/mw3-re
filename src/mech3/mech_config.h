@@ -118,6 +118,12 @@ struct Config {                    // 0xd8 bytes, vtable 0x005bd3c0
   ConfigItem* add_item(ConfigItem* item, int32_t n);            // 0x004723c0
   EquipmentItem* add_equipment(int32_t kind, int32_t tech, int32_t n);  // 0x00471fb0
   int32_t sink_items() const;                                   // 0x00425f30
+  int32_t sink_limit() const { return 10; }                     // 0x00426070
+  int32_t free_slots_in(int32_t part) const { return part == -1 ? free_slots : free_in[part]; }  // 0x00425e20
+  int32_t slots_left() const;                                   // 0x00425d80
+  int32_t ferro_slots() const;                                  // 0x00425e40
+  int32_t endo_slots() const;                                   // 0x00425e80
+  int32_t engine_slots() const;                                 // 0x00425e60
   void set_engine(int32_t rating);                              // 0x00432ea0
   int32_t item_count() const { return static_cast<int32_t>(items.size()); }
   // 0x00424010 with no store (ECX the name, EDX the loadout): a copy (0x00423e00)

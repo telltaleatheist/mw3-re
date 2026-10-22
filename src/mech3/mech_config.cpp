@@ -256,6 +256,18 @@ int32_t Config::sink_items() const {
   return n;
 }
 
+// Mech3.exe 1.2 @ 0x00425d80: the critical slots left for items.
+int32_t Config::slots_left() const { return free_slots_in(-1) - ferro_slots() - endo_slots() - engine_slots(); }
+
+// Mech3.exe 1.2 @ 0x00425e40: ferro-fibrous armour's, 7 when its tech is Clan.
+int32_t Config::ferro_slots() const { return ferro ? (armor_tech != 1 ? 14 : 7) : 0; }
+
+// Mech3.exe 1.2 @ 0x00425e80: endo steel's, 7 on a Clan mech.
+int32_t Config::endo_slots() const { return endo_steel ? (mech_tech(mech) != 1 ? 14 : 7) : 0; }
+
+// Mech3.exe 1.2 @ 0x00425e60 with 0x00432f70: an XL engine's, 10 on a Clan mech.
+int32_t Config::engine_slots() const { return xl ? (mech_tech(mech) != 1 ? 12 : 10) : 6; }
+
 // Mech3.exe 1.2 @ 0x00432ea0
 void Config::set_engine(int32_t rating) { engine = engine_index(rating); }
 

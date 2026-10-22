@@ -84,6 +84,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | The briefing's SOUND, inline in 0x00405230 | MARKERS read unchecked | (bug) a crash: a briefing's SOUND without MARKERS (none ships) | No map steps: the voice and its end only |
 | The debriefing's parts, 0x0047b430 | The buttons' HELP labels, WIN_TITLE's, the lance cards' (the results) and ICON_RANK's (0x0047b2f0) labels read unchecked; a card's HTAL keys missing leave the stack's values; Instant Action's title passed as a printf format | (bug) a crash or garbage with an edited dlgWin.zrd (none ships), a `%` in a message | Checked; 0; printed as text |
 | Saved game replaced before the question, 0x478f10 / 0x434e00 | The next mission's world is written by zSave (0x5a8a70, CREATE_ALWAYS) inside next_mission, before record_mission asks "Replace existing game?" | (bug) No keeps the old entry in the list, but its file already holds the new world | Behind `zfix` bugs: next_mission leaves the save to record_mission, which writes it once the game is filed (new, or Yes) and not on No; `test_pilot.py` checks the exe's order with bugs off, `fix_campaign_save_after_the_question` both |
+| UNASSIGNED_LIST's refill and filters, 0x00453f20 / 0x00453770 / 0x00454580 (mechlab.md, The unassigned list) | ALIST_TITLES's three labels and the lab screen ([0x00605a58]) read unchecked | (bug) a crash with an edited dlgMechLabII.zrd (none ships) missing ALIST_TITLES or its labels, or the list used with no lab screen | Checked: a missing label is skipped, no screen lists nothing more; `test_lab_screen.py` keeps both in its dialogs |
 | SORT_CHASSISNAME, 0x004496c0 | Both mechs' names are looked up (0x00484670), then the mechs' numbers compared | (bug) "sort by name" sorts by the game's own mech order | Behind `zfix` bugs: by the names (strcmp), ties by the number; test_lab_screen.py checks the exe's order |
 | Lancemates' career kills, 0x0047ac20 (the Win State's copy of the debriefing's +0x13be4) | Each card's number is written into the campaign's +0xb4 + 4 i by card, 0 for a card without a record line | (bug) a lancemate not on that card (or not matched by name) loses their career mech kills on every win | Behind `zfix` bugs: a card without a record line leaves the record as it is (`GameEngine::win_keep_scores`); the campaign loop test checks both (7 kept, 0 with bugs off) |
 | A loadout copied out of a store, 0x00424010 | The items cut to nothing are unlinked from the copy but never deleted | (A) a memory leak each time (the port's loadouts own their items) | Deleted; nothing reads them |
@@ -412,6 +413,15 @@ Kept:
   (under `engine`) and c2m2's and c3m3's weapons (plain names) are never
   given. Kept as the original. Possible: also read `engine` and plain
   weapon names (with the weapon's default tech).
+- The lab's heat sink rule (mac 3, 2026-10-21, mechlab.md, The unassigned
+  list): on the equipment tab, sinks were to list with no critical slots
+  while the loadout has fewer sink items (0x00425f30) than the engine's
+  sinks (0x00426070, 10) less 10, which never holds. The likely intent is
+  BattleTech's ten engine-mounted sinks: fewer than 10 sinks, so the next
+  ones fit in the engine. Kept as the original; a fix would compare with
+  10 and changes only the list's slot counts shown (the rule for actually
+  fitting a sink is 5b2's, not traced yet).
+
 - Ctrl+X / Ctrl+I's folders (mac 3, 2026-10-21): with no file dialogs, the
   export goes to `export\` and the import takes the next file in
   `import\` (one a press, renamed `.done`). A file picker in the SDL front
