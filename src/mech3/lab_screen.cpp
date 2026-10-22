@@ -469,7 +469,7 @@ namespace {
 // and armour (equipment 1 armor, 2 armorff) only on the armour tab.
 bool tab_item(Engine& e, Handle h, bool armour) {
   const LabScreen* s = e.lab_screen(states().lab.lab_screen_);
-  const int32_t want = s ? s->unassigned.kind : 0;  // (read unchecked: the screen owns the list)
+  const int32_t want = s ? s->unassigned.kind : 0;  // FIX (bug): read unchecked by the exe
   const int32_t kind = e.lab_item_kind(h);
   bool is_armour = false;
   if (e.lab_item_kind(h) == 3 && h) {
@@ -626,7 +626,7 @@ void LabUnassignedList::refill() {
     const int32_t left = cfg ? en.lab_config_slots_left(cfg) : 0;
     const int32_t ferro = cfg ? en.lab_config_ferro_slots(cfg) : 0;
     const int32_t endo = cfg ? en.lab_config_endo_slots(cfg) : 0;
-    // (A missing label is a call through null in the exe: only a broken dialog file.)
+    // FIX (bug): a missing label is a call through null in the exe (a broken dialog file).
     auto label = [&](size_t i) { return i < titles.labels.size() ? titles.labels[i] : nullptr; };
     if (ztwod::Text* t = label(0)) t->set_text_id(0xf5b, left);
     size_t i = 1;
@@ -692,7 +692,7 @@ void LabUnassignedList::refill() {
     if (grey) row->count.set_font(font_count);
   }
   LabScreen* s = en.lab_screen(lab.lab_screen_);
-  if (!s) return;  // (read unchecked)
+  if (!s) return;  // FIX (bug): read unchecked by the exe
   LabLaterList& as = s->assigned;
   if ((as.flags & ztwod::kHidden) && !armor_tab) {
     as.show_for(-1.0f);
