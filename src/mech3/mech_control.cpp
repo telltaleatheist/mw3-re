@@ -370,6 +370,14 @@ struct PilotControls : ai::BrainControls {
 };
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x00427300
+void player_controls_mission_end() {
+  PlayerControls* p = player_controls_instance();
+  if (!p) return;
+  delete p->settings.vlist, p->settings.vlist = nullptr;  // 0x004d9cc0 -> 0x004d91e0
+  p->reverse = false;  // +0x50
+}
+
 // Mech3.exe 1.2 @ 0x004d8990
 void PlayerControls::pilot_tick() {
   PilotControls c(*this);

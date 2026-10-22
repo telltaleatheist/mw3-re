@@ -72,6 +72,7 @@
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
+#include "mech3/zainet_region.h"
 #include "mech3/mech_pocket.h"
 #include "mech3/pocket_panel.h"
 #include "mech3/mech_reader.h"
@@ -96,6 +97,7 @@ int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
 void free_weapon_type(zwep::WeaponDef* def);                     // 0x004b0090
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
+void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
 
 namespace {
@@ -801,6 +803,19 @@ WiredObjectiveHooks g_objective_hooks;
 
 struct WiredMissionHooks : MissionHooks {
   WiredObjectiveHooks& ob() { return g_objective_hooks; }
+  // The cleanup 0x00491780's calls that have ports (docs/mission-frame.md,
+  // The cleanup): zClass's delete mode, the view let go of the player's mech
+  // before it is deleted and its camera mode 0, the radar objects, the
+  // regions (unfreed, a later mission's lookups by name found the earlier
+  // mission's), the player controls' pilot record, the mission's archives.
+  Handle fn_4eb040() override { return static_cast<Handle>(zcls::immediate_delete()); }
+  void fn_4eb030(Handle v) override { zcls::immediate_delete() = static_cast<int32_t>(v); }
+  void view_fn_40ae70(Handle) override { program_view_set_camera(0); }
+  void view_fn_40adf0(Handle) override { program_view_detach(); }
+  void fn_4b4ae0() override { radar_objects_destroy(); }
+  void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
+  void fn_427300() override { player_controls_mission_end(); }
+  void fn_5573d0() override { zrdr::close_archives(false); }
   void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
     mech3::objectives_load(file, block, ob().objs, ob());
     ob().sync();

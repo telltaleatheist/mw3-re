@@ -2386,6 +2386,18 @@ the sensor range (copied at the start), +0x2c the brain, +0x30 / +0x50 two
 plan sources, +0x34 the look-around, +0x54 the aim. A pass runs until a
 step asks for no more; nothing without a weapon manager (+0xd4).
 
+**The random draws.** The volley pick (0x4b1860's pick_index) and the
+other random choices draw on MSVCRT's one `rand()`, which the exe seeds
+from the clock (`srand(time(0))`): at the mission's start in zDEClient's
+init (0x501ab0) and zEffect's (0x508fc0), and on a multiplayer host's lock
+(0x49aca0, protection.md). So no two runs draw alike, and a mech's volley,
+with its heat and then its speed cap (heat over 0.6 slows it), varies from
+run to run; in c1m4 Dominic's first shots add 0.034 or 0.19 heat by the
+second the mission starts in. The port keeps the clock
+(`crt::msvc_srand`); the headless tests set `crt::rand_fixed_seed()`
+(reset_process_state) so a run repeats bit for bit and its outcome can be
+checked exactly.
+
 - 8, the start: the range copied, the look-around started; on to 1.
 - 1 / 6, a plan: the first source's (freed when it says it is spent), the
   second's (always freed), else the volley pick (0x4b6790, item 12b).

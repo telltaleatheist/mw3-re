@@ -173,6 +173,9 @@ struct AiControls : MechControls, ai::BrainControls {
 // on later calls (the launch, 0x00491150).
 PlayerControls* player_controls(uint32_t mode);
 PlayerControls*& player_controls_instance();  // [0x006056ec]
+// Mech3.exe 1.2 @ 0x00427300 (the mission's end): the player controls'
+// pilot record's vlist freed (its +0x5c, 0x004d9cc0) and +0x50 cleared.
+void player_controls_mission_end();
 void register_player_commands();               // 0x00426ce0
 void player_command(int32_t cmd);              // 0x00426cb0: to the controls, then the viewed vehicle
 
