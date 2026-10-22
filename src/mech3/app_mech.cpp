@@ -1220,6 +1220,7 @@ void mech_forward(void* mech, float out[3]) {
   out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z;
 }
 int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
+float mech_vertical_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.y; }
 bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;
   static_cast<Mech*>(mech)->heat = heat;

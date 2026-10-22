@@ -236,40 +236,280 @@ void NodeState::run(float dt) {
   h.position(v, pos);
   h.forward(v, &fwd[0], &fwd[2]);
   const Steer& s = b.steer;
-  if (phase == 2) goto wait;
+  if (phase == 2) return go_on(b, c, 2, true, false);
   if (phase != 0 && phase != 1) return;
-  {
-    const float away[2] = {std::fabs(s.along), std::fabs(s.side)};
-    const float sum = away[0] + away[1];
-    if (s.along_at > s.along_min || sum > slow) {
-      walk_drive(b, v, pos, fwd, away, sum, slow * 0.5f, &turn, &throttle, inv_slow);
-      c.set_turn(turn);
-      c.set_throttle(throttle);
-      phase = 1;
-      return;
-    }
+  const float away[2] = {std::fabs(s.along), std::fabs(s.side)};
+  const float sum = away[0] + away[1];
+  if (s.along_at > s.along_min || sum > slow) {
+    walk_drive(b, v, pos, fwd, away, sum, slow * 0.5f, &turn, &throttle, inv_slow);
+    c.set_turn(turn);
+    c.set_throttle(throttle);
+    phase = 1;
+    return;
   }
+  go_on(b, c, 2, false, false);
+}
+
+// The three runs' way on (0x004cf1bf, 0x004cfd69, 0x004d0773): the next
+// link (given the heading the pilot came by) takes the order, the node's
+// place kept as where the pilot last was; with none the pilot stands and
+// asks again 5 s later ([0x005cc560] -5), in `wait_phase`. `waiting`: come
+// back from that wait; `finder`: (deploy) a way finder (+0x238) ends the
+// wait at once.
+void NodeState::go_on(Brain& b, BrainControls& c, int32_t wait_phase, bool waiting, bool finder) {
+  BrainHooks& h = brain_hooks();
+  const Steer& s = b.steer;
   for (;;) {
-    {
+    if (!waiting) {
       const float heading[3] = {-s.dir[0], 0, -s.dir[1]};
-      Behaviour* next = pick_link(b, from, heading);
-      if (next) {
+      if (Behaviour* next = pick_link(b, from, heading)) {
         const float* p = from->position();
         b.x298[0] = p[0], b.x298[1] = p[1], b.x298[2] = p[2];
         order->set_behaviour(next);  // 0x004e8120: this state destroyed
         return;
       }
+      turn = 0, throttle = 0;
+      c.set_turn(0);
+      c.set_throttle(throttle);
+      retry_at = h.now() - -5.0f;
     }
-    turn = 0, throttle = 0;
-    c.set_turn(0);
-    c.set_throttle(throttle);
-    retry_at = h.now() - -5.0f;
-  wait:
-    if (unordered_or_less(h.now(), retry_at)) {
-      phase = 2;
+    waiting = false;
+    if (unordered_or_less(h.now(), retry_at) && !(finder && b.path.finder)) {
+      phase = wait_phase;
       return;
     }
   }
+}
+
+// Mech3.exe 1.2 @ 0x004cfad0. Phase 0 turns the vehicle's back toward the
+// aim, 1 backs it up the segment to the node (the walk with its back as its
+// front), 2 turns its front toward the aim, then the way on (3 the wait).
+// FIX (bug): the exe's aim is a stack vector it never sets in those two
+// phases (what the pick's heading left there, or anything); the port aims
+// along that heading, the way the pilot came (docs/ai.md 17.4a, fixes.md).
+void BackupState::run(float dt) {
+  (void)dt;
+  Brain& b = *order->owner;
+  BrainHooks& h = brain_hooks();
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  float pos[3], fwd[3] = {0, 0, 0};
+  h.position(v, pos);
+  h.forward(v, &fwd[0], &fwd[2]);
+  const Steer& s = b.steer;
+  const float aim[3] = {-s.dir[0], 0, -s.dir[1]};
+  const float back[3] = {-fwd[0], -fwd[1], -fwd[2]};
+  float dot, cross;
+  const float* walk_fwd = back;
+  switch (phase) {
+    case 0:
+      turn = turn_toward(back, aim, &dot, &cross, c.turn_goal(), turn_params());
+      if (unordered_or_less(dot, 0.9f)) {  // 0x005cc568
+        c.set_turn(turn);
+        phase = 0;
+        return;
+      }
+      // The exe's back is made again from the context's forward, which now
+      // points at the back: this frame walks with the front.
+      walk_fwd = fwd;
+      [[fallthrough]];
+    case 1: {
+      const float away[2] = {std::fabs(s.along), std::fabs(s.side)};
+      const float sum = away[0] + away[1];
+      if (!(s.along_at > s.along_min) && !(sum > slow)) {
+        throttle = 0;
+        c.set_throttle(0);
+        c.set_turn(turn);
+        phase = 2;
+        return;
+      }
+      walk_drive(b, v, pos, walk_fwd, away, sum, slow * 0.5f, &turn, &throttle, inv_slow);
+      c.set_turn(turn);
+      c.set_throttle(-throttle);
+      phase = 1;
+      return;
+    }
+    case 2:
+      turn = turn_toward(fwd, aim, &dot, &cross, c.turn_goal(), turn_params());
+      if (unordered_or_less(dot, 0.9f)) {
+        c.set_turn(turn);
+        phase = 2;
+        return;
+      }
+      return go_on(b, c, 3, false, false);
+    case 3: return go_on(b, c, 3, true, false);
+    default: return;
+  }
+}
+
+// [0x0060b4d8] (made by the deploy run's first call): a 1 degree dead zone,
+// the gain and least turn of turn_params.
+const TurnParams& fine_turn_params() {
+  static const TurnParams p = [] {
+    const double a = 1.0f * 0.01745329251994;  // 0x005cc518, 0x005cc570
+    return TurnParams{static_cast<float>(std::cos(a)), static_cast<float>(std::sin(a)), 1.2f, 0.1f};
+  }();
+  return p;
+}
+
+DeployValve& deploy_valve() {
+  static DeployValve d;
+  return d;
+}
+
+// Mech3.exe 1.2 @ 0x004cfe40 (slot +0x08 of the listener at 0x0060b498,
+// called at the mission load by 0x004e7b40): "mcbdeploy" found or made and
+// set to 0, held while it reads 1. [0x0060b4cc] and [0x0060b4d0], cleared
+// too, are not read by the deploy run.
+void deploy_mission_load() {
+  DeployValve& d = deploy_valve();
+  d.valve = valve_get("mcbdeploy");
+  d.value = 1;
+  if (d.valve) d.valve->set(0);
+}
+
+DeployState::DeployState(Order* o, Behaviour* node) : NodeState(o, node) {}
+
+namespace {
+// 0x0051e0a0: the flat distance between two points.
+float flat_distance(const float a[3], const float b[3]) {
+  const float dx = a[0] - b[0], dz = a[2] - b[2];
+  return std::sqrt(dz * dz + dx * dx);
+}
+// A deploy valve's value (its holder's vt+0x04). FIX (bug): a deploy record
+// without a valve name has none, which the exe reads (a crash); it reads 0.
+int32_t valve_value(const Valve* v) { return v ? v->get() : 0; }
+// The yaw that faces from `from` toward `to`, the Mech's set_place angle:
+// fpatan(-dx, -dz).
+float yaw_toward(const float from[3], const float to[3]) {
+  const float vx = to[0] - from[0], vz = to[2] - from[2];
+  return static_cast<float>(std::atan2(-static_cast<double>(vx), -static_cast<double>(vz)));
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004d00a0. Walked to the node (0, 1), the brain's own
+// order held (+0x80 0) and the vehicle brought within 1 m (2); once it has
+// settled (its vertical speed under 0.1, 3) the segment is set from the
+// deploy target to the node and the vehicle turned to face along it, away
+// from the target (4, a 1 degree dead zone first, then 5); then slid onto
+// the node at 0.5 m/s facing away from the target (0x29) and set there.
+// While "mcbdeploy" reads 1 and its second valve is not at its value it
+// holds there facing that way, setting its first valve to its value (5,
+// 0x2a); then +0x80 back to 1 and the way on (6 the wait).
+void DeployState::run(float dt) {
+  Brain& b = *order->owner;
+  BrainHooks& h = brain_hooks();
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  float pos[3], fwd[3] = {0, 0, 0};
+  h.position(v, pos);
+  h.forward(v, &fwd[0], &fwd[2]);
+  Steer& s = b.steer;
+  const auto* node = static_cast<const DeployNode*>(from);
+  float dot, cross, step = 0;
+  switch (phase) {
+    case 0:
+    case 1: {
+      const float away[2] = {std::fabs(s.along), std::fabs(s.side)};
+      const float sum = away[0] + away[1];
+      if (s.along_at > s.along_min || sum > slow) {
+        walk_drive(b, v, pos, fwd, away, sum, slow * 0.5f, &turn, &throttle, inv_slow);
+        c.set_turn(turn);
+        c.set_throttle(throttle);
+        phase = 1;
+        return;
+      }
+      b.params.put<int32_t>(0x80, 0);
+      slow = 1.0f;
+    }
+      [[fallthrough]];
+    case 2: {
+      const float away[2] = {std::fabs(s.along), std::fabs(s.side)};
+      const float sum = away[0] + away[1];
+      if (sum > slow) {
+        walk_drive(b, v, pos, fwd, away, sum, slow * 0.5f, &turn, &throttle, inv_slow);
+        c.set_turn(turn);
+        c.set_throttle(throttle);
+        phase = 2;
+        return;
+      }
+      throttle = 0, turn = 0;
+    }
+      [[fallthrough]];
+    case 3: {
+      if (std::fabs(h.vertical_speed(v)) > 0.1f) {  // 0x005e8bdc
+        c.set_throttle(throttle);
+        c.set_turn(turn);
+        phase = 3;
+        return;
+      }
+      const float speed = h.speed_at(v, b.xec);
+      s.set(node->position(), node->target_step->position(), speed, v);
+      face[0] = s.dir[0], face[1] = 0, face[2] = s.dir[1];
+      turn = turn_toward(fwd, face, &dot, &cross, c.turn_goal(), fine_turn_params());
+      goto turned;
+    }
+    case 4:
+      turn = turn_toward(fwd, face, &dot, &cross, c.turn_goal(), turn_params());
+    turned:
+      if (turn != 0 && !std::isnan(turn)) {
+        c.set_throttle(throttle);
+        c.set_turn(turn);
+        phase = 4;
+        return;
+      }
+      step = dt * 0.5f;
+      slow = 0.5f;
+      goto slide;
+    case 0x29:
+      step = slow * dt;
+    slide: {
+      const float* np = node->position();
+      const float dist = flat_distance(np, pos);
+      if (dist > step) {
+        const float k = step / dist;
+        const float* n2 = node->position();
+        const float p[3] = {(n2[0] - pos[0]) * k + pos[0], (n2[1] - pos[1]) * k + pos[1], (n2[2] - pos[2]) * k + pos[2]};
+        h.place(v, p, yaw_toward(node->target_step->position(), p));
+        phase = 0x29;
+        return;
+      }
+      const float* tp = node->target_step->position();
+      const float* n3 = node->position();
+      h.place(v, n3, yaw_toward(tp, n3));
+    }
+      [[fallthrough]];
+    case 0x2a:
+      return hold(b, c, fwd, true);
+    case 5:
+      return hold(b, c, fwd, false);
+    case 6: return go_on(b, c, 6, true, true);
+    default: return;
+  }
+}
+
+// The hold at the node (0x004d0592 / 0x004d05ce, 0x004d06bc): `first` (set
+// there, or holding at 0x2a) sets the first valve when it is not at its
+// value yet (on to 5); 5 only checks.
+void DeployState::hold(Brain& b, BrainControls& c, const float fwd[3], bool first) {
+  const auto* node = static_cast<const DeployNode*>(from);
+  const DeployValve& d = deploy_valve();
+  const bool on = d.valve ? d.valve->get() == d.value : false;  // the exe sets it at every mission load
+  const bool open = valve_value(node->valve_b) != static_cast<int32_t>(node->b);
+  float dot, cross;
+  if (on && open) {
+    int32_t next = 5;
+    if (first) {
+      if (valve_value(node->valve_a) == static_cast<int32_t>(node->a)) next = 0x2a;
+      else if (node->valve_a) node->valve_a->set(static_cast<int32_t>(node->a));  // 0x004d3c00
+    }
+    turn = turn_toward(fwd, face, &dot, &cross, c.turn_goal(), fine_turn_params());
+    c.set_turn(turn);
+    phase = next;
+    return;
+  }
+  b.params.put<int32_t>(0x80, 1);
+  go_on(b, c, 6, false, true);
 }
 
 // Mech3.exe 1.2 @ 0x004cee80. [0x0060b4c4] (no backing up) and [0x0060b4c8]

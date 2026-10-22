@@ -157,6 +157,7 @@ float mech_speed_at(void* mech, float share);    // vt+0x118, 0x0041d1c0
 float mech_stopping_distance(void* mech, float speed);  // vt+0x120, 0x0041d210
 void mech_forward(void* mech, float out[3]);     // +0x24, the flat forward
 int32_t mech_jump_jets(void* mech);              // +0x3d8, the jump jets installed
+float mech_vertical_speed(void* mech);           // +0x40, the local velocity's y
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: a hit of `damage` on the part with that id (0x00460970, no weapon).
 bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head

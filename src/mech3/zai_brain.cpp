@@ -266,7 +266,8 @@ struct SharedBehaviour : Behaviour {
 
 // Mech3.exe 1.2 @ 0x004c8620 (the base, the step base), 0x004c8770 (the
 // default behaviour), 0x004c86e0 (the null step), 0x004c8920 / 0x004c88a0
-// (0x00604058 / 0x00604028), 0x004c9150 (a node), 0x004c9ed0 (a speed step),
+// (0x00604058 / 0x00604028), 0x004c9150 (a node), 0x004cfa60 (a backup
+// node), 0x004d0020 (a deploy node), 0x004c9ed0 (a speed step),
 // 0x004ca1f0 (a valve step). The other behaviours' own
 // states come with their ports (docs/ai.md 17.9); until then they get the
 // base's.
@@ -277,6 +278,8 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::Stand: return new StandState(&o, this);
     case StepKind::Hold: return new HoldState(&o, this);
     case StepKind::Node: return new NodeState(&o, this);  // 0x004c9150
+    case StepKind::BackupNode: return new BackupState(&o, this);  // 0x004cfa60
+    case StepKind::DeployNode: return new DeployState(&o, this);  // 0x004d0020
     case StepKind::Speed: return new SpeedState(&o, this);  // 0x004c9ed0
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
     default: return new BehaviourState(&o, this);

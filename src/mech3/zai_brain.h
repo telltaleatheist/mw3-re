@@ -135,6 +135,12 @@ class BrainHooks : public zgame::Unported {
   virtual Behaviour* path_next(Brain& b, Behaviour* at);
   virtual float speed_at(zgame::Handle v, float share);
   virtual float stopping_distance(zgame::Handle v, float speed);
+  // The deploy state's: the vehicle's local vertical speed (+0x40) and its
+  // placement (vt+0xdc, the Mech's set_place 0x00418f30).
+  virtual float vertical_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x40", {v})); }
+  virtual void place(zgame::Handle v, const float p[3], float yaw) {
+    unported("vehicle.vt+0xdc", {v, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2]), zgame::bits(yaw)});
+  }
   virtual bool inout_clamp(zgame::Handle v, float p[3]) {
     (void)p;
     return unported("0x004c3000", {v}) & 0xff;

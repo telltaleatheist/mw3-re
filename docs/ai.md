@@ -21,7 +21,7 @@ code does that no string confirms.
 | 0x4bcba0-0x4bf1b0 | 34 | ZAiNetEdit.cpp | `CZAiNetEdit` (0x4bcba0 ctor, 0x44 bytes, vtables 0x5ca420/0x5ca388): **a net at run time**, built from its file (section 3): one node object (0x4c6d30, 0xbc) per record; edits, save (0x4bef80 -> 0x4dc2b0), regions (0x4bf000, 0x4bf1b0 "unable to create region") |
 | 0x4bf3f0-0x4c1160 | 60 | (unnamed) | `CFileDialogNet` (0x4bf750, the editor's file box, FIX (A)); net classes over the net base 0x4d5120 (vtable 0x5ca6d8: 0x4bf910, 0x4bfbb0, 0x4bfe40; 0x4c0090, 0x20 bytes, five behaviour vtables at once); small move classes (0x5ca738, 0x5ca748, 0x5cab50..0x5cac40) |
 | 0x4c11f0-0x4c3ed0 | 67 | ZAiNetMechInOut.cpp | **inside/outside nets**: closed node loops (the reg_*.zrd regions) and which vehicles are inside them ("zero length segment in an inside/outside net" 0x4c11f0); the mission's set-up 0x4c3b80 (from the mission start 0x490ab0); "Unknown class type %d for node %s" 0x4c3ed0 |
-| 0x4c3f70-0x4d2660 | 385 | (unnamed) | the bulk of the AI: the net record class (0x4c5fb0 family) and run-time node (0x4c6d30); the region registry (0x4c5c00 find-or-load by name); net classes 0x4c5640, 0x4c5b00; **the behaviour (order) classes** (section 2); the pilot brain object 0x4cf330 (0x2b0 bytes + IControls); "mcbdeploy" 0x4cfad0 (multiplayer deploy); the health_below list 0x4d1f60/0x4d1f80 |
+| 0x4c3f70-0x4d2660 | 385 | (unnamed) | the bulk of the AI: the net record class (0x4c5fb0 family) and run-time node (0x4c6d30); the region registry (0x4c5c00 find-or-load by name); net classes 0x4c5640, 0x4c5b00; **the behaviour (order) classes** (section 2); the pilot brain object 0x4cf330 (0x2b0 bytes + IControls); the backup and deploy node states (0x4cfad0, 0x4d00a0; "mcbdeploy" the valve deploy holds on, 17.4a); the health_below list 0x4d1f60/0x4d1f80 |
 | 0x4d26f0 | 1 | ZAiTarget.cpp | the target check (asserts on a target's collide and weapons callbacks) |
 | 0x4d27d0-0x4da8f0 | 229 | (unnamed) | **targets and targeting**: `CZAiTarget` (0x4d2960, 0xf4; 0x4d3080 derived), made at mission start from targets.zrd (0x4d2e20, 0x4d31d0); **the valves** (0x4d3b20..0x4d3e50, registry 0x60b500); `AiTarget`, the vehicle's targetable base (0x4d56e0, vtable 0x5cced8, 0xd4: height +0x68, team masks +0xc0..+0xc8) and 0x4d7f80 (0xd4); the contact pick 0x4d6b90; the sides 0x4d5af0 / 0x4d5b10; the AI controls (0x4d8670, 0x4d8750 = 0x320 bytes); the AI settings block AiParams (0x4d8d30..0x4d9b70); region lookups for the map (0x4d92f0 reg_inside_, 0x4d9360 reg_outside_); the net file cache and its STL (0x4da060..0x4da840) |
 | 0x4da900-0x4db8d0 | 11 | ZRdrAiNet.cpp | **net and region files**: header 0x4da900, node records 0x4db850..0x4db1b0, the editor's writers 0x4dad10 / 0x4db8d0 |
@@ -1638,6 +1638,34 @@ under the pilot's own controls, then picks the next link.
   shunt and valve union states share) takes the way finder's next step or
   the one that follows; both have the order run again (+0x104) on it.
 
+- **The backup node's state** (0x4cfa60 -> 0x4cfa80, vtable 0x5cc860, run
+  0x4cfad0; no shipped net has a `backup` node): phase 0 turns the
+  vehicle's back toward an aim (dot at least 0.9, 0x5cc568), 1 backs it up
+  the segment to the node (the walk with its back as its front, the
+  throttle negated), 2 at the node turns its front toward the aim, then
+  the node's way on (3 the 5 s wait). The aim is a stack vector the run
+  never sets in phases 0 and 2: what the pick's heading left there on an
+  earlier frame, or anything another call left. On the frame phase 0
+  finishes it walks with its front (the back is made again from the
+  context's forward, which now points at the back).
+- **The deploy node's state** (0x4d0020 -> 0x4d0040, 0x38 bytes, vtable
+  0x5cc950, run 0x4d00a0; 288 shipped deploy nodes): walked to the node as a
+  node is (0, 1); there the brain's own order is held (aiv +0x80 0) and
+  the vehicle walked to within 1 m (2, +0x1c 1); once it has settled (its
+  local vertical speed +0x40 under 0.1, 3) the segment is set from the
+  deploy target (its last item's node) to the node and the vehicle turned
+  to face along it, away from the target (+0x2c; first with a 1 degree
+  dead zone, [0x60b4d8] made on the run's first call, then 5 degrees, 4);
+  then slid onto the node at 0.5 m/s (0x29, the Mech's set_place each
+  frame, facing away from the target) and set on it. While "mcbdeploy"
+  ([0x60b4a8], found or made and set to 0 at every mission load by the
+  listener 0x4cfe40 through 0x4e7b40) reads 1 ([0x60b4ac]) and the node's
+  second valve is not at its value, it holds there facing that way (0x2a,
+  5), setting its first valve to its value; then +0x80 back to 1 and the
+  node's way on (6 the wait, which a way finder ends at once). In the
+  campaign "mcbdeploy" stays 0: a deploy node places the pilot exactly on
+  it facing away from its target, then it goes on.
+
 **Ported** (2026-10-22, `mech3/zai_node`: `NodeState`, `walk_drive`,
 `turn_toward`, `turn_or_back`, `turn_params`, `pick_link`, `LinkWay`; the
 steps' `weight` and `way_point` slots in `zai_steps`; the brain's way
@@ -1687,6 +1715,25 @@ step ignoring the way finder or not run again. Not caught, and left out
 as equivalent: the dead zone's exact edge, the pick's upper bound at an
 exact tie, the null step weighed (the FIX makes it weigh 0), the last of
 one counted link (it is the only one).
+
+**Backup and deploy** (2026-10-22, `BackupState`, `DeployState`,
+`deploy_mission_load`; the hooks `vertical_speed` and `place`, the program
+wiring the latter to `Mech::set_place`; the mission load's 0x4e7b40 calls
+the deploy listener, the other four listeners stay logged). The test
+gained backup and deploy nodes (their valves, values and targets), the
+"mcbdeploy" valve, the vertical speed, the placement (vt+0xdc logged with
+its point and yaw), the valve set 0x4d3c00 and a way finder present or
+not; the backup run's unset aim is written into its stack slot on entry
+as the port's FIX. 300 cases: 2438 states made, 15,859 runs, all
+identical, the fine turn settings and the placement's yaw bit for bit;
+57 branches reached. Breaking backup and deploy, 23 of 23 caught: the aim
+the other way, phase 0 with the front, turned at 0.8, no first-frame
+quirk, the throttle not negated, arrival keeping it, the wait's phase;
++0x80 kept or not restored, closing to 2 m, settled at 0.2, the segment
+reversed, the first turn coarse or the later ones fine, the slide's speed,
+step or length, facing the target, "mcbdeploy" ignored, the second valve
+inverted, the first not set, the wait ignoring the finder, a 2 degree fine
+dead zone. 8a's 38 breaks still caught on the extended test.
 
 **In the program** (`mission_c1m1_owens_walks_to_its_node_headless`): woken
 by bramp, the Owens is on the node of net 4 it stands on, goes on at once
@@ -1836,8 +1883,7 @@ goes through a hooks struct the test stubs the same on both sides.
    0x4c88c0, 0x4c8940 and the shared 0x4cbe50; 0x4c8a30 waits for its
    derived states.
 8. **The node state** 0x4ced40: done (17.4a), with the speed and valve
-   steps' states; left: backup 0x4cfa80 (run 0x4cfad0, 8b) and deploy
-   0x4d0040 (run 0x4d00a0, 8c).
+   steps' states, backup 0x4cfa80 and deploy 0x4d0040.
 9. **The property states**: waits, scan / canleave, sound,
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);
    jump 0x4cb330 alone.

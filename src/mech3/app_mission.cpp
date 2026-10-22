@@ -79,6 +79,7 @@
 #include "mech3/player.h"
 #include "mech3/sensors.h"
 #include "mech3/zai_brain.h"
+#include "mech3/zai_node.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdraiv.h"
 #include "mech3/zainetedit.h"
@@ -377,6 +378,10 @@ struct WiredBrainHooks : ai::BrainHooks {
     float f[3] = {0, 0, 0};
     if (void* m = mech(v)) mech_forward(m, f);
     *x = f[0], *z = f[2];
+  }
+  float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
+  void place(Handle v, const float p[3], float yaw) override {
+    if (void* m = mech(v)) move_mech(m, p, yaw);
   }
   void pilot_of(Handle v, ai::Pilot* p) override {
     int32_t n = 0;
@@ -796,6 +801,14 @@ struct WiredMissionHooks : MissionHooks {
     e->set_field32(p, 0x14, v);
   }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
+  // The mission load's listeners (0x004e7b40: each one's slot +0x08): the
+  // deploy state's "mcbdeploy" (0x004cfe40); the other four (registered by
+  // 0x004e78d0 from 0x0046ab73, 0x004b4c53, 0x004c3c9a, 0x004d490f) are not
+  // ported, logged.
+  void fn_4e7b40() override {
+    ai::deploy_mission_load();
+    MissionHooks::fn_4e7b40();
+  }
   void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out
   void fn_40f0b0(uint8_t v) override { if (message_panel()) message_panel_set(v != 0); }  // slid in or out
