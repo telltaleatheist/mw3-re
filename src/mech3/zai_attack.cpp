@@ -284,15 +284,137 @@ StationState::StationState(Order* o, Behaviour* b) : BehaviourState(o, b), made_
 void StationState::take_params() {
   Brain& br = *order->owner;
   way = br.controls->reversing() ? -1.0f : 1.0f;  // IControls vt+0x18
-  near_speed = br.params.get<float>(0x78) * 0.9f;  // 0x005cb0d8
+  close = br.params.get<float>(0x78) * 0.9f;  // 0x005cb0d8
   range = std::sqrt(br.params.get<float>(0x74)) * 1.1f;  // 0x005cb140, 1.1f as a double
 }
 
 // Mech3.exe 1.2 @ 0x004cc380
 void StationState::resume() { take_params(); }
 
-// 0x004cc3e0 (item 10d3)
-void StationState::run(float dt) { brain_hooks().station_run(*this, dt); }
+namespace {
+// The turn toward `to` (flat) the walking states' way, `keep` straight back
+// (1 for none): the run's three inlined copies (0x004cc80b, 0x004cc8f3,
+// 0x004cca33).
+float turn_onto(const float fwd[3], const float to_x, const float to_z, float dot, float keep) {
+  const TurnParams& p = turn_params();
+  if (dot < -p.cos_dead) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;
+  if (dot >= p.cos_dead) return 0.0f;  // a NaN turns
+  const float cross = fwd[2] * to_x - fwd[0] * to_z;
+  return turn_past(cross, p.sin_dead, p.gain, p.least, dot);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004cc3e0 (docs/ai.md 17.2). Phases 1..3 fall back to 0
+// in the same run when they no longer hold.
+void StationState::run(float) {
+  BrainHooks& h = brain_hooks();
+  Brain& br = *order->owner;
+  BrainControls& c = *br.controls;
+  const zgame::Handle v = c.vehicle();
+  auto* vn = order->net ? dynamic_cast<VehicleNet*>(order->net->net()) : nullptr;  // vt+0x0c, vt+0x08, vt+0x58
+  const zgame::Handle target = vn ? vn->vehicle : 0;
+  bool done = false, idle = false;
+  if (!target || !h.entity_active(target)) {  // +0x08
+    order->pop();
+    return;
+  }
+  float tp[3], vp[3];
+  h.position(target, tp);  // 0x005a85e0
+  h.position(v, vp);
+  FlatWay w;
+  flat_way(vp, tp, &w);   // 0x004ce230
+  float fwd[3] = {};
+  h.forward(v, &fwd[0], &fwd[2]);  // +0x24
+  const zgame::Handle other = h.bearer(target);  // vt+0x2c, vt+0x40
+  float ov[3], tv[3];
+  h.velocity(v, ov);  // vt+0x08
+  (void)std::fabs(h.move_speed(v));  // vt+0x114: read, not used
+  if (other) {
+    h.velocity(other, tv);
+    (void)std::fabs(h.move_speed(other));
+  } else {
+    tv[0] = tv[1] = tv[2] = 0;
+  }
+  zmth::Vec3 rel{ov[0] - tv[0], ov[1] - tv[1], ov[2] - tv[2]};
+  const float rel_speed = zmth::normalize(rel);  // 0x004020d0
+  const float* d = w.dir;
+  const float dist = w.dist;
+  const float closing = (rel.x * d[0] + rel.y * d[1]) + rel.z * d[2];
+  const float side = d[0] * rel.z - d[2] * rel.x;
+  const float ahead = (fwd[0] * d[0] + fwd[1] * d[1]) + fwd[2] * d[2];
+  const float p78 = br.params.get<float>(0x78);
+  bool again;
+  int zeros = 0;
+  do {
+    again = false;
+    switch (phase) {
+      case 0:
+        // FIX (bug): phase 0 again in one run decides as before, so the exe
+        // loops for ever (a hang) when +0x78 is below the +0x24 it took
+        // (0.9 of it: a negative +0x78, none shipped); here the run stops.
+        if (++zeros > 1) break;
+        if (dist > range) {  // past +0x28: the order ends
+          done = true;
+          count = 0;
+        } else if (!(dist >= close)) {  // too close (a NaN too)
+          if (ahead > 0.5f) phase = 1, way = -1.0f;        // 0x005e8b94
+          else if (!(ahead >= -0.5f)) phase = 2, way = 1.0f;   // 0x005e8b98 (a NaN too)
+          else phase = 3, way = !(way >= 0.0f) ? -1.0f : 1.0f;
+          again = true;
+          count = 0;
+        } else if (rel_speed > 0.2f && closing > 0.0f && !(closing * dist > p78)) {  // 0x005cb138
+          turn = 0;  // closing in: swerve, 8 frames
+          if (side < -0.17f) turn = 1.0f;       // -[0x005e8b9c], 0x005e8ba0
+          else if (side > 0.17f) turn = -1.0f;
+          way = c.reversing() ? -1.0f : 1.0f;   // IControls vt+0x18
+          count = 8;
+        } else if (count != 0) {
+          turn = 0;
+          way = c.reversing() ? -1.0f : 1.0f;
+          --count;
+        } else {
+          idle = true;  // the controls left alone
+        }
+        break;
+      case 1:  // the other ahead: back off facing it
+        if (!(ahead >= 0.0f) || dist > p78) {
+          phase = 0, again = true;
+          break;
+        }
+        turn = turn_onto(fwd, d[0], d[2], fwd[0] * d[0] + fwd[2] * d[2], turn);
+        break;
+      case 2: {  // behind: on, its back to it
+        if (ahead > 0.0f || dist > p78) {
+          phase = 0, again = true;
+          break;
+        }
+        const float back[3] = {-fwd[0], -fwd[1], -fwd[2]};
+        turn = turn_onto(back, d[0], d[2], back[0] * d[0] + back[2] * d[2], turn);
+        break;
+      }
+      case 3: {  // beside: alongside, across the way to it
+        if (!(ahead >= -0.8) || ahead > 0.8 || dist > p78) {  // 0x005cb150, 0x005cb158: doubles
+          phase = 0, again = true;
+          break;
+        }
+        float px = d[2], pz = -d[0];
+        const float g = fwd[0] * d[0] + fwd[2] * d[2];
+        float g2 = g;
+        if (!(g >= 0.0f)) px = -px, pz = -pz, g2 = -g;
+        turn = turn_onto(fwd, px, pz, g2, turn);
+        break;
+      }
+      default: break;
+    }
+  } while (again);
+  if (done) {
+    order->pop();  // 0x004e8270 (the own order's)
+    return;
+  }
+  if (idle) return;
+  c.set_turn(turn);   // IControls vt+0x28
+  c.set_throttle(way);  // vt+0x20
+}
 
 // Mech3.exe 1.2 @ 0x004cc020. The other vehicle through the order's part
 // (the vehicle net's, as always here).

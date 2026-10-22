@@ -151,8 +151,8 @@ class StationState : public BehaviourState {
   uint8_t x10 = 0;         // +0x10
   Behaviour* made_by;      // +0x18
   float way = 1.0f;        // +0x20
-  float near_speed = 0;    // +0x24
-  float range = 0;         // +0x28
+  float close = 0;         // +0x24  too close within this (+0x78 x 0.9)
+  float range = 0;         // +0x28  kept within this, else the order ends
   int16_t count = 0;       // +0x2c
   int16_t phase = 0;       // +0x2e
 

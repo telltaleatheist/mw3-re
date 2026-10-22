@@ -388,7 +388,7 @@ struct Hooks : ai::BrainHooks {
   // The attack's test: the vehicle net's unported states as fakes (the
   // emulator's makers stubbed the same), by its behaviour's +0x04 (0).
   ai::BehaviourState* vehicle_step_state(ai::Behaviour& b, ai::Order& o) override { return new FakeState(&o, &b, 0); }
-  void station_run(ai::BehaviourState&, float dt) override { call("0x004cc3e0", {bits(dt)}); }
+  float move_speed(zgame::Handle v) override { return fl(call("vehicle.vt+0x114", {v})); }
   zgame::Handle weapons(zgame::Handle) override { return g_wm; }
   zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
   void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
@@ -1421,12 +1421,22 @@ void probe_ao_own_world(const uint32_t* w) {
   g_brain->params.put<uint32_t>(0x74, w[6]);
   g_brain->params.put<uint32_t>(0x78, w[7]);
 }
+// The station keeping's world: the pilot's and the target's velocities
+// (vt+0x08), the target active or not.
+void probe_ao_station_world(const float* own_vel, const float* target_vel, int32_t active, const float* target_pos) {
+  Entity& en = g_entity[1];
+  en.handle = ent_handle(1);
+  std::memcpy(en.pos, target_pos, 12);
+  std::memcpy(g_vel[0], own_vel, 12);
+  std::memcpy(g_vel[1], target_vel, 12);
+  g_ent_active[1] = active != 0;
+}
 void probe_ao_own(uint32_t dt) { g_brain->run_own_order(fl(dt)); }
 // The own order: its part (0 none, 1 the vehicle net's) with its net id,
 // home point and the one under it, its state's serial (a fake's).
 void probe_ao_own_row(uint32_t* out) {
   const ai::Order& o = g_brain->order;
-  std::memset(out, 0, 4 * 12);
+  std::memset(out, 0, 4 * 14);
   if (const auto* vp = dynamic_cast<const ai::VehiclePart*>(o.net.get())) {
     out[0] = 1;
     out[1] = static_cast<uint32_t>(vp->target->get_id());
@@ -1443,9 +1453,11 @@ void probe_ao_own_row(uint32_t* out) {
   if (const auto* st = dynamic_cast<const ai::StationState*>(o.state.get())) {
     out[7] = dynamic_cast<const ai::StationHoldState*>(st) ? 2u : 1u;
     std::memcpy(out + 8, &st->way, 4);
-    std::memcpy(out + 9, &st->near_speed, 4);
+    std::memcpy(out + 9, &st->close, 4);
     std::memcpy(out + 10, &st->range, 4);
     out[11] = static_cast<uint16_t>(st->phase);
+    std::memcpy(out + 12, &st->turn, 4);
+    out[13] = static_cast<uint16_t>(st->count);
   }
 }
 

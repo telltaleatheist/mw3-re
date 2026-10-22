@@ -960,3 +960,47 @@ TEST(fix_ai_home_points_out_of_order) {
   }
   set_brain_hooks(nullptr);
 }
+
+// The station keeping's run (FIX (bug), docs/fixes.md, ai.md 17.2): with
+// +0x78 below the +0x24 its state took (0.9 of an older +0x78), a vehicle
+// between the two sends phase 0 to a phase that hands it straight back,
+// for ever in the exe. Here the run stops.
+namespace {
+struct StationHooks : HomeHooks {
+  bool entity_active(zgame::Handle) override { return true; }
+  zgame::Handle bearer(zgame::Handle v) override { return v; }
+  void position(zgame::Handle v, float out[3]) override {
+    out[0] = v == 2 ? 7.0f : 0.0f, out[1] = 0, out[2] = 0;  // the other 7 m ahead (+x)
+  }
+  void forward(zgame::Handle, float* x, float* z) override { *x = 1, *z = 0; }
+  void velocity(zgame::Handle, float out[3]) override { out[0] = out[1] = out[2] = 0; }
+  float move_speed(zgame::Handle) override { return 0; }
+};
+}  // namespace
+
+TEST(fix_ai_station_keeping_no_endless_phases) {
+  using namespace mech3::ai;
+  StationHooks hooks;
+  set_brain_hooks(&hooks);
+  {
+    BuiltinNet net(7, 0);
+    AiParams rec;
+    Brain b(&net, rec);
+    HomeControls c;
+    b.controls = &c;
+    b.params.put<float>(0x74, 1600.0f);
+    b.params.put<float>(0x78, 10.0f);
+    VehicleNet vn(2);
+    Order& o = b.order;
+    o.net.reset(vn.make_part(o));
+    o.state.reset(vn.own_order()->make_state(o));
+    auto* st = dynamic_cast<StationState*>(o.state.get());
+    EXPECT(st && st->close == 9.0f);
+    b.params.put<float>(0x78, 5.0f);  // now below the 9 it took
+    st->run(1.0f / 30);  // the exe: phase 0 -> 1 -> 0 -> 1 ... for ever
+    EXPECT(b.order.state && st->phase <= 3);
+    b.order.state.reset();
+    b.order.net.reset();
+  }
+  set_brain_hooks(nullptr);
+}

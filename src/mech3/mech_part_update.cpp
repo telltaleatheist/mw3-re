@@ -931,4 +931,7 @@ void Arm::update(float dt) {
   MechPart::update(dt);
 }
 
+// Mech3.exe 1.2 @ 0x0041d1d0
+float Mech::throttle_speed() const { return controls ? controls->throttle * max_speed : 0.0f; }
+
 }  // namespace mech3

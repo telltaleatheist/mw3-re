@@ -375,6 +375,7 @@ struct WiredBrainHooks : ai::BrainHooks {
   float speed_at(Handle v, float share) override { return mech_speed_at(mech(v), share); }
   float stopping_distance(Handle v, float speed) override { return mech_stopping_distance(mech(v), speed); }
   float stop_share(Handle v, float d) override { return mech_stop_share(mech(v), d); }
+  float move_speed(Handle v) override { return mech_throttle_speed(mech(v)); }
   void forward(Handle v, float* x, float* z) override {
     float f[3] = {0, 0, 0};
     if (void* m = mech(v)) mech_forward(m, f);

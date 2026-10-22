@@ -326,3 +326,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   own order given its vtable 0x5cd8e8); 10 of 11 breaks.
 - c1m1: the Owens keeps station (StationState) on the player within 40 m.
 - Next: 10d3, the run 0x4cc3e0.
+
+## 2026-10-22 Item 10d3: the station keeping's run (mac4/station2)
+
+- StationState::run 0x4cc3e0 (giving way: swerve, back off, drive off,
+  alongside; let go past +0x28); Mech::throttle_speed 0x41d1d0
+  (vt+0x114) and BrainHooks::move_speed; station_run hook gone.
+- FIX (bug): the exe's endless phases when +0x78 < the state's +0x24
+  (found by the test when +0x78 changed under a live state; shipped values
+  5..50 cannot); port-only test hangs without the guard.
+- Test: test_ai_attack.py runs the real run (velocities and speeds on both
+  sides, +0x78 fixed per case); 18 of 18 breaks.
+- c1m1: the own order is off (+0x80 0) for the bump window (it gives way
+  otherwise); after the way home the player walks at the Owens: it swerves,
+  backs off facing the player, lets go at 44.2 m.

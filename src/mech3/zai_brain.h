@@ -248,9 +248,9 @@ class BrainHooks : public zgame::Unported {
   // state. (The own order's is zai_attack's make_station_state.)
   virtual BehaviourState* vehicle_step_state(Behaviour& b, Order& o);
   // The station keeping's (zai_attack): a vehicle's vt+0xf4 (0 for the
-  // mechs, 0x0040bae0) and the 0x004cc290 state's run (0x004cc3e0, item 10d3).
+  // mechs, 0x0040bae0) and its speed (vt+0x114; its velocity is velocity()).
   virtual bool vehicle_xf4(zgame::Handle v) { return unported("vehicle.vt+0xf4", {v}) & 0xff; }
-  virtual void station_run(BehaviourState& s, float dt) { unported("0x004cc3e0", {low(&s), zgame::bits(dt)}); }
+  virtual float move_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle.vt+0x114", {v})); }  // the Mech's 0x0041d1d0
   // The deploy state's: the vehicle's local vertical speed (+0x40) and its
   // placement (vt+0xdc, the Mech's set_place 0x00418f30).
   virtual float vertical_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x40", {v})); }
