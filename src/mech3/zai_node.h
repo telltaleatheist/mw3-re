@@ -49,6 +49,21 @@ struct LinkWay {
 // the counted weights (what the exe leaves in its scratch vector).
 Behaviour* pick_link(Brain& b, Behaviour* at, const float heading[3], std::vector<float>* sums = nullptr);
 
+// A wait step's state (0x004c9fa0 -> 0x004c9fc0, vtable 0x005cb618;
+// 0x004ca0c0 -> 0x004ca0e0, vtable 0x005cb6f0): made with the game time
+// (+0x0c) and the pilot stopped (IControls vt+0x14); the next step once
+// the step's seconds have passed since then (wait_interval) or the game
+// time has passed them (wait_time).
+class WaitState : public BehaviourState {
+ public:
+  WaitState(Order* o, Behaviour* b, bool absolute);            // 0x004c9fc0 / 0x004ca0e0
+  void run(float dt) override;                                  // 0x004ca070 / 0x004ca190
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+  bool absolute;
+  float start;  // +0x0c
+};
+
+
 // The node state (0x004ced40, 0x28 bytes, vtable 0x005cc5c0; made by the
 // node's vt+0x8c 0x004c9150).
 class NodeState : public BehaviourState {

@@ -481,6 +481,23 @@ struct SharedBehaviour : Behaviour {
 // other behaviours' own
 // states come with their ports (docs/ai.md 17.9); until then they get the
 // base's.
+// Mech3.exe 1.2 @ 0x004c9fc0 / 0x004ca0e0
+WaitState::WaitState(Order* o, Behaviour* b, bool absolute) : BehaviourState(o, b), absolute(absolute) {
+  start = brain_hooks().now();  // [0x0060991c]
+  o->owner->controls->stop();   // IControls vt+0x14
+}
+
+// Mech3.exe 1.2 @ 0x004ca070 (wait_interval: on when the end is not at or
+// past now, a NaN included) and 0x004ca190 (wait_time: only once now is
+// past it)
+void WaitState::run(float dt) {
+  (void)dt;
+  const auto* st = static_cast<const ValueStep*>(from);
+  const float now = brain_hooks().now();
+  const bool on = absolute ? now > fbits(st->value) : !(start + fbits(st->value) >= now);
+  if (on) order->set_behaviour(st->next);  // 0x004e8120: this state destroyed
+}
+
 BehaviourState* Behaviour::make_state(Order& o) {
   switch (kind) {
     case StepKind::Behaviour: return new DefaultState(&o, this);
@@ -491,6 +508,8 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::BackupNode: return new BackupState(&o, this);  // 0x004cfa60
     case StepKind::DeployNode: return new DeployState(&o, this);  // 0x004d0020
     case StepKind::Speed: return new SpeedState(&o, this);  // 0x004c9ed0
+    case StepKind::WaitInterval: return new WaitState(&o, this, false);  // 0x004c9fa0
+    case StepKind::WaitTime: return new WaitState(&o, this, true);       // 0x004ca0c0
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
     case StepKind::Scan:
     case StepKind::CanLeave:

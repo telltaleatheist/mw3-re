@@ -56,11 +56,13 @@ NODE_VT, NODE_STATE_VT, NULL_STEP = 0x5cc6f0, 0x5cc5c0, 0x603fa0
 NODE_VTS = {0: NODE_VT, 5: 0x5cc7a8, 6: 0x5cc898}
 NODE_STATES = (NODE_STATE_VT, 0x5cc860, 0x5cc950)
 BACKUP_RUN, DEPLOY_STATE_VT = 0x4cfad0, 0x5cc950
-PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88)  # the speed, valve, scan steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0)
+# The speed, valve, scan and two wait steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0, 0x4ca070, 0x4ca190).
+PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0)
+WAIT_VT = (0x5cb618, 0x5cb6f0)
 SCAN_VT = (0x5cbbd0, 0x5cbca8, 0x5cbd60)  # scan, canleave, canleave-not
 SCAN_FN = ((0x4d9c30, 0x4d9c20), (0x4d9c50, 0x4d9c40), (0x4d9c70, 0x4d9c60))  # aim, hit, time: off, on
 CANLEAVE_FN = {1: 0x4d9c80, 2: 0x4d9ca0}
-STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0}  # speed, valve, jump, gate
+STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0, 8: 0x5cb560, 9: 0x5cb638}  # speed, valve, jump, gate, the waits
 f2i, fi = tf.f2i, ts.fi
 COVER = {
     0x4cf1bf: 'at the node: the pick', 0x4cf200: 'no link: stand', 0x4cf265: 'waiting', 0x4cf275: 'linked on',
@@ -82,7 +84,9 @@ COVER = {
     0x4d0766: 'deploy: on', 0x4d0864: 'deploy: waiting', 0x4cbcb9: 'a scan step: its tests',
     0x4cbcc7: 'a scan step: on', 0x4d9c20: 'scan aim on', 0x4d9c30: 'scan aim off', 0x4d9c40: 'scan hit on',
     0x4d9c50: 'scan hit off', 0x4d9c60: 'scan time on', 0x4d9c70: 'scan time off', 0x4d9c80: 'canleave',
-    0x4d9ca0: 'canleave not'}
+    0x4d9ca0: 'canleave not', 0x4c9fc0: 'a wait made', 0x4ca070: 'a wait_interval run',
+    0x4ca08a: 'a wait_interval over', 0x4ca096: 'a wait_interval still on', 0x4ca190: 'a wait_time run',
+    0x4ca1a3: 'a wait_time over', 0x4ca1af: 'a wait_time still on', 0x4ca0e0: 'a wait_time made'}
 REACHED = set()
 
 
@@ -237,7 +241,7 @@ class Original(ts.Original):
                             struct.pack('<4I', 3, arr, arr + 8 * len(fns), arr + 0x18))
             else:
                 e.cpu.write(a, struct.pack('<4I', STEP_VT[r[0]], 0, 0, at(r[4])))
-                if r[0] in (1, 3):
+                if r[0] in (1, 3, 8, 9):
                     e.w32(a + 0x10, r[1])
                 elif r[0] == 2:
                     e.w32(a + 0x10, self.valves[r[1] & 1])
@@ -296,6 +300,8 @@ class Original(ts.Original):
             out[32:35] = [e.r32(st + 0x2c + 4 * k) for k in range(3)]
         out[35:38] = [e.r32(e.r32(v + 4) + 4) for v in self.valves]
         out[40:45] = [e.r32(b + off) for off in (0x98, 0x9c, 0xa0, 0x3c, 0xdc)]
+        if vt in WAIT_VT:
+            out[45] = e.r32(st + 0xc)  # when it began
         return out
 
     def turn(self, op, f, params):
@@ -358,8 +364,14 @@ def build_net(rng):
                 continue
             first = len(rows)
             for depth in range(rng.choice([1, 1, 2])):
-                kind = rng.choice([1, 2, 3, 4, 7, 7])
-                a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(3) if kind == 7 else rng.randrange(2)
+                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9])
+                if kind == 8:  # wait_interval: seconds, mostly a clock step or two, now and then NaN
+                    a = 0x7fc00000 if rng.random() < 0.04 else f2i(rng.uniform(1, 30) if rng.random() < 0.3 else
+                                                             rng.choice([0.5, 2.0, 2.5, 4.0, 6.0]))
+                elif kind == 9:  # wait_time: a game time, on the grid at times
+                    a = f2i(rng.uniform(0, 520) if rng.random() < 0.3 else 0.5 * rng.randrange(0, 1040))
+                else:
+                    a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(3) if kind == 7 else rng.randrange(2)
                 bb = rng.randrange(64) if kind == 7 else rng.choice([0, 1, 1])
                 rows.append([kind, a, bb, 0, len(rows) + 1, -1, -1, -1, 0, 0, 0, 0, 0])
             rows[-1][4] = target
@@ -380,7 +392,8 @@ def world(rng, nodes):
     last = nodes[rng.randrange(len(nodes))] if rng.random() < 0.7 else pos
     share = rng.choice([1.0, 1.0, 0.5, rng.uniform(0.2, 1.2)])
     decel = rng.choice([rng.uniform(0.3, 6), 2.0, 0.0 if rng.random() < 0.05 else 1.0])
-    w = [f2i(x) for x in fwd] + [f2i(share), f2i(rng.uniform(5, 50)), f2i(decel), f2i(rng.uniform(0, 500))]
+    clock = rng.uniform(0, 500) if rng.random() < 0.3 else 0.5 * rng.randrange(0, 1000)  # mostly on the waits' grid
+    w = [f2i(x) for x in fwd] + [f2i(share), f2i(rng.uniform(5, 50)), f2i(decel), f2i(clock)]
     w += [rng.randrange(2), rng.choice([0, 0, 2, 4]), rng.randrange(2), rng.randrange(2)]
     w += [f2i(x) for x in pos] + [f2i(x) for x in last]
     w += [rng.choice([0, 1, 1]), f2i(rng.choice([0.0, 0.05, -0.08, 0.15, 0.5, -2.0])), int(rng.random() < 0.2)]
@@ -405,10 +418,13 @@ def run_case(probe, seed, calls, stats):
     orig.e.cpu.write(pa, struct.pack('<4I', *params))
     orig.e.cpu.write(0x60b478, struct.pack('<4I', *params))
     rows, nodes = build_net(rng)
+    w = world(rng, nodes)
+    for r in rows:  # a wait_time mostly a clock step or two past the clock: met exactly, at times
+        if r[0] == 9 and rng.random() < 0.7:
+            r[1] = f2i(fi(w[6]) + rng.choice([0.0, 0.5, 2.0, 2.5, 4.0, 6.0]))  # one or two clock steps on
     orig.net(rows)
     flat = [x & 0xffffffff for r in rows for x in r]
     probe.probe_ao_node_net((U * len(flat))(*flat), len(rows))
-    w = world(rng, nodes)
     orig.node_world(w)
     probe.probe_ao_node_world((U * 25)(*w))
     node_rows = [k for k, r in enumerate(rows) if r[0] in NODE_VTS]

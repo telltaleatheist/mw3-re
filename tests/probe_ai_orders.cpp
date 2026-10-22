@@ -932,6 +932,8 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
         break;
       }
       case 1: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::Speed, r[1])); break;
+      case 8: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::WaitInterval, r[1])); break;
+      case 9: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::WaitTime, r[1])); break;
       case 2:
         g_elems.push_back(std::make_unique<ai::ValveStep>(g_node_valves[r[1] & 1].get(), static_cast<int32_t>(r[2])));
         break;
@@ -1010,7 +1012,8 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   } else if (op == 1 && o.state && !dynamic_cast<FakeState*>(o.state.get())) {
     const ai::Behaviour* x = o.state->behaviour();
     if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve || x->kind == ai::StepKind::Scan ||
-              x->kind == ai::StepKind::CanLeave || x->kind == ai::StepKind::CanLeaveNot))
+              x->kind == ai::StepKind::CanLeave || x->kind == ai::StepKind::CanLeaveNot ||
+              x->kind == ai::StepKind::WaitInterval || x->kind == ai::StepKind::WaitTime))
       o.state->run(fl(dt));
   }
   std::memset(out, 0, 4 * 46);
@@ -1035,6 +1038,7 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   for (int i = 0; i < 3; ++i) out[35 + i] = static_cast<uint32_t>(g_node_valves[static_cast<size_t>(i)]->get());
   for (int k = 0; k < 4; ++k) out[40 + k] = b.params.get<uint32_t>(k < 3 ? 0x98 + 4 * k : 0x3c);
   std::memcpy(out + 44, &b.xdc, 4);
+  if (auto* ws = dynamic_cast<ai::WaitState*>(cur.state.get())) std::memcpy(out + 45, &ws->start, 4);
 }
 
 // The link pick alone (0x004ccf20) at element `which` for heading h[3]:

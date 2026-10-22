@@ -673,3 +673,13 @@ Newest last. One short entry per item: what, commits, what to remember.
   direction moved ghsD3's hidden debris, which the feet's ground probe hits).
   The exe's own behaviour; reset_process_state now resets it and the
   stagger as a new process would.
+
+## 2026-10-22 Item 3a: the wait states (mac4/behaviours)
+
+- The lead's batches: 1+2, 3+4+5, 6+7+8, then one class per item; 15 (the
+  refit order's state) goes with refit/repair.
+- WaitState (0x4c9fc0 / 0x4ca0e0, runs 0x4ca070 / 0x4ca190) in zai_brain,
+  declared in zai_node.h for the probe.
+- test_ai_node.py: waits in the chains, their start in out[45]. The
+  compares' edges (equal times, NaN) needed values and a clock on the
+  clock's own 0.5 s steps; 9 of 9 breaks then.
