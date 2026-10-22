@@ -1528,6 +1528,13 @@ are all "puffers": emitters that drop little textured squares.
   shows no boundary there. The pair it meant is `..._c4bm7`: every mech of
   the mission starts inside it (the region files are numbered one mission
   ahead; `..._c4bm6` is two small unrelated areas).
+- **Each mission starts by checking the last one's triggers.** Your own
+  mech carries the mission's player triggers (the boundary, dialogue
+  regions and the like), and the game keeps them from one mission to the
+  next: when it places you in a new mission it runs the old mission's
+  list once, over switches it has already thrown away, before it hands
+  you the new one. Usually harmless (the memory is still there), a crash
+  risk in principle; the rebuild clears them at each mission's end.
 - **Mission 5 on the c4b world can't be failed by leaving it either.** Its
   boundary trigger sets a switch named after the region
   (`reg_outside_c4m5`), while the failure watches `outside_c4m5`.

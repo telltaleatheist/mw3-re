@@ -350,6 +350,34 @@ void PlayerControls::read_axes(float dt, float* thr, float* tn, float* p, float*
   run_command(cmd);
 }
 
+namespace {
+// What the player's vlist asks of its controls: the vehicle (IControls +0x10)
+// and "hit lately" (vt+0xa0, 0x004aed40); the rest is the brain's alone.
+struct PilotControls : ai::BrainControls {
+  MechControls& m;
+  explicit PilotControls(MechControls& c) : m(c) {}
+  zgame::Handle vehicle() override { return ai::brain_hooks().vehicle_handle(m.owner); }
+  bool hit_lately() override { return ai::brain_hooks().hit_lately(vehicle()); }
+  void stop() override {}
+  void smooth(float) override {}
+  void fire(bool) override {}
+  bool reversing() override { return false; }
+  float throttle_now() override { return 0; }
+  void set_throttle(float) override {}
+  void set_turn(float) override {}
+  float turn_goal() override { return 0; }
+  void aim_started() override {}
+};
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004d8990
+void PlayerControls::pilot_tick() {
+  PilotControls c(*this);
+  bool picked = false;
+  ai::Contact* target = nullptr;
+  ai::vlist_run(settings, c, c.vehicle(), &picked, &target);
+}
+
 // Mech3.exe 1.2 @ 0x00427d60. Not while powering down: the pilot's tick
 // (lance orders, likely), the axes, then the keys over them; the reticule
 // zoom; the throttle (a step a frame, or the joystick's outright, or easing
@@ -359,6 +387,7 @@ int PlayerControls::update(float dt) {
   Mech& m = *owner;
   if (!m.is_powered_down()) {  // vtable +0xa0, 0x0041cc10
     if (g_calls.pilot_tick) g_calls.pilot_tick(*this);
+    else pilot_tick();
     float d = 0, tn = 0, jump_in = 0, p = 0, tw = 0, lp = 0, ly = 0, strafe = 0, ahead = 0;
     void* screen = &m == world().player && heat_calls().screen ? heat_calls().screen(m) : nullptr;
     read_axes(dt, &d, &tn, &p, &tw, &lp, &ly);

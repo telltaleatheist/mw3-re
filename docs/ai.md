@@ -473,9 +473,8 @@ Two neighbours, found on the way:
   region. So in m4 the pair marks a place the player must not enter, which
   may be meant; left as it is.
 
-Neither boundary works in the port yet whatever the names: the player's own
-vlist (IControls +0xa4, 0x4d8990 on the player's AI settings 0x4d9840) is
-not wired in the program (17.5).
+The player's own vlist, which these boundaries need, runs since item 3b1
+(17.5).
 
 ## 9. The compiled net
 
@@ -1979,9 +1978,22 @@ valve to that value (0x4d3c00, its reactions firing):
 
 A NaN health, ammo or distance holds; a NaN heat does not. Bit 0 (item 15)
 is not read here. The player's controls run their own vlist the same way
-(0x4d8990 on their +0x12c, IControls +0xa4: `ControlsCalls::pilot_tick`,
-not ported: the player's AI settings base 0x4d9840 is not); the AI
-controls' IControls +0xa4 is 0x4e94f0, the brain's with nothing picked.
+(IControls +0xa4, 0x4d8990, from their update 0x427d60 while not powered
+down): the settings at their +0x5c (0x4d9840: an AiParams with the
+defaults, vtable 0x5cd348) hold the launch's aiv.zrd "player" record
+(IControls vt+0x88, 0x428440 -> 0x4d99e0), and 0x4d9290 runs their list
+(+0x12c) on the vehicle (IControls +0x10), the IControls answering "hit
+lately", nothing picked yet. The AI controls' IControls +0xa4 is 0x4e94f0,
+the brain's with nothing picked.
+
+**The player's, ported** (2026-10-22, item 3b1: `PlayerControls::settings`,
+`set_record`, `pilot_tick`; the program's launch hook gives the record).
+The mission boundaries and the other player triggers (c1 mission 1 has 31:
+the boundary, the dialogue and the APC regions) now run. The controls are
+made once for the game (0x427280), so in the exe the next mission's
+placement update (0x4782f0, before the new record) runs the last mission's
+list over valves the cleanup freed. FIX (bug): the program clears the
+settings with the valves (`valves_end`).
 
 **Ported** (2026-10-20, `mech3/zai_brain` `vlist_run`, `Brain::vlist`,
 `Brain::pilot_tick`; the brain's frame runs it). The heat, the clear line

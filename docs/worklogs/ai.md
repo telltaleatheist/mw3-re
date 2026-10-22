@@ -376,3 +376,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   pops when the target is gone), sets no target.
 - Headless c1m4 (Dominic woken, an enemy 60 m ahead): targets and fires,
   no move; at 150 m aims only. Owen's rule listed as a candidate, not coded.
+
+## 2026-10-22 Item 3b1: the player's vlist (mac4/playervlist)
+
+- PlayerControls::settings (+0x5c, 0x4d9840), set_record (vt+0x88
+  0x428440, the program's launch hook), pilot_tick (vt+0xa4 0x4d8990:
+  vlist_run on the settings, nothing picked); the update runs it unless
+  ControlsCalls::pilot_tick is set (probe_controls').
+- FIX (bug): the controls live for the game; the next launch's placement
+  update ran the last record's vlist over freed valves (a crash in the
+  suite's second mission). Cleared with the valves.
+- test_ai_vlist.py: each list also run through the exe's 0x4d8990 on a
+  fake player controls block; won/lost test: walking out of c1m1 fails it.

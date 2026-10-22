@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "mech3/mech.h"
+#include "mech3/mech_control.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "mech3/zai_attack.h"
 #include "mech3/zai_brain.h"
@@ -243,8 +244,12 @@ class FakeSource : public ai::FireSource {
   int32_t id;
 };
 
+mech3::Mech* const kPlayerMech = reinterpret_cast<mech3::Mech*>(&g_now);  // the player controls' owner: kOwner (any address)
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
+  zgame::Handle vehicle_handle(void* v) override { return v == kPlayerMech ? kOwner : low(v); }
+  bool hit_lately(zgame::Handle) override { return call("ictl.vt+0xa0", {}) & 1; }  // the player's IControls' 0x004aed40
   ai::AiNet* builtin_net() override { return net_of(100); }
   ai::Behaviour* default_behaviour() override { return beh_of(100); }
   float now() override { return g_now; }
@@ -688,6 +693,17 @@ void probe_ao_vlist(int32_t picked, int32_t target, int32_t* out) {
   out[0] = p, out[1] = contact_index(t);
   for (int i = 0; i < 4; ++i) out[2 + i] = g_valves[static_cast<size_t>(i)]->get();
   g_brain->params.vlist = nullptr;
+}
+
+// 0x004d8990: the player's controls' tick, their settings' vlist the list
+// above; out: the four valves' values.
+void probe_ao_player_vlist(int32_t* out) {
+  mech3::PlayerControls pc;
+  pc.owner = kPlayerMech;
+  pc.settings.vlist = g_brain->params.vlist;
+  pc.pilot_tick();
+  pc.settings.vlist = nullptr;  // the probe's
+  for (int i = 0; i < 4; ++i) out[i] = g_valves[static_cast<size_t>(i)]->get();
 }
 
 // The steering test's world: n entities (handle, pos[3], fwd[2]: 6 words

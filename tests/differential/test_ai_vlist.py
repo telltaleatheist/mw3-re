@@ -35,6 +35,7 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 
 U, I = ctypes.c_uint32, ctypes.c_int32
 VLIST = 0x4e9550
+PLAYER_TICK = 0x4d8990  # the player's controls' IControls vt+0xa4
 OWNER = tg.OWNER
 COVER = {0x4d8e81: 'a valve asked', 0x4d8ea2: 'not at its value', 0x4d8eaf: 'hit lately asked',
          0x4d8ec8: 'heat asked', 0x4d8ee7: 'health asked', 0x4d8f02: 'ammo asked', 0x4d8f25: 'the pick',
@@ -82,6 +83,15 @@ class Original(tf.Original):
         self.head = e.world_alloc(0x10)
         self.nodes = [e.world_alloc(0x30) for _ in range(8)]
         self.flags = OWNER + 0xe00  # the picked flag and the target, in exe memory
+        # The player's controls (0x4d8990's view): a vbptr at +0x04 whose +4 is
+        # 0x148 (the IControls at +0x14c, its owner at +0x10, the brain's
+        # IControls vtable for vt+0xa0), the settings' vlist at +0x12c.
+        self.pc = e.world_alloc(0x180)
+        vbt = e.world_alloc(0x10)
+        e.w32(vbt + 4, 0x148)
+        e.w32(self.pc + 4, vbt)
+        e.w32(self.pc + 0x14c, e.r32(OWNER + 0xc30))  # test_ai_frame's IControls (at +0xc30) vtable
+        e.w32(self.pc + 0x14c + 0x10, OWNER)
         for addr in COVER:
             e.uc.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, u: REACHED.add(ad), begin=addr, end=addr)
 
@@ -135,10 +145,20 @@ class Original(tf.Original):
         return out
 
 
+    def player_vlist(self):
+        e, b = self.e, self.brain
+        e.w32(self.pc + 0x12c, e.r32(b + 0xd0))
+        e.call(PLAYER_TICK, ecx=self.pc + 0x14c)
+        e.w32(self.pc + 0x12c, 0)
+        e.w32(b + 0xd0, 0)
+        return [e.r32(e.r32(v + 4) + 4) for v in self.valves]
+
+
 def setup_probe():
     probe = tf.setup_probe()
     probe.probe_ao_vlist_set.argtypes = [ctypes.c_void_p, I, ctypes.c_void_p, ctypes.c_void_p]
     probe.probe_ao_vlist.argtypes = [I, I, ctypes.c_void_p]
+    probe.probe_ao_player_vlist.argtypes = [ctypes.c_void_p]
     return probe
 
 
@@ -188,6 +208,24 @@ def run_case(probe, seed, checks):
             raise SystemExit(f'seed {seed} check {k}: exe {a}, port {b}\n  rows {rows} values {values}')
         stats['checks'] += 1
         stats['sets'] += sum(1 for x, y in zip(values, a[2:]) if (x & 0xffffffff) != y)
+        # The same list on the player's controls (0x4d8990): nothing picked yet.
+        orig.vlist_set(rows, values)
+        probe.probe_ao_vlist_set((U * len(flat))(*flat), -1 if rows is None else len(rows), (I * 4)(*values),
+                                 (U * 3)(*orig.seen))
+        start = len(orig.t.log)
+        a = [x & 0xffffffff for x in orig.player_vlist()]
+        out = (I * 4)()
+        probe.probe_ao_player_vlist(out)
+        b = [x & 0xffffffff for x in out]
+        if orig.t.log != port.log:
+            i = next((j for j, (x, y) in enumerate(zip(orig.t.log, port.log)) if x != y),
+                     min(len(orig.t.log), len(port.log)))
+            raise SystemExit(f'seed {seed} check {k} (player): calls differ at {i}:\n  before {orig.t.log[start:i]}\n'
+                             f'  exe  {orig.t.log[i:i + 4]}\n  port {port.log[i:i + 4]}\n  rows {rows}')
+        if a != b:
+            raise SystemExit(f'seed {seed} check {k} (player): exe {a}, port {b}\n  rows {rows} values {values}')
+        stats['player'] = stats.get('player', 0) + 1
+        stats['player sets'] = stats.get('player sets', 0) + sum(1 for x, y in zip(values, a) if (x & 0xffffffff) != y)
     probe.probe_ao_done()
     return stats
 
@@ -203,6 +241,7 @@ def main():
     if never:
         raise SystemExit(f'branches never reached: {never}')
     print(f'ok: {cases} cases, {total["checks"]} lists run, {total["sets"]} valves set, identical; '
+          f'the player\'s tick {total["player"]} runs, {total["player sets"]} valves set; '
           f'{len(COVER)} branches reached')
 
 
