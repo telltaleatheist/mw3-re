@@ -103,6 +103,21 @@ std::string item_name(const ConfigItem& it, const MessageText& msg) {
       if (e.tech == 1) s += " (CLAN)";
       return s;
     }
+    case 4: {
+      // 0x004739d0 -> 0x00432f00: the maker's name (the engine table's
+      // message id, 0x00432ec0), the rating, " XL".
+      static const uint8_t kMaker[79] = {
+          0, 1, 2, 0, 6, 3, 1, 1, 4, 3, 5, 6, 0, 1, 3, 4, 4, 6, 7, 4, 1, 1, 1, 8, 9, 7, 5,
+          0, 1, 1, 10, 3, 4, 0, 1, 1, 4, 6, 6, 8, 1, 11, 4, 3, 5, 1, 2, 9, 9, 12, 9, 8, 1, 11,
+          3, 2, 0, 1, 8, 1, 9, 1, 2, 3, 3, 5, 3, 8, 9, 10, 7, 7, 9, 1, 1, 10, 9, 7, 10};  // 0x005e2f54 - 0x210
+      auto& e = static_cast<const EngineItem&>(it);
+      const int32_t index = e.engine > 78 ? 78 : e.engine < 0 ? 0 : e.engine;
+      const char* maker = msg(0x210 + kMaker[index]);
+      char b[512];
+      std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(Engine{index, e.xl}),
+                    e.xl ? " XL" : "");
+      return b;
+    }
     default: return std::string();
   }
 }
@@ -113,7 +128,8 @@ std::string item_name(const ConfigItem& it, const MessageText& msg) {
 std::string item_label(const ConfigItem& it, const MessageText& msg) {
   switch (it.kind()) {
     case 0:
-    case 1: {
+    case 1:
+    case 4: {  // an engine's: 0x004738b0
       const std::string name = item_name(it, msg);
       if (!it.b10 && it.count != 1) return printf_s("%s (%d)", name, it.count);
       return name;

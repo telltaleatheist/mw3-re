@@ -123,6 +123,7 @@ unusual happens.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
+- An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.
 - A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the
   word in memory before the game's soil table; the type is just left out.

@@ -259,7 +259,7 @@ class Run(Emulated):
              f'sil{h32(b(p + 0x31))} per{self.opt(u(p + 0x2c))}')
         o += self.store(u(p + 0x10))
         for e in self.items(u(p + 0x18)):
-            o += f' N{h32(u(e))}/{h32(b(e + 4))}' + self.store(u(e + 8))
+            o += f' N{h32(self.handle(u(e)))}/{h32(b(e + 4))}' + self.store(u(e + 8))
         if k == 0:
             o += f' | {h32(b(p + 0x34))} {h32(b(p + 0x35))} {h32(u(p + 0x38))} {h32(u(p + 0x3c))}\n'
             for c in self.items(u(p + 0x44)):
@@ -268,9 +268,9 @@ class Run(Emulated):
         if k == 1:
             o += f' | {self.opt(u(p + 0x34))} {h32(self.handle(u(p + 0x38)))} {h32(b(p + 0x3c))}'
         elif k == 2:
-            o += f' | {h32(u(p + 0x34))} {h32(b(p + 0x38))}'
+            o += f' | {h32(self.handle(u(p + 0x34)))} {h32(b(p + 0x38))}'
         elif k == 3:
-            o += ' | ' + ' '.join(h32(u(p + off)) for off in (0x34, 0x38, 0x3c, 0x40, 0x44, 0x48))
+            o += f' | {h32(self.handle(u(p + 0x34)))} ' + ' '.join(h32(u(p + off)) for off in (0x38, 0x3c, 0x40, 0x44, 0x48))
         else:
             o += f' | {h32(u(p + 0x34))} {h32(u(p + 0x38))}'
         return o + '\n'
@@ -339,7 +339,7 @@ def shared(r, a, names=False):
     those it does not count as entity names, and a list there would be read
     as a string (the port's FIX (A) takes none)."""
     if r.random() < 0.6:
-        a += ['desc', [f'MSG_{r.randint(0, 9)}']]
+        a += ['desc', [r.choice([f'MSG_{r.randint(0, 9)}', 'A\nB', '\n\nC\n\nD\n', '\n'])]]
     if r.random() < 0.3:
         a += ['visible', [r.choice([0, 1, 2])]]
     if r.random() < 0.2:
