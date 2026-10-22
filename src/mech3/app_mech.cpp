@@ -1229,6 +1229,31 @@ void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)-
 void wm_clear_aim(void* wm) {
   if (wm) static_cast<WeaponManager*>(wm)->set_aim(nullptr);
 }
+void* mech_centroid_of(void* mech) { return entity_is_mech(mech) ? static_cast<Mech*>(mech)->centroid : nullptr; }
+void node_world_cached(void* node, float out[3]) {
+  out[0] = out[1] = out[2] = 0;
+  auto* n = static_cast<zcls::Node*>(node);
+  if (!n || !n->data) return;
+  auto* d = static_cast<uint8_t*>(n->data);
+  if (d[0] & 0x20) zcls::node_to_world(n, 1);  // 0x004ed280(1)
+  std::memcpy(out, d + 0x84, 12);
+}
+bool node_intersects(void* node) { return node && (static_cast<zcls::Node*>(node)->flags() & 0x10); }  // 0x004eb710
+void node_intersect_set(void* node, bool on) {
+  if (node) zcls::node_set_intersect(static_cast<zcls::Node*>(node), on ? 1 : 0);
+}
+int32_t world_segment_first(const float from[3], const float to[3], uint32_t exclude, uint8_t* count) {
+  static zcls::LineHits r;
+  *count = 0;
+  zcls::Node* w = world_hooks().world;
+  if (!w) return 1;
+  zcls::segment_options().first_hit = 1;  // 0x004ed9c0(1)
+  zcls::segment_options().exclude = exclude;  // 0x004eda00, cleared by the query
+  const int32_t res = zcls::segment_list(w, from, to, &r);
+  zcls::segment_options().first_hit = 0;
+  *count = r.count;
+  return res;
+}
 int32_t ai_volley_pick(void* wm, const float* dist2) {
   auto* m = static_cast<WeaponManager*>(wm);
   if (!m) return 0;

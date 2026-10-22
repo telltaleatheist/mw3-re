@@ -24,6 +24,7 @@ struct Zones {
 Zones& zones();
 int32_t zone_visible(uint8_t zone);  // 0x0053cdc0  ECX the node's zone byte (+0x30)
 void zone_reset(uint8_t list[4]);    // 0x0053cc40  count 0, ids 0xff
+int32_t zones_overlap(const uint8_t a[4], const uint8_t b[4]);  // 0x0053cc90  ECX a, EDX b: share a zone
 
 // --- Cull ---
 // ECX centre (world), EDX &mask, stack radius. Tests the planes whose bit is

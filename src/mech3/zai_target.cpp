@@ -7,6 +7,7 @@
 
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "mech3/zai_brain.h"
 #include "mech3/zrdraiv.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -667,6 +668,32 @@ void targets_delete_all() {
   for (CZAiTarget* t : g_list) delete t;
   g_list_deleting = false;
   g_list.clear();
+}
+
+// Mech3.exe 1.2 @ 0x004d5980. The nodes' INTERSECT flags are put back
+// after; the query's own answer 0 with a crossing is a blocked line.
+bool clear_line(Handle self, Handle other, const float* at) {
+  BrainHooks& h = brain_hooks();
+  float to[3];
+  if (!at) {
+    h.node_world_cached(h.entity_centroid(other), to);
+    at = to;
+  }
+  uint8_t za[4], zb[4];
+  h.zone_list(self, za);
+  h.zone_list(other, zb);
+  if (!zmod::zones_overlap(za, zb)) return false;
+  const Handle na = h.entity_node(self), nb = h.entity_node(other);
+  const bool fa = h.node_intersect(na), fb = h.node_intersect(nb);
+  h.node_set_intersect(na, false);
+  h.node_set_intersect(nb, false);
+  float from[3];
+  h.node_world_cached(h.entity_centroid(self), from);
+  uint8_t count = 0;
+  const int32_t res = h.segment_first(from, at, 0x40000, &count);
+  h.node_set_intersect(na, fa);
+  h.node_set_intersect(nb, fb);
+  return !(res == 0 && count > 0);
 }
 
 }  // namespace mech3::ai

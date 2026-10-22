@@ -281,6 +281,13 @@ class TargetHooks : public zgame::Unported {
     unported("0x0049bfd0", {0x200, line, fmt, node});
   }
 };
+// Mech3.exe 1.2 @ 0x004d5980: whether nothing stands between vehicle
+// `self`'s centroid and `at` (null: `other`'s centroid). Not when their zones
+// do not meet (0x0053cc90); else the world's segment query, both vehicles'
+// nodes left out of it, stopping at the first crossing, past nodes with flag
+// 0x40000 (docs/ai.md 17.7).
+bool clear_line(Handle self, Handle other, const float* at);
+
 void set_target_hooks(TargetHooks* h);
 TargetHooks& target_hooks();
 

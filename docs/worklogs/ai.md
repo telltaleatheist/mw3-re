@@ -245,3 +245,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   plan's ready (clear line 0x4d5980, mac 2) is 0, so it never fires; with
   the clear line answered yes (an experiment, not kept) it fires (phase 4
   157 of 300 frames).
+
+## 2026-10-22 Item 14: the clear line (mac4/clearline)
+
+- ai::clear_line 0x4d5980 (zai_target) with zmod::zones_overlap 0x53cc90
+  (gmod_cull); BrainHooks clear_line / clear_line_at default to it, new
+  hooks zone_list, entity_node, entity_centroid, node_world_cached,
+  node_intersect, node_set_intersect, segment_first. Program: cls_di's
+  segment_list with segment_options (first_hit 1, exclude 0x40000); cls_di
+  untouched. The vlist triggers' bit 6 uses the same hook.
+- Zone lists: zEntity3d's keeper 0x5a80f0 not ported, so "all" here.
+- Test: test_ai_clearline.py (standalone emulator; 12 of 12 breaks).
+- Headless: the c1m1 Owens fires its two lasers at the player (beams use
+  charge, not reload: watch is_firing / the bin, not +0x30).

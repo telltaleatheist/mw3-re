@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "mech3/mech.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
@@ -187,6 +188,22 @@ uint32_t g_wflags[3] = {};
 float g_aim_intensity = 1.0f;
 bool g_aim_aid = false;
 uint8_t g_wm_x88 = 0;
+// The clear line's test (test_ai_clearline.py): two entities' nodes,
+// centroids and zone lists, the nodes' flags, the centroids' positions and
+// stale flags, by handle (the emulator's addresses).
+struct LineEnt {
+  uint32_t self = 0, node = 0, centroid = 0;
+  uint8_t zone[4] = {};
+  bool flag = false, stale = false;
+  float pos[3] = {};
+};
+LineEnt g_line[2];
+bool g_line_world = false;
+const LineEnt* line_by(uint32_t h, uint32_t LineEnt::*f) {
+  for (const LineEnt& l : g_line)
+    if (h && l.*f == h) return &l;
+  return nullptr;
+}
 uint32_t ent_handle(int32_t k) { return k ? kPlanEnt + 0x400 * static_cast<uint32_t>(k) : 0; }
 int32_t ent_index(uint32_t h) { return h >= kPlanEnt + 0x400 && h <= kPlanEnt + 0x1000 ? static_cast<int32_t>((h - kPlanEnt) / 0x400) : 0; }
 int32_t fire_contact_index(const ai::Contact* c) {
@@ -260,6 +277,39 @@ struct Hooks : ai::BrainHooks {
     out[0] = out[1] = out[2] = 0;
     for (const Entity& en : g_entity)
       if (en.handle && en.handle == e) std::memcpy(out, en.pos, 12);
+  }
+  // The tests over the brain answer the clear line from the trace (their
+  // emulators stub 0x004d5980); test_ai_clearline.py checks the port's.
+  bool clear_line_at(zgame::Handle v, zgame::Handle e) override { return call("0x004d5980", {v, e, 1u}) & 0xff; }
+  void zone_list(zgame::Handle e, uint8_t out[4]) override {
+    const LineEnt* l = g_line_world ? line_by(e, &LineEnt::self) : nullptr;
+    if (l) std::memcpy(out, l->zone, 4);
+    else ai::BrainHooks::zone_list(e, out);
+  }
+  zgame::Handle entity_node(zgame::Handle e) override {
+    const LineEnt* l = line_by(e, &LineEnt::self);
+    return l ? l->node : 0;
+  }
+  zgame::Handle entity_centroid(zgame::Handle e) override {
+    const LineEnt* l = line_by(e, &LineEnt::self);
+    return l ? l->centroid : 0;
+  }
+  void node_world_cached(zgame::Handle n, float out[3]) override {
+    const LineEnt* l = line_by(n, &LineEnt::centroid);
+    out[0] = out[1] = out[2] = 0;
+    if (!l) return;
+    if (l->stale) call("0x004ed280", {n, 1u});
+    std::memcpy(out, l->pos, 12);
+  }
+  bool node_intersect(zgame::Handle n) override {
+    const LineEnt* l = line_by(n, &LineEnt::node);
+    return l && l->flag;
+  }
+  int32_t segment_first(const float a[3], const float b[3], uint32_t exclude, uint8_t* count) override {
+    const int32_t r = static_cast<int32_t>(call("0x004eed90", {bits(a[0]), bits(a[1]), bits(a[2]), bits(b[0]),
+                                                               bits(b[1]), bits(b[2]), 1u, exclude}));
+    *count = static_cast<uint8_t>(call("segment.count", {}));
+    return r;
   }
   float aim_intensity() override { return g_aim_intensity; }
   bool targeting_aid(zgame::Handle) override { return g_aim_aid; }
@@ -1144,6 +1194,25 @@ void probe_ao_aim(int32_t op, int32_t ct, uint32_t w, uint32_t dt, uint32_t* out
   std::memcpy(out + 7, &g_aim.until, 4);
   std::memcpy(out + 8, &g_aim.limit2, 4);
   out[9] = g_wm_x88;
+}
+
+// The clear line (test_ai_clearline.py). w per entity (7 words): itself,
+// its node, centroid, zone list (4 bytes), node flag, stale, then the
+// position (3); then the zone mode. at: the point, or null.
+void probe_ao_line(const uint32_t* w, const float* at, int32_t* out) {
+  for (int k = 0; k < 2; ++k) {
+    const uint32_t* e = w + 9 * k;
+    LineEnt& l = g_line[k];
+    l.self = e[0], l.node = e[1], l.centroid = e[2];
+    std::memcpy(l.zone, &e[3], 4);
+    l.flag = e[4] != 0, l.stale = e[5] != 0;
+    for (int j = 0; j < 3; ++j) l.pos[j] = fl(e[6 + j]);
+  }
+  zmod::zones().mode = static_cast<int32_t>(w[18]);
+  g_line_world = true;
+  out[0] = ai::clear_line(g_line[0].self, g_line[1].self, at);
+  g_line_world = false;
+  zmod::zones().mode = 1;
 }
 
 }  // extern "C"
