@@ -760,3 +760,63 @@ Newest last. One short entry per item: what, commits, what to remember.
   test runs 1200 frames with the new counts.
 - test_ai_lance.py's stack rows sized by test_ai_attack's ROW (broken since
   3f's 28-word rows).
+
+## 2026-10-22 Item 4 (vehicles): the split (sent to the lead, not started)
+
+Sizes from Ghidra's pseudocode: S under 150 lines, M 150-350, L over 350.
+The exe has two vehicle files, veh_basic.cpp and turret.cpp. 0x49f8a0 makes
+a "mobilehq*" name a field base (0x4589d0) and anything else a basic
+vehicle (0x4ac320). The basic vehicle's vtable 0x5c88e8 has 89 slots, about
+1,400 unique lines, many of them shared with mechs (zEntity 0x5a8xxx,
+AiTarget 0x4d6de0 / 0x4d5e40, the vehicle net 0x4d70f0) or trivial.
+
+Aircraft are not a class of their own. The helicopters are world nodes
+("heli", "m5heli") moved by the mission animations (anim.zbd's heli,
+heli_fall, heli_bounce, helipuffer, the copter*.zan paths), which already run
+on the ported anim runtime. Small check: whether targets.zrd makes them
+shootable. Boats ("fish_boat", "boat0") look the same (models and anims).
+One more subclass found: 0x4a4de0 (vtable 0x5c8460, "stealth"), a basic
+vehicle made at mission load from 0x490200. Its use is unknown; map it
+before step 1 ends.
+
+Step 1, the basic vehicle as an object:
+- 1a (S-M): the vehicle struct (0xfc bytes) and its kind in the program's
+  entity registry (entity_is_mech's answer: not a mech), the constructors
+  0x4ac320 / 0x4ac530 / 0x4ac3d0 (about 160 lines), the dtor 0x4ac630.
+- 1b (M): the sub-objects 0x4adaf0 / 0x4aec00, the definition's lists
+  (weapons 0x4adb20 -> 0x4ad930, 90 lines, over the ported 0x4b4660; the
+  animations 0x4ade40), the setup vt+0x158 0x49ec00 with 0x49f660 (about
+  190 lines).
+- 1c (M): the placement vt+0xdc 0x4a3630 (65 lines) and the small accessors
+  0x4acd90..0x4ad290 (about 16 functions, 330 lines).
+- 1d (S-M): the damage vt+0x160 0x4ad3f0 (85), the death vt+0x70 0x4ad2d0
+  (28) and the kill credit's salvage 0x472ec0 (19).
+- 1e (M): what is left of the AI slots, 0x4a2ef0 (144) and 0x4d6de0 (142):
+  check first what is ported already.
+Test: c1m1 headless, the trucks and APCs standing where placed, hit and
+killed; plus differentials of the accessors.
+
+Step 2, the frame with its controls:
+- 2a (M): the basic vehicle controls 0x4ac750 / 0x4ac860 / 0x4ae270, vtable
+  0x5c8c50 (11 slots, about 250 lines: 0x4ae3c0 111, 0x4ae6b0 50,
+  0x4a2a00 36), joined to AiVehicleControls' data side.
+- 2b (S): the AI vehicle controls' vtable 0x5cd830 (0x4e72f0 55; the rest
+  are the ported gates or nothing).
+- 2c (S-M): the frame vt+0x34 0x4a1040 (44) and the ground and move vt+0x38
+  0x5a80f0 (54). Test: c1m1's APCs driving their regions.
+
+Step 3, the field base, then the turrets:
+- 3a (M): the field base object: ctor 0x458a70, dtor 0x458b30, setup
+  0x458d40 (83), damage 0x458f50 (48), frame 0x459640 (70); the rest of its
+  vtable 0x5c23d8 is the basic vehicle's.
+- 3b (M-L): a base lost, 0x4590b0 (221, already in vehicles.md).
+- 3c (unknown size): its repair, which belongs with item 5 (refit and
+  repair). Map it first.
+- 3d: the turrets. Map them (S): turret.cpp's 9 functions, 903 lines
+  (0x4a6270..0x4a76b0), aiTurrets.zrd, the turrets' pick 0x4d72b0. Then two
+  or three items of about 300 lines each.
+
+Resume here (paused 2026-10-22 for the usage limit): item 3 is merged at
+b0f6296; nothing is in progress. Wait for the lead's answer on this split,
+then start 1a. Rule from the lead: the related test set includes every test
+that imports a changed test's harness.
