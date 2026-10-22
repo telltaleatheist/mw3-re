@@ -527,6 +527,10 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (void* m = mech(v)) mech_set_local_velocity(m, x, y, z);
   }
   bool airborne(Handle v) override { return mech(v) && mech_airborne(mech(v)); }
+  float jump_fuel(Handle v) override { return mech(v) ? mech_jet_fuel(mech(v)) : 0.0f; }
+  bool lead_point(Handle v, Handle target, float out[3]) override {
+    return mech(v) && mech_lead_point_at(mech(v), target, out);
+  }
   float gravity() override { return environment().gravity; }  // [0x005e5d34]
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);

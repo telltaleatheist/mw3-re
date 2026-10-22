@@ -69,6 +69,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/zrdraiv.h"
 #include "mech3/sensors.h"
+#include "mech3/mech_hud.h"
 #include "mech3/zai_target.h"
 #include "mech3/weapon_planner.h"
 #include "mech3/zai_brain.h"
@@ -1246,6 +1247,12 @@ float mech_vertical_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.
 float mech_forward_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.z; }
 void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Mech*>(mech)->vec_3c = {x, y, z}; }
 bool mech_airborne(void* mech) { return static_cast<Mech*>(mech)->airborne(); }
+float mech_jet_fuel(void* mech) { return static_cast<Mech*>(mech)->jet_fuel; }
+bool mech_lead_point_at(void* mech, uint32_t target, float out[3]) {
+  Mech* m = static_cast<Mech*>(mech);
+  const ai::Contact* c = m->target;
+  return c && c->seen == target && lead_point(m, out);
+}
 void* mech_weapon_manager(void* mech) { return mech ? static_cast<Mech*>(mech)->ammo : nullptr; }
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null

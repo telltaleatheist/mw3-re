@@ -1913,6 +1913,17 @@ are all "puffers": emitters that drop little textured squares.
   line to the target instead, and every time something else takes its
   attention for a moment (another order on top of the attack, then gone),
   it comes back circling the other way.
+- **The combat manoeuvre: brake, face, hop.** When an enemy that reacts to
+  being hit (or that scans while aiming) "manoeuvres", it first brakes to a
+  stop, then turns to face the nearest enemy (or whoever just shot it, or
+  anyone it can see), aiming where its selected weapon would lead the
+  target, and fires its jump jets in hops while it is below a set height,
+  for a few seconds at random. It lets its jets cool below 10% fuel and
+  uses them again past 60%.
+- **Everyone counts as freshly hit for the first second of a mission.**
+  The record of the last hit starts at time 0, so in the first second an AI
+  pilot that reacts to hits sees itself as just hit and may manoeuvre at
+  once, before anything has fired.
 - **How AI pilots jump.** An AI jump is planned once, from where the pilot
   stands to the waypoint it lands on: a full-jets climb, a coast, a glide,
   a coast down and a full-jets landing burn, each timed from the height to

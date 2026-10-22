@@ -145,8 +145,8 @@ bool BrainHooks::attack(Brain& b, AiNet* n) { return ai::attack(b, n); }  // 0x0
 void BrainHooks::own_order_run(Brain& b, float dt) { b.run_own_order(dt); }
 
 Behaviour* BrainHooks::manoeuvre_behaviour(int32_t which) {
-  // 0x00410650 / 0x00410680 at start-up; their state (0x004caae0, item 11)
-  // is not ported: the base one for now.
+  // 0x00410650 / 0x00410680 at start-up; their state is zai_attack's
+  // ManoeuvreState.
   static Behaviour evade(StepKind::Manoeuvre2), circle(StepKind::Manoeuvre);
   return which == 0 ? &evade : &circle;
 }
@@ -723,6 +723,9 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::VehMode1: return new CircleState(&o, this);  // 0x004c9730
     case StepKind::VehMode2: return new OrbitState(&o, this);    // 0x004d1300
     case StepKind::VehMode4: return new VeerState(&o, this);     // 0x004d1630
+    case StepKind::Manoeuvre: return new ManoeuvreState(&o, this, false);   // 0x004caac0
+    case StepKind::Manoeuvre2: return new ManoeuvreState(&o, this, true);   // 0x004cabc0
+    case StepKind::AfterManoeuvre: return new AfterManoeuvreState(&o, this);  // 0x004ca390
     case StepKind::AttackEnd: return new AttackEndState(&o, static_cast<AttackEnd*>(this));        // 0x004cac00
     case StepKind::AttackRearm: return new AttackRearmState(&o, this);                            // 0x004cacc0
     case StepKind::AttackReturn: return new AttackReturnState(&o, static_cast<AttackReturn*>(this));  // 0x004cad90

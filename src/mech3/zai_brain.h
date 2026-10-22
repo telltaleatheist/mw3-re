@@ -272,6 +272,14 @@ class BrainHooks : public zgame::Unported {
     unported("vehicle+0x3c=", {v, zgame::bits(x), zgame::bits(y), zgame::bits(z)});
   }
   virtual bool airborne(zgame::Handle v) { return unported("vehicle.vt+0x144", {v}) & 0xff; }
+  // The manoeuvre's: the jets' fuel (vt+0x148, 0..1), and where to aim at
+  // `target` (vt+0x50's 0x0041d940, the selected weapon's lead point) when
+  // the vehicle's own target (+0x6c, a contact) sees it; false otherwise.
+  virtual float jump_fuel(zgame::Handle v) { return zgame::from_bits(unported("vehicle.vt+0x148", {v})); }
+  virtual bool lead_point(zgame::Handle v, zgame::Handle target, float out[3]) {
+    (void)out;
+    return unported("0x0041d940", {v, target}) & 0xff;
+  }
   virtual float gravity() { return zgame::from_bits(unported("[0x005e5d34]", {})); }
   virtual void place(zgame::Handle v, const float p[3], float yaw) {
     unported("vehicle.vt+0xdc", {v, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2]), zgame::bits(yaw)});
@@ -512,6 +520,7 @@ struct BrainControls {
   virtual void set_jet_forward(float v) = 0;  // IControls vt+0x3c (0x00428560: +0x28, the jets' forward thrust)
   virtual float turn_goal() = 0;          // IControls vt+0x30 (0x00426b00: +0x48)
   virtual void aim_started() = 0;         // IControls vt+0x80 (the AI's 0x004d8930: Brain::scan_aim)
+  virtual zgame::Handle attacker() { return 0; }  // IControls +0x0c: the hit record's last attacker
 };
 
 // The brain (0x004cf330, 0x2ac bytes and, when it is the most derived

@@ -154,6 +154,7 @@ struct AiControls : MechControls, ai::BrainControls {
   void stop() override { MechControls::stop(); }
   void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
   bool hit_lately() override { return MechControls::hit_lately(); }  // IControls vt+0xa0 0x004aed40
+  zgame::Handle attacker() override { return hit.by; }
   void on_hit(void* attacker) override;       // IControls vt+0x94 0x004ea520
   void hit_an_ally(void* victim) override;    // IControls vt+0x98 0x004ea500
   void tick() override;                       // IControls vt+0xa4 0x004e94f0

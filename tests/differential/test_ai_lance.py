@@ -115,9 +115,9 @@ def run_case(probe, seed, rounds):
 
     def check(what):
         a = orig.attack_stack()
-        buf = (U * (22 * 400))()
-        n = probe.probe_ao_attack_stack(buf, 22 * 400)
-        b = [list(buf[22 * i:22 * i + 22]) for i in range(n)]
+        buf = (U * (ta.ROW * 400))()
+        n = probe.probe_ao_attack_stack(buf, ta.ROW * 400)
+        b = [list(buf[ta.ROW * i:ta.ROW * i + ta.ROW]) for i in range(n)]
         if orig.t.log != port.log:
             i = next((j for j, (x, y) in enumerate(zip(orig.t.log, port.log)) if x != y),
                      min(len(orig.t.log), len(port.log)))

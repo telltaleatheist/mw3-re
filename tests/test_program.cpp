@@ -3128,7 +3128,7 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
       seen.health = lowest;
     };
     CountingPump pump;
-    pump.limit = 900;  // 30 s
+    pump.limit = 1200;  // 40 s
     app.run(pump);
     if (std::getenv("MW3_LANCE_LOG"))
       std::fprintf(stderr, "TARGET %s: contacts %d on it %d aiming %d firing %d health %g -> %g frames %d\n",
@@ -3138,10 +3138,12 @@ TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
     // 0x004e6fe0, a target too), lines up and fires (exact: the run repeats
     // with reset_process_state's fixed seed). His spot is in one of the
     // mission boundary's no-go patches (ai.md section 11), so he walks out of
-    // it meanwhile: the hut is still up after the 30 s (2 of 30 after 60 s).
-    EXPECT(seen.hut != 0 && seen.target_contacts == 1565 && seen.first_target == "ghsD2");
-    EXPECT(seen.on_target == 764 && seen.aiming == 55 && seen.firing == 646);
-    EXPECT(seen.health0 == 30.0f && std::fabs(seen.health - 9.04218f) < 1e-3f);
+    // it meanwhile. In the first second he counts as hit (the hit record
+    // starts at time 0), so scan_hit gives him a manoeuvre (ai.md 17.2): the
+    // first hut is down within the 40 s, untouched at 30.
+    EXPECT(seen.hut != 0 && seen.target_contacts == 2551 && seen.first_target == "ghsD2");
+    EXPECT(seen.on_target == 1062 && seen.aiming == 54 && seen.firing == 883);
+    EXPECT(seen.health0 == 30.0f && seen.health == 0.0f);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

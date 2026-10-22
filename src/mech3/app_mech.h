@@ -170,6 +170,10 @@ float mech_vertical_speed(void* mech);           // +0x40, the local velocity's 
 float mech_forward_speed(void* mech);            // +0x44, its z
 void mech_set_local_velocity(void* mech, float x, float y, float z);  // +0x3c..+0x44
 bool mech_airborne(void* mech);                  // vt+0x144, +0x584
+float mech_jet_fuel(void* mech);                 // vt+0x148, +0x564
+// The manoeuvre's aim (0x004ca749): the lead point (0x0041d940) when the
+// mech's selected target (+0x6c) sees `target`.
+bool mech_lead_point_at(void* mech, uint32_t target, float out[3]);
 // The AI firing's (docs/ai.md 17.7): the mech's weapon manager (+0xd4, a
 // WeaponManager*), its current weapon (0x004b04c0), the aim cleared
 // (0x004b0bc0(0)), an alpha strike (0x004b0a70); a weapon's type wait
