@@ -1736,6 +1736,13 @@ are all "puffers": emitters that drop little textured squares.
   from how it actually moves; in the air from its real velocity. Its
   torso then turns toward that point within its twist limits, and the
   shot waits until the torso faces it closely enough (`ai.md` 17.7).
+- **Enemy fire sweeps across you.** An AI pilot never aims dead on: it
+  picks a point beside you, across its line of sight, and lets the aim
+  drift back over you and out the other side, picking a new point when it
+  strays too far. How wide depends on the pilot, the range (about 2% of the
+  distance for an average pilot) and the difficulty: on high the error is
+  0.6 of medium's, on low 1.2. A targeting computer or fire control system
+  on the enemy mech changes it by a per-pilot factor (`ai.md` 17.7).
 - **Between bursts an AI mech looks around.** Resting after a burst, an
   enemy's torso sweeps: behind it for 5 s, to its left for 2.5 s, to its
   right for 5 s, and round again, until it picks its next shot.

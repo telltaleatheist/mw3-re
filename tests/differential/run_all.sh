@@ -104,6 +104,7 @@ for t in \
     ai_node \
     ai_firing \
     ai_plan \
+    ai_aim \
     mech_health \
     ai_valves \
     ai_targets \

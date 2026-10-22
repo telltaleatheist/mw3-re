@@ -572,4 +572,165 @@ FirePlan* VolleyPlan::take(bool* spent) {
   return track(1.0f) ? this : nullptr;
 }
 
+namespace {
+// The unit axis least along `n`, less its part along `n` (inlined three
+// times in the aim): the first smallest |n[i]| wins, as the exe's strict <.
+void across(const float n[3], float out[3]) {
+  float best = 3.4028235e+38f, best_abs = 3.4028235e+38f;
+  int k = -1;
+  for (int i = 0; i < 3; ++i) {
+    const float a = std::fabs(n[i]);
+    if (a < best_abs) best = n[i], best_abs = a, k = i;
+  }
+  for (int i = 0; i < 3; ++i) {
+    float x = -(n[i] * best);
+    if (i == k) x = x - -1.0f;
+    out[i] = x;
+  }
+}
+// f's row 1 from rows 2 and 0: row2 x row0.
+void cross_rows(float f[9]) {
+  const float* a = f + 6;
+  const float* b = f;
+  f[3] = a[1] * b[2] - b[1] * a[2];
+  f[4] = a[2] * b[0] - b[2] * a[0];
+  f[5] = a[0] * b[1] - b[0] * a[1];
+}
+void normalize_row(float r[3]) {
+  zmth::Vec3 n{r[0], r[1], r[2]};
+  zmth::normalize(n);  // 0x004020d0
+  r[0] = n.x, r[1] = n.y, r[2] = n.z;
+}
+// v across the rows of f: v0 row0 + v1 row1 + v2 row2.
+void to_frame(float v[3], const float f[9]) {
+  const float x = (v[0] * f[0] + v[1] * f[3]) + v[2] * f[6];
+  const float y = (v[0] * f[1] + v[1] * f[4]) + v[2] * f[7];
+  const float z = (v[0] * f[2] + v[1] * f[5]) + v[2] * f[8];
+  v[0] = x, v[1] = y, v[2] = z;
+}
+// A random angle: (rand / 16383.5 - 1) * span, rounded as the 24-bit x87 does.
+float random_angle(double span) {
+  const float u = crt::x87_mul_f24(brain_hooks().rand(), 6.103701895199438e-05);  // 0x005c9428
+  return crt::x87_mul_f24(crt::x87_add_f24(u, -1.0), span);                         // 0x005c93a8
+}
+const float kAimScale = static_cast<float>(2.0 / 100.0);  // [0x0060b2ec], 0x004b7030 at start-up
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004b70b0: the error's size (the pilot's +0xb8 times the
+// difficulty's, times +0xc0 when the mech has a targeting computer or a
+// fire control system); when not 0, the weapon's muzzle, the unit way from
+// the target to it in f's row 2 and its length.
+bool Aim::frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], float* spread,
+                float* dist) {
+  BrainHooks& h = brain_hooks();
+  *spread = b.params.get<float>(0xb8) * h.aim_intensity();
+  if (h.targeting_aid(b.controls->vehicle())) *spread = b.params.get<float>(0xc0) * *spread;
+  active = *spread != 0;
+  if (active) {
+    h.weapon_node_position(w, muzzle);  // 0x004ed530 on +0x20
+    float at[3];
+    h.entity_lock_position(h.contact_entity(target), at);  // 0x005a8630
+    f[6] = muzzle[0] - at[0], f[7] = muzzle[1] - at[1], f[8] = muzzle[2] - at[2];
+    zmth::Vec3 n{f[6], f[7], f[8]};
+    *dist = zmth::normalize(n);
+    f[6] = n.x, f[7] = n.y, f[8] = n.z;
+  }
+  return active;
+}
+
+// Mech3.exe 1.2 @ 0x004b71a0: the drift, across the line of sight within 45
+// degrees of row 0 (back over the target), at 2% of the error times the
+// range per second; the offset's limit that far.
+void Aim::pick_drift(const float f[9], float spread, float dist) {
+  BrainHooks& h = brain_hooks();
+  const float r = spread * dist * kAimScale;
+  limit2 = r * r;
+  const float a = random_angle(0.7853981633973);  // 0x005e88a0
+  drift[2] = 0;
+  drift[1] = static_cast<float>(std::sin(double{a}));
+  drift[0] = static_cast<float>(std::cos(double{a}));
+  drift[1] = r * drift[1];
+  drift[0] = r * drift[0];
+  to_frame(drift, f);
+  until = h.now() + 0.5f;  // 0x005e8894
+}
+
+// Mech3.exe 1.2 @ 0x004b72a0 (from the firing, before a shot): a fresh
+// offset at 0.6 to 1 of the limit in a random direction across the line of
+// sight, and a drift back over the target.
+void Aim::track(Brain& b, Contact* target, zgame::Handle w) {
+  float f[9], muzzle[3], spread, dist;
+  if (!frame(b, target, w, f, muzzle, &spread, &dist)) return;
+  BrainHooks& h = brain_hooks();
+  across(f + 6, f);
+  normalize_row(f);
+  cross_rows(f);
+  const float u = crt::x87_add_f24(crt::x87_mul_f24(h.rand(), 1.2207403790398877e-05), 0.6);  // 0x005c9440, 0x005c9448
+  const float r = u * spread * kAimScale * dist;
+  const float a = random_angle(3.14159265359);  // 0x005c9450
+  offset[2] = 0;
+  offset[1] = static_cast<float>(std::sin(double{a}));
+  offset[0] = static_cast<float>(std::cos(double{a}));
+  offset[1] = r * offset[1];
+  offset[0] = offset[0] * r;
+  to_frame(offset, f);
+  f[0] = -offset[0], f[1] = -offset[1], f[2] = -offset[2];
+  normalize_row(f);
+  cross_rows(f);
+  pick_drift(f, spread, dist);
+}
+
+// Mech3.exe 1.2 @ 0x004b74f0 (the lead, once the offset strays past its
+// limit): `at` is carried along its line from the muzzle back to the range
+// of the target, the offset taken from there and a new drift picked; behind
+// the muzzle the offset is dropped.
+void Aim::repick(Brain& b, Contact* target, zgame::Handle w, float at[3]) {
+  float f[9], muzzle[3], spread, dist;
+  if (!frame(b, target, w, f, muzzle, &spread, &dist)) return;
+  BrainHooks& h = brain_hooks();
+  float d[3] = {at[0] - muzzle[0], at[1] - muzzle[1], at[2] - muzzle[2]};
+  const float dot = (d[0] * f[6] + d[1] * f[7]) + d[2] * f[8];
+  const float along = -dot;
+  if (!(along > 0)) {
+    offset[0] = offset[1] = offset[2] = 0;  // 0x0063d870
+    across(f + 6, f);
+  } else {
+    if (!(along == dist) && !std::isnan(dist)) {  // x87 C3: equal or unordered
+      const float k = dist / along;
+      d[0] = k * d[0], d[1] = k * d[1], d[2] = k * d[2];
+      at[0] = muzzle[0] + d[0], at[1] = muzzle[1] + d[1], at[2] = muzzle[2] + d[2];
+      float pos[3];
+      h.entity_lock_position(h.contact_entity(target), pos);
+      offset[0] = at[0] - pos[0], offset[1] = at[1] - pos[1], offset[2] = at[2] - pos[2];
+      const float o2 = (offset[0] * offset[0] + offset[1] * offset[1]) + offset[2] * offset[2];
+      if (o2 == 0 || std::isnan(o2)) across(f + 6, offset);
+    }
+    f[0] = -offset[0], f[1] = -offset[1], f[2] = -offset[2];
+  }
+  normalize_row(f);
+  cross_rows(f);
+  pick_drift(f, spread, dist);
+}
+
+// Mech3.exe 1.2 @ 0x004b77e0 (from the firing, as it fires): the manager
+// aimed at the target's position plus the drifted offset, a new offset first
+// when it is past its limit; with no error at the position itself.
+void Aim::lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Handle wm) {
+  BrainHooks& h = brain_hooks();
+  float pos[3];
+  if (!active) {
+    h.entity_lock_position(h.contact_entity(target), pos);
+    h.wm_aim_at(wm, pos);
+    return;
+  }
+  offset[0] = drift[0] * dt + offset[0];
+  offset[1] = drift[1] * dt + offset[1];
+  offset[2] = drift[2] * dt + offset[2];
+  h.entity_lock_position(h.contact_entity(target), pos);
+  float at[3] = {pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2]};
+  const float o2 = (offset[0] * offset[0] + offset[1] * offset[1]) + offset[2] * offset[2];
+  if (limit2 < o2) repick(b, target, w, at);
+  h.wm_aim_at(wm, at);
+}
+
 }  // namespace mech3::ai

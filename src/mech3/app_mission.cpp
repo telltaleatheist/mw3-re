@@ -407,6 +407,10 @@ struct WiredBrainHooks : ai::BrainHooks {
   void weapon_node_position(Handle w, float out[3]) override { mech3::weapon_node_position(e->object_of(w), out); }
   float weapon_speed(Handle w) override { return mech3::weapon_speed(e->object_of(w)); }
   uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
+  // The aim (ai.md 17.7): the difficulty's error, the targeting aids.
+  float aim_intensity() override { return options().intensity[1]; }
+  bool targeting_aid(Handle v) override { return mech_targeting_aid(mech(v)); }
+  void wm_aim_at(Handle wm, const float at[3]) override { mech3::wm_aim_at(e->object_of(wm), at); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);

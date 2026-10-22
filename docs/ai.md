@@ -630,7 +630,7 @@ byte stays 0 from the allocation.
 | +0x00 | the record's settings copied (AiParams, 0x4d9bf0 -> 0x4d9940: the 0xcc bytes, the orders' list copied, an empty one as none, the pilot and voice strdup'd), +0xdc FLT_MAX |
 | +0xe0 | the virtual base pointer |
 | +0xe4..+0x104 | 0, FLT_MAX, 1.0, 0, FLT_MAX, byte 0, 0, 0 (+0x100 the fire timer), byte 0 (+0x104 the order's run-again flag; section 4) |
-| +0x108 | the firing state (0x4b6570, 0x58 bytes): 11 words from 0x5e8868 (8, then zeros), +0x2c the brain (0x4b6660, which also calls the brain's IControls vt+0x10(0): nothing then), +0x34 a fire plan (0x4b6390, vtable 0x5c9458), +0x54 the aim (`new(0x24)`, 0x4b7060: zero, (1, 0, 0), 0, 0, 1.0) |
+| +0x108 | the firing state (0x4b6570, 0x58 bytes): 11 words from 0x5e8868 (8, then zeros), +0x2c the brain (0x4b6660, which also calls the brain's IControls vt+0x10(0): nothing then), +0x34 a fire plan (0x4b6390, vtable 0x5c9458), +0x54 the aim error (`new(0x24)`, 0x4b7060: offset 0, drift (1, 0, 0), off, 0, limit 1.0; 17.7) |
 | +0x160 | the order stack, a `std::deque` of 0x98-byte orders (blocks of 26, 0xf70 bytes); +0x190 its owner, the brain; the last order is the current one (+0x17c) |
 | +0x194 | an order of the brain's own (0x4e8180, vtable 0x5cd8e8), its owner the brain |
 | +0x22c..+0x23c | byte 2, then four words 0 (+0x238 and +0x23c objects the destructor deletes; nothing here sets them) |
@@ -1955,6 +1955,32 @@ ops 24-28: 20,000 trials identical, 11 of 11 breaks caught) and
 tracks identical, 32 branches; 14 of 16 breaks caught, the two not caught
 being exact ties: a double root and a time of exactly 0).
 
+**The aim error, ported** (2026-10-22, item 12b2b: `Aim`, at the
+firing's +0x54). The pilot does not shoot at the target itself but at
+its position plus an offset across the line of sight, which drifts. Its
+size is the pilot's +0xb8 times the difficulty's second float
+([0x608e58]: low 1.2, medium 1.0, high 0.6), times the pilot's +0xc0 when
+the vehicle's mech (vt+0x50) carries a targeting computer (+0x3e4) or a
+fire control system (+0x3b8) (0x4b70b0); zero means no error (+0x18 off):
+the manager is aimed at the position (0x5a8630) itself. The frame is the
+unit way from the target to the muzzle (row 2), the unit axis least along
+it less its share along it (row 0) and row 2 x row 0. The track (0x4b72a0,
+before a shot) puts the offset at r = (0.6 to 1.0, rand) x size x 0.02
+([0x60b2ec], 2/100 at start-up 0x4b7030) x the range, at a random angle in
+the plane across the line of sight; the drift (0x4b71a0) then points back
+over the target within 45 degrees, at size x 0.02 x range per second,
+and that is the limit too (+0x20, squared); +0x1c = now + 0.5 (unread).
+The lead (0x4b77e0, each shot) sets the manager's +0x88, moves the offset
+by drift x dt and aims the manager (0x4b0bc0) at the target's position
+plus it; past the limit it first re-picks (0x4b74f0): the aim point
+carried along its line from the muzzle back to the target's range, the
+offset taken from there (the unit axis when that is exactly 0), and a new
+drift back over the target; a point behind the muzzle drops the offset.
+So the shots sweep across the target, at a medium pilot of +0xb8 = 1 to
+within 2% of the range (a 2 m circle at 100 m). Test: `test_ai_aim.py`
+(7079 tracks and 16072 leads identical over 300 cases; 10 branches, the
+re-pick's exact-zero offset not reached; 23 of 23 breaks caught).
+
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):
 0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
@@ -2023,8 +2049,8 @@ goes through a hooks struct the test stubs the same on both sides.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the
-    lead point 0x4d6de0 and the torso's aims (12b2a); left (12b2b) the aim
-    and lead 0x4b70b0..0x4b77e0.
+    lead point 0x4d6de0 and the torso's aims (12b2a), the aim error
+    0x4b70b0..0x4b77e0 (12b2b).
 13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
     manager side: agree with mac 2).
 14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's

@@ -1228,6 +1228,17 @@ void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)-
 void wm_clear_aim(void* wm) {
   if (wm) static_cast<WeaponManager*>(wm)->set_aim(nullptr);
 }
+bool mech_targeting_aid(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  return m && (m->equipment[14] > 0 || m->equipment[3] > 0);
+}
+void wm_aim_at(void* wm, const float at[3]) {
+  if (!wm) return;
+  auto* x = static_cast<WeaponManager*>(wm);
+  x->has_target = true;
+  const Vec3f p{at[0], at[1], at[2]};
+  x->set_aim(&p);
+}
 void wm_alpha_strike(void* wm, float seconds) {
   if (wm) static_cast<WeaponManager*>(wm)->alpha_strike(seconds);
 }
