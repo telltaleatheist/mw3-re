@@ -131,10 +131,32 @@ class BrainHooks : public zgame::Unported {
   virtual int32_t weapon_ammo(zgame::Handle w) { return static_cast<int32_t>(unported("weapon.vt+0x14", {w})); }
   virtual void weapon_hold_for_flight(zgame::Handle w) { unported("0x004b4c90", {w}); }
   virtual void torso_centre(zgame::Handle v) { unported("0x00465a00", {v, 1u}); }
-  virtual FirePlan* fire_plan_pick(Brain& b) {
-    unported("0x004b6790", {low(&b)});
-    return nullptr;
+  virtual FirePlan* fire_plan_pick(Brain& b);  // 0x004b6790: volley_plan_pick
+  // The volley pick's questions (zai_firing): an entity's active flag (+0x08),
+  // a vehicle's weapon bearer (vt+0x40, a mech itself), whether it can face a
+  // direction (vt+0x8c, the Mech's 0x0041dc70: the torso's 0x00465c70),
+  // whether its bearer has the plan in reach (vt+0x150, 0x0041dba0: the
+  // torso's 0x00465bb0), its target taken (vt+0xc0(c, 0): AiTarget's
+  // 0x004d5e40), the volley the weapon manager picks at a contact
+  // (0x004b1860, item 13), a plan tracked (0x004b6e30, item 12b2), a clear
+  // line to an entity's position (0x004d5980 with 0x005a8630's point).
+  virtual bool entity_active(zgame::Handle e) { return unported("entity+0x08", {e}) & 0xff; }
+  virtual zgame::Handle bearer(zgame::Handle v) { return v; }
+  virtual bool can_face(zgame::Handle v, const float dir[3]) {
+    (void)dir;
+    return unported("vehicle.vt+0x8c", {v}) & 0xff;
   }
+  virtual uint8_t bearer_in_reach(zgame::Handle b, float arg) {
+    return unported("vehicle.vt+0x150", {b, zgame::bits(arg)}) & 0xff;
+  }
+  virtual bool select_target(zgame::Handle v, Contact* c);
+  virtual int32_t volley_pick(zgame::Handle wm, Contact* c) {
+    return static_cast<int32_t>(unported("0x004b1860", {wm, low(c)}));
+  }
+  virtual uint8_t plan_track(FirePlan& p, float arg) {
+    return unported("0x004b6e30", {low(&p), zgame::bits(arg)}) & 0xff;
+  }
+  virtual bool clear_line_at(zgame::Handle v, zgame::Handle e) { return unported("0x004d5980", {v, e, 1u}) & 0xff; }
   virtual void aim_track(Brain& b, Contact* target, zgame::Handle w) {
     unported("0x004b72a0", {low(&b), low(target), w});
   }

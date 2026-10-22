@@ -172,6 +172,7 @@ float weapon_reload(void* w);
 int32_t weapon_ammo(void* w);
 void weapon_hold_for_flight(void* w);
 void mech_torso_centre(void* mech, int32_t how);
+bool mech_active(void* mech);                    // +0x08
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
 // For the tests: a hit of `damage` on the part with that id (0x00460970, no weapon).
 bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head

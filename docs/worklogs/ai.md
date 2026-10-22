@@ -181,3 +181,18 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Notes for 12b: scratch/firing_notes.md (my decoding).
 - Next: 12b1 the plan pick 0x4b6790 and the plan class (vtable 0x5c9460),
   12b2 the aim 0x4b72a0 / lead 0x4b77e0, then 13 the volley 0x4b1860.
+
+## 2026-10-22 Item 12b1: the volley plan pick (mac4/plan)
+
+- volley_plan_pick 0x4b6790 with the scorer 0x4b6b30 (Scorer), the swap
+  pass for the partial sort 0x4b79e0 (middle first+1), 0x4b5a80, 0x4b5a20;
+  VolleyPlan (0x5c9460: take, in_reach, ready; track a hook for 12b2).
+- Emulator: run the start-up 0x4b5b00 (0.25) and 0x4b5b30 (the marker)
+  first. A stub select must set the vehicle's +0x6c as 0x4d5e40 does.
+- Program: contact_entity / entity_active wired (mechs); the Owens' pick
+  finds nothing past its range and widens it to aiv +0x30.
+- Logged, unported vehicle hooks: vt+0x8c can_face and vt+0x150 in reach
+  (the torso's 0x465c70 / 0x465bb0, 12b2), 0x4b6e30 track (12b2), 0x4b1860
+  volley (13), 0x4d5980 clear line (world line query, not AI).
+- Next: 12b2 (track 0x4b6e30, lead point 0x4d6de0, torso aims, aim
+  0x4b72a0, lead 0x4b77e0), then 13.

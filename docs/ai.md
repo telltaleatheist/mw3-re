@@ -1890,6 +1890,43 @@ with the exe's own distance 0x4e7030): 300 cases of 60 calls, every phase,
 13,513 runs, 2203 stand-downs and 2284 scan_aims identical, 34 branches;
 36 of 36 breaks caught.
 
+**The volley plan pick, ported** (2026-10-22, `volley_plan_pick`,
+`VolleyPlan`; item 12b1). 0x4b6790 (vehicle, firing): the vehicle's first
+256 contacts become 16-byte candidates (where the contact is kept, a score,
+two flags), scored nearest first by 0x4b6b30. A candidate is rejected (the
+record [0x60b2b8], removed after) without a live, active entity (0x4e6fe0,
++0x08), when nearer than 1 (squared), when past aiv +0x30 (and every one
+after it), when an ally (the vehicle's +0xc4 against its vt+0x28's team
++0xc0), when more than 0.5 up or down, or when it lies near the line to the
+firing's remembered obstacle (+0x28: within 10 m, or the square of its
+distance from the line under 400; the obstacle is forgotten at the first
+that is not). The score starts at the squared distance (100 within 40 m),
+times ((2 - its facing) x 0.25 / (0.25 - its pitch squared)) squared,
+doubled when the vehicle cannot face it (vt+0x8c), times (health + 0.5) x
+2/3, times (1.5 - heat) x 2/3, ten times when the line to it is not clear
+(0x4d5980). Lower is better: a partial sort to one place (0x4b79e0 with
+0x4b5b60) swaps each better one to the front; then the vehicle takes the
+first it can as its target (0x4b5a80: vt+0xc0, AiTarget's 0x4d5e40). Taken,
+the sensor range is halved but kept past the target (its distance + 128,
+at most +0x30, 0x4d6d00); none, doubled up to +0x30. The plan (0x24 bytes,
+vtable 0x5c9460) keeps the target slot (the vehicle's +0x6c), the score,
+the face flag (aim with the short delay), the clear-line flag, the kind the
+volley picked (0x4b5a20: the weapon bearer's vt+0x40 manager's 0x4b1860,
+item 13) and the bearer. Its slots: in reach the bearer's vt+0x150 == 1,
+ready the clear line asked again, slot 0 itself while its target lives,
+the line to it is clear and the volley still picks one (then tracked at
+1.0); track (0x4b6e30) is item 12b2.
+
+Test `test_ai_plan.py` (over test_ai_frame.py's brain and vehicle; four
+entities at fixed addresses with their active byte, team, health and heat,
+six contacts on them, the vehicle's questions, the clear line, the volley
+and the plan's track answered from the trace; obstacles placed near the
+lines): 300 cases of 20 worlds: 6000 picks (940 plans), 2927 in-reach,
+2961 ready and 5874 takes, the calls, the plan, the ranges, the obstacle,
+the vehicle's target and the contacts' distances identical at 24-bit x87;
+23 branches. 31 of 31 breaks caught (one more, the bearer check, is
+equivalent: the volley asks the bearer again).
+
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):
 0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
@@ -1956,9 +1993,10 @@ goes through a hooks struct the test stubs the same on both sides.
 10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its
     three states (0x4cac20, 0x4cace0, 0x4cadb0).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
-12. **The firing state machine** 0x4b5b80: done (17.7, 12a); left (12b)
-    the volley pick 0x4b6790 and 0x4b5a20, the aim and lead
-    0x4b70b0..0x4b77e0.
+12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
+    volley plan pick 0x4b6790 (12b1); left (12b2) the plan's track
+    0x4b6e30 with the lead point 0x4d6de0 and the torso's aims, and the aim
+    and lead 0x4b70b0..0x4b77e0.
 13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
     manager side: agree with mac 2).
 14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's

@@ -1719,6 +1719,16 @@ are all "puffers": emitters that drop little textured squares.
   at 200 m. The first thing in that cone blocks the shot unless it is the
   target itself. The trigger is only pulled while the weapon has ammo, has
   reloaded, and (for missiles) the last salvo has had time to fly.
+- **How an enemy picks its target.** Each time it looks for a shot an AI
+  pilot scores what its sensors see, nearest first, and takes the lowest:
+  the score is the squared distance (anything within 40 m counts the same),
+  made worse when the target is off to the side or above or below, doubled
+  if it cannot turn to face it, lower the more damaged and the hotter the
+  target is, and ten times worse without a clear line. So enemies prefer
+  close, wounded, overheating mechs in front of them. Allies, anything
+  within a metre, anything too steep and anything past its range are
+  skipped. Finding nothing it widens its sensor range; finding something
+  it narrows it to just past that target (`ai.md` 17.7).
 - **Between bursts an AI mech looks around.** Resting after a burst, an
   enemy's torso sweeps: behind it for 5 s, to its left for 2.5 s, to its
   right for 5 s, and round again, until it picks its next shot.

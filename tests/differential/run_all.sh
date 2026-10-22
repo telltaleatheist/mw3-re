@@ -103,6 +103,7 @@ for t in \
     ai_states \
     ai_node \
     ai_firing \
+    ai_plan \
     mech_health \
     ai_valves \
     ai_targets \

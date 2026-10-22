@@ -1240,6 +1240,7 @@ void weapon_hold_for_flight(void* w) {
   auto* x = static_cast<Weapon*>(w);
   if (x && x->def && x->def->type) x->def->type->hold_for_flight();
 }
+bool mech_active(void* mech) { return mech && static_cast<Mech*>(mech)->active; }
 void mech_torso_centre(void* mech, int32_t how) {
   if (auto* m = static_cast<Mech*>(mech); m && m->torso) m->torso->centre(how);
 }

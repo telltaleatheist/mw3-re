@@ -2179,6 +2179,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
       int32_t fire_phase = -1, look_phase = -1;
+      float fire_range = 0, fire_max = 0;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
     } seen;
@@ -2217,6 +2218,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         seen.far = o;  // 1.4 km from the player: no detail, the low-detail model
         seen.counts1 = engine.unported_counts();
         if (seen.brain) seen.fire_phase = seen.brain->firing.phase, seen.look_phase = seen.brain->firing.look.phase;
+        if (seen.brain) seen.fire_range = seen.brain->firing.range, seen.fire_max = seen.brain->params.get<float>(0x30);
         if (seen.brain)
           for (const mech3::ai::Order& r : seen.brain->orders)
             if (r.state && r.state->from && r.state->from->kind == mech3::ai::StepKind::Node) seen.node_order = true;
@@ -2261,12 +2263,14 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset, the brain's own order and the firing ran each time;
-    // the firing (ported, ai.md 17.7) asks the volley pick each tick (not
-    // ported: no plan), so it rests in phase 5 with its look-around going.
-    for (const char* k : {"0x004aed40", "0x004e81a0", "0x004b6790"})
+    // firing's reset and the brain's own order ran each time. The firing
+    // (ai.md 17.7) picks a plan each tick: the player, 1.4 km off, is past
+    // its range, so none, and its sensor range widened to aiv +0x30; it
+    // rests in phase 5 with its look-around going.
+    for (const char* k : {"0x004aed40", "0x004e81a0"})
       EXPECT(ran(k) >= 190);
     EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
+    EXPECT(seen.fire_max > 0 && seen.fire_range == seen.fire_max);
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
