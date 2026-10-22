@@ -74,13 +74,25 @@ struct LookAround {
   int32_t phase = 0;      // +0x18
 };
 
-// 0x004b7060 (0x24 bytes, made by the firing state): aim (likely).
+// 0x004b7060 (0x24 bytes, at the firing's +0x54): the pilot's aim error
+// (docs/ai.md 17.7). The shot goes at the target's position plus an offset
+// across the line of sight that drifts back over it; picked again once it
+// strays past its limit. Its size scales with the pilot's +0xb8, the
+// difficulty's [0x00608e58] and the range, by +0xc0 with a targeting aid.
 struct Aim {
-  float x00[3] = {};              // +0x00  0x0063d870
-  float x0c[3] = {1.0f, 0, 0};    // +0x0c  0x005eda60
-  uint8_t x18 = 0;                // +0x18
-  int32_t x1c = 0;                // +0x1c
-  float x20 = 1.0f;               // +0x20
+  void track(Brain& b, Contact* target, zgame::Handle w);  // 0x004b72a0: a new offset
+  void lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Handle wm);  // 0x004b77e0
+  float offset[3] = {};           // +0x00  0x0063d870
+  float drift[3] = {1.0f, 0, 0};  // +0x0c  0x005eda60: per second
+  uint8_t active = 0;             // +0x18  the error is not 0
+  float until = 0;                // +0x1c  now + 0.5 when picked (unread)
+  float limit2 = 1.0f;            // +0x20  the offset's limit, squared
+
+ private:
+  bool frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], float* spread,
+             float* dist);                                // 0x004b70b0
+  void pick_drift(const float f[9], float spread, float dist);  // 0x004b71a0
+  void repick(Brain& b, Contact* target, zgame::Handle w, float at[3]);  // 0x004b74f0
 };
 
 // 0x004b6570 (0x58 bytes at the brain's +0x108). Its first 11 words are the

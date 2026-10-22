@@ -120,8 +120,7 @@ class BrainHooks : public zgame::Unported {
   // aim cleared (0x004b0bc0(0)), the alpha strike (0x004b0a70); a weapon's
   // type wait (0x004b4ba0), reload (+0x30), ammo (vt+0x14) and its type's
   // flight hold (+0x2c's +0x1f0, 0x004b4c90); the torso recentred (the
-  // mech's vt+0x50, its torso's 0x00465a00(1)). The plan pick and the aim
-  // (items 12b, 13) are not ported yet.
+  // mech's vt+0x50, its torso's 0x00465a00(1)).
   virtual zgame::Handle weapons(zgame::Handle v) { return unported("vehicle+0xd4", {v}); }
   virtual zgame::Handle wm_current(zgame::Handle wm) { return unported("0x004b04c0", {wm}); }
   virtual void wm_clear_aim(zgame::Handle wm) { unported("0x004b0bc0", {wm, 0u}); }
@@ -188,11 +187,17 @@ class BrainHooks : public zgame::Unported {
     unported("vehicle.vt+0x154", {b, zgame::bits(dir[0]), zgame::bits(dir[1]), zgame::bits(dir[2])});
   }
   virtual bool clear_line_at(zgame::Handle v, zgame::Handle e) { return unported("0x004d5980", {v, e, 1u}) & 0xff; }
-  virtual void aim_track(Brain& b, Contact* target, zgame::Handle w) {
-    unported("0x004b72a0", {low(&b), low(target), w});
-  }
-  virtual void aim_lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Handle wm) {
-    unported("0x004b77e0", {low(&b), zgame::bits(dt), low(target), w, wm});
+  // The firing's aim (0x004b72a0, 0x004b77e0: the firing's Aim) and its
+  // questions: the difficulty's aim error ([0x00608e58]: 1.2, 1.0, 0.6),
+  // whether the vehicle's mech (vt+0x50) has a targeting computer (+0x3e4)
+  // or a fire control system (+0x3b8), the manager aimed at a point (+0x88
+  // set, then 0x004b0bc0).
+  virtual void aim_track(Brain& b, Contact* target, zgame::Handle w);
+  virtual void aim_lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Handle wm);
+  virtual float aim_intensity() { return zgame::from_bits(unported("[0x00608e58]", {})); }
+  virtual bool targeting_aid(zgame::Handle v) { return unported("mech+0x3e4/+0x3b8", {v}) & 0xff; }
+  virtual void wm_aim_at(zgame::Handle wm, const float at[3]) {
+    unported("0x004b0bc0", {wm, zgame::bits(at[0]), zgame::bits(at[1]), zgame::bits(at[2])});
   }
   virtual AiNet* vehicle_net(zgame::Handle v);                 // vt+0xd8: its own net (0x004c0810, item 10)
   virtual Behaviour* attack_behaviour(AiNet* vehicle_net);     // 0x004c0e10 (item 10)

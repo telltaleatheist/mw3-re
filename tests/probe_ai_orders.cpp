@@ -182,6 +182,11 @@ bool g_bearer = true;
 uint32_t g_group_weapon = 0;  // the selected group's weapon (1, 2; 0 none)
 float g_muzzle[3][3] = {}, g_wspeed[3] = {}, g_vel[5][3] = {}, g_owner_m[9] = {};
 uint32_t g_wflags[3] = {};
+// The aim's test (test_ai_aim.py): the difficulty's error, the targeting
+// aid, the manager's +0x88.
+float g_aim_intensity = 1.0f;
+bool g_aim_aid = false;
+uint8_t g_wm_x88 = 0;
 uint32_t ent_handle(int32_t k) { return k ? kPlanEnt + 0x400 * static_cast<uint32_t>(k) : 0; }
 int32_t ent_index(uint32_t h) { return h >= kPlanEnt + 0x400 && h <= kPlanEnt + 0x1000 ? static_cast<int32_t>((h - kPlanEnt) / 0x400) : 0; }
 int32_t fire_contact_index(const ai::Contact* c) {
@@ -255,6 +260,12 @@ struct Hooks : ai::BrainHooks {
     out[0] = out[1] = out[2] = 0;
     for (const Entity& en : g_entity)
       if (en.handle && en.handle == e) std::memcpy(out, en.pos, 12);
+  }
+  float aim_intensity() override { return g_aim_intensity; }
+  bool targeting_aid(zgame::Handle) override { return g_aim_aid; }
+  void wm_aim_at(zgame::Handle wm, const float at[3]) override {
+    g_wm_x88 = 1;
+    call("0x004b0bc0", {wm, bits(at[0]), bits(at[1]), bits(at[2])});
   }
   void velocity(zgame::Handle v, float out[3]) override { std::memcpy(out, g_vel[v == kOwner ? 0 : ent_index(v)], 12); }
   void vehicle_matrix(zgame::Handle, float m[9]) override { std::memcpy(m, g_owner_m, 36); }
@@ -1100,6 +1111,39 @@ void probe_ao_plan_done() {
   g_plan = nullptr;
   g_fire_world = false;
   for (int k = 1; k <= 4; ++k) g_entity[static_cast<size_t>(k)] = Entity{};
+}
+
+// The aim's test (test_ai_aim.py), over the plan pick's world. w: the
+// difficulty's error, the aid, the pilot's +0xb8 and +0xc0, the manager's
+// +0x88, then the aim's 9 words.
+ai::Aim g_aim;
+void probe_ao_aim_set(const uint32_t* w) {
+  g_aim_intensity = fl(w[0]);
+  g_aim_aid = w[1] != 0;
+  g_brain->params.put<uint32_t>(0xb8, w[2]);
+  g_brain->params.put<uint32_t>(0xc0, w[3]);
+  g_wm_x88 = static_cast<uint8_t>(w[4]);
+  const uint32_t* a = w + 5;
+  for (int j = 0; j < 3; ++j) g_aim.offset[j] = fl(a[j]), g_aim.drift[j] = fl(a[3 + j]);
+  g_aim.active = static_cast<uint8_t>(a[6]);
+  g_aim.until = fl(a[7]);
+  g_aim.limit2 = fl(a[8]);
+}
+
+// op 0 the track (0x004b72a0), 1 the lead (0x004b77e0) at contact `ct`
+// (1..6) with weapon `w` (1, 2) and the manager 1. out: the aim's 9 words
+// and the manager's +0x88.
+void probe_ao_aim(int32_t op, int32_t ct, uint32_t w, uint32_t dt, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  ai::Contact* c = &g_fire_contact[ct - 1];
+  if (op == 0) g_aim.track(b, c, w);
+  else g_aim.lead(b, fl(dt), c, w, 1);
+  std::memcpy(out, g_aim.offset, 12);
+  std::memcpy(out + 3, g_aim.drift, 12);
+  out[6] = g_aim.active;
+  std::memcpy(out + 7, &g_aim.until, 4);
+  std::memcpy(out + 8, &g_aim.limit2, 4);
+  out[9] = g_wm_x88;
 }
 
 }  // extern "C"

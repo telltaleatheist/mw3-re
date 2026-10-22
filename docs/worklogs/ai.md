@@ -211,3 +211,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   0x4b77e0 (0x4b74f0).
 - Logged, unported hooks now: aim 0x4b72a0 / lead 0x4b77e0 (12b2b), volley
   0x4b1860 (13), clear line 0x4d5980 (mac 2).
+
+## 2026-10-22 Item 12b2b: the aim error (mac4/aim2)
+
+- Aim (firing +0x54): frame 0x4b70b0, pick_drift 0x4b71a0, track 0x4b72a0,
+  repick 0x4b74f0, lead 0x4b77e0; the start-up's [0x60b2ec] = 2/100 as a
+  constant. BrainHooks aim_track / aim_lead now default to it; new hooks
+  aim_intensity ([0x608e58], options().intensity[1]), targeting_aid (mech
+  +0x3e4 tc / +0x3b8 fcs), wm_aim_at (+0x88, then set_aim).
+- Test: test_ai_aim.py (over test_ai_plan's world; probe_ao_aim_set /
+  probe_ao_aim). Not reached: the re-pick's exactly-zero offset; the
+  along == range skip is not hookable by address (uncovered).
+- Headless: the c1m1 Owens still finds no plan (the player is out of its
+  range), so the aim does not run there yet.
+- Logged, unported: volley 0x4b1860 (13), clear line 0x4d5980 (mac 2).

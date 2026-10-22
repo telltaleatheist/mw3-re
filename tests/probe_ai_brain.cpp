@@ -274,10 +274,10 @@ void image(Img& o, uint32_t addr, const void* obj, int kind) {
     }
     case kAim: {
       const auto& a = *static_cast<const ai::Aim*>(obj);
-      o.v3(0, a.x00), o.v3(0xc, a.x0c);
-      o.b8(0x18, a.x18);
-      o.u(0x1c, static_cast<uint32_t>(a.x1c));
-      o.f(0x20, a.x20);
+      o.v3(0, a.offset), o.v3(0xc, a.drift);
+      o.b8(0x18, a.active);
+      o.f(0x1c, a.until);
+      o.f(0x20, a.limit2);
       break;
     }
     case kRadio: {
