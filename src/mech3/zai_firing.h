@@ -1,0 +1,93 @@
+#pragma once
+#include <cstdint>
+
+// The pilot's firing (docs/ai.md 17.7): the state machine the brain runs
+// each frame (0x004b5b80) over a fire plan, aiming, leading and firing the
+// vehicle's current weapon at its target, then resting while the torso looks
+// around. Original file unknown: it sits after weapon.cpp (0x004b5860..
+// 0x004b7060).
+namespace mech3::ai {
+
+class Brain;
+struct Contact;
+
+// A fire plan (the volley pick's, 0x004b6790; item 12b): what to shoot at and
+// when. The machine asks its slots; the plan is freed when it is done.
+class FirePlan {
+ public:
+  virtual ~FirePlan() = default;
+  // The exe's answers are bytes: in_reach is taken when 1, track when not 0
+  // (when 1 before a shot), ready when not 0.
+  virtual uint8_t in_reach(float arg) = 0;  // +0x04
+  virtual uint8_t track(float arg) = 0;     // +0x10: turned toward it
+  virtual uint8_t ready() = 0;              // +0x18
+  Contact* const* target = nullptr;       // +0x04  where its contact is kept (*target)
+  bool quick = false;                     // +0x0c  aim for the short delay (+0x08)
+  bool line_check = false;                // +0x0d  look for friends in the line of fire
+  int32_t kind = 0;                       // +0x10  3: an alpha strike
+};
+
+// Where a plan can come from before the volley pick (+0x30, +0x50): its
+// slot 0 answers one, and whether the source is spent.
+class FireSource {
+ public:
+  virtual ~FireSource() = default;
+  virtual FirePlan* take(bool* spent) = 0;  // +0x00
+};
+
+// 0x004b6390 (0x1c bytes, vtable 0x005c9458), at the firing's +0x34: the
+// torso's look-around while the pilot rests between bursts.
+struct LookAround {
+  void start(void* firing) { owner = firing, phase = 1; }  // +0x00 0x004b63d0
+  void sweep();                                            // 0x004b63f0
+  void* owner = nullptr;  // +0x04
+  float until = 0;        // +0x08
+  float dir[3] = {};      // +0x0c  0x0063d870; where it looks (its vt+0x04, 0x004d6dc0, does nothing)
+  int32_t phase = 0;      // +0x18
+};
+
+// 0x004b7060 (0x24 bytes, made by the firing state): aim (likely).
+struct Aim {
+  float x00[3] = {};              // +0x00  0x0063d870
+  float x0c[3] = {1.0f, 0, 0};    // +0x0c  0x005eda60
+  uint8_t x18 = 0;                // +0x18
+  int32_t x1c = 0;                // +0x1c
+  float x20 = 1.0f;               // +0x20
+};
+
+// 0x004b6570 (0x58 bytes at the brain's +0x108). Its first 11 words are the
+// defaults at 0x005e8868 (8, then zeros).
+struct Firing {
+  Firing();
+  ~Firing();  // 0x004b65f0
+  Firing(const Firing&) = delete;
+  Firing& operator=(const Firing&) = delete;
+
+  void run(float dt);      // 0x004b5b80
+  void stand_down();       // 0x004b6700 (the brain's 0x004e9590): the plan dropped, rest +0x10
+  void free_for_test() { free_plan(); }  // the probes' set-up
+
+  int32_t phase = 8;       // +0x00  8 start, 1/6 plan, 2 aim, 3 track, 4 fire, 5 rest, 7 burst's end
+  float time = 0;          // +0x04
+  float quick_delay = 0;   // +0x08
+  float delay = 0;         // +0x0c
+  float rest = 0;          // +0x10
+  FirePlan* plan = nullptr;  // +0x14
+  float reach_arg = 0;     // +0x18
+  float track_arg = 0;     // +0x1c
+  float fire_arg = 0;      // +0x20
+  float range = 0;         // +0x24  the vehicle's sensor range (+0xa0), set at the start
+  uint32_t x28 = 0;        // +0x28
+  Brain* brain = nullptr;  // +0x2c  0x004b6660
+  FireSource* first = nullptr;   // +0x30
+  LookAround look;         // +0x34
+  FireSource* second = nullptr;  // +0x50
+  Aim* aim = nullptr;      // +0x54
+
+ private:
+  void drop(float wait);   // 0x004b6690
+  void free_plan();        // the plan freed unless it is the first source
+  bool clear_line(const FirePlan& p);  // the contacts in the line of fire (0x004b5940)
+};
+
+}  // namespace mech3::ai

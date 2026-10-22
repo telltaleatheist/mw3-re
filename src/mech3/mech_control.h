@@ -120,6 +120,7 @@ struct AiControls : MechControls, ai::BrainControls {
   void set_throttle(float v) override { MechControls::set_throttle(v); }
   void set_turn(float v) override { MechControls::set_turn(v); }
   float turn_goal() override { return turn_target; }  // IControls vt+0x30 0x00426b00
+  void aim_started() override { brain->scan_aim(); }  // IControls vt+0x80 0x004d8930
 };
 
 // Mech3.exe 1.2 @ 0x00427280: the player's controls, made once in `mode`

@@ -32,8 +32,6 @@ float fbits(uint32_t u) {
 BrainHooks g_default_hooks;
 BrainHooks* g_hooks = &g_default_hooks;
 
-// 0x005e8868: the firing state's first 11 words.
-constexpr uint32_t kFiringDefaults[11] = {8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // [0x0060b4a0] = cos(pi/4), computed by the start-up code 0x004ce5b0 from the
 // double at 0x005cc530.
@@ -96,8 +94,8 @@ float BrainHooks::stopping_distance(zgame::Handle v, float speed) {
 }
 bool BrainHooks::clear_line(zgame::Handle v, zgame::Handle seen) { return unported("0x004d5980", {v, seen, 0u}) & 0xff; }
 bool BrainHooks::region_inside(Region* r, const float* p) { return r->inside(p); }
-void BrainHooks::firing_reset(Brain& b) { unported("0x004e9590", {low(&b)}); }
-void BrainHooks::firing_run(Brain& b, float dt) { unported("0x004e9fb0", {low(&b), bits(dt)}); }
+void BrainHooks::firing_reset(Brain& b) { b.firing.stand_down(); }    // 0x004e9590
+void BrainHooks::firing_run(Brain& b, float dt) { b.firing.run(dt); }  // 0x004e9fb0
 AiNet* BrainHooks::vehicle_net(zgame::Handle v) {
   unported("vehicle.vt+0xd8", {v});
   return nullptr;
@@ -366,26 +364,6 @@ void SharedState::run(float dt) {
   Behaviour* step = h.nearest(n, p);
   for (int i = 0; i < 3; ++i) b.x298[i] = p[i], o->x24[i] = p[i];
   b.push_behaviour(step);  // 0x004e88c0
-}
-
-// Mech3.exe 1.2 @ 0x004b6570, with the fire plan 0x004b6390 and the aim
-// 0x004b7060 (`new(0x24)`).
-Firing::Firing() {
-  for (int i = 0; i < 11; ++i) x00[i] = kFiringDefaults[i];
-  aim = new Aim;
-  brain_hooks().on_new(0x24, aim);
-}
-
-// Mech3.exe 1.2 @ 0x004b65f0. The brain's IControls vt+0x10(0) it calls
-// first is 0x004a5bc0 by then (does nothing); +0x14 is freed when it is not
-// +0x30, then +0x30, +0x50 and the aim. Nothing here ever sets +0x14, +0x30
-// or +0x50 (the firing code, not ported, would), so only the aim goes.
-Firing::~Firing() {
-  if (aim) {
-    brain_hooks().on_delete(aim);
-    delete aim;
-    aim = nullptr;
-  }
 }
 
 // Mech3.exe 1.2 @ 0x004ce620
@@ -1062,6 +1040,17 @@ void Brain::scan_test(ScanTest t) {
       xdc = 3.4028235e38f;
       return;
   }
+}
+
+// Mech3.exe 1.2 @ 0x004d8930 (through the IControls thunk 0x004d8cf0)
+bool Brain::scan_aim() {
+  const bool attacking = xf0 != 0;
+  if (attacking || !params.get<int32_t>(0x98)) return attacking;
+  const float now = brain_hooks().now();
+  if (!(now > xfc)) return false;
+  xfc = params.get<float>(0xa8) + now;
+  manoeuvre();  // 0x004e96b0
+  return true;
 }
 
 }  // namespace mech3::ai

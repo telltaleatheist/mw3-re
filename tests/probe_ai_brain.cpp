@@ -163,19 +163,20 @@ void brain_image(Img& o, uint32_t at, uint32_t addr, const ai::Brain& b, uint32_
   o.u(at + 0xf0, static_cast<uint32_t>(b.xf0));
   o.f(at + 0xf4, b.xf4);
   o.b8(at + 0xf8, b.xf8);
-  o.u(at + 0xfc, static_cast<uint32_t>(b.xfc));
+  o.f(at + 0xfc, b.xfc);
   o.f(at + 0x100, b.x100);
   o.b8(at + 0x104, b.x104);
   const uint32_t fi = at + 0x108;
   const ai::Firing& f = b.firing;
-  for (uint32_t i = 0; i < 11; ++i) o.u(fi + 4 * i, f.x00[i]);
+  o.u(fi, static_cast<uint32_t>(f.phase));
+  for (uint32_t i = 1; i < 11; ++i) o.u(fi + 4 * i, 0);  // nothing set but the phase at first
   o.u(fi + 0x2c, f.brain ? self : 0);
-  o.p(fi + 0x30, f.x30);
-  o.u(fi + 0x34, 0x005c9458);
-  o.u(fi + 0x38, static_cast<uint32_t>(f.plan.x04)), o.u(fi + 0x3c, static_cast<uint32_t>(f.plan.x08));
-  o.v3(fi + 0x40, f.plan.x0c);
-  o.u(fi + 0x4c, static_cast<uint32_t>(f.plan.x18));
-  o.p(fi + 0x50, f.x50);
+  o.p(fi + 0x30, f.first);
+  o.u(fi + 0x34, 0x005c9458);  // the look-around
+  o.p(fi + 0x38, f.look.owner), o.f(fi + 0x3c, f.look.until);
+  o.v3(fi + 0x40, f.look.dir);
+  o.u(fi + 0x4c, static_cast<uint32_t>(f.look.phase));
+  o.p(fi + 0x50, f.second);
   o.p(fi + 0x54, f.aim);
   // The order deque (MSVC: allocator byte, first and last iterators, map,
   // map size, size) and its owner.

@@ -649,7 +649,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
           EXPECT(o.net->order == &o && o.state->order == &o);
         }
         EXPECT(b->order.owner == b);
-        EXPECT(b->firing.brain == b && b->firing.aim && b->firing.x00[0] == 8);
+        EXPECT(b->firing.brain == b && b->firing.aim && b->firing.phase == 8);
         EXPECT(b->radio == nullptr);  // owens_01 has no sound_tag
         EXPECT(b->step.next == mech3::ai::null_step());
         EXPECT(b->steer.near_dist == 20.0f && b->steer.x38 > 0.7071f && b->steer.x38 < 0.7072f);
@@ -2178,6 +2178,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       float off_ground = 0, closest = 1e9f;
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
+      int32_t fire_phase = -1, look_phase = -1;
       mech3::ai::Brain* brain = nullptr;
       std::map<std::string, uint32_t> counts0, counts1;
     } seen;
@@ -2215,6 +2216,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       } else if (seen.frames == 200) {
         seen.far = o;  // 1.4 km from the player: no detail, the low-detail model
         seen.counts1 = engine.unported_counts();
+        if (seen.brain) seen.fire_phase = seen.brain->firing.phase, seen.look_phase = seen.brain->firing.look.phase;
         if (seen.brain)
           for (const mech3::ai::Order& r : seen.brain->orders)
             if (r.state && r.state->from && r.state->from->kind == mech3::ai::StepKind::Node) seen.node_order = true;
@@ -2259,9 +2261,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     };
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick: the hit test before the
-    // firing's reset, the brain's own order and the firing ran each time.
-    for (const char* k : {"0x004aed40", "0x004e81a0", "0x004e9fb0"})
+    // firing's reset, the brain's own order and the firing ran each time;
+    // the firing (ported, ai.md 17.7) asks the volley pick each tick (not
+    // ported: no plan), so it rests in phase 5 with its look-around going.
+    for (const char* k : {"0x004aed40", "0x004e81a0", "0x004b6790"})
       EXPECT(ran(k) >= 190);
+    EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);

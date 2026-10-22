@@ -157,6 +157,52 @@ int32_t g_jump_jets = 0;
 int32_t elem_id(const ai::Behaviour* b);
 ai::Behaviour* elem_at(uint32_t id);
 
+// The firing's test (test_ai_firing.py): plans 1..3 and sources 1..2 by
+// number, their fields from the test; the weapon manager and weapons by
+// number; six contacts, the vehicle's list and the plans' target slots.
+struct PlanDef {
+  int32_t slot = 0;  // its target slot (0..2)
+  bool quick = false, line = false;
+  int32_t kind = 0;
+};
+PlanDef g_plan_def[4];
+ai::Contact g_fire_contact[6];
+std::vector<ai::Contact*> g_fire_list;
+ai::Contact* g_target_slot[3] = {};
+uint32_t g_wm = 0;
+bool g_fire_world = false, g_has_mech = false;
+float g_reload[3] = {};
+int32_t fire_contact_index(const ai::Contact* c) {
+  for (int i = 0; i < 6; ++i)
+    if (c == &g_fire_contact[i]) return i + 1;
+  return 0;
+}
+class FakePlan : public ai::FirePlan {
+ public:
+  explicit FakePlan(int32_t i) : id(i) {
+    const PlanDef& d = g_plan_def[i];
+    target = &g_target_slot[d.slot];
+    quick = d.quick, line_check = d.line, kind = d.kind;
+  }
+  ~FakePlan() override { call("fire.delete", {static_cast<uint32_t>(id)}); }
+  uint8_t in_reach(float a) override { return call("plan.vt+0x4", {static_cast<uint32_t>(id), bits(a)}) & 0xff; }
+  uint8_t track(float a) override { return call("plan.vt+0x10", {static_cast<uint32_t>(id), bits(a)}) & 0xff; }
+  uint8_t ready() override { return call("plan.vt+0x18", {static_cast<uint32_t>(id)}) & 0xff; }
+  int32_t id;
+};
+ai::FirePlan* make_plan(uint32_t id) { return id >= 1 && id <= 3 ? new FakePlan(static_cast<int32_t>(id)) : nullptr; }
+class FakeSource : public ai::FireSource {
+ public:
+  explicit FakeSource(int32_t i) : id(i) {}
+  ~FakeSource() override { call("fire.delete", {static_cast<uint32_t>(0x100 + id)}); }
+  ai::FirePlan* take(bool* spent) override {
+    const uint32_t r = call("source.vt+0x0", {static_cast<uint32_t>(id)});
+    *spent = (r >> 8) & 1;
+    return make_plan(r & 0xff);
+  }
+  int32_t id;
+};
+
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   ai::AiNet* builtin_net() override { return net_of(100); }
@@ -202,7 +248,10 @@ struct Hooks : ai::BrainHooks {
     (void)v;
     return true;
   }
-  const std::vector<ai::Contact*>* contacts(zgame::Handle v) override { return v == kOwner ? &g_steer_contacts : nullptr; }
+  const std::vector<ai::Contact*>* contacts(zgame::Handle v) override {
+    if (v != kOwner) return nullptr;
+    return g_fire_world ? &g_fire_list : &g_steer_contacts;
+  }
   zgame::Handle contact_entity(const ai::Contact* c) override {
     for (size_t i = 0; i < g_steer_contacts.size(); ++i)
       if (g_steer_contacts[i] == c) return g_entity[g_contact_entity[i]].handle;
@@ -215,6 +264,24 @@ struct Hooks : ai::BrainHooks {
   }
   float speed_at(zgame::Handle, float share) override { return g_mech.speed_at(share); }
   float stopping_distance(zgame::Handle, float speed) override { return g_mech.stopping_distance(speed); }
+  zgame::Handle weapons(zgame::Handle) override { return g_wm; }
+  zgame::Handle wm_current(zgame::Handle wm) override { return call("0x004b04c0", {wm}); }
+  void wm_clear_aim(zgame::Handle wm) override { call("0x004b0bc0", {wm, 0u}); }
+  void wm_alpha(zgame::Handle wm, float s) override { call("0x004b0a70", {wm, bits(s)}); }
+  bool weapon_type_ready(zgame::Handle w) override { return call("0x004b4ba0", {w}) & 0xff; }
+  float weapon_reload(zgame::Handle w) override { return w < 3 ? g_reload[w] : 0.0f; }
+  int32_t weapon_ammo(zgame::Handle w) override { return static_cast<int32_t>(call("weapon.vt+0x14", {w})); }
+  void weapon_hold_for_flight(zgame::Handle w) override { call("0x004b4c90", {w}); }
+  void torso_centre(zgame::Handle) override {
+    if (g_has_mech) call("0x00465a00", {1u});
+  }
+  ai::FirePlan* fire_plan_pick(ai::Brain&) override { return make_plan(call("0x004b6790", {})); }
+  void aim_track(ai::Brain&, ai::Contact* t, zgame::Handle w) override {
+    call("0x004b72a0", {static_cast<uint32_t>(fire_contact_index(t)), w});
+  }
+  void aim_lead(ai::Brain&, float dt, ai::Contact* t, zgame::Handle w, zgame::Handle wm) override {
+    call("0x004b77e0", {bits(dt), static_cast<uint32_t>(fire_contact_index(t)), w, wm});
+  }
   ai::Behaviour* path_next(ai::Brain&, ai::Behaviour* at) override {
     return elem_at(call("0x004c7cb0", {static_cast<uint32_t>(elem_id(at))}));
   }
@@ -252,6 +319,7 @@ struct FakeControls : ai::BrainControls {
   void set_throttle(float v) override { call("ictl.vt+0x20", {bits(v)}); }
   void set_turn(float v) override { call("ictl.vt+0x28", {bits(v)}); }
   float turn_goal() override { return fl(call("ictl.vt+0x30", {})); }
+  void aim_started() override { call("ictl.vt+0x80", {}); }
 };
 FakeControls g_controls;
 Hooks g_hooks;
@@ -758,6 +826,108 @@ void probe_ao_turn(int32_t op, const uint32_t* f, uint32_t* out) {
   const float t = op == 0 ? ai::turn_toward(a, a + 3, &dot, &cross, a[6], ai::turn_params())
                           : ai::turn_or_back(a, a + 3, &dot, &cross, a[6], &rev, ai::turn_params());
   out[0] = bits(t), out[1] = bits(dot), out[2] = bits(cross), out[3] = rev;
+}
+
+// The firing's test (test_ai_firing.py). w: the firing's +0x00..+0x28 (11
+// words; +0x14 the plan's number), then its first and second sources'
+// numbers, the look-around's until, dir[3], phase; the brain's +0xf0,
+// +0xf8, +0xfc and aiv +0x34, +0x38, +0xa8, +0xac, +0x98; the vehicle's
+// target contact (1..6, 0 none), range, +0xbc, the manager's number, the
+// mech; the reloads of weapons 1, 2; the plans' slots, quick, line, kind
+// (4 words each, plans 1..3); the target slots (3 contact numbers); then
+// the contacts: n, and per contact its delta[3].
+void probe_ao_fire_set(const uint32_t* w) {
+  probe_app::Mute mute;  // the old plan and sources go unlogged
+  ai::Brain& b = *g_brain;
+  b.controls = &g_controls;
+  ai::Firing& f = b.firing;
+  g_fire_world = true;
+  f.free_for_test();
+  delete f.first;
+  delete f.second;
+  f.first = f.second = nullptr;
+  f.phase = static_cast<int32_t>(w[0]);
+  f.time = fl(w[1]), f.quick_delay = fl(w[2]), f.delay = fl(w[3]), f.rest = fl(w[4]);
+  f.free_for_test();
+  f.reach_arg = fl(w[6]), f.track_arg = fl(w[7]), f.fire_arg = fl(w[8]), f.range = fl(w[9]);
+  f.x28 = w[10];
+  f.first = w[11] ? new FakeSource(static_cast<int32_t>(w[11])) : nullptr;
+  f.second = w[12] ? new FakeSource(static_cast<int32_t>(w[12])) : nullptr;
+  f.look.owner = &f;
+  f.look.until = fl(w[13]);
+  for (int i = 0; i < 3; ++i) f.look.dir[i] = fl(w[14 + i]);
+  f.look.phase = static_cast<int32_t>(w[17]);
+  b.xf0 = static_cast<int32_t>(w[18]), b.xf8 = static_cast<uint8_t>(w[19]), b.xfc = fl(w[20]);
+  const int offs[5] = {0x34, 0x38, 0xa8, 0xac, 0x98};
+  for (int i = 0; i < 5; ++i) b.params.put<uint32_t>(offs[i], w[21 + i]);
+  const uint32_t* c = w + 48;  // the contacts
+  const uint32_t n = c[0];
+  g_fire_list.clear();
+  for (uint32_t i = 0; i < 6; ++i) {
+    ai::Contact& k = g_fire_contact[i];
+    k = ai::Contact{};
+    if (i < n) {
+      for (int j = 0; j < 3; ++j) k.delta[j] = fl(c[1 + 3 * i + j]);
+      g_fire_list.push_back(&k);
+    }
+  }
+  g_target.target = w[26] ? &g_fire_contact[w[26] - 1] : nullptr;
+  g_target.range = fl(w[27]);
+  g_target.xbc = static_cast<uint8_t>(w[28]);
+  g_wm = w[29];
+  g_has_mech = w[30] != 0;
+  g_reload[1] = fl(w[31]), g_reload[2] = fl(w[32]);
+  for (int i = 0; i < 3; ++i) {
+    const uint32_t* d = w + 33 + 4 * i;
+    g_plan_def[i + 1] = PlanDef{static_cast<int32_t>(d[0]), d[1] != 0, d[2] != 0, static_cast<int32_t>(d[3])};
+  }
+  for (int i = 0; i < 3; ++i) g_target_slot[i] = w[45 + i] ? &g_fire_contact[w[45 + i] - 1] : nullptr;
+  f.plan = make_plan(w[5]);
+}
+
+// op 0 the run(dt), 1 the stand-down (0x004b6700), 2 scan_aim (0x004d8930).
+// out: the firing's 11 words (+0x14 its plan's number), its sources'
+// numbers, the look-around's until, dir, phase (and whether its owner is
+// the firing), the brain's +0xf8, +0xfc, scan_aim's answer, the contacts'
+// distances.
+void probe_ao_fire(int32_t op, uint32_t dt, uint32_t* out) {
+  ai::Brain& b = *g_brain;
+  ai::Firing& f = b.firing;
+  uint32_t answer = 0;
+  if (op == 0) f.run(fl(dt));
+  else if (op == 1) f.stand_down();
+  else answer = b.scan_aim();
+  std::memset(out, 0, 4 * 32);
+  out[0] = static_cast<uint32_t>(f.phase);
+  const float fl5[4] = {f.time, f.quick_delay, f.delay, f.rest};
+  std::memcpy(out + 1, fl5, 16);
+  out[5] = f.plan ? static_cast<uint32_t>(static_cast<FakePlan*>(f.plan)->id) : 0;
+  const float a3[4] = {f.reach_arg, f.track_arg, f.fire_arg, f.range};
+  std::memcpy(out + 6, a3, 16);
+  out[10] = f.x28;
+  out[11] = f.first ? static_cast<uint32_t>(static_cast<FakeSource*>(f.first)->id) : 0;
+  out[12] = f.second ? static_cast<uint32_t>(static_cast<FakeSource*>(f.second)->id) : 0;
+  std::memcpy(out + 13, &f.look.until, 4);
+  std::memcpy(out + 14, f.look.dir, 12);
+  out[17] = static_cast<uint32_t>(f.look.phase);
+  out[18] = f.look.owner == &f;
+  out[19] = b.xf8;
+  std::memcpy(out + 20, &b.xfc, 4);
+  out[21] = answer;
+  for (int i = 0; i < 6; ++i) std::memcpy(out + 22 + i, &g_fire_contact[i].dist, 4);
+}
+
+// The game time [0x0060991c] alone.
+void probe_ao_set_now(uint32_t t) { g_now = fl(t); }
+
+void probe_ao_fire_done() {
+  probe_app::Mute mute;
+  ai::Firing& f = g_brain->firing;
+  f.free_for_test();
+  delete f.first;
+  delete f.second;
+  f.first = f.second = nullptr;
+  g_fire_world = false;
 }
 
 }  // extern "C"

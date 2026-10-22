@@ -379,6 +379,16 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (void* m = mech(v)) mech_forward(m, f);
     *x = f[0], *z = f[2];
   }
+  // The firing's (docs/ai.md 17.7) on the mechs' weapon managers.
+  Handle weapons(Handle v) override { return e->handle_of(mech_weapon_manager(mech(v))); }
+  Handle wm_current(Handle wm) override { return e->handle_of(wm_current_weapon(e->object_of(wm))); }
+  void wm_clear_aim(Handle wm) override { mech3::wm_clear_aim(e->object_of(wm)); }
+  void wm_alpha(Handle wm, float s) override { wm_alpha_strike(e->object_of(wm), s); }
+  bool weapon_type_ready(Handle w) override { return mech3::weapon_type_ready(e->object_of(w)); }
+  float weapon_reload(Handle w) override { return mech3::weapon_reload(e->object_of(w)); }
+  int32_t weapon_ammo(Handle w) override { return mech3::weapon_ammo(e->object_of(w)); }
+  void weapon_hold_for_flight(Handle w) override { mech3::weapon_hold_for_flight(e->object_of(w)); }
+  void torso_centre(Handle v) override { mech_torso_centre(mech(v), 1); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);

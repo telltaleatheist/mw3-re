@@ -1841,6 +1841,55 @@ manager's side (0x4b04c0, 0x4b0a70, 0x4b0bc0, 0x4b4ba0, 0x4b4c90) is
 ported (weapons.md); the planner's volley pick 0x4b1860 (with 0x4b1350,
 0x4b1470) and its start-up object 0x4b1170 are not.
 
+**The machine, ported** (2026-10-22, `mech3/zai_firing`: `Firing::run`,
+`stand_down`, `LookAround`; item 12a). The firing (0x58 bytes at the
+brain's +0x108): +0x00 phase, +0x04 time, +0x08 / +0x0c the aim delays
+(quick or not), +0x10 the rest after a drop, +0x14 the plan, +0x18 /
++0x1c / +0x20 the plan's arguments for reach, tracking and firing, +0x24
+the sensor range (copied at the start), +0x2c the brain, +0x30 / +0x50 two
+plan sources, +0x34 the look-around, +0x54 the aim. A pass runs until a
+step asks for no more; nothing without a weapon manager (+0xd4).
+
+- 8, the start: the range copied, the look-around started; on to 1.
+- 1 / 6, a plan: the first source's (freed when it says it is spent), the
+  second's (always freed), else the volley pick (0x4b6790, item 12b).
+  None: dropped (0x4b6690: the trigger let go, the rest from now, the plan
+  freed, the manager's aim cleared), the brain's vt+0x14 (+0xf8 = 0), to
+  5. Else it is tracked once and the aim's wait set: the quick delay, or
+  the delay with the AI controls told (IControls vt+0x80, 0x4d8930: with
+  scan_aim on and not attacking, a manoeuvre every aiv +0xa8 s); to 2.
+- 2, aiming, and 3, tracked: no target (vehicle +0x6c): dropped. Tracked
+  and in reach (and, in 3, ready): 2 goes to 3; 3 aims (0x4b72a0) and
+  either strikes (kind 3: the lead 0x4b77e0, an alpha strike of 0.2 s,
+  then a rest of aiv +0x38 + +0x34) or goes to 4 with the time now + aiv
+  +0x34. Not yet, once its wait is over: still in reach to fire (and not
+  a lancemate under orders, +0xbc bit 4; in 3 ready) it aims and bursts
+  (7, until now + aiv +0xac), else it is dropped.
+- 4, firing, and 7, the burst: no target ends it. 4 fires while the
+  weapon's type may fire again (0x4b4ba0, the LRM wait), its reload has
+  not run out before the time, it has ammo and the plan tracks; 7 while
+  the time has not passed the reload. A shot needs the plan in reach, its
+  line flag (+0x0d) and a clear line (0x4b5940 over the vehicle's
+  contacts, nearest first: the first in a cone around the line to the
+  target blocks it unless it is the target; the cone is 10 m wide to 30 m,
+  then narrows to 10 m at 200 m, [0x60b2c8] from 0x4b5860 at start-up):
+  then the lead, the weapon type's flight hold (0x4b4c90) and the
+  trigger (IControls vt+0x10(1)); else the trigger let go. When it may
+  not fire: the trigger let go, rest aiv +0x38, the plan freed, to 5.
+- 5, resting: the torso recentred (0x465a00(1)) each pass; while resting
+  the look-around (0x4b63f0) turns the torso's gaze back, left (2.5 s),
+  right (5 s each) and again; when the rest is over, to 6.
+
+The plan's slots (+0x04 in reach, +0x10 track, +0x18 ready) answer
+bytes: in reach is taken when 1, tracking when not 0 (when 1 before a
+shot), ready when not 0. The brain's 0x4e9590 (a hit lately) is
+`stand_down` (0x4b6700). Test `test_ai_firing.py` (over test_ai_frame.py's
+brain; fake plans and sources, the weapon manager, weapons and their
+types, the volley pick and the aim answered from the trace; six contacts
+with the exe's own distance 0x4e7030): 300 cases of 60 calls, every phase,
+13,513 runs, 2203 stand-downs and 2284 scan_aims identical, 34 branches;
+36 of 36 breaks caught.
+
 The HUD's three (0x443d20, 0x446240) read the selected group (manager
 +0x28, +0x1c group mode 2 = all its weapons, else the current one):
 0x4b1bd0 its longest range (a NaN range is taken, as fcompp does), 0x4b1c70
@@ -1907,8 +1956,9 @@ goes through a hooks struct the test stubs the same on both sides.
 10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its
     three states (0x4cac20, 0x4cace0, 0x4cadb0).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
-12. **The firing state machine** 0x4b5b80 and its plans (0x4b6390..0x4b7060,
-    0x4b6790, 0x4b5a20), then the aim and lead 0x4b70b0..0x4b77e0.
+12. **The firing state machine** 0x4b5b80: done (17.7, 12a); left (12b)
+    the volley pick 0x4b6790 and 0x4b5a20, the aim and lead
+    0x4b70b0..0x4b77e0.
 13. **The planner's volley** 0x4b1860, 0x4b1350, 0x4b1470, 0x4b1170 (weapon
     manager side: agree with mac 2).
 14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's

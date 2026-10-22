@@ -102,6 +102,7 @@ for t in \
     ai_steer \
     ai_states \
     ai_node \
+    ai_firing \
     mech_health \
     ai_valves \
     ai_targets \
