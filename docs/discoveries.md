@@ -1731,6 +1731,34 @@ From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
 
 From the input module, zInput (details: `input.md`).
 
+- **The keypad's part targeting needs a Targeting Computer.** Keypad 8, 5,
+  4, 6, 7, 9, 1 and 3 pick the target's head, torsos, arms or legs only when
+  your mech carries a targeting computer (and you have a target). Without
+  one, the keys do nothing at all. Pressing the same key again drops the
+  choice, and a part that has been shot off can't be picked.
+- **Aiming at a side torso uses your own mech's width.** With a left or
+  right torso picked, the game aims at a point three quarters of a torso's
+  half width out from the target's centre. The width it uses is your own
+  mech's torso, not the target's, so the aim point is off on mechs much
+  wider or narrower than yours.
+- **Your torso's pitch stays where you leave it.** Pitching the torso with
+  the keys moves it, and it stays at that angle when you let go. It drifts
+  a little further as the controls ease off. Only after looking left or
+  right does the pitch level out by itself again.
+- **N, Shift+N and Ctrl+N (op points) only work in multiplayer.** They step
+  through multiplayer's stations; in the campaign and Instant Action there
+  are none, and the keys do nothing.
+- **"Look back" doesn't turn the cockpit view round.** In the cockpit and
+  the chase cameras the look-back key leaves the view where it was (it only
+  releases the torso's pitch). Only the area camera turns round with it.
+- **Half of the cockpit's voice lines are never played.** The game loads
+  30 cockpit sounds at every mission start. It plays single, group and
+  linked fire engaged, a critical hit, no ammo, ammo explosion, ammo
+  jettisoned, coolant flushed, gyro overload, heat critical, MASC engaged
+  and the two lock tones. "Damaged", "destroyed", the hit callouts for
+  each body part, low ammo, coolant depleted, ECM engaged, friendly fire,
+  gyro OK, targeting computer online and "traitor" are loaded, but nothing
+  in version 1.2 ever plays them.
 - **The main menu's hotkeys are plain keys, not your key bindings:** O
   options, C credits, M multiplayer, I instant action, T training, Q quit and
   R (the seventh button), whatever you rebound in the controls screen. Escape

@@ -34,6 +34,7 @@ class MechPart;
 // engine's ports when unset; the rest do nothing (and return 0).
 struct PartCalls {
   int (*world_position)(Handle node, Vec3* out) = nullptr;  // 0x004ed530; unset: zcls::node_world_position
+  int (*world_point)(Handle node, Vec3* p) = nullptr;       // 0x004ed650; unset: zcls::node_world_point
   int (*node_to_world)(Handle node, int mode) = nullptr;    // 0x004ed280 onto the matrix stack; unset: zcls::node_to_world
   const MechDfn* (*dfn)(Mech&) = nullptr;                   // 0x004846a0 on +0x684 +0x0c; unset: mech_dfn
 
@@ -258,6 +259,13 @@ class Torso : public MechPart {
   // block's [1]) taken off the torso's node with its ids, and with `on` put
   // back under it as part 1's.
   void set_cockpit(bool on);
+  // The look keys' and the controls' calls on the torso (docs/look.md).
+  void set_pitch_lock(bool on);          // 0x00464ac0: [0x005e4f28] (1) and on
+  void hold_view(bool on);               // 0x00464c90: on, the view (+0xa4) taken from the turn, the look zeroed
+  bool set_aim(const Vec3* dir, Vec3* out, bool local);  // 0x00465ea0: false when clamped; null: the aim off
+  void aim_ahead(bool local);            // 0x00465f20 with (0, 0, -1)
+  void centre(int32_t how);              // 0x00465a00: CENTER_TORSO 1, CENTER_LEGS 2
+  void set_mode(int32_t m);              // 0x00466190: +0x84 (2 when the mech's vt+0x5c says so: never), the servo stopped
   bool init(const Config* cfg) override;                    // 0x004644b0
   void update(float dt) override;                           // 0x00464e80
   void node_changed() override;                             // 0x004659c0

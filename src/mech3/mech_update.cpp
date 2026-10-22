@@ -69,7 +69,10 @@ void Mech::update(float dt) {
   const bool viewed = this == w.player;
   if (viewed && g_calls.key && (g_calls.key(kViewKey) == 1 || (g_calls.key(kViewKey) & 4))) {
     const int mode = controls->view == 2 ? 3 : controls->view == 3 ? 2 : 0;
-    if (mode && g_calls.controls_view) g_calls.controls_view(*controls, mode);
+    if (mode) {
+      if (g_calls.controls_view) g_calls.controls_view(*controls, mode);
+      else controls->set_view(mode);  // 0x00426780
+    }
   }
   if (!dying) {
     const int go = g_calls.controls_update ? g_calls.controls_update(*this, frame_dt) : controls->update(frame_dt);

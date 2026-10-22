@@ -127,7 +127,9 @@ data's 0x00430e70 makes each type's cameras; the launch's 0x0041ce30 and
 camera switch, the options' camera choice, the player's tick and the Core
 state's reset reach it. The app code still reads the view by address: after
 each change its mode (a block whose +4 is the id) and target go into the
-view's block. Not wired yet (logged): the ground, water and weather queries
+view's block. The look keys reach the mode's free look (vt+0x10) and its
+calls on the torso, the controls and the mech are answered (look.md,
+playtest #14). Not wired yet (logged): the ground, water and weather queries
 (cls_di.c), the wall pull-in 0x0040b310, the HUD's 0x0043bb80, the torso's
 cockpit switch 0x0041ce10.
 

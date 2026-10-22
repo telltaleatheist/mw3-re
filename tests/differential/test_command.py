@@ -38,7 +38,7 @@ HUD, PLAY, MECH_SOUND, CAMERA, OTHER = 0x1000, 0x1001, 0x1002, 0x1003, 0x1004
 # The scenario's fields, in probe_command.cpp's In order.
 FIELDS = ['cmd', 'active', 'viewed', 'screen', 'powered', 'crouched', 'ams', 'xbc', 'range', 'eq6', 'eq12', 'masc',
           'target', 'saved', 'view', 'mode', 'group', 'current', 'select', 'jettison', 'hud_weapon',
-          'hud_weapon_group', 'lance_busy']
+          'hud_weapon_group', 'lance_busy', 'stations']
 # The commands the player's keys send (0x426ce0) and the second switch's.
 COMMANDS = [0x24, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x1a, 0x25, 0x26, 0x27, 0x2a, 0x2b,
             0x28, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x39, 0x06, 0x07, 0x3b, 0x3a,
@@ -144,6 +144,7 @@ class Emulated:
         cpu, m = self.cpu, self.mech
         self.s, self.events = s, []
         cpu.write(m, bytes(0x700))
+        cpu.u32(LANCE, self.lance if s['stations'] else 0)
         cpu.u32(m, self.mvt)
         cpu.write(m + 8, bytes([s['active']]))
         cpu.u32(m + 0x6c, s['target'])
@@ -235,6 +236,13 @@ def scenario(rng):
     }
 
 
+def with_stations(s):
+    # [0x00609980] (multiplayer's stations) null one time in four, from the
+    # scenario's own numbers so the random stream stays as it was.
+    s['stations'] = int(s['xbc'] % 4 != 0)
+    return s
+
+
 def main():
     trials = int(sys.argv[1]) if len(sys.argv) > 1 else 6000
     rng = random.Random(41)
@@ -242,7 +250,7 @@ def main():
     bad = 0
     seen = set()
     for n in range(trials):
-        s = scenario(rng)
+        s = with_stations(scenario(rng))
         if n < len(COMMANDS):
             s['cmd'], s['active'], s['viewed'], s['screen'] = COMMANDS[n], 1, 1, 1
         want, got = e.run(s), port(s, e.tokens())
@@ -255,7 +263,7 @@ def main():
     for r in (250.0, 500.0, 999.0, 1000.0, 1001.0, 1999.0, 2000.0, 4000.0):
         for eq6 in (0, 1, -1):
             for xbc in (0, 4, 0xfb, 0xff):
-                s = scenario(rng)
+                s = with_stations(scenario(rng))
                 s.update(cmd=0x69, active=1, range=f2u(r), eq6=eq6, xbc=xbc)
                 trials += 1
                 if e.run(s) != port(s, e.tokens()):

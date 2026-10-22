@@ -59,7 +59,9 @@ SOIL_TABLE, CAMERA, MISSION, STATS = 0x608c00, 0x5f4c8c, 0x60861c, 0x608620
 FLAGS, SCREEN_FLAGS, TARGET, POSITION, MECH_MATRIX, EULER, LOOK, SOIL, STEPS, PRINTS, PLAYING, WORLD = (
     0, 1, 2, 5, 8, 20, 23, 26, 38, 49, 60, 63)
 DUST = WORLD + 3 * NNODES  # roster, dust, splash, the mech node's flag 8, hit count, 8 x (height, material)
-ENV = DUST + 5 + 16
+VMODE = DUST + 5 + 16  # the view's mode: bits 0..2 its id, bit 4 there at all
+PARTSEL = VMODE + 1  # the part aim: 1 a target, 2 it is seen, 4 it is a mech (this one), 8 a targeting computer
+ENV = PARTSEL + 1
 WORLD_OBJ = 0x608c84
 
 
@@ -80,8 +82,9 @@ ARM_F = BASE + F(0x2c) + F(0x34) + [(0x74, 'i')] + F(0x78, 5) + F(0x8c, 3) + F(0
 HAND_F = BASE + F(0x74, 4) + F(0x84, 3)
 FIELDS = [LEG, LEG, BASE, BASE, FOOT, FOOT, HIP_F, TORSO_F, ARM_F, ARM_F, HAND_F, HAND_F]
 MECH_FIELDS = F(0x24, 3) + F(0x30, 3) + F(0x3c, 3) + F(0x4bc) + F(0x508, 2) + F(0x518) + F(0x520) + \
-    [(0x584, 'b'), (0x585, 'b'), (0x586, 'b'), (0x5c8, 'i'), (0x5e4, 'i'), (0x5e8, 'i'), (0x688, 'i')]
-CTL_FIELDS = F(0x10, 2)
+    [(0x584, 'b'), (0x585, 'b'), (0x586, 'b'), (0x5c8, 'i'), (0x5e4, 'i'), (0x5e8, 'i'), (0x688, 'i'),
+     (0xdc, 'b'), (0xde, 'b')] + F(0xec, 3) + [(0xf8, 'i')]
+CTL_FIELDS = [(0x08, 'i'), (0x0c, 'i')] + F(0x10, 2)
 
 
 def f32(x):
@@ -131,7 +134,9 @@ class World:
         self.data = [a(0x60) for _ in range(NNODES)]
         self.skis, self.ctl, self.vbt, self.pilot, self.soils = a(0x300), a(0x74), a(8), a(0x240), a(0x58)
         self.screen, self.weapons, self.dfn, self.transform, self.pos = a(0x1520), a(0x20), a(DEF_SIZE), a(48), a(12)
-        self.look, self.lvt, self.ldata = a(8), a(0x20), a(0x80)
+        self.look, self.lvt, self.ldata = a(0x80), a(0x20), a(0x80)
+        # The view's mode for 0x00426780: a mech camera (vt+0x1c itself) or the base (null).
+        self.vmode, self.vmvt = a(0x80), a(0x40)
         self.camera, self.mission, self.stats = a(0x80), a(0x20), a(0x10)
         self.mats = [a(0x24) for _ in range(12)]
         self.steps = [a(0xc0) for _ in range(7)]
@@ -144,6 +149,7 @@ class World:
         self.vstub(self.mvt + 0x10c, lambda c: self.log(41) or self.look, 4)
         self.vstub(self.lvt + 0x1c, lambda c: self.ldata, 0)
         cpu.u32(self.look, self.lvt)
+        self.vstub(self.vmvt + 0x1c, lambda c: c.ecx, 0)
         s = cpu.stub_function
         s(0x4ed530, self.world_position)
         s(0x4ed280, self.node_to_world)
@@ -176,6 +182,14 @@ class World:
         s(0x4eb660, self.flag8_get)
         s(0x4eb620, lambda c: self.log(49, self.node_index(c.ecx), c.edx))
         s(0x508c10, lambda c: self.log(46, c.ecx, self.node_index(c.edx), c.arg(0), c.arg(1), c.arg(2)), 12)
+        s(0x51b440, lambda c: self.log(50, c.arg(0), c.arg(1)), 8)  # zInput's mouse set (the centring)
+        # The part aim: the target contact's mech (0x004e6ff0), a vehicle's
+        # position (0x005a8630), a node's local point to the world (0x004ed650).
+        self.contact = a(0x30)
+        s(0x4e6ff0, lambda c: self.log(55) or (self.mech if self.env[PARTSEL] & 4 else 0))
+        s(0x5a8630, lambda c: self.log(53, c.ecx) or self.pos)
+        s(0x4ed650, self.world_point)
+        self.aim = a(24)
         self.world_obj = a(8)
         # A thunk that pushes the ground update's 0 and keeps its st0.
         self.ground = cpu.code(b'\x6a\x00\xb8' + struct.pack('<I', 0x462a10) + b'\xff\xd0\xd9\x1d' +
@@ -228,6 +242,14 @@ class World:
         c = self.cpu
         self.log(28, (c.edx - self.skis - 0x194) // 0x28, *struct.unpack('<3I', c.read(c.ecx, 12)), c.arg(0))
         uc.reg_write(UC_X86_REG_EIP, self.fldz_ret4)
+
+    def world_point(self, c):
+        i = self.node_index(c.ecx)
+        p = struct.unpack('<3f', c.read(c.edx, 12))
+        self.log(54, i, *struct.unpack('<3I', c.read(c.edx, 12)))
+        w = struct.unpack('<3f', self.env_bytes(WORLD + 3 * max(i, 0), 3))
+        c.write(c.edx, struct.pack('<3f', *(p[k] + w[k] for k in range(3))))
+        return 0
 
     def world_position(self, c):
         i = self.node_index(c.ecx)
@@ -342,6 +364,17 @@ class World:
         cpu.write(self.dfn, s['def'])
         cpu.u32(CAMERA, self.camera)
         cpu.u32(self.camera + 0x64, self.mech if self.flags & 1 else 0)
+        cpu.write(self.vmode, bytes(0x80))
+        cpu.u32(self.vmode, self.vmvt)  # a mech camera (the base's null would crash 0x00426780)
+        cpu.u32(self.vmode + 4, s['env'][VMODE] & 7)
+        cpu.u32(self.camera + 0x58, self.vmode if s['env'][VMODE] & 0x10 else 0)
+        cpu.write(self.look + 4, bytes(0x7c))
+        cpu.u32(self.ctl + 0x70, self.mech)
+        sel = s['env'][PARTSEL]
+        cpu.u32(self.mech + 0x6c, self.contact if sel & 1 else 0)
+        cpu.write(self.contact, bytes(0x30))
+        cpu.u32(self.contact + 4, 0x7777 if sel & 2 else 0)
+        cpu.u32(self.mech + 0x3e4, 1 if sel & 8 else 0)
         cpu.u32(MISSION, self.mission)
         cpu.u32(self.mission + 0x14, self.mech if self.flags & 2 else 0)
         cpu.u32(STATS, self.stats if self.flags & 4 else 0)
@@ -396,6 +429,28 @@ class World:
         elif op == 13:
             esp = STACK_TOP - 0x3000
             self.run_at(0x4164f3, 0x41660b, {UC_X86_REG_ESP: esp, UC_X86_REG_ESI: self.mech})
+        elif op == 15:
+            cpu.call(0x464ac0, ecx=p[TORSO], stack_args=(i,))
+        elif op == 16:
+            cpu.call(0x464c90, ecx=p[TORSO], stack_args=(i,))
+        elif op == 17:  # the aim: a direction (none when a3 < -1.5), its clamped one logged
+            cpu.write(self.aim, struct.pack('<3f', a[2], a[3], a[0]) + bytes(12))
+            cpu.call(0x465ea0, ecx=p[TORSO], stack_args=(0 if a[3] < -1.5 else self.aim, self.aim + 12, i))
+            self.log(51, *struct.unpack('<3I', cpu.read(self.aim + 12, 12)))
+            return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
+        elif op == 18:
+            cpu.call(0x465a00, ecx=p[TORSO], stack_args=(i + 1,))
+        elif op == 19:
+            cpu.call(0x466190, ecx=p[TORSO], stack_args=(int(a[2] > 0) + i,))
+        elif op == 20:  # the controls' view state, then the view, the cockpit's look rate, the mode's torso look
+            cpu.call(0x426780, ecx=self.ctl, stack_args=(int(a[1]) + 2 * int(a[2] > 0),))
+            self.log(52, struct.unpack('<I', cpu.read(self.ctl + 0xc, 4))[0],
+                     struct.unpack('<I', cpu.read(self.look + 0x3c, 4))[0], cpu.read(self.vmode + 0x54, 1)[0])
+        elif op == 21:  # a part chosen by the keypad's id
+            cpu.call(0x41d810, ecx=self.mech, stack_args=(int(a[3] * 4 + 8) % 16,))
+        elif op == 22:
+            cpu.call(0x41d6f0, ecx=self.mech)
+            return float(cpu.uc.reg_read(UC_X86_REG_EAX) & 0xff != 0)
         elif op == 14:
             ebp = STACK_TOP - 0x2000
             self.run_at(0x416d3a, 0x416e91, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: ebp - 0x640,
@@ -527,6 +582,8 @@ def scenario(rng, op):
     put(mech, 0x584, 'b', rng.random() < 0.2)
     put(mech, 0x585, 'b', rng.random() < 0.3)
     put(mech, 0x5c8, 'i', rng.choice([0, 0, 5]))
+    put(mech, 0xdc, 'b', rng.random() < 0.1)  # powering down / down (vt+0xa0, 0x0041cc10)
+    put(mech, 0xde, 'b', rng.random() < 0.1)
     put(mech, 0x688, 'i', rng.choice([0xffffffff, 0xffffffff, 0x1d, 0x1c, 0x10, 0x14, 0x18, 0x1b, 0x13, 0]))
     skis = bytearray(0x300)
     put(skis, 5, 'b', rng.random() < 0.3)
@@ -551,9 +608,16 @@ def scenario(rng, op):
     ctl = bytearray(0x74)
     put(ctl, 0x10, 'f', rnd(rng, -1, 1, 0.2))
     put(ctl, 0x14, 'f', rnd(rng, -1, 1, 0.5))
+    put(ctl, 0x08, 'i', rng.choice([0, 1, 4, 5]))
+    put(ctl, 0x0c, 'i', rng.randrange(4))
     env = [0] * ENV
     env[FLAGS] = rng.getrandbits(5)
     env[SCREEN_FLAGS] = rng.choice([0, 0x10, 0xffffffff, 0xffffffef])
+    env[VMODE] = rng.choice([0x10, 0x11, 0x11, 0x12, 0x13, 0x15])  # a view on a mech always has a mode
+    env[PARTSEL] = rng.choice([0xf, 0xf, 0xf, 0xd, 0xb, 0x7, 0xe, 0x3, 0])
+    put(mech, 0xf8, 'i', rng.choice([-1, -1, 1, 2, 6, 7, 8, 11, 13, 15, 3]))
+    for k in range(3):
+        put(mech, 0xec + 4 * k, 'f', rnd(rng, -9, 9))
     for k in range(3):
         env[TARGET + k] = u(rnd(rng, -50, 50))
         env[POSITION + k] = u(rnd(rng, -50, 50))
@@ -603,7 +667,7 @@ def scenario(rng, op):
         put(dfn, o, 'f', rnd(rng, -1.5, 1.5) if o != 0x18c else rnd(rng, 0, 10))
     put(dfn, 0x1a4, 'b', rng.random() < 0.3)
     present = (1 << NPARTS) - 1
-    if rng.random() < (0.4 if op >= 7 else 0.15):
+    if op < 21 and rng.random() < (0.4 if op >= 7 else 0.15):  # 21, 22: the part aim's parts have nodes
         present &= ~(1 << rng.choice([HIP, LEG0, LEG1, CALF0, FOOT1, ARM0, HAND1] if op >= 7 else range(NPARTS)))
     return {'mech': bytes(mech), 'parts': bytes(parts), 'nodes': bytes(nodes), 'present': present,
             'skis': bytes(skis), 'ctl': bytes(ctl), 'env': env, 'def': bytes(dfn)}
@@ -652,9 +716,11 @@ def compare(what, want, wlog, got, glog):
                          f'  port     {glog[max(0, k - 8):k + 24]}')
 
 
-OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14]
+OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14,
+       15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22]
 NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
-         'duck', 'crouch target', 'landing dust', 'action dust']
+         'duck', 'crouch target', 'landing dust', 'action dust', 'pitch lock', 'hold view', 'aim', 'centre',
+         'torso mode', 'view state', 'target part', 'part aim']
 
 
 def main():

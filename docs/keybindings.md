@@ -88,8 +88,8 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x09 Twist Right | PERIOD | held: PlayerControls::update 0x427d60 | yes | - |  |
 | 0x04 Pitch Up | - | held: PlayerControls::update 0x427d60 | yes | - |  |
 | 0x05 Pitch Down | = | held: PlayerControls::update 0x427d60 | yes | - |  |
-| 0x06 Center torso to legs | Shift/ | Mech::command 0x41be80 | yes | torso centring 0x465a00 (mac 2) |  |
-| 0x07 Center Legs | / | Mech::command 0x41be80 | yes | torso centring 0x465a00 (mac 2) |  |
+| 0x06 Center torso to legs | Shift/ | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x07 Center Legs | / | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x1a Toggle throttle direction | BACK | 0x4274d0 (the controls), then 0x41be80 | yes | - |  |
 | 0x1b 0% throttle | 1 | 0x4274d0 (the controls), then 0x41be80 | yes | - |  |
 | 0x1c 10% throttle | 2 | 0x4274d0 (the controls), then 0x41be80 | yes | - | labelled 10%, sets 20% |
@@ -129,19 +129,19 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x33 Assign weapon to group 3 | ShiftF3 | Mech::command 0x41be80 | yes | - |  |
 | 0x34 Assign weapon to group 4 | ShiftF4 | Mech::command 0x41be80 | yes | - |  |
 | 0x35 Assign weapon to group 5 | ShiftF5 | Mech::command 0x41be80 | yes | - |  |
-| 0x28 Toggle fire mode | \ | Mech::command 0x41be80 | yes | cockpit sound 0x41e770 (mac 2) |  |
+| 0x28 Toggle fire mode | \ | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x39 Alpha Strike | NUMPAD ENTER | Mech::command 0x41be80 | yes | - | Owen: fires every weapon at once |
 | 0x41 Flush Coolant | F | Mech::command 0x41be80 | yes | - |  |
 | 0x40 Override Thermal Shutdown | O | Mech::command 0x41be80 | yes | - |  |
 | 0x3b Jettison ammo | ShiftK | Mech::command 0x41be80 | yes | - |  |
 | **View** | | | | | |
 | 0x61 Cycle Camera Mode | X | the app, 0x40dba0 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) | Owen: starts inside, X to third person |
-| 0x62 Look Left | AltNUMPAD 4 | Mech::command 0x41be80 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) |  |
-| 0x63 Look Right | AltNUMPAD 6 | Mech::command 0x41be80 | yes | camera 0x502da0 (mac 2); look 0x41ca60 (mac 2); the controls' view state 0x426780 (mac 2) |  |
-| 0x64 Look Up | AltNUMPAD 2 | Mech::command 0x41be80 | yes | - |  |
-| 0x65 Look down | AltNUMPAD 8 | Mech::command 0x41be80 | yes | camera 0x40b310 (mac 2); look 0x41ca30 (mac 2) |  |
-| 0x67 Look back | AltDECIMAL | Mech::command 0x41be80 | yes | the HUD screen asked from the torso 0x430aa0 (mac 2); torso 0x464ac0 (mac 2); torso centring 0x465a00 (mac 2) |  |
-| 0x66 Look forward | AltNUMPAD 5 | Mech::command 0x41be80 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) |  |
+| 0x62 Look Left | AltNUMPAD 4 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x63 Look Right | AltNUMPAD 6 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x64 Look Up | AltNUMPAD 2 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x65 Look down | AltNUMPAD 8 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x67 Look back | AltDECIMAL | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x66 Look forward | AltNUMPAD 5 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
 | 0x6c Cycle Resolution | ShiftV | the app, 0x40dba0 | yes | screen mode cycle 0x4ab910 (mac 2, resolution step 3) |  |
 | **Targeting** | | | | | |
 | 0x46 Target next enemy | E | Mech::command 0x41be80 | yes | - |  |
@@ -152,18 +152,18 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x4b Target nearest ally | Ctrl-W | Mech::command 0x41be80 | yes | - |  |
 | 0x48 Target object under reticule | Q | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
 | 0x49 Clear Target Selection | T | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
-| 0x59 Target Head | NUMPAD 8 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5d Target Left Arm | NUMPAD 7 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5e Target Right Arm | NUMPAD 9 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5a Target Center Torso | NUMPAD 5 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5b Target Left Torso | NUMPAD 4 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5c Target Right Torso | NUMPAD 6 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x5f Target Left Leg | NUMPAD 1 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
-| 0x60 Target Right Leg | NUMPAD 3 | Mech::command 0x41be80 | yes | part targeting 0x41d810 (mac 2) |  |
+| 0x59 Target Head | NUMPAD 8 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5d Target Left Arm | NUMPAD 7 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5e Target Right Arm | NUMPAD 9 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5a Target Center Torso | NUMPAD 5 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5b Target Left Torso | NUMPAD 4 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5c Target Right Torso | NUMPAD 6 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x5f Target Left Leg | NUMPAD 1 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x60 Target Right Leg | NUMPAD 3 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | **Cockpit** | | | | | |
 | 0x14 Zoom Reticule | Z | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
 | 0x15 Lock Zoom reticule | NUMPAD 0 | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) | readme: zoom reticle window |
-| 0x16 Toggle Torso Mode | Ctrl-NUMPAD 0 | Mech::command 0x41be80 | yes | the controls' view state 0x426780 (mac 2) | readme: torso mode |
+| 0x16 Toggle Torso Mode | Ctrl-NUMPAD 0 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) | readme: torso mode |
 | 0x17 Freelook | L | Mech::command 0x41be80 | yes | - | readme: freelook |
 | 0x74 Toggle Damage display | D | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) |  |
 | 0x75 Toggle Enemy Damage Display | Ctrl-D | Mech::command 0x41be80 | yes | HUD's (?); command (?); the (?) | readme: enemy damage display |
@@ -182,9 +182,9 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x57 Lock Awaiting orders | ShiftF11 | Mech::command 0x41be80 | yes | - |  |
 | 0x58 Cancel Awaiting orders | Ctrl-F11 | Mech::command 0x41be80 | yes | - |  |
 | 0x73 Order MFB | M | Mech::command 0x41be80 | yes | MFB order 0x47a910 (AI area) |  |
-| 0x36 Next Op point | N | Mech::command 0x41be80 | yes | +0x60..+0x68 (?); [0x00609980] (?); vtable (?) |  |
-| 0x37 Previous Op point | ShiftN | Mech::command 0x41be80 | yes | +0x60..+0x68 (?); [0x00609980] (?); vtable (?) | readme: previous op point |
-| 0x38 Nearest Op point | Ctrl-N | Mech::command 0x41be80 | yes | +0x60..+0x68 (?); [0x00609980] (?); vtable (?) | readme: nearest op point |
+| 0x36 Next Op point | N | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x37 Previous Op point | ShiftN | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) | readme: previous op point |
+| 0x38 Nearest Op point | Ctrl-N | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) | readme: nearest op point |
 | 0x76 Send message to team | NUMPAD - | Mech::command 0x41be80 | yes | chat 0x41e4e0 (network) |  |
 | 0x77 Send message to all | NUMPAD * | Mech::command 0x41be80 | yes | chat 0x41e4e0 (network) | readme: the chat window |
 | **Mission** | | | | | |
@@ -201,13 +201,10 @@ The "still unported" column is what each press reached and could not run:
 - HUD commands, mac 3: Z, keypad 0, F12, Q, T, R, Shift+R, D, Ctrl+D
   (`CommandCalls::hud`, 0x43da40 / 0x43d240 / 0x43d250 / 0x43dc10 and
   0x444330), and Alt+R's radar light (0x41ded0).
-- Views, mac 2: the look keys and torso mode (0x426780, 0x40b310,
-  0x502da0, 0x41ca30, 0x41ca60), centring the torso or legs (0x465a00),
-  look back (0x464ac0).
-- Targeting a part, mac 2: keypad 1..9 (0x41d810).
-- The op points, mac 2: N, Shift+N, Ctrl+N ([0x609980] vt+0x60..0x68).
-- The fire mode's sound, mac 2: \ switches the mode, but its cockpit sound
-  (0x41e770) is not ported.
+- Done (#14..#17, mac 2): the look keys and torso mode, centring, keypad
+  part targeting (needs a targeting computer, as in the exe), the op points
+  (multiplayer's stations only: nothing in the campaign, as in the exe) and
+  the fire mode's cockpit sound (docs/look.md, docs/cockpit-sounds.md).
 - Lance orders and the MFB, the AI area: F6..F11 (0x469930), M (0x47a910).
 - Chat, the network: keypad - and * (0x41e4e0).
 - Shift+V, resolution step 3 (0x4ab910).

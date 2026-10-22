@@ -14,7 +14,10 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "mech3/app_mech.h"
 #include "mech3/mech.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_reader.h"
 #include "mech3/player_view.h"
@@ -137,6 +140,25 @@ struct ProgramViewHooks : ViewHooks {
     if (!s || s->pitch == s->min_pitch || s->pitch == s->max_pitch) return 0.0f;
     return s->pitch_in;
   }
+  // The free look's and the cockpit's calls on the mech (playtest #14).
+  void mech_41ca30(Mech& t, int32_t on) override { mech_set_hud_fall(&t, on); }  // 0x0041ca30
+  void mech_41ca60(Mech& t, int32_t on) override {                              // 0x0041ca60
+    t.x634 = on ? t.x634 | 1u : t.x634 & ~1u;
+  }
+  void torso_464ac0(Mech& t, int32_t on) override {
+    if (t.torso) t.torso->set_pitch_lock(on != 0);
+  }
+  void torso_465a00(Mech& t, int32_t how) override {
+    if (t.torso) t.torso->centre(how);
+  }
+  void torso_466190(Mech& t, int32_t m) override {
+    if (t.torso) t.torso->set_mode(m);
+  }
+  void controls_426780(Mech& t, uint32_t v) override {
+    if (t.controls) t.controls->set_view(static_cast<int32_t>(v));
+  }
+  // 0x00502da0: [0x0073f75c], the animations' "in the cockpit" (anim block +0x3c).
+  void anim_502da0(int32_t on) override { zeff::anim().block.put<int32_t>(0x3c, on); }
   uint32_t controls_flags(Mech& t) override { return t.controls ? t.controls->flags : 0; }
   int32_t controls_kind(Mech& t) override { return t.controls ? t.controls->view : 0; }
   uint32_t option_5f4d44() override { return static_cast<uint32_t>(program_mouse_mode()); }
@@ -174,6 +196,11 @@ void wire_view(const ViewProgram* p) {
   g_p = p ? *p : ViewProgram{};
   g_view.reset();
   set_view_hooks(p ? &g_hooks : nullptr);
+  // The controls' view state (0x00426780) asks the view and the mech's cameras.
+  ControlsCalls& k = controls_calls();
+  k.mech_camera = p ? +[](Mech& m, int32_t id) -> CameraMode* { return g_hooks.mech_camera(m, id); } : nullptr;
+  k.view_target = p ? +[]() -> Mech* { return g_view ? g_view->target : nullptr; } : nullptr;
+  k.view_mode = p ? +[]() -> CameraMode* { return g_view ? g_view->mode : nullptr; } : nullptr;
 }
 PlayerView* program_view() { return g_view.get(); }
 int32_t program_view_mode_id() { return g_view && g_view->mode ? g_view->mode->id : -1; }
@@ -209,6 +236,14 @@ void program_view_attach(Mech& m) {
   if (Hud* h = m.pilot ? pilot_hud(*m.pilot) : nullptr) h->setup(&m);
   sync();
 }
+// The look keys and FREELOOK's: the view's mode vt+0x10 (0 left, 1 right,
+// 2 ahead, 4 up, 5 down; 3 none).
+void program_view_look(int32_t look) {
+  if (!g_view || !g_view->mode) return;
+  g_view->mode->set_look(look);
+  sync();
+}
+int32_t program_view_look_state() { return g_view && g_view->mode ? g_view->mode->look_ : -1; }
 void program_view_set_camera(int32_t id) {
   if (!g_view) return;
   g_view->set_camera_mode(id);

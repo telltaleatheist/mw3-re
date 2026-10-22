@@ -22,7 +22,7 @@ enum : int32_t { kHud = 0x1000, kPlay = 0x1001, kMechSound = 0x1002, kCamera = 0
 
 enum In {
   kCmd, kActive, kViewed, kScreen, kPowered, kCrouched, kAms, kXbc, kRange, kEq6, kEq12, kMasc, kTarget, kSaved,
-  kView, kMode, kGroup, kCurrent, kSelect, kJettison, kHudWeapon, kHudWeaponGroup, kLanceBusy, kInCount
+  kView, kMode, kGroup, kCurrent, kSelect, kJettison, kHudWeapon, kHudWeaponGroup, kLanceBusy, kStations, kInCount
 };
 enum Tok { tWm, tWeapon, tGroup0, tScreen = tGroup0 + 5, tCurrent, tMech, tSound, tControls, tTokCount };
 
@@ -114,6 +114,7 @@ int32_t probe_command(const int32_t* in, const uint32_t* t, int32_t* out, int32_
   };
   c.target_part = [](Mech&, int32_t part) { log(0x41d810, static_cast<uint32_t>(part), 0); };
   c.other = [](Mech&, int32_t cmd) { log(kOther, static_cast<uint32_t>(cmd), 0); };
+  c.stations = []() -> void* { return g_in[kStations] ? ptr<void>(0x5150) : nullptr; };
   HeatCalls& h = heat_calls();
   h = HeatCalls{};
   h.screen = [](Mech&) -> void* { return g_in[kScreen] ? ptr<void>(g_tok[tScreen]) : nullptr; };

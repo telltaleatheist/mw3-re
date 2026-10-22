@@ -103,7 +103,8 @@ struct Mech : ai::AiTarget {
   float last_hit_time = 0;   // +0x0e0
   MechPart* last_hit_part = nullptr;  // +0x0e4
   Handle xe8 = nullptr;      // +0x0e8  zEntity's target node as the model is set (0x005a8690)
-  int32_t xf8 = -1;          // +0x0f8
+  Vec3 part_aim{};           // +0x0ec  the target's chosen part's world point (0x0041d6f0)
+  int32_t xf8 = -1;          // +0x0f8  the target's chosen part (0x0041d810), -1 none
   Collider collider;         // +0x0fc..+0x373 (mech_collide.h)
   uint32_t x378 = 0;         // +0x378
   MechControls* controls = nullptr;  // +0x37c  (docs/controls.md)
@@ -229,6 +230,10 @@ struct Mech : ai::AiTarget {
   void entity_moved();
   void refresh_markers();               // 0x005a8500: the target and centroid nodes' world matrices
   void set_target_node(Handle n);       // 0x005a8680: what others aim at (zEntity +0x10), then 0x005a85c0
+  // The keypad's part targeting (docs/look.md; the parts by id: part_by_id,
+  // 0x0041d510): the chosen part's point, the choice.
+  bool aim_part();                         // 0x0041d6f0
+  void target_part(int32_t id);            // 0x0041d810
   // The weapons' aim (mech.cpp): the HUD's reticle point each frame (0x0041cd40).
   bool aim_at(const Vec3* at, void* torso_out, bool check);  // 0x0041bc20
   // 0x005a85c0 with vtable +0x1c 0x005a85a0: the node's matrix and +0x18, +0x24 again

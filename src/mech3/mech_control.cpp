@@ -7,6 +7,8 @@
 #include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_parts.h"
+#include "mech3/player_view.h"
 #include "platform/platform.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -65,6 +67,57 @@ int MechControls::update(float dt) {
 }
 
 // Mech3.exe 1.2 @ 0x00426b60
+// Mech3.exe 1.2 @ 0x00426780. Leaving 0 or 1 puts the mouse back in the
+// middle (and 1 the cockpit camera's look rate back to 6); 1 makes it 8 and,
+// outside the cockpit, becomes 2; 2 and 3 with the controls' flag 4 become 0.
+// The view's camera looks along the torso when the view is on this mech, and
+// the torso holds its view while in 1.
+void MechControls::set_view(int32_t v) {
+  ControlsCalls& k = controls_calls();
+  auto mouse_centre = [&] {
+    if (k.mouse_set) k.mouse_set(0.0f, 0.0f);
+    else zin::mouse_set(0.0f, 0.0f);
+  };
+  Mech* m = owner;
+  if (!m) return;
+  for (;;) {
+    CameraMode* cockpit = k.mech_camera ? k.mech_camera(*m, 1) : nullptr;
+    if (view == 0) {
+      mouse_centre();
+    } else if (view == 1) {
+      mouse_centre();
+      if (cockpit) cockpit->look_rate = 6.0f;
+    }
+    view = v;
+    const bool viewed = k.view_target && k.view_target() == m;
+    CameraMode* mode = k.view_mode ? k.view_mode() : nullptr;
+    // The mode's vt+0x1c: itself for the mech cameras, null for the base.
+    auto torso_look = [&] {
+      if (auto* mc = dynamic_cast<MechCamera*>(mode)) mc->torso_look = 1;
+    };
+    if (v == 2 || v == 3) {
+      if (flags & 4) {
+        v = 0;
+        continue;
+      }
+      m->torso->set_mode(1);
+      if (viewed) torso_look();
+    } else if (v == 0) {
+      m->torso->set_mode(1);
+      if (viewed) torso_look();
+    } else if (v == 1) {
+      m->torso->set_mode(1);
+      if (cockpit) cockpit->look_rate = 8.0f;
+      if (viewed) {
+        if (mode && mode->id == 1) torso_look();
+        else set_view(2);
+      }
+    }
+    break;
+  }
+  m->torso->hold_view(view == 1);
+}
+
 void MechControls::set_throttle(float v) {
   if (v > 0.0f) reverse = false;
   else if (v < 0.0f) reverse = true;

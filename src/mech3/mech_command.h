@@ -31,7 +31,11 @@ struct CommandCalls {
   // 0x00479480 on [0x0060861c] (multiplayer: none) then 0x00469930 on +0x37c:
   // the controls an order makes, null when none.
   MechControls* (*lance_order)(Mech&, int32_t order) = nullptr;
-  void (*target_part)(Mech&, int32_t part) = nullptr;  // 0x0041d810
+  void (*target_part)(Mech&, int32_t part) = nullptr;  // 0x0041d810; unset: Mech::target_part
+  const float* (*seen_position)(uint32_t seen) = nullptr;
+  // [0x00609980], the mission's +0xb0: multiplayer's stations (the op
+  // points); null outside multiplayer, where N, Shift+N and Ctrl+N do nothing.
+  void* (*stations)() = nullptr;  // 0x005a8630 on a contact's +0x04 (an ai::Handle)
   void (*other)(Mech&, int32_t cmd) = nullptr;         // 0x36..0x38 ([0x00609980]), 0x3e (0x0041d070), 0x69 (vtable
                                                        // +0xb8, 0x0041ded0), 0x73 (0x0047a910), 0x76 / 0x77 (0x0041e4e0),
                                                        // 0xa6 (0x0040f070)

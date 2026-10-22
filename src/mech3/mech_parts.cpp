@@ -4,9 +4,11 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_control.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -748,6 +750,65 @@ void Torso::set_cockpit(bool on) {
   if (on && !(f.first_parent && f.first_parent(cockpit))) {
     if (f.add_child) f.add_child(node, cockpit);
     if (f.mark) f.mark(*this, 1, cockpit);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x00464ac0. [0x005e4f28] is 1 and nothing writes it.
+void Torso::set_pitch_lock(bool on) { pitch_lock = on; }
+
+// Mech3.exe 1.2 @ 0x00464c90
+void Torso::hold_view(bool on) {
+  if (on == view_aim) return;
+  view_aim = on;
+  if (!on) return;
+  look_yaw_angle = 0, look_pitch_angle = 0;
+  std::memcpy(view_q, turn_q, sizeof view_q);
+}
+
+// Mech3.exe 1.2 @ 0x00465ea0
+bool Torso::set_aim(const Vec3* dir, Vec3* out, bool local) {
+  if (!dir) {
+    aim = 0;
+    return true;
+  }
+  aim = 1;
+  aim_dir = *dir;
+  aim_local = local;
+  float p, y;
+  return !aim_view(out, &p, &y);
+}
+
+// Mech3.exe 1.2 @ 0x00465f20 (the direction 0x005e4f68)
+void Torso::aim_ahead(bool local) {
+  static const Vec3 kAhead{0.0f, 0.0f, -1.0f};
+  Vec3 out;
+  set_aim(&kAhead, &out, local);
+}
+
+// Mech3.exe 1.2 @ 0x00465a00. The player's controls (+0x84 = 1) centre in the
+// torso's update; the AI's aim is set ahead at once (or, with the controls'
+// flag 1 on the player, the mouse put back in the middle).
+void Torso::centre(int32_t how) {
+  Mech* m = mech;
+  if (!m || !node || m->is_powered_down()) return;
+  centring = how;
+  if (mode != 0) return;
+  if (m == world().mission_player && m->controls && (m->controls->flags & 1)) {
+    if (controls_calls().mouse_set) controls_calls().mouse_set(0.0f, 0.0f);
+    else zin::mouse_set(0.0f, 0.0f);
+  } else {
+    aim_ahead(false);
+  }
+  centring = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00466190
+void Torso::set_mode(int32_t m) {
+  mode = m;
+  Sound& s = mech->servo();
+  if (s) {
+    if (heat_calls().stop_sound) heat_calls().stop_sound(s);
+    s = nullptr;
   }
 }
 

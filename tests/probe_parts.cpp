@@ -9,9 +9,13 @@
 
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
+#include "mech3/mech_collide.h"
+#include "mech3/mech_command.h"
+#include "mech3/mech_control.h"
 #include "mech3/mech_move.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_skis.h"
+#include "mech3/player_view.h"
 
 using namespace mech3;
 
@@ -73,8 +77,11 @@ enum {
   kFlags, kScreenFlags, kTarget, kPosition = kTarget + 3, kMechMatrix = kPosition + 3,
   kEuler = kMechMatrix + 12, kLook = kEuler + 3, kSoil = kLook + 3, kSteps = kSoil + 12,
   kPrints = kSteps + 11, kPlaying = kPrints + 11, kWorld = kPlaying + 3, kDust = kWorld + 3 * kNodes,
-  kEnv = kDust + 5 + 16,
+  kVmode = kDust + 5 + 16, kPartSel = kVmode + 1, kEnv = kPartSel + 1,
 };
+
+CameraMode* g_view_mode = nullptr;
+CameraMode* g_cockpit = nullptr;
 
 struct PartsWorld {
   Mech m;
@@ -185,6 +192,8 @@ void mech_io(uint8_t* b, bool store) {
   io.f(0x518, m.max_speed), io.f(0x520, m.turn_rate), io.bo(0x584, m.no_power_down), io.bo(0x585, m.knee_back);
   io.bo(0x586, m.crouched), io.h(0x5c8, m.servo()), io.h(0x5e4, m.sounds[11]), io.h(0x5e8, m.sounds[12]);
   io.u32(0x688, m.detail);
+  io.bo(0xdc, m.power_down_pending), io.bo(0xde, m.powered_down);
+  io.v3(0xec, m.part_aim), io.i(0xf8, m.xf8);
 }
 
 void skis_io(uint8_t* b, bool store) {
@@ -206,7 +215,7 @@ void skis_io(uint8_t* b, bool store) {
 
 void ctl_io(uint8_t* b, bool store) {
   Io io{b, store};
-  io.f(0x10, g->ctl.throttle), io.f(0x14, g->ctl.turn);
+  io.u32(0x08, g->ctl.flags), io.i(0x0c, g->ctl.view), io.f(0x10, g->ctl.throttle), io.f(0x14, g->ctl.turn);
 }
 
 void hooks() {
@@ -311,6 +320,24 @@ void hooks() {
     return g->env[kFlags] >> 3 & 1 ? &g->screen : nullptr;
   };
   hc.stop_sound = [](Sound s) { log({34, hid(s)}); };
+  controls_calls().mouse_set = [](float x, float y) { log({50, bits(x), bits(y)}); };
+  controls_calls().mech_camera = [](Mech&, int32_t) -> CameraMode* { log({41}); return g_cockpit; };
+  controls_calls().view_target = []() { return world().player; };
+  controls_calls().view_mode = []() -> CameraMode* { return g_view_mode; };
+  c.world_point = [](Handle n, Vec3* p) {
+    const int i = node_index(n);
+    log({54, i, bits(p->x), bits(p->y), bits(p->z)});
+    const int k = i < 0 ? 0 : i;
+    *p = {p->x + flt(g->env[kWorld + 3 * k]), p->y + flt(g->env[kWorld + 3 * k + 1]), p->z + flt(g->env[kWorld + 3 * k + 2])};
+    return 0;
+  };
+  collide_calls().contact_mech = [](Handle) -> Mech* { log({55}); return g->env[kPartSel] & 4 ? &g->m : nullptr; };
+  command_calls().seen_position = [](uint32_t s) -> const float* {
+    log({53, static_cast<int32_t>(s)});
+    static float at[3];
+    for (int k = 0; k < 3; ++k) at[k] = flt(g->env[kPosition + k]);
+    return at;
+  };
   update_calls().turn = [](Mech&, float dt) { log({35, bits(dt)}); };
   update_calls().dfn = [](Mech&) -> const MechDfn* {
     log({44});
@@ -337,6 +364,9 @@ void unhook() {
   d.free_part = nullptr, d.spawn_effect_at = nullptr;
   move_calls().pilot_sound = nullptr;
   heat_calls().screen = nullptr, heat_calls().stop_sound = nullptr;
+  controls_calls().mouse_set = nullptr, controls_calls().mech_camera = nullptr;
+  controls_calls().view_target = nullptr, controls_calls().view_mode = nullptr;
+  collide_calls().contact_mech = nullptr, command_calls().seen_position = nullptr;
   update_calls().turn = nullptr, update_calls().dfn = nullptr;
   skis_calls().position = nullptr, skis_calls().soil = nullptr;
   world().player = world().mission_player = nullptr;
@@ -400,6 +430,13 @@ void probe_parts_load(const uint8_t* mech, const uint8_t* parts, const float* no
   world().player = fl & 1 ? &w.m : nullptr;
   world().mission_player = fl & 2 ? &w.m : nullptr;
   world().stats = fl & 4;
+  // The part aim's target (0x0041d810): a contact, what it sees, a TC.
+  static ai::Contact contact;
+  const uint32_t sel = env[kPartSel];
+  contact = ai::Contact{};
+  contact.seen = sel & 2 ? 0x7777 : 0;
+  w.m.target = sel & 1 ? &contact : nullptr;
+  w.m.equipment[14] = sel & 8 ? 1 : 0;
   g_log.clear();
   hooks();
 }
@@ -429,6 +466,31 @@ float probe_parts_op(int op, const float* a) {
       break;
     }
     case 13: case 14: w.m.ground_dust(); break;
+    case 15: w.torso.set_pitch_lock(i != 0); break;
+    case 16: w.torso.hold_view(i != 0); break;
+    case 17: {
+      const Vec3 dir{a[2], a[3], a[0]};
+      Vec3 out{};
+      const bool r = w.torso.set_aim(a[3] < -1.5f ? nullptr : &dir, &out, i != 0);
+      log({51, bits(out.x), bits(out.y), bits(out.z)});
+      return r ? 1.0f : 0.0f;
+    }
+    case 18: w.torso.centre(i + 1); break;
+    case 19: w.torso.set_mode((a[2] > 0.0f ? 1 : 0) + i); break;
+    case 21: w.m.target_part(static_cast<int32_t>(a[3] * 4 + 8) % 16); break;
+    case 22: return w.m.aim_part() ? 1.0f : 0.0f;
+    case 20: {
+      // The cockpit camera (vt+0x10c(1)) and the view's mode as in the emulator.
+      static MechCamera cockpit(1), mode(0);
+      cockpit.look_rate = 0.0f;
+      mode = MechCamera(static_cast<int32_t>(w.env[kVmode] & 7));
+      mode.torso_look = 0;
+      g_view_mode = w.env[kVmode] & 0x10 ? &mode : nullptr;
+      g_cockpit = &cockpit;
+      w.ctl.set_view(i + (a[2] > 0.0f ? 2 : 0));
+      log({52, static_cast<int32_t>(w.ctl.view), bits(cockpit.look_rate), mode.torso_look});
+      break;
+    }
     default: return -1.0f;
   }
   return 0.0f;

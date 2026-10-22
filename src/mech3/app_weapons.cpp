@@ -28,6 +28,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/app_view.h"
+#include "mech3/cockpit_sound.h"
 #include "mech3/mech.h"
 #include "mech3/mech_move.h"
 #include "mech3/mission_world.h"
@@ -151,7 +152,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return s ? zsnd::play_at(static_cast<zsnd::Object*>(s), &p->x, 1.0f, nullptr) : nullptr;
   };
   c.stop_sound = [](Handle v) { if (v) zsnd::stop(static_cast<zsnd::VoiceBase*>(v)); };  // 0x0056e9f0
-  c.mech_sound = [](int32_t) { unported("0x0041e770"); };
+  c.mech_sound = [](int32_t i) { cockpit_sound_play(i, 1.0f); };  // 0x0041e770
   c.destroyed_sounds = [](Handle, Handle) { unported("0x004e6dc0"); };
   c.voice_destroyed = [](int32_t) { unported("0x004853d0"); };
   c.vehicle_entity = [](Handle v) { return v; };                                          // vt+0x2c: itself
@@ -423,12 +424,11 @@ int32_t mech_select_hot_group(void* mech) {
 }
 
 // Mech3.exe 1.2 @ 0x0041aba0, the player tick's tail on the pilot's mech:
-// its target's chosen part (0x0041d6f0: the HUD's, not ported, nothing
-// without a target), the ammo gauge (0x004b0d80) and the last attacker
-// cleared.
-void mech_after_tick(void* mech, uint32_t (*unported)(const char*)) {
+// its target's chosen part's point (0x0041d6f0), the ammo gauge (0x004b0d80)
+// and the last attacker cleared.
+void mech_after_tick(void* mech, uint32_t (*)(const char*)) {
   Mech* m = static_cast<Mech*>(mech);
-  if (m->target && m->xf8 != -1 && unported) unported("0x0041d6f0");
+  m->aim_part();
   if (auto* wm = static_cast<WeaponManager*>(m->ammo)) wm->ammo_gauge();
   m->attacker = nullptr;
 }
