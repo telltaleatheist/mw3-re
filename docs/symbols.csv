@@ -1230,3 +1230,7 @@ address,name,source,notes
 0x004d1320,OrbitState,asm,"ported: zai_attack OrbitState"
 0x004d13b0,orbit_resume,asm,"ported: OrbitState::resume"
 0x004d13c0,orbit_run,asm,"ported: OrbitState::run (its context 0x004d12a0)"
+0x004d1630,mode4_make_state,asm,"ported: Behaviour::make_state (VehMode4)"
+0x004d1650,VeerState,asm,"ported: zai_attack VeerState"
+0x004d16e0,veer_resume,asm,"ported: VeerState::resume"
+0x004d16f0,veer_run,asm,"ported: VeerState::run"

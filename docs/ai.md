@@ -1726,6 +1726,18 @@ turn's dot at least 0.5), else 0. Test: `test_ai_attack.py` (mode 1 real;
 the boundary's trace carries the point now; the target moved alone between
 runs; negative throttles), 59 branches, 17 of 17 breaks.
 
+**Mode 4, ported** (2026-10-22, item 3h: `VeerState`). Mode 4 (slot 6)
+makes 0x4d1630 -> 0x4d1650: mode 2's layout, share and way round (resume
+0x4d16e0, x -1). Its run 0x4d16f0 is mode 2's steering with no boundary,
+no look-ahead and no +0x08: the target's place, then its own (0x5a85e0),
+given up as the fight is; the way from the flat way (0x4ce230); the
+throttle the share when facing within 60 degrees (a NaN holds). With it
+`BrainHooks::vehicle_step_state` is gone: every state the vehicle net's
+behaviours make is ported. Test: `test_ai_attack.py` (mode 4 real, drawn
+more often, 300 cases), 72 branches; 10 of 12 breaks: the target going
+inactive is not met (the brain's frame drops it first, as for mode 2) and
+the facing threshold moved up to 0.6 is not (few dots between).
+
 **Mode 2, orbiting, ported** (2026-10-22, item 3g: `OrbitState`). Mode 2
 (slot 3) makes 0x4d1300 -> 0x4d1320: the speed share the brain's +0x94,
 its +0xec when that is smaller; the way round +1. Each run (0x4d13c0, with
@@ -1852,8 +1864,8 @@ within 0.9, else holds; within +0x28 (params 5) it has arrived, and the
 order takes the mode's behaviour (0x4e8120; none for modes 0, 3 and past
 4, so the pilot keeps closing on the spot); farther, the speed for the
 distance past the middle of the two, as the way home. Those behaviours'
-states (0x4c9750, 0x4d1320, 0x4d1650, the follow's 0x4d1870) are not ported:
-the base state, through `BrainHooks::vehicle_step_state`. Tests:
+states (0x4c9750, 0x4d1320, 0x4d1650, the follow's 0x4d1870) were the base
+state at first; all are ported now (items 3f, 3g, 3h and the follow). Tests:
 `test_ai_attack.py` (the fight pushed on a real vehicle net, 0x4d70f0 on a
 target vehicle, those states faked on both sides: 703 fights in 200 cases
 identical, 21 branches; 14 of 14 breaks caught) and in c1m1
@@ -3153,8 +3165,8 @@ goes through a hooks struct the test stubs the same on both sides.
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
     0x4e81a0: done (10c); its station-keeping states 0x4cc150 and the run
     0x4cc3e0: done (10d2, 10d3); the
-    modes' states: modes 1 and 2 (0x4c9750, 0x4d1320) done (items 3f, 3g),
-    0x4d1650 next.
+    modes' states: modes 1, 2 and 4 (0x4c9750, 0x4d1320, 0x4d1650) done
+    (items 3f, 3g, 3h).
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

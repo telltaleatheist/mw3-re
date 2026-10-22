@@ -443,6 +443,48 @@ void OrbitState::run(float dt) {
   x08 = 1;
 }
 
+// Mech3.exe 1.2 @ 0x004d1650
+VeerState::VeerState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {
+  Brain& br = *o->owner;
+  share = br.params.get<float>(0x94);
+  if (share > br.xec) share = br.xec;
+}
+
+// Mech3.exe 1.2 @ 0x004d16f0: mode 2's run (0x004d13c0) without the look-ahead.
+void VeerState::run(float dt) {
+  (void)dt;
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(order->net.get());
+  if (!part || !part->target) {
+    order->pop();
+    return;
+  }
+  const zgame::Handle target = part->target->vehicle;
+  float from[3], to[3];
+  h.position(target, to);  // the target net's vt+0x04 first
+  h.position(v, from);     // 0x005a85e0
+  if (!h.entity_active(target) || b.must_break_off(v)) {
+    order->pop();
+    return;
+  }
+  FlatWay w;
+  flat_way(from, to, &w);  // 0x004ce230
+  const float R = b.params.get<float>(0x44);
+  const float f = (w.dist - R) / R;
+  zmth::Vec3 d{f * w.dir[0] + w.dir[2] * way, 0.0f, f * w.dir[2] - w.dir[0] * way};
+  zmth::normalize(d);
+  const float dir[3] = {d.x, d.y, d.z};
+  float fwd[3] = {0, 0, 0};
+  h.forward(v, &fwd[0], &fwd[2]);  // the vehicle's +0x24
+  float dot, cross;
+  turn = turn_toward(fwd, dir, &dot, &cross, turn, turn_params());  // 0x004cdd40
+  c.set_throttle(!(dot >= 0.5) ? 0.0f : share);  // IControls vt+0x20, 0x005cc5b8
+  c.set_turn(turn);  // vt+0x28
+}
+
 // Mech3.exe 1.2 @ 0x004d1980
 void FollowState::run(float dt) {
   BrainHooks& h = brain_hooks();
