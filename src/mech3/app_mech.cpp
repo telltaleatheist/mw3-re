@@ -842,6 +842,7 @@ void wire_mech_build(const MechWiring* w) {
     set_mech_data_hooks(nullptr);
     set_launch_hooks(nullptr);
     panel_calls().entity_mech = nullptr, panel_calls().key_binding = nullptr, panel_calls().key_name = nullptr;
+    wire_pocket(nullptr);
     return;
   }
   g_w = *w;
@@ -849,6 +850,7 @@ void wire_mech_build(const MechWiring* w) {
   // orders' keys (an action's first key, 0x0051d1f0, and its name,
   // 0x0051d330). Its names, cursor picks and marker are not wired yet (L4c2c).
   panel_calls().entity_mech = entity_mech;
+  wire_pocket(w);
   panel_calls().key_binding = [](int32_t action) -> zgame::Handle { return zin::key1_of(action); };
   panel_calls().key_name = [](zgame::Handle k, char* out, int32_t n) { zin::key_name(k, out, static_cast<size_t>(n)); };
   set_shade_hooks(&g_shade_hooks);
@@ -1009,6 +1011,7 @@ void update_entities(float dt) {
   zent::budget().update_all(ai::entity_list(), [dt](ai::Handle h) {
     Mech* m = entity_mech(h);
     if (!m) {  // another entity's vt+0x34: none is the port's yet
+      if (program_pocket_marker(h)) return;  // the command marker's (0x004d7f80's: nothing to do)
       if (g_w.unported) g_w.unported(g_w.engine, "entity vt+0x34", {h});
       return;
     }

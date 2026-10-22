@@ -365,19 +365,37 @@ struct WiredBrainHooks : ai::BrainHooks {
   // The brain's frame (docs/ai.md 17.1) on the AI mechs: the other vehicles
   // are not ported, so every pilot's vehicle and every contact's is a mech.
   void* mech(Handle v) const { return e->object_of(v); }
+  // The pocket commander's marker (app_pocket.cpp) is the one entity here
+  // that is not a mech: an AiTarget at its node's place, always up.
+  static PocketMarker* marker(Handle v) { return program_pocket_marker(v); }
+  static void marker_position(PocketMarker* k, float out[3]) {
+    out[0] = out[1] = out[2] = 0;
+    auto* n = static_cast<zcls::Node*>(k->node);
+    if (!n || !n->data || n->cls() != 5) return;
+    zcls::node_world_position(n, out);
+  }
   Handle vehicle_handle(void* vehicle) override { return e->handle_of(vehicle); }
   float now() override { return mech_game_time(); }
-  float health(Handle v) override { return mech_health(mech(v)); }
-  void position(Handle v, float out[3]) override { mech_world_position(mech(v), out); }
-  ai::AiTarget* targetable(Handle v) override { return v ? mech_ai_target(mech(v)) : nullptr; }
-  int32_t powered_down(Handle v) override { return mech_powered_down(mech(v)) ? 1 : 0; }  // 0x0041cc10
+  float health(Handle v) override { return marker(v) ? 100.0f : mech_health(mech(v)); }
+  void position(Handle v, float out[3]) override {
+    if (PocketMarker* k = marker(v)) return marker_position(k, out);
+    mech_world_position(mech(v), out);
+  }
+  ai::AiTarget* targetable(Handle v) override {
+    if (PocketMarker* k = marker(v)) return k;
+    return v ? mech_ai_target(mech(v)) : nullptr;
+  }
+  int32_t powered_down(Handle v) override {  // 0x0041cc10
+    if (marker(v)) return 0;
+    return mech_powered_down(mech(v)) ? 1 : 0;
+  }
   // 0x004e6fe0 then vt+0x40: a mech answers itself; targets.zrd's objects 0.
   Handle contact_vehicle(const ai::Contact* c) override {
     for (const ai::Handle s : ai::entity_list())
       if (c->seen && s == c->seen) return s;
     return 0;
   }
-  float contact_range2(Handle v) override { return mech_ai_target(mech(v))->range2; }
+  float contact_range2(Handle v) override { return targetable(v)->range2; }
   void count_awake() override { e->poke32(0x6099c0, e->peek32(0x6099c0) + 1); }
   float intensity() override { return options().intensity[0]; }
   bool ammo_value(Handle v, float* out) override { return mech_ammo_value(mech(v), out); }
@@ -405,16 +423,25 @@ struct WiredBrainHooks : ai::BrainHooks {
   // answers itself; targets.zrd's objects are not mechs: 0) and its active
   // flag (+0x08).
   Handle contact_entity(const ai::Contact* c) override { return contact_vehicle(c); }
-  bool entity_active(Handle e) override { return mech_active(mech(e)); }
+  bool entity_active(Handle e) override {
+    if (PocketMarker* k = marker(e)) return k->active != 0;
+    return mech_active(mech(e));
+  }
   // The plan's track and the lead point (ai.md 17.7) on the mechs.
   bool can_face(Handle v, const float dir[3]) override { return mech_can_face(mech(v), dir); }
   uint8_t bearer_in_reach(Handle b, float c) override { return mech_faces_within(mech(b), c) ? 1 : 0; }
   bool bearer_aim_clamp(Handle b, const float d[3], float out[3]) override { return mech_clamp_aim(mech(b), d, out); }
   void bearer_set_aim(Handle b, const float d[3]) override { mech_set_torso_aim(mech(b), d); }
   void mech_aim_at_last_hit(Handle e) override { mech3::mech_aim_at_last_hit(mech(e)); }
-  void velocity(Handle v, float out[3]) override { mech_lead_velocity(mech(v), out); }
-  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(mech(v), m); }
-  void entity_lock_position(Handle e, float out[3]) override { mech_target_position(mech(e), out); }
+  void velocity(Handle v, float out[3]) override {
+    if (marker(v)) return void(out[0] = out[1] = out[2] = 0);
+    mech_lead_velocity(mech(v), out);
+  }
+  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(marker(v) ? nullptr : mech(v), m); }
+  void entity_lock_position(Handle e, float out[3]) override {
+    if (PocketMarker* k = marker(e)) return marker_position(k, out);
+    mech_target_position(mech(e), out);
+  }
   Handle wm_group_weapon(Handle wm) override { return e->handle_of(mech3::wm_group_weapon(e->object_of(wm))); }
   void weapon_node_position(Handle w, float out[3]) override { mech3::weapon_node_position(e->object_of(w), out); }
   float weapon_speed(Handle w) override { return mech3::weapon_speed(e->object_of(w)); }

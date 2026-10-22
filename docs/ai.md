@@ -2402,6 +2402,41 @@ branches; the draws' breaks 13 of 15, the other two the same behaviour
 (the edge test's first half, implied by the second; a depth of 0, whose
 size is 0 either way).
 
+### 17.6f The pocket commander in the program (app_pocket.cpp)
+
+Wired 2026-10-22: the mode works in play on the HUD.
+
+- **The marker** (0x468100, made by the mission start's listener): the
+  world's `cmd_target.flt` node or a new object3d so named, under the
+  world; a `PocketMarker` (an AiTarget) on it, its node bound (+0x28 bit 16,
+  owner), named message 0x89d, on the player's side, in zEntity's list;
+  shown and hidden through its node (0x4eb170) and +0x08, moved by its
+  node's translation (vt+0x18). The previous mission's is freed when the
+  next is made.
+- **The AI on it**: the brain hooks take the marker as a target (its
+  AiTarget, its node's place, up, still, health 100), so the orders on it
+  work as on a mech (its own net, the follow).
+- **The picks**: the viewed mech's HUD (0x430aa0), its radar's map flag,
+  the reticle's aim record (+0x928, its node) and spot (+0x8fc), the
+  trigger (command 0x3d), a node's entity (0x40eee0), an entity's node and
+  place, its name (the pilot's, the brain's, the marker's), the target
+  pick 0x4a7b40 (the contact on it, then TARGET on the view's HUD), the
+  node mark (bit 21); the lancemates' names (the brains' pilots).
+- **Not wired** (their code is not ported): the mission map (0x491c80 and
+  its pixels 0x4586e0, the map's mouse 0x444670 and pick 0x4587b0), so the
+  picks on the map do nothing; a network game's elements (0x58b060); the
+  repair bays (0x45a000: the refit order's line stays dark); the view's
+  pocket layer (0x4b5290).
+
+Test `mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless`:
+c1m4 with the player 40 m off Dominic (in sight, so his line shows): the
+mode opened with its key, Dominic picked with the number key, the
+program's reticle pick checked against the real HUD, then the cursor put
+on a bare spot 200 m off with the trigger let go: the marker placed and
+shown; "only an enemy" (order 10) on it: the marker one of Dominic's
+enemies, his order the follow on its net for 902 frames, and he closes
+from 199.35 m to 120.73 m, his reach of an enemy (exact, the fixed seed).
+
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
 A state machine over +0x00, run until a step asks for no more: 1 / 6 pick a

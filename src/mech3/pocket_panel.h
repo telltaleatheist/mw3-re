@@ -4,6 +4,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "gamez/ztwod/twod.h"
+#include "mech3/zai_target.h"
 
 // The pocket commander's panel (mech_pocket.cpp, between 0x004674f0 and
 // 0x00469060; docs/ai.md 17.6b): a zTwoD window at the top right of the
@@ -56,6 +57,15 @@ void pocket_load_commands();  // 0x00467d80
 void pocket_load_sounds();    // 0x0046a930
 void pocket_mission_start();  // 0x0046aaa0
 void pocket_mission_end();    // 0x0046ab10
+
+// The command target marker [0x00605f58] (0x00468100: 0xd4 bytes, an
+// AiTarget by 0x004d7f80 on its node); the program makes it (PanelCalls::
+// make_marker). Its zEntity3d part is the port's few fields.
+struct PocketMarker : ai::AiTarget {
+  void* node = nullptr;          // +0x14  zEntity3d's node
+  uint8_t active = 0;            // +0x08  shown (the panel's pick of a spot)
+  const char* name = nullptr;    // 0x005a84c0's: message 0x89d
+};
 
 // What the panel reaches outside zTwoD (unset: 0 and logged through
 // PocketCalls::unported, if set).

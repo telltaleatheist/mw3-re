@@ -591,3 +591,14 @@ Newest last. One short entry per item: what, commits, what to remember.
   unit's point).
 - test_pocket_frame.py draws among the frames: 200 runs identical, 18
   branches; 13 of 15 breaks (two the same behaviour).
+
+## 2026-10-22 The pocket commander in the program (mac4/pocketwire)
+
+- app_pocket.cpp: the marker made at the mission's start (0x468100 on the
+  ported zClass pieces, a PocketMarker in zEntity's list), its show and
+  move; the frame's picks on the HUD's reticle; the names; the node mark.
+  The brain hooks take the marker as a target (WiredBrainHooks).
+- Unwired, not ported: the mission map and its picks, the network
+  elements, the repair bays, the view's pocket layer.
+- mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless: exact.
+  The c1m1 sensors test counts the marker (3 entities).
