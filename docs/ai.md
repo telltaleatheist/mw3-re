@@ -2269,6 +2269,76 @@ then the brain's vt+0x08. In every brain-like vtable (0x5cc698, 0x5cd190,
 nothing (app_sensors.cpp); the rest of 0x41e810 is the level of detail's
 budget (movement.md).
 
+### 17.8b How the player's allies fight (traced 2026-10-22)
+
+Asked by Owen ("allies fight back when attacked but never start a fight on
+their own"). As the exe has it, that is half right: they never *go* to a
+fight on their own, but they shoot at any enemy within their weapons'
+reach whether or not anyone attacked them. Each part, with the code:
+
+- **Who they shoot.** The firing (17.7) picks its own target at every new
+  plan (phases 1 and 6, 0x4b6790): every contact within +0x30 (Dominic,
+  Epona, Alan and the c4 lancemates 1000 m) that is active, not straight up
+  or down (|dir.y| over 0.5) and not an ally (0x4b79e0: `mine->allies &
+  theirs->team`, so neutrals count), scored by distance, facing, the
+  other's health and heat and a clear line; the best is made the vehicle's
+  target (0x4b5a80: vt+0xc0, which always takes it, 0x4d5e40). Nothing in
+  it reads the orders, the engage switch or who hit whom. It fires when the
+  plan is in reach and tracks (phases 2..4). The order's state does not stop
+  it: the follow state answers "may not fire" (vtable 0x5cca88 +0x08,
+  0x4d7290), but only the frame's "hit lately" reset reads that (17.1),
+  not the firing.
+- **Going to a fight.** Only the frame's attack (17.1, 0x4e9ca0) moves a
+  pilot to an enemy on its own, and it needs engaging on (+0x3c, the aiv
+  params' second item, 17.3). Every shipped ally has it at 0, and no lance
+  order writes it (0x4ea260..0x4ea4e0); only the canleave valve (none
+  ships), the nets' scan steps and the rearm after an attack do (0x4cad30).
+  So they never close on an enemy by themselves.
+- **When an ally is hit.** The AI's IControls +0x94 (0x4ea520) first runs
+  the base 0x4aec90: the hit's time and attacker kept (0x4aec10: a run of
+  hits restarts with a new attacker or after 3 s), and when the attacker
+  is the victim's ally, the attacker's firing is told (IControls +0x98,
+  0x4ea500 -> 0x4b78d0: its +0x28, the obstacle the scorer passes over
+  targets behind, and the firing reset). Then only radio lines: an
+  enemy's hit from over [0x5e8e8c] away, "friendly fire" from an ally. It
+  writes neither +0x6c nor +0x3c. The frame's "hit lately" branch (17.1)
+  needs +0x9c (aiv p8 item 14), 0 for every shipped ally, and none of their
+  vlist triggers has the hit flag (item 4). So being hit changes nothing:
+  they shoot back only because the attacker is an enemy in reach, as they
+  would anyway, and the hit does not make them move.
+- **The player hitting allies.** When the player is the attacker and his
+  run of hits on an ally passes 3 s (0x4aec70: now minus the run's start),
+  0x4d5dc0 makes the player's team everyone's enemy: each entity's enemies
+  (+0xc8) gain it and its allies (+0xc4) lose it, lancemates included. From
+  then on the scorer takes the player, and the lancemates each other, as
+  enemies (as written).
+- **"Attack my target".** The lance order (0x4ea450, by the command
+  handler 0x469866..0x469910 for the selected lancemate, +0xbc bit 4)
+  stops the current order (vt+0x40) and pushes the target vehicle's own
+  net's follow behaviour (0x4c0de0): its state (0x4d1870, run 0x4d1980,
+  not ported) steers after that vehicle, keeping off by half the gap
+  between its +0x28 and +0x2c, until the vehicle is gone or not active
+  (+0x08), when it pops itself (order vt+0x08) and the order under it runs
+  again. It sets no target: the lancemate still shoots whatever the firing
+  scores best, usually the ordered one once it is the nearest.
+- **When the ordered target dies.** The follow pops (above); the sensors
+  (0x4a9e70) drop the lost contact and make the nearest of the rest the
+  target (0x4d6a80 with side 0: any non-ally), and the next plan picks
+  again anyway. "Target lost" (0x4ea630, a jump thunk from the brain's
+  vtables at 0x4d1f30 / 0x4e7810) and death (0x4ea6b0) are radio lines
+  only (0x4bf620 does nothing).
+- **The player attacked or attacking.** Nothing reaches the allies from
+  either, except the 3-second rule above and the lance orders.
+
+Checked headless (`test_program` mission_c1m4_dominic_shoots_a_near_enemy_
+unordered_headless, MW3_LANCE_LOG=1, MW3_LANCE_AT=metres): in c1 mission 4,
+Dominic woken (`dominic_wakes`) with the powered-down blackhawk_01 put in
+front of him and no order given: at 60 m he takes it as his target and
+fires (697 of 765 frames); at 150 m and 300 m he takes it and aims for the
+whole 25 s but never fires and never moves (engaging off throughout, no
+attack). The hit handler, the lance orders and the follow
+state are not ported, so those parts are from the code alone.
+
 ### 17.9 Porting order
 
 Each item is one family with its own differential test; what it calls
