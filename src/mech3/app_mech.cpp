@@ -2,6 +2,7 @@
 // section 9). Not original code: it stands where the exe's other modules
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
+#include "mech3/cockpit_sound.h"
 #include "mech3/app_mech.h"
 
 #include <cstdio>
@@ -78,6 +79,7 @@ std::unordered_set<const void*>& mech_objects() {
   return s;
 }
 Mech* entity_mech(ai::Handle h);
+Vec3 mech_position(Mech& m);
 }  // namespace
 
 namespace {
@@ -316,8 +318,19 @@ void wire_mech_frame() {
       if (t->self == e) return !(t->desc.flags & (zoom ? 8 : 4));
     return false;
   };
-  k.view_camera = program_view_set_camera;                                                  // 0x0040ae70
-  k.set_view_option = program_set_mouse_mode;                                              // [[0x005f4d44]]
+  // The look keys (0x62..0x67) and FREELOOK: the view's mode vt+0x10, the
+  // free look (playtest #14: wired to the camera switch before).
+  k.view_camera = program_view_look;
+  // 0x005a8630 on a contact's vehicle (the part aim's fallback): a mech's
+  // position; the other entities' are not ported (none).
+  k.seen_position = [](uint32_t s) -> const float* {
+    static Vec3 at;
+    Mech* m = entity_mech(s);
+    if (!m) return nullptr;
+    at = mech_position(*m);
+    return &at.x;
+  };
+  k.set_view_option = program_set_mouse_mode;  // [[0x005f4d44]]
 }
 
 // The mech's world position (0x005a85e0).
@@ -645,6 +658,10 @@ void wire_mech_parts() {
     return pilot_play(m, id, 1.0f, &at);
   };
   hc.stop_sound = [](Sound s) { if (s) zsnd::stop(static_cast<zsnd::VoiceBase*>(s)); };  // 0x0056e9f0
+  // The cockpit sounds (playtest #17): the fire modes, the gyro, MASC, the
+  // jettison, the coolant, the hits (0x0041e770 at 1.0; 0x0041e7a0(i, 0)).
+  hc.play_mech_sound = [](int i) { cockpit_sound_play(i, 1.0f); };
+  update_calls().stop_cockpit_sound = [](int i) { cockpit_sound_stop(i, 0); };
   CollideCalls& c = collide_calls();
   c.node_touchable = [](Handle n) { return handler_touchable(n); };  // node +0xbc above 1 with slot 1 (0x004230a0)
   c.touch = [](Handle n, const Vec3* from, const CollisionHit& h, float damage) {  // 0x005836b0
@@ -670,7 +687,8 @@ void wire_mech_build(const MechWiring* w) {
     part_calls() = PartCalls{};
     move_calls() = MoveCalls{};
     heat_calls().throttle = nullptr, heat_calls().game_type = nullptr, heat_calls().play_sound = nullptr, heat_calls().play_sound_at = nullptr;
-    heat_calls().stop_sound = nullptr;
+    heat_calls().stop_sound = nullptr, heat_calls().play_mech_sound = nullptr;
+    update_calls().stop_cockpit_sound = nullptr;
     collide_calls().touch = nullptr, collide_calls().node_touchable = nullptr;
     unwire_hud();
     unwire_weapons();
@@ -1059,6 +1077,10 @@ bool mech_hit_part(void* mech, int32_t id, float damage) {
       return true;
     }
   return false;
+}
+int32_t mech_controls_view(void* mech) {
+  Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;
+  return m && m->controls ? m->controls->view : -1;
 }
 bool mech_hold_throttle(void* mech, float v) {
   Mech* m = entity_is_mech(mech) ? static_cast<Mech*>(mech) : nullptr;

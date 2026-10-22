@@ -2,7 +2,9 @@
 
 #include <cstring>
 
+#include "gamez/zclass/class.h"
 #include "mech3/mech.h"
+#include "mech3/mech_collide.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_move.h"
 #include "mech3/weapon.h"
@@ -42,7 +44,7 @@ void view_camera(int32_t mode) {
 
 void controls_view(Mech& m, int32_t mode) {  // 0x00426780
   if (update_calls().controls_view) update_calls().controls_view(*m.controls, mode);
-  else record("0x00426780", mode);
+  else m.controls->set_view(mode);
 }
 
 void set_view_option(Mech& m) {
@@ -65,6 +67,53 @@ uintptr_t own(uint32_t addr, uintptr_t a, uintptr_t b, F real) {
 }  // namespace
 
 CommandCalls& command_calls() { return g_calls; }
+
+namespace {
+Mech* target_mech(const Mech& m) {  // 0x004e6ff0 on +0x6c
+  return m.target && collide_calls().contact_mech ? collide_calls().contact_mech(m.target) : nullptr;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0041d6f0: where the chosen part is. The side torsos aim
+// at 0.75 of a half width out along the target's torso node; the width is this
+// mech's own torso's (+0x39c on ESI), not the target's. A part gone gives the
+// target's position and drops the choice.
+bool Mech::aim_part() {
+  if (!target || xf8 == -1) return false;
+  Mech* tm = target_mech(*this);
+  MechPart* p = tm ? part_by_id(*tm, xf8) : nullptr;
+  if (!p) {
+    if (target->seen) {
+      xf8 = -1;
+      if (const float* at = g_calls.seen_position ? g_calls.seen_position(target->seen) : nullptr)
+        part_aim = Vec3{at[0], at[1], at[2]};
+    }
+    return false;
+  }
+  if (xf8 == 7 || xf8 == 8) {
+    part_aim = Vec3{torso->half_width * (xf8 == 8 ? 0.75f : -0.75f), 0.0f, 0.0f};  // 0x005bce50, 0x005bce54
+    if (part_calls().world_point) part_calls().world_point(p->node, &part_aim);
+    else zcls::node_world_point(static_cast<zcls::Node*>(p->node), &part_aim.x);  // 0x004ed650
+  } else if (part_calls().world_position) {
+    part_calls().world_position(p->node, &part_aim);
+  } else {
+    zcls::node_world_position(static_cast<zcls::Node*>(p->node), &part_aim.x);  // 0x004ed530
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0041d810: with a targeting computer (equipment kind 14,
+// `tc`) and a target, a part it still has; the same key again, or no such
+// part, drops the choice.
+void Mech::target_part(int32_t id) {
+  int32_t want = -1;
+  if (equipment[14] > 0 && target && target_mech(*this)) {
+    const MechPart* p = part_by_id(*target_mech(*this), id);
+    if (p && !p->destroyed) want = id;
+  }
+  xf8 = want == xf8 ? -1 : want;
+  aim_part();
+}
 
 // Mech3.exe 1.2 @ 0x0041be80: vtable +0xfc, the commands the player's keys
 // send the vehicle the view looks at (0x00426cb0). A mech not active (+0x08)
@@ -118,7 +167,7 @@ void Mech::command(int32_t cmd) {
       case 6:  // CENTER_TORSO, CENTER_LEGS
       case 7:
         if (g_calls.torso_center) g_calls.torso_center(*this, cmd == 6 ? 1 : 2);
-        else record("0x00465a00", cmd);
+        else torso->centre(cmd == 6 ? 1 : 2);
         break;
       case 0x13:  // crouch
         if (!down()) own(0x41bda0, !crouched, 0, [&] { return crouch(!crouched), uintptr_t{0}; });
@@ -165,8 +214,8 @@ void Mech::command(int32_t cmd) {
         if (select(g)) into_group(w);
         break;
       }
-      case 0x36: case 0x37: case 0x38:  // the nav points
-        other(*this, cmd, "[0x00609980] vtable +0x60..+0x68");
+      case 0x36: case 0x37: case 0x38:  // the op points: the stations' vt+0x60 / +0x64 / +0x68(position)
+        if (g_calls.stations && g_calls.stations()) other(*this, cmd, "[0x00609980] vtable +0x60..+0x68");
         break;
       case 0x39:  // alpha strike
         if (!down())
@@ -221,7 +270,7 @@ void Mech::command(int32_t cmd) {
       case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f: case 0x60: {  // the target's part
         static const int32_t kPart[8] = {6, 1, 7, 8, 2, 3, 0xb, 0xc};
         if (g_calls.target_part) g_calls.target_part(*this, kPart[cmd - 0x59]);
-        else record("0x0041d810", cmd);
+        else target_part(kPart[cmd - 0x59]);
         break;
       }
       case 0x62: view_camera(0); break;

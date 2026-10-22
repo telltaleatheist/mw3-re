@@ -47,6 +47,7 @@
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
+#include "mech3/cockpit_sound.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
@@ -2342,6 +2343,19 @@ TEST(mission_c1m1_default_keys_fire_headless) {
     std::set<std::string> noise;
     int view_before = -1, view_after_x = -1;
     mech3::LaunchedMech enter_before, enter_after;
+    // Playtest #14..#17: the look keys' look, torso mode's view state, the
+    // fire mode's cockpit sound, the op points without multiplayer's stations.
+    int look_after[6] = {-9, -9, -9, -9, -9, -9};
+    int tmode_before = -9, tmode_after = -9;
+    bool mode_played = false, mode_sounds = false;
+    // zSound is closed headless (no device): the cockpit sound's play is
+    // recorded instead (0x004e6d80 on the table's object).
+    static std::vector<zsnd::Object*> g_cockpit_played;
+    g_cockpit_played.clear();
+    mech3::cockpit_sound_calls().play = [](zsnd::Object* s, float) -> zsnd::VoiceBase* {
+      g_cockpit_played.push_back(s);
+      return nullptr;
+    };
     float throttles[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     auto mods = [](uint32_t key, std::vector<uint32_t>* out) {
       if (key & 0x100) out->push_back(0x38);  // Alt
@@ -2378,6 +2392,7 @@ TEST(mission_c1m1_default_keys_fire_headless) {
         before = engine.unported_counts();
         if (r.cmd == 0x61) view_before = mech3::program_view_mode_id();
         if (r.cmd == 0x27) mech3::describe_mech(mech3::mech_mission_player(), &enter_before);
+        if (r.cmd == 0x16) tmode_before = mech3::mech_controls_view(mech3::mech_mission_player());
         for (uint32_t k : held) keys.key(k, true);
         keys.key(dik, true);
         r.pressed = true;
@@ -2391,6 +2406,14 @@ TEST(mission_c1m1_default_keys_fire_headless) {
         r.ran = g_key_ran[r.cmd];
         if (r.cmd == 0x61) view_after_x = mech3::program_view_mode_id();
         if (r.cmd == 0x27) mech3::describe_mech(mech3::mech_mission_player(), &enter_after);
+        if (r.cmd >= 0x62 && r.cmd <= 0x67) look_after[r.cmd - 0x62] = mech3::program_view_look_state();
+        if (r.cmd == 0x16) tmode_after = mech3::mech_controls_view(mech3::mech_mission_player());
+        if (r.cmd == 0x28)
+          for (int s = 0x14; s <= 0x16; ++s) {
+            zsnd::Object* o = mech3::cockpit_sounds().sound[s];
+            mode_sounds |= o != nullptr;
+            mode_played |= o && std::find(g_cockpit_played.begin(), g_cockpit_played.end(), o) != g_cockpit_played.end();
+          }
         if (r.cmd >= 0x1b && r.cmd <= 0x24) throttles[r.cmd - 0x1b] = mech3::mech_throttle_target(mech3::mech_mission_player());
         for (const auto& [k, n] : engine.unported_counts()) {
           auto it = before.find(k);
@@ -2433,6 +2456,13 @@ TEST(mission_c1m1_default_keys_fire_headless) {
     // 1..0: the throttle (0x004274d0); 2 is 0.2 though labelled 10%.
     const float want[10] = {0.0f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
     for (int i = 0; i < 10; ++i) EXPECT(std::fabs(throttles[i] - want[i]) < 1e-6f);
+    // Look left, right, up, down, ahead, back: the view's mode takes 0, 1, 4, 5, 2, 3 (vt+0x10).
+    const int want_look[6] = {0, 1, 4, 5, 2, 3};
+    for (int i = 0; i < 6; ++i) EXPECT(look_after[i] == want_look[i]);
+    mech3::cockpit_sound_calls() = mech3::CockpitSoundCalls{};
+    // Ctrl+keypad 0: into torso mode from 0 / 1, out of it from 2 / 3 (0x00426780).
+    EXPECT(tmode_before >= 0 && tmode_after >= 0 && (tmode_before >= 2) != (tmode_after >= 2));
+    EXPECT(mode_sounds && mode_played);  // \: the new mode's cockpit sound (0x0041e770)
     // Enter: the weapon after the current one in the HUD's list, its group selected.
     EXPECT(enter_before.weapon && enter_after.weapon && enter_after.weapon != enter_before.weapon);
     if (std::getenv("MW3_SURVEY"))
@@ -2926,8 +2956,8 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     void* player = nullptr;
     void* owens = nullptr;
     mech3::HudReport r;
-    uint32_t pitch = 0;
-    bool pitching = false;
+    uint32_t pitch = 0, pitch_up = 0;
+    bool pitching = false, raising = false;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
@@ -2951,6 +2981,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
         pitch = zin::key1_of(5) & 0xff;  // CMD_PITCH_DOWN
+        pitch_up = zin::key1_of(4) & 0xff;  // CMD_PITCH_UP
         mech3::program_hud_report(&r);  // the blip count from here
       } else if (seen.frames > 3 && seen.frames < 10 && mech3::program_hud_report(&r)) {
         // the throttle opened for a few frames, so the gauges move (hud.md section 17)
@@ -2985,13 +3016,15 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         if (r.lock >= 1 && r.lock <= 3 && !seen.first[r.lock]) seen.first[r.lock] = seen.frames;
         if (r.lock == 2 && seen.prev != 2 && !seen.first[3]) seen.waiting = seen.frames;  // the last wait before the lock
         seen.prev = r.lock;
-        // The torso pitched down until the reticle lies inside TARGET's
-        // triangle (the Owens projects below it), then held.
-        // (The pitch springs back when the key is let go: held around the
-        // triangle's middle.)
-        const bool low = r.ry > r.apex_y + (r.base_y - r.apex_y) / 2;
-        if (!low && !pitching) keys.key(pitch, true), pitching = true;
-        if (low && pitching) keys.key(pitch, false), pitching = false;
+        // The torso pitched until the reticle lies inside TARGET's triangle
+        // (the Owens projects below it), kept in its middle band. In the
+        // player's torso mode (+0x84 = 1, 0x00426780) the pitch holds where
+        // it is left and drifts on a little as the controls ease off, so
+        // the keys steer both ways.
+        const float h = static_cast<float>(r.base_y - r.apex_y);
+        const bool high = r.ry < r.apex_y + 0.35f * h, low = r.ry > r.apex_y + 0.65f * h;
+        if (high != pitching) keys.key(pitch, high), pitching = high;
+        if (low != raising) keys.key(pitch_up, low), raising = low;
         // The Owens walks: the player turned toward it while it is off centre
         // (yaw -pi/2 faces +x; the turn resets the torso, so not while pitching).
         if (std::abs(r.shape_x - static_cast<float>(r.rx)) > 4.0f && !pitching) {
@@ -3120,7 +3153,8 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
-    uint32_t fire = 0, pitch = 0;
+    uint32_t fire = 0, pitch = 0, pitch_up = 0;
+    bool raising = false;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
@@ -3131,6 +3165,7 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
         owens = made == 1 ? ai[0].mech : nullptr;
         fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
         pitch = zin::key1_of(5) & 0xff;    // CMD_PITCH_DOWN
+        pitch_up = zin::key1_of(4) & 0xff;  // CMD_PITCH_UP
         // 80 m west of the Owens, on the ground, facing east (+x: yaw -90).
         mech3::LaunchedMech o;
         mech3::describe_mech(owens, &o);
@@ -3147,7 +3182,9 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
         seen.hot_group = mech3::mech_select_hot_group(player);
       } else if (seen.frames > 6 && seen.frames < 400) {
         // The torso pitched down (CMD_PITCH_DOWN) until the reticle's ray
-        // ends on the Owens, then held there; where the ray ends.
+        // ends on the Owens, then kept there (in the player's torso mode the
+        // pitch holds and drifts on as the controls ease off: steered back
+        // up or down by where the ray ends); where the ray ends.
         mech3::LaunchedMech o;
         mech3::describe_mech(owens, &o);
         float p3[3];
@@ -3158,15 +3195,19 @@ TEST(mission_c1m1_player_aims_with_the_reticle_headless) {
           const float dx = p3[0] - o.pos[0], dz = p3[2] - o.pos[2];
           const float d = std::sqrt(dx * dx + dz * dz);
           if (d < seen.nearest) seen.nearest = d;
-          if (seen.frames > 30 && !seen.locked) {
-            if (hit && d < 8.0f) {
-              keys.key(pitch, false);
+          if (seen.frames > 30) {
+            mech3::LaunchedMech me;
+            mech3::describe_mech(player, &me);
+            const float far = std::hypot(p3[0] - me.pos[0], p3[2] - me.pos[2]);
+            const float to = std::hypot(o.pos[0] - me.pos[0], o.pos[2] - me.pos[2]);
+            const bool on = hit && d < 8.0f;
+            if (on && !seen.locked) {
               seen.locked = seen.frames;
               mech3::describe_mech(owens, &seen.owens_at_lock);
-            } else if (!seen.pitching) {
-              keys.key(pitch, true);
-              seen.pitching = true;
             }
+            const bool down = !on && (!seen.locked || far > to), up = !on && seen.locked && far <= to;
+            if (down != seen.pitching) keys.key(pitch, down), seen.pitching = down;
+            if (up != raising) keys.key(pitch_up, up), raising = up;
           }
         }
         zwep::PoolStats ps;

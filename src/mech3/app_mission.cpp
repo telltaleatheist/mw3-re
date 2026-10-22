@@ -51,6 +51,7 @@
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zweapon/zweapon.h"
+#include "mech3/cockpit_sound.h"
 #include "mech3/message_panel.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -665,6 +666,13 @@ struct WiredMissionHooks : MissionHooks {
   int32_t game_mission_number() override { return e->launch().number; }
   uint8_t game_saved() override { return 0; }
   void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
+  // 0x00413e60, the mechs' set-up: of it, the cockpit sounds (0x004141a0).
+  // The radar blips and the motions are made when first needed; the three
+  // network-dependent globals ([0x005e1f68], +0x74, +0x78) stay unported.
+  void mechs_init() override {
+    mech3::cockpit_sounds_load();
+    unported("0x00413e60 (the globals [0x005e1f68..0x005e1f78])", {});
+  }
   void fn_4319a0() override { mech3::mech_types_refresh(); }    // 0x004319a0: the mech types' sounds again
   uint8_t app_rgb() override { return app().byte_at(0x1b9); }       // 0x00608e41
   uint8_t app_turrets() override { return app().byte_at(0x1b2); }   // 0x00608e3a

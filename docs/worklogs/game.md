@@ -1033,3 +1033,30 @@ view's ground, the anim lookups 0x50b450 (92).
   the Owens' screens cycling). Breaks listed in docs/cockpit-damage.md.
 - Left: 0x0046dde0's respawn passes the cockpit node too (a hook still);
   `cpit_effects_reset` is never called by the code.
+
+## Playtest #14..#17: looking, torso mode, part targeting, op points, cockpit sounds (2026-10-21)
+
+- #14: the program wired the look keys (Mech::command's view +0x58 vt+0x10,
+  the mode's free look) to the camera switch 0x0040ae70. Now
+  `program_view_look`. The free look's and the cockpit's calls are
+  answered: the torso's 0x00464ac0, 0x00464c90, 0x00465ea0 / 0x00465f20,
+  0x00465a00 (centring, also CENTER_TORSO / CENTER_LEGS), 0x00466190; the
+  controls' view state 0x00426780 (`MechControls::set_view`, also torso
+  mode and FREELOOK); 0x0041ca30, 0x0041ca60; 0x00502da0 (anim block +0x3c).
+  Look back (3) changes nothing on the mech cameras, as in the exe.
+- #15: `Mech::target_part` 0x0041d810 and `aim_part` 0x0041d6f0 (+0xec, the
+  tick's tail); needs a targeting computer (equipment kind 14), as in the
+  exe. The side torsos' offset uses the chooser's own torso width (exe).
+- #16: [0x00609980] is the mission's +0xb0, multiplayer's stations; null
+  outside multiplayer, where N and the rest do nothing. The command checks
+  it (`CommandCalls::stations`).
+- #17: the cockpit sound table (0x004141a0, loaded in `mechs_init`
+  0x00413e60) and 0x0041e770 / 0x0041e7a0 / 0x0041e7e0 / 0x0041e800
+  (`mech3/cockpit_sound`); wired to the weapons, the mech, the death and the
+  HUD's channels. Half the 30 lines are never played by 1.2.
+- Tests: test_parts (ops 15..22: the torso calls, the view state, the part
+  choice and point), test_command (stations null 1 in 4),
+  test_cockpit_sound (new), the keys test (looks, torso mode's toggle, the
+  mode's sound). 12 breaks caught (look.md, cockpit-sounds.md).
+- Left: the wall pull-in 0x0040b310; multiplayer's stations; the rest of
+  0x00413e60 (three network-dependent globals).

@@ -24,6 +24,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/app_mech.h"
 #include "mech3/armor_display.h"
+#include "mech3/cockpit_sound.h"
 #include "mech3/app_view.h"
 #include "mech3/hud.h"
 #include "mech3/mech.h"
@@ -61,6 +62,10 @@ zcls::Camera* camera_data() {
 // layout's mech fields, the nav list, sounds; hud.md section 9).
 struct ProgramHudHooks : HudHooks {
   uint32_t id(const void* p) override { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+  // The HUD's channels are the cockpit sounds (0x0041e770, 0x0041e7a0, 0x0041e800).
+  void hud_sound_play(int32_t channel) override { cockpit_sound_play(channel, 1.0f); }
+  void hud_sound_stop(int32_t channel, int32_t fade) override { cockpit_sound_stop(channel, fade); }
+  bool hud_sound_playing(int32_t channel) override { return cockpit_sound_voice(channel) != nullptr; }
   void player_camera_clip(float* n, float* f) override {  // 0x004f3b00
     const zcls::Camera* c = camera_data();
     *n = c ? c->get<float>(0xb0) : 1.0f;
@@ -186,7 +191,12 @@ struct ProgramHudHooks : HudHooks {
   void* group_current_weapon(void* g) override { return static_cast<WeaponGroup*>(g)->current_weapon; }
   float weapon_speed(void* w) override { return wp(w)->def ? wp(w)->def->velocity : 0.0f; }
   uint32_t weapon_def_flags(void* w) override { return wp(w)->def ? wp(w)->def->flags : 0; }
-  bool mech_aim_point(Mech*, float*) override { return false; }  // +0xec / +0xf8 not modelled (hud.md, Left)
+  // The chosen part (+0xf8) and its point (+0xec, 0x0041d6f0; playtest #15).
+  bool mech_aim_point(Mech* m, float* out) override {
+    if (!m || m->xf8 == -1) return false;
+    out[0] = m->part_aim.x, out[1] = m->part_aim.y, out[2] = m->part_aim.z;
+    return true;
+  }
   void mech_position(Mech* m, float out[3]) override { mech_pos(m, out); }
   void vehicle_position(void* v, float out[3]) override { entity_position(v, out); }
   void mech_velocity(Mech* m, float out[3]) override { out[0] = m->velocity.x, out[1] = m->velocity.y, out[2] = m->velocity.z; }

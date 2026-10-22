@@ -16,6 +16,7 @@ namespace zin { struct MouseInfo; }
 namespace mech3 {
 
 struct Mech;
+class CameraMode;
 
 // Mech3.exe 1.2 @ 0x0042fea0: a source's reading (1..6 the stick's axes, 7, 8
 // its sliders, 9..11 the mouse); null devices read 0.
@@ -58,6 +59,9 @@ struct MechControls {
   virtual int update(float dt);  // IControls +0x0c: 0x00426960 for the base and network class
   int smooth(float dt) { return MechControls::update(dt); }  // 0x00426960 whatever the class
   void set_throttle(float v);    // 0x00426b60 (IControls +0x20)
+  // 0x00426780: the player's view state (+0x0c: 0 the torso, 1 free look in
+  // the cockpit, 2 / 3 torso mode; docs/look.md).
+  void set_view(int32_t v);
   void set_turn(float v) { turn_target = v; }  // 0x00426b10 (IControls +0x28)
   void set_jump(float v, bool hold = false) {  // 0x00426b20 (IControls +0x34: 0x00426b40, no hold)
     jump_target = v;
@@ -142,6 +146,11 @@ struct ControlsCalls {
   void (*pilot_tick)(MechControls&) = nullptr;   // IControls +0xa4: 0x004d8990 (0x004d9290)
   uint8_t (*screen_busy)(void* screen) = nullptr;  // the HUD's +0x167c
   void (*zoom)(void* screen, bool in) = nullptr; // the HUD's +0x1508: vt +0x60(-1) held, vt +0x64 let go
+  // The view (0x00426780): the mech's camera `id` (vt+0x10c), the view's
+  // target ([0x005f4c8c] +0x64) and its mode (+0x58); unset: none.
+  CameraMode* (*mech_camera)(Mech&, int32_t id) = nullptr;
+  Mech* (*view_target)() = nullptr;
+  CameraMode* (*view_mode)() = nullptr;
   int (*ai_brain)(MechControls&, float dt) = nullptr;  // AI controls without a brain (the tests'); unset: the smoothing alone
   void (*joy_use)() = nullptr;                   // 0x0051b2c0; unset: zin::joy_use
 };

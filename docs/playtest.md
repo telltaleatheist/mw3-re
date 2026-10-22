@@ -23,10 +23,10 @@ the briefing's load freeze (5a55624).
 | 11 | Trucks, APCs and mobile HQs fail to build | vehicles (AI controls) | AI area | waiting |
 | 12 | Every key binding checked: does each command do what it should? | controls, all 0xa7 commands | mac 2 | audited 258364d (keybindings.md); every default key fires; 1..0, Backspace and Ctrl+Q fixed; the rest below |
 | 13 | HUD keys reach no HUD command: Z, keypad 0, F12, Q, T, R, Shift+R, D, Ctrl+D; Alt+R's radar light | the HUD's commands (0x43da40 ..), 0x41ded0 | mac 3 | fixed (hud.md section 19), Owen to check. Left: F12's box text (0x446ad0), Shift+R's mission maps (0x458590) |
-| 14 | Look keys, torso mode (Ctrl+keypad 0) and centring (/, Shift+/) do nothing | views 0x426780, 0x40b310, 0x502da0, 0x41ca30/60; torso 0x465a00, 0x464ac0 | mac 2 | open |
-| 15 | Keypad 1..9 don't target a part | 0x41d810 | mac 2 | open |
-| 16 | N, Shift+N, Ctrl+N don't change the op point | [0x609980] vt+0x60..0x68 | mac 2 | open |
-| 17 | \ switches the fire mode silently | cockpit sound 0x41e770 | mac 2 | open |
+| 14 | Look keys, torso mode (Ctrl+keypad 0) and centring (/, Shift+/) do nothing | views 0x426780, 0x40b310, 0x502da0, 0x41ca30/60; torso 0x465a00, 0x464ac0 | mac 2 | fixed bc64d6f |
+| 15 | Keypad 1..9 don't target a part | 0x41d810 | mac 2 | fixed bc64d6f |
+| 16 | N, Shift+N, Ctrl+N don't change the op point | [0x609980] vt+0x60..0x68 | mac 2 | fixed bc64d6f |
+| 17 | \ switches the fire mode silently | cockpit sound 0x41e770 | mac 2 | fixed bc64d6f |
 | 18 | Lance orders (F6..F11) and Order MFB (M) | 0x469930, 0x47a910 | AI area | waiting |
 | 19 | The cockpit shows bullet holes from the start; they should appear only when the cockpit is hit | cockpit model (0x00430ad0's damage textures / the cockpit explosion restart), cpit_ani* cycled textures "no GFX data" | mac 2 | fixed c6722e4 |
 | 20 | Zoom (keypad 0) doesn't show, but its sound plays over and over | HUD zoom window, #13 | mac 3 | fixed: the controls' zoom hooks were never wired, so the window's flags read "shown" with the key up and the click played every frame; now one click per change (hud.md section 19), Owen to check |

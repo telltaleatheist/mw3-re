@@ -31,6 +31,8 @@ void program_view_make(void* camera_node);  // 0x0040aca0
 void program_view_free();                   // the view deleted (the mission unload's operator delete)
 void program_view_attach(Mech& m);          // the mech's 0x0041ce30
 void program_view_set_camera(int32_t id);   // 0x0040ae70
+void program_view_look(int32_t look);       // [0x005f4c8c] +0x58 vt+0x10 (the free look)
+int32_t program_view_look_state();          // the mode's free look (+0x40), -1 without a mode
 void* program_cameras(int32_t roster);       // 0x00430e70
 void program_cameras_free(void* list);      // 0x0040abf0
 // The options' camera choice (0x0040ce70 / 0x0040ce10; defined with the options).
