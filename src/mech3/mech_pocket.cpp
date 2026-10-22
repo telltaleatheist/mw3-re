@@ -1,6 +1,7 @@
 #include "mech3/mech_pocket.h"
 
 #include "mech3/mech.h"
+#include "mech3/pocket_panel.h"
 
 namespace mech3 {
 namespace {
@@ -55,7 +56,7 @@ PocketControls::~PocketControls() {
   if (panel && owner && g_calls.hud_hold) g_calls.hud_hold(*owner, true);
   if (panel) {
     if (g_calls.panel_free) g_calls.panel_free(panel);
-    else note("0x00468720");
+    else delete static_cast<PocketPanel*>(panel);  // 0x00468720
   }
   panel = nullptr;
   if (player_controls_instance() == this) player_controls_instance() = nullptr;
@@ -68,7 +69,7 @@ void PocketControls::set_owner(Mech* m) {
   owner = m;
   if (panel) {
     if (g_calls.panel_free) g_calls.panel_free(panel);
-    else note("0x00468720");
+    else delete static_cast<PocketPanel*>(panel);  // 0x00468720
   }
   panel = nullptr;
   x16c = x170 = x174 = 0;
@@ -76,8 +77,7 @@ void PocketControls::set_owner(Mech* m) {
   aim = ai::Contact{};
   x1c0 = 0, x1c1 = 0;
   if (!m) return;
-  panel = g_calls.panel_make ? g_calls.panel_make(*this) : nullptr;
-  if (!g_calls.panel_make) note("0x00468250");
+  panel = g_calls.panel_make ? g_calls.panel_make(*this) : new PocketPanel(this, panel_x, panel_y, 0x0c);
   if (g_calls.hud_hold) g_calls.hud_hold(*m, false);
 }
 
@@ -101,7 +101,7 @@ void PocketControls::command(int32_t cmd) {
   if (!m || m->is_powered_down()) return;
   if (cmd >= 0x1b && cmd <= 0x1e) {
     if (g_calls.panel_pick) g_calls.panel_pick(*this, cmd - 0x1a);
-    else note("0x00469060", static_cast<uint32_t>(cmd - 0x1a));
+    else if (panel) static_cast<PocketPanel*>(panel)->pick(cmd - 0x1a);
     return;
   }
   if (cmd >= 0x1f && cmd <= 0x23) return;

@@ -106,7 +106,7 @@ void retarget_team(Mech& mate, uint32_t target, int32_t order) {
 int32_t pocket_order(PocketControls& p, int32_t order, uint32_t target, bool on_target) {
   PocketCalls& pc = pocket_calls();
   PocketUnit units[32];
-  const int32_t n = pc.panel_units ? pc.panel_units(p, units, 32) : 0;
+  const int32_t n = pc.panel_units ? pc.panel_units(p, units, 32) : pocket_panel_units(p, units, 32);
   if (n <= 0) return 2;
   bool taken = false, refused = false;
   for (int32_t i = 0; i < n; ++i) {

@@ -142,6 +142,7 @@ add_library(mw3core STATIC
   src/mech3/mech_command.cpp
   src/mech3/lance_orders.cpp
   src/mech3/mech_pocket.cpp
+  src/mech3/pocket_panel.cpp
   src/mech3/cockpit_sound.cpp
   src/mech3/mech_objective.cpp
   src/mech3/mech_shade.cpp
@@ -256,6 +257,7 @@ add_library(mw3probe SHARED
   tests/probe_weapons_fly.cpp
   tests/probe_twod.cpp
   tests/probe_mainmenu.cpp
+  tests/probe_pocket_panel.cpp
   tests/probe_menus.cpp
   tests/probe_lab_list.cpp
   tests/probe_ctlscreen.cpp

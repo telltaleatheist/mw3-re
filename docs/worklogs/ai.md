@@ -508,3 +508,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   under the cursor, make it the lancemate's enemy or ally); in_pocket uses them. The units come from
   PocketCalls::panel_units (the panel, L4c2; unset: none).
 - test_pocket_orders.py: 3,000 cases identical, 7 of 7 breaks.
+
+## 2026-10-22 Item L4c2a: the pocket commander's panel (mac4/panel)
+
+- mech3/pocket_panel: PocketPanel (0x468250, 0x468720, pick 0x469060,
+  0x4687e0), its lines (PocketItem 0x4674f0, PocketMateItem 0x467620,
+  PocketOrderItem 0x467960 / 0x4679a0 with the five lit tests), the
+  colours, the orders' table 0x467d80, the mission start / end (0x46aaa0,
+  0x46ab10, sounds 0x46a930). The mode makes, picks and frees the panel by
+  default; pocket_order reads its units (pocket_panel_units).
+- test_pocket_panel.py: 200 runs identical (calls and dump), 200 tables;
+  16 of 16 breaks (one found a test gap: replayed names hid an extra line,
+  so the names now go in the plan).
+- Left for L4c2b: the frame 0x469d00, the program's keys, names, cursor,
+  marker and mission start wiring; L4c2c: 0x468900, 0x467760, 0x46b0a0,
+  0x46af30.
