@@ -447,8 +447,35 @@ have: in c4b mission 6 the player's own `vlist` sets the valves
 `reg_outside_c4bm6/7`. The mission's fail objective is `outside_c4m7`
 ("left the mission boundaries", objectives.zrd `m6`), so in that mission
 leaving the area never fails it (and the map has no boundary to draw,
-likely). Which pair was meant is not clear
-(fixes.md, candidates).
+likely).
+
+**Which pair c4b mission 6 meant** (2026-10-22, item 3a; the hulls of the
+files' nodes against the aiv.zrd positions). The region file names run one
+mission ahead of the missions: c4b m4's archive ships `..._c4bm5`, m5's
+`..._c4bm5` and `..._c4bm6` (with `..._c4m5`, the pair it uses), m6's
+`..._c4bm6` and `..._c4bm7`. In m6 the `c4bm7` pair is a boundary: inside
+x 947..2930, z -3430..-1328, outside a ring around it (x 736..3173, z
+-3601..-1145), and all nine of the mission's vehicles start inside both
+(the player at (1375, -3135) with Dominic, Epona and Alan beside him).
+The `c4bm6` pair is two small areas side by side, not nested (inside 240 by
+48 m, outside 870 by 110 m), with no vehicle in either; m5 ships the same
+two files, unused. So m6 meant `reg_inside_c4bm7` / `reg_outside_c4bm7`
+for `reg_inside_c4m7` / `reg_outside_c4m7`.
+
+Two neighbours, found on the way:
+- c4b **m5**'s outside entry sets the valve `reg_outside_c4m5` (the
+  region's name, item 16) where its fail objective watches `outside_c4m5`:
+  leaving m5's area never fails it either. Its regions load and hold all
+  15 vehicles.
+- c4b **m4**'s entries run the other way round from every other mission's:
+  `outside_c4m4` is set when the player is *inside* `reg_outside_c4bm5`
+  (item 9, not 17), and none of m4's 21 vehicles starts inside either m4
+  region. So in m4 the pair marks a place the player must not enter, which
+  may be meant; left as it is.
+
+Neither boundary works in the port yet whatever the names: the player's own
+vlist (IControls +0xa4, 0x4d8990 on the player's AI settings 0x4d9840) is
+not wired in the program (17.5).
 
 ## 9. The compiled net
 
