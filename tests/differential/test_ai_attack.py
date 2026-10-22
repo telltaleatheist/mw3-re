@@ -31,18 +31,21 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_orders as to  # noqa: E402
 from calltrace import Trace  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 U, I = ctypes.c_uint32, ctypes.c_int32
 ATTACK, OWNER = 0x4e9ca0, 0x2c7f0000  # the probe's kOwner, the vehicle's handle in the traces
 VT_PART, VT_END, VT_REARM, VT_RETURN = 0x5cac30, 0x5cb928, 0x5cba00, 0x5cbad8
 VT_VPART, VT_FIGHT, ENT1 = 0x5cac40, 0x5ccb60, 0x2c7f4400  # the probe's ent_handle(1): the target
+VT_FOLLOW = 0x5cca88  # the follow state 0x4d1870 (item L3)
 f2i = to.f2i
 
 
 def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
-COVER = {0x4cc5e4: 'station: past its range', 0x4cc612: 'station: too close ahead', 0x4cc63c: 'station: too close behind',
+COVER = {0x4d1aea: 'follow: not pulled', 0x4d1a20: 'follow: pulled, set again', 0x4d1a0e: 'follow: pulled, x the same as before',
+         0x4d1b9d: 'follow: the carrot floored', 0x4d1c66: 'follow: given up', 0x4cc5e4: 'station: past its range', 0x4cc612: 'station: too close ahead', 0x4cc63c: 'station: too close behind',
          0x4cc665: 'station: beside, reversing', 0x4cc67f: 'station: beside', 0x4cc6d5: 'station: swerve',
          0x4cc75c: 'station: the swerve held', 0x4cc7a1: 'station: idle', 0x4cc848: 'station: backing, turning',
          0x4cc93a: 'station: driving off, turning', 0x4cca85: 'station: alongside, turning', 0x4cc1ef: 'station: the hold made', 0x4cc225: 'station: kept', 0x4cc213: 'station: a lancemate by the player?',
@@ -87,7 +90,8 @@ class Original(to.Original):
         e.w32(cvt + 0x1c, self.fld_thunk('ictl.vt+0x1c', 0))
         e.w32(cvt + 0x20, e.new_stub('ictl.vt+0x20', 's0', 4))
         e.w32(cvt + 0x28, e.new_stub('ictl.vt+0x28', 's0', 4))
-        self.v = e.world_alloc(0x100)
+        e.w32(cvt + 0x30, self.fld_thunk('ictl.vt+0x30', 0))  # the follow's walk (0x4cee80): the turn goal
+        self.v = e.world_alloc(0x600)  # to its +0x518 (the follow's speed)
         vvt = e.world_alloc(0x200)
         e.w32(self.v, vvt)
         e.w32(vvt + 0x12c, self.fld_thunk('vehicle.vt+0x12c', 4, 's0'))
@@ -103,8 +107,20 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
-        for maker in (0x4c9730, 0x4d1300, 0x4d1630, 0x4c89f0):
+        for maker in (0x4c9730, 0x4d1300, 0x4d1630):  # the follow 0x4c89f0 is the port's (item L3)
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
+        # The follow's speed: the Mech's vt+0x118 (0x41d1c0: its +0x518 x the
+        # share); the probe's mech the same 12 m/s.
+        e.w32(e.r32(self.v) + 0x118, 0x41d1c0)
+        e.cpu.write(self.v + 0x518, struct.pack('<f', 12.0))
+        # The brain's steering as its constructor leaves it (0x4ce620: +0x34 20,
+        # +0x38 cos 45) and the start-up's cosines the follow reads (0x4ce5b0).
+        e.cpu.write(b + 0x250 + 0x34, struct.pack('<ff', 20.0, math.cos(0.7853981633975001)))
+        for addr, ang in ((0x60b4a0, 0.7853981633975001), (0x60b4a4, 0.17453292519944444),
+                          (0x60b49c, 0.3490658503988), (0x60b494, 2.3561944901919)):
+            e.cpu.write(addr, struct.pack('<f', math.cos(ang)))
+        # MSVCRT's _copysign (the steering's measure 0x4ceb50; test_ai_frame.py's bytes).
+        e.cpu.import_code(0x5bb5ac, bytes.fromhex('dd442404 d9e1 f644241380 7402 d9e0 c3'))
         # The brain's own order (+0x194, its owner this brain), the pick's
         # contacts, the target vehicle's bearer (vt+0x40) and own net
         # (vt+0xd8, the Mech's 0x4d70f0).
@@ -218,15 +234,22 @@ class Original(to.Original):
         e.w32(0x60991c, now)
         e.w32(b + 0x40, mode & 0xffffffff)
 
-    def fight_push(self):
+    def fight_push(self, slot=1):
         e = self.e
         vn = e.call(0x4d70f0, ecx=self.target)
-        beh = e.r32(e.r32(vn + 0xc) + 4)
+        beh = e.r32(e.r32(vn + 0xc) + 4 * slot)
         return e.call(to.F['push'], ecx=self.brain, stack=(vn, beh)) & 0xff
 
     def pull(self, e, key, a, pop):
         r = self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
-        e.cpu.write(a[1], bytes(12))  # the port's hook leaves its zeros (halved)
+        # The follow's (the target's place in EDX, 0x4d19ee) and its walk's (the
+        # carrot, in and out the same, 0x4ceedb): EDX's point pulled.
+        if e.r32(e.uc.reg_read(UC_X86_REG_ESP)) in (0x4d19ee, 0x4ceedb):
+            if r & 0xff:  # the port's hook's boundary: halfway to the origin
+                x, y, z = struct.unpack('<3f', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))
+                e.cpu.write(a[1], struct.pack('<3f', f32(x * 0.5), y, f32(z * 0.5)))
+        else:
+            e.cpu.write(a[1], bytes(12))  # the port's hook leaves its zeros (halved)
         e._ret(r, pop)
 
     def nearest(self, e, key, a, pop):
@@ -269,7 +292,7 @@ class Original(to.Original):
         for o in orders:
             part, state = e.r32(o + 0xc), e.r32(o + 0x10)
             real_part = part and e.r32(part) in (VT_PART, VT_VPART)
-            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT)
+            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT, VT_FOLLOW)
             row = [e.cpu.read(o + 4, 1)[0], int(e.r32(o + 8) == self.brain),
                    e.r32(part + 4) if part and not real_part else 0,
                    e.r32(e.r32(part + 8) + 4) if part and not real_part else 0,
@@ -283,7 +306,10 @@ class Original(to.Original):
                 row[17] = self.home_code(e.r32(part + 0x14), orders)
             if real_state:
                 vt = e.r32(state)
-                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4}[vt]
+                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4, VT_FOLLOW: 5}[vt]
+                if vt == VT_FOLLOW:  # its pulled byte, the steering's carrot and its floor
+                    row[19] = e.cpu.read(state + 0x10, 1)[0]
+                    row[20:22] = [e.r32(self.brain + 0x250 + 0x1c), e.r32(self.brain + 0x250 + 0x14)]
                 if vt == VT_FIGHT:
                     row[20] = e.r32(state + 0xc)
                 if vt == VT_RETURN:
@@ -319,6 +345,9 @@ def setup_probe():
     probe.probe_ao_turn_params.argtypes = [ctypes.c_void_p]
     probe.probe_ao_fight_world.argtypes = [ctypes.c_void_p, I, U, U, U, I]
     probe.probe_ao_fight_push.restype = I
+    probe.probe_ao_fight_push.argtypes = [I]
+    probe.probe_ao_steer_offsets.argtypes = [ctypes.c_float, ctypes.c_float]
+    probe.probe_ao_steer_block.argtypes = [ctypes.c_void_p]
     probe.probe_ao_set_now.argtypes = [U]
     probe.probe_ao_own_world.argtypes = [ctypes.c_void_p]
     probe.probe_ao_own.argtypes = [U]
@@ -333,7 +362,7 @@ def world(rng):
     if rng.random() < 0.5:  # +0x28 past +0x2c, as c1m1's Owens has them (80, 60)
         near, far = near + far, -far * 0.5
     w = [f2i(near), f2i(near + far), rng.choice([0, 1]), rf(0, 30), rng.choice([0, 0, 1]), rng.choice([0, 0, 1]),
-         f2i(rng.choice([0.0, 0.0, 0.7, 1.0, 0.4])), f2i(rng.choice([0.5, 1.0, 0.8])),
+         f2i(rng.choice([0.0, 0.0, 0.7, 1.0, 0.4, float('nan')])), f2i(rng.choice([0.5, 1.0, 0.8])),
          f2i(rng.choice([3.4028235e38, 50.0])), f2i(rng.choice([3.4028235e38, 120.0])), rf(0, 1)]
     w += [rf(-300, 300), rf(0, 20), rf(-300, 300)]
     a = rng.uniform(-3.2, 3.2)
@@ -381,6 +410,13 @@ def run_case(probe, seed, rounds):
             raise SystemExit(f'seed {seed} {what}: stacks differ\n  exe  {a}\n  port {b}')
         if orig.brain_row() != list(br):
             raise SystemExit(f'seed {seed} {what}: brain {orig.brain_row()} vs {list(br)}')
+        # The steering (+0x250) the follow sets and walks by, whole.
+        sb = (ctypes.c_uint8 * 0x48)()
+        probe.probe_ao_steer_block(sb)
+        if bytes(sb) != bytes(orig.e.cpu.read(orig.brain + 0x250, 0x48)):
+            mine = struct.unpack('<18I', bytes(sb))
+            theirs = struct.unpack('<18I', bytes(orig.e.cpu.read(orig.brain + 0x250, 0x48)))
+            raise SystemExit(f'seed {seed} {what}: steering\n  exe  {[hex(x) for x in theirs]}\n  port {[hex(x) for x in mine]}')
         return len(a)
 
     for k in range(rounds):
@@ -424,11 +460,12 @@ def run_case(probe, seed, rounds):
             orig.fight_world(*fw)
             probe.probe_ao_set_now(fw[4])
             probe.probe_ao_fight_world((ctypes.c_float * 3)(*tpos), *fw[1:])
-            ra, rb = orig.fight_push(), probe.probe_ao_fight_push() & 0xff
+            slot = 0 if rng.random() < 0.5 else 1  # the follow (slot 0, the lance's order) or the fight
+            ra, rb = orig.fight_push(slot), probe.probe_ao_fight_push(slot) & 0xff
             if ra != rb:
                 raise SystemExit(f'seed {seed}: fight push {ra} vs {rb}')
-            check('fight')
-            stats['fights'] = stats.get('fights', 0) + 1
+            check('follow' if slot == 0 else 'fight')
+            stats['follows' if slot == 0 else 'fights'] = stats.get('follows' if slot == 0 else 'fights', 0) + 1
             fight = fw
         else:
             fight = None
@@ -459,6 +496,14 @@ def run_case(probe, seed, rounds):
                 what = 'world'
             else:
                 f = f2i(rng.choice([1 / 30, 0.25]))
+                if any(orig.e.r32(orig.e.r32(o + 0x10)) == VT_FOLLOW for o in orig.orders() if orig.e.r32(o + 0x10)):
+                    # The carrot's offsets the steering's update (0x4cec80, not run
+                    # here) leaves between frames: the follow's walk drives by them.
+                    along = f32(rng.choice([0.0, rng.uniform(-60, 60), rng.uniform(-3, 3)]))
+                    across = f32(rng.choice([0.0, rng.uniform(-8, 8), rng.uniform(-2.5, 2.5)]))
+                    orig.e.cpu.write(orig.brain + 0x250 + 0x2c, struct.pack('<f', along))
+                    orig.e.cpu.write(orig.brain + 0x250 + 0x20, struct.pack('<f', across))
+                    probe.probe_ao_steer_offsets(along, across)
                 orig.op(16, 0, 0, f)
                 probe.probe_ao_op(16, 0, 0, f)
                 what = 'run'
@@ -523,7 +568,7 @@ def main():
     never = [COVER[a] for a in COVER if a not in REACHED]
     if never:
         raise SystemExit(f'branches never reached: {never}')
-    print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("fights", 0)} fights, {total.get("run", 0)} runs, '
+    print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("fights", 0)} fights, {total.get("follows", 0)} follows, {total.get("run", 0)} runs, '
           f' {total.get("pop", 0)} pops, {total.get("own", 0)} own-order runs ({total.get("own built", 0)} with a part) identical; {len(COVER)} branches reached')
 
 

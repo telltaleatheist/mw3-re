@@ -106,8 +106,11 @@ class DeployState : public NodeState {
 // 0x004cee80: one frame of walking toward the carrot: the turn and the
 // throttle for the controls. `away` is the vehicle's along and side from
 // the carrot (absolute), `dist` their sum, `near` how close counts as there
-// (half the stopping distance), `inv_slow` its inverse.
+// (half the stopping distance), `inv_slow` its inverse; the throttle comes
+// from how far along and aside it is past `slack_along` / `slack_side`
+// (the nodes' 0.04 each; the follow state's its own).
 void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3], const float away[2], float dist,
-                float near, float* turn, float* throttle, float inv_slow);
+                float near, float* turn, float* throttle, float inv_slow, float slack_along = 0.04f,
+                float slack_side = 0.04f);
 
 }  // namespace mech3::ai

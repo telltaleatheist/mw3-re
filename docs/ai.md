@@ -2351,11 +2351,34 @@ reach whether or not anyone attacked them. Each part, with the code:
 - **"Attack my target".** The lance order (0x4ea450, by the command
   handler 0x469866..0x469910 for the selected lancemate, +0xbc bit 4)
   stops the current order (vt+0x40) and pushes the target vehicle's own
-  net's follow behaviour (0x4c0de0): its state (0x4d1870, run 0x4d1980,
-  not ported) steers after that vehicle, keeping off by half the gap
-  between its +0x28 and +0x2c, until the vehicle is gone or not active
-  (+0x08), when it pops itself (order vt+0x08) and the order under it runs
-  again. It sets no target: the lancemate still shoots whatever the firing
+  net's follow behaviour (0x4c0de0): its state (0x4d1870, run 0x4d1980)
+  steers after that vehicle, keeping off by half the gap between its
+  +0x28 and +0x2c, until the vehicle is gone or not active (+0x08), when
+  it pops itself (order vt+0x08) and the order under it runs again.
+
+  **The follow, ported** (2026-10-22, item L3: `FollowState` in
+  `zai_attack`, VehFollow's state; `walk_drive` takes 0x4cee80's two
+  slacks, the nodes' 0.04 each). The steering segment runs from the
+  target back to the pilot (0x4cea30(pilot, target, speed, vehicle)),
+  the carrot falling toward the target at the pilot's speed (vt+0x118 of
+  +0x84, or +0xec when that is 0 or NaN), +0x38 cos 10 degrees
+  ([0x60b4a4]). Each run: with no target place, no own place or the
+  target not active, the order pops; else the target's place through the
+  boundary (0x4c3000). Not pulled: the segment set again, the carrot
+  where it was from the pilot (its along taken off, its side offset
+  kept), no nearer than (+0x2c + +0x28) / 2; the walk's slacks (+0x28 -
+  +0x2c) / 2 along and 2 aside ([0x5e8be0]); +0x10 cleared. Pulled: the
+  same toward the pulled point (unless it is where the segment starts
+  already and +0x10 is set; a NaN counts as the same), no floor, no
+  slacks; +0x10 set. Then the measure (0x4ceb50), the away and their
+  sum (0x4cee50), the walk (0x4cee80, near 2 [0x5e8be4], 0.05 for the
+  inverse [0x5e8be8]) and the controls' turn and throttle. Test:
+  `test_ai_attack.py` pushes the follow in half its fights (slot 0): 365
+  follows over the runs, the calls, the stack rows (the state's +0x10,
+  the carrot and its floor) and the whole steering block identical, 5
+  marked branches; the test sets the steering's offsets between runs (the
+  update 0x4cec80 is not run there). 9 of 10 breaks; the tenth (the
+  run's +0x38 left as the constructor set it) is the same. It sets no target: the lancemate still shoots whatever the firing
   scores best, usually the ordered one once it is the nearest.
 - **When the ordered target dies.** The follow pops (above); the sensors
   (0x4a9e70) drop the lost contact and make the nearest of the rest the
