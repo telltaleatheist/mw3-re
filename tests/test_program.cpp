@@ -2418,6 +2418,148 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The player's allies fight only what comes in reach (docs/ai.md 17.8b): in
+// c1 mission 4 Dominic, woken, with an enemy put 60 m in front of him and no
+// order given, takes it as his target and fires at it, never closing in.
+TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lance_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      mech3::ai::Brain* brain = nullptr;
+      void* dominic = nullptr;
+      void* enemy = nullptr;
+      zgame::Handle dv = 0, ev = 0;
+      std::string enemy_name;
+      int frames = 0, engage = 0, targeted = 0, on_enemy = 0, aiming = 0, firing = 0, attacks = 0;
+      int down = 0, contacts = 0, enemy_contacts = 0, phase = -1;
+      bool ai_on = false;
+      float xe8 = 0, start[3] = {}, moved = 0;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i) {
+          const std::string n = ai[i].name ? ai[i].name : "";
+          if (n == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          } else if (!seen.enemy && n.rfind("blackhawk", 0) == 0) {
+            seen.enemy = ai[i].mech, seen.enemy_name = n;
+          }
+        }
+        if (!seen.dominic || !seen.enemy || !seen.brain) return;
+        seen.dv = engine.handle_of(seen.dominic), seen.ev = engine.handle_of(seen.enemy);
+        // The enemy (powered down) put 60 m in front of Dominic, nobody
+        // fighting, no order given (MW3_LANCE_AT=150: he aims but never fires).
+        mech3::LaunchedMech d;
+        mech3::describe_mech(seen.dominic, &d);
+        std::copy(d.pos, d.pos + 3, seen.start);
+        const float x = d.pos[0] + (std::getenv("MW3_LANCE_AT") ? std::strtof(std::getenv("MW3_LANCE_AT"), nullptr) : 60.0f), z = d.pos[2];
+        const float at[3] = {x, ground_under(x, d.pos[1] + 100.0f, z), z};
+        mech3::move_mech(seen.enemy, at, 1.5707964f);
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);  // he starts powered down
+        seen.xe8 = seen.brain->xe8;
+      } else if (seen.frames > 3 && seen.brain) {
+        mech3::ai::Brain& b = *seen.brain;
+        if (b.params.get<int32_t>(0x3c)) ++seen.engage;
+        if (b.xe8 != seen.xe8) ++seen.attacks, seen.xe8 = b.xe8;
+        const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(seen.dv);
+        if (t && t->target) {
+          ++seen.targeted;
+          if (mech3::ai::brain_hooks().contact_vehicle(t->target) == seen.ev) ++seen.on_enemy;
+        }
+        if (mech3::ai::brain_hooks().powered_down(seen.dv) == 1) ++seen.down;
+        seen.ai_on = mech3::ai::ai_switch();
+        seen.phase = b.firing.phase;
+        if (t) {
+          seen.contacts = std::max(seen.contacts, static_cast<int>(t->contacts.size()));
+          for (const mech3::ai::Contact* c : t->contacts)
+            if (mech3::ai::brain_hooks().contact_vehicle(c) == seen.ev) ++seen.enemy_contacts;
+        }
+        if (b.firing.phase == 2 || b.firing.phase == 3) ++seen.aiming;
+        if (b.firing.phase == 4 || b.firing.phase == 7) ++seen.firing;
+        mech3::LaunchedMech d;
+        mech3::describe_mech(seen.dominic, &d);
+        const float dx = d.pos[0] - seen.start[0], dz = d.pos[2] - seen.start[2];
+        seen.moved = std::max(seen.moved, std::sqrt(dx * dx + dz * dz));
+      }
+    };
+    CountingPump pump;
+    pump.limit = 900;  // 30 s
+    app.run(pump);
+    EXPECT(seen.frames >= 600 && seen.brain && seen.enemy);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr,
+                   "DOMINIC vs %s: engage %d attacks %d targeted %d on it %d aiming %d firing %d moved %g"
+                   " | down %d ai %d contacts %d its %d phase %d\n",
+                   seen.enemy_name.c_str(), seen.engage, seen.attacks, seen.targeted, seen.on_enemy,
+                   seen.aiming, seen.firing, seen.moved, seen.down, seen.ai_on, seen.contacts, seen.enemy_contacts, seen.phase);
+    // The firing picked the enemy itself (0x004b6790) and fired at it, with
+    // engaging off all along, no attack and no step toward it (ai.md 17.8b).
+    if (!std::getenv("MW3_LANCE_AT")) {
+      EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.firing > 300);
+      EXPECT(seen.engage == 0 && seen.attacks == 0 && seen.moved < 1.0f);
+    }
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1's Owens walking its net (docs/ai.md 17.4a): woken by bramp,
 // its shared order puts it on the node of net 4 nearest it, where it
 // stands, so it is there at once and goes on by the node's one link: a

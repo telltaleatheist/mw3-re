@@ -406,8 +406,10 @@ To do, in the specialists' queues:
   time its 30 fps one, the strike on the marked unit (weapons.md, "TAG,
   end to end", The fix).
 - Allied pilots fight the target they are told to, then pick their own
-  targets after it (the attack 0x4e9710's "nearest enemy when none is
-  selected", which never happens as written). `zfix bugs`.
+  targets after it. Dropped (Owen 2026-10-22): the trace (ai.md 17.8b)
+  shows the allies already pick their own targets in reach, and the frame's
+  attack it would have changed never runs for a shipped ally; kept as the
+  exe (mac4/allied 0ec36b3 not merged).
 - Inverted mouse Y: keep the player's sensitivity and flip only its sign
   (the options' ACCEPT wrote -1.3 or 1.3 over MouseAccelY). FIX (bug). Done
   (the table above).
@@ -430,6 +432,18 @@ Kept:
   held back; pilots leave a fight as they always have).
 
 ## Candidates for Owen
+
+- How the player's allies fight (mac 4, 2026-10-22, ai.md 17.8b; Owen's
+  proposal, a balance change, not coded): as the exe has it, allies shoot
+  any enemy within their weapons' reach on their own but never move to a
+  fight unless the player orders "attack my target" (engaging, +0x3c, is
+  off for every shipped ally, and nothing in play turns it on); being hit
+  changes nothing. Owen's rule: if anyone on the player's side is
+  attacked, every ally may engage (go to the fight); otherwise they wait
+  for orders unless an enemy is within range. The narrow attack-pick fix
+  (mac4/allied 0ec36b3, parked) is part of what that would need.
+  Decided (Owen 2026-10-22): kept as the original. It works as intended,
+  and the rule would shift the balance.
 
 - The vehicle net's mode 3 (mac 4, 2026-10-22, ai.md 17.2): the part
   0x4c0ba0 picks the behaviour for the pilot's mode (+0x40) by slot and
