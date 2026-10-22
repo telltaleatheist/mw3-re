@@ -151,7 +151,7 @@ class Run(Emulated):
         return 0 if h % 4 == 0 else 0x7000000 | (h & 0xffffff)
 
     def nav_show(self, c):
-        return self.ev(f'navshow {h32(c.arg(0))} {h32(c.arg(1) & 0xff)}')
+        return self.ev(f'navshow {h32(self.handle(c.arg(0)))} {h32(c.arg(1) & 0xff)}')
 
     def node_find(self, c):
         assert c.ecx == 6
@@ -173,7 +173,7 @@ class Run(Emulated):
         return 0 if h % 7 == 0 else 0xa000000 | (h & 0xffffff)
 
     def valve_set(self, c):
-        return self.ev(f'vset {h32(c.ecx)} {h32(c.arg(0))}')
+        return self.ev(f'vset {h32(self.handle(c.ecx))} {h32(c.arg(0))}')
 
     def game_type(self, c):
         self.ev('type')
@@ -254,8 +254,8 @@ class Run(Emulated):
             return ' ' * (2 * depth) + f'unported {UNPORTED_VT[vt]}\n'
         k = VT_KIND[vt]
         u, b = self.u32, self.u8
-        o = (' ' * (2 * depth) + f'K{k} nav{h32(u(p + 4))} d{h32(b(p + 8))} {self.opt(u(p + 0xc))} '
-             f'v{h32(u(p + 0x24))}={h32(u(p + 0x28))} snd{h32(u(p + 0x20))} vis{h32(b(p + 0x30))} '
+        o = (' ' * (2 * depth) + f'K{k} nav{h32(self.handle(u(p + 4)))} d{h32(b(p + 8))} {self.opt(u(p + 0xc))} '
+             f'v{h32(self.handle(u(p + 0x24)))}={h32(u(p + 0x28))} snd{h32(u(p + 0x20))} vis{h32(b(p + 0x30))} '
              f'sil{h32(b(p + 0x31))} per{self.opt(u(p + 0x2c))}')
         o += self.store(u(p + 0x10))
         for e in self.items(u(p + 0x18)):
@@ -272,7 +272,7 @@ class Run(Emulated):
         elif k == 3:
             o += f' | {h32(self.handle(u(p + 0x34)))} ' + ' '.join(h32(u(p + off)) for off in (0x38, 0x3c, 0x40, 0x44, 0x48))
         else:
-            o += f' | {h32(u(p + 0x34))} {h32(u(p + 0x38))}'
+            o += f' | {h32(self.handle(u(p + 0x34)))} {h32(u(p + 0x38))}'
         return o + '\n'
 
 

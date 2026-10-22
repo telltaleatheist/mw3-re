@@ -1177,3 +1177,28 @@ view's ground, the anim lookups 0x50b450 (92).
 - Found: c1m2 rewards each still-standing city building with ammo / heat
   sinks, c4m1 a Mad Cat if seg2tkt is still active (discoveries.md).
 - Next: piece 4 (the five types' checks, node_state, wiring, c1m1 won/lost).
+
+## The objectives in play, piece 4 (2026-10-21)
+
+- Ported the types' checks: destroy_entity 0x0045f3b0, node_change
+  0x0045f180, valve_change 0x0045f1c0, reach_area 0x0045e890 (the
+  scripted condition hook is gone). test_objective_check.py drives them
+  over a changing world: 300 scenarios identical; 8 breaks caught.
+- Wired: WiredObjectiveHooks in app_mission.cpp (entities by name: AI
+  mechs, then targets by node name; nodes, valves, positions, the message
+  panel, the mission voice) and the mission's objective hooks on one
+  `Objectives` (`mission_objectives()` for the tests).
+- `mission_c1m1_won_and_lost_by_its_objectives_headless`: from the menus,
+  won (satdish destroyed -> comcntr_down; reach_mfb set as its region
+  would; Exit Mission) and lost (outside_c1m1; the player's mech
+  destroyed), each to the debriefing: won shows the salvage list, lost
+  says failed. The SRM emplacements (aiTurrets, unported) count destroyed.
+- The HUD test's message-panel check now waits for the panel to be idle
+  (c1m1's emplacement objective's line comes first).
+- Side task (mac 1): [0x0060861c]+0x14 is set by the launch and cleared by
+  the cleanup only, so 0x0045e110's early return never matters in play;
+  the discovery's wording fixed.
+- mw3tests 132/0, test_objectives, test_objective_check, test_salvage,
+  test_mission_frame, test_mission_load.
+- Left: training's types (piece 5); nav points, the HUD's objectives box
+  (mac 3), Instant Action's enemies, aiTurrets and the other aiv vehicles.

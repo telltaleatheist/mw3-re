@@ -13,16 +13,13 @@
 
 namespace mech3 {
 
+using zgame::Handle;
 using zrdr::Node;
 
 zrdr::Node* ObjectiveHooks::load(const char* name) { return zrdr::load(name); }
 void ObjectiveHooks::free_tree(zrdr::Node* root) { zrdr::free_node(root); }
 const char* ObjectiveHooks::localize(const char* name) { return zutl::localize(name); }
 Store* ObjectiveHooks::salvage_store() { return &mission_salvage(); }
-uint8_t ObjectiveHooks::condition_check(Objective& o) {
-  unported("objective.vt+0x04", {static_cast<int32_t>(o.kind)});
-  return o.done;
-}
 
 NodeSalvage::NodeSalvage() = default;
 NodeSalvage::NodeSalvage(NodeSalvage&&) noexcept = default;
@@ -35,8 +32,6 @@ Objective::Objective(Kind k, const char* d) : kind(k) {
 
 // Mech3.exe 1.2 @ 0x0045bb00. The persist text (+0x2c) is never freed.
 Objective::~Objective() = default;
-
-uint8_t Objective::check(ObjectiveHooks& h) { return h.condition_check(*this); }
 
 // Mech3.exe 1.2 @ 0x0045f110
 void Objective::set_desc(const char* text) {
@@ -60,6 +55,53 @@ void DestroyObjective::relabel(ObjectiveHooks& h) {
   find_entity(h);
   if (!entity) return;
   if (const char* label = h.entity_label(entity)) set_desc(h.message_with(0xde0, label).c_str());
+}
+
+// Mech3.exe 1.2 @ 0x0045f3b0: met when the entity's +0x08 equals +0x3c
+// (0: gone). One never found counts as destroyed.
+uint8_t DestroyObjective::check(ObjectiveHooks& h) {
+  if (done) return done;
+  if (!entity) relabel(h);  // vt+0x08: 0x0045f340
+  uint8_t met = 1;
+  if (entity) met = h.entity_flag(entity) == x3c;
+  complete(*this, met, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f180: the node's active flag (+0x24 bit 2) as state wants.
+uint8_t NodeChangeObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  complete(*this, h.node_active(node) == active, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045f1c0
+uint8_t ValveChangeObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  complete(*this, h.valve_value(watch) == target, h);
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x0045e890: the player's vehicle within the radius (3D)
+// of the nav point, else of the point, which a node's position replaces
+// each time.
+uint8_t ReachAreaObjective::check(ObjectiveHooks& h) {
+  if (done) return 1;
+  const Handle vehicle = h.player_vehicle();
+  if (!vehicle) return done;  // FIX (bug): the exe reads the null vehicle's position
+  float at[3], from[3];
+  if (nav) {
+    h.nav_position(nav, at);
+    h.object_position(vehicle, from);
+  } else {
+    h.object_position(vehicle, from);
+    if (node) h.node_position(node, point);
+    at[0] = point[0], at[1] = point[1], at[2] = point[2];
+  }
+  const float d[3] = {from[0] - at[0], from[1] - at[1], from[2] - at[2]};
+  const float dd = (d[0] * d[0] + d[1] * d[1]) + d[2] * d[2];
+  if (dd < radius_sq) complete(*this, 1, h);
+  return done;
 }
 
 ReachAreaObjective::ReachAreaObjective(const char* d, Handle n, const float p[3], float r)

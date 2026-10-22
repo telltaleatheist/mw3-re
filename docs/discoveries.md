@@ -2520,8 +2520,8 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   by then gives nothing. Op 4 Mission 1 does the same once: destroying the
   train adds a Mad Cat to the salvage if the part `seg2tkt` is still
   active at that moment (what that part is in the world is not yet
-  known). The salvage is decided at the moment the objective completes,
-  and only while you are in your mech. (docs/objectives.md)
+  known). The salvage is decided at the moment the objective completes.
+  (docs/objectives.md)
 - **The objective messages.** A completed visible objective puts its
   description in the message panel for 5 seconds (the first line as
   "objective complete", the others below it) and then one line per item
