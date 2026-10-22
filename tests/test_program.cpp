@@ -2245,8 +2245,12 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
         }
         // The brain's own order (0x004e81a0, its +0x80 1): the player within
         // its +0x74 (40 m) gives the player's own net a part in it.
-        // (Its state, 0x004cc150, is not ported: asked for, none.)
-        if (!seen.own_on && engine.unported_counts().count("0x004cc150")) seen.own_on = seen.frames;
+        // Its state (0x004cc150): the station keeping on the player.
+        if (seen.brain && !seen.own_on)
+          if (auto* vp = dynamic_cast<const mech3::ai::VehiclePart*>(seen.brain->order.net.get()))
+            if (vp->target->vehicle == engine.field32(engine.pilot(), 0x14) &&
+                dynamic_cast<const mech3::ai::StationState*>(seen.brain->order.state.get()))
+              seen.own_on = seen.frames;
         if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
         seen.wall_block |= m.blocked[3];
@@ -2352,7 +2356,7 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
-    EXPECT(seen.own_on > 200);  // the own order built on the player once near (its state asked for)
+    EXPECT(seen.own_on > 200);  // the own order keeping station on the player once near
     // Engaging on, the Owens attacks (0x004e9ca0): the end, rearm and way
     // home orders under the fight. The fight closes from 160 m to between
     // +0x2c (60 m, nearer it backs off) and +0x28 (80 m), then takes the

@@ -117,6 +117,7 @@ struct AiControls : MechControls, ai::BrainControls {
   void smooth(float dt) override { MechControls::smooth(dt); }  // 0x004d89f0
   bool hit_lately() override;      // IControls vt+0xa0 0x004aed40
   void fire(bool on) override { MechControls::fire = on; }  // IControls vt+0x10 0x00428580
+  bool reversing() override { return reverse; }  // IControls vt+0x18 0x00428500
   float throttle_now() override { return MechControls::throttle; }  // IControls vt+0x1c 0x00428510
   void set_throttle(float v) override { MechControls::set_throttle(v); }
   void set_turn(float v) override { MechControls::set_turn(v); }

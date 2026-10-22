@@ -244,9 +244,13 @@ class BrainHooks : public zgame::Unported {
   virtual float stopping_distance(zgame::Handle v, float speed);
   virtual float stop_share(zgame::Handle v, float d);  // vt+0x12c, the Mech's 0x0041d240
   // The states a vehicle net's follow, mode and own-order behaviours make
-  // (0x004c89f0, 0x004c9730, 0x004d1300, 0x004d1630, 0x004cc150: not ported):
-  // the base state; for the own order's none (logged).
+  // (0x004c89f0, 0x004c9730, 0x004d1300, 0x004d1630: not ported): the base
+  // state. (The own order's is zai_attack's make_station_state.)
   virtual BehaviourState* vehicle_step_state(Behaviour& b, Order& o);
+  // The station keeping's (zai_attack): a vehicle's vt+0xf4 (0 for the
+  // mechs, 0x0040bae0) and the 0x004cc290 state's run (0x004cc3e0, item 10d3).
+  virtual bool vehicle_xf4(zgame::Handle v) { return unported("vehicle.vt+0xf4", {v}) & 0xff; }
+  virtual void station_run(BehaviourState& s, float dt) { unported("0x004cc3e0", {low(&s), zgame::bits(dt)}); }
   // The deploy state's: the vehicle's local vertical speed (+0x40) and its
   // placement (vt+0xdc, the Mech's set_place 0x00418f30).
   virtual float vertical_speed(zgame::Handle v) { return zgame::from_bits(unported("vehicle+0x40", {v})); }
@@ -381,12 +385,13 @@ struct Order {
   Order& operator=(const Order&) = delete;
 
   void run(float dt);                              // vt+0x04 0x004e8150: the part, then the state
-  void pop();                                      // vt+0x08 0x004e8170: its owner's pop
+  void pop();                                      // vt+0x08 0x004e8170: its owner's pop (the brain's own: 0x004e8270)
   bool reset(AiNet* n, Behaviour* b);              // 0x004e80b0: both parts remade
   bool set_behaviour(Behaviour* b);                // 0x004e8120: the state remade
 
   uint8_t x04 = 0;                  // +0x04  marks the orders a stop takes back (0x004e8c60)
   Brain* owner = nullptr;           // +0x08  0x004e8090 sets it once
+  bool own = false;                 // the brain's own order (+0x194, vtable 0x005cd8e8)
   std::unique_ptr<NetPart> net;     // +0x0c  (in place at +0x30)
   std::unique_ptr<BehaviourState> state;  // +0x10  (in place at +0x54)
   int32_t x14 = 0;                  // +0x14  0x004ce200: a word and a point
@@ -464,6 +469,7 @@ struct BrainControls {
   virtual void smooth(float dt) = 0;      // the brain's vt+0x04 (the mech's 0x004d89f0 -> 0x00426960)
   virtual bool hit_lately() = 0;          // IControls vt+0xa0 (0x004aed40)
   virtual void fire(bool on) = 0;         // IControls vt+0x10 (0x00428580: +0x34)
+  virtual bool reversing() = 0;           // IControls vt+0x18 (0x00428500: +0x50, IsReverse)
   virtual float throttle_now() = 0;       // IControls vt+0x1c (0x00428510: +0x10, smoothed)
   virtual void set_throttle(float v) = 0; // IControls vt+0x20 (0x00426b60)
   virtual void set_turn(float v) = 0;     // IControls vt+0x28 (0x00426b10)

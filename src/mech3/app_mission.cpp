@@ -410,6 +410,8 @@ struct WiredBrainHooks : ai::BrainHooks {
   uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
   // The volley (ai.md 17.7, weapon_planner): the pilot behind the manager's
   // mech (its AiControls' brain), the contact's distance, the mech's heat.
+  // The station keeping's (ai.md 17.2): a mech's vt+0xf4 is 0x0040bae0.
+  bool vehicle_xf4(Handle) override { return false; }
   // The clear line (ai.md 17.7) on the mechs and the world's query.
   Handle entity_node(Handle v) override { return e->handle_of(mech_node_of(mech(v))); }
   Handle entity_centroid(Handle v) override { return e->handle_of(mech_centroid_of(mech(v))); }

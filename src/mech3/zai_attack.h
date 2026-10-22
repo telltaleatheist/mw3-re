@@ -131,6 +131,49 @@ class FightState : public BehaviourState {
   Behaviour* made_by;        // +0x18
 };
 
+// The brain's own order's state (docs/ai.md 17.2): keeping station on the
+// vehicle whose own net it is on. 0x004cc290 (0x30 bytes, vtable 0x005cbf10,
+// over the waiting state 0x004c8a30): +0x20 the throttle's way (-1 when
+// the pilot is reversing, IControls vt+0x18), +0x24 the pilot's +0x78 x
+// 0.9, +0x28 sqrt(+0x74) x 1.1 (made again when resumed, 0x004cc380), +0x2c
+// a count and +0x2e a phase its run (0x004cc3e0, item 10d3) keeps. Lets no
+// order break in, the pilot not fire; its behaviour() is its +0x18.
+class StationState : public BehaviourState {
+ public:
+  StationState(Order* o, Behaviour* b);
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void resume() override;  // 0x004cc380
+  void run(float dt) override;
+  Behaviour* behaviour() const override { return made_by; }  // 0x0040a890
+  uint32_t x08 = 0;        // +0x08  the waiting state's
+  float turn = 0;          // +0x0c
+  uint8_t x10 = 0;         // +0x10
+  Behaviour* made_by;      // +0x18
+  float way = 1.0f;        // +0x20
+  float near_speed = 0;    // +0x24
+  float range = 0;         // +0x28
+  int16_t count = 0;       // +0x2c
+  int16_t phase = 0;       // +0x2e
+
+ protected:
+  void take_params();      // the ctor's and the resume's
+};
+// 0x004cc240 (vtable 0x005cbef0): the same for a pilot whose vehicle's
+// vt+0xf4 says so (none of the mechs): its run (0x004cc020) only holds while
+// the other vehicle is within +0x28 (phase 1; the stop under [0x0060b48c],
+// which nothing sets), else the order ends.
+class StationHoldState : public StationState {
+ public:
+  using StationState::StationState;
+  void run(float dt) override;
+};
+// Mech3.exe 1.2 @ 0x004cc150 (the own-order behaviour's vt+0x8c): none
+// without a vehicle, a vehicle net part or its vehicle; for a vt+0xf4
+// pilot the hold unless the other is one too; else the station keeping,
+// but none for a lancemate (+0xbc bit 4) by another or by the player.
+BehaviourState* make_station_state(Behaviour& b, Order& o);
+
 // Mech3.exe 1.2 @ 0x004e9ca0 (from the brain's frame, before it pushes the
 // fight): the current order remade on `n`, then the attack's net and its
 // three orders. False when the net cannot be made.

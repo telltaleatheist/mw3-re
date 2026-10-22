@@ -42,7 +42,8 @@ f2i = to.f2i
 def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
-COVER = {0x4e81fb: 'own: in range', 0x4e8239: 'own: no state', 0x4e8253: 'own: the part run', 0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
+COVER = {0x4cc1ef: 'station: the hold made', 0x4cc225: 'station: kept', 0x4cc213: 'station: a lancemate by the player?',
+         0x4cc235: 'station: none', 0x4cc128: 'hold: within', 0x4cc137: 'hold: ended', 0x4e81fb: 'own: in range', 0x4e8239: 'own: no state', 0x4e8253: 'own: the part run', 0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
          0x4c8c37: 'fight: backing off', 0x4c8c50: 'fight: arrived', 0x4c8c5f: 'fight: closing',
          0x4c8abd: 'fight: pulled in', 0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
          0x4cb0c4: 'home: capped', 0x4caf0f: 'home: pulled in', 0x4cb013: 'home: turning',
@@ -58,7 +59,8 @@ def script(seed):
     s['vehicle.vt+0x12c'] = r('share', [f2i(x) for x in (0.0, 0.5, 1.0, 0.25, 0.9)])
     s['0x004c3000'] = r('pull', [0, 0, 0, 0, 1])
     s['0x004d6b90'] = r('pick', [1, 2, 3, 0, 1])
-    s['own.state'] = r('ownst', [1, 1, 0])
+    s['vehicle.vt+0xf4'] = r('xf4', [0, 0, 0, 1])
+    s['ictl.vt+0x18'] = r('rev', [0, 0, 1])
     s['0x004d51d0'] = r('near', [1, 2, 3, 4, 1, 2])  # none: the exe reads through null (the port's FIX)
     return s
 
@@ -97,12 +99,13 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
-        e.stub(0x4cc150, 'own.state', 's0,s1', 8, self.own_state)  # 0x4cc150 may make none
+        e.stub(0x4cc3e0, '0x004cc3e0', 's0', 4)  # the station keeping's run (item 10d3)
         for maker in (0x4c9730, 0x4d1300, 0x4d1630, 0x4c89f0):
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
         # The brain's own order (+0x194, its owner this brain), the pick's
         # contacts, the target vehicle's bearer (vt+0x40) and own net
         # (vt+0xd8, the Mech's 0x4d70f0).
+        e.w32(b + 0x194, 0x5cd8e8)  # its vtable: run 0x4e81a0, pop 0x4e8270
         e.w32(b + 0x194 + 8, b)
         self.contacts = [e.world_alloc(0x30) for _ in range(3)]
         self.contact_on = [0, 0, 0]
@@ -112,6 +115,12 @@ class Original(to.Original):
         e.w32(self.target, tvt)
         e.w32(tvt + 0x40, e.new_stub('@target.vt+0x40', 'c', 0, lambda emu, k, a, pop: emu._ret(a[0], pop)))
         e.w32(tvt + 0xd8, 0x4d70f0)
+        e.w32(tvt + 0x2c, e.new_stub('@target.vt+0x2c', 'c', 0, lambda emu, k, a, pop: emu._ret(a[0], pop)))
+        e.w32(tvt + 0xf4, e.new_stub('vehicle.vt+0xf4', 'c', 0, self.xf4))
+        e.w32(e.r32(self.v) + 0xf4, e.new_stub('vehicle.vt+0xf4', 'c', 0, self.xf4))
+        e.w32(cvt + 0x18, e.new_stub('ictl.vt+0x18', '', 0))
+        self.pilot = e.world_alloc(0x40)
+        e.w32(0x60861c, self.pilot)
         self.mark = e.world_alloc(0x10)
         self.step_on = {}
         for a in COVER:
@@ -137,11 +146,8 @@ class Original(to.Original):
         self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
         e._ret(self.pos, pop)
 
-    def own_state(self, e, key, a, pop):
-        if self.t.handle(key, []):
-            self.make_state(e, 'beh.vt+0x8c', a, pop)
-        else:
-            e._ret(0, pop)
+    def xf4(self, e, key, a, pop):
+        e._ret(self.t.handle(key, [OWNER if a[0] == self.v else ENT1 if a[0] == self.target else a[0]]), pop)
 
     def pick(self, e, key, a, pop):
         k = self.t.handle(key, [OWNER if a[0] == self.v else a[0], a[1]])
@@ -157,12 +163,15 @@ class Original(to.Original):
             e.w32(self.contacts[k] + 0xc, w[2 * k])
             self.contact_on[k] = w[2 * k + 1]
         e.w32(self.brain + 0x74, w[6])
+        e.w32(self.brain + 0x78, w[7])
+        e.w8(self.v + 0xbc, w[8])          # the pilot's lancemate flag (bit 4)
+        e.w32(self.pilot + 0x14, self.target if w[9] else 0)  # the player's vehicle
 
     def own_row(self):
         e, b = self.e, self.brain
         o = b + 0x194
         part, state = e.r32(o + 0xc), e.r32(o + 0x10)
-        out = [0] * 8
+        out = [0] * 12
         if part and e.r32(part) == VT_VPART:
             out[0] = 1
             out[1] = e.r32(e.r32(part + 0x18) + 4)
@@ -172,7 +181,12 @@ class Original(to.Original):
         elif part:
             out[0] = 2
         if state:
-            out[7] = e.r32(state + 0xc) if e.r32(state) == self.state_vt else 0xffffffff
+            vt = e.r32(state)
+            out[7] = e.r32(state + 0xc) if vt == self.state_vt else 0xffffffff
+            if vt in (0x5cbf10, 0x5cbef0):  # the station keeping, the hold
+                out[7] = 1 if vt == 0x5cbf10 else 2
+                out[8:11] = [e.r32(state + 0x20), e.r32(state + 0x24), e.r32(state + 0x28)]
+                out[11] = struct.unpack('<H', e.cpu.read(state + 0x2e, 2))[0]
         return out
 
     def fight_world(self, pos, active, cc, r24, now, mode):
@@ -442,15 +456,17 @@ def run_case(probe, seed, rounds):
             ow = []
             for _ in range(3):
                 ow += [f2i(rng.choice([100.0, 2500.0, 1e4, 4e4, rng.uniform(0, 5e4)])), int(rng.random() < 0.7)]
-            ow.append(f2i(rng.choice([1e4, 3e4, 0.0])))
+            ow.append(f2i(rng.choice([1e4, 3e4, 0.0, 1600.0])))
+            ow += [f2i(rng.uniform(0, 20)), rng.choice([0, 0, 0x10]), int(rng.random() < 0.3)]
             orig.own_world(ow)
-            probe.probe_ao_own_world((U * 7)(*ow))
+            probe.probe_ao_own_world((U * 10)(*ow))
+            probe.probe_ao_state_world(ow[8], 1, ENT1 if ow[9] else 0)
             for _ in range(rng.randrange(1, 4)):
                 f = f2i(rng.choice([1 / 30, 0.25]))
                 orig.e.call(0x4e81a0, ecx=orig.brain + 0x194, stack=(f,))
                 probe.probe_ao_own(f)
                 check(f'round {k} own')
-                ob = (U * 8)()
+                ob = (U * 12)()
                 probe.probe_ao_own_row(ob)
                 if orig.own_row() != list(ob):
                     raise SystemExit(f'seed {seed} round {k} own: {orig.own_row()} vs {list(ob)}')

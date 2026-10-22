@@ -312,3 +312,17 @@ Newest last. One short entry per item: what, commits, what to remember.
   +0x24 16900 = 130 m; the time +0xe8 10 s would follow).
 - Next proposed: 10d, the station-keeping states 0x4cc290 / 0x4cc240 with
   their runs 0x4cc3e0 / 0x4cc020.
+
+## 2026-10-22 Item 10d (1) and 10d2: the home-point FIX, the station keeping's maker and states (mac4/station)
+
+- FIX (bug): Brain::homes (merged separately, 143b5e7).
+- make_station_state 0x4cc150, StationState 0x4cc290 (resume 0x4cc380),
+  StationHoldState 0x4cc240 (run 0x4cc020); the run 0x4cc3e0 is a hook
+  (station_run) for 10d3. BrainControls::reversing (vt+0x18),
+  BrainHooks::vehicle_xf4 (vt+0xf4, mechs 0). Order::own: the own order's
+  pop 0x4e8270 empties it instead of popping the stack.
+- FIX (bug): the maker's lancemate test on a missing other.
+- Test: test_ai_attack.py's own order on the real maker (the emulator's
+  own order given its vtable 0x5cd8e8); 10 of 11 breaks.
+- c1m1: the Owens keeps station (StationState) on the player within 40 m.
+- Next: 10d3, the run 0x4cc3e0.
