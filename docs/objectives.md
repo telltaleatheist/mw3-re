@@ -163,7 +163,11 @@ sides share. Objects, the mission's salvage store and the calls match.
   all clears its conditions again (0x0045e110(0) on each), so they must
   all be met in the same frame.
 - **The completion** (0x0045e110): +0x08 = the result; when true and the
-  player has a vehicle: the voice (+0x20 at priority 1, unless silent);
+  pilot has a vehicle ([0x0060861c]+0x14: set to the player's mech by the
+  launch 0x004913be and cleared only by the cleanup 0x00491872, so in play
+  always, a dead mech included; in a campaign or Instant Action the
+  player's death ends the mission's checks anyway, in multiplayer the
+  game goes on with the same vehicle): the voice (+0x20 at priority 1, unless silent);
   when visible, the description's lines in the message panel for 5 s
   (the first as message 0x263 through 0x0040fe70, the rest through
   0x0040fe20) and one line per salvage item (0x264 with the item's label;
@@ -186,3 +190,46 @@ sides share. Objects, the mission's salvage store and the calls match.
   through a null in the exe; the port drops the group.
 - The engine item's store texts (0x004739d0, 0x00432f00, 0x004738b0) are
   ported with it (`item_name` / `item_label`): "<maker> <rating>[ XL]".
+
+## The types' checks and the wiring (piece 4, ported 2026-10-21)
+
+Each type's vt+0x04 returns 1 once done, else completes itself
+(0x0045e110) with this frame's answer:
+
+| Type | Check | Met when |
+|---|---|---|
+| destroy_entity | 0x0045f3b0 | the entity's +0x08 equals +0x3c (0): gone. An entity not found is looked up again (vt+0x08, 0x0045f340) and, still missing, counts as destroyed |
+| node_change | 0x0045f180 | the node's active flag (+0x24 bit 2) is the state asked |
+| valve_change | 0x0045f1c0 | the valve's value (its holder's vt+0x04) equals the target |
+| reach_area | 0x0045e890 | the player's vehicle (0x005a85e0) within the radius, in 3D: of the nav point (its vt+0x18), else of the point, which the node's world position (0x004ed530) replaces at each check |
+
+`test_objective_check.py` now runs the real checks over a world that
+changes between frames (entities destroyed, nodes switched, valve values,
+the player's and the nodes' positions): 300 scenarios identical.
+
+**Wiring** (`app_mission.cpp`, WiredObjectiveHooks): the mission's hooks
+(objectives_load / _start / _check / _done, condition_met, the flash test,
+the free) run the port on one `Objectives` whose groups' handles go into
+the missions object's +0x7c..+0x88. Entities by name: the AI mechs by
+their aiv.zrd names, then the targets by their nodes' names (0x004d7330's
+zEntity list, then the targets'); a target's +0x08 is its active flag, a
+mech's is "still in zEntity's list" (an approximation: zEntity is not
+ported). Nodes, valves, positions, the message panel and the mission's
+voice are the ported ones. Not behind them yet: the nav points (none is
+found, so reach_area by nav and the nav keys do nothing), the HUD's
+objectives box (0x00446ad0, mac 3's), Instant Action's game and enemies,
+and the vehicles built from aiv.zrd other than mechs (c1m1's field bases,
+so the campaign's field-base fail group is not made).
+
+**c1m1 in the program** (`mission_c1m1_won_and_lost_by_its_objectives_headless`,
+from the menus to the debriefing): primary = comcntr_down (the satdish
+target's health_below sets it when destroyed) and the four SRM
+emplacements; final = reach_mfb; fail = outside_c1m1. The emplacements
+are aiTurrets.zrd's (0x004a76b0, not ported): never found, they count as
+destroyed, as the exe would count them with turrets off. Won: the satdish
+destroyed, reach_mfb set (as aiv.zrd's reg_mfb region would: the regions
+are the AI's), Exit Mission: the debriefing says won and shows the
+mission's salvage list. Lost: outside_c1m1 set, or the player's mech
+destroyed (the mission's own loss, Mech::die): the debriefing says
+failed and hides the salvage. c1m1's objectives carry no salvage of their
+own; the store path is in test_objective_check.

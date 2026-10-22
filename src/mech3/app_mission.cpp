@@ -54,6 +54,9 @@
 #include "gamez/zentity/zent_init.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/message_panel.h"
+#include "mech3/mech_objective.h"
+#include "mech3/zai_target.h"
+#include "mech3/zai_valve.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
@@ -586,7 +589,146 @@ struct WiredTargetHooks : ai::TargetHooks {
 };
 WiredTargetHooks g_target_hooks;
 
+}  // namespace
+const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
+namespace {
+
+// The mission's objectives (mech_objective.cpp, docs/objectives.md) on the
+// program's ports: entities by name among the AI mechs and targets, zClass's
+// nodes, the valves, the message panel, the mission's voice. Not ported
+// behind them: the nav points (none found), the HUD's objectives box
+// (0x00446ad0), Instant Action's game and its enemies.
+struct WiredObjectiveHooks : ObjectiveHooks {
+  GameEngine* e = nullptr;
+  Objectives objs;  // the missions object's +0x78..+0x88
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return e->unported(key, args);
+  }
+  void report(int32_t level, int32_t line, const char* fmt, const char* a, Handle b) override {
+    if (e->quiet) return;
+    char text[512];
+    std::snprintf(text, sizeof text, fmt, a ? a : "", b);
+    std::fprintf(stderr, "mw3: report %#x mech_objective.cpp:%d %s\n", level, line, text);
+  }
+  const char* message(int32_t id) override {  // 0x00576040
+    const zutl::Messages& ms = zutl::messages();
+    const char* t = ms.get_text ? ms.get_text(id) : nullptr;
+    return t ? t : "";
+  }
+  std::string message_with(int32_t id, const char* s) override {
+    return zutl::format_message(id, s).substr(0, 0x3f);  // into 0x40 bytes
+  }
+  std::string message_number(int32_t id, bool has_n, int32_t n) override {
+    return (has_n ? zutl::format_message_ints(id, {n}) : zutl::format_message(id, {})).substr(0, 0xff);
+  }
+  Handle sound_find(const char* name) override { return name ? e->sound_find(name) : 0; }
+  ai::CZAiTarget* target(Handle h) const {
+    for (ai::CZAiTarget* t : ai::target_list())
+      if (e->object_of(h) == t) return t;
+    return nullptr;
+  }
+  // 0x004d7330: zEntity's list by name (the AI mechs by their records'
+  // names here), then the targets by their nodes' names; each's vt+0x2c.
+  Handle entity_find(const char* name) override {
+    if (!name) return 0;
+    int32_t n = 0;
+    const AiMechMade* m = mission_ai_mechs(&n);
+    for (int32_t i = 0; i < n; ++i)
+      if (m[i].name && std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
+    for (ai::CZAiTarget* t : ai::target_list()) {
+      zcls::Node* nd = mission_node(*e, t->node);
+      if (nd && std::strcmp(nd->name(), name) == 0) return e->handle_of(t);
+    }
+    return 0;
+  }
+  // +0x08: a target's active flag; a mech's while it is in zEntity's list.
+  uint8_t entity_flag(Handle h) override {
+    if (ai::CZAiTarget* t = target(h)) return t->active;
+    const auto& list = ai::entity_list();
+    return std::find(list.begin(), list.end(), h) != list.end() ? 1 : 0;
+  }
+  // vt+0xa4: a target's is 0 (0x0040bae0); a mech's its pilot's name (0x0041df30).
+  const char* entity_label(Handle h) override {
+    if (target(h)) return nullptr;
+    void* m = e->object_of(h);
+    if (!m) return nullptr;
+    const char* name = m == mech_mission_player() ? program_pilot_name() : mech_brain_name(m);
+    return name ? name : "";
+  }
+  Handle node_find(const char* name) override { return e->handle_of(zcls::list_find_by_name(6, name)); }
+  Handle subnode_find(Handle node, const char* name) override {
+    zcls::Node* n = mission_node(*e, node);
+    return n ? e->handle_of(zcls::node_find_in_tree(n, name)) : 0;
+  }
+  uint8_t node_active(Handle node) override {
+    zcls::Node* n = mission_node(*e, node);
+    return n ? (n->flags() >> 2) & 1 : 0;
+  }
+  void node_position(Handle node, float out[3]) override {
+    if (zcls::Node* n = mission_node(*e, node)) zcls::node_world_position(n, out);
+  }
+  Handle valve_find(const char* name) override { return e->handle_of(ai::valve_get(name)); }
+  void valve_set(Handle v, int32_t x) override {
+    if (auto* valve = static_cast<ai::Valve*>(e->object_of(v))) valve->set(x);
+  }
+  int32_t valve_value(Handle v) override {
+    auto* valve = static_cast<ai::Valve*>(e->object_of(v));
+    return valve ? valve->get() : 0;
+  }
+  int32_t game_type() override { return e->launch().type; }
+  Handle player_vehicle() override {
+    const Handle p = e->pilot();
+    return p ? e->field32(p, 0x14) : 0;
+  }
+  void object_position(Handle o, float out[3]) override { mech_world_position(e->object_of(o), out); }
+  void ask_voice(Handle sound, float priority) override { missions().ask_voice(sound, priority); }
+  // 0x0040fe70: the panel shown for the time, then the message's line.
+  void hud_message(float seconds, int32_t id, const char* text) override {
+    if (!message_panel()) return;
+    message_panel()->show_for(seconds);
+    const std::string t = zutl::format_message(id, text);
+    if (!t.empty()) message_panel_add("%s", t.c_str());
+  }
+  // 0x0040fe20: FIX (bug) the line is not a printf format here (a % in a
+  // description would read arguments that are not there).
+  void hud_message_line(float seconds, const char* text) override {
+    if (message_panel()) message_panel_add_for(seconds, "%s", text ? text : "");
+  }
+  // As the mission's cockpit test: [0x005f4c8c]+0x64; the screen (0x00430aa0)
+  // and its objectives box (0x00446ad0) stay the HUD's, unported.
+  Handle view_vehicle() override { return e->field32(e->peek32(0x5f4c8c), 0x64); }
+  ObjectiveGroup* group(Handle h) const { return static_cast<ObjectiveGroup*>(e->object_of(h)); }
+  // The groups' handles into the missions object's +0x7c..+0x88.
+  void sync() {
+    Missions& ms = missions();
+    ms.objectives[1] = e->handle_of(objs.primary.get());
+    ms.objectives[2] = e->handle_of(objs.secondary.get());
+    ms.objectives[3] = e->handle_of(objs.final.get());
+    ms.objectives[4] = e->handle_of(objs.fail.get());
+  }
+};
+WiredObjectiveHooks g_objective_hooks;
+
 struct WiredMissionHooks : MissionHooks {
+  WiredObjectiveHooks& ob() { return g_objective_hooks; }
+  void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
+    mech3::objectives_load(file, block, ob().objs, ob());
+    ob().sync();
+  }
+  void objectives_start(Handle, Handle, Handle, Handle) override {  // 0x0045c4a0
+    add_enemy_objectives(ob().objs.primary, ob().objs.secondary, ob());
+    ob().sync();
+  }
+  uint8_t objective_check(Handle g) override { return ob().group(g) ? ob().group(g)->check_group(ob(), 1) : 0; }
+  uint8_t objective_done(Handle g) override { return ob().group(g) ? ob().group(g)->done : 0; }
+  uint8_t condition_met(Handle g) override { return ob().group(g) ? ob().group(g)->check(ob()) : 0; }
+  uint8_t objectives_announce(Handle, Handle, Handle, Handle) override {  // 0x0045c180
+    return objectives_visible(ob().objs.primary.get(), ob().objs.final.get(), ob().objs.fail.get());
+  }
+  void objectives_free(Handle, Handle, Handle, Handle, Handle) override {
+    mech3::objectives_free(ob().objs, ob());
+    ob().sync();
+  }
   // The cleanup's deletes: the pilot's mech (its vt+0), then 0x0049dc40's
   // 0x005a8280 on zEntity's list: each entity's vt+0x30 (a mech's 0x004b3d30
   // does nothing) and its delete, the first each time; the AI nets' free
@@ -1017,11 +1159,14 @@ const AiMechMade* mission_ai_mechs(int32_t* count) {
 }
 
 void mission_lose() { missions().lose(); }
+Objectives& mission_objectives() { return g_objective_hooks.objs; }
+ObjectiveHooks& mission_objective_hooks() { return g_objective_hooks; }
 void* mission_sun() { return missions().world.sun ? missions().world.sun->node : nullptr; }
 int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
 
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;
+  g_objective_hooks.e = e;
   g_player_hooks.e = e;
   g_player_hooks.forget();  // a new engine numbers its handles afresh
   g_mission_engine = e;

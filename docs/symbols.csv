@@ -923,3 +923,8 @@ address,name,source,notes
 0x004739d0,EngineItem::name,asm,"ported: item_name; 0x00432f00 maker rating XL"
 0x004738b0,EngineItem::label,asm,"ported: item_label"
 0x00432f00,engine_name,asm,"ported in item_name; sprintf %s %d%s"
+0x0045f3b0,DestroyObjective::check,asm,"ported; entity +0x08 == +0x3c, missing counts destroyed"
+0x0045f180,NodeChangeObjective::check,asm,"ported; node +0x24 bit 2 == state"
+0x0045f1c0,ValveChangeObjective::check,asm,"ported; valve value == target"
+0x0045e890,ReachAreaObjective::check,asm,"ported; 3D distance squared < radius squared, nav or point (node refreshed)"
+0x004d7330,entity_by_name,asm,"wired: AI mechs by name, then targets by node name; each vt+0x2c"

@@ -86,7 +86,7 @@ Ranked by what a player would notice (AI-area ones left out: lancemates
 
 | # | What | Addresses (pseudocode lines) | What the player sees |
 |---|---|---|---|
-| 1 | The mission's objectives (mech_objective.cpp) | load 0x0045c2d0 (23), start 0x0045c4a0, check 0x0045e540, free 0x0045c1d0 (26); the region 0x0045c000..0x0045f800 is ~48 functions, ~3,100 lines | No objectives: c1m1 can be neither won nor lost, no "objective complete" lines |
+| 1 | The mission's objectives (mech_objective.cpp) | load 0x0045c2d0 (23), start 0x0045c4a0, check 0x0045e540, free 0x0045c1d0 (26); the region 0x0045c000..0x0045f800 is ~48 functions, ~3,100 lines | No objectives: c1m1 can be neither won nor lost, no "objective complete" lines; fixed by 5fcc143 (objectives.md pieces 1-4: c1m1 won and lost through its objectives, headless; training's types are piece 5) |
 | 2 | The view's ground and water check | 0x004edab0 (148; ported as `zcls::ground_point`, only unwired in app_view), the water 0x004abd90, the water fog 0x0040b0e0 | Chase cameras sink into the ground; no water fog under water (the water hook answers "none" silently) |
 | 3 | The skins on the mech's model | 0x00475780 (38), 0x004757f0 (29), 0x00475a80 (13) | Mechs keep the model's default textures; no damage decals on their hulls |
 | 4 | The mechs' HUD markers from world.zrd | 0x00459e80 (76) | Map and radar markers from the world's block missing (to confirm with mac 3) |

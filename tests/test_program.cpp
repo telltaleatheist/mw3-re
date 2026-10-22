@@ -48,6 +48,9 @@
 #include "mech3/hud.h"
 #include "mech3/message_panel.h"
 #include "mech3/app_mech.h"
+#include "mech3/mech_objective.h"
+#include "mech3/zai_target.h"
+#include "mech3/zai_valve.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
@@ -3229,7 +3232,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
       float blip_d = 0.0f, blip_want = 0.0f;
       mech3::HudReport gauges;  // frame 10's (hud.md section 17)
-      int panel_made = 0, panel_up = 0, panel_down = 0;  // the message panel (hud.md section 18)
+      int panel_made = 0, panel_up = 0, panel_down = 0, posted = 0;  // the message panel (hud.md section 18)
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -3240,12 +3243,15 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       if (app.current() != &mech3::states().core) return;
       ++seen.frames;
       if (mech3::MessagePanel* mp = mech3::message_panel()) {
-        // a message held a second at frame 12: up to its place, then down and hidden
-        if (seen.frames == 12) {
-          seen.panel_made = mp->y == mp->off_y && (mp->flags & ztwod::kHidden);
+        // a message held a second from frame 12 once the panel is idle (the
+        // objectives' own lines come first: c1m1's emplacements, never built,
+        // complete at once): up to its place, then down and hidden
+        if (seen.frames >= 12 && !seen.posted && mp->y == mp->off_y && (mp->flags & ztwod::kHidden)) {
+          seen.panel_made = 1;
+          seen.posted = seen.frames;
           mech3::message_panel_add_for(1.0f, "%s", "Nav Alpha reached");
         }
-        if (seen.frames > 12 && mp->y == mp->on_y && !seen.panel_up) seen.panel_up = seen.frames;
+        if (seen.posted && seen.frames > seen.posted && mp->y == mp->on_y && !seen.panel_up) seen.panel_up = seen.frames;
         if (seen.panel_up && (mp->flags & ztwod::kHidden) && !seen.panel_down) seen.panel_down = seen.frames;
       }
       if (seen.frames == 3) {
@@ -4404,4 +4410,224 @@ TEST(reports_fill_their_formats) {
     EXPECT(reports::g_last == "BindButton (MB_YES) failed");
   }
   zerr::set_sink(nullptr);
+}
+
+// The mission's objectives in text (the program's handles resolved).
+static std::string objective_text(mech3::GameEngine& engine, const mech3::Objective* o, int depth) {
+  std::string t(static_cast<size_t>(depth) * 2, ' ');
+  const char* kinds[] = {"group", "destroy", "node_change", "reach_area", "valve_change"};
+  t += kinds[o->kind];
+  t += o->done ? " done" : " open";
+  if (o->desc) t += " '" + *o->desc + "'";
+  switch (o->kind) {
+    case mech3::Objective::kDestroy: {
+      auto* d = static_cast<const mech3::DestroyObjective*>(o);
+      t += " " + (d->name ? *d->name : std::string("-")) + (d->entity ? " found" : " missing");
+      break;
+    }
+    case mech3::Objective::kValveChange: {
+      auto* v = static_cast<const mech3::ValveChangeObjective*>(o);
+      auto* valve = static_cast<mech3::ai::Valve*>(engine.object_of(v->watch));
+      t += std::string(" ") + (valve ? valve->name : "?") + " " + std::to_string(valve ? valve->get() : -1) + "->" +
+           std::to_string(v->target);
+      break;
+    }
+    default: break;
+  }
+  t += "\n";
+  if (o->kind == mech3::Objective::kGroup)
+    for (const auto& c : static_cast<const mech3::ObjectiveGroup*>(o)->items) t += objective_text(engine, c.get(), depth + 1);
+  return t;
+}
+
+static std::string objectives_text(mech3::GameEngine& engine) {
+  const mech3::Objectives& o = mech3::mission_objectives();
+  std::string t;
+  const char* names[] = {"primary", "secondary", "final", "fail"};
+  const mech3::ObjectiveGroup* gs[] = {o.primary.get(), o.secondary.get(), o.final.get(), o.fail.get()};
+  for (int i = 0; i < 4; ++i) {
+    t += std::string(names[i]) + (gs[i] ? "\n" : " none\n");
+    if (gs[i]) t += objective_text(engine, gs[i], 1);
+  }
+  return t;
+}
+
+// A survey (MW3_SURVEY=1): c1m1's objectives as the program reads them.
+TEST(survey_c1m1_objectives_headless) {
+  if (!have_game() || !std::getenv("MW3_SURVEY")) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_obj_survey"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.set_launch(mech3::GameEngine::Launch{});  // c1, mission 1, the Mad Cat
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3 || frames == 200) {
+        std::printf("frame %d ended %d aborting %d\n%s", frames, mech3::missions().ended, mech3::missions().aborting,
+                    objectives_text(engine).c_str());
+        for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())
+          if (zcls::Node* n = static_cast<zcls::Node*>(engine.object_of(t->node))) std::printf("target %s\n", n->name());
+      }
+    };
+    CountingPump pump;
+    pump.limit = 2000;
+    pump.stop = [&] { return frames >= 201; };
+    app.run(pump);
+    for (const auto& [k, n] : engine.unported_counts())
+      if (k.find("0x0045") == 0 || k.find("0x0040fe") == 0 || k.find("0x00479be0") == 0 || k.find("0x00446ad0") == 0)
+        std::printf("unported %s x%u\n", k.c_str(), n);
+  }
+  mech3::set_app(nullptr);
+}
+
+// c1 mission 1 won and lost through its objectives (docs/objectives.md,
+// piece 4), from the menus as campaign_menus_to_c1m1 plays it, to the
+// debriefing. Won: the comm centre's satdish destroyed (its health_below
+// sets comcntr_down), reach_mfb set as aiv.zrd's reg_mfb region would (the
+// regions are the AI's), Exit Mission. Lost: outside_c1m1 set (the mission
+// boundary's region), or the player's mech destroyed. The SRM emplacements
+// are aiTurrets.zrd's (0x004a76b0, not ported): never found, they count as
+// destroyed, as in the exe.
+TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
+  if (!have_game()) return;
+  enum Scenario { kWon, kBoundary, kDeath };
+  for (const Scenario sc : {kWon, kBoundary, kDeath}) {
+    const char* pilot_name = sc == kWon ? "ObjWon" : sc == kBoundary ? "ObjOut" : "ObjDead";
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("mission_objectives"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      int stage = 0, core_frames = 0, ended_at = -1;
+      bool primary_open = false, primary_done = false, final_done = false, fail_done = false;
+      bool debrief_seen = false, debrief_failed = false, salvage_shown = false, salvage_store = false;
+      bool comcntr = false;
+      std::string at_end;
+      auto group_done = [](const std::unique_ptr<mech3::ObjectiveGroup>& g) { return g && g->done; };
+      engine.on_present = [&](int) {
+        if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // NEW CAMPAIGN
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+          if (!ps || !ps->screen) return;
+          ps->screen->new_bar.set_text(pilot_name);
+          ps->screen->new_bar.on_return();
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+          stage = 2;
+        } else if (stage == 2) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || app.current() != &mech3::states().load || !b->loaded) return;
+          b->on_button(mech3::BriefingScreen::kBtnLaunch, 0, 0);
+          stage = 3;
+        } else if (stage == 3 && app.current() == &mech3::states().core) {
+          const mech3::Objectives& o = mech3::mission_objectives();
+          ++core_frames;
+          if (core_frames == 5) {
+            primary_open = o.primary && !o.primary->done;
+            if (sc == kWon) {
+              for (mech3::ai::CZAiTarget* t : mech3::ai::target_list()) {
+                zcls::Node* n = static_cast<zcls::Node*>(engine.object_of(t->node));
+                if (n && std::strcmp(n->name(), "satdish") == 0) t->on_hit(0, 0, 1000.0f);
+              }
+            } else if (sc == kBoundary) {
+              mech3::ai::valve_get("outside_c1m1")->set(1);
+            } else {
+              mech3::mech_kill(mech3::mech_mission_player());
+            }
+          }
+          if (core_frames == 15 && sc == kWon) {
+            mech3::ai::Valve* v = mech3::ai::valve_get("comcntr_down");
+            comcntr = v && v->get() == 1;
+            primary_done = group_done(o.primary);
+            mech3::ai::valve_get("reach_mfb")->set(1);
+          }
+          if (mech3::missions().ended && ended_at < 0) {
+            ended_at = core_frames;
+            final_done = group_done(o.final);
+            fail_done = group_done(o.fail);
+            at_end = objectives_text(engine);
+            if (sc == kWon) mech3::missions().on_command(0x71);  // Exit Mission
+          }
+          if (ended_at >= 0) stage = 4;
+        } else if (stage == 4 && app.current() == &mech3::states().end_win) {
+          auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
+          if (!d) return;
+          debrief_seen = true;
+          debrief_failed = engine.mission_failed();
+          salvage_shown = !(d->salvage.flags & ztwod::kHidden);
+          salvage_store = d->salvage.store == engine.mission_salvage_store();
+          stage = 5;
+        }
+      };
+      CountingPump pump;
+      pump.limit = 3000;
+      pump.stop = [&] { return stage == 5; };
+      app.run(pump);
+      EXPECT(primary_open);
+      EXPECT(ended_at > 0);
+      EXPECT(debrief_seen);
+      if (sc == kWon) {
+        EXPECT(comcntr && primary_done);  // the satdish's death set the valve; the turrets count destroyed
+        EXPECT(final_done && !fail_done);
+        EXPECT(!debrief_failed && salvage_shown && salvage_store);
+      } else {
+        if (sc == kBoundary) EXPECT(fail_done);  // the fail group; the death is the mission's own loss
+        EXPECT(debrief_failed && !salvage_shown);
+      }
+      if (std::getenv("MW3_SURVEY"))
+        std::printf("scenario %d: ended at core frame %d, failed %d\n%s", sc, ended_at, debrief_failed,
+                    at_end.c_str());
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
 }

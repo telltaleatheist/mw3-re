@@ -222,6 +222,12 @@ struct AiMechMade {
   const char* name = nullptr;  // the aiv.zrd record's
 };
 const AiMechMade* mission_ai_mechs(int32_t* count);
+// The mission's objectives as the program read them (mech_objective.h), and
+// the hooks it gives them.
+struct Objectives;
+class ObjectiveHooks;
+Objectives& mission_objectives();
+ObjectiveHooks& mission_objective_hooks();
 
 // The debug launch's slot (our addition, mission-load.md section 4): the
 // mech by roster index, its first configuration, the definition's skin 0.

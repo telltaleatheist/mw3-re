@@ -125,6 +125,7 @@ unusual happens.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.
+- An objective description with a `%` in its second or later lines is shown as written instead of being read as a format.
 - A line of the briefing's debug log with a `%` in it is printed as it is (the original read it as a printf format).
 - A soils file missing one of the game's ground types no longer corrupts the
   word in memory before the game's soil table; the type is just left out.

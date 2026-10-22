@@ -82,7 +82,6 @@ class Fake : public ObjectiveHooks {
     const uint32_t h = fnv(name);
     return h % 5 == 0 ? 0 : 0x6000000 | (h & 0xffffff);
   }
-  uint8_t entity_flag(Handle e) override { return (e & 0xf0) != 0; }
   const char* entity_label(Handle e) override {
     ev("label " + hex(e));
     return (e >> 4) & 3 ? keep("E" + hex(e)) : nullptr;
@@ -130,7 +129,6 @@ class Fake : public ObjectiveHooks {
     int32_t x48;
   };
   std::vector<Obj> objs;
-  std::map<const Objective*, std::pair<int, int>> order;
 
   Handle player_vehicle() override { return vehicle; }
   void ask_voice(Handle sound, float priority) override { ev("voice " + hex(sound) + " " + hex(bits(priority))); }
@@ -139,24 +137,53 @@ class Fake : public ObjectiveHooks {
   }
   void hud_message_line(float seconds, const char* text) override { ev("line " + hex(bits(seconds)) + " " + str(text)); }
   Store* salvage_store() override { return store; }
-  uint8_t node_active(Handle node) override { return (node >> 5) & 1; }
   Handle view_vehicle() override { return view; }
   Handle mech_screen(Handle v) override {
     ev("screen " + hex(v));
     return screen;
   }
   void objectives_box_reset(Handle s) override { ev("box " + hex(s)); }
-  uint8_t condition_check(Objective& o) override {
-    auto it = order.find(&o);
-    if (it == order.end()) it = order.emplace(&o, std::make_pair(static_cast<int>(order.size()), 0)).first;
-    const int k = it->second.first, c = it->second.second++;
-    uint32_t h = seed * 2654435761u + static_cast<uint32_t>(k) * 40503u;
+  // The world over the frames (test_objective_check.py's): -1 at the load.
+  int frame = -1;
+  static uint32_t mix(uint32_t seed, uint32_t k) {
+    uint32_t h = seed * 2654435761u + k * 40503u;
     h ^= h >> 13;
     h *= 0x5bd1e995u;
     h ^= h >> 15;
-    const uint8_t r = k % 5 == 4 ? (c & 1) : c >= static_cast<int>(h % 4);
-    ev("cond " + hex(k) + " " + hex(c) + " " + hex(r));
-    return r;
+    return h;
+  }
+  uint8_t base_flag(Handle e) {
+    for (const Obj& o : objs)
+      if (o.id == e) return o.active;
+    return (e & 0xf0) != 0;
+  }
+  uint8_t entity_flag(Handle e) override {
+    if (frame < 0) return base_flag(e);
+    return frame >= static_cast<int>(mix(seed, e) % 6) ? 0 : base_flag(e);
+  }
+  uint8_t node_active(Handle node) override {
+    if (frame < 0) return (node >> 5) & 1;
+    return (mix(seed ^ node, static_cast<uint32_t>(frame)) >> 3) & 1;
+  }
+  int32_t valve_value(Handle v) override {
+    ev("vvalue " + hex(v));
+    return static_cast<int32_t>(mix(seed ^ v, static_cast<uint32_t>(frame + 1)) % 3);
+  }
+  static float coord(uint32_t h) { return static_cast<float>(static_cast<int>(h % 61) - 30); }
+  void object_position(Handle o, float out[3]) override {
+    ev("pos " + hex(o));
+    const uint32_t m = mix(seed, 0x1000 + static_cast<uint32_t>(frame));
+    out[0] = coord(m), out[1] = coord(m >> 8) / 4.0f, out[2] = coord(m >> 16);
+  }
+  void node_position(Handle n, float out[3]) override {
+    ev("npos " + hex(n));
+    const uint32_t m = mix(seed ^ n, static_cast<uint32_t>(frame));
+    out[0] = coord(m), out[1] = 1.0f, out[2] = coord(m >> 16);
+  }
+  void nav_position(Handle nav, float out[3]) override {
+    ev("navpos " + hex(nav));
+    const uint32_t m = mix(nav, 1);
+    out[0] = coord(m), out[1] = 0.5f, out[2] = coord(m >> 16);
   }
   int32_t ia_mode() override { return mode; }
   int32_t ia_number() override { return number; }
@@ -174,7 +201,7 @@ class Fake : public ObjectiveHooks {
       if (o.id == id) return o;
     return objs[0];
   }
-  uint8_t object_active(Handle o) override { return obj(o).active; }
+  uint8_t object_active(Handle o) override { return entity_flag(o); }
   bool object_hostile(Handle o) override {
     ev("team " + hex(o));
     return obj(o).hostile;
@@ -310,6 +337,7 @@ int probe_objective_check_run(const char* archive, const char* block, int type, 
   if (ia >= 0) add_enemy_objectives(o.primary, o.secondary, h);
   std::unique_ptr<ObjectiveGroup>* gs[] = {&o.secondary, &o.primary, &o.final, &o.fail};
   for (int f = 0; f < frames; ++f) {
+    h.frame = f;
     h.ev("frame " + hex(f));
     for (int i = 0; i < 4; ++i)
       if (*gs[i]) h.ev("check " + hex(i) + " " + hex((*gs[i])->check_group(h, 1)));

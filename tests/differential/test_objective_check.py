@@ -1,5 +1,7 @@
-"""The objectives' check and completion against the original x86
-(docs/objectives.md, piece 3): a group's check 0x45e540 (and 0x45f150), the
+"""The objectives' checks and completion against the original x86
+(docs/objectives.md, pieces 3 and 4): the types' checks (destroy_entity
+0x45f3b0, node_change 0x45f180, reach_area 0x45e890, valve_change
+0x45f1c0), a group's check 0x45e540 (and 0x45f150), the
 completion 0x45e110 with 0x45ec40 / 0x45ec60, the cockpit flash's test
 0x45c180, Instant Action's and multiplayer's "destroy the enemies"
 0x45c4a0, the engine item's texts (0x4738b0, 0x4739d0, 0x432f00).
@@ -9,8 +11,9 @@ completion 0x45e110 with 0x45ec40 / 0x45ec60, the cockpit flash's test
 Each scenario reads a made-up block (test_objectives.py's, both sides
 identical there), may add the enemies' group over a made-up world, then runs
 frames of the mission's checks: every group's 0x45e540(1), then 0x45c180.
-The types' own checks (piece 4) answer from the same script on both sides
-(by the order each condition is first asked and how often). The player's
+The world changes between frames from a script both sides share: entities
+destroyed (+0x08), nodes switched (+0x24 bit 2), valve values, the player's
+position, nodes' positions, nav points. The player's
 vehicle, the view's and its screen come and go between scenarios. Both
 sides' objects, the mission's salvage store and the log of calls must match.
 """
@@ -30,13 +33,14 @@ probe.probe_objective_check_run.argtypes = [
     ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int,
     ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 SALVAGE, VIEW, ENTS, STRTOK = 0x609990, 0x5f4c8c, 0x73655c, 0x5bb608
-CHECKS = (0x45f3b0, 0x45f180, 0x45e890, 0x45f1c0)  # destroy, node_change, reach_area, valve_change vt+0x04
 COVER = {0x45e5ad: 'announce voice', 0x45e608: 'simultaneous reset', 0x45e14a: 'objective voice',
          0x45e1ac: 'second desc line', 0x45e1f5: 'salvage line', 0x45e25e: 'node salvage line',
          0x45ec89: 'node salvage added', 0x45e2ad: 'salvage added', 0x45e3c8: 'set_valve',
          0x45e3fc: 'objectives box', 0x45e57a: 'in order: stop', 0x45c193: 'visible primary',
          0x45c4f8: 'ia mode 1', 0x45c52d: 'ia mode 2', 0x45c643: 'enemy target', 0x45c71d: 'multiplayer group',
-         0x45c725: 'new primary'}
+         0x45c725: 'new primary', 0x45f3c8: 'destroy refind', 0x45f3d6: 'destroy flag',
+         0x45e8c4: 'reach nav', 0x45e962: 'reach node', 0x45e93a: 'reach nav met', 0x45f1da: 'valve value',
+         0x45f193: 'node_change flag'}
 
 
 def mix(seed, k):
@@ -59,8 +63,8 @@ class CheckRun(T.Run):
             0x446ad0: (self.box, 0),
             0x479460: (lambda c: self.ia, 0),
         }
-        for a in CHECKS:
-            stubs[a] = (self.cond, 0)
+        stubs[0x5a85e0] = (self.position, 0)
+        stubs[0x4ed530] = (self.node_position, 0)
         for addr, (fn, pop) in stubs.items():
             cpu.stub_function(addr, fn, pop)
         cpu.stub_import(STRTOK, self.strtok)
@@ -71,6 +75,11 @@ class CheckRun(T.Run):
             cpu.stub_function(r, fn, 0)
             cpu.u32(self.obj_vt + off, r)
         cpu.u32(self.obj_vt + 0xa4, self.u32(self.entity_vt + 0xa4))
+        self.nav_vt, self.inner_vt = self.calloc(0x100), self.calloc(0x100)
+        for vt, off, fn in ((self.nav_vt, 0x18, self.nav_position), (self.inner_vt, 0x4, self.valve_value)):
+            r = cpu.code(b'\xc3')
+            cpu.stub_function(r, fn, 0)
+            cpu.u32(vt + off, r)
         self.ent_vt = self.calloc(0x100)
         r = cpu.code(b'\xc3')
         cpu.stub_function(r, lambda c: self.ent_obj[c.ecx], 0)
@@ -88,6 +97,74 @@ class CheckRun(T.Run):
             self.nodes[ident] = o
             self.addr_of[o] = ident
         return self.nodes[ident]
+
+    def nav_find(self, c):
+        ident = super().nav_find(c)
+        if not ident:
+            return 0
+        if ident not in self.navs:
+            o = self.calloc(0x10)
+            self.cpu.u32(o, self.nav_vt)
+            self.navs[ident] = o
+            self.addr_of[o] = ident
+        return self.navs[ident]
+
+    def valve_find(self, c):
+        ident = super().valve_find(c)
+        if not ident:
+            return 0
+        if ident not in self.valves:
+            v, inner = self.calloc(0x10), self.calloc(0x10)
+            self.cpu.u32(v + 4, inner)
+            self.cpu.u32(inner, self.inner_vt)
+            self.inner_of[inner] = ident
+            self.valves[ident] = v
+            self.addr_of[v] = ident
+        return self.valves[ident]
+
+    def valve_value(self, c):
+        v = self.inner_of[c.ecx]
+        self.ev(f'vvalue {h32(v)}')
+        return mix(self.seed ^ v, self.frame + 1) % 3
+
+    def coord(self, h):
+        return float(h % 61 - 30)
+
+    def put3(self, buf, xyz):
+        self.cpu.write(buf, struct.pack('<3f', *xyz))
+        return buf
+
+    def position(self, c):
+        self.ev(f'pos {h32(self.addr_of[c.ecx])}')
+        m = mix(self.seed, 0x1000 + self.frame)
+        return self.put3(self.buf3, (self.coord(m), self.coord(m >> 8) / 4.0, self.coord(m >> 16)))
+
+    def node_position(self, c):
+        n = self.addr_of[c.ecx]
+        self.ev(f'npos {h32(n)}')
+        m = mix(self.seed ^ n, self.frame)
+        self.cpu.write(c.edx, struct.pack('<3f', self.coord(m), 1.0, self.coord(m >> 16)))
+        return 0
+
+    def nav_position(self, c):
+        nav = self.addr_of[c.ecx]
+        self.ev(f'navpos {h32(nav)}')
+        m = mix(nav, 1)
+        return self.put3(self.buf3 + 0x10, (self.coord(m), 0.5, self.coord(m >> 16)))
+
+    def flag(self, e, base):
+        if self.frame < 0:
+            return base
+        return 0 if self.frame >= mix(self.seed, e) % 6 else base
+
+    def set_world(self):
+        for ident, o in self.entities.items():
+            self.cpu.write(o + 8, bytes([self.flag(ident, int(ident & 0xf0 != 0))]))
+        for ident, (active, _, _) in self.objs.items():
+            self.cpu.write(self.obj_addr[ident] + 8, bytes([self.flag(ident, active)]))
+        for ident, o in self.nodes.items():
+            bit = (mix(self.seed ^ ident, self.frame) >> 3) & 1
+            self.cpu.u32(o + 0x24, bit << 2)
 
     def node_find(self, c):
         return self.node_mem(super().node_find(c))
@@ -152,15 +229,6 @@ class CheckRun(T.Run):
     def box(self, c):
         return self.ev(f'box {h32(self.addr_of[c.ecx - 0x17964])}')
 
-    def cond(self, c):
-        if c.ecx not in self.order:
-            self.order[c.ecx] = [len(self.order), 0]
-        k, n = self.order[c.ecx]
-        self.order[c.ecx][1] += 1
-        r = (n & 1) if k % 5 == 4 else int(n >= mix(self.seed, k) % 4)
-        self.ev(f'cond {h32(k)} {h32(n)} {h32(r)}')
-        return r
-
     def team(self, c):
         o = self.addr_of[c.ecx]
         self.ev(f'team {h32(o)}')
@@ -177,6 +245,8 @@ class CheckRun(T.Run):
         self.next = self.heap0
         self.lines, self.entities, self.addr_of, self.type = [], {}, {}, gtype
         self.nodes, self.order, self.seed = {}, {}, seed
+        self.navs, self.valves, self.inner_of, self.obj_addr, self.frame = {}, {}, {}, {}, -1
+        self.buf3 = self.calloc(0x20)
         self.trees = {k.lower(): [self.build(v)] for k, v in files.items()}
         cpu.write(POINT, struct.pack('<3f', *point))
         cpu.u32(NAVS, 0x1000)
@@ -211,6 +281,7 @@ class CheckRun(T.Run):
             cpu.write(obj + 8, bytes([active]))
             cpu.u32(team + 0xc0, hostile)
             self.ent_obj[ent], self.addr_of[obj], self.objs[ident] = obj, ident, (active, hostile, x48)
+            self.obj_addr[ident] = obj
             self.teams[ident] = team
             cpu.u32(arr + 4 * i, ent)
         cpu.u32(ENTS, arr)
@@ -221,6 +292,8 @@ class CheckRun(T.Run):
         if ia >= 0:
             cpu.call(0x45c4a0, ecx=out + 4, edx=out + 8, stack_args=[out + 12, out + 16])
         for f in range(frames):
+            self.frame = f
+            self.set_world()
             self.ev(f'frame {h32(f)}')
             for i, slot in enumerate((8, 4, 12, 16)):
                 g = self.u32(out + slot)
@@ -260,7 +333,9 @@ def report(tag, a, b):
             p, q = (xl[i] if i < len(xl) else '<end>'), (yl[i] if i < len(yl) else '<end>')
             if p != q:
                 print(f'MISMATCH {tag}: {name} line {i}:\n    exe:  {p}\n    port: {q}')
-                return
+                if os.environ.get('CTX'):
+                    print('    before:', ' | '.join(xl[max(0, i - 12):i]))
+                break
 
 
 def main():
@@ -283,6 +358,8 @@ def main():
         objs = [(0xd00000 + 16 * k + r.randint(0, 15), r.random() < 0.8, r.random() < 0.7, r.choice([0, 0, 0, 1]))
                 for k in range(r.randint(0, 5))]
         objs = [(a, int(b), int(c), d) for a, b, c, d in objs]
+        if not vehicle and b'reach_area' in data:
+            vehicle = 0xb0001  # the exe reads a null vehicle's position (the port's FIX (bug))
         if ia >= 0 and objs and not vehicle:
             vehicle = 0xb0001  # the builder reads the player's vehicle's team unchecked
         args = ({'objectives.zrd': data}, 'm1', gtype, point, seed, frames, vehicle, view, screen, ia, number, objs)
