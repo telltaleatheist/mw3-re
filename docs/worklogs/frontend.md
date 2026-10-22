@@ -927,3 +927,27 @@ MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
 - Left: F12's text (0x00446ad0, the objectives' lines), the mission maps'
   list (0x00458590), targets.zrd objects' node binding (0x0040eaa0) so Z/Q
   find buildings.
+
+## 2026-10-21 Playtest #21: the mission's quit box (branch mac3/msgbox21)
+
+- 0x0048dfe0's one caller is the Core state's start (0x00480c70): every
+  mission start made it (new 0x12688) and the program reported it unported,
+  which is what Owen saw late in a run. It is zTwoD's MessageBox with a
+  spare SlideButton (+0x12494, id -1, unused), OK and CANCEL shown, message
+  0xde1 and title 7; the frame updates it, and only a multiplayer stop
+  shows it (0x0048e2d0: the command on mouse button 1 unbound meanwhile),
+  0x0048e320 closes it, OK leaves the network game (0x0046d100,
+  0x0047fc40(0), the fade to 0x00609848, not ported), Cancel closes.
+- Ported: mech3/quit_box (QuitBox); GameEngine::message_box_new and
+  message_box_quit_prompt, its vt+0/+4/+8 through menu_vcall; the hook
+  Engine::network_leave (0x0046d100).
+- Test: test_menus.py quit (kind 4: the probe now holds any Dialog; new
+  ops M the prompt, L the close; the buttons pressed as 'O'; the message
+  box's button vtables added to VT_KIND; zVideo's screen rect, the cursor
+  show and the message formatter stubbed): 60/60, the other kinds still
+  60/60. Breaks (scratchpad hudkeys/breaks21.py): 19/19 (the backdrop's
+  hide caught once its flags joined the dump). mw3tests' HUD keys test checks c1m1 no longer reports 0x0048dfe0.
+- Seen on the way: the five BindButton reports at each mission start (the
+  shipped MESSAGEBOX has no YES/NO/ABORT/RETRY/IGNORE; the original reports
+  them too) print their format unfilled ("BindButton (%s) failed"): the
+  report printer's, not looked at.

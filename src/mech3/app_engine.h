@@ -49,6 +49,7 @@ struct Platform {
 
 class GameEngine;
 class MenuScreen;
+class QuitBox;
 class MenuState;
 void wire_mission_hooks(GameEngine* e);  // mech3/mission's hooks to the ports (app_mission.cpp)
 void wire_pilot_hooks(GameEngine* e);    // the pilot module's calls out (app_menus.cpp)
@@ -381,6 +382,9 @@ class GameEngine : public Engine {
   void sound_free_playing(Handle l) override;
   void mission_abort() override;
   void set_reopen_training(uint8_t v) override;
+  // The mission's quit box (0x0048dfe0, quit_box.h): one, the Core state's.
+  Handle message_box_new(const char* file, const char* name) override;
+  void message_box_quit_prompt(Handle box) override;
   void fade_to_state(Handle next, uint32_t arg, int32_t direction, int32_t buffer, float seconds, uint8_t r,
                      uint8_t g, uint8_t b) override;
   void sound_reset() override;
@@ -434,6 +438,8 @@ class GameEngine : public Engine {
     bool owned = false;  // made by another screen's part (adopt_screen), deleted with it
   };
   std::map<Handle, OpenScreen> screens_;
+  QuitBox* quit_box_ = nullptr;  // at quit_box_at_
+  Handle quit_box_at_ = 0;
   std::map<Handle, MenuState*> menu_states_;  // the heap menu objects, by handle (menu_states.h)
 };
 

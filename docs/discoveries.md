@@ -2080,6 +2080,13 @@ From the box Export, Import and "save changes?" open, 0x0042e890 (details:
 - **The pause menu keeps the mission's screen size.** Unlike the main menus,
   pausing does not switch to 640x480: the 640x480 dialog sits in the top
   left corner of a still of the battlefield at the mission's resolution.
+- **Every mission carries a hidden "leave the game?" box,** made when the
+  mission starts and kept switched off. Only a multiplayer game ever shows
+  it, when you ask to quit: OK leaves the session and fades back to the
+  multiplayer screens, Cancel returns to the fight. While it is up, whatever
+  your first mouse button does (fire, by default) is unbound, so clicking
+  the box does not also shoot. It also holds a spare menu button that
+  nothing uses.
 
 ### Pilots and the pilot screen
 

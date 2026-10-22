@@ -1,6 +1,6 @@
 """The credits, option and pause screens against the original x86 (docs/menus.md, Testing).
 
-    cmake --build build && .venv/bin/python tests/differential/test_menus.py [runs] [credits|options|gfx|pause]
+    cmake --build build && .venv/bin/python tests/differential/test_menus.py [runs] [credits|options|gfx|pause|quit]
 
 The original builds a screen (the credits 0x004289a0, the game options
 0x004379f0, the graphics and audio options 0x00438f60) from its dialog
@@ -55,6 +55,7 @@ ALERT_VTS = {0x5bf3b0, 0x5bf308, 0x5bf260}
 test_twod.VT_KIND.update({v: 'C' for v in SLIDE_VTS + CYCLE_VTS + [0x5bd758]})
 test_twod.VT_KIND.update({0x5bffb0: 'L', 0x5bff20: 'L', 0x5bc1b0: 'I', 0x5bd988: 'I', 0x5bd888: 'C'})
 # 0x5bd988 the marquee, 0x5bd888 a plain SlideButton (the pause screen's)
+test_twod.VT_KIND.update({0x5d0d10 - 0x90 * i: 'C' for i in range(8)})  # the message box's buttons (the quit box's)
 
 # kind, constructor, size, file, dialog, slide buttons, cycles, other controls
 SCREENS = {
@@ -73,7 +74,15 @@ SCREENS = {
             [(0x111ec, 'MUSICSLIDER'), (0x11378, 'SFXSLIDER')]),
     'pause': (3, 0x492750, 0x11b20, 'dlgPause.zrd', 'PAUSEDIALOG',
               [(0x111ec, 'RESUME'), (0x113d8, 'QUIT'), (0x115c4, 'OPTIONS'), (0x117b0, 'REPLAY')], [], []),
+    # the mission's quit box (0x0048dfe0, menus.md): the message box's buttons, pressed as 'O'
+    'quit': (4, 0x48dfe0, 0x12688, 'dlgMessage.zrd', 'MESSAGEBOX', [], [],
+             [(0x11978 + 0x14c * i, n) for i, n in enumerate(['MB_OK', 'MB_CANCEL', 'MB_YES', 'MB_NO', 'MB_ABORT',
+                                                              'MB_RETRY', 'MB_IGNORE', 'USERBTN'])]),
 }
+# The quit box's: the network left, the app's network off, the fade, zInput's
+# mouse map (the command on button 1 unbound while it shows).
+QUIT = {0x46d100: '', 0x47fc40: 's0', 0x48ef00: 'c,d,s0,s1,s2,s3,s4,s5', 0x51d270: 'c', 0x51d230: 'c',
+        0x51d2b0: 'c,d'}
 SIZES = [(640, 480), (640, 480), (800, 600), (1024, 768), (1280, 1024), (1600, 1200)]
 
 MECH3 = {0x40cec0: '', 0x40d760: '', 0x40d770: '', 0x576db0: '', 0x576da0: '', 0x576d90: '', 0x576d80: '',
@@ -207,8 +216,10 @@ def make_plan(seed, kind, n_slides, n_cycles, n_others, spots, bound):
             lines.append(f'G {r.choice([-1, 0, 1, 2])}')
         elif roll < 0.34 and kind == 2:  # another device, then ACCEPT's apply
             lines += ['S 4 1', 'R 1']
-        elif roll < 0.33:
+        elif roll < 0.33 and kind != 4:  # (the quit box's +0x18 is an answer)
             lines.append(f'B {r.randrange(2)}')
+        elif roll < 0.42 and kind == 4:
+            lines.append(r.choice('MML'))
         elif roll < 0.35 and n_slides:
             lines.append(f'K {r.randrange(n_slides)} {r.randrange(2)}')
         elif roll < 0.36:
@@ -267,6 +278,20 @@ class Original:
         e.stub(ZRDR_LOAD, '@zrdr_load', 'c,d', None, lambda emu, key, a, pop: emu._ret(tree, pop))
         for addr, spec in MECH3.items():
             e.stub(addr, f'{addr:#010x}', spec)
+        if kind_name == 'quit':
+            for addr, spec in QUIT.items():
+                e.stub(addr, f'{addr:#010x}', spec)
+            w.answers.update({'0x0051d270': lambda rr, k, a: rr.choice([0, 0x3d, 0x3d, 0x4f]),
+                              '0x0051d230': lambda rr, k, a: rr.choice([1, 2, 4])})
+            # the message box's screen rect (0x00579880) and the cursor's show (0x00579840)
+            scr = e.world_alloc(16)
+            for i, v in enumerate((0, 0, 640, 480)):
+                e.world_w32(scr + 4 * i, v)
+            e.stub(0x579880, '0x00579880', '')
+            e.stub(0x579840, '0x00579840', 'c')
+            # the texts by message id (0x00409bf0's 0x00575ff0: (size, id); none found, so no text)
+            e.stub(0x575ff0, '0x00575ff0', 's1,s2')
+            w.answers.update({'0x00579880': scr, '0x00579840': lambda rr, k, a: rr.randrange(2), '0x00575ff0': 0})
         if kind_name == 'pause':
             for addr, spec in PAUSE.items():
                 e.stub(addr, f'{addr:#010x}', spec)
@@ -348,6 +373,8 @@ class Original:
         e.w32(vt + 0x28, e.new_stub('vt+0x28', 'c', 0))
         e.w32(vt + 0x10, e.new_stub('vt+0x10', 'c,s0', 4))
         self.state = e.world_alloc(0x10)
+        self.ctor_args = ((e.world_string('dlgMessage.zrd'), e.world_string('MESSAGEBOX')) if kind_name == 'quit'
+                          else (self.state,))
         fake_screen = e.world_alloc(0x10)
         e.w32(fake_screen, vt)
         e.w32(self.state, vt)
@@ -391,7 +418,7 @@ class Original:
             op = p[0]
             if op == 'N':
                 try:
-                    e.call(ctor, ecx=m, stack=(self.state,))
+                    e.call(ctor, ecx=m, stack=self.ctor_args)
                 except Exception:
                     from unicorn.x86_const import UC_X86_REG_EIP
                     print("FAIL at", hex(e.uc.reg_read(UC_X86_REG_EIP)), t.log[-6:])
@@ -422,6 +449,10 @@ class Original:
             elif op == 'B':
                 old = self.vcall(m, 0x18, (int(p[1]),)) & 0xff
                 t.handle('busy', (old, self.vcall(m, 0x1c) & 0xff))
+            elif op == 'M':
+                e.call(0x48e2d0, ecx=m)  # the quit box's prompt
+            elif op == 'L':
+                e.call(0x48e320, ecx=m)  # and its close
             elif op == 'D':
                 e.call(0x59fa60, ecx=m)
             elif op == 'H':
@@ -502,6 +533,21 @@ class Original:
             labels('LR', o + 0x11c)
             labels('LA', o + 0x12c)
             labels('LD', o + 0x13c)
+
+        if kind == 4:  # the quit box (probe_menus.cpp's dump_quit)
+            out.append('quit ')
+            for k, off in (('active', 4), ('result', 0x10ffc), ('frames', 0x11000), ('cmd', 0x12680),
+                           ('button', 0x12684)):
+                kv(k, e.r32(m + off))
+            k = m + 0x12494
+            kv('reading', e.r8(k + 0x14c))
+            kv('id', e.r32(k + 0x150))
+            kv('borrowed', e.r8(k + 0x154))
+            for i in range(8):
+                kv('bflags', e.r32(m + 0x11978 + 0x14c * i + 0xc))
+            kv('bdflags', e.r32(m + 0x123d8 + 0xc))  # the backdrop (not in the dialog's list)
+            out.append('\n')
+            return ''.join(out)
 
         def fonttext(o):
             base(o)
