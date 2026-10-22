@@ -450,3 +450,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   12 m/s both sides; the controls' vt+0x30; the boundary stub halves EDX's
   point for the follow's and the walk's calls; random carrot offsets
   between runs; the whole steering compared. 9 of 10 breaks (one same).
+
+## 2026-10-22 Item L4a: the brain's lance orders (mac4/lance)
+
+- Brain::attack_target (0x4ea450/4a0), form_on_me (0x4ea4b0, FormationNet
+  0x603fb8 = 0x4c0570, part 0x4c07d0), enemy_only / ally_only (0x4ea390 /
+  0x4ea3f0, FIX for a contact that sees nothing), lance_order (0x4ea000..
+  0x4ea230 + the answer 0x4e9fd0); the refit 0x4ea260 a hook (repair).
+- test_ai_lance.py: 3,608 orders identical, 6 branches, 9 of 9 breaks. The
+  probe's g_real_formation switches it to the real formation net and the
+  vehicle nets' own follow; its contact_entity answers the three contacts.
+- L4 split: L4b the dispatchers 0x469400 / 0x469650 and the lance list;
+  L5 headless; L4c the command mode (order 2) last.

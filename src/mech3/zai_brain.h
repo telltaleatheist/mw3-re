@@ -62,6 +62,10 @@ class BrainHooks : public zgame::Unported {
     unported("attacker.ictl.vt+0x98", {attacker, victim});
   }
   virtual void allies_turn() { unported("0x004d5dc0", {}); }
+  // 0x004ea260 (the refit order): the repair behaviour (0x004d08d0..
+  // 0x004d0920) pushed when the mission has repair bays (0x0045a000) and
+  // 0x0047a780 allows; not ported.
+  virtual bool refit(Brain& b) { return unported("0x004ea260", {low(&b)}) & 0xff; }
   // 0x0049e540 (player.cpp, the AI mech controls' death 0x004d8a00): the
   // player's lance list drops the dead pilot's vehicle (item L4).
   virtual void lance_lost(zgame::Handle v) { unported("0x0049e540", {v}); }
@@ -82,10 +86,7 @@ class BrainHooks : public zgame::Unported {
   virtual Behaviour* nearest(AiNet* n, const float p[3]);
   virtual uint8_t vehicle_flags(zgame::Handle v);
   virtual int32_t player_lance_state() { return static_cast<int32_t>(unported("[0x0060861c]+0x6c", {})) - 1; }
-  virtual AiNet* formation_net() {
-    unported("0x00603fb8", {});
-    return nullptr;
-  }
+  virtual AiNet* formation_net();  // 0x00603fb8: the port's FormationNet, made on first ask
   virtual zgame::Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
   virtual Behaviour* follow_behaviour(AiNet* vehicle_net);  // 0x004c0de0 (on the vehicle's net)
   // The manoeuvres at 0x00604098 (0) and 0x00604088 (1), class 0x004ca440.
@@ -530,6 +531,22 @@ class Brain {
   Order* top_unmarked();                           // 0x004e8c60
   void unwind_to(Order* o);                        // 0x004e8990
   bool stop();                                     // vt+0x40 0x004ea4e0
+  // The player's lance orders (the brain's vt+0x20..+0x48, docs/ai.md 17.6),
+  // each on the contact on the player's target: follow (and so fight) its
+  // vehicle (vt+0x20 0x004ea450; +0x24 / +0x34 0x004ea4a0 the same); only
+  // when it is no ally (+0x2c / +0x44 0x004ea390) or only when it is one
+  // (+0x30 / +0x48 0x004ea3f0); form on the player (vt+0x28 0x004ea4b0: the
+  // formation net); refit (vt+0x3c 0x004ea260, a hook); +0x38 (0x0058b380)
+  // nothing. Each answers whether it was taken.
+  bool attack_target(Contact* c);
+  bool form_on_me();
+  bool enemy_only(Contact* c);
+  bool ally_only(Contact* c);
+  // 0x004ea000..0x004ea230 (the order's number as the dispatcher 0x00469940
+  // gives it, 0..12 but 2), then 0x004e9fd0: with a radio, disregard_order
+  // when refused, else the order's line (follow, stop, confirm_order,
+  // confirm_refit, disengages_order). The answer.
+  int32_t lance_order(int32_t order, Contact* c);
   // Mech3.exe 1.2 @ 0x004ea520 (the AI's IControls vt+0x94): the base's,
   // then the radio: an enemy's hit with the player over sqrt(500) m off
   // (call_help), the player's own (friendly_fire), and past 3 s of his hits

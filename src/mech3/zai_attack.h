@@ -39,6 +39,25 @@ class AttackNet : public CompiledNet {
   bool allows_attack() override { return false; }
 };
 
+// 0x004c0570 (vtable 0x005cab60, at 0x00603fb8, made at start-up by
+// 0x00410450): the formation net the lance order "form on me" (0x004ea4b0)
+// and the lancemates' shared state (0x004cbeb0) push: one step, the stand
+// behaviour; it allows an attack (+0x54 0x00499270); its id the first free
+// one from 10000 (0x0058b1c0, the ids znet's clear keeps). Its part
+// (0x004c07d0, 0x0c bytes, vtable 0x005cabc0) only holds it.
+class FormationNet : public CompiledNet {
+ public:
+  FormationNet();
+  ~FormationNet() override;  // 0x004c0780
+  NetPart* make_part(Order& o) override;  // 0x004c07b0
+};
+class FormationPart : public NetPart {
+ public:
+  FormationPart(Order* o, FormationNet* n) : NetPart(o), target(n) {}
+  AiNet* net() const override { return target; }
+  FormationNet* target;  // +0x08
+};
+
 // 0x004c0a90 (0x1c bytes, vtable 0x005cac30): a home point for the leash,
 // the pilot's position, stacked on the brain's +0xe4; its dtor (0x004c0b50)
 // takes it off, and with none under it ends the attack (+0xe8 FLT_MAX,

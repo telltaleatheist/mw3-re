@@ -55,6 +55,17 @@ AttackNet::~AttackNet() { elems.clear(); }
 // Mech3.exe 1.2 @ 0x004c0a70
 NetPart* AttackNet::make_part(Order& o) { return new AttackPart(&o, this); }
 
+// Mech3.exe 1.2 @ 0x004c0570
+FormationNet::FormationNet() : CompiledNet(znet::alloc_id(znet::kKeptIds, znet::kKeptIds, znet::kKeptIds + 100), 1) {
+  elems.push_back(stand_behaviour());
+}
+
+// Mech3.exe 1.2 @ 0x004c0780: the stand behaviour is not its to free.
+FormationNet::~FormationNet() { elems.clear(); }
+
+// Mech3.exe 1.2 @ 0x004c07b0 -> 0x004c07d0
+NetPart* FormationNet::make_part(Order& o) { return new FormationPart(&o, this); }
+
 int32_t& attack_part_unstacked() {
   static int32_t n = 0;
   return n;
