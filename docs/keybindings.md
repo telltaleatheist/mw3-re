@@ -136,12 +136,12 @@ like "next group". The program keeps the exe's bindings and behaviour.
 | 0x3b Jettison ammo | ShiftK | Mech::command 0x41be80 | yes | - |  |
 | **View** | | | | | |
 | 0x61 Cycle Camera Mode | X | the app, 0x40dba0 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) | Owen: starts inside, X to third person |
-| 0x62 Look Left | AltNUMPAD 4 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
-| 0x63 Look Right | AltNUMPAD 6 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
-| 0x64 Look Up | AltNUMPAD 2 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
-| 0x65 Look down | AltNUMPAD 8 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
-| 0x67 Look back | AltDECIMAL | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
-| 0x66 Look forward | AltNUMPAD 5 | Mech::command 0x41be80 | yes | wall pull-in 0x40b310 (outside cameras, view.md) |  |
+| 0x62 Look Left | AltNUMPAD 4 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x63 Look Right | AltNUMPAD 6 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x64 Look Up | AltNUMPAD 2 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x65 Look down | AltNUMPAD 8 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x67 Look back | AltDECIMAL | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
+| 0x66 Look forward | AltNUMPAD 5 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x6c Cycle Resolution | ShiftV | the app, 0x40dba0 | yes | screen mode cycle 0x4ab910 (mac 2, resolution step 3) |  |
 | **Targeting** | | | | | |
 | 0x46 Target next enemy | E | Mech::command 0x41be80 | yes | - |  |

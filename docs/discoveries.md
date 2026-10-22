@@ -1662,6 +1662,13 @@ are all "puffers": emitters that drop little textured squares.
 
 From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
 
+- **The outside cameras slip in front of walls, but not of water.** When
+  something stands between a chase camera and your mech, the camera jumps
+  to one unit in front of it. It also shifts sideways off anything within
+  two units beside it. Water surfaces are meant to be ignored, but the
+  game only skips the water it meets before the first solid surface in its
+  list. A water surface listed after a solid one can still stop the camera
+  when it is the nearer of the two.
 - **Every mech sits you in a different spot in its cockpit.** The cockpit
   camera hangs at the torso plus an offset from the mech's file: the Mad Cat
   2.45 m up and 1.3 m forward, the Vulture 3.75 m up but 1.75 m *behind*, the

@@ -3,7 +3,9 @@
 #include <cmath>
 #include <cstring>
 
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
@@ -58,6 +60,86 @@ const float* centroid_position(Mech& m) {
 }  // namespace
 
 ViewHooks& view_hooks() { return *g_hooks; }
+
+void ViewHooks::pull_in(float pos[3], const float at[3], const float back[3]) {
+  mech3::pull_in(player_target(), pos, at, back);  // [0x005f4c8c] +0x64
+}
+
+// Mech3.exe 1.2 @ 0x004a3290 (its file unknown: among the AI's). The search
+// for the first hit stops at it, so a water hit after the first keeps its node
+// and can still be the nearest (kept).
+bool nearest_hit(zcls::SegmentHits* hits, int32_t n, const float from[3], float out[3]) {
+  int32_t bi = -1, hi = -1;
+  for (int32_t b = 0; b < n && bi < 0; ++b)
+    for (int32_t i = 0; i < hits[b].count; ++i) {
+      zcls::SegmentHit& h = hits[b].hit[i];
+      if (h.material && h.material->soil == 1) {
+        h.node = nullptr;
+      } else if (h.node) {
+        bi = b, hi = i;
+        break;
+      }
+    }
+  if (bi < 0) return false;
+  const zmth::Vec3 f{from[0], from[1], from[2]};
+  auto dist = [&](const zcls::SegmentHit& h) {  // 0x0051dfa0
+    return zmth::distance_sq(zmth::Vec3{h.point[0], h.point[1], h.point[2]}, f);
+  };
+  float best = dist(hits[bi].hit[hi]);
+  for (int32_t b = 0; b < n; ++b)
+    for (int32_t i = 0; i < hits[b].count; ++i) {
+      const zcls::SegmentHit& h = hits[b].hit[i];
+      if (!h.node) continue;
+      const float d = dist(h);
+      if (d < best) best = d, bi = b, hi = i;
+    }
+  std::memcpy(out, hits[bi].hit[hi].point, 12);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0040b310. Back: a segment from `back` ([0x005e06f4], 1)
+// behind the camera to the look point and the same reversed, the target left
+// out of the query; the nearest crossing to the look point puts the camera
+// that far in front of it. Sides: two units either way across the look
+// (0x00522460, 0x0051e210), the right side's crossing nearest the camera
+// first: the camera moved across (x and z) by what that side lacks.
+void pull_in(Mech* target, float pos[3], const float at[3], const float back[3]) {
+  ViewHooks& h = *g_hooks;
+  constexpr float k = 1.0f;  // 0x005e06f4
+  const float nk = -k;
+  const float off[3] = {nk * back[0], nk * back[1], nk * back[2]};
+  float segs[12] = {pos[0] + off[0], pos[1] + off[1], pos[2] + off[2], at[0], at[1], at[2],
+                    at[0], at[1], at[2], pos[0] + off[0], pos[1] + off[1], pos[2] + off[2]};
+  zcls::SegmentHits hits[3]{};  // the exe's 0xf0c bytes on the stack: three records
+  Node3 node = target ? target->node : nullptr;
+  float hit[3];
+  h.node_set_intersect(node, 0);
+  h.world_segments(segs, 4, hits);
+  h.node_set_intersect(node, 1);
+  if (nearest_hit(hits, 2, at, hit)) {
+    const float f[3] = {back[0] * k, k * back[1], k * back[2]};
+    pos[0] = hit[0] + f[0], pos[1] = hit[1] + f[1], pos[2] = hit[2] + f[2];
+  }
+  const zmth::Vec3 across{-back[2], 0.0f, back[0]};  // 0x00522460
+  zmth::Vec3 n{0.0f, 0.0f, 0.0f};
+  zmth::flat_normalize(across, n);
+  const float side[3] = {n.x + n.x, 0.0f, n.z + n.z};
+  const float right[3] = {pos[0] + side[0], pos[1] + side[1], pos[2] + side[2]};
+  const float left[3] = {pos[0] - side[0], pos[1] - side[1], pos[2] - side[2]};
+  float segs2[12] = {pos[0], pos[1], pos[2], right[0], right[1], right[2],
+                     pos[0], pos[1], pos[2], left[0], left[1], left[2]};
+  h.node_set_intersect(node, 0);
+  h.world_segments(segs2, 4, hits);
+  h.node_set_intersect(node, 1);
+  // The sides' nearest is the nearest to the camera (ESI is pos again, 0x0040b488).
+  if (nearest_hit(hits, 1, pos, hit)) {
+    pos[0] = (hit[0] - right[0]) + pos[0];
+    pos[2] = (hit[2] - right[2]) + pos[2];
+  } else if (nearest_hit(hits + 1, 1, pos, hit)) {
+    pos[0] = (hit[0] - left[0]) + pos[0];
+    pos[2] = (hit[2] - left[2]) + pos[2];
+  }
+}
 void set_view_hooks(ViewHooks* h) { g_hooks = h; }
 
 // ---------------------------------------------------------------------------
@@ -479,7 +561,7 @@ void PlayerView::place_position(const float at[3], float d, const float rot[4], 
     pos[0] = pos[0] + at[0];
     pos[1] = pos[1] + at[1];
     pos[2] = pos[2] + at[2];
-    if (mode->id == 0 || mode->id == 2 || mode->id == 5) g_hooks->pull_in(pos, at, back);
+    if (mode->id == 0 || mode->id == 2 || mode->id == 5) g_hooks->pull_in(pos, at, back);  // 0x0040b310
   }
   g_hooks->camera_set_position(camera, pos[0], pos[1], pos[2]);
 }

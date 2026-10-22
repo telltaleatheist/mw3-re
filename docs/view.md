@@ -44,8 +44,7 @@ renders, +0x08 0x0040ada0 updates.
   plus the offset turned by the rotation and times the distance; with a
   distance the rotation follows at dt x the mode's turn rate (+0x38) by a
   scaled relative quaternion (0x00525690, 0x00525be0), and tether, zippercam
-  and area are pulled in before walls (0x0040b310, not ported: segment
-  queries). Then the look (0x0040b750) follows at dt x the look rate (+0x3c),
+  and area are pulled in before walls (0x0040b310, section 5). Then the look (0x0040b750) follows at dt x the look rate (+0x3c),
   times the mode's delta, as the camera's Euler angles (0x00525f80). The
   reset form (0x0040b210) sets both at once.
 - **Ground and water** (0x0040af30): the ground under the camera (from 50 m
@@ -130,12 +129,41 @@ each change its mode (a block whose +4 is the id) and target go into the
 view's block. The look keys reach the mode's free look (vt+0x10) and its
 calls on the torso, the controls and the mech are answered (look.md,
 playtest #14). Not wired yet (logged): the ground, water and weather queries
-(cls_di.c), the wall pull-in 0x0040b310, the HUD's 0x0043bb80, the torso's
+(cls_di.c), the HUD's 0x0043bb80, the torso's
 cockpit switch 0x0041ce10.
 
-## 5. Left
+## 5. The wall pull-in (0x0040b310, 0x004a3290)
 
-- The wall pull-in 0x0040b310 (segment queries 0x004efcd0, 0x004a3290).
+The tether, zippercam and area cameras, once placed, are pulled in before
+walls (`pull_in`, player_view.cpp):
+
+1. **Behind.** Two segments go through the world's query 0x004efcd0, with
+   the view's target left out of it (0x004eb6d0 off, then on again): from
+   one unit ([0x005e06f4]) behind the camera to the look point, and the
+   same reversed. Their nearest crossing to the look point (0x004a3290 over
+   both records) puts the camera one unit in front of it, along the look.
+2. **Beside.** Two units across the look (0x00522460: (-z, 0, x), flattened
+   by 0x0051e210), a segment each way from the camera. The right one's
+   nearest crossing to the camera moves the camera across by what that
+   side lacks (x and z only); without one, the left's.
+
+0x004a3290 (ECX the records, EDX how many, then from and out) first looks
+for any crossing with a node, record by record, and clears the node of
+each water crossing (material soil 1) it passes. It stops at the first
+one, so a water crossing after it keeps its node and can still be the
+nearest: the camera is then pulled in before the water's surface (kept).
+The nearest is by squared distance (0x0051dfa0), the first of equals.
+
+Checked by `test_pull_in.py`: 3000 pull-ins against the original, the
+queries answered from a script alike on both sides (the query itself is
+test_di's). Breaks caught: the sides measured from the look point, water
+kept, the camera behind the crossing, the left side first, the target not
+left out, one record behind. Not caught: taking the last of equally near
+crossings, which would only show for two different points at exactly the
+same distance.
+
+## 6. Left
+
 - The world queries the checks use (0x004edab0, 0x004abd90, 0x004eed90) and
   the zone set 0x004f6c80, 0x005a80d0.
 - The HUD's camera calls. (The torso's cockpit switch 0x0041ce10 acts now

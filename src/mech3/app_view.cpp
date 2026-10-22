@@ -9,6 +9,7 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
@@ -110,7 +111,10 @@ struct ProgramViewHooks : ViewHooks {
   }
   bool has_weather() override { return false; }
   uint32_t weather_flags() override { return 0; }
-  void pull_in(float*, const float*, const float*) override { unported("0x0040b310", {}); }
+  // The wall pull-in (0x0040b310) is the port's; its query, on the world.
+  void world_segments(float* segs, int32_t points, zcls::SegmentHits* out) override {
+    if (Node3 w = world_node()) zcls::segment_query(zn(w), segs, points, out);  // 0x004efcd0
+  }
   const float* entity_position(Mech& t) override {
     static float p[3];
     zcls::node_world_position(zn(t.node), p);

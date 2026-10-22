@@ -5,10 +5,13 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 #include "mech3/mech.h"
 #include "mech3/mech_parts.h"
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "mech3/player_view.h"
 #include "probe_app.h"
 
@@ -101,6 +104,9 @@ struct Recording : mech3::ViewHooks {
   void world_fog_altitude(float a, float b) override { call("0x004f2420", {g_w.world_node, fb(a), fb(b)}); }
   bool has_weather() override { return g_w.weather != 0; }
   uint32_t weather_flags() override { return g_w.weather_flags; }
+  void world_segments(float*, int32_t, zcls::SegmentHits* out) override {  // not reached: pull_in stands in
+    out[0].count = out[1].count = 0;
+  }
   void pull_in(float pos[3], const float at[3], const float back[3]) override {
     call("0x0040b310", {fb(pos[0]), fb(pos[1]), fb(pos[2]), fb(at[0]), fb(at[1]), fb(at[2]), fb(back[0]), fb(back[1]),
                         fb(back[2])});
@@ -336,3 +342,53 @@ int32_t probe_view_cameras(int32_t* kinds, uint32_t* raws) {
 }
 
 }  // extern "C"
+
+// The wall pull-in (0x0040b310) for test_pull_in.py: the port on a target
+// whose node is 0x4444, the two segment queries answered from `script` (per
+// query and record: a count, then four hits of x, y, z bits, has a node, the
+// material: 0 none, 1 soil 0, 2 soil 1) and logged with the node switches.
+namespace {
+struct PullIn : Recording {
+  const int32_t* script = nullptr;
+  int32_t query = 0;
+  std::vector<int32_t>* log = nullptr;
+  zmod::Material soil0{}, soil1{};
+  void node_set_intersect(mech3::Node3 n, int32_t on) override {
+    log->insert(log->end(), {1, static_cast<int32_t>(A(n)), on});
+  }
+  void world_segments(float* segs, int32_t points, zcls::SegmentHits* out) override {
+    log->insert(log->end(), {2, points});
+    for (int i = 0; i < 12; ++i) log->push_back(static_cast<int32_t>(fb(segs[i])));
+    soil0.soil = 0, soil1.soil = 1;
+    for (int r = 0; r < 2; ++r) {
+      const int32_t* s = script + (query * 2 + r) * 21;
+      out[r].count = static_cast<uint8_t>(s[0]);
+      for (int k = 0; k < s[0]; ++k) {
+        const int32_t* e = s + 1 + 5 * k;
+        zcls::SegmentHit& h = out[r].hit[k];
+        h = zcls::SegmentHit{};
+        for (int c = 0; c < 3; ++c) std::memcpy(&h.point[c], &e[c], 4);
+        h.node = e[3] ? reinterpret_cast<zcls::Node*>(uintptr_t{0x5000} + k) : nullptr;
+        h.material = e[4] == 1 ? &soil0 : e[4] == 2 ? &soil1 : nullptr;
+      }
+    }
+    ++query;
+  }
+};
+}  // namespace
+extern "C" int32_t probe_pull_in(const float* pos_in, const float* at, const float* back, const int32_t* script,
+                                 float* pos_out, int32_t* log_out, int32_t cap) {
+  std::vector<int32_t> log;
+  PullIn h;
+  h.script = script, h.log = &log;
+  mech3::set_view_hooks(&h);
+  mech3::Mech m;
+  m.node = reinterpret_cast<void*>(uintptr_t{0x4444});
+  float pos[3] = {pos_in[0], pos_in[1], pos_in[2]};
+  mech3::pull_in(&m, pos, at, back);
+  mech3::set_view_hooks(nullptr);
+  std::memcpy(pos_out, pos, 12);
+  if (static_cast<int32_t>(log.size()) > cap) return -1;
+  std::memcpy(log_out, log.data(), log.size() * 4);
+  return static_cast<int32_t>(log.size());
+}

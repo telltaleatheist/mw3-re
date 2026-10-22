@@ -16,6 +16,8 @@ struct Node;
 // view. The view ([0x005f4c8c]) owns the scene's camera node (camera1); each
 // frame its camera mode, one of the target mech's six cameras, places that
 // node: in the cockpit, behind, above.
+namespace zcls { struct SegmentHits; }
+
 namespace mech3 {
 
 using Node3 = void*;  // a zClass node (zcls::Node)
@@ -173,7 +175,12 @@ class ViewHooks : public zgame::Unported {
   virtual uint32_t weather_flags() = 0;
   virtual void weather_hide() { unported("weather.vt+0x64", {}); }
   virtual void weather_show() { unported("weather.vt+0x60", {zgame::bits(-1.0f)}); }
-  virtual void pull_in(float pos[3], const float at[3], const float back[3]) = 0;  // 0x0040b310, not ported
+  // 0x0040b310: an outside camera pulled in before walls (pull_in below);
+  // the tests stand in for it.
+  virtual void pull_in(float pos[3], const float at[3], const float back[3]);
+  // 0x004efcd0 on the world ([0x00608c84] +4): `points` / 2 segments, a
+  // record each (zcls::segment_query).
+  virtual void world_segments(float* segs, int32_t points, zcls::SegmentHits* out) = 0;
   virtual const float* entity_position(Mech& t) = 0;                     // 0x005a85e0
 
   // The mech.
@@ -207,6 +214,15 @@ class ViewHooks : public zgame::Unported {
   virtual uint8_t game_byte_8e(uint32_t game) = 0;
 };
 ViewHooks& view_hooks();
+
+// Mech3.exe 1.2 @ 0x004a3290 (ECX the records, EDX how many): the nearest
+// hit to `from` among them, false for none. A hit on soil 1 (water) is
+// dropped (its node cleared) while the first is looked for; docs/view.md.
+bool nearest_hit(zcls::SegmentHits* hits, int32_t n, const float from[3], float out[3]);
+// Mech3.exe 1.2 @ 0x0040b310: the camera at `pos`, looking at `at` along
+// -`back`, brought to the near side of what the view's target sees it
+// through, then off what is beside it.
+void pull_in(Mech* target, float pos[3], const float at[3], const float back[3]);
 void set_view_hooks(ViewHooks* h);
 
 // The player's view (0x0040aca0, vtable 0x005bc2e8; base zView 0x004b5060).
