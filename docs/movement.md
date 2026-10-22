@@ -319,8 +319,8 @@ at 30 m with the player walking 0x1c and the full model.
    The pilot's effects 0x00432830 (the jump jets' flames) run the port
    (`canned_effect`); the Thor's jump in mission_c1m1_player_commands_headless
    shows them started and put out. Left: the HUD's zoom flags (+0x1514, the
-   torso's slow turn), force feedback, and the collider's box test
-   (`CollideCalls::hit_box`, 0x004ec9c0) unwired in the program.
+   torso's slow turn), force feedback. (The collider's box test,
+   `CollideCalls::hit_box` 0x004ec9c0, is wired: movement-collision.md.)
 2. The AI brain 0x4e9710 the AI's controls run (`ControlsCalls::ai_brain`;
    ai.md), the pilot's tick 0x4d9290 the player's run, mech3's controls
    setup that fills the commands and the axis table (input.md, Open).

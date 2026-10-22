@@ -119,6 +119,13 @@ stand, the wall response blocks.
 put just under the contact, 0.002 head damage. On foot: damage by the volume
 of the box hit (dx dy dz / 180 / 4): head 0.1, torso 0.4, sides 0.25 each, and
 the hip crouches (0x4622a0, sound 12; ported as `Hip::duck`, `test_parts.py`).
+The box is 0x4ec9c0's (node +0x74 min, +0x80 max, when node flag 0x100;
+`zcls::node_box`), which the program hands the collider as
+`CollideCalls::hit_box` (2026-10-21: unwired before, so on foot nothing
+happened in play). `mission_c1m1_ceiling_crush_uses_the_box_headless`: a
+boxed node of c1's world as the ceiling, the hip's drop exactly v x the
+crouch depth; a node without a box does nothing. Breaks: hit_box unwired,
+the box read from +0x80, the flag ignored.
 
 After the responses the segments are queried again; the mech stays blocked
 while touch, ceiling or wall hits remain, and only then are the probe
