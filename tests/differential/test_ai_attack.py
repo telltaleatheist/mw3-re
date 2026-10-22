@@ -19,6 +19,7 @@ calls, the stack (the attack's parts and states with their home points,
 nets, waypoints and turns) and the brain's fields must match, at 24-bit x87.
 """
 import ctypes
+import math
 import os
 import random
 import struct
@@ -34,8 +35,16 @@ from unicorn import UC_HOOK_CODE  # noqa: E402
 U, I = ctypes.c_uint32, ctypes.c_int32
 ATTACK, OWNER = 0x4e9ca0, 0x2c7f0000  # the probe's kOwner, the vehicle's handle in the traces
 VT_PART, VT_END, VT_REARM, VT_RETURN = 0x5cac30, 0x5cb928, 0x5cba00, 0x5cbad8
+VT_VPART, VT_FIGHT, ENT1 = 0x5cac40, 0x5ccb60, 0x2c7f4400  # the probe's ent_handle(1): the target
 f2i = to.f2i
-COVER = {0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
+
+
+def f32(x):
+    return struct.unpack('<f', struct.pack('<f', x))[0]
+
+COVER = {0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
+         0x4c8c37: 'fight: backing off', 0x4c8c50: 'fight: arrived', 0x4c8c5f: 'fight: closing',
+         0x4c8abd: 'fight: pulled in', 0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
          0x4cb0c4: 'home: capped', 0x4caf0f: 'home: pulled in', 0x4cb013: 'home: turning',
          0x4caff9: 'home: behind, full', 0x4cae57: 'resume: no position', 0x4cad45: 'rearm: off for good', 0x4cad57: 'rearm: a delay', 0x4cb049: 'home: dead ahead',
          0x4c0b6c: 'part: the last home', 0x4c0b8e: 'part: stacked', 0x4caeed: 'home: the speed share'}
@@ -82,6 +91,12 @@ class Original(to.Original):
         for k in (1, 2, 3, 4):
             beh = self.beh_addr[k]
             e.w32(e.r32(beh) + 0x18, e.new_stub('@beh.vt+0x18', 'c', 0, self.step_position))
+        # The fight's target vehicle (its own net at +0xd0, active +0x08) and
+        # the vehicle net's unported states as numbered fakes.
+        self.target = e.world_alloc(0x200)
+        self.tpos = e.world_alloc(0x10)
+        for maker in (0x4c9730, 0x4d1300, 0x4d1630, 0x4c89f0):
+            e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
         self.mark = e.world_alloc(0x10)
         self.step_on = {}
         for a in COVER:
@@ -100,8 +115,28 @@ class Original(to.Original):
         return t
 
     def position(self, e, key, a, pop):
+        if a[0] == self.target:
+            self.t.handle(key, [ENT1])
+            e._ret(self.tpos, pop)
+            return
         self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
         e._ret(self.pos, pop)
+
+    def fight_world(self, pos, active, cc, r24, now, mode):
+        e, b = self.e, self.brain
+        e.cpu.write(self.tpos, struct.pack('<3f', *pos))
+        e.cpu.write(self.target + 8, bytes([active]))
+        e.cpu.write(b + 0xcc, bytes([cc]))
+        e.w32(b + 0x24, r24)
+        e.w32(b + 0x22c, 0)
+        e.w32(0x60991c, now)
+        e.w32(b + 0x40, mode & 0xffffffff)
+
+    def fight_push(self):
+        e = self.e
+        vn = e.call(0x4d70f0, ecx=self.target)
+        beh = e.r32(e.r32(vn + 0xc) + 4)
+        return e.call(to.F['push'], ecx=self.brain, stack=(vn, beh)) & 0xff
 
     def pull(self, e, key, a, pop):
         r = self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
@@ -137,7 +172,7 @@ class Original(to.Original):
         if h == self.mark:
             return 1
         for i, o in enumerate(orders):
-            if self.e.r32(o + 0x30) == VT_PART and h == o + 0x38:
+            if self.e.r32(o + 0x30) in (VT_PART, VT_VPART) and h == o + 0x38:
                 return 100 + i
         return 2
 
@@ -147,8 +182,8 @@ class Original(to.Original):
         orders = self.orders()
         for o in orders:
             part, state = e.r32(o + 0xc), e.r32(o + 0x10)
-            real_part = part and e.r32(part) == VT_PART
-            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN)
+            real_part = part and e.r32(part) in (VT_PART, VT_VPART)
+            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT)
             row = [e.cpu.read(o + 4, 1)[0], int(e.r32(o + 8) == self.brain),
                    e.r32(part + 4) if part and not real_part else 0,
                    e.r32(e.r32(part + 8) + 4) if part and not real_part else 0,
@@ -157,12 +192,14 @@ class Original(to.Original):
             row += [e.r32(o + 0x14 + 4 * i) for i in range(7)]
             row += [0] * 9
             if real_part:
-                row[13] = e.r32(e.r32(part + 0x18) + 4)
+                row[13] = e.r32(e.r32(part + 0x18) + 4) + (0x10000 if e.r32(part) == VT_VPART else 0)
                 row[14:17] = [e.r32(part + 8 + 4 * k) for k in range(3)]
                 row[17] = self.home_code(e.r32(part + 0x14), orders)
             if real_state:
                 vt = e.r32(state)
-                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3}[vt]
+                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4}[vt]
+                if vt == VT_FIGHT:
+                    row[20] = e.r32(state + 0xc)
                 if vt == VT_RETURN:
                     n = e.r32(state + 8)
                     row[19] = e.r32(n + 4) if n else 0
@@ -194,12 +231,17 @@ def setup_probe():
     probe.probe_ao_attack_stack.restype = I
     probe.probe_ao_attack_brain.argtypes = [ctypes.c_void_p]
     probe.probe_ao_turn_params.argtypes = [ctypes.c_void_p]
+    probe.probe_ao_fight_world.argtypes = [ctypes.c_void_p, I, U, U, U, I]
+    probe.probe_ao_fight_push.restype = I
+    probe.probe_ao_set_now.argtypes = [U]
     return probe
 
 
 def world(rng):
     rf = lambda lo, hi: f2i(rng.uniform(lo, hi))  # noqa: E731
     near, far = rng.uniform(5, 60), rng.uniform(20, 200)
+    if rng.random() < 0.5:  # +0x28 past +0x2c, as c1m1's Owens has them (80, 60)
+        near, far = near + far, -far * 0.5
     w = [f2i(near), f2i(near + far), rng.choice([0, 1]), rf(0, 30), rng.choice([0, 0, 1]), rng.choice([0, 0, 1]),
          f2i(rng.choice([0.0, 0.0, 0.7, 1.0, 0.4])), f2i(rng.choice([0.5, 1.0, 0.8])),
          f2i(rng.choice([3.4028235e38, 50.0])), f2i(rng.choice([3.4028235e38, 120.0])), rf(0, 1)]
@@ -228,6 +270,8 @@ def run_case(probe, seed, rounds):
     port = Trace(script(seed))
     probe.probe_app_set_callback(port.callback())
     probe.probe_ao_new()
+    probe.probe_ao_set_now(0)  # the time from 0 on both sides
+    orig.e.w32(0x60991c, 0)
     stats = {}
 
     def check(what):
@@ -278,11 +322,30 @@ def run_case(probe, seed, rounds):
             raise SystemExit(f'seed {seed}: attack answers {ra} vs {rb}')
         check('attack')
         stats['attacks'] = stats.get('attacks', 0) + 1
-        if rng.random() < 0.8:  # the fight, as the brain's frame pushes it next: its pop resumes the way home
+        r = rng.random()
+        if r < 0.6:  # the fight as the brain's frame pushes it: the target vehicle net's attack behaviour
+            px, py, pz = (struct.unpack('<f', struct.pack('<I', x))[0] for x in w[11:14])
+            ang = rng.uniform(-3.2, 3.2)
+            d = rng.choice([5.0, 50.0, 70.0, 100.0, 300.0, rng.uniform(0, 400)])
+            tpos = [f32(px + d * math.sin(ang)), f32(py), f32(pz + d * math.cos(ang))]
+            fw = (tpos, int(rng.random() < 0.9), rng.choice([0, 1, 2, 3]), f2i(rng.choice([1e4, 4e4, 1e6])),
+                  f2i(rng.uniform(0, 100)), rng.choice([0, 1, 2, 3, 4, 5, 1, 1]))
+            orig.fight_world(*fw)
+            probe.probe_ao_set_now(fw[4])
+            probe.probe_ao_fight_world((ctypes.c_float * 3)(*tpos), *fw[1:])
+            ra, rb = orig.fight_push(), probe.probe_ao_fight_push() & 0xff
+            if ra != rb:
+                raise SystemExit(f'seed {seed}: fight push {ra} vs {rb}')
+            check('fight')
+            stats['fights'] = stats.get('fights', 0) + 1
+            fight = fw
+        else:
+            fight = None
+        if fight is None and r < 0.85:  # a fake fight: its pop resumes the way home
             n2, b = rng.choice([1, 2, 3, 4]), rng.choice([1, 2, 3, 4])
             orig.op(1, n2, b, 0)
             probe.probe_ao_op(1, n2, b, 0)
-            check('fight')
+            check('fake fight')
         for step in range(rng.randrange(1, 40)):
             size = len(orig.orders())
             r = rng.random()
@@ -294,6 +357,14 @@ def run_case(probe, seed, rounds):
                 w = world(rng)
                 orig.world(w)
                 probe.probe_ao_attack_world((U * len(w))(*w))
+                if fight is not None:  # the target moves too (around the pilot, behind it now and then)
+                    px, py, pz = (struct.unpack('<f', struct.pack('<I', x))[0] for x in w[11:14])
+                    ang, d = rng.uniform(-3.2, 3.2), rng.choice([5.0, 50.0, 70.0, 100.0, 300.0])
+                    tpos = [f32(px + d * math.sin(ang)), f32(py), f32(pz + d * math.cos(ang))]
+                    fight = (tpos,) + fight[1:]
+                    orig.fight_world(*fight)
+                    probe.probe_ao_set_now(fight[4])
+                    probe.probe_ao_fight_world((ctypes.c_float * 3)(*tpos), *fight[1:])
                 what = 'world'
             else:
                 f = f2i(rng.choice([1 / 30, 0.25]))
@@ -322,7 +393,7 @@ def main():
     never = [COVER[a] for a in COVER if a not in REACHED]
     if never:
         raise SystemExit(f'branches never reached: {never}')
-    print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("run", 0)} runs, '
+    print(f'ok: {cases} cases, {total.get("attacks", 0)} attacks, {total.get("fights", 0)} fights, {total.get("run", 0)} runs, '
           f'{total.get("pop", 0)} pops identical; {len(COVER)} branches reached')
 
 

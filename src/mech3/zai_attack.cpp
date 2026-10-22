@@ -181,6 +181,81 @@ void AttackReturnState::run(float) {
   if (done) order->pop();
 }
 
+// Mech3.exe 1.2 @ 0x004c8a70
+bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3], float* turn, float* throttle,
+              bool back) {
+  BrainHooks& h = brain_hooks();
+  BrainControls& c = *b.controls;
+  bool done = false;
+  float cap = b.params.get<float>(0x84);
+  if (cap == 0.0f || std::isnan(cap)) cap = b.xec;
+  float fwd[3] = {};
+  h.forward(v, &fwd[0], &fwd[2]);  // the vehicle's +0x24: x and z
+  float pulled[3] = {};
+  if (h.inout_clamp(v, pulled)) {  // 0x004c3000
+    FlatWay w;
+    flat_way(from, pulled, &w);
+    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    float cross;
+    *turn = turn_hold(fwd, w.dir, &dot, &cross, *turn, turn_params());
+    *throttle = dot >= 0.9f ? cap : 0.0f;  // 0x005cb0d8
+    done = true;
+  } else {
+    FlatWay w;
+    flat_way(from, to, &w);
+    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const TurnParams& p = turn_params();
+    float t;
+    if (dot < -p.cos_dead) {  // behind
+      t = *turn == 0.0f || std::isnan(*turn) ? 1.0f : *turn;
+    } else if (!(dot >= p.cos_dead)) {  // past the dead zone (a NaN dot too)
+      const float cross = fwd[2] * w.dir[0] - w.dir[2] * fwd[0];
+      t = turn_past(cross, p.sin_dead, p.gain, p.least, dot);
+    } else {
+      t = 0.0f;
+    }
+    *turn = t;
+    if (back && !(w.dist >= b.params.get<float>(0x2c))) {  // too close: back off facing it
+      *throttle = dot >= 0.9f ? -cap : 0.0f;
+    } else if (!(w.dist >= b.params.get<float>(0x28))) {  // arrived
+      *throttle = 0;
+      done = true;
+    } else {
+      *throttle = h.stop_share(v, w.dist - (b.params.get<float>(0x2c) + b.params.get<float>(0x28)) * 0.5f);
+      if (c.throttle_now() > *throttle) *throttle = 0;
+      if (*throttle > cap) *throttle = cap;
+    }
+  }
+  c.set_throttle(*throttle);  // IControls vt+0x20
+  c.set_turn(*turn);          // vt+0x28
+  return done;
+}
+
+// Mech3.exe 1.2 @ 0x004d1d10. The exe takes the order's part as the vehicle
+// net's (its vt+0x0c), as it always is: the brain pushes the fight on that
+// net; any other part here gives up.
+void FightState::run(float) {
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  const zgame::Handle v = b.controls->vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(order->net.get());
+  if (!part) {
+    order->pop();
+    return;
+  }
+  Behaviour* mode = part->behaviour;
+  const zgame::Handle target = part->target->vehicle;
+  float to[3], from[3];
+  h.position(target, to);  // the net's vt+0x04 (0x004c02e0)
+  h.position(v, from);     // 0x005a85e0
+  if (!h.entity_active(target) || b.must_break_off(v)) {
+    order->pop();
+    return;
+  }
+  float throttle;
+  if (drive_to(b, v, from, to, &turn, &throttle, true) && mode) order->set_behaviour(mode);  // 0x004e8120
+}
+
 // Mech3.exe 1.2 @ 0x004e9ca0
 bool attack(Brain& b, AiNet* n) {
   b.remake(n);  // 0x004e82e0

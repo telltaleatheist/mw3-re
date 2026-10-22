@@ -1736,6 +1736,14 @@ are all "puffers": emitters that drop little textured squares.
   from how it actually moves; in the air from its real velocity. Its
   torso then turns toward that point within its twist limits, and the
   shot waits until the torso faces it closely enough (`ai.md` 17.7).
+- **Enemies close to a set range, and back off if you get too close.**
+  When an enemy goes for you, it drives straight at you until it is within
+  its pilot's attack range (80 m for c1m1's Owens), and if you are inside
+  its minimum range (60 m for the Owens) it reverses away while facing
+  you. Only then does it switch to its fighting style, if its pilot has
+  one. It also gives up a chase after a while: in a test the Owens gave up
+  after about 130 m (likely its leash from where it started)
+  (`ai.md` 17.2, "The fight").
 - **After a fight, enemies walk back to their patrol.** When an enemy
   breaks off, it heads back to the nearest point of the route it was
   walking, slowing so it can stop in time, and is done once it is within

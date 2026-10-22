@@ -286,3 +286,16 @@ Newest last. One short entry per item: what, commits, what to remember.
   test_parts op 29; c1m1: engaging on, attack, fight popped, Owens moved
   250 m off, walks back to 79.8 m (its +0x28 80).
 - Next: 10b2 (the fight 0x4d1ca0 / 0x4d1d10, 0x4c8a70), then 10c.
+
+## 2026-10-22 Item 10b2: the fight (mac4/fight)
+
+- FightState 0x4d1cc0 / run 0x4d1d10 and drive_to 0x4c8a70 (zai_attack);
+  make_state for VehAttack. The vehicle net's other states (follow, modes,
+  own order) go through BrainHooks::vehicle_step_state (the base state).
+- Test: test_ai_attack.py pushes a real fight (0x4d70f0 on a target
+  vehicle) with the unported makers stubbed to fakes; 14 of 14 breaks.
+- Headless: engaging on, mode 1, player 160 m off: the Owens closes to
+  79.5 m and takes the mode's behaviour; then the way home as in 10b. The
+  Owens' own mode is 0; a 300 m chase was given up after ~130 m (leash or
+  time, not checked).
+- Next: 10c, the brain's own order 0x4e81a0.
