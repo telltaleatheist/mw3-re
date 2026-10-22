@@ -12,6 +12,7 @@ namespace {
 PocketColours g_colours;
 PocketCommands g_commands;
 PanelCalls g_calls;
+FrameCalls g_frame;
 
 uint32_t note(const char* key, uint32_t arg = 0) {
   PocketCalls& pc = pocket_calls();
@@ -70,6 +71,7 @@ struct Lines {
 PocketColours& pocket_colours() { return g_colours; }
 PocketCommands& pocket_commands() { return g_commands; }
 PanelCalls& panel_calls() { return g_calls; }
+FrameCalls& frame_calls() { return g_frame; }
 
 // Mech3.exe 1.2 @ 0x00467d80 (the rows of 0x005e5050: an action, its
 // message, the order; the last is the command mode's own key, order 2)
@@ -117,7 +119,7 @@ void pocket_mission_start() {
   pocket_load_sounds();
   PocketGlobals& g = pocket_globals();
   g.marker = g_calls.make_marker ? g_calls.make_marker() : note("0x00468100");
-  if (g.marker && g_calls.marker_off) g_calls.marker_off(g.marker);
+  if (g.marker && g_calls.marker_on) g_calls.marker_on(g.marker, false);
   pocket_load_commands();
 }
 
@@ -367,6 +369,193 @@ bool PocketPanel::pick(int32_t unit) {
 void PocketPanel::picked(int32_t delta, int32_t from) {
   picked_count += delta;
   for (size_t i = static_cast<size_t>(from); i < items.size(); ++i) items[i]->refresh();
+}
+
+// Mech3.exe 1.2 @ 0x00468820 (its dt unread): an object under the mouse is
+// entered or hovered, a left click (bit 2, released) toggles its press, then
+// its left-up; a right click its right-up; one the mouse left is left.
+void PocketPanel::route() {
+  m = g_frame.route_mouse ? (g_frame.route_mouse(&m), m) : ztwod::host().mouse();  // 0x0051ba60
+  for (ztwod::Object2D* o = head; o; o = o->next) {
+    if (o->hit(m.x, m.y)) {
+      if (!(o->mouse & ztwod::kHover)) {
+        o->mouse = static_cast<uint16_t>(o->mouse | ztwod::kHover);
+        o->on_enter();
+      } else {
+        o->on_hover();
+      }
+      if (m.left & 4) {
+        if (o->mouse & ztwod::kPressed) {
+          o->mouse = static_cast<uint16_t>(o->mouse & ~ztwod::kPressed);
+          o->on_release();
+        } else {
+          o->mouse = static_cast<uint16_t>(o->mouse | ztwod::kPressed);
+          o->on_press();
+        }
+        o->on_left_up();
+      }
+      if (m.right & 4) o->on_right_up();
+    } else if (o->mouse & ztwod::kHover) {
+      o->on_leave();
+      o->mouse = static_cast<uint16_t>(o->mouse & ~ztwod::kHover);
+    }
+  }
+}
+
+namespace {
+const char* entity_name(zgame::Handle e) {
+  const char* n = e ? (g_frame.entity_name ? g_frame.entity_name(e) : reinterpret_cast<const char*>(note("entity.vt+0xa4", e)))
+                    : nullptr;
+  return n ? n : ztwod::host().message_text(0x89d);  // 0x00576040
+}
+
+uint32_t node_of(zgame::Handle e) {
+  // The exe reads the marker's +0x04 through null when there is none (the
+  // mission's start always makes one).
+  return e && g_frame.entity_node ? g_frame.entity_node(e) : 0;
+}
+
+void marker_on(bool on) {
+  const zgame::Handle mk = pocket_globals().marker;
+  if (g_calls.marker_on) g_calls.marker_on(mk, on);
+  else note("0x004eb170", on);
+}
+
+// The cursor on `e`: the panel's target line names it (the name, else the
+// message 0x89d) and the marker goes when it is another.
+void name_cursor(PocketPanel* p, zgame::Handle e) {
+  pocket_globals().cursor = e;
+  p->target_entity = e;
+  p->target.set_text("   %s", entity_name(e));
+}
+
+// The cursor on the marker, put at the mode's place and shown.
+void cursor_on_marker(PocketControls& c, PocketPanel* p) {
+  const zgame::Handle mk = pocket_globals().marker;
+  c.x164 = node_of(mk);
+  name_cursor(p, mk);
+  if (mk) {
+    if (g_frame.marker_move) g_frame.marker_move(mk, c.cursor_pos);
+    else note("marker.vt+0x18", mk);
+    marker_on(true);
+  }
+}
+}  // namespace
+
+void pocket_frame(PocketControls& c, float dt) {
+  (void)dt;
+  auto* p = static_cast<PocketPanel*>(c.panel);
+  Mech* player = c.owner;
+  const zgame::Handle hud = player && g_frame.view_hud ? g_frame.view_hud(*player) : 0;
+  p->route();
+  const uint32_t net = pocket_calls().net_element ? pocket_calls().net_element() : 0;
+  ai::Contact* target = player ? player->target : nullptr;  // +0x6c
+  // FIX (bug): the exe reads the HUD's +0x70 through null when the player is
+  // not the view's mech; here no HUD is no map.
+  const bool map_up = hud && g_frame.hud_map_up && g_frame.hud_map_up(hud);
+  c.x1b8 = map_up ? (g_frame.map ? g_frame.map() : note("0x00491c80")) : 0;
+  pocket_globals().x60 = pocket_globals().x50 = c.x1b8;
+  const zgame::Handle mk = pocket_globals().marker;
+  if (!c.x184) {
+    bool moved = true;
+    const uint32_t trig = g_frame.trigger ? g_frame.trigger() : note("0x0051d300", 0x3d);
+    if (trig & 4) {
+      bool hit = false;
+      uint32_t node = 0;
+      auto from_reticle = [&] {
+        const zgame::Handle rec = g_frame.reticle_pick ? g_frame.reticle_pick(hud) : note("0x00444330");
+        hit = rec != 0;
+        node = hit && g_frame.record_node ? g_frame.record_node(rec) : 0;
+        if (g_frame.reticle_place) g_frame.reticle_place(hud, c.place);
+      };
+      if (c.x1b8) {
+        int32_t x = 0, y = 0, w = 0, h = 0;
+        if (g_frame.map_mouse) g_frame.map_mouse(hud, &x, &y);
+        if (g_frame.map_size) g_frame.map_size(c.x1b8, &w, &h);
+        if (x < w && y < h) {
+          hit = g_frame.map_pick && g_frame.map_pick(static_cast<float>(x), static_cast<float>(y), c.place, &node);
+        } else {
+          from_reticle();
+        }
+      } else {
+        from_reticle();
+      }
+      if (hit && node) {
+        c.x164 = node;
+        c.cursor_pos = c.place;
+        const zgame::Handle e = g_calls.node_entity ? g_calls.node_entity(c.x164) : note("0x0040e920", c.x164);
+        pocket_globals().cursor = e;
+        p->target_entity = g_calls.node_entity ? g_calls.node_entity(c.x164) : e;
+        p->target.set_text("   %s", entity_name(p->target_entity));
+        const zgame::Handle t = g_calls.node_entity ? g_calls.node_entity(c.x164) : e;
+        if (g_frame.pick_target) g_frame.pick_target(*player, t);
+        else note("0x004a7b40", t);
+        if (!pocket_globals().cursor) {
+          cursor_on_marker(c, p);  // a bare spot: the marker there
+        } else if (mk) {
+          marker_on(false);  // (even when the cursor is the marker)
+        }
+      } else {
+        moved = false;
+      }
+    } else {
+      const bool same = target && c.aim.entity == target->entity && c.aim.owner == target->owner;
+      if (target && !same) {
+        const zgame::Handle e = g_frame.contact_entity ? g_frame.contact_entity(target) : note("0x004e6fe0");
+        c.x1c0 = 0, c.x1c1 = 1;
+        c.x164 = node_of(e);
+        c.cursor_pos = g_frame.entity_place ? g_frame.entity_place(e) : nullptr;
+        name_cursor(p, e);
+        if (e && mk && e != mk) marker_on(false);
+      } else {
+        moved = false;
+        if (!target) c.x1c0 = 0, moved = true;
+        if (net && c.net_element != net) {
+          c.net_element = net;
+          c.x1c0 = 1, c.x1c1 = 0;
+          const zgame::Handle e = g_frame.net_entity ? g_frame.net_entity(net) : 0;
+          if (e) {
+            c.x164 = node_of(e);
+            c.cursor_pos = g_frame.entity_place ? g_frame.entity_place(e) : nullptr;
+            name_cursor(p, e);
+            if (mk && e != mk) marker_on(false);
+          } else {
+            c.x164 = node_of(mk);
+            c.cursor_pos = g_frame.net_place ? g_frame.net_place(net) : nullptr;
+            name_cursor(p, mk);
+            if (mk) {
+              if (g_frame.marker_move) g_frame.marker_move(mk, c.cursor_pos);
+              marker_on(true);
+            }
+          }
+          moved = true;
+        }
+      }
+    }
+    if (moved) p->picked(0, p->places);
+  }
+  c.aim = target ? *target : ai::Contact{};  // the template 0x005e9d10
+  switch (c.x148) {
+    case 0:
+      if (c.x184 == 1) c.x148 = 1, c.x14c = 3;
+      break;
+    case 1:
+    case 3:
+      if (--c.x14c < 1) ++c.x148;
+      break;
+    case 2:
+      if (pocket_calls().view_pocket) pocket_calls().view_pocket(false);  // 0x004b5290(0)
+      c.x154 |= 1;
+      if (pocket_calls().set_camera_mode) pocket_calls().set_camera_mode(c.saved_camera);  // 0x0040ae70
+      c.x14c = 1;
+      ++c.x148;
+      break;
+    case 4:
+      c.wrapped = 1;  // +0x38: the mech's update unwraps (0x00469cf0)
+      break;
+    default:
+      break;
+  }
 }
 
 }  // namespace mech3

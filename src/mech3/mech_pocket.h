@@ -88,7 +88,7 @@ class PocketControls : public PlayerControls {
   int update(float dt) override;         // IControls vt+0x0c 0x0046a360
   void set_owner(Mech* m) override;      // IControls vt+0x08 0x0046a440: the panel made again
   void on_death() override;              // IControls vt+0xa8 0x0046abb0
-  MechControls* unwrap() override;       // primary vt+0x04 0x00469cf0: the order (2) again, the mode left
+  MechControls* unwrap() override;       // primary vt+0x04 0x00469cf0: the dispatcher on +0x160
   PocketControls* pocket() override { return this; }  // primary vt+0x08 0x004d2a70
   bool release() override;               // primary vt+0x18 0x0046ad80
   void command(int32_t cmd) override;    // primary vt+0x1c 0x0046a860
@@ -105,15 +105,15 @@ class PocketControls : public PlayerControls {
   MechControls* prev;                    // +0x158
   PlayerControls* prev_instance;         // +0x15c  [0x006056ec] before
   int32_t order;                         // +0x160  2 (unwrap's)
-  uint32_t x164 = 0;                     // +0x164
-  const float* cursor_pos = nullptr;     // +0x168
-  uint32_t x16c = 0, x170 = 0, x174 = 0;  // +0x16c..+0x174
+  uint32_t x164 = 0;                     // +0x164  the cursor's node
+  const float* cursor_pos = nullptr;     // +0x168  its place: an entity's, the net's or +0x16c
+  float place[3] = {};                   // +0x16c  the spot picked
   int32_t panel_x = 0, panel_y = 0x5f;   // +0x178 (the display's width less 0x8c), +0x17c
   void* panel = nullptr;                 // +0x180
   uint32_t x184 = 0;                     // +0x184
   ai::Contact aim;                       // +0x188  (the template 0x005e9d10)
-  uint32_t x1b8 = 0, net_element = 0;    // +0x1b8, +0x1bc
-  uint8_t x1c0 = 0, x1c1 = 0;            // +0x1c0, +0x1c1
+  uint32_t x1b8 = 0, net_element = 0;    // +0x1b8 the mission map when the HUD shows it, +0x1bc
+  uint8_t x1c0 = 0, x1c1 = 0;            // +0x1c0 the cursor the net's, +0x1c1 the player's target's
 
  private:
   void copy_inputs(const MechControls& from);  // 0x004690d0's and the way out's (the other way)

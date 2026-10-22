@@ -1,5 +1,6 @@
 #include "mech3/mech_pocket.h"
 
+#include "mech3/lance_orders.h"
 #include "mech3/mech.h"
 #include "mech3/pocket_panel.h"
 
@@ -72,7 +73,7 @@ void PocketControls::set_owner(Mech* m) {
     else delete static_cast<PocketPanel*>(panel);  // 0x00468720
   }
   panel = nullptr;
-  x16c = x170 = x174 = 0;
+  place[0] = place[1] = place[2] = 0;
   net_element = g_calls.net_element ? g_calls.net_element() : 0;
   aim = ai::Contact{};
   x1c0 = 0, x1c1 = 0;
@@ -84,8 +85,12 @@ void PocketControls::set_owner(Mech* m) {
 // Mech3.exe 1.2 @ 0x0046a360: the panel's frame (0x00469d00, 0x0046b0a0);
 // unless +0x154 bit 0, no jump, no jump-jet axes, the trigger off.
 int PocketControls::update(float dt) {
-  if (g_calls.panel_frame) g_calls.panel_frame(*this, dt);
-  else note("0x00469d00");
+  if (g_calls.panel_frame) {
+    g_calls.panel_frame(*this, dt);
+  } else {
+    if (panel) pocket_frame(*this, dt);  // 0x00469d00
+    note("0x0046b0a0");                  // the mode's own keys and camera (L4c2c)
+  }
   if (!(x154 & 1)) {
     set_jump(0);  // IControls vt+0x34
     jj_strafe = 0, jj_forward = 0;  // vt+0x44, vt+0x3c
@@ -139,9 +144,10 @@ MechControls* PocketControls::leave(bool free_self) {
   return p;
 }
 
-// Mech3.exe 1.2 @ 0x00469cf0: the dispatcher on its own order (+0x160, 2):
-// the mode left.
-MechControls* PocketControls::unwrap() { return order == 2 ? leave(true) : this; }
+// Mech3.exe 1.2 @ 0x00469cf0: the dispatcher on the mode's order (+0x160:
+// 2, or the one an order's line put there): the order to the picked, and
+// the mode left either way.
+MechControls* PocketControls::unwrap() { return lance_dispatch(this, order); }
 
 // Mech3.exe 1.2 @ 0x0046ad80 (the mech going, 0x0041520b): the mode left,
 // then the old controls asked the same (and deleted when they say so).

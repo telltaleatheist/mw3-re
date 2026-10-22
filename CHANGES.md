@@ -209,6 +209,8 @@ unusual happens.
   switch that did not exist (behind the bug-fix switch).
 - Ending a mission while the lance command mode is open no longer frees
   the mode twice (a possible crash in the original).
+- The lance command mode no longer reads past a missing HUD when the view
+  is not on your own mech (a possible crash in the original).
 - Starting a mission after another no longer runs the previous mission's
   player triggers against switches that were already thrown away.
 - A mission trigger that updates itself, directly or round a loop of
