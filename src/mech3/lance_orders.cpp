@@ -4,10 +4,14 @@
 #include "mech3/mech_collide.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_pocket.h"
+
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
 
 namespace mech3 {
+
+void player_clear_60b56c();  // player.h ([0x0060b56c] = 0), not includable with mech.h
+
 namespace {
 LanceCalls g_calls;
 
@@ -31,11 +35,11 @@ ai::Brain* selected_brain(Mech& player, Mech** mate) {
 
 // 0x004e6ee0: a contact from `from` on `to` (the template 0x005e9d10: no
 // distance yet), its squared distance and the way to it.
-ai::Contact contact_on(Mech& from, Mech& to) {
+ai::Contact contact_on(Mech& from, zgame::Handle to) {
   ai::BrainHooks& h = ai::brain_hooks();
   ai::Contact c;
   c.owner = h.vehicle_handle(&from);
-  c.entity = h.vehicle_handle(&to);
+  c.entity = to;
   c.seen = c.entity;  // vt+0x24: a mech answers itself
   float a[3], b[3];
   h.position(c.owner, a);  // 0x005a85e0
@@ -62,7 +66,7 @@ void to_target(Mech& player, int32_t order) {
   ai::Brain* b = selected_brain(player, &mate);
   Mech* t = player.target && collide_calls().contact_mech ? collide_calls().contact_mech(player.target) : nullptr;
   if (!b || !t) return;
-  ai::Contact c = contact_on(*mate, *t);
+  ai::Contact c = contact_on(*mate, ai::brain_hooks().vehicle_handle(t));
   give(*b, order, &c);
 }
 
@@ -70,12 +74,69 @@ void to_target(Mech& player, int32_t order) {
 
 LanceCalls& lance_calls() { return g_calls; }
 
+namespace {
+
+// Mech3.exe 1.2 @ 0x00468ca0 (the lancemate, the target): in a pick of the
+// target the panel's cursor last named ([0x00605f58]), "only an enemy"
+// (order 10, 0x004ea200) makes it the lancemate's enemy and "only an ally"
+// (11, 0x004ea230) its ally: its team the lowest bit of the lancemate's
+// enemies (+0xc8) or allies (+0xc4) (with the 5-bit packing's), its allies
+// that but bit 0, its enemies the rest, [0x0060b56c] cleared.
+void retarget_team(Mech& mate, uint32_t target, int32_t order) {
+  if (!target || target != pocket_globals().last_unit || (order != 10 && order != 11)) return;
+  ai::AiTarget* t = ai::brain_hooks().targetable(target);
+  if (!t) return;
+  const uint32_t from = order == 10 ? mate.enemies : mate.allies;
+  uint32_t idx = 0;
+  while (idx < 32 && !((1u << idx) & from)) ++idx;
+  if (idx == 32) idx = 0xffffffffu;
+  uint32_t team = 1u << (idx & 0x1f);
+  while ((idx >>= 5) != 0) team |= 1u << (idx & 0x1f);
+  t->team = team;
+  t->allies = team & 0xfffffffeu;
+  t->enemies = ~t->allies & 0xfffffffeu;
+  player_clear_60b56c();
+}
+
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00468f00 / 0x00468fa0 (with 0x00468bd0 / 0x00468df0's
+// record and each unit's 0x00468c00 / 0x00468e20)
+int32_t pocket_order(PocketControls& p, int32_t order, uint32_t target, bool on_target) {
+  PocketCalls& pc = pocket_calls();
+  PocketUnit units[32];
+  const int32_t n = pc.panel_units ? pc.panel_units(p, units, 32) : 0;
+  if (n <= 0) return 2;
+  bool taken = false, refused = false;
+  for (int32_t i = 0; i < n; ++i) {
+    const PocketUnit& u = units[i];
+    if (!u.picked || !u.mech) continue;
+    ai::Brain* b = g_calls.brain ? g_calls.brain(*u.mech) : nullptr;
+    if (!g_calls.brain)
+      if (auto* ac = dynamic_cast<AiControls*>(u.mech->controls)) b = ac->brain.get();
+    if (!b) continue;
+    int32_t r;
+    if (on_target) {
+      ai::Contact c = contact_on(*u.mech, target);
+      retarget_team(*u.mech, target, order);
+      r = give(*b, order, &c);
+    } else {
+      if (!u.mech->player_contact) continue;
+      r = give(*b, order, u.mech->player_contact);
+    }
+    if (r) taken = true;
+    else refused = true;
+  }
+  return taken ? 1 : refused ? 0 : 2;
+}
+
+namespace {
+
 // 0x00469400 / 0x00469650 in the pocket commander: the order to the
 // lancemates picked (0x00468f00, or 0x00468fa0 on the player's target's
 // entity (0x004e6fe0), else the panel's cursor's (its vt+0x2c)), then the
 // mode left (none without a mech: the mode kept).
 MechControls* in_pocket(PocketControls& p, int32_t order, bool on_target) {
-  PocketCalls& pc = pocket_calls();
   Mech* player = p.owner;
   if (player) {
     uint32_t target = 0;
@@ -83,13 +144,12 @@ MechControls* in_pocket(PocketControls& p, int32_t order, bool on_target) {
       ai::BrainHooks& h = ai::brain_hooks();
       target = player->target ? h.contact_entity(player->target) : pocket_globals().cursor;
     }
-    if (!on_target || target) {
-      if (pc.panel_order) pc.panel_order(p, order, target);
-      else if (pc.unported) pc.unported(on_target ? "0x00468fa0" : "0x00468f00", static_cast<uint32_t>(order));
-    }
+    if (!on_target || target) pocket_order(p, order, target, on_target);
   }
   return p.leave(true);
 }
+
+}  // namespace
 
 // Mech3.exe 1.2 @ 0x00469940
 MechControls* lance_dispatch(MechControls* c, int32_t order) {

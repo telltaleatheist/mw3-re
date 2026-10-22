@@ -492,9 +492,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   0x46a440, update 0x46a360, keys 0x46a860, unwrap 0x469cf0, release
   0x46ad80 with a FIX for the exe's double free, death 0x46abb0),
   pocket_enter; the dispatcher's order 2 and its in-mode paths (L4c3's
-  orders through PocketCalls::panel_order). MechControls: set_owner,
+  orders through pocket_order, L4c3). MechControls: set_owner,
   unwrap, pocket, release, command as virtuals; the mech's update unwraps.
 - The program: the camera (program_view_camera_id / set), the viewed HUD's
   reticle flag and image, the weapons' and equipment's hold; the view's
   pocket 0x4b5290 and the panel (L4c2) not ported.
 - test_pocket.py: 400 cases identical, 8 of 8 breaks.
+
+## 2026-10-22 Item L4c3: the orders to the lancemates picked (mac4/command2)
+
+- mech3/lance_orders: pocket_order (0x468f00 / 0x468fa0 with the records
+  0x468bd0 / 0x468df0 and the unit steps 0x468c00 / 0x468e20),
+  retarget_team (0x468ca0: orders 10 / 11 on the unit last pointed at move
+  it to the other side); in_pocket uses them. The units come from
+  PocketCalls::panel_units (the panel, L4c2; unset: none).
+- test_pocket_orders.py: 3,000 cases identical, 7 of 7 breaks.

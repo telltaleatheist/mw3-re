@@ -8,6 +8,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_pocket.h"
+#include "mech3/zai_brain.h"
 
 using namespace mech3;
 
@@ -108,6 +109,113 @@ int32_t probe_pocket_run(const int32_t* in, const float* inputs, uint32_t* out, 
   m.controls = nullptr;
   delete prev;
   pc = PocketCalls{};
+  const int32_t n = static_cast<int32_t>(g_log.size());
+  if (n > cap) return -1;
+  std::memcpy(out, g_log.data(), 4 * g_log.size());
+  return n;
+}
+
+}  // extern "C"
+
+namespace {
+// The orders over the units picked (test_pocket_orders.py).
+Mech* g_umech[4];
+uint32_t g_uhandle[5];  // the four units' mechs, then the target (the emulator's addresses)
+float g_upos[5][3];
+int32_t g_ubrain[4], g_answers[16], g_nanswer = 0, g_upicked[4], g_uhas[4];
+ai::Contact g_upc[4];
+uint32_t uindex(uint32_t h) {
+  for (uint32_t i = 0; i < 5; ++i)
+    if (g_uhandle[i] == h) return i + 1;
+  return 0;
+}
+struct OrderHooks : ai::BrainHooks {
+  zgame::Handle vehicle_handle(void* v) override {
+    for (int i = 0; i < 4; ++i)
+      if (g_umech[i] == v) return g_uhandle[i];
+    return 0;
+  }
+  void position(zgame::Handle v, float out[3]) override {
+    if (const uint32_t i = uindex(v)) std::memcpy(out, g_upos[i - 1], 12);
+  }
+  ai::AiTarget* targetable(zgame::Handle v) override {
+    const uint32_t i = uindex(v);
+    return i == 5 ? &g_target_t : nullptr;
+  }
+  ai::AiTarget g_target_t;
+};
+OrderHooks g_ohooks;
+}  // namespace
+
+extern "C" {
+
+// in: the order, on a target (0/1), the count, each unit (4: present, picked,
+// a brain, a contact on the player), [0x00605f58] the target (0/1), each
+// mate's allies and enemies (4 x 2), the target's team/allies/enemies, the
+// answers (8); handles: 5; pos: 15. out: the log (each order: 0x1a, order,
+// unit, contact (0x11+unit for the player contact, else 0 and the made one's
+// owner, seen, entity, dist2, delta)), then 0x2b, the answer, the target's
+// team, allies, enemies.
+int32_t probe_pocket_orders(const int32_t* in, const uint32_t* handles, const float* pos, uint32_t* out, int32_t cap) {
+  g_log.clear();
+  ai::set_brain_hooks(&g_ohooks);
+  Mech mechs[4];
+  for (int i = 0; i < 5; ++i) g_uhandle[i] = handles[i], std::memcpy(g_upos[i], pos + 3 * i, 12);
+  const int32_t count = in[2];
+  for (int i = 0; i < 4; ++i) {
+    g_umech[i] = &mechs[i];
+    g_uhas[i] = in[3 + 4 * i], g_upicked[i] = in[4 + 4 * i], g_ubrain[i] = in[5 + 4 * i];
+    mechs[i].player_contact = in[6 + 4 * i] ? &g_upc[i] : nullptr;
+    mechs[i].allies = static_cast<uint32_t>(in[20 + 2 * i]), mechs[i].enemies = static_cast<uint32_t>(in[21 + 2 * i]);
+  }
+  pocket_globals().last_unit = in[19] ? handles[4] : 0x1234;
+  g_ohooks.g_target_t.team = static_cast<uint32_t>(in[28]);
+  g_ohooks.g_target_t.allies = static_cast<uint32_t>(in[29]), g_ohooks.g_target_t.enemies = static_cast<uint32_t>(in[30]);
+  for (int k = 0; k < 8; ++k) g_answers[k] = in[31 + k];
+  g_nanswer = 0;
+  PocketCalls& pc = pocket_calls();
+  pc = PocketCalls{};
+  pc.view_state = [](PocketControls&, int32_t) {};
+  static int32_t s_count;
+  s_count = count;
+  pc.panel_units = [](PocketControls&, PocketUnit* o, int32_t cap) -> int32_t {
+    const int32_t n = s_count < cap ? s_count : cap;
+    for (int32_t i = 0; i < n; ++i) {
+      o[i] = PocketUnit{};
+      if (i < 4 && g_uhas[i]) o[i].picked = g_upicked[i] != 0, o[i].mech = g_umech[i];
+    }
+    return n;
+  };
+  LanceCalls& lc = lance_calls();
+  lc.brain = [](Mech& m) -> ai::Brain* {
+    for (int i = 0; i < 4; ++i)
+      if (g_umech[i] == &m && g_ubrain[i]) return reinterpret_cast<ai::Brain*>(static_cast<uintptr_t>(0x200 + i));
+    return nullptr;
+  };
+  lc.order = [](ai::Brain& b, int32_t order, ai::Contact* c) -> int32_t {
+    const uint32_t unit = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&b) - 0x200);
+    g_log.push_back(0x1a), g_log.push_back(static_cast<uint32_t>(order == 12 ? 7 : order)), g_log.push_back(unit);
+    int k = -1;
+    for (int i = 0; i < 4; ++i)
+      if (c == &g_upc[i]) k = i;
+    if (k >= 0) {
+      g_log.push_back(0x11 + static_cast<uint32_t>(k));
+    } else {
+      g_log.push_back(0), g_log.push_back(uindex(c->owner)), g_log.push_back(uindex(c->seen));
+      g_log.push_back(uindex(c->entity)), g_log.push_back(fbits(c->dist2));
+      for (int i = 0; i < 3; ++i) g_log.push_back(fbits(c->delta[i]));
+    }
+    return g_answers[g_nanswer++ & 7];
+  };
+  PocketControls p(nullptr, nullptr, 2, 1);
+  const int32_t r = pocket_order(p, in[0], in[1] ? handles[4] : 0, in[1] != 0);
+  g_log.push_back(0x2b), g_log.push_back(static_cast<uint32_t>(r));
+  g_log.push_back(g_ohooks.g_target_t.team), g_log.push_back(g_ohooks.g_target_t.allies);
+  g_log.push_back(g_ohooks.g_target_t.enemies);
+  lc = LanceCalls{};
+  pc = PocketCalls{};
+  ai::set_brain_hooks(nullptr);
+  for (Mech& m : mechs) m.player_contact = nullptr;
   const int32_t n = static_cast<int32_t>(g_log.size());
   if (n > cap) return -1;
   std::memcpy(out, g_log.data(), 4 * g_log.size());
