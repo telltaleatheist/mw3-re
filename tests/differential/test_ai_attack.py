@@ -42,7 +42,10 @@ f2i = to.f2i
 def f32(x):
     return struct.unpack('<f', struct.pack('<f', x))[0]
 
-COVER = {0x4cc1ef: 'station: the hold made', 0x4cc225: 'station: kept', 0x4cc213: 'station: a lancemate by the player?',
+COVER = {0x4cc5e4: 'station: past its range', 0x4cc612: 'station: too close ahead', 0x4cc63c: 'station: too close behind',
+         0x4cc665: 'station: beside, reversing', 0x4cc67f: 'station: beside', 0x4cc6d5: 'station: swerve',
+         0x4cc75c: 'station: the swerve held', 0x4cc7a1: 'station: idle', 0x4cc848: 'station: backing, turning',
+         0x4cc93a: 'station: driving off, turning', 0x4cca85: 'station: alongside, turning', 0x4cc1ef: 'station: the hold made', 0x4cc225: 'station: kept', 0x4cc213: 'station: a lancemate by the player?',
          0x4cc235: 'station: none', 0x4cc128: 'hold: within', 0x4cc137: 'hold: ended', 0x4e81fb: 'own: in range', 0x4e8239: 'own: no state', 0x4e8253: 'own: the part run', 0x4d1dba: 'fight: the mode taken', 0x4d1dc9: 'fight: given up', 0x4c8c29: 'fight: too near, held',
          0x4c8c37: 'fight: backing off', 0x4c8c50: 'fight: arrived', 0x4c8c5f: 'fight: closing',
          0x4c8abd: 'fight: pulled in', 0x4cb05f: 'home: arrived', 0x4cb06c: 'home: driving', 0x4cb0b0: 'home: throttle let fall',
@@ -61,6 +64,7 @@ def script(seed):
     s['0x004d6b90'] = r('pick', [1, 2, 3, 0, 1])
     s['vehicle.vt+0xf4'] = r('xf4', [0, 0, 0, 1])
     s['ictl.vt+0x18'] = r('rev', [0, 0, 1])
+    s['vehicle.vt+0x114'] = r('spd', [f2i(x) for x in (0.0, 5.0, -3.0, 12.0)])
     s['0x004d51d0'] = r('near', [1, 2, 3, 4, 1, 2])  # none: the exe reads through null (the port's FIX)
     return s
 
@@ -99,7 +103,6 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
-        e.stub(0x4cc3e0, '0x004cc3e0', 's0', 4)  # the station keeping's run (item 10d3)
         for maker in (0x4c9730, 0x4d1300, 0x4d1630, 0x4c89f0):
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
         # The brain's own order (+0x194, its owner this brain), the pick's
@@ -117,6 +120,11 @@ class Original(to.Original):
         e.w32(tvt + 0xd8, 0x4d70f0)
         e.w32(tvt + 0x2c, e.new_stub('@target.vt+0x2c', 'c', 0, lambda emu, k, a, pop: emu._ret(a[0], pop)))
         e.w32(tvt + 0xf4, e.new_stub('vehicle.vt+0xf4', 'c', 0, self.xf4))
+        # Velocities (vt+0x08) and speeds (vt+0x114) for the station keeping.
+        self.vel = {self.v: (0.0, 0.0, 0.0), self.target: (0.0, 0.0, 0.0)}
+        for obj, vt in ((self.v, e.r32(self.v)), (self.target, tvt)):
+            e.w32(vt + 0x8, e.new_stub('@vehicle.vt+0x8', 'c,s0', 4, self.velocity))
+            e.w32(vt + 0x114, self.fld_thunk('vehicle.vt+0x114', 0, 'c', self.handle))
         e.w32(e.r32(self.v) + 0xf4, e.new_stub('vehicle.vt+0xf4', 'c', 0, self.xf4))
         e.w32(cvt + 0x18, e.new_stub('ictl.vt+0x18', '', 0))
         self.pilot = e.world_alloc(0x40)
@@ -126,7 +134,15 @@ class Original(to.Original):
         for a in COVER:
             e.uc.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, u: REACHED.add(ad), begin=a, end=a)
 
-    def fld_thunk(self, key, pop, spec=''):
+    def handle(self, args):
+        """Emulator addresses as the probe's handles."""
+        return [OWNER if x == self.v else ENT1 if x == self.target else x for x in args]
+
+    def velocity(self, e, key, a, pop):
+        e.cpu.write(a[1], struct.pack('<3f', *self.vel[a[0]]))
+        e._ret(a[1], pop)
+
+    def fld_thunk(self, key, pop, spec='', mapper=None):
         """`fld` of a value the trace answers, then ret: a float slot."""
         e = self.e
         val = e.alloc(0x10)
@@ -134,7 +150,8 @@ class Original(to.Original):
         t = e.thunk(code)
 
         def hit(uc, address, size, user):
-            e.w32(val, self.t.handle(key, e.args(spec)))
+            args = e.args(spec)
+            e.w32(val, self.t.handle(key, mapper(args) if mapper else args))
         e.uc.hook_add(UC_HOOK_CODE, hit, begin=t, end=t)
         return t
 
@@ -171,7 +188,7 @@ class Original(to.Original):
         e, b = self.e, self.brain
         o = b + 0x194
         part, state = e.r32(o + 0xc), e.r32(o + 0x10)
-        out = [0] * 12
+        out = [0] * 14
         if part and e.r32(part) == VT_VPART:
             out[0] = 1
             out[1] = e.r32(e.r32(part + 0x18) + 4)
@@ -187,6 +204,8 @@ class Original(to.Original):
                 out[7] = 1 if vt == 0x5cbf10 else 2
                 out[8:11] = [e.r32(state + 0x20), e.r32(state + 0x24), e.r32(state + 0x28)]
                 out[11] = struct.unpack('<H', e.cpu.read(state + 0x2e, 2))[0]
+                out[12] = e.r32(state + 0xc)
+                out[13] = struct.unpack('<H', e.cpu.read(state + 0x2c, 2))[0]
         return out
 
     def fight_world(self, pos, active, cc, r24, now, mode):
@@ -303,6 +322,7 @@ def setup_probe():
     probe.probe_ao_set_now.argtypes = [U]
     probe.probe_ao_own_world.argtypes = [ctypes.c_void_p]
     probe.probe_ao_own.argtypes = [U]
+    probe.probe_ao_station_world.argtypes = [ctypes.c_void_p, ctypes.c_void_p, I, ctypes.c_void_p]
     probe.probe_ao_own_row.argtypes = [ctypes.c_void_p]
     return probe
 
@@ -340,6 +360,7 @@ def run_case(probe, seed, rounds):
     port = Trace(script(seed))
     probe.probe_app_set_callback(port.callback())
     probe.probe_ao_new()
+    p78 = random.Random(f'{seed}:p78').choice([5.0, 15.0, 30.0, 50.0])  # the shipped range of p8 item 7
     probe.probe_ao_set_now(0)  # the time from 0 on both sides
     orig.e.w32(0x60991c, 0)
     stats = {}
@@ -457,16 +478,32 @@ def run_case(probe, seed, rounds):
             for _ in range(3):
                 ow += [f2i(rng.choice([100.0, 2500.0, 1e4, 4e4, rng.uniform(0, 5e4)])), int(rng.random() < 0.7)]
             ow.append(f2i(rng.choice([1e4, 3e4, 0.0, 1600.0])))
-            ow += [f2i(rng.uniform(0, 20)), rng.choice([0, 0, 0x10]), int(rng.random() < 0.3)]
+            # +0x78 one per case (the pilot's, from its aiv record): changed
+            # under a living state the exe can loop for ever (the port's FIX).
+            ow += [f2i(p78), rng.choice([0, 0, 0x10]), int(rng.random() < 0.3)]
             orig.own_world(ow)
             probe.probe_ao_own_world((U * 10)(*ow))
             probe.probe_ao_state_world(ow[8], 1, ENT1 if ow[9] else 0)
+            # The station keeping's: the target near the pilot, the velocities.
+            px, py, pz = (struct.unpack('<f', struct.pack('<I', x))[0] for x in w[11:14])
+            ang, d = rng.uniform(-3.2, 3.2), rng.choice([2.0, 5.0, 15.0, 25.0, 35.0, 50.0, rng.uniform(0, 60), 250.0])
+            tpos = [f32(px + d * math.sin(ang)), f32(py), f32(pz + d * math.cos(ang))]
+            vo = [f32(rng.uniform(-8, 8)), 0.0, f32(rng.uniform(-8, 8))] if rng.random() < 0.8 else [0.0, 0.0, 0.0]
+            vt = [f32(rng.uniform(-8, 8)), 0.0, f32(rng.uniform(-8, 8))] if rng.random() < 0.7 else [0.0, 0.0, 0.0]
+            if rng.random() < 0.15:  # nearly the same velocity: the swerve's speed gate (0.2)
+                vt = [f32(vo[0] - rng.uniform(0.01, 0.1) * math.sin(ang)), 0.0, f32(vo[2] - rng.uniform(0.01, 0.1) * math.cos(ang))]
+            act = int(rng.random() < 0.9)
+            orig.e.cpu.write(orig.tpos, struct.pack('<3f', *tpos))
+            orig.e.cpu.write(orig.target + 8, bytes([act]))
+            orig.vel[orig.v], orig.vel[orig.target] = tuple(vo), tuple(vt)
+            probe.probe_ao_station_world((ctypes.c_float * 3)(*vo), (ctypes.c_float * 3)(*vt), act,
+                                         (ctypes.c_float * 3)(*tpos))
             for _ in range(rng.randrange(1, 4)):
                 f = f2i(rng.choice([1 / 30, 0.25]))
                 orig.e.call(0x4e81a0, ecx=orig.brain + 0x194, stack=(f,))
                 probe.probe_ao_own(f)
                 check(f'round {k} own')
-                ob = (U * 12)()
+                ob = (U * 14)()
                 probe.probe_ao_own_row(ob)
                 if orig.own_row() != list(ob):
                     raise SystemExit(f'seed {seed} round {k} own: {orig.own_row()} vs {list(ob)}')

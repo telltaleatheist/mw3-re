@@ -1556,8 +1556,38 @@ FIX (bug), none). 0x4cc290 (0x30 bytes, vtable 0x5cbf10, over the waiting
 state 0x4c8a30): +0x20 the throttle's way (-1 when reversing, IControls
 vt+0x18 0x428500), +0x24 +0x78 x 0.9, +0x28 sqrt(+0x74) x 1.1, +0x2c a count,
 +0x2e a phase; no break-ins, no firing; its resume 0x4cc380 takes the three
-again (never called: the own order is not on the stack); its run 0x4cc3e0
-is item 10d3. The hold 0x4cc240 (vtable 0x5cbef0, run 0x4cc020): within
+again (never called: the own order is not on the stack).
+
+**Its run, ported** (item 10d3, `StationState::run`, 0x4cc3e0): **giving
+way**. Each frame: the flat way to the other vehicle (D, its distance),
+the pilot's facing along it (f, 3D), the unit relative velocity (the
+pilot's vt+0x08 less the other's) and its size, its closing (rel . D) and
+side (D x rel); the speeds (vt+0x114) are read but not used. Phase 0:
+beyond +0x28 the order ends; inside +0x24 (too close) phase 1 when the
+other is ahead (f > 0.5: throttle -1), 2 behind (f < -0.5: +1), else 3
+(its throttle's way kept), at once; else when still closing (|rel| above
+0.2, closing above 0, closing x distance within +0x78) it swerves: full
+turn away when the side is past 0.17 (else straight), throttle its way,
+for 8 frames (+0x2c), then holds the throttle with the turn 0 for the
+rest; with no count left it leaves the controls alone. Phase 1 backs off
+facing the other (the walking states' turn), phase 2 drives on with its
+back to it, phase 3 runs alongside, turning across D on the side it
+faces; each goes back to phase 0 in the same run past +0x78 or out of
+its bearing (1: f below 0; 2: f above 0; 3: |f| above 0.8). It then sets
+the turn and the throttle unless it left them alone. FIX (bug): phase 0
+decides the same way twice in one run, so the exe loops for ever when
++0x78 is below the +0x24 its state took (a negative +0x78; the shipped p8
+item 7 values are 5 to 50): the port stops the run there. In c1m1 the
+Owens (+0x78 30, +0x74 1600: too close at 27 m, letting go at 44 m) gives
+way to the player walking at it: it swerves while the player closes,
+then, head on, backs off facing the player for as long as it is pushed,
+and lets go at 44.2 m, having moved 135 m (from the side it runs
+alongside instead). Tests: `test_ai_attack.py` (the run on both sides,
+1405 own-order runs, 41 branches; 18 of 18 breaks caught),
+`fix_ai_station_keeping_no_endless_phases` (the port alone: the exe's
+loop returns; without the guard it hangs) and in c1m1 (`test_program`:
+the giving way after the way home, with the own order off while the
+player is walked into the Owens for the bump). The hold 0x4cc240 (vtable 0x5cbef0, run 0x4cc020): within
 +0x28 of the other, phase 1 (and, under the byte [0x60b48c] nothing sets,
 the pilot stopped); farther, or no other, the order ends. The own order's
 pop (its vt+0x08, 0x4e8270) destroys its state, then its part: it is not
@@ -2232,8 +2262,8 @@ goes through a hooks struct the test stubs the same on both sides.
 10. **The vehicle's own net** 0x4d70f0 / 0x4c0090: done (10a); the attack
     0x4e9ca0 with its net 0x4c0810 and three states: done (10b); the fight
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
-    0x4e81a0: done (10c); its station-keeping states 0x4cc150: done (10d2),
-    the run 0x4cc3e0 (10d3); the
+    0x4e81a0: done (10c); its station-keeping states 0x4cc150 and the run
+    0x4cc3e0: done (10d2, 10d3); the
     modes' states (0x4c9750, 0x4d1320, 0x4d1650) and the follow's (0x4d1870)
     later.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).

@@ -496,6 +496,7 @@ float probe_parts_op(int op, const float* a) {
     case 22: return w.m.aim_part() ? 1.0f : 0.0f;
     case 24: return w.m.can_face(Vec3{a[2], a[3], a[0]}) ? 1.0f : 0.0f;  // vt+0x8c
     case 29: return w.m.stop_share(a[0] * 100.0f);  // vt+0x12c
+    case 30: return w.m.throttle_speed();  // vt+0x114
     case 25: {  // vt+0x90: the clamped direction logged
       Vec3 out{};
       const bool r = w.m.clamp_aim(Vec3{a[2], a[3], a[0]}, &out);

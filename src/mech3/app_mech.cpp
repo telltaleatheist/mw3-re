@@ -1217,6 +1217,7 @@ float mech_health(void* mech) { return static_cast<Mech*>(mech)->health(); }
 float mech_speed_at(void* mech, float share) { return static_cast<Mech*>(mech)->speed_at(share); }
 float mech_stopping_distance(void* mech, float speed) { return static_cast<Mech*>(mech)->stopping_distance(speed); }
 float mech_stop_share(void* mech, float d) { return mech ? static_cast<Mech*>(mech)->stop_share(d) : 0.0f; }
+float mech_throttle_speed(void* mech) { return mech ? static_cast<Mech*>(mech)->throttle_speed() : 0.0f; }
 void mech_forward(void* mech, float out[3]) {
   const Mech* m = static_cast<Mech*>(mech);
   out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z;

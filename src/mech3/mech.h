@@ -306,6 +306,9 @@ struct Mech : ai::AiTarget {
   // speed carries while the throttle eases down (speed / decel_rate).
   float speed_at(float share) const { return max_speed * share; }
   float stopping_distance(float speed) const { return speed / throttle_down; }
+  // vt+0x114 0x0041d1d0: the speed the smoothed throttle asks (its
+  // controls' vt+0x1c, GetThrottle, times the top speed).
+  float throttle_speed() const;
   // vt+0x12c 0x0041d240: the throttle share that still stops within `d`,
   // 0..1 (a NaN 0).
   float stop_share(float d) const {

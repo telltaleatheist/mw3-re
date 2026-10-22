@@ -201,6 +201,9 @@ class World:
         self.share_d = a(8)
         self.share = cpu.code(b'\xff\x35' + struct.pack('<I', self.share_d) + b'\xb8' + struct.pack('<I', 0x41d240) +
                               b'\xff\xd0\xd9\x1d' + struct.pack('<I', self.slot) + b'\xc3')
+        # 0x41d1d0 (ECX the mech), its st0 kept.
+        self.tspeed = cpu.code(b'\xb8' + struct.pack('<I', 0x41d1d0) + b'\xff\xd0\xd9\x1d' +
+                               struct.pack('<I', self.slot) + b'\xc3')
         # A thunk that pushes the ground update's 0 and keeps its st0.
         self.ground = cpu.code(b'\x6a\x00\xb8' + struct.pack('<I', 0x462a10) + b'\xff\xd0\xd9\x1d' +
                                struct.pack('<I', self.slot) + b'\xc3')
@@ -492,6 +495,9 @@ class World:
             cpu.write(self.share_d, struct.pack('<f', f32(a[0] * 100.0)))
             cpu.call(self.share, ecx=self.mech)
             return struct.unpack('<f', cpu.read(self.slot, 4))[0]
+        elif op == 30:  # vt+0x114: the speed the smoothed throttle asks
+            cpu.call(self.tspeed, ecx=self.mech)
+            return struct.unpack('<f', cpu.read(self.slot, 4))[0]
         elif op == 14:
             ebp = STACK_TOP - 0x2000
             self.run_at(0x416d3a, 0x416e91, {UC_X86_REG_EBP: ebp, UC_X86_REG_ESP: ebp - 0x640,
@@ -767,11 +773,11 @@ def compare(what, want, wlog, got, glog):
 
 OPS = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 14,
        15, 16, 16, 17, 17, 17, 18, 18, 18, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 23, 23, 23,
-       24, 24, 24, 25, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28, 29, 29, 29]
+       24, 24, 24, 25, 25, 25, 26, 26, 27, 27, 27, 28, 28, 28, 29, 29, 29, 30, 30, 30]
 NAMES = ['hip', 'leg', 'ground', 'arm', 'kick', 'torso', 'hand', 'hip setup', 'leg setup', 'arm setup', 'crouch',
          'duck', 'crouch target', 'landing dust', 'action dust', 'pitch lock', 'hold view', 'aim', 'centre',
          'torso mode', 'view state', 'target part', 'part aim', 'torso setup', 'can face', 'clamp aim',
-         'faces within', 'torso aim', 'lead velocity', 'stop share']
+         'faces within', 'torso aim', 'lead velocity', 'stop share', 'throttle speed']
 
 
 def main():

@@ -1745,6 +1745,14 @@ are all "puffers": emitters that drop little textured squares.
   130 m from where the fight began, and any fight of its ends after 10
   seconds (on medium difficulty); it attacks again some 15 seconds later
   (`ai.md` 17.2, "The fight").
+- **Enemies get out of your way.** An enemy that is not fighting you keeps
+  clear of you once you are within about 40 m (c1m1's Owens). While you
+  close in it swerves aside; if you get closer than about 27 m it backs away
+  facing you when you are in front of it, drives off when you come up
+  behind it, or runs alongside when you are beside it, and it keeps doing
+  so for as long as you push it. Once you are more than about 44 m away it
+  stops minding you. In a test the Owens backed away 135 m before the
+  player, walking at it head on, let it go (`ai.md` 17.2, "Its run").
 - **After a fight, enemies walk back to their patrol.** When an enemy
   breaks off, it heads back to the nearest point of the route it was
   walking, slowing so it can stop in time, and is done once it is within

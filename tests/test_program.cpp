@@ -2180,7 +2180,9 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
       bool feet = true, mech_block = false, wall_block = false;
       bool ai_on = false, orders_ok = true, node_order = false;
       int32_t fire_phase = -1, look_phase = -1, group_volleys = 0, firing = 0, shooting = 0;
-      int32_t attacked = 0, home_done = 0, home_orders = 0, own_on = 0;
+      int32_t attacked = 0, home_done = 0, home_orders = 0, own_on = 0, let_go = 0;
+      bool dodged = false, alongside = false, backed = false;
+      float gw_from[2] = {}, gw_closest = 1e9f, let_go_at = 0, gw_moved = 0, gw_close = 0, gw_range = 0;
       float home_way[3] = {}, home_start = -1.0f, home_last = 0, home_range = 0;
       float chase_from = 0, chase_to = 0, fight_min = 0;
       float fire_range = 0, fire_max = 0;
@@ -2227,7 +2229,10 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
           for (const mech3::ai::Order& r : seen.brain->orders)
             if (r.state && r.state->from && r.state->from->kind == mech3::ai::StepKind::Node) seen.node_order = true;
         seen.owens_end = o;
-        // 30 m west of the Owens, facing east (+x), walking at it.
+        // 30 m west of the Owens, facing east (+x), walking at it. Its own
+        // order off (+0x80) for the bump: the station keeping, checked after
+        // the way home, would have it give way.
+        if (seen.brain) seen.brain->params.put<int32_t>(0x80, 0);
         const float x = o.pos[0] - 30.0f, z = o.pos[2];
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
@@ -2243,14 +2248,6 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
               break;
             }
         }
-        // The brain's own order (0x004e81a0, its +0x80 1): the player within
-        // its +0x74 (40 m) gives the player's own net a part in it.
-        // Its state (0x004cc150): the station keeping on the player.
-        if (seen.brain && !seen.own_on)
-          if (auto* vp = dynamic_cast<const mech3::ai::VehiclePart*>(seen.brain->order.net.get()))
-            if (vp->target->vehicle == engine.field32(engine.pilot(), 0x14) &&
-                dynamic_cast<const mech3::ai::StationState*>(seen.brain->order.state.get()))
-              seen.own_on = seen.frames;
         if (seen.frames == 450) seen.near = o;  // walking at it, 30 m off
         seen.mech_block |= m.blocked[1];
         seen.wall_block |= m.blocked[3];
@@ -2313,12 +2310,40 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
           } else {
             seen.home_done = seen.frames;
             seen.home_orders = static_cast<int32_t>(br.orders.size());
+            // The station keeping (0x004cc3e0): engaging off and the own
+            // order on (+0x80 1) again; the player 30 m west, walking at it.
+            br.params.put<int32_t>(0x3c, 0);
+            br.params.put<int32_t>(0x80, 1);
+            const float x = o.pos[0] - 30.0f, z = o.pos[2];
+            const float at[3] = {x, ground_under(x, o.pos[1] + 80.0f, z), z};
+            mech3::move_mech(player, at, -1.5707964f);
+            keys.key(up, true);
+            seen.gw_from[0] = o.pos[0], seen.gw_from[1] = o.pos[2];
           }
+        } else if (seen.home_done && seen.frames > seen.home_done + 1) {
+          // The own order on the player (0x004e81a0, within its +0x74, 40 m)
+          // keeping station: it swerves while the player closes, runs
+          // alongside inside +0x78 x 0.9, lets go past sqrt(+0x74) x 1.1.
+          const auto* st = dynamic_cast<const mech3::ai::StationState*>(br.order.state.get());
+          if (st) {
+            if (!seen.own_on) seen.own_on = seen.frames;
+            seen.dodged |= st->count == 8;
+            seen.alongside |= st->phase == 3;
+            seen.backed |= st->phase == 1;
+            seen.gw_close = st->close, seen.gw_range = st->range;
+            seen.gw_closest = std::min(seen.gw_closest, pd);
+          } else if (seen.own_on && !seen.let_go) {
+            seen.let_go = seen.frames;
+            seen.let_go_at = pd;
+            const float mx = o.pos[0] - seen.gw_from[0], mz = o.pos[2] - seen.gw_from[1];
+            seen.gw_moved = std::sqrt(mx * mx + mz * mz);
+          }
+          if (seen.frames == seen.home_done + 450) keys.key(up, false);
         }
       }
     };
     CountingPump pump;
-    pump.limit = 2400;  // the chase (80 m) and the way home (250 m)
+    pump.limit = 2400;  // the chase (80 m), the way home (250 m), giving way
     app.run(pump);
     EXPECT(seen.frames >= 500);
     // The level of detail (0x0041e870): 1.4 km off, no detail bits and the
@@ -2356,7 +2381,16 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     // The shared behaviour's first run (0x004cbeb0) pushed the step of net 4
     // nearest the Owens on its order: a node step.
     EXPECT(seen.node_order);
-    EXPECT(seen.own_on > 200);  // the own order keeping station on the player once near
+    if (std::getenv("MW3_HOME_LOG"))
+      std::fprintf(stderr, "GIVE WAY on %d dodged %d alongside %d backed %d closest %g close %g range %g let go %d at %g moved %g\n",
+                   seen.own_on, seen.dodged, seen.alongside, seen.backed, seen.gw_closest, seen.gw_close, seen.gw_range,
+                   seen.let_go, seen.let_go_at, seen.gw_moved);
+    // The player walked at it head on: it swerves, then backs off facing
+    // the player (phase 1; beside it, it runs alongside instead), and lets go
+    // past its +0x28 (44 m).
+    EXPECT(seen.own_on > seen.home_done && seen.dodged && (seen.backed || seen.alongside));
+    EXPECT(seen.gw_closest > 15.0f && seen.gw_moved > 10.0f);
+    EXPECT(seen.let_go > seen.own_on && seen.let_go_at > seen.gw_range - 1.0f && seen.let_go_at < seen.gw_range + 2.0f);
     // Engaging on, the Owens attacks (0x004e9ca0): the end, rearm and way
     // home orders under the fight. The fight closes from 160 m to between
     // +0x2c (60 m, nearer it backs off) and +0x28 (80 m), then takes the
