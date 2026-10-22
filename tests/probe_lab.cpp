@@ -4,6 +4,7 @@
 // emulator, then a plan of page switches; every call out recorded through
 // the calltrace callback, the screen dumped as text.
 #include <algorithm>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -32,10 +33,21 @@ std::string hex_s(uint32_t v) {
   return b;
 }
 
+// ALIST_TITLES's messages: their texts show the count (test_lab_screen.py's COUNTED).
+bool counted(uint32_t id) { return id == 0xf5b || id == 0x24c || id == 0x24d; }
+
 struct LabHost : RecordingHost {
+  uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+    const uint32_t n = RecordingHost::format_message(buf, size, id, args);
+    if (n && counted(id)) {
+      const std::string s = std::string(buf) + ' ' + std::to_string(va_arg(args, int32_t));
+      std::snprintf(buf, size, "%s", s.c_str());
+    }
+    return n;
+  }
   const char* message_text(uint32_t id) override {
     if (!call("0x00576040", {id})) return nullptr;
-    return keep("M" + hex_s(id));
+    return keep("M" + hex_s(id) + (counted(id) ? " %d" : ""));
   }
 };
 
@@ -47,13 +59,19 @@ struct LabEngine : mech3::Engine {
   int32_t display_height() override { return static_cast<int32_t>(call("0x0040d770", {})); }
   const char* message(int32_t id) override {
     if (!call("0x00576040", {id})) return nullptr;
-    return keep("M" + hex_s(static_cast<uint32_t>(id)));
+    return keep("M" + hex_s(static_cast<uint32_t>(id)) + (counted(static_cast<uint32_t>(id)) ? " %d" : ""));
   }
   const char* mech_name_of(int32_t mech) override {
     if (!call("0x00484650", {mech})) return nullptr;
     return keep("mech" + std::to_string(mech));
   }
   void pop_state(uint32_t arg) override { call("0x005905a0", {arg}); }
+  const char* message_format(int32_t id, const char* arg) override {  // the test's stub's text
+    call("0x00575fd0", {id, arg ? arg : ""});
+    char buf[0x100];
+    std::snprintf(buf, sizeof buf, "F%x:%s", static_cast<uint32_t>(id), arg ? arg : "");
+    return keep(buf);
+  }
   void lab_store_remove(Handle store, int32_t mech) override { call("0x00472a30", {store, mech}); }
   void lab_store_add(Handle store, int32_t mech) override { call("0x00471c10", {store, mech}); }
   void lab_slot_set_config(Handle slot, Handle config, Handle store) override {
@@ -199,6 +217,46 @@ void dump_screen(mech3::LabScreen& s, Dump& d) {
   o << '\n';
 }
 
+// UNASSIGNED_LIST (step 5b1), as test_lab_screen.py's dump_unassigned.
+void dump_unassigned(mech3::LabScreen& s, Dump& d) {
+  std::ostringstream& o = d.o;
+  const mech3::LabUnassignedList& u = s.unassigned;
+  o << "unassigned kind=" << u.kind << " armor=" << int(u.armor_tab) << " sort=" << u.sort << " top=" << u.top
+    << " end=" << u.end << " sel=" << u.selected << " size=" << u.size[0] << ',' << u.size[1] << " short="
+    << u.short_size[0] << ',' << u.short_size[1] << " long=" << u.long_size[0] << ',' << u.long_size[1]
+    << " dy=" << u.down_dy << std::hex << " flags=" << u.flags << std::dec << " arrows=";
+  const mech3::LabListArrow* arrows[] = {u.up, u.down};
+  for (int i = 0; i < 2; ++i) {
+    if (arrows[i]) o << arrows[i]->x << '/' << arrows[i]->y;
+    else o << '-';
+    o << (i == 0 ? "," : "");
+  }
+  o << " checks=" << u.weapon.checked << ','
+    << u.ammo.checked << ',' << u.equip.checked << ',' << u.armor.checked << '\n';
+  o << "uitems ";
+  for (size_t i = 0; i < u.items.size(); ++i) {
+    const mech3::LabItem* it = u.items[i];
+    o << (i ? "|" : "") << (it->text ? it->text : "") << '=' << std::hex << it->object << '/' << it->count << '/'
+      << it->font << std::dec;
+  }
+  o << '\n';
+  auto text = [&](const char* k, const ztwod::Text& t) {
+    o << ' ' << k << "=\"" << t.text << "\"/" << std::hex << t.flags << '/' << t.font << std::dec;
+  };
+  for (size_t i = 0; i < u.rows.size(); ++i) {
+    const mech3::LabItemRow* r = u.rows[i];
+    o << "urow" << i << " idx=" << r->index;
+    text("t", *r);
+    text("c", r->count);
+    text("m", r->mass);
+    text("q", r->qty);
+    o << '\n';
+  }
+  o << "titles";
+  for (const ztwod::Text* t : u.titles.labels) text("l", *t);
+  o << '\n';
+}
+
 }  // namespace
 
 extern "C" {
@@ -237,19 +295,29 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     engine.store.full = static_cast<uint8_t>(full);
     engine.store_addr = store;
     for (uint32_t i = 0; i < items; ++i) {
-      uint32_t addr = 0, kind = 0, id = 0, count = 0;
-      ss >> addr >> kind >> id >> count;
+      uint32_t addr = 0, kind = 0, id = 0, count = 0, unlimited = 0, tech = 0, group = 0;
+      ss >> addr >> kind >> id >> count >> unlimited >> tech >> group;
       mech3::ConfigItem* it = nullptr;
       if (kind == 0) {
         auto* b = new mech3::BaseItem;
         b->value = static_cast<int32_t>(id);
         it = b;
-      } else {
+      } else if (kind == 1) {
         auto* w = new mech3::WeaponItem;
-        w->weapon = static_cast<int32_t>(id), w->tech = 1;
+        w->weapon = static_cast<int32_t>(id), w->tech = static_cast<int32_t>(tech);
         it = w;
+      } else if (kind == 2) {
+        auto* a = new mech3::AmmoItem;
+        a->weapon = static_cast<int32_t>(id);
+        it = a;
+      } else {
+        auto* q = new mech3::EquipmentItem;
+        q->equipment = static_cast<int32_t>(id), q->tech = static_cast<int32_t>(tech);
+        it = q;
       }
       it->count = static_cast<int32_t>(count);
+      it->b10 = static_cast<uint8_t>(unlimited);
+      it->group = static_cast<int32_t>(group);
       engine.store.items.push_back(it);
       engine.addr_of[it] = addr;
       engine.item_at[addr] = it;
@@ -328,6 +396,8 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       s->refresh();
     } else if (op == "C") {
       mech3::states().lab.set_mech(static_cast<int32_t>(hex(ls)));
+    } else if (op == "W") {
+      s->unassigned.scroll(static_cast<int32_t>(hex(ls)));
     } else if (op == "X") {
       s->config_edit.x38c = hex(ls);
     } else if (op == "M") {
@@ -337,6 +407,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
       Dump d;
       dump_dialog(*s, d);
       dump_screen(*s, d);
+      dump_unassigned(*s, d);
       dump += d.o.str();
     } else if (op == "U") {
       engine.screen = nullptr;

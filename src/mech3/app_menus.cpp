@@ -603,6 +603,27 @@ std::string GameEngine::lab_config_name(Handle config) {
 void GameEngine::lab_config_recount(Handle config) {
   if (auto* c = static_cast<Config*>(object_of(config))) c->recount();
 }
+// (The exe reads them unchecked: the lists ask only with a loadout shown.)
+int32_t GameEngine::lab_config_slots_left(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->slots_left() : 0;
+}
+int32_t GameEngine::lab_config_ferro_slots(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->ferro_slots() : 0;
+}
+int32_t GameEngine::lab_config_endo_slots(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->endo_slots() : 0;
+}
+int32_t GameEngine::lab_config_sink_items(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->sink_items() : 0;
+}
+int32_t GameEngine::lab_config_sink_limit(Handle config) {
+  const auto* c = static_cast<const Config*>(object_of(config));
+  return c ? c->sink_limit() : 10;
+}
 bool GameEngine::lab_config_valid(Handle config) {
   const auto* c = static_cast<const Config*>(object_of(config));
   return c && c->validate(false);

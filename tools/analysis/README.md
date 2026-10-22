@@ -4,6 +4,22 @@ Scripts used to map `Mech3.exe` 1.2. They write into `analysis-output/`
 (git-ignored) and are run from there. REA needs the Node 24 install noted in
 CLAUDE.md; Ghidra headless needs `JAVA_HOME` as noted there.
 
+Decompiling a few more functions with `CreateAndDecompile.java`:
+
+```
+analyzeHeadless analysis-output/ghidra-project mech3 \
+  -process Mech3.exe -noanalysis -readOnly \
+  -scriptPath tools/ghidra \
+  -postScript CreateAndDecompile.java <addrs.txt> <outdir>
+```
+
+- Give the main checkout's project path: Ghidra rejects a path with a
+  `.claude` component, so a worktree's own link does not work.
+- Write the addresses with `0x` (they are read as decimal otherwise).
+- The script decompiles every function missing from `<outdir>`, so use a
+  scratch `<outdir>` holding a copy of `decomp/`, or `decomp/` itself, and
+  copy the new files into `decomp/`.
+
 | Script | What it does |
 |---|---|
 | `readaemon.py <log-prefix>` | Starts one `rea mcp` session on Mech3.exe (Ghidra, low priority) and serves tool calls on 127.0.0.1:47123, so each question takes under a second instead of an 80 s re-import. Run it in the background. |

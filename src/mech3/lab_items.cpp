@@ -56,7 +56,7 @@ void LabItemRow::set_pos(int32_t px, int32_t py) {
   panel.set_pos(px, py);
   count.set_pos(px + 0xac, py);
   mass.set_pos(px + 0x93, py);
-  crit.set_pos(px + 0x7a, py);
+  qty.set_pos(px + 0x7a, py);
   if (needs_render) render();
   line.set(width + 2 + px, py + 6, px + 0x89, py + 6);
 }
@@ -78,7 +78,7 @@ void LabItemRow::fill(int32_t i, const LabItem* item) {
     panel.set_color(zvid::pack_bytes(0x19, 0x19, 0x19));
     count.show_for(-1.0f);
     count.set_text("%02d", n);
-    crit.hide();
+    qty.hide();
     mass.hide();
     if (font) {
       set_font(font);
@@ -105,7 +105,7 @@ void LabItemRow::update(float dt) {
   Text::update(dt);
   count.update(dt);
   mass.update(dt);
-  crit.update(dt);
+  qty.update(dt);
   line.update(dt);
 }
 
@@ -190,6 +190,12 @@ int32_t LabItemList::add_object(Handle item, int32_t n) {
   return add(text.c_str(), n, item);
 }
 
+// Mech3.exe 1.2 @ 0x004534b0
+Handle LabItemList::object_at(int32_t i) const {
+  const LabItem* it = i >= 0 && i < item_count() ? items[static_cast<size_t>(i)] : nullptr;
+  return it ? it->object : 0;
+}
+
 // Mech3.exe 1.2 @ 0x00453140
 int32_t LabItemList::add_part(int32_t part) { return add(e_.part_text(part), 0, part); }
 
@@ -217,7 +223,7 @@ void LabItemList::refill() {
   if (!s) return;
   for (const ConfigItem* it : s->items) {
     const Handle h = e_.item_handle(it);
-    if (!filter || filter(h)) add_object(h, -1);
+    if (!filter || filter(e_, h)) add_object(h, -1);
   }
   layout();
 }

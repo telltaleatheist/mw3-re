@@ -1569,6 +1569,8 @@ int probe_config_blob(const char* name, const uint8_t* blob, int n, uint8_t* out
   b.push_back(c.unplaced_item());
   put_i32(b, c.jump_jets()), put_i32(b, c.jump_jet_limit());
   b.push_back(c.validate(false));
+  for (int32_t v : {c.slots_left(), c.ferro_slots(), c.endo_slots(), c.engine_slots(), c.sink_limit(), c.sink_items()})
+    put_i32(b, v);
   return finish(b, out, cap);
 }
 

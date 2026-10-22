@@ -33,6 +33,8 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC
 SAVE, LOAD, CHECKSUM, WEIGHT, UNPLACED, JJ, JJ_LIMIT, VALIDATE = (0x424480, 0x424600, 0x4255b0, 0x425300, 0x424220,
                                                                    0x425ff0, 0x425fb0, 0x4254d0)
 LIST_CTOR, LOAD_SAVED, CONFIG_CTOR, FIND_WEAPON = 0x424a90, 0x424b70, 0x423d00, 0x581ed0
+SLOTS_LEFT, FERRO_SLOTS, ENDO_SLOTS, ENGINE_SLOTS, SINK_LIMIT, SINK_ITEMS = (0x425d80, 0x425e40, 0x425e80, 0x425e60,
+                                                                           0x426070, 0x425f30)
 SAVE_ALL, DIR_EXISTS, WARCH = 0x424f60, 0x576080, 0x9abc
 ENGINE_WEIGHT, ENGINE_RATING, ENGINE_TABLE = 0x432f40, 0x432fa0, 0x5e2f50
 LOAD_VALIDATE = 0x424744  # Load's `push 1` into Validate
@@ -355,6 +357,10 @@ class Emulated(DfnEmu):
         out += struct.pack('<I', eax())
         cpu.call(VALIDATE, ecx=c, stack_args=(0,))
         out.append(eax() & 0xff)
+        # the critical slots: left (of the free count as loaded), ferro-fibrous, endo steel, the engine's, sinks
+        for fn in (SLOTS_LEFT, FERRO_SLOTS, ENDO_SLOTS, ENGINE_SLOTS, SINK_LIMIT, SINK_ITEMS):
+            cpu.call(fn, ecx=c)
+            out += struct.pack('<I', eax())
         self.unpatch()
         cpu.heap_next = mark
         return bytes(out)
@@ -492,8 +498,8 @@ MUTATIONS = [
 def compare_blob(what, want, n, buf):
     """As compare, with the ten weights (x87 sums) within float rounding."""
     got = buf.raw[:max(n, 0)]
-    if len(got) == len(want) and got[:-50] + got[-10:] == want[:-50] + want[-10:]:
-        a, b = struct.unpack('<10f', want[-50:-10]), struct.unpack('<10f', got[-50:-10])
+    if len(got) == len(want) and got[:-74] + got[-34:] == want[:-74] + want[-34:]:  # (the slots' 24 bytes last)
+        a, b = struct.unpack('<10f', want[-74:-34]), struct.unpack('<10f', got[-74:-34])
         if all(x == y or abs(x - y) <= 1e-6 * max(1.0, abs(x)) for x, y in zip(a, b)):
             return
     compare(what, want, n, buf)

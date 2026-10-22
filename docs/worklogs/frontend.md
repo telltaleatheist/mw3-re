@@ -1022,3 +1022,38 @@ MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
   the panel's alpha set just before its free).
 - Discoveries: the lists' hover colour is never found (FONT sits in
   ITEMROLLOVER in the data), the arrows' hold-to-scroll timing.
+
+## 2026-10-21 Lab step 5b1: the unassigned list's shell (branch mac3/lab5b)
+
+- Step 5b split in two (lead approved): 5b1 the list's shell, 5b2 its
+  rules (0x00453840 may an item go on, 0x00454600 put it on).
+- LabUnassignedList (0x004535d0, vtable 0x005c1d68) ported in
+  lab_screen.{h,cpp}: reading (SHORT_SIZE, the selects, sorts and
+  ALIST_TITLES bound), show/hide, the tab switch 0x004550d0, the sort
+  0x00453f00 with comparator 0x004564a0 (VC98 std::sort, the lab's
+  vc6_sort), the refill 0x00453f20 with its filters 0x00453770/0x00454580,
+  add_object 0x00454f60; the screen's presses 23..30. +0xa8/+0xac stay
+  "lab.vt+" hooks for 5b2.
+- LabCheck (new): the part buttons and selects share 0x00456980 (reading)
+  and 0x0044f2c0 (labels shown only while unchecked); the selects had been
+  InvertCheck with its own reading, which renders labels differently.
+- Config gained the slot helpers 0x00425d80, 0x00425e40, 0x00425e80,
+  0x00425e60/0x00432f70, 0x00426070, 0x00425e20; Engine hooks lab_item_id,
+  _mass, _count, _unlimited, _equipment and lab_config_slots_left, _ferro,
+  _endo, _sink_items, _sink_limit (GameEngine through Config). The base
+  list's filter takes the Engine. LabItemRow's third text renamed qty (it
+  holds the store's count).
+- Tests: test_lab_screen now runs the real list on both sides (ammo and
+  equipment in the store, weapon tons from test_mechsave's table, the
+  screen global set after the constructor as the Lab State does, ALIST_TITLES
+  and UNASSIGNED_LIST kept in synthetic dialogs since the exe uses them
+  unchecked); 60/60. test_mechsave checks the slot helpers on every loadout.
+- Breaks: 43 (the filters, the comparator's four orders, the tab switch,
+  titles, sink rule, row fonts and texts, the assigned list and parts, the
+  presses, LabCheck, the Config helpers). First run 37/43; the test then
+  got a criticals session in every plan, a scroll op, the arrows' places
+  in the dump, counts in ALIST_TITLES's messages, more double sinks and
+  ASSIGNED_LIST's stand-in keeping its hidden flag (LabLaterList now sets
+  it, as the real list's show/hide would); 43/43.
+- Discoveries: the never-firing heat sink rule, ammo's fixed "1.0", the
+  armour tab hiding the parts.

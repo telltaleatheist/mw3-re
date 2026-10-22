@@ -749,6 +749,21 @@ class Engine : public zgame::AppHooks {
   virtual int32_t lab_item_kind(Handle item);
   virtual std::string lab_item_name(Handle item);
   virtual int32_t lab_item_slots(Handle item);
+  // UNASSIGNED_LIST's (lab_screen.h): an item's id (vt+0x14), weight of one
+  // (vt+0x00 with 1), count (+0x04), unlimited byte (+0x10) and, for
+  // equipment, its kind (+0x18); a loadout's slots left (0x00425d80), its
+  // ferro-fibrous and endo steel slots (0x00425e40, 0x00425e80), its sink
+  // items (0x00425f30) and the sinks the engine holds (0x00426070).
+  virtual int32_t lab_item_id(Handle item);
+  virtual float lab_item_mass(Handle item);
+  virtual int32_t lab_item_count(Handle item);
+  virtual uint8_t lab_item_unlimited(Handle item);
+  virtual int32_t lab_item_equipment(Handle item);
+  virtual int32_t lab_config_slots_left(Handle config) { return static_cast<int32_t>(unported("0x00425d80", {config})); }
+  virtual int32_t lab_config_ferro_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e40", {config})); }
+  virtual int32_t lab_config_endo_slots(Handle config) { return static_cast<int32_t>(unported("0x00425e80", {config})); }
+  virtual int32_t lab_config_sink_items(Handle config) { return static_cast<int32_t>(unported("0x00425f30", {config})); }
+  virtual int32_t lab_config_sink_limit(Handle config) { return static_cast<int32_t>(unported("0x00426070", {config})); }
   virtual const char* part_text(int32_t part);
   std::string peek_string(Handle p);  // a C string through peek8 (none: "")
   virtual void lab_show_slots(Handle screen, int32_t slot) { unported("0x0044ce90", {screen, slot}); }

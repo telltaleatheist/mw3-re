@@ -367,6 +367,26 @@ int32_t Engine::lab_item_slots(Handle h) {
   const ConfigItem* it = item_of(h);
   return it ? it->slots() : 0;
 }
+int32_t Engine::lab_item_id(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->id() : 0;
+}
+float Engine::lab_item_mass(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? static_cast<float>(it->weight(1)) : 0.0f;
+}
+int32_t Engine::lab_item_count(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->count : 0;
+}
+uint8_t Engine::lab_item_unlimited(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it ? it->b10 : 0;
+}
+int32_t Engine::lab_item_equipment(Handle h) {
+  const ConfigItem* it = item_of(h);
+  return it && it->kind() == 3 ? static_cast<const EquipmentItem*>(it)->equipment : 0;
+}
 const char* Engine::part_text(int32_t part) {
   return part_display_name(part, [](void* c, int32_t id) { return static_cast<Engine*>(c)->message(id); }, this);
 }

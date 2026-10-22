@@ -44,7 +44,7 @@ class LabItemRow : public ztwod::Text {
   HudPanel panel;                    // +0x4d4  0xac by the height, (25, 25, 25)
   ztwod::Text count;                 // +0x5dc  "%02d", right-aligned, 0xac right
   ztwod::Text mass;                  // +0xaa8  0x93 right (the subclasses')
-  ztwod::Text crit;                  // +0xf74  0x7a right (the subclasses')
+  ztwod::Text qty;                   // +0xf74  0x7a right: the store's count (the subclasses')
   ztwod::Line2D line{0, 0, 0, 0, 0}; // +0x1440 green, under the text (the subclasses')
   int32_t height = 0;                // +0x148c  the panel's, 13
 };
@@ -97,6 +97,7 @@ class LabItemList : public ShellButton {
   void stop_sound(int32_t i);        // 0x00452c50
   void play_sound(int32_t i, float volume);  // 0x00452c80
   int32_t item_count() const { return static_cast<int32_t>(items.size()); }
+  Handle object_at(int32_t i) const;  // 0x004534b0: 0 out of range
 
   int32_t top = 0;                   // +0x158  the first item shown
   int32_t end = 0;                   // +0x15c  one past the last shown
@@ -134,7 +135,7 @@ class LabItemList : public ShellButton {
   uint8_t repeating = 0;             // +0x21c
   Handle store = 0;                  // +0x220  what refill lists
   Handle x224 = 0;                   // +0x224
-  bool (*filter)(Handle item) = nullptr;  // +0x228  (thiscall on the item) none: all
+  bool (*filter)(Engine& e, Handle item) = nullptr;  // +0x228  (thiscall on the item) none: all
 };
 
 // 0x0048c0b0 on any flashing text (FileRow::flash's body).
