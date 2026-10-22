@@ -613,8 +613,20 @@ whatever the ground between them (jump steps aside).
 ported (2026-10-22, `mech3/zainet_inout`); test
 `tests/differential/test_inout.py`: the original's load run on every world
 read into the emulator by its own 0x4ff520, 84 loads identical bit for bit
-at 24 bits. The query 0x4c3000 that pulls the AI's destinations back inside
-(seven callers) is the next item (B2), then the program's wiring of it (B3).
+at 24 bits. The query 0x4c3000 (seven callers) and the messages 0x4c3bd0
+are ported (B2); test `tests/differential/test_inout_query.py`: 10,000
+segments on every mission's area identical bit for bit at 24 bits. The
+program's wiring of it is B3.
+
+**What it is.** Not a fence round the map: an area's red shapes are
+patches the AI keeps out of (in c1 m1, 23 of them, most under 1,000 m^2,
+one of 26,000, the map's middle outside all of them), and a few missions
+add one large blue shape the AI keeps inside (c2 m2: about 1 km^2 holding
+the middle). Blue is red inside out: its corners are reversed and its
+inside test inverted. Yellow and cyan shapes are the same but not tested
+until a message switches them on; every yellow one shares its name with red
+ones (the bridges, the drawbridge `draw01`, c3 m5's `portdoors`), so a
+message swaps which of the two sets counts.
 
 **Where it is kept.** A listener at 0x60b338 (vtable 0x5cac78, registered
 at start-up through 0x4e78d0 from 0x4c3c9a, freed at exit by 0x4c3290):
@@ -675,13 +687,71 @@ is the node's past its first seven characters when it starts with `inout`
 and is longer than that.
 
 **An area** (0x4c26b0, 0x88 bytes, vtable 0x5cac70): its polygons (+0x04,
-a vector of pointers), the query's state (+0x14..+0x60, 19 dwords copied
-from the template at 0x60b348, which the start-up's 0x4c1a00 sets to zero
-but +0x20 = FLT_MAX; B2), a box (+0x60 FLT_MAX, +0x6c -FLT_MAX), the last
-answer (+0x78, +0x79, +0x7c; B2).
+a vector of pointers), the query's state (+0x14..+0x60, copied from the
+template at 0x60b348, which the start-up's 0x4c1a00 sets to zero but
++0x20 = FLT_MAX), a box (+0x60 FLT_MAX, +0x6c -FLT_MAX, never set), the
+last answer's flags (+0x78 from inside, +0x79 to inside) and normal (+0x7c).
+The last 0x10 bytes are left unset: the vector's areas are copies of one
+made on the stack (0x4c3630), so they start as its leftovers; every query
+sets the flags, and only the vehicle record reads the normal.
 
-**What the worlds hold** (polygons per area; all red but the yellow and
-blue counted):
+**The query's state** (0x4c bytes, the area's +0x14; each polygon's pass
+fills its own copy): +0x00 from, +0x04 to, +0x08 the polygon, +0x0c/+0x10
+the side crossed first (its two corners), +0x14/+0x18 the side crossed
+last, +0x1c the length from -> to in x and z, +0x20 / +0x24 the first and
+last crossing's place along from -> to (0..1), +0x28 the near point, +0x34
+the far point, +0x40 the crossings, +0x44 / +0x48 the sides met by the ray
+from `from` through `to` and by the ray from `to` back through `from`.
+
+**The query** (0x4c2b00, ECX the area, from, to; it returns `to` or one of
+its own points):
+
+1. Reset (0x4c2a80), then each tested polygon's pass (0x4c2080): every
+   side (from the last corner round, 0x4c1410) that the line from -> to
+   separates, and that separates from and to, is a crossing, its place
+   t = -sa / (sb - sa) kept when first or last; the rays' counts are
+   added up. A polygon with no crossing that holds both ends (both rays'
+   counts odd, or even for blue and cyan) becomes the area's polygon with
+   both flags set; one whose first crossing comes before the area's
+   becomes it, with its own two flags.
+2. Nothing crossed and not both ends in one polygon: `to`, unchanged.
+3. `from` inside the polygon: the point of its pushed-out outline nearest
+   `from` (0x4c2470 over 0x4c22c0: each side's projection in x and z when
+   it falls on the side, else its first corner, by the distance in 3D with
+   the outline at height 0), and the normal of that side.
+4. `to` inside and one crossing: the far point, the polygon's width (3 m)
+   short of the last crossing.
+5. Otherwise, a way through it: the near point (the width short of the
+   first crossing), unless the polygon's pushed-out corners lead round:
+   0x4c2f20 measures the outline from the first crossing's side to the
+   last's one way (both gaps added) and takes that way when it is under
+   half the perimeter, else the other; the corners are walked that way
+   from the first side to the last, each one in a clear line from `from`
+   (0x4c2e30: no side of any polygon of the area, tested or not, crosses
+   it, 0x4c25f0 / 0x4c1770) replacing the answer, so the last clear one
+   wins.
+
+The pull 0x4c3000 (ECX the vehicle, EDX `in`, the stack `out`): with a
+current area, the query from the vehicle's place (0x5a85e0) to `in`;
+pulled when the answer is not `in`, `out` then the answer with `in`'s
+height (read after the copy, so when the caller passes one buffer the
+answer's own height). It also fills a record on the vehicle (+0xd8: new
+0x3c bytes, 0x4c0ed0 / 0x4c0f70, the frame counter, both ends, the flags,
+the normal, the vehicle's place) that nothing in the exe reads; not kept.
+The callers ported so far: the attack's return 0x4cae90 (its way point),
+the drive 0x4c8a70 (its destination), the follow 0x4d1980 (the target's
+place) and the walk 0x4cee80 (its carrot, in and out one buffer). Three
+are in states not ported (0x4c9894, 0x4d0ce0, 0x4d13c0).
+
+**The messages** (0x4c3bd0, ECX an animation, EDX the AI message, from
+the AI's message handler 0x4d4a20, not ported): its node (0x50b5e0) names
+shapes; of the current area's polygons with that name only the yellow
+(0x39), red (0x3a), cyan (0x3b) or blue (0x3c) ones are tested from then
+on (0x4c2a30 over 0x4c29a0); any other message tests the red ones. Which
+mission sends them is not mapped.
+
+**What the worlds hold** (shapes per area; all red but the yellow and blue
+counted):
 
 | World | Areas | Yellow | Blue |
 |---|---|---|---|
@@ -701,11 +771,13 @@ no areas at all, so every child would); a mission number past them selects
 none (0x4c50e0 is unchecked); and [0x60b344] is cleared at the mission's
 end (the exe leaves it on the freed area, so a next mission without
 areas, multiplayer or a world without `inout`, would query freed memory).
-None happens with the shipped worlds and campaigns.
+None happens with the shipped worlds and campaigns. In the query: with
+every distance NaN the nearest outline point keeps no side and the exe
+reads its stack's leftovers for the normal; the port leaves the normal.
 
-**Not ported.** 0x4c3bd0 (from 0x4d4a92: commands 0x39..0x3c set an
-area's state, B2); the debug view 0x4c4730 (zaitarget.cpp: the boundary's
-polygons made into nodes).
+**Not ported.** The vehicle record; the AI's message handler 0x4d4a20; the
+debug view 0x4c4730 (zaitarget.cpp: the boundary's polygons made into
+nodes).
 
 ## 12. The AI controls and the brain's data
 

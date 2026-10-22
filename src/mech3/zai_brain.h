@@ -243,8 +243,9 @@ class BrainHooks : public zgame::Unported {
   // finder's next step after `at` (+0x238, 0x004c7cb0); the vehicle's speed at
   // a share of its top speed (vt+0x118, the Mech's 0x0041d1c0) and its
   // stopping distance from a speed (vt+0x120, 0x0041d210); the mission
-  // boundary's pull on a point (0x004c3000, not ported: false, the point
-  // kept, as when the world has no boundary); what the steps' passable tests
+  // boundary's pull on a point (0x004c3000 with ECX the vehicle, EDX `in`:
+  // true with the place `out` is pulled to, at `in`'s height; false, `out`
+  // untouched, as when the world has no boundary); what the steps' passable tests
   // see of the pilot (its vehicle's +0x04 name and vt+0x50's +0x3d8 jump jets).
   virtual Behaviour* path_next(Brain& b, Behaviour* at);
   virtual float speed_at(zgame::Handle v, float share);
@@ -264,8 +265,8 @@ class BrainHooks : public zgame::Unported {
   virtual void place(zgame::Handle v, const float p[3], float yaw) {
     unported("vehicle.vt+0xdc", {v, zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2]), zgame::bits(yaw)});
   }
-  virtual bool inout_clamp(zgame::Handle v, float p[3]) {
-    (void)p;
+  virtual bool inout_clamp(zgame::Handle v, const float in[3], float out[3]) {
+    (void)in, (void)out;
     return unported("0x004c3000", {v}) & 0xff;
   }
   virtual void pilot_of(zgame::Handle v, Pilot* p) {

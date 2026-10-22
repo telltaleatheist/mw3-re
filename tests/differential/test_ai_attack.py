@@ -242,14 +242,9 @@ class Original(to.Original):
 
     def pull(self, e, key, a, pop):
         r = self.t.handle(key, [OWNER if a[0] == self.v else a[0]])
-        # The follow's (the target's place in EDX, 0x4d19ee) and its walk's (the
-        # carrot, in and out the same, 0x4ceedb): EDX's point pulled.
-        if e.r32(e.uc.reg_read(UC_X86_REG_ESP)) in (0x4d19ee, 0x4ceedb):
-            if r & 0xff:  # the port's hook's boundary: halfway to the origin
-                x, y, z = struct.unpack('<3f', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))
-                e.cpu.write(a[1], struct.pack('<3f', f32(x * 0.5), y, f32(z * 0.5)))
-        else:
-            e.cpu.write(a[1], bytes(12))  # the port's hook leaves its zeros (halved)
+        if r & 0xff:  # EDX's point pulled to the port's hook's boundary: halfway to the origin
+            x, y, z = struct.unpack('<3f', bytes(e.cpu.read(e.uc.reg_read(UC_X86_REG_EDX), 12)))
+            e.cpu.write(a[1], struct.pack('<3f', f32(x * 0.5), y, f32(z * 0.5)))
         e._ret(r, pop)
 
     def nearest(self, e, key, a, pop):

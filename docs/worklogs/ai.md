@@ -638,3 +638,20 @@ Newest last. One short entry per item: what, commits, what to remember.
   `<` in the box, a y the ground replaces, a sum reordered past a zero,
   push for push_copy of an equal matrix) or unseen (the stale flag on a
   subtree that is then deleted).
+
+## 2026-10-22 The mission boundary, B2: the query (mac4/boundary-query)
+
+- zainet_inout: the query 0x4c2b00 with each polygon's pass, the crossing
+  count, the nearest outline point, the way round, the clear line; the
+  pull 0x4c3000 (its vehicle record, read by nothing, left out); the
+  messages 0x4c3bd0.
+- BrainHooks::inout_clamp now takes the exe's `in` and `out`: the attack's
+  return and the drive passed a zeroed point before (unseen while the hook
+  answered false). The probe's and test_ai_attack's stand-ins follow.
+- test_inout_query.py: 10,000 segments on every area identical at 24 bits,
+  every kind of answer seen, 655 pulls (one buffer and two), 294 messages.
+  The areas' last 0x10 bytes are the stack's leftovers in the exe; the
+  test zeroes them after the load.
+- The red shapes are no-go patches, not a fence (B1's discovery entry was
+  wrong, corrected); blue is the fence where there is one. Bridges and
+  gates have red and yellow sets under one name for the messages to swap.

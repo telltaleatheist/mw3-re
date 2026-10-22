@@ -48,9 +48,66 @@ void stale(zcls::Node* n) {
   for (int32_t i = 0; i < n->child_count(); ++i) stale(n->children[i]);
 }
 
+// A vertex pointer as (polygon << 16 | corner) + 1, 0 for none.
+uint32_t vertex_id(const mech3::ai::InOutArea& a, const mech3::ai::InOutVertex* v) {
+  if (!v) return 0;
+  for (size_t i = 0; i < a.polygons.size(); ++i) {
+    const auto& vs = a.polygons[i]->verts;
+    if (v >= vs.data() && v < vs.data() + vs.size()) return uint32_t(i << 16 | size_t(v - vs.data())) + 1;
+  }
+  return 0xffffffffu;
+}
+uint32_t poly_id(const mech3::ai::InOutArea& a, const mech3::ai::InOutPolygon* p) {
+  if (!p) return 0;
+  for (size_t i = 0; i < a.polygons.size(); ++i)
+    if (a.polygons[i].get() == p) return uint32_t(i) + 1;
+  return 0xffffffffu;
+}
+// The area's query state, its pointers as ids (from 1, to 2), then the
+// flags and the normal.
+void put_query(Out& o, const mech3::ai::InOutArea& a, const float* from, const float* to) {
+  const mech3::ai::InOutQuery& q = a.q;
+  auto pt = [&](const float* p) -> uint32_t { return !p ? 0 : p == from ? 1 : p == to ? 2 : 0xffffffffu; };
+  o.u32(pt(q.from)), o.u32(pt(q.to)), o.u32(poly_id(a, q.poly));
+  o.u32(vertex_id(a, q.near_a)), o.u32(vertex_id(a, q.near_b)), o.u32(vertex_id(a, q.far_a)), o.u32(vertex_id(a, q.far_b));
+  o.put(&q.length, 4), o.put(&q.t_near, 4), o.put(&q.t_far, 4);
+  o.put(q.near_point, 12), o.put(q.far_point, 12);
+  o.u32(uint32_t(q.crossings)), o.u32(uint32_t(q.from_rays)), o.u32(uint32_t(q.to_rays));
+}
+
 }  // namespace
 
 extern "C" {
+
+// 0x004c2b00 on the current area: where the answer points (0 `to`, 1 the
+// near point, 2 the far point, else a corner's id + 2), its value, the state.
+int32_t inout_query(const float* from, const float* to, uint8_t* buf, int32_t cap) {
+  using namespace mech3::ai;
+  InOutArea* a = inout().current;
+  Out o{buf, 0, cap};
+  if (!a) return 0;
+  const float* r = a->query(from, to);
+  uint32_t kind = r == to ? 0 : r == a->q.near_point ? 1 : r == a->q.far_point ? 2 : 0xffffffffu;
+  if (kind == 0xffffffffu)
+    for (size_t i = 0; i < a->polygons.size(); ++i)
+      for (const InOutVertex& v : a->polygons[i]->verts)
+        if (r == v.offset) kind = vertex_id(*a, &v) + 2;
+  o.u32(kind);
+  o.put(r, 12);
+  put_query(o, *a, from, to);
+  o.u32(a->from_in | a->to_in << 8);
+  o.put(a->normal, 12);
+  return o.n;
+}
+
+// 0x004c3000: the answer and `out` (in and out the same buffer when `same`).
+int32_t inout_pull_probe(const float* pos, float* in, float* out, int32_t same) {
+  return mech3::ai::inout_pull(pos, in, same ? in : out) ? 1 : 0;
+}
+
+// 0x004c3bd0 with the node's name.
+void inout_message(const char* name, int32_t message) { mech3::ai::inout_set_state(name, message); }
+
 
 // `inout` moved as a modded world might: its local matrix set, every
 // object3d under it marked for its world matrix to be redone (data flag 0x20),
@@ -118,7 +175,7 @@ int32_t inout_run(int32_t have, int32_t game, int32_t op, int32_t mission, int32
         o.u32(uint32_t(p->verts.size()));
         for (const InOutVertex& v : p->verts) o.put(&v, 0x1c);
       }
-      o.put(a.query, 0x4c);
+      put_query(o, a, nullptr, nullptr);
       o.put(a.min, 12);
       o.put(a.max, 12);
     }

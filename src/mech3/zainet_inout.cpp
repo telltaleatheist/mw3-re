@@ -72,6 +72,68 @@ void make_sides(InOutPolygon& p) {
   }
 }
 
+// x87 compares: true when below or unordered (C0).
+bool lt(float a, float b) { return !(a >= b); }
+
+float dist_xz(const float* a, const float* b) {  // 0x004c1090
+  const float dx = b[0] - a[0], dz = b[2] - a[2];
+  return std::sqrt(dx * dx + dz * dz);
+}
+float dist3(const float* a, const float* b) {  // 0x0051e000
+  const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+  return std::sqrt((dx * dx + dy * dy) + dz * dz);
+}
+float dot3(const float* a, const float* b) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }  // 0x004c2430
+// 0x004c0fe0 (ECX out, EDX a): a + (b - a) t in x and z, a's height.
+void lerp(float out[3], const float* a, float t, const float* b) {
+  out[0] = (b[0] - a[0]) * t + a[0];
+  out[1] = a[1];
+  out[2] = (b[2] - a[2]) * t + a[2];
+}
+// 0x004020d0 in play: floats.
+float normalize3(float v[3]) {
+  const float len = std::sqrt((v[0] * v[0] + v[2] * v[2]) + v[1] * v[1]);
+  if (len != 0.0f) {
+    const float k = 1.0f / len;
+    v[0] = k * v[0], v[1] = k * v[1], v[2] = k * v[2];
+  }
+  return len;
+}
+// The side of `p` from the line a -> b (0x004c1410 / 0x004c1770's sums).
+float side(const float* a, const float* b, const float* p) {
+  return (((a[2] - b[2]) * p[0] - (a[0] - b[0]) * p[2]) + b[2] * a[0]) - b[0] * a[2];
+}
+bool opposite(float s1, float s2) { return (lt(s1, 0.0f) && lt(0.0f, s2)) || (s1 > 0.0f && 0.0f > s2); }
+// From the side line p -> v: whether the ray from `a` through `b` meets it,
+// and the ray from `b` back through `a`.
+bool ray_from_a(float sa, float sb) { return (lt(sa, 0.0f) && lt(sa, sb)) || (sa > 0.0f && sa > sb); }
+bool ray_from_b(float sa, float sb) { return (lt(sa, sb) && lt(0.0f, sb)) || (sa > sb && 0.0f > sb); }
+
+// Mech3.exe 1.2 @ 0x004c1770 (ECX {a, b, prev}): segment a -> b against the side prev -> v.
+bool crosses(const float* a, const float* b, const float* p, const float* v) {
+  if (!opposite(side(a, b, p), side(a, b, v))) return false;
+  const float sa = side(p, v, a), sb = side(p, v, b);
+  return ray_from_a(sa, sb) && ray_from_b(sa, sb);
+}
+
+// Mech3.exe 1.2 @ 0x004c1410 (ECX {query, prev}): the query's segment
+// against the side prev -> v; a crossing's place along it kept when nearest
+// or farthest.
+void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
+  const float* a = c.from;
+  const float* b = c.to;
+  if (!opposite(side(a, b, prev->pos), side(a, b, v->pos))) return;
+  const float sa = side(prev->pos, v->pos, a), sb = side(prev->pos, v->pos, b);
+  const bool ra = ray_from_a(sa, sb), rb = ray_from_b(sa, sb);
+  if (ra) ++c.from_rays;
+  if (rb) ++c.to_rays;
+  if (!(ra && rb)) return;
+  ++c.crossings;
+  const float t = -sa / (sb - sa);
+  if (lt(t, c.t_near)) c.t_near = t, c.near_a = prev, c.near_b = v;
+  if (lt(c.t_far, t)) c.t_far = t, c.far_a = prev, c.far_b = v;
+}
+
 bool colour_is(const zmod::Material* m, float r, float g, float b) { return m->r == r && m->g == g && m->b == b; }
 
 // Mech3.exe 1.2 @ 0x004c32c0: polygons of three corners or more, not
@@ -197,12 +259,160 @@ InOutPolygon::InOutPolygon(const char* name_, const zmod::Polygon& poly, const f
 
 InOutPolygon::~InOutPolygon() { std::free(name); }
 
-// Mech3.exe 1.2 @ 0x004c26b0
+// Mech3.exe 1.2 @ 0x004c26b0 (the query's template copied)
 InOutArea::InOutArea() {
-  float big = FLT_MAX;
-  std::memcpy(&query[(0x34 - 0x14) / 4], &big, 4);  // 0x004c1a00 at start-up: the template's +0x20
   min[0] = min[1] = min[2] = FLT_MAX;
   max[0] = max[1] = max[2] = -FLT_MAX;
+}
+
+// Mech3.exe 1.2 @ 0x004c2080
+void InOutPolygon::cross(InOutArea& area) const {
+  if (!tested) return;
+  InOutQuery c;
+  c.from = area.q.from, c.to = area.q.to;
+  c.poly = const_cast<InOutPolygon*>(this);
+  c.length = area.q.length;
+  const InOutVertex* prev = &verts.back();  // 0x004c5250 over 0x004c1410
+  for (const InOutVertex& v : verts) {
+    edge_count(c, prev, &v);
+    prev = &v;
+  }
+  area.q.crossings += c.crossings;
+  area.q.from_rays += c.from_rays;
+  area.q.to_rays += c.to_rays;
+  const bool from_in = ((c.from_rays & 1) != 0) != (inverted != 0);
+  const bool to_in = ((c.to_rays & 1) != 0) != (inverted != 0);
+  auto keep = [&] {
+    area.q.poly = c.poly;
+    area.q.near_a = c.near_a, area.q.near_b = c.near_b;
+    area.q.far_a = c.far_a, area.q.far_b = c.far_b;
+    area.q.t_near = c.t_near, area.q.t_far = c.t_far;
+    area.from_in = from_in, area.to_in = to_in;
+  };
+  if (c.crossings == 0 && from_in && to_in) keep();
+  if (c.crossings > 0 && lt(c.t_near, area.q.t_near)) keep();
+}
+
+// Mech3.exe 1.2 @ 0x004c25f0 (over 0x004c1770, from the last corner)
+bool InOutPolygon::blocks(const float* from, const float* p) const {
+  const InOutVertex* prev = &verts.back();
+  for (const InOutVertex& v : verts) {
+    if (crosses(from, p, prev->pos, v.pos)) return true;
+    prev = &v;
+  }
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x004c2f20. The sides' lengths from near_b and from far_a
+// to the end (0x004c2e90), the arc between them, then the two ends' gaps.
+const InOutVertex* InOutPolygon::way_round(const InOutQuery& q) const {
+  const InOutVertex* got = q.near_a;
+  float arc = 0, rest = 0;
+  for (const InOutVertex& v : verts) {
+    if (&v == q.near_b) arc = v.length;
+    else if (arc < 0.0f || arc > 0.0f) arc = arc + v.length;
+    if (&v == q.far_a) rest = v.length;
+    else if (rest < 0.0f || rest > 0.0f) rest = rest + v.length;
+  }
+  if (lt(arc, rest)) arc = (perimeter - rest) + arc;
+  else arc = arc - rest;
+  const float d1 = dist_xz(q.near_point, q.near_b->pos);  // 0x004c1090
+  const float d2 = dist_xz(q.far_point, q.far_a->pos);
+  arc = (d2 + d1) + arc;
+  if (lt(2.0f * arc, perimeter)) got = q.near_b;  // 0x005cac60
+  return got;
+}
+
+// Mech3.exe 1.2 @ 0x004c2470 / 0x004c5290 / 0x004c22c0: the sides from (last,
+// first) on, each one's nearest point to `from` (its projection in x and z
+// when it falls inside, else its first corner), by the distance in 3D
+// (0x0051e000, the outline at height 0).
+void InOutPolygon::nearest(const float* from, float out[3], const InOutVertex** a, const InOutVertex** b) const {
+  float best = FLT_MAX;
+  const InOutVertex* p = &verts.back();
+  for (const InOutVertex& v : verts) {
+    const float e[3] = {v.offset[0] - p->offset[0], 0.0f, v.offset[2] - p->offset[2]};  // 0x0041fb30, y 0
+    const float u[3] = {p->offset[0] - from[0], 0.0f, p->offset[2] - from[2]};
+    const float w[3] = {v.offset[0] - from[0], 0.0f, v.offset[2] - from[2]};
+    const float d1 = dot3(e, u), d2 = dot3(e, w);  // 0x004c2430
+    float at[3];
+    const float* q = p->offset;
+    if ((!(d1 > 0.0f) && lt(0.0f, d2)) || (lt(d2, 0.0f) && !(0.0f > d1))) {
+      lerp(at, p->offset, d1 / (d1 - d2), v.offset);
+      q = at;
+    }
+    const float d = dist3(q, from);
+    if (lt(d, best)) {
+      best = d;
+      std::memcpy(out, q, 12);
+      *a = p, *b = &v;
+    }
+    p = &v;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004c2e30 (0x004c53d0 over 0x004c2940): every polygon,
+// tested or not.
+bool InOutArea::clear(const float* from, const float* p) const {
+  for (const auto& poly : polygons)
+    if (poly->blocks(from, p)) return false;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004c2b00 (0x004c2a80: the state reset, each polygon's
+// pass). Nothing to do unless the way crosses a side or both ends are in the
+// same polygon. From inside one: the nearest point of its pushed-out
+// outline. Into one, crossing once: the width short of it. Through one: the
+// width short of the first crossing, then the pushed-out corners round the
+// shorter way (0x004c2f20) up to the last crossing's side, the last one in
+// a clear line from `from` taken.
+const float* InOutArea::query(const float* from, const float* to) {
+  const float* got = to;
+  q = InOutQuery{};
+  q.from = from, q.to = to;
+  from_in = to_in = 0;
+  for (const auto& poly : polygons) poly->cross(*this);  // 0x004c53a0 over 0x004c2920
+  if (!(q.crossings > 0 || (from_in && to_in))) return got;
+  const float d[2] = {to[0] - from[0], to[2] - from[2]};
+  q.length = std::sqrt(d[0] * d[0] + d[1] * d[1]);  // 0x004c2e00
+  if (from_in) {
+    const InOutVertex *a = nullptr, *b = nullptr;
+    q.poly->nearest(from, q.near_point, &a, &b);
+    got = q.near_point;
+    // FIX (bug): with every distance NaN no side is kept and the exe reads
+    // the stack's leftovers; the normal is left as it was.
+    if (a && b) {
+      normal[0] = a->pos[2] - b->pos[2];
+      normal[1] = 0.0f;
+      normal[2] = b->pos[0] - a->pos[0];
+      normalize3(normal);  // 0x004020d0
+    }
+  } else if (to_in && q.crossings == 1) {
+    got = q.far_point;
+    lerp(q.far_point, from, q.t_far - q.poly->width / q.length, to);
+  } else if (q.near_a && q.far_a) {
+    lerp(q.near_point, from, q.t_near - q.poly->width / q.length, to);
+    lerp(q.far_point, from, q.poly->width / q.length + q.t_far, to);
+    const InOutVertex* cur = q.poly->way_round(q);
+    if (cur) {
+      got = q.near_point;
+      const InOutVertex* first = q.poly->verts.data();
+      const InOutVertex* end = first + q.poly->verts.size();
+      if (cur == q.near_a) {
+        while (cur != q.far_a) {  // back round
+          if (clear(from, cur->offset)) got = cur->offset;
+          if (cur == first) cur = end;
+          --cur;
+        }
+      } else if (cur == q.near_b) {
+        while (cur != q.far_b) {  // forward round
+          if (clear(from, cur->offset)) got = cur->offset;
+          if (++cur == end) cur = first;
+        }
+      }
+    }
+  }
+  return got;
 }
 
 // Mech3.exe 1.2 @ 0x004c36c0
@@ -289,6 +499,32 @@ void inout_select() {
   // FIX (bug): unchecked in the exe (0x004c50e0); a campaign mission past the
   // operation's count would point past the vector.
   if (i >= 0 && static_cast<size_t>(i) < g_inout.areas->size()) g_inout.current = &(*g_inout.areas)[size_t(i)];
+}
+
+// Mech3.exe 1.2 @ 0x004c3000 (the vehicle's record left out, see the header)
+bool inout_pull(const float pos[3], const float in[3], float out[3]) {
+  InOutArea* a = g_inout.current;
+  if (!a) return false;
+  const float* r = a->query(pos, in);  // 0x004c2670
+  if (r == in) return false;
+  out[0] = r[0], out[1] = r[1], out[2] = r[2];
+  out[1] = in[1];  // after the copy: with `in` as `out`, the pulled point's own height
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004c3bd0 -> 0x004c2a30 over 0x004c29a0. Any other
+// message tests the red ones (kind 0).
+void inout_set_state(const char* name, int32_t message) {
+  if (!name || !g_inout.current) return;
+  int32_t kind = 0;
+  switch (message) {
+    case 0x39: kind = 1; break;
+    case 0x3a: kind = 0; break;
+    case 0x3b: kind = 3; break;
+    case 0x3c: kind = 2; break;
+  }
+  for (const auto& p : g_inout.current->polygons)
+    if (p->name && std::strcmp(name, p->name) == 0) p->tested = p->kind == kind;
 }
 
 // Mech3.exe 1.2 @ 0x004c3dd0
