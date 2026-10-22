@@ -515,7 +515,7 @@ void DeployState::hold(Brain& b, BrainControls& c, const float fwd[3], bool firs
 // Mech3.exe 1.2 @ 0x004cee80. [0x0060b4c4] (no backing up) and [0x0060b4c8]
 // (no aiming along the segment when near) are never set: both 0.
 void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3], const float away[2], float dist,
-                float near, float* turn, float* throttle, float inv_slow) {
+                float near, float* turn, float* throttle, float inv_slow, float slack_along, float slack_side) {
   BrainHooks& h = brain_hooks();
   const Steer& s = b.steer;
   float to[3];
@@ -545,7 +545,7 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
   float dot, cross;
   *turn = reverse ? turn_or_back(fwd, to, &dot, &cross, keep, &reverse, turn_params())
                   : turn_toward(fwd, to, &dot, &cross, keep, turn_params());
-  float a = away[0] - 0.04f, sd = away[1] - 0.04f;
+  float a = away[0] - slack_along, sd = away[1] - slack_side;
   if (!(dot > s.x38)) {  // more than 45 degrees off: turn on the spot
     *throttle = 0;
     return;

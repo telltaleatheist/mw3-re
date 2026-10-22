@@ -438,3 +438,15 @@ Newest last. One short entry per item: what, commits, what to remember.
   Mech::die and on_kill call the controls when their hooks are unset.
 - test_sound_extra.py: say 600 cases (break 4 caught); test_ai_hits: the
   kill and death lines each case; 3 of 3 breaks.
+
+## 2026-10-22 Item L3: the follow state (mac4/follow)
+
+- FollowState 0x4d1870 / run 0x4d1980 (zai_attack), VehFollow's state in
+  make_state (was the vehicle_step_state stand-in). walk_drive takes
+  0x4cee80's two slack arguments (default the nodes' 0.04).
+- test_ai_attack.py: the follow in half the pushes; the exe's 0x4c89f0
+  real (no longer stubbed); the exe brain's steering given its ctor values
+  and the start-up cosines; _copysign; the vehicle's vt+0x118 0x41d1c0 at
+  12 m/s both sides; the controls' vt+0x30; the boundary stub halves EDX's
+  point for the follow's and the walk's calls; random carrot offsets
+  between runs; the whole steering compared. 9 of 10 breaks (one same).

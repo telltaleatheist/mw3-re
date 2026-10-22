@@ -757,6 +757,12 @@ void probe_ao_lines(int32_t kind, const uint32_t* w) {
   g_brain->radio = nullptr;
 }
 
+// The brain's steering (+0x250, 0x48 bytes) as the exe lays it out.
+// The steering's offsets from earlier frames (+0x2c along, +0x20 across),
+// as its update (0x004cec80) would leave them: the follow's runs read them.
+void probe_ao_steer_offsets(float along, float across) { g_brain->steer.along = along, g_brain->steer.across = across; }
+void probe_ao_steer_block(uint8_t* out) { std::memcpy(out, &g_brain->steer, sizeof(ai::Steer)); }
+
 // 0x004ea500 on the brain: the victim (an entity 1..4); out: the firing's
 // obstacle (+0x28) after.
 uint32_t probe_ao_hit_ally(uint32_t victim) {
@@ -1435,6 +1441,12 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       w[18] = 4;
       std::memcpy(w + 20, &fs->turn, 4);
     }
+    if (const auto* fo = dynamic_cast<const ai::FollowState*>(o.state.get())) {
+      w[18] = 5;
+      w[19] = fo->pulled;
+      std::memcpy(w + 20, &g_brain->steer.along_at, 4);
+      std::memcpy(w + 21, &g_brain->steer.along_min, 4);
+    }
     if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
     if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;
     if (const auto* rs = dynamic_cast<const ai::AttackReturnState*>(o.state.get())) {
@@ -1469,6 +1481,7 @@ void probe_ao_attack_brain(uint32_t* out) {
 // +0x22c, the time.
 void probe_ao_fight_world(const float* pos, int32_t active, uint32_t cc, uint32_t r24, uint32_t now, int32_t mode) {
   g_brain->params.put<int32_t>(0x40, mode);
+  g_mech.max_speed = 12.0f;  // the follow's speed (the test's Mech +0x518)
   Entity& en = g_entity[1];
   en.handle = ent_handle(1);
   std::memcpy(en.pos, pos, 12);
@@ -1479,10 +1492,11 @@ void probe_ao_fight_world(const float* pos, int32_t active, uint32_t cc, uint32_
   g_now = fl(now);
 }
 // The fight pushed as the brain's frame does: on the target's own net, its
-// attack behaviour (slot 1).
-int32_t probe_ao_fight_push() {
+// attack behaviour (slot 1); or its follow (slot 0, the lance's "attack my
+// target", 0x004ea450).
+int32_t probe_ao_fight_push(int32_t slot) {
   ai::VehicleNet* vn = ai::vehicle_net_of(g_ent_target[1], ent_handle(1));
-  return g_brain->push(vn, vn->attack());
+  return g_brain->push(vn, slot == 0 ? vn->follow() : vn->attack());
 }
 
 // The brain's own order (test_ai_attack.py): contacts 1..3 at a squared

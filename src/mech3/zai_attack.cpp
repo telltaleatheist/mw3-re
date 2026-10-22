@@ -257,6 +257,91 @@ void FightState::run(float) {
   if (drive_to(b, v, from, to, &turn, &throttle, true) && mode) order->set_behaviour(mode);  // 0x004e8120
 }
 
+namespace {
+// [0x0060b4a4] = cos(10 degrees), from the start-up's 0x004ce5b0.
+float cos_ten_degrees() { return static_cast<float>(std::cos(0.17453292519944444)); }
+// The pilot's speed for the carrot (+0x84, or +0xec when it is 0: fcomp,
+// test ah 0x40, so a NaN too) at the vehicle's vt+0x118.
+float follow_speed(Brain& b, zgame::Handle v) {
+  float share = b.params.get<float>(0x84);
+  if (!(share < 0.0f || share > 0.0f)) share = b.xec;  // [0x005cc51c] 0
+  return brain_hooks().speed_at(v, share);
+}
+bool same_or_nan(float a, float b) { return !(a < b || a > b); }
+bool unordered_or_less(float a, float b) { return !(a >= b); }  // x87 C0 after fcomp a, b
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004d1870 (with the context 0x004cecf0)
+FollowState::FollowState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {
+  BrainHooks& h = brain_hooks();
+  Brain& br = *o->owner;
+  const zgame::Handle v = br.controls->vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(o->net.get());
+  if (!part || !part->target) return;
+  float pos[3], to[3];
+  h.position(v, pos);
+  h.position(part->target->vehicle, to);  // the net's vt+0x04 (0x004c02e0)
+  br.steer.set(pos, to, follow_speed(br, v), v);
+  br.steer.x38 = cos_ten_degrees();
+}
+
+// The run's two resets (0x004d1a20, 0x004d1aea): the segment set again from
+// `to`, the carrot where it was from the pilot, the side offset kept, the
+// carrot no nearer than `floor`.
+void FollowState::aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor) {
+  Steer& s = b.steer;
+  const float along = s.along, across = s.across;
+  s.set(pos, to, follow_speed(b, v), v);  // 0x004cea30
+  s.x38 = cos_ten_degrees();
+  s.across = across;
+  s.along_at = s.along_at - along;
+  s.along_min = floor;
+  if (unordered_or_less(s.along_at, s.along_min)) s.along_at = s.along_min;
+}
+
+// Mech3.exe 1.2 @ 0x004d1980
+void FollowState::run(float dt) {
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(order->net.get());
+  if (!part || !part->target) {
+    order->pop();
+    return;
+  }
+  const zgame::Handle target = part->target->vehicle;
+  float to[3], pos[3], fwd[3] = {0, 0, 0};
+  h.position(v, pos);      // the context's (0x004cecf0)
+  h.position(target, to);  // the net's vt+0x04 (0x004c02e0)
+  if (!h.entity_active(target)) {  // +0x08
+    order->pop();  // order vt+0x08
+    return;
+  }
+  float slack_along = 0, slack_side = 0;
+  float at[3] = {to[0], to[1], to[2]};
+  if (h.inout_clamp(v, at)) {  // 0x004c3000: the boundary pulls the target's place
+    const Steer& s = b.steer;
+    if (!(pulled && same_or_nan(at[0], s.start[0]) && same_or_nan(at[2], s.start[2]))) aim(b, v, pos, at, 0.0f);
+    pulled = 1;
+  } else {
+    const float p28 = b.params.get<float>(0x28), p2c = b.params.get<float>(0x2c);
+    aim(b, v, pos, to, (p2c + p28) * 0.5f);  // 0x005cc564
+    slack_along = (p28 - p2c) * 0.5f;
+    slack_side = 2.0f;  // 0x005e8be0
+    pulled = 0;
+  }
+  Steer& s = b.steer;
+  s.measure(v, dt);  // 0x004ceb50
+  const float away[2] = {std::fabs(s.along), std::fabs(s.side)};  // 0x004cee50
+  const float sum = away[0] + away[1];
+  h.forward(v, &fwd[0], &fwd[2]);
+  float turn = 0, throttle = 0;
+  walk_drive(b, v, pos, fwd, away, sum, 2.0f, &turn, &throttle, 0.05f, slack_along, slack_side);  // 0x005e8be4, 0x005e8be8
+  c.set_turn(turn);          // IControls vt+0x28
+  c.set_throttle(throttle);  // vt+0x20
+}
+
 // Mech3.exe 1.2 @ 0x004cc150. The other is the vehicle's bearer (its vt+0x2c
 // then vt+0x40: a mech itself).
 BehaviourState* make_station_state(Behaviour& b, Order& o) {

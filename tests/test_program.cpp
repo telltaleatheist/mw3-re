@@ -2520,7 +2520,8 @@ TEST(missions_c4b_m5_m6_fail_when_left_headless) {
 
 // The player's allies fight only what comes in reach (docs/ai.md 17.8b): in
 // c1 mission 4 Dominic, woken, with an enemy put 60 m in front of him and no
-// order given, takes it as his target and fires at it, never closing in.
+// order given, takes it as his target and fires at it while he follows the
+// player (his own order), never closing in.
 TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -2577,7 +2578,8 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
       zgame::Handle dv = 0, ev = 0;
       std::string enemy_name;
       int frames = 0, engage = 0, targeted = 0, on_enemy = 0, aiming = 0, firing = 0, attacks = 0;
-      int down = 0, contacts = 0, enemy_contacts = 0, phase = -1;
+      int down = 0, contacts = 0, enemy_contacts = 0, phase = -1, follows = 0, follows_player = 0;
+      float closest = 1e9f;
       bool ai_on = false;
       float xe8 = 0, start[3] = {}, moved = 0;
     } seen;
@@ -2625,6 +2627,20 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
           for (const mech3::ai::Contact* c : t->contacts)
             if (mech3::ai::brain_hooks().contact_vehicle(c) == seen.ev) ++seen.enemy_contacts;
         }
+        if (auto* fo = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get())) {
+          ++seen.follows;
+          auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+          if (vp && vp->target && vp->target->vehicle == engine.handle_of(mech3::mech_mission_player())) ++seen.follows_player;
+          (void)fo;
+        }
+        {
+          mech3::LaunchedMech en;
+          mech3::describe_mech(seen.enemy, &en);
+          mech3::LaunchedMech dm;
+          mech3::describe_mech(seen.dominic, &dm);
+          const float ex = en.pos[0] - dm.pos[0], ez = en.pos[2] - dm.pos[2];
+          seen.closest = std::min(seen.closest, std::sqrt(ex * ex + ez * ez));
+        }
         if (b.firing.phase == 2 || b.firing.phase == 3) ++seen.aiming;
         if (b.firing.phase == 4 || b.firing.phase == 7) ++seen.firing;
         mech3::LaunchedMech d;
@@ -2640,14 +2656,18 @@ TEST(mission_c1m4_dominic_shoots_a_near_enemy_unordered_headless) {
     if (std::getenv("MW3_LANCE_LOG"))
       std::fprintf(stderr,
                    "DOMINIC vs %s: engage %d attacks %d targeted %d on it %d aiming %d firing %d moved %g"
-                   " | down %d ai %d contacts %d its %d phase %d\n",
+                   " | down %d ai %d contacts %d its %d phase %d follows %d (the player %d) closest %g\n",
                    seen.enemy_name.c_str(), seen.engage, seen.attacks, seen.targeted, seen.on_enemy,
-                   seen.aiming, seen.firing, seen.moved, seen.down, seen.ai_on, seen.contacts, seen.enemy_contacts, seen.phase);
+                   seen.aiming, seen.firing, seen.moved, seen.down, seen.ai_on, seen.contacts, seen.enemy_contacts, seen.phase, seen.follows,
+                   seen.follows_player, seen.closest);
     // The firing picked the enemy itself (0x004b6790) and fired at it, with
-    // engaging off all along, no attack and no step toward it (ai.md 17.8b).
+    // engaging off all along and no attack: his order the whole time the
+    // follow on the player (0x004d1980), never a step nearer the enemy
+    // (ai.md 17.8b).
     if (!std::getenv("MW3_LANCE_AT")) {
       EXPECT(seen.down == 0 && seen.on_enemy > 600 && seen.firing > 300);
-      EXPECT(seen.engage == 0 && seen.attacks == 0 && seen.moved < 1.0f);
+      EXPECT(seen.engage == 0 && seen.attacks == 0);
+      EXPECT(seen.follows_player > 600 && seen.closest > 59.0f);
     }
     mech3::missions().cleanup(false);
     app.stop_game();

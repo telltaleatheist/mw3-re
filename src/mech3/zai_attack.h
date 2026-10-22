@@ -131,6 +131,31 @@ class FightState : public BehaviourState {
   Behaviour* made_by;        // +0x18
 };
 
+// The follow (0x004c89f0 -> 0x004d1870, vtable 0x005cca88, over the waiting
+// state 0x004c8a30): what the target vehicle net's follow behaviour (slot 0)
+// makes, for the lance order "attack my target" (0x004ea450) and the
+// formation (docs/ai.md 17.8b). The steering segment runs from the target
+// back to the pilot, the carrot falling toward the target at the pilot's
+// speed (+0x84, or +0xec when 0); each run (0x004d1980) sets it again and
+// walks by it, the carrot kept no nearer than halfway between +0x2c and
+// +0x28; pulled by the mission boundary, toward the pulled point (+0x10
+// set). It ends when the target is gone or not active (+0x08). It lets no
+// order break in and the pilot not fire (0x004d72a0, 0x004d7290).
+class FollowState : public BehaviourState {
+ public:
+  FollowState(Order* o, Behaviour* b);  // 0x004d1870
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void run(float dt) override;          // 0x004d1980
+  uint32_t x08 = 0;          // +0x08  the waiting state's
+  float x0c = 0;             // +0x0c
+  uint8_t pulled = 0;        // +0x10  the last run's segment was to the boundary's point
+  Behaviour* made_by;        // +0x18
+
+ private:
+  void aim(Brain& b, zgame::Handle v, const float pos[3], const float to[3], float floor);
+};
+
 // The brain's own order's state (docs/ai.md 17.2): keeping station on the
 // vehicle whose own net it is on. 0x004cc290 (0x30 bytes, vtable 0x005cbf10,
 // over the waiting state 0x004c8a30): +0x20 the throttle's way (-1 when
