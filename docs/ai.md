@@ -2394,8 +2394,10 @@ unordered_headless, MW3_LANCE_LOG=1, MW3_LANCE_AT=metres): in c1 mission 4,
 Dominic woken (`dominic_wakes`) with the powered-down blackhawk_01 put in
 front of him and no order given: at 60 m he takes it as his target and
 fires (697 of 765 frames); at 150 m and 300 m he takes it and aims for the
-whole 25 s but never fires and never moves (engaging off throughout, no
-attack). The hit handler, the lance orders and the follow
+whole 25 s but never fires (engaging off throughout, no attack). Since the
+follow state's port (L3) he walks after the player meanwhile (his own
+order, the follow on the player's vehicle, every frame), and never comes
+nearer the enemy than where it was put. The hit handler, the lance orders and the follow
 state are not ported, so those parts are from the code alone.
 
 **The hits, ported** (2026-10-22, item L1: `ai::HitRecord` on
