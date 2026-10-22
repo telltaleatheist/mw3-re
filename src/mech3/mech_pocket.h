@@ -55,12 +55,15 @@ struct PocketUnit {
 };
 
 // The mode's globals: [0x00605f64] the mode while it is up, [0x00605f5c]
-// the panel's cursor (an entity), [0x00605f58] the unit last pointed at,
+// the panel's cursor (an entity), [0x00605f58] the command target marker
+// (an AiTarget on `cmd_target.flt`, made at the mission's start by
+// 0x0046aaa0 / 0x00468100; the panel puts it where the cursor meets the
+// ground),
 // [0x00605f50] / [0x00605f60] (cleared by the mode's start).
 struct PocketGlobals {
   PocketControls* active = nullptr;  // 0x00605f64
   uint32_t cursor = 0;               // 0x00605f5c
-  uint32_t last_unit = 0;            // 0x00605f58
+  uint32_t marker = 0;               // 0x00605f58
   uint32_t x50 = 0, x60 = 0;         // 0x00605f50, 0x00605f60
 };
 PocketGlobals& pocket_globals();

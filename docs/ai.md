@@ -2161,14 +2161,21 @@ in the mode; `MechControls` gained the slots below):
   else 0 when any refused, else 2 (the record's flags +0xc / +0xd, made by
   0x468bd0 / 0x468df0). Unused by the dispatcher, which leaves the mode
   either way.
+- **The command target marker** [0x605f58]: an AiTarget (0x4d7f80, 0xd4
+  bytes) made at the mission's start (0x46aaa0 -> 0x468100) on the world's
+  `cmd_target.flt` node (else a new object3d), named, its team the
+  player's side (0x4d5af0) with the masks below; it starts inactive (+0x08
+  0). When the panel's cursor meets the ground and no unit, the panel
+  moves the marker there (its vt+0x18), activates it and makes it the
+  cursor [0x605f5c] (0x469d00, L4c2), so target orders can name a spot.
 - **The team change** (0x468ca0, before each target order): when the
-  target is the unit the panel last pointed at ([0x605f58]) and the order
-  is 10 (0x4ea200, only an enemy) or 11 (0x4ea230, only an ally), the
+  target is the marker and the order is 10 (0x4ea200, only an enemy) or 11 (0x4ea230, only an ally), the
   target's team (+0xc0) becomes the lowest bit of the lancemate's enemies
   (+0xc8) or allies (+0xc4) (none: bit 31, through the 5-bit packing's
   loop), its allies (+0xc4) that team but bit 0, its enemies (+0xc8) every
-  other bit but 0, and [0x60b56c] is cleared. So the order really moves
-  the target to the other side, for everyone.
+  other bit but 0, and [0x60b56c] is cleared. So the spot counts as an
+  enemy (or an ally) of the lancemate the order goes to; a real unit's
+  side is never changed here.
 - **Out**: the order 2 again, or any lance order given in the mode (it
   goes to the lancemates picked, above, then out), or the frame's end
   (+0x38 set by 0x469d00; the mech's update then calls primary vt+0x04,

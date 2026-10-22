@@ -503,7 +503,8 @@ Newest last. One short entry per item: what, commits, what to remember.
 
 - mech3/lance_orders: pocket_order (0x468f00 / 0x468fa0 with the records
   0x468bd0 / 0x468df0 and the unit steps 0x468c00 / 0x468e20),
-  retarget_team (0x468ca0: orders 10 / 11 on the unit last pointed at move
-  it to the other side); in_pocket uses them. The units come from
+  retarget_team (0x468ca0: orders 10 / 11 on the command target marker
+  [0x605f58], an AiTarget on cmd_target.flt the panel moves to the ground
+  under the cursor, make it the lancemate's enemy or ally); in_pocket uses them. The units come from
   PocketCalls::panel_units (the panel, L4c2; unset: none).
 - test_pocket_orders.py: 3,000 cases identical, 7 of 7 breaks.
