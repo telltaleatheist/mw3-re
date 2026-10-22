@@ -206,8 +206,9 @@ void MechAnim::bind_parts(const char* motion_name) {
   if (!active) return;
   find_parts();
   if (!feet[0] || !feet[1] || !hip_part || !torso_part) {
-    (void)motion_name;
-    zerr::report(0x400, kAnimFile, 0xb4, "Motion (%s):  feet=( 0x%08x, 0x%08x ) hip=0x%08x, torso=0x%08x");
+    auto low = [](const void* p) { return static_cast<unsigned>(reinterpret_cast<uintptr_t>(p)); };
+    zerr::reportf(0x400, kAnimFile, 0xb4, "Motion (%s):  feet=( 0x%08x, 0x%08x ) hip=0x%08x, torso=0x%08x",
+                  motion_name ? motion_name : "", low(feet[0]), low(feet[1]), low(hip_part), low(torso_part));
     active = false;
   }
 }
@@ -314,7 +315,7 @@ void MechAnim::mirror_init(float speed, uint32_t frames) {
 MechAnim* load_anim(const char* name, float speed, uint32_t frames) {
   auto* a = new MechAnim;
   a->active = load_motion(*a, name);
-  if (!a->active) zerr::report(0x400, kScriptFile, 0x75, "Script (%s) not loaded");
+  if (!a->active) zerr::reportf(0x400, kScriptFile, 0x75, "Script (%s) not loaded", name);
   else a->set_fps(30.0f);
   a->bind_parts(name);
   if (!a->active) {
@@ -542,7 +543,7 @@ MechAction* load_action(const char* name, uint32_t frames) {
   auto* a = new MechAction;
   a->wraps = true;
   a->active = load_motion(*a, name);
-  if (!a->active) zerr::report(0x400, kScriptFile, 0x75, "Script (%s) not loaded");
+  if (!a->active) zerr::reportf(0x400, kScriptFile, 0x75, "Script (%s) not loaded", name);
   else a->set_fps(30.0f);
   a->bind_parts(name);
   a->bind_leg_parts();

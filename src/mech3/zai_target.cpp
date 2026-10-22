@@ -482,7 +482,7 @@ bool CZAiTarget::handlers_ok(Handle* table, Handle* owner_node, bool quiet) {
     return false;
   }
   if (weapon && h.handler_word(t, 0) != anim) {
-    if (!quiet) h.report(0xbf, "target %s: weapons callback does not point to animation %s", node);
+    if (!quiet) h.report(0xbf, "target %s: weapons callback does not point to animation %s", node, anim);
     return false;
   }
   const uint32_t collide = h.handler_word(t, 3);
@@ -491,7 +491,7 @@ bool CZAiTarget::handlers_ok(Handle* table, Handle* owner_node, bool quiet) {
     return false;
   }
   if (collide && h.handler_word(t, 2) != anim) {
-    if (!quiet) h.report(0xc3, "target %s: collide callback does not point to animation %s", node);
+    if (!quiet) h.report(0xc3, "target %s: collide callback does not point to animation %s", node, anim);
     return false;
   }
   return h.handlers_own(*owner_node) != 0;

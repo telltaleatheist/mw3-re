@@ -81,7 +81,7 @@ bool Part::read(std::FILE* f) {
 void Script::set_loop_time(float t) {
   if (!active) return;
   if (t <= 0.0f) {
-    zerr::report(0x400, kFile, 0x1d3, "CZSIScript::SetLoopTime( t=%.2f )");
+    zerr::reportf(0x400, kFile, 0x1d3, "CZSIScript::SetLoopTime( t=%.2f )", static_cast<double>(t));
     return;
   }
   time = 0;

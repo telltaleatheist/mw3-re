@@ -975,3 +975,20 @@ MISSED fix tons: 40/40 runs identical (equivalent; the fix removed)
   shipped MESSAGEBOX has no YES/NO/ABORT/RETRY/IGNORE; the original reports
   them too) print their format unfilled ("BindButton (%s) failed"): the
   report printer's, not looked at.
+
+## 2026-10-21 The reports' formats (branch mac3/reportf)
+
+- "BindButton (%s) failed" printed its format unfilled: zerr::report took
+  a plain message and the ports passed the exe's format without its
+  arguments. New zerr::reportf (printf-style); the eight calls whose format
+  had specifiers and no arguments now pass the exe's (BindButton x2,
+  BindPrimitive, Motion's parts, Script not loaded x2, SetLoopTime).
+  weilerIntersect's "%s" stays: the exe passes nothing either.
+- The modules' printers in app_mission.cpp: ZAiTarget's now fills the node
+  and animation names (the hook gained the animation; its logged
+  arguments unchanged), zWeapon's version report fills found/wanted, its
+  "Failed to read %s" stays as the exe passes nothing; player.cpp's and
+  ZRdrValve's take plain texts; mission.cpp's already formatted.
+- Test: reports_fill_their_formats (2/2 breaks). The tests that see
+  reports pass: mech data load, mechanim, mech build, twod, msgbox, anim
+  run, targets, weiler. program.md, The engine's reports.

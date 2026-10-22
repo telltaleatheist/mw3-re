@@ -214,6 +214,20 @@ implements it:
   `cmp ebx, end`; 1,577 entries in 1.2's DLL). Missing, the program says so
   and exits, as the original does.
 
+## The engine's reports (our addition)
+
+The exe's error report (`zerr_report`, 0x0049bfd0) is empty in this build,
+so the original never shows its asserts and warnings. The rebuild prints
+them to stderr as `mw3: report <level> <file>:<line> <text>` (not when
+quiet), with the text filled the way the exe's calls pass their arguments
+(`zerr::reportf`; the modules' own printers in `app_mission.cpp` the same).
+Where the exe passes nothing for a `%s` (weilerIntersect's error, zWeapon's
+"Failed to read %s") the format prints as written; ZAiTarget's animation
+name comes from 0x0050b620, empty in this build (the exe passes what EAX
+holds), so the rebuild names the animation. `reports_fill_their_formats`
+checks it. A mission start prints five: the quit box's dialog lacks the
+YES, NO, ABORT, RETRY and IGNORE buttons the message box binds.
+
 ## Tests
 
 - `build/mw3tests` (`tests/test_program.cpp`): Mech3Msg.dll read (message 7,

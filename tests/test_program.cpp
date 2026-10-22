@@ -3925,3 +3925,23 @@ TEST(playtest_hud_weapon_bars_recharge_headless) {
   reset_process_state();
   mech3::options() = mech3::Options{};
 }
+
+// The reports' formats filled with the exe's arguments (zerr::reportf; the
+// exe's 0x0049bfd0 is empty, the text is the rebuild's): a button the dialog
+// lacks names itself, as the mission's quit box's five do.
+namespace reports {
+std::string g_last;
+}  // namespace reports
+
+TEST(reports_fill_their_formats) {
+  zerr::set_sink([](int, const char*, int, const char* m) { reports::g_last = m ? m : ""; });
+  zerr::reportf(0x400, "f", 1, "CZSIScript::SetLoopTime( t=%.2f )", -0.5);
+  EXPECT(reports::g_last == "CZSIScript::SetLoopTime( t=-0.50 )");
+  {
+    ztwod::Dialog d;
+    ztwod::Control c;
+    EXPECT(!ztwod::bind_button(&d, nullptr, &c, "MB_YES"));
+    EXPECT(reports::g_last == "BindButton (MB_YES) failed");
+  }
+  zerr::set_sink(nullptr);
+}
