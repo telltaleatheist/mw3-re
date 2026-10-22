@@ -501,6 +501,7 @@ class Engine : public zgame::AppHooks {
   }
   virtual void action_open() { unported("0x0048aac0", {}); }  // the Instant Action setup after the pilot
   virtual void network_set(int32_t on) { unported("0x0047fc40", {on}); }  // the app's network on or off
+  virtual void network_leave() { unported("0x0046d100", {}); }  // the network session closed (the quit box's OK)
   virtual void multiplayer_switch(Handle state) { unported("0x0049cb20", {state}); }
   // 0x00494920 on the first multiplayer screen with the pilot, then the
   // second's +0x15058 (the pilot) and +0x116ec (its multiplayer game).

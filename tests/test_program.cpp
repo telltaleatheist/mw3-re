@@ -3809,6 +3809,7 @@ TEST(playtest_hud_keys_zoom_radar_mfd_headless) {
     app.run(pump);
     mech3::program_count_sounds(0, nullptr);
     EXPECT(frames >= 160);
+    EXPECT(engine.unported_counts().count("0x0048dfe0") == 0);  // playtest #21: the mission's quit box made
     auto& a = at;
     std::printf("hud keys: clicks %d %d %d %d %d %d %d, mfd %d -> %d, radar %.0f -> %.0f -> %.0f\n", a[10].clicks,
                 a[20].clicks, a[40].clicks, a[50].clicks, a[60].clicks, a[70].clicks, a[80].clicks, a[90].r.mfd_mode,

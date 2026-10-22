@@ -18,6 +18,7 @@
 #include "mech3/credits.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
+#include "mech3/quit_box.h"
 #include "probe_twod.h"
 
 namespace {
@@ -120,6 +121,12 @@ struct MenuEngine : mech3::Engine {
     const uint32_t s = call("0x00482970", {static_cast<uint32_t>(n)});
     call("0x00590250", {s, 0});
   }
+  // The quit box's: the network left and off, zInput's mouse map.
+  void network_leave() override { call("0x0046d100", {}); }
+  void network_set(int32_t on) override { call("0x0047fc40", {on}); }
+  int32_t mouse_command(uint32_t b) override { return static_cast<int32_t>(call("0x0051d270", {b})); }
+  uint32_t mouse_of(int32_t c) override { return call("0x0051d230", {c}); }
+  void bind_mouse(uint32_t b, int32_t c) override { call("0x0051d2b0", {b, c}); }
 };
 
 // The screen's parts the plan names by number, as test_menus.py lists them.
@@ -247,12 +254,27 @@ void dump_screen(mech3::MenuScreen& m, Parts& p, Dump& d) {
   d.o << '\n';
 }
 
+void dump_quit(mech3::QuitBox& q, Dump& d) {
+  d.o << "quit ";
+  d.kv("active", q.active);
+  d.kv("result", q.result);
+  d.kv("frames", q.frames);
+  d.kv("cmd", q.mouse_cmd);
+  d.kv("button", q.mouse_button);
+  d.kv("reading", q.unused.reading);
+  d.kv("id", q.unused.id);
+  d.kv("borrowed", q.unused.borrowed);
+  for (ztwod::MbButton& b : q.buttons) d.kv("bflags", b.flags);
+  d.kv("bdflags", q.backdrop.flags);
+  d.o << '\n';
+}
+
 }  // namespace
 
 extern "C" {
 
 // Opens `reader` as zReader's archive, builds screen `kind` (0 credits, 1 game
-// options, 2 graphics and audio, 3 pause) for `state`, runs `plan` (lines, as
+// options, 2 graphics and audio, 3 pause, 4 the mission's quit box) for `state`, runs `plan` (lines, as
 // test_menus.py writes them), dumps it into `out`, then destroys it. Returns
 // the dump's length, or -1.
 int probe_menus_run(const char* reader, int kind, uint32_t state, const char* plan, char* out, int size) {
@@ -274,7 +296,9 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
   zrdr::close_archives(true);
   zrdr::open_archive(reader, true);
   ztwod::set_page_flip(true);
-  std::unique_ptr<mech3::MenuScreen> menu;
+  std::unique_ptr<ztwod::Dialog> dialog;  // the screen, or the quit box
+  mech3::MenuScreen* menu = nullptr;
+  mech3::QuitBox* quit = nullptr;
   Parts parts;
   std::string dump;
   std::istringstream in(plan);
@@ -285,24 +309,31 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
     ls >> op;
     if (op == 'N') {
       parts = Parts{};
+      std::unique_ptr<mech3::MenuScreen> made;
+      if (kind == 4) {
+        quit = new mech3::QuitBox(engine, "dlgMessage.zrd", "MESSAGEBOX");
+        dialog.reset(quit);
+        for (ztwod::MbButton& b : quit->buttons) parts.others.push_back(&b);
+        continue;
+      }
       if (kind == 0) {
         auto* c = new mech3::CreditsScreen(engine, state);
-        menu.reset(c);
+        made.reset(c);
         parts.slides = {&c->cancel};
         parts.others = {&c->names};
       } else if (kind == 1) {
         auto* g = new mech3::GameOptionsScreen(engine, state);
-        menu.reset(g);
+        made.reset(g);
         parts.slides = {&g->accept, &g->back, &g->gfx_audio, &g->controls};
         parts.cycles = {&g->difficulty, &g->camera, &g->invincible, &g->infinite_ammo, &g->heat,
                         &g->torso, &g->throttle, &g->jump_jets, &g->invert_y};
       } else if (kind == 3) {
         auto* p = new mech3::PauseScreen(engine, state);
-        menu.reset(p);
+        made.reset(p);
         parts.slides = {&p->resume, &p->quit, &p->options, &p->replay};
       } else {
         auto* g = new mech3::GfxAudioScreen(engine, state);
-        menu.reset(g);
+        made.reset(g);
         parts.slides = {&g->accept, &g->back};
         parts.cycles = {&g->shadows, &g->self_shadows, &g->lighting, &g->resolution, &g->device,
                         &g->textures, &g->sound, &g->detail, &g->effects};
@@ -310,6 +341,8 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
         g_kind[&g->music] = 'L';
         g_kind[&g->sfx] = 'L';
       }
+      menu = made.get();
+      dialog = std::move(made);
     } else if (op == 'F') {
       uint32_t dt;
       ztwod::MouseState m{};
@@ -317,12 +350,12 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
       ls >> std::hex >> dt;
       for (int i = 0; i < 15; ++i) ls >> w[i];
       g_mouse.push_back(m);
-      menu->update(zgame::from_bits(dt));
+      dialog->update(zgame::from_bits(dt));
       ++g_frame;
     } else if (op == 'A') {
       int v;
       ls >> v;
-      menu->set_active(v);
+      dialog->set_active(v);
     } else if (op == 'R') {  // +0x10: the options read (0) or written (1)
       int v;
       ls >> v;
@@ -360,10 +393,14 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
       int v;
       ls >> v;
       call("busy", {menu->set_busy(static_cast<uint8_t>(v)), menu->busy()});
+    } else if (op == 'M') {
+      quit->prompt();
+    } else if (op == 'L') {
+      quit->close();
     } else if (op == 'D') {
-      menu->dirty_all();
+      dialog->dirty_all();
     } else if (op == 'H') {
-      menu->restore_behind();
+      dialog->restore_behind();
     } else if (op == 'K') {
       int i, v;
       ls >> i >> v;
@@ -371,13 +408,15 @@ int probe_menus_run(const char* reader, int kind, uint32_t state, const char* pl
     } else if (op == 'G') {  // the graphics screen's 0x00439a90
       int v;
       ls >> v;
-      if (auto* g = dynamic_cast<mech3::GfxAudioScreen*>(menu.get())) g->device_changed(v);
+      if (auto* g = dynamic_cast<mech3::GfxAudioScreen*>(menu)) g->device_changed(v);
     } else if (op == 'X') {
       Dump d;
-      dump_dialog(*menu, d);
-      dump_screen(*menu, parts, d);
+      dump_dialog(*dialog, d);
+      if (menu) dump_screen(*menu, parts, d);
+      else dump_quit(*quit, d);
       dump = d.o.str();
-      menu.reset();
+      dialog.reset();
+      menu = nullptr, quit = nullptr;
     }
   }
   zrdr::close_archives(true);

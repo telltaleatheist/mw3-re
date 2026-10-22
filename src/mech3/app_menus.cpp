@@ -32,6 +32,7 @@
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
+#include "mech3/quit_box.h"
 #include "mech3/pilot.h"
 #include "mech3/pilot_menu.h"
 
@@ -164,8 +165,33 @@ ShellState* shell_state_at(Handle state) {
 }
 }  // namespace
 
+// Mech3.exe 1.2 @ 0x0048dfe0 on new(0x12688): the mission's quit box.
+Handle GameEngine::message_box_new(const char* file, const char* name) {
+  const Handle h = alloc_block(0x12688);
+  delete quit_box_;
+  quit_box_ = new QuitBox(*this, file, name);
+  quit_box_at_ = h;
+  return h;
+}
+void GameEngine::message_box_quit_prompt(Handle box) {
+  if (quit_box_ && box == quit_box_at_) quit_box_->prompt();
+}
+
 bool GameEngine::menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out) {
   const uint32_t a0 = args.size() ? args.begin()->v : 0;
+  if (quit_box_ && obj == quit_box_at_) {  // the quit box: its frame, on or off, its deleting destructor
+    *out = 0;
+    switch (slot) {
+      case 0x00: quit_box_->update(zgame::from_bits(a0)); return true;
+      case 0x04: quit_box_->set_active(static_cast<int32_t>(a0)); return true;
+      case 0x08:
+        delete quit_box_;
+        quit_box_ = nullptr;
+        quit_box_at_ = 0;
+        return true;
+      default: break;
+    }
+  }
   if (ShellState* sh = shell_state_at(obj); sh && slot == 0x28) {  // the pause screen's RESUME
     *out = 0;
     sh->escape();
@@ -220,6 +246,9 @@ bool GameEngine::menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg
 }
 
 void GameEngine::delete_screens() {
+  delete quit_box_;
+  quit_box_ = nullptr;
+  quit_box_at_ = 0;
   // The app may be gone: the screens go below, not through the states' destructors.
   while (!menu_states_.empty()) {
     MenuState* st = menu_states_.begin()->second;

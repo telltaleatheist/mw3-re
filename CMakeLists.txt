@@ -194,6 +194,7 @@ add_library(mw3core STATIC
   src/mech3/credits.cpp
   src/mech3/options_menu.cpp
   src/mech3/pause_menu.cpp
+  src/mech3/quit_box.cpp
   src/mech3/controls_menu.cpp
   src/mech3/music.cpp
 )
