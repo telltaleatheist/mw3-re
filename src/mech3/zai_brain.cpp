@@ -289,13 +289,34 @@ VehiclePart::VehiclePart(Order* o, VehicleNet* n) : NetPart(o), target(n) {
 
 void VehiclePart::push_home() {
   Brain& b = *order->owner;
-  prev = b.xe4;
   brain_hooks().position(b.controls->vehicle(), home);  // 0x005a85e0
-  b.xe4 = home;
+  b.home_push(home, &prev);
+  pushed = true;
 }
 
-// Mech3.exe 1.2 @ 0x004c0dc0
-VehiclePart::~VehiclePart() { order->owner->xe4 = prev; }
+// Mech3.exe 1.2 @ 0x004c0dc0: the brain's +0xe4 back (FIX (bug): from
+// wherever it is in the stack; Brain::homes).
+VehiclePart::~VehiclePart() {
+  if (pushed) order->owner->home_pop(home);
+  else order->owner->xe4 = prev;  // made pending and never run: the exe's +0x14 (0) back
+}
+
+void Brain::home_push(const float* home, const float** under) {
+  *under = xe4;
+  homes.push_back({home, under});
+  xe4 = home;
+}
+
+void Brain::home_pop(const float* home) {
+  for (size_t i = homes.size(); i-- > 0;) {
+    if (homes[i].home != home) continue;
+    const float* below = *homes[i].under;
+    if (i + 1 == homes.size()) xe4 = below;  // on top: as the exe
+    else *homes[i + 1].under = below;        // from the middle: the one above takes its under
+    homes.erase(homes.begin() + static_cast<std::ptrdiff_t>(i));
+    return;
+  }
+}
 
 // Mech3.exe 1.2 @ 0x004c0d60
 void VehiclePart::run(float) {

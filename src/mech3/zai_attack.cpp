@@ -63,16 +63,17 @@ int32_t& attack_part_unstacked() {
 // Mech3.exe 1.2 @ 0x004c0a90. The vehicle is taken as there (no check).
 AttackPart::AttackPart(Order* o, AttackNet* n) : NetPart(o), target(n) {
   Brain& b = *o->owner;
-  prev = b.xe4;
   brain_hooks().position(b.controls->vehicle(), home);  // 0x005a85e0
-  b.xe4 = home;
+  b.home_push(home, &prev);
 }
 
-// Mech3.exe 1.2 @ 0x004c0b50
+// Mech3.exe 1.2 @ 0x004c0b50: the brain's +0xe4 back (FIX (bug): from
+// wherever it is in the stack; Brain::homes), the test on the under it had.
 AttackPart::~AttackPart() {
   Brain& b = *order->owner;
-  b.xe4 = prev;
-  if (!prev) {
+  const float* under = prev;
+  b.home_pop(home);
+  if (!under) {
     b.xe8 = 3.4028235e38f;
     b.x230 = 0;
   } else {

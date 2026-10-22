@@ -20,6 +20,8 @@
 #include "mech3/mech.h"
 #include "mech3/mech_skin.h"
 #include "mech3/mech_skis.h"
+#include "mech3/zai_attack.h"
+#include "mech3/zai_brain.h"
 #include "mech3/zrdraiv.h"
 #include "mech3/zrdrvalve.h"
 #include "mech3/mech_collide.h"
@@ -890,4 +892,70 @@ TEST(fix_tag_strike_homes_on_the_unit) {
   }
   zfix::options().bugs = true;
   c.strike_target = nullptr, c.spawn = nullptr;
+}
+
+// The brain's home points (FIX (bug), docs/fixes.md, ai.md 17.2): a fight's
+// part going before the own order's part stacked on it. In the exe the own
+// part keeps the fight's freed home as its under and puts it back on +0xe4
+// (the leash's home) when it goes; here it hands over the fight's own under.
+// Run under ASan the old way read freed memory at the end.
+namespace {
+struct HomeControls : mech3::ai::BrainControls {
+  zgame::Handle vehicle() override { return 1; }
+  void stop() override {}
+  void smooth(float) override {}
+  bool hit_lately() override { return false; }
+  void fire(bool) override {}
+  float throttle_now() override { return 0; }
+  void set_throttle(float) override {}
+  void set_turn(float) override {}
+  float turn_goal() override { return 0; }
+  void aim_started() override {}
+};
+struct HomeHooks : mech3::ai::BrainHooks {
+  float at[3] = {};
+  uint32_t unported(const char*, std::initializer_list<zgame::Arg>) override { return 0; }
+  void position(zgame::Handle, float out[3]) override { std::memcpy(out, at, 12); }
+};
+}  // namespace
+
+TEST(fix_ai_home_points_out_of_order) {
+  using namespace mech3::ai;
+  HomeHooks hooks;
+  set_brain_hooks(&hooks);
+  {
+    BuiltinNet net(7, 0);
+    AiParams rec;
+    Brain b(&net, rec);
+    HomeControls c;
+    b.controls = &c;
+    static const float base[3] = {1, 2, 3};
+    b.xe4 = base;
+    VehicleNet vn(0);
+    Order fight, own;
+    fight.owner = own.owner = &b;
+    // The fight's part (its home at 10), then the own order's (at 20) on it.
+    hooks.at[0] = 10;
+    auto* a = new AttackPart(&fight, nullptr);
+    hooks.at[0] = 20;
+    auto* v = new VehiclePart(&own, &vn);
+    EXPECT(b.xe4 == v->home && v->prev == a->home && a->prev == base);
+    // The fight's goes first: the top stays, the own part's under is now the base.
+    delete a;
+    EXPECT(b.xe4 == v->home && v->prev == base);
+    // The own part goes: +0xe4 is the base again, not the freed home (the
+    // leash reads it: engage_checks; ASan reports the exe's way here).
+    delete v;
+    const volatile float leash_x = b.xe4 ? b.xe4[0] : 0.0f;
+    EXPECT(b.xe4 == base && leash_x == 1.0f && b.homes.empty());
+    // In stack order it is the exe's: each part puts back the +0xe4 it found.
+    hooks.at[0] = 30;
+    auto* a2 = new AttackPart(&fight, nullptr);
+    auto* v2 = new VehiclePart(&own, &vn);
+    delete v2;
+    EXPECT(b.xe4 == a2->home);
+    delete a2;
+    EXPECT(b.xe4 == base);
+  }
+  set_brain_hooks(nullptr);
 }
