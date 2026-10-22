@@ -3,16 +3,26 @@
 #include <cstring>
 
 #include "gamez/zvideo/zvid_format.h"
+#include "crt/msvc_math.h"
+#include "gamez/zmath/zmth_matrix.h"
+#include "mech3/zai_brain.h"
 #include "mech3/mech.h"
 #include "mech3/mech_pocket.h"
 #include "mech3/sensors.h"
 
 namespace mech3 {
+
+// options.h's (not includable with mech.h)
+void render_to_screen(float p[2]);  // 0x0040da30
+int32_t pixel_double();             // 0x0040d4b0
+
 namespace {
 PocketColours g_colours;
 PocketCommands g_commands;
 PanelCalls g_calls;
 FrameCalls g_frame;
+DrawCalls g_draw;
+ztwod::Rect g_clip;
 
 uint32_t note(const char* key, uint32_t arg = 0) {
   PocketCalls& pc = pocket_calls();
@@ -72,6 +82,8 @@ PocketColours& pocket_colours() { return g_colours; }
 PocketCommands& pocket_commands() { return g_commands; }
 PanelCalls& panel_calls() { return g_calls; }
 FrameCalls& frame_calls() { return g_frame; }
+DrawCalls& draw_calls() { return g_draw; }
+ztwod::Rect& pocket_clip() { return g_clip; }
 
 // Mech3.exe 1.2 @ 0x00467d80 (the rows of 0x005e5050: an action, its
 // message, the order; the last is the command mode's own key, order 2)
@@ -166,6 +178,57 @@ void PocketItem::refresh() { restate(); }
 PocketMateItem::PocketMateItem(PocketPanel* p, Mech* u, const char* s, int32_t px, int32_t py)
     : PocketItem(p, s, px, py), unit(u) {
   state |= 4;
+}
+
+namespace {
+// A point on the screen: projected (0x0053cf10), or on the mission map in
+// pixels (0x004586e0, depth 1) when one is given; the code's bit 3 is off
+// the screen (0 on the map).
+uint32_t screen_point(zgame::Handle map, const float p[3], float out[3]) {
+  if (!map) return g_draw.project ? g_draw.project(p, out) : (out[0] = out[1] = out[2] = 0, 8u);
+  int32_t ip[2] = {};
+  if (g_draw.map_point) g_draw.map_point(map, p, ip);
+  out[0] = static_cast<float>(ip[0]), out[1] = static_cast<float>(ip[1]), out[2] = 1.0f;
+  return 0;
+}
+void entity_position(zgame::Handle e, float out[3]) {
+  if (g_draw.entity_position) g_draw.entity_position(e, out);
+  else out[0] = out[1] = out[2] = 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00467760: a line from the text's edge nearer its unit
+// (the left, or the right once the unit is past it), at the text's middle,
+// to the unit's place on the screen or the map, in the line's colour,
+// clipped to the screen. The target line's unit is the cursor's entity.
+void PocketMateItem::draw() {
+  const PocketColour& c = g_colours.state[state & 7];
+  if (c.ref != color_top || c.ref != color_bottom) {
+    color_top = color_bottom = c.ref;
+    needs_render = 1;
+  }
+  FontText::draw();  // 0x005a10d0
+  const zgame::Handle e = this == &panel->target ? panel->target_entity
+                          : unit                 ? ai::brain_hooks().vehicle_handle(unit)
+                                                 : 0;
+  if (!e) return;
+  float p[3], s[3];
+  entity_position(e, p);
+  screen_point(pocket_globals().x50, p, s);
+  const float mid = static_cast<float>(static_cast<double>(get_y()) -
+                                       static_cast<double>(text_rect.top + text_rect.bottom) * -0.5);  // 0x005c2d60
+  const float gx = static_cast<float>(get_x());
+  const float left = static_cast<float>(text_rect.left) + gx;
+  float at = left;
+  if (s[0] > left) {
+    const float right = static_cast<float>(text_rect.right) + gx;
+    at = right > s[0] ? left : right;
+  }
+  render_to_screen(s);  // 0x0040da30
+  ztwod::Line2D line(crt::msvc_ftol(at), crt::msvc_ftol(mid), crt::msvc_ftol(s[0]), crt::msvc_ftol(s[1]), c.pixel);
+  line.clip = &g_clip;
+  line.clipped = 1;
+  line.draw();  // 0x005a68b0
 }
 
 // Mech3.exe 1.2 @ 0x004676c0
@@ -348,6 +411,63 @@ int32_t pocket_panel_units(PocketControls& c, PocketUnit* out, int32_t cap) {
     if (item) out[n].picked = (item->state & 2) != 0, out[n].mech = item->entity();
   }
   return n;
+}
+
+// Mech3.exe 1.2 @ 0x00468900: the clip made from the screen, the lines
+// drawn (0x0059fd20), then the cursor marked with a triangle: on its
+// entity, sized by the entity (+0x68) and its depth when on the screen
+// (none off it, nor on the map), yellow; or on the cursor's spot (+0x168),
+// 13.86 across, yellow when its node is marked (0x0040ee50), else white.
+void PocketPanel::update(float dt) {
+  ztwod::Rect r;
+  if (g_draw.screen_rect) g_draw.screen_rect(&r);
+  g_clip = {r.left, r.top, r.right - 1, r.bottom - 1};
+  Layer::update(dt);
+  PocketControls& c = *controls;
+  const zgame::Handle e = g_calls.node_entity ? g_calls.node_entity(c.x164) : note("0x0040e920", c.x164);
+  if (e) {
+    ztwod::Shape s;  // (vtable 0x005c2e70: the Shape's but for its destructor)
+    s.color = g_colours.yellow.pixel;  // [0x00605ccc]
+    s.clip = &g_clip;
+    float p[3], q[3];
+    entity_position(e, p);
+    const float size = g_draw.entity_size ? g_draw.entity_size(e) : 0.0f;
+    const float fy = zmth::projection().fy;  // 0x0051e8d0's second half, [0x0073fba0]
+    const zgame::Handle map = pocket_globals().x60;
+    const uint32_t code = screen_point(map, p, q);
+    render_to_screen(q);
+    s.set_translation(q);
+    float scale = 0.0f;
+    if (!map && !(code & 8) && q[2] > 0.0f && !(q[2] > 1.0f)) {
+      float t = fy * q[2];
+      t = t * size;
+      t = t * (pixel_double() ? 2.0f : 1.0f);  // 0x005c2d80 / 0x005c2d78
+      scale = t * 1.1547009944915771f;           // 0x005c2d88: 2 / sqrt(3)
+    }
+    s.set_scale(scale);
+    s.update(dt);  // 0x005a3550
+  } else if (c.cursor_pos) {
+    ztwod::Shape s;
+    s.clip = &g_clip;
+    float q[3];
+    if (g_draw.project) g_draw.project(c.cursor_pos, q);
+    else q[0] = q[1] = q[2] = 0;
+    render_to_screen(q);
+    s.set_translation(q);
+    s.color = g_draw.node_marked && g_draw.node_marked(c.x164) ? g_colours.yellow.pixel : g_colours.white.pixel;
+    s.set_scale(13.856412f);  // 0x415db3dd
+    s.update(dt);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0046a410 (and 0x0046a3f0)
+void pocket_draw(float dt) {
+  PocketControls* p = pocket_globals().active;
+  if (!p) return;
+  if (g_draw.view_prepare) g_draw.view_prepare();
+  else note("0x004b51f0");
+  if (p->panel) static_cast<PocketPanel*>(p->panel)->update(dt);
+  p->x184 = 0;
 }
 
 // Mech3.exe 1.2 @ 0x00469060

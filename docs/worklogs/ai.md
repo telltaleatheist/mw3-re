@@ -579,3 +579,15 @@ Newest last. One short entry per item: what, commits, what to remember.
 - Left: GameEngine::handle_of gives a freed address's handle to a new
   object, so handles can still differ between processes when tests share
   one; nothing depends on their values here.
+
+## 2026-10-22 Item L4c2d: the pocket commander's draws (mac4/draws)
+
+- PocketMateItem::draw (0x467760: the lines from the names to the units),
+  PocketPanel::update (0x468900: the clip, the lines, the cursor's
+  triangle), pocket_draw (0x46a410 / 0x46a3f0) in the program's HUD
+  step; DrawCalls wired to the HUD's projection, window rect and view.
+- The line's ends were not readable from the stack offsets: the emulator
+  with marked inputs settled them (the text's edge and middle to the
+  unit's point).
+- test_pocket_frame.py draws among the frames: 200 runs identical, 18
+  branches; 13 of 15 breaks (two the same behaviour).

@@ -2361,7 +2361,46 @@ zoom box; the port's `keys` on a PocketControls, `tests/probe_pocket.cpp`):
 13 breaks, the 13th (the joystick path's SetThrottle as a plain store) is
 the same behaviour, since that path only ever sees 0.
 
-The draws (0x468900, 0x467760) are L4c2d.
+### 17.6e The pocket commander's draws (0x467760, 0x468900)
+
+Drawn in the HUD's overlay pass (0x40fac0 → 0x46a410: with the mode up,
+the view prepared for projections (0x4b51f0), the panel's vt+0x00
+(0x46a3f0), then the mode's pending press +0x184 cleared). Ported
+(2026-10-22, item L4c2d: `PocketMateItem::draw`, `PocketPanel::update`,
+`pocket_draw`):
+
+- **The panel** (0x468900): the clip [0x605ed8] made from the screen's
+  rect (0x40d7b0) less a pixel at the right and bottom; the lines drawn
+  (the Layer's 0x59fd20); then the cursor marked with a triangle (a
+  Shape, 0x5a3170; vtable 0x5c2e70, the Shape's but for its destructor):
+  on the cursor's entity (0x40eee0 on the mode's +0x164) in yellow
+  ([0x605ccc]) at its node's place, sized fy ([0x73fba0]) x its depth x
+  its size (+0x68) x 2 / sqrt(3) (x 2 with doubled pixels) when it is on
+  the screen (the projection's bit 3 clear, depth in (0, 1]), else (or on
+  the mission map, [0x605f60]) a point; or, without an entity, on the
+  cursor's spot (+0x168), 13.86 across, yellow when its node is marked
+  (0x40ee50: the node's +0x28 bit 21), else white ([0x605cd4]).
+- **A lancemate's line and the target line** (0x467760): drawn in their
+  state's colour (as an order's, 0x467d40), then a line, clipped to
+  [0x605ed8], in the colour's pixel, from the text's middle (its top and
+  bottom halved) at its left edge, or its right edge once the unit's point
+  is past it, to the unit's point on the screen (0x53cf10; on the mission
+  map in pixels, 0x4586e0, when [0x605f50] holds it); the target line's
+  unit is the cursor's entity (+0x4b8 written by the frame).
+
+Program: the overlay pass calls `pocket_draw` after the HUD's update; the
+places (the brain hooks' position), sizes (AiTarget +0x68), the screen
+rect, the projection and the view's preparation are the HUD's. Not wired:
+the map's pixels and the node mark (with the cursor picks, 17.6c).
+
+Test: `test_pocket_frame.py` draws the panel among the frames ('D': the
+exe's 0x46a410 against `pocket_draw`), with the entities' nodes, sizes,
+the projection (its depth 0.5, 0, 1.5 or 1 and the off-screen bit), the
+map's pixels, the screen and fy added: 200 runs identical in the calls
+(the lines and the triangles' points) and the dump (with the clip), 18
+branches; the draws' breaks 13 of 15, the other two the same behaviour
+(the edge test's first half, implied by the second; a depth of 0, whose
+size is 0 either way).
 
 ### 17.7 Firing (0x4b5b80, the firing state +0x108)
 
