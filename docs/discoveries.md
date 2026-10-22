@@ -1695,6 +1695,18 @@ are all "puffers": emitters that drop little textured squares.
   deceleration, about 15 m for c1m1's Owens), so it rounds the waypoint
   rather than touching it. Behind the carrot it backs up instead of turning
   around (`ai.md` 17.4a).
+- **Deploy points snap a pilot into place.** At a "deploy" waypoint (288 of
+  them in the shipped paths) a pilot walks within a metre, waits until it
+  has stopped bobbing, turns to face away from the point the waypoint names
+  as its target, then is slid the last stretch at half a metre a second and
+  set exactly on the spot. Only while the switch `mcbdeploy` is on (it is
+  reset to off at every mission start) does it stay there, setting its
+  own switch; otherwise it carries on at once (`ai.md` 17.4a).
+- **The unused "backup" waypoint.** The AI paths can mark a waypoint as
+  "backup": the pilot turns its back to it, reverses in, then turns round
+  before going on. No shipped mission uses one, and the original turns
+  toward a direction it never sets (whatever was left in memory); the
+  rebuild uses the way the pilot came (`ai.md` 17.4a).
 - **AI pilots prefer to keep going straight.** At a waypoint with several
   ways on, a pilot picks one at random, weighted so that a way straight
   ahead is a hundred times likelier than one straight back the way it came

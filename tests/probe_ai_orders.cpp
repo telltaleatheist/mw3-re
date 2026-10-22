@@ -149,6 +149,7 @@ zgame::Handle g_player_vehicle = 0;
 // speeds (a Mech's +0x518 and +0x534 through the ported vt+0x118 / +0x120),
 // its gate name and jump jets, the net's elements.
 float g_owner_fwd[3] = {};
+float g_vy = 0;  // the vehicle's +0x40
 mech3::Mech g_mech;
 bool g_owner_gate = false;
 int32_t g_jump_jets = 0;
@@ -222,6 +223,7 @@ struct Hooks : ai::BrainHooks {
     p[0] *= 0.5f, p[2] *= 0.5f;  // the test's boundary: halfway to the origin
     return true;
   }
+  float vertical_speed(zgame::Handle) override { return g_vy; }
   void pilot_of(zgame::Handle, ai::Pilot* p) override {
     p->name = g_owner_gate ? "g1" : "g2";
     p->jump_jets = g_jump_jets;
@@ -592,24 +594,35 @@ int32_t probe_ao_state_snapshot(uint32_t* out, int32_t cap) {
   return n;
 }
 
-// The node state's test (test_ai_node.py). The net: n rows of 8 words,
-// element i+1 each: kind (0 node, 1 speed, 2 valve, 3 jump, 4 gate), a, b,
-// c, then four links. A node's a..c its position and its links (-1 none, -2
-// the null step, else an element's index); a step's l0 what follows, a the
-// speed or jump's value, a valve's a its valve (0, 1) and b its value.
+// The node state's test (test_ai_node.py). The net: n rows of 13 words,
+// element i+1 each: kind (0 node, 1 speed, 2 valve, 3 jump, 4 gate, 5
+// backup node, 6 deploy node), a, b, c, four links, then five more. A
+// node's a..c its position and its links (-1 none, -2 the null step, else
+// an element's index); a deploy node's five its first valve (0, 1) and
+// value, its second and value, its target's index; a step's l0 what
+// follows, a the speed or jump's value, a valve's a its valve and b its
+// value. The deploy valve "mcbdeploy" is the probe's third.
 void probe_ao_node_net(const uint32_t* rows, int32_t n) {
   g_elems.clear();
   g_node_valves.clear();
-  for (int i = 0; i < 2; ++i) {
-    g_node_valves.push_back(std::make_unique<ai::Valve>(i ? "v2" : "v1"));
-  }
+  for (const char* nm : {"v1", "v2", "mcbdeploy"}) g_node_valves.push_back(std::make_unique<ai::Valve>(nm));
+  ai::deploy_valve() = ai::DeployValve{g_node_valves[2].get(), 1};
   for (int32_t i = 0; i < n; ++i) {
-    const uint32_t* r = rows + 8 * i;
+    const uint32_t* r = rows + 13 * i;
     const int32_t id = i + 1;
     switch (r[0]) {
-      case 0: {
+      case 0:
+      case 5: {
         const float p[3] = {fl(r[1]), fl(r[2]), fl(r[3])};
-        g_elems.push_back(std::make_unique<ai::NodeStep>(ai::StepKind::Node, p, nullptr, 0));
+        g_elems.push_back(
+            std::make_unique<ai::NodeStep>(r[0] ? ai::StepKind::BackupNode : ai::StepKind::Node, p, nullptr, 0));
+        break;
+      }
+      case 6: {
+        const float p[3] = {fl(r[1]), fl(r[2]), fl(r[3])};
+        g_elems.push_back(std::make_unique<ai::DeployNode>(p, nullptr, 0, nullptr, g_node_valves[r[8] & 1].get(),
+                                                           static_cast<uint8_t>(r[9]), g_node_valves[r[10] & 1].get(),
+                                                           static_cast<uint8_t>(r[11]), -1));
         break;
       }
       case 1: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::Speed, r[1])); break;
@@ -622,10 +635,11 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
   }
   auto at = [](int32_t k) -> ai::Behaviour* { return k == -2 ? ai::null_step() : g_elems[static_cast<size_t>(k)].get(); };
   for (int32_t i = 0; i < n; ++i) {
-    const uint32_t* r = rows + 8 * i;
+    const uint32_t* r = rows + 13 * i;
     ai::Behaviour* e = g_elems[static_cast<size_t>(i)].get();
-    if (r[0] == 0) {
+    if (r[0] == 0 || r[0] == 5 || r[0] == 6) {
       auto* nd = static_cast<ai::NodeStep*>(e);
+      if (r[0] == 6) static_cast<ai::DeployNode*>(e)->target_step = at(static_cast<int32_t>(r[12]));
       for (int k = 0; k < 4; ++k)
         if (static_cast<int32_t>(r[4 + k]) != -1) nd->links.push_back(at(static_cast<int32_t>(r[4 + k])));
       nd->attached = true;
@@ -637,7 +651,8 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
 
 // The world: w = forward[3], the brain's +0xec, the mech's +0x518 and
 // +0x534, the game time, the gate name matching, the jump jets, the two
-// valves' values, the owner's position[3]; then +0x298[3].
+// valves' values, the owner's position[3]; then +0x298[3], "mcbdeploy"'s
+// value, the vehicle's vertical speed, whether the brain has a way finder.
 void probe_ao_node_world(const uint32_t* w) {
   for (int i = 0; i < 3; ++i) g_owner_fwd[i] = fl(w[i]);
   g_brain->xec = fl(w[3]);
@@ -648,13 +663,18 @@ void probe_ao_node_world(const uint32_t* w) {
   g_node_valves[0]->value->value = static_cast<int32_t>(w[9]);
   g_node_valves[1]->value->value = static_cast<int32_t>(w[10]);
   for (int i = 0; i < 3; ++i) g_pos[i] = fl(w[11 + i]), g_brain->x298[i] = fl(w[14 + i]);
+  g_node_valves[2]->value->value = static_cast<int32_t>(w[17]);
+  g_vy = fl(w[18]);
+  if (w[19] && !g_brain->path.finder) g_brain->path.finder = new ai::PathFinder;  // its answers the trace's
+  if (!w[19]) g_brain->path.reset();
 }
 
 // op 0: the current order given element `which` (0x004e8120); 1 its state
 // run(dt) (a node state's only); 2 its resume. out: the state (its
 // element's id for a node state, minus a fake's serial, else 0x10000 and
 // its behaviour's id), the node state's +0x0c..+0x24, the steering block,
-// +0x298, +0xec, +0x104 (then cleared).
+// +0x298, +0xec, +0x104 (then cleared), +0x80, a deploy state's +0x2c..
+// once set (phase 4 on), the three valves.
 void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   ai::Brain& b = *g_brain;
   b.controls = &g_controls;
@@ -668,7 +688,7 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
     const ai::Behaviour* x = o.state->behaviour();
     if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve)) o.state->run(fl(dt));
   }
-  std::memset(out, 0, 4 * 32);
+  std::memset(out, 0, 4 * 40);
   ai::Order& cur = b.current();
   if (auto* ns = dynamic_cast<ai::NodeState*>(cur.state.get())) {
     out[0] = static_cast<uint32_t>(elem_id(ns->behaviour()));
@@ -685,6 +705,9 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
   std::memcpy(out + 29, &b.xec, 4);
   out[30] = b.x104;
   b.x104 = 0;  // as the brain's frame clears it
+  out[31] = b.params.get<uint32_t>(0x80);
+  if (auto* ds = dynamic_cast<ai::DeployState*>(cur.state.get()); ds && ds->phase >= 4) std::memcpy(out + 32, ds->face, 12);
+  for (int i = 0; i < 3; ++i) out[35 + i] = static_cast<uint32_t>(g_node_valves[static_cast<size_t>(i)]->get());
 }
 
 // The link pick alone (0x004ccf20) at element `which` for heading h[3]:

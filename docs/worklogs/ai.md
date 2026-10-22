@@ -140,3 +140,18 @@ Newest last. One short entry per item: what, commits, what to remember.
   frame 150 for its collision checks.
 - Next: 8b backup 0x4cfad0, 8c deploy 0x4d00a0; then the scan / canleave
   states (where the Owens stops) toward "enemies walk and fire in c1m1".
+
+## 2026-10-22 Items 8b, 8c: backup and deploy (mac4/backup)
+
+- BackupState 0x4cfad0 (no shipped use): its aim is an unset stack vector
+  (FIX: the heading -dir; the test writes it into the exe's slot at entry,
+  E-0x2c); on the frame phase 0 ends it walks with its front (quirk kept).
+- DeployState 0x4d00a0 (288 shipped): walk, within 1 m, settle (+0x40),
+  face away from the target (1 degree params [0x60b4d8]), slide 0.5 m/s
+  (Mech set_place), hold while "mcbdeploy" (0x4cfe40 at mission load via
+  0x4e7b40, wired) is 1. aiv +0x80 0 while deploying.
+- NodeState::go_on shares the three runs' pick/wait loop.
+- Emulator: the deploy face (+0x2c) is the previous state's bytes until
+  phase 4. Coverage of backup's wait needed backup dead ends.
+- Next: the scan / canleave state 0x4cbc50 (run 0x4cbca0, the tests
+  0x4d9c20..0x4d9ca0), where the c1m1 Owens stops.

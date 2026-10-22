@@ -58,6 +58,10 @@ class NodeState : public BehaviourState {
   void run(float dt) override;            // 0x004cf140
   Behaviour* behaviour() const override { return from; }  // 0x004c0030
 
+ protected:
+  void go_on(Brain& b, BrainControls& c, int32_t wait_phase, bool waiting, bool finder);
+ public:
+
   int32_t phase = 0;    // +0x0c  0 set out, 1 walking, 2 at the node with nowhere to go
   float turn = 0;       // +0x10  the last turn and throttle given the controls
   float x14 = 0;        // +0x14
@@ -65,6 +69,38 @@ class NodeState : public BehaviourState {
   float slow = 0;       // +0x1c  the vehicle's stopping distance at its speed (vt+0x120)
   float inv_slow = 0;   // +0x20
   float retry_at;       // +0x24  FLT_MAX; when a node with nowhere to go asks again
+};
+
+// A backup node's state (0x004cfa60 -> 0x004cfa80, vtable 0x005cc860): the
+// node state backing up to the node, then turning round.
+class BackupState : public NodeState {
+ public:
+  using NodeState::NodeState;
+  void run(float dt) override;  // 0x004cfad0
+};
+
+// "mcbdeploy" (0x004cfe40): [0x0060b4a8] and the value it holds deploys at,
+// [0x0060b4ac].
+struct DeployValve {
+  Valve* valve = nullptr;
+  int32_t value = 0;
+};
+DeployValve& deploy_valve();
+void deploy_mission_load();  // 0x004cfe40, from the mission load's 0x004e7b40
+const TurnParams& fine_turn_params();  // [0x0060b4d8]
+
+// A deploy node's state (0x004d0020 -> 0x004d0040, 0x38 bytes, vtable
+// 0x005cc950): walked there, placed on the node facing away from its target,
+// held while "mcbdeploy" says, then on (docs/ai.md 17.4a).
+class DeployState : public NodeState {
+ public:
+  DeployState(Order* o, Behaviour* node);  // 0x004d0040: the node again at +0x28
+  void run(float dt) override;             // 0x004d00a0
+
+  float face[3] = {};  // +0x2c  the way to face, from the target to the node
+
+ private:
+  void hold(Brain& b, BrainControls& c, const float fwd[3], bool first);
 };
 
 // 0x004cee80: one frame of walking toward the carrot: the turn and the
