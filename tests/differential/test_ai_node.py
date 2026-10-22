@@ -57,13 +57,17 @@ NODE_VTS = {0: NODE_VT, 5: 0x5cc7a8, 6: 0x5cc898, 11: 0x5cbf30}  # node, backup,
 NODE_STATES = (NODE_STATE_VT, 0x5cc860, 0x5cc950)
 BACKUP_RUN, DEPLOY_STATE_VT = 0x4cfad0, 0x5cc950
 # The speed, valve, scan and two wait steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0, 0x4ca070, 0x4ca190).
-# Then the mcbwait, sound and gate states (0x4ccda0, 0x4ccec0, 0x4cd690).
-PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0, 0x5cbfe8, 0x5cc0c0, 0x5cc198)
+# Then the mcbwait, sound and gate states (0x4ccda0, 0x4ccec0, 0x4cd690), the
+# shunt's and valve union's (0x4ca2e0) and the valve_assign's (0x4cdcf0).
+PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0, 0x5cbfe8, 0x5cc0c0, 0x5cc198, 0x5cc270, 0x5cc420,
+           0x5cc4f8)
 WAIT_VT = (0x5cb618, 0x5cb6f0)
 SCAN_VT = (0x5cbbd0, 0x5cbca8, 0x5cbd60)  # scan, canleave, canleave-not
 SCAN_FN = ((0x4d9c30, 0x4d9c20), (0x4d9c50, 0x4d9c40), (0x4d9c70, 0x4d9c60))  # aim, hit, time: off, on
 CANLEAVE_FN = {1: 0x4d9c80, 2: 0x4d9ca0}
-STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0, 8: 0x5cb560, 9: 0x5cb638, 10: 0x5cc008}  # speed, valve, jump, gate, the waits, sound
+# Speed, valve, jump, gate, the waits, sound, shunt, valve union, valve_assign.
+STEP_VT = {1: 0x5cb488, 2: 0x5cb710, 3: 0x5cbaf8, 4: 0x5cc0e0, 8: 0x5cb560, 9: 0x5cb638, 10: 0x5cc008,
+           12: 0x5cc1b8, 13: 0x5cc368, 14: 0x5cc440}
 SOUND_BASE = 0x7000  # a sound step's fake sound: this plus its element's index
 f2i, fi = tf.f2i, ts.fi
 COVER = {
@@ -91,7 +95,9 @@ COVER = {
     0x4ca1a3: 'a wait_time over', 0x4ca1af: 'a wait_time still on', 0x4ca0e0: 'a wait_time made',
     0x4ccd00: 'an mcbwait made', 0x4ccdb9: 'an mcbwait: its time past', 0x4ccdd9: 'an mcbwait: its valve tested',
     0x4ccdf0: 'an mcbwait: its valve holds', 0x4cce13: 'an mcbwait: still waiting or on', 0x4cce17: 'an mcbwait: on',
-    0x4ccec0: 'a sound step run', 0x4cd690: 'a gate step run'}
+    0x4ccec0: 'a sound step run', 0x4cd690: 'a gate step run', 0x4cdcf0: 'a valve_assign run',
+    0x4cdd1c: 'a valve_assign: what follows', 0x4cdb80: 'a valve union weighed', 0x4cdb98: 'a valve union open',
+    0x4cdbb7: 'a valve union weighed: its weight'}
 REACHED = set()
 
 
@@ -257,6 +263,16 @@ class Original(ts.Original):
                     e.w32(a + 0x10, r[1])
                 elif r[0] == 10:
                     e.w32(a + 0x10, SOUND_BASE + self.elems.index(a))
+                elif r[0] == 12:
+                    pass
+                elif r[0] == 13:  # a valve union: r[2] entries, each (valve, count) two bits of r[1]
+                    arr = e.world_alloc(0x10)
+                    for k in range(r[2]):
+                        e.cpu.write(arr + 8 * k, struct.pack('<2I', self.valves[r[1] >> (2 * k) & 1],
+                                                             r[1] >> (2 * k + 1) & 1))
+                    e.cpu.write(a + 0x10, struct.pack('<4I', 0, arr, arr + 8 * r[2], arr + 0x10))
+                elif r[0] == 14:  # a valve_assign: its valve and value
+                    e.cpu.write(a + 0x10, struct.pack('<2I', self.valves[r[1] & 1], r[2]))
                 elif r[0] == 2:
                     e.w32(a + 0x10, self.valves[r[1] & 1])
                     e.w32(a + 0x14, r[2])
@@ -382,15 +398,17 @@ def build_net(rng):
                 continue
             first = len(rows)
             for depth in range(rng.choice([1, 1, 2])):
-                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9, 10])
+                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9, 10, 12, 13, 14])
                 if kind == 8:  # wait_interval: seconds, mostly a clock step or two, now and then NaN
                     a = 0x7fc00000 if rng.random() < 0.04 else f2i(rng.uniform(1, 30) if rng.random() < 0.3 else
                                                              rng.choice([0.5, 2.0, 2.5, 4.0, 6.0]))
                 elif kind == 9:  # wait_time: a game time, on the grid at times
                     a = f2i(rng.uniform(0, 520) if rng.random() < 0.3 else 0.5 * rng.randrange(0, 1040))
+                elif kind == 13:
+                    a = rng.randrange(16)
                 else:
                     a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(3) if kind == 7 else rng.randrange(2)
-                bb = rng.randrange(64) if kind == 7 else rng.choice([0, 1, 1])
+                bb = rng.randrange(64) if kind == 7 else rng.choice([1, 2]) if kind == 13 else rng.choice([0, 1, 1])
                 rows.append([kind, a, bb, 0, len(rows) + 1, -1, -1, -1, 0, 0, 0, 0, 0])
             rows[-1][4] = target
             links.append(first)

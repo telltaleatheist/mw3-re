@@ -250,7 +250,7 @@ unusual happens.
 - An AI vehicle record with a broken attack range no longer crashes the game when its pilot has no target.
 - An AI path with a step that leads nowhere no longer crashes the game when a pilot weighs the ways on from a waypoint; that way counts as closed. No shipped path has one.
 - An AI "backup" waypoint (none in the shipped game) turns the pilot toward the way it came, before backing in and again at the spot, instead of toward whatever direction happened to be left in memory.
-- An AI "deploy" or "mcbwait" waypoint without its switches named no longer crashes the game; the missing switches read as off.
+- An AI "deploy", "mcbwait" or "valve_assign" waypoint without its switches named no longer crashes the game; the missing switches read as off and are not set.
 - An AI vehicle without weapons no longer crashes the game when it is hit (its pilot's firing stands down); neither does an AI weapon without a definition when it fires.
 - An AI pilot whose target disappears while it is lining up a shot no longer crashes the game; it gives the shot up.
 - An AI mech with no weapon group selected no longer crashes the game when it turns its torso toward a target.

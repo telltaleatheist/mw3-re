@@ -436,6 +436,23 @@ class PassState : public BehaviourState {
   Behaviour* behaviour() const override { return from; }        // 0x004c0030
 };
 
+// A valve_assign step's state (0x004cdc80 -> 0x004cdca0, vtable
+// 0x005cc4f8): its valve set to its value, then as the valve step's.
+class AssignState : public PassState {
+ public:
+  using PassState::PassState;
+  void run(float dt) override;                                  // 0x004cdcf0
+};
+
+// Mech3.exe 1.2 @ 0x004cdcf0
+void AssignState::run(float dt) {
+  const auto* st = static_cast<const AssignStep*>(from);
+  // FIX (bug): a record whose valve is not found has none, which the exe
+  // sets (a crash); nothing is set.
+  if (st->valve) st->valve->set(st->value);  // 0x004d3c00: its reactions fire
+  PassState::run(dt);
+}
+
 // Mech3.exe 1.2 @ 0x004ca2e0
 void PassState::run(float dt) {
   (void)dt;
@@ -555,6 +572,9 @@ BehaviourState* Behaviour::make_state(Order& o) {
     case StepKind::Sound: return new SoundState(&o, this);              // 0x004cce50
     case StepKind::Gate: return new GateState(&o, this);                // 0x004cd560
     case StepKind::Valve: return new PassState(&o, this);   // 0x004ca1f0
+    case StepKind::Shunt: return new PassState(&o, this);   // 0x004cd700 -> 0x004cd720 (vtable 0x005cc270)
+    case StepKind::ValveUnion: return new PassState(&o, this);  // 0x004cdb60 -> 0x004cdbd0 (vtable 0x005cc420)
+    case StepKind::ValveAssign: return new AssignState(&o, this);  // 0x004cdc80
     case StepKind::Scan:
     case StepKind::CanLeave:
     case StepKind::CanLeaveNot: return new ScanState(&o, this);  // 0x004cbc30
