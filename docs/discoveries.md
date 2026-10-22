@@ -1686,6 +1686,26 @@ are all "puffers": emitters that drop little textured squares.
 - **Pilots stand down when the mission ends.** One switch turns every
   pilot's thinking on when the mission starts and off in the cleanup; off,
   they only stop and settle (`ai.md` 17.8).
+- **How an enemy walks its path.** An AI mech follows a "carrot" sliding
+  back along the line from where it last was to the next waypoint. It turns
+  on the spot until it faces within 45 degrees of it, then throttles up;
+  its turns ignore anything within 5 degrees and are never gentler than a
+  tenth of full. It counts a waypoint as reached once the carrot is there
+  and it is within its own stopping distance (its speed over its
+  deceleration, about 15 m for c1m1's Owens), so it rounds the waypoint
+  rather than touching it. Behind the carrot it backs up instead of turning
+  around (`ai.md` 17.4a).
+- **AI pilots prefer to keep going straight.** At a waypoint with several
+  ways on, a pilot picks one at random, weighted so that a way straight
+  ahead is a hundred times likelier than one straight back the way it came
+  (`ai.md` 17.4a).
+- **A dead-end waypoint makes a pilot wait 5 seconds.** A pilot that reaches
+  a waypoint with no open way on (every link closed by a valve, gate or the
+  like) stops and asks again every 5 seconds (`ai.md` 17.4a).
+- **Valve links count in whole numbers.** The weight a pilot gives a way
+  through a valve or a valve union is cut to a whole number. It changes
+  nothing in the shipped game, because every waypoint weighs the same round
+  1,048,575, but it would round away any fraction a modder's weights had.
 - **Empty weapon groups.** A weapon group with no weapons left in it (or none
   picked) gave the HUD a "has ammo" answer that depended on where the game
   happened to keep its weapon list in memory; the rebuild says no ammo.

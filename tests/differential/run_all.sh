@@ -101,6 +101,7 @@ for t in \
     ai_vlist \
     ai_steer \
     ai_states \
+    ai_node \
     mech_health \
     ai_valves \
     ai_targets \

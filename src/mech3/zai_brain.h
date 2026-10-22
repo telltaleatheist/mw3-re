@@ -6,6 +6,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/zai_params.h"
+#include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
 
 namespace znet { class Object; }
@@ -123,6 +124,24 @@ class BrainHooks : public zgame::Unported {
   virtual bool player_allies(uint32_t* allies) {
     (void)allies;
     return false;
+  }
+  // The walking states' questions (docs/ai.md 17.4a): the brain's way
+  // finder's next step after `at` (+0x238, 0x004c7cb0); the vehicle's speed at
+  // a share of its top speed (vt+0x118, the Mech's 0x0041d1c0) and its
+  // stopping distance from a speed (vt+0x120, 0x0041d210); the mission
+  // boundary's pull on a point (0x004c3000, not ported: false, the point
+  // kept, as when the world has no boundary); what the steps' passable tests
+  // see of the pilot (its vehicle's +0x04 name and vt+0x50's +0x3d8 jump jets).
+  virtual Behaviour* path_next(Brain& b, Behaviour* at);
+  virtual float speed_at(zgame::Handle v, float share);
+  virtual float stopping_distance(zgame::Handle v, float speed);
+  virtual bool inout_clamp(zgame::Handle v, float p[3]) {
+    (void)p;
+    return unported("0x004c3000", {v}) & 0xff;
+  }
+  virtual void pilot_of(zgame::Handle v, Pilot* p) {
+    (void)p;
+    unported("vehicle.vt+0x50", {v});
   }
   // The basic vehicle controls' destructor (0x004ac800): the owner's vt+0xec,
   // then 0x00402510 on its answer (veh_basic.cpp, not ported).
@@ -336,6 +355,9 @@ struct BrainControls {
   virtual void smooth(float dt) = 0;      // the brain's vt+0x04 (the mech's 0x004d89f0 -> 0x00426960)
   virtual bool hit_lately() = 0;          // IControls vt+0xa0 (0x004aed40)
   virtual void fire(bool on) = 0;         // IControls vt+0x10 (0x00428580: +0x34)
+  virtual void set_throttle(float v) = 0; // IControls vt+0x20 (0x00426b60)
+  virtual void set_turn(float v) = 0;     // IControls vt+0x28 (0x00426b10)
+  virtual float turn_goal() = 0;          // IControls vt+0x30 (0x00426b00: +0x48)
 };
 
 // The brain (0x004cf330, 0x2ac bytes and, when it is the most derived
@@ -415,7 +437,7 @@ class Brain {
   uint8_t x22c = 2;           // +0x22c  hurt: 2 not decided this frame, 0 / 1 (0x004e8f10)
   float x230 = 0;             // +0x230  the health an attack gives up at (0x004e9710)
   char* x234 = nullptr;       // +0x234  0x0049d180: a string holder, empty
-  void* x238 = nullptr;       // +0x238  an object the dtor deletes (vt+0, 1)
+  PathHolder path;            // +0x238  the way finder (0x004c7c10), deleted by the dtor
   void* x23c = nullptr;       // +0x23c  the same
   BrainStep step;             // +0x240
   Steer steer;                // +0x250

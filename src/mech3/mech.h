@@ -295,6 +295,11 @@ struct Mech : ai::AiTarget {
   void die();                         // vtable +0x70, 0x0041b0d0
   void on_part_destroyed(MechPart* part);  // 0x0041b5f0
   float health();                          // 0x0041ba40 (vtable +0x98): the parts' health, cached at +0x40c
+  // vtable +0x118 0x0041d1c0 / +0x120 0x0041d210 (the AI's walking states,
+  // docs/ai.md 17.4a): the speed at a share of the top speed, and how far a
+  // speed carries while the throttle eases down (speed / decel_rate).
+  float speed_at(float share) const { return max_speed * share; }
+  float stopping_distance(float speed) const { return speed / throttle_down; }
   void destroy_part(int id);          // 0x0041cfa0
   bool start_limp(int leg, bool fall);  // 0x0041d5f0
   void fall();                        // 0x0041b640

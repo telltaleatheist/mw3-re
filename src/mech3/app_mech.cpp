@@ -1213,6 +1213,13 @@ bool mech_set_mask(void* mech, uint32_t off, uint32_t v) {
 void* mech_controls_of(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 float mech_game_time() { return world().time; }
 float mech_health(void* mech) { return static_cast<Mech*>(mech)->health(); }
+float mech_speed_at(void* mech, float share) { return static_cast<Mech*>(mech)->speed_at(share); }
+float mech_stopping_distance(void* mech, float speed) { return static_cast<Mech*>(mech)->stopping_distance(speed); }
+void mech_forward(void* mech, float out[3]) {
+  const Mech* m = static_cast<Mech*>(mech);
+  out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z;
+}
+int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
 bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;
   static_cast<Mech*>(mech)->heat = heat;

@@ -19,6 +19,8 @@ namespace mech3::ai {
 
 class CompiledNet;
 class BehaviourState;
+class Brain;
+struct LinkWay;
 struct Order;
 
 // What a step asks of the pilot finding its way (in the exe its brain: the
@@ -75,6 +77,11 @@ struct Behaviour : AiElem {
   virtual int32_t link_count() const { return 0; }    // +0x04
   virtual Behaviour* link(int32_t i) const;           // +0x08: the null step here
   virtual const float* position() const { return nullptr; }  // +0x18
+  // +0x1c 0x004104d0: its position, else the zero vector (+0x20 0x004104c0).
+  virtual const float* way_point() const;
+  // +0xa8 0x004cd430: what a link to here weighs for the brain's pilot
+  // picking from `from`, `w` measured (zai_node.cpp, docs/ai.md 17.4a).
+  virtual float weight(Brain& b, const Behaviour* from, LinkWay* w);
   virtual void attach(CompiledNet* net) { (void)net; }        // +0x6c
   // +0x8c: its state in an order (zai_brain.h; the caller owns it).
   virtual BehaviourState* make_state(Order& o);
@@ -104,6 +111,8 @@ struct Step : Behaviour {
   int32_t link_count() const override { return next != null_step() ? 1 : 0; }  // 0x004c9e40
   Behaviour* link(int32_t i) const override { return i == 0 ? next : null_step(); }  // 0x004c9e00
   void attach(CompiledNet* net) override;
+  const float* way_point() const override { return next->way_point(); }  // 0x004c9e50
+  float weight(Brain& b, const Behaviour* from, LinkWay* w) override;   // 0x004cd470
 
   Behaviour* next = null_step();  // +0x0c
   // While compiling the exe keeps a slot number in the same word; one that
@@ -117,6 +126,7 @@ struct Step : Behaviour {
 struct ValueStep : Step {  // speed, the waits, jump: one word at +0x10
   ValueStep(StepKind k, uint32_t v) : Step(k), value(v) {}
   bool passable(const Pilot* p, const Behaviour* from) const override;  // jump: 0x004cb2c0
+  float weight(Brain& b, const Behaviour* from, LinkWay* w) override;   // jump: 0x004cd580
   uint32_t value;  // +0x10  the record's word as it was (a float)
 };
 
@@ -128,6 +138,7 @@ struct SoundStep : Step {  // 0x004cce30
 struct ValveStep : Step {  // 0x004ca1c0, 0x18 bytes
   ValveStep(Valve* v, int32_t val) : Step(StepKind::Valve), valve(v), value(val) {}
   bool passable(const Pilot* p, const Behaviour* from) const override;  // 0x004ca260
+  float weight(Brain& b, const Behaviour* from, LinkWay* w) override;   // 0x004ca210
   Valve* valve;   // +0x10
   int32_t value;  // +0x14
 };
@@ -141,6 +152,7 @@ struct ScanStep : Step {  // 0x004cb950 (+0x004cbcf0, 0x004cbd40), 0x20 bytes
 struct GateStep : Step {  // 0x004cd4a0
   explicit GateStep(const char* g) : Step(StepKind::Gate), gate(g ? g : ""), has_gate(g != nullptr) {}
   bool passable(const Pilot* p, const Behaviour* from) const override;  // 0x004cd5d0
+  float weight(Brain& b, const Behaviour* from, LinkWay* w) override;   // 0x004cd580
   std::string gate;  // +0x10  strdup'd
   bool has_gate;
 };
@@ -148,6 +160,7 @@ struct GateStep : Step {  // 0x004cd4a0
 struct UnionStep : Step {  // 0x004cda50: the record's valve union copied
   explicit UnionStep(const ValveUnion& u) : Step(StepKind::ValveUnion), tag(u.tag), valves(u.valves) {}
   bool passable(const Pilot* p, const Behaviour* from) const override;  // 0x004cdbc0 -> 0x004d4600
+  float weight(Brain& b, const Behaviour* from, LinkWay* w) override;   // 0x004cdb80
   uint8_t tag;                     // +0x10
   std::vector<ValveCount> valves;  // +0x14
 };

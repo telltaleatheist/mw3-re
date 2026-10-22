@@ -1396,7 +1396,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4c88c0, 0x5cb350 | 0x5bca40 | nothing | |
 | 0x4c8940, 0x5cb370 | 0x5bc988 | 0x4c89a0 | |
 | 0x4c8a30, 0x5cb390 | made by 0x4c9750, 0x4cc290, 0x4d1320, 0x4d1650, 0x4d1870, 0x4d1cc0 | 0x4c8690 | a wait (likely) |
-| 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties |
+| 0x4c9ef0 / 0x4c9fc0 / 0x4ca0e0 / 0x4ca290 | speed, wait_interval, wait_time, valve | 0x4c9f40 / 0x4ca070 / 0x4ca190 / 0x4ca2e0 | the link's properties; speed and valve ported (17.4a) |
 | 0x4ca3b0, 0x5cb8a0 | 0x5cb7e8 (0x4ca370) | 0x4ca420 | resume 0x4ca410 |
 | 0x4caae0 (0x4ca440), 0x5cb8e8 / 0x5cb908 | 0x604088 / 0x604098 (0x5bcaf8 / 0x5bcbb0) | 0x4ca600 (223 lines) | the combat manoeuvre: lasts now + rand in [+0x6c, +0x70]; suspend 0x4ca5f0 |
 | 0x4cac20, 0x5cb928 | 0x5cd920 (the attack's first, 0x4e9ca0) | 0x4c8690 | resume 0x4cac80 |
@@ -1408,7 +1408,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4ccd00 / 0x4cce70 / 0x4cd640 / 0x4cd720 | mcbwait, sound, gate, shunt | 0x4ccda0 / 0x4ccec0 / 0x4cd690 / 0x4ca2e0 | |
 | 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | |
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | |
-| 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700 |
+| 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700; ported (17.4a) |
 | 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
 
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
@@ -1566,9 +1566,138 @@ carrot set at the start, the carrot's side the other way, no push at a set.
 The carrot's point skips a side offset of 0 or a NaN (the x87's C3), which
 the test's NaNs caught.
 
-In the program the Owens' brain runs the steering each frame, but nothing
-sets a segment yet (the states that do are items 7-8), so it does not move:
-its segment stays at the origin with no direction.
+In the program the Owens' brain runs the steering each frame; the node
+state (17.4a) sets its segments, and it walks.
+
+### 17.4a Walking to a node: the node state (0x4ced40, ported)
+
+A pilot whose order's behaviour is a node of its net (a `node` record,
+class 0x4cf820) runs the node state (0x4c9150 makes it in place, 0x28
+bytes, vtable 0x5cc5c0; backup 0x4cfa80 and deploy 0x4d0040 derive from
+it, items 8b and 8c). It walks the brain's steering segment to the node
+under the pilot's own controls, then picks the next link.
+
+| Field | What |
+|---|---|
+| +0x04, +0x08 | the order, the node |
+| +0x0c | 0 set out, 1 walking, 2 at the node with nowhere to go |
+| +0x10, +0x18 | the last turn and throttle given the controls (+0x14 unused) |
+| +0x1c, +0x20 | the stopping distance at the pilot's speed, its inverse |
+| +0x24 | FLT_MAX; when a node with nowhere to go asks again |
+
+- **0x4ced40** (with the context 0x4cecf0: the brain, its vehicle, the
+  vehicle's position 0x5a85e0, its flat forward +0x24, the steering): the
+  pilot's speed is the vehicle's vt+0x118 on the brain's +0xec share (the
+  Mech's 0x41d1c0: top speed +0x518 times it), the segment set (0x4cea30)
+  from the node toward where the pilot last was (brain +0x298), so the
+  carrot starts there and falls back toward the node at that speed; +0x1c
+  is vt+0x120 on the speed (0x41d210: speed over the decel rate +0x534).
+- **0x4cf140** (run): at the node, when the carrot has fallen back to it
+  (+0x1c <= +0x14) and the vehicle is within the stopping distance (its
+  along plus its side from the carrot), the next link (0x4ccf20) given the
+  heading (the segment's backward, the way the pilot came) takes the order
+  (0x4e8120; the node's place kept at brain +0x298); with none the pilot
+  stops (turn and throttle 0) and asks again 5 s later ([0x5cc560] -5),
+  waiting in phase 2. Otherwise **0x4cee80** walks: toward the carrot
+  (0x51e210 flattens it), the mission boundary pulling a far carrot back
+  inside (0x4c3000, not ported, section 11); within half the stopping
+  distance it faces along the segment instead. Behind the carrot (its
+  along below 0) it backs up: the turn is then 0x4cdee0 (the vehicle's
+  back toward the point past 135 degrees off), else 0x4cdd40. The
+  throttle is (side - 0.04, floored at 0) + 4 (along - 0.04, floored at 0)
+  over the stopping distance, negative backing up, within the brain's
+  +0xec share; none when the facing is more than 45 degrees off (steering's
+  +0x38), so the pilot turns on the spot first.
+- **The turns** (0x4cdd40, 0x4cdee0, the settings [0x60b478] from
+  0x4c7900: cos and sin 5 degrees, 1.2, 0.1): within 5 degrees, 0; else the
+  sine past 5 degrees times 1.2, at least 0.1 and at most 1; a point behind
+  turns fully toward its side; one more than 5 degrees off straight back
+  keeps the controls' turn target (IControls vt+0x30), or turns fully with
+  none.
+- **0x4c9700** (resume): phase 0 and the controls stopped (vt+0x14).
+- **The link pick 0x4ccf20**: the brain's way finder (+0x238, 0x4c7cb0)
+  first, when the pilot has one (the behaviours that search set it, items
+  8c-10). Else each link but the null step is weighed (vt+0xa8): a node
+  1048575 ([0x60b44c], 0xfffff from 0x4c7950), a plain step what follows
+  it, a valve step only while its valve holds its value and a valve union
+  only while it holds (both truncated to a whole number, _ftol), a jump or
+  gate step only when the pilot may pass. Weighing a node measures the flat
+  way to it from the node picking (0x4c79f0, 0x4c7960; a link nearer than
+  1 m is measured along the vehicle's facing instead, and the point it is
+  measured from moves for the links after it). A weighed link counts
+  (0.01 + 0.495 (1 + cos)) times its weight, cos the angle between the
+  heading and the way to it: straight on 1, straight back 0.01. With one
+  link it is taken if it weighs anything; with more, the only one that
+  counts, or one at random by weight (rand, a lower bound over the running
+  sums).
+
+- **The speed and valve steps' states** (taken with the node state, for
+  the walk on): a speed step's (0x4c9ed0 -> 0x4c9ef0, vtable 0x5cb540, run
+  0x4c9f40) sets the brain's speed share +0xec to the step's value, a
+  valve step's (0x4ca1f0 -> 0x4ca290, vtable 0x5cb7c8, run 0x4ca2e0, which
+  shunt and valve union states share) takes the way finder's next step or
+  the one that follows; both have the order run again (+0x104) on it.
+
+**Ported** (2026-10-22, `mech3/zai_node`: `NodeState`, `walk_drive`,
+`turn_toward`, `turn_or_back`, `turn_params`, `pick_link`, `LinkWay`; the
+steps' `weight` and `way_point` slots in `zai_steps`; the brain's way
+finder is its `path`); the speed and valve states with the plain ones in
+`mech3/zai_brain`. The vehicle's speeds (`Mech::speed_at`,
+`Mech::stopping_distance`), the boundary clamp, the pilot as the steps'
+tests see it (its name and jump jets) and the controls' throttle, turn
+and turn target are hooks; the program answers them from the mechs, and
+the clamp stays unported (false, as for a world without a boundary).
+[0x60b4c4] (no backing up) and [0x60b4c8] (no facing along the segment
+when near) are never written and are the port's constants. The weights'
+scratch vector [0x60b444] (reserved by the node constructor) is a local
+list. The pick's straight-on share multiplies a float by the double
+-0.495 and takes it from the double 0.01: each rounded once to a float
+(`crt::x87_mul_f24`, `x87_add_f24`), as the x87 does in play; rounding
+through double differed in the last bit (the test found one). A step chain that ends in the null step reaches the base weight
+with no position, which the exe reads (a crash): FIX (bug), it weighs 0.
+
+Test `test_ai_node.py` (probe `tests/probe_ai_orders.cpp`, over
+test_ai_steer.py's brain, vehicle and steering): the vehicle's vtable
+moved off the Mech's +0x518 with the real vt+0x118 / +0x120 / +0x50 over
+random top speeds and decel rates, its forward, name and jump jets; the
+controls' throttle, turn and turn target, the boundary clamp and the way
+finder answered from the trace; nets of 3 to 6 real nodes in the exe's
+layout linked to each other (some within 1 m or on top of each other), to
+the null step and through chains of real speed, valve, jump and gate
+steps (the jump and gate steps' states fakes). 300 cases of 120 calls:
+2573 states made, 15,589 runs, 1106 resumes and 5237 link picks alone
+(the step picked and the running sums the exe leaves in [0x60b444]), the
+calls, the order's state, the steering block and the brain's +0x298,
++0xec and +0x104 identical at 24-bit x87; 24,000 turns alone on random
+vectors; the turn settings from the exe's 0x4c7900 bit for bit; all 36
+marked branches reached. Breaking the port showed it catches it, 38 of 38:
+dead zone at 2 degrees, behind keeps 0, the cross swapped, no least turn,
+backing up past 120 degrees, the back's dot kept, a near link not refaced,
+the near link's floor 0.2, `from` not moved back, a valve's weight not
+whole, a gate passing all, the way finder skipped, no straight-on share,
+another share, the one link without its weight, no random pick, the speed
+not shared, the segment reversed, resume keeping the phase, arrival by the
+along alone, arrival without the carrot, the place not kept, a 1 s wait,
+the heading not reversed, near at the full stopping distance, no backing
+up, the clamp asked when near, the clamp keeping the reverse, near facing
+the carrot, the side weighted 4, no 45-degree stop, the throttle
+unclamped, the Mech's speed not shared and its stopping distance by the
+accel rate, the speed step's share not set or not run again, the valve
+step ignoring the way finder or not run again. Not caught, and left out
+as equivalent: the dead zone's exact edge, the pick's upper bound at an
+exact tie, the null step weighed (the FIX makes it weigh 0), the last of
+one counted link (it is the only one).
+
+**In the program** (`mission_c1m1_owens_walks_to_its_node_headless`): woken
+by bramp, the Owens is on the node of net 4 it stands on, goes on at once
+by its link (a speed step, share 0.7, and a valve step) to the next node
+237 m off, turns to face it (forward against the way there 1.000), walks
+there under its own controls (throttle up to 0.7) and, 14.6 m off, inside
+its 16.8 m stopping distance, goes on by that node's link: a scan step
+(item 9), where it stops for now. With the nets followed, the mission
+cleanup's "Deleting AI Nets" (0x58b290, ported as `znet::clear`) is now
+wired: before it, a second mission in one process kept the first one's
+nets, whose valve steps pointed at freed valves (a crash in the suite).
 
 ### 17.5 The vlist triggers (0x4d8e70)
 
@@ -1706,8 +1835,10 @@ goes through a hooks struct the test stubs the same on both sides.
 7. **The plain states**: done (17.2): 0x4c8660, 0x4c8700, 0x4c8790,
    0x4c88c0, 0x4c8940 and the shared 0x4cbe50; 0x4c8a30 waits for its
    derived states.
-8. **The node state** 0x4ced40 (with backup and deploy).
-9. **The property states**: speed, waits, valve, scan / canleave, sound,
+8. **The node state** 0x4ced40: done (17.4a), with the speed and valve
+   steps' states; left: backup 0x4cfa80 (run 0x4cfad0, 8b) and deploy
+   0x4d0040 (run 0x4d00a0, 8c).
+9. **The property states**: waits, scan / canleave, sound,
    gate, shunt, valve union / assign, mcbwait (one or two a sitting);
    jump 0x4cb330 alone.
 10. **The vehicle's own net** 0x4c0810 and the attack 0x4e9ca0 with its

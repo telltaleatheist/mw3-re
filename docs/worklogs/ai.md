@@ -117,3 +117,26 @@ Newest last. One short entry per item: what, commits, what to remember.
   node under its own controls). Then Owen's three: the allied attack pick
   (zfix bugs, lancemate test), the valve re-entry guard, c4b m6's missing
   boundary regions.
+
+## 2026-10-22 Item 8a: the node state (mac4/node)
+
+- Ported 0x4ced40 / 0x4cf140 / 0x4c9700 (NodeState), the walk 0x4cee80,
+  the turns 0x4cdd40 / 0x4cdee0 (settings 0x4c7900), the link pick
+  0x4ccf20 and the weights (0x4cd430, 0x4cd470, 0x4ca210, 0x4cd580,
+  0x4cdb80, 0x4c79f0 / 0x4c7960), Mech vt+0x118 / +0x120. In `zai_node`.
+- Also the speed and valve steps' states (0x4c9f40, 0x4ca2e0, item 9's):
+  c1m1's first link is speed -> valve -> node, so the walk needs them.
+  Shunt and valve union states share 0x4ca2e0 (item 9).
+- Wired the mission cleanup's 0x58b290 (`znet::clear`, already ported):
+  with links followed, a second mission in one process crashed on the
+  first mission's nets pointing at freed valves.
+- The exe's x87 rounds float x double once: use `crt::x87_mul_f24` /
+  `x87_add_f24` (and zmath's normalisers, crt's `msvc_ftol`), not casts.
+- Emulator: the world_alloc region does not execute: put thunks at OWNER+.
+  A stub with spec 'c' gets only [ecx] in `a`: read stack args from ESP.
+- c1m1: the Owens walks 237 m to its second node, goes on at its stopping
+  distance (16.8 m) to a scan step (item 9) and stops there.
+  owens_runs_its_frames now holds the Owens still (brain +0xec 0) from
+  frame 150 for its collision checks.
+- Next: 8b backup 0x4cfad0, 8c deploy 0x4d00a0; then the scan / canleave
+  states (where the Owens stops) toward "enemies walk and fire in c1m1".

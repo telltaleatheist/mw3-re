@@ -235,6 +235,7 @@ unusual happens.
 - A target behind the zoom window's camera no longer picks TARGET's arrow from stray memory bits (the original read an unset value there).
 - A mech with a targeting computer and no weapon group selected no longer crashes the game when it has a target on screen (the lead circle needs a group).
 - An AI vehicle record with a broken attack range no longer crashes the game when its pilot has no target.
+- An AI path with a step that leads nowhere no longer crashes the game when a pilot weighs the ways on from a waypoint; that way counts as closed. No shipped path has one.
 - A world's `declient.zrd` with a one-frame quicksand texture, or a `QUICK_SAND` block without `DEFAULT_TEXTURE`, no longer crashes the mission load; the one frame is shown, or the quicksand is left untextured. No shipped file has either.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.
 - A crater whose outline passes exactly through a corner of the ground's polygons no longer freezes the game; that piece of ground is left uncut.
