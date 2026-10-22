@@ -1726,6 +1726,23 @@ turn's dot at least 0.5), else 0. Test: `test_ai_attack.py` (mode 1 real;
 the boundary's trace carries the point now; the target moved alone between
 runs; negative throttles), 59 branches, 17 of 17 breaks.
 
+**Mode 2, orbiting, ported** (2026-10-22, item 3g: `OrbitState`). Mode 2
+(slot 3) makes 0x4d1300 -> 0x4d1320: the speed share the brain's +0x94,
+its +0xec when that is smaller; the way round +1. Each run (0x4d13c0, with
+its context 0x4d12a0: 0x4cecf0, the target's vehicle net, its attack
+behaviour, its place) gives up as the fight does; then, from the unit flat
+way u to the target at `dist`, f = (dist - R) / R (R the brain's +0x44),
+the steering way (u.z w + f u.x, 0, f u.z - u.x w), normalized (w the way
+round); a point R along it is computed and not used; the look-ahead, the
+stopping distance at the share x 3 and at least 10 (a floor here, a cap in
+mode 1), is put to the boundary (0x4c3000), a pull turning the way round
+and holding the throttle at 0; the turn is 0x4cdd40 from the vehicle's
+forward; the throttle the share when facing within 60 degrees; +0x08 set
+to 1. Each resume (0x4d13b0) turns the way round (x -1). Test:
+`test_ai_attack.py` (mode 2 real, a fake order pushed and popped over it,
+mode 2 drawn more often, the stopping rate from 0.2), 68 branches, 11 of 11
+breaks.
+
 **The plain states, ported** (2026-10-20, `mech3/zai_brain`): the base
 state's run 0x4c8690 stops the controls (IControls vt+0x14) and lets the
 fire go (vt+0x10 with 0); the null step's 0x4c8700 and 0x604058's
@@ -3136,7 +3153,8 @@ goes through a hooks struct the test stubs the same on both sides.
     0x4d1ca0 / 0x4d1d10 with 0x4c8a70: done (10b2); the brain's own order
     0x4e81a0: done (10c); its station-keeping states 0x4cc150 and the run
     0x4cc3e0: done (10d2, 10d3); the
-    modes' states: mode 1 0x4c9750 done (item 3f), 0x4d1320, 0x4d1650 next.
+    modes' states: modes 1 and 2 (0x4c9750, 0x4d1320) done (items 3f, 3g),
+    0x4d1650 next.
 11. **The manoeuvre** 0x4ca440 / 0x4caae0 / 0x4cabe0 (run 0x4ca600).
 12. **The firing state machine** 0x4b5b80: done (17.7, 12a), with the
     volley plan pick 0x4b6790 (12b1), the plan's track 0x4b6e30 with the

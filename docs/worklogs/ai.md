@@ -726,3 +726,10 @@ Newest last. One short entry per item: what, commits, what to remember.
   throttles, the target moving alone between runs, rows of 28 words);
   the boundary's trace carries its point (EDX) in both tests now; 59
   branches, 17 of 17 breaks.
+
+## 2026-10-22 Item 3g: mode 2, orbiting (mac4/behaviours)
+
+- OrbitState (0x4d1320, run 0x4d13c0, resume 0x4d13b0) in zai_attack.
+- test_ai_attack.py: mode 2 real; a fake order pushed and popped over the
+  top (the resume); mode 2 drawn more often, the stopping rate from 0.2;
+  68 branches, 11 of 11 breaks.

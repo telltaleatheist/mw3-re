@@ -1908,6 +1908,11 @@ are all "puffers": emitters that drop little textured squares.
   or when the point a few metres ahead would take it out of bounds (the
   mission's no-go zones). It only throttles up while it faces within about
   60 degrees of where it wants to go. (`ai.md`, mode 1)
+- **Mode 2 orbits and turns round whenever it is interrupted.** An enemy in
+  attack mode 2 also circles at its preferred distance, but steers by the
+  line to the target instead, and every time something else takes its
+  attention for a moment (another order on top of the attack, then gone),
+  it comes back circling the other way.
 - **How AI pilots jump.** An AI jump is planned once, from where the pilot
   stands to the waypoint it lands on: a full-jets climb, a coast, a glide,
   a coast down and a full-jets landing burn, each timed from the height to

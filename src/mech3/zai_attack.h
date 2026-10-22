@@ -198,6 +198,26 @@ class CircleState : public BehaviourState {
   float share = 1.0f;        // +0x38
 };
 
+// A vehicle net's mode 2 (slot 3) state: orbiting the target at the
+// brain's +0x44 (0x004d1300 -> 0x004d1320, 0x24 bytes, vtable 0x005cca48,
+// over the waiting state): +0x1c the speed share (the brain's +0x94, at
+// most its +0xec), +0x20 the way round (1 or -1, turned on each resume).
+class OrbitState : public BehaviourState {
+ public:
+  OrbitState(Order* o, Behaviour* b);   // 0x004d1320
+  bool may_break_in() const override { return false; }
+  bool may_fire() const override { return false; }
+  void run(float dt) override;          // 0x004d13c0
+  void resume() override { way = way * -1.0f; }  // 0x004d13b0 (0x005cc5a8)
+  Behaviour* behaviour() const override { return made_by; }  // 0x0040a890
+  uint32_t x08 = 0;          // +0x08  set to 1 by each run
+  float turn = 0;            // +0x0c
+  uint32_t x10 = 0;          // +0x10
+  Behaviour* made_by;        // +0x18
+  float share = 1.0f;        // +0x1c
+  float way = 1.0f;          // +0x20
+};
+
 // The brain's own order's state (docs/ai.md 17.2): keeping station on the
 // vehicle whose own net it is on. 0x004cc290 (0x30 bytes, vtable 0x005cbf10,
 // over the waiting state 0x004c8a30): +0x20 the throttle's way (-1 when

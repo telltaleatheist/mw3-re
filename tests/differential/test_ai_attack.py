@@ -38,7 +38,8 @@ ATTACK, OWNER = 0x4e9ca0, 0x2c7f0000  # the probe's kOwner, the vehicle's handle
 VT_PART, VT_END, VT_REARM, VT_RETURN = 0x5cac30, 0x5cb928, 0x5cba00, 0x5cbad8
 VT_VPART, VT_FIGHT, ENT1 = 0x5cac40, 0x5ccb60, 0x2c7f4400  # the probe's ent_handle(1): the target
 VT_FOLLOW = 0x5cca88  # the follow state 0x4d1870 (item L3)
-VT_CIRCLE = 0x5cb3b0  # mode 1's state 0x4c9750 (item 3e)
+VT_CIRCLE = 0x5cb3b0  # mode 1's state 0x4c9750 (item 3f)
+VT_ORBIT = 0x5cca48  # mode 2's state 0x4d1320 (item 3g)
 ROW = 28  # words an order
 f2i = to.f2i
 
@@ -61,7 +62,10 @@ COVER = {0x4d1aea: 'follow: not pulled', 0x4d1a20: 'follow: pulled, set again', 
          0x4c99a2: 'circle: back the first way', 0x4c99bb: 'circle: the other way round',
          0x4c99f0: 'circle: flipped, slow: in', 0x4c9a04: 'circle: backing: in', 0x4c9bf7: 'circle: look-ahead capped',
          0x4c9c06: 'circle: look-ahead back', 0x4c9c60: 'circle: pulled: the other way', 0x4c9c7d: 'circle: not facing',
-         0x4c9ca2: 'circle: driving', 0x4c9919: 'circle: past the gate'}
+         0x4c9ca2: 'circle: driving', 0x4c9919: 'circle: past the gate', 0x4d1320: 'orbit: made',
+         0x4d1364: 'orbit: share capped', 0x4d1417: 'orbit: past the gate', 0x4d1616: 'orbit: given up',
+         0x4d1506: 'orbit: look-ahead floored', 0x4d156e: 'orbit: pulled: the other way', 0x4d15a9: 'orbit: driving',
+         0x4d15cc: 'orbit: not driving', 0x4d13b0: 'orbit: resumed'}
 REACHED = set()
 
 
@@ -114,7 +118,7 @@ class Original(to.Original):
         # the vehicle net's unported states as numbered fakes.
         self.target = e.world_alloc(0x200)
         self.tpos = e.world_alloc(0x10)
-        for maker in (0x4d1300, 0x4d1630):  # the follow 0x4c89f0 and mode 1 0x4c9730 are the port's
+        for maker in (0x4d1630,):  # the follow 0x4c89f0 and modes 1 and 2 (0x4c9730, 0x4d1300) are the port's
             e.stub(maker, 'beh.vt+0x8c', 's0,s1', 8, self.make_state)
         # The follow's speed: the Mech's vt+0x118 (0x41d1c0: its +0x518 x the
         # share); the probe's mech the same 12 m/s.
@@ -302,7 +306,8 @@ class Original(to.Original):
         for o in orders:
             part, state = e.r32(o + 0xc), e.r32(o + 0x10)
             real_part = part and e.r32(part) in (VT_PART, VT_VPART)
-            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT, VT_FOLLOW, VT_CIRCLE)
+            real_state = state and e.r32(state) in (VT_END, VT_REARM, VT_RETURN, VT_FIGHT, VT_FOLLOW, VT_CIRCLE,
+                                                    VT_ORBIT)
             row = [e.cpu.read(o + 4, 1)[0], int(e.r32(o + 8) == self.brain),
                    e.r32(part + 4) if part and not real_part else 0,
                    e.r32(e.r32(part + 8) + 4) if part and not real_part else 0,
@@ -316,7 +321,9 @@ class Original(to.Original):
                 row[17] = self.home_code(e.r32(part + 0x14), orders)
             if real_state:
                 vt = e.r32(state)
-                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4, VT_FOLLOW: 5, VT_CIRCLE: 6}[vt]
+                row[18] = {VT_END: 1, VT_REARM: 2, VT_RETURN: 3, VT_FIGHT: 4, VT_FOLLOW: 5, VT_CIRCLE: 6, VT_ORBIT: 7}[vt]
+                if vt == VT_ORBIT:  # +0x08, the turn, the share, the way round
+                    row[19:23] = [e.r32(state + 8), e.r32(state + 0xc), e.r32(state + 0x1c), e.r32(state + 0x20)]
                 if vt == VT_CIRCLE:  # its way round, turn, share, radial, tangent x and z
                     row[19:22] = [e.r32(state + 0x34), e.r32(state + 0xc), e.r32(state + 0x38)]
                     row[22:25] = [e.r32(state + 0x1c + 4 * k) for k in range(3)]
@@ -393,7 +400,7 @@ def world(rng):
     # Mode 1's radius (+0x44), turn-round distance (+0x48) and share (+0x94);
     # the vehicle's +0x534 (its stopping distance's rate).
     w += [rf(10, 150), f2i(rng.choice([rng.uniform(5, 80), 0.0])), f2i(rng.choice([1.0, 0.7, 0.4, 0.0])),
-          rf(1, 8)]
+          rf(0.2, 8)]
     return w
 
 
@@ -474,7 +481,7 @@ def run_case(probe, seed, rounds):
             d = rng.choice([5.0, 50.0, 70.0, 100.0, 300.0, rng.uniform(0, 400)])
             tpos = [f32(px + d * math.sin(ang)), f32(py), f32(pz + d * math.cos(ang))]
             fw = (tpos, int(rng.random() < 0.9), rng.choice([0, 1, 2, 3]), f2i(rng.choice([1e4, 4e4, 1e6])),
-                  f2i(rng.uniform(0, 100)), rng.choice([0, 1, 2, 3, 4, 5, 1, 1]))
+                  f2i(rng.uniform(0, 100)), rng.choice([0, 1, 2, 3, 4, 5, 1, 1, 2, 2]))
             orig.fight_world(*fw)
             probe.probe_ao_set_now(fw[4])
             probe.probe_ao_fight_world((ctypes.c_float * 3)(*tpos), *fw[1:])
@@ -519,6 +526,13 @@ def run_case(probe, seed, rounds):
                 probe.probe_ao_set_now(fight[4])
                 probe.probe_ao_fight_world((ctypes.c_float * 3)(*fight[0]), *fight[1:])
                 what = 'target moved'
+            elif r < 0.37:  # a fake order pushed on top and popped: the one under resumed (mode 2 turns round)
+                n2, b = rng.choice([1, 2, 3, 4]), rng.choice([1, 2, 3, 4])
+                orig.op(1, n2, b, 0)
+                probe.probe_ao_op(1, n2, b, 0)
+                orig.op(7, 0, 0, 0)
+                probe.probe_ao_op(7, 0, 0, 0)
+                what = 'push and pop'
             else:
                 f = f2i(rng.choice([1 / 30, 0.25]))
                 if any(orig.e.r32(orig.e.r32(o + 0x10)) == VT_FOLLOW for o in orig.orders() if orig.e.r32(o + 0x10)):

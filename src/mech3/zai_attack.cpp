@@ -393,6 +393,56 @@ void CircleState::run(float dt) {
   c.set_throttle(flip ? -share : share);  // IControls vt+0x20
 }
 
+// Mech3.exe 1.2 @ 0x004d1320
+OrbitState::OrbitState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by(b) {
+  Brain& br = *o->owner;
+  share = br.params.get<float>(0x94);
+  if (share > br.xec) share = br.xec;  // test ah 0x41: only when above
+}
+
+// Mech3.exe 1.2 @ 0x004d13c0 with its context 0x004d12a0 (docs/ai.md 17.2).
+// The point R ahead along the way it computes is not used.
+void OrbitState::run(float dt) {
+  (void)dt;
+  BrainHooks& h = brain_hooks();
+  Brain& b = *order->owner;
+  BrainControls& c = *b.controls;
+  const zgame::Handle v = c.vehicle();
+  auto* part = dynamic_cast<VehiclePart*>(order->net.get());
+  if (!part || !part->target) {
+    order->pop();
+    return;
+  }
+  const zgame::Handle target = part->target->vehicle;
+  float from[3], to[3];
+  h.position(v, from);       // the context's 0x005a85e0
+  h.position(target, to);    // the target net's vt+0x04
+  if (!h.entity_active(target) || b.must_break_off(v)) {  // its vehicle's +0x08, 0x004e8dd0
+    order->pop();  // order vt+0x08
+    return;
+  }
+  zmth::Vec3 u{to[0] - from[0], 0.0f, to[2] - from[2]};
+  const float dist = zmth::normalize(u);  // 0x004020d0
+  const float R = b.params.get<float>(0x44);
+  const float f = (dist - R) / R;
+  zmth::Vec3 d{u.z * way + f * u.x, 0.0f, f * u.z - u.x * way};
+  zmth::normalize(d);
+  const float dir[3] = {d.x, d.y, d.z};
+  float ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128, 0x005cc5ac
+  if (!(ahead >= 10.0f)) ahead = 10.0f;  // 0x005cc5b0: at least
+  const float step[3] = {ahead * dir[0], ahead * dir[1], ahead * dir[2]};
+  float look[3] = {from[0] + step[0], from[1] + step[1], from[2] + step[2]};
+  const bool pulled = h.inout_clamp(v, look, look);  // 0x004c3000
+  if (pulled) way = -way;
+  float fwd[3] = {0, 0, 0};
+  h.forward(v, &fwd[0], &fwd[2]);  // the context's +0x24
+  float dot, cross;
+  turn = turn_toward(fwd, dir, &dot, &cross, turn, turn_params());  // 0x004cdd40
+  c.set_throttle(pulled || !(dot >= 0.5) ? 0.0f : share);  // IControls vt+0x20, 0x005cc5b8
+  c.set_turn(turn);  // vt+0x28
+  x08 = 1;
+}
+
 // Mech3.exe 1.2 @ 0x004d1980
 void FollowState::run(float dt) {
   BrainHooks& h = brain_hooks();
