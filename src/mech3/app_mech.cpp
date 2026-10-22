@@ -1243,6 +1243,9 @@ void mech_forward(void* mech, float out[3]) {
 }
 int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
 float mech_vertical_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.y; }
+float mech_forward_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.z; }
+void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Mech*>(mech)->vec_3c = {x, y, z}; }
+bool mech_airborne(void* mech) { return static_cast<Mech*>(mech)->airborne(); }
 void* mech_weapon_manager(void* mech) { return mech ? static_cast<Mech*>(mech)->ammo : nullptr; }
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null

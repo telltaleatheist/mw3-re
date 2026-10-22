@@ -365,6 +365,8 @@ struct PilotControls : ai::BrainControls {
   float throttle_now() override { return 0; }
   void set_throttle(float) override {}
   void set_turn(float) override {}
+  void set_jump(float) override {}
+  void set_jet_forward(float) override {}
   float turn_goal() override { return 0; }
   void aim_started() override {}
 };

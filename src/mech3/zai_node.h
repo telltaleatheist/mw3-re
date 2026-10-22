@@ -93,6 +93,40 @@ class GateState : public BehaviourState {
   Behaviour* behaviour() const override { return from; }        // 0x004c0030
 };
 
+// The jump plan (0x004cb120, 0x38 bytes on the stack) from `from` to `to`
+// with the jets' climb `up` and gravity `down` (accelerations), the step's
+// clearance `margin` added to both heights and the pilot's top speed: the
+// climb's burn and coast, the glide, the fall's coast and burn (seconds) and
+// the speed to keep.
+struct JumpPlan {
+  float t[5] = {};   // +0x00 burn up, +0x04 coast up, +0x08 glide, +0x0c coast down, +0x10 burn down
+  float speed = 0;   // +0x14  (0x004cb250)
+  float climb = 0, fall = 0;   // +0x18, +0x1c  the heights with the margin
+  float need = 0;    // +0x20  the speed the jump needs, FLT_MAX when it takes no time
+  float dist = 0;    // +0x24  flat
+  float rise = 0;    // +0x28  |dy|
+  float ratio = 0;   // +0x2c  up / down
+  float k = 0;       // +0x30  2 / ((down - up) * ratio)
+  float total = 0;   // +0x34
+};
+JumpPlan jump_plan(const float from[3], const float to[3], float up, float down, float margin, float speed);
+
+// A jump step's state (0x004cb310 -> 0x004cb330, 0x34 bytes, vtable
+// 0x005cbbb0): the jump planned to the next step's way point (vt+0x1c) at
+// the pilot's speed share, then flown phase by phase (docs/ai.md 17.2).
+class JumpState : public BehaviourState {
+ public:
+  JumpState(Order* o, Behaviour* step);   // 0x004cb330
+  void run(float dt) override;            // 0x004cb4b0
+  Behaviour* behaviour() const override { return from; }  // 0x004cb470
+  int32_t phase = 0;      // +0x08  0, 10, 1, 2, 11, 3, 4, 5, 6
+  float until[5] = {};    // +0x0c..+0x1c  each phase's end, game time
+  float speed = 0;        // +0x20  to keep
+  float jet = 0;          // +0x24  the glide's jets (0x0041d4b0(gravity): 0)
+  float turn = 0;         // +0x28
+  uint8_t steering = 1;   // +0x2c
+};
+
 // The node state (0x004ced40, 0x28 bytes, vtable 0x005cc5c0; made by the
 // node's vt+0x8c 0x004c9150).
 class NodeState : public BehaviourState {

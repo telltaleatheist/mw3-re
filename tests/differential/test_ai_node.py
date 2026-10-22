@@ -58,10 +58,12 @@ NODE_STATES = (NODE_STATE_VT, 0x5cc860, 0x5cc950)
 BACKUP_RUN, DEPLOY_STATE_VT = 0x4cfad0, 0x5cc950
 # The speed, valve, scan and two wait steps' states (0x4c9f40, 0x4ca2e0, 0x4cbca0, 0x4ca070, 0x4ca190).
 # Then the mcbwait, sound and gate states (0x4ccda0, 0x4ccec0, 0x4cd690), the
-# shunt's and valve union's (0x4ca2e0) and the valve_assign's (0x4cdcf0).
+# shunt's and valve union's (0x4ca2e0), the valve_assign's (0x4cdcf0) and the
+# jump's (0x4cb4b0).
 PASS_VT = (0x5cb540, 0x5cb7c8, 0x5cbc88, 0x5cb618, 0x5cb6f0, 0x5cbfe8, 0x5cc0c0, 0x5cc198, 0x5cc270, 0x5cc420,
-           0x5cc4f8)
+           0x5cc4f8, 0x5cbbb0)
 WAIT_VT = (0x5cb618, 0x5cb6f0)
+JUMP_STATE_VT = 0x5cbbb0
 SCAN_VT = (0x5cbbd0, 0x5cbca8, 0x5cbd60)  # scan, canleave, canleave-not
 SCAN_FN = ((0x4d9c30, 0x4d9c20), (0x4d9c50, 0x4d9c40), (0x4d9c70, 0x4d9c60))  # aim, hit, time: off, on
 CANLEAVE_FN = {1: 0x4d9c80, 2: 0x4d9ca0}
@@ -97,7 +99,15 @@ COVER = {
     0x4ccdf0: 'an mcbwait: its valve holds', 0x4cce13: 'an mcbwait: still waiting or on', 0x4cce17: 'an mcbwait: on',
     0x4ccec0: 'a sound step run', 0x4cd690: 'a gate step run', 0x4cdcf0: 'a valve_assign run',
     0x4cdd1c: 'a valve_assign: what follows', 0x4cdb80: 'a valve union weighed', 0x4cdb98: 'a valve union open',
-    0x4cdbb7: 'a valve union weighed: its weight'}
+    0x4cdbb7: 'a valve union weighed: its weight', 0x4cb330: 'a jump made', 0x4cb18a: 'jump plan: down',
+    0x4cb1a1: 'jump plan: up', 0x4cb21d: 'jump plan: a speed needed', 0x4cb228: 'jump plan: no time',
+    0x4cb25e: 'jump plan: faster than needed', 0x4cb27d: 'jump plan: no speed', 0x4cb28a: 'jump plan: a glide',
+    0x4cb505: 'jump: steering', 0x4cb56e: 'jump: not steering', 0x4cb60e: 'jump: thrust capped',
+    0x4cb624: 'jump: thrust back', 0x4cb65f: 'jump: phase 0', 0x4cb6b5: 'jump: climbing', 0x4cb6d9: 'jump: climbed',
+    0x4cb706: 'jump: coasting up', 0x4cb727: 'jump: coasted up', 0x4cb735: 'jump: phase 2',
+    0x4cb79a: 'jump: gliding', 0x4cb7bd: 'jump: glided', 0x4cb7ea: 'jump: coasting down',
+    0x4cb80b: 'jump: coasted down', 0x4cb838: 'jump: braking', 0x4cb85c: 'jump: braked', 0x4cb86e: 'jump: phase 5',
+    0x4cb8e0: 'jump: still up', 0x4cb8e5: 'jump: down'}
 REACHED = set()
 
 
@@ -122,6 +132,11 @@ class Original(ts.Original):
         e.w32(nvt + 0x118, 0x41d1c0)
         e.w32(nvt + 0x120, 0x41d210)
         e.w32(nvt + 0x50, 0x4d2a70)
+        e.w32(nvt + 0x144, 0x41ec70)  # airborne: +0x584
+        e.stub(0x5ac140, '@atexit', 's0', 0, lambda em, key, a, pop: em._ret(0, pop))  # the jump's statics
+        # The CRT's _hypot (the jump's plan) as x87 code: the root of the summed
+        # squares at the test's 24-bit precision, as the port's.
+        e.cpu.import_code(0x5bb5b0, bytes.fromhex('dd442404 d8c8 dd44240c d8c8 dec1 d9fa c3'))
         self.names = {1: e.world_alloc(8), 0: e.world_alloc(8)}
         e.cpu.write(self.names[1], b'g1\0')
         e.cpu.write(self.names[0], b'g2\0')
@@ -131,6 +146,8 @@ class Original(ts.Original):
         ivt = e.r32(OWNER + 0xc30)
         e.w32(ivt + 0x20, e.new_stub('ictl.vt+0x20', 's0', 4, self.logged))
         e.w32(ivt + 0x28, e.new_stub('ictl.vt+0x28', 's0', 4, self.logged))
+        e.w32(ivt + 0x34, e.new_stub('ictl.vt+0x34', 's0', 4, self.logged))  # the jets (the jump)
+        e.w32(ivt + 0x3c, e.new_stub('ictl.vt+0x3c', 's0', 4, self.logged))  # their forward thrust
         self.tt_val = OWNER + 0xe40
         thunk = OWNER + 0xe80
         e.cpu.write(thunk, b'\xd9\x05' + struct.pack('<I', self.tt_val) + b'\xc3')
@@ -144,9 +161,7 @@ class Original(ts.Original):
         e.w32(0x60b444, vec)
         e.w32(0x60b44c, 0xfffff)
         e.w32(NULL_STEP, 0x5bc8d0)
-        # The jump step's state: a fake, numbered as the port's (the others'
-        # are real); a sound step's sound played at a place (0x56e7e0).
-        e.w32(STEP_VT[3] + 0x8c, e.new_stub('beh.vt+0x8c', 's0,s1', 8, self.step_state))
+        # A sound step's sound played at a place (0x56e7e0).
         e.stub(0x56e7e0, '0x0056e7e0', 'c,s0', 8, self.sound_at)
         # Three valves, the third "mcbdeploy" ([0x60b4a8], held at [0x60b4ac] 1):
         # their value holders the real 0x5cd558 (vt+0x04 its +0x04); the set
@@ -298,6 +313,10 @@ class Original(ts.Original):
         for k, off in enumerate((0x98, 0x9c, 0xa0, 0x3c)):
             e.w32(b + off, w[20 + k])
         e.w32(b + 0xdc, w[24])  # a way finder (its answers 0x4c7cb0's, from the trace)
+        e.w32(OWNER + 0x3c, w[25])  # the local velocity's x and z (its y is +0x40, w[18])
+        e.w32(OWNER + 0x44, w[26])
+        e.cpu.write(OWNER + 0x584, bytes([w[27] & 1]))  # airborne
+        e.w32(0x5e5d34, w[28])  # gravity
 
     def node(self, op, which, dt):
         e, b = self.e, self.brain
@@ -309,7 +328,7 @@ class Original(ts.Original):
             e.call(e.r32(e.r32(st) + (0x14 if op == 1 else 0x10)), ecx=st, stack=(dt,) if op == 1 else ())
         elif op == 1 and e.r32(st) in PASS_VT:
             e.call(e.r32(e.r32(st) + 0x14), ecx=st, stack=(dt,))
-        out = [0] * 46
+        out = [0] * 64
         cur = self.orders()[-1]
         st = e.r32(cur + 0x10)
         vt = e.r32(st)
@@ -319,7 +338,7 @@ class Original(ts.Original):
         elif vt == self.state_vt:
             out[0] = -e.r32(st + 0xc) & 0xffffffff
         elif vt in PASS_VT or vt == 0x5cb258:  # a speed or valve step's state, the null step's
-            beh = e.r32(st + 8) if vt != 0x5cb258 else NULL_STEP
+            beh = NULL_STEP if vt == 0x5cb258 else e.r32(st + (0x30 if vt == JUMP_STATE_VT else 8))
             out[0] = 0x10000 | ((-2 if beh == NULL_STEP else self.elem_id.get(beh, -1)) & 0xffff)
         out[8:26] = [e.r32(b + 0x250 + 4 * k) for k in range(18)]
         out[26:29] = [e.r32(b + 0x298 + 4 * k) for k in range(3)]
@@ -332,6 +351,10 @@ class Original(ts.Original):
         out[40:45] = [e.r32(b + off) for off in (0x98, 0x9c, 0xa0, 0x3c, 0xdc)]
         if vt in WAIT_VT:
             out[45] = e.r32(st + 0xc)  # when it began
+        if vt == JUMP_STATE_VT:  # the phase, its ends, the speed, the glide's jets, the turn, steering
+            out[46:55] = [e.r32(st + 8 + 4 * k) for k in range(9)]
+            out[55] = e.cpu.read(st + 0x2c, 1)[0]
+        out[56:59] = [e.r32(OWNER + off) for off in (0x3c, 0x40, 0x44)]
         return out
 
     def turn(self, op, f, params):
@@ -397,8 +420,11 @@ def build_net(rng):
                 links.append(target)
                 continue
             first = len(rows)
-            for depth in range(rng.choice([1, 1, 2])):
-                kind = rng.choice([1, 2, 3, 4, 7, 7, 8, 9, 10, 12, 13, 14])
+            depth_n = rng.choice([1, 1, 2])
+            for depth in range(depth_n):
+                kind = rng.choice([1, 2, 3, 3, 3, 4, 7, 7, 8, 9, 10, 12, 13, 14])
+                if kind == 3 and (depth < depth_n - 1 or not 0 <= target < len(nodes)):
+                    kind = 1  # a jump lands on a node (the exe steers to its next's place, 0x4cb50d)
                 if kind == 8:  # wait_interval: seconds, mostly a clock step or two, now and then NaN
                     a = 0x7fc00000 if rng.random() < 0.04 else f2i(rng.uniform(1, 30) if rng.random() < 0.3 else
                                                              rng.choice([0.5, 2.0, 2.5, 4.0, 6.0]))
@@ -407,7 +433,8 @@ def build_net(rng):
                 elif kind == 13:
                     a = rng.randrange(16)
                 else:
-                    a = f2i(rng.uniform(1, 30)) if kind in (1, 3) else rng.randrange(3) if kind == 7 else rng.randrange(2)
+                    a = f2i(rng.choice([rng.uniform(1, 60), 0.0]) if kind == 3 else rng.uniform(1, 30)) if kind in (1, 3) else \
+                        rng.randrange(3) if kind == 7 else rng.randrange(2)
                 bb = rng.randrange(64) if kind == 7 else rng.choice([1, 2]) if kind == 13 else rng.choice([0, 1, 1])
                 rows.append([kind, a, bb, 0, len(rows) + 1, -1, -1, -1, 0, 0, 0, 0, 0])
             rows[-1][4] = target
@@ -426,7 +453,7 @@ def world(rng, nodes):
     near = nodes[rng.randrange(len(nodes))]
     pos = [near[0] + rng.uniform(-40, 40), near[1], near[2] + rng.uniform(-40, 40)]
     last = nodes[rng.randrange(len(nodes))] if rng.random() < 0.7 else pos
-    share = rng.choice([1.0, 1.0, 0.5, rng.uniform(0.2, 1.2)])
+    share = rng.choice([1.0, 1.0, 0.5, rng.uniform(0.2, 1.2), 0.0])
     decel = rng.choice([rng.uniform(0.3, 6), 2.0, 0.0 if rng.random() < 0.05 else 1.0])
     clock = rng.uniform(0, 500) if rng.random() < 0.3 else 0.5 * rng.randrange(0, 1000)  # mostly on the waits' grid
     w = [f2i(x) for x in fwd] + [f2i(share), f2i(rng.uniform(5, 50)), f2i(decel), f2i(clock)]
@@ -434,6 +461,9 @@ def world(rng, nodes):
     w += [f2i(x) for x in pos] + [f2i(x) for x in last]
     w += [rng.choice([0, 1, 1]), f2i(rng.choice([0.0, 0.05, -0.08, 0.15, 0.5, -2.0])), int(rng.random() < 0.2)]
     w += [rng.randrange(2) for _ in range(4)] + [f2i(rng.choice([3.4028235e38, 12.5, 0.0]))]
+    # The local velocity's x and z, airborne, gravity (the shipped 30, or set by a script).
+    w += [f2i(rng.uniform(-3, 3)), f2i(rng.choice([0.0, rng.uniform(-5, 15)])), int(rng.random() < 0.6),
+          f2i(rng.choice([30.0, 30.0, 15.0, 9.8, 5.0]))]
     return w
 
 
@@ -464,9 +494,9 @@ def run_case(probe, seed, calls, stats):
     flat = [x & 0xffffffff for r in rows for x in r]
     probe.probe_ao_node_net((U * len(flat))(*flat), len(rows))
     orig.node_world(w)
-    probe.probe_ao_node_world((U * 25)(*w))
+    probe.probe_ao_node_world((U * 29)(*w))
     node_rows = [k for k, r in enumerate(rows) if r[0] in NODE_VTS]
-    out = (U * 46)()
+    out = (U * 64)()
     state, last = 0, None
     for k in range(calls):
         r = rng.random()
@@ -503,12 +533,15 @@ def run_case(probe, seed, calls, stats):
                 p = [fi(v) for v in w[11:14]]
                 t = rng.choice([0.3, 0.7, 1.0])
                 w[11:14] = [f2i(a + (b - a) * t) if math.isfinite(b) else f2i(a) for a, b in zip(p, c)]
-                w[6] = f2i(fi(w[6]) + rng.choice([0.5, 2.0, 6.0]))
+                w[6] = f2i(fi(w[6]) + rng.choice([0.25, 0.25, 0.5, 2.0, 6.0]))  # short steps for the jump's phases
                 if rng.random() < 0.4:
                     ang = rng.uniform(-math.pi, math.pi)
                     w[0], w[2] = (f2i(math.sin(ang)), f2i(math.cos(ang))) if rng.random() > 0.15 else (0, 0)
+                if rng.random() < 0.3:  # landed or taken off, the forward speed changed
+                    w[27] ^= 1
+                    w[26] = f2i(rng.uniform(-5, 15))
                 orig.node_world(w)
-                probe.probe_ao_node_world((U * 25)(*w))
+                probe.probe_ao_node_world((U * 29)(*w))
             elif x < 0.72:  # the steering block loaded: the carrot near the node
                 blk = (U * 21)()
                 probe.probe_ao_steer(2, (U * 7)(), blk)
@@ -539,7 +572,7 @@ def run_case(probe, seed, calls, stats):
                         off = rng.choice([0.0, 0.01, 0.2, 0.7])
                         w[11:14] = [f2i(q[0] + off), f2i(q[1]), f2i(q[2] - off)]
                 orig.node_world(w)
-                probe.probe_ao_node_world((U * 25)(*w))
+                probe.probe_ao_node_world((U * 29)(*w))
             continue
         a = orig.node(op, which, dt)
         probe.probe_ao_node(op, which, dt, out)
@@ -549,6 +582,11 @@ def run_case(probe, seed, calls, stats):
                      min(len(orig.t.log), len(port.log)))
             raise SystemExit(f'seed {seed} call {k} op {op}: calls differ at {i}:\n  before {orig.t.log[start:i][-5:]}\n'
                              f'  exe  {orig.t.log[i:i + 4]}\n  port {port.log[i:i + 4]}')
+        # A NaN's sign is the FPU's choice (the x87's default NaN is negative,
+        # the port's machine's positive): any two NaNs match.
+        nan = lambda x: (x & 0x7f800000) == 0x7f800000 and x & 0x7fffff  # noqa: E731
+        a = [0x7fc00000 if nan(x) else x for x in a]
+        b = [0x7fc00000 if nan(x) else x for x in b]
         if a != b:
             names = ['state', 'phase', 'turn', 'x14', 'throttle', 'slow', 'inv_slow', 'retry'] + \
                 [f'steer+{4 * j:#x}' for j in range(18)] + ['x298.x', 'x298.y', 'x298.z', 'xec', 'x104', 'x80'] + \
@@ -584,7 +622,7 @@ def run_case(probe, seed, calls, stats):
 
 def main():
     probe = setup_probe()
-    cases = int(os.environ.get('NODE_CASES', '300'))
+    cases = int(os.environ.get('NODE_CASES', '800'))  # every jump phase met (600 is the least seen)
     stats = {}
     orig = params = None
     for seed in range(cases):

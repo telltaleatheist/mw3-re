@@ -164,6 +164,8 @@ struct AiControls : MechControls, ai::BrainControls {
   float throttle_now() override { return MechControls::throttle; }  // IControls vt+0x1c 0x00428510
   void set_throttle(float v) override { MechControls::set_throttle(v); }
   void set_turn(float v) override { MechControls::set_turn(v); }
+  void set_jump(float v) override { MechControls::set_jump(v); }  // IControls vt+0x34 0x00426b40
+  void set_jet_forward(float v) override { jj_forward = v; }      // IControls vt+0x3c 0x00428560
   float turn_goal() override { return turn_target; }  // IControls vt+0x30 0x00426b00
   void aim_started() override { brain->scan_aim(); }  // IControls vt+0x80 0x004d8930
 };

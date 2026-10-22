@@ -522,6 +522,12 @@ struct WiredBrainHooks : ai::BrainHooks {
   bool targeting_aid(Handle v) override { return mech_targeting_aid(mech(v)); }
   void wm_aim_at(Handle wm, const float at[3]) override { mech3::wm_aim_at(e->object_of(wm), at); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
+  float forward_speed(Handle v) override { return mech(v) ? mech_forward_speed(mech(v)) : 0.0f; }
+  void set_local_velocity(Handle v, float x, float y, float z) override {
+    if (void* m = mech(v)) mech_set_local_velocity(m, x, y, z);
+  }
+  bool airborne(Handle v) override { return mech(v) && mech_airborne(mech(v)); }
+  float gravity() override { return environment().gravity; }  // [0x005e5d34]
   void place(Handle v, const float p[3], float yaw) override {
     if (void* m = mech(v)) move_mech(m, p, yaw);
   }
