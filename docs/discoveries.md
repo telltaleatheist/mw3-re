@@ -2541,3 +2541,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   description in the message panel for 5 seconds (the first line as
   "objective complete", the others below it) and then one line per item
   of its salvage; a silent one completes without its voice line.
+- **Object detail "Low" puts every mech on its low-detail model.** The
+  option scales each mech type's two switching distances (Medium by 0.75,
+  Low by 0): at Low a mech switches to its low-detail model at any
+  distance and only comes back while it is your target. (The effects
+  detail option counts the other way inside the game: High is level 2 of
+  the mission animations' "if level" tests, Low is 0.)

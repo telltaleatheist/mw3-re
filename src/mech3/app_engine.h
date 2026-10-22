@@ -399,6 +399,7 @@ class GameEngine : public Engine {
 
   int32_t model_global_light() override;
   void model_set_global_light(int32_t on) override;
+  void effects_set_level(int32_t v) override;  // 0x00508fb0: zeff::anim_set_level
 
   Handle handle_of(void* p);  // a 32-bit handle for a port object (0 for null)
   void* object_of(Handle h) const;

@@ -3,7 +3,7 @@ the cache 0x430d10 with the constructor 0x4303d0 (0x430490) and the loader
 0x4308a0 and its steps (the ranges 0x430840, the sounds 0x4306d0, the
 effects 0x4320b0, the soils 0x432670 / 0x4326d0), the refresh 0x4319a0
 (0x4319f0 with the canned effects 0x431750) and the clear 0x4318e0
-(0x430580), for all 19 mechs.
+(0x430580), the options' detail scale 0x430440, for all 19 mechs.
 
     cmake --build build && .venv/bin/python -P tests/differential/test_mech_data_load.py [cases]
 
@@ -37,7 +37,7 @@ from test_mission_load import c_format  # noqa: E402
 FILL = 0xcd
 U = ctypes.c_uint32
 CACHE, COUNT, STUBS_LIST = 0x605704, 0x605708, 0x605714
-GET, REFRESH, CLEAR = 0x430d10, 0x4319a0, 0x4318e0
+GET, REFRESH, CLEAR, SCALE = 0x430d10, 0x4319a0, 0x4318e0, 0x430440
 CALLS = {
     0x484760: 'c,d', 0x4eb6d0: 'c,d', 0x4ac150: 's0,s1,s2,zs3', 0x49bfd0: 's0,zs1,s2,zs3,zs4', 0x4846a0: 'c',
     0x475780: 'c,s0', 0x56f6f0: 'zc', 0x50b450: 'zc', 0x4f7fe0: 'c,zd', 0x479480: '', 0x479460: '',
@@ -53,6 +53,7 @@ def setup_probe():
     probe.probe_md_get.restype = U
     probe.probe_md_cache.argtypes = [ctypes.c_void_p, ctypes.c_int]
     probe.probe_md_image.argtypes = [U, U, ctypes.c_void_p, ctypes.c_void_p]
+    probe.probe_md_scale.argtypes = [ctypes.c_float]
     return probe
 
 
@@ -70,6 +71,11 @@ def make_case(i):
         else:
             ops.append(('clear',))
     ops.append(('clear',))
+    # The options' mech detail scale (0x430440) between them: its own stream,
+    # so the other draws stay as they were.
+    r2 = random.Random(f'mds{i}')
+    for _ in range(r2.randrange(0, 3)):
+        ops.insert(r2.randrange(len(ops)), ('scale', r2.choice([0.5, 0.75, 1.0, 1.5, 2.0, r2.uniform(0.1, 3)])))
     # A type without a definition stays cached, and the refresh then reads
     # through null in the exe (0x431a20; the port's FIX (bug)): sessions that
     # refresh keep every definition.
@@ -91,6 +97,9 @@ def setup(case):
     r = case['rng']
     t = Trace()
     e = Emu(t)
+    # The types load with Direct3D up: the x87 at its in-play 24 bits (the
+    # detail scale's products round to float as the port's do).
+    e.cpu.fpu_control(0x007f)
     blocks = case['blocks']
 
     def alloc(n, a):
@@ -298,6 +307,10 @@ def run(probe, i, stats):
             if op[0] == 'get':
                 case['cur'] = op[1]
                 want.append(e.call(GET, ecx=op[1], edx=op[2]))
+            elif op[0] == 'scale':
+                case['cur'] = -1
+                e.call(SCALE, stack=[struct.unpack('<I', struct.pack('<f', op[1]))[0]])
+                want.append(0)
             else:
                 e.call(REFRESH if op[0] == 'refresh' else CLEAR)
                 want.append(0)
@@ -322,6 +335,10 @@ def run(probe, i, stats):
             got.append(probe.probe_md_get(op[1], op[2]))
         elif op[0] == 'refresh':
             probe.probe_md_refresh()
+            got.append(0)
+        elif op[0] == 'scale':
+            case['cur'] = -1
+            probe.probe_md_scale(op[1])
             got.append(0)
         else:
             probe.probe_md_clear()
@@ -350,6 +367,8 @@ def run_blocks(probe, i, stats):
         case['cur'] = op[1] if op[0] == 'get' else -1
         if op[0] == 'get':
             e.call(GET, ecx=op[1], edx=op[2])
+        elif op[0] == 'scale':
+            e.call(SCALE, stack=[struct.unpack('<I', struct.pack('<f', op[1]))[0]])
         else:
             e.call(REFRESH)
     rep = Replay(t, e, e.snapshot())
@@ -357,7 +376,12 @@ def run_blocks(probe, i, stats):
     probe.probe_app_set_callback(rep.callback())
     for op in case['ops']:
         case['cur'] = op[1] if op[0] == 'get' else -1
-        probe.probe_md_get(op[1], op[2]) if op[0] == 'get' else probe.probe_md_refresh()
+        if op[0] == 'get':
+            probe.probe_md_get(op[1], op[2])
+        elif op[0] == 'scale':
+            probe.probe_md_scale(op[1])
+        else:
+            probe.probe_md_refresh()
     live = set(cache(e)) | {e.r32(p + 0x230) for p in cache(e)}
     stats['blocks'] += len(live)
     ok = compare(f'case {i} blocks', t.log, rep.log) and compare_blocks(probe, f'case {i}', case, e, live)

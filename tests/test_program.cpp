@@ -4631,3 +4631,37 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
     mech3::options() = mech3::Options{};
   }
 }
+
+namespace mech3 {
+float& lod_scale();  // mech_data.h (its Handle clashes with this file's)
+}
+
+// The options' effects detail and object detail (playtest census #6 and #8):
+// through the program's hooks, zEffect's "if" level (0x00508fb0, counted the
+// other way) and the mechs' range scale (0x00430440).
+TEST(options_effects_and_mech_detail_reach_their_modules) {
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  const int32_t level0 = zeff::anim().level;
+  const float scale0 = mech3::lod_scale();
+  const int32_t want_level[3] = {2, 1, 0};
+  const float want_scale[3] = {1.0f, 0.75f, 0.0f};
+  for (int v = 0; v < 3; ++v) {
+    mech3::set_effects_level(v);
+    EXPECT(zeff::anim().level == want_level[v]);
+    mech3::set_object_lod(v);
+    EXPECT(mech3::lod_scale() == want_scale[v]);
+  }
+  EXPECT(engine.unported_counts().count("0x00508fb0") == 0);
+  EXPECT(engine.unported_counts().count("0x00430440") == 0);
+  zeff::anim().level = level0;
+  mech3::lod_scale() = scale0;
+}

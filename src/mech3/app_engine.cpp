@@ -7,6 +7,7 @@
 #include "mech3/sound_extra.h"
 #include "gamez/zdeclient/zdec_init.h"
 #include "gamez/zeffect/zeff_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_hud.h"
 
@@ -45,6 +46,8 @@
 
 namespace mech3 {
 
+void set_lod_scale(float s);  // mech_data.h (0x00430440)
+
 namespace {
 
 GameEngine* g_engine = nullptr;
@@ -56,6 +59,8 @@ struct WiredOptionsHooks : OptionsHooks {
     mech3_music::set_volume(static_cast<uint16_t>(l), static_cast<uint16_t>(r));
   }
   void model_set_global_light(int32_t on) override { zmod::set_shadows(on); }  // 0x00526a70
+  void effects_set_level(int32_t level) override { zeff::anim_set_level(level); }  // 0x00508fb0
+  void mechs_set_lod_scale(float s) override { mech3::set_lod_scale(s); }          // 0x00430440
   void input_set_screen(int32_t w, int32_t h) override { zin::mouse_set_screen(w, h); }  // 0x0051b590
   void camera_get_fov(Handle cam, float* x, float* y) override {  // 0x004f3ee0
     *x = *y = 1.0f;
@@ -594,5 +599,6 @@ void GameEngine::voice_release(const char* name) { zsnd::unload_set(name); }
 
 int32_t GameEngine::model_global_light() { return zmod::shadows_on(); }
 void GameEngine::model_set_global_light(int32_t on) { zmod::set_shadows(on); }
+void GameEngine::effects_set_level(int32_t v) { zeff::anim_set_level(v); }  // 0x00508fb0
 
 }  // namespace mech3

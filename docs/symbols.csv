@@ -928,3 +928,4 @@ address,name,source,notes
 0x0045f1c0,ValveChangeObjective::check,asm,"ported; valve value == target"
 0x0045e890,ReachAreaObjective::check,asm,"ported; 3D distance squared < radius squared, nav or point (node refreshed)"
 0x004d7330,entity_by_name,asm,"wired: AI mechs by name, then targets by node name; each vt+0x2c"
+0x00430440,set_lod_scale,asm,"ported: mech_data; [0x005e2928] then each cached type's ranges"
