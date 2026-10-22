@@ -683,3 +683,11 @@ Newest last. One short entry per item: what, commits, what to remember.
 - test_ai_node.py: waits in the chains, their start in out[45]. The
   compares' edges (equal times, NaN) needed values and a clock on the
   clock's own 0.5 s steps; 9 of 9 breaks then.
+
+## 2026-10-22 Item 3b: mcbwait, sound, gate (mac4/behaviours)
+
+- McbWaitState, SoundState, GateState (zai_node.h, zai_brain.cpp);
+  BrainHooks::sound_at (0x56e7e0), the program's zsnd::play_at.
+- test_ai_node.py: the gate's state real (the jump's still a fake), sound
+  steps (kind 10) and mcbwait nodes (11); 83 branches, 11 of 11 breaks.
+- FIX (bug) extended: an mcbwait record without a valve name.

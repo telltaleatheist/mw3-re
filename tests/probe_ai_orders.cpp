@@ -934,6 +934,15 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
       case 1: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::Speed, r[1])); break;
       case 8: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::WaitInterval, r[1])); break;
       case 9: g_elems.push_back(std::make_unique<ai::ValueStep>(ai::StepKind::WaitTime, r[1])); break;
+      case 10:  // a sound step: its fake sound 0x7000 + its index
+        g_elems.push_back(std::make_unique<ai::SoundStep>(reinterpret_cast<void*>(uintptr_t{0x7000} + uintptr_t(i))));
+        break;
+      case 11: {  // an mcbwait node: its valve, value and time in the five
+        const float p[3] = {fl(r[1]), fl(r[2]), fl(r[3])};
+        g_elems.push_back(std::make_unique<ai::McbWaitNode>(p, nullptr, 0, nullptr, g_node_valves[r[8] & 1].get(),
+                                                            static_cast<uint8_t>(r[9]), fl(r[10])));
+        break;
+      }
       case 2:
         g_elems.push_back(std::make_unique<ai::ValveStep>(g_node_valves[r[1] & 1].get(), static_cast<int32_t>(r[2])));
         break;
@@ -952,14 +961,14 @@ void probe_ao_node_net(const uint32_t* rows, int32_t n) {
         g_elems.push_back(std::move(st));
         break;
       }
-      default: g_elems.push_back(std::make_unique<TestStep<ai::GateStep>>(id, "g1")); break;
+      default: g_elems.push_back(std::make_unique<ai::GateStep>("g1")); break;  // its state real (0x004cd640)
     }
   }
   auto at = [](int32_t k) -> ai::Behaviour* { return k == -2 ? ai::null_step() : g_elems[static_cast<size_t>(k)].get(); };
   for (int32_t i = 0; i < n; ++i) {
     const uint32_t* r = rows + 13 * i;
     ai::Behaviour* e = g_elems[static_cast<size_t>(i)].get();
-    if (r[0] == 0 || r[0] == 5 || r[0] == 6) {
+    if (r[0] == 0 || r[0] == 5 || r[0] == 6 || r[0] == 11) {
       auto* nd = static_cast<ai::NodeStep*>(e);
       if (r[0] == 6) static_cast<ai::DeployNode*>(e)->target_step = at(static_cast<int32_t>(r[12]));
       for (int k = 0; k < 4; ++k)
@@ -1013,7 +1022,8 @@ void probe_ao_node(int32_t op, int32_t which, uint32_t dt, uint32_t* out) {
     const ai::Behaviour* x = o.state->behaviour();
     if (x && (x->kind == ai::StepKind::Speed || x->kind == ai::StepKind::Valve || x->kind == ai::StepKind::Scan ||
               x->kind == ai::StepKind::CanLeave || x->kind == ai::StepKind::CanLeaveNot ||
-              x->kind == ai::StepKind::WaitInterval || x->kind == ai::StepKind::WaitTime))
+              x->kind == ai::StepKind::WaitInterval || x->kind == ai::StepKind::WaitTime ||
+              x->kind == ai::StepKind::McbWaitNode || x->kind == ai::StepKind::Sound || x->kind == ai::StepKind::Gate))
       o.state->run(fl(dt));
   }
   std::memset(out, 0, 4 * 46);

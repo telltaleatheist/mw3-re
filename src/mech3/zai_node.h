@@ -64,6 +64,35 @@ class WaitState : public BehaviourState {
 };
 
 
+// An mcbwait node's state (0x004ccce0 -> 0x004ccd00, vtable 0x005cbfe8):
+// the pilot stopped there (IControls vt+0x14) until the game time is past
+// the node's (+0x34: its link 0 then), or its valve (+0x2c) holds its value
+// (+0x30: link 1).
+class McbWaitState : public BehaviourState {
+ public:
+  McbWaitState(Order* o, Behaviour* node);                      // 0x004ccd00
+  void run(float dt) override;                                  // 0x004ccda0
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
+// A sound step's state (0x004cce50 -> 0x004cce70, vtable 0x005cc0c0): the
+// step's sound at the pilot's place, then the next step.
+class SoundState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override;                                  // 0x004ccec0
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
+// A gate step's state (0x004cd560 -> 0x004cd640, vtable 0x005cc198): the
+// next step (the gate's test is its passable, 0x004cd5d0).
+class GateState : public BehaviourState {
+ public:
+  using BehaviourState::BehaviourState;
+  void run(float dt) override;                                  // 0x004cd690
+  Behaviour* behaviour() const override { return from; }        // 0x004c0030
+};
+
 // The node state (0x004ced40, 0x28 bytes, vtable 0x005cc5c0; made by the
 // node's vt+0x8c 0x004c9150).
 class NodeState : public BehaviourState {

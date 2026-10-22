@@ -233,6 +233,12 @@ class BrainHooks : public zgame::Unported {
   virtual bool attack(Brain& b, AiNet* current_net);           // 0x004e9ca0 (item 10)
   virtual void own_order_run(Brain& b, float dt);              // the brain's own order's vt+0x04: Brain::run_own_order
   virtual void* sound_find(const char* name);  // 0x0056f6f0: zsnd::find
+  // 0x0056e7e0 (ECX the sound, EDX the place, the volume, 0): a sound step's
+  // sound at the pilot's place.
+  virtual void sound_at(void* sound, const float pos[3], float volume) {
+    unported("0x0056e7e0", {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sound)), zgame::bits(pos[0]),
+                            zgame::bits(pos[1]), zgame::bits(pos[2]), zgame::bits(volume)});
+  }
   // The player's vehicle ([0x0060861c] +0x14) and its allies (+0xc4, the
   // AiTarget masks); false when there is no pilot or no vehicle. Silent.
   virtual bool player_allies(uint32_t* allies) {

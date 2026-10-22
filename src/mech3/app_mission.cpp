@@ -400,6 +400,10 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (ai::CZAiTarget* t = target(v)) return node_position(t->node, out);
     mech_world_position(mech(v), out);
   }
+  // 0x0056e7e0: a sound step's sound at the pilot's place.
+  void sound_at(void* sound, const float pos[3], float volume) override {
+    if (sound) zsnd::play_at(static_cast<zsnd::Object*>(sound), pos, volume, nullptr);
+  }
   // 0x004c3000: the mission's boundary, from the vehicle's place (0x005a85e0).
   bool inout_clamp(Handle v, const float in[3], float out[3]) override {
     float pos[3];
