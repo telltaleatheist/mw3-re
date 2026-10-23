@@ -938,3 +938,14 @@ is paused.
   10 breaks caught; test_fixes has the fix's own check.
 - Next: 1c2b, the accessors vt+0x108..+0x13c (they read this block), and
   0x4ace00 (the vehicle cameras).
+
+## 2026-10-23 Item 4, step 1c2b: the speeds and turns (lead)
+
+- vt+0x114..+0x13c (11 functions) in veh_basic_object; vt+0x130's second
+  argument and vt+0x120's argument are real (Ghidra showed neither), the
+  clamps' constants doubles (1.0, 0.0), NaN handling from the asm's flags.
+- test_veh_controls.py gained the 11 on a vehicle with the real vtable over
+  the original's base (each through a fresh thunk: Unicorn keeps translated
+  code), exact: 9 breaks caught (one equivalent break replaced).
+- Next: the vehicle cameras (0x4ace00, vt+0x108..+0x110), then 1d (damage,
+  death, salvage), 1e, and putting vehicles in the program.

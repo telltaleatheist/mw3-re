@@ -178,6 +178,30 @@ controls' +0x214 for the collision count). Defaults in brackets:
   shipped vehicle model has them (which would leave it no collision points)
   is to check against the models.
 
+## The speeds and turns (vt+0x114..+0x13c, ported in step 1c2b)
+
+What the AI asks a vehicle (the same slots the mechs answer, mech.h), from
+the motion block: the top speed is `rates`' second value, the slowing
+`rate_damping`'s second, the turn rate `turns`' second.
+
+| Slot | Function | Gives |
+|---|---|---|
+| +0x114 | 0x4acfa0 | the throttle (IControls GetThrottle, the controls' +0x08) x top speed |
+| +0x118 | 0x4acf70 | share x top speed |
+| +0x11c | 0x4acfe0 | speed / top speed (0 for a top speed of 0 or NaN) |
+| +0x120 | 0x4ad020 | speed / slowing: the stopping distance |
+| +0x124 | 0x4ad050 | the stopping distance at the throttle's speed |
+| +0x128 | 0x4ad0b0 | the stopping distance at a share's speed |
+| +0x12c | 0x4ad100 | slowing x d / top speed, clamped to 0..1 (NaN 0): the share that stops within d |
+| +0x130 | 0x4ad180 | angle / turn rate (at least 0.0001; a second argument unread) |
+| +0x134 | 0x4ad250 | the turn time of the controls' \|+0x78\| |
+| +0x138 | 0x4ad290 | the turn time of a share's speed |
+| +0x13c | 0x4ad1c0 | \|turn rate x b\| x a / top speed, clamped to 0..1 |
+
+Without controls the exe reads through null in +0x120..+0x128 (no vehicle
+is without them); the port gives 0. vt+0x108..+0x110 (0x4acd90, 0x4acdc0,
+0x4acde0) are the vehicle cameras' (with 0x4ace00), still hooks.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

@@ -30,7 +30,10 @@ block 0x49ef40 (step 1c2a): every key of vehicle.zrd's mode there or not
 (the mode's strings, unknown ones too), the model's support and collide
 nodes all there, some or none (the lists then), the destroy animation by
 name, type or neither; compared: the traces (the reports' texts), the
-whole base and the collision count.
+whole base and the collision count. The speeds and turns vt+0x114..+0x13c
+(step 1c2b), on a vehicle with the real vtable 0x5c88e8 over the original's
+base: the top speed, slowing and turn rate 0, NaN, negative or not, the
+throttle and arguments likewise; compared: each result, exactly.
 """
 import ctypes
 import math
@@ -42,7 +45,7 @@ from pathlib import Path
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
 from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
-from calltrace import CALLBACK, Emu, Replay, Trace, compare, load_probe, rnd  # noqa: E402
+from calltrace import CALLBACK, Emu, Replay, Trace, call_abs, compare, load_probe, mov_ecx, push_imm, rnd  # noqa: E402
 
 U, P = ctypes.c_uint32, ctypes.c_void_p
 SERIAL, GRAVITY = 0x60b148, 0x609a14
@@ -499,6 +502,53 @@ def run_motion(probe, seed):
     return True, len(t.log)
 
 
+SPEEDS = [(0x4acfa0, 0), (0x4acf70, 1), (0x4acfe0, 1), (0x4ad020, 1), (0x4ad050, 0), (0x4ad0b0, 1),
+          (0x4ad100, 1), (0x4ad180, 2), (0x4ad250, 0), (0x4ad290, 2), (0x4ad1c0, 2)]
+
+
+def value(r):
+    return r.choice([0.0, -0.0, float('nan'), r.uniform(-50, 50), r.uniform(0, 1), 1e-5, r.uniform(-1, 0), 300.0])
+
+
+def run_speeds(probe, seed):
+    t = Trace()
+    e, case, owner, node, matrix, ctl = make(seed, t, probe.probe_vc_gravity())
+    if not owner:
+        return True, 0
+    r = rnd(seed, 'speeds')
+    e.w32(owner, 0x5c88e8)  # the basic vehicle's vtable: its slots call each other
+    e.w32(owner + 0xe4, ctl)
+    top, slowing, turn_rate, throttle, x70z = (value(r) for _ in range(5))
+    for off, v in ((0x764 + 8, top), (0x764 + 0x1c, slowing), (0x764 + 0x10, turn_rate), (0x08, throttle), (0x78, x70z)):
+        e.wf(ctl + off, v)
+    probe.probe_vc_new(owner, node, e.r32(SERIAL))
+    probe.probe_vc_speed_state(top, slowing, turn_rate, throttle, x70z)
+    slot = e.alloc(16)
+    cw = e.alloc(4)
+    e.cpu.write(cw, struct.pack('<H', 0x007f))  # the game's 24-bit precision
+    for which, (addr, n) in enumerate(SPEEDS):
+        here = e.alloc(64)  # new code each time: Unicorn keeps what it translated
+        a, b = value(r), value(r)
+        args = [fbits(a), fbits(b)][:n]
+        # fninit; fldcw [cw]: an empty x87 stack each time (the set-up's calls leave it as they leave it)
+        code = b'\xdb\xe3\xd9\x2d' + struct.pack('<I', cw)
+        code += b''.join(push_imm(x) for x in reversed(args)) + mov_ecx(owner)
+        code += call_abs(here + len(code), addr) + b'\xd9\x1d' + struct.pack('<I', slot) + b'\xc3'
+        e.cpu.write(here, code)
+        e.cpu.fpu_control(0x007f)
+        e.call(here)
+        want = e.r32(slot)
+        got = fbits(probe.probe_vc_speed(which, a, b))
+        same = want == got or (math.isnan(struct.unpack('<f', struct.pack('<I', want))[0]) and
+                               math.isnan(struct.unpack('<f', struct.pack('<I', got))[0]))
+        if not same:
+            print(f'speeds seed {seed}: vt+{0x114 + 4 * which:#x} ({addr:#x}) at top {top}, slowing {slowing}, '
+                  f'turn {turn_rate}, throttle {throttle}, +0x78 {x70z}, args {a}, {b}: original '
+                  f'{struct.unpack("<f", struct.pack("<I", want))[0]!r} rebuild {struct.unpack("<f", struct.pack("<I", got))[0]!r}')
+            return False, 0
+    return True, len(SPEEDS)
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -514,17 +564,20 @@ def main():
     probe.probe_vc_place.argtypes = [P, ctypes.c_float]
     probe.probe_vc_motion.argtypes = [U, U, ctypes.c_char_p, ctypes.c_char_p, P]
     probe.probe_vc_set_mode.argtypes = [ctypes.c_int32]
+    probe.probe_vc_speed_state.argtypes = [ctypes.c_float] * 5
+    probe.probe_vc_speed.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_float]
+    probe.probe_vc_speed.restype = ctypes.c_float
     probe.probe_vc_gravity.restype = ctypes.c_float
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 400
     calls = 0
     for seed in range(runs):
-        for part in (run, run_slots, run_place, run_motion):
+        for part in (run, run_slots, run_place, run_motion, run_speeds):
             ok, n = part(probe, seed)
             if not ok:
                 sys.stdout.flush(); os._exit(1)
             calls += n
-    print(f'ok: {runs} controls inits, setups and resets {runs} weapon-slot fills, {runs} placements and {runs} motion blocks as the original ({calls} calls)')
+    print(f'ok: {runs} controls inits, setups and resets {runs} weapon-slot fills, {runs} placements, {runs} motion blocks and {runs} x 11 speeds as the original ({calls} calls)')
     sys.stdout.flush(); os._exit(0)
 
 

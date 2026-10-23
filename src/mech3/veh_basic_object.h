@@ -139,6 +139,21 @@ void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t k
 // Mech3.exe 1.2 @ 0x004a3630 (vt+0xdc): on the ground under `pos` (from 10
 // above it, 0.1 over the first polygon) or where given, facing `yaw`.
 void vehicle_place(BasicVehicle& v, const float pos[3], float yaw);
+// The speeds and turns the AI asks a vehicle (vt+0x114..+0x13c, the slots
+// the mechs answer in mech.h), from its motion block: the top speed is
+// rates[1], the slowing rate_damping[1], the turn rate turns[1]. Without
+// controls, 0 (the exe reads address 0x1c for the stopping distance).
+float vehicle_move_speed(const BasicVehicle& v);                  // vt+0x114 0x004acfa0: the throttle's
+float vehicle_speed_at(const BasicVehicle& v, float share);       // vt+0x118 0x004acf70
+float vehicle_share_for(const BasicVehicle& v, float speed);      // vt+0x11c 0x004acfe0
+float vehicle_stopping_distance(const BasicVehicle& v, float speed);  // vt+0x120 0x004ad020
+float vehicle_stopping_now(const BasicVehicle& v);                // vt+0x124 0x004ad050
+float vehicle_stopping_at(const BasicVehicle& v, float share);    // vt+0x128 0x004ad0b0
+float vehicle_stop_share(const BasicVehicle& v, float d);         // vt+0x12c 0x004ad100, 0..1
+float vehicle_turn_time(const BasicVehicle& v, float angle);      // vt+0x130 0x004ad180 (a second argument unread)
+float vehicle_turn_time_now(const BasicVehicle& v);               // vt+0x134 0x004ad250
+float vehicle_turn_time_at(const BasicVehicle& v, float share);   // vt+0x138 0x004ad290
+float vehicle_turn_share(const BasicVehicle& v, float a, float b);  // vt+0x13c 0x004ad1c0, 0..1
 void vehicle_destroy(BasicVehicle& v);  // 0x004ac650 over 0x004aeb50
 void vehicle_delete(BasicVehicle* v);   // 0x004ac630(1)
 
