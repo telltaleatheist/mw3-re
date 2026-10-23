@@ -42,12 +42,12 @@ def f32(x):
     return bf(fb(x))
 
 
-def same(a, b):
+def same(a, b, rel=4 * 2 ** -23):
     if a == b or (math.isnan(a) and math.isnan(b)):
         return True
     if math.isnan(a) or math.isnan(b) or math.isinf(a) or math.isinf(b):
         return False
-    return abs(a - b) <= max(1e-5, 4 * abs(a) * 2 ** -23)
+    return abs(a - b) <= max(1e-5, rel * abs(a))
 
 
 def attitude(r, airborne):
@@ -63,7 +63,10 @@ def attitude(r, airborne):
     return right + up + [-x for x in fwd], yaw, pitch, roll, [-sy, -cy]
 
 
-def run(probe, seed):
+def build(probe, seed, prep=None):
+    """The vehicle and its ground on both sides; `prep(e, r, t, v, ctl)` adds
+    a caller's stubs before the snapshot. Returns what run() and the frame's
+    test need."""
     r = rnd(seed, 'suspension')
     t = Trace()
     script = t.script
@@ -183,16 +186,19 @@ def run(probe, seed):
     e.cpu.write(asin, b'\xd9\xc0\xd8\xc8\xd9\xe8\xde\xe1\xd9\xfa\xd9\xf3\xc3')
     e.w32(0x5bb5f4, asin)
     probe.probe_vs_setup(v, ctl, node, keep, (ctypes.c_float * len(f))(*f), (ctypes.c_uint32 * 9)(*u))
+    if prep:
+        prep(e, r, t, v, ctl)
     rep = Replay(t, e, e.snapshot())
     probe.probe_app_set_callback(rep.callback())
-    want = e.call(0x4a1760, ecx=v)
-    mine = probe.probe_vs_run()
-    name = f'suspension seed {seed} (dt {dt:.3f}{", a support without ground" if missing else ""})'
-    if not compare(name, t.log, rep.log, ulps={'vt+0x18': (1, 2, 3), '0x004ee2f0.probe': (0, 1, 2)}):
-        return False
-    if want != mine:
-        print(f'{name}: answer original {want} rebuild {mine}')
-        return False
+    return dict(r=r, t=t, e=e, rep=rep, v=v, ctl=ctl, mat=mat, mb=mb, dt=dt, missing=missing)
+
+
+ULPS = {'vt+0x18': (1, 2, 3), '0x004ee2f0.probe': (0, 1, 2)}
+
+
+def check_image(probe, name, x, rel=4 * 2 ** -23):
+    """The suspension's fields on both sides."""
+    e, v, ctl, mat, mb = x['e'], x['v'], x['ctl'], x['mat'], x['mb']
     w = [bf(e.r32(mat + 4 * i)) for i in range(12)]
     w += [bf(e.r32(v + 0x18 + 4 * i)) for i in range(3)]
     w += [bf(e.r32(ctl + o)) for o in (0x68, 0x74, 0x50, 0x58, 0x32c, 0x334, 0x308, 0x30c, 0x310, 0x88, 0x8c)]
@@ -208,7 +214,7 @@ def run(probe, seed):
             if fb(a) != fb(b):
                 print(f'{name}: {names[i]} original {fb(a):#x} rebuild {fb(b):#x}')
                 return False
-        elif not same(a, b):
+        elif not same(a, b, rel):
             print(f'{name}: {names[i]} original {a} rebuild {b}')
             return False
     if e.r32(ctl + 0x20) != gu[0] or e.r32(v + 0x64) != gu[1]:
@@ -216,6 +222,19 @@ def run(probe, seed):
               f'rebuild {gu[0]} {gu[1]:#x}')
         return False
     return True
+
+
+def run(probe, seed):
+    x = build(probe, seed)
+    want = x['e'].call(0x4a1760, ecx=x['v'])
+    mine = probe.probe_vs_run()
+    name = f'suspension seed {seed} (dt {x["dt"]:.3f}{", a support without ground" if x["missing"] else ""})'
+    if not compare(name, x['t'].log, x['rep'].log, ulps=ULPS):
+        return False
+    if want != mine:
+        print(f'{name}: answer original {want} rebuild {mine}')
+        return False
+    return check_image(probe, name, x)
 
 
 def main():

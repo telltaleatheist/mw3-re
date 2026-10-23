@@ -179,6 +179,8 @@ struct VehicleControls {
   // the AI's 0x004a2ae0: the turn x top_turn).
   virtual void turn_step(const VehicleMotion& m, float dt);
   virtual bool destroyed() { return true; }
+  // IControls vt+0x0c, the frame (the base's 0x00410510: 0; the AI's the brain's).
+  virtual int update(float dt) { (void)dt; return 0; }
   virtual int32_t dynamics() { return 0; }
   virtual int32_t path_mode() { return 0; }
   virtual int32_t path_goal() { return -1; }
@@ -199,11 +201,14 @@ struct VehicleControls {
   Vec3c x50;                  // +0x050  0x0063d870; the turn rates, y the turn (vt+0x14)
   Vec3c velocity;             // +0x064  the world's (the owner's +0x30 copies it)
   Vec3c x70;                  // +0x070  0x0063d870 (the placement); the local velocity: z ahead, x the slide
+  Vec3c x7c;                  // +0x07c  the world velocity as last moved (0x004a12c0)
   float top_speed = 0;        // +0x088  the motion's rates[1] in the movement, slowed in quicksand and lava
   float top_turn = 0;         // +0x08c  turns[1] likewise
   uint32_t x94[4] = {};       // +0x094
+  Vec3c x_ac[15];             // +0x0ac  the collision points in the world as moved (0x004a12c0)
   Vec3c points[15];           // +0x160  each the place, when placed after the init (count +0x214)
   int32_t point_count = 0;    // +0x214
+  float last_matrix[12] = {};  // +0x278  the owner's matrix as last moved
   Vec3c up;                   // +0x308  the owner's matrix's second row, once rotated (and each movement, 0x004a2890)
   Vec3c x314;                 // +0x314  (the side force reads x and z)
   Vec3c angles0;              // +0x320  the node's rotation as first read
@@ -232,6 +237,7 @@ struct VehicleControls {
   Vec3c fpnt_l;               // +0x644
   int32_t x650 = 0;           // +0x650
   Vec3c gun_pos;              // +0x6d8  the gun's world position
+  Vec3c player_at;            // +0x6f0  the player's mech's lock position, each frame (0x004a1040)
   Handle body = nullptr;      // +0x700
   Handle turret_node = nullptr;  // +0x704
   Handle gun = nullptr;       // +0x708

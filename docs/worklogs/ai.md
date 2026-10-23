@@ -1039,3 +1039,15 @@ is paused.
 - Next: 2c3: 0x4a12c0 (the TRACK step), 0x4a1240, the frame 0x4a1040,
   the collisions 0x49ff80, the engine sound 0x4addc0, 0x4b4880, BASIC 0x4a1d90.
 
+## 2026-10-23 Item 4, step 2c3: the frame (lead)
+
+- 0x4a1040, 0x4a1240, 0x4a12c0, 0x4addc0, 0x4b4880 in veh_move; new fields
+  x7c, x_ac, last_matrix, player_at; VehicleControls::update virtual.
+- test_veh_frame.py (over test_veh_suspension.py's builder): 600 track
+  steps and moves, 300 frames, 24 breaks caught. A support's speed is
+  (ground - y) / dt, so an ulp of the matrix's sin or cos is 1e-6 of it:
+  the frame's compares allow that.
+- Next: 2c4, the collisions 0x49ff80 (0x4a0180, 0x4a1020, 0x4a0b20,
+  0x4a0b00, 0x4a0100, 0x4a0b40); BASIC's 0x4a1d90 / 0x4a1f00; then the
+  vehicles into the program (the entity manager's walk, the sensors).
+

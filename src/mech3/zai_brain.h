@@ -693,7 +693,7 @@ struct AiVehicleControls : VehicleControls, BrainControls {
   void turn_step(const VehicleMotion&, float) override { x50.y = top_turn * turn; }  // vt+0x14 0x004a2ae0
   bool on_path() override { return true; }                      // IControls vt+0x70 0x004e7790 -> 0x004a5270
   void died() override;                                         // IControls vt+0xa8 0x004e7800 -> 0x004ea6b0
-  int update(float dt);                                         // IControls vt+0x0c 0x004e7670 -> 0x004e71a0
+  int update(float dt) override;                                // IControls vt+0x0c 0x004e7670 -> 0x004e71a0
   void on_hit(void* attacker);                                  // IControls vt+0x94 0x004ea520
   void hit_an_ally(void* victim) { brain->hit_an_ally(brain_hooks().vehicle_handle(victim)); }  // vt+0x98 0x004ea500
   void tick() { brain->pilot_tick(*this); }                     // IControls vt+0xa4 0x004e94f0

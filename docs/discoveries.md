@@ -219,6 +219,10 @@ From the port of the damage code, checked in an emulator against the original
 - **A tank in the air levels itself out.** When all its wheels leave the
   ground, a tracked vehicle tips back toward level and can't tilt past 30
   degrees until it lands.
+- **A truck's moving animation needs nearly full throttle.** A vehicle's
+  motion animation (its wheels or tracks turning, from the file's
+  `motion_anim`) plays only while it drives at more than 90% throttle, and
+  stops the moment it slows below that.
 - **The targeting view shows a vehicle's damage in red.** In TARGET's
   picture of a vehicle, the model is tinted red by how much health it has
   lost, up to 60% just before it dies.
