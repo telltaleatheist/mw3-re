@@ -860,3 +860,38 @@ is paused.
   list) with the clear, and the setup over random definitions; 11 breaks
   caught (the list's two at the full count).
 - Next: 1c, the placement vt+0xdc 0x4a3630 and the accessors.
+
+## 2026-10-23 Item 4: the order after 1b (lead)
+
+- c1m1's four vehicles have nets, so they get the AI's vehicle controls
+  (0x4e71c0, given); the vehicle's own 0xa70 controller (0x4ae270, its init
+  0x4ae3c0 reading a record through 0x4022c0, ranges defaulted 102400, 1500,
+  10, 4624, 4900, 3, 62500, ...) is for a vehicle whose kind has no net
+  (create_vehicle 0x49fce0). Both sit on the base 0x4ac750: vtable +0x00,
+  vbptr +0x04, the IControls virtual base after +0xa04 (+0xa08 when most
+  derived), the turret limits in the +0x764 block (0x4ac740 -> 0x4a4af0);
+  the base's ctor sets nothing else, its users fill it.
+- The placement 0x4a3630 (1c) writes that base (+0x14, +0x20, +0x24,
+  +0x70, +0x160 points with the +0x214 count, +0x330, the +0x764 block's
+  +0x84 / +0x14c), so the order is now: 2a1 the base's layout from its
+  users and `ai::AiVehicleControls` over it; 1c the placement and the
+  accessors; 2b the AI vehicle controls' vtable 0x5cd830; 2c the frame;
+  then 1d, 1e; the 0xa70 controller (0x4ae270, 0x4ae3c0, 0x4ae6b0,
+  0x4a2a00, ...) after, as 2a2.
+
+## 2026-10-23 Item 4, step 2a1: the vehicles' controls base (lead)
+
+- `mech3/veh_controls`: `VehicleControls`, the base 0x4ac750 of the AI's
+  vehicle controls and the basic ones; `ai::AiVehicleControls` derives from
+  it (its turret limits and owner moved there; `TurretLimits` too). The init
+  0x4ac8a0, the setup 0x4acbc0, 0x4accd0, 0x5869d0, the rotation 0x4ab990.
+  The base's primary vtable 0x5c8b58 against the AI's 0x5cd880: the AI keeps
+  the setup and init and overrides vt+0x14, +0x1c, +0x24, +0x28.
+- test_veh_controls.py: 400 runs (2 s), the original's base made by its own
+  ctor; the definition's reader nodes in the emulator's memory, mirrored by
+  the probe; the rotation compared within 4 ulps or 1e-6. 10 breaks caught,
+  among them the "fix" of the firepoints' fields (the test pins the
+  original's choice).
+- Open (vehicles.md): which firepoint fields the firing reads.
+- Next: 2a1b, the vehicle's 0x4af2a0 (131 lines, the controls' +0x3bc
+  table), which may settle the firepoints; then 1c.

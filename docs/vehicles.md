@@ -75,6 +75,40 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
 - About 40 functions in the vtable (most under 30 lines; 0x4d6de0 142 and
   0x4a2ef0 144 are AiTarget / AI), roughly 2,000 lines of pseudocode.
 
+## The vehicles' controls base (0x4ac750, ported in step 2a1)
+
+The AI's vehicle controls (0x4e71c0 over 0x4e7090) and the vehicle's own
+basic ones (0x4ae270) sit on one base, `mech3::VehicleControls`
+(`mech3/veh_controls`; `ai::AiVehicleControls` derives from it). Its
+constructor sets only the turret limits; its users fill it:
+
+- The init (vt+0x10, 0x4ac8a0), with the owner and its node: a serial
+  number (+0x14, from the counter [0x60b148]), the node's rotation (+0x32c,
+  0x4fbe90; a copy at +0x320) turned into the owner's matrix (0x4ab990,
+  zMath's euler rotation) and its second row kept (+0x308), the owner
+  refreshed (0x5a85c0), the nodes `body`, `turret`, `shadow`, `gun` found
+  in the tree (+0x700, +0x704, +0x70c, +0x708), the gun's world position
+  (+0x6d8), then the gun's firepoints: `fpnt_c` (its marker model dropped),
+  `fpnt_l`, `fpnt_r` (removed and freed once read); the health 100 (+0x740,
+  +0x744).
+- The setup (vt+0x0c, 0x4acbc0, the end of the vehicle's 0x49ec00): the init
+  (through the vtable, so the basic controls' 0x4ae3c0 runs there), each
+  `start_anims` animation started on the owner's node (0x508c10), the
+  definition's `health`, the owner's 0x4af2a0 (step 2a1b) and its weapons
+  (0x4b4660, the port's `build_vehicle_weapons`), the owner's node at +0x3b0,
+  the block at +0x398 cleared (0x5869d0).
+- vt+0x18 0x4accd0: +0x1c the gravity ([0x609a14]), +0x30, +0x3c, +0x350,
+  +0x5e8 zero.
+
+Open: a firepoint the gun has lands in one set of fields (fpnt_c +0x62c with
+the inverse of its length at +0x724, fpnt_r +0x638, fpnt_l +0x644), the
+default for one it lacks in another (+0x608 (0, 0, -1), +0x614 (1.51, 0.396,
+-2.46), +0x620 (-1.51, 0.396, -2.46)). 0x4af2a0 hands +0x608 and +0x5f0 to
+0x584a70; nothing found in the vehicle code reads the found set. If the
+firing reads only the defaults' fields, a gun's own firepoints are ignored
+and a gun with fpnt_c fires along (0, 0, 0): settled with 0x4af2a0 and the
+firing (step 2), not guessed here; ported as written.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

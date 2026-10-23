@@ -1247,18 +1247,12 @@ void Brain::make_radio() {
 }
 
 // Mech3.exe 1.2 @ 0x004a3fc0 twice (from 0x004a4000).
-TurretLimits::TurretLimits(float lo, float hi)
-    : lo_sin(static_cast<float>(std::sin(static_cast<double>(lo)))),
-      lo_cos(static_cast<float>(std::cos(static_cast<double>(lo)))),
-      hi_sin(static_cast<float>(std::sin(static_cast<double>(hi)))),
-      hi_cos(static_cast<float>(std::cos(static_cast<double>(hi)))) {}
-
 // Mech3.exe 1.2 @ 0x004e71c0 (most derived: the IControls base at +0xcc4,
 // owner +0xcd4), over 0x004e7090: the basic vehicle controls 0x004ac750
 // (0x004ac740 on +0x764 -> 0x004a4af0: the turret limits of -pi/2 and pi/2),
 // the brain on +0xa04, then +0xcb0, +0xcbc and +0x38.
-AiVehicleControls::AiVehicleControls(void* o, AiNet* net, const AiParams& rec)
-    : turret(-1.57079637f, 1.57079637f), owner(o) {
+AiVehicleControls::AiVehicleControls(void* o, AiNet* net, const AiParams& rec) {
+  owner = o;
   brain = std::make_unique<Brain>(net, rec);
 }
 
