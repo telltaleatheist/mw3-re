@@ -7,6 +7,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "mech3/mech_build.h"
+#include "mech3/mission_world.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -116,13 +117,13 @@ BasicVehicle* vehicle_create(Handle ctl, const char* type, const char* name) {
 void vehicle_construct(BasicVehicle& v, Handle ctl, Handle node) {
   VehBasicHooks& h = *g_hooks;
   vehicle_base(v);
-  v.controls = ctl;
+  v.controls = static_cast<VehicleControls*>(ctl);
   v.engine = EngineSound{};  // 0x004adaf0
   v.motion = MotionAnim{};  // 0x004aec00
   v.node = nullptr;
   if (!v.controls) {
     const Handle mem = h.controls_alloc(0xa70);
-    v.controls = mem ? h.controls_make(mem, v) : nullptr;
+    v.controls = mem ? static_cast<VehicleControls*>(h.controls_make(mem, v)) : nullptr;
   } else {
     h.controls_set_owner(v.controls, v);
   }
@@ -177,6 +178,38 @@ void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t k
   const char* motion = nullptr;
   if (h.reader_string_value(def, "motion_anim", &motion) && motion) v.motion.set(motion);
   h.controls_setup(v.controls, def, name, kind);
+}
+
+int32_t VehBasicHooks::ground(float x, float y, float z, zcls::GroundHits* out) {
+  zcls::Node* w = world_hooks().world;  // [0x00608c84]+4
+  if (!w) {
+    out->count = 0;  // the exe needs a world
+    return 1;
+  }
+  return zcls::ground_point(w, x, y, z, out);
+}
+void VehBasicHooks::set_position(BasicVehicle& v, const float pos[3]) {
+  unported("veh.vt+0x18", {ref(&v), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2])});
+}
+
+// Mech3.exe 1.2 @ 0x004a3630. The exe writes the controls without asking
+// whether there are any (a vehicle always has them unless their block could
+// not be had).
+void vehicle_place(BasicVehicle& v, const float pos[3], float yaw) {
+  VehBasicHooks& h = *g_hooks;
+  float p[3] = {pos[0], pos[1], pos[2]};
+  zcls::GroundHits hits{};
+  if (h.ground(p[0], p[1] - -10.0f, p[2], &hits) == 0 && hits.count > 0) p[1] = hits.hit[0].height - -0.1f;
+  h.set_position(v, p);
+  VehicleControls& c = *v.controls;
+  c.angles.y = yaw;
+  c.clear_commands();  // IControls vt+0x14
+  h.refresh(v);
+  c.x70 = Vec3c{};
+  for (int32_t i = 0; i < c.x7e8 && i < 32; ++i) c.x8b0[i] = 0;
+  c.x20 = 0, c.x24 = 0;
+  if (c.serial)
+    for (int32_t i = 0; i < c.point_count && i < 15; ++i) c.points[i] = {p[0], p[1], p[2]};
 }
 
 // Mech3.exe 1.2 @ 0x004ac650.

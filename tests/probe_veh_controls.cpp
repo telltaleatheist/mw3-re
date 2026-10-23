@@ -141,6 +141,19 @@ struct Hooks : m3::VehControlsHooks {
 };
 Hooks g_hooks;
 
+// The placement's calls (mech3/veh_basic_object).
+struct VehHooks : m3::VehBasicHooks {
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
+  uint32_t ref(const void* p) override { return p == &g_owner ? g_owner_addr : lo(p); }
+  int32_t ground(float x, float y, float z, zcls::GroundHits* out) override {
+    const int32_t r = static_cast<int32_t>(call("0x004edab0", {zgame::bits(x), zgame::bits(y), zgame::bits(z)}));
+    out->count = static_cast<uint8_t>(call("@hits.count", {}));
+    out->hit[0].height = fans("@hits.height");
+    return r;
+  }
+};
+VehHooks g_veh_hooks;
+
 void put(uint8_t* b, uint32_t off, uint32_t v) { std::memcpy(b + off, &v, 4); }
 void putf(uint8_t* b, uint32_t off, float v) { std::memcpy(b + off, &v, 4); }
 void put3(uint8_t* b, uint32_t off, const m3::Vec3c& v) { putf(b, off, v.x), putf(b, off + 4, v.y), putf(b, off + 8, v.z); }
@@ -189,6 +202,27 @@ void probe_vc_weapon_slots(uint32_t def) {
   g_run_slots = false;
 }
 
+// For the placement: the controls' fields it reads and writes, as the test
+// set the original's (throttle, turn, serial, x20, x24, x70 xyz, angles y,
+// point_count, x7e8), the 15 points and the 32 words.
+void probe_vc_place_state(const uint32_t* w, const float* points, const uint32_t* words) {
+  m3::VehicleControls& c = *g_c;
+  c.throttle = zgame::from_bits(w[0]), c.turn = zgame::from_bits(w[1]), c.serial = static_cast<int32_t>(w[2]);
+  c.x20 = w[3], c.x24 = w[4];
+  c.x70 = {zgame::from_bits(w[5]), zgame::from_bits(w[6]), zgame::from_bits(w[7])};
+  c.angles.y = zgame::from_bits(w[8]);
+  c.point_count = static_cast<int32_t>(w[9]), c.x7e8 = static_cast<int32_t>(w[10]);
+  for (int i = 0; i < 15; ++i) c.points[i] = {points[3 * i], points[3 * i + 1], points[3 * i + 2]};
+  for (int i = 0; i < 32; ++i) c.x8b0[i] = words[i];
+}
+void probe_vc_place(const float* pos, float yaw) {
+  m3::set_veh_basic_hooks(&g_veh_hooks);
+  g_owner.controls = g_c.get();
+  m3::vehicle_place(g_owner, pos, yaw);
+  g_owner.controls = nullptr;
+  m3::set_veh_basic_hooks(nullptr);
+}
+
 void probe_vc_init() { g_c->init(); }
 void probe_vc_setup(uint32_t def) { g_c->setup(reinterpret_cast<zrdr::Node*>(hd(def))); }
 void probe_vc_reset_1c() { g_c->reset_1c(); }
@@ -202,7 +236,13 @@ void probe_vc_matrix(float* out) { std::memcpy(out, g_matrix, 9 * sizeof(float))
 // rest).
 void probe_vc_image(uint8_t* b) {
   const m3::VehicleControls& c = *g_c;
+  putf(b, 0x08, c.throttle), putf(b, 0x0c, c.turn);
   put(b, 0x14, static_cast<uint32_t>(c.serial)), putf(b, 0x1c, c.x1c);
+  put(b, 0x20, c.x20), put(b, 0x24, c.x24), put3(b, 0x70, c.x70);
+  for (int i = 0; i < 15; ++i) put3(b, 0x160 + 12 * static_cast<uint32_t>(i), c.points[i]);
+  put(b, 0x214, static_cast<uint32_t>(c.point_count));
+  put(b, 0x7e8, static_cast<uint32_t>(c.x7e8));
+  for (int i = 0; i < 32; ++i) put(b, 0x8b0 + 4 * static_cast<uint32_t>(i), c.x8b0[i]);
   put(b, 0x28, c.x28), put(b, 0x2c, c.x2c), put(b, 0x30, c.x30), put(b, 0x3c, c.x3c);
   put3(b, 0x50, c.x50);
   for (int k = 0; k < 4; ++k) put(b, 0x94 + 4 * k, c.x94[k]);

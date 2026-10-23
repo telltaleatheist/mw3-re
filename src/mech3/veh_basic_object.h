@@ -3,7 +3,9 @@
 #include <vector>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/zclass/cls_di.h"
 #include "mech3/mech.h"
+#include "mech3/veh_controls.h"
 
 namespace zrdr {
 struct Node;
@@ -59,7 +61,7 @@ struct MotionAnim {
 // 0xfc bytes, vtable 0x005c88e8 (89 slots).
 struct BasicVehicle : Vehicle {
   uint32_t xe0 = 0;              // +0xe0
-  Handle controls = nullptr;     // +0xe4  given (the AI's), else its own made here (0x004ae270)
+  VehicleControls* controls = nullptr;  // +0xe4  given (the AI's), else its own made here (0x004ae270)
   EngineSound engine;            // +0xe8  (0x004adaf0)
   MotionAnim motion;             // +0xf0
 };
@@ -118,6 +120,10 @@ class VehBasicHooks : public zgame::Unported {
   virtual void controls_setup(Handle c, zrdr::Node* def, const char* name, int32_t kind) {
     unported("ctl.vt+0xc", {low(c), low(def), name, kind});
   }
+  // The placement's (step 1c).
+  virtual int32_t ground(float x, float y, float z, zcls::GroundHits* out);  // 0x004edab0 on [0x00608c84]+4
+  virtual void set_position(BasicVehicle& v, const float pos[3]);  // vt+0x18, zEntity3d's 0x005a8550
+  virtual void refresh(Vehicle& v) { unported("0x005a85c0", {ref(&v)}); }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return h(unported("0x0059b830", {name, 0, 0, 1})); }
 };
@@ -130,6 +136,9 @@ void vehicle_construct(BasicVehicle& v, Handle ctl, Handle node);  // 0x004ac530
 // Mech3.exe 1.2 @ 0x0049ec00 (vt+0x158): the definition's sounds/engine and
 // motion_anim, then the controls' own setup.
 void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t kind);
+// Mech3.exe 1.2 @ 0x004a3630 (vt+0xdc): on the ground under `pos` (from 10
+// above it, 0.1 over the first polygon) or where given, facing `yaw`.
+void vehicle_place(BasicVehicle& v, const float pos[3], float yaw);
 void vehicle_destroy(BasicVehicle& v);  // 0x004ac650 over 0x004aeb50
 void vehicle_delete(BasicVehicle* v);   // 0x004ac630(1)
 
