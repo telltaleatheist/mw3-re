@@ -25,6 +25,8 @@
 namespace mech3 {
 
 int32_t game_intensity();  // options.h (its Handle clashes with mech.h's)
+float player_dt();         // player.h's [0x005e8110] and [0x005e8114] (likewise)
+float player_inv_dt();
 
 namespace {
 VehBasicHooks g_default_hooks;
@@ -38,6 +40,9 @@ zsnd::VoiceBase* voice(Handle h) { return static_cast<zsnd::VoiceBase*>(h); }
 }  // namespace
 
 void set_veh_basic_hooks(VehBasicHooks* h) { g_hooks = h ? h : &g_default_hooks; }
+VehBasicHooks& veh_basic_hooks() { return *g_hooks; }
+float VehBasicHooks::frame_dt() { return player_dt(); }
+float VehBasicHooks::frame_inv_dt() { return player_inv_dt(); }
 
 void VehBasicHooks::entity_set_node(Vehicle& v, Handle node) {
   unported("0x004d6c90", {ref(&v), low(node), 0, 0, 0});

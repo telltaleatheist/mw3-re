@@ -11,6 +11,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/veh_basic_object.h"
+#include "mech3/veh_move.h"
 #include "mech3/player_view.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zmodel/gmod_matl.h"
@@ -69,6 +70,9 @@ struct Hooks : m3::VehBasicHooks {
   int32_t node_flag8(m3::Handle node) override { return static_cast<int32_t>(unported("0x004eb660", {low(node)})); }
   void node_set_flag8(m3::Handle node, int32_t on) override { unported("0x004eb620", {low(node), on}); }
   void node_set_zone(m3::Handle node, uint8_t zone) override { unported("0x004eb810", {low(node), zone}); }
+  // 2c1: the frame time and its inverse read from the original's globals.
+  float frame_dt() override { return zgame::from_bits(probe_app::call("peek32", {0x5e8110})); }
+  float frame_inv_dt() override { return zgame::from_bits(probe_app::call("peek32", {0x5e8114})); }
   // The readout's: the controls' slots keyless (as the test's stubs), the
   // node's name and the camera's zones read back, the position by its call.
   int32_t controls_dynamics(m3::VehicleControls&) override { return static_cast<int32_t>(unported("ctl.vt+0x20", {})); }
@@ -368,3 +372,60 @@ float probe_vb_gravity_x1c() { return g_dv->controls->x1c; }
 }  // extern "C"
 
 extern "C" void probe_zones_mode(int32_t on) { zmod::zones().mode = on; }  // [0x005ea1d0]
+
+// 2c1: the movement's helpers on a vehicle at `v` with controls at `ctl`.
+// f: forward x, z, the matrix (12), throttle, turn, heading x, z, x50.y,
+// velocity (3), x70 (3), x314 (3), top speed, top turn, angles y, rates[0],
+// turns[0], turns[1], turn_damping, rate_damping (2), friction (2); u:
+// sliding, x760.
+namespace {
+float g_vm_matrix[12];
+}
+extern "C" {
+void probe_vm_setup(uint32_t v, uint32_t ctl, const float* f, const uint32_t* u) {
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new m3::VehicleControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl;
+  g_dv->controls = c;
+  g_dv->forward.x = f[0], g_dv->forward.z = f[1];
+  for (int i = 0; i < 12; ++i) g_vm_matrix[i] = f[2 + i];
+  g_dv->transform = g_vm_matrix;
+  int k = 14;
+  c->throttle = f[k++], c->turn = f[k++];
+  c->heading.x = f[k++], c->heading.z = f[k++];
+  c->x50.y = f[k++];
+  c->velocity = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->x70 = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->x314 = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->top_speed = f[k++], c->top_turn = f[k++], c->angles.y = f[k++];
+  m3::VehicleMotion& m = c->motion;
+  m.rates[0] = f[k++], m.turns[0] = f[k++], m.turns[1] = f[k++], m.turn_damping = f[k++];
+  m.rate_damping[0] = f[k++], m.rate_damping[1] = f[k++], m.friction[0] = f[k++], m.friction[1] = f[k++];
+  c->sliding = u[0], c->x760 = u[1];
+}
+// 0 turn_to_heading, 1 up_refresh, 2 speed_step, 3 side_force (its answer),
+// 4 the base's turn step, 5 the AI's (top_turn x turn).
+float probe_vm_call(int which) {
+  m3::BasicVehicle& v = *g_dv;
+  m3::VehicleControls& c = *v.controls;
+  switch (which) {
+    case 0: m3::vehicle_turn_to_heading(v); break;
+    case 1: m3::vehicle_up_refresh(v); break;
+    case 2: m3::vehicle_speed_step(v); break;
+    case 3: return m3::vehicle_side_force(v);
+    case 4: c.turn_step(c.motion, zgame::from_bits(probe_app::call("peek32", {0x5e8110}))); break;
+    case 5: c.x50.y = c.top_turn * c.turn; break;  // AiVehicleControls::turn_step
+    default: break;
+  }
+  return 0.0f;
+}
+// x50.y, x70 (3), throttle, turn, angles y, up (3); sliding, x760.
+void probe_vm_image(float* f, uint32_t* u) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  f[0] = c.x50.y, f[1] = c.x70.x, f[2] = c.x70.y, f[3] = c.x70.z, f[4] = c.throttle, f[5] = c.turn;
+  f[6] = c.angles.y, f[7] = c.up.x, f[8] = c.up.y, f[9] = c.up.z;
+  u[0] = c.sliding, u[1] = c.x760;
+}
+}  // extern "C"
+

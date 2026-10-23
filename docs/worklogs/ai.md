@@ -1018,3 +1018,14 @@ is paused.
   0x4addc0 the engine sound, 0x4b4880 the weapons), and zEntity's zone
   update 0x5a80f0.
 
+## 2026-10-23 Item 4, step 2c1: the movement helpers (lead)
+
+- mech3/veh_move: 0x4a28c0, 0x4a2890, 0x4a2b10, 0x4a2dd0, 0x4a2c90 and the
+  turn steps 0x4a2a00 / 0x4a2ae0 (VehicleControls::turn_step). New fields:
+  sliding +0x34, velocity +0x64, top_speed +0x88, top_turn +0x8c, x314,
+  heading +0x748. The NaN rules of the x87 compares matter here.
+- test_veh_move.py: 1200 runs, 13 of 14 breaks.
+- Next: 2c2, 0x4a1760 (285 lines: the track's ground following and the
+  top speeds), then 2c3: 0x4a12c0, 0x4a1240, the frame 0x4a1040, the
+  collisions 0x49ff80, the engine sound 0x4addc0, 0x4b4880, BASIC 0x4a1d90.
+
