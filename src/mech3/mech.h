@@ -79,7 +79,11 @@ struct MechData {
   CockpitModel* cockpit_model = nullptr;  // +0x228  0x00430ad0's cockpit block (deleted by 0x00430580)
 };
 
-struct Mech : ai::AiTarget {
+// The vehicle base every vehicle and mech shares (veh_basic.cpp's neighbour,
+// ctor 0x004aeb00, dtor 0x004aeb50): ZEntity, ZEntity3d, AiTarget, then the
+// weapons and the network's collision record. Mechs: Mech; the rest:
+// mech3/veh_basic.h.
+struct Vehicle : ai::AiTarget {
   Handle node = nullptr;     // +0x004  the world node
   bool active = true;        // +0x008
   bool x09 = true;           // +0x009  (ZEntity)
@@ -97,6 +101,9 @@ struct Mech : ai::AiTarget {
   // height becomes the model's box's (12 without one).
   void* ammo;                // +0x0d4  weapons and ammo bins: the WeaponManager (weapon.h)
   NetCollision* net_collision = nullptr;  // +0x0d8  the network's collision record
+};
+
+struct Mech : Vehicle {
   bool power_down_pending;   // +0x0dc
   bool heat_shutdown;        // +0x0dd
   bool powered_down;         // +0x0de

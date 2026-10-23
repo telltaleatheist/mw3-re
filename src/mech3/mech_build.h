@@ -154,7 +154,11 @@ Mech* mech_create(int32_t index, MechControls* ctl, int32_t config, const char* 
 Mech* mech_new(MechData* data, MechControls* ctl, Config* cfg, const char* name);        // 0x004140c0
 int32_t mechs_alive();      // ours, for the tests: mech_new's not yet deleted
 void mech_delete(Mech* m);  // vtable +0 with 1 (0x00414f20): release, then the delete
-void mech_construct(Mech& m, MechData* data, MechControls* ctl, Config* cfg, const char* name);  // 0x004149f0
+void vehicle_base(Vehicle& v);  // 0x004aeb00: the base every vehicle and mech shares
+// 0x004d6c90's stand-in (the entity record is not ported): the node, its
+// matrix and its two markers.
+void vehicle_set_node(Vehicle& v, Handle node);
+void mech_construct(Mech& m,MechData* data, MechControls* ctl, Config* cfg, const char* name);  // 0x004149f0
 bool mech_model(Mech& m, const char* name);   // 0x00415b00
 bool mech_parts(Mech& m);                     // 0x00415e40
 void mech_motions(Mech& m);                   // 0x00415ca0

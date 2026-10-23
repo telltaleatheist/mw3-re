@@ -98,6 +98,10 @@ void* MechBuildHooks::node_owner(Handle node) {
 // the two markers (zent::marker_nodes; before, both were the node itself).
 void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
   unported("0x004d6c90", {ref(&m), low(node), name, 0, 0});
+  vehicle_set_node(m, node);
+}
+
+void vehicle_set_node(Vehicle& m, Handle node) {
   m.node = node;
   m.transform = node ? zcls::object3d_matrix(zn(node)) : nullptr;
   zcls::Node *centroid = nullptr, *target = nullptr;
@@ -229,11 +233,9 @@ void Mech::release() {
   x6d0.clear(), x678.clear(), actions.clear();
 }
 
-namespace {
-
 // Mech3.exe 1.2 @ 0x004aeb00 (veh_basic.cpp's neighbour): the vehicle over
 // AiTarget 0x004d56e0(0, 0), ZEntity3d 0x005a7e10(0), ZEntity 0x005a8310(0).
-void vehicle_base(Mech& m) {
+void vehicle_base(Vehicle& m) {
   m.active = true, m.x09 = true;  // ZEntity
   m.node = nullptr, m.target_node = nullptr, m.centroid = nullptr;
   m.x18 = kZero, m.forward = kZero, m.velocity = kZero, m.vec_3c = kZero;  // ZEntity3d
@@ -258,6 +260,8 @@ void vehicle_base(Mech& m) {
   m.shadow = nullptr, m.net = 0;
   m.ammo = nullptr, m.net_collision = nullptr;  // Vehicle
 }
+
+namespace {
 
 // Mech3.exe 1.2 @ 0x004222e0, on +0xfc.
 void collider_init(Mech& m) {

@@ -147,6 +147,7 @@ add_library(mw3core STATIC
   src/mech3/mech_objective.cpp
   src/mech3/mech_shade.cpp
   src/mech3/veh_basic.cpp
+  src/mech3/veh_basic_object.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_salvage.cpp
@@ -302,6 +303,7 @@ add_library(mw3probe SHARED
   tests/probe_mission.cpp
   tests/probe_player.cpp
   tests/probe_mech_build.cpp
+  tests/probe_veh_basic.cpp
   tests/probe_ai_brain.cpp
   tests/probe_ai_orders.cpp
   tests/probe_ai_valve.cpp

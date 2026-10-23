@@ -59,7 +59,7 @@ struct Node {
   int32_t has_box = 0;
   float box[6] = {};
 };
-struct Vehicle {
+struct FakeVehicle {
   int32_t alive = 1, target = 1, body = 1, killed = 0;
   uint32_t team = 0;
   float velocity[3] = {}, spin[3] = {}, mass = 0, matrix[12] = {};
@@ -87,7 +87,7 @@ struct State {
   LTorso other_torso[2];
   int32_t other_remote[2] = {};
   Node nodes[12];
-  Vehicle veh[2];
+  FakeVehicle veh[2];
   Contact contacts[4];
   int32_t ncontacts = 0;
   int32_t ai = 0, ai_reverses = 0;
@@ -126,7 +126,7 @@ void probe_collide_setup(const float* nodes, const float* veh, const float* cont
   }
   for (int i = 0; i < 2; ++i) {
     const float* v = veh + 24 * i;
-    Vehicle& d = g->veh[i];
+    FakeVehicle& d = g->veh[i];
     d.alive = static_cast<int32_t>(v[0]), d.target = static_cast<int32_t>(v[1]), d.body = static_cast<int32_t>(v[2]);
     d.killed = static_cast<int32_t>(v[3]);
     std::memcpy(&d.team, v + 4, 4);
