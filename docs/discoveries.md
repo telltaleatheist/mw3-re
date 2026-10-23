@@ -212,6 +212,11 @@ From the port of the damage code, checked in an emulator against the original
 - **Turrets swing half way to their target every eighth of a second**,
   however far they have to turn, so a turret is never caught facing the
   wrong way for long.
+- **Tanks and trucks don't check for walls ahead.** Each vehicle has
+  twelve collision points on its body, but a slip in how they are read from
+  the model leaves their count at zero, so a vehicle checks for walls only
+  when it slides sideways. Driving straight, nothing stops it at a wall
+  (its wheels still ride over the ground and anything low enough).
 - **Quicksand and lava never slow a vehicle.** Every vehicle has a
   quicksand and a lava slowdown (90% and 80% of its top speed) for when two
   of its four wheels are in them, but the code counts its wheels by whether

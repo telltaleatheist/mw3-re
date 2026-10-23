@@ -295,7 +295,7 @@ void vehicle_die(BasicVehicle& v);  // vt+0x70 0x004ad2d0, once
 void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push);
 // Mech3.exe 1.2 @ 0x004af550: zWeapon's hit callback (0x005833b0(node, 1,
 // this)): double damage on low difficulty, half on high, then vt+0x160.
-void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
+int32_t vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
 void vehicle_view_tint(BasicVehicle& v, uint8_t on);  // vt+0x68 0x004ad390: red by the damage, in TARGET's view (the byte passed on)
 void vehicle_weapons_free(BasicVehicle& v);       // 0x004b48c0
 // Mech3.exe 1.2 @ 0x0049f660 (player.cpp, after the motion block): the

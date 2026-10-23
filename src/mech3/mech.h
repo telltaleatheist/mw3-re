@@ -102,6 +102,10 @@ struct Vehicle : ai::AiTarget {
   // height becomes the model's box's (12 without one).
   void* ammo;                // +0x0d4  weapons and ammo bins: the WeaponManager (weapon.h)
   NetCollision* net_collision = nullptr;  // +0x0d8  the network's collision record
+  // zEntity3d's (mech_place.cpp): vt+0x1c 0x005a85a0, the matrix onto the
+  // node and the forward vectors from it; 0x005a8500 the markers' matrices.
+  void entity_moved();
+  void refresh_markers();
 };
 
 struct Mech : Vehicle {
@@ -235,8 +239,6 @@ struct Mech : Vehicle {
   int place(const float pos[3], float yaw);       // 0x004161c0: on the ground under pos, in the world
   void set_place(const float pos[3], float yaw);  // vtable +0xdc, 0x00418f30
   void reset_at(const float pos[3]);              // 0x00418e90: at rest at pos
-  void entity_moved();
-  void refresh_markers();               // 0x005a8500: the target and centroid nodes' world matrices
   void set_target_node(Handle n);       // 0x005a8680: what others aim at (zEntity +0x10), then 0x005a85c0
   // The keypad's part targeting (docs/look.md; the parts by id: part_by_id,
   // 0x0041d510): the chosen part's point, the choice.

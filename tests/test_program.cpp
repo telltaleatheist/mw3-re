@@ -59,6 +59,7 @@
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
 #include "mech3/app_view.h"
+#include "mech3/app_vehicle.h"
 #include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
 #include "mech3/mech_control.h"
@@ -678,8 +679,30 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(count("0x004d8750") == 0);  // the AI controllers are the port's
     EXPECT(count("0x004e71c0") == 0);
     EXPECT(count("0x004589d0") == 3);  // mobilehq_01..03, over net 2
-    EXPECT(count("0x004ac320") == 4);  // ttruck_01, ttruck_02, apc_01, apc_02
+    EXPECT(count("0x004ac320") == 0);  // the basic vehicles are the port's (app_vehicle.cpp)
     EXPECT(count("0x004ac860") == 1);  // the stealth entity's block (the vehicles' controllers are made)
+    // ttruck_01, ttruck_02, apc_01, apc_02: AI-driven, on the ground at their
+    // records' places, in the world with their own nodes, set up from
+    // vehicle.zrd (health, motion block, weapons).
+    {
+      const std::vector<void*> vs = mech3::program_vehicles();
+      EXPECT(vs.size() == 4);
+      int named = 0;
+      for (void* p : vs) {
+        mech3::VehicleSummary s;
+        EXPECT(mech3::describe_vehicle(p, &s));
+        EXPECT(s.in_world && s.ai_controls && s.owned);
+        const std::string name = s.name ? s.name : "";
+        named += name == "ttruck_01" || name == "ttruck_02" || name == "apc_01" || name == "apc_02";
+        EXPECT(s.health > 0.0f && s.health == s.health_max);
+        // TRACK on four supports; the model's collide nodes give the twelve
+        // collision points but no count (+0x214 stays 0, as the exe's).
+        EXPECT(s.mode == 3 && s.supports == 4 && s.points == 0);
+        EXPECT(s.team != 0 && s.active);
+        EXPECT(std::isfinite(s.pos[1]));
+      }
+      EXPECT(named == 4);
+    }
     EXPECT(count("0x00414150") == 0);  // the mech is the port's
     EXPECT(count("0x004161c0") == 0);  // its placement is the port's
     // owens_01: the AI mech, its controller and brain.
@@ -1443,7 +1466,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     app.run(pump);
     EXPECT(fade_frames > 1);
     EXPECT(seen.frames >= 7);
-    EXPECT(seen.entities == 3 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker
+    EXPECT(seen.entities == 7 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker, the four vehicles
     EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
     EXPECT(seen.near_distance);

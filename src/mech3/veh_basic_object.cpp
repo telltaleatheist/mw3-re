@@ -559,13 +559,13 @@ void vehicle_weapons_free(BasicVehicle& v) {
 }
 
 // Mech3.exe 1.2 @ 0x004af550
-void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount) {
+int32_t vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount) {
   switch (g_hooks->game_intensity()) {
     case 0: amount = amount + amount; break;
     case 2: amount = static_cast<float>(amount * 0.5); break;
     default: break;
   }
-  g_hooks->damage(v, weapon, x, amount);
+  return g_hooks->damage(v, weapon, x, amount);
 }
 
 // Mech3.exe 1.2 @ 0x004ad390
