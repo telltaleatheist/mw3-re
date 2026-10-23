@@ -1,5 +1,11 @@
 #include "mech3/veh_basic_object.h"
 
+#include <cstring>
+
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zerror/zerr.h"
+#include "gamez/zreader/zreader.h"
+#include "gamez/zsound/zsnd.h"
 #include "mech3/mech_build.h"
 #include "mech3/weapon.h"
 
@@ -9,6 +15,9 @@ namespace {
 VehBasicHooks g_default_hooks;
 VehBasicHooks* g_hooks = &g_default_hooks;
 VehicleMarkers g_markers;
+EngineSoundList g_engine_sounds;  // 0x0060b110
+zsnd::Object* snd(Handle h) { return static_cast<zsnd::Object*>(h); }
+zsnd::VoiceBase* voice(Handle h) { return static_cast<zsnd::VoiceBase*>(h); }
 }  // namespace
 
 void set_veh_basic_hooks(VehBasicHooks* h) { g_hooks = h ? h : &g_default_hooks; }
@@ -19,6 +28,71 @@ void VehBasicHooks::entity_set_node(Vehicle& v, Handle node) {
 }
 
 void VehBasicHooks::weapons_free(void* w) { delete static_cast<WeaponManager*>(w); }
+
+Handle VehBasicHooks::sound_find(const char* name) { return zsnd::find(name); }
+const char* VehBasicHooks::sound_name(Handle sound) { return zsnd::name_of(snd(sound)); }
+void VehBasicHooks::voice_unlock(Handle v) { zsnd::unlock(voice(v)); }
+void VehBasicHooks::voice_stop(Handle v) { zsnd::stop(voice(v)); }
+Handle VehBasicHooks::anim_find(const char* name) { return zeff::anim_find(name); }
+void VehBasicHooks::report(int32_t level, const char* file, int32_t line, const char* message) {
+  zerr::report(level, file, line, message);
+}
+zrdr::Node* VehBasicHooks::reader_find(zrdr::Node* node, const char* key) { return zrdr::find(node, key); }
+int32_t VehBasicHooks::reader_type(zrdr::Node* node) { return node->type; }
+const char* VehBasicHooks::reader_string(zrdr::Node* node, const char* key) { return zrdr::get_string(node, key); }
+bool VehBasicHooks::reader_string_value(zrdr::Node* node, const char* key, const char** out) {
+  return zrdr::get_string_value(zrdr::find(node, key), out);
+}
+
+EngineSoundList& engine_sounds() { return g_engine_sounds; }
+
+// Mech3.exe 1.2 @ 0x004ad930: the entry whose sound is named `name`, else a
+// new one if zSound has the sound and the list has room.
+EngineSoundEntry* engine_sound_find(const char* name) {
+  VehBasicHooks& h = *g_hooks;
+  std::vector<EngineSoundEntry>& list = g_engine_sounds.entries;
+  for (EngineSoundEntry& e : list) {
+    const char* n = h.sound_name(e.sound);
+    if (name && n && std::strcmp(name, n) == 0) return &e;
+  }
+  EngineSoundEntry made;  // 0x004adb90 -> 0x004adbb0
+  made.sound = name ? h.sound_find(name) : nullptr;
+  if (!made.sound) return nullptr;
+  if (list.size() >= EngineSoundList::kCapacity) {
+    h.report(0x200, "C:\\zipper\\Mech3\\veh_basic.cpp", 0x358, "CZEngineSoundList is too small");
+    return nullptr;
+  }
+  list.push_back(made);  // within the reserve: the entries never move
+  return &list.back();
+}
+
+// Mech3.exe 1.2 @ 0x004add10: each entry's voice stopped (0x004adbf0), then
+// the list emptied.
+void engine_sounds_clear() {
+  VehBasicHooks& h = *g_hooks;
+  for (EngineSoundEntry& e : g_engine_sounds.entries) {
+    if (e.voice) {
+      h.voice_unlock(e.voice);
+      h.voice_stop(e.voice);
+    }
+    e = EngineSoundEntry{};
+  }
+  g_engine_sounds.entries.clear();
+}
+
+// Mech3.exe 1.2 @ 0x004adb20.
+void EngineSound::set(const char* name) { entry = engine_sound_find(name); }
+
+// Mech3.exe 1.2 @ 0x004ade40, over 0x004ade70 (the running one stopped).
+void MotionAnim::set(const char* name) {
+  VehBasicHooks& h = *g_hooks;
+  if (anim) {
+    h.anim_stop(anim);
+    anim = nullptr;
+  }
+  def = nullptr;
+  if (name) def = h.anim_find(name);
+}
 
 // Mech3.exe 1.2 @ 0x004ac320 (ECX the controls, EDX the type).
 BasicVehicle* vehicle_create(Handle ctl, const char* type, const char* name) {
@@ -91,6 +165,19 @@ void vehicle_base_destroy(Vehicle& v) {
 }
 
 }  // namespace
+
+// Mech3.exe 1.2 @ 0x0049ec00.
+void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t kind) {
+  VehBasicHooks& h = *g_hooks;
+  zrdr::Node* sounds = h.reader_find(def, "sounds");
+  if (sounds && h.reader_type(sounds) == zrdr::List) {
+    const char* engine = h.reader_string(sounds, "engine");
+    if (engine) v.engine.set(engine);
+  }
+  const char* motion = nullptr;
+  if (h.reader_string_value(def, "motion_anim", &motion) && motion) v.motion.set(motion);
+  h.controls_setup(v.controls, def, name, kind);
+}
 
 // Mech3.exe 1.2 @ 0x004ac650.
 void vehicle_destroy(BasicVehicle& v) {

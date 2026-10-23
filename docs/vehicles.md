@@ -41,15 +41,29 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
 - The HUD markers 0x4ac3d0: three zTwoD images, `hud_veh_ally_sm`,
   `hud_veh_enemy_sm`, `hud_veh_other_sm`, at [0x60b120] / [0x60b124] /
   [0x60b128].
-- Ported (step 1a, 2026-10-23): all of the above, `mech3/veh_basic_object`
+- Ported (steps 1a and 1b, 2026-10-23): all of the above and below to the
+  motion animation, `mech3/veh_basic_object`
   (`BasicVehicle` over the shared `Vehicle` base, which `Mech` now derives
   from too), checked by `test_veh_basic.py`. 0x4ace00 stays a hook (the
-  camera modes for viewing a vehicle). Not in play yet: a vehicle needs its
-  setup and placement (steps 1b, 1c) first.
+  camera modes for viewing a vehicle); the engine sounds' clear runs at each
+  mission's end. Not in play yet: the program makes no vehicles until their
+  placement (step 1c).
 - vt+0x158 0x49ec00(def, name, kind): the definition's `sounds` list's
   `engine` (0x4adb20 -> 0x4ad930, the engine-sound cache; not weapons, as
   first read) and its `motion_anim` (0x4ade40), then the controls'
   vt+0x0c (the AI's setup).
+- The engine sounds (CZEngineSoundList, the global at 0x60b110, ported in
+  step 1b): made at start-up (static initializer 0x4ada90 -> 0x4ad840, room
+  for 64 entries of 0xc bytes, never grown; cleared at exit 0x4ade90) and
+  emptied at each mission's end (0x491780 -> 0x4d71f0 -> 0x4add10, each
+  entry's voice unlocked and stopped, 0x4adbf0). An entry (0x4adb90 /
+  0x4adbb0) is the sound by name (0x56f6f0) and the voice playing it (+8,
+  set by the frame, step 2): every vehicle with the same engine shares one
+  entry. A lookup (0x4ad930) compares names (0x56f740); a sound zSound does
+  not have gives none; a 65th distinct sound gives none and the report
+  "CZEngineSoundList is too small" (0x49bfd0, empty in this build).
+- The motion animation (0x4ade40): the running one (+0xf4) stopped, then
+  the definition's by name (0x50b450) at +0xf0, or none.
 - vt+0x34 0x4a1040: the frame, from the controls (their throttle and turn
   through vt+0x1c and the IControls base): without the AI nothing moves.
 - vt+0x38 0x5a80f0: the ground under it (0x4edab0) and the move.

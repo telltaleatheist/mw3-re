@@ -845,3 +845,18 @@ is paused.
   vehicle); the program does not make vehicles yet (needs 1b, 1c). The
   stealth subclass 0x4a4de0 is still to map before step 1 ends.
 - Next: 1b, the sub-objects' contents and the setup vt+0x158 0x49ec00.
+
+## 2026-10-23 Item 4, step 1b: the setup, engine sounds, motion animation (lead)
+
+- The setup 0x49ec00 (vt+0x158): the definition's `sounds` list's `engine`
+  and its `motion_anim` (not weapons, as the split first read), then the
+  controls' vt+0x0c. The engine sounds' list at 0x60b110 (64 entries, never
+  grown; the full list's report is empty in this build), its lookup 0x4ad930,
+  its clear 0x4add10 (wired to the mission cleanup's 0x4d71f0 in the
+  program), the motion animation 0x4ade40.
+- 0x49f660 moved to step 2: it offsets the controls' points by the
+  vehicle's position, the controls' business.
+- test_veh_basic.py gained the lookups (up to 200, 10 of 100 runs fill the
+  list) with the clear, and the setup over random definitions; 11 breaks
+  caught (the list's two at the full count).
+- Next: 1c, the placement vt+0xdc 0x4a3630 and the accessors.
