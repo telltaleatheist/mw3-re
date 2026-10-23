@@ -47,6 +47,9 @@ class VehControlsHooks : public zgame::Unported {
   virtual void model_release(Handle model);                             // 0x00539150
   virtual void node_remove_child(Handle parent, Handle child);          // 0x004ebb40
   virtual void node_free(Handle node);                                  // 0x004f9050
+  // The motion block's reader: zReader's floats, its report.
+  virtual bool reader_float(zrdr::Node* node, const char* key, float* out);  // 0x00556a60
+  virtual void report(int32_t level, const char* file, int32_t line, const char* message);  // 0x0049bfd0
   // The setup's: zReader, the animations, the owner's own 0x004af2a0 and its
   // weapons (0x004b4660, the port's build_vehicle_weapons).
   virtual zrdr::Node* reader_find(zrdr::Node* node, const char* key);   // 0x005569e0
@@ -72,6 +75,46 @@ struct Block398 {
   uint32_t x04 = 0;
   uint32_t x08 = 0, x0c = 0, x10 = 0, x14 = 0;
   void clear();  // 0x005869d0
+};
+
+// The vehicle's motion definition, the controls' +0x764 block (0x2a0 bytes,
+// to the base's end at +0xa04), read from vehicle.zrd's mode by 0x0049ef40
+// (through 0x0049ec90). docs/vehicles.md, The motion block.
+struct VehicleMotion {
+  using Handle = void*;
+  enum Mode : int32_t { kBasic = 0, kFly = 1, kSub = 2, kTrack = 3, kHover = 4, kAmphib = 5 };
+  int32_t mode = 0;            // +0x000  by the first two letters; track without the key
+  float rates[2] = {};         // +0x004  10, 30
+  float turns[2] = {};         // +0x00c  0.6, 2
+  float turn_damping = 0;      // +0x014  30
+  float rate_damping[2] = {};  // +0x018  30, 30
+  float gun_hi = 0, gun_lo = 0;  // +0x020  gun_pitch (lo, hi): -0.2588 (-15 degrees), 0.5
+  // +0x028: the pointer to the limiter at +0x02c (VehicleControls::turret)
+  float friction[3] = {};      // +0x058  10000, 10, 0; [1] held under 0.9 [0]
+  float stopping = 0;          // +0x064  8
+  float chas_smooth = 0;       // +0x068  |v|
+  Vec3c chas_pitch;            // +0x06c  z as |z|
+  Vec3c chas_roll;             // +0x078  likewise
+  int32_t support_count = 0;   // +0x084  4 from the model's support00..03, else the platform list's
+  float mode_alt = 0;          // +0x088  2
+  Vec3c support[16];           // +0x08c
+  uint32_t support_word[16] = {};  // +0x14c  zeroed per support (the placement too)
+  float quicksand_slowdown = 0;  // +0x18c  0.9
+  float lava_slowdown = 0;     // +0x190  0.8
+  Vec3c collision[12];         // +0x194  the model's collide00..11 (in the order 0-2, 6-8, 3-5, 9-11), else the list's
+  float mass = 0;              // +0x248  1
+  float inv_mass = 0;          // +0x24c
+  float a_damping = 0;         // +0x250  8
+  uint32_t x258 = 0;           // +0x258
+  uint32_t x260 = 0;           // +0x260
+  float wave[7] = {};          // +0x264  amphib_wave, then hover_wave, then sub_wave: the last given
+  float collision_d[2] = {};   // +0x280  0.5, 0.15
+  Handle right_morphs = nullptr;  // +0x288
+  Handle left_morphs = nullptr;   // +0x28c
+  Handle chassis = nullptr;       // +0x290
+  Handle rtracks = nullptr;       // +0x294
+  Handle ltracks = nullptr;       // +0x298
+  Handle destroy_anim = nullptr;  // +0x29c  zEffect's by the vehicle's name, else its type
 };
 
 // A weapon slot (0x38 bytes; ten from +0x3b8, the owner's 0x004af2a0 fills
@@ -151,11 +194,17 @@ struct VehicleControls {
   float health = 0;           // +0x740  100, or the definition's
   float health_max = 0;       // +0x744  likewise
   uint32_t x760 = 0;          // +0x760
-  int32_t x7e8 = 0;           // +0x7e8  (+0x764 block +0x84) a count of
-  uint32_t x8b0[32] = {};     // +0x8b0  (+0x764 block +0x14c) words the placement zeroes; 32 here
-  TurretLimits turret;        // +0x790 (the pointer to it at +0x78c)
+  VehicleMotion motion;       // +0x764
+  TurretLimits turret;        // +0x790 (the pointer to it at +0x78c), the gun's pitch (0x004a4b30)
   void* owner = nullptr;      // IControls +0x10: the vehicle (SetOwner, vt+0x08)
 };
+
+// Mech3.exe 1.2 @ 0x0049ef40 (0x0049ec90 on the controls' +0x764): the
+// motion block from vehicle.zrd's `mode` (node the vehicle's, `name` and
+// `type` its own; the collision count into *collision_count, the controls'
+// +0x214, only from the list).
+void vehicle_motion_read(VehicleControls& c, void* node, zrdr::Node* mode, const char* name, const char* type,
+                         int32_t* collision_count);
 
 // Mech3.exe 1.2 @ 0x004af2a0 (a method of the owner, on its controls): the
 // ten slots emptied, then one per `weapons` item: its definition, flags and

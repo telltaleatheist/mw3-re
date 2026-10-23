@@ -11,7 +11,9 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech.h"
@@ -78,6 +80,12 @@ VehControlsHooks::Handle VehControlsHooks::beam_make(Handle def, Handle owner_no
   return zwep::beam_make(static_cast<zwep::WeaponDef*>(def), owner_node, nullptr,
                          reinterpret_cast<const zwep::Vec3f3*>(muzzle), reinterpret_cast<const zwep::Vec3f3*>(dir),
                          segments);
+}
+bool VehControlsHooks::reader_float(zrdr::Node* node, const char* key, float* out) {
+  return zrdr::get_float(node, key, out);
+}
+void VehControlsHooks::report(int32_t level, const char* file, int32_t line, const char* message) {
+  zerr::report(level, file, line, message);
 }
 void VehControlsHooks::owner_weapons(void* owner, zrdr::Node* def) {
   Vehicle* v = veh(owner);
@@ -195,6 +203,161 @@ void VehicleControls::setup(zrdr::Node* def) {
   h.owner_weapons(v, def);
   node = v->node;
   x398.clear();
+}
+
+namespace {
+
+const char kPlayerCpp[] = "C:\\zipper\\Mech3\\player.cpp";
+
+// A key's list value: item k (1-based) as the float it holds.
+float item_f(const zrdr::Node* n, int k) { return n->list[k].f; }
+
+// Mech3.exe 1.2 @ 0x0049eed0: the model's support00..03, hidden; false at
+// the first missing (those before it read).
+bool supports_from_nodes(VehicleMotion& m, void* node) {
+  VehControlsHooks& h = *g_hooks;
+  for (int i = 0; i < 4; ++i) {
+    char name[80];
+    std::snprintf(name, sizeof name, "support%02d", i);
+    void* s = h.node_find(node, name);
+    if (!s) return false;
+    h.node_translation(s, &m.support[i].x, &m.support[i].y, &m.support[i].z);
+    h.node_set_active(s, 0);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0049ecd0: the model's collide00..11, hidden, kept in
+// the order 0-2, 6-8, 3-5, 9-11 once all twelve are there; false at the
+// first missing (the block untouched).
+bool collision_from_nodes(VehicleMotion& m, void* node) {
+  VehControlsHooks& h = *g_hooks;
+  Vec3c p[12];
+  for (int i = 0; i < 12; ++i) {
+    char name[80];
+    std::snprintf(name, sizeof name, "collide%02d", i);
+    void* s = h.node_find(node, name);
+    if (!s) return false;
+    h.node_translation(s, &p[i].x, &p[i].y, &p[i].z);
+    h.node_set_active(s, 0);
+  }
+  static const int kOrder[12] = {0, 1, 2, 6, 7, 8, 3, 4, 5, 9, 10, 11};
+  for (int i = 0; i < 12; ++i) m.collision[i] = p[kOrder[i]];
+  return true;
+}
+
+// A key's (a, b) or a default pair.
+void pair(zrdr::Node* mode, const char* key, float* a, float* b, float da, float db) {
+  if (zrdr::Node* n = g_hooks->reader_find(mode, key)) {
+    *a = item_f(n, 1), *b = item_f(n, 2);
+  } else {
+    *a = da, *b = db;
+  }
+}
+float one(zrdr::Node* mode, const char* key, float d) {
+  zrdr::Node* n = g_hooks->reader_find(mode, key);
+  return n ? item_f(n, 1) : d;
+}
+
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0049ef40
+void vehicle_motion_read(VehicleControls& c, void* node, zrdr::Node* mode, const char* name, const char* type,
+                         int32_t* collision_count) {
+  VehControlsHooks& h = *g_hooks;
+  VehicleMotion& m = c.motion;
+  m.right_morphs = h.node_find(node, "right_morphs");
+  m.left_morphs = h.node_find(node, "left_morphs");
+  m.chassis = h.node_find(node, "chassis");
+  m.rtracks = h.node_find(node, "rtracks");
+  m.ltracks = h.node_find(node, "ltracks");
+  m.x260 = 0;
+  m.x258 = 0;
+  m.support_count = 4;
+  if (!supports_from_nodes(m, node)) {
+    char msg[256];
+    std::snprintf(msg, sizeof msg, "Cannot find support points for %s!", name);
+    h.report(0x800, kPlayerCpp, 0x2d7, msg);
+    // FIX (bug): without a platform list either, the exe reads through null
+    // (every shipped vehicle has one); here no supports.
+    zrdr::Node* platform = h.reader_find(mode, "platform");
+    m.support_count = platform ? zrdr::list_count(platform) - 1 : 0;
+    for (int32_t i = 0; i < m.support_count && i < 16; ++i) {
+      const zrdr::Node* pt = platform->list[1 + i].list;
+      m.support[i] = {pt[1].f, pt[2].f, pt[3].f};
+      m.support_word[i] = 0;
+    }
+  }
+  if (!collision_from_nodes(m, node)) {
+    char msg[256];
+    std::snprintf(msg, sizeof msg, "Cannot find collision points for %s!", name);
+    h.report(0x800, kPlayerCpp, 0x2e6, msg);
+    // FIX (bug): likewise without a collision list.
+    zrdr::Node* col = h.reader_find(mode, "collision");
+    *collision_count = col ? zrdr::list_count(col) - 1 : 0;
+    for (int32_t i = 0; i < *collision_count && i < 12; ++i) {
+      const zrdr::Node* pt = col->list[1 + i].list;
+      m.collision[i] = {pt[1].f, pt[2].f, pt[3].f};
+    }
+  }
+  pair(mode, "rates", &m.rates[0], &m.rates[1], 10.0f, 30.0f);
+  if (zrdr::Node* n = h.reader_find(mode, "friction")) {
+    m.friction[0] = item_f(n, 1), m.friction[1] = item_f(n, 2), m.friction[2] = item_f(n, 3);
+  } else {
+    m.friction[0] = 10000.0f, m.friction[1] = 10.0f, m.friction[2] = 0;
+  }
+  m.stopping = one(mode, "stopping", 8.0f);
+  if (m.friction[0] < m.friction[1]) m.friction[1] = static_cast<float>(m.friction[0] * 0.9);
+  m.quicksand_slowdown = one(mode, "quicksand_slowdown", 0.9f);
+  m.lava_slowdown = one(mode, "lava_slowdown", 0.8f);
+  pair(mode, "turns", &m.turns[0], &m.turns[1], 0.6f, 2.0f);
+  m.turn_damping = one(mode, "turn_damping", 30.0f);
+  pair(mode, "rate_damping", &m.rate_damping[0], &m.rate_damping[1], 30.0f, 30.0f);
+  m.a_damping = one(mode, "a_damping", 8.0f);
+  m.mass = one(mode, "mass", 1.0f);
+  m.inv_mass = 1.0f / m.mass;
+  pair(mode, "gun_pitch", &m.gun_lo, &m.gun_hi, zgame::from_bits(0xbe84816f), 0.5f);  // -sin(15 degrees)
+  c.turret = TurretLimits(m.gun_lo, m.gun_hi);  // 0x004a4b30 with the full turn (-2 pi, 2 pi): 0x004a4a70
+  if (zrdr::Node* n = h.reader_find(mode, "mode")) {
+    const std::string s = n->list[1].s;  // copied to 20 bytes in the exe
+    if (std::strncmp(s.c_str(), "basic", 2) == 0) m.mode = VehicleMotion::kBasic;
+    else if (std::strncmp(s.c_str(), "track", 2) == 0) m.mode = VehicleMotion::kTrack;
+    else if (std::strncmp(s.c_str(), "hover", 2) == 0) m.mode = VehicleMotion::kHover;
+    else if (std::strncmp(s.c_str(), "amphib", 2) == 0) m.mode = VehicleMotion::kAmphib;
+    else if (std::strncmp(s.c_str(), "sub", 2) == 0) m.mode = VehicleMotion::kSub;
+    else if (std::strncmp(s.c_str(), "fly", 2) == 0) m.mode = VehicleMotion::kFly;
+    // anything else: the mode as it was
+  } else {
+    m.mode = VehicleMotion::kTrack;
+  }
+  for (const char* key : {"amphib_wave", "hover_wave", "sub_wave"})
+    if (zrdr::Node* n = h.reader_find(mode, key))
+      for (int k = 0; k < 7; ++k) m.wave[k] = item_f(n, 1 + k);
+  if (!h.reader_float(mode, "mode_alt", &m.mode_alt)) m.mode_alt = 2.0f;
+  {
+    zrdr::Node* n = h.reader_find(mode, "chas_smooth");
+    m.chas_smooth = n ? std::fabs(item_f(n, 1)) : 0;
+  }
+  if (zrdr::Node* n = h.reader_find(mode, "chas_pitch")) {
+    m.chas_pitch = {item_f(n, 1), item_f(n, 2), std::fabs(item_f(n, 3))};
+  } else {
+    m.chas_pitch = Vec3c{};
+  }
+  if (zrdr::Node* n = h.reader_find(mode, "chas_roll")) {
+    m.chas_roll = {item_f(n, 1), item_f(n, 2), std::fabs(item_f(n, 3))};
+  } else if (zfix::options().bugs) {
+    m.chas_roll = Vec3c{};  // FIX (bug): the exe zeroes chas_pitch's here (a copy's slip; no shipped vehicle has either key)
+  } else {
+    m.chas_pitch = Vec3c{};
+  }
+  pair(mode, "collision_d", &m.collision_d[0], &m.collision_d[1], 0.5f, 0.15f);
+  m.destroy_anim = h.anim_find(name);
+  if (!m.destroy_anim) m.destroy_anim = h.anim_find(type);
+  if (!m.destroy_anim) {
+    char msg[256];
+    std::snprintf(msg, sizeof msg, "No destroy animation for (%s) or (%s)", name, type);
+    h.report(0x200, kPlayerCpp, 0x3ce, msg);
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004af2a0

@@ -922,3 +922,19 @@ is paused.
   the original's base (its own ClearCommands runs): 6 s for the whole test;
   9 breaks caught.
 - Next: 1c2, the accessors 0x4acd90..0x4ad290.
+
+## 2026-10-23 Item 4, step 1c2a: the motion block (lead)
+
+- `VehicleMotion` (the controls' +0x764..+0xa04) and its reader 0x49ef40
+  with the model's support and collide points (0x49eed0, 0x49ecd0), the
+  gun's limits rebuilt (0x4a4b30 -> 0x4a4a70; the other three limiter
+  classes wait for the turrets). The 1c1 names +0x7e8 / +0x8b0 were the
+  support count and words (16 fit, not 32).
+- Two FIX (bug)s: the chas_roll slip (zfix bugs) and the missing lists.
+  Neither game's data has any chas_* or *_wave key.
+- Open: with the model's collide points the collision count is not
+  written (stays 0): check the vehicle models.
+- test_veh_controls.py gained 400 motion blocks (10 s for the whole test):
+  10 breaks caught; test_fixes has the fix's own check.
+- Next: 1c2b, the accessors vt+0x108..+0x13c (they read this block), and
+  0x4ace00 (the vehicle cameras).

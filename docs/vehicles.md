@@ -136,6 +136,48 @@ starting value for one it lacks in another (+0x608 (0, 0, -1), +0x614
 beam reads live, so the found positions are likely the local offsets the
 aiming turns into it each frame; settled with the frame (step 2c).
 
+## The motion block (the controls' +0x764, ported in step 1c2a)
+
+`mech3::VehicleMotion`, 0x2a0 bytes to the base's end, read from
+vehicle.zrd's mode by 0x49ef40 (0x49ec90 calls it on the controls' block
+with the vehicle's node, the mode, the vehicle's name and type and the
+controls' +0x214 for the collision count). Defaults in brackets:
+
+- The model's nodes `right_morphs`, `left_morphs`, `chassis`, `rtracks`,
+  `ltracks` (+0x288..+0x298).
+- The supports: the model's `support00..03` (hidden), else the `platform`
+  list's points ("Cannot find support points for %s!"); +0x84 their count,
+  +0x8c the points (16 fit), +0x14c a word each.
+- The collision points: the model's `collide00..11` (hidden, kept in the
+  order 0-2, 6-8, 3-5, 9-11), else the `collision` list's, whose count
+  goes to the controls' +0x214 ("Cannot find collision points for %s!").
+- `rates` (10, 30), `friction` (10000, 10, 0; the second held under 0.9 of
+  the first), `stopping` (8), `quicksand_slowdown` (0.9), `lava_slowdown`
+  (0.8), `turns` (0.6, 2), `turn_damping` (30), `rate_damping` (30, 30),
+  `a_damping` (8), `mass` (1; its inverse at +0x24c), `gun_pitch` (-15
+  degrees, 0.5: the gun's limits rebuilt with them, 0x4a4b30 picking the
+  full-turn class 0x4a4a70 for the -2 pi..2 pi it is given), `mode` by its
+  first two letters (basic 0, fly 1, sub 2, track 3, hover 4, amphib 5;
+  track without the key, an unknown name keeps the mode it had), the wave
+  values (`amphib_wave`, then `hover_wave`, then `sub_wave`: the last given
+  wins, whatever the mode), `mode_alt` (2), `chas_smooth`, `chas_pitch`,
+  `chas_roll` (0; their last value as its absolute), `collision_d` (0.5,
+  0.15), the destroy animation by the vehicle's name, else its type ("No
+  destroy animation for (%s) or (%s)").
+- The limiter classes 0x4a4b30 chooses from (by the yaw range's width):
+  0x4a42f0 (none: a fixed yaw), 0x4a4580 (under pi), 0x4a4800 (under 2 pi),
+  0x4a4a70 (a full turn); only the last is ported (the turrets need the
+  others).
+- Quirks: without `chas_roll` the exe zeroes `chas_pitch`'s values (a
+  copy's slip, FIX (bug) behind zfix bugs); without `platform` or
+  `collision` (and the model's points) it reads through null (FIX (bug)).
+  No shipped vehicle (MW3 or Pirate's Moon) has any `chas_*` or `*_wave`
+  key, and every one has both lists.
+- Open: with the model's twelve collide points the count is not written,
+  so it stays what the controls had (0 from the zeroed block). Whether any
+  shipped vehicle model has them (which would leave it no collision points)
+  is to check against the models.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

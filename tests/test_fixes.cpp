@@ -33,6 +33,7 @@
 #include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
+#include "mech3/veh_controls.h"
 #include "gamez/zweapon/zweapon.h"
 
 namespace {
@@ -1114,4 +1115,39 @@ TEST(fix_pocket_commander_freed_once) {
   inst = saved;
   delete prev;
   pocket_calls() = PocketCalls{};
+}
+
+// vehicles.md, the motion block: a mode with chas_pitch and no chas_roll
+// keeps its pitch with zfix bugs on (the exe zeroes it); without platform
+// or collision lists (and no model nodes) there are no supports and no
+// collision points, where the exe reads through null.
+TEST(fix_vehicle_motion_chas_roll_and_missing_lists) {
+  using namespace mech3;
+  // ("chas_pitch" (1 2 -3)) as zReader nodes: a list of the key and its values.
+  zrdr::Node* values = zrdr::new_nodes(zrdr::Float, 4);
+  values[0].type = zrdr::Int, values[0].i = 4;
+  values[1].f = 1.0f, values[2].f = 2.0f, values[3].f = -3.0f;
+  zrdr::Node* items = zrdr::new_nodes(zrdr::Int, 3);
+  items[0].i = 3;
+  items[1].type = zrdr::String, items[1].s = const_cast<char*>("chas_pitch");
+  items[2].type = zrdr::List, items[2].list = values;
+  zrdr::Node mode{};
+  mode.type = zrdr::List, mode.list = items;
+  const bool bugs = zfix::options().bugs;
+  for (bool on : {false, true}) {
+    zfix::options().bugs = on;
+    VehicleControls c;
+    int32_t count = 7;
+    vehicle_motion_read(c, nullptr, &mode, "veh", "type", &count);
+    EXPECT(c.motion.support_count == 0 && count == 0);
+    if (on) {
+      EXPECT(c.motion.chas_pitch.x == 1.0f && c.motion.chas_pitch.y == 2.0f && c.motion.chas_pitch.z == 3.0f);
+      EXPECT(c.motion.chas_roll.x == 0 && c.motion.chas_roll.z == 0);
+    } else {
+      EXPECT(c.motion.chas_pitch.x == 0 && c.motion.chas_pitch.z == 0);  // as the exe
+    }
+  }
+  zfix::options().bugs = bugs;
+  items[1].s = nullptr;  // not the reader's to free
+  zrdr::free_contents(&mode);
 }
