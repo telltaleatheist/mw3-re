@@ -198,9 +198,13 @@ class VehBasicHooks : public zgame::Unported {
   virtual int32_t node_flag8(Handle node);
   virtual void node_set_flag8(Handle node, int32_t on);
   virtual void node_set_zone(Handle node, uint8_t zone);
+  // The movement's frame time and its inverse ([0x005e8110], [0x005e8114]).
+  virtual float frame_dt();
+  virtual float frame_inv_dt();
   virtual void hud_line(int32_t i, const char* text) { unported("hudline.vt+0x7c", {i, text}); }
 };
 void set_veh_basic_hooks(VehBasicHooks* h);  // null: the defaults
+VehBasicHooks& veh_basic_hooks();
 
 // Mech3.exe 1.2 @ 0x004ac320: the vehicle `name` of `type`, its node the
 // world's `name` or a copy of `type`'s; null without either.

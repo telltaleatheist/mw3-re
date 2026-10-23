@@ -175,6 +175,9 @@ struct VehicleControls {
   // the path mode (0x0040bae0: 0), vt+0x08 its goal node (0x004a5260: -1),
   // IControls vt+0x70 on a path (0x0040bae0: no), IControls vt+0xa8 the death
   // (0x004aed50: the pilot's tick, the base's _purecall: nothing here).
+  // vt+0x14 the turn rate's step (the base's 0x004a2a00, with the motion;
+  // the AI's 0x004a2ae0: the turn x top_turn).
+  virtual void turn_step(const VehicleMotion& m, float dt);
   virtual bool destroyed() { return true; }
   virtual int32_t dynamics() { return 0; }
   virtual int32_t path_mode() { return 0; }
@@ -190,14 +193,19 @@ struct VehicleControls {
   uint32_t frozen = 0;        // +0x028  a freeze hit froze it (the damage's; no shipped weapon freezes)
   uint32_t x2c = 0;           // +0x02c
   uint32_t x30 = 0;           // +0x030
+  uint32_t sliding = 0;       // +0x034  sliding sideways (the movement's, 0x004a2c90)
   int32_t state = 0;          // +0x038  4: destroyed (the death's; the basic controls' vt+0x1c asks it)
   uint32_t x3c = 0;           // +0x03c
-  Vec3c x50;                  // +0x050  0x0063d870
-  Vec3c x70;                  // +0x070  0x0063d870 (the placement)
+  Vec3c x50;                  // +0x050  0x0063d870; the turn rates, y the turn (vt+0x14)
+  Vec3c velocity;             // +0x064  the world's (the owner's +0x30 copies it)
+  Vec3c x70;                  // +0x070  0x0063d870 (the placement); the local velocity: z ahead, x the slide
+  float top_speed = 0;        // +0x088  the motion's rates[1] in the movement, slowed in quicksand and lava
+  float top_turn = 0;         // +0x08c  turns[1] likewise
   uint32_t x94[4] = {};       // +0x094
   Vec3c points[15];           // +0x160  each the place, when placed after the init (count +0x214)
   int32_t point_count = 0;    // +0x214
-  Vec3c up;                   // +0x308  the owner's matrix's second row, once rotated
+  Vec3c up;                   // +0x308  the owner's matrix's second row, once rotated (and each movement, 0x004a2890)
+  Vec3c x314;                 // +0x314  (the side force reads x and z)
   Vec3c angles0;              // +0x320  the node's rotation as first read
   Vec3c angles;               // +0x32c  (0x004fbe90)
   uint32_t x350 = 0;          // +0x350
@@ -231,7 +239,8 @@ struct VehicleControls {
   float fire_c_scale = 0;     // +0x724
   float health_max = 0;       // +0x740  100, or the definition's
   float health = 0;           // +0x744  likewise; what the damage takes from
-  uint32_t x760 = 0;          // +0x760
+  Vec3c heading;              // +0x748  a heading to turn to while x760 (0x004a28c0)
+  uint32_t x760 = 0;          // +0x760  turning to `heading`
   VehicleMotion motion;       // +0x764
   TurretLimits turret;        // +0x790 (the pointer to it at +0x78c), the gun's pitch (0x004a4b30)
   void* owner = nullptr;      // IControls +0x10: the vehicle (SetOwner, vt+0x08)

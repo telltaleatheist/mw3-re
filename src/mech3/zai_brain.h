@@ -690,6 +690,7 @@ struct AiVehicleControls : VehicleControls, BrainControls {
   bool can_aim(float cos_limit) override { return turret_can_aim(*this, aim, cos_limit); }  // vt+0x24 0x004e7490
   void aim_at(const float dir[3]) override { turret_aim_at(*this, aim, dir); }             // vt+0x28 0x004e7570
   bool destroyed() override;                                    // vt+0x1c 0x004e7470: the owner no longer active
+  void turn_step(const VehicleMotion&, float) override { x50.y = top_turn * turn; }  // vt+0x14 0x004a2ae0
   bool on_path() override { return true; }                      // IControls vt+0x70 0x004e7790 -> 0x004a5270
   void died() override;                                         // IControls vt+0xa8 0x004e7800 -> 0x004ea6b0
   int update(float dt);                                         // IControls vt+0x0c 0x004e7670 -> 0x004e71a0

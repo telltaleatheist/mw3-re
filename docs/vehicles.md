@@ -405,6 +405,40 @@ else the record's first id. `vehicle_points_place` and
 (gmod_cull); `test_veh_setup.py`, 600 runs, 12 breaks caught. zEntity's
 per-frame zone update 0x5a80f0 (vt+0x38) is left for the frame.
 
+## The movement (step 2c, in progress)
+
+The vehicle's frame (vt+0x34 0x4a1040, from the entity manager's walk) runs
+the controls' IControls vt+0x0c (the AI's: the brain's frame); destroyed
+controls stop the engine sound and the motion animation; on a path, the
+movement 0x4a1240: by the motion's mode, BASIC 0x4a1d90 or TRACK 0x4a12c0,
+nothing for FLY, SUB, HOVER and AMPHIB (every shipped MW3 vehicle but the
+stealth object is TRACK; no vehicle file uses the others), then the
+orientation normalised and the controls' world and local velocities copied
+to the entity (+0x30, +0x3c). The pieces ported so far (2c1, `mech3/veh_move`):
+
+- **The turn rate** (the controls' vt+0x14): the base's 0x4a2a00 adds the
+  turn x turns[0] x dt (none: damped by turn_damping; against the turn:
+  first stopped) held to +-top_turn (+0x8c); the AI's 0x4a2ae0 sets it to
+  the turn x top_turn outright.
+- **Turning to a heading** (0x4a28c0, while +0x760): a turn command cancels
+  it; a full turns[1] x dt a frame while the heading is further than that,
+  then the yaw (+0x330) put on it.
+- **The speed** (0x4a2b10): the local z speed (+0x78) less throttle x
+  rates[0] x dt, damped by rate_damping[1] with no throttle or against it,
+  held to |throttle| x top_speed (+0x88); the side slip (+0x70) damped by
+  rate_damping[0] and dropped under 0.01.
+- **Sliding** (+0x34; 0x4a2dd0 instead): the world velocity (+0x64) turned
+  into the local one, the speed as above but held to top_speed itself, and
+  the side force (0x4a2c90) applied: the slope's (the matrix's [1] x -60)
+  plus the turn's (-z speed x (forward x +0x314) / dt); standing, a force
+  past friction[0] starts a slide less friction[0]; sliding, less
+  friction[1] against the slip; the slide ends when the slip turns over.
+- The x87 compares: "below" tests pass NaNs and "above" ones do not, so a
+  NaN speed clamps to the low bound and a NaN slip counts as none.
+
+`test_veh_move.py`: 1200 runs through the AI controls' real thunks, 14
+breaks, 13 caught (the heading's exact-equality case is never drawn).
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

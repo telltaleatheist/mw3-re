@@ -149,6 +149,7 @@ add_library(mw3core STATIC
   src/mech3/veh_basic.cpp
   src/mech3/veh_basic_object.cpp
   src/mech3/veh_controls.cpp
+  src/mech3/veh_move.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_reader.cpp
   src/mech3/mech_salvage.cpp
