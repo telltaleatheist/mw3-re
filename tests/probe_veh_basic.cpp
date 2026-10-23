@@ -11,6 +11,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/veh_basic_object.h"
+#include "mech3/player_view.h"
 #include "gamez/zreader/zreader.h"
 #include "probe_app.h"
 
@@ -38,6 +39,8 @@ struct Hooks : m3::VehBasicHooks {
     v.node = node;
   }
   void weapons_free(void* w) override { unported("0x004b01d0", {low(w)}); }
+  void cameras_once() override { unported("0x004ace00", {}); }  // the ctor's tests stub it
+  void view_attach(m3::BasicVehicle& v, m3::CameraMode* mode) override;
   // 1b: the emulator's strings read back through peek8.
   m3::Handle sound_find(const char* name) override { return hd(unported("0x0056f6f0", {name})); }
   const char* sound_name(m3::Handle sound) override { return text(unported("0x0056f740", {low(sound)})); }
@@ -167,4 +170,42 @@ void probe_vb_markers(uint32_t* out) {
   out[0] = lo(m.ally), out[1] = lo(m.enemy), out[2] = lo(m.other);
 }
 
+// The cameras: 0x004ace00 (twice), each mode's +0x04..+0x43 as the
+// original's 0x44 bytes, the lookups by id (index in the list, -1 none).
+void probe_vb_cameras_reset() { m3::vehicle_cameras_reset(); }
+void probe_vb_cameras_make() { m3::vehicle_cameras_make(); }
+int probe_vb_camera_count() { return static_cast<int>(m3::vehicle_cameras().modes.size()); }
+void probe_vb_camera_image(int i, uint32_t* out) {
+  const m3::CameraMode* c = m3::vehicle_cameras().modes[static_cast<size_t>(i)];
+  std::memcpy(out, &c->id, 4);
+  std::memcpy(out + 1, c->delta_rot, 16);
+  std::memcpy(out + 5, c->desired_pos, 12);
+  const float f[7] = {c->dist_vary_factor, c->dist, c->dist_factor, c->dist_vary,
+                      c->dist_catch_up, c->turn_rate, c->look_rate};
+  std::memcpy(out + 8, f, 28);
+  std::memcpy(out + 15, &c->look_, 4);
+}
+static int probe_vb_camera_index(const m3::CameraMode* c) {
+  const auto& v = m3::vehicle_cameras().modes;
+  for (size_t i = 0; i < v.size(); ++i)
+    if (v[i] == c) return static_cast<int>(i);
+  return -1;
+}
+int probe_vb_camera_find(int32_t id) { return probe_vb_camera_index(m3::vehicle_camera(id)); }
+int probe_vb_camera_current() { return probe_vb_camera_index(m3::vehicle_camera_current()); }
+// 0x004acd90: which vehicle and which mode the view was given.
+uint32_t g_attach[2];
+void probe_vb_view_attach(uint32_t v, uint32_t* out) {
+  alignas(16) static unsigned char stand_in[sizeof(m3::BasicVehicle)];
+  g_v = reinterpret_cast<m3::BasicVehicle*>(stand_in);
+  g_addr = v;
+  m3::vehicle_view_attach(*g_v);
+  out[0] = g_attach[0], out[1] = g_attach[1];
+}
+
 }  // extern "C"
+
+void Hooks::view_attach(m3::BasicVehicle& v, m3::CameraMode* mode) {
+  g_attach[0] = ref(&v);
+  g_attach[1] = static_cast<uint32_t>(probe_vb_camera_index(mode));
+}

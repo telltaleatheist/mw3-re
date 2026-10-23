@@ -18,6 +18,10 @@ struct Node;
 // clashes with player.h's.
 namespace mech3 {
 
+class CameraMode;
+struct CameraList;
+void vehicle_cameras_make();
+
 // One engine sound (CZEngineSound, 0xc bytes, 0x004adb90 / 0x004adbb0): the
 // sound by its name and the voice playing it, shared by every vehicle with
 // that engine.
@@ -89,7 +93,11 @@ class VehBasicHooks : public zgame::Unported {
   }
   virtual void controls_set_owner(Handle c, BasicVehicle& v) { unported("ctl.ictl.vt+0x8", {low(c), ref(&v)}); }
   virtual void controls_delete(Handle c) { unported("ctl.ictl.vt+0x0", {low(c), 1}); }
-  virtual void cameras_once() { unported("0x004ace00", {}); }  // the vehicles' camera modes
+  virtual void cameras_once() { vehicle_cameras_make(); }  // 0x004ace00
+  // 0x0040adf0 on the view ([0x005f4c8c]): the view onto the vehicle in `mode`.
+  virtual void view_attach(BasicVehicle& v, CameraMode* mode) {
+    unported("0x0040adf0", {ref(&v), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mode))});
+  }
   // 0x004d6c90(node, 0, 0, 0): zEntity's node and its markers (vehicle_set_node).
   virtual void entity_set_node(Vehicle& v, Handle node);
   // ZEntity's own 0x005a8390(node, 0, 0, 0) (the destructors' with null).
@@ -164,5 +172,17 @@ struct VehicleMarkers {
 };
 VehicleMarkers& vehicle_markers();
 void vehicle_markers_create();
+
+// The vehicles' cameras (docs/vehicles.md, The cameras): one list for every
+// vehicle (the static at 0x0060b130), three plain modes made once
+// (0x004ace00, the flag [0x005e8578]): 0 behind, 1 on the vehicle, 3 above.
+// Its current id (+0x10, [0x0060b140]) is never set after start-up, so a
+// vehicle's view is always mode 0.
+CameraList& vehicle_cameras();
+void vehicle_cameras_reset();                 // the probes' fresh start (the exe never empties it)
+void vehicle_cameras_make();                  // 0x004ace00
+CameraMode* vehicle_camera(int32_t id);       // vt+0x10c 0x004acde0
+CameraMode* vehicle_camera_current();         // vt+0x110 0x004acdc0
+void vehicle_view_attach(BasicVehicle& v);    // vt+0x108 0x004acd90: the view onto it in the current mode
 
 }  // namespace mech3

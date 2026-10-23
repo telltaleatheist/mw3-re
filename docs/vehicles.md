@@ -44,8 +44,8 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
 - Ported (steps 1a and 1b, 2026-10-23): all of the above and below to the
   motion animation, `mech3/veh_basic_object`
   (`BasicVehicle` over the shared `Vehicle` base, which `Mech` now derives
-  from too), checked by `test_veh_basic.py`. 0x4ace00 stays a hook (the
-  camera modes for viewing a vehicle); the engine sounds' clear runs at each
+  from too), checked by `test_veh_basic.py`. The camera modes (0x4ace00)
+  followed with the cameras (below); the engine sounds' clear runs at each
   mission's end. Not in play yet: the program makes no vehicles until their
   placement (step 1c).
 - vt+0xdc 0x4a3630(pos, yaw), the placement (ported in step 1c1): the
@@ -199,8 +199,33 @@ the motion block: the top speed is `rates`' second value, the slowing
 | +0x13c | 0x4ad1c0 | \|turn rate x b\| x a / top speed, clamped to 0..1 |
 
 Without controls the exe reads through null in +0x120..+0x128 (no vehicle
-is without them); the port gives 0. vt+0x108..+0x110 (0x4acd90, 0x4acdc0,
-0x4acde0) are the vehicle cameras' (with 0x4ace00), still hooks.
+is without them); the port gives 0.
+
+## The cameras (0x4ace00, vt+0x108..+0x110, ported 2026-10-23)
+
+Every vehicle shares one camera list, the static at 0x60b130 (freed at exit
+by 0x4ac300), filled once by 0x4ace00 from the first vehicle's constructor
+(the flag [0x5e8578] starts at 1). Its three modes are the plain base
+(0x40a950, 0x44 bytes, base vtable 0x5bc2c0), none of the mechs' classes, and
+no definition block is read:
+
+| id | dist | rotation | desired_pos | dist_vary_factor | otherwise |
+|---|---|---|---|---|---|
+| 0 behind | 15 (base) | pitch -0.06 | (0, 0.43, 1), not normalised | 1 | the base's |
+| 1 on it | 1 | identity | (0, 1, 0) | 0 | the base's |
+| 3 above | 150 | pitch -pi/2 | (0, 1, 0) | 0 | dist_vary 0, dist_factor 0 |
+
+There is no mode 2. The list's current id (+0x10, [0x60b140]) is written only
+by its static constructor, so vt+0x110 (0x4acdc0) and the view attach vt+0x108
+(0x4acd90: 0x40adf0 on the view [0x5f4c8c] with the vehicle and that mode)
+always give mode 0; vt+0x10c (0x4acde0) finds a mode by id. vt+0x108 is the
+slot the mission launch (0x491150) calls on the player's entity; MW3's player
+is always a mech, so a vehicle's view would come only from elsewhere.
+`mech3/veh_basic_object` ports all four (`vehicle_cameras_make`,
+`vehicle_camera`, `vehicle_camera_current`, `vehicle_view_attach`, the last
+through the hooks: the program's view takes a mech), checked by
+`test_veh_basic.py` at both x87 precisions (9 breaks; 8 caught, the ninth an
+ulp inside the tolerance).
 
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 

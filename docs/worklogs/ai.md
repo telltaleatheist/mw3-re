@@ -949,3 +949,16 @@ is paused.
   code), exact: 9 breaks caught (one equivalent break replaced).
 - Next: the vehicle cameras (0x4ace00, vt+0x108..+0x110), then 1d (damage,
   death, salvage), 1e, and putting vehicles in the program.
+
+## 2026-10-23 Item 4, the vehicle cameras (lead)
+
+- 0x4ace00 and vt+0x108..+0x110 in veh_basic_object: one static list
+  (0x60b130), three plain modes (0, 1, 3) made once; its current id is never
+  set, so a vehicle's view is mode 0. The view attach goes through
+  VehBasicHooks::view_attach (PlayerView takes a Mech).
+- test_veh_basic.py gained the cameras at 24- and 64-bit x87: the modes'
+  bytes, the lookups -1..5, the current, the view call. 9 breaks, 8 caught
+  (a one-ulp height change is inside the tolerance).
+- Next: 1d (damage vt+0x160 0x4ad3f0, death vt+0x70 0x4ad2d0, salvage
+  0x472ec0), 1e, and putting vehicles in the program.
+
