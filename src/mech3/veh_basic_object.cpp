@@ -7,6 +7,8 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/class.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -42,6 +44,22 @@ zsnd::VoiceBase* voice(Handle h) { return static_cast<zsnd::VoiceBase*>(h); }
 void set_veh_basic_hooks(VehBasicHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 VehBasicHooks& veh_basic_hooks() { return *g_hooks; }
 float VehBasicHooks::frame_dt() { return player_dt(); }
+float VehBasicHooks::game_time() { return zgame::from_bits(unported("[0x0060991c]", {})); }
+void VehBasicHooks::node_set_active(Handle node, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(node), on); }
+void VehBasicHooks::node_set_rotation(Handle node, float x, float y, float z) {
+  zcls::object3d_set_rotation(static_cast<zcls::Node*>(node), x, y, z);
+}
+void VehBasicHooks::node_update(Handle node) { zcls::node_update(static_cast<zcls::Node*>(node)); }
+Handle VehBasicHooks::node_model(Handle node) { return static_cast<zcls::Node*>(node)->model; }
+void VehBasicHooks::model_scroll(Handle model, float u, float v) {
+  unported("0x00526ae0", {low(model), 1, zgame::bits(u), zgame::bits(v)});
+  unported("0x00541ad0", {low(model)});
+}
+void VehBasicHooks::weapons_frame(void* w, bool fire, float dt) {
+  auto* m = static_cast<WeaponManager*>(w);
+  m->set_trigger(fire);
+  m->update(dt);
+}
 float VehBasicHooks::frame_inv_dt() { return player_inv_dt(); }
 
 void VehBasicHooks::entity_set_node(Vehicle& v, Handle node) {

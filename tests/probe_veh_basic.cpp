@@ -76,6 +76,30 @@ struct Hooks : m3::VehBasicHooks {
   // records read back from where the test's stub left them (g_hits_addr,
   // one 0x504 record each); the new position by vt+0x18's call.
   void ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out) override;
+  // 2c3: the frame's: the movement and the weapons by their calls, the game
+  // time and the player's lock position read back.
+  void move(m3::BasicVehicle& v) override { unported("0x004a1240", {ref(&v)}); }
+  float game_time() override { return zgame::from_bits(probe_app::call("peek32", {0x60991c})); }
+  const float* player_lock_position() override {
+    static float p[3];
+    const uint32_t pilot = probe_app::call("peek32", {0x60861c});
+    const uint32_t mech = pilot ? probe_app::call("peek32", {pilot + 0x14}) : 0;
+    if (!mech) return nullptr;
+    const uint32_t a = unported("0x005a8630", {mech});
+    for (int i = 0; i < 3; ++i) p[i] = zgame::from_bits(probe_app::call("peek32", {a + 4u * static_cast<uint32_t>(i)}));
+    return p;
+  }
+  void weapons_frame(void* w, bool fire, float dt) override {
+    unported("0x004b0c20", {low(w), fire ? 1 : 0});
+    unported("0x004b0c30", {low(w), zgame::bits(dt)});
+  }
+  // 2c3: the frame's node calls by their keys.
+  void node_set_active(m3::Handle node, int32_t on) override { unported("0x004eb170", {low(node), on}); }
+  void node_set_rotation(m3::Handle node, float x, float y, float z) override {
+    unported("0x004fbd80", {low(node), zgame::bits(x), zgame::bits(y), zgame::bits(z)});
+  }
+  void node_update(m3::Handle node) override { unported("0x004eca00", {low(node)}); }
+  m3::Handle node_model(m3::Handle node) override { return hd(unported("0x004eb420", {low(node)})); }
   void set_position(m3::BasicVehicle& v, const float pos[3]) override {
     unported("vt+0x18", {ref(&v), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2])});
   }
@@ -202,7 +226,7 @@ void probe_vb_image(uint8_t* b) {
   put(b, 0xd0, lo(v.net)), put(b, 0xd4, lo(v.ammo)), put(b, 0xd8, lo(v.net_collision));
   put(b, 0xe0, v.xe0), put(b, 0xe4, lo(v.controls));
   // +0xec, the engine sound: compared as an index (probe_vb_engine_index).
-  put(b, 0xf0, lo(v.motion.def)), put(b, 0xf4, lo(v.motion.anim)), put(b, 0xf8, v.motion.x08);
+  put(b, 0xf0, lo(v.motion.def)), put(b, 0xf4, lo(v.motion.anim)), putf(b, 0xf8, v.motion.until);
 }
 
 // The engine sounds: 0x004ad930 (the entry's index, -1 for null), the
@@ -497,6 +521,87 @@ void probe_vs_image(float* f, uint32_t* u) {
   for (int i = 0; i < 16; ++i) std::memcpy(&f[k++], &m.support_word[i], 4);
   u[0] = c.x20;
   u[1] = g_dv->x64 | (uint32_t{g_dv->zones[0]} << 8) | (uint32_t{g_dv->zones[1]} << 16) | (uint32_t{g_dv->zones[2]} << 24);
+}
+}  // extern "C"
+
+// 2c3: the track step's state over probe_vs_setup's. f: throttle, turn,
+// heading x, z, x50.y, x70 x, z, x314 (3), rates[0], turns[0], turn_damping,
+// rate_damping (2), friction (2), the collision points (12 x 3); u: mode,
+// sliding, x760, x24, point count, shadow, rtracks, ltracks.
+extern "C" {
+void probe_vf_extra(const float* f, const uint32_t* u) {
+  m3::VehicleControls& c = *g_dv->controls;
+  m3::VehicleMotion& m = c.motion;
+  int k = 0;
+  c.throttle = f[k++], c.turn = f[k++], c.heading.x = f[k++], c.heading.z = f[k++], c.x50.y = f[k++];
+  c.x70.x = f[k++], c.x70.z = f[k++];
+  c.x314 = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  m.rates[0] = f[k++], m.turns[0] = f[k++], m.turn_damping = f[k++], m.rate_damping[0] = f[k++];
+  m.rate_damping[1] = f[k++], m.friction[0] = f[k++], m.friction[1] = f[k++];
+  for (int i = 0; i < 12; ++i) m.collision[i] = {f[k + 3 * i], f[k + 3 * i + 1], f[k + 3 * i + 2]};
+  m.mode = static_cast<m3::VehicleMotion::Mode>(u[0]);
+  c.sliding = u[1], c.x760 = u[2], c.x24 = u[3], c.point_count = static_cast<int32_t>(u[4]);
+  c.shadow = hd(u[5]), m.rtracks = hd(u[6]), m.ltracks = hd(u[7]);
+}
+void probe_vf_more(uint32_t frozen, float yaw) {
+  g_dv->controls->frozen = frozen, g_dv->controls->angles.y = yaw;
+  for (float& q : g_dv->orientation) q = 0.0f;  // the test's block starts zeroed
+}
+void probe_vf_run(int which) {
+  if (which == 0) m3::vehicle_track_step(*g_dv);
+  else m3::vehicle_move(*g_dv);
+}
+// yaw, x50.y, velocity x, z, x70 x, z, x7c (3), x314 (3), the points (15 x 3,
+// x_ac then +0x160), the last matrix (12), the entity's orientation (4),
+// velocity (3), +0x3c (3); u: x24, sliding, x760.
+void probe_vf_image(float* f, uint32_t* u) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  int k = 0;
+  f[k++] = c.angles0.x, f[k++] = c.angles0.y, f[k++] = c.angles0.z;
+  f[k++] = c.angles.y, f[k++] = c.x50.y, f[k++] = c.velocity.x, f[k++] = c.velocity.z, f[k++] = c.x70.x, f[k++] = c.x70.z;
+  f[k++] = c.x7c.x, f[k++] = c.x7c.y, f[k++] = c.x7c.z, f[k++] = c.x314.x, f[k++] = c.x314.y, f[k++] = c.x314.z;
+  for (int i = 0; i < 15; ++i) f[k++] = c.x_ac[i].x, f[k++] = c.x_ac[i].y, f[k++] = c.x_ac[i].z;
+  for (int i = 0; i < 15; ++i) f[k++] = c.points[i].x, f[k++] = c.points[i].y, f[k++] = c.points[i].z;
+  for (int i = 0; i < 12; ++i) f[k++] = c.last_matrix[i];
+  for (int i = 0; i < 4; ++i) f[k++] = g_dv->orientation[i];
+  f[k++] = g_dv->velocity.x, f[k++] = g_dv->velocity.y, f[k++] = g_dv->velocity.z;
+  f[k++] = g_dv->vec_3c.x, f[k++] = g_dv->vec_3c.y, f[k++] = g_dv->vec_3c.z;
+  u[0] = c.x24, u[1] = c.sliding, u[2] = c.x760;
+}
+}  // extern "C"
+
+// 2c3: the frame 0x004a1040 with controls whose frame, destroyed and on a
+// path answer by their calls; the throttle, the motion animation's state,
+// fire, the weapons.
+namespace {
+struct FrameControls : m3::VehicleControls {
+  int update(float dt) override { return static_cast<int>(probe_app::call("ctl.ictl.vt+0xc", {zgame::bits(dt)})); }
+  bool destroyed() override { return probe_app::call("ctl.vt+0x1c", {}) != 0; }
+  bool on_path() override { return probe_app::call("ctl.ictl.vt+0x70", {}) != 0; }
+};
+}  // namespace
+extern "C" {
+void probe_vfr_setup(uint32_t v, uint32_t ctl, uint32_t node, float throttle, uint32_t fire, uint32_t ammo,
+                     uint32_t def, uint32_t anim, float until, uint32_t entry) {
+  static m3::EngineSoundEntry e;
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new FrameControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl;
+  g_dv->controls = c;
+  g_dv->node = hd(node);
+  g_dv->ammo = hd(ammo);
+  g_dv->engine.entry = entry ? &e : nullptr;
+  g_dv->motion.def = hd(def), g_dv->motion.anim = hd(anim), g_dv->motion.until = until;
+  c->throttle = throttle, c->fire_on = fire;
+}
+void probe_vfr_run(float dt) { m3::vehicle_frame(*g_dv, dt); }
+// active, engine set, anim, until (bits), player_at (3, bits).
+void probe_vfr_image(uint32_t* u) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  u[0] = g_dv->active, u[1] = g_dv->engine.entry != nullptr, u[2] = lo(g_dv->motion.anim);
+  u[3] = zgame::bits(g_dv->motion.until);
+  u[4] = zgame::bits(c.player_at.x), u[5] = zgame::bits(c.player_at.y), u[6] = zgame::bits(c.player_at.z);
 }
 }  // extern "C"
 

@@ -58,7 +58,7 @@ struct EngineSound {
 struct MotionAnim {
   Handle def = nullptr;    // +0x00  zEffect's anim def (0x0050b450)
   Handle anim = nullptr;   // +0x04  the one running (step 2)
-  uint32_t x08 = 0;        // +0x08
+  float until = 0;         // +0x08  the game time it runs to (0x004addc0)
   void set(const char* name);  // 0x004ade40
 };
 
@@ -200,6 +200,27 @@ class VehBasicHooks : public zgame::Unported {
   virtual int32_t node_flag8(Handle node);
   virtual void node_set_flag8(Handle node, int32_t on);
   virtual void node_set_zone(Handle node, uint8_t zone);
+  // The frame's (2c3): the motion animation's start (0x00508c10(def, node,
+  // 0, 0, 0), its handle) and the game time [0x0060991c]; the collisions
+  // (0x0049ff80, step 2c4) and BASIC's step (0x004a1d90); the node's shown
+  // flag (0x004eb170), rotation (0x004fbd80) and matrix (0x004eca00); a
+  // node's model (0x004eb420) and its texture scroll (0x00526ae0(model, 1,
+  // u, v), 0x00541ad0); the player's mech's lock position ([0x0060861c]
+  // +0x14, 0x005a8630; null without one); the weapons' trigger and update
+  // (0x004b0c20, 0x004b0c30).
+  virtual Handle anim_run(Handle def, Handle node) { return h(unported("0x00508c10", {low(def), low(node), 0, 0, 0})); }
+  virtual float game_time();
+  virtual void collisions(BasicVehicle& v) { unported("0x0049ff80", {ref(&v)}); }
+  virtual void basic_step(BasicVehicle& v) { unported("0x004a1d90", {ref(&v)}); }
+  virtual void move(BasicVehicle& v);  // 0x004a1240 (vehicle_move, veh_move)
+  virtual void basic_ground(BasicVehicle& v) { unported("0x004a1f00", {ref(&v)}); }  // TRACK's step on a BASIC one
+  virtual void node_set_active(Handle node, int32_t on);
+  virtual void node_set_rotation(Handle node, float x, float y, float z);
+  virtual void node_update(Handle node);
+  virtual Handle node_model(Handle node);
+  virtual void model_scroll(Handle model, float u, float v);
+  virtual const float* player_lock_position() { return nullptr; }
+  virtual void weapons_frame(void* w, bool fire, float dt);
   // The movement's frame time and its inverse ([0x005e8110], [0x005e8114]).
   virtual float frame_dt();
   virtual float frame_inv_dt();

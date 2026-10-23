@@ -341,5 +341,138 @@ int32_t vehicle_suspension(BasicVehicle& v) {
   return 1;
 }
 
+// ---------------------------------------------------------------------------
+// The frame (2c3)
+
+namespace {
+// The collision points (the motion's) by the vehicle's matrix into `out`.
+void place_points(BasicVehicle& v, Vec3c* out) {
+  VehicleControls& c = *v.controls;
+  const float* t = v.transform;
+  for (int32_t i = 0; i < c.point_count; ++i) {
+    const Vec3c& s = c.motion.collision[i];
+    out[i] = {((s.x * t[0] + s.y * t[3]) + s.z * t[6]) + t[9], ((s.x * t[1] + s.y * t[4]) + s.z * t[7]) + t[10],
+              ((s.x * t[2] + s.y * t[5]) + s.z * t[8]) + t[11]};
+  }
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004a12c0
+void vehicle_track_step(BasicVehicle& v) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  VehicleMotion& m = c.motion;
+  const float dt = h.frame_dt();
+  vehicle_turn_to_heading(v);
+  if (c.x20) c.x50.y = zmth::exp_neg(dt) * c.x50.y;
+  else c.turn_step(m, dt);  // vt+0x14
+  float yaw = dt * c.x50.y + c.angles.y;
+  c.angles.y = yaw;
+  if (!(yaw >= -6.2831855f)) c.angles.y = yaw - -6.2831855f;
+  else if (yaw > 6.2831855f) c.angles.y = yaw - 6.2831855f;
+  c.angles0 = c.angles;
+  euler_rotation(&c.angles.x, v.transform);
+  vehicle_up_refresh(v);
+  if (c.x20) {
+    c.x70.x = zmth::exp_neg(dt * 0.5f) * c.x70.x;
+    c.x70.z = zmth::exp_neg(dt * 0.5f) * c.x70.z;
+  } else {
+    vehicle_speed_step(v);
+  }
+  const float fx = -v.forward.x, fz = -v.forward.z;
+  c.velocity.y = c.x70.y;
+  c.velocity.x = fx * c.x70.z + fz * c.x70.x;
+  c.velocity.z = fz * c.x70.z - fx * c.x70.x;
+  const float* p = h.entity_position(v);
+  float pos[3] = {p[0], p[1], p[2]};
+  pos[0] = dt * c.velocity.x + pos[0];
+  pos[2] = dt * c.velocity.z + pos[2];
+  h.set_position(v, pos);  // vt+0x18
+  c.x7c = c.velocity;
+  place_points(v, c.x_ac);
+  if (c.dynamics() == 0) h.collisions(v);  // vt+0x20
+  if (m.mode == VehicleMotion::kBasic) {
+    h.basic_ground(v);  // 0x004a1f00
+    c.x20 = 0;
+  } else if (m.mode == VehicleMotion::kTrack) {
+    vehicle_suspension(v);
+  }
+  if (c.shadow) {
+    if (c.x20 && c.x24) h.node_set_active(c.shadow, 0);
+    else if (!c.x20 && !c.x24) h.node_set_active(c.shadow, 1);
+  }
+  c.x24 = c.x20;
+  h.node_set_rotation(v.node, c.angles.x, c.angles.y, c.angles.z);
+  h.refresh(v);
+  h.node_update(v.node);
+  place_points(v, c.x_ac);
+  for (int32_t i = 0; i < c.point_count; ++i) c.points[i] = c.x_ac[i];
+  std::memcpy(c.last_matrix, v.transform, sizeof c.last_matrix);
+  c.x314 = {v.forward.x, v.forward.y, v.forward.z};
+  if (m.rtracks) {
+    const float r = c.x50.y * 2.25f - c.x70.z;
+    h.model_scroll(h.node_model(m.rtracks), 0.0f, r * 1.72f);
+    const float l = -c.x70.z - c.x50.y * 2.25f;
+    h.model_scroll(h.node_model(m.ltracks), 0.0f, l * 1.72f);
+  }
+}
+
+void VehBasicHooks::move(BasicVehicle& v) { vehicle_move(v); }
+
+// Mech3.exe 1.2 @ 0x004a1240
+void vehicle_move(BasicVehicle& v) {
+  VehicleControls& c = *v.controls;
+  if (c.frozen) return;
+  if (c.motion.mode == VehicleMotion::kBasic) hk().basic_step(v);
+  else if (c.motion.mode == VehicleMotion::kTrack) vehicle_track_step(v);
+  static const float kAhead[3] = {0.0f, 0.0f, -1.0f};  // 0x005e8120
+  const float to[3] = {v.x18.x, v.x18.y, v.x18.z};
+  zmth::quat_between(kAhead, to, v.orientation);
+  v.velocity = {c.velocity.x, c.velocity.y, c.velocity.z};
+  v.vec_3c = {c.x70.x, c.x70.y, c.x70.z};
+}
+
+// Mech3.exe 1.2 @ 0x004addc0
+void vehicle_motion_anim_step(BasicVehicle& v, float throttle) {
+  VehBasicHooks& h = hk();
+  MotionAnim& a = v.motion;
+  if (!(0.9f >= std::fabs(throttle))) {
+    a.until = h.game_time() + 0.0f;  // + [0x0060b15c], never set
+    if (!a.anim && a.def) a.anim = h.anim_run(a.def, v.node);
+    return;
+  }
+  if (a.anim && h.game_time() > a.until) {
+    h.anim_stop(a.anim);  // 0x00506ca0
+    a.anim = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004b4880
+void vehicle_weapons_step(BasicVehicle& v, float dt) {
+  if (v.ammo) hk().weapons_frame(v.ammo, v.controls->fire_on == 1, dt);
+}
+
+// Mech3.exe 1.2 @ 0x004a1040
+void vehicle_frame(BasicVehicle& v, float dt) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  const bool ran = c.update(dt) == 1;  // IControls vt+0x0c
+  if (c.destroyed()) {
+    v.active = false;
+    v.engine.entry = nullptr;  // 0x004adb40
+    if (v.motion.anim) {  // 0x004ade70
+      h.anim_stop(v.motion.anim);
+      v.motion.anim = nullptr;
+    }
+    return;
+  }
+  if (!ran || !c.on_path()) return;
+  h.move(v);
+  vehicle_motion_anim_step(v, c.throttle);  // IControls vt+0x1c
+  if (const float* p = h.player_lock_position()) c.player_at = {p[0], p[1], p[2]};
+  vehicle_weapons_step(v, dt);
+  h.refresh(v);
+}
+
 }  // namespace mech3
 

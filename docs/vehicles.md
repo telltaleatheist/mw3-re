@@ -484,6 +484,41 @@ the original's own helpers (the pick, exp_neg, asin through a stand-in for
 the CRT's, the normal, the turn), 23 breaks, 22 caught (the water surface
 feeds only the dead quicksand branch).
 
+## The frame (vt+0x34 0x4a1040, step 2c3, ported 2026-10-23)
+
+- **The frame** (0x4a1040, the entity manager's per-entity vt+0x34): the
+  controls' frame (IControls vt+0x0c; the AI's is the brain's); destroyed
+  controls make the vehicle inactive, its engine sound and motion animation
+  off. When the frame answered 1 and the controls are on a path (the AI's
+  always): the movement, the motion animation, the player's mech's lock
+  position kept at +0x6f0, the weapons (0x4b4880: the trigger is fire ==
+  1, then the manager's update), zEntity's refresh.
+- **The motion animation** (0x4addc0, `motion_anim` at +0xf0): it runs
+  while the throttle is past 0.9 either way, and stops the first frame it
+  is not (its hold time, [0x60b15c], is never set).
+- **The movement** (0x4a1240): nothing for a frozen vehicle (+0x28); BASIC
+  0x4a1d90 or TRACK 0x4a12c0, then the orientation (+0x48) the turn from
+  (0, 0, -1) onto the forward (0x525a50) and the controls' velocities
+  copied to the entity.
+- **TRACK's step** (0x4a12c0): the heading's turn, the turn rate (vt+0x14;
+  all in the air: damped by e^-dt), the yaw kept within +-2 pi, angles0
+  kept, the matrix from the angles (0x4ab990), the up, the speed (in the
+  air: both damped by e^(-dt/2)), the world velocity (-forward x z + its
+  side x x) and the position moved by it (vt+0x18), the collision points
+  placed (+0xac), the collisions 0x49ff80 when the controls' vt+0x20 is 0
+  (every MW3 controls), BASIC's ground 0x4a1f00 or the suspension, the
+  shadow shown or hidden once two frames agree (on the ground, in the
+  air), the node's rotation and matrix, the points again (and their copies
+  at +0x160), the matrix and forward kept (+0x278, +0x314), and the tracks'
+  textures scrolled by (turn rate x 2.25 -+ speed) x 1.72.
+
+`vehicle_frame`, `vehicle_move`, `vehicle_track_step`,
+`vehicle_motion_anim_step`, `vehicle_weapons_step` in `mech3/veh_move`;
+`test_veh_frame.py`: 600 track steps and moves on test_veh_suspension.py's
+vehicles with the base controls' real slots, and 300 frames, 24 breaks
+caught. The collisions (0x49ff80) and BASIC's two steps (0x4a1d90,
+0x4a1f00, the stealth object's) are left.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

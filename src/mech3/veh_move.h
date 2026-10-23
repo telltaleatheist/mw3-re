@@ -56,4 +56,31 @@ void vehicle_forward_from_up(BasicVehicle& v);
 // up, -forward, the position).
 void vehicle_matrix_build(BasicVehicle& v);
 
+// The frame (2c3; docs/vehicles.md, The frame).
+// Mech3.exe 1.2 @ 0x004a12c0 (TRACK): the heading's turn, the turn rate
+// (in the air: damped by e^-dt), the yaw kept within +-2 pi, the matrix
+// from the angles, the speed (in the air: damped by e^(-dt/2)), the world
+// velocity and the position moved by it, the collision points placed, the
+// collisions (unless the controls' vt+0x20), the suspension, the shadow
+// (shown or hidden once two frames agree), the node's rotation and matrix,
+// the points again (their copies at +0x160), the last matrix and forward
+// kept, the tracks' textures scrolled by the speed and turn.
+void vehicle_track_step(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004a1240: unless frozen, the mode's step (BASIC
+// 0x004a1d90, TRACK above; the others none), then the orientation turned
+// from (0, 0, -1) onto the forward (0x00525a50) and the controls' world and
+// local velocities copied to the entity (+0x30, +0x3c).
+void vehicle_move(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004addc0: the motion animation runs while the
+// throttle's size is past 0.9 and stops the frame after (its hold,
+// [0x0060b15c], is never set).
+void vehicle_motion_anim_step(BasicVehicle& v, float throttle);
+void vehicle_weapons_step(BasicVehicle& v, float dt);  // 0x004b4880
+// Mech3.exe 1.2 @ 0x004a1040 (vt+0x34): the controls' frame (IControls
+// vt+0x0c); destroyed, the vehicle inactive, its engine sound and motion
+// animation off; else, on a path after a frame that answered 1, the
+// movement, the motion animation by the throttle, the player's lock
+// position into the controls (+0x6f0), the weapons, zEntity's refresh.
+void vehicle_frame(BasicVehicle& v, float dt);
+
 }  // namespace mech3
