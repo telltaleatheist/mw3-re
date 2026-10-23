@@ -2,7 +2,8 @@
 the entry 0x4ac320 (its node the world's by name, else a named copy of the
 type's put in the world), the constructor 0x4ac530 over the vehicle base
 0x4aeb00, the destructor 0x4ac650 over 0x4aeb50 / 0x4d58a0, and the HUD
-markers 0x4ac3d0.
+markers 0x4ac3d0; step 1b: the engine sounds' list 0x4ad930 / 0x4add10 and
+the setup 0x49ec00 (sounds/engine, motion_anim 0x4ade40, the controls' own).
 
     cmake --build build && .venv/bin/python tests/differential/test_veh_basic.py [runs]
 
@@ -12,9 +13,13 @@ the world's add and remove, the controls' block 0x4ac860 and constructor
 entity's node 0x4d6c90 (writing +0x04 as the real one does) and zEntity's
 list. Each run: the name found or not, the type found or not, the copy
 failing, given controls or made ones (their block failing); then the
-destructor with the weapons, the network's record, the animation and the
-slot each set or not. Compared: the traces, whether a vehicle was made, its
-0xfc bytes after the constructor and the markers.
+destructor with the weapons, the network's record, the motion animation and
+the engine sound each set or not. Compared: the traces, whether a vehicle was
+made, its 0xfc bytes after the constructor and the markers. The engine
+sounds: lookups by name (repeats, unknown sounds, null names, more than the
+list's 64), then the clear with voices playing. The setup: the definition's
+sounds a list or not, an engine or none, a motion_anim or none (a string, 0
+or not one), an animation running.
 """
 import ctypes
 import os
@@ -104,6 +109,30 @@ def make(seed, t):
         em.t.override(key, c)
         em._ret(c, pop)
     e.stub(0x59b830, spec='zs0,s1,s2,s3', fn=marker)
+    # The engine sounds: 64 known, a few unknown to zSound.
+    sounds = {}
+    for k in range(80):
+        nm = f'engine_{k:02d}'
+        sounds[nm] = (e.world_string(nm), e.world_alloc(0x10) if k < 72 else 0)
+    by_handle = {h: a for a, h in sounds.values() if h}
+    e.sounds = sounds
+
+    def sound_find(em, key, a, pop):
+        h = sounds.get(a[0], (0, 0))[1] if a[0] else 0
+        em.t.handle(key, a)
+        em.t.override(key, h)
+        em._ret(h, pop)
+    e.stub(0x56f6f0, spec='zc', fn=sound_find)
+
+    def sound_name(em, key, a, pop):
+        v = by_handle.get(a[0], 0)
+        em.t.handle(key, a)
+        em.t.override(key, v)
+        em._ret(v, pop)
+    e.stub(0x56f740, spec='c', fn=sound_name)
+    for addr in (0x56f410, 0x56e9f0):
+        e.stub(addr, spec='c')
+    e.stub(0x49bfd0, spec='s0,zs1,s2,zs3', pop=0)
     return e, case, given
 
 
@@ -158,6 +187,129 @@ def run(probe, seed, verbose=False):
     return True, len(t.log)
 
 
+LIST = 0x60b110
+
+
+def entry_index(e, a):
+    return -1 if a == 0 else (a - e.r32(LIST + 4)) // 0xc
+
+
+def run_sounds(probe, seed):
+    t = Trace()
+    e = make(seed, t)[0]
+    e.call(0x4ad840, ecx=LIST)
+    r = rnd(seed, 'sounds')
+    names = list(e.sounds)
+    n = r.choice([10, 40, 200])
+    pool = names[:r.choice([8, 30, 80])]
+    seq = [r.choice(pool) if r.random() > 0.05 else None for _ in range(n)]
+    held = {nm: e.world_string(nm) for nm in names}
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    probe.probe_vb_sounds_reset()
+    name = f'sounds seed {seed} ({n} lookups)'
+    for i, nm in enumerate(seq):
+        got = e.call(0x4ad930, ecx=LIST, stack=(held[nm] if nm else 0,))
+        want = entry_index(e, got)
+        mine = probe.probe_vb_sound_find(nm.encode() if nm else None)
+        if want != mine:
+            print(f'{name}: lookup {i} ({nm}): original entry {want} rebuild {mine}')
+            return False, 0
+    count = (e.r32(LIST + 8) - e.r32(LIST + 4)) // 0xc
+    if count != probe.probe_vb_sound_count():
+        print(f'{name}: entries original {count} rebuild {probe.probe_vb_sound_count()}')
+        return False, 0
+    out = (U * 3)()
+    for i in range(count):
+        base = e.r32(LIST + 4) + 0xc * i
+        probe.probe_vb_sound_entry(i, out)
+        if [e.r32(base), e.r32(base + 4), e.r32(base + 8)] != list(out):
+            print(f'{name}: entry {i} differs')
+            return False, 0
+        if r.random() < 0.3:
+            v = e.world_alloc(0x10)
+            e.w32(base + 8, v)
+            probe.probe_vb_sound_voice(i, v)
+    e.call(0x4add10)
+    probe.probe_vb_sounds_clear()
+    if e.r32(LIST + 8) != e.r32(LIST + 4) or probe.probe_vb_sound_count() != 0:
+        print(f'{name}: not emptied')
+        return False, 0
+    return compare(name, t.log, rep.log), len(t.log)
+
+
+def run_setup(probe, seed):
+    t = Trace()
+    e, case, given = make(seed, t)
+    case['by_name'] = True  # a vehicle to set up
+    e.call(0x4ad840, ecx=LIST)
+    r = rnd(seed, 'setup')
+    ctl = fake_controls(e, 'ctl')
+    vt = e.r32(ctl)
+    e.w32(vt + 0xc, e.new_stub('ctl.vt+0xc', 'c,s0,zs1,s2', 0xc))
+    sounds_node = r.choice([0, e.world_alloc(0x10), e.world_alloc(0x10)])
+    if sounds_node:
+        e.w32(sounds_node, r.choice([4, 4, 3]))
+    engine = r.choice([None, 'engine_03', 'engine_75', 'engine_40'])
+    motion = r.choice([None, 'apc_move', 'truck_roll'])
+    motion_ok = r.random() < 0.8
+    strs = {x: e.world_string(x) for x in ('engine_03', 'engine_75', 'engine_40', 'apc_move', 'truck_roll')}
+    anims = {'apc_move': e.world_alloc(0x10), 'truck_roll': 0}
+
+    def answer(value):
+        def fn(em, key, a, pop):
+            em.t.handle(key, a)
+            em.t.override(key, value)
+            em._ret(value, pop)
+        return fn
+    e.stub(0x5569e0, spec='c,zd', fn=answer(sounds_node))
+    e.stub(0x5569f0, spec='c,zd', fn=answer(strs[engine] if engine else 0))
+
+    def string_value(em, key, a, pop):
+        out = strs[motion] if motion else 0
+        if motion_ok:  # 0x557030 writes only what it read
+            em.w32(a[2], out)
+        em.t.handle(key, a[:2])
+        em.t.override(key, int(motion_ok))
+        em.t.handle('@0x00557090.out', ())
+        em.t.override('@0x00557090.out', out)
+        em._ret(int(motion_ok), pop)
+    e.stub(0x557090, spec='c,zd,s0', fn=string_value)
+
+    def anim_find(em, key, a, pop):
+        v = anims.get(a[0], 0)
+        em.t.handle(key, a)
+        em.t.override(key, v)
+        em._ret(v, pop)
+    e.stub(0x50b450, spec='zc', fn=anim_find)
+    ts, vs = e.world_string('apc'), e.world_string('apc_01')
+    defn = e.world_alloc(0x10)
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    probe.probe_vb_sounds_reset()
+    name = f'setup seed {seed} (sounds {bool(sounds_node)}, engine {engine}, motion {motion} {motion_ok})'
+    v = e.call(0x4ac320, ecx=ctl, edx=ts, stack=(vs,))
+    probe.probe_vb_create(v, ctl, b'apc', b'apc_01')
+    running = r.choice([0, e.world_alloc(0x10)])
+    e.w32(v + 0xf4, running)
+    probe.probe_vb_set(0, 0, running, 0)
+    kind = r.choice([1, 3, 5])
+    e.call(0x49ec00, ecx=v, stack=(defn, vs, kind))
+    probe.probe_vb_setup(defn, b'apc_01', kind)
+    a = image_original(e, v)
+    b = image_probe(probe, a)
+    diff = [o for o in range(0xfc) if o not in SKIP and a[o] != b[o]]
+    if diff:
+        o = diff[0] & ~3
+        print(f'{name}: the vehicle differs at +{o:#x}: original {a[o:o + 4].hex()} rebuild {b[o:o + 4].hex()}')
+        return False, 0
+    want, mine = entry_index(e, e.r32(v + 0xec)), probe.probe_vb_engine_index()
+    if want != mine:
+        print(f'{name}: engine sound original {want} rebuild {mine}')
+        return False, 0
+    return compare(name, t.log, rep.log), len(t.log)
+
+
 def markers(probe):
     t = Trace()
     e = make(0, t)[0]
@@ -180,6 +332,10 @@ def main():
     probe.probe_vb_set.argtypes = [U, U, U, U]
     probe.probe_vb_image.argtypes = [P]
     probe.probe_vb_markers.argtypes = [P]
+    probe.probe_vb_sound_find.argtypes = [ctypes.c_char_p]
+    probe.probe_vb_sound_entry.argtypes = [ctypes.c_int, P]
+    probe.probe_vb_sound_voice.argtypes = [ctypes.c_int, U]
+    probe.probe_vb_setup.argtypes = [U, ctypes.c_char_p, ctypes.c_int32]
     probe.probe_vb_hooks(1)
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 200
@@ -189,9 +345,15 @@ def main():
         if not ok:
             sys.stdout.flush(); os._exit(1)
         calls += n
+    for seed in range(runs // 2):
+        for part in (run_sounds, run_setup):
+            ok, n = part(probe, seed)
+            if not ok:
+                sys.stdout.flush(); os._exit(1)
+            calls += n
     if not markers(probe):
         sys.stdout.flush(); os._exit(1)
-    print(f'ok: {runs} vehicles made and destroyed as the original ({calls} calls), the three markers alike')
+    print(f'ok: {runs} vehicles made and destroyed as the original, {runs // 2} engine-sound runs and setups ({calls} calls), the three markers alike')
     sys.stdout.flush(); os._exit(0)
 
 

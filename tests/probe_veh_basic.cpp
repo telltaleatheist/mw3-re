@@ -6,9 +6,12 @@
 // bytes.
 #include <cstdint>
 #include <cstring>
+#include <map>
+#include <string>
 
 #include "gamez/zgame/unported.h"
 #include "mech3/veh_basic_object.h"
+#include "gamez/zreader/zreader.h"
 #include "probe_app.h"
 
 namespace {
@@ -35,6 +38,43 @@ struct Hooks : m3::VehBasicHooks {
     v.node = node;
   }
   void weapons_free(void* w) override { unported("0x004b01d0", {low(w)}); }
+  // 1b: the emulator's strings read back through peek8.
+  m3::Handle sound_find(const char* name) override { return hd(unported("0x0056f6f0", {name})); }
+  const char* sound_name(m3::Handle sound) override { return text(unported("0x0056f740", {low(sound)})); }
+  void voice_unlock(m3::Handle v) override { unported("0x0056f410", {low(v)}); }
+  void voice_stop(m3::Handle v) override { unported("0x0056e9f0", {low(v)}); }
+  m3::Handle anim_find(const char* name) override { return hd(unported("0x0050b450", {name})); }
+  void report(int32_t level, const char* file, int32_t line, const char* message) override {
+    unported("0x0049bfd0", {level, file, line, message});
+  }
+  zrdr::Node* reader_find(zrdr::Node* node, const char* key) override {
+    return reinterpret_cast<zrdr::Node*>(hd(unported("0x005569e0", {low(node), key})));
+  }
+  int32_t reader_type(zrdr::Node* node) override {
+    return static_cast<int32_t>(probe_app::call("peek32", {low(node)}));
+  }
+  const char* reader_string(zrdr::Node* node, const char* key) override {
+    return text(unported("0x005569f0", {low(node), key}));
+  }
+  bool reader_string_value(zrdr::Node* node, const char* key, const char** out) override {
+    const bool ok = unported("0x00557090", {low(node), key}) != 0;
+    const uint32_t s = unported("@0x00557090.out", {});
+    if (ok) *out = s ? text(s) : nullptr;
+    return ok;
+  }
+
+  static const char* text(uint32_t a) {
+    if (!a) return nullptr;
+    static std::map<uint32_t, std::string> seen;
+    std::string& t = seen[a];
+    t.clear();
+    for (uint32_t i = 0; i < 256; ++i) {
+      const char c = static_cast<char>(probe_app::call("peek8", {a + i}));
+      if (!c) break;
+      t.push_back(c);
+    }
+    return t.c_str();
+  }
 };
 Hooks g_hooks;
 
@@ -61,7 +101,7 @@ void probe_vb_set(uint32_t ammo, uint32_t net_collision, uint32_t anim, uint32_t
   g_v->ammo = hd(ammo);
   g_v->net_collision = reinterpret_cast<m3::NetCollision*>(hd(net_collision));
   g_v->motion.anim = hd(anim);
-  g_v->engine.entry = hd(engine);
+  g_v->engine.entry = reinterpret_cast<m3::EngineSoundEntry*>(hd(engine));
 }
 
 void probe_vb_destroy() {
@@ -93,8 +133,32 @@ void probe_vb_image(uint8_t* b) {
   put(b, 0xc0, v.team), put(b, 0xc4, v.allies), put(b, 0xc8, v.enemies), put(b, 0xcc, v.shadow ? 1u : 0u);
   put(b, 0xd0, lo(v.net)), put(b, 0xd4, lo(v.ammo)), put(b, 0xd8, lo(v.net_collision));
   put(b, 0xe0, v.xe0), put(b, 0xe4, lo(v.controls));
-  put(b, 0xec, lo(v.engine.entry));
-  put(b, 0xf0, v.motion.x00), put(b, 0xf4, lo(v.motion.anim)), put(b, 0xf8, v.motion.x08);
+  // +0xec, the engine sound: compared as an index (probe_vb_engine_index).
+  put(b, 0xf0, lo(v.motion.def)), put(b, 0xf4, lo(v.motion.anim)), put(b, 0xf8, v.motion.x08);
+}
+
+// The engine sounds: 0x004ad930 (the entry's index, -1 for null), the
+// entries (x00, sound, voice), a voice set, 0x004add10.
+int probe_vb_sound_find(const char* name) {
+  const m3::EngineSoundEntry* e = m3::engine_sound_find(name);
+  return e ? static_cast<int>(e - m3::engine_sounds().entries.data()) : -1;
+}
+int probe_vb_sound_count() { return static_cast<int>(m3::engine_sounds().entries.size()); }
+void probe_vb_sound_entry(int i, uint32_t* out) {
+  const m3::EngineSoundEntry& e = m3::engine_sounds().entries[static_cast<size_t>(i)];
+  out[0] = e.x00, out[1] = lo(e.sound), out[2] = lo(e.voice);
+}
+void probe_vb_sound_voice(int i, uint32_t v) { m3::engine_sounds().entries[static_cast<size_t>(i)].voice = hd(v); }
+void probe_vb_sounds_clear() { m3::engine_sounds_clear(); }
+void probe_vb_sounds_reset() { m3::engine_sounds().entries.clear(); }  // silent, between runs
+int probe_vb_engine_index() {
+  const m3::EngineSoundEntry* e = g_v->engine.entry;
+  return e ? static_cast<int>(e - m3::engine_sounds().entries.data()) : -1;
+}
+
+// 0x0049ec00 on the vehicle made last.
+void probe_vb_setup(uint32_t def, const char* name, int32_t kind) {
+  m3::vehicle_setup(*g_v, reinterpret_cast<zrdr::Node*>(hd(def)), name, kind);
 }
 
 void probe_vb_markers(uint32_t* out) {

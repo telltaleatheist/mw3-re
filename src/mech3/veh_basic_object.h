@@ -1,8 +1,13 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 #include "mech3/mech.h"
+
+namespace zrdr {
+struct Node;
+}
 
 // The basic vehicle (trucks, APCs, tanks; the field base and the stealth
 // object are made over it), docs/vehicles.md. Original file: these sit just
@@ -11,11 +16,33 @@
 // clashes with player.h's.
 namespace mech3 {
 
+// One engine sound (CZEngineSound, 0xc bytes, 0x004adb90 / 0x004adbb0): the
+// sound by its name and the voice playing it, shared by every vehicle with
+// that engine.
+struct EngineSoundEntry {
+  uint32_t x00 = 0;         // +0x00
+  Handle sound = nullptr;   // +0x04  zSound's (0x0056f6f0)
+  Handle voice = nullptr;   // +0x08  set by the frame (step 2)
+};
+
+// The vehicles' engine sounds (CZEngineSoundList, the global at 0x0060b110):
+// made at start-up (0x004ada90 -> 0x004ad840) with room for 64 and never
+// grown, emptied at each mission's end (0x004d71f0 -> 0x004add10).
+struct EngineSoundList {
+  std::vector<EngineSoundEntry> entries;  // +0x04..+0x0c
+  EngineSoundList() { entries.reserve(kCapacity); }
+  static constexpr size_t kCapacity = 0x300 / 0xc;
+};
+EngineSoundList& engine_sounds();
+EngineSoundEntry* engine_sound_find(const char* name);  // 0x004ad930; null when none or full
+void engine_sounds_clear();                             // 0x004add10 (0x004d71f0)
+
 // The engine sound at +0xe8 (vtable 0x005c8b90): the definition's
 // sounds/engine entry, from the vehicles' shared cache at 0x0060b110
 // (0x004adb20 -> 0x004ad930, step 1b), else null.
 struct EngineSound {
-  Handle entry = nullptr;  // +0x04
+  EngineSoundEntry* entry = nullptr;  // +0x04
+  void set(const char* name);         // 0x004adb20
 };
 
 // The motion animation at +0xf0 (0x004aec00 zeroes it, a body the linker
@@ -23,9 +50,10 @@ struct EngineSound {
 // (0x004ade40, step 1b), stopped (0x00506ca0) as it goes (0x004addb0 ->
 // 0x004ade70).
 struct MotionAnim {
-  uint32_t x00 = 0;        // +0x00
-  Handle anim = nullptr;   // +0x04
+  Handle def = nullptr;    // +0x00  zEffect's anim def (0x0050b450)
+  Handle anim = nullptr;   // +0x04  the one running (step 2)
   uint32_t x08 = 0;        // +0x08
+  void set(const char* name);  // 0x004ade40
 };
 
 // 0xfc bytes, vtable 0x005c88e8 (89 slots).
@@ -73,6 +101,23 @@ class VehBasicHooks : public zgame::Unported {
   virtual void weapons_free(void* w);  // 0x004b01d0 and the delete
   virtual void net_collision_free(void* n) { unported("delete", {low(n)}); }
   virtual void shadow_release(Vehicle& v) { unported("0x004d58a0", {ref(&v)}); }  // AiTarget's dtor
+  // The engine sounds and the motion animation (step 1b).
+  virtual Handle sound_find(const char* name);           // 0x0056f6f0: zsnd::find
+  virtual const char* sound_name(Handle sound);          // 0x0056f740: zsnd::name_of
+  virtual void voice_unlock(Handle voice);               // 0x0056f410: zsnd::unlock
+  virtual void voice_stop(Handle voice);                 // 0x0056e9f0: zsnd::stop
+  virtual Handle anim_find(const char* name);            // 0x0050b450: zeff::anim_find
+  // 0x0049bfd0, empty in this build (zerr::report here).
+  virtual void report(int32_t level, const char* file, int32_t line, const char* message);
+  // The definition (zReader): 0x005569e0, its node's type, 0x005569f0, 0x00557090.
+  virtual zrdr::Node* reader_find(zrdr::Node* node, const char* key);
+  virtual int32_t reader_type(zrdr::Node* node);
+  virtual const char* reader_string(zrdr::Node* node, const char* key);
+  virtual bool reader_string_value(zrdr::Node* node, const char* key, const char** out);
+  // The controls' vt+0x0c (the AI's setup).
+  virtual void controls_setup(Handle c, zrdr::Node* def, const char* name, int32_t kind) {
+    unported("ctl.vt+0xc", {low(c), low(def), name, kind});
+  }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return h(unported("0x0059b830", {name, 0, 0, 1})); }
 };
@@ -82,6 +127,9 @@ void set_veh_basic_hooks(VehBasicHooks* h);  // null: the defaults
 // world's `name` or a copy of `type`'s; null without either.
 BasicVehicle* vehicle_create(Handle ctl, const char* type, const char* name);
 void vehicle_construct(BasicVehicle& v, Handle ctl, Handle node);  // 0x004ac530
+// Mech3.exe 1.2 @ 0x0049ec00 (vt+0x158): the definition's sounds/engine and
+// motion_anim, then the controls' own setup.
+void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t kind);
 void vehicle_destroy(BasicVehicle& v);  // 0x004ac650 over 0x004aeb50
 void vehicle_delete(BasicVehicle* v);   // 0x004ac630(1)
 

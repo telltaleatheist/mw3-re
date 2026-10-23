@@ -98,6 +98,7 @@ namespace mech3 {
 int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
 void free_weapon_type(zwep::WeaponDef* def);                     // 0x004b0090
+void engine_sounds_clear();  // mech3/veh_basic_object.h: 0x004add10
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
@@ -919,6 +920,7 @@ struct WiredMissionHooks : MissionHooks {
   void view_fn_40adf0(Handle) override { program_view_detach(); }
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
+  void fn_4d71f0() override { engine_sounds_clear(); }  // 0x004d71f0 -> 0x004add10
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
   void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
