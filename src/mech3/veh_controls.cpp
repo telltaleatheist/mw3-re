@@ -484,9 +484,8 @@ void VehicleControls::reset_1c() {
 // ---------------------------------------------------------------------------
 // The turret's aim (2b1)
 
-namespace {
-// 0x004020d0: normalised in place when not 0; the length.
-float normalise(float v[3]) {
+// Mech3.exe 1.2 @ 0x004020d0
+float vec_normalise(float v[3]) {
   const float len = std::sqrt((v[0] * v[0] + v[2] * v[2]) + v[1] * v[1]);
   if (std::fabs(len) != 0.0f) {
     const float r = 1.0f / len;
@@ -494,6 +493,8 @@ float normalise(float v[3]) {
   }
   return len;
 }
+
+namespace {
 // Into the turret's frame: (row . v) for each row of its world 3x3, x first.
 void by_rows(const float* m, const float v[3], float out[3]) {
   out[0] = (v[0] * m[0] + v[1] * m[1]) + v[2] * m[2];
@@ -520,7 +521,7 @@ bool turret_can_aim(const VehicleControls& c, const TurretAim& a, float cos_limi
   float l[3];
   by_rows(g_hooks->node_world_matrix(c.turret_node), a.dir, l);
   l[1] = 0.0f;
-  const float len = normalise(l);
+  const float len = vec_normalise(l);
   if (len == 0.0f || std::isnan(len)) return false;
   return -l[2] > cos_limit;
 }
@@ -535,7 +536,7 @@ int32_t turret_turn(VehicleControls& c, const TurretAim& a, float dt) {
   float l[3];
   by_rows(g_hooks->node_world_matrix(c.turret_node), aim, l);
   l[1] = 0.0f;
-  const float len = normalise(l);
+  const float len = vec_normalise(l);
   if (len == 0.0f || std::isnan(len)) return 1;
   const float angle = static_cast<float>(std::atan2(-double{l[0]}, -double{l[2]}));
   if (!(std::fabs(angle) > 0.001)) return 1;

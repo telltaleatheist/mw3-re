@@ -72,6 +72,13 @@ struct Hooks : m3::VehBasicHooks {
   void node_set_zone(m3::Handle node, uint8_t zone) override { unported("0x004eb810", {low(node), zone}); }
   // 2c1: the frame time and its inverse read from the original's globals.
   float frame_dt() override { return zgame::from_bits(probe_app::call("peek32", {0x5e8110})); }
+  // 2c2: the supports' query by its call (count, top, each probe), the
+  // records read back from where the test's stub left them (g_hits_addr,
+  // one 0x504 record each); the new position by vt+0x18's call.
+  void ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out) override;
+  void set_position(m3::BasicVehicle& v, const float pos[3]) override {
+    unported("vt+0x18", {ref(&v), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2])});
+  }
   float frame_inv_dt() override { return zgame::from_bits(probe_app::call("peek32", {0x5e8114})); }
   // The readout's: the controls' slots keyless (as the test's stubs), the
   // node's name and the camera's zones read back, the position by its call.
@@ -266,19 +273,30 @@ void probe_vb_view_attach(uint32_t v, uint32_t* out) {
 uint32_t g_ctl = 0;  // the original's controls block
 uint32_t g_hits_addr = 0;
 zmod::Material g_mats[32];
-int32_t Hooks::ground(float x, float y, float z, zcls::GroundHits* out) {
-  const int32_t r = static_cast<int32_t>(unported("0x004edab0", {zgame::bits(x), zgame::bits(y), zgame::bits(z)}));
-  auto p32 = [](uint32_t a) { return probe_app::call("peek32", {a}); };
-  out->count = static_cast<uint8_t>(p32(g_hits_addr));
+void read_hits(uint32_t addr, zcls::GroundHits* out, zmod::Material* mats) {
+  auto p32 = [](uint32_t x) { return probe_app::call("peek32", {x}); };
+  out->count = static_cast<uint8_t>(p32(addr));
   for (int i = 0; i < out->count && i < 32; ++i) {
-    const uint32_t h = g_hits_addr + 4 + 0x28u * static_cast<uint32_t>(i);
+    const uint32_t h = addr + 4 + 0x28u * static_cast<uint32_t>(i);
     zcls::GroundHit& g = out->hit[i];
+    for (int k = 0; k < 3; ++k) g.normal[k] = zgame::from_bits(p32(h + 4u * static_cast<uint32_t>(k)));
     g.x = zgame::from_bits(p32(h + 0xc)), g.height = zgame::from_bits(p32(h + 0x10)), g.z = zgame::from_bits(p32(h + 0x14));
     g.zone[0] = p32(h + 0x18), g.zone[1] = p32(h + 0x1c);
     const uint32_t m = p32(h + 0x20);
-    g_mats[i].soil = m ? p32(m + 0x20) : 0;
-    g.material = m ? &g_mats[i] : nullptr;
+    mats[i].soil = m ? p32(m + 0x20) : 0;
+    g.material = m ? &mats[i] : nullptr;
   }
+}
+zmod::Material g_many_mats[8][32];
+void Hooks::ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out) {
+  unported("0x004ee2f0", {count, zgame::bits(top)});
+  for (int32_t i = 0; i < count; ++i)
+    unported("0x004ee2f0.probe", {zgame::bits(probes[3 * i]), zgame::bits(probes[3 * i + 1]), zgame::bits(probes[3 * i + 2])});
+  for (int32_t i = 0; i < count && i < 8; ++i) read_hits(g_hits_addr + 0x504u * static_cast<uint32_t>(i), &out[i], g_many_mats[i]);
+}
+int32_t Hooks::ground(float x, float y, float z, zcls::GroundHits* out) {
+  const int32_t r = static_cast<int32_t>(unported("0x004edab0", {zgame::bits(x), zgame::bits(y), zgame::bits(z)}));
+  read_hits(g_hits_addr, out, g_mats);
   return r;
 }
 m3::BasicVehicle* g_dv = nullptr;
@@ -426,6 +444,59 @@ void probe_vm_image(float* f, uint32_t* u) {
   f[0] = c.x50.y, f[1] = c.x70.x, f[2] = c.x70.y, f[3] = c.x70.z, f[4] = c.throttle, f[5] = c.turn;
   f[6] = c.angles.y, f[7] = c.up.x, f[8] = c.up.y, f[9] = c.up.z;
   u[0] = c.sliding, u[1] = c.x760;
+}
+}  // extern "C"
+
+// 2c2: the suspension 0x004a1760 on a vehicle at `v` with controls at `ctl`
+// (zones at `hits`, one record per support). f: the matrix (12), forward
+// x, z, velocity (3), x70 y, x50 x, z, angles x, y, z, gravity x1c, rates[1],
+// turns[1], quicksand, lava, a_damping, supports (4 x 3), support speeds
+// (8); u: support flags (8), x20.
+namespace {
+float g_vs_matrix[12];
+}
+extern "C" {
+void probe_vs_setup(uint32_t v, uint32_t ctl, uint32_t node, uint32_t hits, const float* f, const uint32_t* u) {
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new m3::VehicleControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl, g_hits_addr = hits;
+  g_dv->controls = c;
+  g_dv->node = hd(node);
+  for (int i = 0; i < 12; ++i) g_vs_matrix[i] = f[i];
+  g_dv->transform = g_vs_matrix;
+  int k = 12;
+  g_dv->forward.x = f[k++], g_dv->forward.z = f[k++];
+  c->velocity = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->x70.y = f[k++];
+  c->x50.x = f[k++], c->x50.z = f[k++];
+  c->angles = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->x1c = f[k++];
+  m3::VehicleMotion& m = c->motion;
+  m.rates[1] = f[k++], m.turns[1] = f[k++], m.quicksand_slowdown = f[k++], m.lava_slowdown = f[k++], m.a_damping = f[k++];
+  m.support_count = 4;
+  for (int i = 0; i < 4; ++i) m.support[i] = {f[k + 3 * i], f[k + 3 * i + 1], f[k + 3 * i + 2]};
+  k += 12;
+  for (int i = 0; i < 8; ++i) std::memcpy(&m.support_word[i], &f[k + i], 4);
+  for (int i = 0; i < 8; ++i) m.support_word[8 + i] = u[i];
+  c->x20 = u[8];
+}
+int probe_vs_run() { return m3::vehicle_suspension(*g_dv); }
+// The matrix (12), x18 (3), velocity y, x70 y, x50 x, z, angles x, z, up (3),
+// top speed, top turn, the world supports (4 x 3), support words (16, raw);
+// u: x20, the zone record.
+void probe_vs_image(float* f, uint32_t* u) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  const m3::VehicleMotion& m = c.motion;
+  int k = 0;
+  for (int i = 0; i < 12; ++i) f[k++] = g_vs_matrix[i];
+  f[k++] = g_dv->x18.x, f[k++] = g_dv->x18.y, f[k++] = g_dv->x18.z;
+  f[k++] = c.velocity.y, f[k++] = c.x70.y, f[k++] = c.x50.x, f[k++] = c.x50.z, f[k++] = c.angles.x, f[k++] = c.angles.z;
+  f[k++] = c.up.x, f[k++] = c.up.y, f[k++] = c.up.z, f[k++] = c.top_speed, f[k++] = c.top_turn;
+  for (int i = 0; i < 4; ++i) f[k++] = m.support[8 + i].x, f[k++] = m.support[8 + i].y, f[k++] = m.support[8 + i].z;
+  for (int i = 0; i < 16; ++i) std::memcpy(&f[k++], &m.support_word[i], 4);
+  u[0] = c.x20;
+  u[1] = g_dv->x64 | (uint32_t{g_dv->zones[0]} << 8) | (uint32_t{g_dv->zones[1]} << 16) | (uint32_t{g_dv->zones[2]} << 24);
 }
 }  // extern "C"
 

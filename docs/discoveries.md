@@ -212,6 +212,13 @@ From the port of the damage code, checked in an emulator against the original
 - **Turrets swing half way to their target every eighth of a second**,
   however far they have to turn, so a turret is never caught facing the
   wrong way for long.
+- **Quicksand and lava never slow a vehicle.** Every vehicle has a
+  quicksand and a lava slowdown (90% and 80% of its top speed) for when two
+  of its four wheels are in them, but the code counts its wheels by whether
+  they are in water, so the count it checks is always zero.
+- **A tank in the air levels itself out.** When all its wheels leave the
+  ground, a tracked vehicle tips back toward level and can't tilt past 30
+  degrees until it lands.
 - **The targeting view shows a vehicle's damage in red.** In TARGET's
   picture of a vehicle, the model is tinted red by how much health it has
   lost, up to 60% just before it dies.

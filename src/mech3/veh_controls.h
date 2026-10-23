@@ -117,7 +117,7 @@ struct VehicleMotion {
   int32_t support_count = 0;   // +0x084  4 from the model's support00..03, else the platform list's
   float mode_alt = 0;          // +0x088  2
   Vec3c support[16];           // +0x08c
-  uint32_t support_word[16] = {};  // +0x14c  zeroed per support (the placement too)
+  uint32_t support_word[16] = {};  // +0x14c  zeroed per support (the placement too); the suspension's: [0..7] the supports' vertical speeds (floats), [8..15] in the air
   float quicksand_slowdown = 0;  // +0x18c  0.9
   float lava_slowdown = 0;     // +0x190  0.8
   Vec3c collision[12];         // +0x194  the model's collide00..11 (in the order 0-2, 6-8, 3-5, 9-11), else the list's
@@ -268,6 +268,8 @@ struct TurretAim {
 };
 // Mech3.exe 1.2 @ 0x004e7570 (vt+0x28): `dir` (the vehicle's frame) into the world.
 void turret_aim_at(VehicleControls& c, TurretAim& a, const float dir[3]);
+// Mech3.exe 1.2 @ 0x004020d0: normalised in place when not 0; the length.
+float vec_normalise(float v[3]);
 // Mech3.exe 1.2 @ 0x004e7490 (vt+0x24): the aim in the turret's frame,
 // flattened, more ahead than `cos_limit`; true without a turret.
 bool turret_can_aim(const VehicleControls& c, const TurretAim& a, float cos_limit);

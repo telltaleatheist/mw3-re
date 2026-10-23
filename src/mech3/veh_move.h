@@ -28,4 +28,32 @@ void vehicle_slide(BasicVehicle& v);
 // turn's against the friction (friction[0] to start a slide, [1] in one).
 float vehicle_side_force(BasicVehicle& v);
 
+// The track's ground following (2c2; docs/vehicles.md, The suspension).
+// Mech3.exe 1.2 @ 0x004a23f0: the supports' world places (the motion's
+// support[8..], from support[0..]), the ground under each (one query from
+// 500 up, the vehicle's node left out), each one's ground height (the pick,
+// step 4, water not ground) into heights[], its slope against the world
+// velocity into slopes[], the highest water surface into *top, a count by
+// the pick's water flag into counts[100]; support 0's polygon gives the zone.
+// False when a support has no ground under it.
+bool vehicle_support_ground(BasicVehicle& v, float* heights, float* top, float* slopes, int32_t* counts);
+// Mech3.exe 1.2 @ 0x004a2820: a support's height *y and vertical speed *vs
+// a frame on (gravity g): falling while above ground (*air), landing at the
+// ground with `landing` for its speed, else following it.
+void vehicle_support_step(float* y, float* vs, float ground, int32_t* air, float g, float landing);
+// Mech3.exe 1.2 @ 0x004a1760 (TRACK): the top speeds (slowed by quicksand
+// or lava under two supports, which the pick never reports: never), the
+// supports stepped, the pitch and roll rates from three of them (or, all in
+// the air, back toward level), the plane through the three for the up, the
+// position on it, the matrix, pitch and roll; in the air both held to 30
+// degrees. 0 when a support has no ground.
+int32_t vehicle_suspension(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004abf70: pos's height on the plane through `at` with normal n.
+void height_on_plane(float pos[3], const float at[3], const float n[3]);
+// Mech3.exe 1.2 @ 0x004a3e40: the forward (+0x18) tilted onto the up.
+void vehicle_forward_from_up(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004a3ed0: the matrix from forward and up: (forward x up,
+// up, -forward, the position).
+void vehicle_matrix_build(BasicVehicle& v);
+
 }  // namespace mech3
