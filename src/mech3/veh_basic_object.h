@@ -179,6 +179,20 @@ class VehBasicHooks : public zgame::Unported {
                             zgame::bits(amount)});
   }
   virtual void node_tinted(Handle node, int32_t on) { unported("0x004fb840", {low(node), on}); }
+
+  // The debug readout's (vt+0xe0): the controls' vt+0x20 (0 in every
+  // MW3 controls), +0x20, vt+0x04 / vt+0x08 (mode, goal node), IControls
+  // vt+0x70 (on a path); a node's name; zEntity's position (0x005a85e0);
+  // the view's camera's zones ([[0x005f4c8c]+4] data +0x1e4: count, ids);
+  // the HUD's text line `i` (0x005fc848 + 0x4b0 i, vt+0x7c, printf-like).
+  virtual int32_t controls_dynamics(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x20", {low(&c)})); }
+  virtual bool controls_on_path(VehicleControls& c) { return unported("ctl.ictl.vt+0x70", {low(&c)}) == 1; }
+  virtual int32_t controls_mode(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x4", {low(&c)})); }
+  virtual int32_t controls_goal(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x8", {low(&c)})); }
+  virtual const char* node_name(Handle node);
+  virtual const float* entity_position(Vehicle& v);
+  virtual const uint8_t* camera_zones() { return nullptr; }
+  virtual void hud_line(int32_t i, const char* text) { unported("hudline.vt+0x7c", {i, text}); }
 };
 void set_veh_basic_hooks(VehBasicHooks* h);  // null: the defaults
 
@@ -237,6 +251,9 @@ void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push);
 void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
 void vehicle_view_tint(BasicVehicle& v, uint8_t on);  // vt+0x68 0x004ad390: red by the damage, in TARGET's view (the byte passed on)
 void vehicle_weapons_free(BasicVehicle& v);       // 0x004b48c0
+// Mech3.exe 1.2 @ 0x004a2ef0 (vt+0xe0, the view target's HUD slot; its
+// frame time unread): a debug readout in the HUD's text lines 1 to 4.
+void vehicle_debug_lines(BasicVehicle* v);
 
 CameraList& vehicle_cameras();
 void vehicle_cameras_reset();                 // the probes' fresh start (the exe never empties it)

@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 from calltrace import CALLBACK, Emu, Replay, Trace, compare, load_probe, rnd  # noqa: E402
 
 U = ctypes.c_uint32
@@ -218,6 +219,133 @@ def run(probe, seed):
     return True, len(t.log)
 
 
+LINES = [0x5fc848 + 0x4b0 * i for i in range(5)]
+
+
+def cformat(em, fmt_addr, args):
+    """printf's %s / %d / %% over the emulator's stack words."""
+    fmt = em_str(em, fmt_addr)
+    out, k, i = [], 0, 0
+    while i < len(fmt):
+        ch = fmt[i]
+        if ch == '%' and i + 1 < len(fmt):
+            t = fmt[i + 1]
+            i += 2
+            if t == '%':
+                out.append('%')
+            elif t == 's':
+                out.append(em_str(em, args[k]) if args[k] else '(null)'); k += 1
+            elif t == 'd':
+                v = args[k]; k += 1
+                out.append(str(v - (1 << 32) if v & 0x80000000 else v))
+            else:
+                raise ValueError(fmt)
+            continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
+
+
+def em_str(em, a):
+    b = bytes(em.cpu.read(a, 256))
+    return b[:b.index(0)].decode('latin1')
+
+
+def stack(em, n):
+    esp = em.uc.reg_read(UC_X86_REG_ESP)
+    return [em.r32(esp + 4 + 4 * k) for k in range(n)]
+
+
+def cstring_stubs(e):
+    """MFC's CString (import thunks): the object one word, its text's address."""
+    def put(em, obj, text):
+        a = em.world_string(text)
+        em.w32(obj, a)
+
+    def ctor(em, key, a, pop):
+        put(em, a[0], '')
+        em._ret(a[0], pop)
+
+    def fmt(em, key, a, pop):
+        w = stack(em, 10)
+        put(em, w[0], cformat(em, w[1], w[2:]))
+        em._ret(0, pop)
+
+    def cat(em, key, a, pop):
+        put(em, a[0], em_str(em, em.r32(a[0])) + em_str(em, em.r32(a[1])))
+        em._ret(a[0], pop)
+    e.stub(0x5abdb0, key='CString()', spec='c', pop=0, fn=ctor)
+    e.stub(0x5abdaa, key='Format', spec='', pop=0, fn=fmt)
+    e.stub(0x5abe4c, key='+=', spec='c,s0', pop=4, fn=cat)
+    e.stub(0x5abda4, key='~CString', spec='c', pop=0, fn=lambda em, k, a, p: em._ret(0, p))
+
+
+def run_debug(probe, seed):
+    r = rnd(seed, 'debug')
+    t = Trace()
+    script = t.script
+    e = Emu(t)
+    e.heap_stubs()
+    e.cpu.fpu_control(0x007f)
+    cstring_stubs(e)
+    v = e.world_alloc(0x100)
+    ctl = e.world_alloc(0xa70)
+    e.cpu.write(v, b'\0' * 0x100)
+    e.cpu.write(ctl, b'\0' * 0xa70)
+    name = r.choice(['truck01', 'apc_7', 'tank', ''])  # no '%': the lines' printf reads them as formats
+    node = e.world_string(name + '\0' * 4)
+    e.w32(v + 4, node)
+    e.w32(v + 0xe4, ctl)
+    zones = [r.randrange(4)] + [r.randrange(256) for _ in range(3)]
+    e.cpu.write(v + 0x64, bytes(zones))
+    mode = r.choice([0, 1, 2, 3, 4, 5, 6, -1])
+    e.w32(ctl + 0x764, mode & 0xffffffff)
+    x20 = r.choice([0, 1])
+    e.w32(ctl + 0x20, x20)
+    yaw = fb(r.choice([r.uniform(-7, 7), float('nan'), 1e12]) if r.random() < 0.1 else r.uniform(-7, 7))
+    e.w32(ctl + 0x330, yaw)
+    vt = e.world_alloc(0x40)
+    e.w32(ctl, vt)
+    for off in (0x4, 0x8, 0x1c, 0x20):
+        e.w32(vt + off, e.new_stub(f'ctl.vt+{off:#x}', '', 0))
+        script[f'ctl.vt+{off:#x}'] = r.choice([0, 1, 1, 7, 0xffffffff])
+    vb = e.world_alloc(0x10)
+    e.w32(ctl + 4, vb)
+    e.w32(vb + 4, 0x20)
+    ivt = e.world_alloc(0x100)
+    e.w32(ctl + 4 + 0x20, ivt)
+    e.w32(ivt + 0x70, e.new_stub('ctl.ictl.vt+0x70', '', 0))
+    script['ctl.ictl.vt+0x70'] = r.choice([0, 1, 2])
+    pos = e.world_alloc(0x10)
+    for i in range(3):
+        e.w32(pos + 4 * i, fb(r.uniform(-3000, 3000)))
+    e.stub(0x5a85e0, spec='c')
+    script['0x005a85e0'] = pos
+    view, cam, data = e.world_alloc(0x10), e.world_alloc(0x40), e.world_alloc(0x200)
+    e.w32(0x5f4c8c, view)
+    e.w32(view + 4, cam)
+    e.w32(cam + 0x38, data)
+    e.cpu.write(data + 0x1e4, bytes([r.randrange(4)] + [r.randrange(256) for _ in range(3)]))
+
+    def line(em, key, a, pop):
+        w = stack(em, 8)
+        em.t.handle('hudline.vt+0x7c', (LINES.index(w[0]), cformat(em, w[1], w[2:])))
+        em._ret(0, pop)
+    lvt = e.world_alloc(0x100)
+    e.w32(lvt + 0x7c, e.new_stub('line', '', 0, fn=line))
+    for a in LINES:
+        e.w32(a, lvt)
+    null = r.random() < 0.05
+    vals = [node, 1, 0, 0, 0, 0, fb(100.0), fb(50.0), 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    probe.probe_vb_dmg_setup(v, ctl, (U * 17)(*vals))
+    probe.probe_vb_dbg_setup(mode, x20, yaw, sum(z << (8 * i) for i, z in enumerate(zones)))
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    e.call(0x4a2ef0, ecx=0 if null else v, stack=(0,))
+    probe.probe_vb_dbg(int(null))
+    return compare(f'debug seed {seed} (mode {mode}, zones {zones})', t.log, rep.log), len(t.log)
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -225,6 +353,7 @@ def main():
     probe.probe_vb_dmg_call.argtypes = [ctypes.c_int, U, U, U]
     probe.probe_vb_dmg_call.restype = ctypes.c_int32
     probe.probe_vb_dmg_image.argtypes = [ctypes.c_void_p]
+    probe.probe_vb_dbg_setup.argtypes = [ctypes.c_int32, U, U, U]
     probe.probe_vb_hooks(1)
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 600
@@ -234,7 +363,12 @@ def main():
         if not ok:
             sys.stdout.flush(); os._exit(1)
         calls += n
-    print(f'ok: {runs} damages, hits, deaths and tints as the original ({calls} calls)')
+    for seed in range(runs // 3):
+        ok, n = run_debug(probe, seed)
+        if not ok:
+            sys.stdout.flush(); os._exit(1)
+        calls += n
+    print(f'ok: {runs} damages, hits, deaths and tints and {runs // 3} debug readouts as the original ({calls} calls)')
     sys.stdout.flush(); os._exit(0)
 
 

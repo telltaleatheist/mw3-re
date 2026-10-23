@@ -1,8 +1,12 @@
 #include "mech3/veh_basic_object.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
+#include "crt/msvc_math.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -61,6 +65,12 @@ int32_t VehBasicHooks::damage(BasicVehicle& v, Handle weapon, uint32_t x, float 
 uint32_t VehBasicHooks::weapon_flags(Handle weapon) { return static_cast<zwep::WeaponDef*>(weapon)->flags; }
 const float* VehBasicHooks::shot_line() { return reinterpret_cast<const float*>(zwep::shot_line()); }  // from, then to
 int32_t VehBasicHooks::game_intensity() { return mech3::game_intensity(); }
+const char* VehBasicHooks::node_name(Handle node) { return static_cast<const char*>(node); }  // a node starts with its name
+const float* VehBasicHooks::entity_position(Vehicle& v) {
+  static float p[3];
+  zcls::node_world_position(static_cast<zcls::Node*>(v.node), p);
+  return p;
+}
 
 EngineSoundList& engine_sounds() { return g_engine_sounds; }
 
@@ -519,6 +529,47 @@ void vehicle_view_tint(BasicVehicle& v, uint8_t on) {
     g_hooks->node_tint(v.node, kRed, (1.0f - c.health / c.health_max) * 0.6f);
   }
   g_hooks->node_tinted(v.node, on);
+}
+
+// Mech3.exe 1.2 @ 0x004a2ef0: line 1 what drives it (the controls' vt+0x20
+// answers 0 in MW3, so the dynamics line never shows), line 2 where it is,
+// lines 3 and 4 its zones and the camera's. Each line's text goes to the
+// line's printf as its format, as written.
+void vehicle_debug_lines(BasicVehicle* v) {
+  if (!v) return;
+  VehBasicHooks& h = *g_hooks;
+  VehicleControls& c = *v->controls;
+  static const char* const kModes[] = {"BASIC", "FLY", "SUB", "TRACK", "HOVER", "AMPHIB"};
+  const uint32_t m = static_cast<uint32_t>(c.motion.mode);
+  const char* mode = m <= 5 ? kModes[m] : "UNKNOWN";
+  char buf[512] = "";
+  const char* name = h.node_name(v->node);
+  if (h.controls_dynamics(c) == 1) {
+    std::snprintf(buf, sizeof buf, c.x20 ? "%s using %s dynamics - A" : "%s using %s dynamics", name, mode);
+  } else if (h.controls_on_path(c)) {
+    const int32_t goal = h.controls_goal(c);
+    std::snprintf(buf, sizeof buf, "%s is in mode %d and had goal node %d", name, h.controls_mode(c), goal);
+  } else if (h.controls_destroyed(c)) {
+    std::snprintf(buf, sizeof buf, "%s is DEAD!", name);
+  }
+  h.hud_line(1, buf);
+  const int32_t yaw = crt::msvc_ftol(static_cast<float>(c.angles.y * 57.29577951308));  // a 24-bit product
+  const int32_t z = crt::msvc_ftol(h.entity_position(*v)[2]);
+  const int32_t y = crt::msvc_ftol(h.entity_position(*v)[1]);
+  const int32_t x = crt::msvc_ftol(h.entity_position(*v)[0]);
+  char line[128];
+  std::snprintf(line, sizeof line, "POS %d %d %d YAW %d", x, y, z, yaw);
+  h.hud_line(2, line);
+  auto zones = [&](const char* head, uint32_t count, const uint8_t* ids) {
+    int n = std::snprintf(buf, sizeof buf, head, count);
+    for (uint32_t i = 0; i < std::min<uint32_t>(count, 3) && n < static_cast<int>(sizeof buf); ++i)
+      n += std::snprintf(buf + n, sizeof buf - static_cast<size_t>(n), "%d ", ids[i]);
+  };
+  zones("VEH ZONES(%d): ", v->x64, v->zones);  // a record holds 3 (the exe would read on)
+  h.hud_line(3, buf);
+  const uint8_t* cam = h.camera_zones();
+  zones("CAM ZONES(%d): ", cam ? cam[0] : 0u, cam ? cam + 1 : nullptr);
+  h.hud_line(4, buf);
 }
 
 }  // namespace mech3
