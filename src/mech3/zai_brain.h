@@ -9,6 +9,7 @@
 #include "mech3/zai_firing.h"
 #include "mech3/zai_path.h"
 #include "mech3/zai_steps.h"
+#include "mech3/veh_controls.h"
 
 namespace znet { class Object; }
 
@@ -672,32 +673,22 @@ class Brain {
   void make_radio();                               // 0x004e7e20
 };
 
-// 0x004a4a70 over 0x004a4000 (0x14 bytes, vtable 0x005c8340): a turret's
-// limits as sines and cosines (0x004a3fc0), made with -pi/2 and pi/2 (the
-// other two arguments, -pi and pi, are not kept).
-struct TurretLimits {
-  explicit TurretLimits(float lo, float hi);
-  float lo_sin, lo_cos;  // +0x04
-  float hi_sin, hi_cos;  // +0x0c
-};
-
 // The AI vehicle controls (0x004e71c0 over 0x004e7090, 0xcd8 bytes from
 // 0x004ac860, which zeroes them): the basic vehicle's controls (0x004ac750,
 // veh_basic.cpp: their +0x764 block holds at +0x28 a pointer to the turret
 // limits at +0x2c), the brain at +0xa04, the IControls virtual base at +0xcc4
 // (its owner +0xcd4).
-struct AiVehicleControls {
+struct AiVehicleControls : VehicleControls {
   AiVehicleControls(void* owner, AiNet* net, const AiParams& rec);  // 0x004e71c0(owner, net, rec, 1)
   ~AiVehicleControls();  // IControls vt+0x00: 0x004e7820 -> 0x004e7870
   AiVehicleControls(const AiVehicleControls&) = delete;
   AiVehicleControls& operator=(const AiVehicleControls&) = delete;
 
   int32_t x38 = 2;          // +0x38
-  TurretLimits turret;      // +0x790 (the pointer to it at +0x78c)
   std::unique_ptr<Brain> brain;  // +0xa04 (a base in the exe)
   float xcb0[3] = {};       // +0xcb0  0x0063d870
   uint8_t xcbc = 0;         // +0xcbc
-  void* owner = nullptr;    // +0xcd4
+  // owner: the base's (IControls +0xcd4 here)
 };
 
 // Mech3.exe 1.2 @ 0x004d9290: each trigger of a settings' vlist, in order

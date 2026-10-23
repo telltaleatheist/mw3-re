@@ -320,6 +320,7 @@ namespace {
 uint32_t g_ticks = 0;
 }  // namespace
 uint32_t player_tick_count() { return g_ticks; }
+float player_gravity() { return g_state.gravity; }  // [0x00609a14], for the vehicles' controls
 
 void player_tick() {
   ++g_ticks;
