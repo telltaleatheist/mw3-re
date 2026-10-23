@@ -1253,8 +1253,33 @@ void Brain::make_radio() {
 // the brain on +0xa04, then +0xcb0, +0xcbc and +0x38.
 AiVehicleControls::AiVehicleControls(void* o, AiNet* net, const AiParams& rec) {
   owner = o;
+  state = 2;  // +0x38
   brain = std::make_unique<Brain>(net, rec);
+  brain->controls = this;
 }
+
+// Mech3.exe 1.2 @ 0x004e7470: the owner's +0x08 clear.
+bool AiVehicleControls::destroyed() { return !brain_hooks().entity_active(vehicle()); }
+
+// Mech3.exe 1.2 @ 0x004e71a0: the brain's frame (0x004e9710).
+int AiVehicleControls::update(float dt) { return brain->frame(*this, dt) ? 1 : 0; }
+
+// Mech3.exe 1.2 @ 0x004ea520 (the mechs' AI controls' too).
+void AiVehicleControls::on_hit(void* attacker) { brain->on_hit(hit, vehicle(), brain_hooks().vehicle_handle(attacker)); }
+
+// Mech3.exe 1.2 @ 0x004aed40: a hit within the last second.
+bool AiVehicleControls::hit_lately() { return hit.within(1.0f, brain_hooks().now()); }
+
+// Mech3.exe 1.2 @ 0x004ea6b0: the base's death (0x004aed50: the pilot's
+// tick), then the radio's ejecting line; no triggers handed on, unlike the
+// mechs' 0x004d8a00.
+void AiVehicleControls::died() {
+  tick();
+  brain->died();
+}
+
+// Mech3.exe 1.2 @ 0x004ea630
+void AiVehicleControls::on_kill(void* victim) { brain->killed(vehicle(), brain_hooks().vehicle_handle(victim)); }
 
 // Mech3.exe 1.2 @ 0x004e7870: the brain's destructor, then the basic
 // controls' (0x004ac800), which asks the owner. FIX (bug): without an owner

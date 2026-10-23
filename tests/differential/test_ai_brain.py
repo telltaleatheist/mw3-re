@@ -36,7 +36,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from calltrace import CALLBACK, ROOT, Emu, Replay, Trace, compare, load_probe  # noqa: E402
+from calltrace import CALLBACK, ROOT, Emu, Replay, Trace, call_abs, compare, load_probe, mov_ecx  # noqa: E402
 
 MAKE = (0x49fe90, 0x49ff10)
 FILL = 0xcd
@@ -62,6 +62,9 @@ def setup_probe():
     probe.probe_ab_delete.argtypes = [U]
     probe.probe_ab_image.argtypes = [U, U, P, P]
     probe.probe_ab_brain.argtypes = [U, P, I, P, P, P]
+    probe.probe_ab_vset.argtypes = [U, U, U]
+    probe.probe_ab_vslot.argtypes = [U, I, U]
+    probe.probe_ab_vslot.restype = U
     return probe
 
 
@@ -221,10 +224,14 @@ def run_original(case):
     ctl = e.call(MAKE[kind], ecx=owner, edx=net, stack=(rec,))
     mem = {addr: bytes(e.cpu.read(addr, max(size, 4))[:size]) for addr, size, _ in blocks}
     lst, strings = brain_copies(e, ctl + BRAIN[kind]) if ctl else (None, None)
-    if ctl and case['delete']:
-        ictl = ctl + ICTL[kind]
-        e.call(e.r32(e.r32(ictl)), ecx=ictl, stack=(1,))
+    if ctl and case['delete'] and kind == 0:  # a vehicle's after its slots' check (main)
+        delete_original(e, ctl, kind)
     return t, e, snap, ctl, mem, lst, strings
+
+
+def delete_original(e, ctl, kind):
+    ictl = ctl + ICTL[kind]
+    e.call(e.r32(e.r32(ictl)), ecx=ictl, stack=(1,))
 
 
 def brain_copies(e, b):
@@ -318,6 +325,63 @@ def make_case(seed, rec, crafted):
     return case
 
 
+SLOTS = [  # (IControls slot or primary 'p'+slot, port slot, takes an argument, a float answer)
+    (0x18, 0, None, False), (0x1c, 1, None, True), (0x24, 2, None, True), (0x30, 3, None, True),
+    (0x20, 4, 'f', None), (0x28, 5, 'f', None), (0x10, 6, 'b', None), (0x70, 7, None, False),
+    ('p', 8, None, False), ('p20', 9, None, False), ('p4', 10, None, False), ('p8', 11, None, False),
+    (0x14, 12, None, None)]
+
+
+def vehicle_slots(probe, name, case, e, ctl, got, rep):
+    """2b2: the AI vehicle controls' slots (the thunks' arithmetic) on both sides."""
+    r = random.Random(case['seed'] * 31 + 5)
+    ictl = ctl + 0xcc4
+    vt, pvt = e.r32(ictl), e.r32(ctl)
+    if case['owner_addr']:
+        alive = r.choice([0, 1])
+        e.cpu.write(case['owner_addr'] + 8, bytes([alive]))
+        rep.shadow[case['owner_addr'] + 8] = alive  # the port reads it through the replay
+    for slot, port, arg, is_float in SLOTS:
+        if slot in ('p', 'p20', 'p4', 'p8') and slot == 'p' and not case['owner_addr']:
+            continue
+        for off, v in ((8, r.uniform(-1, 1)), (0xc, r.uniform(-1, 1))):
+            e.w32(ctl + off, struct.unpack('<I', struct.pack('<f', v))[0])
+        probe.probe_ab_vset(got, e.r32(ctl + 8), e.r32(ctl + 0xc))
+        a = struct.unpack('<I', struct.pack('<f', r.uniform(-1, 1)))[0] if arg == 'f' else r.choice([0, 1, 2, 0x100])
+        if isinstance(slot, str):
+            fn = e.r32(pvt + {'p': 0x1c, 'p20': 0x20, 'p4': 4, 'p8': 8}[slot])
+            ecx = ctl
+        else:
+            fn, ecx = e.r32(vt + slot), ictl
+        if is_float:
+            slot_mem, cw, here = e.alloc(16), e.alloc(4), e.alloc(64)
+            e.cpu.write(cw, struct.pack('<H', 0x027f))
+            code = b'\xdb\xe3\xd9\x2d' + struct.pack('<I', cw) + mov_ecx(ecx)
+            code += call_abs(here + len(code), fn) + b'\xd9\x1d' + struct.pack('<I', slot_mem) + b'\xc3'
+            e.cpu.write(here, code)
+            e.call(here)
+            want = e.r32(slot_mem)
+        else:
+            res = e.call(fn, ecx=ecx, stack=(a,) if arg else ())
+            if slot == 0x20:
+                want = e.r32(ctl + 8)
+            elif slot == 0x28:
+                want = e.r32(ctl + 0xc)
+            elif slot == 0x10:
+                want = e.r32(ctl + 0x390)
+            elif slot == 0x14:
+                want = e.r32(ctl + 8) ^ e.r32(ctl + 0xc)
+            elif slot in (0x18, 0x70, 'p'):
+                want = res & 0xff
+            else:
+                want = res
+        mine = probe.probe_ab_vslot(got, port, a)
+        if want != mine:
+            print(f'{name}: vehicle slot {slot if isinstance(slot, str) else hex(slot)}: original {want:#x} rebuild {mine:#x}')
+            return False
+    return True
+
+
 def main():
     probe = setup_probe()
     crafted_n = int(sys.argv[1]) if len(sys.argv) > 1 else 600
@@ -348,6 +412,13 @@ def main():
         if e.writes:
             print(f'{name}: the original wrote outside its blocks: {sorted(e.writes)[:8]}')
             raise SystemExit(1)
+        if case['kind'] and ctl:
+            case['seed'] = seed
+            if not vehicle_slots(probe, name, case, e, ctl, got, rep):
+                raise SystemExit(1)
+            stats['vehicle slots'] += 1
+            if case['delete']:
+                delete_original(e, ctl, 1)
         if case['delete']:
             probe.probe_ab_delete(got)
         if not compare(name, t.log, rep.log):

@@ -306,6 +306,87 @@ hooks); `test_veh_damage.py` runs it 200 times with MFC's CString modelled
 (8 breaks caught). The AI slot 0x4d6de0 (vt+0x84, the lead point) was
 ported earlier (`zai_firing`).
 
+## The gun's aim (step 2b1, ported 2026-10-23)
+
+Each vehicle controls has pitch limits at +0x790 (the pointer at +0x78c;
+vtable 0x5c8340 over the base 0x5c82f0, 0x4a4000/0x4a4a70): the sines and
+cosines of `gun_pitch`'s two values (defaults -0.2588 and 0.5 radians,
+which every shipped vehicle keeps: none sets the key).
+
+- **within** (vt+0x08, 0x4a4180): the direction's y not past either sine.
+  Both compares are "not greater", so a NaN is within.
+- **clamp** (vt+0x04, 0x4a41b0): within, the direction itself and true;
+  else the limit passed (the low one first; a NaN counts as below) and
+  false, with out = (x f, sin, z f), f = cos / hypot(x, y), or (0, sin,
+  -cos) when that length is 0. The heading's length is hypot(x, z): the
+  exe's y is a typo (FIX (bug) behind `bugs`; fixes.md). With it the
+  clamped direction misses the limit (for one dead ahead: 24.6 degrees for
+  a target 40 up, 43 for 60 up; off to the side it differs, and straight up
+  gives (0, sin, 0)). It shows nowhere: the only vehicle caller, the AI's
+  track 0x4b6e30, keeps the clamp's answer only for a dot product it never
+  reads and aims (vt+0x154) the unclamped direction (zai_firing).
+- The vehicle's slots: vt+0x88 / vt+0x90 (0x4ad740, 0x4ad7c0) ask a
+  direction in the vehicle's frame, vt+0x8c / vt+0x94 (0x4ad780 / 0x4a4060,
+  0x4ad7f0 / 0x4a40f0) a world one turned into it by the rows of the
+  vehicle's matrix (+0x0c); vt+0x98 (0x4ad820) is health / max; vt+0x150
+  and vt+0x154 (0x4ad6e0, 0x4ad700) pass to the controls' vt+0x24 and
+  vt+0x28 (no controls: false, nothing). The base controls answer false and
+  do nothing (0x4d6dc0, 0x48b940).
+
+The AI controls' turret (their +0xcb0 aim and +0xcbc flag):
+
+- **aim at** (vt+0x28, 0x4e7570): a direction in the vehicle's frame (the
+  track turns it so by rows, 0x4b6ef3) back into the world by the
+  matrix's columns, flag set; the second argument unread.
+- **can aim** (vt+0x24, 0x4e7490): no turret node (+0x704), true; else the
+  aim in the turret's frame (by the rows of its cached world matrix,
+  object3d data +0x60; render.md), flattened
+  and normalised (0x4020d0); a zero or NaN length false; else -z > the
+  argument (strictly).
+- **turn** (0x4e72f0, the +0xa04 base's vt+0x04 and IControls vt+0xbc,
+  answering 1): the aim (else the owner's +0x18, vt+0x10) in the turret's
+  frame as above; its heading atan2(-x, -z) past 0.001 turns the turret
+  node about y (0x4fbef0) by (1 - f) of it, f = e^(-5.545 dt): the rate is
+  -ln(0.5) / 0.125 (half the way every 0.125 s, made once at [0x60b880]),
+  and the exponential is the float-bits trick ftol(-k dt x 12102200) +
+  0x3f800000.
+
+`TurretLimits` and `turret_*` in `mech3/veh_controls`, the slots in
+`mech3/veh_basic_object`, `AiVehicleControls` (zai_brain) holding the aim;
+`test_veh_aim.py`: 600 runs against the real vtables, 14 breaks, 13 caught
+(the fourteenth is equivalent: a NaN never reaches the high limit's test).
+
+## The AI vehicle controls' slots (step 2b2, ported 2026-10-23)
+
+The AI vehicle controls (0x4e71c0, 0xcd8 bytes) answer the brain through
+the same IControls slots as the mechs' AI controls, most by thunks that
+subtract the vtordisp and 0x2bc to reach the vehicle controls base at
++0xa08 (so `ecx - 0xa00` is +0x08), the rest by `ecx - 0x10` into the
+brain at +0xa04:
+
+| IControls | function | does |
+|---|---|---|
+| +0x0c | 0x4e71a0 -> 0x4e9710 | the brain's frame |
+| +0x10 | 0x4ad720 | the fire flag (+0x390) |
+| +0x14 | 0x4ad640 | the commands cleared |
+| +0x18 / +0x1c / +0x24 / +0x30 | 0x4a5b20 / 0x4a5b50 / 0x4a5b90 / 0x4aed90 | throttle < 0, throttle, turn, turn (the goal is the turn itself) |
+| +0x20 / +0x28 | 0x4a5b70 / 0x4a5bb0 | throttle, turn set |
+| +0x34 / +0x3c / +0x80 | 0x4a5bc0 / 0x4a5bc0 / 0x40bae0 | nothing (no jets; no scan aim) |
+| +0x70 | 0x4e7790 -> 0x4a5270 | on a path: always |
+| +0x94 / +0x98 / +0xa4 / +0xb4 | 0x4ea520 / 0x4ea500 / 0x4e94f0 / 0x4ea630 | the brain's hit, ally hit, tick, kill (the mechs' too) |
+| +0xa0 | 0x4aed40 | hit within a second (the hit record +0xcc8) |
+| +0xa8 | 0x4e7800 -> 0x4ea6b0 | the death: the tick, then the radio's ejecting line (no triggers handed on, unlike the mechs' 0x4d8a00) |
+
+The primary vtable (0x5cd880): +0x1c destroyed 0x4e7470 (the owner's +0x08
+clear), +0x20 0 (0x4d72a0), +0x04 / +0x08 the path's mode and goal (0, -1:
+0x40bae0, 0x4a5260), +0x24 / +0x28 the turret (2b1). The brain's smoothing
+(+0xa04 vt+0x04) is the turret's turn 0x4e72f0. The base controls' answers
+are the defaults of `VehicleControls`' virtuals (destroyed: yes, 0x4a5270).
+`AiVehicleControls` (zai_brain) implements the brain's `BrainControls`;
+`test_ai_brain.py` calls the original's slots on its 690 vehicle cases and
+compares. 0x4e95b0 (+0x84), 0x4d99e0 (+0x88), 0x4ea700 (+0x60) and 0x4d1e60
+(+0x54) are shared with the mechs and answered where they are called.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

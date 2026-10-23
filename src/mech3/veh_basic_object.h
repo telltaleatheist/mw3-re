@@ -144,9 +144,10 @@ class VehBasicHooks : public zgame::Unported {
   virtual void die(BasicVehicle& v);                                               // vt+0x70
   virtual int32_t damage(BasicVehicle& v, Handle weapon, uint32_t x, float amount);  // vt+0x160
   virtual uint32_t weapon_flags(Handle weapon);  // the definition's +0x6c (a read)
-  virtual bool controls_destroyed(VehicleControls& c) { return unported("ctl.vt+0x1c", {low(&c)}) == 1; }
-  virtual void controls_died(VehicleControls& c) { unported("ctl.ictl.vt+0xa8", {low(&c)}); }
-  virtual void path_drop_temporary(BasicVehicle& v) { unported("0x00402510", {ref(&v)}); }
+  virtual bool controls_destroyed(VehicleControls& c) { return c.destroyed(); }
+  virtual void controls_died(VehicleControls& c) { c.died(); }
+  // 0x00402510: nothing for controls that are not the basic path ones (vt+0x00 null; 2a2, deferred).
+  virtual void path_drop_temporary(BasicVehicle& v) { (void)v; }
   // zWeapon's glow on the controls' +0x398: a hit (0x00586a30: 2 frozen
   // solid, 1 cold, 0 not) and its end (0x00586af0).
   virtual int32_t glow_hit(Block398& b, Handle weapon, float amount) {
@@ -185,10 +186,10 @@ class VehBasicHooks : public zgame::Unported {
   // vt+0x70 (on a path); a node's name; zEntity's position (0x005a85e0);
   // the view's camera's zones ([[0x005f4c8c]+4] data +0x1e4: count, ids);
   // the HUD's text line `i` (0x005fc848 + 0x4b0 i, vt+0x7c, printf-like).
-  virtual int32_t controls_dynamics(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x20", {low(&c)})); }
-  virtual bool controls_on_path(VehicleControls& c) { return unported("ctl.ictl.vt+0x70", {low(&c)}) == 1; }
-  virtual int32_t controls_mode(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x4", {low(&c)})); }
-  virtual int32_t controls_goal(VehicleControls& c) { return static_cast<int32_t>(unported("ctl.vt+0x8", {low(&c)})); }
+  virtual int32_t controls_dynamics(VehicleControls& c) { return c.dynamics(); }
+  virtual bool controls_on_path(VehicleControls& c) { return c.on_path(); }
+  virtual int32_t controls_mode(VehicleControls& c) { return c.path_mode(); }
+  virtual int32_t controls_goal(VehicleControls& c) { return c.path_goal(); }
   virtual const char* node_name(Handle node);
   virtual const float* entity_position(Vehicle& v);
   virtual const uint8_t* camera_zones() { return nullptr; }
@@ -251,6 +252,17 @@ void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push);
 void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
 void vehicle_view_tint(BasicVehicle& v, uint8_t on);  // vt+0x68 0x004ad390: red by the damage, in TARGET's view (the byte passed on)
 void vehicle_weapons_free(BasicVehicle& v);       // 0x004b48c0
+// The gun's aim (docs/vehicles.md, The gun's aim): the controls' pitch
+// limits (+0x78c) asked of a direction in the vehicle's frame, or of a
+// world one turned into it (by the rows of the vehicle's matrix, +0x0c).
+bool vehicle_gun_within(const BasicVehicle& v, const float d[3]);                  // vt+0x88 0x004ad740
+bool vehicle_gun_within_world(const BasicVehicle& v, const float d[3]);            // vt+0x8c 0x004ad780
+bool vehicle_gun_clamp(const BasicVehicle& v, const float d[3], float out[3]);    // vt+0x90 0x004ad7c0
+bool vehicle_gun_clamp_world(const BasicVehicle& v, const float d[3], float out[3]);  // vt+0x94 0x004ad7f0
+float vehicle_health_share(const BasicVehicle& v);                                 // vt+0x98 0x004ad820
+bool vehicle_can_aim(BasicVehicle& v, float cos_limit);                            // vt+0x150 0x004ad6e0: false without controls
+void vehicle_aim_at(BasicVehicle& v, const float dir[3], uint32_t unused);        // vt+0x154 0x004ad700
+
 // Mech3.exe 1.2 @ 0x004a2ef0 (vt+0xe0, the view target's HUD slot; its
 // frame time unread): a debug readout in the HUD's text lines 1 to 4.
 void vehicle_debug_lines(BasicVehicle* v);

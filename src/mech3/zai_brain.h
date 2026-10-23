@@ -678,16 +678,42 @@ class Brain {
 // veh_basic.cpp: their +0x764 block holds at +0x28 a pointer to the turret
 // limits at +0x2c), the brain at +0xa04, the IControls virtual base at +0xcc4
 // (its owner +0xcd4).
-struct AiVehicleControls : VehicleControls {
+struct AiVehicleControls : VehicleControls, BrainControls {
   AiVehicleControls(void* owner, AiNet* net, const AiParams& rec);  // 0x004e71c0(owner, net, rec, 1)
   ~AiVehicleControls();  // IControls vt+0x00: 0x004e7820 -> 0x004e7870
   AiVehicleControls(const AiVehicleControls&) = delete;
   AiVehicleControls& operator=(const AiVehicleControls&) = delete;
 
-  int32_t x38 = 2;          // +0x38
   std::unique_ptr<Brain> brain;  // +0xa04 (a base in the exe)
-  float xcb0[3] = {};       // +0xcb0  0x0063d870
-  uint8_t xcbc = 0;         // +0xcbc
+  TurretAim aim;            // +0xcb0 (0x0063d870), +0xcbc
+  HitRecord hit;            // +0xcc8 (IControls +0x04)
+  bool can_aim(float cos_limit) override { return turret_can_aim(*this, aim, cos_limit); }  // vt+0x24 0x004e7490
+  void aim_at(const float dir[3]) override { turret_aim_at(*this, aim, dir); }             // vt+0x28 0x004e7570
+  bool destroyed() override;                                    // vt+0x1c 0x004e7470: the owner no longer active
+  bool on_path() override { return true; }                      // IControls vt+0x70 0x004e7790 -> 0x004a5270
+  void died() override;                                         // IControls vt+0xa8 0x004e7800 -> 0x004ea6b0
+  int update(float dt);                                         // IControls vt+0x0c 0x004e7670 -> 0x004e71a0
+  void on_hit(void* attacker);                                  // IControls vt+0x94 0x004ea520
+  void hit_an_ally(void* victim) { brain->hit_an_ally(brain_hooks().vehicle_handle(victim)); }  // vt+0x98 0x004ea500
+  void tick() { brain->pilot_tick(*this); }                     // IControls vt+0xa4 0x004e94f0
+  void on_kill(void* victim);                                   // IControls vt+0xb4 0x004ea630
+
+  // What the brain asks of them (BrainControls): the vehicle controls' own
+  // IControls slots (veh_controls), the smoothing the turret's turn.
+  zgame::Handle vehicle() override { return brain_hooks().vehicle_handle(owner); }
+  void stop() override { clear_commands(); }                    // IControls vt+0x14 0x004ad640
+  void smooth(float dt) override { turret_turn(*this, aim, dt); }  // +0xa04 vt+0x04 0x004e72f0
+  bool hit_lately() override;                                   // IControls vt+0xa0 0x004aed40
+  zgame::Handle attacker() override { return hit.by; }
+  void fire(bool on) override { fire_on = on ? 1 : 0; }         // IControls vt+0x10 0x004ad720
+  bool reversing() override { return throttle < 0.0f; }         // IControls vt+0x18 0x004a5b20
+  float throttle_now() override { return throttle; }            // IControls vt+0x1c 0x004a5b50
+  void set_throttle(float v) override { throttle = v; }         // IControls vt+0x20 0x004a5b70
+  void set_turn(float v) override { turn = v; }                 // IControls vt+0x28 0x004a5bb0
+  void set_jump(float v) override { (void)v; }                  // IControls vt+0x34 0x004a5bc0
+  void set_jet_forward(float v) override { (void)v; }           // IControls vt+0x3c 0x004a5bc0
+  float turn_goal() override { return turn; }                   // IControls vt+0x30 0x004aed90 -> vt+0x24 0x004a5b90
+  void aim_started() override {}                                // IControls vt+0x80 0x0040bae0
   // owner: the base's (IControls +0xcd4 here)
 };
 

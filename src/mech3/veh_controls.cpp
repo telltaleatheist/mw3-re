@@ -5,6 +5,7 @@
 #include <cstring>
 #include <string>
 
+#include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/object3d.h"
@@ -36,6 +37,18 @@ Vehicle* veh(void* owner) { return static_cast<Vehicle*>(owner); }
 }  // namespace
 
 void set_veh_controls_hooks(VehControlsHooks* h) { g_hooks = h ? h : &g_default_hooks; }
+
+const float* VehControlsHooks::node_world_matrix(Handle node) {
+  return reinterpret_cast<const float*>(static_cast<const uint8_t*>(zn(node)->data) + 0x60);
+}
+void VehControlsHooks::node_add_rotation(Handle node, float x, float y, float z) {
+  zcls::object3d_add_rotation(zn(node), x, y, z);
+}
+const float* VehControlsHooks::owner_matrix(void* owner) { return veh(owner)->transform; }
+void VehControlsHooks::owner_x18(void* owner, float out[3]) {
+  const Vehicle* v = veh(owner);
+  out[0] = v->x18.x, out[1] = v->x18.y, out[2] = v->x18.z;
+}
 int32_t& vehicle_serial() { return g_serial; }
 
 // --- the hooks' defaults: the ports -------------------------------------------
@@ -98,6 +111,35 @@ TurretLimits::TurretLimits(float lo, float hi)
       lo_cos(static_cast<float>(std::cos(static_cast<double>(lo)))),
       hi_sin(static_cast<float>(std::sin(static_cast<double>(hi)))),
       hi_cos(static_cast<float>(std::cos(static_cast<double>(hi)))) {}
+
+// Mech3.exe 1.2 @ 0x004a4180 (the vehicles' 0x004a4a90): "not past" either
+// sine, so a NaN is within.
+bool TurretLimits::within(const float d[3]) const { return !(lo_sin > d[1]) && !(d[1] > hi_sin); }
+
+// Mech3.exe 1.2 @ 0x004a41b0 (the vehicles' 0x004a4aa0). Unordered compares
+// count as past the limit, the low one first.
+bool TurretLimits::clamp(const float d[3], float out[3]) const {
+  float s, co;
+  if (!(d[1] >= lo_sin)) {
+    s = lo_sin, co = lo_cos;
+  } else if (!(hi_sin >= d[1])) {
+    s = hi_sin, co = hi_cos;
+  } else {
+    out[0] = d[0], out[1] = d[1], out[2] = d[2];
+    return true;
+  }
+  // FIX (bug): hypot(x, y) in the exe; the heading's length is hypot(x, z).
+  const double len = zfix::options().bugs ? std::hypot(double{d[0]}, double{d[2]}) : std::hypot(double{d[0]}, double{d[1]});
+  if (len == 0.0 || std::isnan(len)) {
+    out[0] = 0.0f, out[1] = s, out[2] = -co;
+    return false;
+  }
+  const float f = static_cast<float>(co / len);
+  out[0] = f * d[0];
+  out[1] = s;
+  out[2] = d[2] * f;
+  return false;
+}
 
 // Mech3.exe 1.2 @ 0x004ac750 (0x004ac740 on +0x764 -> 0x004a4af0: the
 // turret limits of -pi/2 and pi/2).
@@ -439,4 +481,73 @@ void VehicleControls::reset_1c() {
   x5e8 = 0;
 }
 
+// ---------------------------------------------------------------------------
+// The turret's aim (2b1)
+
+namespace {
+// 0x004020d0: normalised in place when not 0; the length.
+float normalise(float v[3]) {
+  const float len = std::sqrt((v[0] * v[0] + v[2] * v[2]) + v[1] * v[1]);
+  if (std::fabs(len) != 0.0f) {
+    const float r = 1.0f / len;
+    v[0] = r * v[0], v[1] = r * v[1], v[2] = r * v[2];
+  }
+  return len;
+}
+// Into the turret's frame: (row . v) for each row of its world 3x3, x first.
+void by_rows(const float* m, const float v[3], float out[3]) {
+  out[0] = (v[0] * m[0] + v[1] * m[1]) + v[2] * m[2];
+  out[1] = (v[0] * m[3] + v[1] * m[4]) + v[2] * m[5];
+  out[2] = (v[0] * m[6] + v[1] * m[7]) + v[2] * m[8];
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004e7570: a direction in the vehicle's frame (the track
+// turns it so first, 0x004b6ef3) into the world by the owner's matrix.
+void turret_aim_at(VehicleControls& c, TurretAim& a, const float dir[3]) {
+  a.dir[0] = dir[0], a.dir[1] = dir[1], a.dir[2] = dir[2];
+  a.set = 1;
+  const float* m = g_hooks->owner_matrix(c.owner);
+  const float x = a.dir[0], y = a.dir[1], z = a.dir[2];
+  a.dir[2] = (x * m[2] + y * m[5]) + z * m[8];
+  a.dir[1] = (x * m[1] + y * m[4]) + z * m[7];
+  a.dir[0] = (x * m[0] + y * m[3]) + z * m[6];
+}
+
+// Mech3.exe 1.2 @ 0x004e7490
+bool turret_can_aim(const VehicleControls& c, const TurretAim& a, float cos_limit) {
+  if (!c.turret_node) return true;
+  float l[3];
+  by_rows(g_hooks->node_world_matrix(c.turret_node), a.dir, l);
+  l[1] = 0.0f;
+  const float len = normalise(l);
+  if (len == 0.0f || std::isnan(len)) return false;
+  return -l[2] > cos_limit;
+}
+
+// Mech3.exe 1.2 @ 0x004e72f0. The rate, -ln(0.5) / 0.125, made once ([0x0060b880]).
+int32_t turret_turn(VehicleControls& c, const TurretAim& a, float dt) {
+  static const float k = static_cast<float>(-(std::log(0.5) / 0.125));
+  if (!c.turret_node) return 1;
+  float aim[3];
+  if (a.set) aim[0] = a.dir[0], aim[1] = a.dir[1], aim[2] = a.dir[2];
+  else g_hooks->owner_x18(c.owner, aim);
+  float l[3];
+  by_rows(g_hooks->node_world_matrix(c.turret_node), aim, l);
+  l[1] = 0.0f;
+  const float len = normalise(l);
+  if (len == 0.0f || std::isnan(len)) return 1;
+  const float angle = static_cast<float>(std::atan2(-double{l[0]}, -double{l[2]}));
+  if (!(std::fabs(angle) > 0.001)) return 1;
+  // 2^x as float bits: (int)(x * 2^23 / ln 2 ...) + 1.0f's bits (the exe's 12102200).
+  const float t = -(k * dt) * 12102200.0f;
+  const uint32_t bits = static_cast<uint32_t>(crt::msvc_ftol(t)) + 0x3f800000u;
+  float f;
+  std::memcpy(&f, &bits, 4);
+  const float turn = (1.0f - f) * angle;
+  g_hooks->node_add_rotation(c.turret_node, 0.0f, turn, 0.0f);
+  return 1;
+}
+
 }  // namespace mech3
+
