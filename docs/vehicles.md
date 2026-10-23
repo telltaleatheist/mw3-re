@@ -227,6 +227,58 @@ through the hooks: the program's view takes a mech), checked by
 `test_veh_basic.py` at both x87 precisions (9 breaks; 8 caught, the ninth an
 ulp inside the tolerance).
 
+## Damage and death (step 1d, ported 2026-10-23)
+
+zWeapon reaches a vehicle through the hit callback 0x4af550, registered for
+every vehicle the mission start makes (0x49f8a0: 0x5833b0(node, 1,
+0x4af550)): the amount doubled at difficulty 0 (low), halved at 2 (high),
+then vt+0x160 with (weapon, the callback's first argument, amount). The
+basic vehicle's slots (vtable 0x5c88e8; the derived class at 0x5c23d8 has
+its own death and damage):
+
+- **vt+0x160 0x4ad3f0, the damage.** Controls whose vt+0x1c says destroyed
+  (the AI's 0x4e7470: the owner's +0x08 clear; the basic 0xa70 controls'
+  0x4ae6a0: state +0x38 is 4; the base's 0x4a5270 always) only clear the
+  vehicle's +0x08 and its engine sound. A weapon with def flag bit 22
+  (`FREEZE` or `IMPACT HEAT` present, structs.md; every laser has impact
+  heat) goes to the glow block (+0x398, zWeapon's 0x586a30): a freezing
+  one first with amount x 0.01, and when that answers 2 (the block's +0x08
+  below -0.5) the controls' +0x28 is set and nothing more happens; a heat
+  one takes the amount off the health (+0x744). Both then pass 1 - health /
+  max (+0x740) to the glow. Any other hit takes the amount, or, once +0x28
+  is set, amount + +0x08 x health (+0x08 is negative while frozen, so such
+  hits add health as written; no shipped weapon freezes, so this never
+  happens). Health not above 0 (a NaN counts) kills: with a weapon, the
+  attacker's object (0x581e40, 0x40eee0 asked twice) gets vt+0x80(vehicle)
+  as the kill credit, 0x583710(1, 0), vt+0x70, answer 0; without one,
+  vt+0x70 and answer 1. Alive, 0x583730(health / max), then a hit over 5 by
+  a weapon without bit 22 jolts it: k = inv_mass (+0x764+0x24c) x amount,
+  0x4accf0(normalised from - to of the shot line 0x581e30, k x 0.025,
+  k x 1.667).
+- **0x4accf0, the jolt.** The direction into the node's frame (the node's
+  local 3x4 through the matrix stack, 0x522640 by the inverse rotation);
+  angles.x (+0x32c) -= z x turn, angles.z (+0x334) += x x turn, and +0x70 x
+  and z -= x and z x push.
+- **vt+0x70 0x4ad2d0, the death,** once (+0x08 set): +0x08 and the engine
+  sound cleared, health 0, state 4, IControls vt+0xa8 (the AI's
+  0x4ea6b0), 0x402510 (the basic controls' path: entries with a negative
+  id dropped; vt+0x00 gives the path controls, null for the others), the
+  destroy animation (+0x764+0x29c) on the node, a beam that is on (+0x394)
+  stopped (the first slot's +0x34, 0x581400), the glow ended (0x586af0),
+  the weapons freed (0x4b48c0: 0x4b1110, then deleted) and 0x583710(1, 0).
+- **vt+0x68 0x4ad390, TARGET's tint:** on, the node's object3d colour
+  blend (0x4fb8c0) red (0x5e8580) at (1 - health / max) x 0.6; then the
+  blend's switch (0x4fb840) on or off.
+
+The controls' health fields were named the wrong way round until this
+step (+0x740 is the maximum, +0x744 the health); the setup writes both
+alike, so nothing changed in play. `mech3/veh_basic_object` ports all six
+(`vehicle_damage`, `vehicle_jolt`, `vehicle_die`, `vehicle_weapons_free`,
+`vehicle_hit`, `vehicle_view_tint`); the controls' answers, the glow and
+zWeapon's hit state are hooks. `test_veh_damage.py`: 600 runs at 24 bits
+against the real vtable and matrix stack, 17 breaks caught. Salvage
+(0x472ec0) was already ported (`mech_salvage`).
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

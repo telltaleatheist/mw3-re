@@ -188,7 +188,7 @@ void probe_vc_new(uint32_t owner, uint32_t node, int32_t serial) {
 // The +0x398 block as the test set the original's (the clear's work).
 void probe_vc_set398(const uint32_t* v) {
   m3::Block398& b = g_c->x398;
-  b.flags = v[0], b.x04 = v[1], b.x08 = v[2], b.x0c = v[3], b.x10 = v[4], b.x14 = v[5];
+  b.flags = v[0], b.x04 = v[1], b.x08 = zgame::from_bits(v[2]), b.x0c = v[3], b.x10 = v[4], b.x14 = v[5];
 }
 
 // For 0x004af2a0 alone: the original's block, the serial and gun it has,
@@ -305,12 +305,12 @@ void probe_vc_image(uint8_t* b) {
   put(b, mb + 0x294, lo(m.rtracks)), put(b, mb + 0x298, lo(m.ltracks)), put(b, mb + 0x29c, lo(m.destroy_anim));
   putf(b, 0x794, c.turret.lo_sin), putf(b, 0x798, c.turret.lo_cos), putf(b, 0x79c, c.turret.hi_sin);
   putf(b, 0x7a0, c.turret.hi_cos);
-  put(b, 0x28, c.x28), put(b, 0x2c, c.x2c), put(b, 0x30, c.x30), put(b, 0x3c, c.x3c);
+  put(b, 0x28, c.frozen), put(b, 0x2c, c.x2c), put(b, 0x30, c.x30), put(b, 0x38, static_cast<uint32_t>(c.state)), put(b, 0x3c, c.x3c);
   put3(b, 0x50, c.x50);
   for (int k = 0; k < 4; ++k) put(b, 0x94 + 4 * k, c.x94[k]);
   put3(b, 0x308, c.up), put3(b, 0x320, c.angles0), put3(b, 0x32c, c.angles);
-  put(b, 0x350, c.x350);
-  put(b, 0x398, c.x398.flags), put(b, 0x39c, c.x398.x04), put(b, 0x3a0, c.x398.x08), put(b, 0x3a4, c.x398.x0c);
+  put(b, 0x350, c.x350), put(b, 0x394, c.beam_on);
+  put(b, 0x398, c.x398.flags), put(b, 0x39c, c.x398.x04), putf(b, 0x3a0, c.x398.x08), put(b, 0x3a4, c.x398.x0c);
   put(b, 0x3a8, c.x398.x10), put(b, 0x3ac, c.x398.x14);
   put(b, 0x3b0, lo(c.node));
   put(b, 0x3b4, c.first ? g_ctl_addr + 0x3b8 + 0x38 * static_cast<uint32_t>(c.first - c.slots) : 0);
@@ -327,7 +327,7 @@ void probe_vc_image(uint8_t* b) {
   put(b, 0x650, static_cast<uint32_t>(c.x650));
   put3(b, 0x6d8, c.gun_pos);
   put(b, 0x700, lo(c.body)), put(b, 0x704, lo(c.turret_node)), put(b, 0x708, lo(c.gun)), put(b, 0x70c, lo(c.shadow));
-  putf(b, 0x724, c.fire_c_scale), putf(b, 0x740, c.health), putf(b, 0x744, c.health_max);
+  putf(b, 0x724, c.fire_c_scale), putf(b, 0x740, c.health_max), putf(b, 0x744, c.health);
   put(b, 0x760, c.x760);
 }
 

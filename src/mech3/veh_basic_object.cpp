@@ -8,12 +8,16 @@
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_build.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
+
+int32_t game_intensity();  // options.h (its Handle clashes with mech.h's)
 
 namespace {
 VehBasicHooks g_default_hooks;
@@ -49,6 +53,14 @@ const char* VehBasicHooks::reader_string(zrdr::Node* node, const char* key) { re
 bool VehBasicHooks::reader_string_value(zrdr::Node* node, const char* key, const char** out) {
   return zrdr::get_string_value(zrdr::find(node, key), out);
 }
+
+void VehBasicHooks::die(BasicVehicle& v) { vehicle_die(v); }
+int32_t VehBasicHooks::damage(BasicVehicle& v, Handle weapon, uint32_t x, float amount) {
+  return vehicle_damage(v, weapon, x, amount);
+}
+uint32_t VehBasicHooks::weapon_flags(Handle weapon) { return static_cast<zwep::WeaponDef*>(weapon)->flags; }
+const float* VehBasicHooks::shot_line() { return reinterpret_cast<const float*>(zwep::shot_line()); }  // from, then to
+int32_t VehBasicHooks::game_intensity() { return mech3::game_intensity(); }
 
 EngineSoundList& engine_sounds() { return g_engine_sounds; }
 
@@ -387,5 +399,126 @@ CameraMode* vehicle_camera(int32_t id) { return g_cameras.find(id); }
 CameraMode* vehicle_camera_current() { return g_cameras.find(g_cameras.current); }
 // Mech3.exe 1.2 @ 0x004acd90
 void vehicle_view_attach(BasicVehicle& v) { g_hooks->view_attach(v, vehicle_camera_current()); }
+
+// ---------------------------------------------------------------------------
+// Damage and death (step 1d)
+
+// Mech3.exe 1.2 @ 0x004ad3f0. A heat weapon (every laser's IMPACT HEAT) takes
+// its damage and warms the glow by the share lost; a freeze one only chills
+// (the vehicle frozen solid below -0.5 takes nothing more from it); once
+// frozen, other hits take x08 x health more (x08 negative then: a gain, as
+// written; no shipped weapon freezes). Dead at 0 or not a number. A hit over
+// 5 by a weapon without heat jolts it along the shot.
+int32_t vehicle_damage(BasicVehicle& v, Handle weapon, uint32_t unused, float amount) {
+  (void)unused;
+  VehBasicHooks& h = *g_hooks;
+  VehicleControls& c = *v.controls;
+  if (h.controls_destroyed(c)) {
+    v.active = false;
+    v.engine.entry = nullptr;  // 0x004adb40
+    return 0;
+  }
+  const uint32_t flags = weapon ? h.weapon_flags(weapon) : 0;
+  if (weapon && (flags & zwep::kTargetHeat)) {
+    if (flags & zwep::kFreeze) {
+      if (h.glow_hit(c.x398, weapon, amount * 0.01f) == 2) {
+        c.frozen = 1;
+        return 0;
+      }
+    } else {
+      c.health = c.health - amount;
+    }
+    h.glow_hit(c.x398, weapon, 1.0f - c.health / c.health_max);
+  } else if (c.frozen) {
+    c.health = c.health - (c.x398.x08 * c.health + amount);
+  } else {
+    c.health = c.health - amount;
+  }
+  if (!(c.health > 0.0f)) {
+    if (!weapon) {
+      h.die(v);
+      return 1;
+    }
+    if (Handle a = h.hit_attacker()) {
+      if (h.node_object(a)) h.credit_kill(h.node_object(a), v);
+    }
+    h.hit_killed();
+    h.die(v);
+    return 0;
+  }
+  h.hit_health(c.health / c.health_max);
+  if (weapon && !(h.weapon_flags(weapon) & zwep::kTargetHeat) && amount > 5.0f) {
+    const float k = c.motion.inv_mass * amount;
+    const float turn = k * 0.025f, push = k * 1.667f;
+    const float* s = h.shot_line();
+    const float dx = s[0] - s[3], dy = s[1] - s[4], dz = s[2] - s[5];
+    const float r = 1.0f / std::sqrt((dz * dz + dy * dy) + dx * dx);
+    const float dir[3] = {dx * r, dy * r, dz * r};
+    vehicle_jolt(v, dir, turn, push);
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004accf0
+void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push) {
+  VehicleControls& c = *v.controls;
+  const float* t = g_hooks->node_matrix(v.node);
+  const float x = dir[0], y = dir[1], z = dir[2];
+  const float lx = (t[2] * z + t[1] * y) + t[0] * x;  // 0x00522640: by the inverse rotation
+  const float lz = (t[8] * z + t[7] * y) + t[6] * x;
+  c.angles.x = c.angles.x - lz * turn;
+  c.angles.z = lx * turn + c.angles.z;
+  c.x70.x = c.x70.x - lx * push;
+  c.x70.z = c.x70.z - lz * push;
+}
+
+// Mech3.exe 1.2 @ 0x004ad2d0
+void vehicle_die(BasicVehicle& v) {
+  if (!v.active) return;
+  VehBasicHooks& h = *g_hooks;
+  VehicleControls& c = *v.controls;
+  v.active = false;
+  v.engine.entry = nullptr;  // 0x004adb40
+  c.health = 0.0f;
+  c.state = 4;
+  h.controls_died(c);
+  h.path_drop_temporary(v);
+  h.anim_start(c.motion.destroy_anim, v.node);
+  if (c.beam_on) {
+    c.beam_on = 0;
+    h.beam_stop(c.first->beam);
+  }
+  h.glow_end(c.x398);
+  vehicle_weapons_free(v);
+  h.hit_killed();
+}
+
+// Mech3.exe 1.2 @ 0x004b48c0
+void vehicle_weapons_free(BasicVehicle& v) {
+  if (!v.ammo) return;
+  g_hooks->weapons_settle(v.ammo);
+  if (v.ammo) g_hooks->weapons_free(v.ammo);
+  v.ammo = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004af550
+void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount) {
+  switch (g_hooks->game_intensity()) {
+    case 0: amount = amount + amount; break;
+    case 2: amount = static_cast<float>(amount * 0.5); break;
+    default: break;
+  }
+  g_hooks->damage(v, weapon, x, amount);
+}
+
+// Mech3.exe 1.2 @ 0x004ad390
+void vehicle_view_tint(BasicVehicle& v, uint8_t on) {
+  static constexpr float kRed[3] = {1.0f, 0.0f, 0.0f};  // 0x005e8580
+  if (on) {
+    const VehicleControls& c = *v.controls;
+    g_hooks->node_tint(v.node, kRed, (1.0f - c.health / c.health_max) * 0.6f);
+  }
+  g_hooks->node_tinted(v.node, on);
+}
 
 }  // namespace mech3

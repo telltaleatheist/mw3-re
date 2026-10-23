@@ -962,3 +962,17 @@ is paused.
 - Next: 1d (damage vt+0x160 0x4ad3f0, death vt+0x70 0x4ad2d0, salvage
   0x472ec0), 1e, and putting vehicles in the program.
 
+## 2026-10-23 Item 4, step 1d: damage and death (lead)
+
+- vt+0x160 0x4ad3f0, vt+0x70 0x4ad2d0, the jolt 0x4accf0, the weapons'
+  free 0x4b48c0, zWeapon's hit callback 0x4af550 (difficulty x2 / x0.5)
+  and TARGET's tint vt+0x68 0x4ad390 in veh_basic_object; the controls'
+  health names fixed (+0x744 is the health); frozen, state, beam_on added.
+  Ghidra had the jolt reading its direction before the matrix stack turns
+  it (0x522640 works in place).
+- test_veh_damage.py: 600 runs, real vtable and matrix stack, 16 breaks
+  caught. Salvage 0x472ec0 was already ported. A review subagent checked
+  the asm (risky: NaN branches, register arguments).
+- Next: 1e (the AI slots 0x4a2ef0, 0x4d6de0), then putting vehicles in
+  the program.
+

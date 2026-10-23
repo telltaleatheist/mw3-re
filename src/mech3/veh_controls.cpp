@@ -178,7 +178,7 @@ void VehicleControls::init() {
       fire_r = {-1.51f, 0.396f, -2.46f};
     }
   }
-  x28 = 0, x2c = 0;
+  frozen = 0, x2c = 0;
   health = health_max = 100.0f;
 }
 
