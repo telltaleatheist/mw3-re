@@ -439,6 +439,51 @@ to the entity (+0x30, +0x3c). The pieces ported so far (2c1, `mech3/veh_move`):
 `test_veh_move.py`: 1200 runs through the AI controls' real thunks, 14
 breaks, 13 caught (the heading's exact-equality case is never drawn).
 
+## The suspension (TRACK, 0x4a1760, step 2c2, ported 2026-10-23)
+
+A track vehicle rides on its four supports (`platform`, the motion's
+support[0..3]; their world places at support[8..11]); support_word[0..7]
+are the supports' vertical speeds (floats), [8..15] their in-air flags.
+
+- **The ground** (0x4a23f0): the supports' world places, one query for the
+  four from 500 up (0x4ee2f0, the vehicle's node left out by its flag 8),
+  each support's ground the pick (0x4abd90, step 4, water not ground) and
+  its slope the world velocity against the polygon's normal (-(vx nx + vz
+  nz)); support 0's polygon gives the zone (as the setup's). A support with
+  no ground at all: nothing more this frame (answer 0). Each support's sum
+  of downhill pushes on polygons steeper than [0x5e812c] (0x4a2770) goes
+  into a local the exe never reads.
+- **The top speeds**: rates[1] and turns[1], times quicksand_slowdown with
+  two supports counted in quicksand, else lava_slowdown with two in lava.
+  The count is by the pick's water flag, which is only 0 or 1, so the
+  quicksand (3) and lava (4) counts never rise: vehicles are never slowed
+  (and the 0.3 sink of such supports never happens). A candidate for Owen
+  (fixes.md).
+- **The supports**: the lowest-ground support is left as it is; each other
+  one steps (0x4a2820: gravity x1c, falling while above its ground, landing
+  with the slope for its speed, else following the ground); in the air when
+  all three are (+0x20).
+- **Pitch and roll rates** (+0x50, +0x58): from the other support with the
+  least vertical speed and the next two round the four (skipping the
+  lowest), solved as the plane through their speeds; all in the air, back
+  toward level instead ((pitch + 0.5236) x -0.7, no lower than -0.7; roll x
+  -0.7); smoothed by a_damping (e^(-a_damping dt)); the three supports'
+  speeds then set from the rates. The chosen support's speed is the
+  vehicle's vertical speed (+0x68, +0x74).
+- **The attitude**: up the plane through the three non-lowest supports
+  (0x524020), the position put on it (0x4abf70) and set (vt+0x18), the
+  forward tilted onto the up (0x4a3e40), the matrix rebuilt (0x4a3ed0:
+  forward x up, up, -forward, the position), pitch and roll from the up
+  turned by -yaw (0x523e70): asin(z), asin(-x). All in the air, each held
+  to +-0.5236 (30 degrees), its rate and any rising support speed zeroed.
+
+The exe leaves two picks unset in impossible cases (no support under 5000,
+every speed past 10000); the port starts them at the first. `vehicle_suspension`
+and its pieces in `mech3/veh_move`; `test_veh_suspension.py`, 600 runs with
+the original's own helpers (the pick, exp_neg, asin through a stand-in for
+the CRT's, the normal, the turn), 23 breaks, 22 caught (the water surface
+feeds only the dead quicksand branch).
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

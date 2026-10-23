@@ -226,6 +226,9 @@ void vehicle_setup(BasicVehicle& v, zrdr::Node* def, const char* name, int32_t k
   h.controls_setup(v.controls, def, name, kind);
 }
 
+void VehBasicHooks::ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out) {
+  if (zcls::Node* w = world_hooks().world) zcls::ground_query(w, probes, count, top, out);
+}
 int32_t VehBasicHooks::ground(float x, float y, float z, zcls::GroundHits* out) {
   zcls::Node* w = world_hooks().world;  // [0x00608c84]+4
   if (!w) {

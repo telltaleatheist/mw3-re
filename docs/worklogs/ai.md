@@ -1029,3 +1029,13 @@ is paused.
   top speeds), then 2c3: 0x4a12c0, 0x4a1240, the frame 0x4a1040, the
   collisions 0x49ff80, the engine sound 0x4addc0, 0x4b4880, BASIC 0x4a1d90.
 
+## 2026-10-23 Item 4, step 2c2: the suspension (lead)
+
+- 0x4a1760, 0x4a23f0, 0x4a2820, 0x4abf70, 0x4a3e40, 0x4a3ed0 in veh_move;
+  0x523e70 (zmth::rotate_y); the hit reader in the probe shared.
+- Found: the quicksand/lava slowdowns never apply (the pick's flag counts
+  water only): a fixes.md candidate for Owen and a discovery.
+- test_veh_suspension.py: 600 runs, 22 of 23 breaks (one equivalent).
+- Next: 2c3: 0x4a12c0 (the TRACK step), 0x4a1240, the frame 0x4a1040,
+  the collisions 0x49ff80, the engine sound 0x4addc0, 0x4b4880, BASIC 0x4a1d90.
+

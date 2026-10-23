@@ -21,6 +21,9 @@ void quat_rotate(const Quat& q, const Vec3& v, Vec3& out);     // 0x00525840, q 
 float distance_sq(const Vec3& a, const Vec3& b);         // 0x0051dfa0 (keeps a - b in 0x0063d328)
 void perpendicular(const Vec3& v, Vec3* out);            // 0x0051e740: in the xy plane, by the fast square root
 void quat_axis_angle(const Vec3& axis, float angle, Quat* q);  // 0x00525490
+// Mech3.exe 1.2 @ 0x00523e70 (ECX out, EDX in, may be the same): `in` turned
+// about y by `angle`: x' = x cos + z sin, z' = z cos - x sin.
+void rotate_y(float out[3], const float in[3], float angle);
 void poly_normal(const float a[3], const float b[3], const float c[3], float out[3]);  // 0x00524020: unit (b - a) x (c - a)
 // The gradient of a value t over a triangle in a plane: t - t0 = ga (a - a0) +
 // gb (b - b0) through (a0, b0, t0), (a1, b1, t1), (a2, b2, t2); both 0 for

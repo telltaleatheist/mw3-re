@@ -192,6 +192,16 @@ void quat_axis_angle(const Vec3& axis, float angle, Quat* q) {
   q->z = axis.z * s;
 }
 
+// Mech3.exe 1.2 @ 0x00523e70
+void rotate_y(float out[3], const float in[3], float angle) {
+  const float s = static_cast<float>(std::sin(double{angle}));
+  const float c = static_cast<float>(std::cos(double{angle}));
+  const float x = in[0], z = in[2];
+  out[1] = in[1];
+  out[2] = c * z - x * s;
+  out[0] = x * c + s * z;
+}
+
 // Mech3.exe 1.2 @ 0x00524020 (zMath): the unit normal (b - a) x (c - a), ECX a,
 // EDX b, stack c. A zero-length normal is stored as (y, z, x), as the x87
 // stack leaves it (all zero anyway).

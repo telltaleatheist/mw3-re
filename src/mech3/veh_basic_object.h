@@ -130,6 +130,8 @@ class VehBasicHooks : public zgame::Unported {
   }
   // The placement's (step 1c).
   virtual int32_t ground(float x, float y, float z, zcls::GroundHits* out);  // 0x004edab0 on [0x00608c84]+4
+  // 0x004ee2f0 on [0x00608c84]+4: `count` probes (x, y, z each), one record each, from `top` down.
+  virtual void ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out);
   virtual void set_position(BasicVehicle& v, const float pos[3]);  // vt+0x18, zEntity3d's 0x005a8550
   virtual void refresh(Vehicle& v) { unported("0x005a85c0", {ref(&v)}); }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
