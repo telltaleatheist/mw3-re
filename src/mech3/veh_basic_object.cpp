@@ -27,6 +27,7 @@
 namespace mech3 {
 
 int32_t game_intensity();  // options.h (its Handle clashes with mech.h's)
+void* node_entity(void* node);  // app_mech.h's 0x0040e920
 float player_dt();         // player.h's [0x005e8110] and [0x005e8114] (likewise)
 float player_inv_dt();
 
@@ -45,6 +46,12 @@ void set_veh_basic_hooks(VehBasicHooks* h) { g_hooks = h ? h : &g_default_hooks;
 VehBasicHooks& veh_basic_hooks() { return *g_hooks; }
 float VehBasicHooks::frame_dt() { return player_dt(); }
 float VehBasicHooks::game_time() { return zgame::from_bits(unported("[0x0060991c]", {})); }
+void VehBasicHooks::segments(float* segs, int32_t points, zcls::SegmentHits* out) {
+  if (zcls::Node* w = world_hooks().world) zcls::segment_query(w, segs, points, out);
+}
+void VehBasicHooks::node_set_intersect(Handle node, int32_t on) { zcls::node_set_intersect(static_cast<zcls::Node*>(node), on); }
+Handle VehBasicHooks::hit_object(Handle node) { return node_entity(node); }
+uint32_t VehBasicHooks::frame() { return zcls::frames().frame; }
 void VehBasicHooks::node_set_active(Handle node, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(node), on); }
 void VehBasicHooks::node_set_rotation(Handle node, float x, float y, float z) {
   zcls::object3d_set_rotation(static_cast<zcls::Node*>(node), x, y, z);

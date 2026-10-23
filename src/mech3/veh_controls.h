@@ -1,7 +1,10 @@
 #pragma once
 #include <cstdint>
 
+#include <vector>
+
 #include "gamez/zgame/unported.h"
+#include "mech3/collision_hit.h"
 
 namespace zrdr {
 struct Node;
@@ -193,7 +196,7 @@ struct VehicleControls {
   float x1c = 0;              // +0x01c  the gravity, [0x00609a14] (0x004accd0)
   uint32_t x20 = 0, x24 = 0;  // +0x020  (the placement zeroes them)
   uint32_t frozen = 0;        // +0x028  a freeze hit froze it (the damage's; no shipped weapon freezes)
-  uint32_t x2c = 0;           // +0x02c
+  uint32_t x2c = 0;           // +0x02c  a sweep touched a floor of soil 5 (fire; 0x004a09e0)
   uint32_t x30 = 0;           // +0x030
   uint32_t sliding = 0;       // +0x034  sliding sideways (the movement's, 0x004a2c90)
   int32_t state = 0;          // +0x038  4: destroyed (the death's; the basic controls' vt+0x1c asks it)
@@ -214,6 +217,14 @@ struct VehicleControls {
   Vec3c angles0;              // +0x320  the node's rotation as first read
   Vec3c angles;               // +0x32c  (0x004fbe90)
   uint32_t x350 = 0;          // +0x350
+  // The collisions' (0x0049ff80): the sorted crossings (lists in the exe,
+  // prepended: their head is the back here), none crossed (+0x36c), and
+  // which responses ran.
+  std::vector<CollisionHit> objects;  // +0x354
+  std::vector<CollisionHit> ceilings; // +0x35c
+  std::vector<CollisionHit> walls;    // +0x360
+  int32_t clear = 1;          // +0x36c
+  int32_t hit_object = 0, hit_ceiling = 0, hit_wall = 0;  // +0x374, +0x378, +0x37c
   uint32_t fire_on = 0;       // +0x390  IControls vt+0x10 (0x004ad720)
   uint32_t beam_on = 0;       // +0x394  the first slot's beam firing (the death stops it)
   Block398 x398;              // +0x398

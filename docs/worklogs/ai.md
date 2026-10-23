@@ -1051,3 +1051,13 @@ is paused.
   0x4a0b00, 0x4a0100, 0x4a0b40); BASIC's 0x4a1d90 / 0x4a1f00; then the
   vehicles into the program (the entity manager's walk, the sensors).
 
+## 2026-10-23 Item 4, step 2c4: the collisions (lead)
+
+- 0x49ff80, 0x4a0180, 0x4a0910, 0x4a09e0, 0x4a0f50, 0x4a0b40 in veh_move;
+  CollisionHit moved to collision_hit.h and Vec3 to vec3.h (the Handle
+  clash). FIX (bug): the fire-floor crossing (a crash).
+- test_veh_collide.py: 600 runs with the original's own sweep, sorting and
+  responses (zWeapon's touch and the query stubbed), 24 breaks.
+- Next: BASIC's 0x4a1d90 / 0x4a1f00 (the stealth object), then the
+  vehicles into the program.
+

@@ -519,6 +519,44 @@ vehicles with the base controls' real slots, and 300 frames, 24 breaks
 caught. The collisions (0x49ff80) and BASIC's two steps (0x4a1d90,
 0x4a1f00, the stealth object's) are left.
 
+## The collisions (0x49ff80, step 2c4, ported 2026-10-23)
+
+Each TRACK step, unless the controls' vt+0x20 says otherwise (none in MW3),
+sweeps collision points from last frame's places (+0x160) to this frame's
+(+0xac):
+
+- **Which** (0x4a0180): turning more than moving (|speed| below |turn rate
+  x 3.3|) the corners 0, 2, 3, 4, 5; moving (speed squared past 0.01) the
+  front 0, 1, 2 or, going back, 3 and 5, with 4; sliding more than 1 a side
+  the right's 6..8 or the left's 9..11 (a NaN slip counts as left), those
+  placed afresh by this and last frame's matrices.
+- **The query** (0x4a0910): one world segment query for all, the vehicle's
+  node left out (its INTERSECT flag off, then on); each crossing sorted
+  (0x4a09e0): one on an object (its node's object, 0x40eee0) to objects;
+  else a normal y below -0.9 a ceiling, below 0.71 a wall; a floor of soil
+  5 (fire) sets +0x2c. The exe then adds that floor to a list that is the
+  segment's own start on its first crossing (a pointer written into its x)
+  and null after (a crash): FIX (bug), the flag only. +0x36c is 1 when
+  nothing was sorted.
+- **The responses** (0x49ff80), each by its list's head (the last added):
+  objects and walls 0x4a0b40, ceilings 0x4a0f50 (rising speeds turned
+  down, the height put back to last frame's, the points with it); the lists
+  freed. With no object or wall response, a remote side's collision record
+  (+0xd8, multiplayer: on and active, of this frame, sent within the last
+  four) answers as a wall with its normal and point.
+- **A wall** (0x4a0b40): the hit node's touch with damage 1 when it has its
+  own handlers (slot 1); nothing more for a normal flat in x and z (or NaN);
+  else, in the ground plane: the vehicle moved out by the segment's end
+  reflected about the normal from the crossing (zmth::reflect), the points
+  with it; the velocity the slide along the wall plus collision_d[0] of the
+  part into it, its height kept, and the local velocity turned from it; the
+  turn rate kicked by collision_d[1] x the speed toward the side hit.
+
+`vehicle_collisions` and its pieces in `mech3/veh_move` (CollisionHit now in
+`mech3/collision_hit.h`, shared with the mechs'); `test_veh_collide.py`, 600
+runs with the original's own sweep, sorting and responses, 24 breaks
+caught; `test_fixes` fix_vehicle_collision_fire_floor.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

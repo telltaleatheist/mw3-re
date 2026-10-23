@@ -12,6 +12,7 @@
 #include "gamez/zgame/unported.h"
 #include "mech3/veh_basic_object.h"
 #include "mech3/veh_move.h"
+#include "mech3/mech_collide.h"
 #include "mech3/player_view.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zmodel/gmod_matl.h"
@@ -79,6 +80,8 @@ struct Hooks : m3::VehBasicHooks {
   // 2c3: the frame's: the movement and the weapons by their calls, the game
   // time and the player's lock position read back.
   void move(m3::BasicVehicle& v) override { unported("0x004a1240", {ref(&v)}); }
+  // Stubbed for the frame's test; test_veh_collide.py calls the port direct.
+  void collisions(m3::BasicVehicle& v) override { unported("0x0049ff80", {ref(&v)}); }
   float game_time() override { return zgame::from_bits(probe_app::call("peek32", {0x60991c})); }
   const float* player_lock_position() override {
     static float p[3];
@@ -92,6 +95,21 @@ struct Hooks : m3::VehBasicHooks {
   void weapons_frame(void* w, bool fire, float dt) override {
     unported("0x004b0c20", {low(w), fire ? 1 : 0});
     unported("0x004b0c30", {low(w), zgame::bits(dt)});
+  }
+  // 2c4: the collisions' query by its call (each point), the records read
+  // from the test's mirror (g_hits_addr, 0x504 each); the flag and object
+  // by their calls; the frame counter read back.
+  void segments(float* segs, int32_t points, zcls::SegmentHits* out) override;
+  void node_set_intersect(m3::Handle node, int32_t on) override { unported("0x004eb6d0", {low(node), on}); }
+  m3::Handle hit_object(m3::Handle node) override { return hd(unported("0x0040eee0", {low(node)})); }
+  uint32_t frame() override { return probe_app::call("peek32", {0x72f338}); }
+  bool touchable(m3::Handle node) override {
+    const uint32_t t = probe_app::call("peek32", {low(node) + 0xbc});
+    return t > 1 && probe_app::call("peek32", {t + 0xc}) != 0;
+  }
+  float touch(m3::Handle node, const float from[3], const m3::CollisionHit&, float damage) override {
+    unported("0x005836b0", {low(node), zgame::bits(from[0]), zgame::bits(from[1]), zgame::bits(from[2]), zgame::bits(damage)});
+    return 0.0f;
   }
   // 2c3: the frame's node calls by their keys.
   void node_set_active(m3::Handle node, int32_t on) override { unported("0x004eb170", {low(node), on}); }
@@ -312,6 +330,25 @@ void read_hits(uint32_t addr, zcls::GroundHits* out, zmod::Material* mats) {
   }
 }
 zmod::Material g_many_mats[8][32];
+void Hooks::segments(float* segs, int32_t points, zcls::SegmentHits* out) {
+  unported("0x004efcd0", {points});
+  for (int32_t i = 0; i < points; ++i)
+    unported("0x004efcd0.point", {zgame::bits(segs[3 * i]), zgame::bits(segs[3 * i + 1]), zgame::bits(segs[3 * i + 2])});
+  static zcls::GroundHits tmp;
+  for (int32_t i = 0; i < points / 2; ++i) {
+    read_hits(g_hits_addr + 0x504u * static_cast<uint32_t>(i), &tmp, g_many_mats[i % 8]);
+    out[i].count = tmp.count;
+    for (int k = 0; k < tmp.count; ++k) {
+      zcls::SegmentHit& o = out[i].hit[k];
+      const zcls::GroundHit& g = tmp.hit[k];
+      for (int j = 0; j < 3; ++j) o.normal[j] = g.normal[j];
+      o.point[0] = g.x, o.point[1] = g.height, o.point[2] = g.z;
+      o.zone[0] = g.zone[0], o.zone[1] = g.zone[1];
+      o.material = g.material;
+      o.node = static_cast<zcls::Node*>(hd(probe_app::call("peek32", {g_hits_addr + 0x504u * static_cast<uint32_t>(i) + 4 + 0x28u * static_cast<uint32_t>(k) + 0x24})));
+    }
+  }
+}
 void Hooks::ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out) {
   unported("0x004ee2f0", {count, zgame::bits(top)});
   for (int32_t i = 0; i < count; ++i)
@@ -602,6 +639,64 @@ void probe_vfr_image(uint32_t* u) {
   u[0] = g_dv->active, u[1] = g_dv->engine.entry != nullptr, u[2] = lo(g_dv->motion.anim);
   u[3] = zgame::bits(g_dv->motion.until);
   u[4] = zgame::bits(c.player_at.x), u[5] = zgame::bits(c.player_at.y), u[6] = zgame::bits(c.player_at.z);
+}
+}  // extern "C"
+
+// 2c4: the collisions 0x0049ff80 on a vehicle at `v` with controls at `ctl`
+// (the records at `hits`). f: the matrix (12), the last one (12), x70 (3),
+// x50.y, velocity y, the points now (+0xac, 15 x 3) and last (+0x160, 15 x
+// 3), the collision points (12 x 3), support speeds (4); u: point count,
+// support count, x2c.
+extern "C" {
+void probe_vco_setup(uint32_t v, uint32_t ctl, uint32_t node, uint32_t hits, const uint32_t* net, const float* f, const uint32_t* u) {
+  static float matrix[12];
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new m3::VehicleControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl, g_hits_addr = hits;
+  g_dv->controls = c;
+  g_dv->node = hd(node);
+  for (int i = 0; i < 12; ++i) matrix[i] = f[i];
+  g_dv->transform = matrix;
+  int k = 12;
+  for (int i = 0; i < 12; ++i) c->last_matrix[i] = f[k++];
+  c->x70 = {f[k], f[k + 1], f[k + 2]}, k += 3;
+  c->x50.y = f[k++], c->velocity.y = f[k++];
+  for (int i = 0; i < 15; ++i) c->x_ac[i] = {f[k + 3 * i], f[k + 3 * i + 1], f[k + 3 * i + 2]};
+  k += 45;
+  for (int i = 0; i < 15; ++i) c->points[i] = {f[k + 3 * i], f[k + 3 * i + 1], f[k + 3 * i + 2]};
+  k += 45;
+  for (int i = 0; i < 12; ++i) c->motion.collision[i] = {f[k + 3 * i], f[k + 3 * i + 1], f[k + 3 * i + 2]};
+  k += 36;
+  for (int i = 0; i < 4; ++i) std::memcpy(&c->motion.support_word[i], &f[k + i], 4);
+  k += 4;
+  c->motion.collision_d[0] = f[k++], c->motion.collision_d[1] = f[k++];
+  c->angles.y = f[k++];
+  c->point_count = static_cast<int32_t>(u[0]);
+  c->motion.support_count = static_cast<int32_t>(u[1]);
+  c->x2c = u[2];
+  static m3::NetCollision nc;
+  // net: present, frame, sent, the +0x08 word (on, active at +0x0b), normal, point (bits).
+  if (net[0]) {
+    nc.frame = net[1], nc.sent = net[2];
+    nc.on = static_cast<uint8_t>(net[3]), nc.active = static_cast<uint8_t>(net[3] >> 24);
+    nc.normal = {zgame::from_bits(net[4]), zgame::from_bits(net[5]), zgame::from_bits(net[6])};
+    nc.point = {zgame::from_bits(net[7]), zgame::from_bits(net[8]), zgame::from_bits(net[9])};
+    g_dv->net_collision = &nc;
+  }
+}
+void probe_vco_run() { m3::vehicle_collisions(*g_dv); }  // direct: the hook's stub is for the frame's test
+// velocity y, the points now (15 x 3), support speeds (4); u: clear, the
+// three flags, x2c.
+void probe_vco_image(float* f, uint32_t* u) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  int k = 0;
+  f[k++] = c.velocity.y;
+  for (int i = 0; i < 15; ++i) f[k++] = c.x_ac[i].x, f[k++] = c.x_ac[i].y, f[k++] = c.x_ac[i].z;
+  for (int i = 0; i < 4; ++i) std::memcpy(&f[k++], &c.motion.support_word[i], 4);
+  f[k++] = c.velocity.x, f[k++] = c.velocity.z, f[k++] = c.x70.x, f[k++] = c.x70.y, f[k++] = c.x70.z, f[k++] = c.x50.y;
+  u[0] = static_cast<uint32_t>(c.clear), u[1] = static_cast<uint32_t>(c.hit_object), u[2] = static_cast<uint32_t>(c.hit_ceiling);
+  u[3] = static_cast<uint32_t>(c.hit_wall), u[4] = c.x2c;
 }
 }  // extern "C"
 

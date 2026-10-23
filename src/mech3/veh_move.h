@@ -83,4 +83,34 @@ void vehicle_weapons_step(BasicVehicle& v, float dt);  // 0x004b4880
 // position into the controls (+0x6f0), the weapons, zEntity's refresh.
 void vehicle_frame(BasicVehicle& v, float dt);
 
+// The collisions (2c4; docs/vehicles.md, The collisions).
+// Mech3.exe 1.2 @ 0x004a0180: which collision points to sweep from last
+// frame's place (+0x160) to this one (+0xac): turning more than moving, the
+// corners (0, 2, 3, 4, 5); moving, the front (0, 1, 2) or back (3, 5) and 4,
+// and sliding past 1 a side's three (6..8 right, 9..11 left) placed afresh
+// by this and last frame's matrices; then the query (0x004a0910) into the
+// three lists and +0x36c (none crossed).
+void vehicle_collision_sweep(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004a0910: the world's segments with the vehicle's own
+// node left out, each crossing sorted (0x004a09e0): an object's into
+// `objects`, else by its normal's y a ceiling (below -0.9) or a wall (below
+// 0.71); a floor of soil 5 sets +0x2c. True when none.
+bool vehicle_collision_query(BasicVehicle& v, float* segs, int32_t points);
+// Mech3.exe 1.2 @ 0x004a0f50: a ceiling: rising speeds turned down, the
+// height back to last frame's, the points' heights with it.
+void vehicle_ceiling_response(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x0049ff80: the sweep, then each list's response by its
+// head (objects and walls 0x004a0b40, ceilings above), the lists freed
+// (0x004a0100); without an object or wall, a remote side's collision
+// record of this or the last four frames answers as a wall.
+void vehicle_collisions(BasicVehicle& v);
+// Mech3.exe 1.2 @ 0x004a0b40: a wall or object: the hit node's touch (damage
+// 1); nothing more against a flat normal; else, all flattened, the vehicle
+// moved out of it (the segment's end reflected about the normal from the
+// crossing), the points with it; the velocity the slide along it plus
+// collision_d[0] of the bounce off it (its height kept), the local velocity
+// from it, and the turn kicked by collision_d[1] x the speed toward the
+// side hit.
+void vehicle_wall_response(BasicVehicle& v, const CollisionHit& hit);
+
 }  // namespace mech3

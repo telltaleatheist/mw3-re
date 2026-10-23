@@ -34,6 +34,8 @@
 #include "mech3/mission_world.h"
 #include "mech3/weapon.h"
 #include "mech3/veh_controls.h"
+#include "mech3/veh_move.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zweapon/zweapon.h"
 
 namespace {
@@ -1166,4 +1168,33 @@ TEST(fix_vehicle_gun_clamp) {
     else EXPECT(std::fabs(pitch - 0.5) > 0.05);  // as the exe: about 24.6 degrees
   }
   zfix::options().bugs = bugs;
+}
+
+TEST(fix_vehicle_collision_fire_floor) {
+  using namespace mech3;
+  // A sweep crossing two floors of soil 5 (fire): the exe adds the first to
+  // the segment's own start and the second through null; here the flag only.
+  struct Hooks : VehBasicHooks {
+    zmod::Material fire{};
+    void segments(float*, int32_t, zcls::SegmentHits* out) override {
+      fire.soil = 5;
+      out[0].count = 2;
+      for (int k = 0; k < 2; ++k) {
+        out[0].hit[k] = zcls::SegmentHit{};
+        out[0].hit[k].normal[1] = 1.0f;
+        out[0].hit[k].material = &fire;
+      }
+    }
+    void node_set_intersect(Handle, int32_t) override {}
+    Handle hit_object(Handle) override { return nullptr; }
+  } hooks;
+  set_veh_basic_hooks(&hooks);
+  BasicVehicle v;
+  VehicleControls c;
+  v.controls = &c;
+  float segs[6] = {1, 2, 3, 4, 5, 6};
+  EXPECT(vehicle_collision_query(v, segs, 2));
+  EXPECT(c.x2c == 1 && c.walls.empty() && c.ceilings.empty() && c.objects.empty());
+  EXPECT(segs[0] == 1.0f);
+  set_veh_basic_hooks(nullptr);
 }
