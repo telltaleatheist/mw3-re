@@ -48,6 +48,18 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
   camera modes for viewing a vehicle); the engine sounds' clear runs at each
   mission's end. Not in play yet: the program makes no vehicles until their
   placement (step 1c).
+- vt+0xdc 0x4a3630(pos, yaw), the placement (ported in step 1c1): the
+  ground under the point from 10 above it (0x4edab0), the vehicle 0.1 over
+  the first polygon found (not the highest, as the mechs' pick does), else
+  where given; the vehicle's own vt+0x18 (zEntity3d's 0x5a8550: the node's
+  translation and 0x5a85c0); the controls' y angle (+0x330) the yaw, their
+  commands cleared (IControls vt+0x14 0x4ad640: throttle +0x08 and turn
+  +0x0c to 0; the jump jets' setters are empty for vehicles), the owner
+  refreshed, +0x70 zeroed, the +0x764 block's words at +0x8b0 (count
+  +0x7e8) zeroed, +0x20 and +0x24 zeroed, and the points at +0x160 (count
+  +0x214) set to the place, but only on controls with a serial: the
+  placement runs before the setup's init gives them one, so on a vehicle's
+  first placement they stay as they are (0).
 - vt+0x158 0x49ec00(def, name, kind): the definition's `sounds` list's
   `engine` (0x4adb20 -> 0x4ad930, the engine-sound cache; not weapons, as
   first read) and its `motion_anim` (0x4ade40), then the controls'

@@ -908,3 +908,17 @@ is paused.
   items, the gun, the firepoints, serial 1 or not): 4 s for the whole test;
   8 breaks caught.
 - Next: 1c, the placement 0x4a3630, and the accessors.
+
+## 2026-10-23 Item 4, step 1c1: the placement (lead)
+
+- `vehicle_place` 0x4a3630 (mech3/veh_basic_object); `VehicleControls`
+  gained throttle +0x08 / turn +0x0c (IControls SetThrottle / SetTurn
+  through the thunks 0x4e76c0 / 0x4e76e0), `clear_commands` 0x4ad640, +0x20,
+  +0x24, +0x70, the points +0x160 (count +0x214), the words +0x8b0 (count
+  +0x7e8, 32 kept here); the vehicle's `controls` is a `VehicleControls*`.
+- The AI vehicle controls' IControls vtable is 0x5cd778 (most slots thunks
+  into the base by -0x2bc - vtordisp).
+- test_veh_controls.py gained 400 placements on a stand-in vehicle over
+  the original's base (its own ClearCommands runs): 6 s for the whole test;
+  9 breaks caught.
+- Next: 1c2, the accessors 0x4acd90..0x4ad290.

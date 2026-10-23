@@ -103,13 +103,21 @@ struct VehicleControls {
   virtual void init();                  // vt+0x10 0x004ac8a0
   void reset_1c();                      // vt+0x18 0x004accd0
 
+  virtual void clear_commands();        // IControls vt+0x14 0x004ad640 (SetThrottle(0), SetTurn(0))
+
+  float throttle = 0;         // +0x008  IControls SetThrottle (vt+0x20, 0x004a5b70)
+  float turn = 0;             // +0x00c  IControls SetTurn (vt+0x28, 0x004a5bb0)
   int32_t serial = 0;         // +0x014  [0x0060b148], counted up
   float x1c = 0;              // +0x01c  the gravity, [0x00609a14] (0x004accd0)
+  uint32_t x20 = 0, x24 = 0;  // +0x020  (the placement zeroes them)
   uint32_t x28 = 0, x2c = 0;  // +0x028
   uint32_t x30 = 0;           // +0x030
   uint32_t x3c = 0;           // +0x03c
   Vec3c x50;                  // +0x050  0x0063d870
+  Vec3c x70;                  // +0x070  0x0063d870 (the placement)
   uint32_t x94[4] = {};       // +0x094
+  Vec3c points[15];           // +0x160  each the place, when placed after the init (count +0x214)
+  int32_t point_count = 0;    // +0x214
   Vec3c up;                   // +0x308  the owner's matrix's second row, once rotated
   Vec3c angles0;              // +0x320  the node's rotation as first read
   Vec3c angles;               // +0x32c  (0x004fbe90)
@@ -143,6 +151,8 @@ struct VehicleControls {
   float health = 0;           // +0x740  100, or the definition's
   float health_max = 0;       // +0x744  likewise
   uint32_t x760 = 0;          // +0x760
+  int32_t x7e8 = 0;           // +0x7e8  (+0x764 block +0x84) a count of
+  uint32_t x8b0[32] = {};     // +0x8b0  (+0x764 block +0x14c) words the placement zeroes; 32 here
   TurretLimits turret;        // +0x790 (the pointer to it at +0x78c)
   void* owner = nullptr;      // IControls +0x10: the vehicle (SetOwner, vt+0x08)
 };

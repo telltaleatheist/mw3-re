@@ -21,7 +21,11 @@ the serial counter. The slots: their words preset at random, a serial of 1 or
 not, a gun or none, a `weapons` list of 0..10 items (each weapon known, a
 beam or not, paired or not, counted or not), firepoints found or not.
 Compared: the traces (the beams' muzzle and direction pointers among them)
-and every slot's words.
+and every slot's words. The placement 0x4a3630 (step 1c), on a stand-in
+vehicle (vt+0x18 stubbed) over the original's base: a position, a yaw, the
+ground hit or not (none, one, several), the controls' fields preset (a
+serial of 0 or not, 0..15 points, 0..32 words); compared: the traces (the
+place given to vt+0x18 among them) and the base's fields.
 """
 import ctypes
 import math
@@ -37,7 +41,7 @@ from calltrace import CALLBACK, Emu, Replay, Trace, compare, load_probe, rnd  # 
 
 U, P = ctypes.c_uint32, ctypes.c_void_p
 SERIAL, GRAVITY = 0x60b148, 0x609a14
-SIZE = 0x7a4
+SIZE = 0x930
 COMPUTED = {0x308, 0x30c, 0x310}  # the matrix's row, compared as the matrix
 NODES = ('body', 'turret', 'shadow', 'gun')
 FPNTS = ('fpnt_c', 'fpnt_l', 'fpnt_r')
@@ -307,6 +311,77 @@ def run_slots(probe, seed):
     return True, len(t.log)
 
 
+def run_place(probe, seed):
+    t = Trace()
+    e, case, owner, node, matrix, ctl = make(seed, t, probe.probe_vc_gravity())
+    if not owner:
+        return True, 0
+    r = rnd(seed, 'place')
+    vt = e.world_alloc(0x200)
+    e.w32(owner, vt)
+
+    def set_position(em, key, a, pop):
+        p = a[0]
+        em.t.handle(key, (owner, em.r32(p), em.r32(p + 4), em.r32(p + 8)))
+        em._ret(0, pop)
+    e.w32(vt + 0x18, e.new_stub('veh.vt+0x18', 's0', 4, set_position))
+    e.w32(owner + 0xe4, ctl)
+    world = e.world_alloc(0x10)
+    e.w32(0x608c84, world)
+    e.w32(world + 4, e.world_alloc(0x10))
+    count = r.choice([0, 0, 1, 3])
+    found = r.random() < 0.8
+    height = r.choice([0.0, r.uniform(-50, 300)])
+
+    def ground(em, key, a, pop):
+        out = em.uc.reg_read(UC_X86_REG_EDX)
+        em.cpu.write(out, bytes([count]))
+        em.wf(out + 0x14, height)
+        em.t.handle(key, a)
+        em.t.override(key, 0 if found else 1)
+        em.t.handle('@hits.count', ())
+        em.t.override('@hits.count', count)
+        em.t.handle('@hits.height', ())
+        em.t.override('@hits.height', fbits(height))
+        em._ret(0 if found else 1, pop)
+    e.stub(0x4edab0, spec='s0,s1,s2', fn=ground)
+    w = [fbits(r.uniform(-1, 1)), fbits(r.uniform(-1, 1)), r.choice([0, 0, 1, 5]), r.randrange(1 << 32),
+         r.randrange(1 << 32), fbits(r.uniform(-9, 9)), fbits(r.uniform(-9, 9)), fbits(r.uniform(-9, 9)),
+         fbits(r.uniform(-3, 3)), r.randrange(0, 16), r.randrange(0, 33)]
+    for off, v in zip((0x08, 0x0c, 0x14, 0x20, 0x24, 0x70, 0x74, 0x78, 0x330, 0x214, 0x7e8), w):
+        e.w32(ctl + off, v)
+    points = [r.uniform(-500, 500) for _ in range(45)]
+    for k, v in enumerate(points):
+        e.wf(ctl + 0x160 + 4 * k, v)
+    words = [r.randrange(1 << 32) for _ in range(32)]
+    for k, v in enumerate(words):
+        e.w32(ctl + 0x8b0 + 4 * k, v)
+    pos = [r.uniform(-3000, 3000), r.choice([0.0, r.uniform(-20, 200)]), r.uniform(-3000, 3000)]
+    yaw = r.uniform(-3.2, 3.2)
+    pos_addr = e.world_alloc(0x10)
+    for k, v in enumerate(pos):
+        e.wf(pos_addr + 4 * k, v)
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    probe.probe_vc_new(owner, node, e.r32(SERIAL))
+    probe.probe_vc_place_state((U * 11)(*w), (ctypes.c_float * 45)(*points), (U * 32)(*words))
+    name = f'place seed {seed} (hits {count}, found {found}, serial {w[2]}, points {w[9]}, words {w[10]})'
+    e.cpu.fpu_control(0x007f)
+    e.call(0x4a3630, ecx=owner, stack=(pos_addr, fbits(yaw)))
+    probe.probe_vc_place((ctypes.c_float * 3)(*pos), yaw)
+    if not compare(name, t.log, rep.log):
+        return False, 0
+    a = bytes(e.cpu.read(ctl, SIZE))
+    b = (ctypes.c_uint8 * SIZE)(*a)
+    probe.probe_vc_image(b)
+    b = bytes(b)
+    for o in range(0, SIZE, 4):
+        if a[o:o + 4] != b[o:o + 4]:
+            print(f'{name}: +{o:#x} original {a[o:o + 4].hex()} rebuild {b[o:o + 4].hex()}')
+            return False, 0
+    return True, len(t.log)
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -318,17 +393,19 @@ def main():
     probe.probe_vc_slots_state.argtypes = [U, ctypes.c_int32, U]
     probe.probe_vc_set_slot.argtypes = [ctypes.c_int, P]
     probe.probe_vc_weapon_slots.argtypes = [U]
+    probe.probe_vc_place_state.argtypes = [P, P, P]
+    probe.probe_vc_place.argtypes = [P, ctypes.c_float]
     probe.probe_vc_gravity.restype = ctypes.c_float
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 400
     calls = 0
     for seed in range(runs):
-        for part in (run, run_slots):
+        for part in (run, run_slots, run_place):
             ok, n = part(probe, seed)
             if not ok:
                 sys.stdout.flush(); os._exit(1)
             calls += n
-    print(f'ok: {runs} controls inits, setups and resets and {runs} weapon-slot fills as the original ({calls} calls)')
+    print(f'ok: {runs} controls inits, setups and resets {runs} weapon-slot fills and {runs} placements as the original ({calls} calls)')
     sys.stdout.flush(); os._exit(0)
 
 

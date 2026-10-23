@@ -259,6 +259,14 @@ void vehicle_weapon_slots(VehicleControls& c, void* owner, zrdr::Node* def) {
   }
 }
 
+// Mech3.exe 1.2 @ 0x004ad640 (IControls vt+0x14 through the thunk
+// 0x004e7690): SetThrottle(0) and SetTurn(0) (0x004a5b70, 0x004a5bb0); the
+// jump jets' SetJump, +0x3c and +0x44 are empty for vehicles (0x004a5bc0).
+void VehicleControls::clear_commands() {
+  throttle = 0;
+  turn = 0;
+}
+
 // Mech3.exe 1.2 @ 0x004accd0
 void VehicleControls::reset_1c() {
   x30 = 0;
