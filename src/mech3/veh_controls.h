@@ -19,6 +19,14 @@ namespace mech3 {
 // other two arguments, -pi and pi, are not kept).
 struct TurretLimits {
   explicit TurretLimits(float lo, float hi);
+  virtual ~TurretLimits() = default;
+  // vt+0x08 0x004a4180: the direction's y not past either sine (NaN within).
+  virtual bool within(const float d[3]) const;
+  // vt+0x04 0x004a41b0: within, the direction itself (true); else the
+  // limit it passed, at the direction's heading (false). FIX (bug), behind
+  // zfix bugs: the exe takes the heading's length as hypot(x, y), not
+  // hypot(x, z); its only vehicle caller drops the answer (docs/vehicles.md).
+  virtual bool clamp(const float d[3], float out[3]) const;
   float lo_sin, lo_cos;  // +0x04
   float hi_sin, hi_cos;  // +0x0c
 };
@@ -65,6 +73,13 @@ class VehControlsHooks : public zgame::Unported {
   // 0x00584a70(def, the owner's node; 0, the slot's node, muzzle, dir, segments).
   virtual Handle beam_make(Handle def, Handle owner_node, Handle node, const Vec3c* muzzle, const Vec3c* dir,
                            int32_t segments);
+  // The turret's aim (2b1): a node's cached world rotation (its object3d
+  // data +0x60, 3x3 rows, a read; render.md), its turn (0x004fbef0), the
+  // owner's world matrix (+0x0c, a read) and its +0x18 (vt+0x10, 0x005a8710).
+  virtual const float* node_world_matrix(Handle node);
+  virtual void node_add_rotation(Handle node, float x, float y, float z);
+  virtual const float* owner_matrix(void* owner);
+  virtual void owner_x18(void* owner, float out[3]);
 };
 void set_veh_controls_hooks(VehControlsHooks* h);  // null: the defaults
 int32_t& vehicle_serial();                         // [0x0060b148], the next +0x14
@@ -151,6 +166,21 @@ struct VehicleControls {
   void reset_1c();                      // vt+0x18 0x004accd0
 
   virtual void clear_commands();        // IControls vt+0x14 0x004ad640 (SetThrottle(0), SetTurn(0))
+  // vt+0x24 / vt+0x28, the aim (the base's 0x004d6dc0: no, 0x0048b940:
+  // nothing; the AI's turn the turret, zai_brain).
+  virtual bool can_aim(float cos_limit) { (void)cos_limit; return false; }
+  virtual void aim_at(const float dir[3]) { (void)dir; }
+  // What the vehicle and its debug readout ask (2b2), the base's answers:
+  // vt+0x1c destroyed (0x004a5270: yes), vt+0x20 (0x004d72a0: 0), vt+0x04
+  // the path mode (0x0040bae0: 0), vt+0x08 its goal node (0x004a5260: -1),
+  // IControls vt+0x70 on a path (0x0040bae0: no), IControls vt+0xa8 the death
+  // (0x004aed50: the pilot's tick, the base's _purecall: nothing here).
+  virtual bool destroyed() { return true; }
+  virtual int32_t dynamics() { return 0; }
+  virtual int32_t path_mode() { return 0; }
+  virtual int32_t path_goal() { return -1; }
+  virtual bool on_path() { return false; }
+  virtual void died() {}
 
   float throttle = 0;         // +0x008  IControls SetThrottle (vt+0x20, 0x004a5b70)
   float turn = 0;             // +0x00c  IControls SetTurn (vt+0x28, 0x004a5bb0)
@@ -171,6 +201,7 @@ struct VehicleControls {
   Vec3c angles0;              // +0x320  the node's rotation as first read
   Vec3c angles;               // +0x32c  (0x004fbe90)
   uint32_t x350 = 0;          // +0x350
+  uint32_t fire_on = 0;       // +0x390  IControls vt+0x10 (0x004ad720)
   uint32_t beam_on = 0;       // +0x394  the first slot's beam firing (the death stops it)
   Block398 x398;              // +0x398
   Handle node = nullptr;      // +0x3b0  the owner's node (the setup's)
@@ -219,6 +250,22 @@ void vehicle_motion_read(VehicleControls& c, void* node, zrdr::Node* mode, const
 // first slot's nodes shown. A beam gets 8 segments on the controls whose
 // serial is 1, 1 on every other (as written: docs/vehicles.md).
 void vehicle_weapon_slots(VehicleControls& c, void* owner, zrdr::Node* def);
+
+// The AI controls' turret aim (their +0xcb0 and +0xcbc; zai_brain's
+// AiVehicleControls holds it): docs/vehicles.md, The gun's aim.
+struct TurretAim {
+  float dir[3] = {};   // +0xcb0  the aim, in the world
+  uint8_t set = 0;     // +0xcbc
+};
+// Mech3.exe 1.2 @ 0x004e7570 (vt+0x28): `dir` (the vehicle's frame) into the world.
+void turret_aim_at(VehicleControls& c, TurretAim& a, const float dir[3]);
+// Mech3.exe 1.2 @ 0x004e7490 (vt+0x24): the aim in the turret's frame,
+// flattened, more ahead than `cos_limit`; true without a turret.
+bool turret_can_aim(const VehicleControls& c, const TurretAim& a, float cos_limit);
+// Mech3.exe 1.2 @ 0x004e72f0 (+0xa04 vt+0x04, IControls vt+0xbc): the
+// turret turned toward the aim (else the owner's +0x18) by 1 - e^(-5.545 dt)
+// of the angle, through the exe's exp2 bit trick; answers 1.
+int32_t turret_turn(VehicleControls& c, const TurretAim& a, float dt);
 
 // Mech3.exe 1.2 @ 0x004ab990: the 3x3 rotation of the angles (x, y, z), as
 // zMath's euler (0x00521670) builds it, into `out`.

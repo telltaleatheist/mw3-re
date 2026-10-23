@@ -986,3 +986,25 @@ is paused.
 - Next: 2a2, the 0xa70 basic controller (0x4ae270, 0x4ae3c0, 0x4ae6b0,
   0x4a2a00), then 2b and 2c, then putting vehicles in the program.
 
+## 2026-10-23 Item 4, 2a2 deferred; step 2b1: the gun's aim (lead)
+
+- 2a2 (the 0xa70 basic controller) deferred: every shipped non-multiplayer
+  aiv record names a compiled net (513 MW3, 631 PM; the remote_N slots
+  are multiplayer), so every shipped vehicle gets the AI controls; the
+  0xa70 controller is made only for a vehicle without one (unshipped data,
+  the developer's place-a-vehicle dialog 0x403820, the port's FIX for a
+  `mech` suffix without a net). Its path list ([0x5f4c4c], 0x402xxx) is
+  built from version-105 nets, none shipped.
+- 2b1: the pitch limits (0x4a4180, 0x4a41b0 with a FIX (bug): hypot(x, y)
+  for hypot(x, z); no effect: the track 0x4b6e30 drops the answer; the
+  review caught my claim otherwise and two frames I had backwards), the vehicle's vt+0x88..+0x98, +0x150, +0x154, the AI
+  controls' 0x4e7490 / 0x4e7570 / 0x4e72f0 (TurretAim). AiVehicleControls'
+  own x38 dropped for the base's state (+0x38).
+- test_veh_aim.py: 600 runs, 13 of 14 breaks (one equivalent); test_fixes
+  fix_vehicle_gun_clamp.
+- 2b2: AiVehicleControls as the brain's BrainControls (the slots table in
+  vehicles.md), the controls' answers as VehicleControls virtuals (the
+  VehBasicHooks defaults now call them); test_ai_brain.py checks the
+  original's slots on its 690 vehicle cases.
+- Next: 0x49f660 (the collision points at setup) and 0x4a2ae0, then 2c,
+  the frame 0x4a1040 (0x4a1240 the movement).

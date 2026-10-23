@@ -1151,3 +1151,19 @@ TEST(fix_vehicle_motion_chas_roll_and_missing_lists) {
   items[1].s = nullptr;  // not the reader's to free
   zrdr::free_contents(&mode);
 }
+
+TEST(fix_vehicle_gun_clamp) {
+  using namespace mech3;
+  TurretLimits lim(-0.2588f, 0.5f);
+  const float d[3] = {0.0f, 0.64278764f, -0.76604444f};  // 40 degrees up, ahead
+  const bool bugs = zfix::options().bugs;
+  for (bool on : {false, true}) {
+    zfix::options().bugs = on;
+    float out[3];
+    EXPECT(!lim.clamp(d, out));
+    const double pitch = std::atan2(double{out[1]}, std::hypot(double{out[0]}, double{out[2]}));
+    if (on) EXPECT(std::fabs(pitch - 0.5) < 1e-5);
+    else EXPECT(std::fabs(pitch - 0.5) > 0.05);  // as the exe: about 24.6 degrees
+  }
+  zfix::options().bugs = bugs;
+}

@@ -87,6 +87,7 @@ ai::AiNet* g_builtin = nullptr;
 
 struct Hooks : ai::BrainHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
+  bool entity_active(zgame::Handle e) override { return (call("peek8", {e + 8}) & 0xff) != 0; }  // a read
   void on_new(uint32_t size, const void* p) override { bind(p, call("new", {size})); }
   void on_delete(const void* p) override { call("delete", {addr_of(p)}); }
   uint32_t ref(const void* p) override { return addr_of(p); }
@@ -244,14 +245,14 @@ void image(Img& o, uint32_t addr, const void* obj, int kind) {
     case kVehicle: {
       const auto& c = *static_cast<const ai::AiVehicleControls*>(obj);
       o.u(0, 0x005cd880), o.u(4, 0x005cd8b8);
-      o.u(0x38, static_cast<uint32_t>(c.x38));
+      o.u(0x38, static_cast<uint32_t>(c.state));
       o.u(0x78c, addr + 0x790);
       o.u(0x790, 0x005c8340);
       o.f(0x794, c.turret.lo_sin), o.f(0x798, c.turret.lo_cos);
       o.f(0x79c, c.turret.hi_sin), o.f(0x7a0, c.turret.hi_cos);
       brain_image(o, 0xa04, addr, *c.brain, 0x005cd830, 0x005cd8b0);
-      o.v3(0xcb0, c.xcb0);
-      o.b8(0xcbc, c.xcbc);
+      o.v3(0xcb0, c.aim.dir);
+      o.b8(0xcbc, c.aim.set);
       o.u(0xcc0, 0);
       o.u(0xcc4, 0x005cd778);
       o.u(0xcc8, 0), o.u(0xccc, 0), o.u(0xcd0, 0);
@@ -502,4 +503,33 @@ int32_t probe_ab_brain(uint32_t addr, uint8_t* orders, int32_t cap, char* pilot,
   return n;
 }
 
+// 2b2: one of the AI vehicle controls' slots on the controls at `addr`
+// (their IControls and primary slots, docs/vehicles.md): the answer, a
+// float's bits, after a setter the field it set.
+void probe_ab_vset(uint32_t addr, uint32_t throttle, uint32_t turn) {
+  auto* c = static_cast<ai::AiVehicleControls*>(const_cast<void*>(g_obj.at(addr)));
+  c->throttle = zgame::from_bits(throttle), c->turn = zgame::from_bits(turn);
+}
+uint32_t probe_ab_vslot(uint32_t addr, int slot, uint32_t arg) {
+  auto* c = static_cast<ai::AiVehicleControls*>(const_cast<void*>(g_obj.at(addr)));
+  const float f = zgame::from_bits(arg);
+  switch (slot) {
+    case 0: return c->reversing();
+    case 1: return zgame::bits(c->throttle_now());
+    case 2: return zgame::bits(c->turn);
+    case 3: return zgame::bits(c->turn_goal());
+    case 4: c->set_throttle(f); return zgame::bits(c->throttle);
+    case 5: c->set_turn(f); return zgame::bits(c->turn);
+    case 6: c->fire((arg & 0xff) != 0); return c->fire_on;
+    case 7: return c->on_path();
+    case 8: return c->destroyed();
+    case 9: return static_cast<uint32_t>(c->dynamics());
+    case 10: return static_cast<uint32_t>(c->path_mode());
+    case 11: return static_cast<uint32_t>(c->path_goal());
+    case 12: c->stop(); return zgame::bits(c->throttle) ^ zgame::bits(c->turn);
+    default: return 0xdeadbeef;
+  }
+}
+
 }  // extern "C"
+

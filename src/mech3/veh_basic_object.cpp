@@ -572,4 +572,43 @@ void vehicle_debug_lines(BasicVehicle* v) {
   h.hud_line(4, buf);
 }
 
+// ---------------------------------------------------------------------------
+// The gun's aim (2b1)
+
+namespace {
+void to_frame(const BasicVehicle& v, const float d[3], float out[3]) {  // 0x004a4060 / 0x004a40f0
+  const float* m = v.transform;
+  out[0] = (d[0] * m[0] + d[1] * m[1]) + d[2] * m[2];
+  out[1] = (d[0] * m[3] + d[1] * m[4]) + d[2] * m[5];
+  out[2] = (d[0] * m[6] + d[1] * m[7]) + d[2] * m[8];
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004ad740 (the exe reads through null without controls: none is)
+bool vehicle_gun_within(const BasicVehicle& v, const float d[3]) { return v.controls->turret.within(d); }
+// Mech3.exe 1.2 @ 0x004ad780
+bool vehicle_gun_within_world(const BasicVehicle& v, const float d[3]) {
+  float l[3];
+  to_frame(v, d, l);
+  return v.controls->turret.within(l);
+}
+// Mech3.exe 1.2 @ 0x004ad7c0
+bool vehicle_gun_clamp(const BasicVehicle& v, const float d[3], float out[3]) { return v.controls->turret.clamp(d, out); }
+// Mech3.exe 1.2 @ 0x004ad7f0
+bool vehicle_gun_clamp_world(const BasicVehicle& v, const float d[3], float out[3]) {
+  float l[3];
+  to_frame(v, d, l);
+  return v.controls->turret.clamp(l, out);
+}
+// Mech3.exe 1.2 @ 0x004ad820
+float vehicle_health_share(const BasicVehicle& v) { return v.controls->health / v.controls->health_max; }
+// Mech3.exe 1.2 @ 0x004ad6e0
+bool vehicle_can_aim(BasicVehicle& v, float cos_limit) { return v.controls ? v.controls->can_aim(cos_limit) : false; }
+// Mech3.exe 1.2 @ 0x004ad700
+void vehicle_aim_at(BasicVehicle& v, const float dir[3], uint32_t unused) {
+  (void)unused;
+  if (v.controls) v.controls->aim_at(dir);
+}
+
 }  // namespace mech3
+

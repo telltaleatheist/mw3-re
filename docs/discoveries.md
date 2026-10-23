@@ -204,6 +204,14 @@ From the port of the damage code, checked in an emulator against the original
   vehicle along the shot (heavier vehicles less), but lasers carry an
   impact-heat effect and the jolt skips any weapon with one; they warm
   the vehicle's heat glow by the share of health each hit takes instead.
+- **Vehicles aim past their gun's limits.** A vehicle's gun is meant to
+  reach about 29 degrees up and 15 down (no vehicle file changes that),
+  and the game has code to bring an aim back onto those limits, but the
+  AI never uses its result: a tank aims straight at you however steep the
+  angle (that code also has a slip that would put the aim off the limit).
+- **Turrets swing half way to their target every eighth of a second**,
+  however far they have to turn, so a turret is never caught facing the
+  wrong way for long.
 - **The targeting view shows a vehicle's damage in red.** In TARGET's
   picture of a vehicle, the model is tinted red by how much health it has
   lost, up to 60% just before it dies.

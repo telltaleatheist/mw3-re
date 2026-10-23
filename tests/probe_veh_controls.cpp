@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/veh_basic_object.h"
 #include "mech3/veh_controls.h"
 #include "probe_app.h"
@@ -135,6 +136,19 @@ struct Hooks : m3::VehControlsHooks {
   }
   uint32_t weapon_def_flags(Handle def) override { return peek32(low(def) + 0x6c); }
   void node_set_active(Handle node, int32_t on) override { unported("0x004eb170", {low(node), on}); }
+  // 2b1: the turret node's world 3x3 read back (its data +0x60), its turn
+  // by the call, the owner's matrix and +0x18 as the test gave them.
+  const float* node_world_matrix(Handle node) override {
+    static float m[9];
+    const uint32_t data = peek32(low(node) + 0x38);
+    for (int i = 0; i < 9; ++i) m[i] = peekf(data + 0x60 + 4u * static_cast<uint32_t>(i));
+    return m;
+  }
+  void node_add_rotation(Handle node, float x, float y, float z) override {
+    unported("0x004fbef0", {low(node), zgame::bits(x), zgame::bits(y), zgame::bits(z)});
+  }
+  const float* owner_matrix(void*) override;
+  void owner_x18(void*, float out[3]) override;
   Handle beam_make(Handle def, Handle owner_node, Handle node, const m3::Vec3c* muzzle, const m3::Vec3c* dir,
                    int32_t segments) override {
     return h(unported("0x00584a70", {low(def), low(owner_node), 0, low(node), field(muzzle), field(dir), segments}));
@@ -149,6 +163,18 @@ struct Hooks : m3::VehControlsHooks {
   }
 };
 Hooks g_hooks;
+
+// 2b1: a vehicle and AI-like controls (the turret aim of zai_brain's).
+struct AimControls : m3::VehicleControls {
+  m3::TurretAim aim;
+  bool can_aim(float c) override { return m3::turret_can_aim(*this, aim, c); }
+  void aim_at(const float d[3]) override { m3::turret_aim_at(*this, aim, d); }
+};
+std::unique_ptr<AimControls> g_ac;
+std::unique_ptr<m3::BasicVehicle> g_av;
+float g_matrix12[12], g_x18[3];
+const float* Hooks::owner_matrix(void*) { return g_matrix12; }
+void Hooks::owner_x18(void*, float out[3]) { out[0] = g_x18[0], out[1] = g_x18[1], out[2] = g_x18[2]; }
 
 // The placement's calls (mech3/veh_basic_object).
 struct VehHooks : m3::VehBasicHooks {
@@ -331,4 +357,39 @@ void probe_vc_image(uint8_t* b) {
   put(b, 0x760, c.x760);
 }
 
+// 2b1: m the owner's 3x4, lim the limits' (lo sin, lo cos, hi sin, hi cos),
+// the turret node (0 none), the aim and its flag.
+void probe_va_setup(const float* m, const float* lim, const float* x18, uint32_t turret, const float* aim, int set) {
+  std::memcpy(g_matrix12, m, sizeof g_matrix12);
+  std::memcpy(g_x18, x18, sizeof g_x18);
+  g_ac = std::make_unique<AimControls>();
+  g_ac->turret.lo_sin = lim[0], g_ac->turret.lo_cos = lim[1], g_ac->turret.hi_sin = lim[2], g_ac->turret.hi_cos = lim[3];
+  g_ac->turret_node = hd(turret);
+  g_ac->aim.dir[0] = aim[0], g_ac->aim.dir[1] = aim[1], g_ac->aim.dir[2] = aim[2];
+  g_ac->aim.set = static_cast<uint8_t>(set);
+  g_ac->owner = &g_owner;
+  g_av = std::make_unique<m3::BasicVehicle>();
+  g_av->transform = g_matrix12;
+  g_av->controls = g_ac.get();
+  m3::set_veh_controls_hooks(&g_hooks);
+}
+int probe_va_within(int world, const float* d) {
+  return world ? m3::vehicle_gun_within_world(*g_av, d) : m3::vehicle_gun_within(*g_av, d);
+}
+int probe_va_clamp(int world, const float* d, float* out) {
+  return world ? m3::vehicle_gun_clamp_world(*g_av, d, out) : m3::vehicle_gun_clamp(*g_av, d, out);
+}
+float probe_va_health(float hmax, float h) {
+  g_ac->health_max = hmax, g_ac->health = h;
+  return m3::vehicle_health_share(*g_av);
+}
+int probe_va_can_aim(float c) { return m3::vehicle_can_aim(*g_av, c); }
+void probe_va_aim_at(const float* d, float* out) {
+  m3::vehicle_aim_at(*g_av, d, 0);
+  std::memcpy(out, g_ac->aim.dir, 12);
+}
+int probe_va_turn(float dt) { return m3::turret_turn(*g_ac, g_ac->aim, dt); }
+void probe_zfix_bugs(int on) { zfix::options().bugs = on != 0; }  // the fix's own check
+
 }  // extern "C"
+

@@ -45,6 +45,7 @@ struct Hooks : m3::VehBasicHooks {
   // addresses, reads through peek32.
   bool controls_destroyed(m3::VehicleControls&) override { return unported("ctl.vt+0x1c", {}) == 1; }
   void controls_died(m3::VehicleControls&) override { unported("ctl.ictl.vt+0xa8", {}); }
+  void path_drop_temporary(m3::BasicVehicle& v) override { unported("0x00402510", {ref(&v)}); }  // the test stubs it
   int32_t glow_hit(m3::Block398&, m3::Handle w, float amount) override;
   void glow_end(m3::Block398&) override;
   uint32_t weapon_flags(m3::Handle w) override { return probe_app::call("peek32", {low(w) + 0x6c}); }
