@@ -1090,3 +1090,12 @@ is paused.
   then die (the destroy valves, or the Owens on the way); the APCs drive off.
 - Left: the teardown at the mission's end, the kill credit (0x41b420), the
   mobile HQs (step 3), BASIC's steps.
+
+## 2026-10-23 Item 4, step 3c: teardown and kill credit (lead)
+
+- The mission's end frees vehicles (0x4ac630(1)); a mech's kill of one
+  counts in its +0x3f8/+0x404 and salvages (0x472ec0, add_vehicle_salvage
+  over the weapon manager); a vehicle's kill credit 0x4a5bc0 is empty.
+- c1m1 headless: the player's kill of apc_02 (+1 vehicle, +75), all four
+  freed at the cleanup.
+- Left: the mobile HQs (step 3), BASIC's steps (stealth only).

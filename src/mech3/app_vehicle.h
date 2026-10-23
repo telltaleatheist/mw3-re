@@ -23,6 +23,10 @@ void program_vehicle_refresh(void* v);    // 0x005a85c0
 // The team masks at +0xc0 / +0xc4 / +0xc8 (set_team_masks' writes and reads).
 bool program_vehicle_mask(void* v, uint32_t off, uint32_t* get, const uint32_t* set);
 void program_vehicles_forget();           // the mission's end
+// Tests: a weapons.zrd shot of `weapon` from `killer` (an entity; its node
+// zWeapon's attacker) for more than its health, through the damage 0x004ad3f0.
+bool program_vehicle_kill(void* v, void* killer, const char* weapon);
+bool program_vehicle_free(void* v);       // vt+0x00 0x004ac630(1); false when not a program vehicle
 // What the AI's brain asks of a vehicle (docs/vehicles.md, In the program),
 // by the basic vehicle's slots; the rest (position, forward, matrix, weapons,
 // active, velocity) is zEntity's, the mech helpers' (app_mech.h).

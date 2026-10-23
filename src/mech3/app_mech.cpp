@@ -373,6 +373,7 @@ WiredLaunch g_launch;
 namespace {
 SalvageMech salvage_view(Mech& m);
 const SalvageCalls& salvage_calls();
+void salvage_weapons(const void* ammo, SalvageMech& v);
 }  // namespace
 
 namespace {
@@ -736,11 +737,24 @@ void wire_mech_parts() {
   };
   dc.free = [](Mech& m) { mech_delete(&m); };
 
-  // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420);
-  // other killers (the AI's vehicles and turrets) are not ported.
+  // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420),
+  // a basic vehicle's 0x004a5bc0 does nothing; other killers (turrets) are
+  // not ported.
   d.killer_notify = [](Handle killer, Mech& victim) {
     if (entity_is_mech(killer)) return static_cast<Mech*>(killer)->on_kill(&victim);
+    if (is_program_vehicle(killer)) return;
     if (g_w.unported) g_w.unported(g_w.engine, "killer vt+0x80", {});
+  };
+  // What on_kill asks of its victim: a basic vehicle answers itself to
+  // vt+0x2c and vt+0x40, 0 to vt+0x50 and vt+0x48 (0x004d2a70, 0x0040bae0).
+  d.victim_view = [](Handle v, int slot) -> Handle {
+    if (is_program_vehicle(v)) return slot == 0x50 || slot == 0x48 ? nullptr : v;
+    return slot == 0x48 ? nullptr : v;
+  };
+  d.salvage_vehicle = [](Handle v) {  // 0x00472ec0 on the mission's store
+    SalvageMech s;
+    salvage_weapons(mech_weapon_manager(v), s);
+    add_vehicle_salvage(mission_salvage(), s, salvage_calls());
   };
   d.salvage_mech = [](Handle m) {  // 0x00472f00 on the mission's store
     SalvageMech v = salvage_view(*static_cast<Mech*>(m));
@@ -1066,6 +1080,36 @@ const SalvageCalls& salvage_calls() {
   return c;
 }
 
+// A weapon manager's slots and bins as 0x00472da0 reads them.
+void salvage_weapons(const void* ammo, SalvageMech& v) {
+  const auto* wm = static_cast<const WeaponManager*>(ammo);
+  if (!wm) return;
+  v.has_manager = true;
+  std::vector<const AmmoBin*> bins;
+  for (uint32_t i = 0; i < wm->count && i < 16; ++i) {
+    SalvageWeapon w;
+    const Weapon* x = wm->weapons[i];
+    if (x) {
+      w.present = true;
+      w.type = x->def && x->def->type ? x->def->type->id : -1;
+      w.has_item = x->item != nullptr;
+      w.item_tech = x->item ? x->item->tech : 0;
+      w.beam = x->is_beam();
+      if (x->bin) {
+        size_t k = 0;
+        while (k < bins.size() && bins[k] != x->bin) ++k;
+        if (k == bins.size()) {
+          bins.push_back(x->bin);
+          v.bins.push_back(x->bin->left());
+        }
+        w.bin = static_cast<int32_t>(k);
+      }
+    }
+    v.weapons.push_back(w);
+  }
+  v.owner_bins.assign(bins.begin(), bins.end());
+}
+
 SalvageMech salvage_view(Mech& m) {
   SalvageMech v;
   v.has_data = m.pilot != nullptr;
@@ -1077,32 +1121,7 @@ SalvageMech salvage_view(Mech& m) {
   v.torso_gone = m.torso && m.torso->destroyed;
   v.head_gone = m.head && m.head->destroyed;
   for (int i = 0; i < 2; ++i) v.leg_gone[i] = m.legs[i] && m.legs[i]->destroyed;
-  if (const auto* wm = static_cast<const WeaponManager*>(m.ammo)) {
-    v.has_manager = true;
-    std::vector<const AmmoBin*> bins;
-    for (uint32_t i = 0; i < wm->count && i < 16; ++i) {
-      SalvageWeapon w;
-      const Weapon* x = wm->weapons[i];
-      if (x) {
-        w.present = true;
-        w.type = x->def && x->def->type ? x->def->type->id : -1;
-        w.has_item = x->item != nullptr;
-        w.item_tech = x->item ? x->item->tech : 0;
-        w.beam = x->is_beam();
-        if (x->bin) {
-          size_t k = 0;
-          while (k < bins.size() && bins[k] != x->bin) ++k;
-          if (k == bins.size()) {
-            bins.push_back(x->bin);
-            v.bins.push_back(x->bin->left());
-          }
-          w.bin = static_cast<int32_t>(k);
-        }
-      }
-      v.weapons.push_back(w);
-    }
-    v.owner_bins.assign(bins.begin(), bins.end());
-  }
+  salvage_weapons(m.ammo, v);
   v.config = m.config;
   for (int id = 0; id < 16; ++id) {
     const MechPart* p = part_by_id(m, id);

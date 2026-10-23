@@ -1226,7 +1226,9 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     };
     std::vector<Track> tracks;
     int frames = 0;
-    bool went = false;
+    bool went = false, killed = false;
+    mech3::LaunchedMech before, after;
+    size_t left = 99;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       if (frames == 0)
@@ -1247,6 +1249,16 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
                  std::isfinite(s.pos[1]) && std::isfinite(s.pos[2]);
       }
       went = went || go;
+      if (frames == 60)  // the player kills apc_02 (the kill credit 0x0041b420)
+        for (void* v : vs) {
+          mech3::VehicleSummary s;
+          if (mech3::describe_vehicle(v, &s) && s.name && std::string(s.name) == "apc_02") {
+            void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+            mech3::describe_mech(player, &before);
+            killed = mech3::program_vehicle_kill(v, player, "MGUN");
+            mech3::describe_mech(player, &after);
+          }
+        }
       ++frames;
     };
     CountingPump pump;
@@ -1255,6 +1267,7 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     pump.on_quit = [&] {
       for (const auto& [k, v] : engine.unported_counts()) calls[k] = v;
       mech3::missions().cleanup(false);  // the valves end with the mission
+      left = mech3::program_vehicles().size();  // freed with the entities (0x0049dc40)
     };
     app.run(pump);
     if (std::getenv("MW3_SURVEY"))
@@ -1273,9 +1286,14 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
       // The trucks die (the destroy valves at their last nodes, or the Owens'
       // fire on the way); the APCs drive off along theirs, alive.
       const bool truck = k.name.rfind("ttruck", 0) == 0;
-      EXPECT(k.dead == truck);
-      if (!truck) EXPECT(dist(k.first, k.last) > 100.0f);
+      EXPECT(k.dead == (truck || k.name == "apc_02"));
+      if (k.name == "apc_01") EXPECT(dist(k.first, k.last) > 100.0f);
     }
+    // The player's kill: one vehicle, 75 points.
+    EXPECT(killed);
+    EXPECT(after.kills[1] == before.kills[1] + 1 && after.kills[4] == before.kills[4] + 75);
+    EXPECT(left == 0);
+    EXPECT(calls.count("entity vt+0x0") == 0);
     // ttruck_01 waits for truck_go at its net's node_08.
     for (const Track& k : tracks)
       if (k.name == "ttruck_01") {
