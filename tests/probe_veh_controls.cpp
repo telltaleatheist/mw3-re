@@ -239,6 +239,32 @@ void probe_vc_motion(uint32_t node, uint32_t mode, const char* name, const char*
 }
 void probe_vc_set_mode(int32_t mode) { g_c->motion.mode = mode; }
 
+// The speeds and turns (vt+0x114..+0x13c): the motion and controls values
+// they read, then the slot's function (0..10 for +0x114..+0x13c).
+void probe_vc_speed_state(float top, float slowing, float turn_rate, float throttle, float x70z) {
+  g_c->motion.rates[1] = top, g_c->motion.rate_damping[1] = slowing, g_c->motion.turns[1] = turn_rate;
+  g_c->throttle = throttle, g_c->x70.z = x70z;
+}
+float probe_vc_speed(int which, float a, float b) {
+  g_owner.controls = g_c.get();
+  float r = 0;
+  switch (which) {
+    case 0: r = m3::vehicle_move_speed(g_owner); break;
+    case 1: r = m3::vehicle_speed_at(g_owner, a); break;
+    case 2: r = m3::vehicle_share_for(g_owner, a); break;
+    case 3: r = m3::vehicle_stopping_distance(g_owner, a); break;
+    case 4: r = m3::vehicle_stopping_now(g_owner); break;
+    case 5: r = m3::vehicle_stopping_at(g_owner, a); break;
+    case 6: r = m3::vehicle_stop_share(g_owner, a); break;
+    case 7: r = m3::vehicle_turn_time(g_owner, a); break;
+    case 8: r = m3::vehicle_turn_time_now(g_owner); break;
+    case 9: r = m3::vehicle_turn_time_at(g_owner, a); break;
+    case 10: r = m3::vehicle_turn_share(g_owner, a, b); break;
+  }
+  g_owner.controls = nullptr;
+  return r;
+}
+
 void probe_vc_init() { g_c->init(); }
 void probe_vc_setup(uint32_t def) { g_c->setup(reinterpret_cast<zrdr::Node*>(hd(def))); }
 void probe_vc_reset_1c() { g_c->reset_1c(); }

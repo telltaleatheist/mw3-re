@@ -1,5 +1,6 @@
 #include "mech3/veh_basic_object.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -210,6 +211,90 @@ void vehicle_place(BasicVehicle& v, const float pos[3], float yaw) {
   c.x20 = 0, c.x24 = 0;
   if (c.serial)
     for (int32_t i = 0; i < c.point_count && i < 15; ++i) c.points[i] = {p[0], p[1], p[2]};
+}
+
+// --- the speeds and turns -----------------------------------------------------
+
+namespace {
+const VehicleMotion* motion(const BasicVehicle& v) { return v.controls ? &v.controls->motion : nullptr; }
+// The x87's clamp to 0..1: over 1 (ordered) gives 1, under 0 or NaN 0.
+float unit(float x) {
+  if (x > 1.0) return 1.0f;
+  if (!(x >= 0.0)) return 0.0f;
+  return x;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004acfa0: the IControls' throttle (vt+0x140, 0x004020b0;
+// its vt+0x1c, +0x08) times the top speed.
+float vehicle_move_speed(const BasicVehicle& v) {
+  const VehicleMotion* m = motion(v);
+  return m ? v.controls->throttle * m->rates[1] : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x004acf70
+float vehicle_speed_at(const BasicVehicle& v, float share) {
+  const VehicleMotion* m = motion(v);
+  return m ? m->rates[1] * share : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x004acfe0 (a top speed of 0, or NaN, gives 0).
+float vehicle_share_for(const BasicVehicle& v, float speed) {
+  const VehicleMotion* m = motion(v);
+  return m && !(m->rates[1] == 0.0f || std::isnan(m->rates[1])) ? speed / m->rates[1] : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x004ad020
+float vehicle_stopping_distance(const BasicVehicle& v, float speed) {
+  const VehicleMotion* m = motion(v);
+  return m ? speed / m->rate_damping[1] : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x004ad050
+float vehicle_stopping_now(const BasicVehicle& v) {
+  return vehicle_stopping_distance(v, motion(v) ? std::fabs(vehicle_move_speed(v)) : 0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x004ad0b0
+float vehicle_stopping_at(const BasicVehicle& v, float share) {
+  return vehicle_stopping_distance(v, std::fabs(vehicle_speed_at(v, share)));
+}
+
+// Mech3.exe 1.2 @ 0x004ad100: the throttle share that slows to a stop within
+// `d`.
+float vehicle_stop_share(const BasicVehicle& v, float d) {
+  const VehicleMotion* m = motion(v);
+  if (!m) return 0.0f;
+  const float t = m->rate_damping[1] * d;
+  const float x = !(m->rates[1] == 0.0f || std::isnan(m->rates[1])) ? t / m->rates[1] : 0.0f;
+  return unit(x);
+}
+
+// Mech3.exe 1.2 @ 0x004ad180: `angle` over the turn rate (at least 0.0001,
+// a NaN rate too).
+float vehicle_turn_time(const BasicVehicle& v, float angle) {
+  const VehicleMotion* m = motion(v);
+  float rate = m ? m->turns[1] : 0.0f;
+  if (!(rate >= 0.0001f)) rate = 0.0001f;  // 0x005e857c
+  return angle / rate;
+}
+
+// Mech3.exe 1.2 @ 0x004ad250: the controls' |+0x78| (with IControls'
+// GetTurn, vt+0x24, which 0x004ad180 does not read).
+float vehicle_turn_time_now(const BasicVehicle& v) {
+  return v.controls ? vehicle_turn_time(v, std::fabs(v.controls->x70.z)) : 0.0f;
+}
+
+// Mech3.exe 1.2 @ 0x004ad290
+float vehicle_turn_time_at(const BasicVehicle& v, float share) {
+  return vehicle_turn_time(v, std::fabs(vehicle_speed_at(v, share)));
+}
+
+// Mech3.exe 1.2 @ 0x004ad1c0: |turns[1] b| a over the top speed, 0..1.
+float vehicle_turn_share(const BasicVehicle& v, float a, float b) {
+  const VehicleMotion* m = motion(v);
+  if (!m || m->rates[1] == 0.0f || std::isnan(m->rates[1])) return 0.0f;
+  return unit(std::fabs(m->turns[1] * b) * a / m->rates[1]);
 }
 
 // Mech3.exe 1.2 @ 0x004ac650.
