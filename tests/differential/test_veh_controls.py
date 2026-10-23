@@ -2,8 +2,8 @@
 its init 0x4ac8a0 (a serial number, the node's rotation into the owner's
 matrix 0x4ab990, the body, turret, shadow and gun nodes, the gun's
 firepoints, the health 100), its setup 0x4acbc0 (the init, the definition's
-start_anims and health, the owner's 0x4af2a0 and weapons 0x4b4660) and
-0x4accd0.
+start_anims and health, the owner's 0x4af2a0 and weapons 0x4b4660),
+0x4accd0, and the owner's weapon slots 0x4af2a0 (step 2a1b).
 
     cmake --build build && .venv/bin/python tests/differential/test_veh_controls.py [runs]
 
@@ -17,7 +17,11 @@ firepoints each there or not, start_anims of 0..3 names (a def found or
 not), a health or none; the init alone, the setup, or 0x4accd0. Compared:
 the traces, the base's fields, the owner's matrix and the row the base
 copies from it (within 4 ulps or 1e-6: x87 against float rounding) and
-the serial counter.
+the serial counter. The slots: their words preset at random, a serial of 1 or
+not, a gun or none, a `weapons` list of 0..10 items (each weapon known, a
+beam or not, paired or not, counted or not), firepoints found or not.
+Compared: the traces (the beams' muzzle and direction pointers among them)
+and every slot's words.
 """
 import ctypes
 import math
@@ -209,6 +213,100 @@ def run(probe, seed):
     return True, len(t.log)
 
 
+def item(e, r, name):
+    """A `weapons` item: (name, counted, paired, ammo, three values, a flag)."""
+    vals = [(3, e.world_string(name)), (1, r.choice([0, 1, 5])), (1, r.choice([0, 1, 2, 3])),
+            (1, r.choice([0, 20, 150])), (1, r.randrange(1 << 32)), (1, r.randrange(1 << 32)),
+            (1, r.randrange(1 << 32)), (1, r.choice([0, 1, 2, 3]))]
+    lst = e.world_alloc(8 * (len(vals) + 1))
+    e.w32(lst, 1)
+    e.w32(lst + 4, len(vals) + 1)
+    for i, (ty, v) in enumerate(vals, 1):
+        e.w32(lst + 8 * i, ty)
+        e.w32(lst + 8 * i + 4, v)
+    return (4, lst)
+
+
+def run_slots(probe, seed):
+    t = Trace()
+    e, case, owner, node, matrix, ctl = make(seed, t, probe.probe_vc_gravity())
+    if not owner:
+        return True, 0
+    r = rnd(seed, 'slots')
+    names = ['AC2', 'MGUN', 'SRM2', 'Laser_Large', 'ERPPC', 'Flamer']
+    defs = {}
+    for nm in names:
+        d = e.world_alloc(0x80)
+        e.w32(d + 4, e.world_string(nm))
+        e.w32(d + 0x6c, r.choice([0, 2, 3, 0x40]))
+        defs[nm] = d
+    count = r.choice([0, 1, 2, 3, 10])
+    items = [item(e, r, r.choice(names)) for _ in range(count)]
+    weapons = reader_list(e, items) if count or r.random() < 0.5 else 0
+    gun = e.world_alloc(0x40) if r.random() < 0.8 else 0
+    fp = {}
+    for nm in names:
+        for n2 in (nm, nm + '_L', nm + '_R'):
+            fp[n2] = e.world_alloc(0x40) if r.random() < 0.6 else 0
+    serial = r.choice([0, 1, 1, 2, 7])
+    del e.slots[0x4af2a0]  # here it runs
+
+    def sprintf(em, key, a, pop):  # the CRT's, for "%s_L" / "%s_R" only
+        out = em.cstr(a[1]).replace('%s', em.cstr(a[2]))
+        em.cpu.write(a[0], out.encode('latin1') + b'\0')
+        em._ret(len(out), pop)
+    e.import_stub(0x5bb658, '@sprintf', 's0,s1,s2', 0, sprintf)
+    e.w32(owner + 0xe4, ctl)
+    e.w32(ctl + 0x14, serial)
+    e.w32(ctl + 0x708, gun)
+
+    def answer_by(table, idx):
+        def fn(em, key, a, pop):
+            v = table.get(a[idx], 0)
+            em.t.handle(key, a)
+            em.t.override(key, v)
+            em._ret(v, pop)
+        return fn
+    e.stub(0x5569e0, spec='c,zd', fn=lambda em, k, a, p: answer_by({'weapons': weapons}, 1)(em, k, a, p))
+    e.stub(0x581ed0, spec='zc', fn=answer_by(defs, 0))
+    e.stub(0x4eb0d0, spec='c,zd', fn=answer_by(fp, 1))
+    e.stub(0x4eb170, spec='c,d')
+    beams = iter(e.world_alloc(0x10) for _ in range(12))
+
+    def beam(em, key, a, pop):
+        v = next(beams)
+        em.t.handle(key, a)
+        em.t.override(key, v)
+        em._ret(v, pop)
+    e.stub(0x584a70, spec='c,d,s0,s1,s2,s3,s4', fn=beam)
+    slots = [[r.randrange(1 << 32) for _ in range(14)] for _ in range(10)]
+    for i, w in enumerate(slots):
+        for k, v in enumerate(w):
+            e.w32(ctl + 0x3b8 + 0x38 * i + 4 * k, v)
+    defn = e.world_alloc(0x10)
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    probe.probe_vc_new(owner, node, e.r32(SERIAL))
+    probe.probe_vc_slots_state(ctl, serial, gun)
+    for i, w in enumerate(slots):
+        probe.probe_vc_set_slot(i, (U * 14)(*w))
+    name = f'slots seed {seed} ({count} items, serial {serial}, gun {bool(gun)})'
+    e.cpu.fpu_control(0x007f)
+    e.call(0x4af2a0, ecx=owner, stack=(defn,))
+    probe.probe_vc_weapon_slots(defn)
+    if not compare(name, t.log, rep.log):
+        return False, 0
+    a = bytes(e.cpu.read(ctl, SIZE))
+    b = (ctypes.c_uint8 * SIZE)(*a)
+    probe.probe_vc_image(b)
+    b = bytes(b)
+    for o in list(range(0x3b4, 0x3b8 + 0x38 * 10, 4)) + [0x5ec]:
+        if a[o:o + 4] != b[o:o + 4]:
+            print(f'{name}: +{o:#x} (slot {(o - 0x3b8) // 0x38}, +{(o - 0x3b8) % 0x38:#x}) original {a[o:o + 4].hex()} rebuild {b[o:o + 4].hex()}')
+            return False, 0
+    return True, len(t.log)
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -217,16 +315,20 @@ def main():
     probe.probe_vc_image.argtypes = [P]
     probe.probe_vc_matrix.argtypes = [P]
     probe.probe_vc_set398.argtypes = [P]
+    probe.probe_vc_slots_state.argtypes = [U, ctypes.c_int32, U]
+    probe.probe_vc_set_slot.argtypes = [ctypes.c_int, P]
+    probe.probe_vc_weapon_slots.argtypes = [U]
     probe.probe_vc_gravity.restype = ctypes.c_float
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 400
     calls = 0
     for seed in range(runs):
-        ok, n = run(probe, seed)
-        if not ok:
-            sys.stdout.flush(); os._exit(1)
-        calls += n
-    print(f'ok: {runs} controls inits, setups and resets as the original ({calls} calls)')
+        for part in (run, run_slots):
+            ok, n = part(probe, seed)
+            if not ok:
+                sys.stdout.flush(); os._exit(1)
+            calls += n
+    print(f'ok: {runs} controls inits, setups and resets and {runs} weapon-slot fills as the original ({calls} calls)')
     sys.stdout.flush(); os._exit(0)
 
 

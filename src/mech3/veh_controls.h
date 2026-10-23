@@ -52,8 +52,16 @@ class VehControlsHooks : public zgame::Unported {
   virtual zrdr::Node* reader_find(zrdr::Node* node, const char* key);   // 0x005569e0
   virtual Handle anim_find(const char* name);                           // 0x0050b450
   virtual void anim_start(Handle def, Handle node);                     // 0x00508c10(def, node, 0, 0, 0)
-  virtual void owner_4af2a0(void* owner, zrdr::Node* def) { unported("0x004af2a0", {ref(owner), low(def)}); }
+  virtual void weapon_slots(struct VehicleControls& c, void* owner, zrdr::Node* def);  // the owner's 0x004af2a0
   virtual void owner_weapons(void* owner, zrdr::Node* def);             // 0x004b4660
+  // 0x004af2a0's: zWeapon's definitions and beams, a node shown or hidden.
+  virtual Handle weapon_def(const char* name);                          // 0x00581ed0: zwep::find_def
+  virtual const char* weapon_def_name(Handle def);                      // its +0x04
+  virtual uint32_t weapon_def_flags(Handle def);                        // its +0x6c (bit 1 a beam)
+  virtual void node_set_active(Handle node, int32_t on);                // 0x004eb170
+  // 0x00584a70(def, the owner's node; 0, the slot's node, muzzle, dir, segments).
+  virtual Handle beam_make(Handle def, Handle owner_node, Handle node, const Vec3c* muzzle, const Vec3c* dir,
+                           int32_t segments);
 };
 void set_veh_controls_hooks(VehControlsHooks* h);  // null: the defaults
 int32_t& vehicle_serial();                         // [0x0060b148], the next +0x14
@@ -64,6 +72,22 @@ struct Block398 {
   uint32_t x04 = 0;
   uint32_t x08 = 0, x0c = 0, x10 = 0, x14 = 0;
   void clear();  // 0x005869d0
+};
+
+// A weapon slot (0x38 bytes; ten from +0x3b8, the owner's 0x004af2a0 fills
+// them from the definition's `weapons`, items as build_vehicle_weapons reads
+// them: (name n n ammo ...)).
+struct WeaponSlot {
+  using Handle = void*;
+  Handle def = nullptr;      // +0x00  zWeapon's definition by the item's name
+  int32_t index = 0;         // +0x04  0..9
+  Handle node = nullptr;     // +0x08  its firepoint under the gun: the weapon's name, or <name>_L
+  Handle node_r = nullptr;   // +0x0c  <name>_R when the item's third value has bit 0
+  uint32_t flags = 0;        // +0x14  bit 0 the item's 8th value's bit 0, bit 1 paired, bit 2 counted
+  float x18 = 0;             // +0x18  the item's 4th value (an int) while bit 2
+  uint32_t x24 = 0;          // +0x24
+  uint32_t x28 = 0, x2c = 0, x30 = 0;  // +0x28  the item's 5th to 7th values as they are
+  Handle beam = nullptr;     // +0x34  zWeapon's beam for a beam weapon (0x00584a70)
 };
 
 // The base's fields its users have shown so far; the rest stays 0 from the
@@ -92,17 +116,20 @@ struct VehicleControls {
   uint32_t x350 = 0;          // +0x350
   Block398 x398;              // +0x398
   Handle node = nullptr;      // +0x3b0  the owner's node (the setup's)
+  WeaponSlot* first = nullptr;  // +0x3b4  the first slot filled
+  WeaponSlot slots[10];       // +0x3b8
   uint32_t x5e8 = 0;          // +0x5e8
   int32_t x5ec = 0;           // +0x5ec
   Vec3c x5fc;                 // +0x5fc  [0x005eda80]
+  Vec3c aim_dir;              // +0x5f0  a beam's direction, read live (0x00584a70 keeps the pointer)
   // The firepoints under the gun: fpnt_c's position and the inverse of its
-  // length when the gun has it, else the direction (0, 0, -1) and 1; fpnt_r
-  // and fpnt_l likewise (removed and freed once read), else fixed offsets.
-  // The found and the default values land in different fields (as written;
-  // which the firing reads: docs/vehicles.md, Open).
-  Vec3c fire_c_default;       // +0x608
-  Vec3c fire_l_default;       // +0x614  (1.51, 0.396, -2.46)
-  Vec3c fire_r_default;       // +0x620  (-1.51, 0.396, -2.46)
+  // length when the gun has it, else the muzzle starts at (0, 0, -1) and the
+  // scale 1; fpnt_r and fpnt_l likewise (removed and freed once read), else
+  // fixed offsets. The muzzle (+0x608) is what a beam reads live; the found
+  // positions are likely what the aiming works from (docs/vehicles.md).
+  Vec3c muzzle;               // +0x608
+  Vec3c fire_l;               // +0x614  (1.51, 0.396, -2.46) without fpnt_l
+  Vec3c fire_r;               // +0x620  (-1.51, 0.396, -2.46) without fpnt_r
   Vec3c fpnt_c;               // +0x62c
   Vec3c fpnt_r;               // +0x638
   Vec3c fpnt_l;               // +0x644
@@ -119,6 +146,13 @@ struct VehicleControls {
   TurretLimits turret;        // +0x790 (the pointer to it at +0x78c)
   void* owner = nullptr;      // IControls +0x10: the vehicle (SetOwner, vt+0x08)
 };
+
+// Mech3.exe 1.2 @ 0x004af2a0 (a method of the owner, on its controls): the
+// ten slots emptied, then one per `weapons` item: its definition, flags and
+// values, its firepoint nodes under the gun hidden, a beam weapon's beam; the
+// first slot's nodes shown. A beam gets 8 segments on the controls whose
+// serial is 1, 1 on every other (as written: docs/vehicles.md).
+void vehicle_weapon_slots(VehicleControls& c, void* owner, zrdr::Node* def);
 
 // Mech3.exe 1.2 @ 0x004ab990: the 3x3 rotation of the angles (x, y, z), as
 // zMath's euler (0x00521670) builds it, into `out`.

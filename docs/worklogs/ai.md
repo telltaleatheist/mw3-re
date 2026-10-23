@@ -895,3 +895,16 @@ is paused.
 - Open (vehicles.md): which firepoint fields the firing reads.
 - Next: 2a1b, the vehicle's 0x4af2a0 (131 lines, the controls' +0x3bc
   table), which may settle the firepoints; then 1c.
+
+## 2026-10-23 Item 4, step 2a1b: the vehicle's weapon slots (lead)
+
+- 0x4af2a0 (the vehicle's method, on its controls): `WeaponSlot` x10 at
+  +0x3b8, `vehicle_weapon_slots`, called from the controls' setup.
+- Found: +0x608 and +0x5f0 are the muzzle and direction a beam reads live
+  (0x584a70 keeps the pointers), so the firepoint question narrows to the
+  aiming (2c). A beam's segments are 8 only on the controls whose serial
+  is 1 (no shipped vehicle has a beam). FIX (bug) for a weapon zWeapon lacks.
+- test_veh_controls.py gained 400 slot fills (presets at random, 0..10
+  items, the gun, the firepoints, serial 1 or not): 4 s for the whole test;
+  8 breaks caught.
+- Next: 1c, the placement 0x4a3630, and the accessors.
