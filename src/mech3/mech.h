@@ -96,7 +96,8 @@ struct Vehicle : ai::AiTarget {
   Vec3 vec_3c{};             // +0x03c  local velocity, zeroed on power-down (ZEntity3d); forward is -z
   float orientation[4] = {1, 0, 0, 0};  // +0x048  quaternion w, x, y, z (yaw only)
   Vec3 vec_58{};             // +0x058
-  uint8_t x64 = 0;           // +0x064  (ZEntity3d)
+  uint8_t x64 = 0;           // +0x064  (ZEntity3d) the zones it is in: count, then up to 3 (0x004f6c80's record)
+  uint8_t zones[3] = {};     // +0x065
   // +0x068..+0x0d3: AiTarget (0x004d56e0, mech3/zai_target.h), the base; its
   // height becomes the model's box's (12 without one).
   void* ammo;                // +0x0d4  weapons and ammo bins: the WeaponManager (weapon.h)

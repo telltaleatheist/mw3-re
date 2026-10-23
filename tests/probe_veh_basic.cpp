@@ -59,6 +59,26 @@ struct Hooks : m3::VehBasicHooks {
     return t;
   }
   int32_t game_intensity() override { return static_cast<int32_t>(unported("0x0040cdf0", {})); }
+  // The readout's: the controls' slots keyless (as the test's stubs), the
+  // node's name and the camera's zones read back, the position by its call.
+  int32_t controls_dynamics(m3::VehicleControls&) override { return static_cast<int32_t>(unported("ctl.vt+0x20", {})); }
+  bool controls_on_path(m3::VehicleControls&) override { return unported("ctl.ictl.vt+0x70", {}) == 1; }
+  int32_t controls_mode(m3::VehicleControls&) override { return static_cast<int32_t>(unported("ctl.vt+0x4", {})); }
+  int32_t controls_goal(m3::VehicleControls&) override { return static_cast<int32_t>(unported("ctl.vt+0x8", {})); }
+  const char* node_name(m3::Handle node) override { return text(low(node)); }
+  const float* entity_position(m3::Vehicle& v) override {
+    static float t[3];
+    peekf(unported("0x005a85e0", {ref(&v)}), t, 3);
+    return t;
+  }
+  const uint8_t* camera_zones() override {
+    static uint8_t z[4];
+    const uint32_t view = probe_app::call("peek32", {0x5f4c8c});
+    const uint32_t cam = probe_app::call("peek32", {view + 4});
+    const uint32_t rec = probe_app::call("peek32", {cam + 0x38}) + 0x1e4;
+    for (uint32_t i = 0; i < 4; ++i) z[i] = static_cast<uint8_t>(probe_app::call("peek8", {rec + i}));
+    return z;
+  }
   static void peekf(uint32_t a, float* out, int n) {
     for (int i = 0; i < n; ++i) {
       const uint32_t b = probe_app::call("peek32", {a + 4u * static_cast<uint32_t>(i)});
@@ -270,6 +290,16 @@ void probe_vb_dmg_setup(uint32_t v, uint32_t ctl, const uint32_t* a) {
   c->angles.x = zgame::from_bits(a[13]), c->angles.z = zgame::from_bits(a[14]);
   c->x70.x = zgame::from_bits(a[15]), c->x70.z = zgame::from_bits(a[16]);
 }
+// The readout's extra state: motion mode, +0x20, angles.y, zone count and ids.
+void probe_vb_dbg_setup(int32_t mode, uint32_t x20, uint32_t yaw, uint32_t zones) {
+  m3::VehicleControls& c = *g_dv->controls;
+  c.motion.mode = static_cast<m3::VehicleMotion::Mode>(mode);
+  c.x20 = x20;
+  c.angles.y = zgame::from_bits(yaw);
+  g_dv->x64 = static_cast<uint8_t>(zones);
+  for (int i = 0; i < 3; ++i) g_dv->zones[i] = static_cast<uint8_t>(zones >> (8 * (i + 1)));
+}
+void probe_vb_dbg(int null) { m3::vehicle_debug_lines(null ? nullptr : g_dv); }
 int32_t probe_vb_dmg_call(int mode, uint32_t weapon, uint32_t x, uint32_t amount) {
   switch (mode) {
     case 0: return m3::vehicle_damage(*g_dv, hd(weapon), x, zgame::from_bits(amount));

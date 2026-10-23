@@ -976,3 +976,13 @@ is paused.
 - Next: 1e (the AI slots 0x4a2ef0, 0x4d6de0), then putting vehicles in
   the program.
 
+## 2026-10-23 Item 4, step 1e: the debug readout (lead)
+
+- 0x4d6de0 was already ported (zai_firing, the lead point). 0x4a2ef0 is the
+  vehicle's vt+0xe0, a debug readout into the HUD's text lines 1-4
+  (vehicle_debug_lines); Vehicle +0x64 is a zone record (count + 3 ids).
+- test_veh_damage.py gained 200 readouts (MFC CString modelled in Python),
+  8 breaks caught. _ftol's 64-bit truncation through crt::msvc_ftol.
+- Next: 2a2, the 0xa70 basic controller (0x4ae270, 0x4ae3c0, 0x4ae6b0,
+  0x4a2a00), then 2b and 2c, then putting vehicles in the program.
+

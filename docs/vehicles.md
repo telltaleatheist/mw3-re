@@ -279,6 +279,33 @@ zWeapon's hit state are hooks. `test_veh_damage.py`: 600 runs at 24 bits
 against the real vtable and matrix stack, 17 breaks caught. Salvage
 (0x472ec0) was already ported (`mech_salvage`).
 
+## The debug readout (vt+0xe0 0x4a2ef0, step 1e, ported 2026-10-23)
+
+The slot the mechs use for the HUD's frame (0x41cd40, the view target's)
+is a developer readout on a vehicle: the HUD's text lines 1 to 4
+([0x5fc848] + 0x4b0 n, each set through its vt+0x7c, a printf with the
+text as the format):
+
+1. With the controls' vt+0x20 at 1, "%s using %s dynamics" (" - A" when the
+   controls' +0x20 is set) with the node's name and the motion mode's name
+   (BASIC, FLY, SUB, TRACK, HOVER, AMPHIB, else UNKNOWN); else, on a path
+   (IControls vt+0x70 at 1), "%s is in mode %d and had goal node %d"
+   (vt+0x04, vt+0x08); else, destroyed (vt+0x1c at 1), "%s is DEAD!"; else
+   empty. Every MW3 controls answers 0 to vt+0x20 (0x4d72a0), so the first
+   never shows.
+2. "POS %d %d %d YAW %d": zEntity's position (0x5a85e0, asked three times,
+   z first) and the angles' y in degrees, through _ftol (truncated through
+   64 bits, the low word).
+3. "VEH ZONES(%d): " and the vehicle's zones: +0x64 is a 4-byte zone record
+   (a count, then up to three ids, 0x4f6c80's), each as "%d ".
+4. "CAM ZONES(%d): " likewise from the view's camera (its data +0x1e4).
+
+Only a vehicle the view is on reaches it, which MW3's player never is.
+`vehicle_debug_lines` in `mech3/veh_basic_object` (the lines through the
+hooks); `test_veh_damage.py` runs it 200 times with MFC's CString modelled
+(8 breaks caught). The AI slot 0x4d6de0 (vt+0x84, the lead point) was
+ported earlier (`zai_firing`).
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in
