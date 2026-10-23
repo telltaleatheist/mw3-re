@@ -210,7 +210,7 @@ class VehBasicHooks : public zgame::Unported {
   // (0x004b0c20, 0x004b0c30).
   virtual Handle anim_run(Handle def, Handle node) { return h(unported("0x00508c10", {low(def), low(node), 0, 0, 0})); }
   virtual float game_time();
-  virtual void collisions(BasicVehicle& v) { unported("0x0049ff80", {ref(&v)}); }
+  virtual void collisions(BasicVehicle& v);  // 0x0049ff80 (vehicle_collisions, veh_move)
   virtual void basic_step(BasicVehicle& v) { unported("0x004a1d90", {ref(&v)}); }
   virtual void move(BasicVehicle& v);  // 0x004a1240 (vehicle_move, veh_move)
   virtual void basic_ground(BasicVehicle& v) { unported("0x004a1f00", {ref(&v)}); }  // TRACK's step on a BASIC one
@@ -221,6 +221,20 @@ class VehBasicHooks : public zgame::Unported {
   virtual void model_scroll(Handle model, float u, float v);
   virtual const float* player_lock_position() { return nullptr; }
   virtual void weapons_frame(void* w, bool fire, float dt);
+  // The collisions' (2c4): the world's segment query (0x004efcd0, one record
+  // per two points), the node's INTERSECT flag (0x004eb6d0), a hit node's
+  // object (0x0040eee0 -> 0x0040e920), the frame counter [0x0072f338], the
+  // wall and object response (0x004a0b40, step 2c4b).
+  virtual void segments(float* segs, int32_t points, zcls::SegmentHits* out);
+  virtual void node_set_intersect(Handle node, int32_t on);
+  virtual Handle hit_object(Handle node);
+  virtual uint32_t frame();
+  virtual void wall_response(BasicVehicle& v, const CollisionHit& hit);  // 0x004a0b40 (vehicle_wall_response, veh_move)
+  // The wall response's touch: a hit node with its own handler table
+  // (+0xbc above 1) whose slot 1 is set, and zWeapon's touch (0x005836b0)
+  // with the segment's start and the crossing, damage 1.
+  virtual bool touchable(Handle node);
+  virtual float touch(Handle node, const float from[3], const CollisionHit& hit, float damage);
   // The movement's frame time and its inverse ([0x005e8110], [0x005e8114]).
   virtual float frame_dt();
   virtual float frame_inv_dt();

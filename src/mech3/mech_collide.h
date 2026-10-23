@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "gamez/zclass/cls_di.h"
+#include "mech3/collision_hit.h"
 #include "mech3/mech_parts.h"
 
 // Mech collision (docs/movement-collision.md): eleven probes on the mech's box
@@ -13,14 +14,6 @@
 namespace mech3 {
 
 struct Mech;
-
-// One sorted crossing (malloc(0x48) in the exe): the query's slot, the
-// segment and the probe it came from.
-struct CollisionHit {
-  zcls::SegmentHit hit;            // +0x00  normal, point, ..., material +0x20, node +0x24
-  Vec3 from{}, to{};               // +0x28, +0x34
-  int32_t probe = 0;               // +0x40
-};
 
 // The collider embedded in the mech at +0xfc (ctor 0x004222e0). Each list is
 // prepended in the exe; the responses take its head, here the back.

@@ -4,6 +4,8 @@
 #include <cstring>
 
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
@@ -418,6 +420,21 @@ void vehicle_track_step(BasicVehicle& v) {
 }
 
 void VehBasicHooks::move(BasicVehicle& v) { vehicle_move(v); }
+void VehBasicHooks::collisions(BasicVehicle& v) { vehicle_collisions(v); }
+void VehBasicHooks::wall_response(BasicVehicle& v, const CollisionHit& hit) { vehicle_wall_response(v, hit); }
+bool VehBasicHooks::touchable(Handle node) {  // as the mechs' (app_mech.cpp)
+  const zwep::RunHooks& rh = zwep::run_hooks();
+  const uintptr_t t = node && rh.handler ? rh.handler(node) : 0;
+  return t > 1 && reinterpret_cast<const zwep::NodeHandlers*>(t)->slot[1].fn != nullptr;
+}
+float VehBasicHooks::touch(Handle node, const float from[3], const CollisionHit& h, float damage) {
+  zwep::HitRecord r;
+  std::memcpy(&r.normal, h.hit.normal, 12);
+  std::memcpy(&r.point, h.hit.point, 12);
+  r.material = h.hit.material, r.node = node;
+  const zwep::Vec3f3 f{from[0], from[1], from[2]};
+  return zwep::touch(&f, &r, damage);
+}
 
 // Mech3.exe 1.2 @ 0x004a1240
 void vehicle_move(BasicVehicle& v) {
@@ -472,6 +489,182 @@ void vehicle_frame(BasicVehicle& v, float dt) {
   if (const float* p = h.player_lock_position()) c.player_at = {p[0], p[1], p[2]};
   vehicle_weapons_step(v, dt);
   h.refresh(v);
+}
+
+// ---------------------------------------------------------------------------
+// The collisions (2c4)
+
+namespace {
+Vec3c by_matrix(const Vec3c& s, const float* t) {
+  return {((s.x * t[0] + s.y * t[3]) + s.z * t[6]) + t[9], ((s.x * t[1] + s.y * t[4]) + s.z * t[7]) + t[10],
+          ((s.x * t[2] + s.y * t[5]) + s.z * t[8]) + t[11]};
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004a09e0 (one segment's record) within 0x004a0910
+bool vehicle_collision_query(BasicVehicle& v, float* segs, int32_t points) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  static zcls::SegmentHits recs[15];
+  for (auto& r : recs) r = zcls::SegmentHits{};
+  h.node_set_intersect(v.node, 0);
+  h.segments(segs, points, recs);
+  h.node_set_intersect(v.node, 1);
+  for (int32_t i = 0; i < points; i += 2) {
+    const zcls::SegmentHits& r = recs[i / 2];
+    const float* from = segs + 3 * i;
+    for (int j = 0; j < r.count; ++j) {
+      const zcls::SegmentHit& hit = r.hit[j];
+      std::vector<CollisionHit>* list = nullptr;
+      if (h.hit_object(hit.node)) list = &c.objects;
+      else if (!(hit.normal[1] >= -0.9f)) list = &c.ceilings;
+      else if (!(hit.normal[1] >= 0.71f)) list = &c.walls;
+      else if (hit.material && hit.material->soil == 5) {
+        // FIX (bug): the exe sets the flag, then adds the crossing to no
+        // list: on a segment's first crossing it writes into the segment's
+        // own start, on later ones through null (a crash).
+        c.x2c = 1;
+        continue;
+      }
+      if (!list) continue;
+      CollisionHit e{};
+      e.hit = hit;
+      e.from = {from[0], from[1], from[2]};
+      e.to = {from[3], from[4], from[5]};
+      list->push_back(e);
+    }
+  }
+  return c.walls.empty() && c.objects.empty() && c.ceilings.empty();
+}
+
+// Mech3.exe 1.2 @ 0x004a0180
+void vehicle_collision_sweep(BasicVehicle& v) {
+  VehicleControls& c = *v.controls;
+  const VehicleMotion& m = c.motion;
+  const float s2 = (c.x70.x * c.x70.x + c.x70.y * c.x70.y) + c.x70.z * c.x70.z;
+  c.clear = 1;
+  int32_t on[15] = {};
+  if (!(std::fabs(c.x70.z) >= std::fabs(c.x50.y * 3.3f))) on[0] = on[2] = on[3] = on[5] = on[4] = 1;
+  if (s2 > 0.01f) {
+    if (c.x70.z >= 0.0f) on[3] = on[5] = 1;
+    else on[0] = on[1] = on[2] = 1;
+    int32_t side = -1;
+    if (c.x70.x > 1.0f) side = 6;
+    else if (!(c.x70.x >= -1.0f)) side = 9;
+    if (side >= 0) {
+      for (int32_t k = side; k < side + 3; ++k) {
+        c.x_ac[k] = by_matrix(m.collision[k], v.transform);
+        c.points[k] = by_matrix(m.collision[k], c.last_matrix);
+        on[k] = 1;
+      }
+    }
+    on[4] = 1;
+  }
+  float segs[15 * 6];
+  int32_t n = 0;
+  for (int k = 0; k < 15; ++k) {
+    if (!on[k]) continue;
+    const Vec3c& a = c.points[k];
+    const Vec3c& b = c.x_ac[k];
+    float* s = segs + 3 * n;
+    s[0] = a.x, s[1] = a.y, s[2] = a.z, s[3] = b.x, s[4] = b.y, s[5] = b.z;
+    n += 2;
+  }
+  if (n) c.clear = vehicle_collision_query(v, segs, n) ? 1 : 0;
+}
+
+// Mech3.exe 1.2 @ 0x004a0f50
+void vehicle_ceiling_response(BasicVehicle& v) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  VehicleMotion& m = c.motion;
+  if (c.velocity.y > 0.0f) c.velocity.y = -c.velocity.y;
+  float vs[8];
+  std::memcpy(vs, m.support_word, sizeof vs);
+  for (int32_t i = 0; i < m.support_count && i < 8; ++i)
+    if (vs[i] > 0.0f) vs[i] = -vs[i];
+  std::memcpy(m.support_word, vs, sizeof vs);
+  const float* p = h.entity_position(v);
+  const float pos[3] = {p[0], c.last_matrix[10], p[2]};
+  h.set_position(v, pos);  // vt+0x18
+  for (int32_t i = 0; i < c.point_count; ++i) c.x_ac[i].y = c.points[i].y;
+}
+
+// Mech3.exe 1.2 @ 0x0049ff80
+void vehicle_collisions(BasicVehicle& v) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  c.hit_object = c.hit_ceiling = c.hit_wall = 0;
+  vehicle_collision_sweep(v);
+  if (!c.clear) {
+    if (!c.objects.empty()) {
+      h.wall_response(v, c.objects.back());  // 0x004a1020
+      c.hit_object = 1;
+    }
+    if (!c.ceilings.empty()) {
+      vehicle_ceiling_response(v);  // 0x004a0b20
+      c.hit_ceiling = 1;
+    }
+    if (!c.walls.empty()) {
+      h.wall_response(v, c.walls.back());  // 0x004a0b00
+      c.hit_wall = 1;
+    }
+    c.objects.clear(), c.ceilings.clear(), c.walls.clear();  // 0x004a0100
+  }
+  const NetCollision* n = v.net_collision;
+  if (c.hit_object || c.hit_wall || !n || !n->on || !n->active) return;
+  const uint32_t f = h.frame();
+  if (n->frame != f || !(n->sent < f) || !(f - 5 < n->sent)) return;
+  CollisionHit e{};
+  e.hit.normal[0] = n->normal.x, e.hit.normal[1] = n->normal.y, e.hit.normal[2] = n->normal.z;
+  e.hit.point[0] = n->point.x, e.hit.point[1] = n->point.y, e.hit.point[2] = n->point.z;
+  e.from = n->point;
+  const float* p = h.entity_position(v);
+  e.to = {p[0], p[1], p[2]};
+  h.wall_response(v, e);
+  c.hit_wall = 1;
+}
+
+// Mech3.exe 1.2 @ 0x004a0b40
+void vehicle_wall_response(BasicVehicle& v, const CollisionHit& hit) {
+  VehBasicHooks& h = hk();
+  VehicleControls& c = *v.controls;
+  zmth::Vec3 n{hit.hit.normal[0], hit.hit.normal[1], hit.hit.normal[2]};
+  zmth::Vec3 p{hit.hit.point[0], hit.hit.point[1], hit.hit.point[2]};
+  float from[3] = {hit.from.x, hit.from.y, hit.from.z};
+  zmth::Vec3 to{hit.to.x, hit.to.y, hit.to.z};
+  if (hit.hit.node && h.touchable(hit.hit.node)) h.touch(hit.hit.node, from, hit, 1.0f);
+  if ((n.x == 0.0f || std::isnan(n.x)) && (n.z == 0.0f || std::isnan(n.z))) return;
+  const float speed = std::sqrt((c.x70.x * c.x70.x + c.x70.y * c.x70.y) + c.x70.z * c.x70.z);
+  h.entity_position(v);  // asked, unused
+  from[1] = 0.0f, to.y = 0.0f, p.y = 0.0f, n.y = 0.0f;
+  const zmth::Vec3 d{to.x - p.x, to.y - p.y, to.z - p.z};
+  zmth::flat_normalize(n, n);
+  zmth::Vec3 rf;
+  zmth::reflect(n, d, &rf);
+  const zmth::Vec3 q{p.x + rf.x, p.y + rf.y, p.z + rf.z};
+  const zmth::Vec3 push{q.x - to.x, q.y - to.y, q.z - to.z};
+  const float* e = h.entity_position(v);
+  const float pos[3] = {e[0] + push.x, e[1] + push.y, e[2] + push.z};
+  h.set_position(v, pos);  // vt+0x18
+  for (int32_t i = 0; i < c.point_count; ++i) c.x_ac[i] = {c.x_ac[i].x + push.x, c.x_ac[i].y + push.y, c.x_ac[i].z + push.z};
+  const float vy = c.velocity.y;
+  const float bounce = c.motion.collision_d[0];
+  zmth::flat_normalize(rf, rf);
+  const zmth::Vec3 r{rf.x - n.x, rf.y - n.y, rf.z - n.z};
+  const zmth::Vec3 sv{speed * rf.x, speed * rf.y, speed * rf.z};
+  const float a = sv.x * r.x + sv.z * r.z;
+  const zmth::Vec3 slide{a * r.x, a * r.y, a * r.z};
+  const float off = (sv.x * n.x + sv.z * n.z) * bounce;
+  const zmth::Vec3 kick{off * n.x, off * n.y, off * n.z};
+  c.velocity = {kick.x + slide.x, kick.y + slide.y, kick.z + slide.z};
+  c.velocity.y = vy;
+  float local[3];
+  zmth::rotate_y(local, &c.velocity.x, -c.angles.y);
+  c.x70 = {local[0], local[1], local[2]};
+  const float side = sv.x * d.z - sv.z * d.x;
+  const float s = !(side >= 0.0f) ? -1.0f : 1.0f;
+  c.x50.y = (s * speed) * c.motion.collision_d[1] + c.x50.y;
 }
 
 }  // namespace mech3

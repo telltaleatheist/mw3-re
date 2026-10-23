@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "gamez/zweapon/zwep_init.h"
+#include "mech3/vec3.h"
 
 // A mech's parts and how they take damage (docs/damage.md). Original file:
 // mech3\mech_parts.cpp (the base class sits just before its string, the
@@ -10,10 +11,6 @@ namespace mech3 {
 
 struct Mech;
 struct MechData;
-
-struct Vec3 {
-  float x, y, z;
-};
 
 using Handle = void*;  // an object of a system not ported yet (node, effect, entity)
 
