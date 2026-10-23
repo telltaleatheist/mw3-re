@@ -420,9 +420,13 @@ struct WiredBrainHooks : ai::BrainHooks {
     *allies = mech_allies(e->object_of(v));
     return true;
   }
-  // The brain's frame (docs/ai.md 17.1) on the AI mechs: the other vehicles
-  // are not ported, so every pilot's vehicle and every contact's is a mech.
+  // The brain's frame (docs/ai.md 17.1) on the AI mechs and the basic
+  // vehicles (app_vehicle.cpp: their slots; zEntity's fields are shared).
   void* mech(Handle v) const { return e->object_of(v); }
+  void* veh(Handle v) const {
+    void* o = v ? e->object_of(v) : nullptr;
+    return is_program_vehicle(o) ? o : nullptr;
+  }
   // The pocket commander's marker (app_pocket.cpp) is the one entity here
   // that is not a mech: an AiTarget at its node's place, always up.
   static PocketMarker* marker(Handle v) { return program_pocket_marker(v); }
@@ -449,6 +453,7 @@ struct WiredBrainHooks : ai::BrainHooks {
   // A target's vt+0x98 is its health's fraction (0x004d2b20).
   float health(Handle v) override {
     if (ai::CZAiTarget* t = target(v)) return t->health_fraction();
+    if (void* b = veh(v)) return program_vehicle_health(b);
     return marker(v) ? 100.0f : mech_health(mech(v));
   }
   void position(Handle v, float out[3]) override {
@@ -469,17 +474,19 @@ struct WiredBrainHooks : ai::BrainHooks {
   ai::AiTarget* targetable(Handle v) override {
     if (PocketMarker* k = marker(v)) return k;
     if (ai::CZAiTarget* t = target(v)) return t;
+    if (void* b = veh(v)) return static_cast<ai::AiTarget*>(program_vehicle_target(b));
     return v ? mech_ai_target(mech(v)) : nullptr;
   }
   int32_t powered_down(Handle v) override {  // 0x0041cc10; a target's vt+0xa0 is 0 (0x0040bae0)
-    if (marker(v) || target(v)) return 0;
+    if (marker(v) || target(v) || veh(v)) return 0;  // a vehicle's vt+0xa0 is 0x0040bae0 too
     return mech_powered_down(mech(v)) ? 1 : 0;
   }
-  // 0x004e6ff0 (0x004e6fe0 then vt+0x40): a mech answers itself; the
-  // targets.zrd objects and the command marker (AiTarget's 0x0040bae0) 0.
+  // 0x004e6ff0 (0x004e6fe0 then vt+0x40): a mech and a basic vehicle
+  // (0x004d2a70) answer themselves; the targets.zrd objects and the command
+  // marker (AiTarget's 0x0040bae0) 0.
   Handle contact_vehicle(const ai::Contact* c) override {
     for (const ai::Handle s : ai::entity_list())
-      if (c->seen && s == c->seen) return entity_is_mech(e->object_of(s)) ? s : 0;
+      if (c->seen && s == c->seen) return entity_is_mech(e->object_of(s)) || veh(s) ? s : 0;
     return 0;
   }
   float contact_range2(Handle v) override { return targetable(v)->range2; }
@@ -487,10 +494,22 @@ struct WiredBrainHooks : ai::BrainHooks {
   float intensity() override { return options().intensity[0]; }
   bool ammo_value(Handle v, float* out) override { return mech_ammo_value(mech(v), out); }
   // The walking states (docs/ai.md 17.4a). A contact's entity is a mech too.
-  float speed_at(Handle v, float share) override { return mech_speed_at(mech(v), share); }
-  float stopping_distance(Handle v, float speed) override { return mech_stopping_distance(mech(v), speed); }
-  float stop_share(Handle v, float d) override { return mech_stop_share(mech(v), d); }
-  float move_speed(Handle v) override { return mech_throttle_speed(mech(v)); }
+  float speed_at(Handle v, float share) override {
+    if (void* b = veh(v)) return program_vehicle_speed_at(b, share);
+    return mech_speed_at(mech(v), share);
+  }
+  float stopping_distance(Handle v, float speed) override {
+    if (void* b = veh(v)) return program_vehicle_stopping_distance(b, speed);
+    return mech_stopping_distance(mech(v), speed);
+  }
+  float stop_share(Handle v, float d) override {
+    if (void* b = veh(v)) return program_vehicle_stop_share(b, d);
+    return mech_stop_share(mech(v), d);
+  }
+  float move_speed(Handle v) override {
+    if (void* b = veh(v)) return program_vehicle_move_speed(b);
+    return mech_throttle_speed(mech(v));
+  }
   void forward(Handle v, float* x, float* z) override {
     float f[3] = {0, 0, 0};
     if (void* m = mech(v)) mech_forward(m, f);
@@ -505,7 +524,9 @@ struct WiredBrainHooks : ai::BrainHooks {
   float weapon_reload(Handle w) override { return mech3::weapon_reload(e->object_of(w)); }
   int32_t weapon_ammo(Handle w) override { return mech3::weapon_ammo(e->object_of(w)); }
   void weapon_hold_for_flight(Handle w) override { mech3::weapon_hold_for_flight(e->object_of(w)); }
-  void torso_centre(Handle v) override { mech_torso_centre(mech(v), 1); }
+  void torso_centre(Handle v) override {  // a vehicle's vt+0x50 is none
+    if (entity_is_mech(mech(v))) mech_torso_centre(mech(v), 1);
+  }
   // The volley pick's (ai.md 17.7): a contact's entity (0x004e6fe0, a mech
   // answers itself; targets.zrd's objects are not mechs: 0) and its active
   // flag (+0x08).
@@ -522,10 +543,22 @@ struct WiredBrainHooks : ai::BrainHooks {
     return mech_active(mech(v));
   }
   // The plan's track and the lead point (ai.md 17.7) on the mechs.
-  bool can_face(Handle v, const float dir[3]) override { return mech_can_face(mech(v), dir); }
-  uint8_t bearer_in_reach(Handle b, float c) override { return mech_faces_within(mech(b), c) ? 1 : 0; }
-  bool bearer_aim_clamp(Handle b, const float d[3], float out[3]) override { return mech_clamp_aim(mech(b), d, out); }
-  void bearer_set_aim(Handle b, const float d[3]) override { mech_set_torso_aim(mech(b), d); }
+  bool can_face(Handle v, const float dir[3]) override {
+    if (void* b = veh(v)) return program_vehicle_can_face(b, dir);
+    return mech_can_face(mech(v), dir);
+  }
+  uint8_t bearer_in_reach(Handle b, float c) override {
+    if (void* x = veh(b)) return program_vehicle_in_reach(x, c) ? 1 : 0;
+    return mech_faces_within(mech(b), c) ? 1 : 0;
+  }
+  bool bearer_aim_clamp(Handle b, const float d[3], float out[3]) override {
+    if (void* x = veh(b)) return program_vehicle_aim_clamp(x, d, out);
+    return mech_clamp_aim(mech(b), d, out);
+  }
+  void bearer_set_aim(Handle b, const float d[3]) override {
+    if (void* x = veh(b)) return program_vehicle_set_aim(x, d);
+    mech_set_torso_aim(mech(b), d);
+  }
   // 0x004b6e30's: the entity's mech (vt+0x50; a target's and the marker's 0),
   // then 0x0041d130.
   void mech_aim_at_last_hit(Handle e) override {
@@ -533,6 +566,7 @@ struct WiredBrainHooks : ai::BrainHooks {
   }
   void velocity(Handle v, float out[3]) override {
     if (marker(v) || target(v)) return void(out[0] = out[1] = out[2] = 0);  // still
+    if (void* b = veh(v)) return program_vehicle_velocity(b, out);
     mech_lead_velocity(mech(v), out);
   }
   void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(marker(v) || target(v) ? nullptr : mech(v), m); }
@@ -557,11 +591,13 @@ struct WiredBrainHooks : ai::BrainHooks {
   Handle entity_node(Handle v) override {
     if (ai::CZAiTarget* t = target(v)) return t->node;
     if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
+    if (void* b = veh(v)) return e->handle_of(program_vehicle_node(b));
     return e->handle_of(mech_node_of(mech(v)));
   }
   Handle entity_centroid(Handle v) override {
     if (ai::CZAiTarget* t = target(v)) return t->centroid_node ? t->centroid_node : t->node;
     if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
+    if (void* b = veh(v)) return e->handle_of(program_vehicle_centroid(b));
     return e->handle_of(mech_centroid_of(mech(v)));
   }
   void node_world_cached(Handle n, float out[3]) override { mech3::node_world_cached(e->object_of(n), out); }
@@ -575,23 +611,27 @@ struct WiredBrainHooks : ai::BrainHooks {
   }
   // The aim (ai.md 17.7): the difficulty's error, the targeting aids.
   float aim_intensity() override { return options().intensity[1]; }
-  bool targeting_aid(Handle v) override { return mech_targeting_aid(mech(v)); }
+  bool targeting_aid(Handle v) override { return entity_is_mech(mech(v)) && mech_targeting_aid(mech(v)); }  // vt+0x50
   void wm_aim_at(Handle wm, const float at[3]) override { mech3::wm_aim_at(e->object_of(wm), at); }
   float vertical_speed(Handle v) override { return mech(v) ? mech_vertical_speed(mech(v)) : 0.0f; }
   float forward_speed(Handle v) override { return mech(v) ? mech_forward_speed(mech(v)) : 0.0f; }
   void set_local_velocity(Handle v, float x, float y, float z) override {
     if (void* m = mech(v)) mech_set_local_velocity(m, x, y, z);
   }
-  bool airborne(Handle v) override { return mech(v) && mech_airborne(mech(v)); }
-  float jump_fuel(Handle v) override { return mech(v) ? mech_jet_fuel(mech(v)) : 0.0f; }
+  // A vehicle's vt+0x144 is 0 (0x004d7290), vt+0x148 [0x005c23a0] 0; its
+  // vt+0x50 (the lead point's mech) none.
+  bool airborne(Handle v) override { return !veh(v) && mech(v) && mech_airborne(mech(v)); }
+  float jump_fuel(Handle v) override { return !veh(v) && mech(v) ? mech_jet_fuel(mech(v)) : 0.0f; }
   bool lead_point(Handle v, Handle target, float out[3]) override {
-    return mech(v) && mech_lead_point_at(mech(v), target, out);
+    return entity_is_mech(mech(v)) && mech_lead_point_at(mech(v), target, out);
   }
   float gravity() override { return environment().gravity; }  // [0x005e5d34]
   void place(Handle v, const float p[3], float yaw) override {
+    if (void* b = veh(v)) return program_vehicle_place(b, p, yaw);  // 0x004a3630
     if (void* m = mech(v)) move_mech(m, p, yaw);
   }
   void pilot_of(Handle v, ai::Pilot* p) override {
+    if (void* b = veh(v)) return void(p->name = program_vehicle_name(b));  // no mech: no jump jets
     int32_t n = 0;
     const AiMechMade* m = mission_ai_mechs(&n);
     for (int32_t i = 0; i < n; ++i)
@@ -606,9 +646,11 @@ struct WiredBrainHooks : ai::BrainHooks {
   // (vt+0x50) and its controls are its +0x37c (vt+0x40, vt+0x140); what is
   // not a program mech (a target or a turret) is logged.
   Handle vehicle_mech(Handle v) override {
+    if (veh(v)) return 0;  // 0x0040bae0
     return entity_is_mech(mech(v)) ? v : ai::BrainHooks::vehicle_mech(v);
   }
   void ally_hit(Handle attacker, Handle victim) override {
+    if (void* b = veh(attacker)) return program_vehicle_hit_an_ally(b, mech(victim));
     if (!entity_is_mech(mech(attacker))) return ai::BrainHooks::ally_hit(attacker, victim);
     if (MechControls* c = mech_controls(mech(attacker))) c->hit_an_ally(mech(victim));
   }
@@ -636,6 +678,7 @@ struct WiredValveHooks : ai::ValveHooks {
     const AiMechMade* m = mission_ai_mechs(&n);
     for (int32_t i = 0; name && i < n; ++i)
       if (std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
+    if (void* v = program_vehicle_named(name)) return e->handle_of(v);
     return ValveHooks::target_find(name);
   }
   Handle entity_find(const char* name) override {
@@ -649,13 +692,26 @@ struct WiredValveHooks : ai::ValveHooks {
       if (e->object_of(h) == m[i].mech) return true;
     return false;
   }
-  Handle as_vehicle(Handle o) override { return mech(o) ? o : ValveHooks::as_vehicle(o); }
-  Handle vehicle_of(Handle o) override { return mech(o) ? o : ValveHooks::vehicle_of(o); }
-  Handle mech_of(Handle o) override { return mech(o) ? o : ValveHooks::mech_of(o); }
+  // A basic vehicle answers itself to vt+0x2c and vt+0x40 (0x004d2a70), 0
+  // to vt+0x50 (0x0040bae0); its vt+0x140 is its controls (0x004020b0).
+  bool veh(Handle h) const { return is_program_vehicle(e->object_of(h)); }
+  Handle as_vehicle(Handle o) override { return mech(o) || veh(o) ? o : ValveHooks::as_vehicle(o); }
+  Handle vehicle_of(Handle o) override { return mech(o) || veh(o) ? o : ValveHooks::vehicle_of(o); }
+  Handle mech_of(Handle o) override { return veh(o) ? 0 : mech(o) ? o : ValveHooks::mech_of(o); }
   Handle controls_of(Handle v) override {
+    if (veh(v)) return e->handle_of(program_vehicle_controls(e->object_of(v)));
     return mech(v) ? e->handle_of(mech_controls_of(e->object_of(v))) : ValveHooks::controls_of(v);
   }
+  void destroy(Handle o) override {
+    if (veh(o)) return program_vehicle_destroy(e->object_of(o));
+    ValveHooks::destroy(o);
+  }
+  void vehicle_place(Handle v, const float pos[3], float yaw) override {
+    if (veh(v)) return program_vehicle_place(e->object_of(v), pos, yaw);
+    ValveHooks::vehicle_place(v, pos, yaw);
+  }
   ai::Brain* brain(Handle c) const {
+    if (void* b = program_vehicle_brain(e->object_of(c))) return static_cast<ai::Brain*>(b);
     auto* ctl = dynamic_cast<AiControls*>(static_cast<MechControls*>(e->object_of(c)));
     return ctl ? ctl->brain.get() : nullptr;
   }
@@ -676,7 +732,12 @@ struct WiredValveHooks : ai::ValveHooks {
   }
   void target_masks(Handle o, uint32_t t, uint32_t a, uint32_t en) override {
     void* m = e->object_of(o);
-    mech_set_mask(m, 0xc0, t), mech_set_mask(m, 0xc4, a), mech_set_mask(m, 0xc8, en);
+    if (veh(o)) {
+      program_vehicle_mask(m, 0xc0, nullptr, &t), program_vehicle_mask(m, 0xc4, nullptr, &a);
+      program_vehicle_mask(m, 0xc8, nullptr, &en);
+    } else {
+      mech_set_mask(m, 0xc0, t), mech_set_mask(m, 0xc4, a), mech_set_mask(m, 0xc8, en);
+    }
     player_clear_60b56c();
   }
   float game_time() override { return mech_game_time(); }

@@ -378,7 +378,7 @@ const SalvageCalls& salvage_calls();
 namespace {
 // Mech3.exe 1.2 @ 0x005a85e0: the entity's node's world position, its world
 // matrix refreshed first when stale (0x0051e9d0, 0x0051fde0, 0x004ed280, 0x0051ea00).
-const Vec3* entity_position(Mech& m) {
+const Vec3* entity_position(Vehicle& m) {
   auto* n = zn(m.node);
   if (!n || !n->data || n->cls() != 5) return nullptr;
   auto* d = static_cast<zcls::Object3d*>(n->data);
@@ -400,7 +400,7 @@ void wire_mech_frame() {
   SkisCalls& s = skis_calls();
   s.node_matrix = p.node_matrix;
   s.set_node_matrix = p.node_set;
-  s.position = entity_position;
+  s.position = [](Mech& m) { return entity_position(m); };
   s.soil = [](Handle mat) {  // [0x00608c00 + 4 * material +0x20]
     return static_cast<int>(game_soil(static_cast<const zmod::Material*>(mat)->soil));
   };
@@ -1009,12 +1009,14 @@ void update_mech(void* mech, float dt) {
 }
 // Mech3.exe 1.2 @ 0x004a1140 ([0x005e7284] is 1): the entity manager's walk
 // 0x005a8850 over zEntity's list, the program's mechs; the sensors leave the
-// player's +0x09 clear, so its frame is the player tick's alone.
+// player's +0x09 clear, so its frame is the player tick's alone. The basic
+// vehicles' frame is 0x004a1040 (app_vehicle.cpp).
 void update_entities(float dt) {
   zent::budget().update_all(ai::entity_list(), [dt](ai::Handle h) {
     Mech* m = entity_mech(h);
-    if (!m) {  // another entity's vt+0x34: none is the port's yet
+    if (!m) {  // another entity's vt+0x34
       if (program_pocket_marker(h)) return;  // the command marker's (0x004d7f80's: nothing to do)
+      if (void* v = g_w.object_of(g_w.engine, h); is_program_vehicle(v)) return program_vehicle_frame(v, dt);
       if (g_w.unported) g_w.unported(g_w.engine, "entity vt+0x34", {h});
       return;
     }
@@ -1240,14 +1242,14 @@ float mech_speed_at(void* mech, float share) { return static_cast<Mech*>(mech)->
 float mech_stopping_distance(void* mech, float speed) { return static_cast<Mech*>(mech)->stopping_distance(speed); }
 float mech_stop_share(void* mech, float d) { return mech ? static_cast<Mech*>(mech)->stop_share(d) : 0.0f; }
 float mech_throttle_speed(void* mech) { return mech ? static_cast<Mech*>(mech)->throttle_speed() : 0.0f; }
-void mech_forward(void* mech, float out[3]) {
-  const Mech* m = static_cast<Mech*>(mech);
+void mech_forward(void* mech, float out[3]) {  // any entity's +0x24
+  const Vehicle* m = static_cast<Vehicle*>(mech);
   out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z;
 }
 int32_t mech_jump_jets(void* mech) { return static_cast<Mech*>(mech)->equipment[11]; }
-float mech_vertical_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.y; }
-float mech_forward_speed(void* mech) { return static_cast<Mech*>(mech)->vec_3c.z; }
-void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Mech*>(mech)->vec_3c = {x, y, z}; }
+float mech_vertical_speed(void* mech) { return static_cast<Vehicle*>(mech)->vec_3c.y; }
+float mech_forward_speed(void* mech) { return static_cast<Vehicle*>(mech)->vec_3c.z; }
+void mech_set_local_velocity(void* mech, float x, float y, float z) { static_cast<Vehicle*>(mech)->vec_3c = {x, y, z}; }
 bool mech_airborne(void* mech) { return static_cast<Mech*>(mech)->airborne(); }
 float mech_jet_fuel(void* mech) { return static_cast<Mech*>(mech)->jet_fuel; }
 bool mech_lead_point_at(void* mech, uint32_t target, float out[3]) {
@@ -1255,7 +1257,7 @@ bool mech_lead_point_at(void* mech, uint32_t target, float out[3]) {
   const ai::Contact* c = m->target;
   return c && c->seen == target && lead_point(m, out);
 }
-void* mech_weapon_manager(void* mech) { return mech ? static_cast<Mech*>(mech)->ammo : nullptr; }
+void* mech_weapon_manager(void* mech) { return mech ? static_cast<Vehicle*>(mech)->ammo : nullptr; }  // a vehicle's too
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null
 // (a vehicle without weapons standing down).
@@ -1321,7 +1323,7 @@ void weapon_hold_for_flight(void* w) {
   auto* x = static_cast<Weapon*>(w);
   if (x && x->def && x->def->type) x->def->type->hold_for_flight();
 }
-bool mech_active(void* mech) { return mech && static_cast<Mech*>(mech)->active; }
+bool mech_active(void* mech) { return mech && static_cast<Vehicle*>(mech)->active; }
 bool mech_can_face(void* mech, const float d[3]) {
   auto* m = static_cast<Mech*>(mech);
   return m && m->torso && m->can_face(Vec3{d[0], d[1], d[2]});
@@ -1352,12 +1354,12 @@ void mech_lead_velocity(void* mech, float out[3]) {
   out[0] = v.x, out[1] = v.y, out[2] = v.z;
 }
 void mech_matrix(void* mech, float m9[9]) {
-  const float* t = mech ? static_cast<Mech*>(mech)->transform : nullptr;
+  const float* t = mech ? static_cast<Vehicle*>(mech)->transform : nullptr;
   for (int i = 0; i < 9; ++i) m9[i] = t ? t[i] : (i % 4 == 0 ? 1.0f : 0.0f);
 }
 void mech_target_position(void* mech, float out[3]) {
   out[0] = out[1] = out[2] = 0;
-  if (auto* m = static_cast<Mech*>(mech); m && m->target_node)
+  if (auto* m = static_cast<Vehicle*>(mech); m && m->target_node)  // 0x005a8630, any entity's
     zcls::node_world_position(static_cast<zcls::Node*>(m->target_node), out);
 }
 // The selected group's weapon (+0x28, +0x2c[], its +0x10). FIX (bug): the
@@ -1465,13 +1467,13 @@ bool mech_powered_down(void* mech) { return static_cast<Mech*>(mech)->is_powered
 ai::AiTarget* mech_ai_target(void* mech) { return static_cast<Mech*>(mech); }
 MechControls* mech_controls(void* mech) { return mech ? static_cast<Mech*>(mech)->controls : nullptr; }
 bool mech_ammo_value(void* mech, float* out) {
-  const auto* m = static_cast<const WeaponManager*>(static_cast<Mech*>(mech)->ammo);
+  const auto* m = static_cast<const WeaponManager*>(static_cast<Vehicle*>(mech)->ammo);
   if (!m) return false;
   *out = m->ammo_value_inv != 0 ? m->ammo_value * m->ammo_value_inv : 1.0f;
   return true;
 }
 bool mech_world_position(void* mech, float out[3]) {
-  const Vec3* p = entity_position(*static_cast<Mech*>(mech));
+  const Vec3* p = entity_position(*static_cast<Vehicle*>(mech));  // a vehicle's too
   out[0] = p ? p->x : 0, out[1] = p ? p->y : 0, out[2] = p ? p->z : 0;
   return p != nullptr;
 }

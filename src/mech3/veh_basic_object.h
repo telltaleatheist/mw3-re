@@ -26,10 +26,13 @@ void vehicle_cameras_make();
 // sound by its name and the voice playing it, shared by every vehicle with
 // that engine.
 struct EngineSoundEntry {
-  uint32_t x00 = 0;         // +0x00
-  Handle sound = nullptr;   // +0x04  zSound's (0x0056f6f0)
-  Handle voice = nullptr;   // +0x08  set by the frame (step 2)
+  const void* owner = nullptr;  // +0x00  the EngineSound playing it this frame
+  Handle sound = nullptr;       // +0x04  zSound's (0x0056f6f0)
+  Handle voice = nullptr;       // +0x08  made by the first claim, kept (locked)
+  void release();               // 0x004adc30: the voice sent to the far point
+  int32_t claim(const void* by, const float* pos, const float* vel, uint8_t doppler);  // 0x004adc60
 };
+extern const float kEngineFarPoint[3];  // [0x0060b150] (0x004adb60): where a released voice goes
 
 // The vehicles' engine sounds (CZEngineSoundList, the global at 0x0060b110):
 // made at start-up (0x004ada90 -> 0x004ad840) with room for 64 and never
@@ -46,9 +49,14 @@ void engine_sounds_clear();                             // 0x004add10 (0x004d71f
 // The engine sound at +0xe8 (vtable 0x005c8b90): the definition's
 // sounds/engine entry, from the vehicles' shared cache at 0x0060b110
 // (0x004adb20 -> 0x004ad930, step 1b), else null.
+// Each frame the sensors release it (vt+0xc8) and their radar ping
+// (0x004aa400) plays the nearest vehicle's at its place (docs/vehicles.md,
+// The engine sound).
 struct EngineSound {
   EngineSoundEntry* entry = nullptr;  // +0x04
   void set(const char* name);         // 0x004adb20
+  void release();                     // 0x004adcd0
+  int32_t play(const float* pos, const float* vel, uint8_t doppler);  // 0x004adce0: -1 without an entry
 };
 
 // The motion animation at +0xf0 (0x004aec00 zeroes it, a body the linker
@@ -116,6 +124,9 @@ class VehBasicHooks : public zgame::Unported {
   virtual const char* sound_name(Handle sound);          // 0x0056f740: zsnd::name_of
   virtual void voice_unlock(Handle voice);               // 0x0056f410: zsnd::unlock
   virtual void voice_stop(Handle voice);                 // 0x0056e9f0: zsnd::stop
+  virtual int32_t voice_update(Handle voice, const float* pos, const float* vel, int32_t doppler);  // 0x00571f30
+  virtual Handle sound_play(Handle sound, const float* pos, float volume, const float* vel);  // 0x0056e7e0
+  virtual void voice_lock(Handle voice);                 // 0x0056f3f0: zsnd::lock
   virtual Handle anim_find(const char* name);            // 0x0050b450: zeff::anim_find
   // 0x0049bfd0, empty in this build (zerr::report here).
   virtual void report(int32_t level, const char* file, int32_t line, const char* message);

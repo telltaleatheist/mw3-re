@@ -6,6 +6,7 @@
 // the brain's refresh 0x004aedd0, empty) is noted; the level of detail is mech_lod's.
 #include "mech3/app_sensors.h"
 #include "mech3/app_hud.h"
+#include "mech3/app_vehicle.h"
 #include "mech3/mech_lod.h"
 
 #include <cmath>
@@ -40,6 +41,11 @@ void* object(uint32_t h) { return h && g_w.object_of ? g_w.object_of(g_w.engine,
 Mech* mech(uint32_t h) {
   void* o = object(h);
   return entity_is_mech(o) ? static_cast<Mech*>(o) : nullptr;
+}
+// The basic vehicles (app_vehicle.cpp).
+void* vehicle(uint32_t h) {
+  void* o = object(h);
+  return is_program_vehicle(o) ? o : nullptr;
 }
 ai::CZAiTarget* target(uint32_t h) {
   for (ai::CZAiTarget* t : ai::target_list())
@@ -89,6 +95,17 @@ struct ProgramSensors : ai::SensorHooks {
         case 0x1c: log_unported("0x005a85a0", {o}); return 0;
         default: break;
       }
+    } else if (void* v = vehicle(o)) {  // the basic vehicle's 0x005c88e8
+      switch (slot) {
+        case 0x24: case 0x28: case 0x2c: case 0x40: case 0xec: return o;  // 0x004d2a70
+        case 0x50: case 0xa0: case 0xb4: return 0;  // 0x0040bae0, 0x004d7290
+        case 0xcc: return program_vehicle_awake(v) ? 1 : 0;   // 0x004aee00
+        case 0xd0: return program_vehicle_sees(v, o) ? 1 : 0; // 0x004aee40
+        case 0xc8: program_vehicle_sense_refresh(v); return 0;  // 0x004add90
+        case 0x140: return handle(program_vehicle_controls(v));  // 0x004020b0
+        case 0x1c: program_vehicle_refresh(v); return 0;      // 0x005a85a0 as 0x005a85c0's
+        default: break;
+      }
     } else if (ai::CZAiTarget* t = target(o)) {  // 0x005ccb90
       switch (slot) {
         case 0x24: case 0x28: case 0x2c: return o;
@@ -102,12 +119,14 @@ struct ProgramSensors : ai::SensorHooks {
         Mech* m = mech(e);
         if (m && handle(m->controls) == o) return handle(brain_of(m));
       }
+      if (void* b = program_vehicle_brain(object(o))) return handle(b);
       return 0;
     }
     return SensorHooks::vcall(o, slot, args);
   }
   ai::AiTarget* fields(zgame::Handle x) override {
     if (Mech* m = mech(x)) return m;
+    if (void* v = vehicle(x)) return static_cast<ai::AiTarget*>(program_vehicle_target(v));
     return target(x);
   }
   int32_t equipment(zgame::Handle m, int32_t kind) override {
@@ -120,10 +139,13 @@ struct ProgramSensors : ai::SensorHooks {
   }
   void set_sensed(zgame::Handle e, uint8_t on) override {
     if (Mech* m = mech(e)) m->x09 = on != 0;
+    else if (void* v = vehicle(e)) program_vehicle_set_sensed(v, on != 0);
     else if (ai::CZAiTarget* t = target(e)) t->sensed = on;
   }
   zcls::Node* node(zgame::Handle x, bool centroid) {
     if (Mech* m = mech(x)) return static_cast<zcls::Node*>(centroid ? m->centroid : m->node);
+    if (void* v = vehicle(x))
+      return static_cast<zcls::Node*>(centroid ? program_vehicle_centroid(v) : program_vehicle_node(v));
     if (ai::CZAiTarget* t = target(x)) return static_cast<zcls::Node*>(object(centroid ? t->centroid_node : t->node));
     return nullptr;
   }
@@ -131,6 +153,12 @@ struct ProgramSensors : ai::SensorHooks {
   void node_position(zgame::Handle x, float out[3]) override { world_position(node(x, false), out); }
   void entity_refresh(zgame::Handle x) override {
     if (mech(x)) log_unported("0x005a85c0", {x});  // the mech's own update keeps its node
+    else if (void* v = vehicle(x)) program_vehicle_refresh(v);
+  }
+  // 0x004adce0 on the pinged vehicle's engine sound (vt+0xec is the vehicle).
+  void ping(zgame::Handle s, const float pos[3]) override {
+    if (void* v = vehicle(s)) return program_vehicle_engine_play(v, pos);
+    SensorHooks::ping(s, pos);
   }
   void set_target(zgame::Handle x, ai::Contact* c, bool keep) override {
     ai::AiTarget* a = fields(x);

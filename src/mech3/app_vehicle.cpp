@@ -1,6 +1,7 @@
 #include "mech3/app_vehicle.h"
 
 #include <algorithm>
+#include <cstring>
 #include <set>
 
 #include "gamez/zclass/class.h"
@@ -129,6 +130,7 @@ bool is_program_vehicle(const void* p) { return p && g_vehicles.count(static_cas
 void* program_vehicle_create(void* ctl, const char* type, const char* name) { return vehicle_create(ctl, type, name); }
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
+void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }
 void program_vehicle_place(void* v, const float pos[3], float yaw) { vehicle_place(*static_cast<BasicVehicle*>(v), pos, yaw); }
 void program_vehicle_setup(void* v, void* def, const char* name, int32_t kind) {
   vehicle_setup(*static_cast<BasicVehicle*>(v), static_cast<zrdr::Node*>(def), name, kind);
@@ -151,6 +153,65 @@ bool program_vehicle_mask(void* v, uint32_t off, uint32_t* get, const uint32_t* 
   if (set) *f = *set;
   if (get) *get = *f;
   return true;
+}
+namespace {
+BasicVehicle& bv(void* v) { return *static_cast<BasicVehicle*>(v); }
+}  // namespace
+float program_vehicle_health(void* v) { return vehicle_health_share(bv(v)); }
+float program_vehicle_speed_at(void* v, float share) { return vehicle_speed_at(bv(v), share); }
+float program_vehicle_stopping_distance(void* v, float s) { return vehicle_stopping_distance(bv(v), s); }
+float program_vehicle_stop_share(void* v, float d) { return vehicle_stop_share(bv(v), d); }
+float program_vehicle_move_speed(void* v) { return vehicle_move_speed(bv(v)); }
+bool program_vehicle_can_face(void* v, const float d[3]) { return vehicle_gun_within_world(bv(v), d); }
+bool program_vehicle_in_reach(void* v, float cosine) { return vehicle_can_aim(bv(v), cosine); }
+bool program_vehicle_aim_clamp(void* v, const float d[3], float out[3]) { return vehicle_gun_clamp(bv(v), d, out); }
+void program_vehicle_set_aim(void* v, const float d[3]) { vehicle_aim_at(bv(v), d, 0); }
+void program_vehicle_velocity(void* v, float out[3]) {
+  const Vec3& u = bv(v).velocity;
+  out[0] = u.x, out[1] = u.y, out[2] = u.z;
+}
+const char* program_vehicle_name(void* v) {
+  const auto* n = static_cast<const zcls::Node*>(bv(v).node);
+  return n ? n->name() : nullptr;
+}
+void* program_vehicle_target(void* v) { return static_cast<ai::AiTarget*>(&bv(v)); }
+void program_vehicle_hit_an_ally(void* v, void* victim) {
+  if (auto* c = dynamic_cast<ai::AiVehicleControls*>(bv(v).controls)) c->hit_an_ally(victim);
+}
+void program_vehicle_frame(void* v, float dt) {
+  if (bv(v).x09) vehicle_frame(bv(v), dt);
+}
+namespace {
+ai::Brain* brain_of(void* v) {
+  auto* c = dynamic_cast<ai::AiVehicleControls*>(bv(v).controls);
+  return c ? c->brain.get() : nullptr;
+}
+}  // namespace
+bool program_vehicle_awake(void* v) {
+  if (!bv(v).active) return false;
+  const ai::Brain* b = brain_of(v);
+  return !b || b->p6_clear();
+}
+bool program_vehicle_sees(void* v, uint32_t self) {
+  ai::Brain* b = brain_of(v);
+  return !b || b->sees_target(self);
+}
+void program_vehicle_set_sensed(void* v, bool on) { bv(v).x09 = on; }
+void program_vehicle_sense_refresh(void* v) { bv(v).engine.release(); }
+void program_vehicle_engine_play(void* v, const float pos[3]) { bv(v).engine.play(pos, nullptr, 0); }
+void* program_vehicle_named(const char* name) {
+  for (Vehicle* v : g_order) {
+    const auto* n = static_cast<const zcls::Node*>(v->node);
+    if (name && n && n->name() && std::strcmp(n->name(), name) == 0) return v;
+  }
+  return nullptr;
+}
+void program_vehicle_destroy(void* v) { vehicle_die(bv(v)); }
+void* program_vehicle_brain(void* controls) {
+  for (Vehicle* v : g_order)
+    if (static_cast<BasicVehicle*>(v)->controls == controls)
+      if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(v)->controls)) return c->brain.get();
+  return nullptr;
 }
 void program_vehicles_forget() { g_vehicles.clear(), g_order.clear(); }
 std::vector<void*> program_vehicles() { return {g_order.begin(), g_order.end()}; }

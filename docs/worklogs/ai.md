@@ -1074,3 +1074,19 @@ is paused.
   for vehicles (positions, velocity, matrix, health, speeds), the teardown,
   BASIC's steps (stealth only, never made), the mobile HQs.
 
+
+## 2026-10-23 Item 4, step 3b: vehicles run in the program (lead)
+
+- The entity walk runs a vehicle's frame (vt+0x34 0x4a1040) when +0x09 is
+  set. The brain's hooks (WiredBrainHooks), the sensors' slots
+  (ProgramSensors) and valves.zrd's (WiredValveHooks: found by name,
+  destroy through vt+0x70, controls and brain) answer for vehicles from the
+  vtable 0x5c88e8 (vehicles.md, Brain, sensors and the engine sound). The
+  mech helpers that read only zEntity's fields take any vehicle.
+- The engine sound's claim and release (0x4adc30, 0x4adc60, 0x4adcd0,
+  0x4adce0, the far point 0x4adb60): test_veh_engine.py, 400 runs, 6
+  breaks caught.
+- c1m1 headless: the trucks drive to node_08/09 and wait for truck_go,
+  then die (the destroy valves, or the Owens on the way); the APCs drive off.
+- Left: the teardown at the mission's end, the kill credit (0x41b420), the
+  mobile HQs (step 3), BASIC's steps.
