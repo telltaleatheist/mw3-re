@@ -206,7 +206,7 @@ void vehicle_place(BasicVehicle& v, const float pos[3], float yaw) {
   c.clear_commands();  // IControls vt+0x14
   h.refresh(v);
   c.x70 = Vec3c{};
-  for (int32_t i = 0; i < c.x7e8 && i < 32; ++i) c.x8b0[i] = 0;
+  for (int32_t i = 0; i < c.motion.support_count && i < 16; ++i) c.motion.support_word[i] = 0;
   c.x20 = 0, c.x24 = 0;
   if (c.serial)
     for (int32_t i = 0; i < c.point_count && i < 15; ++i) c.points[i] = {p[0], p[1], p[2]};

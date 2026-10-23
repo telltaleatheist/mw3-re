@@ -114,6 +114,15 @@ struct Hooks : m3::VehControlsHooks {
   Handle anim_find(const char* name) override { return h(unported("0x0050b450", {name})); }
   void anim_start(Handle def, Handle node) override { unported("0x00508c10", {low(def), low(node), 0, 0, 0}); }
   void owner_weapons(void* owner, zrdr::Node* def) override { unported("0x004b4660", {ref(owner), low(def)}); }
+  bool reader_float(zrdr::Node* node, const char* key, float* out) override {
+    const bool ok = unported("0x00556a60", {low(node), key}) != 0;
+    const uint32_t v = call("@float", {});
+    if (ok) *out = zgame::from_bits(v);
+    return ok;
+  }
+  void report(int32_t level, const char* file, int32_t line, const char* message) override {
+    unported("0x0049bfd0", {level, file, line, message});
+  }
   void weapon_slots(m3::VehicleControls& c, void* owner, zrdr::Node* def) override {
     if (g_run_slots) return m3::vehicle_weapon_slots(c, owner, def);
     unported("0x004af2a0", {ref(owner), low(def)});
@@ -204,16 +213,16 @@ void probe_vc_weapon_slots(uint32_t def) {
 
 // For the placement: the controls' fields it reads and writes, as the test
 // set the original's (throttle, turn, serial, x20, x24, x70 xyz, angles y,
-// point_count, x7e8), the 15 points and the 32 words.
+// point_count, the support count), the 15 points and the 16 support words.
 void probe_vc_place_state(const uint32_t* w, const float* points, const uint32_t* words) {
   m3::VehicleControls& c = *g_c;
   c.throttle = zgame::from_bits(w[0]), c.turn = zgame::from_bits(w[1]), c.serial = static_cast<int32_t>(w[2]);
   c.x20 = w[3], c.x24 = w[4];
   c.x70 = {zgame::from_bits(w[5]), zgame::from_bits(w[6]), zgame::from_bits(w[7])};
   c.angles.y = zgame::from_bits(w[8]);
-  c.point_count = static_cast<int32_t>(w[9]), c.x7e8 = static_cast<int32_t>(w[10]);
+  c.point_count = static_cast<int32_t>(w[9]), c.motion.support_count = static_cast<int32_t>(w[10]);
   for (int i = 0; i < 15; ++i) c.points[i] = {points[3 * i], points[3 * i + 1], points[3 * i + 2]};
-  for (int i = 0; i < 32; ++i) c.x8b0[i] = words[i];
+  for (int i = 0; i < 16; ++i) c.motion.support_word[i] = words[i];
 }
 void probe_vc_place(const float* pos, float yaw) {
   m3::set_veh_basic_hooks(&g_veh_hooks);
@@ -222,6 +231,13 @@ void probe_vc_place(const float* pos, float yaw) {
   g_owner.controls = nullptr;
   m3::set_veh_basic_hooks(nullptr);
 }
+
+// 0x0049ef40 on the controls' block: the node, the mode's reader node (the
+// original's), the names; the collision count through `count`.
+void probe_vc_motion(uint32_t node, uint32_t mode, const char* name, const char* type, int32_t* count) {
+  m3::vehicle_motion_read(*g_c, hd(node), reinterpret_cast<zrdr::Node*>(hd(mode)), name, type, count);
+}
+void probe_vc_set_mode(int32_t mode) { g_c->motion.mode = mode; }
 
 void probe_vc_init() { g_c->init(); }
 void probe_vc_setup(uint32_t def) { g_c->setup(reinterpret_cast<zrdr::Node*>(hd(def))); }
@@ -241,8 +257,28 @@ void probe_vc_image(uint8_t* b) {
   put(b, 0x20, c.x20), put(b, 0x24, c.x24), put3(b, 0x70, c.x70);
   for (int i = 0; i < 15; ++i) put3(b, 0x160 + 12 * static_cast<uint32_t>(i), c.points[i]);
   put(b, 0x214, static_cast<uint32_t>(c.point_count));
-  put(b, 0x7e8, static_cast<uint32_t>(c.x7e8));
-  for (int i = 0; i < 32; ++i) put(b, 0x8b0 + 4 * static_cast<uint32_t>(i), c.x8b0[i]);
+  const m3::VehicleMotion& m = c.motion;
+  const uint32_t mb = 0x764;
+  put(b, mb, static_cast<uint32_t>(m.mode));
+  putf(b, mb + 0x4, m.rates[0]), putf(b, mb + 0x8, m.rates[1]), putf(b, mb + 0xc, m.turns[0]), putf(b, mb + 0x10, m.turns[1]);
+  putf(b, mb + 0x14, m.turn_damping), putf(b, mb + 0x18, m.rate_damping[0]), putf(b, mb + 0x1c, m.rate_damping[1]);
+  putf(b, mb + 0x20, m.gun_hi), putf(b, mb + 0x24, m.gun_lo);
+  for (int k = 0; k < 3; ++k) putf(b, mb + 0x58 + 4 * static_cast<uint32_t>(k), m.friction[k]);
+  putf(b, mb + 0x64, m.stopping), putf(b, mb + 0x68, m.chas_smooth), put3(b, mb + 0x6c, m.chas_pitch);
+  put3(b, mb + 0x78, m.chas_roll);
+  put(b, mb + 0x84, static_cast<uint32_t>(m.support_count)), putf(b, mb + 0x88, m.mode_alt);
+  for (int i = 0; i < 16; ++i) put3(b, mb + 0x8c + 12 * static_cast<uint32_t>(i), m.support[i]);
+  for (int i = 0; i < 16; ++i) put(b, mb + 0x14c + 4 * static_cast<uint32_t>(i), m.support_word[i]);
+  putf(b, mb + 0x18c, m.quicksand_slowdown), putf(b, mb + 0x190, m.lava_slowdown);
+  for (int i = 0; i < 12; ++i) put3(b, mb + 0x194 + 12 * static_cast<uint32_t>(i), m.collision[i]);
+  putf(b, mb + 0x248, m.mass), putf(b, mb + 0x24c, m.inv_mass), putf(b, mb + 0x250, m.a_damping);
+  put(b, mb + 0x258, m.x258), put(b, mb + 0x260, m.x260);
+  for (int k = 0; k < 7; ++k) putf(b, mb + 0x264 + 4 * static_cast<uint32_t>(k), m.wave[k]);
+  putf(b, mb + 0x280, m.collision_d[0]), putf(b, mb + 0x284, m.collision_d[1]);
+  put(b, mb + 0x288, lo(m.right_morphs)), put(b, mb + 0x28c, lo(m.left_morphs)), put(b, mb + 0x290, lo(m.chassis));
+  put(b, mb + 0x294, lo(m.rtracks)), put(b, mb + 0x298, lo(m.ltracks)), put(b, mb + 0x29c, lo(m.destroy_anim));
+  putf(b, 0x794, c.turret.lo_sin), putf(b, 0x798, c.turret.lo_cos), putf(b, 0x79c, c.turret.hi_sin);
+  putf(b, 0x7a0, c.turret.hi_cos);
   put(b, 0x28, c.x28), put(b, 0x2c, c.x2c), put(b, 0x30, c.x30), put(b, 0x3c, c.x3c);
   put3(b, 0x50, c.x50);
   for (int k = 0; k < 4; ++k) put(b, 0x94 + 4 * k, c.x94[k]);

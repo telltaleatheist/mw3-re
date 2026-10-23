@@ -17,6 +17,7 @@ it is clear what the designers meant.
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
+- **A vehicle with chassis pitch settings and no roll settings keeps its pitch.** The original zeroed the pitch values when the roll values were missing (a copy slip). No vehicle in the game has either setting, so this only matters for modded vehicles.
 - **Lava heats the same at any frame rate.** The original added heat on
   every frame a foot touched lava, so a faster computer cooked you faster
   (1.5 heat a second at 30 fps, over 7 at 144). It is now 1.5 a second
@@ -250,6 +251,7 @@ unusual happens.
 - An AI vehicle record with a broken attack range no longer crashes the game when its pilot has no target.
 - An AI path with a step that leads nowhere no longer crashes the game when a pilot weighs the ways on from a waypoint; that way counts as closed. No shipped path has one.
 - An AI "backup" waypoint (none in the shipped game) turns the pilot toward the way it came, before backing in and again at the spot, instead of toward whatever direction happened to be left in memory.
+- A vehicle definition without its `platform` or `collision` points no longer crashes the mission start.
 - A vehicle whose weapon list (`vehicle.zrd`) names a weapon the game does not know no longer crashes the mission start; that weapon slot stays empty.
 - An AI "deploy", "mcbwait" or "valve_assign" waypoint without its switches named no longer crashes the game; the missing switches read as off and are not set.
 - An AI jump waypoint that does not lead to a path node no longer crashes the game; the pilot jumps without turning.

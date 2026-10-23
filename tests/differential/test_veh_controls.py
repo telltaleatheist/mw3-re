@@ -24,8 +24,13 @@ Compared: the traces (the beams' muzzle and direction pointers among them)
 and every slot's words. The placement 0x4a3630 (step 1c), on a stand-in
 vehicle (vt+0x18 stubbed) over the original's base: a position, a yaw, the
 ground hit or not (none, one, several), the controls' fields preset (a
-serial of 0 or not, 0..15 points, 0..32 words); compared: the traces (the
-place given to vt+0x18 among them) and the base's fields.
+serial of 0 or not, 0..15 points, 0..16 supports); compared: the traces (the
+place given to vt+0x18 among them) and the base's fields. The motion
+block 0x49ef40 (step 1c2a): every key of vehicle.zrd's mode there or not
+(the mode's strings, unknown ones too), the model's support and collide
+nodes all there, some or none (the lists then), the destroy animation by
+name, type or neither; compared: the traces (the reports' texts), the
+whole base and the collision count.
 """
 import ctypes
 import math
@@ -36,13 +41,16 @@ from pathlib import Path
 
 os.environ.setdefault('MW3_X87', '24')
 sys.path.insert(0, str(Path(__file__).parent))
-from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 from calltrace import CALLBACK, Emu, Replay, Trace, compare, load_probe, rnd  # noqa: E402
 
 U, P = ctypes.c_uint32, ctypes.c_void_p
 SERIAL, GRAVITY = 0x60b148, 0x609a14
-SIZE = 0x930
+SIZE = 0xa04  # the base, to its IControls
 COMPUTED = {0x308, 0x30c, 0x310}  # the matrix's row, compared as the matrix
+# friction[1] = 0.9 friction[0] and 1 / mass: the x87 rounds once at 24 bits,
+# the port through a double (one ulp at most).
+ONE_ULP = {0x764 + 0x5c, 0x764 + 0x24c}
 NODES = ('body', 'turret', 'shadow', 'gun')
 FPNTS = ('fpnt_c', 'fpnt_l', 'fpnt_r')
 
@@ -163,6 +171,17 @@ def make(seed, t, gravity):
     if case['health'] is not None:
         keys['health'] = reader_list(e, [(2, fbits(case['health']))])
     e.stub(0x5569e0, spec='c,zd', fn=answer_by_name(keys))
+    def sprintf(em, key, a, pop):  # the CRT's, for "%s_L", "%s_R", "support_%02d", "collide_%02d"
+        fmt = em.cstr(a[1])
+        out = fmt.replace('%s', em.cstr(a[2])) if '%s' in fmt else fmt.replace('%02d', f'{a[2]:02d}')
+        em.cpu.write(a[0], out.encode('latin1') + b'\0')
+        em._ret(len(out), pop)
+    e.import_stub(0x5bb658, '@sprintf', 's0,s1,s2', 0, sprintf)
+
+    def strncmp(em, key, a, pop):
+        x, y = em.cstr(a[0])[:a[2]], em.cstr(a[1])[:a[2]]
+        em._ret(0 if x == y else (-1 if x < y else 1), pop)
+    e.import_stub(0x5bb654, '@strncmp', 's0,s1,s2', 0, strncmp)
     ctl = e.alloc(0xa70)
     e.call(0x4ac750, ecx=ctl, stack=(owner, 1))
     return e, case, owner, node, matrix, ctl
@@ -255,11 +274,6 @@ def run_slots(probe, seed):
     serial = r.choice([0, 1, 1, 2, 7])
     del e.slots[0x4af2a0]  # here it runs
 
-    def sprintf(em, key, a, pop):  # the CRT's, for "%s_L" / "%s_R" only
-        out = em.cstr(a[1]).replace('%s', em.cstr(a[2]))
-        em.cpu.write(a[0], out.encode('latin1') + b'\0')
-        em._ret(len(out), pop)
-    e.import_stub(0x5bb658, '@sprintf', 's0,s1,s2', 0, sprintf)
     e.w32(owner + 0xe4, ctl)
     e.w32(ctl + 0x14, serial)
     e.w32(ctl + 0x708, gun)
@@ -347,13 +361,13 @@ def run_place(probe, seed):
     e.stub(0x4edab0, spec='s0,s1,s2', fn=ground)
     w = [fbits(r.uniform(-1, 1)), fbits(r.uniform(-1, 1)), r.choice([0, 0, 1, 5]), r.randrange(1 << 32),
          r.randrange(1 << 32), fbits(r.uniform(-9, 9)), fbits(r.uniform(-9, 9)), fbits(r.uniform(-9, 9)),
-         fbits(r.uniform(-3, 3)), r.randrange(0, 16), r.randrange(0, 33)]
+         fbits(r.uniform(-3, 3)), r.randrange(0, 16), r.randrange(0, 17)]
     for off, v in zip((0x08, 0x0c, 0x14, 0x20, 0x24, 0x70, 0x74, 0x78, 0x330, 0x214, 0x7e8), w):
         e.w32(ctl + off, v)
     points = [r.uniform(-500, 500) for _ in range(45)]
     for k, v in enumerate(points):
         e.wf(ctl + 0x160 + 4 * k, v)
-    words = [r.randrange(1 << 32) for _ in range(32)]
+    words = [r.randrange(1 << 32) for _ in range(16)]
     for k, v in enumerate(words):
         e.w32(ctl + 0x8b0 + 4 * k, v)
     pos = [r.uniform(-3000, 3000), r.choice([0.0, r.uniform(-20, 200)]), r.uniform(-3000, 3000)]
@@ -364,7 +378,7 @@ def run_place(probe, seed):
     rep = Replay(t, e, e.snapshot())
     probe.probe_app_set_callback(rep.callback())
     probe.probe_vc_new(owner, node, e.r32(SERIAL))
-    probe.probe_vc_place_state((U * 11)(*w), (ctypes.c_float * 45)(*points), (U * 32)(*words))
+    probe.probe_vc_place_state((U * 11)(*w), (ctypes.c_float * 45)(*points), (U * 16)(*words))
     name = f'place seed {seed} (hits {count}, found {found}, serial {w[2]}, points {w[9]}, words {w[10]})'
     e.cpu.fpu_control(0x007f)
     e.call(0x4a3630, ecx=owner, stack=(pos_addr, fbits(yaw)))
@@ -382,6 +396,109 @@ def run_place(probe, seed):
     return True, len(t.log)
 
 
+MODE_KEYS = {
+    'rates': 2, 'friction': 3, 'stopping': 1, 'quicksand_slowdown': 1, 'lava_slowdown': 1, 'turns': 2,
+    'turn_damping': 1, 'rate_damping': 2, 'a_damping': 1, 'mass': 1, 'gun_pitch': 2, 'amphib_wave': 7,
+    'hover_wave': 7, 'sub_wave': 7, 'chas_smooth': 1, 'chas_pitch': 3, 'chas_roll': 3, 'collision_d': 2,
+}
+
+
+def points_list(e, r, n):
+    return reader_list(e, [(4, reader_list(e, [(2, fbits(r.uniform(-9, 9))) for _ in range(3)]) and
+                            e.r32(reader_list(e, [(2, fbits(r.uniform(-9, 9))) for _ in range(3)]) + 4))
+                           for _ in range(n)])
+
+
+def run_motion(probe, seed):
+    t = Trace()
+    e, case, owner, node, matrix, ctl = make(seed, t, probe.probe_vc_gravity())
+    r = rnd(seed, 'motion')
+    vnode = e.world_alloc(0x40)
+    keys = {}
+    for k, n in MODE_KEYS.items():
+        if r.random() < 0.5:
+            vals = [r.choice([r.uniform(-50, 50), 0.0, 1.0, r.uniform(0, 20000)]) for _ in range(n)]
+            keys[k] = reader_list(e, [(2, fbits(v)) for v in vals])
+    if r.random() < 0.8:
+        keys['mode'] = reader_list(e, [(3, e.world_string(r.choice(['basic', 'track', 'hover', 'amphib', 'sub', 'fly',
+                                                                     'tracked', 'boat', 'fx'])))])
+    keys['platform'] = points_list(e, r, r.choice([0, 1, 4, 6]))
+    keys['collision'] = points_list(e, r, r.choice([0, 3, 12]))
+    supports = r.choice([4, 4, 2, 0])
+    collides = r.choice([12, 12, 7, 0])
+    names = {f'support{i:02d}': (e.world_alloc(0x10) if i < supports else 0) for i in range(4)}
+    names.update({f'collide{i:02d}': (e.world_alloc(0x10) if i < collides else 0) for i in range(12)})
+    for nm in ('right_morphs', 'left_morphs', 'chassis', 'rtracks', 'ltracks'):
+        names[nm] = e.world_alloc(0x10) if r.random() < 0.5 else 0
+    vname, vtype = r.choice(['apc_01', 'truck02']), r.choice(['apc', 'ttruck'])
+    anims = {vname: e.world_alloc(0x10) if r.random() < 0.4 else 0, vtype: e.world_alloc(0x10) if r.random() < 0.5 else 0}
+    mode_alt = r.choice([None, 1.5, 3.0])
+
+    def answer_by(table, idx):
+        def fn(em, key, a, pop):
+            v = table.get(a[idx], 0)
+            em.t.handle(key, a)
+            em.t.override(key, v)
+            em._ret(v, pop)
+        return fn
+    e.stub(0x5569e0, spec='c,zd', fn=answer_by(keys, 1))
+    e.stub(0x4f9d60, spec='c,zd', fn=answer_by(names, 1))
+    e.stub(0x50b450, spec='zc', fn=answer_by(anims, 0))
+    e.stub(0x4eb170, spec='c,d')
+
+    def get_float(em, key, a, pop):
+        ok = mode_alt is not None
+        if ok:
+            em.wf(a[2], mode_alt)
+        em.t.handle(key, a[:2])
+        em.t.override(key, int(ok))
+        em.t.handle('@float', ())
+        em.t.override('@float', fbits(mode_alt) if ok else 0)
+        em._ret(int(ok), pop)
+    e.stub(0x556a60, spec='c,zd,s0', fn=get_float)
+
+    def report(em, key, a, pop):
+        msg = em.cstr(a[3])
+        for k in (4, 5):
+            if '%s' in msg:
+                msg = msg.replace('%s', em.cstr(em.r32(em.uc.reg_read(UC_X86_REG_ESP) + 4 + 4 * k)), 1)
+        em.t.handle(key, (a[0], a[1], a[2], msg))
+        em._ret(0, pop)
+    e.stub(0x49bfd0, spec='s0,zs1,s2,s3', pop=0, fn=report)
+    count_addr = e.world_alloc(0x10)
+    preset = r.randrange(0, 13)
+    e.w32(count_addr, preset)
+    old_mode = r.choice([0, 1, 4])
+    e.w32(ctl + 0x764, old_mode)
+    ns, ts = e.world_string(vname), e.world_string(vtype)
+    mode_node = e.world_alloc(0x10)
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    probe.probe_vc_new(owner, node, e.r32(SERIAL))
+    probe.probe_vc_set_mode(old_mode)
+    cnt = ctypes.c_int32(preset)
+    name = f'motion seed {seed} (keys {sorted(keys)}, supports {supports}, collides {collides})'
+    e.cpu.fpu_control(0x007f)
+    e.call(0x49ef40, ecx=ctl + 0x764, stack=(vnode, mode_node, ns, ts, count_addr))
+    probe.probe_vc_motion(vnode, mode_node, vname.encode(), vtype.encode(), ctypes.byref(cnt))
+    if not compare(name, t.log, rep.log):
+        return False, 0
+    a = bytes(e.cpu.read(ctl, SIZE))
+    b = (ctypes.c_uint8 * SIZE)(*a)
+    probe.probe_vc_image(b)
+    b = bytes(b)
+    for o in range(0, SIZE, 4):
+        if o in ONE_ULP and ulps(*struct.unpack('<2f', a[o:o + 4] + b[o:o + 4])) <= 1:
+            continue
+        if a[o:o + 4] != b[o:o + 4]:
+            print(f'{name}: +{o:#x} (block +{o - 0x764:#x}) original {a[o:o + 4].hex()} rebuild {b[o:o + 4].hex()}')
+            return False, 0
+    if e.r32(count_addr) != cnt.value & 0xffffffff:
+        print(f'{name}: collision count original {e.r32(count_addr)} rebuild {cnt.value}')
+        return False, 0
+    return True, len(t.log)
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -395,17 +512,19 @@ def main():
     probe.probe_vc_weapon_slots.argtypes = [U]
     probe.probe_vc_place_state.argtypes = [P, P, P]
     probe.probe_vc_place.argtypes = [P, ctypes.c_float]
+    probe.probe_vc_motion.argtypes = [U, U, ctypes.c_char_p, ctypes.c_char_p, P]
+    probe.probe_vc_set_mode.argtypes = [ctypes.c_int32]
     probe.probe_vc_gravity.restype = ctypes.c_float
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 400
     calls = 0
     for seed in range(runs):
-        for part in (run, run_slots, run_place):
+        for part in (run, run_slots, run_place, run_motion):
             ok, n = part(probe, seed)
             if not ok:
                 sys.stdout.flush(); os._exit(1)
             calls += n
-    print(f'ok: {runs} controls inits, setups and resets {runs} weapon-slot fills and {runs} placements as the original ({calls} calls)')
+    print(f'ok: {runs} controls inits, setups and resets {runs} weapon-slot fills, {runs} placements and {runs} motion blocks as the original ({calls} calls)')
     sys.stdout.flush(); os._exit(0)
 
 
