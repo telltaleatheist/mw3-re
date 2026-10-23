@@ -1008,3 +1008,13 @@ is paused.
   original's slots on its 690 vehicle cases.
 - Next: 0x49f660 (the collision points at setup) and 0x4a2ae0, then 2c,
   the frame 0x4a1040 (0x4a1240 the movement).
+
+## 2026-10-23 Item 4, step 2b3: the setup's points and zone (lead)
+
+- 0x49f660 and 0x49f710 (veh_basic_object), the zone match 0x53cd20
+  (gmod_cull: zone_common). Vehicle +0x64 is the zone record.
+- test_veh_setup.py: 600 runs, 12 breaks caught.
+- Next: 2c, the frame 0x4a1040 (with 0x4a2ae0, 0x4a1240 the movement,
+  0x4addc0 the engine sound, 0x4b4880 the weapons), and zEntity's zone
+  update 0x5a80f0.
+

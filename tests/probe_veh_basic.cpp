@@ -13,6 +13,8 @@
 #include "mech3/veh_basic_object.h"
 #include "mech3/player_view.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "probe_app.h"
 
 namespace {
@@ -60,6 +62,13 @@ struct Hooks : m3::VehBasicHooks {
     return t;
   }
   int32_t game_intensity() override { return static_cast<int32_t>(unported("0x0040cdf0", {})); }
+  // The setup's zone (0x0049f710): the hits mirrored from the record the
+  // test's 0x004edab0 also leaves at g_hits_addr, their materials' soil
+  // copied; the node's flag 8 and zone byte by their calls.
+  int32_t ground(float x, float y, float z, zcls::GroundHits* out) override;
+  int32_t node_flag8(m3::Handle node) override { return static_cast<int32_t>(unported("0x004eb660", {low(node)})); }
+  void node_set_flag8(m3::Handle node, int32_t on) override { unported("0x004eb620", {low(node), on}); }
+  void node_set_zone(m3::Handle node, uint8_t zone) override { unported("0x004eb810", {low(node), zone}); }
   // The readout's: the controls' slots keyless (as the test's stubs), the
   // node's name and the camera's zones read back, the position by its call.
   int32_t controls_dynamics(m3::VehicleControls&) override { return static_cast<int32_t>(unported("ctl.vt+0x20", {})); }
@@ -251,6 +260,23 @@ void probe_vb_view_attach(uint32_t v, uint32_t* out) {
 }  // extern "C"
 
 uint32_t g_ctl = 0;  // the original's controls block
+uint32_t g_hits_addr = 0;
+zmod::Material g_mats[32];
+int32_t Hooks::ground(float x, float y, float z, zcls::GroundHits* out) {
+  const int32_t r = static_cast<int32_t>(unported("0x004edab0", {zgame::bits(x), zgame::bits(y), zgame::bits(z)}));
+  auto p32 = [](uint32_t a) { return probe_app::call("peek32", {a}); };
+  out->count = static_cast<uint8_t>(p32(g_hits_addr));
+  for (int i = 0; i < out->count && i < 32; ++i) {
+    const uint32_t h = g_hits_addr + 4 + 0x28u * static_cast<uint32_t>(i);
+    zcls::GroundHit& g = out->hit[i];
+    g.x = zgame::from_bits(p32(h + 0xc)), g.height = zgame::from_bits(p32(h + 0x10)), g.z = zgame::from_bits(p32(h + 0x14));
+    g.zone[0] = p32(h + 0x18), g.zone[1] = p32(h + 0x1c);
+    const uint32_t m = p32(h + 0x20);
+    g_mats[i].soil = m ? p32(m + 0x20) : 0;
+    g.material = m ? &g_mats[i] : nullptr;
+  }
+  return r;
+}
 m3::BasicVehicle* g_dv = nullptr;
 int32_t Hooks::glow_hit(m3::Block398&, m3::Handle w, float amount) {
   return static_cast<int32_t>(unported("0x00586a30", {low(w), g_ctl + 0x398, zgame::bits(amount)}));
@@ -318,3 +344,27 @@ void probe_vb_dmg_image(uint32_t* a) {
   a[16] = b(c.x70.z);
 }
 }  // extern "C"
+
+// The setup's points and zone (0x0049f660): a vehicle at `v` with base
+// controls at `ctl`: `count` points, the motion's collision points.
+extern "C" {
+void probe_vb_pts_setup(uint32_t v, uint32_t ctl, uint32_t node, int32_t count, const float* coll, uint32_t hits) {
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new m3::VehicleControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl, g_hits_addr = hits;
+  g_dv->controls = c;
+  g_dv->node = hd(node);
+  c->point_count = count;
+  for (int i = 0; i < 12; ++i) c->motion.collision[i] = {coll[3 * i], coll[3 * i + 1], coll[3 * i + 2]};
+}
+void probe_vb_pts_run() { m3::vehicle_points_place(*g_dv); }
+void probe_vb_pts_image(float* pts, uint8_t* zones) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  for (int i = 0; i < 15; ++i) pts[3 * i] = c.points[i].x, pts[3 * i + 1] = c.points[i].y, pts[3 * i + 2] = c.points[i].z;
+  zones[0] = g_dv->x64, zones[1] = g_dv->zones[0], zones[2] = g_dv->zones[1], zones[3] = g_dv->zones[2];
+}
+float probe_vb_gravity_x1c() { return g_dv->controls->x1c; }
+}  // extern "C"
+
+extern "C" void probe_zones_mode(int32_t on) { zmod::zones().mode = on; }  // [0x005ea1d0]

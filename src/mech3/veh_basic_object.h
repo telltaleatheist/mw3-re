@@ -192,7 +192,12 @@ class VehBasicHooks : public zgame::Unported {
   virtual int32_t controls_goal(VehicleControls& c) { return c.path_goal(); }
   virtual const char* node_name(Handle node);
   virtual const float* entity_position(Vehicle& v);
-  virtual const uint8_t* camera_zones() { return nullptr; }
+  virtual const uint8_t* camera_zones();
+  // The setup's zone (0x0049f710): a node's flag 8 (0x004eb660 / 0x004eb620,
+  // the ground query's own exclusion), its zone byte (0x004eb810).
+  virtual int32_t node_flag8(Handle node);
+  virtual void node_set_flag8(Handle node, int32_t on);
+  virtual void node_set_zone(Handle node, uint8_t zone);
   virtual void hud_line(int32_t i, const char* text) { unported("hudline.vt+0x7c", {i, text}); }
 };
 void set_veh_basic_hooks(VehBasicHooks* h);  // null: the defaults
@@ -252,6 +257,14 @@ void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push);
 void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
 void vehicle_view_tint(BasicVehicle& v, uint8_t on);  // vt+0x68 0x004ad390: red by the damage, in TARGET's view (the byte passed on)
 void vehicle_weapons_free(BasicVehicle& v);       // 0x004b48c0
+// Mech3.exe 1.2 @ 0x0049f660 (player.cpp, after the motion block): the
+// controls' vt+0x18, each of their points at the motion's collision point
+// off the entity's position, then the zone (0x0049f710: the ground under it
+// from 500 up, the vehicle's node left out; the picked polygon's zone record
+// becomes the vehicle's, its id the one it shares with the view's camera,
+// else its first; zEntity's 0x005a80d0).
+void vehicle_points_place(BasicVehicle& v);
+void vehicle_zone_from_ground(BasicVehicle& v);  // 0x0049f710
 // The gun's aim (docs/vehicles.md, The gun's aim): the controls' pitch
 // limits (+0x78c) asked of a direction in the vehicle's frame, or of a
 // world one turned into it (by the rows of the vehicle's matrix, +0x0c).
