@@ -195,6 +195,22 @@ From the port of the damage code, checked in an emulator against the original
 - **A slow death alternates between falling left and right** for all mechs
   together: one shared switch flips at each death below 50 km/h, so two
   mechs dying one after another fall to opposite sides.
+- **Difficulty changes how tough vehicles are, not how hard they hit.**
+  Every hit on a tank, truck or other vehicle counts double on low
+  difficulty and half on high (0x4af550), for allied vehicles you escort
+  as well as enemy ones. Hard missions with convoys to protect are easier
+  on that score, and convoys to destroy take twice the fire.
+- **Lasers never shake a vehicle.** A hit of more than 5 damage jolts a
+  vehicle along the shot (heavier vehicles less), but lasers carry an
+  impact-heat effect and the jolt skips any weapon with one; they warm
+  the vehicle's heat glow by the share of health each hit takes instead.
+- **The targeting view shows a vehicle's damage in red.** In TARGET's
+  picture of a vehicle, the model is tinted red by how much health it has
+  lost, up to 60% just before it dies.
+- **The game can freeze vehicles, but no weapon does.** Vehicle damage
+  has a whole freeze path: a freezing weapon chills instead of hurting,
+  and a vehicle cold enough is frozen solid and ignores further freezing
+  hits. No weapon in MW3 or Pirate's Moon has the `FREEZE` effect.
 
 ## Movement
 
@@ -1952,6 +1968,10 @@ are all "puffers": emitters that drop little textured squares.
 ## The cameras
 
 From the view and its cameras (0x40aca0, 0x430e70; details: `view.md`).
+
+- **Vehicles have three cameras of their own, and only the first is used.**
+  All vehicles share one set (behind, on top, high above), made with the
+  first vehicle; nothing ever switches it from "behind" (`vehicles.md`).
 
 - **The outside cameras slip in front of walls, but not of water.** When
   something stands between a chase camera and your mech, the camera jumps

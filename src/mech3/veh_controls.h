@@ -70,10 +70,14 @@ void set_veh_controls_hooks(VehControlsHooks* h);  // null: the defaults
 int32_t& vehicle_serial();                         // [0x0060b148], the next +0x14
 
 // The block at +0x398 (0x005869d0 clears it).
+// The freeze and heat glow (zWeapon's 0x00586a30 / 0x00586af0, weapons.md):
+// the hit adds to +0x0c (heat up, freeze down, -1..1) and puts a glow node
+// at +0x10; +0x08 is what the damage reads (below -0.5: frozen solid).
 struct Block398 {
   uint32_t flags = 0;  // +0x00  bits 0, 1 cleared
-  uint32_t x04 = 0;
-  uint32_t x08 = 0, x0c = 0, x10 = 0, x14 = 0;
+  uint32_t x04 = 0;    // +0x04  the last weapon
+  float x08 = 0;       // +0x08  (the frame's, step 2c)
+  uint32_t x0c = 0, x10 = 0, x14 = 0;
   void clear();  // 0x005869d0
 };
 
@@ -153,8 +157,10 @@ struct VehicleControls {
   int32_t serial = 0;         // +0x014  [0x0060b148], counted up
   float x1c = 0;              // +0x01c  the gravity, [0x00609a14] (0x004accd0)
   uint32_t x20 = 0, x24 = 0;  // +0x020  (the placement zeroes them)
-  uint32_t x28 = 0, x2c = 0;  // +0x028
+  uint32_t frozen = 0;        // +0x028  a freeze hit froze it (the damage's; no shipped weapon freezes)
+  uint32_t x2c = 0;           // +0x02c
   uint32_t x30 = 0;           // +0x030
+  int32_t state = 0;          // +0x038  4: destroyed (the death's; the basic controls' vt+0x1c asks it)
   uint32_t x3c = 0;           // +0x03c
   Vec3c x50;                  // +0x050  0x0063d870
   Vec3c x70;                  // +0x070  0x0063d870 (the placement)
@@ -165,6 +171,7 @@ struct VehicleControls {
   Vec3c angles0;              // +0x320  the node's rotation as first read
   Vec3c angles;               // +0x32c  (0x004fbe90)
   uint32_t x350 = 0;          // +0x350
+  uint32_t beam_on = 0;       // +0x394  the first slot's beam firing (the death stops it)
   Block398 x398;              // +0x398
   Handle node = nullptr;      // +0x3b0  the owner's node (the setup's)
   WeaponSlot* first = nullptr;  // +0x3b4  the first slot filled
@@ -191,8 +198,8 @@ struct VehicleControls {
   Handle gun = nullptr;       // +0x708
   Handle shadow = nullptr;    // +0x70c
   float fire_c_scale = 0;     // +0x724
-  float health = 0;           // +0x740  100, or the definition's
-  float health_max = 0;       // +0x744  likewise
+  float health_max = 0;       // +0x740  100, or the definition's
+  float health = 0;           // +0x744  likewise; what the damage takes from
   uint32_t x760 = 0;          // +0x760
   VehicleMotion motion;       // +0x764
   TurretLimits turret;        // +0x790 (the pointer to it at +0x78c), the gun's pitch (0x004a4b30)

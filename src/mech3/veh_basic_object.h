@@ -134,6 +134,51 @@ class VehBasicHooks : public zgame::Unported {
   virtual void refresh(Vehicle& v) { unported("0x005a85c0", {ref(&v)}); }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return h(unported("0x0059b830", {name, 0, 0, 1})); }
+
+  // The damage and death (step 1d). The controls' own (step 2): vt+0x1c,
+  // destroyed (the AI's: the owner no longer active; the basic ones' state
+  // 4); IControls vt+0xa8 at death (the AI's 0x004ea6b0, the basic ones'
+  // their vt+0xa4); 0x00402510, the basic ones' path dropping its entries
+  // with a negative id (through vt+0x00, null for the others).
+  // The vehicle's own slots, virtual in the exe (the derived classes have their own).
+  virtual void die(BasicVehicle& v);                                               // vt+0x70
+  virtual int32_t damage(BasicVehicle& v, Handle weapon, uint32_t x, float amount);  // vt+0x160
+  virtual uint32_t weapon_flags(Handle weapon);  // the definition's +0x6c (a read)
+  virtual bool controls_destroyed(VehicleControls& c) { return unported("ctl.vt+0x1c", {low(&c)}) == 1; }
+  virtual void controls_died(VehicleControls& c) { unported("ctl.ictl.vt+0xa8", {low(&c)}); }
+  virtual void path_drop_temporary(BasicVehicle& v) { unported("0x00402510", {ref(&v)}); }
+  // zWeapon's glow on the controls' +0x398: a hit (0x00586a30: 2 frozen
+  // solid, 1 cold, 0 not) and its end (0x00586af0).
+  virtual int32_t glow_hit(Block398& b, Handle weapon, float amount) {
+    return static_cast<int32_t>(unported("0x00586a30", {low(weapon), low(&b), zgame::bits(amount)}));
+  }
+  virtual void glow_end(Block398& b) { unported("0x00586af0", {low(&b)}); }
+  // zWeapon's hit state: the attacker's node (0x00581e40), the shot's two
+  // ends (0x00581e30: from, then to), the health after (0x00583730), a
+  // kill (0x00583710(1, 0)); the beam's stop (0x00581400).
+  virtual Handle hit_attacker() { return h(unported("0x00581e40", {})); }
+  virtual const float* shot_line();
+  virtual void hit_health(float fraction) { unported("0x00583730", {zgame::bits(fraction)}); }
+  virtual void hit_killed() { unported("0x00583710", {1, 0}); }
+  virtual void beam_stop(Handle beam) { unported("0x00581400", {low(beam)}); }
+  // The attacker's object (0x0040eee0 on the node, asked twice) and its
+  // kill credit (vt+0x80 with the vehicle).
+  virtual Handle node_object(Handle node) { return h(unported("0x0040eee0", {low(node)})); }
+  virtual void credit_kill(Handle object, BasicVehicle& v) { unported("obj.vt+0x80", {low(object), ref(&v)}); }
+  virtual void anim_start(Handle def, Handle node) { unported("0x00508c10", {low(def), low(node), 0, 0, 0}); }
+  virtual void weapons_settle(void* w) { unported("0x004b1110", {low(w)}); }  // the weapons' 0x004b1110
+  // The jolt's: the node's local matrix (0x004fc3f0, a 3x4, rows), read
+  // through the matrix stack (0x0051e9d0, 0x0051fd70, 0x00522640, 0x0051ea00).
+  virtual const float* node_matrix(Handle node) { return reinterpret_cast<const float*>(h(unported("0x004fc3f0", {low(node)}))); }
+  // The difficulty (0x0040cdf0: 0 low, 1 medium, 2 high).
+  virtual int32_t game_intensity();
+  // The target view's tint (0x004fb8c0 on the node: colour, amount) and
+  // its switch (0x004fb840).
+  virtual void node_tint(Handle node, const float colour[3], float amount) {
+    unported("0x004fb8c0", {low(node), zgame::bits(colour[0]), zgame::bits(colour[1]), zgame::bits(colour[2]),
+                            zgame::bits(amount)});
+  }
+  virtual void node_tinted(Handle node, int32_t on) { unported("0x004fb840", {low(node), on}); }
 };
 void set_veh_basic_hooks(VehBasicHooks* h);  // null: the defaults
 
@@ -178,6 +223,21 @@ void vehicle_markers_create();
 // (0x004ace00, the flag [0x005e8578]): 0 behind, 1 on the vehicle, 3 above.
 // Its current id (+0x10, [0x0060b140]) is never set after start-up, so a
 // vehicle's view is always mode 0.
+// The damage and death (docs/vehicles.md, Damage and death).
+// Mech3.exe 1.2 @ 0x004ad3f0 (vt+0x160): `amount` off the controls' health
+// from `weapon` (null: none; its +0x6c flags pick heat or freeze); 1 when
+// it died without one, else 0.
+int32_t vehicle_damage(BasicVehicle& v, Handle weapon, uint32_t unused, float amount);
+void vehicle_die(BasicVehicle& v);  // vt+0x70 0x004ad2d0, once
+// Mech3.exe 1.2 @ 0x004accf0: a hit's push along `dir` (world), turned into
+// the node's frame: `turn` into the angles, `push` into +0x70.
+void vehicle_jolt(BasicVehicle& v, const float dir[3], float turn, float push);
+// Mech3.exe 1.2 @ 0x004af550: zWeapon's hit callback (0x005833b0(node, 1,
+// this)): double damage on low difficulty, half on high, then vt+0x160.
+void vehicle_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount);
+void vehicle_view_tint(BasicVehicle& v, uint8_t on);  // vt+0x68 0x004ad390: red by the damage, in TARGET's view (the byte passed on)
+void vehicle_weapons_free(BasicVehicle& v);       // 0x004b48c0
+
 CameraList& vehicle_cameras();
 void vehicle_cameras_reset();                 // the probes' fresh start (the exe never empties it)
 void vehicle_cameras_make();                  // 0x004ace00

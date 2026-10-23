@@ -41,6 +41,30 @@ struct Hooks : m3::VehBasicHooks {
   void weapons_free(void* w) override { unported("0x004b01d0", {low(w)}); }
   void cameras_once() override { unported("0x004ace00", {}); }  // the ctor's tests stub it
   void view_attach(m3::BasicVehicle& v, m3::CameraMode* mode) override;
+  // 1d: the damage's, the controls and their glow block by the original's
+  // addresses, reads through peek32.
+  bool controls_destroyed(m3::VehicleControls&) override { return unported("ctl.vt+0x1c", {}) == 1; }
+  void controls_died(m3::VehicleControls&) override { unported("ctl.ictl.vt+0xa8", {}); }
+  int32_t glow_hit(m3::Block398&, m3::Handle w, float amount) override;
+  void glow_end(m3::Block398&) override;
+  uint32_t weapon_flags(m3::Handle w) override { return probe_app::call("peek32", {low(w) + 0x6c}); }
+  const float* node_matrix(m3::Handle node) override {
+    static float t[12];
+    peekf(unported("0x004fc3f0", {low(node)}), t, 12);
+    return t;
+  }
+  const float* shot_line() override {
+    static float t[6];
+    peekf(unported("0x00581e30", {}), t, 6);
+    return t;
+  }
+  int32_t game_intensity() override { return static_cast<int32_t>(unported("0x0040cdf0", {})); }
+  static void peekf(uint32_t a, float* out, int n) {
+    for (int i = 0; i < n; ++i) {
+      const uint32_t b = probe_app::call("peek32", {a + 4u * static_cast<uint32_t>(i)});
+      std::memcpy(out + i, &b, 4);
+    }
+  }
   // 1b: the emulator's strings read back through peek8.
   m3::Handle sound_find(const char* name) override { return hd(unported("0x0056f6f0", {name})); }
   const char* sound_name(m3::Handle sound) override { return text(unported("0x0056f740", {low(sound)})); }
@@ -205,7 +229,61 @@ void probe_vb_view_attach(uint32_t v, uint32_t* out) {
 
 }  // extern "C"
 
+uint32_t g_ctl = 0;  // the original's controls block
+m3::BasicVehicle* g_dv = nullptr;
+int32_t Hooks::glow_hit(m3::Block398&, m3::Handle w, float amount) {
+  return static_cast<int32_t>(unported("0x00586a30", {low(w), g_ctl + 0x398, zgame::bits(amount)}));
+}
+void Hooks::glow_end(m3::Block398&) { unported("0x00586af0", {g_ctl + 0x398}); }
+
 void Hooks::view_attach(m3::BasicVehicle& v, m3::CameraMode* mode) {
   g_attach[0] = ref(&v);
   g_attach[1] = static_cast<uint32_t>(probe_vb_camera_index(mode));
 }
+
+// 1d: a vehicle for the damage (vals: node, active, ammo, engine set,
+// frozen, state, health_max, health, glow x08, beam_on, beam, inv_mass,
+// destroy_anim, angles x, z, +0x70 x, z), then one call (0 damage, 1 the
+// hit callback, 2 the tint on, 3 off), then the same fields back.
+extern "C" {
+void probe_vb_dmg_setup(uint32_t v, uint32_t ctl, const uint32_t* a) {
+  static m3::EngineSoundEntry entry;
+  delete g_dv;
+  g_dv = new m3::BasicVehicle;
+  auto* c = new m3::VehicleControls;  // leaked: the probe's
+  g_v = g_dv, g_addr = v, g_ctl = ctl;
+  g_dv->controls = c;
+  g_dv->node = hd(a[0]);
+  g_dv->active = a[1] != 0;
+  g_dv->ammo = hd(a[2]);
+  g_dv->engine.entry = a[3] ? &entry : nullptr;
+  c->frozen = a[4];
+  c->state = static_cast<int32_t>(a[5]);
+  c->health_max = zgame::from_bits(a[6]);
+  c->health = zgame::from_bits(a[7]);
+  c->x398.x08 = zgame::from_bits(a[8]);
+  c->beam_on = a[9];
+  c->first = &c->slots[0];
+  c->slots[0].beam = hd(a[10]);
+  c->motion.inv_mass = zgame::from_bits(a[11]);
+  c->motion.destroy_anim = hd(a[12]);
+  c->angles.x = zgame::from_bits(a[13]), c->angles.z = zgame::from_bits(a[14]);
+  c->x70.x = zgame::from_bits(a[15]), c->x70.z = zgame::from_bits(a[16]);
+}
+int32_t probe_vb_dmg_call(int mode, uint32_t weapon, uint32_t x, uint32_t amount) {
+  switch (mode) {
+    case 0: return m3::vehicle_damage(*g_dv, hd(weapon), x, zgame::from_bits(amount));
+    case 1: m3::vehicle_hit(*g_dv, hd(weapon), x, zgame::from_bits(amount)); return 0;
+    default: m3::vehicle_view_tint(*g_dv, static_cast<uint8_t>(x)); return 0;
+  }
+}
+void probe_vb_dmg_image(uint32_t* a) {
+  const m3::VehicleControls& c = *g_dv->controls;
+  auto b = [](float f) { return zgame::bits(f); };
+  a[0] = lo(g_dv->node), a[1] = g_dv->active, a[2] = lo(g_dv->ammo), a[3] = g_dv->engine.entry != nullptr;
+  a[4] = c.frozen, a[5] = static_cast<uint32_t>(c.state), a[6] = b(c.health_max), a[7] = b(c.health);
+  a[8] = b(c.x398.x08), a[9] = c.beam_on, a[10] = lo(c.slots[0].beam), a[11] = b(c.motion.inv_mass);
+  a[12] = lo(c.motion.destroy_anim), a[13] = b(c.angles.x), a[14] = b(c.angles.z), a[15] = b(c.x70.x);
+  a[16] = b(c.x70.z);
+}
+}  // extern "C"
