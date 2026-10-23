@@ -100,14 +100,29 @@ constructor sets only the turret limits; its users fill it:
 - vt+0x18 0x4accd0: +0x1c the gravity ([0x609a14]), +0x30, +0x3c, +0x350,
   +0x5e8 zero.
 
+- The weapon slots (the owner's 0x4af2a0, ported in step 2a1b): ten of
+  0x38 bytes from +0x3b8, emptied, then one per `weapons` item (name n n
+  ammo ...; the same list `build_vehicle_weapons` reads): zWeapon's
+  definition by the name (0x581ed0), bit 1 paired (the item's third value),
+  bit 2 counted (its second value, when the definition exists) with the
+  fourth value as a float at +0x18, the fifth to seventh values kept as
+  they are, bit 0 from the eighth. Under the gun, its firepoint node is
+  named after the weapon, or `<name>_L` and `<name>_R` when paired; each is
+  hidden (0x4eb170), the first slot's shown again at the end (+0x3b4 points
+  at it). A beam weapon gets its beam (0x584a70) with the muzzle +0x608 and
+  direction +0x5f0, which the beam reads live, and 8 segments on the
+  controls whose serial is 1, 1 on every other: the serial counts every
+  vehicle controls set up since the program started ([0x60b148] is never
+  reset). No shipped vehicle carries a beam (their weapons are AC2, MGUN,
+  SRM2), so it never shows. FIX (bug): a weapon zWeapon lacks crashes the
+  original; here the slot stays empty (fixes.md).
+
 Open: a firepoint the gun has lands in one set of fields (fpnt_c +0x62c with
 the inverse of its length at +0x724, fpnt_r +0x638, fpnt_l +0x644), the
-default for one it lacks in another (+0x608 (0, 0, -1), +0x614 (1.51, 0.396,
--2.46), +0x620 (-1.51, 0.396, -2.46)). 0x4af2a0 hands +0x608 and +0x5f0 to
-0x584a70; nothing found in the vehicle code reads the found set. If the
-firing reads only the defaults' fields, a gun's own firepoints are ignored
-and a gun with fpnt_c fires along (0, 0, 0): settled with 0x4af2a0 and the
-firing (step 2), not guessed here; ported as written.
+starting value for one it lacks in another (+0x608 (0, 0, -1), +0x614
+(1.51, 0.396, -2.46), +0x620 (-1.51, 0.396, -2.46)). +0x608 is the muzzle a
+beam reads live, so the found positions are likely the local offsets the
+aiming turns into it each frame; settled with the frame (step 2c).
 
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 

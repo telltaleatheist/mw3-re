@@ -44,6 +44,7 @@ std::string text(uint32_t a) {
 std::deque<std::vector<zrdr::Node>> g_lists;
 std::deque<std::string> g_strings;
 std::map<uint32_t, zrdr::Node*> g_mirror;
+zrdr::Node* mirror_list(uint32_t list);
 zrdr::Node* mirror(uint32_t a) {
   if (!a) return nullptr;
   auto it = g_mirror.find(a);
@@ -51,29 +52,33 @@ zrdr::Node* mirror(uint32_t a) {
   g_lists.emplace_back(1);
   zrdr::Node* n = &g_lists.back()[0];
   n->type = static_cast<int32_t>(peek32(a));
-  if (n->type == zrdr::List) {
-    const uint32_t list = peek32(a + 4);
-    const int32_t count = static_cast<int32_t>(peek32(list + 4));
-    g_lists.emplace_back(static_cast<size_t>(count));
-    std::vector<zrdr::Node>& items = g_lists.back();
-    for (int32_t i = 0; i < count; ++i) {
-      zrdr::Node& it2 = items[static_cast<size_t>(i)];
-      it2.type = static_cast<int32_t>(peek32(list + 8 * i));
-      const uint32_t v = peek32(list + 8 * i + 4);
-      if (it2.type == zrdr::String) {
-        g_strings.push_back(text(v));
-        it2.s = g_strings.back().data();
-      } else {
-        it2.i = static_cast<int32_t>(v);
-      }
-    }
-    n->list = items.data();
-  }
+  if (n->type == zrdr::List) n->list = mirror_list(peek32(a + 4));
   g_mirror[a] = n;
   return n;
 }
+zrdr::Node* mirror_list(uint32_t list) {
+  const int32_t count = static_cast<int32_t>(peek32(list + 4));
+  g_lists.emplace_back(static_cast<size_t>(count));
+  std::vector<zrdr::Node>& items = g_lists.back();
+  for (int32_t i = 0; i < count; ++i) {
+    zrdr::Node& it2 = items[static_cast<size_t>(i)];
+    it2.type = static_cast<int32_t>(peek32(list + 8 * i));
+    const uint32_t v = peek32(list + 8 * i + 4);
+    if (it2.type == zrdr::String) {
+      g_strings.push_back(text(v));
+      it2.s = g_strings.back().data();
+    } else if (it2.type == zrdr::List && i > 0) {
+      it2.list = mirror_list(v);
+    } else {
+      it2.i = static_cast<int32_t>(v);
+    }
+  }
+  return items.data();
+}
 
 uint32_t g_owner_addr = 0;
+uint32_t g_ctl_addr = 0;     // the original's controls block
+bool g_run_slots = false;    // 0x004af2a0 itself, not its call
 m3::BasicVehicle g_owner;
 float g_matrix[12];
 std::unique_ptr<m3::VehicleControls> g_c;
@@ -109,6 +114,30 @@ struct Hooks : m3::VehControlsHooks {
   Handle anim_find(const char* name) override { return h(unported("0x0050b450", {name})); }
   void anim_start(Handle def, Handle node) override { unported("0x00508c10", {low(def), low(node), 0, 0, 0}); }
   void owner_weapons(void* owner, zrdr::Node* def) override { unported("0x004b4660", {ref(owner), low(def)}); }
+  void weapon_slots(m3::VehicleControls& c, void* owner, zrdr::Node* def) override {
+    if (g_run_slots) return m3::vehicle_weapon_slots(c, owner, def);
+    unported("0x004af2a0", {ref(owner), low(def)});
+  }
+  Handle weapon_def(const char* name) override { return h(unported("0x00581ed0", {name})); }
+  const char* weapon_def_name(Handle def) override {
+    static std::deque<std::string> names;
+    names.push_back(text(peek32(low(def) + 4)));
+    return names.back().c_str();
+  }
+  uint32_t weapon_def_flags(Handle def) override { return peek32(low(def) + 0x6c); }
+  void node_set_active(Handle node, int32_t on) override { unported("0x004eb170", {low(node), on}); }
+  Handle beam_make(Handle def, Handle owner_node, Handle node, const m3::Vec3c* muzzle, const m3::Vec3c* dir,
+                   int32_t segments) override {
+    return h(unported("0x00584a70", {low(def), low(owner_node), 0, low(node), field(muzzle), field(dir), segments}));
+  }
+  // A pointer into the port's controls as the same field of the original's.
+  static uint32_t field(const void* p) {
+    const auto* b = reinterpret_cast<const uint8_t*>(g_c.get());
+    const auto* q = static_cast<const uint8_t*>(p);
+    if (p == &g_c->muzzle) return g_ctl_addr + 0x608;
+    if (p == &g_c->aim_dir) return g_ctl_addr + 0x5f0;
+    return lo(q) - lo(b);
+  }
 };
 Hooks g_hooks;
 
@@ -140,6 +169,26 @@ void probe_vc_set398(const uint32_t* v) {
   b.flags = v[0], b.x04 = v[1], b.x08 = v[2], b.x0c = v[3], b.x10 = v[4], b.x14 = v[5];
 }
 
+// For 0x004af2a0 alone: the original's block, the serial and gun it has,
+// a slot's words as the test set them (def, index, node, node_r, x10, flags,
+// x18, x1c, x20, x24, x28, x2c, x30, beam).
+void probe_vc_slots_state(uint32_t ctl, int32_t serial, uint32_t gun) {
+  g_ctl_addr = ctl;
+  g_c->serial = serial;
+  g_c->gun = hd(gun);
+}
+void probe_vc_set_slot(int i, const uint32_t* w) {
+  m3::WeaponSlot& s = g_c->slots[i];
+  s.def = hd(w[0]), s.index = static_cast<int32_t>(w[1]), s.node = hd(w[2]), s.node_r = hd(w[3]);
+  s.flags = w[5], s.x18 = zgame::from_bits(w[6]), s.x24 = w[9], s.x28 = w[10], s.x2c = w[11], s.x30 = w[12];
+  s.beam = hd(w[13]);
+}
+void probe_vc_weapon_slots(uint32_t def) {
+  g_run_slots = true;
+  m3::vehicle_weapon_slots(*g_c, &g_owner, reinterpret_cast<zrdr::Node*>(hd(def)));
+  g_run_slots = false;
+}
+
 void probe_vc_init() { g_c->init(); }
 void probe_vc_setup(uint32_t def) { g_c->setup(reinterpret_cast<zrdr::Node*>(hd(def))); }
 void probe_vc_reset_1c() { g_c->reset_1c(); }
@@ -162,8 +211,16 @@ void probe_vc_image(uint8_t* b) {
   put(b, 0x398, c.x398.flags), put(b, 0x39c, c.x398.x04), put(b, 0x3a0, c.x398.x08), put(b, 0x3a4, c.x398.x0c);
   put(b, 0x3a8, c.x398.x10), put(b, 0x3ac, c.x398.x14);
   put(b, 0x3b0, lo(c.node));
-  put(b, 0x5e8, c.x5e8), put(b, 0x5ec, static_cast<uint32_t>(c.x5ec)), put3(b, 0x5fc, c.x5fc);
-  put3(b, 0x608, c.fire_c_default), put3(b, 0x614, c.fire_l_default), put3(b, 0x620, c.fire_r_default);
+  put(b, 0x3b4, c.first ? g_ctl_addr + 0x3b8 + 0x38 * static_cast<uint32_t>(c.first - c.slots) : 0);
+  for (int i = 0; i < 10; ++i) {
+    const m3::WeaponSlot& s = c.slots[i];
+    const uint32_t o = 0x3b8 + 0x38 * static_cast<uint32_t>(i);
+    put(b, o, lo(s.def)), put(b, o + 4, static_cast<uint32_t>(s.index)), put(b, o + 8, lo(s.node));
+    put(b, o + 0xc, lo(s.node_r)), put(b, o + 0x14, s.flags), putf(b, o + 0x18, s.x18), put(b, o + 0x24, s.x24);
+    put(b, o + 0x28, s.x28), put(b, o + 0x2c, s.x2c), put(b, o + 0x30, s.x30), put(b, o + 0x34, lo(s.beam));
+  }
+  put(b, 0x5e8, c.x5e8), put(b, 0x5ec, static_cast<uint32_t>(c.x5ec)), put3(b, 0x5f0, c.aim_dir), put3(b, 0x5fc, c.x5fc);
+  put3(b, 0x608, c.muzzle), put3(b, 0x614, c.fire_l), put3(b, 0x620, c.fire_r);
   put3(b, 0x62c, c.fpnt_c), put3(b, 0x638, c.fpnt_r), put3(b, 0x644, c.fpnt_l);
   put(b, 0x650, static_cast<uint32_t>(c.x650));
   put3(b, 0x6d8, c.gun_pos);

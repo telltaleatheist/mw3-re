@@ -1,6 +1,7 @@
 #include "mech3/veh_controls.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -11,6 +12,8 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech.h"
 #include "mech3/weapon.h"
 
@@ -61,6 +64,20 @@ zrdr::Node* VehControlsHooks::reader_find(zrdr::Node* node, const char* key) { r
 VehControlsHooks::Handle VehControlsHooks::anim_find(const char* name) { return zeff::anim_find(name); }
 void VehControlsHooks::anim_start(Handle def, Handle node) {
   zeff::anim_start(static_cast<zeff::AnimDef*>(def), zn(node), 0, 0, 0);
+}
+void VehControlsHooks::weapon_slots(VehicleControls& c, void* owner, zrdr::Node* def) {
+  vehicle_weapon_slots(c, owner, def);
+}
+VehControlsHooks::Handle VehControlsHooks::weapon_def(const char* name) { return zwep::find_def(name); }
+const char* VehControlsHooks::weapon_def_name(Handle def) { return static_cast<zwep::WeaponDef*>(def)->name; }
+uint32_t VehControlsHooks::weapon_def_flags(Handle def) { return static_cast<zwep::WeaponDef*>(def)->flags; }
+void VehControlsHooks::node_set_active(Handle node, int32_t on) { zcls::node_set_active(zn(node), on); }
+VehControlsHooks::Handle VehControlsHooks::beam_make(Handle def, Handle owner_node, Handle node, const Vec3c* muzzle,
+                                                     const Vec3c* dir, int32_t segments) {
+  (void)node;  // pushed, not read (as the mechs' call)
+  return zwep::beam_make(static_cast<zwep::WeaponDef*>(def), owner_node, nullptr,
+                         reinterpret_cast<const zwep::Vec3f3*>(muzzle), reinterpret_cast<const zwep::Vec3f3*>(dir),
+                         segments);
 }
 void VehControlsHooks::owner_weapons(void* owner, zrdr::Node* def) {
   Vehicle* v = veh(owner);
@@ -135,7 +152,7 @@ void VehicleControls::init() {
       h.model_release(model);
       fire_c_scale = 1.0f / std::sqrt(fpnt_c.x * fpnt_c.x + fpnt_c.y * fpnt_c.y + fpnt_c.z * fpnt_c.z);
     } else {
-      fire_c_default = {0, 0, -1.0f};
+      muzzle = {0, 0, -1.0f};
       fire_c_scale = 1.0f;
     }
     if (Handle l = h.node_child(gun, "fpnt_l")) {
@@ -143,14 +160,14 @@ void VehicleControls::init() {
       h.node_remove_child(gun, l);
       h.node_free(l);
     } else {
-      fire_l_default = {1.51f, 0.396f, -2.46f};
+      fire_l = {1.51f, 0.396f, -2.46f};
     }
     if (Handle r = h.node_child(gun, "fpnt_r")) {
       h.node_translation(r, &fpnt_r.x, &fpnt_r.y, &fpnt_r.z);
       h.node_remove_child(gun, r);
       h.node_free(r);
     } else {
-      fire_r_default = {-1.51f, 0.396f, -2.46f};
+      fire_r = {-1.51f, 0.396f, -2.46f};
     }
   }
   x28 = 0, x2c = 0;
@@ -174,10 +191,72 @@ void VehicleControls::setup(zrdr::Node* def) {
     }
   }
   if (zrdr::Node* hp = h.reader_find(def, "health")) health = health_max = hp->list[1].f;
-  h.owner_4af2a0(v, def);
+  h.weapon_slots(*this, v, def);
   h.owner_weapons(v, def);
   node = v->node;
   x398.clear();
+}
+
+// Mech3.exe 1.2 @ 0x004af2a0
+void vehicle_weapon_slots(VehicleControls& c, void* owner, zrdr::Node* def) {
+  VehControlsHooks& h = *g_hooks;
+  for (int i = 0; i < 10; ++i) {
+    WeaponSlot& s = c.slots[i];
+    s.index = i;
+    s.flags &= ~4u;
+    s.x18 = 0;
+    s.node = nullptr;
+    s.beam = nullptr;
+  }
+  const int32_t segments = c.serial == 1 ? 8 : 1;
+  if (zrdr::Node* weapons = h.reader_find(def, "weapons")) {
+    const zrdr::Node* list = weapons->list;
+    const int32_t n = list[0].i - 1;
+    for (int32_t i = 0; i < n; ++i) {
+      const zrdr::Node* item = list[1 + i].list;
+      const std::string name = item[1].s;  // copied to 20 bytes in the exe
+      WeaponSlot& s = c.slots[i];
+      s.def = h.weapon_def(name.c_str());
+      s.flags = (s.flags & ~2u) | ((static_cast<uint32_t>(item[3].i) & 1) << 1);
+      if (item[2].i) s.flags = (s.flags & ~4u) | (s.def ? 4u : 0u);
+      s.x18 = (s.flags & 4) ? static_cast<float>(item[4].i) : 0.0f;
+      s.x24 = 0;
+      s.x28 = static_cast<uint32_t>(item[5].i);
+      s.x2c = static_cast<uint32_t>(item[6].i);
+      s.x30 = static_cast<uint32_t>(item[7].i);
+      s.flags = (s.flags & ~1u) | (static_cast<uint32_t>(item[8].i) & 1);
+      if (i == 0) {
+        c.first = &s;
+        c.x5ec = 0;
+      }
+      // FIX (bug): a weapon zWeapon does not have leaves no definition, and
+      // the exe reads its name and flags through null (no shipped vehicle
+      // names one; a modded vehicle.zrd would crash). Here the slot stays
+      // without nodes or a beam.
+      if (!s.def) continue;
+      if (c.gun) {
+        const char* wname = h.weapon_def_name(s.def);
+        if (s.flags & 2) {
+          char buf[80];
+          std::snprintf(buf, sizeof buf, "%s_L", wname);
+          s.node = h.node_child(c.gun, buf);
+          std::snprintf(buf, sizeof buf, "%s_R", wname);
+          s.node_r = h.node_child(c.gun, buf);
+          if (s.node) h.node_set_active(s.node, 0);
+          if (s.node_r) h.node_set_active(s.node_r, 0);
+        } else {
+          s.node = h.node_child(c.gun, wname);
+          if (s.node) h.node_set_active(s.node, 0);
+        }
+      }
+      if (h.weapon_def_flags(s.def) & 2)
+        s.beam = h.beam_make(s.def, veh(owner)->node, s.node, &c.muzzle, &c.aim_dir, segments);
+    }
+  }
+  if (c.first && c.first->node) {
+    h.node_set_active(c.first->node, 1);
+    if (c.first->node_r) h.node_set_active(c.first->node_r, 1);
+  }
 }
 
 // Mech3.exe 1.2 @ 0x004accd0
