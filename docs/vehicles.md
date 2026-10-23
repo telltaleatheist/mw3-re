@@ -1,6 +1,7 @@
 # Vehicles and turrets (scoping, 2026-10-21)
 
-What c1m1 and c1m2 need, and what porting it means. Not ported yet.
+What c1m1 and c1m2 need, and what porting it means. Being ported (the
+steps: docs/worklogs/ai.md, item 4).
 
 ## In the first missions
 
@@ -16,17 +17,38 @@ also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
 
 ## The basic vehicle (veh_basic.cpp region, 0x4ac320..)
 
-- 0x4ac320: the node by name on list 6, else a copy of the type's model
-  (0x4f9af0) named and put under the world ([0x608c84] vt+0); then a
-  0xfc-byte object, 0x4ac530: the vehicle base 0x4aeb00 (AiTarget, ZEntity3d,
-  ZEntity: the port's `vehicle_base` does it for mechs), sub-objects
-  0x4adaf0 / 0x4aec00, vtable 0x5c88e8, controls (+0xe4) either given or
-  made: 0x4ac860 (0xcd8 bytes zeroed) and 0x4ae270 (the AI's vehicle
-  controls over 0x4ac750, the port's `ai::AiVehicleControls`), the
-  vehicles' camera modes once (0x4ace00), the node attached (0x4d6c90) and
-  zEntity's list (0x5a7f50).
-- vt+0x158 0x49ec00: the definition's lists (weapons 0x4adb20 -> 0x4ad930,
-  through the ported 0x4b4660; the animations 0x4ade40), then the controls'
+- 0x4ac320 (ECX the controls, EDX the type, the name on the stack): the
+  node by name on list 6, else a copy of the type's model (0x4f9af0(model,
+  0, 0)) named and put under the world ([0x608c84] vt+0); then a 0xfc-byte
+  object, 0x4ac530(controls, node): the vehicle base 0x4aeb00 (AiTarget,
+  ZEntity3d, ZEntity), the engine sound at +0xe8 (0x4adaf0, vtable
+  0x5c8b90; the setup puts the definition's sounds/engine there from the
+  vehicles' shared cache 0x60b110, step 1b) and the motion animation at
+  +0xf0 (0x4aec00 zeroes it; the linker shares that body with IControls'
+  hit record; the setup's motion_anim),
+  vtable 0x5c88e8, the controls (+0xe4) either given (their SetOwner,
+  IControls vt+0x08) or made: 0x4ac860(0xa70) and 0x4ae270, the vehicle's
+  own basic controls over 0x4ac750 (vtable 0x5c8c50, step 2a; the AI's are
+  the ones given), the vehicles' camera modes once (0x4ace00), the node
+  attached (0x4d6c90) and zEntity's list (0x5a7f50).
+- The destructor 0x4ac650 (0x4ac630 deletes): the engine sound dropped, the
+  controls deleted (IControls vt+0x00), the node detached (0x583400), taken
+  from the world (0x4ebb40), freed (0x4f9050) and unlisted; the motion
+  animation stopped (0x4addb0 -> 0x4ade70 -> 0x506ca0); then the base 0x4aeb50 (the
+  weapons 0x4b01d0, the network's record), AiTarget's 0x4d58a0 (the
+  contacts, the shadow) and ZEntity3d's 0x5a7f90, which unlists the entity
+  again whether it is listed or not, and ZEntity's 0x5a8370.
+- The HUD markers 0x4ac3d0: three zTwoD images, `hud_veh_ally_sm`,
+  `hud_veh_enemy_sm`, `hud_veh_other_sm`, at [0x60b120] / [0x60b124] /
+  [0x60b128].
+- Ported (step 1a, 2026-10-23): all of the above, `mech3/veh_basic_object`
+  (`BasicVehicle` over the shared `Vehicle` base, which `Mech` now derives
+  from too), checked by `test_veh_basic.py`. 0x4ace00 stays a hook (the
+  camera modes for viewing a vehicle). Not in play yet: a vehicle needs its
+  setup and placement (steps 1b, 1c) first.
+- vt+0x158 0x49ec00(def, name, kind): the definition's `sounds` list's
+  `engine` (0x4adb20 -> 0x4ad930, the engine-sound cache; not weapons, as
+  first read) and its `motion_anim` (0x4ade40), then the controls'
   vt+0x0c (the AI's setup).
 - vt+0x34 0x4a1040: the frame, from the controls (their throttle and turn
   through vt+0x1c and the IControls base): without the AI nothing moves.

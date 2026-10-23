@@ -820,3 +820,28 @@ Resume here (paused 2026-10-22 for the usage limit): item 3 is merged at
 b0f6296; nothing is in progress. Wait for the lead's answer on this split,
 then start 1a. Rule from the lead: the related test set includes every test
 that imports a changed test's harness.
+
+## 2026-10-23 Item 4, step 1a: the basic vehicle as an object (lead, main window)
+
+From here the lead does the items in its own window (Owen, 2026-10-23); mac 4
+is paused.
+
+- `mech3/veh_basic_object`: `BasicVehicle` (0xfc) over `Vehicle`, the base
+  split out of `Mech` (+0x04..+0xd8, `vehicle_base` 0x4aeb00 now takes it;
+  `vehicle_set_node` is 0x4d6c90's stand-in for both). The entry 0x4ac320,
+  the ctor 0x4ac530, the dtor 0x4ac650 / 0x4ac630 with the bases' 0x4aeb50,
+  0x4d58a0, 0x5a7f90, 0x5a8370, the markers 0x4ac3d0.
+- Corrections to the split: the ctor's arguments are (controls, node), not
+  what Ghidra shows; the controls it makes are the vehicle's own basic ones
+  (0x4ac860(0xa70), 0x4ae270), not the AI's (those come given); +0xe8 is the engine sound (the setup's
+  sounds/engine, from a shared cache at 0x60b110) and +0xf0 the motion
+  animation (its dtor stops it), not a hit record, though 0x4aec00 zeroes
+  both (one shared body).
+- test_veh_basic.py: 200 runs (2 s) over the name or type found, the copy
+  failing, given or made controls (the block failing), and the dtor with
+  each optional field set (weapons, network record, motion, engine); traces, the 0xfc bytes and the markers compared.
+  8 breaks caught (16 s for all).
+- Left from 1a: 0x4ace00 is a hook (the camera modes for viewing a
+  vehicle); the program does not make vehicles yet (needs 1b, 1c). The
+  stealth subclass 0x4a4de0 is still to map before step 1 ends.
+- Next: 1b, the sub-objects' contents and the setup vt+0x158 0x49ec00.
