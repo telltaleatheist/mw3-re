@@ -387,6 +387,24 @@ are the defaults of `VehicleControls`' virtuals (destroyed: yes, 0x4a5270).
 compares. 0x4e95b0 (+0x84), 0x4d99e0 (+0x88), 0x4ea700 (+0x60) and 0x4d1e60
 (+0x54) are shared with the mechs and answered where they are called.
 
+## The setup's points and zone (0x49f660, 0x49f710, ported 2026-10-23)
+
+After the motion block, the mission start (0x49f8a0) calls 0x49f660 on the
+vehicle: the controls' vt+0x18 (0x4accd0, the gravity word), then each of
+the controls' points (+0x160, count +0x214) is the motion's collision point
+(+0x764+0x194) off the entity's position (0x5a85e0, asked each time). Then
+0x49f710 finds its zone: the node's flag 8 saved and cleared (so the query
+misses the vehicle itself), the ground under its x and z from 500 up
+(0x4edab0), the flag put back, the pick 0x4abd90 (step 4, water not
+ground); when the query found ground, the picked polygon's 4-byte zone
+record becomes the vehicle's +0x64 (zEntity's 0x5a80d0) and the node's zone
+byte (0x5a80c0 -> 0x4eb810) the first id the record shares with the view's
+camera (0x53cd20: 0xff with zones off, either list empty or an 0xff met),
+else the record's first id. `vehicle_points_place` and
+`vehicle_zone_from_ground` (veh_basic_object), `zmod::zone_common`
+(gmod_cull); `test_veh_setup.py`, 600 runs, 12 breaks caught. zEntity's
+per-frame zone update 0x5a80f0 (vt+0x38) is left for the frame.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

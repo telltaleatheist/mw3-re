@@ -10,6 +10,7 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zweapon/zweapon.h"
@@ -17,6 +18,8 @@
 #include "mech3/mech_build.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
+#include "mech3/app_view.h"
+#include "mech3/veh_basic.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -65,6 +68,17 @@ int32_t VehBasicHooks::damage(BasicVehicle& v, Handle weapon, uint32_t x, float 
 uint32_t VehBasicHooks::weapon_flags(Handle weapon) { return static_cast<zwep::WeaponDef*>(weapon)->flags; }
 const float* VehBasicHooks::shot_line() { return reinterpret_cast<const float*>(zwep::shot_line()); }  // from, then to
 int32_t VehBasicHooks::game_intensity() { return mech3::game_intensity(); }
+const uint8_t* VehBasicHooks::camera_zones() {
+  const PlayerView* v = program_view();
+  return v ? static_cast<const uint8_t*>(static_cast<zcls::Node*>(v->camera)->data) + 0x1e4 : nullptr;
+}
+int32_t VehBasicHooks::node_flag8(Handle node) {
+  int32_t f = 0;
+  zcls::node_get_flag8(static_cast<zcls::Node*>(node), &f);
+  return f;
+}
+void VehBasicHooks::node_set_flag8(Handle node, int32_t on) { zcls::node_set_flag8(static_cast<zcls::Node*>(node), on); }
+void VehBasicHooks::node_set_zone(Handle node, uint8_t zone) { zcls::node_set_zone(static_cast<zcls::Node*>(node), zone); }
 const char* VehBasicHooks::node_name(Handle node) { return static_cast<const char*>(node); }  // a node starts with its name
 const float* VehBasicHooks::entity_position(Vehicle& v) {
   static float p[3];
@@ -608,6 +622,46 @@ bool vehicle_can_aim(BasicVehicle& v, float cos_limit) { return v.controls ? v.c
 void vehicle_aim_at(BasicVehicle& v, const float dir[3], uint32_t unused) {
   (void)unused;
   if (v.controls) v.controls->aim_at(dir);
+}
+
+// ---------------------------------------------------------------------------
+// The setup's points and zone (player.cpp)
+
+// Mech3.exe 1.2 @ 0x0049f660
+void vehicle_points_place(BasicVehicle& v) {
+  VehBasicHooks& h = *g_hooks;
+  VehicleControls& c = *v.controls;
+  c.reset_1c();  // vt+0x18
+  for (int32_t i = 0; i < c.point_count; ++i) {
+    const float* p = h.entity_position(v);
+    const Vec3c& m = c.motion.collision[i];
+    c.points[i] = {m.x + p[0], m.y + p[1], m.z + p[2]};
+  }
+  vehicle_zone_from_ground(v);
+}
+
+// Mech3.exe 1.2 @ 0x0049f710
+void vehicle_zone_from_ground(BasicVehicle& v) {
+  VehBasicHooks& h = *g_hooks;
+  const int32_t flag = h.node_flag8(v.node);
+  h.node_set_flag8(v.node, 0);
+  const float z = h.entity_position(v)[2];
+  const float x = h.entity_position(v)[0];
+  zcls::GroundHits hits{};
+  const int32_t r = h.ground(x, 500.0f, z, &hits);
+  h.node_set_flag8(v.node, flag);
+  int32_t best = 0, in_water = 0;
+  float surface = 0;
+  ground_pick(hits, h.entity_position(v)[1], 4.0f, &best, 1, &in_water, &surface);
+  if (r != 0) return;
+  uint8_t rec[4];
+  std::memcpy(rec, &hits.hit[best].zone[0], 4);
+  const uint8_t* cam = h.camera_zones();
+  int32_t zone = cam ? zmod::zone_common(cam, rec) : 0xff;
+  if (zone == -1) zone = rec[1];
+  v.x64 = rec[0];  // 0x005a80d0: the record into +0x64, the id onto the node (0x005a80c0)
+  std::memcpy(v.zones, rec + 1, 3);
+  h.node_set_zone(v.node, static_cast<uint8_t>(zone));
 }
 
 }  // namespace mech3
