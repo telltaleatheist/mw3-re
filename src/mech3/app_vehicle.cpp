@@ -84,6 +84,13 @@ struct WiredVehicles : VehBasicHooks {
   void hit_health(float f) override { zwep::set_health_after(f); }
   void hit_killed() override { zwep::note_kill(reinterpret_cast<zwep::Handle>(1), nullptr); }
   Handle node_object(Handle node) override { return node_entity(node); }
+  // obj.vt+0x80: a mech's kill credit (0x0041b420); a vehicle's 0x004a5bc0
+  // does nothing.
+  void credit_kill(Handle object, BasicVehicle& v) override {
+    if (entity_is_mech(object)) return static_cast<Mech*>(object)->on_kill(&v);
+    if (is_program_vehicle(object)) return;
+    VehBasicHooks::credit_kill(object, v);
+  }
   Handle anim_run(Handle def, Handle node) override {
     return def ? zeff::anim_start(static_cast<zeff::AnimDef*>(def), zn(node), 0, 0, 0) : nullptr;
   }
@@ -212,6 +219,21 @@ void* program_vehicle_brain(void* controls) {
     if (static_cast<BasicVehicle*>(v)->controls == controls)
       if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(v)->controls)) return c->brain.get();
   return nullptr;
+}
+bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
+  zwep::WeaponDef* def = zwep::find_def(weapon);
+  if (!is_program_vehicle(v) || !def || !bv(v).controls) return false;
+  zwep::hit_state().attacker = killer ? static_cast<Vehicle*>(killer)->node : nullptr;
+  vehicle_damage(bv(v), def, 0, bv(v).controls->health + 1.0f);
+  zwep::hit_state().attacker = nullptr;
+  return !bv(v).active;
+}
+bool program_vehicle_free(void* v) {
+  if (!is_program_vehicle(v)) return false;
+  vehicle_delete(static_cast<BasicVehicle*>(v));  // vt+0x00 0x004ac630(1)
+  g_vehicles.erase(static_cast<Vehicle*>(v));     // its zEntity entry goes in the destructor
+  g_order.erase(std::remove(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)), g_order.end());
+  return true;
 }
 void program_vehicles_forget() { g_vehicles.clear(), g_order.clear(); }
 std::vector<void*> program_vehicles() { return {g_order.begin(), g_order.end()}; }

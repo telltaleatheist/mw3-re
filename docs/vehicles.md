@@ -570,9 +570,17 @@ zWeapon's hit handler (0x4af550's port) on its node. c1m1's four (ttruck_01,
 ttruck_02, apc_01, apc_02) are made, in the world, with their health and
 weapons (`mission_start_reads_c1m1_vehicles_headless`), and on zEntity's
 list with the player, the Owens and the command marker. Their frame, brain,
-sensing and engine sound since step 3b (below). Not yet: the mobile HQs
-(step 3), their teardown at the mission's end, the kill credit (obj.vt+0x80
-0x41b420).
+sensing and engine sound since step 3b (below); their teardown and kill
+credit since 3c. Not yet: the mobile HQs (step 3).
+
+**The teardown and the kill credit (3c).** The mission's end deletes every
+zEntity entry through vt+0x00; a vehicle's is 0x4ac630(1) (`vehicle_delete`,
+`program_vehicle_free`). A vehicle killed by a weapon credits the shooter's
+entity (obj.vt+0x80): a mech's 0x41b420 counts one vehicle and 75 points
+and, in the campaign for the player or an ally, salvages it (0x472ec0: on a
+coin, its weapons); the victim answers itself to vt+0x2c and vt+0x40, 0 to
+vt+0x48 and vt+0x50. A vehicle's own vt+0x80 (0x4a5bc0) is an empty
+`ret 4`: a vehicle that kills scores nothing.
 
 **The collision count.** Every shipped vehicle's model has the twelve
 collide00..11 nodes, so the motion reader takes the points from the model,

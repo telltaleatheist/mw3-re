@@ -244,6 +244,9 @@ From the port of the damage code, checked in an emulator against the original
   unless a setting in its AI record keeps it always awake (the tenth "p8"
   value in aiv.zrd; Op 1 Mission 1's trucks have it). A vehicle without it
   waits where the mission put it until you come near. (docs/vehicles.md)
+- **Vehicles never get credit for kills.** When a tank or APC destroys
+  something, the game's kill credit for vehicles is empty: only mechs
+  score kills and points. (docs/vehicles.md)
 - **Op 1 Mission 1's trucks are scenery.** No objective counts them. After
   the opening they drive to a waypoint and wait; 18 seconds later a timer
   sends them on, and the next waypoint, a few metres further, runs a

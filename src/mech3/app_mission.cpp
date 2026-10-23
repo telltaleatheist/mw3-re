@@ -1077,14 +1077,14 @@ struct WiredMissionHooks : MissionHooks {
     e->unported("0x00414000", {});
   }
   void delete_object(Handle obj) override {
-    if (!mech_free(e->object_of(obj))) MissionHooks::delete_object(obj);
+    if (!mech_free(e->object_of(obj)) && !program_vehicle_free(e->object_of(obj))) MissionHooks::delete_object(obj);
   }
   void fn_49dc40() override {
     auto& list = ai::entity_list();
     while (!list.empty()) {
       const Handle h = list.front();
       const size_t before = list.size();
-      if (!mech_free(e->object_of(h))) e->unported("entity vt+0x0", {h, 1});
+      if (!mech_free(e->object_of(h)) && !program_vehicle_free(e->object_of(h))) e->unported("entity vt+0x0", {h, 1});
       // A mech without a node stays on the list (its destructor takes it off
       // only with one, as the exe's would): the front goes regardless, so the
       // loop always ends and nothing is deleted twice.
