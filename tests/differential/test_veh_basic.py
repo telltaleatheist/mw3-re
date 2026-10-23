@@ -19,7 +19,9 @@ made, its 0xfc bytes after the constructor and the markers. The engine
 sounds: lookups by name (repeats, unknown sounds, null names, more than the
 list's 64), then the clear with voices playing. The setup: the definition's
 sounds a list or not, an engine or none, a motion_anim or none (a string, 0
-or not one), an animation running.
+or not one), an animation running. The cameras 0x4ace00 (twice) at both x87
+precisions: each mode's bytes, the lookups 0x4acde0 / 0x4acdc0 and the view
+call 0x4acd90.
 """
 import ctypes
 import os
@@ -325,6 +327,68 @@ def markers(probe):
     return ok
 
 
+CAMS, CAM_FLAG, VIEW = 0x60b130, 0x5e8578, 0x5f4c8c
+
+
+def close(a, b):
+    fa, fb = struct.unpack('<f', struct.pack('<I', a))[0], struct.unpack('<f', struct.pack('<I', b))[0]
+    return a == b or abs(fa - fb) <= 1e-6
+
+
+def cameras(probe, x87):
+    """0x4ace00 twice (the second makes none), each mode's +0x04..+0x43, the
+    lookups 0x4acde0 / 0x4acdc0 by id, and 0x4acd90's view call."""
+    t = Trace()
+    e = make(0, t)[0]
+    del e.slots[0x4ace00]  # make()'s stub, for the ctor
+    e.cpu.fpu_control(x87)
+    probe.probe_vb_cameras_reset()
+    name = f'cameras (x87 {x87:#06x})'
+    for _ in range(2):
+        e.call(0x4ace00)
+        probe.probe_vb_cameras_make()
+    begin, end = e.r32(CAMS + 4), e.r32(CAMS + 8)
+    modes = [e.r32(a) for a in range(begin, end, 4)]
+    if len(modes) != probe.probe_vb_camera_count() or e.r32(CAM_FLAG) != 0:
+        print(f'{name}: modes original {len(modes)} rebuild {probe.probe_vb_camera_count()}')
+        return False
+    out = (U * 16)()
+    for i, m in enumerate(modes):
+        probe.probe_vb_camera_image(i, out)
+        want = [e.r32(m + 4 + 4 * k) for k in range(16)]
+        bad = [k for k in range(16) if not close(want[k], out[k])]
+        if bad:
+            k = bad[0]
+            print(f'{name}: mode {i} differs at +{4 + 4 * k:#x}: original {want[k]:#010x} rebuild {out[k]:#010x}')
+            return False
+    index = {m: i for i, m in enumerate(modes)}
+    for cam in range(-1, 6):
+        want = index.get(e.call(0x4acde0, stack=(cam,)), -1)
+        if want != probe.probe_vb_camera_find(cam):
+            print(f'{name}: camera {cam}: original {want} rebuild {probe.probe_vb_camera_find(cam)}')
+            return False
+    want = index.get(e.call(0x4acdc0), -1)
+    if want != probe.probe_vb_camera_current():
+        print(f'{name}: current: original {want} rebuild {probe.probe_vb_camera_current()}')
+        return False
+    seen = []
+
+    def attach(em, key, a, pop):
+        seen.extend([a[1], index.get(a[2], -1)] if a[0] == view else ['not the view'])
+        em._ret(1, pop)
+    e.stub(0x40adf0, spec='c,s0,s1', pop=8, fn=attach)
+    view = e.world_alloc(0x80)
+    e.w32(VIEW, view)
+    v = e.world_alloc(0x100)
+    e.call(0x4acd90, ecx=v)
+    got = (U * 2)()
+    probe.probe_vb_view_attach(v, got)
+    if seen != list(got):
+        print(f'{name}: the view call: original {seen} rebuild {list(got)}')
+        return False
+    return True
+
+
 def main():
     probe = load_probe()
     probe.probe_app_set_callback.argtypes = [CALLBACK]
@@ -336,6 +400,9 @@ def main():
     probe.probe_vb_sound_entry.argtypes = [ctypes.c_int, P]
     probe.probe_vb_sound_voice.argtypes = [ctypes.c_int, U]
     probe.probe_vb_setup.argtypes = [U, ctypes.c_char_p, ctypes.c_int32]
+    probe.probe_vb_camera_image.argtypes = [ctypes.c_int, P]
+    probe.probe_vb_camera_find.argtypes = [ctypes.c_int32]
+    probe.probe_vb_view_attach.argtypes = [U, P]
     probe.probe_vb_hooks(1)
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 200
@@ -351,9 +418,9 @@ def main():
             if not ok:
                 sys.stdout.flush(); os._exit(1)
             calls += n
-    if not markers(probe):
+    if not markers(probe) or not all(cameras(probe, cw) for cw in (0x007f, 0x037f)):
         sys.stdout.flush(); os._exit(1)
-    print(f'ok: {runs} vehicles made and destroyed as the original, {runs // 2} engine-sound runs and setups ({calls} calls), the three markers alike')
+    print(f'ok: {runs} vehicles made and destroyed as the original, {runs // 2} engine-sound runs and setups ({calls} calls), the three markers and the three cameras alike')
     sys.stdout.flush(); os._exit(0)
 
 

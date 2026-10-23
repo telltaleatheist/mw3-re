@@ -5,10 +5,12 @@
 
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
 #include "mech3/mech_build.h"
 #include "mech3/mission_world.h"
+#include "mech3/player_view.h"
 #include "mech3/weapon.h"
 
 namespace mech3 {
@@ -18,6 +20,8 @@ VehBasicHooks g_default_hooks;
 VehBasicHooks* g_hooks = &g_default_hooks;
 VehicleMarkers g_markers;
 EngineSoundList g_engine_sounds;  // 0x0060b110
+CameraList g_cameras;             // 0x0060b130 (freed at exit, 0x004ac300)
+bool g_cameras_pending = true;    // 0x005e8578
 zsnd::Object* snd(Handle h) { return static_cast<zsnd::Object*>(h); }
 zsnd::VoiceBase* voice(Handle h) { return static_cast<zsnd::VoiceBase*>(h); }
 }  // namespace
@@ -334,5 +338,54 @@ void vehicle_markers_create() {
   g_markers.enemy = h.marker_create("hud_veh_enemy_sm");
   g_markers.other = h.marker_create("hud_veh_other_sm");
 }
+
+CameraList& vehicle_cameras() { return g_cameras; }
+void vehicle_cameras_reset() {
+  for (CameraMode*& c : g_cameras.modes) delete c;
+  g_cameras.modes.clear();
+  g_cameras.current = 0;
+  g_cameras_pending = true;
+}
+
+// Mech3.exe 1.2 @ 0x004ace00: plain modes (0x0040a950), none of the mechs'
+// definition blocks; behind is pitched down 0.06 rad, above straight down.
+void vehicle_cameras_make() {
+  if (!g_cameras_pending) return;
+  g_cameras_pending = false;
+  auto* behind = new CameraMode(0);
+  zmth::quat_pitch(zgame::from_bits(0xbd75c28f), *reinterpret_cast<zmth::Quat*>(behind->delta_rot));
+  behind->desired_pos[0] = 0.0f;
+  behind->desired_pos[1] = zgame::from_bits(0x3edc28f6);  // 0.43, not normalised
+  behind->desired_pos[2] = 1.0f;
+  behind->dist_vary_factor = 1.0f;
+  g_cameras.modes.push_back(behind);
+
+  auto* on = new CameraMode(1);
+  on->dist = 1.0f;
+  on->delta_rot[0] = 1.0f, on->delta_rot[1] = on->delta_rot[2] = on->delta_rot[3] = 0.0f;  // 0x005eda50
+  on->desired_pos[0] = 0.0f;
+  on->desired_pos[1] = 1.0f;
+  on->desired_pos[2] = 0.0f;
+  on->dist_vary_factor = 0.0f;
+  g_cameras.modes.push_back(on);
+
+  auto* above = new CameraMode(3);
+  above->dist = 150.0f;
+  zmth::quat_pitch(zgame::from_bits(0xbfc90fd8), *reinterpret_cast<zmth::Quat*>(above->delta_rot));
+  above->desired_pos[0] = 0.0f;
+  above->desired_pos[1] = 1.0f;
+  above->desired_pos[2] = 0.0f;
+  above->dist_vary_factor = 0.0f;
+  above->dist_vary = 0.0f;
+  above->dist_factor = 0.0f;
+  g_cameras.modes.push_back(above);
+}
+
+// Mech3.exe 1.2 @ 0x004acde0
+CameraMode* vehicle_camera(int32_t id) { return g_cameras.find(id); }
+// Mech3.exe 1.2 @ 0x004acdc0
+CameraMode* vehicle_camera_current() { return g_cameras.find(g_cameras.current); }
+// Mech3.exe 1.2 @ 0x004acd90
+void vehicle_view_attach(BasicVehicle& v) { g_hooks->view_attach(v, vehicle_camera_current()); }
 
 }  // namespace mech3
