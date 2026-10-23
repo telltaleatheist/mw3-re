@@ -1187,6 +1187,111 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c1 mission 1's four vehicles (docs/vehicles.md, In the program) run their
+// frames (0x004a1040 from the entity walk) under their brains: each frame
+// keeps them in the world, alive, on the ground; after truck_go (18 s past
+// bramp) the trucks drive off along their path.
+TEST(mission_c1m1_vehicles_run_their_frames_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_vehicles_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Track {
+      std::string name;
+      float first[3] = {}, at_go[3] = {}, last[3] = {};
+      bool sane = true, dead = false;
+    };
+    std::vector<Track> tracks;
+    int frames = 0;
+    bool went = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (frames == 0)
+        if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);
+      const std::vector<void*> vs = mech3::program_vehicles();
+      if (tracks.empty()) tracks.resize(vs.size());
+      const mech3::ai::Valve* t = mech3::ai::valve_find("truck_go");
+      const bool go = t && t->get() == 1 && !went;
+      for (size_t i = 0; i < vs.size() && i < tracks.size(); ++i) {
+        mech3::VehicleSummary s;
+        if (!mech3::describe_vehicle(vs[i], &s)) continue;
+        Track& k = tracks[i];
+        if (frames == 0) k.name = s.name ? s.name : "", std::copy(s.pos, s.pos + 3, k.first);
+        if (go) std::copy(s.pos, s.pos + 3, k.at_go);
+        std::copy(s.pos, s.pos + 3, k.last);
+        k.dead = !s.active;
+        k.sane = k.sane && s.in_world && (s.active ? s.health > 0 : s.health == 0) && std::isfinite(s.pos[0]) &&
+                 std::isfinite(s.pos[1]) && std::isfinite(s.pos[2]);
+      }
+      went = went || go;
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    std::map<std::string, uint32_t> calls;
+    pump.on_quit = [&] {
+      for (const auto& [k, v] : engine.unported_counts()) calls[k] = v;
+      mech3::missions().cleanup(false);  // the valves end with the mission
+    };
+    app.run(pump);
+    if (std::getenv("MW3_SURVEY"))
+      for (const auto& [k, v] : calls) std::fprintf(stderr, "  %6u %s\n", v, k.c_str());
+    EXPECT(frames > 200);
+    EXPECT(went);
+    EXPECT(tracks.size() == 4);
+    auto dist = [](const float a[3], const float b[3]) {
+      return std::hypot(a[0] - b[0], a[2] - b[2]);
+    };
+    for (const Track& k : tracks) {
+      std::fprintf(stderr, "  %s: %.1f %.1f %.1f -> go %.1f %.1f %.1f -> %.1f %.1f %.1f\n", k.name.c_str(),
+                   k.first[0], k.first[1], k.first[2], k.at_go[0], k.at_go[1], k.at_go[2], k.last[0], k.last[1],
+                   k.last[2]);
+      EXPECT(k.sane);
+      // The trucks die (the destroy valves at their last nodes, or the Owens'
+      // fire on the way); the APCs drive off along theirs, alive.
+      const bool truck = k.name.rfind("ttruck", 0) == 0;
+      EXPECT(k.dead == truck);
+      if (!truck) EXPECT(dist(k.first, k.last) > 100.0f);
+    }
+    // ttruck_01 waits for truck_go at its net's node_08.
+    for (const Track& k : tracks)
+      if (k.name == "ttruck_01") {
+        const float node08[3] = {-1826.3f, -20.0f, -1571.9f};
+        EXPECT(dist(k.at_go, node08) < 3.0f);
+    }
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1 through the Load and Core states (docs/ai.md section 15): the
 // launch puts the player's Mad Cat and the Owens on zEntity's list, the
 // mission start sorts it (0x004d5ca0: the player first), and each Core frame

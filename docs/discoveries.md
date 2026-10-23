@@ -235,6 +235,19 @@ From the port of the damage code, checked in an emulator against the original
   has a whole freeze path: a freezing weapon chills instead of hurting,
   and a vehicle cold enough is frozen solid and ignores further freezing
   hits. No weapon in MW3 or Pirate's Moon has the `FREEZE` effect.
+- **You only ever hear one vehicle's engine.** All vehicles of the same kind
+  share one engine sound. Each frame the game silences it, then plays it
+  again at the nearest vehicle your sensors pick up. In a convoy of three
+  trucks you hear only the nearest one. (docs/vehicles.md)
+- **AI vehicles stand still until they see you.** A vehicle moves only
+  while its AI sees you or a mech of your lance within its sight range,
+  unless a setting in its AI record keeps it always awake (the tenth "p8"
+  value in aiv.zrd; Op 1 Mission 1's trucks have it). A vehicle without it
+  waits where the mission put it until you come near. (docs/vehicles.md)
+- **Op 1 Mission 1's trucks are scenery.** No objective counts them. After
+  the opening they drive to a waypoint and wait; 18 seconds later a timer
+  sends them on, and the next waypoint, a few metres further, runs a
+  script that destroys them.
 
 ## Movement
 

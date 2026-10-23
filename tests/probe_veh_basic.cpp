@@ -153,6 +153,16 @@ struct Hooks : m3::VehBasicHooks {
   const char* sound_name(m3::Handle sound) override { return text(unported("0x0056f740", {low(sound)})); }
   void voice_unlock(m3::Handle v) override { unported("0x0056f410", {low(v)}); }
   void voice_stop(m3::Handle v) override { unported("0x0056e9f0", {low(v)}); }
+  // 3b: the engine sound's claim and release, the place by value.
+  int32_t voice_update(m3::Handle v, const float* pos, const float* vel, int32_t doppler) override {
+    return static_cast<int32_t>(unported("0x00571f30", {low(v), zgame::bits(pos[0]), zgame::bits(pos[1]),
+                                                        zgame::bits(pos[2]), vel ? 1 : 0, doppler}));
+  }
+  m3::Handle sound_play(m3::Handle s, const float* pos, float volume, const float* vel) override {
+    return hd(unported("0x0056e7e0", {low(s), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2]),
+                                      zgame::bits(volume), vel ? 1 : 0}));
+  }
+  void voice_lock(m3::Handle v) override { unported("0x0056f3f0", {low(v)}); }
   m3::Handle anim_find(const char* name) override { return hd(unported("0x0050b450", {name})); }
   void report(int32_t level, const char* file, int32_t line, const char* message) override {
     unported("0x0049bfd0", {level, file, line, message});
@@ -256,11 +266,31 @@ int probe_vb_sound_find(const char* name) {
 int probe_vb_sound_count() { return static_cast<int>(m3::engine_sounds().entries.size()); }
 void probe_vb_sound_entry(int i, uint32_t* out) {
   const m3::EngineSoundEntry& e = m3::engine_sounds().entries[static_cast<size_t>(i)];
-  out[0] = e.x00, out[1] = lo(e.sound), out[2] = lo(e.voice);
+  out[0] = lo(e.owner), out[1] = lo(e.sound), out[2] = lo(e.voice);
 }
 void probe_vb_sound_voice(int i, uint32_t v) { m3::engine_sounds().entries[static_cast<size_t>(i)].voice = hd(v); }
 void probe_vb_sounds_clear() { m3::engine_sounds_clear(); }
 void probe_vb_sounds_reset() { m3::engine_sounds().entries.clear(); }  // silent, between runs
+// 3b: the engine sound's claim 0x004adce0 and release 0x004adcd0 on two
+// vehicles' EngineSounds (A and B) sharing one entry; the owner compared as
+// 0 none, 1 A, 2 B.
+m3::EngineSoundEntry g_entry;
+m3::EngineSound g_engines[2];
+void probe_veng_set(int32_t owner, uint32_t sound, uint32_t voice, int32_t a_has, int32_t b_has) {
+  g_entry.owner = owner == 1 ? &g_engines[0] : owner == 2 ? &g_engines[1] : nullptr;
+  g_entry.sound = hd(sound), g_entry.voice = hd(voice);
+  g_engines[0].entry = a_has ? &g_entry : nullptr;
+  g_engines[1].entry = b_has ? &g_entry : nullptr;
+}
+int32_t probe_veng_play(int32_t which, const float* pos, const float* vel, int32_t doppler) {
+  return g_engines[which].play(pos, vel, static_cast<uint8_t>(doppler));
+}
+void probe_veng_release(int32_t which) { g_engines[which].release(); }
+void probe_veng_image(uint32_t* out) {
+  out[0] = g_entry.owner == &g_engines[0] ? 1u : g_entry.owner == &g_engines[1] ? 2u : 0u;
+  out[1] = lo(g_entry.sound), out[2] = lo(g_entry.voice);
+}
+void probe_veng_far(float* out) { std::memcpy(out, m3::kEngineFarPoint, 12); }
 int probe_vb_engine_index() {
   const m3::EngineSoundEntry* e = g_v->engine.entry;
   return e ? static_cast<int>(e - m3::engine_sounds().entries.data()) : -1;

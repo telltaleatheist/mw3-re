@@ -80,6 +80,13 @@ Handle VehBasicHooks::sound_find(const char* name) { return zsnd::find(name); }
 const char* VehBasicHooks::sound_name(Handle sound) { return zsnd::name_of(snd(sound)); }
 void VehBasicHooks::voice_unlock(Handle v) { zsnd::unlock(voice(v)); }
 void VehBasicHooks::voice_stop(Handle v) { zsnd::stop(voice(v)); }
+int32_t VehBasicHooks::voice_update(Handle v, const float* pos, const float* vel, int32_t doppler) {
+  return zsnd::update_3d(static_cast<zsnd::Voice*>(voice(v)), pos, vel, doppler);
+}
+Handle VehBasicHooks::sound_play(Handle sound, const float* pos, float volume, const float* vel) {
+  return zsnd::play_at(snd(sound), pos, volume, vel);
+}
+void VehBasicHooks::voice_lock(Handle v) { zsnd::lock(voice(v)); }
 Handle VehBasicHooks::anim_find(const char* name) { return zeff::anim_find(name); }
 void VehBasicHooks::report(int32_t level, const char* file, int32_t line, const char* message) {
   zerr::report(level, file, line, message);
@@ -154,6 +161,41 @@ void engine_sounds_clear() {
 
 // Mech3.exe 1.2 @ 0x004adb20.
 void EngineSound::set(const char* name) { entry = engine_sound_find(name); }
+
+// Mech3.exe 1.2 @ 0x004adb60 (a start-up initialiser): sqrt(1.0208e38) by
+// 0.5, -0.5, 0.5, about 5e18 out.
+const float kEngineFarPoint[3] = {
+    static_cast<float>(std::sqrt(1.0208470804804034e+38) * 0.5),
+    static_cast<float>(std::sqrt(1.0208470804804034e+38) * -0.5),
+    static_cast<float>(std::sqrt(1.0208470804804034e+38) * 0.5)};
+
+// Mech3.exe 1.2 @ 0x004adc30
+void EngineSoundEntry::release() {
+  if (!owner) return;
+  owner = nullptr;
+  if (voice) g_hooks->voice_update(voice, kEngineFarPoint, nullptr, 0);
+}
+
+// Mech3.exe 1.2 @ 0x004adc60: taken by the first vehicle to ask this frame;
+// the voice moved to `pos`, or made there at full volume and locked.
+int32_t EngineSoundEntry::claim(const void* by, const float* pos, const float* vel, uint8_t doppler) {
+  if (owner != by && owner) return -1;
+  owner = by;
+  if (voice) return g_hooks->voice_update(voice, pos, vel, doppler);
+  voice = g_hooks->sound_play(sound, pos, 1.0f, nullptr);
+  if (voice) g_hooks->voice_lock(voice);
+  return -1;
+}
+
+// Mech3.exe 1.2 @ 0x004adcd0
+void EngineSound::release() {
+  if (entry) entry->release();
+}
+
+// Mech3.exe 1.2 @ 0x004adce0
+int32_t EngineSound::play(const float* pos, const float* vel, uint8_t doppler) {
+  return entry ? entry->claim(this, pos, vel, doppler) : -1;
+}
 
 // Mech3.exe 1.2 @ 0x004ade40, over 0x004ade70 (the running one stopped).
 void MotionAnim::set(const char* name) {

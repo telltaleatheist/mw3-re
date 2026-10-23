@@ -569,9 +569,10 @@ controls' setup through vt+0x0c), the motion block, the points and zone,
 zWeapon's hit handler (0x4af550's port) on its node. c1m1's four (ttruck_01,
 ttruck_02, apc_01, apc_02) are made, in the world, with their health and
 weapons (`mission_start_reads_c1m1_vehicles_headless`), and on zEntity's
-list with the player, the Owens and the command marker. Not yet: their
-frame (the entity walk still logs them; the brain's hooks answer for mechs
-only), the mobile HQs (step 3), their teardown at the mission's end.
+list with the player, the Owens and the command marker. Their frame, brain,
+sensing and engine sound since step 3b (below). Not yet: the mobile HQs
+(step 3), their teardown at the mission's end, the kill credit (obj.vt+0x80
+0x41b420).
 
 **The collision count.** Every shipped vehicle's model has the twelve
 collide00..11 nodes, so the motion reader takes the points from the model,
@@ -582,6 +583,57 @@ the sweeps' segments run between unset ones, except a slide's side points
 sliding. The list path writes 12; a candidate for Owen (fixes.md): giving
 the model path the count would make vehicles collide as their data says,
 which may change how the AI's vehicles get round obstacles.
+
+## Brain, sensors and the engine sound (step 3b, 2026-10-23)
+
+The entity walk (0x4a1140) runs a vehicle's vt+0x34, the frame 0x4a1040,
+when its +0x09 is set, as a mech's. What the AI's brain, the sensors and
+valves.zrd ask of an entity goes through its vtable in the exe; the
+program answers by kind (`is_program_vehicle`), from the basic vehicle's
+vtable 0x5c88e8:
+
+| slot | function | answer |
+|---|---|---|
+| +0x0c | 0x5a82d0 | the velocity, +0x30 |
+| +0x1c | 0x5a85a0 | the node takes the matrix (`entity_moved`) |
+| +0x24, +0x28, +0x2c, +0x40, +0xec | 0x4d2a70 | itself |
+| +0x50, +0xa0 | 0x40bae0 | 0: no mech, never powered down |
+| +0xb4, +0x144 | 0x4d7290 | 0: not hidden from radar, never airborne |
+| +0x148 | 0x45b960 | [0x5c23a0], 0.0: no jump fuel |
+| +0x70 | 0x4ad2d0 | the death (valves' destroy) |
+| +0x98 | 0x4ad820 | the health share |
+| +0x8c, +0x90, +0x150, +0x154 | 0x4ad780, 0x4ad7c0, 0x4ad6e0, 0x4ad700 | the gun's aim (above) |
+| +0x114..+0x12c | 0x4acfa0.. | the speeds (above) |
+| +0x140 | 0x4020b0 | its controls (+0xe4) as IControls |
+| +0xc8 | 0x4add90 | the brain's empty vt+0x08, then the engine sound released |
+| +0xcc | 0x4aee00 | active, and then the brain's vt+0x0c (+0x54 clear); true without a brain |
+| +0xd0 | 0x4aee40 | the brain's vt+0x10 (sees its target); true without one |
+| +0xdc | 0x4a3630 | the placement |
+
+The sensors' +0xd0 false clears +0x09, so a vehicle whose brain does not
+see its target (the player or the player's lance within sight range)
+skips its frame: it stands frozen until someone comes near. The brain's
++0x88 (aiv.zrd's p8 item 10; 1 on c1m1's trucks) makes it always see.
+This is the mechs' level of detail in another form.
+
+**The engine sound.** The vehicles of one engine type share one entry of
+the sound cache (0x60b110), with one voice. Each frame the sensors release
+every vehicle's entry (vt+0xc8: 0x4adcd0, 0x4adc30): the claim is dropped and the
+voice moved to a far point (0x4adb60: about 5e18 out on x, -y and z, too
+far to hear). The radar ping (0x4aa400) then walks the view's contacts
+nearest first; the first whose vt+0x40 has a vt+0xec (a vehicle answers
+itself; a mech 0) claims its entry at its place (0x4adce0, 0x4adc60): the
+voice moved there (0x571f30, no velocity, no doppler), or made there at
+full volume (0x56e7e0) and locked (0x56f3f0) on the first claim. So only
+the nearest vehicle in sensor range is heard, and it is heard at its place.
+Ported (`EngineSoundEntry::claim` / `release`, `EngineSound::play` /
+`release`), checked by `test_veh_engine.py`.
+
+c1m1 (`mission_c1m1_vehicles_run_their_frames_headless`): after bramp the
+trucks drive their net_01 (node_00/01 to node_08/09, where they wait for
+truck_go); truck_go sends them on to node_15/16, whose valve_assign sets
+destroy_truck_01/02, and the valves' destroy kills them (vt+0x70). The APCs
+drive their own nets, more than 100 m.
 
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
@@ -626,8 +678,8 @@ removes it, `missions_start` clears it, and `entity_is_mech` /
 (sensors' `mech()`, `mech_free`, `killer_notify`, contacts, the player's
 target, the update loop, debrief and salvage, `describe_mech`) asks first and
 skips anything else, so a vehicle can join the list without being read as a
-mech. The update loop logs a skipped entity as the unported "entity vt+0x34"
-until vehicles have their own update. `test_program`'s c1m1 death run puts a
+mech. The update loop runs a basic vehicle's frame (step 3b) and logs any
+other entity as the unported "entity vt+0x34". `test_program`'s c1m1 death run puts a
 stranger entry in the list and checks it is skipped (treating every entry
 as a mech crashes that run).
 
