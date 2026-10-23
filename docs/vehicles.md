@@ -557,6 +557,32 @@ sweeps collision points from last frame's places (+0x160) to this frame's
 runs with the original's own sweep, sorting and responses, 24 breaks
 caught; `test_fixes` fix_vehicle_collision_fire_floor.
 
+## In the program (step 3a, 2026-10-23)
+
+`mech3/app_vehicle` wires the basic vehicle's calls out to the ports (the
+node lookups, copies and names, the world's node list, zEntity's list,
+zEffect's animations, zWeapon's hit state and handlers, zEntity3d's
+refresh: `Vehicle::entity_moved`, now on the shared base) and gives the
+mission start (player.cpp, app_mission's `WiredPlayerHooks`) its vehicle:
+made over the AI's controls, named, on its team, placed, set up (the
+controls' setup through vt+0x0c), the motion block, the points and zone,
+zWeapon's hit handler (0x4af550's port) on its node. c1m1's four (ttruck_01,
+ttruck_02, apc_01, apc_02) are made, in the world, with their health and
+weapons (`mission_start_reads_c1m1_vehicles_headless`), and on zEntity's
+list with the player, the Owens and the command marker. Not yet: their
+frame (the entity walk still logs them; the brain's hooks answer for mechs
+only), the mobile HQs (step 3), their teardown at the mission's end.
+
+**The collision count.** Every shipped vehicle's model has the twelve
+collide00..11 nodes, so the motion reader takes the points from the model,
+and that path never writes the count (+0x214): it stays 0 (nothing else
+in the exe writes it). The TRACK step then places no collision points, and
+the sweeps' segments run between unset ones, except a slide's side points
+(6..11), placed afresh. So vehicles cross walls and buildings unless
+sliding. The list path writes 12; a candidate for Owen (fixes.md): giving
+the model path the count would make vehicles collide as their data says,
+which may change how the AI's vehicles get round obstacles.
+
 ## The mobile field base (0x4589d0, mech_map / mech_objective region)
 
 The repair stations; their own class. Their repair and the objective tie-in

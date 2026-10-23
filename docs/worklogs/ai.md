@@ -1061,3 +1061,16 @@ is paused.
 - Next: BASIC's 0x4a1d90 / 0x4a1f00 (the stealth object), then the
   vehicles into the program.
 
+## 2026-10-23 Item 4, step 3a: vehicles made in the program (lead)
+
+- app_vehicle.cpp: the basic vehicle's and controls' hooks wired, the
+  mission start's vehicle path (WiredPlayerHooks), zWeapon's handler;
+  Vehicle::entity_moved / refresh_markers moved from Mech to the base.
+- c1m1: the four vehicles made, placed, set up, on zEntity's list
+  (headless test updated; the sensors' count now 7).
+- Found: the collision count stays 0 on the model path (every shipped
+  vehicle): vehicles cross walls unless sliding; a fixes.md candidate.
+- Left for 3b: the vehicles' frame in the entity walk and the brain's hooks
+  for vehicles (positions, velocity, matrix, health, speeds), the teardown,
+  BASIC's steps (stealth only, never made), the mobile HQs.
+

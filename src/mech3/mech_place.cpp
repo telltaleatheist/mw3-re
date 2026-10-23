@@ -100,7 +100,7 @@ void Mech::reset_at(const float pos[3]) {
 // +0x1c, zEntity3d's 0x005a85a0, which is 0x005a8580 (the node's matrix set
 // from the mech's, 0x005a8500 its two marker nodes' world matrices) and
 // 0x005a84e0 (+0x18 and +0x24 from the matrix's z row).
-void Mech::entity_moved() {
+void Vehicle::entity_moved() {
   auto* n = static_cast<zcls::Node*>(node);
   if (!n || n->parent_count() == 0) return;
   zcls::object3d_set_matrix(n, transform);
@@ -134,7 +134,7 @@ void Mech::entity_step(float dt) {
 }
 
 // Mech3.exe 1.2 @ 0x005a8500
-void Mech::refresh_markers() {
+void Vehicle::refresh_markers() {
   zmth::Mat34 buf;
   zmth::push(&buf);
   zmth::load_identity();

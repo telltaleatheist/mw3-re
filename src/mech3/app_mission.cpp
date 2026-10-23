@@ -64,6 +64,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
+#include "mech3/app_vehicle.h"
 #include "mech3/app_view.h"
 #include "mech3/app_keys.h"
 #include "gamez/zinput/zinput.h"
@@ -177,11 +178,15 @@ struct WiredPlayerHooks : PlayerHooks {
   std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
   std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
   std::set<Handle> mechs;          // the AI mechs made
+  std::set<Handle> vehicles;       // the basic vehicles made
   // Handles are by address and kept for good (GameEngine::handle_of), so an
   // object made where a dead one lived gets its handle: these sets hold this
   // mission's objects only, or a new mech is taken for an old brain's
   // settings (set_field32 then writes AiParams offsets into it).
-  void forget() { controls.clear(), params.clear(), mechs.clear(); }
+  void forget() {
+    controls.clear(), params.clear(), mechs.clear(), vehicles.clear();
+    program_vehicles_forget();
+  }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return e->unported(key, args);
   }
@@ -231,12 +236,18 @@ struct WiredPlayerHooks : PlayerHooks {
   void set_field32(Handle h, uint32_t off, uint32_t v) override {
     if (params.count(h)) return as<ai::AiParams>(h)->put<uint32_t>(static_cast<int>(off), v);
     if (mechs.count(h) && mech_set_mask(e->object_of(h), off, v)) return;
+    if (vehicles.count(h) && program_vehicle_mask(e->object_of(h), off, nullptr, &v)) return;
     e->poke32(h + off, v);
   }
   uint32_t field32(Handle h, uint32_t off) override {
     if (params.count(h)) return as<ai::AiParams>(h)->get<uint32_t>(static_cast<int>(off));
     uint32_t v = 0;
     if (mechs.count(h) && mech_get_mask(e->object_of(h), off, &v)) return v;
+    if (vehicles.count(h)) {  // the controls and the node as handles, the masks
+      if (off == 0xe4) return e->handle_of(program_vehicle_controls(e->object_of(h)));
+      if (off == 0x04) return e->handle_of(program_vehicle_node(e->object_of(h)));
+      if (program_vehicle_mask(e->object_of(h), off, &v, nullptr)) return v;
+    }
     return e->peek32(h + off);
   }
   // The AI controllers: the port's, over the vehicle's compiled net and its
@@ -298,6 +309,50 @@ struct WiredPlayerHooks : PlayerHooks {
     return place_mech(mech, pos, rec_yaw(rec));
   }
   void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
+  // The basic vehicles (app_vehicle.cpp): made, named, placed and set up as
+  // player.cpp asks; their frame is not run yet (vehicles.md, In the program).
+  Handle vehicle_create(Handle ctl, const char* type, const char* name) override {
+    void* c = ctl ? e->object_of(ctl) : nullptr;
+    if (ctl && !c) return PlayerHooks::vehicle_create(ctl, type, name);
+    void* v = program_vehicle_create(c, type, name);
+    if (!v) return 0;
+    const Handle h = e->handle_of(v);
+    vehicles.insert(h);
+    return h;
+  }
+  void entity_name(Handle v, const char* name) override {  // 0x005a84c0: the node's name
+    if (!vehicles.count(v)) return PlayerHooks::entity_name(v, name);
+    zcls::node_set_name(static_cast<zcls::Node*>(program_vehicle_node(e->object_of(v))), name);
+  }
+  void vehicle_place(Handle v, const ai::AivRecord* rec) override {
+    if (!vehicles.count(v)) return PlayerHooks::vehicle_place(v, rec);
+    const float pos[3] = {rec->get<float>(0x08), rec->get<float>(0x0c), rec->get<float>(0x10)};
+    program_vehicle_place(e->object_of(v), pos, rec_yaw(rec));
+  }
+  void vehicle_setup(Handle v, Handle common, const char* name, int32_t kind) override {
+    if (!vehicles.count(v)) return PlayerHooks::vehicle_setup(v, common, name, kind);
+    program_vehicle_setup(e->object_of(v), e->object_of(common), name, kind);
+  }
+  // 0x0049ec90's area is the controls' +0x764: the controls' handle here plus that.
+  void vehicle_anims(Handle area, Handle node, Handle mode, const char* name, const char* type, Handle slot) override {
+    const Handle ctl = area ? area - 0x764 : 0;
+    for (Handle v : vehicles)
+      if (ctl && e->handle_of(program_vehicle_controls(e->object_of(v))) == ctl)
+        return program_vehicle_motion(e->object_of(v), e->object_of(mode), name, type);
+    PlayerHooks::vehicle_anims(area, node, mode, name, type, slot);
+  }
+  void vehicle_49f660(Handle v) override {
+    if (vehicles.count(v)) program_vehicle_points(e->object_of(v));
+    else PlayerHooks::vehicle_49f660(v);
+  }
+  void vehicle_touch(Handle v, Handle node) override {
+    if (vehicles.count(v)) program_vehicle_touch(e->object_of(v));
+    else PlayerHooks::vehicle_touch(v, node);
+  }
+  void vehicle_5a85c0(Handle v) override {
+    if (vehicles.count(v)) program_vehicle_refresh(e->object_of(v));
+    else PlayerHooks::vehicle_5a85c0(v);
+  }
   void mech_set_skin(Handle mech, Handle skin) override { set_mech_skin(e->object_of(mech), e->object_of(skin)); }
   Handle mech_dfn_of(Handle mech) override {
     return e->handle_of(const_cast<void*>(mech_definition(e->object_of(mech))));

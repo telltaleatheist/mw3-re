@@ -7,6 +7,7 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "mech3/app_mech.h"
+#include "mech3/app_vehicle.h"
 
 #include <cstdio>
 #include <cstring>
@@ -852,6 +853,7 @@ void wire_mech_build(const MechWiring* w) {
   // 0x0051d330). Its names, cursor picks and marker are not wired yet (L4c2c).
   panel_calls().entity_mech = entity_mech;
   wire_pocket(w);
+  wire_vehicles(w);
   panel_calls().key_binding = [](int32_t action) -> zgame::Handle { return zin::key1_of(action); };
   panel_calls().key_name = [](zgame::Handle k, char* out, int32_t n) { zin::key_name(k, out, static_cast<size_t>(n)); };
   set_shade_hooks(&g_shade_hooks);
