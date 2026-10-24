@@ -516,8 +516,8 @@ feeds only the dead quicksand branch).
 `vehicle_motion_anim_step`, `vehicle_weapons_step` in `mech3/veh_move`;
 `test_veh_frame.py`: 600 track steps and moves on test_veh_suspension.py's
 vehicles with the base controls' real slots, and 300 frames, 24 breaks
-caught. The collisions (0x49ff80) and BASIC's two steps (0x4a1d90,
-0x4a1f00, the stealth object's) are left.
+caught. The collisions (0x49ff80) followed; BASIC's two steps (0x4a1d90,
+0x4a1f00, the stealth object's) wait for the end (The stealth object).
 
 ## The collisions (0x49ff80, step 2c4, ported 2026-10-23)
 
@@ -647,6 +647,36 @@ drive their own nets, more than 100 m.
 
 The repair stations; their own class. Their repair and the objective tie-in
 are separate items.
+
+## The stealth object and BASIC mode (2026-10-23; back burner)
+
+The mission load makes it in every mission ("Creating Stealth", 0x4a4de0,
+[0x609a2c], vehicle.zrd's `stealth`: no model, sounds or weapons, health
+10000, `mode` basic, rates 40 / 65, turns 2.5 / 3.5); the unload deletes
+it (0x490480). It is on zEntity's list, sorted last; the sensors clear its
+state and +0x09 each frame, so the entity walk never runs it. Its frame
+runs from the player's tick only while the view is on it.
+
+The view goes onto it in two places: the debug key setup 0x40e430 (its own
+key map, keys 0x39 and 0x439; the view attached, vt+0x108), the handler of
+command 0x9a in 0x40dba0's switch, which nothing in the release registers
+(0x40db60 registers 0x61, 0x6c, 0x70 to it; also unregistered, 0x84 calls
+the mech swap); and the mech swap 0x4783c0 (the mech lab's resume(4) in
+0x481170 with another mech, the multiplayer respawn 0x46dde0), which parks
+the view on it while the mech is rebuilt and returns it in the same call.
+So in the release it is only a placeholder for the camera.
+
+**BASIC** (0x4a1d90, its ground 0x4a1f00), the stealth object's movement:
+by camera mode, a car's steering (0x4a20d0: the turn into the heading
++0x330, wrapped at 2 pi) or, in mode 3 (straight down), north-up panning
+(0x4a2000: heading 0, the input on the sideways speed, stopped dead before
+reversing); the speed step 0x4a2b10; the move on the horizontal plane;
+then the four platform points' ground (0x4a2190), the highest taken plus
+an offset (+0x88 of the motion block, likely `mode_alt`), pitch and roll 0:
+a level sled glued above the ground. A developer's fly camera.
+
+Not ported (Owen 2026-10-23): both go in at the end, behind a debug key,
+as our addition (CHANGES.md then).
 
 ## Why 2.1 waits for the AI (2026-10-21)
 
