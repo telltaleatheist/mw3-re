@@ -1361,7 +1361,7 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
 // bases go to their places; the player walks onto the dock point and powers
 // down; the bases back out and open; after twelve seconds the repair
 // (0x004154e0) and the bases close up; the dock is idle again, the mission's
-// waynet back to none.
+// waynet back to its nav waynet (waynet_1).
 TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1416,12 +1416,14 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     std::string label;
     int32_t points = -1;
     bool picking = false, cleared = false;
+    void* nav = nullptr;  // the mission's own waynet before the command (waynet_1)
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
       const mech3::DockSummary d = mech3::program_dock_summary();
       if (fronts.empty() || fronts.back() != d.front) fronts.push_back(d.front);
       if (frames == 5) {  // MCB_COMMAND: the nearest dock point picked
+        nav = mech3::program_mission_waynet();
         mech3::program_mech_wear_down(player, 0.25f, 0.5f);
         worn = mech3::program_mech_wear(player);
         points = mech3::program_mcb_points();
@@ -1451,7 +1453,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
       }
       if (d.front == 0 && close_at >= 0 && idle_at < 0) {
         idle_at = frames;
-        cleared = mech3::program_mission_waynet() == nullptr;
+        cleared = mech3::program_mission_waynet() == nav;
       }
       ++frames;
     };
@@ -1487,6 +1489,89 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     mech3::current_pilot() = was_pilot;
     pilot.current = nullptr;
     EXPECT(idle_at > close_at);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// c1m1's nav waynet (vehicles.md, The nav waynet): waynet_1.zrd built at the
+// mission load (0x004797c0, version 107) as the mission's waynet: Start,
+// Able and Baker (Able's and Baker's nav lines found), the radar's marker on
+// the selected one. The player starts on Start, so autonext has already moved
+// on to Able; set on the selected point it is within 25 m: reached (its line
+// said) and, autonext, the next one selected.
+TEST(mission_c1m1_nav_waynet_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_nav_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* nav = nullptr;
+    bool is_nav = false;
+    mech3::NavSummary first, after;
+    void* marker = nullptr;
+    int32_t was = -1;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      if (frames == 2) {
+        nav = mech3::program_mission_waynet();
+        is_nav = nav && mech3::program_is_nav_waynet(nav);
+        first = mech3::program_nav_summary(nav);
+        marker = mech3::program_waypoint_marker();
+        was = first.current;
+        if (was >= 0 && was < 8) {
+          const float* q = first.pos[was];
+          const float at[3] = {q[0], ground_under(q[0], q[1] + 100.0f, q[2]), q[2]};
+          mech3::move_mech(player, at, 0.0f);
+        }
+      }
+      if (frames == 6) after = mech3::program_nav_summary(nav);
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    pump.stop = [&] { return frames > 6; };
+    app.run(pump);
+    std::fprintf(stderr, "  nav: %d points, selected %d, %d watched:", first.count, first.current, first.watched);
+    for (int i = 0; i < first.count && i < 8; ++i)
+      std::fprintf(stderr, " %s/%s%s", first.labels[i].c_str(), first.names[i].c_str(), first.has_line[i] ? "*" : "");
+    std::fprintf(stderr, "; after: selected %d, reached", after.current);
+    for (int i = 0; i < after.count && i < 8; ++i) std::fprintf(stderr, " %d", after.reached[i]);
+    std::fprintf(stderr, "\n");
+    EXPECT(is_nav);
+    EXPECT(first.count == 3 && first.labels[0] == "Start" && first.labels[1] == "Able" && first.labels[2] == "Baker");
+    EXPECT(marker != nullptr);
+    EXPECT(was >= 0 && after.reached[was]);
+    EXPECT(after.current == (was + 1) % first.count);  // autonext
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -5016,6 +5101,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       int prev = 0, waiting = 0;
       int ai_named = 0;  // AI mechs whose brain gives a name
       int radar_frames = 0, blip_frames = 0, blip_off = -1, blips_locked = 0, blips_asleep = 0;  // the radar (hud.md section 15)
+      int markers = 0;  // the waypoint marker: the nav waynet's selected point (vehicles.md, The nav waynet)
       float blip_d = 0.0f, blip_want = 0.0f;
       mech3::HudReport gauges;  // frame 10's (hud.md section 17)
       int panel_made = 0, panel_up = 0, panel_down = 0, posted = 0;  // the message panel (hud.md section 18)
@@ -5058,6 +5144,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         if (seen.frames == 4) keys.key(zin::key1_of(0x18) & 0xff, true);
         if (seen.frames == 8) keys.key(zin::key1_of(0x18) & 0xff, false);
         seen.blips_asleep += r.blips;  // the Owens powered down: not in sight, no blip
+        seen.markers += r.markers;
         if (seen.frames == 9)
           if (mech3::ai::Valve* b = mech3::ai::valve_find("bramp")) b->set(1);  // wakes the Owens
       } else if (seen.frames == 10 && mech3::program_hud_report(&r)) {
@@ -5131,6 +5218,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     EXPECT(seen.radar_frames == 9 && seen.blips_asleep == 0 && seen.blip_frames >= 8);
     EXPECT(std::abs(seen.blip_d - seen.blip_want) <= 1.5f && seen.blip_off <= 1);  // straight ahead
     EXPECT(seen.blips_locked == 0);
+    EXPECT(seen.markers > 0);  // waynet_1's selected point on the radar
     const mech3::HudReport& g = seen.gauges;
     std::printf("  equipment %d lines (%d wanted), speed %.1f km/h, throttle bar %d up, fuel %d, heat unlit %d\n",
                 g.equip_lines, g.equip_wanted, g.speed_kmh, g.throttle_up, g.fuel_shown, g.heat_unlit);

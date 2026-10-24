@@ -336,9 +336,10 @@ void program_nets_begin() {  // 0x004d52b0's for the mcbwaynet (vt+0x2c 0x00479a
 void program_mcb_command(void* mech) {  // 0x0047a910 (MCB_COMMAND)
   if (McbWaynet* w = mcb_waynet()) w->command(mech);
 }
+bool program_is_nav_waynet(void* o);
 bool program_mission_waynet_key(int32_t cmd, void* mech) {  // [0x00609980] vt+0x60 / +0x64 / +0x68
   auto* w = static_cast<Waynet*>(g_mission_waynet ? g_mission_waynet() : nullptr);
-  if (!w || w != mcb_waynet()) return false;
+  if (!w || (w != mcb_waynet() && !program_is_nav_waynet(w))) return false;  // the dock's or the nav points
   if (cmd == 0x36) w->next();
   else if (cmd == 0x37) w->prev();
   else w->nearest(g_hooks.entity_position(*static_cast<Vehicle*>(mech)));
@@ -359,6 +360,72 @@ bool program_dock_point(const char** label, float pos[3]) {
   return true;
 }
 void* program_mission_waynet() { return g_mission_waynet ? g_mission_waynet() : nullptr; }
+namespace {
+std::set<Waynet*> g_navs;  // the nav waynets 0x004797c0 made (the missions' +0xb4)
+}  // namespace
+void* program_nav_waynet_make(const char* name) {
+  Waynet* w = nav_waynet_make(name);
+  if (w) g_navs.insert(w);
+  return w;
+}
+bool program_nav_waynet_delete(void* o) {
+  auto* w = static_cast<Waynet*>(o);
+  if (!g_navs.erase(w)) return false;
+  delete w;  // vt+0x00(1): 0x004796f0, the icons counted out
+  return true;
+}
+bool program_is_nav_waynet(void* o) { return g_navs.count(static_cast<Waynet*>(o)) != 0; }
+uint8_t program_nav_waynet_frame(void* w, void* vehicle) { return static_cast<Waynet*>(w)->frame(vehicle); }
+void program_waynet_icons_free() { waynet_icons_free(); }
+// The mission waynet's selected element for the radar: [0x00609980]'s
+// 0x0058b060 by its +0x20. FIX (bug): only a point with a place; the exe
+// reads the default behaviour's +0x0c and its null place (the MFB picking's
+// N / Shift+N wraps onto it).
+void* program_waypoint_marker() {
+  auto* w = static_cast<Waynet*>(program_mission_waynet());
+  WaynetPoint* p = w ? as_point(w->elem(w->current)) : nullptr;
+  return p && p->position() ? p : nullptr;
+}
+bool program_is_waypoint_icon(const void* b) { return b && (b == waynet_icon(false) || b == waynet_icon(true)); }
+void* program_waypoint_icon(void* p) { return waynet_icon(static_cast<WaynetPoint*>(p)->mfb != 0); }
+void program_waypoint_position(void* p, float out[3]) {
+  const float* q = static_cast<WaynetPoint*>(p)->position();
+  out[0] = q[0], out[1] = q[1], out[2] = q[2];
+}
+const char* program_waypoint_name(void* p) {
+  const auto* pt = static_cast<WaynetPoint*>(p);
+  return pt->has_name ? pt->name.c_str() : nullptr;
+}
+NavSummary program_nav_summary(void* waynet) {
+  NavSummary n;
+  auto* w = static_cast<Waynet*>(waynet);
+  if (!w) return n;
+  n.count = w->count();
+  n.current = w->current;
+  n.watched = static_cast<int32_t>(w->watched.size());
+  for (int32_t i = 0; i < w->count() && i < 8; ++i)
+    if (const WaynetPoint* p = as_point(w->elem(i))) {
+      n.labels[i] = p->label_or_null() ? p->label : "";
+      n.names[i] = p->has_name ? p->name : "";
+      n.reached[i] = p->reached != 0;
+      n.has_line[i] = p->sound != nullptr;
+      n.pos[i][0] = p->pos[0], n.pos[i][1] = p->pos[1], n.pos[i][2] = p->pos[2];
+    }
+  return n;
+}
+void* program_nav_find(const char* name) {  // 0x00479be0 on [0x00609980]
+  auto* w = static_cast<Waynet*>(program_mission_waynet());
+  return w ? w->find(name) : nullptr;
+}
+void program_nav_watch(void* p, int32_t on) {  // 0x0047a270 on [0x00609980]
+  if (auto* w = static_cast<Waynet*>(program_mission_waynet())) w->note(static_cast<WaynetPoint*>(p), on != 0);
+}
+void program_waypoint_arrow(int32_t active) {  // 0x00479ef0 on [0x00609980]
+  if (auto* w = static_cast<Waynet*>(program_mission_waynet())) w->hud_arrow(active != 0);
+}
+void program_waypoint_arrow_draw() {  // 0x00479ed0 while [0x00609980]
+  if (program_mission_waynet()) waynet_arrow_draw();
+}
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }

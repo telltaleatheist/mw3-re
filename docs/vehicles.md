@@ -775,7 +775,7 @@ and done return it, the message aborts, the abort clears the dock's marker
 |---|---|---|
 | idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (below), which queues the six others in the order below |
 | places +0xe0 | 0x5c2620 | five frames on, says mcb_contact ("move into position"?); done when every active base with a valve has its valve set (each base's net sets it at its place) |
-| contact +0xd0 | 0x5c25c0 | says mcb_waiting once; done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
+| contact +0xd0 | 0x5c25c0 | says mcb_waiting once (in play the bases' "we have arrived and are ready to deploy", Owen 2026-10-24); done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
 | deploy +0xf4 | 0x5c2640 | busy (+0x78); each active base's drive out queued at the front of its steps; the player's view onto camera mode 4 (its own kept at +0x80); the mech at rest at the dock point (0x418e90); done with the three drives, saying mcb_deploy (no shipped sound); the mech powering up aborts |
 | repair +0x110 | 0x5c25a0 | busy; the effects `mfbeffects` on each active base (0x458cf0); twelve seconds, then the mech repaired (0x4154e0 with that frame's time); powering up aborts; its end says mcb_complete and stops the effects |
 | close +0x124 | 0x5c2580 | each base's drive in; the view back to its camera if still on mode 4; done with the drives; [0x60b4cc] cleared |
@@ -1017,7 +1017,7 @@ on the mcbwaynet with the mech; nothing while no field base is up):
    points; the point nearest the mech picked (+0x34), "mcb_pos_wait".
    The dock busy: "mcb_occupied".
 2. The request (0x45a500) with the selected point; the point onto the
-   kept waynet's end (+0x38) when there is one (multiplayer), which is the
+   kept waynet's end (+0x38) when there is one (the nav waynet), which is the
    mission's again.
 3. The front state's abort (0x45a540).
 The dock's marker clear (0x47a720 -> 0x47a6b0) undoes it: the mission's
@@ -1030,17 +1030,99 @@ repair's twelve seconds are up.
 a mech (its vt+0x50) made the dock's requester while a base is up, when
 the dock is neither busy nor holding the bases.
 
-Not ported (step 4b3b): the multiplayer nav waynet (0x4797c0, net files
-105 / 107: 0x4be690 / 0x4bed90; its vt+0x6c 0x479c50 marks points reached
-within 25 m), the HUD's waypoint icons and arrows (0x4798f0's images,
-0x479dd0 / 0x479ed0 / 0x479ef0). In single player there is no nav waynet,
-so the HUD draws a waypoint only while the MFB command is picking.
+The nav waynet, the HUD's waypoint icons and arrows: next section (step
+4b3b). (Corrected: 4b3 took the nav waynet for multiplayer only; every
+campaign and training mission has one.)
 
 Checked: `test_veh_waynet.py` (600 runs of the selection, the mcbwaynet's
 slots, clear and the command; 300 points; 25 branches; 25 of 26 breaks,
 the 26th, nearest's fallback, not reachable: element 0 is always there)
 and c1m1's headless repair test (the MFB command picks "MFB Baker" and asks;
 the dock does the rest).
+
+## The nav waynet (0x4797c0, 0x4be690, 0x479c50, 0x479dd0..0x479ef0; step 4b3b)
+
+Every mission has its nav points: `waynet_N.zrd` (version 107) in its
+reader archive, N the mission number (`waynet_iaN` for Instant Action,
+`waynet_mpN` multiplayer; game types 0, 1 and 4 take the plain name). c1m1's
+waynet_1: Start (MSG_WAYNET_START), Able (MSG_WPT_ABLE), Baker
+(MSG_WPT_BAKER). Ported in `mech3/mech_waynet` and the builder
+(`zainetedit`), wired in the program (app_mission, app_vehicle, app_hud).
+
+- **The make** (0x4797c0, from the mission load 0x490720 after its readers
+  0x490630, into the missions' +0xb0, the mission's waynet [0x609980], and
+  +0xb4, which the cleanup deletes): a short-lived builder with the build
+  flag (0x4bcba0, an id of 10000 up, 0x58b1c0) reads the file; version 107
+  builds a waynet (0x4be690); if it is one (vt+0x3c, 0x4d2a70) it is
+  counted in for the icons (0x4798f0) and its marker placed (0x479ac0).
+  The port's mission reset had left the readers out; it opens them now, as
+  the exe.
+- **The build** (0x4be690): a waynet (0x479640) of the file's id and name;
+  its slots counted as a compiled net's but with no steps per link (the
+  counter's vtable 0x5ca48c answers 0 where 0x4beb90 would count the
+  properties): one per positioned node, an edge node starting at it its
+  links but the first; all null steps, then a point for each node in order
+  from slot 0 (0x47a320: name, auxname as its label, place on the ground
+  while a world is loaded, its links as slots, MFB 0, then the record's
+  visible, fixed, autonext and hidden bytes as +0x0f, +0x0d, +0x0e and
+  +0x10; its nav line "nav<label>" looked up). The waynet's default
+  behaviour is gone: element 0 is the first point. FIX (bug): a link to a
+  node that is not there reads the slot map at -1 or past its end, an edge
+  node's links past the links buffer, a point past the counted slots past
+  the elements; here -1, a buffer for any node, the point dropped. No
+  shipped file has any of them; version 105 (0x4bed90) is in no shipped
+  file and stays unported.
+- **The frame** (vt+0x6c 0x479c50, each mission frame on the mission's
+  waynet with the player's vehicle; the mcbwaynet's is 0x4cd490, nothing):
+  the watched points (+0x28, the objectives' "nav" points, 0x45cf9d ->
+  0x47a270) within 25 m (squared 625, all three axes) are reached
+  (0x47a500: the nav line once); then the selected one: reached within 25 m
+  and, with autonext (+0x0e, the record's default 1), the next one selected
+  (vt+0x60). The answer, the selected point's reached, is not used. FIX
+  (bug), behind `bugs`: the exe's loop compares the point before with the
+  selected one, so once past the selected point it skips the rest of the
+  list (their lines unsaid until selected); a selected element with no
+  place is read through null (an element 0 default behaviour, a null step).
+- **The radar's marker** (0x43dd00's, docs/hud.md: once taken for a network
+  player's): the mission waynet's selected point, its icon by +0x0c
+  (hud_mfbwaypoint_icon, else hud_waypoint_icon), placed by its distance,
+  and TEXT2 "OP: <name> [<km>km]" (message 0x228, "%.2f" past 1000 m) or
+  "OP: <name> [<m>m]" (0x229, rounded up), the name the record's localized
+  one. FIX (bug): the exe reads the selected element's +0x0c and place
+  unchecked; the default behaviour, element 0 of the mcbwaynet that the
+  MFB picking's N / Shift+N wraps onto, has none (its vt+0x18 0x4d72a0 is
+  0), so the radar would read through null there (not seen in play yet).
+  Here only a point is drawn. The marker's name hook (HudHooks::marker_name)
+  answers a string now (the exe's 32-bit value was the pointer).
+- **The edge arrow** (0x479ef0 in the HUD's data update, 0x479ed0 in its
+  frame, both while [0x609980]): the arrow, a zTwoD image at 0x608ae0 made
+  at start-up (0x59b970(0)), hidden (0x59ff50); with the HUD active the
+  selected point projected (0x53cf10): off the screen to the left, right,
+  above or below (the first of bits 1, 2, 4, 8), the arrow of that side
+  (the nav set, or the MFB set for a dock point) placed at the edge,
+  along it at the point's projected y (or x), held on the screen, shown
+  for good; on the screen, none (the world's "waypoint" marker shows it).
+  The right and bottom edges are measured by the image shown before this
+  one (the exe reads the size first). Drawn unless hidden.
+- **The icons** (0x4798f0 on the first waynet counted, [0x608ba0]): zImage's
+  directory "..\\data\\common\\images\\hud", the two radar icons (zTwoD
+  images) and the eight arrow images (hud_navarrow_left / right / up /
+  down, hud_mfbarrow_...). 0x479a30 counts a waynet out; the last frees
+  them (0x479850, also at the mission's end): a count left over is reported
+  ("memory leak of %d waynet%s detected: should be unloaded at end of
+  mission") and zeroed, the marker forgotten, the icons deleted. FIX (bug),
+  behind `bugs`: its loop releases two images and steps four on, so the up
+  and down arrows are never released (a zImage reference more each
+  mission); here all eight.
+
+Checked: `test_nav_waynet.py` (all 47 shipped version-107 files and 300
+made-up ones, 1,117 points; the exe's own builder), `test_nav_hud.py` (600
+runs of the frame, the watched list, the arrow, its draw, the icons and the
+make; 20 branches; the port's null-place guard on its own), 36 of 37 breaks
+over both (the edge count's k - 1 > 0 against k > 0 is not observable);
+c1m1 headless (`mission_c1m1_nav_waynet_headless`: Start, Able and Baker;
+the player starts on Start, so autonext has moved on to Able; set on Able,
+it is reached and Baker selected).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

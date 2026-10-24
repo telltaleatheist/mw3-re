@@ -1,5 +1,6 @@
 #include "mech3/zainetedit.h"
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -8,6 +9,7 @@
 
 #include "gamez/zerror/zerr.h"
 #include "mech3/zai_steps.h"
+#include "mech3/mech_waynet.h"
 #include "mech3/zainet_region.h"
 
 namespace mech3::ai {
@@ -66,9 +68,9 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
   if (!net && build == 1 && n > 0) {
     switch (header.version) {
       case 0x6a: net = build_compiled(); break;
+      case 0x6b: net = build_waynet(); break;
       case 0x6c: net = build_region(); break;
-      // 105 (0x004bed90) and 107 (0x004be690, the multiplayer waynets) are
-      // not ported: no shipped single-player file has them.
+      // 105 (0x004bed90) is not ported: no shipped file is one.
       default: break;
     }
   }
@@ -367,6 +369,76 @@ Region* CZAiNetEdit::build_region() {
   Region* got = made ? made->as_region() : nullptr;
   if (got != r) delete r;
   return got;
+}
+
+// Mech3.exe 1.2 @ 0x004be690: a version-107 file, a mission's nav points
+// (waynet_N.zrd), into a waynet (mech_waynet). Its slots counted as a
+// compiled net's are (0x004beb00 / 0x004bec10), but none per link (the
+// counter's vtable 0x005ca48c answers 0 where 0x004beb90 counts properties):
+// a positioned node one, an edge node starting at it its links but the
+// first; all null steps, then a point for
+// each node in order from slot 0 (the placeholders left out), its links as
+// slots. FIX (bug): a link past the nodes, an edge node's links past the
+// buffer, and a point past the counted slots (more nodes than slots: edge
+// nodes) are read or written past the exe's vectors; here the link is -1,
+// the buffer holds them, the point is dropped.
+AiNet* CZAiNetEdit::build_waynet() {
+  auto* w = new Waynet(header.net, header.name);  // 0x00479640 (new 0x30)
+  AiNet* old = net;
+  if (old) {
+    if (net_hooks().rebuilt) net_hooks().rebuilt(old, nullptr);  // 0x004be5a0 over the vehicles
+    drop_net();
+  }
+  auto node_of = [this](znet::Element* e) -> NetNode* {
+    NetNode* n = e ? static_cast<AiElem*>(e)->as_node() : nullptr;  // vt+0x60, vt+0x88
+    return n == placeholder ? nullptr : n;
+  };
+  std::vector<int32_t> slot_of(elems.size(), -1);
+  int32_t slots = 0, max_links = 0;
+  for (size_t i = 0; i < elems.size(); ++i) {  // 0x004bec10
+    NetNode* n = node_of(elems[i]);
+    if (!n || n->rec.kind != 0) continue;  // vt+0x14: positioned
+    slot_of[i] = slots;
+    const int32_t nl = n->link_count();
+    if (max_links < nl) max_links = nl;
+    slots += 1;  // the counter's per-link steps: its vtable's 0x00410510, none
+    int32_t extra = 0;
+    for (znet::Element* e : elems) {
+      NetNode* m = node_of(e);
+      if (!m || m->rec.kind == 0) continue;
+      const int32_t k = int32_t(m->rec.links.size());
+      if (k - 1 > 0 && m->rec.links[0] == n->rec.index) extra += k - 1;
+    }
+    slots += extra;
+  }
+  net = w;
+  w->elems.assign(size_t(slots), null_step());
+  // The links' buffer: the exe's holds the positioned nodes' most; an edge
+  // node with more is written past it (and read back): here it holds any.
+  size_t most = size_t(max_links > 0 ? max_links : 0);
+  for (znet::Element* e : elems)
+    if (NetNode* n = node_of(e)) most = std::max(most, n->rec.links.size());
+  std::vector<int32_t> links(most + 1, 0);
+  size_t at = 0;
+  for (znet::Element* e : elems) {
+    NetNode* n = node_of(e);
+    if (!n) continue;
+    const NetNodeRec& r = n->rec;
+    for (size_t k = 0; k < r.links.size(); ++k) {
+      const int32_t to = r.links[k];
+      links[k] = to >= 0 && size_t(to) < slot_of.size() ? slot_of[size_t(to)] : -1;
+    }
+    float p[3] = {r.pos[0], r.pos[1], r.pos[2]};  // vt+0x18
+    if (net_hooks().ground) net_hooks().ground(p);  // 0x004edab0 / 0x004abd90 while a world is loaded
+    auto* pt = new WaynetPoint(r.name, r.auxname, p, links.data(), n->link_count(), 0, r.visible, r.fixed,
+                               r.autonext, r.hidden);  // 0x0047a320 (new 0x38)
+    if (at < w->elems.size()) w->elems[at] = pt;
+    else delete pt;
+    ++at;
+  }
+  // Each element's vt+0x6c with the waynet: nothing for points and null steps (0x004a5bc0).
+  if (net_hooks().rebuilt) net_hooks().rebuilt(old, w);
+  return w;
 }
 
 // Mech3.exe 1.2 @ 0x00402240 (in the exe's first, unnamed module)

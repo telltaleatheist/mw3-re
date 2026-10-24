@@ -223,8 +223,10 @@ vt+0x2c; the gauges: 0x00445450, 0x004455e0 (jump fuel: +0x554 over 1.5, and
 the ratio +0x558 / dt - +0x55c), 0x004456f0, 0x00445520 (+0x3d8 > 0, the
 mech's vt+0x148: heat); the target's text 0x00441850; the equipment
 0x00448320 when shown; the MFD 0x004424b0. Always: the timer's text,
-0x00446900 (objectives), 0x00440b00 (TARGET), and in a network game
-0x00479ef0.
+0x00446900 (objectives), 0x00440b00 (TARGET), and with a mission waynet
+([0x00609980]: the nav waynet, or the mcbwaynet while the MFB command
+picks) the edge arrow toward its selected point, 0x00479ef0
+(vehicles.md, The nav waynet).
 
 ## 7. Porting order
 
@@ -416,7 +418,7 @@ only with a mech:
    lock, their sounds, the reticle's image by state 0 on, 1 off, 2 over,
    3 can't). Both hooked; item 5's ammo gauge in the porting order.
 5. The **reticle** (0x004441a0), then its state back to 5; the network's
-   part (0x00479ed0) in a network game ([0x00609980]).
+   edge arrow drawn (0x00479ed0) with a mission waynet ([0x00609980]).
 
 Each piece's update draws only while shown (kHidden clear), except the MFD
 (0x00442540) and the damage silhouette (0x00447b50), which leave it to their
@@ -759,11 +761,14 @@ circle by its distance times radius over range, turned into the mech's frame
   0x00413e60; `mech_radar_blip` 0x0041ec60). TARGET's own contact is drawn
   instead as a small triangle (a Shape scaled 5.77, clipped to the screen
   0x00579880) in blue, red or the HUD green by the same sides.
-- **The network player's marker** ([0x00609980]'s element for the player,
-  0x0058b060): its image by its +0xc ([0x00608bac] / [0x00608ba8]), placed
-  like a contact but by its own distance (held to 0..radius), and the
-  second text: message 0x228 with its name (+0x28) and the distance in km
-  ("%.2f") past 1000 m, else 0x229 with the metres rounded up.
+- **The waypoint marker** ([0x00609980]'s selected element, 0x0058b060:
+  the mission waynet's point, vehicles.md, The nav waynet; first taken for a
+  network player's): its image by its +0xc (hud_mfbwaypoint_icon
+  [0x00608bac] for a dock point, else hud_waypoint_icon [0x00608ba8]),
+  placed like a contact but by its own distance (held to 0..radius), and
+  the second text: message 0x228, "OP: %1 [%2km]", with its name (+0x28)
+  and the distance in km ("%.2f") past 1000 m, else 0x229, "OP: %1
+  [%2!d!m]", with the metres rounded up.
 - **The shots in the air** (the weapons' radar list, weapon.h
   `radar_blips`: the missiles, SHOW_ON_RADAR): a pixel each (Pixel2D,
   0x005a6b80) inside the circle, red for the shots marked friendly, the HUD

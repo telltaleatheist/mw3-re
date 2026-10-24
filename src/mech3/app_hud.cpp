@@ -256,14 +256,22 @@ struct ProgramHudHooks : HudHooks {
   }
   void blip_place(void* b, int32_t x, int32_t y) override {
     static_cast<ztwod::Image*>(b)->set_pos(x, y);
-    blip_at[0] = x, blip_at[1] = y;
+    if (!program_is_waypoint_icon(b)) blip_at[0] = x, blip_at[1] = y;
   }
   void blip_draw(void* b) override {
     static_cast<ztwod::Image*>(b)->draw();
-    ++blips;
+    ++(program_is_waypoint_icon(b) ? markers : blips);
   }
-  int32_t blips = 0, blip_at[2] = {};  // for program_hud_report
-  void* network_marker() override { return nullptr; }
+  int32_t blips = 0, blip_at[2] = {}, markers = 0;  // for program_hud_report
+  // The radar's waypoint (the mission waynet's selected point; vehicles.md,
+  // The nav waynet), its icon, place and name.
+  void* network_marker() override { return program_waypoint_marker(); }
+  void* marker_image(void* e) override { return program_waypoint_icon(e); }
+  void marker_position(void* e, float out[3]) override { program_waypoint_position(e, out); }
+  const char* marker_name(void* e) override { return program_waypoint_name(e); }
+  // The edge arrow toward it (0x00479ef0 in the data update, 0x00479ed0 drawn).
+  void network_data(int32_t active, float) override { program_waypoint_arrow(active); }
+  void network_hud() override { program_waypoint_arrow_draw(); }
   bool radar_shot(int32_t i, float out[3], bool* friendly) override {
     auto& l = radar_blips();
     auto it = l.begin();
@@ -629,7 +637,8 @@ bool program_hud_report(HudReport* r) {
   r->radar_shown = !(h->radar.flags & ztwod::kHidden);
   r->radar_r = h->radar.radius, r->radar_x = h->radar.get_x(), r->radar_y = h->radar.get_y();
   r->blips = g_hooks.blips, r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
-  g_hooks.blips = 0;
+  r->markers = g_hooks.markers;
+  g_hooks.blips = 0, g_hooks.markers = 0;
   r->sensor_range = m->sensor_range;
   for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
   for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];

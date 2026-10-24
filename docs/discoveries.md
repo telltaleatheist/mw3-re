@@ -2877,6 +2877,24 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   no sound set the game ships. It is the line for the bases having opened
   up around you, so that moment is silent. (docs/vehicles.md)
 
+- **Nav points: how the waypoint works.** Every mission has its own nav
+  points (Op 1 Mission 1: Start, Able, Baker), one of them selected. The
+  radar shows the selected one with a waypoint icon and the line "OP:
+  <name> [<distance>]" (in metres, or km past 1000 m); when it is off the
+  screen an arrow at the screen's edge points toward it; in the world a
+  waypoint marker stands on it. N and Shift+N select the next or previous
+  one. Coming within 25 m of the selected nav point (height counts) says its
+  line once ("nav<name>"; Start has none) and selects the next one by
+  itself, so the waypoint walks you along the route. Nav points an
+  objective names are watched too and ticked off the same way, but the
+  original skips every watched point listed after the selected one until it
+  is selected (the rebuild checks them all). While you pick a field base
+  point with the MFB key, the radar and the arrow show the dock points
+  instead (a different icon and arrow set); cycling them can land on an
+  empty first entry, which the original's radar reads as a point that is
+  not there (likely a crash; the rebuild shows nothing).
+  (docs/vehicles.md, The nav waynet)
+
 - **Asking the field bases for a repair (the MFB command).** The first
   press of the MFB key, while the bases are free, switches your waypoints
   to the field bases' deployment points, picks the one nearest you and
@@ -2912,9 +2930,11 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   point, stops, waits until the bases are in place and powers down; it
   stays down while the bases work, at most 30 seconds and only within
   12 m of the point, then powers up and goes back to what it was doing.
-  It is repaired as you would be, from your own carried gear. On the
-  way it does not fire and does not break off to fight, and its habit of
-  picking fights is switched off until it is done. With no field base
+  It is repaired as you would be, from your own carried gear (the dock
+  repairs whoever asked, from the current game's store). On the way it
+  does not break off to attack anyone and does not start its evasive
+  moves, and its habit of picking fights is switched off until it is
+  done. (Its guns' own firing is not stopped by this.) With no field base
   up, or the bases not coming yet, it turns the order down.
   (docs/vehicles.md, The AI at the dock)
 
