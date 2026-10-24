@@ -18,6 +18,13 @@ int32_t program_campaign_bases();           // app_menus.cpp: the campaign's +0x
 void program_field_bases_mission_start();
 int32_t program_field_bases_count();          // the registry's count (0x00605ae0 +0x10)
 int32_t program_field_bases_lines();          // the dock's radio lines found, and its effects (+1)
+// The dock as the mission start leaves it: its states' list (1: the idle one
+// only), to begin, the bases held, "mcbdeploy" made.
+struct DockSummary {
+  int32_t states = -1;
+  bool idle_first = false, begin_next = false, drive = true, deploy_valve = false;
+};
+DockSummary program_dock_summary();
 void program_field_base_aim_arms(void* v, bool open);  // 0x004589a0 on its arms (the dock's, 4b; tests)   // 0x00459e80's registry part (0x00459e50, [0x0060b4d0])
 void* program_vehicle_controls(void* v);  // +0xe4
 void* program_vehicle_node(void* v);      // +0x04

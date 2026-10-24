@@ -1232,6 +1232,8 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     mech3::LaunchedMech before, after;
     size_t left = 99;
     int32_t registered = -1, lines = -1;
+    mech3::DockSummary dock;
+    int32_t deploy = -1;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       if (frames == 0)
@@ -1282,6 +1284,8 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
       for (const auto& [k, v] : engine.unported_counts()) calls[k] = v;
       registered = mech3::program_field_bases_count();
       lines = mech3::program_field_bases_lines();
+      dock = mech3::program_dock_summary();
+      if (const mech3::ai::Valve* v = mech3::ai::valve_find("mcbdeploy")) deploy = v->get();
       mech3::missions().cleanup(false);  // the valves end with the mission
       left = mech3::program_vehicles().size();  // freed with the entities (0x0049dc40)
     };
@@ -1295,6 +1299,10 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     // The dock's eleven radio lines and "mfbeffects" (0x00459e80): all but
     // mcb_deploy, which no shipped sound set has.
     EXPECT(lines == 11);
+    // The dock (0x00459e80): the idle state alone, to begin; the bases held;
+    // "mcbdeploy" made (its states run from the dock's frame, step 4b2).
+    EXPECT(dock.states == 1 && dock.idle_first && dock.begin_next && !dock.drive && dock.deploy_valve);
+    EXPECT(deploy == 0);
     auto dist = [](const float a[3], const float b[3]) {
       return std::hypot(a[0] - b[0], a[2] - b[2]);
     };

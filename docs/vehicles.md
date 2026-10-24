@@ -687,10 +687,8 @@ mission start (0x459e80) also finds the dock's eleven radio lines
 mcb_occupied, mcb_pos_wait, mcb_pos_cancel, mcb_contact, mcb_waiting,
 mcb_deploy, mcb_abort, mcb_complete) and its effects animation
 `mfbeffects` ([0x605c44]); no shipped sound set has `mcb_deploy`, so that
-line is silent (when the dock would say it: step 4b). The rest
-of the registry (its states at +0x04 and
-+0xbc..+0x14c, its valve +0x84, [0x605c44], [0x605c48], the frame 0x45a270
-and the repair 0x45a180) is the repair dock, step 4b.
+line (the deploy state's, once the bases have opened) is silent. The rest
+of the registry is the repair dock (below).
 
 **The setup** (vt+0x158 0x458d40): the basic one (0x49ec00), the seven
 nodes, the scripts' loose-file path `..\data\common\mechs\animations`
@@ -755,6 +753,62 @@ the bases left read 3 there (a new campaign's). Checked:
 and c1m1's headless test (three registered and alive, held in place, the
 arms of one opened through its frames, one shot down, all freed at the
 end).
+
+## The repair dock (0x459b80..0x45b9c0; states and drives step 4b1)
+
+`mech3/mech_fieldbase_dock`, ported 2026-10-24. The registry (0x605ae0)
+holds the dock: a list of states (+0x00..+0x0b, a "begin the front one"
+flag at +0x0c) run by the dock's frame (0x45a270, step 4b2) as a field base
+runs its steps: the front one begun, stepped until it says it is finished,
+then ended, dropped and the next begun. The seven states are members of the
+registry, each with the registry at +0x08 and the radio line it says at
++0x0c (vtable 0x5c2600 their base and the drives': begin clears +0x04, step
+and done return it, the message aborts, the abort clears the dock's marker
+0x47a720 on [0x60b544] and sets +0x04):
+
+| state | vtable | what it does |
+|---|---|---|
+| idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (4b2), which queues the six others in the order below |
+| places +0xe0 | 0x5c2620 | five frames on, says mcb_contact ("move into position"?); done when every active base with a valve has its valve set (each base's net sets it at its place) |
+| contact +0xd0 | 0x5c25c0 | says mcb_waiting once; done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
+| deploy +0xf4 | 0x5c2640 | busy (+0x78); each active base's drive out queued at the front of its steps; the player's view onto camera mode 4 (its own kept at +0x80); the mech at rest at the dock point (0x418e90); done with the three drives, saying mcb_deploy (no shipped sound); the mech powering up aborts |
+| repair +0x110 | 0x5c25a0 | busy; the effects `mfbeffects` on each active base (0x458cf0); twelve seconds, then the mech repaired (0x4154e0 with that frame's time); powering up aborts; its end says mcb_complete and stops the effects |
+| close +0x124 | 0x5c2580 | each base's drive in; the view back to its camera if still on mode 4; done with the drives; [0x60b4cc] cleared |
+| reset +0x140 | 0x5c2560 | the bases held again ([0x60b4d0] 0), "mcbdeploy" 0; its end queues the idle state again |
+
+The aborts: the places' and contact's (0x45ade0) say mcb_pos_cancel and
+unwind to the reset; the deploy's (0x45b1b0) says mcb_abort, drops its
+drives (0x459af0) and unwinds to the close; the repair's (0x45b3b0)
+unwinds to the close silently (it sets mcb_abort but does not say it). The
+unwind drops the list's front states until the target is the front, ends
+the old front and begins the target. While the dock is busy, another mech's
+request (the message 0x45b770 of deploy, repair and close) hears
+mcb_occupied. A line is said only once [0x605c4c] (the quiet time) has
+passed; the places state holds the next one five seconds.
+
+**The drives** (0x18 bytes, vtable 0x5c2540, 0x4598a0; their slots
+0x4598d0..0x459af0, 0x45b9a0, 0x45b9c0): out, the base's arms open and it
+backs at a quarter throttle until its travel (the stand-off 15.4 less its
+distance from the dock point at the start, then plus its local z speed
+each frame) passes -0.2; in, the arms shut and it drives forward from its
+distance to its place in (+0x110) until the travel is under 0.2. The
+throttle drops to 0 as soon as the stopping distance (vt+0x124) would
+carry it there. Done when it reached it with its arms there (open: the
+arm time 1, shut: 0; NaN counts as there), or with no base or an inactive
+one. Its abort drops its base's front step and begins the next.
+
+The drives are freed by the state's end, but a drive can still be on its
+base's steps then (the base drops it a frame later). The exe goes on
+reading the freed drive until the base drops it; the port keeps it until
+then (FIX (bug), no change in play). A mission with fewer than three bases
+(none shipped) would have the drives and the places' check follow a
+missing base (FIX (bug): passed).
+
+[0x60b4cc] and [0x60b4d0] are read by the AI's deploy state (0x4d0ce0,
+step 4b4). The mission start (0x459e80) ends any dock left running: the
+list back to the idle state alone, to begin, and "mcbdeploy" 0. Checked:
+`test_veh_dock.py` (600 state runs, 300 drive runs, 89 branches, 30
+breaks) and c1m1's headless test (the dock as the mission starts).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

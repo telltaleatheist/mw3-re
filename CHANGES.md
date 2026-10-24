@@ -257,6 +257,7 @@ unusual happens.
 - A vehicle whose weapon list (`vehicle.zrd`) names a weapon the game does not know no longer crashes the mission start; that weapon slot stays empty.
 - A modded mission with more than three mobile field bases no longer overwrites the first base's valve; the extra bases are put out of play as the original does, without the stray write. No shipped mission has more than three.
 - A mobile field base hit while there is no player's mech no longer crashes the game (it cannot happen in the shipped game).
+- A modded mission with fewer than three mobile field bases no longer crashes when a repair starts.
 - An AI "deploy", "mcbwait" or "valve_assign" waypoint without its switches named no longer crashes the game; the missing switches read as off and are not set.
 - An AI jump waypoint that does not lead to a path node no longer crashes the game; the pilot jumps without turning.
 - An AI vehicle without weapons no longer crashes the game when it is hit (its pilot's firing stands down); neither does an AI weapon without a definition when it fires.

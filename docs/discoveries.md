@@ -2861,8 +2861,18 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 
 - **One field base radio line was never recorded.** The game looks up
   eleven radio lines for the mobile field bases; one, `mcb_deploy`, is in
-  no sound set the game ships, so whenever the base would say it, nothing
-  plays. (docs/vehicles.md)
+  no sound set the game ships. It is the line for the bases having opened
+  up around you, so that moment is silent. (docs/vehicles.md)
+
+- **How a field base repair runs.** Once you ask for a repair, the bases
+  first drive to their places; then the dock waits until you are within
+  12 m of its point and powered down. The bases then back out about 15 m
+  and open their arms (five seconds), the view switches to the dock's
+  camera, and your mech is set down at rest on the dock point. The repair takes 12
+  seconds. Powering up while the bases are opening or during those 12
+  seconds aborts it: the bases close up again and you get no repair. While
+  a repair is under way, another mech asking hears "occupied".
+  (docs/vehicles.md, The repair dock)
 
 - **Some objective rewards in the mission files are never given.** An
   objective can carry salvage you get for completing it. The game reads

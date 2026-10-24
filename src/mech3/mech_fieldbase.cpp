@@ -22,6 +22,8 @@ FieldBaseHooks g_default;
 FieldBaseHooks* g_hooks = &g_default;
 FieldBases g_bases;
 bool g_drive = false;
+bool g_contact = false;
+float g_quiet = 0.0f;
 bool g_path_set = false;
 
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
@@ -34,6 +36,22 @@ void set_field_base_hooks(FieldBaseHooks* h) { g_hooks = h ? h : &g_default; }
 FieldBaseHooks& field_base_hooks() { return *g_hooks; }
 FieldBases& field_bases() { return g_bases; }
 bool& field_bases_drive() { return g_drive; }
+bool& field_bases_contact() { return g_contact; }
+float& field_bases_quiet_until() { return g_quiet; }
+
+// Mech3.exe 1.2 @ 0x00459b80 (the static's constructor, at start-up): the
+// states, each knowing the registry; the idle one queued, to begin. Their
+// sounds' lookups (mcb_contact, mcb_waiting, mcb_complete) find nothing
+// this early and are replaced by each begin.
+FieldBases::FieldBases() {
+  for (DockState* st : {static_cast<DockState*>(&idle), static_cast<DockState*>(&contact),
+                        static_cast<DockState*>(&places), static_cast<DockState*>(&deploy),
+                        static_cast<DockState*>(&repair), static_cast<DockState*>(&close),
+                        static_cast<DockState*>(&reset)})
+    st->reg = this;
+  states.push_back(&idle);
+  begin_next = true;
+}
 bool& field_bases_path_made() { return g_path_set; }
 bool is_field_base(const BasicVehicle& v) { return v.field_base; }
 
@@ -128,6 +146,8 @@ bool FieldBases::add(FieldBase& b) {
 // Mech3.exe 1.2 @ 0x00459e50 (the registry's other fields with the dock, 4b)
 void FieldBases::clear() {
   count = 0;
+  requester = nullptr;
+  deploy_valve = point_valve = nullptr;
   for (int i = 0; i < 3; ++i) bases[i] = nullptr, valves[i] = nullptr;
 }
 
@@ -140,6 +160,11 @@ void field_bases_mission_start() {
   g_bases.clear();
   for (int i = 0; i < 11; ++i) g_bases.sounds[i] = vh.sound_find(kSounds[i]);  // 0x0056f6f0
   g_bases.effects = vh.anim_find("mfbeffects");                              // 0x0050b450
+  g_bases.states.clear();
+  g_bases.states.push_back(&g_bases.idle);
+  g_bases.begin_next = true;
+  g_bases.deploy_valve = g_hooks->valve_get("mcbdeploy");  // 0x004d3c40
+  if (g_bases.deploy_valve) g_hooks->valve_set(g_bases.deploy_valve, 0);
   g_drive = false;
 }
 
@@ -208,16 +233,16 @@ void field_base_setup(FieldBase& b, zrdr::Node* def, const char* name, int32_t k
 void field_base_frame(FieldBase& b, float dt) {
   VehBasicHooks& vh = veh_basic_hooks();
   if (!b.actions.empty()) {
-    FieldBaseAction* a = b.actions.front();
+    DockStep* a = b.actions.front();
     if (b.begin_next) {
       a->begin();
       b.begin_next = false;
     } else if (a->done()) {
       a->end();
-      b.actions.pop_front();
+      field_base_drop_front(b);
       if (!b.actions.empty()) b.actions.front()->begin();
     } else if (a->step(dt)) {
-      a->running = true;
+      a->finished = true;
     }
   }
   FieldBaseHooks& h = *g_hooks;
@@ -270,7 +295,7 @@ int32_t field_base_damage(FieldBase& b, Handle weapon, uint32_t x, float amount)
   const int32_t r = h.base_damage(b, weapon, x, amount);  // 0x004ad3f0
   if (!b.active) {
     if (g_bases.alive() > 0) h.say(g_bases.sounds[2]);
-    else h.all_lost();
+    else h.marker_clear();
     return r;
   }
   if (!weapon) return r;
@@ -296,10 +321,7 @@ void field_base_die(FieldBase& b) {
 void field_base_destroy(FieldBase& b) {
   FieldBaseHooks& h = *g_hooks;
   VehBasicHooks& vh = veh_basic_hooks();
-  if (b.anim) {  // 0x00458d20
-    vh.anim_stop(b.anim);
-    b.anim = nullptr;
-  }
+  field_base_effects_stop(b);
   if (b.node) {
     vh.node_detach(b.node);  // 0x00583400
     if (h.node_in_world(b.node)) {
@@ -312,7 +334,7 @@ void field_base_destroy(FieldBase& b) {
   }
   if (b.arms) h.arms_free(b.arms);
   b.arms = nullptr;
-  b.actions.clear();
+  while (!b.actions.empty()) field_base_drop_front(b);
   h.base_destroy(b);
 }
 
@@ -321,6 +343,24 @@ void field_base_delete(FieldBase* b) {
   if (!b) return;
   field_base_destroy(*b);
   delete b;
+}
+
+void field_base_drop_front(FieldBase& b) {
+  DockStep* s = b.actions.front();
+  b.actions.pop_front();
+  if (auto* d = dynamic_cast<FieldBaseDrive*>(s); d && d->orphan) g_hooks->drive_free(d);
+}
+
+// Mech3.exe 1.2 @ 0x00458cf0
+void field_base_effects_start(FieldBase& b) {
+  if (!b.anim && g_bases.effects) b.anim = g_hooks->effects_start(g_bases.effects, b.node);
+}
+
+// Mech3.exe 1.2 @ 0x00458d20
+void field_base_effects_stop(FieldBase& b) {
+  if (!b.anim) return;
+  veh_basic_hooks().anim_stop(b.anim);  // 0x00506ca0
+  b.anim = nullptr;
 }
 
 }  // namespace mech3
