@@ -827,7 +827,8 @@ class HudHooks : public zgame::Unported {
   // (their +8 and vtable), an object's place (0x005a85e0) and blip by kind
   // (vt+0x3c: 0 ally, 1 enemy, 2 other; the Mech's mech_radar_blip), a blip
   // placed (vt+0xc) and drawn (vt+4). The network's marker: the player's
-  // element ([0x00609980]'s 0x0058b060 by its +0x20), its image by its +0xc
+  // element ([0x00609980]'s 0x0058b060 by its +0x20): the mission waynet's
+  // selected point (vehicles.md, The nav waynet), its image by its +0xc
   // ([0x00608bac] set, else [0x00608ba8]), place (vt+0x18) and name (+0x28).
   // The weapons' radar list (std::list at 0x0060b228, weapon.h radar_blips:
   // a shot's place its +0x48, friendly); the landmines (0x00604e48's vector
@@ -856,7 +857,12 @@ class HudHooks : public zgame::Unported {
     return ptr(unported("peek32", {unported("peek8", {id(e) + 0xc}) & 0xff ? 0x608bacu : 0x608ba8u}));
   }
   virtual void marker_position(void* e, float out[3]) { vec3_at(unported("marker.vt+0x18", {id(e)}), out); }
-  virtual uint32_t marker_name(void* e) { return unported("peek32", {id(e) + 0x28}); }
+  // The name (+0x28) as the message's %1, a string (the program's). The
+  // default answers the original's address as the pointer: only for a
+  // format that is stubbed (the tests'), never read through.
+  virtual const char* marker_name(void* e) {
+    return reinterpret_cast<const char*>(static_cast<uintptr_t>(unported("peek32", {id(e) + 0x28})));
+  }
   virtual bool radar_shot(int32_t i, float out[3], bool* friendly) {
     const uint32_t head = unported("peek32", {0x60b22c});
     uint32_t n = unported("peek32", {head});

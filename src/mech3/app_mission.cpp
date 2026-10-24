@@ -1021,6 +1021,13 @@ struct WiredObjectiveHooks : ObjectiveHooks {
   }
   void object_position(Handle o, float out[3]) override { mech_world_position(e->object_of(o), out); }
   void ask_voice(Handle sound, float priority) override { missions().ask_voice(sound, priority); }
+  // The nav points (the mission's waynet, vehicles.md, The nav waynet).
+  Handle nav_find(const char* name) override {
+    void* p = program_nav_find(name);
+    return p ? e->handle_of(p) : 0;
+  }
+  void nav_show(Handle nav, uint8_t on) override { program_nav_watch(e->object_of(nav), on); }
+  void nav_position(Handle nav, float out[3]) override { program_waypoint_position(e->object_of(nav), out); }
   // 0x0040fe70: the panel shown for the time, then the message's line.
   void hud_message(float seconds, int32_t id, const char* text) override {
     if (!message_panel()) return;
@@ -1071,8 +1078,13 @@ struct WiredMissionHooks : MissionHooks {
   // The mission's waynet's frame (vt+0x6c): the mcbwaynet's 0x004cd490 does nothing.
   void stations_update(Handle st, float dt, Handle vehicle) override {
     if (program_mcb_waynet() && st == e->handle_of(program_mcb_waynet())) return;
+    if (void* w = e->object_of(st); w && program_is_nav_waynet(w)) {  // vt+0x6c 0x00479c50
+      program_nav_waynet_frame(w, e->object_of(vehicle));
+      return;
+    }
     MissionHooks::stations_update(st, dt, vehicle);
   }
+  void fn_479850() override { program_waynet_icons_free(); }
   void map_update(float dt) override { program_field_bases_frame(dt); }  // 0x0045a270
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
@@ -1114,6 +1126,7 @@ struct WiredMissionHooks : MissionHooks {
     e->unported("0x00414000", {});
   }
   void delete_object(Handle obj) override {
+    if (program_nav_waynet_delete(e->object_of(obj))) return;  // the missions' +0xb4
     if (!mech_free(e->object_of(obj)) && !program_vehicle_free(e->object_of(obj))) MissionHooks::delete_object(obj);
   }
   void fn_49dc40() override {
@@ -1720,15 +1733,18 @@ void GameEngine::missions_update(uint32_t list, float dt) {
 }
 
 // 0x00490720 (the Load state's): the mission number (+0x64, the game's
-// vt+0x4c), which the cleanup names the mission's voice set by, and the sound
+// vt+0x4c), which the cleanup names the mission's voice set by, the
+// mission's readers (0x00490630), and the sound
 // sets the mission plays from: "common" (the weapons' own sounds), "mech",
 // the mission directory's and "<dir><block>" (its voices), unless the game is
-// of kind 6 (vt+0x54) or the briefing voices are off (app +0x1c3). Not ported:
-// the stations line-up (0x004797c0 into +0xb0 / +0xb4).
+// of kind 6 (vt+0x54) or the briefing voices are off (app +0x1c3); then
+// the mission's nav waynet (0x004797c0 into +0xb0 / +0xb4) by the game type
+// (vt+0x2c): waynet_N for 0, 1 and 4, waynet_iaN for 2, waynet_mpN for 3.
 void GameEngine::missions_reset(uint32_t list) {
   Engine::missions_reset(list);
   if (list != 0x6098d0 || !pilot_) return;
   missions().number = launch_.number;
+  missions().open_readers(mission_dir(launch_.index));  // 0x00490630
   if (launch_.index != 6 && !app().no_voices()) {
     const char* dir = mission_dir(launch_.index);
     zsnd::load_set("common");  // 0x0056f520
@@ -1737,6 +1753,15 @@ void GameEngine::missions_reset(uint32_t list) {
     char block[32] = {};
     missions().block_name(block);  // 0x00490600
     zsnd::load_set((std::string(dir) + block).c_str());  // "%s%s"
+  }
+  const int32_t type = launch_.type;
+  const char* fmt = type == 2 ? "waynet_ia%d" : type == 3 ? "waynet_mp%d"  // 0x005e754c, 0x005e7540
+                    : (type == 0 || type == 1 || type == 4) ? "waynet_%d" : nullptr;  // 0x005e7558
+  if (fmt) {
+    char name[32];
+    std::snprintf(name, sizeof name, fmt, launch_.number);
+    void* w = program_nav_waynet_make(name);
+    missions().xb4 = missions().stations = w ? handle_of(w) : 0;
   }
 }
 

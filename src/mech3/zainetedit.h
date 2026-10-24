@@ -57,6 +57,7 @@ class CZAiNetEdit : public AiNet {
   Region* make_region(Region* r, const NetLoop& l);  // 0x004bf1b0: the loop's edges into `r`
   Region* build_region();                   // 0x004bf3f0 (version 108)
   AiNet* build_compiled();                  // 0x004be670 (version 106; zainet_compile.cpp)
+  AiNet* build_waynet();                    // 0x004be690 (version 107): a nav waynet (mech_waynet)
 
   NetHeader header;               // +0x18
   AiNet* net = nullptr;           // +0x34  what was built

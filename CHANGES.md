@@ -14,6 +14,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Every nav point you pass on your objectives' list is ticked off.** The game marks a nav point an objective watches as reached (and says its line) when you come within 25 m, but once its check passed the currently selected nav point it skipped the rest of the list, so those were only ticked off once selected. Now all of them are checked.
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
@@ -128,6 +129,9 @@ unusual happens.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
 - Losing a field base while carrying 64 or more spare mechs no longer overruns the game's list of them (which could crash).
+- Cycling the field bases' dock points (MFB, then N or Shift+N) onto the list's empty first entry no longer reads through nothing on the radar and the edge arrow (which could crash); no marker is shown there.
+- A nav point file linking to a node that is not there no longer reads or writes past the game's lists (no shipped file does).
+- The waypoint arrows' images are all released at the end of a mission (two of the four sides were kept, a small leak each mission).
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.
 - An objective description with a `%` in its second or later lines is shown as written instead of being read as a format.

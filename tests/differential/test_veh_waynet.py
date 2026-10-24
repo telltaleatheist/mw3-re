@@ -214,7 +214,7 @@ class World:
         vals = []
         nd = e.r32(sent)
         while nd != sent:
-            vals.append(e.r32(nd + 8))
+            vals.append(idv(e.r32(nd + 8)))
             nd = e.r32(nd)
         out.append(e.r32(m + 0x2c))
         out += (vals + [0xffffffff] * 4)[:4]
@@ -278,9 +278,10 @@ def run_ops(probe, seed):
             a = w.points[j] if 0 <= j < len(w.points) else 0
             want = e.call(0x47a1e0, ecx=w.nav, stack=(a,)) & 0xff
             i = j
-        elif op == 11:
-            i = r.choice([0, 3, 7, 3])
-            e.call(0x47a270, ecx=m, stack=(i, add))
+        elif op == 11:  # a point (or none) onto the watched list or off it
+            i = r.randrange(-1, len(w.points) + 1)
+            a = w.points[i] if 0 <= i < len(w.points) else 0
+            e.call(0x47a270, ecx=m, stack=(a, add))
         elif op == 12:
             e.call(0x479b10, ecx=w.nav)
         got = probe.probe_wn_call(op, (F * 3)(*pos), i, lab.encode() if op != 11 else (b'x' if add else None), mech)

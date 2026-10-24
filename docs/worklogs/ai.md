@@ -1309,3 +1309,44 @@ is paused.
   when missing, and the reset runs only in a mission after the start set
   it: not null in play. Nothing changed.
 - CHANGES.md / fixes.md: 64 or more mechs (the draw at slot 64).
+
+## 2026-10-24 Item 4, step 4b3b (assigned by mw3 mac 1, in progress)
+
+- Branch mac4/nav-waynet from main e8c8644. The multiplayer nav waynet
+  (0x4797c0, net files 105 / 107: 0x4be690, 0x4bed90; vt+0x6c 0x479c50) and
+  the HUD's waypoint icons and arrows (0x4798f0's images, 0x479dd0..
+  0x479ef0; the HUD's 0x479ed0 call). Port with address comments,
+  differential with breaks, docs (vehicles.md / hud, ai.md if touched,
+  symbols, discoveries), FIX rows where needed. If the icons pull in
+  unported HUD drawing: the logic up to a hooks boundary (what is drawn
+  where), and report what is left.
+- Fold in: the 4b6 discovery's "repaired from your carried gear" and "does
+  not fire": keep if traced (0x4154e0 on the lancemate's mech from the
+  campaign store; the fire gate during the state), else soften to the
+  fight-picking (+0x80) being off.
+- Done (mac 4): every campaign and training mission has a nav waynet
+  (waynet_N.zrd, version 107); 4b3's "multiplayer only" was wrong (ai.md
+  had it right). Ported: the build 0x4be690 (zainetedit build_waynet:
+  no per-link slots, the counter's vtable 0x5ca48c), the make 0x4797c0
+  (nav_waynet_make), the frame 0x479c50 (Waynet::frame), the edge arrow
+  0x479ef0 / 0x479dd0 / 0x479ed0, the icons 0x4798f0 / 0x479a30 /
+  0x479850. The +0x28 list holds points (the objectives' watched nav
+  points, 0x45cf9d), not ints: `watched`.
+- Program: the mission reset opens the readers (0x490630, which the port
+  had left out) and makes the nav waynet into +0xb0 / +0xb4; the cleanup
+  deletes it; its frame runs; N / Shift+N / Ctrl+N move it; the
+  objectives' nav_find / nav_show / nav_position use it; the HUD's radar
+  marker ("OP: <name> [km]", not a network player's as hud.md had it) and
+  the edge arrow. HudHooks::marker_name answers a string now.
+- FIX (bug): the frame's skip after the selected point (behind bugs); a
+  selected element with no place (frame, arrow, radar: the MFB picking can
+  wrap onto the mcbwaynet's default behaviour, likely a crash in the
+  original, not seen in play); the 107 build's unchecked links, buffer and
+  elements; 0x479850 releasing four of the eight arrow images (behind bugs).
+- Tests: test_nav_waynet.py (47 shipped files, 300 made-up), test_nav_hud.py
+  (600 runs, 20 branches), test_veh_waynet.py updated for the points list,
+  c1m1 headless mission_c1m1_nav_waynet_headless; the dock test's end now
+  the nav waynet. 4b6's discovery: "repaired from your carried gear" kept
+  (traced: the dock's repair on its requester, the current game's store);
+  "does not fire" softened to the engage and manoeuvre gates (may_fire
+  gates the hit reaction and the timed manoeuvres, not the guns).

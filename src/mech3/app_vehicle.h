@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "mech3/app_mech.h"
@@ -46,6 +47,34 @@ struct DockSummary {
   void* requester = nullptr;
 };
 DockSummary program_dock_summary();
+// The nav waynet (vehicles.md, The nav waynet): made at the mission load
+// (0x004797c0), deleted with the missions' +0xb4, its frame (vt+0x6c), the
+// icons freed at the mission's end (0x00479850); for the HUD the selected
+// point (the radar's marker: its icon, place and name) and the edge arrow
+// (0x00479ef0, 0x00479ed0).
+void* program_nav_waynet_make(const char* name);
+bool program_nav_waynet_delete(void* o);
+bool program_is_nav_waynet(void* o);
+uint8_t program_nav_waynet_frame(void* w, void* vehicle);
+void program_waynet_icons_free();
+void* program_waypoint_marker();
+void* program_waypoint_icon(void* p);
+bool program_is_waypoint_icon(const void* b);  // one of the radar's two waypoint icons
+void program_waypoint_position(void* p, float out[3]);
+const char* program_waypoint_name(void* p);
+// A waynet's points (tests): the count, the selected one, the watched
+// list's size, and per point (up to 8) its label, name, reached, nav line, place.
+struct NavSummary {
+  int32_t count = 0, current = -1, watched = 0;
+  std::string labels[8], names[8];
+  bool reached[8] = {}, has_line[8] = {};
+  float pos[8][3] = {};
+};
+NavSummary program_nav_summary(void* waynet);
+void* program_nav_find(const char* name);       // the objectives' "nav" (0x0045c8f0)
+void program_nav_watch(void* point, int32_t on);  // and its watch (0x0047a270)
+void program_waypoint_arrow(int32_t active);
+void program_waypoint_arrow_draw();
 // The AI's refit (zai_repair, the brain hooks): the bases up (0x0045a000),
 // the dock asked for a mech (0x0047a780: the mcbwaynet there, 0x0047a730),
 // the mcbwaynet there, its selected point's place, the dock's two flags.

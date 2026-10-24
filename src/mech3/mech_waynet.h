@@ -4,20 +4,21 @@
 #include <string>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/ztwod/twod.h"
 #include "mech3/zai_steps.h"
 
 namespace mech3::ai {
 struct NetNodeRec;
 }
 
-// The waynets (docs/vehicles.md, The mcbwaynet): numbered nets of named
-// points with one selected, shown in the world by the "waypoint" node.
-// mech3\mech_waynet.cpp (0x00479640..0x0047a950). The mcbwaynet
-// ([0x0060b544]) holds the field bases' dock points, made from the
-// arrangenodes nodes as the nets compile; the player's MFB command picks one
-// and asks the dock. The multiplayer nav waynet ([0x00609980], net files 105
-// and 107, 0x004797c0) and the HUD's waypoint arrows (0x00479dd0..) are not
-// ported: no shipped single-player mission has a nav waynet.
+// The waynets (docs/vehicles.md, The mcbwaynet; The nav waynet): numbered
+// nets of named points with one selected, shown in the world by the
+// "waypoint" node, on the radar by an icon and at the screen's edge by an
+// arrow. mech3\mech_waynet.cpp (0x00479640..0x0047a950). The mission's nav
+// waynet (waynet_N.zrd, version 107, 0x004797c0 into the missions' +0xb0)
+// holds the nav points the objectives name; the mcbwaynet ([0x0060b544])
+// the field bases' dock points, made from the arrangenodes nodes as the nets
+// compile, which the player's MFB command picks one of and asks the dock.
 namespace mech3 {
 
 using Handle = void*;
@@ -67,12 +68,23 @@ class Waynet : public ai::CompiledNet {
   void place_marker();                    // 0x00479ac0
   void add(znet::Element* e) { elems.push_back(e); }  // 0x0047a010
   bool remove_last(znet::Element* e);    // 0x0047a1e0: when it is the last
-  void note(int32_t v, bool add);         // 0x0047a270: the +0x28 list
+  // 0x0047a270: `p` off the watched list, then at its end if `add` (an
+  // objective's nav point, 0x0045cf9d).
+  void note(znet::Element* p, bool add);
+  // vt+0x6c 0x00479c50, each mission frame on the mission's waynet: the
+  // watched points and the selected one within 25 m of `vehicle` marked
+  // reached (their nav line once); the selected one with autonext reached,
+  // the next selected. The selected point's reached.
+  virtual uint8_t frame(Handle vehicle);
+  // 0x00479ef0 (the HUD's data update, on the mission's waynet): the arrow
+  // hidden, then with `active` shown at the screen's edge toward the
+  // selected point when it is off the screen (the nav or MFB set by its +0x0c).
+  void hud_arrow(bool active);
 
   std::string label;                      // +0x1c  strdup'd
   int32_t current = 0;                    // +0x20
   uint8_t x24 = 0;                        // +0x24  the id's low byte
-  std::list<int32_t> x28;                 // +0x28
+  std::list<znet::Element*> watched;      // +0x28  the points the objectives watch
 };
 
 // The mcbwaynet (0x0047a550, 0x48 bytes, vtable 0x005c38e0) and the MFB
@@ -85,6 +97,7 @@ class McbWaynet : public Waynet {
   void nearest(const float* pos) override;  // vt+0x68 0x0047a680
   void clear();                           // 0x0047a6b0 (0x0047a720: the dock's marker clear)
   void command(Handle mech);              // 0x0047a7a0 (0x0047a910, MCB_COMMAND 0x73)
+  uint8_t frame(Handle) override { return 0; }  // vt+0x6c 0x004cd490: nothing
 
   int32_t passed = 0;                     // +0x30  how often the picked point came round
   znet::Element* picked = nullptr;        // +0x34
@@ -104,6 +117,24 @@ bool mfb_set_requester(Handle mech);
 // The net compile's (0x004bde20): an arrangenodes node's point in the
 // mcbwaynet, unless one of its auxname is there.
 void waynet_point_from_node(const ai::NetNodeRec& r, const float pos[3]);
+// 0x004797c0 (the mission load's 0x00490829, ECX the name: waynet_%d,
+// waynet_ia%d, waynet_mp%d by game type with the mission number): the file
+// built by a short-lived builder (version 107, 0x004be690); a waynet then
+// counted in for the icons and its marker placed. None: null.
+Waynet* nav_waynet_make(const char* name);
+// 0x004798f0 / 0x00479a30: a waynet counted in (the first makes the icons)
+// and out (the last frees them, 0x00479850).
+void waynet_icons_ref();
+void waynet_icons_unref();
+// 0x00479850 (the mission's end, and the last waynet's delete): a leak
+// reported when waynets are still counted, the count 0, the marker
+// forgotten, the icons and arrow images freed.
+void waynet_icons_free();
+// 0x00479ed0 (the HUD's frame): the arrow drawn unless hidden.
+void waynet_arrow_draw();
+// The radar's icons ([0x00608ba8] nav, [0x00608bac] MFB), null before the
+// first waynet.
+ztwod::Image* waynet_icon(bool mfb);
 
 // The calls out.
 class WaynetHooks : public zgame::Unported {
@@ -113,11 +144,35 @@ class WaynetHooks : public zgame::Unported {
   virtual uint32_t ref(const void* p) { return low(p); }
   virtual void on_new(uint32_t size, const void* p) { (void)size, (void)p; }
   virtual int32_t alloc_id();  // 0x0058b1c0: znet's first free in 10000..10099 ([0x005f2a48])
-  // The icons' count (0x004798f0 / 0x00479a30): the HUD's two waypoint
-  // icons and eight images made with the first waynet, freed with the last
-  // (0x00479850, which also forgets the marker).
-  virtual void icons_make() { unported("0x004798f0 (the waypoint icons)", {}); }
-  virtual void icons_free() { unported("0x00479850 (the waypoint icons)", {}); }
+  // The icons (0x004798f0 / 0x00479850): zImage's directory (0x00516f50),
+  // the radar's two icons (zTwoD images, 0x0059b830 into 0xbc bytes, deleted
+  // by vt+0x00(1)) and the arrow's eight images (zImage 0x005179d0, released
+  // by 0x00517b10); the leak report (0x0049bfd0).
+  virtual void image_path(const char* path);
+  virtual Handle icon_make(const char* name);
+  virtual void icon_free(Handle icon);
+  virtual Handle image_get(const char* name);
+  virtual void image_release(Handle image);
+  virtual void report_leak(int32_t count);
+  // The arrow (the zTwoD image at 0x00608ae0, made at start-up by 0x0059b970(0)):
+  // hidden (0x0059ff50), its image set (0x0059bb50) and its size (the
+  // image's +4 / +6 shorts, 0 without one), placed (0x0059bab0), shown for
+  // ever (0x0059ff10(-1)), hidden or not (+0x0c bit 4), drawn (0x0059bb70);
+  // the screen's size (0x0040d760 / 0x0040d770) and a world point on the
+  // screen (0x0053cf10: bits 1 left, 2 right, 4 above, 8 below; x, y).
+  virtual void arrow_hide();
+  virtual void arrow_image(Handle image);
+  virtual void arrow_size(int32_t* w, int32_t* h);
+  virtual void arrow_place(int32_t x, int32_t y);
+  virtual void arrow_show();
+  virtual bool arrow_hidden();
+  virtual void arrow_draw();
+  virtual int32_t screen_w();
+  virtual int32_t screen_h();
+  virtual uint32_t project(const float in[3], float out[3]);
+  // The nav waynet's build (0x004797c0): the builder with the build flag
+  // (zainetedit, version 107); a waynet's id (0x0058b1c0 from 10000).
+  virtual Waynet* build_waynet(int32_t id, const char* name);
   // The "waypoint" node (0x004f7fe0(6)), its parents (+0x54), the world's
   // add ([0x00608c84] vt+0x00), shown (0x004eb170), its place (0x004fc0b0).
   virtual Handle node_named(const char* name) { return h(unported("0x004f7fe0", {6, name})); }

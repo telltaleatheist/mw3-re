@@ -18,6 +18,7 @@
 #include "mech3/zainetedit.h"
 #include "mech3/zrdrainet.h"
 #include "mech3/zrdraiv.h"
+#include "mech3/mech_waynet.h"
 
 namespace {
 using namespace mech3::ai;
@@ -257,7 +258,11 @@ void reset() {
   set_hooks();
   regions_clear();
   znet::clear();
-  for (znet::Object* x : znet::registry().list) delete x;  // the regions' builders never outlive a call
+  // What outlives the clear (the regions' builders never do; the waynets,
+  // 10000 up, do), deleted without their own unregistering.
+  znet::registry().clearing = 1;
+  for (znet::Object* x : znet::registry().list) delete x;
+  znet::registry().clearing = 0;
   znet::registry().list.clear();
   valves_clear();
   net_files_clear();
@@ -332,6 +337,56 @@ int probe_paths_run(const char* archive, const int32_t* nets, int n, const int32
   if (!zrdr::open_archive(archive, true)) return -100;
   for (int i = 0; i < n; ++i) net_build(nets[i]);
   for (int i = 0; i < nq; ++i) run_query(g_out, queries + 12 * i, names);
+  return finish(out, cap, logbuf, logcap, nlog);
+}
+
+// test_nav_waynet.py: each named version-107 file built by a builder with
+// the build flag (0x004bcba0 -> 0x004be690) under id 10000 + i, the waynet
+// written (its id, label and elements: a null step as -2, a point as its
+// flags, nav line, first link, reached, place, name and label); the next
+// run's reset frees it with the registry.
+int probe_waynets_run(const char* archive, const char* const* names, int n, uint8_t* out, int cap,
+                      uint32_t* logbuf, int logcap, int* nlog) {
+  struct Hooks : mech3::WaynetHooks {
+    mech3::Handle sound_find(const char* name) override {
+      log({4, fnv(name)});
+      return reinterpret_cast<mech3::Handle>(static_cast<uintptr_t>(0x5000000u | (fnv(name) & 0xffffff)));
+    }
+  };
+  static Hooks hooks;
+  mech3::waynet_icons_count() = 1000;  // the waynets' deletes (the reset's, with the registry) count out, never to 0
+  reset();
+  mech3::set_waynet_hooks(&hooks);
+  zrdr::init();
+  zrdr::close_archives(true);
+  if (!zrdr::open_archive(archive, true)) return -100;
+  for (int i = 0; i < n; ++i) {
+    auto* edit = new CZAiNetEdit(10000 + i, names[i], 1);
+    auto* w = dynamic_cast<mech3::Waynet*>(edit->net);
+    delete edit;
+    if (!w) {
+      g_out.u(0);
+      continue;
+    }
+    g_out.u(uint32_t(w->get_id()));
+    g_out.s(w->label.empty() ? nullptr : w->label.c_str());  // the exe's strdup of a missing name: null
+    g_out.u(uint32_t(w->count()));
+    for (int32_t k = 0; k < w->count(); ++k) {
+      znet::Element* e = w->elem(k);
+      const auto* p = mech3::as_point(e);
+      if (!p) {
+        g_out.u(e == null_step() ? 0xfffffffeu : 0xfffffffdu);
+        continue;
+      }
+      g_out.u(0x5c3828u);
+      for (uint8_t b : {p->mfb, p->xd, p->xe, p->xf, p->hidden}) g_out.u(b);
+      g_out.u(uint32_t(reinterpret_cast<uintptr_t>(p->sound))), g_out.u(uint32_t(p->first_link)), g_out.u(p->reached);
+      for (float f : p->pos) g_out.f(f);
+      g_out.s(p->has_name ? p->name.c_str() : nullptr);
+      g_out.s(p->has_label ? p->label.c_str() : nullptr);
+    }
+  }
+  mech3::set_waynet_hooks(nullptr);
   return finish(out, cap, logbuf, logcap, nlog);
 }
 

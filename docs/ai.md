@@ -379,12 +379,12 @@ re-stored as the index of the node it names, which changes nothing for the
 builder's own nodes) and `arrangenodes` (0x4c74a0, below). With `build`
 and at least one record, the file's version picks what is built: 106 a
 compiled net (0x4be670, section 9), 108 a region (0x4bf3f0); 105
-(0x4bed90) and 107 (0x4be690, the waynets) are not ported. 107 is not
-multiplayer only: every mission's waynet_N.zrd is 107 (c1's waynet_1:
-node_00 Start, node_01 Able, node_02 Baker), and those auxnames are the
-nav points the objectives' "nav" keys name (0x4797c0 through 0x4bcba0
-with the build flag, filling the missions object's +0xb0; mac 2,
-2026-10-21). The builder's destructor leaves what it
+107 (0x4be690) a waynet, the mission's nav points: every mission's
+waynet_N.zrd is 107 (c1's waynet_1: node_00 Start, node_01 Able, node_02
+Baker), and those auxnames are the nav points the objectives' "nav" keys
+name (0x4797c0 through 0x4bcba0 with the build flag, filling the missions
+object's +0xb0; mac 2, 2026-10-21; ported in step 4b3b, vehicles.md, The
+nav waynet). 105 (0x4bed90) is in no shipped file and is not ported. The builder's destructor leaves what it
 built alone.
 
 **arrangenodes ( r )** (0x4c74a0 -> 0x4c7300 / 0x4c7340): each node this
