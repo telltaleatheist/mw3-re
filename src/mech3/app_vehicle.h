@@ -46,6 +46,20 @@ struct DockSummary {
   void* requester = nullptr;
 };
 DockSummary program_dock_summary();
+// What a field base's repair (0x004154e0) restores, on a mech (tests): the
+// armour (the mean over its eleven sections), the least internals (legs,
+// arms, head, the torso's three), the ammo weapons' rounds left and held
+// (not the beams' charge), coolant, jump fuel.
+struct MechWear {
+  float armor = 0, internal = 0;
+  int32_t ammo = 0, ammo_max = 0;
+  float coolant = 0, jet_fuel = 0;
+};
+MechWear program_mech_wear(void* mech);
+// The mech worn down (tests): every section's armour and internals set
+// (above 0: nothing destroyed), the ammo weapons' bins emptied, coolant
+// and fuel 0.
+void program_mech_wear_down(void* mech, float armor, float internal);
 void program_field_base_aim_arms(void* v, bool open);  // 0x004589a0 on its arms (the dock's, 4b; tests)   // 0x00459e80's registry part (0x00459e50, [0x0060b4d0])
 void* program_vehicle_controls(void* v);  // +0xe4
 void* program_vehicle_node(void* v);      // +0x04

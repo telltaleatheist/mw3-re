@@ -848,8 +848,7 @@ at rest at the station, the animation's end (0x45a0f0) repairs it
 mech only shows the animation; the network's message (0x46ffd0 ->
 0x45a140) finds the station by id.
 
-The repair itself (0x4154e0, the mech's: its parts mended and ammunition
-refilled) is the mech's code, not ported here.
+The repair itself (0x4154e0) is the mech's: next section.
 
 [0x60b4cc] and [0x60b4d0] are read by the AI's deploy state (0x4d0ce0,
 step 4b4). The mission start (0x459e80) ends any dock left running: the
@@ -861,6 +860,60 @@ the mission starts; with the dock point stood in at "MFB Baker", the
 player's request, the bases to their places, the player onto the point
 powered down, the deploy, the repair 12 s on and once, the close, the
 reset and idle again).
+
+## The repair (Mech::repair 0x4154e0, mech3\mech.cpp; step 4b4)
+
+The dock's repair state (0x45b320, with that frame's time, unused) and the
+multiplayer station's end (0x45a0f0, with 0) call it; it does everything at
+once and returns 1. Ported in `mech3/mech_repair.cpp`, the store's two calls
+in `mech_repair_store.cpp` (pilot.h's Handle is zgame's).
+
+1. Internals: `set_internal(1, 0)` (vt+0x3c) on both legs, both arms, the
+   head, then the torso's sections 0, 1, 2 (centre, left, right; the rear
+   sections share them). A destroyed part's own set_internal keeps 0, so a
+   lost arm stays lost, but a side torso at 0 comes back to full (its
+   arm does not).
+2. Ammo, from the store 0x479430 ([0x60861c]'s current game +0x08): for
+   each weapon of the manager (+0xd4) with an index (+0x28 not -1) that uses
+   ammo (0x484960, the table at 0x5e6504) and a bin (+0x58): the need is
+   capacity - left (0x4b4d00, 0x4b4cf0: 0 for an infinite bin); an
+   `AmmoItem(type id, 1)` (0x41ebd0; the def's +0x1f0 WeaponType +0x00)
+   finds its like (0x4714c0). None: nothing. An unlimited item (+0x10):
+   the need, free. Else the lesser of the need and its count, taken off
+   the count (not below 0; the item stays at 0). Then `bin->add` (0x4b4dc0).
+   Bins are shared, so a second weapon of the type finds its bin full.
+3. Armour: an `EquipmentItem(ferro ? 2 : 1, the config's armor_tech, 1)`
+   (0x41ec00; config +0x34, +0x30). Only when the store has one:
+   - the armour left: the sum over the eleven sections (legs, arms, head,
+     torso 0..5) of armour / armour scale (vt+0x44 / vt+0x4c; the scale is
+     100 / the section's points), times 100, floored: the points left;
+   - points = 0x424760(tech, ferro, armor_tons): floor(tons x 16.0001, x1.2
+     Clan ferro-fibrous, x1.12 Inner Sphere ferro);
+   - the cost: floor(0.5 + 2 (points - left) / k), k 16, Clan ferro 19.2,
+     IS ferro 17.92 (0x5bcd5c..0x5bcd64), so one item (half a ton,
+     0x484aa0's weight 0.5) per half ton missing, rounded; above 0 it goes
+     through the store's remove (vt+0x14 0x471d20: an unlimited item costs
+     nothing, the count stops at 0 and the item is deleted at 0);
+   - then `set_armor(1, s)` (vt+0x40) on every section, the cost paid or not.
+   In play's 24-bit precision; the port uses float (the test sets it).
+4. Coolant (+0x56c) 1; jump fuel (+0x564) 1 with jump jets (+0x3d8, the
+   equipment's [11], above 0), else 0; the AMS (+0x3f0) rounds (+0x18) =
+   AMS count (+0x3ac) x 100. Heat is not touched.
+5. 0x415a90: limping (+0x5ac 0 or 1) with the blend (anims[11], +0x450):
+   it freed (0x4152c0, then the delete), the slot 0, limp -1.
+6. The player's view ([0x5f4c8c] +0x64 the mech): the HUD (0x430aa0 on
+   +0x684) has its weapon lines refreshed (0x446520 on +0x6520), then its
+   reset (0x43be10).
+7. +0x680 = 0x1fe: the network's section bits.
+
+The port: no store (the program's debug launch has no pilot) finds
+nothing, so the internals and the rest are restored but no ammo or armour;
+the exe always has a pilot. Checked: `test_mech_repair.py` (800 repairs
+over random parts, weapons, bins and stores, the store and items the
+original's own; 19 branches; 29 breaks) and c1m1's headless test (the
+player's Mad Cat worn to 25 % armour, 50 % internals, the ammo bins
+emptied, coolant 0: after the 12 s all back, 440 rounds from the store,
+18 half tons of armour).
 
 ## The mcbwaynet (mech_waynet.cpp, 0x479640..0x47a950; step 4b3)
 

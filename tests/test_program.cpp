@@ -1390,6 +1390,24 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     mech3::GameEngine::Launch l;  // c1m1
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    // A pilot whose game's store holds every ammo and armour (the debug
+    // launch has none, and the repair then takes nothing from a store).
+    mech3::Pilot pilot("Repair");
+    mech3::Game game(&pilot);
+    pilot.current = &game;
+    for (int32_t w = 0; w < 0x25; ++w) game.store.add_ammo(w, 1)->count = 1000;
+    for (int32_t kind = 1; kind <= 2; ++kind)
+      for (int32_t tech = 0; tech <= 2; ++tech) game.store.add_equipment(kind, tech, 1)->count = 40;
+    auto held = [&](int kind) {
+      int32_t n = 0;
+      for (mech3::ConfigItem* it : game.store.items)
+        if (it->kind() == kind && (kind == 2 || it->id() == 1 || it->id() == 2)) n += it->count;
+      return n;
+    };
+    const int32_t ammo_held = held(2), armour_held = held(3);
+    mech3::Pilot* was_pilot = mech3::current_pilot();
+    mech3::current_pilot() = &pilot;
+    mech3::MechWear worn, repaired;
     int frames = 0, asked_at = -1, contact_at = -1, deploy_at = -1, repair_at = -1, close_at = -1, idle_at = -1;
     int repairs_at_close = -1;
     float repair_t = 0, close_t = 0;
@@ -1404,6 +1422,8 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
       const mech3::DockSummary d = mech3::program_dock_summary();
       if (fronts.empty() || fronts.back() != d.front) fronts.push_back(d.front);
       if (frames == 5) {  // MCB_COMMAND: the nearest dock point picked
+        mech3::program_mech_wear_down(player, 0.25f, 0.5f);
+        worn = mech3::program_mech_wear(player);
         points = mech3::program_mcb_points();
         mech3::program_mcb_command(player);
         picking = mech3::program_mission_waynet() == mech3::program_mcb_waynet();
@@ -1427,6 +1447,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         close_t = mech3::mech_game_time();
         const auto& n = engine.unported_counts();
         repairs_at_close = n.count("0x004154e0") ? static_cast<int>(n.at("0x004154e0")) : 0;
+        repaired = mech3::program_mech_wear(player);
       }
       if (d.front == 0 && close_at >= 0 && idle_at < 0) {
         idle_at = frames;
@@ -1448,10 +1469,23 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     EXPECT(asked_at == 6);
     EXPECT(cleared);
     EXPECT(contact_at > asked_at && deploy_at > contact_at && repair_at > deploy_at && close_at > repair_at);
-    // The repair: twelve seconds of game time, then 0x004154e0 once.
+    // The repair: twelve seconds of game time, then Mech::repair (0x004154e0,
+    // ported): armour, internals, ammo from the store, coolant back.
     std::fprintf(stderr, "  repair %.2f s\n", close_t - repair_t);
     EXPECT(close_t - repair_t >= 12.0f && close_t - repair_t < 12.2f);
-    EXPECT(repairs_at_close == 1);
+    EXPECT(repairs_at_close == 0);
+    std::fprintf(stderr, "  worn armour %.2f internals %.2f ammo %d/%d coolant %.2f fuel %.2f\n", worn.armor,
+                 worn.internal, worn.ammo, worn.ammo_max, worn.coolant, worn.jet_fuel);
+    std::fprintf(stderr, "  repaired armour %.2f internals %.2f ammo %d/%d coolant %.2f fuel %.2f\n", repaired.armor,
+                 repaired.internal, repaired.ammo, repaired.ammo_max, repaired.coolant, repaired.jet_fuel);
+    std::fprintf(stderr, "  store: ammo %d -> %d, armour %d -> %d\n", ammo_held, held(2), armour_held, held(3));
+    EXPECT(worn.armor == 0.25f && worn.internal == 0.5f && worn.ammo == 0 && worn.ammo_max > 0 && worn.coolant == 0.0f);
+    EXPECT(repaired.armor == 1.0f && repaired.internal == 1.0f && repaired.coolant == 1.0f);
+    EXPECT(repaired.ammo == repaired.ammo_max && repaired.ammo_max == worn.ammo_max);
+    EXPECT(ammo_held - held(2) == repaired.ammo);  // every round from the store
+    EXPECT(armour_held > held(3));                 // the armour paid for
+    mech3::current_pilot() = was_pilot;
+    pilot.current = nullptr;
     EXPECT(idle_at > close_at);
     app.stop_game();
     app.exit_instance();

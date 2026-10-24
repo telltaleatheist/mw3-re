@@ -2890,6 +2890,27 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   station, shut down for the station's animation, and powered up again
   repaired when it ends. (docs/vehicles.md, The repair dock)
 
+- **What a field base repair fixes, and what it does not.** All at once
+  when the 12 seconds are up:
+  - internal structure back to full on the legs, arms, head and the
+    centre and side torsos;
+  - every weapon's ammo topped up from the gear you carry, as far as you
+    have that ammo: carry none and that weapon stays empty;
+  - all armour back to full, but only if you carry at least some armour
+    of your mech's kind (standard or ferro-fibrous, Clan or Inner Sphere).
+    It costs half a ton of armour for each half ton missing, rounded. If
+    you carry less than that, you lose all you have and the repair is
+    still full; if you carry none, the armour is not repaired at all
+    (the structure still is);
+  - the coolant flush refilled, jump jet fuel full, the anti-missile
+    system reloaded (100 rounds per AMS, free), and a limp ends.
+
+  It does not bring back anything destroyed: a lost arm and its weapons
+  stay lost (its side torso does get its structure and armour back), and
+  nothing knocked out by a critical hit returns, because the repair never
+  touches weapons or equipment. Your heat is not reset either.
+  (docs/vehicles.md, The repair)
+
 - **Some objective rewards in the mission files are never given.** An
   objective can carry salvage you get for completing it. The game reads
   weapons there only as a name with its tech (`("LRM20" "clan")`) and an
