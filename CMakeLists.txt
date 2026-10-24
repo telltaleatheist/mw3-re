@@ -149,6 +149,7 @@ add_library(mw3core STATIC
   src/mech3/mech_objective.cpp
   src/mech3/mech_shade.cpp
   src/mech3/veh_basic.cpp
+  src/mech3/turret.cpp
   src/mech3/veh_basic_object.cpp
   src/mech3/mech_fieldbase.cpp
   src/mech3/mech_fieldbase_dock.cpp
@@ -325,6 +326,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_orders.cpp
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
+  tests/probe_turret.cpp
   tests/probe_sensors.cpp
   tests/probe_fade.cpp
   tests/probe_frame.cpp

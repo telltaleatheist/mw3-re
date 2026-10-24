@@ -13,7 +13,8 @@ APCs' moves (reg_apcadvance, reg_apcattack, ...). The launch reaches the
 mobile base's constructor 0x4589d0 three times and the basic vehicle's
 0x4ac320 four times (`mission_start_reads_c1m1_vehicles_headless`); both are
 logged, so these vehicles do not exist in the port's missions. c1's reader
-also holds `bossturr.zrd` and `triturret.zrd` (turrets, aiTurrets.zrd).
+also holds `bossturr.zrd` and `triturret.zrd` (the turrets' animations;
+their definitions are aiTurrets.zrd: The turrets).
 
 ## The basic vehicle (veh_basic.cpp region, 0x4ac320..)
 
@@ -1124,6 +1125,129 @@ c1m1 headless (`mission_c1m1_nav_waynet_headless`: Start, Able and Baker;
 the player starts on Start, so autonext has moved on to Able; set on Able,
 it is reached and Baker selected).
 
+## The turrets (turret.cpp, 0x4a4000..0x4a7af0; step 4c1)
+
+`mech3/turret` (`mech3::tur`). Turrets are not vehicles: no controls, no
+movement, an AiTarget with zEntity3d's few fields (like the targets.zrd
+objects), 0x284 bytes, vtable 0x5c8770 (55 slots, the shared ones
+zEntity3d's and AiTarget's).
+
+**Where they come from.** The mission load (when the app's +0x1b2 is set:
+single player and training, mission-load.md) calls 0x4a76b0 on
+`aiTurrets.zrd` (zbd/reader.zbd). It first makes the three HUD markers
+(`hud_turret_ally_sm`, `_enemy_sm`, `_other_sm`, [0x609a38..0x609a40],
+vt+0x3c 0x4a5fc0 hands them out), reads the file ("Failed to read %s"
+without it; the tree is kept at [0x609a44] until 0x4a7970 frees it with
+the markers), takes `GENERIC_DESTROY_ANIM`, then walks `TURRET`'s pairs:
+each entry's name is a **prefix** on zClass's list 6 (0x4f8b80), and every
+node starting with it whose `healthy` child (found anywhere under it,
+0x4f9d60) is active gets a turret: the constructor, then vt+0x38 (zEntity3d
+0x5a80f0: the world's +4 and the caller's EDX) and its AUX_ANIMs reset
+(0x4a7af0). Nothing keeps the turret but zEntity's list (the port keeps
+`turret_list()` as well). Two entries that are prefixes of the same node
+would make two turrets on it; no shipped pair does. The shipped worlds'
+turret nodes: c1 tur_srm01..08, tur_stk03/04, tur_boss01/02, triturret01/02;
+c2 tur_srm, tur_lbx, tur_medlas, tur_smalas, mineturret01, choppr01..03; c3
+tur_srm, tur_las, tur_ams, tur_ult01..07, tur_wallppc01/02, choppr01..06;
+c4 tur_srm, tur_lrm01, tur_ppc01/02, tur_ams, tur_ult01..07, tur_carve01,
+tur_train, choppr01..03; c4b tur_gauss01..03, tur_ult01..04, choppr01..06;
+t1 none. The helicopters (`choppr`) are turrets too.
+
+**The constructor** 0x4a5c60(node, generic destroy anim, definition):
+AiTarget 0x4d56e0(0, 0), the limits at +0x210 a full turn (0x4a4af0), the
+four animation lists, the team the enemies' (0x4d5af0(1) = 2), active 0,
+IS_IDLE 0, its id the count at [0x609a48] (then counted up; the pick takes
+turns by it, 4c2), the defaults (ammo 50, detection range 200, the facing
+and fire direction (0, 0, -1), the fire rate and next shot 1, the yaw
+-2 pi..2 pi), the limits again (0x4a4ac0: pitch -1.570796..1.570796, a full
+turn); on its node (0x4a6230: 0x4d6c90, zEntity's list 0x5a7f50), the setup.
+
+**The setup** 0x4a6270, the definition's keys in this order:
+
+| key | what it does |
+|---|---|
+| (the node's name) | an animation of that name (0x50b450) replaces the generic destroy animation |
+| `PARTS` | only with the node's direct child `healthy` (0x4eb0d0; then active 1): 4 names turret, gun, two firepoints; 3 turret, gun, firepoint; 2 gun, firepoint (each 0x4f9d60 under the node); +0x154 the firepoints |
+| `DEACTIVATE` | a node by name (0x4f7fe0, list 6), then a path of children (0x4eb0d0) |
+| `EFFECT` | a node under it and a time (the second value's bits, not converted); its model's texture scrolls (0x526ae0(1, 10, 0)) |
+| `HEALTH` | +0x244 = 1 / HEALTH (no HEALTH: 1); +0x240 the health fraction, 1 |
+| `DESTROY_ANIM` | replaces the destroy animation, even with none found |
+| `ONFIRE_ANIM`, `WAKEUP_ANIM`, `SLEEP_ANIM`, `AUX_ANIM` | the animations found, in lists (+0x25c, +0x250, +0x274, +0x268); AUX_ANIM's are claimed (0x4d4f20) |
+| `IS_IDLE` | +0x27c |
+| `SOUNDS` / `FIRE` | the fire sound (0x56f6f0) |
+| `LIMITS` / `YAW` | degrees (default -360, 360) into +0x204 / +0x208 radians and the limits rebuilt with them |
+| `BBOX` | the healthy node's box collision flag (0x4eb750; 1 without it) |
+| `WEAPON` | `NAME` (one name: zWeapon's definition 0x581ed0), `AMMO`, `DETECTION_RANGE` (else the weapon's +0x1c), `FIRE_LIMITS` (two values' bits: a burst's length and the pause after it), `FIRE_RATE` |
+| `AMS_RANGE` | an AMS (0x4b3ab0: range, period 0, 100 rounds), +0x138 set |
+| `TURRET_HEIGHT` | the AiTarget's height (+0x68), else the box's larger side x 1.15 |
+
+Then the node's world position (0x4ed650) and rotation (0x4fbe90,
+normalised into +0x124), the aim point +0xec: the position raised by the
+turret's and gun's matrix heights and the firepoints' mean height (0 / 0
+without a firepoint: NaN, on turrets that are inactive anyway); the effect
+hidden, the box flag; a beam weapon (definition flag 2) gets its beam
+(0x584a70) and FIRE_LIMITS' first value as its rate; with a destroy
+animation it is reset onto the node, the node's `destroyed` child hidden and
+the weapons callback 0x4a7940 installed (0x5833b0; "Failed to install
+weapons callback for (%s)"); without one only "No destroy animation for
+(%s)": **weapons do not hurt such a turret** (no callback). Last, the box
+(0x4ebd50; height 8, width 4 without one) places the centroid and target
+nodes at half and 0.65 of its height (0x4fc0b0, 0x5a8500), the range goes
+to the AiTarget (0x4d6d00), zEntity3d refreshes (0x5a85c0).
+
+**The turn limits** (+0x210, built in place by 0x4a4b30; +0x20c points at
+it): the pitch's sines and cosines (0x4a4000), and by the yaw's range
+(high minus low, in the x87 against a float 0.001, the double pi and 2 pi):
+0.001 or less (or NaN) 0x4a42f0 (one heading: cos, 0, -sin of the low yaw;
+vtable 0x5c8310); under pi 0x4a4580, under 2 pi 0x4a4800 (both over
+0x4a4270: the edges (-cos lo, 0, sin lo) and (cos hi, 0, -sin hi); 0x5c8320,
+0x5c8330); else a full turn 0x4a4a70 (0x5c8340, the vehicles'
+TurretLimits). A new kind is built over the old one in place (the old one's
+destructor runs, nothing is freed). Only triturret has a yaw (-30..30:
+narrow). Their within / clamp are the aim's (4c2).
+
+**Damage and death.** The callback 0x4a7940 hands a hit to 0x4a7530: the
+health fraction loses damage / HEALTH, the attacker's object (0x581e40,
+0x40eee0) is kept at +0xd4; at 0 or below the turret is shut down destroyed
+(0x4a7620) and the hit reported as a kill (0x583710(1, 0)), else its health
+(0x583730). **0x4a7620** (also message 0x34): the attacker credited (its
+vt+0x80 with the turret), the destroy animation run when destroyed, active
+0, the effect put out only when it is not showing (the flag test is the
+reverse of what the name suggests; as written), the node's weapon handlers
+off (0x583400), a beam stopped, +0xd4 cleared. **vt+0x70 0x4a7600**, the
+outright kill (the valves' `destroy`, ai.md): health 0, the attacker set to
+the player's vehicle ([0x60861c]+0x14), then 0x4a7620: the player gets the
+kill. The messages (vt+0x74 0x4a74f0): 0x32 clears IS_IDLE, 0x33 sets it,
+0x34 shuts it down, the rest go to AiTarget's 0x4d7270.
+
+**The other slots:** the target view's tint (vt+0x68 0x4a75b0: while active,
+red (1, 0, 0) by (1 - health) x 0.6, 0x4fb8c0, then 0x4fb840); vt+0x98
+0x46b780 1 while active, else 0; vt+0xa0 0x4a7a60 IS_IDLE; vt+0xcc
+0x4a7a70 (the sensors' "alive": active, not idle and its zones meeting the
+player's, 0x53cc90); vt+0xd0 0x4a7ab0 (active and the player's contact
+inside the detection range). The destructor 0x4a5ff0 (0x4a5fd0): the AMS
+freed, the beam (0x584b40), off its node (its handlers, 0x4d6c90, 0x5a7f70),
+the lists, AiTarget's 0x4d58a0.
+
+FIX (bug), the port's two: a WEAPON whose NAME finds no weapon and has no
+DETECTION_RANGE reads the null definition's range in the exe (the range
+stays 200); a key that is not a list or an item past a list's end reads as
+none. No shipped turret has either.
+
+`test_turret.py`: the shipped aiTurrets.zrd and 300 made-up files through
+the original's loader, constructor and setup (its zReader in the emulator
+on the same tree the port reads; prefixes matching 0 to 3 nodes, healthy
+or not, PARTS of one to five names, each limit kind, a beam weapon, AMS,
+odd values), then every slot in random order, the destructors and the end;
+the traces, each turret's 0x284 bytes, its lists and AMS after every step;
+40 branches. 40 of 43 breaks (the three missed not observable: 2 pi's
+`>=` against `>`, as no float equals the double; a TURRET list of odd
+length, which the exe reads past; a null marker, which new never gives).
+
+Left: the frame 0x4a6be0, the pick 0x4a70d0 / 0x4d72b0, the aim 0x4a71c0
+(its square root a bit trick) and the fire (4c2); the program: the mission
+load's call, their frames, the HUD markers, the kill count (+0x3fc) (4c3).
+
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 
 The mission load makes it in every mission ("Creating Stealth", 0x4a4de0,
@@ -1178,7 +1302,8 @@ base is needed first.
    definition's weapons, its model node and touch handler, damage and
    death, the kill credit's salvage 0x472ec0. It stands where placed.
 2. Its frame with the controls (the AI's; on hold).
-3. The mobile field base, then the turrets (turret.cpp, 903 lines).
+3. The mobile field base, then the turrets (turret.cpp, 903 lines; 4c1
+   the object, 4c2 its combat, 4c3 the program: The turrets).
 
 ## Telling a mech from another entity (2026-10-21)
 

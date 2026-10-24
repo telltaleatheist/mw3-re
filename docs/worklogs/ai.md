@@ -1350,3 +1350,53 @@ is paused.
   (traced: the dock's repair on its requester, the current game's store);
   "does not fire" softened to the engage and manoeuvre gates (may_fire
   gates the hit reaction and the timed manoeuvres, not the guns).
+
+## 2026-10-24 Item 4c: the turrets (assigned by mw3 mac 1, after 4b3b merged as 3f407a4)
+
+- From mw3 mac 1: rebase on main. The turret vehicles' remaining code:
+  whatever of their class, frame, aim/fire and death is not ported yet
+  (check vehicles.md and ai.md for what is left). Same bar as before
+  (port with addresses, Unicorn differential and break tests, docs,
+  FIX rows, related tests plus mw3tests / mw3sdltests). If the scope is
+  big, split it, do the first part and report the split.
+- Wait for Owen's compaction before starting.
+- Scope (mac 4): nothing of turret.cpp is ported. The class: 0x284 bytes,
+  vtable 0x005c8770 (55 slots, over the AiTarget / zEntity3d base the basic
+  vehicle shares), ctor 0x4a5c60, setup 0x4a6270 (the aiTurrets.zrd entry),
+  dtor 0x4a5ff0 / 0x4a5fd0, the loader 0x4a76b0 / cleanup 0x4a7970 (three
+  HUD marker images, the TURRET blocks over the world's nodes), the frame
+  0x4a6be0, the pick 0x4a70d0 (+ 0x4d72b0 in ai), the aim 0x4a71c0 and the
+  fire. Shipped: aiTurrets.zrd and turret.zrd (zbd/reader.zbd), bossturr /
+  triturret (c1), dometurr (c4b). Split:
+  - 4c1: the object: loader, ctor, setup, dtor, cleanup, the small slots
+    (markers, tint, messages 0x32..0x34, deactivate 0x4a7620, damage
+    0x4a7530, aux anims 0x4a7af0); it stands placed, takes hits and dies.
+  - 4c2: the frame 0x4a6be0, the pick 0x4a70d0 / 0x4d72b0, the aim
+    0x4a71c0 and the fire.
+  - 4c3: the program: the mission load makes them into the entity list,
+    their frames, HUD markers, kill credit (+0x3fc), a headless c1 run.
+- Lead (approved as drawn; report each part separately): in 4c2 port the
+  aim's bit-trick square root as written (std::memcpy / bit_cast, not a
+  union) so its error matches; portable, no (A) FIX; the docs say how far
+  it is from a true sqrt.
+- 4c1 done (mac 4): `mech3/turret` (`mech3::tur`): the loader 0x4a76b0 and
+  end 0x4a7970, the constructor 0x4a5c60, the setup 0x4a6270, the
+  destructor 0x4a5ff0, set_node 0x4a6230, aux_reset 0x4a7af0, the slots
+  (message 0x4a74f0, hit 0x4a7530 via the callback 0x4a7940, kill 0x4a7600,
+  deactivate 0x4a7620, tint 0x4a75b0, 0x4a7a60 / 0x4a7a70 / 0x4a7ab0,
+  0x46b780, the markers 0x4a5fc0), the turn limits 0x4a4b30 (built in
+  place at +0x210: four kinds, their within / clamp left for the aim). A
+  CZAiTarget-style object (zgame handles, TurretHooks), not a Vehicle.
+  The C++17 build has no std::bit_cast: memcpy (zgame::from_bits) for 4c2's
+  square root too.
+- Found: the turret's +0xd4 is the last attacker (kill credit), +0xd8 its
+  id; the outright kill (vt+0x70, the valves' destroy) credits the player;
+  without a destroy animation no weapons callback (weapons cannot hurt it);
+  deactivate puts the effect out only when it is not showing (as written;
+  4c2 sees whether the frame covers it); the helicopters are turrets;
+  idle turrets skip the whole frame.
+- FIX (bug): a missing weapon without DETECTION_RANGE (null read at load);
+  list items past a list's end or a non-list value read as none.
+- Tests: test_turret.py (the shipped file x12 worlds, 300 made-up, 30
+  port-only crash files; 40 branches; 40 of 43 breaks; NaNs compared as one: the x87's
+  negative default NaN against the hardware's positive).

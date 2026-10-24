@@ -3002,3 +3002,28 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   3's night-like world (sun at 0.2) a mech in the open is drawn five times
   brighter than the ground around it, on Op 4's second world and in
   training (0.7) somewhat brighter. (docs/shade.md)
+
+- **Turrets: where they come from and how tough they are.** Every turret
+  in the campaign comes from one file, `aiTurrets.zrd`: each entry names
+  the start of a world object's name (`tur_srm` makes `tur_srm01` to
+  `tur_srm08` in Op 1), and each such object becomes a turret as the
+  mission loads. The helicopters (`choppr01`..`06`, in Ops 2 to 4) are
+  turrets too, each with an LRM-5; they have no movement of their own.
+  A turret's HEALTH is the damage it takes to destroy: 15 for the SRM and
+  Streak turrets and the helicopters, 20 for the LRM, LB-X, Ultra AC,
+  laser, PPC and AMS turrets, 30 for the Gauss and Op 1 boss turrets, 25
+  for `tur_carve01`, 10 for the mine turret, 100 for the tripod turret
+  (`triturret`, Op 1, the only one whose turn is limited, to 30 degrees
+  either side) and 1 for `tur_train`. The AMS turret (`tur_ams`) has no
+  gun of its own: it shoots down missiles within 250 m. A turret whose
+  destroy animation the mission lacks gets no weapons callback, so weapons
+  cannot hurt it. (docs/vehicles.md, The turrets)
+
+- **Turrets that wait, and kills you did not make.** The Gauss turrets,
+  the Op 1 boss turrets, `tur_train`, `tur_carve01` and the helicopters
+  start idle (IS_IDLE): they hold fire until the mission wakes them (two
+  messages turn idle on and off; a third shuts a turret down as
+  destroyed). A turret the mission destroys outright (the AI scripts'
+  destroy) is credited to the player's mech, not to whoever was shooting
+  it; one destroyed by fire is credited to the last attacker that hit it.
+  (docs/vehicles.md, The turrets)
