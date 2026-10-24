@@ -73,13 +73,14 @@ struct DockState : DockStep {
   void cancel(DockStep* to);  // the aborts' unwind: the list emptied to `to`, the front ended, `to` begun
 };
 // +0xbc (vtable 0x005c25e0): waiting for a mech to ask (its message is the
-// request, 0x0045a780, step 4b2).
+// request, 0x0045a780: the bases sent to their places, the other six
+// states queued).
 struct DockIdle : DockState {
   bool asked = false;            // +0x10
   void begin() override;         // 0x0045a740
   bool step(float) override { return asked; }  // 0x0045a760
   void end() override;           // 0x0045a770
-  Handle message(Handle m) override;  // 0x0045a780 (FieldBaseHooks::dock_request)
+  Handle message(Handle m) override;  // 0x0045a780
 };
 // +0xd0 (0x005c25c0): the mech comes within 12 m of the dock point, powered down.
 struct DockContact : DockState {
@@ -152,10 +153,11 @@ struct FieldBaseArms : zsis::Script {
 struct FieldBase : BasicVehicle {
   std::list<DockStep*> actions;         // +0xfc..+0x107  (the allocator byte, the head, the count)
   bool begin_next = false;              // +0x108  the front one to begin
-  // The dock's places for it (0x0045a560, step 4b2): the registry's points
-  // out (+0x2c..) and in (+0x50..), the dock point.
-  const float* dock_out = nullptr;      // +0x10c
-  const float* dock_in = nullptr;       // +0x110
+  // The dock's places for it (0x0045a560): its points on the near ring
+  // (15.4 from the dock point, the registry's +0x2c..) and the far one
+  // (45.4, +0x50..), the dock point.
+  const float* dock_near = nullptr;     // +0x10c
+  const float* dock_far = nullptr;      // +0x110
   float dock_at[3] = {};                // +0x114
   Handle nodes[7] = {};                 // +0x120  arm01..04, cover_left, cover_right, cover_middle
   FieldBaseArms* arms = nullptr;        // +0x13c
@@ -177,13 +179,13 @@ struct FieldBases {
   // mcb_deploy, mcb_abort, mcb_complete.
   Handle sounds[11] = {};
   Handle effects = nullptr;            // [0x00605c44]  the animation "mfbeffects"
-  float points[6][3] = {};             // +0x2c  out (3), in (3): 0x0045a560, 4b2
+  float points[6][3] = {};             // +0x2c  the near ring (3), the far ring (3): 0x0045a560
   Handle requester = nullptr;          // +0x74  the mech that asked
   bool busy = false;                   // +0x78  deploying or repairing
-  Handle dock_point = nullptr;         // +0x7c  its vt+0x18 the place (0x0045a780, 4b2)
+  Handle dock_point = nullptr;         // +0x7c  the mcbwaynet's point; its vt+0x18 the place, vt+0x24 the name
   int32_t camera = -1;                 // +0x80  the view's camera mode before the dock's
   ai::Valve* deploy_valve = nullptr;   // +0x84  "mcbdeploy"
-  ai::Valve* point_valve = nullptr;    // +0x88  (0x0045a780, 4b2)
+  ai::Valve* point_valve = nullptr;    // +0x88  the one named after the dock point (0x0045a780)
   bool idle_on = false;                // +0xb8
   DockIdle idle;                       // +0xbc
   DockContact contact;                 // +0xd0
@@ -201,6 +203,8 @@ struct FieldBases {
   void abort_front();                  // 0x0045a540
   void effects_on();                   // 0x0045b290
   void effects_off();                  // 0x0045b2c0
+  void deploy_points(const float* at);  // 0x0045a560: the rings around `at` (none: the requester's place)
+  void frame(float dt);                // 0x0045a270 (the mission's frame, 0x0048f4ad)
   int32_t alive() const;               // 0x0045a000: those still active
   bool add(FieldBase& b);              // 0x0045a030
   void clear();                        // 0x00459e50
@@ -214,6 +218,17 @@ bool& field_bases_drive();
 bool& field_bases_contact();
 // [0x00605c4c]: the game time before which no radio line is said again.
 float& field_bases_quiet_until();
+// [0x00605c48]: a multiplayer station's repair animation running (0x0045a180).
+Handle& field_bases_repair_anim();
+// Mech3.exe 1.2 @ 0x0045a180 (ECX the mech, EDX the station): the repair at
+// a multiplayer station: false without either or the station's animation.
+bool field_bases_station_repair(Handle mech, Handle station);
+// Mech3.exe 1.2 @ 0x0045a140 (ECX the mech, EDX the station's id): the same
+// from the network's message (0x0046ffd0).
+void field_bases_station_message(Handle mech, uint32_t station);
+// Mech3.exe 1.2 @ 0x0045a0f0: the station's animation ended (the callback
+// it is given): the mech repaired and powered up.
+void field_bases_station_done(Handle anim, Handle mech, int32_t stopped);
 // [0x00736584], the scripts' loose-file path: made by the mechs' set-up
 // (0x00413e60) or the first base and never trimmed, so each base adds the
 // path again. The port's motions come from motion.zbd only.
@@ -309,7 +324,54 @@ class FieldBaseHooks : public zgame::Unported {
   virtual void mech_rest_at(Handle mech, const float* pos) { unported("0x00418e90", {low(mech), low(pos)}); }
   virtual void mech_repair(Handle mech, float dt) { unported("0x004154e0", {low(mech), zgame::bits(dt)}); }
   virtual Handle effects_start(Handle def, Handle node) { return h(unported("0x00508c10", {low(def), low(node), 0, 0, 0})); }
-  virtual Handle dock_request(DockIdle& s, Handle m) { (void)s; return h(unported("0x0045a780", {low(m)})); }
+  // The request's (0x0045a780): the mcbwaynet's dock point ([0x0060b544]'s
+  // element by its +0x20, 0x0058b060; none without the waynet) and its name
+  // (vt+0x24); a valve by name (0x004d3d20); a base's brain (vt+0x140, then
+  // IControls vt+0x54), its current order's net (+0x17c, the part's
+  // vt+0x08), a net's element by name (vt+0x08), an element's behaviour
+  // (vt+0x60, then vt+0x74), a behaviour's links (vt+0x04, vt+0x08), the
+  // brain's way finder dropped (+0x238 0x004040d0) and its go-to (0x004c84b0).
+  virtual Handle dock_point() { return h(unported("[0x0060b544]+0x20 0x0058b060", {})); }
+  virtual const char* dock_point_name(Handle p) { (void)p; return nullptr; }
+  virtual ai::Valve* valve_find(const char* name);
+  virtual Handle base_brain(FieldBase& b);
+  virtual Handle brain_order_net(Handle brain);
+  virtual Handle net_element(Handle net, const char* name);
+  virtual Handle element_behaviour(Handle e);
+  virtual int32_t link_count(Handle beh);
+  virtual Handle link(Handle beh, int32_t i);
+  virtual void brain_path_reset(Handle brain);
+  virtual void brain_go_to(Handle brain, Handle net, Handle target);
+  // The multiplayer frame's and repair's: the pilot's multiplayer game's
+  // repairs on (0x00479480, +0xa8), the player's vehicle ([0x0060861c]
+  // +0x14), its +0x08 and +0xde (active, powered down), the stations
+  // ([0x00609980]), the nearest (0x004d51d0) and by id (0x0058b060), a
+  // station's name (+0x2c) and its vt+0x14 (the message to send, 0x0046ff90),
+  // the player's nearest enemy contact (0x004d6b90(3)), its mech (0x004e6ff0)
+  // and distance (+0x0c, squared), the HUD's message (0x0040fe20, 5 s), an
+  // entity's name (vt+0xa4), remote (vt+0x5c), its +0xdd, powered up
+  // (0x0041cc30(0)), the view's saved camera ([0x005f4c8c]+0x5c), an
+  // animation's end callback (0x00508f00 with 0x0045a0f0).
+  virtual bool mp_repairs() { return unported("0x00479480+0xa8", {}) != 0; }
+  virtual Handle player_vehicle() { return h(unported("[0x0060861c]+0x14", {})); }
+  virtual bool entity_active(Handle e) { return unported("entity+0x08", {low(e)}) != 0; }
+  virtual bool entity_shut_down(Handle e) { return unported("entity+0xde", {low(e)}) != 0; }
+  virtual Handle stations() { return h(unported("[0x00609980]", {})); }
+  virtual Handle station_nearest(Handle st, const float* pos) { return h(unported("0x004d51d0", {low(st), low(pos)})); }
+  virtual Handle station_by_id(Handle st, uint32_t id) { return h(unported("0x0058b060", {low(st), id})); }
+  virtual const char* station_name(Handle s) { (void)s; return nullptr; }
+  virtual const float* station_position(Handle s) { return reinterpret_cast<const float*>(h(unported("station.vt+0x18", {low(s)}))); }
+  virtual void station_announce(Handle st, Handle s) { unported("stations.vt+0x14 0x0046ff90", {low(st), low(s)}); }
+  virtual Handle nearest_enemy(Handle me) { return h(unported("0x004d6b90", {low(me), 3})); }
+  virtual Handle contact_vehicle(Handle c) { return h(unported("0x004e6ff0", {low(c)})); }
+  virtual float contact_distance(Handle c) { return zgame::from_bits(unported("contact+0x0c", {low(c)})); }
+  virtual void hud_message(const char* text) { unported("0x0040fe20", {text}); }
+  virtual const char* entity_name(Handle e) { (void)e; return nullptr; }
+  virtual bool entity_remote(Handle e) { return unported("entity.vt+0x5c", {low(e)}) != 0; }
+  virtual void entity_set_shutdown(Handle e, bool on) { unported("entity+0xdd=", {low(e), on}); }
+  virtual void mech_power_up(Handle m) { unported("0x0041cc30", {low(m), 0}); }
+  virtual int32_t view_saved_camera() { return static_cast<int32_t>(unported("[0x005f4c8c]+0x5c", {})); }
+  virtual void anim_on_end(Handle anim, Handle mech) { unported("0x00508f00", {low(anim), 0x45a0f0, low(mech)}); }
   virtual FieldBaseDrive* drive_make(FieldBase* b, bool open) { return new FieldBaseDrive(b, open); }  // new 0x18
   virtual void drive_free(FieldBaseDrive* d) { delete d; }
   virtual Handle campaign() { return h(unported("0x00479440", {})); }

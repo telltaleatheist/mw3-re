@@ -2874,6 +2874,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   a repair is under way, another mech asking hears "occupied".
   (docs/vehicles.md, The repair dock)
 
+- **Multiplayer field base repairs.** In a multiplayer game with repairs
+  on, a powered-down mech within 6.5 m of a field base station is repaired
+  there, unless an enemy mech is within 100 m: then the HUD says "<name> is
+  too close for MFB deployment". Between 6.5 and 20 m it says "too far from
+  MFB depolyment point", misspelt in the game. Your mech is set on the
+  station, shut down for the station's animation, and powered up again
+  repaired when it ends. (docs/vehicles.md, The repair dock)
+
 - **Some objective rewards in the mission files are never given.** An
   objective can carry salvage you get for completing it. The game reads
   weapons there only as a name with its tech (`("LRM20" "clan")`) and an

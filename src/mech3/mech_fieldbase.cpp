@@ -148,6 +148,7 @@ void FieldBases::clear() {
   count = 0;
   requester = nullptr;
   deploy_valve = point_valve = nullptr;
+  field_bases_repair_anim() = nullptr;  // [0x00605c48]
   for (int i = 0; i < 3; ++i) bases[i] = nullptr, valves[i] = nullptr;
 }
 

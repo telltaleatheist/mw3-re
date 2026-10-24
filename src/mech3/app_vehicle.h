@@ -16,6 +16,11 @@ bool program_is_field_base(const void* v);  // vt+0xf0 / vt+0xf4: itself (0x004d
 void* program_campaign();                   // app_menus.cpp: the pilot's campaign (0x00479440), null without one
 int32_t program_campaign_bases();           // app_menus.cpp: the campaign's +0xa8 (3 for the debug launch's)
 void program_field_bases_mission_start();
+void program_field_bases_frame(float dt);   // 0x0045a270 from the mission's frame
+// Tests (ours): the mcbwaynet's dock point stood in for (null name: none),
+// and a mech's ask (0x0045a500, as the player's MFB command 0x0047a7a0 does).
+void program_dock_stand_in(const char* name, const float pos[3]);
+void program_dock_message(void* mech);
 int32_t program_field_bases_count();          // the registry's count (0x00605ae0 +0x10)
 int32_t program_field_bases_lines();          // the dock's radio lines found, and its effects (+1)
 // The dock as the mission start leaves it: its states' list (1: the idle one
@@ -23,6 +28,10 @@ int32_t program_field_bases_lines();          // the dock's radio lines found, a
 struct DockSummary {
   int32_t states = -1;
   bool idle_first = false, begin_next = false, drive = true, deploy_valve = false;
+  // The front state: 0 idle, 1 places, 2 contact, 3 deploy, 4 repair, 5 close, 6 reset; -1 none.
+  int32_t front = -1;
+  bool busy = false;
+  void* requester = nullptr;
 };
 DockSummary program_dock_summary();
 void program_field_base_aim_arms(void* v, bool open);  // 0x004589a0 on its arms (the dock's, 4b; tests)   // 0x00459e80's registry part (0x00459e50, [0x0060b4d0])

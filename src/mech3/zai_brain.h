@@ -549,6 +549,10 @@ class Brain {
   bool push_behaviour(Behaviour* b);               // 0x004e88c0: on the current order's net
   void pop();                                      // 0x004e8380
   bool pop_if(AiNet* n);                           // 0x004e84a0: when the current order is on n
+  // 0x004c84b0: on the current order's net `n`, a way (+0x238) from the
+  // current state's behaviour to `target`; the current order dropped first
+  // when that behaviour is +0x23c's (none). False when the net is another.
+  bool go_to(AiNet* n, Behaviour* target);
   Order* top_unmarked();                           // 0x004e8c60
   void unwind_to(Order* o);                        // 0x004e8990
   bool stop();                                     // vt+0x40 0x004ea4e0
@@ -660,6 +664,7 @@ class Brain {
   float x230 = 0;             // +0x230  the health an attack gives up at (0x004e9710)
   char* x234 = nullptr;       // +0x234  0x0049d180: a string holder, empty
   PathHolder path;            // +0x238  the way finder (0x004c7c10), deleted by the dtor
+  Pilot path_pilot;           // ours: what the finder asks of the pilot (the exe passes the brain)
   void* x23c = nullptr;       // +0x23c  the same
   BrainStep step;             // +0x240
   Steer steer;                // +0x250

@@ -1051,6 +1051,7 @@ struct WiredMissionHooks : MissionHooks {
   // 0x00459e80: the field bases' registry and the dock's states for the
   // mission (vehicles.md, The repair dock).
   void fn_459e80(Handle) override { program_field_bases_mission_start(); }
+  void map_update(float dt) override { program_field_bases_frame(dt); }  // 0x0045a270
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
   void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {

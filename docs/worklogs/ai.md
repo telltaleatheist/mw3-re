@@ -1175,3 +1175,33 @@ is paused.
   the idle state), the request 0x45a780 with 0x45a560 and 0x45b860, the
   repair 0x45a180 / 0x45a140.
 
+## 2026-10-24 Item 4, step 4b2: the dock's frame, the request, the stations (mac 4)
+
+- mech_fieldbase_dock: the frame 0x45a270 (the states off multiplayer;
+  the station repair in it), the request 0x45a780 (the idle state's
+  message, with 0x45b860's back order and the net's element by name
+  0x58b0a0), the rings 0x45a560, the station repair 0x45a180, its message
+  0x45a140 and end 0x45a0f0. zai_brain: Brain::go_to 0x4c84b0 (the
+  finder's pilot kept on the brain: the exe passes the brain itself).
+- Program: the mission frame's 0x45a270 hook; the dock's clock, places,
+  powered down, view, rest, effects wired; a stand-in dock point for the
+  tests (the mcbwaynet is not ported).
+- The lead's questions. 1: a step answering finished after its abort
+  unwound the list marks the dropped state (the repair), not the close it
+  unwound to: the close (begun by the unwind) runs from the next frame and
+  the bases close; nothing a player sees. My 4b1 note that the repair's
+  abort is silent was wrong: its end, called by the unwind, says
+  mcb_abort. 2: "mcbdeploy" is made by the mission start (valve_get makes
+  a missing one), so every mission has it, modded or not; no guard.
+- test_veh_dock.py: 600 frame, request, ring and station runs on top of
+  4b1's (100 branches), 26 more breaks caught. c1m1 headless
+  (mission_c1m1_field_bases_repair_the_player_headless): with the dock
+  point stood in at net_02's "MFB Baker", the player's request, the bases
+  reach their places by their nets, the player onto the point powered
+  down, the deploy, 12.1 s of repair and 0x4154e0 once, close, reset,
+  idle.
+- Left: the mcbwaynet (mech_waynet.cpp, ~1,100 lines) and the MFB command
+  0x47a7a0 / 0x47a730 (4b3), so the player can ask in play; Mech::repair
+  0x4154e0 (the mech's); the death's store cut 0x4590b0; the AI's deploy
+  state 0x4d0ce0.
+
