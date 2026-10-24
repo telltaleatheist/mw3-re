@@ -16,6 +16,9 @@
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
+#include "mech3/mech_waynet.h"
+#include "mech3/zainetedit.h"
+#include "gamez/zsound/zsnd.h"
 #include "mech3/sound_extra.h"
 #include "mech3/mission_world.h"
 #include "mech3/sensors.h"
@@ -117,14 +120,36 @@ struct WiredControls : VehControlsHooks {
 };
 WiredControls g_controls;
 
-// The dock point the mcbwaynet would give ([0x0060b544], not ported): none
-// in play; the tests set a stand-in (ours).
-struct DockPointStandIn {
-  bool on = false;
-  std::string name;
-  float pos[3] = {};
+// The mission's waynet (the missions' +0xb0, [0x00609980]), app_mission's.
+void* (*g_mission_waynet)() = nullptr;
+void (*g_set_mission_waynet)(void*) = nullptr;
+
+// The waynets' (mech_waynet): the "waypoint" node, the world, the nav lines,
+// the mission's waynet, a mech's place and vehicle.
+struct WiredWaynets : WaynetHooks {
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
+  }
+  Handle node_named(const char* name) override { return zcls::list_find_by_name(6, name); }
+  int32_t node_parents(Handle node) override { return zn(node)->parent_count(); }
+  void world_add(Handle node) override {
+    if (zcls::Node* w = world_hooks().world) zcls::node_add_child(w, zn(node));
+  }
+  void node_set_active(Handle node, int32_t on) override { zcls::node_set_active(zn(node), on); }
+  void node_set_translation(Handle node, float x, float y, float z) override {
+    zcls::object3d_set_translation(zn(node), x, y, z);
+  }
+  Handle sound_find(const char* name) override { return zsnd::find(name); }
+  void sound_play(Handle s) override { zsnd::play(static_cast<zsnd::Object*>(s), 1.0f); }
+  Handle mission_waynet() override { return g_mission_waynet ? g_mission_waynet() : nullptr; }
+  void set_mission_waynet(Handle w) override {  // 0x00491d00
+    if (g_set_mission_waynet) g_set_mission_waynet(w);
+    if (w) static_cast<Waynet*>(w)->reselect();
+  }
+  const float* entity_position(Handle e) override { return g_hooks.entity_position(*static_cast<Vehicle*>(e)); }
+  Handle entity_vehicle(Handle e) override { return entity_is_mech(e) ? e : nullptr; }  // a mech's vt+0x50, a vehicle's 0
 };
-DockPointStandIn g_dock_point;
+WiredWaynets g_waynets;
 
 // The field base's (mech_fieldbase): the game type, the campaign's bases
 // left, the radio, an entity's team and its controls' hit; the dock's
@@ -143,9 +168,23 @@ struct WiredFieldBases : FieldBaseHooks {
   uint32_t frame() override { return g_hooks.frame(); }
   const float* entity_position(Handle e) override { return g_hooks.entity_position(*static_cast<Vehicle*>(e)); }
   bool powered_down(Handle e) override { return entity_is_mech(e) && mech_powered_down(e); }  // a vehicle's 0x0040bae0: 0
-  Handle dock_point() override { return g_dock_point.on ? &g_dock_point : nullptr; }
-  const char* dock_point_name(Handle p) override { return static_cast<DockPointStandIn*>(p)->name.c_str(); }
-  const float* dock_point_position(Handle p) override { return static_cast<DockPointStandIn*>(p)->pos; }
+  // The mcbwaynet's selected point ([0x0060b544], 0x0058b060 by its +0x20),
+  // its label (vt+0x24) and place (vt+0x18).
+  Handle dock_point() override {
+    McbWaynet* w = mcb_waynet();
+    return w ? w->elem(w->current) : nullptr;
+  }
+  const char* dock_point_name(Handle p) override {
+    const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(p));
+    return pt ? pt->label_or_null() : nullptr;
+  }
+  const float* dock_point_position(Handle p) override {
+    ai::Behaviour* b = static_cast<ai::AiElem*>(static_cast<znet::Element*>(p))->as_behaviour();
+    return b ? b->position() : nullptr;
+  }
+  void marker_clear() override {  // 0x0047a720 on [0x0060b544]
+    if (McbWaynet* w = mcb_waynet()) w->clear();
+  }
   Handle view_vehicle() override { return program_view_target(); }
   int32_t view_camera() override { return program_view_camera_id(); }
   void view_set_camera(int32_t mode) override { program_view_set_camera(mode); }
@@ -178,12 +217,16 @@ void wire_vehicles(const MechWiring* w) {
     set_veh_basic_hooks(nullptr);
     set_veh_controls_hooks(nullptr);
     set_field_base_hooks(nullptr);
+    set_waynet_hooks(nullptr);
+    ai::net_hooks().waynet_point = nullptr;
     return;
   }
   g_w = *w;
   set_veh_basic_hooks(&g_hooks);
   set_veh_controls_hooks(&g_controls);
   set_field_base_hooks(&g_field_bases);
+  set_waynet_hooks(&g_waynets);
+  ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
 }
 
 bool is_program_vehicle(const void* p) { return p && g_vehicles.count(static_cast<const Vehicle*>(p)) != 0; }
@@ -222,12 +265,36 @@ void program_field_base_aim_arms(void* v, bool open) {
 }
 void program_field_bases_mission_start() { field_bases_mission_start(); }
 void program_field_bases_frame(float dt) { field_bases().frame(dt); }
-void program_dock_stand_in(const char* name, const float pos[3]) {
-  g_dock_point.on = name != nullptr;
-  g_dock_point.name = name ? name : "";
-  if (pos) g_dock_point.pos[0] = pos[0], g_dock_point.pos[1] = pos[1], g_dock_point.pos[2] = pos[2];
+void program_waynet_mission(void* (*get)(), void (*set)(void*)) { g_mission_waynet = get, g_set_mission_waynet = set; }
+void program_nets_begin() {  // 0x004d52b0's for the mcbwaynet (vt+0x2c 0x00479a50)
+  if (McbWaynet* w = mcb_waynet()) w->begin();
 }
-void program_dock_message(void* mech) { field_bases().message(mech); }  // 0x0045a500 (the MFB command's ask)
+void program_mcb_command(void* mech) {  // 0x0047a910 (MCB_COMMAND)
+  if (McbWaynet* w = mcb_waynet()) w->command(mech);
+}
+bool program_mission_waynet_key(int32_t cmd, void* mech) {  // [0x00609980] vt+0x60 / +0x64 / +0x68
+  auto* w = static_cast<Waynet*>(g_mission_waynet ? g_mission_waynet() : nullptr);
+  if (!w || w != mcb_waynet()) return false;
+  if (cmd == 0x36) w->next();
+  else if (cmd == 0x37) w->prev();
+  else w->nearest(g_hooks.entity_position(*static_cast<Vehicle*>(mech)));
+  return true;
+}
+void program_mission_waynet_clear() {  // 0x0047a720 on [0x0060b544], the mission's cleanup
+  if (McbWaynet* w = mcb_waynet()) w->clear();
+}
+void program_mcb_waynet_free() { mcb_waynet_free(); }  // 0x004d54f0
+void* program_mcb_waynet() { return mcb_waynet(); }
+int32_t program_mcb_points() { return mcb_waynet() ? mcb_waynet()->count() - 1 : -1; }
+bool program_dock_point(const char** label, float pos[3]) {
+  const FieldBases& r = field_bases();
+  const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(r.dock_point));
+  if (!pt) return false;
+  if (label) *label = pt->label_or_null();
+  pos[0] = pt->pos[0], pos[1] = pt->pos[1], pos[2] = pt->pos[2];
+  return true;
+}
+void* program_mission_waynet() { return g_mission_waynet ? g_mission_waynet() : nullptr; }
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }

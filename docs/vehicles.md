@@ -831,10 +831,8 @@ behaviour to the target; when that behaviour is +0x23c's (none), the
 current order is dropped first and the new one's behaviour asked, its
 answer unused.
 
-Not ported: the mcbwaynet (mech_waynet.cpp, about 1,100 lines: arrangenodes
-nodes made its points, the stations of multiplayer, the HUD's marker) and
-the MFB command 0x47a7a0 / 0x47a730 (pick a point, ask, cancel). Until
-then no request comes in play; the tests stand a dock point in.
+The dock point comes from the mcbwaynet and the request from the player's
+MFB command (below).
 
 **Multiplayer** (game type 3, the same frame): no states; with the game's
 repairs on (0x479480, +0xa8), the player's mech active and powered down,
@@ -863,6 +861,72 @@ the mission starts; with the dock point stood in at "MFB Baker", the
 player's request, the bases to their places, the player onto the point
 powered down, the deploy, the repair 12 s on and once, the close, the
 reset and idle again).
+
+## The mcbwaynet (mech_waynet.cpp, 0x479640..0x47a950; step 4b3)
+
+`mech3/mech_waynet`, ported 2026-10-24. A waynet is a compiled AI net
+(0x4bfe40: element 0 the default behaviour 0x604068) of named points with
+one selected (+0x20) (0x479640, vtable 0x5c37b0; its name +0x1c, a list at
++0x28 that 0x47a270 keeps), shown in the world by the world's node
+"waypoint" ([0x608ba4]), which its first begin (vt+0x2c 0x479a50, from the
+nets' 0x4d52b0 at the mission start) finds, puts in the world when it has
+no parent and places on point 0 (the default behaviour, with no place:
+nothing then). Selecting (0x479b90) places the marker on the point and
+shows it, an index out of range hides it; next and prev (vt+0x60 /
++0x64 0x479b10 / 0x479b30) wrap round all the elements, the default
+behaviour included (the marker stays put on it); nearest (vt+0x68
+0x479b50) takes the AI's nearest element with a place (0x4d51d0) when it
+is a point (vt+0x78), else the selected; find (0x479be0) is by the
+point's auxname, case not counted. The first waynet made counts the HUD's
+two waypoint icons in ([0x608ba0], 0x4798f0), the last deleted out
+(0x479850, which forgets the marker).
+
+**The points** (0x47a320, 0x38 bytes, vtable 0x5c3828, a Behaviour):
+the record's name (+0x28) and auxname (+0x2c, what it answers by, vt+0x24),
+its place (+0x1c, vt+0x18), its first link (+0x30), flags +0x0c..+0x10
+(a dock point: +0x0c and +0x0d set), and for a non-dock point a nav line
+("nav<auxname>", 0x5e5adc) said the first time it is reached (0x47a500).
+
+**The mcbwaynet** ([0x60b544], 0x4d5460, vtable 0x5c38e0; id 10000 up, kept
+by znet's clear and deleted at the mission's end by 0x4d54f0, after
+0x47a720 clears it): as the nets compile (0x4bde20), each arrangenodes
+node not already there by its auxname becomes a dock point at its place
+(on the ground), with the record's hidden byte. c1m1 has one: net_02's
+"MFB Baker". Its next and prev (0x47a5c0 / 0x47a620) count how often the
+picked point comes round (+0x30); its nearest (0x47a680) picks.
+
+**The MFB command** (MCB_COMMAND, key command 0x73: 0x47a910 -> 0x47a7a0
+on the mcbwaynet with the mech; nothing while no field base is up):
+1. With the dock idle (+0xb8): the mission's waynet ([0x609980], the
+   missions' +0xb0) kept (+0x40, its point +0x3c) and the mcbwaynet made
+   the mission's (0x491d00), so N / Shift+N / Ctrl+N cycle the dock
+   points; the point nearest the mech picked (+0x34), "mcb_pos_wait".
+   The dock busy: "mcb_occupied".
+2. The request (0x45a500) with the selected point; the point onto the
+   kept waynet's end (+0x38) when there is one (multiplayer), which is the
+   mission's again.
+3. The front state's abort (0x45a540).
+The dock's marker clear (0x47a720 -> 0x47a6b0) undoes it: the mission's
+waynet back (or the kept one's point reselected and the point taken off
+its end), the marker hidden, the command back to its first press. The
+dock calls it when a run is aborted (each state's abort) and when the
+repair's twelve seconds are up.
+
+0x47a730 (and 0x47a780 through the mcbwaynet, from the AI's 0x4ea2b7):
+a mech (its vt+0x50) made the dock's requester while a base is up, when
+the dock is neither busy nor holding the bases.
+
+Not ported (step 4b3b): the multiplayer nav waynet (0x4797c0, net files
+105 / 107: 0x4be690 / 0x4bed90; its vt+0x6c 0x479c50 marks points reached
+within 25 m), the HUD's waypoint icons and arrows (0x4798f0's images,
+0x479dd0 / 0x479ed0 / 0x479ef0). In single player there is no nav waynet,
+so the HUD draws a waypoint only while the MFB command is picking.
+
+Checked: `test_veh_waynet.py` (600 runs of the selection, the mcbwaynet's
+slots, clear and the command; 300 points; 25 branches; 25 of 26 breaks,
+the 26th, nearest's fallback, not reachable: element 0 is always there)
+and c1m1's headless repair test (the MFB command picks "MFB Baker" and asks;
+the dock does the rest).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

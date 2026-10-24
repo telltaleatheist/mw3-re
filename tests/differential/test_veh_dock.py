@@ -532,8 +532,8 @@ def run_states(probe, seed):
                 cover(f'{NAMES[step[1]]} slot {step[2]} -> {int(want != 0)}')
         else:
             fn = {0: 0x45a720, 1: 0x45b740, 2: 0x45a500, 3: 0x45a540}[step[1]]
-            want = e.call(fn, ecx=REG, stack=(m,) if step[1] in (1, 2) else ()) & (0xff if step[1] == 0 else 0)
-            got = probe.probe_dk_helper(step[1], m) & (0xff if step[1] == 0 else 0)
+            want = e.call(fn, ecx=REG, stack=(m,) if step[1] in (1, 2) else ()) & (0xff if step[1] < 2 else 0)
+            got = probe.probe_dk_helper(step[1], m) & (0xff if step[1] < 2 else 0)
             cover(f'helper {step[1]}')
         if want != got:
             print(f'{name}: call {k} answers original {want:#x} rebuild {got:#x}')
