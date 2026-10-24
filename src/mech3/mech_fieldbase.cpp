@@ -94,7 +94,9 @@ bool FieldBaseArms::step(float dt) {
 // Mech3.exe 1.2 @ 0x0045a000
 int32_t FieldBases::alive() const {
   int32_t n = 0;
-  for (int32_t i = 0; i < count; ++i)
+  // FIX (bug): past three the exe reads the stray write (add's fix below);
+  // the extras are inactive, so the first three are counted.
+  for (int32_t i = 0; i < count && i < 3; ++i)
     if (bases[i]->active) ++n;  // 0x004d7200
   return n;
 }
