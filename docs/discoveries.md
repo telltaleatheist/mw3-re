@@ -244,6 +244,13 @@ From the port of the damage code, checked in an emulator against the original
   unless a setting in its AI record keeps it always awake (the tenth "p8"
   value in aiv.zrd; Op 1 Mission 1's trucks have it). A vehicle without it
   waits where the mission put it until you come near. (docs/vehicles.md)
+- **A hidden fly camera is still in the game.** Every mission makes an
+  invisible "stealth" vehicle: no model, 10,000 health, up to 65 m/s, which
+  hovers level a fixed height above the highest ground under it. A debug
+  command puts the camera on it so you can fly around the level (and pan
+  north-up in the overhead view), but no key in the released game can
+  trigger it. The game only borrows it to hold the camera while your mech
+  is swapped for another. (docs/vehicles.md)
 - **Vehicles never get credit for kills.** When a tank or APC destroys
   something, the game's kill credit for vehicles is empty: only mechs
   score kills and points. (docs/vehicles.md)

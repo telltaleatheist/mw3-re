@@ -28,6 +28,10 @@ a byte-identical port.
   geometry (collision, terrain, AI bounds). This is a personal learning
   project, not a product (Owen): nothing is sold; game files stay out of the
   repo as usual.
+- Also at the end (Owen, 2026-10-23, back burner): the stealth object and
+  BASIC mode, ported and wired to a debug key as a fly camera (the release
+  cannot reach it; docs/vehicles.md, The stealth object). Until then the
+  stealth object is made only as the mech swap's camera placeholder.
 - Checking: differential tests run the original x86 function (in an emulator
   such as Unicorn, on the Mac) and the C++ version on the same inputs.
 - Assets: never committed. A first-run importer reads the player's MW3 1.2
