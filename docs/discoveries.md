@@ -2864,6 +2864,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   no sound set the game ships. It is the line for the bases having opened
   up around you, so that moment is silent. (docs/vehicles.md)
 
+- **Asking the field bases for a repair (the MFB command).** The first
+  press of the MFB key, while the bases are free, switches your waypoints
+  to the field bases' deployment points, picks the one nearest you and
+  the bases radio back (the line `mcb_pos_wait`); N and Shift+N cycle the points. The
+  second press asks for the repair at the chosen point; a third cancels
+  it. While a repair is running the first press only gets "occupied".
+  (docs/vehicles.md, The mcbwaynet)
+
 - **How a field base repair runs.** Once you ask for a repair, the bases
   first drive to their places; then the dock waits until you are within
   12 m of its point and powered down. The bases then back out about 15 m

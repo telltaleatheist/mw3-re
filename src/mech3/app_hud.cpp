@@ -1,4 +1,5 @@
 #include "mech3/app_hud.h"
+#include "mech3/app_vehicle.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -519,7 +520,10 @@ void wire_hud() {
     }
   };
   mech_hud_calls().cockpit = make_cockpit;  // 0x00430ad0's second half (playtest #4)
+  command_calls().stations = [] { return program_mission_waynet(); };  // [0x00609980]
   command_calls().other = [](Mech& m, int32_t cmd) {
+    if (cmd >= 0x36 && cmd <= 0x38 && program_mission_waynet_key(cmd, &m)) return;  // vt+0x60 / +0x64 / +0x68
+    if (cmd == 0x73) return program_mcb_command(&m);  // MCB_COMMAND 0x0047a910 on [0x0060b544]
     if (cmd == 0xa6) {
       if (message_panel()) message_panel_toggle();  // 0x0040f070, the message panel's key
       return;

@@ -1355,11 +1355,13 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
 }
 
 // c1 mission 1's field bases repair the player (docs/vehicles.md, The repair
-// dock): the mcbwaynet's dock point (not ported) stood in for at net_02's
-// node "MFB Baker"; the player asks (0x0045a500); the bases go to their
-// places; the player walks onto the dock point and powers down; the bases
-// back out and open; after twelve seconds the repair (0x004154e0) and the
-// bases close up; the dock is idle again.
+// dock, The mcbwaynet): net_02's arrangenodes node "MFB Baker" is the
+// mcbwaynet's one dock point; the player's MFB command picks it (the
+// mission's waynet the mcbwaynet meanwhile) and asks (0x0047a7a0); the
+// bases go to their places; the player walks onto the dock point and powers
+// down; the bases back out and open; after twelve seconds the repair
+// (0x004154e0) and the bases close up; the dock is idle again, the mission's
+// waynet back to none.
 TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1392,16 +1394,25 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
     int repairs_at_close = -1;
     float repair_t = 0, close_t = 0;
     std::vector<int> fronts;
-    const float point[3] = {-1276.5f, 3.0f, -896.2f};  // net_02's "MFB Baker"
+    float point[3] = {};
+    std::string label;
+    int32_t points = -1;
+    bool picking = false, cleared = false;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
       const mech3::DockSummary d = mech3::program_dock_summary();
       if (fronts.empty() || fronts.back() != d.front) fronts.push_back(d.front);
-      if (frames == 5) {
-        mech3::program_dock_stand_in("MFB Baker", point);
-        mech3::program_dock_message(player);
+      if (frames == 5) {  // MCB_COMMAND: the nearest dock point picked
+        points = mech3::program_mcb_points();
+        mech3::program_mcb_command(player);
+        picking = mech3::program_mission_waynet() == mech3::program_mcb_waynet();
+      }
+      if (frames == 6) {  // again: the request
+        mech3::program_mcb_command(player);
         asked_at = frames;
+        const char* l = nullptr;
+        if (mech3::program_dock_point(&l, point)) label = l ? l : "";
       }
       if (d.front == 2 && contact_at < 0) {  // the contact: onto the dock point, powered down
         contact_at = frames;
@@ -1417,7 +1428,10 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
         const auto& n = engine.unported_counts();
         repairs_at_close = n.count("0x004154e0") ? static_cast<int>(n.at("0x004154e0")) : 0;
       }
-      if (d.front == 0 && close_at >= 0 && idle_at < 0) idle_at = frames;
+      if (d.front == 0 && close_at >= 0 && idle_at < 0) {
+        idle_at = frames;
+        cleared = mech3::program_mission_waynet() == nullptr;
+      }
       ++frames;
     };
     CountingPump pump;
@@ -1428,14 +1442,17 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
                  contact_at, deploy_at, repair_at, close_at, idle_at);
     for (int f : fronts) std::fprintf(stderr, " %d", f);
     std::fprintf(stderr, "\n");
-    EXPECT(asked_at == 5);
+    EXPECT(points == 1 && picking);  // the one dock point, "MFB Baker"
+    EXPECT(label == "MFB Baker");
+    std::fprintf(stderr, "  dock point %s at %.1f %.1f %.1f\n", label.c_str(), point[0], point[1], point[2]);
+    EXPECT(asked_at == 6);
+    EXPECT(cleared);
     EXPECT(contact_at > asked_at && deploy_at > contact_at && repair_at > deploy_at && close_at > repair_at);
     // The repair: twelve seconds of game time, then 0x004154e0 once.
     std::fprintf(stderr, "  repair %.2f s\n", close_t - repair_t);
     EXPECT(close_t - repair_t >= 12.0f && close_t - repair_t < 12.2f);
     EXPECT(repairs_at_close == 1);
     EXPECT(idle_at > close_at);
-    mech3::program_dock_stand_in(nullptr, nullptr);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

@@ -1205,3 +1205,30 @@ is paused.
   0x4154e0 (the mech's); the death's store cut 0x4590b0; the AI's deploy
   state 0x4d0ce0.
 
+## 2026-10-24 Item 4, step 4b3: the mcbwaynet and the MFB command (mac 4)
+
+- mech3/mech_waynet: Waynet (0x479640, over the compiled net: element 0
+  the default behaviour), its selection and marker (0x479a50..0x47a270),
+  WaynetPoint (0x47a320, 0x47a480..0x47a530), McbWaynet (0x47a550..
+  0x47a6b0), the MFB command 0x47a7a0 / 0x47a910, 0x47a730, the make and
+  free 0x4d5460 / 0x4d54f0, and the net compile's arrangenodes point
+  (0x4bde20's, through NetHooks::waynet_point). FieldBases::set_requester
+  answers now (0x45b740 returns whether it took it).
+- Program: the dock's point is the mcbwaynet's selected one (the stand-in
+  gone); the dock's marker clear is the mcbwaynet's; the nets' begin, the
+  mission's end (0x47a720, 0x4d54f0), the mission's waynet (the missions'
+  +0xb0 as a handle), MCB_COMMAND (0x73) and N / Shift+N / Ctrl+N on the
+  mcbwaynet (vt+0x60..+0x68); the mcbwaynet's frame (vt+0x6c 0x4cd490)
+  does nothing.
+- test_veh_waynet.py: 600 runs, 300 points, 25 branches, 25 of 26 breaks
+  (nearest's fallback is not reachable). c1m1 headless: the MFB command
+  picks "MFB Baker" (the mission's one dock point) and asks; the repair
+  runs as before; the mission's waynet back to none after.
+- Split: 4b3b, the multiplayer nav waynet (0x4797c0, net files 105 / 107:
+  0x4be690, 0x4bed90; vt+0x6c 0x479c50, 25 m) and the HUD's waypoint icons
+  and arrows (0x4798f0's images, 0x479dd0..0x479ef0; the HUD's 0x479ed0
+  call): single player has no nav waynet, but the HUD would show the MFB
+  waypoint while picking.
+- Left after: Mech::repair 0x4154e0, the store cut 0x4590b0, the AI deploy
+  0x4d0ce0 (and the AI's MFB ask 0x4ea2b7 -> 0x47a780).
+

@@ -387,6 +387,12 @@ struct WiredPlayerHooks : PlayerHooks {
     else PlayerHooks::vehicle_update(v, dt);
   }
   void entities_update(float dt) override { update_entities(dt); }  // 0x004a1140
+  // 0x004d52b0: every net's vt+0x28 then vt+0x2c; the mcbwaynet's (0x00479a50)
+  // is ported, the others' stay logged.
+  void nets_begin() override {
+    program_nets_begin();
+    PlayerHooks::nets_begin();
+  }
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
   // view.vt+0x08 (0x0040ada0): the port's view, each player tick.
@@ -1051,6 +1057,14 @@ struct WiredMissionHooks : MissionHooks {
   // 0x00459e80: the field bases' registry and the dock's states for the
   // mission (vehicles.md, The repair dock).
   void fn_459e80(Handle) override { program_field_bases_mission_start(); }
+  // The mission's end: the mcbwaynet's clear (0x0047a720 on [0x0060b544]) and delete (0x004d54f0).
+  void fn_47a720(Handle) override { program_mission_waynet_clear(); }  // [0x0060b544] is the port's
+  void fn_4d54f0() override { program_mcb_waynet_free(); }
+  // The mission's waynet's frame (vt+0x6c): the mcbwaynet's 0x004cd490 does nothing.
+  void stations_update(Handle st, float dt, Handle vehicle) override {
+    if (program_mcb_waynet() && st == e->handle_of(program_mcb_waynet())) return;
+    MissionHooks::stations_update(st, dt, vehicle);
+  }
   void map_update(float dt) override { program_field_bases_frame(dt); }  // 0x0045a270
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
@@ -1547,6 +1561,10 @@ void wire_mission_hooks(GameEngine* e) {
   g_player_hooks.forget();  // a new engine numbers its handles afresh
   g_mission_engine = e;
   set_mission_hooks(e ? &g_mission_hooks : nullptr);
+  // The mission's waynet, the missions' +0xb0 ([0x00609980]): as a handle there.
+  program_waynet_mission(
+      e ? +[]() -> void* { return g_mission_engine->object_of(missions().stations); } : nullptr,
+      e ? +[](void* w) { missions().stations = w ? g_mission_engine->handle_of(w) : 0; } : nullptr);
   AppKeyCalls& keys = app_key_calls();
   keys = AppKeyCalls{};
   if (e) {

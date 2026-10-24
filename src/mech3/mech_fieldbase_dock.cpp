@@ -177,8 +177,10 @@ bool FieldBaseDrive::done() { return finished || !base || !base->active; }
 bool FieldBases::requester_ok() const { return requester && hk().powered_down(requester); }
 
 // Mech3.exe 1.2 @ 0x0045b740
-void FieldBases::set_requester(Handle m) {
-  if (!busy && field_bases_drive()) requester = m;
+bool FieldBases::set_requester(Handle m) {
+  if (busy || !field_bases_drive()) return false;
+  requester = m;
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x0045a500

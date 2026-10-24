@@ -198,7 +198,7 @@ struct FieldBases {
   FieldBases(const FieldBases&) = delete;
   FieldBases& operator=(const FieldBases&) = delete;
   bool requester_ok() const;           // 0x0045a720: one, powered down (vt+0xa0)
-  void set_requester(Handle m);        // 0x0045b740: when idle and the bases may drive
+  bool set_requester(Handle m);        // 0x0045b740: when not busy and the bases may drive
   void message(Handle m);              // 0x0045a500: to the front state, its answer the requester
   void abort_front();                  // 0x0045a540
   void effects_on();                   // 0x0045b290

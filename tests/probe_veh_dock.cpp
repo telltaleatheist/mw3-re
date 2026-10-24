@@ -265,7 +265,7 @@ uint32_t probe_dk_helper(int32_t which, uint32_t m) {
   m3::FieldBases& r = m3::field_bases();
   switch (which) {
     case 0: return r.requester_ok();
-    case 1: r.set_requester(hd(m)); return 0;
+    case 1: return r.set_requester(hd(m));
     case 2: r.message(hd(m)); return 0;
     default: r.abort_front(); return 0;
   }

@@ -17,10 +17,22 @@ void* program_campaign();                   // app_menus.cpp: the pilot's campai
 int32_t program_campaign_bases();           // app_menus.cpp: the campaign's +0xa8 (3 for the debug launch's)
 void program_field_bases_mission_start();
 void program_field_bases_frame(float dt);   // 0x0045a270 from the mission's frame
-// Tests (ours): the mcbwaynet's dock point stood in for (null name: none),
-// and a mech's ask (0x0045a500, as the player's MFB command 0x0047a7a0 does).
-void program_dock_stand_in(const char* name, const float pos[3]);
-void program_dock_message(void* mech);
+// The waynets (mech_waynet): the mission's waynet (the missions' +0xb0,
+// app_mission's), the nets' begin for the mcbwaynet, the MFB command (0x73),
+// N / Shift+N / Ctrl+N on the mcbwaynet (false: it is not the mission's),
+// its clear and free at the mission's end.
+void program_waynet_mission(void* (*get)(), void (*set)(void*));
+void program_nets_begin();
+void program_mcb_command(void* mech);
+bool program_mission_waynet_key(int32_t cmd, void* mech);
+void program_mission_waynet_clear();
+void program_mcb_waynet_free();
+void* program_mcb_waynet();
+void* program_mission_waynet();
+// The mcbwaynet's points (count, without the default behaviour at 0) and the
+// dock's point after a request: its label and place; false without one.
+int32_t program_mcb_points();
+bool program_dock_point(const char** label, float pos[3]);  // [0x00609980]: the mcbwaynet while the MFB command is picking
 int32_t program_field_bases_count();          // the registry's count (0x00605ae0 +0x10)
 int32_t program_field_bases_lines();          // the dock's radio lines found, and its effects (+1)
 // The dock as the mission start leaves it: its states' list (1: the idle one
