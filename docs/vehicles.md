@@ -1054,30 +1054,59 @@ other entity as the unported "entity vt+0x34". `test_program`'s c1m1 death run p
 stranger entry in the list and checks it is skipped (treating every entry
 as a mech crashes that run).
 
-## A mobile field base lost (0x004590b0, found 2026-10-21)
+## A mobile field base lost (0x004590b0; found 2026-10-21, ported in step 4b5)
 
 Run when a field base dies (it starts with the basic vehicle's death
-0x004ad2d0). In a campaign (0x00479440) the campaign's +0xa8, the field
-bases, goes down by one: +0xa8 is the base count (3 at the start, reset to 3
-after Op 1 Mission 1 and Op 4 Mission 4), and each base is the 300 t and 2
-mechs of room the briefing's split allows (campaign.md section 9). With
-bases left, what the player carries (the game's store +0x08) is cut on the
-spot to a fraction: 0.7 with two bases left, 0.5 with one (1.0 otherwise):
-- mechs: the store's mechs counted (up to 64); if at least as many as the
-  bases, random ones are removed until ceil(fraction x count), capped at 2
-  per base, remain; a message 0xf05 for each, 0xf07 once;
-- the rest by weight: random items taken out until the store's tons are
-  fraction x tons, capped at 300 t per base, each moved to the campaign's
-  +0x78 (vt+0) and removed from the store (vt+0x14); message 0xf06 with the
-  tons lost ("%f").
-  The +0x78 store (`CampaignGame::store78`) comes back only on a replay:
-  0x00434cb0 adds it (and +0x50) back to the store and resets +0xa8 to
-  +0xac on the game it is called on. When the mission fails or is aborted
-  that is the game the player replays from, so the gear returns. At the next
-  mission's game, though, 0x00434e00 first copies the old +0x08 store and the
-  old +0xa8 into the new game (434e89..434e9a), then calls 0x00434cb0 on the
-  old one: the new game keeps the cut store and the reduced base count. On a
-  win, what a lost base cut is gone for good (campaign.md section 9).
-With no base left nothing is cut here. Not ported (step 4b or later: the
-field base's death reaches it as `FieldBaseHooks::base_lost`). No sign in 0x00458xxx..0x0045bxxx of repairs
-looking at the mechs carried: the store is touched only here.
+0x004ad2d0, `field_base_die`). In a campaign (0x00479440) the campaign's
++0xa8, the field bases, goes down by one: +0xa8 is the base count (3 at the
+start, reset to 3 after Op 1 Mission 1 and Op 4 Mission 4), and each base is
+the 300 t and 2 mechs of room the briefing's split allows (0x00470cc0,
+0x00470cd0; campaign.md section 9). With bases left (none: nothing more),
+what the player carries (the game's store +0x08) is cut on the spot, by a
+fraction f: 0.7 with two bases left, 0.5 with one. Ported in
+`mech3/mech_fieldbase_cut.cpp` (pilot.h's stores; the program's
+`base_lost` calls it), the draws, names, lab rounds and messages through
+`FieldCutHooks`.
+
+1. Message 0xf07, "MCB Destroyed, Updating Inventory...  Please Stand
+   By...", always (0x0040fe70, 3 s).
+2. The mechs: one entry per mech held (the store's kind-0 items by count),
+   the scan stopping once 64 are listed (checked after each item). With at
+   least as many entries n as bases left, keep = min(ceil(f n), 2 x bases)
+   entries are drawn off the list at random (rand / 32767 x n, floored;
+   an empty slot draws again); each one left goes: its name and two spaces
+   (0x00484650, 0x005e4aa0) in message 0xf05 "Chassis Lost: %1", one into
+   +0x78 (0x00471c10) and one out of the store (0x00472a30). FIX (bug): the
+   exe's list is a 64-entry stack array; the item that crosses 64 writes past
+   it, and with exactly 64 a draw of 32767 reads (and zeroes) the slot after
+   it, the saved exception frame. The port's is a vector, the draw past the
+   end an empty slot.
+3. The rest by weight: the tons (0x0045b900, a float sum of the items'
+   weight(-1); mechs weigh 0), the limit min(f x tons, 300 t x bases). While
+   over it: an item drawn at random (rand / 32767 x the count, floored; past
+   the end the last one); a mech is passed over; anything else moves one of
+   it (ammo: 0x004b4900's lot, the weapon's rounds per ton or what is left)
+   into +0x78 (add_copy, vt+0) and out of the store (remove, vt+0x14), then
+   the tons summed again. Ten draws in a row that change nothing end it,
+   six after one that did. A weightless item (Clan equipment of weight 0)
+   changes nothing when drawn, nor does an unlimited (+0x10) one: remove
+   keeps it, but add_copy has already put a copy in +0x78.
+   After that the exe means to move whole items from the list's end while
+   still over the limit, but its search ends past the list every time
+   (0x0045951d..0x00459563: the loop leaves with the head, and the head
+   test breaks out), so it never moves one. Kept as the original: a
+   candidate in fixes.md.
+4. Message 0xf06, "Lost %1 tons of equipment", with the tons moved ("%.2f",
+   the first tons less the last).
+5. [0x00605c3c] = 3 x 0x00470cd0, once: written, never read.
+
+The +0x78 store (`CampaignGame::store78`) comes back only on a replay:
+0x00434cb0 adds it (and +0x50) back to the store and resets +0xa8 to +0xac
+on the game it is called on. When the mission fails or is aborted that is
+the game the player replays from, so the gear returns. At the next mission's
+game, though, 0x00434e00 first copies the old +0x08 store and the old +0xa8
+into the new game (434e89..434e9a), then calls 0x00434cb0 on the old one:
+the new game keeps the cut store and the reduced base count. On a win, what
+a lost base cut is gone for good (campaign.md section 9). No sign in
+0x00458xxx..0x0045bxxx of repairs looking at the mechs carried: the store
+is touched only here and by the repair (above).

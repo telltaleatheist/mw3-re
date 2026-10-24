@@ -2816,9 +2816,22 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
 - **Losing a Mobile Field Base costs you gear on the spot.** Each field base
   is room for 300 tons and 2 mechs of what your unit carries (3 bases: 900
   tons and 6 mechs). When one is destroyed in a campaign mission, the game
-  immediately cuts what you carry: to 70% with two bases left, 50% with one,
-  removing random mechs and random gear until you are under the new limit.
-  Your salvage pool is not touched.
+  says "MCB Destroyed, Updating Inventory..." and cuts what you carry right
+  away (your own mech is not part of it):
+  - spare mechs: you keep 70% of them, rounded up, with two bases left, 50%
+    with one, and never more than 2 per base left; which ones go is random,
+    each shown as "Chassis Lost: <mech>". Carrying fewer spare mechs than
+    you have bases left, you lose none;
+  - everything else: random items go one at a time (ammo a ton's worth at
+    a time) until what you carry weighs no more than 70% (50%) of before
+    and no more than 300 tons per base left, then "Lost N tons of
+    equipment". The game has a second step meant to finish the cut if the
+    random picks give up, but it never removes anything.
+
+  Losing the third base cuts nothing (below). Win the mission and the cut
+  is permanent, along with the lower base count; fail or restart it and the
+  gear and the bases come back. Your salvage pool is not touched.
+  (docs/vehicles.md, A mobile field base lost)
 
 - **Salvage you leave behind is gone after the next mission.** A won
   mission's salvage is offered in the next briefing's mech lab next to what

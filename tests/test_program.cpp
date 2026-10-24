@@ -1497,6 +1497,103 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// A field base lost in a campaign (0x004590b0; docs/vehicles.md, A mobile
+// field base lost): c1m1 with a campaign game behind the pilot, five spare
+// mechs and gear carried; the player shoots mobilehq_03 down. Two bases
+// left: four mechs kept (ceil(0.7 x 5), at most 2 a base), the gear cut to
+// 70% of its tons, what goes into the game's +0x78 store; the message panel
+// shown.
+TEST(mission_c1m1_field_base_lost_cuts_the_campaign_store_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_mfb_lost_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::Pilot pilot("Lost");
+    mech3::CampaignGame game(&pilot, 2, 1);
+    pilot.current = &game;
+    for (int32_t m : {0, 4, 7, 9, 12}) game.store.add_mech(m);
+    game.store.add_equipment(3, 2, 1)->count = 300;  // heat sinks, a ton each
+    game.store.add_equipment(4, 2, 1)->count = 40;
+    game.store.add_ammo(2, 1)->count = 2000;
+    game.store.add_ammo(0x15, 1)->count = 600;
+    auto mechs = [](const mech3::Store& s) {
+      int32_t n = 0;
+      for (const mech3::ConfigItem* it : s.items)
+        if (it->kind() == 0) n += it->count;
+      return n;
+    };
+    auto tons = [](const mech3::Store& s) {
+      float t = 0.0f;
+      for (const mech3::ConfigItem* it : s.items) t = static_cast<float>(it->weight(-1) + t);
+      return t;
+    };
+    float tons_before = 0.0f;  // in the mission: the ammo's weights read weapons.zrd's lab data
+    mech3::Pilot* was_pilot = mech3::current_pilot();
+    mech3::current_pilot() = &pilot;
+    int frames = 0;
+    bool killed = false, shown = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (frames == 30) tons_before = tons(game.store);
+      if (frames == 30)
+        for (void* v : mech3::program_vehicles()) {
+          mech3::VehicleSummary s;
+          if (mech3::describe_vehicle(v, &s) && s.name && std::string(s.name) == "mobilehq_03") {
+            void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+            killed = mech3::program_vehicle_kill(v, player, "MGUN");
+            shown = mech3::message_panel() && mech3::message_panel()->timer > 0.0f;
+          }
+        }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    pump.stop = [&] { return frames > 32; };
+    app.run(pump);
+    const float tons_after = tons(game.store), tons_moved = tons(game.store78);
+    std::fprintf(stderr, "  bases %d; mechs %d + %d gone; tons %.1f -> %.1f (+%.1f gone)\n", game.a8,
+                 mechs(game.store), mechs(game.store78), tons_before, tons_after, tons_moved);
+    EXPECT(killed);
+    EXPECT(game.a8 == 2);
+    EXPECT(mechs(game.store) == 4 && mechs(game.store78) == 1);
+    EXPECT(tons_after <= 0.7f * tons_before && tons_after > 0.7f * tons_before - 2.0f);
+    EXPECT(std::fabs(tons_after + tons_moved - tons_before) < 0.01f);
+    EXPECT(shown);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    mech3::current_pilot() = was_pilot;
+    pilot.current = nullptr;
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1 through the Load and Core states (docs/ai.md section 15): the
 // launch puts the player's Mad Cat and the Owens on zEntity's list, the
 // mission start sorts it (0x004d5ca0: the player first), and each Core frame
