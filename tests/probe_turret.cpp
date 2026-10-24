@@ -36,6 +36,13 @@ size_t g_next = 0;
 zrdr::Node* g_tree = nullptr;
 uint32_t g_root_handle = 0;  // the original's tree
 std::vector<std::unique_ptr<mech3::ai::Contact>> g_contacts;
+std::map<const mech3::ai::Contact*, uint32_t> g_contact_addr;
+uint32_t addr_of(const mech3::ai::Contact* c) {
+  auto it = g_contact_addr.find(c);
+  return it == g_contact_addr.end() ? 0 : it->second;
+}
+
+uint32_t f2u(float f) { return zgame::bits(f); }
 
 void fetch(const char* key, Handle node, float* out, int n) {
   for (int i = 0; i < n; ++i) out[i] = zgame::from_bits(call(key, {node, i}));
@@ -84,6 +91,42 @@ struct Recording : mech3::tur::TurretHooks {
     if (r == 0) fetch("@box", node, box, 6);
     return r;
   }
+  // 4c2: the frame's.
+  uint32_t frame_number() override { return peek(0x72f338); }
+  float clock() override { return zgame::from_bits(peek(0x72c530)); }
+  float frame_dt() override { return zgame::from_bits(peek(0x72c52c)); }
+  void node_world_cached(Handle node, float out[3]) override {
+    call("0x004ed530", {node});
+    fetch("@wpos", node, out, 3);
+  }
+  void read_vec(Handle at, float out[3]) override {
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(peek(at + 4u * static_cast<uint32_t>(i)));
+  }
+  void through(const char* key, const char* at, float v[3]) {
+    call(key, {1});
+    uint32_t in[3] = {f2u(v[0]), f2u(v[1]), f2u(v[2])};
+    for (int i = 0; i < 3; ++i) v[i] = zgame::from_bits(call(at, {in[0], in[1], in[2], i}));
+  }
+  void point_through(float v[3]) override { through("0x005227a0", "@xf", v); }
+  void dir_through_inverse(float v[3]) override { through("0x00522640", "@ixf", v); }
+  float matrix_at(Handle m, int32_t i) override { return zgame::from_bits(peek(m + 4u * static_cast<uint32_t>(i))); }
+  void matrix_put(Handle m, int32_t i, float v) override { g_mem[m + 4u * static_cast<uint32_t>(i)] = f2u(v); }
+  float weapon_lead(Handle def) override { return zgame::from_bits(peek(def + 0x4c)); }
+  uint32_t weapon_fire_flags(Handle def) override { return peek(def + 0x84); }
+  void lead_shot(uint32_t dir, float slope, float d[3]) override {
+    call("0x004abea0", {dir, zgame::bits(slope)});
+    uint32_t in[3] = {f2u(d[0]), f2u(d[1]), f2u(d[2])};
+    for (int i = 0; i < 3; ++i) d[i] = zgame::from_bits(call("@lead", {in[0], in[1], in[2], i}));
+  }
+  uint32_t target_team(Handle t) override { return peek(t + 0xc0); }
+  bool ams_find(mech3::Ams&, const float*) override { return call("0x004b3ae0", {0u}) != 0; }
+  Handle ams_target(mech3::Ams&) override { return call("0x004b3ba0", {}); }
+  void ams_fire(mech3::Ams&) override { call("0x004b3bb0", {1}); }
+  Handle contact_vehicle(const mech3::ai::Contact* c) override { return call("0x004e6fe0", {addr_of(c)}); }
+  void set_target(Turret& t, mech3::ai::Contact* c) override {
+    call("0x004d5e40", {t.self, addr_of(c), 0});
+    t.target = c;
+  }
   void entity_set_node(Handle self, Handle node, Handle* target_node, Handle* centroid_node) override {
     call("0x004d6c90", {self, node, 0, 0, 0});
     *target_node = node ? call("@tnode", {node}) : 0;
@@ -92,7 +135,6 @@ struct Recording : mech3::tur::TurretHooks {
 };
 Recording g_hooks;
 
-uint32_t f2u(float f) { return zgame::bits(f); }
 void put32(uint8_t* img, uint32_t off, uint32_t v) { std::memcpy(img + off, &v, 4); }
 void putf(uint8_t* img, uint32_t off, float f) { put32(img, off, f2u(f)); }
 
@@ -106,6 +148,7 @@ void image(const Turret& t, uint32_t node_arg, uint8_t* img) {
   put32(img, 0x10, t.target_node);
   put32(img, 0x14, t.centroid_node);
   putf(img, 0x68, t.height);
+  put32(img, 0x6c, addr_of(t.target));
   put32(img, 0x98, t.player_contact ? 1 : 0);
   putf(img, 0x9c, t.sensor_range);
   putf(img, 0xa0, t.range);
@@ -153,6 +196,9 @@ void image(const Turret& t, uint32_t node_arg, uint8_t* img) {
   put32(img, 0x198, t.beam);
   img[0x19c] = t.beam_on;
   put32(img, 0x1a0, static_cast<uint32_t>(t.x1a0));
+  put32(img, 0x1a4, t.shooter);
+  put32(img, 0x1a8, t.target_at);
+  put32(img, 0x1ac, static_cast<uint32_t>(t.x1ac));
   putf(img, 0x204, t.yaw_lo);
   putf(img, 0x208, t.yaw_hi);
   put32(img, 0x20c, t.self + 0x210);
@@ -192,7 +238,9 @@ void probe_turret_reset() {
   g_handles.clear();
   g_node_args.clear();
   g_contacts.clear();
+  g_contact_addr.clear();
   g_next = 0;
+  mech3::tur::turret_turn() = 0;
   if (g_tree) zrdr::free_node(g_tree), g_tree = nullptr;
 }
 
@@ -264,9 +312,39 @@ uint32_t probe_turret_op(int32_t i, int32_t op, uint32_t a, uint32_t b, uint32_t
       }
       return 0;
     case 10: t->aux_reset(); return 0;
+    case 11: {  // the limits' within (a, b, c the direction's bits)
+      const float d[3] = {zgame::from_bits(a), zgame::from_bits(b), zgame::from_bits(c)};
+      return t->limits.within(d) ? 1 : 0;
+    }
   }
   return 0;
 }
+
+// Turret i's contacts: their addresses in the original's memory and what
+// each sees (+0x04), nearest first.
+void probe_turret_contacts(int32_t i, const uint32_t* addr, const uint32_t* seen, int32_t n) {
+  auto& l = mech3::tur::turret_list();
+  if (i < 0 || static_cast<size_t>(i) >= l.size()) return;
+  Turret& t = *l[i];
+  t.clear_contacts();
+  t.target = nullptr;
+  for (int32_t k = 0; k < n; ++k) {
+    auto* c = new mech3::ai::Contact();  // the turret's own (its destructor deletes them)
+    c->seen = seen[k];
+    g_contact_addr[c] = addr[k];
+    t.contacts.push_back(c);
+  }
+}
+void probe_turret_frame(int32_t i) {
+  auto& l = mech3::tur::turret_list();
+  if (i >= 0 && static_cast<size_t>(i) < l.size()) l[i]->frame();
+}
+void probe_turret_counts(int32_t count, int32_t turn) {
+  mech3::tur::turret_count() = count;
+  mech3::tur::turret_turn() = turn;
+}
+uint32_t probe_turret_peek(uint32_t a) { return peek(a); }
+int32_t probe_turret_turn() { return mech3::tur::turret_turn(); }
 
 void probe_turret_delete_all() { mech3::tur::turrets_delete_all(); }
 void probe_turret_end() { mech3::tur::turrets_end(); }

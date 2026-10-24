@@ -54,6 +54,8 @@ COVER = {
     0x4a77c5: 'no file', 0x4a78a4: 'a turret made', 0x4a762d: 'a kill credited', 0x4a764f: 'the destroy animation',
     0x4a766e: 'the effect put out', 0x4a7578: 'a hit that kills', 0x4a7593: 'a hit that does not',
     0x4a75c3: 'a tint', 0x4a7a9d: 'awake', 0x4a7ad9: 'in range', 0x4a602a: 'the AMS freed', 0x4a6044: 'the beam freed',
+    0x4a4349: 'fixed: the pitch', 0x4a43a8: 'fixed: along it', 0x4a43b1: 'fixed: off it', 0x4a464b: 'narrow: inside',
+    0x4a4655: 'narrow: outside', 0x4a48d3: 'wide: inside', 0x4a48cb: 'wide: outside', 0x4a435a: 'fixed: past the pitch',
     0x4a750f: 'message 0x34', 0x4a7519: 'message 0x33', 0x4a7523: 'message 0x32', 0x4a7501: 'another message',
 }
 REACHED = set()
@@ -94,6 +96,7 @@ class World:
     def __init__(self, e, seed):
         self.e, self.seed = e, seed
         self.objs = {}
+        self.sure = set()  # chances that always hold (the frame test's nodes)
         self.markers = []
         self.mem = {}
         self.names = {}
@@ -122,6 +125,8 @@ class World:
         return 0x2a000000 + (h32(self.seed, key) & 0xfffff0)
 
     def chance(self, p, *key):
+        if key and key[0] in self.sure:
+            return True
         return (h32(self.seed, 'p', key) % 1000) < p * 1000
 
     def node(self, *key, name=None):
@@ -130,7 +135,9 @@ class World:
             return self.objs[key]
         a = self.block()
         nm = name or f'n{h32(key) & 0xffff:04x}'
-        self.e.cpu.write(a, nm.encode()[:0x20] + b'\0')
+        raw = (nm.encode()[:0x20] + b'\0').ljust(0x24, b'\0')
+        for o in range(0, 0x24, 4):  # the name, in the probe's memory too
+            self.put(a + o, struct.unpack_from('<I', raw, o)[0])
         self.names[a] = nm
         self.put(a + 0x24, 4 if self.chance(0.7, 'active', key) else 0)
         self.put(a + 0x3c, self.handle('model', key))
@@ -143,7 +150,9 @@ class World:
         if key not in self.objs:
             a = self.block()
             self.putf(a + 0x1c, self.r.choice([150.0, 300.0, 600.0, 1000.0]))
-            self.put(a + 0x6c, self.r.choice([0, 0, 1, 2, 3]))
+            self.put(a + 0x6c, self.r.choice([0, 0, 1, 2, 3, 0x4000]))
+            self.putf(a + 0x4c, self.r.choice([0.0, 0.0, 1.0]))   # the frame's lead
+            self.put(a + 0x84, self.r.choice([0, 2, 3]))          # fired from the firepoint
             self.objs[key] = a
         return self.objs[key]
 
@@ -253,12 +262,13 @@ STUBS = {
 
 
 class Original:
-    def __init__(self, tree, world_seed, prefixes, read_ok):
+    def __init__(self, tree, world_seed, prefixes, read_ok, sure=()):
         t = Trace()
         e = Emu(t)
         self.e, self.t = e, t
         e.cpu.fpu_control(0x007f)
         self.w = World(e, world_seed)
+        self.w.sure |= set(sure)
         t.script = script_for(self.w, prefixes, 0)
         self.turrets = []
 
@@ -397,6 +407,12 @@ class Original:
         if op == 10:
             e.call(0x4a7af0, ecx=p)
             return 0
+        if op == 11:  # the limits' vt+0x08 on a direction
+            d = e.alloc(12)
+            for i, v in enumerate((a, b, c)):
+                e.w32(d + 4 * i, v)
+            lim = e.r32(p + 0x20c)
+            return e.call(e.r32(e.r32(lim) + 8), ecx=lim, stack=(d,)) & 0xff
 
     def delete_all(self):
         for p in self.turrets:
@@ -542,6 +558,25 @@ def ops_for(r, n):
     return ops
 
 
+def within_ops(r, o):
+    """Directions for each turret's limits: random ones, and ones on and
+    either side of its edges (along the fixed heading, just in, just out)."""
+    ops = []
+    for i, p in enumerate(o.turrets):
+        e = o.e
+        edges = [(e.f32(p + 0x224), e.f32(p + 0x22c)), (e.f32(p + 0x230), e.f32(p + 0x238))]
+        dirs = []
+        for _ in range(4):
+            dirs.append((r.uniform(-1, 1), r.uniform(-1.2, 1.2), r.uniform(-1, 1)))
+        for ex, ez in edges:
+            for k in (0.0, 1e-4, -1e-4, 0.01, -0.01, 0.3, -0.3):
+                for sgn in (1, -1):
+                    dirs.append((sgn * ez + k * ex, r.choice([0.0, 0.5, -0.9]), -sgn * ex + k * ez))
+        for d in dirs:
+            ops.append((i, 11, f2u(d[0]), f2u(d[1]), f2u(d[2])))
+    return ops
+
+
 class Run:
     def __init__(self, probe):
         self.probe = probe
@@ -605,7 +640,7 @@ class Run:
             return
         if not self.states(label + ' load', o, probe):
             return
-        ops = ops_for(r, len(o.turrets))
+        ops = ops_for(r, len(o.turrets)) + within_ops(r, o)
         o.t.log.clear()
         t.log.clear()
         for k, (i, op, a, b, c) in enumerate(ops):
@@ -616,7 +651,7 @@ class Run:
                 a, b = f2u(f32(f32(rng * rng) * u2f(a))), 1
             mine = o.op(o.turrets[i] if o.turrets else 0, op, a, b, c)
             port = probe.probe_turret_op(i, op, a, b, c)
-            if op in (0, 5, 6, 7, 9) and (mine & (0xff if op in (5, 6) else 0xffffffff)) != port:
+            if op in (0, 5, 6, 7, 9, 11) and (mine & (0xff if op in (5, 6, 11) else 0xffffffff)) != port:
                 self.fail(label, f'op {k} {op}: {mine:#x} vs {port:#x}')
                 return
             if not self.states(f'{label} op {k} ({op})', o, probe):
