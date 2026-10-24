@@ -74,6 +74,7 @@ enum class StepKind : uint32_t {
   BackupNode = 0x5cc7a8,    // 0x004cfa00
   McbWaitNode = 0x5cbf30,   // 0x004ccc30
   DeployNode = 0x5cc898,    // 0x004cff10
+  Repair = 0x5cc970,        // 0x004d08d0, the refit order's (zai_repair)
 };
 
 // What a scan or canleave entry runs: the exe's function addresses (all in

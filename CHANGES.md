@@ -127,7 +127,7 @@ unusual happens.
 - An edited mech lab dialog missing the supply list's slot titles (ALIST_TITLES) no longer crashes.
 - A briefing whose voice block has no map markers plays the voice instead of crashing.
 - Salvaging a mech with a weapon that has no definition skips that weapon instead of crashing.
-- Losing a field base while carrying more than 64 spare mechs no longer overruns the game's list of them (which could crash).
+- Losing a field base while carrying 64 or more spare mechs no longer overruns the game's list of them (which could crash).
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.
 - An objective description with a `%` in its second or later lines is shown as written instead of being read as a format.

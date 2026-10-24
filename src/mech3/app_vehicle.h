@@ -46,6 +46,15 @@ struct DockSummary {
   void* requester = nullptr;
 };
 DockSummary program_dock_summary();
+// The AI's refit (zai_repair, the brain hooks): the bases up (0x0045a000),
+// the dock asked for a mech (0x0047a780: the mcbwaynet there, 0x0047a730),
+// the mcbwaynet there, its selected point's place, the dock's two flags.
+int32_t program_bases_alive();
+bool program_mfb_ask(void* mech);
+bool program_has_mcb();
+bool program_mcb_point(float out[3]);
+bool program_dock_drive();
+bool program_dock_contact();
 // What a field base's repair (0x004154e0) restores, on a mech (tests): the
 // armour (the mean over its eleven sections), the least internals (legs,
 // arms, head, the torso's three), the ammo weapons' rounds left and held
