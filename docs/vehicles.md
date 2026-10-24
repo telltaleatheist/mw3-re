@@ -754,13 +754,18 @@ and c1m1's headless test (three registered and alive, held in place, the
 arms of one opened through its frames, one shot down, all freed at the
 end).
 
-## The repair dock (0x459b80..0x45b9c0; states and drives step 4b1)
+## The repair dock (0x459b80..0x45b9c0; states and drives 4b1, frame and request 4b2)
 
 `mech3/mech_fieldbase_dock`, ported 2026-10-24. The registry (0x605ae0)
 holds the dock: a list of states (+0x00..+0x0b, a "begin the front one"
-flag at +0x0c) run by the dock's frame (0x45a270, step 4b2) as a field base
-runs its steps: the front one begun, stepped until it says it is finished,
-then ended, dropped and the next begun. The seven states are members of the
+flag at +0x0c) run by the dock's frame (0x45a270, from the mission's frame
+0x48f4ad, off multiplayer) as a field base runs its steps: the front one
+begun (that frame does nothing more), else stepped until it says it is
+finished, then ended, dropped and the next begun. A step that answers
+finished after its own abort has unwound the list (the repair's) marks
+the dropped state, not the new front: the close it unwound to was begun by
+the unwind and runs from the next frame, so the bases close as they
+should. The seven states are members of the
 registry, each with the registry at +0x08 and the radio line it says at
 +0x0c (vtable 0x5c2600 their base and the drives': begin clears +0x04, step
 and done return it, the message aborts, the abort clears the dock's marker
@@ -768,7 +773,7 @@ and done return it, the message aborts, the abort clears the dock's marker
 
 | state | vtable | what it does |
 |---|---|---|
-| idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (4b2), which queues the six others in the order below |
+| idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (below), which queues the six others in the order below |
 | places +0xe0 | 0x5c2620 | five frames on, says mcb_contact ("move into position"?); done when every active base with a valve has its valve set (each base's net sets it at its place) |
 | contact +0xd0 | 0x5c25c0 | says mcb_waiting once; done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
 | deploy +0xf4 | 0x5c2640 | busy (+0x78); each active base's drive out queued at the front of its steps; the player's view onto camera mode 4 (its own kept at +0x80); the mech at rest at the dock point (0x418e90); done with the three drives, saying mcb_deploy (no shipped sound); the mech powering up aborts |
@@ -779,7 +784,8 @@ and done return it, the message aborts, the abort clears the dock's marker
 The aborts: the places' and contact's (0x45ade0) say mcb_pos_cancel and
 unwind to the reset; the deploy's (0x45b1b0) says mcb_abort, drops its
 drives (0x459af0) and unwinds to the close; the repair's (0x45b3b0)
-unwinds to the close silently (it sets mcb_abort but does not say it). The
+unwinds to the close, its line said by its own end (the unwind ends it
+after it set mcb_abort). The
 unwind drops the list's front states until the target is the front, ends
 the old front and begins the target. While the dock is busy, another mech's
 request (the message 0x45b770 of deploy, repair and close) hears
@@ -804,11 +810,59 @@ then (FIX (bug), no change in play). A mission with fewer than three bases
 (none shipped) would have the drives and the places' check follow a
 missing base (FIX (bug): passed).
 
+**The request** (0x45a780, the idle state's message; the registry's
+0x45a500 passes a mech's ask to the front state, which the player's MFB
+command 0x47a7a0 sends on its second press): the requester kept (+0x74),
+the mcbwaynet's dock point ([0x60b544] the waynet "mcbwaynet" (0x4d5460),
+its element by its +0x20, 0x58b060) and its name (vt+0x24); with both the
+bases may drive ([0x60b4d0] 1), "mcbdeploy" 1, the point's own valve
+(found by its name, 0x4d3d20, +0x88) 1 and the bases' valves 0. Each base's
+brain (vt+0x140, IControls vt+0x54), on its current order's net, finds the
+net's node of the point's name (0x58b0a0: an element by name) and goes
+(0x4c84b0) to that node's link i (base i's place; c1m1's net_02 has the
+node "MFB Baker" with three links), its way finder dropped first. Then the
+rings around the dock point (0x45a560: three points on the near ring,
+15.4 m, the first in +z and the others 120 degrees round, and three on
+the far ring, 45.4 m; each base given its two and the point, +0x10c, +0x110,
++0x114) and the six states queued: places, contact, deploy, repair, close,
+reset. 0x4c84b0 (the brain's go-to, `Brain::go_to`): on the current
+order's net, the way finder (+0x238, 0x4c7c10) from the current state's
+behaviour to the target; when that behaviour is +0x23c's (none), the
+current order is dropped first and the new one's behaviour asked, its
+answer unused.
+
+Not ported: the mcbwaynet (mech_waynet.cpp, about 1,100 lines: arrangenodes
+nodes made its points, the stations of multiplayer, the HUD's marker) and
+the MFB command 0x47a7a0 / 0x47a730 (pick a point, ask, cancel). Until
+then no request comes in play; the tests stand a dock point in.
+
+**Multiplayer** (game type 3, the same frame): no states; with the game's
+repairs on (0x479480, +0xa8), the player's mech active and powered down,
+and the nearest station ([0x609980], 0x4d51d0) within 20 m (squared 400): an
+enemy (the nearest contact, 0x4d6b90(3), with a mech) within 100 m gives
+"%s is too close for MFB deployment" (its name); else within 6.5 m (squared
+42.5) the repair at the station (0x45a180), past it "too far from MFB
+depolyment point" (sic). The repair: "mfb_station_01" on the station's node
+(by its name, +0x2c); a local mech shut down (+0xdd), the view on camera 4,
+at rest at the station, the animation's end (0x45a0f0) repairs it
+(0x4154e0), clears +0xdd, powers it up and puts the view's camera back
+(+0x5c); the other players told (the stations' vt+0x14, 0x46ff90). A remote
+mech only shows the animation; the network's message (0x46ffd0 ->
+0x45a140) finds the station by id.
+
+The repair itself (0x4154e0, the mech's: its parts mended and ammunition
+refilled) is the mech's code, not ported here.
+
 [0x60b4cc] and [0x60b4d0] are read by the AI's deploy state (0x4d0ce0,
 step 4b4). The mission start (0x459e80) ends any dock left running: the
-list back to the idle state alone, to begin, and "mcbdeploy" 0. Checked:
-`test_veh_dock.py` (600 state runs, 300 drive runs, 89 branches, 30
-breaks) and c1m1's headless test (the dock as the mission starts).
+list back to the idle state alone, to begin, and "mcbdeploy" 0 (made
+there when missing: every mission has it). Checked: `test_veh_dock.py`
+(600 state runs, 300 drive runs, 600 frame, request, ring and station
+runs; 100 branches; 30 + 26 breaks) and c1m1's headless tests (the dock as
+the mission starts; with the dock point stood in at "MFB Baker", the
+player's request, the bases to their places, the player onto the point
+powered down, the deploy, the repair 12 s on and once, the close, the
+reset and idle again).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

@@ -4,9 +4,14 @@
 #include <algorithm>
 #include <cmath>
 
+#include <cstdio>
+#include <cstring>
+
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_fieldbase.h"
+#include "mech3/zai_brain.h"
 #include "mech3/zai_valve.h"
+#include "mech3/zainet.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -16,9 +21,15 @@ namespace {
 FieldBaseHooks& hk() { return field_base_hooks(); }
 
 // The dock point's radius, squared ([0x005e4a18], 12 m), and a base's
-// stand-off from it ([0x005e4a10]).
+// stand-off from it ([0x005e4a10]; the near ring's radius, [0x005e4a28]).
 constexpr float kNear2 = 144.0f;
 constexpr float kStandOff = 15.4f;
+// The multiplayer stations' reach, squared: 20 m to be asked ([0x005e4a1c]),
+// 6.5 m to repair ([0x005e4a20]), no enemy within 100 m ([0x005e4a24]).
+constexpr float kStationAsk2 = 400.0f;
+constexpr float kStationRepair2 = 42.5f;
+constexpr float kStationEnemy2 = 10000.0f;
+Handle g_repair_anim = nullptr;  // [0x00605c48]
 
 // A drive made for each base and queued at the front of its steps, begun at
 // its next frame, when it is active. FIX (bug): the exe follows a missing
@@ -56,6 +67,37 @@ bool drives_done(FieldBaseDrive* const (&d)[3]) {
 float FieldBaseHooks::game_time() { return zgame::from_bits(unported("[0x0060991c]", {})); }
 uint32_t FieldBaseHooks::frame() { return unported("[0x0072f338]", {}); }
 int32_t FieldBaseHooks::valve_value(ai::Valve* v) { return v->get(); }
+ai::Valve* FieldBaseHooks::valve_find(const char* name) { return ai::valve_find(name); }
+Handle FieldBaseHooks::base_brain(FieldBase& b) {
+  auto* c = dynamic_cast<ai::AiVehicleControls*>(b.controls);
+  return c ? c->brain.get() : nullptr;
+}
+Handle FieldBaseHooks::brain_order_net(Handle brain) {
+  ai::Brain* b = static_cast<ai::Brain*>(brain);
+  ai::Order& o = b->current();
+  return o.net ? o.net->net() : nullptr;
+}
+// 0x0058b0a0: the first element whose name (vt+0x24) is `name`.
+Handle FieldBaseHooks::net_element(Handle net, const char* name) {
+  auto* n = static_cast<ai::AiNet*>(net);
+  for (znet::Element* e : n->elems) {
+    const auto* st = dynamic_cast<const ai::NodeStep*>(e);
+    if (st && st->has_name && std::strcmp(name, st->name.c_str()) == 0) return e;
+  }
+  return nullptr;
+}
+Handle FieldBaseHooks::element_behaviour(Handle e) {
+  return static_cast<ai::AiElem*>(static_cast<znet::Element*>(e))->as_behaviour();
+}
+int32_t FieldBaseHooks::link_count(Handle beh) { return static_cast<ai::Behaviour*>(beh)->link_count(); }
+Handle FieldBaseHooks::link(Handle beh, int32_t i) {
+  return static_cast<znet::Element*>(static_cast<ai::Behaviour*>(beh)->link(i));
+}
+void FieldBaseHooks::brain_path_reset(Handle brain) { static_cast<ai::Brain*>(brain)->path.reset(); }
+void FieldBaseHooks::brain_go_to(Handle brain, Handle net, Handle target) {
+  static_cast<ai::Brain*>(brain)->go_to(static_cast<ai::AiNet*>(net), static_cast<ai::Behaviour*>(target));
+}
+Handle& field_bases_repair_anim() { return g_repair_anim; }
 
 // ---------------------------------------------------------------------------
 // The base step (0x005c2600)
@@ -82,7 +124,7 @@ void FieldBaseDrive::begin() {
     const zmth::Vec3 dock{base->dock_at[0], base->dock_at[1], base->dock_at[2]};
     travel = -(zmth::direction(dock, at, dir) - kStandOff);  // 0x0051e3d0
   } else {
-    const float* q = base->dock_in;
+    const float* q = base->dock_far;
     travel = zmth::direction(at, zmth::Vec3{q[0], q[1], q[2]}, dir);
   }
   base->arms->aim(open);  // 0x004589a0
@@ -192,7 +234,168 @@ void DockIdle::end() {
   reg->idle_on = false;
   asked = false;
 }
-Handle DockIdle::message(Handle m) { return hk().dock_request(*this, m); }
+// Mech3.exe 1.2 @ 0x0045a780: the mech's request. With the mcbwaynet's dock
+// point: the bases may drive, "mcbdeploy" 1 and the point's valve 1, the
+// bases' valves 0; each base's brain, on its current net, sent to link i of
+// that net's node named after the point (its place); the rings around the
+// point; the other six states queued; this one asked.
+Handle DockIdle::message(Handle m) {
+  FieldBaseHooks& h = hk();
+  FieldBases& r = *reg;
+  r.requester = m;
+  r.dock_point = h.dock_point();
+  if (!r.dock_point) return m;
+  const char* name = h.dock_point_name(r.dock_point);  // vt+0x24
+  if (!name) return m;
+  field_bases_drive() = true;
+  h.valve_set(r.deploy_valve, 1);
+  if (r.point_valve) h.valve_set(r.point_valve, 0);
+  r.point_valve = h.valve_find(name);  // 0x004d3d20
+  if (r.point_valve) h.valve_set(r.point_valve, 1);
+  for (ai::Valve* v : r.valves)
+    if (v) h.valve_set(v, 0);
+  for (int32_t i = 0; i < 3; ++i) {
+    FieldBase* b = r.bases[i];
+    if (!b) continue;
+    const Handle brain = h.base_brain(*b);
+    if (!brain) continue;
+    const Handle net = h.brain_order_net(brain);
+    const Handle e = h.net_element(net, name);
+    const Handle beh = e ? h.element_behaviour(e) : nullptr;
+    if (!net || !beh) continue;
+    Handle to = nullptr;
+    if (i < h.link_count(beh)) {
+      const Handle l = h.link(beh, i);
+      to = l ? h.element_behaviour(l) : nullptr;
+    }
+    if (!to) continue;
+    h.brain_path_reset(brain);   // +0x238 0x004040d0
+    h.brain_go_to(brain, net, to);  // 0x004c84b0
+  }
+  r.deploy_points(h.dock_point_position(r.dock_point));
+  for (DockStep* st : {static_cast<DockStep*>(&r.places), static_cast<DockStep*>(&r.contact),
+                       static_cast<DockStep*>(&r.deploy), static_cast<DockStep*>(&r.repair),
+                       static_cast<DockStep*>(&r.close), static_cast<DockStep*>(&r.reset)})
+    r.states.push_back(st);  // 0x0058f2a0 / the list's inline insert, with 0x004d5110
+  asked = true;
+  return m;
+}
+
+// Mech3.exe 1.2 @ 0x0045a560: each base's near point (15.4 off; the
+// first ahead in +z, the others 120 degrees round) and far one (45.4).
+void FieldBases::deploy_points(const float* at) {
+  if (!at) at = hk().entity_position(requester);  // 0x005a85e0
+  static const float kFar = kStandOff - -30.0f;  // [0x00605c30], once ([0x00605c38] bit 0)
+  for (int ring = 0; ring < 2; ++ring) {
+    const float rad = ring ? kFar : kStandOff;
+    float(*p)[3] = points + 3 * ring;
+    p[0][0] = at[0], p[0][1] = at[1], p[0][2] = rad + at[2];
+    p[1][0] = at[0] - rad * -0.866f, p[1][1] = at[1], p[1][2] = at[2] - rad * 0.5f;
+    p[2][0] = at[0] - rad * 0.866f, p[2][1] = at[1], p[2][2] = at[2] - rad * 0.5f;
+  }
+  for (int i = 0; i < 3; ++i) {
+    FieldBase* b = bases[i];  // the three slots, unchecked in the exe
+    if (!b) continue;
+    b->dock_at[0] = at[0], b->dock_at[1] = at[1], b->dock_at[2] = at[2];
+    b->dock_near = points[i];
+    b->dock_far = points[3 + i];
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0045a270. Off multiplayer the dock's states run (as a
+// field base runs its steps; a step finishing after its own abort marks the
+// dropped state, not the new front). In multiplayer, a powered-down player
+// within 20 m of a station is repaired there within 6.5 m, unless an enemy
+// is within 100 m; otherwise the HUD says why.
+void FieldBases::frame(float dt) {
+  FieldBaseHooks& h = hk();
+  if (h.game_type() != 3) {
+    if (states.empty()) return;
+    DockStep* f = states.front();
+    if (begin_next) {
+      f->begin();
+      begin_next = false;
+      return;
+    }
+    if (!f->done()) {
+      if (f->step(dt)) f->finished = true;
+      return;
+    }
+    f->end();
+    states.pop_front();
+    if (!states.empty()) states.front()->begin();
+    return;
+  }
+  if (!h.mp_repairs()) return;
+  const Handle me = h.player_vehicle();
+  if (g_repair_anim || !me || !h.entity_active(me) || !h.entity_shut_down(me)) return;
+  const Handle st = h.stations();
+  const Handle station = st ? h.station_nearest(st, h.entity_position(me)) : nullptr;
+  float d2 = kStationAsk2 - -1.0f;  // [0x005c23b4]
+  if (station) {
+    const float* a = h.station_position(station);  // vt+0x18
+    const float* p = h.entity_position(me);
+    const float dx = a[0] - p[0], dy = a[1] - p[1], dz = a[2] - p[2];
+    d2 = (dx * dx + dz * dz) + dy * dy;
+  }
+  if (kStationAsk2 <= d2) return;  // test ah, 1: a NaN goes on
+  const Handle c = h.nearest_enemy(me);
+  const bool clear = !c || !h.contact_vehicle(c) || h.contact_distance(c) > kStationEnemy2;
+  if (station && clear && !(kStationRepair2 <= d2)) {
+    field_bases_station_repair(me, station);
+    return;
+  }
+  if (clear) {
+    if (kStationRepair2 <= d2) h.hud_message("too far from MFB depolyment point");
+    return;
+  }
+  char text[0x100];
+  std::snprintf(text, sizeof text, "%s is too close for MFB deployment", h.entity_name(h.contact_vehicle(c)));
+  h.hud_message(text);
+}
+
+// Mech3.exe 1.2 @ 0x0045a180: a local mech shut down (+0xdd), the view on
+// camera 4, at rest at the station, "mfb_station_01" run on the station's
+// node with the end callback, the other players told; a remote one only
+// sees the animation.
+bool field_bases_station_repair(Handle mech, Handle station) {
+  FieldBaseHooks& h = hk();
+  VehBasicHooks& vh = veh_basic_hooks();
+  if (!station || !mech) return false;
+  const Handle def = vh.anim_find("mfb_station_01");  // 0x0050b450
+  const Handle node = vh.node_named(h.station_name(station));  // 0x004f7fe0 (6, +0x2c)
+  if (!def || !node) return false;
+  if (!h.entity_remote(mech)) {  // vt+0x5c
+    h.entity_set_shutdown(mech, true);
+    if (mech == h.view_vehicle()) h.view_set_camera(4);
+    h.mech_rest_at(mech, h.station_position(station));
+    g_repair_anim = h.effects_start(def, node);  // 0x00508c10
+    h.anim_on_end(g_repair_anim, mech);
+    h.station_announce(h.stations(), station);
+    return true;
+  }
+  h.effects_start(def, node);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0045a140
+void field_bases_station_message(Handle mech, uint32_t id) {
+  FieldBaseHooks& h = hk();
+  const Handle st = h.stations();
+  if (st) h.station_nearest(st, h.entity_position(mech));  // its answer unused
+  field_bases_station_repair(mech, h.station_by_id(st, id));
+}
+
+// Mech3.exe 1.2 @ 0x0045a0f0
+void field_bases_station_done(Handle anim, Handle mech, int32_t stopped) {
+  FieldBaseHooks& h = hk();
+  if (anim != g_repair_anim || stopped) return;
+  g_repair_anim = nullptr;
+  h.mech_repair(mech, 0.0f);  // 0x004154e0(0)
+  h.entity_set_shutdown(mech, false);
+  h.mech_power_up(mech);  // 0x0041cc30(0)
+  h.view_set_camera(h.view_saved_camera());
+}
 
 // Mech3.exe 1.2 @ 0x0045acb0
 void DockContact::begin() {

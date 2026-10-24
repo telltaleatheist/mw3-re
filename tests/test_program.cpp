@@ -84,6 +84,8 @@
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zainet.h"
+#include "gamez/znetwork/znet_object.h"
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
@@ -1299,9 +1301,10 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     // The dock's eleven radio lines and "mfbeffects" (0x00459e80): all but
     // mcb_deploy, which no shipped sound set has.
     EXPECT(lines == 11);
-    // The dock (0x00459e80): the idle state alone, to begin; the bases held;
-    // "mcbdeploy" made (its states run from the dock's frame, step 4b2).
-    EXPECT(dock.states == 1 && dock.idle_first && dock.begin_next && !dock.drive && dock.deploy_valve);
+    // The dock (0x00459e80, then its frame 0x0045a270): the idle state
+    // alone, begun on the first frame, no one asking; the bases held;
+    // "mcbdeploy" made.
+    EXPECT(dock.states == 1 && dock.idle_first && !dock.begin_next && !dock.drive && dock.deploy_valve);
     EXPECT(deploy == 0);
     auto dist = [](const float a[3], const float b[3]) {
       return std::hypot(a[0] - b[0], a[2] - b[2]);
@@ -1341,6 +1344,98 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
         const float node08[3] = {-1826.3f, -20.0f, -1571.9f};
         EXPECT(dist(k.at_go, node08) < 3.0f);
     }
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// c1 mission 1's field bases repair the player (docs/vehicles.md, The repair
+// dock): the mcbwaynet's dock point (not ported) stood in for at net_02's
+// node "MFB Baker"; the player asks (0x0045a500); the bases go to their
+// places; the player walks onto the dock point and powers down; the bases
+// back out and open; after twelve seconds the repair (0x004154e0) and the
+// bases close up; the dock is idle again.
+TEST(mission_c1m1_field_bases_repair_the_player_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_dock_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, asked_at = -1, contact_at = -1, deploy_at = -1, repair_at = -1, close_at = -1, idle_at = -1;
+    int repairs_at_close = -1;
+    float repair_t = 0, close_t = 0;
+    std::vector<int> fronts;
+    const float point[3] = {-1276.5f, 3.0f, -896.2f};  // net_02's "MFB Baker"
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      const mech3::DockSummary d = mech3::program_dock_summary();
+      if (fronts.empty() || fronts.back() != d.front) fronts.push_back(d.front);
+      if (frames == 5) {
+        mech3::program_dock_stand_in("MFB Baker", point);
+        mech3::program_dock_message(player);
+        asked_at = frames;
+      }
+      if (d.front == 2 && contact_at < 0) {  // the contact: onto the dock point, powered down
+        contact_at = frames;
+        const float at[3] = {point[0], ground_under(point[0], point[1] + 100.0f, point[2]), point[2]};
+        mech3::move_mech(player, at, 0.0f);
+        mech3::mech_power(player, 1);
+      }
+      if (d.front == 3 && deploy_at < 0) deploy_at = frames;
+      if (d.front == 4 && repair_at < 0) repair_at = frames, repair_t = mech3::mech_game_time();
+      if (d.front == 5 && close_at < 0) {
+        close_at = frames;
+        close_t = mech3::mech_game_time();
+        const auto& n = engine.unported_counts();
+        repairs_at_close = n.count("0x004154e0") ? static_cast<int>(n.at("0x004154e0")) : 0;
+      }
+      if (d.front == 0 && close_at >= 0 && idle_at < 0) idle_at = frames;
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 6000;
+    pump.stop = [&] { return idle_at >= 0; };
+    app.run(pump);
+    std::fprintf(stderr, "  dock: asked %d contact %d deploy %d repair %d close %d idle %d; fronts", asked_at,
+                 contact_at, deploy_at, repair_at, close_at, idle_at);
+    for (int f : fronts) std::fprintf(stderr, " %d", f);
+    std::fprintf(stderr, "\n");
+    EXPECT(asked_at == 5);
+    EXPECT(contact_at > asked_at && deploy_at > contact_at && repair_at > deploy_at && close_at > repair_at);
+    // The repair: twelve seconds of game time, then 0x004154e0 once.
+    std::fprintf(stderr, "  repair %.2f s\n", close_t - repair_t);
+    EXPECT(close_t - repair_t >= 12.0f && close_t - repair_t < 12.2f);
+    EXPECT(repairs_at_close == 1);
+    EXPECT(idle_at > close_at);
+    mech3::program_dock_stand_in(nullptr, nullptr);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

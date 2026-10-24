@@ -101,6 +101,7 @@ class World:
             e.w32(vb + 4, 0xa04)
             e.w32(ctl + 0xa08, ivt)
             e.w32(ivt + 0x20, 0x4a5b70)
+            e.w32(ivt + 0x54, e.new_stub(f'ictl{i}.vt+0x54', 'c', 0))
             e.w32(b + 0xe4, ctl)
             arms = e.world_alloc(0x90)
             e.cpu.write(arms, b'\0' * 0x90)
@@ -112,7 +113,7 @@ class World:
             inn = e.world_alloc(0x10)
             e.w32(b + 0x110, inn)
             pos = e.world_alloc(0x10)
-            self.bases.append(dict(addr=b, ctl=ctl, arms=arms, list=ls, inn=inn, pos=pos))
+            self.bases.append(dict(addr=b, ctl=ctl, ictl=ctl + 0xa08, arms=arms, list=ls, inn=inn, pos=pos))
         self.placeholder = e.world_alloc(0x10)
         # The valves: each holder's value object with its get (vt+0x04).
         self.valves = []
@@ -135,7 +136,86 @@ class World:
             em.t.override(key, p)
             em._ret(p, pop)
         e.stub(0x5a85e0, spec='c', fn=position)
-        self.point = e.object('point', slots={0x18: ('c', 0)})
+        self.point = e.object('point', slots={0x18: ('c', 0), 0x24: ('c', 0)})
+        self.point_name = e.world_string('mcb_point_a')
+        t.script['point.vt+0x24'] = self.point_name
+        # The request's: the waynet ([0x60b544], its element +0x20), the
+        # brains (an order deque's finish iterator at +0x174 past one order whose
+        # part +0x0c answers its net), nets, elements, behaviours.
+        self.waynet = e.world_alloc(0x40)
+        e.stub(0x58b060, spec='c,s0')
+        e.stub(0x4d3d20, spec='zc')
+        e.stub(0x4040d0, spec='c')
+        e.stub(0x4c84b0, spec='c,s0,s1')
+        part_vt, net_vt, elem_vt, beh_vt = (e.world_alloc(0x100) for _ in range(4))
+        e.w32(part_vt + 8, e.new_stub('part.vt+0x8', 'c', 0))
+        e.w32(net_vt + 8, e.new_stub('net.vt+0x8', 'c,zs0', 4))
+        e.w32(elem_vt + 0x60, e.new_stub('elem.vt+0x60', 'c', 0))
+        e.w32(elem_vt + 0x74, e.new_stub('elem.vt+0x74', 'c', 0))
+        e.w32(beh_vt + 4, e.new_stub('beh.vt+0x4', 'c', 0))
+        e.w32(beh_vt + 8, e.new_stub('beh.vt+0x8', 'c,s0', 4))
+        self.vts = dict(part=part_vt, net=net_vt, elem=elem_vt, beh=beh_vt)
+        self.brains, self.parts = [], []
+        for i in range(3):
+            br, blk, mp, part = e.world_alloc(0x300), e.world_alloc(0xf70), e.world_alloc(0x10), e.world_alloc(0x10)
+            e.w32(mp, blk)
+            e.w32(br + 0x174, blk)           # the finish iterator: first, last, cur, node
+            e.w32(br + 0x178, blk + 0xf70)
+            e.w32(br + 0x17c, blk + 0x98)
+            e.w32(br + 0x180, mp)
+            e.w32(blk + 0xc, part)
+            e.w32(part, part_vt)
+            self.brains.append(br)
+            self.parts.append(part)
+        self.nets = []
+        for i in range(2):
+            n = e.world_alloc(0x10)
+            e.w32(n, net_vt)
+            self.nets.append(n)
+        self.elems = []
+        for i in range(6):
+            x = e.world_alloc(0x10)
+            e.w32(x, elem_vt)
+            self.elems.append(x)
+        self.behs = []
+        for i in range(3):
+            x = e.world_alloc(0x10)
+            e.w32(x, beh_vt)
+            self.behs.append(x)
+        # The multiplayer's: its game, the stations, a mech.
+        self.mpgame = e.world_alloc(0x100)
+        e.stub(0x479480, spec='')
+        t.script['0x00479480'] = self.mpgame
+        self.stations = e.object('stations', slots={0x14: ('c,s0', 4)})
+        self.station = e.object('station', slots={0x18: ('c', 0)})
+        self.station_pos = e.world_alloc(0x10)
+        t.script['station.vt+0x18'] = self.station_pos
+        e.w32(self.station + 0x2c, e.world_string('mfb_point_1'))
+        e.stub(0x46ff90, spec='c')
+
+        def nearest(em, key, a, pop):
+            st, p = em.args('c,s0')
+            v = em.t.handle(key, (st, em.r32(p), em.r32(p + 4), em.r32(p + 8)))
+            em._ret(v, pop)
+        e.stub(0x4d51d0, spec='c,s0', fn=nearest)
+        e.stub(0x4d6b90, spec='c,s0')
+        e.stub(0x4e6ff0, spec='c')
+
+        def message(em, key, a, pop):
+            fmt, arg = em.args('zs1,zs2')
+            text = fmt.replace('%s', arg if isinstance(arg, str) else '') if '%s' in fmt else fmt
+            em._ret(em.t.handle(key, (text,)), pop)
+        e.stub(0x40fe20, spec='', pop=0, fn=message)
+        self.mech = e.object('mech', slots={0xa4: ('c', 0), 0x5c: ('c', 0)})
+        e.stub(0x50b450, spec='zc')
+        e.stub(0x4f7fe0, spec='c,zd')
+        e.stub(0x508f00, spec='c,d,s0')
+        e.stub(0x41cc30, spec='c,s0')
+        self.mech_pos = e.world_alloc(0x10)
+        pos[self.mech] = self.mech_pos
+        self.pilot_blk = e.world_alloc(0x100)
+        e.w32(self.pilot_blk + 0x6c, e.object('game', slots={0x2c: ('', 0)}))
+        e.w32(0x60861c, self.pilot_blk)
         self.point_pos = e.world_alloc(0x10)
         t.script['point.vt+0x18'] = self.point_pos
         self.req = e.object('req', slots={0xa0: ('c', 0)})
@@ -155,7 +235,6 @@ class World:
         e.stub(0x508c10, spec='c,d,s0,s1,s2')
         t.script['0x00508c10'] = e.world_alloc(0x10)
         e.stub(0x506ca0, spec='c')
-        e.stub(0x45a780, spec='s0')
 
     def randomize(self):
         """A random registry, bases and globals, the same on both sides."""
@@ -189,7 +268,7 @@ class World:
                 e.wf(b['addr'] + 0x114 + 4 * k, at[k])
                 e.wf(b['inn'] + 4 * k, inn[k])
                 e.wf(b['pos'] + 4 * k, p[k])
-            now = f32(r.choice([0.0, 1.0, r.uniform(0, 1), float('nan') if r.random() < 0.05 else 0.5]))
+            now = f32(r.choice([0.0, 1.0, r.uniform(0, 1), 0.5, float('nan')]))
             tgt = r.choice([0.0, 1.0])
             vz = f32(r.uniform(-3, 3))
             thr = f32(r.uniform(-1, 1))
@@ -273,7 +352,7 @@ class World:
             e.wf(self.point_pos + 4 * k, pp[k])
             e.wf(self.req_pos + 4 * k, rr[k])
         # The view: the requester's or another's, with or without its camera.
-        e.w32(self.view + 0x64, r.choice([requester, self.other]))
+        e.w32(self.view + 0x64, r.choice([requester, self.other, self.mech]))
         e.w32(self.view + 0x58, self.cam if r.random() < 0.8 else 0)
         e.w32(self.cam + 4, r.choice([0, 2, 4, 4]))
         # Drives already made (deploy's, close's).
@@ -293,7 +372,69 @@ class World:
                 else:
                     e.w32(REG + off + 0x10 + 4 * i, 0)
             u.append(mask)
+        # The request's answers.
+        e.w32(0x60b544, self.waynet if r.random() < 0.85 else 0)
+        e.w32(self.waynet + 0x20, r.randrange(4))
+        t.script['0x0058b060'] = [r.choice([self.point, self.point, 0]) for _ in range(4)]
+        t.script['point.vt+0x24'] = self.point_name if r.random() < 0.9 else 0
+        t.script['0x004d3d20'] = r.choice([0, e.world_alloc(0x10)])
+        self.brain_on = [r.random() < 0.85 for _ in range(3)]
+        for i in range(3):
+            t.script[f'ictl{i}.vt+0x54'] = self.brains[i] if self.brain_on[i] else 0
+        t.script['part.vt+0x8'] = [r.choice(self.nets) for _ in range(3)]  # never none: the exe follows it
+        t.script['net.vt+0x8'] = [r.choice(self.elems + [0]) for _ in range(3)]
+        t.script['elem.vt+0x60'] = [r.choice(self.elems + [self.elems[0], 0]) for _ in range(8)]
+        t.script['elem.vt+0x74'] = [r.choice(self.behs + [0]) for _ in range(8)]
+        t.script['beh.vt+0x4'] = [r.choice([0, 1, 2, 3, 3]) for _ in range(3)]
+        t.script['beh.vt+0x8'] = [r.choice(self.elems + [0]) for _ in range(3)]
+        # The multiplayer's state.
+        e.w8(self.mpgame + 0xa8, int(r.random() < 0.8))
+        pv = self.mech
+        e.w32(self.pilot_blk + 0x14, pv if r.random() < 0.9 else 0)
+        e.w8(pv + 8, int(r.random() < 0.9))
+        e.w8(pv + 0xde, int(r.random() < 0.8))
+        e.w8(pv + 0xdd, int(r.random() < 0.5))
+        e.w32(0x609980, self.stations if r.random() < 0.85 else 0)
+        t.script['0x004d51d0'] = self.station if r.random() < 0.85 else 0
+        sp = [f32(r.uniform(-50, 50)) for _ in range(3)]
+        dist = r.choice([r.uniform(0, 6), r.uniform(6.4, 6.6), r.uniform(7, 18), r.uniform(18.5, 20.5), 30.0])
+        dv_ = [r.uniform(-1, 1) for _ in range(3)]
+        n_ = sum(x * x for x in dv_) ** 0.5 or 1.0
+        for k in range(3):
+            e.wf(self.station_pos + 4 * k, sp[k])
+            e.wf(self.mech_pos + 4 * k, f32(sp[k] + dv_[k] / n_ * dist))
+        self.contact = e.world_alloc(0x20)
+        e.wf(self.contact + 0xc, f32(r.choice([50.0, 9500.0, 9999.0, 10001.0, 1e6])))
+        t.script['0x004d6b90'] = self.contact if r.random() < 0.75 else 0
+        t.script['0x004e6ff0'] = self.mech if r.random() < 0.8 else 0
+        t.script['mech.vt+0xa4'] = e.world_string('Owens')
+        t.script['mech.vt+0x5c'] = r.choice([0, 0, 1])
+        t.script['0x0050b450'] = e.world_alloc(0x10) if r.random() < 0.9 else 0
+        t.script['0x004f7fe0'] = e.world_alloc(0x10) if r.random() < 0.9 else 0
+        t.script['game.vt+0x2c'] = r.choice([1, 3])
+        e.w32(self.view + 0x5c, r.choice([0, 2]))
+        anim = r.choice([0, e.world_alloc(0x10)])
+        e.w32(0x605c48, anim)
+        self.anim0 = anim
         return bw, bf_, u
+
+    def points_image(self):
+        e = self.e
+        out = [e.r32(REG + 0x2c + 4 * i) for i in range(18)]
+        for b in self.bases:
+            a = b['addr']
+            out += [e.r32(a + 0x114 + 4 * k) for k in range(3)]
+            for off in (0x10c, 0x110):
+                q = e.r32(a + off)
+                i = (q - (REG + 0x2c)) // 12
+                out.append(i + 1 if 0 <= i < 6 and (q - (REG + 0x2c)) % 12 == 0 else 0)
+        out += [e.r32(0x605c48), e.r8(self.mech + 0xdd)]
+        return out
+
+    def setup_probe(self, probe, bw, bfl, u):
+        probe.probe_dk_setup((U * 15)(*bw), (F * 30)(*bfl), (U * len(u))(*u))
+        probe.probe_dk_brains((U * 3)(*self.brains), (U * 3)(*self.parts), (U * 3)(*[b['ictl'] for b in self.bases]))
+        probe.probe_dk_set_anim(self.anim0)
 
     def image(self):
         e = self.e
@@ -356,7 +497,7 @@ def run_states(probe, seed):
     bw, bfl, u = w.randomize()
     rep = Replay(t, e, e.snapshot())
     probe.probe_app_set_callback(rep.callback())
-    probe.probe_dk_setup((U * 15)(*bw), (F * 30)(*bfl), (U * len(u))(*u))
+    w.setup_probe(probe, bw, bfl, u)
     seq = []
     for _ in range(r.choice([1, 2, 3, 5])):
         kind = r.random()
@@ -375,6 +516,8 @@ def run_states(probe, seed):
     for k, step in enumerate(seq):
         if step[0] == 's' and step[2] in (1, 4) and unmade(step[1]):
             step = ('s', step[1], 5)
+        if step[0] == 's' and (step[1], step[2]) in ((1, 1), (3, 0)) and not e.r32(REG + 0x7c):
+            step = ('s', step[1], 5)  # only run after a request found the dock point
         if step[0] == 'h' and step[1] == 3 and front() is not None and unmade(front()):
             step = ('h', 0)
         dt = f32(r.choice([0.033, 0.1, 1.0, 13.0]))
@@ -405,16 +548,98 @@ def run_states(probe, seed):
         bad = next((i for i in range(min(len(want), len(got))) if want[i] != got[i]), None)
         print(f'{name}: image word {bad} original {[hex(x) for x in want]}\n  rebuild {[hex(x) for x in got]}')
         return False
+    if not points_match(w, probe, name):
+        return False
     keys = {k for k, _ in t.log}
+    cover('request: sent a base', '0x004c84b0' in keys)
+    cover('request: queued', any(x == 6 for x in want[1:9]))
     cover('said', '0x004e6d50' in keys)
     cover('view switched', '0x0040ae70' in keys)
     cover('mech at rest', '0x00418e90' in keys)
     cover('repaired', '0x004154e0' in keys)
     cover('effects', '0x00508c10' in keys)
-    cover('dock request', '0x0045a780' in keys)
     cover('powered-down asked', 'req.vt+0xa0' in keys)
     cover('valve read', any(k.startswith('vv') for k in keys))
     return True
+
+
+def points_match(w, probe, name):
+    want = w.points_image()
+    out = (U * 64)()
+    n = probe.probe_dk_points(w.mech, out)
+    got = list(out)[:n]
+    if want != got:
+        bad = next((i for i in range(min(len(want), len(got))) if want[i] != got[i]), None)
+        print(f'{name}: points word {bad} original {[hex(x) for x in want]}\n  rebuild {[hex(x) for x in got]}')
+        return False
+    return True
+
+
+def run_more(probe, seed):
+    """The frame (both paths), the dock points, the station's repair, its
+    message and its end."""
+    w = World(seed)
+    r, e, t = w.r, w.e, w.t
+    bw, bfl, u = w.randomize()
+    which = r.choice([0, 0, 0, 1, 2, 3, 4])
+    dt = f32(r.choice([0.033, 0.1]))
+    at = [f32(r.uniform(-50, 50)) for _ in range(3)]
+    use_at = r.random() < 0.7
+    atb = e.world_alloc(0x10)
+    for k in range(3):
+        e.wf(atb + 4 * k, at[k])
+    sid = r.randrange(5)
+    if which == 3:  # the station by its id
+        t.script['0x0058b060'] = [r.choice([w.station, w.station, 0])]
+    anim = r.choice([w.anim0, e.world_alloc(0x10)])
+    stopped = r.choice([0, 0, 1])
+    rep = Replay(t, e, e.snapshot())
+    probe.probe_app_set_callback(rep.callback())
+    w.setup_probe(probe, bw, bfl, u)
+    name = f'more seed {seed} (op {which})'
+    if which == 0:
+        e.call(0x45a270, ecx=REG, stack=(fb(dt),))
+        probe.probe_dk_more(0, dt, None, 0, 0, 0)
+        cover('frame: states', t.script['game.vt+0x2c'] != 3)
+        cover('frame: multiplayer', t.script['game.vt+0x2c'] == 3)
+    elif which == 1:
+        e.call(0x45a560, ecx=REG, stack=(atb if use_at else 0,))
+        probe.probe_dk_more(1, 0, (F * 3)(*at) if use_at else None, 0, 0, 0)
+        cover('points', True)
+    elif which == 2:
+        if not e.r32(0x609980):
+            return True  # the exe tells no stations (vt+0x14 on null); only stations ask
+        st = r.choice([w.station, w.station, 0])
+        m = r.choice([w.mech, w.mech, 0])
+        want = e.call(0x45a180, ecx=m, edx=st) & 0xff
+        got = probe.probe_dk_more(2, 0, None, m, st, 0) & 0xff
+        if want != got:
+            print(f'{name}: repair answered original {want} rebuild {got}')
+            return False
+        cover(f'station repair -> {want}')
+    elif which == 3:
+        if not e.r32(0x609980):
+            return True  # the exe follows no stations (0x0058b060 on null)
+        e.call(0x45a140, ecx=w.mech, edx=sid)
+        probe.probe_dk_more(3, 0, None, w.mech, sid, 0)
+        cover('station message')
+    else:
+        e.call(0x45a0f0, ecx=anim, edx=w.mech, stack=(stopped,))
+        probe.probe_dk_more(4, 0, None, anim, w.mech, stopped)
+        cover('station done', anim == w.anim0 and anim and not stopped)
+    if not compare(name, t.log, rep.log):
+        return False
+    keys = {k for k, _ in t.log}
+    cover('mp: too far', any(k == '0x0040fe20' and a[0].startswith('too far') for k, a in t.log))
+    cover('mp: too close', any(k == '0x0040fe20' and 'too close' in a[0] for k, a in t.log))
+    cover('mp: repaired at a station', '0x00508f00' in keys)
+    want = w.image()
+    out = (U * 80)()
+    n = probe.probe_dk_image(out)
+    if want != list(out)[:n]:
+        print(f'{name}: image original {[hex(x) for x in want]}\n  rebuild {[hex(x) for x in list(out)[:n]]}')
+        return False
+    return points_match(w, probe, name)
 
 
 def run_drive(probe, seed):
@@ -449,7 +674,7 @@ def run_drive(probe, seed):
     t.script['veh.vt+0x124'] = [fb(f32(r.choice([r.uniform(0, 8), r.uniform(0, 0.1), 0.0]))) for _ in range(20)]
     rep = Replay(t, e, e.snapshot())
     probe.probe_app_set_callback(rep.callback())
-    probe.probe_dk_setup((U * 15)(*bw), (F * 30)(*bfl), (U * len(u))(*u))
+    w.setup_probe(probe, bw, bfl, u)
     probe.probe_dv_make(i, opn, fin, reached, way, travel)
     seq = [r.choice([0, 0, 1, 2, 1, 2, 5, 4 if r.random() < 0.2 else 1]) for _ in range(r.choice([1, 3, 6, 10]))]
     name = f'drive seed {seed} (base {i}, open {opn}, {seq})'
@@ -504,6 +729,11 @@ def main():
     probe.probe_dv_image.argtypes = [ctypes.c_int32, P]
     probe.probe_dv_speed.argtypes = [ctypes.c_int32, F]
     probe.probe_dv_arms.argtypes = [ctypes.c_int32, F]
+    probe.probe_dk_brains.argtypes = [P, P, P]
+    probe.probe_dk_more.argtypes = [ctypes.c_int32, F, P, U, U, U]
+    probe.probe_dk_more.restype = U
+    probe.probe_dk_set_anim.argtypes = [U]
+    probe.probe_dk_points.argtypes = [U, P]
     probe.probe_dk_hooks(1)
     args = [a for a in sys.argv[1:] if not a.startswith('-')]
     runs = int(args[0]) if args else 600
@@ -513,6 +743,10 @@ def main():
             os._exit(1)
     for seed in range(runs // 2):
         if not run_drive(probe, seed):
+            sys.stdout.flush()
+            os._exit(1)
+    for seed in range(runs):
+        if not run_more(probe, seed):
             sys.stdout.flush()
             os._exit(1)
     missed = sorted(k for k, n in COVER.items() if not n)

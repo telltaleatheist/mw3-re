@@ -14,6 +14,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech_build.h"
+#include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
 #include "mech3/sound_extra.h"
 #include "mech3/mission_world.h"
@@ -116,9 +117,19 @@ struct WiredControls : VehControlsHooks {
 };
 WiredControls g_controls;
 
+// The dock point the mcbwaynet would give ([0x0060b544], not ported): none
+// in play; the tests set a stand-in (ours).
+struct DockPointStandIn {
+  bool on = false;
+  std::string name;
+  float pos[3] = {};
+};
+DockPointStandIn g_dock_point;
+
 // The field base's (mech_fieldbase): the game type, the campaign's bases
-// left, the radio, an entity's team and its controls' hit. The scripts'
-// loose-file path is not read here (load_motion takes motion.zbd's).
+// left, the radio, an entity's team and its controls' hit; the dock's
+// clock, places, the player's view, the mech at rest and the effects. The
+// scripts' loose-file path is not read here (load_motion takes motion.zbd's).
 struct WiredFieldBases : FieldBaseHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
@@ -128,6 +139,21 @@ struct WiredFieldBases : FieldBaseHooks {
   Handle campaign() override { return program_campaign(); }
   void script_path_add(const char*, bool) override {}
   void say(Handle sound) override { sound_say(static_cast<zsnd::Object*>(sound), 1.0f); }
+  float game_time() override { return mech_game_time(); }
+  uint32_t frame() override { return g_hooks.frame(); }
+  const float* entity_position(Handle e) override { return g_hooks.entity_position(*static_cast<Vehicle*>(e)); }
+  bool powered_down(Handle e) override { return entity_is_mech(e) && mech_powered_down(e); }  // a vehicle's 0x0040bae0: 0
+  Handle dock_point() override { return g_dock_point.on ? &g_dock_point : nullptr; }
+  const char* dock_point_name(Handle p) override { return static_cast<DockPointStandIn*>(p)->name.c_str(); }
+  const float* dock_point_position(Handle p) override { return static_cast<DockPointStandIn*>(p)->pos; }
+  Handle view_vehicle() override { return program_view_target(); }
+  int32_t view_camera() override { return program_view_camera_id(); }
+  void view_set_camera(int32_t mode) override { program_view_set_camera(mode); }
+  void mech_rest_at(Handle mech, const float* pos) override {
+    if (entity_is_mech(mech)) static_cast<Mech*>(mech)->reset_at(pos);
+    else FieldBaseHooks::mech_rest_at(mech, pos);
+  }
+  Handle effects_start(Handle def, Handle node) override { return g_hooks.anim_run(def, node); }
   uint32_t entity_team(Handle e) override {
     if (entity_is_mech(e) || is_program_vehicle(e)) return static_cast<Vehicle*>(e)->team;
     return FieldBaseHooks::entity_team(e);
@@ -177,6 +203,12 @@ DockSummary program_dock_summary() {
   d.begin_next = r.begin_next;
   d.drive = field_bases_drive();
   d.deploy_valve = r.deploy_valve != nullptr;
+  const DockStep* f = r.states.empty() ? nullptr : r.states.front();
+  const DockStep* order[7] = {&r.idle, &r.places, &r.contact, &r.deploy, &r.repair, &r.close, &r.reset};
+  for (int i = 0; i < 7; ++i)
+    if (f == order[i]) d.front = i;
+  d.busy = r.busy;
+  d.requester = r.requester;
   return d;
 }
 int32_t program_field_bases_lines() {
@@ -189,6 +221,13 @@ void program_field_base_aim_arms(void* v, bool open) {
     if (FieldBaseArms* a = static_cast<FieldBase*>(v)->arms) a->aim(open);
 }
 void program_field_bases_mission_start() { field_bases_mission_start(); }
+void program_field_bases_frame(float dt) { field_bases().frame(dt); }
+void program_dock_stand_in(const char* name, const float pos[3]) {
+  g_dock_point.on = name != nullptr;
+  g_dock_point.name = name ? name : "";
+  if (pos) g_dock_point.pos[0] = pos[0], g_dock_point.pos[1] = pos[1], g_dock_point.pos[2] = pos[2];
+}
+void program_dock_message(void* mech) { field_bases().message(mech); }  // 0x0045a500 (the MFB command's ask)
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }

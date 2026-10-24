@@ -176,7 +176,7 @@ class MissionHooks : public zgame::Unported {
 
   // The frame 0x0048f470 (docs/mission-frame.md).
   virtual void valves_tick(float dt) { unported("0x004d3d30", {zgame::bits(dt)}); }
-  virtual void map_update(float dt) { unported("0x0045a270", {0x605ae0, zgame::bits(dt)}); }
+  virtual void map_update(float dt) { unported("0x0045a270", {0x605ae0, zgame::bits(dt)}); }  // the field bases' dock
   virtual void stations_update(Handle st, float dt, Handle vehicle) {
     unported("stations.vt+0x6c", {st, zgame::bits(dt), vehicle});
   }

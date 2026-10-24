@@ -1080,6 +1080,22 @@ bool Brain::push_behaviour(Behaviour* b) { return push(current().net->net(), b);
 // Mech3.exe 1.2 @ 0x004e8380
 void Brain::pop() { pop_resume(); }
 
+// Mech3.exe 1.2 @ 0x004c84b0. After the drop the new current state's
+// behaviour is asked and not used: the way starts from the old one's.
+bool Brain::go_to(AiNet* n, Behaviour* target) {
+  Order& o = current();
+  if (!o.net || n != o.net->net()) return false;  // vt+0x08
+  Behaviour* from = o.state ? o.state->behaviour() : nullptr;  // vt+0x18
+  if (from == x23c) {
+    pop();  // 0x004e8380
+    if (!orders.empty() && current().state) current().state->behaviour();
+  }
+  auto* cn = dynamic_cast<CompiledNet*>(n);
+  if (!cn) return false;  // every order's net is a compiled one
+  if (controls) brain_hooks().pilot_of(controls->vehicle(), &path_pilot);
+  return path.find(&path_pilot, cn, from, target);  // 0x004c7c10
+}
+
 // Mech3.exe 1.2 @ 0x004e84a0
 bool Brain::pop_if(AiNet* n) {
   if (!n || current().net->net() != n) return false;

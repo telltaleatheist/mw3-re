@@ -8,6 +8,8 @@
 // set up is read through peek.
 #include <cstdint>
 #include <cstring>
+#include <map>
+#include <string>
 
 #include "gamez/zgame/unported.h"
 #include "mech3/mech_fieldbase.h"
@@ -47,6 +49,21 @@ const float* peek3(uint32_t a) {
   return r;
 }
 
+const char* text(uint32_t a) {
+  if (!a) return nullptr;
+  static std::map<uint32_t, std::string> seen;
+  std::string& t = seen[a];
+  t.clear();
+  for (uint32_t i = 0; i < 256; ++i) {
+    const char c = static_cast<char>(probe_app::call("peek8", {a + i}));
+    if (!c) break;
+    t.push_back(c);
+  }
+  return t.c_str();
+}
+uint32_t g_brain[3] = {}, g_part[3] = {}, g_ictl[3] = {};
+std::map<uint32_t, uint32_t> g_shutdown;  // the +0xdd writes
+
 struct Hooks : m3::FieldBaseHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return probe_app::call(key, args);
@@ -79,10 +96,65 @@ struct Hooks : m3::FieldBaseHooks {
   m3::Handle effects_start(m3::Handle def, m3::Handle node) override {
     return hd(unported("0x00508c10", {lo(def), lo(node), 0, 0, 0}));
   }
-  m3::Handle dock_request(m3::DockIdle&, m3::Handle m) override { return hd(unported("0x0045a780", {lo(m)})); }
   void say(m3::Handle sound) override { unported("0x004e6d50", {lo(sound), 0x3f800000}); }
   void marker_clear() override { unported("0x0047a720", {peek(0x60b544)}); }
   float stopping_now(m3::BasicVehicle& v) override { return zgame::from_bits(unported("veh.vt+0x124", {ref(&v)})); }
+  // The request's.
+  m3::Handle dock_point() override {
+    const uint32_t w = peek(0x60b544);
+    return w ? hd(unported("0x0058b060", {w, peek(w + 0x20)})) : nullptr;
+  }
+  const char* dock_point_name(m3::Handle p) override { return text(unported("point.vt+0x24", {lo(p)})); }
+  m3::ai::Valve* valve_find(const char* name) override {
+    return static_cast<m3::ai::Valve*>(hd(unported("0x004d3d20", {name})));
+  }
+  m3::Handle base_brain(m3::FieldBase& b) override {
+    const int i = base_index(&b);
+    return i >= 0 ? hd(unported(i == 0 ? "ictl0.vt+0x54" : i == 1 ? "ictl1.vt+0x54" : "ictl2.vt+0x54", {g_ictl[i]})) : nullptr;
+  }
+  m3::Handle brain_order_net(m3::Handle brain) override {
+    for (int i = 0; i < 3; ++i)
+      if (lo(brain) == g_brain[i]) return hd(unported("part.vt+0x8", {g_part[i]}));
+    return nullptr;
+  }
+  m3::Handle net_element(m3::Handle net, const char* name) override { return hd(unported("net.vt+0x8", {lo(net), name})); }
+  m3::Handle element_behaviour(m3::Handle e) override {
+    const uint32_t x = unported("elem.vt+0x60", {lo(e)});
+    return x ? hd(unported("elem.vt+0x74", {x})) : nullptr;
+  }
+  int32_t link_count(m3::Handle beh) override { return static_cast<int32_t>(unported("beh.vt+0x4", {lo(beh)})); }
+  m3::Handle link(m3::Handle beh, int32_t i) override { return hd(unported("beh.vt+0x8", {lo(beh), i})); }
+  void brain_path_reset(m3::Handle brain) override { unported("0x004040d0", {lo(brain) + 0x238}); }
+  void brain_go_to(m3::Handle brain, m3::Handle net, m3::Handle to) override {
+    unported("0x004c84b0", {lo(brain), lo(net), lo(to)});
+  }
+  // The multiplayer's.
+  int32_t game_type() override { return static_cast<int32_t>(unported("game.vt+0x2c", {})); }
+  bool mp_repairs() override { return (peek(unported("0x00479480", {}) + 0xa8) & 0xff) != 0; }
+  m3::Handle player_vehicle() override { return hd(peek(peek(0x60861c) + 0x14)); }
+  bool entity_active(m3::Handle e) override { return (peek(lo(e) + 8) & 0xff) != 0; }
+  bool entity_shut_down(m3::Handle e) override { return (peek(lo(e) + 0xde) & 0xff) != 0; }
+  m3::Handle stations() override { return hd(peek(0x609980)); }
+  m3::Handle station_nearest(m3::Handle st, const float* p) override {
+    return hd(unported("0x004d51d0", {lo(st), zgame::bits(p[0]), zgame::bits(p[1]), zgame::bits(p[2])}));
+  }
+  m3::Handle station_by_id(m3::Handle st, uint32_t id) override { return hd(unported("0x0058b060", {lo(st), id})); }
+  const char* station_name(m3::Handle s) override { return text(peek(lo(s) + 0x2c)); }
+  const float* station_position(m3::Handle s) override { return peek3(unported("station.vt+0x18", {lo(s)})); }
+  void station_announce(m3::Handle st, m3::Handle s) override {
+    const uint32_t x = unported("stations.vt+0x14", {lo(st), lo(s)});
+    unported("0x0046ff90", {x});
+  }
+  m3::Handle nearest_enemy(m3::Handle me) override { return hd(unported("0x004d6b90", {lo(me), 3})); }
+  m3::Handle contact_vehicle(m3::Handle c) override { return hd(unported("0x004e6ff0", {lo(c)})); }
+  float contact_distance(m3::Handle c) override { return peekf(lo(c) + 0xc); }
+  void hud_message(const char* t) override { unported("0x0040fe20", {t}); }
+  const char* entity_name(m3::Handle e) override { return text(unported("mech.vt+0xa4", {lo(e)})); }
+  bool entity_remote(m3::Handle e) override { return unported("mech.vt+0x5c", {lo(e)}) != 0; }
+  void entity_set_shutdown(m3::Handle e, bool on) override { g_shutdown[lo(e)] = on; }
+  void mech_power_up(m3::Handle m) override { unported("0x0041cc30", {lo(m), 0}); }
+  int32_t view_saved_camera() override { return static_cast<int32_t>(peek(peek(0x5f4c8c) + 0x5c)); }
+  void anim_on_end(m3::Handle a, m3::Handle m) override { unported("0x00508f00", {lo(a), 0x45a0f0, lo(m)}); }
 };
 Hooks g_hooks;
 
@@ -127,7 +199,8 @@ void probe_dk_setup(const uint32_t* b, const float* f, const uint32_t* u) {
     for (uint32_t k = 0; k < w[3]; ++k) x.b.actions.push_back(&g_placeholder);
     x.b.begin_next = w[4] != 0;
     for (int k = 0; k < 3; ++k) x.b.dock_at[k] = g[k], x.in[k] = g[3 + k];
-    x.b.dock_in = x.in;
+    x.b.dock_far = x.in;
+    x.b.dock_near = nullptr;
     x.arms.now = g[6], x.arms.target = g[7];
     x.b.arms = &x.arms;
     x.ctl.x70.z = g[8], x.ctl.throttle = g[9];
@@ -135,6 +208,8 @@ void probe_dk_setup(const uint32_t* b, const float* f, const uint32_t* u) {
     x.b.anim = nullptr;
     r.bases[i] = w[0] ? &x.b : nullptr;
   }
+  for (auto& p : r.points) p[0] = p[1] = p[2] = 0.0f;
+  r.point_valve = nullptr;
   int k = 0;
   r.count = static_cast<int32_t>(u[k++]);
   for (int i = 0; i < 3; ++i) g_valves[i] = u[k], r.valves[i] = static_cast<m3::ai::Valve*>(hd(u[k])), ++k;
@@ -223,6 +298,47 @@ int probe_dk_image(uint32_t* out) {
       if (j++ < 4) out[k++] = step_id(s);
     for (; j < 4; ++j) out[k++] = 0xffffffff;
   }
+  return k;
+}
+
+// The request's brains: base i's brain and its current order's part (0 none),
+// its controls' IControls.
+void probe_dk_brains(const uint32_t* brains, const uint32_t* parts, const uint32_t* ictl) {
+  for (int i = 0; i < 3; ++i) g_brain[i] = brains[i], g_part[i] = parts[i], g_ictl[i] = ictl[i];
+  g_shutdown.clear();
+}
+// 0 the frame (dt), 1 the dock points (at: null for none), 2 the station
+// repair (mech, station), 3 its message (mech, id), 4 its end (anim, mech, stopped).
+uint32_t probe_dk_more(int32_t which, float dt, const float* at, uint32_t a, uint32_t b, uint32_t c) {
+  m3::FieldBases& r = m3::field_bases();
+  switch (which) {
+    case 0: r.frame(dt); return 0;
+    case 1: r.deploy_points(at); return 0;
+    case 2: return m3::field_bases_station_repair(hd(a), hd(b));
+    case 3: m3::field_bases_station_message(hd(a), b); return 0;
+    default: m3::field_bases_station_done(hd(a), hd(b), static_cast<int32_t>(c)); return 0;
+  }
+}
+void probe_dk_set_anim(uint32_t a) { m3::field_bases_repair_anim() = hd(a); }
+// The points (18 floats' bits), each base's dock_at (3 x 3), near and far
+// (as 1 + their index in the points, 0 none), the repair animation, the
+// mech's +0xdd as written (0 untouched).
+int probe_dk_points(uint32_t mech, uint32_t* out) {
+  const m3::FieldBases& r = m3::field_bases();
+  int k = 0;
+  for (const auto& p : r.points)
+    for (float f : p) out[k++] = zgame::bits(f);
+  for (const Base& x : g_base) {
+    for (float f : x.b.dock_at) out[k++] = zgame::bits(f);
+    auto idx = [&](const float* q) -> uint32_t {
+      for (int i = 0; i < 6; ++i)
+        if (q == r.points[i]) return static_cast<uint32_t>(i + 1);
+      return 0;
+    };
+    out[k++] = idx(x.b.dock_near), out[k++] = idx(x.b.dock_far);
+  }
+  out[k++] = lo(m3::field_bases_repair_anim());
+  out[k++] = g_shutdown.count(mech) ? g_shutdown[mech] : peek(mech + 0xdd) & 0xff;
   return k;
 }
 
