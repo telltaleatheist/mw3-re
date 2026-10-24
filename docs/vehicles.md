@@ -850,8 +850,8 @@ mech only shows the animation; the network's message (0x46ffd0 ->
 
 The repair itself (0x4154e0) is the mech's: next section.
 
-[0x60b4cc] and [0x60b4d0] are read by the AI's deploy state (0x4d0ce0,
-step 4b4). The mission start (0x459e80) ends any dock left running: the
+[0x60b4cc] and [0x60b4d0] are read by the AI's repair state (0x4d0ce0,
+below: The AI at the dock). The mission start (0x459e80) ends any dock left running: the
 list back to the idle state alone, to begin, and "mcbdeploy" 0 (made
 there when missing: every mission has it). Checked: `test_veh_dock.py`
 (600 state runs, 300 drive runs, 600 frame, request, ring and station
@@ -914,6 +914,67 @@ original's own; 19 branches; 29 breaks) and c1m1's headless test (the
 player's Mad Cat worn to 25 % armour, 50 % internals, the ammo bins
 emptied, coolant 0: after the 12 s all back, 440 rounds from the store,
 18 half tons of armour).
+
+## The AI at the dock (0x4ea260, 0x4d08d0..0x4d0ce0; step 4b6)
+
+A lancemate's way to the field bases: the player's refit order (lance
+orders 7 and 12, `confirm_refit`) runs the brain's vt+0x3c, 0x4ea260.
+Ported in `mech3/zai_repair.cpp`; the dock and the mcbwaynet through
+BrainHooks (`bases_alive`, `mfb_ask`, `has_mcb`, `dock_point`,
+`dock_drive`, `dock_contact`, `mech_power`), the program's in app_vehicle.
+
+- **The order** (0x4ea260): with a field base up (0x45a000) the dock is
+  asked to take the pilot's vehicle (0x47a780: the mcbwaynet there, then
+  0x47a730, the dock's 0x45b740, which takes it only while the bases drive
+  and no repair runs: so only after the player's own MFB request, the
+  lancemate then becoming the requester in the player's place); if the
+  dock point is there and the vehicle a mech (0x4d0920), the repair
+  behaviour (0x4d08d0, vtable 0x5cc970, made on the stack) is pushed on
+  the current order's net (0x4e88c0), and the order answers 1. A dock
+  that took the vehicle when the point then fails keeps it as requester.
+- **The state** (vt+0x8c 0x4d0990 -> 0x4d0a10, vtable 0x5cca28, built in
+  place in the order with the behaviour's copy at +0x08; no break-ins, no
+  fire): the dock point read (the mcbwaynet's selected point's place,
+  only for a mech); none: the first run pops it. An approach point 40 m
+  from the dock point on the pilot's side, the way snapped to a third of
+  a turn (k = floor(atan2(-dx, -dz) x 3/2pi + 0.5), at k x 120 degrees).
+- **The run** (0x4d0ce0), by phase (+0x24):
+  1-2: toward the approach point. When the mission boundary pulls the
+  point (0x4c3000), the pilot turns straight for the pulled point
+  (0x4cdd40, throttle the brain's +0xec when within 45 degrees, else 0;
+  phase 2, every frame while it pulls); else the brain's steering is set
+  from the pilot to the approach point (0x4d0c60: +0x298 the pilot's
+  place, speed vt+0x118 on +0xec, stopping distance vt+0x120 kept with its
+  inverse at +0x18 / +0x1c) and walked (0x4cee80, near at half the
+  stopping distance, slack 0.04 each way), phase 3, until the carrot has
+  fallen back to its floor and the pilot is within the stopping distance.
+  Then the own fights (params +0x80) are saved (+0x14) and switched off,
+  and the steering set again to the dock point: phase 4, the same walk;
+  there the distance is quartered (the inverse x4) for phase 5; there the
+  pilot stops. 6: while the bases drive ([0x60b4d0]) and are not yet in
+  contact ([0x60b4cc]) it waits; then (or with the bases not driving) it
+  stops, powers down (vt+0x50, 0x41cc30(1)), keeps its brain running
+  while down (+0x2a4 1) and gives itself 30 s (+0x20). 7: it stays while
+  the bases drive and are in contact, it is still powered down (vt+0xa0)
+  and neither the 30 s are past nor it is more than 12 m from the dock
+  point (0x51e060, squared 144: the dock's own 12 m). Otherwise, at once
+  from 6 too: powered up, +0x2a4 0, the own fights back, the order popped.
+- **Its end** (0x4d0ba0): the context read; in phases 4-6 the own fights
+  back; in 7 also powered up and +0x2a4 0. A normal end powers up twice
+  (the run's, then this one on the pop).
+
+The repair itself is the dock's (Mech::repair at the repair state's end):
+the lancemate is repaired as the player would be, from the player's store.
+The exe keeps the dock point's pointer (+0x34) into the mcbwaynet's point;
+the port keeps a copy (the point does not move; a mission's end frees it).
+Checked: `test_ai_repair.py` (300 cases on test_ai_lance's world: 1,800
+refits, about 600 taken, 4,600 runs; 20 branches; 28 of 31 breaks, the
+rest not observable: the state maker's mcbwaynet test after the refit's
+own, the copied flag never read, the run's own fights restore repeated by
+the end; the exe's state slot zeroed as the constructor starts, since
++0x14..+0x43 hold the order's old bytes until written, never read before).
+Not checked in play: no shipped single-player mission was run with a
+lancemate sent to the dock (c1m1 has none).
 
 ## The mcbwaynet (mech_waynet.cpp, 0x479640..0x47a950; step 4b3)
 

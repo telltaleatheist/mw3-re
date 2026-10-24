@@ -1276,3 +1276,36 @@ is paused.
   campaign pilot with 5 spare mechs and 563 t, mobilehq_03 shot down:
   bases 2, 4 mechs kept, 394 t (70 %), the rest in +0x78, the panel shown.
 - Left: 4b3b (nav waynet, HUD waypoints), the AI deploy 0x4d0ce0.
+
+## 2026-10-24 Item 4, step 4b6 (assigned by mw3 mac 1, in progress)
+
+- Branch mac4/ai-deploy from main e731bab. The AI's side of the field
+  base: the deploy state 0x4d0ce0 and the AI's MFB ask 0x4ea2b7 ->
+  0x47a780 (left from 4b3). Port with address comments, differential with
+  breaks, docs (vehicles.md, ai.md, symbols, discoveries), FIX rows where
+  needed. If the deploy state pulls in much unported brain code, stop at a
+  clean hooks boundary and report what is left.
+- Also check from the 4b2 review: (a) a repair or deploy abort returns true
+  after cancel() made the close state the front: does 0x45a270 end the close
+  at once in the exe, and the port the same? (b) DockReset::begin writes the
+  mcbdeploy valve with no null check: can it be null in play?
+- Fix CHANGES.md's wording: exactly 64 mechs is affected too (the draw at
+  slot 64), not only more than 64.
+- After: 4b3b (the nav waynet, the HUD waypoint icons).
+- Done (mac 4): mech3/zai_repair: refit_order 0x4ea260 (the BrainHooks
+  refit's default now), RepairBehaviour 0x4d08d0 / make_state 0x4d0990,
+  repair_possible 0x4d0920, RepairState 0x4d0a10 / 0x4d0ba0 / 0x4d0c60 /
+  0x4d0ce0; BrainHooks bases_alive, mfb_ask (0x47a780), has_mcb,
+  dock_point, dock_drive, dock_contact, mech_power, wired in the program
+  (app_mission's brain hooks through app_vehicle's program_* calls).
+  No unported brain code was needed: the steering, walk and turn were ported.
+- test_ai_repair.py on test_ai_lance's world: 300 cases, 20 branches, 28 of
+  31 breaks (3 not observable). The state is built in place in the exe's
+  order, so its unwritten fields hold old bytes: the test zeroes them.
+- (a) The abort's true: 0x45a270 marks +0x04 on the state it read before
+  the step (the dropped one), not on the close; the port's `f` is the
+  same pointer, and every state's begin clears its flag: the close is not
+  ended early. Nothing changed. (b) mcbdeploy: 0x4d3c40 makes the valve
+  when missing, and the reset runs only in a mission after the start set
+  it: not null in play. Nothing changed.
+- CHANGES.md / fixes.md: 64 or more mechs (the draw at slot 64).

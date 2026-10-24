@@ -745,7 +745,7 @@ the normal, the vehicle's place) that nothing in the exe reads; not kept.
 The callers ported so far: the attack's return 0x4cae90 (its way point),
 the drive 0x4c8a70 (its destination), the follow 0x4d1980 (the target's
 place) and the walk 0x4cee80 (its carrot, in and out one buffer). Three
-are in states not ported (0x4c9894, 0x4d0ce0, 0x4d13c0).
+are in states not ported (0x4c9894, 0x4d13c0); the repair state's 0x4d0ce0 is ported (item 4b6).
 
 **The messages** (0x4c3bd0, ECX an animation, EDX the AI message, from
 the AI's message handler 0x4d4a20, not ported): its node (0x50b5e0) names
@@ -1635,7 +1635,7 @@ brain break in for an attack, +0x08 may it fire (or reset its firing),
 | 0x4cd7b0, 0x5cc348 | the brain's step (+0x240, 0x5cc290) | 0x4cd810 (98) | dead: the step is made by the brain's constructor (0x4cd770) and never given to an order (no other reference to +0x240, its vtable or its maker 0x4cd790); its run would turn the pilot on the spot toward the next step's place (0x4cdd40 inline) and hand on as the valve step. Not ported |
 | 0x4cdbd0 / 0x4cdca0 | valveunion, valve_assign | 0x4ca2e0 / 0x4cdcf0 | ported (item 3c, below) |
 | 0x4ced40, 0x5cc5c0 | the node steps (0x4c9150), backup (0x4cfa80), deploy (0x4d0040) | 0x4cf140 (67): steering to the node, then its links | resume 0x4c9700; ported (17.4a) |
-| 0x4d0a10, 0x5cc970 | 0x4d08d0 (made by 0x4ea260, brain vt+0x3c) | | two vtables at once |
+| 0x4d0a10, 0x5cca28 | 0x4d08d0 (0x5cc970, made by 0x4ea260, brain vt+0x3c; its copy at +0x08) | 0x4d0ce0 (157): to the dock point and down while the dock works (vehicles.md, The AI at the dock) | ported (item 4b6, zai_repair) |
 
 **The waits, ported** (2026-10-22, item 3a: `WaitState`). Made by the
 wait steps' vt+0x8c (0x4c9fa0, 0x4ca0c0) with the game time ([0x60991c],
@@ -2392,8 +2392,10 @@ it (0x4e87c0; the follow state, 17.8b), 1; no vehicle or net, 0. +0x24 /
 when the contact's vehicle is no ally (owner +0xc4 & its +0xc0), +0x30 /
 +0x48 0x4ea3f0 when it is one; a contact that sees nothing is read through
 null there (FIX (bug): not taken). +0x38 0x58b380 0. +0x3c 0x4ea260 the
-refit (the repair behaviour 0x4d08d0..0x4d0920 when 0x45a000 counts bays
-and 0x47a780 allows; the `refit` hook, not ported). +0x40 0x4ea4e0 stop.
+refit (the repair behaviour 0x4d08d0 pushed when 0x45a000 counts bases up,
+the dock takes the pilot (0x47a780) and 0x4d0920 finds the dock point;
+ported in item 4b6, zai_repair: vehicles.md, The AI at the dock). +0x40
+0x4ea4e0 stop.
 The wrappers by the dispatcher's order number: 0 +0x20 (line follow,
 radio +0x30), 1 +0x28 (stop +0x34), 3 +0x2c, 4 +0x30, 5 +0x34, 6 +0x38,
 10 +0x44, 11 +0x48 (confirm_order +0x08), 7 / 12 +0x3c (confirm_refit

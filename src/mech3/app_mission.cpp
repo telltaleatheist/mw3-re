@@ -672,6 +672,14 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (MechControls* c = mech_controls(mech(attacker))) c->hit_an_ally(mech(victim));
   }
   void allies_turn() override { ai::allies_turn(); }  // 0x004d5dc0 (sensors.cpp)
+  // The refit's (zai_repair): the field bases and the dock (app_vehicle).
+  int32_t bases_alive() override { return program_bases_alive(); }
+  bool mfb_ask(Handle v) override { return program_mfb_ask(mech(v)); }
+  bool has_mcb() override { return program_has_mcb(); }
+  bool dock_point(float out[3]) override { return program_mcb_point(out); }
+  bool dock_drive() override { return program_dock_drive(); }
+  bool dock_contact() override { return program_dock_contact(); }
+  void mech_power(Handle m, int32_t down) override { mech3::mech_power(mech(m), down); }
 };
 WiredBrainHooks g_brain_hooks;
 

@@ -63,10 +63,22 @@ class BrainHooks : public zgame::Unported {
     unported("attacker.ictl.vt+0x98", {attacker, victim});
   }
   virtual void allies_turn() { unported("0x004d5dc0", {}); }
-  // 0x004ea260 (the refit order): the repair behaviour (0x004d08d0..
-  // 0x004d0920) pushed when the mission has repair bays (0x0045a000) and
-  // 0x0047a780 allows; not ported.
-  virtual bool refit(Brain& b) { return unported("0x004ea260", {low(&b)}) & 0xff; }
+  // 0x004ea260 (the refit order, zai_repair.cpp): the repair behaviour
+  // pushed when a field base is up and the dock takes the pilot.
+  virtual bool refit(Brain& b);
+  // The refit's and the repair state's: the field bases still up
+  // (0x0045a000), the dock asked for `v` (0x0047a780: the mcbwaynet
+  // [0x0060b544] there and 0x0047a730), the mcbwaynet there, its selected
+  // point's place (0x0058b060 by its +0x20, then vt+0x18; false without),
+  // the dock's flags (the bases driving [0x0060b4d0], in contact
+  // [0x0060b4cc]) and a mech powered down or up (0x0041cc30(1 / 0)).
+  virtual int32_t bases_alive() { return static_cast<int32_t>(unported("0x0045a000", {0x605ae0})); }
+  virtual bool mfb_ask(zgame::Handle v) { return unported("0x0047a780", {v}) & 0xff; }
+  virtual bool has_mcb() { return unported("[0x0060b544]", {}) != 0; }
+  virtual bool dock_point(float out[3]);
+  virtual bool dock_drive() { return unported("[0x0060b4d0]", {}) & 0xff; }
+  virtual bool dock_contact() { return unported("[0x0060b4cc]", {}) & 0xff; }
+  virtual void mech_power(zgame::Handle mech, int32_t down) { unported("0x0041cc30", {mech, down}); }
   // The game time [0x0060991c].
   virtual float now();
   // The pilot's vehicle (the exe's IControls +0x10): its health, vt+0x98

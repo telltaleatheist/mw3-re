@@ -13,6 +13,7 @@
 #include "mech3/mech_control.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "mech3/zai_attack.h"
+#include "mech3/zai_repair.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_node.h"
 #include "mech3/zai_steps.h"
@@ -152,6 +153,9 @@ std::vector<int32_t> g_contact_entity;
 
 bool g_pilot = false;
 bool g_real_formation = false;  // test_ai_lance.py: the port's formation net and vehicle nets' follow
+// test_ai_repair.py: the port's refit (0x004ea260) and the dock's state.
+bool g_real_refit = false, g_mcb = false, g_dock_drive = false, g_dock_contact = false, g_not_mech = false;
+float g_dock_point[3] = {};
 // The manoeuvre's test (test_ai_manoeuvre.py): the real behaviours at
 // 0x00604088 / 0x00604098, the jets' fuel, the last attacker.
 bool g_real_manoeuvre = false;
@@ -369,7 +373,16 @@ struct Hooks : ai::BrainHooks {
   }
   // The formation net: a numbered fake, or the port's (the lance test's).
   ai::AiNet* formation_net() override { return g_real_formation ? ai::BrainHooks::formation_net() : net_of(200); }
-  bool refit(ai::Brain&) override { return call("0x004ea260", {}) & 0xff; }
+  bool refit(ai::Brain& b) override { return g_real_refit ? ai::BrainHooks::refit(b) : call("0x004ea260", {}) & 0xff; }
+  bool has_mcb() override { return g_mcb; }
+  bool dock_point(float out[3]) override {  // 0x0058b060 on the mcbwaynet, then the point's vt+0x18
+    if (!(call("0x0058b060", {}) & 0xff)) return false;
+    if (!(call("point.vt+0x18", {}) & 0xff)) return false;
+    std::memcpy(out, g_dock_point, 12);
+    return true;
+  }
+  bool dock_drive() override { return g_dock_drive; }
+  bool dock_contact() override { return g_dock_contact; }
   zgame::Handle player_vehicle() override { return g_pilot ? g_player_vehicle : 0; }
   ai::Behaviour* follow_behaviour(ai::AiNet* n) override {
     if (g_real_formation)  // the lance test's: a vehicle net's own (0x004c0de0, run by the exe)
@@ -455,7 +468,7 @@ struct Hooks : ai::BrainHooks {
   }
   void radio_line(ai::Brain&, int32_t event) override { call("0x004e6d50", {event}); }
   // The hit test's (test_ai_hits.py): the plan entities are their own mechs.
-  zgame::Handle vehicle_mech(zgame::Handle v) override { return v; }
+  zgame::Handle vehicle_mech(zgame::Handle v) override { return g_not_mech ? 0 : v; }
   void ally_hit(zgame::Handle attacker, zgame::Handle victim) override {
     call("attacker.ictl.vt+0x98", {static_cast<uint32_t>(ent_index(attacker)), victim});
   }
@@ -535,6 +548,8 @@ extern "C" {
 // A brain with no orders (its constructor's first order dropped unseen).
 void probe_ao_new() {
   g_real_formation = false;  // the lance test sets it again
+  g_real_refit = false;      // the repair test's world sets it
+  g_not_mech = false;
   g_real_manoeuvre = false;  // the manoeuvre test's world sets it
   ai::set_brain_hooks(&g_hooks);
   probe_app::Mute mute;
@@ -803,6 +818,26 @@ int32_t probe_ao_lance(int32_t order, uint32_t k, int32_t radio, const uint32_t*
   const int32_t a = g_brain->lance_order(order, contact_of(k));
   g_brain->radio = nullptr;
   return a;
+}
+
+// The repair test's world (test_ai_repair.py): the port's refit, the
+// mcbwaynet there, the dock's flags, its point's place, the brain's own
+// fights (params +0x80), +0x2a4 and the vehicle not a mech (vt+0x50 0).
+void probe_ao_repair_world(int32_t mcb, int32_t drive, int32_t contact, const float* point, int32_t own,
+                           int32_t x2a4, int32_t not_mech) {
+  g_real_refit = true;
+  g_not_mech = not_mech != 0;
+  g_mech.max_speed = 12.0f;  // the walk's speed (the test's Mech +0x518), as the follow's
+  g_mcb = mcb != 0, g_dock_drive = drive != 0, g_dock_contact = contact != 0;
+  std::memcpy(g_dock_point, point, 12);
+  g_brain->params.put<int32_t>(0x80, own);
+  g_brain->x2a4 = static_cast<uint8_t>(x2a4);
+}
+// The brain's params +0x80, +0x2a4 and +0x298.
+void probe_ao_repair_brain(uint32_t* out) {
+  out[0] = static_cast<uint32_t>(g_brain->params.get<int32_t>(0x80));
+  out[1] = g_brain->x2a4;
+  std::memcpy(out + 2, g_brain->x298, 12);
 }
 
 // The brain's steering (+0x250, 0x48 bytes) as the exe lays it out.
@@ -1554,6 +1589,14 @@ int32_t probe_ao_attack_stack(uint32_t* out, int32_t cap) {
       w[18] = 7;
       w[19] = os->x08;
       std::memcpy(w + 20, &os->turn, 4), std::memcpy(w + 21, &os->share, 4), std::memcpy(w + 22, &os->way, 4);
+    }
+    if (const auto* rs = dynamic_cast<const ai::RepairState*>(o.state.get())) {  // the refit's
+      w[18] = 9;
+      w[19] = static_cast<uint32_t>(rs->phase);
+      w[20] = rs->own_fights;
+      std::memcpy(w + 21, &rs->slow, 4), std::memcpy(w + 22, &rs->inv_slow, 4), std::memcpy(w + 23, &rs->until, 4);
+      std::memcpy(w + 24, rs->approach, 12);
+      w[27] = rs->dock != nullptr;
     }
     if (dynamic_cast<const ai::AttackEndState*>(o.state.get())) w[18] = 1;
     if (dynamic_cast<const ai::AttackRearmState*>(o.state.get())) w[18] = 2;

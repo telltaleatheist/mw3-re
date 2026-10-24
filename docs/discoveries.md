@@ -2903,6 +2903,21 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   station, shut down for the station's animation, and powered up again
   repaired when it ends. (docs/vehicles.md, The repair dock)
 
+- **A lancemate can take your field base repair, but only after you call
+  it.** The lance order to repair works only while the field bases are
+  already coming for you (after your MFB request, before the repair
+  starts): the lancemate then takes your place in the dock, and the bases
+  wait for it instead of you. It walks to a point 40 m short of the
+  dock point (on its own side, at one of three angles), then onto the
+  point, stops, waits until the bases are in place and powers down; it
+  stays down while the bases work, at most 30 seconds and only within
+  12 m of the point, then powers up and goes back to what it was doing.
+  It is repaired as you would be, from your own carried gear. On the
+  way it does not fire and does not break off to fight, and its habit of
+  picking fights is switched off until it is done. With no field base
+  up, or the bases not coming yet, it turns the order down.
+  (docs/vehicles.md, The AI at the dock)
+
 - **What a field base repair fixes, and what it does not.** All at once
   when the 12 seconds are up:
   - internal structure back to full on the legs, arms, head and the

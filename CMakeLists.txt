@@ -186,6 +186,7 @@ add_library(mw3core STATIC
   src/mech3/zai_steps.cpp
   src/mech3/zai_firing.cpp
   src/mech3/zai_attack.cpp
+  src/mech3/zai_repair.cpp
   src/mech3/zai_node.cpp
   src/mech3/zai_path.cpp
   src/mech3/zainet.cpp

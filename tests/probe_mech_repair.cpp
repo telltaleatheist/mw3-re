@@ -54,7 +54,6 @@ zwep::WeaponDef g_defs[16];
 m3::WeaponType g_types[16];
 m3::Store* g_store = nullptr;
 bool g_viewed = false;
-uint32_t g_hud = 0;
 
 struct Hooks : m3::RepairHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {

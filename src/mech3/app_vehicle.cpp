@@ -278,6 +278,20 @@ int32_t program_field_bases_lines() {
   for (Handle s : field_bases().sounds) n += s != nullptr;
   return n;
 }
+int32_t program_bases_alive() { return field_bases().alive(); }
+bool program_mfb_ask(void* mech) { return mcb_waynet() && mfb_set_requester(mech); }  // 0x0047a780
+bool program_has_mcb() { return mcb_waynet() != nullptr; }
+bool program_mcb_point(float out[3]) {  // 0x0058b060 by +0x20, then vt+0x18
+  McbWaynet* w = mcb_waynet();
+  znet::Element* e = w ? w->elem(w->current) : nullptr;
+  ai::Behaviour* b = e ? static_cast<ai::AiElem*>(e)->as_behaviour() : nullptr;
+  const float* p = b ? b->position() : nullptr;
+  if (!p) return false;
+  out[0] = p[0], out[1] = p[1], out[2] = p[2];
+  return true;
+}
+bool program_dock_drive() { return field_bases_drive(); }
+bool program_dock_contact() { return field_bases_contact(); }
 MechWear program_mech_wear(void* mech) {
   MechWear w;
   auto& m = *static_cast<Mech*>(mech);
