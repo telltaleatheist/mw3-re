@@ -775,7 +775,7 @@ and done return it, the message aborts, the abort clears the dock's marker
 |---|---|---|
 | idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (below), which queues the six others in the order below |
 | places +0xe0 | 0x5c2620 | five frames on, says mcb_contact ("move into position"?); done when every active base with a valve has its valve set (each base's net sets it at its place) |
-| contact +0xd0 | 0x5c25c0 | says mcb_waiting once; done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
+| contact +0xd0 | 0x5c25c0 | says mcb_waiting once (in play the bases' "we have arrived and are ready to deploy", Owen 2026-10-24); done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
 | deploy +0xf4 | 0x5c2640 | busy (+0x78); each active base's drive out queued at the front of its steps; the player's view onto camera mode 4 (its own kept at +0x80); the mech at rest at the dock point (0x418e90); done with the three drives, saying mcb_deploy (no shipped sound); the mech powering up aborts |
 | repair +0x110 | 0x5c25a0 | busy; the effects `mfbeffects` on each active base (0x458cf0); twelve seconds, then the mech repaired (0x4154e0 with that frame's time); powering up aborts; its end says mcb_complete and stops the effects |
 | close +0x124 | 0x5c2580 | each base's drive in; the view back to its camera if still on mode 4; done with the drives; [0x60b4cc] cleared |
