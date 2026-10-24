@@ -678,22 +678,23 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     auto count = [&](const char* k) { return n.count(k) ? n.at(k) : 0u; };
     EXPECT(count("0x004d8750") == 0);  // the AI controllers are the port's
     EXPECT(count("0x004e71c0") == 0);
-    EXPECT(count("0x004589d0") == 3);  // mobilehq_01..03, over net 2
+    EXPECT(count("0x004589d0") == 0);  // mobilehq_01..03 (over net 2) are the port's (mech_fieldbase)
     EXPECT(count("0x004ac320") == 0);  // the basic vehicles are the port's (app_vehicle.cpp)
     EXPECT(count("0x004ac860") == 1);  // the stealth entity's block (the vehicles' controllers are made)
-    // ttruck_01, ttruck_02, apc_01, apc_02: AI-driven, on the ground at their
-    // records' places, in the world with their own nodes, set up from
-    // vehicle.zrd (health, motion block, weapons).
+    // mobilehq_01..03, ttruck_01, ttruck_02, apc_01, apc_02: AI-driven, on
+    // the ground at their records' places, in the world with their own nodes,
+    // set up from vehicle.zrd (health, motion block, weapons).
     {
       const std::vector<void*> vs = mech3::program_vehicles();
-      EXPECT(vs.size() == 4);
+      EXPECT(vs.size() == 7);
       int named = 0;
       for (void* p : vs) {
         mech3::VehicleSummary s;
         EXPECT(mech3::describe_vehicle(p, &s));
         EXPECT(s.in_world && s.ai_controls && s.owned);
         const std::string name = s.name ? s.name : "";
-        named += name == "ttruck_01" || name == "ttruck_02" || name == "apc_01" || name == "apc_02";
+        named += name == "ttruck_01" || name == "ttruck_02" || name == "apc_01" || name == "apc_02" ||
+                 name.rfind("mobilehq_0", 0) == 0;
         EXPECT(s.health > 0.0f && s.health == s.health_max);
         // TRACK on four supports; the model's collide nodes give the twelve
         // collision points but no count (+0x214 stays 0, as the exe's).
@@ -701,7 +702,7 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
         EXPECT(s.team != 0 && s.active);
         EXPECT(std::isfinite(s.pos[1]));
       }
-      EXPECT(named == 4);
+      EXPECT(named == 7);
     }
     EXPECT(count("0x00414150") == 0);  // the mech is the port's
     EXPECT(count("0x004161c0") == 0);  // its placement is the port's
@@ -1223,12 +1224,14 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
       std::string name;
       float first[3] = {}, at_go[3] = {}, last[3] = {};
       bool sane = true, dead = false;
+      mech3::VehicleSummary end;
     };
     std::vector<Track> tracks;
     int frames = 0;
-    bool went = false, killed = false;
+    bool went = false, killed = false, base_killed = false;
     mech3::LaunchedMech before, after;
     size_t left = 99;
+    int32_t registered = -1, lines = -1;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       if (frames == 0)
@@ -1245,10 +1248,21 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
         if (go) std::copy(s.pos, s.pos + 3, k.at_go);
         std::copy(s.pos, s.pos + 3, k.last);
         k.dead = !s.active;
+        k.end = s;
+        // mobilehq_01's arms opened through its frames (0x004597d0; the dock's call, 4b).
+        if (frames == 30 && k.name == "mobilehq_01") mech3::program_field_base_aim_arms(vs[i], true);
         k.sane = k.sane && s.in_world && (s.active ? s.health > 0 : s.health == 0) && std::isfinite(s.pos[0]) &&
                  std::isfinite(s.pos[1]) && std::isfinite(s.pos[2]);
       }
       went = went || go;
+      if (frames == 90)  // the player shoots mobilehq_03 down (0x00458f50, 0x004590b0)
+        for (void* v : vs) {
+          mech3::VehicleSummary s;
+          if (mech3::describe_vehicle(v, &s) && s.name && std::string(s.name) == "mobilehq_03") {
+            void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+            base_killed = mech3::program_vehicle_kill(v, player, "MGUN");
+          }
+        }
       if (frames == 60)  // the player kills apc_02 (the kill credit 0x0041b420)
         for (void* v : vs) {
           mech3::VehicleSummary s;
@@ -1266,6 +1280,8 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
     std::map<std::string, uint32_t> calls;
     pump.on_quit = [&] {
       for (const auto& [k, v] : engine.unported_counts()) calls[k] = v;
+      registered = mech3::program_field_bases_count();
+      lines = mech3::program_field_bases_lines();
       mech3::missions().cleanup(false);  // the valves end with the mission
       left = mech3::program_vehicles().size();  // freed with the entities (0x0049dc40)
     };
@@ -1274,7 +1290,11 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
       for (const auto& [k, v] : calls) std::fprintf(stderr, "  %6u %s\n", v, k.c_str());
     EXPECT(frames > 200);
     EXPECT(went);
-    EXPECT(tracks.size() == 4);
+    EXPECT(tracks.size() == 7);  // the three field bases first, made by 0x004589d0
+    EXPECT(registered == 3);
+    // The dock's eleven radio lines and "mfbeffects" (0x00459e80): all but
+    // mcb_deploy, which no shipped sound set has.
+    EXPECT(lines == 11);
     auto dist = [](const float a[3], const float b[3]) {
       return std::hypot(a[0] - b[0], a[2] - b[2]);
     };
@@ -1286,9 +1306,22 @@ TEST(mission_c1m1_vehicles_run_their_frames_headless) {
       // The trucks die (the destroy valves at their last nodes, or the Owens'
       // fire on the way); the APCs drive off along theirs, alive.
       const bool truck = k.name.rfind("ttruck", 0) == 0;
-      EXPECT(k.dead == (truck || k.name == "apc_02"));
+      EXPECT(k.dead == (truck || k.name == "apc_02" || k.name == "mobilehq_03"));
       if (k.name == "apc_01") EXPECT(dist(k.first, k.last) > 100.0f);
+      // The field bases: in the registry, their arms' seven parts found;
+      // they keep their place (the throttle held at 0 until the dock lets
+      // them drive, [0x0060b4d0]); mobilehq_01's arms opened.
+      if (k.name.rfind("mobilehq_0", 0) == 0) {
+        EXPECT(k.end.field_base && k.end.registry == k.name.back() - '1');
+        EXPECT(k.end.arm_parts == 7);
+        EXPECT(dist(k.first, k.last) < 0.5f);
+        EXPECT(k.end.arms == (k.name == "mobilehq_01" ? 1.0f : 0.0f));
+      }
     }
+    // The field base's loss: no campaign behind the debug launch, so no cut
+    // (0x004590b0 after the basic death); still bases left, so no 0x0047a720.
+    EXPECT(base_killed);
+    EXPECT(calls.count("0x004590b0 cut") == 0 && calls.count("0x0047a720") == 0);
     // The player's kill: one vehicle, 75 points.
     EXPECT(killed);
     EXPECT(after.kills[1] == before.kills[1] + 1 && after.kills[4] == before.kills[4] + 75);
@@ -1589,7 +1622,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     app.run(pump);
     EXPECT(fade_frames > 1);
     EXPECT(seen.frames >= 7);
-    EXPECT(seen.entities == 7 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker, the four vehicles
+    EXPECT(seen.entities == 10 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker, the seven vehicles
     EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
     EXPECT(seen.near_distance);
@@ -2600,10 +2633,11 @@ TEST(mission_c1m1_owens_runs_its_frames_headless) {
     EXPECT(seen.ai_on && seen.brain && seen.orders_ok);
     // Awake (the player in sight) each tick. The firing
     // (ai.md 17.7) picks a plan each tick: the player, 1.4 km off, is past
-    // its range, so none, and its sensor range widened to aiv +0x30; it
-    // rests in phase 5 with its look-around going.
-    EXPECT(seen.fire_phase == 5 && seen.look_phase >= 1);
-    EXPECT(seen.fire_max > 0 && seen.fire_range == seen.fire_max);
+    // its range, but the field bases (team 2, 530..600 m off) are within
+    // its sensor range (aiv +0x30, 1000 m): it has a plan on one (phase 2),
+    // its range the plan's, its look-around going.
+    EXPECT(seen.fire_phase == 2 && seen.look_phase >= 1);
+    EXPECT(seen.fire_max > 0 && seen.fire_range < seen.fire_max);
     // 30 m off, the plan pick takes the player and the volley (0x004b1860)
     // a weapon group; the line clear (0x004d5980), the firing holds the
     // trigger (phase 4) and the group's lasers fire (a beam running, or

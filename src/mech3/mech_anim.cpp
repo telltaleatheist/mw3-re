@@ -80,15 +80,17 @@ bool load_motion(zsis::Script& s, const char* name) {
 MechAnim::MechAnim() { active = true; }
 
 // Mech3.exe 1.2 @ 0x005a9dc0 (the script's destructor)
-MechAnim::~MechAnim() {
-  if (!parts) return;
-  for (uint32_t i = 0; i < part_count; ++i) {
-    if (!parts[i]) continue;
-    parts[i]->destroy();
-    delete parts[i];
+void script_free_parts(zsis::Script& s) {
+  if (!s.parts) return;
+  for (uint32_t i = 0; i < s.part_count; ++i) {
+    if (!s.parts[i]) continue;
+    s.parts[i]->destroy();
+    delete s.parts[i];
   }
-  std::free(parts);
+  std::free(s.parts);
 }
+
+MechAnim::~MechAnim() { script_free_parts(*this); }
 
 // Mech3.exe 1.2 @ 0x0041ee80. Keeps the phase when the rate changes.
 void MechAnim::set_speed(float speed) {

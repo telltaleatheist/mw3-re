@@ -320,6 +320,16 @@ struct WiredPlayerHooks : PlayerHooks {
     vehicles.insert(h);
     return h;
   }
+  // The mobile field base (mech_fieldbase): the same, from 0x004589d0.
+  Handle mobilehq_create(Handle ctl, const char* type, const char* name) override {
+    void* c = ctl ? e->object_of(ctl) : nullptr;
+    if (ctl && !c) return PlayerHooks::mobilehq_create(ctl, type, name);
+    void* v = program_field_base_create(c, type, name);
+    if (!v) return 0;
+    const Handle h = e->handle_of(v);
+    vehicles.insert(h);
+    return h;
+  }
   void entity_name(Handle v, const char* name) override {  // 0x005a84c0: the node's name
     if (!vehicles.count(v)) return PlayerHooks::entity_name(v, name);
     zcls::node_set_name(static_cast<zcls::Node*>(program_vehicle_node(e->object_of(v))), name);
@@ -583,8 +593,9 @@ struct WiredBrainHooks : ai::BrainHooks {
   uint32_t weapon_flags(Handle w) override { return mech3::weapon_flags(e->object_of(w)); }
   // The volley (ai.md 17.7, weapon_planner): the pilot behind the manager's
   // mech (its AiControls' brain), the contact's distance, the mech's heat.
-  // The station keeping's (ai.md 17.2): a mech's vt+0xf4 is 0x0040bae0.
-  bool vehicle_xf4(Handle) override { return false; }
+  // The station keeping's (ai.md 17.2): a mech's vt+0xf4 is 0x0040bae0, a
+  // basic vehicle's too; a field base's itself (0x004d2a70).
+  bool vehicle_xf4(Handle v) override { return program_is_field_base(veh(v)); }
   // The clear line (ai.md 17.7) on the mechs and the world's query.
   // A target's node (+0x04) and centroid (the record's subnode, +0x14, else
   // the node); the marker's node.
@@ -1037,6 +1048,12 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4b4ae0() override { radar_objects_destroy(); }
   void fn_4c5fa0() override { ai::regions_clear(); }  // 0x004c5fa0 -> 0x004c5f00
   void fn_4d71f0() override { engine_sounds_clear(); }  // 0x004d71f0 -> 0x004add10
+  // 0x00459e80: the field bases' registry emptied, the dock's radio lines
+  // and effects found (vehicles.md); its states and valve are item 4b.
+  void fn_459e80(Handle h) override {
+    program_field_bases_mission_start();
+    MissionHooks::fn_459e80(h);
+  }
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
   void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
@@ -1160,10 +1177,12 @@ struct WiredMissionHooks : MissionHooks {
   int32_t game_mission_number() override { return e->launch().number; }
   uint8_t game_saved() override { return 0; }
   void fn_484270(int32_t) override { mech3::mech_types_open(); }  // 0x00484270: mechlib and the voices
-  // 0x00413e60, the mechs' set-up: of it, the cockpit sounds (0x004141a0).
-  // The radar blips and the motions are made when first needed; the three
-  // network-dependent globals ([0x005e1f68], +0x74, +0x78) stay unported.
+  // 0x00413e60, the mechs' set-up: of it, the motions (0x005a9820, before
+  // the field bases' arms read theirs) and the cockpit sounds (0x004141a0).
+  // The radar blips are made when first needed; the three network-dependent
+  // globals ([0x005e1f68], +0x74, +0x78) stay unported.
   void mechs_init() override {
+    program_motions_open();
     mech3::cockpit_sounds_load();
     unported("0x00413e60 (the globals [0x005e1f68..0x005e1f78])", {});
   }

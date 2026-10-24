@@ -833,6 +833,9 @@ void wire_mech_parts() {
 }
 }  // namespace
 
+// 0x005a9820 from the mechs' set-up 0x00413e60, at each mission's start.
+void program_motions_open() { open_motions("zbd/motion.zbd"); }
+
 void wire_mech_build(const MechWiring* w) {
   if (!w) {
     g_w = MechWiring{};

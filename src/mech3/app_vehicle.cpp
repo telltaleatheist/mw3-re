@@ -14,6 +14,8 @@
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_fieldbase.h"
+#include "mech3/sound_extra.h"
 #include "mech3/mission_world.h"
 #include "mech3/sensors.h"
 #include "mech3/veh_basic_object.h"
@@ -114,6 +116,29 @@ struct WiredControls : VehControlsHooks {
 };
 WiredControls g_controls;
 
+// The field base's (mech_fieldbase): the game type, the campaign's bases
+// left, the radio, an entity's team and its controls' hit. The scripts'
+// loose-file path is not read here (load_motion takes motion.zbd's).
+struct WiredFieldBases : FieldBaseHooks {
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
+  }
+  int32_t game_type() override { return mission_game_type(); }
+  int32_t campaign_bases() override { return program_campaign_bases(); }
+  Handle campaign() override { return program_campaign(); }
+  void script_path_add(const char*, bool) override {}
+  void say(Handle sound) override { sound_say(static_cast<zsnd::Object*>(sound), 1.0f); }
+  uint32_t entity_team(Handle e) override {
+    if (entity_is_mech(e) || is_program_vehicle(e)) return static_cast<Vehicle*>(e)->team;
+    return FieldBaseHooks::entity_team(e);
+  }
+  void controls_hit(BasicVehicle& v, Handle weapon, uint32_t x, float amount, Handle e) override {
+    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(v.controls)) return c->on_hit(e);
+    FieldBaseHooks::controls_hit(v, weapon, x, amount, e);
+  }
+};
+WiredFieldBases g_field_bases;
+
 // zWeapon's hit handler on a vehicle's node (0x004af550 through 0x005833b0).
 uint32_t vehicle_damage_handler(zwep::Handle object, zwep::WeaponDef* def, zwep::HitRecord* hit, float damage) {
   auto* v = static_cast<BasicVehicle*>(object);
@@ -126,21 +151,42 @@ void wire_vehicles(const MechWiring* w) {
     g_w = MechWiring{};
     set_veh_basic_hooks(nullptr);
     set_veh_controls_hooks(nullptr);
+    set_field_base_hooks(nullptr);
     return;
   }
   g_w = *w;
   set_veh_basic_hooks(&g_hooks);
   set_veh_controls_hooks(&g_controls);
+  set_field_base_hooks(&g_field_bases);
 }
 
 bool is_program_vehicle(const void* p) { return p && g_vehicles.count(static_cast<const Vehicle*>(p)) != 0; }
 void* program_vehicle_create(void* ctl, const char* type, const char* name) { return vehicle_create(ctl, type, name); }
+void* program_field_base_create(void* ctl, const char* type, const char* name) {
+  return static_cast<BasicVehicle*>(field_base_create(ctl, type, name));
+}
+bool program_is_field_base(const void* v) {
+  return is_program_vehicle(v) && is_field_base(*static_cast<const BasicVehicle*>(v));
+}
+int32_t program_field_bases_count() { return field_bases().count; }
+int32_t program_field_bases_lines() {
+  int32_t n = field_bases().effects != nullptr;
+  for (Handle s : field_bases().sounds) n += s != nullptr;
+  return n;
+}
+void program_field_base_aim_arms(void* v, bool open) {
+  if (program_is_field_base(v))
+    if (FieldBaseArms* a = static_cast<FieldBase*>(v)->arms) a->aim(open);
+}
+void program_field_bases_mission_start() { field_bases_mission_start(); }
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }
 void program_vehicle_place(void* v, const float pos[3], float yaw) { vehicle_place(*static_cast<BasicVehicle*>(v), pos, yaw); }
 void program_vehicle_setup(void* v, void* def, const char* name, int32_t kind) {
-  vehicle_setup(*static_cast<BasicVehicle*>(v), static_cast<zrdr::Node*>(def), name, kind);
+  auto* b = static_cast<BasicVehicle*>(v);
+  if (b->field_base) return field_base_setup(*static_cast<FieldBase*>(b), static_cast<zrdr::Node*>(def), name, kind);
+  vehicle_setup(*b, static_cast<zrdr::Node*>(def), name, kind);
 }
 void program_vehicle_motion(void* v, void* mode, const char* name, const char* type) {
   auto* b = static_cast<BasicVehicle*>(v);
@@ -186,7 +232,9 @@ void program_vehicle_hit_an_ally(void* v, void* victim) {
   if (auto* c = dynamic_cast<ai::AiVehicleControls*>(bv(v).controls)) c->hit_an_ally(victim);
 }
 void program_vehicle_frame(void* v, float dt) {
-  if (bv(v).x09) vehicle_frame(bv(v), dt);
+  if (!bv(v).x09) return;
+  if (bv(v).field_base) return field_base_frame(*static_cast<FieldBase*>(v), dt);
+  vehicle_frame(bv(v), dt);
 }
 namespace {
 ai::Brain* brain_of(void* v) {
@@ -213,7 +261,7 @@ void* program_vehicle_named(const char* name) {
   }
   return nullptr;
 }
-void program_vehicle_destroy(void* v) { vehicle_die(bv(v)); }
+void program_vehicle_destroy(void* v) { g_hooks.die(bv(v)); }  // vt+0x70 by the class
 void* program_vehicle_brain(void* controls) {
   for (Vehicle* v : g_order)
     if (static_cast<BasicVehicle*>(v)->controls == controls)
@@ -224,13 +272,14 @@ bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
   zwep::WeaponDef* def = zwep::find_def(weapon);
   if (!is_program_vehicle(v) || !def || !bv(v).controls) return false;
   zwep::hit_state().attacker = killer ? static_cast<Vehicle*>(killer)->node : nullptr;
-  vehicle_damage(bv(v), def, 0, bv(v).controls->health + 1.0f);
+  g_hooks.damage(bv(v), def, 0, bv(v).controls->health + 1.0f);  // vt+0x160 by the class
   zwep::hit_state().attacker = nullptr;
   return !bv(v).active;
 }
 bool program_vehicle_free(void* v) {
   if (!is_program_vehicle(v)) return false;
-  vehicle_delete(static_cast<BasicVehicle*>(v));  // vt+0x00 0x004ac630(1)
+  if (bv(v).field_base) field_base_delete(static_cast<FieldBase*>(v));  // vt+0x00 0x00458b30(1)
+  else vehicle_delete(static_cast<BasicVehicle*>(v));                   // 0x004ac630(1)
   g_vehicles.erase(static_cast<Vehicle*>(v));     // its zEntity entry goes in the destructor
   g_order.erase(std::remove(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)), g_order.end());
   return true;
@@ -252,6 +301,14 @@ bool describe_vehicle(const void* p, VehicleSummary* out) {
     out->owned = c->owner == v;
     out->health = c->health, out->health_max = c->health_max;
     out->mode = c->motion.mode, out->supports = c->motion.support_count, out->points = c->point_count;
+  }
+  if (v->field_base) {
+    const auto* b = static_cast<const FieldBase*>(v);
+    out->field_base = true;
+    for (const zsis::Part* p : b->parts) out->arm_parts += p != nullptr;
+    out->arms = b->arms ? b->arms->now : 0;
+    for (int i = 0; i < field_bases().count && i < 3; ++i)
+      if (field_bases().bases[i] == b) out->registry = i;
   }
   return true;
 }

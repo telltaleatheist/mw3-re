@@ -18,6 +18,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mech_build.h"
+#include "mech3/mech_fieldbase.h"
 #include "mech3/mission_world.h"
 #include "mech3/player_view.h"
 #include "mech3/app_view.h"
@@ -98,8 +99,13 @@ bool VehBasicHooks::reader_string_value(zrdr::Node* node, const char* key, const
   return zrdr::get_string_value(zrdr::find(node, key), out);
 }
 
-void VehBasicHooks::die(BasicVehicle& v) { vehicle_die(v); }
+// vt+0x70 and vt+0x160 by the class.
+void VehBasicHooks::die(BasicVehicle& v) {
+  if (v.field_base) return field_base_die(static_cast<FieldBase&>(v));
+  vehicle_die(v);
+}
 int32_t VehBasicHooks::damage(BasicVehicle& v, Handle weapon, uint32_t x, float amount) {
+  if (v.field_base) return field_base_damage(static_cast<FieldBase&>(v), weapon, x, amount);
   return vehicle_damage(v, weapon, x, amount);
 }
 uint32_t VehBasicHooks::weapon_flags(Handle weapon) { return static_cast<zwep::WeaponDef*>(weapon)->flags; }

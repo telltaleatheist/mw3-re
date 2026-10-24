@@ -11,6 +11,14 @@ namespace mech3 {
 void wire_vehicles(const MechWiring* w);  // from wire_mech_build; null: the defaults again
 bool is_program_vehicle(const void* p);   // made by the mission start, still alive
 void* program_vehicle_create(void* ctl, const char* type, const char* name);  // 0x004ac320
+void* program_field_base_create(void* ctl, const char* type, const char* name);  // 0x004589d0
+bool program_is_field_base(const void* v);  // vt+0xf0 / vt+0xf4: itself (0x004d2a70), else 0
+void* program_campaign();                   // app_menus.cpp: the pilot's campaign (0x00479440), null without one
+int32_t program_campaign_bases();           // app_menus.cpp: the campaign's +0xa8 (3 for the debug launch's)
+void program_field_bases_mission_start();
+int32_t program_field_bases_count();          // the registry's count (0x00605ae0 +0x10)
+int32_t program_field_bases_lines();          // the dock's radio lines found, and its effects (+1)
+void program_field_base_aim_arms(void* v, bool open);  // 0x004589a0 on its arms (the dock's, 4b; tests)   // 0x00459e80's registry part (0x00459e50, [0x0060b4d0])
 void* program_vehicle_controls(void* v);  // +0xe4
 void* program_vehicle_node(void* v);      // +0x04
 void* program_vehicle_centroid(void* v);  // +0x14
@@ -24,7 +32,8 @@ void program_vehicle_refresh(void* v);    // 0x005a85c0
 bool program_vehicle_mask(void* v, uint32_t off, uint32_t* get, const uint32_t* set);
 void program_vehicles_forget();           // the mission's end
 // Tests: a weapons.zrd shot of `weapon` from `killer` (an entity; its node
-// zWeapon's attacker) for more than its health, through the damage 0x004ad3f0.
+// zWeapon's attacker) for more than its health, through its damage (vt+0x160:
+// 0x004ad3f0, a field base's 0x00458f50).
 bool program_vehicle_kill(void* v, void* killer, const char* weapon);
 bool program_vehicle_free(void* v);       // vt+0x00 0x004ac630(1); false when not a program vehicle
 // What the AI's brain asks of a vehicle (docs/vehicles.md, In the program),
@@ -65,6 +74,11 @@ struct VehicleSummary {
   float health = 0, health_max = 0;
   int32_t mode = -1, supports = 0, points = 0;
   uint32_t team = 0;
+  // A field base's: its arms' parts found, their time (0 shut, 1 open), its
+  // place in the registry (-1 none).
+  bool field_base = false;
+  int32_t arm_parts = 0, registry = -1;
+  float arms = 0;
   float pos[3] = {};
 };
 bool describe_vehicle(const void* v, VehicleSummary* out);

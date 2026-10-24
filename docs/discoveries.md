@@ -2835,8 +2835,34 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   is left (at most 300 tons and 2 mechs); the third cuts nothing. With no
   base left the next briefing's room is 0, and the split treats a room of 0
   as no limit at all: everything you take in the mech lab is kept. (The
-  count goes back to 3 only after Op 1 Mission 1 and Op 4 Mission 4.) Not
-  yet checked: how many field bases a mission gives you when the count is 0.
+  count goes back to 3 only after Op 1 Mission 1 and Op 4 Mission 4.) With
+  the count at 0 the missions give you no field bases (next entry).
+
+- **A mission shows only the field bases you have left.** Each mission's
+  map has all three bases (`mobilehq_01` to `_03`), but as the mission
+  starts the game takes only as many as your campaign has left, in the
+  order the mission lists them;
+  the others are still on the map but hidden and switched off. They are
+  not in the "Mobile Field Base destroyed" fail condition either, so with
+  none left that condition is not there at all. (docs/vehicles.md)
+
+- **Field bases take damage the way your own mech does.** On the side
+  you are on, a field base's hits are scaled by the difficulty like the
+  player's mech's: 70% on easy, 130% on hard (not in multiplayer). A base
+  hit by your side calls friendly fire on the radio, by anyone else "under
+  attack"; one destroyed calls the loss while another still stands.
+  (docs/vehicles.md)
+
+- **Field bases stand still on their own.** Every field base has a route
+  and an AI driver, but its throttle is held at zero until the repair dock
+  lets the bases move, so a base stays where the mission put it. Its arms
+  and covers open and shut by an animation that takes five seconds.
+  (docs/vehicles.md)
+
+- **One field base radio line was never recorded.** The game looks up
+  eleven radio lines for the mobile field bases; one, `mcb_deploy`, is in
+  no sound set the game ships, so whenever the base would say it, nothing
+  plays. (docs/vehicles.md)
 
 - **Some objective rewards in the mission files are never given.** An
   objective can carry salvage you get for completing it. The game reads

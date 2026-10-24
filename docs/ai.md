@@ -1930,7 +1930,8 @@ is destroyed); then the part's run and the state's. The state is the station kee
 brain's vehicle, the order's part or its vehicle net's vehicle (the net's
 vt+0x58 cast, +0x1c); the other is that vehicle's bearer (vt+0x2c, vt+0x40:
 a mech itself). A pilot whose vehicle's vt+0xf4 says so (0x40bae0 for every
-mech: no mech) gets the hold 0x4cc240 unless the other says so too; else the
+mech and basic vehicle: no; a mobile field base's 0x4d2a70: itself, vehicles.md)
+gets the hold 0x4cc240 unless the other says so too; else the
 station keeping 0x4cc290, but none for a lancemate (+0xbc bit 4) by another
 lancemate or by the player's vehicle (the exe reads a missing other's +0xbc:
 FIX (bug), none). 0x4cc290 (0x30 bytes, vtable 0x5cbf10, over the waiting
