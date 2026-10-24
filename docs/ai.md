@@ -1374,7 +1374,8 @@ frame's sensors keep it selected. (The satellite dish, 2 km out and without
 1433 m from the Owens and does not sense it; the test moves it 300 m short
 with SetPlace first.)
 
-Left: the turrets' pick 0x4d72b0 (the line of sight 0x4d5980 is ported,
+Left: the turrets' pick 0x4d72b0 (the turret object is ported, 4c1:
+vehicles.md, The turrets; its pick is 4c2; the line of sight 0x4d5980 is ported,
 17.7), the AI's friendly-fire handler that
 turns the allies, the mech's vt slots the sensors call (the HUD's lock
 0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),

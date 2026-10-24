@@ -132,6 +132,7 @@ unusual happens.
 - Cycling the field bases' dock points (MFB, then N or Shift+N) onto the list's empty first entry no longer reads through nothing on the radar and the edge arrow (which could crash); no marker is shown there.
 - A nav point file linking to a node that is not there no longer reads or writes past the game's lists (no shipped file does).
 - The waypoint arrows' images are all released at the end of a mission (two of the four sides were kept, a small leak each mission).
+- A hand-edited turret file whose turret names a weapon that does not exist, without a detection range, no longer crashes the mission load; the turret sees 200 m. A turret file entry shorter than the game reads is taken as missing (no shipped file has either).
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.
 - An objective description with a `%` in its second or later lines is shown as written instead of being read as a format.
