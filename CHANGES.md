@@ -15,6 +15,8 @@ it is clear what the designers meant.
 ## Bug fixes that change play
 
 - **Every nav point you pass on your objectives' list is ticked off.** The game marks a nav point an objective watches as reached (and says its line) when you come within 25 m, but once its check passed the currently selected nav point it skipped the rest of the list, so those were only ticked off once selected. Now all of them are checked.
+- **Turrets do not slow down mission after mission.** Each turret looks for a target, aims and fires on only one frame in so many, and the original counted that over every turret the game had made since it started: the more missions you had played in one sitting, the less often each mission's turrets acted. The count now starts again with each mission's turrets.
+- **A turret's charging effect goes out when it dies.** The original's test for putting it out was the wrong way round (no shipped turret shows one, so nothing visible changes).
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
@@ -132,6 +134,7 @@ unusual happens.
 - Cycling the field bases' dock points (MFB, then N or Shift+N) onto the list's empty first entry no longer reads through nothing on the radar and the edge arrow (which could crash); no marker is shown there.
 - A nav point file linking to a node that is not there no longer reads or writes past the game's lists (no shipped file does).
 - The waypoint arrows' images are all released at the end of a mission (two of the four sides were kept, a small leak each mission).
+- A hand-edited turret without parts, or without a gun, no longer crashes in play; it shuts down, or does not aim.
 - A hand-edited turret file whose turret names a weapon that does not exist, without a detection range, no longer crashes the mission load; the turret sees 200 m. A turret file entry shorter than the game reads is taken as missing (no shipped file has either).
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.

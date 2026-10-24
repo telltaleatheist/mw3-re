@@ -1140,7 +1140,7 @@ vt+0x3c 0x4a5fc0 hands them out), reads the file ("Failed to read %s"
 without it; the tree is kept at [0x609a44] until 0x4a7970 frees it with
 the markers), takes `GENERIC_DESTROY_ANIM`, then walks `TURRET`'s pairs:
 each entry's name is a **prefix** on zClass's list 6 (0x4f8b80), and every
-node starting with it whose `healthy` child (found anywhere under it,
+node starting with it whose `healthy` node (found in its tree,
 0x4f9d60) is active gets a turret: the constructor, then vt+0x38 (zEntity3d
 0x5a80f0: the world's +4 and the caller's EDX) and its AUX_ANIMs reset
 (0x4a7af0). Nothing keeps the turret but zEntity's list (the port keeps
@@ -1167,8 +1167,8 @@ turn); on its node (0x4a6230: 0x4d6c90, zEntity's list 0x5a7f50), the setup.
 | key | what it does |
 |---|---|
 | (the node's name) | an animation of that name (0x50b450) replaces the generic destroy animation |
-| `PARTS` | only with the node's direct child `healthy` (0x4eb0d0; then active 1): 4 names turret, gun, two firepoints; 3 turret, gun, firepoint; 2 gun, firepoint (each 0x4f9d60 under the node); +0x154 the firepoints |
-| `DEACTIVATE` | a node by name (0x4f7fe0, list 6), then a path of children (0x4eb0d0) |
+| `PARTS` | only with a `healthy` node in its tree (0x4eb0d0: the node itself, then its children depth-first, first to last; then active 1): 4 names turret, gun, two firepoints; 3 turret, gun, firepoint; 2 gun, firepoint (each 0x4f9d60 in the node's tree: the same search, the children last to first); +0x154 the firepoints |
+| `DEACTIVATE` | a node by name (0x4f7fe0, list 6), then each next name searched in the last one's tree (0x4eb0d0) |
 | `EFFECT` | a node under it and a time (the second value's bits, not converted); its model's texture scrolls (0x526ae0(1, 10, 0)) |
 | `HEALTH` | +0x244 = 1 / HEALTH (no HEALTH: 1); +0x240 the health fraction, 1 |
 | `DESTROY_ANIM` | replaces the destroy animation, even with none found |
@@ -1213,7 +1213,7 @@ health fraction loses damage / HEALTH, the attacker's object (0x581e40,
 (0x583730). **0x4a7620** (also message 0x34): the attacker credited (its
 vt+0x80 with the turret), the destroy animation run when destroyed, active
 0, the effect put out only when it is not showing (the flag test is the
-reverse of what the name suggests; as written), the node's weapon handlers
+wrong way round: The turrets' frame), the node's weapon handlers
 off (0x583400), a beam stopped, +0xd4 cleared. **vt+0x70 0x4a7600**, the
 outright kill (the valves' `destroy`, ai.md): health 0, the attacker set to
 the player's vehicle ([0x60861c]+0x14), then 0x4a7620: the player gets the
@@ -1244,9 +1244,128 @@ the traces, each turret's 0x284 bytes, its lists and AMS after every step;
 `>=` against `>`, as no float equals the double; a TURRET list of odd
 length, which the exe reads past; a null marker, which new never gives).
 
-Left: the frame 0x4a6be0, the pick 0x4a70d0 / 0x4d72b0, the aim 0x4a71c0
-(its square root a bit trick) and the fire (4c2); the program: the mission
-load's call, their frames, the HUD markers, the kill count (+0x3fc) (4c3).
+Left: the program: the mission load's call, their frames, the HUD markers,
+the kill count (+0x3fc) (4c3).
+
+## The turrets' frame (0x4a6be0, 0x4a70d0, 0x4a71c0; step 4c2)
+
+**The frame** (vt+0x34 0x4a6be0, its argument unused), in order:
+
+1. Health at 0 or below (or NaN): shut down destroyed (0x4a7620), every
+   frame it runs. IS_IDLE: nothing at all (an idle turret neither looks nor
+   turns).
+2. The node's world position into +0xe0 (0x4ed530): **the turret follows its
+   node**, so the helicopters, which their missions' animations fly
+   (`chopper_path1`, `callm3_choppers`; woken by `turn_on_choptur1..3`),
+   aim and shoot from where they are. The setup's aim point +0xec (and its
+   NaN height on a turret without firepoints) is never read again.
+3. Its `healthy` node, its own node or its DEACTIVATE node hidden (flag 4
+   clear): shut down, not destroyed (0x4a7620(0)), every frame.
+4. A weapon with definition flag 0x4000 (the mine turret's `mine_turr`): on
+   a target, the destroy animation and the weapon goes off where the turret
+   stands (0x5820c0 at +0xe0), nothing else; the frame does nothing more to
+   it (whether the blast destroys it is the weapon's, through its hit).
+5. The effect (EFFECT) shown and the next shot not due: its model animated
+   (0x541ad0).
+6. The pick (0x4a70d0); none: not aimed, the beam stopped.
+7. The aim (0x4a71c0) at the picked place; refused or not aimed, or the
+   next shot not due (+0x188 above the clock): nothing more.
+8. An effect not showing is lit first (0x4eb170(1)) and the shot put off by
+   EFFECT's time: a charge. Otherwise the shot: a burst (FIRE_LIMITS)
+   begins its clock if none runs, the effect put out, the firepoint the next
+   of two (else the first), the shot's start the firepoint's translation
+   through the gun's world matrix (0x4ed280(gun, 3), 0x5227a0) and its
+   direction at the target, normalised; with a lead (definition +0x4c) the
+   weapon's slope (0x581ff0, -1 none) bends it (0x4abea0); an AMS turret
+   fires its AMS (0x4b3bb0(1)); the fire sound at +0xe0 (0x56e7e0, 1.0); a
+   beam weapon starts its beam once (0x581f60 shooter, 0x581230), any other
+   is fired (0x581fb0 from the firepoint when the definition's +0x84 bit 1,
+   0x581f60, 0x4b4a40(def, node, 0, from, dir, +0x178, 0, 0, the player an
+   enemy: its vehicle's vt+0x24, vt+0x28, +0xc0 against +0xc8), 0x581f60(0,
+   0)) and ONFIRE_ANIMs run; then the next shot: a burst over (its clock
+   passed) waits FIRE_LIMITS' second value and drops the aim, else
+   FIRE_RATE.
+9. A beam on without the aim: stopped (0x581400).
+
+**The pick** 0x4a70d0: a turret without an AMS looks only on the frames
+whose number (zClass's [0x72f338]) over the turrets made ([0x609a48])
+leaves its id: one turret a frame, each in turn. Then the turn count
+[0x609a4c] moves on, and unless it wrapped to 0 the nearest contact that is
+an enemy (its vehicle's AiTarget team against +0xc8) in sight (0x4d5980)
+becomes the target (AiTarget's 0x4d72b0, vt+0xc0); the target's entity's
+place (0x5a8630) is where it aims. On every other frame the pick finds
+nothing, so **a turret aims, turns and fires only on its own frame**: with
+14 turrets made each acts once every 14 frames (at 30 fps about twice a
+second), and how often depends on the frame rate. The count of turrets
+made is never reset (only the constructor counts it up), so the next
+mission's turrets act once every so many frames as turrets have been made
+since the game started (FIX (bug), behind `bugs`: counted from the
+mission's own; fixes.md). An AMS turret instead takes the nearest shot on
+the radar every frame (0x4b3ae0 at +0xe0, 0x4b3ba0). Either way a pick then
+makes the player's contact the target (0x4a7b40 / 0x4a7ba0; none when the
+player is not among the contacts), while the shot goes at what was picked:
+so once a turret has picked, its target is the player, and on the turns
+the nearest-enemy search is skipped or finds no one in sight it aims at the
+player's place, line of sight or not (the aim's range and cone still
+apply).
+
+**The aim** 0x4a71c0: the gun's translation (its matrix +0x24) through the
+node's world matrix, the direction to the target (its length the distance)
+taken into the node's frame (0x522640); the facing (+0x124) eased toward it,
+the old one kept by e^-(3 dt) (zMath's table 0x523f70; 8 dt for an AMS) and
+normalised; aimed (+0x14c) when the distance is under the detection range
+(+0x148) and the direction within acos 0.89 (27 degrees) of the facing.
+Then the facing's flat length by a bit trick: the float's bits halved, plus
+0x1fc00000 (half the exponent's bias), **0 to 6.1 % over the square root**
+(exact at the powers of 4, worst near 2 x 4^n); the heading's cosine and
+sine are the facing's -z and -x over it. The limits (vt+0x88, the turn
+limits' vt+0x08) may refuse the facing: the old one back, not aimed, false.
+Else a turret node gets the heading (its matrix's +0x00, +0x08, +0x18,
++0x20: cos, -sin, sin, cos) and the gun the pitch (+0x10, +0x14, +0x1c,
++0x20: the flat length, y, -y, the flat length); a gun alone gets both
+(+0x00..+0x20); each set on its node (0x4fc300). The flat length being too
+long makes those rows up to 6 % short and long: the turret's yaw part is
+drawn up to 6 % narrower and the gun's pitch part off square by as much
+(the heading and pitch angles themselves are right, as cosine and sine are
+over the same length).
+
+**The turn limits' within** (vt+0x08): the pitch (the direction's y between
+the two sines; NaN passes), then by kind: Fixed 0x4a4330, its heading's
+across part squared under 1e-5 of the flat length squared (along the one
+heading, forward or back); Narrow 0x4a45b0, on the inner side of both edges;
+Wide 0x4a4830, of either; Full 0x4a4180, the pitch alone. Unordered edge
+tests fail. Nothing in the turret asks their clamp (vt+0x04).
+
+**The lead's three questions** (2026-10-24):
+
+- The effect check in 0x4a7620. The frame shows the effect as a charge
+  before each shot and puts it out at the shot; the deactivate puts it out
+  only when it is not showing, which does nothing, so an effect charging
+  as the turret dies would stay lit. A bug, the intent being clear (FIX
+  (bug), behind `bugs`: put out when showing). It never shows in the
+  shipped game: tur_ppc is the only turret with an EFFECT (`lightning`),
+  and no world has a node of that name, so its effect is never found.
+- The aim point's NaN height (a turret without firepoints): +0xec is
+  written by the setup only; nothing reads it.
+- The helicopters: their nodes are moved by the missions' animations; the
+  frame reads the node's world position each frame and the aim the node's
+  world matrix, so they aim from where they are.
+
+FIX (bug), the port's own: a turret without a `healthy` node (no PARTS)
+reads its flags through null in the frame (shut down instead); a turret
+without a gun reads the gun's matrix through null in the aim (it cannot
+aim). No shipped turret has either.
+
+`test_turret_frame.py`: 120 runs (40 on the shipped file, 80 made-up)
+through the original's loader, contacts for each turret (the player among
+them or not, of the enemy team or not, in sight or not), then 40 to 120
+frames each (the clock, dt 1/60 to 1/15 s and the frame count moving, the
+count of turrets raised as if from earlier missions, nodes hidden and shown,
+hits, idle messages; some turrets skipping a frame); the traces, each
+turret's 0x284 bytes, its turret's and gun's matrices and the turn after
+every frame; 44 branches; 47 of 47 breaks over the frame, the pick, the
+aim and the limits. The limits' within on every kind directly in
+`test_turret.py` (directions on and either side of the edges).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

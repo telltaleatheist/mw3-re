@@ -3027,3 +3027,30 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   destroy) is credited to the player's mech, not to whoever was shooting
   it; one destroyed by fire is credited to the last attacker that hit it.
   (docs/vehicles.md, The turrets)
+
+- **Turrets take turns, and slowed down the longer you played.** A turret
+  looks for a target, turns its gun and fires only on its own frame: one
+  frame in as many as there are turrets, so with 14 turrets each acts about
+  twice a second at 30 frames a second, whatever its listed rate of fire
+  (most say 0.1 to 0.2 s). The original counted every turret made since the
+  game started, not just this mission's, so each mission played in one
+  sitting made the next mission's turrets act less often; the rebuild
+  counts each mission's own. (At a higher frame rate turrets also act more
+  often.) (docs/vehicles.md, The turrets' frame)
+
+- **Once a turret has seen you, it aims at you.** After any pick, a
+  turret's target becomes the player, if the player is among what it
+  senses. On the turns it does not look for the nearest enemy in sight (or
+  finds none), it aims at the player's position without checking the line
+  of sight; it still needs you inside its detection range and its gun
+  pointed within about 27 degrees before it fires. Turrets ease their aim
+  toward you rather than snapping to it. The AMS turret turns faster, and
+  shoots at missiles every frame rather than taking turns.
+  (docs/vehicles.md, The turrets' frame)
+
+- **The mine turret and the helicopters.** The mine turret (`mineturret`,
+  Op 2) has a weapon that goes off where it stands: when it picks a target
+  it plays its destroy animation and explodes in place. The helicopters
+  are turrets that the mission's animations fly along their paths; they
+  aim and shoot from wherever they are at the time. (docs/vehicles.md, The
+  turrets' frame)

@@ -28,7 +28,7 @@ using zgame::Handle;
 // points at it): the gun's pitch as sines and cosines (0x004a4000), and by
 // the yaw's range one of four kinds. The kind is the exe's vtable. A new
 // kind is built over the old one: fields it does not set keep their bytes.
-// Their within / clamp (vt+0x08 / vt+0x04) are the aim's (4c2).
+// The aim asks within (vt+0x08); nothing in the turret asks clamp (vt+0x04).
 enum class LimitKind : uint32_t {
   Fixed = 0x005c8310,   // 0x004a42f0: a range of 0.001 or less (or NaN): the low yaw alone
   Narrow = 0x005c8320,  // 0x004a4580 over 0x004a4270: under pi
@@ -46,6 +46,11 @@ struct TurnLimits {
   // Mech3.exe 1.2 @ 0x004a4b30: the pitch from lo to hi, the yaw from ylo to yhi.
   void make(float lo, float hi, float ylo, float yhi);
   void make_full(float lo, float hi);  // 0x004a4a70
+  // vt+0x08: the direction's pitch inside the limits (0x004a4180, NaN
+  // within), then its heading: Fixed 0x004a4330 (along the one heading,
+  // either way), Narrow 0x004a45b0 (inside both edges), Wide 0x004a4830
+  // (inside either).
+  bool within(const float d[3]) const;
 };
 
 // The weapons callback 0x004a7940 installs on the node (0x005833b0): a hit
@@ -98,7 +103,12 @@ class Turret : public ai::AiTarget {
   float burst[2] = {};       // +0x190  FIRE_LIMITS: a burst's length, then the pause after it
   Handle beam = 0;           // +0x198  a beam weapon's beam (0x00584a70)
   uint8_t beam_on = 0;       // +0x19c
+  // +0x1a0 / +0x1a4: what the shot is fired as (0x00581f60 is handed
+  // both): 1 and the player's vehicle, set by each pick.
   int32_t x1a0 = 0;          // +0x1a0
+  Handle shooter = 0;        // +0x1a4
+  Handle target_at = 0;      // +0x1a8  the picked target's position (3 floats; read through the hooks)
+  int32_t x1ac = 0;          // +0x1ac
   float yaw_lo = -6.2831855f;  // +0x204  LIMITS' YAW in radians
   float yaw_hi = 6.2831855f;   // +0x208
   TurnLimits limits;         // +0x210 (+0x20c points at it)
@@ -135,6 +145,14 @@ class Turret : public ai::AiTarget {
   // contact inside the detection range.
   bool in_range() const;
   float alive() const { return active ? 1.0f : 0.0f; }  // 0x0046b780 (vt+0x98)
+
+  // 0x004a6be0 (vt+0x34, its argument unused): the frame (docs/vehicles.md,
+  // The turrets' frame).
+  void frame();
+  bool pick(Handle player);           // 0x004a70d0
+  void pick_enemy();                  // 0x004d72b0 (AiTarget's): the nearest enemy contact in sight
+  bool target_player(Handle player);  // 0x004a7b40 with 0x004a7ba0: the player's contact the target, else none
+  bool aim(Handle at);                // 0x004a71c0
 };
 
 // Mech3.exe 1.2 @ 0x004a76b0: aiTurrets.zrd's turrets made on the world's
@@ -169,6 +187,9 @@ class TurretHooks : public zgame::Unported {
   virtual const char* node_name(Handle node) { (void)node; return ""; }       // +0x00
   virtual uint32_t node_flags(Handle node) { (void)node; return 0; }          // +0x24: 4 active
   virtual Handle node_model(Handle node) { (void)node; return 0; }            // +0x3c
+  // Two searches of a node's tree by name, the node itself first: children
+  // last to first (0x004f9d60), first to last (0x004eb0d0, which reports a
+  // null node).
   virtual Handle node_find(Handle root, const char* name) { return unported("0x004f9d60", {root, name}); }
   virtual Handle node_child(Handle node, const char* name) { return unported("0x004eb0d0", {node, name}); }
   virtual Handle node_named(const char* name) { return unported("0x004f7fe0", {6, name}); }
@@ -233,6 +254,62 @@ class TurretHooks : public zgame::Unported {
   virtual void entity_refresh(Handle self) { unported("0x005a85c0", {self}); }
   virtual void target_message(Handle self, uint32_t from, int32_t msg) { unported("0x004d7270", {self, from, msg}); }
   virtual void sorted_clear() {}  // [0x0060b56c] = 0
+
+  // The frame's (4c2). The clocks: zClass's frame count [0x0072f338], the
+  // game clock [0x0072c530] and the frame's dt [0x0072c52c].
+  virtual uint32_t frame_number();
+  virtual float clock();
+  virtual float frame_dt();
+  virtual void node_world_cached(Handle node, float out[3]);  // 0x004ed530
+  virtual void read_vec(Handle at, float out[3]) { (void)at; out[0] = out[1] = out[2] = 0; }
+  // The matrix stack (zMath): push, identity, a node's world matrix (mode
+  // 3), a point through it, a direction through its inverse, pop.
+  virtual void matrix_push() { unported("0x0051e9d0", {}); }
+  virtual void matrix_identity() { unported("0x0051fde0", {}); }
+  virtual void node_to_world(Handle node) { unported("0x004ed280", {node, 3}); }
+  virtual void point_through(float v[3]) { unported("0x005227a0", {1}); (void)v; }
+  virtual void dir_through_inverse(float v[3]) { unported("0x00522640", {1}); (void)v; }
+  virtual void matrix_pop() { unported("0x0051ea00", {}); }
+  virtual float matrix_at(Handle m, int32_t i) { (void)m, (void)i; return 0; }  // the node's 3x4, +4 i
+  virtual void matrix_put(Handle m, int32_t i, float v) { (void)m, (void)i, (void)v; }
+  virtual void node_set_matrix(Handle node, Handle m) { unported("0x004fc300", {node, m}); }
+  virtual void effect_animate(Handle model) { unported("0x00541ad0", {model}); }
+  // The weapon's: its definition's +0x4c (a lead), +0x84 bit 1 (fired from
+  // the firepoint, 0x00581fb0), +0x6c bit 0x4000 (it goes off where it stands).
+  virtual float weapon_lead(Handle def) { (void)def; return 0; }
+  virtual uint32_t weapon_fire_flags(Handle def) { (void)def; return 0; }
+  virtual void detonate(Handle def, uint32_t at) { unported("0x005820c0", {def, at, 0}); }
+  virtual float aim_slope(Handle def, uint32_t from, Handle to) {     // 0x00581ff0, -1 for none
+    return zgame::from_bits(unported("0x00581ff0", {def, from, 0, to}));
+  }
+  virtual void lead_shot(uint32_t dir, float slope, float d[3]) {     // 0x004abea0 on the direction
+    unported("0x004abea0", {dir, zgame::bits(slope)});
+    (void)d;
+  }
+  virtual void shooter_set(uint32_t a, uint32_t b) { unported("0x00581f60", {a, b}); }
+  virtual void attach_fire(Handle def, Handle node) { unported("0x00581fb0", {def, node}); }
+  virtual void beam_start(Handle beam) { unported("0x00581230", {beam, 0}); }
+  virtual void weapon_fire(Handle def, Handle node, uint32_t from, uint32_t dir, uint32_t out, int32_t enemy) {
+    unported("0x004b4a40", {def, node, 0, from, dir, out, 0, 0, enemy});
+  }
+  virtual void sound_play(Handle sound, uint32_t at) {
+    unported("0x0056e7e0", {sound, at, zgame::bits(1.0f), 0});
+  }
+  // The player's team: its vehicle's vt+0x24, that one's vt+0x28, +0xc0.
+  virtual uint32_t player_team(Handle player);
+  // The AMS (0x004b3ae0 at the turret's place, 0x004b3ba0, 0x004b3bb0(1)).
+  virtual bool ams_find(Ams& a, const float at[3]);
+  virtual Handle ams_target(Ams& a);
+  virtual void ams_fire(Ams& a);
+  // The pick's: a contact's vehicle (0x004e6fe0), its AiTarget (vt+0x28)
+  // and team (+0xc0), the line of sight (0x004d5980), vt+0xc0 0x004d5e40,
+  // an entity's position (0x005a8630).
+  virtual Handle contact_vehicle(const ai::Contact* c) { (void)c; return 0; }
+  virtual Handle vehicle_target(Handle v) { return unported("veh.vt+0x28", {v}); }
+  virtual uint32_t target_team(Handle t) { (void)t; return 0; }
+  virtual bool line_clear(Handle self, Handle v) { return unported("0x004d5980", {self, v, 0}) != 0; }
+  virtual void set_target(Turret& t, ai::Contact* c) { t.ai::AiTarget::set_target(c, false); }
+  virtual Handle entity_position(Handle e) { return unported("0x005a8630", {e}); }
 };
 void set_turret_hooks(TurretHooks* h);
 TurretHooks& turret_hooks();
@@ -240,5 +317,6 @@ TurretHooks& turret_hooks();
 // The count at [0x00609a48] (the next turret's id) and the pick's turn
 // [0x00609a4c]; the mission's end does not reset them.
 int32_t& turret_count();
+int32_t& turret_turn();
 
 }  // namespace mech3::tur

@@ -5,7 +5,10 @@
 #include <vector>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/veh_controls.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "mech3/weapon.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -19,6 +22,7 @@ TurretHooks* g_hooks = &g_default_hooks;
 Handle g_markers[3] = {};      // [0x00609a38..0x00609a40]
 zrdr::Node* g_root = nullptr;  // [0x00609a44] aiTurrets.zrd
 int32_t g_count = 0;           // [0x00609a48]
+int32_t g_turn = 0;            // [0x00609a4c] the pick's turn
 std::vector<Turret*> g_list;   // ours: zEntity's list holds them in the exe
 
 // A list's count (its first slot) and item i's value as the exe reads it,
@@ -48,6 +52,9 @@ const float kPitch = zgame::from_bits(0x3fc90fd8u);             // 1.570796, the
 const float kHalfPi = zgame::from_bits(0x3fc90fdbu);
 const float kTwoPiF = zgame::from_bits(0x40c90fdbu);
 
+// The x87's "not equal to 0": unordered counts as equal.
+bool nonzero(float x) { return x < 0.0f || x > 0.0f; }
+
 float fsin(float a) { return static_cast<float>(std::sin(static_cast<double>(a))); }
 float fcos(float a) { return static_cast<float>(std::cos(static_cast<double>(a))); }
 }  // namespace
@@ -55,6 +62,7 @@ float fcos(float a) { return static_cast<float>(std::cos(static_cast<double>(a))
 void set_turret_hooks(TurretHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 TurretHooks& turret_hooks() { return *g_hooks; }
 int32_t& turret_count() { return g_count; }
+int32_t& turret_turn() { return g_turn; }
 
 zrdr::Node* TurretHooks::read(const char* file) { return zrdr::load(file); }
 void TurretHooks::free_tree(zrdr::Node* root) { zrdr::free_node(root); }
@@ -104,6 +112,29 @@ void TurnLimits::make(float lo, float hi, float ylo, float yhi) {
   lo_edge[0] = -fcos(ylo), lo_edge[1] = 0.0f, lo_edge[2] = fsin(ylo);
   hi_edge[0] = fcos(yhi), hi_edge[1] = 0.0f, hi_edge[2] = -fsin(yhi);
   kind = static_cast<double>(range) >= kPi ? LimitKind::Wide : LimitKind::Narrow;
+}
+
+// Mech3.exe 1.2 @ 0x004a4180 / 0x004a4330 / 0x004a45b0 / 0x004a4830 (vt+0x08).
+// Unordered compares pass the pitch and fail the edges.
+bool TurnLimits::within(const float d[3]) const {
+  if (lo_sin > d[1] || d[1] > hi_sin) return false;
+  switch (kind) {
+    case LimitKind::Fixed: {
+      const float across = d[0] * d[0] + d[2] * d[2];
+      const float off = d[0] * lo_edge[0] + d[2] * lo_edge[2];
+      return across * zgame::from_bits(0x3727c5acu) > off * off;  // [0x005c82d0] 1e-5
+    }
+    case LimitKind::Narrow:
+    case LimitKind::Wide: {
+      const float a = d[0] * lo_edge[0] + d[2] * lo_edge[2];
+      const float b = d[0] * hi_edge[0] + d[2] * hi_edge[2];
+      const bool in_a = a >= 0.0f, in_b = b >= 0.0f;
+      return kind == LimitKind::Narrow ? in_a && in_b : in_a || in_b;
+    }
+    case LimitKind::Full:
+      break;
+  }
+  return true;
 }
 
 // --- The turret ----------------------------------------------------------------------
@@ -341,14 +372,18 @@ void Turret::kill() {
   deactivate(true);
 }
 
-// Mech3.exe 1.2 @ 0x004a7620. The effect is put out only when it is not
-// showing (as written: the test is the other way round from the setup's).
+// Mech3.exe 1.2 @ 0x004a7620.
 void Turret::deactivate(bool destroyed) {
   TurretHooks& h = *g_hooks;
   if (attacker) h.credit_kill(attacker, self);
   if (destroyed && destroy_anim && node) h.anim_run(destroy_anim, node);
   active = 0;
-  if (effect && (h.node_flags(effect) & 4) == 0) h.node_set_active(effect, 0);
+  // FIX (bug), behind bugs: the exe puts the effect out only when it is not
+  // showing, so a charge lit as the turret dies stays lit (docs/fixes.md).
+  if (effect) {
+    const bool showing = (h.node_flags(effect) & 4) != 0;
+    if (zfix::options().bugs ? showing : !showing) h.node_set_active(effect, 0);
+  }
   h.remove_handlers(node);
   if (beam_on) {
     beam_on = 0;
@@ -375,6 +410,258 @@ bool Turret::awake() const {
 // Mech3.exe 1.2 @ 0x004a7ab0
 bool Turret::in_range() const { return active && player_contact && detect_range * detect_range > player_contact->dist2; }
 
+// --- The frame (step 4c2) -------------------------------------------------------------
+
+uint32_t TurretHooks::frame_number() { return zcls::frames().frame; }
+float TurretHooks::clock() { return weapon_world().clock; }
+float TurretHooks::frame_dt() { return weapon_world().dt; }
+void TurretHooks::node_world_cached(Handle node, float out[3]) {
+  unported("0x004ed530", {node});
+  out[0] = out[1] = out[2] = 0;
+}
+uint32_t TurretHooks::player_team(Handle player) {
+  const Handle v = unported("obj.vt+0x24", {player});
+  return target_team(unported("pv.vt+0x28", {v}));
+}
+bool TurretHooks::ams_find(Ams& a, const float at[3]) {
+  return a.find(0, reinterpret_cast<const zwep::Vec3f3*>(at));
+}
+Handle TurretHooks::ams_target(Ams& a) {
+  (void)a;
+  return unported("0x004b3ba0", {});
+}
+void TurretHooks::ams_fire(Ams& a) { a.fire(1); }
+
+// Mech3.exe 1.2 @ 0x004a6be0. Each step of the shot goes through the
+// turret's turn to pick (0x004a70d0): on the other frames it neither aims
+// nor fires (docs/vehicles.md, The turrets' frame).
+void Turret::frame() {
+  TurretHooks& h = *g_hooks;
+  if (!(health > 0.0f)) {
+    deactivate(true);
+    return;
+  }
+  if (idle) return;
+  h.node_world_cached(node, pos);
+  const Handle player = h.player_vehicle();
+  // FIX (bug): a turret without a healthy node (no PARTS) reads its flags
+  // through null in the exe; it is shut down instead (docs/fixes.md).
+  if (!healthy || (h.node_flags(healthy) & 4) == 0 || (h.node_flags(node) & 4) == 0 ||
+      (off_node && (h.node_flags(off_node) & 4) == 0)) {
+    deactivate(false);
+    return;
+  }
+  const float now = h.clock();
+  if (weapon && (h.weapon_flags(weapon) & 0x4000) != 0) {  // a mine: it goes off at a target
+    if (pick(player)) {
+      h.anim_run(destroy_anim, node);
+      h.detonate(weapon, self + 0xe0);
+    }
+    return;
+  }
+  if (effect && (h.node_flags(effect) & 4) != 0 && !(now >= next_fire)) h.effect_animate(h.node_model(effect));
+  if (!pick(player)) {
+    aimed = 0;
+  } else if (aim(target_at) && aimed && now >= next_fire) {
+    if (effect && (h.node_flags(effect) & 4) == 0) {
+      // The effect first: lit for EFFECT's time, the shot when it is over.
+      next_fire = effect_time + now;
+      h.node_set_active(effect, 1);
+    } else {
+      if (nonzero(burst[0]) && !nonzero(burst_end)) burst_end = now + burst[0];
+      if (effect) h.node_set_active(effect, 0);
+      if (firepoints > 1) {
+        if (++firepoint >= firepoints) firepoint = 0;
+      }
+      const float* m = muzzle[firepoints > 1 ? firepoint : 0];
+      fire_from[0] = m[0], fire_from[1] = m[1], fire_from[2] = m[2];
+      h.matrix_push();
+      h.matrix_identity();
+      h.node_to_world(gun);
+      h.point_through(fire_from);
+      float t[3];
+      h.read_vec(target_at, t);
+      fire_dir[0] = t[0] - fire_from[0];
+      fire_dir[1] = t[1] - fire_from[1];
+      fire_dir[2] = t[2] - fire_from[2];
+      vec_normalise(fire_dir);
+      h.matrix_pop();
+      if (weapon && nonzero(h.weapon_lead(weapon))) {
+        const float slope = h.aim_slope(weapon, self + 0x16c, target_at);
+        if (slope < -1.0f || slope > -1.0f) h.lead_shot(self + 0x160, slope, fire_dir);
+      }
+      if (ams_on && ams_found) {
+        h.ams_fire(*ams);
+        ams_found = 0;
+      }
+      if (fire_sound) h.sound_play(fire_sound, self + 0xe0);
+      if (beam) {
+        if (!beam_on) {
+          beam_on = 1;
+          h.shooter_set(self + 0x1a0, self + 0x1a4);
+          h.beam_start(beam);
+          h.shooter_set(0, 0);
+        }
+      } else {
+        if (weapon) {
+          if ((h.weapon_fire_flags(weapon) >> 1) & 1) h.attach_fire(weapon, fire_node[firepoint]);
+          h.shooter_set(self + 0x1a0, self + 0x1a4);
+          const int32_t enemy = (enemies & h.player_team(player)) != 0 ? 1 : 0;
+          h.weapon_fire(weapon, node, self + 0x16c, self + 0x160, self + 0x178, enemy);
+          h.shooter_set(0, 0);
+        }
+        for (Handle a : onfire) h.anim_run(a, node);
+      }
+      // A burst (FIRE_LIMITS) ends in its pause, else the next shot is FIRE_RATE away.
+      if (nonzero(burst[0]) && now >= burst_end) {
+        burst_end = 0.0f;
+        aimed = 0;
+        next_fire = burst[1] + now;
+      } else {
+        next_fire = rate + now;
+      }
+    }
+  }
+  if (beam && !aimed && beam_on) {
+    beam_on = 0;
+    h.beam_stop(beam);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004a70d0. Without an AMS a turret looks for a target
+// only on the frames whose number, over the turrets ever made
+// ([0x00609a48], never reset), leaves its id; then the next turn's count
+// [0x00609a4c] moves on and, unless it wrapped to 0, the nearest enemy in
+// sight becomes the target (0x004d72b0). An AMS turret takes the nearest
+// shot on the radar every frame. Either way the target ends as the player's
+// contact (0x004a7b40) while the shot goes at what was picked.
+bool Turret::pick(Handle player) {
+  TurretHooks& h = *g_hooks;
+  Handle at = 0;
+  if (!ams_on) {
+    const uint32_t n = static_cast<uint32_t>(g_count);  // at least this turret
+    if (n && h.frame_number() % n == static_cast<uint32_t>(id)) {
+      g_turn = static_cast<int32_t>((static_cast<uint32_t>(g_turn) + 1) % n);
+      if (g_turn != 0) pick_enemy();
+      const Handle e = target ? target->seen : 0;
+      if (e) at = h.entity_position(e);
+    }
+  } else {
+    ams_found = h.ams_find(*ams, pos) ? 1 : 0;
+    if (ams_found) at = h.ams_target(*ams);
+  }
+  if (!at) {
+    picked = 0;
+    return false;
+  }
+  target_player(player);
+  shooter = player;
+  picked = 1;
+  x1a0 = 1;
+  target_at = at;
+  x1ac = 0;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x004d72b0: contacts nearest first.
+void Turret::pick_enemy() {
+  TurretHooks& h = *g_hooks;
+  for (ai::Contact* c : contacts) {
+    const Handle v = h.contact_vehicle(c);
+    if ((h.target_team(h.vehicle_target(v)) & enemies) == 0) continue;
+    if (!h.line_clear(self, v)) continue;
+    h.set_target(*this, c);
+    return;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004a7b40 / 0x004a7ba0.
+bool Turret::target_player(Handle player) {
+  TurretHooks& h = *g_hooks;
+  if (target && target->seen == player) return true;
+  for (ai::Contact* c : contacts) {
+    if (c->seen == player) {
+      h.set_target(*this, c);
+      return true;
+    }
+  }
+  h.set_target(*this, nullptr);
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x004a71c0: the facing (+0x124, in the node's frame)
+// eased toward the target (e^-(3 dt) of the old kept a frame, 8 dt with an
+// AMS), unless the limits refuse it; then the turret's matrix (its yaw) and
+// the gun's (its pitch) set from it. Aimed: inside the detection range and
+// within about 27 degrees (cos 0.89) of the target.
+bool Turret::aim(Handle at) {
+  TurretHooks& h = *g_hooks;
+  // FIX (bug): without a gun (PARTS of one name, or its node not found) the
+  // exe reads the gun's matrix through null; such a turret cannot aim.
+  if (!gun_matrix) return false;
+  float v[3] = {h.matrix_at(gun_matrix, 9), h.matrix_at(gun_matrix, 10), h.matrix_at(gun_matrix, 11)};
+  h.matrix_push();
+  h.matrix_identity();
+  h.node_to_world(node);
+  h.point_through(v);
+  float t[3];
+  h.read_vec(at, t);
+  float d[3] = {t[0] - v[0], t[1] - v[1], t[2] - v[2]};
+  const float dist = vec_normalise(d);
+  h.dir_through_inverse(d);
+  h.matrix_pop();
+  const float old[3] = {facing[0], facing[1], facing[2]};
+  const float k = zmth::exp_neg(h.frame_dt() * (ams_on ? 8.0f : 3.0f));
+  const float k1 = 1.0f - k;
+  facing[0] = k * facing[0] + k1 * d[0];
+  facing[1] = k * facing[1] + k1 * d[1];
+  facing[2] = k * facing[2] + k1 * d[2];
+  vec_normalise(facing);
+  bool ok = false;
+  if (!(dist >= detect_range)) {
+    const float dot = (d[0] * facing[0] + d[1] * facing[1]) + d[2] * facing[2];
+    ok = static_cast<double>(dot) > 0.89;
+  }
+  aimed = ok ? 1 : 0;
+  const float hx = facing[0], hy = facing[1], hz = facing[2];
+  // The flat length by the bit trick (half the exponent): within about 6% of
+  // the square root (docs/vehicles.md, The turrets' aim).
+  const float flat2 = hx * hx + hz * hz;
+  const float flat = zgame::from_bits(static_cast<uint32_t>((static_cast<int32_t>(zgame::bits(flat2)) >> 1) + 0x1fc00000));
+  float c = 1.0f, sn = 0.0f;
+  if (nonzero(flat)) {
+    c = -(hz / flat);
+    sn = -(hx / flat);
+  }
+  if (!limits.within(facing)) {
+    facing[0] = old[0], facing[1] = old[1], facing[2] = old[2];
+    aimed = 0;
+    return false;
+  }
+  if (turret) {
+    h.matrix_put(turret_matrix, 0, c);
+    h.matrix_put(turret_matrix, 2, -sn);
+    h.matrix_put(turret_matrix, 6, sn);
+    h.matrix_put(turret_matrix, 8, c);
+    h.node_set_matrix(turret, turret_matrix);
+    h.matrix_put(gun_matrix, 4, flat);
+    h.matrix_put(gun_matrix, 5, hy);
+    h.matrix_put(gun_matrix, 7, -hy);
+    h.matrix_put(gun_matrix, 8, flat);
+  } else {
+    h.matrix_put(gun_matrix, 0, c);
+    h.matrix_put(gun_matrix, 2, -sn);
+    h.matrix_put(gun_matrix, 3, sn * hy);
+    h.matrix_put(gun_matrix, 4, flat);
+    h.matrix_put(gun_matrix, 5, hy * c);
+    h.matrix_put(gun_matrix, 6, flat * sn);
+    h.matrix_put(gun_matrix, 7, -hy);
+    h.matrix_put(gun_matrix, 8, flat * c);
+  }
+  h.node_set_matrix(gun, gun_matrix);
+  return true;
+}
+
 // --- The file ---------------------------------------------------------------------------
 
 // Mech3.exe 1.2 @ 0x004a76b0. A turret is made on every node of list 6
@@ -385,6 +672,11 @@ bool turrets_load(const char* file, Handle at) {
   TurretHooks& h = *g_hooks;
   static const char* const kNames[3] = {"hud_turret_ally_sm", "hud_turret_enemy_sm", "hud_turret_other_sm"};
   for (int i = 0; i < 3; ++i) g_markers[i] = h.marker_create(kNames[i]);
+  // FIX (bug), behind bugs: the count of turrets made is never reset, so
+  // each mission's turrets pick (and so aim and fire) once every so many
+  // frames as turrets have been made since the game started; counted from
+  // this mission's (docs/fixes.md).
+  if (zfix::options().bugs) g_count = g_turn = 0;
   zrdr::Node* root = h.read(file);
   if (!root) {
     h.report(0x487, "Failed to read %s", file);

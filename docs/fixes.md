@@ -35,6 +35,10 @@ Each change is also marked `FIX` in the code next to the original address.
 | The waypoint icons' free, 0x00479850 | Its loop releases two images and steps four slots on | (bug) the up and down arrows' images are never released (zImage keeps one reference more each mission) | All eight released; behind `bugs` |
 | A turret's setup, 0x004a6270 (vehicles.md, The turrets) | A WEAPON whose NAME finds no weapon (or is empty) and that has no DETECTION_RANGE takes the range from the definition unchecked | (bug) reads through null: a crash at load; no shipped turret has both (tur_ams, the one without a weapon, gives a range) | The range stays the constructor's 200 (`test_turret.py` runs such files on the port alone) |
 | The turrets' file, 0x004a76b0 / 0x004a6270 | List items read by position without the list's type or length (the TURRET pairs, GENERIC_DESTROY_ANIM, PARTS, DEACTIVATE, EFFECT, FIRE_LIMITS, SOUNDS) | (bug) a value that is not a list, or a list shorter than read, reads past it; no shipped file has one | Such an item reads as none |
+| The turrets' pick, 0x004a70d0 (vehicles.md, The turrets' frame) | Takes turns by the frame count over the turrets made ([0x00609a48]), which only the constructor touches | (bug) the count runs on across missions: each later mission's turrets act once every as many frames as turrets have been made since the game started, so they fire and turn slower mission after mission | The count and the turn reset as each mission's turrets are made (0x004a76b0); behind `bugs` (`test_turret_frame.py` checks the original path, the count kept) |
+| A turret shut down, 0x004a7620 | Puts the effect out only when its node is not showing | (bug) the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit; no shipped world has an effect node (tur_ppc's `lightning`), so it is never seen | Put out when showing; behind `bugs` |
+| A turret's frame, 0x004a6be0 | Reads the `healthy` node's flags unchecked | (bug) a turret without one (a definition without PARTS) reads through null: a crash; no shipped turret | Shut down as when the node is hidden |
+| A turret's aim, 0x004a71c0 | Reads the gun's matrix unchecked | (bug) a turret without a gun (PARTS of one name, or a gun node not found) reads through null: a crash; no shipped turret | It cannot aim |
 | Animation prerequisites, 0x50aaa3 | The search for a prerequisite animation stops one short of the list | (bug) the mission's last animation can never be waited for | The whole list is searched. No shipped mission names the last one, so all six still match the original exactly |
 | Missing animation object, 0x50a0e0 | One node prerequisite naming an object not in the level sets the def's prerequisite count to 0 | (bug) the animation then fires without waiting for any of its conditions | Only the broken entry is dropped; the count to meet comes down only if fewer counting entries are left. Decided with Owen 2026-10-20. No shipped mission reaches it (all six checked); `anim().fix_prerequisites = false` keeps the exe's path, which test_anim.py compares exactly, plus a doctored c2 file showing both |
 | Saved loadouts, item list 0x471540 | Counts a damaged item count down past the file's end, reading nothing | (bug) a corrupted `configs\<mech>.mw3` can hang the game at load for up to 4 billion reads | Stops at the end of the file; the same items result (emulator-checked by making the original stop there too) |
@@ -598,3 +602,12 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   give up only on items that weigh nothing (or unlimited ones), so in a
   normal campaign the cut reaches the limit anyway. Options: keep it (the original as played), or make the
   fallback work (more is lost only in the rare case it is reached).
+- The turrets take turns (found 2026-10-24, vehicles.md, The turrets'
+  frame): a turret looks for a target, turns and fires only on one frame in
+  as many as there are turrets (with the count fix above, this mission's),
+  so with 14 turrets each acts about twice a second at 30 fps, and FIRE_RATE
+  values under that (0.1 to 0.2 s for most) never show. It ties how fast
+  turrets react and shoot to the frame rate: at 60 fps they act twice as
+  often. Options: keep it (the original as played at its frame rate), or
+  give each turret its turn by time (every 1/30 s times the count), which
+  keeps the 30 fps pace at any frame rate (a (B) change).

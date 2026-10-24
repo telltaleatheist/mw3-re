@@ -1184,9 +1184,9 @@ ignored, the markers out of order, the destroy animation run twice, the
 target subnode moved back by translate_to_anim_root, the old handlers
 removed by the weapon slot only, the description's default health 50.
 
-Left: the sensors and the entity sort are section 15's; the turrets' pick
-(0x4d72b0, 0x4d5980's line of sight), zEntity3d itself, the brain's use of
-the pick.
+Left: the sensors and the entity sort are section 15's (the turrets' pick
+0x4d72b0 is ported with the turrets: vehicles.md, The turrets' frame),
+zEntity3d itself, the brain's use of the pick.
 
 ### 14a The AI on the targets.zrd objects (2026-10-22)
 
@@ -1374,9 +1374,8 @@ frame's sensors keep it selected. (The satellite dish, 2 km out and without
 1433 m from the Owens and does not sense it; the test moves it 300 m short
 with SetPlace first.)
 
-Left: the turrets' pick 0x4d72b0 (the turret object is ported, 4c1:
-vehicles.md, The turrets; its pick is 4c2; the line of sight 0x4d5980 is ported,
-17.7), the AI's friendly-fire handler that
+Left (the turrets' pick 0x4d72b0 is ported with the turret, step 4c2:
+vehicles.md, The turrets' frame): the AI's friendly-fire handler that
 turns the allies, the mech's vt slots the sensors call (the HUD's lock
 0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),
 zEntity3d.

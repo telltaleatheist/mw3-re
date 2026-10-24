@@ -1400,3 +1400,31 @@ is paused.
 - Tests: test_turret.py (the shipped file x12 worlds, 300 made-up, 30
   port-only crash files; 40 branches; 40 of 43 breaks; NaNs compared as one: the x87's
   negative default NaN against the hardware's positive).
+- 4c1 merged as main 923cd1a. 4c2 assigned (mw3 mac 1): the frame
+  0x4a6be0, the pick 0x4a70d0 / 0x4d72b0, the aim 0x4a71c0 (the bit-trick
+  square root through zgame::from_bits) and the fire. Settle: (1)
+  0x4a7620's effect test (put out only when not showing) against how the
+  frame lights the effect: bug or intended (a candidate if unclear); (2)
+  aim_from's NaN height on a turret without firepoints: the frame must not
+  use it, or say what happens; (3) the helicopters: do their animations
+  move them, and does the frame's aim read the node or the setup's copy.
+- 4c2 done (mac 4): Turret::frame 0x4a6be0, pick 0x4a70d0, pick_enemy
+  0x4d72b0, target_player 0x4a7b40 / 0x4a7ba0, aim 0x4a71c0 (the bit-trick
+  flat length through zgame::from_bits: 0 to 6.1 % over, exact at powers
+  of 4), TurnLimits::within for the four kinds. The lead's three: (1) the
+  deactivate's effect test is the wrong way round (a lit charge stays lit):
+  FIX (bug) behind bugs; no world has tur_ppc's `lightning` node, so never
+  seen; (2) +0xec is never read after the setup; (3) the helicopters fly by
+  animation (chopper_path*), the frame re-reads the node's world position
+  (0x4ed530) and the aim the node's world matrix, so both follow.
+- Found: the turrets take turns (frame % turrets made == id): each acts one
+  frame in N; the count is never reset across missions (FIX (bug) behind
+  bugs: reset at the load); the turn gating ties their pace to the frame
+  rate (candidate for Owen); after a pick the target becomes the player
+  (aims at the player's place without a line of sight on the turns the
+  search is skipped or empty); the mine turret goes off in place on a pick.
+- Also fixed in 4c1's docs: 0x4eb0d0 / 0x4f9d60 both search the node's
+  whole tree (not a direct child).
+- FIX (bug): no healthy node in the frame, no gun in the aim (null reads).
+- Tests: test_turret_frame.py (120 runs, ~8600 frames, 44 branches),
+  test_turret.py gained the limits' within on every kind (48 branches); 47 of 47 breaks.
