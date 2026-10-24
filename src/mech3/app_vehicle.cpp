@@ -16,6 +16,8 @@
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
+#include "mech3/mech_names.h"
+#include "mech3/mech_parts.h"
 #include "mech3/mech_waynet.h"
 #include "mech3/zainetedit.h"
 #include "gamez/zsound/zsnd.h"
@@ -185,6 +187,10 @@ struct WiredFieldBases : FieldBaseHooks {
   void marker_clear() override {  // 0x0047a720 on [0x0060b544]
     if (McbWaynet* w = mcb_waynet()) w->clear();
   }
+  void mech_repair(Handle mech, float dt) override {  // 0x004154e0
+    if (entity_is_mech(mech)) static_cast<Mech*>(mech)->repair(dt);
+    else FieldBaseHooks::mech_repair(mech, dt);
+  }
   Handle view_vehicle() override { return program_view_target(); }
   int32_t view_camera() override { return program_view_camera_id(); }
   void view_set_camera(int32_t mode) override { program_view_set_camera(mode); }
@@ -258,6 +264,37 @@ int32_t program_field_bases_lines() {
   int32_t n = field_bases().effects != nullptr;
   for (Handle s : field_bases().sounds) n += s != nullptr;
   return n;
+}
+MechWear program_mech_wear(void* mech) {
+  MechWear w;
+  auto& m = *static_cast<Mech*>(mech);
+  MechPart* const parts[5] = {m.legs[0], m.legs[1], m.arms[0], m.arms[1], m.head};
+  float internal = m.torso->internal;
+  for (MechPart* p : parts) w.armor += p->armor, internal = std::min(internal, p->internal);
+  w.armor += m.torso->armor;
+  for (int s = 1; s < 6; ++s) w.armor += m.torso->sec_armor[s];
+  w.armor /= 11.0f;
+  w.internal = std::min({internal, m.torso->side_internal[0], m.torso->side_internal[1]});
+  auto* wm = static_cast<WeaponManager*>(m.ammo);
+  std::set<AmmoBin*> bins;
+  for (uint32_t i = 0; wm && i < wm->count; ++i)
+    if (wm->weapons[i] && wm->weapons[i]->bin && weapon_uses_ammo(wm->weapons[i]->index)) bins.insert(wm->weapons[i]->bin);
+  for (AmmoBin* b : bins) w.ammo += b->amount, w.ammo_max += b->max;
+  w.coolant = m.coolant, w.jet_fuel = m.jet_fuel;
+  return w;
+}
+void program_mech_wear_down(void* mech, float armor, float internal) {
+  auto& m = *static_cast<Mech*>(mech);
+  for (MechPart* p : {static_cast<MechPart*>(m.legs[0]), static_cast<MechPart*>(m.legs[1]),
+                      static_cast<MechPart*>(m.arms[0]), static_cast<MechPart*>(m.arms[1]),
+                      static_cast<MechPart*>(m.head), static_cast<MechPart*>(m.torso)})
+    p->armor = armor, p->internal = internal;
+  for (int s = 1; s < 6; ++s) m.torso->sec_armor[s] = armor;
+  m.torso->side_internal[0] = m.torso->side_internal[1] = internal;
+  auto* wm = static_cast<WeaponManager*>(m.ammo);
+  for (uint32_t i = 0; wm && i < wm->count; ++i)
+    if (wm->weapons[i] && wm->weapons[i]->bin && weapon_uses_ammo(wm->weapons[i]->index)) wm->weapons[i]->bin->amount = 0;
+  m.coolant = 0, m.jet_fuel = 0;
 }
 void program_field_base_aim_arms(void* v, bool open) {
   if (program_is_field_base(v))

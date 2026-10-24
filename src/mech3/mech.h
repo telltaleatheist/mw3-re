@@ -262,6 +262,8 @@ struct Mech : Vehicle {
   void command(int32_t cmd);                // 0x0041be80: the player's keys (mech_command.cpp)
   void heat_override(bool on);              // 0x00419190: the shutdown override (docs/heat.md)
   void flush_coolant();                     // 0x00419e60
+  bool repair(float dt);                    // 0x004154e0: a field base's full repair (mech_repair.cpp, vehicles.md)
+  void end_limp();                          // 0x00415a90: the limp's blend freed, the limp over
   void update_action(float dt);             // 0x00416860
   bool vital_part_lost() const;             // inlined in 0x00416660 and 0x00416860
   void select_gait(float dt);         // 0x004181c0

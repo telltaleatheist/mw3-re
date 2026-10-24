@@ -122,6 +122,8 @@ add_library(mw3core STATIC
   src/mech3/mech_config.cpp
   src/mech3/mech_control.cpp
   src/mech3/mech_damage.cpp
+  src/mech3/mech_repair.cpp
+  src/mech3/mech_repair_store.cpp
   src/mech3/mech_data.cpp
   src/mech3/mech_lib.cpp
   src/mech3/mech_names.cpp
@@ -313,6 +315,8 @@ add_library(mw3probe SHARED
   tests/probe_veh_fieldbase.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
+  tests/probe_mech_repair.cpp
+  tests/probe_mech_repair_store.cpp
   tests/probe_veh_controls.cpp
   tests/probe_ai_brain.cpp
   tests/probe_ai_orders.cpp

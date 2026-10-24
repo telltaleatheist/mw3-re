@@ -1232,3 +1232,24 @@ is paused.
 - Left after: Mech::repair 0x4154e0, the store cut 0x4590b0, the AI deploy
   0x4d0ce0 (and the AI's MFB ask 0x4ea2b7 -> 0x47a780).
 
+
+## 2026-10-24 Item 4, step 4b4: Mech::repair (mac 4)
+
+- mech3/mech_repair: Mech::repair 0x4154e0 (internals, ammo from the
+  store by need, the armour's cost and restore, coolant, jump fuel, the
+  AMS, the player's HUD, +0x680) and the limp's end 0x415a90;
+  RepairHooks (the store 0x479430, the view's target, the HUD's 0x430aa0 /
+  0x446520 / 0x43be10). The store's two calls sit in
+  mech_repair_store.cpp: pilot.h's `using zgame::Handle` clashes with
+  mech.h's. The armour cost in float (play's 24-bit x87).
+- Program: the dock's mech_repair calls it for a mech (a non-mech
+  requester keeps the hook's unported default). No pilot in the debug
+  launch: no store, so no ammo or armour then (a port gap, no FIX).
+- test_mech_repair.py: 800 repairs, 19 branches, 29 of 29 breaks (the
+  `count <= need` edge and the count's clamp are not observable). c1m1
+  headless: a pilot whose game store holds every ammo and armour, the
+  player's Mad Cat worn down before the request, after the 12 s all back
+  (440 rounds from the store, 18 half tons of armour; jump fuel stays 0,
+  no jets). program_mech_wear / _wear_down (app_vehicle.h) for it.
+- Left: the store cut 0x4590b0, 4b3b (nav waynet, HUD waypoints), the AI
+  deploy 0x4d0ce0.
