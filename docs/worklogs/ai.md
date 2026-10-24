@@ -816,10 +816,9 @@ Step 3, the field base, then the turrets:
   (0x4a6270..0x4a76b0), aiTurrets.zrd, the turrets' pick 0x4d72b0. Then two
   or three items of about 300 lines each.
 
-Resume here (paused 2026-10-22 for the usage limit): item 3 is merged at
-b0f6296; nothing is in progress. Wait for the lead's answer on this split,
-then start 1a. Rule from the lead: the related test set includes every test
-that imports a changed test's harness.
+(Resumed 2026-10-24: the lead took steps 1a..3c meanwhile, below. Rule
+from the lead: the related test set includes every test that imports a
+changed test's harness.)
 
 ## 2026-10-23 Item 4, step 1a: the basic vehicle as an object (lead, main window)
 
@@ -1099,3 +1098,48 @@ is paused.
 - c1m1 headless: the player's kill of apc_02 (+1 vehicle, +75), all four
   freed at the cleanup.
 - Left: the mobile HQs (step 3), BASIC's steps (stealth only).
+
+## 2026-10-24 Item 4, step 4a1: the mobile field base made and run (mac 4)
+
+- mech3/mech_fieldbase: FieldBase over BasicVehicle (0x160, vtable
+  0x5c23d8: dtor, frame, death, vt+0xf0/+0xf4 itself, setup, damage), the
+  create 0x4589d0 / 0x458a70, the registry 0x605ae0's add 0x45a030 (three,
+  the campaign's +0xa8 at most; past them out of play; FIX (bug): a fourth
+  written over the first valve), alive 0x45a000, clear 0x459e50 and the
+  registry part of the mission start 0x459e80 (eleven radio lines,
+  mfbeffects, [0x60b4d0]); the setup 0x458d40 (nodes, the arm script
+  "mobilehq" 0x458890, the AI record), the frame 0x459640 (the queued
+  steps, the throttle held), the arms 0x4597d0 / 0x458900, the damage
+  0x458f50, the death 0x4590b0 (the campaign's cut a hook, `base_lost`),
+  the destructor 0x458bc0. The limiter classes 0x4a42f0 / 0x4a4580 /
+  0x4a4800 are the gun's (motion block); the field base makes none.
+- Program: WiredPlayerHooks' mobilehq_create, the class flag
+  (`BasicVehicle::field_base`, ours) dispatching the death, damage, frame,
+  setup and free; vt+0xf4 for the station keeping; motion.zbd opened at the
+  mechs' set-up (0x413e60, as the exe; before, only with the first mech's
+  data, after the bases' arms wanted it). The debug launch's bases left
+  read 3 (it has no campaign game).
+- test_veh_fieldbase.py: 300 runs each of create, setup, frame, arms,
+  damage, destructor (and 20 deaths), 45 branches reached, 25 breaks
+  caught. The basic vehicle's own pieces are seams (FieldBaseHooks
+  base_*), stubbed on both sides.
+- c1m1 headless: three bases registered, alive and held in place, 11 of
+  the 12 dock names found (no shipped sound set has mcb_deploy), one's arms
+  opened through its frames, one shot down by the player (no campaign
+  behind the debug launch, so no cut), all freed at the cleanup.
+- Other c1m1 tests updated: seven program vehicles and ten entities; the
+  Owens, woken, now has a firing plan at frame 200 (phase 2) on a field
+  base (team 2, 530..600 m, inside its 1000 m sensor range) where it had
+  none: the bases are its nearest enemies, as in the exe.
+- Found: the bases a campaign has lost are hidden and inert in later
+  missions and left out of the fail condition; with none left there is no
+  fail condition; bases take the difficulty's damage share like the
+  player's mech; they stand still until the dock lets them drive; the
+  death's campaign loss is not guarded by the death's once.
+- Split of the rest (step 4b, the repair dock, about 1,700 decompiled
+  lines): 4b1 the dock's states and the drive step (0x459b80, 0x45ab30..
+  0x45b9e0, the step 0x5c2540: 0x4598a0..0x459af0, 0x45b9c0); 4b2 its
+  frame 0x45a270 with 0x45a780 and the repair 0x45a180 / 0x45a140 (the
+  game state 4, the effects 0x458cf0); 4b3 the death's store cut (0x4590b0
+  after 0x4ad2d0, 221 lines); 4b4 the AI's deploy state 0x4d0ce0 (157,
+  reads [0x60b4d0] / [0x60b4cc]).

@@ -20,6 +20,7 @@
 #include "mech3/lance_orders.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
+#include "mech3/mech_fieldbase.h"
 #include "mech3/mech_pocket.h"
 #include "mech3/pocket_panel.h"
 #include "mech3/mech_skin.h"
@@ -1197,4 +1198,15 @@ TEST(fix_vehicle_collision_fire_floor) {
   EXPECT(c.x2c == 1 && c.walls.empty() && c.ceilings.empty() && c.objects.empty());
   EXPECT(segs[0] == 1.0f);
   set_veh_basic_hooks(nullptr);
+}
+
+// 0x0045a000 after a fourth base (FieldBases::add's fix): only the three
+// slots are read; the extra base is inactive.
+TEST(fix_field_bases_alive_reads_three_slots) {
+  mech3::FieldBases r;
+  mech3::FieldBase b[3];
+  for (int i = 0; i < 3; ++i) r.bases[i] = &b[i];
+  b[1].active = false;
+  r.count = 4;
+  EXPECT(r.alive() == 2);
 }

@@ -76,6 +76,7 @@ struct BasicVehicle : Vehicle {
   VehicleControls* controls = nullptr;  // +0xe4  given (the AI's), else its own made here (0x004ae270)
   EngineSound engine;            // +0xe8  (0x004adaf0)
   MotionAnim motion;             // +0xf0
+  bool field_base = false;       // ours: the class is the field base (vtable 0x005c23d8, mech_fieldbase.h)
 };
 
 // The calls out, by the original's address.

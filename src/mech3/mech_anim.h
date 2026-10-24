@@ -117,5 +117,6 @@ void close_motions();                  // 0x005a98a0
 // 0x005a9ad0: the script `name` from the archive. The developers' loose
 // <name>.zan override (0x005a98d0, 0x005a9e10) is not ported.
 bool load_motion(zsis::Script& s, const char* name);
+void script_free_parts(zsis::Script& s);  // 0x005a9dc0, the script's destructor
 
 }  // namespace mech3

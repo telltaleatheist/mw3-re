@@ -571,7 +571,7 @@ ttruck_02, apc_01, apc_02) are made, in the world, with their health and
 weapons (`mission_start_reads_c1m1_vehicles_headless`), and on zEntity's
 list with the player, the Owens and the command marker. Their frame, brain,
 sensing and engine sound since step 3b (below); their teardown and kill
-credit since 3c. Not yet: the mobile HQs (step 3).
+credit since 3c. The mobile field bases since 4a1 (below).
 
 **The teardown and the kill credit (3c).** The mission's end deletes every
 zEntity entry through vt+0x00; a vehicle's is 0x4ac630(1) (`vehicle_delete`,
@@ -643,10 +643,118 @@ truck_go); truck_go sends them on to node_15/16, whose valve_assign sets
 destroy_truck_01/02, and the valves' destroy kills them (vt+0x70). The APCs
 drive their own nets, more than 100 m.
 
-## The mobile field base (0x4589d0, mech_map / mech_objective region)
+## The mobile field base (0x4589d0, mech_map / mech_objective region; step 4a1)
 
-The repair stations; their own class. Their repair and the objective tie-in
-are separate items.
+`mech3/mech_fieldbase`, ported 2026-10-24. The mission start makes every
+vehicle.zrd type `mobilehq` (matched whole) with 0x4589d0, the rest with
+0x4ac320. c1m1's mobilehq_01..03 (aiv kind 2) are AI-driven over their net,
+health 75.
+
+**The class** (0x160 bytes, vtable 0x5c23d8): the basic vehicle's slots
+but vt+0x00 (the destructor 0x458b30 / 0x458bc0), vt+0x34 (the frame
+0x459640), vt+0x70 (the death 0x4590b0), vt+0xf0 and vt+0xf4 (0x4d2a70:
+itself; the basic vehicle's and the mechs' 0x40bae0 give 0: so the AI's
+station keeping, 0x4cc150, takes a field base as one), vt+0x158 (the setup
+0x458d40) and vt+0x160 (the damage 0x458f50). Its own fields: a std::list of
+queued steps at +0xfc..+0x107 and a "begin the front one" flag at +0x108,
+the seven nodes `arm01..04`, `cover_left`, `cover_right`, `cover_middle` at
++0x120 (found in its tree, 0x4f9d60), the arm script at +0x13c, its parts
+by the same names at +0x140, and an animation the dock starts at +0x15c
+(0x458cf0 / 0x458d20, the registry's [0x605c44]). The limiter classes
+0x4a42f0 / 0x4a4580 / 0x4a4800 are the gun's (the motion block); the field
+base makes none.
+
+**Made** (0x4589d0, 0x458a70): its node always a copy of the world's
+`type` node, renamed and put in the world (the basic vehicle first looks
+for a node of its own name); the basic vehicle made over it without a node
+(0x4ac530(ctl, 0)), then given it (0x4d6c90, onto zEntity's list), 16 high
+for the AI (+0x68, the basic 12); then the registry's add, and the node's
+flag 8 cleared (0x4eb620).
+
+**The registry** (the static at 0x605ae0, constructed by 0x459b80, emptied
+at each mission start by 0x459e80 -> 0x459e50): up to three bases (+0x14)
+with a valve each (+0x20), named after the base's node and set to 0
+(objectives.md: the field-base objective reads them), +0x10 the count. In a
+campaign no more than the campaign's +0xa8 (the bases left: 3 at the start)
+are taken: a base past them is put out of play at once (+0x08 cleared, its
+engine sound dropped, its node hidden 0x4eb170) but still counted. So after
+losing a base in one mission, the next missions show one fewer: the third
+is there but hidden and inert. A fourth base would be written past the three
+over the first valve (FIX (bug); none of the shipped missions has one).
+The alive count 0x45a000 counts the registered bases still active. The
+mission start (0x459e80) also finds the dock's eleven radio lines
+(+0x8c..+0xb4: mcb_friendly_fire, mcb_under_attack, mcb_lost_vehicle,
+mcb_occupied, mcb_pos_wait, mcb_pos_cancel, mcb_contact, mcb_waiting,
+mcb_deploy, mcb_abort, mcb_complete) and its effects animation
+`mfbeffects` ([0x605c44]); no shipped sound set has `mcb_deploy`, so that
+line is silent (when the dock would say it: step 4b). The rest
+of the registry (its states at +0x04 and
++0xbc..+0x14c, its valve +0x84, [0x605c44], [0x605c48], the frame 0x45a270
+and the repair 0x45a180) is the repair dock, step 4b.
+
+**The setup** (vt+0x158 0x458d40): the basic one (0x49ec00), the seven
+nodes, the scripts' loose-file path `..\data\common\mechs\animations`
+added to [0x736584] (0x576140; the mechs' set-up 0x413e60 made it, and it is
+never trimmed, so it grows by one entry per base per mission; the port's
+motions come from motion.zbd only), the arm script (0x458890: the script
+`mobilehq` from motion.zbd at 30 frames a second, its loop 1 s, played once:
++0x70 clear; its target +0x88 and time +0x8c 0, shut), its seven parts, +0x09
+set (the entity walk runs it), and the AI record: never asleep (+0x88, p8
+item 10), +0x5c 0, +0x60 1, +0x80 1, can_leave (+0x3c) and the three scan
+switches (+0x98..+0xa0) off.
+
+**The frame** (vt+0x34 0x459640), when +0x09 is set: the front queued step
+is begun (when +0x108 says so), else ended and dropped when done (the next
+then begun), else stepped (vt+0x04; true marks it running, +0x04). Then the
+basic frame's controls update and destroyed test (as 0x4a1040), but when
+the update ran: the throttle set to 0 unless [0x60b4d0] (the dock lets the
+bases drive; 0 at the mission start, 1 from 0x45a780), the move 0x4a1240,
+the motion animation 0x4addc0 and the refresh, without the basic frame's
+path test, player aim and weapons step. A destroyed base still runs the
+front step's after (vt+0x08) and the arms. So a field base on its net
+stands where it was put until the dock moves it.
+
+**The arms** (0x4597d0 over 0x458900): the script's time moves toward its
+target (0 shut, 1 open) at 0.2 a second: five seconds to open; each frame it
+moves, every part's pose at that time (translation, rotation as a
+quaternion, 0x525740) is set on its node (0x4fc3f0, 0x4fc300). A NaN time
+goes to 0; a NaN difference stops.
+
+**The damage** (vt+0x160 0x458f50): nothing to an inactive base. Off
+multiplayer, a base on the player's side (the player's mech's allies
++0xc4 against its team) takes the difficulty's share as the player's mech
+does ([0x608e5c]: 0.7, 1.0, 1.3). Then the basic damage (0x4ad3f0); a base
+it kills: the radio's "base lost" line (+0x94, 0x4e6d50) while any base is
+still active, else 0x47a720 on [0x60b544] (the last base lost); a base hit
+and alive: the attacker's entity (0x581e40, 0x40eee0) on its side gets the
+friendly-fire line (+0x8c), any other the under-attack line (+0x90), and the
+base's controls are told (IControls vt+0x94: the AI's 0x4ea520). The lines
+are mcb_lost_vehicle, mcb_friendly_fire and mcb_under_attack.
+
+**The death** (vt+0x70 0x4590b0): the basic death (0x4ad2d0, which acts
+once), then in a campaign the loss below (A mobile field base lost). The
+loss is not guarded by the death's once: each call takes a base off the
+campaign's count. The valves' destroy and the damage both call vt+0x70;
+the damage only for an active base. Unported (`base_lost`): the cut of
+what the player carries (step 4b or later).
+
+**The destructor** (0x458bc0): the dock's animation stopped, the node
+taken from its first parent and freed (with zEffect's animations on it,
+0x506bc0(node, 1, 1)) when it has one, off zEntity's list, the arm script
+deleted, the steps' list emptied (the steps are the dock's), then the basic
+vehicle's (0x4ac650, with no node left). The registry keeps the base's
+pointer until the next mission start empties it.
+
+In the program: made by the mission start (WiredPlayerHooks'
+mobilehq_create), its slots by the class (`BasicVehicle::field_base`, ours:
+the death and damage hooks, the frame, setup and free in app_vehicle),
+vt+0xf4 for the AI's station keeping, the registry emptied by the mission
+load's 0x459e80 hook. The debug launch has no campaign behind its game, so
+the bases left read 3 there (a new campaign's). Checked:
+`test_veh_fieldbase.py` (300 runs of each piece, 45 branches, 25 breaks)
+and c1m1's headless test (three registered and alive, held in place, the
+arms of one opened through its frames, one shot down, all freed at the
+end).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 
@@ -745,6 +853,6 @@ spot to a fraction: 0.7 with two bases left, 0.5 with one (1.0 otherwise):
   old +0xa8 into the new game (434e89..434e9a), then calls 0x00434cb0 on the
   old one: the new game keeps the cut store and the reduced base count. On a
   win, what a lost base cut is gone for good (campaign.md section 9).
-With no base left nothing is cut here. Not ported (the field base waits on
-the AI vehicle controls). No sign in 0x00458xxx..0x0045bxxx of repairs
+With no base left nothing is cut here. Not ported (step 4b or later: the
+field base's death reaches it as `FieldBaseHooks::base_lost`). No sign in 0x00458xxx..0x0045bxxx of repairs
 looking at the mechs carried: the store is touched only here.

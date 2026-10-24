@@ -75,6 +75,7 @@ void mech_dead_clear();         // 0x00414000's list: emptied at the mission's c
 bool mech_player_release(void* mech, int32_t* fire_mode);
 void* mission_player_mech();  // for the tests: world().mission_player ([0x0060861c] +0x14's mech)
 int32_t mechs_alive();  // mech_build.cpp: made and not yet deleted
+void program_motions_open();  // motion.zbd opened (0x005a9820), as the mechs' set-up does
 int mission_game_type();  // app_mission.cpp: the pilot's game's vt+0x2c (gametypes.md)  // app_mission.cpp: Missions::lose (0x0048f9e0), the player's mech destroyed  // 0x00431800: the canned effects' node copies
 
 // What the last launch built (0x00491150), for the program's log and its tests.

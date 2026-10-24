@@ -473,6 +473,13 @@ uint32_t program_slot_count() {
   CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
   return c ? static_cast<uint32_t>(c->slot_count()) : 0;
 }
+// 0x00479440's +0xa8, the field bases left. The debug launch's campaign has
+// no game behind it: a new campaign's three.
+void* program_campaign() { return current_pilot() ? current_pilot()->campaign() : nullptr; }  // 0x00479440
+int32_t program_campaign_bases() {
+  CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
+  return c ? c->a8 : 3;
+}
 void program_briefing_line(const char* s) {
   if (BriefingScreen* b = briefing_screen()) b->log(s);
 }

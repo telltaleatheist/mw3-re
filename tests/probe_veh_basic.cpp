@@ -207,6 +207,8 @@ void put3(uint8_t* b, uint32_t off, const m3::Vec3& v) { putf(b, off, v.x), putf
 extern "C" {
 
 void probe_vb_hooks(int on) { m3::set_veh_basic_hooks(on ? &g_hooks : nullptr); }
+// Another probe's vehicle (probe_veh_fieldbase.cpp) under these hooks, at the original's `addr`.
+void probe_vb_bind(void* v, uint32_t addr) { g_v = static_cast<m3::BasicVehicle*>(v), g_addr = addr; }
 
 // 0x004ac320(ctl, type, name) as the original's block `addr` would be; 1 when
 // a vehicle was made.
