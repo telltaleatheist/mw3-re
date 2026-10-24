@@ -152,6 +152,7 @@ add_library(mw3core STATIC
   src/mech3/veh_basic_object.cpp
   src/mech3/mech_fieldbase.cpp
   src/mech3/mech_fieldbase_dock.cpp
+  src/mech3/mech_fieldbase_cut.cpp
   src/mech3/mech_waynet.cpp
   src/mech3/veh_controls.cpp
   src/mech3/veh_move.cpp
@@ -317,6 +318,7 @@ add_library(mw3probe SHARED
   tests/probe_veh_waynet.cpp
   tests/probe_mech_repair.cpp
   tests/probe_mech_repair_store.cpp
+  tests/probe_field_cut.cpp
   tests/probe_veh_controls.cpp
   tests/probe_ai_brain.cpp
   tests/probe_ai_orders.cpp

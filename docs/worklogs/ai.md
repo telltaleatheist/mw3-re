@@ -1253,3 +1253,26 @@ is paused.
   no jets). program_mech_wear / _wear_down (app_vehicle.h) for it.
 - Left: the store cut 0x4590b0, 4b3b (nav waynet, HUD waypoints), the AI
   deploy 0x4d0ce0.
+
+## 2026-10-24 Item 4, step 4b5: a field base lost (mac 4)
+
+- mech3/mech_fieldbase_cut: field_base_cut, 0x4590b0's part after the
+  basic death, on the current campaign game: +0xa8 down one; with bases
+  left, f 0.7 / 0.5; message 0xf07; the mechs listed (to 64), keep =
+  min(ceil(f n), 2 a base) drawn off at random, the rest "Chassis Lost"
+  (0xf05) into +0x78; the tons (0x45b900) cut to min(f tons, 300 t a base)
+  by random items (ammo by 0x4b4900's lot) into +0x78, ten (six) idle
+  draws ending it; 0xf06 with "%.2f" tons. FieldCutHooks: rand, the mech's
+  name, lab_rounds, the message (the program's: the mission's panel).
+- Found: the fallback after the draws (0x45951d..) never moves an item
+  (its search always ends at the list's head): kept, a fixes.md
+  candidate. The 64-entry mech list overruns past 64 (and a draw of 64
+  zeroes the saved exception frame): FIX (bug), a vector (fixes.md,
+  CHANGES.md). An unlimited item drawn is copied into +0x78 but stays.
+  [0x605c3c] is written, never read.
+- test_field_cut.py: 600 runs, 11 branches, 26 of 27 breaks (limit > 0
+  against >= 0 is not observable: a 0 limit means 0 tons). c1m1 headless
+  (mission_c1m1_field_base_lost_cuts_the_campaign_store_headless): a
+  campaign pilot with 5 spare mechs and 563 t, mobilehq_03 shot down:
+  bases 2, 4 mechs kept, 394 t (70 %), the rest in +0x78, the panel shown.
+- Left: 4b3b (nav waynet, HUD waypoints), the AI deploy 0x4d0ce0.

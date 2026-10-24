@@ -16,6 +16,8 @@
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
+#include "mech3/mech_fieldbase_cut.h"
+#include "mech3/mech_objective.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_waynet.h"
@@ -164,6 +166,7 @@ struct WiredFieldBases : FieldBaseHooks {
   int32_t game_type() override { return mission_game_type(); }
   int32_t campaign_bases() override { return program_campaign_bases(); }
   Handle campaign() override { return program_campaign(); }
+  void base_lost(Handle campaign) override { field_base_cut(*static_cast<CampaignGame*>(campaign)); }
   void script_path_add(const char*, bool) override {}
   void say(Handle sound) override { sound_say(static_cast<zsnd::Object*>(sound), 1.0f); }
   float game_time() override { return mech_game_time(); }
@@ -210,6 +213,14 @@ struct WiredFieldBases : FieldBaseHooks {
 };
 WiredFieldBases g_field_bases;
 
+// The field base lost's messages: the mission's message panel (0x0040fe70).
+struct WiredFieldCut : FieldCutHooks {
+  void message(float seconds, int32_t id, const char* text) override {
+    mission_objective_hooks().hud_message(seconds, id, text);
+  }
+};
+WiredFieldCut g_field_cut;
+
 // zWeapon's hit handler on a vehicle's node (0x004af550 through 0x005833b0).
 uint32_t vehicle_damage_handler(zwep::Handle object, zwep::WeaponDef* def, zwep::HitRecord* hit, float damage) {
   auto* v = static_cast<BasicVehicle*>(object);
@@ -223,6 +234,7 @@ void wire_vehicles(const MechWiring* w) {
     set_veh_basic_hooks(nullptr);
     set_veh_controls_hooks(nullptr);
     set_field_base_hooks(nullptr);
+    set_field_cut_hooks(nullptr);
     set_waynet_hooks(nullptr);
     ai::net_hooks().waynet_point = nullptr;
     return;
@@ -231,6 +243,7 @@ void wire_vehicles(const MechWiring* w) {
   set_veh_basic_hooks(&g_hooks);
   set_veh_controls_hooks(&g_controls);
   set_field_base_hooks(&g_field_bases);
+  set_field_cut_hooks(&g_field_cut);
   set_waynet_hooks(&g_waynets);
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
 }
