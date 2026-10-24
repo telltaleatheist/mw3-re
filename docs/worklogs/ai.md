@@ -1143,3 +1143,35 @@ is paused.
   game state 4, the effects 0x458cf0); 4b3 the death's store cut (0x4590b0
   after 0x4ad2d0, 221 lines); 4b4 the AI's deploy state 0x4d0ce0 (157,
   reads [0x60b4d0] / [0x60b4cc]).
+
+## 2026-10-24 Item 4, step 4b1: the repair dock's states and drives (mac 4)
+
+- mech3/mech_fieldbase_dock: DockStep (vtable 0x5c2600, the base of the
+  states and drives; FieldBaseAction renamed), the drive 0x5c2540
+  (0x4598a0..0x459af0, 0x459a80, 0x45b9c0), the seven states in the
+  registry (idle 0x45a740.., contact 0x45acb0.., places 0x45ab50..,
+  deploy 0x45af00.., repair 0x45b2f0.., close 0x45b460.., reset
+  0x45b6c0..; 0x45b770, 0x45b7d0, the unwinds), the registry's
+  constructor 0x459b80 and helpers 0x45a720, 0x45b740, 0x45a500, 0x45a540,
+  0x45b290, 0x45b2c0, the effects 0x458cf0 / 0x458d20, and the rest of the
+  mission start 0x459e80 (the state list, "mcbdeploy"): 0x459e80 is whole.
+- Boundary: the idle state's message 0x45a780 (the request: the AI orders,
+  the dock points 0x45a560, the six states queued) stays with the frame in
+  4b2, as a hook (`dock_request`). 0x45b9e0 on is the objectives' code, not
+  the dock's; 0x45b860 / 0x45b900 are 0x45a780's and the death cut's
+  helpers.
+- FIX (bug): a drive freed by its state while still on its base's steps is
+  kept until the base drops it (the exe reads the freed drive; no change in
+  play); a missing base (fewer than three) is passed by the drives and the
+  places' check.
+- test_veh_dock.py: 600 random state sequences and 300 drive sequences,
+  89 branches (each slot of each state, both answers of each step and
+  done), 30 breaks caught. c1m1 headless: the dock as the mission start
+  leaves it (the idle state alone, to begin; mcbdeploy 0; the bases held).
+- Found: the dock waits for the mech within 12 m of its point and powered
+  down; powering up during the opening or the 12 s repair aborts it; the
+  silent mcb_deploy line is the "bases opened" one.
+- Next, 4b2: the dock's frame 0x45a270 (which runs the state list and asks
+  the idle state), the request 0x45a780 with 0x45a560 and 0x45b860, the
+  repair 0x45a180 / 0x45a140.
+

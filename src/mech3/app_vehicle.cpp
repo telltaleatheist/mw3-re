@@ -169,6 +169,16 @@ bool program_is_field_base(const void* v) {
   return is_program_vehicle(v) && is_field_base(*static_cast<const BasicVehicle*>(v));
 }
 int32_t program_field_bases_count() { return field_bases().count; }
+DockSummary program_dock_summary() {
+  const FieldBases& r = field_bases();
+  DockSummary d;
+  d.states = static_cast<int32_t>(r.states.size());
+  d.idle_first = !r.states.empty() && r.states.front() == &r.idle;
+  d.begin_next = r.begin_next;
+  d.drive = field_bases_drive();
+  d.deploy_valve = r.deploy_valve != nullptr;
+  return d;
+}
 int32_t program_field_bases_lines() {
   int32_t n = field_bases().effects != nullptr;
   for (Handle s : field_bases().sounds) n += s != nullptr;

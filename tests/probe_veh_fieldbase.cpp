@@ -47,7 +47,7 @@ struct Controls : m3::VehicleControls {
   bool destroyed() override { return probe_app::call("ctl.vt+0x1c", {}) != 0; }
 };
 
-struct Action : m3::FieldBaseAction {
+struct Action : m3::DockStep {
   std::string name;
   uint32_t addr = 0;
   std::string k(const char* slot) const { return name + slot; }
@@ -135,7 +135,7 @@ struct Hooks : m3::FieldBaseHooks {
   uint32_t player_allies() override { return peek(peek(peek(0x60861c) + 0x14) + 0xc4); }
   float difficulty() override { return peekf(0x608e5c); }
   void say(m3::Handle sound) override { unported("0x004e6d50", {lo(sound), 0x3f800000}); }
-  void all_lost() override { unported("0x0047a720", {peek(0x60b544)}); }
+  void marker_clear() override { unported("0x0047a720", {peek(0x60b544)}); }
   uint32_t entity_team(m3::Handle e) override { return peek(lo(e) + 0xc0); }
   void controls_hit(m3::BasicVehicle&, m3::Handle w, uint32_t x, float amount, m3::Handle e) override {
     unported("ctl.ictl.vt+0x94", {g_ictl, lo(w), x, zgame::bits(amount), lo(e)});
@@ -193,7 +193,7 @@ void probe_fb_registry(int32_t count, const uint32_t* bases, const uint32_t* act
   for (m3::FieldBase* b : g_others) delete b;
   g_others.clear();
   m3::FieldBases& r = m3::field_bases();
-  r = m3::FieldBases{};
+  r.clear();
   r.count = count;
   for (int i = 0; i < 3; ++i) {
     auto* o = new m3::FieldBase;
@@ -313,10 +313,10 @@ int probe_fb_frame_image(uint32_t* out) {
   out[k++] = b.arms ? zgame::bits(b.arms->now) : 0, out[k++] = b.arms ? zgame::bits(b.arms->rate) : 0;
   out[k++] = b.begin_next;
   out[k++] = static_cast<uint32_t>(b.actions.size());
-  for (const m3::FieldBaseAction* a : b.actions)
+  for (const m3::DockStep* a : b.actions)
     for (size_t i = 0; i < g_actions.size(); ++i)
       if (g_actions[i] == a) out[k++] = static_cast<uint32_t>(i);
-  for (const Action* a : g_actions) out[k++] = a->running;
+  for (const Action* a : g_actions) out[k++] = a->finished;
   return k;
 }
 // The matrices written: block address, then 12 floats' bits, for each.
