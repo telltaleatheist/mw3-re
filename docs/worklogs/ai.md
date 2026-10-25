@@ -1673,3 +1673,23 @@ is paused.
   (22), and with an explosion's light at a vehicle (started at its place,
   as a shot's impact does) the mix runs. The screenshot pair waits for
   Owen's yes to the GPU (the no-GPU-while-streaming rule).
+
+## Item 5: an animation's light at its start node (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/anim-light-at off main. light_flash
+  started with plain anim_start at a vehicle's node left its light at
+  (0, 0.5, 0); find whether the exe does the same with those inputs (zeff's
+  ref_or_at with the event's node index, in the emulator against the port);
+  same: document which caller play uses and close; different: fix with a
+  differential and breaks. Say which game paths start light anims each
+  way (shots' impacts, deaths, scripts). Small. Then item 6: the version-105
+  waynet 0x4bed90.
+- Item 5 settled (mac 4), docs only: the exe does the same. A free effect
+  def (flag 0x100) started plainly at a node is rebound to it (0x509eb0:
+  its node refs looked up again under it, `dummy02.flt` not found) and put
+  at the zero pose, so light_flash's light stays at its offset (0, 0.5, 0).
+  Checked with test_anim_run's harness on c1 (the start, three frames, the
+  whole dump identical). In play light_flash comes from CALL_ANIMATION
+  AT_NODE (0x506640 flag 1, anim_start_at at the node's world point);
+  anim-run.md lists the start paths. Item 4c's headless test comment
+  corrected (not a shot's impact, the AT_NODE call).

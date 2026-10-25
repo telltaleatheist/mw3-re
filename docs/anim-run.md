@@ -57,6 +57,29 @@ action lists, the setters and the world's child/light/sound lists. Check:
   explosion is moved onto the mech's cockpit this way (cockpit-damage.md;
   the port had dropped EDX, playtest #19).
 
+### Starting an effect at a place or at a node (2026-10-25, item 5)
+
+The starts differ in what they do with a def that hangs free in the world
+(flag 0x100, an effect such as `light_flash` on its own `dummy02.flt`):
+`anim_start_at` (0x5085e0, and 0x508aa0 over it) places the def's node at
+the given pose; the plain start (0x508ae0, and 0x508c10 over it) places it
+at the zero pose; and either, given a node, first rebinds the def to it
+(0x509eb0: its node becomes that node, its node refs looked up again under
+it). So `light_flash` started plainly at a vehicle's node finds no
+`dummy02.flt` under it: its light-state event (node ref 1, offset (0, 0.5,
+0)) places nothing and the light stays at (0, 0.5, 0), the vehicle's node
+is put at the origin. The exe does the same (the start, three frames and
+every def's, node's and light's state compared against the original on c1,
+identical). No game path starts it so: the destroy and explosion
+animations call it with CALL_ANIMATION `AT_NODE` (0x506640, flag 1: the
+named node's world point plus the offset, through `anim_start_at`), the
+weapons' impacts and effects through 0x508aa0 (zWeapon's effect handle,
+craters' dust, a mech's death effects), muzzle flashes and wakes as
+connectors (0x508da0, 0x508ee0); the plain start at a node is for the
+defs bound to an object's own nodes (a shot's model, a vehicle's destroy
+animation, a turret's, the dock's repair), and with no node for the
+scripts', the valves' and the mission's.
+
 ## The events
 
 Offsets from the event's start (mech3ax's structs start after the 12-byte

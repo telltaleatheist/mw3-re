@@ -2169,7 +2169,7 @@ TEST(mission_c1m1_models_are_lit_headless) {
       }
       if (frames == 17) {
         for (int32_t& f : mech3::options().gfx_flags) f |= 1;
-        if (zeff::AnimDef* d = zeff::anim_find("light_flash"); d && v) {  // where a shot's impact starts it (0x00508aa0)
+        if (zeff::AnimDef* d = zeff::anim_find("light_flash"); d && v) {  // at a place, as CALL_ANIMATION AT_NODE does (0x00506640)
           float at[9] = {};
           mech3::hud_object_place(v, at);
           zeff::anim_start_at(d, nullptr, at, at + 3, at + 6);
