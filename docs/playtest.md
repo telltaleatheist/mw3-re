@@ -55,6 +55,19 @@ previous / nearest op point; Ctrl-P screenshot removed; keypad Ctrl-0 torso
 mode; L freelook; Ctrl-D enemy damage display; F9 Stop replaces Ctrl-F10 /
 Ctrl-F11; keypad * the chat window; Left/Right Ctrl can't be bound.
 
+## 2026-10-25, second campaign run (c1m1, main 0093aba)
+
+Owen: "otherwise it seems to be working really well".
+
+| # | Seen | Area | Owner | State |
+|---|---|---|---|---|
+| 22 | Ground textures blink in and out at random spots | render: terrain draw, depth (coplanar overlays?), the partition cull | dev | waiting |
+| 23 | Firing is unreliable: some clicks fire nothing until clicked again | controls → weapons: the trigger's edge between frames | dev | waiting |
+| 24 | A laser doesn't hit where the reticle was at the click | the aim point the shot takes (a frame late?) | dev | waiting |
+| 25 | LRMs lock but don't home: in the original, lock, aim at the sky, fire, and the missiles climb and come down on the target | the shot's lock target at spawn (homing 0x585900 is ported) | dev | waiting |
+| 26 | F12 opens no objectives text | the objectives box's text 0x446ad0 (keybindings.md) | dev | waiting |
+| 27 | Shots at the missile turrets don't destroy them | turret hits / damage (hit test reaching tur_* nodes?) | dev | waiting |
+
 ## Unported in c1m1 (2026-10-21, census)
 
 `census_c1m1_unported_headless` (mw3tests; `MW3_CENSUS=1`,
