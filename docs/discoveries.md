@@ -1534,6 +1534,10 @@ From the animation files (anim.md).
   tur_ppc's EFFECT (`lightning`) is set to scroll its texture fast along u
   while it charges, but no world has a node of that name, so the charge
   effect never appears (vehicles.md).
+- **A 'Mech in TARGET's view reddens part by part.** Each leg, arm, the
+  head and the torso turns red by its own internal damage (up to 60%), a
+  leg taking its foot along and the torso the hips, so the damage picture
+  in the target window shows which parts are hurt.
 - **The red tint on a damaged target goes through the fog.** In TARGET's
   view, a turret or vehicle turns redder the more damaged it is (up to 60%
   at no health). The game does it by mixing red into that model's own fog

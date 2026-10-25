@@ -104,6 +104,7 @@ void* program_vehicle_marker(int32_t kind);  // [0x0060b120 + 4 kind] (0x0045b97
 void* program_vehicle_node(void* v);      // +0x04
 void* program_vehicle_centroid(void* v);  // +0x14
 void* program_vehicle_target_node(void* v);  // +0x10
+void program_vehicle_view_tint(void* v, bool on);  // vt+0x68 0x004ad390 (TARGET's view)
 void program_vehicle_place(void* v, const float pos[3], float yaw);          // vt+0xdc
 void program_vehicle_setup(void* v, void* def, const char* name, int32_t kind);  // vt+0x158
 void program_vehicle_motion(void* v, void* mode, const char* name, const char* type);  // 0x0049ec90 -> 0x0049ef40
@@ -117,6 +118,7 @@ void program_vehicles_forget();           // the mission's end
 // zWeapon's attacker) for more than its health, through its damage (vt+0x160:
 // 0x004ad3f0, a field base's 0x00458f50).
 bool program_vehicle_kill(void* v, void* killer, const char* weapon);
+float program_vehicle_damage(void* v, float amount);  // tests: `amount` off its health (vt+0x160), the health left 0..1
 bool program_vehicle_free(void* v);       // vt+0x00 0x004ac630(1); false when not a program vehicle
 // What the AI's brain asks of a vehicle (docs/vehicles.md, In the program),
 // by the basic vehicle's slots; the rest (position, forward, matrix, weapons,

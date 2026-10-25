@@ -46,6 +46,29 @@ void set_fog_color(float rgb[3]) {
   set_fog_ramp(g_fog, r, g, b);
 }
 
+FogColor& mix_color() {
+  static FogColor g_mix;
+  return g_mix;
+}
+
+// Mech3.exe 1.2 @ 0x005680c0. The clamps and the 0.01 test as the x87 makes
+// them: NaN to 0, and a NaN difference counts as unchanged.
+void set_mix_fog_color(float rgb[3]) {
+  for (int i = 0; i < 3; ++i) rgb[i] = rgb[i] > 1.0f ? 1.0f : !(rgb[i] >= 0.0f) ? 0.0f : rgb[i];
+  FogColor& c = mix_color();
+  constexpr double kStep = 0.01f;  // 0x005ce668
+  const auto same = [&](int i) { return !(std::fabs(double{c.rgb[i]} - rgb[i]) >= kStep); };
+  if (same(0) && same(1) && same(2)) return;
+  for (int i = 0; i < 3; ++i) c.rgb[i] = rgb[i];
+  if (g_device.active) zvid::set_mix_fog_device(rgb);  // 0x00579950
+  const SoftwareFormat& f = g_format;
+  const auto level = [&](int i) { return static_cast<uint32_t>(crt::msvc_ftol(0.5 - rgb[i] * -255.0)); };
+  const uint32_t b = level(2) >> f.b_shift_right;
+  const uint32_t g = (level(1) << f.g_shift) & f.g_mask;
+  const uint32_t r = (level(0) << f.r_shift) & f.r_mask;
+  set_fog_ramp(c, r, g, b);
+}
+
 FogColor& light_color() {
   static FogColor g_light;
   return g_light;

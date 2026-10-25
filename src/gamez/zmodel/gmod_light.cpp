@@ -9,6 +9,7 @@
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
@@ -156,6 +157,11 @@ LightList& light_list() { return g_list; }
 Clouds& clouds() { return g_clouds; }
 Lighting& lighting() { return g_lighting; }
 LightHooks& light_hooks() { return g_hooks; }
+void use_device_light_output() {
+  g_hooks.point_color = zvid::set_point_light_color;
+  g_hooks.mix_fog = zrndr::set_mix_fog_color;
+  g_hooks.send_mix_fog = zvid::send_mix_fog;
+}
 
 // Mech3.exe 1.2 @ 0x00543b60
 void build_light_list(zcls::Node** nodes, zcls::Light** data, int32_t count) {

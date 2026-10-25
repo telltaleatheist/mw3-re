@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
@@ -947,6 +949,49 @@ bool Torso::set_pitch(float pitch, float look) {
   pitch_in = pitch;
   look_pitch = look;
   return true;
+}
+
+namespace {
+// 0x00462040's block, also the torso's for the hip.
+void tint_node(Handle node, float internal, bool on) {
+  static const float kRed[3] = {1.0f, 0.0f, 0.0f};  // [0x005e4fd8]
+  auto* n = static_cast<zcls::Node*>(node);
+  if (on) zcls::object3d_set_blend(n, kRed, (1.0f - internal) * 0.6f);  // [0x005c2768], [0x005c27c0]
+  zcls::object3d_use_blend(n, on);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00462040
+float part_view_tint(MechPart& p, bool on) {
+  if (p.node) tint_node(p.node, p.internal, on);
+  return p.internal;
+}
+
+// Mech3.exe 1.2 @ 0x00463aa0. The exe reads the foot unchecked.
+float leg_view_tint(Leg& l, bool on) {
+  if (l.node) tint_node(l.node, l.internal, on);
+  if (l.foot && l.foot->node) tint_node(l.foot->node, l.internal, on);
+  return l.internal;
+}
+
+// Mech3.exe 1.2 @ 0x004643d0. The mech is the torso's (+4, looked up when
+// none in the exe, 0x00460000).
+float torso_view_tint(Torso& t, Mech& m, bool on) {
+  if (t.node) tint_node(t.node, t.internal, on);
+  if (m.hip && m.hip->node) tint_node(m.hip->node, t.internal, on);
+  return t.internal;
+}
+
+// Mech3.exe 1.2 @ 0x0041b9d0. The exe calls every slot unchecked; a mech
+// without arms (none ships) is passed over here.
+void mech_view_tint(Mech& m, bool on) {
+  if (!m.active) return;
+  for (Leg* l : m.legs)
+    if (l) leg_view_tint(*l, on);
+  for (MechPart* p : {static_cast<MechPart*>(m.arms[0]), static_cast<MechPart*>(m.arms[1]),
+                      static_cast<MechPart*>(m.head)})
+    if (p) part_view_tint(*p, on);
+  if (m.torso) torso_view_tint(*m.torso, m, on);
 }
 
 }  // namespace mech3

@@ -1,3 +1,4 @@
+#include <array>
 #include <set>
 // The program's pieces that run without a window (docs/program.md): the
 // message DLL, the mounts and write dir, the music lookup, and the start-up
@@ -1952,6 +1953,117 @@ TEST(mission_c1m1_horizon_scrolls_headless) {
     EXPECT(m != nullptr && (flags & 0x10) && speed_u == 0.015f);
     EXPECT(std::fabs(du - 0.015f * dt_sum) < 1e-4f || std::fabs(std::fabs(du - 0.015f * dt_sum) - 1.0f) < 1e-4f);  // or wrapped
     EXPECT(v1 == v0 && du != 0.0f);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The fog colours to the device on c1m1 (docs/render-lighting.md): with a
+// GPU that records FOGCOLOR, the world's fog colour sent at the load
+// (0x0057bcf0, installed as 0x00579f50 does); a damaged vehicle tinted as
+// TARGET's view does (0x004ad390: red by the damage) sends red as its fog
+// colour while drawn, then the world's again. The lighting's mix (0x005680c0,
+// 0x00579980) needs lit models: item 4c's (the GfxFlags lighting bit).
+TEST(mission_c1m1_fog_mix_reaches_the_device_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_fog_mix_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct FogGpu : platform::Render3D {
+    std::vector<std::array<uint8_t, 3>> fog;  // this frame's FOGCOLOR sends
+    int draws = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override { ++draws; }
+    void set_fog_color(uint8_t r, uint8_t g, uint8_t b) override { fog.push_back({r, g, b}); }
+    void present() override {}
+    bool read_back(std::vector<uint32_t>*, int*, int*) override { return false; }
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* v = nullptr;
+    float left = 1.0f;
+    std::set<std::array<uint8_t, 3>> seen[3];  // per phase: plain, the vehicle tinted, after
+    std::vector<std::array<uint8_t, 3>> loading;  // the sends before the first phase (the world's fog colour)
+    int draws[3] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      const int phase = frames < 3 ? -1 : frames < 10 ? 0 : frames < 18 ? 1 : frames < 27 ? 2 : -1;
+      if (phase >= 0 && frames != 3 && frames != 10 && frames != 18) {
+        for (const auto& c : gpu.fog) seen[phase].insert(c);
+        draws[phase] += gpu.draws;
+      }
+      if (phase < 0 && frames < 3) loading.insert(loading.end(), gpu.fog.begin(), gpu.fog.end());
+      gpu.fog.clear(), gpu.draws = 0;
+      if (frames == 2) {
+        const std::vector<void*> vs = mech3::program_vehicles();
+        if (!vs.empty()) v = vs.front();
+        if (v) {
+          float at[3];
+          mech3::hud_object_place(v, at);
+          const float pos[3] = {at[0] - 30.0f, ground_under(at[0] - 30.0f, at[1] + 100.0f, at[2]), at[2]};
+          mech3::move_mech(player, pos, -1.5707964f);
+        }
+      }
+      if (frames == 9 && v) {
+        left = mech3::program_vehicle_damage(v, 60.0f);
+        mech3::program_vehicle_view_tint(v, true);  // as TARGET's view does around its draw (vt+0x68)
+      }
+      if (frames == 17 && v) mech3::program_vehicle_view_tint(v, false);
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 27; };
+    app.run(pump);
+    auto show = [](const std::set<std::array<uint8_t, 3>>& s) {
+      std::string o;
+      for (const auto& c : s) o += " " + std::to_string(c[0]) + "/" + std::to_string(c[1]) + "/" + std::to_string(c[2]);
+      return o.empty() ? std::string(" none") : o;
+    };
+    std::set<std::array<uint8_t, 3>> load_set(loading.begin(), loading.end());
+    std::fprintf(stderr, "  fog colour: at the load%s; vehicle %s at %.2f health; plain (%d draws):%s; tinted (%d):%s; "
+                         "after (%d):%s\n", show(load_set).c_str(), v ? "found" : "missing", left, draws[0],
+                 show(seen[0]).c_str(), draws[1], show(seen[1]).c_str(), draws[2], show(seen[2]).c_str());
+    const std::array<uint8_t, 3> red{255, 0, 0};
+    EXPECT(!loading.empty());                       // the world's fog colour reaches the device (0x0057bcf0)
+    EXPECT(v != nullptr && left < 1.0f && seen[1].count(red));  // the damaged vehicle's red while tinted
+    EXPECT(seen[1].count(loading.back()));          // and the world's colour back after it
+    EXPECT(!seen[2].count(red));                    // none once the tint is off
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

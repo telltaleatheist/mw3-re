@@ -441,4 +441,15 @@ class Hand : public MechPart {   // vtable 0x005c2ab0
   void set_internal(float v, int section) override;         // 0x00466eb0
 };
 
+// TARGET's view of a mech (vt+0x68 0x0041b9d0, while it is active): each
+// part's node blended red (0x004fb8c0, [0x005e4fd8]) by (1 - its internal) x
+// 0.6 when `on`, and the blend switched (0x004fb840); a thigh (0x00463aa0)
+// tints its foot's node too and the torso (0x004643d0) the hip's, by their
+// own internal. Parts' vt+0x54 (0x00462040), in the exe's order: legs, arms,
+// head, torso.
+float part_view_tint(MechPart& p, bool on);            // 0x00462040, its internal back
+float leg_view_tint(Leg& l, bool on);                  // 0x00463aa0
+float torso_view_tint(Torso& t, Mech& m, bool on);     // 0x004643d0
+void mech_view_tint(Mech& m, bool on);                 // 0x0041b9d0
+
 }  // namespace mech3

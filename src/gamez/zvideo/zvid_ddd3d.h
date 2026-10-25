@@ -191,6 +191,8 @@ void flush_overlay();      // 0x0057e4c0
 
 void set_point_light_color(const float rgb[3]);  // 0x005798a0, rgb 0..1
 void send_fog_color();     // 0x0057bcf0: zrndr::device_fog().sent to FOGCOLOR
+void set_mix_fog_device(const float rgb[3]);  // 0x00579950: zrndr::device_fog().mix = rgb x 255
+void send_mix_fog();       // 0x00579980: the mix as the device's fog colour when it differs from the one sent
 
 // The full-screen colour quad (flashes and fades): 0x0057dd80 fills it,
 // [0x0072f3ec] = 0x0057e380 draws it once.

@@ -1636,3 +1636,16 @@ is paused.
   wiring (mirroring zrndr_fog; the software ramp 0x56c170 may stay a hook);
   app_hud's TARGET view vt+0x68 (object_view_flag). Headless frame: a
   damaged vehicle's red and a point-lit model's mix.
+- 4b done (mac 4): zrndr set_mix_fog_color 0x5680c0, zvid set_mix_fog_device
+  0x579950 / send_mix_fog 0x579980 (NaN counts as the same, x87 C3),
+  zmod::use_device_light_output() (point_color 0x5798a0, mix_fog,
+  send_mix_fog) in the program's two render set-ups. Found: the port's
+  0x579f50 left out [0x72f3f0] = 0x57bcf0, so no fog colour ever reached
+  the device (the world's included): installed. The mech's TARGET tint
+  0x41b9d0 with the parts' 0x462040, the thigh's 0x463aa0 (its foot too),
+  the torso's 0x4643d0 (the hip too); app_hud's object_view_flag by class.
+  test_mix_fog.py 2000 cases, 17/17 breaks (one replaced: the NaN
+  threshold cannot be reached, both colours clamped first); headless c1m1:
+  208/208/208 at the load, the damaged vehicle's 255/0/0 while tinted.
+  Not reached: the mix itself, as no model is lit in the program (the
+  GfxFlags Lighting bit; the lead traced it: item 4c).

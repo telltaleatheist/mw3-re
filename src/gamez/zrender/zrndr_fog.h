@@ -10,6 +10,7 @@ struct DeviceFog {
   int32_t active = 0;              // 0x0072f348
   float color[3] = {};             // 0x0072f3f4  0..255
   float sent[3] = {};              // 0x0072f400
+  float mix[3] = {};               // 0x00802798  the lighting's mixed colour, 0..255 (0x00579950)
   void (*send)() = nullptr;        // 0x0072f3f0  FIX (A): the device's fog call, set by the front end
 };
 DeviceFog& device_fog();
@@ -38,6 +39,11 @@ FogColor& light_color();           // 0x008005e8, the same layout for the light 
 void set_light_color(float rgb[3]);                        // 0x00568370, clamps rgb in place
 
 void set_fog_color(float rgb[3]);                          // 0x00567eb0, clamps rgb in place
+FogColor& mix_color();             // 0x00800688, the same layout for the lighting's fog mix
+// The lighting's fog mix (gmod_light's mix_fog: a model's saturated point
+// lights and colour blend with the fog): as set_fog_color, into mix_color,
+// the Direct3D device's copy by 0x00579950 (sent by zvid::send_mix_fog).
+void set_mix_fog_color(float rgb[3]);                      // 0x005680c0, clamps rgb in place (NaN to 0)
 void set_fog_ramp(FogColor& f, uint32_t r, uint32_t g, uint32_t b);  // 0x0056c170
 
 }  // namespace zrndr

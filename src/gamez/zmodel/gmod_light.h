@@ -88,6 +88,11 @@ struct LightHooks {
   int (*node_to_world)(zcls::Node* node, int mode) = nullptr;
 };
 LightHooks& light_hooks();
+// The exe's own calls for the three outputs: the device's point-light colour
+// (zvid::set_point_light_color, 0x005798a0), the fog mix (zrndr::set_mix_fog_color,
+// 0x005680c0) and its send (zvid::send_mix_fog, 0x00579980). The program's
+// render set-up installs them; the probes set their own.
+void use_device_light_output();
 
 // --- The light list (per frame) ---
 // ECX nodes, EDX data, stack count: the active nodes (flag 4) in order, at most 128.

@@ -452,6 +452,7 @@ void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }
 void* program_vehicle_target_node(void* v) { return static_cast<BasicVehicle*>(v)->target_node; }
+void program_vehicle_view_tint(void* v, bool on) { vehicle_view_tint(*static_cast<BasicVehicle*>(v), on ? 1 : 0); }
 void* program_vehicle_marker(int32_t kind) {
   const VehicleMarkers& m = vehicle_markers();
   return kind == 0 ? m.ally : kind == 1 ? m.enemy : kind == 2 ? m.other : nullptr;
@@ -549,6 +550,11 @@ bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
   g_hooks.damage(bv(v), def, 0, bv(v).controls->health + 1.0f);  // vt+0x160 by the class
   zwep::hit_state().attacker = nullptr;
   return !bv(v).active;
+}
+float program_vehicle_damage(void* v, float amount) {
+  if (!is_program_vehicle(v) || !bv(v).controls) return 0.0f;
+  g_hooks.damage(bv(v), nullptr, 0, amount);  // vt+0x160 by the class, no weapon
+  return bv(v).controls->health / bv(v).controls->health_max;
 }
 bool program_vehicle_free(void* v) {
   if (!is_program_vehicle(v)) return false;
