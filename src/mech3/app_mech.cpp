@@ -1522,6 +1522,13 @@ uint32_t weapon_flags(void* w) {
 void mech_torso_centre(void* mech, int32_t how) {
   if (auto* m = static_cast<Mech*>(mech); m && m->torso) m->torso->centre(how);
 }
+bool mech_zones(const void* mech, uint8_t out[4], int32_t* node_zone) {
+  if (!entity_is_mech(mech)) return false;
+  const auto* m = static_cast<const Mech*>(mech);
+  std::memcpy(out, &m->x64, 4);
+  *node_zone = m->node ? zn(m->node)->get<uint8_t>(0x30) : -1;
+  return true;
+}
 float mech_heat(const void* mech) { return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->heat : 0.0f; }
 bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;

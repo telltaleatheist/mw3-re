@@ -16,6 +16,8 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zmodel/gmod_cull.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "mech3/app_mech.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
@@ -103,7 +105,24 @@ struct ProgramViewHooks : ViewHooks {
     return ground_pick(ground, y, height, index, flag, kind, level);  // 0x004abd90
   }
   uint8_t water_flag() override { return 1; }
-  void camera_zone(Node3, int32_t, Mech*) override { unported("0x004f6c80", {}); }
+  // Mech3.exe 1.2 @ 0x0040b080 on the ground's hit `index`: the camera's
+  // zone list from that polygon's (0x004f6c80), then the render's
+  // [0x0074a328], the view's target's zones (zEntity's 0x005a80d0: its +0x64,
+  // its node's zone byte through 0x005a80c0 -> 0x004eb810) and the
+  // animations' (0x00502d70). docs/view.md section 1.
+  void camera_zone(Node3 cam, int32_t index, Mech* target) override {
+    if (index < 0 || index >= ground.count) return;
+    zcls::Node* c = zn(cam);
+    zcls::camera_set_zone(c, reinterpret_cast<const uint8_t*>(&ground.hit[index].zone[0]));
+    if (!c || !c->data || c->cls() != 1) return;
+    const uint8_t* list = static_cast<zcls::Camera*>(c->data)->raw + 0x1e4;
+    std::memcpy(zmod::zones().list, list, 4);
+    if (target) {
+      std::memcpy(&target->x64, list, 4);
+      zcls::node_set_zone(zn(target->node), list[1]);
+    }
+    zeff::anim_set_zone(list);
+  }
   void world_fog_range(float a, float b) override {
     if (Node3 w = world_node()) zcls::world_set_fog_range(zn(w), a, b);
   }

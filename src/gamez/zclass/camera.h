@@ -14,6 +14,9 @@ struct Camera;
 
 Node* camera_create();                                             // 0x004f32e0
 int camera_set_world(Node* node, Node* world);                     // 0x004f3560  data +0
+// The camera's zone list (+0x1e4) from `zone` (count, then up to three ids),
+// +0x1e0 set: only when it has a count and no 0xff ("all"); else as it was.
+int camera_set_zone(Node* node, const uint8_t zone[4]);            // 0x004f6c80
 int camera_set_window(Node* node, Node* window);                   // 0x004f3620  data +4
 int camera_set_fov_angles(Node* node, float h, float v);           // 0x004f3d90
 int camera_get_fov_angles(Node* node, float* h, float* v);         // 0x004f3ee0

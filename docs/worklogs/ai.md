@@ -1835,3 +1835,24 @@ is paused.
   (2000 cases, the pool empty at 3,272 hits), mw3tests truck glow (also
   ASan; no light error at the end); 10 of 10 breaks. Docs: vehicles.md The
   glow, fixes (a row, a range candidate), CHANGES, discoveries, symbols.
+
+## Item 12: the camera zone (2026-10-25, mac 4)
+
+- Assigned (the lead): first check which shipped worlds have more than
+  one zone; none: document and skip.
+- They do (c1, c2, c3, c4b: interiors; c4, t1 only zone 1), so ported:
+  `zcls::camera_set_zone` 0x4f6c80, the program's camera_zone doing
+  0x40b080's steps, the render's zone probe (ground_below). Before, no
+  zone was ever culled in the program. Tests: test_camera_zone (5000),
+  mw3tests c4b m6 tunnel ({1} outside, {1, 44} inside; the target, the
+  anims, the probe); 7 of 8 breaks (the render list's copy is redundant
+  with the frame's). Open: zWeapon's own copy of [0x74a328]. view.md 7,
+  a discovery, symbols.
+- Found with the full suite (missions_c4b_m5_m6 hung): c4b m5 starts over
+  zone 22 alone, so the zone-filtered queries skip zone-1 nodes; the
+  tests' ground_under then gave NaN, the player was put at NaN, and the
+  AI's clear line toward it hung the cell walk (NaN never ends it, in the
+  exe too). ground_under now asks with the zone mode off; FIX (bug): the
+  walk stops at NaN (fixes.md, CHANGES); the zone test checks a NaN query
+  ends. 8 of 9 breaks.
+
