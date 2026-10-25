@@ -3623,6 +3623,172 @@ TEST(mission_c1m4_dominic_takes_the_order_and_the_lance_turns_headless) {
 // c1 mission 4 Dominic, woken, with an enemy put 60 m in front of him and no
 // order given, takes it as his target and fires at it while he follows the
 // player (his own order), never closing in.
+TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_wreck_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, a campaign mission, number 4: Dominic with the player
+    l.number = 4;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      void* dominic = nullptr;
+      void* enemy = nullptr;
+      zgame::Handle eh = 0;
+      std::string name;
+      int frames = 0, killed_at = -1, gone_at = -1;
+      bool dominic_on = false, player_on = false, locked = false;
+      std::vector<std::string> before, after, later;
+      bool freed = false, off_list = false, found_before = false, found_by_name = true, handle_alive = true;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      void* player = mech3::mech_mission_player();
+      if (seen.frames == 3) {
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i) {
+          const std::string n = ai[i].name ? ai[i].name : "";
+          if (n == "Dominic_Paine") seen.dominic = ai[i].mech;
+        }
+        if (!seen.dominic) return;
+        // The first enemy mech 120 m north of Dominic and the player; the
+        // others 3 km off.
+        mech3::LaunchedMech d;
+        mech3::describe_mech(seen.dominic, &d);
+        for (int32_t i = 0; i < made; ++i) {
+          if (ai[i].mech == seen.dominic) continue;
+          float x = d.pos[0] + 3000.0f, z = d.pos[2] + 3000.0f;
+          if (!seen.enemy) {
+            seen.enemy = ai[i].mech;
+            seen.name = ai[i].name ? ai[i].name : "";
+            x = d.pos[0], z = d.pos[2] + 120.0f;
+          }
+          const float at[3] = {x, ground_under(x, d.pos[1] + 500.0f, z), z};
+          mech3::move_mech(ai[i].mech, at, 0.0f);
+        }
+        const float pat[3] = {d.pos[0] + 30.0f, ground_under(d.pos[0] + 30.0f, d.pos[1] + 500.0f, d.pos[2]), d.pos[2]};
+        mech3::move_mech(player, pat, 0.0f);
+        seen.eh = engine.handle_of(seen.enemy);
+        if (mech3::ai::Valve* w = mech3::ai::valve_find("dominic_wakes")) w->set(1);
+        return;
+      }
+      if (!seen.enemy) return;
+      if (seen.frames == 40) {  // both target it, the player's first weapon locked on it
+        for (void* who : {seen.dominic, player}) {  // its contact on the enemy made the target (vt+0xc0)
+          mech3::ai::AiTarget* t = mech3::ai::sensor_hooks().fields(engine.handle_of(who));
+          if (!t) continue;
+          for (mech3::ai::Contact* c : t->contacts)
+            if (c->seen == seen.eh) t->set_target(c, false);
+        }
+        auto on = [&](void* who) {
+          const mech3::ai::AiTarget* t = mech3::ai::sensor_hooks().fields(engine.handle_of(who));
+          return t && t->target && t->target->seen == seen.eh;
+        };
+        seen.dominic_on = on(seen.dominic);
+        seen.player_on = on(player);
+        seen.locked = mech3::program_mech_lock_on(player, seen.enemy);
+        mech3::program_mech_set_attacker(seen.dominic, seen.enemy);  // it hit Dominic last
+        seen.before = mech3::program_holders_of(seen.eh, seen.enemy);
+        seen.found_before = mech3::ai::valve_hooks().target_find(seen.name.c_str()) == seen.eh;
+        mech3::mech_kill(seen.enemy, player);
+        seen.killed_at = seen.frames;
+        return;
+      }
+      if (seen.killed_at > 0 && seen.gone_at < 0 && seen.frames == seen.killed_at + 60) {
+        // Dead and falling for 2 s: deleted as instant action does at 180 s.
+        mech3::program_mech_wreck_gone(seen.enemy);
+        seen.gone_at = seen.frames;
+        seen.freed = !mech3::entity_is_mech(seen.enemy);
+        const auto& l = mech3::ai::entity_list();
+        seen.off_list = std::find(l.begin(), l.end(), seen.eh) == l.end();
+        seen.after = mech3::program_holders_of(seen.eh, seen.enemy);
+        // The program's own: the valves' lookups by its name, its old handle.
+        seen.found_by_name = mech3::ai::valve_hooks().target_find(seen.name.c_str()) != 0 ||
+                             mech3::ai::valve_hooks().entity_find(seen.name.c_str()) != 0;
+        seen.handle_alive = engine.object_of(seen.eh) != nullptr;
+        return;
+      }
+      if (seen.gone_at > 0 && seen.frames == seen.gone_at + 30) seen.later = mech3::program_holders_of(seen.eh, seen.enemy);
+    };
+    CountingPump pump;
+    pump.limit = 1200;
+    pump.stop = [&] { return seen.gone_at > 0 && seen.frames > seen.gone_at + 31; };
+    app.run(pump);
+    auto list = [](const std::vector<std::string>& v) {
+      std::string s;
+      for (const std::string& x : v) s += (s.empty() ? "" : ", ") + x;
+      return s.empty() ? std::string("none") : s;
+    };
+    std::fprintf(stderr, "  wreck %s: Dominic on it %d, the player %d, locked %d; holders before: %s; after the delete: %s; "
+                         "30 frames on: %s; freed %d, off the list %d; by name before %d after %d; old handle alive %d\n",
+                 seen.name.c_str(), seen.dominic_on, seen.player_on, seen.locked, list(seen.before).c_str(),
+                 list(seen.after).c_str(), list(seen.later).c_str(), seen.freed, seen.off_list, seen.found_before,
+                 seen.found_by_name, seen.handle_alive);
+    EXPECT(seen.enemy && seen.dominic_on && seen.player_on && seen.locked);
+    // The two targets, their contacts, the lock, Dominic's last attacker.
+    EXPECT(seen.before.size() >= 5 &&
+           std::find(seen.before.begin(), seen.before.end(), "Dominic Paine: its last attacker") != seen.before.end());
+    EXPECT(seen.freed && seen.off_list);
+    // The program's lists (not the exe's): its name finds nothing, its handle answers null.
+    EXPECT(seen.found_before && !seen.found_by_name && !seen.handle_alive);
+    // The targets.zrd objects are not told (not on zEntity's list, as in
+    // the exe): their contacts on it go with the next sensors frame.
+    for (const std::string& h : seen.after) EXPECT(h == "a targets.zrd object: a contact");
+    EXPECT(seen.later.empty());
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m4_dominic_fires_on_a_target_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -95,6 +95,13 @@ class SensorHooks : public zgame::Unported {
     unported("0x00576040", {id});
     return nullptr;
   }
+  // vt+0xd4 on a vehicle the entity `x` is going from (the mech's, a basic
+  // vehicle's 0x004aeec0: its weapons' locks (0x004b0370), its controls'
+  // vt+0x60, then forget_entity; a turret's, a target's 0x004aa4d0: that
+  // alone). The default: forget_entity alone.
+  virtual void forget(Handle v, Handle x);
+  // The animation owner's release (0x004d5100) of the entity going.
+  virtual void anim_owner_release(Handle x) { unported("0x004d5100", {x}); }
   virtual Handle player() { return unported("[0x0060861c]+0x14", {}); }
   virtual Handle view_target() { return unported("[0x005f4c8c]+0x64", {}); }
   virtual Handle stealth() { return unported("[0x00609a2c]", {}); }
@@ -104,6 +111,16 @@ SensorHooks& sensor_hooks();
 
 // Mech3.exe 1.2 @ 0x004a8cd0: the frame's sensing, from the Core frame.
 void sensors_update();
+
+// Mech3.exe 1.2 @ 0x004aa6b0: entity `x` is going (a wreck deleted, 0x0041e140):
+// its animations released (0x004d5100), then every entity's vehicle told
+// (vt+0xd4). The targets.zrd objects are not on zEntity's list, so not told:
+// their contacts on it go with the next sensors frame (docs/ai.md section 15).
+void entities_forget(Handle x);
+// Mech3.exe 1.2 @ 0x004aa4d0 (vt+0xd4 of the AiTarget base): vehicle `self`
+// drops `x`: the contacts on it, the picks and owned contacts it made,
+// everything when `x` is `self`.
+void forget_entity(Handle self, Handle x);
 
 // Mech3.exe 1.2 @ 0x004d5ca0: the lance flags, then the list sorted (the
 // player first, the stealth entity last, allies before the rest, the

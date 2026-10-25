@@ -75,6 +75,8 @@ def setup_probe(probe):
     probe.probe_sensors_sensed.restype = ctypes.c_int32
     probe.probe_sensors_list.argtypes = [P]
     probe.probe_sensors_list.restype = ctypes.c_int32
+    probe.probe_sensors_forget_kind.argtypes = [U32, U32]
+    probe.probe_sensors_forget.argtypes = [U32]
 
 
 # The branches the cases must reach (address: what).
@@ -446,6 +448,88 @@ def run_sensors(probe, count):
     print(f'  part 1: {count} frames, {calls} calls, every list, pick and flag identical')
 
 
+# --- part 3: the forget ------------------------------------------------------------------------
+COVER_FORGET = {0x4aa651: 'itself', 0x4aa4f8: 'the player contact on it', 0x4aa526: 'the lance contact on it',
+                0x4aa54b: 'the target on it', 0x4aa56a: 'the last ally on it', 0x4aa57d: 'the last enemy on it',
+                0x4aa590: 'the saved pick on it', 0x4aa5a6: 'the touching one on it', 0x4aa60e: 'a contact kept',
+                0x4aa5f1: 'a contact dropped', 0x4aeed2: 'a vehicle with weapons', 0x4aeee6: 'a vehicle with controls'}
+
+
+def forget_world(seed, e, w):
+    """Each vehicle's vt+0xd4: the base 0x4aa4d0, or a vehicle's 0x4aeec0
+    with weapons (0x4b0370 stubbed) and controls (vt+0x60 stubbed) or not."""
+    r = random.Random(seed * 7 + 1)
+    kinds = {}
+    for x in w.vehicles:
+        vt = e.r32(x)
+        if r.random() < 0.5:
+            e.w32(vt + 0xd4, 0x4aa4d0)
+            continue
+        e.w32(vt + 0xd4, 0x4aeec0)
+        mgr = e.world_alloc(0x80) if r.random() < 0.7 else 0
+        w.put(x + 0xd4, mgr)
+        ctl = 0
+        if r.random() < 0.7:
+            ctl = w.obj(f'k{len(kinds)}')
+            cvt = e.r32(ctl)
+            e.w32(cvt + 0x60, e.new_stub(f'k{len(kinds)}.vt+0x60', 'c,s0', 4))
+        w.answer(x, 0x140, ctl)
+        kinds[x] = mgr
+    # Who goes: a vehicle, an entity, a target, the player, a stranger.
+    pool = list(w.vehicles) + list(w.lst) + [e.world_alloc(0x10)]
+    return kinds, r.choice(pool)
+
+
+def forget_original(seed):
+    t = Trace()
+    e = Emu(t)
+    e.cpu.fpu_control(0x007f)
+    w = build_sensor_world(seed, e)
+    kinds, x = forget_world(seed, e, w)
+    common_stubs(e, w)
+    e.stub(0x4b0370, '0x004b0370', 'c,s0')
+    e.stub(0x4d5100, '0x004d5100', 'c')
+    hook_cover(e, COVER_FORGET)
+    t.silent.add('0x00576040')
+    e.call(0x4a8c30)
+    e.call(0x4a8cd0)
+    t.reset()
+    e.call(0x4aa6b0, ecx=x)
+    states = {v: state_original(e, v) for v in w.vehicles}
+    return t, w, kinds, x, states
+
+
+def run_forgets(probe, count):
+    calls = 0
+    for seed in range(count):
+        a, w, kinds, x, sa = forget_original(seed)
+        t = Trace(dict(w.script))
+        t.silent.add('0x00576040')
+        probe.probe_app_set_callback(t.callback())
+        load_probe_world(probe, w)
+        tarr = (U32 * max(1, len(w.targets)))(*w.targets)
+        probe.probe_sensors_targets(tarr, len(w.targets))
+        for v, mgr in kinds.items():
+            probe.probe_sensors_forget_kind(v, mgr)
+        probe.probe_sensors_run(0, 1 if w.see_all else 0, 0)
+        t.reset()
+        probe.probe_sensors_forget(x)
+        name = f'forget seed {seed} ({w.names.get(x, "a stranger")})'
+        if not compare(name, a.log, t.log):
+            die()
+        for v in w.vehicles:
+            sb = state_rebuild(probe, v)
+            if sa[v] != sb:
+                print(f'{name}: {w.names[v]} differs\n  original {describe(sa[v])}\n  rebuild  {describe(sb)}')
+                die()
+        calls += len(a.log)
+    missing = [v for k, v in COVER_FORGET.items() if k not in REACHED]
+    if missing:
+        print(f'  part 3 never reached: {", ".join(missing)}')
+        die()
+    print(f'  part 3: {count} forgets, {calls} calls, every list, pick and kept contact identical')
+
+
 # --- part 2: the entity sort ---------------------------------------------------------------
 def build_sort_world(seed, e):
     r = random.Random(seed)
@@ -575,7 +659,8 @@ def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 1500
     run_sensors(probe, count)
     run_sorts(probe, max(200, count // 3))
-    print('the rebuilt sensors and entity sort match the original')
+    run_forgets(probe, max(300, count // 3))
+    print('the rebuilt sensors, entity sort and forget match the original')
     sys.stdout.flush()
     os._exit(0)
 

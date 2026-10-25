@@ -297,6 +297,7 @@ bool program_turret_free(void* p) {
   auto& l = tur::turret_list();
   l.erase(std::remove(l.begin(), l.end(), t), l.end());
   delete t;
+  if (g_w.forget_object) g_w.forget_object(g_w.engine, p);
   return true;
 }
 

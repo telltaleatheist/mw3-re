@@ -248,6 +248,15 @@ void wire_vehicles(const MechWiring* w) {
   ai::net_hooks().waynet_point = waynet_point_from_node;  // 0x004bde20's
 }
 
+// Mech3.exe 1.2 @ 0x004aeec0 (a basic vehicle's vt+0xd4): its weapons' locks
+// (0x004b0370), its controls' vt+0x60 (the AI's 0x004ea700, empty), then
+// AiTarget's 0x004aa4d0.
+void program_vehicle_forget(void* v, uint32_t self, uint32_t x) {
+  auto* b = static_cast<Vehicle*>(v);
+  if (auto* w = static_cast<WeaponManager*>(b->ammo)) w->forget_target(g_w.object_of(g_w.engine, x));
+  ai::forget_entity(self, x);
+}
+
 bool is_program_vehicle(const void* p) { return p && g_vehicles.count(static_cast<const Vehicle*>(p)) != 0; }
 void* program_vehicle_create(void* ctl, const char* type, const char* name) { return vehicle_create(ctl, type, name); }
 void* program_field_base_create(void* ctl, const char* type, const char* name) {
@@ -529,6 +538,7 @@ bool program_vehicle_free(void* v) {
   else vehicle_delete(static_cast<BasicVehicle*>(v));                   // 0x004ac630(1)
   g_vehicles.erase(static_cast<Vehicle*>(v));     // its zEntity entry goes in the destructor
   g_order.erase(std::remove(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)), g_order.end());
+  if (g_w.forget_object) g_w.forget_object(g_w.engine, v);
   return true;
 }
 void program_vehicles_forget() { g_vehicles.clear(), g_order.clear(); }

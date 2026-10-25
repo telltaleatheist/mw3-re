@@ -1585,6 +1585,16 @@ WiredMissionHooks g_mission_hooks;
 
 }  // namespace
 
+void mission_ai_mech_forget(const void* mech, uint32_t handle) {
+  for (size_t i = 0; i < g_ai_mechs.size(); ++i) {
+    if (g_ai_mechs[i].mech != mech) continue;
+    g_ai_mechs.erase(g_ai_mechs.begin() + static_cast<std::ptrdiff_t>(i));
+    g_ai_names.erase(g_ai_names.begin() + static_cast<std::ptrdiff_t>(i));
+    break;
+  }
+  g_player_hooks.mechs.erase(handle);
+}
+
 const AiMechMade* mission_ai_mechs(int32_t* count) {
   for (size_t i = 0; i < g_ai_mechs.size(); ++i) g_ai_mechs[i].name = g_ai_names[i].c_str();
   if (count) *count = static_cast<int32_t>(g_ai_mechs.size());
@@ -1666,6 +1676,7 @@ void wire_mission_hooks(GameEngine* e) {
   };
   w.pilot = [](void* p) { return static_cast<GameEngine*>(p)->pilot(); };
   w.view = [](void* p) { return static_cast<GameEngine*>(p)->player_view(); };
+  w.forget_object = [](void* p, const void* o) { static_cast<GameEngine*>(p)->forget_object(o); };
   (void)en;
   wire_mech_build(&w);
   wire_sensors(&w, [](void* p, int32_t id) { return static_cast<GameEngine*>(p)->message(id); });

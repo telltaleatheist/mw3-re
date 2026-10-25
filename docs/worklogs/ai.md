@@ -1465,3 +1465,47 @@ is paused.
   renamed entity_enemies, the flag "friendly" renamed "hostile"
   (radar_hostile 0x4b4a30, radar_not_hostile 0x4b4a20) in weapon, hud,
   turret and the docs. I read the hook's name, not what it returned.
+
+## 2026-10-24 Item AI-last: the AI's last pieces (assigned by mw3 mac 1, after 4c merged as f734981)
+
+- From mw3 mac 1 (approved order: this, then the animation-owner registry,
+  then the radar contacts beyond mechs, mac 3's sign-off replaced by the
+  lead's review of app_hud.cpp, hooks and markers only): the order stack on
+  the formation net 0x4d8820 / 0x4d88a0 / 0x4d88d0 / 0x4d88f0, the IControls
+  events 0x4e95b0 / 0x4ea700, the switches 0x4ea740 / 0x4ea750; refresh
+  ai.md section 6; log the dead brain step 0x4cd7b0 as unported on purpose
+  with why. Same bar.
+- Done (docs only, the lead approved): the code part is unreachable or
+  empty (ai.md 17.9, Not ported on purpose); section 6 refreshed; the dead
+  brain step logged with why. Next on the same branch (the lead): the
+  entity-forget chain 0x4aa6b0, 0x4aa4d0, 0x4aeec0 and 0x4b0370 (ported in
+  weapon.cpp, the lead reviews it for mac 2); mech_dead's interim FIX (A)
+  removed with its fixes.md / CHANGES.md rows; a headless test that a
+  wreck is freed when the exe frees it with nothing left holding it
+  (contacts, targets, a lancemate's target, a weapon's lock); any port-side
+  holder still pointing at it reported, not papered over. Related set with
+  test_weapons_run, test_weapons_fly (background, ~26 min), test_tag.
+- Forget chain done (mac 4): sensors.cpp entities_forget 0x4aa6b0 and
+  forget_entity 0x4aa4d0; the program's vt+0xd4 by class (app_sensors;
+  program_mech_forget / program_vehicle_forget = 0x4aeec0, with the
+  weapons' already-ported 0x4b0370 forget_target, unchanged in weapon.cpp).
+  The program's weapons had no target_key (vt+0x24): wired (itself), so a
+  lock remembers its entity as in the exe. mech_dead's interim FIX (A)
+  gone (no rows of its own in fixes.md / CHANGES.md: its note said so); the
+  wreck freed through mech_free. FIX (bug): the attackers (+0x664) naming
+  the wreck (was fixes.md's "still to fix" entry), the forget's unfreed
+  contacts. The targets.zrd objects are not told (not on zEntity's list in
+  the exe either). Port-side holders still pointing at a freed wreck: the
+  mission's AI mech list g_ai_mechs (the valves' target_find by name) and
+  the engine's handle table (handles_ keeps the pointer; a new object at
+  that address would get the old handle). Reported, not changed. 14 of 15
+  breaks (the null contact case not observable).
+- Lead's review (held): the two port-side holders fixed on the branch.
+  mech_free drops the mech from g_ai_mechs / g_ai_names and the player
+  hooks' mech set (mission_ai_mech_forget); GameEngine::forget_object on a
+  mech, vehicle or turret freed (FIX (A): the exe has no handle table, it
+  passes raw pointers). The other registries checked: app_vehicle's
+  g_vehicles / g_order and app_turret's g_turrets / g_locks already drop
+  theirs; app_mech's mech_objects too; app_turret's g_places is keyed by
+  handle and holds copies (no pointer). The c1m4 test shows both (the
+  name finds nothing, the old handle answers null).

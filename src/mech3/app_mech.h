@@ -25,6 +25,7 @@ struct MechWiring {
   uint32_t (*vcall)(void* e, uint32_t obj, uint32_t slot, std::initializer_list<zgame::Arg> args) = nullptr;
   uint32_t (*pilot)(void* e) = nullptr;   // [0x0060861c]
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
+  void (*forget_object)(void* e, const void* p) = nullptr;  // an object freed: its handle forgotten (FIX (A))
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 // The pocket commander's program side (app_pocket.cpp), from wire_mech_build;
@@ -221,6 +222,11 @@ void mech_aim_at_last_hit(void* mech);
 void mech_lead_velocity(void* mech, float out[3]);
 void mech_matrix(void* mech, float m[9]);
 void mech_target_position(void* mech, float out[3]);
+void program_mech_forget(void* mech, uint32_t self, uint32_t x);
+bool program_mech_lock_on(void* mech, void* target);                 // for the tests
+std::vector<std::string> program_holders_of(uint32_t x, const void* gone);  // for the tests: who still holds it
+void program_mech_set_attacker(void* mech, void* attacker);  // for the tests
+void program_mech_wreck_gone(void* mech);                            // for the tests: 0x0041e140's delete  // vt+0xd4 0x004aeec0 (with the attacker FIX)
 bool program_mech_kill_credit(void* killer, void* victim);  // a mech killer's 0x0041b420; false: not a mech
 bool program_entity_zones(const void* e, uint8_t out[4]);  // a mech's or vehicle's +0x64; false: neither
 void* wm_group_weapon(void* wm);
@@ -296,6 +302,8 @@ struct AiMechMade {
   const char* name = nullptr;  // the aiv.zrd record's
 };
 const AiMechMade* mission_ai_mechs(int32_t* count);
+// A mech freed: off the AI mechs made (their names, for the valves' lookups) and the player hooks' set.
+void mission_ai_mech_forget(const void* mech, uint32_t handle);
 // The mission's objectives as the program read them (mech_objective.h), and
 // the hooks it gives them.
 struct Objectives;

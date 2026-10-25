@@ -403,6 +403,10 @@ class GameEngine : public Engine {
   void shadows_reset() override;                // 0x004e6900: mech_shade
 
   Handle handle_of(void* p);  // a 32-bit handle for a port object (0 for null)
+  // FIX (A): the handles are ours (the exe passes raw pointers); an object
+  // freed in play forgets its handle, so the old one answers null and a new
+  // object at that address gets a new one (docs/fixes.md).
+  void forget_object(const void* p);
   void* object_of(Handle h) const;
 
   const Platform& platform_parts() const { return p_; }

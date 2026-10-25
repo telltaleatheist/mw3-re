@@ -23,7 +23,6 @@ struct DeadCalls {
   void (*set_opacity)(Handle node, float v) = nullptr;         // 0x004fba20
   void (*ia_tally)(int32_t field, int32_t kills) = nullptr;   // the instant action game's +0x4c / +0x50 / +0x54
   void (*sensors_forget)(Mech& m) = nullptr;              // 0x004aa6b0
-  bool sensors_forgets = false;  // set when sensors_forget is the port (the AI's side), not a log
   void (*free)(Mech& m) = nullptr;                        // vt+0 (1): mech_delete
   // Test hooks; unset run the port: 0x00419ef0, and its 0x004162c0,
   // 0x005a8000, 0x00413cb0.

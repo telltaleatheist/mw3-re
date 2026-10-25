@@ -102,14 +102,8 @@ void dead_hide(Mech& m, bool show) {
       m.x3f4[0] = 0;
     }
   }
-  if (g_calls.sensors_forget) g_calls.sensors_forget(m);
-  // FIX (A), interim: the exe deletes the wreck here, after 0x004aa6b0 has
-  // every other vehicle drop it (targets, contacts, weapon locks, the
-  // brains: 0x004aa4d0, 0x004aeec0, the AI's). Until that is ported the
-  // wreck stays, hidden and off the dead list, and goes with the mission's
-  // cleanup, so nothing is left holding a freed mech. Not in CHANGES.md: the
-  // free comes back with the AI.
-  if (g_calls.free && g_calls.sensors_forgets) g_calls.free(m);
+  if (g_calls.sensors_forget) g_calls.sensors_forget(m);  // 0x004aa6b0: every vehicle drops it
+  if (g_calls.free) g_calls.free(m);
 }
 
 // Mech3.exe 1.2 @ 0x00419ef0: a dead mech's frame. No impulse; while still,
