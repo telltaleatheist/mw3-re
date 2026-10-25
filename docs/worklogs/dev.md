@@ -221,3 +221,20 @@ is in `README.md`.
   mission_c1m1_player_destroys_an_srm_turret_headless; break (no hit
   callback set): health stays 1.000, both fail.
 - Asked the lead for Owen's case (turret, weapon, what he saw).
+
+## Playtest #26: F12's objectives box has no text (2026-10-25)
+
+- Assigned (lead): F12 opens the objectives box with no text; its filler
+  0x446ad0 (HudObjectives, from show_for 0x446820) is unported. Branch
+  mac4/playtest-objbox off main 6ba7b85.
+- Ported 0x446ad0 (HudObjectives::fill) with 0x446930 (its vt+0x7c, a blank
+  score per line: without it the "In Progress" column sat beside the
+  header), 0x446970, 0x446a20 and 0x45e080 (the "  OP: <nav>" suffix).
+  ProgramHudHooks::objectives_source gives mission_objectives(), +0x56,
+  the campaign's operation and mission; nav names and keys' names too. The
+  objective hooks now give the cockpit (program_mech_hud) and refill the
+  box on a completion (0x45e110). Screenshot via the new dev option
+  `build/mw3 --objectives N`.
+- Test mission_c1m1_objectives_box_text_headless; breaks: no fill (no
+  lines), no blank score (columns differ). FIX (bug): the texts go in as
+  "%s" arguments (fixes.md; no shipped text has a '%').

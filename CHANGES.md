@@ -313,7 +313,7 @@ unusual happens.
 - A mission without an AI boundary (a multiplayer game, or a map without one) played after a campaign mission no longer leaves the AI using the previous mission's freed boundary.
 - A modded map whose boundary names a mission past its operation's last no longer writes past the game's list of boundaries; that one is ignored.
 - An AI pilot at a broken (NaN) position no longer reads leftover memory when the boundary looks for the way out.
-
+- An objective's text can no longer garble the objectives box: the original used each objective's text as a formatting pattern, so a '%' in it would have printed garbage or crashed. No text in the game has one, so nothing you see changes.
 
 ## Copy protection removed
 

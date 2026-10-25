@@ -16,6 +16,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/window.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -437,6 +438,22 @@ struct ProgramHudHooks : HudHooks {
     const zutl::Messages& ms = zutl::messages();
     const char* t = ms.get_text ? ms.get_text(id) : nullptr;
     return t ? t : "";
+  }
+  // The objectives box (0x00446ad0): the mission's objectives and game.
+  ObjectivesSource objectives_source() override {
+    ObjectivesSource s;
+    s.objectives = &mission_objectives();
+    s.aborting = mission_aborting();
+    s.game_type = mission_game_type();
+    s.operation = mission_operation();
+    s.mission = mission_number_of_game();
+    return s;
+  }
+  const char* nav_name(uint32_t nav) override { return mission_nav_name(nav); }
+  std::string command_key(int32_t cmd) override {  // 0x0051d200, 0x0051d330
+    char name[0x28] = {};
+    zin::key_name(zin::key1_of(cmd), name, sizeof name);
+    return name;
   }
   bool mech_remote(void* m) override { return mech_of(m)->remote; }
   // vt+0xa4 (0x0041df30): the player's pilot's name (program_pilot_name,
@@ -902,6 +919,36 @@ bool program_hud_target(void* mech, int mode) {
 void program_hud_draw3d(float dt) {
   Mech* m = static_cast<Mech*>(program_view_target());
   if (Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr) h->draw3d(dt);
+}
+
+bool program_hud_objectives(HudObjectivesReport* r) {
+  Mech* t = static_cast<Mech*>(program_view_target());
+  Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr;
+  if (!h) return false;
+  HudObjectives& o = h->objectives;
+  *r = HudObjectivesReport{};
+  for (size_t i = 0; i < o.lines.size(); ++i)
+    if (!(o.lines[i].flags & ztwod::kHidden)) r->lines.push_back(o.lines[i].text);
+  for (size_t i = 0; i < o.scores.lines.size(); ++i)
+    if (!(o.scores.lines[i].flags & ztwod::kHidden)) r->scores.push_back(o.scores.lines[i].text);
+  r->shown = !(o.flags & ztwod::kHidden);
+  r->panel_height = o.panel.rect.bottom - o.panel.rect.top;
+  r->line_height = o.text_height();
+  return true;
+}
+void program_hud_objectives_toggle() {
+  Mech* t = static_cast<Mech*>(program_view_target());
+  Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr;
+  if (!h) return;
+  if (h->objectives.flags & ztwod::kHidden) h->objectives.show_for(-1.0f);
+  else h->objectives.hide();
+}
+void* program_mech_hud(void* mech) {
+  Mech* m = static_cast<Mech*>(mech);
+  return m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+}
+void program_hud_objectives_fill(void* hud) {
+  if (hud) static_cast<Hud*>(hud)->objectives.fill();
 }
 
 bool program_hud_aim(int32_t reticle[2], float point[3], bool* hit) {

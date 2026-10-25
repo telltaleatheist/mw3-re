@@ -1353,9 +1353,14 @@ struct WiredObjectiveHooks : ObjectiveHooks {
   void hud_message_line(float seconds, const char* text) override {
     if (message_panel()) message_panel_add_for(seconds, "%s", text ? text : "");
   }
-  // As the mission's cockpit test: [0x005f4c8c]+0x64; the screen (0x00430aa0)
-  // and its objectives box (0x00446ad0) stay the HUD's, unported.
+  // As the mission's cockpit test: [0x005f4c8c]+0x64; the screen (0x00430aa0
+  // on its +0x684) and its objectives box refilled (0x00446ad0 on +0x17964).
   Handle view_vehicle() override { return e->field32(e->peek32(0x5f4c8c), 0x64); }
+  Handle mech_screen(Handle vehicle) override {
+    void* hud = program_mech_hud(e->object_of(vehicle));
+    return hud ? e->handle_of(hud) : 0;
+  }
+  void objectives_box_reset(Handle screen) override { program_hud_objectives_fill(e->object_of(screen)); }
   ObjectiveGroup* group(Handle h) const { return static_cast<ObjectiveGroup*>(e->object_of(h)); }
   // The groups' handles into the missions object's +0x7c..+0x88.
   void sync() {
@@ -1958,6 +1963,21 @@ Objectives& mission_objectives() { return g_objective_hooks.objs; }
 ObjectiveHooks& mission_objective_hooks() { return g_objective_hooks; }
 void* mission_sun() { return missions().world.sun ? missions().world.sun->node : nullptr; }
 int mission_game_type() { return g_mission_engine ? g_mission_engine->launch().type : 0; }
+uint8_t mission_aborting() { return missions().aborting; }
+// The campaign's vt+0x48 and vt+0x4c (0x00437870, 0x00437880), else the launch's.
+int32_t mission_operation() {
+  if (!g_mission_engine) return 0;
+  const CampaignGame* c = launch_campaign(g_mission_engine);
+  return c ? c->operation() : g_mission_engine->launch().op;
+}
+int32_t mission_number_of_game() {
+  if (!g_mission_engine) return 0;
+  const CampaignGame* c = launch_campaign(g_mission_engine);
+  return c ? c->mission_number() : g_mission_engine->launch().number;
+}
+const char* mission_nav_name(uint32_t nav) {
+  return program_nav_name(g_mission_engine ? g_mission_engine->object_of(nav) : nullptr);
+}
 
 void wire_mission_hooks(GameEngine* e) {
   g_mission_hooks.e = e;

@@ -1054,8 +1054,8 @@ Ported in `hud.cpp` (`HudZoomWindow::toggle_lock`, `HudRadar::toggle_zoom`
 / `toggle_map` / `select_map`, `HudMfd::set_mode` / `cycle_mode`) and
 `mech_command.cpp` (the pick, the target set). The mission maps' list
 (0x00458590) is not ported: the program answers none (recorded), so
-Shift+R turns itself back off. F12's box shows without its text: its
-fill 0x00446ad0 (the objectives' lines) is still Left.
+Shift+R turns itself back off. F12's box's text (0x00446ad0) is section
+24.
 
 Tests: `test_hud.py` ops 34..38 (keypad 0's lock, R, D, Ctrl+D, Shift+R
 on the HUD in the emulator, with pixel doubling, the maps' answers and
@@ -1257,3 +1257,66 @@ device only. mission_c1m1_hud_zoom_drawn_headless: the zoom locked open
 (keypad 0), drawn each frame with one depth fill (c1m1's is a box), the
 camera at the player camera's place, the text "[range = 69.8m]".
 
+## 24. The objectives box's text (0x00446ad0, playtest #26)
+
+F12 (and any show, 0x00446820) refills the box from the missions object
+([0x006098d0]) and the pilot's game ([0x0060861c]+0x6c); so does an
+objective's completion while the player's mech is the view's (0x0045e110 on
+the cockpit's +0x17964). The box (0x4c8 bytes of text lines) has a second
+text box beside it, the scores column at +0x104 (+0x5d4): its own vt+0x7c
+(0x00446930) writes a line and a blank score, so the columns stay in step.
+In order, with the line count kept for the panel:
+
+- **Header**: the mission's `desc` (+0x78); else by game type: 1
+  "Operation %1, Mission %2" (0x177, the game's vt+0x48 / vt+0x4c), 2 the
+  Instant Action line (0x231 with its name, 0x232 without), 3 "Network Game
+  Scores" and its columns (0xdd5, 0xdd6, in rt_mp_scores, which stays the
+  box's font), 4 "T R A I N I N G %1" (0x233).
+- **Primary** (+0x7c), when it has conditions: the group's text (its
+  default "Primary Objectives", 0x16d), else 0x235 in training, 0x236
+  (with the operation and mission) outside Instant Action. Then each
+  visible condition with a text, split on new lines: its first line by
+  0x00446970 ("Completed" 0x22f or "In Progress" 0x230 in the score column,
+  both in rtobjective_complete / _incomplete), the rest by 0x00446a20 (a
+  blank score). The text is 0x0045e080: the description, two spaces and
+  "OP: <nav point>" (0x200) when the condition names one, cut to 63
+  characters.
+- **Secondary** (+0x80): its text or 0x237, then its conditions.
+- **Final** (+0x84, only once the primary group is done, 0x0048fab0): its
+  text or an empty line, then its conditions.
+- **Failed** (+0x88, only once the fail group is done, 0x0048fad0; not in
+  multiplayer): an empty line, its text or 0x238, then each failed visible
+  condition (no score).
+- **The end**: multiplayer's score lines (unported, 0x004361e0); else, lost
+  (+0x56): an empty line, "M I S S I O N  F A I L U R E" (0x239) and "Press
+  %1 To Exit Mission Area" (0x23a, Exit Mission's key, command 0x71); else,
+  when every primary and final condition is done (visible or not, a
+  mission without them included): the same with "M I S S I O N  C O M P L E
+  T E" (0x23b). Last "Press %1 To Close Objectives Display" (0x23c, command
+  0x43's key).
+- The panel: 320 wide, the line count times the box's text height
+  (0x005a1380) tall (0x0043ab10).
+
+Quirks kept: the loss adds four to the count for its three lines, so the
+panel is a line taller. The exe hands each condition's text to the line as
+its format (with nothing behind it on the stack), so a '%' in a text would
+read garbage; the port passes the text as the format's argument (FIX (bug),
+fixes.md). No shipped text has one: every objectives.zrd `desc` is a
+message key, and the messages with a '%' that objectives use (0x261,
+0xdb1, 0xde0) are formatted before they become the text.
+
+In the program `ProgramHudHooks` gives the mission's objectives
+(`mission_objectives()`), +0x56, the launch's campaign's operation and
+mission, the nav points' names and the keys' names (zInput's 0x0051d200 /
+0x0051d330); the objective hooks give the cockpit (`program_mech_hud`) and
+its refill. Instant Action's and training's names and multiplayer's scores
+are not wired (no such launch yet).
+
+Test: `mission_c1m1_objectives_box_text_headless` (F12 on c1m1: "Operation
+1, Mission 1", "Primary Objectives", "Take Com. Center Offline  OP: Able"
+and "Destroy Fixed Emplacements" In Progress, "Press F12 To Close
+Objectives Display"; the four SRM emplacements killed, the second reads
+Completed while the box is open; F12 again hides it). Break: without the
+fill no line; without 0x00446930's blank score the columns differ.
+`build/mw3 --mission c1m1 --objectives N` (ours) opens the box from the
+N-th frame, for a screenshot.
