@@ -13,6 +13,7 @@
 #include "mech3/mech_hud.h"
 #include "mech3/mech_lod.h"
 #include "mech3/mech_parts.h"
+#include "mech3/pocket_panel.h"
 
 #include <cmath>
 
@@ -137,9 +138,23 @@ struct ProgramSensors : ai::SensorHooks {
         case 0xd0: return 1;                            // 0x004d7210
         default: return 0;
       }
+    } else if (const PocketMarker* k = program_pocket_marker(o)) {  // a plain AiTarget, 0x005ccfe0
+      switch (slot) {
+        case 0x24: case 0x28: case 0x2c: return o;    // 0x004d2a70
+        case 0x40: case 0x50: case 0xa0: return 0;    // 0x0040bae0
+        case 0xb4: return 0;                          // 0x004d7290
+        case 0xc8: return 0;                          // the empty 0x005ac5c0
+        case 0xcc: return k->active;                  // 0x004d7200: +0x08
+        case 0xd0: return 1;                          // 0x004d7210
+        default: break;  // vt+0x1c (0x005a85a0) logged; +0xec and on are past its vtable
+      }
     } else if (slot == 0x54) {  // the controls' brain (IControls vt+0x54)
-      for (zgame::Handle e : ai::entity_list()) {
-        Mech* m = mech(e);
+      // By the AI mechs made, not zEntity's list: the entity sort asks this
+      // while that list is mid-sort, an entry moved out of it.
+      int32_t n = 0;
+      const AiMechMade* made = mission_ai_mechs(&n);
+      for (int32_t i = 0; i < n; ++i) {
+        Mech* m = static_cast<Mech*>(made[i].mech);
         if (m && handle(m->controls) == o) return handle(brain_of(m));
       }
       if (void* b = program_vehicle_brain(object(o))) return handle(b);

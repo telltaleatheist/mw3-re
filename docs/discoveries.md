@@ -834,6 +834,21 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   mission's own mech and loadout. From the next mission on they are kept
   by the campaign, with whatever you give them in the mech lab, and each
   mission's file only says where they start and what orders they follow.
+- **Your lancemates walk your route, not the mission's.** Every other AI
+  mech follows a numbered path from the mission file. A lancemate from your
+  roster is made at launch on your own mech's "net" instead: everything it
+  does is built around you (follow, attack your target, its own orders),
+  and the path number in its mission entry is never used.
+- **Lancemates are matched to their mission entries by position.** The
+  mission file's first lancemate entry goes to your first lancemate slot,
+  the second to the second, whoever the entries name: the slot keeps its
+  own mech and loadout and only takes the entry's start point, orders and
+  triggers. A slot past the mission's number of lancemate entries sits the
+  mission out.
+- **An empty lancemate slot hands you its job.** Leave a slot without a mech
+  in the mech lab and its mission entry's place triggers become yours, as
+  when a lancemate dies, so the mission still moves on when you reach
+  those places.
 - **An enemy mech without an AI path is never made.** A mech whose path
   number has no path file is skipped at mission start ("no mech net"),
   while a vehicle without one is made but has no driver. Every shipped

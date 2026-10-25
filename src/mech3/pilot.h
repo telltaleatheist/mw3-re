@@ -184,13 +184,18 @@ class CampaignGame : public Game {
   CampaignGame* next_mission(bool next, bool save = true);  // vt+0x24  0x00434e00
   GameSlot* slot_at(int32_t i);      // vt+0x34  0x00435110: 0 the player's, then the lancemates
   int32_t slot_count() const;        // vt+0x38  0x00435180 (vt+0x3c 0x00437820 the same)
+  // The mission start's lancemate i (player_setup): appended when it is the
+  // next, else the slot there keeps its mech and loadout and takes only the
+  // new one's record index (+0x14), and the new one is deleted.
+  void set_lancemate(int32_t i, GameSlot* s);  // 0x004351c0
+  void set_lancemate_count(int32_t n) { x9c = n; }  // 0x00435230
   void reset_lancemates(bool del);   // 0x00435240
   void copy_lancemates(const CampaignGame& from);  // 0x00434300
 
   uint8_t b38 = 0;                   // +0x38
   Store store3c, store50, store64, store78;  // +0x3c, +0x50, +0x64, +0x78
   std::vector<GameSlot*> lancemates; // +0x90 (+0x8c its allocator byte)
-  int32_t x9c = 0;                   // +0x9c  (never set by the constructors)
+  int32_t x9c = 0;                   // +0x9c  the mission's lancemates (0x00435230; never set by the constructors)
   int32_t mission = 0;               // +0xa0
   int32_t campaign = 0;              // +0xa4  the operation, 1..4
   int32_t a8 = 3;                    // +0xa8  set to +0xac on loading

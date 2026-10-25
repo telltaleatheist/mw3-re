@@ -1,6 +1,7 @@
 """The mission start's vehicles against the original (docs/mission-start.md):
 player.cpp's 0x49e810 with the builders it reaches (0x49fce0, 0x49fa20,
-0x49f800, 0x49f8a0, 0x49fe90, 0x49ff10) and the player's tick 0x4a1160.
+0x49f800, 0x49f8a0, 0x49fe90, 0x49ff10), the player's tick 0x4a1160 and the
+launch's lancemates 0x49e5e0 with 0x49e540.
 
 Orchestration: every call out of player.cpp is stubbed in the emulator and a
 hook in the port, both answered from one script, and the call traces (strings
@@ -11,7 +12,11 @@ the ported reader (test_ai_readers.py checks it against the exe), from every
 mission's archive, then changed at random: mechs, teams, flags, skins,
 configurations, nets, names (long ones, suffixes, no '_'). The engine's
 answers (nets, controllers, mechs, vehicles, placements, reader nodes,
-definitions) succeed or fail at random. Load-time code: the x87 at 53 bits.
+definitions) succeed or fail at random. The launch's campaign has 0 to 3
+lancemate slots (their count off by one at times, a slot missing, a slot
+without a mech, a record that fails to read), the player's slot a paint (in
+range or not) and the player a vehicle net or none, controls or none, and
+settings or none. Load-time code: the x87 at 53 bits.
 
     cmake --build build && .venv/bin/python tests/differential/test_mission_start.py [cases]
 """
@@ -28,7 +33,7 @@ from calltrace import ROOT, Emu, Trace, compare, load_probe  # noqa: E402
 from test_mission_load import c_format  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
-SETUP, TICK = 0x49e810, 0x4a1160
+SETUP, TICK, LAUNCH = 0x49e810, 0x4a1160, 0x49e5e0
 PILOT, VIEW, STEALTH, FRAME_DT = 0x60861c, 0x5f4c8c, 0x609a2c, 0x72c52c
 GLOBALS = [(0x5ea1d0, 4), (0x609a00, 4), (0x609a14, 4), (0x609a0c, 4), (0x609a10, 4), (0x60b56c, 1),
            (0x5e8110, 4), (0x5e8114, 4)]
@@ -46,7 +51,10 @@ CALLS = {
     0x4e71c0: 'c,s0,s1,s2,s3', 0x414150: 'c,d,s0,zs1', 0x41e9a0: 'c', 0x414390: 'c,s0', 0x4161c0: 'c,s0,s1',
     0x41cc30: 'c,s0', 0x4589d0: 'c,zd,zs0', 0x4ac320: 'c,zd,zs0', 0x5a84c0: 'c,zs0', 0x49f660: 'c',
     0x5833b0: 'c,d,s0,s1', 0x5a85c0: 'c', 0x4a1140: 's0', 0x41e3f0: 's0', 0x537f20: 'c', 0x41aba0: 'c,s0',
+    0x414430: 'c,s0', 0x49e4e0: 'c,s0',
 }
+LAUNCH_SEEN = {'0x00414150': 'mechs made', '0x00414430': 'configured', '0x00414390': 'painted',
+               '0x0049e4e0': 'triggers taken'}
 _aiv_cache = {}
 
 
@@ -85,8 +93,8 @@ class World:
         w = self.w
         alloc = e.world_alloc
         # The pilot, its game, the player's vehicle, the view, the stealth entity.
-        game = e.object('game', slots={0x2c: ('', 0)})
-        pveh = e.object('pveh', slots={0x34: ('c,s0', 4)})
+        game = e.object('game', slots={0x2c: ('', 0), 0x34: ('s0', 4)})
+        pveh = e.object('pveh', 0x400, slots={0x34: ('c,s0', 4), 0xd8: ('c', 0)})
         self.pilot = alloc(0x100)
         w(self.pilot + 0x6c, game)
         w(self.pilot + 0x14, pveh)
@@ -97,7 +105,24 @@ class World:
         w(STEALTH, stealth)
         w(view + 0x64, stealth if case['view_on_stealth'] else pveh)
         w(FRAME_DT, case['dt'])
-        self.campaign = alloc(0x100) if case['campaign'] else 0
+        self.campaign = e.object('campaign', slots={0x34: ('c,s0', 4), 0x38: ('c', 0)}) if case['campaign'] else 0
+        # The launch's: the player's slot (its paint +0x10), the lancemate
+        # slots (+0x04 mech, +0x08 loadout, +0x14 record), the player's net,
+        # his controls (+0x37c, their IControls base) and settings.
+        self.pslot = alloc(0x18)
+        w(self.pslot + 0x10, case['paint'])
+        self.mates = []
+        for mech, index in case['mates']:
+            sl = alloc(0x18)
+            w(sl + 0x04, mech), w(sl + 0x08, alloc(16) if r.random() < 0.8 else 0), w(sl + 0x14, index)
+            self.mates.append(sl)
+        self.pnet = alloc(16) if case['pnet'] else 0
+        if case['pctl']:
+            ctl, vbt, vt = alloc(0x200), alloc(16), alloc(0x100)
+            w(ctl + 4, vbt), w(vbt + 4, 0xfc)
+            e.w32(vt + 0x90, e.new_stub('ictl.vt+0x90', 'c', 0))
+            w(ctl + 0x100, vt)
+            w(pveh + 0x37c, ctl)
         self.training = e.object('training', slots={0x34: ('c,s0', 4)}) if case['training'] else 0
         self.slot = alloc(0x40)
         # Reader trees: player.zrd's three nodes (item 1 a float), vehicle.zrd's defs.
@@ -122,9 +147,10 @@ class World:
             for obj, off in ((cfgs, 0xc), (skins, 4)):
                 n = r.randrange(0, 10)
                 if n and r.random() < 0.9:
-                    vec = alloc(4 * n)
+                    vec = alloc(4 * n + 4)
                     for k in range(n):
                         w(vec + 4 * k, 0 if r.random() < 0.1 else alloc(16))
+                    w(vec + 4 * n, 0x5a5a5a5a)  # past the end: read only by a bound off by one
                     w(obj + off, vec)
                     w(obj + off + 4, vec + 4 * n)
             self.dfns.append(dfn)
@@ -157,6 +183,10 @@ class World:
             w(o + 0x88, r.randrange(3))
             self.held.append(o)
         self.mechs = [e.object('mech', 0x700, slots={0: ('c,s0', 4), 0x34: ('c,s0', 4)}) for _ in range(64)]
+        for m in self.mechs:  # their data (+0x684) and its roster number (+0x0c)
+            d = alloc(0x20)
+            w(d + 0xc, r.randrange(19))
+            w(m + 0x684, d)
         self.vehicles = []
         for _ in range(64):
             v = e.object('veh', 0x400, slots={0xdc: ('c,s0,s1', 8), 0x158: ('c,s0,zs1,s2', 12)})
@@ -202,12 +232,18 @@ def make_script(case, world, rec_addr):
         (world.vehicle_tree if case['vehicle_zrd'] else 0),
         '0x005569e0': find,
         '0x004fb740': 0x7c00,
+        'game.vt+0x34': world.pslot,
+        'campaign.vt+0x38': case['mates_count'],
+        'campaign.vt+0x34': lambda n, a: world.mates[a[1] - 1] if 1 <= a[1] <= len(world.mates) and
+        a[1] - 1 not in case['mates_missing'] else 0,
+        'pveh.vt+0xd8': world.pnet,
         '0x00479440': world.campaign, '0x004794a0': world.training,
         'training.vt+0x34': world.slot,
         '0x004e0680': lambda n, a: int(any(nm == a[1] for nm, _ in recs)),
         '0x004e0600': lambda n, a: int(0 <= a[1] < len(recs) and a[1] not in case['read_fail']),
         '0x004decf0': case['count'],
-        '0x004846a0': lambda n, a: 0 if r(f'd{n}') < 0.1 else world.dfns[n % 4],
+        # A made mech always has its definition: the launch reads through a missing one.
+        '0x004846a0': lambda n, a: 0 if r(f'd{n}') < case['dfn_fail'] else world.dfns[n % 4],
         '0x0041e9a0': lambda n, a: world.dfns[(n + 1) % 4],
         '0x004845f0': mech_index,
         '0x0058b160': lambda n, a: world.netobj.get(a[0], 0),
@@ -327,6 +363,8 @@ def run_original(case, entry):
     try:
         if entry == 'setup':
             e.call(SETUP, ecx=case['full'])
+        elif entry == 'launch':
+            t.handle('ret', [e.call(LAUNCH) & 0xff])
         else:
             e.call(TICK)
     except Exception:
@@ -356,6 +394,8 @@ def run_rebuild(probe, case, entry, world, initial, rec_addr):
     probe.probe_player_set_globals((ctypes.c_uint32 * 8)(*initial))
     if entry == 'setup':
         probe.probe_player_setup(case['full'])
+    elif entry == 'launch':
+        t.handle('ret', [probe.probe_player_launch()])
     else:
         probe.probe_player_tick()
     g = (ctypes.c_uint32 * 8)()
@@ -417,13 +457,27 @@ def make_case(probe, seed, paths):
     block = Path(path).name[6:-4]
     default_type = 3 if block.startswith('mp') else 2 if block.startswith('ia') else 4 if 't1' in path else 1
     dt = r.choice([0.0, 0.033333335, 0.05, 1e-30, 0.2, float('nan')])
+    # The launch's lancemate slots: 0..3, a mech or none (-1), a record by index.
+    mates = [(r.choice([-1, r.randrange(19), r.randrange(19)]), r.randrange(-1, len(recs) + 2))
+             for _ in range(r.choice([0, 1, 2, 3, 3]))]
+    pctl = r.random() < 0.9
+    # The exe reads through a missing record when the player's settings take an
+    # empty slot's triggers (0x0049e4e0, FIX (bug)): not given to it.
+    read_fail = {i for i in range(len(recs)) if r.random() < 0.03}
+    if pctl:
+        read_fail -= {i for m, i in mates if m == -1}
+        mates = [(m, i) if m != -1 or 0 <= i < len(recs) else (m, r.randrange(len(recs))) for m, i in mates] \
+            if recs else [(m, i) for m, i in mates if m != -1]
     return {
         'seed': seed, 'path': path, 'records': recs, 'count': max(count, 0),
         'full': 1 if r.random() < 0.92 else 0,
         'type': default_type if r.random() < 0.8 else r.choice([-1, 0, 1, 2, 3, 4, 5]),
         'campaign': r.random() < 0.6, 'training': training,
         'gravity': gravity, 'types': types, 'vehicle_zrd': r.random() < 0.97,
-        'read_fail': {i for i in range(len(recs)) if r.random() < 0.03},
+        'read_fail': read_fail,
+        'mates': mates, 'mates_count': len(mates) + 1 + (r.choice([-1, 1]) if r.random() < 0.15 else 0),
+        'mates_missing': {i for i in range(len(mates)) if r.random() < 0.05},
+        'paint': r.choice([0, 0, 1, 2, 5, 9, -1, r.randrange(10)]), 'pnet': r.random() < 0.9, 'pctl': pctl,
         'net_rate': r.choice([0.0, 0.5, 0.9, 1.0]), 'fail': r.choice([0.0, 0.0, 0.1, 0.3]),
         'stealth': r.random() < 0.8, 'view_on_stealth': r.random() < 0.3,
         'dt': struct.unpack('<I', struct.pack('<f', dt))[0],
@@ -436,11 +490,13 @@ def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     paths = [p for p in archives() if shipped_records(probe, p)]
     calls = 0
+    seen = {'ran': 0, 'mechs made': 0, 'configured': 0, 'painted': 0, 'triggers taken': 0, 'duties refused': 0}
     for seed in range(count):
         case = make_case(probe, seed, paths)
         if not case['stealth'] and case['view_on_stealth']:
             case['view_on_stealth'] = False  # the exe would update a null stealth entity
-        for entry in ('setup', 'tick'):
+        for entry in ('setup', 'tick', 'launch'):
+            case['dfn_fail'] = 0.0 if entry == 'launch' else 0.1
             try:
                 log_a, glob_a, writes_a, world, initial, rec_addr = run_original(case, entry)
             except Exception:
@@ -462,7 +518,16 @@ def main():
                 print(f'{name}: memory written differs (address, original, rebuild): {diff[:12]}')
                 raise SystemExit(1)
             calls += len(log_a)
-    print(f'{count} cases x 2 entries, {calls} calls: the rebuilt mission start matches the original')
+            if entry == 'launch':
+                for k, v in log_a:
+                    if k == 'ret':
+                        seen['ran'] += v[0] == 1
+                    elif k == '0x0049bfd0' and v[2] in (0x186, 0x18a, 0x18e):
+                        seen['duties refused'] += 1
+                    elif k in LAUNCH_SEEN:
+                        seen[LAUNCH_SEEN[k]] += 1
+    print(f'{count} cases x 3 entries, {calls} calls: the rebuilt mission start matches the original')
+    print('  the launch: ' + ', '.join(f'{v} {k}' for k, v in seen.items()))
 
 
 if __name__ == '__main__':

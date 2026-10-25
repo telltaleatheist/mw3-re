@@ -3038,6 +3038,87 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
 // 600 Core frames, the player walking forward and firing, then every
 // unported call the run reached with its count (the c1m1 backlog,
 // docs/worklogs/game.md).
+// The command marker (cmd_target.flt) is a plain AiTarget (vtable 0x005ccfe0):
+// the sensors ask every entity its vt+0x2c and others each frame, and it
+// answers as the exe's does (itself, 0x004d2a70; +0x08 for vt+0xcc), none of
+// it logged as unported (the survey's 1,540 veh.vt+0x2c a run before).
+TEST(mission_c1m1_command_marker_answers_as_an_aitarget_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_marker_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    zgame::Handle marker = 0;
+    uint32_t answers[8] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 10) return;
+      marker = mech3::pocket_globals().marker;
+      mech3::ai::SensorHooks& h = mech3::ai::sensor_hooks();
+      const uint32_t slots[8] = {0x24, 0x28, 0x2c, 0x40, 0x50, 0xb4, 0xcc, 0xd0};
+      for (int k = 0; k < 8; ++k) answers[k] = h.vcall(marker, slots[k], {});
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    app.run(pump);
+    const auto& counts = engine.unported_counts();
+    EXPECT(marker != 0);
+    EXPECT(answers[0] == marker && answers[1] == marker && answers[2] == marker);
+    EXPECT(answers[3] == 0 && answers[4] == 0 && answers[5] == 0);
+    EXPECT(answers[6] == 0 && answers[7] == 1);  // inactive until the panel places it
+    EXPECT(counts.find("veh.vt+0x2c") == counts.end());
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_unported_survey_headless) {
   if (!have_game() || !std::getenv("MW3_SURVEY")) return;
   SavedMounts keep;
@@ -3829,6 +3910,166 @@ TEST(missions_c4b_m5_m6_fail_when_left_headless) {
 // firing. Then the player's hits on him for over 3 s turn him on the
 // player (0x004d5dc0): his enemies gain the player's team and his allies
 // lose it.
+// c2 mission 1 (docs/mission-start.md, the lancemates): Dominic's record says
+// can_configure, so the mission start makes him a slot of the campaign and
+// the launch makes his mech from it (0x0049e5e0) on the player's net; he is
+// in the command mode's panel and takes a lance order (0: on his contact on
+// the player, the follow).
+TEST(mission_c2m1_lancemate_made_from_his_slot_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_mate_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c2 mission 1: Dominic in the lance
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      void* dominic = nullptr;
+      void* player = nullptr;
+      mech3::ai::Brain* brain = nullptr;
+      zgame::Handle dv = 0, pv = 0;
+      int frames = 0, follows = 0, slots = 0, slot_record = -1, slot_mech = -2;
+      int64_t duties = -1, his_triggers = -1;
+      bool in_panel = false, picked = false, ordered = false;
+      float range = 0;
+    } seen;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        if (auto* c = static_cast<mech3::CampaignGame*>(mech3::program_launch_campaign())) {
+          seen.slots = c->slot_count();
+          if (mech3::GameSlot* s = c->slot_at(1)) seen.slot_record = s->x14, seen.slot_mech = s->mech;
+        }
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t i = 0; i < made; ++i)
+          if (ai[i].name && std::string(ai[i].name) == "Dominic_Paine") {
+            seen.dominic = ai[i].mech;
+            seen.brain = static_cast<mech3::AiControls*>(ai[i].controls)->brain.get();
+          }
+        seen.player = mech3::mech_mission_player();
+        if (!seen.dominic || !seen.player) return;
+        seen.dv = engine.handle_of(seen.dominic), seen.pv = engine.handle_of(seen.player);
+        // The mech lab's empty slot (-1): the launch hands its record's place
+        // triggers to the player's settings instead (0x0049e540 -> 0x0049e4e0).
+        auto* pc = dynamic_cast<mech3::PlayerControls*>(mech3::mech_controls(seen.player));
+        auto* c = static_cast<mech3::CampaignGame*>(mech3::program_launch_campaign());
+        if (mech3::GameSlot* s = pc && c ? c->slot_at(1) : nullptr) {
+          auto size = [](const std::list<mech3::ai::VListEntry>* v) { return v ? static_cast<int64_t>(v->size()) : 0; };
+          seen.his_triggers = 0;
+          if (const auto* v = seen.brain->params.vlist)
+            for (const mech3::ai::VListEntry& e : *v) seen.his_triggers += e.region != nullptr;
+          const int64_t before = size(pc->settings.vlist);
+          const int32_t mech = s->mech;
+          s->mech = -1;
+          mech3::program_launch_lancemates();
+          s->mech = mech;
+          seen.duties = size(pc->settings.vlist) - before;
+        }
+        if (const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(seen.pv)) seen.range = t->range;
+        // The player 40 m off Dominic: in sight, his contact on the player made.
+        mech3::LaunchedMech d;
+        mech3::describe_mech(seen.dominic, &d);
+        const float px = d.pos[0] - 40.0f, pz = d.pos[2];
+        const float at[3] = {px, ground_under(px, d.pos[1] + 100.0f, pz), pz};
+        mech3::move_mech(seen.player, at, 1.5707964f);
+        return;
+      }
+      if (!seen.dominic || !seen.brain) return;
+      mech3::MechControls* pc = mech3::mech_controls(seen.player);
+      mech3::PocketControls* pocket = pc ? pc->pocket() : nullptr;
+      if (seen.frames == 60) {
+        mech3::player_command(0x4f);  // the command mode
+      } else if (seen.frames == 62 && pocket) {
+        pocket->command(0x1b);  // the number key: lancemate 1
+        mech3::PocketUnit u[4];
+        const int32_t n = mech3::pocket_panel_units(*pocket, u, 4);
+        for (int32_t q = 0; q < n; ++q) {
+          const bool his = u[q].mech && engine.handle_of(u[q].mech) == seen.dv;
+          seen.in_panel |= his;
+          seen.picked |= his && u[q].picked;
+        }
+      } else if (seen.frames == 64 && pocket) {
+        mech3::player_command(0x52);  // lance order 0: on his contact on the player
+        mech3::ai::Brain& b = *seen.brain;
+        auto* fo = dynamic_cast<mech3::ai::FollowState*>(b.current().state.get());
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(b.current().net.get());
+        seen.ordered = fo && vp && vp->target && vp->target->vehicle == seen.pv;
+      } else if (seen.frames > 64) {
+        auto* vp = dynamic_cast<mech3::ai::VehiclePart*>(seen.brain->current().net.get());
+        if (vp && vp->target && vp->target->vehicle == seen.pv) ++seen.follows;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    app.run(pump);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "MATE slots %d record %d mech %d dominic %d brain %d range %g panel %d picked %d ordered %d follows %d of %d\n",
+                   seen.slots, seen.slot_record, seen.slot_mech, seen.dominic != nullptr, seen.brain != nullptr, seen.range,
+                   seen.in_panel, seen.picked, seen.ordered, seen.follows, seen.frames - 64);
+    if (std::getenv("MW3_LANCE_LOG"))
+      std::fprintf(stderr, "MATE duties %lld of %lld\n", static_cast<long long>(seen.duties),
+                   static_cast<long long>(seen.his_triggers));
+    EXPECT(seen.slots == 2 && seen.slot_mech >= 0 && seen.slot_record > 0);
+    EXPECT(seen.dominic && seen.brain);
+    EXPECT(seen.range == 1000.0f);  // a campaign's: the cap (0x004d6d20)
+    EXPECT(seen.in_panel && seen.picked);  // the panel lists those under orders (+0xbc bit 4) and up
+    EXPECT(seen.ordered && seen.follows == seen.frames - 64);  // and keeps it, every frame after
+    EXPECT(seen.his_triggers > 0 && seen.duties == seen.his_triggers);
+    EXPECT(engine.unported_counts().count("ictl.vt+0x90") == 0);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m4_pocket_commander_sends_dominic_to_a_spot_headless) {
   if (!have_game()) return;
   SavedMounts keep;

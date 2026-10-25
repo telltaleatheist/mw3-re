@@ -811,7 +811,7 @@ behaviours and the firing are not ported.
 
 **Who makes them.** player.cpp's AI mechs (0x49fa20 -> 0x49fe90:
 `new(0x320)`, 0x4d8750(owner 0, net, record, 1)), the campaign's lancemates
-at launch (0x49e5e0, the second caller 0x49e208) and the AI-driven vehicles
+at launch (0x49e5e0 through 0x49fa20 on the player's own net, the second caller 0x49e208) and the AI-driven vehicles
 (0x49f800 -> 0x49ff10: 0x4ac860(0xcd8), malloc and zeroed, 0x4e71c0). The
 net is the vehicle's compiled net (mission-start.md section 3).
 
@@ -875,7 +875,8 @@ stop, repairs, objective), kept as handles. Only when the player's vehicle
 masks) among its allies, or when there is no player's vehicle. At mission
 start there never is (the cleanup 0x491780 clears it, the launch sets it),
 so every voiced pilot made then gets a radio, enemies too; the lancemates
-made at launch (0x49e5e0) are checked against the player's mech.
+made at launch (0x49e5e0, ported: mission-start.md section 12) are checked
+against the player's mech.
 
 **Destruction** (IControls slot 0 with 1: 0x4d8bf0 / 0x4e7820): the brain's
 destructor 0x4cf630 (the objects at +0x23c and +0x238, the radio, the
@@ -2886,7 +2887,11 @@ Wired 2026-10-22: the mode works in play on the HUD.
   next is made.
 - **The AI on it**: the brain hooks take the marker as a target (its
   AiTarget, its node's place, up, still, health 100), so the orders on it
-  work as on a mech (its own net, the follow).
+  work as on a mech (its own net, the follow). The sensors ask it what any
+  entity is asked (2026-10-25, item 7): a plain AiTarget (vtable
+  0x5ccfe0) answers itself to vt+0x24 / +0x28 / +0x2c (0x4d2a70), 0 to
+  +0x40 / +0x50 / +0xa0 (0x40bae0) and +0xb4 (0x4d7290), +0x08 to +0xcc
+  (0x4d7200), 1 to +0xd0 (0x4d7210); its vtable ends at +0xe8.
 - **The picks**: the viewed mech's HUD (0x430aa0), its radar's map flag,
   the reticle's aim record (+0x928, its node) and spot (+0x8fc), the
   trigger (command 0x3d), a node's entity (0x40eee0), an entity's node and

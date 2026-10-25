@@ -141,6 +141,7 @@ struct PlayerControls : MechControls {
 // 0x0049e540 -> 0x0049e4e0 (the AI controls' death): a dead pilot's region
 // triggers go to the player's settings when it was on his side.
 void player_takes_triggers(const ai::AiParams& dead);
+void take_triggers(ai::AiParams& to, const ai::AiParams& dead);  // 0x0049e4e0
 
 struct AiControls : MechControls, ai::BrainControls {
   AiControls() = default;

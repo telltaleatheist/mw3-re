@@ -1704,3 +1704,40 @@ is paused.
   0x5bb8d0) are the editor's reload of a version-105 net; no shipped net
   file is 105 (the header reads a "mech3" 105 as 106), so they never run.
   ai.md 9 and 17.9's Not ported on purpose, 7 symbols rows.
+
+## Item 7: the campaign's lancemates at launch (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/lancemates off main. Port 0x49e5e0
+  with 0x49e540 and the launch's sensor range 0x4d6d20, wired into
+  mission_launch for game type 1; fold in the command marker's vcall
+  answers (the plain AiTarget 0x5ccfe0, as the exe) with its own small
+  check. Allies as the original (no engage change). Tests: a differential
+  of the three over pilot cards with 0..3 lancemates, missing mechs and an
+  IA/MP player (50000); breaks; a headless campaign mission with a
+  lancemate slot filled (the mech made, its AI controls on, in the pocket
+  panel, taking a lance order). Discoveries for players (the 1000 m cap).
+- Found before starting: player_setup's slot hooks (0x433cc0, 0x4351c0,
+  0x435230, the slot's +0x14) are unwired in the program too, so no
+  campaign has lancemate slots there; 0x4351c0 / 0x435230 are not ported.
+  0x4d6d20 is ported (AiTarget::set_sensor_range) but caps a NaN range,
+  which the exe keeps (C0|C3).
+- Item 7 done (mac 4): `launch_lancemates` 0x49e5e0 and `assume_duties`
+  0x49e540 (player.cpp), `take_triggers` 0x49e4e0 split out (mech_control),
+  `CampaignGame::set_lancemate` 0x4351c0 / `set_lancemate_count` 0x435230;
+  0x4d6d20 keeps a NaN now. The program wires player_setup's slots to the
+  campaign's GameSlots (the menus' pilot's, else a debug start's own), the
+  launch's lancemates and sensor range, the player's settings (vt+0x90),
+  TargetHooks vt+0x50 / +0x58, and the command marker's vcall answers.
+  Tests: test_mission_start's third entry (the launch), test_pilot's ops h
+  and k, test_ai_targets with NaN, mw3tests c2m1 lancemate (made, brain,
+  panel, order 0 followed; the empty slot's 9 triggers to the player) and
+  c1m1 marker; 21 of 21 breaks. Docs: mission-start.md 12, ai.md, mech-build,
+  fixes (2 rows), CHANGES (1 line), symbols, 3 discoveries.
+- Found by the full suite (placements on every campaign mission, crash at
+  c2 mission 4, found with an ASan build): the program's IControls vt+0x54
+  stand-in (the controls' brain) looked the mech up in zEntity's list, which
+  the entity sort asks it about while the list is mid-sort. With two
+  brained lancemates (Dominic from his slot, Epona a plain ally) the
+  comparator's answer changed between calls and the exe's unguarded
+  insertion read before the list. Fixed in app_sensors.cpp: by the AI mechs
+  made.

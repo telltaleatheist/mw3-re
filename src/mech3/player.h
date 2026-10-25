@@ -42,6 +42,11 @@ class PlayerHooks : public zgame::Unported {
   virtual Handle lancemate_init(Handle mem, int32_t mech) { return unported("0x00433cc0", {mem, mech, 0, 0}); }
   virtual void campaign_set_lancemate(Handle c, int32_t i, Handle slot) { unported("0x004351c0", {c, i, slot}); }
   virtual void campaign_set_lancemates(Handle c, int32_t n) { unported("0x00435230", {c, n}); }
+  // The launch's (0x0049e5e0): the pilot's game's slot i (vt+0x34; 0 the
+  // player's), the campaign's slots (vt+0x34) and their count (vt+0x38).
+  virtual Handle game_slot(int32_t i) { return unported("game.vt+0x34", {i}); }
+  virtual Handle campaign_slot(Handle c, int32_t i) { return unported("campaign.vt+0x34", {c, i}); }
+  virtual int32_t campaign_slot_count(Handle c) { return static_cast<int32_t>(unported("campaign.vt+0x38", {c})); }
   // aiv.zrd (mech3/zrdraiv): the record object's reads, and the file's count.
   virtual ai::AivRecord* aiv_read_named(ai::AivRecord& rec, const char* name);  // 0x004e0680
   virtual ai::AivRecord* aiv_read(ai::AivRecord& rec, int32_t i, const char** name);  // 0x004e0600
@@ -81,6 +86,9 @@ class PlayerHooks : public zgame::Unported {
     return unported("0x00414150", {mech, ctl, skin, name});
   }
   virtual void mech_set_skin(Handle mech, Handle skin) { unported("0x00414390", {mech, skin}); }
+  virtual void mech_set_config(Handle mech, Handle config) { unported("0x00414430", {mech, config}); }
+  // Silent: the mech's roster number, [[mech +0x684] +0x0c].
+  virtual int32_t mech_roster(Handle mech) { return static_cast<int32_t>(field32(field32(mech, 0x684), 0x0c)); }
   virtual int32_t mech_place(Handle mech, const ai::AivRecord* rec) {  // (x y z), yaw
     return static_cast<int32_t>(unported("0x004161c0", {mech, rec_handle(rec) + 8, rec_yaw(rec)}));
   }
@@ -108,6 +116,18 @@ class PlayerHooks : public zgame::Unported {
   virtual void vehicle_49f660(Handle v) { unported("0x0049f660", {v}); }
   virtual void vehicle_touch(Handle v, Handle node) { unported("0x005833b0", {v, node, 1, 0x4af550}); }
   virtual void vehicle_5a85c0(Handle v) { unported("0x005a85c0", {v}); }
+  // A vehicle's own net (vt+0xd8, 0x004d70f0: ai::vehicle_net_of), the
+  // lancemates'.
+  virtual Handle vehicle_net(Handle v) { return unported("pveh.vt+0xd8", {v}); }
+  // Silent: a vehicle's controls (+0x37c) as their IControls virtual base.
+  virtual Handle vehicle_controls(Handle v) {
+    const Handle c = field32(v, 0x37c);
+    return c ? c + 4 + field32(field32(c, 4), 4) : 0;
+  }
+  // 0x0049e4e0 (ECX the player's settings): the record's region triggers to them.
+  virtual void take_triggers(Handle settings, const ai::AivRecord* rec) {
+    unported("0x0049e4e0", {settings, rec_handle(rec)});
+  }
   // zError's report, the message formatted.
   virtual void report(int32_t level, int32_t line, const char* text) {
     unported("0x0049bfd0", {level, "C:\\zipper\\Mech3\\player.cpp", line, text});
@@ -161,6 +181,11 @@ Handle create_ai_mech(const char* type, const char* name, int32_t mech, ai::AivR
 int32_t create_controlled_vehicle(Handle def, const char* type, const char* name, ai::AivRecord* rec);        // 0x0049f800
 int32_t create_basic_vehicle(Handle def, ai::AivRecord* rec, const char* type, const char* name, Handle ctl,
                              Handle* out);                                                                   // 0x0049f8a0
+// The campaign's lancemates' mechs from their slots, on the player's own
+// net, each with its slot's loadout and the player's paint; an empty slot's
+// record leaves its triggers to the player. 1 when it ran.
+bool launch_lancemates();                                      // 0x0049e5e0
+void assume_duties(const ai::AivRecord* rec, const char* name);  // 0x0049e540 (ECX the pilot)
 Handle make_mech_controls(Handle net, ai::AivRecord* rec);     // 0x0049fe90
 Handle make_vehicle_controls(Handle net, ai::AivRecord* rec);  // 0x0049ff10
 void set_team_masks(Handle vehicle, uint32_t team);            // inline at 0x0049f924, 0x0049fbe1, 0x00491262

@@ -610,6 +610,16 @@ GameSlot* CampaignGame::slot_at(int32_t i) {
   return nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x004351c0
+void CampaignGame::set_lancemate(int32_t i, GameSlot* s) {
+  if (static_cast<size_t>(i) == lancemates.size()) {
+    lancemates.push_back(s);  // 0x0049ced0
+    return;
+  }
+  lancemates[static_cast<size_t>(i)]->x14 = s->x14;
+  delete s;  // 0x00433d60
+}
+
 // Mech3.exe 1.2 @ 0x00435180: the player and the lance's first +0x9c
 // lancemates (unsigned: a negative +0x9c takes them all).
 int32_t CampaignGame::slot_count() const {

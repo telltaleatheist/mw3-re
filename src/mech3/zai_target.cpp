@@ -264,7 +264,7 @@ void AiTarget::set_range(float r) {
 
 // Mech3.exe 1.2 @ 0x004d6d20: the player's own vehicle (or one whose vt+0x58
 // answers) in Instant Action or multiplayer sees 50000 (0x005e8d8c); every
-// other range is capped at 1000 (0x005e8d84).
+// other range is capped at 1000 (0x005e8d84); a NaN is kept (C0|C3).
 void AiTarget::set_sensor_range(Handle self, float r) {
   TargetHooks& h = *g_hooks;
   bool wide = false;
@@ -276,7 +276,7 @@ void AiTarget::set_sensor_range(Handle self, float r) {
     }
   }
   if (wide) r = 50000.0f;
-  else if (!(r <= 1000.0f)) r = 1000.0f;
+  else if (r > 1000.0f) r = 1000.0f;
   range = r;
   range2 = r * r;
 }

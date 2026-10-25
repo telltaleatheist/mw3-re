@@ -300,6 +300,65 @@ Handle create_ai_mech(const char* type, const char* name, int32_t mech, ai::AivR
   return m;
 }
 
+// Mech3.exe 1.2 @ 0x0049e5e0: at a campaign's launch, each lancemate slot
+// after the player's (vt+0x34 from 1, vt+0x38 of them, up to the first
+// none): its record (+0x14) made an AI mech of the slot's mech (+0x04) on
+// the player's own net, then the slot's loadout (+0x08) and the paint of the
+// player's slot (+0x10) put on it. A slot without a mech (-1) leaves its
+// record's triggers to the player (0x0049e540). docs/mission-start.md section 12.
+bool launch_lancemates() {
+  PlayerHooks& h = *g_hooks;
+  if (h.game_type() != 1) return false;
+  ai::AivRecord rec;  // 0x004e0490
+  const char* name = nullptr;
+  h.aiv_count();  // 0x004decf0 on [0x0060b5e0]; its answer unused
+  const Handle campaign = h.campaign();
+  const ai::AivRecord* first = campaign ? h.aiv_read(rec, 0, &name) : nullptr;
+  const int32_t paint = static_cast<int32_t>(h.field32(h.game_slot(0), 0x10));
+  if (!campaign || !first) return false;
+  const int32_t n = h.campaign_slot_count(campaign);
+  for (int32_t i = 1; i < n;) {
+    const Handle slot = h.campaign_slot(campaign, i++);
+    if (!slot) break;
+    const int32_t mech = static_cast<int32_t>(h.field32(slot, 0x04));
+    const int32_t index = static_cast<int32_t>(h.field32(slot, 0x14));
+    ai::AivRecord* r = h.aiv_read(rec, index, &name);
+    if (mech == -1) {
+      assume_duties(r, name);
+      continue;
+    }
+    if (!r) continue;
+    const Handle net = h.vehicle_net(h.pilot_vehicle());
+    char text[0x100];
+    std::snprintf(text, sizeof text, "%s", name);  // FIX (bug): as text, not as the format
+    const Handle m = create_ai_mech("dontcare", text, mech, r, net);
+    if (!m) continue;
+    h.mech_set_config(m, h.field32(slot, 0x08));
+    const Handle dfn = h.mech_dfn(h.mech_roster(m));
+    const int32_t skins = h.dfn_skin_count(dfn);
+    h.mech_set_skin(m, paint < skins && paint >= 0 ? h.dfn_skin(dfn, paint) : 0);
+  }
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0049e540 (ECX the pilot): the player takes over a
+// record's triggers (0x0049e4e0) through his controls' settings (vt+0x90).
+void assume_duties(const ai::AivRecord* rec, const char* name) {
+  PlayerHooks& h = *g_hooks;
+  if (!name) name = "(null)";  // as the CRT prints it
+  const Handle v = h.pilot_vehicle();
+  if (!v) {
+    report(0x186, "Player does not exist so cannot assume duties of %s", name);
+    return;  // FIX (bug): the exe reads on through the missing vehicle
+  }
+  const Handle ictl = h.vehicle_controls(v);
+  if (!ictl) return report(0x18a, "Player has no controller so cannot assume duties of %s", name);
+  const Handle settings = h.controls_vt90(ictl);
+  if (!settings) return report(0x18e, "Player controller has no ai parameters so cannot assume duties of %s", name);
+  if (!rec) return;  // FIX (bug): 0x0049e4e0 reads the missing record's +0xd0
+  h.take_triggers(settings, rec);
+}
+
 // Mech3.exe 1.2 @ 0x0049fe90: the AI mech controls (0x320 bytes, 0x004d8750).
 Handle make_mech_controls(Handle net, ai::AivRecord* rec) {
   const Handle mem = g_hooks->alloc(800);

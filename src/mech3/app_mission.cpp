@@ -76,6 +76,7 @@
 #include "mech3/mech3_interp.h"
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
+#include "mech3/pilot.h"
 #include "mech3/mech_control.h"
 #include "mech3/veh_basic.h"
 #include "mech3/zainet_inout.h"
@@ -174,6 +175,23 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
 std::vector<AiMechMade> g_ai_mechs;
 std::vector<std::string> g_ai_names;
 
+// The campaign a launch's lancemates belong to: the menus' pilot's, else for
+// a debug campaign start one of the program's own (our addition: the debug
+// launch has no pilot's game behind it), made with the launch.
+std::unique_ptr<CampaignGame> g_debug_campaign;
+CampaignGame* launch_campaign(GameEngine* e) {
+  if (auto* c = static_cast<CampaignGame*>(program_campaign())) return c;
+  if (e->launch().type != 1) return nullptr;
+  if (!g_debug_campaign) {
+    // Made as the next mission's, so a new campaign's store (c1 mission 1's,
+    // through the pilot's hooks) is not filled; then given the launch's.
+    g_debug_campaign = std::make_unique<CampaignGame>(nullptr, e->launch().op, e->launch().number + 1);
+    g_debug_campaign->mission = e->launch().number;
+    g_debug_campaign->slot.mech = e->launch().mech, g_debug_campaign->slot.skin = e->launch().skin;
+  }
+  return g_debug_campaign.get();
+}
+
 // player.cpp's hooks (docs/mission-start.md): the reader, the records, the
 // mech definitions, the nets, zClass, the AI controllers (mech3/zai_brain)
 // and the mechs are ported; the other vehicles are not, so their
@@ -190,7 +208,7 @@ struct WiredPlayerHooks : PlayerHooks {
   // mission's objects only, or a new mech is taken for an old brain's
   // settings (set_field32 then writes AiParams offsets into it).
   void forget() {
-    controls.clear(), params.clear(), mechs.clear(), vehicles.clear();
+    controls.clear(), params.clear(), mechs.clear(), vehicles.clear(), slots.clear();
     program_vehicles_forget();
   }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
@@ -221,7 +239,59 @@ struct WiredPlayerHooks : PlayerHooks {
   float reader_item_float(Handle node, int32_t i) override { return as<zrdr::Node>(node)->list[i].f; }
   Handle reader_item(Handle node, int32_t i) override { return e->handle_of(&as<zrdr::Node>(node)->list[i]); }
   int32_t game_type() override { return e->launch().type; }
-  Handle campaign() override { return e->launch().type == 1 ? e->pilot_game(e->pilot()) : 0; }
+  Handle campaign() override {
+    CampaignGame* c = launch_campaign(e);
+    return c ? e->handle_of(c) : 0;
+  }
+  // The campaign's slots (pilot.h): their fields by the exe's offsets.
+  std::set<Handle> slots;
+  CampaignGame* camp(Handle c) const {
+    CampaignGame* g = launch_campaign(e);
+    return g && c == e->handle_of(g) ? g : nullptr;
+  }
+  Handle slot_handle(GameSlot* s) {
+    if (!s) return 0;
+    const Handle h = e->handle_of(s);
+    slots.insert(h);
+    return h;
+  }
+  Handle lancemate_init(Handle, int32_t mech) override { return slot_handle(new GameSlot(mech)); }  // 0x00433cc0
+  void campaign_set_lancemate(Handle c, int32_t i, Handle slot) override {
+    CampaignGame* g = camp(c);
+    if (!g || !slots.count(slot)) return PlayerHooks::campaign_set_lancemate(c, i, slot);
+    const bool kept = static_cast<size_t>(i) == g->lancemates.size();
+    g->set_lancemate(i, as<GameSlot>(slot));
+    if (!kept) slots.erase(slot);
+  }
+  void campaign_set_lancemates(Handle c, int32_t n) override {
+    if (CampaignGame* g = camp(c)) g->set_lancemate_count(n);
+    else PlayerHooks::campaign_set_lancemates(c, n);
+  }
+  Handle game_slot(int32_t i) override {
+    CampaignGame* g = launch_campaign(e);
+    return g ? slot_handle(g->slot_at(i)) : PlayerHooks::game_slot(i);
+  }
+  Handle campaign_slot(Handle c, int32_t i) override {
+    CampaignGame* g = camp(c);
+    return g ? slot_handle(g->slot_at(i)) : PlayerHooks::campaign_slot(c, i);
+  }
+  int32_t campaign_slot_count(Handle c) override {
+    CampaignGame* g = camp(c);
+    return g ? g->slot_count() : PlayerHooks::campaign_slot_count(c);
+  }
+  bool slot_field(Handle h, uint32_t off, uint32_t* get, const uint32_t* put) {
+    if (!slots.count(h)) return false;
+    GameSlot* s = as<GameSlot>(h);
+    int32_t* f = off == 0x04 ? &s->mech : off == 0x0c ? &s->x0c : off == 0x10 ? &s->skin : off == 0x14 ? &s->x14 : nullptr;
+    if (off == 0x08) {
+      if (get) *get = e->handle_of(s->config);
+      return get != nullptr;  // the loadout is set through its own calls
+    }
+    if (!f) return false;
+    if (get) *get = static_cast<uint32_t>(*f);
+    if (put) *f = static_cast<int32_t>(*put);
+    return true;
+  }
   Handle training() override { return e->launch().type == 4 ? e->pilot_game(e->pilot()) : 0; }
   Handle mech_dfn(int32_t mech) override { return e->handle_of(mech3::mech_dfn(mech)); }
   int32_t dfn_config_count(Handle dfn) override {
@@ -240,6 +310,7 @@ struct WiredPlayerHooks : PlayerHooks {
   Handle net_compiled(Handle o) override { return e->handle_of(as<ai::AiNet>(o)->as_compiled()); }
   Handle alloc(uint32_t size) override { return e->alloc_block(size); }
   void set_field32(Handle h, uint32_t off, uint32_t v) override {
+    if (slot_field(h, off, nullptr, &v)) return;
     if (params.count(h)) return as<ai::AiParams>(h)->put<uint32_t>(static_cast<int>(off), v);
     if (mechs.count(h) && mech_set_mask(e->object_of(h), off, v)) return;
     if (vehicles.count(h) && program_vehicle_mask(e->object_of(h), off, nullptr, &v)) return;
@@ -248,6 +319,7 @@ struct WiredPlayerHooks : PlayerHooks {
   uint32_t field32(Handle h, uint32_t off) override {
     if (params.count(h)) return as<ai::AiParams>(h)->get<uint32_t>(static_cast<int>(off));
     uint32_t v = 0;
+    if (slot_field(h, off, &v, nullptr)) return v;
     if (mechs.count(h) && mech_get_mask(e->object_of(h), off, &v)) return v;
     if (vehicles.count(h)) {  // the controls and the node as handles, the masks
       if (off == 0xe4) return e->handle_of(program_vehicle_controls(e->object_of(h)));
@@ -288,7 +360,15 @@ struct WiredPlayerHooks : PlayerHooks {
   // the power-down's update.
   Handle controls_vt90(Handle ictl) override {
     auto it = controls.find(ictl);
-    if (it == controls.end()) return PlayerHooks::controls_vt90(ictl);
+    if (it == controls.end()) {  // the player's (0x00428710 -> 0x00428470): his settings (+0x5c)
+      void* p = player_mech(pilot_vehicle());
+      MechControls* c = p ? mech_controls(p) : nullptr;
+      auto* pc = c && e->handle_of(c) == ictl ? dynamic_cast<PlayerControls*>(c) : nullptr;
+      if (!pc) return PlayerHooks::controls_vt90(ictl);
+      const Handle h = e->handle_of(&pc->settings);
+      params.insert(h);
+      return h;
+    }
     ai::Brain* b = it->second == 1 ? as<AiControls>(ictl)->brain.get() : as<ai::AiVehicleControls>(ictl)->brain.get();
     if (!b) return 0;
     const Handle h = e->handle_of(&b->params);
@@ -370,6 +450,33 @@ struct WiredPlayerHooks : PlayerHooks {
     else PlayerHooks::vehicle_5a85c0(v);
   }
   void mech_set_skin(Handle mech, Handle skin) override { set_mech_skin(e->object_of(mech), e->object_of(skin)); }
+  // The launch's lancemates (0x0049e5e0): the AI mech's loadout and roster,
+  // the player's mech's own net, controls and settings.
+  void* ai_mech(Handle m) const { return mechs.count(m) ? e->object_of(m) : nullptr; }
+  void* player_mech(Handle v) const {
+    void* o = v ? e->object_of(v) : nullptr;
+    return o && is_launched_mech(o) ? o : nullptr;
+  }
+  void mech_set_config(Handle m, Handle cfg) override {
+    if (void* p = ai_mech(m)) program_mech_configure(p, e->object_of(cfg));
+    else PlayerHooks::mech_set_config(m, cfg);
+  }
+  int32_t mech_roster(Handle m) override {
+    void* p = ai_mech(m);
+    return p ? program_mech_roster(p) : PlayerHooks::mech_roster(m);
+  }
+  Handle vehicle_net(Handle v) override {
+    void* p = player_mech(v);
+    return p ? e->handle_of(program_mech_own_net(p, v)) : PlayerHooks::vehicle_net(v);
+  }
+  Handle vehicle_controls(Handle v) override {
+    void* p = player_mech(v);
+    return p ? e->handle_of(mech_controls(p)) : 0;
+  }
+  void take_triggers(Handle settings, const ai::AivRecord* rec) override {
+    if (params.count(settings)) mech3::take_triggers(*as<ai::AiParams>(settings), *rec);
+    else PlayerHooks::take_triggers(settings, rec);
+  }
   Handle mech_dfn_of(Handle mech) override {
     return e->handle_of(const_cast<void*>(mech_definition(e->object_of(mech))));
   }
@@ -412,6 +519,9 @@ struct WiredPlayerHooks : PlayerHooks {
 };
 WiredPlayerHooks g_player_hooks;
 }  // namespace
+
+void program_launch_lancemates() { launch_lancemates(); }
+void* program_launch_campaign() { return g_player_hooks.e ? launch_campaign(g_player_hooks.e) : nullptr; }
 
 // A mech's controls when the mech goes (Mech::release, the controls' vt+0x18):
 // the AI's, which the vehicle builder made here; the player's stay.
@@ -856,6 +966,10 @@ struct WiredTargetHooks : ai::TargetHooks {
   }
   bool have_pilot() override { return e->pilot() != 0; }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
+  // vt+0x50: a mech is itself (0x004d2a70), the other classes none
+  // (0x0040bae0); vt+0x58 is 0x0040bae0 in every class.
+  Handle self_vehicle(Handle self) override { return entity_is_mech(e->object_of(self)) ? self : 0; }
+  Handle self_x58(Handle) override { return 0; }
   int32_t game_type() override { return e->launch().type; }
   void sorted_clear() override { player_clear_60b56c(); }
   // zClass's list 6 by name (0x004f8c30) or by prefix (0x004f8b80).
@@ -1853,6 +1967,7 @@ void GameEngine::missions_reset(uint32_t list) {
 void GameEngine::set_launch(const Launch& l) {
   launch_ = l;
   launch_.active = true;
+  g_debug_campaign.reset();
   slot_ = 0;  // made again for this launch's mech: a mission unload frees the last one's types
   // The blocks are made once and reused; the chosen pilot's handle is kept.
   const Handle real = peek32(0x60861c);
