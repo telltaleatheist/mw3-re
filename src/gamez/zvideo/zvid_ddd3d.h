@@ -187,6 +187,11 @@ TLVertex* queue_transparent(int32_t primitive, int32_t count, const D3DTexture* 
 
 void sort_transparent();   // 0x0057dec0
 void flush_transparent();  // 0x0057e110
+// Mech3.exe 1.2 @ 0x00576ce0 ([0x00809348] = 0x00577770): the depth surface
+// filled with 0 inside `rect` (left, top, right, bottom), a DDBLT_DEPTHFILL
+// Blt. FIX (A): Render3D's clear_depth_rect, in a scene of its own when none
+// is open (a draw outside one would be dropped by the next begin).
+void depth_fill(const int32_t rect[4]);
 void flush_overlay();      // 0x0057e4c0
 
 void set_point_light_color(const float rgb[3]);  // 0x005798a0, rgb 0..1

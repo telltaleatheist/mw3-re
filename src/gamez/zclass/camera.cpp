@@ -630,6 +630,14 @@ Node* camera_create() {
   return node;
 }
 
+// Mech3.exe 1.2 @ 0x004f34c0
+int camera_set_flag8(Node* node, bool on) {
+  if (int r = check_class(node, 1, kFile, 0x336)) return r;
+  Camera* c = cam_of(node);
+  c->put<uint32_t>(0x10, on ? c->get<uint32_t>(0x10) | 8u : c->get<uint32_t>(0x10) & ~8u);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f3560
 int camera_set_world(Node* node, Node* world) {
   if (!node) return zerr::report(0x400, kFile, 0x37f, "Null node pointer."), 5;

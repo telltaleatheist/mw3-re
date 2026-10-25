@@ -628,6 +628,14 @@ void sort_transparent() {
 }
 
 // Mech3.exe 1.2 @ 0x0057e110. FIX (A): the device calls go to Render3D.
+void depth_fill(const int32_t rect[4]) {
+  if (!g_render || !rect) return;
+  const bool own = scene_depth() == 0;
+  if (own) scene_begin();
+  g_render->clear_depth_rect(rect[0], rect[1], rect[2], rect[3]);
+  if (own) scene_end();
+}
+
 void flush_transparent() {
   TransparentQueue& q = g_queue;
   DeviceState& s = g_state;

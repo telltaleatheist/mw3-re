@@ -55,8 +55,13 @@ struct HudReport {
   // The static (hud.md section 21): its four levels, the fills since the last report.
   float statics[4] = {};
   int static_fills = 0;
+  // The 3D views (hud-plan item 6c1): the camera and window nodes made, the
+  // views drawn and the depth fills since the last report, the MFD's mode.
+  int view_cameras = 0, view_windows = 0, views_drawn = 0, depth_fills = 0, mfd_shown = 0;
 };
 bool program_hud_report(HudReport* r);
+// Tests only: the view target's HUD's MFD set to mode `m` (vt+0x7c).
+void program_hud_mfd_mode(int m);
 // Tests only: a mech's torso's internal structure, all three sections.
 void program_set_torso_internal(void* mech, float v);
 // Tests only: the mech sounds of `id` played from now on (both the cockpit's

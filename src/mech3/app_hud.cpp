@@ -14,6 +14,7 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/window.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -73,6 +74,61 @@ zcls::Camera* camera_data() {
 // layout's mech fields, the nav list, sounds; hud.md section 9).
 struct ProgramHudHooks : HudHooks {
   uint32_t id(const void* p) override { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+  // The HUD's 3D views' nodes (hud-plan item 6c1): the cameras and windows it
+  // makes, by handle (the hooks' 32-bit node handles; a pointer does not fit).
+  std::vector<zcls::Node*> nodes;
+  uint32_t keep(zcls::Node* n) {
+    if (!n) return 0;
+    nodes.push_back(n);
+    return 0x7e000000u + static_cast<uint32_t>(nodes.size());
+  }
+  zcls::Node* node(uint32_t h) const {
+    const uint32_t i = h - 0x7e000001u;
+    return i < nodes.size() ? nodes[i] : nullptr;
+  }
+  static constexpr uint32_t kWorld = 0x7dffffffu;  // the mission's world, the player camera's
+  uint32_t world() override { return kWorld; }
+  uint32_t world_node(uint32_t w) override {
+    zcls::Node* c = camera_node();
+    return w == kWorld && c ? keep(zcls::camera_world(c)) : 0;
+  }
+  uint32_t window_node_new() override { ++windows_made; return keep(zcls::window_create()); }  // 0x004f9e90
+  uint32_t camera_node_new() override { ++cameras_made; return keep(zcls::camera_create()); }  // 0x004f32e0
+  int cameras_made = 0, windows_made = 0, view_draws = 0, view_depth_fills = 0;  // for the reports
+  void node_set_name(uint32_t n, const char* name) override { zcls::node_set_name(node(n), name); }
+  void camera_set_flag8(uint32_t c, bool on) override { zcls::camera_set_flag8(node(c), on); }
+  void node_set_active(uint32_t n, bool on) override { zcls::node_set_active(node(n), on ? 1 : 0); }
+  void window_set_size(uint32_t n, int32_t w, int32_t h) override { zcls::window_set_size(node(n), w, h); }
+  void window_set_pos(uint32_t n, int32_t x, int32_t y) override { zcls::window_set_origin(node(n), x, y); }
+  void camera_set_window(uint32_t c, uint32_t w) override { zcls::camera_set_window(node(c), node(w)); }
+  void camera_set_world(uint32_t c, uint32_t w) override { zcls::camera_set_world(node(c), node(w)); }
+  void camera_set_zone(uint32_t c, uint32_t zone) override {
+    uint8_t z[4];
+    std::memcpy(z, &zone, 4);
+    zcls::camera_set_zone(node(c), z);
+  }
+  void camera_set_zoom(uint32_t c, float z) override { zcls::camera_set_lod_scale(node(c), z); }  // 0x004f3ff0
+  void camera_set_fov(uint32_t c, float x, float y) override { zcls::camera_set_fov_angles(node(c), x, y); }
+  void camera_set_clip(uint32_t c, float n, float f) override { zcls::camera_set_clip(node(c), n, f); }
+  void camera_set_position(uint32_t c, const float p[3]) override {
+    zcls::camera_set_position(node(c), p[0], p[1], p[2]);
+  }
+  void camera_set_angles(uint32_t c, const float a[3]) override {
+    zcls::camera_set_rotation(node(c), a[0], a[1], a[2]);
+  }
+  // 0x00442870 -> the zView's vt+0x04 (0x004b52c0): its camera's scene walk
+  // (0x004f7030); 0x004f6dc0 without a device is the software path (not ported).
+  void zview_render(void* view, float) override {
+    const HudZView& v = static_cast<HudZoomView*>(view)->view;
+    if (!v.hardware) return;
+    if (zcls::Node* c = node(v.camera)) ++view_draws, zcls::render_world(c, 0);
+  }
+  void dirty_rect(const ztwod::Rect* r) override {  // 0x00576ce0: the depth there cleared
+    if (!r) return;
+    const int32_t q[4] = {r->left, r->top, r->right, r->bottom};
+    ++view_depth_fills;
+    zvid::depth_fill(q);
+  }
   // The HUD's channels are the cockpit sounds (0x0041e770, 0x0041e7a0, 0x0041e800).
   void hud_sound_play(int32_t channel) override { cockpit_sound_play(channel, 1.0f); }
   void hud_sound_stop(int32_t channel, int32_t fade) override { cockpit_sound_stop(channel, fade); }
@@ -456,6 +512,10 @@ struct ProgramHudHooks : HudHooks {
 ProgramHudHooks g_hooks;
 }  // namespace
 
+void program_hud_mfd_mode(int m) {
+  Mech* t = static_cast<Mech*>(program_view_target());
+  if (Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr) h->mfd.set_mode(m);
+}
 void program_set_torso_internal(void* mech, float v) {
   if (Torso* t = mech ? static_cast<Mech*>(mech)->torso : nullptr) t->internal = t->side_internal[0] = t->side_internal[1] = v;
 }
@@ -665,6 +725,10 @@ bool program_hud_report(HudReport* r) {
   for (int i = 0; i < 4; ++i) r->statics[i] = h->statics[i].level;
   r->static_fills = g_hooks.fills;
   g_hooks.fills = 0;
+  r->view_cameras = g_hooks.cameras_made, r->view_windows = g_hooks.windows_made;
+  r->views_drawn = g_hooks.view_draws, r->depth_fills = g_hooks.view_depth_fills;
+  g_hooks.view_draws = g_hooks.view_depth_fills = 0;
+  r->mfd_shown = h->mfd.shown_mode();
   for (WeaponGroup* g : wm->groups)
     if (g) r->weapons += static_cast<int>(g->count);
   for (HudWeaponLine& line : h->weapons.lines) {

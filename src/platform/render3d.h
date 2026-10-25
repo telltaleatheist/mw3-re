@@ -53,6 +53,20 @@ class Render3D {
   virtual void set_viewport(int x, int y, int width, int height) = 0;  // Viewport3::SetViewport2
   // The frame clear (0x005777f0): colour when asked, depth always to 0 (reversed).
   virtual void clear(bool color, uint8_t r, uint8_t g, uint8_t b) = 0;
+  // The depth inside a rect (left, top, right, bottom: pixels, exclusive)
+  // back to 0, the colour kept: the depth surface's DDBLT_DEPTHFILL Blt
+  // (0x00577770 through 0x00576ce0), which a HUD 3D view starts with. The
+  // default draws an unseen quad there (alpha 0, blended) at depth 0 with
+  // ZFUNC ALWAYS and depth writes on.
+  virtual void clear_depth_rect(int left, int top, int right, int bottom) {
+    DrawState s;
+    s.blend = true, s.depth_write = true, s.depth_always = true;
+    const float l = static_cast<float>(left), t = static_cast<float>(top), r = static_cast<float>(right),
+                b = static_cast<float>(bottom);
+    const TLVertex v[4] = {{l, t, 0, 1, 0, 0xff000000u, 0, 0}, {r, t, 0, 1, 0, 0xff000000u, 0, 0},
+                           {r, b, 0, 1, 0, 0xff000000u, 0, 0}, {l, b, 0, 1, 0, 0xff000000u, 0, 0}};
+    draw(Primitive::kFan, v, 4, s);
+  }
   virtual void begin_scene() = 0;  // BeginScene (vt+0x24)
   virtual void end_scene() = 0;    // EndScene (vt+0x28)
   // DrawPrimitive (vt+0x70) with flags 0x18.

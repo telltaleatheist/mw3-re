@@ -119,3 +119,15 @@ is in `README.md`.
   objectives open, and kills them to win (break caught). Survey of every
   mission: all found but c2m3's firefly_01 / firefly_02 (the mission makes
   firefly_03 / 04): a data typo in the original, a candidate for Owen.
+
+## HUD plan item 6c1: the HUD's 3D views (2026-10-25)
+
+- Assigned (the lead, the split): the views' nodes and render first. Branch
+  mac4/hud-views off main 05a3b01.
+- Done: zClass window_create / set_size / set_origin (0x4f9e90, 0x4f9fa0,
+  0x4fa0b0) and camera_set_flag8 (0x4f34c0); Render3D::clear_depth_rect
+  (a default) and zvid::depth_fill (0x576ce0 -> 0x577770's DEPTHFILL);
+  ProgramHudHooks' node table and the camera / window hooks, zview_render
+  through render_world (hardware only, as 0x4b52c0), dirty_rect as the
+  depth fill. Test mission_c1m1_hud_views_drawn_headless (break caught).
+  Open [Owen]: the MFD's mode 1 camera (0x442900 has no caller found).

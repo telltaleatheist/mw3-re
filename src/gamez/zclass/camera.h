@@ -30,6 +30,8 @@ int camera_set_position(Node* node, float x, float y, float z);    // 0x004f3870
 int camera_add_rotation(Node* node, float x, float y, float z);    // 0x004f37c0
 int camera_add_position(Node* node, float x, float y, float z);    // 0x004f3920
 int camera_set_lod_scale(Node* node, float f);                     // 0x004f3ff0
+// Data +0x10 bit 3 (render_world passes it to world_build_lights).
+int camera_set_flag8(Node* node, bool on);                         // 0x004f34c0
 int camera_set_horizon(Node* node, Node* horizon);                 // 0x004f4090  EDX horizon
 int camera_set_horizon_xz(Node* node, Node* horizon);              // 0x004f4100
 

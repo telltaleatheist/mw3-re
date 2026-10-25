@@ -1174,3 +1174,42 @@ Open: 0x00557b30, the set-up's other half, clears GfxFlags bit 2, which the
 software finish reads as MMX (render-tint.md); not traced whether the
 release ever uses the MMX rows.
 
+## 22. The 3D views in the program (hud-plan item 6c1)
+
+The HUD's three zoom views (0x0043f660: the MFD's, TARGET's, the reticle's
+zoom window) each make a camera and a window node (HudZView 0x004b5150,
+HudViewWindow 0x004b5440). The program answers the HUD's node hooks with
+zClass: the camera 0x004f32e0, the window 0x004f9e90 (a class 3 node, 1 x
+1, +0xe4 -1, on list 14; its software target +0xe8..+0xf4, 0x00558080, is
+left 0: no software renderer), the name 0x004eb300, the window's size
+0x004f9fa0 and place 0x004fa0b0, the camera's window, world (the mission's,
+the player camera's), zone, LoD scale (0x004f3ff0, the hook's "zoom"), field
+of view, clip, flag 8 (0x004f34c0, data +0x10 bit 3), position and angles.
+`ProgramHudHooks` keeps the nodes in a table and hands out 32-bit handles.
+
+Drawing, in the Direct3D frame's HUD pass (0x0043c6b0): the 3D views'
+rects have their depth cleared first (0x00576ce0 -> [0x00809348] =
+0x00577770, the depth surface's DDBLT_DEPTHFILL Blt with 0; the port's
+`zvid::depth_fill`, Render3D's `clear_depth_rect`, a scene of its own when
+none is open), then a view in mode 1 draws its zView (0x00442870 -> vt+0x04
+0x004b52c0: the camera's scene walk 0x004f7030, `render_world`; 0x004f6dc0
+without a device, the software path, is not ported). Projection and clip2d
+already place a view's vertices inside its window's rect, so the device's
+viewport stays the screen's.
+
+Test: mission_c1m1_hud_views_drawn_headless (a device and a zTwoD host
+reading the engine's video mode): three cameras and three windows made;
+with the MFD in mode 1, its view drawn each frame and its rect's depth
+filled (a break that drops the device's fill caught).
+
+**[open: Owen] The MFD's 3D view (mode 1).** Its draw (0x00442500) runs the
+view's whole zView (0x00442870), but nothing found places that camera: the
+only code that does is 0x00442900 (1.25 x the mech's height in front of the
+player's mech, then the mech's node drawn alone through 0x004428b0 with its
+vt+0x68 around it), the MFD's vt+0x8c, and no caller of that slot is found
+(no reference but the vtable's, no call through +0x8c near an MFD). As
+ported the view shows the world from about the world's origin. Owen is to
+say what the original's MFD shows in each mode (D cycles them); the
+placement is fixed then. (The binary starts the MFD in mode 1, headless in
+mode 3: the saved mode, [0x00605988].)
+
