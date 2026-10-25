@@ -34,6 +34,13 @@ MISSION_COMPLETE (0x71, Exit Mission, Ctrl+Q) and 0x72 (0x0051d2f0); then
 0x00491d20: +0xc4 = invincibility (0x0040cf20) or unlimited ammo
 (0x0040cf80) or heat off (0x0040cfc0), 0 in a network game ([0x00608e45]).
 
+The game time is the one global [0x0060991c] (the missions' +0x4c), so in
+the exe every mission's load, launch and first updates run from 0. The port
+keeps copies in the mech and zWeapon modules; each write of +0x4c (here,
+the frame's and the cleanup's) sets them at once (`game_time_set`),
+2026-10-25 (before, they caught up only at the first frame, and a second
+mission's load read the first's time).
+
 The handler: Exit Mission works only once the mission has ended, won (+0x55)
 or lost (+0x56), and then goes straight to the end screen (0x00491bf0,
 through its thunk 0x00491c70 when lost); 0x72 is bound but does nothing.

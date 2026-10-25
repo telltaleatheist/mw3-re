@@ -1783,3 +1783,36 @@ is paused.
   test_ai_lists (3000), test_ai_brain (its 0x4ac800), mw3tests c1m1
   restarted twice (also ASan); 6 of 6 breaks. ai.md 19, symbols. No
   CHANGES line (port gaps); the fix row was there.
+
+## Item 10: the AI's heat (2026-10-25, mac 4)
+
+- Assigned (the lead, after the survey): branch mac4/ai-heat off main.
+  BrainHooks::heat by class (vt+0x9c across the vtables), player.cpp's
+  mech_update (mech.vt+0x34); whether any shipped vlist uses flag 0x20
+  (ai.md); the survey's env patch folded in; headless: an AI pick changing
+  with a target's heat and the powered-down AI mech's one 0.1 s update.
+- Done (mac 4): vt+0x9c is 0x41ec90 (the Mech's +0x554) on both mech
+  vtables and 0x45b950 (the constant 0.0 at 0x5c23a0) on every other
+  entity class; the program answers mech_heat. WiredPlayerHooks
+  mech_update runs the AI mech's update. 155 of 2,573 shipped vlist entries
+  have bit 5 (107 IA, 48 campaign, no player's). Tests: mw3tests c2m1 heat
+  pick, c1m1 powered-down settle (the Owens on the ground, 1 cm up
+  without it); the survey test takes MW3_SURVEY_MISSION. ai.md 17.5 and
+  17.7, 2 discoveries, symbols.
+- Found on the way: the game clock (world +time) runs on from one mission
+  into the next one's load, so an AI mech's load-time update (the
+  powered-down start's, new here) stamped its brain with the last
+  mission's time and the c1m4 lance tests' exact counts depended on the
+  test before them. The lead traced it (2026-10-25): the exe zeroes the one
+  clock [0x60991c] in the mission start 0x48f400, called from the setup
+  0x490ab0 at 0x490b14 long before the launch, so every load runs at t = 0.
+  A port bug, fixed: the missions' writes of +0x4c (the start, the frame,
+  the cleanup) set the ports' copies at once (MissionHooks::game_time_set,
+  the program's mech_set_game_time); the program's two late syncs are gone
+  and the tests no longer reset the clock themselves.
+  missions_game_time_starts_at_zero_each_mission_headless: c1m1 for 300
+  frames (18 s), then c1m4 in the process: the mechs' clock under a second
+  through c4's load and agreeing with the missions' at its first frame.
+- 3 of 3 breaks (heat unanswered, heat from the frame's added heat, the
+  update skipped). mission_start_reads_c1m1_vehicles now expects the Owens
+  on the ground (settled by the update) rather than 0.01 above.

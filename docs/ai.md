@@ -2451,7 +2451,20 @@ valve to that value (0x4d3c00, its reactions firing):
 | region (10) | none of the above: the vehicle (0x5a85e0) inside the region (0x4c57d0) for +0x19 bit 0 (item 9), outside for bit 1 (item 17), anywhere with both |
 
 A NaN health, ammo or distance holds; a NaN heat does not. Bit 0 (item 15)
-is not read here. The player's controls run their own vlist the same way
+is not read here.
+
+**The heat condition in the shipped files** (2026-10-25, item 10): of the
+2,573 vlist entries in every aiv.zrd (all worlds' campaign, Instant Action,
+multiplayer and training blocks, read by the ported reader), 155 have bit 5:
+107 in the Instant Action blocks (most every enemy's, flags 0xb7, heat 0.1)
+and 48 in campaign missions (c1 m2..m4, c2 m1/m2/m4, c3 m1..m6, c4b m6;
+thresholds 0.01 to 0.8, e.g. c1 m2's owens_01 at 0.01, c1 m4's blackhawk_01
+at 0.4 and 0.8); no player record has one. Heat is the vehicle's vt+0x9c: a
+Mech's +0x554 (0x41ec90); every other entity class (basic vehicles, turrets,
+targets, the field base, the plain AiTarget) answers 0x45b950, the constant
+0.0 at 0x5c23a0, so only mechs can meet it. The program answered nothing
+there until item 10 (BrainHooks::heat logged as unported), so none of the
+155 ever held by heat. The player's controls run their own vlist the same way
 (IControls +0xa4, 0x4d8990, from their update 0x427d60 while not powered
 down): the settings at their +0x5c (0x4d9840: an AiParams with the
 defaults, vtable 0x5cd348) hold the launch's aiv.zrd "player" record
@@ -3014,6 +3027,16 @@ item 13) and the bearer. Its slots: in reach the bearer's vt+0x150 == 1,
 ready the clear line asked again, slot 0 itself while its target lives,
 the line to it is clear and the volley still picks one (then tracked at
 1.0); track (0x4b6e30) is item 12b2.
+
+**Heat in the pick** (2026-10-25, item 10): a target's heat (vt+0x9c) runs
+from 0 to 2, so the factor (1.5 - heat) goes from 1.5 down to -0.5: a
+hotter mech scores lower, and past heat 1.5 its score turns negative and
+beats any cool one whatever the distance (vehicles, turrets and targets are
+always at 0). In the program the brain's heat question went unanswered
+until item 10, so every pick ran as if all were cold.
+`mission_c2m1_ai_pick_goes_to_the_hotter_mech_headless`: an enemy with the
+player and Dominic 200 and 210 m off on either side picks one while both
+are cool and the other once that one is at heat 1.4.
 
 Test `test_ai_plan.py` (over test_ai_frame.py's brain and vehicle; four
 entities at fixed addresses with their active byte, team, health and heat,

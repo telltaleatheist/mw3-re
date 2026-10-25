@@ -428,6 +428,11 @@ struct WiredPlayerHooks : PlayerHooks {
     return place_mech(mech, pos, rec_yaw(rec));
   }
   void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
+  // vt+0x34 (0x00419fc0): the powered-down start's one 0.1 s update, its controller held.
+  void mech_update(Handle m, float dt) override {
+    if (mechs.count(m)) update_mech(e->object_of(m), dt);
+    else PlayerHooks::mech_update(m, dt);
+  }
   // The basic vehicles (app_vehicle.cpp): made, named, placed and set up as
   // player.cpp asks; their frame is not run yet (vehicles.md, In the program).
   Handle vehicle_create(Handle ctl, const char* type, const char* name) override {
@@ -756,6 +761,9 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (target(c->seen) || marker(c->seen) || turret(c->seen)) return c->seen;
     return contact_vehicle(c);
   }
+  // vt+0x9c: a mech's heat (0x0041ec90, +0x554); every other class's is the
+  // constant 0 (0x0045b950 on [0x005c23a0]: vehicles, turrets, targets).
+  float heat(Handle v) override { return mech_heat(e->object_of(v)); }
   // 0x004ac800's: a vehicle's vt+0xec is itself (0x004d2a70); 0x00402510
   // on the basic vehicles' path.
   void* owner_vehicle(void* owner) override { return owner; }
@@ -1799,12 +1807,12 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4d2e20() override { ai::targets_create(); }
   void fn_4d31d0() override { ai::traps_create(); }
 
-  // The frame (0x0048f470, docs/mission-frame.md): the game time to the
-  // ports' copies of [0x0060991c], the valves' timers, zSound's voice lines.
-  void valves_tick(float) override {
-    mech_set_game_time(missions().time);
-    ai::valves_tick(missions().time);
-  }
+  // The game time [0x0060991c] to the ports' copies (the mechs', zWeapon's)
+  // with each write: the mission start's 0 (0x0048f400), the frame's, the
+  // cleanup's.
+  void game_time_set(float t) override { mech_set_game_time(t); }
+  // The frame (0x0048f470, docs/mission-frame.md): the valves' timers.
+  void valves_tick(float) override { ai::valves_tick(missions().time); }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
   // 0x0051d2f0 with 0x0048f440: Exit Mission (Ctrl+Q) and 0x72 to the missions' handler.
   void bind_command(int32_t cmd, uint32_t handler) override {
@@ -1961,7 +1969,6 @@ void GameEngine::missions_start(uint32_t list) {
   ai::entity_list().clear();  // zEntity's list: emptied by the last cleanup (0x0049dc40); a debug start's own
   mech_entities_forget();
   m.start();
-  mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
   zcls::Node* cam = mission_node(*this, camera_);
   if (launch_.active && launch_.have_pos && cam) {  // as the debug viewer places it (render.md section 0)
