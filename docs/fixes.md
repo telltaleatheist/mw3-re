@@ -339,6 +339,11 @@ Bugs whose intent is clear, fixed as the port reaches the code:
     Cauldron, Bushwacker and Champion.
   - Mission c1's script calls `Object3DSetScrllAlways` on `ocean52`; should be
     `Object3DSetScrollAlways`, so the water scrolls.
+  - c2 mission 3's secondary destroy objectives name `firefly_01` and
+    `firefly_02`; the mission's Fireflies are `firefly_03` and `firefly_04`,
+    so both count as done from the start (Owen approved, 2026-10-25). Done:
+    pointed at 03 / 04 after the read (`fix_objective_data`, until there is
+    an importer); mission_c2m3_firefly_objectives_open_headless.
 
 - CPU speed, 0x5988c0 (Intel's `cpuspeed`): divides by zero on PCs whose
   performance counter runs at CPU speed, a startup crash; the 1.2 NoCD exe
@@ -473,12 +478,6 @@ Kept:
 
 ## Candidates for Owen
 
-- c2 mission 3's two Firefly objectives (found 2026-10-25, objectives.md):
-  the secondary destroy list names `firefly_01` and `firefly_02`, but the
-  mission's AI file makes `firefly_03` and `firefly_04` (m1's and m2's
-  numbering), so in the original both count as done from the start.
-  Options: keep it (as played), or have the importer rename them to 03 / 04
-  (the two Fireflies of the mission become real objectives).
 - How the player's allies fight (mac 4, 2026-10-22, ai.md 17.8b; Owen's
   proposal, a balance change, not coded): as the exe has it, allies shoot
   any enemy within their weapons' reach on their own but never move to a

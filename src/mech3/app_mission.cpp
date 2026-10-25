@@ -1402,7 +1402,7 @@ struct WiredMissionHooks : MissionHooks {
   void fn_427300() override { player_controls_mission_end(); }
   void fn_5573d0() override { zrdr::close_archives(false); }
   void objectives_load(const char* file, const char* block, Handle, Handle, Handle, Handle, Handle) override {
-    mech3::objectives_load(file, block, ob().objs, ob());
+    mech3::objectives_load(file, block, ob().objs, ob(), mission_dir(e->launch().index));
     ob().sync();
   }
   void objectives_start(Handle, Handle, Handle, Handle) override {  // 0x0045c4a0

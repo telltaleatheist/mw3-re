@@ -9249,6 +9249,71 @@ TEST(survey_destroy_objectives_every_mission_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c2 mission 3's two Firefly objectives (FIX (bug), a data typo; docs/
+// objectives.md): objectives.zrd's m3 names firefly_01 / firefly_02, the
+// mission makes firefly_03 / firefly_04. Pointed at those, both are found at
+// the start and open; none of the old names is left.
+TEST(mission_c2m3_firefly_objectives_open_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_firefly_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  int found_open = 0, old_names = 0, frames = 0;
+  std::function<void(const mech3::Objective*)> walk = [&](const mech3::Objective* o) {
+    if (!o) return;
+    if (o->kind == mech3::Objective::kGroup)
+      for (const auto& c : static_cast<const mech3::ObjectiveGroup*>(o)->items) walk(c.get());
+    if (auto* d = dynamic_cast<const mech3::DestroyObjective*>(o); d && d->name) {
+      if (*d->name == "firefly_01" || *d->name == "firefly_02") ++old_names;
+      if ((*d->name == "firefly_03" || *d->name == "firefly_04") && d->entity && !d->done) ++found_open;
+    }
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c2 mission 3
+    l.index = 1, l.number = 3;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames == 3) walk(mech3::mission_objectives().secondary.get());
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 3; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  c2m3 fireflies: %d found and open, %d old names\n", found_open, old_names);
+  EXPECT(found_open == 2 && old_names == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(survey_c1m1_objectives_headless) {
   if (!have_game() || !std::getenv("MW3_SURVEY")) return;
   SavedMounts keep;
