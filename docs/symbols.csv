@@ -1581,3 +1581,8 @@ address,name,source,notes
 0x00576ce0,depth_fill,decomp,"[0x809348] = 0x577770: the depth surface's DDBLT_DEPTHFILL Blt in ECX's rect"
 0x004b52c0,ZView::render,decomp,"vt+0x04: 0x4f7030 on the camera with a device, else 0x4f6dc0"
 0x00442900,HudMfd::place_view,decomp,"vt+0x8c: the camera before the player's mech, its node drawn (0x4428b0); no caller found"
+0x004436c0,HudZoomWindow::place_camera,decomp,"the zoom camera at the player camera's place, turned to the aim point; the range text 0x22d / 0x22e"
+0x00442f50,HudZoomWindow::draw3d,decomp,"vt+0x28: own mech off, depth fill, round's four clear fans at 0.99, the view, the fill again"
+0x00443320,HudZoomView::render,decomp,"the zoom's zView vt+0x04 (vtable 0x5c0600): fog near pushed half way, 0x4f7030, restored"
+0x00444230,HudReticle::draw3d,decomp,"vt+0x28: the zoom window's vt+0x28"
+0x0057bd50,clear_fan,decomp,"[0x72f3ac]: ECX points, EDX count; the clear texture zVidDefaultClear [0x809320], flat, blended"

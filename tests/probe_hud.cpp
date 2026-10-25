@@ -104,7 +104,9 @@ struct Hooks : mech3::HudHooks {
     return call("peek32", {0x608c00 + 4 * soil});
   }
   // The views by name, as test_hud.py's view_call: 1 the MFD's, 2 TARGET's.
-  uint32_t view_name(void* v) { return v == g_hud->mfd.view ? 1 : v == g_hud->target.view ? 2 : id(v); }
+  uint32_t view_name(void* v) {
+    return v == g_hud->mfd.view ? 1 : v == g_hud->target.view ? 2 : v == &g_hud->reticle.zoom ? 3 : id(v);
+  }
   void zview_render(void* v, float dt) override { call("0x00442870", {view_name(v), zgame::bits(dt)}); }
   void view_draw_node(void* v, uint32_t node) override { call("0x004428b0", {view_name(v), node}); }
   // The weapon manager's +0x88 as the aim state sets it (test_hud.py's dump).
@@ -272,6 +274,9 @@ struct HudHost : RecordingHost {
     } else if (id == 0x229) {
       const uint32_t name = va_arg(c, uint32_t);
       call("0x00575ff0.args", {name, va_arg(c, uint32_t)});
+    } else if (id == 0x22d || id == 0x22e) {  // the zoom's text: the name (0x22d), the distance
+      for (int k = id == 0x22d ? 2 : 1; k > 0; --k)
+        for (const char* q = va_arg(c, const char*); q && *q; ++q) call("0x00575ff0.ch", {static_cast<uint8_t>(*q)});
     }
     va_end(c);
     return n;
@@ -410,6 +415,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 39: h.static_tick(zgame::from_bits(v)); break;
     case 40: h.add_static(kStaticStep[v >> 4 & 3], static_cast<int32_t>(v & 0xf), kStaticHold[v >> 8 & 3], kStaticMost[v >> 12 & 3]); break;
     case 41: call("poke32", {0x608e4c, v}); break;
+    case 42: h.reticle.draw3d(zgame::from_bits(v)); break;
     case 33: z.show_for(zgame::from_bits(v)); break;
     case 34: z.toggle_lock(); break;
     case 35: h.radar.toggle_zoom(); break;

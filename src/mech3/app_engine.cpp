@@ -516,7 +516,7 @@ void GameEngine::hud_update() {
 Handle GameEngine::pilot_hud(Handle data) { return handle_of(program_pilot_hud(object_of(data))); }
 void GameEngine::hud_static(Handle hud, float dt) { program_hud_static(object_of(hud), dt); }
 bool program_intensity_flag() { return options().intensity_flag[0] != 0; }
-void GameEngine::hud_zoom_pass(Handle, float) { unported("0x00444230", {}); }
+void GameEngine::hud_zoom_pass(Handle hud, float dt) { program_hud_zoom_pass(object_of(hud), dt); }
 void GameEngine::render_reset() {
   zrndr::finish_init();
   unported("0x00557b30", {});

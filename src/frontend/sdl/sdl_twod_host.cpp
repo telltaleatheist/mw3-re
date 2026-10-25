@@ -3,6 +3,8 @@
 #include <algorithm>
 #include "frontend/sdl/sdl_twod_host.h"
 
+#include "gamez/zutil/zutl_msgdll.h"
+
 #include <SDL3_ttf/SDL_ttf.h>
 
 #include <cmath>
@@ -348,6 +350,12 @@ int32_t SdlTwodHost::cd_find(const char* name) { return zsnd_cd::cue_track(name 
 int32_t SdlTwodHost::cd_play(int32_t track, int32_t mode) { return zsnd_cd::play_track(track, mode) ? 1 : 0; }
 void SdlTwodHost::cd_stop() { zsnd_cd::stop(); }
 const char* SdlTwodHost::message(const char* key) { return zutl::localize(key); }
+uint32_t SdlTwodHost::format_message(char* buf, uint32_t size, uint32_t id, va_list args) {
+  if (!size) return 0;
+  const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+  std::snprintf(buf, size, "%s", t.c_str());
+  return static_cast<uint32_t>(t.size() < size ? t.size() : size - 1);
+}
 const char* SdlTwodHost::message_text(uint32_t id) {  // 0x00576040
   auto* f = zutl::messages().get_text;
   return f ? f(static_cast<int32_t>(id)) : nullptr;

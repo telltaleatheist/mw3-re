@@ -192,6 +192,12 @@ void flush_transparent();  // 0x0057e110
 // Blt. FIX (A): Render3D's clear_depth_rect, in a scene of its own when none
 // is open (a draw outside one would be dropped by the next begin).
 void depth_fill(const int32_t rect[4]);
+// Mech3.exe 1.2 @ 0x0057bd50 ([0x0072f3ac], ECX points, EDX count): a fan of
+// screen points (x, y, depth), last to first, blended with the clear texture
+// "zVidDefaultClear" ([0x00809320]), flat, depth written: the zoom circle's
+// mask. FIX (A): the texture is not made; the fan is drawn untextured at
+// alpha 0, the same nothing with the same depth.
+void clear_fan(const float* xyz, int32_t count);
 void flush_overlay();      // 0x0057e4c0
 
 void set_point_light_color(const float rgb[3]);  // 0x005798a0, rgb 0..1

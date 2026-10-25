@@ -115,7 +115,7 @@ OPS = list(range(1, 20))
 MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
 MESSAGE_TIMES = [0.0, 0.5, 2.0, 6.0]
 # The static's add (0x0043bfe0, op 40): steps, holds and tops by index.
-STATIC_NULL = [0, 0]  # the exe's null reads skipped (TARGET's mode without a rect; FIX (bug)), the fills
+STATIC_NULL = [0, 0, 0, 0]  # TARGET's null reads skipped (FIX (bug)), static fills, zoom renders, zoom mask fans
 STATIC_STEP, STATIC_HOLD, STATIC_MOST = [0.1, 0.05, 0.5, 1.0], [0.0, 0.016, 0.3, 2.0], [0.1, 0.5, 1.0, 1.25]
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
@@ -237,7 +237,11 @@ class Original:
                         (0x4f3ff0, 'c,s0'), (0x4f3d90, 'c,s0,s1'), (0x4f3a70, 'c,s0,s1')):
             e.stub(a, spec=spec)
         w.answers['0x004f9e90'] = lambda rr, n, a: e.world_alloc(0x40)
-        w.answers['0x004f32e0'] = lambda rr, n, a: e.world_alloc(0x40)
+        def new_camera(rr, n, a):  # a camera node with its data (+0x38), its place at +0x14
+            c = e.world_alloc(0x40)
+            e.w32(c + 0x38, e.world_alloc(0x200))
+            return c
+        w.answers['0x004f32e0'] = new_camera
         world = e.world_alloc(0x10)
         e.w32(world + 4, e.world_alloc(0x40))
         e.w32(0x608c84, world)
@@ -276,11 +280,14 @@ class Original:
         w.answers['0x00458590'] = lambda rr, n, a: rr.choice([0, entry, entry]) if self.flip else 0
         e.w32(0x60598c, r.choice([0, 1, 2, 2, 3]))  # TARGET's (2: its damage view)
         # The player view: its camera node, the node's data, the field of view.
-        p_cam, node, data = e.world_alloc(0x80), e.world_alloc(0x40), e.world_alloc(0x100)
+        p_cam, node, data = e.world_alloc(0x80), e.world_alloc(0x40), e.world_alloc(0x200)  # (to its zone, +0x1e4)
         e.w32(0x5f4c8c, p_cam)  # (+0x64 no view target: 0x0040f8d0's HUD part skipped)
         e.w32(p_cam + 4, node)
         e.w32(node + 0x38, data)
         e.wf(data + 0xe8, r.choice([1.0471976, 0.87266463, 1.5707964]))
+        for k in range(3):  # its place (the zoom camera's, 0x004436c0) and zone
+            e.wf(data + 0x14 + 4 * k, r.uniform(-500, 500))
+        e.w32(data + 0x1e4, r.choice([0xffffff01, 0x00000302, 0xff]))
         # The options' display and window rects (**[0x005f4d20], **[0x005f4d24]).
         e.w32(0x5f4d4c, r.choice([0, 0, 1]))  # pixels doubled (VMode 3)
         for g in (0x5f4d1c, 0x5f4d20, 0x5f4d24):
@@ -304,6 +311,10 @@ class Original:
                     t.handle(key + '.ch', (ch,))
             elif mid == 0x229:
                 t.handle(key + '.args', (emu.r32(va), emu.r32(va + 4)))
+            elif mid in (0x22d, 0x22e):  # the zoom's text: the name (0x22d), the distance
+                for k in range(2 if mid == 0x22d else 1):
+                    for ch in emu.cstr(emu.r32(va + 4 * k)).encode('latin1'):
+                        t.handle(key + '.ch', (ch,))
             emu._ret(got, pop)
         e.stub(0x575ff0, '0x00575ff0', 's0,s1,s2,s3', None, msg)
         has_msgs = r.random() < 0.8
@@ -459,8 +470,11 @@ class Original:
         w.answers['0x004e6ff0'] = contact_mech
         w.answers['0x0041e800'] = lambda rr, n, a: rr.choice([0, 1])
         objs = []
+        ovt = e.world_alloc(0x100)  # vt+0xa4 their names (the zoom's text, 0x004436c0): none
+        e.w32(ovt + 0xa4, e.new_stub('obj.vt+0xa4', 'c', 0))
         for _ in range(2):
             o = e.world_alloc(0x20)
+            e.w32(o, ovt)
             e.cpu.write(o + 8, bytes([r.choice([0, 1])]))
             objs.append(o)
 
@@ -493,6 +507,56 @@ class Original:
             t.handle(key, (1 if a[0] else 0, *q, a[2], a[3], a[1] & 0xffff, a[4] & 0xffff, a[5] & 0xffff))
             emu._ret(0, pop)
         e.stub(0x558c10, '0x00558c10', 'c,d,s0,s1,s2,s3', None, static_fill)
+        # The zoom's 3D pass (0x00442f50, hud.md section 23): its camera's
+        # window rect, the clear fans, its zView's render, the sprintf.
+        e.stub(0x4f3630, '0x004f3630', 'c')
+        w.answers['0x004f3630'] = lambda rr, n, a: 0x7700 + a[0] % 0x100
+
+        def win_pair(k1, k2):
+            def fn(emu, key, a, pop):
+                p, q = t.handle(k1, (a[0],)), t.handle(k2, (a[0],))
+                emu.w32(a[1], p)
+                emu.w32(a[2], q)
+                emu._ret(0, pop)
+            return fn
+        e.stub(0x4fa130, '@win.xy', 'c,d,s0', None, win_pair('0x004fa130.x', '0x004fa130.y'))
+        e.stub(0x4fa020, '@win.wh', 'c,d,s0', None, win_pair('0x004fa020.w', '0x004fa020.h'))
+        w.answers['0x004fa130.x'] = lambda rr, n, a: rr.choice([10, 0x172, rr.randrange(0, 600)])
+        w.answers['0x004fa130.y'] = lambda rr, n, a: rr.choice([10, 0x5a, rr.randrange(0, 400)])
+        w.answers['0x004fa020.w'] = lambda rr, n, a: rr.choice([0x5a, 0x80, rr.randrange(1, 300)])
+        w.answers['0x004fa020.h'] = lambda rr, n, a: rr.choice([0x5a, 0x60, rr.randrange(1, 300)])
+
+        def fan(emu, key, a, pop):
+            STATIC_NULL[3] += 1
+            for k in range(a[1]):
+                t.handle(key, tuple(emu.r32(a[0] + 12 * k + 4 * i) for i in range(3)))
+            emu._ret(0, pop)
+        e.w32(0x72f3ac, e.new_stub('[0x0072f3ac]', 'c,d', 0, fan))
+
+        def zview(emu, key, a, pop):  # the zoom's render (0x00443320 -> 0x004f7030): the port's zview_render, view 3
+            t.handle('0x00442870', (3, self.zoom_dt))
+            STATIC_NULL[2] += 1
+            emu._ret(0, pop)
+        e.stub(0x4f7030, '@zview', 'c,d', None, zview)
+        self.zoom_dt = 0
+
+        def fog_range(emu, key, a, pop):  # 0x004f24c0: near to *edx, far to *s0
+            emu.w32(a[1], t.handle('0x004f24c0.near', (a[0],)))
+            emu.w32(a[2], t.handle('0x004f24c0.far', (a[0],)))
+            emu._ret(0, pop)
+        e.stub(0x4f24c0, '@fog.range', 'c,d,s0', None, fog_range)
+        w.answers['0x004f24c0.near'] = lambda rr, n, a: f32(rr.choice([0.0, 50.0, rr.uniform(0, 300)]))
+        w.answers['0x004f24c0.far'] = lambda rr, n, a: f32(rr.choice([750.0, 1500.0, rr.uniform(300, 3000)]))
+        e.stub(0x4f2440, '0x004f2440', 'c,s0,s1')
+        e.stub(0x4f1df0, '0x004f1df0', 'c')
+
+        def sprintf(emu, key, a, pop):  # "%.1f" with a double
+            fmt = emu.cstr(a[1])
+            d = struct.unpack('<d', struct.pack('<2I', a[2], a[3]))[0]
+            s = (fmt.replace('%.1f', '{:.1f}').format(d)).encode('latin1')
+            emu.cpu.write(a[0], s + b'\0')
+            emu._ret(len(s), 0)
+        e.import_stub(0x5bb658, '@sprintf', 's0,s1,s2,s3', 0, sprintf)
 
         def static_null(uc, addr, size, user):  # FIX (bug) as the port: TARGET's mode without a rect
             if uc.reg_read(UC_X86_REG_EAX) == 0:
@@ -664,6 +728,10 @@ class Original:
                 self.ops.append((28, fr.randrange(len(MESSAGES))))
             if fr.random() < 0.12:  # the zoom window shown through its show_for (0x004438d0)
                 self.ops.append((33, f32(fr.choice([-1.0, 0.0, 0.5, 3.0]))))
+            # the zoom's 3D pass (shown, or still scaled), with a device only: the
+            # software path (0x00564460, 0x004f6dc0) is not ported (CLAUDE.md, Rendering)
+            if fr.random() < 0.35 and self.e.r32(0x72f348):
+                self.ops.append((42, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.25:  # the HUD keys
                 self.ops.append((fr.choice([34, 35, 36, 36, 37, 37, 38]), 0))
             if fr.random() < 0.1:  # the jump jets' count (+0x3d8): the fuel gauge shown or hidden
@@ -740,9 +808,17 @@ class Original:
         e.cpu.write(centre, struct.pack('<3f', *(r.uniform(-400, 400) for _ in range(3))))
         w.answers['obj.vt+0x28'] = team
         w.answers['obj.vt+0xbc'] = centre
-        for a_, spec in ((0x4f3870, 'c,s0,s1,s2'), (0x4f36b0, 'c,s0,s1,s2'), (0x4ed280, 'c,d'),
-                         (0x47ef10, 'c,s0')):
+        for a_, spec in ((0x4f36b0, 'c,s0,s1,s2'), (0x4ed280, 'c,d'), (0x47ef10, 'c,s0')):
             e.stub(a_, spec=spec)
+
+        def set_place(emu, key, a, pop):  # 0x004f3870: logged, and the place into the camera's data +0x14
+            t.handle(key, tuple(a))
+            d = emu.r32(a[0] + 0x38) if a[0] else 0
+            if d:
+                for k in range(3):
+                    emu.w32(d + 0x14 + 4 * k, a[1 + k])
+            emu._ret(0, pop)
+        e.stub(0x4f3870, '0x004f3870', 'c,s0,s1,s2', None, set_place)
         fbuf = e.world_alloc(8)
         fthunk = e.thunk(b'\xd9\x05' + struct.pack('<I', fbuf) + b'\xc3')
 
@@ -1051,6 +1127,9 @@ class Original:
                                                f32(STATIC_MOST[v >> 12 & 3])))
             elif k == 41:
                 e.cpu.write(0x608e4c, bytes([v]))
+            elif k == 42:  # the reticle's +0x28 (0x00444230): the zoom's 3D pass
+                self.zoom_dt = v
+                e.call(0x444230, ecx=h + 0x144c, stack=(v,))
             elif k == 25:
                 e.call(0x43dc70, ecx=h + 0x14, stack=(v,))
             elif k == 22:
@@ -1760,7 +1839,8 @@ def main():
         os._exit(1)
     print(f'{seeds} HUDs built, {calls} calls: the rebuilt HUD matches the original '
           f'({len(CLASS_REACHED)} of the classed objects\' slots run; {STATIC_NULL[1]} static fills, '
-          f'{STATIC_NULL[0]} TARGET reads without a rect skipped as the port)')
+          f'{STATIC_NULL[0]} TARGET reads without a rect skipped as the port; {STATIC_NULL[2]} zoom renders, '
+          f'{STATIC_NULL[3]} mask fans)')
     sys.stdout.flush()
     os._exit(0)
 
