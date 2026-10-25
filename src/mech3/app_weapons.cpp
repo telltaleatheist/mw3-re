@@ -162,7 +162,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     g_zone = mech_of(e)->x64;
     return &g_zone;
   };
-  c.entity_allies = [](Handle e) { return mech_of(e)->enemies; };                         // +0xc8
+  c.entity_enemies = [](Handle e) { return mech_of(e)->enemies; };                         // +0xc8
   c.player_team = [] { return mech3::world().mission_player ? mech3::world().mission_player->team : 0u; };
   c.part_by_id = [](Handle owner, int32_t id) -> Handle { return part_by_id(*mech_of(owner), id); };
   c.part_node = [](Handle part) { return static_cast<MechPart*>(part)->node; };          // +0x08

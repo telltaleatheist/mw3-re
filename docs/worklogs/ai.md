@@ -1455,3 +1455,13 @@ is paused.
   test_turret_frame. Headless: mission_c1m1_turrets_headless (14 turrets;
   tur_srm08 sensed, picks, targets the player, fires; killed: +1 building,
   200 points). 10 of 10 breaks over the wiring and the turn by time.
+- Correction (lead's review of 4c3): the "sides the wrong way round" were
+  not bugs. weapon.h's entity_allies hook answered the mech's +0xc8, its
+  enemies: so 0x4b4a40's flag is "hostile to the player" for mechs
+  (0x4b3550) and turrets (0x4a6fa9) alike, and the AMS's side 0 takes the
+  shots not hostile to the player (an enemy AMS's; a mech asks by
+  player.enemies & its team, 0x41927e). Both FIXes, their rows, the CHANGES
+  line and the discovery dropped, the original calls back; entity_allies
+  renamed entity_enemies, the flag "friendly" renamed "hostile"
+  (radar_hostile 0x4b4a30, radar_not_hostile 0x4b4a20) in weapon, hud,
+  turret and the docs. I read the hook's name, not what it returned.

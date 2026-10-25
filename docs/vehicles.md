@@ -1284,8 +1284,8 @@ the kill count (+0x3fc) (4c3).
    is fired (0x581fb0 from the firepoint when the definition's +0x84 bit 1,
    0x581f60 with the lock at +0x1a4: the player's vehicle, the picked
    place, no velocity; 0x4b4a40(def, node, 0, from, dir, +0x178, 0, 0, the
-   radar's "friendly": the player among the turret's enemies, its
-   vehicle's vt+0x24, vt+0x28, +0xc0 against +0xc8), 0x581f60(0, 0)) and
+   shot hostile to the player: the player's vehicle's vt+0x24, vt+0x28,
+   +0xc0 against +0xc8), 0x581f60(0, 0)) and
    ONFIRE_ANIMs run; then the next shot: a burst over (its clock
    passed) waits FIRE_LIMITS' second value and drops the aim, else
    FIRE_RATE.
@@ -1314,16 +1314,14 @@ the nearest-enemy search is skipped or finds no one in sight it aims at the
 player's place, line of sight or not (the aim's range and cone still
 apply).
 
-**Two sides the wrong way round** (found in 4c3, against the mech's own
-calls): a mech's shot is "friendly" on the radar when the player's team is
-among its allies (0x4b3450, a weapon's shot); the turret asks for
-the player among its enemies, so a hostile turret's missiles are tagged
-friendly. And a mech's AMS takes side 0 (shoot the shots not friendly) when
-it is the player's ally, else side 1 (0x4192b6); the turret's always takes
-0. Together: the player's AMS lets every hostile turret's missiles through
-(it skips friendly ones), and a hostile AMS turret (tur_ams, Ops 3 and 4)
-shoots down the hostile mechs' missiles and never the player's. FIX (bug),
-both behind `bugs`: the turret asks as a mech does.
+**The shot's flag and the AMS side.** 0x4b4a40's last argument is the
+shot hostile to the player: the player's team among the shooter's enemies
+(+0xc8), for a mech's shots (0x4b3550) and a turret's (0x4a6fa9) alike; it
+colours the radar's pixel red and picks the AMS that may take it. An AMS
+asks with side 0 for the shots not hostile to the player (a mech that is
+the player's enemy, 0x41927e), side 1 for the hostile ones; a turret always
+asks side 0, right for them all (team 2). So the player's AMS takes hostile
+turrets' missiles, and tur_ams shoots down the player's.
 
 **The aim** 0x4a71c0: the gun's translation (its matrix +0x24) through the
 node's world matrix, the direction to the target (its length the distance)

@@ -3055,12 +3055,3 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   are turrets that the mission's animations fly along their paths; they
   aim and shoot from wherever they are at the time. (docs/vehicles.md, The
   turrets' frame)
-
-- **Your AMS never shot down turret missiles.** Missiles from enemy turrets
-  (the SRM and LRM turrets, the helicopters' LRMs, the tripod's) are marked
-  as friendly shots on the radar, because the turret asks the opposite
-  question to a mech when it fires; your anti-missile system skips friendly
-  shots, so it let every one of them through. The enemy AMS turrets have
-  the same mix-up the other way: they shoot down missiles from the enemy's
-  own mechs and leave yours alone. The rebuild sorts both out.
-  (docs/vehicles.md, The turrets' frame)

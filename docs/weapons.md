@@ -303,7 +303,7 @@ damage < 1.
   sound and animation muted (0x581f70 / 0x581f90 with -1), re-aimed.
 - Fire (0x4b3450): FCS in the firing part; the lock (if the owner's vt+0x58
   is 0); the fire effect attached to the firepoint when its flag says so;
-  spawn (0x4b4a40 → 0x585010; the friend flag decides the radar colour only);
+  spawn (0x4b4a40 → 0x585010; its last argument, the shot hostile to the player (the player's team among the shooter's enemies, +0xc8), decides the radar's colour and which AMS takes it);
   stats, the network event 0x16; reload = period; ammo on the salvo's first
   shot only (truecount, capped at what is left); the HUD; the firing heat and
   recoil (0x461670).
@@ -603,7 +603,7 @@ segments made (up to 8, 1 for DESIGNATE; the game asks for 1), +0x40 shown,
   (the player's foes' shots; an enemy's AMS the player side's) and shoots it
   down (health 0) once the period, shared over the AMS count, has passed.
   Only shots on the radar (SHOW_ON_RADAR: the missiles) can be shot down.
-- The radar list (0x4b49c0..0x4b4b96): a std::list of {shot, friendly}; every
+- The radar list (0x4b49c0..0x4b4b96): a std::list of {shot, hostile to the player}; every
   frame each radar shot's tick puts itself on it, and the radar object's
   action (priority 2) empties it.
 

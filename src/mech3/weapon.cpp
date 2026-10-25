@@ -1037,14 +1037,14 @@ Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m) {
 
 // Mech3.exe 1.2 @ 0x004b4a40
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                        const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) {
-  Handle p = spawn_shot(def, node, x64, muzzle, dir, velocity, p5, p6, friendly);
+                        const Vec3f* velocity, int32_t p5, int32_t p6, bool hostile) {
+  Handle p = spawn_shot(def, node, x64, muzzle, dir, velocity, p5, p6, hostile);
   if (p && type_of(def)->show_on_radar) {
     if (g_calls.radar_track) {
-      g_calls.radar_track(p, friendly);
+      g_calls.radar_track(p, hostile);
     } else {
       auto* q = static_cast<zwep::Projectile*>(p);
-      q->tick = friendly ? radar_friend : radar_foe;
+      q->tick = hostile ? radar_hostile : radar_not_hostile;
       q->tick_arg = reinterpret_cast<uintptr_t>(q);
     }
   }
@@ -1060,13 +1060,13 @@ std::list<RadarBlip*>& radar_blips() { return g_blips; }
 
 // Mech3.exe 1.2 @ 0x004b49c0: a shot on the radar for this frame (each shot's
 // tick puts it back every frame; the radar's action empties the list).
-void radar_add(zwep::Projectile* p, bool friendly) { g_blips.push_back(new RadarBlip{p, friendly}); }
+void radar_add(zwep::Projectile* p, bool hostile) { g_blips.push_back(new RadarBlip{p, hostile}); }
 
 // Mech3.exe 1.2 @ 0x004b4a20
-void radar_foe(zwep::Projectile* p) { radar_add(p, false); }
+void radar_not_hostile(zwep::Projectile* p) { radar_add(p, false); }
 
 // Mech3.exe 1.2 @ 0x004b4a30
-void radar_friend(zwep::Projectile* p) { radar_add(p, true); }
+void radar_hostile(zwep::Projectile* p) { radar_add(p, true); }
 
 // Mech3.exe 1.2 @ 0x004b4b10 (the list's clear), run as the radar object's
 // action 0x004b49b0.
@@ -1204,14 +1204,15 @@ void WeaponManager::ammo_gauge() const {
 Ams::Ams(float r, float p, int32_t n) : on(true), range(r), next(0), period(p), target(nullptr), rounds(n) {}
 
 // Mech3.exe 1.2 @ 0x004b3ae0: the radar's nearest shot within range, by
-// |dx| + |dz|: side 0 foes' shots only (the player's AMS), 1 friends' only
-// (the enemy's), else all.
+// |dx| + |dz|: side 0 the shots not hostile to the player only (an enemy's
+// AMS: a mech whose enemies hold the player's team, 0x0041927e; a turret's),
+// 1 the hostile ones only (the player's side's), else all.
 bool Ams::find(int32_t side, const zwep::Vec3f3* at) {
   if (rounds <= 0) return false;
   float best = range;
   for (RadarBlip* b : g_blips) {
-    if (side == 0 && b->friendly) continue;
-    if (side == 1 && !b->friendly) continue;
+    if (side == 0 && b->hostile) continue;
+    if (side == 1 && !b->hostile) continue;
     const zwep::Projectile* p = b->shot;
     const float dz = std::fabs(p->position.z - at->z);
     const float dx = std::fabs(p->position.x - at->x);
@@ -1242,8 +1243,8 @@ void Ams::fire(int32_t count) {
 
 // 0x00585010 through the hook a test sets, else the port.
 Handle spawn_shot(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) {
-  if (g_calls.spawn) return g_calls.spawn(def, node, x64, muzzle, dir, velocity, p5, p6, friendly);
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool hostile) {
+  if (g_calls.spawn) return g_calls.spawn(def, node, x64, muzzle, dir, velocity, p5, p6, hostile);
   return zwep::spawn(def, node, static_cast<const uint32_t*>(x64), reinterpret_cast<const zwep::Vec3f3*>(muzzle),
                      reinterpret_cast<const zwep::Vec3f3*>(dir), reinterpret_cast<const zwep::Vec3f3*>(velocity), p5,
                      reinterpret_cast<zwep::Projectile*>(static_cast<uintptr_t>(static_cast<uint32_t>(p6))));
@@ -1425,10 +1426,10 @@ bool Weapon::fire(const Vec3f* velocity) {
   }
   if ((def->fire.flags & 2) && firepoint) zwep::attach_fire(def, node, firepoint->position);
   const uint32_t team = g_calls.player_team ? g_calls.player_team() : 0;
-  const uint32_t allies = g_calls.entity_allies ? g_calls.entity_allies(e) : 0;
+  const uint32_t enemies = g_calls.entity_enemies ? g_calls.entity_enemies(e) : 0;
   spawn_projectile(def, g_calls.entity_node ? g_calls.entity_node(e) : nullptr,
                    g_calls.entity_x64 ? g_calls.entity_x64(e) : nullptr, &muzzle, &direction, velocity, 0, 0,
-                   (team & allies) != 0);
+                   (team & enemies) != 0);  // hostile to the player
   if (owner == g_world.mission_player && g_world.stats && g_calls.stats_shot) g_calls.stats_shot(index);
   if (owner) net_event(owner, this);
   set_lock_globals(nullptr, nullptr);

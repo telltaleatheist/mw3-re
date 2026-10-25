@@ -307,9 +307,9 @@ class TurretHooks : public zgame::Unported {
   virtual void attach_fire(Handle def, Handle node) { unported("0x00581fb0", {def, node}); }
   virtual void beam_start(Handle beam) { unported("0x00581230", {beam, 0}); }
   virtual void weapon_fire(Handle def, Handle node, const float* from, const float* dir, const float* velocity,
-                           int32_t friendly) {
+                           int32_t hostile) {
     (void)from, (void)dir, (void)velocity;
-    unported("0x004b4a40", {def, node, 0, 0, 0, 0, 0, 0, friendly});
+    unported("0x004b4a40", {def, node, 0, 0, 0, 0, 0, 0, hostile});
   }
   virtual void sound_play(Handle sound, const float* at) {
     (void)at;

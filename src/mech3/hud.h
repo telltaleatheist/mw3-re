@@ -831,7 +831,7 @@ class HudHooks : public zgame::Unported {
   // selected point (vehicles.md, The nav waynet), its image by its +0xc
   // ([0x00608bac] set, else [0x00608ba8]), place (vt+0x18) and name (+0x28).
   // The weapons' radar list (std::list at 0x0060b228, weapon.h radar_blips:
-  // a shot's place its +0x48, friendly); the landmines (0x00604e48's vector
+  // a shot's place its +0x48, hostile); the landmines (0x00604e48's vector
   // +4..+8 of 16 bytes: armed, the place).
   virtual int32_t mech_contact_count(Mech* m) {
     return static_cast<int32_t>((unported("peek32", {id(m) + 0xb0}) - unported("peek32", {id(m) + 0xac})) / 4);
@@ -863,14 +863,14 @@ class HudHooks : public zgame::Unported {
   virtual const char* marker_name(void* e) {
     return reinterpret_cast<const char*>(static_cast<uintptr_t>(unported("peek32", {id(e) + 0x28})));
   }
-  virtual bool radar_shot(int32_t i, float out[3], bool* friendly) {
+  virtual bool radar_shot(int32_t i, float out[3], bool* hostile) {
     const uint32_t head = unported("peek32", {0x60b22c});
     uint32_t n = unported("peek32", {head});
     for (int32_t k = 0; k < i && n != head; ++k) n = unported("peek32", {n});
     if (n == head) return false;
     const uint32_t b = unported("peek32", {n + 8});
     vec3_at(unported("peek32", {b}) + 0x48, out);
-    *friendly = (unported("peek8", {b + 4}) & 0xff) != 0;
+    *hostile = (unported("peek8", {b + 4}) & 0xff) != 0;
     return true;
   }
   virtual int32_t mine_count() {

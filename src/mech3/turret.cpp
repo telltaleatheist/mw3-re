@@ -513,13 +513,10 @@ void Turret::frame() {
         if (weapon) {
           if ((h.weapon_fire_flags(weapon) >> 1) & 1) h.attach_fire(weapon, fire_node[firepoint]);
           h.shooter_set(*this, true);
-          // The radar's "friendly" (0x004b4a40's last). FIX (bug), behind
-          // bugs: the exe asks for the player among the turret's enemies
-          // (a hostile turret's missiles friendly, so the player's AMS lets
-          // them through); a mech asks for its allies (docs/fixes.md).
-          const uint32_t side = zfix::options().bugs ? allies : enemies;
-          const int32_t friendly = (side & h.player_team(player)) != 0 ? 1 : 0;
-          h.weapon_fire(weapon, node, fire_from, fire_dir, x178, friendly);
+          // 0x004b4a40's last: the shot hostile to the player (the player's
+          // team among the turret's enemies, as a mech's shots are marked).
+          const int32_t hostile = (enemies & h.player_team(player)) != 0 ? 1 : 0;
+          h.weapon_fire(weapon, node, fire_from, fire_dir, x178, hostile);
           h.shooter_set(*this, false);
         }
         for (Handle a : onfire) h.anim_run(a, node);
@@ -578,11 +575,9 @@ bool Turret::pick(Handle player) {
       if (e) at = h.entity_position(e);
     }
   } else {
-    // FIX (bug), behind bugs: the exe always asks for side 0, the player's
-    // side's AMS (it shoots shots not friendly to the player); a mech asks
-    // by whether it is the player's ally (0x004192b6; docs/fixes.md).
-    const int32_t side = zfix::options().bugs && (allies & h.player_team(player)) == 0 ? 1 : 0;
-    ams_found = h.ams_find(*ams, side, pos) ? 1 : 0;
+    // Side 0: the shots not hostile to the player (a mech's AMS takes it as
+    // the player's enemy, 0x0041927e); the turrets are all the enemy's.
+    ams_found = h.ams_find(*ams, 0, pos) ? 1 : 0;
     if (ams_found) at = h.ams_target(*ams);
   }
   if (!at) {
