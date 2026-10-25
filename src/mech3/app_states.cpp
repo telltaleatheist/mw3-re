@@ -424,7 +424,7 @@ bool CoreState::draw_software(Handle veh, bool flag) {
     draw_part(en, mech_torso(en, veh));
     en.scene_draw(scene);
   }
-  en.view_draw_hud(en.player_view());
+  en.view_camera_refresh(en.player_view());
   en.scene_end(scene);
   en.scene_set_scale(0, 1.0f);
   en.scene_present();
@@ -552,7 +552,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
     draw_part(en, mech_part(en, veh, 0x394));
     draw_part(en, mech_part(en, veh, 0x398));
   }
-  en.view_draw_hud(en.player_view());
+  en.view_camera_refresh(en.player_view());
   if (veh) {
     en.node_set_shadow(mech_torso(en, veh), 1);
     en.camera_draw_scene(en.field32(en.field32(en.player_view(), 0x4), 0x38), scene);
@@ -642,7 +642,7 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
   en.video_double(render, display);
   en.video_lock();
   en.render_flush(window);
-  en.view_draw_hud(en.player_view());
+  en.view_camera_refresh(en.player_view());
   en.scene_set_scale_b(2.0f);
   en.scene_end(scene);
   set_view_window(en, window);

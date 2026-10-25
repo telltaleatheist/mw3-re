@@ -1963,3 +1963,24 @@ is paused.
   nets_end no longer log. ai.md section 20; mw3tests
   missions_waynets_begin_in_the_registrys_order. The order is invisible
   after the first frame (the nav waynet's frame re-places the marker).
+
+## Item 18: the lens flares and the camera refresh (2026-10-25, mac 4)
+
+- Assigned (the lead): the flare list, pick, size, quads and the Direct3D
+  draw 0x4f7350 with its INTERSECT toggle, gmod_draw's flare hook; 0x4b51f0
+  as the camera refresh (renamed); render.md and fixes.md corrected; a
+  differential and breaks; headless on c1m1 (drawn, blocked by a building
+  and the cockpit); a screenshot pair; the per-world count.
+- Done (mac 4): `zrender/zrndr_flare` (0x567420, 0x5674d0, 0x567570,
+  0x567650, 0x5676c0, 0x5676d0, 0x567b90, 0x567d30; 0x567720 was the
+  puffers' draw_sprite), `zcls::camera_draw_flares` (0x4f7350), the model
+  light's flare (its world point by 0x73fc00), the script's
+  LensFlareTexture, the engine's 0x567570 / 0x5674d0 / 0x4f7350 / 0x4b51f0
+  (view_draw_hud renamed view_camera_refresh). The quads' fourth sits at
+  (cx - dx, cy + dy). c1m1's start does not face the sun; c4m2's does, so
+  the headless test and the pair use c4m2: drawn, and hidden by an AI mech
+  put on the line (a building there would need a world search; the mech
+  is the same segment test). The cockpit's INTERSECT is toggled as the exe
+  but never met over a full turn (its node has no model; open). Flaring
+  lights: c1, c2, c4, t1 one, c3 two, c4b none. fixes.md's candidate
+  withdrawn.

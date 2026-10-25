@@ -45,6 +45,8 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
+#include "gamez/zrender/zrndr_draw.h"
+#include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
@@ -870,6 +872,112 @@ TEST(missions_waynets_begin_in_the_registrys_order_headless) {
     reset_process_state();
     mech3::options() = mech3::Options{};
   }
+}
+
+// The lens flares (0x00567420 .. 0x00567d30, 0x004f7350; docs/render.md,
+// Lens flares): c4 mission 2 starts facing the sun, whose model light is the
+// world's flaring one. The frame lists it, picks it and draws its four
+// squares; with an AI mech put 15 m out on the line to it the sight line
+// meets the mech and nothing is drawn; the cockpit takes part in that line
+// test (its INTERSECT on around the draw, 0x004eb6d0) and is off again after.
+TEST(mission_c4m2_sun_flare_drawn_and_blocked_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_flare_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    int listed = 0, squares_open = -1, squares_blocked = -1, squares = 0;
+    bool cockpit_on_in_draw = false, cockpit_off_after = false, have_ai = false;
+    void* cockpit = nullptr;
+    const zimg::TextureEntry* first_texture = nullptr;
+  };
+  static Seen seen;
+  seen = Seen{};
+  const zrndr::FlareHooks keep_hooks = zrndr::flare_hooks();
+  zrndr::flare_hooks().sprite = [](const float* p, const zimg::TextureEntry* t, float sz, float a, int32_t c) {
+    if (seen.squares++ == 0) seen.first_texture = t;
+    if (seen.cockpit) seen.cockpit_on_in_draw = mech3::node_intersects(seen.cockpit);
+    zrndr::draw_sprite(p, t, sz, a, c);
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c4 mission 2
+    l.index = 3, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (!seen.cockpit) seen.cockpit = mech3::mech_cockpit_node(mech3::mech_mission_player());
+      if (frames == 3) {
+        seen.listed = zrndr::flares().count;
+        seen.squares_open = seen.squares;
+        seen.cockpit_off_after = seen.cockpit && !mech3::node_intersects(seen.cockpit);
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        if (made > 0 && seen.listed > 0) {
+          seen.have_ai = true;
+          // From the camera (data +0x2c) along the line to the sun, 15 m out,
+          // with the mech's centroid on the line (it is shorter than the
+          // player's eye: on its feet the line passes over it).
+          const auto* cam = static_cast<zcls::Camera*>(static_cast<zcls::Node*>(mech3::program_view()->camera)->data);
+          const float eye[3] = {cam->get<float>(0x2c), cam->get<float>(0x30), cam->get<float>(0x34)};
+          const float* sun = zrndr::flares().list[0].world;
+          const float d[3] = {sun[0] - eye[0], sun[1] - eye[1], sun[2] - eye[2]};
+          const float n = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+          float pos[3], cen[3];
+          mech3::mech_world_position(ai[0].mech, pos);
+          mech3::node_world_cached(mech3::mech_centroid_of(ai[0].mech), cen);
+          const float at[3] = {eye[0] + 15.0f * d[0] / n, eye[1] + 15.0f * d[1] / n - (cen[1] - pos[1]),
+                               eye[2] + 15.0f * d[2] / n};
+          mech3::move_mech(ai[0].mech, at, 0.0f);
+        }
+      } else if (frames == 5) {
+        seen.squares_blocked = seen.squares - seen.squares_open;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 5; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrndr::flare_hooks() = keep_hooks;
+  if (std::getenv("MW3_FLARE_LOG"))
+    std::fprintf(stderr, "FLARE listed %d squares open %d blocked %d cockpit in %d off %d ai %d tex %p\n", seen.listed,
+                 seen.squares_open, seen.squares_blocked, seen.cockpit_on_in_draw, seen.cockpit_off_after, seen.have_ai,
+                 static_cast<const void*>(seen.first_texture));
+  EXPECT(seen.listed == 1);
+  EXPECT(seen.squares_open > 0 && seen.squares_open % 4 == 0 && seen.first_texture == zrndr::flares().textures[0]);
+  EXPECT(seen.have_ai && seen.squares_blocked == 0);
+  EXPECT(seen.cockpit_on_in_draw && seen.cockpit_off_after);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 TEST(mission_start_reads_c1m1_vehicles_headless) {

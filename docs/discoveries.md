@@ -1106,6 +1106,15 @@ From the world files (gamez.md).
 
 ## Drawing the world
 
+- **The sun has a lens flare in every operation but c4b.** Look toward the
+  sun with nothing in the way and four rings and glows appear: one on the
+  sun, one halfway to the middle of the screen, a small one near the middle,
+  and a big one past the middle. The big one is mirrored only left-to-right:
+  it sits across the screen from the sun but on the same height side, not
+  straight through the centre. Anything between you and the sun hides the
+  whole flare at once (a mech in the way does). c3 has two flaring lights;
+  c4b's has none. (`render.md`, Lens flares.)
+
 - **The AI's line of sight follows your camera's zone.** The checks that
   decide whether an enemy has a clear shot skip everything outside the
   zones your camera's ground belongs to. c4b's fifth mission starts on

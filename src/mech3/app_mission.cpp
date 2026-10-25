@@ -2166,6 +2166,23 @@ void GameEngine::node_set_active(Handle node, int32_t on) {
 void GameEngine::node_set_shadow(Handle node, int32_t on) {
   if (zcls::Node* n = mission_node(*this, node)) zcls::node_set_intersect(n, on);
 }
+// 0x004f7350 on the player camera's data (the program's camera node's).
+void GameEngine::camera_draw_scene(Handle, Handle first) {
+  zcls::Node* cam = mission_node(*this, camera_);
+  if (cam && cam->data) zcls::camera_draw_flares(static_cast<zcls::Camera*>(cam->data), static_cast<int32_t>(first));
+}
+// Mech3.exe 1.2 @ 0x004b51f0 (ECX the player view): its camera node's matrices
+// (0x004f4170) and the model renderer's camera (0x00526e10) set again, after
+// the cockpit passes, with the matrix stack pushed around them.
+void GameEngine::view_camera_refresh(Handle) {
+  zcls::Node* cam = mission_node(*this, camera_);
+  if (!cam || !cam->data) return;
+  zmth::Mat34 local;
+  zmth::push(&local);
+  zcls::camera_update(cam);
+  zmod::set_camera(static_cast<zcls::Camera*>(cam->data));
+  zmth::pop();
+}
 void GameEngine::view_draw_node(Handle, Handle node, Handle) {
   zcls::Node* cam = mission_node(*this, camera_);
   zcls::Node* n = mission_node(*this, node);
