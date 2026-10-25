@@ -21,6 +21,7 @@
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/camera.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
@@ -63,6 +64,7 @@
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
 #include "mech3/app_view.h"
+#include "mech3/player_view.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/controls_menu.h"
 #include "mech3/mainmenu.h"
@@ -112,7 +114,12 @@ float ground_under(float x, float top, float z) {
   if (!w) return std::nanf("");
   float probe[3] = {x, top, z};
   static zcls::GroundHits hits;
+  // Every zone's ground, whatever the camera's zone list holds (as the
+  // render's own probe asks, [0x005ea1d0] off).
+  const int32_t mode = zmod::zones().mode;
+  zmod::zones().mode = 0;
   zcls::ground_query(w, probe, 1, top, &hits);
+  zmod::zones().mode = mode;
   float best = std::nanf("");
   for (int i = 0; i < hits.count; ++i) {
     if (hits.hit[i].material && hits.hit[i].material->soil == 1) continue;
@@ -959,9 +966,9 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
         watcher(2, [](zcls::Node*) { g_watch.add("2>"); }, true);
         watcher(3, [](zcls::Node*) {
           g_watch.add("3<");
-          zwep::run_state().zone = 0x55, zwep::run_state().tick_zone = 0;  // the weapon tick copies it
+          zwep::set_query_zone(0xffffff01u), zwep::run_state().tick_zone = 0;  // the weapon tick copies it ({1, all})
         }, false);
-        watcher(3, [](zcls::Node*) { g_watch.add(zwep::run_state().tick_zone == 0x55 ? "3>" : "3>no-tick"); }, true);
+        watcher(3, [](zcls::Node*) { g_watch.add(zwep::run_state().tick_zone == 0xffffff01u ? "3>" : "3>no-tick"); }, true);
         watcher(4, [](zcls::Node*) { g_watch.add("4"); }, false);
       }
     };
@@ -1464,6 +1471,200 @@ TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
     EXPECT(seen && first.powering_down && first.feet_down);
     EXPECT(seen && std::fabs(first.pos[1] - ground_under(first.pos[0], first.pos[1] + 100.0f, first.pos[2])) < 1e-3f);
     EXPECT(engine.unported_counts().count("mech.vt+0x34") == 0);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The camera's zone (0x0040b080 -> 0x004f6c80): c4b mission 6's tunnel is
+// zone 44. At the start the ground under the camera is zone 1, so the camera,
+// the render's list [0x0074a328] and the player's mech (ZEntity3d +0x64, its
+// node's byte) read {1}: the tunnel's nodes (and zone 22's) are not drawn.
+// Put in the tunnel, they read {1, 44}: the tunnel is. Before the port no
+// zone was ever culled. docs/view.md section 7.
+TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_zone_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c4b mission 6
+    l.index = 4, l.number = 6;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Snap {
+      uint8_t cam[4] = {}, render[4] = {}, mech[4] = {};
+      int32_t set = -1, node_zone = -1, v1 = -1, v22 = -1, v44 = -1, anim_known = -1, probe_hit = -1;
+      uint8_t anim[4] = {}, probe[4] = {};
+    };
+    Snap outside, inside;
+    bool nan_query_ended = false;
+    int frames = 0;
+    // A wall only in zone 44 (zWeapon's queries read the one [0x0074a328]):
+    // found by the weapons' segment query under {1, 44}, missed under {1}; a
+    // shot with the player's zones stops on it, one with {1} does not.
+    struct Wall {
+      zwep::Handle node = nullptr;
+      zwep::Vec3f3 from{}, dir{};
+      float dist = 0;
+      bool missed_outside = false;
+      const char* weapon = nullptr;
+      int marks_inside = 0, marks_outside = 0;
+      bool hit_inside = false, hit_outside = false;
+      int shot = 0;  // 1 the inside shot is flying, 2 the outside one
+    } wall;
+    static Wall* s_wall;
+    s_wall = &wall;
+    auto nearest_off_player = [](const zwep::Vec3f3& a, const zwep::Vec3f3& b, float* d2) -> zwep::Handle {
+      static zwep::HitList hl;
+      hl = zwep::HitList{};
+      zwep::run_hooks().segment_list(&a, &b, &hl);
+      zwep::Handle best = nullptr;
+      for (int i = 0; i < hl.count; ++i) {
+        const zwep::HitRecord& r = hl.rec[i];
+        if (!r.node || mech3::node_entity(r.node) == mech3::mech_mission_player()) continue;
+        const float dx = r.point.x - a.x, dy = r.point.y - a.y, dz = r.point.z - a.z;
+        const float e = dx * dx + dy * dy + dz * dz;
+        if (!best || e < *d2) best = r.node, *d2 = e;
+      }
+      return best;
+    };
+    const auto marks = zwep::hit_hooks().surface_mark;
+    auto snap = [&](Snap& n) {
+      auto* v = mech3::program_view();
+      auto* c = v ? static_cast<zcls::Node*>(v->camera) : nullptr;
+      if (!c || !c->data) return;
+      const uint8_t* raw = static_cast<zcls::Camera*>(c->data)->raw;
+      n.set = *reinterpret_cast<const int32_t*>(raw + 0x1e0);
+      std::memcpy(n.cam, raw + 0x1e4, 4);
+      std::memcpy(n.render, zmod::zones().list, 4);
+      mech3::mech_zones(mech3::mech_mission_player(), n.mech, &n.node_zone);
+      n.v1 = zmod::zone_visible(1), n.v22 = zmod::zone_visible(22), n.v44 = zmod::zone_visible(44);
+      n.anim_known = zeff::anim().block.get<int32_t>(0x28);  // 0x00502d70's
+      std::memcpy(n.anim, zeff::anim().block.raw + 0x38, 4);
+      // The render's own probe (0x004eda10 at the camera), used while the
+      // camera has no zone set: the same list from the ground below it.
+      const zcls::WorldRenderHooks& wh = zcls::world_render_hooks();
+      float at[3];
+      std::memcpy(at, raw + 0x2c, 12);
+      uint32_t zone = 0;
+      if (wh.zone_probe && mech3::world_hooks().world) {
+        n.probe_hit = wh.zone_probe(wh.ctx, mech3::world_hooks().world, at, &zone);
+        std::memcpy(n.probe, &zone, 4);
+      }
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 5) {
+        snap(outside);
+        if (zcls::Node* t = zcls::list_find_by_name(6, "m6tun")) {
+          float x = 0, y = 0, z = 0;
+          zcls::object3d_get_translation(t, &x, &y, &z);
+          const float at[3] = {x, ground_under(x, y + 20.0f, z), z};
+          mech3::move_mech(mech3::mech_mission_player(), at, 0.0f);
+        }
+      } else if (frames == 15) {
+        snap(inside);
+        // A segment toward a NaN place ends (FIX (bug): the exe's walk does not).
+        const float from[3] = {0, 50, 0}, nowhere[3] = {std::nanf(""), std::nanf(""), std::nanf("")};
+        uint8_t count = 0;
+        mech3::world_segment_first(from, nowhere, 0, &count);
+        nan_query_ended = true;
+        float at[3];
+        mech3::node_world_cached(mech3::mech_centroid_of(mech3::mech_mission_player()), at);
+        wall.from = {at[0], at[1], at[2]};
+        const uint32_t tunnel_zone = 0xff2c0102u, one_zone = 0xffff0101u;  // {2, 1, 44}, {1, 1}
+        for (int i = 0; i < 32 && !wall.node; ++i) {
+          const float a = static_cast<float>(i) * 0.19634954f;
+          const zwep::Vec3f3 d{std::sin(a), 0.0f, std::cos(a)};
+          const zwep::Vec3f3 to{wall.from.x + 150 * d.x, wall.from.y, wall.from.z + 150 * d.z};
+          float d2 = 0, d2_one = 0;
+          zwep::set_query_zone(tunnel_zone);
+          zwep::Handle n = nearest_off_player(wall.from, to, &d2);
+          if (!n || static_cast<zcls::Node*>(n)->raw[0x30] != 44) continue;
+          zwep::set_query_zone(one_zone);
+          zwep::Handle m = nearest_off_player(wall.from, to, &d2_one);
+          wall.node = n, wall.dir = d, wall.dist = std::sqrt(d2), wall.missed_outside = m != n;
+        }
+        std::memcpy(zmod::zones().list, inside.render, 4);
+        for (zwep::WeaponDef& d : zwep::state().defs)
+          if (d.key && !(d.flags & (zwep::kBeam | zwep::kTargetHeat | zwep::kMine | zwep::kLockOn)) && d.range > wall.dist + 5) {
+            wall.weapon = d.key;
+            break;
+          }
+        zwep::hit_hooks().surface_mark = [](zwep::HitRecord* h) {
+          if (s_wall->shot == 1) ++s_wall->marks_inside, s_wall->hit_inside |= h->node == s_wall->node;
+          if (s_wall->shot == 2) ++s_wall->marks_outside, s_wall->hit_outside |= h->node == s_wall->node;
+        };
+      } else if ((frames == 16 || frames == 46) && wall.node && wall.weapon) {
+        // The inside shot: the camera's list and the player's zones ({2, 1, 44},
+        // ZEntity3d +0x64). The outside one: both {1, 1}, as with the camera
+        // over zone-1 ground (the spawn's straight-shot cast reads the list).
+        static uint32_t zone;
+        zone = frames == 16 ? 0xff2c0102u : 0xffff0101u;
+        wall.shot = frames == 16 ? 1 : 2;
+        const uint32_t keep = zwep::query_zone();
+        zwep::set_query_zone(zone);
+        const zwep::Vec3f3 still{0, 0, 0};
+        zwep::spawn(zwep::find_def(wall.weapon), mech3::mech_node_of(mech3::mech_mission_player()), &zone, &wall.from,
+                    &wall.dir, &still, 0, nullptr);
+        zwep::set_query_zone(keep);
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames > 75; };
+    pump.limit = 2000;
+    app.run(pump);
+    zwep::hit_hooks().surface_mark = marks;
+    if (std::getenv("MW3_ZONE_LOG")) {
+      std::fprintf(stderr, "WALL %s dist %.1f missed_outside %d weapon %s marks %d/%d hit %d/%d\n",
+                   wall.node ? static_cast<zcls::Node*>(wall.node)->name() : "-", wall.dist, wall.missed_outside,
+                   wall.weapon ? wall.weapon : "-", wall.marks_inside, wall.marks_outside, wall.hit_inside, wall.hit_outside);
+    }
+    if (std::getenv("MW3_ZONE_LOG"))
+      for (const Snap* n : {&outside, &inside})
+        std::fprintf(stderr, "ZONE set %d cam %d %d %d %d render %d %d %d %d mech %d %d %d %d node %d visible 1:%d 22:%d 44:%d\n", n->set,
+                     n->cam[0], n->cam[1], n->cam[2], n->cam[3], n->render[0], n->render[1], n->render[2], n->render[3],
+                     n->mech[0], n->mech[1], n->mech[2], n->mech[3], n->node_zone, n->v1, n->v22, n->v44);
+    const uint8_t one[4] = {1, 1, 0xff, 0xff}, tunnel[4] = {2, 1, 44, 0xff};
+    EXPECT(outside.set == 1 && !std::memcmp(outside.cam, one, 4) && !std::memcmp(outside.render, one, 4));
+    EXPECT(!std::memcmp(outside.mech, one, 4) && outside.node_zone == 1);
+    EXPECT(outside.v1 == 1 && outside.v22 == 0 && outside.v44 == 0);
+    EXPECT(inside.set == 1 && !std::memcmp(inside.cam, tunnel, 4) && !std::memcmp(inside.render, tunnel, 4));
+    EXPECT(!std::memcmp(inside.mech, tunnel, 4) && inside.node_zone == 1);
+    EXPECT(inside.v1 == 1 && inside.v22 == 0 && inside.v44 == 1);
+    EXPECT(nan_query_ended);
+    EXPECT(outside.anim_known == 1 && !std::memcmp(outside.anim, one, 4) && !std::memcmp(inside.anim, tunnel, 4));
+    EXPECT(outside.probe_hit == 1 && !std::memcmp(outside.probe, one, 4));
+    EXPECT(inside.probe_hit == 1 && !std::memcmp(inside.probe, tunnel, 4));
+    EXPECT(wall.node && wall.missed_outside && wall.weapon);
+    EXPECT(wall.hit_inside && !wall.hit_outside);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

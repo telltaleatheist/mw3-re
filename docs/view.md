@@ -167,7 +167,84 @@ same distance.
 
 ## 6. Left
 
-- The world queries the checks use (0x004edab0, 0x004abd90, 0x004eed90) and
-  the zone set 0x004f6c80, 0x005a80d0.
+- The world queries the checks use (0x004edab0, 0x004abd90, 0x004eed90).
+  The zone set is ported (section 7).
 - The HUD's camera calls. (The torso's cockpit switch 0x0041ce10 acts now
   that the cockpit block is made: playtest #4, 2026-10-21.)
+
+## 7. The camera's zone (0x40b080, 0x4f6c80; ported 2026-10-25, item 12)
+
+Worlds are cut into zones: every node has a zone byte (+0x30, 0xff "all")
+and every ground polygon a zone word (count, then up to three ids, the
+polygon's +0x20, kept in a ground hit's +0x18). The draw skips a node
+whose zone is not in the render's list [0x74a328] (0x53cdc0). In the
+shipped worlds the extra zones are interiors and their props: c1 has zone
+71 (72 nodes), c2 zones 2, 4, 5, 62 (the pump), 63 (the boiler's elevator,
+doors and floor) and 73 (the waterfalls and their triggers), c3 zone 10
+(85 nodes), c4b zones 22 and 44 (m6's tunnel, its sound and trigger); c4
+and t1 have only zone 1. Counted by loading every campaign and training
+mission (the node pool's bytes).
+
+**0x40b080** (the view's ground check, section 1, after the camera is lifted
+out of the ground; ECX the view, the stack the hits and the index the
+water check picked): the camera's zone set from that polygon's zone word
+(0x4f6c80), then the render's list from the camera's (+0x1e4 into
+[0x74a328]), the view's target's zones (+0x64: zEntity's 0x5a80d0, which
+also gives its node the first id, 0x5a80c0 -> 0x4eb810) and the
+animations' (0x502d70: their +0x38 list, +0x28 "known"). **0x4f6c80** (ECX
+the camera node, EDX the list): "Null node pointer" / "Null class data
+pointer" / "Bad Class Found" (0x1838..0x183a, 5, 5, 3); a list with a count
+and no 0xff among the count's ids (as many as the count says, past the
+four bytes when over three) sets +0x1e0 to 1 and +0x1e4 to it; else the
+camera keeps what it had.
+
+The render's frame (0x4f6f6f, ported in camera.cpp) uses the camera's list
+when +0x1e0 is set and the world's zone mode [0x5ea1d0] is 1; otherwise it
+asks 0x4eda10 (the ground below the camera kept to one hit) for its zone
+word, the mode off around the query. So 0x40b080's copy into [0x74a328] is
+the same the next frame makes.
+
+**Before the port** the program never culled by zone: 0x40b080's calls were
+logged, the camera's +0x1e0 stayed 0 and the render's probe was unwired, so
+every frame's list was "all" and every zone drew (the tunnel's insides
+from outside it, and the like). **The port**: `zcls::camera_set_zone`
+(camera.cpp); the program's `camera_zone` (app_view.cpp) does 0x40b080's
+steps; the render's `zone_probe` is `ground_below` (app_mission.cpp).
+zWeapon reads and writes the same list (`zwep::query_zone` and
+`set_query_zone`, the exe's word over `zmod::zones().list`): one copy, as
+the exe's one global. Its readers and writers: the tick 0x5823c0 keeps the
+list in `tick_zone` (0x9a17a8) and puts it back at the end; each shot's
+update 0x585710 sets the shot's zones (+0x08, from the shooter's +0x64 at
+the spawn; low byte 4: the tick's) and each beam 0x5814b0 its own (+0x10,
+else the tick's), so a shot's casts (0x5861f0) and the guided
+shots' ground (0x4eda10) run over its shooter's zones; the spawn's
+straight-shot cast 0x585010 reads whatever the list is then (the camera's).
+
+**The queries follow it.** The segment and ground queries skip a node
+whose zone is not in [0x74a328] (cls_di.cpp, as the exe), so the AI's line
+of sight (0x4d5980) and the vehicles' ground probes run over the zones the
+camera's ground gives. c4b mission 5 starts over ground that is zone 22
+alone ({22}): until the camera reaches zone-1 ground, the queries skip
+every zone-1 node, the terrain included. Two things came of turning the
+culling on: the tests' `ground_under` helper asked the ground through the
+zones and gave NaN off them (it now turns the mode off, as the render's
+probe does), and a segment toward a NaN place hung its cell walk 0x4eefe0
+(both ends' parameters NaN: the exe's unordered compares never end it and
+step it both ways; FIX (bug), fixes.md: the walk stops).
+
+**Checked.** `test_camera_zone.py` (probe `tests/probe_camera_zone.cpp`):
+5000 cases (no node, no data, another class; counts 0..5 with ids and 0xff
+at random, the bytes past four): the answer and the camera's two words.
+`mw3tests` `mission_c4b_m6_camera_zone_follows_the_ground_headless`: at the
+start the camera, the render's list, the player's mech (+0x64 and its
+node's byte), the animations and the render's own probe read {1}, zone 44
+and 22 not drawn; put in the tunnel they read {1, 44}, zone 44 drawn.
+A segment toward NaN ends. In the tunnel the weapons' segment query finds
+g56, a zone-44 wall 16 m from the player, under {1, 44} and not under {1};
+a PPC shot with the player's zones stops on it, one with {1} (and the list
+{1} at its spawn) flies through. Breaking the port showed the tests catch it, 9 of 10 (zWeapon
+with a private copy of the list: both shots hit the wall): an 0xff not seen, a
+count of 0 setting, the ids read only to three, +0x1e0 not set, the
+target's zones or the animations' left, the probe's second word; the
+render's list left is not caught (the frame copies it anyway, above); and
+the NaN walk's stop (the test hangs without it).

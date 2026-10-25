@@ -570,6 +570,23 @@ Partition& cell_at(World* w, int32_t x, int32_t z) { return w->rows[z][x]; }
 SceneWalk& scene_walk() { return g_walk; }
 WorldRenderHooks& world_render_hooks() { return g_hooks; }
 
+// Mech3.exe 1.2 @ 0x004f6c80 (ECX the camera, EDX the zone list). The ids
+// are read up to the count byte, as many as it says.
+int camera_set_zone(Node* node, const uint8_t zone[4]) {
+  if (int r = check_class(node, 1, kFile, 0x1838)) return r;
+  const uint8_t n = zone[0];
+  if (n == 0) return 0;
+  bool set = true;
+  for (int i = 0; i < n; ++i)
+    if (zone[i + 1] == 0xff) set = false;
+  if (set) {
+    auto* c = static_cast<Camera*>(node->data);
+    c->put<int32_t>(0x1e0, 1);
+    std::memcpy(c->raw + 0x1e4, zone, 4);
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004f3a70
 int camera_set_clip(Node* node, float near_clip, float far_clip) {
   if (int r = check_class(node, 1, kFile, 0x5ca)) return r;

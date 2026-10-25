@@ -1663,6 +1663,14 @@ struct WiredMissionHooks : MissionHooks {
     h.draw_quad = [](void*) { zvid::draw_tint_quad(); };
     h.puffers = [](void*) { zmod::puff_draw(); };
     h.world_sounds = [](void*, zcls::Node* world) { zcls::world_sounds(world); };  // 0x004f3170
+    // 0x004eda10 at the camera: the ground below kept to one hit, its polygon's zone word.
+    h.zone_probe = [](void*, zcls::Node* world, const float pos[3], uint32_t* zone) -> int32_t {
+      static zcls::GroundHits hits;
+      zcls::ground_below(world, pos, &hits);
+      if (!hits.count) return 0;
+      *zone = hits.hit[0].zone[0];
+      return 1;
+    };
     h.listener_speed_limit = [](void*) { return zsnd::speed_of_sound(); };       // 0x00572360
     h.listener = [](void*, const float* m, const float v[3]) { zsnd::set_listener(m, v); };  // 0x00571e50
   }

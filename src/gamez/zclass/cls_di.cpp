@@ -1172,6 +1172,10 @@ void line_cells(Node* world) {
       const int32_t edge = step_z == 1 ? cz + 1 : cz;
       tz = ((static_cast<float>(edge) * w->get<float>(0x68) + w->get<float>(0x38)) - g_lq.a[2]) * inv_z;
     }
+    // FIX (bug): a NaN end (an entity at a NaN place) never passes 1, so the
+    // exe walks on forever (x87: NaN is "not past", and it steps both ways);
+    // the walk stops instead. fixes.md.
+    if (tx != tx || tz != tz) break;
     if (tx > 1.0f && tz > 1.0f) break;
     const bool x_first = tx <= tz, z_first = tz <= tx;
     if (x_first) cx += step_x;

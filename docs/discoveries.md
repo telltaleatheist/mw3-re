@@ -1094,6 +1094,19 @@ From the world files (gamez.md).
 
 ## Drawing the world
 
+- **The AI's line of sight follows your camera's zone.** The checks that
+  decide whether an enemy has a clear shot skip everything outside the
+  zones your camera's ground belongs to. c4b's fifth mission starts on
+  ground that belongs to one inner zone alone, so until your camera is over
+  ground of the main zone, the AI's sight lines pass through the main
+  zone's hills and buildings.
+- **Interiors only draw from inside.** The worlds are cut into zones, and
+  each ground polygon says which zones you see from it: from the open
+  ground of c4b's last mission the tunnel's insides are not drawn at all,
+  and they appear once your camera is over the tunnel's floor. The same
+  goes for c2's boiler and elevator rooms and its waterfalls, and for a
+  few smaller zones in c1 and c3.
+
 From the render path (render.md).
 
 - **Every map has invisible mission boundaries.** Flat red and yellow models

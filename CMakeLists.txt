@@ -335,6 +335,7 @@ add_library(mw3probe SHARED
   tests/probe_anim_owner.cpp
   tests/probe_ai_lists.cpp
   tests/probe_glow.cpp
+  tests/probe_camera_zone.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp
   tests/probe_mix_fog.cpp
