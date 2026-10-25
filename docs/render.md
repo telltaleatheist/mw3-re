@@ -988,9 +988,9 @@ Shaped by the code above; each step is checkable on its own.
    pattern (`fluctuate`), facades and points, morphs, model lights
    (0x541df0), the overlay list and the full-screen quad. Puffers (0x5496c0) are ported
    (puffers.md).
-9. The software renderer (0x481290 strategy, 0x53e050, span code) is a
-   separate decision for Owen: the target always has a GPU, so it may never
-   need porting **[open]**.
+9. The software renderer (0x481290 strategy, 0x53e050, span code) is not
+   ported (Owen, 2026-10-25): hardware textures only; a software look, if
+   ever wanted, is a shader pass on the GPU path (CLAUDE.md, Rendering).
 
 For the viewer now (`tools/viewer`), in order of visible effect: material
 alpha for untextured polygons (0 = skip, else blend), texture alpha

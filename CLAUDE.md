@@ -55,6 +55,14 @@ tricks such as the ESP blit) or (B) break on modern Windows without helpers like
 DDrawCompat. Each such fix is noted next to the function it touches. The
 scaffold is shaped by the real decompiled code, not designed ahead of it.
 
+Rendering (Owen, 2026-10-25): it should look at least as good as the
+original at its best, and better where it can. The game's logic stays the
+original's; how a picture is made does not have to (no emulating 1999
+methods where a modern one does the job right). The software renderer is
+not ported: hardware textures only, and a software look, if ever wanted,
+is a shader pass (8-bit palette, no filtering, low resolution) left open
+for later. Anything only the software path showed comes to the GPU path.
+
 ## Tools on this Mac
 
 - Ghidra 12.1.4 and JDK 21 from Homebrew:
@@ -237,7 +245,8 @@ through hooks:
 2. The 2D front end (zTwoD) and its menus, the mech lab, the HUD; then the
    movies (Indeo 5).
 3. Projected shadows and puffers (in progress), then the remaining render
-   pieces (lens flares, the cockpit pass, the software path stays undecided).
+   pieces (lens flares, the cockpit pass; the software path is not ported,
+   see the guiding rule).
 4. The SDL3 program itself: platform implementations (window and message
    pump, clock, input, audio, Render3D) and the hooks wired to the ports, so
    the port starts like the game; a debug start straight into a mission for
