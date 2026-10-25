@@ -1465,3 +1465,23 @@ is paused.
   renamed entity_enemies, the flag "friendly" renamed "hostile"
   (radar_hostile 0x4b4a30, radar_not_hostile 0x4b4a20) in weapon, hud,
   turret and the docs. I read the hook's name, not what it returned.
+
+## 2026-10-24 Item AI-last: the AI's last pieces (assigned by mw3 mac 1, after 4c merged as f734981)
+
+- From mw3 mac 1 (approved order: this, then the animation-owner registry,
+  then the radar contacts beyond mechs, mac 3's sign-off replaced by the
+  lead's review of app_hud.cpp, hooks and markers only): the order stack on
+  the formation net 0x4d8820 / 0x4d88a0 / 0x4d88d0 / 0x4d88f0, the IControls
+  events 0x4e95b0 / 0x4ea700, the switches 0x4ea740 / 0x4ea750; refresh
+  ai.md section 6; log the dead brain step 0x4cd7b0 as unported on purpose
+  with why. Same bar.
+- Done (docs only, the lead approved): the code part is unreachable or
+  empty (ai.md 17.9, Not ported on purpose); section 6 refreshed; the dead
+  brain step logged with why. Next on the same branch (the lead): the
+  entity-forget chain 0x4aa6b0, 0x4aa4d0, 0x4aeec0 and 0x4b0370 (ported in
+  weapon.cpp, the lead reviews it for mac 2); mech_dead's interim FIX (A)
+  removed with its fixes.md / CHANGES.md rows; a headless test that a
+  wreck is freed when the exe frees it with nothing left holding it
+  (contacts, targets, a lancemate's target, a weapon's lock); any port-side
+  holder still pointing at it reported, not papered over. Related set with
+  test_weapons_run, test_weapons_fly (background, ~26 min), test_tag.

@@ -257,12 +257,16 @@ Clean boundaries for later work, each a piece with its own test:
    targets.zrd with its damage, triggers and end. Left: the sensors that
    fill the contacts (0x4a8cd0), the entity sort 0x4d5ca0. (0x4ceb50 is
    the steering's look at the contacts, the brain's.)
-6. **The behaviours** (0x4c8600 family, ~40 classes with factories): one
-   class per sitting, each against the net queries and a vehicle hooks struct.
-7. **The brain** 0x4e9710 and the AI controls' update 0x4e96f0, then the
-   firing state machine 0x4b5b80 (meets weapon.cpp through the manager, which
-   another agent owns), the lancemate radio's lines and orders 0x4ea000...
-   The controls' constructors and the brain's data are done (section 12).
+6. **The behaviours** (0x4c8600 family): done (17.2, 17.4a, items 3a..3i):
+   the plain, node, property and mode states, the jump, the attack and the
+   fight, the station keeping, the manoeuvre, the repair (0x4d08d0..
+   0x4d0ce0). The brain's own step 0x4cd7b0 is dead and not ported (17.2's
+   table).
+7. **The brain** 0x4e9710 / 0x4e96f0, the order stack, the gates, the vlist
+   triggers, steering, the firing state machine 0x4b5b80 with the planner
+   and the aim, the lance orders and the radio, the refit: done (17.1..17.8,
+   17.9's list). What is left of the brain is unreachable or empty (17.9,
+   Not ported on purpose).
 
 ## 7. Tests and breaks
 
@@ -3219,8 +3223,36 @@ goes through a hooks struct the test stubs the same on both sides.
 14. **The radio** 0x4e6c60, 0x4e6d50, 0x4e9fd0, subtitles; **the player's
     orders** 0x4ea000..0x4ea230 and brain vt+0x20..+0x48; the IControls
     events 0x4ea520, 0x4ea630, 0x4ea6b0, 0x4ea700, 0x4e95b0.
-15. **The rest**: 0x4ea260 with 0x4d08d0 / 0x4d0a10, the brain's step
-    0x4cd7b0, the 0x4ca3b0 class, the switches 0x4ea740 / 0x4ea750.
+15. **The rest**: 0x4ea260 with 0x4d08d0 / 0x4d0a10 done (vehicles.md, The
+    AI at the dock); the switches 0x4ea740 / 0x4ea750 done; the brain's
+    step 0x4cd7b0 and the controls' slots below not ported on purpose.
+
+**Not ported on purpose** (checked 2026-10-24):
+
+- The brain's step 0x4cd7b0 (vtable 0x5cc348, its run 0x4cd810, maker
+  0x4cd790): the brain's constructor makes it at +0x240 (0x4cd770) and
+  nothing ever gives it to an order: no other reference to +0x240, its
+  vtable or its maker. Its run would turn the pilot on the spot toward the
+  next step's place and hand on as the valve step.
+- The AI controls' IControls vt+0x74 0x4d88a0 (whether the topmost order not
+  marked is on the formation net 0x603fb8), vt+0x78 0x4d88d0 (push one on
+  it, 0x4e86a0) and vt+0x7c 0x4d88f0 (pop down to that order when its net's
+  vt+0x50 answers): only the AI controls' IControls vtable 0x5cd210 holds
+  them (through the thunks 0x4d8cc0 / 0x4d8cd0 / 0x4d8ce0; the vehicles'
+  0x5cd0d8 has 0x40bae0 there), and no call through a controls' virtual
+  base reaches those slots. The lance's "form on me" goes through the
+  brain's own vt+0x38 (0x4ea4b0, ported).
+- IControls vt+0x84 0x4e95b0 (both AI vtables; the base's 0x4e0700 answers
+  1): given an entity, drop the target if it is that one's and stand the
+  firing down (0x4e9590); no caller reaches that slot either.
+- IControls vt+0x60 0x4ea700, the AI controls' answer to an entity going
+  (a vehicle's vt+0xd4 0x4aeec0 calls it from the sensors' forget
+  0x4aa6b0): both of its calls are the empty 0x4bf620, so it does nothing.
+  It comes with that forget chain, not ported yet (mech_dead.cpp's
+  interim FIX (A)).
+- The AI controls' destructor body 0x4d8820 (the vtables put back, the
+  base 0x4cf630): the C++ destructors (section 12's list).
+- The switches 0x4ea740 / 0x4ea750 are ported (`ai::ai_switch_on/off`).
 
 ## Open
 
