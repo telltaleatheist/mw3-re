@@ -393,8 +393,16 @@ waynet_N.zrd is 107 (c1's waynet_1: node_00 Start, node_01 Able, node_02
 Baker), and those auxnames are the nav points the objectives' "nav" keys
 name (0x4797c0 through 0x4bcba0 with the build flag, filling the missions
 object's +0xb0; mac 2, 2026-10-21; ported in step 4b3b, vehicles.md, The
-nav waynet). 105 (0x4bed90) is in no shipped file and is not ported. The builder's destructor leaves what it
-built alone.
+nav waynet). 105 (0x4bed90, not ported on purpose: section 17.9) is the
+editor's reload: with records, the file's data (0x4dc6f0) and, when a net
+was built before (+0x34), every vehicle on zEntity's list whose controls
+(vt+0x140) use it (vt+0x64) kept (0x4bf4e0), the old net freed (0x4bf4b0),
+the new one built by 0x402590 (a thunk to 0x4025b0, the reader and builder
+of an older net class: 0x4021c0 makes it, 0x5c bytes, vtable 0x5bb8d0,
+linked on [0x5f4c4c], in the exe's first source file) and handed to each
+kept controls (vt+0x04). No shipped net file is version 105 (every one is
+106, 107 or 108, and the header turns a "mech3" 105 into 106), so none of
+it runs. The builder's destructor leaves what it built alone.
 
 **arrangenodes ( r )** (0x4c74a0 -> 0x4c7300 / 0x4c7340): each node this
 one links to is moved onto the circle of radius `r` round it, at the
@@ -3337,6 +3345,14 @@ goes through a hooks struct the test stubs the same on both sides.
     step 0x4cd7b0 and the controls' slots below not ported on purpose.
 
 **Not ported on purpose** (checked 2026-10-24):
+
+- The version-105 nets (checked 2026-10-25, item 6): CZAiNetEdit's build
+  0x4bed90 (the editor's reload, the vehicles using the old net re-attached
+  to the new one: section 9) and the older net class it builds through
+  0x402590 / 0x4025b0 (0x4021c0, vtable 0x5bb8d0, about 1,800 decompiled
+  lines in the exe's first source file). No shipped net file is version
+  105 (the header 0x4da900 reads a "mech3" 105 as 106), so nothing reaches
+  them; a hand-made 105 file would.
 
 - The brain's step 0x4cd7b0 (vtable 0x5cc348, its run 0x4cd810, maker
   0x4cd790): the brain's constructor makes it at +0x240 (0x4cd770) and
