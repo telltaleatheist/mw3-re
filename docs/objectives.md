@@ -225,11 +225,25 @@ so the campaign's field-base fail group is not made).
 from the menus to the debriefing): primary = comcntr_down (the satdish
 target's health_below sets it when destroyed) and the four SRM
 emplacements; final = reach_mfb; fail = outside_c1m1. The emplacements
-are aiTurrets.zrd's (0x004a76b0, not ported): never found, they count as
-destroyed, as the exe would count them with turrets off. Won: the satdish
-destroyed, reach_mfb set (as aiv.zrd's reg_mfb region would: the regions
+are aiTurrets.zrd's turrets (tur_srm01..04), found by name on zEntity's
+list as 0x004d7330 does (the AI mechs by their records, the turrets and
+vehicles by their nodes, then the targets; HUD plan item 6d: before it the
+program's lookup knew only the mechs and targets, so every turret and
+vehicle objective counted as destroyed at once). Won: the satdish and the
+four emplacements destroyed, reach_mfb set (as aiv.zrd's reg_mfb region would: the regions
 are the AI's), Exit Mission: the debriefing says won and shows the
 mission's salvage list. Lost: outside_c1m1 set, or the player's mech
 destroyed (the mission's own loss, Mech::die): the debriefing says
 failed and hides the salvage. c1m1's objectives carry no salvage of their
 own; the store path is in test_objective_check.
+
+**Every mission's destroy objectives** (survey_destroy_objectives_every_mission,
+MW3_SURVEY=1, item 6d): with the turrets and vehicles in the lookup, every
+destroy objective of the campaign finds its entity at the start but two:
+c2 m3's secondary objective names `firefly_01` and `firefly_02`, while the
+mission's aiv.zrd makes `firefly_03` and `firefly_04` (reader.zbd's m3
+block). Never found, those two count as destroyed from the start in the exe
+too: a data typo (fixes.md, candidates). Turrets made per world: c1 14, c2
+12, c3 21, c4 19, c4b 13, t1 none (the same loader as the exe's,
+test_turret.py, on the ported worlds).
+

@@ -57,6 +57,7 @@
 #include "gamez/zentity/zent_init.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/landmines.h"
+#include "mech3/entity_classes.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_shade.h"
@@ -1271,33 +1272,40 @@ struct WiredObjectiveHooks : ObjectiveHooks {
       if (e->object_of(h) == t) return t;
     return nullptr;
   }
-  // 0x004d7330: zEntity's list by name (the AI mechs by their records'
-  // names here), then the targets by their nodes' names; each's vt+0x2c.
+  // 0x004d7330: zEntity's list by name (0x005a8210: the AI mechs by their
+  // records' names, the turrets and vehicles by their nodes'), then the
+  // targets by their nodes' names; each's vt+0x2c (itself).
   Handle entity_find(const char* name) override {
     if (!name) return 0;
     int32_t n = 0;
     const AiMechMade* m = mission_ai_mechs(&n);
     for (int32_t i = 0; i < n; ++i)
       if (m[i].name && std::strcmp(m[i].name, name) == 0) return e->handle_of(m[i].mech);
+    for (tur::Turret* t : tur::turret_list()) {
+      zcls::Node* nd = mission_node(*e, t->node);
+      if (nd && nd->name() && std::strcmp(nd->name(), name) == 0) return e->handle_of(t);
+    }
+    if (void* v = program_vehicle_named(name)) return e->handle_of(v);
     for (ai::CZAiTarget* t : ai::target_list()) {
       zcls::Node* nd = mission_node(*e, t->node);
       if (nd && std::strcmp(nd->name(), name) == 0) return e->handle_of(t);
     }
     return 0;
   }
-  // +0x08: a target's active flag; a mech's while it is in zEntity's list.
+  // +0x08: a target's, a turret's or a vehicle's active flag; a mech's while
+  // it is in zEntity's list.
   uint8_t entity_flag(Handle h) override {
     if (ai::CZAiTarget* t = target(h)) return t->active;
+    if (tur::Turret* t = program_turret_by_handle(h)) return t->active;
+    if (void* v = e->object_of(h); v && is_program_vehicle(v)) return program_vehicle_active(v);
     const auto& list = ai::entity_list();
     return std::find(list.begin(), list.end(), h) != list.end() ? 1 : 0;
   }
-  // vt+0xa4: a target's is 0 (0x0040bae0); a mech's its pilot's name (0x0041df30).
+  // vt+0xa4: a target's is 0 (0x0040bae0); the rest by their class
+  // (entity_name: a mech's pilot, a vehicle's brain's, a turret's none).
   const char* entity_label(Handle h) override {
     if (target(h)) return nullptr;
-    void* m = e->object_of(h);
-    if (!m) return nullptr;
-    const char* name = m == mech_mission_player() ? program_pilot_name() : mech_brain_name(m);
-    return name ? name : "";
+    return e->object_of(h) ? entity_name(h) : nullptr;
   }
   Handle node_find(const char* name) override { return e->handle_of(zcls::list_find_by_name(6, name)); }
   Handle subnode_find(Handle node, const char* name) override {

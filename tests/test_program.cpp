@@ -9155,6 +9155,100 @@ static std::string objectives_text(mech3::GameEngine& engine) {
 }
 
 // A survey (MW3_SURVEY=1): c1m1's objectives as the program reads them.
+// A survey (MW3_SURVEY=1): every campaign mission and training mission to
+// its third Core frame, then the turrets made from aiTurrets.zrd, the AI
+// mechs, zEntity's list and the destroy objectives: those whose entity is
+// found (0x004d7330), those never found (counted destroyed at once), and
+// the names of the latter.
+TEST(survey_destroy_objectives_every_mission_headless) {
+  if (!have_game() || !std::getenv("MW3_SURVEY")) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_destroy_survey"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  static const char* const kDir[] = {"c1", "c2", "c3", "c4", "c4b", "t1"};
+  struct Leg {
+    int32_t index, number;
+    int frames = 0;
+    size_t turrets = 0, entities = 0;
+    int32_t mechs = 0, found = 0, missing = 0;
+    std::string missing_names;
+  };
+  std::vector<Leg> legs;
+  const int first[] = {1, 1, 1, 1, 4, 1}, last[] = {4, 4, 6, 3, 6, 4};
+  for (int d = 0; d < 6; ++d)
+    for (int n = first[d]; n <= last[d]; ++n) legs.push_back({d, n});
+  size_t leg = 0;
+  std::function<void(const mech3::Objective*, Leg&)> walk = [&](const mech3::Objective* o, Leg& g) {
+    if (!o) return;
+    if (o->kind == mech3::Objective::kGroup)
+      for (const auto& c : static_cast<const mech3::ObjectiveGroup*>(o)->items) walk(c.get(), g);
+    if (auto* d = dynamic_cast<const mech3::DestroyObjective*>(o)) {
+      if (d->entity) ++g.found;
+      else ++g.missing, g.missing_names += " " + (d->name ? *d->name : std::string("?"));
+    }
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = legs[0].index, l.number = legs[0].number;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || leg >= legs.size()) return;
+      Leg& g = legs[leg];
+      if (++g.frames == 3) {
+        g.turrets = mech3::tur::turret_list().size();
+        g.entities = mech3::ai::entity_list().size();
+        mech3::mission_ai_mechs(&g.mechs);
+        const mech3::Objectives& o = mech3::mission_objectives();
+        for (const auto* grp : {o.primary.get(), o.secondary.get(), o.final.get(), o.fail.get()}) walk(grp, g);
+      }
+      if (g.frames < 3) return;
+      if (++leg >= legs.size()) return;
+      mech3::missions().cleanup(false);
+      mech3::GameEngine::Launch next;
+      next.index = legs[leg].index, next.number = legs[leg].number;
+      engine.set_launch(next);
+      app.replace(&mech3::states().load, 0);
+    };
+    CountingPump pump;
+    pump.limit = 8000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (const Leg& g : legs) {
+    std::printf("  %s m%d: turrets %zu, AI mechs %d, zEntity %zu; destroy objectives found %d, never found %d%s\n",
+                kDir[g.index], g.number, g.turrets, g.mechs, g.entities, g.found, g.missing, g.missing_names.c_str());
+    EXPECT(g.frames >= 3);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(survey_c1m1_objectives_headless) {
   if (!have_game() || !std::getenv("MW3_SURVEY")) return;
   SavedMounts keep;
@@ -9214,9 +9308,9 @@ TEST(survey_c1m1_objectives_headless) {
 // sets comcntr_down), reach_mfb set as aiv.zrd's reg_mfb region would (the
 // regions are the AI's), Exit Mission. Lost: the player moved out of the
 // mission's boundary (his own vlist sets outside_c1m1 from reg_outside_c1m1),
-// or the player's mech destroyed. The SRM emplacements
-// are aiTurrets.zrd's (0x004a76b0, not ported): never found, they count as
-// destroyed, as in the exe.
+// or the player's mech destroyed. The four SRM emplacements are
+// aiTurrets.zrd's turrets, found by the objectives (0x004d7330) and alive at
+// the start; the won scenario kills them as well.
 TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
   if (!have_game()) return;
   enum Scenario { kWon, kBoundary, kDeath };
@@ -9248,6 +9342,7 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
       EXPECT(app.init_instance());
       int stage = 0, core_frames = 0, ended_at = -1;
       bool primary_open = false, primary_done = false, final_done = false, fail_done = false;
+      int srm_alive = 0, srm_open = 0, srm_done = 0;  // the four SRM emplacements (aiTurrets.zrd's tur_srm01..04)
       bool debrief_seen = false, debrief_failed = false, salvage_shown = false, salvage_store = false;
       bool comcntr = false;
       std::string at_end;
@@ -9271,9 +9366,37 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
         } else if (stage == 3 && app.current() == &mech3::states().core) {
           const mech3::Objectives& o = mech3::mission_objectives();
           ++core_frames;
+          // The SRM emplacements' destroy objectives (primary's second group).
+          std::vector<std::string> srm_names;  // the turrets the objectives name
+          auto srm_objectives = [&](bool done) {
+            int k = 0;
+            srm_names.clear();
+            if (o.primary)
+              for (const auto& g : o.primary->items)
+                if (g->kind == mech3::Objective::kGroup)
+                  for (const auto& c : static_cast<const mech3::ObjectiveGroup*>(g.get())->items)
+                    if (auto* d = dynamic_cast<const mech3::DestroyObjective*>(c.get()))
+                      if (d->name && d->name->rfind("tur_srm", 0) == 0) {
+                        srm_names.push_back(*d->name);
+                        if ((d->done != 0) == done) ++k;
+                      }
+            return k;
+          };
+          auto srm_turrets = [&](bool kill) {
+            int k = 0;
+            for (mech3::tur::Turret* t : mech3::tur::turret_list()) {
+              const auto* n = static_cast<const zcls::Node*>(engine.object_of(t->node));
+              if (!n || !t->active || std::find(srm_names.begin(), srm_names.end(), n->name()) == srm_names.end()) continue;
+              ++k;
+              if (kill) t->kill();
+            }
+            return k;
+          };
           if (core_frames == 5) {
             primary_open = o.primary && !o.primary->done;
+            srm_open = srm_objectives(false), srm_alive = srm_turrets(false);
             if (sc == kWon) {
+              srm_turrets(true);  // destroyed outright (the valves' destroy, vt+0x70)
               for (mech3::ai::CZAiTarget* t : mech3::ai::target_list()) {
                 zcls::Node* n = static_cast<zcls::Node*>(engine.object_of(t->node));
                 if (n && std::strcmp(n->name(), "satdish") == 0) t->on_hit(0, 0, 1000.0f);
@@ -9291,6 +9414,7 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
             mech3::ai::Valve* v = mech3::ai::valve_get("comcntr_down");
             comcntr = v && v->get() == 1;
             primary_done = group_done(o.primary);
+            srm_done = srm_objectives(true);
             mech3::ai::valve_get("reach_mfb")->set(1);
           }
           if (mech3::missions().ended && ended_at < 0) {
@@ -9316,10 +9440,12 @@ TEST(mission_c1m1_won_and_lost_by_its_objectives_headless) {
       pump.stop = [&] { return stage == 5; };
       app.run(pump);
       EXPECT(primary_open);
+      std::printf("  srm: %d alive, %d open, %d done\n", srm_alive, srm_open, srm_done);
+      EXPECT(srm_alive == 4 && srm_open == 4);  // the emplacements made and alive, their objectives open
       EXPECT(ended_at > 0);
       EXPECT(debrief_seen);
       if (sc == kWon) {
-        EXPECT(comcntr && primary_done);  // the satdish's death set the valve; the turrets count destroyed
+        EXPECT(comcntr && primary_done && srm_done == 4);  // the satdish's death set the valve; the emplacements killed
         EXPECT(final_done && !fail_done);
         EXPECT(!debrief_failed && salvage_shown && salvage_store);
       } else {

@@ -810,6 +810,13 @@ From the settings loader at 0x40c420 and the registry code around 0x5977d0
 
 ## Loading a mission
 
+- **Two of c2 mission 3's objectives are done before you start.** The
+  secondary objectives list Fireflies `firefly_01` and `firefly_02`, but the
+  mission's two Fireflies are named `firefly_03` and `firefly_04` (the names
+  of the earlier missions were reused). An objective whose target cannot be
+  found counts as destroyed, so those two are ticked off at once
+  (`objectives.md`).
+
 From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 
 - **The mission loads while you read the briefing.** The briefing starts a
