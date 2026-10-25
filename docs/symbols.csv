@@ -1446,3 +1446,5 @@ address,name,source,notes
 0x00508f40,AnimDef::EachCallback,asm,"ported (zeff anim_each_callback): with HAS_CALLBACKS every sequence's callback events' values to ECX's fn"
 0x0050b570,anim_next_with_callbacks,asm,"ported (zeff): the next def after ECX (none: index 1) not freed with HAS_CALLBACKS"
 0x0050b5e0,anim_node,asm,"ported (zeff anim_node): +0x40 unless freed (status 5)"
+0x0040eee0,node_entity_of,asm,"ECX a pointer to the node: its entity through 0x0040e920 (the node-to-entity map); the binder's 0x004d4dc1, the field bases', the command's"
+0x0040e920,node_entity,asm,"ported (app_weapons.cpp node_entity): the game object a node belongs to"

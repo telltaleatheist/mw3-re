@@ -1569,3 +1569,17 @@ is paused.
   40 m (from 80 m the machine guns miss the moving Owens). Test-process
   reset frees the records (reset_process_state), as the tests never unload
   the world.
+- Lead's review of 2b: matches the exe; the Owens test at 40 m kept. The
+  node's entity is 0x40eee0 (the binder's call at 0x4d4dc1; 0x40e920 is the
+  program's port behind it): symbols.csv rows added.
+
+## Item 3: radar contacts beyond mechs (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/radar-contacts off mac4/anim-binder,
+  rebased on main once 2b is merged. app_hud's contact hooks for vehicles,
+  field bases, turrets and targets.zrd objects, so the radar and the target
+  list see them as the exe; their markers 0x4ac3d0 (vehicle), 0x4a5fc0
+  (turret), 0x4d2d70 (target). Hooks and markers only, no HUD drawing
+  rework (app_hud is mac 3's; the lead reviews it). Differential: the
+  radar's contact list and each class's marker over the shipped worlds'
+  entities; headless: c1m1's turrets or a target on the radar.
