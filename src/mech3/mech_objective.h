@@ -203,7 +203,13 @@ struct Objectives {
 
 // Mech3.exe 1.2 @ 0x0045c2d0: `block` of `file` into `o`; false when the file
 // or block is missing or no group has an objective.
-bool objectives_load(const char* file, const char* block, Objectives& o, ObjectiveHooks& h);
+// `dir` (the mission's directory, or null) picks the data typos fixed after
+// the read (fix_objective_data).
+bool objectives_load(const char* file, const char* block, Objectives& o, ObjectiveHooks& h, const char* dir = nullptr);
+// FIX (bug), a data typo (fixes.md, Data typos; for the importer when there is
+// one): c2 m3's secondary destroy objectives name firefly_01 / firefly_02,
+// the mission makes firefly_03 / firefly_04; pointed at those.
+void fix_objective_data(const char* dir, const char* block, Objectives& o, ObjectiveHooks& h);
 bool read_objectives(zrdr::Node* block, Objectives& o, ObjectiveHooks& h);      // 0x0045c340
 void read_group(zrdr::Node* block, const char* key, const char* default_desc,
                 std::unique_ptr<ObjectiveGroup>& out, ObjectiveHooks& h);        // 0x0045bf60

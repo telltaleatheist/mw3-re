@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <utility>
 
 #include "gamez/zreader/zreader.h"
@@ -442,14 +443,33 @@ bool read_objectives(Node* block, Objectives& o, ObjectiveHooks& h) {
 }
 
 // Mech3.exe 1.2 @ 0x0045c2d0
-bool objectives_load(const char* file, const char* block, Objectives& o, ObjectiveHooks& h) {
+bool objectives_load(const char* file, const char* block, Objectives& o, ObjectiveHooks& h, const char* dir) {
   Node* root = h.load(file);
   if (!root) return false;
   Node* b = zrdr::find(root, block);
   if (!b) return false;  // the tree is not freed (original)
   const bool ok = read_objectives(b, o, h);
   h.free_tree(root);
+  if (dir) fix_objective_data(dir, block, o, h);
   return ok;
+}
+
+void fix_objective_data(const char* dir, const char* block, Objectives& o, ObjectiveHooks& h) {
+  if (!dir || !block || std::strcmp(dir, "c2") != 0 || std::strcmp(block, "m3") != 0 || !o.secondary) return;
+  static const char* const kFrom[] = {"firefly_01", "firefly_02"}, *const kTo[] = {"firefly_03", "firefly_04"};
+  std::function<void(Objective*)> walk = [&](Objective* c) {
+    if (c->kind == Objective::kGroup)
+      for (const auto& x : static_cast<ObjectiveGroup*>(c)->items) walk(x.get());
+    auto* d = dynamic_cast<DestroyObjective*>(c);
+    if (!d || !d->name) return;
+    for (int i = 0; i < 2; ++i)
+      if (*d->name == kFrom[i]) {
+        d->name = kTo[i];
+        d->entity = 0;
+        d->relabel(h);
+      }
+  };
+  walk(o.secondary.get());
 }
 
 // Mech3.exe 1.2 @ 0x0045c250
