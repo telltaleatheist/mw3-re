@@ -1566,3 +1566,4 @@ address,name,source,notes
 0x005a4590,RenderOverlay::RenderOverlay,decomp,"the overlay layer [0x736328]: active, own object +0x28, five texts +0x70"
 0x005a6790,weather_rect,decomp,"the overlay's rect slot i (<2) via 0x5a66b0"
 0x005a67c0,weather_tick,decomp,"the overlay's tick: 0x5a6600 -> Layer::update, clears +0x1ec"
+0x0040fac0,hud_update,decomp,"the Core frame's HUD: view target vt+0xe0, dev lines, panel vt+0x24, pocket 0x46a410, console layer"

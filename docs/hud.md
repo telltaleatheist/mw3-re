@@ -981,7 +981,11 @@ and the text's draw order is not traced).
 In the program GameEngine makes and frees it (the hooks
 message_panel_init / message_panel_free, once misnamed mechs_init and
 world_shutdown), slides it each frame before the HUD's data update, the
-mission's hooks reset and set it, and command 0xa6 toggles it.
+mission's hooks reset and set it, and command 0xa6 toggles it. Its text is
+drawn by its update (vt+0x24, 0x0040f680) in the HUD frame 0x0040fac0
+(`GameEngine::hud_update`, since HUD plan item 6; before it only the quad
+was drawn and the lines stayed blank). The c1m1 HUD test checks the posted
+line is drawn while the panel is up.
 mw3tests' c1m1 HUD test adds a message held a second at frame 12: the panel
 is up at frame 14 and down and hidden at 76 (headless text has no height,
 so its travel is short); fix_message_panel_slides_above_60fps checks the
@@ -1097,10 +1101,14 @@ accumulates the frame time, +0x4b8 the frames, +0x4b4 their ratio), the
 text formatted and drawn (0x5a11b0, 0x59ffb0). The object shows only when
 command 0x82 toggles it, so it is never seen in the release.
 
-**0x40fac0's ticks**: zTwoD's 0x59fd20 on three layer objects, 0x5fc338 (the
-lines'), 0x5fc838 (the debug text's) and 0x731ac0, between the view
-target's frame, 0x40fb50, 0x40f1f0, the message panel's vt+0x24 and the
-pocket commander 0x46a410.
+**0x40fac0's order**: the view target's frame (vt+0xe0), 0x40fb50(2), a
+0x59fd20 tick of the lines' layer 0x5fc338, 0x40f1f0 on the debug text
+[0x5fc378], a tick of the debug text's layer 0x5fc838, the message panel's
+update (vt+0x24), the pocket commander 0x46a410, and a tick of 0x731ac0, the
+text console layer of the interp's debug console (twod.md). The program
+runs it as one call (`GameEngine::hud_update`): the view target's frame,
+the message panel and the pocket commander; the developer pieces are left
+out.
 
 **0x5a6790 / 0x5a67c0 are not the HUD's**: both take the object at
 [0x736328], the manager the mission's weather is added to (0x59fbe0;
@@ -1109,6 +1117,7 @@ world-params.md section 7). 0x5a6790(i, rect) sets its rect slot i
 its +0x1ec (0x5a6600). The Direct3D frame calls both after the world tick
 (0x48187b, 0x48188b), so they update and draw the rain or snow. In the
 program `create_snow`, `create_rain` and `weather_add` are empty
-(app_mission.cpp), so no weather is ever made: c3, c4 and t1 set RAIN and
-c4b missions 4 and 6 SNOW in world.zrd, and the port shows neither.
+(app_mission.cpp) were empty, so no weather was made: c3, c4 and t1 set
+RAIN and c4b missions 4 and 6 SNOW in world.zrd. Both are ported since item
+19 (`weather.md`).
 

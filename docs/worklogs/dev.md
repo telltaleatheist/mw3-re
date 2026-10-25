@@ -67,3 +67,17 @@ is in `README.md`.
   frames; 8 ulps / 1e-7 of a place / a pixel, the snow's places synced each
   frame; 69 frames tolerated), 20/20 breaks, the two headless runs sharing
   run_weather_mission, a snow pair (weather_c4bm4_snow_on/off.png).
+
+## HUD plan item 6: 0x40fac0 as one call (2026-10-25)
+
+- Assigned (the lead): hud-plan.md items 6-9, one at a time, each branched
+  off main. Item 6 on mac4/hud-frame off cdfe0f4.
+- Done: `GameEngine::hud_update` is 0x40fac0 (the view target's frame, the
+  message panel's update, the pocket commander; the developer lines,
+  frame-rate text and console layers left out), app_states' hud() calls it
+  alone. Found: the message panel's text had never been drawn (its update,
+  vt+0x24, is 0x40fac0's); the c1m1 HUD test now checks it (break caught).
+  WiredLaunch's mech_screen gives `pilot_hud`; hud_reset / hud_zoom hide or
+  show the objectives. Noted for later (hud-plan item 6): the radar reset
+  0x43d920, and app_states' `radar` / `ai_tick` are the HUD's 0x43cd20 and
+  reticle update (`Engine::mech_ai` is 0x430aa0), still logged.
