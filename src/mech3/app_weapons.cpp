@@ -179,7 +179,9 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     MechPart* p = part_by_id(*mech_of(m), part);
     return p && p->has_equipment(kind);
   };
-  c.lock_notice = [](Handle m, Handle, WeaponDef*) { mech_lock_warning(m); };  // 0x0041abd0
+  c.lock_notice = [](Handle m, Handle, WeaponDef* d) {  // 0x0041abd0: no sound without the def
+    if (d) mech_lock_warning(m);
+  };
   c.entity_enemies = [](Handle e) { return mech_of(e)->enemies; };                         // +0xc8
   c.player_team = [] { return mech3::world().mission_player ? mech3::world().mission_player->team : 0u; };
   c.part_by_id = [](Handle owner, int32_t id) -> Handle { return part_by_id(*mech_of(owner), id); };
