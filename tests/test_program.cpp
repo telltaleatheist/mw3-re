@@ -1856,7 +1856,8 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
 // them and the HUD's reticle pick does too. A shot from the player stops on
 // the truck's node and damages it (its handler); a shot from the truck's node
 // leaves the truck as the player's last attacker (+0x664, through
-// node_entity on the shooter's node). Before the port none of it did: the
+// node_entity on the shooter's node) until the next player tick clears it
+// (0x0041aba0, as the exe). Before the port none of it did: the
 // nodes were id 0 with no owner. Turrets and field bases bind the same way.
 TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
   if (!have_game()) return;
@@ -1884,7 +1885,7 @@ TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
     std::string weapon;
     void* truck = nullptr;
     void* hit_node = nullptr;
-    int shot = 0;
+    int shot = 0, set_at = -1, cleared_at = -1;
   };
   static Seen seen;
   seen = Seen{};
@@ -1980,9 +1981,14 @@ TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
         void* me = mech3::mech_mission_player();
         fire(mech3::program_vehicle_node(seen.truck), mech3::program_vehicle_centroid(seen.truck), mech3::mech_centroid_of(me));
       }
-      // The hit lands within a frame or two (a later hit may overwrite +0x664).
-      if (frames > 12 && seen.truck && mech3::mech_last_attacker(mech3::mech_mission_player()) == seen.truck)
-        seen.attacker = true;
+      // +0x664 holds the truck from the hit (the weapon tick, after the player's)
+      // to the next player tick's end, whose 0x0041aba0 clears it (damage.md).
+      if (frames > 12 && seen.truck) {
+        void* a = mech3::mech_last_attacker(mech3::mech_mission_player());
+        if (a == seen.truck && seen.set_at < 0) seen.set_at = frames;
+        if (seen.set_at >= 0 && seen.cleared_at < 0 && a == nullptr) seen.cleared_at = frames;
+        seen.attacker = seen.set_at >= 0;
+      }
     };
     CountingPump pump;
     pump.stop = [&] { return frames > 18; };
@@ -2001,7 +2007,7 @@ TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
   EXPECT(seen.trucks >= 2 && seen.nodes > 1 && seen.bound == seen.nodes);
   EXPECT(seen.entity && seen.child_entity && seen.pick);
   EXPECT(seen.hit_truck && seen.damaged);
-  EXPECT(seen.attacker);
+  EXPECT(seen.attacker && seen.cleared_at == seen.set_at + 1);
   EXPECT(seen.turrets > 0 && seen.turrets_bound == seen.turrets);
   EXPECT(seen.bases > 0 && seen.bases_bound == seen.bases);
   zrdr::close_archives(true);

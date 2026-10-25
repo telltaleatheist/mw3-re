@@ -1633,7 +1633,9 @@ random, compared node by node. `mw3tests`
 carries bit 19 and the truck, node_entity and the HUD's pick find it from
 the root and a deep child; the 14 turrets carry bit 17 and the 3 field bases
 bit 19; the player's PPC shot stops on the truck's node and damages it (20 to
-9); the truck's own shot leaves it as the player's last attacker (+0x664).
+9); the truck's own shot leaves it as the player's last attacker (+0x664)
+from the hit to the next player tick, whose 0x41aba0 clears it (damage.md
+section 2, as the exe).
 The glow test (`mission_c1m1_laser_leaves_its_glow_on_a_truck_headless`)
 now lights the truck with a real beam fired by the player.
 
