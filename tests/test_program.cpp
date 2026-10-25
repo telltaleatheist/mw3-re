@@ -155,9 +155,6 @@ void reset_process_state() {
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   mech3::damage_set() = mech3::DamageSet{};  // the HUD's silhouettes, loaded once a process (0x0043afc0)
   crt::rand_fixed_seed() = 1u;  // the clock seeds the game's rand: a fixed seed makes the runs repeat
-  // The game clock (world +time) runs on from the last mission: an AI mech's
-  // load-time update (a powered-down start's) stamps its brain with it.
-  mech3::mech_set_game_time(0.0f);
   // The mission animations' random cursor and range-test stagger: the
   // exe's start (0x00508fc0) refills the table but neither, so they run on
   // from mission to mission (0x0060c5f4, 0x0060c1d8: 0 in a new process).
@@ -1216,6 +1213,97 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
 // gives it one 0.1 s update with its controller held (0x0049fa20, vt+0x34),
 // then the power-down (0x0041cc30), which settles it on the ground.
 // docs/mission-start.md section 4.
+// The game time [0x0060991c] starts at 0 with each mission (0x0048f400 in
+// the setup 0x00490ab0, before the launch): c1 mission 1 played for 300
+// frames, then c1 mission 4 in the same process. Through c4's load (where
+// the powered-down AI mechs' one update runs their brains) the mechs' clock
+// never reads c1's time; at c4's first frame every copy (the missions', the
+// mechs' and zWeapon's) agrees and is under a second, and no brain's wait
+// started in the future. docs/mission-frame.md section 2.
+TEST(missions_game_time_starts_at_zero_each_mission_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_clock_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int leg = 0, frames = 0, waits = 0, future = 0, load_frames = 0;
+    float end_of_first = -1, at_load = -1, mech_clock = -1, load_max = -1;
+    engine.on_present = [&](int) {
+      if (leg == 1 && app.current() == &mech3::states().load) {
+        ++load_frames;
+        load_max = std::max(load_max, mech3::mech_game_time());
+      }
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (leg == 0 && frames == 300) {
+        end_of_first = mech3::mech_game_time();
+        leg = 1, frames = 0;
+        mech3::missions().cleanup(false);
+        mech3::GameEngine::Launch next;
+        next.number = 4;
+        engine.set_launch(next);
+        app.replace(&mech3::states().load, 0);
+      } else if (leg == 1 && frames == 1) {
+        at_load = mech3::missions().time;
+        mech_clock = mech3::mech_game_time();
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t q = 0; q < made; ++q) {
+          auto* c = static_cast<mech3::AiControls*>(ai[q].controls);
+          if (!c || !c->brain) continue;
+          for (mech3::ai::Order& o : c->brain->orders)
+            if (auto* w = dynamic_cast<mech3::ai::WaitState*>(o.state.get())) {
+              ++waits;
+              future += w->start > mech_clock;
+            }
+        }
+        leg = 2;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return leg == 2; };
+    pump.limit = 2000;
+    app.run(pump);
+    if (std::getenv("MW3_CLOCK_LOG"))
+      std::fprintf(stderr, "CLOCK first %g load %g mech %g waits %d future %d load frames %d max %g\n", end_of_first, at_load,
+                   mech_clock, waits, future, load_frames, load_max);
+    EXPECT(leg == 2 && end_of_first > 5.0f);
+    EXPECT(load_frames > 0 && load_max >= 0.0f && load_max < 1.0f);
+    EXPECT(at_load >= 0.0f && at_load < 1.0f && mech_clock == at_load);
+    EXPECT(future == 0);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
   if (!have_game()) return;
   SavedMounts keep;

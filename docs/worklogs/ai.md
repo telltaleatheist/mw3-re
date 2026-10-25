@@ -1803,9 +1803,16 @@ is paused.
   into the next one's load, so an AI mech's load-time update (the
   powered-down start's, new here) stamped its brain with the last
   mission's time and the c1m4 lance tests' exact counts depended on the
-  test before them. The tests' reset_process_state now zeroes it, as a new
-  process starts. Whether the exe resets its clock between missions is not
-  traced (open).
+  test before them. The lead traced it (2026-10-25): the exe zeroes the one
+  clock [0x60991c] in the mission start 0x48f400, called from the setup
+  0x490ab0 at 0x490b14 long before the launch, so every load runs at t = 0.
+  A port bug, fixed: the missions' writes of +0x4c (the start, the frame,
+  the cleanup) set the ports' copies at once (MissionHooks::game_time_set,
+  the program's mech_set_game_time); the program's two late syncs are gone
+  and the tests no longer reset the clock themselves.
+  missions_game_time_starts_at_zero_each_mission_headless: c1m1 for 300
+  frames (18 s), then c1m4 in the process: the mechs' clock under a second
+  through c4's load and agreeing with the missions' at its first frame.
 - 3 of 3 breaks (heat unanswered, heat from the frame's added heat, the
   update skipped). mission_start_reads_c1m1_vehicles now expects the Owens
   on the ground (settled by the update) rather than 0.01 above.

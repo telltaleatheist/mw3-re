@@ -383,6 +383,7 @@ bool Missions::begin() {
   MissionHooks& h = *g_hooks;
   loaded = 0;
   time = 0;
+  h.game_time_set(time);
   abort = 0;
   voice = 0;
   h.bind_command(0x71, kMissionCommand);
@@ -413,6 +414,7 @@ void Missions::on_command(int32_t cmd) {
 void Missions::update(float dt) {
   MissionHooks& h = *g_hooks;
   time = dt + time;
+  h.game_time_set(time);
   clock = clock_down ? clock - dt : dt + clock;
   world_update(world);
   h.valves_tick(dt);
@@ -688,6 +690,7 @@ bool Missions::cleanup(bool unload) {
   h.fn_4eb030(saved);
   h.lists_4f7bd0();
   time = 0;
+  h.game_time_set(time);
   return true;
 }
 

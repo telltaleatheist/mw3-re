@@ -1807,12 +1807,12 @@ struct WiredMissionHooks : MissionHooks {
   void fn_4d2e20() override { ai::targets_create(); }
   void fn_4d31d0() override { ai::traps_create(); }
 
-  // The frame (0x0048f470, docs/mission-frame.md): the game time to the
-  // ports' copies of [0x0060991c], the valves' timers, zSound's voice lines.
-  void valves_tick(float) override {
-    mech_set_game_time(missions().time);
-    ai::valves_tick(missions().time);
-  }
+  // The game time [0x0060991c] to the ports' copies (the mechs', zWeapon's)
+  // with each write: the mission start's 0 (0x0048f400), the frame's, the
+  // cleanup's.
+  void game_time_set(float t) override { mech_set_game_time(t); }
+  // The frame (0x0048f470, docs/mission-frame.md): the valves' timers.
+  void valves_tick(float) override { ai::valves_tick(missions().time); }
   Handle player_vehicle() override { return e->pilot() ? e->field32(e->pilot(), 0x14) : 0; }
   // 0x0051d2f0 with 0x0048f440: Exit Mission (Ctrl+Q) and 0x72 to the missions' handler.
   void bind_command(int32_t cmd, uint32_t handler) override {
@@ -1969,7 +1969,6 @@ void GameEngine::missions_start(uint32_t list) {
   ai::entity_list().clear();  // zEntity's list: emptied by the last cleanup (0x0049dc40); a debug start's own
   mech_entities_forget();
   m.start();
-  mech_set_game_time(m.time);  // 0 from the setup (0x0048f400)
   if (m.failed) std::fprintf(stderr, "mw3: the mission load failed\n");
   zcls::Node* cam = mission_node(*this, camera_);
   if (launch_.active && launch_.have_pos && cam) {  // as the debug viewer places it (render.md section 0)

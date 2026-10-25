@@ -176,6 +176,9 @@ class MissionHooks : public zgame::Unported {
 
   // The frame 0x0048f470 (docs/mission-frame.md).
   virtual void valves_tick(float dt) { unported("0x004d3d30", {zgame::bits(dt)}); }
+  // Silent: the game time [0x0060991c] (+0x4c) just written. The exe has the
+  // one global; the ports' modules keep copies, set here with each write.
+  virtual void game_time_set(float t) { (void)t; }
   virtual void map_update(float dt) { unported("0x0045a270", {0x605ae0, zgame::bits(dt)}); }  // the field bases' dock
   virtual void stations_update(Handle st, float dt, Handle vehicle) {
     unported("stations.vt+0x6c", {st, zgame::bits(dt), vehicle});
