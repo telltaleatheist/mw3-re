@@ -7848,6 +7848,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
       float blip_d = 0.0f, blip_want = 0.0f;
       mech3::HudReport gauges;  // frame 10's (hud.md section 17)
       int panel_made = 0, panel_up = 0, panel_down = 0, posted = 0;  // the message panel (hud.md section 18)
+      bool panel_text = false;  // its line drawn (rendered: headless text has no image) by the panel's update (vt+0x24)
     } seen;
     void* player = nullptr;
     void* owens = nullptr;
@@ -7868,6 +7869,9 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         }
         if (seen.posted && seen.frames > seen.posted && mp->y == mp->on_y && !seen.panel_up) seen.panel_up = seen.frames;
         if (seen.panel_up && (mp->flags & ztwod::kHidden) && !seen.panel_down) seen.panel_down = seen.frames;
+        if (seen.panel_up && !seen.panel_down)
+          for (const auto& line : mp->lines)
+            if (!line.needs_render && std::strcmp(line.text, "Nav Alpha reached") == 0) seen.panel_text = true;
       }
       if (seen.frames == 3) {
         player = engine.object_of(engine.field32(engine.pilot(), 0x14));
@@ -7968,6 +7972,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
     std::printf("  message panel made %d, up at frame %d, down and hidden at %d\n", seen.panel_made, seen.panel_up,
                 seen.panel_down);
     EXPECT(seen.panel_made && seen.panel_up > 12 && seen.panel_down > seen.panel_up + 50);
+    EXPECT(seen.panel_text);  // its text drawn while up (the panel's update in 0x0040fac0)
     EXPECT(g.equip_lines == g.equip_wanted);  // a line for each part, by kind (none: hidden)
     EXPECT(g.throttle_up > 0 && g.speed_kmh > 0.0f);  // the bar up from its bottom, the speed in km/h
     mech3::missions().cleanup(false);

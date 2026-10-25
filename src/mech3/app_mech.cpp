@@ -75,6 +75,7 @@
 #include "mech3/zrdraiv.h"
 #include "mech3/sensors.h"
 #include "mech3/mech_fieldbase.h"
+#include "mech3/hud.h"
 #include "mech3/mech_hud.h"
 #include "mech3/zai_target.h"
 #include "mech3/weapon_planner.h"
@@ -327,6 +328,18 @@ class WiredLaunch : public LaunchHooks {
     weapon_world().mission_player = &m;
     weapon_world().player = &m;
   }
+  // 0x00430aa0: the pilot's HUD (made when first asked), and the two calls
+  // the start makes on its objectives (+0x17964): hidden (vt+0x64), shown
+  // for a time (vt+0x60). The radar's reset 0x0043d920 on HUD + 0x14 stays
+  // logged (hud-plan.md items 8-9).
+  Handle mech_screen(MechData* data) override { return data ? pilot_hud(*data) : nullptr; }
+  void hud_reset(Handle screen) override {
+    if (screen) static_cast<Hud*>(screen)->objectives.hide();
+  }
+  void hud_zoom(Handle screen, float v) override {
+    if (screen) static_cast<Hud*>(screen)->objectives.show_for(v);
+  }
+  void hud_43d920(Handle) override { unported("0x0043d920", {}); }
   void interp_set_mech(Handle, Mech& m) override {
     if (zint::Interp* in = mech3::interp()) mech3::interp_set_mech(*in, &m, zn(m.node));
   }

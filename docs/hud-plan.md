@@ -32,12 +32,12 @@ gauges, reticle and the lance panel draw as in the exe.
 
 | Call | Size | What it is | Status in the program |
 |---|---|---|---|
-| 0x40fac0 (`hud_update`) | 19 | the Core frame's HUD update: view target vt+0xe0, 0x40fb50, three zTwoD layer ticks (0x59fd20), 0x40f1f0, the message panel's vt+0x24, the pocket commander 0x46a410 | its parts run on their own (`program_hud_update`, `pocket_draw`, the message panel); the entry itself logs |
+| 0x40fac0 (`hud_update`) | 19 | the Core frame's HUD update: view target vt+0xe0, 0x40fb50, three zTwoD layer ticks (0x59fd20), 0x40f1f0, the message panel's vt+0x24, the pocket commander 0x46a410 | ported as one call (item 6); the developer pieces left out |
 | 0x40fb50 | 101 | the 25 text lines at 0x5fc848 (0x4b0 each): mode 0 clears them all (vt+0x7c, vt+0x64), 1 arms, 2 a picked line by the cursor | not ported; developer-only (hud.md section 20) |
 | 0x40e4b0 (`hud_draw`) | 81 | those 25 lines drawn and hit-tested by the mouse (rows y = 0x5f + 12 i; hover colour 0xff00) | not ported; developer-only (section 20) |
 | 0x40f1f0 | 36 | a frame-rate text (frames over a second) on the debug text object [0x5fc378] | not ported; shown only by a dead key command (section 20) |
 | 0x5a6790 / 0x5a67c0 | 12 + 9 | **not the HUD's**: the weather's manager [0x736328], its rect and its objects' tick: the rain and snow (hud.md section 20) | logged; the program makes no weather (below) |
-| 0x430aa0 | 16 | the pilot's HUD (MechData +0x224), made on first use | ported as `pilot_hud`; the mission frame's own call (`LaunchHooks::mech_screen`) still logs |
+| 0x430aa0 | 16 | the pilot's HUD (MechData +0x224), made on first use | ported as `pilot_hud`; the launch's call wired (item 6); the draw paths' (`Engine::mech_ai`) still logs |
 | 0x41ab90 | 14 | the mech's +0x378 zTwoD panel drawn (0x5a4410) | multiplayer only (made by commands 0x76 / 0x77 when networked; mech-build.md): nothing in single player |
 | 0x4583b0 | 72 | maps.zrd: the mission maps (0x4580c0, 54 each; list [0x605acc]); free 0x4582c0 (17); find 0x458590 (42) | not ported: the radar's map mode (Shift+R, 0x43dc10) has no map |
 | radar polylines, net marker | - | the nav route's lines (+0xbd4.. lists), the network element 0x58b060 | answer none (hud.md section 15) |
@@ -84,9 +84,15 @@ not the HUD's.
    key would bring the developer lines back with it.
 5. (Done 2026-10-25, with the rain) The ticks 0x5a6790 / 0x5a67c0, now
    `weather_rect` / `weather_tick` (weather.md).
-6. **0x40fac0 as the exe's one call**, its parts in their order, replacing
-   the program's separate calls; `mech_screen` to `pilot_hud`. Shows:
-   nothing new; the order of the HUD's updates becomes the exe's.
+6. (Done 2026-10-25) **0x40fac0 as the exe's one call**
+   (`GameEngine::hud_update`); the launch's `mech_screen` to `pilot_hud`
+   with its objectives calls (hidden at the start, vt+0x64; shown for a
+   time, vt+0x60). Showed: the message panel's text had never been drawn
+   (its update, vt+0x24, is 0x40fac0's), now it is. Found, not done: the
+   launch's radar reset 0x0043d920 on HUD + 0x14 (with items 8-9); and the
+   draw paths' `radar` / `ai_tick` (app_states.cpp) are the HUD's, not the
+   AI's: `Engine::mech_ai` is 0x00430aa0 (the HUD), 0x0043cd20 on it and the
+   reticle's (+0x144c) vt+0x28 update, both still logged.
 7. **The mission maps** (0x4583b0 and family): maps.zrd read at the
    start, freed at the end (the cleanup's 0x4582c0 is in mission-frame.md).
    Shows: nothing yet.

@@ -378,6 +378,7 @@ class GameEngine : public Engine {
   // (0x00579af0 / 0x00579b10), the quad ([0x0072f3ec]) and the finish (0x00558610).
   // 0x0040f8d0: the message panel's slide, then the view target's HUD data update.
   void camera_update() override;
+  void hud_update() override;  // 0x0040fac0: the HUD frame, its parts in the exe's order
   void message_panel_init(Handle, Handle) override;  // 0x0040f410
   void message_panel_free() override;                // 0x0040f7d0
   void video_begin_3d() override;

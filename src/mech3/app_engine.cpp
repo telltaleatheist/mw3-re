@@ -12,6 +12,7 @@
 #include "mech3/mech_shade.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_hud.h"
+#include "mech3/pocket_panel.h"
 
 #include <cstdio>
 #include <cstring>
@@ -499,6 +500,17 @@ void GameEngine::image_free(Handle image) {
 void GameEngine::camera_update() {
   if (MessagePanel* p = message_panel()) p->slide(frame_dt());
   program_hud_data(frame_dt());
+}
+// Mech3.exe 1.2 @ 0x0040fac0. Between the view target's frame and the
+// pocket commander the exe also runs the developer lines (0x0040fb50(2) and
+// their layer 0x005fc338), the frame-rate text (0x0040f1f0 on 0x005fc378)
+// and the debug text's layer 0x005fc838, and after it the interp console's
+// layer 0x00731ac0: none reachable in the release (hud.md section 20).
+void GameEngine::hud_update() {
+  const float dt = frame_dt();
+  program_hud_update(dt);                                // [[0x005f4c8c]+0x64] vt+0xe0
+  if (MessagePanel* p = message_panel()) p->update(dt);  // [0x00603d7c] vt+0x24: its text
+  pocket_draw(dt);                                       // 0x0046a410
 }
 void GameEngine::message_panel_init(Handle, Handle) { mech3::message_panel_create(); }
 void GameEngine::message_panel_free() { mech3::message_panel_destroy(); }
