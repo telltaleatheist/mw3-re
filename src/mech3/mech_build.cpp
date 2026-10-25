@@ -93,13 +93,11 @@ void* MechBuildHooks::node_owner(Handle node) {
 }
 
 // 0x004d6c90 on a mech: zEntity's node (0x005a8390: its matrix, a centroid
-// and a target node found or made under it) and the node's entity. The
-// entity's record is not ported: the stand-in keeps the node, its matrix and
-// the two markers (zent::marker_nodes; before, both were the node itself).
-void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char* name) {
-  unported("0x004d6c90", {ref(&m), low(node), name, 0, 0});
-  vehicle_set_node(m, node);
-}
+// and a target node found or made under it) and the node's entity (0x0040eaa0:
+// bits 0x1000 and the owner, over the tree), which the mech's set-up gives it
+// too (0x00415ae0, mech_build's node_set_owner): the stand-in keeps the node,
+// its matrix and the two markers (zent::marker_nodes).
+void MechBuildHooks::entity_set_node(Mech& m, Handle node, const char*) { vehicle_set_node(m, node); }
 
 void vehicle_set_node(Vehicle& m, Handle node) {
   m.node = node;

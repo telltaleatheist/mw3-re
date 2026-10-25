@@ -3921,7 +3921,7 @@ TEST(mission_c1m1_unported_survey_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    // MW3_SURVEY_MISSION: c<op>m<n> (a campaign mission, c4b as op 5) or ia<n>
+    // MW3_SURVEY_MISSION: c<op>m<n> (a campaign mission; c4bm<n> or c5m<n> for c4b) or ia<n>
     // (c1's Instant Action map n, wave mode, one ally); c1m1 when unset.
     mech3::GameEngine::Launch l;
     mech3::ActionGame action(nullptr);
@@ -3932,6 +3932,8 @@ TEST(mission_c1m1_unported_survey_headless) {
         action.mode = 2, action.x6c = 1, action.slot.mech = 9;
         action.add(5, 1, nullptr, 0);
         l.action = &action;
+      } else if (std::sscanf(m, "c4bm%d", &b) == 1) {  // c4b, the campaign's fifth operation
+        l.index = 4, l.op = 5, l.number = b;
       } else if (std::sscanf(m, "c%dm%d", &a, &b) == 2) {
         l.index = a - 1, l.op = a, l.number = b;
       }

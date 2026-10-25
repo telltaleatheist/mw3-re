@@ -65,7 +65,13 @@ struct WiredVehicles : VehBasicHooks {
   void node_detach(Handle node) override { zwep::remove_handlers(node); }  // 0x00583400
   void controls_set_owner(Handle c, BasicVehicle& v) override { static_cast<VehicleControls*>(c)->owner = &v; }
   void controls_delete(Handle c) override { delete static_cast<VehicleControls*>(c); }
-  void entity_set_node(Vehicle& v, Handle node) override { vehicle_set_node(v, node); }  // 0x004d6c90
+  // 0x004d6c90: the node, its matrix and markers; not its entity (0x0040eaa0:
+  // bits 0x80000 and the owner over the tree, 0x0040ebe0), so a vehicle's
+  // node does not lead back to it (node_entity): logged.
+  void entity_set_node(Vehicle& v, Handle node) override {
+    vehicle_set_node(v, node);
+    unported("0x0040eaa0", {ref(&v), low(node)});
+  }
   void zentity_set_node(Vehicle& v, Handle node) override { v.node = node; }            // 0x005a8390 with none
   // 0x005a7f50 / 0x005a7f70: zEntity's list, the port's (mech3/sensors).
   void entity_register(Vehicle& v) override {

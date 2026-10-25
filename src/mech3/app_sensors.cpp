@@ -194,7 +194,7 @@ struct ProgramSensors : ai::SensorHooks {
   void centroid(zgame::Handle x, float out[3]) override { world_position(node(x, true), out); }
   void node_position(zgame::Handle x, float out[3]) override { world_position(node(x, false), out); }
   void entity_refresh(zgame::Handle x) override {
-    if (mech(x)) log_unported("0x005a85c0", {x});  // the mech's own update keeps its node
+    if (Mech* m = mech(x)) m->entity_moved();  // 0x005a85c0: its vt+0x1c, as the mech's own update calls it
     else if (void* v = vehicle(x)) program_vehicle_refresh(v);
   }
   // 0x004adce0 on the pinged vehicle's engine sound (vt+0xec is the vehicle).
