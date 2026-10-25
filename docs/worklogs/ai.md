@@ -1693,3 +1693,9 @@ is paused.
   AT_NODE (0x506640 flag 1, anim_start_at at the node's world point);
   anim-run.md lists the start paths. Item 4c's headless test comment
   corrected (not a shot's impact, the AT_NODE call).
+
+## Item 6: the version-105 waynet 0x4bed90 (2026-10-25, mac 4)
+
+- Assigned (the lead, after item 5): the version-105 waynet 0x4bed90.
+  Branch mac4/waynet-105 off main. Same bar: port, differential, breaks,
+  docs, the related set and both suites.
