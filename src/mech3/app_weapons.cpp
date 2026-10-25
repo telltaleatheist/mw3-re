@@ -378,9 +378,10 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
 
 // The frame's step [0x0072c52c] into each module's copy of it, once a frame
 // before the vehicles update (the exe has one global).
-void sync_frame_step(float dt) {
+void sync_frame_step(float dt, float clock) {
   mech3::world().dt = dt;
   weapon_world().dt = dt;
+  weapon_world().clock = clock;  // [0x0072c530], the timer's scaled total: the AMS's and the turrets' clock
   zwep::hit_state().dt = dt;
 }
 

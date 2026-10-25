@@ -17,6 +17,7 @@ it is clear what the designers meant.
 - **Every nav point you pass on your objectives' list is ticked off.** The game marks a nav point an objective watches as reached (and says its line) when you come within 25 m, but once its check passed the currently selected nav point it skipped the rest of the list, so those were only ticked off once selected. Now all of them are checked.
 - **Turrets do not slow down mission after mission.** Each turret looks for a target, aims and fires on only one frame in so many, and the original counted that over every turret the game had made since it started: the more missions you had played in one sitting, the less often each mission's turrets acted. The count now starts again with each mission's turrets.
 - **A turret's charging effect goes out when it dies.** The original's test for putting it out was the wrong way round (no shipped turret shows one, so nothing visible changes).
+- **Your AMS shoots down enemy turrets' missiles, and enemy AMS turrets shoot down yours.** The original tagged an enemy turret's missiles as friendly ones, so your anti-missile system let them through, and gave enemy AMS turrets the player's side, so they shot down their own side's missiles instead.
 - **"Sort by name" in the mech lab sorts by name.** The original looked the names up and then sorted by the game's own mech numbers.
 - **Lancemates keep their career kill counts.** After a won mission the original copied each lance card's "'Mechs Defeated" number into the campaign's records by card position, writing 0 for a card with no matching pilot, which wiped a lancemate's whole tally when they were not on that card. Now such a card leaves the record as it was.
 - **Answering No to "Replace existing game?" keeps your old save.** The original wrote the new mission's world into the saved game's file before asking, so No kept the old entry in the list but its file was already overwritten. The world is now saved only once you answer Yes (or when there was nothing to replace).
@@ -46,6 +47,11 @@ it is clear what the designers meant.
   60, and above about 166 fps (or at 144 fps once the mech ran a little hot)
   it never recharged at all after its first shot. Beams now recharge at
   their 30 fps pace whatever the frame rate.
+- **Turrets act at the same pace at any frame rate.** A turret looks for a
+  target, turns and fires only on its turn, one frame in as many as there
+  are turrets, so on a faster computer turrets reacted and shot more often.
+  Turns now come by time, at the 30 fps pace: with 14 turrets each acts
+  about twice a second.
 - **Alan talks in every mission.** His name is misspelt in two missions'
   data (the first Instant Action map of the first world and operation 3's
   mission 6), so the game did not give him his radio voice there. Both

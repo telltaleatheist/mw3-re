@@ -33,6 +33,7 @@
 #include "mech3/mech_move.h"
 #include "mech3/mech_place.h"
 #include "mech3/mission_world.h"
+#include "mech3/turret.h"
 #include "mech3/weapon.h"
 #include "mech3/veh_controls.h"
 #include "mech3/veh_move.h"
@@ -1209,4 +1210,48 @@ TEST(fix_field_bases_alive_reads_three_slots) {
   b[1].active = false;
   r.count = 4;
   EXPECT(r.alive() == 2);
+}
+
+// The turrets' turns (0x004a70d0, FIX (B)): by game time the pick takes as
+// many turns in two seconds at 60 fps as at 30 (a 1/30 s step each, the ids
+// in order); the exe's frame count takes twice as many at 60.
+TEST(fix_turret_turns_by_time) {
+  using namespace mech3::tur;
+  struct Hooks : TurretHooks {
+    uint32_t frame = 0;
+    float now = 0;
+    uint32_t frame_number() override { return frame; }
+    float clock() override { return now; }
+  } hooks;
+  set_turret_hooks(&hooks);
+  auto turns = [&](bool per_second, int fps, std::vector<int>* by_id) {
+    zfix::options().per_second = per_second;
+    turret_count() = 0;
+    turret_turn() = 0;
+    std::vector<Turret*> t;
+    for (int i = 0; i < 14; ++i) t.push_back(new Turret(static_cast<uint32_t>(0x100 + i), 0, 0, nullptr));
+    hooks.frame = 0;
+    hooks.now = 1.0f;
+    int n = 0;
+    by_id->assign(t.size(), 0);
+    for (int f = 0; f < 2 * fps; ++f) {
+      ++hooks.frame;
+      hooks.now += 1.0f / static_cast<float>(fps);
+      for (size_t i = 0; i < t.size(); ++i) {
+        const int32_t before = turret_turn();
+        t[i]->pick(0);
+        if (turret_turn() != before) ++n, ++(*by_id)[i];
+      }
+    }
+    for (Turret* x : t) delete x;
+    return n;
+  };
+  std::vector<int> a, b, c;
+  const int at30 = turns(true, 30, &a), at60 = turns(true, 60, &b), exe60 = turns(false, 60, &c);
+  EXPECT(at30 >= 59 && at30 <= 61);
+  EXPECT(at60 == at30);
+  EXPECT(exe60 == 2 * turns(false, 30, &c));
+  for (int k : b) EXPECT(k >= 4 && k <= 5);  // 60 steps over 14 turrets, each in turn
+  zfix::options().per_second = true;
+  set_turret_hooks(nullptr);
 }

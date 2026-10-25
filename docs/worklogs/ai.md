@@ -1428,3 +1428,30 @@ is paused.
 - FIX (bug): no healthy node in the frame, no gun in the aim (null reads).
 - Tests: test_turret_frame.py (120 runs, ~8600 frames, 44 branches),
   test_turret.py gained the limits' within on every kind (48 branches); 47 of 47 breaks.
+- 4c2 merged as main 6e29636 (the lead checked the count reset: 0x4a76b0
+  runs once per mission, from two cases of one switch, 0x490c8e /
+  0x490d25). 4c3 assigned (mw3 mac 1): the mission load calls the loader
+  there (gated on [0x608e3a]); the frames through the entity list; the HUD
+  markers and the kill count +0x3fc; turrets_end and the deletes at the
+  mission's end; a headless campaign run (c1m1: tur_srm01..08) with
+  turrets that pick, fire and can be killed. Turn-by-time stays a
+  candidate (the lead takes it to Owen with per_second).
+- Owen decided (via mw3 mac 1), added to 4c3: the turret turn goes to
+  time, a 30 fps frame per turn, behind zfix per_second: a turret's turn
+  once every count x 1/30 s on game time, the ids spreading the turns as
+  the frame modulo does, 0x609a4c advancing per turn as before; fixes.md's
+  candidate becomes a FIX (B) row, a CHANGES.md line; a unit or SDL test
+  showing the same turn rate at 30 and 60 fps.
+- 4c3 done (mac 4): app_turret.cpp (the hooks on the ports; zEntity3d's
+  0x5a80f0 ported there), the mission load / cleanup / delete, the entity
+  walk (frame while +0x09), the sensors' vtable answers, the brain hooks,
+  the kill credit (a "building"), the HUD's vt+0x3c (the radar still mechs
+  only). Port gap closed: the game clock [0x72c530] was never copied into
+  weapon_world in the program (AMS and turrets stalled). Owen's FIX (B):
+  turn_due on game time, fix_turret_turns_by_time. Found and FIX (bug)
+  behind bugs: the turret's radar "friendly" and AMS side are the wrong way
+  round (player's AMS ignores hostile turret missiles; hostile AMS turrets
+  shoot their own side's). 0x4abea0 ported (lead_dir) and run for real in
+  test_turret_frame. Headless: mission_c1m1_turrets_headless (14 turrets;
+  tur_srm08 sensed, picks, targets the player, fires; killed: +1 building,
+  200 points). 10 of 10 breaks over the wiring and the turn by time.

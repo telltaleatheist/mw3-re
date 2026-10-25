@@ -36,7 +36,7 @@ PocketMarker* program_pocket_marker(uint32_t h);
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
 void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once
 void unwire_weapons();
-void sync_frame_step(float dt);
+void sync_frame_step(float dt, float clock);  // [0x0072c52c] and [0x0072c530] into the modules' copies
 // 0x00478f10 on the pilot the pilot screen chose (app_menus.cpp); false when none is.
 bool program_record_mission(bool next);
 int32_t mech_select_hot_group(void* mech);
@@ -221,6 +221,8 @@ void mech_aim_at_last_hit(void* mech);
 void mech_lead_velocity(void* mech, float out[3]);
 void mech_matrix(void* mech, float m[9]);
 void mech_target_position(void* mech, float out[3]);
+bool program_mech_kill_credit(void* killer, void* victim);  // a mech killer's 0x0041b420; false: not a mech
+bool program_entity_zones(const void* e, uint8_t out[4]);  // a mech's or vehicle's +0x64; false: neither
 void* wm_group_weapon(void* wm);
 void weapon_node_position(void* w, float out[3]);
 float weapon_speed(void* w);

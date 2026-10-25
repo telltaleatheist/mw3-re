@@ -205,6 +205,7 @@ add_library(mw3core STATIC
   src/mech3/lab_screen.cpp
   src/mech3/app_engine.cpp
   src/mech3/app_mission.cpp
+  src/mech3/app_turret.cpp
   src/mech3/app_vehicle.cpp
   src/mech3/app_view.cpp
   src/mech3/app_mech.cpp

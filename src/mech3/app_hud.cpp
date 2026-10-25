@@ -1,4 +1,5 @@
 #include "mech3/app_hud.h"
+#include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
 
 #include <algorithm>
@@ -251,6 +252,7 @@ struct ProgramHudHooks : HudHooks {
   void object_position(void* o, float out[3]) override { entity_position(o, out); }
   void* object_blip(void* o, int32_t kind) override {
     if (!o) return nullptr;
+    if (program_turret(o)) return program_turret_marker(kind);  // vt+0x3c 0x004a5fc0
     if (!mech_radar_blip(0)) mech_radar_blips_create();  // our addition: made when first needed (0x00413e60's part)
     return mech_radar_blip(kind);
   }

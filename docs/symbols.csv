@@ -1408,3 +1408,5 @@ address,name,source,notes
 0x004a4330,TurnLimitsFixed::Within,asm,"ported: the pitch, and along the one heading (1e-5)"
 0x004a45b0,TurnLimitsNarrow::Within,asm,"ported: the pitch, and inside both edges"
 0x004a4830,TurnLimitsWide::Within,asm,"ported: the pitch, and inside either edge"
+0x004abea0,lead_dir,asm,"ported (turret.cpp): a direction given its pitch's sine, the heading kept (the bit-trick square root)"
+0x005a80f0,ZEntity3d::Place,asm,"ported for the turrets (app_turret.cpp): the zone record of the ground under the node, the camera's zone onto it"
