@@ -3,6 +3,8 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <vector>
+#include <cstdlib>
 
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
@@ -298,6 +300,169 @@ Handle create_ai_mech(const char* type, const char* name, int32_t mech, ai::AivR
     h.mech_power(m, 1);
   }
   return m;
+}
+
+namespace {
+// 0x005e33a8: wave mode's enemies, six (mech, configuration) a wave, -1 none.
+struct WaveMech {
+  int32_t mech, config;
+};
+constexpr WaveMech kWaves[20][6] = {
+    {{8, 0}, {11, 3}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}},     {{8, 0}, {8, 0}, {3, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
+    {{14, 2}, {14, 3}, {14, 0}, {-1, 0}, {-1, 0}, {-1, 0}},    {{12, 0}, {12, 2}, {11, 2}, {11, 0}, {-1, 0}, {-1, 0}},
+    {{3, 0}, {3, 0}, {13, 2}, {-1, 0}, {-1, 0}, {-1, 0}},      {{10, 0}, {13, 0}, {13, 1}, {-1, 0}, {-1, 0}, {-1, 0}},
+    {{14, 4}, {14, 0}, {10, 0}, {10, 0}, {12, 2}, {-1, 0}},    {{17, 3}, {17, 0}, {17, 1}, {-1, 0}, {-1, 0}, {-1, 0}},
+    {{9, 0}, {9, 2}, {18, 0}, {18, 3}, {-1, 0}, {-1, 0}},      {{10, 0}, {12, 0}, {14, 2}, {9, 1}, {3, 0}, {-1, 0}},
+    {{18, 2}, {5, 0}, {5, 0}, {17, 2}, {13, 1}, {-1, 0}},      {{2, 1}, {2, 3}, {2, 4}, {9, 0}, {10, 0}, {5, 0}},
+    {{0, 0}, {0, 0}, {1, 0}, {1, 2}, {1, 3}, {-1, 0}},         {{6, 2}, {6, 1}, {6, 0}, {-1, 0}, {-1, 0}, {-1, 0}},
+    {{9, 1}, {9, 4}, {9, 4}, {16, 0}, {16, 0}, {-1, 0}},       {{15, 0}, {1, 0}, {5, 0}, {5, 0}, {17, 0}, {17, 1}},
+    {{4, 0}, {4, 2}, {4, 3}, {9, 0}, {13, 0}, {-1, 0}},        {{6, 1}, {6, 2}, {15, 1}, {15, 2}, {-1, 0}, {-1, 0}},
+    {{16, 0}, {16, 0}, {16, 0}, {17, 1}, {9, 3}, {4, 0}},      {{6, 0}, {6, 0}, {6, 1}, {6, 1}, {6, 2}, {6, 2}},
+};
+
+// 0x0049fe30: the 5-bit packed teams as a mask.
+uint32_t team_mask(uint32_t team) {
+  uint32_t mask = 1u << (team & 31);
+  for (uint32_t t = team >> 5; t; t >>= 5) mask |= 1u << (t & 31);
+  return mask;
+}
+
+// The net an Instant Action mech is given: the player's own for an ally,
+// else its record's path.
+Handle action_net(bool ally, const ai::AivRecord* rec) {
+  return ally ? g_hooks->vehicle_net(g_hooks->pilot_vehicle()) : mech_net(rec->kind());
+}
+
+// The record's name copied as 0x0049dc80 does, into its 80 bytes. FIX
+// (bug): cut to fit (the exe copies it whole).
+void copy_name(char (&out)[0x50], const char* name) { std::snprintf(out, sizeof out, "%s", name); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0049dc80 (CL `launch`). docs/mission-start.md section 13.
+bool action_lineup(bool launch) {
+  PlayerHooks& h = *g_hooks;
+  if (h.game_type() != 2) return false;
+  const Handle g = h.action_game();
+  if (!g) return false;
+  ai::AivRecord rec;  // 0x004e0490
+  const int32_t records = h.aiv_count();
+  // calloc'd by the exe (a failure returns 0 there; these do not fail).
+  std::vector<int32_t> found(records > 0 ? static_cast<size_t>(records) : 0);
+  std::vector<uint8_t> taken(found.size());
+  const Handle player = h.pilot_vehicle();
+  if (h.field32(g, 0x44) == 2) {  // wave mode: the wave's enemies in place of the last
+    h.action_drop_enemies(g);
+    int32_t w = static_cast<int32_t>(h.field32(g, 0x6c)) - 1;
+    if (w > 19) w = 19;
+    if (w < 0) w = 0;  // FIX (bug): the exe reads before the table (the wave starts at 1)
+    for (const WaveMech& e : kWaves[w]) {
+      if (e.mech == -1) continue;
+      const Handle dfn = h.mech_dfn(e.mech);
+      const uint32_t n = static_cast<uint32_t>(h.dfn_config_count(dfn));
+      const Handle cfg = static_cast<uint32_t>(e.config) < n ? h.dfn_config(dfn, e.config) : 0;
+      h.action_add(g, e.mech, 0, cfg, 0);
+    }
+  }
+  for (int32_t i = 1; i <= static_cast<int32_t>(h.field32(g, 0x7c)); ++i)
+    if (const Handle m = h.field32(h.action_slot(g, i), 0x0c)) h.mech_set_controls(m, 0);
+  if (launch && (h.field32(g, 0x48) & 0xff)) {  // the mission's mobile HQs (vehicle.zrd left loaded)
+    const Handle def = h.reader_find(h.reader_load("vehicle.zrd"), "mobilehq");
+    for (int32_t j = 2; j < records; ++j) {
+      const char* name = nullptr;
+      ai::AivRecord* r = h.aiv_read(rec, j, &name);
+      if (!r) continue;  // FIX (bug): the exe goes on with the last record and name
+      if (std::strncmp(name, "mobilehq", 8) != 0) continue;
+      char text[0x50];
+      copy_name(text, name);
+      create_controlled_vehicle(def, "mobilehq", text, r);
+    }
+  }
+  // The paint: the player's (0..7, put back in range), the enemies' the one before.
+  int32_t paint = static_cast<int32_t>(h.field32(h.action_slot(g, 0), 0x10));
+  if (paint > 7 || paint < 0) {
+    paint = paint > 7 ? 7 : 0;
+    h.slot_set_paint(h.action_slot(g, 0), paint);
+  }
+  const int32_t enemy_paint = (paint + 7) % 8;
+  for (int32_t i = 1; i <= static_cast<int32_t>(h.field32(g, 0x7c)); ++i) {
+    const bool ally = h.action_ally(g, i);
+    if (ally && !launch) continue;  // a new wave: the enemies only
+    const Handle slot = h.action_slot(g, i);
+    const Handle have = h.field32(slot, 0x0c);
+    const int32_t mech = static_cast<int32_t>(h.field32(slot, 0x04));
+    const int32_t weight = h.weight_class(mech);
+    // The unused records on the slot's side (the player's allies or not), of
+    // the same weight class, else one class off, up to three.
+    int32_t n = 0;
+    for (int32_t d = 0; d < 4 && n == 0; ++d)
+      for (int32_t j = 2; j < records; ++j) {
+        if (taken[static_cast<size_t>(j)]) continue;
+        const char* name = nullptr;
+        ai::AivRecord* r = h.aiv_read(rec, j, &name);
+        if (!r) continue;  // FIX (bug): the exe goes on with the last record and name
+        if (std::strncmp(name, "mobilehq", 8) == 0) continue;
+        const int32_t w = h.weight_class(r->get<int32_t>(0xc4));
+        const bool on_side = (h.field32(player, 0xc4) & team_mask(static_cast<uint32_t>(r->team()))) != 0;
+        if (on_side == ally && std::abs(weight - w) == d) found[static_cast<size_t>(n++)] = j;
+      }
+    if (n == 0) continue;
+    int32_t k = 0;
+    if (launch) {
+      k = h.crt_rand() % n;
+    } else {  // the farthest from the player (the first of equals; NaN never)
+      float best = 0;
+      for (int32_t q = 0; q < n; ++q) {
+        const char* name = nullptr;
+        ai::AivRecord* r = h.aiv_read(rec, found[static_cast<size_t>(q)], &name);
+        if (!r) continue;  // read before: it does not fail now
+        float at[3], d[3];
+        h.vehicle_position(player, at);
+        for (int c = 0; c < 3; ++c) d[c] = at[c] - r->get<float>(0x08 + 4 * c);
+        const float dist = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        if (q == 0 || dist > best) best = dist, k = q;
+      }
+    }
+    const int32_t pick = found[static_cast<size_t>(k)];
+    taken[static_cast<size_t>(pick)] = 1;
+    const char* name = nullptr;
+    ai::AivRecord* r = h.aiv_read(rec, pick, &name);
+    if (!r) continue;  // read before: it does not fail now
+    if (!have) {
+      const Handle net = action_net(ally, r);
+      const char* type = h.mech_name(mech);
+      char text[0x50];
+      copy_name(text, name);
+      const Handle m = create_ai_mech(type, text, mech, r, net);
+      if (!m) continue;
+      const Handle dfn = h.mech_dfn(h.mech_roster(m));
+      h.mech_set_config(m, h.field32(slot, 0x08));
+      const int32_t p = ally ? paint : enemy_paint;
+      const int32_t skins = h.dfn_skin_count(dfn);
+      h.mech_set_skin(m, p < skins && p >= 0 ? h.dfn_skin(dfn, p) : 0);
+      h.slot_set_mech(slot, m);
+    } else if (!h.field32(have, 0x37c)) {  // a mech without controls: new ones, placed again
+      const Handle net = action_net(ally, r);
+      if (!net) continue;
+      const Handle ctl = make_mech_controls(net, r);
+      if (!ctl) continue;
+      h.mech_set_controls(have, ctl);
+      h.mech_place(have, r);
+      set_team_masks(have, static_cast<uint32_t>(r->team()));
+    }
+  }
+  for (int32_t i = 1; i <= static_cast<int32_t>(h.field32(g, 0x7c)); ++i) {
+    const Handle slot = h.action_slot(g, i);
+    const Handle m = h.field32(slot, 0x0c);
+    const int32_t mech = static_cast<int32_t>(h.field32(slot, 0x04));
+    if (!m) {
+      report(0x14f, "InstantAction: Unable to Create [%s]", h.mech_name(mech));
+    } else if (!h.field32(m, 0x37c)) {
+      report(0x154, "InstantAction: Created [%s], no controller", h.mech_name(mech));
+      h.mech_delete(m);
+    }
+    h.slot_set_mech(slot, 0);
+  }
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x0049e5e0: at a campaign's launch, each lancemate slot

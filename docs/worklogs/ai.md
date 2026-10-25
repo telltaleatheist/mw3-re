@@ -1741,3 +1741,29 @@ is paused.
   comparator's answer changed between calls and the exe's unguarded
   insertion read before the list. Fixed in app_sensors.cpp: by the AI mechs
   made.
+
+## Item 8: Instant Action's line-up 0x49dc80 (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/ia-lineup off main. 0x49dc80 driven
+  from a record: a differential over the record's enemy and ally counts,
+  mech choices, waves, the endless and wave modes (the win's re-run
+  0x49dc80(0)); a headless IA mission from a made record, the enemies and
+  allies made with their AI on, wave 2 after wave 1 falls. IA-screen state
+  not ported: from the record, the rest hooked. Then item 3's two
+  leftovers, 0x4d8610 and 0x4ac800.
+- Found: ActionGame's line-up methods (0x4368b0, 0x436a90, 0x436af0,
+  0x436ac0, 0x436840) were not ported, nor its +0x44 mode, +0x48 field
+  bases, +0x70; the launch's objectives start (0x45c4a0) was unwired, and
+  the objective hooks it needs (zEntity's list, active, hostile, vt+0x48,
+  the game's mode and wave) were unanswered, so no IA mission could be won.
+- Item 8 done (mac 4): `action_lineup` 0x49dc80 (player.cpp, the wave
+  table 0x5e33a8 in it), ActionGame's slot_at / ally / remove /
+  drop_enemies / add and its +0x44, +0x48, +0x70, count, side bytes. The
+  program: the Launch's `action` game (a debug start's) or the pilot's;
+  the IA hooks in WiredPlayerHooks, the launch's line-up and objectives
+  start, the win's next wave, the objective hooks for "destroy the
+  enemies". Tests: test_mission_start's ia1 / ia0 entries (400 cases),
+  test_pilot's a / e ops, mw3tests mission_ia1_waves (wave 1 made with
+  brains, destroyed, wave 2 made, the ally kept); 22 of 22 breaks. Docs:
+  mission-start.md 13, fixes (1 row), CHANGES (1 line), symbols, 2
+  discoveries (the twenty waves, the matching by weight class).

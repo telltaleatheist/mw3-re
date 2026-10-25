@@ -286,6 +286,7 @@ unusual happens.
 - An AI pilot that starts keeping station during a fight no longer keeps a stale home point after the fight ends (the original could measure its leash from freed memory).
 - A lancemate AI pilot that would keep station on a vehicle with no driver no longer crashes the game.
 - A campaign lancemate slot left empty no longer risks crashing the launch when its mission entry cannot be read or there is no player mech to take over its duties (no shipped mission does either), and a lancemate's name with a `%` in it is no longer read as a format.
+- Instant Action's line-up no longer risks a crash on a mission entry it cannot read, a wave number below 1 or a very long entry name (none happens with the shipped files).
 - An AI pilot with a negative personal-space setting no longer hangs the game when another mech comes close (no shipped mission has one).
 - A world's `declient.zrd` with a one-frame quicksand texture, or a `QUICK_SAND` block without `DEFAULT_TEXTURE`, no longer crashes the mission load; the one frame is shown, or the quicksand is left untextured. No shipped file has either.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.

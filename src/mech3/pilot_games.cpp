@@ -680,6 +680,50 @@ ActionGame::~ActionGame() {
   std::free(x38), std::free(x3c), std::free(x40);
 }
 
+// Mech3.exe 1.2 @ 0x004368b0
+GameSlot* ActionGame::slot_at(int32_t i) {
+  if (i == 0) return &slot;
+  return i > 0 && i < 11 ? &lineup[i - 1] : nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00436a90
+bool ActionGame::ally(int32_t i) const {
+  if (i == 0) return true;
+  return i > 0 && i < 11 && side[i - 1] != 0;
+}
+
+// Mech3.exe 1.2 @ 0x00436af0
+bool ActionGame::remove(int32_t i) {
+  if (i < 0 || i > count) return false;
+  for (; i < count - 1; ++i) {
+    lineup[i].copy_from(lineup[i + 1]);  // 0x00433d90
+    side[i] = side[i + 1];
+  }
+  --count;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x00436ac0: from the last slot down, each enemy's out.
+// It asks slot i's side (lineup[i - 1]) but removes lineup[i]: with the
+// allies first, as the screen keeps them, that is the same slot or the one
+// past the end (docs/mission-start.md section 13).
+void ActionGame::drop_enemies() {
+  for (int32_t i = count; i >= 0; --i)
+    if (!ally(i)) remove(i);
+}
+
+// Mech3.exe 1.2 @ 0x00436840
+GameSlot* ActionGame::add(int32_t mech, uint8_t s, const Config* config, int32_t paint) {
+  if (count > 9) return nullptr;
+  side[count] = s;
+  GameSlot& g = lineup[count++];
+  g.x0c = 0;          // 0x00433ee0
+  g.mech = mech;      // 0x005a2ba0
+  g.set_config(config);
+  g.skin = paint;     // 0x005a2b90
+  return &g;
+}
+
 // Mech3.exe 1.2 @ 0x00436b50
 void ActionGame::save() {
   Game::save();

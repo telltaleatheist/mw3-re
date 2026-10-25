@@ -249,9 +249,8 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   0x004140c0, 0x004149f0 and down) are ported: mech-build.md. The AI mechs
   of section 4 can use it (`app_mission.cpp` wires `mech_create` to it)
   once their controls are. The campaign's lancemates (0x0049e5e0 with
-  0x0049e540) are ported: section 12. Left of the launch: 0x0049dc80
-  (instant action's line-up from its records, 381 lines), 0x0046da80
-  (multiplayer).
+  0x0049e540) are ported: section 12, and Instant Action's line-up
+  (0x0049dc80): section 13. Left of the launch: 0x0046da80 (multiplayer).
 - The builders' callees: the vehicles 0x004589d0 / 0x004ac320, their setup
   0x0049ef40 and 0x0049f660 (and their vt+0xdc place), the skin swap
   0x004757f0. The AI controls 0x004d8750 / 0x004e71c0 are ported up to the
@@ -526,3 +525,101 @@ Quirks and fixes (fixes.md): the name's `sprintf(buffer, name)`, copied as
 text (FIX (bug)); no player vehicle in 0x0049e540, the exe reads on through
 it, and a slot without a mech whose record fails to read, which 0x0049e4e0
 reads through (FIX (bug): both stop).
+
+## 13. Instant Action's line-up: 0x0049dc80
+
+The launch calls it with CL = 1 for game type 2 (0x00491150), and the win
+(0x0048f740, mission-frame.md section 4) with 0 for each next wave of the
+endless (+0x44 1) and wave (2) modes. The game is the pilot's Instant
+Action game (0x00479460, ActionGame, gametypes.md): slot 0 the player's,
+then up to ten line-up slots (+0x80, 0x18 each, +0x7c of them), each with a
+side byte (+0x170: 1 an ally), the allies first (the Action screen keeps
+them so; vt+0x3c 0x436a40 is the first enemy's index). In order:
+
+1. Not type 2, or no game: 0. An aiv.zrd record object, the file's count,
+   two calloc'd arrays (the candidates, the records taken).
+2. **Wave mode**: the enemies dropped (0x436ac0) and the wave's put in
+   (0x436840: mech, side 0, a copy of the definition's configuration,
+   paint 0), from a table of 20 waves of up to six (mech, configuration)
+   (0x5e33a8), wave +0x6c (capped at 20).
+3. Every slot's mech (+0x0c) given no controls (0x491120(0)).
+4. At the launch with the game's +0x48: vehicle.zrd's `mobilehq` and every
+   record from 2 on named `mobilehq...` made a vehicle over its net
+   (0x49f800); vehicle.zrd stays loaded.
+5. The paint: slot 0's (+0x10) put back in 0..7 when out; the enemies' is
+   the one before it ((p + 7) % 8).
+6. Each slot from 1 (at a new wave, the enemies only): the records from 2
+   on not taken and not `mobilehq...`, on the slot's side (the player's
+   allies, +0xc4, against the record's teams) and of the slot mech's weight
+   class (0x484700), else one class off, up to three. At the launch one of
+   them at random (`rand() % n`); at a new wave the farthest from the
+   player (0x5a85e0; squared distances in floats, the first of equals). It
+   is taken. A slot without a mech gets an AI mech of its own mech
+   (0x49fa20: type the roster name, named after the record) on the
+   player's own net for an ally (vt+0xd8), the record's path for an enemy;
+   then the slot's loadout (+0x08, 0x414430), the paint (the player's for
+   an ally, the enemies' else) from the mech's definition, and the slot
+   keeps the mech (+0x0c). A slot whose mech has no controls gets new AI
+   controls (0x4d8750) on the same net, the mech placed at the record
+   (0x4161c0) and its team masks set.
+7. Every slot: no mech, "InstantAction: Unable to Create [%s]"; a mech
+   without controls, "InstantAction: Created [%s], no controller" and the
+   mech deleted (vt+0). Its +0x0c cleared either way, so steps 3 and 6's
+   second branch never find a mech in play.
+8. 1.
+
+**0x436ac0's off-by-one.** It asks slot i's side (0x436a90: lineup[i - 1])
+from the last down but removes lineup[i] (0x436af0 is 0-based). From the
+top, an enemy at the end removes past the end (the count only drops), so
+with the allies first the enemies go and the allies stay; an enemy before
+an ally would cost the ally instead. Ported as written.
+
+**The objectives.** The launch then calls 0x45c4a0: "destroy the enemies",
+a group of every zEntity entry (vt+0x2c) that is active (+0x08), hostile
+to the player (his +0xc8 against its team) and answers 0 to vt+0x48 (every
+class but the turrets), into the primary objectives. The win counts the
+wave (+0x6c, +0x70; the best +0x68 in wave mode) and, unless wave mode is
+past wave 20, runs this with 0 and loads and starts `ia<n>`'s objectives
+again.
+
+**The port.** `mech3::action_lineup` (player.cpp; the wave table there),
+ActionGame's `slot_at`, `ally`, `remove`, `drop_enemies`, `add`
+(pilot_games.cpp). The program (app_mission.cpp): the game is the Launch's
+`action` (a debug start's, made by the caller: the Action screen is not
+ported) or the chosen pilot's; WiredPlayerHooks answers the game, its
+slots and fields, the roster's classes and names, a mech's controls
+(0x491120, app_mech.cpp), the player's centroid, rand (the CRT's); the
+launch calls the line-up and 0x45c4a0; the win's next wave calls the
+line-up with 0; the objectives' hooks answer zEntity's list, active,
+hostile, vt+0x48 and the game's mode and wave.
+
+**Checked.** `test_mission_start.py`'s entries `ia1` (the launch) and
+`ia0` (a new wave), on every case at 24-bit x87: 0..3 allies and 0..6
+enemies (a mech out of range at times), a loadout or none, the player's
+paint -2..9, modes 0, 1, 2 and 7, waves 1..25, the field bases or not, the
+player's allies and the records' teams at random, the AI mech builder as
+in section 7, slots with a mech already there; the game's methods are
+stubs over a model both sides share; some start points shared (ties for
+the farthest). 400 cases match: 692 runs, 541 mechs made at launches and
+280 at new waves, 996 random picks, 2,855 distances, 1,102 wave mechs
+added, 175 mobile HQs, 74 controls given to a mech already there, 2,753
+reports. Breaking the port showed the tests catch it, 22 of 22: the wave
+not less one, its cap, the loadout's bound, `mobilehq` records as
+candidates, the side inverted, the classes searched to two off, the
+farthest taking equals, the enemies' paint, the paint always put back, the
+allies remade each wave, the slots keeping their mechs, a mech without
+controls kept, the records from 1, the field bases on a new wave;
+ActionGame's ally by side[i], its removal one short, an eleventh slot, the
+drop from count - 1; in the program the launch's objectives or the next
+wave unwired, every object hostile, the turrets counted. `test_pilot.py` runs 0x436840, 0x436ac0 and 0x436af0
+on the pilots' games (slots added past ten, removals in and out of range).
+`mw3tests` `mission_ia1_waves_headless`: c1's ia1 in wave mode, the
+player's slot paint 2, one ally (a Champion) and an enemy slot: the launch
+makes the ally (Epona Rhi's record) and wave 1 (a Firefly and an Owens),
+all three with brains; the two destroyed and their wrecks gone, the win
+counts the wave and makes wave 2 (two Fireflies and a Bushwacker), the ally
+kept.
+
+Quirks and fixes (fixes.md): a record that fails to read is skipped (the
+exe goes on with the last record and name); a wave below 1 reads before
+the table (FIX (bug): wave 1); names cut at 79 (the exe's buffer is 80).

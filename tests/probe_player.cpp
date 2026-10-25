@@ -44,7 +44,13 @@ int32_t vec_count(uint32_t begin_at) {
   return b ? static_cast<int32_t>(peek(begin_at + 4) - b) >> 2 : 0;
 }
 
+std::string g_names[19];  // the roster's names, as the test's emulator strings
+
 struct Recording : mech3::PlayerHooks {
+  const char* mech_name(int32_t mech) override {
+    call("0x00484650", {static_cast<uint32_t>(mech)});
+    return mech >= 0 && mech < 19 ? g_names[mech].c_str() : "notmech";
+  }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
   float reader_item_float(Handle n, int32_t i) override { return zgame::from_bits(peek(peek(n + 4) + 8 * i + 4)); }
   Handle reader_item(Handle n, int32_t i) override { return peek(n + 4) + 8 * i; }
@@ -142,6 +148,10 @@ int32_t probe_player_get_record(int32_t i, uint8_t* raw, char* name, int32_t cap
 void probe_player_setup(int32_t full) { mech3::player_setup(full != 0); }
 void probe_player_tick() { mech3::player_tick(); }
 int32_t probe_player_launch() { return mech3::launch_lancemates() ? 1 : 0; }
+int32_t probe_player_action(int32_t launch) { return mech3::action_lineup(launch != 0) ? 1 : 0; }
+void probe_player_mech_name(int32_t i, const char* name) {
+  if (i >= 0 && i < 19) g_names[i] = name;
+}
 
 // The writes, as (address, value) pairs; returns how many (up to cap).
 int32_t probe_player_writes(uint32_t* out, int32_t cap) {

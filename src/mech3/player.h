@@ -128,6 +128,34 @@ class PlayerHooks : public zgame::Unported {
   virtual void take_triggers(Handle settings, const ai::AivRecord* rec) {
     unported("0x0049e4e0", {settings, rec_handle(rec)});
   }
+  // Instant Action's (0x0049dc80): the game (0x00479460), its line-up
+  // (ActionGame: vt+0x34, 0x00436a90, 0x00436ac0, 0x00436840), a slot's
+  // mech (+0x0c, 0x00433ee0) and paint (+0x10, 0x005a2b90); silent: the
+  // game's mode +0x44, field bases +0x48, wave +0x6c, slots +0x7c and a
+  // slot's +0x04, +0x08.
+  virtual Handle action_game() { return unported("0x00479460", {}); }
+  virtual Handle action_slot(Handle g, int32_t i) { return unported("action.vt+0x34", {g, i}); }
+  virtual bool action_ally(Handle g, int32_t i) { return (unported("0x00436a90", {g, i}) & 0xff) != 0; }
+  virtual void action_drop_enemies(Handle g) { unported("0x00436ac0", {g}); }
+  virtual Handle action_add(Handle g, int32_t mech, uint8_t side, Handle config, int32_t paint) {
+    return unported("0x00436840", {g, mech, side, config, paint});
+  }
+  virtual void slot_set_mech(Handle slot, Handle mech) { unported("0x00433ee0", {slot, mech}); }
+  virtual void slot_set_paint(Handle slot, int32_t paint) { unported("0x005a2b90", {slot, paint}); }
+  // mech_names: a roster mech's weight class and name (`notmech` out of range).
+  virtual int32_t weight_class(int32_t mech) { return static_cast<int32_t>(unported("0x00484700", {mech})); }
+  virtual const char* mech_name(int32_t mech) {  // 0x00484650
+    unported("0x00484650", {static_cast<uint32_t>(mech)});
+    return "notmech";
+  }
+  // A mech's controls set (0x00491120: +0x37c, then the controls told their owner).
+  virtual void mech_set_controls(Handle mech, Handle ctl) { unported("0x00491120", {mech, ctl}); }
+  // A vehicle's centroid (0x005a85e0), and the CRT's rand.
+  virtual void vehicle_position(Handle v, float out[3]) {
+    const Handle p = unported("0x005a85e0", {v});
+    for (int k = 0; k < 3; ++k) out[k] = zgame::from_bits(field32(p, 4 * k));
+  }
+  virtual int32_t crt_rand() { return static_cast<int32_t>(unported("rand", {})); }
   // zError's report, the message formatted.
   virtual void report(int32_t level, int32_t line, const char* text) {
     unported("0x0049bfd0", {level, "C:\\zipper\\Mech3\\player.cpp", line, text});
@@ -186,6 +214,12 @@ int32_t create_basic_vehicle(Handle def, ai::AivRecord* rec, const char* type, c
 // record leaves its triggers to the player. 1 when it ran.
 bool launch_lancemates();                                      // 0x0049e5e0
 void assume_duties(const ai::AivRecord* rec, const char* name);  // 0x0049e540 (ECX the pilot)
+// Instant Action's line-up: each slot after the player's an AI mech from an
+// unused aiv.zrd record on its side, of the nearest weight class (picked at
+// random at the launch, else the farthest from the player); in wave mode
+// the enemies first replaced by the wave's. `launch` 0: the next wave, its
+// enemies only (the win, 0x0048f740). 1 when it ran.
+bool action_lineup(bool launch);                               // 0x0049dc80
 Handle make_mech_controls(Handle net, ai::AivRecord* rec);     // 0x0049fe90
 Handle make_vehicle_controls(Handle net, ai::AivRecord* rec);  // 0x0049ff10
 void set_team_masks(Handle vehicle, uint32_t team);            // inline at 0x0049f924, 0x0049fbe1, 0x00491262

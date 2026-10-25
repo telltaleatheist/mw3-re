@@ -1,7 +1,8 @@
 """The mission start's vehicles against the original (docs/mission-start.md):
 player.cpp's 0x49e810 with the builders it reaches (0x49fce0, 0x49fa20,
 0x49f800, 0x49f8a0, 0x49fe90, 0x49ff10), the player's tick 0x4a1160 and the
-launch's lancemates 0x49e5e0 with 0x49e540.
+launch's lancemates 0x49e5e0 with 0x49e540, and Instant Action's line-up
+0x49dc80 at the launch and for a new wave.
 
 Orchestration: every call out of player.cpp is stubbed in the emulator and a
 hook in the port, both answered from one script, and the call traces (strings
@@ -16,7 +17,14 @@ definitions) succeed or fail at random. The launch's campaign has 0 to 3
 lancemate slots (their count off by one at times, a slot missing, a slot
 without a mech, a record that fails to read), the player's slot a paint (in
 range or not) and the player a vehicle net or none, controls or none, and
-settings or none. Load-time code: the x87 at 53 bits.
+settings or none. Instant Action: a game of 0 to 10 slots (allies first, a
+mech each, a loadout or none, paint -2..9 for the player), endless, wave or
+plain mode, waves 0..25, mobile HQs or not, the player's allies and the
+records' teams at random, the mechs made with controls or not; the game's
+methods (0x436a90, 0x436ac0, 0x436840, its vt+0x34, the slot setters
+0x433ee0 / 0x5a2b90, 0x491120) are stubs over a model both sides share
+(test_pilot.py runs the real ones). Load-time code: the x87 at 53 bits;
+Instant Action's at 24 (its distances).
 
     cmake --build build && .venv/bin/python tests/differential/test_mission_start.py [cases]
 """
@@ -33,7 +41,8 @@ from calltrace import ROOT, Emu, Trace, compare, load_probe  # noqa: E402
 from test_mission_load import c_format  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 
-SETUP, TICK, LAUNCH = 0x49e810, 0x4a1160, 0x49e5e0
+SETUP, TICK, LAUNCH, ACTION = 0x49e810, 0x4a1160, 0x49e5e0, 0x49dc80
+CLASS = [3, 2, 1, 2, 3, 2, 3, 0, 0, 2, 1, 0, 1, 1, 0, 1, 3, 2, 1]  # a weight class per roster mech (any will do)
 PILOT, VIEW, STEALTH, FRAME_DT = 0x60861c, 0x5f4c8c, 0x609a2c, 0x72c52c
 GLOBALS = [(0x5ea1d0, 4), (0x609a00, 4), (0x609a14, 4), (0x609a0c, 4), (0x609a10, 4), (0x60b56c, 1),
            (0x5e8110, 4), (0x5e8114, 4)]
@@ -52,6 +61,8 @@ CALLS = {
     0x41cc30: 'c,s0', 0x4589d0: 'c,zd,zs0', 0x4ac320: 'c,zd,zs0', 0x5a84c0: 'c,zs0', 0x49f660: 'c',
     0x5833b0: 'c,d,s0,s1', 0x5a85c0: 'c', 0x4a1140: 's0', 0x41e3f0: 's0', 0x537f20: 'c', 0x41aba0: 'c,s0',
     0x414430: 'c,s0', 0x49e4e0: 'c,s0',
+    0x479460: '', 0x436a90: 'c,s0', 0x436ac0: 'c', 0x436840: 'c,s0,s1,s2,s3', 0x433ee0: 'c,s0', 0x5a2b90: 'c,s0',
+    0x484700: 'c', 0x484650: 'c', 0x491120: 'c,s0', 0x5a85e0: 'c',
 }
 LAUNCH_SEEN = {'0x00414150': 'mechs made', '0x00414430': 'configured', '0x00414390': 'painted',
                '0x0049e4e0': 'triggers taken'}
@@ -183,10 +194,36 @@ class World:
             w(o + 0x88, r.randrange(3))
             self.held.append(o)
         self.mechs = [e.object('mech', 0x700, slots={0: ('c,s0', 4), 0x34: ('c,s0', 4)}) for _ in range(64)]
-        for m in self.mechs:  # their data (+0x684) and its roster number (+0x0c)
+        for m in self.mechs:  # their data (+0x684) and its roster number (+0x0c); controls or none
             d = alloc(0x20)
             w(d + 0xc, r.randrange(19))
             w(m + 0x684, d)
+            w(m + 0x37c, alloc(16) if r.random() < 0.8 else 0)
+        # Instant Action: the game (+0x20 the player's slot, +0x44 mode, +0x48
+        # bases, +0x6c wave, +0x7c count), ten slot blocks, the player's place
+        # and allies, the mech names.
+        ia = case['ia']
+        self.action = e.object('action', 0x180, slots={0x34: ('c,s0', 4)})
+        w(self.action + 0x44, ia['mode']), w(self.action + 0x48, ia['bases']), w(self.action + 0x6c, ia['wave'])
+        self.pslot0 = self.action + 0x20
+        w(self.pslot0 + 0x10, ia['paint'])
+        self.blocks10 = [self.action + 0x80 + 0x18 * k for k in range(10)]
+        self.lineup0 = [dict(s, config=0) for s in ia['slots']]  # mech, config, paint, side
+        self.cfgs = []
+        for k, sl in enumerate(self.lineup0):
+            if r.random() < 0.7:
+                sl['config'] = alloc(16)
+            if r.random() < 0.15:  # a mech already there (never in play: the end clears them)
+                sl['m'] = self.mechs[(k * 7 + 3) % 64]
+        self.lineup = [dict(x) for x in self.lineup0]
+        self.ppos = alloc(12)
+        for k, v in enumerate(ia['pos']):
+            w(self.ppos + 4 * k, struct.unpack('<I', struct.pack('<f', v))[0])
+        w(pveh + 0xc4, ia['allies'])
+        self.names = {m: e.world_string(n) for m, n in enumerate(MECHS)}
+        self.notmech = e.world_string('notmech')
+        self.sync(w)
+
         self.vehicles = []
         for _ in range(64):
             v = e.object('veh', 0x400, slots={0xdc: ('c,s0,s1', 8), 0x158: ('c,s0,zs1,s2', 12)})
@@ -194,14 +231,62 @@ class World:
             w(v + 0xe4, self.ctls[r.randrange(64)] if r.random() < 0.5 else 0)
             self.vehicles.append(v)
 
+    def sync(self, w):
+        """The line-up model into memory: the count and each slot block."""
+        w(self.action + 0x7c, len(self.lineup))
+        for k, b in enumerate(self.blocks10):
+            sl = self.lineup[k] if k < len(self.lineup) else None
+            w(b + 0x04, sl['mech'] if sl else 0), w(b + 0x08, sl['config'] if sl else 0)
+            w(b + 0x0c, sl.get('m', 0) if sl else 0), w(b + 0x10, sl['paint'] if sl else 0)
     def w(self, a, v):
         self.e.w32(a, v)
         self.mem[a] = v & 0xffffffff
 
 
-def make_script(case, world, rec_addr):
+def make_script(case, world, rec_addr, w=None):
     r = case['rng']
     recs = case['records']
+    w = w or world.w
+
+    def slot_of(addr):
+        return world.lineup[world.blocks10.index(addr)] if addr in world.blocks10[:len(world.lineup)] else None
+
+    def ia_slot(n, a):
+        i = a[1]
+        if i == 0:
+            return world.pslot0
+        return world.blocks10[i - 1] if 0 < i <= len(world.lineup) else 0
+
+    def ia_add(n, a):
+        if len(world.lineup) > 9:
+            return 0
+        world.lineup.append({'mech': a[1], 'config': a[3], 'paint': a[4], 'side': a[2] & 0xff})
+        world.sync(w)
+        return world.blocks10[len(world.lineup) - 1]
+
+    def ia_drop(n, a):
+        world.lineup[:] = [x for x in world.lineup if x['side']]
+        world.sync(w)
+        return 0
+
+    def ia_ally(n, a):
+        i = a[1]
+        return 1 if i == 0 else int(0 < i <= len(world.lineup) and world.lineup[i - 1]['side'] != 0)
+
+    def set_mech(n, a):
+        sl = slot_of(a[0])
+        if sl is not None:
+            sl['m'] = a[1]
+            w(a[0] + 0xc, a[1])
+        return 0
+
+    def set_paint(n, a):
+        w(a[0] + 0x10, a[1])
+        return 0
+
+    def set_controls(n, a):
+        w(a[0] + 0x37c, a[1])
+        return 0
 
     def pick(pool, rate):
         return lambda n, a: 0 if r(f'{n}') < rate else pool[n % len(pool)]
@@ -227,7 +312,14 @@ def make_script(case, world, rec_addr):
         return MECHS.index(name) if name in MECHS else 0xffffffff
 
     return {
-        'game.vt+0x2c': case['type'],
+        'game.vt+0x2c': case['ia_type'] if case.get('entry', '').startswith('ia') else case['type'],
+        '0x00479460': world.action if case['ia']['game'] else 0,
+        'action.vt+0x34': ia_slot, '0x00436a90': ia_ally, '0x00436ac0': ia_drop, '0x00436840': ia_add,
+        '0x00433ee0': set_mech, '0x005a2b90': set_paint, '0x00491120': set_controls,
+        '0x00484700': lambda n, a: CLASS[a[0]] if 0 <= a[0] < 19 else 0,
+        '0x00484650': lambda n, a: world.names.get(a[0], world.notmech),
+        '0x005a85e0': world.ppos,
+        'rand': lambda n, a: int(r(f'rand{n}') * 0x8000),
         '0x00556740': lambda n, a: world.player_tree if a[0] == 'player.zrd' else
         (world.vehicle_tree if case['vehicle_zrd'] else 0),
         '0x005569e0': find,
@@ -272,11 +364,11 @@ def rng(seed):
 def run_original(case, entry):
     rec_addr = [0]
     t = Trace()
-    t.silent |= {'sprintf', 'strncmp', 'strchr', '0x004e0490', '0x004e04f0'}
+    t.silent |= {'sprintf', 'strncmp', 'strchr', '0x004e0490', '0x004e04f0', 'calloc', 'free'}
     e = Emu(t)
-    e.cpu.fpu_control(0x027f)
+    e.cpu.fpu_control(0x007f if entry.startswith('ia') else 0x027f)
     world = World(e, random.Random(case['seed']), case)
-    t.script = make_script(case, world, rec_addr)
+    t.script = make_script(case, world, rec_addr, e.w32)
     for addr, spec in CALLS.items():
         e.stub(addr, spec=spec)
     names = {}
@@ -358,13 +450,28 @@ def run_original(case, entry):
     e.import_stub(0x5bb658, 'sprintf', '', 0, sprintf)
     e.import_stub(0x5bb654, 'strncmp', '', 0, strncmp)
     e.import_stub(0x5bb63c, 'strchr', '', 0, strchr)
-    e.watch_writes([(e.world_base, e.world_base + e.world_size), (0x6099c0, 0x6099c4)])
+
+    heap = [e.world_alloc(0x8000), 0]  # 0x49dc80's two calloc'd arrays, out of the compared memory
+
+    def calloc(em, key, a, pop):
+        n, size = em.args('s0,s1')
+        p = heap[0] + heap[1]
+        heap[1] += (max(n * size, 4) + 15) & ~15
+        em.cpu.write(p, bytes(max(n * size, 4)))
+        em._ret(p, 0)
+    e.import_stub(0x5bb60c, 'calloc', '', 0, calloc)
+    e.import_stub(0x5bb65c, 'free', '', 0, lambda em, k, a, p: em._ret(0, 0))
+    e.import_stub(0x5bb668, 'rand', '', 0, lambda em, k, a, p: em._ret(t.handle('rand', []), 0))
+    e.watch_writes([(e.world_base, e.world_base + e.world_size), (0x6099c0, 0x6099c4)],
+                   ignore=[(heap[0], heap[0] + 0x8000)])
     initial = read_globals(e)
     try:
         if entry == 'setup':
             e.call(SETUP, ecx=case['full'])
         elif entry == 'launch':
             t.handle('ret', [e.call(LAUNCH) & 0xff])
+        elif entry.startswith('ia'):
+            t.handle('ret', [e.call(ACTION, ecx=int(entry == 'ia1')) & 0xff])
         else:
             e.call(TICK)
     except Exception:
@@ -383,7 +490,8 @@ def read_globals(e):
 
 
 def run_rebuild(probe, case, entry, world, initial, rec_addr):
-    t = Trace(make_script(case, world, [rec_addr]))
+    world.lineup = [dict(x) for x in world.lineup0]
+    t = Trace(make_script(case, world, [rec_addr], lambda a, v: probe.probe_player_poke(a, v & 0xffffffff)))
     probe.probe_app_set_callback(t.callback())
     probe.probe_player_reset()
     for a, v in world.mem.items():
@@ -396,6 +504,10 @@ def run_rebuild(probe, case, entry, world, initial, rec_addr):
         probe.probe_player_setup(case['full'])
     elif entry == 'launch':
         t.handle('ret', [probe.probe_player_launch()])
+    elif entry.startswith('ia'):
+        for m, n in enumerate(MECHS):
+            probe.probe_player_mech_name(m, n.encode())
+        t.handle('ret', [probe.probe_player_action(int(entry == 'ia1'))])
     else:
         probe.probe_player_tick()
     g = (ctypes.c_uint32 * 8)()
@@ -468,7 +580,22 @@ def make_case(probe, seed, paths):
         read_fail -= {i for m, i in mates if m == -1}
         mates = [(m, i) if m != -1 or 0 <= i < len(recs) else (m, r.randrange(len(recs))) for m, i in mates] \
             if recs else [(m, i) for m, i in mates if m != -1]
+    if r.random() < 0.4 and len(recs) > 4:  # start points shared: ties for the farthest
+        src = recs[r.randrange(2, len(recs))][1]
+        for _ in range(r.randrange(1, 4)):
+            recs[r.randrange(2, len(recs))][1][0x08:0x14] = src[0x08:0x14]
+    # Instant Action: allies first, then enemies, up to 10.
+    allies, enemies = r.randrange(0, 4), r.randrange(0, 7)
+    slots = [{'mech': r.randrange(19), 'paint': r.randrange(8), 'side': 1} for _ in range(allies)] + \
+            [{'mech': r.choice([r.randrange(19), -1, 25]) if r.random() < 0.1 else r.randrange(19), 'paint': 0, 'side': 0}
+             for _ in range(enemies)]
+    ia = {'game': r.random() < 0.95, 'mode': r.choice([0, 1, 2, 2, 7]), 'bases': r.choice([0, 0, 1, 0x100]),
+          'wave': r.choice([1, 1, 2, 5, 13, 20, 21, 25, r.randrange(1, 21)]), 'slots': slots[:10],
+          'paint': r.choice([0, 3, 7, 8, 9, -1, -2, r.randrange(8)]),
+          'pos': [r.uniform(-3000, 3000), r.uniform(-50, 200), r.uniform(-3000, 3000)],
+          'allies': r.choice([0x4, 0x6, 0x2, 0, 0xfffffffe, r.getrandbits(32)])}
     return {
+        'ia': ia, 'ia_type': 2 if r.random() < 0.9 else r.choice([1, 3, 4]),
         'seed': seed, 'path': path, 'records': recs, 'count': max(count, 0),
         'full': 1 if r.random() < 0.92 else 0,
         'type': default_type if r.random() < 0.8 else r.choice([-1, 0, 1, 2, 3, 4, 5]),
@@ -490,13 +617,23 @@ def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     paths = [p for p in archives() if shipped_records(probe, p)]
     calls = 0
+    ia_seen = {}
     seen = {'ran': 0, 'mechs made': 0, 'configured': 0, 'painted': 0, 'triggers taken': 0, 'duties refused': 0}
     for seed in range(count):
         case = make_case(probe, seed, paths)
         if not case['stealth'] and case['view_on_stealth']:
             case['view_on_stealth'] = False  # the exe would update a null stealth entity
-        for entry in ('setup', 'tick', 'launch'):
-            case['dfn_fail'] = 0.0 if entry == 'launch' else 0.1
+        for entry in ('setup', 'tick', 'launch', 'ia1', 'ia0'):
+            case['entry'] = entry
+            case['dfn_fail'] = 0.0 if entry in ('launch', 'ia1', 'ia0') else 0.1
+            if entry.startswith('ia'):  # the exe reads on through a record that fails to read (FIX (bug))
+                case['read_fail_saved'] = case.get('read_fail_saved', case['read_fail'])
+                case['count_saved'] = case.get('count_saved', case['count'])
+                case['read_fail'] = set()
+                case['count'] = min(case['count'], len(case['records']))
+            elif 'read_fail_saved' in case:
+                case['read_fail'] = case.pop('read_fail_saved')
+                case['count'] = case.pop('count_saved')
             try:
                 log_a, glob_a, writes_a, world, initial, rec_addr = run_original(case, entry)
             except Exception:
@@ -518,6 +655,27 @@ def main():
                 print(f'{name}: memory written differs (address, original, rebuild): {diff[:12]}')
                 raise SystemExit(1)
             calls += len(log_a)
+            if entry.startswith('ia'):
+                for k, v in log_a:
+                    key = None
+                    if k == 'ret':
+                        key = 'ia ran' if v[0] == 1 else None
+                    elif k == '0x00414150':
+                        key = f'ia mechs made ({entry})'
+                    elif k == 'rand':
+                        key = 'ia random picks'
+                    elif k == '0x005a85e0':
+                        key = 'ia distances'
+                    elif k == '0x00491120' and v[1]:
+                        key = 'ia controls given'
+                    elif k == '0x00436840':
+                        key = 'ia wave mechs added'
+                    elif k == '0x004589d0':
+                        key = 'ia mobile HQs'
+                    elif k == '0x0049bfd0' and v[2] in (0x14f, 0x154):
+                        key = 'ia reports'
+                    if key:
+                        ia_seen[key] = ia_seen.get(key, 0) + 1
             if entry == 'launch':
                 for k, v in log_a:
                     if k == 'ret':
@@ -526,8 +684,9 @@ def main():
                         seen['duties refused'] += 1
                     elif k in LAUNCH_SEEN:
                         seen[LAUNCH_SEEN[k]] += 1
-    print(f'{count} cases x 3 entries, {calls} calls: the rebuilt mission start matches the original')
+    print(f'{count} cases x 5 entries, {calls} calls: the rebuilt mission start matches the original')
     print('  the launch: ' + ', '.join(f'{v} {k}' for k, v in seen.items()))
+    print('  instant action: ' + ', '.join(f'{v} {k}' for k, v in sorted(ia_seen.items())))
 
 
 if __name__ == '__main__':

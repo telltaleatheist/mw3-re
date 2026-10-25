@@ -47,6 +47,7 @@ struct Platform {
   int window_width = 1280, window_height = 960;  // the window made for the 640x480 game
 };
 
+class ActionGame;
 class GameEngine;
 class MenuScreen;
 class QuitBox;
@@ -84,6 +85,10 @@ class GameEngine : public Engine {
     // The chosen pilot's handle stays in [0x0060861c] (a debug start puts a
     // stand-in there).
     bool keep_pilot = false;
+    // An Instant Action start's game (type 2): the line-up, mode and wave the
+    // Action screen would set (not ported: the caller makes it). Else the
+    // chosen pilot's.
+    ActionGame* action = nullptr;
   };
   void set_launch(const Launch& l);
   const Launch& launch() const { return launch_; }

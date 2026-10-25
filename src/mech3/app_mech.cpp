@@ -362,6 +362,10 @@ class WiredLaunch : public LaunchHooks {
   }
   // 0x0049e5e0 at a campaign's launch: the lancemates' mechs (player.cpp).
   void lancemates() override { program_launch_lancemates(); }
+  // 0x0049dc80(1) and 0x0045c4a0 at Instant Action's launch: its line-up,
+  // then "destroy the enemies" over the mission's objectives.
+  void instant_action() override { program_action_lineup(true); }
+  void objectives(Handle, Handle, Handle, Handle) override { program_objectives_start(); }
   // 0x004d6d20: the mech's sensor range, capped (ai::AiTarget).
   void target_4d6d20(Mech& m, uint32_t v) override {
     m.set_sensor_range(g_w.handle_of(g_w.engine, &m), zgame::from_bits(v));
@@ -1016,6 +1020,18 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
 
 void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name) {
   return mech_create(mech, static_cast<MechControls*>(controls), config, name);
+}
+void program_mech_set_controls(void* mech, void* controls) {
+  auto* m = static_cast<Mech*>(mech);
+  auto* c = static_cast<MechControls*>(controls);
+  m->controls = c;
+  if (c) c->set_owner(m);  // IControls vt+0x08
+}
+bool program_vehicle_centre(void* vehicle, float out[3]) {
+  const Vec3* p = vehicle ? entity_position(*static_cast<Vehicle*>(vehicle)) : nullptr;
+  if (!p) return false;
+  out[0] = p->x, out[1] = p->y, out[2] = p->z;
+  return true;
 }
 bool program_mech_configure(void* mech, void* config) {
   return mech && mech_configure(*static_cast<Mech*>(mech), static_cast<Config*>(config));
