@@ -293,6 +293,60 @@ zWeapon's hit state are hooks. `test_veh_damage.py`: 600 runs at 24 bits
 against the real vtable and matrix stack, 17 breaks caught. Salvage
 (0x472ec0) was already ported (`mech_salvage`).
 
+## The glow (zWeapon's 0x5869d0, 0x586a30, 0x586af0; ported 2026-10-25, item 11)
+
+The controls' +0x398 block (0x18 bytes, `zwep::Glow`; the vehicle's node
+follows at +0x3b0, the block's +0x18) is what a FREEZE or IMPACT HEAT hit
+(def flag bit 22, every laser) leaves on a basic vehicle. 0x5869d0 clears it
+(setup, end): the light, +0x08, the level and +0x14 to 0, flags bits 0-1
+off (the weapon kept). A hit 0x586a30 (ECX the definition, EDX the block,
+the share on the stack: the damage path passes amount x 0.01 for a FREEZE
+weapon first, then 1 - health / max): the weapon at +0x04, flags |= 3; the
+level (+0x0c) plus the share, minus for FREEZE (+0x6c bit 10), held to -1..1
+(a NaN goes to -1); with no light yet one is taken from zWeapon's impact
+light pool (0x586b20: [0x9a0ebc], linked through +0x40; its range set to
+0.1..0.2, its colour IMPACT HEAT's last three numbers, the definition's
++0x1d4, put in the world 0x4f2d50) and made a child of the node (0x4eb9b0).
+The answer reads +0x08: below -0.5 (or NaN) 2, "frozen solid", at most 0
+1, else 0. The death's 0x586af0 (at 0x4ad36d): the light off the node
+(0x4ebb40), back in the pool (0x586b70: range again, out of the world
+0x4f2e00) and the block cleared.
+
+What it shows: nothing in the exe writes +0x08 but the clear and nothing
+reads the level, so every hit answers 1 (the freeze path's "2" never comes)
+and the light is never scaled. Its range stays the pool's: 0.1 m near and
+0.2 m far (zClass compares squared distances, +0xbc / +0xc0), so the
+vehicle's own model counts as reached (its bounding sphere holds the node's
+origin) but only what lies within 0.2 m of the origin is lit: in play a
+laser-hit vehicle shows practically nothing. The designators' beams take
+from the same pool and set their range from the definition's first two
+numbers (zwep_beam.cpp); the glow does not, which looks like an omission
+(fixes.md, Candidates).
+
+The pool: the mission's weapons start makes it twice (0x583880 -> 0x586970
+and the pool objects 0x584905 -> 0x586970), so it holds 16 lights, shared by
+the designators' beams and the glows. Each laser-hit vehicle holds one
+until it dies; a fight with more lit vehicles than lights leaves the later
+ones (and any designator beam) without one. Only the death returns it (the
+exe's one caller of 0x586af0, 0x4ad36d): a vehicle alive at the mission's
+end keeps its light under its node, and the world's cleanup cannot free it
+(0x4fa850: "ERROR deleting light; Light attached to 1 world nodes", still in
+the world's light list); the next mission makes a new pool, 0x5869f0 freeing
+only the lights still listed. FIX (bug): the vehicle's delete returns its
+light first (fixes.md).
+
+Ported in gamez/zweapon (`Glow`, `glow_hit`, `glow_end`); the vehicles'
+`Block398` is it. Checked: `test_vehicle_glow.py` (probe
+`tests/probe_glow.cpp`), the three on 1 to 3 glows over a pool of 0 to 4
+lights at 24-bit x87: 2000 cases, 10,572 hits (3,341 lights taken, 3,272
+with the pool empty), 3,056 ends, 1,539 clears, answers 2 / 1 / 0 from
+random +0x08s; the calls, the block, the pool's chain identical. `mw3tests`
+`mission_c1m1_laser_leaves_its_glow_on_a_truck_headless` (also under ASan):
+Laser_Large on a c1 m1 truck takes a light (16 to 15), Laser_Large's colour,
+range 0.1 / 0.2, under the truck's node; a second hit keeps it; the kill
+returns it (16 again) and it leaves the node; another truck lit and left
+alive to the cleanup gives its light back there (no zClass report).
+
 ## The debug readout (vt+0xe0 0x4a2ef0, step 1e, ported 2026-10-23)
 
 The slot the mechs use for the HUD's frame (0x41cd40, the view target's)

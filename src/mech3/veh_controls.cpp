@@ -145,13 +145,6 @@ bool TurretLimits::clamp(const float d[3], float out[3]) const {
 // turret limits of -pi/2 and pi/2).
 VehicleControls::VehicleControls() : turret(-1.57079637f, 1.57079637f) {}
 
-// Mech3.exe 1.2 @ 0x005869d0
-void Block398::clear() {
-  x10 = 0, x08 = 0, x0c = 0;
-  flags &= ~3u;
-  x14 = 0;
-}
-
 // Mech3.exe 1.2 @ 0x004ab990. The x87's fsin/fcos range check (|a| over
 // 9.22e18 skips nothing here: both branches compute the same).
 void euler_rotation(const float a[3], float out[9]) {

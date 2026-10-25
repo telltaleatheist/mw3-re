@@ -50,8 +50,8 @@ struct Hooks : m3::VehBasicHooks {
   bool controls_destroyed(m3::VehicleControls&) override { return unported("ctl.vt+0x1c", {}) == 1; }
   void controls_died(m3::VehicleControls&) override { unported("ctl.ictl.vt+0xa8", {}); }
   void path_drop_temporary(m3::BasicVehicle& v) override { unported("0x00402510", {ref(&v)}); }  // the test stubs it
-  int32_t glow_hit(m3::Block398&, m3::Handle w, float amount) override;
-  void glow_end(m3::Block398&) override;
+  int32_t glow_hit(m3::Block398&, m3::Handle, m3::Handle w, float amount) override;
+  void glow_end(m3::Block398&, m3::Handle) override;
   uint32_t weapon_flags(m3::Handle w) override { return probe_app::call("peek32", {low(w) + 0x6c}); }
   const float* node_matrix(m3::Handle node) override {
     static float t[12];
@@ -393,10 +393,10 @@ int32_t Hooks::ground(float x, float y, float z, zcls::GroundHits* out) {
   return r;
 }
 m3::BasicVehicle* g_dv = nullptr;
-int32_t Hooks::glow_hit(m3::Block398&, m3::Handle w, float amount) {
+int32_t Hooks::glow_hit(m3::Block398&, m3::Handle, m3::Handle w, float amount) {
   return static_cast<int32_t>(unported("0x00586a30", {low(w), g_ctl + 0x398, zgame::bits(amount)}));
 }
-void Hooks::glow_end(m3::Block398&) { unported("0x00586af0", {g_ctl + 0x398}); }
+void Hooks::glow_end(m3::Block398&, m3::Handle) { unported("0x00586af0", {g_ctl + 0x398}); }
 
 void Hooks::view_attach(m3::BasicVehicle& v, m3::CameraMode* mode) {
   g_attach[0] = ref(&v);

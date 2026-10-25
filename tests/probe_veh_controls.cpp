@@ -214,7 +214,9 @@ void probe_vc_new(uint32_t owner, uint32_t node, int32_t serial) {
 // The +0x398 block as the test set the original's (the clear's work).
 void probe_vc_set398(const uint32_t* v) {
   m3::Block398& b = g_c->x398;
-  b.flags = v[0], b.x04 = v[1], b.x08 = zgame::from_bits(v[2]), b.x0c = v[3], b.x10 = v[4], b.x14 = v[5];
+  b.flags = v[0], b.weapon = reinterpret_cast<m3::Handle>(static_cast<uintptr_t>(v[1]));
+  b.x08 = zgame::from_bits(v[2]), b.level = zgame::from_bits(v[3]);
+  b.light = reinterpret_cast<m3::Handle>(static_cast<uintptr_t>(v[4])), b.x14 = v[5];
 }
 
 // For 0x004af2a0 alone: the original's block, the serial and gun it has,
@@ -336,8 +338,8 @@ void probe_vc_image(uint8_t* b) {
   for (int k = 0; k < 4; ++k) put(b, 0x94 + 4 * k, c.x94[k]);
   put3(b, 0x308, c.up), put3(b, 0x320, c.angles0), put3(b, 0x32c, c.angles);
   put(b, 0x350, c.x350), put(b, 0x394, c.beam_on);
-  put(b, 0x398, c.x398.flags), put(b, 0x39c, c.x398.x04), putf(b, 0x3a0, c.x398.x08), put(b, 0x3a4, c.x398.x0c);
-  put(b, 0x3a8, c.x398.x10), put(b, 0x3ac, c.x398.x14);
+  put(b, 0x398, c.x398.flags), put(b, 0x39c, lo(c.x398.weapon)), putf(b, 0x3a0, c.x398.x08), putf(b, 0x3a4, c.x398.level);
+  put(b, 0x3a8, lo(c.x398.light)), put(b, 0x3ac, c.x398.x14);
   put(b, 0x3b0, lo(c.node));
   put(b, 0x3b4, c.first ? g_ctl_addr + 0x3b8 + 0x38 * static_cast<uint32_t>(c.first - c.slots) : 0);
   for (int i = 0; i < 10; ++i) {

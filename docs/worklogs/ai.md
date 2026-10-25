@@ -1816,3 +1816,22 @@ is paused.
 - 3 of 3 breaks (heat unanswered, heat from the frame's added heat, the
   update skipped). mission_start_reads_c1m1_vehicles now expects the Owens
   on the ground (settled by the update) rather than 0.01 above.
+## Item 11: the vehicles' heat and freeze glow (2026-10-25, mac 4)
+
+- Assigned (the lead): the small version. 0x586a30 / 0x586af0 with a
+  differential covering the pool running out; what 0.1 / 0.2 means for a
+  zClass light; whether every path returns the light.
+- Done (mac 4): `zwep::Glow` with clear 0x5869d0, glow_hit 0x586a30,
+  glow_end 0x586af0 (zwep_shot.cpp); the vehicles' Block398 is it; the
+  hooks take the node (+0x3b0). 0x586ba0 / 0x586c20 are the network's,
+  not a step: nothing writes +0x08 but the clear and nothing reads the
+  level. 0.1 / 0.2 are near / far in metres (zClass compares squared
+  distances): the light reaches the vehicle's model but lights only
+  what is within 0.2 m of its origin. The pool is 16 (made twice per
+  mission), shared with the designator beams. Only the death returns the
+  light in the exe; a vehicle alive at the end leaves it, and zClass
+  refuses to free it ("ERROR deleting light", 0x4fa850): FIX (bug) in the
+  program's vehicle free (program_vehicle_free). Tests: test_vehicle_glow
+  (2000 cases, the pool empty at 3,272 hits), mw3tests truck glow (also
+  ASan; no light error at the end); 10 of 10 breaks. Docs: vehicles.md The
+  glow, fixes (a row, a range candidate), CHANGES, discoveries, symbols.

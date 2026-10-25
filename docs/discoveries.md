@@ -200,6 +200,12 @@ From the port of the damage code, checked in an emulator against the original
   difficulty and half on high (0x4af550), for allied vehicles you escort
   as well as enemy ones. Hard missions with convoys to protect are easier
   on that score, and convoys to destroy take twice the fire.
+- **Lasers try to make a vehicle glow, and the glow reaches nowhere.** The
+  first laser hit on a tank or truck hangs a light of the laser's colour on
+  it until it dies, but the light keeps a reach of a fifth of a metre from
+  the vehicle's centre, so nothing visible lights up. The lights come from a
+  pool of 16 the game also uses for designator beams, so in a big fight
+  enough laser-hit vehicles can use them all.
 - **Lasers never shake a vehicle.** A hit of more than 5 damage jolts a
   vehicle along the shot (heavier vehicles less), but lasers carry an
   impact-heat effect and the jolt skips any weapon with one; they warm

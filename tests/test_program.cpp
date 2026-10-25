@@ -1205,14 +1205,122 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// c1 mission 1's four vehicles (docs/vehicles.md, In the program) run their
-// frames (0x004a1040 from the entity walk) under their brains: each frame
-// keeps them in the world, alive, on the ground; after truck_go (18 s past
-// bramp) the trucks drive off along their path.
-// c1 mission 1's Owens starts powered down (p12's second flag): player.cpp
-// gives it one 0.1 s update with its controller held (0x0049fa20, vt+0x34),
-// then the power-down (0x0041cc30), which settles it on the ground.
-// docs/mission-start.md section 4.
+namespace {
+int light_errors;  // zClass's "ERROR deleting light" reports
+}  // namespace
+
+// A laser (IMPACT HEAT) hit leaves zWeapon's glow on a c1 mission 1 truck
+// (0x00586a30): one of the pool's 16 lights, the weapon's +0x1d4 colour,
+// the pool's range 0.1 to 0.2, under the truck's node; a second hit keeps
+// it; the truck's death gives it back (0x00586af0). Another truck hit and
+// left alive gives its light back when the cleanup frees it (FIX (bug): the
+// exe leaves it for zClass to refuse). Run under ASan too.
+// docs/vehicles.md, The glow.
+TEST(mission_c1m1_laser_leaves_its_glow_on_a_truck_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_glow_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Seen {
+      const char* weapon = nullptr;
+      int pool0 = -1, pool_hit = -1, pool_end = -1, frames = 0;
+      bool on_node = false, colour = false, range = false, kept = false, returned = false, off_node = false;
+      bool second_lit = false, killed = false;
+    } seen;
+    auto pool_size = [] {
+      int n = 0;
+      for (zwep::Handle l = zwep::run_state().lights; l && n < 64; l = zwep::run_hooks().link(l)) ++n;
+      return n;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++seen.frames != 3) return;
+      for (const zwep::WeaponDef& d : zwep::state().defs)
+        if ((d.flags & zwep::kTargetHeat) && !(d.flags & zwep::kFreeze)) {
+          seen.weapon = d.name;
+          break;
+        }
+      std::vector<void*> trucks;
+      for (void* v : mech3::program_vehicles()) {
+        mech3::VehicleSummary vs;
+        if (mech3::describe_vehicle(v, &vs) && vs.name && std::strstr(vs.name, "truck")) trucks.push_back(v);
+      }
+      if (!seen.weapon || trucks.size() < 2) return;
+      const zwep::WeaponDef* def = zwep::find_def(seen.weapon);
+      seen.pool0 = pool_size();
+      mech3::program_vehicle_hit_by(trucks[0], seen.weapon, 1.0f);
+      auto* light = static_cast<zcls::Node*>(mech3::program_vehicle_glow_light(trucks[0]));
+      seen.pool_hit = pool_size();
+      if (light) {
+        auto* node = static_cast<zcls::Node*>(mech3::program_vehicle_node(trucks[0]));
+        seen.on_node = light->parent_count() == 1 && light->parents[0] == node;
+        const auto* ld = static_cast<const zcls::Light*>(light->data);
+        seen.colour = ld->get<float>(0xa4) == def->target_heat[3] && ld->get<float>(0xa8) == def->target_heat[4] &&
+                      ld->get<float>(0xac) == def->target_heat[5];
+        seen.range = ld->get<float>(0xb4) == 0.1f && ld->get<float>(0xb8) == 0.2f;
+      }
+      mech3::program_vehicle_hit_by(trucks[0], seen.weapon, 1.0f);
+      seen.kept = light && mech3::program_vehicle_glow_light(trucks[0]) == light && pool_size() == seen.pool_hit;
+      seen.killed = mech3::program_vehicle_kill(trucks[0], nullptr, seen.weapon);
+      seen.returned = !mech3::program_vehicle_glow_light(trucks[0]);
+      seen.pool_end = pool_size();
+      seen.off_node = light && light->parent_count() == 0;
+      mech3::program_vehicle_hit_by(trucks[1], seen.weapon, 1.0f);  // lit, and left alive to the end
+      seen.second_lit = mech3::program_vehicle_glow_light(trucks[1]) != nullptr;
+    };
+    // The run's end cleans the mission up: the lit truck gives its light back
+    // as it is freed (FIX (bug)), so zClass frees every light without complaint.
+    light_errors = 0;
+    zerr::set_sink([](int, const char*, int, const char* m) {
+      if (m && std::strstr(m, "ERROR deleting light")) ++light_errors;
+    });
+    CountingPump pump;
+    pump.stop = [&] { return seen.frames > 6; };
+    pump.limit = 600;
+    app.run(pump);
+    if (std::getenv("MW3_GLOW_LOG"))
+      std::fprintf(stderr, "GLOW %s pool %d -> %d -> %d on node %d colour %d range %d kept %d killed %d returned %d off %d second %d\n",
+                   seen.weapon ? seen.weapon : "-", seen.pool0, seen.pool_hit, seen.pool_end, seen.on_node, seen.colour,
+                   seen.range, seen.kept, seen.killed, seen.returned, seen.off_node, seen.second_lit);
+    EXPECT(seen.weapon && seen.pool0 > 0 && seen.pool_hit == seen.pool0 - 1);
+    EXPECT(seen.on_node && seen.colour && seen.range && seen.kept);
+    EXPECT(seen.killed && seen.returned && seen.off_node && seen.pool_end == seen.pool0);
+    EXPECT(seen.second_lit);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zerr::set_sink(nullptr);
+  EXPECT(light_errors == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // The game time [0x0060991c] starts at 0 with each mission (0x0048f400 in
 // the setup 0x00490ab0, before the launch): c1 mission 1 played for 300
 // frames, then c1 mission 4 in the same process. Through c4's load (where
@@ -1304,6 +1412,10 @@ TEST(missions_game_time_starts_at_zero_each_mission_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c1 mission 1's Owens starts powered down (p12's second flag): player.cpp
+// gives it one 0.1 s update with its controller held (0x0049fa20, vt+0x34),
+// then the power-down (0x0041cc30), which settles it on the ground.
+// docs/mission-start.md section 4.
 TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1363,6 +1475,10 @@ TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// c1 mission 1's four vehicles (docs/vehicles.md, In the program) run their
+// frames (0x004a1040 from the entity walk) under their brains: each frame
+// keeps them in the world, alive, on the ground; after truck_go (18 s past
+// bramp) the trucks drive off along their path.
 TEST(mission_c1m1_vehicles_run_their_frames_headless) {
   if (!have_game()) return;
   SavedMounts keep;

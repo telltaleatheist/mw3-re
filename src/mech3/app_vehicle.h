@@ -120,6 +120,10 @@ void program_vehicles_forget();           // the mission's end
 // 0x004ad3f0, a field base's 0x00458f50).
 bool program_vehicle_kill(void* v, void* killer, const char* weapon);
 float program_vehicle_damage(void* v, float amount);  // tests: `amount` off its health (vt+0x160), the health left 0..1
+// Tests: `amount` by `weapon` (vt+0x160 with its definition), the health left 0..1;
+// the vehicle's glow light (its controls' +0x398 +0x10), none without.
+float program_vehicle_hit_by(void* v, const char* weapon, float amount);
+void* program_vehicle_glow_light(const void* v);
 bool program_vehicle_free(void* v);       // vt+0x00 0x004ac630(1); false when not a program vehicle
 // What the AI's brain asks of a vehicle (docs/vehicles.md, In the program),
 // by the basic vehicle's slots; the rest (position, forward, matrix, weapons,

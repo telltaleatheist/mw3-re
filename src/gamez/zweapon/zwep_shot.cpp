@@ -899,6 +899,41 @@ Handle light_take(const Vec3f3* color) {
   return l;
 }
 
+// Mech3.exe 1.2 @ 0x005869d0
+void Glow::clear() {
+  light = nullptr, x08 = 0, level = 0;
+  flags &= ~3u;
+  x14 = 0;
+}
+
+// Mech3.exe 1.2 @ 0x00586a30 (ECX the definition, EDX the glow, the stack the
+// share). The light keeps the pool's range (0.1 to 0.2) and nothing reads
+// the level, so all a hit shows is a light of the colour that reaches little
+// past the node's origin (docs/vehicles.md, The glow).
+int32_t glow_hit(Glow& g, Handle node, WeaponDef* def, float amount) {
+  g.weapon = def;
+  g.flags |= 3;
+  g.level = (def->flags & kFreeze) ? g.level - amount : amount + g.level;
+  if (g.level > 1.0f) g.level = 1.0f;                        // 0x005cec68; a NaN goes on
+  else if (!(g.level >= -1.0f)) g.level = -1.0f;              // 0x005cec6c: below or NaN
+  if (!g.light) {
+    const Vec3f3 color{def->target_heat[3], def->target_heat[4], def->target_heat[5]};
+    g.light = light_take(&color);
+    if (g.light && g_rh.add_child) g_rh.add_child(node, g.light);  // 0x004eb9b0
+  }
+  if (!(g.x08 >= -0.5f)) return 2;  // 0x005cec70: below or NaN
+  if (!(g.x08 > 0.0f)) return 1;    // 0x005cec74
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x00586af0
+void glow_end(Glow& g, Handle node) {
+  if (!g.light) return;
+  if (g_rh.remove_child) g_rh.remove_child(node, g.light);  // 0x004ebb40
+  light_return(g.light);
+  g.clear();
+}
+
 // Mech3.exe 1.2 @ 0x00586b70
 void light_return(Handle l) {
   if (g_rh.light_range) g_rh.light_range(l, 0.1f, 0.2f);
