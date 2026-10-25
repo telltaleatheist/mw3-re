@@ -815,7 +815,7 @@ From the settings loader at 0x40c420 and the registry code around 0x5977d0
   mission's two Fireflies are named `firefly_03` and `firefly_04` (the names
   of the earlier missions were reused). An objective whose target cannot be
   found counts as destroyed, so those two are ticked off at once
-  (`objectives.md`).
+  (`objectives.md`). The rebuild points them at the right two.
 
 From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 

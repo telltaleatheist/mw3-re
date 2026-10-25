@@ -243,7 +243,8 @@ destroy objective of the campaign finds its entity at the start but two:
 c2 m3's secondary objective names `firefly_01` and `firefly_02`, while the
 mission's aiv.zrd makes `firefly_03` and `firefly_04` (reader.zbd's m3
 block). Never found, those two count as destroyed from the start in the exe
-too: a data typo (fixes.md, candidates). Turrets made per world: c1 14, c2
+too: a data typo. Fixed (Owen, 2026-10-25): `fix_objective_data` points
+them at firefly_03 / 04 after the read (fixes.md, Data typos). Turrets made per world: c1 14, c2
 12, c3 21, c4 19, c4b 13, t1 none (the same loader as the exe's,
 test_turret.py, on the ported worlds).
 

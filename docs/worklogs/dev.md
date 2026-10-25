@@ -119,3 +119,13 @@ is in `README.md`.
   objectives open, and kills them to win (break caught). Survey of every
   mission: all found but c2m3's firefly_01 / firefly_02 (the mission makes
   firefly_03 / 04): a data typo in the original, a candidate for Owen.
+
+## c2m3's Firefly objectives (2026-10-25)
+
+- Assigned (the lead, Owen approved): the data typo found in 6d as a FIX
+  (bug). Done: `fix_objective_data` (mech_objective) after the read, keyed
+  on c2 / m3, renames the two secondary destroy objectives to firefly_03 /
+  04 and finds them again; objectives_load takes the mission's directory
+  (null in the probes). fixes.md's Data typos, CHANGES, objectives.md,
+  discoveries; mission_c2m3_firefly_objectives_open_headless (break
+  caught). Next: 6c1.

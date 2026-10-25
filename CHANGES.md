@@ -136,6 +136,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- c2 mission 3's two Firefly objectives are real: the data named the wrong Fireflies, so the original ticked them off before the mission began.
 - The HUD no longer crashes drawing static on the TARGET display in a mode with nothing to show.
 - The rain's and snow's very first frame no longer draws its streaks from unset sizes (it used the screen's size from the second frame on anyway).
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
