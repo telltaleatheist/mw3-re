@@ -4742,6 +4742,362 @@ TEST(mission_c1m1_unported_survey_headless) {
 // has it: exclusive and foreground, so refused while the window is not in
 // front. The game starts unfocused, the window then gains the focus (the
 // frame's OnActivate), and a held left button sets the weapons going.
+// Playtest #23, short clicks: the Mad Cat's group 1 (its small ER laser, a
+// beam that fires only from a full charge, 0x004b3fc0) clicked as soon as it
+// is ready, by a mouse press seen for one read (the SDL latch's shortest)
+// and by a key pressed and released inside one frame: every click fires.
+// (A click while it recharges is dropped and a held button fires when it is
+// charged, as in the original: hud.md / weapons.md, Beams.)
+TEST(mission_c1m1_short_clicks_fire_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_clicks_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    int left_reads = 0;  // reads left with the left button down
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard || d == kMouse; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override {
+      *m = platform::MouseState{};
+      if (left_reads > 0) --left_reads, m->buttons[0] = 0x80;
+      return 0;
+    }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  int mouse_clicks = 0, mouse_volleys = 0, key_clicks = 0, key_volleys = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Mad Cat
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, clicked_at = -1, clicks = 0;
+    void* player = nullptr;
+    uint32_t fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+        mech3::mech_select_group(player, 1);
+      }
+      if (!player || frames < 10 || (clicks >= 10 && clicked_at < 0)) return;
+      const bool reloading = mech3::mech_group_reloading(player, 1);
+      if (clicked_at >= 0) {  // the last click: fired once it reloads, within 10 frames
+        if (reloading) ++(clicks <= 5 ? mouse_volleys : key_volleys), clicked_at = -1;
+        else if (frames - clicked_at > 10) clicked_at = -1;
+        return;
+      }
+      if (clicks >= 10 || reloading || mech3::mech_group_ready(player, 1) < 1.0f) return;  // charging: wait for the full bar
+      ++clicks, clicked_at = frames;
+      if (clicks <= 5) keys.left_reads = 1, ++mouse_clicks;
+      else keys.key(fire, true), keys.key(fire, false), ++key_clicks;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return clicks >= 10 && clicked_at < 0; };
+    pump.limit = 6000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  clicks: mouse %d / %d volleys, key %d / %d volleys\n", mouse_clicks, mouse_volleys, key_clicks,
+              key_volleys);
+  EXPECT(mouse_volleys == mouse_clicks);
+  EXPECT(key_volleys == key_clicks);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #24, the laser and the reticle: the Mad Cat 25 m west of the
+// Owens facing east, its reticle's aim point (the HUD's ray 0x00444350, into
+// the weapons through 0x0041bd80 -> 0x0041bc20) on the building behind; one
+// press of its laser: the beam's line from the muzzle runs through that point
+// (the beam aims at it, 0x004b3f40 -> 0x004b36e0), and the Owens on the way
+// takes the hit.
+struct LaserAim {
+  bool aim_hit = false;
+  float beam_off = -1.0f;   // the aim point read at the click, off the beam's line
+  float beam_off2 = -1.0f;  // the aim point a frame later
+  float beam_held = -1.0f;  // that one off the held beam's line the frame after
+  float armor0 = 0, armor1 = 0;
+  std::string names;
+};
+static LaserAim laser_on_the_reticle(bool turning) {
+  LaserAim r;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_aimlaser_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  mech3::LaunchedMech before, after;
+  float aim_pt[3] = {0, 0, 0}, aim_pt2[3] = {0, 0, 0};
+  bool aim_hit = false;
+  std::string& names = r.names;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Mad Cat
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* player = nullptr;
+    void* owens = nullptr;
+    uint32_t fire = 0, left = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+        left = zin::key1_of(2) & 0xff;     // turn left
+        mech3::LaunchedMech o;  // 25 m west of the Owens, facing it (+x: yaw -90)
+        mech3::describe_mech(owens, &o);
+        const float x = o.pos[0] - 25.0f, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+        for (int32_t g = 0; g < 8; ++g) {  // the Mad Cat's laser group
+          names = mech3::mech_group_names(player, g);
+          if (names.find("Laser") != std::string::npos) {
+            mech3::mech_select_group(player, g);
+            break;
+          }
+        }
+      }
+      if (!player || !owens) return;
+      if (turning && frames == 60) keys.key(left, true);
+      if (frames == 80) {  // the aim settled (the Mad Cat dropped onto the ground)
+        int32_t ret[2];
+        mech3::program_hud_aim(ret, aim_pt, &aim_hit);
+        mech3::describe_mech(owens, &before);
+        keys.key(fire, true);
+      } else if (frames == 81 || frames == 82) {  // fired on 81, held on 82: the aim point off the beam's line
+        if (frames == 82) keys.key(fire, false);
+        if (frames == 81) {
+          int32_t ret[2];
+          bool hit2 = false;
+          mech3::program_hud_aim(ret, aim_pt2, &hit2);
+        }
+        float m[3], d[3];
+        int32_t g = 0;
+        while (g < 5 && mech3::mech_group_names(player, g) != names) ++g;
+        auto off = [&](const float pt[3], const float m[3], const float d[3]) {
+          const float v[3] = {pt[0] - m[0], pt[1] - m[1], pt[2] - m[2]};
+          const float along = v[0] * d[0] + v[1] * d[1] + v[2] * d[2];
+          const float q[3] = {v[0] - along * d[0], v[1] - along * d[1], v[2] - along * d[2]};
+          return along > 0.0f ? std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]) : 1e9f;
+        };
+        if (mech3::mech_group_muzzle(player, g, m, d)) {
+          if (frames == 81) r.beam_off = off(aim_pt, m, d), r.beam_off2 = off(aim_pt2, m, d);
+          else r.beam_held = off(aim_pt2, m, d);
+        }
+        if (turning && frames == 82) keys.key(left, false);
+      } else if (frames == 140) {
+        mech3::describe_mech(owens, &after);
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 140; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  r.aim_hit = aim_hit, r.armor0 = before.armor, r.armor1 = after.armor;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return r;
+}
+TEST(mission_c1m1_laser_lands_on_the_reticle_headless) {
+  if (!have_game()) return;
+  const LaserAim r = laser_on_the_reticle(false);
+  std::printf("  laser (%s): the aim point (hit %d) %.3f m off the beam's line; the Owens' armour %.3f -> %.3f\n",
+              r.names.c_str(), r.aim_hit, r.beam_off, r.armor0, r.armor1);
+  EXPECT(r.aim_hit);
+  EXPECT(r.beam_off >= 0.0f && r.beam_off < 0.25f);  // the beam goes where the reticle points
+  EXPECT(r.armor1 < r.armor0);                       // through the Owens in front
+}
+// The same turning left: the beam fires at the aim point the click saw
+// (the HUD's of the frame before the tick), and while held follows the
+// reticle (0x004b41b0 re-aims each frame at the manager's aim).
+TEST(mission_c1m1_laser_turning_on_the_reticle_headless) {
+  if (!have_game()) return;
+  const LaserAim r = laser_on_the_reticle(true);
+  std::printf("  laser turning: off the fired beam's line, the click's aim point %.3f m, the fire frame's %.3f m; "
+              "the held beam off the fire frame's %.3f m\n", r.beam_off, r.beam_off2, r.beam_held);
+  EXPECT(r.beam_off >= 0.0f && r.beam_off < 0.25f);
+  EXPECT(r.beam_off2 > 1.0f);  // the turn moved the reticle meanwhile
+  EXPECT(r.beam_held >= 0.0f && r.beam_held < 0.25f);
+}
+// Playtest #28, recoil (WeaponCalls::recoil -> the part's vt+0x24): the
+// Bushwhacker (roster 3) fires each group in turn in c1m1; a projectile
+// weapon on an arm kicks it (Arm::kick 0x00466610: the recoil grows, the
+// torso twists), a hand's goes to its arm, a beam has none.
+TEST(mission_c1m1_arm_weapon_recoils_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_recoil_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  float most = 0.0f;
+  int most_group = -1;
+  std::string names[5];
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    l.mech = 3;                   // the Bushwhacker
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* player = nullptr;
+    uint32_t fire = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+        for (int g = 0; g < 5; ++g) names[g] = mech3::mech_group_names(player, g);
+      }
+      if (!player || frames < 5) return;
+      const int g = (frames - 5) / 40, k = (frames - 5) % 40;
+      if (g < 5) {
+        if (k == 0) mech3::mech_select_group(player, g);
+        if (k == 1) keys.key(fire, true);
+        if (k == 21) keys.key(fire, false);
+        const float r = mech3::mech_arm_recoil(player);
+        if (r > most) most = r, most_group = g;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 5 + 5 * 40; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  for (int g = 0; g < 5; ++g) std::printf("  group %d: %s\n", g, names[g].c_str());
+  std::printf("  recoil: most %.3f (group %d)\n", most, most_group);
+  EXPECT(most > 0.0f);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_left_button_fires_after_focus_headless) {
   if (!have_game()) return;
   SavedMounts keep;

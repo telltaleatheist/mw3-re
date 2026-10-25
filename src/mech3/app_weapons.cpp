@@ -175,6 +175,16 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   c.add_heat = [](Handle owner, float h) {  // 0x00419e40
     if (owner) mech_of(owner)->add_heat(h);
   };                // 0x00419e40
+  // A projectile's recoil (0x00461670): the firing part's vt+0x24. An arm
+  // kicks (0x00466610), a hand passes it to its arm (0x004673f0), any other
+  // part has none (0x004a5bc0). Playtest #28.
+  c.recoil = [](Handle part, float r) {
+    auto* p = static_cast<MechPart*>(part);
+    if (auto* a = dynamic_cast<Arm*>(p)) a->kick(r);
+    else if (auto* h = dynamic_cast<Hand*>(p)) {
+      if (Arm* a = h->arm()) a->kick(r);
+    }
+  };
   // TAG's strike on the mech its beam marked (FIX (bug), weapons.md "TAG"):
   // the hit node's damage handler is a mech's: its live position and velocity.
   c.strike_target = [](Handle node, zwep::LockRef* out) {
@@ -409,6 +419,35 @@ std::string mech_group_names(void* mech, int32_t g) {
   for (uint32_t i = 0; wm && g >= 0 && g < 5 && wm->groups[g] && i < wm->groups[g]->count; ++i)
     if (const Weapon* w = wm->groups[g]->weapons[i]) s += std::string(s.empty() ? "" : " ") + (w->def ? w->def->name : "?");
   return s;
+}
+int32_t mech_group_ammo(void* mech, int32_t g) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  int32_t n = 0;
+  for (uint32_t i = 0; wm && g >= 0 && g < 5 && wm->groups[g] && i < wm->groups[g]->count; ++i)
+    if (Weapon* w = wm->groups[g]->weapons[i]) n += w->ammo();  // vt+0x14
+  return n;
+}
+float mech_group_ready(void* mech, int32_t g) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  float r = 1.0f;
+  for (uint32_t i = 0; wm && g >= 0 && g < 5 && wm->groups[g] && i < wm->groups[g]->count; ++i)
+    if (const Weapon* w = wm->groups[g]->weapons[i]) r = std::min(r, w->ready());
+  return r;
+}
+bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  if (!wm || g < 0 || g > 4 || !wm->groups[g] || wm->groups[g]->count == 0 || !wm->groups[g]->weapons[0]) return false;
+  const Weapon* w = wm->groups[g]->weapons[0];
+  muzzle[0] = w->muzzle.x, muzzle[1] = w->muzzle.y, muzzle[2] = w->muzzle.z;
+  dir[0] = w->direction.x, dir[1] = w->direction.y, dir[2] = w->direction.z;
+  return true;
+}
+float mech_arm_recoil(void* mech) {
+  float r = 0.0f;
+  if (Mech* m = static_cast<Mech*>(mech))
+    for (Arm* a : m->arms)
+      if (a && a->recoil > r) r = a->recoil;
+  return r;
 }
 bool mech_select_group(void* mech, int32_t g) {
   auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);

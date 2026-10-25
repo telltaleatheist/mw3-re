@@ -42,6 +42,14 @@ void sync_frame_step(float dt, float clock);  // [0x0072c52c] and [0x0072c530] i
 bool program_record_mission(bool next);
 int32_t mech_select_hot_group(void* mech);
 bool mech_select_group(void* mech, int32_t g);
+// Tests only: the larger of the two arms' recoil (+0x34, 0x00466610's kick), 0 without arms.
+float mech_arm_recoil(void* mech);
+// Tests only: the ammo left in group g's weapons (vt+0x14), summed.
+int32_t mech_group_ammo(void* mech, int32_t g);
+// Tests only: the least of group g's weapons' ready fraction (vt+0x34, the HUD's bar: a beam's charge).
+float mech_group_ready(void* mech, int32_t g);
+// Tests only: group g's first weapon's muzzle and direction (+0x40, +0x4c) from its last aim.
+bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]);
 std::string mech_group_names(void* mech, int32_t g);
 std::vector<std::string>& weapon_fx_log();
 // Ours: what the mechs' parts played ("step <sound>", "print <effect>", "wake <level>").

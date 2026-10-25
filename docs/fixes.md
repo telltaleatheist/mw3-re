@@ -480,6 +480,12 @@ Kept:
 
 ## Candidates for Owen
 
+- A click during a beam's recharge (dev, 2026-10-25, playtest #23): a beam
+  fires only from a full charge (0x4b3fc0) and the trigger is an edge, so
+  a click while the bar is still filling does nothing and is forgotten;
+  Owen read it as lost clicks. Remembering the click until the charge is
+  full (or for a short time) would fire it then. Not changed.
+
 - How the player's allies fight (mac 4, 2026-10-22, ai.md 17.8b; Owen's
   proposal, a balance change, not coded): as the exe has it, allies shoot
   any enemy within their weapons' reach on their own but never move to a

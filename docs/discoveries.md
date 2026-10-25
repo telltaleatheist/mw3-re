@@ -522,6 +522,19 @@ From the weapon code (weapons.md).
   multiplied by 0.5 / heat (0x4b43bf): at heat 1.0 lasers refill at half speed.
 - **Small lasers are the slowest to recharge**: 4 seconds, against 3 for medium
   and large (`weapons.zrd`).
+- **A laser only fires from a full charge.** A click while its bar is still
+  filling fires nothing and is not remembered (0x4b3fc0): click again once
+  the bar is full. Holding the button instead fires the moment it is.
+- **Shots go where the reticle points, not along the arm.** The reticle's
+  aim point is the first thing under it, and every weapon aims from its own
+  muzzle at that point, so an arm laser crosses the reticle's line on the way.
+  Something in front of the aim point but off the reticle's line, such as a
+  mech's leg below the reticle while the reticle is past its narrow torso, can
+  take the shot. A held laser keeps following the reticle as the mech turns
+  (0x4b41b0).
+- **Arm weapons kick the arm.** A projectile weapon in an arm or hand throws
+  that arm off its aim when it fires (0x466610) and the torso twists with it;
+  weapons in the torso do not kick.
 - **Only a weapon's first group counts.** A loadout can list a weapon in two
   groups, like `group (1 2)`, and 59 entries across 11 stock mechs do, but the
   game reads only the first number.
