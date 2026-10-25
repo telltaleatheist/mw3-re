@@ -1503,7 +1503,7 @@ From the animation files (anim.md).
   switches (ai.md section 18; the switch is hooked up when the mission
   loads, still being rebuilt).
 - **A teleport nobody uses.** One message (17) would move the player's mech
-  by the offset of a world node named "viaNode", keeping its heading from
+  by the offset of a world node named "viaNode", taking its heading from
   that node. No world has a viaNode and no animation sends 17, so it never
   happens. If a modded animation sent it in a world without the node, the
   original would throw the mech to a random place; the rebuild leaves it
