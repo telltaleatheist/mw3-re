@@ -197,6 +197,7 @@ struct Mech : Vehicle {
   uint32_t x634 = 0;         // +0x634
   float x63c = 1.0f;         // +0x63c
   Vec3 x640{};               // +0x640
+  Vec3 lock_velocity{};      // +0x64c  vt+0xc's (0x0041d480): the lead velocity when last asked
   HeatSinks heat_sinks;      // +0x658
   Handle attacker = nullptr;  // +0x664  the last to hit it
   std::list<Handle> x678;    // +0x678, count +0x67c (an empty list)

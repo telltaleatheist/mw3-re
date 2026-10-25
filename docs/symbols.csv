@@ -1474,6 +1474,8 @@ address,name,source,notes
 0x004ac4e0,vehicle_markers_delete,asm,"ported (veh_basic_object): each one's vt+0 (1), then 0"
 0x005a82d0,zEntity3d::Velocity,asm,"vt+0xc of all but mechs: +0x30"
 0x005a8630,zEntity3d::TargetPlace,asm,"the target node's (+0x10) world translation, refreshed first"
+0x0041abd0,Mech::LockWarning,asm,"a lock on the view's mech: pilot sound 9 (0x432990) into +0x5dc"
+0x0041d480,Mech::LockVelocity,asm,"vt+0xc: lead velocity (vt+0x8, 0x41d400) into +0x64c, returns it"
 0x004a5bc0,Entity::ViewTint,asm,"vt+0x68 of targets, traps, the field base, markers: empty (ret 4)"
 0x00526ae0,gmod_set_texture_scroll,asm,"ported (zmod model_set_scroll): ECX model, EDX on (bit 0 into flag 0x10 at +8), stack u, v (+0x28, +0x2c); none reports, 1"
 0x00541ad0,gmod_texture_scroll_step,asm,"ported (zmod model_scroll_tick): once a frame (+0x30), the textured polygons' UVs moved by dt x speed less the whole part of that plus their range's middle"

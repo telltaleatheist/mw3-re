@@ -177,6 +177,11 @@ void reset_process_state() {
   // And the interp's ScrollAlways list and holder, freed by the world's
   // unload (0x005964c0(1)): a new process's (0x005962a0).
   zint::scroll_list_init();
+  // A new process has no player controls ([0x006056ec]): their first making
+  // (0x00427280) puts the command callbacks on zInput's map, which each
+  // test's init makes anew. The campaign test's survive it otherwise, and E
+  // (a callback command) then does nothing in the tests after it.
+  mech3::player_controls_instance() = nullptr;
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -4738,6 +4743,150 @@ TEST(mission_c1m1_unported_survey_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest #25, LRMs home: the Bushwhacker (roster 3) 150 m west of the
+// Owens facing it, E targets it, the HUD locks (0x00443d20, the manager's
+// +0x88); then it turns away until the reticle is well off the Owens (the
+// lock holds 3.5 s) and fires its LRMs once. The missiles spawn with the
+// lock (0x004b3330 -> 0x004b3370 on the target selected, +0x6c) and home
+// (0x00585900) onto the Owens.
+struct LrmRun {
+  bool targeted = false, locked = false;
+  int lock_frame = -1;
+  float turned = 0, armor0 = 0, armor1 = 0;
+  std::string names;
+};
+constexpr float kLrmRange = 150.0f;
+static LrmRun lrm_after_lock(bool turn_away) {
+  LrmRun r;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lrm_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Bushwhacker
+    l.mech = 3;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, fire_frame = -1, end_frame = 800;
+    void* player = nullptr;
+    void* owens = nullptr;
+    uint32_t fire = 0, left = 0, next_enemy = 0;
+    float yaw0 = 0;
+    mech3::LaunchedMech o;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        owens = made == 1 ? ai[0].mech : nullptr;
+        fire = zin::key1_of(0x3d) & 0xff;        // CMD_FIRE
+        left = zin::key1_of(2) & 0xff;           // turn left
+        next_enemy = zin::key1_of(0x46) & 0xff;  // TARGET_NEXT_E
+        mech3::describe_mech(owens, &o);
+        const float x = o.pos[0] - kLrmRange, z = o.pos[2];
+        const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, -1.5707964f);
+        for (int32_t g = 0; g < 5; ++g) {
+          r.names = mech3::mech_group_names(player, g);
+          if (r.names.find("LRM") != std::string::npos) {
+            mech3::mech_select_group(player, g);
+            break;
+          }
+        }
+      }
+      if (!player || !owens) return;
+      if (frames == 20) keys.key(next_enemy, true);
+      if (frames == 21) keys.key(next_enemy, false);
+      if (frames > 21 && !r.targeted) r.targeted = mech3::mech_target_object(player) == owens;
+      if (r.lock_frame < 0 && mech3::mech_lock_shown(player)) {
+        r.lock_frame = frames;
+        mech3::LaunchedMech me;
+        mech3::describe_mech(player, &me);
+        yaw0 = me.yaw_sin;
+        if (turn_away) keys.key(left, true);
+      }
+      if (r.lock_frame > 0 && fire_frame < 0 && frames == r.lock_frame + (turn_away ? 25 : 1)) {
+        keys.key(left, false);
+        mech3::LaunchedMech me;
+        mech3::describe_mech(player, &me);
+        r.turned = 2.0f * (std::asin(std::clamp(me.yaw_sin, -1.0f, 1.0f)) - std::asin(std::clamp(yaw0, -1.0f, 1.0f)));
+        r.locked = mech3::mech_lock_shown(player);
+        mech3::describe_mech(owens, &o);
+        r.armor0 = o.armor;
+        keys.key(fire, true);
+        fire_frame = frames;
+      }
+      if (fire_frame > 0 && frames == fire_frame + 1) keys.key(fire, false);
+      if (fire_frame > 0 && frames == fire_frame + 400) {
+        mech3::describe_mech(owens, &o);
+        r.armor1 = o.armor;
+        end_frame = frames;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= end_frame; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return r;
+}
+TEST(mission_c1m1_lrm_homes_on_the_lock_headless) {
+  if (!have_game()) return;
+  const LrmRun r = lrm_after_lock(true);
+  std::printf("  lrm (%s): targeted %d, locked on frame %d, turned %.1f deg, still locked %d; the Owens' armour %.3f -> %.3f\n",
+              r.names.c_str(), r.targeted, r.lock_frame, r.turned * 57.29578f, r.locked, r.armor0, r.armor1);
+  EXPECT(r.targeted && r.lock_frame > 0 && r.locked);
+  EXPECT(std::fabs(r.turned) > 0.14f);  // the reticle off the Owens (8 degrees: 20 m at 150 m)
+  EXPECT(r.armor1 < r.armor0);          // and the missiles found it
+}
+
 // The left mouse button fires (CMD_TRIGGER1), with the mouse as DirectInput
 // has it: exclusive and foreground, so refused while the window is not in
 // front. The game starts unfocused, the window then gains the focus (the
@@ -8502,7 +8651,7 @@ TEST(mission_c1m1_hud_weapon_lines_and_lock_headless) {
         owens = made == 1 ? ai[0].mech : nullptr;
         mech3::LaunchedMech o;  // 150 m west of the Owens, facing it
         mech3::describe_mech(owens, &o);
-        const float x = o.pos[0] - 150.0f, z = o.pos[2];
+        const float x = o.pos[0] - kLrmRange, z = o.pos[2];
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
         pitch = zin::key1_of(5) & 0xff;  // CMD_PITCH_DOWN

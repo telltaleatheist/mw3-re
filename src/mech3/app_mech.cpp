@@ -1105,6 +1105,13 @@ int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {
 int32_t spawn_updates() { return g_spawn_updates; }
 const float* spawn_position() { return g_spawn_pos; }
 bool is_launched_mech(const void* mech) { return mech && mech == mech3::launched_mech(); }
+// Mech3.exe 1.2 @ 0x0041abd0: a lock on the view's mech plays its pilot
+// sound 9 (0x00432990(9, 1.0, 0, 0, -1)) into +0x5dc.
+void mech_lock_warning(void* mech) {
+  if (!mech || mech != program_view_target()) return;
+  Mech& m = *static_cast<Mech*>(mech);
+  m.sounds[9] = pilot_play(m, 9, 1.0f, nullptr);
+}
 bool mech_aim_at(void* mech, const float at[3]) {
   if (!mech) return false;
   const Vec3 p{at[0], at[1], at[2]};

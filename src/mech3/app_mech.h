@@ -51,6 +51,9 @@ float mech_group_ready(void* mech, int32_t g);
 // Tests only: group g's first weapon's muzzle and direction (+0x40, +0x4c) from its last aim.
 bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]);
 std::string mech_group_names(void* mech, int32_t g);
+// Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
+bool mech_lock_shown(void* mech);
+void* mech_target_object(void* mech);
 std::vector<std::string>& weapon_fx_log();
 // Ours: what the mechs' parts played ("step <sound>", "print <effect>", "wake <level>").
 std::vector<std::string>& mech_parts_fx_log();  // the first 4,096
@@ -181,6 +184,7 @@ void mech_entities_forget();         // the mechs' registry emptied with zEntity
 void update_mech_shadows();
 void* mission_sun();                 // the mission's "sunlight" node ([0x006098d4] +4), or null
 const void* mech_shadow(const void* mech);  // its caster (+0xcc, a zmod::ShadowCaster), for the tests
+void mech_lock_warning(void* mech);  // 0x0041abd0: the view's mech hears it is locked on
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
