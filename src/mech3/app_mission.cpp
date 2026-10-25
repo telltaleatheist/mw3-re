@@ -143,9 +143,20 @@ void weather_sync(ProgramWeather& w) {
 }
 std::vector<ProgramWeather*> g_weathers;  // added to the manager, synced each tick
 
+// A world parameters' block for a new rain or snow, its defaults the
+// constructor's (0x005a5470), for the reader to start from.
+ProgramWeather* program_weather(std::unique_ptr<ztwod::Weather> obj) {
+  auto* w = new ProgramWeather;
+  w->obj = std::move(obj);
+  w->put<uint16_t>(0x44, w->obj->color);
+  w->put<float>(0x48, w->obj->alpha_tail), w->put<float>(0x4c, w->obj->alpha_head);
+  w->put<float>(0x68, w->obj->wind_dir), w->put<float>(0x6c, w->obj->wind_vel), w->put<float>(0x70, w->obj->gravity);
+  return w;
+}
+
 // world.zrd's block through the ported reader 0x00491de0, with the hooks it
 // needs: the wind and the clouds to zModel, the sun to the world's light, the
-// rain (snow: item 19b) to the weather manager [0x00736328].
+// rain and snow to the weather manager [0x00736328].
 void read_world_params(const char* file, const char* block, zcls::Node* camera, int32_t type, int32_t number) {
   static int32_t s_type, s_number;
   s_type = type, s_number = number;
@@ -166,15 +177,11 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   h.light_set_orientation = [](zcls::Node* l, float x, float y, float z) { zcls::light_set_orientation(l, x, y, z); };
   h.light_set_ambient = [](zcls::Node* l, float v) { zcls::light_set_ambient(l, v); };
   h.light_set_diffuse = [](zcls::Node* l, float v) { zcls::light_set_diffuse(l, v); };
-  h.create_snow = [](int32_t) -> Weather* { return nullptr; };  // 0x005a5ad0: item 19b
-  h.create_rain = [](int32_t particles) -> Weather* {        // new(0x98) + 0x005a60a0
-    auto* w = new ProgramWeather;
-    w->obj = std::make_unique<ztwod::Rain>(particles);
-    // The block as the constructor leaves it (0x005a5470), for the reader's defaults.
-    w->put<uint16_t>(0x44, w->obj->color);
-    w->put<float>(0x48, w->obj->alpha_tail), w->put<float>(0x4c, w->obj->alpha_head);
-    w->put<float>(0x68, w->obj->wind_dir), w->put<float>(0x6c, w->obj->wind_vel), w->put<float>(0x70, w->obj->gravity);
-    return w;
+  h.create_snow = [](int32_t particles) -> Weather* {  // new(0x98) + 0x005a5ad0
+    return program_weather(std::make_unique<ztwod::Snow>(particles));
+  };
+  h.create_rain = [](int32_t particles) -> Weather* {  // new(0x98) + 0x005a60a0
+    return program_weather(std::make_unique<ztwod::Rain>(particles));
   };
   h.weather_add = [](Weather* w) {  // 0x0059fbe0 on [0x00736328]
     auto* p = static_cast<ProgramWeather*>(w);
