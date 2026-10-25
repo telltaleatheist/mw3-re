@@ -1507,3 +1507,7 @@ address,name,source,notes
 0x00436ac0,ActionGame::DropEnemies,asm,"ported: drop_enemies (asks slot i, removes lineup[i])"
 0x00436840,ActionGame::Add,asm,"ported: ActionGame::add (mech, side, loadout copy, paint)"
 0x005e33a8,ia_waves,data,"wave mode's 20 waves x 6 (mech, configuration); player.cpp kWaves"
+0x004d8610,ResetList::Reset,asm,"ported: ai::ResetList::reset (zai_list); the four lists stay empty in play"
+0x004d8540,ResetList::ResetList,asm,"the AI's four static lists (vtable 0x005cd0d4)"
+0x004d8590,ResetList::~ResetList,asm,"their destructor (0x004d8570 the deleting one)"
+0x004ac800,BasicVehicleControls::~,asm,"ported: ai::vehicle_controls_gone (owner vt+0xec, then 0x00402510)"

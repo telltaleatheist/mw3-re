@@ -491,7 +491,14 @@ void MechControls::init() {
 // Mech3.exe 1.2 @ 0x004d8750 (most derived: the IControls base 0x004aec00 at
 // +0x30c, its owner +0x31c), over 0x004d8670: the base 0x004265a0, then the
 // brain 0x004cf330 on +0x5c with the net and the record.
+namespace {
+int32_t g_mech_controls_alive = 0;
+}  // namespace
+int32_t ai_mech_controls_alive() { return g_mech_controls_alive; }
+AiControls::AiControls() { ++g_mech_controls_alive; }
+
 AiControls::AiControls(Mech* o, ai::AiNet* net, const ai::AiParams& rec) {
+  ++g_mech_controls_alive;
   owner = o;
   init();
   brain = std::make_unique<ai::Brain>(net, rec);
@@ -500,7 +507,7 @@ AiControls::AiControls(Mech* o, ai::AiNet* net, const ai::AiParams& rec) {
 
 // Mech3.exe 1.2 @ 0x004d8c00 -> 0x004d8c40: the brain's destructor
 // 0x004cf630, then the base's vtables back (nothing to free).
-AiControls::~AiControls() = default;
+AiControls::~AiControls() { --g_mech_controls_alive; }
 
 // Mech3.exe 1.2 @ 0x004e96f0: the brain's frame (0x004e9710, on +0x5c),
 // which sets the targets and runs the smoothing itself (0x004d89f0).

@@ -1267,7 +1267,13 @@ void Brain::make_radio() {
 // owner +0xcd4), over 0x004e7090: the basic vehicle controls 0x004ac750
 // (0x004ac740 on +0x764 -> 0x004a4af0: the turret limits of -pi/2 and pi/2),
 // the brain on +0xa04, then +0xcb0, +0xcbc and +0x38.
+namespace {
+int32_t g_vehicle_controls_alive = 0;
+}  // namespace
+int32_t ai_vehicle_controls_alive() { return g_vehicle_controls_alive; }
+
 AiVehicleControls::AiVehicleControls(void* o, AiNet* net, const AiParams& rec) {
+  ++g_vehicle_controls_alive;
   owner = o;
   state = 2;  // +0x38
   brain = std::make_unique<Brain>(net, rec);
@@ -1300,10 +1306,17 @@ void AiVehicleControls::on_kill(void* victim) { brain->killed(vehicle(), brain_h
 // Mech3.exe 1.2 @ 0x004e7870: the brain's destructor, then the basic
 // controls' (0x004ac800), which asks the owner. FIX (bug): without an owner
 // (a vehicle that failed to build, mission-start.md) the exe reads through
-// null; here nothing is asked.
+// null; here nothing is asked (fixes.md, AI vehicle controls' destructor).
 AiVehicleControls::~AiVehicleControls() {
+  --g_vehicle_controls_alive;
   brain.reset();
-  if (owner) brain_hooks().vehicle_controls_gone(owner);
+  if (owner) vehicle_controls_gone(owner);
+}
+
+// Mech3.exe 1.2 @ 0x004ac800 (ECX the IControls base: its owner at +0x10).
+void vehicle_controls_gone(void* owner) {
+  BrainHooks& h = brain_hooks();
+  h.path_drop_temporary(h.owner_vehicle(owner));
 }
 
 // --- the gates (docs/ai.md 17.3) ---------------------------------------------

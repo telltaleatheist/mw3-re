@@ -85,6 +85,7 @@
 #include "mech3/sensors.h"
 #include "mech3/turret.h"
 #include "mech3/zai_brain.h"
+#include "mech3/zai_list.h"
 #include "mech3/zai_attack.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
@@ -4036,6 +4037,117 @@ TEST(mission_ia1_waves_headless) {
     EXPECT(second.allies == std::vector<int32_t>{5} && (second.enemies == std::vector<int32_t>{3, 8, 8}));
     EXPECT(second.brains == 4 && game.x70 == 1);
     mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// A mission restarted twice (its cleanup, then the Load state again): each
+// load has the fresh one's AI (zEntity's list, the AI mechs, the targets,
+// the basic vehicles, the AI controls alive, the four reset lists 0x004d8610
+// empties), and after the last cleanup the AI controls alive are back to
+// before the first (the vehicles' 0x004ac800 on the way). Run under ASan too.
+TEST(mission_c1m1_restarted_twice_keeps_no_ai_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_restart_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    struct Snap {
+      size_t entities = 0, targets = 0, vehicles = 0, lists = 0;
+      int32_t ai_mechs = 0, mech_controls = 0, vehicle_controls = 0;
+      bool operator==(const Snap& o) const {
+        return entities == o.entities && targets == o.targets && vehicles == o.vehicles && lists == o.lists &&
+               ai_mechs == o.ai_mechs && mech_controls == o.mech_controls && vehicle_controls == o.vehicle_controls;
+      }
+    };
+    auto snap = [] {
+      Snap n;
+      n.entities = mech3::ai::entity_list().size();
+      n.targets = mech3::ai::target_list().size();
+      n.vehicles = mech3::program_vehicles().size();
+      for (uint32_t a : {0x00604038u, 0x00604048u, 0x00604078u, 0x00603f90u}) n.lists += mech3::ai::reset_list(a)->items.size();
+      mech3::mission_ai_mechs(&n.ai_mechs);
+      n.mech_controls = mech3::ai_mech_controls_alive();
+      n.vehicle_controls = mech3::ai::ai_vehicle_controls_alive();
+      return n;
+    };
+    const Snap before = snap();
+    std::vector<Snap> loads;
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || loads.size() >= 3) return;
+      if (++frames == 3) loads.push_back(snap());
+      if (frames == 5 && loads.size() < 3) {  // restart: the cleanup, then the Load state again
+        frames = 0;
+        mech3::missions().cleanup(false);
+        engine.set_launch(l);
+        app.replace(&mech3::states().load, 0);
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return loads.size() >= 3 && frames >= 5; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    const Snap after = snap();
+    if (std::getenv("MW3_RESTART_LOG"))
+      for (const Snap& n : {before, loads.size() > 0 ? loads[0] : Snap{}, loads.size() > 1 ? loads[1] : Snap{},
+                            loads.size() > 2 ? loads[2] : Snap{}, after})
+        std::fprintf(stderr, "RESTART entities %zu targets %zu vehicles %zu lists %zu ai mechs %d controls %d / %d\n",
+                     n.entities, n.targets, n.vehicles, n.lists, n.ai_mechs, n.mech_controls, n.vehicle_controls);
+    EXPECT(loads.size() == 3);
+    EXPECT(loads.size() == 3 && loads[1] == loads[0] && loads[2] == loads[0]);
+    EXPECT(loads.size() == 3 && loads[0].ai_mechs > 0 && loads[0].vehicle_controls > before.vehicle_controls);
+    EXPECT(after.mech_controls == before.mech_controls && after.vehicle_controls == before.vehicle_controls);
+    EXPECT(after.lists == 0);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
