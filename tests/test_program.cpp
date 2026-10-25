@@ -3915,6 +3915,137 @@ TEST(missions_c4b_m5_m6_fail_when_left_headless) {
 // the launch makes his mech from it (0x0049e5e0) on the player's net; he is
 // in the command mode's panel and takes a lance order (0: on his contact on
 // the player, the follow).
+// Instant Action from a made game (the Action screen is not ported): c1's
+// ia1 in wave mode with one ally. The launch's line-up (0x0049dc80(1)) makes
+// the ally and wave 1's enemies (0x005e33a8: a Firefly and an Owens) from
+// unused aiv.zrd records, with their AI on; with them destroyed the win
+// (0x0048f740) counts the wave and the line-up runs again (0x0049dc80(0)):
+// wave 2's three (two Fireflies and a Bushwacker). docs/mission-start.md 13.
+TEST(mission_ia1_waves_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_ia_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::ActionGame game(nullptr);
+    game.mode = 2, game.x6c = 1;
+    game.slot.mech = 9, game.slot.skin = 2;
+    game.add(5, 1, nullptr, 0);  // an ally: a Champion
+    game.add(14, 0, nullptr, 0);  // an enemy the wave replaces
+    mech3::GameEngine::Launch l;
+    l.type = 2, l.index = 0, l.number = 1;
+    l.action = &game;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    struct Made {
+      std::vector<int32_t> allies, enemies;  // roster numbers
+      int brains = 0;
+    };
+    auto survey = [&](Made& out) {  // every AI mech now, by its side
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      void* player = mech3::mech_mission_player();
+      const mech3::ai::AiTarget* pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+      for (int32_t q = 0; q < made; ++q) {
+        const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[q].mech));
+        if (!t || !pt) continue;
+        ((pt->allies & t->team) ? out.allies : out.enemies).push_back(mech3::program_mech_roster(ai[q].mech));
+        out.brains += static_cast<mech3::AiControls*>(ai[q].controls)->brain != nullptr;
+      }
+    };
+    Made first, second;
+    int frames = 0, wave2_at = -1;
+    std::vector<void*> killed;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      if (frames == 3) {
+        survey(first);
+        void* player = mech3::mech_mission_player();
+        const mech3::ai::AiTarget* pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+        for (int32_t q = 0; q < made; ++q) {  // wave 1 destroyed
+          const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[q].mech));
+          if (t && pt && !(pt->allies & t->team)) mech3::mech_kill(ai[q].mech, player), killed.push_back(ai[q].mech);
+        }
+      } else if (frames == 63) {
+        // Dead and falling for 2 s: the wrecks deleted, as Instant Action does
+        // at 180 s; "destroy the enemies" is met when they leave zEntity's list.
+        for (void* m : killed) mech3::program_mech_wreck_gone(m);
+      } else if (frames > 3 && wave2_at < 0 && game.x6c == 2) {
+        wave2_at = frames;
+        survey(second);
+      }
+    };
+    CountingPump pump;
+    pump.limit = 400;
+    app.run(pump);
+    std::sort(first.enemies.begin(), first.enemies.end());
+    std::sort(second.enemies.begin(), second.enemies.end());
+    if (std::getenv("MW3_IA_LOG")) {
+      auto list = [](const std::vector<int32_t>& v) { std::string t; for (int32_t x : v) t += std::to_string(x) + " "; return t; };
+      std::fprintf(stderr, "IA first allies %s enemies %s brains %d; wave2 at %d allies %s enemies %s brains %d; wave %d won %d\n",
+                   list(first.allies).c_str(), list(first.enemies).c_str(), first.brains, wave2_at,
+                   list(second.allies).c_str(), list(second.enemies).c_str(), second.brains, game.x6c, game.x70);
+    }
+    EXPECT(first.allies == std::vector<int32_t>{5});
+    EXPECT((first.enemies == std::vector<int32_t>{8, 11}));
+    EXPECT(first.brains == 3);
+    EXPECT(wave2_at > 3 && game.x6c == 2);
+    // The ally stays (a new wave remakes the enemies only).
+    EXPECT(second.allies == std::vector<int32_t>{5} && (second.enemies == std::vector<int32_t>{3, 8, 8}));
+    EXPECT(second.brains == 4 && game.x70 == 1);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c2m1_lancemate_made_from_his_slot_headless) {
   if (!have_game()) return;
   SavedMounts keep;

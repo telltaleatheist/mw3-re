@@ -153,10 +153,13 @@ void dump_pilot(Dump& d, Pilot* p) {
   d.kv("x6c", a->x6c);
   d.kv("x74", a->x74);
   d.kv("x78", a->x78);
-  d.kv("x7c", a->x7c);
-  d.kv("x170", a->x170);
-  d.kv("x174", a->x174);
-  d.kv("x178", a->x178);
+  d.kv("x7c", a->count);
+  int32_t x170 = 0, x174 = 0;  // the side bytes, as the dump reads them
+  int16_t x178 = 0;
+  std::memcpy(&x170, a->side, 4), std::memcpy(&x174, a->side + 4, 4), std::memcpy(&x178, a->side + 8, 2);
+  d.kv("x170", x170);
+  d.kv("x174", x174);
+  d.kv("x178", x178);
   for (const GameSlot& s : a->lineup) d.slot("l", s);
   MultiplayerGame* m = p->multi;
   d.o << "\n multi ";
@@ -269,9 +272,9 @@ void set_field(Game* g, uint32_t off, uint32_t v) {
     if (off == 0x6c) a->x6c = i;
     if (off == 0x74) a->x74 = i;
     if (off == 0x78) a->x78 = i;
-    if (off == 0x7c) a->x7c = i;
-    if (off == 0x170) a->x170 = i;
-    if (off == 0x174) a->x174 = i;
+    if (off == 0x7c) a->count = i;
+    if (off == 0x170) std::memcpy(a->side, &i, 4);
+    if (off == 0x174) std::memcpy(a->side + 4, &i, 4);
   } else if (auto* m = dynamic_cast<MultiplayerGame*>(g)) {
     switch (off) {
       case 0x70: m->x70 = i; break;
@@ -466,6 +469,23 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
       auto* s = new GameSlot(mech);
       s->x14 = x14;
       g->set_lancemate(i, s);
+    } else if (op == "a") {  // Instant Action: a slot added (0x00436840)
+      int mech = 0, side = 0, k = 0, paint = 0;
+      ls >> a >> mech >> side >> k >> paint;
+      Pilot* p = named(a);
+      ActionGame* g = p ? p->action_game : nullptr;
+      if (!g) continue;
+      Config* c = k ? fake_config(k) : nullptr;
+      g_log.add("added " + std::to_string(g->add(mech, static_cast<uint8_t>(side), c, paint) != nullptr));
+      delete c;
+    } else if (op == "e") {  // its enemies dropped (0x00436ac0), or slot i removed (0x00436af0)
+      int i = 0;
+      ls >> a >> i;
+      Pilot* p = named(a);
+      ActionGame* g = p ? p->action_game : nullptr;
+      if (!g) continue;
+      if (i < -1) g->drop_enemies();
+      else g_log.add("removed " + std::to_string(g->remove(i) ? 1 : 0));
     } else if (op == "k") {  // their count (0x00435230)
       int c = 0, n = 0;
       ls >> a >> c >> n;

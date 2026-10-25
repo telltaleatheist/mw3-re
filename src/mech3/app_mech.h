@@ -139,6 +139,12 @@ bool program_mech_configure(void* mech, void* config);
 int32_t program_mech_roster(const void* mech);
 void* program_mech_own_net(void* mech, uint32_t self);
 void program_launch_lancemates();  // app_mission.cpp: player.cpp's 0x0049e5e0
+void program_action_lineup(bool launch);  // app_mission.cpp: player.cpp's 0x0049dc80
+void program_objectives_start();   // app_mission.cpp: 0x0045c4a0 on the mission's objectives
+// 0x00491120: a mech's controls (+0x37c), the controls told their owner.
+void program_mech_set_controls(void* mech, void* controls);
+// 0x005a85e0: a vehicle's centroid (its node's world position); false without one.
+bool program_vehicle_centre(void* vehicle, float out[3]);
 void* program_launch_campaign();   // app_mission.cpp: the launch's CampaignGame (the menus' or the debug start's)
 const void* mech_definition(void* mech);
 void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)

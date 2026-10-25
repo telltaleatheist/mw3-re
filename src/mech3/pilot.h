@@ -224,17 +224,32 @@ class ActionGame : public Game {
   void load() override;              // vt+0x1c  0x00436cc0
   int32_t type() const override { return kInstantAction; }  // 0x004993e0
 
+  // The line-up (0x0049dc80's): slot i (vt+0x34; 0 the player's, then
+  // lineup[i - 1]), allies first, then enemies (the screen keeps them so).
+  GameSlot* slot_at(int32_t i);      // vt+0x34  0x004368b0
+  int32_t slot_count() const { return count + 1; }  // vt+0x38  0x00436a30
+  bool ally(int32_t i) const;        // 0x00436a90: slot i is on the player's side (0 is)
+  bool remove(int32_t i);            // 0x00436af0: lineup[i] (0-based) out, the rest moved up
+  void drop_enemies();               // 0x00436ac0
+  // A slot appended: its mech, side, a copy of the loadout and its paint;
+  // null when the ten are taken.
+  GameSlot* add(int32_t mech, uint8_t side, const Config* config, int32_t paint);  // 0x00436840
+
   void* x38 = nullptr;               // +0x38, +0x3c, +0x40  malloc'd by the Action screen, freed here
   void* x3c = nullptr;
   void* x40 = nullptr;
+  int32_t mode = 0;                  // +0x44  1 endless, 2 waves (the Action screen's; not set by the constructor)
+  uint8_t field_bases = 0;           // +0x48  the mission's mobile HQs made (the screen's)
   // +0x4c..+0x68, the pilot screen's lines (messages 0x184..0x18a, 0xdb7).
   int32_t player_kills = 0, lancemate_kills = 0, enemy_kills = 0;
   int32_t attack_wins = 0, attack_losses = 0, defend_wins = 0, defend_losses = 0;
-  int32_t waves = 0;                 // +0x68  progression waves
-  int32_t x6c = 1, x74 = -1, x78 = 0, x7c = 0;  // +0x6c, +0x74, +0x78, +0x7c
+  int32_t waves = 0;                 // +0x68  progression waves (the best wave in wave mode)
+  int32_t x6c = 1;                   // +0x6c  the wave being fought
+  int32_t x70 = 0;                   // +0x70  waves won (not set by the constructor)
+  int32_t x74 = -1, x78 = 0;         // +0x74, +0x78
+  int32_t count = 0;                 // +0x7c  line-up slots in use
   GameSlot lineup[10];               // +0x80, 0x18 each
-  int32_t x170 = 0, x174 = 0;        // +0x170
-  int16_t x178 = 0;                  // +0x178
+  uint8_t side[10] = {};             // +0x170  each slot's: 1 an ally
 };
 
 // Multiplayer (0x004353a0, vtable 0x005becf8), 0xb0 bytes.

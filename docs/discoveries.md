@@ -894,6 +894,24 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
   time: a new one waits out a line of higher priority but cuts off one of
   equal or lower priority. Objective lines have priority 0 and "mission
   complete" 2, so the win's line interrupts an objective's.
+- **Wave mode's twenty waves are fixed.** Each wave replaces your chosen
+  enemies with its own list (whatever you set up on the Action screen):
+  1 Firefly, Owens; 2 Firefly x2, Bushwacker; 3 Strider x3; 4 Puma x2,
+  Owens x2; 5 Bushwacker x2, Shadow Cat; 6 Orion, Shadow Cat x2; 7 Strider
+  x2, Orion x2, Puma; 8 Thor x3; 9 Mad Cat x2, Vulture x2; 10 Orion, Puma,
+  Strider, Mad Cat, Bushwacker; 11 Vulture, Champion x2, Thor, Shadow Cat;
+  12 Blackhawk x3, Mad Cat, Orion, Champion; 13 Annihilator x2, Avatar x3;
+  14 Daishi x3; 15 Mad Cat x3, Supernova x2; 16 Sunder, Avatar, Champion
+  x2, Thor x2; 17 Cauldron-Born x3, Mad Cat, Shadow Cat; 18 Daishi x2,
+  Sunder x2; 19 Supernova x3, Thor, Mad Cat, Cauldron-Born; 20 Daishi x6.
+  Each comes in one of the mech's stock loadouts. Your own allies stay.
+- **Instant Action matches each mech to a start point by weight class.**
+  Every ally and enemy you pick takes an unused start point of the map on
+  its side whose mission mech is of the same weight class (the game's own
+  four classes), else the nearest class. At the start of the fight the
+  point is picked at random among those; each new wave's enemies take the
+  ones farthest from you. Your allies follow your own route, and the
+  enemies wear the paint scheme just before yours.
 - **Instant Action's wave mode stops at wave 20.** In its endless and wave
   modes, winning a wave loads the map's objectives again for the next one
   (and records the best wave in wave mode), with no "mission complete" line;

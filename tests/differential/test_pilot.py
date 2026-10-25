@@ -52,6 +52,7 @@ LIST_INIT, LOAD_ALL, CREATE, DELETE_PILOT, RENAME, FIND = 0x4779f0, 0x478560, 0x
 SELECT, SELECT_CAMPAIGN, OTHERS, OPEN, HEADER, DEBUG = 0x478250, 0x478ed0, 0x4785f0, 0x478ce0, 0x4794f0, 0x478a40
 NEW_CAMPAIGN, SLOT_CTOR = 0x4345a0, 0x433cc0
 SET_MATE, SET_MATES = 0x4351c0, 0x435230
+ACTION_ADD, ACTION_DROP, ACTION_REMOVE = 0x436840, 0x436ac0, 0x436af0
 ADD_COPY, ADD_AMMO, REMOVE, REMOVE_MECH = 0x472630, 0x471940, 0x471d20, 0x472a30
 PILOTS, COUNT, CURRENT = 0x60860c, 0x608610, 0x60861c
 RECORD, LANCE_RESET, STORE_CTOR, SALVAGE = 0x478f10, 0x435240, 0x470ce0, 0x609990
@@ -634,6 +635,24 @@ class Emulated(Files):
                     self.call(SLOT_CTOR, ecx=sl, stack=(mech & 0xffffffff, 0, 0))
                     self.cpu.u32(sl + 0x14, x14 & 0xffffffff)
                     self.call(SET_MATE, ecx=g, stack=(i & 0xffffffff, sl))
+            elif op == 'a':  # Instant Action's line-up: a slot added (mech, side, loadout, paint)
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 2, 0) if pl else 0
+                if g:
+                    mech, side, k, paint = (int(x) for x in p[2:6])
+                    r = self.call(ACTION_ADD, ecx=g, stack=(mech & 0xffffffff, side & 0xff, self.fake_config(k) if k else 0,
+                                                             paint & 0xffffffff))
+                    self.log.append(f'added {int(r != 0)}')
+            elif op == 'e':  # its enemies dropped, or slot i removed
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 2, 0) if pl else 0
+                if g:
+                    i = int(p[2])
+                    if i < -1:
+                        self.call(ACTION_DROP, ecx=g)
+                    else:
+                        r = self.call(ACTION_REMOVE, ecx=g, stack=(i & 0xffffffff,))
+                        self.log.append(f'removed {r & 0xff}')
             elif op == 'k':  # and their count
                 pl = self.find(unhx(p[1]))
                 g = self.game(pl, 1, int(p[2])) if pl else 0
@@ -892,6 +911,11 @@ def campaign_steps(r, n):
     for _ in range(r.randrange(0, 6)):
         lines.append(f'A {hx(n)} 1 0 {r.choice([8, 0x3c, 0x50, 0x64, 0x78]):x} {r.randrange(5)} '
                      f'{r.choice([1, 2, 5])} {r.randrange(3)} {r.choice([1, 3])} {r.randrange(3)} {r.choice([-1, 2])}')
+    if r.random() < 0.5:  # an Instant Action line-up: slots added, some removed, the enemies dropped
+        for _ in range(r.randrange(0, 13)):
+            lines.append(f'a {hx(n)} {r.randrange(19)} {r.choice([0, 1, 1, 2])} {r.choice([0, 3, 5])} {r.randrange(-1, 9)}')
+        for _ in range(r.randrange(0, 3)):
+            lines.append(f'e {hx(n)} {r.choice([-2, -2, -1, 0, 1, 3, 9, 11])}')
     mates = r.randrange(0, 3)
     for _ in range(mates):
         mech = r.choice([3, 3, 0x13, r.randrange(20)])  # the player's mech again, and 0x13, which is never listed

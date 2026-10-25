@@ -77,6 +77,7 @@
 #include "mech3/mission.h"
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
+#include "crt/msvc_rand.h"
 #include "mech3/mech_control.h"
 #include "mech3/veh_basic.h"
 #include "mech3/zainet_inout.h"
@@ -110,6 +111,7 @@ void vehicle_markers_delete();  // 0x004ac4e0
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
+int32_t weight_class(int32_t mech);                          // 0x00484700 (mech3/mech_names.h)
 
 namespace {
 
@@ -190,6 +192,29 @@ CampaignGame* launch_campaign(GameEngine* e) {
     g_debug_campaign->slot.mech = e->launch().mech, g_debug_campaign->slot.skin = e->launch().skin;
   }
   return g_debug_campaign.get();
+}
+
+// Instant Action's game: the debug start's (made by the caller, the Action
+// screen not being ported), else the chosen pilot's.
+ActionGame* launch_action(GameEngine* e) {
+  if (e->launch().type != 2) return nullptr;
+  if (e->launch().action) return e->launch().action;
+  return current_pilot() ? current_pilot()->action_game : nullptr;
+}
+// Its fields by the exe's offsets (+0x44 mode, +0x48 field bases, +0x68 the
+// best wave, +0x6c the wave, +0x70 waves won, +0x7c slots).
+bool action_field(ActionGame* a, uint32_t off, uint32_t* get, const uint32_t* put) {
+  int32_t* f = off == 0x44 ? &a->mode : off == 0x68 ? &a->waves : off == 0x6c ? &a->x6c : off == 0x70 ? &a->x70
+             : off == 0x7c ? &a->count : nullptr;
+  if (off == 0x48) {
+    if (get) *get = a->field_bases;
+    if (put) a->field_bases = static_cast<uint8_t>(*put);
+    return true;
+  }
+  if (!f) return false;
+  if (get) *get = static_cast<uint32_t>(*f);
+  if (put) *f = static_cast<int32_t>(*put);
+  return true;
 }
 
 // player.cpp's hooks (docs/mission-start.md): the reader, the records, the
@@ -309,8 +334,13 @@ struct WiredPlayerHooks : PlayerHooks {
   Handle net_object(Handle o) override { return e->handle_of(dynamic_cast<ai::AiNet*>(as<znet::Object>(o))); }
   Handle net_compiled(Handle o) override { return e->handle_of(as<ai::AiNet>(o)->as_compiled()); }
   Handle alloc(uint32_t size) override { return e->alloc_block(size); }
+  ActionGame* action(Handle g) const {
+    ActionGame* a = launch_action(e);
+    return a && g == e->handle_of(a) ? a : nullptr;
+  }
   void set_field32(Handle h, uint32_t off, uint32_t v) override {
     if (slot_field(h, off, nullptr, &v)) return;
+    if (ActionGame* a = action(h); a && action_field(a, off, nullptr, &v)) return;
     if (params.count(h)) return as<ai::AiParams>(h)->put<uint32_t>(static_cast<int>(off), v);
     if (mechs.count(h) && mech_set_mask(e->object_of(h), off, v)) return;
     if (vehicles.count(h) && program_vehicle_mask(e->object_of(h), off, nullptr, &v)) return;
@@ -320,7 +350,9 @@ struct WiredPlayerHooks : PlayerHooks {
     if (params.count(h)) return as<ai::AiParams>(h)->get<uint32_t>(static_cast<int>(off));
     uint32_t v = 0;
     if (slot_field(h, off, &v, nullptr)) return v;
-    if (mechs.count(h) && mech_get_mask(e->object_of(h), off, &v)) return v;
+    if (ActionGame* a = action(h); a && action_field(a, off, &v, nullptr)) return v;
+    if ((mechs.count(h) || player_mech(h)) && off == 0x37c) return e->handle_of(mech_controls(e->object_of(h)));
+    if ((mechs.count(h) || player_mech(h)) && mech_get_mask(e->object_of(h), off, &v)) return v;
     if (vehicles.count(h)) {  // the controls and the node as handles, the masks
       if (off == 0xe4) return e->handle_of(program_vehicle_controls(e->object_of(h)));
       if (off == 0x04) return e->handle_of(program_vehicle_node(e->object_of(h)));
@@ -473,6 +505,48 @@ struct WiredPlayerHooks : PlayerHooks {
     void* p = player_mech(v);
     return p ? e->handle_of(mech_controls(p)) : 0;
   }
+  // Instant Action (0x0049dc80): the game and its line-up (ActionGame), the
+  // roster's classes and names, a mech's controls, the player's centroid, rand.
+  Handle action_game() override {
+    ActionGame* a = launch_action(e);
+    return a ? e->handle_of(a) : 0;
+  }
+  Handle action_slot(Handle g, int32_t i) override {
+    ActionGame* a = action(g);
+    return a ? slot_handle(a->slot_at(i)) : PlayerHooks::action_slot(g, i);
+  }
+  bool action_ally(Handle g, int32_t i) override {
+    ActionGame* a = action(g);
+    return a ? a->ally(i) : PlayerHooks::action_ally(g, i);
+  }
+  void action_drop_enemies(Handle g) override {
+    if (ActionGame* a = action(g)) a->drop_enemies();
+    else PlayerHooks::action_drop_enemies(g);
+  }
+  Handle action_add(Handle g, int32_t mech, uint8_t side, Handle config, int32_t paint) override {
+    ActionGame* a = action(g);
+    if (!a) return PlayerHooks::action_add(g, mech, side, config, paint);
+    return slot_handle(a->add(mech, side, as<Config>(config), paint));
+  }
+  void slot_set_mech(Handle slot, Handle m) override {  // 0x00433ee0: +0x0c
+    if (!slot_field(slot, 0x0c, nullptr, &m)) PlayerHooks::slot_set_mech(slot, m);
+  }
+  void slot_set_paint(Handle slot, int32_t paint) override {  // 0x005a2b90: +0x10
+    const uint32_t v = static_cast<uint32_t>(paint);
+    if (!slot_field(slot, 0x10, nullptr, &v)) PlayerHooks::slot_set_paint(slot, paint);
+  }
+  int32_t weight_class(int32_t mech) override { return mech3::weight_class(mech); }
+  const char* mech_name(int32_t mech) override { return mech3::mech_name(mech); }
+  void mech_set_controls(Handle m, Handle ctl) override {
+    void* p = ai_mech(m);
+    if (!p) p = player_mech(m);
+    if (p) program_mech_set_controls(p, e->object_of(ctl));
+    else PlayerHooks::mech_set_controls(m, ctl);
+  }
+  void vehicle_position(Handle v, float out[3]) override {
+    if (!program_vehicle_centre(e->object_of(v), out)) PlayerHooks::vehicle_position(v, out);
+  }
+  int32_t crt_rand() override { return crt::msvc_rand(); }
   void take_triggers(Handle settings, const ai::AivRecord* rec) override {
     if (params.count(settings)) mech3::take_triggers(*as<ai::AiParams>(settings), *rec);
     else PlayerHooks::take_triggers(settings, rec);
@@ -521,6 +595,7 @@ WiredPlayerHooks g_player_hooks;
 }  // namespace
 
 void program_launch_lancemates() { launch_lancemates(); }
+void program_action_lineup(bool launch) { action_lineup(launch); }
 void* program_launch_campaign() { return g_player_hooks.e ? launch_campaign(g_player_hooks.e) : nullptr; }
 
 // A mech's controls when the mech goes (Mech::release, the controls' vt+0x18):
@@ -1103,6 +1178,30 @@ struct WiredObjectiveHooks : ObjectiveHooks {
     return (has_n ? zutl::format_message_ints(id, {n}) : zutl::format_message(id, {})).substr(0, 0xff);
   }
   Handle sound_find(const char* name) override { return name ? e->sound_find(name) : 0; }
+  // 0x0045c4a0's "destroy the enemies" (Instant Action and multiplayer): the
+  // game's mode and wave, zEntity's list (each entry's vt+0x2c), an entry's
+  // +0x08, its team against the player's enemies, vt+0x48 (a turret's
+  // itself, 0x004d2a70; every other class 0, 0x0040bae0).
+  int32_t ia_mode() override {
+    ActionGame* a = launch_action(e);
+    return a ? a->mode : ObjectiveHooks::ia_mode();
+  }
+  int32_t ia_number() override {
+    ActionGame* a = launch_action(e);
+    return a ? a->x6c : ObjectiveHooks::ia_number();
+  }
+  std::vector<Handle> world_objects() override {
+    std::vector<Handle> out;
+    for (Handle x : ai::entity_list()) out.push_back(ai::sensor_hooks().vcall(x, 0x2c, {x}));
+    return out;
+  }
+  uint8_t object_active(Handle o) override { return ai::brain_hooks().entity_active(o) ? 1 : 0; }
+  bool object_hostile(Handle o) override {
+    const ai::AiTarget* p = ai::brain_hooks().targetable(e->pilot() ? e->field32(e->pilot(), 0x14) : 0);
+    const ai::AiTarget* t = ai::brain_hooks().targetable(o);
+    return p && t && (p->enemies & t->team) != 0;
+  }
+  int32_t object_x48(Handle o) override { return program_turret_by_handle(o) ? static_cast<int32_t>(o) : 0; }
   ai::CZAiTarget* target(Handle h) const {
     for (ai::CZAiTarget* t : ai::target_list())
       if (e->object_of(h) == t) return t;
@@ -1398,8 +1497,21 @@ struct WiredMissionHooks : MissionHooks {
     return MissionHooks::stealth_4a4de0(mem, x);
   }
   Handle stealth() override { return e->peek32(0x609a2c); }
-  uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
-  void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }
+  // Instant Action's game (the win's waves, 0x0048f740) and its next wave.
+  Handle ia_game() override {
+    ActionGame* a = launch_action(e);
+    return a ? e->handle_of(a) : 0;
+  }
+  void fn_49dc80(uint8_t v) override { action_lineup(v != 0); }
+  uint32_t field32(Handle h, uint32_t off) override {
+    uint32_t v = 0;
+    if (ActionGame* a = launch_action(e); a && h == e->handle_of(a) && action_field(a, off, &v, nullptr)) return v;
+    return e->peek32(h + off);
+  }
+  void set_field32(Handle h, uint32_t off, uint32_t v) override {
+    if (ActionGame* a = launch_action(e); a && h == e->handle_of(a) && action_field(a, off, nullptr, &v)) return;
+    e->poke32(h + off, v);
+  }
   // The mission unload (Missions::unload, 0x00490480) on the ports.
   void camera_flag_off(Handle camera) override {  // 0x004f3430(camera, 0): the camera's +0x10 bit 0
     zcls::Node* n = mission_node(*e, camera);
@@ -1729,8 +1841,8 @@ struct WiredMissionHooks : MissionHooks {
   }
 };
 WiredMissionHooks g_mission_hooks;
-
 }  // namespace
+void program_objectives_start() { g_mission_hooks.objectives_start(0, 0, 0, 0); }  // 0x0045c4a0
 
 void mission_ai_mech_forget(const void* mech, uint32_t handle) {
   for (size_t i = 0; i < g_ai_mechs.size(); ++i) {
