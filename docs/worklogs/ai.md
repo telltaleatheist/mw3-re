@@ -1509,3 +1509,14 @@ is paused.
   theirs; app_mech's mech_objects too; app_turret's g_places is keyed by
   handle and holds copies (no pointer). The c1m4 test shows both (the
   name finds nothing, the old handle answers null).
+- Lead merged AI-last and the forget chain (c419ba7).
+
+## Item 2: the animation-owner registry (2026-10-24, mac 4)
+
+- Assigned (the lead): the animation-owner registry 0x4d4f20, 0x4d5100
+  → 0x4d47e0, 0x4d46f0, 0x45b800, 0x508f00 / 0x508f20 / 0x508f30, with the
+  callers 0x4d34a2, 0x4d33a5, 0x4a66af, 0x4aa6b8 (the last is the forget's
+  release, logged as a stub until now). Branch mac4/anim-owner from main.
+  Same bar: port with addresses, differential and break tests, docs
+  (ai.md, symbols.csv, discoveries.md, fixes.md / CHANGES.md if a fix),
+  the related set plus both suites, a brief report.
