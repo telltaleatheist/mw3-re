@@ -97,6 +97,9 @@ not the HUD's.
    zRender's 0x558c10 and its noise 0x5581c0; hud.md section 21): the
    draw paths' `hud_static`. Shows: green static over the panels when the
    torso or head is badly hurt.
+6c1. (Done 2026-10-25) **The views' nodes and render** (hud.md section 22):
+   the HUD's cameras and windows made in zClass, the depth fill, the zView
+   render. Open: what the MFD's mode 1 shows (Owen).
 6c. **The zoom window's 3D pass** (the reticle's vt+0x28 0x444230 -> the
    zoom window's 0x442f50, 198 lines): the zoom camera's view in its box
    or circle. Logged meanwhile (`hud_zoom_pass`).

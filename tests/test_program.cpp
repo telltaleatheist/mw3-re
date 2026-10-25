@@ -1179,6 +1179,92 @@ TEST(mission_c1m1_hud_static_when_hurt_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The HUD's 3D views (hud-plan item 6c1): the reticle's zoom, the MFD's and
+// TARGET's views make real camera and window nodes (0x004f32e0, 0x004f9e90),
+// and with the MFD in its 3D mode its view is drawn each frame through its
+// camera's scene walk (0x00442870 -> 0x004f7030) after its rect's depth is
+// cleared (0x00576ce0).
+TEST(mission_c1m1_hud_views_drawn_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_views_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct DepthGpu : platform::Render3D {  // a device, so the Direct3D paths run
+    int depth_rects = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override { ++depth_rects; }
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  mech3::HudReport r, at10;
+  int gpu_rects_from5 = 0;
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode, the engine's (as the SDL host's)
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+  } host;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 4) mech3::program_hud_mfd_mode(1);  // the 3D view (the game's saved mode may differ)
+      if (frames == 5) mech3::program_hud_report(&r), gpu_rects_from5 = gpu.depth_rects;  // the counts from here
+      if (frames == 10) mech3::program_hud_report(&at10), gpu_rects_from5 = gpu.depth_rects - gpu_rects_from5;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 10; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  views: %d cameras, %d windows; frames 6-10: mfd mode %d, %d drawn, %d depth fills\n", at10.view_cameras,
+              at10.view_windows, at10.mfd_shown, at10.views_drawn, at10.depth_fills);
+  EXPECT(at10.view_cameras >= 3 && at10.view_windows == at10.view_cameras);  // the zoom, the MFD's, TARGET's
+  EXPECT(at10.mfd_shown == 1 && at10.views_drawn == 5 && at10.depth_fills >= 5);  // one a frame
+  EXPECT(gpu_rects_from5 >= 5);  // the fills reach the device (DDBLT_DEPTHFILL)
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;
