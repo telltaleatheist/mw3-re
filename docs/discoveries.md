@@ -3249,6 +3249,14 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   shoots at missiles every frame rather than taking turns.
   (docs/vehicles.md, The turrets' frame)
 
+- **One of the first mission's missile turrets hides in a trench.** Of
+  the four SRM emplacements you must destroy on the first mission, one
+  (tur_srm02) sits in a rocket trench whose side walls take every shot
+  from across it; fire along the trench from one of its ends and two PPC
+  hits finish it. Aim at the turret itself, not its base: shots at
+  the foot of an emplacement hit the ground in front. (docs/vehicles.md,
+  The turrets in the program)
+
 - **The mine turret and the helicopters.** The mine turret (`mineturret`,
   Op 2) has a weapon that goes off where it stands: when it picks a target
   it plays its destroy animation and explodes in place. The helicopters

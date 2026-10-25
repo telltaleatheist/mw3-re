@@ -1485,6 +1485,20 @@ everything that walks it:
   yet.
 - **The end**: the entity list's walk (0x49dc40) deletes each turret
   (vt+0x00), then 0x4a7970 frees the markers and the file.
+- **Shots** (playtest #27): a projectile or beam hit anywhere in a
+  turret's tree reaches its damage handler (0x4a7940 -> Turret::hit
+  0x4a7530, set on its node and handed down), so c1m1's four SRM
+  emplacements each die to two PPC hits on their `healthy` part, their
+  `healthy` part off and `destroyed` on; with the reticle on tur_srm04 the
+  Mad Cat's lasers kill it in three volleys
+  (`mission_c1m1_shots_destroy_the_srm_turrets_headless`,
+  `mission_c1m1_player_destroys_an_srm_turret_headless`). What stops shots
+  is the level: the node's origin is at its base, so a shot aimed there
+  hits the ground in front, and tur_srm02 sits in the rocket trench
+  rktun01, whose walls (g15988) take every shot along world x; it dies to
+  shots along z, down the trench. A record on the turret's root node (at its
+  x and z) after a wall hit took 0.09 where a hit on a part takes a PPC's
+  0.73: likely the splash's sphere query, not traced.
 
 A port gap closed with it: the game clock [0x72c530] (zTimer's scaled
 total, the turrets' and the AMS's) was never copied into the weapons' world

@@ -3141,6 +3141,247 @@ TEST(mission_c1m1_turrets_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Playtest #27, c1m1's four SRM emplacements (the primary objective's
+// tur_srm01..04): the player put 60 m from each in turn, on a side its
+// emplacement leaves open (rktun01's walls take shots at srm02 from east and
+// west), fires a projectile from its centroid at the turret's centroid every
+// 10 frames; each hit on the turret's `healthy` part lowers its health, and
+// at 0 it is shut down with its `healthy` part off and `destroyed` on.
+TEST(mission_c1m1_shots_destroy_the_srm_turrets_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_turret_hit_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Emplacement {
+    const char* name;
+    float side[2];  // the player's place from the turret
+    mech3::tur::Turret* t = nullptr;
+    float health = -1;
+    int died = -1, hits = 0;
+    bool swapped = false;  // healthy off, destroyed on
+  };
+  static Emplacement e[4] = {{"tur_srm01", {60, 0}}, {"tur_srm02", {0, 60}}, {"tur_srm03", {60, 0}}, {"tur_srm04", {60, 0}}};
+  for (Emplacement& x : e) x.t = nullptr, x.health = -1, x.died = -1, x.hits = 0, x.swapped = false;
+  static mech3::GameEngine* eng;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    eng = &engine;
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    static decltype(zwep::hit_hooks().surface_mark) marks;
+    marks = zwep::hit_hooks().surface_mark;
+    zwep::hit_hooks().surface_mark = [](zwep::HitRecord* h) {  // the hits on each turret's tree
+      for (zcls::Node* q = static_cast<zcls::Node*>(h->node); q; q = q->parent_count() > 0 ? q->parents[0] : nullptr)
+        for (Emplacement& x : e)
+          if (x.t && q == eng->object_of(x.t->node)) ++x.hits;
+      if (marks) marks(h);
+    };
+    int frames = 0;
+    std::string weapon;
+    auto node = [&](mech3::tur::Turret* t) { return static_cast<zcls::Node*>(engine.object_of(t->node)); };
+    auto active = [](zcls::Node* n, const char* child) {
+      zcls::Node* c = zcls::node_find_in_tree(n, child);
+      return c && (c->flags() & 4) != 0;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* me = mech3::mech_mission_player();
+      if (frames == 2) {
+        for (Emplacement& x : e)
+          for (mech3::tur::Turret* t : mech3::tur::turret_list())
+            if (std::strcmp(node(t)->name(), x.name) == 0) x.t = t;
+        for (zwep::WeaponDef& d : zwep::state().defs)
+          if (d.key && !(d.flags & (zwep::kBeam | zwep::kTargetHeat | zwep::kMine | zwep::kLockOn)) && d.range > 100) {
+            weapon = d.key;
+            break;
+          }
+      }
+      const int i = frames > 4 ? (frames - 5) / 130 : -1, k = frames > 4 ? (frames - 5) % 130 : -1;
+      if (i >= 0 && i < 4 && e[i].t && !weapon.empty()) {
+        Emplacement& x = e[i];
+        float c[3];
+        mech3::node_world_cached(zcls::node_find_in_tree(node(x.t), "centroid"), c);
+        if (k == 0) {
+          const float at[3] = {c[0] + x.side[0], ground_under(c[0] + x.side[0], c[1] + 100.0f, c[2] + x.side[1]),
+                               c[2] + x.side[1]};
+          mech3::move_mech(me, at, std::atan2(x.side[0], x.side[1]));  // facing the turret
+        } else if (k >= 10 && k % 10 == 0 && x.t->active) {
+          float a[3];
+          mech3::node_world_cached(mech3::mech_centroid_of(me), a);
+          zwep::Vec3f3 from{a[0], a[1], a[2]}, d{c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+          const float n = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+          d = {d.x / n, d.y / n, d.z / n};
+          static uint32_t zone;
+          zone = zwep::query_zone();
+          const zwep::Vec3f3 still{0, 0, 0};
+          zwep::spawn(zwep::find_def(weapon.c_str()), mech3::mech_node_of(me), &zone, &from, &d, &still, 0, nullptr);
+        }
+        if (x.died < 0 && !x.t->active) x.died = k;
+        if (k == 129) {
+          x.health = x.t->health;
+          x.swapped = !active(node(x.t), "healthy") && active(node(x.t), "destroyed");
+        }
+      }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 1000000;
+    pump.stop = [&] { return frames > 5 + 130 * 4; };
+    app.run(pump);
+    for (const Emplacement& x : e) {
+      std::fprintf(stderr, "  %s (%s): %d hits, health %.3f, died at %d, destroyed model %d\n", x.name, weapon.c_str(),
+                   x.hits, x.health, x.died, x.swapped);
+      EXPECT(x.t && x.hits > 0 && !(x.health > 0.0f) && x.died > 0 && x.swapped);
+    }
+    zwep::hit_hooks().surface_mark = marks;
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Playtest #27 with the player's own weapons: the Mad Cat 40 m east of
+// tur_srm04 facing it pitches its reticle down (CMD_PITCH_DN) until the HUD's
+// ray ends on the turret, then fires each weapon group in turn (CMD_FIRE);
+// the lasers' hits destroy it.
+TEST(mission_c1m1_player_destroys_an_srm_turret_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_turret_fire_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  int on_at = -1, died_group = -1;
+  float health = -1;
+  std::string log;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Mad Cat
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* player = nullptr;
+    mech3::tur::Turret* t = nullptr;
+    zcls::Node* centroid = nullptr;
+    bool pitching = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        for (mech3::tur::Turret* x : mech3::tur::turret_list())
+          if (std::strcmp(static_cast<zcls::Node*>(engine.object_of(x->node))->name(), "tur_srm04") == 0) t = x;
+        if (!t) return;
+        centroid = zcls::node_find_in_tree(static_cast<zcls::Node*>(engine.object_of(t->node)), "centroid");
+        const float x = t->pos[0] + 40.0f, z = t->pos[2];
+        const float at[3] = {x, ground_under(x, t->pos[1] + 50.0f, z), z};
+        mech3::move_mech(player, at, 1.5707964f);  // facing -x
+      }
+      if (!player || !t) return;
+      if (frames >= 20 && frames < 60) {
+        int32_t ret[2];
+        float pt[3], c[3];
+        bool hit = false;
+        mech3::program_hud_aim(ret, pt, &hit);
+        mech3::node_world_cached(centroid, c);
+        const float dx = pt[0] - c[0], dy = pt[1] - c[1], dz = pt[2] - c[2];
+        const bool on = hit && dx * dx + dy * dy + dz * dz < 36.0f;
+        const uint32_t down = zin::key1_of(5) & 0xff;  // CMD_PITCH_DN
+        if (!on && !pitching && pt[1] > c[1]) keys.key(down, true), pitching = true;
+        else if ((on || pt[1] <= c[1]) && pitching) keys.key(down, false), pitching = false;
+        if (on && on_at < 0) on_at = frames;
+      }
+      const int g = (frames - 60) / 40;
+      const uint32_t fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
+      if (frames >= 60 && g < 6 && (frames - 60) % 40 == 0 && t->active) {
+        mech3::mech_select_group(player, g);
+        char line[96];
+        std::snprintf(line, sizeof line, "g%d [%s] at %.3f; ", g, mech3::mech_group_names(player, g).c_str(), t->health);
+        log += line;
+        keys.key(fire, true);
+      } else if (frames >= 60 && (frames - 60) % 40 == 2) {
+        keys.key(fire, false);
+      }
+      if (died_group < 0 && !t->active) died_group = g;
+      health = t->health;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 60 + 6 * 40 + 20; };
+    pump.limit = 1000000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  tur_srm04: the reticle on it at frame %d; %shealth %.3f, destroyed by group %d\n", on_at, log.c_str(),
+              health, died_group);
+  EXPECT(on_at > 0);
+  EXPECT(!(health > 0.0f) && died_group >= 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // The animation-owner registry on c1 (docs/ai.md section 18): the boss
 // turret tur_boss01 starts idle and claims its AUX_ANIM raise_bturret1 at the
 // load; started (as the mission script does), the animation's callback event
@@ -10456,3 +10697,4 @@ TEST(mission_second_world_loads_headless) {
   reset_process_state();
   mech3::options() = mech3::Options{};
 }
+

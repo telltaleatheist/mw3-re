@@ -202,3 +202,22 @@ is in `README.md`.
   init makes (E is a callback command; throttle and fire are polled).
   reset_process_state now clears the instance, as a new process has none.
   The program makes zInput once, so play is not affected.
+
+## Playtest #27: shots don't destroy c1m1's missile turrets (2026-10-25)
+
+- Assigned (lead): shots at the c1m1 missile turrets don't destroy them.
+  Branch mac4/playtest-turrets, off mac4/playtest-lrm (the #25 hooks).
+- Plan: a headless repro firing at a tur_* node; follow the hit from the
+  segment query to Turret::hit and the deactivation at health 0.
+- Not reproduced headless. Projectiles from 60 m at the centroid kill all
+  four SRM emplacements in two PPC hits each (healthy off, destroyed on);
+  the Mad Cat with its reticle pitched onto tur_srm04 kills it with its
+  lasers in three volleys. Probes found: the node origin is the turret's
+  base (shots at it hit the ground); tur_srm02 is inside rktun01, whose
+  walls take shots along x; teleporting the player outside c1m1's area
+  sets outside_c1m1 (lose(), the debriefing 8 s later), so probes stay in
+  bounds; CountingPump's limit counts passes, not frames.
+- Tests: mission_c1m1_shots_destroy_the_srm_turrets_headless,
+  mission_c1m1_player_destroys_an_srm_turret_headless; break (no hit
+  callback set): health stays 1.000, both fail.
+- Asked the lead for Owen's case (turret, weapon, what he saw).
