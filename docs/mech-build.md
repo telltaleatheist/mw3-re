@@ -319,11 +319,12 @@ the structure table one row off.
   0x005a7f50; the hit handler 0x005833b0.
 - The mech's destructor 0x00414f40 (its view attach 0x0041ce30 is ported:
   view.md), the AI side
-  (0x004e61e0, 0x004d6d20), the HUD calls of the launch, the lancemates
-  0x0049e5e0, instant action 0x0049dc80, multiplayer 0x0046da80.
+  (0x004e61e0), the HUD calls of the launch, instant action 0x0049dc80,
+  multiplayer 0x0046da80 (the lancemates 0x0049e5e0 and the sensor range
+  0x004d6d20 are ported: mission-start.md section 12).
 - The AI mechs are built (ai.md section 12) and placed (0x004161c0,
-  mission-start.md section 11); the AI side of the mech (0x004e61e0,
-  0x004d6d20) is left.
+  mission-start.md section 11); the AI side of the mech (0x004e61e0) is
+  left.
 - The mission's unload 0x00490480 (which clears the mech types, 0x004318e0,
   closes mechlib and resets zClass between two missions of one run) is a
   hook: the program's runs are one mission each.

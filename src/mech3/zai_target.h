@@ -61,7 +61,7 @@ struct AiTarget {
   Contact* own_player = nullptr;     // +0x94  owned (0x004a7be0 deletes it)
   Contact* player_contact = nullptr; // +0x98
   float sensor_range = 1000.0f;      // +0x9c  0x005e8d84; the launch sets it (0x004d6d20)
-  float range = 1000.0f;             // +0xa0  capped at 1000, 2000 (0x005e8d8c) in a network game
+  float range = 1000.0f;             // +0xa0  capped at 1000; the player's 50000 (0x005e8d8c) in IA and multiplayer
   float range2 = 1.0e6f;             // +0xa4  its square
   uint8_t xa8 = 0;                   // +0xa8  the contacts' allocator byte (the first argument)
   std::vector<Contact*> contacts;    // +0xac..+0xb4  nearest first

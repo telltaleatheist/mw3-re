@@ -132,6 +132,14 @@ int32_t canned_nodes_count();  // for the tests: the canned effects' node copies
 // (0x00414390), the mech's definition (0x0041e9a0). Pointers as void*.
 void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name);
 bool set_mech_skin(void* mech, void* skin);
+// The launch's lancemates (player.cpp 0x0049e5e0): an AI mech's loadout
+// (0x00414430), its roster number, and the player's mech's own net
+// (vt+0xd8, 0x004d70f0) as an ai::AiNet.
+bool program_mech_configure(void* mech, void* config);
+int32_t program_mech_roster(const void* mech);
+void* program_mech_own_net(void* mech, uint32_t self);
+void program_launch_lancemates();  // app_mission.cpp: player.cpp's 0x0049e5e0
+void* program_launch_campaign();   // app_mission.cpp: the launch's CampaignGame (the menus' or the debug start's)
 const void* mech_definition(void* mech);
 void mech_power(void* mech, int32_t down);       // 0x0041cc30 (Mech::power)
 int32_t place_mech(void* mech, const float pos[3], uint32_t yaw);  // 0x004161c0 (Mech::place)

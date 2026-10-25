@@ -525,20 +525,25 @@ void AiControls::tick() {
   if (brain) brain->pilot_tick(*this);
 }
 
-// Mech3.exe 1.2 @ 0x0049e540 (player.cpp; the mech's +0x04 only for its
-// reports) -> 0x0049e4e0: a pilot of the player's side (+0x18) leaves its
-// region triggers (vlist entries with a region, +0x14) to the player's own
-// settings (his controls' vt+0x90; 0x0049e4c0 -> 0x004d9480, their end).
+// Mech3.exe 1.2 @ 0x0049e4e0 (ECX the player's settings): a pilot of the
+// same side (+0x18) leaves its region triggers (vlist entries with a region,
+// +0x14) to them (0x0049e4c0 -> 0x004d9480, their end).
+void take_triggers(ai::AiParams& to, const ai::AiParams& dead) {
+  if (!dead.vlist || to.team() != dead.team()) return;
+  for (const ai::VListEntry& e : *dead.vlist) {
+    if (!e.region) continue;
+    if (!to.vlist) to.vlist = new std::list<ai::VListEntry>;
+    to.vlist->push_back(e);
+  }
+}
+
+// 0x0049e540's path on a death (player.cpp's assume_duties, the mech's +0x04
+// only for its reports): the player's own settings (his controls' vt+0x90).
 // No player or no controls: reported in the exe, nothing here.
 void player_takes_triggers(const ai::AiParams& dead) {
   Mech* p = world().mission_player;
   auto* pc = p ? dynamic_cast<PlayerControls*>(p->controls) : nullptr;
-  if (!pc || !dead.vlist || pc->settings.team() != dead.team()) return;
-  for (const ai::VListEntry& e : *dead.vlist) {
-    if (!e.region) continue;
-    if (!pc->settings.vlist) pc->settings.vlist = new std::list<ai::VListEntry>;
-    pc->settings.vlist->push_back(e);
-  }
+  if (pc) take_triggers(pc->settings, dead);
 }
 
 // Mech3.exe 1.2 @ 0x004d8a00: the player takes its triggers (0x0049e540),

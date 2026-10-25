@@ -108,7 +108,7 @@ def make_pick_case(seed):
         case['arg'] = r.choice(list(range(-1, n)))
         case['side'] = r.randrange(2)  # keep_sides
     elif fn in (8, 9):
-        case['arg'] = f2u(r.choice([0.0, 50.0, 500.0, 999.9, 1000.0, 1000.5, 2000.0, 60000.0, -5.0]))
+        case['arg'] = f2u(r.choice([0.0, 50.0, 500.0, 999.9, 1000.0, 1000.5, 2000.0, 60000.0, -5.0, float('nan')]))
     elif fn == 12:
         case['arg'] = r.randrange(n + 1)
     else:

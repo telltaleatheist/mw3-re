@@ -1,6 +1,6 @@
 // Probes for test_mission_start.py (docs/mission-start.md): the mission
-// start's vehicles 0x0049e810 and what it calls in player.cpp, and the
-// player's tick 0x004a1160 (mech3/player). Every call out goes to the shared
+// start's vehicles 0x0049e810 and what it calls in player.cpp, the player's
+// tick 0x004a1160 and the launch's lancemates 0x0049e5e0 (mech3/player). Every call out goes to the shared
 // callback; the memory the code reads and writes outside player.cpp is a
 // model the test fills and reads back, as the emulator's memory is on the
 // original's side. The aiv.zrd records are the test's: read from the shipped
@@ -141,6 +141,7 @@ int32_t probe_player_get_record(int32_t i, uint8_t* raw, char* name, int32_t cap
 
 void probe_player_setup(int32_t full) { mech3::player_setup(full != 0); }
 void probe_player_tick() { mech3::player_tick(); }
+int32_t probe_player_launch() { return mech3::launch_lancemates() ? 1 : 0; }
 
 // The writes, as (address, value) pairs; returns how many (up to cap).
 int32_t probe_player_writes(uint32_t* out, int32_t cap) {

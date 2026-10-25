@@ -10,8 +10,8 @@ _access and _splitpath (case-insensitive, case-preserving, as NTFS); the port
 (tests/probe_pilot.cpp) runs the same plan on a real folder as its write dir.
 The plan: crafted files (some damaged), the listing (0x00478560), new pilots
 (0x004788b0), field changes in every game, items added, merged and taken from
-the stores (0x00472630, 0x00471940, 0x00471d20, 0x00472a30), lancemates and
-slot configurations, saved campaigns (0x004345a0), renames (0x00477fe0),
+the stores (0x00472630, 0x00471940, 0x00471d20, 0x00472a30), lancemates
+(the mission start's 0x004351c0 and 0x00435230 too) and slot configurations, saved campaigns (0x004345a0), renames (0x00477fe0),
 deletions (0x00477f50), selections (0x00478250, 0x00478ed0), saves, the
 debug start (0x00478a40), deleting the others (0x004785f0); then every file
 damaged in place (cut short, a count changed, a byte flipped, the header
@@ -51,6 +51,7 @@ CS_CTOR, CS_CTOR_S, CS_DTOR, CS_FORMAT, CS_BUFFER, ATEXIT = 0x5abdb0, 0x5abe04, 
 LIST_INIT, LOAD_ALL, CREATE, DELETE_PILOT, RENAME, FIND = 0x4779f0, 0x478560, 0x4788b0, 0x477f50, 0x477fe0, 0x478be0
 SELECT, SELECT_CAMPAIGN, OTHERS, OPEN, HEADER, DEBUG = 0x478250, 0x478ed0, 0x4785f0, 0x478ce0, 0x4794f0, 0x478a40
 NEW_CAMPAIGN, SLOT_CTOR = 0x4345a0, 0x433cc0
+SET_MATE, SET_MATES = 0x4351c0, 0x435230
 ADD_COPY, ADD_AMMO, REMOVE, REMOVE_MECH = 0x472630, 0x471940, 0x471d20, 0x472a30
 PILOTS, COUNT, CURRENT = 0x60860c, 0x608610, 0x60861c
 RECORD, LANCE_RESET, STORE_CTOR, SALVAGE = 0x478f10, 0x435240, 0x470ce0, 0x609990
@@ -624,6 +625,20 @@ class Emulated(Files):
                     if k:
                         self.cpu.u32(sl + 8, self.fake_config(k))
                     self.push(g + 0x90, sl)
+            elif op == 'h':  # the mission start's lancemate i: a new slot (mech, 0, 0) and its record
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 1, int(p[2])) if pl else 0
+                if g:
+                    i, mech, x14 = (int(x) for x in p[3:6])
+                    sl = self.alloc(0x18)
+                    self.call(SLOT_CTOR, ecx=sl, stack=(mech & 0xffffffff, 0, 0))
+                    self.cpu.u32(sl + 0x14, x14 & 0xffffffff)
+                    self.call(SET_MATE, ecx=g, stack=(i & 0xffffffff, sl))
+            elif op == 'k':  # and their count
+                pl = self.find(unhx(p[1]))
+                g = self.game(pl, 1, int(p[2])) if pl else 0
+                if g:
+                    self.call(SET_MATES, ecx=g, stack=(int(p[3]) & 0xffffffff,))
             elif op == 'K':
                 pl = self.find(unhx(p[1]))
                 g = self.game(pl, int(p[2]), int(p[3])) if pl else 0
@@ -877,9 +892,18 @@ def campaign_steps(r, n):
     for _ in range(r.randrange(0, 6)):
         lines.append(f'A {hx(n)} 1 0 {r.choice([8, 0x3c, 0x50, 0x64, 0x78]):x} {r.randrange(5)} '
                      f'{r.choice([1, 2, 5])} {r.randrange(3)} {r.choice([1, 3])} {r.randrange(3)} {r.choice([-1, 2])}')
-    for _ in range(r.randrange(0, 3)):
+    mates = r.randrange(0, 3)
+    for _ in range(mates):
         mech = r.choice([3, 3, 0x13, r.randrange(20)])  # the player's mech again, and 0x13, which is never listed
         lines.append(f'T {hx(n)} 0 {mech} {r.randrange(3)} {r.randrange(4)} {r.choice([0, mech, mech, 77])}')
+    if r.random() < 0.5:  # the mission start's lancemates (player_setup): each a slot there or the next
+        k = 0
+        for _ in range(r.randrange(1, 4)):
+            i = k if r.random() < 0.6 or k >= mates else r.randrange(mates + 1)
+            lines.append(f'h {hx(n)} 0 {i} {r.randrange(19)} {r.randrange(-1, 30)}')
+            mates += i == mates
+            k += 1
+        lines.append(f'k {hx(n)} 0 {r.choice([k, k, 0, 5, -1])}')
     if r.random() < 0.6:
         mech = r.choice([3, 5])
         lines += [f'V {hx(n)} 1 0 24 {mech:x}', f'K {hx(n)} 1 0 {r.choice([mech, mech, 0, 9])}']

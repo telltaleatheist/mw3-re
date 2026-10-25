@@ -360,6 +360,12 @@ class WiredLaunch : public LaunchHooks {
   void pilot_478f10(Handle p) override {
     if (!program_record_mission(false)) LaunchHooks::pilot_478f10(p);
   }
+  // 0x0049e5e0 at a campaign's launch: the lancemates' mechs (player.cpp).
+  void lancemates() override { program_launch_lancemates(); }
+  // 0x004d6d20: the mech's sensor range, capped (ai::AiTarget).
+  void target_4d6d20(Mech& m, uint32_t v) override {
+    m.set_sensor_range(g_w.handle_of(g_w.engine, &m), zgame::from_bits(v));
+  }
   uint8_t cheat_invincible() override { return static_cast<uint8_t>(g_w.peek32(g_w.engine, 0x608e40)); }
   int32_t option_invincible() override { return mech3::invincible(); }  // options.h (not includable with mech.h)
   // The missions' list at +0xc0 is not in the program's memory.
@@ -1010,6 +1016,13 @@ bool describe_mech(const void* mech, LaunchedMech* out) {
 
 void* build_ai_mech(int32_t mech, void* controls, int32_t config, const char* name) {
   return mech_create(mech, static_cast<MechControls*>(controls), config, name);
+}
+bool program_mech_configure(void* mech, void* config) {
+  return mech && mech_configure(*static_cast<Mech*>(mech), static_cast<Config*>(config));
+}
+int32_t program_mech_roster(const void* mech) { return static_cast<const Mech*>(mech)->pilot->roster; }
+void* program_mech_own_net(void* mech, uint32_t self) {
+  return static_cast<ai::AiNet*>(ai::vehicle_net_of(*static_cast<Mech*>(mech), self));
 }
 bool set_mech_skin(void* mech, void* skin) { return mech && mech_set_skin(*static_cast<Mech*>(mech), skin); }
 int32_t place_mech(void* mech, const float pos[3], uint32_t yaw) {

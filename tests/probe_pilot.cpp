@@ -457,6 +457,20 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
       s->x14 = x14;
       if (k) s->config = fake_config(k);
       g->lancemates.push_back(s);
+    } else if (op == "h") {  // the mission start's lancemate i (0x004351c0)
+      int c = 0, i = 0, mech = 0, x14 = 0;
+      ls >> a >> c >> i >> mech >> x14;
+      Pilot* p = named(a);
+      auto* g = p ? dynamic_cast<CampaignGame*>(game_of(p, 1, c)) : nullptr;
+      if (!g) continue;
+      auto* s = new GameSlot(mech);
+      s->x14 = x14;
+      g->set_lancemate(i, s);
+    } else if (op == "k") {  // their count (0x00435230)
+      int c = 0, n = 0;
+      ls >> a >> c >> n;
+      Pilot* p = named(a);
+      if (auto* g = p ? dynamic_cast<CampaignGame*>(game_of(p, 1, c)) : nullptr) g->set_lancemate_count(n);
     } else if (op == "K") {  // a game's own slot's configuration
       int g = 0, i = 0, k = 0;
       ls >> a >> g >> i >> k;

@@ -183,6 +183,7 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   mech looked up for index 0 too, the controller kept on a failed mech,
   the configuration index's signed check dropped, the record not passed as
   the controller, one team per value.
+- The launch's lancemates are a third entry of the same test (section 12).
 - What the test leaves out: a lancemate slot's allocation failing and a
   vehicle build failing with the record as its controller (both crash the
   exe, section 9), a name over 235 characters (it would overwrite the
@@ -237,15 +238,20 @@ multiplayer 0x00537f20(10), the vehicle's 0x0041aba0 and the view's vt+8.
   suffix without a net; none ship. FIX (bug), behind `bugs`: no controller.
 - A lancemate slot whose `new` fails is written through (a crash). FIX
   (bug): skipped (new does not fail).
+- The launch's lancemates (section 12): the name's `sprintf(buffer, name)`
+  (FIX (bug): as text); 0x0049e540 without a player vehicle reads on
+  through it, and with the player's settings but no record 0x0049e4e0
+  reads the missing record (FIX (bug): both stop; neither happens in play).
 
 ## 10. Left
 
 - The launch 0x00491150 and the mech's constructor chain (0x00414150,
   0x004140c0, 0x004149f0 and down) are ported: mech-build.md. The AI mechs
   of section 4 can use it (`app_mission.cpp` wires `mech_create` to it)
-  once their controls are. Left of the launch: 0x0049e5e0 (the campaign's
-  lancemates from their slots, with 0x0049e540), 0x0049dc80 (instant
-  action's line-up from its records, 381 lines), 0x0046da80 (multiplayer).
+  once their controls are. The campaign's lancemates (0x0049e5e0 with
+  0x0049e540) are ported: section 12. Left of the launch: 0x0049dc80
+  (instant action's line-up from its records, 381 lines), 0x0046da80
+  (multiplayer).
 - The builders' callees: the vehicles 0x004589d0 / 0x004ac320, their setup
   0x0049ef40 and 0x0049f660 (and their vt+0xdc place), the skin swap
   0x004757f0. The AI controls 0x004d8750 / 0x004e71c0 are ported up to the
@@ -420,3 +426,103 @@ are found only once mechlib nodes carry their models as `model`
 (Node::lib_model, cls_mechlib); the vehicles' vt+0xdc; zEntity's marker
 nodes (0x005a8390: the program's stand-in uses the mech's own node).
 
+
+## 12. The launch's lancemates: 0x0049e5e0 and 0x0049e540
+
+A campaign's lancemates are slots of the campaign (section 2, item 9);
+their mechs are made at launch, after the player's (0x00491150, mission.cpp,
+game type 1; mech-build.md section 8). 0x0049e5e0, in order:
+
+1. Only for game type 1 (the pilot's game's vt+0x2c). An aiv.zrd record
+   object (0x004e0490); 0x004decf0's count asked and not used.
+2. The campaign (0x00479440) and, with one, record 0 read (0x004e0600)
+   only to see that there is one. The player's slot (the game's vt+0x34(0))
+   gives its paint (+0x10), read whether or not there is a campaign.
+3. No campaign or no record 0: 0. Otherwise every slot from 1 up to the
+   campaign's count (vt+0x38, the player and the first +0x9c lancemates),
+   stopping at the first slot vt+0x34 does not give:
+   - its record (+0x14) read;
+   - **a slot without a mech** (+0x04 == -1, the mech lab's empty entry)
+     hands its record to 0x0049e540: the player takes over its duties;
+   - otherwise, when the record reads: an AI mech (0x0049fa20, section 4)
+     of the slot's mech, type `dontcare`, named the record's name (through
+     `sprintf(buffer, name)`), on **the player's own net** (his vehicle's
+     vt+0xd8, 0x004d70f0: the seven-behaviour net, ai.md section 9), not
+     the record's path. Made: the slot's loadout (+0x08) on it (0x00414430,
+     which keeps the record's when the slot has none or another mech's), then
+     the skin of the **player's** paint index from the mech's definition
+     (0x004846a0 on [[mech +0x684] +0x0c], its skins +0x1c), none when the
+     index is out of range (0x00414390 is called either way).
+4. 1.
+
+0x0049e540 (ECX the pilot): no player vehicle (+0x14), "Player does not
+exist so cannot assume duties of %s" (then the exe reads through it); his
+controls (+0x37c) as their IControls base, none: "Player has no controller
+so cannot assume duties of %s"; their settings (vt+0x90, 0x00428710 ->
+0x00428470: the controls' +0x5c), none: "Player controller has no ai
+parameters so cannot assume duties of %s"; else 0x0049e4e0: when the
+record is on the player's team (+0x18), each of its vlist triggers with a
+region (+0xd0, entries' +0x14) joins the player's settings' vlist, which
+his controls' tick runs (0x004d8990). A dead AI pilot's triggers go the
+same way (0x004d8a00).
+
+The slots themselves, at the mission start: 0x00433cc0 (mech, no loadout,
+paint 0) with the record's index at +0x14, then 0x004351c0(i, slot): the
+next one is appended; a slot already there keeps its mech and loadout,
+takes the new one's +0x14, and the new one is deleted. So slots and records
+pair by order: the mission's i-th lancemate record (in aiv.zrd's order)
+goes to slot i, whoever its pilot. 0x00435230 sets the count (+0x9c) to the
+mission's number of lancemate records; slots past it stay in the campaign,
+unused in that mission.
+
+**The sensor range at launch** (0x004d6d20 on the player's mech, the
+launch's last step before its HUD): the mech's own range (+0x9c, 1000 from
+the constructor) again, capped at 1000; the player's vehicle in Instant
+Action and multiplayer gets 50000 instead (0x005e8d8c). A NaN range is kept
+(the x87 compare's C0|C3). The radar key's doubling (0x0041bfd8,
+0x0041c01c, 0x0041c04c) goes through the same cap.
+
+**The port.** `mech3::launch_lancemates` and `assume_duties` (player.cpp),
+`CampaignGame::set_lancemate` / `set_lancemate_count` (pilot_games.cpp),
+`take_triggers` (0x0049e4e0, mech_control.cpp), `AiTarget::set_sensor_range`
+(zai_target.cpp). The program (app_mission.cpp) wires player_setup's slot
+calls to the campaign's GameSlots and the launch's to the port's mechs,
+controls and settings; the launch (app_mech.cpp) calls both. A debug
+campaign start, which has no pilot's game, gets a campaign of the
+program's own (our addition), so `mw3 --mission` shows the lancemates
+too; from the menus the pilot's campaign is used.
+
+**Checked.** `test_mission_start.py` runs 0x0049e5e0 as a third entry
+(the launch) on every case: 0 to 3 slots (a count off by one, a slot
+missing, a slot without a mech, a record failing to read), the player's
+paint 0..9 or -1, his net, controls and settings or none; the AI mech's
+builder, placement and definitions as in section 7 (a made mech always has
+its definition: the exe reads through a missing one). 400 cases: 84
+launches ran, 59 mechs made, 53 configured, 30 triggers taken, 14 duties
+refused. `test_pilot.py` runs 0x004351c0 and 0x00435230 on the pilots'
+campaigns (an existing slot or the next, counts 0, 5 or -1).
+`test_ai_targets.py` covers 0x004d6d20 (game types, the player or not,
+vt+0x58, NaN). `mw3tests` `mission_c2m1_lancemate_made_from_his_slot_headless`:
+c2 mission 1's debug start makes Dominic Paine a slot (record 5, mech 13)
+and his mech at launch, with his brain; he is in the command mode's panel,
+picked by key 1, takes lance order 0 and follows the player on every frame
+after it; the player's range stays 1000. With his slot emptied (-1) and
+the launch's step run again, his record's 9 place triggers join the
+player's settings. `mission_c1m1_command_marker_answers_as_an_aitarget_headless`
+asks the command marker (a plain AiTarget, vtable 0x005ccfe0) the sensors'
+slots: itself at vt+0x24 / +0x28 / +0x2c (0x004d2a70), 0 at +0x40 / +0x50 /
++0xb4, +0x08 at +0xcc, 1 at +0xd0, and no veh.vt+0x2c logged (1,540 a
+c1m1 run before). Breaking the port showed the tests catch it, 21 of 21:
+the slots counted from 0, a missing slot skipped, the paint read from
+slot 1, its bound `<=` (a sentinel past the skins), the record's net, an
+empty slot made as a mech, the 0x18e report dropped, the loadout read from
++0x0c, training let through, record 0 not checked, the triggers taken
+without settings; 0x004351c0 appending one late or taking the whole slot,
+the count not set; a NaN range capped; the marker's vt+0x2c or +0xcc
+wrong; and in the program the launch not calling it, the slots not made,
+the count not set, the player's settings not given.
+
+Quirks and fixes (fixes.md): the name's `sprintf(buffer, name)`, copied as
+text (FIX (bug)); no player vehicle in 0x0049e540, the exe reads on through
+it, and a slot without a mech whose record fails to read, which 0x0049e4e0
+reads through (FIX (bug): both stop).
