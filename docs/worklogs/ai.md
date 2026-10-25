@@ -1598,3 +1598,17 @@ is paused.
   t1m2 (four targets). Found: only training targets have `radar`; the
   vehicles' markers are the stealth object's. mission_c1m1_hud_weapon_lines
   test: its blip counts are the mechs' now (turrets and trucks show too).
+- Lead merged item 3 (f0e2f22).
+
+## Item 4: the models' effects, render leftovers (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/model-fx off main. The model texture
+  scroll 0x526ae0 (flag 0x10 at +8, u / v at +0x28 / +0x2c; callers the
+  turret EFFECT 0x526ae0(1, 10, 0) and the interp command, interp.md ~487)
+  and where the draw applies it (render.md section 3: unverified; port it if
+  small); the model animate 0x541ad0 (the turret frame's step 5, the interp
+  list's Clear(1)); the node blend tint 0x4fb8c0 and its switch 0x4fb840
+  (the vehicles' damage reddening, vehicles.md 280 / 1237), whether the
+  draw reads it (render.md's tint bit 4 [0x74a270]; a headless frame if
+  wired). Per-frame steps to time behind per_second. Differential, breaks,
+  docs, discoveries.
