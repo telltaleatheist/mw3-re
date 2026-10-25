@@ -9,6 +9,7 @@ namespace mech3 {
 
 void wire_hud();                  // the hooks onto the ports; called with the mech frame's
 void unwire_hud();
+void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle pick (0x0040e920 through its hooks)
 void program_hud_update(float dt);  // 0x0040fac0's first call: the view target's 0x0041cd40
 // For the tests: the view target's reticle (x, y), its world point and
 // whether the ray hit something; false without a HUD.

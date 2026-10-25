@@ -1,3 +1,4 @@
+#include "mech3/app_mech.h"
 #include "mech3/app_turret.h"
 
 #include <algorithm>
@@ -15,6 +16,7 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
+#include "mech3/entity_bind.h"
 #include "mech3/zai_anim_owner.h"
 #include "gamez/zentity/zent_init.h"
 #include "gamez/zmath/zmth_matrix.h"
@@ -215,8 +217,16 @@ struct WiredTurrets : tur::TurretHooks {
     auto& l = ai::entity_list();
     l.erase(std::remove(l.begin(), l.end(), self), l.end());
   }
+  // 0x004d6c90: the old node unbound (0x0040ed00), the markers, the new one
+  // bound to the turret (0x0040eaa0: its vt+0x48 is itself, bit 17).
   void entity_set_node(Handle self, Handle n, Handle* target_node, Handle* centroid_node) override {
-    (void)self;
+    auto* turret = static_cast<Turret*>(ob(self));
+    if (turret && turret->node) entity_unbind(zn(turret->node), turret, entity_unbind_calls());
+    if (zn(n) && turret) {
+      EntityCasts casts;
+      casts.turret = turret;
+      entity_bind(zn(n), turret, casts);
+    }
     zcls::Node *c = nullptr, *t = nullptr;
     if (zn(n)) zent::marker_nodes(zn(n), nullptr, nullptr, &c, &t);  // 0x004d6c90 passes 0, 0
     *target_node = n ? hd(t ? t : zn(n)) : 0;

@@ -75,6 +75,9 @@ void mechs_shutdown();          // 0x00414000: the mechs' mission end (app_missi
 // For the tests: the radar blips made, a motion loading from the archive, the scripts' path made.
 void mechs_end_state(bool* blips, bool* motion, bool* path);
 void mechs_make_blips();  // for the tests: the radar's first need (app_sensors.cpp)
+void* mech_last_attacker(const void* mech);  // for the tests: +0x664, the last to hit it
+struct UnbindCalls;
+const UnbindCalls& entity_unbind_calls();  // 0x0040ed00's: a part's mech (0x00460000); targets bind their own
 // 0x004782c0(0): the pilot's mech let go: its fire mode out (false without
 // weapons), the mech globals cleared.
 bool mech_player_release(void* mech, int32_t* fire_mode);

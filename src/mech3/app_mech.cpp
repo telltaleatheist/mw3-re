@@ -2,6 +2,7 @@
 // section 9). Not original code: it stands where the exe's other modules
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
+#include "mech3/entity_bind.h"
 #include "mech3/landmines.h"
 #include "mech3/pocket_panel.h"
 #include "mech3/cockpit_sound.h"
@@ -957,6 +958,17 @@ void mechs_shutdown() {
   mech_dead_clear();
   mech_radar_blips_destroy();
 }
+void* mech_last_attacker(const void* mech) {
+  return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->attacker : nullptr;
+}
+const UnbindCalls& entity_unbind_calls() {
+  static const UnbindCalls c = [] {
+    UnbindCalls u;
+    u.part_mech = [](zcls::Node* n) -> void* { return n->owner ? static_cast<MechPart*>(n->owner)->mech : nullptr; };
+    return u;
+  }();
+  return c;
+}
 void mechs_make_blips() {
   if (!mech_radar_blip(0)) mech_radar_blips_create();
 }
@@ -1380,9 +1392,13 @@ int32_t world_segment_first(const float from[3], const float to[3], uint32_t exc
 int32_t ai_volley_pick(void* wm, const float* dist2) {
   auto* m = static_cast<WeaponManager*>(wm);
   if (!m) return 0;
-  auto* mech = static_cast<Mech*>(m->owner);
+  // The manager's owner is a mech or a vehicle (a truck, an APC); the brain
+  // behind either (the exe asks the owner's vtable, ai.md 17.7).
+  Mech* mech = entity_is_mech(m->owner) ? static_cast<Mech*>(m->owner) : nullptr;
   auto* ctl = mech ? dynamic_cast<AiControls*>(mech->controls) : nullptr;
   ai::Brain* b = ctl ? ctl->brain.get() : nullptr;
+  if (!mech && is_program_vehicle(m->owner))
+    b = static_cast<ai::Brain*>(program_vehicle_brain(program_vehicle_controls(m->owner)));
   VolleyPilot p;
   if (b) p.hold = b->params.get<float>(0x34), p.chance = b->params.get<float>(0x90);
   const float heat = mech ? mech->heat : 0.0f;

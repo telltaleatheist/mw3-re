@@ -583,14 +583,12 @@ struct WiredPlayerHooks : PlayerHooks {
     else PlayerHooks::vehicle_update(v, dt);
   }
   void entities_update(float dt) override { update_entities(dt); }  // 0x004a1140
-  // 0x004d52b0: every znet object's vt+0x2c (vt+0x28 is itself, 0x004d2a70):
-  // the mcbwaynet's (0x00479a50) is ported; the numbered objects' 0x004d5350
-  // (each AI net's items swizzled and linked) and the other waynets' begin
-  // are not, logged.
-  void nets_begin() override {
-    program_nets_begin();
-    PlayerHooks::nets_begin();
-  }
+  // 0x004d52b0 / 0x004d5300: every znet object's vt+0x2c / vt+0x30 (vt+0x28
+  // is itself, 0x004d2a70). Only the waynets' begin (0x00479a50) changes the
+  // port's state; the nets' and regions' 0x004d5350 / 0x004d53f0 are no-ops
+  // here (docs/ai.md, The nets' begin and end).
+  void nets_begin() override { program_nets_begin(); }
+  void nets_end() override {}
   Handle view() override { return e->player_view(); }
   Handle view_target(Handle v) override { return e->field32(v, 0x64); }
   // view.vt+0x08 (0x0040ada0): the port's view, each player tick.

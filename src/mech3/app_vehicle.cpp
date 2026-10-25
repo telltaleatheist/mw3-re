@@ -12,9 +12,11 @@
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/znetwork/znet_object.h"
 #include "gamez/ztwod/twod.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app_mech.h"
+#include "mech3/entity_bind.h"
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
@@ -65,12 +67,18 @@ struct WiredVehicles : VehBasicHooks {
   void node_detach(Handle node) override { zwep::remove_handlers(node); }  // 0x00583400
   void controls_set_owner(Handle c, BasicVehicle& v) override { static_cast<VehicleControls*>(c)->owner = &v; }
   void controls_delete(Handle c) override { delete static_cast<VehicleControls*>(c); }
-  // 0x004d6c90: the node, its matrix and markers; not its entity (0x0040eaa0:
-  // bits 0x80000 and the owner over the tree, 0x0040ebe0), so a vehicle's
-  // node does not lead back to it (node_entity): logged.
+  // 0x004d6c90: the old node unbound (0x0040ed00), the node, its matrix and
+  // markers, and the new one bound to the vehicle (0x0040eaa0: vt+0x40 and
+  // vt+0xec are itself, bit 19), field bases alike.
   void entity_set_node(Vehicle& v, Handle node) override {
+    void* self = static_cast<BasicVehicle*>(&v);
+    if (v.node) entity_unbind(zn(v.node), self, entity_unbind_calls());
     vehicle_set_node(v, node);
-    unported("0x0040eaa0", {ref(&v), low(node)});
+    if (zn(node)) {
+      EntityCasts casts;
+      casts.vehicle_base = casts.vehicle = self;
+      entity_bind(zn(node), self, casts);
+    }
   }
   void zentity_set_node(Vehicle& v, Handle node) override { v.node = node; }            // 0x005a8390 with none
   // 0x005a7f50 / 0x005a7f70: zEntity's list, the port's (mech3/sensors).
@@ -363,8 +371,38 @@ void program_field_base_aim_arms(void* v, bool open) {
 void program_field_bases_mission_start() { field_bases_mission_start(); }
 void program_field_bases_frame(float dt) { field_bases().frame(dt); }
 void program_waynet_mission(void* (*get)(), void (*set)(void*)) { g_mission_waynet = get, g_set_mission_waynet = set; }
-void program_nets_begin() {  // 0x004d52b0's for the mcbwaynet (vt+0x2c 0x00479a50)
-  if (McbWaynet* w = mcb_waynet()) w->begin();
+// 0x004d52b0: every znet object's vt+0x2c, in the registry's order. Of them
+// only the waynets' (0x00479a50) changes anything in the port: the first one
+// finds the marker and selects its point 0, the rest find it taken. The AI
+// nets' and regions' 0x004d5350 is a no-op here (docs/ai.md, The nets' begin).
+void program_nets_begin() {
+  for (znet::Object* o : znet::registry().list)
+    if (auto* w = dynamic_cast<Waynet*>(o)) w->begin();
+}
+bool program_waynet_marker(float out[3]) {
+  auto* m = static_cast<zcls::Node*>(waynet_marker());
+  if (!m) return false;
+  zcls::object3d_get_translation(m, &out[0], &out[1], &out[2]);
+  return true;
+}
+bool program_waynet_selected(int32_t i, float out[3]) {
+  for (znet::Object* o : znet::registry().list)
+    if (auto* w = dynamic_cast<Waynet*>(o); w && i-- == 0) {
+      const float* p = w->position_of(w->current);
+      if (!p) return false;
+      out[0] = p[0], out[1] = p[1], out[2] = p[2];
+      return true;
+    }
+  return false;
+}
+int32_t program_waynets(const char** names, int32_t* points, int32_t cap) {  // for the tests
+  int32_t n = 0;
+  for (znet::Object* o : znet::registry().list)
+    if (auto* w = dynamic_cast<Waynet*>(o)) {
+      if (n < cap) names[n] = w->label.c_str(), points[n] = w->count() - 1;
+      ++n;
+    }
+  return n;
 }
 void program_mcb_command(void* mech) {  // 0x0047a910 (MCB_COMMAND)
   if (McbWaynet* w = mcb_waynet()) w->command(mech);

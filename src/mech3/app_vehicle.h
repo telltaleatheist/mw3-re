@@ -57,6 +57,11 @@ bool program_nav_waynet_delete(void* o);
 bool program_is_nav_waynet(void* o);
 uint8_t program_nav_waynet_frame(void* w, void* vehicle);
 void program_waynet_icons_free();
+// For the tests: the waynets in znet's registry order, their labels and point counts.
+int32_t program_waynets(const char** names, int32_t* points, int32_t cap);
+// For the tests: the waynet marker's place (false: none found), the i-th waynet's selected point's.
+bool program_waynet_marker(float out[3]);
+bool program_waynet_selected(int32_t i, float out[3]);
 void* program_waypoint_marker();
 void* program_waypoint_icon(void* p);
 bool program_is_waypoint_icon(const void* b);  // one of the radar's two waypoint icons

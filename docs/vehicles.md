@@ -1579,6 +1579,66 @@ other entity as the unported "entity vt+0x34". `test_program`'s c1m1 death run p
 stranger entry in the list and checks it is skipped (treating every entry
 as a mech crashes that run).
 
+## The node binding (0x4d6c90 -> 0x40eaa0; ported 2026-10-25, item 16)
+
+A hit, a pick or a sight line meets a node; the game finds the object behind
+it from the node itself (0x40e920, `node_entity`): +0x28 holds a kind bit and
++0x40 the object. zEntity3d's node set (0x4d6c90, ECX the entity, from every
+entity's set-node) unbinds the old node (0x40ed00), sets the node
+(0x5a8390) and binds the new one (0x40eaa0) over its whole tree (0x40ea30;
+each call keeps its own node holder, so the walk is sound). The bind asks the
+entity's casts in turn, and the first that answers names the kind and the
+owner the nodes get:
+
+| cast | then | kind | who |
+|---|---|---|---|
+| vt+0x48 | | bit 17 (0x20000) | the turrets (vtable 0x5c8770: itself) |
+| vt+0x40 | its vt+0x50 | 0x1000 | the mechs |
+| | its vt+0xec | bit 19 (0x80000) | the basic vehicles and the field bases (0x5c88e8, 0x5c23d8: vt+0x40 and vt+0xec themselves) |
+| | neither | bit 18 (0x40000) | the base itself |
+| vt+0x60 | its vt+0xe4 | bit 22 | traps |
+| | its vt+0xdc | bit 21 | targets |
+| | neither | bit 20 | the base itself |
+| none | | bit 16 | the entity (the pocket commander's marker) |
+
+The unbind reads the node's own bits the same way (0x40e990 bit 17;
+0x40e960 bit 18, else a vehicle class's owner 0x40e9d0, which is a part's
+mech through 0x460000 for a part's node, else bit 19; 0x40e8f0 bit 20, 21,
+22, whose owner's vt+0xe4 / vt+0xdc pick trap or target) and takes the kind
+and owner off the tree's nodes whose owner is the one found (0x40ec20).
+
+**In the program**: `mech3/entity_bind` is 0x40eaa0 and 0x40ed00. Before item
+16 the vehicles, field bases and turrets were never bound (their nodes id 0,
+no owner), so nothing found them from a node: a shot's shooter credit, the
+HUD's reticle pick, the mechs' collider sorting what it bumps, the commands'
+picks. Now the vehicle set-node (`app_vehicle.cpp`, field bases too) and the
+turret's (`app_turret.cpp`) unbind and bind as the exe; mechs are bound by
+their set-up (0x415ae0, the same bits), targets and traps by their own
+(`app_mission.cpp`), the pocket marker by its. The port's `Turret::set_node`
+now stores the node after the hook (0x4a6230 does not store it: 0x5a8390
+does, inside 0x4d6c90), so the hook sees the old node to unbind. The AI's
+sight line (0x4d5980) does not use the binding: it turns both entities'
+INTERSECT off and asks only whether anything blocks.
+
+Found with it: the AI's volley pick (0x4b1860's pilot) read the weapon
+manager's owner as a mech in the port; a truck's AI firing at a player near
+it crashed. It now takes the brain from a mech's AI controls or a vehicle's
+(`ai_volley_pick`, app_mech.cpp; a port bug, the exe asks the owner's vtable).
+
+**Checked.** `test_entity_bind.py` (probe `tests/probe_entity_bind.cpp`):
+5000 binds and unbinds over trees of 1 to 12 nodes with kinds from every bit
+that matters, owners among six objects whose vtables answer the casts at
+random, compared node by node. `mw3tests`
+`mission_c1m1_truck_nodes_name_the_truck_headless`: every node of a truck
+carries bit 19 and the truck, node_entity and the HUD's pick find it from
+the root and a deep child; the 14 turrets carry bit 17 and the 3 field bases
+bit 19; the player's PPC shot stops on the truck's node and damages it (20 to
+9); the truck's own shot leaves it as the player's last attacker (+0x664)
+from the hit to the next player tick, whose 0x41aba0 clears it (damage.md
+section 2, as the exe).
+The glow test (`mission_c1m1_laser_leaves_its_glow_on_a_truck_headless`)
+now lights the truck with a real beam fired by the player.
+
 ## A mobile field base lost (0x004590b0; found 2026-10-21, ported in step 4b5)
 
 Run when a field base dies (it starts with the basic vehicle's death

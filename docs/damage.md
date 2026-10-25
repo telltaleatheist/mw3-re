@@ -128,7 +128,19 @@ splash:      0x5829b0 (linear falloff, see below)             -> 0x583480
 1. Ignored if the mech is dead (state +0x578 == 10) or inactive (+0x08 == 0).
 2. Records the attacker at +0x664 (killer for the kill credit and the network
    death message; from the shot's owner `[0x9a0edc]`, 0x40e920) and tells the
-   controls/AI (+0x37c, vtable +0x94).
+   controls/AI (+0x37c, vtable +0x94). Every hit overwrites it (null for a
+   shot without a shooter node). For the player's mech it lasts one frame:
+   the player tick (0x4a1160, the tick object's action; at 0x4a121a) runs 0x41aba0 on the pilot's
+   mech after its update and the entities', and that clears +0x664
+   unconditionally. Hits land in the weapon tick (priority 3, after the
+   player's 2), so the field holds the shooter from the hit to the end of
+   the next player tick. The readers that matter take it at once: the kill
+   credit inside this call (Die, 0x41b420), the AI's or the controls' on_hit
+   just below; an AI mech's field is cleared only by the next hit or the
+   forget chain (fixes.md). Checked in play in the port:
+   `mission_c1m1_truck_nodes_name_the_truck_headless` sees it set on the
+   frame of the truck's hit and cleared on the next, and the only writes are
+   that take_damage and 0x41aba0 (watched, 2026-10-25).
 3. `HEAT` second value (WeaponType +0xc, x frame time for beams) is added to the
    target's heat at the end (0x419e40). It is 0 in every shipped weapon. A hit
    that does nothing (below) adds none.
