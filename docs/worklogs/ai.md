@@ -1627,3 +1627,12 @@ is paused.
   headless c1m1 horscroll 0.015/s. The tests' process reset now resets the
   interp's ScrollAlways list (0x5962a0): a stale holder from the last
   test's freed world kept the next mission's from being made.
+
+## Item 4b: the lighting's fog mix to the device (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/mix-fog off mac4/model-fx, rebased on
+  main once 4a is merged. mix_fog 0x5680c0 with 0x579950, send_mix_fog
+  0x579980, point_color 0x5798a0, light_hooks set in the program's render
+  wiring (mirroring zrndr_fog; the software ramp 0x56c170 may stay a hook);
+  app_hud's TARGET view vt+0x68 (object_view_flag). Headless frame: a
+  damaged vehicle's red and a point-lit model's mix.
