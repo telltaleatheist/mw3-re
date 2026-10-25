@@ -1000,6 +1000,16 @@ From the network code (network-messages.md).
   coloured. In Direct3D the colour is one quad over the whole screen.
 - **A software-mode flash never wears off by itself:** the colour is kept and
   laid over every following frame until the game sets another (0x558610).
+- **Rain is not falling drops: it is new random streaks every frame.**
+  Each frame every raindrop is a fresh random point on the screen, and its
+  streak is one frame's motion as the camera sees it: the fall, the wind
+  and your own movement against them. Walk forward and the streaks lean
+  towards you; stand still in c4 and they fall nearly straight. Nothing
+  carries over from one frame to the next, and a drop that would reach past
+  the screen's edge is simply not drawn (0x5a6110, `weather.md`).
+- **The training grounds rain too:** all four training missions have a
+  light grey rain (60 drops), and the only rain in the third campaign is in
+  multiplayer map 2 (`world-params.md`).
 - **Fades and flashes in Direct3D are one see-through rectangle** drawn over
   everything, depth ignored, in the frame's last scene (0x57dd80, 0x57e380).
 - **The software renderer draws with the stack pointer** (`blit-trick.md`). To

@@ -411,9 +411,9 @@ bool CoreState::draw_software(Handle veh, bool flag) {
     return true;
   }
   world_tick(en);
-  en.effects_draw(0, render);
+  en.weather_rect(0, render);
   en.video_lock();
-  en.particles_draw(en.frame_dt());
+  en.weather_tick(en.frame_dt());
   en.render_flush(window);
   en.render_finish();
   en.video_unlock();
@@ -536,9 +536,9 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
     return true;
   }
   world_tick(en);
-  en.effects_draw(0, window);
+  en.weather_rect(0, window);
   en.video_begin_3d();
-  en.particles_draw(en.frame_dt());
+  en.weather_tick(en.frame_dt());
   en.video_end_3d();
   en.video_begin_scene();
   en.video_draw_3d();
@@ -635,9 +635,9 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
     en.scene_draw(scene);
   }
   world_tick(en);
-  en.effects_draw(0, render);
+  en.weather_rect(0, render);
   en.video_begin_3d();
-  en.particles_draw(en.frame_dt());
+  en.weather_tick(en.frame_dt());
   en.video_end_3d();
   en.video_double(render, display);
   en.video_lock();

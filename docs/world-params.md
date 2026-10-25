@@ -76,7 +76,8 @@ All lookups are zReader `find` (depth first) inside the block.
    `alpha_gradient` vec2 -> +0x48, +0x4c; then added to the particle
    manager 0x736328 (0x59fbe0). `gravity` is only ever the weather's, the
    rain's fall speed; world gravity is the `WorldSetGravity` command
-   (interp.md).
+   (interp.md). The rain itself (the classes, its update and draw) is in
+   `weather.md`; the program makes it since item 19 (snow: 19b).
 8. `fluctuate` (+8 = 1): `period` (5) -> 0x543920 (stores 2pi / period),
    `wavelength` (500) -> 0x543940, `base` (0.7) and `amplitude` (0.3) ->
    0x543960 (clamps base to 0..1 and |amplitude| to base and 1 - base),

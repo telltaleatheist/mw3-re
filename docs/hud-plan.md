@@ -82,8 +82,8 @@ not the HUD's.
    frame-rate text 0x40f1f0: nothing a player can reach. They can wait for
    the stealth object and BASIC mode at the end (CLAUDE.md), whose debug
    key would bring the developer lines back with it.
-5. (Moved) The ticks 0x5a6790 / 0x5a67c0 go with the weather item, outside
-   the HUD (rename them then: `weather_rect` / `weather_tick`).
+5. (Done 2026-10-25, with the rain) The ticks 0x5a6790 / 0x5a67c0, now
+   `weather_rect` / `weather_tick` (weather.md).
 6. **0x40fac0 as the exe's one call**, its parts in their order, replacing
    the program's separate calls; `mech_screen` to `pilot_hud`. Shows:
    nothing new; the order of the HUD's updates becomes the exe's.
