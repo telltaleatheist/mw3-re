@@ -15,6 +15,10 @@ int object3d_set_opacity(Node* node, float v);                    // 0x004fba20 
 int object3d_get_opacity(Node* node, float* out);                 // 0x004fbaa0
 int object3d_opacity_used(Node* node, uint32_t* out);             // 0x004fbb10  data flag 2
 int object3d_use_opacity(Node* node, int on);                     // 0x004fbb90  data flag 2
+// The colour blend the draw mixes in (data flag 4, +8..+0x10 the colour,
+// +0x14 its weight; zclass camera.cpp's walk pushes it through 0x00526a10).
+int object3d_use_blend(Node* node, int on);                       // 0x004fb840  data flag 4
+int object3d_set_blend(Node* node, const float* rgb, float weight);  // 0x004fb8c0  each clamped to 0..1; no rgb keeps it
 int object3d_set_scale(Node* node, float x, float y, float z);    // 0x004fbc10
 int object3d_get_scale(Node* node, float* x, float* y, float* z); // 0x004fbd20  no class check
 int object3d_set_rotation(Node* node, float x, float y, float z);  // 0x004fbd80  no class check

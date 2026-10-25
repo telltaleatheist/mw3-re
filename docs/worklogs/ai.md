@@ -1598,3 +1598,32 @@ is paused.
   t1m2 (four targets). Found: only training targets have `radar`; the
   vehicles' markers are the stealth object's. mission_c1m1_hud_weapon_lines
   test: its blip counts are the mechs' now (turrets and trucks show too).
+- Lead merged item 3 (f0e2f22).
+
+## Item 4: the models' effects, render leftovers (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/model-fx off main. The model texture
+  scroll 0x526ae0 (flag 0x10 at +8, u / v at +0x28 / +0x2c; callers the
+  turret EFFECT 0x526ae0(1, 10, 0) and the interp command, interp.md ~487)
+  and where the draw applies it (render.md section 3: unverified; port it if
+  small); the model animate 0x541ad0 (the turret frame's step 5, the interp
+  list's Clear(1)); the node blend tint 0x4fb8c0 and its switch 0x4fb840
+  (the vehicles' damage reddening, vehicles.md 280 / 1237), whether the
+  draw reads it (render.md's tint bit 4 [0x74a270]; a headless frame if
+  wired). Per-frame steps to time behind per_second. Differential, breaks,
+  docs, discoveries.
+- Split by the lead: 4a (the scroll, its step, the blend, the wiring) now,
+  4b next on its own branch (the mix's output stage 0x5680c0 / 0x579950 /
+  0x579980 / 0x5798a0 with light_hooks set in the program, and app_hud's
+  TARGET view vt+0x68; check whether lit or fogged models lose their mix
+  too, a headless frame showing a damaged vehicle's red and a fogged
+  model's mix).
+- 4a done (mac 4): zmod model_set_scroll 0x526ae0 (gmod_init),
+  model_scroll_tick 0x541ad0 (gmod_const: the scroll is the UVs moved, not
+  the draw's; dt-scaled already), zcls object3d_set_blend 0x4fb8c0 /
+  use_blend 0x4fb840 (NaN to 0 as the asm). Wired: the turrets' tint,
+  EFFECT scroll and step; the vehicles' tint and treads; the interp's
+  Engine (Object3DSetScroll*). test_model_fx.py 3000 cases, 18/18 breaks;
+  headless c1m1 horscroll 0.015/s. The tests' process reset now resets the
+  interp's ScrollAlways list (0x5962a0): a stale holder from the last
+  test's freed world kept the next mission's from being made.

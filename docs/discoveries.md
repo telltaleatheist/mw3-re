@@ -1521,6 +1521,24 @@ From the animation files (anim.md).
   that clears a "destroyed" mark the game sets when it is killed, but
   nothing ever reads that mark, so it changes nothing.
 
+- **Moving textures are the polygons' own coordinates sliding.** The sky's
+  cloud band (`horscroll`, in every world) slides 0.015 texture widths a
+  second, one full width in about 67 seconds; c1's sea (ocean50, 51, 53;
+  not ocean52, a typo in the script) and the tanks' treads work the same
+  way. A tread's speed follows the vehicle: (turn rate x 2.25 plus or minus
+  its speed) x 1.72, each side its own way, so a turning tank's treads run
+  at different speeds or opposite ways. The shift is wrapped every frame by
+  the polygon's own middle, so the numbers never grow however long a
+  mission runs.
+- **The lightning turret's arc would have scrolled ten widths a second.**
+  tur_ppc's EFFECT (`lightning`) is set to scroll its texture fast along u
+  while it charges, but no world has a node of that name, so the charge
+  effect never appears (vehicles.md).
+- **The red tint on a damaged target goes through the fog.** In TARGET's
+  view, a turret or vehicle turns redder the more damaged it is (up to 60%
+  at no health). The game does it by mixing red into that model's own fog
+  colour (on Direct3D), not by changing its texture.
+
 ## Smoke and fire
 
 From the puffer system, `gmod_puff.cpp` (puffers.md). Missile trails, muzzle

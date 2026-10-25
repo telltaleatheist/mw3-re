@@ -333,6 +333,7 @@ add_library(mw3probe SHARED
   tests/probe_sensors.cpp
   tests/probe_anim_owner.cpp
   tests/probe_entity_classes.cpp
+  tests/probe_model_fx.cpp
   tests/probe_fade.cpp
   tests/probe_frame.cpp
   tests/probe_view.cpp

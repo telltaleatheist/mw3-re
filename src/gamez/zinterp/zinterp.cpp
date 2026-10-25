@@ -3,6 +3,7 @@
 // functions after zinterp_parse.cpp's dispatcher. The exe names no file here;
 // this one is named for the module (docs/interp.md).
 #include "gamez/zinterp/zinterp.h"
+#include "gamez/zmodel/gmod_init.h"
 
 #include <sys/stat.h>
 
@@ -102,6 +103,8 @@ Engine make_engine() {
   e.cycle_set_map = zmod::cycle_set_map;
   e.cycle_set_looping = [](Model* m, int on) { return zmod::cycle_set_looping(m, static_cast<uint32_t>(on)); };
   e.cycle_set_speed = zmod::cycle_set_speed;
+  e.model_set_scroll = zmod::model_set_scroll;                              // 0x00526ae0
+  e.model_scroll_tick = [](Model* m) { zmod::model_scroll_tick(m); };       // 0x00541ad0
   e.pack_rgb = zvid::pack_rgb;
   e.clouds_on = zmod::clouds_set_on;
   e.write_texture_type = [](int t) { return zmod::mark_set_type(t), 0; };         // 0x005426a0

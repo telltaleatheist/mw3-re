@@ -120,6 +120,9 @@ int32_t find_normal(Model& m, const float p[3]);                     // 0x0053a0
 int add_record(Model& m, int32_t n, const PolygonAdd& a);           // 0x0053c370
 int fill_record(Model& m, int32_t n, const PolygonAdd& a);          // 0x0053c500
 void flatten_uvs(Model& m, int32_t index);                           // 0x0053bdc0
+// The texture scroll's step, once a frame (+0x30): the textured polygons'
+// UVs moved by dt times +0x28 / +0x2c (set by gmod_init's model_set_scroll).
+int model_scroll_tick(Model* m);                                     // 0x00541ad0, -1 for none
 void uv_gradient(float a0, float b0, float a1, float b1, float a2, float b2, float s0, float s1, float s2,
                  float out[2]);                                      // 0x0053c270
 void snap_uvs(int32_t n, float* uv);                                 // 0x0053af50

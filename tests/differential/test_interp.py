@@ -66,7 +66,7 @@ REAL = {'find_node', 'find_in_tree', 'list_count', 'node_alloc', 'set_name', 'se
         'world_set_fog_altitude', 'world_set_fog_density', 'world_set_fog_range', 'world_get_fog_range',
         'find_texture', 'pack_rgb', 'clouds_on', 'clouds_period', 'clouds_wavelength', 'clouds_level',
         'clouds_heading', 'anim_set_zbd_path', 'set_action', 'set_action_priority', 'write_prepare_a',
-        'write_prepare_b'}
+        'write_prepare_b', 'model_set_scroll', 'model_scroll_tick'}
 NODE_BLOCKS, NODE_NBLOCKS, NODE_BLOCK_SIZE, NODE_LIVE, NODE_CAP = 0x60bf38, 0x60bf30, 0x5ea830, 0x60bf3c, 0x60bf34
 MODEL_POOL, MODEL_SIZE, ANIM_PATH = 0x7402e4, 0x7402e0, 0x60c570
 

@@ -150,6 +150,16 @@ int32_t world_update_lights(zcls::Node* world);             // 0x4f2f60
 int32_t world_build_lights(zcls::Node* world, int32_t none);  // 0x4f2f30
 ```
 
+**Gap in the program (2026-10-25, found in item 4; item 4b ports it):** the
+program never sets `light_hooks()` (only the probes do), so the lighting's
+output to the device is dropped: `mix_fog` (0x5680c0: the mixed colour
+clamped, kept when it moves 0.01, copied for Direct3D by 0x579950 into
+[0x802798] x 255, the software ramp 0x56c170), `send_mix_fog` (0x579980:
+[0x802798] against the sent colour [0x72f400], then the device's
+[0x72f3f0]) and `point_color` (0x5798a0). Whatever the lighting mixes into
+the fog channel for a model (the saturated point lights, the object3d
+colour blend) never reaches the device; zrndr_fog's world fog colour does.
+
 How 0x53f2e0 calls `shade_polygon` (0x53ff35 textured, 0x5413f6 untextured;
 only when needs & 6):
 - `baked` = polygon +0x18 when the draw's baked switch `[ebp-0x80]` is on

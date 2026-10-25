@@ -5,8 +5,10 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zclass/window.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_light.h"
@@ -22,6 +24,21 @@ void put_float(uint32_t& slot, float v) { std::memcpy(&slot, &v, 4); }
 
 WalkState& walk_state() { return g_walk; }
 uint32_t& mask_top() { return g_walk.mask[g_walk.top]; }
+
+// Mech3.exe 1.2 @ 0x00526ae0 (ECX the model, EDX on, stack u, v).
+int model_set_scroll(Model* m, int on, float u, float v) {
+  if (!m) {
+    zerr::report(0x200, "C:\\zipper\\GameZMech3\\zModel\\gmod_init.c", 0x2d5, "ERROR setting model texture scroll data; Null ptr.");
+    return 1;
+  }
+  uint32_t f;
+  std::memcpy(&f, m->header + 8, 4);
+  f = (static_cast<uint32_t>(on) & 1) << 4 | (f & ~0x10u);
+  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(m->header + 0x2c, &v, 4);
+  std::memcpy(m->header + 0x28, &u, 4);
+  return 0;
+}
 
 // Mech3.exe 1.2 @ 0x00526a10. A weight of 1/255 or less turns the tint off.
 void set_tint(const float* rgb, float weight) {
