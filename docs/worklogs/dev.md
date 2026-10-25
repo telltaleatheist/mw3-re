@@ -176,3 +176,22 @@ is in `README.md`.
   passes 0.9 m beside the Owens' torso (its AI turns it about 12°) and
   hits the building behind, while the arm's beam still crosses the Owens.
   Test helpers mech_group_ammo / _ready / _muzzle, mech_arm_recoil.
+## Playtest #25: LRMs lock but don't home (2026-10-25)
+
+- Assigned (the lead): in the original, lock, aim at the sky, fire, and the
+  missiles climb and come down on the target; here they fly straight.
+  Branch mac4/playtest-lrm off main. Lead: the program never wires
+  WeaponCalls' lock hooks (entity_target, record_target, target_position,
+  target_velocity, target_mech), so Weapon::try_lock (0x4b3330) finds no
+  target and the shot spawns without one.
+- Fixed: app_weapons wires entity_target (+0x6c), record_target (the
+  contact's object), target_mech, target_position (app_sensors
+  weapon_lock_point: 0x5a8630's live pointer into the target node),
+  target_velocity (weapon_lock_velocity: a mech's 0x41d480 into the new
+  Mech::lock_velocity +0x64c, a vehicle's live +0x30), ecm_count, fcs_count,
+  equipment_in_part, lock_notice (mech_lock_warning, 0x41abd0). The
+  missiles now spawn with the lock and home (traced: target_at follows the
+  Owens). LRM5's TURN_RATE 0.25 (rad/s, as the exe reads it) means 10
+  degrees off at 150 m hits and 22 does not; the test fires 10 degrees off,
+  and fails without the wiring (record_target null: no hit).
+- Open: what drops an in-flight shot's lock when its target goes.

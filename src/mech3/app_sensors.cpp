@@ -88,6 +88,16 @@ void world_position(zcls::Node* n, float out[3]) {
   }
   for (int i = 0; i < 3; ++i) out[i] = d->floats(0x84)[i];
 }
+// The node 0x005a8630 reads: the object's target node (zEntity +0x10); a
+// turret's or target's own node when it has none (as entity_lock_position).
+zcls::Node* aim_node(zgame::Handle h) {
+  if (Mech* m = mech(h)) return static_cast<zcls::Node*>(m->target_node);
+  if (void* v = vehicle(h)) return static_cast<zcls::Node*>(program_vehicle_target_node(v));
+  zgame::Handle n = 0;
+  if (tur::Turret* t = program_turret_by_handle(h)) n = t->target_node ? t->target_node : t->node;
+  else if (ai::CZAiTarget* t = target(h)) n = t->target_node ? t->target_node : t->node;
+  return static_cast<zcls::Node*>(object(n));
+}
 
 struct ProgramSensors : ai::SensorHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
@@ -401,6 +411,28 @@ void hud_object_aim_place(const void* o, float out[3]) {
   if (tur::Turret* t = program_turret_by_handle(h)) n = t->target_node;
   else if (ai::CZAiTarget* t = target(h)) n = t->target_node;
   world_position(static_cast<zcls::Node*>(object(n)), out);
+}
+// Mech3.exe 1.2 @ 0x005a8630: the target node's world position, refreshed
+// first when stale; the weapons' lock keeps the pointer and follows it.
+const float* weapon_lock_point(const void* o) {
+  zcls::Node* n = aim_node(handle(o));
+  if (!n || !n->data || n->cls() != 5) return nullptr;
+  float p[3];
+  world_position(n, p);
+  return static_cast<zcls::Object3d*>(n->data)->floats(0x84);
+}
+// vt+0xc: a mech's 0x0041d480 writes its lead velocity (0x0041d400) into
+// +0x64c and hands that out, so a lock keeps the velocity at the lock; a
+// basic vehicle's 0x005a82d0 is its live +0x30; the rest stand still.
+const float* weapon_lock_velocity(void* o) {
+  static const float still[3] = {0, 0, 0};
+  const zgame::Handle h = handle(o);
+  if (Mech* m = mech(h)) {
+    if (m->controls) m->lead_velocity(&m->lock_velocity);
+    return &m->lock_velocity.x;
+  }
+  if (void* v = vehicle(h)) return program_vehicle_velocity_at(v);
+  return still;
 }
 void* hud_target_marker(int32_t kind) { return object(ai::target_marker(kind)); }
 // vt+0x68: a mech's 0x0041b9d0, a turret's 0x004a75b0, a basic vehicle's

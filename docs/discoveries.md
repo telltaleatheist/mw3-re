@@ -535,6 +535,12 @@ From the weapon code (weapons.md).
 - **Arm weapons kick the arm.** A projectile weapon in an arm or hand throws
   that arm off its aim when it fires (0x466610) and the torso twists with it;
   weapons in the torso do not kick.
+- **LRMs turn slowly.** A locked LRM waits a tenth of a second, then eases
+  into its turn over a second, and never turns faster than about 14 degrees
+  a second. Fired at a target close by and well off the reticle, it runs
+  out of room and misses; from farther away it has time to come round. A
+  lock is kept for 3.5 seconds after the reticle leaves the target, so you
+  can fire after looking away.
 - **Only a weapon's first group counts.** A loadout can list a weapon in two
   groups, like `group (1 2)`, and 59 entries across 11 stock mechs do, but the
   game reads only the first number.

@@ -550,6 +550,7 @@ void program_vehicle_velocity(void* v, float out[3]) {
   const Vec3& u = bv(v).velocity;
   out[0] = u.x, out[1] = u.y, out[2] = u.z;
 }
+const float* program_vehicle_velocity_at(void* v) { return &bv(v).velocity.x; }
 const char* program_vehicle_name(void* v) {
   const auto* n = static_cast<const zcls::Node*>(bv(v).node);
   return n ? n->name() : nullptr;

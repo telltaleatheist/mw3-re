@@ -478,6 +478,22 @@ at most the allowed turn (slerp, normalised), and the speed is multiplied by
 0.8 + 0.2 cos(turn). Until LOCK_ON the shooter's velocity fades out of the
 velocity; the node faces the direction.
 
+In the program (playtest #25, 2026-10-25): the lock's hooks were unset, so
+0x4b3330 never found a record and every LRM flew straight. Now
+`app_weapons.cpp` gives the mech's target selected (+0x6c, a contact), its
+object (contact +4), that object's mech (for the ECM count, +0x3cc, and the
+lock warning 0x41abd0: pilot sound 9 on the view's mech), the aim point as
+0x5a8630's live pointer into the target node's world matrix (`app_sensors`
+`weapon_lock_point`) and the velocity as vt+0xc's pointer (a mech's 0x41d480
+writes its lead velocity into +0x64c when asked, so the lock keeps the
+velocity at the lock; a basic vehicle's live +0x30; the rest still). FCS
+(+0x3b8) and 0x460c10 are wired with them. LRM5 has TURN_RATE 0.25, so a
+missile turns at most about 14 degrees a second: at 150 m an LRM still finds
+an Owens 10 degrees off the reticle (`mission_c1m1_lrm_homes_on_the_lock_headless`;
+without the lock it misses), not one 22 degrees off. Open: what drops an
+in-flight shot's lock when its target goes (the dead stay as wrecks in the
+world, so the pointer stays good through a mission).
+
 ### Mines (0x586670, 0x586740; no shipped weapon)
 
 A mine lands on the first thing it meets: something with a damage handler

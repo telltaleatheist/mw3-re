@@ -144,6 +144,7 @@ bool program_vehicle_in_reach(void* v, float cosine);       // vt+0x150
 bool program_vehicle_aim_clamp(void* v, const float d[3], float out[3]);  // vt+0x90
 void program_vehicle_set_aim(void* v, const float d[3]);    // vt+0x154
 void program_vehicle_velocity(void* v, float out[3]);       // vt+0x0c 0x005a82d0: +0x30
+const float* program_vehicle_velocity_at(void* v);         // the same, as the pointer it is
 const char* program_vehicle_name(void* v);                  // its node's
 void program_vehicle_forget(void* v, uint32_t self, uint32_t x);  // vt+0xd4 0x004aeec0
 void* program_vehicle_target(void* v);                      // the AiTarget base (ai::AiTarget*)

@@ -27,6 +27,8 @@
 #include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "mech3/app_mech.h"
+#include "mech3/app_sensors.h"
 #include "mech3/app_view.h"
 #include "mech3/cockpit_sound.h"
 #include "mech3/mech.h"
@@ -163,6 +165,21 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
     return &g_zone;
   };
   c.target_key = [](Handle t) { return t; };  // vt+0x24: a mech, vehicle, turret or target answers itself
+  // The lock (0x004b3330 -> 0x004b3370), playtest #25: the mech's target
+  // selected (+0x6c, a contact), what it sees (+4, its object: vt+0x2c is
+  // itself), that one's mech, its aim point and velocity as pointers.
+  c.entity_target = [](Handle e) -> Handle { return mech_of(e)->target; };
+  c.record_target = [](Handle r) { return hud_contact_vehicle(r); };
+  c.target_mech = [](Handle t) { return hud_object_mech(t); };  // vt+0x2c, vt+0x50
+  c.target_position = [](Handle t) { return reinterpret_cast<const zwep::Vec3f3*>(weapon_lock_point(t)); };
+  c.target_velocity = [](Handle t) { return reinterpret_cast<const zwep::Vec3f3*>(weapon_lock_velocity(t)); };
+  c.ecm_count = [](Handle m) { return mech_of(m)->equipment[8]; };  // +0x3cc
+  c.fcs_count = [](Handle m) { return mech_of(m)->equipment[3]; };  // +0x3b8
+  c.equipment_in_part = [](Handle m, int32_t kind, int32_t part) {   // 0x00460c10
+    MechPart* p = part_by_id(*mech_of(m), part);
+    return p && p->has_equipment(kind);
+  };
+  c.lock_notice = [](Handle m, Handle, WeaponDef*) { mech_lock_warning(m); };  // 0x0041abd0
   c.entity_enemies = [](Handle e) { return mech_of(e)->enemies; };                         // +0xc8
   c.player_team = [] { return mech3::world().mission_player ? mech3::world().mission_player->team : 0u; };
   c.part_by_id = [](Handle owner, int32_t id) -> Handle { return part_by_id(*mech_of(owner), id); };
@@ -448,6 +465,14 @@ float mech_arm_recoil(void* mech) {
     for (Arm* a : m->arms)
       if (a && a->recoil > r) r = a->recoil;
   return r;
+}
+bool mech_lock_shown(void* mech) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  return wm && wm->has_target;
+}
+void* mech_target_object(void* mech) {
+  const Mech* m = static_cast<const Mech*>(mech);
+  return m && m->target ? hud_contact_vehicle(m->target) : nullptr;
 }
 bool mech_select_group(void* mech, int32_t g) {
   auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
