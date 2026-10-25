@@ -105,3 +105,17 @@ is in `README.md`.
   frame (B, per_second), TARGET's null rect (bug), the table's spare byte
   (A). Tests: test_hud ops 39-41 (100 HUDs, 262 fills; the exe's null read
   hooked to the port's FIX), test_static.py (pixels), breaks. Next: 6c.
+
+## HUD plan item 6d: c1m1's emplacements (2026-10-25)
+
+- Assigned (the lead, before 6c): c1m1's "Completed: Destroy SRM
+  Emplacement" lines at 00:00:01. Branch mac4/emplacements off main 0f23363.
+- Found: the turrets are built (the ported loader, 14 in c1); the
+  objectives' entity_find (0x4d7330) searched only the AI mechs and the
+  targets, so every turret's and vehicle's destroy objective counted as
+  destroyed at once. Fixed: turrets and vehicles by node name, their +0x08
+  as the flag, labels through entity_name (vt+0xa4; a turret's is none).
+  The c1m1 won/lost test checks the four emplacements alive and their
+  objectives open, and kills them to win (break caught). Survey of every
+  mission: all found but c2m3's firefly_01 / firefly_02 (the mission makes
+  firefly_03 / 04): a data typo in the original, a candidate for Owen.

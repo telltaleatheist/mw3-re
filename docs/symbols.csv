@@ -1141,7 +1141,7 @@ address,name,source,notes
 0x0045f180,NodeChangeObjective::check,asm,"ported; node +0x24 bit 2 == state"
 0x0045f1c0,ValveChangeObjective::check,asm,"ported; valve value == target"
 0x0045e890,ReachAreaObjective::check,asm,"ported; 3D distance squared < radius squared, nav or point (node refreshed)"
-0x004d7330,entity_by_name,asm,"wired: AI mechs by name, then targets by node name; each vt+0x2c"
+0x004d7330,entity_by_name,asm,"wired: zEntity (AI mechs by name, turrets and vehicles by node name), then targets by node name; each vt+0x2c (itself)"
 0x00430440,set_lod_scale,asm,"ported: mech_data; [0x005e2928] then each cached type's ranges"
 0x004e61e0,shade_init,asm,"ported: mech_shade; the mech's 0x24 shade, its turn"
 0x004e6250,ShadeLevel::ShadeLevel,asm,"ported; 0x0c, 0x004e66a0(0)"

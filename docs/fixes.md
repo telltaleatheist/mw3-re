@@ -473,6 +473,12 @@ Kept:
 
 ## Candidates for Owen
 
+- c2 mission 3's two Firefly objectives (found 2026-10-25, objectives.md):
+  the secondary destroy list names `firefly_01` and `firefly_02`, but the
+  mission's AI file makes `firefly_03` and `firefly_04` (m1's and m2's
+  numbering), so in the original both count as done from the start.
+  Options: keep it (as played), or have the importer rename them to 03 / 04
+  (the two Fireflies of the mission become real objectives).
 - How the player's allies fight (mac 4, 2026-10-22, ai.md 17.8b; Owen's
   proposal, a balance change, not coded): as the exe has it, allies shoot
   any enemy within their weapons' reach on their own but never move to a

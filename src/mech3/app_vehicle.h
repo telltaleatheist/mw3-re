@@ -11,6 +11,7 @@ namespace mech3 {
 
 void wire_vehicles(const MechWiring* w);  // from wire_mech_build; null: the defaults again
 bool is_program_vehicle(const void* p);   // made by the mission start, still alive
+uint8_t program_vehicle_active(const void* p);  // its +0x08 (zEntity's active flag)
 void* program_vehicle_create(void* ctl, const char* type, const char* name);  // 0x004ac320
 void* program_field_base_create(void* ctl, const char* type, const char* name);  // 0x004589d0
 bool program_is_field_base(const void* v);  // vt+0xf0 / vt+0xf4: itself (0x004d2a70), else 0

@@ -581,6 +581,7 @@ bool program_vehicle_sees(void* v, uint32_t self) {
 void program_vehicle_set_sensed(void* v, bool on) { bv(v).x09 = on; }
 void program_vehicle_sense_refresh(void* v) { bv(v).engine.release(); }
 void program_vehicle_engine_play(void* v, const float pos[3]) { bv(v).engine.play(pos, nullptr, 0); }
+uint8_t program_vehicle_active(const void* p) { return static_cast<const Vehicle*>(p)->active ? 1 : 0; }
 void* program_vehicle_named(const char* name) {
   for (Vehicle* v : g_order) {
     const auto* n = static_cast<const zcls::Node*>(v->node);
