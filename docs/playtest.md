@@ -67,6 +67,7 @@ Owen: "otherwise it seems to be working really well".
 | 25 | LRMs lock but don't home: in the original, lock, aim at the sky, fire, and the missiles climb and come down on the target | the shot's lock target at spawn (homing 0x585900 is ported) | dev | waiting |
 | 26 | F12 opens no objectives text | the objectives box's text 0x446ad0 (keybindings.md) | dev | waiting |
 | 27 | Shots at the missile turrets don't destroy them | turret hits / damage (hit test reaching tur_* nodes?) | dev | waiting |
+| 28 | No recoil: the Bushwhacker's arm AC/10 should kick the mech back and throw off the aim (less from the torso) | WeaponCalls::recoil (weapon.cpp 204) unwired in the program; the part update 0x466xxx is ported | dev | waiting |
 
 ## Unported in c1m1 (2026-10-21, census)
 
