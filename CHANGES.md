@@ -142,6 +142,7 @@ unusual happens.
 - In Instant Action, a wreck taken away at 180 seconds no longer stays the "last attacker" of the mechs it hit: one of them dying later (a fall, its own ammo) credited the kill to the removed wreck, which could crash.
 - A hand-edited turret without parts, or without a gun, no longer crashes in play; it shuts down, or does not aim.
 - A mission animation that sends the unused "move the player through viaNode" message, in a world without that node, no longer throws the player's mech to a random place (no shipped animation or world does this).
+- A hand-made mission animation whose object is missing no longer crashes the mission load when it flips a switch on a part above it (no shipped animation does this).
 - A hand-edited turret file whose turret names a weapon that does not exist, without a detection range, no longer crashes the mission load; the turret sees 200 m. A turret file entry shorter than the game reads is taken as missing (no shipped file has either).
 - A hand-edited objectives file with a number or a list where a name belongs, or an objective list without its `list`, no longer crashes the mission load; the odd entry is skipped.
 - An Instant Action game in an unknown mode no longer crashes when its "destroy the enemies" objective is built; the objective is left out.

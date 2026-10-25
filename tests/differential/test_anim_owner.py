@@ -28,10 +28,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Emu, Trace, compare, load_probe  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX  # noqa: E402
 
 U32 = ctypes.c_uint32
 I32 = ctypes.c_int32
 REG, HEAD, OURS, PILOT = 0x60b518, 0x60b520, 0x4d4b10, 0x60861c
+DEFS, COUNT = 0x73f72c, 0x73f72a
+VALUES = [0, 0x38, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x39, 0x3a, 0x3b, 0x3c, 0x32, 0x11, 0x29, 0x3d]
 OWNERS = ['mech', 'mech2', 'turret', 'target']
 
 # The branches the cases must reach (address: what).
@@ -43,10 +46,16 @@ COVER = {
     0x4d4a4e: 'handler: 0x11', 0x4d4a6d: 'handler: a valve off', 0x4d4a81: 'handler: a valve on',
     0x4d4a8e: 'handler: the inout tests', 0x4d49c6: 'viaNode: relative', 0x4d4718: 'end: a record emptied',
     0x4d4763: 'free: a record deleted', 0x4d479a: 'free: a node unlinked',
+    0x4d4c8e: 'bind: the def before committed', 0x4d4cc9: 'bind: no callback', 0x4d4cd8: 'bind: another\'s callback',
+    0x4d4d1f: 'bind: ours, a record no list holds', 0x4d4d27: 'bind: ours, a listed record',
+    0x4d4d2f: 'bind: ours, no record', 0x4d4d7e: 'bind: a parent up', 0x4d4da4: 'bind: the valve taken',
+    0x4d4da0: 'bind: a valve already there', 0x4d4dd7: 'bind: the owner taken', 0x4d4dd3: 'bind: an owner already there',
+    0x4d4de3: 'bind: an inout message', 0x4d4e8a: 'bind: a new record', 0x4d4bc2: 'bind: the last def\'s new record',
+    'root': 'bind: past the root (no single parent)', 'null': 'bind: past the root (a null parent)',
 }
 REACHED = set()
 MSGS = set()
-COUNT = {'claims taken': 0, 'messages': 0, 'calls': 0, 'no viaNode': 0}
+COUNT_ = {'claims taken': 0, 'messages': 0, 'binds': 0, 'calls': 0, 'no viaNode': 0}
 
 
 def die():
@@ -70,6 +79,8 @@ def setup_probe(probe):
     probe.probe_aown_state.argtypes = [U32, ctypes.POINTER(I32)]
     probe.probe_aown_list.argtypes = [ctypes.POINTER(U32), I32]
     probe.probe_aown_list.restype = I32
+    probe.probe_aown_node.argtypes = [U32, U32, U32, ctypes.c_char_p]
+    probe.probe_aown_def.argtypes = [U32, U32, I32, U32, ctypes.POINTER(I32), I32]
 
 
 class Case:
@@ -77,6 +88,7 @@ class Case:
 
     def __init__(self, seed):
         self.r = r = random.Random(seed)
+        self.seed = seed
         self.t = Trace()
         e = self.e = Emu(self.t)
         e.cpu.fpu_control(0x007f)
@@ -114,11 +126,69 @@ class Case:
             emu._ret(a[0] + 0x30, pop)
         e.stub(0x5a85e0, '0x005a85e0', 'c', None, place_of)
         hook_cover(e)
-        # The animations.
+        # The animations: zEffect's def array (index 0 never walked), each with
+        # a status, flags, a node and callback events; nodes in chains of one
+        # parent, some with none, two, or a null first parent.
+        self.nodes = []
+        for i in range(10):
+            n = e.world_alloc(0x60)
+            e.cpu.write(n, f'n{seed}_{i}'.encode() + b'\0')
+            self.nodes.append(n)
+        self.node_setup = []
+        for i, n in enumerate(self.nodes):
+            count = r.choice([0, 1, 1, 1, 1, 2])
+            first = r.choice(self.nodes[i + 1:] or [0]) if r.random() < 0.9 else 0
+            arr = e.world_alloc(8)
+            e.w32(arr, first)
+            e.w32(n + 0x54, count)
+            e.w32(n + 0x58, arr)
+            self.node_setup.append((n, count, first, f'n{seed}_{i}'))
+        ents = {n: r.choice(self.owners) for n in self.nodes}
+        self.t.script['0x0040eee0'] = lambda n, a: ents.get(a[0], 0)
+        e.stub(0x40eee0, '0x0040eee0', '*c')
+        names = {f'n{seed}_{i}': (r.choice(self.valves) if r.random() < 0.9 else 0) for i in range(10)}
+        self.t.script['0x004d3c40'] = lambda n, a: names[a[0]]
+
+        def valve_get(emu, key, a, pop):
+            emu._ret(emu.t.handle(key, (emu.cstr(a[0]),)) if a[0] else 0, pop)
+        e.stub(0x4d3c40, '0x004d3c40', 'c', None, valve_get)
+        base = e.world_alloc(0x13c * 7)
+        e.w32(DEFS, base)
+        e.cpu.write(COUNT, struct.pack('<h', 7))
         self.anims = []
         self.setup = []
-        for i in range(6):
-            a = e.world_alloc(0x140)
+        self.defs = []
+        for i in range(7):
+            a = base + 0x13c * i
+            status = 5 if r.random() < 0.1 else r.randrange(4)
+            flags = 0x10 if r.random() < 0.85 else 0
+            node = r.choice(self.nodes) if r.random() < 0.9 else 0
+            values = []
+            seqs = r.randrange(1, 4)
+            sa = e.world_alloc(0x40 * seqs)
+            for q in range(seqs):
+                blob = b''
+                for _ in range(r.randrange(0, 4)):
+                    if r.random() < 0.75:
+                        v = r.choice(VALUES) if r.random() < 0.9 else r.randrange(-5, 0x50)
+                        if not node and 0x2c <= v <= 0x31:
+                            v = 0x2b  # with no node the exe reads its parent count: a crash
+                        values.append(v)
+                        blob += struct.pack('<BBHIfi', 35, 0, 0, 16, 0.0, v)
+                    else:
+                        blob += struct.pack('<BBHIfi', 1, 0, 0, 16, 0.0, 0x2b)
+                ev = e.world_alloc(max(16, len(blob)))
+                e.cpu.write(ev, blob)
+                e.w32(sa + 0x40 * q + 0x38, ev)
+                e.w32(sa + 0x40 * q + 0x3c, len(blob))
+            e.w32(a + 0x40, node)
+            e.w32(a + 0x94, flags)
+            e.w8(a + 0x98, status)
+            e.w32(a + 0xc4, sa)
+            e.w8(a + 0x108, seqs)
+            self.defs.append((a, flags, status, node, values))
+            if i == 0:
+                continue
             kind = r.choice([0, 0, 1, 1, 2])
             has, owner, valve = r.random() < 0.6, r.choice(self.owners), r.choice([0] + self.valves)
             if kind == 1:
@@ -186,7 +256,16 @@ def hook_cover(e):
     def hit(uc, address, size, user):
         REACHED.add(address)
     for a in COVER:
-        e.uc.hook_add(UC_HOOK_CODE, hit, begin=a, end=a)
+        if isinstance(a, int):
+            e.uc.hook_add(UC_HOOK_CODE, hit, begin=a, end=a)
+
+    def walk(uc, address, size, user):  # 0x4d4d6f: [eax+0x54] != 1; 0x4d4d7c: the parent 0
+        if address == 0x4d4d6f and e.r32(uc.reg_read(UC_X86_REG_EAX) + 0x54) != 1:
+            REACHED.add('root')
+        if address == 0x4d4d7c and uc.reg_read(UC_X86_REG_ECX) == 0:
+            REACHED.add('null')
+    e.uc.hook_add(UC_HOOK_CODE, walk, begin=0x4d4d6f, end=0x4d4d6f)
+    e.uc.hook_add(UC_HOOK_CODE, walk, begin=0x4d4d7c, end=0x4d4d7c)
 
 
 def probe_state(probe, case):
@@ -217,8 +296,10 @@ def ops(case):
             else:
                 msg = r.choice([0, 0x11, 0x29, 0x2a, 0x2b, 0x30, 0x31, 0x32, 0x38, 0x39, 0x3c, 0x3d])
             yield ('message', r.choice(case.anims), 1 if r.random() < 0.1 else 0, msg)
-        elif x < 0.95:
+        elif x < 0.90:
             yield ('valve', r.randrange(6), r.choice(case.valves))
+        elif x < 0.95:
+            yield ('bind',)
         elif x < 0.98:
             yield ('end',)
         elif not freed:
@@ -238,6 +319,11 @@ def run_case(probe, seed):
         probe.probe_aown_name(o, n.encode())
     for s in case.setup:
         probe.probe_aown_anim(*s)
+    for n, count, first, name in case.node_setup:
+        probe.probe_aown_node(n, count, first, name.encode())
+    for a, flags, status, node, values in case.defs:
+        arr = (I32 * max(1, len(values)))(*values)
+        probe.probe_aown_def(a, flags, status, node, arr, len(values))
     for op in ops(case):
         case.t.reset()
         t.reset()
@@ -246,7 +332,7 @@ def run_case(probe, seed):
         if op[0] == 'claim':
             ra = e.call(0x4d4f20, ecx=op[1], edx=op[2]) & 0xff
             rb = probe.probe_aown_claim(op[1], op[2])
-            COUNT['claims taken'] += ra
+            COUNT_['claims taken'] += ra
             if ra != rb:
                 print(f'{name}: original {ra}, rebuild {rb}')
                 die()
@@ -259,7 +345,7 @@ def run_case(probe, seed):
             if e.r32(a + 0x6c) != OURS and not null:
                 continue  # the exe calls the callback only when it is ours
             MSGS.add(msg)
-            COUNT['messages'] += 1
+            COUNT_['messages'] += 1
             e.call(OURS, ecx=a, edx=rec, stack=(msg,))
             probe.probe_aown_message(a, null, msg)
             depart = msg == 0x11 and rec and not case.node
@@ -269,6 +355,10 @@ def run_case(probe, seed):
                 continue
             e.w32(recs[op[1]] + 4, op[2])
             probe.probe_aown_set_valve(op[1], op[2])
+        elif op[0] == 'bind':
+            COUNT_['binds'] += 1
+            e.call(0x4d4b30)
+            probe.probe_aown_bind()
         elif op[0] == 'end':
             e.call(0x4d4700, ecx=REG)
             probe.probe_aown_end()
@@ -276,9 +366,9 @@ def run_case(probe, seed):
             e.call(0x4d4740, ecx=REG)
             probe.probe_aown_free()
         a_log = case.t.log
-        COUNT['calls'] += len(a_log)
+        COUNT_['calls'] += len(a_log)
         if depart:
-            COUNT['no viaNode'] += 1
+            COUNT_['no viaNode'] += 1
             # FIX (bug): the port stops at the missing node.
             cut = next(i for i, c in enumerate(a_log) if c[0] == '0x004fc020')
             assert a_log[cut][1] == (0,) and a_log[-1][0] == 'player.vt+0xdc', a_log
@@ -308,7 +398,7 @@ def main():
     if unsent:
         print('messages never sent: ' + ', '.join(f'{m:#x}' for m in unsent))
         die()
-    print(f'ok: {count} cases ({", ".join(f"{v} {k}" for k, v in COUNT.items())}), every message 0..0x3f, '
+    print(f'ok: {count} cases ({", ".join(f"{v} {k}" for k, v in COUNT_.items())}), every message 0..0x3f, '
           f'{len(COVER)} branches, as the original')
     sys.stdout.flush()
     os._exit(0)

@@ -153,6 +153,9 @@ void reset_process_state() {
   // exe's start (0x00508fc0) refills the table but neither, so they run on
   // from mission to mission (0x0060c5f4, 0x0060c1d8: 0 in a new process).
   zeff::anim().random_index = 0, zeff::anim().stagger = 0;
+  // The animation owners' records go with the world (0x004d4740), which a
+  // test that resets the missions never unloads.
+  mech3::ai::anim_owner_free();
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -1690,6 +1693,76 @@ TEST(mission_c1_turret_woken_by_its_animation_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The animations' binder on c1m1 (docs/ai.md section 18): at the load
+// (0x004d4b30) citybuild01's animation gets a record naming the valve
+// "citybuild01"; rammed down, its good_to_bad sequence sends 0x2b, which
+// turns that valve on.
+TEST(mission_c1m1_a_destroy_animation_turns_its_valve_on_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_anim_binder_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, on_at = -1;
+    zeff::AnimDef* d = nullptr;
+    mech3::ai::Valve* valve = nullptr;
+    size_t bound = 0;
+    bool names_valve = false;
+    int32_t before = -1;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (frames == 2) {
+        for (const mech3::ai::AnimOwnerRec* r : mech3::ai::anim_owner_records()) bound += r->valve != 0;
+        d = zeff::anim_find("citybuild01");
+        valve = mech3::ai::valve_get("citybuild01");
+        const auto* rec = d ? static_cast<const mech3::ai::AnimOwnerRec*>(d->callback_arg) : nullptr;
+        names_valve = rec && valve && engine.object_of(rec->valve) == valve;
+        before = valve ? valve->get() : -1;
+        if (d) zeff::anim_on_collide(d, 1.0e6f);  // rammed down
+      }
+      if (valve && frames > 2 && on_at < 0 && valve->get() == 1) on_at = frames;
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return on_at >= 0 || frames > 900; };
+    app.run(pump);
+    std::fprintf(stderr, "  anim binder: %zu records with a valve; citybuild01 names its valve %d, valve %d before, "
+                         "on at frame %d\n", bound, names_valve, before, on_at);
+    EXPECT(bound > 0 && d != nullptr && names_valve && before == 0);
+    EXPECT(on_at > 2);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_nav_waynet_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -2446,10 +2519,13 @@ TEST(mission_c1m1_player_fires_on_the_owens_headless) {
         const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
         owens = made == 1 ? ai[0].mech : nullptr;
         fire = zin::key1_of(0x3d) & 0xff;  // CMD_FIRE
-        // 80 m west of the Owens, on the ground, facing east (+x: yaw -90).
+        // 40 m west of the Owens, on the ground, facing east (+x: yaw -90). The
+        // opening's ramp animation (call_ramp) turns on the valve "bramp",
+        // which powers the Owens up (c1m1's valves.zrd, ai.md section 18):
+        // from 80 m the machine guns miss it once it moves.
         mech3::LaunchedMech o;
         mech3::describe_mech(owens, &o);
-        const float x = o.pos[0] - 80.0f, z = o.pos[2];
+        const float x = o.pos[0] - 40.0f, z = o.pos[2];
         const float at[3] = {x, ground_under(x, o.pos[1] + 50.0f, z), z};
         mech3::move_mech(player, at, -1.5707964f);
         mech3::describe_mech(owens, &seen.owens_before);

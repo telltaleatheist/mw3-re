@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <list>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 
@@ -59,6 +60,16 @@ struct AnimOwnerHooks : zgame::Unported {
   virtual void place(Handle v, const float pos[3], float yaw) {
     unported("vehicle.vt+0xdc", {v, zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2]), zgame::bits(yaw)});
   }
+  // The binder's (0x004d4b30): the defs in turn (0x0050b570, from none), each
+  // one's callback values in order (0x00508f40), its node (0x0050b5e0), a
+  // node's entity (0x0040eee0), its parent when it has exactly one (+0x54 1,
+  // +0x58[0]), the valve named as the node (0x004d3c40: found or made).
+  virtual Handle anims_next(Handle after) { return unported("0x0050b570", {after}); }
+  virtual void anim_callback_values(Handle anim, std::vector<int32_t>& out) { (void)anim, (void)out; }
+  virtual Handle anim_node(Handle anim) { (void)anim; return 0; }
+  virtual Handle node_entity(Handle node) { return unported("0x0040eee0", {node}); }
+  virtual Handle node_parent(Handle node) { (void)node; return 0; }
+  virtual Handle valve_of_node(Handle node) { return unported("0x004d3c40", {node}); }
 };
 void set_anim_owner_hooks(AnimOwnerHooks* h);
 AnimOwnerHooks& anim_owner_hooks();
@@ -71,6 +82,25 @@ void anim_owner_release(Handle owner);
 // 0x004d4b10 (ECX the animation, EDX its record) -> 0x004d4a20: what a
 // callback event says.
 void anim_owner_message(Handle anim, AnimOwnerRec* rec, int32_t msg);
+// The binder's state on 0x004d4b30's stack (0x14 bytes, cleared by 0x004d46f0
+// and 0x004d4e50): the def being bound, its record (or the temporary).
+struct AnimBinding {
+  bool valid = false;          // +0x00
+  bool taken = false;          // +0x01  an event bound something
+  Handle anim = 0;             // +0x04
+  AnimOwnerRec* rec = nullptr; // +0x08
+  AnimOwnerRec temp;           // +0x0c
+};
+// 0x004d4b30 (the mission load, after the vehicles' fixup): every def with
+// callback events gets a record naming the node's entity (values 0, 0x38)
+// and the valve (0x2a..0x31), or just one (0x39..0x3c).
+void anim_owner_bind_all();
+// 0x004d4c80 (ECX the def, EDX the binding, stack the value).
+void anim_owner_bind_event(AnimBinding& b, Handle anim, int32_t value);
+// 0x004d4e50: the binding's record kept and set on the def when an event
+// bound something; the binding cleared.
+bool anim_owner_bind_commit(AnimBinding& b);
+
 // 0x004d4980: the player's vehicle moved by "viaNode" (`relative`, always 1
 // from 0x004d4a20: the node's translation added to the vehicle's place).
 void anim_owner_via_node(Handle vehicle, bool relative);

@@ -1554,3 +1554,18 @@ is paused.
   (owner and valve), a headless test with a c1 destroy animation's 0x2b
   turning its valve on in play; (2) the valve's parent walk tested past the
   root; (3) unported zEffect pieces hooked and listed.
+- 2b done (mac 4): `zai_anim_owner` anim_owner_bind_all 0x4d4b30,
+  bind_event 0x4d4c80, bind_commit 0x4d4e50 (the claim's record choice
+  shared, record_for); zEffect's 0x508f40 (anim_each_callback), 0x50b570
+  (anim_next_with_callbacks), 0x50b5e0 (anim_node) ported, none hooked;
+  mission.cpp's fn_4d4b30 wired. FIX (bug): a valve walk on a def without
+  a node (unreachable). test_anim_binder.py: all 6 worlds identical (121
+  bound, 89 valves, 27 owners), again after the end, and a made-up round;
+  test_anim_owner.py has the binder (past the root both ways); breaks 12 +
+  4 (two HAS_CALLBACKS breaks each covered by the other test, replaced).
+  Headless: citybuild01 rammed turns its valve on. Found in play: c1m1's
+  opening call_ramp turns "bramp" on, which powers the Owens up (it stayed
+  down before); mission_c1m1_player_fires_on_the_owens_headless moved to
+  40 m (from 80 m the machine guns miss the moving Owens). Test-process
+  reset frees the records (reset_process_state), as the tests never unload
+  the world.

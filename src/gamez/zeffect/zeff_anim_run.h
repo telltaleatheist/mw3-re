@@ -84,6 +84,7 @@ AnimDef* anim_start_connector(AnimDef* def, zcls::Node* node, zcls::Node* from, 
 AnimDef* anim_start_connector_at(AnimDef* def, zcls::Node* node, zcls::Node* from, const float* from_pos,
                                  zcls::Node* to, const float* to_pos);  // 0x00508dc0 (0x00508ee0)
 void anim_set_callback(AnimDef* def, AnimDef::Callback cb, void* arg);  // 0x00508f00
+void anim_each_callback(AnimDef* def, void (*fn)(AnimDef* def, void* ctx, int32_t value), void* ctx);  // 0x00508f40
 void anim_set_level(int32_t level);                    // 0x00508fb0
 void anim_set_player(const float pos[3]);              // 0x00502d40
 void anim_set_zone(const uint8_t zone[4]);             // 0x00502d70, ignored if an id is 0xff
