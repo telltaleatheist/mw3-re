@@ -212,6 +212,16 @@ std::string format_message(int32_t id, std::initializer_list<const char*> args) 
   return s;
 }
 
+std::string format_message_v(int32_t id, va_list args) {
+  const char* t = messages().get_text ? messages().get_text(id) : nullptr;
+  int n = 0;
+  for (const char* p = t; p && *p; ++p)
+    if (p[0] == '%' && p[1] >= '1' && p[1] <= '9' && p[1] - '0' > n) n = p[1] - '0';
+  const char* a[9] = {};
+  for (int i = 0; i < n; ++i) a[i] = va_arg(args, const char*);
+  return format_message(id, {a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]});
+}
+
 std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args) {
   std::string s[4];
   size_t n = 0;

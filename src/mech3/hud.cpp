@@ -1152,6 +1152,100 @@ void HudZoomWindow::show_for(float seconds) {
   text.hide();
 }
 
+// Mech3.exe 1.2 @ 0x004436c0 (it returns 1, unread).
+void HudZoomWindow::place_camera() {
+  if ((flags & ztwod::kHidden) && zoom == 0.0f) return;
+  HudHooks& h = *g_hooks;
+  Hud* hd = static_cast<Hud*>(source);  // +0x168
+  const zwep::HitRecord& hit = hd->reticle.hit;  // 0x00444330
+  float place[3], angles[3];
+  h.player_camera_place(place);
+  h.camera_set_position(view.camera, place);
+  const float to[3] = {hit.point.x, hit.point.y, hit.point.z};
+  zmth::direction_angles(place, to, angles);
+  h.camera_set_angles(view.camera, angles);
+  h.camera_set_zone(view.camera, h.player_camera_zone());
+  text.show_for(-1.0f);
+  float distance = hd->reticle.aim_distance;  // 0x00444690
+  const char* name = nullptr;
+  if (hit.node) {
+    // The aimed object, when it is the mech's target: the contact's distance.
+    void* slot = h.mech_target_slot(hd->mech);
+    if (void* contact = slot ? h.slot_contact(slot) : nullptr) {
+      void* aimed = h.node_object(hit.node);  // 0x0040eee0
+      if (h.target_object(slot) == aimed) distance = h.contact_distance(contact);  // 0x004e6fe0, 0x004e7030
+    }
+    if (h.node_object(hit.node)) {  // asked again for its name (0x004437e1, 0x004437ee)
+      name = h.object_name(h.node_object(hit.node));  // vt+0xa4
+      if (name && !*name) name = nullptr;
+    }
+  }
+  char d[32];
+  std::snprintf(d, sizeof d, "%.1f", static_cast<double>(distance));  // 0x005e406c
+  if (name) text.set_text_id(0x22d, name, d);
+  else text.set_text_id(0x22e, d);
+}
+
+// Mech3.exe 1.2 @ 0x00442f50. The zoom camera placed and the player's own
+// mech off while it draws: a box is its rect's depth cleared, then the view;
+// a circle masks its four corners first, with quarter fans of the clear
+// texture at depth 0.99 (0x0057bd50), and clears the depth again after.
+void HudZoomWindow::draw3d(float dt) {
+  if ((flags & ztwod::kHidden) && zoom == 0.0f) return;
+  HudHooks& h = *g_hooks;
+  place_camera();
+  Hud* hd = static_cast<Hud*>(source);
+  const uint32_t me = h.object_node(hd->mech);
+  h.node_set_active(me, false);
+  int32_t x, y, w, ht;
+  h.camera_window_rect(view.camera, &x, &y, &w, &ht);
+  const ztwod::Rect r{x, y, x + w - 1, y + ht - 1};
+  if (ztwod::host().video_mode() != 0) {  // without a device, the software path (not ported)
+    if (round) {
+      const float hw = static_cast<float>(w) * 0.5f, hh = static_cast<float>(ht) * 0.5f;  // 0x005c00f4
+      const float cx = static_cast<float>(x) + hw, cy = static_cast<float>(y) + hh;
+      h.dirty_rect(&r);
+      h.scene_begin();
+      for (int32_t q = 0; q < 4; ++q) {
+        const float sx = (q & 1) ? -1.0f : 1.0f, sy = (q & 2) ? -1.0f : 1.0f;
+        float pts[21];
+        float a = 0.0f;
+        for (int i = 0; i < 6; ++i) {
+          const float c = static_cast<float>(std::cos(static_cast<double>(a)));
+          const float s = static_cast<float>(std::sin(static_cast<double>(a)));
+          pts[3 * i] = c * sx * hw + cx;
+          pts[3 * i + 1] = s * sy * hh + cy;
+          pts[3 * i + 2] = 0.99f;  // 0x3f7d70a4
+          a = a - -0.31415927f;    // 0x005c0130: a tenth of a turn's half
+        }
+        pts[18] = sx * hw + cx, pts[19] = sy * hh + cy, pts[20] = 0.99f;
+        h.mask_fan(pts, 7);
+      }
+      h.scene_end();
+      render_view(dt);
+      h.dirty_rect(&r);
+    } else {
+      h.dirty_rect(&r);
+      render_view(dt);
+    }
+  }
+  h.node_set_active(me, true);
+}
+
+// Mech3.exe 1.2 @ 0x00443320 (Direct3D; without a device the software
+// path, not ported).
+void HudZoomWindow::render_view(float dt) {
+  HudHooks& h = *g_hooks;
+  const uint32_t world = h.world_node(view.world);  // [[+0x0c] +4]
+  float near_range, far_range;
+  h.world_fog_range(world, &near_range, &far_range);
+  h.world_set_fog_range(world, (far_range + near_range) * 0.5f, far_range);  // 0x005c00f4
+  h.world_push_fog(world);
+  h.zview_render(this, dt);  // 0x004f7030 on its camera
+  h.world_set_fog_range(world, near_range, far_range);
+  h.world_push_fog(world);
+}
+
 // Mech3.exe 1.2 @ 0x00442e00
 void HudZoomWindow::toggle_lock() {
   x174 = !x174;
@@ -1892,6 +1986,9 @@ void HudTarget::attach(void* h) {
   HudMfd::attach(h);
   update_texts(false);
 }
+
+// Mech3.exe 1.2 @ 0x00444230
+void HudReticle::draw3d(float dt) { zoom.draw3d(dt); }
 
 // Mech3.exe 1.2 @ 0x00444250
 void HudReticle::attach(void* h) {

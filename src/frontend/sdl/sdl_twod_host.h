@@ -67,6 +67,8 @@ class SdlTwodHost : public ztwod::Host {
   void cd_stop() override;
   const char* message(const char* key) override;
   const char* message_text(uint32_t id) override;
+  // 0x00575ff0: FormatMessageA on Mech3Msg.dll's text, the arguments C strings.
+  uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override;
   ztwod::MouseState mouse() override;
   void input_reset() override;
 

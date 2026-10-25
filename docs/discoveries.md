@@ -1012,6 +1012,12 @@ From the network code (network-messages.md).
 
 ## Graphics
 
+- **The zoom window sees through the fog.** While the reticle's zoom
+  (Z) shows, the game pushes the fog back for that view only, its start
+  half way to its end, so distant targets stand out more clearly in the
+  zoom than in the main view. Your own mech is switched off while the zoom
+  draws, so it never blocks the view, and the round zoom is a square view
+  with its corners masked (0x442f50, 0x443320; `hud.md` section 23).
 - **A badly hurt mech's HUD breaks up with static.** Once the weakest of
   your torso's three sections or your head is under 40% of its internal
   structure, the HUD's panels (TARGET, the MFD, the weapon list and the

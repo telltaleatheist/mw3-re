@@ -142,6 +142,18 @@ is in `README.md`.
   depth fill. Test mission_c1m1_hud_views_drawn_headless (break caught).
   Open [Owen]: the MFD's mode 1 camera (0x442900 has no caller found).
 
+## HUD plan item 6c2: the zoom window's 3D pass (2026-10-25)
+
+- Assigned (the lead, the split): 0x442f50 with 0x4436c0, stacked on
+  mac4/hud-views. Found: the zoom's zView is its own class (vtable
+  0x5c0600): its render 0x443320 pushes the fog back for the pass; the
+  zoom hides the player's own mech; the round window's corners are masked
+  with four clear-texture fans at depth 0.99; the program never formatted
+  zTwoD message texts (FormatMessage), so the zoom's range (and any other
+  set_text_id text) was empty: SdlTwodHost::format_message.
+- Tests: test_hud op 42 (100 HUDs, 75 passes, 120 fans), breaks,
+  mission_c1m1_hud_zoom_drawn_headless.
+
 ## Playtest #23 / #24 / #28: firing, aim, recoil (2026-10-25)
 
 - Assigned (the lead, Owen's second playtest): some clicks fire nothing

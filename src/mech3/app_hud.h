@@ -13,6 +13,7 @@ void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle 
 void program_hud_update(float dt);
 void* program_pilot_hud(void* mech_data);        // 0x00430aa0 on a MechData (null: null)
 void program_hud_static(void* hud, float dt);    // 0x0043cd20 on a HUD
+void program_hud_zoom_pass(void* hud, float dt); // +0x144c vt+0x28 (0x00444230) on a HUD
 bool program_intensity_flag();                   // GameIntensity's flag [0x00608e4c] (options)  // 0x0040fac0's first call: the view target's 0x0041cd40
 // For the tests: the view target's reticle (x, y), its world point and
 // whether the ray hit something; false without a HUD.
@@ -58,8 +59,15 @@ struct HudReport {
   // The 3D views (hud-plan item 6c1): the camera and window nodes made, the
   // views drawn and the depth fills since the last report, the MFD's mode.
   int view_cameras = 0, view_windows = 0, views_drawn = 0, depth_fills = 0, mfd_shown = 0;
+  // The zoom window (6c2): shown, round, its mask fans since the last report,
+  // its camera's place against the player camera's, its text.
+  int zoom_shown_now = 0, zoom_round = 0, mask_fans = 0;
+  float zoom_cam_off = -1.0f;  // the distance between the two places
+  char zoom_text[64] = {};
 };
 bool program_hud_report(HudReport* r);
+// Tests only: the view target's HUD's zoom window locked open (keypad 0, 0x00442e00).
+void program_hud_zoom_show();
 // Tests only: the view target's HUD's MFD set to mode `m` (vt+0x7c).
 void program_hud_mfd_mode(int m);
 // Tests only: a mech's torso's internal structure, all three sections.

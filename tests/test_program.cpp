@@ -1221,9 +1221,15 @@ TEST(mission_c1m1_hud_views_drawn_headless) {
   p.render = &gpu;
   mech3::HudReport r, at10;
   int gpu_rects_from5 = 0;
-  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode, the engine's (as the SDL host's)
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode and messages, the engine's (as the SDL host's)
     mech3::GameEngine* e = nullptr;
     int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
   } host;
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -1259,6 +1265,100 @@ TEST(mission_c1m1_hud_views_drawn_headless) {
   EXPECT(at10.view_cameras >= 3 && at10.view_windows == at10.view_cameras);  // the zoom, the MFD's, TARGET's
   EXPECT(at10.mfd_shown == 1 && at10.views_drawn == 5 && at10.depth_fills >= 5);  // one a frame
   EXPECT(gpu_rects_from5 >= 5);  // the fills reach the device (DDBLT_DEPTHFILL)
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The reticle's zoom window (hud-plan item 6c2; 0x00444230 -> 0x00442f50,
+// 0x004436c0): shown, its camera is put at the player camera's place, turned
+// to the aim point, the player's own mech off while it draws; a box clears
+// its rect's depth and draws the view, a circle masks its corners with four
+// fans first and clears again after; its text says the distance.
+TEST(mission_c1m1_hud_zoom_drawn_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_zoom_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  struct DepthGpu : platform::Render3D {  // a device, so the Direct3D paths run
+    int depth_rects = 0;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void clear_depth_rect(int, int, int, int) override { ++depth_rects; }
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex*, int, const platform::DrawState&) override {}
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  mech3::HudReport r, at10;
+  int gpu_rects_from5 = 0;
+  struct ModeHost : ztwod::Host {  // the zTwoD host's video mode and messages, the engine's (as the SDL host's)
+    mech3::GameEngine* e = nullptr;
+    int32_t video_mode() override { return e->video_mode(); }
+    const char* message_text(uint32_t id) override { return e->message(static_cast<int32_t>(id)); }
+    uint32_t format_message(char* buf, uint32_t size, uint32_t id, va_list args) override {
+      const std::string t = zutl::format_message_v(static_cast<int32_t>(id), args);
+      std::snprintf(buf, size, "%s", t.c_str());
+      return static_cast<uint32_t>(t.size());
+    }
+  } host;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 4) mech3::program_hud_mfd_mode(2), mech3::program_hud_zoom_show();  // no MFD view; the zoom up
+      if (frames == 5) mech3::program_hud_report(&r), gpu_rects_from5 = gpu.depth_rects;  // the counts from here
+      if (frames == 10) mech3::program_hud_report(&at10), gpu_rects_from5 = gpu.depth_rects - gpu_rects_from5;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 10; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  std::printf("  zoom: shown %d round %d; frames 6-10: %d drawn, %d depth fills, %d fans; camera %.3f off; text '%s'\n",
+              at10.zoom_shown_now, at10.zoom_round, at10.views_drawn, at10.depth_fills, at10.mask_fans, at10.zoom_cam_off,
+              at10.zoom_text);
+  EXPECT(at10.zoom_shown_now && at10.views_drawn == 5);  // the zoom alone, once a frame
+  EXPECT(at10.zoom_round ? at10.depth_fills == 10 && at10.mask_fans == 20 : at10.depth_fills == 5 && at10.mask_fans == 0);
+  EXPECT(at10.zoom_cam_off >= 0.0f && at10.zoom_cam_off < 1e-3f);  // at the player camera's place
+  EXPECT(at10.zoom_text[0] != 0);  // the distance (and the aimed object's name)
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
