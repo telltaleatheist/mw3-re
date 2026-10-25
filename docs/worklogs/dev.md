@@ -141,3 +141,26 @@ is in `README.md`.
   through render_world (hardware only, as 0x4b52c0), dirty_rect as the
   depth fill. Test mission_c1m1_hud_views_drawn_headless (break caught).
   Open [Owen]: the MFD's mode 1 camera (0x442900 has no caller found).
+
+## Playtest #23 / #24 / #28: firing, aim, recoil (2026-10-25)
+
+- Assigned (the lead, Owen's second playtest): some clicks fire nothing
+  until clicked again (#23), a laser does not land where the reticle was at
+  the click (#24), no recoil (#28: WeaponCalls::recoil never set). Each with
+  a headless check that reproduces it first. Branch mac4/playtest-firing
+  off main.
+- #28 fixed: `c.recoil` wired in app_weapons.cpp (an Arm kicks, a Hand
+  passes it to its arm, other parts none). The Bushwhacker's LRM/AC group
+  went from recoil 0 to 0.43 (mission_c1m1_arm_weapon_recoils_headless).
+- #23 as the original: five clicks pressed and released inside one frame
+  (mouse and key) all fire once the bar is full
+  (mission_c1m1_short_clicks_fire_headless); a beam fires only from a full
+  charge (0x4b3fc0), so clicks while it recharges are dropped. Buffering
+  them is in fixes.md's candidates.
+- #24 as the original: the beam fires at exactly the aim point the click
+  saw, turning or not, and a held beam follows the reticle
+  (mission_c1m1_laser_{lands,turning}_on_the_reticle_headless; a sideways
+  1 m aim error fails both). A trap on the way: at 80 m the reticle's ray
+  passes 0.9 m beside the Owens' torso (its AI turns it about 12°) and
+  hits the building behind, while the arm's beam still crosses the Owens.
+  Test helpers mech_group_ammo / _ready / _muzzle, mech_arm_recoil.

@@ -62,12 +62,12 @@ Owen: "otherwise it seems to be working really well".
 | # | Seen | Area | Owner | State |
 |---|---|---|---|---|
 | 22 | Ground textures blink in and out at random spots | render: terrain draw, depth (coplanar overlays?), the partition cull | dev | waiting |
-| 23 | Firing is unreliable: some clicks fire nothing until clicked again | controls → weapons: the trigger's edge between frames | dev | waiting |
-| 24 | A laser doesn't hit where the reticle was at the click | the aim point the shot takes (a frame late?) | dev | waiting |
+| 23 | Firing is unreliable: some clicks fire nothing until clicked again | controls → weapons: the trigger's edge between frames | dev | as the original: every short click reaches the weapons (mouse or key, five pressed and released in one frame), but a beam fires only from a full charge (0x4b3fc0), so a click while the bar fills is dropped; buffering it is a candidate (fixes.md). Tests: `mission_c1m1_short_clicks_fire_headless` |
+| 24 | A laser doesn't hit where the reticle was at the click | the aim point the shot takes (a frame late?) | dev | as the original: the beam fires at exactly the aim point the click saw, turning or not, and a held beam follows the reticle (0x4b41b0); an arm's beam runs from its muzzle to the point under the reticle, so it can hit something in front that the reticle is not on (a narrow torso the ray passes beside). Tests: `mission_c1m1_laser_{lands,turning}_on_the_reticle_headless` |
 | 25 | LRMs lock but don't home: in the original, lock, aim at the sky, fire, and the missiles climb and come down on the target | the shot's lock target at spawn (homing 0x585900 is ported) | dev | waiting |
 | 26 | F12 opens no objectives text | the objectives box's text 0x446ad0 (keybindings.md) | dev | waiting |
 | 27 | Shots at the missile turrets don't destroy them | turret hits / damage (hit test reaching tur_* nodes?) | dev | waiting |
-| 28 | No recoil: the Bushwhacker's arm AC/10 should kick the mech back and throw off the aim (less from the torso) | WeaponCalls::recoil (weapon.cpp 204) unwired in the program; the part update 0x466xxx is ported | dev | waiting |
+| 28 | No recoil: the Bushwhacker's arm AC/10 should kick the mech back and throw off the aim (less from the torso) | WeaponCalls::recoil (weapon.cpp 204) unwired in the program; the part update 0x466xxx is ported | dev | fixed: the program set no recoil hook; an arm's weapon kicks the arm (0x466610), a hand's its arm (0x4673f0). Test: `mission_c1m1_arm_weapon_recoils_headless` |
 
 ## Unported in c1m1 (2026-10-21, census)
 
