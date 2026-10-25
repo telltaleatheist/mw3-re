@@ -177,6 +177,11 @@ void reset_process_state() {
   // And the interp's ScrollAlways list and holder, freed by the world's
   // unload (0x005964c0(1)): a new process's (0x005962a0).
   zint::scroll_list_init();
+  // A new process has no player controls ([0x006056ec]): their first making
+  // (0x00427280) puts the command callbacks on zInput's map, which each
+  // test's init makes anew. The campaign test's survive it otherwise, and E
+  // (a callback command) then does nothing in the tests after it.
+  mech3::player_controls_instance() = nullptr;
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {

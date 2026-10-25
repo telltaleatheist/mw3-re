@@ -195,3 +195,10 @@ is in `README.md`.
   degrees off at 150 m hits and 22 does not; the test fires 10 degrees off,
   and fails without the wiring (record_target null: no hit).
 - Open: what drops an in-flight shot's lock when its target goes.
+- Test isolation: in the full suite the LRM test's E did nothing after
+  campaign_menus_to_c1m1_through_the_briefing_headless (bisected). The
+  player controls ([0x6056ec]) survived that test, so 0x427280 did not
+  register the command callbacks again on the new zInput map each test's
+  init makes (E is a callback command; throttle and fire are polled).
+  reset_process_state now clears the instance, as a new process has none.
+  The program makes zInput once, so play is not affected.
