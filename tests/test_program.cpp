@@ -64,6 +64,7 @@
 #include "mech3/app_states.h"
 #include "mech3/lab_screen.h"
 #include "mech3/app_view.h"
+#include "mech3/landmines.h"
 #include "mech3/player_view.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/controls_menu.h"
@@ -1670,6 +1671,147 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The landmines (0x004135c0, 0x00413560, 0x00413470; docs/landmines.md):
+// c1 mission 2 lists landmines.zrd's 82, LANDMINE at 20 m. The player put on
+// one sets it off (the impact on the ground under it, the splash), and it
+// stays listed, disarmed (off the radar's armed ones); an AI mech put on
+// another far from the first sets that one off too (every mech's update
+// checks them); the mission's end empties the list.
+TEST(mission_c1m2_landmines_go_off_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_mines_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    size_t loaded = 0, listed_after = 0, after_cleanup = 99;
+    std::string weapon;
+    float radius = 0;
+    int armed_start = -1, impacts = 0, splashes = 0, ai_count = 0;
+    int player_mine = -1, ai_mine = -1;
+    bool player_off = false, ai_off = false, ai_far_armed_before = false;
+    int impacts_player = 0, impacts_ai = 0;
+  };
+  static Seen seen;
+  seen = Seen{};
+  mech3::LandmineHooks keep_hooks = mech3::landmine_hooks();
+  mech3::landmine_hooks().impact = [](zwep::WeaponDef* d, zwep::HitRecord* r, zwep::Projectile* s, zwep::Handle a) {
+    ++seen.impacts;
+    return zwep::impact(d, r, s, a);
+  };
+  mech3::landmine_hooks().splash = [](zwep::WeaponDef* d, zwep::Projectile* s, zwep::HitList* l, uintptr_t e) {
+    ++seen.splashes;
+    return zwep::splash(d, s, l, e);
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1 mission 2
+    l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    auto armed = [] {
+      int n = 0;
+      for (const mech3::Landmine& m : mech3::landmines().list) n += m.armed != 0;
+      return n;
+    };
+    auto put_on = [](void* mech, const mech3::Landmine& m) {
+      const float at[3] = {m.at[0], ground_under(m.at[0], m.at[1] + 30.0f, m.at[2]), m.at[2]};
+      mech3::move_mech(mech, at, 0.0f);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      std::vector<mech3::Landmine>& list = mech3::landmines().list;
+      if (frames == 3) {
+        seen.loaded = list.size();
+        if (const zwep::WeaponDef* d = mech3::landmines().weapon) seen.weapon = d->key ? d->key : "";
+        seen.radius = mech3::landmines().radius;
+        seen.armed_start = armed();
+        float me[3];
+        mech3::mech_world_position(mech3::mech_mission_player(), me);
+        // The mine nearest the player's start, so the walk there is short.
+        float best = 1e30f;
+        for (size_t i = 0; i < list.size(); ++i) {
+          const float dx = list[i].at[0] - me[0], dz = list[i].at[2] - me[2];
+          if (dx * dx + dz * dz < best) best = dx * dx + dz * dz, seen.player_mine = static_cast<int>(i);
+        }
+        if (seen.player_mine >= 0) put_on(mech3::mech_mission_player(), list[static_cast<size_t>(seen.player_mine)]);
+      } else if (frames == 8 && seen.player_mine >= 0) {
+        seen.player_off = !list[static_cast<size_t>(seen.player_mine)].armed;
+        seen.impacts_player = seen.impacts;
+        // An armed mine at least 100 m from every disarmed one and the player.
+        float me[3];
+        mech3::mech_world_position(mech3::mech_mission_player(), me);
+        for (size_t i = 0; i < list.size() && seen.ai_mine < 0; ++i) {
+          if (!list[i].armed) continue;
+          auto far = [&](const float* q) {
+            const float dx = list[i].at[0] - q[0], dz = list[i].at[2] - q[2];
+            return dx * dx + dz * dz > 10000.0f;
+          };
+          bool ok = far(me);
+          for (const mech3::Landmine& o : list) ok = ok && (o.armed || far(o.at));
+          if (ok) seen.ai_mine = static_cast<int>(i);
+        }
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        seen.ai_count = made;
+        if (made > 0 && seen.ai_mine >= 0) {
+          seen.ai_far_armed_before = list[static_cast<size_t>(seen.ai_mine)].armed != 0;
+          put_on(ai[0].mech, list[static_cast<size_t>(seen.ai_mine)]);
+        }
+      } else if (frames == 13 && seen.ai_mine >= 0) {
+        seen.ai_off = !list[static_cast<size_t>(seen.ai_mine)].armed;
+        seen.impacts_ai = seen.impacts - seen.impacts_player;
+        seen.listed_after = list.size();
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames > 13; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    seen.after_cleanup = mech3::landmines().list.size();
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::landmine_hooks() = keep_hooks;
+  if (std::getenv("MW3_MINES_LOG"))
+    std::fprintf(stderr, "MINES %zu %s r %.1f armed %d player %d off %d ai %d mine %d off %d impacts %d/%d splashes %d after %zu/%zu\n",
+                 seen.loaded, seen.weapon.c_str(), seen.radius, seen.armed_start, seen.player_mine,
+                 seen.player_off, seen.ai_count, seen.ai_mine, seen.ai_off, seen.impacts_player, seen.impacts_ai,
+                 seen.splashes, seen.listed_after, seen.after_cleanup);
+  EXPECT(seen.loaded == 82 && seen.armed_start == 82);
+  EXPECT(seen.weapon == "LANDMINE" && seen.radius == 20.0f);
+  EXPECT(seen.player_off && seen.impacts_player >= 1);
+  EXPECT(seen.ai_count > 0 && seen.ai_far_armed_before && seen.ai_off && seen.impacts_ai >= 1);
+  EXPECT(seen.splashes >= 2);
+  EXPECT(seen.listed_after == 82);  // disarmed, still listed
+  EXPECT(seen.after_cleanup == 0);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

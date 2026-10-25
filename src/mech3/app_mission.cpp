@@ -54,6 +54,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zentity/zent_init.h"
 #include "mech3/cockpit_sound.h"
+#include "mech3/landmines.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_shade.h"
@@ -1438,6 +1439,9 @@ struct WiredMissionHooks : MissionHooks {
     MissionHooks::ai_lists_free();
   }
   void inout_load() override { ai::inout_select(); }  // 0x004c3b80: the mission's boundary
+  // The mission's landmines (landmines.cpp; the list is 0x00604e48's).
+  void landmines_load(Handle, const char* file, const char* block) override { mech3::landmines_load(file, block); }
+  void landmines_free() override { mech3::landmines_free(); }
   // Their slot +0x10 at the mission's end (0x004e7bc0): the boundary's
   // (0x004c3dd0), the pocket commander's (0x0046ab10) and the animation
   // owners' (0x004d4700); the others logged.

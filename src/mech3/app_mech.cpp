@@ -2,6 +2,7 @@
 // section 9). Not original code: it stands where the exe's other modules
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
+#include "mech3/landmines.h"
 #include "mech3/pocket_panel.h"
 #include "mech3/cockpit_sound.h"
 #include "gamez/zinput/zinput.h"
@@ -425,6 +426,12 @@ void wire_mech_frame() {
     m.entity_moved();
   };
   update_calls().moved = [](Mech& m) { m.entity_moved(); };                                 // 0x005a85c0
+  update_calls().landmines = [](const Vec3* at) { landmines_check(at ? &at->x : nullptr); };  // 0x00413560
+  landmine_hooks().ground = [](float x, float y, float z, zcls::GroundHits* out) -> int32_t {    // 0x004edab0
+    zcls::Node* w = world_hooks().world;
+    if (!w) return 1;
+    return zcls::ground_point(w, x, y, z, out);
+  };
   // What a probe hit (0x0040ef10 / 0x0040ef00): a mech's nodes are its own,
   // so it blocks and is shoved as a mech rather than as a wall.
   c.node_mech = [](Handle n) { return static_cast<Mech*>(node_owner(n)); };

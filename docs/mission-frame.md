@@ -153,11 +153,12 @@ and 0x0040adf0(0, 0) (it lets go of the player's mech before it is
 deleted), the radar objects 0x004b4ae0, the regions 0x004c5fa0 (freed,
 else a later mission's region lookups by name found the earlier
 mission's: a port-only gap; `mission_after_another_gets_its_own_regions_headless`),
-the player controls' pilot record 0x00427300 and zReader's
+the player controls' pilot record 0x00427300, the landmines 0x00413770
+(`landmines.md`) and zReader's
 0x005573d0(0) (the mission's archives closed). Not ported, logged:
 CloseHandle / SetThreadPriority (no loader thread in the port), the map
 objects 0x004582c0 (+0xbc's list 0x00605acc), the stealth entity's
-0x005a89c0 / 0x005a8820, the landmines 0x00413770, 0x004a7970 ([0x00609a38]
+0x005a89c0 / 0x005a8820, 0x004a7970 ([0x00609a38]
 ..[0x00609a44]), 0x0047a720 and 0x004d54f0 ([0x0060b544]), the waynets
 0x00479850, 0x004d71f0 (0x004add10), zEffect's 0x0050b2f0 (the
 mission-made animation instances, +0x94 bit 17), 0x005394c0(1, 1) and
