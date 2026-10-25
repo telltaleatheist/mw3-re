@@ -653,7 +653,6 @@ int probe_dead_step(const uint32_t* w, uint8_t* out, int cap) {
   d.ia_tally = [](int32_t field, int32_t kills) { s_tally[(field - 0x4c) / 4] += kills; };
   d.sensors_forget = [](Mech&) { u32(0x88); };
   d.free = [](Mech&) { u32(0x89); };
-  d.sensors_forgets = true;  // the exe's path: the wreck deleted
   const bool gone = dead_step(m, 0.05f);
   u32(0xf), u32(static_cast<uint32_t>(s_tally[0])), u32(static_cast<uint32_t>(s_tally[1])),
       u32(static_cast<uint32_t>(s_tally[2])), u32(m.x3f4[0]), u32(gone ? 1 : 0);

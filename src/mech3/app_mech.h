@@ -221,6 +221,11 @@ void mech_aim_at_last_hit(void* mech);
 void mech_lead_velocity(void* mech, float out[3]);
 void mech_matrix(void* mech, float m[9]);
 void mech_target_position(void* mech, float out[3]);
+void program_mech_forget(void* mech, uint32_t self, uint32_t x);
+bool program_mech_lock_on(void* mech, void* target);                 // for the tests
+std::vector<std::string> program_holders_of(uint32_t x, const void* gone);  // for the tests: who still holds it
+void program_mech_set_attacker(void* mech, void* attacker);  // for the tests
+void program_mech_wreck_gone(void* mech);                            // for the tests: 0x0041e140's delete  // vt+0xd4 0x004aeec0 (with the attacker FIX)
 bool program_mech_kill_credit(void* killer, void* victim);  // a mech killer's 0x0041b420; false: not a mech
 bool program_entity_zones(const void* e, uint8_t out[4]);  // a mech's or vehicle's +0x64; false: neither
 void* wm_group_weapon(void* wm);

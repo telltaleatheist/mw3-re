@@ -1384,6 +1384,37 @@ turns the allies, the mech's vt slots the sensors call (the HUD's lock
 0x41d890, the level of detail 0x41e870, the brain's refresh 0x41e810),
 zEntity3d.
 
+### The forget (0x4aa6b0, 0x4aa4d0, 0x4aeec0; ported 2026-10-24)
+
+When an entity goes for good (a wreck deleted, 0x41e140), 0x4aa6b0 releases
+its animations (0x4d5100, the registry not ported yet: logged), then asks
+every entity on zEntity's list for its vehicle (vt+0x2c) and that vehicle's
+vt+0xd4 with the one going. A mech's, a basic vehicle's and a field base's
+vt+0xd4 is 0x4aeec0: its weapons forget the locks on it (0x4b0370: the lock
+flag, position and velocity cleared, the entity word left), its controls'
+vt+0x60 (the player's 0x4bf620 and the AI's 0x4ea700, both empty), then
+AiTarget's 0x4aa4d0; a turret's, a target's and the command marker's is
+0x4aa4d0 alone. 0x4aa4d0 on vehicle V and the one going X: X itself, every
+pick, kept contact and contact cleared (the owned ones deleted); else each
+pick or kept contact whose vehicle (0x4e6fe0) is X dropped (the player's and
+the lance's owned ones deleted, the target through vt+0xc0(0, 0)), the
+touching contact cleared whoever it is on (as written), the contacts on X
+or null taken out (0x4aa470; unfreed in the exe, deleted here: FIX (bug)).
+The targets.zrd objects are not on zEntity's list, so they are not asked:
+their contacts on X go with the next sensors frame. The port adds the
+attackers' FIX (bug) to the mech's forget (fixes.md). `sensors.cpp`
+`entities_forget` / `forget_entity`; the program's per class in
+app_sensors (`program_mech_forget`, `program_vehicle_forget`). Checked:
+`test_sensors.py` part 3 (300 forgets after a sensors frame: a vehicle, an
+entity, a target, the player or a stranger going; half the vehicles with
+0x4aeec0, weapons and controls stubbed; the calls and every list compared)
+and `mission_c1m4_a_wreck_is_deleted_and_forgotten_headless` (an enemy
+targeted by Dominic and the player, the player's weapon locked on it,
+Dominic's last attacker: killed, then deleted as instant action does, and
+nothing in any vehicle, target or weapon still holds it). 14 of 15 breaks
+(the miss not observable: no list holds a null contact after a sensors
+frame, and a contact at distance 0 needs two vehicles in one place).
+
 ## 16. The AI mechs' frames (in the program)
 
 Nothing in the AI calls a vehicle's frame. The player tick 0x4a1160 updates

@@ -515,6 +515,64 @@ void sensors_update() {
   g_frame = nullptr;
 }
 
+// --- The forget (0x004aa470..0x004aa6b0) ----------------------------------------------
+
+void SensorHooks::forget(Handle v, Handle x) { forget_entity(v, x); }
+
+// Mech3.exe 1.2 @ 0x004aa4d0. The touching contact (+0xb8) is cleared
+// whoever it is on (as written). FIX (bug): the contacts taken out of the
+// list are deleted (the exe's remove leaves them unfreed, a leak).
+void forget_entity(Handle self, Handle x) {
+  SensorHooks& h = H();
+  AiTarget& t = F(self);
+  if (x == self) {
+    h.contact_delete(t.own_player);
+    t.own_player = t.player_contact = nullptr;
+    h.contact_delete(t.own_lance);
+    t.own_lance = t.nearest_lance = nullptr;
+    t.target = t.ally_target = t.enemy_target = t.saved_target = nullptr;
+    t.touching = nullptr;
+    t.clear_contacts();  // 0x004a7be0
+    return;
+  }
+  auto on = [&](const Contact* c) { return c && seen_vehicle(c) == x; };  // 0x004e6fe0
+  if (on(t.player_contact)) {
+    h.contact_delete(t.own_player);
+    t.own_player = t.player_contact = nullptr;
+  }
+  if (on(t.nearest_lance)) {
+    h.contact_delete(t.own_lance);
+    t.own_lance = t.nearest_lance = nullptr;
+  }
+  if (on(t.target)) {
+    h.set_target(self, nullptr, false);  // vt+0xc0(0, 0)
+    t.target = nullptr;
+  }
+  if (on(t.ally_target)) t.ally_target = nullptr;
+  if (on(t.enemy_target)) t.enemy_target = nullptr;
+  if (on(t.saved_target)) t.saved_target = nullptr;
+  if (on(t.touching)) t.touching = nullptr;
+  t.touching = nullptr;  // whoever it is on
+  // 0x004aa470: a null contact goes too.
+  std::vector<Contact*> gone;
+  auto keep = std::remove_if(t.contacts.begin(), t.contacts.end(), [&](Contact* c) {
+    const bool drop = !c || seen_vehicle(c) == x;
+    if (drop && c) gone.push_back(c);
+    return drop;
+  });
+  t.contacts.erase(keep, t.contacts.end());
+  for (Contact* c : gone) h.contact_delete(c);
+}
+
+// Mech3.exe 1.2 @ 0x004aa6b0
+void entities_forget(Handle x) {
+  SensorHooks& h = H();
+  h.anim_owner_release(x);
+  const std::vector<Handle> list = g_entities;
+  for (Handle e : list)  // 0x004aa4a0
+    if (const Handle v = veh(e)) h.forget(v, x);
+}
+
 // --- The entity sort (after ZAiTarget.cpp) --------------------------------------------
 
 namespace {

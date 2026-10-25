@@ -174,6 +174,14 @@ struct ProgramSensors : ai::SensorHooks {
     if (void* v = vehicle(s)) return program_vehicle_engine_play(v, pos);
     SensorHooks::ping(s, pos);
   }
+  // vt+0xd4 by the class: a mech's and a basic vehicle's 0x004aeec0, the
+  // rest (turrets, the command marker) AiTarget's 0x004aa4d0.
+  void forget(zgame::Handle v, zgame::Handle x) override {
+    if (Mech* m = mech(v)) return program_mech_forget(m, v, x);
+    if (void* b = vehicle(v)) return program_vehicle_forget(b, v, x);
+    ai::forget_entity(v, x);
+  }
+  void anim_owner_release(zgame::Handle x) override { log_unported("0x004d5100", {x}); }
   void set_target(zgame::Handle x, ai::Contact* c, bool keep) override {
     ai::AiTarget* a = fields(x);
     if (!a) return;

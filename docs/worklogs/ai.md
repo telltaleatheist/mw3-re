@@ -1485,3 +1485,18 @@ is paused.
   (contacts, targets, a lancemate's target, a weapon's lock); any port-side
   holder still pointing at it reported, not papered over. Related set with
   test_weapons_run, test_weapons_fly (background, ~26 min), test_tag.
+- Forget chain done (mac 4): sensors.cpp entities_forget 0x4aa6b0 and
+  forget_entity 0x4aa4d0; the program's vt+0xd4 by class (app_sensors;
+  program_mech_forget / program_vehicle_forget = 0x4aeec0, with the
+  weapons' already-ported 0x4b0370 forget_target, unchanged in weapon.cpp).
+  The program's weapons had no target_key (vt+0x24): wired (itself), so a
+  lock remembers its entity as in the exe. mech_dead's interim FIX (A)
+  gone (no rows of its own in fixes.md / CHANGES.md: its note said so); the
+  wreck freed through mech_free. FIX (bug): the attackers (+0x664) naming
+  the wreck (was fixes.md's "still to fix" entry), the forget's unfreed
+  contacts. The targets.zrd objects are not told (not on zEntity's list in
+  the exe either). Port-side holders still pointing at a freed wreck: the
+  mission's AI mech list g_ai_mechs (the valves' target_find by name) and
+  the engine's handle table (handles_ keeps the pointer; a new object at
+  that address would get the old handle). Reported, not changed. 14 of 15
+  breaks (the null contact case not observable).

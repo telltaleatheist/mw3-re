@@ -734,10 +734,8 @@ void wire_mech_parts() {
   dc.ia_tally = [](int32_t field, int32_t kills) {  // the instant action game is not the program's
     if (g_w.unported) g_w.unported(g_w.engine, "ia game +0x4c..+0x54", {field, kills});
   };
-  dc.sensors_forget = [](Mech& m) {  // the AI's (0x004d5100, 0x004aa4a0)
-    if (g_w.unported) g_w.unported(g_w.engine, "0x004aa6b0", {g_w.handle_of(g_w.engine, &m)});
-  };
-  dc.free = [](Mech& m) { mech_delete(&m); };
+  dc.sensors_forget = [](Mech& m) { ai::entities_forget(g_w.handle_of(g_w.engine, &m)); };  // 0x004aa6b0
+  dc.free = [](Mech& m) { mech_free(&m); };  // vt+0x00(1), and off the program's registry
 
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420),
   // a basic vehicle's and a turret's 0x004a5bc0 do nothing.
@@ -1385,6 +1383,71 @@ void mech_lead_velocity(void* mech, float out[3]) {
 void mech_matrix(void* mech, float m9[9]) {
   const float* t = mech ? static_cast<Vehicle*>(mech)->transform : nullptr;
   for (int i = 0; i < 9; ++i) m9[i] = t ? t[i] : (i % 4 == 0 ? 1.0f : 0.0f);
+}
+// A mech's vt+0xd4 (0x004aeec0) for the entity `x` going: its weapons'
+// locks on it (0x004b0370), its controls' vt+0x60 (the player's 0x004bf620
+// and the AI's 0x004ea700 do nothing), then AiTarget's 0x004aa4d0.
+// FIX (bug): the last attacker (+0x664) naming it is cleared too: the exe
+// keeps it, and a mech it hit that dies later credits a freed one
+// (docs/fixes.md).
+void program_mech_forget(void* mech, uint32_t self, uint32_t x) {
+  auto* m = static_cast<Mech*>(mech);
+  void* gone = g_w.object_of(g_w.engine, x);
+  if (auto* w = static_cast<WeaponManager*>(m->ammo)) w->forget_target(gone);
+  if (m->attacker && m->attacker == gone) m->attacker = nullptr;
+  ai::forget_entity(self, x);
+}
+// For the tests: the mech's first weapon locked on `target` (its +0x04 set,
+// the lock's entity as 0x004b0370 compares it).
+bool program_mech_lock_on(void* mech, void* target) {
+  auto* w = entity_is_mech(mech) ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  Weapon* first = w && w->count ? w->weapons[0] : nullptr;
+  if (!first) return false;
+  first->lock_flag = 1;
+  first->lock.entity = target;
+  return true;
+}
+// For the tests: who still holds the entity `x` (handle) or `gone` (its
+// object): every listed vehicle's picks, kept contacts and contacts, the
+// mechs' weapon locks and last attackers, the targets.zrd objects' contacts.
+std::vector<std::string> program_holders_of(uint32_t x, const void* gone) {
+  std::vector<std::string> out;
+  auto on = [&](const ai::Contact* c) { return c && c->seen == x; };
+  auto name = [&](uint32_t h) {
+    void* o = g_w.object_of(g_w.engine, h);
+    const char* n = entity_is_mech(o) ? mech_brain_name(o) : nullptr;
+    return std::string(n ? n : "?");
+  };
+  for (const ai::Handle h : ai::entity_list()) {
+    const ai::AiTarget* a = ai::sensor_hooks().fields(h);
+    if (!a) continue;
+    const ai::Contact* picks[] = {a->target, a->ally_target, a->enemy_target, a->saved_target, a->own_lance,
+                                  a->nearest_lance, a->own_player, a->player_contact, a->touching,
+                                  a->tracked[0], a->tracked[1]};
+    for (const ai::Contact* c : picks)
+      if (on(c)) out.push_back(name(h) + ": a pick");
+    for (const ai::Contact* c : a->contacts)
+      if (on(c)) out.push_back(name(h) + ": a contact");
+    void* o = g_w.object_of(g_w.engine, h);
+    if (!entity_is_mech(o)) continue;
+    const Mech* m = static_cast<const Mech*>(o);
+    if (m->attacker && m->attacker == gone) out.push_back(name(h) + ": its last attacker");
+    if (const auto* w = static_cast<const WeaponManager*>(m->ammo))
+      for (uint32_t i = 0; i < w->count; ++i)
+        if (w->weapons[i]->lock_flag && w->weapons[i]->lock.entity == gone) out.push_back(name(h) + ": a weapon's lock");
+  }
+  for (const ai::CZAiTarget* t : ai::target_list())
+    for (const ai::Contact* c : t->contacts)
+      if (on(c)) out.push_back("a targets.zrd object: a contact");
+  return out;
+}
+// For the tests: `mech`'s last attacker (+0x664) set.
+void program_mech_set_attacker(void* mech, void* attacker) {
+  if (entity_is_mech(mech)) static_cast<Mech*>(mech)->attacker = attacker;
+}
+// For the tests: a dead mech hidden and deleted as instant action does at 180 s (0x0041e140).
+void program_mech_wreck_gone(void* mech) {
+  if (entity_is_mech(mech)) dead_hide(*static_cast<Mech*>(mech), false);
 }
 // obj.vt+0x80 for a killer that is a mech (0x0041b420); false otherwise.
 bool program_mech_kill_credit(void* killer, void* victim) {

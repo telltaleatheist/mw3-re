@@ -451,9 +451,11 @@ network's update (vt+0x158), the fade over 7.1 s when the game's +0x8c is
 set, and for the dead player at 7.1 s the respawn's answer (0x46dde0). The
 cleanup's 0x414000 empties the list. Checked: `test_deaths.py`
 (dead_update 300, dead_step 600 over the three game kinds; BREAK=14, 15);
-the c1m1 Owens is on the list after its fall, not before. Not ported: the
-instant action game's tallies and the sensors' forget (logged), the
-network's update and respawn.
+the c1m1 Owens is on the list after its fall, not before. The sensors' forget
+0x4aa6b0 is ported (ai.md section 15, The forget): the wreck is deleted then,
+as the exe does, with a FIX (bug) for the attackers it leaves (+0x664). Not
+ported: the instant action game's tallies, the network's update and
+respawn.
 
 Death conditions found: centre torso internal 0; head internal 0; either thigh
 destroyed; head critical (below); any part on an Elemental; heat (`heat.md`);

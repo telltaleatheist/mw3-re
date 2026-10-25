@@ -39,6 +39,8 @@ Each change is also marked `FIX` in the code next to the original address.
 | A turret shut down, 0x004a7620 | Puts the effect out only when its node is not showing | (bug) the flag test is the wrong way round: an effect lit as the turret dies (a charge before a shot) stays lit; no shipped world has an effect node (tur_ppc's `lightning`), so it is never seen | Put out when showing; behind `bugs` |
 | A turret's frame, 0x004a6be0 | Reads the `healthy` node's flags unchecked | (bug) a turret without one (a definition without PARTS) reads through null: a crash; no shipped turret | Shut down as when the node is hidden |
 | A turret's aim, 0x004a71c0 | Reads the gun's matrix unchecked | (bug) a turret without a gun (PARTS of one name, or a gun node not found) reads through null: a crash; no shipped turret | It cannot aim |
+| A wreck deleted, 0x0041e140 / 0x004aa6b0 (damage.md, After death; ai.md section 15, The forget) | Every vehicle drops the wreck from its picks, contacts and weapon locks, but no mech's last attacker (+0x664) | (bug) a mech the wreck hit that dies later (a fall, its own ammo) credits the kill to it: its vt+0x80 on freed memory, a crash (Instant Action, at 180 s) | A mech's forget (0x004aeec0) clears its attacker when it is the wreck (`mission_c1m4_a_wreck_is_deleted_and_forgotten_headless`) |
+| A vehicle's forget, 0x004aa4d0 | The contacts on the entity going are taken out of the list unfreed | (bug) a leak each time an entity goes (a wreck deleted, for every vehicle that saw it) | They are deleted (nothing else holds a contact past the frame; `test_sensors.py` part 3 checks the original's lists) |
 | Animation prerequisites, 0x50aaa3 | The search for a prerequisite animation stops one short of the list | (bug) the mission's last animation can never be waited for | The whole list is searched. No shipped mission names the last one, so all six still match the original exactly |
 | Missing animation object, 0x50a0e0 | One node prerequisite naming an object not in the level sets the def's prerequisite count to 0 | (bug) the animation then fires without waiting for any of its conditions | Only the broken entry is dropped; the count to meet comes down only if fewer counting entries are left. Decided with Owen 2026-10-20. No shipped mission reaches it (all six checked); `anim().fix_prerequisites = false` keeps the exe's path, which test_anim.py compares exactly, plus a doctored c2 file showing both |
 | Saved loadouts, item list 0x471540 | Counts a damaged item count down past the file's end, reading nothing | (bug) a corrupted `configs\<mech>.mw3` can hang the game at load for up to 4 billion reads | Stops at the end of the file; the same items result (emulator-checked by making the original stop there too) |
@@ -311,14 +313,6 @@ Noted but not yet ported:
 ## Original bugs still to fix
 
 Bugs whose intent is clear, fixed as the port reaches the code:
-
-- A deleted wreck stays other mechs' attacker (Instant Action; mac 2,
-  2026-10-21): when 0x41e140 deletes a wreck at 180 s, 0x4aa6b0 clears the
-  targets and contacts that point at it, but no mech's attacker (+0x664). A
-  mech that wreck hit and that then dies (a fall, its own ammo) credits the
-  kill to it: its vt+0x80 on freed memory, a crash. Fix when the AI's
-  forget (0x4aa6b0's side) is ported and the port deletes wrecks again:
-  clear every mech's +0x664 that names the wreck (damage.md, After death).
 
 - Data typos, fixed by the importer (the readers stay as written, the patched
   data goes through them):

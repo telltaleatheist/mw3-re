@@ -129,6 +129,21 @@ struct Sensors : mech3::ai::SensorHooks {
   Handle view_target() override { return peek(peek(0x5f4c8c) + 0x64); }
   Handle stealth() override { return peek(0x609a2c); }
   std::vector<Handle> targets() override { return g_targets; }
+  // vt+0xd4 by the vehicle's kind (the test's): 0x004aeec0 with its
+  // weapons and controls, else 0x004aa4d0 alone.
+  void forget(Handle v, Handle x) override {
+    auto it = g_kinds.find(v);
+    if (it != g_kinds.end()) {
+      if (it->second) call("0x004b0370", {it->second, x});
+      if (const Handle ctl = ::vcall(v, 0x140)) {
+        const std::string k = key(ctl, 0x60);
+        call(k.c_str(), {ctl, x});
+      }
+    }
+    mech3::ai::forget_entity(v, x);
+  }
+  void anim_owner_release(Handle x) override { call("0x004d5100", {x}); }
+  std::map<Handle, uint32_t> g_kinds;  // a vehicle with 0x004aeec0 and its weapon manager (0 none)
   void set_sorted() override { g_mem[0x60b56c] = 1; }
 };
 Sensors g_hooks;
@@ -157,6 +172,7 @@ void probe_sensors_reset() {
   g_mem.clear(), g_names.clear(), g_strings.clear(), g_vehicles.clear();
   g_arena.clear(), g_contact_of.clear(), g_addr_of.clear(), g_sensed.clear();
   g_targets.clear();
+  g_hooks.g_kinds.clear();
   mech3::ai::set_sensor_hooks(&g_hooks);
   mech3::ai::set_target_hooks(&g_target_hooks);
   mech3::ai::entity_list().clear();
@@ -217,6 +233,9 @@ int32_t probe_sensors_state(uint32_t x, uint32_t* out, int32_t cap) {
   for (int32_t i = 0; i < n && i < cap; ++i) out[i] = g_out[i];
   return n;
 }
+// The forget's (0x004aa6b0): vehicle x's vt+0xd4 is 0x004aeec0 with manager `mgr`.
+void probe_sensors_forget_kind(uint32_t x, uint32_t mgr) { g_hooks.g_kinds[x] = mgr; }
+void probe_sensors_forget(uint32_t x) { mech3::ai::entities_forget(x); }
 // ZEntity +0x09 as written (-1 when not written).
 int32_t probe_sensors_sensed(uint32_t e) { return g_sensed.count(e) ? g_sensed[e] : -1; }
 // The entity list after a sort, then the allies' range and [0x0060b56c].
