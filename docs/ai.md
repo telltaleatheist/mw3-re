@@ -212,6 +212,7 @@ ported lookup (section 8) on both sides.
 | reader getters | 0x556fe0, 0x557030, 0x556e90 | `gamez/zreader` |
 | mech by name | 0x4845f0 | `mech3/mech_names` mech_index |
 | the sensors and the entity sort (section 15) | 0x4a8cd0, 0x4a8710, 0x4a83c0, 0x4a91b0, 0x4a8990, 0x4a8960, 0x4a8b70, 0x4a8530, 0x4a7fd0, 0x4a7d00, 0x4a7c70, 0x4a7c90, 0x4a7cd0, 0x4a7f30, 0x4a9680, 0x4a98c0, 0x4a9910, 0x4a9980, 0x4a9530, 0x4a81f0, 0x4a9a60, 0x4a9cf0, 0x4a92c0, 0x4a9fd0, 0x4aa270, 0x4aa260, 0x4a9e70, 0x4a9fb0, 0x4aa400, 0x448600, 0x4e6fe0; MSVC's sort 0x4ab1f0, 0x4ab500, 0x4ab620; the sort 0x4d5ca0, 0x4d5bc0, 0x4d5be0, 0x4d7360, 0x4d7a40, 0x4d7bc0, 0x4d7650; 0x4d5dc0 | `mech3/sensors`, `crt/msvc_sort.h` |
+| the animation-owner registry (section 18) | 0x4d4f20, 0x4d46f0, 0x45b800, 0x508f20, 0x508f30, 0x4d5100, 0x4d47e0, 0x4d4b10, 0x4d4a20, 0x4d4980, 0x4d4700, 0x4d4740; 0x4d7270 / 0x4d3340 (a target's messages) | `mech3/zai_anim_owner`, `mech3/zai_target` |
 | AI controls and the brain's data (section 12) | 0x49fe90, 0x49ff10 (player.cpp), 0x4d8750, 0x4d8670, 0x4265a0, 0x4e71c0, 0x4e7090, 0x4ac750, 0x4ac740, 0x4a4af0, 0x4a4a70, 0x4a4000, 0x4a3fc0, 0x4cf330, 0x4d9bf0, 0x4d9940, 0x4d8fe0, 0x4b6570, 0x4b6390, 0x4b7060, 0x4b6660, 0x4e82a0, 0x4e8180, 0x4e8070, 0x4e8030, 0x4e7f80, 0x4ce200, 0x4e8090, 0x4cd770, 0x4c9d00, 0x4ce620, 0x4e9380, 0x4e9d80, 0x4e9d90, 0x4c0070, 0x4c0010, 0x4c0520, 0x4c0540, 0x4bffe0, 0x4cbe30, 0x4cbe50, 0x4c8660, 0x4e7e20, 0x4e7c40, 0x4e7dc0; the destructors 0x4d8bf0, 0x4d8c00, 0x4d8c40, 0x4e7820, 0x4e7830, 0x4e7870, 0x4cf630, 0x4e7df0, 0x4e7ff0, 0x4b65f0 | `mech3/mech_control` AiControls, `mech3/zai_brain` |
 
 Hooks (`RdrHooks`): the loose-file search (0x556240; none, FIX (A)),
@@ -267,6 +268,11 @@ Clean boundaries for later work, each a piece with its own test:
    and the aim, the lance orders and the radio, the refit: done (17.1..17.8,
    17.9's list). What is left of the brain is unreachable or empty (17.9,
    Not ported on purpose).
+8. **The animation-owner registry**: the records, claim, release, the
+   messages and the listeners done (section 18, item 2a). Next (item 2b):
+   the mission load's binder 0x4d4b30 (0x4d4c80, 0x4d4e50, 0x508f40,
+   0x50b570), which gives the animations with callback events their owner
+   and valve.
 
 ## 7. Tests and breaks
 
@@ -752,11 +758,13 @@ place) and the walk 0x4cee80 (its carrot, in and out one buffer). Three
 are in states not ported (0x4c9894, 0x4d13c0); the repair state's 0x4d0ce0 is ported (item 4b6).
 
 **The messages** (0x4c3bd0, ECX an animation, EDX the AI message, from
-the AI's message handler 0x4d4a20, not ported): its node (0x50b5e0) names
+the AI's message handler 0x4d4a20, section 18): its node (0x50b5e0) names
 shapes; of the current area's polygons with that name only the yellow
 (0x39), red (0x3a), cyan (0x3b) or blue (0x3c) ones are tested from then
-on (0x4c2a30 over 0x4c29a0); any other message tests the red ones. Which
-mission sends them is not mapped.
+on (0x4c2a30 over 0x4c29a0); any other message tests the red ones. The
+bridges' destroy animations send 0x39 and their resets 0x3a (section 18);
+they reach this once the mission load's binder 0x4d4b30 gives those
+animations a record (item 2b).
 
 **What the worlds hold** (shapes per area; all red but the yellow and blue
 counted):
@@ -783,7 +791,7 @@ None happens with the shipped worlds and campaigns. In the query: with
 every distance NaN the nearest outline point keeps no side and the exe
 reads its stack's leftovers for the normal; the port leaves the normal.
 
-**Not ported.** The vehicle record; the AI's message handler 0x4d4a20; the
+**Not ported.** The vehicle record; the
 debug view 0x4c4730 (zaitarget.cpp: the boundary's polygons made into
 nodes).
 
@@ -1129,7 +1137,8 @@ for traps.zrd by name prefix (none ship). For each node:
   else +0x40) gets the target's damage callbacks 0x4d26b0 / 0x4d26d0: new
   ones (0x5833b0, 0x5833f0) when it has none, or the animation's own taken
   over; a node with someone else's callbacks or inherited ones is reported
-  (0x4d26f0, 0x4d27d0) and left; the animation's owner registry 0x4d4f20;
+  (0x4d26f0, 0x4d27d0) and left; the animation claimed in the owner registry
+  0x4d4f20 (section 18; released 0x4d5100 before a new node);
   `translate_to_anim_root` moves the animation's root (0x4d28e0) and every
   child but the two subnodes back. The team masks from the record's first
   item, the height from the record or the node's box.
@@ -1387,7 +1396,7 @@ zEntity3d.
 ### The forget (0x4aa6b0, 0x4aa4d0, 0x4aeec0; ported 2026-10-24)
 
 When an entity goes for good (a wreck deleted, 0x41e140), 0x4aa6b0 releases
-its animations (0x4d5100, the registry not ported yet: logged), then asks
+its animations (0x4d5100, section 18), then asks
 every entity on zEntity's list for its vehicle (vt+0x2c) and that vehicle's
 vt+0xd4 with the one going. A mech's, a basic vehicle's and a field base's
 vt+0xd4 is 0x4aeec0: its weapons forget the locks on it (0x4b0370: the lock
@@ -3286,6 +3295,125 @@ goes through a hooks struct the test stubs the same on both sides.
 - The AI controls' destructor body 0x4d8820 (the vtables put back, the
   base 0x4cf630): the C++ destructors (section 12's list).
 - The switches 0x4ea740 / 0x4ea750 are ported (`ai::ai_switch_on/off`).
+
+## 18. The animation-owner registry (0x4d4f20 family; ported 2026-10-24, item 2a)
+
+How the mission's animations talk to entities. An animation's callback
+(+0x6c, set with its argument +0x70 by 0x508f00) hears the value of every
+callback event it plays (event 35, the event's +0x0c) and 0 when it stops
+(0x506ca0). The AI's callback is 0x4d4b10, its argument a record of the
+registry: 8 bytes, the owner entity (+0x00) and a valve (+0x04).
+
+**The registry** [0x60b518] (vtable 0x5ccd90, made at start-up by
+0x4d4840 -> 0x4d48f0) holds the records in a list [0x60b51c] (head
+[0x60b520], count [0x60b524]). It is one of the mission listeners
+(0x4e78d0): at the mission's load (slot +0x08) nothing; at the mission's
+end (slot +0x10, 0x4d4700, from 0x4e7bc0 in the cleanup 0x491780) every
+record's owner and valve set to 0, before the animations are stopped (so
+the stop's 0 reaches no one); when the world goes (slot +0x0c, 0x4d4740,
+from 0x4e7b80 in 0x490480) every record freed and the list emptied, before
+the animations are freed (0x50b380). So the list holds at most one record
+per animation of the loaded world: a next mission on the same world keeps
+the emptied records, and the claims and the binder reuse them through the
+animations' +0x70. No leak.
+
+**The claim** 0x4d4f20 (ECX the owner, EDX the animation; returns whether
+it took): with no callback, a new record; with ours, the animation's record
+when the list still holds it, else (none, or one the list no longer holds)
+a new one; with another callback (zEffect's own, a weapon's), refused. A
+record held by another owner is refused too. A new record is copied from
+a temporary (0x4d46f0) and put at the list's end (0x45b800); either way the
+animation gets 0x4d4b10 and the record (0x508f00). Callers: a target's
+attach (0x4d34a2, its destroy animation; 0x4d33a5 releases first when it
+had a node), a turret's load (0x4a66af, each AUX_ANIM), and the forget
+(0x4aa6b8 releases the entity going, section 15).
+
+**The release** 0x4d5100 -> 0x4d47e0: every record of that owner gets owner
+0 (the valve is tested and stored 0 when 0: nothing). The record stays.
+
+**The handler** (0x4d4b10: with a record, 0x4d4a20(record; animation,
+value)): the owner, if any, hears every value (vt+0x74), then:
+
+| Value | What |
+|---|---|
+| 0x11 | the player's vehicle ([0x60861c]+0x14) moved by the node `viaNode` (0x4d4980): its translation added to the vehicle's place, its rotation's y as the yaw, through vt+0xdc |
+| 0x2a, 0x2c, 0x2e, 0x30 | the record's valve set to 0 (0x4d3c00) |
+| 0x2b, 0x2d, 0x2f, 0x31 | the record's valve set to 1; the four pairs differ only in which valve the binder gives the record (item 2b) |
+| 0x39..0x3c | the inout tests (0x4c3bd0, section 11): the polygons named as the animation's node |
+| the rest | nothing more |
+
+The owners' vt+0x74 (the vtables found by their vt+0xd4): a turret's
+0x4a74f0 (0x32 wakes it, 0x33 sends it idle, 0x34 shuts it down destroyed;
+the rest AiTarget's); everything else is AiTarget's 0x4d7270, which sends 0
+to vt+0x7c and 0x38 to vt+0x78. Only a target fills those: 0x38 is its kill
+(0x4d2b60, the triggers fire) and 0 clears its destroyed flag (+0xf0,
+0x4d3340; written only, nothing reads it); a mech's, a basic vehicle's, a field base's and the command
+marker's are empty (0x5ac5c0, 0x49bfd0). The placement (vt+0xdc): a mech's
+0x418f30, a basic vehicle's 0x4a3630; the others' slots are empty or answer
+a value (0x40baf0, 0x40bae0, 0x4d2a70, a turret's none), and only the
+player's vehicle is ever placed.
+
+**What the shipped animations send** (event 35 values, every anim.zbd):
+
+| Value | Count | Who |
+|---|---|---|
+| 0x2b (43) | 20 c1, 9 c2, 44 c3, 14 c4 | bridges, ramps, walls and buildings going from healthy to destroyed: the valve the mission script waits on |
+| 0x2f (47) | 2 c4 | brgprt: the valve two parents up |
+| 0x32 (50) | 2 c1, 3 c2, 6 c3, 5 c4, 9 c4b | turrets raised or switched on (`raise_bturret1`, `turn_on_choptur1`, `raise_turret1`) |
+| 0x33 (51) | 1 c3, 2 c4, 3 c4b | turrets lowered or switched off |
+| 0x34 (52) | 1 c3 | a wall turret shut down as its wall falls |
+| 0x38 (56) | 12 c1, 8 c2, 15 c3, 7 c4, 1 c4b | buildings, ships and trains destroyed: the target killed |
+| 0x39 (57) | 6 c1, 1 c2, 7 c3, 3 c4 | bridges down: their yellow outline tested |
+| 0x3a (58) | 6 c1, 1 c2, 7 c3, 3 c4 | the same bridges' resets: back to the red one |
+
+No shipped animation sends 0x11 and no world has a `viaNode`: the
+teleport is unused. FIX (bug) (fixes.md): with no such node the exe places
+the vehicle at its stack's leftovers plus its place (0x4fc020 and 0x4fbe90
+report and write nothing); the port places nothing. With no vehicle the exe
+would crash; the port does nothing.
+
+**Now and after the binder.** Until the mission load's binder 0x4d4b30
+(item 2b) is ported, only the claims make records: the targets' destroy
+animations and the turrets' AUX_ANIMs, with no valve. So the turrets'
+own animations wake and lower them (c1's boss turrets, c4b's gauss
+turrets) and a target hears its destroy animation's 0x38 and its stop's 0;
+the valve messages and the bridges' inout messages wait for the binder,
+which gives every animation with callback events (flag 0x10) a record and
+the valve.
+
+**The port**: `mech3/zai_anim_owner` (AnimOwnerHooks: the animation's
+callback and record, the owner's message, the valve, the inout tests,
+viaNode's node, translation, rotation, the vehicle's place and placement);
+CZAiTarget::message for 0x4d7270 on a target. In the program
+(app_sensors.cpp, ProgramAnimOwner): the callback is a port function
+standing for 0x4d4b10, the owner's class picks its vt+0x74 and vt+0xdc as
+above, the valves and the inout tests are the ported ones; the targets'
+and turrets' claims and the forget's release call it (app_mission.cpp,
+app_turret.cpp), and the missions' end and the world's unload empty and free
+the records (app_mission.cpp's listeners).
+
+**Tests.** `tests/differential/test_anim_owner.py` (probe
+`tests/probe_anim_owner.cpp`): 400 cases, each the registry built by its
+constructor, six animations (no callback, ours with a record no list holds
+or none, another's), owners none, two mechs, a turret and a target, three
+valves, the player's vehicle and a viaNode or none (a quarter); 40 random
+operations (claims, releases, messages on the record or none, every value
+0..0x3f across the cases, a listed record's valve set, the mission's end,
+and last perhaps the world's free); after each the traces, every
+animation's callback, record by list place, owner and valve, and the list
+compared; 19 branches reached; the 25 messages 0x11 with no viaNode
+checked up to the departure. 2455 claims taken, 2583 messages. Breaks
+caught: the valve bit flipped, the owner not told of 0, 0x32 taken as a
+valve message, 0x2a dropped, a null valve set, 0x3c dropped, the list
+check skipped, another's callback taken, any owner taking, the release
+letting every owner go, the end keeping the valve, the free keeping the
+list, viaNode absolute, the yaw from x, 0x11 dropped, a null record
+handled: 16 of 16. In the program,
+`mission_c1_turret_woken_by_its_animation_headless`: on c1m1 the boss
+turret tur_boss01 starts idle with raise_bturret1 claimed (46 records
+after the load); the animation started, the turret is awake the next
+frame; the mission's end keeps the 46 records emptied and the world's
+unload leaves none.
 
 ## Open
 

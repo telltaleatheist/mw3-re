@@ -4,6 +4,7 @@
 // the ports' objects, the nodes' world positions from zClass. Not original
 // code. What the mech's slots do beyond the sensors (the HUD's lock 0x0041d890,
 // the brain's refresh 0x004aedd0, empty) is noted; the level of detail is mech_lod's.
+// The animation-owner registry's hooks too (ai.md section 18).
 #include "mech3/app_sensors.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_turret.h"
@@ -15,13 +16,20 @@
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zclass/object3d.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
 #include "mech3/turret.h"
+#include "mech3/zai_anim_owner.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_valve.h"
+#include "mech3/zainet_inout.h"
 
 namespace mech3 {
 
@@ -181,7 +189,7 @@ struct ProgramSensors : ai::SensorHooks {
     if (void* b = vehicle(v)) return program_vehicle_forget(b, v, x);
     ai::forget_entity(v, x);
   }
-  void anim_owner_release(zgame::Handle x) override { log_unported("0x004d5100", {x}); }
+  void anim_owner_release(zgame::Handle x) override { ai::anim_owner_release(x); }
   void set_target(zgame::Handle x, ai::Contact* c, bool keep) override {
     ai::AiTarget* a = fields(x);
     if (!a) return;
@@ -211,12 +219,73 @@ struct ProgramSensors : ai::SensorHooks {
 };
 ProgramSensors g_sensors;
 
+// 0x004d4b10, the animations' callback the registry sets.
+void owner_callback(zeff::AnimDef* d, void* rec, int32_t msg) {
+  ai::anim_owner_message(handle(d), static_cast<ai::AnimOwnerRec*>(rec), msg);
+}
+
+// The animation-owner registry's hooks (zai_anim_owner.h): zEffect's
+// animations, each class's messages (vt+0x74) and placement (vt+0xdc).
+struct ProgramAnimOwner : ai::AnimOwnerHooks {
+  float place_[3] = {};
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
+    return log_unported(key, args);
+  }
+  static zeff::AnimDef* def(zgame::Handle a) { return static_cast<zeff::AnimDef*>(object(a)); }
+  ai::AnimCallback anim_callback(zgame::Handle a) override {
+    const zeff::AnimDef* d = def(a);
+    if (!d || !d->callback) return ai::AnimCallback::none;
+    return d->callback == &owner_callback ? ai::AnimCallback::ours : ai::AnimCallback::other;
+  }
+  ai::AnimOwnerRec* anim_record(zgame::Handle a) override {
+    const zeff::AnimDef* d = def(a);
+    return d ? static_cast<ai::AnimOwnerRec*>(d->callback_arg) : nullptr;
+  }
+  void anim_set_record(zgame::Handle a, ai::AnimOwnerRec* r) override { zeff::anim_set_callback(def(a), &owner_callback, r); }
+  // vt+0x74: a target's 0x004d7270 (0 and 0x38), a turret's 0x004a74f0; the
+  // mechs', vehicles' and field bases' 0x004d7270 reaches empty slots.
+  void entity_message(zgame::Handle o, zgame::Handle a, int32_t msg) override {
+    if (tur::Turret* t = program_turret_by_handle(o)) return t->message(a, msg);
+    if (ai::CZAiTarget* t = target(o)) t->message(msg);
+  }
+  void valve_set(zgame::Handle v, int32_t x) override {
+    if (auto* valve = static_cast<ai::Valve*>(object(v))) valve->set(x);
+  }
+  // 0x004c3bd0: the animation's node (0x0050b5e0, none once freed) names the polygons.
+  void inout_message(zgame::Handle a, int32_t msg) override {
+    const zeff::AnimDef* d = def(a);
+    const zcls::Node* n = d && d->raw[0x98] != 5 ? d->node : nullptr;
+    ai::inout_set_state(n ? n->name() : nullptr, msg);
+  }
+  zgame::Handle player_vehicle() override { return g_sensors.player(); }
+  zgame::Handle node_named(const char* name) override { return handle(zcls::list_find_by_name(6, name)); }
+  void node_translation(zgame::Handle n, float out[3]) override {
+    zcls::object3d_get_translation(static_cast<zcls::Node*>(object(n)), &out[0], &out[1], &out[2]);
+  }
+  void node_rotation(zgame::Handle n, float out[3]) override {
+    zcls::object3d_get_rotation(static_cast<zcls::Node*>(object(n)), &out[0], &out[1], &out[2]);
+  }
+  const float* entity_position(zgame::Handle e) override {
+    world_position(g_sensors.node(e, false), place_);
+    return place_;
+  }
+  // vt+0xdc: the Mech's 0x00418f30, a basic vehicle's 0x004a3630. A turret's
+  // slot is empty (never the player's vehicle).
+  void place(zgame::Handle v, const float pos[3], float yaw) override {
+    if (Mech* m = mech(v)) return m->set_place(pos, yaw);
+    if (void* b = vehicle(v)) return program_vehicle_place(b, pos, yaw);
+    AnimOwnerHooks::place(v, pos, yaw);
+  }
+};
+ProgramAnimOwner g_anim_owner;
+
 }  // namespace
 
 void wire_sensors(const MechWiring* w, const char* (*message)(void* e, int32_t id)) {
   g_w = w ? *w : MechWiring{};
   g_message = message;
   ai::set_sensor_hooks(w ? &g_sensors : nullptr);
+  ai::set_anim_owner_hooks(w ? &g_anim_owner : nullptr);
 }
 
 int32_t sensed_contacts(const void* mech, SensedContact* out, int32_t cap) {

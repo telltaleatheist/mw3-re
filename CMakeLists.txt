@@ -181,6 +181,7 @@ add_library(mw3core STATIC
   src/mech3/weapon_planner.cpp
   src/mech3/zai_params.cpp
   src/mech3/zai_target.cpp
+  src/mech3/zai_anim_owner.cpp
   src/mech3/sensors.cpp
   src/mech3/zai_valve.cpp
   src/mech3/zai_brain.cpp
@@ -329,6 +330,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_target.cpp
   tests/probe_turret.cpp
   tests/probe_sensors.cpp
+  tests/probe_anim_owner.cpp
   tests/probe_fade.cpp
   tests/probe_frame.cpp
   tests/probe_view.cpp

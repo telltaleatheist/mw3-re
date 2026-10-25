@@ -1172,7 +1172,7 @@ turn); on its node (0x4a6230: 0x4d6c90, zEntity's list 0x5a7f50), the setup.
 | `EFFECT` | a node under it and a time (the second value's bits, not converted); its model's texture scrolls (0x526ae0(1, 10, 0)) |
 | `HEALTH` | +0x244 = 1 / HEALTH (no HEALTH: 1); +0x240 the health fraction, 1 |
 | `DESTROY_ANIM` | replaces the destroy animation, even with none found |
-| `ONFIRE_ANIM`, `WAKEUP_ANIM`, `SLEEP_ANIM`, `AUX_ANIM` | the animations found, in lists (+0x25c, +0x250, +0x274, +0x268); AUX_ANIM's are claimed (0x4d4f20) |
+| `ONFIRE_ANIM`, `WAKEUP_ANIM`, `SLEEP_ANIM`, `AUX_ANIM` | the animations found, in lists (+0x25c, +0x250, +0x274, +0x268); AUX_ANIM's are claimed (0x4d4f20, ai.md section 18) |
 | `IS_IDLE` | +0x27c |
 | `SOUNDS` / `FIRE` | the fire sound (0x56f6f0) |
 | `LIMITS` / `YAW` | degrees (default -360, 360) into +0x204 / +0x208 radians and the limits rebuilt with them |
@@ -1218,7 +1218,11 @@ off (0x583400), a beam stopped, +0xd4 cleared. **vt+0x70 0x4a7600**, the
 outright kill (the valves' `destroy`, ai.md): health 0, the attacker set to
 the player's vehicle ([0x60861c]+0x14), then 0x4a7620: the player gets the
 kill. The messages (vt+0x74 0x4a74f0): 0x32 clears IS_IDLE, 0x33 sets it,
-0x34 shuts it down, the rest go to AiTarget's 0x4d7270.
+0x34 shuts it down, the rest go to AiTarget's 0x4d7270 (empty for a
+turret). They come from the turret's own AUX_ANIMs (ai.md section 18):
+c1's boss turrets are raised by `raise_bturret1` / `2` (0x32), c4b's gauss
+turrets raised and lowered (0x32, 0x33), c3's wall turrets idled or shut
+down as their walls fall (0x33, 0x34).
 
 **The other slots:** the target view's tint (vt+0x68 0x4a75b0: while active,
 red (1, 0, 0) by (1 - health) x 0.6, 0x4fb8c0, then 0x4fb840); vt+0x98

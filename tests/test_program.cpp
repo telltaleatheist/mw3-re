@@ -85,6 +85,7 @@
 #include "mech3/zai_steps.h"
 #include "mech3/zai_target.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zai_anim_owner.h"
 #include "mech3/zainet.h"
 #include "gamez/znetwork/znet_object.h"
 #include "mech3/zrdrvalve.h"
@@ -1597,6 +1598,88 @@ TEST(mission_c1m1_turrets_headless) {
     EXPECT(t != nullptr && name.rfind("tur_", 0) == 0);
     EXPECT(sensed && picked && targets_player && fired);
     EXPECT(shut && kills_after == kills_before + 1 && points >= 200);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The animation-owner registry on c1 (docs/ai.md section 18): the boss
+// turret tur_boss01 starts idle and claims its AUX_ANIM raise_bturret1 at the
+// load; started (as the mission script does), the animation's callback event
+// sends 0x32 to its owner, which wakes it (IS_IDLE off, 0x004a74f0). At the
+// mission's end every record is emptied (0x004d4700), with the world freed
+// (0x004d4740).
+TEST(mission_c1_turret_woken_by_its_animation_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_anim_owner_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, woke_at = -1;
+    mech3::tur::Turret* t = nullptr;
+    size_t records = 0;
+    bool idle_before = false, claimed = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (frames == 2) {
+        records = mech3::ai::anim_owner_records().size();
+        for (mech3::tur::Turret* x : mech3::tur::turret_list())
+          if (std::strcmp(static_cast<zcls::Node*>(engine.object_of(x->node))->name(), "tur_boss01") == 0) t = x;
+        if (t && !t->aux.empty()) {
+          auto* raise = static_cast<zeff::AnimDef*>(engine.object_of(t->aux.front()));
+          const auto* rec = static_cast<const mech3::ai::AnimOwnerRec*>(raise->callback_arg);
+          const auto& list = mech3::ai::anim_owner_records();
+          claimed = raise->callback && rec && rec->owner == t->self &&
+                    std::find(list.begin(), list.end(), rec) != list.end();
+          idle_before = t->idle != 0;
+          zeff::anim_start(raise, nullptr, 0, 0, 0);  // as the mission script does
+        }
+      }
+      if (t && frames > 2 && woke_at < 0 && !t->idle) woke_at = frames;
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return woke_at >= 0 || frames > 600; };
+    app.run(pump);
+    mech3::missions().cleanup(false);  // the mission's end, the world kept (0x00491780)
+    size_t kept = 0, emptied = 0;
+    for (const mech3::ai::AnimOwnerRec* r : mech3::ai::anim_owner_records()) ++kept, emptied += !r->owner && !r->valve;
+    mech3::missions().unload();  // the world (0x00490480)
+    const size_t left = mech3::ai::anim_owner_records().size();
+    std::fprintf(stderr, "  anim owners: %zu records at the load; tur_boss01 claimed %d, idle %d, woken at frame %d; "
+                         "the end keeps %zu (%zu emptied), the world's unload leaves %zu\n",
+                 records, claimed, idle_before, woke_at, kept, emptied, left);
+    EXPECT(records > 0 && t != nullptr && claimed && idle_before);
+    EXPECT(woke_at > 2);
+    EXPECT(kept == records && emptied == kept && left == 0);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

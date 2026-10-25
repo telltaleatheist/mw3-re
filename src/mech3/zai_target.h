@@ -149,6 +149,9 @@ class CZAiTarget : public AiTarget {
   float on_collide(float damage);                         // 0x004d26d0 -> 0x004d2cd0
   void destroy();                // 0x004d2b30, vt+0x70: the destroy animation, then kill
   void kill();                   // 0x004d2b60, vt+0x78
+  // 0x004d7270 (vt+0x74, the AI messages): 0 vt+0x7c 0x004d3340 (+0xf0
+  // cleared), 0x38 vt+0x78 the kill; the rest nothing.
+  void message(int32_t msg);
   float health_fraction() const { return desc.health / desc.max_health; }  // 0x004d2b20
   bool shown() const { return (desc.flags & 1) != 0; }                  // 0x004d3350's complement
 

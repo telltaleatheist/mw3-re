@@ -1509,3 +1509,38 @@ is paused.
   theirs; app_mech's mech_objects too; app_turret's g_places is keyed by
   handle and holds copies (no pointer). The c1m4 test shows both (the
   name finds nothing, the old handle answers null).
+- Lead merged AI-last and the forget chain (c419ba7).
+
+## Item 2: the animation-owner registry (2026-10-24, mac 4)
+
+- Assigned (the lead): the animation-owner registry 0x4d4f20, 0x4d5100
+  → 0x4d47e0, 0x4d46f0, 0x45b800, 0x508f00 / 0x508f20 / 0x508f30, with the
+  callers 0x4d34a2, 0x4d33a5, 0x4a66af, 0x4aa6b8 (the last is the forget's
+  release, logged as a stub until now). Branch mac4/anim-owner from main.
+  Same bar: port with addresses, differential and break tests, docs
+  (ai.md, symbols.csv, discoveries.md, fixes.md / CHANGES.md if a fix),
+  the related set plus both suites, a brief report.
+- Scope found wider (mac 4): the record's valve and most owners come from
+  the mission load's binder 0x4d4b30, and the callback's handler 0x4d4a20
+  is the point of it all. Split approved by the lead: 2a the registry
+  (records, claim, release, the callback and handler with 0x4d4980, the
+  listeners), 2b the binder. The lead's notes: the inout case calls the
+  ported 0x4c3bd0; vt+0x74 / vt+0xdc by class; the differential sends every
+  value 0..0x3f with owners none / mech / turret; breaks for the valve bit,
+  a missed owner call, the 0x2a..0x31 range; the leak decided either way.
+- 2a done (mac 4): `mech3/zai_anim_owner` (0x4d4f20 with 0x4d46f0 /
+  0x45b800 / 0x508f20 / 0x508f30, 0x4d5100 -> 0x4d47e0, 0x4d4b10 ->
+  0x4d4a20, 0x4d4980, 0x4d4700, 0x4d4740); CZAiTarget::message (0x4d7270
+  with 0x4d3340 and the kill). The registry is a mission listener: its
+  slot +0x10 empties the records at the mission's end (before the
+  animations stop) and +0x0c frees them with the world (before the
+  animations go): bounded, no leak, kept as the original (ai.md 18). The
+  owners' vt+0x74 by vtable: the turret's 0x4a74f0, the targets' 0x4d7270
+  (0 / 0x38), everyone else's 0x4d7270 on empty slots; vt+0xdc only for
+  the player's vehicle: the Mech's and the basic vehicle's, the rest empty
+  or value slots (none unported). FIX (bug) viaNode missing or no vehicle
+  (unreachable with shipped data: no viaNode, no 0x11 sent). Program:
+  ProgramAnimOwner in app_sensors.cpp; the targets' and turrets' claims,
+  the forget's release and the listeners wired. test_anim_owner.py 400
+  cases, 16 of 16 breaks; headless c1m1: tur_boss01 woken by
+  raise_bturret1, the end's records emptied, the world's unload frees them.
