@@ -12,6 +12,7 @@
 #include "frontend/sdl/sdl_input.h"
 #include "frontend/sdl/sdl_twod_host.h"
 #include "gamez/zimage/zimg_library.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zrender/zrndr_tint.h"
@@ -517,4 +518,139 @@ TEST(sdl_program_weapon_list_shows_the_recharge) {
     EXPECT(r.max_red > 20 && r.red_frames >= 5);        // firing: the bars empty to red and refill
     EXPECT(r.red_end == 0);                             // full again
   }
+}
+
+// Playtest #23/#24 reopened, through the SDL mouse: c1m1's Mad Cat at full
+// throttle (THROTTLE0's key), its medium lasers selected and charged, the
+// left button clicked as a player does (down, then up three frames later, as
+// SDL events through SdlInput, read by zInput's mouse at each frame's poll).
+// Logged per frame: the manager's trigger, the beam's state, how far the
+// beam's origin is from the firepoint's place now. The laser fires on the
+// press's frame; the beam fires on after the release until its charge is
+// spent, and with the fix (bugs) it leaves from the arm all the while; the
+// original's path leaves it at the last held frame's muzzle, behind.
+struct ClickRun {
+  int press_frame = -1, fire_frame = -1, firing_frames = 0;
+  float max_stale = 0;  // the beam's origin off the firepoint while the beam shows
+  std::string log;
+};
+static ClickRun click_run(int hold_frames, bool bugs) {
+  ClickRun out;
+  Mounted m;
+  zutl::set_write_dir(std::string(MW3_TEST_TMP) + "/sdl_click_write");
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
+  mech3::damage_set() = mech3::DamageSet{};
+  mech3::weapon_set() = mech3::WeaponSet{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const zfix::Options keep_fix = zfix::options();
+  sdlfe::SdlInput input;
+  NoWindow window;
+  NoAlert alert;
+  StepClock clock;
+  KeepScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &input;
+  auto key = [&](uint8_t dik, bool down) {
+    for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
+      if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == dik) {
+        SDL_Event e{};
+        e.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+        e.key.scancode = static_cast<SDL_Scancode>(sc);
+        e.key.down = down;
+        input.on_event(e);
+        return;
+      }
+  };
+  auto button = [&](bool down) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    e.button.button = SDL_BUTTON_LEFT;
+    e.button.down = down;
+    input.on_event(e);
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    sdlfe::SdlTwodHost host(&engine, nullptr, &window);
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1, the Mad Cat
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, group = -1;
+    void* player = nullptr;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        // The original's path for the beam only once the mission is up (its
+        // load needs the HUD constructor's fix, hud.md section 3).
+        zfix::options().bugs = bugs;
+        player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+        for (int32_t g = 0; g < 5 && group < 0; ++g)
+          if (mech3::mech_group_names(player, g).find("ERLaser_Medium") != std::string::npos) group = g;
+        if (group >= 0) mech3::mech_select_group(player, group);
+        key(static_cast<uint8_t>(zin::key1_of(0x24) & 0xff), true);  // THROTTLE0: 100%
+      }
+      if (frames == 5) key(static_cast<uint8_t>(zin::key1_of(0x24) & 0xff), false);
+      if (!player || group < 0) return;
+      // The click, as the frame's events (seen by the next frame's poll).
+      constexpr int kClick = 150;  // at speed
+      if (frames == kClick) button(true), out.press_frame = frames + 1;
+      if (frames == kClick + hold_frames) button(false);
+      if (frames > kClick && frames <= kClick + 40) {
+        mech3::BeamProbe b;
+        mech3::mech_group_beam(player, group, &b);
+        if (b.firing && out.fire_frame < 0) out.fire_frame = frames;
+        out.firing_frames += b.firing;
+        float off = 0;
+        if (b.beam_active)
+          off = std::sqrt((b.origin[0] - b.live[0]) * (b.origin[0] - b.live[0]) +
+                          (b.origin[1] - b.live[1]) * (b.origin[1] - b.live[1]) +
+                          (b.origin[2] - b.live[2]) * (b.origin[2] - b.live[2]));
+        if (b.beam_active) out.max_stale = std::max(out.max_stale, off);
+        char line[160];
+        std::snprintf(line, sizeof line, "    %d: trigger %d/%d state %d, firing %d beam %d, ready %.2f, origin off %.2f m\n",
+                      frames, b.trigger_down, b.trigger_was, b.state, b.firing, b.beam_active, b.ready, off);
+        if (std::getenv("MW3_CLICK_LOG")) out.log += line;
+      }
+    };
+    Passes pump;
+    pump.limit = 600;
+    app.run(pump);
+    zfix::options() = keep_fix;
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zfix::options() = keep_fix;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+TEST(sdl_program_mouse_click_fires_the_laser) {
+  if (!have_fonts()) return;
+  const ClickRun r = click_run(3, true), o = click_run(3, false);
+  for (const ClickRun* x : {&r, &o})
+    std::printf("click (3 frames, %s): pressed for frame %d, fired on %d, %d frames firing, the beam's origin up to "
+                "%.2f m off the firepoint\n%s",
+                x == &r ? "fixed" : "the original", x->press_frame, x->fire_frame, x->firing_frames, x->max_stale,
+                x->log.c_str());
+  EXPECT(r.fire_frame == r.press_frame && o.fire_frame == o.press_frame);
+  EXPECT(r.firing_frames > 3 && o.firing_frames > 3);  // on after the release
+  EXPECT(r.max_stale < 0.05f);  // from the arm
+  EXPECT(o.max_stale > 0.3f);   // the original's: left behind
 }

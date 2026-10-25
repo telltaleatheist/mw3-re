@@ -1310,7 +1310,11 @@ In the program `ProgramHudHooks` gives the mission's objectives
 mission, the nav points' names and the keys' names (zInput's 0x0051d200 /
 0x0051d330); the objective hooks give the cockpit (`program_mech_hud`) and
 its refill. Instant Action's and training's names and multiplayer's scores
-are not wired (no such launch yet).
+are not wired (no such launch yet). Open, for when Instant Action
+launches (lead's review): at 0x446bdd..0x446bee the 0x231 line's two
+arguments are vt+0x48 of [ecx+0x6c] (the pilot's game) and vt+0x0c of
+0x00479460's object; the port formats to_string(operation) and the name,
+so recheck that case then.
 
 Test: `mission_c1m1_objectives_box_text_headless` (F12 on c1m1: "Operation
 1, Mission 1", "Primary Objectives", "Take Com. Center Offline  OP: Able"

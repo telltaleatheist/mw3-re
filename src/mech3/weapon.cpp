@@ -1687,6 +1687,11 @@ int32_t beam_recharge(float rate, float x, float dt, float* carry) {
 void BeamWeapon::update(float dt) {
   if (damage == 1.0f) return;
   const WeaponType* t = type_of(def);
+  // FIX (bug), behind bugs: the exe re-aims a beam only while its trigger is
+  // held (0x004b41b0), and a short laser fires on after the release until its
+  // charge is spent, from the last held frame's muzzle: behind a walking mech
+  // (playtest #24, fixes.md). Here it follows the weapon as when held.
+  if (firing && aim_at && zfix::options().bugs) aim(const_cast<Vec3f*>(aim_at), &muzzle, &direction, nullptr);
   float v = def->period * dt;
   if (!(v > 1.0f)) v = 1.0f;
   const int32_t n = crt::msvc_ftol(v);

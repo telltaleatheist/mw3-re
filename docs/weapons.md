@@ -325,6 +325,16 @@ A beam's bin is its charge: full = ftol(U_FIRE_TIME x 10000).
   ftol(+0x98 x f x dt), f = 1 to heat 0.5, then 0.5 / heat, floored at 0.5.
 - Release: only beams with a fire time over 0.5 s (pulse lasers) stop; held:
   fire again when ready, or keep steering.
+- The muzzle (+0x40), which the zWeapon beam draws and casts from each
+  frame (its +0x20 points at it), is aimed only by the trigger (0x4b3f40)
+  and the held frames (0x4b41b0): the exe's aim (0x4b36e0) has no other
+  beam caller (0x4b2d2d is the projectile weapons' update). So a short
+  laser let go before its charge is spent fires on from the last held
+  frame's muzzle: a Mad Cat at full speed leaves its medium laser's beam
+  0.2 m behind a frame after the release and 1.3 m by its end (~140 ms;
+  playtest #24, `sdl_program_mouse_click_fires_the_laser`). FIX (bug),
+  behind bugs: the update re-aims a firing beam each frame, as the held
+  path does (fixes.md).
 
 ### Heat (0x461670)
 
