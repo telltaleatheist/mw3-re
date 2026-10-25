@@ -379,6 +379,7 @@ int ar_open(const char* world, const char* anim_path) {
   g_trace.clear();
   zeff::anim() = zeff::AnimState{};
   zeff::anim().fix_prerequisites = false;  // the exe's path (no shipped mission reaches it)
+  zeff::anim().fix_instance_tree = false;  // the exe's path
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(anim_path);
   zeff::anim_set_world(zcls::list_head(zcls::kWorlds)->node);

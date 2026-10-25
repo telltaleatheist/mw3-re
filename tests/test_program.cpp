@@ -660,6 +660,148 @@ TEST(mission_after_another_gets_its_own_regions_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The mission's end (0x00491780; docs/mission-frame.md, The cleanup): c1
+// mission 1 played, then cleaned up without the unload. The animations'
+// instances with their own node tree (0x0050b2f0) are freed, and one at the
+// player's node made from such a copy stays (FIX (bug): the exe's 0x005097c0
+// gives it the copy's flag, so its node's tree would go too); every model
+// nothing holds is released and every material no model uses freed
+// (0x005394c0(1, 1)); the mechs' end (0x00414000) closes the motion archive,
+// deletes the radar blips and drops the scripts' path. Mission 2 then loads
+// with its motions open again. Before the port all of them were kept.
+TEST(mission_end_frees_what_the_next_does_not_need_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_end_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  auto copies = [](bool own_tree) {
+    int n = 0;
+    const zeff::AnimState& a = zeff::anim();
+    for (int32_t i = 0; i < a.def_count(); ++i)
+      for (const zeff::AnimDef* c = a.defs[i].instance; c; c = c->instance)
+        n += ((c->get<uint32_t>(0x94) & 0x20000) != 0) == own_tree;
+    return n;
+  };
+  int others_before = -1, others_after = -1;
+  auto idle_models = [] {  // slots in use that nothing holds
+    static const uint8_t empty[sizeof(zmod::Model::header)] = {};
+    int n = 0;
+    for (const zmod::Model& m : zmod::models().slots)
+      n += m.count(0xc) == 0 && std::memcmp(m.header, empty, sizeof empty) != 0;
+    return n;
+  };
+  auto unused_materials = [] {  // in use, flagged none of 0x80 0x40 0x20 0x08, and on no model
+    std::set<const zmod::Material*> used;
+    for (const zmod::Model& md : zmod::models().slots)
+      for (uint32_t i = 0; md.polygons && i < md.count(0x10); ++i) used.insert(md.polygons[i].material);
+    zmod::MaterialTable& t = zmod::materials();
+    int n = 0;
+    for (int32_t i = 0; i < t.capacity; ++i) n += (t.at(i).flags & 0xe8) == 0 && !used.count(&t.at(i));
+    return n;
+  };
+  auto freed_but_used = [] {  // a model's material on the free list
+    int n = 0;
+    for (const zmod::Model& md : zmod::models().slots)
+      for (uint32_t i = 0; md.polygons && i < md.count(0x10); ++i)
+        n += md.polygons[i].material && (md.polygons[i].material->flags & 0x20) != 0;
+    return n;
+  };
+  int copies_before = -1, copies_after = -1, idle_before = -1, idle_after = -1, unused_before = -1, unused_after = -1;
+  int bad_after = -1, materials_before = -1, materials_after = -1, frames2 = 0, up = -1;
+  bool blips_before = false, blips_after = true, motion_before = false, motion_after = true, path_after = true;
+  bool blips_again = false, motion_again = false;
+  bool path_before = false, unused_bool = false;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch first;  // c1 mission 1, played
+    engine.set_launch(first);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames == 10) {
+        // Three impacts as a shot's (0x00508aa0, zWeapon's effect): each
+        // instance copies the def's tree (its +0x94 bit 17).
+        if (zeff::AnimDef* d = zeff::anim_find("impact_missle_mech")) {
+          for (int i = 0; i < 3; ++i) {
+            const float at[3] = {static_cast<float>(i), 0, 0}, rot[3] = {}, scale[3] = {1, 1, 1};
+            zeff::anim_start_at(d, nullptr, at, rot, scale);
+          }
+        }
+        mech3::mechs_make_blips();
+      }
+      if (frames == 11) {
+        // A model made and never held (as the script's ModelNew leaves one).
+        if (zmod::Model* m = zmod::model_alloc()) m->header[0] = 'x';
+        // And an instance on the player's node (0x005097c0, as 0x00508760
+        // makes one): no tree of its own, so it stays.
+        if (zeff::AnimDef* d = zeff::anim_find("impact_missle_mech")) {
+          zeff::AnimDef* last = d;
+          while (last->instance) last = last->instance;
+          auto* node = static_cast<zcls::Node*>(mech3::mech_node(mech3::mech_mission_player()));
+          if (node) last->instance = zeff::anim_instance(last, node);
+        }
+      }
+      if (frames != 12) return;
+      copies_before = copies(true), others_before = copies(false), idle_before = idle_models(), unused_before = unused_materials();
+      materials_before = zmod::materials().count;
+      mech3::mechs_end_state(&blips_before, &motion_before, &path_before);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 12; };
+    pump.limit = 2000;
+    app.run(pump);
+    up = mech3::missions().loaded ? 1 : 0;
+    mech3::missions().cleanup(false);
+    copies_after = copies(true), others_after = copies(false), idle_after = idle_models(), unused_after = unused_materials();
+    materials_after = zmod::materials().count, bad_after = freed_but_used();
+    mech3::mechs_end_state(&blips_after, &motion_after, &path_after);
+    mech3::GameEngine::Launch second;  // then mission 2, loaded
+    second.number = 2;
+    engine.set_launch(second);
+    mech3::missions().start();
+    frames2 = mech3::missions().failed ? 0 : 1;
+    mech3::mechs_end_state(&blips_again, &motion_again, &unused_bool);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  if (std::getenv("MW3_END_LOG"))
+    std::fprintf(stderr, "END others %d/%d up %d copies %d/%d idle models %d/%d unused materials %d/%d materials %d/%d bad %d blips %d/%d motion %d/%d path %d again %d %d frames %d\n",
+                 others_before, others_after, up, copies_before, copies_after, idle_before, idle_after, unused_before, unused_after, materials_before,
+                 materials_after, bad_after, blips_before, blips_after, motion_before, motion_after, path_after,
+                 blips_again, motion_again, frames2);
+  EXPECT(copies_before > 0 && copies_after == 0 && others_before > 0 && others_after == others_before);
+  EXPECT(idle_before > 0 && idle_after == 0);
+  EXPECT(unused_before > 0 && unused_after == 0 && materials_after < materials_before && bad_after == 0);
+  EXPECT(motion_before && !motion_after && blips_before && !blips_after && !path_after);
+  EXPECT(frames2 == 1 && motion_again);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;

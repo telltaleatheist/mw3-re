@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zrender/zrndr_draw.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
@@ -1378,12 +1379,12 @@ struct WiredMissionHooks : MissionHooks {
   Handle sounds_bank() override { return e->sound_listener(); }
   void sounds_stop(Handle bank) override { e->sound_stop_all(bank); }
   void sounds_free(Handle bank) override { e->sound_release_all(bank); }
-  // 0x00414000: the dead mechs' list emptied (its mechs are gone with the
-  // rest); its motion archive close and three deletes are not ported.
-  void fn_414000() override {
-    mech_dead_clear();
-    e->unported("0x00414000", {});
-  }
+  void fn_414000() override { mechs_shutdown(); }  // 0x00414000 (app_mech.cpp)
+  void fn_50b2f0() override { zeff::anim_free_copies(); }        // the instances' own node trees
+  void fn_5394c0() override { zmod::models_purge(true, true); }  // 0x005394c0(1, 1): unused models, materials
+  // 0x00576270(0) frees zUtil's default search paths ([0x0072eebc]), which the
+  // port never keeps (zsnd_parm.cpp, zinterp.cpp): nothing to free.
+  void fn_576270(int32_t) override {}
   void delete_object(Handle obj) override {
     if (program_nav_waynet_delete(e->object_of(obj))) return;  // the missions' +0xb4
     if (!mech_free(e->object_of(obj)) && !program_vehicle_free(e->object_of(obj)) && !program_turret_free(e->object_of(obj)))

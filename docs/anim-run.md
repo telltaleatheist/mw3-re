@@ -16,7 +16,10 @@ action lists, the setters and the world's child/light/sound lists. Check:
   running one with a reset time of -99 never restarts. A running def started
   at another node gets an *instance*: the next free copy on its chain
   (+0x138), else a new one (0x5097c0, its own object, lights, puffers and
-  sounds, its lists looked up again under the node). With a node the def is
+  sounds, its lists looked up again under the node; with no node, a copy
+  of the def's tree, flagged +0x94 bit 17, which the mission's end frees
+  through 0x50b2f0; a new one keeps its source's bit 17 in the exe, a FIX
+  (bug) in the port: fixes.md). With a node the def is
   rebound to it (0x509eb0). Prerequisites must hold (0x508950). RESET_TIME
   defs reset first. 0x5084f0 adds a free-hanging node to the world (flag
   0x100: it is then put at the origin, and turned to 0 unless it is a

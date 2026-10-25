@@ -216,6 +216,18 @@ int model_release(Model* m) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x005394c0 (ECX models, EDX materials): the mission's end
+// that keeps the world: every model nothing holds (+0x0c 0, not an empty
+// slot) released as 0x00539150 does, then the materials no model uses
+// (0x00537e50).
+void models_purge(bool models, bool materials) {
+  static const uint8_t kEmpty[sizeof(Model::header)] = {};
+  if (models)
+    for (Model& m : g_pool.slots)
+      if (m.count(0xc) == 0 && std::memcmp(m.header, kEmpty, sizeof kEmpty) != 0) model_release(&m);
+  if (materials) materials_purge();
+}
+
 namespace {
 template <typename T>
 T* dup(const T* src, size_t count) {

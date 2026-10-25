@@ -1883,3 +1883,28 @@ is paused.
   Docs: landmines.md, discoveries, symbols, movement-collision,
   mission-frame. The c4bm5 survey tag: the parser reads "c%dm%d", so c4b
   is "c5m5" (item 15 can take "c4b").
+
+## Item 14: the mission cleanup's leftovers (2026-10-25, mac 4)
+
+- Assigned (the lead): trace which of the cleanup's logged calls leak into
+  the next mission; port those; a two-mission headless test. Branch
+  mac4/cleanup off mac4/landmines.
+- Traced: the cleanup still logged 0x00402560, 0x00414000, 0x004c3240,
+  0x004e7bc0, 0x0050b2f0, 0x005394c0, 0x00576270 (c1m1, c2m3, c4bm6
+  alike; the turrets', waynets', mcbwaynet's and engine sounds' were
+  ported already, mission-frame.md was stale). Leaks: 0x0050b2f0 (anim
+  instances with their own trees), 0x005394c0 (unused models, materials),
+  0x00414000's rest (path, motions, blips). Nothing to free: 0x00576270
+  (paths the port never keeps), 0x00402560 (nets rebuilt per mission),
+  0x004c3240 (empty).
+- Done (mac 4): `zeff::anim_free_copies`, `zmod::models_purge`,
+  `materials_purge`, `material_free`, `mech3::mechs_shutdown`; wired in
+  WiredMissionHooks (fn_50b2f0, fn_5394c0, fn_576270 as nothing,
+  fn_414000). mw3tests mission_end_frees_what_the_next_does_not_need
+  (also ASan); 10 of 10 breaks (one dropped: releasing held models is
+  refused by 0x539150 itself). Docs: mission-frame.md, symbols.
+- Found: 0x5097c0 copies the source's +0x94 and clears only bit 8, so an
+  instance made at a node from a copy keeps bit 17, and the end (or any
+  free) destroys the borrowed node's tree. FIX (bug) behind
+  `anim().fix_instance_tree` (the probes keep the exe's path): fixes.md,
+  CHANGES, anim-run.md.

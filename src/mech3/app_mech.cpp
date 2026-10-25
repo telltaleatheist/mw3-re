@@ -73,6 +73,7 @@
 #include "mech3/mech_control.h"
 #include "mech3/zrdraiv.h"
 #include "mech3/sensors.h"
+#include "mech3/mech_fieldbase.h"
 #include "mech3/mech_hud.h"
 #include "mech3/zai_target.h"
 #include "mech3/weapon_planner.h"
@@ -945,6 +946,27 @@ void* mission_player_mech() { return world().mission_player; }
 
 void mech_dead_tick(float dt) { dead_tick(dt); }
 void mech_dead_clear() { dead_mechs().clear(); }
+
+// Mech3.exe 1.2 @ 0x00414000: the scripts' path list freed ([0x00736584],
+// 0x00576120: the next set-up makes it again), the motion archive closed
+// (0x005a98a0), the dead mechs' list emptied (its mechs are gone with the
+// rest) and the three radar blips deleted.
+void mechs_shutdown() {
+  field_bases_path_made() = false;
+  close_motions();
+  mech_dead_clear();
+  mech_radar_blips_destroy();
+}
+void mechs_make_blips() {
+  if (!mech_radar_blip(0)) mech_radar_blips_create();
+}
+void mechs_end_state(bool* blips, bool* motion, bool* path) {
+  *blips = mech_radar_blip(0) != nullptr;
+  zsis::Script sc;
+  *motion = load_motion(sc, "vulture_walk");
+  if (*motion) script_free_parts(sc);
+  *path = field_bases_path_made();
+}
 
 bool mech_free(void* obj) {
   if (!entity_is_mech(obj)) return false;
