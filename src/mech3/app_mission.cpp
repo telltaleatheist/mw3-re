@@ -58,6 +58,7 @@
 #include "mech3/mech_objective.h"
 #include "mech3/mech_shade.h"
 #include "mech3/zai_anim_owner.h"
+#include "mech3/zai_list.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
 #include "mech3/app.h"
@@ -598,6 +599,10 @@ void program_launch_lancemates() { launch_lancemates(); }
 void program_action_lineup(bool launch) { action_lineup(launch); }
 void* program_launch_campaign() { return g_player_hooks.e ? launch_campaign(g_player_hooks.e) : nullptr; }
 
+void GameEngine::ai_reset(uint32_t list) {
+  if (ai::ResetList* l = ai::reset_list(list)) l->reset();
+}
+
 // A mech's controls when the mech goes (Mech::release, the controls' vt+0x18):
 // the AI's, which the vehicle builder made here; the player's stay.
 void mission_controls_free(void* controls) {
@@ -751,6 +756,10 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (target(c->seen) || marker(c->seen) || turret(c->seen)) return c->seen;
     return contact_vehicle(c);
   }
+  // 0x004ac800's: a vehicle's vt+0xec is itself (0x004d2a70); 0x00402510
+  // on the basic vehicles' path.
+  void* owner_vehicle(void* owner) override { return owner; }
+  void path_drop_temporary(void* v) override { program_vehicle_path_drop(v); }
   bool entity_active(Handle v) override {
     if (PocketMarker* k = marker(v)) return k->active != 0;
     if (tur::Turret* t = turret(v)) return t->active != 0;
@@ -1503,6 +1512,9 @@ struct WiredMissionHooks : MissionHooks {
     return a ? e->handle_of(a) : 0;
   }
   void fn_49dc80(uint8_t v) override { action_lineup(v != 0); }
+  void ai_list_reset(Handle list) override {  // 0x004d8610
+    if (ai::ResetList* l = ai::reset_list(list)) l->reset();
+  }
   uint32_t field32(Handle h, uint32_t off) override {
     uint32_t v = 0;
     if (ActionGame* a = launch_action(e); a && h == e->handle_of(a) && action_field(a, off, &v, nullptr)) return v;

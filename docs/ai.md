@@ -3576,3 +3576,44 @@ The AI tester dialog and the in-game AI path editor (ZAiNetEdit's editing
 side), reached in the exe through the debug menu, are to be ported later
 behind a `--debug` switch, off by default, as hidden as the original's
 menu. They are not needed to play.
+
+## 19. The reset lists and the vehicle controls' end (item 9, 2026-10-25)
+
+**The four lists** (mech3/zai_list): objects of one small class (ctor
+0x4d8540, vtable 0x5cd0d4 with only its deleting destructor 0x4d8570, dtor
+0x4d8590): a list node sentinel (+0x08) and a count (+0x0c), made by the
+static constructors at 0x4100e0..0x410204. The reset 0x4d8610 takes each
+entry off the front (the node freed, the count down) and then calls the
+entry's vt+0x04 with no arguments, reading the front again each time, so
+an entry told may add or take others. It runs on [0x604038] each Core
+frame (0x480f5e, after the view's draw), on [0x604048] and [0x604078] at
+the mission load's "Post Vehicle Fixup" (0x490f23, 0x490f2d) and on
+[0x603f90] after it (0x490f7c). Nothing in the exe adds to any of them:
+their addresses appear only in those calls, the constructors and the
+destructors, and no code takes them by pointer. So in play every reset
+finds an empty list; what kind of object the entries were is not known.
+Ported as written (`ResetList::reset`, `reset_list` by the exe's address),
+the program's four empty.
+
+**The basic vehicle controls' destructor** 0x4ac800 (`vehicle_controls_gone`,
+from the AI's 0x4e7870 for each AI vehicle's controls): the vtables put
+back, then the owner's vt+0xec (a vehicle's itself, 0x4d2a70) and 0x402510
+on the answer, which drops the basic path's temporary entries (+0xa0c's
+with a negative +0x2c, through the vehicle's controls' vt+0x00; an AI
+vehicle's controls give none, veh_basic_object.h). The missing owner's
+FIX (bug) is fixes.md's "AI vehicle controls' destructor".
+
+**Checked.** `test_ai_lists.py` (probe `tests/probe_ai_lists.cpp`): 3000
+lists of 0..8 entries whose vt+0x04 follows a plan both sides share
+(nothing, a higher entry added at the back, another taken off): the order
+told (15,013), the count left, every node freed. `test_ai_brain.py` runs
+0x4ac800 through 0x4e7870 on each deleted vehicle controller (1,014).
+`mw3tests` `mission_c1m1_restarted_twice_keeps_no_ai_headless`: c1
+mission 1 loaded, then restarted twice (the cleanup, the Load state):
+each load has 24 entities, 1 target, 7 basic vehicles, 1 AI mech, 1 AI
+mech controller and 7 AI vehicle controllers alive and the four lists
+empty, the same each time; after the last cleanup the controllers alive are
+back to none. Also clean under ASan. Breaking the port showed the tests
+catch it, 6 of 6: the reset from the back, an entry told before it is off
+the list, a copy of the list walked, the owner not asked, the path not
+told, a vehicle's controls not deleted.

@@ -101,10 +101,11 @@ struct Hooks : ai::BrainHooks {
     *allies = peek32(v + 0xc4);
     return true;
   }
-  void vehicle_controls_gone(void* owner) override {
-    const uint32_t r = call("owner.vt+0xec", {addr_of(owner)});
-    call("0x00402510", {r});
+  // 0x004ac800's two calls; the answer is the test's address, passed on as it is.
+  void* owner_vehicle(void* owner) override {
+    return reinterpret_cast<void*>(static_cast<uintptr_t>(call("owner.vt+0xec", {addr_of(owner)})));
   }
+  void path_drop_temporary(void* v) override { call("0x00402510", {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(v))}); }
 };
 Hooks g_hooks;
 

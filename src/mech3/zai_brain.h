@@ -305,11 +305,19 @@ class BrainHooks : public zgame::Unported {
     (void)p;
     unported("vehicle.vt+0x50", {v});
   }
-  // The basic vehicle controls' destructor (0x004ac800): the owner's vt+0xec,
-  // then 0x00402510 on its answer (veh_basic.cpp, not ported).
-  virtual void vehicle_controls_gone(void* owner) { unported("0x004ac800", {low(owner)}); }
+  // The basic vehicle controls' destructor's calls (0x004ac800): the owner's
+  // vt+0xec (a vehicle's itself, 0x004d2a70), then 0x00402510 on its answer
+  // (veh_basic.cpp: the basic path's temporary entries dropped).
+  virtual void* owner_vehicle(void* owner) { return reinterpret_cast<void*>(unported("owner.vt+0xec", {low(owner)})); }
+  virtual void path_drop_temporary(void* vehicle) { unported("0x00402510", {low(vehicle)}); }
 };
 BrainHooks& brain_hooks();
+// Mech3.exe 1.2 @ 0x004ac800 (the basic vehicle controls' destructor, from
+// the AI's 0x004e7870): the vtables back, then the owner's vehicle's path
+// told (0x00402510).
+void vehicle_controls_gone(void* owner);
+// Ours, for the tests: the AiVehicleControls alive.
+int32_t ai_vehicle_controls_alive();
 // The AI switch [0x0060b938]: on at the end of the mission start
 // (0x004ea740), off in the cleanup (0x004ea750).
 bool& ai_switch();

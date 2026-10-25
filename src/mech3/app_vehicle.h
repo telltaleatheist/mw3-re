@@ -111,6 +111,7 @@ void program_vehicle_motion(void* v, void* mode, const char* name, const char* t
 void program_vehicle_points(void* v);     // 0x0049f660
 void program_vehicle_touch(void* v);      // 0x005833b0(v, node, 1, 0x004af550)
 void program_vehicle_refresh(void* v);    // 0x005a85c0
+void program_vehicle_path_drop(void* v);  // 0x00402510: the basic path's temporary entries
 // The team masks at +0xc0 / +0xc4 / +0xc8 (set_team_masks' writes and reads).
 bool program_vehicle_mask(void* v, uint32_t off, uint32_t* get, const uint32_t* set);
 void program_vehicles_forget();           // the mission's end

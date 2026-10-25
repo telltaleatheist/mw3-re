@@ -1767,3 +1767,19 @@ is paused.
   brains, destroyed, wave 2 made, the ally kept); 22 of 22 breaks. Docs:
   mission-start.md 13, fixes (1 row), CHANGES (1 line), symbols, 2
   discoveries (the twenty waves, the matching by weight class).
+
+## Item 9: item 3's leftovers, 0x4d8610 and 0x4ac800 (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/ai-cleanup off main. Port 0x4d8610 (the
+  AI list reset) and 0x4ac800 (the vehicle controls' destructor, linking
+  its FIX row), wired where the exe calls them; a headless restart twice
+  with the AI lists and vehicle controls not carried over, also under
+  ASan; a differential and breaks.
+- Done (mac 4): `ai::ResetList` / `reset_list` (zai_list; the four lists
+  are never filled in the exe: only their ctors, dtors and resets name
+  them), wired to the Core frame's and the mission load's calls;
+  `ai::vehicle_controls_gone` 0x4ac800 with its two calls as hooks (the
+  program: the vehicle itself, then the basic path's 0x402510). Tests:
+  test_ai_lists (3000), test_ai_brain (its 0x4ac800), mw3tests c1m1
+  restarted twice (also ASan); 6 of 6 breaks. ai.md 19, symbols. No
+  CHANGES line (port gaps); the fix row was there.

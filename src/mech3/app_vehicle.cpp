@@ -473,6 +473,9 @@ void program_vehicle_touch(void* v) {
   auto* b = static_cast<BasicVehicle*>(v);
   zwep::set_damage_handler(b, b->node, vehicle_damage_handler, 1);
 }
+void program_vehicle_path_drop(void* v) {
+  if (is_program_vehicle(v)) veh_basic_hooks().path_drop_temporary(*static_cast<BasicVehicle*>(v));
+}
 void program_vehicle_refresh(void* v) { g_hooks.refresh(*static_cast<BasicVehicle*>(v)); }
 bool program_vehicle_mask(void* v, uint32_t off, uint32_t* get, const uint32_t* set) {
   auto* b = static_cast<Vehicle*>(v);
