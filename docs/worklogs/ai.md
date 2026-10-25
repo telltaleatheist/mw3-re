@@ -1673,3 +1673,14 @@ is paused.
   (22), and with an explosion's light at a vehicle (started at its place,
   as a shot's impact does) the mix runs. The screenshot pair waits for
   Owen's yes to the GPU (the no-GPU-while-streaming rule).
+
+## Item 5: an animation's light at its start node (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/anim-light-at off main. light_flash
+  started with plain anim_start at a vehicle's node left its light at
+  (0, 0.5, 0); find whether the exe does the same with those inputs (zeff's
+  ref_or_at with the event's node index, in the emulator against the port);
+  same: document which caller play uses and close; different: fix with a
+  differential and breaks. Say which game paths start light anims each
+  way (shots' impacts, deaths, scripts). Small. Then item 6: the version-105
+  waynet 0x4bed90.
