@@ -1522,6 +1522,7 @@ uint32_t weapon_flags(void* w) {
 void mech_torso_centre(void* mech, int32_t how) {
   if (auto* m = static_cast<Mech*>(mech); m && m->torso) m->torso->centre(how);
 }
+float mech_heat(const void* mech) { return entity_is_mech(mech) ? static_cast<const Mech*>(mech)->heat : 0.0f; }
 bool mech_set_heat(void* mech, float heat) {
   if (!entity_is_mech(mech)) return false;
   static_cast<Mech*>(mech)->heat = heat;

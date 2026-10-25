@@ -1842,6 +1842,18 @@ are all "puffers": emitters that drop little textured squares.
   checks it again, one already hurt stays out until repaired), a time limit on each attack, and how much damage it takes before
   giving an attack up. The time limit scales with the game's intensity
   setting (`ai.md` 17.3).
+- **The AI goes for whoever runs hottest.** When an AI pilot picks what to
+  shoot at, it weighs each target's distance, how far it must turn, its
+  health and its heat: the hotter a mech, the more attractive, and a mech
+  past three quarters of the heat scale beats any cool one at any range.
+  Vehicles and turrets never count as hot. Riding your heat high draws the
+  enemy's fire to you.
+- **Some pilots' mission switches flip when they warm up.** A pilot's
+  mission triggers can throw a switch when its own mech's heat passes a
+  mark: nearly every Instant Action enemy has one at a twentieth of the
+  scale, and 48 campaign pilots have them (c1 mission 2's Owens at the first
+  warmth, c1 mission 4's Blackhawk at a fifth and at two fifths). Firing or
+  running heats a mech, so these fire once a pilot gets going.
 - **Your lancemates shoot first, but never chase.** An allied pilot picks
   its own target all the time: any enemy (or neutral) within its weapons'
   reach, scored by distance, facing, damage and a clear line, whether or

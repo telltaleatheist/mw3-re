@@ -248,6 +248,8 @@ void weapon_node_position(void* w, float out[3]);
 float weapon_speed(void* w);
 uint32_t weapon_flags(void* w);
 bool mech_set_heat(void* mech, float heat);   // for the tests: +0x554
+// vt+0x9c (0x0041ec90): a mech's heat (+0x554); 0 when it is no mech.
+float mech_heat(const void* mech);
 // For the tests: a hit of `damage` on the part with that id (0x00460970, no weapon).
 bool mech_hit_part(void* mech, int32_t id, float damage);  // 6: the head
 // For the tests: the throttle target set and held, as a throttle key held to v would.

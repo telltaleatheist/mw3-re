@@ -85,6 +85,7 @@
 #include "mech3/sensors.h"
 #include "mech3/turret.h"
 #include "mech3/zai_brain.h"
+#include "mech3/zai_firing.h"
 #include "mech3/zai_list.h"
 #include "mech3/zai_attack.h"
 #include "mech3/zai_steps.h"
@@ -154,6 +155,9 @@ void reset_process_state() {
   for (int l = 0; l < 2; ++l) zimg::library_list(l).clear();
   mech3::damage_set() = mech3::DamageSet{};  // the HUD's silhouettes, loaded once a process (0x0043afc0)
   crt::rand_fixed_seed() = 1u;  // the clock seeds the game's rand: a fixed seed makes the runs repeat
+  // The game clock (world +time) runs on from the last mission: an AI mech's
+  // load-time update (a powered-down start's) stamps its brain with it.
+  mech3::mech_set_game_time(0.0f);
   // The mission animations' random cursor and range-test stagger: the
   // exe's start (0x00508fc0) refills the table but neither, so they run on
   // from mission to mission (0x0060c5f4, 0x0060c1d8: 0 in a new process).
@@ -733,10 +737,11 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
       EXPECT(m.team == 4);                                          // team 2: mask 4
       EXPECT(m.powering_down);                                      // p12 ("owens" 0 1)
       // On the ground at its aiv.zrd place (-1767.7 3 -1229, yaw 30 degrees):
-      // the terrain there is at 3, the mech 0.01 above it, in the world.
+      // the terrain there is at 3; placed 0.01 above it (0x004161c0), then its
+      // powered-down start's one 0.1 s update (0x0049fa20) sets it down on it.
       EXPECT(m.in_world);
       EXPECT(m.pos[0] == -1767.7f && m.pos[2] == -1229.0f);
-      EXPECT(m.pos[1] == static_cast<float>(static_cast<double>(ground_under(m.pos[0], 103.0f, m.pos[2])) - kPlaceSink));
+      EXPECT(std::fabs(m.pos[1] - ground_under(m.pos[0], 103.0f, m.pos[2])) < 1e-4f);
       EXPECT(std::fabs(m.yaw_sin - std::sin(0.52359879f / 2)) < 1e-6f);
       if (zcls::Node* w = mech3::world_hooks().world) {
         float probe[3] = {m.pos[0], 103.0f, m.pos[2]};
@@ -1207,6 +1212,69 @@ TEST(mission_c1m1_frames_fire_bramps_timers_headless) {
 // frames (0x004a1040 from the entity walk) under their brains: each frame
 // keeps them in the world, alive, on the ground; after truck_go (18 s past
 // bramp) the trucks drive off along their path.
+// c1 mission 1's Owens starts powered down (p12's second flag): player.cpp
+// gives it one 0.1 s update with its controller held (0x0049fa20, vt+0x34),
+// then the power-down (0x0041cc30), which settles it on the ground.
+// docs/mission-start.md section 4.
+TEST(mission_c1m1_powered_down_ai_mech_settles_once_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_settle_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    mech3::LaunchedMech first;
+    bool seen = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || seen) return;
+      int32_t made = 0;
+      const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+      if (made > 0) seen = mech3::describe_mech(ai[0].mech, &first);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return seen; };
+    pump.limit = 400;
+    app.run(pump);
+    if (std::getenv("MW3_SETTLE_LOG"))
+      std::fprintf(stderr, "SETTLE down %d/%d feet %d in world %d pos %g %g %g yaw %g armor %g heat %g motions %d\n",
+                   first.powering_down, first.powered_down, first.feet_down, first.in_world, first.pos[0], first.pos[1],
+                   first.pos[2], first.yaw_sin, first.armor, first.heat, first.motions);
+    // The update set it on the ground (without it the mech stays 1 cm up, as placed).
+    EXPECT(seen && first.powering_down && first.feet_down);
+    EXPECT(seen && std::fabs(first.pos[1] - ground_under(first.pos[0], first.pos[1] + 100.0f, first.pos[2])) < 1e-3f);
+    EXPECT(engine.unported_counts().count("mech.vt+0x34") == 0);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_vehicles_run_their_frames_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -3164,7 +3232,21 @@ TEST(mission_c1m1_unported_survey_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
+    // MW3_SURVEY_MISSION: c<op>m<n> (a campaign mission, c4b as op 5) or ia<n>
+    // (c1's Instant Action map n, wave mode, one ally); c1m1 when unset.
     mech3::GameEngine::Launch l;
+    mech3::ActionGame action(nullptr);
+    if (const char* m = std::getenv("MW3_SURVEY_MISSION")) {
+      int a = 1, b = 1;
+      if (std::sscanf(m, "ia%d", &b) == 1) {
+        l.type = 2, l.index = 0, l.number = b;
+        action.mode = 2, action.x6c = 1, action.slot.mech = 9;
+        action.add(5, 1, nullptr, 0);
+        l.action = &action;
+      } else if (std::sscanf(m, "c%dm%d", &a, &b) == 2) {
+        l.index = a - 1, l.op = a, l.number = b;
+      }
+    }
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
     int frames = 0;
@@ -4148,6 +4230,132 @@ TEST(mission_c1m1_restarted_twice_keeps_no_ai_headless) {
     EXPECT(loads.size() == 3 && loads[0].ai_mechs > 0 && loads[0].vehicle_controls > before.vehicle_controls);
     EXPECT(after.mech_controls == before.mech_controls && after.vehicle_controls == before.vehicle_controls);
     EXPECT(after.lists == 0);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The AI's target pick (0x004b6790) scores each contact by distance and its
+// heat (vt+0x9c, x (1.5 - heat): lower is better), so an enemy pilot turns to
+// the hotter of two mechs at nearly the same range. c2 mission 1: an enemy
+// with the player 200 m off and Dominic 210 m on its other side; cool, it
+// takes one of them; with the other at heat 1.4, that one. docs/ai.md 17.7.
+TEST(mission_c2m1_ai_pick_goes_to_the_hotter_mech_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_heatpick_write"));
+  mech3::reset_states();
+  reset_process_state();  // as a new process: zSound not yet initialised
+  mech3::missions() = mech3::Missions{};  // as a new process starts: no mission up
+  mech3::mech_types_forget();             // and no mech type cached
+  mech3::player_controls_instance() = nullptr;  // nor the player's controls (leaked): its keys registered again
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c2 mission 1: Dominic in the lance
+    l.index = 1, l.op = 2, l.number = 1;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    void *player = nullptr, *dominic = nullptr, *enemy = nullptr;
+    mech3::ai::Brain* brain = nullptr;
+    zgame::Handle cool = 0, hot = 0, ph = 0, dh = 0, other_h = 0;
+    float other_heat = -1;
+    int frames = 0;
+    auto pick = [&]() -> zgame::Handle {
+      mech3::ai::FirePlan* p = mech3::ai::volley_plan_pick(brain->firing);
+      delete p;
+      const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(enemy));
+      return t && t->target ? mech3::ai::brain_hooks().contact_vehicle(t->target) : 0;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        player = mech3::mech_mission_player();
+        const mech3::ai::AiTarget* pt = mech3::ai::brain_hooks().targetable(engine.handle_of(player));
+        int32_t made = 0;
+        const mech3::AiMechMade* ai = mech3::mission_ai_mechs(&made);
+        for (int32_t q = 0; q < made; ++q) {
+          const mech3::ai::AiTarget* t = mech3::ai::brain_hooks().targetable(engine.handle_of(ai[q].mech));
+          if (ai[q].name && std::string(ai[q].name) == "Dominic_Paine") dominic = ai[q].mech;
+          else if (!enemy && t && pt && !(pt->allies & t->team) && static_cast<mech3::AiControls*>(ai[q].controls)->brain) {
+            enemy = ai[q].mech;
+            brain = static_cast<mech3::AiControls*>(ai[q].controls)->brain.get();
+          }
+        }
+        if (!player || !dominic || !enemy) return;
+        mech3::LaunchedMech e;
+        mech3::describe_mech(enemy, &e);
+        auto put = [&](void* m, float dx) {
+          const float x = e.pos[0] + dx, z = e.pos[2];
+          const float at[3] = {x, ground_under(x, e.pos[1] + 100.0f, z), z};
+          mech3::move_mech(m, at, dx > 0 ? -1.5707964f : 1.5707964f);
+        };
+        // The enemy turned so both are side-on to it: the pick's turn factor
+        // ((2 - its forward . the direction) squared) the same for each.
+        const float here[3] = {e.pos[0], e.pos[1], e.pos[2]};
+        mech3::move_mech(enemy, here, 0.0f);
+        put(player, 200.0f), put(dominic, -210.0f);
+        ph = engine.handle_of(player), dh = engine.handle_of(dominic);
+      } else if (frames == 10 && brain) {  // the sensors' contacts on both
+        mech3::mech_set_heat(player, 0), mech3::mech_set_heat(dominic, 0);
+        cool = pick();
+        void* other = cool == ph ? dominic : player;  // the one it passed over, made hot
+        mech3::mech_set_heat(other, 1.4f);
+        hot = pick();
+        other_h = engine.handle_of(other);
+        other_heat = mech3::ai::brain_hooks().heat(other_h);
+        mech3::mech_set_heat(other, 0);
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames > 10; };
+    pump.limit = 600;
+    app.run(pump);
+    if (std::getenv("MW3_PICK_LOG"))
+      std::fprintf(stderr, "PICK cool %x hot %x player %x dominic %x heat %g\n", cool, hot, ph, dh, other_heat);
+    EXPECT(enemy && dominic);
+    EXPECT(cool == ph || cool == dh);   // one of the two mechs, both cool
+    EXPECT(hot == other_h && hot != cool && other_heat == 1.4f);  // the other, once hot
+    mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

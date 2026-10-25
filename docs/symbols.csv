@@ -1511,3 +1511,5 @@ address,name,source,notes
 0x004d8540,ResetList::ResetList,asm,"the AI's four static lists (vtable 0x005cd0d4)"
 0x004d8590,ResetList::~ResetList,asm,"their destructor (0x004d8570 the deleting one)"
 0x004ac800,BasicVehicleControls::~,asm,"ported: ai::vehicle_controls_gone (owner vt+0xec, then 0x00402510)"
+0x0041ec90,Mech::Heat,asm,"vt+0x9c: the mech's heat (+0x554); program: mech_heat"
+0x0045b950,Entity::Heat,asm,"vt+0x9c of every non-mech entity class: the constant 0.0 at 0x005c23a0"

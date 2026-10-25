@@ -428,6 +428,11 @@ struct WiredPlayerHooks : PlayerHooks {
     return place_mech(mech, pos, rec_yaw(rec));
   }
   void mech_power(Handle m, int32_t down) override { mech3::mech_power(e->object_of(m), down); }
+  // vt+0x34 (0x00419fc0): the powered-down start's one 0.1 s update, its controller held.
+  void mech_update(Handle m, float dt) override {
+    if (mechs.count(m)) update_mech(e->object_of(m), dt);
+    else PlayerHooks::mech_update(m, dt);
+  }
   // The basic vehicles (app_vehicle.cpp): made, named, placed and set up as
   // player.cpp asks; their frame is not run yet (vehicles.md, In the program).
   Handle vehicle_create(Handle ctl, const char* type, const char* name) override {
@@ -756,6 +761,9 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (target(c->seen) || marker(c->seen) || turret(c->seen)) return c->seen;
     return contact_vehicle(c);
   }
+  // vt+0x9c: a mech's heat (0x0041ec90, +0x554); every other class's is the
+  // constant 0 (0x0045b950 on [0x005c23a0]: vehicles, turrets, targets).
+  float heat(Handle v) override { return mech_heat(e->object_of(v)); }
   // 0x004ac800's: a vehicle's vt+0xec is itself (0x004d2a70); 0x00402510
   // on the basic vehicles' path.
   void* owner_vehicle(void* owner) override { return owner; }
