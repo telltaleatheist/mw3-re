@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "crt/msvc_rand.h"
+#include "mech3/entity_classes.h"
 #include "mech3/hud.h"
 #include "mech3/mech_hud.h"
 #include "mech3/message_panel.h"
@@ -136,6 +137,7 @@ struct Hooks : mech3::HudHooks {
     return g_strings.back().c_str();
   }
   const char* object_name(void* o) override {  // obj.vt+0xa4: a C string in the emulator, or none
+    if (is_classed(o)) return mech3::entity_name(id(o));
     const uint32_t a = call("obj.vt+0xa4", {id(o)});
     if (!a) return nullptr;
     std::string n;
@@ -166,6 +168,16 @@ struct Hooks : mech3::HudHooks {
     g_map_rect_at = a;
     return &g_map_rect;
   }
+  // A classed object's slots (see HudFacts below).
+  bool is_classed(const void* o);
+  uint32_t object_team(void* o) override;
+  void* object_blip(void* o, int32_t kind) override;
+  bool object_a8(void* o) override;
+  bool object_mech(void* o) override;
+  void* object_mech_ptr(void* o) override;
+  void vehicle_center(void* v, float out[3]) override;
+  void vehicle_velocity(void* v, float out[3]) override;
+  void object_view_flag(void* o, int32_t on) override;
   zrdr::Node* load_hud_zrd() override { return g_have_zrd ? zrdr::load("hud.zrd") : nullptr; }
   // The HUD and its pieces by the original's offsets; anything else (the
   // emulator's own handles) as it is.
@@ -185,6 +197,61 @@ struct Hooks : mech3::HudHooks {
   }
 };
 Hooks g_hooks;
+
+// The contacts' objects that carry a real class vtable (test_hud.py's
+// classed ones): their slots answered as the port's entity classes do
+// (mech3/entity_classes), from the emulator's memory; the rest stay stubs.
+std::map<uint32_t, int32_t> g_classes;
+struct HudFacts : mech3::EntityFacts {
+  uint32_t unported(const char* k, std::initializer_list<zgame::Arg> args) override { return call(k, args); }
+  mech3::EntityClass class_of(zgame::Handle o) override {
+    auto it = g_classes.find(o);
+    return it == g_classes.end() ? mech3::EntityClass::none : static_cast<mech3::EntityClass>(it->second);
+  }
+  zgame::Handle blip(mech3::BlipTable t, int32_t kind) override {
+    static const uint32_t kTables[] = {0, 0x605618, 0x60b120, 0x609a38, 0x60b4f0};
+    return call("peek32", {kTables[static_cast<int>(t)] + 4u * kind});
+  }
+  uint32_t team(zgame::Handle o) override { return call("peek32", {o + 0xc0}); }
+  float height(zgame::Handle o) override { return zgame::from_bits(call("peek32", {o + 0x68})); }
+  uint8_t target_e8(zgame::Handle o) override { return static_cast<uint8_t>(call("peek8", {o + 0xe8})); }
+  const char* target_name(zgame::Handle o) override { return g_hooks.estr(call("peek32", {o + 0xec})); }
+  const char* pilot_name(zgame::Handle o) override { return g_hooks.estr(call("0x004aee70", {o})); }
+  void place(zgame::Handle o, float out[3]) override {
+    const uint32_t p = call("0x005a85e0", {o});
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(call("peek32", {p + 4u * i}));
+  }
+  void target_centre(zgame::Handle o, float out[3]) override {
+    const uint32_t node = call("peek32", {o + 0x14}), data = call("peek32", {node + 0x38});
+    if (call("peek8", {data}) & 0x20) call("0x004ed280", {node, 1});
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(call("peek32", {data + 0x84 + 4u * i}));
+  }
+};
+HudFacts g_facts;
+bool classed(const void* o) { return o && g_classes.count(g_hooks.id(o)); }
+bool Hooks::is_classed(const void* o) { return classed(o); }
+void* ptr(uint32_t a) { return reinterpret_cast<void*>(static_cast<uintptr_t>(a)); }
+uint32_t Hooks::object_team(void* o) { return classed(o) ? mech3::entity_team(id(o)) : HudHooks::object_team(o); }
+void* Hooks::object_blip(void* o, int32_t kind) {
+  return classed(o) ? ptr(mech3::entity_blip(id(o), kind)) : HudHooks::object_blip(o, kind);
+}
+bool Hooks::object_a8(void* o) { return classed(o) ? mech3::entity_hidden(id(o)) : HudHooks::object_a8(o); }
+bool Hooks::object_mech(void* o) { return classed(o) ? mech3::entity_mech(id(o)) != 0 : HudHooks::object_mech(o); }
+void* Hooks::object_mech_ptr(void* o) { return classed(o) ? ptr(mech3::entity_mech(id(o))) : HudHooks::object_mech_ptr(o); }
+void Hooks::vehicle_center(void* v, float out[3]) {
+  if (classed(v)) return mech3::entity_centre(id(v), out);
+  HudHooks::vehicle_center(v, out);
+}
+// vt+0xc: the classed ones (no mechs) zEntity's 0x005a82d0, +0x30.
+void Hooks::vehicle_velocity(void* v, float out[3]) {
+  if (!classed(v)) return HudHooks::vehicle_velocity(v, out);
+  for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(call("peek32", {id(v) + 0x30 + 4u * i}));
+}
+// vt+0x68: the classed TARGET objects' (targets, traps, field base, marker,
+// plain) is 0x004a5bc0, empty.
+void Hooks::object_view_flag(void* o, int32_t on) {
+  if (!classed(o)) HudHooks::object_view_flag(o, on);
+}
 
 // zRender's 2D draws as test_hud.py's stubs log them.
 struct HudHost : RecordingHost {
@@ -837,6 +904,12 @@ void dump_hud(Dump& d) {
 }  // namespace
 
 extern "C" {
+
+void probe_hud_classes_clear() {
+  g_classes.clear();
+  mech3::set_entity_facts(&g_facts);
+}
+void probe_hud_entity_class(uint32_t o, int32_t cls) { g_classes[o] = cls; }
 
 // Builds the HUD as the emulator did at `hud_addr` for `mech`, dumps it.
 // The options' rects as the emulator has them (render, display: **[0x005f4d1c],

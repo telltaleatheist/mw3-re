@@ -1569,3 +1569,32 @@ is paused.
   40 m (from 80 m the machine guns miss the moving Owens). Test-process
   reset frees the records (reset_process_state), as the tests never unload
   the world.
+- Lead's review of 2b: matches the exe; the Owens test at 40 m kept. The
+  node's entity is 0x40eee0 (the binder's call at 0x4d4dc1; 0x40e920 is the
+  program's port behind it): symbols.csv rows added.
+
+## Item 3: radar contacts beyond mechs (2026-10-25, mac 4)
+
+- Assigned (the lead): branch mac4/radar-contacts off mac4/anim-binder,
+  rebased on main once 2b is merged. app_hud's contact hooks for vehicles,
+  field bases, turrets and targets.zrd objects, so the radar and the target
+  list see them as the exe; their markers 0x4ac3d0 (vehicle), 0x4a5fc0
+  (turret), 0x4d2d70 (target). Hooks and markers only, no HUD drawing
+  rework (app_hud is mac 3's; the lead reviews it). Differential: the
+  radar's contact list and each class's marker over the shipped worlds'
+  entities; headless: c1m1's turrets or a target on the radar.
+- Item 3 done (mac 4), test shape approved by the lead: `mech3/entity_classes`
+  (the classes' slots by vtable: blip vt+0x3c, team, mech vt+0x50, hidden
+  vt+0xa8, name vt+0xa4, centre vt+0xbc, 0x4e6fe0, 0x4e7070), the program's
+  facts and hud_object_* in app_sensors.cpp, app_hud's contact hooks only
+  (the contact's vehicle/entity/seen, team, place, blip, hidden, mech, name,
+  centre, size, the lead point's place and velocity; the report counts
+  blips by class). Markers: the vehicles' 0x4ac3d0 at the stealth step
+  (0x4ac4e0 ported, the old ones deleted first: no stealth object in the
+  port), the targets' made by app_mission's hooks. test_entity_classes.py
+  300 cases, 9/9 breaks; test_hud.py with classed radar and TARGET objects
+  (every class slot reached), 6/6 of the breaks; headless c1m1 (turrets,
+  vehicles; the satdish has no `radar`: never shown, as in the exe) and
+  t1m2 (four targets). Found: only training targets have `radar`; the
+  vehicles' markers are the stealth object's. mission_c1m1_hud_weapon_lines
+  test: its blip counts are the mechs' now (turrets and trucks show too).

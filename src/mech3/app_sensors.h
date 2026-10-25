@@ -21,4 +21,24 @@ int32_t sensed_contacts(const void* mech, SensedContact* out, int32_t cap);
 // The contact the mech has selected (its +0x6c), -1 none or not among its contacts.
 int32_t selected_contact(const void* mech);
 
+// The HUD's contacts and their objects of any class (entity_classes.h): a
+// contact's vehicle (0x004e6fe0), entity (+8) and size (0x004e7070); an
+// object's team (vt+0x28 +0xc0), blip (vt+0x3c), hidden (vt+0xa8), mech
+// (vt+0x50), name (vt+0xa4), place (0x005a85e0), centre (vt+0xbc) and its
+// centroid node's place (+0x14).
+void* hud_contact_vehicle(const void* contact);
+void* hud_contact_entity(const void* contact);
+float hud_contact_size(const void* contact);
+uint32_t hud_object_team(const void* o);
+void* hud_object_blip(const void* o, int32_t kind);
+bool hud_object_hidden(const void* o);
+void* hud_object_mech(const void* o);
+const char* hud_object_name(const void* o);
+void hud_object_place(const void* o, float out[3]);
+void hud_object_centre(const void* o, float out[3]);
+void hud_object_centroid(const void* o, float out[3]);
+void hud_object_aim_place(const void* o, float out[3]);  // 0x005a8630 (the lead point's)
+void hud_object_velocity(const void* o, float out[3]);   // vt+0xc
+void* hud_target_marker(int32_t kind);                   // [0x0060b4f0 + 4 kind]
+
 }  // namespace mech3

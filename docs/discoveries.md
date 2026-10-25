@@ -2039,11 +2039,21 @@ are all "puffers": emitters that drop little textured squares.
   4) also have one large blue shape that works the other way round: an
   outer fence the AI keeps inside. Bridges, a drawbridge (`draw01`) and
   gates (`portdoors`) have two sets under one name, red and yellow: the
-  yellow set is off at the start, and a message switches which set counts,
-  most likely as a bridge falls or a gate opens; which missions send it is
-  not yet known.
+  yellow set is off at the start, and a message switches which set counts:
+  a bridge's destroy animation sends it (the yellow outline, the gap) and
+  its reset switches back to red (c1, c2, c3, c4; `ai.md` section 18).
   Training has its own set; multiplayer has one in the map files that the
   game never reads. (`ai.md` section 11)
+- **What the radar shows besides 'Mechs.** Vehicles, turrets and mission
+  targets each have their own radar icon in three colours (ally, enemy,
+  neither). A mobile field base and the command marker have none, so they
+  never appear. A mission target only shows if its targets file gives it
+  `radar`; in the whole campaign none does (the c1m1 satellite dish is
+  sensed but never drawn), only four targets each in two training missions.
+- **The vehicles' radar icons come from the invisible camera.** The game
+  never loads the vehicle icons for the vehicles themselves: the hidden
+  "stealth" object every mission makes (a debug fly camera) loads them when
+  it is created and frees them when it goes.
 
 ## The cameras
 

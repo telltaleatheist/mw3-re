@@ -27,9 +27,11 @@ from test_twod_msgbox import archive  # noqa: E402
 import random  # noqa: E402
 from ai_world import FLOOR, FTOL, IAT_FLOOR, IAT_FTOL  # noqa: E402
 import test_twod  # noqa: E402
+from unicorn import UC_HOOK_CODE  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
+probe.probe_hud_entity_class.argtypes = [ctypes.c_uint32, ctypes.c_int32]
 probe.probe_hud_build.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float),
                                   ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int,
                                   ctypes.c_char_p, ctypes.c_int]
@@ -141,6 +143,19 @@ def f32(v):
 
 
 HUD_SIZE = 0x22e40
+# The entity classes' vtables (mech3/entity_classes: EntityClass's values),
+# for contacts whose objects carry a real one (the radar's and TARGET's).
+CLASSED = [(0x5bcef8, 1), (0x5c3508, 2), (0x5c23d8, 3), (0x5c8460, 3), (0x5c88e8, 3), (0x5c8d48, 4),
+           (0x5c8770, 5), (0x5ccb90, 6), (0x5ccc80, 7), (0x5cced8, 8), (0x5ccfe0, 9)]
+CLASSED_TARGET = [c for c in CLASSED if c[1] in (4, 6, 7, 8, 9)]  # their vt+0x68 is empty (0x4a5bc0)
+BLIP_TABLES = (0x605618, 0x60b120, 0x609a38, 0x60b4f0)
+# The classed objects' slot functions the cases must run: the blips of each
+# table and none, the target's hidden test, the centre, the names.
+CLASS_SLOTS = {0x41ec60: 'a mech blip', 0x45b970: 'a vehicle blip', 0x4a5fc0: 'a turret blip',
+               0x4d2d70: 'a target blip', 0x410510: 'no blip (field base, markers)', 0x4d3350: 'a target hidden or not',
+               0x4d84f0: 'a target centre', 0x4d3330: 'a target name', 0x4aee70: 'a field base name',
+               0x5a82d0: 'zEntity velocity'}
+CLASS_REACHED = set()
 PIECES = {0x14: 'radar', 0xdd4: 'compass', 0x144c: 'reticle', 0x1da8: 'gauges', 0x3434: 'mfd', 0x410c: 'target',
           0x6520: 'weapons', 0x17964: 'objectives', 0x18410: 'timer', 0x188c0: 'equipment'}
 DAMAGE = 0x605888
@@ -166,6 +181,8 @@ class Original:
 
     def run(self):
         e, w, t = self.e, self.w, self.t
+        for addr in CLASS_SLOTS:  # the classed objects' real slots run (coverage)
+            e.uc.hook_add(UC_HOOK_CODE, lambda uc, ad, size, user: CLASS_REACHED.add(ad), begin=addr, end=addr)
         r0 = rnd(self.seed, 'setup')
         # hud.zrd: the shipped one, a crafted one, or none.
         kind = r0.choice(['shipped', 'shipped', 'synthetic', 'none'])
@@ -520,6 +537,9 @@ class Original:
                                      0x28: ('c', 0), 0xbc: ('c', 0), 0xa4: ('c', 0), 0x3c: ('c,s0', 4)})
         names = [e.world_string('Owens'), 0]
         w.answers['obj.vt+0xa4'] = lambda rr, n, a: rr.choice(names)
+        self.classed = {}
+        if r.random() < 0.5:  # a target (twice as likely), a trap, the field base, a marker
+            self.classify(r, obj, r.choice(CLASSED_TARGET + [c for c in CLASSED_TARGET if c[1] == 6]))
         if self.mech and r.random() < 0.5:  # the player's target (the set-up's TARGET slot, 0x00441800)
             e.w32(self.mech + 0x6c, contact)
         self.track_world(r, contact, obj)
@@ -529,7 +549,9 @@ class Original:
         # (and the radar's contacts': it reads theirs unchecked too)
         self.contact, self.obj = contact, obj
         self.radar_contacts = [contact]
-        w.answers['0x004e6fe0'] = lambda rr, n, a: obj if a[0] in self.radar_contacts or rr.random() < 0.8 else 0
+        self.contact_objects = {}  # the radar's contacts with their own (classed) object
+        w.answers['0x004e6fe0'] = lambda rr, n, a: (self.contact_objects.get(a[0], obj)
+                                                    if a[0] in self.radar_contacts or rr.random() < 0.8 else 0)
         w.answers['obj.vt+0xa8'] = lambda rr, n, a: rr.choice([0, 0, 1])
         w.answers['obj.vt+0x50'] = lambda rr, n, a: rr.choice([0, self.target_mech, self.target_mech])  # TARGET's damage view reads its parts
         # The lead point (0x0041d940, op 19): a second mech with a contact in
@@ -634,6 +656,30 @@ class Original:
                 self.ops.append((20, f32(fr.choice([0.016, 0.033, 0.1]))))
             if fr.random() < 0.2 and self.lead_ok():
                 self.ops.append((19, self.lead_mech))
+
+    def classify(self, r, o, cls):
+        """An object given a real class vtable and the fields its slots read:
+        the team +0xc0, height +0x68, a target's flags +0xe8 and name +0xec, the
+        centroid node +0x14 (its data's refresh flag and place), zEntity's
+        velocity +0x30; the pilots' names (0x004aee70) answered."""
+        e, w = self.e, self.w
+        vt, c = cls
+        e.w32(o, vt)
+        e.w32(o + 0xc0, r.choice([1, 2, 8, 0x10]))
+        e.cpu.write(o + 0x68, struct.pack('<f', r.choice([0.0, 4.0, 12.5])))
+        e.cpu.write(o + 0xe8, bytes([r.randrange(0, 0x40)]))
+        e.w32(o + 0xec, e.world_string(f'tgt{len(self.classed)}') if r.random() < 0.7 else 0)
+        node, data = e.world_alloc(0x40), e.world_alloc(0x100)
+        e.w32(o + 0x14, node)
+        e.w32(node + 0x38, data)
+        e.cpu.write(data, bytes([r.choice([0, 0x20])]))
+        e.cpu.write(data + 0x84, struct.pack('<3f', *(r.uniform(-400, 400) for _ in range(3))))
+        e.cpu.write(o + 0x30, struct.pack('<3f', *(r.uniform(-5, 5) for _ in range(3))))
+        self.classed[o] = c
+        if not getattr(self, 'pilot_names', None):
+            self.pilot_names = [e.world_string('Mr. Burns'), 0]
+            e.stub(0x4aee70, '0x004aee70', 'c')
+            w.answers['0x004aee70'] = lambda rr, n, a: rr.choice(self.pilot_names)
 
     def track_world(self, r, contact, obj):
         """TARGET's tracking (0x00440b00, op 18; hud.md section 14): the contact
@@ -815,13 +861,18 @@ class Original:
         m, contact = self.mech, self.contact
         vt = e.world_alloc(0x10)
         e.w32(contact, vt)
-        for _ in range(r.choice([0, 1, 3, 5])):
+        for _ in range(r.choice([0, 1, 3, 5, 7])):
             c = e.world_alloc(0x40)
             same = r.random() < 0.3
             e.w32(c, vt if same or r.random() < 0.5 else e.world_alloc(0x10))
             e.w32(c + 8, e.r32(contact + 8) if same else e.world_alloc(0x20))
             e.cpu.write(c + 0x2c, bytes([r.choice([0, 1, 3])]))
             self.radar_contacts.append(c)
+            if r.random() < 0.6:  # a turret, a target, a vehicle, a field base, ...: its own object
+                o = e.world_alloc(0x100)
+                self.classify(r, o, r.choice(CLASSED))
+                e.w32(c + 4, o)
+                self.contact_objects[c] = o
         e.cpu.write(contact + 0x2c, bytes([r.choice([0, 1])]))
         r.shuffle(self.radar_contacts)
         cv = e.world_alloc(4 * len(self.radar_contacts) + 4)
@@ -831,6 +882,9 @@ class Original:
         e.w32(m + 0xb0, cv + 4 * len(self.radar_contacts))
         blips = [e.object(f'blip', size=0x40, slots={0xc: ('c,s0,s1', 8), 0x4: ('c', 0)}) for _ in range(2)]
         w.answers['obj.vt+0x3c'] = lambda rr, n, a: rr.choice(blips + [blips[0], 0])
+        for table in BLIP_TABLES:  # each class's ally, enemy, other (0x0041ec60, 0x0045b970, 0x004a5fc0, 0x004d2d70)
+            for k in range(3):
+                e.w32(table + 4 * k, r.choice(blips + [0]))
         srect = e.world_alloc(16)
         e.cpu.write(srect, struct.pack('<4i', 0, 0, 640, 480))
         e.stub(0x579880, spec='')
@@ -1624,6 +1678,9 @@ def run_case(seed, verbose=False):
     dump_o = orig.run()
     rep = Replay(orig.t, orig.e, orig.snapshot)
     probe.probe_app_set_callback(ctypes.cast(rep.callback(), ctypes.c_void_p))
+    probe.probe_hud_classes_clear()
+    for o, c in getattr(orig, 'classed', {}).items():
+        probe.probe_hud_entity_class(o, c)
     buf = ctypes.create_string_buffer(1 << 20)
     places = (ctypes.c_float * (2 * len(orig.places) + 1))(*[v for p in orig.places for v in p])
     ops = (ctypes.c_uint32 * (2 * len(orig.ops) + 1))(*[x for op in orig.ops for x in op])
@@ -1656,7 +1713,13 @@ def main():
             sys.stdout.flush()
             os._exit(1)
         calls += n
-    print(f'{seeds} HUDs built, {calls} calls: the rebuilt HUD matches the original')
+    missing = [v for k, v in CLASS_SLOTS.items() if k not in CLASS_REACHED]
+    if missing and seeds >= 20:
+        print('classed objects never ran: ' + ', '.join(missing))
+        sys.stdout.flush()
+        os._exit(1)
+    print(f'{seeds} HUDs built, {calls} calls: the rebuilt HUD matches the original '
+          f'({len(CLASS_REACHED)} of the classed objects\' slots run)')
     sys.stdout.flush()
     os._exit(0)
 
