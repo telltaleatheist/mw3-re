@@ -1,15 +1,17 @@
 # Work logs and the specialists' protocol
 
-The lead session ("mw3 mac 1") hands out one small item at a time to the
-specialist sessions over SendMessage, merges their branches and runs the
-reviews. Each specialist keeps its log here, so it can pick up after a
-compaction by reading it.
+The lead session ("mw3 lead", formerly "mw3 mac 1") hands out one small
+item at a time to the worker over SendMessage, reviews and merges its
+branches. Since 2026-10-25 (Owen) one worker, "mw3 dev" (formerly "mw3 mac
+4"), takes every area; the area specialists below are paused. The worker
+keeps its log here, so it can pick up after a compaction by reading it.
 
 | Session | Area | Log |
 |---|---|---|
-| mw3 mac 2 | Game systems: mechs, movement, weapons, effects, the world's queries | `game.md` |
-| mw3 mac 3 | Front end and presentation: fades, the HUD, screens, render glue | `frontend.md` |
-| mw3 mac 4 | The AI: the brain, orders, behaviours, AI firing, lancemates | `ai.md` |
+| mw3 dev | Every area, one item at a time (from 2026-10-25) | `dev.md` |
+| mw3 mac 4 (now mw3 dev) | The AI, to 2026-10-25: the brain, orders, behaviours, AI firing, lancemates; then render, vehicles, the cleanup | `ai.md` (history) |
+| mw3 mac 2 (paused) | Game systems: mechs, movement, weapons, effects, the world's queries | `game.md` |
+| mw3 mac 3 (paused) | Front end and presentation: fades, the HUD, screens, render glue | `frontend.md` |
 
 ## Rules for a specialist
 
@@ -63,8 +65,8 @@ compaction by reading it.
   player-facing finds in `discoveries.md`.
 - Commit messages carry no `Co-Authored-By` or `Claude-Session` lines, and
   the author email is the noreply address set in the repo's git config.
-- Commit on your branch and never push or merge to main. Report to "mw3 mac
-  1" with SendMessage: the commits, what is ported (by address), the test
+- Commit on your branch and never push or merge to main. Report to "mw3
+  lead" with SendMessage: the commits, what is ported (by address), the test
   results, the findings, the fixes and what is left. Keep the report short.
 - Owen compacts each specialist after every major feature (`/compact`), so
   keep the log current enough to pick up from it alone.

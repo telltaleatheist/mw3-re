@@ -195,13 +195,16 @@ scaffold is shaped by the real decompiled code, not designed ahead of it.
   the specialist waiting between them; targeted test runs while working
   and the related set once before reporting; short tool output. Everything
   stays on Opus.
-- The specialists (Owen, 2026-10-20): the lead session "mw3 mac 1"
-  orchestrates the sessions "mw3 mac 2" (game systems), "mw3 mac 3"
-  (front end) and "mw3 mac 4" (the AI, from 2026-10-20) over SendMessage, one item at a time, by the protocol in
-  `docs/worklogs/README.md`. Porting and analysis run on Opus 5.5. The lead
-  reviews each item itself and makes the review's fixes directly (Owen,
-  2026-10-21, dropping the Sonnet review subagents). Everything uses the
-  5.5 models.
+- The sessions (Owen, 2026-10-25): one worker, "mw3 dev", takes every
+  area one item at a time, and the lead session "mw3 lead" assigns,
+  reviews and merges, over SendMessage by the protocol in
+  `docs/worklogs/README.md` (one worker plus one reviewer evens out the
+  usage). They were "mw3 mac 4" and "mw3 mac 1"; the area specialists
+  "mw3 mac 2" (game systems) and "mw3 mac 3" (front end) are paused, and
+  restarting one means pausing the dev. Porting and analysis run on Opus
+  5.5. The lead reviews each item itself and makes the review's fixes
+  directly (Owen, 2026-10-21, dropping the Sonnet review subagents).
+  Everything uses the 5.5 models.
 - The specialists stay peer sessions (Owen, 2026-10-20 night, reversing
   a plan to move them into long-lived subagents): co-agents given orders
   cost a half to a third of subagents (the night of 69 fresh subagents
