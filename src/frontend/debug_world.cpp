@@ -157,6 +157,7 @@ std::string world_load(const std::string& mission, const std::string& variant, p
 
   // The draw table and the walk (0x579f50; [0x74a2e0] = 0x53f2e0).
   zvid::install_model_draw_table();
+  zmod::use_device_light_output();  // the lighting's point colour and fog mix to the device
   zcls::scene_walk() = zcls::SceneWalk{};
   zmod::walk_state() = zmod::WalkState{};
   zmod::walk_state().draw = zmod::draw_model;

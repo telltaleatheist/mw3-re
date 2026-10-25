@@ -279,9 +279,10 @@ its own death and damage):
 - **vt+0x68 0x4ad390, TARGET's tint:** on, the node's object3d colour
   blend (0x4fb8c0) red (0x5e8580) at (1 - health / max) x 0.6; then the
   blend's switch (0x4fb840) on or off. Both ported (zcls object3d_set_blend / use_blend, render.md
-  section 3); the program's draw reads them but the mix's device stage is
-  item 4b's (render-lighting.md), and app_hud's TARGET view does not ask
-  for the tint yet.
+  section 3). app_hud's TARGET view asks for it (object_view_flag, vt+0x68
+  by the class: a mech's 0x41b9d0, a turret's 0x4a75b0, a basic vehicle's
+  0x4ad390; a field base's, a target's and the marker's 0x4a5bc0 empty),
+  and the red reaches the device as the model's fog colour.
 
 The controls' health fields were named the wrong way round until this
 step (+0x740 is the maximum, +0x744 the health); the setup writes both

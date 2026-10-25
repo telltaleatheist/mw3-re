@@ -792,6 +792,21 @@ void send_fog_color() {
   set_render_state(34, static_cast<int32_t>(rgb_bits(round_byte(c[0]), round_byte(c[1]), round_byte(c[2]))));
 }
 
+// Mech3.exe 1.2 @ 0x00579950
+void set_mix_fog_device(const float rgb[3]) {
+  float* m = zrndr::device_fog().mix;
+  for (int i = 0; i < 3; ++i) m[i] = rgb[i] * 255.0f;  // [0x005ceb44]
+}
+
+// Mech3.exe 1.2 @ 0x00579980: the device's fog call ([0x0072f3f0], 0x0057bcf0).
+void send_mix_fog() {
+  zrndr::DeviceFog& d = zrndr::device_fog();
+  const auto same = [&](int i) { return !(d.sent[i] < d.mix[i] || d.sent[i] > d.mix[i]); };  // x87 C3: NaN counts
+  if (same(0) && same(1) && same(2)) return;
+  for (int i = 0; i < 3; ++i) d.sent[i] = d.mix[i];
+  if (d.send) d.send();
+}
+
 // Mech3.exe 1.2 @ 0x0057a740. FIX (A): BeginScene and the HRESULT report go.
 int32_t begin_scene() {
   if (g_render) g_render->begin_scene();
@@ -940,8 +955,9 @@ int32_t has_caps(int32_t which) {
 }
 
 // Mech3.exe 1.2 @ 0x00579f50, the Direct3D entries the model draw calls
-// ([0x72f3b0]..[0x72f3c8]). The shadowed and point entries are not ported yet.
+// ([0x72f3b0]..[0x72f3c8]) and the fog colour's send ([0x72f3f0]).
 void install_model_draw_table() {
+  zrndr::device_fog().send = send_fog_color;  // 0x00579fe9: [0x0072f3f0] = 0x0057bcf0
   zmod::DrawTable& t = zmod::draw_table();
   t.ctx = nullptr;
   t.flat = [](void*, uint32_t color, int32_t alpha, int32_t count, int32_t priority, int32_t overlay) {

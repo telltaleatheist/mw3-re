@@ -150,15 +150,30 @@ int32_t world_update_lights(zcls::Node* world);             // 0x4f2f60
 int32_t world_build_lights(zcls::Node* world, int32_t none);  // 0x4f2f30
 ```
 
-**Gap in the program (2026-10-25, found in item 4; item 4b ports it):** the
-program never sets `light_hooks()` (only the probes do), so the lighting's
-output to the device is dropped: `mix_fog` (0x5680c0: the mixed colour
-clamped, kept when it moves 0.01, copied for Direct3D by 0x579950 into
-[0x802798] x 255, the software ramp 0x56c170), `send_mix_fog` (0x579980:
-[0x802798] against the sent colour [0x72f400], then the device's
-[0x72f3f0]) and `point_color` (0x5798a0). Whatever the lighting mixes into
-the fog channel for a model (the saturated point lights, the object3d
-colour blend) never reaches the device; zrndr_fog's world fog colour does.
+**The output in the program (2026-10-25, item 4b).** The lighting's three
+outputs are the ports now, installed by `zmod::use_device_light_output()`
+in the program's render set-up: `point_color` zvid::set_point_light_color
+(0x5798a0); `mix_fog` zrndr::set_mix_fog_color (0x5680c0: the mixed colour
+clamped (NaN to 0), kept unless a channel moves 0.01, the Direct3D copy
+0x579950 into [0x802798] x 255 while a device is up, the software ramp
+0x56c170 as set_fog_color's) into `zrndr::mix_color()` [0x800688];
+`send_mix_fog` zvid::send_mix_fog (0x579980: the copy against the colour
+sent [0x72f400], NaN counting as the same, then the device's call
+[0x72f3f0]). That call itself was missing: the port's 0x579f50
+(`install_model_draw_table`) left out its store at 0x579fe9, [0x72f3f0] =
+0x57bcf0, so no fog colour reached the device at all, the world's
+included; it is installed now (`mission_c1m1_fog_mix_reaches_the_device_headless`:
+208/208/208 at the load, a tinted vehicle's red and the world's after).
+`test_mix_fog.py`.
+
+**Still a gap (item 4c):** no model is lit in the program. model_needs'
+light test reads `*mask & 1`, the GfxFlags settings entry's Lighting bit
+([0x74a2cc] points at it: zModel's start 0x5266f0 sets [0x74a2c8] = -1 and
+points it at settings_find("GfxFlags_HW" / "_SW"), 0x526750 re-points it,
+from the app's model load 0x48074e and the options menu); the program never
+points it, and the default is 0. So lights_reaching never runs: no sun,
+no point light, no mix (a tinted model's red goes by shade_polygon's
+direct write, above, not the mix).
 
 How 0x53f2e0 calls `shade_polygon` (0x53ff35 textured, 0x5413f6 untextured;
 only when needs & 6):

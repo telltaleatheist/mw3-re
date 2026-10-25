@@ -256,6 +256,7 @@ struct ProgramHudHooks : HudHooks {
   bool contact_same(void* a, void* b) override {
     return static_cast<ai::Contact*>(a)->entity == static_cast<ai::Contact*>(b)->entity;
   }
+  void object_view_flag(void* o, int32_t on) override { if (o) hud_object_view_tint(o, on != 0); }  // vt+0x68
   void object_position(void* o, float out[3]) override {  // 0x005a85e0
     if (o && !entity_is_mech(o)) return hud_object_place(o, out);
     entity_position(o, out);
