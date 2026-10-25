@@ -525,6 +525,13 @@ From the weapon code (weapons.md).
 - **A laser only fires from a full charge.** A click while its bar is still
   filling fires nothing and is not remembered (0x4b3fc0): click again once
   the bar is full. Holding the button instead fires the moment it is.
+- **A quick click's laser beam hangs back.** A short laser fires on for a
+  moment after you let go of the button, until its charge is spent, but only
+  follows the arm while the button is held: after a quick click on a walking
+  mech the beam's start stays where the arm was when you let go, a metre or
+  more behind by the end. Holding the button until the beam ends keeps it
+  on the arm. The rebuild keeps it on the arm either way. (docs/weapons.md,
+  Beams)
 - **Shots go where the reticle points, not along the arm.** The reticle's
   aim point is the first thing under it, and every weapon aims from its own
   muzzle at that point, so an arm laser crosses the reticle's line on the way.

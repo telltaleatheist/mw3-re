@@ -14,6 +14,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **A laser's beam leaves from the arm after a quick click.** A short laser keeps firing for a moment after you let go of the button, and the original left it at the point where the arm was when you let go, so on a walking mech the beam hung back a metre or more behind the arm (and fired from there). It now follows the arm until it ends, as it does while the button is held.
 - **Every nav point you pass on your objectives' list is ticked off.** The game marks a nav point an objective watches as reached (and says its line) when you come within 25 m, but once its check passed the currently selected nav point it skipped the rest of the list, so those were only ticked off once selected. Now all of them are checked.
 - **Turrets do not slow down mission after mission.** Each turret looks for a target, aims and fires on only one frame in so many, and the original counted that over every turret the game had made since it started: the more missions you had played in one sitting, the less often each mission's turrets acted. The count now starts again with each mission's turrets.
 - **A turret's charging effect goes out when it dies.** The original's test for putting it out was the wrong way round (no shipped turret shows one, so nothing visible changes).

@@ -238,3 +238,38 @@ is in `README.md`.
 - Test mission_c1m1_objectives_box_text_headless; breaks: no fill (no
   lines), no blank score (columns differ). FIX (bug): the texts go in as
   "%s" arguments (fixes.md; no shipped text has a '%').
+
+## Playtest #23/#24 reopened: the click and the beam's start (2026-10-25)
+
+- Assigned (lead, Owen's words): a charged, ready weapon does not fire on a
+  click, only when the mouse button is held; and when the laser leaves the
+  arm the mech has moved on but the beam starts where the mech was at the
+  click. Check the real SDL mouse path (buffered vs state, which frame the
+  edge is read, a press seen only while still down), time press -> fire in
+  frames, and whether the beam's origin (+0x40 muzzle) is taken at the
+  press and not refreshed at the spawn. Branch mac4/playtest-click.
+- Repro tools (ours): `build/mw3 --mission c1m1 --walk --fire-group G
+  --click N:M` pushes real SDL mouse events (SDL_PushEvent) at frames N / M
+  and logs each frame's dt, the manager's trigger and state, the beam and
+  how far its origin is from the firepoint now; `--walk` presses
+  THROTTLE0. Test sdl_program_mouse_click_fires_the_laser feeds SdlInput
+  the same events.
+- Found: no press delay. In the live program (~110 fps) every group (MGUN,
+  small, medium, large lasers, LRM20) fires on the frame after the press
+  event (the press frame's poll), ready or not shown at 1.00 before.
+- Found: the stale beam. A short laser keeps firing after the button is let
+  go until its charge drains (release 0x4b4180 stops only fire_time > 0.5),
+  and its muzzle is re-aimed only on the trigger (0x4b3f40) and the held
+  frames (0x4b41b0); BeamWeapon's update (0x4b4230) does not aim. Walking
+  at full speed the beam's origin trails the firepoint by 0.17 m a frame
+  after the release, 1.4 m by the beam's end (ERLaser_Medium, ~140 ms).
+  The exe's only aim callers are 0x4b2d2d (projectile update), 0x4b36b0,
+  0x4b3f6b, 0x4b41d9: the same in the original.
+- Fixed (bugs): BeamWeapon::update re-aims a firing beam each frame (the
+  held path's aim), so the beam leaves from the arm after a click. The SDL
+  test runs both paths: fixed 0.00 m, the original 1.28 m behind; the live
+  program likewise (0.00 m over frames 404..415).
+- "Has to hold it to fire" not reproduced: every press fires on its frame.
+  Fits the original's rules: a click before the charge is completely full
+  does nothing (0x4b3fc0) and a hold fires the moment it is; in chain fire
+  a click fires only the current weapon. Asked for Owen's case.

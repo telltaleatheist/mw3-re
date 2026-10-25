@@ -461,6 +461,23 @@ bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]) {
   dir[0] = w->direction.x, dir[1] = w->direction.y, dir[2] = w->direction.z;
   return true;
 }
+bool mech_group_beam(void* mech, int32_t g, BeamProbe* out) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  if (!wm || g < 0 || g > 4 || !wm->groups[g] || wm->groups[g]->count == 0 || !wm->groups[g]->weapons[0]) return false;
+  Weapon* w = wm->groups[g]->weapons[0];
+  if (!w->is_beam()) return false;
+  *out = BeamProbe{};
+  out->firing = w->is_firing();
+  out->ready = w->ready();
+  out->trigger_down = wm->trigger_down, out->trigger_was = wm->trigger_was, out->state = wm->state;
+  if (auto* b = static_cast<zwep::Beam*>(static_cast<BeamWeapon*>(w)->beam)) {
+    out->beam_active = b->active != 0;
+    if (b->origin) out->origin[0] = b->origin->x, out->origin[1] = b->origin->y, out->origin[2] = b->origin->z;
+  }
+  Vec3f mz{}, d{};
+  if (w->aim(nullptr, &mz, &d, nullptr)) out->live[0] = mz.x, out->live[1] = mz.y, out->live[2] = mz.z;
+  return true;
+}
 float mech_arm_recoil(void* mech) {
   float r = 0.0f;
   if (Mech* m = static_cast<Mech*>(mech))
@@ -479,6 +496,10 @@ void* mech_target_object(void* mech) {
 bool mech_select_group(void* mech, int32_t g) {
   auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);
   return wm && wm->select_group(g);
+}
+int32_t mech_current_group(void* mech) {
+  auto* wm = mech ? static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo) : nullptr;
+  return wm ? wm->group : -1;
 }
 int32_t mech_select_hot_group(void* mech) {
   auto* wm = static_cast<WeaponManager*>(static_cast<Mech*>(mech)->ammo);

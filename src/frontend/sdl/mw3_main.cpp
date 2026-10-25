@@ -26,6 +26,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -63,6 +64,8 @@ struct Args {
   float look[2] = {0, -2.9f};
   bool have_pos = false, nosound = false, hidden = false, verbose = false, fly = false;
   int shot_frame = 30, frames = 0, win_w = 1280, win_h = 960, fire = 0, fire_group = 0, objectives = 0;
+  int click = 0, click_up = 0;
+  bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
   bool shot_any = false;
 };
 
@@ -70,7 +73,8 @@ void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR] [--assets DIR]... [--write-dir DIR]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--dialog FILE NAME]\n"
-      "    [--shot FILE.bmp [--shot-frame N] [--shot-any]] [--fire N [--fire-group 1..5]] [--objectives N] [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--shot FILE.bmp [--shot-frame N] [--shot-any]] [--fire N [--fire-group 1..5]] [--objectives N] [--click N[:M]] [--walk]\n"
+      "    [--frames N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -96,6 +100,13 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--frames" && next(1)) a.frames = std::atoi(argv[++i]);
     else if (s == "--window" && next(1)) std::sscanf(argv[++i], "%dx%d", &a.win_w, &a.win_h);
     else if (s == "--nosound") a.nosound = true;
+    else if (s == "--walk") a.walk = true;
+    else if (s == "--click" && next(1)) {
+      const char* v = argv[++i];
+      a.click = std::atoi(v);
+      const char* c = std::strchr(v, ':');
+      a.click_up = c ? std::atoi(c + 1) : a.click + 3;
+    }
     else if (s == "--hidden") a.hidden = true;
     else if (s == "--verbose") a.verbose = true;
     else if (s == "--pos" && next(3)) {
@@ -256,6 +267,47 @@ int run(const Args& a) {
         }
         // --objectives N (ours, for checking): F12's box shown from the N-th frame.
         if (a.objectives > 0 && shots == a.objectives) mech3::program_hud_objectives_toggle();
+        if (a.walk && (shots == 2 || shots == 4))  // THROTTLE0's key (100%) pressed and let go
+          for (int sc = 0; sc < SDL_SCANCODE_COUNT; ++sc)
+            if (sdlfe::dik_from_scancode(static_cast<SDL_Scancode>(sc)) == (zin::key1_of(0x24) & 0xff)) {
+              SDL_Event ev{};
+              ev.type = shots == 2 ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+              ev.key.scancode = static_cast<SDL_Scancode>(sc);
+              ev.key.down = shots == 2;
+              SDL_PushEvent(&ev);
+              break;
+            }
+        // --click N[:M] (ours, for checking the fire): the left button pressed
+        // as an SDL event after the N-th frame, let go after the M-th; each
+        // frame from N logged (the current group's first weapon as a beam).
+        if (a.click > 0 && a.fire_group > 0 && shots == a.click - 1) {
+          void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+          mech3::mech_select_group(m, a.fire_group - 1);
+          std::printf("mw3: group %d: %s\n", a.fire_group, mech3::mech_group_names(m, a.fire_group - 1).c_str());
+        }
+        if (a.click > 0 && (shots == a.click || shots == a.click_up)) {
+          SDL_Event ev{};
+          ev.type = shots == a.click ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+          ev.button.button = SDL_BUTTON_LEFT;
+          ev.button.down = shots == a.click;
+          SDL_PushEvent(&ev);
+        }
+        if (a.click > 0 && shots >= a.click && shots < a.click + 40) {
+          void* m = engine.object_of(engine.field32(engine.pilot(), 0x14));
+          mech3::BeamProbe b;
+          if (mech3::mech_group_beam(m, mech3::mech_current_group(m), &b)) {
+            const float off = std::sqrt((b.origin[0] - b.live[0]) * (b.origin[0] - b.live[0]) +
+                                        (b.origin[1] - b.live[1]) * (b.origin[1] - b.live[1]) +
+                                        (b.origin[2] - b.live[2]) * (b.origin[2] - b.live[2]));
+            std::printf("mw3: frame %d dt %.1f ms: trigger %d/%d state %d, firing %d beam %d, ready %.2f, origin off %.2f m\n",
+                        shots, engine.frame_dt() * 1000.0f, b.trigger_down, b.trigger_was, b.state, b.firing,
+                        b.beam_active, b.ready, b.beam_active ? off : 0.0f);
+          } else {
+            const int32_t g = mech3::mech_current_group(m);
+            std::printf("mw3: frame %d dt %.1f ms: group %d ammo %d ready %.2f\n", shots, engine.frame_dt() * 1000.0f,
+                        g + 1, mech3::mech_group_ammo(m, g), mech3::mech_group_ready(m, g));
+          }
+        }
         if (!a.shot.empty() && shots == a.shot_frame - 1) window.render()->capture_next(a.shot.c_str());
         if (!a.shot.empty() && shots == a.shot_frame) std::printf("mw3: wrote %s (frame %d)\n", a.shot.c_str(), shots);
         if (a.fire > 0 && shots >= a.fire && (shots - a.fire) % 5 == 0) {

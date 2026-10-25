@@ -41,6 +41,7 @@ void sync_frame_step(float dt, float clock);  // [0x0072c52c] and [0x0072c530] i
 // 0x00478f10 on the pilot the pilot screen chose (app_menus.cpp); false when none is.
 bool program_record_mission(bool next);
 int32_t mech_select_hot_group(void* mech);
+int32_t mech_current_group(void* mech);  // the manager's +0x28, -1 none
 bool mech_select_group(void* mech, int32_t g);
 // Tests only: the larger of the two arms' recoil (+0x34, 0x00466610's kick), 0 without arms.
 float mech_arm_recoil(void* mech);
@@ -50,6 +51,15 @@ int32_t mech_group_ammo(void* mech, int32_t g);
 float mech_group_ready(void* mech, int32_t g);
 // Tests only: group g's first weapon's muzzle and direction (+0x40, +0x4c) from its last aim.
 bool mech_group_muzzle(void* mech, int32_t g, float muzzle[3], float dir[3]);
+// Tests only: group g's first weapon as a beam: firing, its beam shown, the
+// origin the beam draws from and the firepoint's place now, the ready
+// fraction; the manager's trigger (+0x00, +0x01) and state.
+struct BeamProbe {
+  bool firing = false, beam_active = false, trigger_down = false, trigger_was = false;
+  int32_t state = 0;
+  float ready = 0, origin[3] = {}, live[3] = {};
+};
+bool mech_group_beam(void* mech, int32_t g, BeamProbe* out);
 std::string mech_group_names(void* mech, int32_t g);
 // Tests only: the HUD's lock on the manager (+0x88), and the object of the target selected (+0x6c).
 bool mech_lock_shown(void* mech);
