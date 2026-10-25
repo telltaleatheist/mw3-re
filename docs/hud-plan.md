@@ -33,20 +33,27 @@ gauges, reticle and the lance panel draw as in the exe.
 | Call | Size | What it is | Status in the program |
 |---|---|---|---|
 | 0x40fac0 (`hud_update`) | 19 | the Core frame's HUD update: view target vt+0xe0, 0x40fb50, three zTwoD layer ticks (0x59fd20), 0x40f1f0, the message panel's vt+0x24, the pocket commander 0x46a410 | its parts run on their own (`program_hud_update`, `pocket_draw`, the message panel); the entry itself logs |
-| 0x40fb50 | 101 | the 25 text lines at 0x5fc848 (0x4b0 each): mode 0 clears them all (vt+0x7c, vt+0x64), 1 arms, 2 a picked line by the cursor | not ported; the lines exist only as hooks (`hud_line`, `hud_line_clear`) |
-| 0x40e4b0 (`hud_draw`) | 81 | those 25 lines drawn and hit-tested by the mouse (rows y = 0x5f + 12 i; hover colour 0xff00) | not ported; logged every frame |
-| 0x40f1f0 | 36 | a frame-rate text (frames over a second, CString::Format) into one of the lines | not ported |
-| 0x5a6790 / 0x5a67c0 | 12 + 9 | zTwoD's layer: its two rects (0x5a66b0), then the layer's objects' vt+0x24 (0x59fd20) and +0x1ec cleared (0x5a6600) | logged (misnamed `effects_draw` / `particles_draw` in app_hooks.h) |
+| 0x40fb50 | 101 | the 25 text lines at 0x5fc848 (0x4b0 each): mode 0 clears them all (vt+0x7c, vt+0x64), 1 arms, 2 a picked line by the cursor | not ported; developer-only (hud.md section 20) |
+| 0x40e4b0 (`hud_draw`) | 81 | those 25 lines drawn and hit-tested by the mouse (rows y = 0x5f + 12 i; hover colour 0xff00) | not ported; developer-only (section 20) |
+| 0x40f1f0 | 36 | a frame-rate text (frames over a second) on the debug text object [0x5fc378] | not ported; shown only by a dead key command (section 20) |
+| 0x5a6790 / 0x5a67c0 | 12 + 9 | **not the HUD's**: the weather's manager [0x736328], its rect and its objects' tick: the rain and snow (hud.md section 20) | logged; the program makes no weather (below) |
 | 0x430aa0 | 16 | the pilot's HUD (MechData +0x224), made on first use | ported as `pilot_hud`; the mission frame's own call (`LaunchHooks::mech_screen`) still logs |
 | 0x41ab90 | 14 | the mech's +0x378 zTwoD panel drawn (0x5a4410) | multiplayer only (made by commands 0x76 / 0x77 when networked; mech-build.md): nothing in single player |
 | 0x4583b0 | 72 | maps.zrd: the mission maps (0x4580c0, 54 each; list [0x605acc]); free 0x4582c0 (17); find 0x458590 (42) | not ported: the radar's map mode (Shift+R, 0x43dc10) has no map |
 | radar polylines, net marker | - | the nav route's lines (+0xbd4.. lists), the network element 0x58b060 | answer none (hud.md section 15) |
 
-What a player sees missing today: the radar's map mode, the nav route's
-lines on the radar, any text the game writes to the 25 lines (the
-vehicles' developer readout uses lines 1-4; what else writes them is open,
-item 1), and the frame-rate text. Nothing in single player depends on
-0x41ab90.
+What a player sees missing today, on the HUD's side: the radar's map mode
+and the nav route's lines on the radar. The 25 text lines and the
+frame-rate text are developer-only: every writer is reached only through
+the app key handler's dead commands, a vehicle or the stealth object as the
+view's target (hud.md section 20). Nothing in single player depends on
+0x41ab90. **Outside the HUD**, item 1 found the weather missing: rain in
+c3, c4 and t1 and snow in c4b missions 4 and 6 are never made by the
+program (`create_rain` / `create_snow` empty), and 0x5a67c0 is their tick.
+That is its own item for the render or effects side (the rain and snow
+classes, vtables 0x5d0660 and 0x5d05e0 over the base 0x5d0528, built by
+0x5a60a0 / 0x5a5ad0; about 400 to 600 decomp lines with their draws),
+not the HUD's.
 
 ## 3. Function families left, with sizes
 
@@ -69,20 +76,14 @@ item 1), and the frame-rate text. Nothing in single player depends on
 
 ## 4. Porting order (one sitting each)
 
-1. **Trace the 25 lines.** Find their class and constructor, every writer
-   of vt+0x7c in the exe (a grep of the call sites through 0x5fc848), and
-   when 0x5fc314 (the hit-test's switch) and 0x603f8c are set. Output: a
-   hud.md section; no code. Decides whether the lines are developer-only.
-2. **The lines' object and 0x40fb50** (the clear, arm and pick modes), on
-   the ported zTwoD text. Shows: nothing yet (the lines are drawn in 3).
-3. **0x40e4b0, the lines' draw and hover.** Shows: whatever item 1 found
-   writing them (the vehicles' readout at least, when it is on).
-4. **0x40f1f0, the frame-rate text**, if item 1 shows it is reachable in
-   the release (else document and skip).
-5. **zTwoD's layer ticks** 0x5a6790 / 0x5a67c0 (renamed in app_hooks.h),
-   once the layer object is named. Shows: the layer's objects updated by
-   the exe's call rather than the program's own pass (no visible change
-   expected; the test shows the same calls).
+1. (Done 2026-10-25) **Trace the 25 lines**: developer-only, and
+   0x5a67c0 is the weather's (hud.md section 20).
+2. (Skipped) The lines' object and 0x40fb50, 3. their draw 0x40e4b0, 4. the
+   frame-rate text 0x40f1f0: nothing a player can reach. They can wait for
+   the stealth object and BASIC mode at the end (CLAUDE.md), whose debug
+   key would bring the developer lines back with it.
+5. (Moved) The ticks 0x5a6790 / 0x5a67c0 go with the weather item, outside
+   the HUD (rename them then: `weather_rect` / `weather_tick`).
 6. **0x40fac0 as the exe's one call**, its parts in their order, replacing
    the program's separate calls; `mech_screen` to `pilot_hud`. Shows:
    nothing new; the order of the HUD's updates becomes the exe's.
@@ -95,32 +96,29 @@ item 1), and the frame-rate text. Nothing in single player depends on
 9. **The radar's polylines** (needs zTwoD's PolyLine first, twod.md Left;
    that may be its own sitting). Shows: the nav route's lines on the radar.
 
-Items 1-6 and 7-9 are independent of each other.
+Item 6 and items 7-9 are independent of each other.
 
 ## 5. How each is tested
 
 - **test_hud.py** (`tests/probe_hud.cpp`) builds the HUD in the emulator and
   the port and compares the call traces and the fields; it already has ops
   for the radar's map mode and polylines (ops 21-24: the counts, lists and
-  the changed flag). Items 2, 3, 5, 8 and 9 add ops there: the lines' modes
-  and draws with random text and cursor rows; the layer ticks over a fake
-  layer; the map's draw with a rect and scale.
-- **New differentials** for the maps' reader (item 7: every shipped
-  maps.zrd and crafted ones, as test_landmines.py does for its zrd) and for
-  0x40f1f0 (item 4: the counter's sums over random frame times).
-- **Headless** (`tests/test_program.cpp`): item 3, a vehicle's readout
-  switched on shows its lines; item 6, the HUD frame's call order recorded
-  through the hooks; item 8, Shift+R in c1m1 turns the radar's map mode on
-  with a map loaded.
-- **Screenshots** (GPU allowed): items 3, 8 and 9 each with a pair, before
-  and after, through `mw3 --mission ... --shot`.
+  the changed flag). Items 8 and 9 add ops there: the map's draw with a
+  rect and scale, the polylines' draw.
+- **A new differential** for the maps' reader (item 7: every shipped
+  maps.zrd and crafted ones, as test_landmines.py does for its zrd).
+- **Headless** (`tests/test_program.cpp`): item 6, the HUD frame's call
+  order recorded through the hooks; item 8, Shift+R in c1m1 turns the
+  radar's map mode on with a map loaded.
+- **Screenshots** (GPU allowed): items 8 and 9 each with a pair, before and
+  after, through `mw3 --mission ... --shot`.
 - **Breaks** for each differential, as usual.
 
 ## 6. Open
 
-- What writes the 25 lines in a release build besides the vehicles'
-  readout, and whether 0x5fc314 (their mouse hit-test) is ever on outside
-  the developers' modes.
-- Which zTwoD layer 0x5a67c0 ticks, and whether the program's own 2D pass
-  already covers its objects.
+- (Answered 2026-10-25, hud.md section 20) The 25 lines are developer-only;
+  0x5a67c0 ticks the weather's manager [0x736328].
+- Whether the release's camera cycle (X) can ever make a vehicle the view's
+  target (which would show the vehicles' readout lines): not traced (the
+  exe's camera list, 0x480b20 on [0x608c88]).
 - 0x41ab90 and the chat panel wait for multiplayer.

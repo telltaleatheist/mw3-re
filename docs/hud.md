@@ -1063,3 +1063,52 @@ presses the keys in c1m1 (one click per keypad 0 press and per Z change,
 none between; R's radar_up once; D, F12, H; Alt+R amber in passive and
 green after). Breaking it: 27 of 28 caught; the miss (the MFD's mode kept
 even when 0) cannot show, the keys never set mode 0.
+
+## 20. The 25 text lines and the frame's 2D ticks (traced 2026-10-25, hud-plan item 1)
+
+**The lines** ([0x5fc848], 25 objects of 0x4b0 bytes, y = 0x5f + 12 i,
+the Arial 10 font set by 0x40f7f0 from the mission load 0x48faf0). Every
+writer in the exe:
+
+| Writer | What | Reached in the release |
+|---|---|---|
+| 0x480df0, 0x490480, 0x490ab0 | all 25 cleared (vt+0x7c with "") | yes, at the Core state's start and the mission's load and cleanup |
+| 0x4a2ef0 | lines 1-4: a vehicle's developer readout (vehicles.md, The debug readout) | only with a vehicle as the view's target (its vt+0xe0); the player's view targets the player's mech |
+| 0x4a56b0 | the stealth object's readout (BASIC / FLY ...) | only with the stealth object as the target: not in the release (vehicles.md, The stealth object) |
+| 0x4a33f0 | all 25 cleared, then a listing of the mechs ([0x73655c]) | only from the app key handler's command 0x89 |
+| 0x40fb50 | mode 0 clears all, 1 arms ([0x603f8c] = 1), 2 (each frame, from 0x40fac0) picks a line under the cursor | modes 0 and 1 only from command 0x83; so mode 2 never acts |
+| 0x43c820 | the HUD's debug overlays (lines 6.., section 11) | only while the debug text [0x5fc378] shows: command 0x82 |
+| 0x40e4b0 | the lines drawn and hit-tested by the mouse (hover colour 0xff00) | its hit test needs [0x5fc314], set by 0x40e430 and cleared by 0x40e7d0, only from the same key handler |
+
+The app's key handler 0x40dba0 has 27 cases (commands 0x61..0xa4), but its
+address appears three times in the exe, all in 0x40db60, which registers it
+for commands 0x61 (X, the camera), 0x6c (Shift+V) and 0x70 (`, the message
+panel) only (0x7e goes to 0x4abbc0). The other 24 cases (among them 0x82
+the debug text, 0x83 the lines' arming, 0x89 the mech listing) are dead in
+the release: the developers' bindings were taken out and the code left. So
+**the 25 lines are developer-only**: a player only ever sees them cleared,
+and the vehicles' readout only if a vehicle could become the view's target
+(whether the camera cycle, X, can do that is not traced; hud-plan.md
+section 6).
+
+**The frame-rate text** 0x40f1f0 runs every frame (from 0x40fac0) on the
+debug text object [0x5fc378]: frames counted over each second (+0x4b0
+accumulates the frame time, +0x4b8 the frames, +0x4b4 their ratio), the
+text formatted and drawn (0x5a11b0, 0x59ffb0). The object shows only when
+command 0x82 toggles it, so it is never seen in the release.
+
+**0x40fac0's ticks**: zTwoD's 0x59fd20 on three layer objects, 0x5fc338 (the
+lines'), 0x5fc838 (the debug text's) and 0x731ac0, between the view
+target's frame, 0x40fb50, 0x40f1f0, the message panel's vt+0x24 and the
+pocket commander 0x46a410.
+
+**0x5a6790 / 0x5a67c0 are not the HUD's**: both take the object at
+[0x736328], the manager the mission's weather is added to (0x59fbe0;
+world-params.md section 7). 0x5a6790(i, rect) sets its rect slot i
+(0x5a66b0); 0x5a67c0(dt) ticks its objects (0x59fd20, vt+0x24) and clears
+its +0x1ec (0x5a6600). The Direct3D frame calls both after the world tick
+(0x48187b, 0x48188b), so they update and draw the rain or snow. In the
+program `create_snow`, `create_rain` and `weather_add` are empty
+(app_mission.cpp), so no weather is ever made: c3, c4 and t1 set RAIN and
+c4b missions 4 and 6 SNOW in world.zrd, and the port shows neither.
+
