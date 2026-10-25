@@ -170,8 +170,8 @@ Turret::Turret(Handle s, Handle n, Handle generic_anim, zrdr::Node* def) : self(
 void Turret::set_node(Handle n) {
   TurretHooks& h = *g_hooks;
   if (!n && node) h.remove_handlers(node);
-  node = n;
-  h.entity_set_node(self, n, &target_node, &centroid_node);  // 0x004d6c90
+  h.entity_set_node(self, n, &target_node, &centroid_node);  // 0x004d6c90: unbinds the old node first
+  node = n;  // (0x005a8390's, inside it)
 }
 
 // Mech3.exe 1.2 @ 0x004a6270: the definition read (docs/vehicles.md, The

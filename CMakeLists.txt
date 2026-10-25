@@ -140,6 +140,7 @@ add_library(mw3core STATIC
   src/mech3/mech_part_build.cpp
   src/mech3/mech_update.cpp
   src/mech3/landmines.cpp
+  src/mech3/entity_bind.cpp
   src/mech3/mech_collide.cpp
   src/mech3/mech_place.cpp
   src/mech3/mech_command.cpp
@@ -338,6 +339,7 @@ add_library(mw3probe SHARED
   tests/probe_glow.cpp
   tests/probe_camera_zone.cpp
   tests/probe_landmines.cpp
+  tests/probe_entity_bind.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp
   tests/probe_mix_fog.cpp

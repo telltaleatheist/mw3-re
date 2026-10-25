@@ -1360,7 +1360,8 @@ int light_errors;  // zClass's "ERROR deleting light" reports
 }  // namespace
 
 // A laser (IMPACT HEAT) hit leaves zWeapon's glow on a c1 mission 1 truck
-// (0x00586a30): one of the pool's 16 lights, the weapon's +0x1d4 colour,
+// (0x00586a30), the first from a real beam fired by the player (its ray, the
+// truck's node, its handler): one of the pool's 16 lights, the weapon's +0x1d4 colour,
 // the pool's range 0.1 to 0.2, under the truck's node; a second hit keeps
 // it; the truck's death gives it back (0x00586af0). Another truck hit and
 // left alive gives its light back when the cleanup frees it (FIX (bug): the
@@ -1398,30 +1399,60 @@ TEST(mission_c1m1_laser_leaves_its_glow_on_a_truck_headless) {
       const char* weapon = nullptr;
       int pool0 = -1, pool_hit = -1, pool_end = -1, frames = 0;
       bool on_node = false, colour = false, range = false, kept = false, returned = false, off_node = false;
-      bool second_lit = false, killed = false;
+      bool second_lit = false, killed = false, lit_by_shot = false;
     } seen;
     auto pool_size = [] {
       int n = 0;
       for (zwep::Handle l = zwep::run_state().lights; l && n < 64; l = zwep::run_hooks().link(l)) ++n;
       return n;
     };
+    // The first hit is a real shot: the player, put 40 m from the truck, fires
+    // the laser's beam at it (0x00584a70, 0x00581230); the beam's ray meets
+    // the truck's node, whose handler damages it and lights it (0x00586a30).
+    std::vector<void*> trucks;
+    zwep::Beam* beam = nullptr;
+    static zwep::Vec3f3 s_from, s_dir;
+    zcls::Node* light = nullptr;
+    bool done = false;
     engine.on_present = [&](int) {
-      if (app.current() != &mech3::states().core || ++seen.frames != 3) return;
-      for (const zwep::WeaponDef& d : zwep::state().defs)
-        if ((d.flags & zwep::kTargetHeat) && !(d.flags & zwep::kFreeze)) {
-          seen.weapon = d.name;
-          break;
+      if (app.current() != &mech3::states().core || done) return;
+      ++seen.frames;
+      if (seen.frames == 3) {
+        for (const zwep::WeaponDef& d : zwep::state().defs)
+          if ((d.flags & zwep::kTargetHeat) && !(d.flags & zwep::kFreeze)) {
+            seen.weapon = d.name;
+            break;
+          }
+        for (void* v : mech3::program_vehicles()) {
+          mech3::VehicleSummary vs;
+          if (mech3::describe_vehicle(v, &vs) && vs.name && std::strstr(vs.name, "truck")) trucks.push_back(v);
         }
-      std::vector<void*> trucks;
-      for (void* v : mech3::program_vehicles()) {
-        mech3::VehicleSummary vs;
-        if (mech3::describe_vehicle(v, &vs) && vs.name && std::strstr(vs.name, "truck")) trucks.push_back(v);
+        if (!seen.weapon || trucks.size() < 2) return;
+        seen.pool0 = pool_size();
+        float at[3], me[3], to[3];
+        mech3::node_world_cached(mech3::program_vehicle_node(trucks[0]), at);
+        const float place[3] = {at[0] + 40.0f, ground_under(at[0] + 40.0f, at[1] + 30.0f, at[2]), at[2]};
+        void* player = mech3::mech_mission_player();
+        mech3::move_mech(player, place, 0.0f);
+        mech3::node_world_cached(mech3::mech_centroid_of(player), me);
+        mech3::node_world_cached(mech3::program_vehicle_centroid(trucks[0]), to);
+        s_from = {me[0], me[1], me[2]};
+        const float dx = to[0] - me[0], dy = to[1] - me[1], dz = to[2] - me[2];
+        const float n = std::sqrt(dx * dx + dy * dy + dz * dz);
+        s_dir = {dx / n, dy / n, dz / n};
+        beam = zwep::beam_make(zwep::find_def(seen.weapon), mech3::mech_node_of(player), nullptr, &s_from, &s_dir, 1);
+        zwep::beam_start(beam);
+        return;
       }
-      if (!seen.weapon || trucks.size() < 2) return;
+      if (!beam) return;
+      light = static_cast<zcls::Node*>(mech3::program_vehicle_glow_light(trucks[0]));
+      if (!light && seen.frames < 40) return;
+      zwep::beam_stop(beam);
+      zwep::beam_free(beam);
+      beam = nullptr;
+      done = true;
+      seen.lit_by_shot = light != nullptr;
       const zwep::WeaponDef* def = zwep::find_def(seen.weapon);
-      seen.pool0 = pool_size();
-      mech3::program_vehicle_hit_by(trucks[0], seen.weapon, 1.0f);
-      auto* light = static_cast<zcls::Node*>(mech3::program_vehicle_glow_light(trucks[0]));
       seen.pool_hit = pool_size();
       if (light) {
         auto* node = static_cast<zcls::Node*>(mech3::program_vehicle_node(trucks[0]));
@@ -1431,7 +1462,7 @@ TEST(mission_c1m1_laser_leaves_its_glow_on_a_truck_headless) {
                       ld->get<float>(0xac) == def->target_heat[5];
         seen.range = ld->get<float>(0xb4) == 0.1f && ld->get<float>(0xb8) == 0.2f;
       }
-      mech3::program_vehicle_hit_by(trucks[0], seen.weapon, 1.0f);
+      mech3::program_vehicle_hit_by(trucks[0], seen.weapon, 1.0f);  // a second hit
       seen.kept = light && mech3::program_vehicle_glow_light(trucks[0]) == light && pool_size() == seen.pool_hit;
       seen.killed = mech3::program_vehicle_kill(trucks[0], nullptr, seen.weapon);
       seen.returned = !mech3::program_vehicle_glow_light(trucks[0]);
@@ -1447,14 +1478,14 @@ TEST(mission_c1m1_laser_leaves_its_glow_on_a_truck_headless) {
       if (m && std::strstr(m, "ERROR deleting light")) ++light_errors;
     });
     CountingPump pump;
-    pump.stop = [&] { return seen.frames > 6; };
+    pump.stop = [&] { return done; };
     pump.limit = 600;
     app.run(pump);
     if (std::getenv("MW3_GLOW_LOG"))
-      std::fprintf(stderr, "GLOW %s pool %d -> %d -> %d on node %d colour %d range %d kept %d killed %d returned %d off %d second %d\n",
-                   seen.weapon ? seen.weapon : "-", seen.pool0, seen.pool_hit, seen.pool_end, seen.on_node, seen.colour,
+      std::fprintf(stderr, "GLOW lit by the shot %d at frame %d; %s pool %d -> %d -> %d on node %d colour %d range %d kept %d killed %d returned %d off %d second %d\n",
+                   seen.lit_by_shot, seen.frames, seen.weapon ? seen.weapon : "-", seen.pool0, seen.pool_hit, seen.pool_end, seen.on_node, seen.colour,
                    seen.range, seen.kept, seen.killed, seen.returned, seen.off_node, seen.second_lit);
-    EXPECT(seen.weapon && seen.pool0 > 0 && seen.pool_hit == seen.pool0 - 1);
+    EXPECT(seen.weapon && seen.lit_by_shot && seen.pool0 > 0 && seen.pool_hit == seen.pool0 - 1);
     EXPECT(seen.on_node && seen.colour && seen.range && seen.kept);
     EXPECT(seen.killed && seen.returned && seen.off_node && seen.pool_end == seen.pool0);
     EXPECT(seen.second_lit);
@@ -1813,6 +1844,166 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// A vehicle's node binding (0x004d6c90 -> 0x0040eaa0 -> 0x0040ebe0; docs/
+// vehicles.md, The node binding): every node of a c1 mission 1 truck carries
+// bit 19 and the truck, so node_entity (0x0040e920) finds it from any of
+// them and the HUD's reticle pick does too. A shot from the player stops on
+// the truck's node and damages it (its handler); a shot from the truck's node
+// leaves the truck as the player's last attacker (+0x664, through
+// node_entity on the shooter's node). Before the port none of it did: the
+// nodes were id 0 with no owner. Turrets and field bases bind the same way.
+TEST(mission_c1m1_truck_nodes_name_the_truck_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_bind_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    int trucks = 0, nodes = 0, bound = 0, turrets = 0, turrets_bound = 0, bases = 0, bases_bound = 0;
+    bool entity = false, child_entity = false, pick = false, hit_truck = false, damaged = false, attacker = false;
+    float health0 = 0, health1 = 0;
+    std::string weapon;
+    void* truck = nullptr;
+    void* hit_node = nullptr;
+    int shot = 0;
+  };
+  static Seen seen;
+  seen = Seen{};
+  const auto marks = zwep::hit_hooks().surface_mark;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    auto world_of = [](void* node, float out[3]) { mech3::node_world_cached(node, out); };
+    auto fire = [&](void* owner_node, void* from_node, void* to_node) {
+      float a[3], b[3];
+      world_of(from_node, a), world_of(to_node, b);
+      zwep::Vec3f3 from{a[0], a[1], a[2]}, d{b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+      const float n = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+      d = {d.x / n, d.y / n, d.z / n};
+      static uint32_t zone;
+      zone = zwep::query_zone();
+      const zwep::Vec3f3 still{0, 0, 0};
+      zwep::spawn(zwep::find_def(seen.weapon.c_str()), owner_node, &zone, &from, &d, &still, 0, nullptr);
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        for (void* v : mech3::program_vehicles()) {
+          mech3::VehicleSummary vs;
+          if (mech3::describe_vehicle(v, &vs) && vs.name && std::strstr(vs.name, "truck")) {
+            ++seen.trucks;
+            if (!seen.truck) seen.truck = v;
+          }
+        }
+        if (!seen.truck) return;
+        auto* root = static_cast<zcls::Node*>(mech3::program_vehicle_node(seen.truck));
+        std::vector<zcls::Node*> stack{root};
+        zcls::Node* deep = root;
+        while (!stack.empty()) {
+          zcls::Node* n = stack.back();
+          stack.pop_back();
+          ++seen.nodes;
+          seen.bound += n->get<uint32_t>(0x28) == 0x80000u && n->owner == seen.truck;
+          if (n != root) deep = n;
+          for (int32_t i = 0; i < n->child_count(); ++i) stack.push_back(n->children[i]);
+        }
+        // The turrets (bit 17, 0x0040eb10) and the field bases (bit 19, as vehicles).
+        for (mech3::tur::Turret* t : mech3::tur::turret_list()) {
+          auto* n = static_cast<zcls::Node*>(engine.object_of(t->node));
+          ++seen.turrets;
+          seen.turrets_bound += n && n->get<uint32_t>(0x28) == 0x20000u && n->owner == t && mech3::node_entity(n) == t;
+        }
+        for (void* v : mech3::program_vehicles()) {
+          mech3::VehicleSummary vs;
+          if (!mech3::describe_vehicle(v, &vs) || !vs.field_base) continue;
+          auto* n = static_cast<zcls::Node*>(mech3::program_vehicle_node(v));
+          ++seen.bases;
+          seen.bases_bound += n && n->get<uint32_t>(0x28) == 0x80000u && n->owner == v && mech3::node_entity(n) == v;
+        }
+        seen.entity = mech3::node_entity(root) == seen.truck;
+        seen.child_entity = deep != root && mech3::node_entity(deep) == seen.truck;
+        seen.pick = mech3::program_hud_node_object(deep) == seen.truck;
+        // The player put 40 m from the truck, then each shoots the other.
+        float at[3];
+        world_of(root, at);
+        const float me[3] = {at[0] + 40.0f, ground_under(at[0] + 40.0f, at[1] + 30.0f, at[2]), at[2]};
+        mech3::move_mech(mech3::mech_mission_player(), me, 0.0f);
+        for (zwep::WeaponDef& d : zwep::state().defs)
+          if (d.key && !(d.flags & (zwep::kBeam | zwep::kTargetHeat | zwep::kMine | zwep::kLockOn)) && d.range > 60) {
+            seen.weapon = d.key;
+            break;
+          }
+        mech3::VehicleSummary vs;
+        mech3::describe_vehicle(seen.truck, &vs);
+        seen.health0 = vs.health;
+        zwep::hit_hooks().surface_mark = [](zwep::HitRecord* h) {
+          if (seen.shot == 1 && !seen.hit_node) seen.hit_node = h->node;
+        };
+      } else if (frames == 6 && seen.truck && !seen.weapon.empty()) {
+        seen.shot = 1;
+        void* me = mech3::mech_mission_player();
+        fire(mech3::mech_node_of(me), mech3::mech_centroid_of(me), mech3::program_vehicle_centroid(seen.truck));
+      } else if (frames == 12 && seen.truck && !seen.weapon.empty()) {
+        seen.hit_truck = seen.hit_node && mech3::node_entity(seen.hit_node) == seen.truck;
+        mech3::VehicleSummary vs;
+        mech3::describe_vehicle(seen.truck, &vs);
+        seen.health1 = vs.health;
+        seen.damaged = vs.health < seen.health0;
+        seen.shot = 2;
+        void* me = mech3::mech_mission_player();
+        fire(mech3::program_vehicle_node(seen.truck), mech3::program_vehicle_centroid(seen.truck), mech3::mech_centroid_of(me));
+      }
+      // The hit lands within a frame or two (a later hit may overwrite +0x664).
+      if (frames > 12 && seen.truck && mech3::mech_last_attacker(mech3::mech_mission_player()) == seen.truck)
+        seen.attacker = true;
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames > 18; };
+    pump.limit = 2000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zwep::hit_hooks().surface_mark = marks;
+  if (std::getenv("MW3_BIND_LOG"))
+    std::fprintf(stderr, "BIND turrets %d/%d bases %d/%d trucks %d nodes %d bound %d entity %d child %d pick %d weapon %s hit %d damaged %d (%.1f -> %.1f) attacker %d\n",
+                 seen.turrets_bound, seen.turrets, seen.bases_bound, seen.bases, seen.trucks, seen.nodes, seen.bound, seen.entity, seen.child_entity, seen.pick, seen.weapon.c_str(),
+                 seen.hit_truck, seen.damaged, seen.health0, seen.health1, seen.attacker);
+  EXPECT(seen.trucks >= 2 && seen.nodes > 1 && seen.bound == seen.nodes);
+  EXPECT(seen.entity && seen.child_entity && seen.pick);
+  EXPECT(seen.hit_truck && seen.damaged);
+  EXPECT(seen.attacker);
+  EXPECT(seen.turrets > 0 && seen.turrets_bound == seen.turrets);
+  EXPECT(seen.bases > 0 && seen.bases_bound == seen.bases);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

@@ -15,6 +15,7 @@
 #include "gamez/ztwod/twod.h"
 #include "gamez/zweapon/zweapon.h"
 #include "mech3/app_mech.h"
+#include "mech3/entity_bind.h"
 #include "mech3/mech_build.h"
 #include "mech3/app_view.h"
 #include "mech3/mech_fieldbase.h"
@@ -65,12 +66,18 @@ struct WiredVehicles : VehBasicHooks {
   void node_detach(Handle node) override { zwep::remove_handlers(node); }  // 0x00583400
   void controls_set_owner(Handle c, BasicVehicle& v) override { static_cast<VehicleControls*>(c)->owner = &v; }
   void controls_delete(Handle c) override { delete static_cast<VehicleControls*>(c); }
-  // 0x004d6c90: the node, its matrix and markers; not its entity (0x0040eaa0:
-  // bits 0x80000 and the owner over the tree, 0x0040ebe0), so a vehicle's
-  // node does not lead back to it (node_entity): logged.
+  // 0x004d6c90: the old node unbound (0x0040ed00), the node, its matrix and
+  // markers, and the new one bound to the vehicle (0x0040eaa0: vt+0x40 and
+  // vt+0xec are itself, bit 19), field bases alike.
   void entity_set_node(Vehicle& v, Handle node) override {
+    void* self = static_cast<BasicVehicle*>(&v);
+    if (v.node) entity_unbind(zn(v.node), self, entity_unbind_calls());
     vehicle_set_node(v, node);
-    unported("0x0040eaa0", {ref(&v), low(node)});
+    if (zn(node)) {
+      EntityCasts casts;
+      casts.vehicle_base = casts.vehicle = self;
+      entity_bind(zn(node), self, casts);
+    }
   }
   void zentity_set_node(Vehicle& v, Handle node) override { v.node = node; }            // 0x005a8390 with none
   // 0x005a7f50 / 0x005a7f70: zEntity's list, the port's (mech3/sensors).

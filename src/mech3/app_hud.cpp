@@ -593,6 +593,7 @@ void unwire_hud() {
   mech_hud_calls() = MechHudCalls{};
 }
 
+void* program_hud_node_object(void* node) { return hud_hooks().node_object(node); }
 void program_hud_update(float dt) {
   if (Mech* m = static_cast<Mech*>(program_view_target())) hud_handoff(*m, dt);
 }

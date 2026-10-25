@@ -1929,3 +1929,20 @@ is paused.
   finds nothing; now logged as 0x0040eaa0); nets_begin / nets_end's
   numbered objects (0x004d5350 / 0x004d53f0: each AI net's items swizzled
   and linked) and every waynet but the mcbwaynet (0x00479a50) not begun.
+
+## Item 16: the vehicle node binding (2026-10-25, mac 4)
+
+- Assigned (the lead): 0x40eaa0 -> 0x40ebe0 over the tree on
+  mac4/veh-node-bind off mac4/logs; differential and breaks; headless on
+  c1m1 (a truck's nodes, a shot through node_entity, the AI's sight line,
+  the HUD pick); the glow test through the real path; field bases and
+  turrets.
+- Done (mac 4): `mech3/entity_bind` (0x40eaa0, 0x40ed00), wired in the
+  vehicle (and field base) and turret set-nodes; Turret::set_node stores the
+  node after the hook (as 0x4a6230). The turrets are bit 17 (their vt+0x48 is
+  themselves), field bases bind as vehicles. The AI's sight line does not
+  use the binding (it turns the entities' INTERSECT off). Found: the port's
+  ai_volley_pick read a vehicle owner as a mech and crashed (fixed). The
+  glow test's first hit is a real beam now. Tests: test_entity_bind.py
+  (5000), mw3tests truck nodes (and the glow test). Docs: vehicles.md The
+  node binding, symbols.
