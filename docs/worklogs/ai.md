@@ -1663,3 +1663,13 @@ is paused.
   options' LIGHTING works live. Headless c1m1: models lit (lights_reaching
   runs, the sun on a mech), mix_fog for a point-lit model; a before/after
   screenshot pair (PNG in scratch). A port gap: render-lighting.md only.
+- 4c done (mac 4): zmod gfx_flags_start (0x5266f0's part) / use_gfx_flags
+  0x526750, zrndr gfx_flags_start (0x557a95's) / use_gfx_flags 0x557ae0;
+  GameEngine models_init / render_init (the parts, the rest still logged),
+  models_load / render_load / model_use_gfx_flags. The lighting reads the
+  option's value through the entry, so LIGHTING works live. zRender's copy
+  only matters to the software path. test_gfx_flags.py 500 cases, 8/8
+  breaks; headless c1m1: lit mean 376 (211 colours) against unlit 877
+  (22), and with an explosion's light at a vehicle (started at its place,
+  as a shot's impact does) the mix runs. The screenshot pair waits for
+  Owen's yes to the GPU (the no-GPU-while-streaming rule).

@@ -1488,3 +1488,7 @@ address,name,source,notes
 0x00463aa0,Leg::ViewTint,asm,"ported (leg_view_tint): the thigh's node and its foot's (+0x78), by the thigh's internal"
 0x004643d0,Torso::ViewTint,asm,"ported (torso_view_tint): the torso's node and the hip's (mech +0x3a0), by the torso's internal"
 0x00579f50,d3d_install_entries,asm,"partly ported (zvid install_model_draw_table): the model draw's entries and [0x72f3f0] = 0x57bcf0 (the fog colour's send, 0x579fe9)"
+0x00526750,gmod_use_gfx_flags,asm,"ported (zmod use_gfx_flags): ECX name, EDX flags; [0x74a2cc] at the settings entry, else [0x74a2c8] = flags"
+0x00557ae0,zrndr_use_gfx_flags,asm,"ported (zrndr use_gfx_flags): as 0x00526750 for [0x8008d8] / [0x8008d4]"
+0x005266f0,gmod_start_gfx_flags,asm,"ported (zmod gfx_flags_start): 0x00526510's part, [0x74a2c8] = -1, [0x74a2cc] at GfxFlags_HW / _SW"
+0x00557a95,zrndr_start_gfx_flags,asm,"ported (zrndr gfx_flags_start): 0x005578f0's part, [0x8008d4] = -1, [0x8008d8] at GfxFlags_HW / _SW"

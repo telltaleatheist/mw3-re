@@ -1,3 +1,4 @@
+#include "gamez/zutil/zutl_reg.h"
 #include "gamez/zrender/zrndr_draw.h"
 
 #include <cstring>
@@ -55,6 +56,31 @@ void draw_sprite(const float screen[3], const zimg::TextureEntry* texture, float
   } else if (t.textured_white) {
     t.textured_white(t.ctx, 4, record, 0, alpha, 0);
   }
+}
+
+GfxFlags& gfx_flags() {
+  static GfxFlags g;
+  return g;
+}
+
+// Mech3.exe 1.2 @ 0x005578f0, its GfxFlags (0x557a95..0x557ab9).
+void gfx_flags_start(bool hardware) {
+  GfxFlags& g = gfx_flags();
+  g.base = 0xffffffff;
+  const zreg::Entry* e = zreg::find(hardware ? "GfxFlags_HW" : "GfxFlags_SW");
+  g.flags = e ? reinterpret_cast<const uint32_t*>(e->data) : &g.base;
+}
+
+// Mech3.exe 1.2 @ 0x00557ae0, as zModel's 0x00526750.
+void use_gfx_flags(const char* name, uint32_t flags) {
+  GfxFlags& g = gfx_flags();
+  const zreg::Entry* e = name ? zreg::find(name) : nullptr;
+  if (e) {
+    g.flags = reinterpret_cast<const uint32_t*>(e->data);
+    return;
+  }
+  g.flags = &g.base;
+  g.base = flags;
 }
 
 }  // namespace zrndr

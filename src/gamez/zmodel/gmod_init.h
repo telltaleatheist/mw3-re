@@ -32,6 +32,12 @@ struct Model;
 // The model's texture scroll: flag 0x10 at +8 from `on`'s bit 0, the speeds
 // u at +0x28 and v at +0x2c (per second; gmod_const's model_scroll_tick).
 int model_set_scroll(Model* m, int on, float u, float v);  // 0x00526ae0, 1 for none (reported)
+// The GfxFlags the lighting reads (lighting().mask; docs/render-lighting.md):
+// zModel's start points it at the settings entry "GfxFlags_HW" (with a
+// Direct3D device) or "GfxFlags_SW", or at -1 when there is none; later
+// `name`'s entry, or `flags` when there is no name or no entry.
+void gfx_flags_start(bool hardware);                       // 0x005266f0 (0x00526510's part)
+void use_gfx_flags(const char* name, uint32_t flags);     // 0x00526750 (ECX name, EDX flags)
 void set_opacity(float opacity);   // 0x00526a60
 void set_shadows(int32_t on);      // 0x00526a70
 int32_t shadows_on();              // 0x00526a80

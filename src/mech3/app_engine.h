@@ -98,6 +98,12 @@ class GameEngine : public Engine {
   void mech_set_mode_a(Handle mech, int32_t a) override;  // 0x0041ca30
   void pilot_update(Handle p, float dt) override;  // 0x004783a0
   int32_t weapons_init() override;                // 0x00583750: zwep::startup
+  // The GfxFlags (app_mission.cpp; docs/render-lighting.md).
+  int32_t models_init() override;
+  int32_t render_init() override;
+  void models_load(const char* flags_name, int32_t flags) override;
+  void render_load(const char* flags_name, int32_t flags) override;
+  void model_use_gfx_flags(const char* name, int32_t flags) override;
   void weapons_set_mode(int32_t v) override;      // 0x00583740
   void timer_update() override;                  // 0x00575a00, then the step's copies (sync_frame_step)
   void weapons_shutdown() override;               // 0x00583870: zwep::shutdown, no per-def callback (0x00584920)

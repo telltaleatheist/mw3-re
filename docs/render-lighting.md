@@ -166,14 +166,27 @@ included; it is installed now (`mission_c1m1_fog_mix_reaches_the_device_headless
 208/208/208 at the load, a tinted vehicle's red and the world's after).
 `test_mix_fog.py`.
 
-**Still a gap (item 4c):** no model is lit in the program. model_needs'
-light test reads `*mask & 1`, the GfxFlags settings entry's Lighting bit
-([0x74a2cc] points at it: zModel's start 0x5266f0 sets [0x74a2c8] = -1 and
-points it at settings_find("GfxFlags_HW" / "_SW"), 0x526750 re-points it,
-from the app's model load 0x48074e and the options menu); the program never
-points it, and the default is 0. So lights_reaching never runs: no sun,
-no point light, no mix (a tinted model's red goes by shade_polygon's
-direct write, above, not the mix).
+**The GfxFlags (2026-10-25, item 4c).** model_needs' light test reads
+`*mask & 1`: [0x74a2cc] points at the GfxFlags settings entry's value, bit 0
+Lighting (GfxFlags_HW 0x1b, _SW 0x0b by default). zModel's start (0x526510,
+its part at 0x5266f0) sets [0x74a2c8] = -1 and points it at the entry
+"GfxFlags_HW" with a Direct3D device or "GfxFlags_SW", else at [0x74a2c8];
+0x526750 (ECX name, EDX flags) points it at `name`'s entry, or at
+[0x74a2c8] = flags when there is no name or no entry: from the app's model
+load (0x48074e, app.cpp's models_load) and the options menu (0x439c95,
+0x43a2e5, the LIGHTING toggle). Because it is a pointer to the entry, a
+change of the option's value lights or unlights the models at once.
+zRender keeps its own (0x5578f0's part at 0x557a95, 0x557ae0: [0x8008d8],
+[0x8008d4]), read only by the software renderer (0x557b30's span choices by
+bits 2, 8, 0x10; 0x558610's MMX rows by bit 4, the port's finish_machine).
+A port gap until now: the program pointed at none, the default 0, so no
+model was lit (no sun, no point light, no mix). `zmod::gfx_flags_start` /
+`use_gfx_flags`, `zrndr::gfx_flags_start` / `use_gfx_flags`, GameEngine's
+models_init / render_init / models_load / render_load /
+model_use_gfx_flags; `test_gfx_flags.py`;
+`mission_c1m1_models_are_lit_headless` (lit: mean vertex brightness 376,
+211 colours a frame; LIGHTING off live: 877, 22; an explosion's light at a
+vehicle with the sun: the mix runs).
 
 How 0x53f2e0 calls `shade_polygon` (0x53ff35 textured, 0x5413f6 untextured;
 only when needs & 6):

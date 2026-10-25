@@ -12,6 +12,7 @@
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zutil/zutl_reg.h"
 #include "gamez/zrender/zrndr_fog.h"
 
 namespace zmod {
@@ -24,6 +25,28 @@ void put_float(uint32_t& slot, float v) { std::memcpy(&slot, &v, 4); }
 
 WalkState& walk_state() { return g_walk; }
 uint32_t& mask_top() { return g_walk.mask[g_walk.top]; }
+
+// Mech3.exe 1.2 @ 0x005266f0 (zModel's start 0x00526510, from 0x005266f0 on:
+// its GfxFlags; the rest of the start is the program's).
+void gfx_flags_start(bool hardware) {
+  Lighting& l = lighting();
+  l.mask_base = 0xffffffff;
+  const zreg::Entry* e = zreg::find(hardware ? "GfxFlags_HW" : "GfxFlags_SW");
+  l.mask = e ? reinterpret_cast<const uint32_t*>(e->data) : &l.mask_base;
+}
+
+// Mech3.exe 1.2 @ 0x00526750. The settings entry holds the value itself (the
+// port's entry points at the option that does).
+void use_gfx_flags(const char* name, uint32_t flags) {
+  Lighting& l = lighting();
+  const zreg::Entry* e = name ? zreg::find(name) : nullptr;
+  if (e) {
+    l.mask = reinterpret_cast<const uint32_t*>(e->data);
+    return;
+  }
+  l.mask = &l.mask_base;
+  l.mask_base = flags;
+}
 
 // Mech3.exe 1.2 @ 0x00526ae0 (ECX the model, EDX on, stack u, v).
 int model_set_scroll(Model* m, int on, float u, float v) {

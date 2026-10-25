@@ -15,6 +15,7 @@
 
 #include "crt/msvc_rand.h"
 #include "check.h"
+#include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zclass/cls_di.h"
@@ -2064,6 +2065,131 @@ TEST(mission_c1m1_fog_mix_reaches_the_device_headless) {
     EXPECT(v != nullptr && left < 1.0f && seen[1].count(red));  // the damaged vehicle's red while tinted
     EXPECT(seen[1].count(loading.back()));          // and the world's colour back after it
     EXPECT(!seen[2].count(red));                    // none once the tint is off
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The models lit on c1m1 (docs/render-lighting.md, the GfxFlags): the
+// lighting reads the GfxFlags_HW entry's Lighting bit (0x00526750 from the
+// app's model load), so with a GPU that records the draws the vertices are
+// lit (the sun's Lambert darkens them: a lower mean, more distinct colours);
+// the option's bit cleared, live as the options menu's LIGHTING does, they
+// are not; and the explosions' point light (light_flash, started at a
+// vehicle) with the sun makes two colour sources, so the lighting mixes them
+// into the fog colour (0x005680c0).
+TEST(mission_c1m1_models_are_lit_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_lit_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct DrawGpu : platform::Render3D {
+    double sum = 0;
+    long verts = 0;
+    std::set<uint32_t> colours;
+    int32_t create_texture(int, int, const uint8_t*, uint8_t) override { return 1; }
+    void release_texture(int32_t) override {}
+    void update_texture(int32_t, int, int, const uint8_t*) override {}
+    void set_viewport(int, int, int, int) override {}
+    void clear(bool, uint8_t, uint8_t, uint8_t) override {}
+    void begin_scene() override {}
+    void end_scene() override {}
+    void draw(platform::Primitive, const platform::TLVertex* v, int n, const platform::DrawState&) override {
+      for (int i = 0; i < n; ++i) {
+        const uint32_t c = v[i].diffuse & 0xffffff;
+        sum += ((c >> 16) & 0xff) + ((c >> 8) & 0xff) + (c & 0xff);
+        ++verts;
+        if (colours.size() < 100000) colours.insert(c);
+      }
+    }
+    void set_fog_color(uint8_t, uint8_t, uint8_t) override {}
+    void present() override {}
+    bool read_back(std::vector<uint32_t>*, int*, int*) override { return false; }
+  } gpu;
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.render = &gpu;
+  static int mixes = 0;
+  static void (*mix)(float*) = nullptr;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    void* v = nullptr;
+    double mean[3] = {};
+    size_t distinct[3] = {};
+    int mixed[3] = {};
+    uint32_t lighting_bit[2] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      const int phase = frames < 3 ? -1 : frames < 10 ? 0 : frames < 18 ? 1 : frames < 27 ? 2 : -1;
+      const bool counted = phase >= 0 && frames != 3 && frames != 10 && frames != 18;
+      if (counted) mean[phase] += gpu.verts ? gpu.sum / gpu.verts : 0, distinct[phase] += gpu.colours.size(), mixed[phase] += mixes;
+      gpu.sum = 0, gpu.verts = 0, gpu.colours.clear(), mixes = 0;
+      if (frames == 2) {
+        mix = zmod::light_hooks().mix_fog;  // counted, then the port's
+        zmod::light_hooks().mix_fog = [](float* c) { ++mixes, mix(c); };
+        const std::vector<void*> vs = mech3::program_vehicles();
+        if (!vs.empty()) v = vs.front();
+        if (v) {
+          float at[3];
+          mech3::hud_object_place(v, at);
+          const float pos[3] = {at[0] - 30.0f, ground_under(at[0] - 30.0f, at[1] + 100.0f, at[2]), at[2]};
+          mech3::move_mech(player, pos, -1.5707964f);
+        }
+        lighting_bit[0] = *zmod::lighting().mask & 1;
+      }
+      if (frames == 9) {  // LIGHTING off, live: the entry the lighting points at
+        for (int32_t& f : mech3::options().gfx_flags) f &= ~1;
+        lighting_bit[1] = *zmod::lighting().mask & 1;
+      }
+      if (frames == 17) {
+        for (int32_t& f : mech3::options().gfx_flags) f |= 1;
+        if (zeff::AnimDef* d = zeff::anim_find("light_flash"); d && v) {  // where a shot's impact starts it (0x00508aa0)
+          float at[9] = {};
+          mech3::hud_object_place(v, at);
+          zeff::anim_start_at(d, nullptr, at, at + 3, at + 6);
+        }
+      }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 27; };
+    app.run(pump);
+    for (int i = 0; i < 3; ++i) mean[i] /= i == 2 ? 8 : 6, distinct[i] /= i == 2 ? 8 : 6;
+    std::fprintf(stderr, "  lit: Lighting bit %u, then %u; lit mean %.1f (%zu colours a frame), unlit %.1f (%zu), "
+                         "the flash %.1f (%zu); fog mixes lit %d, unlit %d, the flash %d\n",
+                 lighting_bit[0], lighting_bit[1], mean[0], distinct[0], mean[1], distinct[1], mean[2], distinct[2], mixed[0],
+                 mixed[1], mixed[2]);
+    EXPECT(lighting_bit[0] == 1 && lighting_bit[1] == 0);
+    EXPECT(mean[0] < mean[1] && distinct[0] > distinct[1]);  // the sun darkens and varies them
+    EXPECT(mixed[1] == 0 && mixed[2] > 0);                   // the point light with the sun: the mix
+    zmod::light_hooks().mix_fog = mix;
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

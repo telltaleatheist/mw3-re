@@ -63,8 +63,8 @@ Clouds& clouds();
 // What the model draw shares with the shading: the globals 0x0053f2e0 and the
 // object3d pushes set, and the per-polygon buffers.
 struct Lighting {
-  uint32_t mask_base = 0;          // 0x0074a2c8
-  const uint32_t* mask = &mask_base;  // 0x0074a2cc  bit 0: lighting on for this subtree
+  uint32_t mask_base = 0;          // 0x0074a2c8  the GfxFlags when no settings entry holds them
+  const uint32_t* mask = &mask_base;  // 0x0074a2cc  the GfxFlags (the _HW or _SW entry's value): bit 0 Lighting
   int32_t single = 0;              // 0x0074a2d4  1 in software (0x00526800, 0x005269e0)
   int32_t tint_on = 0;             // 0x0074a270  object3d colour pushed (0x00526a10)
   float tint[3] = {};              // 0x0074a274
