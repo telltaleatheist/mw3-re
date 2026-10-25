@@ -610,6 +610,12 @@ void CZAiTarget::kill() {
   active = 0;
 }
 
+// Mech3.exe 1.2 @ 0x004d7270 with the target's vt+0x7c 0x004d3340 and vt+0x78.
+void CZAiTarget::message(int32_t msg) {
+  if (msg == 0) destroyed = 0;
+  else if (msg == 0x38) kill();
+}
+
 // --- Making them (0x004d2d80..0x004d3270) ---------------------------------------------
 
 namespace {

@@ -13,6 +13,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "mech3/zai_anim_owner.h"
 #include "gamez/zentity/zent_init.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_cull.h"
@@ -128,6 +129,7 @@ struct WiredTurrets : tur::TurretHooks {
   void matrix_pop() override { zmth::pop(); }
   // zEffect, zSound.
   Handle anim_find(const char* name) override { return name ? hd(zeff::anim_find(name)) : 0; }
+  uint8_t anim_claim(Handle self, Handle a) override { return ai::anim_owner_claim(self, a) ? 1 : 0; }  // 0x004d4f20
   void anim_reset(Handle a, Handle n) override {
     if (auto* d = static_cast<zeff::AnimDef*>(ob(a))) zeff::anim_restart(d, zn(n));
   }

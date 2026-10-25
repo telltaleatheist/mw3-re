@@ -1487,6 +1487,30 @@ From the animation files (anim.md).
   pulled back to 86,400 seconds when it gets past that.
 - **"-99" means "never restart while running".** An animation whose reset
   time is -99 ignores calls to start it while it is still running.
+- **The world's animations send messages to the things they belong to.**
+  An animation can carry "callback" moments with a number, and the AI side
+  hands the number to whoever owns that animation. That is how c1's two boss
+  turrets come up: they sit idle until their raise animation plays and sends
+  "wake up" (50). The Gauss turrets on c4b's last missions are raised and
+  lowered the same way (50 and 51), and on c3 a wall turret switches off or
+  shuts down as its wall falls (51, 52). Buildings, ships and trains send
+  "destroyed" (56) to the target they stand for. A bridge's destroy animation
+  sends 57, which tells the AI's map of the mission to use the bridge's
+  yellow outline (the gap where the bridge was) instead of the red one, and
+  its reset sends 58 to switch back. Most destroy animations also send 43,
+  which turns on a switch (a "valve") named after the object, or after one
+  of the parts above it for 47; mission scripts and the AI read those
+  switches (ai.md section 18; the switch is hooked up when the mission
+  loads, still being rebuilt).
+- **A teleport nobody uses.** One message (17) would move the player's mech
+  by the offset of a world node named "viaNode", keeping its heading from
+  that node. No world has a viaNode and no animation sends 17, so it never
+  happens. If a modded animation sent it in a world without the node, the
+  original would throw the mech to a random place; the rebuild leaves it
+  where it is.
+- **When an animation stops it says "0"** to its owner too. For a target
+  that clears a "destroyed" mark the game sets when it is killed, but
+  nothing ever reads that mark, so it changes nothing.
 
 ## Smoke and fire
 

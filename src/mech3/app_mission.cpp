@@ -56,6 +56,7 @@
 #include "mech3/message_panel.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_shade.h"
+#include "mech3/zai_anim_owner.h"
 #include "mech3/zai_target.h"
 #include "mech3/zai_valve.h"
 #include "mech3/app.h"
@@ -890,6 +891,8 @@ struct WiredTargetHooks : ai::TargetHooks {
   void anim_run(Handle a) override {
     if (zeff::AnimDef* d = def(a)) zeff::anim_start(d, nullptr, 0, 0, 0);
   }
+  void anim_owner_release(Handle self) override { ai::anim_owner_release(self); }  // 0x004d5100
+  uint8_t anim_owner_claim(Handle self, Handle a) override { return ai::anim_owner_claim(self, a) ? 1 : 0; }  // 0x004d4f20
   // zWeapon's handler tables (zweapon.h): the callbacks as the exe's
   // addresses for the checks.
   void remove_handlers(Handle n) override { zwep::remove_handlers(node(n)); }  // 0x00583400
@@ -1179,20 +1182,28 @@ struct WiredMissionHooks : MissionHooks {
   // their registration order): the pocket commander's (0x0046aaa0, from
   // 0x0046ab73), the deploy state's "mcbdeploy" (0x004cfe40) and the mission
   // boundary's (0x004c3da0, from 0x004c3c9a; independent of the others, so
-  // its place in the order does not matter); the other two (registered by
-  // 0x004e78d0 from 0x004b4c53, 0x004d490f) are not ported, logged.
+  // its place in the order does not matter); the animation-owner registry's
+  // (0x004d490f) is empty (0x004d7210); 0x004b4c53's is not ported, logged.
   void fn_4e7b40() override {
     pocket_mission_start();
     ai::deploy_mission_load();
     ai::inout_mission_load();
     MissionHooks::fn_4e7b40();
   }
+  // Their slot +0x0c as the world goes (0x004e7b80): the animation owners'
+  // (0x004d4740); the others logged.
+  void ai_lists_free() override {
+    ai::anim_owner_free();
+    MissionHooks::ai_lists_free();
+  }
   void inout_load() override { ai::inout_select(); }  // 0x004c3b80: the mission's boundary
   // Their slot +0x10 at the mission's end (0x004e7bc0): the boundary's
-  // (0x004c3dd0) and the pocket commander's (0x0046ab10); the others logged.
+  // (0x004c3dd0), the pocket commander's (0x0046ab10) and the animation
+  // owners' (0x004d4700); the others logged.
   void fn_4e7bc0() override {
     pocket_mission_end();
     ai::inout_mission_end();
+    ai::anim_owner_mission_end();  // 0x004d4700
     MissionHooks::fn_4e7bc0();
   }
   void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
