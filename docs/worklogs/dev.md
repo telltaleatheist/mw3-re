@@ -273,3 +273,19 @@ is in `README.md`.
   Fits the original's rules: a click before the charge is completely full
   does nothing (0x4b3fc0) and a hold fires the moment it is; in chain fire
   a click fires only the current weapon. Asked for Owen's case.
+
+## Playtest #22: ground textures blink (2026-10-25)
+
+- Assigned (lead): the ground's textures blink in play. Branch
+  mac4/playtest-blink off main 0e5ee80.
+- Tools (ours): `build/mw3 --shot F.bmp --shot-frame N --shot-series K`
+  writes the K frames before N as F_<frame>.bmp; `--tap DIK@N[:M]` presses
+  a key as an SDL event (X 0x2d for the outside view, Left 0xcb to turn);
+  tools/analysis/blinks.py marks pixels that differ from both neighbouring
+  frames while those agree.
+- Not reproduced: c1m1 still (water and shore animate, a mast, birds),
+  walking in the cockpit (the frame's edges bob, birds), outside still (0
+  px) and turning; c1m2 still (a parked vehicle's edges flicker: its
+  model's faces, not the ground); c2m1 still (0-1 px). Code: D32 float
+  reversed depth from the game's sz, cycled vertex uploads, no texture
+  eviction in zRender or Render3D. Questions to Owen through the lead.
