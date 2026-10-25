@@ -35,6 +35,7 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 | `rdrkeys.py [filter]` | Every reader lookup in the exe: key, getter, where the value is stored, function and source file. |
 | `fields.py <vtable>` | Recovers an object's field layout from how its methods use `this` (offsets, widths, float use, functions). |
 | `msgtable.py [id ...]` | The message table in `Mech3Msg.dll`, the strings the game formats by id. |
+| `blinks.py OUT.png F1.bmp F2.bmp ...` | Pixels that blink between consecutive frames (one frame different, its neighbours alike); frames from `build/mw3 --shot-series K`. Playtest #22. |
 | `typesfull.py`, `fpconsts.py` | Inputs for `../ghidra/ApplyTypes.java`: `docs/types.json` with placeholder fields, and the float constants in `.rdata` (`docs/structs.md`). |
 | `../ghidra/ApplyTypes.java` | Ghidra headless post-script: applies the structs, names, methods and signatures, then writes typed decompilations to `decomp-typed/`. |
 | `tex2png.py <library.zbd> <outdir> [filter]` | Exports textures from `rimage.zbd` / `rmechtex*.zbd` as PNG (`docs/textures.md`). |
