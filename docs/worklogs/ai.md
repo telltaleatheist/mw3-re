@@ -1649,3 +1649,17 @@ is paused.
   208/208/208 at the load, the damaged vehicle's 255/0/0 while tinted.
   Not reached: the mix itself, as no model is lit in the program (the
   GfxFlags Lighting bit; the lead traced it: item 4c).
+
+## Item 4c: the GfxFlags (the models lit) (2026-10-25, mac 4)
+
+- Assigned (the lead, who traced it): [0x74a2cc] points at the GfxFlags
+  settings entry (zModel's start 0x5266f0: [0x74a2c8] = -1, then
+  settings_find("GfxFlags_HW" / "_SW"); 0x526750(ECX name, EDX flags)
+  re-points it, from 0x48074e (app.cpp:268's models_load) and the options
+  menu 0x439c95 / 0x43a2e5); bit 0 Lighting (GfxFlags_HW 0x1b). Port the
+  start's mask part, 0x526750 and render_load 0x557ae0 (zRender's copy:
+  Transparency 0x02, Perspective 0x08, GlobalLight 0x10) with a
+  differential; wire them in GameEngine to the settings entry so the
+  options' LIGHTING works live. Headless c1m1: models lit (lights_reaching
+  runs, the sun on a mech), mix_fog for a point-lit model; a before/after
+  screenshot pair (PNG in scratch). A port gap: render-lighting.md only.
