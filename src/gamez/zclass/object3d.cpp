@@ -161,6 +161,30 @@ int object3d_use_opacity(Node* node, int on) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004fb840 (ECX node, EDX on).
+int object3d_use_blend(Node* node, int on) {
+  if (int r = check_class(node, 5, kFile, 0x1db)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  d->put<uint32_t>(0, on ? d->get<uint32_t>(0) | 4 : d->get<uint32_t>(0) & ~4u);
+  return 0;
+}
+
+namespace {
+float clamp01(float v) { return v > 1.0f ? 1.0f : !(v >= 0.0f) ? 0.0f : v; }  // NaN to 0, as the x87 compares
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004fb8c0 (ECX node, EDX rgb, stack weight).
+int object3d_set_blend(Node* node, const float* rgb, float weight) {
+  if (int r = check_class(node, 5, kFile, 0x203)) return r;
+  auto* d = static_cast<Object3d*>(node->data);
+  d->put(0x14, clamp01(weight));
+  if (rgb) {
+    for (int i = 0; i < 3; ++i) d->put(8 + 4 * i, rgb[i]);
+    for (int i = 0; i < 3; ++i) d->put(8 + 4 * i, clamp01(d->get<float>(8 + 4 * i)));
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x004fbc10. No class check; any scale but (1, 1, 1) drops
 // the identity flag.
 int object3d_set_scale(Node* node, float x, float y, float z) {

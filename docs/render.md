@@ -464,8 +464,9 @@ come from the asm, Ghidra drops the fastcall registers.
    Material flag 4 (cycled) advances the cycle first (0x5376c0). UVs (8
    bytes per vertex) go to the TL vertex `tu, tv` unchanged; the texture's
    own address mode (record +0x10/+0x14: 1 WRAP, 3 CLAMP) is set per draw.
-   Scrolling (model flag 0x10, `Object3DSetScroll*`) moves the UVs elsewhere
-   **[unverified: not in this function]**.
+   Scrolling (model flag 0x10, `Object3DSetScroll*`) is not the draw's:
+   the UVs themselves are moved, by the scroll's step (Texture scroll,
+   below).
 6. **Clipping**, by the plane mask the cull left (EDX; `local_78`):
    bits 0x30 (near 0x10, far 0x20) clip in camera space before projection
    (untextured 0x5275e0, coloured 0x527a30, textured 0x527fd0, per-vertex
@@ -680,6 +681,47 @@ colours (0x53daa0 tail, 0x5680c0) **[unverified]**.
 
 Model lights (model +0x40, 0x4c each) are not lights in this sense; they
 are drawn by 0x541df0 (section 3, model level).
+
+### Texture scroll (0x526ae0, 0x541ad0; ported 2026-10-25)
+
+0x526ae0 (gmod_init, ECX the model, EDX on, stack u, v) sets the model's
+flag 0x10 (+8) from `on`'s bit 0 and its speeds, u at +0x28 and v at +0x2c,
+in texture widths a second; no model reports and gives 1. The flag is
+read only by the model copy's "may not share" test (0x53b3c0); the
+scrolling is 0x541ad0 (gmod_const area), the step, which the callers run
+once a frame: the interp's scroll actions (0x596380 on a node, 0x5963a0 on
+the ScrollAlways holder; interp.md), the turrets' EFFECT (vehicles.md, the
+turrets' frame step 5) and the vehicles' tracks (vehicles.md, the move 0x4a12c0: each tread's v at
+(turn rate x 2.25 -+ speed) x 1.72, stepped at once). The step:
+
+- nothing for no model (-1) or one already stepped this frame (+0x30 kept
+  equal to the frame counter [0x72f338]); a speed of 0 (or NaN: the x87's
+  equal test) leaves its axis;
+- every textured polygon (its material's +1 bit 0) moves by dt [0x72c52c]
+  times the speed less the whole part (_ftol, toward zero) of that plus the
+  middle of the polygon's own range on the axis ((max + min) / 2), so a
+  polygon's UVs stay within about one width of 0..1 however long it scrolls;
+- three copies of the walk: u and v together (the maximum taken when above
+  it) or one axis alone (taken when not above it, NaN included).
+
+It is dt-scaled already, so no frame-rate fix. The ported draw reads the
+moved UVs as any others. `zmod::model_set_scroll`, `zmod::model_scroll_tick`;
+`tests/differential/test_model_fx.py`.
+
+### The object3d colour blend (0x4fb8c0, 0x4fb840; ported 2026-10-25)
+
+0x4fb8c0 (object3d.c, ECX the node, EDX an rgb or none, stack a weight)
+writes the data's +0x14 weight and +8..+0x10 colour, each clamped to 0..1
+(NaN to 0: the x87's compares); 0x4fb840 (EDX on) switches the data's
+flag 4. Both check the class (5) and report as the other object3d setters
+(lines 0x203.., 0x1db..). The draw reads them: the scene walk (camera.cpp,
+0x526a10) pushes a flag-4 node's colour and weight for its subtree, and the
+lighting folds them into the fog mix (render-lighting.md). Who sets it: the
+TARGET view's tint of its target (vt+0x68: a turret's 0x4a75b0, a vehicle's
+0x4ad390, red by damage; vehicles.md). `zcls::object3d_set_blend`,
+`zcls::object3d_use_blend`. In the program the mix's output stage (0x5680c0,
+0x579950, 0x579980, 0x5798a0) is not wired yet (item 4b): see
+render-lighting.md.
 
 ### Fog
 

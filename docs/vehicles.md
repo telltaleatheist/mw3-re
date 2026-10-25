@@ -278,7 +278,10 @@ its own death and damage):
   the weapons freed (0x4b48c0: 0x4b1110, then deleted) and 0x583710(1, 0).
 - **vt+0x68 0x4ad390, TARGET's tint:** on, the node's object3d colour
   blend (0x4fb8c0) red (0x5e8580) at (1 - health / max) x 0.6; then the
-  blend's switch (0x4fb840) on or off.
+  blend's switch (0x4fb840) on or off. Both ported (zcls object3d_set_blend / use_blend, render.md
+  section 3); the program's draw reads them but the mix's device stage is
+  item 4b's (render-lighting.md), and app_hud's TARGET view does not ask
+  for the tint yet.
 
 The controls' health fields were named the wrong way round until this
 step (+0x740 is the maximum, +0x744 the health); the setup writes both
@@ -520,7 +523,9 @@ feeds only the dead quicksand branch).
   shadow shown or hidden once two frames agree (on the ground, in the
   air), the node's rotation and matrix, the points again (and their copies
   at +0x160), the matrix and forward kept (+0x278, +0x314), and the tracks'
-  textures scrolled by (turn rate x 2.25 -+ speed) x 1.72.
+  textures scrolled by (turn rate x 2.25 -+ speed) x 1.72. (0x526ae0 then
+  0x541ad0, ported: render.md section 3, Texture scroll; the treads move in
+  the program from 2026-10-25.)
 
 `vehicle_frame`, `vehicle_move`, `vehicle_track_step`,
 `vehicle_motion_anim_step`, `vehicle_weapons_step` in `mech3/veh_move`;
@@ -1279,7 +1284,7 @@ the kill count (+0x3fc) (4c3).
    stands (0x5820c0 at +0xe0), nothing else; the frame does nothing more to
    it (whether the blast destroys it is the weapon's, through its hit).
 5. The effect (EFFECT) shown and the next shot not due: its model animated
-   (0x541ad0).
+   (0x541ad0, its texture scrolled at 10 widths a second along u; ported).
 6. The pick (0x4a70d0); none: not aimed, the beam stopped.
 7. The aim (0x4a71c0) at the picked place; refused or not aimed, or the
    next shot not due (+0x188 above the clock): nothing more.

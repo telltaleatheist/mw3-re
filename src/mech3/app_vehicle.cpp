@@ -4,6 +4,8 @@
 #include <cstring>
 #include <set>
 
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_init.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
@@ -90,6 +92,16 @@ struct WiredVehicles : VehBasicHooks {
   }
   Handle marker_create(const char* name) override { return new ztwod::Image(name, 0, 0, 1); }  // 0x0059b830
   void marker_delete(Handle m) override { delete static_cast<ztwod::Image*>(m); }
+  // The target view's tint (0x004fb8c0) and its switch (0x004fb840); the
+  // node model's texture scroll (0x00526ae0) and its step (0x00541ad0).
+  void node_tint(Handle n, const float colour[3], float amount) override {
+    zcls::object3d_set_blend(static_cast<zcls::Node*>(n), colour, amount);
+  }
+  void node_tinted(Handle n, int32_t on) override { zcls::object3d_use_blend(static_cast<zcls::Node*>(n), on); }
+  void model_scroll(Handle model, float u, float v) override {
+    zmod::model_set_scroll(static_cast<zmod::Model*>(model), 1, u, v);
+    zmod::model_scroll_tick(static_cast<zmod::Model*>(model));
+  }
   // zWeapon's hit state and a kill (as the mechs').
   Handle hit_attacker() override { return zwep::attacker(); }
   void hit_health(float f) override { zwep::set_health_after(f); }

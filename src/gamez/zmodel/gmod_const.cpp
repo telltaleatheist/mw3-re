@@ -10,6 +10,9 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
+#include "crt/msvc_math.h"
+#include "gamez/zutil/ztimer.h"
+#include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -877,6 +880,67 @@ void expand_strips(Model& m) {
     s.colors = static_cast<float*>(std::realloc(s.colors, 36));
     s.scratch = static_cast<uint32_t*>(std::realloc(s.scratch, 12));
   }
+}
+
+namespace {
+template <typename T> T hget(const Model& m, int off) {
+  T v;
+  std::memcpy(&v, m.header + off, sizeof v);
+  return v;
+}
+template <typename T> void hput(Model& m, int off, T v) { std::memcpy(m.header + off, &v, sizeof v); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00541ad0: the texture scroll's step (docs/render.md
+// section 3, Texture scroll), once a frame ([0x0072f338] kept at +0x30):
+// every textured polygon's UVs move by dt ([0x0072c52c]) times the speeds
+// (+0x28 u, +0x2c v), less the whole part of the moved middle of its range,
+// so they stay near 0..1. A speed of 0 (or NaN, as the x87 tests it) moves
+// nothing on its axis.
+int model_scroll_tick(Model* m) {
+  if (!m) return -1;
+  const uint32_t frame = zcls::frames().frame;
+  if (hget<uint32_t>(*m, 0x30) == frame) return 0;
+  hput<uint32_t>(*m, 0x30, frame);
+  const float su = hget<float>(*m, 0x28), sv = hget<float>(*m, 0x2c);
+  const bool no_u = !(su < 0.0f || su > 0.0f), no_v = !(sv < 0.0f || sv > 0.0f);
+  if (no_u && no_v) return 0;
+  const float dt = ztimer::state().dt;
+  const float du = dt * su, dv = dt * sv;
+  const int32_t n = static_cast<int32_t>(m->count(0x10));
+  for (int32_t k = 0; k < n; ++k) {
+    Polygon& p = m->polygons[k];
+    if (!(p.material->flags & 1)) continue;  // textured
+    float* uv = p.uvs;
+    const int32_t count = static_cast<int32_t>(p.flags & 0xff);
+    if (!no_u && !no_v) {
+      float umin = uv[0], umax = uv[0], vmin = uv[1], vmax = uv[1];
+      for (int32_t j = 1; j < count; ++j) {
+        const float u = uv[2 * j], v = uv[2 * j + 1];
+        if (!(u >= umin)) umin = u;  // C0: below, or unordered
+        else if (u > umax) umax = u;
+        if (!(v >= vmin)) vmin = v;
+        else if (v > vmax) vmax = v;
+      }
+      const float ou = du - static_cast<float>(crt::msvc_ftol(du - (umax + umin) * -0.5f));
+      const float ov = dv - static_cast<float>(crt::msvc_ftol(dv - (vmax + vmin) * -0.5f));
+      for (int32_t j = 0; j < count; ++j) uv[2 * j] = ou + uv[2 * j], uv[2 * j + 1] = ov + uv[2 * j + 1];
+      continue;
+    }
+    // One axis: its own copy of the range walk (the maximum taken when not
+    // above it, NaN included).
+    const int a = no_u ? 1 : 0;
+    const float d = no_u ? dv : du;
+    float lo = uv[a], hi = uv[a];
+    for (int32_t j = 1; j < count; ++j) {
+      const float x = uv[2 * j + a];
+      if (!(x >= lo)) lo = x;
+      else if (!(hi >= x)) hi = x;
+    }
+    const float o = d - static_cast<float>(crt::msvc_ftol(d - (hi + lo) * -0.5f));
+    for (int32_t j = 0; j < count; ++j) uv[2 * j + a] = o + uv[2 * j + a];
+  }
+  return 0;
 }
 
 }  // namespace zmod

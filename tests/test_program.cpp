@@ -14,6 +14,8 @@
 
 #include "crt/msvc_rand.h"
 #include "check.h"
+#include "gamez/zinterp/zinterp.h"
+#include "gamez/zutil/ztimer.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
@@ -156,6 +158,9 @@ void reset_process_state() {
   // The animation owners' records go with the world (0x004d4740), which a
   // test that resets the missions never unloads.
   mech3::ai::anim_owner_free();
+  // And the interp's ScrollAlways list and holder, freed by the world's
+  // unload (0x005964c0(1)): a new process's (0x005962a0).
+  zint::scroll_list_init();
 }
 
 TEST(msgdll_reads_the_message_table_and_zlocgetid) {
@@ -1877,6 +1882,84 @@ TEST(mission_t1m2_radar_shows_its_targets_headless) {
   const RadarStops s = radar_stops(5, 2);
   EXPECT(s.found[1] && s.target_radar && s.target_contacts >= 1 && s.targets_in_sight == s.target_contacts);
   EXPECT(s.blips[1][1] >= 1);
+}
+
+// The texture scroll in play (docs/render.md section 3, Texture scroll): the
+// world's horizon band `horscroll` is on the ScrollAlways list (each .gw's
+// Object3DSetScrollAlways on 0.015 0.0), so its textured UVs move by
+// 0.015 u a second from frame to frame (0x00541ad0), the v kept.
+TEST(mission_c1m1_horizon_scrolls_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_scroll_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    zmod::Model* m = nullptr;
+    float u0 = 0, v0 = 0, u1 = 0, v1 = 0, dt_sum = 0;
+    uint32_t flags = 0;
+    float speed_u = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (frames == 2) {
+        if (zcls::Node* n = zcls::list_find_by_name(6, "horscroll")) m = n->model;
+        for (int32_t k = 0; m && k < static_cast<int32_t>(m->count(0x10)); ++k)
+          if (m->polygons[k].material->flags & 1) {
+            u0 = m->polygons[k].uvs[0], v0 = m->polygons[k].uvs[1];
+            break;
+          }
+        if (m) std::memcpy(&flags, m->header + 8, 4), std::memcpy(&speed_u, m->header + 0x28, 4);
+      }
+      if (frames > 2 && frames <= 32) dt_sum += ztimer::state().dt;
+      if (frames == 32 && m)
+        for (int32_t k = 0; k < static_cast<int32_t>(m->count(0x10)); ++k)
+          if (m->polygons[k].material->flags & 1) {
+            u1 = m->polygons[k].uvs[0], v1 = m->polygons[k].uvs[1];
+            break;
+          }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 33; };
+    app.run(pump);
+    const float du = u1 - u0;
+    std::fprintf(stderr, "  scroll: horscroll %s, flag 0x10 %d, u speed %g; over 30 frames (%.3f s) u %g -> %g (%+g, %g wanted), "
+                         "v %g -> %g\n", m ? "found" : "missing", (flags & 0x10) != 0, speed_u, dt_sum, u0, u1, du,
+                 0.015f * dt_sum, v0, v1);
+    EXPECT(m != nullptr && (flags & 0x10) && speed_u == 0.015f);
+    EXPECT(std::fabs(du - 0.015f * dt_sum) < 1e-4f || std::fabs(std::fabs(du - 0.015f * dt_sum) - 1.0f) < 1e-4f);  // or wrapped
+    EXPECT(v1 == v0 && du != 0.0f);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
 }
 
 TEST(mission_c1m1_nav_waynet_headless) {

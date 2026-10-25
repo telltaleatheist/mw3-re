@@ -488,7 +488,8 @@ More from the emulator check:
   Always: the first call makes an Object3D named `ScrollAlways` whose action
   (0x5963a0) ticks every listed node each time it runs, and the node is
   appended. Otherwise the node's own action becomes 0x596380 (get the model,
-  0x541ad0). Clear(1) at mission end empties the list and frees the holder;
+  0x541ad0). Both model calls are the zmod ports (render.md section 3,
+  Texture scroll; in the program from 2026-10-25). Clear(1) at mission end empties the list and frees the holder;
   clear(0) at 0x490fe4 zeroes each listed model's +0x30.
 - **After a `source`** the error flag is always clear (the sourced file's
   terminating line, or its empty last read, clears it), so the error hook never

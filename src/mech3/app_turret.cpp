@@ -13,6 +13,8 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_init.h"
 #include "mech3/zai_anim_owner.h"
 #include "gamez/zentity/zent_init.h"
 #include "gamez/zmath/zmth_matrix.h"
@@ -130,6 +132,15 @@ struct WiredTurrets : tur::TurretHooks {
   // zEffect, zSound.
   Handle anim_find(const char* name) override { return name ? hd(zeff::anim_find(name)) : 0; }
   uint8_t anim_claim(Handle self, Handle a) override { return ai::anim_owner_claim(self, a) ? 1 : 0; }  // 0x004d4f20
+  // The target view's red (0x004fb8c0 with [0x005e8398]) and its switch (0x004fb840);
+  // the EFFECT's texture scroll (0x00526ae0(1, 10, 0)) and its step (0x00541ad0).
+  void node_tint(Handle n, float amount) override {
+    static const float kRed[3] = {1.0f, 0.0f, 0.0f};  // [0x005e8398]
+    zcls::object3d_set_blend(zn(n), kRed, amount);
+  }
+  void node_tinted(Handle n, int32_t on) override { zcls::object3d_use_blend(zn(n), on); }
+  void model_scroll(Handle m) override { zmod::model_set_scroll(static_cast<zmod::Model*>(ob(m)), 1, 10.0f, 0.0f); }
+  void effect_animate(Handle m) override { zmod::model_scroll_tick(static_cast<zmod::Model*>(ob(m))); }
   void anim_reset(Handle a, Handle n) override {
     if (auto* d = static_cast<zeff::AnimDef*>(ob(a))) zeff::anim_restart(d, zn(n));
   }
