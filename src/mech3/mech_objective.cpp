@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_names.h"
@@ -450,7 +451,7 @@ bool objectives_load(const char* file, const char* block, Objectives& o, Objecti
   if (!b) return false;  // the tree is not freed (original)
   const bool ok = read_objectives(b, o, h);
   h.free_tree(root);
-  if (dir) fix_objective_data(dir, block, o, h);
+  if (dir && zfix::options().bugs) fix_objective_data(dir, block, o, h);
   return ok;
 }
 
