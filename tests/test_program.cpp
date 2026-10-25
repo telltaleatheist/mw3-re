@@ -3680,7 +3680,7 @@ TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
       int frames = 0, killed_at = -1, gone_at = -1;
       bool dominic_on = false, player_on = false, locked = false;
       std::vector<std::string> before, after, later;
-      bool freed = false, off_list = false;
+      bool freed = false, off_list = false, found_before = false, found_by_name = true, handle_alive = true;
     } seen;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
@@ -3732,6 +3732,7 @@ TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
         seen.locked = mech3::program_mech_lock_on(player, seen.enemy);
         mech3::program_mech_set_attacker(seen.dominic, seen.enemy);  // it hit Dominic last
         seen.before = mech3::program_holders_of(seen.eh, seen.enemy);
+        seen.found_before = mech3::ai::valve_hooks().target_find(seen.name.c_str()) == seen.eh;
         mech3::mech_kill(seen.enemy, player);
         seen.killed_at = seen.frames;
         return;
@@ -3744,6 +3745,10 @@ TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
         const auto& l = mech3::ai::entity_list();
         seen.off_list = std::find(l.begin(), l.end(), seen.eh) == l.end();
         seen.after = mech3::program_holders_of(seen.eh, seen.enemy);
+        // The program's own: the valves' lookups by its name, its old handle.
+        seen.found_by_name = mech3::ai::valve_hooks().target_find(seen.name.c_str()) != 0 ||
+                             mech3::ai::valve_hooks().entity_find(seen.name.c_str()) != 0;
+        seen.handle_alive = engine.object_of(seen.eh) != nullptr;
         return;
       }
       if (seen.gone_at > 0 && seen.frames == seen.gone_at + 30) seen.later = mech3::program_holders_of(seen.eh, seen.enemy);
@@ -3758,14 +3763,17 @@ TEST(mission_c1m4_a_wreck_is_deleted_and_forgotten_headless) {
       return s.empty() ? std::string("none") : s;
     };
     std::fprintf(stderr, "  wreck %s: Dominic on it %d, the player %d, locked %d; holders before: %s; after the delete: %s; "
-                         "30 frames on: %s; freed %d, off the list %d\n",
+                         "30 frames on: %s; freed %d, off the list %d; by name before %d after %d; old handle alive %d\n",
                  seen.name.c_str(), seen.dominic_on, seen.player_on, seen.locked, list(seen.before).c_str(),
-                 list(seen.after).c_str(), list(seen.later).c_str(), seen.freed, seen.off_list);
+                 list(seen.after).c_str(), list(seen.later).c_str(), seen.freed, seen.off_list, seen.found_before,
+                 seen.found_by_name, seen.handle_alive);
     EXPECT(seen.enemy && seen.dominic_on && seen.player_on && seen.locked);
     // The two targets, their contacts, the lock, Dominic's last attacker.
     EXPECT(seen.before.size() >= 5 &&
            std::find(seen.before.begin(), seen.before.end(), "Dominic Paine: its last attacker") != seen.before.end());
     EXPECT(seen.freed && seen.off_list);
+    // The program's lists (not the exe's): its name finds nothing, its handle answers null.
+    EXPECT(seen.found_before && !seen.found_by_name && !seen.handle_alive);
     // The targets.zrd objects are not told (not on zEntity's list, as in
     // the exe): their contacts on it go with the next sensors frame.
     for (const std::string& h : seen.after) EXPECT(h == "a targets.zrd object: a contact");

@@ -1411,7 +1411,9 @@ entity, a target, the player or a stranger going; half the vehicles with
 and `mission_c1m4_a_wreck_is_deleted_and_forgotten_headless` (an enemy
 targeted by Dominic and the player, the player's weapon locked on it,
 Dominic's last attacker: killed, then deleted as instant action does, and
-nothing in any vehicle, target or weapon still holds it). 14 of 15 breaks
+nothing in any vehicle, target or weapon still holds it; nor the program's
+own lists: its name finds nothing through the valves' lookups, its old
+handle answers null, FIX (A) on our handle table). 14 of 15 breaks
 (the miss not observable: no list holds a null contact after a sensors
 frame, and a contact at distance 0 needs two vehicles in one place).
 

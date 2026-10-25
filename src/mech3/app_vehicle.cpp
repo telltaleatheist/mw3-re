@@ -538,6 +538,7 @@ bool program_vehicle_free(void* v) {
   else vehicle_delete(static_cast<BasicVehicle*>(v));                   // 0x004ac630(1)
   g_vehicles.erase(static_cast<Vehicle*>(v));     // its zEntity entry goes in the destructor
   g_order.erase(std::remove(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)), g_order.end());
+  if (g_w.forget_object) g_w.forget_object(g_w.engine, v);
   return true;
 }
 void program_vehicles_forget() { g_vehicles.clear(), g_order.clear(); }

@@ -931,8 +931,11 @@ void mech_dead_clear() { dead_mechs().clear(); }
 
 bool mech_free(void* obj) {
   if (!entity_is_mech(obj)) return false;
+  // The program's own lists of it (not the exe's): the AI mechs by name, the handle.
+  mission_ai_mech_forget(obj, g_w.handle_of ? g_w.handle_of(g_w.engine, obj) : 0);
   mech_delete(static_cast<Mech*>(obj));
   mech_objects().erase(obj);  // a mech without a node keeps its zEntity entry (as the exe's)
+  if (g_w.forget_object) g_w.forget_object(g_w.engine, obj);
   return true;
 }
 void mech_kill(void* mech, void* killer) {

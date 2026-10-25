@@ -25,6 +25,7 @@ struct MechWiring {
   uint32_t (*vcall)(void* e, uint32_t obj, uint32_t slot, std::initializer_list<zgame::Arg> args) = nullptr;
   uint32_t (*pilot)(void* e) = nullptr;   // [0x0060861c]
   uint32_t (*view)(void* e) = nullptr;    // [0x005f4c8c]
+  void (*forget_object)(void* e, const void* p) = nullptr;  // an object freed: its handle forgotten (FIX (A))
 };
 void wire_mech_build(const MechWiring* w);  // null: the hooks' defaults again
 // The pocket commander's program side (app_pocket.cpp), from wire_mech_build;
@@ -301,6 +302,8 @@ struct AiMechMade {
   const char* name = nullptr;  // the aiv.zrd record's
 };
 const AiMechMade* mission_ai_mechs(int32_t* count);
+// A mech freed: off the AI mechs made (their names, for the valves' lookups) and the player hooks' set.
+void mission_ai_mech_forget(const void* mech, uint32_t handle);
 // The mission's objectives as the program read them (mech_objective.h), and
 // the hooks it gives them.
 struct Objectives;

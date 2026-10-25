@@ -543,6 +543,12 @@ Handle GameEngine::handle_of(void* p) {
   handles_[p] = h;
   return h;
 }
+void GameEngine::forget_object(const void* p) {
+  auto it = handles_.find(const_cast<void*>(p));
+  if (it == handles_.end()) return;
+  objects_[it->second - 0x00100001u] = nullptr;
+  handles_.erase(it);
+}
 void* GameEngine::object_of(Handle h) const {
   if (h <= 0x00100000u || h - 0x00100000u > objects_.size()) return nullptr;
   return objects_[h - 0x00100001u];

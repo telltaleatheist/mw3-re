@@ -1500,3 +1500,12 @@ is paused.
   the engine's handle table (handles_ keeps the pointer; a new object at
   that address would get the old handle). Reported, not changed. 14 of 15
   breaks (the null contact case not observable).
+- Lead's review (held): the two port-side holders fixed on the branch.
+  mech_free drops the mech from g_ai_mechs / g_ai_names and the player
+  hooks' mech set (mission_ai_mech_forget); GameEngine::forget_object on a
+  mech, vehicle or turret freed (FIX (A): the exe has no handle table, it
+  passes raw pointers). The other registries checked: app_vehicle's
+  g_vehicles / g_order and app_turret's g_turrets / g_locks already drop
+  theirs; app_mech's mech_objects too; app_turret's g_places is keyed by
+  handle and holds copies (no pointer). The c1m4 test shows both (the
+  name finds nothing, the old handle answers null).
