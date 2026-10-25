@@ -1699,3 +1699,8 @@ is paused.
 - Assigned (the lead, after item 5): the version-105 waynet 0x4bed90.
   Branch mac4/waynet-105 off main. Same bar: port, differential, breaks,
   docs, the related set and both suites.
+- Item 6 settled (mac 4), docs only (the lead's (a)): 0x4bed90 and the
+  older net class it builds through 0x402590 / 0x4025b0 (0x4021c0, vtable
+  0x5bb8d0) are the editor's reload of a version-105 net; no shipped net
+  file is 105 (the header reads a "mech3" 105 as 106), so they never run.
+  ai.md 9 and 17.9's Not ported on purpose, 7 symbols rows.
