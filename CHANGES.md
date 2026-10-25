@@ -46,6 +46,11 @@ it is clear what the designers meant.
   60, and above about 166 fps (or at 144 fps once the mech ran a little hot)
   it never recharged at all after its first shot. Beams now recharge at
   their 30 fps pace whatever the frame rate.
+- **Turrets act at the same pace at any frame rate.** A turret looks for a
+  target, turns and fires only on its turn, one frame in as many as there
+  are turrets, so on a faster computer turrets reacted and shot more often.
+  Turns now come by time, at the 30 fps pace: with 14 turrets each acts
+  about twice a second.
 - **Alan talks in every mission.** His name is misspelt in two missions'
   data (the first Instant Action map of the first world and operation 3's
   mission 6), so the game did not give him his radio voice there. Both

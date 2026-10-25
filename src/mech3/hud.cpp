@@ -2189,10 +2189,10 @@ void HudRadar::update_contacts(float dt, float static_px) {
     text2.show_for(-1.0f);
     text2.update(dt);
   }
-  // The shots in the air: a pixel each, red the friendly side's (as coded).
+  // The shots in the air: a pixel each, red those hostile to the player.
   float p[3];
-  bool friendly;
-  for (int32_t i = 0; h.radar_shot(i, p, &friendly); ++i) {
+  bool hostile;
+  for (int32_t i = 0; h.radar_shot(i, p, &hostile); ++i) {
     ztwod::Pixel2D px(0, 0, 0);
     radar_jitter(p, static_px);
     if (active) {
@@ -2212,7 +2212,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
       px.x = radar_px(get_x(), v[0]), px.y = py;
       px.dirty();
     }
-    px.color = friendly ? zvid::pack_bytes(0xff, 0, 0) : zvid::pack_bytes(1, 0xa2, 0x1f);
+    px.color = hostile ? zvid::pack_bytes(0xff, 0, 0) : zvid::pack_bytes(1, 0xa2, 0x1f);
     px.update(dt);
   }
   // The armed landmines within 100 m: a red X each.

@@ -79,6 +79,7 @@
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/player.h"
 #include "mech3/sensors.h"
+#include "mech3/turret.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_attack.h"
 #include "mech3/zai_steps.h"
@@ -1505,6 +1506,107 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
 // the selected one. The player starts on Start, so autonext has already moved
 // on to Able; set on the selected point it is within 25 m: reached (its line
 // said) and, autonext, the next one selected.
+// The turrets on c1m1 (docs/vehicles.md, The turrets in the program): made
+// from aiTurrets.zrd at the load, on zEntity's list; with the player walked
+// up to one it wakes, picks the player and fires; killed outright (the
+// valves' destroy, vt+0x70) it is shut down, its destroy animation run and
+// the kill the player's (+0x3fc, a "building", 200 points).
+TEST(mission_c1m1_turrets_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_turret_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    size_t made = 0, listed = 0;
+    mech3::tur::Turret* t = nullptr;
+    std::string name;
+    bool picked = false, targets_player = false, fired = false, sensed = false;
+    int32_t kills_before = -1, kills_after = -1, points = 0;
+    bool shut = false;
+    float next0 = 0;
+    auto player_stats = [](int i) {
+      for (const mech3::DebriefMech& d : mech3::mech_debrief_lance())
+        if (d.player) return d.stats[i];
+      return -1;
+    };
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      const uint32_t ph = engine.field32(engine.pilot(), 0x14);
+      void* player = engine.object_of(ph);
+      if (frames == 2) {
+        made = mech3::tur::turret_list().size();
+        for (mech3::tur::Turret* x : mech3::tur::turret_list()) {
+          const auto& el = mech3::ai::entity_list();
+          listed += std::find(el.begin(), el.end(), x->self) != el.end();
+          if (!t && x->active && !x->idle && x->weapon) t = x;
+        }
+        if (t) {
+          name = static_cast<zcls::Node*>(engine.object_of(t->node))->name();
+          next0 = t->next_fire;
+          const float at[3] = {t->pos[0] + 60.0f, ground_under(t->pos[0] + 60.0f, t->pos[1] + 100.0f, t->pos[2]),
+                               t->pos[2]};
+          mech3::move_mech(player, at, 0.0f);
+        }
+      }
+      if (t && frames > 2 && frames < 100) {
+        sensed |= t->sensed != 0;
+        picked |= t->picked != 0;
+        targets_player |= t->target && t->target->seen == ph;
+        fired |= t->next_fire != next0;
+      }
+      if (t && frames == 100) {
+        kills_before = player_stats(2);
+        t->kill();  // vt+0x70
+        shut = !t->active;
+        kills_after = player_stats(2);
+        points = player_stats(5);
+      }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 101; };
+    app.run(pump);
+    std::fprintf(stderr, "  turrets: %zu made, %zu listed; %s: sensed %d, picked %d, the player targeted %d, fired %d; "
+                         "kills %d -> %d (%d points)\n",
+                 made, listed, name.c_str(), sensed, picked, targets_player, fired, kills_before, kills_after, points);
+    EXPECT(made >= 8 && listed == made);
+    EXPECT(t != nullptr && name.rfind("tur_", 0) == 0);
+    EXPECT(sensed && picked && targets_player && fired);
+    EXPECT(shut && kills_after == kills_before + 1 && points >= 200);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_c1m1_nav_waynet_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1881,7 +1983,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     app.post_intro_ = &mech3::states().load;
     struct Seen {
       int frames = 0;
-      size_t entities = 0;
+      size_t entities = 0, turrets = 0;
       bool player_first = false, sorted = false;
       int32_t player_n = 0, owens_n = 0;
       bool player_sees_owens = false, owens_hidden = false, owens_sees_player = false, nearest_first = true;
@@ -1901,6 +2003,7 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
         owens = made == 1 ? engine.handle_of(ai[0].mech) : 0;
         const std::vector<mech3::Handle>& list = mech3::ai::entity_list();
         seen.entities = list.size();
+        seen.turrets = mech3::tur::turret_list().size();
         seen.player_first = !list.empty() && list[0] == player;
         seen.sorted = mech3::player_get_60b56c() == 1;
         mech3::SensedContact c[64];
@@ -1958,7 +2061,8 @@ TEST(mission_c1m1_sensors_fill_the_contacts_headless) {
     app.run(pump);
     EXPECT(fade_frames > 1);
     EXPECT(seen.frames >= 7);
-    EXPECT(seen.entities == 10 && seen.player_first && seen.sorted);  // the player, the Owens, the command marker, the seven vehicles
+    // The player, the Owens, the command marker, the seven vehicles and the turrets.
+    EXPECT(seen.turrets > 0 && seen.entities == 10 + seen.turrets && seen.player_first && seen.sorted);
     EXPECT(!seen.far_sensed);
     EXPECT(seen.player_sees_owens && seen.owens_hidden && seen.owens_sees_player && seen.nearest_first);
     EXPECT(seen.near_distance);

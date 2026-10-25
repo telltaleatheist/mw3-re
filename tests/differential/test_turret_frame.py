@@ -38,7 +38,7 @@ COVER = {
     0x4a6c88: 'a mine goes off', 0x4a6cd7: 'the effect animated', 0x4a6cef: 'a target picked',
     0x4a6d05: 'the aim took', 0x4a6d2a: 'ready to fire', 0x4a6d3a: 'the effect lit',
     0x4a6d81: 'a burst begun', 0x4a6da9: 'the firepoints alternate', 0x4a6df0: 'one firepoint',
-    0x4a6ebc: 'a lead', 0x4a6edb: 'the AMS fires', 0x4a6ef8: 'the fire sound', 0x4a6f1d: 'a beam on',
+    0x4a6ebc: 'an arc', 0x4abec6: 'the arc without a heading', 0x4abef4: 'the arc straight up or down', 0x4a6edb: 'the AMS fires', 0x4a6ef8: 'the fire sound', 0x4a6f1d: 'a beam on',
     0x4a6f6b: 'fired from the firepoint', 0x4a6fd3: 'a shot', 0x4a6ff9: 'an ONFIRE_ANIM',
     0x4a7045: 'a burst over', 0x4a7065: 'the fire rate', 0x4a709e: 'a beam off',
     0x4a7113: 'the nearest enemy asked', 0x4a7123: 'the turn wrapped', 0x4a7131: 'its target\'s place',
@@ -69,9 +69,6 @@ def frame_script(w, state):
         x, y, z = (u2f(v) for v in a[:3])
         return f2u([z, y, -x][a[3]])
 
-    def lead(n, a):
-        return f2u(f32(u2f(a[a[3]]) + 0.01 * (a[3] + 1)))
-
     def slope(n, a):
         return f2u(random.Random(h32(w.seed, 'sl', k(), a)).choice([-1.0, 0.25, 1.5]))
 
@@ -85,7 +82,7 @@ def frame_script(w, state):
         return state['pos'].get(a[0], 0)
 
     return {
-        '@wpos': wpos, '@xf': xf, '@ixf': ixf, '@lead': lead, '0x00581ff0': slope,
+        '@wpos': wpos, '@xf': xf, '@ixf': ixf, '0x00581ff0': slope,
         '0x004e6fe0': vehicle, 'veh.vt+0x28': target_of, '0x005a8630': place,
         '0x004d5980': lambda n, a: h32(w.seed, 'los', k() // 7, a) % 3 != 0,
         '0x004b3ae0': lambda n, a: h32(w.seed, 'ams', k()) % 3 == 0,
@@ -136,15 +133,6 @@ class FrameOriginal(Original):
             return fn
         e.stub(0x5227a0, spec='d', fn=through('@xf'))
         e.stub(0x522640, spec='d', fn=through('@ixf'))
-
-        def lead(em, k, a, pop):
-            v = t.handle(k, a)
-            p = a[0]
-            ins = [em.r32(p + 4 * i) for i in range(3)]
-            for i in range(3):
-                em.w32(p + 4 * i, t.handle('@lead', ins + [i]))
-            em._ret(v, pop)
-        e.stub(0x4abea0, spec='c,s0', fn=lead)
 
         fbuf = e.alloc(8)
         pop = ret_pop(0x581ff0)
@@ -339,6 +327,30 @@ class Run:
         return True
 
 
+def lead_cases(probe, run):
+    """0x4abea0 on its own: directions with and without a heading, slopes
+    of 0, NaN and either sign."""
+    o = FrameOriginal(shipped(), 1, {})
+    e = o.e
+    r = random.Random(3)
+    nan = float('nan')
+    cases = [((0.0, 0.3, 0.0), s) for s in (0.0, 0.5, -0.7, nan, 1.0)]
+    cases += [((r.uniform(-1, 1), r.uniform(-1, 1), r.uniform(-1, 1)), r.choice([0.0, 0.2, -0.9, 0.99]))
+              for _ in range(200)]
+    for d, slope in cases:
+        a = e.alloc(12)
+        for i in range(3):
+            e.wf(a + 4 * i, d[i])
+        e.call(0x4abea0, ecx=a, stack=(f2u(slope),))
+        mine = nan_free(bytes(e.cpu.read(a, 12)))
+        buf = (ctypes.c_float * 3)(*d)
+        probe.probe_turret_lead(buf, slope)
+        port = nan_free(bytes(buf))
+        run.cases += 1
+        if mine != port:
+            run.fail('arc', f'{d} {slope}: {mine.hex()} vs {port.hex()}')
+
+
 def main():
     probe = load_probe()
     setup_probe(probe)
@@ -348,6 +360,7 @@ def main():
     probe.probe_turret_peek.argtypes = [U32]
     probe.probe_turret_peek.restype = U32
     probe.probe_turret_turn.restype = I32
+    probe.probe_turret_lead.argtypes = [ctypes.c_void_p, ctypes.c_float]
     run = Run(probe)
     runs = int(sys.argv[1]) if len(sys.argv) > 1 else 120
     tree = shipped()
@@ -356,6 +369,7 @@ def main():
     rng = random.Random(9)
     for k in range(runs - runs // 3):
         run.run(f'made-up {k}', framed(made_tree(rng), rng), 8000 + k)
+    lead_cases(probe, run)
     if run.fails:
         raise SystemExit(f'{run.fails} of {run.cases} differ')
     missed = [v for a, v in COVER.items() if a not in REACHED]

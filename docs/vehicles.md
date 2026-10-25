@@ -1275,19 +1275,24 @@ the kill count (+0x3fc) (4c3).
    begins its clock if none runs, the effect put out, the firepoint the next
    of two (else the first), the shot's start the firepoint's translation
    through the gun's world matrix (0x4ed280(gun, 3), 0x5227a0) and its
-   direction at the target, normalised; with a lead (definition +0x4c) the
-   weapon's slope (0x581ff0, -1 none) bends it (0x4abea0); an AMS turret
+   direction at the target, normalised; a weapon with gravity (definition
+   +0x4c) takes its arc's slope (0x581ff0, -1 none) as the direction's pitch
+   (0x4abea0: the heading kept, its flat part scaled by the same bit-trick
+   square root; no heading: (f, slope, f), or (0, 0, 1) at slope 0); an AMS turret
    fires its AMS (0x4b3bb0(1)); the fire sound at +0xe0 (0x56e7e0, 1.0); a
    beam weapon starts its beam once (0x581f60 shooter, 0x581230), any other
    is fired (0x581fb0 from the firepoint when the definition's +0x84 bit 1,
-   0x581f60, 0x4b4a40(def, node, 0, from, dir, +0x178, 0, 0, the player an
-   enemy: its vehicle's vt+0x24, vt+0x28, +0xc0 against +0xc8), 0x581f60(0,
-   0)) and ONFIRE_ANIMs run; then the next shot: a burst over (its clock
+   0x581f60 with the lock at +0x1a4: the player's vehicle, the picked
+   place, no velocity; 0x4b4a40(def, node, 0, from, dir, +0x178, 0, 0, the
+   shot hostile to the player: the player's vehicle's vt+0x24, vt+0x28,
+   +0xc0 against +0xc8), 0x581f60(0, 0)) and
+   ONFIRE_ANIMs run; then the next shot: a burst over (its clock
    passed) waits FIRE_LIMITS' second value and drops the aim, else
    FIRE_RATE.
 9. A beam on without the aim: stopped (0x581400).
 
-**The pick** 0x4a70d0: a turret without an AMS looks only on the frames
+**The pick** 0x4a70d0 (FIX (B), Owen 2026-10-24, behind `per_second`: the
+turn by game time, below): a turret without an AMS looks only on the frames
 whose number (zClass's [0x72f338]) over the turrets made ([0x609a48])
 leaves its id: one turret a frame, each in turn. Then the turn count
 [0x609a4c] moves on, and unless it wrapped to 0 the nearest contact that is
@@ -1308,6 +1313,15 @@ so once a turret has picked, its target is the player, and on the turns
 the nearest-enemy search is skipped or finds no one in sight it aims at the
 player's place, line of sight or not (the aim's range and cone still
 apply).
+
+**The shot's flag and the AMS side.** 0x4b4a40's last argument is the
+shot hostile to the player: the player's team among the shooter's enemies
+(+0xc8), for a mech's shots (0x4b3550) and a turret's (0x4a6fa9) alike; it
+colours the radar's pixel red and picks the AMS that may take it. An AMS
+asks with side 0 for the shots not hostile to the player (a mech that is
+the player's enemy, 0x41927e), side 1 for the hostile ones; a turret always
+asks side 0, right for them all (team 2). So the player's AMS takes hostile
+turrets' missiles, and tur_ams shoots down the player's.
 
 **The aim** 0x4a71c0: the gun's translation (its matrix +0x24) through the
 node's world matrix, the direction to the target (its length the distance)
@@ -1366,6 +1380,57 @@ turret's 0x284 bytes, its turret's and gun's matrices and the turn after
 every frame; 44 branches; 47 of 47 breaks over the frame, the pick, the
 aim and the limits. The limits' within on every kind directly in
 `test_turret.py` (directions on and either side of the edges).
+
+## The turrets in the program (app_turret.cpp; step 4c3)
+
+The mission load (mission.cpp, the two cases at 0x490c8e / 0x490d25, when
+the app's +0x1b2 [0x608e3a] is set) calls `program_turrets_load`: the
+loader, its hooks on the ports (zClass's lists, nodes and matrices, zEffect,
+zSound, zWeapon's definitions, beams, locks and shots, the hit callback, the
+matrix stack). The turret goes on zEntity's list (0x5a7f50) and so into
+everything that walks it:
+
+- **The sensors** (app_sensors) answer its slots as vtable 0x5c8770 does:
+  vt+0x20..+0x2c, +0x48, +0x4c itself, +0xa0 IS_IDLE, +0xcc awake, +0xd0 in
+  range, the rest 0; its AiTarget is the turret, its nodes its node and
+  centroid. So it gets contacts and the player senses it.
+- **Its frame** runs from the entity walk while the sensors keep its +0x09
+  set (vt+0xcc: active, not idle, the zones meeting the player's), so an
+  idle or dead turret's frame does not run at all.
+- **The AI** (the brain hooks) sees it like a targets.zrd object: its node,
+  centroid and target node, active, still; health 1 while active (vt+0x98).
+- **Its place** (zEntity3d's 0x5a80f0, vt+0x38, ported here): the zone
+  record of the ground under its node (from 10 m up, its flag 8 off, water
+  skipped; "No ground intersections for node ..." without one), its zone id
+  the one shared with the camera's zones, else its first, onto the node.
+  On c1, tur_boss01 / 02 have no ground under them.
+- **The kill credit**: a mech killing it gets a "building" (on_kill's
+  vt+0x48: +0x3fc, 200 points); a turret killing anything credits nothing
+  (vt+0x80 0x4a5bc0).
+- **The HUD**: the three markers; vt+0x3c hands them to the radar, which
+  here still draws mechs' contacts only (hud.md), so turrets have no blip
+  yet.
+- **The end**: the entity list's walk (0x49dc40) deletes each turret
+  (vt+0x00), then 0x4a7970 frees the markers and the file.
+
+A port gap closed with it: the game clock [0x72c530] (zTimer's scaled
+total, the turrets' and the AMS's) was never copied into the weapons' world
+in the program, so the AMS's period never passed and a turret never took a
+turn; `sync_frame_step` copies it each frame with the step.
+
+**The turn by game time** (FIX (B), Owen 2026-10-24, behind `per_second`):
+the pick's turn comes on game time in 1/30 s steps instead of frames: a
+turret's turn is the step whose number over the turrets made leaves its id,
+at most one a frame (`turn_due`), so with N turrets each looks every N/30 s
+at any frame rate; [0x609a4c] moves on per turn as before.
+`fix_turret_turns_by_time` (mw3tests): 14 turrets over two seconds take 60
+turns at 30 fps and 60 fps alike, 4 or 5 each; the exe's frame count takes
+twice as many at 60.
+
+`mission_c1m1_turrets_headless`: c1m1 makes its 14 turrets, all on zEntity's
+list; with the player walked up to tur_srm08 it is sensed, picks, targets
+the player and fires; killed outright (vt+0x70) it shuts down and the
+player's kills of buildings go 0 to 1 (200 points).
 
 ## The stealth object and BASIC mode (2026-10-23; back burner)
 

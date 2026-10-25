@@ -6,6 +6,7 @@
 // the brain's refresh 0x004aedd0, empty) is noted; the level of detail is mech_lod's.
 #include "mech3/app_sensors.h"
 #include "mech3/app_hud.h"
+#include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/mech_lod.h"
 
@@ -18,6 +19,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
+#include "mech3/turret.h"
 #include "mech3/zai_brain.h"
 #include "mech3/zai_target.h"
 
@@ -106,6 +108,14 @@ struct ProgramSensors : ai::SensorHooks {
         case 0x1c: program_vehicle_refresh(v); return 0;      // 0x005a85a0 as 0x005a85c0's
         default: break;
       }
+    } else if (tur::Turret* t = program_turret_by_handle(o)) {  // 0x005c8770
+      switch (slot) {
+        case 0x20: case 0x24: case 0x28: case 0x2c: case 0x48: case 0x4c: return o;  // 0x004d2a70
+        case 0xa0: return t->idle_now() ? 1 : 0;  // 0x004a7a60
+        case 0xcc: return t->awake() ? 1 : 0;     // 0x004a7a70
+        case 0xd0: return t->in_range() ? 1 : 0;  // 0x004a7ab0
+        default: return 0;  // 0x0040bae0, 0x004d7290, the empty 0x005ac5c0 (vt+0xc8)
+      }
     } else if (ai::CZAiTarget* t = target(o)) {  // 0x005ccb90
       switch (slot) {
         case 0x24: case 0x28: case 0x2c: return o;
@@ -127,6 +137,7 @@ struct ProgramSensors : ai::SensorHooks {
   ai::AiTarget* fields(zgame::Handle x) override {
     if (Mech* m = mech(x)) return m;
     if (void* v = vehicle(x)) return static_cast<ai::AiTarget*>(program_vehicle_target(v));
+    if (tur::Turret* t = program_turret_by_handle(x)) return t;
     return target(x);
   }
   int32_t equipment(zgame::Handle m, int32_t kind) override {
@@ -140,12 +151,15 @@ struct ProgramSensors : ai::SensorHooks {
   void set_sensed(zgame::Handle e, uint8_t on) override {
     if (Mech* m = mech(e)) m->x09 = on != 0;
     else if (void* v = vehicle(e)) program_vehicle_set_sensed(v, on != 0);
+    else if (tur::Turret* t = program_turret_by_handle(e)) t->sensed = on;
     else if (ai::CZAiTarget* t = target(e)) t->sensed = on;
   }
   zcls::Node* node(zgame::Handle x, bool centroid) {
     if (Mech* m = mech(x)) return static_cast<zcls::Node*>(centroid ? m->centroid : m->node);
     if (void* v = vehicle(x))
       return static_cast<zcls::Node*>(centroid ? program_vehicle_centroid(v) : program_vehicle_node(v));
+    if (tur::Turret* t = program_turret_by_handle(x))
+      return static_cast<zcls::Node*>(object(centroid ? t->centroid_node : t->node));
     if (ai::CZAiTarget* t = target(x)) return static_cast<zcls::Node*>(object(centroid ? t->centroid_node : t->node));
     return nullptr;
   }

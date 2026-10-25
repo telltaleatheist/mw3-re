@@ -412,7 +412,7 @@ int32_t probe_fly_op(int op, const int32_t* a, uint32_t seed, int32_t* out) {
     }
     case 8: {  // a shot's tick: 0 the test's, 1 the radar's friend, 2 foe
       Projectile* p = pfrom(a[0]);
-      p->tick = a[1] == 1 ? mech3::radar_friend : a[1] == 2 ? mech3::radar_foe : tick_cb;
+      p->tick = a[1] == 1 ? mech3::radar_hostile : a[1] == 2 ? mech3::radar_not_hostile : tick_cb;
       p->tick_arg = reinterpret_cast<uintptr_t>(p);
       return 0;
     }
@@ -567,12 +567,12 @@ void probe_fly_locks(int32_t* o) {
   }
 }
 
-// The radar list: shot token, friendly.
+// The radar list: shot token, hostile.
 int probe_fly_radar(int32_t* o) {
   int n = 0;
   for (const mech3::RadarBlip* b : mech3::radar_blips()) {
     o[n++] = ptok(b->shot);
-    o[n++] = b->friendly ? 1 : 0;
+    o[n++] = b->hostile ? 1 : 0;
   }
   return n;
 }
@@ -697,7 +697,7 @@ int probe_fly_slot(int i, int32_t* o) {
   put(fb(p.track_scale[1]));
   put(p.terrain_follow);
   put(p.net_id);
-  put(p.tick == tick_cb ? 1 : p.tick == mech3::radar_friend ? 2 : p.tick == mech3::radar_foe ? 3 : p.tick ? -2 : 0);
+  put(p.tick == tick_cb ? 1 : p.tick == mech3::radar_hostile ? 2 : p.tick == mech3::radar_not_hostile ? 3 : p.tick ? -2 : 0);
   put(ptok(reinterpret_cast<const Projectile*>(p.tick_arg)));
   return n;
 }

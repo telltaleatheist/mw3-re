@@ -1,4 +1,5 @@
 #include "mech3/app_hud.h"
+#include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
 
 #include <algorithm>
@@ -251,6 +252,7 @@ struct ProgramHudHooks : HudHooks {
   void object_position(void* o, float out[3]) override { entity_position(o, out); }
   void* object_blip(void* o, int32_t kind) override {
     if (!o) return nullptr;
+    if (program_turret(o)) return program_turret_marker(kind);  // vt+0x3c 0x004a5fc0
     if (!mech_radar_blip(0)) mech_radar_blips_create();  // our addition: made when first needed (0x00413e60's part)
     return mech_radar_blip(kind);
   }
@@ -272,14 +274,14 @@ struct ProgramHudHooks : HudHooks {
   // The edge arrow toward it (0x00479ef0 in the data update, 0x00479ed0 drawn).
   void network_data(int32_t active, float) override { program_waypoint_arrow(active); }
   void network_hud() override { program_waypoint_arrow_draw(); }
-  bool radar_shot(int32_t i, float out[3], bool* friendly) override {
+  bool radar_shot(int32_t i, float out[3], bool* hostile) override {
     auto& l = radar_blips();
     auto it = l.begin();
     for (int32_t k = 0; k < i && it != l.end(); ++k) ++it;
     if (it == l.end()) return false;
     const zwep::Vec3f3& p = (*it)->shot->position;
     out[0] = p.x, out[1] = p.y, out[2] = p.z;
-    *friendly = (*it)->friendly;
+    *hostile = (*it)->hostile;
     return true;
   }
   int32_t mine_count() override { return 0; }

@@ -48,9 +48,41 @@ void fetch(const char* key, Handle node, float* out, int n) {
   for (int i = 0; i < n; ++i) out[i] = zgame::from_bits(call(key, {node, i}));
 }
 
+// A pointer into a turret as the original's address of that field.
+const Turret* g_building = nullptr;  // the turret being made (not yet listed)
+uint32_t exe_addr(const void* p) {
+  std::vector<const Turret*> all(mech3::tur::turret_list().begin(), mech3::tur::turret_list().end());
+  if (g_building) all.push_back(g_building);
+  for (const Turret* t : all) {
+    const struct { const void* at; uint32_t off; } fields[] = {
+        {t->pos, 0xe0}, {t->fire_dir, 0x160}, {t->fire_from, 0x16c}, {t->x178, 0x178}};
+    for (const auto& f : fields)
+      if (f.at == p) return t->self + f.off;
+  }
+  return 0xdead;
+}
+
 struct Recording : mech3::tur::TurretHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return call(key, args); }
-  Handle turret_handle() override { return g_next < g_handles.size() ? g_handles[g_next++] : 0; }
+  Handle turret_handle(const void* mem) override {
+    g_building = static_cast<const Turret*>(mem);  // its fields' addresses are what exe_addr needs
+    return g_next < g_handles.size() ? g_handles[g_next++] : 0;
+  }
+  // The turret's own fields as the original's addresses.
+  Handle beam_make(Handle def, Handle node, Handle gun, const float* from, const float* dir) override {
+    return call("0x00584a70", {def, node, 0, gun, exe_addr(from), exe_addr(dir), 2});
+  }
+  void detonate(Handle def, const float* at) override { call("0x005820c0", {def, exe_addr(at), 0}); }
+  float aim_slope(Handle def, const float* from, Handle to) override {
+    return zgame::from_bits(call("0x00581ff0", {def, exe_addr(from), 0, to}));
+  }
+  void shooter_set(Turret& t, bool on) override { call("0x00581f60", {on ? t.self + 0x1a0 : 0u, on ? t.self + 0x1a4 : 0u}); }
+  void weapon_fire(Handle def, Handle node, const float* from, const float* dir, const float* v, int32_t f) override {
+    call("0x004b4a40", {def, node, 0, exe_addr(from), exe_addr(dir), exe_addr(v), 0, 0, f});
+  }
+  void sound_play(Handle sound, const float* at) override {
+    call("0x0056e7e0", {sound, exe_addr(at), zgame::bits(1.0f), 0});
+  }
   void turret_free(Turret* t) override {
     call("turret.vt+0x0", {t->self, 1});
     delete t;
@@ -113,13 +145,8 @@ struct Recording : mech3::tur::TurretHooks {
   void matrix_put(Handle m, int32_t i, float v) override { g_mem[m + 4u * static_cast<uint32_t>(i)] = f2u(v); }
   float weapon_lead(Handle def) override { return zgame::from_bits(peek(def + 0x4c)); }
   uint32_t weapon_fire_flags(Handle def) override { return peek(def + 0x84); }
-  void lead_shot(uint32_t dir, float slope, float d[3]) override {
-    call("0x004abea0", {dir, zgame::bits(slope)});
-    uint32_t in[3] = {f2u(d[0]), f2u(d[1]), f2u(d[2])};
-    for (int i = 0; i < 3; ++i) d[i] = zgame::from_bits(call("@lead", {in[0], in[1], in[2], i}));
-  }
   uint32_t target_team(Handle t) override { return peek(t + 0xc0); }
-  bool ams_find(mech3::Ams&, const float*) override { return call("0x004b3ae0", {0u}) != 0; }
+  bool ams_find(mech3::Ams&, int32_t side, const float*) override { return call("0x004b3ae0", {side}) != 0; }
   Handle ams_target(mech3::Ams&) override { return call("0x004b3ba0", {}); }
   void ams_fire(mech3::Ams&) override { call("0x004b3bb0", {1}); }
   Handle contact_vehicle(const mech3::ai::Contact* c) override { return call("0x004e6fe0", {addr_of(c)}); }
@@ -345,6 +372,8 @@ void probe_turret_counts(int32_t count, int32_t turn) {
 }
 uint32_t probe_turret_peek(uint32_t a) { return peek(a); }
 int32_t probe_turret_turn() { return mech3::tur::turret_turn(); }
+
+void probe_turret_lead(float* d, float slope) { mech3::tur::lead_dir(d, slope); }
 
 void probe_turret_delete_all() { mech3::tur::turrets_delete_all(); }
 void probe_turret_end() { mech3::tur::turrets_end(); }

@@ -53,6 +53,16 @@ struct TurnLimits {
   bool within(const float d[3]) const;
 };
 
+// The pick's turn by game time (FIX (B), behind per_second): one turn in `n`
+// 1/30 s steps, the one leaving `id`; `seen` the last step asked at (-1 none).
+bool turn_due(int64_t& seen, float clock, uint32_t n, int32_t id);
+
+// Mech3.exe 1.2 @ 0x004abea0 (between turret.cpp and veh_basic.cpp): a
+// direction given the pitch's sine `slope`, its heading kept: the flat part
+// scaled to the rest of the length by the same bit-trick square root; with
+// no heading, (f, slope, f), or (0, 0, 1) at slope 0.
+void lead_dir(float d[3], float slope);
+
 // The weapons callback 0x004a7940 installs on the node (0x005833b0): a hit
 // goes to the turret's damage 0x004a7530.
 constexpr uint32_t kHitCallback = 0x004a7940;
@@ -65,8 +75,10 @@ class Turret : public ai::AiTarget {
   Handle self = 0;           // its handle as the hooks see it (the original's block)
   Handle node = 0;           // +0x004  zEntity3d's node
   uint8_t active = 0;        // +0x008  set by the setup when the healthy node is there
+  uint8_t sensed = 1;        // +0x009  (ZEntity) the sensors' "update me": the frame runs while set
   Handle target_node = 0;    // +0x010  zEntity's (0x004d6c90 sets them)
   Handle centroid_node = 0;  // +0x014
+  uint8_t zones[4] = {};     // +0x064  (zEntity3d) its zone record: a count, then ids (0x005a80f0)
   // +0x0d4: the object of the last hit's attacker, credited with the kill
   // (vt+0x80) when the turret goes; the player's vehicle when it is killed
   // outright (vt+0x70). (In the other vehicles +0xd4 is the weapons.)
@@ -109,6 +121,7 @@ class Turret : public ai::AiTarget {
   Handle shooter = 0;        // +0x1a4
   Handle target_at = 0;      // +0x1a8  the picked target's position (3 floats; read through the hooks)
   int32_t x1ac = 0;          // +0x1ac
+  int64_t turn_seen = -1;    // ours: the last 1/30 s step the pick asked at (the turn by time, FIX (B))
   float yaw_lo = -6.2831855f;  // +0x204  LIMITS' YAW in radians
   float yaw_hi = 6.2831855f;   // +0x208
   TurnLimits limits;         // +0x210 (+0x20c points at it)
@@ -170,7 +183,7 @@ void turrets_delete_all();
 class TurretHooks : public zgame::Unported {
  public:
   // A new turret's handle (operator new 0x284).
-  virtual Handle turret_handle() { return 0; }
+  virtual Handle turret_handle(const void* mem) { (void)mem; return 0; }
   virtual void turret_free(Turret* t) { delete t; }
   // The HUD's markers (zTwoD images 0x0059b830 with the vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return unported("0x0059b830", {name, 0, 0, 1}); }
@@ -222,8 +235,10 @@ class TurretHooks : public zgame::Unported {
   virtual Handle weapon_def(const char* name) { return unported("0x00581ed0", {name}); }
   virtual float weapon_range(Handle def) { (void)def; return 0; }              // +0x1c
   virtual uint32_t weapon_flags(Handle def) { (void)def; return 0; }           // +0x6c: 2 a beam
-  virtual Handle beam_make(Handle def, Handle node, Handle gun, uint32_t from, uint32_t dir) {
-    return unported("0x00584a70", {def, node, 0, gun, from, dir, 2});
+  // The pointers are into the turret (its +0xe0, +0x160, +0x16c, +0x178).
+  virtual Handle beam_make(Handle def, Handle node, Handle gun, const float* from, const float* dir) {
+    (void)from, (void)dir;
+    return unported("0x00584a70", {def, node, 0, gun, 0, 0, 2});
   }
   virtual Handle beam_free(Handle beam) { return unported("0x00584b40", {beam}); }
   virtual void beam_stop(Handle beam) { unported("0x00581400", {beam}); }
@@ -238,7 +253,9 @@ class TurretHooks : public zgame::Unported {
   virtual void credit_kill(Handle object, Handle self) { unported("obj.vt+0x80", {object, self}); }
   virtual Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
   // 0x0053cc90 on the two zone lists (+0x64 of each).
-  virtual int32_t zones_meet(Handle a, Handle b) { return static_cast<int32_t>(unported("0x0053cc90", {a, b})); }
+  virtual int32_t zones_meet(Handle player, const Turret& t) {
+    return static_cast<int32_t>(unported("0x0053cc90", {player + 0x64, t.self + 0x64}));
+  }
   // zEntity3d and AiTarget.
   virtual void entity_init(Handle self) { unported("0x005a7e10", {self, 0}); }
   virtual void entity_end(Handle self) { unported("0x005a7f90", {self}); }
@@ -278,27 +295,30 @@ class TurretHooks : public zgame::Unported {
   // the firepoint, 0x00581fb0), +0x6c bit 0x4000 (it goes off where it stands).
   virtual float weapon_lead(Handle def) { (void)def; return 0; }
   virtual uint32_t weapon_fire_flags(Handle def) { (void)def; return 0; }
-  virtual void detonate(Handle def, uint32_t at) { unported("0x005820c0", {def, at, 0}); }
-  virtual float aim_slope(Handle def, uint32_t from, Handle to) {     // 0x00581ff0, -1 for none
-    return zgame::from_bits(unported("0x00581ff0", {def, from, 0, to}));
+  virtual void detonate(Handle def, const float* at) { unported("0x005820c0", {def, 0, 0}); (void)at; }
+  // 0x00581ff0: the arc's slope from `from` to the target, -1 for none.
+  virtual float aim_slope(Handle def, const float* from, Handle to) {
+    (void)from;
+    return zgame::from_bits(unported("0x00581ff0", {def, 0, 0, to}));
   }
-  virtual void lead_shot(uint32_t dir, float slope, float d[3]) {     // 0x004abea0 on the direction
-    unported("0x004abea0", {dir, zgame::bits(slope)});
-    (void)d;
-  }
-  virtual void shooter_set(uint32_t a, uint32_t b) { unported("0x00581f60", {a, b}); }
+  // 0x00581f60: the next shot's lock, the turret's +0x1a0 and its lock
+  // (+0x1a4: the player, the picked place, no velocity); off: none.
+  virtual void shooter_set(Turret& t, bool on) { unported("0x00581f60", {on ? t.self + 0x1a0 : 0u, on ? t.self + 0x1a4 : 0u}); }
   virtual void attach_fire(Handle def, Handle node) { unported("0x00581fb0", {def, node}); }
   virtual void beam_start(Handle beam) { unported("0x00581230", {beam, 0}); }
-  virtual void weapon_fire(Handle def, Handle node, uint32_t from, uint32_t dir, uint32_t out, int32_t enemy) {
-    unported("0x004b4a40", {def, node, 0, from, dir, out, 0, 0, enemy});
+  virtual void weapon_fire(Handle def, Handle node, const float* from, const float* dir, const float* velocity,
+                           int32_t hostile) {
+    (void)from, (void)dir, (void)velocity;
+    unported("0x004b4a40", {def, node, 0, 0, 0, 0, 0, 0, hostile});
   }
-  virtual void sound_play(Handle sound, uint32_t at) {
-    unported("0x0056e7e0", {sound, at, zgame::bits(1.0f), 0});
+  virtual void sound_play(Handle sound, const float* at) {
+    (void)at;
+    unported("0x0056e7e0", {sound, 0, zgame::bits(1.0f), 0});
   }
   // The player's team: its vehicle's vt+0x24, that one's vt+0x28, +0xc0.
   virtual uint32_t player_team(Handle player);
   // The AMS (0x004b3ae0 at the turret's place, 0x004b3ba0, 0x004b3bb0(1)).
-  virtual bool ams_find(Ams& a, const float at[3]);
+  virtual bool ams_find(Ams& a, int32_t side, const float at[3]);
   virtual Handle ams_target(Ams& a);
   virtual void ams_fire(Ams& a);
   // The pick's: a contact's vehicle (0x004e6fe0), its AiTarget (vt+0x28)

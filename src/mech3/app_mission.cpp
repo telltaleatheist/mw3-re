@@ -64,6 +64,8 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_sensors.h"
 #include "mech3/app_states.h"
+#include "mech3/app_turret.h"
+#include "mech3/turret.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/app_view.h"
 #include "mech3/app_keys.h"
@@ -446,6 +448,9 @@ struct WiredBrainHooks : ai::BrainHooks {
   // The pocket commander's marker (app_pocket.cpp) is the one entity here
   // that is not a mech: an AiTarget at its node's place, always up.
   static PocketMarker* marker(Handle v) { return program_pocket_marker(v); }
+  // A turret (app_turret.cpp; its handle its `self`): its vtable 0x005c8770
+  // answers like a target's but for its slots below.
+  static tur::Turret* turret(Handle v) { return v ? program_turret_by_handle(v) : nullptr; }
   // A targets.zrd object (CZAiTarget, its handle its `self`).
   static ai::CZAiTarget* target(Handle v) {
     if (!v) return nullptr;
@@ -468,12 +473,14 @@ struct WiredBrainHooks : ai::BrainHooks {
   float now() override { return mech_game_time(); }
   // A target's vt+0x98 is its health's fraction (0x004d2b20).
   float health(Handle v) override {
+    if (tur::Turret* t = turret(v)) return t->alive();  // vt+0x98 0x0046b780: 1 while active
     if (ai::CZAiTarget* t = target(v)) return t->health_fraction();
     if (void* b = veh(v)) return program_vehicle_health(b);
     return marker(v) ? 100.0f : mech_health(mech(v));
   }
   void position(Handle v, float out[3]) override {
     if (PocketMarker* k = marker(v)) return marker_position(k, out);
+    if (tur::Turret* t = turret(v)) return node_position(t->node, out);
     if (ai::CZAiTarget* t = target(v)) return node_position(t->node, out);
     mech_world_position(mech(v), out);
   }
@@ -489,11 +496,13 @@ struct WiredBrainHooks : ai::BrainHooks {
   }
   ai::AiTarget* targetable(Handle v) override {
     if (PocketMarker* k = marker(v)) return k;
+    if (tur::Turret* t = turret(v)) return t;
     if (ai::CZAiTarget* t = target(v)) return t;
     if (void* b = veh(v)) return static_cast<ai::AiTarget*>(program_vehicle_target(b));
     return v ? mech_ai_target(mech(v)) : nullptr;
   }
   int32_t powered_down(Handle v) override {  // 0x0041cc10; a target's vt+0xa0 is 0 (0x0040bae0)
+    if (tur::Turret* t = turret(v)) return t->idle_now() ? 1 : 0;  // vt+0xa0 0x004a7a60: IS_IDLE
     if (marker(v) || target(v) || veh(v)) return 0;  // a vehicle's vt+0xa0 is 0x0040bae0 too
     return mech_powered_down(mech(v)) ? 1 : 0;
   }
@@ -550,11 +559,12 @@ struct WiredBrainHooks : ai::BrainHooks {
   // the mechs, the targets.zrd objects and the marker.
   Handle contact_entity(const ai::Contact* c) override {
     if (!c || !c->seen) return 0;
-    if (target(c->seen) || marker(c->seen)) return c->seen;
+    if (target(c->seen) || marker(c->seen) || turret(c->seen)) return c->seen;
     return contact_vehicle(c);
   }
   bool entity_active(Handle v) override {
     if (PocketMarker* k = marker(v)) return k->active != 0;
+    if (tur::Turret* t = turret(v)) return t->active != 0;
     if (ai::CZAiTarget* t = target(v)) return t->active != 0;  // +0x08
     return mech_active(mech(v));
   }
@@ -581,15 +591,18 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (entity_is_mech(mech(e))) mech3::mech_aim_at_last_hit(mech(e));
   }
   void velocity(Handle v, float out[3]) override {
-    if (marker(v) || target(v)) return void(out[0] = out[1] = out[2] = 0);  // still
+    if (marker(v) || target(v) || turret(v)) return void(out[0] = out[1] = out[2] = 0);  // still
     if (void* b = veh(v)) return program_vehicle_velocity(b, out);
     mech_lead_velocity(mech(v), out);
   }
-  void vehicle_matrix(Handle v, float m[9]) override { mech_matrix(marker(v) || target(v) ? nullptr : mech(v), m); }
+  void vehicle_matrix(Handle v, float m[9]) override {
+    mech_matrix(marker(v) || target(v) || turret(v) ? nullptr : mech(v), m);
+  }
   // Where a weapon aims: a mech's target node; a target's record "target"
   // subnode (+0x10), else its node.
   void entity_lock_position(Handle v, float out[3]) override {
     if (PocketMarker* k = marker(v)) return marker_position(k, out);
+    if (tur::Turret* t = turret(v)) return node_position(t->target_node ? t->target_node : t->node, out);
     if (ai::CZAiTarget* t = target(v)) return node_position(t->target_node ? t->target_node : t->node, out);
     mech_target_position(mech(v), out);
   }
@@ -606,12 +619,14 @@ struct WiredBrainHooks : ai::BrainHooks {
   // A target's node (+0x04) and centroid (the record's subnode, +0x14, else
   // the node); the marker's node.
   Handle entity_node(Handle v) override {
+    if (tur::Turret* t = turret(v)) return t->node;
     if (ai::CZAiTarget* t = target(v)) return t->node;
     if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
     if (void* b = veh(v)) return e->handle_of(program_vehicle_node(b));
     return e->handle_of(mech_node_of(mech(v)));
   }
   Handle entity_centroid(Handle v) override {
+    if (tur::Turret* t = turret(v)) return t->centroid_node ? t->centroid_node : t->node;
     if (ai::CZAiTarget* t = target(v)) return t->centroid_node ? t->centroid_node : t->node;
     if (PocketMarker* k = marker(v)) return e->handle_of(k->node);
     if (void* b = veh(v)) return e->handle_of(program_vehicle_centroid(b));
@@ -1127,14 +1142,16 @@ struct WiredMissionHooks : MissionHooks {
   }
   void delete_object(Handle obj) override {
     if (program_nav_waynet_delete(e->object_of(obj))) return;  // the missions' +0xb4
-    if (!mech_free(e->object_of(obj)) && !program_vehicle_free(e->object_of(obj))) MissionHooks::delete_object(obj);
+    if (!mech_free(e->object_of(obj)) && !program_vehicle_free(e->object_of(obj)) && !program_turret_free(e->object_of(obj)))
+      MissionHooks::delete_object(obj);
   }
   void fn_49dc40() override {
     auto& list = ai::entity_list();
     while (!list.empty()) {
       const Handle h = list.front();
       const size_t before = list.size();
-      if (!mech_free(e->object_of(h)) && !program_vehicle_free(e->object_of(h))) e->unported("entity vt+0x0", {h, 1});
+      if (!mech_free(e->object_of(h)) && !program_vehicle_free(e->object_of(h)) && !program_turret_free(e->object_of(h)))
+        e->unported("entity vt+0x0", {h, 1});
       // A mech without a node stays on the list (its destructor takes it off
       // only with one, as the exe's would): the front goes regardless, so the
       // loop always ends and nothing is deleted twice.
@@ -1551,6 +1568,11 @@ struct WiredMissionHooks : MissionHooks {
   }
   void targets_end() override { ai::targets_end(); }
   void fn_4d8270() override { ai::targets_delete_all(); }  // the targets and traps deleted (0x004d8360)
+  // The turrets (app_turret.cpp): aiTurrets.zrd's (0x004a76b0, `at` the
+  // camera's zones, which the turrets take from the view here), their
+  // markers and file freed (0x004a7970).
+  void turrets_load(const char* file, Handle) override { program_turrets_load(file); }
+  void fn_4a7970() override { program_turrets_end(); }
   void voice_release(const char* name) override { zsnd::unload_set(name); }
   void sound_reset() override { zsnd::reset(); }
   void zerr(int32_t level, const char*, int32_t line, const char* fmt, const char* arg) override {
@@ -1700,7 +1722,7 @@ void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
 
 void GameEngine::timer_update() {
   ztimer::update();
-  sync_frame_step(ztimer::state().dt);
+  sync_frame_step(ztimer::state().dt, ztimer::state().total_scaled);
 }
 
 // Mech3.exe 1.2 @ 0x00583870 -> 0x00584920: zWeapon down (its pool's nodes

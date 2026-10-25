@@ -7,6 +7,8 @@
 #include "gamez/zinput/zinput.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "mech3/app_mech.h"
+#include "mech3/app_turret.h"
+#include "mech3/turret.h"
 #include "mech3/app_vehicle.h"
 
 #include <cstdio>
@@ -738,17 +740,17 @@ void wire_mech_parts() {
   dc.free = [](Mech& m) { mech_delete(&m); };
 
   // The kill credit: a mech killer's vtable +0x80 is on_kill (0x0041b420),
-  // a basic vehicle's 0x004a5bc0 does nothing; other killers (turrets) are
-  // not ported.
+  // a basic vehicle's and a turret's 0x004a5bc0 do nothing.
   d.killer_notify = [](Handle killer, Mech& victim) {
     if (entity_is_mech(killer)) return static_cast<Mech*>(killer)->on_kill(&victim);
-    if (is_program_vehicle(killer)) return;
+    if (is_program_vehicle(killer) || program_turret(killer)) return;  // 0x004a5bc0: nothing
     if (g_w.unported) g_w.unported(g_w.engine, "killer vt+0x80", {});
   };
   // What on_kill asks of its victim: a basic vehicle answers itself to
   // vt+0x2c and vt+0x40, 0 to vt+0x50 and vt+0x48 (0x004d2a70, 0x0040bae0).
   d.victim_view = [](Handle v, int slot) -> Handle {
     if (is_program_vehicle(v)) return slot == 0x50 || slot == 0x48 ? nullptr : v;
+    if (program_turret(v)) return slot == 0x50 || slot == 0x40 ? nullptr : v;  // a "building" (vt+0x48 itself)
     return slot == 0x48 ? nullptr : v;
   };
   d.salvage_vehicle = [](Handle v) {  // 0x00472ec0 on the mission's store
@@ -871,6 +873,7 @@ void wire_mech_build(const MechWiring* w) {
   panel_calls().entity_mech = entity_mech;
   wire_pocket(w);
   wire_vehicles(w);
+  wire_turrets(w);
   panel_calls().key_binding = [](int32_t action) -> zgame::Handle { return zin::key1_of(action); };
   panel_calls().key_name = [](zgame::Handle k, char* out, int32_t n) { zin::key_name(k, out, static_cast<size_t>(n)); };
   set_shade_hooks(&g_shade_hooks);
@@ -1034,6 +1037,10 @@ void update_entities(float dt) {
     if (!m) {  // another entity's vt+0x34
       if (program_pocket_marker(h)) return;  // the command marker's (0x004d7f80's: nothing to do)
       if (void* v = g_w.object_of(g_w.engine, h); is_program_vehicle(v)) return program_vehicle_frame(v, dt);
+      if (tur::Turret* t = program_turret_by_handle(h)) {  // 0x004a6be0 while the sensors keep it up (+0x09)
+        if (t->sensed) program_turret_frame(t);
+        return;
+      }
       if (g_w.unported) g_w.unported(g_w.engine, "entity vt+0x34", {h});
       return;
     }
@@ -1378,6 +1385,20 @@ void mech_lead_velocity(void* mech, float out[3]) {
 void mech_matrix(void* mech, float m9[9]) {
   const float* t = mech ? static_cast<Vehicle*>(mech)->transform : nullptr;
   for (int i = 0; i < 9; ++i) m9[i] = t ? t[i] : (i % 4 == 0 ? 1.0f : 0.0f);
+}
+// obj.vt+0x80 for a killer that is a mech (0x0041b420); false otherwise.
+bool program_mech_kill_credit(void* killer, void* victim) {
+  if (!entity_is_mech(killer)) return false;
+  static_cast<Mech*>(killer)->on_kill(victim);
+  return true;
+}
+// A mech's or a basic vehicle's zone record (+0x64); false for anything else.
+bool program_entity_zones(const void* e, uint8_t out[4]) {
+  if (!entity_is_mech(e) && !is_program_vehicle(e)) return false;
+  const auto* v = static_cast<const Vehicle*>(e);
+  out[0] = v->x64;
+  std::memcpy(out + 1, v->zones, 3);
+  return true;
 }
 void mech_target_position(void* mech, float out[3]) {
   out[0] = out[1] = out[2] = 0;

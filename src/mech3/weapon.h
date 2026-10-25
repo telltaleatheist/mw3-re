@@ -308,21 +308,21 @@ Weapon* make_vehicle_weapon(int32_t index, Handle node, WeaponManager* m);  // 0
 int32_t beam_recharge(float rate, float x, float dt, float* carry);
 // 0x004b4a40: spawns the shot; with SHOW_ON_RADAR the projectile goes on the radar.
 Handle spawn_projectile(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                        const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly);
+                        const Vec3f* velocity, int32_t p5, int32_t p6, bool hostile);
 
 // 0x00585010 (the port, or WeaponCalls::spawn when set).
 Handle spawn_shot(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly);
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool hostile);
 
 // The radar's list of shots in the air this frame (0x004b49c0..0x004b4b96).
 struct RadarBlip {                     // 8 bytes
   zwep::Projectile* shot;              // +0
-  bool friendly;                       // +4
+  bool hostile;                        // +4  to the player (the shooter's enemies hold the player's team)
 };
 std::list<RadarBlip*>& radar_blips();                      // 0x0060b228
-void radar_add(zwep::Projectile* p, bool friendly);        // 0x004b49c0
-void radar_foe(zwep::Projectile* p);                       // 0x004b4a20
-void radar_friend(zwep::Projectile* p);                    // 0x004b4a30
+void radar_add(zwep::Projectile* p, bool hostile);         // 0x004b49c0
+void radar_not_hostile(zwep::Projectile* p);               // 0x004b4a20
+void radar_hostile(zwep::Projectile* p);                   // 0x004b4a30
 void radar_clear();                                        // 0x004b4b10 (action 0x004b49b0)
 void radar_objects_create();                               // 0x004b4ab0
 void radar_objects_destroy();                              // 0x004b4ae0
@@ -369,7 +369,7 @@ struct WeaponCalls {
   Handle (*entity_target)(Handle entity) = nullptr;           // +0x6c, a record whose +4 is the target
   Handle (*record_target)(Handle record) = nullptr;           // record +4
   Handle (*target_projectile)(Handle target) = nullptr;       // vt+0x2c then vt+0x58
-  uint32_t (*entity_allies)(Handle entity) = nullptr;         // +0xc8
+  uint32_t (*entity_enemies)(Handle entity) = nullptr;        // +0xc8, its enemies' teams
   uint32_t (*player_team)() = nullptr;                        // mission player vt+0x24, vt+0x28, +0xc0
   int32_t (*owner_x58)(Handle owner) = nullptr;               // owner vt+0x58: nonzero skips the lock
   std::vector<Firepoint*>* (*firepoints)(Handle owner) = nullptr;  // 0x004846a0 on +0x684 +0xc, then +0x24
@@ -403,8 +403,8 @@ struct WeaponCalls {
   const Vec3f* (*node_axis)(Handle node) = nullptr;           // node +0x38 +0x78: the facing
   float (*normalize)(Vec3f* v, Vec3f* out) = nullptr;         // 0x0051e3d0, returns |v|
   Handle (*spawn)(WeaponDef* def, Handle node, Handle x64, const Vec3f* muzzle, const Vec3f* dir,
-                  const Vec3f* velocity, int32_t p5, int32_t p6, bool friendly) = nullptr;  // 0x00585010 (friendly is not passed)
-  void (*radar_track)(Handle projectile, bool friendly) = nullptr;  // +0x5d0 = 0x004b4a30 / 0x004b4a20
+                  const Vec3f* velocity, int32_t p5, int32_t p6, bool hostile) = nullptr;  // 0x00585010 (hostile is not passed)
+  void (*radar_track)(Handle projectile, bool hostile) = nullptr;  // +0x5d0 = 0x004b4a30 / 0x004b4a20
   Handle (*beam_create)(WeaponDef* def, Handle owner_node, Handle node, const Vec3f* muzzle,
                         const Vec3f* dir) = nullptr;           // 0x00584a70(0, node, muzzle, dir, 1)
   void (*beam_start)(Handle beam) = nullptr;                  // 0x00581230

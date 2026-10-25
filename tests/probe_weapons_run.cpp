@@ -50,7 +50,7 @@ Handle h(uint32_t v) { return reinterpret_cast<Handle>(static_cast<uintptr_t>(v)
 // The world table; the layout is the test's (test_weapons_run.py, World).
 enum W {
   kPartMech, kPlayer, kMissionPlayer, kStats, kLockTargets, kVehicle, kEntity, kMech, kVehicleNode, kEntityNode, kX64,
-  kRecord, kTarget, kTargetMech, kTmEcm, kEntityId, kTargetX10, kTargetKey, kTargetProj, kAllies, kTeam,
+  kRecord, kTarget, kTargetMech, kTmEcm, kEntityId, kTargetX10, kTargetKey, kTargetProj, kEnemies, kTeam,
   kOwnerX58, kFcs, kControl, kHeat, kScreen, kHighlight, kView, kViewKind, kTorsoAim, kTorsoLook,
   kRotA, kRotB = kRotA + 4, kClock = kRotB + 4, kDt, kVel, kSpawn = kVel + 3, kBeam, kNetIds, kNetTargets = kNetIds + 3,
   kTime = kNetTargets + 3, kWorldEnd,
@@ -125,7 +125,7 @@ void set_calls() {
   c.entity_target = [](Handle) { return h(g_w[kRecord]); };
   c.record_target = [](Handle) { return h(g_w[kTarget]); };
   c.target_projectile = [](Handle) { return h(g_w[kTargetProj]); };
-  c.entity_allies = [](Handle) { return static_cast<uint32_t>(g_w[kAllies]); };
+  c.entity_enemies = [](Handle) { return static_cast<uint32_t>(g_w[kEnemies]); };  // +0xc8
   c.player_team = [] { return static_cast<uint32_t>(g_w[kTeam]); };
   c.owner_x58 = [](Handle) { return g_w[kOwnerX58]; };
   c.firepoints = [](Handle) { return &g_fps; };

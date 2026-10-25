@@ -771,9 +771,9 @@ circle by its distance times radius over range, turned into the mech's frame
   [%2!d!m]", with the metres rounded up.
 - **The shots in the air** (the weapons' radar list, weapon.h
   `radar_blips`: the missiles, SHOW_ON_RADAR): a pixel each (Pixel2D,
-  0x005a6b80) inside the circle, red for the shots marked friendly, the HUD
-  green for the rest (as coded; whether "friendly" is the player's side is
-  weapons.md's question); over the map only where the map takes the point.
+  0x005a6b80) inside the circle, red for the shots hostile to the player
+  (0x4b4a40's flag: the player's team among the shooter's enemies), the HUD
+  green for the rest; over the map only where the map takes the point.
 - **The landmines** (0x00604e48, landmines.zrd): every armed one within
   100 m (the squared distance against 10000 [0x005c00f0]) and inside the
   circle, a red X of two 3-pixel lines.

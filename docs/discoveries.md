@@ -3035,8 +3035,9 @@ first, 0x00486f40, and the pilot files behind it (details: `pilot.md`,
   (most say 0.1 to 0.2 s). The original counted every turret made since the
   game started, not just this mission's, so each mission played in one
   sitting made the next mission's turrets act less often; the rebuild
-  counts each mission's own. (At a higher frame rate turrets also act more
-  often.) (docs/vehicles.md, The turrets' frame)
+  counts each mission's own. At a higher frame rate turrets also acted more
+  often; the rebuild gives the turns by time, at the 30 fps pace.
+  (docs/vehicles.md, The turrets' frame)
 
 - **Once a turret has seen you, it aims at you.** After any pick, a
   turret's target becomes the player, if the player is among what it
