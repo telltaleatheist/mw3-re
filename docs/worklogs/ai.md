@@ -1984,3 +1984,16 @@ is paused.
   but never met over a full turn (its node has no model; open). Flaring
   lights: c1, c2, c4, t1 one, c3 two, c4b none. fixes.md's candidate
   withdrawn.
+
+## HUD plan item 1: the 25 lines and 0x5a67c0 (2026-10-25, mac 4)
+
+- Assigned (the lead): who writes the 25 text lines in a release build,
+  whether they are developer-only, and which layer 0x5a67c0 ticks; docs only.
+- Done (mac 4): every writer traced (hud.md section 20): the clears, the
+  vehicles' and stealth object's readouts, and the app key handler's
+  commands 0x82 / 0x83 / 0x89, whose handler 0x40dba0 is registered only
+  for 0x61 / 0x6c / 0x70 (three references in the exe): developer-only, as
+  is the frame-rate text. 0x5a6790 / 0x5a67c0 take the weather's manager
+  [0x736328]: the rain and snow, which the program never makes (c3, c4, t1
+  rain; c4b m4 / m6 snow). hud-plan.md items 2-5 skipped or moved; the
+  weather is a new candidate outside the HUD.
