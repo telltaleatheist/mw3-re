@@ -210,9 +210,15 @@ every frame's list was "all" and every zone drew (the tunnel's insides
 from outside it, and the like). **The port**: `zcls::camera_set_zone`
 (camera.cpp); the program's `camera_zone` (app_view.cpp) does 0x40b080's
 steps; the render's `zone_probe` is `ground_below` (app_mission.cpp).
-zWeapon keeps its own copy of [0x74a328] (`run_state().zone`, set from it
-at the tick's start and per shot): in the exe the one global the queries
-read, in the port separate and not yet tied to the render's (open).
+zWeapon reads and writes the same list (`zwep::query_zone` and
+`set_query_zone`, the exe's word over `zmod::zones().list`): one copy, as
+the exe's one global. Its readers and writers: the tick 0x5823c0 keeps the
+list in `tick_zone` (0x9a17a8) and puts it back at the end; each shot's
+update 0x585710 sets the shot's zones (+0x08, from the shooter's +0x64 at
+the spawn; low byte 4: the tick's) and each beam 0x5814b0 its own (+0x10,
+else the tick's), so a shot's casts (0x5861f0) and the guided
+shots' ground (0x4eda10) run over its shooter's zones; the spawn's
+straight-shot cast 0x585010 reads whatever the list is then (the camera's).
 
 **The queries follow it.** The segment and ground queries skip a node
 whose zone is not in [0x74a328] (cls_di.cpp, as the exe), so the AI's line
@@ -233,7 +239,11 @@ at random, the bytes past four): the answer and the camera's two words.
 start the camera, the render's list, the player's mech (+0x64 and its
 node's byte), the animations and the render's own probe read {1}, zone 44
 and 22 not drawn; put in the tunnel they read {1, 44}, zone 44 drawn.
-A segment toward NaN ends. Breaking the port showed the tests catch it, 8 of 9: an 0xff not seen, a
+A segment toward NaN ends. In the tunnel the weapons' segment query finds
+g56, a zone-44 wall 16 m from the player, under {1, 44} and not under {1};
+a PPC shot with the player's zones stops on it, one with {1} (and the list
+{1} at its spawn) flies through. Breaking the port showed the tests catch it, 9 of 10 (zWeapon
+with a private copy of the list: both shots hit the wall): an 0xff not seen, a
 count of 0 setting, the ids read only to three, +0x1e0 not set, the
 target's zones or the animations' left, the probe's second word; the
 render's list left is not caught (the frame copies it anyway, above); and

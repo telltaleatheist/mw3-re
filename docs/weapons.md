@@ -414,8 +414,10 @@ the shot). The fire and flyout choices are set back to 0.
 
 ### The frame (tick 0x5823c0)
 
-The tick saves the zone ([0x74a328]), runs every def's update (beams:
-0x5814b0), then every projectile def's commit, and puts the zone back.
+The tick saves the zone ([0x74a328], the camera's list; the port's
+`query_zone`, one copy with the render's, view.md section 7), runs every
+def's update (beams: 0x5814b0), then every projectile def's commit, and
+puts the zone back.
 
 Update (0x585710), per shot: state 1; its callback; the zone set to the
 shot's (or the tick's); then **shot down** (health exactly 0: the

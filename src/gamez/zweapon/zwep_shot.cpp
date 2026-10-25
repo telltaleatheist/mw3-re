@@ -8,6 +8,7 @@
 
 #include "crt/msvc_rand.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zweapon/zweapon.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -108,6 +109,13 @@ Projectile zeroed() {
 
 RunHooks& run_hooks() { return g_rh; }
 RunState& run_state() { return g_rs; }
+
+uint32_t query_zone() {
+  uint32_t z;
+  std::memcpy(&z, zmod::zones().list, 4);
+  return z;
+}
+void set_query_zone(uint32_t zone) { std::memcpy(zmod::zones().list, &zone, 4); }
 
 // Mech3.exe 1.2 @ 0x005830b0: a spare copy of the FLYOUT model, or a new one.
 Handle model_take(WeaponDef* def) {
@@ -389,7 +397,7 @@ Projectile* spawn(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3
 // weapon's shots or beams move, then the projectiles' nodes follow. The
 // splash queue it drains first is never filled (zweapon.cpp, splash).
 void tick() {
-  g_rs.tick_zone = g_rs.zone;
+  g_rs.tick_zone = query_zone();
   State& s = state();
   for (WeaponDef& d : s.defs) {
     if (!d.key) continue;
@@ -398,7 +406,7 @@ void tick() {
   }
   for (WeaponDef& d : s.defs)
     if (d.key && !(d.flags & kBeam)) commit(&d);
-  g_rs.zone = g_rs.tick_zone;
+  set_query_zone(g_rs.tick_zone);
 }
 
 // Mech3.exe 1.2 @ 0x00585710: one frame of every shot of a weapon: shot down,
@@ -411,7 +419,7 @@ void update(WeaponDef* def) {
   for (Projectile* p = def->active; p; p = p->next) {
     p->state = 1;
     if (p->tick) p->tick(p);
-    g_rs.zone = (p->zone & 0xff) == 4 ? g_rs.tick_zone : p->zone;
+    set_query_zone((p->zone & 0xff) == 4 ? g_rs.tick_zone : p->zone);
     if (eq0(p->health)) {
       if (def->destroy_animation) play_at(def->destroy_animation, p->position);
       else air_burst(def, p);

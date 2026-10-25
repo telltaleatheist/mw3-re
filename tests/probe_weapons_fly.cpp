@@ -244,7 +244,7 @@ void set_hooks() {
     std::vector<int32_t> v;
     v3(v, *a);
     v3(v, *b);
-    v.push_back(static_cast<int32_t>(zwep::run_state().zone));
+    v.push_back(static_cast<int32_t>(zwep::query_zone()));
     const int32_t r = callv(38, v, buf);
     const uint8_t total = out->total;  // 0x004eed90 writes only the count byte
     read_list(buf, out);
@@ -256,7 +256,7 @@ void set_hooks() {
     std::vector<int32_t> v;
     v3(v, *a);
     v3(v, *b);
-    v.push_back(static_cast<int32_t>(zwep::run_state().zone));
+    v.push_back(static_cast<int32_t>(zwep::query_zone()));
     const int32_t r = callv(39, v, buf);
     read_list(buf, out);
     return r;
@@ -339,7 +339,7 @@ void probe_fly_globals(const int32_t* g) {
   hs.dt = bf(g[0]);
   rs.frame = static_cast<uint32_t>(g[1]);
   rs.net_clock = bf(g[2]);
-  rs.zone = static_cast<uint32_t>(g[3]);
+  zwep::set_query_zone(static_cast<uint32_t>(g[3]));
   zwep::state().init_arg = g[4];
   f.damage_scale = bf(g[5]);
   f.track_scale[0] = bf(g[6]);
@@ -738,7 +738,7 @@ int probe_fly_world(int32_t* o) {
   put(fb(hs.health_after));
   put(hs.hits);
   const zwep::RunState& rs = zwep::run_state();
-  put(static_cast<int32_t>(rs.zone));
+  put(static_cast<int32_t>(zwep::query_zone()));
   put(static_cast<int32_t>(rs.tick_zone));
   put(rs.owner_hidden);
   put(rs.pool_objects);

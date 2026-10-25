@@ -291,7 +291,7 @@ void beam_update(WeaponDef* def) {
   for (Beam* b = def->beams; b; b = b->next) {
     hs.beam_ground_fx = static_cast<int32_t>(b->flags & 1);
     int32_t n = 0;
-    rs.zone = b->zone ? *b->zone : rs.tick_zone;
+    set_query_zone(b->zone ? *b->zone : rs.tick_zone);
     if (def->flags & kMultiTarget) {
       multi_target(def, b, &n);
     } else {

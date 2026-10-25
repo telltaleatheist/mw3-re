@@ -966,9 +966,9 @@ TEST(mission_c1m1_frames_run_the_ticks_in_order_headless) {
         watcher(2, [](zcls::Node*) { g_watch.add("2>"); }, true);
         watcher(3, [](zcls::Node*) {
           g_watch.add("3<");
-          zwep::run_state().zone = 0x55, zwep::run_state().tick_zone = 0;  // the weapon tick copies it
+          zwep::set_query_zone(0xffffff01u), zwep::run_state().tick_zone = 0;  // the weapon tick copies it ({1, all})
         }, false);
-        watcher(3, [](zcls::Node*) { g_watch.add(zwep::run_state().tick_zone == 0x55 ? "3>" : "3>no-tick"); }, true);
+        watcher(3, [](zcls::Node*) { g_watch.add(zwep::run_state().tick_zone == 0xffffff01u ? "3>" : "3>no-tick"); }, true);
         watcher(4, [](zcls::Node*) { g_watch.add("4"); }, false);
       }
     };
@@ -1525,6 +1525,36 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
     Snap outside, inside;
     bool nan_query_ended = false;
     int frames = 0;
+    // A wall only in zone 44 (zWeapon's queries read the one [0x0074a328]):
+    // found by the weapons' segment query under {1, 44}, missed under {1}; a
+    // shot with the player's zones stops on it, one with {1} does not.
+    struct Wall {
+      zwep::Handle node = nullptr;
+      zwep::Vec3f3 from{}, dir{};
+      float dist = 0;
+      bool missed_outside = false;
+      const char* weapon = nullptr;
+      int marks_inside = 0, marks_outside = 0;
+      bool hit_inside = false, hit_outside = false;
+      int shot = 0;  // 1 the inside shot is flying, 2 the outside one
+    } wall;
+    static Wall* s_wall;
+    s_wall = &wall;
+    auto nearest_off_player = [](const zwep::Vec3f3& a, const zwep::Vec3f3& b, float* d2) -> zwep::Handle {
+      static zwep::HitList hl;
+      hl = zwep::HitList{};
+      zwep::run_hooks().segment_list(&a, &b, &hl);
+      zwep::Handle best = nullptr;
+      for (int i = 0; i < hl.count; ++i) {
+        const zwep::HitRecord& r = hl.rec[i];
+        if (!r.node || mech3::node_entity(r.node) == mech3::mech_mission_player()) continue;
+        const float dx = r.point.x - a.x, dy = r.point.y - a.y, dz = r.point.z - a.z;
+        const float e = dx * dx + dy * dy + dz * dz;
+        if (!best || e < *d2) best = r.node, *d2 = e;
+      }
+      return best;
+    };
+    const auto marks = zwep::hit_hooks().surface_mark;
     auto snap = [&](Snap& n) {
       auto* v = mech3::program_view();
       auto* c = v ? static_cast<zcls::Node*>(v->camera) : nullptr;
@@ -1566,12 +1596,57 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
         uint8_t count = 0;
         mech3::world_segment_first(from, nowhere, 0, &count);
         nan_query_ended = true;
+        float at[3];
+        mech3::node_world_cached(mech3::mech_centroid_of(mech3::mech_mission_player()), at);
+        wall.from = {at[0], at[1], at[2]};
+        const uint32_t tunnel_zone = 0xff2c0102u, one_zone = 0xffff0101u;  // {2, 1, 44}, {1, 1}
+        for (int i = 0; i < 32 && !wall.node; ++i) {
+          const float a = static_cast<float>(i) * 0.19634954f;
+          const zwep::Vec3f3 d{std::sin(a), 0.0f, std::cos(a)};
+          const zwep::Vec3f3 to{wall.from.x + 150 * d.x, wall.from.y, wall.from.z + 150 * d.z};
+          float d2 = 0, d2_one = 0;
+          zwep::set_query_zone(tunnel_zone);
+          zwep::Handle n = nearest_off_player(wall.from, to, &d2);
+          if (!n || static_cast<zcls::Node*>(n)->raw[0x30] != 44) continue;
+          zwep::set_query_zone(one_zone);
+          zwep::Handle m = nearest_off_player(wall.from, to, &d2_one);
+          wall.node = n, wall.dir = d, wall.dist = std::sqrt(d2), wall.missed_outside = m != n;
+        }
+        std::memcpy(zmod::zones().list, inside.render, 4);
+        for (zwep::WeaponDef& d : zwep::state().defs)
+          if (d.key && !(d.flags & (zwep::kBeam | zwep::kTargetHeat | zwep::kMine | zwep::kLockOn)) && d.range > wall.dist + 5) {
+            wall.weapon = d.key;
+            break;
+          }
+        zwep::hit_hooks().surface_mark = [](zwep::HitRecord* h) {
+          if (s_wall->shot == 1) ++s_wall->marks_inside, s_wall->hit_inside |= h->node == s_wall->node;
+          if (s_wall->shot == 2) ++s_wall->marks_outside, s_wall->hit_outside |= h->node == s_wall->node;
+        };
+      } else if ((frames == 16 || frames == 46) && wall.node && wall.weapon) {
+        // The inside shot: the camera's list and the player's zones ({2, 1, 44},
+        // ZEntity3d +0x64). The outside one: both {1, 1}, as with the camera
+        // over zone-1 ground (the spawn's straight-shot cast reads the list).
+        static uint32_t zone;
+        zone = frames == 16 ? 0xff2c0102u : 0xffff0101u;
+        wall.shot = frames == 16 ? 1 : 2;
+        const uint32_t keep = zwep::query_zone();
+        zwep::set_query_zone(zone);
+        const zwep::Vec3f3 still{0, 0, 0};
+        zwep::spawn(zwep::find_def(wall.weapon), mech3::mech_node_of(mech3::mech_mission_player()), &zone, &wall.from,
+                    &wall.dir, &still, 0, nullptr);
+        zwep::set_query_zone(keep);
       }
     };
     CountingPump pump;
-    pump.stop = [&] { return frames > 15; };
+    pump.stop = [&] { return frames > 75; };
     pump.limit = 2000;
     app.run(pump);
+    zwep::hit_hooks().surface_mark = marks;
+    if (std::getenv("MW3_ZONE_LOG")) {
+      std::fprintf(stderr, "WALL %s dist %.1f missed_outside %d weapon %s marks %d/%d hit %d/%d\n",
+                   wall.node ? static_cast<zcls::Node*>(wall.node)->name() : "-", wall.dist, wall.missed_outside,
+                   wall.weapon ? wall.weapon : "-", wall.marks_inside, wall.marks_outside, wall.hit_inside, wall.hit_outside);
+    }
     if (std::getenv("MW3_ZONE_LOG"))
       for (const Snap* n : {&outside, &inside})
         std::fprintf(stderr, "ZONE set %d cam %d %d %d %d render %d %d %d %d mech %d %d %d %d node %d visible 1:%d 22:%d 44:%d\n", n->set,
@@ -1588,6 +1663,8 @@ TEST(mission_c4b_m6_camera_zone_follows_the_ground_headless) {
     EXPECT(outside.anim_known == 1 && !std::memcmp(outside.anim, one, 4) && !std::memcmp(inside.anim, tunnel, 4));
     EXPECT(outside.probe_hit == 1 && !std::memcmp(outside.probe, one, 4));
     EXPECT(inside.probe_hit == 1 && !std::memcmp(inside.probe, tunnel, 4));
+    EXPECT(wall.node && wall.missed_outside && wall.weapon);
+    EXPECT(wall.hit_inside && !wall.hit_outside);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();

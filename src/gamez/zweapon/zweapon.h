@@ -254,13 +254,17 @@ RunHooks& run_hooks();
 struct RunState {
   uint32_t frame = 0;                  // 0x0072f338  the frame counter
   float net_clock = 0;                 // 0x0072c538
-  uint32_t zone = 0;                   // 0x0074a328  the zone set the queries use
   uint32_t tick_zone = 0;              // 0x009a17a8  the zone the tick found
   int32_t owner_hidden = 0;            // 0x009a17ac  the shooter's node was taken out of the query
   int32_t pool_objects = 0;            // 0x009a17b0  the pool's scene nodes exist
   Handle lights = nullptr;             // 0x009a0ebc  the impact light pool, linked through +0x40
 };
 RunState& run_state();
+// [0x0074a328], the zone set the queries use: zModel's one list
+// (zmod::zones().list, the camera's from 0x0040b080), read and written as the
+// exe's word. view.md section 7.
+uint32_t query_zone();
+void set_query_zone(uint32_t zone);
 
 // The startup (0x00583750): zWeapon's globals back to their first values,
 // the definitions and the pool emptied; with the network mode (0x00583740,

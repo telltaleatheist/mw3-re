@@ -1855,4 +1855,12 @@ is paused.
   exe too). ground_under now asks with the zone mode off; FIX (bug): the
   walk stops at NaN (fixes.md, CHANGES); the zone test checks a NaN query
   ends. 8 of 9 breaks.
+- Review (the lead): join zWeapon's copy of [0x74a328] before the merge.
+  Done: `run_state().zone` is gone; `zwep::query_zone` / `set_query_zone`
+  read and write `zmod::zones().list` (one copy). Readers: the tick
+  (tick_zone), each shot's update and each beam (set, then the casts and
+  the ground), the spawn's straight cast (reads it). Before, the
+  per-shot zone reached no query. mw3tests: a PPC shot in the c4b m6
+  tunnel stops on g56 (zone 44, 16 m) with the player's zones, flies
+  through with {1}; 9 of 10 breaks (the private copy: both hit).
 
