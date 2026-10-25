@@ -381,7 +381,7 @@ class GameEngine : public Engine {
   void hud_update() override;  // 0x0040fac0: the HUD frame, its parts in the exe's order
   Handle pilot_hud(Handle data) override;          // 0x00430aa0 on the MechData
   void hud_static(Handle hud, float dt) override;  // 0x0043cd20
-  void hud_zoom_pass(Handle hud, float dt) override;  // 0x00444230: item 6c, logged
+  void hud_zoom_pass(Handle hud, float dt) override;  // 0x00444230: the reticle's zoom window's 3D pass
   void render_reset() override;                    // 0x00557b20: 0x005581c0, then 0x00557b30 (logged)
   void message_panel_init(Handle, Handle) override;  // 0x0040f410
   void message_panel_free() override;                // 0x0040f7d0

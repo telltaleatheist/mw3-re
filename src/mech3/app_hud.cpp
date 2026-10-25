@@ -14,6 +14,7 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/window.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
@@ -79,6 +80,8 @@ struct ProgramHudHooks : HudHooks {
   std::vector<zcls::Node*> nodes;
   uint32_t keep(zcls::Node* n) {
     if (!n) return 0;
+    for (size_t i = 0; i < nodes.size(); ++i)
+      if (nodes[i] == n) return 0x7e000001u + static_cast<uint32_t>(i);  // asked again (the zoom, each frame)
     nodes.push_back(n);
     return 0x7e000000u + static_cast<uint32_t>(nodes.size());
   }
@@ -116,6 +119,36 @@ struct ProgramHudHooks : HudHooks {
   void camera_set_angles(uint32_t c, const float a[3]) override {
     zcls::camera_set_rotation(node(c), a[0], a[1], a[2]);
   }
+  // The zoom's 3D pass (0x00442f50, 0x004436c0, hud.md section 23).
+  uint32_t object_node(void* o) override { return keep(static_cast<zcls::Node*>(static_cast<Mech*>(o)->node)); }
+  void player_camera_place(float out[3]) override {
+    const zcls::Camera* c = camera_data();
+    for (int i = 0; i < 3; ++i) out[i] = c ? c->get<float>(0x14 + 4 * i) : 0.0f;
+  }
+  uint32_t player_camera_zone() override {
+    const zcls::Camera* c = camera_data();
+    return c ? c->get<uint32_t>(0x1e4) : 0;
+  }
+  void camera_window_rect(uint32_t cam, int32_t* x, int32_t* y, int32_t* w, int32_t* h) override {
+    *x = *y = 0, *w = *h = 1;
+    zcls::Node* c = node(cam);
+    zcls::Node* win = c && c->data ? static_cast<zcls::Camera*>(c->data)->nodes[1] : nullptr;  // 0x004f3630
+    if (!win) return;
+    zcls::window_origin(win, x, y);
+    zcls::window_size(win, w, h);
+  }
+  void world_fog_range(uint32_t w, float* n, float* f) override {
+    *n = *f = 0.0f;
+    if (zcls::Node* wn = node(w)) zcls::world_get_fog_range(wn, n, f);
+  }
+  void world_set_fog_range(uint32_t w, float n, float f) override {
+    if (zcls::Node* wn = node(w)) zcls::world_set_fog_range(wn, n, f);
+  }
+  void world_push_fog(uint32_t w) override {
+    if (zcls::Node* wn = node(w)) zcls::world_push_fog(wn);
+  }
+  void mask_fan(const float* xyz, int32_t count) override { ++fans, zvid::clear_fan(xyz, count); }
+  int fans = 0;  // for the reports
   // 0x00442870 -> the zView's vt+0x04 (0x004b52c0): its camera's scene walk
   // (0x004f7030); 0x004f6dc0 without a device is the software path (not ported).
   void zview_render(void* view, float) override {
@@ -512,6 +545,10 @@ struct ProgramHudHooks : HudHooks {
 ProgramHudHooks g_hooks;
 }  // namespace
 
+void program_hud_zoom_show() {
+  Mech* t = static_cast<Mech*>(program_view_target());
+  if (Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr) h->reticle.zoom.toggle_lock();  // keypad 0
+}
 void program_hud_mfd_mode(int m) {
   Mech* t = static_cast<Mech*>(program_view_target());
   if (Hud* h = t && t->pilot ? pilot_hud(*t->pilot) : nullptr) h->mfd.set_mode(m);
@@ -520,6 +557,9 @@ void program_set_torso_internal(void* mech, float v) {
   if (Torso* t = mech ? static_cast<Mech*>(mech)->torso : nullptr) t->internal = t->side_internal[0] = t->side_internal[1] = v;
 }
 void* program_pilot_hud(void* data) { return data ? pilot_hud(*static_cast<MechData*>(data)) : nullptr; }
+void program_hud_zoom_pass(void* hud, float dt) {
+  if (hud) static_cast<Hud*>(hud)->reticle.draw3d(dt);
+}
 void program_hud_static(void* hud, float dt) {
   if (hud) static_cast<Hud*>(hud)->static_tick(dt);
 }
@@ -729,6 +769,18 @@ bool program_hud_report(HudReport* r) {
   r->views_drawn = g_hooks.view_draws, r->depth_fills = g_hooks.view_depth_fills;
   g_hooks.view_draws = g_hooks.view_depth_fills = 0;
   r->mfd_shown = h->mfd.shown_mode();
+  HudZoomWindow& z = h->reticle.zoom;
+  r->zoom_shown_now = !(z.flags & ztwod::kHidden), r->zoom_round = z.round, r->mask_fans = g_hooks.fans;
+  g_hooks.fans = 0;
+  if (zcls::Node* c = g_hooks.node(z.view.camera); c && c->data && camera_data()) {
+    float d2 = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+      const float k = static_cast<zcls::Camera*>(c->data)->get<float>(0x14 + 4 * i) - camera_data()->get<float>(0x14 + 4 * i);
+      d2 += k * k;
+    }
+    r->zoom_cam_off = std::sqrt(d2);
+  }
+  std::snprintf(r->zoom_text, sizeof r->zoom_text, "%s", z.text.text);
   for (WeaponGroup* g : wm->groups)
     if (g) r->weapons += static_cast<int>(g->count);
   for (HudWeaponLine& line : h->weapons.lines) {

@@ -628,6 +628,19 @@ void sort_transparent() {
 }
 
 // Mech3.exe 1.2 @ 0x0057e110. FIX (A): the device calls go to Render3D.
+void clear_fan(const float* xyz, int32_t count) {
+  if (!g_render || count < 3 || count > 64) return;
+  TLVertex v[64];
+  for (int32_t i = 0; i < count; ++i) {
+    const float* p = xyz + 3 * (count - 1 - i);
+    v[i] = TLVertex{p[0], p[1], p[2], p[2], 0u, 0xff000000u, 0.0f, 0.0f};
+  }
+  platform::DrawState s;
+  s.blend = true, s.depth_write = true, s.flat = true;
+  g_render->draw(static_cast<platform::Primitive>(g_state.primitive), reinterpret_cast<const platform::TLVertex*>(v),
+                 count, s);
+}
+
 void depth_fill(const int32_t rect[4]) {
   if (!g_render || !rect) return;
   const bool own = scene_depth() == 0;

@@ -1213,3 +1213,47 @@ say what the original's MFD shows in each mode (D cycles them); the
 placement is fixed then. (The binary starts the MFD in mode 1, headless in
 mode 3: the saved mode, [0x00605988].)
 
+## 23. The zoom window's 3D pass (hud-plan item 6c2)
+
+The draw paths' `hud_zoom_pass` (the reticle's vt+0x28, 0x00444230) runs the
+zoom window's 0x00442f50 while it shows or still has a scale (+0x170):
+
+1. **Its camera** (0x004436c0): at the player view's camera's place (its
+   data +0x14), turned toward the reticle's aim point (the hit record +0xc,
+   0x00523ac0 from the camera's new place), in the player camera's zone
+   (+0x1e4); the text shown (vt+0x60(-1)): message 0x22e "[range = %1m]" with
+   the reticle's aim distance in "%.1f", or 0x22d "%1 [range=%2m]" with the
+   aimed object's name (the hit node's object, vt+0xa4, none when empty);
+   when that object is the mech's target (+0x6c), the distance is the
+   contact's (0x004e7030) instead.
+2. **The player's own mech hidden** (its node's active flag off, 0x004eb170)
+   for the pass, on again at the end.
+3. **The window's rect** from its camera's window node (0x004f3630,
+   0x004fa130, 0x004fa020): x, y to x + w - 1, y + h - 1.
+4. With a device: a **box** has the rect's depth cleared (0x00576ce0), then
+   the view; a **circle** (+0x16c) has the depth cleared, then in one scene
+   four quarter fans (each six points on the quarter arc, 0 to pi/2 by a
+   tenth of pi, and the corner, all at depth 0.99) through [0x0072f3ac] =
+   0x0057bd50 with the clear texture "zVidDefaultClear" ([0x00809320]):
+   nothing seen, but the corners' depth set near, so the view only shows in
+   the circle; then the view, then the rect's depth cleared again.
+5. **The view** is the zoom's own zView class (vtable 0x005c0600, not
+   zView's 0x005c9118): 0x00443320 pushes the world's fog back for the pass
+   (the near range half way to the far, 0x004f24c0 / 0x004f2440 / 0x004f1df0),
+   draws the camera (0x004f7030) and puts the fog back. Without a device it
+   is the software path (0x00564460, 0x004f6dc0), not ported.
+
+FIX (A): the port makes no clear texture; the fans are drawn untextured at
+alpha 0, blended, depth written (`zvid::clear_fan`): the same nothing.
+FIX (A): FormatMessageA's `%1`/`%2` with string arguments, for every
+zTwoD text set by a message id (0x00575ff0), in the SDL host
+(`zutl::format_message_v`); before it those texts were empty in the
+program.
+
+Tests: test_hud.py op 42 (the reticle's +0x28; the window rect, the fog,
+the fans, the render and sprintf stubbed, the text's characters compared):
+100 HUDs, 75 zoom passes, 120 fans, the name and distance texts. With a
+device only. mission_c1m1_hud_zoom_drawn_headless: the zoom locked open
+(keypad 0), drawn each frame with one depth fill (c1m1's is a box), the
+camera at the player camera's place, the text "[range = 69.8m]".
+

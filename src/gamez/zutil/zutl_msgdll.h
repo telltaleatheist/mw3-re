@@ -2,6 +2,7 @@
 #include <initializer_list>
 #include <cstdint>
 #include <map>
+#include <cstdarg>
 #include <string>
 
 // Mech3Msg.dll read as data (docs/program.md). The original loads the DLL
@@ -29,6 +30,10 @@ void install_messages(const MessageDll* dll);
 std::string format_message(int32_t id, const char* arg);
 // The same with %1 .. %9 (the message boxes' three arguments, 0x004ac150).
 std::string format_message(int32_t id, std::initializer_list<const char*> args);
+// The same with the arguments from a va_list, each a C string (FormatMessage's
+// default %N type), as many as the text's highest %N (up to nine): zTwoD's
+// set_text_id (0x00409bf0 -> 0x00575ff0).
+std::string format_message_v(int32_t id, va_list args);
 // The same with numbers (%1!d!: the pilot screen's records), up to four.
 std::string format_message_ints(int32_t id, std::initializer_list<int32_t> args);
 

@@ -451,6 +451,17 @@ class HudZoomWindow : public HudZoomView {
   void set_view_rect(int32_t* px, int32_t* py, int32_t* w, int32_t* h);  // 0x0043fa40: 2 pixels inside the display
   void follow(int32_t px, int32_t py);  // 0x00443660: centred on the reticle, when shown or scaled
   void toggle_lock();                // 0x00442e00: keypad 0, the window locked open or closed
+  // 0x004436c0: the zoom camera at the player camera's place, turned to the
+  // reticle's aim point, in its zone; the text (distance, the aimed object's
+  // name). Nothing while hidden with no scale.
+  void place_camera();
+  // +0x28 0x00442f50: the zoom's 3D pass (hud.md section 23). Direct3D only
+  // (the software path is not ported, CLAUDE.md Rendering).
+  void draw3d(float dt) override;
+  // Its zView's vt+0x04 (vtable 0x005c0600: 0x00443320, not zView's
+  // 0x004b52c0): the camera drawn with the world's fog pushed back, its near
+  // range half way to its far, then restored.
+  void render_view(float dt);
   uint8_t round = 0;                 // +0x16c a circle, not a box
   float zoom = 0.0f;                 // +0x170 the window's scale
   uint8_t x174 = 0;                  // +0x174 locked open (keypad 0): the zoom key leaves it alone
@@ -469,6 +480,7 @@ class HudReticle : public ztwod::Image {
   // +0x60 show_for 0x00443cf0: Object2D's.
   void hide() override;              // +0x64  0x00443d00: the zoom window too
   void attach(void* hud);            // 0x00444250
+  void draw3d(float dt) override;    // +0x28  0x00444230: the zoom window's
   void reset();                      // 0x00443cc0
   void update(float dt) override;    // +0x24  0x004441a0: the zoom, then itself while the zoom is away
   // 0x004445f0: at the display's centre plus (fx, fy) of its half size, the
@@ -680,6 +692,41 @@ class HudHooks : public zgame::Unported {
   virtual void zview_render(void* view, float dt) { unported("0x00442870", {id(view), zgame::bits(dt)}); }
   virtual void object_view_flag(void* o, int32_t on) { unported("obj.vt+0x68", {id(o), on}); }
   virtual uint32_t object_node(void* o) { return unported("peek32", {id(o) + 4}); }
+  // The zoom's 3D pass (0x00442f50, 0x004436c0): the player view's camera's
+  // place (data +0x14) and zone (+0x1e4); a camera's window's origin and size
+  // (0x004f3630, 0x004fa130, 0x004fa020); the depth mask's fan (7 screen
+  // points at depth 0.99 through [0x0072f3ac] = 0x0057bd50, the clear
+  // texture); the reticle's aim point turned into angles (0x00523ac0).
+  // [[[0x005f4c8c] +4] +0x38]: the player view's camera's data.
+  uint32_t player_camera_data() {
+    return unported("peek32", {unported("peek32", {unported("peek32", {0x5f4c8c}) + 4}) + 0x38});
+  }
+  virtual void player_camera_place(float out[3]) {
+    const uint32_t d = player_camera_data();
+    for (int i = 0; i < 3; ++i) out[i] = zgame::from_bits(unported("peek32", {d + 0x14 + 4 * i}));
+  }
+  virtual uint32_t player_camera_zone() { return unported("peek32", {player_camera_data() + 0x1e4}); }
+  virtual void camera_window_rect(uint32_t cam, int32_t* x, int32_t* y, int32_t* w, int32_t* h) {
+    const uint32_t win = unported("0x004f3630", {cam});
+    *x = static_cast<int32_t>(unported("0x004fa130.x", {win}));
+    *y = static_cast<int32_t>(unported("0x004fa130.y", {win}));
+    *w = static_cast<int32_t>(unported("0x004fa020.w", {win}));
+    *h = static_cast<int32_t>(unported("0x004fa020.h", {win}));
+  }
+  // The zoom's own zView render (0x00443320): the world's fog range
+  // (0x004f24c0, 0x004f2440) and its push to the device (0x004f1df0).
+  virtual void world_fog_range(uint32_t world, float* near_range, float* far_range) {
+    *near_range = zgame::from_bits(unported("0x004f24c0.near", {world}));
+    *far_range = zgame::from_bits(unported("0x004f24c0.far", {world}));
+  }
+  virtual void world_set_fog_range(uint32_t world, float near_range, float far_range) {
+    unported("0x004f2440", {world, zgame::bits(near_range), zgame::bits(far_range)});
+  }
+  virtual void world_push_fog(uint32_t world) { unported("0x004f1df0", {world}); }
+  virtual void mask_fan(const float* xyz, int32_t count) {
+    for (int32_t i = 0; i < count; ++i)
+      unported("[0x0072f3ac]", {zgame::bits(xyz[3 * i]), zgame::bits(xyz[3 * i + 1]), zgame::bits(xyz[3 * i + 2])});
+  }
   virtual void view_draw_node(void* view, uint32_t node) { unported("0x004428b0", {id(view), node}); }
   // TARGET's tracking's outside (0x00440b00, 0x00440510): a contact's
   // direction (+0x20, set by 0x004e7030), entity (+8) and size (0x004e7070:
