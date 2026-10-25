@@ -58,6 +58,7 @@ Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 int model_release(Model* m);                  // 0x00539150, 1 while used (+0xc)
+void models_purge(bool models, bool materials);  // 0x005394c0 ECX, EDX
 Model* reread_model(std::FILE* f, int32_t index);  // 0x00538640, f at the models' table
 // A new pool model with m's arrays copied (its use count 0, its sphere at
 // +0x48 not). With `own_materials` each polygon's material is copied too

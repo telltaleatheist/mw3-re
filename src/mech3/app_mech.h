@@ -71,6 +71,10 @@ void mission_controls_free(void* controls);  // app_mission.cpp: an AI mech's co
 bool mech_free(void* obj);
 void mech_dead_tick(float dt);  // 0x0041e3f0, the player tick's: the dead mechs' frame
 void mech_dead_clear();         // 0x00414000's list: emptied at the mission's cleanup
+void mechs_shutdown();          // 0x00414000: the mechs' mission end (app_mission's cleanup)
+// For the tests: the radar blips made, a motion loading from the archive, the scripts' path made.
+void mechs_end_state(bool* blips, bool* motion, bool* path);
+void mechs_make_blips();  // for the tests: the radar's first need (app_sensors.cpp)
 // 0x004782c0(0): the pilot's mech let go: its fire mode out (false without
 // weapons), the mech globals cleared.
 bool mech_player_release(void* mech, int32_t* fire_mode);

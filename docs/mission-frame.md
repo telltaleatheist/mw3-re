@@ -157,12 +157,42 @@ the player controls' pilot record 0x00427300, the landmines 0x00413770
 (`landmines.md`) and zReader's
 0x005573d0(0) (the mission's archives closed). Not ported, logged:
 CloseHandle / SetThreadPriority (no loader thread in the port), the map
-objects 0x004582c0 (+0xbc's list 0x00605acc), the stealth entity's
-0x005a89c0 / 0x005a8820, 0x004a7970 ([0x00609a38]
-..[0x00609a44]), 0x0047a720 and 0x004d54f0 ([0x0060b544]), the waynets
-0x00479850, 0x004d71f0 (0x004add10), zEffect's 0x0050b2f0 (the
-mission-made animation instances, +0x94 bit 17), 0x005394c0(1, 1) and
-0x00576270; 0x004c3240 is empty.
+objects 0x004582c0 (+0xbc's list 0x00605acc; the port never makes it), the
+stealth entity's 0x005a89c0 / 0x005a8820 (the port makes no stealth
+object yet); 0x004c3240 is empty.
+
+**What stayed behind (item 13 and 14, 2026-10-25).** A trace of the
+cleanup's calls that were still logged in a played mission (c1 mission 1,
+c2 mission 3, c4b mission 6 the same) against what the port keeps:
+
+- The turrets' markers 0x004a7970, the mcbwaynet 0x0047a720 / 0x004d54f0,
+  the waynet icons 0x00479850 and the engine sounds 0x004d71f0 were
+  already ported (the list above was stale).
+- **Freed now**: zEffect's 0x0050b2f0 (`zeff::anim_free_copies`: each
+  def's instances that copied their own node tree, +0x94 bit 17, the ones
+  an impact or effect starts at a place, unlinked and freed with their
+  trees; kept, they outlived the world they were made for); zModel's
+  0x005394c0(1, 1) (`zmod::models_purge`: every model nothing holds
+  released, then 0x00537e50 `materials_purge`, every material no model's
+  polygon uses and flagged none of 0x80 / 0x40 / 0x20 / 0x08 freed through
+  0x00537070 `material_free`; after c1 mission 1, 1219 materials down to
+  527); the rest of the mechs' end 0x00414000 (`mechs_shutdown`: the
+  scripts' path list [0x00736584] dropped, the motion archive closed
+  0x005a98a0, the three radar blips [0x00605618..] deleted; the next
+  mission's set-up opens the motions again and the radar makes its blips
+  when it first needs them).
+- **Nothing to free in the port**: 0x00576270(0) frees zUtil's default
+  search paths ([0x0072eebc]), which the port never keeps; the AI nets'
+  edits 0x00402560 ([0x005f4c4c]): the port builds each net from a local
+  edit and the next mission's build replaces it (`net_hooks().rebuilt`);
+  the listeners' other slots logged by 0x004e7bc0 (item 15).
+
+`mission_end_frees_what_the_next_does_not_need_headless` checks it: c1
+mission 1 played with three impacts started at a place and a model made
+and never held, then the cleanup without the unload: the copies, the model
+and the unused materials gone, no model's material on the free list, the
+motions closed and the path dropped; mission 2 then loads with its
+motions open.
 
 Callers (not ported): the briefing (0x0040501f, 0x004050b6), the debrief
 (0x0047cfda..0x0047d286), 0x00470717, 0x00491b99, 0x00492e6a, and the

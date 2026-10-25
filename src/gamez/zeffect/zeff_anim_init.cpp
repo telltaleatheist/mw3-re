@@ -373,6 +373,10 @@ AnimDef* anim_instance(AnimDef* def, Node* node) {
   zcls::node_set_priority(c->object, c->raw[0x9a]);
   c->instance = nullptr;
   c->put<uint32_t>(0x94, c->get<uint32_t>(0x94) & ~0x100u);
+  // FIX (bug): made from an instance that copied its tree, the exe keeps its
+  // bit 17 on one at a borrowed node, whose tree the end then destroys
+  // (0x0050b2f0, 0x0050b0e0). fixes.md.
+  if (g_anim.fix_instance_tree) c->put<uint32_t>(0x94, c->get<uint32_t>(0x94) & ~0x20000u);
   if (!node) {
     c->node = g_hooks.copy_tree ? g_hooks.copy_tree(def->node) : nullptr;
     if (!c->node) {
@@ -609,6 +613,25 @@ void anim_free(AnimDef* d, bool instances) {
     anim_free(d->instance, true);
     delete d->instance;
     d->instance = nullptr;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0050b2f0: the mission's end: every def's instances that
+// copied their own node tree (+0x94 bit 17: started with no node) unlinked
+// and freed with it; the def and its other instances stay.
+void anim_free_copies() {
+  AnimState& a = g_anim;
+  for (int32_t i = 0; i < a.def_count(); ++i) {
+    AnimDef* prev = &a.defs[i];
+    for (AnimDef* c = prev->instance; c; c = prev->instance) {
+      if (c->get<uint32_t>(0x94) & 0x20000) {
+        prev->instance = c->instance;
+        anim_free(c, false);
+        delete c;
+      } else {
+        prev = c;
+      }
+    }
   }
 }
 

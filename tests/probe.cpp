@@ -1159,6 +1159,7 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
   g_reports.clear();
   zeff::anim() = zeff::AnimState{};
   zeff::anim().fix_prerequisites = g_anim_fix != 0;
+  zeff::anim().fix_instance_tree = false;  // the exe's path
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();

@@ -62,6 +62,8 @@ Material* take_material(int32_t index);  // 0x00536070, marks it referenced
 // made is tried first.
 Material* material_add(Material& m);       // 0x00536ad0
 Material* material_copy(const Material& m);  // 0x00537830: always a new one
+void material_free(Material* m);             // 0x00537070: back on the free list
+int32_t materials_purge();                   // 0x00537e50: those no model uses, freed
 int material_differs(Material& entry, Material& m);  // 0x00536f10 ECX entry, EDX m
 // Flag 2 or 4, or a cycle: a material each copy of a model must own.
 int material_changes(const Material& m);     // 0x00536ab0

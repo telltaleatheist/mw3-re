@@ -289,6 +289,7 @@ unusual happens.
 - Instant Action's line-up no longer risks a crash on a mission entry it cannot read, a wave number below 1 or a very long entry name (none happens with the shipped files).
 - A vehicle hit by a laser and still alive when the mission ends no longer leaves the laser's light behind (the game could not free it).
 - A line-of-sight or shot query toward something at an undefined place no longer freezes the game.
+- An effect started on an object, after the same effect was used in mid-air, no longer takes that object's model down with it when the mission ends.
 - An AI pilot with a negative personal-space setting no longer hangs the game when another mech comes close (no shipped mission has one).
 - A world's `declient.zrd` with a one-frame quicksand texture, or a `QUICK_SAND` block without `DEFAULT_TEXTURE`, no longer crashes the mission load; the one frame is shown, or the quicksand is left untextured. No shipped file has either.
 - Cutting a crater into large stretches of ground no longer risks reading freed memory or writing past the clipper's tables.

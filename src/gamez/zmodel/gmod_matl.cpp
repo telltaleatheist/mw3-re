@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -222,6 +223,56 @@ Material* material_find_texture(zimg::TextureEntry* t) {
 // Mech3.exe 1.2 @ 0x00537830. The exe writes through null for a null
 // material; every caller passes one.
 Material* material_copy(const Material& m) { return new_material(m); }
+
+// Mech3.exe 1.2 @ 0x00537070: a material back on the free list: its cycle
+// freed, everything but the links cleared, then 0x10 (as the exe) and 0x20,
+// unlinked from the used list to the free list's front. The free head
+// itself is left as it is.
+void material_free(Material* m) {
+  if (!m) return;
+  MaterialTable& t = g_table;
+  if ((m->flags & 4) && m->cycle) {
+    std::free(m->cycle->textures);
+    std::free(m->cycle);
+  }
+  const int16_t prev = m->prev, next = m->next;
+  *m = Material{};
+  m->prev = prev, m->next = next;
+  m->flags |= 0x10;
+  const int32_t index = t.index_of(m);
+  if (index < 0 || index == t.free_head) return;
+  if (prev >= 0) t.at(prev).next = next;
+  if (next >= 0) t.at(next).prev = prev;
+  if (t.used_head == index) t.used_head = next;
+  m->prev = -1;
+  m->next = static_cast<int16_t>(t.free_head);
+  if (t.free_head >= 0) t.at(t.free_head).prev = static_cast<int16_t>(index);
+  m->flags |= 0x20;
+  --t.count;
+  t.free_head = index;
+}
+
+// Mech3.exe 1.2 @ 0x00537e50: every material a model's polygon uses marked
+// (0x40), then each one with none of 0x80, 0x40, 0x20 (free), 0x08 freed and
+// the others' two top bits cleared. It also resets [0x005edd5c], the cache
+// of 0x00537f20 (not ported). Answers how many it freed.
+int32_t materials_purge() {
+  for (Model& md : models().slots)
+    for (uint32_t i = 0; md.polygons && i < md.count(0x10); ++i)
+      if (Material* m = md.polygons[i].material) m->flags = static_cast<uint8_t>((m->flags & 0x3f) | 0x40);
+  MaterialTable& t = g_table;
+  int32_t freed = 0;
+  for (int32_t i = 0; i < t.capacity; ++i) {
+    Material& m = t.at(i);
+    if ((m.flags & 0xe8) == 0) {
+      material_free(&m);
+      ++freed;
+    } else {
+      m.flags &= 0x3f;
+    }
+  }
+  return freed;
+}
 
 // Mech3.exe 1.2 @ 0x005363d0. FIX (A): owned blocks (MaterialTable); the
 // capacity is rounded up to whole blocks.
