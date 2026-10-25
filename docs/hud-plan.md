@@ -93,6 +93,13 @@ not the HUD's.
    draw paths' `radar` / `ai_tick` (app_states.cpp) are the HUD's, not the
    AI's: `Engine::mech_ai` is 0x00430aa0 (the HUD), 0x0043cd20 on it and the
    reticle's (+0x144c) vt+0x28 update, both still logged.
+6b. (Done 2026-10-25) **The static** (0x43cd20 with 0x43bfe0, 0x43cca0,
+   zRender's 0x558c10 and its noise 0x5581c0; hud.md section 21): the
+   draw paths' `hud_static`. Shows: green static over the panels when the
+   torso or head is badly hurt.
+6c. **The zoom window's 3D pass** (the reticle's vt+0x28 0x444230 -> the
+   zoom window's 0x442f50, 198 lines): the zoom camera's view in its box
+   or circle. Logged meanwhile (`hud_zoom_pass`).
 7. **The mission maps** (0x4583b0 and family): maps.zrd read at the
    start, freed at the end (the cleanup's 0x4582c0 is in mission-frame.md).
    Shows: nothing yet.

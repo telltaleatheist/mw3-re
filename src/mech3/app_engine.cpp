@@ -12,6 +12,7 @@
 #include "mech3/mech_shade.h"
 #include "mech3/app_mech.h"
 #include "mech3/app_hud.h"
+#include "mech3/options.h"
 #include "mech3/pocket_panel.h"
 
 #include <cstdio>
@@ -511,6 +512,14 @@ void GameEngine::hud_update() {
   program_hud_update(dt);                                // [[0x005f4c8c]+0x64] vt+0xe0
   if (MessagePanel* p = message_panel()) p->update(dt);  // [0x00603d7c] vt+0x24: its text
   pocket_draw(dt);                                       // 0x0046a410
+}
+Handle GameEngine::pilot_hud(Handle data) { return handle_of(program_pilot_hud(object_of(data))); }
+void GameEngine::hud_static(Handle hud, float dt) { program_hud_static(object_of(hud), dt); }
+bool program_intensity_flag() { return options().intensity_flag[0] != 0; }
+void GameEngine::hud_zoom_pass(Handle, float) { unported("0x00444230", {}); }
+void GameEngine::render_reset() {
+  zrndr::finish_init();
+  unported("0x00557b30", {});
 }
 void GameEngine::message_panel_init(Handle, Handle) { mech3::message_panel_create(); }
 void GameEngine::message_panel_free() { mech3::message_panel_destroy(); }

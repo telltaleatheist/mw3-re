@@ -366,17 +366,18 @@ void hud(Engine& en) {
   if (Handle dv = globals().debug_view) en.vcall(dv, 0x04, {});
   else en.mech_draw_cockpit(en.field32(en.pilot(), 0x14));
 }
-void radar(Engine& en, Handle veh) {
+// The static on the view target's HUD (0x0043cd20), its HUD asked twice.
+void hud_static(Engine& en, Handle veh) {
   if (!veh) return;
-  const Handle obj = veh == en.field32(en.player_view(), 0x64) ? en.mech_ai(en.field32(veh, 0x684)) : 0;
-  if (!obj) return;
-  const Handle obj2 = veh == en.field32(en.player_view(), 0x64) ? en.mech_ai(en.field32(veh, 0x684)) : 0;
-  en.ai_radar_update(obj2, en.frame_dt());
+  const Handle hud = veh == en.field32(en.player_view(), 0x64) ? en.pilot_hud(en.field32(veh, 0x684)) : 0;
+  if (!hud) return;
+  const Handle hud2 = veh == en.field32(en.player_view(), 0x64) ? en.pilot_hud(en.field32(veh, 0x684)) : 0;
+  en.hud_static(hud2, en.frame_dt());
 }
-void ai_tick(Engine& en, Handle veh) {
+// The reticle's zoom window's 3D pass (+0x144c vt+0x28).
+void zoom_pass(Engine& en, Handle veh) {
   if (!veh) return;
-  const Handle ai = en.mech_ai(en.field32(veh, 0x684));
-  en.vcall(ai + 0x144c, 0x28, {zgame::bits(en.frame_dt())});
+  en.hud_zoom_pass(en.pilot_hud(en.field32(veh, 0x684)), en.frame_dt());
 }
 void world_tick(Engine& en) {
   en.sensors_update();
@@ -401,7 +402,7 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
   en.scene_draw(scene);
-  if (veh) ai_tick(en, veh);
+  if (veh) zoom_pass(en, veh);
   if (en.key_state(1) & 3) {
     if (flag && veh) en.node_set_active(en.vehicle_node(veh), 1);
     return true;
@@ -428,7 +429,7 @@ bool CoreState::draw_software(Handle veh, bool flag) {
   en.vcall(en.field32(en.player_view(), 0x64), 0xe4, {zgame::bits(en.frame_dt())});
   en.video_lock();
   hud(en);
-  radar(en, veh);
+  hud_static(en, veh);
   en.video_unlock();
   return false;
 }
@@ -526,7 +527,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   if (flag) en.node_set_active(en.vehicle_node(veh), 0);
   const Handle scene = en.scene_begin();
   en.vcall(en.player_view(), 0x04, {});
-  if (veh) ai_tick(en, veh);
+  if (veh) zoom_pass(en, veh);
   if (en.key_state(1) & 3) {
     if (flag && veh) en.node_set_active(en.vehicle_node(veh), 1);
     return true;
@@ -557,7 +558,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   en.vcall(en.field32(en.player_view(), 0x64), 0xe4, {zgame::bits(en.frame_dt())});
   en.video_begin_3d();
   hud(en);
-  radar(en, veh);
+  hud_static(en, veh);
   en.video_end_3d();
   return false;
 }
@@ -649,7 +650,7 @@ bool CoreState::draw_doubled(Handle veh, bool flag) {
   en.scene_reset();
   en.video_unlock();
   en.video_lock();
-  if (veh) ai_tick(en, veh);
+  if (veh) zoom_pass(en, veh);
   hud(en);
   en.video_unlock();
   en.vcall(en.field32(en.player_view(), 0x64), 0xe4, {zgame::bits(en.frame_dt())});

@@ -20,6 +20,8 @@
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/ztwod/twod.h"
+#include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zrender/zrndr_tint.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zutil/zutl_msg.h"
@@ -316,6 +318,20 @@ struct ProgramHudHooks : HudHooks {
   const char* equipment_name(int32_t kind) override {  // 0x00484980
     return kind >= 0 && kind < 15 ? message(0x1c6 + kind) : "none";
   }
+  // The static (hud.md section 21): the mission's player, GameIntensity's
+  // flag, the 3D lock's back buffer (the 2D layer the HUD draws on; the
+  // software path's surface without a device) and the ported fill.
+  void* mission_player(void*) override { return mech3::world().mission_player; }
+  bool intensity_flag() override { return program_intensity_flag(); }
+  void static_target() override {
+    const zvid::Surface& s = zrndr::device_fog().active ? zvid::surfaces().back : zvid::surfaces().copy;
+    zrndr::set_finish_target(s.pixels, s.width, s.height, s.pitch);
+  }
+  void static_fill(const ztwod::Rect* r, double level, uint16_t lo, uint16_t mid, uint16_t hi) override {
+    ++fills;
+    zrndr::static_fill(r ? &r->left : nullptr, level, lo, mid, hi);
+  }
+  int fills = 0;  // for the reports
   // The damage displays and TARGET's text (hud.md section 16) on the ported
   // parts, configurations and Mech3Msg.dll's messages.
   float part_internal(void* mech, uint32_t part, int32_t section) override {
@@ -439,6 +455,14 @@ struct ProgramHudHooks : HudHooks {
 };
 ProgramHudHooks g_hooks;
 }  // namespace
+
+void program_set_torso_internal(void* mech, float v) {
+  if (Torso* t = mech ? static_cast<Mech*>(mech)->torso : nullptr) t->internal = t->side_internal[0] = t->side_internal[1] = v;
+}
+void* program_pilot_hud(void* data) { return data ? pilot_hud(*static_cast<MechData*>(data)) : nullptr; }
+void program_hud_static(void* hud, float dt) {
+  if (hud) static_cast<Hud*>(hud)->static_tick(dt);
+}
 
 namespace {
 // 0x00430aa0 on the pilot (+0x684): its HUD, made when first asked.
@@ -638,6 +662,9 @@ bool program_hud_report(HudReport* r) {
   auto* wm = m ? static_cast<WeaponManager*>(m->ammo) : nullptr;
   if (!h || !wm) return false;
   *r = HudReport{};
+  for (int i = 0; i < 4; ++i) r->statics[i] = h->statics[i].level;
+  r->static_fills = g_hooks.fills;
+  g_hooks.fills = 0;
   for (WeaponGroup* g : wm->groups)
     if (g) r->weapons += static_cast<int>(g->count);
   for (HudWeaponLine& line : h->weapons.lines) {

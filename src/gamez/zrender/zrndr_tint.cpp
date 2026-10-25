@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "crt/msvc_math.h"
+#include "crt/msvc_rand.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -177,6 +178,40 @@ uint32_t finish() {
     row += t.pitch_px;
   }
   return ret;
+}
+
+std::vector<uint8_t>& noise_table() {
+  static std::vector<uint8_t> t;
+  return t;
+}
+
+// Mech3.exe 1.2 @ 0x005581c0
+void finish_init(int32_t (*rand)()) {
+  std::vector<uint8_t>& t = noise_table();
+  t.assign(0x6400 + 1, 0);
+  for (size_t i = 0; i < 0x6400; ++i) t[i] = static_cast<uint8_t>(rand ? rand() : crt::msvc_rand());
+}
+
+// Mech3.exe 1.2 @ 0x00558c10
+void static_fill(const int32_t* rect, double level, uint16_t lo, uint16_t mid, uint16_t hi, int32_t (*rand)()) {
+  const FinishTarget& f = g_target;
+  const int32_t under = crt::msvc_ftol(level * 256.0);  // 0x005ce5a8
+  int32_t left, top, right, bottom;
+  if (rect) left = rect[0], top = rect[1], right = rect[2], bottom = rect[3];
+  else left = 0, top = 0, right = f.width - 1, bottom = f.height - 1;
+  const int32_t w = right - left;
+  const std::vector<uint8_t>& t = noise_table();
+  if (t.empty() || !f.base) return;  // not in the exe: no set-up, no target
+  const int32_t size = 0x6400;       // [0x0072c1d8]
+  for (int32_t y = top; y < bottom; ++y) {
+    const int32_t r = rand ? rand() : crt::msvc_rand();
+    const uint8_t* n = t.data() + r * (size - w) / 0x7fff;
+    uint16_t* p = f.base + (y * f.pitch_px + left);
+    for (int32_t i = 0; i < w; ++i, ++p, ++n) {
+      if (n[1] >= under) continue;
+      *p = n[0] < 0x55 ? lo : n[0] < 0xab ? mid : hi;
+    }
+  }
 }
 
 }  // namespace zrndr

@@ -28,7 +28,7 @@ import random  # noqa: E402
 from ai_world import FLOOR, FTOL, IAT_FLOOR, IAT_FTOL  # noqa: E402
 import test_twod  # noqa: E402
 from unicorn import UC_HOOK_CODE  # noqa: E402
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESP  # noqa: E402
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESP  # noqa: E402
 
 probe = load_probe()
 probe.probe_hud_entity_class.argtypes = [ctypes.c_uint32, ctypes.c_int32]
@@ -114,6 +114,9 @@ OPS = list(range(1, 20))
 # The message panel's messages and times (ops 27, 28; probe_hud.cpp the same).
 MESSAGES = ['Objective complete', 'Nav Alpha reached', 'Lancemate destroyed: the rest of the lance falls back']
 MESSAGE_TIMES = [0.0, 0.5, 2.0, 6.0]
+# The static's add (0x0043bfe0, op 40): steps, holds and tops by index.
+STATIC_NULL = [0, 0]  # the exe's null reads skipped (TARGET's mode without a rect; FIX (bug)), the fills
+STATIC_STEP, STATIC_HOLD, STATIC_MOST = [0.1, 0.05, 0.5, 1.0], [0.0, 0.016, 0.3, 2.0], [0.1, 0.5, 1.0, 1.25]
 FTEXTS = ([0x1da8 + o for o in (0x38, 0x4e8, 0x998)]
           + [0x188c0 + 0x38 + 0xa40 * i + o for i in range(4) for o in (0, 0x4cc)]
           + [0x6520 + 0x130 + 0x1120 * i + 0xae8 for i in range(4)]
@@ -478,6 +481,24 @@ class Original:
             t.handle('0x0057bf80', (colour, alpha, *v))
             emu._ret(0, pop)
         e.stub(0x576ce0, '0x00576ce0', 'c', None, dirty)
+        # The static (0x0043cd20, hud.md section 21): the surface's getters,
+        # the finish target and the fill.
+        for a in (0x576ca0, 0x576cb0, 0x576cc0, 0x576cd0, 0x576d80, 0x576d90, 0x576da0, 0x576db0):
+            e.stub(a, '@surface', '', None, lambda emu, key, a, pop: emu._ret(0, pop))
+        e.stub(0x558290, '0x00558290', '', None, lambda emu, key, a, pop: emu._ret(t.handle(key, ()), pop))
+
+        def static_fill(emu, key, a, pop):
+            STATIC_NULL[1] += 1
+            q = rect(a[0]) if a[0] else (0, 0, 0, 0)
+            t.handle(key, (1 if a[0] else 0, *q, a[2], a[3], a[1] & 0xffff, a[4] & 0xffff, a[5] & 0xffff))
+            emu._ret(0, pop)
+        e.stub(0x558c10, '0x00558c10', 'c,d,s0,s1,s2,s3', None, static_fill)
+
+        def static_null(uc, addr, size, user):  # FIX (bug) as the port: TARGET's mode without a rect
+            if uc.reg_read(UC_X86_REG_EAX) == 0:
+                STATIC_NULL[0] += 1
+                uc.reg_write(UC_X86_REG_EIP, 0x43cf3b)
+        e.uc.hook_add(UC_HOOK_CODE, static_null, begin=0x43cf08, end=0x43cf08)
         for a, spec in ((0x579af0, ''), (0x579b10, '')):
             e.stub(a, spec=spec)
 
@@ -649,6 +670,13 @@ class Original:
                 self.ops.append((26, fr.choice([0, 1, 2])))
             if fr.random() < 0.1:  # its static (0x0043dc70, the ZAPS hits')
                 self.ops.append((25, f32(fr.choice([0.0, 0.05, 0.3, 1.5]))))
+            if fr.random() < 0.3:  # the static (0x0043cd20): GameIntensity's flag, an add, the tick
+                if fr.random() < 0.15:
+                    self.ops.append((41, fr.choice([0, 0, 1])))
+                if fr.random() < 0.4:
+                    self.ops.append((40, fr.randrange(6) | fr.randrange(4) << 4 | fr.randrange(4) << 8
+                                     | fr.randrange(4) << 12))
+                self.ops.append((39, f32(fr.choice([0.016, 0.033, 0.1, 0.5]))))
             if fr.random() < 0.15:  # its polylines: their lists, then their counts
                 self.ops += [(23, self.radar_lists[0]), (24, self.radar_lists[1]),
                              (21, fr.choice([0, 2, 3, 3, 4, 5, 8]) | fr.choice([0, 3, 4, 6, 8]) << 8)]  # 3: shown, not drawn
@@ -1011,6 +1039,18 @@ class Original:
                 e.call(0x43d240 if k == 36 else 0x43d250, ecx=h)
             elif k == 26:
                 e.w32(self.mech + 0x3d8, v)
+            elif k == 39:  # the mission's player is the HUD's mech for the call
+                keep = e.r32(0x60861c)
+                world = e.world_alloc(0x20)
+                e.w32(world + 0x14, self.mech)
+                e.w32(0x60861c, world)
+                e.call(0x43cd20, ecx=h, stack=(v,))
+                e.w32(0x60861c, keep)
+            elif k == 40:
+                e.call(0x43bfe0, ecx=h, stack=(f32(STATIC_STEP[v >> 4 & 3]), v & 0xf, f32(STATIC_HOLD[v >> 8 & 3]),
+                                               f32(STATIC_MOST[v >> 12 & 3])))
+            elif k == 41:
+                e.cpu.write(0x608e4c, bytes([v]))
             elif k == 25:
                 e.call(0x43dc70, ecx=h + 0x14, stack=(v,))
             elif k == 22:
@@ -1719,7 +1759,8 @@ def main():
         sys.stdout.flush()
         os._exit(1)
     print(f'{seeds} HUDs built, {calls} calls: the rebuilt HUD matches the original '
-          f'({len(CLASS_REACHED)} of the classed objects\' slots run)')
+          f'({len(CLASS_REACHED)} of the classed objects\' slots run; {STATIC_NULL[1]} static fills, '
+          f'{STATIC_NULL[0]} TARGET reads without a rect skipped as the port)')
     sys.stdout.flush()
     os._exit(0)
 

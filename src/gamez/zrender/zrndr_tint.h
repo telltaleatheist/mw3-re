@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 // File unknown: between zreader.cpp and zrndr_draw.c (0x00558290..0x00558610),
 // named after zRender. The screen's colour tint (flashes and fades): 0x00558540
@@ -77,5 +78,21 @@ void tint_row_555(uint16_t* row, int32_t count);      // 0x005582c0
 void tint_row_565(uint16_t* row, int32_t count);      // 0x00558320
 void tint_row_555_mmx(uint16_t* row, int32_t count);  // 0x00558380
 void tint_row_565_mmx(uint16_t* row, int32_t count);  // 0x00558460
+
+// The noise the static draws from: 0x6400 bytes of CRT rand ([0x0072c1dc],
+// its size [0x0072c1d8]), filled once by zRender's set-up 0x005581c0. FIX
+// (A): one zeroed byte past the end (the fill's last pixel can read it).
+std::vector<uint8_t>& noise_table();
+// Mech3.exe 1.2 @ 0x005581c0: the noise (rand: the CRT's when null). Its
+// other half, the ripple's scratch, is made as the ripple needs it.
+void finish_init(int32_t (*rand)() = nullptr);
+// Mech3.exe 1.2 @ 0x00558c10 (ECX rect or null, the level a double; DX, then
+// the stack's two colours): green static over the finish target, the HUD's
+// (docs/hud.md section 21). Each row starts at a random point of the noise;
+// a pixel takes a colour by its noise byte's third (lo, mid, hi) when the
+// next byte is under level x 256. No rect: the target less its last column
+// and row.
+void static_fill(const int32_t* rect, double level, uint16_t lo, uint16_t mid, uint16_t hi,
+                 int32_t (*rand)() = nullptr);
 
 }  // namespace zrndr

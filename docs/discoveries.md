@@ -992,6 +992,16 @@ From the network code (network-messages.md).
 
 ## Graphics
 
+- **A badly hurt mech's HUD breaks up with static.** Once the weakest of
+  your torso's three sections or your head is under 40% of its internal
+  structure, the HUD's panels (TARGET, the MFD, the weapon list and the
+  equipment) flicker with green static, and the radar fades out, one panel
+  at a time at random, stronger the closer you are to death (at 0% each
+  can reach full strength). Repaired, it fades away in a few seconds. It
+  never starts while GameIntensity's flag is set, and none is drawn while
+  the radar shows zoomed over the mission map (0x43cd20, `hud.md` section
+  21).
+
 - **In software mode, screen flashes and fades miss the right edge.** The
   software renderer colours the screen four pixels at a time (MMX), and the
   screen's right edge is kept one pixel short, so on a 640-wide screen the

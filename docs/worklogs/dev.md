@@ -81,3 +81,27 @@ is in `README.md`.
   show the objectives. Noted for later (hud-plan item 6): the radar reset
   0x43d920, and app_states' `radar` / `ai_tick` are the HUD's 0x43cd20 and
   reticle update (`Engine::mech_ai` is 0x430aa0), still logged.
+
+## HUD plan item 6b: the HUD's static and the zoom pass (2026-10-25)
+
+- Assigned (the lead, from item 6's finding): app_states' radar() /
+  ai_tick() are the HUD's: 0x43cd20 on the pilot's HUD and the reticle's
+  (+0x144c) vt+0x28. Branch mac4/hud-static off main.
+- Traced: 0x43cd20 is the HUD's screen static. Four channels (+0x22e08..
+  +0x22e34: three static levels with a floor and a hold, and the radar's
+  fade); with the lowest internal structure of the torso's three sections
+  and the head under 0.4 (and GameIntensity's flag clear) it adds to a
+  random one (0x43bfe0 kind 5: 0.1 a frame up to k / 4); each shown
+  channel draws static (0x43cca0 -> 0x558c10: noise-table pixels under the
+  level replaced by three greys); the levels decay 0.3 a second after
+  their hold. The reticle's +0x28 is 0x444230 -> the zoom window's +0x28
+  0x442f50 (its 3D pass, 198 lines): split off as 6c.
+- Done 6b: `Hud::static_tick` / `add_static` / the draw (0x43cd20,
+  0x43bfe0, 0x43cca0), `zrndr::finish_init` / `static_fill` (0x5581c0,
+  0x558c10) and `GameEngine::render_reset` (0x557b20: the noise filled at
+  start-up as the exe, 0x557b30 logged). The draw paths' calls renamed
+  (`pilot_hud`, `hud_static`, `hud_zoom_pass`; the exe's call shapes kept as
+  defaults), the mech's +0x684 written by WiredLaunch. FIXes: the 0.1 a
+  frame (B, per_second), TARGET's null rect (bug), the table's spare byte
+  (A). Tests: test_hud ops 39-41 (100 HUDs, 262 fills; the exe's null read
+  hooked to the port's FIX), test_static.py (pixels), breaks. Next: 6c.

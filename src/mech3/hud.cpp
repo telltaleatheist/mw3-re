@@ -1400,8 +1400,95 @@ void Hud::set_active(int32_t on) {
 
 // Mech3.exe 1.2 @ 0x0043be10
 void Hud::reset() {
-  for (uint32_t& v : x22e08) v = 0;
+  for (Static& s : statics) s = Static{};
   radar.set_fade(0.0f);
+}
+
+// Mech3.exe 1.2 @ 0x0043bfe0. Kind 0 the radar's fade (set at once), 1 the
+// MFD's static, 2 TARGET's, 3 the weapons' and equipment's; 4 all four, 5 a
+// random one. The level grows by `step` up to `most`, the hold to `hold`.
+void Hud::add_static(float step, int32_t kind, float hold, float most) {
+  static constexpr int kChannel[4] = {3, 1, 0, 2};  // the kind's +0x22e08 slot
+  if (kind == 4) {
+    for (int32_t k = 0; k < 4; ++k) add_static(step, k, hold, most);
+    return;
+  }
+  if (kind == 5) {
+    add_static(step, crt::msvc_rand() & 3, hold, most);
+    return;
+  }
+  if (kind < 0 || kind > 3) return;
+  Static& s = statics[kChannel[kind]];
+  if (s.level < most) {
+    s.level = step + s.level;
+    if (most < s.level) s.level = most;
+  }
+  if (s.hold < hold) s.hold = hold;
+  if (kind == 0) radar.set_fade(s.level);
+}
+
+// Mech3.exe 1.2 @ 0x0043cd20 (the frame's draw paths, after the HUD). Below
+// 0.4 of the internal structure of the player's torso (any of its three
+// sections) or head, a random panel gets static (GameIntensity's flag off):
+// 0.1 a frame up to (5 - 20 x) / 4 under 0.2, (0.4 - x) x 5 / 4 above; then
+// each shown panel's static is drawn and every level falls 0.3 a second after
+// its hold, to its floor. FIX (B), behind per_second: the 0.1 is a 30 fps
+// frame's.
+void Hud::static_tick(float dt) {
+  HudHooks& k = *g_hooks;
+  const float fall = dt * 0.3f;  // 0x005c00a4
+  if (void* p = k.mission_player(mech)) {
+    float least = k.part_internal(p, 0x39c, 0);
+    float v = k.part_internal(p, 0x39c, 1);
+    if (v < least) least = k.part_internal(p, 0x39c, 1);
+    v = k.part_internal(p, 0x39c, 2);
+    if (v < least) least = k.part_internal(p, 0x39c, 2);
+    v = k.part_internal(p, 0x3a4, 0);
+    if (v < least) least = k.part_internal(p, 0x3a4, 0);
+    if (least < 0.4f && !k.intensity_flag()) {  // 0x005c00a8
+      const float most = (least > 0.2f ? (0.2f - (least - 0.2f)) * 5.0f : 5.0f - least * 20.0f) * 0.25f;
+      const float step = zfix::options().per_second ? 0.1f * zfix::frame_steps(dt) : 0.1f;
+      add_static(step, 5, dt, most);
+    }
+  }
+  // Not while the radar shows zoomed over the mission map.
+  if (active && ((radar.flags & ztwod::kHidden) || !radar.zoomed || !radar.active)) {
+    k.static_target();
+    auto draw = [&](const ztwod::Rect* r, float level) {  // 0x0043cca0
+      if (level > 0.9f) level = 0.9f;  // 0x005c00a0
+      else if (level < 0.0f) level = 0.0f;
+      k.static_fill(r, level, zvid::pack_bytes(0x20, 0x40, 0x20), zvid::pack_bytes(0x40, 0x80, 0x40),
+                    zvid::pack_bytes(0x60, 0xc0, 0x60));
+    };
+    if (target.shown_mode() != 0 && statics[0].level > 0.0f) {
+      // FIX (bug): a mode without a rect (the nav list unmade) would be read
+      // through null in the exe; nothing is drawn.
+      if (const ztwod::Rect* q = target.shown_rect()) {
+        ztwod::Rect r = *q;
+        r.right += 1, r.bottom += 1;
+        draw(&r, statics[0].level);
+      }
+    }
+    if (!(mfd.flags & ztwod::kHidden) && statics[1].level > 0.0f) draw(mfd.shown_rect(), statics[1].level);
+    if (!(weapons.flags & ztwod::kHidden) && statics[2].level > 0.0f) draw(&weapons.panel.rect, statics[2].level);
+    if (!(weapons.flags & ztwod::kHidden) && !(equipment.flags & ztwod::kHidden) && statics[2].level > 0.0f)
+      draw(&equipment.panel.rect, statics[2].level);
+  }
+  for (int i = 0; i < 4; ++i) {
+    Static& s = statics[i];
+    if (s.level > s.floor) {
+      if (s.hold > 0.01f) {  // 0x005c00c0
+        s.hold = s.hold - dt;
+        continue;
+      }
+      s.hold = 0.0f;
+      s.level = s.level - fall;
+      if (s.level < s.floor) s.level = s.floor;
+      if (i == 3) radar.set_fade(s.level);
+    } else if (s.level < s.floor) {
+      s.level = s.floor;
+    }
+  }
 }
 
 // Mech3.exe 1.2 @ 0x0043dc70

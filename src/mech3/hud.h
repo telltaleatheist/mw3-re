@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zreader/zreader.h"
@@ -753,6 +754,23 @@ class HudHooks : public zgame::Unported {
   virtual float part_internal(void* mech, uint32_t part, int32_t section) {
     return zgame::from_bits(unported("part.vt+0x48", {unported("peek32", {id(mech) + part}), static_cast<uint32_t>(section)}));
   }
+  // The static's (0x0043cd20, hud.md section 21): the mission's player
+  // ([0x0060861c] +0x14; the tests make it the HUD's mech), GameIntensity's
+  // flag ([0x00608e4c]), the finish target on the frame's surface (0x00576ca0..
+  // 0x00576cd0 with a device, 0x00576d80..0x00576db0 without, to 0x00558290)
+  // and the static itself (0x00558c10: the rect, or null for the target, the
+  // level, three colours).
+  virtual void* mission_player(void* hud_mech) { return hud_mech; }
+  virtual bool intensity_flag() { return (unported("peek32", {0x608e4c}) & 0xff) != 0; }
+  virtual void static_target() { unported("0x00558290", {}); }
+  virtual void static_fill(const ztwod::Rect* r, double level, uint16_t lo, uint16_t mid, uint16_t hi) {
+    uint64_t b;
+    std::memcpy(&b, &level, 8);
+    const int32_t z[4] = {};
+    const int32_t* q = r ? &r->left : z;
+    unported("0x00558c10", {r ? 1 : 0, q[0], q[1], q[2], q[3], static_cast<uint32_t>(b), static_cast<uint32_t>(b >> 32),
+                            lo, mid, hi});
+  }
   // The HUD's data update's outside (0x0043c390): the mech's controls'
   // throttle and its target (IControls vt+0x1c, vt+0x2c on +0x37c), its
   // forward (+0x24), the radar's positions (0x0041cdf0, or with the radar
@@ -965,7 +983,15 @@ class Hud : public ztwod::Layer {
   HudObjectives objectives;          // +0x17964
   HudTimer timer;                    // +0x18410
   HudEquipment equipment;            // +0x188c0
-  uint32_t x22e08[12] = {};          // +0x22e08..+0x22e34
+  // The static (0x0043cd20, hud.md section 21): TARGET's (+0x22e08), the
+  // MFD's (+0x22e14), the weapons' and equipment's (+0x22e20), the radar's
+  // fade (+0x22e2c), each a floor, its level and a hold.
+  struct Static {
+    float floor = 0.0f, level = 0.0f, hold = 0.0f;
+  };
+  Static statics[4];                 // +0x22e08..+0x22e34
+  void static_tick(float dt);        // 0x0043cd20: from the frame's draw paths
+  void add_static(float step, int32_t kind, float hold, float most);  // 0x0043bfe0
   zrdr::Node* reader = nullptr;      // +0x22e38 hud.zrd's root during the set-up
   // +0x22e3c the resolution's block during it. Not set by the original's
   // constructor; FIX (bug), behind zfix bugs: cleared here (docs/hud.md).

@@ -521,8 +521,12 @@ class Engine : public zgame::AppHooks {
   virtual void mech_set_mode_a(Handle mech, int32_t a) { unported("0x0041ca30", {mech, a}); }
   virtual void mech_set_mode_b(Handle mech, int32_t a) { unported("0x0041cc30", {mech, a}); }
   virtual void mech_draw_cockpit(Handle mech) { unported("0x0041ab90", {mech}); }
-  virtual Handle mech_ai(Handle data) { return unported("0x00430aa0", {data}); }
-  virtual void ai_radar_update(Handle ai, float dt) { unported("0x0043cd20", {ai, zgame::bits(dt)}); }
+  // The draw paths' HUD calls after the HUD frame: the pilot's HUD (MechData
+  // +0x224, made when first asked), its static (hud.md section 21) and its
+  // reticle's zoom window's 3D pass (+0x144c vt+0x28 -> 0x00444230).
+  virtual Handle pilot_hud(Handle data) { return unported("0x00430aa0", {data}); }
+  virtual void hud_static(Handle hud, float dt) { unported("0x0043cd20", {hud, zgame::bits(dt)}); }
+  virtual void hud_zoom_pass(Handle hud, float dt) { vcall(hud + 0x144c, 0x28, {zgame::bits(dt)}); }
   virtual void ai_reset(uint32_t list) { unported("0x004d8610", {list}); }
   virtual void entities_sort() { unported("0x004d5ca0", {}); }  // ported: mech3/sensors
   virtual void mission_results(uint8_t a, uint8_t b) { unported("0x0047ae10", {a, b}); }
