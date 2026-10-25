@@ -720,8 +720,8 @@ lighting folds them into the fog mix (render-lighting.md). Who sets it: the
 TARGET view's tint of its target (vt+0x68: a turret's 0x4a75b0, a vehicle's
 0x4ad390, red by damage; vehicles.md). `zcls::object3d_set_blend`,
 `zcls::object3d_use_blend`. The mix's output stage (0x5680c0, 0x579950,
-0x579980, 0x5798a0) is ported and wired (item 4b); the models are not lit
-in the program yet (item 4c): render-lighting.md.
+0x579980, 0x5798a0) is ported and wired (item 4b), and the models are lit
+in the program since the GfxFlags are (item 4c): render-lighting.md.
 
 ### Fog
 

@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zrender/zrndr_draw.h"
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
@@ -1760,6 +1761,22 @@ void GameEngine::pilot_update(Handle p, float) {
   if (mech && mech_world_position(mech, pos)) zeff::anim_set_player(pos);
 }
 
+// The GfxFlags (docs/render-lighting.md): the starts' part (0x005266f0 in
+// 0x00526510, 0x00557a95 in 0x005578f0; the rest logged as before), then the
+// settings entry the app and the options menu name (0x00526750, 0x00557ae0).
+int32_t GameEngine::models_init() {
+  zmod::gfx_flags_start(zrndr::device_fog().active != 0);
+  return Engine::models_init();
+}
+int32_t GameEngine::render_init() {
+  zrndr::gfx_flags_start(zrndr::device_fog().active != 0);
+  return Engine::render_init();
+}
+void GameEngine::models_load(const char* name, int32_t flags) { zmod::use_gfx_flags(name, static_cast<uint32_t>(flags)); }
+void GameEngine::render_load(const char* name, int32_t flags) { zrndr::use_gfx_flags(name, static_cast<uint32_t>(flags)); }
+void GameEngine::model_use_gfx_flags(const char* name, int32_t flags) {
+  zmod::use_gfx_flags(name, static_cast<uint32_t>(flags));
+}
 int32_t GameEngine::weapons_init() { return zwep::startup(); }
 void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
 

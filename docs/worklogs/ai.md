@@ -1649,3 +1649,27 @@ is paused.
   208/208/208 at the load, the damaged vehicle's 255/0/0 while tinted.
   Not reached: the mix itself, as no model is lit in the program (the
   GfxFlags Lighting bit; the lead traced it: item 4c).
+
+## Item 4c: the GfxFlags (the models lit) (2026-10-25, mac 4)
+
+- Assigned (the lead, who traced it): [0x74a2cc] points at the GfxFlags
+  settings entry (zModel's start 0x5266f0: [0x74a2c8] = -1, then
+  settings_find("GfxFlags_HW" / "_SW"); 0x526750(ECX name, EDX flags)
+  re-points it, from 0x48074e (app.cpp:268's models_load) and the options
+  menu 0x439c95 / 0x43a2e5); bit 0 Lighting (GfxFlags_HW 0x1b). Port the
+  start's mask part, 0x526750 and render_load 0x557ae0 (zRender's copy:
+  Transparency 0x02, Perspective 0x08, GlobalLight 0x10) with a
+  differential; wire them in GameEngine to the settings entry so the
+  options' LIGHTING works live. Headless c1m1: models lit (lights_reaching
+  runs, the sun on a mech), mix_fog for a point-lit model; a before/after
+  screenshot pair (PNG in scratch). A port gap: render-lighting.md only.
+- 4c done (mac 4): zmod gfx_flags_start (0x5266f0's part) / use_gfx_flags
+  0x526750, zrndr gfx_flags_start (0x557a95's) / use_gfx_flags 0x557ae0;
+  GameEngine models_init / render_init (the parts, the rest still logged),
+  models_load / render_load / model_use_gfx_flags. The lighting reads the
+  option's value through the entry, so LIGHTING works live. zRender's copy
+  only matters to the software path. test_gfx_flags.py 500 cases, 8/8
+  breaks; headless c1m1: lit mean 376 (211 colours) against unlit 877
+  (22), and with an explosion's light at a vehicle (started at its place,
+  as a shot's impact does) the mix runs. The screenshot pair waits for
+  Owen's yes to the GPU (the no-GPU-while-streaming rule).

@@ -17,4 +17,16 @@ namespace zrndr {
 void draw_sprite(const float screen[3], const zimg::TextureEntry* texture, float half_size, float alpha,
                  int32_t colored);  // 0x00567720
 
+// zRender's GfxFlags ([0x008008d8] -> the settings entry "GfxFlags_HW" /
+// "_SW", else [0x008008d4]): read by the software renderer's set-up
+// (0x00557b30: bits 2, 8, 0x10) and its tint finish (0x00558610: bit 4, MMX
+// rows; the port's finish_machine). The program draws through Direct3D.
+struct GfxFlags {
+  uint32_t base = 0;               // 0x008008d4
+  const uint32_t* flags = &base;   // 0x008008d8
+};
+GfxFlags& gfx_flags();
+void gfx_flags_start(bool hardware);                    // 0x005578f0's part (zRender's start)
+void use_gfx_flags(const char* name, uint32_t flags);  // 0x00557ae0 (ECX name, EDX flags)
+
 }  // namespace zrndr
