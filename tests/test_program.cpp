@@ -10299,6 +10299,126 @@ TEST(survey_c1m1_objectives_headless) {
   reset_process_state();
 }
 
+// Playtest #26, F12's objectives box (0x00446ad0, docs/hud.md, The
+// objectives box): on c1m1 F12 shows the mission's header, the primary
+// objectives' title and each visible objective "In Progress" beside it, the
+// secondary group's, and the closing line with F12's key name; the panel is
+// as tall as the lines, each line with its score (0x00446930 adds a blank
+// one). The four SRM emplacements destroyed, their line reads "Completed"
+// (the completion refills the box, 0x0045e110).
+TEST(mission_c1m1_objectives_box_text_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_objbox_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device d) override { return d == kKeyboard; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, out);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  mech3::HudObjectivesReport before, after, closed;
+  bool got = false, got2 = false, got3 = false;
+  int killed = 0;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      const uint32_t f12 = zin::key1_of(0x43) & 0xff;
+      if (frames == 20) keys.key(f12, true);
+      if (frames == 21) keys.key(f12, false);
+      if (frames == 24) got = mech3::program_hud_objectives(&before);
+      if (frames == 25)  // the four SRM emplacements: "Destroy Fixed Emplacements"
+        for (mech3::tur::Turret* x : mech3::tur::turret_list())
+          if (std::strncmp(static_cast<zcls::Node*>(engine.object_of(x->node))->name(), "tur_srm0", 8) == 0 &&
+              static_cast<zcls::Node*>(engine.object_of(x->node))->name()[8] <= '4') {
+            ++killed;
+            x->kill();  // vt+0x70
+          }
+      if (frames == 30) got2 = mech3::program_hud_objectives(&after);
+      if (frames == 31) keys.key(f12, true);
+      if (frames == 32) keys.key(f12, false);
+      if (frames == 34) got3 = mech3::program_hud_objectives(&closed);
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 35; };
+    pump.limit = 100000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  auto dump = [](const char* what, const mech3::HudObjectivesReport& r) {
+    std::printf("  %s: shown %d, panel %d px, %zu lines / %zu scores\n", what, r.shown, r.panel_height, r.lines.size(),
+                r.scores.size());
+    for (size_t i = 0; i < r.lines.size(); ++i)
+      std::printf("    [%s]%s%s\n", r.lines[i].c_str(), i < r.scores.size() ? " | " : "",
+                  i < r.scores.size() ? r.scores[i].c_str() : "");
+  };
+  dump("F12", before);
+  dump("the emplacements destroyed", after);
+  auto has = [](const std::vector<std::string>& v, const char* s) {
+    for (const std::string& x : v)
+      if (x.find(s) != std::string::npos) return true;
+    return false;
+  };
+  auto count = [](const std::vector<std::string>& v, const char* s) {
+    int n = 0;
+    for (const std::string& x : v) n += x == s;
+    return n;
+  };
+  EXPECT(got && got2 && got3 && killed == 4);
+  EXPECT(before.shown && before.lines.size() >= 5);
+  EXPECT(has(before.lines, "P R I M A R Y") || has(before.lines, "Primary"));
+  EXPECT(has(before.lines, "To Close Objectives Display"));
+  EXPECT(count(before.scores, "In Progress") >= 2 && count(before.scores, "Completed") == 0);
+  EXPECT(before.panel_height == static_cast<int32_t>(before.lines.size()) * before.line_height);
+  EXPECT(before.scores.size() == before.lines.size());
+  EXPECT(count(after.scores, "Completed") == 1);
+  EXPECT(!closed.shown);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // c1 mission 1 won and lost through its objectives (docs/objectives.md,
 // piece 4), from the menus as campaign_menus_to_c1m1 plays it, to the
 // debriefing. Won: the comm centre's satdish destroyed (its health_below

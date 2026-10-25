@@ -348,6 +348,12 @@ class ObjectiveHooks;
 Objectives& mission_objectives();
 void* mech_shade_of(void* mech);  // its sun shade (+0x68c, mech_shade.h), for the tests
 ObjectiveHooks& mission_objective_hooks();
+// The objectives box's sources (0x00446ad0): the missions object's +0x56 and
+// the launch's game, and an objective's nav point's name (its +0x28).
+uint8_t mission_aborting();
+int32_t mission_operation();
+int32_t mission_number_of_game();
+const char* mission_nav_name(uint32_t nav);
 
 // The debug launch's slot (our addition, mission-load.md section 4): the
 // mech by roster index, its first configuration, the definition's skin 0.

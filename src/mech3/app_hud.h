@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+#include <vector>
 #include <cstdint>
 
 // The program's HUD (our addition; docs/hud.md section 10): the player's HUD
@@ -12,6 +14,8 @@ void unwire_hud();
 void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle pick (0x0040e920 through its hooks)
 void program_hud_update(float dt);
 void* program_pilot_hud(void* mech_data);        // 0x00430aa0 on a MechData (null: null)
+void* program_mech_hud(void* mech);              // 0x00430aa0 on the mech's +0x684 (null: null)
+void program_hud_objectives_fill(void* hud);      // 0x00446ad0 on its +0x17964
 void program_hud_static(void* hud, float dt);    // 0x0043cd20 on a HUD
 void program_hud_zoom_pass(void* hud, float dt); // +0x144c vt+0x28 (0x00444230) on a HUD
 bool program_intensity_flag();                   // GameIntensity's flag [0x00608e4c] (options)  // 0x0040fac0's first call: the view target's 0x0041cd40
@@ -66,6 +70,16 @@ struct HudReport {
   char zoom_text[64] = {};
 };
 bool program_hud_report(HudReport* r);
+// Tests only: the view target's objectives box (0x00446ad0's lines): each
+// line's text, the scores column's, whether it is shown, the panel's height.
+struct HudObjectivesReport {
+  std::vector<std::string> lines, scores;
+  bool shown = false;
+  int32_t panel_height = 0, line_height = 0;
+};
+bool program_hud_objectives(HudObjectivesReport* r);
+// For checking: F12 on the view target's HUD (0x0041be80's case 0x43).
+void program_hud_objectives_toggle();
 // Tests only: the view target's HUD's zoom window locked open (keypad 0, 0x00442e00).
 void program_hud_zoom_show();
 // Tests only: the view target's HUD's MFD set to mode `m` (vt+0x7c).

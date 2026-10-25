@@ -488,6 +488,7 @@ void* program_nav_find(const char* name) {  // 0x00479be0 on [0x00609980]
   auto* w = static_cast<Waynet*>(program_mission_waynet());
   return w ? w->find(name) : nullptr;
 }
+const char* program_nav_name(void* p) { return p ? static_cast<WaynetPoint*>(p)->name.c_str() : ""; }
 void program_nav_watch(void* p, int32_t on) {  // 0x0047a270 on [0x00609980]
   if (auto* w = static_cast<Waynet*>(program_mission_waynet())) w->note(static_cast<WaynetPoint*>(p), on != 0);
 }

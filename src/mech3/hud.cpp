@@ -1,8 +1,10 @@
 #include "mech3/hud.h"
 
 #include <cmath>
+#include <cstdarg>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #include "crt/msvc_math.h"
@@ -12,7 +14,9 @@
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zmath/zmth_vector.h"
+#include "gamez/zutil/zutl_msgdll.h"
 #include "mech3/mech_hud.h"
+#include "mech3/mech_objective.h"
 #include "mech3/message_panel.h"
 #include "mech3/options.h"
 
@@ -260,7 +264,182 @@ void HudObjectives::set_pos(int32_t px, int32_t py) {
 void HudObjectives::show_for(float seconds) {
   Object2D::show_for(seconds);
   scores.show_for(seconds);
-  g_hooks->unported("0x00446ad0", {g_hooks->id(this)});  // the panel's size: with the readers (hud.md)
+  fill();
+}
+
+// Mech3.exe 1.2 @ 0x00446930
+void HudObjectives::set_text(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  set_text_v(format, args);
+  va_end(args);
+  scores.set_text("%s", "");  // [0x005f4c90]
+}
+
+namespace {
+// Mech3.exe 1.2 @ 0x0045e080 (with 1): an objective's text, its nav point's
+// "OP: <name>" after it, into 0x40 bytes.
+std::string objective_text(const Objective& o) {
+  if (!o.nav) return o.desc ? *o.desc : std::string();
+  const std::string op = zutl::format_message(0x200, g_hooks->nav_name(o.nav)).substr(0, 0x3f);
+  char out[0x40];
+  if (o.desc) std::snprintf(out, sizeof out, "%s  %s", o.desc->c_str(), op.c_str());
+  else std::snprintf(out, sizeof out, "%s", op.c_str());
+  return out;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00446970. The exe hands the text to the line as its
+// format; here as the format's argument (a '%' in it would read the stack).
+void HudObjectives::add_objective(uint8_t done, const char* text) {
+  TextBox::set_text("%s", text);  // vt+0xa0, no blank score
+  scores.set_text("%s", g_hooks->message(done ? 0x22f : 0x230));  // "Completed" : "In Progress"
+  const ztwod::Handle f = done ? font_complete : font_incomplete;
+  line().set_font(f);
+  scores.line().set_font(f);
+}
+
+// Mech3.exe 1.2 @ 0x00446a20: the text's further lines.
+void HudObjectives::add_more(uint8_t done, const char* score, const char* text) {
+  TextBox::set_text("%s", text);
+  if (score) scores.set_text("%s", score);
+  const ztwod::Handle f = done ? font_complete : font_incomplete;
+  line().set_font(f);
+  scores.line().set_font(f);
+}
+
+// Mech3.exe 1.2 @ 0x00446ad0: the mission's header, then each group's title
+// and its visible objectives (each line of the text a line), the failed
+// ones, the mission's end and how to close it; the panel sized to the lines
+// (docs/hud.md, The objectives box).
+void HudObjectives::fill() {
+  HudHooks& k = *g_hooks;
+  const HudHooks::ObjectivesSource src = k.objectives_source();
+  const Objectives* o = src.objectives;
+  const ObjectiveGroup* primary = o ? o->primary.get() : nullptr;
+  const ObjectiveGroup* secondary = o ? o->secondary.get() : nullptr;
+  const ObjectiveGroup* final = primary && primary->done ? o->final.get() : nullptr;  // 0x0048fab0
+  const ObjectiveGroup* fail = o && o->fail && o->fail->done ? o->fail.get() : nullptr;  // 0x0048fad0
+  bool all_done = true;
+  const int32_t height = text_height();
+  int32_t lines = 0;
+  clear();
+  scores.clear();
+  auto put = [&](const std::string& s) { set_text("%s", s.c_str()); };  // vt+0x7c
+  auto msg = [&](int32_t id) { return std::string(k.message(id)); };
+  if (o && o->desc) {
+    put(*o->desc);
+    lines = 1;
+  } else {
+    switch (src.game_type) {
+      case 1:  // "Operation %1!d!, Mission %2!d!"
+        put(zutl::format_message_ints(0x177, {src.operation, src.mission}));
+        lines = 1;
+        break;
+      case 2: {
+        std::string s;
+        if (src.action_name) {
+          s = zutl::format_message(0x231, {std::to_string(src.operation).c_str(), src.action_name});
+        } else {
+          s = zutl::format_message_ints(0x232, {src.operation});
+        }
+        if (!s.empty()) put(s);
+        lines = 1;
+        break;
+      }
+      case 3:  // "Network Game Scores", its columns
+        set_font(font_scores);
+        put(msg(0xdd5));
+        put(msg(0xdd6));
+        lines = 2;
+        break;
+      case 4:  // "T R A I N I N G   %1"
+        put(zutl::format_message(0x233, src.training_name ? src.training_name : ""));
+        lines = 1;
+        break;
+      default:
+        break;
+    }
+  }
+  // Each visible objective with a text: its lines (strtok on '\n').
+  auto items = [&](const ObjectiveGroup& g, bool count_done) {
+    for (const std::unique_ptr<Objective>& it : g.items) {
+      const uint8_t done = it->done;
+      if (count_done) all_done = all_done && done;
+      if (!it->visible) continue;
+      const std::string text = objective_text(*it);
+      if (text.empty()) continue;
+      std::string copy = text;
+      bool first = true;
+      for (char* t = std::strtok(&copy[0], "\n"); t; t = std::strtok(nullptr, "\n")) {
+        if (first) add_objective(done, t);
+        else add_more(done, "", t);
+        first = false;
+        ++lines;
+      }
+    }
+  };
+  if (primary && !primary->items.empty()) {
+    line();
+    if (!objective_text(*primary).empty()) {
+      put(objective_text(*primary));
+      ++lines;
+    } else if (src.game_type == 4) {
+      put(msg(0x235));  // "P R I M A R Y  O B J E C T I V E S"
+      ++lines;
+    } else if (src.game_type != 2) {
+      put(zutl::format_message_ints(0x236, {src.operation, src.mission}));
+      ++lines;
+    }
+    items(*primary, true);
+  }
+  if (secondary && !secondary->items.empty()) {
+    line();
+    if (!objective_text(*secondary).empty()) put(objective_text(*secondary));
+    else put(msg(0x237));  // "S E C O N D A R Y  O B J E C T I V E S"
+    ++lines;
+    items(*secondary, false);
+  }
+  if (final && !final->items.empty()) {
+    put(objective_text(*final));  // "" without a text
+    ++lines;
+    items(*final, true);
+  }
+  if (!k.multiplayer_game() && fail && !fail->items.empty()) {
+    put("");
+    ++lines;
+    if (!objective_text(*fail).empty()) put(objective_text(*fail));
+    else put(msg(0x238));  // "F A I L E D  O B J E C T I V E S"
+    ++lines;
+    for (const std::unique_ptr<Objective>& it : fail->items) {
+      if (!it->done || !it->visible) continue;
+      const std::string text = objective_text(*it);
+      if (text.empty()) continue;
+      add_more(1, nullptr, text.c_str());
+      ++lines;
+    }
+  }
+  const std::string exit_key = k.command_key(0x71);  // Exit Mission
+  if (k.multiplayer_game()) {
+    set_font(font_scores);
+    for (const std::string& s : k.multiplayer_scores()) {
+      put(s);
+      ++lines;
+    }
+  } else if (src.aborting) {
+    put("");
+    put(msg(0x239));  // "M I S S I O N  F A I L U R E"
+    put(zutl::format_message(0x23a, exit_key.c_str()));  // "Press %1 To Exit Mission Area"
+    lines += 4;
+  } else if (all_done) {
+    put("");
+    put(msg(0x23b));  // "M I S S I O N  C O M P L E T E"
+    put(zutl::format_message(0x23a, exit_key.c_str()));
+    lines += 3;
+  }
+  put(zutl::format_message(0x23c, k.command_key(0x43).c_str()));  // "Press %1 To Close Objectives Display"
+  ++lines;
+  panel.set_size(0x140, lines * height);
 }
 
 // Mech3.exe 1.2 @ 0x00446850

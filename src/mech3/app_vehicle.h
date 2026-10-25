@@ -78,6 +78,7 @@ struct NavSummary {
 };
 NavSummary program_nav_summary(void* waynet);
 void* program_nav_find(const char* name);       // the objectives' "nav" (0x0045c8f0)
+const char* program_nav_name(void* p);  // a nav point's +0x28 ("" for none)
 void program_nav_watch(void* point, int32_t on);  // and its watch (0x0047a270)
 void program_waypoint_arrow(int32_t active);
 void program_waypoint_arrow_draw();

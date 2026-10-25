@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zreader/zreader.h"
@@ -16,6 +18,7 @@ namespace mech3 {
 
 struct Mech;
 class Hud;
+struct Objectives;
 
 // One part's damage silhouettes: blue, green, yellow, red, black, and where
 // the part sits in the silhouette (a 0x20-byte entry of [0x00605888]).
@@ -95,8 +98,12 @@ class HudObjectives : public ztwod::TextBox {
   HudObjectives();                   // 0x00446700
   void set_pos(int32_t px, int32_t py) override;  // +0x0c  0x00446870: the scores 260 to the right
   void update(float dt) override;    // +0x24  0x00447410
-  void show_for(float seconds) override;  // +0x60  0x00446820 (part: 0x00446ad0 not ported)
+  void show_for(float seconds) override;  // +0x60  0x00446820
   void hide() override;              // +0x64  0x00446850
+  void set_text(const char* format, ...) override;  // +0x7c  0x00446930: and a blank score beside it
+  void fill();                       // 0x00446ad0: the lines from the mission's objectives
+  void add_objective(uint8_t done, const char* text);  // 0x00446970: "Completed" / "In Progress" beside it
+  void add_more(uint8_t done, const char* score, const char* text);  // 0x00446a20: score null: none
   void data_update(float dt);        // 0x00446900: shown, kept above the message panel's point
   void place_above(int32_t px, int32_t py);  // 0x004468b0: its panel's height above it, the panel 4 left
   HudPanel panel;                    // +0x4c8
@@ -517,6 +524,26 @@ class HudHooks : public zgame::Unported {
   }
   // The pilot's game when it is multiplayer (0x00479480 on [0x0060861c]).
   virtual uint32_t multiplayer_game() { return unported("0x00479480", {}); }
+  // What the objectives box (0x00446ad0) reads: the missions object
+  // ([0x006098d0]) and the pilot's game ([0x0060861c]+0x6c).
+  struct ObjectivesSource {
+    const Objectives* objectives = nullptr;  // +0x78..+0x88
+    uint8_t aborting = 0;                    // +0x56 [0x00609926]: lost
+    int32_t game_type = 1;                   // vt+0x2c
+    int32_t operation = 0, mission = 0;      // vt+0x48, vt+0x4c
+    const char* action_name = nullptr;       // Instant Action's game (0x00479460) vt+0x0c; null none
+    const char* training_name = nullptr;     // 0x00437060 of 0x004794a0(vt+0x4c)
+  };
+  virtual ObjectivesSource objectives_source() {
+    unported("0x00446ad0", {});
+    return {};
+  }
+  virtual const char* nav_name(uint32_t nav) { unported("nav+0x28", {nav}); return ""; }  // a nav point's
+  // A command's first key's name (0x0051d200, then 0x0051d330 into 0x28 bytes).
+  virtual std::string command_key(int32_t cmd) { unported("0x0051d330", {cmd}); return std::string(); }
+  // Multiplayer's scores (0x004361e0, 0x00435b60(0x14, 0xc) on its game, then
+  // its +0x3c..+0x40 lines).
+  virtual std::vector<std::string> multiplayer_scores() { unported("0x004361e0", {}); return {}; }
   virtual const char* message(int32_t id);  // 0x00576040, Mech3Msg.dll's text
   // The MFD's and TARGET's last modes ([0x00605988], [0x0060598c]; 0 at first).
   virtual int32_t saved_mfd_mode() { return static_cast<int32_t>(unported("peek32", {0x605988})); }
