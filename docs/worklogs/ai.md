@@ -1864,3 +1864,22 @@ is paused.
   tunnel stops on g56 (zone 44, 16 m) with the player's zones, flies
   through with {1}; 9 of 10 breaks (the private copy: both hit).
 
+
+## Item 13: the landmines (2026-10-25, mac 4)
+
+- Assigned (the lead): the load 0x4135c0, free 0x413770, check 0x413560
+  wired into Mech::Update's call; whether AI mechs set them off (the
+  call's ECX) and whether the radius is 2D or 3D; headless as planned;
+  discoveries (where, what weapon). Branch mac4/landmines off item 12's
+  branch (12 still in the lead's tests).
+- Done (mac 4): `mech3/landmines` with the detonation 0x413470. Every
+  mech's update checks (0x41a791, no team test): AI mechs set them off.
+  3D (0x51dfa0), a NaN distance counts as near (the x87). c1 m2 82, c1 m4
+  194, c2 m3 207 mines, LANDMINE (30, IMPACT_PROXIMITY 40, crater) at 20 m.
+  Wired: the mission's load and free, update_calls().landmines, the ground
+  0x4edab0, the HUD's mine list (its red X's). Tests: test_landmines.py
+  (3000 loads and checks), mw3tests c1m2 (the player and an AI mech each
+  set one off; 82 still listed; empty after the cleanup); 14 of 14 breaks.
+  Docs: landmines.md, discoveries, symbols, movement-collision,
+  mission-frame. The c4bm5 survey tag: the parser reads "c%dm%d", so c4b
+  is "c5m5" (item 15 can take "c4b").

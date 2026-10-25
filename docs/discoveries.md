@@ -882,6 +882,18 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
 From mission.cpp's frame 0x48f470 and its neighbours (details:
 `mission-frame.md`).
 
+- **Three missions have minefields.** Operation 1 mission 2 has 82 mines,
+  operation 1 mission 4 194 and operation 2 mission 3 207; no other mission
+  has any (`landmines.md`). A mine goes off when any mech comes within 20 m
+  of it, measured in 3D: yours, your lancemates' and the enemy's alike, so
+  an enemy walking through a minefield sets them off too, and jumping over
+  one low enough counts. It fires the LANDMINE weapon (30 damage, a crater)
+  into the ground under it, and its blast hurts everything within 40 m,
+  falling off with distance, the mech that set it off included. A spent mine
+  stays on the list but leaves the radar, which shows armed mines within
+  100 m as red X's. Until the rebuild ported them no mine was ever loaded or
+  checked, so these fields were harmless.
+
 - **The mission keeps the game's clock.** The game time every timer reads
   (trigger delays, weapon recycling, the AI's fire timers) is a counter in
   the mission object, started at 0 when the mission loads and moved on by

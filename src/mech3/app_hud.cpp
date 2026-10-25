@@ -24,6 +24,7 @@
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_msgdll.h"
+#include "mech3/landmines.h"
 #include "mech3/mech_config.h"
 #include "mech3/app_mech.h"
 #include "mech3/armor_display.h"
@@ -238,7 +239,7 @@ struct ProgramHudHooks : HudHooks {
   }
   float mission_time(bool) override { return mech_game_time(); }
   // The radar (hud.md section 15): the mission map is not ported (no map
-  // mode), nor the nav route's polylines (no points) or the landmines. The
+  // mode), nor the nav route's polylines (no points). The
   // contacts' objects are of every class, each with its own blips (vt+0x3c).
   float normalize(float v[3]) override {
     zmth::Vec3 d{v[0], v[1], v[2]};
@@ -300,7 +301,12 @@ struct ProgramHudHooks : HudHooks {
     *hostile = (*it)->hostile;
     return true;
   }
-  int32_t mine_count() override { return 0; }
+  int32_t mine_count() override { return static_cast<int32_t>(landmines().list.size()); }
+  bool mine(int32_t i, float out[3]) override {
+    const Landmine& m = landmines().list[static_cast<size_t>(i)];
+    out[0] = m.at[0], out[1] = m.at[1], out[2] = m.at[2];
+    return m.armed != 0;
+  }
   bool mech_ams(Mech* m, bool* on, int32_t* count) override {
     if (!m->ams) return false;
     *on = m->ams->on;

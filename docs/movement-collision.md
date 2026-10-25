@@ -134,7 +134,7 @@ positions kept as next frame's starts. A network-synced collision record
 
 **Landmines (0x413560)**: `landmines.zrd` (`weapon`, `radius`, default 20 m)
 fills a list at 0x604e48; a mech within the radius fires the mine's weapon
-at the ground and disarms it.
+at the ground and disarms it. Ported (`landmines.md`).
 
 ## Porting order
 

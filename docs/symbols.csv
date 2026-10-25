@@ -1519,3 +1519,8 @@ address,name,source,notes
 0x004f6c80,zCamera::SetZone,asm,"ported: zcls::camera_set_zone (+0x1e0 1, +0x1e4 the list, unless empty or 0xff)"
 0x0040b080,PlayerView::Zone,asm,"the view's zone from the ground hit (program: app_view camera_zone): camera, [0x0074a328], target +0x64, anims"
 0x005a80d0,ZEntity3d::SetZones,asm,"+0x64 the list, then 0x005a80c0 (its node's zone byte 0x004eb810, the first id)"
+0x004135c0,Landmines::Load,asm,"ported: mech3::landmines_load (landmines.zrd: weapon, radius, the mission's block; ECX 0x00604e48)"
+0x00413560,Landmines::Check,asm,"ported: mech3::landmines_check (from Mech::Update 0x0041a791 with its 0x005a85e0 place; 3D, radius squared [0x00604e40])"
+0x00413470,Landmine::Detonate,asm,"ported: mech3::landmine_detonate (the ground from 50 m up, the stand-in shot 0x00604e60's impact and splash; disarmed)"
+0x00413770,Landmines::Free,asm,"ported: mech3::landmines_free (the list emptied, the mission's cleanup 0x004918b5)"
+0x004137c0,Landmines::Insert,asm,"the list's std::vector insert (16-byte mines)"
