@@ -108,6 +108,7 @@ namespace mech3 {
 int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
 void free_weapon_type(zwep::WeaponDef* def);                     // 0x004b0090
+void reset_ready_times();                                        // 0x004b4bd0
 void engine_sounds_clear();  // mech3/veh_basic_object.h: 0x004add10
 void vehicle_markers_create();  // mech3/veh_basic_object.h: 0x004ac3d0
 void vehicle_markers_delete();  // 0x004ac4e0
@@ -582,8 +583,10 @@ struct WiredPlayerHooks : PlayerHooks {
     else PlayerHooks::vehicle_update(v, dt);
   }
   void entities_update(float dt) override { update_entities(dt); }  // 0x004a1140
-  // 0x004d52b0: every net's vt+0x28 then vt+0x2c; the mcbwaynet's (0x00479a50)
-  // is ported, the others' stay logged.
+  // 0x004d52b0: every znet object's vt+0x2c (vt+0x28 is itself, 0x004d2a70):
+  // the mcbwaynet's (0x00479a50) is ported; the numbered objects' 0x004d5350
+  // (each AI net's items swizzled and linked) and the other waynets' begin
+  // are not, logged.
   void nets_begin() override {
     program_nets_begin();
     PlayerHooks::nets_begin();
@@ -1402,7 +1405,9 @@ struct WiredMissionHooks : MissionHooks {
       // loop always ends and nothing is deleted twice.
       if (list.size() == before && !list.empty() && list.front() == h) list.erase(list.begin());
     }
-    e->unported("0x00402560", {});  // the AI nets 0x00402170 made (the AI's)
+    // 0x00402560 frees the AI nets' edits 0x00402170 kept ([0x005f4c4c]): the
+    // port builds each net from a local edit, and the next mission's build
+    // replaces the net (net_hooks().rebuilt): nothing is kept to free.
     PlayerState& ps = player_state();  // [0x00609a00], the player's tick object
     if (ps.tick) {
       zcls::node_set_action(static_cast<zcls::Node*>(e->object_of(ps.tick)), nullptr);  // 0x004eb450(0)
@@ -1420,38 +1425,43 @@ struct WiredMissionHooks : MissionHooks {
     e->set_field32(p, 0x14, v);
   }
   void fn_4ea750() override { ai::ai_switch_off(); }  // the AI switch off
-  // The mission load's listeners (0x004e7b40: each one's slot +0x08, in
-  // their registration order): the pocket commander's (0x0046aaa0, from
-  // 0x0046ab73), the deploy state's "mcbdeploy" (0x004cfe40) and the mission
-  // boundary's (0x004c3da0, from 0x004c3c9a; independent of the others, so
-  // its place in the order does not matter); the animation-owner registry's
-  // (0x004d490f) is empty (0x004d7210); 0x004b4c53's is not ported, logged.
+  // The mission listeners ([0x0060b888], 0x004e78d0): the pocket commander
+  // (0x0046ab73, vtable 0x005c3370), the weapon types (0x004b4c53,
+  // 0x005c90f8), the mission boundary (0x004c3c9a, 0x005cac78), the deploy
+  // state (0x004cfed3, 0x005cc880) and the animation owners (0x004d490f,
+  // 0x005ccd90); every slot not named below is 0x004d7210 (nothing). Slot
+  // +0x04 at the load's step 9 (0x004e7b00) is only the boundary's read
+  // (0x004c3da0), which the port makes with the others here (it needs only
+  // the world, loaded by then).
+  void fn_4e7b00() override {}
+  // Slot +0x08 as the mission loads (0x004e7b40): the pocket commander's
+  // (0x0046aaa0), the weapon types' ready times (0x004b4bd0) and "mcbdeploy"
+  // (0x004cfe40); each independent of the others.
   void fn_4e7b40() override {
     pocket_mission_start();
+    reset_ready_times();
     ai::deploy_mission_load();
-    ai::inout_mission_load();
-    MissionHooks::fn_4e7b40();
+    ai::inout_mission_load();  // the boundary's slot +0x04 (above)
   }
   void fn_4d4b30() override { ai::anim_owner_bind_all(); }  // the animations' owners and valves
   // Their slot +0x0c as the world goes (0x004e7b80): the animation owners'
-  // (0x004d4740); the others logged.
-  void ai_lists_free() override {
-    ai::anim_owner_free();
-    MissionHooks::ai_lists_free();
-  }
+  // (0x004d4740) and the boundary's free (0x004c3dd0), which the port makes at
+  // every mission's end instead (fn_4e7bc0: its FIX (bug) on the current area
+  // needs it there).
+  void ai_lists_free() override { ai::anim_owner_free(); }
   void inout_load() override { ai::inout_select(); }  // 0x004c3b80: the mission's boundary
   // The mission's landmines (landmines.cpp; the list is 0x00604e48's).
   void landmines_load(Handle, const char* file, const char* block) override { mech3::landmines_load(file, block); }
   void landmines_free() override { mech3::landmines_free(); }
-  // Their slot +0x10 at the mission's end (0x004e7bc0): the boundary's
-  // (0x004c3dd0), the pocket commander's (0x0046ab10) and the animation
-  // owners' (0x004d4700); the others logged.
+  // Their slot +0x10 at the mission's end (0x004e7bc0): the pocket
+  // commander's (0x0046ab10) and the animation owners' (0x004d4700); the
+  // boundary's free is its slot +0x0c (0x004c3dd0, above), made here.
   void fn_4e7bc0() override {
     pocket_mission_end();
     ai::inout_mission_end();
     ai::anim_owner_mission_end();  // 0x004d4700
-    MissionHooks::fn_4e7bc0();
   }
+  void fn_4c3240() override {}  // 0x004c3240: an empty function
   void fn_4e6910() override { shade_off(); }          // the mechs' sun shading off (mech_shade)
   void fn_40f040() override { message_panel_reset(); }        // the message panel cleared and out
   void fn_40f0b0(uint8_t v) override { if (message_panel()) message_panel_set(v != 0); }  // slid in or out

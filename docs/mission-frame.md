@@ -185,7 +185,7 @@ c2 mission 3, c4b mission 6 the same) against what the port keeps:
   search paths ([0x0072eebc]), which the port never keeps; the AI nets'
   edits 0x00402560 ([0x005f4c4c]): the port builds each net from a local
   edit and the next mission's build replaces it (`net_hooks().rebuilt`);
-  the listeners' other slots logged by 0x004e7bc0 (item 15).
+  the listeners' other slots (item 15, below).
 
 `mission_end_frees_what_the_next_does_not_need_headless` checks it: c1
 mission 1 played with three impacts started at a place and a model made
@@ -253,3 +253,22 @@ load's failure (0x0048fe17, mission-load.md).
   multiplayer deployment check, the stations, the fade sequence 0x0048ef00.
 - Nothing ported calls the cleanup in play yet; the next mission's load
   would.
+
+**The mission listeners** (traced 2026-10-25, item 15). Five objects
+register on [0x0060b888] (base 0x004e78d0, vtable 0x005cd8c0): the pocket
+commander (0x0046ab73, vtable 0x005c3370), the weapon types (0x004b4c53,
+0x005c90f8), the mission boundary (0x004c3c9a, 0x005cac78), the deploy
+state (0x004cfed3, 0x005cc880) and the animation owners (0x004d490f,
+0x005ccd90). The four walks call one slot each: +0x04 at the load's step 9
+(0x004e7b00), +0x08 as the mission loads (0x004e7b40), +0x0c as the world
+goes (0x004e7b80, at the unload) and +0x10 at the mission's end
+(0x004e7bc0). Every slot is 0x004d7210 (nothing) but: +0x04 the boundary's
+read 0x004c3da0; +0x08 the pocket commander's 0x0046aaa0, the weapon
+types' ready times 0x004b4bd0 and "mcbdeploy" 0x004cfe40; +0x0c the
+boundary's free 0x004c3dd0 and the animation owners' 0x004d4740; +0x10 the
+pocket commander's 0x0046ab10 and the animation owners' 0x004d4700. All are
+ported; the port reads the boundary with the +0x08 group and frees it at
+every mission's end (its FIX on the current area), where the exe frees it
+only with the world (a cleanup that keeps the world leaves the old areas
+until the next read replaces them). The weapon types' ready times were not
+reset before item 15.

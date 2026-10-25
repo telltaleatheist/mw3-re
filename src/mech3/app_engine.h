@@ -335,6 +335,7 @@ class GameEngine : public Engine {
   uint32_t key_state(int32_t key) override;
   void input_clear() override;
   void input_reset() override;
+  void model_purge(int32_t models, int32_t materials) override;  // 0x005394c0: zmod::models_purge
   void input_capture() override;
   void input_release() override;
   void input_center_mouse() override;

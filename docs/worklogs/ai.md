@@ -1908,3 +1908,24 @@ is paused.
   free) destroys the borrowed node's tree. FIX (bug) behind
   `anim().fix_instance_tree` (the probes keep the exe's path): fixes.md,
   CHANGES, anim-run.md.
+
+## Item 15: the survey's logs (2026-10-25, mac 4)
+
+- Assigned (the lead): program overrides for the already-ported steps that
+  still log, so the survey lists only real gaps; the mechs' 0x5a85c0; the
+  c4b survey tag; the mech lab's model_purge(1, 1). Branch mac4/logs off
+  mac4/cleanup.
+- Done (mac 4): the mission listeners traced (mission-frame.md, The mission
+  listeners): every slot ported, the weapon types' ready-time reset
+  0x004b4bd0 wired in (it was missing); fn_4e7b00, fn_4e7b40, ai_lists_free,
+  fn_4e7bc0, fn_4c3240 no longer log. 0x00402560: nothing kept to free
+  (comment). The mechs' 0x5a85c0 from the sensors calls Mech::entity_moved
+  (the function update_calls().moved already is); a mech's 0x4d6c90 no
+  longer logs (its node binding is 0x00415ae0's). The engine's model_purge
+  is zmod::models_purge (the mech lab's end). The survey takes c4bm<n>.
+  Survey c1m1 / c2m3 / c4bm5: 13 calls gone, none new.
+- Real gaps found, left logged: a vehicle's node is never bound to it
+  (0x0040eaa0 under 0x004d6c90: no bits 0x80000, no owner, so node_entity
+  finds nothing; now logged as 0x0040eaa0); nets_begin / nets_end's
+  numbered objects (0x004d5350 / 0x004d53f0: each AI net's items swizzled
+  and linked) and every waynet but the mcbwaynet (0x00479a50) not begun.

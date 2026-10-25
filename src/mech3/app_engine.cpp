@@ -20,6 +20,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zinterp/zinterp.h"
+#include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zreader/zreader.h"
@@ -356,6 +357,7 @@ void GameEngine::input_poll(uint8_t callbacks) { zin::poll(callbacks != 0); }
 uint32_t GameEngine::key_state(int32_t key) { return zin::key_state(key); }
 void GameEngine::input_clear() { zin::kbd_reset(); }
 void GameEngine::input_reset() { zin::reset(); }
+void GameEngine::model_purge(int32_t models, int32_t materials) { zmod::models_purge(models != 0, materials != 0); }
 void GameEngine::input_capture() { zin::mouse_use(); }
 void GameEngine::input_release() { zin::mouse_unuse(); }
 void GameEngine::input_center_mouse() { zin::mouse_centre(); }
