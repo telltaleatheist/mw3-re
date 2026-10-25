@@ -1099,6 +1099,86 @@ TEST(mission_c4b_m4_snow_made_and_drawn_headless) {
   EXPECT(seen.gone_after);
 }
 
+// The HUD's static (0x0043cd20; hud.md section 21) in c1m1: with the
+// player's torso at 0.1 of its internal structure the panels get static and
+// it is drawn each frame (GameIntensity's flag clear); repaired to 1 it falls
+// back to nothing. The noise is made at start-up (0x00557b20).
+TEST(mission_c1m1_hud_static_when_hurt_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_static_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    float most = 0.0f, after = 1.0f;
+    int fills_hurt = 0, fills_after = -1;
+    bool noise = false;
+  } seen;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    seen.noise = zrndr::noise_table().size() > 0x6400;
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    mech3::HudReport r;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 3) {
+        mech3::program_set_torso_internal(mech3::mech_mission_player(), 0.1f);
+        mech3::program_hud_report(&r);  // the fills from here
+      } else if (frames == 30 && mech3::program_hud_report(&r)) {
+        for (float v : r.statics) seen.most = std::max(seen.most, v);
+        seen.fills_hurt = r.static_fills;
+        mech3::program_set_torso_internal(mech3::mech_mission_player(), 1.0f);
+      } else if (frames == 400 && mech3::program_hud_report(&r)) {
+        seen.after = 0.0f;
+        for (float v : r.statics) seen.after = std::max(seen.after, v);
+      } else if (frames == 401 && mech3::program_hud_report(&r)) {
+        seen.fills_after = r.static_fills;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 401; };
+    pump.limit = 6000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  std::printf("  static: most %.3f, %d fills hurt; after repair %.3f, %d fills\n", seen.most, seen.fills_hurt, seen.after,
+              seen.fills_after);
+  EXPECT(seen.noise);
+  // At 0.1 the top is (5 - 20 x 0.1) / 4 = 0.75; a random panel of four gains a
+  // 30 fps frame's 0.1 each frame while all fall 0.3 a second.
+  EXPECT(seen.most > 0.2f && seen.most <= 0.75f && seen.fills_hurt > 0);
+  EXPECT(seen.after == 0.0f && seen.fills_after == 0);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -27,6 +27,8 @@ bool g_have_zrd = false;
 const char* const kMessages[] = {"Objective complete", "Nav Alpha reached",
                                  "Lancemate destroyed: the rest of the lance falls back"};
 const float kMessageTimes[] = {0.0f, 0.5f, 2.0f, 6.0f};
+const float kStaticStep[] = {0.1f, 0.05f, 0.5f, 1.0f}, kStaticHold[] = {0.0f, 0.016f, 0.3f, 2.0f},
+            kStaticMost[] = {0.1f, 0.5f, 1.0f, 1.25f};
 std::deque<std::string> g_strings;
 mech3::Hud* g_hud = nullptr;
 bool g_lock_shown = false;
@@ -405,6 +407,9 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 31: mech3::message_panel_reset(); break;
     case 32: mech3::message_panel()->slide(zgame::from_bits(v)); break;
     case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
+    case 39: h.static_tick(zgame::from_bits(v)); break;
+    case 40: h.add_static(kStaticStep[v >> 4 & 3], static_cast<int32_t>(v & 0xf), kStaticHold[v >> 8 & 3], kStaticMost[v >> 12 & 3]); break;
+    case 41: call("poke32", {0x608e4c, v}); break;
     case 33: z.show_for(zgame::from_bits(v)); break;
     case 34: z.toggle_lock(); break;
     case 35: h.radar.toggle_zoom(); break;
@@ -593,7 +598,8 @@ void dump_hud(Dump& d) {
   d.kv("mech", g_hooks.id(h.mech));
   d.kv("reader", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h.reader)));
   d.kv("block", h.block ? 1 : 0);
-  for (uint32_t v : h.x22e08) d.kv("z", v);
+  for (const mech3::Hud::Static& s : h.statics)
+    for (float f : {s.floor, s.level, s.hold}) d.kv("z", zgame::bits(f));
   d.o << "\n";
   for (const ztwod::Object2D* p : {static_cast<ztwod::Object2D*>(&h.compass), static_cast<ztwod::Object2D*>(&h.gauges),
                                    static_cast<ztwod::Object2D*>(&h.target), static_cast<ztwod::Object2D*>(&h.mfd),

@@ -27,6 +27,9 @@ it is clear what the designers meant.
   every frame a foot touched lava, so a faster computer cooked you faster
   (1.5 heat a second at 30 fps, over 7 at 144). It is now 1.5 a second
   always, what lava did at 30 fps.
+- **The HUD's damage static builds at the same speed at any frame rate.**
+  With the torso or head badly hurt the panels break up with static; the
+  original added to it every frame, so a faster computer showed more.
 - **Rain and snow fall the same at any frame rate.** The original moved
   them by a fixed step a frame for the fall and the wind but by the real
   frame's move for your mech, so above 30 fps the rain looked steeper while
@@ -133,6 +136,7 @@ it is clear what the designers meant.
 None of these change normal play; they stop a crash or a hang when something
 unusual happens.
 
+- The HUD no longer crashes drawing static on the TARGET display in a mode with nothing to show.
 - The rain's and snow's very first frame no longer draws its streaks from unset sizes (it used the screen's size from the second frame on anyway).
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
 - Keypad 0 (the zoom lock) no longer crashes when the mech you are looking at has no HUD; it does nothing then.

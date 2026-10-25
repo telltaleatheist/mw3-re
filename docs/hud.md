@@ -1116,8 +1116,61 @@ world-params.md section 7). 0x5a6790(i, rect) sets its rect slot i
 (0x5a66b0); 0x5a67c0(dt) ticks its objects (0x59fd20, vt+0x24) and clears
 its +0x1ec (0x5a6600). The Direct3D frame calls both after the world tick
 (0x48187b, 0x48188b), so they update and draw the rain or snow. In the
-program `create_snow`, `create_rain` and `weather_add` are empty
-(app_mission.cpp) were empty, so no weather was made: c3, c4 and t1 set
+program `create_snow`, `create_rain` and `weather_add` (app_mission.cpp)
+were empty, so no weather was made: c3, c4 and t1 set
 RAIN and c4b missions 4 and 6 SNOW in world.zrd. Both are ported since item
 19 (`weather.md`).
+
+## 21. The static (0x0043cd20, hud-plan item 6b)
+
+When the player's mech is badly hurt the HUD's panels break up with green
+static. The Direct3D and software frames call 0x0043cd20 on the view
+target's HUD after the HUD (app_states' `hud_static`, once misnamed the AI's
+radar update; its HUD is 0x00430aa0 on the mech's +0x684, asked twice).
+
+- **Four channels** at +0x22e08 (`Hud::statics`), each a floor, a level
+  and a hold: TARGET's (+0x22e08), the MFD's (+0x22e14), the weapons' and
+  equipment's (+0x22e20), and the radar's fade (+0x22e2c, 0x0043dc70).
+- **Adding** (0x0043bfe0, step, kind, hold, top): kind 0 the radar's fade
+  (set on the radar at once), 1 the MFD's, 2 TARGET's, 3 the weapons'; 4
+  all four, 5 a random one (rand & 3). The level grows by the step up to
+  the top; the hold becomes the larger. Its only caller is the tick below.
+- **The warning**: the least internal structure of the mission player's
+  torso (sections 0-2, vt+0x48: +0x38, +0x1a0, +0x1a4) and head (+0x38).
+  Under 0.4, and GameIntensity's flag [0x00608e4c] clear, a random channel
+  gets 0.1 this frame (FIX (B), behind per_second: a 30 fps frame's) up to
+  a top of (5 - 20 x) / 4 at or under 0.2, (0.4 - x) x 5 / 4 above (0.25
+  at 0.2, 1.25 at 0), held for the frame.
+- **The draw**, while the HUD is active and the radar is not shown zoomed
+  over the map: the finish target on the frame's surface (the 3D lock's
+  back buffer with a device, the software surface without; 0x00558290),
+  then each channel with a level over 0 on its panel, clamped to 0..0.9
+  (0x0043cca0): TARGET's on its shown rect (0x004425d0) one pixel wider
+  and taller when its mode is not 0; the MFD's on its shown rect while
+  shown (none: the whole target); the third on the weapons' panel while
+  shown, and again on the equipment's while both are. FIX (bug): TARGET in
+  a mode without a rect (the nav list unmade) is read through null in the
+  exe; nothing is drawn.
+- **The static itself** (zRender's 0x00558c10, `zrndr::static_fill`): per
+  row a random start into the noise table (0x6400 bytes of rand made by the
+  set-up 0x005581c0, from 0x00557b20 at start-up), per pixel its byte's
+  third picks dark, middle or bright green ((32 64 32), (64 128 64), (96
+  192 96)) when the next byte is under level x 256. No rect: the target
+  less its last column and row. FIX (A): the table has a zeroed byte past
+  its end, which the row's last pixel can read.
+- **The fall**: past its hold (each counts down by the frame's time) a
+  level falls 0.3 a second to its floor (the radar's fade set as it
+  falls); under the floor it is raised to it.
+
+Tests: test_hud.py ops 39 (the tick, the mission's player the HUD's mech),
+40 (an add of any kind) and 41 (GameIntensity's flag), the fill logged
+with its rect, level and colours; 100 HUDs match, 262 fills, the null
+TARGET read skipped as the port. test_static.py checks the table and the
+fill pixel for pixel (300 cases, 96 million pixels). 20 breaks caught.
+mission_c1m1_hud_static_when_hurt_headless: the torso at 0.1, the static
+up and drawn, gone after a repair. Screenshots: c1m1 with and without.
+
+Open: 0x00557b30, the set-up's other half, clears GfxFlags bit 2, which the
+software finish reads as MMX (render-tint.md); not traced whether the
+release ever uses the MMX rows.
 

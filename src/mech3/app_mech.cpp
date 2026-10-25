@@ -321,6 +321,8 @@ class WiredLaunch : public LaunchHooks {
   void pilot_set_mech(Handle p, Mech& m) override {
     unported("0x004782c0", {low(p), 0});
     set_field32(p, 0x14, g_w.handle_of(g_w.engine, &m));
+    // The mech's +0x684, its MechData, for the draw paths' HUD calls (0x00430aa0).
+    if (m.pilot) g_w.poke32(g_w.engine, g_w.handle_of(g_w.engine, &m) + 0x684, g_w.handle_of(g_w.engine, m.pilot));
     // The mech globals: [0x0060861c]+0x14, and the view's target (+0x64,
     // set by the view attach 0x0041ce30, not ported) is the same mech.
     world().mission_player = &m;

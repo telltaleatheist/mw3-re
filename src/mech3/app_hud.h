@@ -10,7 +10,10 @@ namespace mech3 {
 void wire_hud();                  // the hooks onto the ports; called with the mech frame's
 void unwire_hud();
 void* program_hud_node_object(void* node);  // for the tests: the HUD's reticle pick (0x0040e920 through its hooks)
-void program_hud_update(float dt);  // 0x0040fac0's first call: the view target's 0x0041cd40
+void program_hud_update(float dt);
+void* program_pilot_hud(void* mech_data);        // 0x00430aa0 on a MechData (null: null)
+void program_hud_static(void* hud, float dt);    // 0x0043cd20 on a HUD
+bool program_intensity_flag();                   // GameIntensity's flag [0x00608e4c] (options)  // 0x0040fac0's first call: the view target's 0x0041cd40
 // For the tests: the view target's reticle (x, y), its world point and
 // whether the ray hit something; false without a HUD.
 // Tests only: the player's HUD as it stands (hud.md sections 12, 13): the
@@ -49,8 +52,13 @@ struct HudReport {
   // below full, the lowest recycle fraction of the manager's weapons.
   float bar_min = 1.0f, recycle_min = 1.0f;
   int bars_partial = 0;
+  // The static (hud.md section 21): its four levels, the fills since the last report.
+  float statics[4] = {};
+  int static_fills = 0;
 };
 bool program_hud_report(HudReport* r);
+// Tests only: a mech's torso's internal structure, all three sections.
+void program_set_torso_internal(void* mech, float v);
 // Tests only: the mech sounds of `id` played from now on (both the cockpit's
 // 0x00432990 paths) counted into `*count`; (0, null) puts the hooks back.
 void program_count_sounds(int id, int* count);
