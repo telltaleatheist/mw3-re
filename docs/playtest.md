@@ -68,6 +68,8 @@ Owen: "otherwise it seems to be working really well".
 | 26 | F12 opens no objectives text | the objectives box's text 0x446ad0 (keybindings.md) | dev | waiting |
 | 27 | Shots at the missile turrets don't destroy them | turret hits / damage (hit test reaching tur_* nodes?) | dev | waiting |
 | 28 | No recoil: the Bushwhacker's arm AC/10 should kick the mech back and throw off the aim (less from the torso) | WeaponCalls::recoil (weapon.cpp 204) unwired in the program; the part update 0x466xxx is ported | dev | waiting |
+| 29 | The HUD corners show neither your own mech nor the target. The MFD (D) should cycle: your mech in 3D from the front, a parts diagram with damage, an armour bar graph (green, red where damaged) | MFD mode 1: its camera 0x442900 (vt+0x8c) has no caller found; TARGET's view 6c3 | dev | waiting |
+| 30 | No mission boundaries (yellow and red lines) on the radar | the radar's polylines, hud-plan item 9 | dev | planned |
 
 ## Unported in c1m1 (2026-10-21, census)
 
