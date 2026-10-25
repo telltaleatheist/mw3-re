@@ -1425,6 +1425,74 @@ handle answers null, FIX (A) on our handle table). 14 of 15 breaks
 (the miss not observable: no list holds a null contact after a sensors
 frame, and a contact at distance 0 needs two vehicles in one place).
 
+### Radar contacts (the HUD's, by class; ported 2026-10-25, item 3)
+
+The HUD's radar (0x43dd00's contact loop, hud.md section 15) and TARGET
+(hud.md section 14) ask a contact (here: every vehicle's contact list) for
+its object and that object's slots. In the exe every class answers through
+its own vtable (found by their vt+0xd4); `mech3/entity_classes` is the
+port's table of them, each answer the slot's function as written:
+
+| Class (vtable) | vt+0x3c blip | vt+0xa4 name | vt+0xa8 hidden | vt+0x50 mech | vt+0xbc centre |
+|---|---|---|---|---|---|
+| mech 0x5bcef8 | 0x41ec60 [0x605618] | 0x41df30 (the player's pilot's, else 0x4aee70, else "") | 0 | itself | 0x5a85e0 |
+| network mech 0x5c3508 | 0x41ec60 | 0x4709c0 (not ported; no network) | 0 | itself | 0x5a85e0 |
+| vehicles 0x5c23d8, 0x5c8460 (the stealth), 0x5c88e8 | 0x45b970 [0x60b120] | 0x4aee70 | 0 | none | 0x5a85e0 |
+| field base 0x5c8d48 | none (0x410510) | 0x4aee70 | 0 | none | 0x5a85e0 |
+| turret 0x5c8770 | 0x4a5fc0 [0x609a38] | none | 0 | none | 0x5a85e0 |
+| target 0x5ccb90, trap 0x5ccc80 | 0x4d2d70 [0x60b4f0] | +0xec (vt+0xc4) | not +0xe8 bit 0 (0x4d3350) | none | 0x4d84f0 (the centroid node's) |
+| command marker 0x5cced8 | none | none | 0 | none | 0x5a85e0 |
+| plain AiTarget 0x5ccfe0 | none | none | 0 | none | 0x4d84f0 |
+
+Each blip table is ally, enemy, other, picked by the object's team
+(vt+0x28, itself, +0xc0) against the mech's allies and enemies. The
+contact's object (0x4e6fe0) is its seen object's vt+0x2c, itself in every
+class (with none the exe returns what EAX held; the port none); its size
+(0x4e7070) the object's +0x68, 5 with none; the lead point's place
+0x5a8630 (the target node, +0x10) and velocity vt+0xc (a mech's 0x41d480,
+the rest zEntity's 0x5a82d0, +0x30). The tables are made by the mechs'
+HUD (0x413e60), the stealth object's constructor (vehicles.md), the turrets'
+load (0x4a76b0) and the targets' (0x4d2e20); a field base and the command
+marker never show on the radar.
+
+What reaches the radar: a contact on it (in sight, +0x2c bit 0) or TARGET's
+own. A targets.zrd object without `radar` is never in sight (0x4d3380,
+section 15), so never on the radar: only t1 m2 and m3 (training) have
+targets with `radar` (four each); c1m1's satdish is sensed, never shown.
+
+**In the program** (app_sensors.cpp's ProgramEntityFacts and hud_object_*,
+app_hud.cpp's contact hooks): the classes from the program's objects (the
+mechs, the basic vehicles and field bases, turrets, targets and traps, the
+command marker; no network mechs). The targets' markers are made by their
+hooks now (app_mission.cpp), the vehicles' at the stealth step. The HUD's
+report counts the blips by their images (mechs, vehicles, turrets,
+targets).
+
+**Tests.** `tests/differential/test_entity_classes.py` (probe
+`tests/probe_entity_classes.cpp`): 300 cases, objects with each of the 12
+vtables and random fields (team, height, a target's flags, name and
+centroid node with or without a refresh), the four blip tables (some
+entries 0), the pilot on one of the mechs or none; the original runs each
+object's own slots (vt+0x3c for each kind, vt+0x28, vt+0x50, vt+0xa8,
+vt+0xa4, vt+0xbc, 0x4e6fe0, 0x4e7070 on a contact, and with none) against
+entity_classes: 3600 objects, 36000 answers and the calls identical.
+Breaks caught: the vehicles reading the turrets' table, the field base
+given the vehicles', the +0xe8 bit inverted, a name for the turret and
+marker, the targets' centre from 0x5a85e0, vt+0x50 answering for every
+class, the player's name not tested, the size's default 0, targets and
+traps without blips: 9 of 9. `test_hud.py` now gives some of the radar's
+contacts (60%) their own object with a real class vtable and the fields its
+slots read, and TARGET's object (half the cases) a target's, trap's, field
+base's, marker's or plain one's (their view tint vt+0x68 empty), the blip
+tables filled: the exe's contact loop and TARGET over a mixed list against
+the port (probe_hud.cpp answers the classed objects through
+entity_classes); every class's slot function reached. Six of the breaks
+rerun against it: 6 of 6 caught. In the program,
+`mission_c1m1_radar_shows_turrets_and_vehicles_headless` (by a turret 4
+turret blips, by a vehicle 4 vehicle blips; the satdish a contact, not in
+sight, no blip) and `mission_t1m2_radar_shows_its_targets_headless` (the
+four targets in sight, 4 target blips).
+
 ## 16. The AI mechs' frames (in the program)
 
 Nothing in the AI calls a vehicle's frame. The player tick 0x4a1160 updates

@@ -25,6 +25,9 @@ struct HudReport {
   // report and the last one's place, the sensor range.
   int radar_shown = 0, radar_r = 0, radar_x = 0, radar_y = 0, blips = 0, blip_x = 0, blip_y = 0;
   int markers = 0;  // the waypoint marker's draws (its icon, not a contact's blip)
+  // The other classes' blips drawn (blips counts the mechs'), by their images:
+  // the basic vehicles' 0x004ac3d0, the turrets' and targets.zrd's markers.
+  int vehicle_blips = 0, turret_blips = 0, target_blips = 0;
   int contacts = 0, on_radar = 0, vehicles = 0;  // the player's contacts, those on the radar, with a vehicle
   // The damage displays: the parts not showing intact, TARGET's and the MFD's.
   int target_damaged = 0, mfd_damaged = 0, target_mode = 0;

@@ -348,10 +348,14 @@ the set-up reads: item 1a's test).
 - The radar in the program (section 15): the mission map (its map mode),
   the nav route's polylines (+0xbd4.. lists), the network marker
   (0x0058b060) and the landmines (0x00413560's list) are not ported and
-  answer none. Contacts resolve to mechs only (the program's contact_mech),
-  so the other vehicle classes' blips (their vt+0x3c: the basic vehicles,
-  the Mobile HQ, turrets) wait for those vehicles; until then their contacts
-  show nothing.
+  answer none. (Done, 2026-10-25) The contacts' objects are of every class
+  (ai.md section 15, Radar contacts): their place, team and blip (vt+0x3c)
+  by class, the basic vehicles', turrets' and targets.zrd's with their own
+  markers, the field base's and command marker's none (never drawn); TARGET's
+  object likewise (its name, hidden test, mech, centre, size, the lead
+  point's place and velocity), so a turret or a target can be TARGET's with
+  its own name and colours. A mech's name (vt+0xa4) is now TARGET's first
+  text too, as in the exe.
 - (Done) TARGET's third text in the program: a mech's own name (vt+0xa4,
   0x0041df30): the player's pilot's, else its brain's (0x004aee70: the
   brain's vehicle record's pilot, AiParams +0xd4), "" without one.

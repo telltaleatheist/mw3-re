@@ -10,6 +10,7 @@
 #include "mech3/app_mech.h"
 #include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
+#include "mech3/mech_hud.h"
 #include "mech3/mech_lod.h"
 
 #include <cmath>
@@ -25,6 +26,7 @@
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/sensors.h"
+#include "mech3/entity_classes.h"
 #include "mech3/turret.h"
 #include "mech3/zai_anim_owner.h"
 #include "mech3/zai_brain.h"
@@ -35,6 +37,7 @@
 namespace mech3 {
 
 void player_set_60b56c(uint8_t v);  // mech3/player.h, whose Handle is not mech.h's
+const char* program_pilot_name();  // app_menus.cpp: the current pilot's (+0x18)
 
 namespace {
 
@@ -296,6 +299,61 @@ struct ProgramAnimOwner : ai::AnimOwnerHooks {
 };
 ProgramAnimOwner g_anim_owner;
 
+// The entity classes' facts (entity_classes.h) on the program's objects:
+// the mechs, the basic vehicles and field bases, the turrets, targets.zrd's
+// objects and the command marker. No network mechs in the port.
+struct ProgramEntityFacts : EntityFacts {
+  float place_[3] = {};
+  uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override { return log_unported(key, args); }
+  EntityClass class_of(zgame::Handle o) override {
+    if (!o) return EntityClass::none;
+    if (mech(o)) return EntityClass::mech;
+    if (void* v = vehicle(o)) return program_is_field_base(v) ? EntityClass::field_base : EntityClass::vehicle;
+    if (program_turret_by_handle(o)) return EntityClass::turret;
+    if (ai::CZAiTarget* t = target(o)) return t->trap ? EntityClass::trap : EntityClass::target;
+    if (program_pocket_marker(o)) return EntityClass::marker;
+    return EntityClass::none;
+  }
+  zgame::Handle blip(BlipTable t, int32_t kind) override {
+    switch (t) {
+      case BlipTable::mech:
+        if (!mech_radar_blip(0)) mech_radar_blips_create();  // our addition: made when first needed (0x00413e60's part)
+        return handle(mech_radar_blip(kind));
+      case BlipTable::vehicle: return handle(program_vehicle_marker(kind));
+      case BlipTable::turret: return handle(program_turret_marker(kind));
+      case BlipTable::target: return ai::target_marker(kind);
+      default: return 0;
+    }
+  }
+  uint32_t team(zgame::Handle o) override {
+    const ai::AiTarget* a = g_sensors.fields(o);
+    return a ? a->team : 0;
+  }
+  float height(zgame::Handle o) override {
+    const ai::AiTarget* a = g_sensors.fields(o);
+    return a ? a->height : 0.0f;
+  }
+  uint8_t target_e8(zgame::Handle o) override {
+    const ai::CZAiTarget* t = target(o);
+    return t ? t->desc.flags : 0;
+  }
+  const char* target_name(zgame::Handle o) override {
+    const ai::CZAiTarget* t = target(o);
+    return t && t->desc.named ? t->desc.name.c_str() : nullptr;
+  }
+  const char* pilot_name(zgame::Handle o) override {  // 0x004aee70
+    if (Mech* m = mech(o)) return mech_brain_name(m);
+    void* v = vehicle(o);
+    const auto* b = v ? static_cast<const ai::Brain*>(program_vehicle_brain(program_vehicle_controls(v))) : nullptr;
+    return b ? b->params.pilot : nullptr;
+  }
+  zgame::Handle player_vehicle() override { return g_sensors.player(); }
+  const char* player_name() override { return program_pilot_name(); }
+  void place(zgame::Handle o, float out[3]) override { world_position(g_sensors.node(o, false), out); }
+  void target_centre(zgame::Handle o, float out[3]) override { world_position(g_sensors.node(o, true), out); }
+};
+ProgramEntityFacts g_entity_facts;
+
 }  // namespace
 
 void wire_sensors(const MechWiring* w, const char* (*message)(void* e, int32_t id)) {
@@ -303,6 +361,35 @@ void wire_sensors(const MechWiring* w, const char* (*message)(void* e, int32_t i
   g_message = message;
   ai::set_sensor_hooks(w ? &g_sensors : nullptr);
   ai::set_anim_owner_hooks(w ? &g_anim_owner : nullptr);
+  set_entity_facts(w ? &g_entity_facts : nullptr);
+}
+
+// The HUD's contact objects (app_sensors.h).
+void* hud_contact_vehicle(const void* c) { return object(contact_vehicle_of(static_cast<const ai::Contact*>(c)->seen)); }
+void* hud_contact_entity(const void* c) { return object(static_cast<const ai::Contact*>(c)->entity); }
+float hud_contact_size(const void* c) { return contact_size_of(static_cast<const ai::Contact*>(c)->seen); }
+uint32_t hud_object_team(const void* o) { return entity_team(handle(o)); }
+void* hud_object_blip(const void* o, int32_t kind) { return object(entity_blip(handle(o), kind)); }
+bool hud_object_hidden(const void* o) { return entity_hidden(handle(o)); }
+void* hud_object_mech(const void* o) { return object(entity_mech(handle(o))); }
+const char* hud_object_name(const void* o) { return o ? entity_name(handle(o)) : nullptr; }
+void hud_object_place(const void* o, float out[3]) { g_entity_facts.place(handle(o), out); }
+void hud_object_centre(const void* o, float out[3]) { entity_centre(handle(o), out); }
+void hud_object_centroid(const void* o, float out[3]) { world_position(g_sensors.node(handle(o), true), out); }
+// 0x005a8630: the target node's (+0x10) place; vt+0xc 0x005a82d0: zEntity's
+// velocity (+0x30), the basic vehicles' kept by them, the rest still.
+void hud_object_aim_place(const void* o, float out[3]) {
+  const zgame::Handle h = handle(o);
+  zgame::Handle n = 0;
+  if (void* v = vehicle(h)) return world_position(static_cast<zcls::Node*>(program_vehicle_target_node(v)), out);
+  if (tur::Turret* t = program_turret_by_handle(h)) n = t->target_node;
+  else if (ai::CZAiTarget* t = target(h)) n = t->target_node;
+  world_position(static_cast<zcls::Node*>(object(n)), out);
+}
+void* hud_target_marker(int32_t kind) { return object(ai::target_marker(kind)); }
+void hud_object_velocity(const void* o, float out[3]) {
+  out[0] = out[1] = out[2] = 0.0f;
+  if (void* v = vehicle(handle(o))) program_vehicle_velocity(v, out);
 }
 
 int32_t sensed_contacts(const void* mech, SensedContact* out, int32_t cap) {

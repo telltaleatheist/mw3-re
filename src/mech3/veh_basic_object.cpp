@@ -456,6 +456,15 @@ void vehicle_markers_create() {
   g_markers.other = h.marker_create("hud_veh_other_sm");
 }
 
+// Mech3.exe 1.2 @ 0x004ac4e0: each one's vt+0 (1), then none.
+void vehicle_markers_delete() {
+  VehBasicHooks& h = *g_hooks;
+  for (Handle* m : {&g_markers.ally, &g_markers.enemy, &g_markers.other}) {
+    if (*m) h.marker_delete(*m);
+    *m = nullptr;
+  }
+}
+
 CameraList& vehicle_cameras() { return g_cameras; }
 void vehicle_cameras_reset() {
   for (CameraMode*& c : g_cameras.modes) delete c;

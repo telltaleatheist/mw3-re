@@ -103,6 +103,8 @@ int32_t mech_index(const char* name);                        // 0x004845f0
 void make_weapon_type(zrdr::Node* node, zwep::WeaponDef* def);  // 0x004b0020
 void free_weapon_type(zwep::WeaponDef* def);                     // 0x004b0090
 void engine_sounds_clear();  // mech3/veh_basic_object.h: 0x004add10
+void vehicle_markers_create();  // mech3/veh_basic_object.h: 0x004ac3d0
+void vehicle_markers_delete();  // 0x004ac4e0
 bool launch_player();                                        // 0x00491150 (mech3/mission_launch.h)
 void radar_objects_destroy();                                // 0x004b4ae0
 const char* mech_name(int32_t mech);                         // 0x00484650
@@ -891,6 +893,13 @@ struct WiredTargetHooks : ai::TargetHooks {
   void anim_run(Handle a) override {
     if (zeff::AnimDef* d = def(a)) zeff::anim_start(d, nullptr, 0, 0, 0);
   }
+  // The HUD's markers for the radar and TARGET (0x004d2e20, 0x004d3030).
+  Handle marker_create(const char* name) override { return e->handle_of(new ztwod::Image(name, 0, 0, 1)); }  // 0x0059b830
+  void marker_delete(Handle m) override {
+    auto* img = static_cast<ztwod::Image*>(e->object_of(m));
+    e->forget_object(img);
+    delete img;
+  }
   void anim_owner_release(Handle self) override { ai::anim_owner_release(self); }  // 0x004d5100
   uint8_t anim_owner_claim(Handle self, Handle a) override { return ai::anim_owner_claim(self, a) ? 1 : 0; }  // 0x004d4f20
   // zWeapon's handler tables (zweapon.h): the callbacks as the exe's
@@ -1263,6 +1272,16 @@ struct WiredMissionHooks : MissionHooks {
   void set_608c84(Handle v) override { e->poke32(0x608c84, v); }
   Handle get_608c84() override { return e->peek32(0x608c84); }
   void set_stealth(Handle v) override { e->poke32(0x609a2c, v); }
+  // The stealth object (0x004a4de0) is not made (vehicles.md, The stealth
+  // object); its constructor's call that makes the vehicles' radar and TARGET
+  // markers (0x004ac3d0) is. The exe frees them with the stealth at the
+  // world's unload (0x004a4fc0 -> 0x004ac4e0); here the old ones go as the
+  // next are made.
+  Handle stealth_4a4de0(Handle mem, Handle x) override {
+    vehicle_markers_delete();
+    vehicle_markers_create();
+    return MissionHooks::stealth_4a4de0(mem, x);
+  }
   Handle stealth() override { return e->peek32(0x609a2c); }
   uint32_t field32(Handle h, uint32_t off) override { return e->peek32(h + off); }
   void set_field32(Handle h, uint32_t off, uint32_t v) override { e->poke32(h + off, v); }

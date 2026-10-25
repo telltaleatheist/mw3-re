@@ -1583,3 +1583,18 @@ is paused.
   rework (app_hud is mac 3's; the lead reviews it). Differential: the
   radar's contact list and each class's marker over the shipped worlds'
   entities; headless: c1m1's turrets or a target on the radar.
+- Item 3 done (mac 4), test shape approved by the lead: `mech3/entity_classes`
+  (the classes' slots by vtable: blip vt+0x3c, team, mech vt+0x50, hidden
+  vt+0xa8, name vt+0xa4, centre vt+0xbc, 0x4e6fe0, 0x4e7070), the program's
+  facts and hud_object_* in app_sensors.cpp, app_hud's contact hooks only
+  (the contact's vehicle/entity/seen, team, place, blip, hidden, mech, name,
+  centre, size, the lead point's place and velocity; the report counts
+  blips by class). Markers: the vehicles' 0x4ac3d0 at the stealth step
+  (0x4ac4e0 ported, the old ones deleted first: no stealth object in the
+  port), the targets' made by app_mission's hooks. test_entity_classes.py
+  300 cases, 9/9 breaks; test_hud.py with classed radar and TARGET objects
+  (every class slot reached), 6/6 of the breaks; headless c1m1 (turrets,
+  vehicles; the satdish has no `radar`: never shown, as in the exe) and
+  t1m2 (four targets). Found: only training targets have `radar`; the
+  vehicles' markers are the stealth object's. mission_c1m1_hud_weapon_lines
+  test: its blip counts are the mechs' now (turrets and trucks show too).

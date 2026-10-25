@@ -41,7 +41,16 @@ their definitions are aiTurrets.zrd: The turrets).
   again whether it is listed or not, and ZEntity's 0x5a8370.
 - The HUD markers 0x4ac3d0: three zTwoD images, `hud_veh_ally_sm`,
   `hud_veh_enemy_sm`, `hud_veh_other_sm`, at [0x60b120] / [0x60b124] /
-  [0x60b128].
+  [0x60b128]. The basic vehicles' constructor does not make them: the
+  stealth object's does (0x4a4de0 from the mission load's "Creating
+  Stealth"), and its destructor deletes them (0x4a4fc0 -> 0x4ac4e0) when the
+  world unloads, so every mission has them from the load. The radar shows a
+  vehicle with them (vt+0x3c, 0x45b970: [0x60b120 + 4 kind]). In the
+  program (2026-10-25) the stealth object is not made (back burner): its
+  step makes the markers (0x4ac3d0, deleting the last mission's first,
+  0x4ac4e0), so the trucks, the APCs and every basic vehicle show on the
+  radar as blips of their own; before, they drew nothing (ai.md section 15,
+  Radar contacts).
 - Ported (steps 1a and 1b, 2026-10-23): all of the above and below to the
   motion animation, `mech3/veh_basic_object`
   (`BasicVehicle` over the shared `Vehicle` base, which `Mech` now derives

@@ -148,6 +148,7 @@ class VehBasicHooks : public zgame::Unported {
   virtual void refresh(Vehicle& v) { unported("0x005a85c0", {ref(&v)}); }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return h(unported("0x0059b830", {name, 0, 0, 1})); }
+  virtual void marker_delete(Handle m) { unported("marker.vt+0x0", {ref(m), 1}); }
 
   // The damage and death (step 1d). The controls' own (step 2): vt+0x1c,
   // destroyed (the AI's: the owner no longer active; the basic ones' state
@@ -290,6 +291,7 @@ struct VehicleMarkers {
 };
 VehicleMarkers& vehicle_markers();
 void vehicle_markers_create();
+void vehicle_markers_delete();  // 0x004ac4e0, from the stealth object's destructor 0x004a4fc0
 
 // The vehicles' cameras (docs/vehicles.md, The cameras): one list for every
 // vehicle (the static at 0x0060b130), three plain modes made once

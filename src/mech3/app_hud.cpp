@@ -1,4 +1,5 @@
 #include "mech3/app_hud.h"
+#include "mech3/app_sensors.h"
 #include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
 
@@ -143,8 +144,9 @@ struct ProgramHudHooks : HudHooks {
   }
   int32_t mech_3cc(void* m) override { return static_cast<Mech*>(m)->equipment[8]; }  // ECM
   // TARGET's tracking, the lead point and the data update (hud.md section
-  // 14) on the player's mech and its target's mech: a contact's entity,
-  // vehicle and seen object are the contact's mech here.
+  // 14) on the player's mech and its target: a contact's entity, vehicle and
+  // seen object of any class (app_sensors.cpp, entity_classes.h); a mech's
+  // place, centre and velocity its own, the others' by their class.
   static Mech* mech_of(void* p) { return static_cast<Mech*>(p); }
   static void mech_pos(Mech* m, float out[3]) {  // 0x005a85e0
     Vec3 v{0, 0, 0};
@@ -156,29 +158,29 @@ struct ProgramHudHooks : HudHooks {
     const ai::Contact* k = static_cast<ai::Contact*>(c);
     out[0] = k->dir[0], out[1] = k->dir[1], out[2] = k->dir[2];
   }
-  void* contact_entity(void* c) override { return contact_mech(c); }
-  void* contact_vehicle(void* c) override { return contact_mech(c); }
-  void* object_seen(void* c) override { return contact_mech(c); }
+  void* contact_entity(void* c) override { return hud_contact_entity(c); }    // +8
+  void* contact_vehicle(void* c) override { return hud_contact_vehicle(c); }  // 0x004e6fe0
+  void* object_seen(void* c) override { return hud_contact_vehicle(c); }      // +4
   void* target_object(void* slot) override {
     ai::Contact* c = slot ? *static_cast<ai::Contact**>(slot) : nullptr;
-    return c ? contact_mech(c) : nullptr;
+    return c ? hud_contact_vehicle(c) : nullptr;
   }
-  bool object_a8(void*) override { return false; }
-  bool object_mech(void* o) override { return o != nullptr; }
-  void* object_mech_ptr(void* o) override { return o; }
-  const char* object_name(void*) override { return nullptr; }
-  float contact_size(void* c) override {  // 0x004e7070: its vehicle's +0x68, else 5
-    Mech* m = mech_of(contact_mech(c));
-    return m ? m->height : 5.0f;
+  bool object_a8(void* o) override { return hud_object_hidden(o); }           // vt+0xa8
+  bool object_mech(void* o) override { return hud_object_mech(o) != nullptr; }  // vt+0x50
+  void* object_mech_ptr(void* o) override { return hud_object_mech(o); }
+  const char* object_name(void* o) override { return hud_object_name(o); }   // vt+0xa4
+  float contact_size(void* c) override { return hud_contact_size(c); }        // 0x004e7070
+  void entity_position(void* e, float out[3]) override {  // the centroid node's (+0x14)
+    if (!e) out[0] = out[1] = out[2] = 0.0f;
+    else if (entity_is_mech(e)) mech_pos(mech_of(e), out);
+    else hud_object_centroid(e, out);
   }
-  void entity_position(void* e, float out[3]) override {
-    if (e) mech_pos(mech_of(e), out);
+  void vehicle_center(void* v, float out[3]) override {  // vt+0xbc
+    if (v && entity_is_mech(v)) mech_pos(mech_of(v), out);
+    else if (v) hud_object_centre(v, out);
     else out[0] = out[1] = out[2] = 0.0f;
   }
-  void vehicle_center(void* v, float out[3]) override {  // vt+0xbc: the node's place here (hud.md, Left)
-    entity_position(v, out);
-  }
-  uint32_t object_team(void* o) override { return o ? mech_of(o)->team : 0; }
+  uint32_t object_team(void* o) override { return o ? hud_object_team(o) : 0; }  // vt+0x28 +0xc0
   // 0x0043da50's click (0x00432990 on the source HUD's mech): radar_up (0x10)
   // into +0x5f8 growing, radar_down (0x11) into +0x5fc shrinking.
   void radar_zoom_sound(void* source, bool zoomed) override {
@@ -205,9 +207,15 @@ struct ProgramHudHooks : HudHooks {
     return true;
   }
   void mech_position(Mech* m, float out[3]) override { mech_pos(m, out); }
-  void vehicle_position(void* v, float out[3]) override { entity_position(v, out); }
+  void vehicle_position(void* v, float out[3]) override {  // 0x005a8630
+    if (v && !entity_is_mech(v)) return hud_object_aim_place(v, out);
+    entity_position(v, out);
+  }
   void mech_velocity(Mech* m, float out[3]) override { out[0] = m->velocity.x, out[1] = m->velocity.y, out[2] = m->velocity.z; }
-  void vehicle_velocity(void* v, float out[3]) override { mech_velocity(mech_of(v), out); }
+  void vehicle_velocity(void* v, float out[3]) override {  // vt+0xc
+    if (v && !entity_is_mech(v)) return hud_object_velocity(v, out);
+    mech_velocity(mech_of(v), out);
+  }
   float controls_throttle(Mech* m) override { return m->controls ? m->controls->throttle : 0.0f; }
   float controls_throttle_target(Mech* m) override { return m->controls ? m->controls->throttle_target : 0.0f; }
   void mech_forward(Mech* m, float out[3]) override { out[0] = m->forward.x, out[1] = m->forward.y, out[2] = m->forward.z; }
@@ -230,9 +238,8 @@ struct ProgramHudHooks : HudHooks {
   }
   float mission_time(bool) override { return mech_game_time(); }
   // The radar (hud.md section 15): the mission map is not ported (no map
-  // mode), nor the nav route's polylines (no points), the network's marker
-  // or the landmines. Contacts resolve to mechs only (contact_mech); the
-  // other vehicle classes' blips (their vt+0x3c) wait for those vehicles.
+  // mode), nor the nav route's polylines (no points) or the landmines. The
+  // contacts' objects are of every class, each with its own blips (vt+0x3c).
   float normalize(float v[3]) override {
     zmth::Vec3 d{v[0], v[1], v[2]};
     const float len = zmth::normalize(d);
@@ -249,22 +256,30 @@ struct ProgramHudHooks : HudHooks {
   bool contact_same(void* a, void* b) override {
     return static_cast<ai::Contact*>(a)->entity == static_cast<ai::Contact*>(b)->entity;
   }
-  void object_position(void* o, float out[3]) override { entity_position(o, out); }
-  void* object_blip(void* o, int32_t kind) override {
-    if (!o) return nullptr;
-    if (program_turret(o)) return program_turret_marker(kind);  // vt+0x3c 0x004a5fc0
-    if (!mech_radar_blip(0)) mech_radar_blips_create();  // our addition: made when first needed (0x00413e60's part)
-    return mech_radar_blip(kind);
+  void object_position(void* o, float out[3]) override {  // 0x005a85e0
+    if (o && !entity_is_mech(o)) return hud_object_place(o, out);
+    entity_position(o, out);
+  }
+  void* object_blip(void* o, int32_t kind) override { return o ? hud_object_blip(o, kind) : nullptr; }  // vt+0x3c
+  // For program_hud_report: the draws by the blip's class (its image).
+  static int blip_class(void* b) {
+    for (int32_t k = 0; k < 3; ++k) {
+      if (b == mech_radar_blip(k)) return 0;
+      if (b == program_vehicle_marker(k)) return 1;
+      if (b == program_turret_marker(k)) return 2;
+      if (b == hud_target_marker(k)) return 3;
+    }
+    return program_is_waypoint_icon(b) ? 4 : 0;
   }
   void blip_place(void* b, int32_t x, int32_t y) override {
     static_cast<ztwod::Image*>(b)->set_pos(x, y);
-    if (!program_is_waypoint_icon(b)) blip_at[0] = x, blip_at[1] = y;
+    if (blip_class(b) == 0) blip_at[0] = x, blip_at[1] = y;
   }
   void blip_draw(void* b) override {
     static_cast<ztwod::Image*>(b)->draw();
-    ++(program_is_waypoint_icon(b) ? markers : blips);
+    ++drawn[blip_class(b)];
   }
-  int32_t blips = 0, blip_at[2] = {}, markers = 0;  // for program_hud_report
+  int32_t drawn[5] = {}, blip_at[2] = {};  // mechs, vehicles, turrets, targets, the waypoint
   // The radar's waypoint (the mission waynet's selected point; vehicles.md,
   // The nav waynet), its icon, place and name.
   void* network_marker() override { return program_waypoint_marker(); }
@@ -638,9 +653,10 @@ bool program_hud_report(HudReport* r) {
   r->shape_x = h->target.shape1.translation[0];
   r->radar_shown = !(h->radar.flags & ztwod::kHidden);
   r->radar_r = h->radar.radius, r->radar_x = h->radar.get_x(), r->radar_y = h->radar.get_y();
-  r->blips = g_hooks.blips, r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
-  r->markers = g_hooks.markers;
-  g_hooks.blips = 0, g_hooks.markers = 0;
+  r->blips = g_hooks.drawn[0], r->blip_x = g_hooks.blip_at[0], r->blip_y = g_hooks.blip_at[1];
+  r->vehicle_blips = g_hooks.drawn[1], r->turret_blips = g_hooks.drawn[2], r->target_blips = g_hooks.drawn[3];
+  r->markers = g_hooks.drawn[4];
+  for (int32_t& n : g_hooks.drawn) n = 0;
   r->sensor_range = m->sensor_range;
   for (const HudDamagePart& p : h->target.damage.parts) r->target_damaged += p.image != p.images->image[0];
   for (const HudDamagePart& p : h->mfd.damage.parts) r->mfd_damaged += p.image != p.images->image[0];

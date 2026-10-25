@@ -100,8 +100,10 @@ MechWear program_mech_wear(void* mech);
 void program_mech_wear_down(void* mech, float armor, float internal);
 void program_field_base_aim_arms(void* v, bool open);  // 0x004589a0 on its arms (the dock's, 4b; tests)   // 0x00459e80's registry part (0x00459e50, [0x0060b4d0])
 void* program_vehicle_controls(void* v);  // +0xe4
+void* program_vehicle_marker(int32_t kind);  // [0x0060b120 + 4 kind] (0x0045b970), ally, enemy, other
 void* program_vehicle_node(void* v);      // +0x04
 void* program_vehicle_centroid(void* v);  // +0x14
+void* program_vehicle_target_node(void* v);  // +0x10
 void program_vehicle_place(void* v, const float pos[3], float yaw);          // vt+0xdc
 void program_vehicle_setup(void* v, void* def, const char* name, int32_t kind);  // vt+0x158
 void program_vehicle_motion(void* v, void* mode, const char* name, const char* type);  // 0x0049ec90 -> 0x0049ef40

@@ -1763,6 +1763,122 @@ TEST(mission_c1m1_a_destroy_animation_turns_its_valve_on_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The radar's contacts beyond mechs (docs/ai.md section 15, Radar contacts):
+// the player is walked up to a turret, a targets.zrd object (one with
+// `radar`) and a vehicle in turn, 60 frames each; at each stop the most blips
+// a frame of each class's image (the turrets' and targets' markers made at
+// the load, the vehicles' by the stealth step's 0x004ac3d0), and the player's
+// contacts on a target, in sight or not.
+struct RadarStops {
+  bool found[3] = {};
+  int blips[3][3] = {};  // per stop (turret, target, vehicle): turret, target, vehicle blips
+  bool target_radar = false;  // the target visited has `radar`
+  int target_contacts = 0, targets_in_sight = 0;
+};
+RadarStops radar_stops(int32_t index, int32_t number) {
+  RadarStops out;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_radar_contacts_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = index, l.number = number;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    float at[3][3] = {};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* player = engine.object_of(engine.field32(engine.pilot(), 0x14));
+      mech3::HudReport r;
+      if (frames == 2) {
+        mech3::program_hud_report(&r);  // the counts from here
+        for (mech3::tur::Turret* t : mech3::tur::turret_list())
+          if (!out.found[0] && t->active) out.found[0] = true, std::copy(t->pos, t->pos + 3, at[0]);
+        for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())  // one with `radar` first
+          if (t->active && (!out.found[1] || (!out.target_radar && (t->desc.flags & 2))))
+            out.found[1] = true, out.target_radar = (t->desc.flags & 2) != 0, mech3::hud_object_place(t, at[1]);
+        for (void* v : mech3::program_vehicles())
+          if (!out.found[2]) out.found[2] = true, mech3::hud_object_place(v, at[2]);
+      }
+      const int stop = frames < 3 ? -1 : (frames - 3) / 60;
+      if (stop >= 0 && stop < 3 && (frames - 3) % 60 == 0 && out.found[stop]) {
+        const float x = at[stop][0] - 40.0f, z = at[stop][2];
+        const float pos[3] = {x, ground_under(x, at[stop][1] + 100.0f, z), z};
+        mech3::move_mech(player, pos, -1.5707964f);
+      }
+      if (stop >= 0 && stop < 3 && mech3::program_hud_report(&r)) {
+        int* b = out.blips[stop];
+        b[0] = std::max(b[0], r.turret_blips), b[1] = std::max(b[1], r.target_blips), b[2] = std::max(b[2], r.vehicle_blips);
+      }
+      if (frames == 3 + 60 + 30) {
+        mech3::SensedContact sc[64];
+        const int n = std::min(mech3::sensed_contacts(player, sc, 64), 64);
+        for (int i = 0; i < n; ++i)
+          for (mech3::ai::CZAiTarget* t : mech3::ai::target_list())
+            if (t->self == sc[i].seen) ++out.target_contacts, out.targets_in_sight += sc[i].in_sight;
+      }
+      ++frames;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 183; };
+    app.run(pump);
+    std::fprintf(stderr, "  radar (index %d, m%d): by a turret %d turret / %d target / %d vehicle blips; by a target "
+                         "%d / %d / %d; by a vehicle %d / %d / %d (found %d %d %d); target contacts %d, %d in sight\n",
+                 index, number, out.blips[0][0], out.blips[0][1], out.blips[0][2], out.blips[1][0], out.blips[1][1],
+                 out.blips[1][2], out.blips[2][0], out.blips[2][1], out.blips[2][2], out.found[0], out.found[1],
+                 out.found[2], out.target_contacts, out.targets_in_sight);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return out;
+}
+
+// c1m1: the turrets and the trucks on the radar, each with its class's image.
+// Its one target (the satdish) has no `radar` in targets.zrd: sensed from
+// 40 m, never in sight, so never on the radar (as in the exe).
+TEST(mission_c1m1_radar_shows_turrets_and_vehicles_headless) {
+  if (!have_game()) return;
+  const RadarStops s = radar_stops(0, 1);
+  EXPECT(s.found[0] && s.found[2]);
+  EXPECT(s.blips[0][0] >= 1 && s.blips[2][2] >= 1);
+  EXPECT(s.found[1] && !s.target_radar && s.target_contacts == 1 && s.targets_in_sight == 0 && s.blips[1][1] == 0);
+}
+
+// t1m2 (training): the four targets with `radar`, in sight and on the radar
+// with the targets' image.
+TEST(mission_t1m2_radar_shows_its_targets_headless) {
+  if (!have_game()) return;
+  const RadarStops s = radar_stops(5, 2);
+  EXPECT(s.found[1] && s.target_radar && s.target_contacts >= 1 && s.targets_in_sight == s.target_contacts);
+  EXPECT(s.blips[1][1] >= 1);
+}
+
 TEST(mission_c1m1_nav_waynet_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -89,6 +89,7 @@ struct WiredVehicles : VehBasicHooks {
     refresh(v);
   }
   Handle marker_create(const char* name) override { return new ztwod::Image(name, 0, 0, 1); }  // 0x0059b830
+  void marker_delete(Handle m) override { delete static_cast<ztwod::Image*>(m); }
   // zWeapon's hit state and a kill (as the mechs').
   Handle hit_attacker() override { return zwep::attacker(); }
   void hit_health(float f) override { zwep::set_health_after(f); }
@@ -438,6 +439,11 @@ void program_waypoint_arrow_draw() {  // 0x00479ed0 while [0x00609980]
 void* program_vehicle_controls(void* v) { return static_cast<BasicVehicle*>(v)->controls; }
 void* program_vehicle_node(void* v) { return static_cast<BasicVehicle*>(v)->node; }
 void* program_vehicle_centroid(void* v) { return static_cast<BasicVehicle*>(v)->centroid; }
+void* program_vehicle_target_node(void* v) { return static_cast<BasicVehicle*>(v)->target_node; }
+void* program_vehicle_marker(int32_t kind) {
+  const VehicleMarkers& m = vehicle_markers();
+  return kind == 0 ? m.ally : kind == 1 ? m.enemy : kind == 2 ? m.other : nullptr;
+}
 void program_vehicle_place(void* v, const float pos[3], float yaw) { vehicle_place(*static_cast<BasicVehicle*>(v), pos, yaw); }
 void program_vehicle_setup(void* v, void* def, const char* name, int32_t kind) {
   auto* b = static_cast<BasicVehicle*>(v);
