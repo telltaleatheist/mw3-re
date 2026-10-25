@@ -9,6 +9,7 @@
 
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_di.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/list.h"
@@ -21,6 +22,7 @@
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zutil/ztimer.h"
 
 namespace zcls {
@@ -1179,6 +1181,26 @@ int render_subtree(Node* camera_node, Node* node, int32_t hw) {
   if (g_hooks.draw_quad) g_hooks.draw_quad(g_hooks.ctx);
   if (g_hooks.end_scene) g_hooks.end_scene(g_hooks.ctx);
   zmth::pop();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f7350
+int camera_draw_flares(Camera* cam, int32_t from) {
+  if (g_hooks.begin_scene) g_hooks.begin_scene(g_hooks.ctx);
+  const int32_t n = zrndr::flares_pick(from);
+  for (int32_t i = 0; i < n; ++i) {
+    const zrndr::Flare* f = zrndr::flare_picked(i);
+    SegmentOptions& o = segment_options();
+    o.exclude = 0x40000;  // 0x004eda00, cleared by the query
+    o.first_hit = 1;      // 0x004ed9c0
+    static LineHits hits;
+    const float from_pt[3] = {cam->get<float>(0x2c), cam->get<float>(0x30), cam->get<float>(0x34)};
+    const int32_t res = segment_list(cam->nodes[0], from_pt, f->world, &hits);
+    o.first_hit = 0;
+    if (res != 0 || hits.count == 0) zrndr::flare_draw(i);
+  }
+  if (g_hooks.flush_transparent) g_hooks.flush_transparent(g_hooks.ctx);
+  if (g_hooks.end_scene) g_hooks.end_scene(g_hooks.ctx);
   return 0;
 }
 

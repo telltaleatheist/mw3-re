@@ -115,8 +115,10 @@ struct DrawHooks {
   // 0x541df0(ECX vertex, EDX colour, light): one model light; unset, the
   // port's (a point). Set by the tests to log it.
   void (*model_light)(void* ctx, const float* vertex, uint32_t color, Light* light) = nullptr;
-  // 0x00567420 from 0x541df0: a light with +0x3c onto the lens-flare list (not ported).
-  void (*flare)(void* ctx, Light* light) = nullptr;
+  // 0x00567420 from 0x541df0: a light with +0x3c onto the lens-flare list
+  // (zrndr::flare_add when unset): its world point, screen point, colour and
+  // the light's +0x30.
+  void (*flare)(void* ctx, const float world[3], const float screen[3], uint32_t color, Light* light) = nullptr;
   // 0x540552..0x5408d8 / 0x540ef6..0x541260: the projected-shadow casters
   // over this polygon into clip2d().shadow (count reset to 0 before).
   void (*collect_shadows)(void* ctx, int32_t count, const float normal[3]) =

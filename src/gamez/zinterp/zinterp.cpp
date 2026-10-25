@@ -29,6 +29,7 @@
 #include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_format.h"
 
@@ -99,6 +100,7 @@ Engine make_engine() {
     return 0;
   };
   e.texture_add = zimg::add_texture;
+  e.lens_flare_texture = [](int i, zimg::TextureEntry* t) { return zrndr::flare_texture(i, t); };  // 0x005676d0
   e.cycle_set_on = zmod::cycle_set_on;
   e.cycle_set_map = zmod::cycle_set_map;
   e.cycle_set_looping = [](Model* m, int on) { return zmod::cycle_set_looping(m, static_cast<uint32_t>(on)); };

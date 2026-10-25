@@ -542,7 +542,8 @@ class Engine : public zgame::AppHooks {
   virtual Handle vehicle_node(Handle veh) { return field32(veh, 0x4); }
   virtual Handle cockpit_node(Handle veh) { return field32(field32(field32(veh, 0x684), 0x228), 0x4); }
   virtual Handle arm_node(Handle veh, int32_t off) { return field32(field32(veh, off), 0x8); }
-  virtual void view_draw_hud(Handle view) { unported("0x004b51f0", {view}); }
+  // 0x004b51f0: the view's camera matrices and projection again (after the cockpit passes).
+  virtual void view_camera_refresh(Handle view) { unported("0x004b51f0", {view}); }
   virtual void node_set_active(Handle node, int32_t on) { unported("0x004eb170", {node, on}); }
   virtual void node_set_shadow(Handle node, int32_t on) { unported("0x004eb6d0", {node, on}); }
   virtual void camera_set_near(int32_t a) { unported("0x004f3540", {a}); }

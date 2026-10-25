@@ -14,6 +14,7 @@
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_fogcalc.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zrender/zrndr_flare.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
@@ -194,7 +195,8 @@ void morph_vertices(const Model& m) {
 // identity), past the near plane, projected, inside the point rect; its depth
 // biased by the light's priority (+0x18) as polygons are; faded out between
 // +0x30 and +0x34 at the rate +0x38. A light with +0x3c also goes on the
-// lens-flare list (0x00567420, by its world point), not ported.
+// lens-flare list (0x00567420) with its world point (camera space by
+// 0x0073fc00) and that screen point.
 void model_light(const float* vertex, uint32_t color, Light& l) {
   DrawState& s = g_state;
   zmth::MatrixStack& st = zmth::matrix_stack();
@@ -215,7 +217,12 @@ void model_light(const float* vertex, uint32_t color, Light& l) {
     else if (c[2] > near_) alpha = static_cast<int32_t>((far_ - c[2]) * light_field<float>(l, 0x38));  // ftol
   }
   if (alpha != 0 && g_table.point) g_table.point(g_table.ctx, screen_pt, color & 0xffff, alpha);
-  if (light_field<int32_t>(l, 0x3c) != 0 && g_hooks.flare) g_hooks.flare(g_hooks.ctx, &l);
+  if (light_field<int32_t>(l, 0x3c) != 0) {
+    float world[3];
+    transform_point(c, zmth::view().camera.m, world);  // 0x00541ea8..
+    if (g_hooks.flare) g_hooks.flare(g_hooks.ctx, world, screen_pt, color & 0xffff, &l);
+    else zrndr::flare_add(world, screen_pt, color & 0xffff, l.raw + 0x30);
+  }
 }
 
 // The model lights (+0x20, 0x4c each): type 0 blinks by swapping its two

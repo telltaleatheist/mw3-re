@@ -541,12 +541,10 @@ Kept:
 
 These look like bugs, but fixing them is a guess at intent that changes balance:
 
-- Lens flares in Direct3D (mac 2, 2026-10-21; render.md, Lens flares): every
-  world has a flaring light (the sun, it seems), and the scripts load the
-  four flare textures. Yet only the software frames draw the flare list; the
-  Direct3D frame clears it unseen. The flare code has a Direct3D branch, so
-  drawing the list in the Direct3D frame would show it. That is a guess
-  that it was meant to; it changes the look, not the play.
+- (Withdrawn 2026-10-25, item 18: lens flares in Direct3D. The Direct3D
+  frame does draw them: 0x481790 calls the flare draw 0x4f7350 at 0x481954,
+  which the 2026-10-21 reading missed. Ported as the exe; render.md, Lens
+  flares.)
 
 - The eject sound (mac 2, 2026-10-21, damage.md, The death): a destroyed
   mech's pilot ejects with `mech_eject`, but Die stops every mech sound in

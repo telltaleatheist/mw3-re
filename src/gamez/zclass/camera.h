@@ -130,6 +130,11 @@ void horizon_follow();                             // 0x004f6d40
 // in a scene of its own (the cockpit and the arms over the world). The
 // Direct3D path; the software one (hw 0) is not ported and draws nothing.
 int render_subtree(Node* camera_node, Node* node, int32_t hw);
+// Mech3.exe 1.2 @ 0x004f7350 (ECX the camera's data, EDX the frame's first
+// flare): the lens flares in sight, between a BeginScene and an EndScene.
+// Each picked flare (zrndr) is drawn unless the segment from the camera to
+// its light (first hit, kind 0x40000 left out) meets something.
+int camera_draw_flares(Camera* camera, int32_t from);
 int render_world(Node* camera_node, int32_t after);  // 0x004f7030 ECX camera node, EDX
 
 }  // namespace zcls

@@ -90,6 +90,7 @@ add_library(mw3core STATIC
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zsound/zsnd_cd.cpp
   src/gamez/zrender/zrndr_draw.cpp
+  src/gamez/zrender/zrndr_flare.cpp
   src/gamez/zsound/zsnd_3d.cpp
   src/gamez/zsound/zsnd_create.cpp
   src/gamez/zsound/zsnd_grp.cpp
@@ -340,6 +341,7 @@ add_library(mw3probe SHARED
   tests/probe_camera_zone.cpp
   tests/probe_landmines.cpp
   tests/probe_entity_bind.cpp
+  tests/probe_flares.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp
   tests/probe_mix_fog.cpp

@@ -336,6 +336,11 @@ class GameEngine : public Engine {
   void input_clear() override;
   void input_reset() override;
   void model_purge(int32_t models, int32_t materials) override;  // 0x005394c0: zmod::models_purge
+  // The lens flares around the Direct3D frame (render.md, Lens flares).
+  void scene_begin_3d() override;                       // 0x00567570: the flare list cleared
+  Handle scene_begin() override;                        // 0x005674d0: its count (the frame's first)
+  void camera_draw_scene(Handle cam, Handle first) override;  // 0x004f7350: the flares drawn
+  void view_camera_refresh(Handle view) override;      // 0x004b51f0
   void input_capture() override;
   void input_release() override;
   void input_center_mouse() override;
