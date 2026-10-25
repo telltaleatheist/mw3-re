@@ -3640,3 +3640,49 @@ back to none. Also clean under ASan. Breaking the port showed the tests
 catch it, 6 of 6: the reset from the back, an entry told before it is off
 the list, a copy of the list walked, the owner not asked, the path not
 told, a vehicle's controls not deleted.
+
+## 20. The nets' begin and end (0x4d52b0, 0x4d5300; item 17, 2026-10-25)
+
+The mission start (player.cpp, after the nets are built) and its end walk
+znet's registry ([0x603fdc], each object's vt+0x28 is itself, 0x4d2a70)
+and call each object's vt+0x2c (begin) and vt+0x30 (end). By class:
+
+| object | vtable | vt+0x2c | vt+0x30 |
+|---|---|---|---|
+| a numbered object, a net edit | 0x5ccda8, 0x5ca420 | 0x4d5350 | 0x4d53f0 |
+| a region's net of edges, a region loop | 0x5cac90, 0x5cae00 | 0x4d5350 | 0x4d53f0 |
+| a waynet, the mcbwaynet | 0x5c37b0, 0x5c38e0 | 0x479a50 (0x4d5350 first) | 0x5ac5c0 (nothing) |
+
+0x4d5350, over the object's elements (+0x0c): each element's vt+0x60
+(a cast), that one's vt+0x64 stored back in the element's slot (a swizzle),
+then each one's vt+0x6c, then each one's vt+0x38. 0x4d53f0: vt+0x68 stored
+back, then vt+0x38. For every element class these objects hold (net nodes
+0x5cae60 and their placeholder 0x5ca388, region edges 0x5cad70, waynet
+points 0x5c3828), vt+0x60, +0x64 and +0x68 return the element itself
+(0x4d2a70) and vt+0x6c does nothing (0x4a5bc0), so the swizzle leaves every
+pointer as it is: the port's elements are pointers already. vt+0x38 is
+0x410590, each link (vt+0x04 the count, vt+0x08 the target) told which node
+points at it (vt+0x50): the points and edges have no links (vt+0x04
+0x4d72a0, 0), and the net nodes' back links are set when the net is built
+(the builder's link pass, `AiNet::link_pass`, zainetedit.cpp), and setting
+them again sets the same slots. The port keeps no net edits past the build
+(each net built from a local edit), so their begin has nothing to run on.
+The compiled nets' steps, whose vt+0x6c turns slot numbers into pointers
+(0x4c9e60, 0x4c94a0), are not begun here: the compiled net's vt+0x2c is
+0x5ac5c0, and the steps are attached as the net compiles (zai_steps).
+
+So only the waynets' begin changes state: 0x479a50 finds the "waypoint"
+marker once ([0x608ba4], shared) and selects the waynet's point 0. The
+first waynet in the registry wins it; the others find it taken. The nav
+waynet (waynet_N, made by the mission reset 0x490720) comes before the
+mcbwaynet in every mission; the port had begun only the mcbwaynet, which
+selected its point 0 (the origin: its element 0 is the default behaviour)
+until the nav waynet's frame put the marker back on its own selected point.
+`program_nets_begin` now begins every waynet in the registry's order, and
+the end does nothing (the waynets' vt+0x30 is empty). Checked:
+`missions_waynets_begin_in_the_registrys_order_headless` (c1m1, c2m3,
+c4bm5: the nav waynet first, the mcbwaynet second where there is one, the
+marker on the nav waynet's selected point). The order is not visible after
+the first mission frame, since the nav waynet's frame places the marker
+each frame.
+

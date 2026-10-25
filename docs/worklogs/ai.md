@@ -1946,3 +1946,20 @@ is paused.
   glow test's first hit is a real beam now. Tests: test_entity_bind.py
   (5000), mw3tests truck nodes (and the glow test). Docs: vehicles.md The
   node binding, symbols.
+
+## Item 17: the nets' begin and end (2026-10-25, mac 4)
+
+- Assigned (the lead): nets_begin / nets_end with Waynet::begin; first
+  whether the port's nets hold live pointers; if so document the swizzle
+  and port only what changes state. Branch mac4/nets-begin off
+  mac4/veh-node-bind.
+- Done (mac 4): every element class under 0x4d5350 / 0x4d53f0 answers the
+  swizzle with itself and its link slot is empty, and its relink 0x410590
+  runs over no links (points, edges) or over links the build already set
+  (net nodes); the port's elements are pointers. Only the waynets' begin
+  changes state; the registry has the nav waynet before the mcbwaynet in
+  every mission, and the port had begun only the mcbwaynet.
+  program_nets_begin now begins every waynet in order; nets_begin and
+  nets_end no longer log. ai.md section 20; mw3tests
+  missions_waynets_begin_in_the_registrys_order. The order is invisible
+  after the first frame (the nav waynet's frame re-places the marker).

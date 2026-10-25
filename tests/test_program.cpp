@@ -802,6 +802,76 @@ TEST(mission_end_frees_what_the_next_does_not_need_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The nets' begin (0x004d52b0, docs/ai.md The nets' begin and end): every
+// znet object's vt+0x2c in the registry's order. The nav waynet (made by the
+// mission reset 0x00490720) comes before the mcbwaynet, so its begin
+// (0x00479a50) finds the "waypoint" marker and selects its point 0, and the
+// mcbwaynet's finds it taken; the nav waynet's frame keeps the marker on its
+// selected point. c1 mission 1, c2 mission 3, c4b mission 5 (no mcbwaynet).
+TEST(missions_waynets_begin_in_the_registrys_order_headless) {
+  if (!have_game()) return;
+  for (const auto& [index, number] : std::vector<std::pair<int, int>>{{0, 1}, {1, 3}, {4, 5}}) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("mission_wn_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+    std::vector<std::string> labels;
+    bool marker = false, on_nav = false;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.index = index, l.number = number;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      int frames = 0;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core || ++frames != 2) return;
+        const char* names[8];
+        int32_t pts[8];
+        const int32_t n = mech3::program_waynets(names, pts, 8);
+        for (int32_t k = 0; k < n && k < 8; ++k) labels.push_back(names[k]);
+        float m[3], q[3];
+        marker = mech3::program_waynet_marker(m);
+        on_nav = marker && mech3::program_waynet_selected(0, q) && m[0] == q[0] && m[1] == q[1] && m[2] == q[2];
+      };
+      CountingPump pump;
+      pump.stop = [&] { return frames >= 2; };
+      pump.limit = 2000;
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    const std::string nav = "waynet_" + std::to_string(number);
+    EXPECT(!labels.empty() && labels[0] == nav);
+    EXPECT(index == 4 ? labels.size() == 1 : labels.size() == 2 && labels[1] == "mcbwaynet");
+    EXPECT(marker && on_nav);
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 TEST(mission_start_reads_c1m1_vehicles_headless) {
   if (!have_game()) return;
   SavedMounts keep;
