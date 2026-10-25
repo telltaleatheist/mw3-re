@@ -1544,3 +1544,13 @@ is paused.
   the forget's release and the listeners wired. test_anim_owner.py 400
   cases, 16 of 16 breaks; headless c1m1: tur_boss01 woken by
   raise_bturret1, the end's records emptied, the world's unload frees them.
+
+## Item 2b: the animations' binder (2026-10-25, mac 4)
+
+- Assigned (the lead, 2a reviewed): the mission load's binder 0x4d4b30
+  (0x4d4c80, 0x4d4e50, 0x508f40, 0x50b570, 0x4d5110, 0x58f2a0). Branch
+  mac4/anim-binder off mac4/anim-owner, rebased on main once 2a is merged.
+  (1) every shipped world's bound animations checked against the exe's
+  (owner and valve), a headless test with a c1 destroy animation's 0x2b
+  turning its valve on in play; (2) the valve's parent walk tested past the
+  root; (3) unported zEffect pieces hooked and listed.
