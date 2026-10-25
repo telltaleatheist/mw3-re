@@ -115,6 +115,7 @@ add_library(mw3core STATIC
   src/gamez/ztwod/twod_list.cpp
   src/gamez/ztwod/twod_msgbox.cpp
   src/gamez/ztwod/twod_object.cpp
+  src/gamez/ztwod/twod_weather.cpp
   src/gamez/ztwod/twod_textbox.cpp
   src/gamez/ztwod/twod_wintext.cpp
   src/mech3/mech.cpp
@@ -342,6 +343,7 @@ add_library(mw3probe SHARED
   tests/probe_landmines.cpp
   tests/probe_entity_bind.cpp
   tests/probe_flares.cpp
+  tests/probe_weather.cpp
   tests/probe_entity_classes.cpp
   tests/probe_model_fx.cpp
   tests/probe_mix_fog.cpp

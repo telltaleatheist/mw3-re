@@ -45,6 +45,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/ztwod/twod_weather.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zvideo/zvid_dd.h"
@@ -126,9 +127,25 @@ zvid::D3DTexture g_fallback{};  // the default record (0x0080931c) for textures 
 
 zcls::Node* mission_node(GameEngine& e, Handle h) { return static_cast<zcls::Node*>(e.object_of(h)); }
 
+// The world parameters' weather block (the 0x98 bytes they write, mech3::
+// Weather) with the zTwoD particle system it is in the exe (ztwod::Weather):
+// the block's fields go to it as it is added, and again each tick (the
+// camera is set after the add, 0x00491de0's end).
+struct ProgramWeather : Weather {
+  std::unique_ptr<ztwod::Weather> obj;
+};
+void weather_sync(ProgramWeather& w) {
+  ztwod::Weather& o = *w.obj;
+  o.color = w.get<uint16_t>(0x44);
+  o.alpha_tail = w.get<float>(0x48), o.alpha_head = w.get<float>(0x4c);
+  o.wind_dir = w.get<float>(0x68), o.wind_vel = w.get<float>(0x6c), o.gravity = w.get<float>(0x70);
+  o.camera = w.camera;
+}
+std::vector<ProgramWeather*> g_weathers;  // added to the manager, synced each tick
+
 // world.zrd's block through the ported reader 0x00491de0, with the hooks it
-// needs: the wind and the clouds to zModel, the sun to the world's light;
-// weather (rain, snow) is not ported, so its hooks do nothing.
+// needs: the wind and the clouds to zModel, the sun to the world's light, the
+// rain (snow: item 19b) to the weather manager [0x00736328].
 void read_world_params(const char* file, const char* block, zcls::Node* camera, int32_t type, int32_t number) {
   static int32_t s_type, s_number;
   s_type = type, s_number = number;
@@ -149,13 +166,33 @@ void read_world_params(const char* file, const char* block, zcls::Node* camera, 
   h.light_set_orientation = [](zcls::Node* l, float x, float y, float z) { zcls::light_set_orientation(l, x, y, z); };
   h.light_set_ambient = [](zcls::Node* l, float v) { zcls::light_set_ambient(l, v); };
   h.light_set_diffuse = [](zcls::Node* l, float v) { zcls::light_set_diffuse(l, v); };
-  h.create_snow = [](int32_t) -> Weather* { return nullptr; };
-  h.create_rain = [](int32_t) -> Weather* { return nullptr; };
-  h.weather_add = [](Weather*) {};
-  h.weather_remove = [](Weather*) {};
-  h.weather_destroy = [](Weather*) {};
-  h.weather_start = [](Weather*, float) {};
-  h.weather_stop = [](Weather*) {};
+  h.create_snow = [](int32_t) -> Weather* { return nullptr; };  // 0x005a5ad0: item 19b
+  h.create_rain = [](int32_t particles) -> Weather* {        // new(0x98) + 0x005a60a0
+    auto* w = new ProgramWeather;
+    w->obj = std::make_unique<ztwod::Rain>(particles);
+    // The block as the constructor leaves it (0x005a5470), for the reader's defaults.
+    w->put<uint16_t>(0x44, w->obj->color);
+    w->put<float>(0x48, w->obj->alpha_tail), w->put<float>(0x4c, w->obj->alpha_head);
+    w->put<float>(0x68, w->obj->wind_dir), w->put<float>(0x6c, w->obj->wind_vel), w->put<float>(0x70, w->obj->gravity);
+    return w;
+  };
+  h.weather_add = [](Weather* w) {  // 0x0059fbe0 on [0x00736328]
+    auto* p = static_cast<ProgramWeather*>(w);
+    weather_sync(*p);
+    ztwod::weather_layer().add(p->obj.get());
+    if (std::find(g_weathers.begin(), g_weathers.end(), p) == g_weathers.end()) g_weathers.push_back(p);
+  };
+  h.weather_remove = [](Weather* w) {  // 0x0059fc80
+    auto* p = static_cast<ProgramWeather*>(w);
+    ztwod::weather_layer().remove(p->obj.get());
+    g_weathers.erase(std::remove(g_weathers.begin(), g_weathers.end(), p), g_weathers.end());
+  };
+  h.weather_destroy = [](Weather* w) {  // vt+0x00(1)
+    g_weathers.erase(std::remove(g_weathers.begin(), g_weathers.end(), w), g_weathers.end());
+    delete static_cast<ProgramWeather*>(w);
+  };
+  h.weather_start = [](Weather* w, float t) { static_cast<ProgramWeather*>(w)->obj->show_for(t); };  // vt+0x60
+  h.weather_stop = [](Weather* w) { static_cast<ProgramWeather*>(w)->obj->hide(); };              // vt+0x64
   h.fluctuate_on = zmod::clouds_set_on;
   h.fluctuate_period = zmod::clouds_set_period;
   h.fluctuate_wavelength = zmod::clouds_set_wavelength;
@@ -2166,6 +2203,22 @@ void GameEngine::node_set_active(Handle node, int32_t on) {
 void GameEngine::node_set_shadow(Handle node, int32_t on) {
   if (zcls::Node* n = mission_node(*this, node)) zcls::node_set_intersect(n, on);
 }
+// The weather manager's rect (the frame's render or window rect, by its
+// number) and its tick, each weather's block copied over first.
+void GameEngine::weather_rect(int32_t i, Handle rect) {
+  static ztwod::Rect rects[2];
+  if (i < 0 || i >= 2) return;
+  const Rect* from = rect == render_rect() ? &mech3::render()
+                     : rect == display_rect() ? &mech3::display()
+                     : rect == window_rect() ? &mech3::window() : nullptr;
+  if (from) rects[i] = {from->x, from->y, from->x_end, from->y_end};
+  ztwod::weather_rect(i, from ? &rects[i] : nullptr);
+}
+void GameEngine::weather_tick(float dt) {
+  for (ProgramWeather* w : g_weathers) weather_sync(*w);
+  ztwod::weather_tick(dt);
+}
+
 // 0x004f7350 on the player camera's data (the program's camera node's).
 void GameEngine::camera_draw_scene(Handle, Handle first) {
   zcls::Node* cam = mission_node(*this, camera_);

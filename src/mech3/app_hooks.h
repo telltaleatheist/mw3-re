@@ -532,8 +532,10 @@ class Engine : public zgame::AppHooks {
   virtual const char* mission_dir(uint32_t n);         // 0x00484c50, ported: mech3/mission
   virtual void sensors_update() { unported("0x004a8cd0", {}); }  // ported: mech3/sensors
   virtual void camera_update() { unported("0x0040f8d0", {}); }
-  virtual void effects_draw(int32_t a, Handle rect) { unported("0x005a6790", {a, rect}); }
-  virtual void particles_draw(float dt) { unported("0x005a67c0", {zgame::bits(dt)}); }
+  // The weather manager [0x00736328]: its rect slot (0x005a6790) and its
+  // objects' update and draw, the rain and snow (0x005a67c0).
+  virtual void weather_rect(int32_t i, Handle rect) { unported("0x005a6790", {i, rect}); }
+  virtual void weather_tick(float dt) { unported("0x005a67c0", {zgame::bits(dt)}); }
   virtual void lists_update() { unported("0x004f7d80", {}); }
   virtual void view_reset(Handle view) { unported("0x0040ad90", {view}); }
   virtual void view_draw_node(Handle cam, Handle node, Handle world) { unported("0x004f73f0", {cam, node, world}); }

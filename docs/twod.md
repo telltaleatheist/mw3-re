@@ -36,7 +36,7 @@ Only two source names survive in the exe's error reports: `twod_dialog.cpp`
 | 0x005a2da0..0x005a3080 | TextBase (bitmap-font text) |
 | 0x005a3170..0x005a3bc0 | HUD primitives: polylines, rectangles, filled boxes |
 | 0x005a3cd0..0x005a4690 | the text console layer (`Arial`), the interp debug console (0x005a40b0, interp.md) and its line's keys (0x005a4660..0x005a4690) |
-| 0x005a4590..0x005a4680 | the render overlay layer (0x005a6790 / 0x005a67c0 from the draw paths) |
+| 0x005a4590..0x005a4680 | the render overlay layer (0x005a6790 / 0x005a67c0 from the draw paths; the weather's, `weather.md`) |
 | 0x005a46a0..0x005a4ad0 | the line editor (the console's and the edit bar's) |
 | 0x005a4b10..0x005a5340 | the edit bar's caret and the edit bar (section 5) |
 | 0x005a5360..0x005a5440 | the ripple |

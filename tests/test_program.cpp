@@ -38,6 +38,7 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_reg.h"
+#include "gamez/zmodel/gmod_clip2d.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -47,6 +48,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zrender/zrndr_draw.h"
 #include "gamez/zrender/zrndr_flare.h"
+#include "gamez/ztwod/twod_weather.h"
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
@@ -974,6 +976,102 @@ TEST(mission_c4m2_sun_flare_drawn_and_blocked_headless) {
   EXPECT(seen.squares_open > 0 && seen.squares_open % 4 == 0 && seen.first_texture == zrndr::flares().textures[0]);
   EXPECT(seen.have_ai && seen.squares_blocked == 0);
   EXPECT(seen.cockpit_on_in_draw && seen.cockpit_off_after);
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// The rain (0x005a60a0, 0x005a6110, 0x005a57d0; docs/weather.md): c4
+// mission 2's world.zrd makes it (100 particles, gravity 3, wind 0.2,
+// alpha_gradient 0.5 0), the world parameters add it to the manager with the
+// player view's camera, and each Direct3D frame sets the manager's rect and
+// ticks it: its streaks are drawn as textured quads inside the window. At the
+// end the cleanup takes it off the manager.
+TEST(mission_c4m2_rain_made_and_drawn_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_rain_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.screen = &screen, p.sound = &sound, p.files = &files;
+  struct Seen {
+    int quads = 0, quads_at_3 = -1, count = 0, shown = 0, outside = 0;
+    bool rain = false, camera = false, rect_is_managers = false, gone_after = false;
+    float gravity = 0, wind = 0, alpha_tail = 0, alpha_head = -1;
+  };
+  static Seen seen;
+  seen = Seen{};
+  const ztwod::WeatherHooks keep_hooks = ztwod::weather_hooks();
+  ztwod::weather_hooks().draw = [](int32_t n, const zvid::D3DTexture* t, int32_t prio, float op, int32_t ov) {
+    ++seen.quads;
+    const ztwod::Rect* r = ztwod::weather_layer().rects[0];
+    for (int32_t i = 0; i < n && r; ++i) {
+      const zmod::TLVertex& v = zmod::clip2d().tl[i];
+      if (v.sx < r->left || v.sx > r->right || v.sy < r->top || v.sy > r->bottom) ++seen.outside;
+    }
+    zvid::draw_textured_white(n, t, prio, op, ov);
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c4 mission 2
+    l.index = 3, l.number = 2;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      if (++frames != 3) return;
+      seen.quads_at_3 = seen.quads;
+      const ztwod::WeatherLayer& m = ztwod::weather_layer();
+      if (auto* r = dynamic_cast<ztwod::Rain*>(m.head)) {
+        seen.rain = m.head == m.tail;
+        seen.count = r->count;
+        seen.gravity = r->gravity, seen.wind = r->wind_vel;
+        seen.alpha_tail = r->alpha_tail, seen.alpha_head = r->alpha_head;
+        seen.camera = r->camera != nullptr;
+        seen.rect_is_managers = r->rect && r->rect == m.rects[0];
+        for (const ztwod::WeatherStreak& s : r->streaks) seen.shown += s.shown;
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 5; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    seen.gone_after = ztwod::weather_layer().head == nullptr;
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  ztwod::weather_hooks() = keep_hooks;
+  if (std::getenv("MW3_RAIN_LOG"))
+    std::fprintf(stderr, "RAIN rain %d count %d shown %d quads %d (at 3: %d) outside %d g %g w %g a %g %g cam %d rect %d gone %d\n",
+                 seen.rain, seen.count, seen.shown, seen.quads, seen.quads_at_3, seen.outside, seen.gravity, seen.wind,
+                 seen.alpha_tail, seen.alpha_head, seen.camera, seen.rect_is_managers, seen.gone_after);
+  EXPECT(seen.rain && seen.count == 100 && seen.shown == 100);
+  EXPECT(seen.gravity == 3.0f && std::fabs(seen.wind - 0.2f) < 1e-6f);
+  EXPECT(seen.alpha_tail == 0.5f && seen.alpha_head == 0.0f);
+  EXPECT(seen.camera && seen.rect_is_managers);
+  EXPECT(seen.quads_at_3 > 0 && seen.quads > seen.quads_at_3 && seen.outside == 0);
+  EXPECT(seen.gone_after);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
