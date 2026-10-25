@@ -562,6 +562,20 @@ AnimDef* anim_find(const char* name) {
   return nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x0050b570: the next def after `after` (none: from index
+// 1) in use (status not 5) with HAS_CALLBACKS (+0x94 bit 0x10).
+AnimDef* anim_next_with_callbacks(AnimDef* after) {
+  int32_t i = after ? static_cast<int32_t>(after - g_anim.defs) : 0;
+  while (++i < g_anim.def_count()) {
+    AnimDef& d = g_anim.defs[i];
+    if (d.raw[0x98] != 5 && (d.raw[0x94] & 0x10)) return &d;
+  }
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x0050b5e0: the def's node (+0x40), none once freed (status 5).
+Node* anim_node(const AnimDef* d) { return d && d->raw[0x98] != 5 ? d->node : nullptr; }
+
 // Mech3.exe 1.2 @ 0x0050b0e0 (EDX: the instances too). The def's object
 // node released, its damage handlers off its root (kinds 0..2), every list
 // freed and counted 0, a copied tree destroyed.

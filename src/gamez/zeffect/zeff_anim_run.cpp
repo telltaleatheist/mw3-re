@@ -684,6 +684,18 @@ void anim_set_callback(AnimDef* def, AnimDef::Callback cb, void* arg) {
   if (def) def->callback = cb, def->callback_arg = arg;
 }
 
+// Mech3.exe 1.2 @ 0x00508f40 (ECX the def, EDX `fn`, stack `ctx`): with
+// HAS_CALLBACKS (0x10), every callback event's value (+0x0c) of every
+// sequence, in order; the reset sequence is not looked at.
+void anim_each_callback(AnimDef* def, void (*fn)(AnimDef* def, void* ctx, int32_t value), void* ctx) {
+  if (!(def->raw[0x94] & 0x10)) return;
+  for (int32_t i = 0; i < def->raw[0x108]; ++i) {
+    SeqDef* s = &def->seqs[i];
+    for (uint8_t* e = s->events; e < seq_end(s); e += ev::get<int32_t>(e, 4))
+      if (e[0] == 35) fn(def, ctx, ev::get<int32_t>(e, 0xc));
+  }
+}
+
 // Mech3.exe 1.2 @ 0x00508fb0
 void anim_set_level(int32_t level) { A().level = level; }
 

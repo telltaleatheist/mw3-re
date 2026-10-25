@@ -106,6 +106,8 @@ int32_t anim_light_index(AnimDef* def, const char* name); // 0x005091e0
 int32_t anim_sound_index(AnimDef* def, const char* name); // 0x00509160
 Node* anim_find_node(AnimDef* def, const char* name);     // 0x00509640
 AnimDef* anim_find(const char* name);                     // 0x0050b450
+AnimDef* anim_next_with_callbacks(AnimDef* after);        // 0x0050b570
+Node* anim_node(const AnimDef* d);                        // 0x0050b5e0
 void anim_free(AnimDef* def, bool instances);             // 0x0050b0e0
 int32_t anim_free_all();                                  // 0x0050b380
 int32_t anim_shutdown();                                  // 0x0050b430

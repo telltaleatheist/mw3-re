@@ -1544,3 +1544,28 @@ is paused.
   the forget's release and the listeners wired. test_anim_owner.py 400
   cases, 16 of 16 breaks; headless c1m1: tur_boss01 woken by
   raise_bturret1, the end's records emptied, the world's unload frees them.
+
+## Item 2b: the animations' binder (2026-10-25, mac 4)
+
+- Assigned (the lead, 2a reviewed): the mission load's binder 0x4d4b30
+  (0x4d4c80, 0x4d4e50, 0x508f40, 0x50b570, 0x4d5110, 0x58f2a0). Branch
+  mac4/anim-binder off mac4/anim-owner, rebased on main once 2a is merged.
+  (1) every shipped world's bound animations checked against the exe's
+  (owner and valve), a headless test with a c1 destroy animation's 0x2b
+  turning its valve on in play; (2) the valve's parent walk tested past the
+  root; (3) unported zEffect pieces hooked and listed.
+- 2b done (mac 4): `zai_anim_owner` anim_owner_bind_all 0x4d4b30,
+  bind_event 0x4d4c80, bind_commit 0x4d4e50 (the claim's record choice
+  shared, record_for); zEffect's 0x508f40 (anim_each_callback), 0x50b570
+  (anim_next_with_callbacks), 0x50b5e0 (anim_node) ported, none hooked;
+  mission.cpp's fn_4d4b30 wired. FIX (bug): a valve walk on a def without
+  a node (unreachable). test_anim_binder.py: all 6 worlds identical (121
+  bound, 89 valves, 27 owners), again after the end, and a made-up round;
+  test_anim_owner.py has the binder (past the root both ways); breaks 12 +
+  4 (two HAS_CALLBACKS breaks each covered by the other test, replaced).
+  Headless: citybuild01 rammed turns its valve on. Found in play: c1m1's
+  opening call_ramp turns "bramp" on, which powers the Owens up (it stayed
+  down before); mission_c1m1_player_fires_on_the_owens_headless moved to
+  40 m (from 80 m the machine guns miss the moving Owens). Test-process
+  reset frees the records (reset_process_state), as the tests never unload
+  the world.

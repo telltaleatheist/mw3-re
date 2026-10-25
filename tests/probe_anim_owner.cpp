@@ -10,6 +10,10 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "mech3/zai_anim_owner.h"
 #include "probe_app.h"
 
@@ -32,6 +36,20 @@ struct Anim {
 std::map<Handle, Anim> g_anims;
 std::map<Handle, std::string> g_names;
 std::vector<std::unique_ptr<AnimOwnerRec>> g_strays;  // records no list holds
+struct Def {
+  uint32_t flags = 0;
+  int32_t status = 0;
+  Handle node = 0;
+  std::vector<int32_t> values;
+};
+std::vector<Handle> g_order;  // zEffect's def array, index 0 first
+std::map<Handle, Def> g_defs;
+struct NodeRec {
+  uint32_t count = 0;
+  Handle first = 0;
+  std::string name;
+};
+std::map<Handle, NodeRec> g_nodes;
 float g_place[3];
 
 struct Hooks : mech3::ai::AnimOwnerHooks {
@@ -61,6 +79,28 @@ struct Hooks : mech3::ai::AnimOwnerHooks {
   void place(Handle v, const float pos[3], float yaw) override {
     call("player.vt+0xdc", {v, zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2]), zgame::bits(yaw)});
   }
+  // 0x0050b570 and 0x00508f40 on the test's defs, as zEffect's ports do.
+  Handle anims_next(Handle after) override {
+    size_t i = 0;
+    if (after)
+      while (i < g_order.size() && g_order[i] != after) ++i;
+    while (++i < g_order.size()) {
+      const Def& d = g_defs[g_order[i]];
+      if (d.status != 5 && (d.flags & 0x10)) return g_order[i];
+    }
+    return 0;
+  }
+  void anim_callback_values(Handle a, std::vector<int32_t>& out) override {
+    const Def& d = g_defs[a];
+    if (d.flags & 0x10) out.insert(out.end(), d.values.begin(), d.values.end());
+  }
+  Handle anim_node(Handle a) override { return g_defs[a].status == 5 ? 0 : g_defs[a].node; }
+  Handle node_entity(Handle n) override { return call("0x0040eee0", {n}); }
+  Handle node_parent(Handle n) override {
+    const NodeRec& r = g_nodes[n];
+    return r.count == 1 ? r.first : 0;
+  }
+  Handle valve_of_node(Handle n) override { return n ? call("0x004d3c40", {g_nodes[n].name.c_str()}) : 0; }
 };
 Hooks g_hooks;
 
@@ -77,15 +117,93 @@ bool stray(const AnimOwnerRec* r) {
     if (s.get() == r) return true;
   return false;
 }
+// The binder on a shipped world (test_anim_binder.py), on the defs
+// test_anim_run's probe loaded: defs by index, nodes by their pool index + 1;
+// the node's entity and the valve go to the shared callback.
+void world_callback(zeff::AnimDef*, void*, int32_t) {}
+std::map<Handle, zcls::Node*> g_world_nodes;
+struct WorldHooks : mech3::ai::AnimOwnerHooks {
+  uint32_t unported(const char* k, std::initializer_list<zgame::Arg> args) override { return call(k, args); }
+  static zeff::AnimDef* def(Handle a) { return a ? &zeff::anim().defs[a] : nullptr; }
+  static Handle hn(zcls::Node* n) {
+    if (!n) return 0;
+    const Handle h = static_cast<Handle>(zeff::node_index(n) + 1);
+    g_world_nodes[h] = n;
+    return h;
+  }
+  AnimCallback anim_callback(Handle a) override {
+    const zeff::AnimDef* d = def(a);
+    if (!d->callback) return AnimCallback::none;
+    return d->callback == &world_callback ? AnimCallback::ours : AnimCallback::other;
+  }
+  AnimOwnerRec* anim_record(Handle a) override { return static_cast<AnimOwnerRec*>(def(a)->callback_arg); }
+  void anim_set_record(Handle a, AnimOwnerRec* r) override { zeff::anim_set_callback(def(a), &world_callback, r); }
+  Handle anims_next(Handle a) override {
+    const zeff::AnimDef* d = zeff::anim_next_with_callbacks(def(a));
+    return d ? static_cast<Handle>(d - zeff::anim().defs) : 0;
+  }
+  void anim_callback_values(Handle a, std::vector<int32_t>& out) override {
+    zeff::anim_each_callback(def(a), [](zeff::AnimDef*, void* v, int32_t x) { static_cast<std::vector<int32_t>*>(v)->push_back(x); }, &out);
+  }
+  Handle anim_node(Handle a) override { return hn(zeff::anim_node(def(a))); }
+  Handle node_entity(Handle n) override { return call("0x0040eee0", {n - 1}); }
+  Handle node_parent(Handle n) override {
+    const zcls::Node* nd = g_world_nodes[n];
+    return nd && nd->parent_count() == 1 && nd->parents ? hn(nd->parents[0]) : 0;
+  }
+  Handle valve_of_node(Handle n) override { return n ? call("0x004d3c40", {g_world_nodes[n]->name()}) : 0; }
+};
+WorldHooks g_world;
 }  // namespace
 
 extern "C" {
+
+void probe_aown_world_reset() {
+  mech3::ai::anim_owner_free();
+  mech3::ai::set_anim_owner_hooks(&g_world);
+  g_world_nodes.clear();
+}
+void probe_aown_world_bind() { mech3::ai::anim_owner_bind_all(); }
+// The made-up round: def i's status and flags, and def 0 given def k's sequences.
+void probe_aown_world_def(int32_t i, int32_t status, uint32_t flags) {
+  zeff::AnimDef& d = zeff::anim().defs[i];
+  d.raw[0x98] = static_cast<uint8_t>(status);
+  d.put<uint32_t>(0x94, flags);
+}
+void probe_aown_world_seqs(int32_t to, int32_t from) {
+  zeff::AnimDef& a = zeff::anim().defs[to];
+  const zeff::AnimDef& b = zeff::anim().defs[from];
+  a.seqs = b.seqs;
+  a.raw[0x108] = b.raw[0x108];
+}
+// Per def from 1: its callback kind, record's list place (-1 none), owner, valve.
+int32_t probe_aown_world_dump(int32_t* out, int32_t cap) {
+  const auto& list = mech3::ai::anim_owner_records();
+  int32_t n = 0;
+  for (int32_t i = 1; i < zeff::anim().def_count() && 4 * (n + 1) <= cap; ++i, ++n) {
+    const zeff::AnimDef& d = zeff::anim().defs[i];
+    const auto* r = static_cast<const AnimOwnerRec*>(d.callback_arg);
+    const int32_t kind = !d.callback ? 0 : d.callback == &world_callback ? 1 : 2;
+    out[4 * n] = kind;
+    out[4 * n + 1] = kind == 1 ? index_of(r) : -1;
+    out[4 * n + 2] = kind == 1 && r ? static_cast<int32_t>(r->owner) : 0;
+    out[4 * n + 3] = kind == 1 && r ? static_cast<int32_t>(r->valve) : 0;
+  }
+  return n;
+}
 
 void probe_aown_reset() {
   mech3::ai::anim_owner_free();
   mech3::ai::set_anim_owner_hooks(&g_hooks);
   g_mem.clear(), g_anims.clear(), g_names.clear(), g_strays.clear();
+  g_order.clear(), g_defs.clear(), g_nodes.clear();
 }
+void probe_aown_node(uint32_t n, uint32_t count, uint32_t first, const char* name) { g_nodes[n] = {count, first, name}; }
+void probe_aown_def(uint32_t a, uint32_t flags, int32_t status, uint32_t node, const int32_t* values, int32_t n) {
+  g_order.push_back(a);
+  g_defs[a] = {flags, status, node, std::vector<int32_t>(values, values + n)};
+}
+void probe_aown_bind() { mech3::ai::anim_owner_bind_all(); }
 void probe_aown_poke(uint32_t a, uint32_t v) { g_mem[a] = v; }
 void probe_aown_name(uint32_t o, const char* name) { g_names[o] = name; }
 // kind 0 none, 1 ours (with a record no list holds, or none), 2 another's.

@@ -1190,6 +1190,7 @@ struct WiredMissionHooks : MissionHooks {
     ai::inout_mission_load();
     MissionHooks::fn_4e7b40();
   }
+  void fn_4d4b30() override { ai::anim_owner_bind_all(); }  // the animations' owners and valves
   // Their slot +0x0c as the world goes (0x004e7b80): the animation owners'
   // (0x004d4740); the others logged.
   void ai_lists_free() override {

@@ -7,6 +7,7 @@
 // The animation-owner registry's hooks too (ai.md section 18).
 #include "mech3/app_sensors.h"
 #include "mech3/app_hud.h"
+#include "mech3/app_mech.h"
 #include "mech3/app_turret.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/mech_lod.h"
@@ -275,6 +276,22 @@ struct ProgramAnimOwner : ai::AnimOwnerHooks {
     if (Mech* m = mech(v)) return m->set_place(pos, yaw);
     if (void* b = vehicle(v)) return program_vehicle_place(b, pos, yaw);
     AnimOwnerHooks::place(v, pos, yaw);
+  }
+  // The binder's: zEffect's defs and nodes, zClass's parents, the valves.
+  zgame::Handle anims_next(zgame::Handle a) override { return handle(zeff::anim_next_with_callbacks(def(a))); }
+  void anim_callback_values(zgame::Handle a, std::vector<int32_t>& out) override {
+    if (zeff::AnimDef* d = def(a))
+      zeff::anim_each_callback(d, [](zeff::AnimDef*, void* v, int32_t x) { static_cast<std::vector<int32_t>*>(v)->push_back(x); }, &out);
+  }
+  zgame::Handle anim_node(zgame::Handle a) override { return handle(zeff::anim_node(def(a))); }
+  zgame::Handle node_entity(zgame::Handle n) override { return handle(mech3::node_entity(object(n))); }  // 0x0040eee0
+  zgame::Handle node_parent(zgame::Handle n) override {
+    const auto* nd = static_cast<const zcls::Node*>(object(n));
+    return nd && nd->parent_count() == 1 && nd->parents ? handle(nd->parents[0]) : 0;
+  }
+  zgame::Handle valve_of_node(zgame::Handle n) override {  // 0x004d3c40 on the node's name
+    const auto* nd = static_cast<const zcls::Node*>(object(n));
+    return nd ? handle(ai::valve_get(nd->name())) : 0;
   }
 };
 ProgramAnimOwner g_anim_owner;

@@ -1501,7 +1501,16 @@ From the animation files (anim.md).
   which turns on a switch (a "valve") named after the object, or after one
   of the parts above it for 47; mission scripts and the AI read those
   switches (ai.md section 18; the switch is hooked up when the mission
-  loads, still being rebuilt).
+  loads).
+- **The first mission's Owens waits for the ramp.** On c1m1 the Owens
+  standing on the dropship is powered down until the mission's opening
+  animation lowers the ramp. The ramp's animation flips the switch
+  "bramp", and the mission's switch file then powers the Owens up, plays
+  a radio call (com_mech), sends the trucks 18 seconds later and starts the next
+  radio line after 22 seconds. Wiring the switches to the animations is
+  done once, when the mission loads: every animation with message moments
+  is matched to the object it stands on and to a switch named after that
+  object (or a part above it) (ai.md section 18).
 - **A teleport nobody uses.** One message (17) would move the player's mech
   by the offset of a world node named "viaNode", taking its heading from
   that node. No world has a viaNode and no animation sends 17, so it never
