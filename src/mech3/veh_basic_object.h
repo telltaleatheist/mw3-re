@@ -163,12 +163,16 @@ class VehBasicHooks : public zgame::Unported {
   virtual void controls_died(VehicleControls& c) { c.died(); }
   // 0x00402510: nothing for controls that are not the basic path ones (vt+0x00 null; 2a2, deferred).
   virtual void path_drop_temporary(BasicVehicle& v) { (void)v; }
-  // zWeapon's glow on the controls' +0x398: a hit (0x00586a30: 2 frozen
-  // solid, 1 cold, 0 not) and its end (0x00586af0).
-  virtual int32_t glow_hit(Block398& b, Handle weapon, float amount) {
+  // zWeapon's glow on the controls' +0x398 (the node after it, +0x3b0): a
+  // hit (0x00586a30: 2 frozen solid, 1 cold, 0 not) and its end (0x00586af0).
+  virtual int32_t glow_hit(Block398& b, Handle node, Handle weapon, float amount) {
+    (void)node;
     return static_cast<int32_t>(unported("0x00586a30", {low(weapon), low(&b), zgame::bits(amount)}));
   }
-  virtual void glow_end(Block398& b) { unported("0x00586af0", {low(&b)}); }
+  virtual void glow_end(Block398& b, Handle node) {
+    (void)node;
+    unported("0x00586af0", {low(&b)});
+  }
   // zWeapon's hit state: the attacker's node (0x00581e40), the shot's two
   // ends (0x00581e30: from, then to), the health after (0x00583730), a
   // kill (0x00583710(1, 0)); the beam's stop (0x00581400).

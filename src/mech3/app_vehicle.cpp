@@ -80,6 +80,11 @@ struct WiredVehicles : VehBasicHooks {
     g_order.erase(std::remove(g_order.begin(), g_order.end(), &v), g_order.end());
   }
   void anim_stop(Handle a) override { if (a) zeff::anim_stop(static_cast<zeff::AnimDef*>(a)); }  // 0x00506ca0
+  // zWeapon's glow (0x00586a30, 0x00586af0) on the vehicle's node.
+  int32_t glow_hit(Block398& b, Handle node, Handle weapon, float amount) override {
+    return zwep::glow_hit(b, node, static_cast<zwep::WeaponDef*>(weapon), amount);
+  }
+  void glow_end(Block398& b, Handle node) override { zwep::glow_end(b, node); }
   void shadow_release(Vehicle&) override {}  // the AiTarget's (no shadow is made for a vehicle here)
   // 0x005a85c0: a node in the scene takes the matrix (vt+0x1c, 0x005a85a0).
   void refresh(Vehicle& v) override {
@@ -554,6 +559,17 @@ bool program_vehicle_kill(void* v, void* killer, const char* weapon) {
   zwep::hit_state().attacker = nullptr;
   return !bv(v).active;
 }
+float program_vehicle_hit_by(void* v, const char* weapon, float amount) {
+  zwep::WeaponDef* def = zwep::find_def(weapon);
+  if (!is_program_vehicle(v) || !def || !bv(v).controls) return 0.0f;
+  g_hooks.damage(bv(v), def, 0, amount);
+  return bv(v).controls->health / bv(v).controls->health_max;
+}
+void* program_vehicle_glow_light(const void* v) {
+  if (!is_program_vehicle(v)) return nullptr;
+  const VehicleControls* c = static_cast<const BasicVehicle*>(v)->controls;
+  return c ? c->x398.light : nullptr;
+}
 float program_vehicle_damage(void* v, float amount) {
   if (!is_program_vehicle(v) || !bv(v).controls) return 0.0f;
   g_hooks.damage(bv(v), nullptr, 0, amount);  // vt+0x160 by the class, no weapon
@@ -561,6 +577,11 @@ float program_vehicle_damage(void* v, float amount) {
 }
 bool program_vehicle_free(void* v) {
   if (!is_program_vehicle(v)) return false;
+  // FIX (bug): a vehicle still glowing (alive at the mission's end) gives
+  // zWeapon's light back first; the exe returns it only at the death
+  // (0x004ad36d), and zClass then refuses to free it with the world
+  // (0x004fa850: still in the world's light list). fixes.md.
+  if (VehicleControls* c = bv(v).controls; c && c->x398.light) zwep::glow_end(c->x398, c->node);
   if (bv(v).field_base) field_base_delete(static_cast<FieldBase*>(v));  // vt+0x00 0x00458b30(1)
   else vehicle_delete(static_cast<BasicVehicle*>(v));                   // 0x004ac630(1)
   g_vehicles.erase(static_cast<Vehicle*>(v));     // its zEntity entry goes in the destructor

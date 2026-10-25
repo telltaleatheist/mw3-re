@@ -212,6 +212,7 @@ Each change is also marked `FIX` in the code next to the original address.
 | Lancemate slot, 0x49e810 | `new(0x18)` is written through unchecked | (bug) a crash if it failed | Skipped |
 | Launch lancemates' names, 0x49e5e0 (mission-start.md section 12) | The record's name is copied with `sprintf(buf, name)` into 256 bytes | (bug) a `%` in a name is read as a format; one of 256+ overruns the frame | Copied as text, cut at 255 |
 | Assuming a lancemate's duties, 0x49e540 / 0x49e4e0 (mission-start.md section 12) | Without a player vehicle it reports, then reads through it; with the player's settings but a record that failed to read, 0x49e4e0 reads the record's +0xd0 | (bug) a crash; neither happens in play | Stops after the report, and without a record |
+| A glowing vehicle's end, 0x4ac630 (vehicles.md, The glow) | A laser-hit vehicle still alive when it is deleted (the mission's end) keeps zWeapon's light under its node; only the death returns it (0x586af0 at 0x4ad36d) | (bug) the light is never freed: zClass refuses to delete it with the world ("ERROR deleting light; Light attached to 1 world nodes", 0x4fa850) | The delete returns the light to the pool first (glow_end) |
 | Instant Action's line-up, 0x49dc80 (mission-start.md section 13) | A record that fails to read leaves the last record and name in use; a wave below 1 indexes before the wave table; the record's name is copied whole into 80 bytes | (bug) a crash or the wrong record; none happens in play (the records read, waves start at 1, names are short) | The record skipped; wave 1; the name cut at 79 |
 | AI radio names, 0x4e7dc0 (ai.md section 12) | `sprintf("%s_%s", voice, event)` into 32 bytes | (bug) a radio voice (aiv.zrd `sound_tag`) of 15 or more characters overruns the frame; the shipped ones are 3 to 5 | Cut to fit (`test_ai_brain.py` keeps voices under 15) |
 | valves.zrd records, 0x4e2330 (ai.md section 13) | Every tag's value is read as a list and every name item as a string | (bug) a hand-edited file with a number or a string where a list or name belongs crashes the mission start | Such tags and names are skipped (`test_ai_valves.py`'s six broken files) |
@@ -595,6 +596,13 @@ These look like bugs, but fixing them is a guess at intent that changes balance:
   reads as a 1999 limit on sound channels or CPU. Options: keep it (the
   original as played), or lift the budget on modern machines (every mech
   within 250 m heard; a (B)-like change that alters how a fight sounds).
+- The vehicles' heat glow's range (found 2026-10-25, vehicles.md, The glow):
+  a laser hit takes a light from zWeapon's pool for the vehicle, in IMPACT
+  HEAT's colour, but leaves the pool's range of 0.1 to 0.2 m, so it lights
+  nothing to see; the designators' beams set theirs from the weapon's own
+  first two numbers. Options: keep it (as played), or give the glow the
+  weapon's range (vehicles would show a coloured glow where lasers hit them;
+  every laser has IMPACT HEAT).
 - The field base's cut that never finishes (found 2026-10-24, vehicles.md,
   A mobile field base lost): after the random picks give up (ten in a row
   that take nothing, six after one that did), 0x004590b0 means to move whole

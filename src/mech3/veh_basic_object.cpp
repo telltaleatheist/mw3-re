@@ -535,14 +535,14 @@ int32_t vehicle_damage(BasicVehicle& v, Handle weapon, uint32_t unused, float am
   const uint32_t flags = weapon ? h.weapon_flags(weapon) : 0;
   if (weapon && (flags & zwep::kTargetHeat)) {
     if (flags & zwep::kFreeze) {
-      if (h.glow_hit(c.x398, weapon, amount * 0.01f) == 2) {
+      if (h.glow_hit(c.x398, c.node, weapon, amount * 0.01f) == 2) {
         c.frozen = 1;
         return 0;
       }
     } else {
       c.health = c.health - amount;
     }
-    h.glow_hit(c.x398, weapon, 1.0f - c.health / c.health_max);
+    h.glow_hit(c.x398, c.node, weapon, 1.0f - c.health / c.health_max);
   } else if (c.frozen) {
     c.health = c.health - (c.x398.x08 * c.health + amount);
   } else {
@@ -602,7 +602,7 @@ void vehicle_die(BasicVehicle& v) {
     c.beam_on = 0;
     h.beam_stop(c.first->beam);
   }
-  h.glow_end(c.x398);
+  h.glow_end(c.x398, c.node);
   vehicle_weapons_free(v);
   h.hit_killed();
 }

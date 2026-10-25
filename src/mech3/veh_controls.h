@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gamez/zgame/unported.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/collision_hit.h"
 
 namespace zrdr {
@@ -91,13 +92,8 @@ int32_t& vehicle_serial();                         // [0x0060b148], the next +0x
 // The freeze and heat glow (zWeapon's 0x00586a30 / 0x00586af0, weapons.md):
 // the hit adds to +0x0c (heat up, freeze down, -1..1) and puts a glow node
 // at +0x10; +0x08 is what the damage reads (below -0.5: frozen solid).
-struct Block398 {
-  uint32_t flags = 0;  // +0x00  bits 0, 1 cleared
-  uint32_t x04 = 0;    // +0x04  the last weapon
-  float x08 = 0;       // +0x08  (the frame's, step 2c)
-  uint32_t x0c = 0, x10 = 0, x14 = 0;
-  void clear();  // 0x005869d0
-};
+// zWeapon's glow (gamez/zweapon: 0x005869d0, 0x00586a30, 0x00586af0).
+using Block398 = zwep::Glow;
 
 // The vehicle's motion definition, the controls' +0x764 block (0x2a0 bytes,
 // to the base's end at +0xa04), read from vehicle.zrd's mode by 0x0049ef40

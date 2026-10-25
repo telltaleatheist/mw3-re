@@ -315,6 +315,25 @@ int32_t lights_free();                                                     // 0x
 Handle light_take(const Vec3f3* color);                                    // 0x00586b20
 void light_return(Handle light);                                           // 0x00586b70
 
+// The glow a FREEZE or IMPACT HEAT hit leaves on a vehicle (its controls'
+// +0x398, 0x18 bytes; the vehicle's node follows at +0x18). docs/vehicles.md,
+// The glow.
+struct Glow {
+  uint32_t flags = 0;        // +0x00  bits 0 and 1 set by a hit
+  Handle weapon = nullptr;   // +0x04  the last hit's definition
+  float x08 = 0;             // +0x08  the hit's answer reads it; only the clear writes it
+  float level = 0;           // +0x0c  the hits' shares summed, -1..1 (FREEZE takes off); read by nothing
+  Handle light = nullptr;    // +0x10  one of the pool's, on the node
+  uint32_t x14 = 0;          // +0x14
+  void clear();              // 0x005869d0 (the weapon is kept)
+};
+// A hit: the share added (FREEZE: taken), the pool's light of IMPACT HEAT's
+// colour (+0x1d4) put on `node` the first time; 2 frozen solid (+0x08 below
+// -0.5), 1 cold (at most 0), else 0.
+int32_t glow_hit(Glow& g, Handle node, WeaponDef* def, float amount);   // 0x00586a30
+// The vehicle's end: the light off `node` and back in the pool, the glow cleared.
+void glow_end(Glow& g, Handle node);                                    // 0x00586af0
+
 // The beams (zwep_beam.cpp).
 Beam* beam_make(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3f3* origin, const Vec3f3* dir,
                 int32_t segments);                                         // 0x00584a70

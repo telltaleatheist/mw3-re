@@ -1513,3 +1513,6 @@ address,name,source,notes
 0x004ac800,BasicVehicleControls::~,asm,"ported: ai::vehicle_controls_gone (owner vt+0xec, then 0x00402510)"
 0x0041ec90,Mech::Heat,asm,"vt+0x9c: the mech's heat (+0x554); program: mech_heat"
 0x0045b950,Entity::Heat,asm,"vt+0x9c of every non-mech entity class: the constant 0.0 at 0x005c23a0"
+0x00586a30,zwep::GlowHit,asm,"ported: zwep::glow_hit (a vehicle's +0x398; the pool's light, the level never read)"
+0x00586af0,zwep::GlowEnd,asm,"ported: zwep::glow_end (the light back in the pool at the vehicle's death)"
+0x005869d0,zwep::Glow::Clear,asm,"ported: zwep::Glow::clear (the vehicles' Block398)"
